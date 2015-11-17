@@ -42,6 +42,8 @@ public:
         TChunkReaderPerformanceCountersPtr performanceCounters,
         TTimestamp timestamp);
 
+    virtual TFuture<void> Open() override;
+
 protected:
     const TTimestamp Timestamp_;
 
@@ -101,6 +103,11 @@ TVersionedChunkReaderBase::TVersionedChunkReaderBase(
     }
 }
 
+TFuture<void> TVersionedChunkReaderBase::Open()
+{
+    return GetReadyEvent();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TVersionedRangeChunkReader
@@ -126,7 +133,7 @@ private:
     TReadLimit LowerLimit_;
     TReadLimit UpperLimit_;
 
-    virtual std::vector<TSequentialReader::TBlockInfo> GetBlockSequence() override;
+    std::vector<TSequentialReader::TBlockInfo> GetBlockSequence();
 
     virtual void InitFirstBlock() override;
     virtual void InitNextBlock() override;
@@ -154,7 +161,9 @@ TVersionedRangeChunkReader::TVersionedRangeChunkReader(
         timestamp)
     , LowerLimit_(std::move(lowerLimit))
     , UpperLimit_(std::move(upperLimit))
-{ }
+{
+    ReadyEvent_ = DoOpen(GetBlockSequence());
+}
 
 bool TVersionedRangeChunkReader::Read(std::vector<TVersionedRow>* rows)
 {
@@ -347,7 +356,7 @@ private:
 
     int CurrentBlockIndex_ = -1;
 
-    virtual std::vector<TSequentialReader::TBlockInfo> GetBlockSequence() override;
+    std::vector<TSequentialReader::TBlockInfo> GetBlockSequence();
 
     virtual void InitFirstBlock() override;
     virtual void InitNextBlock() override;
@@ -372,7 +381,9 @@ TVersionedLookupChunkReader::TVersionedLookupChunkReader(
         timestamp)
     , Keys_(keys)
     , KeyFilterTest_(Keys_.Size(), true)
-{ }
+{ 
+    ReadyEvent_ = DoOpen(GetBlockSequence());
+}
 
 std::vector<TSequentialReader::TBlockInfo> TVersionedLookupChunkReader::GetBlockSequence()
 {

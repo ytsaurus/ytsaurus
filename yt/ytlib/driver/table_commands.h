@@ -21,7 +21,7 @@ class TReadTableCommand
 private:
     NYPath::TRichYPath Path;
     NYTree::INodePtr TableReader;
-    NTableClient::TControlAttributesConfigPtr ControlAttributes;
+    NFormats::TControlAttributesConfigPtr ControlAttributes;
     bool Unordered;
 
     virtual void OnLoaded() override

@@ -61,7 +61,6 @@ public:
         TotalRowCount_ = GetCumulativeRowCount(chunkSpecs);
 
         NameTable_ = TNameTable::FromKeyColumns(keyColumns);
-
         auto readerFactory = parallelReader
             ? CreateSchemalessParallelMultiChunkReader
             : CreateSchemalessSequentialMultiChunkReader;
@@ -70,7 +69,7 @@ public:
             YCHECK(!Reader_);
             Reader_ = readerFactory(
                 config->JobIO->TableReader,
-                New<TMultiChunkReaderOptions>(),
+                New<NTableClient::TTableReaderOptions>(),
                 host->GetClient(),
                 host->GetBlockCache(),
                 host->GetInputNodeDirectory(),

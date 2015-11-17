@@ -38,7 +38,9 @@
 #include <ytlib/table_client/name_table.h>
 #include <ytlib/table_client/schemaless_chunk_reader.h>
 #include <ytlib/table_client/helpers.h>
+#include <ytlib/table_client/config.h>
 
+#include <ytlib/formats/config.h>
 #include <ytlib/formats/format.h>
 
 #include <ytlib/api/client.h>
@@ -63,6 +65,7 @@ using namespace NRpc;
 using namespace NChunkClient::NProto;
 using namespace NConcurrency;
 using namespace NApi;
+using namespace NFormats;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -516,9 +519,6 @@ private:
         try {
             TSessionCounterGuard sessionCounterGuard(location);
 
-            WaitFor(reader->Open())
-                .ThrowOnError();
-
             auto producer = [&] (TOutputStream* output) {
                 TSharedRef block;
                 while (reader->ReadBlock(&block)) {
@@ -559,11 +559,11 @@ private:
 
         auto reader = CreateSchemalessSequentialMultiChunkReader(
             New<TTableReaderConfig>(),
-            New<TMultiChunkReaderOptions>(),
+            New<NTableClient::TTableReaderOptions>(),
             Bootstrap_->GetMasterClient(),
             Bootstrap_->GetBlockCache(),
             nodeDirectory,
-            chunkSpecs,
+            std::move(chunkSpecs),
             nameTable);
 
         auto format = ConvertTo<NFormats::TFormat>(TYsonString(key.format()));
@@ -571,19 +571,15 @@ private:
         try {
             TSessionCounterGuard sessionCounterGuard(location);
 
-            WaitFor(reader->Open())
-                .ThrowOnError();
-
             auto producer = [&] (TOutputStream* output) {
-                auto controlAttributesConfig = New<TControlAttributesConfig>();
                 auto writer = CreateSchemalessWriterForFormat(
                     format,
                     nameTable,
                     CreateAsyncAdapter(output),
-                    false,
-                    false,
+                    false, /* enableContextSaving */
+                    New<TControlAttributesConfig>(),
                     0);
-                PipeReaderToWriter(reader, writer, controlAttributesConfig, 10000);
+                PipeReaderToWriter(reader, writer, 10000);
             };
 
             auto chunk = ProduceArtifactFile(key, location, chunkId, producer);

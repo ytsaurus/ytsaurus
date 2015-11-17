@@ -6,8 +6,7 @@
 
 #include <ytlib/api/public.h>
 
-#include <ytlib/chunk_client/chunk_reader_base.h>
-#include <ytlib/chunk_client/multi_chunk_reader.h>
+#include <ytlib/chunk_client/reader_base.h>
 #include <ytlib/chunk_client/read_limit.h>
 
 #include <ytlib/node_tracker_client/public.h>
@@ -24,12 +23,12 @@ namespace NTableClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 struct ISchemalessChunkReader
-    : public virtual NChunkClient::IChunkReaderBase
+    : public virtual NChunkClient::IReaderBase
     , public ISchemalessReader
 {
+    //! The current row index (measured from the table beginning).
+    //! Only makes sense if the read range is nonempty.
     virtual i64 GetTableRowIndex() const = 0;
-
-    virtual i32 GetRangeIndex() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ISchemalessChunkReader)
@@ -37,48 +36,22 @@ DEFINE_REFCOUNTED_TYPE(ISchemalessChunkReader)
 ////////////////////////////////////////////////////////////////////////////////
 
 ISchemalessChunkReaderPtr CreateSchemalessChunkReader(
+    const NChunkClient::NProto::TChunkSpec& chunkSpec,
     TChunkReaderConfigPtr config,
+    TChunkReaderOptionsPtr options,
     NChunkClient::IChunkReaderPtr underlyingReader,
     TNameTablePtr nameTable,
     NChunkClient::IBlockCachePtr blockCache,
     const TKeyColumns& keyColumns,
-    const NChunkClient::NProto::TChunkMeta& masterMeta,
-    const NChunkClient::TReadLimit& lowerLimit,
-    const NChunkClient::TReadLimit& upperLimit,
     const TColumnFilter& columnFilter,
-    i64 tableRowIndex = 0,
-    i32 rangeIndex = 0,
-    TNullable<int> partitionTag = Null);
-
-ISchemalessChunkReaderPtr CreateSchemalessChunkReader(
-    TChunkReaderConfigPtr config,
-    NChunkClient::IChunkReaderPtr underlyingReader,
-    TNameTablePtr nameTable,
-    NChunkClient::IBlockCachePtr blockCache,
-    const TKeyColumns& keyColumns,
-    const NChunkClient::NProto::TChunkMeta& masterMeta,
-    std::vector<NChunkClient::TReadRange> readRanges,
-    const TColumnFilter& columnFilter,
-    i64 tableRowIndex = 0,
-    i32 rangeIndex = 0,
-    TNullable<int> partitionTag = Null);
+    std::vector<NChunkClient::TReadRange> readRanges);
 
 ////////////////////////////////////////////////////////////////////////////////
 
 struct ISchemalessMultiChunkReader
-    : public virtual NChunkClient::IMultiChunkReader
-    , public ISchemalessReader
+    : public virtual NChunkClient::IReaderBase
+    , public ISchemalessChunkReader
 {
-    //! Table index of the last read row group.
-    virtual int GetTableIndex() const = 0;
-
-    //! Current range index for multi-range reads.
-    virtual i32 GetRangeIndex() const = 0;
-
-    //! The current row index (measured from the table beginning).
-    //! Only makes sense if the read range is nonempty.
-    virtual i64 GetTableRowIndex() const = 0;
-
     //! Index of the next, unread row.
     virtual i64 GetSessionRowIndex() const = 0;
 
@@ -93,7 +66,7 @@ DEFINE_REFCOUNTED_TYPE(ISchemalessMultiChunkReader)
 
 ISchemalessMultiChunkReaderPtr CreateSchemalessSequentialMultiChunkReader(
     TTableReaderConfigPtr config,
-    NChunkClient::TMultiChunkReaderOptionsPtr options,
+    TTableReaderOptionsPtr options,
     NApi::IClientPtr client,
     NChunkClient::IBlockCachePtr blockCache,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
@@ -107,7 +80,7 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessSequentialMultiChunkReader(
 
 ISchemalessMultiChunkReaderPtr CreateSchemalessParallelMultiChunkReader(
     TTableReaderConfigPtr config,
-    NChunkClient::TMultiChunkReaderOptionsPtr options,
+    TTableReaderOptionsPtr options,
     NApi::IClientPtr client,
     NChunkClient::IBlockCachePtr blockCache,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
@@ -121,7 +94,7 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessParallelMultiChunkReader(
 
 ISchemalessMultiChunkReaderPtr CreateSchemalessMergingMultiChunkReader(
     TTableReaderConfigPtr config,
-    NChunkClient::TMultiChunkReaderOptionsPtr options,
+    TTableReaderOptionsPtr options,
     NApi::IClientPtr client,
     NChunkClient::IBlockCachePtr blockCache,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,

@@ -24,6 +24,8 @@ namespace NTableClient {
 struct IVersionedReader
     : public virtual NChunkClient::IReaderBase
 {
+    virtual TFuture<void> Open() = 0;
+
     //! Tries to read more rows from the reader.
     /*!
      *  Depending on implementation, rows may come in two different flavors.

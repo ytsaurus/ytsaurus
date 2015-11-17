@@ -56,8 +56,9 @@ bool TPartitionMultiChunkReader::Read(
     TRowDescriptorInsertIterator& rowDescriptorInserter,
     i64* rowCount)
 {
-    YCHECK(ReadyEvent_.IsSet());
-    YCHECK(ReadyEvent_.Get().IsOK());
+    if (!ReadyEvent_.IsSet() || !ReadyEvent_.Get().IsOK()) {
+        return true;
+    }
 
     *rowCount = 0;
 
@@ -68,7 +69,7 @@ bool TPartitionMultiChunkReader::Read(
 
     bool readerFinished = !CurrentReader_->Read(valueInserter, rowDescriptorInserter, rowCount);
     if (*rowCount == 0) {
-        return TParallelMultiChunkReaderBase::OnEmptyRead(readerFinished);
+        return TParallelMultiReaderBase::OnEmptyRead(readerFinished);
     } else {
         return true;
     }

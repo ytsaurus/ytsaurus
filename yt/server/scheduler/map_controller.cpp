@@ -10,6 +10,8 @@
 
 #include <ytlib/chunk_client/chunk_slice.h>
 
+#include <ytlib/table_client/config.h>
+
 namespace NYT {
 namespace NScheduler {
 
@@ -23,6 +25,7 @@ using namespace NChunkClient::NProto;
 using namespace NScheduler::NProto;
 using namespace NNodeTrackerClient::NProto;
 using namespace NJobTrackerClient::NProto;
+using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////
 
@@ -148,6 +151,16 @@ protected:
         virtual bool IsIntermediateOutput() const override
         {
             return false;
+        }
+
+        virtual TTableReaderOptionsPtr GetTableReaderOptions() const override
+        {
+            // ToDo(psushin): eliminate allocations.
+            auto options = New<TTableReaderOptions>();
+            options->EnableRowIndex = Controller->Spec->JobIO->ControlAttributes->EnableRowIndex;
+            options->EnableTableIndex = Controller->Spec->JobIO->ControlAttributes->EnableTableIndex;
+            options->EnableRangeIndex = Controller->Spec->JobIO->ControlAttributes->EnableRangeIndex;
+            return options;
         }
 
         virtual EJobType GetJobType() const override

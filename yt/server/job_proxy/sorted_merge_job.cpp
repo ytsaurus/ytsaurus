@@ -53,7 +53,7 @@ public:
 
             auto reader = CreateSchemalessSequentialMultiChunkReader(
                 config->JobIO->TableReader,
-                New<TMultiChunkReaderOptions>(),
+                New<NTableClient::TTableReaderOptions>(),
                 host->GetClient(),
                 host->GetBlockCache(),
                 host->GetInputNodeDirectory(),
@@ -65,8 +65,7 @@ public:
             readers.push_back(reader);
         }
 
-        // Read without table index.
-        Reader_ = CreateSchemalessSortedMergingReader(readers, keyColumns.size(), false);
+        Reader_ = CreateSchemalessSortedMergingReader(readers, keyColumns.size());
 
 
         auto transactionId = FromProto<TTransactionId>(SchedulerJobSpecExt_.output_transaction_id());

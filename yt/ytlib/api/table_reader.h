@@ -9,7 +9,7 @@ namespace NApi {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NTableClient::ISchemalessMultiChunkReaderPtr CreateTableReader(
+TFuture<NTableClient::ISchemalessMultiChunkReaderPtr> CreateTableReader(
     IClientPtr client,
     const NYPath::TRichYPath& path,
     const TTableReaderOptions& options);

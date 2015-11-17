@@ -80,7 +80,10 @@ protected:
             return;
         }
 
-        EXPECT_EQ(0, CompareRows(expected.Begin(), expected.End(), actual.Begin(), actual.End()));
+        EXPECT_EQ(0, CompareRows(expected.Begin(), expected.End(), actual.Begin(), actual.End()))
+            << "expected: " << ToString(expected) 
+            << ", "
+            << "actual: " << ToString(actual);
     }
 
     void ExpectRowsEqual(TVersionedRow expected, TVersionedRow actual)

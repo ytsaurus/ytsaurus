@@ -138,29 +138,40 @@ TEST(TDsvWriterTest, SimpleTabular)
     auto doubleId = nameTable->RegisterName("double");
     auto fooId = nameTable->RegisterName("foo");
     auto oneId = nameTable->RegisterName("one");
+    auto tableIndexId = nameTable->RegisterName(TableIndexColumnName);
+    auto rowIndexId = nameTable->RegisterName(RowIndexColumnName);
+    auto rangeIndexId = nameTable->RegisterName(RangeIndexColumnName);
 
     TUnversionedRowBuilder row1;
     row1.AddValue(MakeUnversionedInt64Value(42, integerId));
     row1.AddValue(MakeUnversionedStringValue("some", stringId));
     row1.AddValue(MakeUnversionedDoubleValue(10., doubleId));
+    row1.AddValue(MakeUnversionedInt64Value(2, tableIndexId));
+    row1.AddValue(MakeUnversionedInt64Value(42, rowIndexId));
+    row1.AddValue(MakeUnversionedInt64Value(1, rangeIndexId));
 
     TUnversionedRowBuilder row2;
     row2.AddValue(MakeUnversionedStringValue("bar", fooId));
     row2.AddValue(MakeUnversionedSentinelValue(EValueType::Null, integerId));
     row2.AddValue(MakeUnversionedInt64Value(1, oneId));
+    row2.AddValue(MakeUnversionedInt64Value(2, tableIndexId));
+    row2.AddValue(MakeUnversionedInt64Value(43, rowIndexId));
 
     std::vector<TUnversionedRow> rows = { row1.GetRow(), row2.GetRow()};
 
     TStringStream outputStream;
     auto config = New<TDsvFormatConfig>();
     config->EnableTableIndex = true;
+
+    auto controlAttributes = New<TControlAttributesConfig>();
+    controlAttributes->EnableTableIndex = true;
     auto writer = New<TSchemalessWriterForDsv>(
         nameTable, 
-        false, 
+        false,
+        controlAttributes,
         CreateAsyncAdapter(static_cast<TOutputStream*>(&outputStream)),
         config);
 
-    writer->WriteTableIndex(2);
     EXPECT_EQ(true, writer->Write(rows));
     writer->Close()
         .Get()
@@ -186,23 +197,11 @@ TEST(TDsvWriterTest, AnyTabular)
     auto writer = New<TSchemalessWriterForDsv>(
         nameTable, 
         false, 
+        New<TControlAttributesConfig>(),
         CreateAsyncAdapter(static_cast<TOutputStream*>(&outputStream)));
 
-    EXPECT_FALSE    (writer->Write(rows));
+    EXPECT_FALSE(writer->Write(rows));
     EXPECT_ANY_THROW(writer->GetReadyEvent().Get().ThrowOnError());
-}
-
-TEST(TDsvWriterTest, RangeAndRowIndex)
-{
-    auto nameTable = New<TNameTable>();
-    TStringStream outputStream;
-    auto writer = New<TSchemalessWriterForDsv>(
-        nameTable, 
-        false, 
-        CreateAsyncAdapter(static_cast<TOutputStream*>(&outputStream)));
-
-    EXPECT_ANY_THROW(writer->WriteRangeIndex(1));
-    EXPECT_ANY_THROW(writer->WriteRowIndex(1));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -212,8 +211,15 @@ TEST(TTskvWriterTest, SimpleTabular)
     auto nameTable = New<TNameTable>();
     auto id1 = nameTable->RegisterName("id");
     auto id2 = nameTable->RegisterName("guid");
+    auto tableIndexId = nameTable->RegisterName(TableIndexColumnName);
+    auto rowIndexId = nameTable->RegisterName(RowIndexColumnName);
+    auto rangeIndexId = nameTable->RegisterName(RangeIndexColumnName);
     
     TUnversionedRowBuilder row1;
+    row1.AddValue(MakeUnversionedInt64Value(2, tableIndexId));
+    row1.AddValue(MakeUnversionedInt64Value(42, rowIndexId));
+    row1.AddValue(MakeUnversionedInt64Value(1, rangeIndexId));
+
     
     TUnversionedRowBuilder row2;
     row2.AddValue(MakeUnversionedStringValue("1", id1));
@@ -232,6 +238,7 @@ TEST(TTskvWriterTest, SimpleTabular)
     auto writer = New<TSchemalessWriterForDsv>(
         nameTable, 
         false, 
+        New<TControlAttributesConfig>(),
         CreateAsyncAdapter(static_cast<TOutputStream*>(&outputStream)),
         config);
 
@@ -269,6 +276,7 @@ TEST(TTskvWriterTest, Escaping)
     auto writer = New<TSchemalessWriterForDsv>(
         nameTable, 
         false, 
+        New<TControlAttributesConfig>(),
         CreateAsyncAdapter(static_cast<TOutputStream*>(&outputStream)),
         config);
 

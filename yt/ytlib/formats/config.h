@@ -3,11 +3,29 @@
 #include "public.h"
 
 #include <ytlib/table_client/public.h>
+#include <ytlib/table_client/config.h>
 
 #include <core/ytree/yson_serializable.h>
 
 namespace NYT {
 namespace NFormats {
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TControlAttributesConfig
+    : public NTableClient::TChunkReaderOptions
+{
+public:
+    bool EnableKeySwitch;
+
+    TControlAttributesConfig()
+    {
+        RegisterParameter("enable_key_switch", EnableKeySwitch)
+            .Default(false);
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TControlAttributesConfig);
 
 ////////////////////////////////////////////////////////////////////////////////
 

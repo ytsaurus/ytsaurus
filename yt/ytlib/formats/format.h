@@ -65,12 +65,6 @@ void Deserialize(TFormat& value, NYTree::INodePtr node);
 struct ISchemalessFormatWriter
     : public NTableClient::ISchemalessWriter
 {
-    virtual void WriteTableIndex(i32 tableIndex) = 0;
-
-    virtual void WriteRangeIndex(i32 rangeIndex) = 0;
-
-    virtual void WriteRowIndex(i64 rowIndex) = 0;
-
     virtual TBlob GetContext() const = 0;
 };
 
@@ -78,22 +72,19 @@ DEFINE_REFCOUNTED_TYPE(ISchemalessFormatWriter)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::unique_ptr<NYson::IYsonConsumer> CreateConsumerForFormat(
-    const TFormat& format,
-    EDataType dataType,
-    TOutputStream* output);
-
 NTableClient::ISchemafulWriterPtr CreateSchemafulWriterForFormat(
     const TFormat& Format,
     const NTableClient::TTableSchema& schema,
     NConcurrency::IAsyncOutputStreamPtr output);
+
+////////////////////////////////////////////////////////////////////////////////
 
 ISchemalessFormatWriterPtr CreateSchemalessWriterForDsv(
     const NYTree::IAttributeDictionary& attributes,
     NTableClient::TNameTablePtr nameTable,
     NConcurrency::IAsyncOutputStreamPtr output,
     bool enableContextSaving,
-    bool enableKeySwitch,
+    TControlAttributesConfigPtr controlAttributesConfig,
     int /* keyColumnCount */);
 
 ISchemalessFormatWriterPtr CreateSchemalessWriterForYamr(
@@ -101,7 +92,7 @@ ISchemalessFormatWriterPtr CreateSchemalessWriterForYamr(
     NTableClient::TNameTablePtr nameTable,
     NConcurrency::IAsyncOutputStreamPtr output,
     bool enableContextSaving,
-    bool enableKeySwitch,
+    TControlAttributesConfigPtr controlAttributesConfig,
     int keyColumnCount);
 
 ISchemalessFormatWriterPtr CreateSchemalessWriterForYamredDsv(
@@ -109,7 +100,7 @@ ISchemalessFormatWriterPtr CreateSchemalessWriterForYamredDsv(
     NTableClient::TNameTablePtr nameTable,
     NConcurrency::IAsyncOutputStreamPtr output,
     bool enableContextSaving,
-    bool enableKeySwitch,
+    TControlAttributesConfigPtr controlAttributesConfig,
     int keyColumnCount);
 
 ISchemalessFormatWriterPtr CreateSchemalessWriterForSchemafulDsv(
@@ -117,7 +108,7 @@ ISchemalessFormatWriterPtr CreateSchemalessWriterForSchemafulDsv(
     NTableClient::TNameTablePtr nameTable,
     NConcurrency::IAsyncOutputStreamPtr output,
     bool enableContextSaving,
-    bool enableKeySwitch,
+    TControlAttributesConfigPtr controlAttributesConfig,
     int /* keyColumnCount */);
 
 ISchemalessFormatWriterPtr CreateSchemalessWriterForFormat(
@@ -125,8 +116,15 @@ ISchemalessFormatWriterPtr CreateSchemalessWriterForFormat(
     NTableClient::TNameTablePtr nameTable,
     NConcurrency::IAsyncOutputStreamPtr output,
     bool enableContextSaving,
-    bool enableKeySwitch,
+    TControlAttributesConfigPtr controlAttributesConfig,
     int keyColumnCount);
+
+////////////////////////////////////////////////////////////////////////////////
+
+std::unique_ptr<NYson::IYsonConsumer> CreateConsumerForFormat(
+    const TFormat& format,
+    EDataType dataType,
+    TOutputStream* output);
 
 NYson::TYsonProducer CreateProducerForFormat(
     const TFormat& format,

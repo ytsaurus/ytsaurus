@@ -1,9 +1,11 @@
 #include "stdafx.h"
 
 #include "helpers.h"
+#include "chunk_meta_extensions.h"
 #include "config.h"
 #include "chunk_service_proxy.h"
 #include "private.h"
+#include "replication_reader.h"
 #include "erasure_reader.h"
 #include "replication_reader.h"
 
@@ -14,7 +16,7 @@
 #include <ytlib/object_client/helpers.h>
 
 #include <ytlib/chunk_client/chunk_ypath_proxy.h>
-#include <ytlib/chunk_client/chunk_replica.h>
+#include <ytlib/chunk_client/chunk_spec.h>
 
 #include <ytlib/node_tracker_client/node_directory.h>
 
@@ -23,6 +25,8 @@
 #include <core/erasure/codec.h>
 
 #include <core/concurrency/scheduler.h>
+#include <core/compression/codec.h>
+#include <core/erasure/codec.h>
 
 namespace NYT {
 namespace NChunkClient {
@@ -33,8 +37,8 @@ using namespace NConcurrency;
 using namespace NObjectClient;
 using namespace NErasure;
 using namespace NNodeTrackerClient;
+using namespace NProto;
 using namespace NApi;
-using namespace NChunkClient::NProto;
 
 using NYT::FromProto;
 
@@ -161,10 +165,24 @@ void ProcessFetchResponse(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+i64 GetChunkReaderMemoryEstimate(const TChunkSpec& chunkSpec, TMultiChunkReaderConfigPtr config)
+{
+    i64 currentSize;
+    GetStatistics(chunkSpec, &currentSize);
+    auto miscExt = GetProtoExtension<TMiscExt>(chunkSpec.chunk_meta().extensions());
+
+    // Block used by upper level chunk reader.
+    i64 chunkBufferSize = ChunkReaderMemorySize + miscExt.max_block_size();
+
+    if (currentSize > miscExt.max_block_size()) {
+        chunkBufferSize += config->WindowSize + config->GroupSize;
+    }
+
+    return chunkBufferSize;
+}
+
 IChunkReaderPtr CreateRemoteReader(
-    const TChunkId& chunkId,
-    const TChunkReplicaList& replicas,
-    NErasure::ECodec erasureCodecId,
+    const TChunkSpec& chunkSpec, 
     TReplicationReaderConfigPtr config,
     TRemoteReaderOptionsPtr options,
     NApi::IClientPtr client,
@@ -172,27 +190,30 @@ IChunkReaderPtr CreateRemoteReader(
     IBlockCachePtr blockCache,
     NConcurrency::IThroughputThrottlerPtr throttler)
 {
+    auto chunkId = NYT::FromProto<TChunkId>(chunkSpec.chunk_id());
+    auto replicas = NYT::FromProto<TChunkReplica, TChunkReplicaList>(chunkSpec.replicas());
+
     LOG_DEBUG("Creating remote reader (ChunkId: %v)", chunkId);
 
     if (IsErasureChunkId(chunkId)) {
-        auto sortedReplicas = replicas;
         std::sort(
-            sortedReplicas.begin(),
-            sortedReplicas.end(),
+            replicas.begin(),
+            replicas.end(),
             [] (TChunkReplica lhs, TChunkReplica rhs) {
                 return lhs.GetIndex() < rhs.GetIndex();
             });
 
+        auto erasureCodecId = ECodec(chunkSpec.erasure_codec());
         auto* erasureCodec = GetCodec(erasureCodecId);
         auto dataPartCount = erasureCodec->GetDataPartCount();
 
         std::vector<IChunkReaderPtr> readers;
         readers.reserve(dataPartCount);
 
-        auto it = sortedReplicas.begin();
-        while (it != sortedReplicas.end() && it->GetIndex() < dataPartCount) {
+        auto it = replicas.begin();
+        while (it != replicas.end() && it->GetIndex() < dataPartCount) {
             auto jt = it;
-            while (jt != sortedReplicas.end() && it->GetIndex() == jt->GetIndex()) {
+            while (jt != replicas.end() && it->GetIndex() == jt->GetIndex()) {
                 ++jt;
             }
 

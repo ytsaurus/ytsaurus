@@ -26,6 +26,7 @@ set( SRCS
   ${CMAKE_CURRENT_LIST_DIR}/private.cpp
   ${CMAKE_CURRENT_LIST_DIR}/public.cpp
   ${CMAKE_CURRENT_LIST_DIR}/read_limit.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/reader_factory.cpp
   ${CMAKE_CURRENT_LIST_DIR}/replication_reader.cpp
   ${CMAKE_CURRENT_LIST_DIR}/replication_writer.cpp
   ${CMAKE_CURRENT_LIST_DIR}/schema.cpp
@@ -39,7 +40,6 @@ set( HDRS
   ${CMAKE_CURRENT_LIST_DIR}/chunk_list_ypath_proxy.h
   ${CMAKE_CURRENT_LIST_DIR}/chunk_meta_extensions.h
   ${CMAKE_CURRENT_LIST_DIR}/chunk_owner_ypath_proxy.h
-  ${CMAKE_CURRENT_LIST_DIR}/chunk_reader_base.h
   ${CMAKE_CURRENT_LIST_DIR}/chunk_reader.h
   ${CMAKE_CURRENT_LIST_DIR}/chunk_replica.h
   ${CMAKE_CURRENT_LIST_DIR}/chunk_replica-inl.h
@@ -68,12 +68,12 @@ set( HDRS
   ${CMAKE_CURRENT_LIST_DIR}/memory_reader.h
   ${CMAKE_CURRENT_LIST_DIR}/memory_writer.h
   ${CMAKE_CURRENT_LIST_DIR}/multi_chunk_reader_base.h
-  ${CMAKE_CURRENT_LIST_DIR}/multi_chunk_reader.h
   ${CMAKE_CURRENT_LIST_DIR}/multi_chunk_writer_base.h
   ${CMAKE_CURRENT_LIST_DIR}/multi_chunk_writer.h
   ${CMAKE_CURRENT_LIST_DIR}/private.h
   ${CMAKE_CURRENT_LIST_DIR}/public.h
   ${CMAKE_CURRENT_LIST_DIR}/reader_base.h
+  ${CMAKE_CURRENT_LIST_DIR}/reader_factory.h
   ${CMAKE_CURRENT_LIST_DIR}/read_limit.h
   ${CMAKE_CURRENT_LIST_DIR}/replication_reader.h
   ${CMAKE_CURRENT_LIST_DIR}/replication_writer.h

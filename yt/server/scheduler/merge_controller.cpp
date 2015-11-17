@@ -13,6 +13,7 @@
 #include <ytlib/chunk_client/chunk_slice.h>
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
 
+#include <ytlib/table_client/config.h>
 #include <ytlib/table_client/chunk_meta_extensions.h>
 #include <ytlib/table_client/chunk_slices_fetcher.h>
 
@@ -252,6 +253,17 @@ protected:
         virtual bool HasInputLocality() const override
         {
             return false;
+        }
+
+        virtual TTableReaderOptionsPtr GetTableReaderOptions() const override
+        {
+            // ToDo(psushin): eliminate allocations.
+            auto options = New<TTableReaderOptions>();
+            options->EnableRowIndex = Controller->Spec->JobIO->ControlAttributes->EnableRowIndex;
+            options->EnableTableIndex = Controller->Spec->JobIO->ControlAttributes->EnableTableIndex;
+            options->EnableRangeIndex = Controller->Spec->JobIO->ControlAttributes->EnableRangeIndex;
+
+            return options;
         }
 
         virtual EJobType GetJobType() const override

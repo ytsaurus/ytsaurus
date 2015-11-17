@@ -11,8 +11,7 @@ const int FormatVersion = 1;
 
 class TFileChunkOutput;
 
-DECLARE_REFCOUNTED_STRUCT(IFileChunkReader)
-DECLARE_REFCOUNTED_STRUCT(IFileMultiChunkReader)
+DECLARE_REFCOUNTED_STRUCT(IFileReader)
 
 DECLARE_REFCOUNTED_STRUCT(IFileChunkWriter)
 DECLARE_REFCOUNTED_STRUCT(IFileMultiChunkWriter)

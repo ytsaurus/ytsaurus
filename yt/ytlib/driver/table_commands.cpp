@@ -16,6 +16,8 @@
 #include <ytlib/api/transaction.h>
 #include <ytlib/api/rowset.h>
 
+#include <ytlib/formats/config.h>
+
 namespace NYT {
 namespace NDriver {
 
@@ -51,12 +53,10 @@ void TReadTableCommand::Execute(ICommandContextPtr context)
 
     Options.Config = config;
 
-    auto reader = context->GetClient()->CreateTableReader(
+    auto reader = WaitFor(context->GetClient()->CreateTableReader(
         Path,
-        Options);
-
-    WaitFor(reader->Open())
-        .ThrowOnError();
+        Options))
+        .ValueOrThrow();
 
     if (reader->GetTotalRowCount() > 0) {
         BuildYsonMapFluently(context->Request().ResponseParametersConsumer)
@@ -72,13 +72,12 @@ void TReadTableCommand::Execute(ICommandContextPtr context)
         reader->GetNameTable(),
         context->Request().OutputStream,
         false,
-        false,
+        ControlAttributes,
         0);
 
     PipeReaderToWriter(
         reader,
         writer,
-        ControlAttributes,
         context->GetConfig()->ReadBufferRowCount);
 }
 

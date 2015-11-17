@@ -24,14 +24,9 @@ public:
         NTableClient::TNameTablePtr nameTable,
         NConcurrency::IAsyncOutputStreamPtr output,
         bool enableContextSaving,
-        bool enableKeySwitch,
+        TControlAttributesConfigPtr controlAttributesConfig,
         int keyColumnCount,
         TYamrFormatConfigBasePtr config);
-
-    // ISchemalessFormatWriter overrides.
-    virtual void WriteTableIndex(i32 tableIndex) override;
-    virtual void WriteRangeIndex(i32 rangeIndex) override;
-    virtual void WriteRowIndex(i64 rowIndex) override;
 
 protected:
     TYamrFormatConfigBasePtr Config_;
@@ -39,6 +34,10 @@ protected:
     void WriteInLenvalMode(const TStringBuf& value);
     
     void EscapeAndWrite(const TStringBuf& value, TLookupTable stops, TEscapeTable escapes);
+
+    virtual void WriteTableIndex(i64 tableIndex) override;
+    virtual void WriteRangeIndex(i64 rangeIndex) override;
+    virtual void WriteRowIndex(i64 rowIndex) override;
 };
 
 DEFINE_REFCOUNTED_TYPE(TSchemalessWriterForYamrBase)

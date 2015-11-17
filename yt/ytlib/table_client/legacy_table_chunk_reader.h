@@ -4,6 +4,9 @@
 #include "row_sampler.h"
 
 #include "schemaless_chunk_reader.h"
+#include "config.h"
+
+#include <ytlib/chunk_client/chunk_spec.pb.h>
 
 #include <core/logging/log.h>
 
@@ -20,18 +23,15 @@ class TLegacyTableChunkReader
 {
 public:
     TLegacyTableChunkReader(
+        const NChunkClient::NProto::TChunkSpec& chunkSpec,
         TChunkReaderConfigPtr config,
+        TChunkReaderOptionsPtr options,
         const TColumnFilter& columnFilter,
         TNameTablePtr nameTable,
         const TKeyColumns& keyColumns,
         NChunkClient::IChunkReaderPtr underlyingReader,
-        NChunkClient::IBlockCachePtr blockCache,
-        const NChunkClient::TReadLimit& lowerLimit,
-        const NChunkClient::TReadLimit& upperLimit,
-        i64 tableRowIndex,
-        i32 rangeIndex);
+        NChunkClient::IBlockCachePtr blockCache);
 
-    virtual TFuture<void> Open() override;
     virtual bool Read(std::vector<TUnversionedRow>* rows) override;
     virtual TFuture<void> GetReadyEvent() override;
 
@@ -41,10 +41,11 @@ public:
 
     virtual i64 GetTableRowIndex() const override;
 
-    virtual i32 GetRangeIndex() const override;
-
     virtual NChunkClient::NProto::TDataStatistics GetDataStatistics() const override;
-    virtual TFuture<void> GetFetchingCompletedEvent() override;
+
+    virtual bool IsFetchingCompleted() const override;
+
+    virtual std::vector<NChunkClient::TChunkId> GetFailedChunkIds() const override;
 
 private:
     struct TLegacyTableChunkReaderMemoryPoolTag {};
@@ -73,8 +74,12 @@ private:
 
     void FinishReader();
 
-    TChunkReaderConfigPtr Config_;
+    const NChunkClient::NProto::TChunkSpec ChunkSpec_;
 
+    TChunkReaderConfigPtr Config_;
+    TChunkReaderOptionsPtr Options_;
+
+    NChunkClient::IChunkReaderPtr UnderlyingReader_;
     NChunkClient::TSequentialReaderPtr SequentialReader_;
     TColumnFilter ColumnFilter_;
     TNameTablePtr NameTable_;
@@ -93,13 +98,16 @@ private:
 
     std::vector<TColumnInfo> ColumnInfo_;
 
-    const i64 TableRowIndex_;
-    const i32 RangeIndex_;
-
     i64 CurrentRowIndex_ = -1;
     i64 BeginRowIndex_ = 0;
     i64 EndRowIndex_ = 0;
     i64 RowCount_ = 0;
+
+    int RowIndexId_ = -1;
+    int RangeIndexId_ = -1;
+    int TableIndexId_ = -1;
+
+    int SystemColumnCount_;
 
     bool IsFinished_ = false;
 

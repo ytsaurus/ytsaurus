@@ -90,6 +90,9 @@ message TTableInputSpec
 {
     // Chunks comprising the input.
     repeated NYT.NChunkClient.NProto.TChunkSpec chunks = 1;
+
+    // YSON-serialized reader options.
+    required string table_reader_options = 2;
 }
 
 // Defines how to store output from a job into a table.

@@ -7,8 +7,12 @@
 #include "name_table.h"
 #include "schema.h"
 #include "private.h"
+#include "helpers.h"
 
 #include <ytlib/chunk_client/config.h>
+#include <ytlib/chunk_client/dispatcher.h>
+#include <ytlib/chunk_client/helpers.h>
+#include <ytlib/chunk_client/reader_factory.h>
 
 #include <core/concurrency/scheduler.h>
 
@@ -42,7 +46,12 @@ TPartitionChunkReader::TPartitionChunkReader(
     , KeyColumns_(keyColumns)
     , ChunkMeta_(masterMeta)
     , PartitionTag_(partitionTag)
-{ }
+{
+    ReadyEvent_ = BIND(&TPartitionChunkReader::GetBlockSequence, MakeStrong(this))
+        .AsyncVia(TDispatcher::Get()->GetReaderInvoker())
+        .Run()
+        .Apply(BIND(&TPartitionChunkReader::DoOpen, MakeStrong(this)));
+}
 
 std::vector<TSequentialReader::TBlockInfo> TPartitionChunkReader::GetBlockSequence()
 {
@@ -118,61 +127,66 @@ void TPartitionChunkReader::InitNameTable(TNameTablePtr chunkNameTable)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TPartitionMultiChunkReader::TPartitionMultiChunkReader(
+void TPartitionMultiChunkReader::OnReaderSwitched()
+{
+    CurrentReader_ = dynamic_cast<TPartitionChunkReader*>(CurrentSession_.Reader.Get());
+    YCHECK(CurrentReader_);
+}
+
+TPartitionMultiChunkReaderPtr CreatePartitionMultiChunkReader(
     TMultiChunkReaderConfigPtr config,
     TMultiChunkReaderOptionsPtr options,
     IClientPtr client,
     IBlockCachePtr blockCache,
     TNodeDirectoryPtr nodeDirectory,
-    const std::vector<TChunkSpec> &chunkSpecs,
+    const std::vector<TChunkSpec>& chunkSpecs,
     TNameTablePtr nameTable,
-    const TKeyColumns& keyColumns,
-    IThroughputThrottlerPtr throttler)
-    : TParallelMultiChunkReaderBase(
-          config,
-          options,
-          client,
-          blockCache,
-          nodeDirectory,
-          chunkSpecs,
-          throttler)
-    , NameTable_(nameTable)
-    , KeyColumns_(keyColumns)
-{ }
-
-IChunkReaderBasePtr TPartitionMultiChunkReader::CreateTemplateReader(
-    const TChunkSpec& chunkSpec,
-    IChunkReaderPtr asyncReader)
+    const TKeyColumns& keyColumns)
 {
-    YCHECK(!chunkSpec.has_channel());
-    YCHECK(!chunkSpec.has_lower_limit());
-    YCHECK(!chunkSpec.has_upper_limit());
-    YCHECK(chunkSpec.has_partition_tag());
+    std::vector<IReaderFactoryPtr> factories;
+    for (const auto& chunkSpec : chunkSpecs) {
+        auto memoryEstimate = GetChunkReaderMemoryEstimate(chunkSpec, config);
+        auto createReader = [=] () {
+            auto remoteReader = CreateRemoteReader(
+                chunkSpec,
+                config,
+                options,
+                client,
+                nodeDirectory,
+                blockCache,
+                GetUnlimitedThrottler());
 
-    TSequentialReaderConfigPtr config = Config_;
+            YCHECK(!chunkSpec.has_channel());
+            YCHECK(!chunkSpec.has_lower_limit());
+            YCHECK(!chunkSpec.has_upper_limit());
+            YCHECK(chunkSpec.has_partition_tag());
 
-    return New<TPartitionChunkReader>(
-        config,
-        asyncReader,
-        NameTable_,
-        BlockCache_,
-        KeyColumns_,
-        chunkSpec.chunk_meta(),
-        chunkSpec.partition_tag());
-}
+            TSequentialReaderConfigPtr sequentialReaderConfig = config;
 
-void TPartitionMultiChunkReader::OnReaderSwitched()
-{
-    CurrentReader_ = dynamic_cast<TPartitionChunkReader*>(CurrentSession_.ChunkReader.Get());
-    YCHECK(CurrentReader_);
-}
+            return New<TPartitionChunkReader>(
+                sequentialReaderConfig,
+                remoteReader,
+                nameTable,
+                blockCache,
+                keyColumns,
+                chunkSpec.chunk_meta(),
+                chunkSpec.partition_tag());
+        };
 
-TNameTablePtr TPartitionMultiChunkReader::GetNameTable() const
-{
-    return NameTable_;
-}
+        factories.emplace_back(CreateReaderFactory(
+            createReader, 
+            memoryEstimate));
+    }
+
+    return New<TPartitionMultiChunkReader>(
+        config, 
+        options, 
+        factories);
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
+
 } // namespace NTableClient
 } // namespace NYT
+

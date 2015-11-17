@@ -21,20 +21,22 @@ TSchemalessWriterForYamrBase::TSchemalessWriterForYamrBase(
     TNameTablePtr nameTable, 
     IAsyncOutputStreamPtr output,
     bool enableContextSaving,
-    bool enableKeySwitch,
+    TControlAttributesConfigPtr controlAttributesConfig,
     int keyColumnCount,
     TYamrFormatConfigBasePtr config)
     : TSchemalessFormatWriterBase(
         nameTable, 
         std::move(output),
         enableContextSaving, 
-        enableKeySwitch,
+        controlAttributesConfig,
         keyColumnCount)
     , Config_(config)
-{
-}
+{ }
 
-void TSchemalessWriterForYamrBase::EscapeAndWrite(const TStringBuf& value, TLookupTable stops, TEscapeTable escapes)
+void TSchemalessWriterForYamrBase::EscapeAndWrite(
+    const TStringBuf& value, 
+    TLookupTable stops, 
+    TEscapeTable escapes)
 {
     auto* stream = GetOutputStream();
     if (Config_->EnableEscaping) {
@@ -56,7 +58,7 @@ void TSchemalessWriterForYamrBase::WriteInLenvalMode(const TStringBuf& value)
     stream->Write(value);
 }
 
-void TSchemalessWriterForYamrBase::WriteTableIndex(i32 tableIndex)
+void TSchemalessWriterForYamrBase::WriteTableIndex(i64 tableIndex)
 {
     auto* stream = GetOutputStream();
     
@@ -74,24 +76,20 @@ void TSchemalessWriterForYamrBase::WriteTableIndex(i32 tableIndex)
     }
 }
 
-void TSchemalessWriterForYamrBase::WriteRangeIndex(i32 rangeIndex)
+void TSchemalessWriterForYamrBase::WriteRangeIndex(i64 rangeIndex)
 {
-    auto* stream = GetOutputStream();
+    YCHECK(Config_->Lenval);
 
-    if (!Config_->Lenval) {
-        THROW_ERROR_EXCEPTION("Range indices are not supported in text YAMR format");
-    }
+    auto* stream = GetOutputStream();
     WritePod(*stream, static_cast<ui32>(-3));
     WritePod(*stream, static_cast<ui32>(rangeIndex));
 }
 
 void TSchemalessWriterForYamrBase::WriteRowIndex(i64 rowIndex)
 {
-    auto* stream = GetOutputStream();
+    YCHECK(Config_->Lenval);
 
-    if (!Config_->Lenval) {
-         THROW_ERROR_EXCEPTION("Row indices are not supported in text YAMR format");
-    }
+    auto* stream = GetOutputStream();
     WritePod(*stream, static_cast<ui32>(-4));
     WritePod(*stream, static_cast<ui64>(rowIndex));
 }

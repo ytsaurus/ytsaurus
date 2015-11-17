@@ -351,7 +351,7 @@ void TChunkReader::OnNextBlock(const TError& error)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFuture<ISchemafulReaderPtr> CreateSchemafulChunkReader(
+ISchemafulReaderPtr CreateSchemafulChunkReader(
     TChunkReaderConfigPtr config,
     NChunkClient::IChunkReaderPtr chunkReader,
     IBlockCachePtr blockCache,
@@ -364,38 +364,29 @@ TFuture<ISchemafulReaderPtr> CreateSchemafulChunkReader(
     YCHECK(type == EChunkType::Table);
 
     auto formatVersion = ETableChunkFormat(chunkMeta.version());
+
+    TChunkSpec chunkSpec;
+    chunkSpec.mutable_chunk_meta()->MergeFrom(chunkMeta);
+    
     switch (formatVersion) {
         case ETableChunkFormat::Old:
         case ETableChunkFormat::SchemalessHorizontal: {
             auto createSchemalessReader = [=] (TNameTablePtr nameTable, TColumnFilter columnFilter) {
                 return CreateSchemalessChunkReader(
+                    chunkSpec,
                     std::move(config),
+                    New<TChunkReaderOptions>(),
                     std::move(chunkReader),
                     std::move(nameTable),
                     std::move(blockCache),
                     TKeyColumns(),
-                    chunkMeta,
-                    std::move(readRanges),
-                    columnFilter);
+                    columnFilter,
+                    std::move(readRanges));
             };
 
             return CreateSchemafulReaderAdapter(createSchemalessReader, schema);
         }
 
-        case ETableChunkFormat::Schemaful: {
-            if (readRanges.size() != 1) {
-                THROW_ERROR_EXCEPTION("Multiple read ranges are not support for format %Qv",
-                    formatVersion);
-            }
-
-            return TChunkReader::Create(std::move(config),
-                std::move(chunkReader),
-                std::move(blockCache),
-                schema,
-                readRanges[0].LowerLimit(),
-                readRanges[0].UpperLimit(),
-                timestamp);
-        }
         default:
             YUNREACHABLE();
     }

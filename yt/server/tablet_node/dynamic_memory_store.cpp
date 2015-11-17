@@ -27,6 +27,7 @@
 #include <ytlib/chunk_client/memory_reader.h>
 #include <ytlib/chunk_client/chunk_writer.h>
 #include <ytlib/chunk_client/memory_writer.h>
+#include <ytlib/chunk_client/data_statistics.h>
 
 #include <ytlib/tablet_client/config.h>
 
@@ -46,6 +47,7 @@ using namespace NConcurrency;
 
 static const int InitialEditListCapacity = 2;
 static const int EditListCapacityMultiplier = 2;
+
 static const int MaxEditListCapacity = 256;
 static const int TabletReaderPoolSize = 16 * 1024;
 static const int SnapshotRowsPerRead = 1024;
@@ -526,6 +528,21 @@ public:
         return VoidFuture;
     }
 
+    virtual TDataStatistics GetDataStatistics() const override
+    {
+        return TDataStatistics();
+    }
+
+    virtual bool IsFetchingCompleted() const override
+    {
+        return true;
+    }
+
+    virtual std::vector<TChunkId> GetFailedChunkIds() const override
+    {
+        return std::vector<TChunkId>();
+    }
+
 private:
     const TOwningKey LowerKey_;
     const TOwningKey UpperKey_;
@@ -608,6 +625,21 @@ public:
         Store_->PerformanceCounters_->DynamicMemoryRowLookupCount += rows->size();
 
         return true;
+    }
+
+    virtual TDataStatistics GetDataStatistics() const override
+    {
+        return TDataStatistics();
+    }
+
+    virtual bool IsFetchingCompleted() const override
+    {
+        return true;
+    }
+
+    virtual std::vector<TChunkId> GetFailedChunkIds() const override
+    {
+        return std::vector<TChunkId>();
     }
 
 private:

@@ -67,19 +67,16 @@ public:
         const TRichYPath& richPath,
         bool unordered);
 
-    virtual TFuture<void> Open() override;
     virtual bool Read(std::vector<TUnversionedRow>* rows) override;
     virtual TFuture<void> GetReadyEvent() override;
 
     virtual i64 GetTableRowIndex() const override;
-    virtual i32 GetRangeIndex() const override;
     virtual TNameTablePtr GetNameTable() const override;
     virtual i64 GetTotalRowCount() const override;
 
     virtual TKeyColumns GetKeyColumns() const override;
 
     // not actually used
-    virtual int GetTableIndex() const override;
     virtual i64 GetSessionRowIndex() const override;
     virtual bool IsFetchingCompleted() const override;
     virtual NChunkClient::NProto::TDataStatistics GetDataStatistics() const override;
@@ -94,6 +91,8 @@ private:
 
     const TTransactionId TransactionId_;
     const bool Unordered_;
+
+    TFuture<void> ReadyEvent_;
 
     ISchemalessMultiChunkReaderPtr UnderlyingReader_;
 
@@ -126,11 +125,8 @@ TSchemalessTableReader::TSchemalessTableReader(
     Logger.AddTag("Path: %v, TransactionId: %v",
         RichPath_.GetPath(),
         TransactionId_);
-}
 
-TFuture<void> TSchemalessTableReader::Open()
-{
-    return BIND(&TSchemalessTableReader::DoOpen, MakeStrong(this))
+    ReadyEvent_ = BIND(&TSchemalessTableReader::DoOpen, MakeStrong(this))
         .AsyncVia(TDispatcher::Get()->GetReaderInvoker())
         .Run();
 }
@@ -249,10 +245,15 @@ void TSchemalessTableReader::DoOpen()
         RemoveUnavailableChunks(&chunkSpecs);
     }
 
+    auto options = New<NTableClient::TTableReaderOptions>();
+    options->EnableTableIndex = true;
+    options->EnableRangeIndex = true;
+    options->EnableRowIndex = true;
+
     if (dynamic) {
         UnderlyingReader_ = CreateSchemalessMergingMultiChunkReader(
             Config_,
-            New<TMultiChunkReaderOptions>(),
+            options,
             Client_,
             Client_->GetConnection()->GetBlockCache(),
             nodeDirectory,
@@ -267,7 +268,7 @@ void TSchemalessTableReader::DoOpen()
             : CreateSchemalessSequentialMultiChunkReader;
         UnderlyingReader_ = factory(
             Config_,
-            New<TMultiChunkReaderOptions>(),
+            options,
             Client_,
             Client_->GetConnection()->GetBlockCache(),
             nodeDirectory,
@@ -278,7 +279,7 @@ void TSchemalessTableReader::DoOpen()
             NConcurrency::GetUnlimitedThrottler());
     }
 
-    WaitFor(UnderlyingReader_->Open())
+    WaitFor(UnderlyingReader_->GetReadyEvent())
         .ThrowOnError();
 
     if (Transaction_) {
@@ -294,12 +295,20 @@ bool TSchemalessTableReader::Read(std::vector<TUnversionedRow> *rows)
         return true;
     }
 
+    if (!ReadyEvent_.IsSet() || !ReadyEvent_.Get().IsOK()) {
+        return true;
+    }
+
     YCHECK(UnderlyingReader_);
     return UnderlyingReader_->Read(rows);
 }
 
 TFuture<void> TSchemalessTableReader::GetReadyEvent()
 {
+    if (!ReadyEvent_.IsSet()) {
+        return ReadyEvent_;
+    }
+
     if (IsAborted()) {
         return MakeFuture(TError("Transaction %v aborted",
             TransactionId_));
@@ -313,12 +322,6 @@ i64 TSchemalessTableReader::GetTableRowIndex() const
 {
     YCHECK(UnderlyingReader_);
     return UnderlyingReader_->GetTableRowIndex();
-}
-
-i32 TSchemalessTableReader::GetRangeIndex() const
-{
-    YCHECK(UnderlyingReader_);
-    return UnderlyingReader_->GetRangeIndex();
 }
 
 i64 TSchemalessTableReader::GetTotalRowCount() const
@@ -337,12 +340,6 @@ TKeyColumns TSchemalessTableReader::GetKeyColumns() const
 {
     YCHECK(UnderlyingReader_);
     return UnderlyingReader_->GetKeyColumns();
-}
-
-int TSchemalessTableReader::GetTableIndex() const
-{
-    YCHECK(UnderlyingReader_);
-    return UnderlyingReader_->GetTableIndex();
 }
 
 i64 TSchemalessTableReader::GetSessionRowIndex() const
@@ -389,7 +386,7 @@ void TSchemalessTableReader::RemoveUnavailableChunks(std::vector<TChunkSpec>* ch
 
 ////////////////////////////////////////////////////////////////////////////////
 
-ISchemalessMultiChunkReaderPtr CreateTableReader(
+TFuture<ISchemalessMultiChunkReaderPtr> CreateTableReader(
     IClientPtr client,
     const NYPath::TRichYPath& path,
     const TTableReaderOptions& options)
@@ -406,13 +403,17 @@ ISchemalessMultiChunkReaderPtr CreateTableReader(
             transactionOptions);
     }
 
-    return New<TSchemalessTableReader>(
+    ISchemalessMultiChunkReaderPtr reader = New<TSchemalessTableReader>(
         options.Config ? options.Config : New<TTableReaderConfig>(),
         New<TRemoteReaderOptions>(),
         client,
         transaction,
         path,
         options.Unordered);
+
+    return reader->GetReadyEvent().Apply(BIND([=] () {
+        return reader;
+    }));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

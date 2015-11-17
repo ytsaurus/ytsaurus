@@ -99,8 +99,7 @@ TJobResult TSimpleJobBase::Run()
             }
             auto registry = CreateJobFunctionRegistry(descriptors, SandboxDirectoryNames[ESandboxKind::Udf]);
             auto evaluator = New<TEvaluator>(New<TExecutorConfig>());
-            auto reader = WaitFor(CreateSchemafulReaderAdapter(ReaderFactory_, query->TableSchema))
-                .ValueOrThrow();
+            auto reader = CreateSchemafulReaderAdapter(ReaderFactory_, query->TableSchema);
 
             LOG_INFO("Reading, evaluating query and writing");
             {
@@ -109,8 +108,6 @@ TJobResult TSimpleJobBase::Run()
         } else {
             CreateReader();
             CreateWriter();
-            WaitFor(Reader_->Open())
-                .ThrowOnError();
             WaitFor(Writer_->Open())
                 .ThrowOnError();
 

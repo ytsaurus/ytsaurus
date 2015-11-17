@@ -20,7 +20,8 @@ public:
         const TSharedRef& block,
         const NProto::TBlockMeta& meta,
         const std::vector<int>& idMapping,
-        int keyColumnCount);
+        int keyColumnCount,
+        int extraColumnCount = 0);
 
     bool NextRow();
 
@@ -30,7 +31,7 @@ public:
     bool JumpToRowIndex(i64 rowIndex);
 
     const TOwningKey& GetKey() const;
-    TUnversionedRow GetRow(TChunkedMemoryPool* memoryPool);
+    TMutableUnversionedRow GetRow(TChunkedMemoryPool* memoryPool);
 
     i64 GetRowIndex() const;
 
@@ -40,7 +41,10 @@ private:
 
     // Maps chunk name table ids to client name table ids.
     std::vector<int> IdMapping_;
-    int KeyColumnCount_;
+    const int KeyColumnCount_;
+    // Count of extra row values, that are allocated and reserved
+    // to be filled by upper levels (e.g. table_index).
+    const int ExtraColumnCount_;
 
     TRef Data_;
     TRef Offsets_;
