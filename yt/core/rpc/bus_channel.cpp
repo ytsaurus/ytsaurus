@@ -230,22 +230,25 @@ private:
         void Terminate(const TError& error)
         {
             // Mark the channel as terminated to disallow any further usage.
-            // Swap out all active requests and mark them as failed.
-            TActiveRequestMap activeRequests;
+            std::vector<IClientResponseHandlerPtr> responseHandlers;
 
             {
                 TGuard<TSpinLock> guard(SpinLock_);
                 Terminated_ = true;
                 TerminationError_ = error;
-                activeRequests.swap(ActiveRequestMap_);
+                for (const auto& pair : ActiveRequestMap_) {
+                    const auto& requestId = pair.first;
+                    const auto& requestControl = pair.second;
+                    LOG_DEBUG(error, "Request failed due to channel termination (RequestId: %v)",
+                        requestId);
+                    responseHandlers.push_back(requestControl->GetResponseHandler());
+                    requestControl->Finalize();
+                }
+                ActiveRequestMap_.clear();
             }
 
-            for (auto& pair : activeRequests) {
-                const auto& requestId = pair.first;
-                const auto& requestControl = pair.second;
-                LOG_DEBUG(error, "Request failed due to channel termination (RequestId: %v)",
-                    requestId);
-                requestControl->Terminate(error);
+            for (const auto& responseHandler : responseHandlers) {
+                responseHandler->HandleError(error);
             }
         }
 
@@ -268,7 +271,7 @@ private:
                 responseHandler);
 
             IBusPtr bus;
-            TClientRequestControlPtr existingRequestControl;
+            IClientResponseHandlerPtr existingResponseHandler;
             {
                 TGuard<TSpinLock> guard(SpinLock_);
 
@@ -288,17 +291,21 @@ private:
                 // NB: We're OK with duplicate request ids.
                 auto pair = ActiveRequestMap_.insert(std::make_pair(requestId, requestControl));
                 if (!pair.second) {
-                    existingRequestControl = pair.first->second;
+                    const auto& existingRequestControl = pair.first->second;
+                    LOG_DEBUG("Request resent (RequestId: %v)",
+                        requestId);
+                    existingResponseHandler = existingRequestControl->GetResponseHandler();
+                    existingRequestControl->Finalize();
                     pair.first->second = requestControl;
                 }
 
                 bus = Bus_;
             }
 
-            if (existingRequestControl) {
-                LOG_DEBUG("Request resent (RequestId: %v)",
-                    requestId);
-                existingRequestControl->Terminate(TError("Request resent"));
+            if (existingResponseHandler) {
+                existingResponseHandler->HandleError(TError(
+                    NRpc::EErrorCode::TransportError,
+                    "Request resent"));
             }
 
             if (request->IsRequestHeavy()) {
@@ -730,12 +737,6 @@ private:
             Profiler.TimingStop(Timer_, STRINGBUF("total"));
             Request_.Reset();
             ResponseHandler_.Reset();
-        }
-
-        void Terminate(const TError& error)
-        {
-            ResponseHandler_->HandleError(error);
-            Finalize();
         }
 
         virtual void Cancel() override
