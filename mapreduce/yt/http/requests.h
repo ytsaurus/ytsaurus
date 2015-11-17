@@ -69,7 +69,7 @@ void RetryHeavyWriteRequest(
     const TAuth& auth,
     const TTransactionId& parentId,
     THttpHeader& header,
-    TInputStream& data);
+    std::function<THolder<TInputStream>()> streamMaker);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -219,7 +219,7 @@ void RetryHeavyWriteRequest(
     const TAuth& auth,
     const TTransactionId& parentId,
     THttpHeader& header,
-    TInputStream& data)
+    std::function<THolder<TInputStream>()> streamMaker)
 {
     int retryCount = TConfig::Get()->RetryCount;
     header.SetToken(auth.Token);
@@ -237,8 +237,9 @@ void RetryHeavyWriteRequest(
 
             request.Connect();
             try {
+                auto input = streamMaker();
                 TOutputStream* output = request.StartRequest(header);
-                TransferData(&data, output);
+                TransferData(input.Get(), output);
                 request.FinishRequest();
             } catch (yexception&) {
                 // try to read error in response
