@@ -259,7 +259,7 @@ bool TVersionedRangeChunkReader::Read(std::vector<TVersionedRow>* rows)
 std::vector<TSequentialReader::TBlockInfo> TVersionedRangeChunkReader::GetBlockSequence()
 {
     const auto& blockMetaExt = ChunkMeta_->BlockMeta();
-    const auto& blockIndexKeys = ChunkMeta_->BlockIndexKeys();
+    const auto& blockIndexKeys = ChunkMeta_->BlockLastKeys();
 
     CurrentBlockIndex_ = std::max(
         ApplyLowerRowLimit(blockMetaExt, LowerLimit_),
@@ -425,7 +425,7 @@ TVersionedLookupChunkReader::TVersionedLookupChunkReader(
 std::vector<TSequentialReader::TBlockInfo> TVersionedLookupChunkReader::GetBlockSequence()
 {
     const auto& blockMetaExt = ChunkMeta_->BlockMeta();
-    const auto& blockIndexKeys = ChunkMeta_->BlockIndexKeys();
+    const auto& blockIndexKeys = ChunkMeta_->BlockLastKeys();
 
     std::vector<TSequentialReader::TBlockInfo> blocks;
     if (Keys_.Empty()) {
@@ -642,7 +642,7 @@ protected:
 
     int GetBlockIndex(TKey key)
     {
-        const auto& blockIndexKeys = ChunkMeta_->BlockIndexKeys();
+        const auto& blockIndexKeys = ChunkMeta_->BlockLastKeys();
 
         typedef decltype(blockIndexKeys.end()) TIter;
         auto rbegin = std::reverse_iterator<TIter>(blockIndexKeys.end());
@@ -883,7 +883,7 @@ private:
             SchemaIdMapping_,
             KeyComparer_,
             Timestamp_);
-        UpperBoundCheckNeeded_ = (UpperBound_.Get() <= ChunkMeta_->BlockIndexKeys()[BlockIndex_]);
+        UpperBoundCheckNeeded_ = (UpperBound_.Get() <= ChunkMeta_->BlockLastKeys()[BlockIndex_]);
     }
 };
 

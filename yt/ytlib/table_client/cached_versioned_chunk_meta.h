@@ -25,7 +25,7 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(NChunkClient::TChunkId, ChunkId);
     DEFINE_BYREF_RO_PROPERTY(TOwningKey, MinKey);
     DEFINE_BYREF_RO_PROPERTY(TOwningKey, MaxKey);
-    DEFINE_BYREF_RO_PROPERTY(std::vector<TOwningKey>, BlockIndexKeys);
+    DEFINE_BYREF_RO_PROPERTY(std::vector<TOwningKey>, BlockLastKeys);
     DEFINE_BYREF_RO_PROPERTY(NProto::TBlockMetaExt, BlockMeta);
     DEFINE_BYREF_RO_PROPERTY(NChunkClient::NProto::TChunkMeta, ChunkMeta);
     DEFINE_BYREF_RO_PROPERTY(TTableSchema, ChunkSchema);
