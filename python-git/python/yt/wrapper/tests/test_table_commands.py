@@ -174,8 +174,9 @@ class TestTableCommands(object):
         table = TEST_DIR + "/table"
 
         def select():
+            schema = '<schema=[{"name"="x";"type"="int64"}; {"name"="y";"type"="int64"}; {"name"="z";"type"="int64"}]>'
             return list(yt.select_rows(
-                '* from [<schema=[{"name"="x";"type"="int64"}; {"name"="y";"type"="int64"}; {"name"="z";"type"="int64"}]>{0}]'.format(table),
+                '* from [{0}{1}]'.format(schema, table),
                 format=yt.YsonFormat(format="text", process_table_index=False), 
                 raw=False))
 
