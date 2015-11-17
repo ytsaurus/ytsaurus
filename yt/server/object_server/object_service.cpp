@@ -167,7 +167,7 @@ private:
             auto* user = GetAuthenticatedUser();
 
             if (CurrentRequestIndex == 0) {
-                securityManager->ValidateUserAccess(user, RequestCount);
+                securityManager->ValidateUserAccess(user);
             }
 
             TAuthenticatedUserGuard userGuard(securityManager, user);
