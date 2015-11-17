@@ -21,7 +21,7 @@ set( SRCS
   ${CMAKE_CURRENT_LIST_DIR}/helpers.cpp
   ${CMAKE_CURRENT_LIST_DIR}/memory_reader.cpp
   ${CMAKE_CURRENT_LIST_DIR}/memory_writer.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/multi_chunk_reader_base.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/multi_reader_base.cpp
   ${CMAKE_CURRENT_LIST_DIR}/multi_chunk_writer_base.cpp
   ${CMAKE_CURRENT_LIST_DIR}/private.cpp
   ${CMAKE_CURRENT_LIST_DIR}/public.cpp
@@ -67,7 +67,7 @@ set( HDRS
   ${CMAKE_CURRENT_LIST_DIR}/helpers.h
   ${CMAKE_CURRENT_LIST_DIR}/memory_reader.h
   ${CMAKE_CURRENT_LIST_DIR}/memory_writer.h
-  ${CMAKE_CURRENT_LIST_DIR}/multi_chunk_reader_base.h
+  ${CMAKE_CURRENT_LIST_DIR}/multi_reader_base.h
   ${CMAKE_CURRENT_LIST_DIR}/multi_chunk_writer_base.h
   ${CMAKE_CURRENT_LIST_DIR}/multi_chunk_writer.h
   ${CMAKE_CURRENT_LIST_DIR}/private.h
