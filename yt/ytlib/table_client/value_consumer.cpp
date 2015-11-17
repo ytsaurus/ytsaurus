@@ -80,6 +80,9 @@ TUnversionedValue TBuildingValueConsumer::MakeAnyFromScalar(const TUnversionedVa
         case EValueType::String:
             ValueWriter_.OnStringScalar(TStringBuf(value.Data.String, value.Length));
             break;
+        case EValueType::Null:
+            ValueWriter_.OnEntity();
+            break;
         default:
             YUNREACHABLE();
     }
