@@ -246,18 +246,13 @@ private:
             SelfCellId_);
 
         auto* mailbox = FindMailbox(srcCellId);
-        int lastIncomingMessageId = mailbox
-            ? mailbox->GetLastIncomingMessageId()
-            : -1;
         int lastOutcomingMessageId = mailbox
             ? mailbox->GetFirstOutcomingMessageId() + mailbox->OutcomingMessages().size() - 1
             : -1;
 
-        response->set_last_incoming_message_id(lastIncomingMessageId);
         response->set_last_outcoming_message_id(lastOutcomingMessageId);
 
-        context->SetResponseInfo("LastIncomingMessageId: %v, LastOutcomingMessageId: %v",
-            lastIncomingMessageId,
+        context->SetResponseInfo("LastOutcomingMessageId: %v",
             lastOutcomingMessageId);
 
         context->Reply();
@@ -553,6 +548,10 @@ private:
         LOG_INFO("Mailbox connected (SrcCellId: %v, DstCellId: %v)",
             SelfCellId_,
             mailbox->GetCellId());
+
+        if (IsLeader()) {
+            MaybePostOutcomingMessages(mailbox);
+        }
     }
 
     void SetMailboxDisconnected(TMailbox* mailbox)
@@ -659,21 +658,14 @@ private:
         }
 
         const auto& rsp = rspOrError.Value();
-        int lastIncomingMessageId = rsp->last_incoming_message_id();
         int lastOutcomingMessageId = rsp->last_outcoming_message_id();
 
-        LOG_DEBUG("Periodic ping succeeded (SrcCellId: %v, DstCellId: %v, LastIncomingMessageId: %v, LastOutcomingMessageId: %v)",
+        LOG_DEBUG("Periodic ping succeeded (SrcCellId: %v, DstCellId: %v, LastOutcomingMessageId: %v)",
             SelfCellId_,
             mailbox->GetCellId(),
-            lastIncomingMessageId,
             lastOutcomingMessageId);
 
         SetMailboxConnected(mailbox);
-
-        if (IsLeader()) {
-            HandleAcknowledgedMessages(mailbox, lastIncomingMessageId);
-            MaybePostOutcomingMessages(mailbox);
-        }
     }
 
 
