@@ -18,8 +18,7 @@ class TestTablets(YTEnvSetup):
     def _create_table(self, path, atomicity="full"):
         create("table", path,
             attributes = {
-                "schema": [{"name": "key", "type": "int64"}, {"name": "value", "type": "string"}],
-                "key_columns": ["key"],
+                "schema": [{"name": "key", "type": "int64", "sort_order": "ascending"}, {"name": "value", "type": "string"}],
                 "atomicity": atomicity
             })
 
@@ -27,30 +26,27 @@ class TestTablets(YTEnvSetup):
         create("table", path,
             attributes = {
                 "schema": [
-                    {"name": "key1", "type": "int64"},
-                    {"name": "key2", "type": "int64", "expression": "key1 * 100 + 3"},
-                    {"name": "value", "type": "string"}],
-                "key_columns": ["key1", "key2"]
+                    {"name": "key1", "type": "int64", "sort_order": "ascending"},
+                    {"name": "key2", "type": "int64", "sort_order": "ascending", "expression": "key1 * 100 + 3"},
+                    {"name": "value", "type": "string"}]
             })
 
     def _create_table_with_hash(self, path):
         create("table", path,
             attributes = {
                 "schema": [
-                    {"name": "hash", "type": "uint64", "expression": "farm_hash(key)"},
-                    {"name": "key", "type": "int64"},
-                    {"name": "value", "type": "string"}],
-                "key_columns": ["hash", "key"]
+                    {"name": "hash", "type": "uint64", "expression": "farm_hash(key)", "sort_order": "ascending"},
+                    {"name": "key", "type": "int64", "sort_order": "ascending"},
+                    {"name": "value", "type": "string"}]
             })
 
     def _create_table_with_aggregate_column(self, path, aggregate = "sum"):
         create("table", path,
             attributes = {
                 "schema": [
-                    {"name": "key", "type": "int64"},
+                    {"name": "key", "type": "int64", "sort_order": "ascending"},
                     {"name": "time", "type": "int64"},
-                    {"name": "value", "type": "int64", "aggregate": aggregate}],
-                "key_columns": ["key"]
+                    {"name": "value", "type": "int64", "aggregate": aggregate}]
             })
 
     def _get_tablet_leader_address(self, tablet_id):
@@ -133,10 +129,9 @@ class TestTablets(YTEnvSetup):
         create("table", "//tmp/t",
             attributes = {
                 "schema": [
-                    {"name": "k", "type": "int64"},
-                    {"name": "l", "type": "uint64"},
-                    {"name": "value", "type": "int64"}],
-                "key_columns": ["k", "l"]
+                    {"name": "k", "type": "int64", "sort_order": "ascending"},
+                    {"name": "l", "type": "uint64", "sort_order": "ascending"},
+                    {"name": "value", "type": "int64"}]
             })
 
         reshard_table("//tmp/t", [[]])
@@ -277,10 +272,9 @@ class TestTablets(YTEnvSetup):
         create("table", "//tmp/t1",
             attributes = {
                 "schema": [
-                    {"name": "key1", "type": "int64", "expression": "key2"},
-                    {"name": "key2", "type": "uint64"},
-                    {"name": "value", "type": "string"}],
-                "key_columns": ["key1", "key2"]
+                    {"name": "key1", "type": "int64", "expression": "key2", "sort_order": "ascending"},
+                    {"name": "key2", "type": "uint64", "sort_order": "ascending"},
+                    {"name": "value", "type": "string"}]
             })
         with pytest.raises(YtError): self.sync_mount_table("//tmp/t1")
 
@@ -347,11 +341,10 @@ class TestTablets(YTEnvSetup):
         create("table", "//tmp/t",
             attributes = {
                 "schema": [
-                    {"name": "key1", "type": "int64", "expression": "key2"},
-                    {"name": "key2", "type": "int64"},
+                    {"name": "key1", "type": "int64", "expression": "key2", "sort_order": "ascending"},
+                    {"name": "key2", "type": "int64", "sort_order": "ascending"},
                     {"name": "value1", "type": "string"},
-                    {"name": "value2", "type": "string"}],
-                "key_columns": ["key1", "key2"]
+                    {"name": "value2", "type": "string"}]
             })
         self.sync_mount_table("//tmp/t")
 
@@ -467,10 +460,9 @@ class TestTablets(YTEnvSetup):
         create("table", "//tmp/t",
             attributes = {
                 "schema": [
-                    {"name": "key", "type": "int64"},
+                    {"name": "key", "type": "int64", "sort_order": "ascending"},
                     {"name": "time", "type": "int64"},
-                    {"name": "value", "type": "int64"}],
-                "key_columns": ["key"]
+                    {"name": "value", "type": "int64"}]
             })
         self.sync_mount_table("//tmp/t")
 
@@ -552,8 +544,7 @@ class TestTablets(YTEnvSetup):
         self.sync_create_cells(1, 1)
         create("table", "//tmp/t1",
             attributes = {
-                "schema": [{"name": "key", "type": "int64"}, {"name": "value", "type": "any"}],
-                "key_columns": ["key"]
+                "schema": [{"name": "key", "type": "int64", "sort_order": "ascending"}, {"name": "value", "type": "any"}]
             })
         self.sync_mount_table("//tmp/t1")
 
@@ -756,22 +747,6 @@ class TestTablets(YTEnvSetup):
     def test_in_memory_uncompressed(self):
         self._test_in_memory("uncompressed")
 
-    def test_update_key_columns_fail1(self):
-        self.sync_create_cells(1, 1)
-        self._create_table("//tmp/t")
-        self.sync_mount_table("//tmp/t")
-        with pytest.raises(YtError): set("//tmp/t/@key_columns", ["key", "key2"])
-
-    def test_update_key_columns_fail2(self):
-        self.sync_create_cells(1, 1)
-        self._create_table("//tmp/t")
-        with pytest.raises(YtError): set("//tmp/t/@key_columns", ["key2", "key3"])
-
-    def test_update_key_columns_fail3(self):
-        self.sync_create_cells(1, 1)
-        self._create_table("//tmp/t")
-        with pytest.raises(YtError): set("//tmp/t/@key_columns", [])
-
     def test_update_schema_fails(self):
         self.sync_create_cells(1, 1)
         self._create_table("//tmp/t")
@@ -816,9 +791,11 @@ class TestTablets(YTEnvSetup):
         rows1 = [{"key": i, "value": str(i)} for i in xrange(100)]
         insert_rows("//tmp/t", rows1)
         self.sync_unmount_table("//tmp/t")
-
-        set("//tmp/t/@key_columns", ["key", "key2"])
-        set("//tmp/t/@schema/after:0", {"name": "key2", "type": "int64"})
+        
+        set("//tmp/t/@schema", [
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "key2", "type": "int64", "sort_order": "ascending"},
+            {"name": "value", "type": "string"}])
         self.sync_mount_table("//tmp/t")
 
         rows2 = [{"key": i, "key2": 0, "value": str(i)} for i in xrange(100)]
