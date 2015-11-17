@@ -4,7 +4,7 @@ from yamr_import import Importer
 
 def main():
     importer = Importer("plato")
-    importer.process_log("day", "user_sessions/{}", None, period=300, ydf_attribute="UserSessions.ReadRecord")
+    importer.process_log("day", "user_sessions/{}", None, period=270, ydf_attribute="UserSessions.ReadRecord")
     importer.process_log("day", "user_sessions/{}/frauds", "user_sessions_frauds/{}", period=270, ydf_attribute="UserSessions.ReadRecord")
     importer.process_log("day", "user_sessions/{}/spy_log", "user_sessions_spy_log/{}", period=180, ydf_attribute="UserSessions.ReadRecord")
     importer.process_log("day", "user_intents/{}", None, period=None)
