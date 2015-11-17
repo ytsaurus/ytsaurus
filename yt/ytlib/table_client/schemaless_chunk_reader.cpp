@@ -27,7 +27,7 @@
 #include <ytlib/chunk_client/chunk_spec.h>
 #include <ytlib/chunk_client/dispatcher.h>
 #include <ytlib/chunk_client/helpers.h>
-#include <ytlib/chunk_client/multi_chunk_reader_base.h>
+#include <ytlib/chunk_client/multi_reader_base.h>
 #include <ytlib/chunk_client/reader_factory.h>
 #include <ytlib/chunk_client/replication_reader.h>
 #include <ytlib/chunk_client/schema.h>

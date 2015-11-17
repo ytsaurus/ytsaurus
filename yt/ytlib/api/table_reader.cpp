@@ -5,7 +5,7 @@
 #include <ytlib/chunk_client/chunk_spec.h>
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
 #include <ytlib/chunk_client/dispatcher.h>
-#include <ytlib/chunk_client/multi_chunk_reader_base.h>
+#include <ytlib/chunk_client/multi_reader_base.h>
 #include <ytlib/chunk_client/helpers.h>
 
 #include <ytlib/cypress_client/rpc_helpers.h>

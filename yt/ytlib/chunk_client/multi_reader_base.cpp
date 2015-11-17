@@ -1,6 +1,6 @@
 #include "stdafx.h"
 
-#include "multi_chunk_reader_base.h"
+#include "multi_reader_base.h"
 
 #include "config.h"
 #include "dispatcher.h"
