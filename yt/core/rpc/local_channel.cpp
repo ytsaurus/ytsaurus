@@ -70,6 +70,14 @@ public:
             return nullptr;
         }
 
+        auto& header = request->Header();
+        header.set_start_time(TInstant::Now().MicroSeconds());
+        if (timeout) {
+            header.set_timeout(timeout->MicroSeconds());
+        } else {
+            header.clear_timeout();
+        }
+
         auto serializedRequest = request->Serialize();
 
         auto session = New<TSession>(std::move(responseHandler), timeout);
