@@ -62,11 +62,11 @@ TCachedVersionedChunkMetaPtr TCachedVersionedChunkMeta::DoLoad(
         Misc_ = GetProtoExtension<TMiscExt>(ChunkMeta_.extensions());
         BlockMeta_ = GetProtoExtension<TBlockMetaExt>(ChunkMeta_.extensions());
 
-        BlockIndexKeys_.reserve(BlockMeta_.blocks_size());
+        BlockLastKeys_.reserve(BlockMeta_.blocks_size());
         for (const auto& block : BlockMeta_.blocks()) {
             YCHECK(block.has_last_key());
             auto key = FromProto<TOwningKey>(block.last_key());
-            BlockIndexKeys_.push_back(WidenKey(key, GetKeyColumnCount()));
+            BlockLastKeys_.push_back(WidenKey(key, GetKeyColumnCount()));
         }
 
         return this;
