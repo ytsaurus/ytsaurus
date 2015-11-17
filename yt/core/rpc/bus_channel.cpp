@@ -286,6 +286,14 @@ private:
                 existingRequestControl->Terminate(TError("Request resent"));
             }
 
+            auto& header = request->Header();
+            header.set_start_time(TInstant::Now().MicroSeconds());
+            if (timeout) {
+                header.set_timeout(timeout->MicroSeconds());
+            } else {
+                header.clear_timeout();
+            }
+
             if (request->IsRequestHeavy()) {
                 BIND(&IClientRequest::Serialize, request)
                     .AsyncVia(TDispatcher::Get()->GetInvoker())

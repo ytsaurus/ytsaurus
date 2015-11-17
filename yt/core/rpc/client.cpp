@@ -48,12 +48,6 @@ TSharedRefArray TClientRequest::Serialize()
     }
     FirstTimeSerialization_ = false;
 
-    Header_.set_start_time(TInstant::Now().MicroSeconds());
-
-    if (Timeout_) {
-        Header_.set_timeout(Timeout_->MicroSeconds());
-    }
-
     if (!SerializedBody_) {
         SerializedBody_ = SerializeBody();
     }
@@ -71,6 +65,16 @@ IClientRequestControlPtr TClientRequest::Send(IClientResponseHandlerPtr response
         std::move(responseHandler),
         Timeout_,
         RequestAck_);
+}
+
+NProto::TRequestHeader& TClientRequest::Header()
+{
+    return Header_;
+}
+
+const NProto::TRequestHeader& TClientRequest::Header() const
+{
+    return Header_;
 }
 
 bool TClientRequest::IsOneWay() const

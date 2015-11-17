@@ -80,20 +80,7 @@ DEFINE_REFCOUNTED_TYPE(TClientContext)
 class TClientRequest
     : public IClientRequest
 {
-protected:
-    NProto::TRequestHeader Header_;
-
 public:
-    virtual NProto::TRequestHeader& Header() override
-    {
-        return Header_;
-    }
-
-    virtual const NProto::TRequestHeader& Header() const override
-    {
-        return Header_;
-    }
-
     DEFINE_BYREF_RW_PROPERTY(std::vector<TSharedRef>, Attachments);
     DEFINE_BYVAL_RW_PROPERTY(TNullable<TDuration>, Timeout);
     DEFINE_BYVAL_RW_PROPERTY(bool, RequestAck);
@@ -103,8 +90,11 @@ public:
 public:
     virtual TSharedRefArray Serialize() override;
 
+    virtual NProto::TRequestHeader& Header() override;
+    virtual const NProto::TRequestHeader& Header() const override;
+
     virtual bool IsOneWay() const override;
-    
+
     virtual TRequestId GetRequestId() const override;
     virtual TRealmId GetRealmId() const override;
     virtual const Stroka& GetService() const override;
@@ -119,6 +109,7 @@ public:
 protected:
     const IChannelPtr Channel_;
 
+    NProto::TRequestHeader Header_;
     TSharedRef SerializedBody_;
     bool FirstTimeSerialization_ = true;
 
