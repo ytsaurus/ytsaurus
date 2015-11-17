@@ -10,6 +10,7 @@
 #include <ytlib/table_client/helpers.h>
 
 #include <ytlib/formats/format.h>
+#include <ytlib/formats/config.h>
 
 #include <ytlib/node_tracker_client/public.h>
 #include <ytlib/node_tracker_client/helpers.h>
@@ -41,7 +42,7 @@ public:
     NTableClient::TTableReaderConfigPtr TableReader;
     NTableClient::TTableWriterConfigPtr TableWriter;
 
-    NTableClient::TControlAttributesConfigPtr ControlAttributes;
+    NFormats::TControlAttributesConfigPtr ControlAttributes;
 
     NApi::TFileWriterConfigPtr ErrorFileWriter;
 
@@ -810,7 +811,7 @@ public:
                     attribute,
                     jobType);
             };
-            auto validateControlAttributes = [&] (const NTableClient::TControlAttributesConfigPtr& attributes, const Stroka& jobType) {
+            auto validateControlAttributes = [&] (const NFormats::TControlAttributesConfigPtr& attributes, const Stroka& jobType) {
                 if (attributes->EnableTableIndex) {
                     throwError(NTableClient::EControlAttribute::TableIndex, jobType);
                 }

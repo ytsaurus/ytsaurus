@@ -9,6 +9,7 @@
 
 #include <ytlib/chunk_client/chunk_scraper.h>
 
+#include <ytlib/table_client/config.h>
 #include <ytlib/table_client/samples_fetcher.h>
 #include <ytlib/table_client/unversioned_row.h>
 #include <ytlib/table_client/schemaless_block_writer.h>
@@ -349,6 +350,17 @@ protected:
             return Controller->IsMemoryReserveEnabled(Controller->PartitionJobCounter);
         }
 
+        virtual TTableReaderOptionsPtr GetTableReaderOptions() const override
+        {
+            // ToDo(psushin): eliminate allocations.
+            // Distinguish between map and partition.
+            auto options = New<TTableReaderOptions>();
+            options->EnableRowIndex = Controller->PartitionJobIOConfig->ControlAttributes->EnableRowIndex;
+            options->EnableTableIndex = Controller->PartitionJobIOConfig->ControlAttributes->EnableTableIndex;
+            options->EnableRangeIndex = Controller->PartitionJobIOConfig->ControlAttributes->EnableRangeIndex;
+            return options;
+        }
+
         virtual TNodeResources GetMinNeededResourcesHeavy() const override
         {
             auto statistics = ChunkPool->GetApproximateStripeStatistics();
@@ -520,6 +532,11 @@ protected:
     protected:
         TSortControllerBase* Controller;
         TPartition* Partition;
+
+        virtual TTableReaderOptionsPtr GetTableReaderOptions() const override
+        {
+            return New<TTableReaderOptions>();
+        }
 
     };
 

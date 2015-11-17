@@ -172,21 +172,17 @@ DEFINE_REFCOUNTED_TYPE(TTableReaderConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TControlAttributesConfig
-    : public NYTree::TYsonSerializable
+class TChunkReaderOptions
+    : public virtual NYTree::TYsonSerializable
 {
 public:
     bool EnableTableIndex;
-    bool EnableKeySwitch;
     bool EnableRangeIndex;
     bool EnableRowIndex;
 
-    TControlAttributesConfig()
+    TChunkReaderOptions()
     {
         RegisterParameter("enable_table_index", EnableTableIndex)
-            .Default(false);
-
-        RegisterParameter("enable_key_switch", EnableKeySwitch)
             .Default(false);
 
         RegisterParameter("enable_range_index", EnableRangeIndex)
@@ -203,9 +199,18 @@ public:
     }
 };
 
-DEFINE_REFCOUNTED_TYPE(TControlAttributesConfig);
+DEFINE_REFCOUNTED_TYPE(TChunkReaderOptions);
 
-//////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+
+class TTableReaderOptions
+    : public TChunkReaderOptions
+    , public NChunkClient::TMultiChunkReaderOptions
+{ };
+
+DEFINE_REFCOUNTED_TYPE(TTableReaderOptions);
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TRetentionConfig
     : public NYTree::TYsonSerializable

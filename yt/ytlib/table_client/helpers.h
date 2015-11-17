@@ -23,11 +23,9 @@ private:
     void DoWrite(const void* buf, size_t len);
     void DoFinish();
 
-
     const std::unique_ptr<NFormats::IParser> Parser_;
 
     bool IsParserValid_ = true;
-
 };
 
 //////////////////////////////////////////////////////////////////////////////////
@@ -35,13 +33,6 @@ private:
 void PipeReaderToWriter(
     ISchemalessReaderPtr reader,
     ISchemalessWriterPtr writer,
-    int bufferRowCount,
-    bool validateValues = false);
-
-void PipeReaderToWriter(
-    ISchemalessMultiChunkReaderPtr reader,
-    NFormats::ISchemalessFormatWriterPtr writer,
-    TControlAttributesConfigPtr config,
     int bufferRowCount,
     bool validateValues = false);
 
@@ -53,7 +44,13 @@ void PipeInputToOutput(
 //////////////////////////////////////////////////////////////////////////////////
 
 // NB: not using TYsonString here to avoid copying.
-TUnversionedValue MakeUnversionedValue(const TStringBuf& ysonString, int id, NYson::TStatelessLexer& lexer);
+TUnversionedValue MakeUnversionedValue(
+    const TStringBuf& ysonString, int id, 
+    NYson::TStatelessLexer& lexer);
+
+//////////////////////////////////////////////////////////////////////////////////
+
+int GetSystemColumnCount(TChunkReaderOptionsPtr options);
 
 //////////////////////////////////////////////////////////////////////////////////
 

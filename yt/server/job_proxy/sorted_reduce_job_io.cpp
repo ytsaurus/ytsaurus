@@ -18,6 +18,8 @@ using namespace NChunkClient;
 using namespace NTransactionClient;
 using namespace NChunkClient::NProto;
 using namespace NJobTrackerClient::NProto;
+using namespace NYTree;
+using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////
 
@@ -49,7 +51,8 @@ public:
 
         std::vector<ISchemalessMultiChunkReaderPtr> readers;
         nameTable = TNameTable::FromKeyColumns(keyColumns);
-        auto options = New<TMultiChunkReaderOptions>();
+        auto options = ConvertTo<TTableReaderOptionsPtr>(TYsonString(
+            SchedulerJobSpec_.input_specs(0).table_reader_options()));
 
         for (const auto& inputSpec : SchedulerJobSpec_.input_specs()) {
             // ToDo(psushin): validate that input chunks are sorted.

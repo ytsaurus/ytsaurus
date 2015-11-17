@@ -13,11 +13,13 @@ THorizontalSchemalessBlockReader::THorizontalSchemalessBlockReader(
     const TSharedRef& block,
     const NProto::TBlockMeta& meta,
     const std::vector<int>& idMapping,
-    int keyColumnCount)
+    int keyColumnCount,
+    int extraColumnCount)
     : Block_(block)
     , Meta_(meta)
     , IdMapping_(idMapping)
     , KeyColumnCount_(keyColumnCount)
+    , ExtraColumnCount_(extraColumnCount)
 {
     YCHECK(Meta_.row_count() > 0);
 
@@ -69,9 +71,9 @@ const TOwningKey& THorizontalSchemalessBlockReader::GetKey() const
     return Key_;
 }
 
-TUnversionedRow THorizontalSchemalessBlockReader::GetRow(TChunkedMemoryPool* memoryPool)
+TMutableUnversionedRow THorizontalSchemalessBlockReader::GetRow(TChunkedMemoryPool* memoryPool)
 {
-    auto row = TMutableUnversionedRow::Allocate(memoryPool, ValueCount_);
+    auto row = TMutableUnversionedRow::Allocate(memoryPool, ValueCount_ + ExtraColumnCount_);
     int valueCount = 0;
     for (int i = 0; i < ValueCount_; ++i) {
         TUnversionedValue value;

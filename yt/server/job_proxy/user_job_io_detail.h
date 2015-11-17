@@ -63,7 +63,7 @@ protected:
         const NTableClient::TColumnFilter& columnFilter);
 
     NTableClient::ISchemalessMultiChunkReaderPtr CreateTableReader(
-        NChunkClient::TMultiChunkReaderOptionsPtr options,
+        NTableClient::TTableReaderOptionsPtr options,
         const std::vector<NChunkClient::NProto::TChunkSpec>& chunkSpecs,
         NTableClient::TNameTablePtr nameTable,
         const NTableClient::TColumnFilter& columnFilter,

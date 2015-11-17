@@ -482,6 +482,7 @@ protected:
         virtual void OnJobStarted(TJobletPtr joblet);
 
         virtual bool IsMemoryReserveEnabled() const = 0;
+        virtual NTableClient::TTableReaderOptionsPtr GetTableReaderOptions() const = 0;
 
         void AddPendingHint();
         void AddLocalityHint(NNodeTrackerClient::TNodeId nodeId);

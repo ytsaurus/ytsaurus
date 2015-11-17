@@ -698,6 +698,7 @@ void TOperationControllerBase::TTask::AddSequentialInputSpec(
         Controller->InputNodeDirectory,
         schedulerJobSpecExt->mutable_input_node_directory());
     auto* inputSpec = schedulerJobSpecExt->add_input_specs();
+    inputSpec->set_table_reader_options(ConvertToYsonString(GetTableReaderOptions()).Data());
     auto list = joblet->InputStripeList;
     for (const auto& stripe : list->Stripes) {
         AddChunksToInputSpec(&directoryBuilder, inputSpec, stripe, list->PartitionTag);
@@ -716,6 +717,7 @@ void TOperationControllerBase::TTask::AddParallelInputSpec(
     auto list = joblet->InputStripeList;
     for (const auto& stripe : list->Stripes) {
         auto* inputSpec = schedulerJobSpecExt->add_input_specs();
+        inputSpec->set_table_reader_options(ConvertToYsonString(GetTableReaderOptions()).Data());
         AddChunksToInputSpec(&directoryBuilder, inputSpec, stripe, list->PartitionTag);
     }
     UpdateInputSpecTotals(jobSpec, joblet);

@@ -5,7 +5,9 @@
 #include "name_table.h"
 #include "schemaless_row_reorderer.h"
 
-#include "core/concurrency/scheduler.h"
+#include <ytlib/chunk_client/dispatcher.h>
+
+#include <core/concurrency/scheduler.h>
 #include <core/misc/error.h>
 
 namespace NYT {
@@ -17,6 +19,7 @@ using namespace NConcurrency;
 
 // Reasonable default for max data size per one read call.
 const i64 MaxDataSizePerRead = 16 * 1024 * 1024;
+const i64 RowsPerRead = 10000;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -32,45 +35,45 @@ public:
         , UnderlyingReader_(underlyingReader)
         , KeyColumns_(keyColumns)
         , ReadRowCount_(0)
-    { }
+    { 
+        ReadyEvent_ = BIND(&TSchemalessSortingReader::DoOpen,
+            MakeWeak(this))
+            .AsyncVia(TDispatcher::Get()->GetReaderInvoker())
+            .Run();
+    }
 
-    virtual TFuture<void> Open() override
+    void DoOpen() 
     {
-        try {
-            // ToDo(psushin): make it really async.
-            WaitFor(UnderlyingReader_->Open())
-                .ThrowOnError();
+        std::vector<TUnversionedRow> rows;
+        rows.reserve(RowsPerRead);
 
-            std::vector<TUnversionedRow> rows;
-            rows.reserve(10000);
-
-            while (UnderlyingReader_->Read(&rows)) {
-                if (rows.empty()) {
-                    WaitFor(UnderlyingReader_->GetReadyEvent())
-                        .ThrowOnError();
-                    continue;
-                }
-
-                for (auto& row : rows) {
-                    Rows_.push_back(RowReorderer_.ReorderRow(row));
-                }
+        while (UnderlyingReader_->Read(&rows)) {
+            if (rows.empty()) {
+                WaitFor(UnderlyingReader_->GetReadyEvent())
+                    .ThrowOnError();
+                continue;
             }
 
-            std::sort(
-                Rows_.begin(),
-                Rows_.end(),
-                [&] (const TUnversionedOwningRow& lhs, const TUnversionedOwningRow& rhs) {
-                    return CompareRows(lhs.Get(), rhs.Get(), KeyColumns_.size()) < 0;
-                });
-
-            return VoidFuture;
-        } catch (const std::exception& ex) {
-            return MakeFuture(TError(ex));
+            for (auto& row : rows) {
+                Rows_.push_back(RowReorderer_.ReorderRow(row));
+            }
         }
+
+        std::sort(
+            Rows_.begin(),
+            Rows_.end(),
+            [&] (const TUnversionedOwningRow& lhs, const TUnversionedOwningRow& rhs) {
+                return CompareRows(lhs.Get(), rhs.Get(), KeyColumns_.size()) < 0;
+            });
     }
 
     virtual bool Read(std::vector<TUnversionedRow> *rows) override
     {
+        YCHECK(rows->capacity() > 0);
+        if (!ReadyEvent_.IsSet() || !ReadyEvent_.Get().IsOK()) {
+            return true;
+        }
+
         rows->clear();
 
         if (ReadRowCount_ == Rows_.size()) {
@@ -90,12 +93,7 @@ public:
 
     virtual TFuture<void> GetReadyEvent() override
     {
-        YUNREACHABLE();
-    }
-
-    virtual int GetTableIndex() const override
-    {
-        return 0;
+        return ReadyEvent_;
     }
 
     virtual bool IsFetchingCompleted() const override
@@ -143,11 +141,6 @@ public:
         YUNREACHABLE();
     }
 
-    virtual i32 GetRangeIndex() const override
-    {
-        YUNREACHABLE();
-    }
-
 private:
     TSchemalessRowReorderer RowReorderer_;
 
@@ -156,6 +149,8 @@ private:
 
     std::vector<TUnversionedOwningRow> Rows_;
     i64 ReadRowCount_;
+
+    TFuture<void> ReadyEvent_;
 
 };
 

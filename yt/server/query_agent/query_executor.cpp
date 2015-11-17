@@ -834,15 +834,14 @@ private:
 
         auto chunkMeta = WaitFor(chunkReader->GetMeta()).ValueOrThrow();
 
-        return WaitFor(CreateSchemafulChunkReader(
+        return CreateSchemafulChunkReader(
             Bootstrap_->GetConfig()->TabletNode->ChunkReader,
             std::move(chunkReader),
             Bootstrap_->GetBlockCache(),
             schema,
             chunkMeta,
             std::move(readRanges),
-            timestamp))
-            .ValueOrThrow();
+            timestamp);
     }
 
     ISchemafulReaderPtr GetTabletReader(

@@ -5,12 +5,17 @@
 #include "row_merger.h"
 #include "versioned_reader.h"
 
+#include <ytlib/chunk_client/data_statistics.h>
+
 #include <core/misc/heap.h>
 
 #include <tuple>
 
 namespace NYT {
 namespace NTableClient {
+
+using namespace NChunkClient::NProto;
+using namespace NChunkClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -204,6 +209,12 @@ public:
 
     TFuture<void> DoGetReadyEvent();
 
+    TDataStatistics DoGetDataStatistics() const;
+
+    bool DoIsFetchingCompleted() const;
+
+    std::vector<TChunkId> DoGetFailedChunkIds() const;
+
 private:
     struct TSession;
     class TSessionComparer;
@@ -219,6 +230,9 @@ private:
     TSessionComparer SessionComparer_;
     int MinConcurrency_;
     int NextSession_ = 0;
+
+    TDataStatistics DataStatistics_;
+    i64 RowCount_ = 0;
 
     struct TSession
     {
@@ -288,6 +302,55 @@ TSchemafulOverlappingRangeChunkReaderBase<TRowMerger>::TSchemafulOverlappingRang
 }
 
 template <class TRowMerger>
+TDataStatistics TSchemafulOverlappingRangeChunkReaderBase<TRowMerger>::DoGetDataStatistics() const
+{
+    auto dataStatistics = DataStatistics_;
+    for (const auto& session : ActiveSessions_) {
+        dataStatistics += session->Reader->GetDataStatistics();
+    }
+
+    for (const auto& session : AwaitingSessions_) {
+        dataStatistics += session->Reader->GetDataStatistics();
+    }
+
+    dataStatistics.set_row_count(RowCount_);
+    return dataStatistics;
+}
+
+template <class TRowMerger>
+bool TSchemafulOverlappingRangeChunkReaderBase<TRowMerger>::DoIsFetchingCompleted() const
+{
+    if (NextSession_ < Sessions_.size() || AwaitingSessions_.empty()) {
+        return false;
+    }
+
+    for (const auto& session : ActiveSessions_) {
+        if (!session->Reader->IsFetchingCompleted()) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+template <class TRowMerger>
+std::vector<TChunkId> TSchemafulOverlappingRangeChunkReaderBase<TRowMerger>::DoGetFailedChunkIds() const
+{
+    yhash_set<TChunkId> failedChunkIds;
+    for (const auto& session : AwaitingSessions_) {
+        auto sessionChunkIds = session->Reader->GetFailedChunkIds();
+        failedChunkIds.insert(sessionChunkIds.begin(), sessionChunkIds.end());
+    }
+
+    for (const auto& session : ActiveSessions_) {
+        auto sessionChunkIds = session->Reader->GetFailedChunkIds();
+        failedChunkIds.insert(sessionChunkIds.begin(), sessionChunkIds.end());
+    }
+
+    return std::vector<TChunkId>(failedChunkIds.begin(), failedChunkIds.end());
+}
+
+template <class TRowMerger>
 TFuture<void> TSchemafulOverlappingRangeChunkReaderBase<TRowMerger>::DoOpen()
 {
     while (NextSession_ < Sessions_.size() && NextSession_ < MinConcurrency_) {
@@ -304,7 +367,7 @@ bool TSchemafulOverlappingRangeChunkReaderBase<TRowMerger>::DoRead(
     std::vector<typename TRowMerger::TResultingRow>* rows)
 {
     auto readRow = [&] () {
-        YASSERT(AwaitingSessions_.size() == 0);
+        YASSERT(AwaitingSessions_.empty());
 
         CurrentKey_.clear();
 
@@ -362,6 +425,7 @@ bool TSchemafulOverlappingRangeChunkReaderBase<TRowMerger>::DoRead(
         auto row = RowMerger_->BuildMergedRow();
         if (row) {
             rows->push_back(row);
+            ++RowCount_;
         }
     };
 
@@ -568,6 +632,21 @@ public:
     virtual TFuture<void> GetReadyEvent() override
     {
         return DoGetReadyEvent();
+    }
+
+    virtual TDataStatistics GetDataStatistics() const override
+    {
+        return DoGetDataStatistics();
+    }
+
+    virtual bool IsFetchingCompleted() const override
+    {
+        return DoIsFetchingCompleted();
+    }
+
+    virtual std::vector<TChunkId> GetFailedChunkIds() const override
+    {
+        return DoGetFailedChunkIds();
     }
 };
 

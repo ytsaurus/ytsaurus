@@ -510,7 +510,7 @@ struct IClientBase
 
 
     // Tables
-    virtual NTableClient::ISchemalessMultiChunkReaderPtr CreateTableReader(
+    virtual TFuture<NTableClient::ISchemalessMultiChunkReaderPtr> CreateTableReader(
         const NYPath::TRichYPath& path,
         const TTableReaderOptions& options = TTableReaderOptions()) = 0;
 };

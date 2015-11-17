@@ -26,6 +26,8 @@ DECLARE_REFCOUNTED_CLASS(TSchemalessWriterForYamr)
 DECLARE_REFCOUNTED_CLASS(TSchemalessWriterForYamredDsv)
 DECLARE_REFCOUNTED_CLASS(TSchemalessWriterForSchemafulDsv)
 
+DECLARE_REFCOUNTED_CLASS(TControlAttributesConfig)
+
 struct IParser;
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -29,6 +29,9 @@ protected:
     int KeyBId_;
     int KeyCId_;
     int KeyDId_;
+    int TableIndexId_;
+    int RangeIndexId_;
+    int RowIndexId_;
     TSchemafulDsvFormatConfigPtr Config_;
 
     TSchemalessWriterForSchemafulDsvPtr Writer_;
@@ -41,6 +44,10 @@ protected:
         KeyBId_ = NameTable_->RegisterName("column_b");
         KeyCId_ = NameTable_->RegisterName("column_c");
         KeyDId_ = NameTable_->RegisterName("column_d");
+        TableIndexId_ = NameTable_->RegisterName(TableIndexColumnName);
+        RowIndexId_ = NameTable_->RegisterName(RowIndexColumnName);
+        RangeIndexId_ = NameTable_->RegisterName(RangeIndexColumnName);
+
         Config_ = New<TSchemafulDsvFormatConfig>();
     }
 
@@ -49,6 +56,7 @@ protected:
             NameTable_, 
             CreateAsyncAdapter(static_cast<TOutputStream*>(&OutputStream_)),
             false, // enableContextSaving  
+            New<TControlAttributesConfig>(),
             Config_);
     }
 };
@@ -57,11 +65,17 @@ TEST_F(TSchemalessWriterForSchemafulDsvTest, Simple)
 {
     Config_->Columns = {"column_b", "column_c", "column_a"};
     CreateStandardWriter();
+
     TUnversionedRowBuilder row1;
     row1.AddValue(MakeUnversionedStringValue("value_a", KeyAId_));
     row1.AddValue(MakeUnversionedInt64Value(-42, KeyBId_));
     row1.AddValue(MakeUnversionedBooleanValue(true, KeyCId_));
     row1.AddValue(MakeUnversionedStringValue("garbage", KeyDId_));
+
+    // Ignore system columns.
+    row1.AddValue(MakeUnversionedInt64Value(2, TableIndexId_));
+    row1.AddValue(MakeUnversionedInt64Value(42, RowIndexId_));
+    row1.AddValue(MakeUnversionedInt64Value(1, RangeIndexId_));
 
     TUnversionedRowBuilder row2;
     // The order is reversed.

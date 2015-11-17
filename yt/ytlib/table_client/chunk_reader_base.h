@@ -5,7 +5,7 @@
 #include "chunk_meta_extensions.h"
 
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
-#include <ytlib/chunk_client/chunk_reader_base.h>
+#include <ytlib/chunk_client/reader_base.h>
 #include <ytlib/chunk_client/public.h>
 #include <ytlib/chunk_client/read_limit.h>
 #include <ytlib/chunk_client/sequential_reader.h>
@@ -16,7 +16,7 @@ namespace NTableClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TChunkReaderBase
-    : public virtual NChunkClient::IChunkReaderBase
+    : public virtual NChunkClient::IReaderBase
 {
 public:
     TChunkReaderBase(
@@ -25,13 +25,13 @@ public:
         const NChunkClient::NProto::TMiscExt& misc,
         NChunkClient::IBlockCachePtr blockCache);
 
-    virtual TFuture<void> Open() override;
-
     virtual TFuture<void> GetReadyEvent() override;
 
-    virtual NChunkClient::NProto::TDataStatistics GetDataStatistics() const;
+    virtual NChunkClient::NProto::TDataStatistics GetDataStatistics() const override;
 
-    virtual TFuture<void> GetFetchingCompletedEvent();
+    virtual bool IsFetchingCompleted() const override;
+
+    virtual std::vector<NChunkClient::TChunkId> GetFailedChunkIds() const override;
 
 protected:
     const NChunkClient::TSequentialReaderConfigPtr Config_;
@@ -58,6 +58,8 @@ protected:
     bool BeginRead();
     bool OnBlockEnded();
 
+    TFuture<void> DoOpen(std::vector<NChunkClient::TSequentialReader::TBlockInfo> blockSequence);
+
     static int GetBlockIndexByKey(
         const TKey& key,
         const std::vector<TOwningKey>& blockIndexKeys,
@@ -77,8 +79,6 @@ protected:
     int ApplyUpperRowLimit(const NProto::TBlockMetaExt& blockMeta, const NChunkClient::TReadLimit& upperLimit) const;
     int ApplyUpperKeyLimit(const NProto::TBlockMetaExt& blockMeta, const NChunkClient::TReadLimit& upperLimit) const;
     int ApplyUpperKeyLimit(const std::vector<TOwningKey>& blockIndexKeys, const NChunkClient::TReadLimit& upperLimit) const;
-
-    virtual std::vector<NChunkClient::TSequentialReader::TBlockInfo> GetBlockSequence() = 0;
 
     virtual void InitFirstBlock() = 0;
     virtual void InitNextBlock() = 0;

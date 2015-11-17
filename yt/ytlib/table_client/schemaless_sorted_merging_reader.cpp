@@ -4,6 +4,7 @@
 
 #include "private.h"
 #include "schemaless_chunk_reader.h"
+#include "name_table.h"
 
 #include <ytlib/chunk_client/dispatcher.h>
 
@@ -31,16 +32,11 @@ class TSchemalessSortedMergingReader
 public:
     TSchemalessSortedMergingReader(
         const std::vector<ISchemalessMultiChunkReaderPtr>& readers,
-        int keyColumnCount,
-        bool enableControlAttributes);
+        int keyColumnCount);
 
-    virtual TFuture<void> Open() override;
-
-    virtual bool Read(std::vector<TUnversionedRow>* rows) override;
+     virtual bool Read(std::vector<TUnversionedRow>* rows) override;
 
     virtual TFuture<void> GetReadyEvent() override;
-
-    virtual int GetTableIndex() const override;
 
     virtual TDataStatistics GetDataStatistics() const override;
 
@@ -58,20 +54,18 @@ public:
 
     virtual i64 GetTableRowIndex() const override;
 
-    virtual i32 GetRangeIndex() const override;
-
 private:
     struct TSession
     {
         ISchemalessMultiChunkReaderPtr Reader;
         std::vector<TUnversionedRow> Rows;
         int CurrentRowIndex;
+        int TableIndex;
     };
 
     NLogging::TLogger Logger;
 
     int KeyColumnCount_;
-    bool EnableControlAttributes_;
 
     std::vector<TSession> SessionHolder_;
     std::vector<TSession*> SessionHeap_;
@@ -95,11 +89,9 @@ private:
 
 TSchemalessSortedMergingReader::TSchemalessSortedMergingReader(
         const std::vector<ISchemalessMultiChunkReaderPtr>& readers,
-        int keyColumnCount,
-        bool enableControlAttributes)
+        int keyColumnCount)
     : Logger(TableClientLogger)
     , KeyColumnCount_(keyColumnCount)
-    , EnableControlAttributes_(enableControlAttributes)
 {
     YCHECK(!readers.empty());
     int rowsPerSession = RowBufferSize / readers.size();
@@ -115,6 +107,7 @@ TSchemalessSortedMergingReader::TSchemalessSortedMergingReader(
         session.Reader = reader;
         session.Rows.reserve(rowsPerSession);
         session.CurrentRowIndex = 0;
+        session.TableIndex = 0;
 
         RowCount_ += reader->GetTotalRowCount();
     }
@@ -125,38 +118,37 @@ TSchemalessSortedMergingReader::TSchemalessSortedMergingReader(
             rhs->Rows[rhs->CurrentRowIndex],
             KeyColumnCount_);
         if (result == 0) {
-            result = lhs->Reader->GetTableIndex() - rhs->Reader->GetTableIndex();
+            result = lhs->TableIndex - rhs->TableIndex;
         }
         return result < 0;
     };
-}
 
-TFuture<void> TSchemalessSortedMergingReader::Open()
-{
     LOG_INFO("Opening schemaless sorted merging reader (SessionCount: %v)",
         SessionHolder_.size());
 
     ReadyEvent_ =  BIND(&TSchemalessSortedMergingReader::DoOpen, MakeStrong(this))
         .AsyncVia(TDispatcher::Get()->GetReaderInvoker())
         .Run();
-
-    return ReadyEvent_;
 }
 
 void TSchemalessSortedMergingReader::DoOpen()
 {
-    try {
-        std::vector<TFuture<void>> openErrors;
-        for (auto& session : SessionHolder_) {
-            openErrors.push_back(session.Reader->Open());
+    auto getTableIndex = [] (TUnversionedRow row, TNameTablePtr nameTable) {
+        auto tableIndexId = nameTable->GetIdOrRegisterName(TableIndexColumnName);
+        for (auto valueIt = row.Begin(); valueIt != row.End(); ++valueIt) {
+            if (valueIt->Id == tableIndexId) {
+                YCHECK(valueIt->Type == EValueType::Int64);
+                return valueIt->Data.Int64;
+            }
         }
+        return i64(0);
+    };
 
-        WaitFor(Combine(openErrors))
-            .ThrowOnError();
-
+    try {
         for (auto& session : SessionHolder_) {
             while (session.Reader->Read(&session.Rows)) {
                 if (!session.Rows.empty()) {
+                    session.TableIndex = getTableIndex(session.Rows.front(), session.Reader->GetNameTable());
                     SessionHeap_.push_back(&session);
                     break;
                 }
@@ -173,8 +165,13 @@ void TSchemalessSortedMergingReader::DoOpen()
     }
 }
 
-bool TSchemalessSortedMergingReader::Read(std::vector<TUnversionedRow> *rows)
+bool TSchemalessSortedMergingReader::Read(std::vector<TUnversionedRow>* rows)
 {
+    YCHECK(rows->capacity() > 0);
+    if (!ReadyEvent_.IsSet() || !ReadyEvent_.Get().IsOK()) {
+        return true;
+    }
+
     rows->clear();
 
     if (SessionHeap_.empty()) {
@@ -197,7 +194,6 @@ bool TSchemalessSortedMergingReader::Read(std::vector<TUnversionedRow> *rows)
         return true;
     }
 
-    TableIndex_ = session->Reader->GetTableIndex();
     TableRowIndex_ = session->Reader->GetTableRowIndex() - session->Rows.size() + session->CurrentRowIndex;
 
     i64 dataWeight = 0;
@@ -215,12 +211,10 @@ bool TSchemalessSortedMergingReader::Read(std::vector<TUnversionedRow> *rows)
 
         AdjustHeapFront(SessionHeap_.begin(), SessionHeap_.end(), CompareSessions_);
 
-        if (EnableControlAttributes_ && SessionHeap_.front() != session) {
-            // Minimal reader changed, table index or row index possibly changed as well.
-            break;
+        if (SessionHeap_.front() != session) {
+            session = SessionHeap_.front();
+            TableRowIndex_ = session->Reader->GetTableRowIndex() - session->Rows.size() + session->CurrentRowIndex;
         }
-
-        session = SessionHeap_.front();
     }
     return true;
 }
@@ -228,11 +222,6 @@ bool TSchemalessSortedMergingReader::Read(std::vector<TUnversionedRow> *rows)
 TFuture<void> TSchemalessSortedMergingReader::GetReadyEvent()
 {
     return ReadyEvent_;
-}
-
-int TSchemalessSortedMergingReader::GetTableIndex() const
-{
-    return TableIndex_;
 }
 
 TDataStatistics TSchemalessSortedMergingReader::GetDataStatistics() const
@@ -291,19 +280,13 @@ i64 TSchemalessSortedMergingReader::GetTableRowIndex() const
     return TableRowIndex_;
 }
 
-i32 TSchemalessSortedMergingReader::GetRangeIndex() const
-{
-    YUNREACHABLE();
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 ISchemalessMultiChunkReaderPtr CreateSchemalessSortedMergingReader(
     const std::vector<ISchemalessMultiChunkReaderPtr>& readers,
-    int keyColumnCount,
-    bool enableControlAttributes)
+    int keyColumnCount)
 {
-    return New<TSchemalessSortedMergingReader>(readers, keyColumnCount, enableControlAttributes);
+    return New<TSchemalessSortedMergingReader>(readers, keyColumnCount);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

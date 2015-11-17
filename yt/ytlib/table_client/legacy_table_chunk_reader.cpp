@@ -448,31 +448,31 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 TLegacyTableChunkReader::TLegacyTableChunkReader(
+    const TChunkSpec& chunkSpec,
     TChunkReaderConfigPtr config,
+    TChunkReaderOptionsPtr options,
     const TColumnFilter& columnFilter,
     TNameTablePtr nameTable,
     const TKeyColumns& keyColumns,
     IChunkReaderPtr underlyingReader,
-    IBlockCachePtr blockCache,
-    const TReadLimit& lowerLimit,
-    const TReadLimit& upperLimit,
-    i64 tableRowIndex,
-    i32 rangeIndex)
-    : Config_(config)
+    IBlockCachePtr blockCache)
+    : ChunkSpec_(chunkSpec)
+    , Config_(config)
+    , Options_(options)
+    , UnderlyingReader_(underlyingReader)
     , SequentialReader_(nullptr)
     , ColumnFilter_(columnFilter)
     , NameTable_(nameTable)
     , KeyColumns_(keyColumns)
-    , UpperLimit_(upperLimit)
+    , UpperLimit_(chunkSpec.has_upper_limit() ? TReadLimit(chunkSpec.upper_limit()) : TReadLimit())
     , MemoryPool_(TLegacyTableChunkReaderMemoryPoolTag())
-    , TableRowIndex_(tableRowIndex)
-    , RangeIndex_(rangeIndex)
+    , SystemColumnCount_(GetSystemColumnCount(options))
     , Logger(TableClientLogger)
 {
     YCHECK(Config_);
-    YCHECK(underlyingReader);
+    YCHECK(UnderlyingReader_);
 
-    Logger.AddTag("ChunkId: %v", underlyingReader->GetChunkId());
+    Logger.AddTag("ChunkId: %v", UnderlyingReader_->GetChunkId());
 
     auto channel = MakeChannel(columnFilter, nameTable);
     for (int i = 0; i < keyColumns.size(); ++i) {
@@ -493,34 +493,44 @@ TLegacyTableChunkReader::TLegacyTableChunkReader(
 
     if (Config_->SamplingRate) {
         RowSampler_ = CreateChunkRowSampler(
-            underlyingReader->GetChunkId(),
+            UnderlyingReader_->GetChunkId(),
             Config_->SamplingRate.Get(),
             Config_->SamplingSeed.Get(std::random_device()()));
+    }
+
+    if (Options_->EnableRowIndex) {
+        RowIndexId_ = NameTable_->GetIdOrRegisterName(RowIndexColumnName);
+    }
+
+    if (Options_->EnableRangeIndex) {
+        RangeIndexId_ = NameTable_->GetIdOrRegisterName(RangeIndexColumnName);
+    }
+
+    if (Options_->EnableTableIndex) {
+        TableIndexId_ = NameTable_->GetIdOrRegisterName(TableIndexColumnName);
     }
 
     Initializer_ = New<TInitializer>(
         Config_,
         this,
-        underlyingReader,
+        UnderlyingReader_,
         blockCache,
         channel,
         keyColumns,
-        lowerLimit,
-        upperLimit);
-}
+        chunkSpec.has_lower_limit() ? TReadLimit(chunkSpec.lower_limit()) : TReadLimit(),
+        UpperLimit_);
 
-TFuture<void> TLegacyTableChunkReader::Open()
-{
     ReadyEvent_ = BIND(&TInitializer::Initialize, Initializer_)
         .AsyncVia(TDispatcher::Get()->GetReaderInvoker())
         .Run();
-    return ReadyEvent_;
 }
 
 bool TLegacyTableChunkReader::Read(std::vector<TUnversionedRow> *rows)
 {
-    YCHECK(!Initializer_);
     YCHECK(rows->capacity() > 0);
+    if (!ReadyEvent_.IsSet() || !ReadyEvent_.Get().IsOK()) {
+        return true;
+    }
 
     MemoryPool_.Clear();
     rows->clear();
@@ -548,6 +558,21 @@ bool TLegacyTableChunkReader::Read(std::vector<TUnversionedRow> *rows)
         if (!RowSampler_ || RowSampler_->ShouldTakeRow(GetTableRowIndex())) {
             auto row = TMutableUnversionedRow::Allocate(&MemoryPool_, CurrentRow_.size());
             std::copy(CurrentRow_.begin(), CurrentRow_.end(), row.Begin());
+
+            int valueIndex = CurrentRow_.size();
+            if (Options_->EnableRowIndex) {
+                row[valueIndex] = MakeUnversionedInt64Value(GetTableRowIndex(), RowIndexId_);
+                ++valueIndex;
+            }
+            if (Options_->EnableRangeIndex) {
+                row[valueIndex] = MakeUnversionedInt64Value(ChunkSpec_.range_index(), RangeIndexId_);
+                ++valueIndex;
+            }
+            if (Options_->EnableTableIndex) {
+                row[valueIndex] = MakeUnversionedInt64Value(ChunkSpec_.table_index(), TableIndexId_);
+                ++valueIndex;
+            }
+
             rows->push_back(row);
             dataWeight += GetDataWeight(row);
             ++RowCount_;
@@ -568,12 +593,7 @@ TFuture<void> TLegacyTableChunkReader::GetReadyEvent()
 
 i64 TLegacyTableChunkReader::GetTableRowIndex() const
 {
-    return TableRowIndex_ + CurrentRowIndex_;
-}
-
-i32 TLegacyTableChunkReader::GetRangeIndex() const
-{
-    return RangeIndex_;
+    return ChunkSpec_.table_row_index() + CurrentRowIndex_;
 }
 
 void TLegacyTableChunkReader::ResetCurrentRow()
@@ -725,13 +745,13 @@ TDataStatistics TLegacyTableChunkReader::GetDataStatistics() const
     return result;
 }
 
-TFuture<void> TLegacyTableChunkReader::GetFetchingCompletedEvent()
+bool TLegacyTableChunkReader::IsFetchingCompleted() const
 {
     if (SequentialReader_) {
-        return SequentialReader_->GetFetchingCompletedEvent();
+        return SequentialReader_->GetFetchingCompletedEvent().IsSet();
     } else {
         // Error occured during initialization.
-        return VoidFuture;
+        return true;
     }
 }
 
@@ -743,6 +763,15 @@ TNameTablePtr TLegacyTableChunkReader::GetNameTable() const
 TKeyColumns TLegacyTableChunkReader::GetKeyColumns() const
 {
     return KeyColumns_;
+}
+
+std::vector<TChunkId> TLegacyTableChunkReader::GetFailedChunkIds() const
+{
+    if (ReadyEvent_.IsSet() && !ReadyEvent_.Get().IsOK()) {
+        return std::vector<TChunkId>(1, UnderlyingReader_->GetChunkId());
+    } else {
+        return std::vector<TChunkId>();
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

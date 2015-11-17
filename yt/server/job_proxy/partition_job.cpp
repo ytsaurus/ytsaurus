@@ -56,7 +56,7 @@ public:
             // which is a nightmare for restarted (lost) jobs.
             Reader_ = CreateSchemalessSequentialMultiChunkReader(
                 config->JobIO->TableReader,
-                New<TMultiChunkReaderOptions>(),
+                New<NTableClient::TTableReaderOptions>(),
                 host->GetClient(),
                 host->GetBlockCache(),
                 host->GetInputNodeDirectory(),

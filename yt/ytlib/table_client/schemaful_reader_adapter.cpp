@@ -91,7 +91,7 @@ private:
 
 DEFINE_REFCOUNTED_TYPE(TSchemafulReaderAdapter)
 
-TFuture<ISchemafulReaderPtr> CreateSchemafulReaderAdapter(
+ISchemafulReaderPtr CreateSchemafulReaderAdapter(
     TSchemalessReaderFactory createReader,
     const TTableSchema& schema)
 {
@@ -111,9 +111,7 @@ TFuture<ISchemafulReaderPtr> CreateSchemafulReaderAdapter(
         schema,
         keyColumns);
 
-    return underlyingReader->Open().Apply(BIND([=] () -> ISchemafulReaderPtr {
-        return result;
-    }));
+    return result;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

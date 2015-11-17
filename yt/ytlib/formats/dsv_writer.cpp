@@ -44,13 +44,14 @@ void TDsvWriterBase::EscapeAndWrite(const TStringBuf& string, bool inKey, TOutpu
 TSchemalessWriterForDsv::TSchemalessWriterForDsv(
     TNameTablePtr nameTable, 
     bool enableContextSaving,
+    TControlAttributesConfigPtr controlAttributesConfig,
     IAsyncOutputStreamPtr output,
     TDsvFormatConfigPtr config)
     : TSchemalessFormatWriterBase(
          nameTable, 
          std::move(output), 
          enableContextSaving,
-         false /* enableKeySwitch */, 
+         controlAttributesConfig, 
          0 /* keyColumnCount */)
     , TDsvWriterBase(config)
 { }
@@ -71,35 +72,29 @@ void TSchemalessWriterForDsv::DoWrite(const std::vector<NTableClient::TUnversion
                 continue;
             }
 
+            if (IsRangeIndexColumnId(value->Id) || 
+                IsRowIndexColumnId(value->Id) || 
+                (IsTableIndexColumnId(value->Id) && !Config_->EnableTableIndex)) 
+            {
+                continue;
+            }
+
             if (!firstValue) {
                 output->Write(Config_->FieldSeparator);
             }
-
-            WriteValue(*value);
             firstValue = false;
+
+            if (IsTableIndexColumnId(value->Id)) {
+                WriteTableIndexValue(*value);
+            } else {
+                WriteValue(*value);
+            }
         }
 
-        FinalizeRow(firstValue);
+        output->Write(Config_->RecordSeparator);
         TryFlushBuffer(false);
     }
-
     TryFlushBuffer(true);
-}
-
-void TSchemalessWriterForDsv::FinalizeRow(bool firstValue)
-{
-    auto* output = GetOutputStream();
-    if (Config_->EnableTableIndex) {
-        if (!firstValue) {
-            output->Write(Config_->FieldSeparator);
-        }
-        
-        EscapeAndWrite(Config_->TableIndexColumn, true, output);
-        output->Write(Config_->KeyValueSeparator);
-        output->Write(::ToString(TableIndex_));
-    }
-
-    output->Write(Config_->RecordSeparator);
 }
 
 void TSchemalessWriterForDsv::WriteValue(const TUnversionedValue& value) 
@@ -144,19 +139,12 @@ void TSchemalessWriterForDsv::WriteValue(const TUnversionedValue& value)
     }
 }
 
-void TSchemalessWriterForDsv::WriteTableIndex(i32 tableIndex)
+void TSchemalessWriterForDsv::WriteTableIndexValue(const TUnversionedValue& value)
 {
-    TableIndex_ = tableIndex;
-}
-
-void TSchemalessWriterForDsv::WriteRangeIndex(i32 rangeIndex)
-{
-    THROW_ERROR_EXCEPTION("Range indexes are not supported by dsv format");
-}
-
-void TSchemalessWriterForDsv::WriteRowIndex(i64 rowIndex)
-{
-    THROW_ERROR_EXCEPTION("Row indexes are not supported by dsv format");
+    auto* output = GetOutputStream();
+    EscapeAndWrite(Config_->TableIndexColumn, true, output);
+    output->Write(Config_->KeyValueSeparator);
+    output->Write(::ToString(value.Data.Int64));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

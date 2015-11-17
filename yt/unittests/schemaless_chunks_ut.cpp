@@ -13,6 +13,7 @@
 #include <ytlib/chunk_client/data_statistics.h>
 #include <ytlib/chunk_client/memory_reader.h>
 #include <ytlib/chunk_client/memory_writer.h>
+#include <ytlib/chunk_client/chunk_spec.h>
 
 #include <ytlib/transaction_client/public.h>
 
@@ -25,6 +26,7 @@ namespace {
 using namespace NChunkClient;
 using namespace NTransactionClient;
 
+using NChunkClient::NProto::TChunkSpec;
 using NChunkClient::NProto::TChunkMeta;
 using NChunkClient::NProto::TDataStatistics;
 
@@ -147,19 +149,21 @@ protected:
         config->SamplingSeed = 42;
         config->SamplingRate = samplingRate;
 
+        TChunkSpec chunkSpec;
+        ToProto(chunkSpec.mutable_chunk_id(), NullChunkId);
+        chunkSpec.mutable_chunk_meta()->MergeFrom(MasterMeta);
+        chunkSpec.set_table_row_index(tableRowIndex);
+
         auto chunkReader = CreateSchemalessChunkReader(
+            chunkSpec,
             config,
+            New<TChunkReaderOptions>(),
             MemoryReader,
             NameTable,
             GetNullBlockCache(),
             TKeyColumns(),
-            MasterMeta,
-            TReadLimit(),
-            TReadLimit(),
             columnFilter,
-            tableRowIndex);
-
-        EXPECT_TRUE(chunkReader->Open().Get().IsOK());
+            std::vector<TReadRange>(1));
 
         std::vector<TUnversionedRow> actual;
         actual.reserve(997);
@@ -186,18 +190,21 @@ TEST_F(TSchemalessChunksTest, ReadAllUnsorted)
 
     TColumnFilter columnFilter;
 
+    TChunkSpec chunkSpec;
+    ToProto(chunkSpec.mutable_chunk_id(), NullChunkId);
+    chunkSpec.mutable_chunk_meta()->MergeFrom(MasterMeta);
+    chunkSpec.set_table_row_index(42);
+
     auto chunkReader = CreateSchemalessChunkReader(
+        chunkSpec,
         New<TChunkReaderConfig>(),
+        New<TChunkReaderOptions>(),
         MemoryReader,
         NameTable,
         GetNullBlockCache(),
         TKeyColumns(),
-        MasterMeta,
-        TReadLimit(),
-        TReadLimit(),
-        columnFilter);
-
-    EXPECT_TRUE(chunkReader->Open().Get().IsOK());
+        columnFilter,
+        std::vector<TReadRange>(1));
 
     auto it = expected.begin();
 
@@ -225,21 +232,90 @@ TEST_F(TSchemalessChunksTest, EmptyRead)
     TReadLimit lowerLimit;
     lowerLimit.SetRowIndex(SmallRowCount);
 
+    TChunkSpec chunkSpec;
+    ToProto(chunkSpec.mutable_chunk_id(), NullChunkId);
+    chunkSpec.mutable_chunk_meta()->MergeFrom(MasterMeta);
+    chunkSpec.set_table_row_index(42);
+
     auto chunkReader = CreateSchemalessChunkReader(
+        chunkSpec,
         New<TChunkReaderConfig>(),
+        New<TChunkReaderOptions>(),
         MemoryReader,
         NameTable,
         GetNullBlockCache(),
         TKeyColumns(),
-        MasterMeta,
-        lowerLimit,
-        TReadLimit(),
-        columnFilter);
+        columnFilter,
+        std::vector<TReadRange>(1, {lowerLimit, TReadLimit()}));
 
-    EXPECT_TRUE(chunkReader->Open().Get().IsOK());
-
-    EXPECT_TRUE(chunkReader->GetFetchingCompletedEvent().IsSet());
+    EXPECT_TRUE(chunkReader->IsFetchingCompleted());
     EXPECT_EQ(TDataStatistics(), chunkReader->GetDataStatistics());
+
+    auto it = expected.begin();
+
+    std::vector<TUnversionedRow> actual;
+    actual.reserve(997);
+
+    while (chunkReader->Read(&actual)) {
+        if (actual.empty()) {
+            EXPECT_TRUE(chunkReader->GetReadyEvent().Get().IsOK());
+            continue;
+        }
+        std::vector<TUnversionedRow> ex(it, it + actual.size());
+        CheckResult(ex, actual);
+        it += actual.size();
+    }
+}
+
+TEST_F(TSchemalessChunksTest, ReadSystemColumns)
+{
+    WriteRows(0, 2);
+
+    int tableIndexId = NameTable->GetIdOrRegisterName(TableIndexColumnName);
+    int rangeIndexId = NameTable->GetIdOrRegisterName(RangeIndexColumnName);
+    int rowIndexId = NameTable->GetIdOrRegisterName(RowIndexColumnName);
+
+    TUnversionedRowBuilder builder1;
+    builder1.AddValue(MakeUnversionedInt64Value(1, rangeIndexId));
+    builder1.AddValue(MakeUnversionedInt64Value(10, tableIndexId));
+    builder1.AddValue(MakeUnversionedInt64Value(42, rowIndexId));
+
+    TUnversionedRowBuilder builder2;
+    builder2.AddValue(MakeUnversionedInt64Value(1, rangeIndexId));
+    builder2.AddValue(MakeUnversionedInt64Value(10, tableIndexId));
+    builder2.AddValue(MakeUnversionedInt64Value(43, rowIndexId));
+
+    std::vector<TUnversionedRow> expected = {
+        builder1.GetRow(), 
+        builder2.GetRow()};
+
+    TColumnFilter columnFilter;
+    columnFilter.All = false;
+
+    TChunkSpec chunkSpec;
+    ToProto(chunkSpec.mutable_chunk_id(), NullChunkId);
+    chunkSpec.mutable_chunk_meta()->MergeFrom(MasterMeta);
+    chunkSpec.set_table_row_index(42);
+    chunkSpec.set_range_index(1);
+    chunkSpec.set_table_index(10);
+
+    auto options = New<TChunkReaderOptions>();
+    options->EnableTableIndex = true;
+    options->EnableRangeIndex = true;
+    options->EnableRowIndex = true;
+
+    auto chunkReader = CreateSchemalessChunkReader(
+        chunkSpec,
+        New<TChunkReaderConfig>(),
+        options,
+        MemoryReader,
+        NameTable,
+        GetNullBlockCache(),
+        TKeyColumns(),
+        columnFilter,
+        std::vector<TReadRange>(1));
+
+    EXPECT_TRUE(chunkReader->IsFetchingCompleted());
 
     auto it = expected.begin();
 
@@ -281,18 +357,21 @@ TEST_F(TSchemalessChunksTest, ReadSortedRange)
     upperLimit.SetRowIndex(800000);
     upperLimit.SetKey(upperBuilder.FinishRow());
 
+    TChunkSpec chunkSpec;
+    ToProto(chunkSpec.mutable_chunk_id(), NullChunkId);
+    chunkSpec.mutable_chunk_meta()->MergeFrom(MasterMeta);
+    chunkSpec.set_table_row_index(42);
+ 
     auto chunkReader = CreateSchemalessChunkReader(
+        chunkSpec,
         New<TChunkReaderConfig>(),
+        New<TChunkReaderOptions>(),
         MemoryReader,
         NameTable,
         GetNullBlockCache(),
         TKeyColumns(),
-        MasterMeta,
-        lowerLimit,
-        upperLimit,
-        columnFilter);
-
-    EXPECT_TRUE(chunkReader->Open().Get().IsOK());
+        columnFilter,
+        std::vector<TReadRange>(1, TReadRange {lowerLimit, upperLimit} ));
 
     auto it = expected.begin();
 
@@ -313,8 +392,6 @@ TEST_F(TSchemalessChunksTest, ReadSortedRange)
 TEST_F(TSchemalessChunksTest, SampledRead)
 {
     WriteManyRows();
-    std::vector<TUnversionedRow> expected = CreateManyRows();
-
     TColumnFilter columnFilter;
 
     auto config = New<TChunkReaderConfig>();
@@ -324,18 +401,21 @@ TEST_F(TSchemalessChunksTest, SampledRead)
         config->SamplingRate = samplingRate;
         double variation = samplingRate * (1 - samplingRate);
 
+        TChunkSpec chunkSpec;
+        ToProto(chunkSpec.mutable_chunk_id(), NullChunkId);
+        chunkSpec.mutable_chunk_meta()->MergeFrom(MasterMeta);
+        chunkSpec.set_table_row_index(42);
+
         auto chunkReader = CreateSchemalessChunkReader(
+            chunkSpec,
             config,
+            New<TChunkReaderOptions>(),
             MemoryReader,
             NameTable,
             GetNullBlockCache(),
             TKeyColumns(),
-            MasterMeta,
-            TReadLimit(),
-            TReadLimit(),
-            columnFilter);
-
-        EXPECT_TRUE(chunkReader->Open().Get().IsOK());
+            columnFilter,
+            std::vector<TReadRange>(1));
 
         std::vector<TUnversionedRow> actual;
         actual.reserve(997);
@@ -348,7 +428,7 @@ TEST_F(TSchemalessChunksTest, SampledRead)
             }
             readRowCount += actual.size();
         }
-        double rate = readRowCount * 1.0 / expected.size();
+        double rate = readRowCount * 1.0 / HugeRowCount;
         EXPECT_GE(rate, samplingRate - variation);
         EXPECT_LE(rate, samplingRate + variation);
     }
@@ -413,17 +493,20 @@ TEST_F(TSchemalessChunksTest, ReadMultipleIndexRanges)
         readRanges.emplace_back(std::move(lower), std::move(upper));
     }
 
+    TChunkSpec chunkSpec;
+    ToProto(chunkSpec.mutable_chunk_id(), NullChunkId);
+    chunkSpec.mutable_chunk_meta()->MergeFrom(MasterMeta);
+
     auto chunkReader = CreateSchemalessChunkReader(
+        chunkSpec,
         New<TChunkReaderConfig>(),
+        New<TChunkReaderOptions>(),
         MemoryReader,
         NameTable,
         GetNullBlockCache(),
         TKeyColumns(),
-        MasterMeta,
-        std::move(readRanges),
-        columnFilter);
-
-    EXPECT_TRUE(chunkReader->Open().Get().IsOK());
+        columnFilter,
+        std::move(readRanges)); 
 
     auto it = expected.begin();
 
@@ -490,17 +573,20 @@ TEST_F(TSchemalessChunksTest, ReadMultipleKeyRanges)
         readRanges.emplace_back(std::move(lower), std::move(upper));
     }
 
+    TChunkSpec chunkSpec;
+    ToProto(chunkSpec.mutable_chunk_id(), NullChunkId);
+    chunkSpec.mutable_chunk_meta()->MergeFrom(MasterMeta);
+
     auto chunkReader = CreateSchemalessChunkReader(
+        chunkSpec,
         New<TChunkReaderConfig>(),
+        New<TChunkReaderOptions>(),
         MemoryReader,
         NameTable,
         GetNullBlockCache(),
         TKeyColumns(),
-        MasterMeta,
-        std::move(readRanges),
-        columnFilter);
-
-    EXPECT_TRUE(chunkReader->Open().Get().IsOK());
+        columnFilter,
+        std::move(readRanges));
 
     auto it = expected.begin();
 

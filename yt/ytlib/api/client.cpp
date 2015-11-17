@@ -973,7 +973,7 @@ public:
         return NApi::CreateJournalWriter(this, path, options);
     }
 
-    virtual ISchemalessMultiChunkReaderPtr CreateTableReader(
+    virtual TFuture<ISchemalessMultiChunkReaderPtr> CreateTableReader(
         const NYPath::TRichYPath& path,
         const TTableReaderOptions& options) override
     {
@@ -2363,7 +2363,7 @@ public:
         const TJournalWriterOptions& options),
         (path, options))
 
-    DELEGATE_TRANSACTIONAL_METHOD(ISchemalessMultiChunkReaderPtr, CreateTableReader, (
+    DELEGATE_TRANSACTIONAL_METHOD(TFuture<ISchemalessMultiChunkReaderPtr>, CreateTableReader, (
         const TRichYPath& path,
         const TTableReaderOptions& options),
         (path, options))

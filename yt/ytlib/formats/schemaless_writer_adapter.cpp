@@ -1,6 +1,7 @@
 #include "stdafx.h"
 
 #include "schemaless_writer_adapter.h"
+#include "config.h"
 
 #include <ytlib/table_client/name_table.h>
 
@@ -32,19 +33,27 @@ TSchemalessFormatWriterBase::TSchemalessFormatWriterBase(
     TNameTablePtr nameTable,
     IAsyncOutputStreamPtr output,
     bool enableContextSaving,
-    bool enableKeySwitch,
+    TControlAttributesConfigPtr controlAttributesConfig,
     int keyColumnCount)
-    : KeyColumnCount_(keyColumnCount)
-    , NameTable_(nameTable)
+    : ControlAttributesConfig_(controlAttributesConfig)
     , EnableContextSaving_(enableContextSaving)
-    , EnableKeySwitch_(enableKeySwitch)
+    , NameTable_(nameTable)
     , Output_(CreateSyncAdapter(output))
+    , KeyColumnCount_(keyColumnCount)
 {
     CurrentBuffer_.Reserve(ContextBufferSize);
 
     if (EnableContextSaving_) {
         PreviousBuffer_.Reserve(ContextBufferSize);
     }
+
+    EnableRowControlAttributes_ = ControlAttributesConfig_->EnableTableIndex || 
+        ControlAttributesConfig_->EnableRangeIndex || 
+        ControlAttributesConfig_->EnableRowIndex;
+
+    RowIndexId_ = NameTable_->GetIdOrRegisterName(RowIndexColumnName);
+    RangeIndexId_ = NameTable_->GetIdOrRegisterName(RangeIndexColumnName);
+    TableIndexId_ = NameTable_->GetIdOrRegisterName(TableIndexColumnName);
 }
 
 TFuture<void> TSchemalessFormatWriterBase::Open()
@@ -128,7 +137,7 @@ bool TSchemalessFormatWriterBase::Write(const std::vector<TUnversionedRow> &rows
 
 bool TSchemalessFormatWriterBase::CheckKeySwitch(TUnversionedRow row, bool isLastRow) 
 {
-    if (!EnableKeySwitch_) {
+    if (!ControlAttributesConfig_->EnableKeySwitch) {
         return false;
     }
 
@@ -150,6 +159,76 @@ bool TSchemalessFormatWriterBase::CheckKeySwitch(TUnversionedRow row, bool isLas
     return needKeySwitch;
 }
 
+bool TSchemalessFormatWriterBase::IsSystemColumnId(int id) const
+{
+    return IsTableIndexColumnId(id) || 
+        IsRangeIndexColumnId(id) || 
+        IsRowIndexColumnId(id);
+}
+
+bool TSchemalessFormatWriterBase::IsTableIndexColumnId(int id) const
+{
+    return id == TableIndexId_;
+}
+
+bool TSchemalessFormatWriterBase::IsRowIndexColumnId(int id) const
+{
+    return id == RowIndexId_;
+}
+
+bool TSchemalessFormatWriterBase::IsRangeIndexColumnId(int id) const
+{
+    return id == RangeIndexId_;
+}
+
+void TSchemalessFormatWriterBase::WriteControlAttributes(TUnversionedRow row)
+{
+    if (!EnableRowControlAttributes_) {
+        return;
+    }
+
+    TNullable<i64> tableIndex;
+    TNullable<i64> rangeIndex;
+    TNullable<i64> rowIndex;
+
+    for (auto* it = row.Begin(); it != row.End(); ++it) {
+        if (it->Id == TableIndexId_) {
+            tableIndex = it->Data.Int64;
+        } else if (it->Id == RowIndexId_) {
+            rowIndex = it->Data.Int64;
+        } else if (it->Id == RangeIndexId_) {
+            rangeIndex = it->Data.Int64;
+        }
+    }
+
+    bool needRowIndex = false;
+    if (tableIndex && *tableIndex != TableIndex_) {
+        if (ControlAttributesConfig_->EnableTableIndex)
+            WriteTableIndex(*tableIndex);
+        TableIndex_ = *tableIndex;
+        needRowIndex = true;
+    }
+
+    if (rangeIndex && *rangeIndex != RangeIndex_) {
+        if (ControlAttributesConfig_->EnableRangeIndex)
+            WriteRangeIndex(*rangeIndex);
+        RangeIndex_ = *rangeIndex;
+        needRowIndex = true;
+    }
+
+    if (ControlAttributesConfig_->EnableRowIndex && needRowIndex && rowIndex) {
+        WriteRowIndex(*rowIndex);
+    }
+}
+
+void TSchemalessFormatWriterBase::WriteTableIndex(i64 tableIndex)
+{ }
+
+void TSchemalessFormatWriterBase::WriteRangeIndex(i64 rangeIndex)
+{ }
+
+void TSchemalessFormatWriterBase::WriteRowIndex(i64 rowIndex)
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -157,13 +236,13 @@ TSchemalessWriterAdapter::TSchemalessWriterAdapter(
     TNameTablePtr nameTable,
     IAsyncOutputStreamPtr output,
     bool enableContextSaving,
-    bool enableKeySwitch,
+    TControlAttributesConfigPtr controlAttributesConfig,
     int keyColumnCount)
     : TSchemalessFormatWriterBase(
         nameTable, 
         std::move(output), 
         enableContextSaving, 
-        enableKeySwitch, 
+        controlAttributesConfig, 
         keyColumnCount)
 { }
 
@@ -188,21 +267,6 @@ void TSchemalessWriterAdapter::DoWrite(const std::vector<TUnversionedRow>& rows)
     TryFlushBuffer(true);
 }
 
-void TSchemalessWriterAdapter::WriteTableIndex(i32 tableIndex)
-{
-    WriteControlAttribute(EControlAttribute::TableIndex, tableIndex);
-}
-
-void TSchemalessWriterAdapter::WriteRangeIndex(i32 rangeIndex)
-{
-    WriteControlAttribute(EControlAttribute::RangeIndex, rangeIndex);
-}
-
-void TSchemalessWriterAdapter::WriteRowIndex(i64 rowIndex)
-{
-    WriteControlAttribute(EControlAttribute::RowIndex, rowIndex);
-}
-
 template <class T>
 void TSchemalessWriterAdapter::WriteControlAttribute(
     EControlAttribute controlAttribute,
@@ -216,13 +280,34 @@ void TSchemalessWriterAdapter::WriteControlAttribute(
         .Entity();
 }
 
+void TSchemalessWriterAdapter::WriteTableIndex(i64 tableIndex)
+{
+    WriteControlAttribute(EControlAttribute::TableIndex, tableIndex);
+}
+
+void TSchemalessWriterAdapter::WriteRowIndex(i64 rowIndex)
+{
+    WriteControlAttribute(EControlAttribute::RowIndex, rowIndex);
+}
+
+void TSchemalessWriterAdapter::WriteRangeIndex(i64 rangeIndex)
+{
+    WriteControlAttribute(EControlAttribute::RangeIndex, rangeIndex);
+}
+
 void TSchemalessWriterAdapter::ConsumeRow(TUnversionedRow row)
 {
+    WriteControlAttributes(row);
+
     auto nameTable = GetNameTable();
     Consumer_->OnListItem();
     Consumer_->OnBeginMap();
     for (auto* it = row.Begin(); it != row.End(); ++it) {
         auto& value = *it;
+
+        if (IsSystemColumnId(value.Id)) {
+            continue;
+        }
 
         Consumer_->OnKeyedItem(nameTable->GetName(value.Id));
         switch (value.Type) {

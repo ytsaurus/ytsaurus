@@ -3,13 +3,9 @@
 #include "public.h"
 
 #include "data_statistics.h"
-#include "multi_chunk_reader.h"
+#include "reader_base.h"
 
 #include <ytlib/api/public.h>
-
-#include <ytlib/chunk_client/chunk_spec.pb.h>
-
-#include <ytlib/node_tracker_client/public.h>
 
 #include <core/concurrency/nonblocking_queue.h>
 #include <core/concurrency/public.h>
@@ -23,20 +19,14 @@ namespace NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TMultiChunkReaderBase
-    : public virtual IMultiChunkReader
+class TMultiReaderBase
+    : public virtual IReaderBase
 {
 public:
-    TMultiChunkReaderBase(
+    TMultiReaderBase(
         TMultiChunkReaderConfigPtr config,
         TMultiChunkReaderOptionsPtr options,
-        NApi::IClientPtr client,
-        IBlockCachePtr blockCache,
-        NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
-        const std::vector<NProto::TChunkSpec>& chunkSpecs,
-        NConcurrency::IThroughputThrottlerPtr throttler);
-
-    virtual TFuture<void> Open() override;
+        const std::vector<IReaderFactoryPtr>& readerFactories);
 
     virtual TFuture<void> GetReadyEvent() override;
 
@@ -49,20 +39,14 @@ public:
 protected:
     struct TSession
     {
-        IChunkReaderBasePtr ChunkReader;
-        int ChunkIndex = -1;
+        IReaderBasePtr Reader;
+        int Index = -1;
 
         void Reset()
         {
-            ChunkReader.Reset();
-            ChunkIndex = -1;
+            Reader.Reset();
+            Index = -1;
         }
-    };
-
-    struct TChunk
-    {
-        NProto::TChunkSpec Spec;
-        i64 MemoryEstimate;
     };
 
     NLogging::TLogger Logger;
@@ -70,23 +54,13 @@ protected:
     const TMultiChunkReaderConfigPtr Config_;
     const TMultiChunkReaderOptionsPtr Options_;
 
-    std::vector<TChunk> Chunks_;
-
-    const NConcurrency::IThroughputThrottlerPtr Throttler_;
-
     TSession CurrentSession_;
+    std::vector<IReaderFactoryPtr> ReaderFactories_;
 
     TFuture<void> ReadyEvent_;
-    TPromise<void> CompletionError_;
+    TPromise<void> CompletionError_ = NewPromise<void>();
 
-
-    virtual void DoOpen() = 0;
-
-    virtual IChunkReaderBasePtr CreateTemplateReader(
-        const NProto::TChunkSpec& chunkSpec,
-        IChunkReaderPtr asyncReader) = 0;
-
-    virtual void OnReaderOpened(IChunkReaderBasePtr chunkReader, int chunkIndex) = 0;
+    virtual void OnReaderOpened(IReaderBasePtr chunkReader, int chunkIndex) = 0;
 
     virtual void OnReaderBlocked() = 0;
 
@@ -98,69 +72,52 @@ protected:
 
     bool OnEmptyRead(bool readerFinished);
 
-    void RegisterFailedChunk(int chunkIndex);
+    void RegisterFailedReader(IReaderBasePtr reader);
 
 protected:
-    const IBlockCachePtr BlockCache_;
-    const NApi::IClientPtr Client_;
-    const NNodeTrackerClient::TNodeDirectoryPtr NodeDirectory_;
-
     TSpinLock PrefetchLock_;
     int PrefetchIndex_ = 0;
     i64 FreeBufferSize_;
 
-    std::vector<TFuture<void>> FetchingCompletedEvents_;
-    TPromise<void> FetchingCompleted_ = NewPromise<void>();
-
     TSpinLock FailedChunksLock_;
-    std::vector<TChunkId> FailedChunks_;
+    yhash_set<TChunkId> FailedChunks_;
 
-    bool IsOpen_ = false;
+    std::atomic<int> OpenedReaderCount_ = { 0 };
 
-    int OpenedReaderCount_ = 0;
-
-    TSpinLock DataStatisticsLock_;
+    TSpinLock ActiveReadersLock_;
     NProto::TDataStatistics DataStatistics_;
     std::atomic<int> ActiveReaderCount_ = { 0 };
-    yhash_set<IChunkReaderBasePtr> ActiveReaders_;
+    yhash_set<IReaderBasePtr> ActiveReaders_;
 
     // If KeepInMemory option is set, we store here references to finished readers.
-    std::vector<IChunkReaderBasePtr> FinishedReaders_;
-
-
-    IChunkReaderPtr CreateRemoteReader(const TChunk& chunk);
+    std::vector<IReaderBasePtr> FinishedReaders_;
 
     TFuture<void> CombineCompletionError(TFuture<void> future);
 
     void OpenNextChunks();
-    void DoOpenChunk(int chunkIndex);
+    void DoOpenReader(int index);
 
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSequentialMultiChunkReaderBase
-    : public TMultiChunkReaderBase
+class TSequentialMultiReaderBase
+    : public TMultiReaderBase
 {
 public:
-    TSequentialMultiChunkReaderBase(
+    TSequentialMultiReaderBase(
         TMultiChunkReaderConfigPtr config,
         TMultiChunkReaderOptionsPtr options,
-        NApi::IClientPtr client,
-        IBlockCachePtr blockCache,
-        NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
-        const std::vector<NProto::TChunkSpec>& chunkSpecs,
-        NConcurrency::IThroughputThrottlerPtr throttler);
+        const std::vector<IReaderFactoryPtr>& readerFactories);
 
 private:
     int NextReaderIndex_ = 0;
     int FinishedReaderCount_ = 0;
-    std::vector<TPromise<IChunkReaderBasePtr>> NextReaders_;
+    std::vector<TPromise<IReaderBasePtr>> NextReaders_;
 
+    void DoOpen();
 
-    virtual void DoOpen() override;
-
-    virtual void OnReaderOpened(IChunkReaderBasePtr chunkReader, int chunkIndex) override;
+    virtual void OnReaderOpened(IReaderBasePtr chunkReader, int chunkIndex) override;
 
     virtual void OnReaderBlocked() override;
 
@@ -176,18 +133,14 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TParallelMultiChunkReaderBase
-    : public TMultiChunkReaderBase
+class TParallelMultiReaderBase
+    : public TMultiReaderBase
 {
 public:
-    TParallelMultiChunkReaderBase(
+    TParallelMultiReaderBase(
         TMultiChunkReaderConfigPtr config,
         TMultiChunkReaderOptionsPtr options,
-        NApi::IClientPtr client,
-        IBlockCachePtr blockCache,
-        NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
-        const std::vector<NProto::TChunkSpec>& chunkSpecs,
-        NConcurrency::IThroughputThrottlerPtr throttler);
+        const std::vector<IReaderFactoryPtr>& readerFactories);
 
 private:
     typedef NConcurrency::TNonblockingQueue<TSession> TSessionQueue;
@@ -195,10 +148,9 @@ private:
     TSessionQueue ReadySessions_;
     int FinishedReaderCount_ = 0;
 
+    void DoOpen();
 
-    virtual void DoOpen() override;
-
-    virtual void OnReaderOpened(IChunkReaderBasePtr chunkReader, int chunkIndex) override;
+    virtual void OnReaderOpened(IReaderBasePtr chunkReader, int chunkIndex) override;
 
     virtual void OnReaderBlocked() override;
 

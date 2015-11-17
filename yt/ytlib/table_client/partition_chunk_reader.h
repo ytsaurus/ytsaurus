@@ -67,7 +67,7 @@ private:
     THorizontalSchemalessBlockReader* BlockReader_ = nullptr;
 
 
-    virtual std::vector<NChunkClient::TSequentialReader::TBlockInfo> GetBlockSequence() override;
+    std::vector<NChunkClient::TSequentialReader::TBlockInfo> GetBlockSequence();
     virtual void InitFirstBlock() override;
     virtual void InitNextBlock() override;
 
@@ -80,19 +80,10 @@ DEFINE_REFCOUNTED_TYPE(TPartitionChunkReader)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TPartitionMultiChunkReader
-    : public NChunkClient::TParallelMultiChunkReaderBase
+    : public NChunkClient::TParallelMultiReaderBase
 {
 public:
-    TPartitionMultiChunkReader(
-        NChunkClient::TMultiChunkReaderConfigPtr config,
-        NChunkClient::TMultiChunkReaderOptionsPtr options,
-        NApi::IClientPtr client,
-        NChunkClient::IBlockCachePtr blockCache,
-        NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
-        const std::vector<NChunkClient::NProto::TChunkSpec>& chunkSpecs,
-        TNameTablePtr nameTable,
-        const TKeyColumns& keyColumns,
-        NConcurrency::IThroughputThrottlerPtr throttler = NConcurrency::GetUnlimitedThrottler());
+    using TParallelMultiReaderBase::TParallelMultiReaderBase;
 
     template <class TValueInsertIterator, class TRowDescriptorInsertIterator>
     bool Read(
@@ -100,24 +91,26 @@ public:
         TRowDescriptorInsertIterator& rowDescriptorInserter,
         i64* rowCount);
 
-    TNameTablePtr GetNameTable() const;
-
 private:
-    const TNameTablePtr NameTable_;
-    const TKeyColumns KeyColumns_;
-
     TPartitionChunkReaderPtr CurrentReader_;
-
-
-    virtual NChunkClient::IChunkReaderBasePtr CreateTemplateReader(
-        const NChunkClient::NProto::TChunkSpec& chunkSpec,
-        NChunkClient::IChunkReaderPtr asyncReader) override;
 
     virtual void OnReaderSwitched() override;
 
 };
 
 DEFINE_REFCOUNTED_TYPE(TPartitionMultiChunkReader)
+
+////////////////////////////////////////////////////////////////////////////////
+
+TPartitionMultiChunkReaderPtr CreatePartitionMultiChunkReader(
+    NChunkClient::TMultiChunkReaderConfigPtr config,
+    NChunkClient::TMultiChunkReaderOptionsPtr options,
+    NApi::IClientPtr client,
+    NChunkClient::IBlockCachePtr blockCache,
+    NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
+    const std::vector<NChunkClient::NProto::TChunkSpec>& chunkSpecs,
+    TNameTablePtr nameTable,
+    const TKeyColumns& keyColumns);
 
 ////////////////////////////////////////////////////////////////////////////////
 

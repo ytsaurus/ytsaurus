@@ -18,7 +18,7 @@ namespace NTableClient {
 //! NChunkClient::IReader, e.g. TMemoryReader, TReplicationReader etc.
 
 //! ToDo(psushin): pass key columns here.
-TFuture<ISchemafulReaderPtr> CreateSchemafulChunkReader(
+ISchemafulReaderPtr CreateSchemafulChunkReader(
     TChunkReaderConfigPtr config,
     NChunkClient::IChunkReaderPtr chunkReader,
     NChunkClient::IBlockCachePtr blockCache,

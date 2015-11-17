@@ -572,7 +572,7 @@ private:
             reader->GetNameTable(),
             asyncOutput,
             true,
-            Config_->JobIO->ControlAttributes->EnableKeySwitch,
+            Config_->JobIO->ControlAttributes,
             JobIO_->GetReduceKeyColumnCount());
 
         FormatWriters_.push_back(writer);
@@ -581,13 +581,9 @@ private:
 
         InputActions_.push_back(BIND([=] () {
             try {
-                WaitFor(reader->Open())
-                    .ThrowOnError();
-
                 PipeReaderToWriter(
                     reader,
                     writer,
-                    Config_->JobIO->ControlAttributes,
                     bufferRowCount);
 
                 WaitFor(asyncOutput->Close())
@@ -623,7 +619,7 @@ private:
                     resultNameTable,
                     asyncOutput,
                     true,
-                    false,
+                    Config_->JobIO->ControlAttributes,
                     0);
 
                 FormatWriters_.push_back(schemalessWriter);
@@ -639,8 +635,7 @@ private:
                 }
                 auto registry = CreateJobFunctionRegistry(descriptors, SandboxDirectoryNames[ESandboxKind::Udf]);
                 auto evaluator = New<TEvaluator>(New<TExecutorConfig>());
-                auto reader = WaitFor(CreateSchemafulReaderAdapter(readerFactory, query->TableSchema))
-                    .ValueOrThrow();
+                auto reader = CreateSchemafulReaderAdapter(readerFactory, query->TableSchema);
 
                 evaluator->Run(query, reader, writer, registry, true);
                 WaitFor(asyncOutput->Close())

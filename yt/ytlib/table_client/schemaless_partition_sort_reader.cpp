@@ -8,6 +8,8 @@
 #include "schemaless_block_reader.h"
 
 #include <ytlib/api/client.h>
+#include <ytlib/chunk_client/dispatcher.h>
+#include <ytlib/chunk_client/chunk_spec.pb.h>
 
 #include <core/profiling/profiler.h>
 
@@ -64,6 +66,7 @@ public:
         : KeyColumns_(keyColumns)
         , KeyColumnCount_(static_cast<int>(KeyColumns_.size()))
         , OnNetworkReleased_(onNetworkReleased)
+        , NameTable_(nameTable)
         , IsApproximate_(isApproximate)
         , EstimatedRowCount_(estimatedRowCount)
         , TotalRowCount_(0)
@@ -79,10 +82,10 @@ public:
 
         std::random_shuffle(chunks.begin(), chunks.end());
 
-        auto options = New<TMultiChunkReaderOptions>();
+        auto options = New<NTableClient::TTableReaderOptions>();
         options->KeepInMemory = true;
 
-        UnderlyingReader_ = New<TPartitionMultiChunkReader>(
+        UnderlyingReader_ = CreatePartitionMultiChunkReader(
             config,
             options,
             client,
@@ -91,26 +94,28 @@ public:
             std::move(chunks),
             nameTable,
             KeyColumns_);
+
+        SortQueue_ = New<TActionQueue>("Sort");
+        ReadyEvent_ = BIND(
+                &TSchemalessPartitionSortReader::DoOpen, 
+                MakeWeak(this))
+            .AsyncVia(TDispatcher::Get()->GetReaderInvoker())
+            .Run();
     }
 
-    virtual TFuture<void> Open() override
+    void DoOpen()
     {
-        SortQueue_ = New<TActionQueue>("Sort");
-
-        try {
-            InitInput();
-            ReadInput();
-            StartMerge();
-        } catch (const std::exception& ex) {
-            return MakeFuture(TError(ex));
-        }
-
-        return VoidFuture;
+        InitInput();
+        ReadInput();
+        StartMerge();
     }
 
     virtual bool Read(std::vector<TUnversionedRow> *rows) override
     {
         YCHECK(rows->capacity() > 0);
+        if (!ReadyEvent_.IsSet() || !ReadyEvent_.Get().IsOK()) {
+            return true;
+        }
 
         MemoryPool_.Clear();
         rows->clear();
@@ -150,12 +155,7 @@ public:
 
     virtual TFuture<void> GetReadyEvent() override
     {
-        YUNREACHABLE();
-    }
-
-    virtual int GetTableIndex() const override
-    {
-        return 0;
+        return ReadyEvent_;
     }
 
     virtual i64 GetSessionRowIndex() const override
@@ -170,7 +170,7 @@ public:
 
     virtual TNameTablePtr GetNameTable() const override
     {
-        return UnderlyingReader_->GetNameTable();
+        return NameTable_;
     }
 
     virtual TKeyColumns GetKeyColumns() const override
@@ -199,11 +199,6 @@ public:
     }
 
     virtual i64 GetTableRowIndex() const override
-    {
-        YUNREACHABLE();
-    }
-
-    virtual i32 GetRangeIndex() const override
     {
         YUNREACHABLE();
     }
@@ -317,6 +312,8 @@ private:
     int KeyColumnCount_;
     TClosure OnNetworkReleased_;
 
+    TNameTablePtr NameTable_;
+
     TPartitionMultiChunkReaderPtr UnderlyingReader_;
     TActionQueuePtr SortQueue_;
 
@@ -344,15 +341,13 @@ private:
 
     // Sort error may occur due to CompositeValues in keys.
     std::vector<TFuture<void>> SortErrors_;
+    TFuture<void> ReadyEvent_;
 
 
     void InitInput()
     {
         LOG_INFO("Initializing input");
         PROFILE_TIMING ("/reduce/init_time") {
-            auto error = WaitFor(UnderlyingReader_->Open());
-            THROW_ERROR_EXCEPTION_IF_FAILED(error, "Failed to open partition reader");
-
             EstimatedBucketCount_ = (EstimatedRowCount_ + SortBucketSize - 1) / SortBucketSize;
             LOG_INFO("Input size estimated (RowCount: %v, BucketCount: %v)",
                 EstimatedRowCount_,

@@ -55,13 +55,18 @@ const i64 MaxRowWeightLimit = (i64) 128 * 1024 * 1024;
 
 const int DefaultPartitionTag = -1;
 
+extern const Stroka SystemColumnNamePrefix;
+extern const Stroka TableIndexColumnName;
+extern const Stroka RowIndexColumnName;
+extern const Stroka RangeIndexColumnName;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_ENUM(EErrorCode,
     ((MasterCommunicationFailed)  (300))
     ((SortOrderViolation)         (301))
     ((InvalidDoubleValue)         (302))
-    ((IncomparableType)          (303))
+    ((IncomparableType)           (303))
     ((UnhashableType)             (304))
 );
 
@@ -174,8 +179,6 @@ DECLARE_REFCOUNTED_STRUCT(ISchemalessMultiChunkWriter)
 DECLARE_REFCOUNTED_CLASS(TPartitionChunkReader)
 DECLARE_REFCOUNTED_CLASS(TPartitionMultiChunkReader)
 
-DECLARE_REFCOUNTED_CLASS(TControlAttributesConfig)
-
 DECLARE_REFCOUNTED_STRUCT(IVersionedReader)
 DECLARE_REFCOUNTED_STRUCT(IVersionedWriter)
 
@@ -191,11 +194,13 @@ DECLARE_REFCOUNTED_CLASS(TBuildingValueConsumer)
 DECLARE_REFCOUNTED_CLASS(TWritingValueConsumer)
 
 DECLARE_REFCOUNTED_CLASS(TTableWriterOptions)
+DECLARE_REFCOUNTED_CLASS(TTableReaderOptions)
 
 DECLARE_REFCOUNTED_CLASS(TChunkWriterConfig)
 DECLARE_REFCOUNTED_CLASS(TChunkWriterOptions)
 
 DECLARE_REFCOUNTED_CLASS(TChunkReaderConfig)
+DECLARE_REFCOUNTED_CLASS(TChunkReaderOptions)
 
 DECLARE_REFCOUNTED_CLASS(TTableWriterConfig)
 DECLARE_REFCOUNTED_CLASS(TTableReaderConfig)

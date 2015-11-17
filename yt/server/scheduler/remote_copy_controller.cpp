@@ -19,6 +19,8 @@
 
 #include <ytlib/transaction_client/helpers.h>
 
+#include <ytlib/table_client/config.h>
+
 #include <core/ytree/attribute_helpers.h>
 
 namespace NYT {
@@ -38,6 +40,8 @@ using namespace NNodeTrackerClient::NProto;
 using namespace NJobTrackerClient::NProto;
 using namespace NApi;
 using namespace NConcurrency;
+using namespace NTableClient;
+
 
 ////////////////////////////////////////////////////////////////////
 
@@ -161,6 +165,11 @@ private:
             return Controller_->IsMemoryReserveEnabled(Controller_->JobCounter);
         }
 
+        virtual TTableReaderOptionsPtr GetTableReaderOptions() const override
+        {
+            return New<NTableClient::TTableReaderOptions>();
+        }
+
         virtual TNodeResources GetMinNeededResourcesHeavy() const override
         {
             return GetRemoteCopyResources(
@@ -213,6 +222,7 @@ private:
                 schedulerJobSpecExt->mutable_input_node_directory());
 
             auto* inputSpec = schedulerJobSpecExt->add_input_specs();
+            inputSpec->set_table_reader_options(ConvertToYsonString(GetTableReaderOptions()).Data());
             auto list = joblet->InputStripeList;
             for (const auto& stripe : list->Stripes) {
                 for (const auto& chunkSlice : stripe->ChunkSlices) {

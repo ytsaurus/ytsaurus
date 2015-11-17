@@ -36,7 +36,10 @@ protected:
     int KeyCId_;
     int ValueXId_;
     int ValueYId_;
-    
+    int TableIndexId_;
+    int RangeIndexId_;
+    int RowIndexId_;
+
     TSchemalessWriterForYamredDsvTest() 
     {
         NameTable_ = New<TNameTable>();
@@ -45,16 +48,19 @@ protected:
         KeyCId_ = NameTable_->RegisterName("key_c");
         ValueXId_ = NameTable_->RegisterName("value_x");
         ValueYId_ = NameTable_->RegisterName("value_y");
+        TableIndexId_ = NameTable_->RegisterName(TableIndexColumnName);
+        RowIndexId_ = NameTable_->RegisterName(RowIndexColumnName);
+        RangeIndexId_ = NameTable_->RegisterName(RangeIndexColumnName);
         Config_ = New<TYamredDsvFormatConfig>();
     }
 
-    void CreateStandardWriter() 
+    void CreateStandardWriter(TControlAttributesConfigPtr controlAttributes = New<TControlAttributesConfig>()) 
     {
         Writer_ = New<TSchemalessWriterForYamredDsv>(
             NameTable_,
             CreateAsyncAdapter(static_cast<TOutputStream*>(&OutputStream_)),
             false, // enableContextSaving  
-            false, // enableKeySwitch
+            controlAttributes,
             0, // keyColumnCount
             Config_);
     }
@@ -157,6 +163,11 @@ TEST_F(TSchemalessWriterForYamredDsvTest, Simple)
     row1.AddValue(MakeUnversionedStringValue("x", ValueXId_));
     row1.AddValue(MakeUnversionedSentinelValue(EValueType::Null, ValueYId_));
 
+    // Ignore system columns.
+    row1.AddValue(MakeUnversionedInt64Value(2, TableIndexId_));
+    row1.AddValue(MakeUnversionedInt64Value(42, RowIndexId_));
+    row1.AddValue(MakeUnversionedInt64Value(1, RangeIndexId_));
+
     TUnversionedRowBuilder row2;
     row2.AddValue(MakeUnversionedStringValue("a2", KeyAId_));
     row2.AddValue(MakeUnversionedStringValue("y", ValueYId_));
@@ -224,7 +235,12 @@ TEST_F(TSchemalessWriterForYamredDsvTest, Lenval)
     Config_->KeyColumnNames.emplace_back("key_a");
     Config_->KeyColumnNames.emplace_back("key_b");
     Config_->SubkeyColumnNames.emplace_back("key_c");
-    CreateStandardWriter();
+
+    auto controlAttributes = New<TControlAttributesConfig>();
+    controlAttributes->EnableTableIndex = true;
+    controlAttributes->EnableRowIndex = true;
+    controlAttributes->EnableRangeIndex = true;
+    CreateStandardWriter(controlAttributes);
 
     TUnversionedRowBuilder row1;
     row1.AddValue(MakeUnversionedStringValue("a", KeyAId_));
@@ -232,19 +248,22 @@ TEST_F(TSchemalessWriterForYamredDsvTest, Lenval)
     row1.AddValue(MakeUnversionedStringValue("c", KeyCId_));
     row1.AddValue(MakeUnversionedStringValue("x", ValueXId_));
 
+    row1.AddValue(MakeUnversionedInt64Value(42, TableIndexId_));
+    row1.AddValue(MakeUnversionedInt64Value(23, RangeIndexId_));
+    row1.AddValue(MakeUnversionedInt64Value(17, RowIndexId_));
 
     TUnversionedRowBuilder row2;
     row2.AddValue(MakeUnversionedStringValue("a", KeyAId_));
     row2.AddValue(MakeUnversionedStringValue("b2", KeyBId_));
     row2.AddValue(MakeUnversionedStringValue("c", KeyCId_));
-    
-    std::vector<TUnversionedRow> rows = {row1.GetRow(), row2.GetRow()};
-   
-    Writer_->WriteTableIndex(42);
-    Writer_->WriteRangeIndex(23);
-    EXPECT_EQ(true, Writer_->Write(rows));
-    Writer_->WriteRowIndex(17);
 
+    row2.AddValue(MakeUnversionedInt64Value(42, TableIndexId_));
+    row2.AddValue(MakeUnversionedInt64Value(23, RangeIndexId_));
+    row2.AddValue(MakeUnversionedInt64Value(18, RowIndexId_));
+
+    std::vector<TUnversionedRow> rows = {row1.GetRow(), row2.GetRow()};
+
+    EXPECT_EQ(true, Writer_->Write(rows));
     Writer_->Close()
         .Get()
         .ThrowOnError();
@@ -252,7 +271,8 @@ TEST_F(TSchemalessWriterForYamredDsvTest, Lenval)
     // ToDo(makhmedov): compare Yamr values ignoring the order of entries.
     Stroka expectedOutput = Stroka(
         "\xff\xff\xff\xff" "\x2a\x00\x00\x00" // Table index.
-        "\xfd\xff\xff\xff" "\x17\x00\x00\x00" // Row index.
+        "\xfd\xff\xff\xff" "\x17\x00\x00\x00" // Range index.
+        "\xfc\xff\xff\xff" "\x11\x00\x00\x00\x00\x00\x00\x00" // Row index.
 
         "\x04\x00\x00\x00" "a b1"
         "\x01\x00\x00\x00" "c"
@@ -260,15 +280,16 @@ TEST_F(TSchemalessWriterForYamredDsvTest, Lenval)
 
         "\x04\x00\x00\x00" "a b2"
         "\x01\x00\x00\x00" "c"
-        "\x00\x00\x00\x00" ""
+        "\x00\x00\x00\x00" "",
 
-        "\xfc\xff\xff\xff" "\x11\x00\x00\x00\x00\x00\x00\x00",
         13 * 4 + 4 + 1 + 9 + 4 + 1 + 0
     );
 
     Stroka output = OutputStream_.Str(); 
-    
-    EXPECT_EQ(expectedOutput, output);
+    EXPECT_EQ(expectedOutput, output) 
+        << "expected length: " << expectedOutput.length() 
+        << ", " 
+        << "actual length: " << output.length();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -314,8 +335,8 @@ TEST_F(TSchemalessWriterForYamredDsvTest, SkippedKey)
     EXPECT_FALSE(Writer_->Write(rows));
 
     EXPECT_THROW(Writer_->Close()
-                     .Get()
-                     .ThrowOnError(), std::exception);
+        .Get()
+        .ThrowOnError(), std::exception);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -335,8 +356,8 @@ TEST_F(TSchemalessWriterForYamredDsvTest, SkippedSubkey)
     EXPECT_FALSE(Writer_->Write(rows));
 
     EXPECT_THROW(Writer_->Close()
-                     .Get()
-                     .ThrowOnError(), std::exception);
+        .Get()
+        .ThrowOnError(), std::exception);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

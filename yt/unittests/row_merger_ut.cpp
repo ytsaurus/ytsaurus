@@ -6,6 +6,8 @@
 
 #include <core/ytree/convert.h>
 
+#include <ytlib/chunk_client/data_statistics.h>
+
 #include <ytlib/table_client/versioned_row.h>
 #include <ytlib/table_client/unversioned_row.h>
 #include <ytlib/table_client/row_buffer.h>
@@ -44,6 +46,8 @@ using namespace NYson;
 using namespace NTransactionClient;
 using namespace NConcurrency;
 using namespace NQueryClient;
+using namespace NChunkClient::NProto;
+using namespace NChunkClient;
 
 using ::ToString;
 
@@ -1198,6 +1202,21 @@ public:
     virtual TFuture<void> GetReadyEvent() override
     {
         return VoidFuture;
+    }
+
+    virtual TDataStatistics GetDataStatistics() const override
+    {
+        return TDataStatistics();
+    }
+
+    virtual bool IsFetchingCompleted() const override
+    {
+        return true;
+    }
+
+    virtual std::vector<TChunkId> GetFailedChunkIds() const override
+    {
+        return std::vector<TChunkId>();
     }
 
 private:

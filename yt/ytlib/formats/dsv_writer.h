@@ -37,22 +37,17 @@ public:
     TSchemalessWriterForDsv(
         NTableClient::TNameTablePtr nameTable,
         bool enableContextSaving,
+        TControlAttributesConfigPtr controlAttributesConfig,
         NConcurrency::IAsyncOutputStreamPtr output,
         TDsvFormatConfigPtr config = New<TDsvFormatConfig>());
 
     virtual void DoWrite(const std::vector<NTableClient::TUnversionedRow>& rows) override;
 
-    virtual void WriteTableIndex(i32 tableIndex) override;
-
-    virtual void WriteRangeIndex(i32 rangeIndex) override;
-
-    virtual void WriteRowIndex(i64 rowIndex) override;
-
 private:
     int TableIndex_ = 0;
 
     void WriteValue(const NTableClient::TUnversionedValue& value);
-    void FinalizeRow(bool firstValue);
+    void WriteTableIndexValue(const NTableClient::TUnversionedValue& value);
 };
 
 DEFINE_REFCOUNTED_TYPE(TSchemalessWriterForDsv)

@@ -180,13 +180,14 @@ ISchemalessMultiChunkReaderPtr TUserJobIOBase::CreateRegularReader(
             inputSpec.chunks().end());
     }
 
-    auto options = New<TMultiChunkReaderOptions>();
+    auto options = ConvertTo<TTableReaderOptionsPtr>(TYsonString(
+            SchedulerJobSpec_.input_specs(0).table_reader_options()));
 
     return CreateTableReader(options, chunkSpecs, std::move(nameTable), columnFilter, isParallel);
 }
 
 ISchemalessMultiChunkReaderPtr TUserJobIOBase::CreateTableReader(
-    TMultiChunkReaderOptionsPtr options,
+    NTableClient::TTableReaderOptionsPtr options,
     const std::vector<TChunkSpec>& chunkSpecs,
     TNameTablePtr nameTable,
     const TColumnFilter& columnFilter,

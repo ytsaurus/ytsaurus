@@ -24,7 +24,7 @@ public:
         NTableClient::TNameTablePtr nameTable,
         NConcurrency::IAsyncOutputStreamPtr output,
         bool enableContextSaving,
-        bool enableKeySwitch,
+        TControlAttributesConfigPtr controlAttributesConfig,
         int keyColumnCount,
         TYamrFormatConfigPtr config = New<TYamrFormatConfig>());
 

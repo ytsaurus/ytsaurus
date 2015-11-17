@@ -42,7 +42,7 @@ private:
     TSchemafulDsvTable Table_;
     
     static char* WriteInt64Backwards(char* ptr, i64 value);
-    static char* WriteUint64Backwards(char* ptr, ui64 value);    
+    static char* WriteUint64Backwards(char* ptr, ui64 value);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -56,13 +56,11 @@ public:
         NTableClient::TNameTablePtr nameTable,
         NConcurrency::IAsyncOutputStreamPtr output,
         bool enableContextSaving,
+        TControlAttributesConfigPtr controlAttributesConfig,
         TSchemafulDsvFormatConfigPtr config);
        
     // ISchemalessFormatWriter overrides.
     virtual void DoWrite(const std::vector<NTableClient::TUnversionedRow>& rows) override;
-    virtual void WriteTableIndex(i32 tableIndex) override;
-    virtual void WriteRangeIndex(i32 rangeIndex) override;
-    virtual void WriteRowIndex(i64 rowIndex) override;
 private:
     std::vector<int> IdToIndexInRowMapping_;
 };

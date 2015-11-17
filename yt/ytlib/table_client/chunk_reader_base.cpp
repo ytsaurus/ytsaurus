@@ -33,28 +33,22 @@ TChunkReaderBase::TChunkReaderBase(
     Logger.AddTag("ChunkId: %v", UnderlyingReader_->GetChunkId());
 }
 
-TFuture<void> TChunkReaderBase::Open()
-{
-    try {
-        auto blocks = GetBlockSequence();
-        if (blocks.empty()) {
-            return VoidFuture;
-        }
-
-        SequentialReader_ = New<TSequentialReader>(
-            Config_,
-            std::move(blocks),
-            UnderlyingReader_,
-            BlockCache_,
-            ECodec(Misc_.compression_codec()));
-    } catch (const std::exception& ex) {
-        return MakeFuture(TError(ex));
+TFuture<void> TChunkReaderBase::DoOpen(std::vector<TSequentialReader::TBlockInfo> blockSequence)
+{    
+    if (blockSequence.empty()) {
+        return VoidFuture;
     }
 
-    YCHECK(SequentialReader_->HasMoreBlocks());
-    ReadyEvent_ = SequentialReader_->FetchNextBlock();
+    SequentialReader_ = New<TSequentialReader>(
+        Config_,
+        std::move(blockSequence),
+        UnderlyingReader_,
+        BlockCache_,
+        ECodec(Misc_.compression_codec()));
+
     InitFirstBlockNeeded_ = true;
-    return ReadyEvent_;
+    YCHECK(SequentialReader_->HasMoreBlocks());
+    return SequentialReader_->FetchNextBlock();
 }
 
 TFuture<void> TChunkReaderBase::GetReadyEvent()
@@ -65,6 +59,10 @@ TFuture<void> TChunkReaderBase::GetReadyEvent()
 bool TChunkReaderBase::BeginRead()
 {
     if (!ReadyEvent_.IsSet()) {
+        return false;
+    }
+
+    if (!ReadyEvent_.Get().IsOK()) {
         return false;
     }
 
@@ -288,12 +286,21 @@ TDataStatistics TChunkReaderBase::GetDataStatistics() const
     return dataStatistics;
 }
 
-TFuture<void> TChunkReaderBase::GetFetchingCompletedEvent()
+bool TChunkReaderBase::IsFetchingCompleted() const
 {
     if (!SequentialReader_) {
-        return VoidFuture;
+        return true;
     }
-    return SequentialReader_->GetFetchingCompletedEvent();
+    return SequentialReader_->GetFetchingCompletedEvent().IsSet();
+}
+
+std::vector<TChunkId> TChunkReaderBase::GetFailedChunkIds() const
+{
+    if (ReadyEvent_.IsSet() && !ReadyEvent_.Get().IsOK()) {
+        return std::vector<TChunkId>(1, UnderlyingReader_->GetChunkId());
+    } else {
+        return std::vector<TChunkId>();
+    }
 }
 
 std::vector<TUnversionedValue> TChunkReaderBase::WidenKey(const TOwningKey &key, int keyColumnCount)

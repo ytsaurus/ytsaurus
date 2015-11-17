@@ -6,8 +6,6 @@
 
 #include <ytlib/chunk_client/public.h>
 #include <ytlib/chunk_client/reader_base.h>
-#include <ytlib/chunk_client/chunk_reader_base.h>
-#include <ytlib/chunk_client/multi_chunk_reader.h>
 
 #include <ytlib/node_tracker_client/public.h>
 
@@ -34,16 +32,7 @@ DEFINE_REFCOUNTED_TYPE(IFileReader)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct IFileChunkReader
-    : public virtual NChunkClient::IChunkReaderBase
-    , public IFileReader
-{ };
-
-DEFINE_REFCOUNTED_TYPE(IFileChunkReader)
-
-////////////////////////////////////////////////////////////////////////////////
-
-IFileChunkReaderPtr CreateFileChunkReader(
+IFileReaderPtr CreateFileChunkReader(
     NChunkClient::TSequentialReaderConfigPtr config,
     NChunkClient::TMultiChunkReaderOptionsPtr options,
     NChunkClient::IChunkReaderPtr chunkReader,
@@ -54,16 +43,7 @@ IFileChunkReaderPtr CreateFileChunkReader(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct IFileMultiChunkReader
-    : public virtual NChunkClient::IMultiChunkReader
-    , public IFileReader
-{ };
-
-DEFINE_REFCOUNTED_TYPE(IFileMultiChunkReader)
-
-////////////////////////////////////////////////////////////////////////////////
-
-IFileMultiChunkReaderPtr CreateFileMultiChunkReader(
+IFileReaderPtr CreateFileMultiChunkReader(
     NChunkClient::TMultiChunkReaderConfigPtr config,
     NChunkClient::TMultiChunkReaderOptionsPtr options,
     NApi::IClientPtr client,

@@ -21,14 +21,14 @@ TSchemalessWriterForYamr::TSchemalessWriterForYamr(
     TNameTablePtr nameTable, 
     IAsyncOutputStreamPtr output,
     bool enableContextSaving,
-    bool enableKeySwitch,
+    TControlAttributesConfigPtr controlAttributesConfig,
     int keyColumnCount,
     TYamrFormatConfigPtr config)
     : TSchemalessWriterForYamrBase(
         nameTable, 
         std::move(output),
         enableContextSaving, 
-        enableKeySwitch,
+        controlAttributesConfig,
         keyColumnCount,
         config)
     , Table_(
@@ -43,7 +43,7 @@ TSchemalessWriterForYamr::TSchemalessWriterForYamr(
     SubkeyId_ = Config_->HasSubkey ? nameTable->GetIdOrRegisterName(config->Subkey) : -1;
     ValueId_ = nameTable->GetIdOrRegisterName(config->Value);
 }
-    
+
 void TSchemalessWriterForYamr::ValidateColumnType(const TUnversionedValue* value)
 {
     if (value->Type != EValueType::String) {
@@ -59,18 +59,19 @@ void TSchemalessWriterForYamr::DoWrite(const std::vector<TUnversionedRow>& rows)
     TYamrFormatConfigPtr config(static_cast<TYamrFormatConfig*>(Config_.Get()));
 
     for (int i = 0; i < static_cast<int>(rows.size()); i++) {
-        if (CheckKeySwitch(rows[i], i + 1 == rows.size() /* isLastRow */)) {
-            if (!config->Lenval) {
-                THROW_ERROR_EXCEPTION("Key switches are not supported in text YAMR format.");
-            }
+        auto row = rows[i];
+        if (CheckKeySwitch(row, i + 1 == rows.size() /* isLastRow */)) {
+            YCHECK(config->Lenval);
             WritePod(*stream, static_cast<ui32>(-2));
         }
+
+        WriteControlAttributes(row);
         
         TNullable<TStringBuf> key;
         TNullable<TStringBuf> subkey;
         TNullable<TStringBuf> value;
 
-        for (const auto* item = rows[i].Begin(); item != rows[i].End(); ++item) {
+        for (const auto* item = row.Begin(); item != row.End(); ++item) {
             if (item->Id == KeyId_) {
                 ValidateColumnType(item);
                 key = TStringBuf(item->Data.String, item->Length);
@@ -99,7 +100,7 @@ void TSchemalessWriterForYamr::DoWrite(const std::vector<TUnversionedRow>& rows)
         if (!value) {
             THROW_ERROR_EXCEPTION("Missing value column %Qv in YAMR record", config->Value);
         }
-             
+
         if (!config->Lenval) {
             EscapeAndWrite(*key, Table_.KeyStops, Table_.Escapes);
             stream->Write(config->FieldSeparator);

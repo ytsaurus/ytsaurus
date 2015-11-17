@@ -84,66 +84,6 @@ void PipeReaderToWriter(
     YCHECK(rows.empty());
 }
 
-void PipeReaderToWriter(
-    ISchemalessMultiChunkReaderPtr reader,
-    NFormats::ISchemalessFormatWriterPtr writer,
-    NTableClient::TControlAttributesConfigPtr config,
-    int bufferRowCount,
-    bool validateValues)
-{
-    std::vector<TUnversionedRow> rows;
-    rows.reserve(bufferRowCount);
-
-    int tableIndex = -1;
-    i32 rangeIndex = -1;
-
-    while (reader->Read(&rows)) {
-        if (rows.empty()) {
-            WaitFor(reader->GetReadyEvent())
-                .ThrowOnError();
-            continue;
-        }
-
-        if (validateValues) {
-            for (const auto& row : rows) {
-                for (int i = 0; i < row.GetCount(); ++i) {
-                    ValidateStaticValue(row[i]);
-                }
-            }
-        }
-
-        if (config->EnableTableIndex) {
-            auto newTableIndex = reader->GetTableIndex();
-            if (tableIndex != newTableIndex) {
-                writer->WriteTableIndex(newTableIndex);
-                tableIndex = newTableIndex;
-            }
-        }
-
-        if (config->EnableRangeIndex) {
-            auto newRangeIndex = reader->GetRangeIndex();
-            if (rangeIndex != newRangeIndex) {
-                writer->WriteRangeIndex(newRangeIndex);
-                rangeIndex = newRangeIndex;
-            }
-        }
-
-        if (config->EnableRowIndex) {
-            writer->WriteRowIndex(reader->GetTableRowIndex() - rows.size());
-        }
-
-        if (!writer->Write(rows)) {
-            WaitFor(writer->GetReadyEvent())
-                .ThrowOnError();
-        }
-    }
-
-    WaitFor(writer->Close())
-        .ThrowOnError();
-
-    YCHECK(rows.empty());
-}
-
 void PipeInputToOutput(
     TInputStream* input,
     TOutputStream* output,
@@ -191,6 +131,26 @@ TUnversionedValue MakeUnversionedValue(const TStringBuf& ysonString, int id, TSt
         default:
             return MakeUnversionedAnyValue(ysonString, id);
     }
+}
+
+//////////////////////////////////////////////////////////////////////////////////
+
+int GetSystemColumnCount(TChunkReaderOptionsPtr options)
+{
+    int systemColumnCount = 0;
+    if (options->EnableRowIndex) {
+        ++systemColumnCount;
+    }
+
+    if (options->EnableRangeIndex) {
+        ++systemColumnCount;
+    }
+
+    if (options->EnableTableIndex) {
+        ++systemColumnCount;
+    }
+
+    return systemColumnCount;
 }
 
 //////////////////////////////////////////////////////////////////////////////////

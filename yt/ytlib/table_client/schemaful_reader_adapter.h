@@ -13,7 +13,7 @@ namespace NTableClient {
 
 typedef std::function<ISchemalessReaderPtr(TNameTablePtr, TColumnFilter)> TSchemalessReaderFactory;
 
-TFuture<ISchemafulReaderPtr> CreateSchemafulReaderAdapter(
+ISchemafulReaderPtr CreateSchemafulReaderAdapter(
     TSchemalessReaderFactory createReader,
     const TTableSchema& schema);
 

@@ -44,10 +44,10 @@ void ProcessFetchResponse(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+i64 GetChunkReaderMemoryEstimate(const NProto::TChunkSpec& chunkSpec, TMultiChunkReaderConfigPtr config);
+
 IChunkReaderPtr CreateRemoteReader(
-    const TChunkId& chunkId,
-    const TChunkReplicaList& replicas,
-    NErasure::ECodec erasureCodecId,
+    const NProto::TChunkSpec& chunkSpec, 
     TReplicationReaderConfigPtr config,
     TRemoteReaderOptionsPtr options,
     NApi::IClientPtr client,

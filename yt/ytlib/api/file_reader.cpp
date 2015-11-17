@@ -96,7 +96,7 @@ private:
 
     TTransactionPtr Transaction_;
 
-    IFileMultiChunkReaderPtr Reader_;
+    NFileClient::IFileReaderPtr Reader_;
 
     NLogging::TLogger Logger;
 
@@ -193,9 +193,6 @@ private:
             Client_->GetConnection()->GetBlockCache(),
             nodeDirectory,
             std::move(chunkSpecs));
-
-        WaitFor(Reader_->Open())
-            .ThrowOnError();
 
         if (Transaction_) {
             ListenTransaction(Transaction_);

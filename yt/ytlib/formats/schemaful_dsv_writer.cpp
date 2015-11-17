@@ -182,12 +182,13 @@ TSchemalessWriterForSchemafulDsv::TSchemalessWriterForSchemafulDsv(
     TNameTablePtr nameTable, 
     IAsyncOutputStreamPtr output,
     bool enableContextSaving,
+    TControlAttributesConfigPtr controlAttributesConfig,
     TSchemafulDsvFormatConfigPtr config)
     : TSchemalessFormatWriterBase(
         nameTable,
         std::move(output),
         enableContextSaving,
-        false /* enableKeySwitch */,
+        controlAttributesConfig,
         0 /* keyColumnCount */)
     , TSchemafulDsvWriterBase(config)
 {
@@ -195,7 +196,7 @@ TSchemalessWriterForSchemafulDsv::TSchemalessWriterForSchemafulDsv(
     YCHECK(Config_->Columns);
     const auto& columns = Config_->Columns.Get();
     for (int columnIndex = 0; columnIndex < static_cast<int>(columns.size()); ++columnIndex) {
-        ColumnIdMapping_.push_back(NameTable_->GetIdOrRegisterName(columns[columnIndex]));
+        ColumnIdMapping_.push_back(nameTable->GetIdOrRegisterName(columns[columnIndex]));
     }
     IdToIndexInRowMapping_.resize(nameTable->GetSize());
 }
@@ -216,28 +217,14 @@ void TSchemalessWriterForSchemafulDsv::DoWrite(const std::vector<TUnversionedRow
             }
             int index = IdToIndexInRowMapping_[currentId];
             if (index == -1) {
-                THROW_ERROR_EXCEPTION("Column %Qv is in schema but missing", NameTable_->GetName(currentId));
+                THROW_ERROR_EXCEPTION("Column %Qv is in schema but missing", GetNameTable()->GetName(currentId));
             }
             WriteValue(row[index]);
         }
         WriteRaw(Config_->RecordSeparator);
         TryFlushBuffer(false);
     }    
-}
-
-void TSchemalessWriterForSchemafulDsv::WriteTableIndex(i32 tableIndex)
-{
-    THROW_ERROR_EXCEPTION("Table inidices are not supported in schemaful DSV");
-}
-
-void TSchemalessWriterForSchemafulDsv::WriteRangeIndex(i32 rangeIndex)
-{
-    THROW_ERROR_EXCEPTION("Range inidices are not supported in schemaful DSV");
-}
-    
-void TSchemalessWriterForSchemafulDsv::WriteRowIndex(i64 rowIndex)
-{
-    THROW_ERROR_EXCEPTION("Row inidices are not supported in schemaful DSV");
+    TryFlushBuffer(true);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -274,6 +261,7 @@ bool TSchemafulWriterForSchemafulDsv::Write(const std::vector<TUnversionedRow>& 
         WriteRaw(Config_->RecordSeparator);
         TryFlushBuffer(false);
     }
+    TryFlushBuffer(true);
     
     return true;
 }
