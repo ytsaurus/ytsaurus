@@ -194,9 +194,9 @@ std::vector<TSharedRef> TFileReader::DoReadBlocks(
     return blocks;
 }
 
-TChunkMeta TFileReader::GetMeta(const TNullable<std::vector<int>>& extensionTags)
+const TChunkMeta& TFileReader::GetMeta()
 {
-    return FilterChunkMetaByExtensionTags(Meta_, extensionTags);
+    return Meta_;
 }
 
 i64 TFileReader::GetMetaSize() const
@@ -226,7 +226,7 @@ TFuture<NProto::TChunkMeta> TFileReader::GetMeta(
     // Implement when necessary.
     YCHECK(!partitionTag);
     YCHECK(Opened_);
-    return MakeFuture(GetMeta(extensionTags));
+    return MakeFuture(FilterChunkMetaByExtensionTags(Meta_, extensionTags));
 }
 
 TChunkId TFileReader::GetChunkId() const

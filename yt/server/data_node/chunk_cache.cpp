@@ -3,7 +3,7 @@
 #include "artifact.h"
 #include "blob_chunk.h"
 #include "blob_reader_cache.h"
-#include "block_store.h"
+#include "chunk_block_manager.h"
 #include "config.h"
 #include "location.h"
 #include "master_connector.h"

@@ -1,6 +1,6 @@
 #include "block_cache.h"
 #include "private.h"
-#include "block_store.h"
+#include "chunk_block_manager.h"
 
 #include <yt/server/cell_node/bootstrap.h>
 #include <yt/server/cell_node/config.h>
@@ -52,8 +52,8 @@ public:
         const TNullable<TNodeDescriptor>& source) override
     {
         if (type == EBlockType::CompressedData) {
-            auto blockStore = Bootstrap_->GetBlockStore();
-            blockStore->PutCachedBlock(id, data, source);
+            auto chunkBlockManager = Bootstrap_->GetChunkBlockManager();
+            chunkBlockManager->PutCachedBlock(id, data, source);
         } else {
             UnderlyingCache_->Put(id, type, data, source);
         }
@@ -64,8 +64,8 @@ public:
         EBlockType type) override
     {
         if (type == EBlockType::CompressedData) {
-            auto blockStore = Bootstrap_->GetBlockStore();
-            auto cachedBlock = blockStore->FindCachedBlock(id);
+            auto chunkBlockManager = Bootstrap_->GetChunkBlockManager();
+            auto cachedBlock = chunkBlockManager->FindCachedBlock(id);
             return cachedBlock ? cachedBlock->GetData() : TSharedRef();
         } else {
             return UnderlyingCache_->Find(id, type);

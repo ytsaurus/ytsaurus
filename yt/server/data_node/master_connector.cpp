@@ -1,7 +1,7 @@
 #include "master_connector.h"
 #include "private.h"
 #include "artifact.h"
-#include "block_store.h"
+#include "chunk_block_manager.h"
 #include "chunk.h"
 #include "chunk_cache.h"
 #include "chunk_store.h"

@@ -3,7 +3,7 @@
 
 #include <yt/server/data_node/blob_reader_cache.h>
 #include <yt/server/data_node/block_cache.h>
-#include <yt/server/data_node/block_store.h>
+#include <yt/server/data_node/chunk_block_manager.h>
 #include <yt/server/data_node/chunk_cache.h>
 #include <yt/server/data_node/chunk_registry.h>
 #include <yt/server/data_node/chunk_store.h>
@@ -18,6 +18,7 @@
 #include <yt/server/data_node/private.h>
 #include <yt/server/data_node/session_manager.h>
 #include <yt/server/data_node/ytree_integration.h>
+#include <yt/server/data_node/chunk_meta_manager.h>
 
 #include <yt/server/exec_agent/config.h>
 #include <yt/server/exec_agent/environment.h>
@@ -221,7 +222,9 @@ void TBootstrap::DoRun()
 
     ChunkRegistry = New<TChunkRegistry>(this);
 
-    BlockStore = New<TBlockStore>(Config->DataNode, this);
+    ChunkMetaManager = New<TChunkMetaManager>(Config->DataNode, this);
+
+    ChunkBlockManager = New<TChunkBlockManager>(Config->DataNode, this);
 
     BlockCache = CreateServerBlockCache(Config->DataNode, this);
 
@@ -518,9 +521,14 @@ TSessionManagerPtr TBootstrap::GetSessionManager() const
     return SessionManager;
 }
 
-TBlockStorePtr TBootstrap::GetBlockStore() const
+TChunkBlockManagerPtr TBootstrap::GetChunkBlockManager() const
 {
-    return BlockStore;
+    return ChunkBlockManager;
+}
+
+TChunkMetaManagerPtr TBootstrap::GetChunkMetaManager() const
+{
+    return ChunkMetaManager;
 }
 
 IBlockCachePtr TBootstrap::GetBlockCache() const
@@ -629,7 +637,7 @@ TAddressMap TBootstrap::GetLocalAddresses()
 
 void TBootstrap::PopulateAlerts(std::vector<TError>* alerts)
 {
-    // NB: Don't used IsXXXExceeded helpers to be atomic.
+    // NB: Don't expect IsXXXExceeded helpers to be atomic.
     auto totalUsed = MemoryUsageTracker->GetTotalUsed();
     auto totalLimit = MemoryUsageTracker->GetTotalLimit();
     if (totalUsed > totalLimit) {
