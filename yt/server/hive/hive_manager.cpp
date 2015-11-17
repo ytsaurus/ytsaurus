@@ -1027,7 +1027,9 @@ private:
     }
 
 
-    virtual void OnLeaderRecoveryComplete() override
+    // NB: Leader must wait until it is active before reconnecting mailboxes
+    // since no commits are possible before this point.
+    virtual void OnLeaderActive() override
     {
         TCompositeAutomatonPart::OnLeaderRecoveryComplete();
         ReconnectMailboxes();
