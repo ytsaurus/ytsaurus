@@ -132,8 +132,10 @@ private:
         header.AddPath(cypressPath);
         header.SetChunkedEncoding();
 
-        auto stream = CreateStream(source);
-        RetryHeavyWriteRequest(Auth_, TTransactionId(), header, *stream);
+        auto streamMaker = [&source] () {
+            return CreateStream(source);
+        };
+        RetryHeavyWriteRequest(Auth_, TTransactionId(), header, streamMaker);
 
         return cypressPath;
     }
