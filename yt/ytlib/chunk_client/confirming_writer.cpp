@@ -298,8 +298,8 @@ void TConfirmingWriter::DoClose()
         ChunkMeta_.extensions(),
         masterMetaTags);
 
-    // At least misc extension must be present.
-    YCHECK(masterChunkMeta.extensions().size() > 0);
+    // Sanity check.
+    YCHECK(FindProtoExtension<TMiscExt>(masterChunkMeta.extensions()));
 
     auto req = TChunkYPathProxy::Confirm(FromObjectId(ChunkId_));
     GenerateMutationId(req);
