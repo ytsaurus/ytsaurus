@@ -210,7 +210,7 @@ private:
                 req->set_update_mode(static_cast<int>(Options_.Append ? EUpdateMode::Append : EUpdateMode::Overwrite));
                 req->set_lock_mode(static_cast<int>(Options_.Append ? ELockMode::Shared : ELockMode::Exclusive));
                 req->set_upload_transaction_title(Format("Upload to %v", Path_));
-                req->set_upload_transaction_timeout(transactionManager->GetConfig()->DefaultTransactionTimeout.MicroSeconds());
+                req->set_upload_transaction_timeout(ToProto(transactionManager->GetConfig()->DefaultTransactionTimeout));
                 GenerateMutationId(req);
                 SetTransactionId(req, Transaction_);
                 batchReq->AddRequest(req, "begin_upload");

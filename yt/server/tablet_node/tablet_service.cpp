@@ -79,11 +79,11 @@ private:
 
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
         auto startTimestamp = TTimestamp(request->start_timestamp());
-        auto timeout = TDuration::MilliSeconds(request->timeout());
+        auto timeout = FromProto<TDuration>(request->timeout());
 
         auto config = Bootstrap_->GetConfig()->TabletNode->TransactionManager;
         auto actualTimeout = std::min(timeout, config->MaxTransactionTimeout);
-        request->set_timeout(actualTimeout.MilliSeconds());
+        request->set_timeout(ToProto(actualTimeout));
 
         context->SetRequestInfo("TransactionId: %v, StartTimestamp: %v, Timeout: %v",
             transactionId,

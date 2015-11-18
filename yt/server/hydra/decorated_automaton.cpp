@@ -752,7 +752,7 @@ void TDecoratedAutomaton::ApplyMutationDuringRecovery(const TSharedRef& recordDa
     TMutationContext context(
         AutomatonVersion_,
         request,
-        TInstant(header.timestamp()),
+        FromProto<TInstant>(header.timestamp()),
         header.random_seed());
 
     DoApplyMutation(&context);
@@ -815,7 +815,7 @@ void TDecoratedAutomaton::LogFollowerMutation(
     pendingMutation.Version = LoggedVersion_;
     pendingMutation.Request.Type = MutationHeader_.mutation_type();
     pendingMutation.Request.Data = mutationData;
-    pendingMutation.Timestamp = TInstant(MutationHeader_.timestamp());
+    pendingMutation.Timestamp = FromProto<TInstant>(MutationHeader_.timestamp());
     pendingMutation.RandomSeed  = MutationHeader_.random_seed();
     PendingMutations_.push(pendingMutation);
 

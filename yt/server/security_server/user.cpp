@@ -13,6 +13,9 @@ namespace NSecurityServer {
 using namespace NYson;
 using namespace NYTree;
 
+using NYT::ToProto;
+using NYT::FromProto;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void TUserStatistics::Persist(NCellMaster::TPersistenceContext& context)
@@ -29,17 +32,17 @@ void TUserStatistics::Persist(NCellMaster::TPersistenceContext& context)
 void ToProto(NProto::TUserStatistics* protoStatistics, const TUserStatistics& statistics)
 {
     protoStatistics->set_request_counter(statistics.RequestCounter);
-    protoStatistics->set_read_request_timer(statistics.ReadRequestTimer.MicroSeconds());
-    protoStatistics->set_write_request_timer(statistics.WriteRequestTimer.MicroSeconds());
-    protoStatistics->set_access_time(statistics.AccessTime.MicroSeconds());
+    protoStatistics->set_read_request_timer(ToProto(statistics.ReadRequestTimer));
+    protoStatistics->set_write_request_timer(ToProto(statistics.WriteRequestTimer));
+    protoStatistics->set_access_time(ToProto(statistics.AccessTime));
 }
 
 void FromProto(TUserStatistics* statistics, const NProto::TUserStatistics& protoStatistics)
 {
     statistics->RequestCounter = protoStatistics.request_counter();
-    statistics->ReadRequestTimer = TDuration(protoStatistics.read_request_timer());
-    statistics->WriteRequestTimer = TDuration(protoStatistics.write_request_timer());
-    statistics->AccessTime = TInstant(protoStatistics.access_time());
+    statistics->ReadRequestTimer = FromProto<TDuration>(protoStatistics.read_request_timer());
+    statistics->WriteRequestTimer = FromProto<TDuration>(protoStatistics.write_request_timer());
+    statistics->AccessTime = FromProto<TInstant>(protoStatistics.access_time());
 }
 
 void Serialize(const TUserStatistics& statistics, IYsonConsumer* consumer)

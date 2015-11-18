@@ -408,7 +408,7 @@ public:
         auto req = proxy->StartTransaction();
         ToProto(req->mutable_transaction_id(), Id_);
         req->set_start_timestamp(StartTimestamp_);
-        req->set_timeout(Timeout_.Get(Owner_->Config_->DefaultTransactionTimeout).MilliSeconds());
+        req->set_timeout(ToProto(Timeout_.Get(Owner_->Config_->DefaultTransactionTimeout)));
 
         req->Invoke().Subscribe(
             BIND(&TImpl::OnTabletParticipantAdded, MakeStrong(this), cellId, promise));
@@ -573,7 +573,7 @@ private:
         }
 
         auto* reqExt = req->mutable_extensions()->MutableExtension(NTransactionClient::NProto::TTransactionCreationExt::transaction_creation_ext);
-        reqExt->set_timeout(options.Timeout.Get(Owner_->Config_->DefaultTransactionTimeout).MilliSeconds());
+        reqExt->set_timeout(ToProto(options.Timeout.Get(Owner_->Config_->DefaultTransactionTimeout)));
 
         if (options.ParentId) {
             SetOrGenerateMutationId(req, options.MutationId, options.Retry);

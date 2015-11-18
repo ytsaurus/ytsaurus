@@ -20,6 +20,9 @@ namespace NSecurityServer {
 using namespace NConcurrency;
 using namespace NHydra;
 
+using NYT::ToProto;
+using NYT::FromProto;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = SecurityServerLogger;
@@ -84,9 +87,9 @@ void TRequestTracker::ChargeUser(
     auto* entry = Request_.mutable_entries(index);
     auto* statistics = entry->mutable_statistics();
     statistics->set_request_counter(statistics->request_counter() + requestCount);
-    statistics->set_read_request_timer(statistics->read_request_timer() + readRequestTime.MicroSeconds());
-    statistics->set_write_request_timer(statistics->write_request_timer() + writeRequestTime.MicroSeconds());
-    statistics->set_access_time(now.MicroSeconds());
+    statistics->set_read_request_timer(ToProto(FromProto<TDuration>(statistics->read_request_timer()) + readRequestTime));
+    statistics->set_write_request_timer(ToProto(FromProto<TDuration>(statistics->write_request_timer()) + writeRequestTime));
+    statistics->set_access_time(ToProto(now));
 }
 
 void TRequestTracker::Reset()

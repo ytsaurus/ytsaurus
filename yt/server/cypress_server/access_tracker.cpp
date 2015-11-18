@@ -98,7 +98,7 @@ void TAccessTracker::SetAccessed(TCypressNodeBase* trunkNode)
 
     auto now = NProfiling::CpuInstantToInstant(NProfiling::GetCpuInstant());
     auto* update = UpdateAccessStatisticsRequest_.mutable_updates(index);
-    update->set_access_time(now.MicroSeconds());
+    update->set_access_time(ToProto(now));
     update->set_access_counter_delta(update->access_counter_delta() + 1);
 }
 

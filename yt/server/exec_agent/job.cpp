@@ -363,10 +363,10 @@ private:
 
         JobResult = jobResult;
         if (ExecTime) {
-            JobResult->set_exec_time((TInstant::Now() - *ExecTime).MilliSeconds());
-            JobResult->set_prepare_time((*ExecTime - *PrepareTime).MilliSeconds());
+            JobResult->set_exec_time(ToProto(TInstant::Now() - *ExecTime));
+            JobResult->set_prepare_time(ToProto(*ExecTime - *PrepareTime));
         } else if (PrepareTime) {
-            JobResult->set_prepare_time((TInstant::Now() - *PrepareTime).MilliSeconds());
+            JobResult->set_prepare_time(ToProto(TInstant::Now() - *PrepareTime));
         }
 
         auto error = FromProto<TError>(jobResult.error());

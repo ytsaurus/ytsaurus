@@ -404,8 +404,8 @@ DEFINE_RPC_SERVICE_METHOD(TMasterCacheService, Execute)
             asyncMasterResponseMessages.push_back(Cache_->Lookup(
                 key,
                 std::move(subrequestMessage),
-                TDuration::MilliSeconds(cachingRequestHeaderExt.success_expiration_time()),
-                TDuration::MilliSeconds(cachingRequestHeaderExt.failure_expiration_time())));
+                FromProto<TDuration>(cachingRequestHeaderExt.success_expiration_time()),
+                FromProto<TDuration>(cachingRequestHeaderExt.failure_expiration_time())));
         } else {
             LOG_DEBUG("Subrequest does not support caching, bypassing cache (RequestId: %v, SubrequestIndex: %v, Key: {%v})",
                 requestId,

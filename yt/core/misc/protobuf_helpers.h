@@ -45,6 +45,42 @@ DEFINE_TRIVIAL_PROTO_CONVERSIONS(bool)
 
 #undef DEFINE_TRIVIAL_PROTO_CONVERSIONS
 
+////////////////////////////////////////////////////////////////////////////////
+
+inline void ToProto(::google::protobuf::int64* serialized, TDuration original)
+{
+    *serialized = original.MicroSeconds();
+}
+
+inline ::google::protobuf::int64 ToProto(TDuration original)
+{
+    return original.MicroSeconds();
+}
+
+inline void FromProto(TDuration* original, ::google::protobuf::int64 serialized)
+{
+    *original = TDuration::MicroSeconds(serialized);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+inline void ToProto(::google::protobuf::int64* serialized, TInstant original)
+{
+    *serialized = original.MicroSeconds();
+}
+
+inline ::google::protobuf::int64 ToProto(TInstant original)
+{
+    return original.MicroSeconds();
+}
+
+inline void FromProto(TInstant* original, ::google::protobuf::int64 serialized)
+{
+    *original = TInstant::MicroSeconds(serialized);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 template <class T>
 typename std::enable_if<NMpl::TIsConvertible<T*, ::google::protobuf::MessageLite*>::Value, void>::type ToProto(
     T* serialized,

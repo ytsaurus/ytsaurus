@@ -371,7 +371,7 @@ private:
         // Register the peer that we had just sent the reply to.
         if (request->has_peer_descriptor() && request->has_peer_expiration_time()) {
             auto descriptor = FromProto<TNodeDescriptor>(request->peer_descriptor());
-            auto expirationTime = TInstant(request->peer_expiration_time());
+            auto expirationTime = FromProto<TInstant>(request->peer_expiration_time());
             TPeerInfo peerInfo(descriptor, expirationTime);
             for (int blockIndex : request->block_indexes()) {
                 peerBlockTable->UpdatePeer(TBlockId(chunkId, blockIndex), peerInfo);
@@ -867,7 +867,7 @@ private:
     DECLARE_ONE_WAY_RPC_SERVICE_METHOD(NChunkClient::NProto, UpdatePeer)
     {
         auto descriptor = FromProto<TNodeDescriptor>(request->peer_descriptor());
-        auto expirationTime = TInstant(request->peer_expiration_time());
+        auto expirationTime = FromProto<TInstant>(request->peer_expiration_time());
         TPeerInfo peer(descriptor, expirationTime);
 
         context->SetRequestInfo("Descriptor: %v, ExpirationTime: %v, BlockCount: %v",

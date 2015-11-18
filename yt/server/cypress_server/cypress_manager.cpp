@@ -1987,7 +1987,7 @@ private:
                 continue;
 
             // Update access time.
-            auto accessTime = TInstant(update.access_time());
+            auto accessTime = FromProto<TInstant>(update.access_time());
             if (accessTime > node->GetAccessTime()) {
                 node->SetAccessTime(accessTime);
             }

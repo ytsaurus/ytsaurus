@@ -1,10 +1,15 @@
 #include "stdafx.h"
 #include "query_statistics.h"
 
+#include <yt/core/misc/protobuf_helpers.h>
+
 #include <ytlib/query_client/query_statistics.pb.h>
 
 namespace NYT {
 namespace NQueryClient {
+
+using NYT::ToProto;
+using NYT::FromProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -29,12 +34,12 @@ void ToProto(NProto::TQueryStatistics* serialized, const TQueryStatistics& query
 {
     serialized->set_rows_read(queryResult.RowsRead);
     serialized->set_rows_written(queryResult.RowsWritten);
-    serialized->set_sync_time(queryResult.SyncTime.MicroSeconds());
-    serialized->set_async_time(queryResult.AsyncTime.MicroSeconds());
-    serialized->set_execute_time(queryResult.ExecuteTime.MicroSeconds());
-    serialized->set_read_time(queryResult.ReadTime.MicroSeconds());
-    serialized->set_write_time(queryResult.WriteTime.MicroSeconds());
-    serialized->set_codegen_time(queryResult.CodegenTime.MicroSeconds());
+    serialized->set_sync_time(ToProto(queryResult.SyncTime));
+    serialized->set_async_time(ToProto(queryResult.AsyncTime));
+    serialized->set_execute_time(ToProto(queryResult.ExecuteTime));
+    serialized->set_read_time(ToProto(queryResult.ReadTime));
+    serialized->set_write_time(ToProto(queryResult.WriteTime));
+    serialized->set_codegen_time(ToProto(queryResult.CodegenTime));
     serialized->set_incomplete_input(queryResult.IncompleteInput);
     serialized->set_incomplete_output(queryResult.IncompleteOutput);
 }
@@ -44,12 +49,12 @@ TQueryStatistics FromProto(const NProto::TQueryStatistics& serialized)
     TQueryStatistics result;
     result.RowsRead = serialized.rows_read();
     result.RowsWritten = serialized.rows_written();
-    result.SyncTime = TDuration::MicroSeconds(serialized.sync_time());
-    result.AsyncTime = TDuration::MicroSeconds(serialized.async_time());
-    result.ExecuteTime = TDuration::MicroSeconds(serialized.execute_time());
-    result.ReadTime = TDuration::MicroSeconds(serialized.read_time());
-    result.WriteTime = TDuration::MicroSeconds(serialized.write_time());
-    result.CodegenTime = TDuration::MicroSeconds(serialized.codegen_time());
+    result.SyncTime = FromProto<TDuration>(serialized.sync_time());
+    result.AsyncTime = FromProto<TDuration>(serialized.async_time());
+    result.ExecuteTime = FromProto<TDuration>(serialized.execute_time());
+    result.ReadTime = FromProto<TDuration>(serialized.read_time());
+    result.WriteTime = FromProto<TDuration>(serialized.write_time());
+    result.CodegenTime = FromProto<TDuration>(serialized.codegen_time());
     result.IncompleteInput = serialized.incomplete_input();
     result.IncompleteOutput = serialized.incomplete_output();
     return result;

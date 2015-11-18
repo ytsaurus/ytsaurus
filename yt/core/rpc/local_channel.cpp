@@ -71,9 +71,9 @@ public:
         }
 
         auto& header = request->Header();
-        header.set_start_time(TInstant::Now().MicroSeconds());
+        header.set_start_time(ToProto(TInstant::Now()));
         if (timeout) {
-            header.set_timeout(timeout->MicroSeconds());
+            header.set_timeout(ToProto(*timeout));
         } else {
             header.clear_timeout();
         }

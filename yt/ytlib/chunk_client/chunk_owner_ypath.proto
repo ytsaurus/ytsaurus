@@ -18,7 +18,7 @@ message TReqBeginUpload
     // Only used during primary-to-secondary replication.
     optional NYT.NProto.TGuid upload_transaction_id = 3;
     optional string upload_transaction_title = 4;
-    optional int32 upload_transaction_timeout = 5;
+    optional int64 upload_transaction_timeout = 5;
 }
 
 message TRspBeginUpload

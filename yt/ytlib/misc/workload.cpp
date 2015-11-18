@@ -90,14 +90,14 @@ void ToProto(NYT::NProto::TWorkloadDescriptor* protoDescriptor, const TWorkloadD
 {
     protoDescriptor->set_category(static_cast<int>(descriptor.Category));
     protoDescriptor->set_band(descriptor.Band);
-    protoDescriptor->set_instant(descriptor.Instant.MicroSeconds());
+    protoDescriptor->set_instant(ToProto(descriptor.Instant));
 }
 
 void FromProto(TWorkloadDescriptor* descriptor, const NYT::NProto::TWorkloadDescriptor& protoDescriptor)
 {
     descriptor->Category = EWorkloadCategory(protoDescriptor.category());
     descriptor->Band = protoDescriptor.band();
-    descriptor->Instant = TInstant(protoDescriptor.instant());
+    descriptor->Instant = FromProto<TInstant>(protoDescriptor.instant());
 }
 
 void FormatValue(

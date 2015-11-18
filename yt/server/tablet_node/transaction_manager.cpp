@@ -358,7 +358,7 @@ private:
         }
 
         auto startTimestamp = TTimestamp(request.start_timestamp());
-        auto timeout = TDuration::MilliSeconds(request.timeout());
+        auto timeout = FromProto<TDuration>(request.timeout());
 
         auto transactionHolder = std::make_unique<TTransaction>(transactionId);
         auto* transaction = TransactionMap_.Insert(transactionId, std::move(transactionHolder));
