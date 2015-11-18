@@ -1268,7 +1268,7 @@ void TOperationControllerBase::InitInputChunkScraper()
         NodeDirectory,
         std::move(chunkIds),
         BIND(&TThis::OnInputChunkLocated, MakeWeak(this))
-            .Via(CancelableBackgroundInvoker),
+            .Via(CancelableControlInvoker),
         Logger
     );
 
