@@ -298,6 +298,9 @@ void TConfirmingWriter::DoClose()
         ChunkMeta_.extensions(),
         masterMetaTags);
 
+    // At least misc extension must be present.
+    YCHECK(masterChunkMeta.extensions().size() > 0);
+
     auto req = TChunkYPathProxy::Confirm(FromObjectId(ChunkId_));
     GenerateMutationId(req);
     *req->mutable_chunk_info() = UnderlyingWriter_->GetChunkInfo();
