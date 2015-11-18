@@ -349,6 +349,12 @@ private:
                     return;
                 }
 
+                if (requestControl != it->second) {
+                    LOG_DEBUG("Attempt to cancel a resent request, ignored (RequestId: %v)",
+                        requestId);
+                    return;
+                }
+
                 request = requestControl->GetRequest();
                 responseHandler = requestControl->GetResponseHandler();
                 requestControl->TimingCheckpoint(STRINGBUF("cancel"));
