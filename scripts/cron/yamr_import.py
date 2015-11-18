@@ -21,7 +21,7 @@ def process_day_logs(yt_client, source_pattern, destination_pattern, period, imp
     if period is None:
         count = 15
     else:
-        count = period + 15
+        count = period + 100
 
     for i in xrange(count):
         table_date = date.today() - timedelta(days=i)
