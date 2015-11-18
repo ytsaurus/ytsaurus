@@ -625,7 +625,7 @@ public:
 
         Finished_ = !DoRead(rows);
 
-        return true;
+        return !Finished_;
     }
 
 protected:
