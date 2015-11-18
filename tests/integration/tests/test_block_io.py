@@ -66,9 +66,7 @@ echo $CONTENT | grep ' 3' 1>/dev/null
         for job_id in ls(jobs_path):
             return read_file(jobs_path + "/" + job_id + "/stderr")
 
-    # XXX(babenko): this test is constantly failing
-    #@block_io_mark
-    @pytest.mark.xfail(run = False, reason = "YT-3148")
+    @block_io_mark
     def test_hitlimit(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
