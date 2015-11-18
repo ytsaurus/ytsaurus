@@ -56,6 +56,8 @@ using namespace NObjectClient;
 using namespace NObjectServer;
 using namespace NSecurityServer;
 
+using NYT::ToProto;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = CellMasterLogger;
@@ -502,7 +504,7 @@ private:
         req->set_type(static_cast<int>(EObjectType::Transaction));
 
         auto* requestExt = req->mutable_extensions()->MutableExtension(TTransactionCreationExt::transaction_creation_ext);
-        requestExt->set_timeout(InitTransactionTimeout.MilliSeconds());
+        requestExt->set_timeout(ToProto(InitTransactionTimeout));
 
         auto attributes = CreateEphemeralAttributes();
         attributes->Set("title", "World initialization");

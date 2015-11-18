@@ -1010,7 +1010,7 @@ void TSchemalessTableWriter::DoOpen()
             req->set_update_mode(static_cast<int>(append ? EUpdateMode::Append : EUpdateMode::Overwrite));
             req->set_lock_mode(static_cast<int>((append && !sorted) ? ELockMode::Shared : ELockMode::Exclusive));
             req->set_upload_transaction_title(Format("Upload to %v", path));
-            req->set_upload_transaction_timeout(transactionManager->GetConfig()->DefaultTransactionTimeout.MicroSeconds());
+            req->set_upload_transaction_timeout(ToProto(transactionManager->GetConfig()->DefaultTransactionTimeout));
             SetTransactionId(req, Transaction_);
             GenerateMutationId(req);
             batchReq->AddRequest(req, "begin_upload");

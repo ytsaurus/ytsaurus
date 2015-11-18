@@ -768,7 +768,7 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
         : Null;
 
     auto uploadTransactionTimeout = request->has_upload_transaction_timeout()
-        ? MakeNullable(TDuration(request->upload_transaction_timeout()))
+        ? MakeNullable(FromProto<TDuration>(request->upload_transaction_timeout()))
         : Null;
 
     auto uploadTransactionIdHint = request->has_upload_transaction_id()

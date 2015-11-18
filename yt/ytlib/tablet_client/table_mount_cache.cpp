@@ -124,8 +124,8 @@ private:
 
         auto req = TTableYPathProxy::GetMountInfo(path);
         auto* cachingHeaderExt = req->Header().MutableExtension(TCachingHeaderExt::caching_header_ext);
-        cachingHeaderExt->set_success_expiration_time(Config_->SuccessExpirationTime.MilliSeconds());
-        cachingHeaderExt->set_failure_expiration_time(Config_->FailureExpirationTime.MilliSeconds());
+        cachingHeaderExt->set_success_expiration_time(ToProto(Config_->SuccessExpirationTime));
+        cachingHeaderExt->set_failure_expiration_time(ToProto(Config_->FailureExpirationTime));
 
         return ObjectProxy_.Execute(req).Apply(
             BIND([= , this_ = MakeStrong(this)] (const TTableYPathProxy::TErrorOrRspGetMountInfoPtr& rspOrError) {

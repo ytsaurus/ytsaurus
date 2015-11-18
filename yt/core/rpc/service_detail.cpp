@@ -180,7 +180,7 @@ private:
 
         if (RequestHeader_->has_start_time()) {
             // Decode timing information.
-            auto retryStart = TInstant(RequestHeader_->start_time());
+            auto retryStart = FromProto<TInstant>(RequestHeader_->start_time());
             auto now = CpuInstantToInstant(GetCpuInstant());
 
             // Make sanity adjustments to account for possible clock skew.
@@ -388,7 +388,7 @@ private:
         AppendInfo(&builder, "Retry: %v", IsRetry());
 
         if (RequestHeader_->has_timeout()) {
-            AppendInfo(&builder, "Timeout: %v", TDuration(RequestHeader_->timeout()));
+            AppendInfo(&builder, "Timeout: %v", FromProto<TDuration>(RequestHeader_->timeout()));
         }
 
         if (!RequestInfo_.empty()) {

@@ -501,7 +501,7 @@ private:
                 req->set_type(static_cast<int>(EObjectType::Transaction));
 
                 auto* reqExt = req->mutable_extensions()->MutableExtension(TTransactionCreationExt::transaction_creation_ext);
-                reqExt->set_timeout(Owner->Config->LockTransactionTimeout.MilliSeconds());
+                reqExt->set_timeout(ToProto(Owner->Config->LockTransactionTimeout));
 
                 auto attributes = CreateEphemeralAttributes();
                 attributes->Set("title", Format("Scheduler lock at %v", ServiceAddress));

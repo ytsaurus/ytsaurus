@@ -88,8 +88,8 @@ private:
         const auto& methodName = header->method();
         auto realmId = header->has_realm_id() ? FromProto<TRealmId>(header->realm_id()) : NullRealmId;
         bool isOneWay = header->one_way();
-        auto timeout = header->has_timeout() ? MakeNullable(TDuration(header->timeout())) : Null;
-        auto startTime = header->has_start_time() ? MakeNullable(header->start_time()) : Null;
+        auto timeout = header->has_timeout() ? MakeNullable(FromProto<TDuration>(header->timeout())) : Null;
+        auto startTime = header->has_start_time() ? MakeNullable(FromProto<TInstant>(header->start_time())) : Null;
         bool isRetry = header->retry();
 
         if (message.Size() < 2) {

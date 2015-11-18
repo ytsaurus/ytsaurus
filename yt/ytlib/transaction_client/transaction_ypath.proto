@@ -12,8 +12,8 @@ message TTransactionCreationExt
         optional TTransactionCreationExt transaction_creation_ext = 101;
     }
 
-    // Transaction timeout (in ms).
-    required int32 timeout = 1;
+    // Transaction timeout.
+    required int64 timeout = 1;
 }
 
 message TReqPingTransactionExt

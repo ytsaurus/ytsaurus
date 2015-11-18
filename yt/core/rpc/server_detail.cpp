@@ -226,14 +226,14 @@ TRequestId TServiceContextBase::GetRequestId() const
 TNullable<TInstant> TServiceContextBase::GetStartTime() const
 {
     return RequestHeader_->has_start_time()
-        ? MakeNullable(TInstant(RequestHeader_->start_time()))
+        ? MakeNullable(FromProto<TInstant>(RequestHeader_->start_time()))
         : Null;
 }
 
 TNullable<TDuration> TServiceContextBase::GetTimeout() const
 {
     return RequestHeader_->has_timeout()
-        ? MakeNullable(TDuration(RequestHeader_->timeout()))
+        ? MakeNullable(FromProto<TDuration>(RequestHeader_->timeout()))
         : Null;
 }
 

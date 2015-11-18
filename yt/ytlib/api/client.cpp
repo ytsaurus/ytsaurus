@@ -1863,7 +1863,7 @@ private:
                 req->set_upload_transaction_title(Format("Concatenating [%v] to %v",
                     JoinToString(srcPaths),
                     dstPath));
-                req->set_upload_transaction_timeout(TransactionManager_->GetConfig()->DefaultTransactionTimeout.MicroSeconds());
+                req->set_upload_transaction_timeout(ToProto(TransactionManager_->GetConfig()->DefaultTransactionTimeout));
                 GenerateMutationId(req, options);
                 SetTransactionId(req, options, true);
 

@@ -178,7 +178,7 @@ IClientRequestControlPtr DoRedirectServiceRequest(
     IChannelPtr channel)
 {
     auto timeout = requestHeader->has_timeout()
-        ? MakeNullable(TDuration::MilliSeconds(requestHeader->timeout()))
+        ? MakeNullable(FromProto<TDuration>(requestHeader->timeout()))
         : Null;
 
     auto request = New<TRedirectedRequest>(

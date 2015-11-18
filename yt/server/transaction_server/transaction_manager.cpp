@@ -1065,7 +1065,7 @@ TNonversionedObjectBase* TTransactionManager::TTransactionTypeHandler::CreateObj
     const TObjectCreationExtensions& extensions)
 {
     const auto& requestExt = extensions.GetExtension(TTransactionCreationExt::transaction_creation_ext);
-    auto timeout = TDuration::MilliSeconds(requestExt.timeout());
+    auto timeout = FromProto<TDuration>(requestExt.timeout());
 
     auto title = attributes->Find<Stroka>("title");
     attributes->Remove("title");

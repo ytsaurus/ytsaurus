@@ -1113,7 +1113,7 @@ void TOperationControllerBase::StartAsyncSchedulerTransaction()
         req->set_type(static_cast<int>(EObjectType::Transaction));
 
         auto* reqExt = req->mutable_extensions()->MutableExtension(NTransactionClient::NProto::TTransactionCreationExt::transaction_creation_ext);
-        reqExt->set_timeout(Config->OperationTransactionTimeout.MilliSeconds());
+        reqExt->set_timeout(ToProto(Config->OperationTransactionTimeout));
 
         auto attributes = CreateEphemeralAttributes();
         attributes->Set("title", Format("Scheduler async for operation %v", OperationId));
@@ -1160,7 +1160,7 @@ void TOperationControllerBase::StartSyncSchedulerTransaction()
         req->set_type(static_cast<int>(EObjectType::Transaction));
 
         auto* reqExt = req->mutable_extensions()->MutableExtension(NTransactionClient::NProto::TTransactionCreationExt::transaction_creation_ext);
-        reqExt->set_timeout(Config->OperationTransactionTimeout.MilliSeconds());
+        reqExt->set_timeout(ToProto(Config->OperationTransactionTimeout));
 
         auto attributes = CreateEphemeralAttributes();
         attributes->Set("title", Format("Scheduler sync for operation %v", OperationId));
@@ -1203,7 +1203,7 @@ void TOperationControllerBase::StartInputTransaction(TTransactionId parentTransa
         req->set_type(static_cast<int>(EObjectType::Transaction));
 
         auto* reqExt = req->mutable_extensions()->MutableExtension(NTransactionClient::NProto::TTransactionCreationExt::transaction_creation_ext);
-        reqExt->set_timeout(Config->OperationTransactionTimeout.MilliSeconds());
+        reqExt->set_timeout(ToProto(Config->OperationTransactionTimeout));
 
         auto attributes = CreateEphemeralAttributes();
         attributes->Set("title", Format("Scheduler input for operation %v", OperationId));
@@ -1247,7 +1247,7 @@ void TOperationControllerBase::StartOutputTransaction(TTransactionId parentTrans
         req->set_type(static_cast<int>(EObjectType::Transaction));
 
         auto* reqExt = req->mutable_extensions()->MutableExtension(NTransactionClient::NProto::TTransactionCreationExt::transaction_creation_ext);
-        reqExt->set_timeout(Config->OperationTransactionTimeout.MilliSeconds());
+        reqExt->set_timeout(ToProto(Config->OperationTransactionTimeout));
 
         auto attributes = CreateEphemeralAttributes();
         attributes->Set("title", Format("Scheduler output for operation %v", OperationId));
