@@ -35,8 +35,15 @@ def gradually_compact_table(
             table, total_store_count, total_partition_count)
         return
 
-    table_compaction_revision = yt.get(table + "/@forced_compaction_revision")
-    table_compaction_epoch = (table_compaction_revision >> 32)
+    try:
+        table_compaction_revision = yt.get(table + "/@forced_compaction_revision")
+        table_compaction_epoch = (table_compaction_revision >> 32)
+    except yt.YtResponseError as err:
+        if err.is_resolve_error():
+            table_compaction_revision = 0
+            table_compaction_epoch = 0
+        else:
+            raise
 
     if table_compaction_epoch + epochs_to_skip > cluster_epoch:
         logging.warning(
