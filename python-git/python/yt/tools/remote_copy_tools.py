@@ -130,9 +130,9 @@ def _get_read_from_yt_command(yt_client, src, format, fastbone):
             "create_transaction_and_take_snapshot_lock": False
         }
     }
-    command = """TABLE_PATH="$(YT_PROXY={2} python merge_limits.py '{0}' ${{start}} ${{end}})"\n"""\
-              """PATH=".:$PATH" PYTHONPATH=. """\
-              """yt2 read ${{TABLE_PATH}} --format '{1}' --proxy {2} --config '{3}' --tx {4}"""\
+    command = """export  PYTHONPATH=.\n"""\
+              """TABLE_PATH="$(YT_PROXY={2} python merge_limits.py '{0}' ${{start}} ${{end}})"\n"""\
+              """PATH=".:$PATH" yt2 read ${{TABLE_PATH}} --format '{1}' --proxy {2} --config '{3}' --tx {4}"""\
               .format(src, format, yt_client.config["proxy"]["url"], yson.dumps(config, boolean_as_string=False), yt_client.TRANSACTION)
 
     return command
