@@ -397,8 +397,7 @@ void TNontemplateCypressNodeProxyBase::ListSystemAttributes(std::vector<TAttribu
     descriptors->push_back("access_time");
     descriptors->push_back("access_counter");
     descriptors->push_back("revision");
-    descriptors->push_back(TAttributeDescriptor("resource_usage")
-        .SetOpaque(true));
+    descriptors->push_back("resource_usage");
     descriptors->push_back(TAttributeDescriptor("recursive_resource_usage")
         .SetOpaque(true));
     descriptors->push_back(TAttributeDescriptor("account")
