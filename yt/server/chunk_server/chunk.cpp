@@ -205,6 +205,11 @@ void TChunk::Confirm(
     TChunkInfo* chunkInfo,
     TChunkMeta* chunkMeta)
 {
+    // YT-3251
+    if (!HasProtoExtension<TMiscExt>(chunkMeta->extensions())) {
+        THROW_ERROR_EXCEPTION("Missing TMiscExt in chunk meta");
+    }
+
     ChunkInfo_.Swap(chunkInfo);
     ChunkMeta_.Swap(chunkMeta);
     MiscExt_ = GetProtoExtension<TMiscExt>(ChunkMeta_.extensions());
