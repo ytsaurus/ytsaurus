@@ -167,7 +167,6 @@ class TestTableCommands(object):
         while yt.get("{0}/@tablets/0/state".format(table)) != 'unmounted':
             time.sleep(0.1)
 
-    @pytest.mark.xfail(run = False, reason = "In progress")
     @pytest.mark.skipif('os.environ.get("BUILD_ENABLE_LLVM", None) == "NO"')
     def test_select(self):
         if yt.config["api_version"] == "v2":
@@ -186,11 +185,6 @@ class TestTableCommands(object):
         yt.create_table(table)
         yt.run_sort(table, sort_by=["x"])
 
-        yt.set(table + "/@schema", [
-            {"name": "x", "type": "int64", "sort_order": "ascending"},
-            {"name": "y", "type": "int64"},
-            {"name": "z", "type": "int64"}])
-        
         assert [] == select()
 
         yt.write_table(yt.TablePath(table, append=True, sorted_by=["x"]),
