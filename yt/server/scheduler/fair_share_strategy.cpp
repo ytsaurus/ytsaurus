@@ -840,7 +840,7 @@ protected:
     ISchedulerElementPtr GetBestActiveChildFairShare(const TDynamicAttributesMap& dynamicAttributesMap) const
     {
         ISchedulerElementPtr bestChild;
-        double bestChildSatisfactionRatio;
+        double bestChildSatisfactionRatio = std::numeric_limits<double>::max();
         for (const auto& child : GetActiveChildren(dynamicAttributesMap)) {
             double childSatisfactionRatio = dynamicAttributesMap.At(child).SatisfactionRatio;
             if (!bestChild || childSatisfactionRatio < bestChildSatisfactionRatio)
