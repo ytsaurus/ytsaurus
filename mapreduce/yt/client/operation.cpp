@@ -176,7 +176,7 @@ void DumpOperationStderrs(
     const size_t RESULT_LIMIT = 16 << 20;
     const size_t BLOCK_SIZE = 64 << 10;
     const i64 STDERR_LIMIT = 1 << 20;
-    const size_t STDERR_COUNT_LIMIT = 5;
+    const size_t STDERR_COUNT_LIMIT = 20;
 
     auto jobsPath = operationPath + "/jobs";
     if (!Exists(auth, transactionId, jobsPath)) {
@@ -186,7 +186,10 @@ void DumpOperationStderrs(
     THttpHeader header("GET", "list");
     header.AddPath(jobsPath);
     header.SetParameters(AttributeFilterToJsonString(
-        TAttributeFilter().AddAttribute("error").AddAttribute("address")));
+        TAttributeFilter()
+            .AddAttribute("state")
+            .AddAttribute("error")
+            .AddAttribute("address")));
     auto jobList = NodeFromYsonString(RetryRequest(auth, header)).AsList();
 
     TBuffer buffer;
@@ -199,6 +202,9 @@ void DumpOperationStderrs(
         auto& attributes = job.Attributes();
         output << Endl;
 
+        if (!attributes.HasKey("state") || attributes["state"].AsString() != "failed") {
+            continue;
+        }
         if (attributes.HasKey("address")) {
             output << "Host: " << attributes["address"].AsString() << Endl;
         }
