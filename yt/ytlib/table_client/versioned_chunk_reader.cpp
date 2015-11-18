@@ -609,7 +609,7 @@ public:
 
     virtual TFuture<void> GetReadyEvent() override
     {
-        YUNREACHABLE();
+        return VoidFuture;
     }
 
     virtual bool Read(std::vector<TVersionedRow>* rows) override
@@ -625,7 +625,7 @@ public:
 
         Finished_ = !DoRead(rows);
 
-        return !Finished_;
+        return true;
     }
 
 protected:
