@@ -192,10 +192,11 @@ class Task(object):
         self.destination_force_sort = destination_force_sort
 
         self.lease_timeout = lease_timeout
-        self._last_ping_time = None
 
         # Special field to store meta-information for web-interface
         self.meta = meta
+
+        self._last_ping_time = None
 
 
     def get_queue_id(self):
@@ -232,7 +233,7 @@ class Task(object):
         return result
 
     def copy(self):
-        return Task(**self.__dict__)
+        return Task(**dict((key, value) for key, value in self.__dict__.iteritems() if not key.startswith("_")))
 
 class Application(object):
     ERROR_BUFFER_SIZE = 2 ** 16
