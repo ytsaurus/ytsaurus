@@ -59,6 +59,8 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(bool, Strict);
 
 public:
+    TTableSchema();
+    
     TColumnSchema* FindColumn(const TStringBuf& name);
     const TColumnSchema* FindColumn(const TStringBuf& name) const;
 

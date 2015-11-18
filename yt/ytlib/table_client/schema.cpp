@@ -133,6 +133,10 @@ void FromProto(TColumnSchema* schema, const NProto::TColumnSchema& protoSchema)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TTableSchema::TTableSchema()
+    : Strict_(false)
+{ }
+
 TColumnSchema* TTableSchema::FindColumn(const TStringBuf& name)
 {
     for (auto& column : Columns_) {
