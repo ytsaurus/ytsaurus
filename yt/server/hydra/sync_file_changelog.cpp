@@ -425,7 +425,7 @@ public:
 
         // Prevent search in empty index.
         if (Index_.empty()) {
-            return std::move(records);
+            return records;
         }
 
         maxRecords = std::min(maxRecords, RecordCount_ - firstRecordId);

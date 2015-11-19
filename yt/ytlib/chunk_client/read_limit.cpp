@@ -368,8 +368,8 @@ void TReadRange::InitCopy(const NProto::TReadRange& range)
 
 void TReadRange::InitMove(NProto::TReadRange&& range)
 {
-    LowerLimit_ = std::move(range.has_lower_limit() ? TReadLimit(range.lower_limit()) : TReadLimit());
-    UpperLimit_ = std::move(range.has_upper_limit() ? TReadLimit(range.upper_limit()) : TReadLimit());
+    LowerLimit_ = range.has_lower_limit() ? TReadLimit(range.lower_limit()) : TReadLimit();
+    UpperLimit_ = range.has_upper_limit() ? TReadLimit(range.upper_limit()) : TReadLimit();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

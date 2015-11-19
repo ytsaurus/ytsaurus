@@ -183,7 +183,7 @@ TEST(ChunkTreeBalancer, ManyChunkLists)
     std::vector<std::unique_ptr<TChunkList>> chunkListStorage;
     auto bootstrap = New<TChunkTreeBalancerCallbacksMock>(&chunkListStorage);
     auto createChunk = [&] () -> TChunk* {
-        chunkStorage.push_back(std::move(CreateChunk()));
+        chunkStorage.push_back(CreateChunk());
         return chunkStorage.back().get();
     };
 
