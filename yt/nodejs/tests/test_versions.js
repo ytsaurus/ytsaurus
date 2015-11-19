@@ -34,7 +34,7 @@ describe("YtApplicationVersions - discover versions", function() {
             mock
                 .expects("executeSimple")
                 .once()
-                .withExactArgs("list", sinon.match({
+                .withExactArgs("get", sinon.match({
                     path: "//sys/" + entity
                 }))
                 .returns(Q.resolve(name_result));
