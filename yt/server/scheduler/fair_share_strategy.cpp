@@ -1589,7 +1589,7 @@ public:
         for (const auto& job : schedulingContext->RunningJobs()) {
             auto operationElement = FindOperationElement(job->GetOperationId());
             if (!operationElement || !operationElement->IsJobExisting(job->GetId())) {
-                LOG_INFO("Dangling running job found (JobId: %v, OperationId: %v)",
+                LOG_DEBUG("Dangling running job found (JobId: %v, OperationId: %v)",
                     job->GetId(),
                     job->GetOperationId());
                 continue;
@@ -2076,7 +2076,7 @@ private:
             parent->IncreaseUsage(pool->ResourceUsage());
             IncreaseRunningOperationCount(parent.Get(), RunningOperationCount[pool->GetId()]);
 
-            LOG_INFO("Set parent pool (Pool: %v, Parent: %v)",
+            LOG_INFO("Parent pool set (Pool: %v, Parent: %v)",
                 pool->GetId(),
                 parent->GetId());
         }
