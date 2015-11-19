@@ -92,6 +92,29 @@ def call_subprocess(command, stdin, max_retry_count, sleep_interval, env):
 
 ####################################################################################################
 
+# Schema altering helper.
+class Schematizer:
+    def __init__(self, schema):
+        self.type_map = {}
+        for column in schema:
+            self.type_map[column["name"]] = column["type"]
+
+    def schematize(self, row):
+        for key, value in row.iteritems():
+            if self.type_map[key] == "int64":
+                row[key] = yson.YsonInt64(value)
+            elif self.type_map[key] == "uint64":
+                row[key] = yson.YsonUint64(value)
+            elif self.type_map[key] == "double":
+                row[key] = yson.YsonDouble(value)
+            elif self.type_map[key] == "boolean":
+                row[key] = yson.YsonBoolean(value)
+            else:
+                row[key] = yson.YsonString(value)
+        return row
+
+####################################################################################################
+
 # Mapper - get tablet partition pivot keys.
 def collect_pivot_keys_mapper(tablet):
     yield {"pivot_key":tablet["pivot_key"]}
@@ -161,9 +184,10 @@ class DumpMapper(ArgsMapper):
 # Mapper - insert input rows into the destination table.
 @yt.aggregator
 class RestoreMapper(ArgsMapper):
-    def __init__(self, args, destination):
+    def __init__(self, args, destination, schema):
         super(RestoreMapper, self).__init__(args)
         self.destination = destination
+        self.schematizer = Schematizer(schema)
 
     def __call__(self, rows):
         # Insert data into the destination table.
@@ -181,6 +205,9 @@ class RestoreMapper(ArgsMapper):
 
         # Process data.
         for row in rows:
+            # FIXME for now we use schematization because TM may change uint64 to int64.
+            row = self.schematizer.schematize(row)
+
             new_data.append(row)
             if len(new_data) > self.rows_per_insert:
                 dump_data()
@@ -330,7 +357,7 @@ def restore_table(args):
     out_table = yt.create_temp_table()
 
     yt.run_map(
-        RestoreMapper(args, dst),
+        RestoreMapper(args, dst, schema),
         src,
         out_table,
         spec=build_spec_from_args(args),
