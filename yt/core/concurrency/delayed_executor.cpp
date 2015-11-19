@@ -36,7 +36,6 @@ struct TDelayedExecutorEntry
         }
     };
 
-
     TDelayedExecutorEntry(TClosure callback, TInstant deadline)
         : Deadline(deadline)
         , Callback(std::move(callback))
@@ -92,10 +91,10 @@ public:
     TDelayedExecutorCookie Submit(TClosure callback, TInstant deadline)
     {
         auto entry = New<TDelayedExecutorEntry>(std::move(callback), deadline);
-        if (IsRunning()) {
+        if (!IsShutdown()) {
             SubmitQueue_.Enqueue(std::move(entry));
         }
-        if (!IsRunning()) {
+        if (IsShutdown()) {
             PurgeQueues();
         }
         return entry;
@@ -103,10 +102,10 @@ public:
 
     void Cancel(TDelayedExecutorCookie entry)
     {
-        if (entry && IsRunning()) {
+        if (entry && !IsShutdown()) {
             CancelQueue_.Enqueue(std::move(entry));
         }
-        if (!IsRunning()) {
+        if (IsShutdown()) {
             PurgeQueues();
         }
     }

@@ -71,19 +71,21 @@ namespace NConcurrency {
  * success and false on failure.
  */
 class TEventCount
-    : private TNonCopyable
 {
 public:
-    TEventCount();
+    TEventCount() = default;
+    TEventCount(const TEventCount&) = delete;
+    TEventCount(TEventCount&&) = delete;
 
     class TCookie
     {
-        friend class TEventCount;
-
+    public:
         explicit TCookie(ui32 epoch)
             : Epoch_(epoch)
         { }
 
+    private:
+        friend class TEventCount;
         ui32 Epoch_;
     };
 
@@ -104,41 +106,41 @@ private:
 
     //! Lower 32 bits: number of waiters.
     //! Upper 32 bits: epoch
-    std::atomic<ui64> Value_;
+    std::atomic<ui64> Value_ = {0};
 
-    static const ui64 AddWaiter  = static_cast<ui64>(1);
-    static const ui64 SubWaiter  = static_cast<ui64>(-1);
+    static constexpr ui64 AddWaiter  = static_cast<ui64>(1);
+    static constexpr ui64 SubWaiter  = static_cast<ui64>(-1);
 
-    static const int  EpochShift = 32;
-    static const ui64 AddEpoch   = static_cast<ui64>(1) << EpochShift;
-    
-    static const ui64 WaiterMask = AddEpoch - 1;
+    static constexpr ui64 EpochShift = 32;
+    static constexpr ui64 AddEpoch   = static_cast<ui64>(1) << EpochShift;
+
+    static constexpr ui64 WaiterMask = AddEpoch - 1;
 
 #ifndef _linux_
     TCondVar ConditionVariable_;
     TMutex Mutex_;
 #endif
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 //! A single-shot non-resettable event implemented on top of TEventCount.
 class TEvent
-    : private TNonCopyable
 {
 public:
-    TEvent();
+    TEvent() = default;
+    TEvent(const TEvent&) = delete;
+    TEvent(TEvent&&) = delete;
 
     void NotifyOne();
     void NotifyAll();
 
+    bool Test() const;
     void Wait();
 
 private:
-    std::atomic<bool> Set_;
+    std::atomic<bool> Set_ = {false};
     TEventCount EventCount_;
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////

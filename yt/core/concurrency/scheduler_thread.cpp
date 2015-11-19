@@ -67,47 +67,70 @@ TSchedulerThread::TSchedulerThread(
 
 TSchedulerThread::~TSchedulerThread()
 {
-    YCHECK(!IsRunning());
-    Thread.Detach();
-    // TODO(sandello): Why not join here?
+    Shutdown();
 }
 
 void TSchedulerThread::Start()
 {
-    LOG_DEBUG_IF(EnableLogging, "Starting thread (Name: %v)",
-        ThreadName);
+    ui64 epoch = Epoch.load(std::memory_order_acquire);
+    while (true) {
+        if ((epoch & StartedEpochMask) != 0x0) {
+            // Startup already in progress.
+            goto await;
+        }
+        // Acquire startup lock.
+        if (Epoch.compare_exchange_strong(epoch, epoch | StartedEpochMask, std::memory_order_release)) {
+            break;
+        }
+    }
 
-    Thread.Start();
-    ThreadId = TThreadId(Thread.Id());
+    if ((epoch & ShutdownEpochMask) == 0x0) {
+        LOG_DEBUG_IF(EnableLogging, "Starting thread (Name: %v)", ThreadName);
 
-    OnStart();
+        Thread.Start();
+        ThreadId = TThreadId(Thread.Id());
 
+        OnStart();
+    } else {
+        // Pretend that thread was started and (immediately) stopped.
+        ThreadStartedEvent.NotifyAll();
+    }
+
+await:
     ThreadStartedEvent.Wait();
 }
 
 void TSchedulerThread::Shutdown()
 {
+    ui64 epoch = Epoch.load(std::memory_order_acquire);
     while (true) {
-        auto epoch = Epoch.load(std::memory_order_acquire);
-        if ((epoch & 0x1) != 0x0) {
-            return;
+        if ((epoch & ShutdownEpochMask) != 0x0) {
+            // Shutdown requested; await.
+            goto await;
         }
-        if (Epoch.compare_exchange_strong(epoch, epoch + 1, std::memory_order_release)) {
+        if (Epoch.compare_exchange_strong(epoch, epoch | ShutdownEpochMask, std::memory_order_release)) {
             break;
         }
     }
 
-    LOG_DEBUG_IF(EnableLogging, "Stopping thread (Name: %v)",
-        ThreadName);
+    if ((epoch & StartedEpochMask) != 0x0) {
+        LOG_DEBUG_IF(EnableLogging, "Stopping thread (Name: %v)", ThreadName);
 
-    CallbackEventCount->NotifyAll();
+        CallbackEventCount->NotifyAll();
 
-    OnShutdown();
+        OnShutdown();
 
-    // Prevent deadlock.
-    if (TThread::CurrentThreadId() != ThreadId) {
+        // Avoid deadlock.
+        YCHECK(TThread::CurrentThreadId() != ThreadId);
         Thread.Join();
+    } else {
+        // Thread was not started at all.
     }
+
+    ThreadShutdownEvent.NotifyAll();
+
+await:
+    ThreadShutdownEvent.Wait();
 }
 
 void* TSchedulerThread::ThreadMain(void* opaque)
@@ -128,10 +151,11 @@ void TSchedulerThread::ThreadMain()
 
     try {
         OnThreadStart();
-        ThreadStartedEvent.NotifyAll();
         LOG_DEBUG_IF(EnableLogging, "Thread started (Name: %v)", ThreadName);
 
-        while (IsRunning()) {
+        ThreadStartedEvent.NotifyAll();
+
+        while ((Epoch.load(std::memory_order_relaxed) & ShutdownEpochMask) == 0x0) {
             ThreadMainStep();
         }
 
@@ -175,7 +199,7 @@ void TSchedulerThread::ThreadMainStep()
     auto maybeReleaseIdleFiber = [&] () {
         if (CurrentFiber == IdleFiber) {
             // Advance epoch as this (idle) fiber might be rescheduled elsewhere.
-            Epoch.fetch_add(0x2, std::memory_order_relaxed);
+            Epoch.fetch_add(TurnDelta, std::memory_order_relaxed);
             IdleFiber.Reset();
         }
     };
@@ -219,7 +243,7 @@ void TSchedulerThread::ThreadMainStep()
     YASSERT(!SwitchToInvoker);
 }
 
-void TSchedulerThread::FiberMain(unsigned int spawnedEpoch)
+void TSchedulerThread::FiberMain(ui64 spawnedEpoch)
 {
     {
         auto createdFibers = Profiler.Increment(CreatedFibersCounter);
@@ -230,8 +254,9 @@ void TSchedulerThread::FiberMain(unsigned int spawnedEpoch)
             aliveFibers);
     }
 
-    while (FiberMainStep(spawnedEpoch))
-        ;
+    while (FiberMainStep(spawnedEpoch)) {
+        // Empty body.
+    };
 
     {
         auto createdFibers = CreatedFibersCounter.Current.load();
@@ -243,20 +268,21 @@ void TSchedulerThread::FiberMain(unsigned int spawnedEpoch)
     }
 }
 
-bool TSchedulerThread::FiberMainStep(unsigned int spawnedEpoch)
+bool TSchedulerThread::FiberMainStep(ui64 spawnedEpoch)
 {
-    auto cookie = CallbackEventCount->PrepareWait();
-
-    if (!IsRunning()) {
+    auto currentEpoch = Epoch.load(std::memory_order_relaxed);
+    if ((currentEpoch & ShutdownEpochMask) != 0x0) {
         return false;
     }
+
+    auto cookie = CallbackEventCount->PrepareWait();
 
     // CancelWait must be called within BeginExecute, if needed.
     auto result = BeginExecute();
 
     // NB: We might get to this point after a long sleep, and scheduler might spawn
     // another event loop. So we carefully examine scheduler state.
-    auto currentEpoch = Epoch.load(std::memory_order_relaxed);
+    currentEpoch = Epoch.load(std::memory_order_relaxed);
 
     if (spawnedEpoch == currentEpoch) {
         // Make the matching call to EndExecute unless it is already done in ThreadMainStep.
@@ -295,6 +321,7 @@ bool TSchedulerThread::FiberMainStep(unsigned int spawnedEpoch)
 
     // Reuse the fiber but regenerate its id.
     CurrentFiber->RegenerateId();
+
     return true;
 }
 
@@ -344,9 +371,14 @@ TThreadId TSchedulerThread::GetId() const
     return ThreadId;
 }
 
-bool TSchedulerThread::IsRunning() const
+bool TSchedulerThread::IsStarted() const
 {
-    return (Epoch.load(std::memory_order_relaxed) & 0x1) == 0x0;
+    return (Epoch.load(std::memory_order_relaxed) & StartedEpochMask) != 0x0;
+}
+
+bool TSchedulerThread::IsShutdown() const
+{
+    return (Epoch.load(std::memory_order_relaxed) & ShutdownEpochMask) != 0x0;
 }
 
 TFiber* TSchedulerThread::GetCurrentFiber()
