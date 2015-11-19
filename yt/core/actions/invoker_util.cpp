@@ -94,13 +94,15 @@ IInvokerPtr GetFinalizerInvoker()
 void ShutdownFinalizerThread()
 {
     if (FinalizerThread.HasValue()) {
+#if 0
         if (FinalizerThread->IsRunning()) {
             // Await completion of every action enqueued before this shutdown call.
             for (int i = 0; i < 100; ++i) {
                 auto sentinel = BIND([] () {}).AsyncVia(FinalizerThread->GetInvoker()).Run();
                 sentinel.Get().ThrowOnError();
-            }
+           }
         }
+#endif
         // Now kill the thread.
         FinalizerThread->Shutdown();
         // This code is (usually) run in a single-threaded context,

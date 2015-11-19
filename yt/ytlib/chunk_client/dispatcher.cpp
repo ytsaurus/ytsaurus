@@ -5,6 +5,7 @@
 #include <core/misc/singleton.h>
 
 #include <core/concurrency/action_queue.h>
+#include <core/concurrency/thread_pool.h>
 
 namespace NYT {
 namespace NChunkClient {

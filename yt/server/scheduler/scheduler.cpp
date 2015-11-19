@@ -15,6 +15,7 @@
 #include "event_log.h"
 
 #include <core/concurrency/thread_affinity.h>
+#include <core/concurrency/thread_pool.h>
 #include <core/concurrency/periodic_executor.h>
 
 #include <core/misc/finally.h>

@@ -1,9 +1,7 @@
 #pragma once
 
 #include "public.h"
-
-#include <core/actions/callback.h>
-#include <core/actions/invoker.h>
+#include "private.h"
 
 #include <core/misc/shutdownable.h>
 
@@ -17,25 +15,6 @@ namespace NYT {
 namespace NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
-
-class TEventCount;
-
-class TInvokerQueue;
-typedef TIntrusivePtr<TInvokerQueue> TInvokerQueuePtr;
-
-DEFINE_ENUM(EBeginExecuteResult,
-    (Success)
-    (QueueEmpty)
-    (Terminated)
-);
-
-struct TEnqueuedAction
-{
-    bool Finished = true;
-    NProfiling::TCpuInstant EnqueuedAt = 0;
-    NProfiling::TCpuInstant StartedAt = 0;
-    TClosure Callback;
-};
 
 class TInvokerQueue
     : public IInvoker
@@ -89,6 +68,8 @@ private:
     NProfiling::TAggregateCounter ExecTimeCounter;
     NProfiling::TAggregateCounter TotalTimeCounter;
 };
+
+DEFINE_REFCOUNTED_TYPE(TInvokerQueue)
 
 ////////////////////////////////////////////////////////////////////////////////
 
