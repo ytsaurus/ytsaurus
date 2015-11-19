@@ -714,3 +714,18 @@ class TestTables(YTEnvSetup):
         concatenate(["//tmp/t2", "//tmp/t1"], "<append=true>//tmp/union")
         assert read_table("//tmp/union") == [{"key": "y"}, {"key": "x"}]
         assert get("//tmp/union/@sorted", "false")
+
+    def test_extracting_table_columns_in_schemaful_dsv_from_complex_table(self):
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+        write_table("//tmp/t1", [
+            {"column1": {"childA" : "some_value", "childB" : "42"}, 
+            "column2" : "value12", 
+            "column3" : "value13"},
+            {"column1": {"childA" : "some_other_value", "childB" : "321"}, 
+            "column2" : "value22", 
+            "column3" : "value23"}])
+
+        tabular_data = read_table("//tmp/t1", output_format=yson.loads("<columns=[column2;column3]>schemaful_dsv"))
+        assert tabular_data == "value12\tvalue13\nvalue22\tvalue23\n"
+
