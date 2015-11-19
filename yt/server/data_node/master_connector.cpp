@@ -216,10 +216,15 @@ void TMasterConnector::ScheduleNodeHeartbeat(TCellTag cellTag)
 
 void TMasterConnector::ScheduleJobHeartbeat()
 {
+    // NB: Job heartbeats are sent in round-robin fashion,
+    // adjust the period accordingly.
+    auto period =
+        Config_->IncrementalHeartbeatPeriod /
+        (1 + Bootstrap_->GetMasterClient()->GetConnection()->GetSecondaryMasterCellTags().size());
     TDelayedExecutor::Submit(
         BIND(&TMasterConnector::SendJobHeartbeat, MakeStrong(this))
             .Via(HeartbeatInvoker_),
-        Config_->IncrementalHeartbeatPeriod);
+        period);
 }
 
 void TMasterConnector::ResetAndScheduleRegisterAtMaster()
