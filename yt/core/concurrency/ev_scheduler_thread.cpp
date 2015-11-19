@@ -80,7 +80,7 @@ EBeginExecuteResult TEVSchedulerThread::BeginExecute()
 
 EBeginExecuteResult TEVSchedulerThread::BeginExecuteCallbacks()
 {
-    if (!IsRunning()) {
+    if (IsShutdown()) {
         return EBeginExecuteResult::Terminated;
     }
 
@@ -108,8 +108,9 @@ void TEVSchedulerThread::OnCallback(ev::async&, int)
 
 void TEVSchedulerThread::EnqueueCallback(const TClosure& callback)
 {
-    if (!IsRunning())
+    if (IsShutdown()) {
         return;
+    }
 
     Queue.Enqueue(callback);
     CallbackWatcher.send();

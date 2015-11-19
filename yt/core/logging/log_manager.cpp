@@ -242,7 +242,7 @@ public:
 
     void Configure(INodePtr node, const TYPath& path = "")
     {
-        if (LoggingThread_->IsRunning()) {
+        if (!LoggingThread_->IsShutdown()) {
             auto config = TLogConfig::CreateFromNode(node, path);
             LoggerQueue_.Enqueue(std::move(config));
             EventCount_.NotifyOne();
@@ -263,7 +263,7 @@ public:
 
     void Configure(TLogConfigPtr&& config)
     {
-        if (LoggingThread_->IsRunning()) {
+        if (!LoggingThread_->IsShutdown()) {
             LoggerQueue_.Enqueue(std::move(config));
             EventCount_.NotifyOne();
         }
@@ -349,7 +349,7 @@ public:
             std::terminate();
         }
 
-        if (!LoggingThread_->IsRunning() || Suspended_) {
+        if (LoggingThread_->IsShutdown() || Suspended_) {
             return;
         }
 

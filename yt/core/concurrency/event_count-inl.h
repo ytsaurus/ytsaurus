@@ -23,10 +23,6 @@ inline int futex(
 
 #endif
 
-inline TEventCount::TEventCount()
-    : Value_(0)
-{ }
-
 inline void TEventCount::NotifyOne()
 {
     DoNotify(1);
@@ -128,25 +124,26 @@ void TEventCount::Await(TCondition condition)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-inline TEvent::TEvent()
-    : Set_(false)
-{ }
-
 inline void TEvent::NotifyOne()
 {
-    Set_ = true;
+    Set_.store(true, std::memory_order_release);
     EventCount_.NotifyOne();
 }
 
 inline void TEvent::NotifyAll()
 {
-    Set_ = true;
+    Set_.store(true, std::memory_order_release);
     EventCount_.NotifyAll();
+}
+
+inline bool TEvent::Test() const
+{
+    return Set_.load(std::memory_order_acquire);
 }
 
 inline void TEvent::Wait()
 {
-    EventCount_.Await([=] () { return Set_.load(); });
+    EventCount_.Await([=] () { return Set_.load(std::memory_order_acquire); });
 }
 
 ////////////////////////////////////////////////////////////////////////////////

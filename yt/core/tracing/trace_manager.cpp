@@ -222,10 +222,9 @@ private:
         CurrentBatch_.clear();
     }
 
-
     bool IsEnqueueEnabled(const TTraceContext& context)
     {
-        return context.IsEnabled() && Thread_->IsRunning();
+        return context.IsEnabled() && Thread_->IsStarted() && !Thread_->IsShutdown();
     }
 
     void EnqueueEvent(const NProto::TTraceEvent& event)
@@ -250,7 +249,6 @@ private:
         EventQueue_.Enqueue(event);
         EventCount_.NotifyOne();
     }
-
 
     NProto::TEndpoint GetLocalEndpoint()
     {
