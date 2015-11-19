@@ -551,7 +551,7 @@ public:
         for (auto job : schedulingContext->StartedJobs()) {
             auto operation = FindOperation(job->GetOperationId());
             if (!operation || operation->GetState() != EOperationState::Running) {
-                LOG_INFO("Dangling started job found (JobId: %v, OperationId: %v)",
+                LOG_DEBUG("Dangling started job found (JobId: %v, OperationId: %v)",
                     job->GetId(),
                     job->GetOperationId());
                 continue;
@@ -583,7 +583,7 @@ public:
 
         for (auto job : schedulingContext->PreemptedJobs()) {
             if (!FindOperation(job->GetOperationId())) {
-                LOG_INFO("Dangling preempted job found (JobId: %v, OperationId: %v)",
+                LOG_DEBUG("Dangling preempted job found (JobId: %v, OperationId: %v)",
                     job->GetId(),
                     job->GetOperationId());
                 continue;
@@ -659,7 +659,7 @@ public:
                 }
 
                 if (hasWaitingJobs) {
-                    LOG_INFO("Waiting jobs found, suppressing new jobs scheduling");
+                    LOG_DEBUG("Waiting jobs found, suppressing new jobs scheduling");
                 } else {
                     auto schedulingContext = CreateSchedulingContext(
                         Config_,
@@ -1441,7 +1441,7 @@ private:
         auto jobs = node->Jobs();
         const auto& address = node->GetDefaultAddress();
         for (auto job : jobs) {
-            LOG_INFO("Aborting job on an offline node %v (JobId: %v, OperationId: %v)",
+            LOG_DEBUG("Aborting job on an offline node %v (JobId: %v, OperationId: %v)",
                 address,
                 job->GetId(),
                 job->GetOperationId());
@@ -2272,27 +2272,27 @@ private:
         if (!job) {
             switch (state) {
                 case EJobState::Completed:
-                    LOG_INFO("Unknown job has completed, removal scheduled");
+                    LOG_DEBUG("Unknown job has completed, removal scheduled");
                     ToProto(response->add_jobs_to_remove(), jobId);
                     break;
 
                 case EJobState::Failed:
-                    LOG_INFO("Unknown job has failed, removal scheduled");
+                    LOG_DEBUG("Unknown job has failed, removal scheduled");
                     ToProto(response->add_jobs_to_remove(), jobId);
                     break;
 
                 case EJobState::Aborted:
-                    LOG_INFO("Job aborted, removal scheduled");
+                    LOG_DEBUG("Job aborted, removal scheduled");
                     ToProto(response->add_jobs_to_remove(), jobId);
                     break;
 
                 case EJobState::Running:
-                    LOG_INFO("Unknown job is running, abort scheduled");
+                    LOG_DEBUG("Unknown job is running, abort scheduled");
                     ToProto(response->add_jobs_to_abort(), jobId);
                     break;
 
                 case EJobState::Waiting:
-                    LOG_INFO("Unknown job is waiting, abort scheduled");
+                    LOG_DEBUG("Unknown job is waiting, abort scheduled");
                     ToProto(response->add_jobs_to_abort(), jobId);
                     break;
 
@@ -2335,7 +2335,7 @@ private:
         bool shouldLogJob = (state != job->GetState()) || forceJobsLogging;
         switch (state) {
             case EJobState::Completed: {
-                LOG_INFO("Job completed, removal scheduled");
+                LOG_DEBUG("Job completed, removal scheduled");
                 OnJobCompleted(job, jobStatus->mutable_result());
                 ToProto(response->add_jobs_to_remove(), jobId);
                 break;
@@ -2343,7 +2343,7 @@ private:
 
             case EJobState::Failed: {
                 auto error = FromProto<TError>(jobStatus->result().error());
-                LOG_INFO(error, "Job failed, removal scheduled");
+                LOG_DEBUG(error, "Job failed, removal scheduled");
                 OnJobFailed(job, jobStatus->mutable_result());
                 ToProto(response->add_jobs_to_remove(), jobId);
                 break;
@@ -2351,7 +2351,7 @@ private:
 
             case EJobState::Aborted: {
                 auto error = FromProto<TError>(jobStatus->result().error());
-                LOG_INFO(error, "Job aborted, removal scheduled");
+                LOG_DEBUG(error, "Job aborted, removal scheduled");
                 OnJobAborted(job, jobStatus->mutable_result());
                 ToProto(response->add_jobs_to_remove(), jobId);
                 break;
@@ -2360,7 +2360,7 @@ private:
             case EJobState::Running:
             case EJobState::Waiting:
                 if (job->GetState() == EJobState::Aborted) {
-                    LOG_INFO("Aborting job");
+                    LOG_DEBUG("Aborting job");
                     ToProto(response->add_jobs_to_abort(), jobId);
                 } else {
                     switch (state) {

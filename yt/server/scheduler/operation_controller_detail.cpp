@@ -1809,7 +1809,7 @@ void TOperationControllerBase::OnIntermediateChunkUnavailable(const TChunkId& ch
     if (completedJob->IsLost)
         return;
 
-    LOG_INFO("Job is lost (Address: %v, JobId: %v, SourceTask: %v, OutputCookie: %v, InputCookie: %v)",
+    LOG_DEBUG("Job is lost (Address: %v, JobId: %v, SourceTask: %v, OutputCookie: %v, InputCookie: %v)",
         completedJob->Address,
         completedJob->JobId,
         completedJob->SourceTask->GetId(),
@@ -3674,7 +3674,7 @@ void TOperationControllerBase::BuildResult(IYsonConsumer* consumer) const
 void TOperationControllerBase::UpdateJobStatistics(const TJobSummary& jobSummary)
 {
     auto statistics = jobSummary.Statistics;
-    LOG_INFO("Job data statistics (JobId: %v, Input: {%v}, Output: {%v})",
+    LOG_DEBUG("Job data statistics (JobId: %v, Input: {%v}, Output: {%v})",
         jobSummary.Id,
         GetTotalInputDataStatistics(statistics),
         GetTotalOutputDataStatistics(statistics));
