@@ -227,7 +227,7 @@ def copy_yt_to_yt(source_client, destination_client, src, dst, network_name, cop
     compressed_data_size = source_client.get_attribute(src, "compressed_data_size")
     chunk_count = source_client.get_attribute(src, "chunk_count")
 
-    if compressed_data_size / chunk_count < 10 * MB and chunk_count > 100:
+    if chunk_count > 100 and compressed_data_size / chunk_count < 10 * MB:
         if check_permission(source_client, "write", src):
             try:
                 # TODO(ignat): introduce preprocess spec template
