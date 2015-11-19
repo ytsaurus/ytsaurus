@@ -36,7 +36,7 @@ function YtApplicationVersions(driver)
     {
         nameExtractor = nameExtractor || _.keys;
 
-        return executeWithTimeout("list", { path: "//sys/" + entity })
+        return executeWithTimeout("get", { path: "//sys/" + entity })
         .then(function(names) {
             __DBG("Got " + entity + ": " + names);
 
