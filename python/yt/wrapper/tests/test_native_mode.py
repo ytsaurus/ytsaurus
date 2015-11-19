@@ -34,7 +34,7 @@ def test_docs_exist():
                                                             if (not inspect.getdoc(method))]
         assert not methods_without_doc
 
-def test_reliable_remove_tempfiles():
+def DISABLED_test_reliable_remove_tempfiles():
     def dummy_buggy_upload(*args, **kwargs):
         raise TypeError
 
@@ -287,7 +287,7 @@ class NativeModeTester(YtTestBase, YTEnv):
         yt.write_table(table, ["x=1\n", "y=2\n", "z=3\n"])
         yt.write_table(table, ["x=1\n", "y=2\n", "z=3\n"])
 
-    def test_python_operations(self):
+    def DISABLED_test_python_operations(self):
         def change_x(rec):
             if "x" in rec:
                 rec["x"] = int(rec["x"]) + 1
@@ -518,7 +518,7 @@ class NativeModeTester(YtTestBase, YTEnv):
                           source_table=table, destination_table=output_table)
         self.check(["x=1\n", "y=2\n"], sorted(list(yt.read_table(table))))
 
-    def test_yamred_dsv(self):
+    def DISABLED_test_yamred_dsv(self):
         def foo(rec):
             yield rec
 
@@ -530,7 +530,7 @@ class NativeModeTester(YtTestBase, YTEnv):
                    output_format=yt.YamrFormat(has_subkey=False, lenval=False))
         self.check(["key=2\tvalue=x=1\n"], sorted(list(yt.read_table(table))))
 
-    def test_schememaful_dsv(self):
+    def DISABLED_test_schememaful_dsv(self):
         def foo(rec):
             yield rec
 
@@ -586,7 +586,7 @@ class NativeModeTester(YtTestBase, YTEnv):
 
         assert [{"x": 1, "y": 2, "z": 3}] == select()
 
-    def test_lenval_python_operations(self):
+    def DISABLED_test_lenval_python_operations(self):
         def foo(rec):
             yield rec
 
@@ -631,7 +631,7 @@ class NativeModeTester(YtTestBase, YTEnv):
             yt.set("//@attr", 10)
             assert yt.exists("//@attr")
 
-    def test_table_index(self):
+    def DISABLED_test_table_index(self):
         dsv = yt.format.DsvFormat(enable_table_index=True, table_index_column="TableIndex")
         schemaful_dsv = yt.format.SchemafulDsvFormat(columns=['1', '2', '3'],
                                                      enable_table_index=True,

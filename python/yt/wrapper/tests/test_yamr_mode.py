@@ -362,7 +362,7 @@ class YamrModeTester(YtTestBase, YTEnv):
             sorted(list(yt.read_table(output))),
             sorted(["a\t\t2\n", "b\t\t1\n", "c\t\t6\n"]))
 
-    def test_python_operations(self):
+    def DISABLED_test_python_operations(self):
         @yt.raw
         def func(rec):
             yield rec.strip() + "aaaaaaaaaa\n"
@@ -389,7 +389,7 @@ class YamrModeTester(YtTestBase, YTEnv):
         self.assertFalse(yt.exists(other_table))
         self.assertFalse(yt.exists(TEST_DIR + "/ttt"))
 
-    def test_reformatting(self):
+    def DISABLED_test_reformatting(self):
         @yt.raw
         def reformat(rec):
             values = rec.strip().split("\t", 2)

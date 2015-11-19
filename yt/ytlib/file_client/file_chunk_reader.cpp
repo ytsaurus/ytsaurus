@@ -160,7 +160,7 @@ private:
         i64 selectedSize = 0;
         int blockIndex = 0;
         auto addBlock = [&] (int index, i64 size) -> bool {
-            if (StartOffset_ >= size) {
+            if (selectedSize == 0 && StartOffset_ >= size) {
                 StartOffset_ -= size;
                 EndOffset_ -= size;
                 ++blockIndex;
