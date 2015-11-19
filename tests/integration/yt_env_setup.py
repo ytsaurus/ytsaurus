@@ -47,8 +47,11 @@ class Checker(Thread):
         self._check_function = check_function
         self._active = None
 
-    def run(self):
+    def start(self):
         self._active = True
+        super(Checker, self).start()
+
+    def run(self):
         while self._active:
             self._check_function()
             sleep(1.0)
