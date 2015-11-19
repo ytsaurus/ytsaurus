@@ -13,6 +13,7 @@
 
 #include <core/actions/cancelable_context.h>
 
+#include <core/concurrency/fair_share_action_queue.h>
 #include <core/concurrency/scheduler.h>
 #include <core/concurrency/periodic_executor.h>
 

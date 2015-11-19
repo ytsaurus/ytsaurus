@@ -13,7 +13,7 @@
 #include "in_memory_manager.h"
 #include "private.h"
 
-#include <core/concurrency/action_queue.h>
+#include <core/concurrency/thread_pool.h>
 #include <core/concurrency/scheduler.h>
 #include <core/concurrency/async_semaphore.h>
 

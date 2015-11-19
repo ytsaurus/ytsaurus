@@ -9,6 +9,7 @@
 #include <core/concurrency/fiber.h>
 #include <core/concurrency/action_queue.h>
 #include <core/concurrency/parallel_awaiter.h>
+#include <core/concurrency/thread_pool.h>
 #include <core/concurrency/delayed_executor.h>
 
 #include <core/actions/cancelable_context.h>

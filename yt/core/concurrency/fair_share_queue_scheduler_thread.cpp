@@ -1,13 +1,13 @@
 #include "stdafx.h"
-#include "single_queue_scheduler_thread.h"
+#include "fair_share_queue_scheduler_thread.h"
 
 namespace NYT {
 namespace NConcurrency {
 
 ///////////////////////////////////////////////////////////////////////////////
 
-TSingleQueueSchedulerThread::TSingleQueueSchedulerThread(
-    TInvokerQueuePtr queue,
+TFairShareQueueSchedulerThread::TFairShareQueueSchedulerThread(
+    TFairShareInvokerQueuePtr queue,
     TEventCount* callbackEventCount,
     const Stroka& threadName,
     const NProfiling::TTagIdList& tagIds,
@@ -22,20 +22,20 @@ TSingleQueueSchedulerThread::TSingleQueueSchedulerThread(
     , Queue(std::move(queue))
 { }
 
-TSingleQueueSchedulerThread::~TSingleQueueSchedulerThread()
+TFairShareQueueSchedulerThread::~TFairShareQueueSchedulerThread()
 { }
 
-IInvokerPtr TSingleQueueSchedulerThread::GetInvoker()
+IInvokerPtr TFairShareQueueSchedulerThread::GetInvoker(int index)
 {
-    return Queue;
+    return Queue->GetInvoker(index);
 }
 
-EBeginExecuteResult TSingleQueueSchedulerThread::BeginExecute()
+EBeginExecuteResult TFairShareQueueSchedulerThread::BeginExecute()
 {
     return Queue->BeginExecute(&CurrentAction);
 }
 
-void TSingleQueueSchedulerThread::EndExecute()
+void TFairShareQueueSchedulerThread::EndExecute()
 {
     Queue->EndExecute(&CurrentAction);
 }
@@ -44,3 +44,4 @@ void TSingleQueueSchedulerThread::EndExecute()
 
 } // namespace NConcurrency
 } // namespace NYT
+
