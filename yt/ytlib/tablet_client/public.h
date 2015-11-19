@@ -29,6 +29,10 @@ DEFINE_ENUM(ETabletState,
     ((Unmounted)       (3))
 );
 
+DEFINE_ENUM(EErrorCode,
+    ((TransactionLockConflict)  (1700))
+);
+
 static const int TypicalCellSize = 5;
 
 ///////////////////////////////////////////////////////////////////////////////
