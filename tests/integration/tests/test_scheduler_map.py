@@ -1171,7 +1171,6 @@ class TestJobQuery(YTEnvSetup):
                 if column["name"] not in row.keys():
                     row[column["name"]] = None
 
-        yamred_format = yson.to_yson_type("yamred_dsv", attributes={"has_subkey": False, "key_column_names": ["a", "b"]})
         map(in_="//tmp/t1", out="//tmp/t2", command="cat",
             spec={
                 "input_query": "* where a > 0 or b > 0",
