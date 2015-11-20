@@ -216,5 +216,7 @@ void TConcatenateCommand::Execute(ICommandContextPtr context)
         .ThrowOnError();
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NDriver
 } // namespace NYT
