@@ -15,13 +15,15 @@ class TestAclCommands(object):
         yt.remove("//sys/accounts/tester", force=True)
         yt.remove("//sys/groups/super_testers", force=True)
 
-    def test_check_permission(self):
+    def test_check_permission(self, yt_env):
         assert yt.check_permission("tester", "read", "//sys")["action"] == "allow"
         assert yt.check_permission("tester", "write", "//sys")["action"] == "deny"
         assert yt.check_permission("root", "write", "//sys")["action"] == "allow"
         assert yt.check_permission("root", "administer", "//home")["action"] == "allow"
         assert yt.check_permission("root", "use", "//home")["action"] == "allow"
-        permissions = ["read", "write", "administer", "remove"]
+        permissions = ["read", "write", "administer"]
+        if yt_env.version >= "0.17.4":
+            permissions.append("remove")
         yt.create("map_node", "//home/tester", attributes={"inherit_acl": "false",
             "acl": [{"action": "allow",
                      "subjects": ["tester"],
