@@ -47,19 +47,19 @@ TEST(TProcessTest, GoodDup)
 
 TEST(TProcess, GetCommandLine)
 {
-    TProcess p("/bin/sh");
+    TProcess p("/bin/bash");
     p.AddArgument("-c");
     p.AddArgument("exit 0");
 
     ASSERT_NO_THROW(p.Spawn());
-    ASSERT_TRUE(p.GetCommandLine() == "/bin/sh -c \"exit 0\"") << p.GetCommandLine();
+    ASSERT_TRUE(p.GetCommandLine() == "/bin/bash -c \"exit 0\"") << p.GetCommandLine();
 
     ASSERT_NO_THROW(p.Wait());
 }
 
 TEST(TProcess, IgnoreCloseInvalidFD)
 {
-    TProcess p("/bin/sh");
+    TProcess p("/bin/bash");
     p.AddArgument("-c");
     p.AddArgument("exit 0");
     p.AddCloseFileAction(74);
@@ -70,7 +70,7 @@ TEST(TProcess, IgnoreCloseInvalidFD)
 
 TEST(TProcessTest, ProcessReturnCode0)
 {
-    TProcess p("/bin/sh");
+    TProcess p("/bin/bash");
     p.AddArgument("-c");
     p.AddArgument("exit 0");
 
@@ -82,7 +82,7 @@ TEST(TProcessTest, ProcessReturnCode0)
 
 TEST(TProcessTest, ProcessReturnCode1)
 {
-    TProcess p("/bin/sh");
+    TProcess p("/bin/bash");
     p.AddArgument("-c");
     p.AddArgument("exit 1");
 
@@ -153,7 +153,7 @@ TEST(TProcessTest, Kill)
 
 TEST(TProcessTest, KillFinished)
 {
-    TProcess p("/bin/sh");
+    TProcess p("/bin/bash");
     p.AddArgument("-c");
     p.AddArgument("true");
 
@@ -167,7 +167,7 @@ TEST(TProcessTest, KillFinished)
 
 TEST(TProcessTest, KillZombie)
 {
-    TProcess p("/bin/sh");
+    TProcess p("/bin/bash");
     p.AddArgument("-c");
     p.AddArgument("true");
 

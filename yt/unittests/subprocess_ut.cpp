@@ -18,7 +18,7 @@ using namespace NConcurrency;
 
 TEST(TSubprocessTest, Basic)
 {
-    TSubprocess subprocess("/bin/sh");
+    TSubprocess subprocess("/bin/bash");
 
     subprocess.AddArgument("-c");
     subprocess.AddArgument("true");
@@ -45,7 +45,7 @@ TEST(TSubprocessTest, PipeBigOutput)
     TActionQueuePtr queue = New<TActionQueue>();
 
     auto result = BIND([] () {
-        TSubprocess subprocess("/bin/sh");
+        TSubprocess subprocess("/bin/bash");
 
         subprocess.AddArgument("-c");
         subprocess.AddArgument("for i in `seq 100000`; do echo hello; done; echo world");
@@ -63,7 +63,7 @@ TEST(TSubprocessTest, PipeBigError)
     TActionQueuePtr queue = New<TActionQueue>();
 
     auto result = BIND([] () {
-        TSubprocess subprocess("/bin/sh");
+        TSubprocess subprocess("/bin/bash");
 
         subprocess.AddArgument("-c");
         subprocess.AddArgument("for i in `seq 100000`; do echo hello 1>&2; done; echo world");

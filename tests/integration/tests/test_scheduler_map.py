@@ -871,7 +871,7 @@ print '{hello=world}'
 
         mapper =  \
 """
-#!/bin/sh
+#!/bin/bash
 cat > /dev/null; echo {hello=world}
 """
 
