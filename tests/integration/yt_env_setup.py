@@ -63,14 +63,15 @@ class YTEnvSetup(YTEnv):
         path_to_run = os.path.join(path_to_test, "run_" + str(uuid.uuid4().hex)[:8])
         pids_filename = os.path.join(path_to_run, 'pids.txt')
 
+        cls.liveness_checker = None
+
         cls.path_to_test = path_to_test
         cls.Env = cls()
-        cls.Env.set_environment(path_to_run, pids_filename)
+        cls.Env.start(path_to_run, pids_filename, kill_child_processes=True)
 
         if cls.Env.configs['driver']:
             yt_commands.init_driver(cls.Env.configs['driver'])
             yt_driver_bindings.configure_logging(cls.Env.driver_logging_config)
-            yt_driver_bindings.configure_tracing(cls.Env.driver_tracing_config)
 
         cls.liveness_checker = Checker(lambda: cls.Env.check_liveness(callback_func=_pytest_finalize_func))
         cls.liveness_checker.daemon = True
@@ -78,13 +79,14 @@ class YTEnvSetup(YTEnv):
 
     @classmethod
     def teardown_class(cls):
-        cls.liveness_checker.stop()
+        if cls.liveness_checker is not None:
+            cls.liveness_checker.stop()
 
         cls.Env.clear_environment()
         gc.collect()
 
     def teardown_method(self, method):
-        self.Env.check_liveness()
+        self.Env.check_liveness(callback_func=_pytest_finalize_func)
         if self.Env.NUM_MASTERS > 0:
             for tx in yt_commands.ls("//sys/transactions", attributes=["title"]):
                 title = tx.attributes.get("title", "")
