@@ -26,6 +26,8 @@ public:
 
     virtual void Shutdown() override;
 
+    void Configure(int threadCount);
+
     IInvokerPtr GetInvoker();
 
     static TCallback<TThreadPoolPtr()> CreateFactory(
