@@ -4,6 +4,7 @@
 
 #include <core/misc/error.h>
 
+#include <core/concurrency/action_queue.h>
 #include <core/concurrency/periodic_executor.h>
 
 #include <core/logging/log.h>
@@ -46,8 +47,8 @@ private:
     pid_t ChildPid_ = -1;
     TPromise<void> Result_ = NewPromise<void>();
     TInstant StartTime_;
+    NConcurrency::TActionQueuePtr WatchdogQueue_ = New<NConcurrency::TActionQueue>("SnapshotWD");
     NConcurrency::TPeriodicExecutorPtr WatchdogExecutor_;
-
 
     void DoRunParent();
     void DoRunChild();
@@ -58,7 +59,6 @@ private:
     void DoCancel();
 
     void DoCleanup();
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////

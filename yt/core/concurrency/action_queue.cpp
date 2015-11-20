@@ -98,17 +98,6 @@ IInvokerPtr TActionQueue::GetInvoker()
     return Impl_->GetInvoker();
 }
 
-TCallback<TActionQueuePtr()> TActionQueue::CreateFactory(
-    const Stroka& threadName,
-    bool enableLogging,
-    bool enableProfiling)
-{
-    return BIND(&New<TActionQueue, const Stroka&, const bool&, const bool&>,
-        threadName,
-        enableLogging,
-        enableProfiling);
-}
-
 ///////////////////////////////////////////////////////////////////////////////
 
 class TSerializedInvoker

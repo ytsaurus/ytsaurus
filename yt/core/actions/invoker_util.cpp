@@ -76,8 +76,8 @@ IInvokerPtr GetNullInvoker()
 
 static TActionQueuePtr GetFinalizerThread()
 {
-    static auto finalizer = New<TActionQueue>("Finalizer", false, false);
-    return finalizer;
+    static auto queue = New<TActionQueue>("Finalizer", false, false);
+    return queue;
 }
 
 IInvokerPtr GetFinalizerInvoker()
