@@ -634,6 +634,9 @@ private:
         auto rowBuffer = New<TRowBuffer>();
         auto allSplits = InferRanges(fragment, rowBuffer, Logger);
 
+        LOG_DEBUG("Regrouping %v splits into groups",
+            allSplits.size());
+
         yhash_map<Stroka, TDataSources> groupsByAddress;
         for (const auto& split : allSplits) {
             const auto& address = split.second;
