@@ -87,7 +87,10 @@ class YtTestEnvironment(object):
         self.env.clear_environment()
         for node_config in self.env.configs["node"]:
             shutil.rmtree(node_config["data_node"]["store_locations"][0]["path"])
-            shutil.rmtree(node_config["data_node"]["cache_locations"][0]["path"])
+            if "cache_locations"in node_config["data_node"]:
+                shutil.rmtree(node_config["data_node"]["cache_locations"][0]["path"])
+            else:
+                shutil.rmtree(node_config["data_node"]["cache_location"]["path"])
 
     def check_liveness(self):
         self.env.check_liveness(callback_func=_pytest_finalize_func)
