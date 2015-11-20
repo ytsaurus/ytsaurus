@@ -1,3 +1,6 @@
+from yt.wrapper.py_wrapper import create_modules_archive_default
+from yt.wrapper.table_commands import TempfilesManager
+
 from yt.wrapper.common import parse_bool
 from yt.wrapper.operation_commands import add_failed_operation_stderrs_to_error_message
 from yt.wrapper.table import TablePath
@@ -92,6 +95,10 @@ class TMapperWithMetaclass(object):
 
   def map(self, rec):
     yield self.some_external_code.do_something(rec)
+
+class CreateModulesArchive(object):
+    def __call__(self, tempfiles_manager=None):
+        return create_modules_archive_default(tempfiles_manager, None)
 
 
 @pytest.mark.usefixtures("yt_env")
@@ -534,6 +541,28 @@ class TestOperations(object):
         yt.run_sort(table, sort_by=["x"])
         yt.run_reduce(AggregateReducer(), table, other_table, reduce_by=["x"])
         assert ["sum=1\n", "sum=2\n", "sum=9\n"] == sorted(yt.read_table(other_table))
+
+    @add_failed_operation_stderrs_to_error_message
+    def test_create_modules_archive(self):
+        def foo(rec):
+            yield rec
+
+        table = TEST_DIR + "/table"
+
+        try:
+            yt.config["pickling"]["create_modules_archive_function"] = \
+                lambda tempfiles_manager: create_modules_archive_default(tempfiles_manager, None)
+            yt.run_map(foo, table, table)
+
+            with TempfilesManager(None) as tempfiles_manager:
+                yt.config["pickling"]["create_modules_archive_function"] = lambda: create_modules_archive_default(tempfiles_manager, None)
+                yt.run_map(foo, table, table)
+
+            yt.config["pickling"]["create_modules_archive_function"] = CreateModulesArchive()
+            yt.run_map(foo, table, table)
+
+        finally:
+            yt.config["pickling"]["create_modules_archive_function"] = None
 
     # TODO(ignat): replace timeout with scheduler-side option
     #def test_wait_strategy_timeout(self):
