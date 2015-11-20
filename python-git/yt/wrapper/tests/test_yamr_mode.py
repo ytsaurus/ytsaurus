@@ -97,6 +97,7 @@ class TestYamrMode(object):
 
         embedded_path = TEST_DIR + "dir/other_dir/table"
         copy_table(table, embedded_path)
+        assert not yt.exists(embedded_path)
 
     def test_mapreduce_binary(self):
         env = get_environment_for_binary_test()
