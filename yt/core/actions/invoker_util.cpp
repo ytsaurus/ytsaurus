@@ -74,41 +74,20 @@ IInvokerPtr GetNullInvoker()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static TLazyIntrusivePtr<TActionQueue> FinalizerThread(
-    TActionQueue::CreateFactory("Finalizer", false, false));
-static std::atomic<bool> FinalizerThreadIsDead = {false};
+static TActionQueuePtr GetFinalizerThread()
+{
+    static auto finalizer = New<TActionQueue>("Finalizer", false, false);
+    return finalizer;
+}
 
 IInvokerPtr GetFinalizerInvoker()
 {
-    // When |FinalizedThread| is already destructed, we would like to avoid
-    // member variables to avoid crashes. Since we force end-users to shutdown
-    // finalizer thread explicitly (and in a single thread) we can rely on
-    // |FinalizerThreadIsDead| to be set by appropriate shutdown code.
-    if (!FinalizerThreadIsDead.load(std::memory_order_relaxed)) {
-        return FinalizerThread->GetInvoker();
-    } else {
-        return GetSyncInvoker();
-    }
+    return GetFinalizerThread()->GetInvoker();
 }
 
 void ShutdownFinalizerThread()
 {
-    if (FinalizerThread.HasValue()) {
-#if 0
-        if (FinalizerThread->IsRunning()) {
-            // Await completion of every action enqueued before this shutdown call.
-            for (int i = 0; i < 100; ++i) {
-                auto sentinel = BIND([] () {}).AsyncVia(FinalizerThread->GetInvoker()).Run();
-                sentinel.Get().ThrowOnError();
-           }
-        }
-#endif
-        // Now kill the thread.
-        FinalizerThread->Shutdown();
-        // This code is (usually) run in a single-threaded context,
-        // so we simply raise the flag.
-        FinalizerThreadIsDead.store(true, std::memory_order_relaxed);
-    }
+    GetFinalizerThread()->Shutdown();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

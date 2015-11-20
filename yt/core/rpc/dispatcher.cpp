@@ -8,31 +8,16 @@
 namespace NYT {
 namespace NRpc {
 
+using namespace NConcurrency;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TDispatcher::TImpl
 {
 public:
-    TImpl()
-        : PoolSize_(8)
-        , Pool_(BIND(
-            NYT::New<NConcurrency::TThreadPool, const int&, const Stroka&>,
-            ConstRef(PoolSize_),
-            "Rpc"))
-    { }
-
     void Configure(int poolSize)
     {
-        if (PoolSize_ == poolSize) {
-            return;
-        }
-
-        // We believe in proper memory ordering here.
-        YCHECK(!Pool_.HasValue());
-        PoolSize_ = poolSize;
-        // This is not redundant, since the check and the assignment above are
-        // not atomic and (adversary) thread can initialize thread pool in parallel.
-        YCHECK(!Pool_.HasValue());
+        Pool_->Configure(poolSize);
     }
 
     IInvokerPtr GetInvoker()
@@ -42,14 +27,11 @@ public:
 
     void Shutdown()
     {
-        if (Pool_.HasValue()) {
-            Pool_->Shutdown();
-        }
+        Pool_->Shutdown();
     }
 
 private:
-    int PoolSize_;
-    TLazyIntrusivePtr<NConcurrency::TThreadPool> Pool_;
+    TThreadPoolPtr Pool_ = New<TThreadPool>(8, "Rpc");
 };
 
 TDispatcher::TDispatcher()
