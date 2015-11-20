@@ -43,8 +43,8 @@ public:
     static void StaticShutdown();
 
 private:
-    struct TImpl;
-    std::unique_ptr<TImpl> Impl_;
+    class TImpl;
+    TIntrusivePtr<TImpl> Impl_;
 
     TDelayedExecutor();
 
