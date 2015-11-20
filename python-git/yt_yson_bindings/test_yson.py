@@ -37,13 +37,19 @@ class TestYsonStream(YsonParserTestBase, unittest.TestCase):
             {"k": {"x": to_yson_type(None), "o": [True, "1", 2]}, "t": 3})
 
     def test_dump(self):
-        self.assertEqual(
-            self.dump_fragment([{"x": 1}, {"y": 2}]),
-            '{"x"=1;};\n{"y"=2;};\n')
+        self.assertTrue(
+            self.dump_fragment([{"x": 1}, {"y": 2}]) in \
+            [
+                '{"x"=1;};\n{"y"=2;};\n',
+                '{"x"=1};\n{"y"=2};\n'
+            ])
 
-        self.assertEqual(
-            self.dump_fragment((x for x in [{"x": None}, to_yson_type({"y": 2}, {"a": 10})])),
-            '{"x"=#;};\n<"a"=10;>{"y"=2;};\n')
+        self.assertTrue(
+            self.dump_fragment((x for x in [{"x": None}, to_yson_type({"y": 2}, {"a": 10})])) in \
+            [
+                '{"x"=#;};\n<"a"=10;>{"y"=2;};\n',
+                '{"x"=#};\n<"a"=10>{"y"=2};\n',
+            ])
 
     def test_unicode(self):
         unicode_str = u"ав"
@@ -88,8 +94,18 @@ class TestYsonStream(YsonParserTestBase, unittest.TestCase):
         map = YsonMap()
         map["value"] = YsonEntity()
         map["value"].attributes = {"attr": 10}
-        self.assertEqual('{"value"=<"attr"=10;>#;}', dumps(map))
-        self.assertEqual('{"value"=#;}', dumps(map, ignore_inner_attributes=True))
+        self.assertTrue(
+            dumps(map) in \
+            [
+                '{"value"=<"attr"=10;>#;}',
+                '{"value"=<"attr"=10>#}',
+            ])
+        self.assertTrue(
+            dumps(map, ignore_inner_attributes=True) in \
+            [
+                '{"value"=#;}',
+                '{"value"=#}',
+            ])
 
     def test_loading_raw_rows(self):
         rows = list(loads("{a=b};{c=d};", raw=True, yson_type="list_fragment"))
