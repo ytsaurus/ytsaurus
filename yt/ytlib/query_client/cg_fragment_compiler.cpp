@@ -1048,6 +1048,7 @@ TCodegenSource MakeCodegenJoinOp(
 
                 CodegenGroupHasherFunction(keyTypes, *builder.Module),
                 CodegenGroupComparerFunction(keyTypes, *builder.Module),
+                CodegenRowComparerFunction(keyTypes, *builder.Module),
 
                 collectRows.ClosurePtr,
                 collectRows.Function,
