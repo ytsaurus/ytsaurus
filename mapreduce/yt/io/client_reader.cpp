@@ -42,7 +42,7 @@ int GetRowIndexFromHeaders(THttpInput* httpInput)
     if (it == jsonMap.end()) {
         return 0;
     } else {
-        return it->Second().GetInteger();
+        return it->second.GetInteger();
     }
 }
 

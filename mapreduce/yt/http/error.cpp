@@ -24,17 +24,17 @@ TError::TError(const TJsonValue& value)
     const TJsonValue::TMap& map = value.GetMap();
     TJsonValue::TMap::const_iterator it = map.find("message");
     if (it != map.end()) {
-        Message_ = it->Second().GetString();
+        Message_ = it->second.GetString();
     }
 
     it = map.find("code");
     if (it != map.end()) {
-        Code_ = static_cast<int>(it->Second().GetInteger());
+        Code_ = static_cast<int>(it->second.GetInteger());
     }
 
     it = map.find("inner_errors");
     if (it != map.end()) {
-        const TJsonValue::TArray& innerErrors = it->Second().GetArray();
+        const TJsonValue::TArray& innerErrors = it->second.GetArray();
         for (const auto& innerError : innerErrors) {
             InnerErrors_.push_back(TError(innerError));
         }
