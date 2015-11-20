@@ -90,7 +90,7 @@ def _generate_common_proxy_config(proxy_dir, ports, enable_debug_logging):
     proxy_config["proxy"]["logging"] = init_logging(proxy_config["proxy"]["logging"], proxy_dir, "http_proxy",
                                                     enable_debug_logging)
     proxy_config["port"] = ports["proxy"]
-    proxy_config["fqdn"] = "localhost:{0}".format(ports[0])
+    proxy_config["fqdn"] = "localhost:{0}".format(ports["proxy"])
     proxy_config["static"].append(["/ui", os.path.join(proxy_dir, "ui")])
 
     return proxy_config
