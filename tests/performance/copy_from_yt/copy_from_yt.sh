@@ -1,4 +1,4 @@
-#!/bin/sh -eu
+#!/bin/bash -eu
 
 FROM=$1
 TO=$2
