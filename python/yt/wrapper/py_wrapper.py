@@ -68,14 +68,8 @@ def find_file(path):
             raise YtError("Incorrect module path " + origin_path)
         path = dirname
 
-def create_modules_archive(tempfiles_manager, client):
-    create_modules_archive_function = get_config(client)["pickling"]["create_modules_archive_function"]
-    if create_modules_archive_function is not None:
-        args_spec = inspect.getargspec(create_modules_archive_function)
-        if len(args_spec.args) - len(args_spec.defaults) == 0:
-            return create_modules_archive_function()
-        return create_modules_archive_function(tempfiles_manager)
 
+def create_modules_archive_default(tempfiles_manager, client):
     for module_name in OPERATION_REQUIRED_MODULES:
         module_info = imp.find_module(module_name, [LOCATION])
         imp.load_module(module_name, *module_info)
@@ -112,6 +106,26 @@ def create_modules_archive(tempfiles_manager, client):
                 zip.write(file, relpath)
 
     return zip_filename
+
+
+def create_modules_archive(tempfiles_manager, client):
+    create_modules_archive_function = get_config(client)["pickling"]["create_modules_archive_function"]
+    if create_modules_archive_function is not None:
+        if inspect.isfunction(create_modules_archive_function):
+            args_spec = inspect.getargspec(create_modules_archive_function)
+            args_count = len(args_spec.args)
+        elif hasattr(create_modules_archive_function, "__call__"):
+            args_spec = inspect.getargspec(create_modules_archive_function.__call__)
+            args_count = len(args_spec.args) - 1
+        else:
+            raise YtError("Cannot determine whether create_modules_archive_function callable or not")
+        if args_count > 0:
+            return create_modules_archive_function(tempfiles_manager)
+        else:
+            return create_modules_archive_function()
+
+    return create_modules_archive_default(tempfiles_manager, client)
+
 
 def get_function_name(function):
     if hasattr(function, "__name__"):
