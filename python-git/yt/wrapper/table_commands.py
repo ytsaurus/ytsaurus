@@ -1088,6 +1088,7 @@ class Finalizer(object):
 
         data_size = get_attribute(table, "uncompressed_data_size", client=self.client)
         data_size_per_job = min(data_size_per_job, data_size / max(1, chunk_count / chunk_count_per_job_limit))
+        data_size_per_job = max(data_size_per_job, chunk_count_per_job_limit)
 
         mode = "sorted" if is_sorted(table, client=self.client) else "unordered"
 
