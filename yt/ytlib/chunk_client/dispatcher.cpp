@@ -57,10 +57,10 @@ public:
     }
 
 private:
-    TActionQueuePtr ReaderThread_ = New<TActionQueue>("ChunkReader");
-    TActionQueuePtr WriterThread_ = New<TActionQueue>("ChunkWriter");
-    TThreadPoolPtr CompressionPool_ = New<TThreadPool>(4, "Compression");
-    TThreadPoolPtr ErasurePool_ = New<TThreadPool>(4, "Erasure");
+    const TActionQueuePtr ReaderThread_ = New<TActionQueue>("ChunkReader");
+    const TActionQueuePtr WriterThread_ = New<TActionQueue>("ChunkWriter");
+    const TThreadPoolPtr CompressionPool_ = New<TThreadPool>(4, "Compression");
+    const TThreadPoolPtr ErasurePool_ = New<TThreadPool>(4, "Erasure");
     TLazyIntrusivePtr<IPrioritizedInvoker> CompressionPoolInvoker_;
     TLazyIntrusivePtr<IPrioritizedInvoker> ErasurePoolInvoker_;
 

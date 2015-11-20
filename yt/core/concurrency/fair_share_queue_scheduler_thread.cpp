@@ -19,7 +19,7 @@ TFairShareQueueSchedulerThread::TFairShareQueueSchedulerThread(
         tagIds,
         enableLogging,
         enableProfiling)
-    , Queue(std::move(queue))
+    , Queue_(std::move(queue))
 { }
 
 TFairShareQueueSchedulerThread::~TFairShareQueueSchedulerThread()
@@ -27,17 +27,17 @@ TFairShareQueueSchedulerThread::~TFairShareQueueSchedulerThread()
 
 IInvokerPtr TFairShareQueueSchedulerThread::GetInvoker(int index)
 {
-    return Queue->GetInvoker(index);
+    return Queue_->GetInvoker(index);
 }
 
 EBeginExecuteResult TFairShareQueueSchedulerThread::BeginExecute()
 {
-    return Queue->BeginExecute(&CurrentAction);
+    return Queue_->BeginExecute(&CurrentAction_);
 }
 
 void TFairShareQueueSchedulerThread::EndExecute()
 {
-    Queue->EndExecute(&CurrentAction);
+    Queue_->EndExecute(&CurrentAction_);
 }
 
 ///////////////////////////////////////////////////////////////////////////////

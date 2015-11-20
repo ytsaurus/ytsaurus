@@ -74,8 +74,8 @@ public:
 
 private:
     TEventCount CallbackEventCount_;
-    TFairShareInvokerQueuePtr Queue_;
-    TFairShareQueueSchedulerThreadPtr Thread_;
+    const TFairShareInvokerQueuePtr Queue_;
+    const TFairShareQueueSchedulerThreadPtr Thread_;
 };
 
 TFairShareActionQueue::TFairShareActionQueue(
@@ -86,8 +86,7 @@ TFairShareActionQueue::TFairShareActionQueue(
     : Impl_(New<TImpl>(threadName, bucketNames, enableLogging, enableProfiling))
 { }
 
-TFairShareActionQueue::~TFairShareActionQueue()
-{ }
+TFairShareActionQueue::~TFairShareActionQueue() = default;
 
 IInvokerPtr TFairShareActionQueue::GetInvoker(int index)
 {
@@ -97,19 +96,6 @@ IInvokerPtr TFairShareActionQueue::GetInvoker(int index)
 void TFairShareActionQueue::Shutdown()
 {
     return Impl_->Shutdown();
-}
-
-TCallback<TFairShareActionQueuePtr()> TFairShareActionQueue::CreateFactory(
-    const Stroka& threadName,
-    const std::vector<Stroka>& bucketNames,
-    bool enableLogging,
-    bool enableProfiling)
-{
-    return BIND(&New<TFairShareActionQueue, const Stroka&, const std::vector<Stroka>&, const bool&, const bool&>,
-        threadName,
-        bucketNames,
-        enableLogging,
-        enableProfiling);
 }
 
 ///////////////////////////////////////////////////////////////////////////////

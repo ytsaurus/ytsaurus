@@ -31,7 +31,7 @@ public:
     }
 
 private:
-    TThreadPoolPtr Pool_ = New<TThreadPool>(8, "Rpc");
+    const TThreadPoolPtr Pool_ = New<TThreadPool>(8, "Rpc");
 };
 
 TDispatcher::TDispatcher()

@@ -35,8 +35,6 @@ public:
     void EndExecute(TEnqueuedAction* action);
 
 private:
-    TEventCount* CallbackEventCount;
-
     struct TBucket
     {
         TInvokerQueuePtr Queue;

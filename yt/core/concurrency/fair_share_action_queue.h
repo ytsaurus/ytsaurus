@@ -29,15 +29,9 @@ public:
 
     IInvokerPtr GetInvoker(int index);
 
-    static TCallback<TFairShareActionQueuePtr()> CreateFactory(
-        const Stroka& threadName,
-        const std::vector<Stroka>& bucketNames,
-        bool enableLogging = true,
-        bool enableProfiling = true);
-
 private:
     class TImpl;
-    TIntrusivePtr<TImpl> Impl_;
+    const TIntrusivePtr<TImpl> Impl_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TFairShareActionQueue)

@@ -256,7 +256,7 @@ void TSchedulerThread::FiberMain(ui64 spawnedEpoch)
 
     while (FiberMainStep(spawnedEpoch)) {
         // Empty body.
-    };
+    }
 
     {
         auto createdFibers = CreatedFibersCounter.Current.load();

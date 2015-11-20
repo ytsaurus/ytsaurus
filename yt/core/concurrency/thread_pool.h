@@ -31,15 +31,9 @@ public:
 
     IInvokerPtr GetInvoker();
 
-    static TCallback<TThreadPoolPtr()> CreateFactory(
-        int threadCount,
-        const Stroka& threadName,
-        bool enableLogging = true,
-        bool enableProfiling = true);
-
 private:
     class TImpl;
-    TIntrusivePtr<TImpl> Impl;
+    const TIntrusivePtr<TImpl> Impl_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TThreadPool)

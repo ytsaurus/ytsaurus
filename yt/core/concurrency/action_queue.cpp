@@ -75,28 +75,27 @@ public:
 
 private:
     TEventCount CallbackEventCount_;
-    TInvokerQueuePtr Queue_;
-    TSingleQueueSchedulerThreadPtr Thread_;
+    const TInvokerQueuePtr Queue_;
+    const TSingleQueueSchedulerThreadPtr Thread_;
 };
 
 TActionQueue::TActionQueue(
     const Stroka& threadName,
     bool enableLogging,
     bool enableProfiling)
-    : Impl(New<TImpl>(threadName, enableLogging, enableProfiling))
+    : Impl_(New<TImpl>(threadName, enableLogging, enableProfiling))
 { }
 
-TActionQueue::~TActionQueue()
-{ }
+TActionQueue::~TActionQueue() = default;
 
 void TActionQueue::Shutdown()
 {
-    return Impl->Shutdown();
+    return Impl_->Shutdown();
 }
 
 IInvokerPtr TActionQueue::GetInvoker()
 {
-    return Impl->GetInvoker();
+    return Impl_->GetInvoker();
 }
 
 TCallback<TActionQueuePtr()> TActionQueue::CreateFactory(
