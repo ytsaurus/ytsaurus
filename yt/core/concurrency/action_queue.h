@@ -28,11 +28,6 @@ public:
 
     IInvokerPtr GetInvoker();
 
-    static TCallback<TActionQueuePtr()> CreateFactory(
-        const Stroka& threadName,
-        bool enableLogging = true,
-        bool enableProfiling = true);
-
 private:
     class TImpl;
     const TIntrusivePtr<TImpl> Impl_;

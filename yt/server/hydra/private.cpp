@@ -18,9 +18,8 @@ const Stroka ChangelogIndexExtension("index");
 
 IInvokerPtr GetHydraIOInvoker()
 {
-    static TLazyIntrusivePtr<TActionQueue> HydraIOQueue(
-        TActionQueue::CreateFactory("HydraIO"));
-    return HydraIOQueue->GetInvoker();
+    static auto queue = New<TActionQueue>("HydraIO");
+    return queue->GetInvoker();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
