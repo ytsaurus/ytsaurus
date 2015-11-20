@@ -28,27 +28,37 @@ public:
         const Stroka& threadNamePrefix,
         bool enableLogging,
         bool enableProfiling)
-        : Queue_(New<TInvokerQueue>(
+        : ThreadNamePrefix_(threadNamePrefix)
+        , EnableLogging_(enableLogging)
+        , EnableProfiling_(enableProfiling)
+        , Queue_(New<TInvokerQueue>(
             &CallbackEventCount_,
             GetThreadTagIds(enableProfiling, threadNamePrefix),
             enableLogging,
             enableProfiling))
-        , Threads_(threadCount)
     {
-        for (int i = 0; i < threadCount; ++i) {
-            Threads_[i] = New<TSingleQueueSchedulerThread>(
-                Queue_,
-                &CallbackEventCount_,
-                Format("%v:%v", threadNamePrefix, i),
-                GetThreadTagIds(enableProfiling, threadNamePrefix),
-                enableLogging,
-                enableProfiling);
-        }
+        Configure(threadCount);
     }
 
     ~TImpl()
     {
         Shutdown();
+    }
+
+    void Configure(int threadCount)
+    {
+        // XXX(sandello): This is racy with other methods. Fix me.
+        for (int i = Threads_.size(); i < threadCount; ++i) {
+            Threads_.emplace_back(SpawnThread(i));
+        }
+        for (int i = threadCount; i < Threads_.size(); ++i) {
+            Threads_.back()->Shutdown();
+            Threads_.back().Reset();
+            Threads_.pop_back();
+        }
+        if (Started_.load(std::memory_order_relaxed)) {
+            Start();
+        }
     }
 
     void Start()
@@ -70,17 +80,32 @@ public:
     {
         if (Y_UNLIKELY(!Started_.load(std::memory_order_relaxed))) {
             // Concurrent calls to Start() are okay.
-            Start();
             Started_.store(true, std::memory_order_relaxed);
+            Start();
         }
         return Queue_;
     }
 
 private:
+    Stroka ThreadNamePrefix_;
+    bool EnableLogging_;
+    bool EnableProfiling_;
+
     std::atomic<bool> Started_ = {false};
     TEventCount CallbackEventCount_;
     TInvokerQueuePtr Queue_;
     std::vector<TSchedulerThreadPtr> Threads_;
+
+    TSchedulerThreadPtr SpawnThread(int index) const
+    {
+        return New<TSingleQueueSchedulerThread>(
+            Queue_,
+            &CallbackEventCount_,
+            Format("%v:%v", ThreadNamePrefix_, index),
+            GetThreadTagIds(EnableProfiling_, ThreadNamePrefix_),
+            EnableLogging_,
+            EnableProfiling_);
+    }
 };
 
 TThreadPool::TThreadPool(
@@ -97,6 +122,11 @@ TThreadPool::~TThreadPool()
 void TThreadPool::Shutdown()
 {
     return Impl->Shutdown();
+}
+
+void TThreadPool::Configure(int threadCount)
+{
+    return Impl->Configure(threadCount);
 }
 
 IInvokerPtr TThreadPool::GetInvoker()
