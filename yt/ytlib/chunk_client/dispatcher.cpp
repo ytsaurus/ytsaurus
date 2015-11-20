@@ -18,56 +18,22 @@ class TDispatcher::TImpl
 {
 public:
     TImpl()
-        : ReaderThread_(TActionQueue::CreateFactory("ChunkReader"))
-        , WriterThread_(TActionQueue::CreateFactory("ChunkWriter"))
-        , CompressionPool_(BIND(
-            New<TThreadPool, const int&, const Stroka&>,
-            ConstRef(CompressionPoolSize_),
-            "Compression"))
-        , ErasurePool_(BIND(
-            New<TThreadPool, const int&, const Stroka&>,
-            ConstRef(ErasurePoolSize_),
-            "Erasure"))
-        , CompressionPoolInvoker_(BIND(&TImpl::CreateCompressionPoolInvoker, Unretained(this)))
+        : CompressionPoolInvoker_(BIND(&TImpl::CreateCompressionPoolInvoker, Unretained(this)))
         , ErasurePoolInvoker_(BIND(&TImpl::CreateErasurePoolInvoker, Unretained(this)))
     { }
 
     void Configure(TDispatcherConfigPtr config)
     {
-        // We believe in proper memory ordering here.
-        YCHECK(!CompressionPool_.HasValue());
-        // We do not really want to store entire config within us.
-        CompressionPoolSize_ = config->CompressionPoolSize;
-        // This is not redundant, since the check and the assignment above are
-        // not atomic and (adversary) thread can initialize thread pool in parallel.
-        YCHECK(!CompressionPool_.HasValue());
-
-        // We believe in proper memory ordering here.
-        YCHECK(!ErasurePool_.HasValue());
-        // We do not really want to store entire config within us.
-        ErasurePoolSize_ = config->ErasurePoolSize;
-        // This is not redundant, since the check and the assignment above are
-        // not atomic and (adversary) thread can initialize thread pool in parallel.
-        YCHECK(!ErasurePool_.HasValue());
+        CompressionPool_->Configure(config->CompressionPoolSize);
+        ErasurePool_->Configure(config->ErasurePoolSize);
     }
 
     void Shutdown()
     {
-        if (ReaderThread_.HasValue()) {
-            ReaderThread_->Shutdown();
-        }
-
-        if (WriterThread_.HasValue()) {
-            WriterThread_->Shutdown();
-        }
-
-        if (CompressionPool_.HasValue()) {
-            CompressionPool_->Shutdown();
-        }
-
-        if (ErasurePool_.HasValue()) {
-            ErasurePool_->Shutdown();
-        }
+        ReaderThread_->Shutdown();
+        WriterThread_->Shutdown();
+        CompressionPool_->Shutdown();
+        ErasurePool_->Shutdown();
     }
 
     IInvokerPtr GetReaderInvoker()
@@ -91,16 +57,12 @@ public:
     }
 
 private:
-    int CompressionPoolSize_ = 4;
-    int ErasurePoolSize_ = 4;
-
-    TLazyIntrusivePtr<NConcurrency::TActionQueue> ReaderThread_;
-    TLazyIntrusivePtr<NConcurrency::TActionQueue> WriterThread_;
-    TLazyIntrusivePtr<NConcurrency::TThreadPool> CompressionPool_;
-    TLazyIntrusivePtr<NConcurrency::TThreadPool> ErasurePool_;
+    TActionQueuePtr ReaderThread_ = New<TActionQueue>("ChunkReader");
+    TActionQueuePtr WriterThread_ = New<TActionQueue>("ChunkWriter");
+    TThreadPoolPtr CompressionPool_ = New<TThreadPool>(4, "Compression");
+    TThreadPoolPtr ErasurePool_ = New<TThreadPool>(4, "Erasure");
     TLazyIntrusivePtr<IPrioritizedInvoker> CompressionPoolInvoker_;
     TLazyIntrusivePtr<IPrioritizedInvoker> ErasurePoolInvoker_;
-
 
     IPrioritizedInvokerPtr CreateCompressionPoolInvoker()
     {
@@ -111,7 +73,6 @@ private:
     {
         return CreatePrioritizedInvoker(ErasurePool_->GetInvoker());
     }
-
 };
 
 TDispatcher::TDispatcher()

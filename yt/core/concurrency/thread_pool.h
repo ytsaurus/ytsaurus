@@ -11,6 +11,7 @@ namespace NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// XXX(sandello): Facade does not have to be ref-counted.
 class TThreadPool
     : public TRefCounted
     , public IShutdownable

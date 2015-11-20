@@ -47,6 +47,8 @@ public:
 
     void Configure(int threadCount)
     {
+        YCHECK(threadCount > 0);
+
         // XXX(sandello): This is racy with other methods. Fix me.
         for (int i = Threads_.size(); i < threadCount; ++i) {
             Threads_.emplace_back(SpawnThread(i));
@@ -96,7 +98,7 @@ private:
     TInvokerQueuePtr Queue_;
     std::vector<TSchedulerThreadPtr> Threads_;
 
-    TSchedulerThreadPtr SpawnThread(int index) const
+    TSchedulerThreadPtr SpawnThread(int index)
     {
         return New<TSingleQueueSchedulerThread>(
             Queue_,
