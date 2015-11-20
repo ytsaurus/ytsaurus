@@ -49,15 +49,20 @@ public:
     {
         YCHECK(threadCount > 0);
 
-        // XXX(sandello): This is racy with other methods. Fix me.
-        for (int i = Threads_.size(); i < threadCount; ++i) {
-            Threads_.emplace_back(SpawnThread(i));
+        {
+            TGuard<TSpinLock> guard(SpinLock_);
+
+            for (int i = Threads_.size(); i < threadCount; ++i) {
+                Threads_.emplace_back(SpawnThread(i));
+            }
+
+            for (int i = threadCount; i < Threads_.size(); ++i) {
+                Threads_.back()->Shutdown();
+                Threads_.back().Reset();
+                Threads_.pop_back();
+            }
         }
-        for (int i = threadCount; i < Threads_.size(); ++i) {
-            Threads_.back()->Shutdown();
-            Threads_.back().Reset();
-            Threads_.pop_back();
-        }
+
         if (Started_.load(std::memory_order_relaxed)) {
             Start();
         }
@@ -65,6 +70,7 @@ public:
 
     void Start()
     {
+        TGuard<TSpinLock> guard(SpinLock_);
         for (auto& thread : Threads_) {
             thread->Start();
         }
@@ -73,6 +79,8 @@ public:
     void Shutdown()
     {
         Queue_->Shutdown();
+
+        TGuard<TSpinLock> guard(SpinLock_);
         for (auto& thread : Threads_) {
             thread->Shutdown();
         }
@@ -89,13 +97,15 @@ public:
     }
 
 private:
-    Stroka ThreadNamePrefix_;
-    bool EnableLogging_;
-    bool EnableProfiling_;
+    const Stroka ThreadNamePrefix_;
+    const bool EnableLogging_;
+    const bool EnableProfiling_;
 
     std::atomic<bool> Started_ = {false};
+    TSpinLock SpinLock_;
+
     TEventCount CallbackEventCount_;
-    TInvokerQueuePtr Queue_;
+    const TInvokerQueuePtr Queue_;
     std::vector<TSchedulerThreadPtr> Threads_;
 
     TSchedulerThreadPtr SpawnThread(int index)
@@ -115,38 +125,24 @@ TThreadPool::TThreadPool(
     const Stroka& threadNamePrefix,
     bool enableLogging,
     bool enableProfiling)
-    : Impl(New<TImpl>(threadCount, threadNamePrefix, enableLogging, enableProfiling))
+    : Impl_(New<TImpl>(threadCount, threadNamePrefix, enableLogging, enableProfiling))
 { }
 
-TThreadPool::~TThreadPool()
-{ }
+TThreadPool::~TThreadPool() = default;
 
 void TThreadPool::Shutdown()
 {
-    return Impl->Shutdown();
+    return Impl_->Shutdown();
 }
 
 void TThreadPool::Configure(int threadCount)
 {
-    return Impl->Configure(threadCount);
+    return Impl_->Configure(threadCount);
 }
 
 IInvokerPtr TThreadPool::GetInvoker()
 {
-    return Impl->GetInvoker();
-}
-
-TCallback<TThreadPoolPtr()> TThreadPool::CreateFactory(
-    int threadCount,
-    const Stroka& threadName,
-    bool enableLogging,
-    bool enableProfiling)
-{
-    return BIND(&New<TThreadPool, const int&, const Stroka&, const bool&, const bool&>,
-        threadCount,
-        threadName,
-        enableLogging,
-        enableProfiling);
+    return Impl_->GetInvoker();
 }
 
 ///////////////////////////////////////////////////////////////////////////////

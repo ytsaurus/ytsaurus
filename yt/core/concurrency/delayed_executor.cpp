@@ -168,7 +168,6 @@ private:
         SubmitQueue_.DequeueAll();
         CancelQueue_.DequeueAll();
     }
-
 };
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -177,12 +176,11 @@ TDelayedExecutor::TDelayedExecutor()
     : Impl_(New<TImpl>())
 { }
 
-TDelayedExecutor::~TDelayedExecutor()
-{ }
+TDelayedExecutor::~TDelayedExecutor() = default;
 
 ///////////////////////////////////////////////////////////////////////////////
 
-TDelayedExecutor::TImpl* TDelayedExecutor::GetImpl()
+TDelayedExecutor::TImpl* const TDelayedExecutor::GetImpl()
 {
     return TSingletonWithFlag<TDelayedExecutor>::Get()->Impl_.Get();
 }

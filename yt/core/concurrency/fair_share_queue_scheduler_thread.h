@@ -30,9 +30,9 @@ public:
     IInvokerPtr GetInvoker(int index);
 
 protected:
-    TFairShareInvokerQueuePtr Queue;
+    const TFairShareInvokerQueuePtr Queue_;
 
-    TEnqueuedAction CurrentAction;
+    TEnqueuedAction CurrentAction_;
 
     virtual EBeginExecuteResult BeginExecute() override;
     virtual void EndExecute() override;

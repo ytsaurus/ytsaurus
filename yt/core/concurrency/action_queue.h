@@ -35,7 +35,7 @@ public:
 
 private:
     class TImpl;
-    TIntrusivePtr<TImpl> Impl;
+    const TIntrusivePtr<TImpl> Impl_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TActionQueue)

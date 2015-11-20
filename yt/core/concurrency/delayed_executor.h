@@ -44,11 +44,11 @@ public:
 
 private:
     class TImpl;
-    TIntrusivePtr<TImpl> Impl_;
+    const TIntrusivePtr<TImpl> Impl_;
 
     TDelayedExecutor();
 
-    static TImpl* GetImpl();
+    static TImpl* const GetImpl();
 
     DECLARE_SINGLETON_FRIEND();
 };

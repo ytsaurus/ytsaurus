@@ -38,8 +38,8 @@ public:
     }
 
 private:
-    TThreadPoolPtr LightPool_ = New<TThreadPool>(1, "DriverLight");
-    TThreadPoolPtr HeavyPool_ = New<TThreadPool>(1, "DriverHeavy");
+    const TThreadPoolPtr LightPool_ = New<TThreadPool>(1, "DriverLight");
+    const TThreadPoolPtr HeavyPool_ = New<TThreadPool>(1, "DriverHeavy");
 };
 
 TDispatcher::TDispatcher()
