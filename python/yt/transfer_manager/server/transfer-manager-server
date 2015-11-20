@@ -821,7 +821,7 @@ class Application(object):
                     if not process.aborted:
                         yield
 
-        return wait
+        return wait()
 
     def _execute_tasks(self):
         while True:
