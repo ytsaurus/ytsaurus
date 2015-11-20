@@ -316,7 +316,7 @@ EExitCode GuardedMain(int argc, const char* argv[])
             auto res = setrlimit(RLIMIT_CORE, &rlimit);
             if (res) {
                 auto errorMessage = Format("Failed to disable core dumps\n%v", TError::FromSystem());
-                fprintf(stderr, "%s", ~errorMessage);
+                fprintf(stderr, "%s", errorMessage.c_str());
                 return EExitCode::ExecutorError;
             }
         }
@@ -336,14 +336,20 @@ EExitCode GuardedMain(int argc, const char* argv[])
 
         std::vector<char*> env; 
         for (auto envVar : parser.Environment.getValue()) {
-            env.push_back(const_cast<char*>(~envVar));
+            env.push_back(const_cast<char*>(envVar.c_str()));
         }
         env.push_back(nullptr);
 
-        char* command = const_cast<char*>(~parser.Command.getValue());
-        std::vector<char*> args { "/bin/sh", "-c", command, nullptr };
+        Stroka command = "( " + parser.Command.getValue() + " )&&:";
+        std::vector<const char*> args {
+            "/bin/bash",
+            "-c",
+            command.c_str(),
+            nullptr
+        };
 
-        TryExecve("/bin/sh",
+        TryExecve(
+            "/bin/bash",
             args.data(),
             env.data());
         return EExitCode::ExecutorError;

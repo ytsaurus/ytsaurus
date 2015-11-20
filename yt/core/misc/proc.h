@@ -29,7 +29,7 @@ void SafeClose(int fd, bool ignoreBadFD = true);
 bool TryDup2(int oldFD, int newFD);
 void SafeDup2(int oldFD, int newFD);
 
-bool TryExecve(const char* path, char* const argv[], char* const env[]);
+bool TryExecve(const char* path, const char* const* argv, const char* const* env);
 
 void CreateStderrFile(Stroka fileName);
 
