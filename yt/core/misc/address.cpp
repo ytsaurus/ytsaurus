@@ -270,8 +270,6 @@ class TAddressResolver::TImpl
     : public TRefCounted
 {
 public:
-    TImpl();
-
     void Shutdown();
 
     TFuture<TNetworkAddress> Resolve(const Stroka& address);
@@ -283,12 +281,12 @@ public:
     void Configure(TAddressResolverConfigPtr config);
 
 private:
-    TAddressResolverConfigPtr Config_;
+    TAddressResolverConfigPtr Config_ = New<TAddressResolverConfig>();
 
     TSpinLock CacheLock_;
     yhash_map<Stroka, TNetworkAddress> Cache_;
 
-    TActionQueuePtr Queue_;
+    TActionQueuePtr Queue_ = New<TActionQueue>("AddressResolver");
     NConcurrency::TPeriodicExecutorPtr LocalHostChecker_;
 
     bool GetLocalHostNameFailed_ = false;
@@ -300,13 +298,7 @@ private:
     Stroka DoGetLocalHostName();
 
     void CheckLocalHostResolution();
-
 };
-
-TAddressResolver::TImpl::TImpl()
-    : Config_(New<TAddressResolverConfig>())
-    , Queue_(New<TActionQueue>("AddressResolver"))
-{ }
 
 void TAddressResolver::TImpl::Shutdown()
 {
@@ -314,9 +306,7 @@ void TAddressResolver::TImpl::Shutdown()
         LocalHostChecker_->Stop().Get();
     }
 
-    if (Queue_) {
-        Queue_->Shutdown();
-    }
+    Queue_->Shutdown();
 }
 
 TFuture<TNetworkAddress> TAddressResolver::TImpl::Resolve(const Stroka& address)
@@ -571,39 +561,26 @@ void TAddressResolver::StaticShutdown()
 
 void TAddressResolver::Shutdown()
 {
-    if (Impl_) {
-        Impl_->Shutdown();
-        Impl_.Reset();
-    }
+    Impl_->Shutdown();
 }
 
 TFuture<TNetworkAddress> TAddressResolver::Resolve(const Stroka& address)
 {
-    if (Impl_) {
-        return Impl_->Resolve(address);
-    } else {
-        return MakeFuture<TNetworkAddress>(TError("Address resolver was stopped"));
-    }
+    return Impl_->Resolve(address);
 }
 
 Stroka TAddressResolver::GetLocalHostName()
 {
-    if (Impl_) {
-        return Impl_->GetLocalHostName();
-    } else {
-        return "<unknown>";
-    }
+    return Impl_->GetLocalHostName();
 }
 
 void TAddressResolver::PurgeCache()
 {
-    YASSERT(Impl_);
     return Impl_->PurgeCache();
 }
 
 void TAddressResolver::Configure(TAddressResolverConfigPtr config)
 {
-    YASSERT(Impl_);
     return Impl_->Configure(std::move(config));
 }
 
