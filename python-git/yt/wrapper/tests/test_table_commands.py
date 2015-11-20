@@ -145,15 +145,19 @@ class TestTableCommands(object):
         yt.write_table(table, map(yt.dumps_row, [record]))
         assert [record] == map(yt.loads_row, yt.read_table(table))
 
-    def test_mount_unmount(self):
+    def test_mount_unmount(self, yt_env):
         if yt.config["api_version"] == "v2":
             pytest.skip()
 
         table = TEST_DIR + "/table"
         yt.create_table(table)
-        yt.set(table + "/@schema", [
-            {"name": "x", "type": "string", "sort_order": "ascending"},
-            {"name": "y", "type": "string"}])
+        if yt_env.version < "0.18":
+            yt.set(table + "/@schema", [{"name": name, "type": "string"} for name in ["x", "y"]])
+            yt.set(table + "/@key_columns", ["x"])
+        else:
+            yt.set(table + "/@schema", [
+                {"name": "x", "type": "string", "sort_order": "ascending"},
+                {"name": "y", "type": "string"}])
 
         tablet_id = yt.create("tablet_cell", attributes={"size": 1})
         while yt.get("//sys/tablet_cells/{0}/@health".format(tablet_id)) != 'good':
@@ -179,7 +183,7 @@ class TestTableCommands(object):
             schema = '<schema=[{"name"="x";"type"="int64"}; {"name"="y";"type"="int64"}; {"name"="z";"type"="int64"}]>'
             return list(yt.select_rows(
                 '* from [{0}{1}]'.format(schema, table),
-                format=yt.YsonFormat(format="text", process_table_index=False), 
+                format=yt.YsonFormat(format="text", process_table_index=False),
                 raw=False))
 
         yt.remove(table, force=True)
@@ -190,7 +194,7 @@ class TestTableCommands(object):
             {"name": "x", "type": "int64", "sort_order": "ascending"},
             {"name": "y", "type": "int64"},
             {"name": "z", "type": "int64"}])
-        
+
         assert [] == select()
 
         yt.write_table(yt.TablePath(table, append=True, sorted_by=["x"]),

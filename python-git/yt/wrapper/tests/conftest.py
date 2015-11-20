@@ -59,6 +59,7 @@ class YtTestEnvironment(object):
         }
 
         self.env.start(dir, os.path.join(dir, "pids.txt"), supress_yt_output=True)
+        self.version = self.env._ytserver_version
 
         reload(yt)
         reload(yt.config)
