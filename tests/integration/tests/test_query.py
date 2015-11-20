@@ -10,6 +10,8 @@ from random import randint
 from random import shuffle
 from distutils.spawn import find_executable
 
+from yt.environment.helpers import assert_items_equal
+
 ##################################################################
 
 @pytest.mark.skipif('os.environ.get("BUILD_ENABLE_LLVM", None) == "NO"')
@@ -92,13 +94,13 @@ class TestQuery(YTEnvSetup):
         self._sample_data(path="//tmp/g1")
         expected = [{"s": 450}]
         actual = select_rows("sum(b) as s from [//tmp/g1] group by 1 as k")
-        self.assertItemsEqual(actual, expected)
+        assert_items_equal(actual, expected)
 
     def test_group_by2(self):
         self._sample_data(path="//tmp/g2")
         expected = [{"k": 0, "s": 200}, {"k": 1, "s": 250}]
         actual = select_rows("k, sum(b) as s from [//tmp/g2] group by a % 2 as k")
-        self.assertItemsEqual(actual, expected)
+        assert_items_equal(actual, expected)
 
     def test_limit(self):
         self._sample_data(path="//tmp/l1")
@@ -263,15 +265,15 @@ class TestQuery(YTEnvSetup):
 
         expected = [{"hash": 42 * 33, "key": 42, "value": 42 * 2}]
         actual = select_rows("* from [//tmp/tc] where key = 42")
-        self.assertItemsEqual(actual, expected)
+        assert_items_equal(actual, expected)
 
         expected = [{"hash": i * 33, "key": i, "value": i * 2} for i in xrange(10,80)]
         actual = sorted(select_rows("* from [//tmp/tc] where key >= 10 and key < 80"))
-        self.assertItemsEqual(actual, expected)
+        assert_items_equal(actual, expected)
 
         expected = [{"hash": i * 33, "key": i, "value": i * 2} for i in [10, 20, 30]]
         actual = sorted(select_rows("* from [//tmp/tc] where key in (10, 20, 30)"))
-        self.assertItemsEqual(actual, expected)
+        assert_items_equal(actual, expected)
 
     def test_computed_column_far_divide(self):
         self._sync_create_cells(3, 1)
@@ -295,16 +297,16 @@ class TestQuery(YTEnvSetup):
         insert_rows("//tmp/tc", [{"key1": i, "key2": i, "value": i * 2} for i in xrange(0,1000)])
 
         actual = select_rows("* from [//tmp/tc] where key2 = 42")
-        self.assertItemsEqual(actual, expected([42]))
+        assert_items_equal(actual, expected([42]))
 
         actual = sorted(select_rows("* from [//tmp/tc] where key2 >= 10 and key2 < 80"))
-        self.assertItemsEqual(actual, expected(xrange(10,80)))
+        assert_items_equal(actual, expected(xrange(10,80)))
 
         actual = sorted(select_rows("* from [//tmp/tc] where key2 in (10, 20, 30)"))
-        self.assertItemsEqual(actual, expected([10, 20, 30]))
+        assert_items_equal(actual, expected([10, 20, 30]))
 
         actual = sorted(select_rows("* from [//tmp/tc] where key2 in (10, 20, 30) and key1 in (30, 40)"))
-        self.assertItemsEqual(actual, expected([30]))
+        assert_items_equal(actual, expected([30]))
 
     def test_computed_column_modulo(self):
         self._sync_create_cells(3, 1)
@@ -328,16 +330,16 @@ class TestQuery(YTEnvSetup):
         insert_rows("//tmp/tc", [{"key1": i, "key2": i, "value": i * 2} for i in xrange(0,1000)])
 
         actual = select_rows("* from [//tmp/tc] where key2 = 42")
-        self.assertItemsEqual(actual, expected([42]))
+        assert_items_equal(actual, expected([42]))
 
         actual = sorted(select_rows("* from [//tmp/tc] where key1 >= 10 and key1 < 80"))
-        self.assertItemsEqual(actual, expected(xrange(10,80)))
+        assert_items_equal(actual, expected(xrange(10,80)))
 
         actual = sorted(select_rows("* from [//tmp/tc] where key1 in (10, 20, 30)"))
-        self.assertItemsEqual(actual, expected([10, 20, 30]))
+        assert_items_equal(actual, expected([10, 20, 30]))
 
         actual = sorted(select_rows("* from [//tmp/tc] where key1 in (10, 20, 30) and key2 in (30, 40)"))
-        self.assertItemsEqual(actual, expected([30]))
+        assert_items_equal(actual, expected([30]))
 
     def test_udf(self):
         registry_path =  "//tmp/udfs"
@@ -377,7 +379,7 @@ class TestQuery(YTEnvSetup):
         self._sample_data(path="//tmp/u")
         expected = [{"s": 2 * i} for i in xrange(1, 10)]
         actual = select_rows("abs_udf(-2 * a) as s from [//tmp/u] where sum_udf(b, 1, 2) = sum_udf(3, b)")
-        self.assertItemsEqual(actual, expected)
+        assert_items_equal(actual, expected)
 
     def test_YT_2375(self):
         self._sync_create_cells(3, 3)
