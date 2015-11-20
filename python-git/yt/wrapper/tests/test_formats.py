@@ -63,7 +63,8 @@ def test_yson_format():
     assert yson_rows == [row]
     stream = StringIO()
     format.dump_row(row, stream)
-    assert stream.getvalue().rstrip(";\n") == serialized_row
+    # COMPAT: '.replace(";}", "}")' is for compatibility with different yson representations in different branches.
+    assert stream.getvalue().rstrip(";\n") == serialized_row.replace(";}", "}")
 
     format = yt.YsonFormat(format="binary")
     assert format.dumps_row({"a": 1}).rstrip(";\n") == yson.dumps({"a": 1}, yson_format="binary")
@@ -80,7 +81,8 @@ def test_yson_table_switch():
     stream = StringIO()
     format.dump_rows(output_rows, stream)
     dumped_output = stream.getvalue()
-    assert dumped_output == input
+    # COMPAT: '.replace(";}", "}")' and '.replace(";>", ">")' is for compatibility with different yson representations in different branches.
+    assert dumped_output == input.replace(";}", "}").replace(";>", ">")
 
 def test_dsv_format():
     format = yt.DsvFormat()

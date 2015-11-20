@@ -55,18 +55,24 @@ run_test() {
 # Directory creation, list, get and set commands
 test_cypress_commands()
 {
+    fix_yson_repr() {
+        # COMPAT: yson representation slightly differ in prestable/0.17.3 and master.
+        local yson_str="$1"
+        echo $(python -c "import sys; sys.stdout.write('$yson_str'.replace(';}', '}').replace(';>', '>'))")
+    }
+
     check "" "`./yt list //home/wrapper_test`"
     check "" "`./yt find //home/wrapper_test --name "xxx"`"
 
     ./yt set //home/wrapper_test/folder {}
     check "" "`./yt list //home/wrapper_test/folder`"
     check "folder" "`./yt list //home/wrapper_test`"
-    check "{\"folder\"={};}" "`./yt get //home/wrapper_test --format "<format=text>yson"`"
+    check "$(fix_yson_repr "{\"folder\"={};}")" "`./yt get //home/wrapper_test --format "<format=text>yson"`"
     check "" "`./yt find //home/wrapper_test --name "xxx"`"
     check "//home/wrapper_test/folder" "`./yt find //home/wrapper_test --name "folder"`"
 
     ./yt set //home/wrapper_test/folder/@attr '<a=b>c'
-    check '<"a"="b";>"c"' `./yt get //home/wrapper_test/folder/@attr --format '<format=text>yson'`
+    check "$(fix_yson_repr '<"a"="b";>"c"')" `./yt get //home/wrapper_test/folder/@attr --format '<format=text>yson'`
 
     ./yt create file //home/wrapper_test/file_with_attrs --attributes "{testattr=1;other=2}" --ignore-existing
     check "//home/wrapper_test/file_with_attrs" "`./yt find //home/wrapper_test --attribute-filter "testattr=1"`"
@@ -148,13 +154,19 @@ test_map_reduce()
 
 test_users()
 {
+    fix_yson_repr() {
+        # COMPAT: yson representation slightly differ in prestable/0.17.3 and master.
+        local yson_str="$1"
+        echo $(python -c "import sys; sys.stdout.write('$yson_str'.replace(';]', ']'))")
+    }
+
     ./yt create user --attribute '{name=test_user}'
     ./yt create group --attribute '{name=test_group}'
 
     check "[]" `./yt get //sys/groups/test_group/@members --format '<format=text>yson'`
 
     ./yt add-member test_user test_group
-    check '["test_user";]' `./yt get //sys/groups/test_group/@members --format '<format=text>yson'`
+    check "$(fix_yson_repr '["test_user";]')" `./yt get //sys/groups/test_group/@members --format '<format=text>yson'`
 
     ./yt set "//home/wrapper_test/@acl/end" "{action=allow;subjects=[test_group];permissions=[write]}"
     ./yt check-permission test_user write "//home/wrapper_test" | grep allow
