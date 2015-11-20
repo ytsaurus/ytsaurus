@@ -22,6 +22,7 @@
 #include <mapreduce/yt/io/file_reader.h>
 
 #include <util/string/printf.h>
+#include <util/string/builder.h>
 #include <util/system/execpath.h>
 #include <util/folder/path.h>
 #include <util/stream/file.h>
@@ -110,32 +111,45 @@ private:
 
         char buf[33];
         CalculateMD5(source, buf);
-        Stroka cypressPath(YT_WRAPPER_FILE_CACHE);
-        cypressPath += buf;
+
+        Stroka cypressPath = TStringBuilder() <<
+            YT_WRAPPER_FILE_CACHE << "hash/" << buf;
 
         if (Exists(Auth_, TTransactionId(), cypressPath)) {
             return cypressPath;
         }
 
+        Stroka uniquePath = TStringBuilder() <<
+            YT_WRAPPER_FILE_CACHE << "cpp_" << CreateGuidAsString();
+
         {
             THttpHeader header("POST", "create");
-            header.AddPath(cypressPath);
+            header.AddPath(uniquePath);
             header.AddParam("type", "file");
             header.AddParam("recursive", true);
             header.AddParam("ignore_existing", true);
             header.AddMutationId();
             RetryRequest(Auth_, header);
         }
-
-        THttpHeader header("PUT", GetWriteFileCommand());
-        header.SetToken(Auth_.Token);
-        header.AddPath(cypressPath);
-        header.SetChunkedEncoding();
-
-        auto streamMaker = [&source] () {
-            return CreateStream(source);
-        };
-        RetryHeavyWriteRequest(Auth_, TTransactionId(), header, streamMaker);
+        {
+            THttpHeader header("PUT", GetWriteFileCommand());
+            header.SetToken(Auth_.Token);
+            header.AddPath(uniquePath);
+            header.SetChunkedEncoding();
+            auto streamMaker = [&source] () {
+                return CreateStream(source);
+            };
+            RetryHeavyWriteRequest(Auth_, TTransactionId(), header, streamMaker);
+        }
+        {
+            THttpHeader header("POST", "link");
+            header.AddParam("target_path", uniquePath);
+            header.AddParam("link_path", cypressPath);
+            header.AddMutationId();
+            header.AddParam("recursive", true);
+            header.AddParam("ignore_existing", true);
+            RetryRequest(Auth_, header);
+        }
 
         return cypressPath;
     }
