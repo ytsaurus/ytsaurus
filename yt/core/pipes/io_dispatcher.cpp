@@ -18,14 +18,28 @@ TIODispatcher::~TIODispatcher()
 
 TIODispatcher* TIODispatcher::Get()
 {
-    return TSingletonWithFlag<TIODispatcher>::Get();
+    return Singleton<TIODispatcher>();
+}
+
+IInvokerPtr TIODispatcher::GetInvoker()
+{
+    if (Y_UNLIKELY(!Impl_->IsStarted())) {
+        Impl_->Start();
+    }
+    return Impl_->GetInvoker();
+}
+
+const ev::loop_ref& TIODispatcher::GetEventLoop()
+{
+    if (Y_UNLIKELY(!Impl_->IsStarted())) {
+        Impl_->Start();
+    }
+    return Impl_->GetEventLoop();
 }
 
 void TIODispatcher::StaticShutdown()
 {
-    if (TSingletonWithFlag<TIODispatcher>::WasCreated()) {
-        TIODispatcher::Get()->Shutdown();
-    }
+    Get()->Shutdown();
 }
 
 void TIODispatcher::Shutdown()

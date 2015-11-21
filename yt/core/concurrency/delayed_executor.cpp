@@ -62,8 +62,6 @@ public:
     {
         PeriodicWatcher_.set<TImpl, &TImpl::OnTimer>(this);
         PeriodicWatcher_.start(0, TimeQuantum.SecondsFloat());
-
-        Start();
     }
 
     TFuture<void> MakeDelayed(TDuration delay)
@@ -90,6 +88,9 @@ public:
     {
         auto entry = New<TDelayedExecutorEntry>(std::move(callback), deadline);
         if (!IsShutdown()) {
+            if (!IsStarted()) {
+                Start();
+            }
             SubmitQueue_.Enqueue(std::move(entry));
         }
         if (IsShutdown()) {
@@ -101,6 +102,9 @@ public:
     void Cancel(TDelayedExecutorCookie entry)
     {
         if (entry && !IsShutdown()) {
+            if (!IsStarted()) {
+                Start();
+            }
             CancelQueue_.Enqueue(std::move(entry));
         }
         if (IsShutdown()) {
