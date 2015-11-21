@@ -27,19 +27,6 @@ namespace NTabletClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TTabletReplica
-{
-    TTabletReplica();
-    TTabletReplica(
-        NNodeTrackerClient::TNodeId id,
-        const NNodeTrackerClient::TNodeDescriptor& descriptor);
-
-    NNodeTrackerClient::TNodeId Id;
-    NNodeTrackerClient::TNodeDescriptor Descriptor;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 struct TTabletInfo
     : public TIntrinsicRefCounted
 {
