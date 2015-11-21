@@ -40,12 +40,25 @@ public:
         , Thread_(New<TThread>(this))
         , Config_(New<TTraceManagerConfig>())
     {
+    }
+
+    void Start()
+    {
         Thread_->Start();
         InvokerQueue_->SetThreadId(Thread_->GetId());
     }
 
+    bool IsStarted() const
+    {
+        return Thread_->IsStarted();
+    }
+
     void Configure(NYTree::INodePtr node, const NYTree::TYPath& path)
     {
+        if (Y_UNLIKELY(!IsStarted())) {
+            Start();
+        }
+
         Config_ = New<TTraceManagerConfig>();
         Config_->Load(node, true, true, path);
 
@@ -75,7 +88,6 @@ public:
 
     void Shutdown()
     {
-
         InvokerQueue_->Shutdown();
         Thread_->Shutdown();
     }
@@ -229,6 +241,10 @@ private:
 
     void EnqueueEvent(const NProto::TTraceEvent& event)
     {
+        if (Y_UNLIKELY(!IsStarted())) {
+            Start();
+        }
+
         if (event.has_annotation_key()) {
             LOG_DEBUG("Event %v=%v %08" PRIx64 ":%08" PRIx64 ":%08" PRIx64,
                 event.annotation_key(),

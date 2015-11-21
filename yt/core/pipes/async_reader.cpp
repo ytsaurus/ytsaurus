@@ -40,11 +40,11 @@ public:
     {
         BIND([=, this_ = MakeStrong(this)] () {
             FDWatcher_.set(FD_, ev::READ);
-            FDWatcher_.set(TIODispatcher::Get()->Impl_->GetEventLoop());
+            FDWatcher_.set(TIODispatcher::Get()->GetEventLoop());
             FDWatcher_.set<TAsyncReaderImpl, &TAsyncReaderImpl::OnRead>(this);
             FDWatcher_.start();
         })
-        .Via(TIODispatcher::Get()->Impl_->GetInvoker())
+        .Via(TIODispatcher::Get()->GetInvoker())
         .Run();
     }
 
@@ -65,7 +65,7 @@ public:
 
         auto promise = NewPromise<size_t>();
 
-        TIODispatcher::Get()->Impl_->GetInvoker()->Invoke(BIND([=, this_ = MakeStrong(this)] () {
+        TIODispatcher::Get()->GetInvoker()->Invoke(BIND([=, this_ = MakeStrong(this)] () {
             YCHECK(ReadResultPromise_.IsSet());
             ReadResultPromise_ = promise;
 
@@ -113,7 +113,7 @@ public:
                     Close();
                 }
             })
-            .AsyncVia(TIODispatcher::Get()->Impl_->GetInvoker())
+            .AsyncVia(TIODispatcher::Get()->GetInvoker())
             .Run();
     }
 
