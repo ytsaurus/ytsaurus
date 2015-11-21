@@ -6,6 +6,7 @@ from yt.yson import to_yson_type
 
 from time import sleep
 
+from yt.environment.helpers import assert_items_equal
 
 ##################################################################
 
@@ -359,7 +360,8 @@ class TestTables(YTEnvSetup):
         assert read_table("//tmp/table", tx=outer_tx) == [v1]
         assert read_table("//tmp/table", tx=inner_tx) == [v1, v2]
 
-        write_table("<append=true>//tmp/table", v3, tx=outer_tx) # this won"t be seen from inner
+        # this won"t be seen from inner
+        write_table("<append=true>//tmp/table", v3, tx=outer_tx)
         assert read_table("//tmp/table", tx=outer_tx) == [v1, v3]
         assert read_table("//tmp/table", tx=inner_tx) == [v1, v2]
 
@@ -368,7 +370,8 @@ class TestTables(YTEnvSetup):
         assert read_table("//tmp/table", tx=inner_tx) == [v1, v2, v4]
 
         commit_transaction(inner_tx)
-        self.assertItemsEqual(read_table("//tmp/table", tx=outer_tx), [v1, v2, v4, v3]) # order is not specified
+        # order is not specified
+        assert_items_equal(read_table("//tmp/table", tx=outer_tx), [v1, v2, v4, v3])
 
         commit_transaction(outer_tx)
 

@@ -4,11 +4,13 @@ import __builtin__
 import os
 import tempfile
 
+from distutils.spawn import find_executable
+
 from yt.wrapper import format
+from yt.environment.helpers import assert_items_equal
 
 from yt_env_setup import YTEnvSetup, unix_only
 from yt_commands import *
-from distutils.spawn import find_executable
 
 def get_statistics(statistics, complex_key):
     result = statistics
@@ -1112,7 +1114,7 @@ print row + table_index
 
         expected = [{"key": "a", "value": "value0"},
                     {"key": "b", "value": "value1"}]
-        self.assertItemsEqual(read_table("//tmp/out"), expected)
+        assert_items_equal(read_table("//tmp/out"), expected)
 
     def test_insane_demand(self):
         create("table", "//tmp/t_in")

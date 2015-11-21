@@ -171,6 +171,7 @@ add_subdirectory(cmake/deps-contrib-benchmark)
 add_subdirectory(cmake/deps-re2)
 add_subdirectory(library/json)
 add_subdirectory(library/lfalloc)
+add_subdirectory(python)
 
 add_subdirectory(yt)
 

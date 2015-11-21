@@ -76,9 +76,11 @@ class YTEnvSetup(YTEnv):
         path_to_run = os.path.join(path_to_test, "run_" + str(uuid.uuid4().hex)[:8])
         pids_filename = os.path.join(path_to_run, 'pids.txt')
 
+        cls.liveness_checker = None
+
         cls.path_to_test = path_to_test
         cls.Env = cls()
-        cls.Env.start(path_to_run, pids_filename)
+        cls.Env.start(path_to_run, pids_filename, kill_child_processes=True)
 
         if cls.Env.configs['driver']:
             yt_commands.init_driver(cls.Env.configs['driver'])
