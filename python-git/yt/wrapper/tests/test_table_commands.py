@@ -202,7 +202,7 @@ class TestTableCommands(object):
 
         assert [{"x": 1, "y": 2, "z": 3}] == select()
 
-    def test_insert_lookup_delete(self):
+    def test_insert_lookup_delete(self, yt_env):
         if yt.config["api_version"] == "v2":
             pytest.skip()
 
@@ -212,9 +212,13 @@ class TestTableCommands(object):
             table = TEST_DIR + "/table2"
             yt.remove(table, force=True)
             yt.create_table(table)
-            yt.set(table + "/@schema", [
-                {"name": "x", "type": "string", "sort_order": "ascending"},
-                {"name": "y", "type": "string"}])
+            if yt_env.version < "0.18":
+                yt.set(table + "/@schema", [{"name": name, "type": "string"} for name in ["x", "y"]])
+                yt.set(table + "/@key_columns", ["x"])
+            else:
+                yt.set(table + "/@schema", [
+                    {"name": "x", "type": "string", "sort_order": "ascending"},
+                    {"name": "y", "type": "string"}])
 
             tablet_id = yt.create("tablet_cell", attributes={"size": 1})
             while yt.get("//sys/tablet_cells/{0}/@health".format(tablet_id)) != 'good':
