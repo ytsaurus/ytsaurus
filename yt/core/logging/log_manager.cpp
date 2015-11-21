@@ -745,14 +745,12 @@ TLogManager::~TLogManager()
 
 TLogManager* TLogManager::Get()
 {
-    return TSingletonWithFlag<TLogManager>::Get();
+    return Singleton<TLogManager>();
 }
 
 void TLogManager::StaticShutdown()
 {
-    if (TSingletonWithFlag<TLogManager>::WasCreated()) {
-        TSingletonWithFlag<TLogManager>::Get()->Shutdown();
-    }
+    Get()->Shutdown();
 }
 
 void TLogManager::Configure(INodePtr node)

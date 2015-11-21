@@ -549,14 +549,12 @@ TAddressResolver::~TAddressResolver()
 
 TAddressResolver* TAddressResolver::Get()
 {
-    return TSingletonWithFlag<TAddressResolver>::Get();
+    return Singleton<TAddressResolver>();
 }
 
 void TAddressResolver::StaticShutdown()
 {
-    if (TSingletonWithFlag<TAddressResolver>::WasCreated()) {
-        TSingletonWithFlag<TAddressResolver>::Get()->Shutdown();
-    }
+    Get()->Shutdown();
 }
 
 void TAddressResolver::Shutdown()

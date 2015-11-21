@@ -186,7 +186,7 @@ TDelayedExecutor::~TDelayedExecutor() = default;
 
 TDelayedExecutor::TImpl* const TDelayedExecutor::GetImpl()
 {
-    return TSingletonWithFlag<TDelayedExecutor>::Get()->Impl_.Get();
+    return RefCountedSingleton<TDelayedExecutor::TImpl>().Get();
 }
 
 TFuture<void> TDelayedExecutor::MakeDelayed(TDuration delay)
@@ -217,9 +217,7 @@ void TDelayedExecutor::CancelAndClear(TDelayedExecutorCookie& entry)
 
 void TDelayedExecutor::StaticShutdown()
 {
-    if (TSingletonWithFlag<TDelayedExecutor>::WasCreated()) {
-        GetImpl()->Shutdown();
-    }
+    GetImpl()->Shutdown();
 }
 
 ///////////////////////////////////////////////////////////////////////////////

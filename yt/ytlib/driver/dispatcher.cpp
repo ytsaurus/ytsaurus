@@ -51,14 +51,12 @@ TDispatcher::~TDispatcher()
 
 TDispatcher* TDispatcher::Get()
 {
-    return TSingletonWithFlag<TDispatcher>::Get();
+    return Singleton<TDispatcher>();
 }
 
 void TDispatcher::StaticShutdown()
 {
-    if (TSingletonWithFlag<TDispatcher>::WasCreated()) {
-        TDispatcher::Get()->Shutdown();
-    }
+    return Get()->Shutdown();
 }
 
 void TDispatcher::Configure(int lightPoolSize, int heavyPoolSize)

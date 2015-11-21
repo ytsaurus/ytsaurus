@@ -311,14 +311,12 @@ TTraceManager::~TTraceManager()
 
 TTraceManager* TTraceManager::Get()
 {
-    return TSingletonWithFlag<TTraceManager>::Get();
+    return Singleton<TTraceManager>();
 }
 
 void TTraceManager::StaticShutdown()
 {
-    if (TSingletonWithFlag<TTraceManager>::WasCreated()) {
-       TSingletonWithFlag<TTraceManager>::Get()->Shutdown();
-    }
+    Get()->Shutdown();
 }
 
 void TTraceManager::Configure(NYTree::INodePtr node, const NYPath::TYPath& path)
