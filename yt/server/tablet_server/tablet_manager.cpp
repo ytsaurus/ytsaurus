@@ -432,9 +432,6 @@ public:
         auto* tablet = TabletMap_.Insert(id, std::move(tabletHolder));
         objectManager->RefObject(tablet);
 
-        // Once the first tablet is created, table is no longer sorted.
-        table->SetSorted(false);
-
         LOG_INFO_UNLESS(IsRecovery(), "Tablet created (TableId: %v, TabletId: %v)",
             table->GetId(),
             tablet->GetId());
@@ -554,7 +551,6 @@ public:
             tablet->SetIndex(0);
             tablet->SetPivotKey(EmptyKey());
             table->Tablets().push_back(tablet);
-            table->SetSorted(true);
             firstTabletIndex = 0;
             lastTabletIndex = 0;
 
@@ -890,7 +886,6 @@ public:
         YCHECK(oldRootChunkList->OwningNodes().erase(table) == 1);
         objectManager->UnrefObject(oldRootChunkList);
 
-        table->SetSorted(true);
         table->SnapshotStatistics() = table->GetChunkList()->Statistics().ToDataStatistics();
     }
 

@@ -35,7 +35,6 @@ using namespace NTabletServer;
 
 TTableNode::TTableNode(const TVersionedNodeId& id)
     : TChunkOwnerBase(id)
-    , Sorted_(false)
     , Atomicity_(NTransactionClient::EAtomicity::Full)
 { }
 
@@ -52,7 +51,6 @@ TTableNode* TTableNode::GetTrunkNode() const
 void TTableNode::BeginUpload(EUpdateMode mode)
 {
     TChunkOwnerBase::BeginUpload(mode);
-    Sorted_ = false;
 }
 
 void TTableNode::EndUpload(
@@ -63,13 +61,15 @@ void TTableNode::EndUpload(
     TChunkOwnerBase::EndUpload(statistics, deriveStatistics, keyColumns);
     if (!keyColumns.empty()) {
         TableSchema_ = TTableSchema::FromKeyColumns(keyColumns);
-        Sorted_ = true;
+    } else {
+        // Table schema columns will be reset, strict = false.
+        TableSchema_ = TTableSchema();
     }
 }
 
 bool TTableNode::IsSorted() const
 {
-    return GetSorted();
+    return TableSchema_.IsSorted();
 }
 
 void TTableNode::Save(TSaveContext& context) const
@@ -77,7 +77,6 @@ void TTableNode::Save(TSaveContext& context) const
     TChunkOwnerBase::Save(context);
 
     using NYT::Save;
-    Save(context, Sorted_);
     Save(context, TableSchema_);
     Save(context, Tablets_);
     Save(context, Atomicity_);
@@ -88,8 +87,13 @@ void TTableNode::Load(TLoadContext& context)
     TChunkOwnerBase::Load(context);
 
     using NYT::Load;
-    Load(context, Sorted_);
     
+    // COMPAT(max42)
+    bool sorted;
+    if (context.GetVersion() < 206) {
+        Load(context, sorted); 
+    } 
+
     // COMPAT(max42)
     TKeyColumns keyColumns;
     if (context.GetVersion() >= 205) {
@@ -115,6 +119,11 @@ void TTableNode::Load(TLoadContext& context)
         } else {
             TableSchema_ = TTableSchema::FromKeyColumns(keyColumns);
         }
+    }
+        
+    // COMPAT(max42)
+    if (context.GetVersion() < 206) {
+        YCHECK(!(sorted && !TableSchema_.IsSorted()));
     }
 
     Load(context, Atomicity_);
@@ -243,7 +252,6 @@ protected:
         ELockMode mode) override
     {
         branchedNode->TableSchema() = originatingNode->TableSchema();
-        branchedNode->SetSorted(originatingNode->GetSorted());
 
         TBase::DoBranch(originatingNode, branchedNode, mode);
     }
@@ -253,7 +261,6 @@ protected:
         TTableNode* branchedNode) override
     {
         originatingNode->TableSchema() = branchedNode->TableSchema();
-        originatingNode->SetSorted(branchedNode->GetSorted());
 
         TBase::DoMerge(originatingNode, branchedNode);
     }
@@ -283,7 +290,6 @@ protected:
 
         TBase::DoClone(sourceNode, clonedNode, factory, mode);
 
-        clonedNode->SetSorted(sourceNode->GetSorted());
         clonedNode->TableSchema() = sourceNode->TableSchema();
 
         if (sourceNode->IsDynamic()) {

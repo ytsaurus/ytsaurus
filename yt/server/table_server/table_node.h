@@ -29,7 +29,6 @@ class TTableNode
     : public NChunkServer::TChunkOwnerBase
 {
 public:
-    DEFINE_BYVAL_RW_PROPERTY(bool, Sorted);
     DEFINE_BYREF_RW_PROPERTY(NTableClient::TTableSchema, TableSchema);
 
     // For dynamic tables only.

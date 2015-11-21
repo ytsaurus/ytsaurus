@@ -88,7 +88,7 @@ private:
         descriptors->push_back(TAttributeDescriptor("schema")
             .SetReplicated(true));
         descriptors->push_back(TAttributeDescriptor("sorted_by")
-            .SetPresent(table->GetSorted()));
+            .SetPresent(table->TableSchema().IsSorted()));
         descriptors->push_back("dynamic");
         descriptors->push_back(TAttributeDescriptor("tablet_count")
             .SetPresent(isDynamic));
@@ -124,7 +124,7 @@ private:
 
         if (key == "sorted") {
             BuildYsonFluently(consumer)
-                .Value(table->GetSorted());
+                .Value(table->TableSchema().IsSorted());
             return true;
         }
 
@@ -140,7 +140,7 @@ private:
             return true;
         }
 
-        if (key == "sorted_by" && table->GetSorted()) {
+        if (key == "sorted_by" && table->TableSchema().IsSorted()) {
             BuildYsonFluently(consumer)
                 .Value(table->TableSchema().GetKeyColumns());
             return true;
@@ -219,7 +219,6 @@ private:
             auto newKeyColumns = newSchema.GetKeyColumns();
             if (!newKeyColumns.empty()) {
                 ValidateKeyColumnsUpdate(oldKeyColumns, newKeyColumns); 
-                table->SetSorted(true);
             }
             
             return true;
@@ -270,7 +269,7 @@ private:
         for (const auto& range : ranges) {
             const auto& lowerLimit = range.LowerLimit();
             const auto& upperLimit = range.UpperLimit();
-            if ((upperLimit.HasKey() || lowerLimit.HasKey()) && !table->GetSorted()) {
+            if ((upperLimit.HasKey() || lowerLimit.HasKey()) && !table->TableSchema().IsSorted()) {
                 THROW_ERROR_EXCEPTION("Cannot fetch a range of an unsorted table");
             }
             if (upperLimit.HasOffset() || lowerLimit.HasOffset()) {
@@ -430,7 +429,7 @@ private:
         ToProto(response->mutable_table_id(), table->GetId());
         // TODO(max42): key columns and schema should not be handled separately.
         ToProto(response->mutable_key_columns()->mutable_names(), table->TableSchema().GetKeyColumns());
-        response->set_sorted(table->GetSorted());
+        response->set_sorted(table->TableSchema().IsSorted());
         response->set_dynamic(table->IsDynamic());
 
         auto tabletManager = Bootstrap_->GetTabletManager();
