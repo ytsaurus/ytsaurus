@@ -58,20 +58,20 @@ def check_table_index(format, raw_row, raw_table_switcher, rows, process_output=
 def test_yson_format():
     format = yt.YsonFormat(process_table_index=False, format="text")
     row = {"a": 1, "b": 2}
-    serialized_row = '{"a"=1;"b"=2;}'
+    serialized_row = '{"a"=1;"b"=2}'
     yson_rows = list(format.load_rows(StringIO(serialized_row)))
     assert yson_rows == [row]
     stream = StringIO()
     format.dump_row(row, stream)
     # COMPAT: '.replace(";}", "}")' is for compatibility with different yson representations in different branches.
-    assert stream.getvalue().rstrip(";\n") == serialized_row.replace(";}", "}")
+    assert stream.getvalue().rstrip(";\n").replace(";}", "}") == serialized_row
 
     format = yt.YsonFormat(format="binary")
     assert format.dumps_row({"a": 1}).rstrip(";\n") == yson.dumps({"a": 1}, yson_format="binary")
 
 def test_yson_table_switch():
     format = yt.YsonFormat(format="text")
-    input = '{"a"=1;};\n<"table_index"=1;>#;\n{"a"=1;};\n'
+    input = '{"a"=1};\n<"table_index"=1>#;\n{"a"=1};\n'
 
     yson_rows = format.load_rows(StringIO(input))
     parsed_rows = [dict(yson) for yson in yson_rows]
@@ -82,7 +82,7 @@ def test_yson_table_switch():
     format.dump_rows(output_rows, stream)
     dumped_output = stream.getvalue()
     # COMPAT: '.replace(";}", "}")' and '.replace(";>", ">")' is for compatibility with different yson representations in different branches.
-    assert dumped_output == input.replace(";}", "}").replace(";>", ">")
+    assert dumped_output.replace(";}", "}").replace(";>", ">") == input
 
 def test_dsv_format():
     format = yt.DsvFormat()
