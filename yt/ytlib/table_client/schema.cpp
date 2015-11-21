@@ -219,6 +219,11 @@ bool TTableSchema::HasComputedColumns() const
     return false;
 }
 
+bool TTableSchema::IsSorted() const
+{
+    return !Columns_.empty() && Columns_.front().SortOrder;
+}
+
 TKeyColumns TTableSchema::GetKeyColumns() const
 {
     TKeyColumns keyColumns;

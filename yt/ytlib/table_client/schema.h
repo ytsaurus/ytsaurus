@@ -74,6 +74,7 @@ public:
     TTableSchema TrimNonkeyColumns(const TKeyColumns& keyColumns) const;
 
     bool HasComputedColumns() const;
+    bool IsSorted() const;
 
     TKeyColumns GetKeyColumns() const;
     static TTableSchema FromKeyColumns(const TKeyColumns& keyColumns);
