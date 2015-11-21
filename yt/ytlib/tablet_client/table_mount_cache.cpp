@@ -55,19 +55,6 @@ static const auto& Logger = TabletClientLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTabletReplica::TTabletReplica()
-    : Id(InvalidNodeId)
-{ }
-
-TTabletReplica::TTabletReplica(
-    NNodeTrackerClient::TNodeId id,
-    const TNodeDescriptor& descriptor)
-    : Id(id)
-    , Descriptor(descriptor)
-{ }
-
-////////////////////////////////////////////////////////////////////////////////
-
 TTabletInfoPtr TTableMountInfo::GetTablet(TUnversionedRow row)
 {
     if (Tablets.empty()) {
