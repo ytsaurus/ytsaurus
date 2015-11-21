@@ -47,8 +47,11 @@ class Checker(Thread):
         self._check_function = check_function
         self._active = None
 
-    def run(self):
+    def start(self):
         self._active = True
+        super(Checker, self).start()
+
+    def run(self):
         while self._active:
             self._check_function()
             sleep(1.0)
@@ -73,9 +76,11 @@ class YTEnvSetup(YTEnv):
         path_to_run = os.path.join(path_to_test, "run_" + str(uuid.uuid4().hex)[:8])
         pids_filename = os.path.join(path_to_run, 'pids.txt')
 
+        cls.liveness_checker = None
+
         cls.path_to_test = path_to_test
         cls.Env = cls()
-        cls.Env.start(path_to_run, pids_filename)
+        cls.Env.start(path_to_run, pids_filename, kill_child_processes=True)
 
         if cls.Env.configs['driver']:
             yt_commands.init_driver(cls.Env.configs['driver'])

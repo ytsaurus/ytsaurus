@@ -63,9 +63,8 @@ class TestErasure(YTEnvSetup):
 
         for r in replicas:
             replica_index = r.attributes["index"]
-            port = int(r.rsplit(":", 1)[1])
-            node_index = filter(lambda x: x == port, self.Env._ports["node"])[0]
-            print >>sys.stderr, "Banning node %d containing replica %d" % (node_index, replica_index)
+            address = str(r)
+            print >>sys.stderr, "Banning node %s containing replica %d" % (address, replica_index)
             set("//sys/nodes/%s/@banned" % r, True)
 
             # Give it enough time to unregister the node
