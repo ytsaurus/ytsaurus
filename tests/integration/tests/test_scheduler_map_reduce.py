@@ -1,9 +1,11 @@
 import pytest
 
 from yt_env_setup import YTEnvSetup, unix_only
+from yt.environment.helpers import assert_items_equal
 from yt_commands import *
 
 from collections import defaultdict
+
 
 ##################################################################
 
@@ -154,9 +156,9 @@ for key, rows in groupby(read_table(), lambda row: row["word"]):
         if method != "reduce_combiner_dev_null":
             for word, count in expected.items():
                 output.append( {"word": word, "count": str(count)} )
-            self.assertItemsEqual(read_table("//tmp/t_out"), output)
+            assert_items_equal(read_table("//tmp/t_out"), output)
         else:
-            self.assertItemsEqual(read_table("//tmp/t_out"), output)
+            assert_items_equal(read_table("//tmp/t_out"), output)
 
     @unix_only
     def test_map_sort_reduce(self):
