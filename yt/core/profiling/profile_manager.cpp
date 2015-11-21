@@ -390,14 +390,12 @@ TProfileManager::~TProfileManager()
 
 TProfileManager* TProfileManager::Get()
 {
-    return TSingletonWithFlag<TProfileManager>::Get();
+    return Singleton<TProfileManager>();
 }
 
 void TProfileManager::StaticShutdown()
 {
-    if (TSingletonWithFlag<TProfileManager>::WasCreated()) {
-        TSingletonWithFlag<TProfileManager>::Get()->Shutdown();
-    }
+    Get()->Shutdown();
 }
 
 void TProfileManager::Start()
