@@ -7,8 +7,8 @@
 #include <mapreduce/yt/yson/parser.h>
 #include <mapreduce/yt/yson/writer.h>
 #include <mapreduce/yt/yson/json_writer.h>
-#include <mapreduce/yt/common/serialize.h>
-#include <mapreduce/yt/common/fluent.h>
+#include "serialize.h"
+#include "fluent.h"
 
 #include <util/stream/input.h>
 #include <util/stream/output.h>
