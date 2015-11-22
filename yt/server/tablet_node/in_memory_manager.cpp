@@ -293,10 +293,17 @@ private:
             if (type != BlockType_)
                 return;
 
-            if (Owner_->IsMemoryLimitExceeded())
+            if (Owner_->IsMemoryLimitExceeded()) {
+                TGuard<TSpinLock> guard(SpinLock_);
+                Dropped_ = true;
+                Owner_->DropChunkData(id.ChunkId);
                 return;
+            }
 
             TGuard<TSpinLock> guard(SpinLock_);
+
+            if (Dropped_)
+                return;
 
             auto it = ChunkIds_.find(id.ChunkId);
             TInMemoryChunkDataPtr data;
@@ -332,6 +339,7 @@ private:
 
         TSpinLock SpinLock_;
         yhash_set<TChunkId> ChunkIds_;
+        bool Dropped_ = false;
 
 
         static EBlockType InMemoryModeToBlockType(EInMemoryMode mode)
@@ -356,6 +364,7 @@ private:
     TInMemoryChunkDataPtr GetChunkData(const TChunkId& chunkId, EInMemoryMode mode)
     {
         TReaderGuard guard(InterceptedDataSpinLock_);
+
         auto it = ChunkIdToData_.find(chunkId);
         YCHECK(it != ChunkIdToData_.end());
         auto data = it->second;
@@ -378,6 +387,16 @@ private:
             mode);
 
         return chunkData;
+    }
+
+    void DropChunkData(const TChunkId& chunkId)
+    {
+        TWriterGuard guard(InterceptedDataSpinLock_);
+
+        if (ChunkIdToData_.erase(chunkId) == 1) {
+            LOG_WARNING("Intercepted chunk data dropped due to memory pressure (ChunkId: %v)",
+                chunkId);
+        }
     }
 
     bool IsMemoryLimitExceeded() const
