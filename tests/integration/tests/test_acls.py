@@ -483,7 +483,7 @@ class TestAcls(YTEnvSetup):
         RWRAC = RWRA + ["create"]
 
         def check(path, permissions):
-            self.assertItemsEqual(get(path + "/@supported_permissions"), permissions)
+            assert_items_equal(get(path + "/@supported_permissions"), permissions)
 
         # cypress node
         check("//tmp", RWRA)
