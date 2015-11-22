@@ -332,7 +332,7 @@ print "x={0}\ty={1}".format(x, y)
                 "input_query": "* where a > 0 or b > 0",
                 "input_schema": schema})
 
-        self.assertItemsEqual(read_table("//tmp/t2"), rows)
+        assert_items_equal(read_table("//tmp/t2"), rows)
 
     def test_bad_control_attributes(self):
         create("table", "//tmp/t1")

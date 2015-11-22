@@ -4,8 +4,6 @@ import __builtin__
 import os
 import tempfile
 
-from distutils.spawn import find_executable
-
 from yt.wrapper import format
 from yt.environment.helpers import assert_items_equal
 
@@ -1301,13 +1299,12 @@ class TestJobQuery(YTEnvSetup):
                 if column["name"] not in row.keys():
                     row[column["name"]] = None
 
-        yamred_format = yson.to_yson_type("yamred_dsv", attributes={"has_subkey": False, "key_column_names": ["a", "b"]})
         map(in_="//tmp/t1", out="//tmp/t2", command="cat",
             spec={
                 "input_query": "* where a > 0 or b > 0",
                 "input_schema": schema})
 
-        self.assertItemsEqual(read_table("//tmp/t2"), rows)
+        assert_items_equal(read_table("//tmp/t2"), rows)
 
     def test_query_udf(self):
         self._init_udf_registry()
