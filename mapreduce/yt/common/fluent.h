@@ -4,8 +4,8 @@
 #include <mapreduce/yt/yson/writer.h>
 #include <mapreduce/yt/yson/json_writer.h>
 #include <mapreduce/yt/interface/common.h>
-#include <mapreduce/yt/common/node_builder.h>
-#include <mapreduce/yt/common/serialize.h>
+#include "node_builder.h"
+#include "serialize.h"
 #include <util/generic/noncopyable.h>
 #include <util/generic/ptr.h>
 #include <util/stream/str.h>

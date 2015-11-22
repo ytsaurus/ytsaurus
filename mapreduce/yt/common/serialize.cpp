@@ -2,8 +2,8 @@
 
 #include "node_visitor.h"
 
-#include <mapreduce/yt/common/helpers.h>
-#include <mapreduce/yt/common/fluent.h>
+#include "helpers.h"
+#include "fluent.h"
 #include <mapreduce/yt/yson/consumer.h>
 
 namespace NYT {

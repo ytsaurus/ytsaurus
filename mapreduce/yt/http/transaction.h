@@ -1,6 +1,6 @@
 #pragma once
 
-#include <mapreduce/yt/http/requests.h>
+#include "requests.h"
 
 #include <util/system/thread.h>
 #include <util/datetime/base.h>
