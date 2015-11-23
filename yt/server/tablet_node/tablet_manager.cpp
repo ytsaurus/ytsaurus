@@ -560,8 +560,6 @@ private:
             auto* tablet = pair.second;
             StopTabletEpoch(tablet);
         }
-
-        OrphanedStores_.clear();
     }
 
 
