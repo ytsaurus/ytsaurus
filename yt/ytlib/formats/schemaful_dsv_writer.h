@@ -27,10 +27,10 @@ protected:
     TBlobOutput* BlobOutput_;
     
     TSchemafulDsvFormatConfigPtr Config_;
-
-    TSchemafulDsvWriterBase(TSchemafulDsvFormatConfigPtr config);
     
     std::vector<int> ColumnIdMapping_;
+    
+    TSchemafulDsvWriterBase(TSchemafulDsvFormatConfigPtr config);
 
     void WriteValue(const NTableClient::TUnversionedValue& value);
     
@@ -94,6 +94,9 @@ private:
     TFuture<void> Result_;
 
     TBlobOutput UnderlyingBlobOutput_;
+
+    void TryFlushBuffer();
+    void DoFlushBuffer(bool force);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

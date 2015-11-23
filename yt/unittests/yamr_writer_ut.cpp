@@ -196,12 +196,9 @@ TEST_F(TSchemalessWriterForYamrTest, SkippedKey)
 
     EXPECT_FALSE(Writer_->Write(rows));
 
-    auto callGetReadyEvent = [&]() {
-        Writer_->Close()
-            .Get()
-            .ThrowOnError();
-    };
-    EXPECT_THROW(callGetReadyEvent(), std::exception);
+    EXPECT_THROW(Writer_->Close()
+        .Get()
+        .ThrowOnError(), std::exception);
 }
 
 TEST_F(TSchemalessWriterForYamrTest, SkippedValue)
@@ -215,12 +212,9 @@ TEST_F(TSchemalessWriterForYamrTest, SkippedValue)
 
     EXPECT_FALSE(Writer_->Write(rows));
 
-    auto callGetReadyEvent = [&]() {
-        Writer_->Close()
-            .Get()
-            .ThrowOnError();
-    };
-    EXPECT_THROW(callGetReadyEvent(), std::exception);
+    EXPECT_THROW(Writer_->Close()
+        .Get()
+        .ThrowOnError(), std::exception);
 }
 
 TEST_F(TSchemalessWriterForYamrTest, NotStringType) {
@@ -234,12 +228,9 @@ TEST_F(TSchemalessWriterForYamrTest, NotStringType) {
 
     EXPECT_FALSE(Writer_->Write(rows));
 
-    auto callGetReadyEvent = [&]() {
-        Writer_->Close()
-            .Get()
-            .ThrowOnError();
-    };
-    EXPECT_THROW(callGetReadyEvent(), std::exception); 
+    EXPECT_THROW(Writer_->Close()
+        .Get()
+        .ThrowOnError(), std::exception);
 }
 
 TEST_F(TSchemalessWriterForYamrTest, ExtraItem)
