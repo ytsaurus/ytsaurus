@@ -406,7 +406,7 @@ private:
         TTabletAutomatonPart::OnStopLeading();
 
         // Reset all transiently prepared transactions back into active state.
-        // Mark all transactions are finished to release pending readers.
+        // Mark all transactions as finished to release pending readers.
         for (const auto& pair : TransactionMap_) {
             auto* transaction = pair.second;
             transaction->SetState(transaction->GetPersistentState());
