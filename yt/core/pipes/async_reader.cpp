@@ -49,7 +49,7 @@ public:
 
     ~TAsyncReaderImpl()
     {
-        YCHECK(State_ != EReaderState::Active);
+        YCHECK(State_ != EReaderState::Active || AbortRequested_);
     }
 
     int GetHandle() const
@@ -103,6 +103,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
+        AbortRequested_ = true;
         return BIND([=, this_ = MakeStrong(this)] () {
                 if (State_ == EReaderState::Active) { 
                     State_ = EReaderState::Aborted;
@@ -124,6 +125,7 @@ private:
 
     TPromise<size_t> ReadResultPromise_ = MakePromise<size_t>(0);
 
+    std::atomic<bool> AbortRequested_ = { false };
     EReaderState State_ = EReaderState::Active;
 
     TSharedMutableRef Buffer_;
