@@ -1559,12 +1559,19 @@ private:
                     return cmpResult < 0;
                 }
 
-                if (lhs.Type < rhs.Type) {
-                    return true;
-                } else {
-                    return (reinterpret_cast<intptr_t>(lhs.ChunkSlice->ChunkSpec().Get())
-                        - reinterpret_cast<intptr_t>(rhs.ChunkSlice->ChunkSpec().Get())) < 0;
+                cmpResult = static_cast<int>(lhs.Type) - static_cast<int>(rhs.Type);
+                if (cmpResult != 0) {
+                    return cmpResult < 0;
                 }
+
+                cmpResult = CompareRows(lhs.MinBoundaryKey, rhs.MinBoundaryKey);
+                if (cmpResult != 0) {
+                    return cmpResult < 0;
+                }                
+
+                
+                return (reinterpret_cast<intptr_t>(lhs.ChunkSlice->ChunkSpec().Get())
+                    - reinterpret_cast<intptr_t>(rhs.ChunkSlice->ChunkSpec().Get())) < 0;
             });
     }
 
