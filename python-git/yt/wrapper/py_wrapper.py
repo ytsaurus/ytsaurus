@@ -175,9 +175,15 @@ def wrap(function, operation_type, tempfiles_manager, input_format=None, output_
             if not os.path.exists(function_source_filename):
                 function_source_filename = None
     else:
-        function_source_filename = sys.modules['__main__'].__file__
-        if function_source_filename.endswith("pyc"):
-            main_module_type = "PY_COMPILED"
+        # XXX(asaitgalin): when tests are run in parallel their __main__
+        # module does not have __file__ attribute.
+        if not hasattr(sys.modules["__main__"], "__file__"):
+            function_source_filename = None
+        else:
+            function_source_filename = sys.modules["__main__"].__file__
+            if function_source_filename.endswith("pyc"):
+                main_module_type = "PY_COMPILED"
+
     if function_source_filename:
         shutil.copy(function_source_filename, main_filename)
 

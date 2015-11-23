@@ -46,8 +46,8 @@ class ConfigsProvider(object):
 
     def __init__(self, ports, enable_debug_logging=True):
         self.fqdn = socket.getfqdn()
-        self.enable_debug_logging = enable_debug_logging
         self.ports = ports
+        self.enable_debug_logging = enable_debug_logging
         # Generated addresses
         # _master_addresses["secondary"] is list of size secondary_master_cell_count
         self._master_addresses = {"primary": [], "secondary": []}
@@ -85,12 +85,12 @@ class ConfigsProvider(object):
                             "'{0}'".format(address) for address in self._master_addresses["primary"]
                         ])))
 
-def _generate_common_proxy_config(proxy_dir, ports, enable_debug_logging):
+def _generate_common_proxy_config(proxy_dir, proxy_port, enable_debug_logging):
     proxy_config = default_configs.get_proxy_config()
     proxy_config["proxy"]["logging"] = init_logging(proxy_config["proxy"]["logging"], proxy_dir, "http_proxy",
                                                     enable_debug_logging)
-    proxy_config["port"] = ports["proxy"]
-    proxy_config["fqdn"] = "localhost:{0}".format(ports["proxy"])
+    proxy_config["port"] = proxy_port
+    proxy_config["fqdn"] = "localhost:{0}".format(proxy_port)
     proxy_config["static"].append(["/ui", os.path.join(proxy_dir, "ui")])
 
     return proxy_config
@@ -107,8 +107,8 @@ class ConfigsProvider_17(ConfigsProvider):
 
         master_dirs = unlist(master_dirs)
         tmpfs_master_dirs = unlist(tmpfs_master_dirs)
-
         ports = unlist(self.ports["master"])
+
         addresses = ["{0}:{1}".format(self.fqdn, ports[2 * i]) for i in xrange(master_count)]
 
         configs = []
@@ -244,7 +244,7 @@ class ConfigsProvider_17(ConfigsProvider):
         }
         driver_config["timestamp_provider"]["addresses"] = self._master_addresses["primary"]
 
-        proxy_config = _generate_common_proxy_config(proxy_dir, self.ports, self.enable_debug_logging)
+        proxy_config = _generate_common_proxy_config(proxy_dir, self.ports["proxy"], self.enable_debug_logging)
         proxy_config["proxy"]["driver"] = driver_config
 
         return proxy_config
@@ -439,7 +439,7 @@ class ConfigsProvider_18(ConfigsProvider):
                 for addresses, cell_id in secondary_masters_info]
         driver_config["timestamp_provider"]["addresses"] = self._master_addresses["primary"]
 
-        proxy_config = _generate_common_proxy_config(proxy_dir, self.ports, self.enable_debug_logging)
+        proxy_config = _generate_common_proxy_config(proxy_dir, self.ports["proxy"], self.enable_debug_logging)
         proxy_config["fqdn"] = "localhost"
         proxy_config["proxy"]["driver"] = driver_config
 

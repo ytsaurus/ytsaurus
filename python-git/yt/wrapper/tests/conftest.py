@@ -3,15 +3,18 @@ from yt.wrapper.default_config import get_default_config
 from yt.wrapper.common import update
 import yt.logger as logger
 import yt.wrapper as yt
+import yt.tests_runner as tests_runner
 
 from helpers import TEST_DIR
 
 import os
+import re
 import uuid
 from copy import deepcopy
 import shutil
 import logging
 import pytest
+from collections import defaultdict
 
 TESTS_LOCATION = os.path.dirname(os.path.abspath(__file__))
 TESTS_SANDBOX = os.environ.get("TESTS_SANDBOX", TESTS_LOCATION + ".sandbox")
@@ -25,6 +28,20 @@ def _pytest_finalize_func(environment, process_call_args):
     pytest.exit('Process run by command "{0}" is dead! Tests terminated.' \
                 .format(" ".join(process_call_args)))
     environment.clear_environment(safe=False)
+
+def pytest_configure(config):
+    def scheduling_func(test_items, process_count):
+        suites = defaultdict(list)
+        for index, test in enumerate(test_items):
+            match = re.search(r"\[([a-zA-Z0-9]+)\]$", test.name)
+            if match:
+                suites[match.group(1)].append(index)
+            else:
+                suites[None].append(index)
+
+        return tests_runner.split_test_suites(suites, process_count)
+
+    tests_runner.set_scheduling_func(scheduling_func)
 
 class YtTestEnvironment(object):
     def __init__(self, test_name, config=None):
@@ -58,11 +75,13 @@ class YtTestEnvironment(object):
             }
         }
 
-        self.env.start(dir, os.path.join(dir, "pids.txt"), supress_yt_output=True)
+        self.env.start(dir, os.path.join(dir, "pids.txt"), supress_yt_output=True,
+                       port_locks_path=os.path.join(TESTS_SANDBOX, "ports"))
         self.version = self.env._ytserver_version
 
         reload(yt)
         reload(yt.config)
+        reload(yt.native_driver)
 
         yt._cleanup_http_session()
 
@@ -87,7 +106,7 @@ class YtTestEnvironment(object):
         self.env.clear_environment()
         for node_config in self.env.configs["node"]:
             shutil.rmtree(node_config["data_node"]["store_locations"][0]["path"])
-            if "cache_locations"in node_config["data_node"]:
+            if "cache_locations" in node_config["data_node"]:
                 shutil.rmtree(node_config["data_node"]["cache_locations"][0]["path"])
             else:
                 shutil.rmtree(node_config["data_node"]["cache_location"]["path"])
