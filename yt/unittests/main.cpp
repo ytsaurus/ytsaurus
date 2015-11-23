@@ -19,7 +19,6 @@ public:
     {
         NYT::Shutdown();
     }
-
 };
 
 int main(int argc, char **argv)

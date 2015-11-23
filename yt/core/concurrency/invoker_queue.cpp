@@ -14,11 +14,11 @@ static const auto& Logger = ConcurrencyLogger;
 ///////////////////////////////////////////////////////////////////////////////
 
 TInvokerQueue::TInvokerQueue(
-    TEventCount* callbackEventCount,
+    std::shared_ptr<TEventCount> callbackEventCount,
     const NProfiling::TTagIdList& tagIds,
     bool enableLogging,
     bool enableProfiling)
-    : CallbackEventCount(callbackEventCount)
+    : CallbackEventCount(std::move(callbackEventCount))
     , EnableLogging(enableLogging)
     , Profiler("/action_queue")
     , EnqueuedCounter("/enqueued", tagIds)
@@ -31,9 +31,7 @@ TInvokerQueue::TInvokerQueue(
     Profiler.SetEnabled(enableProfiling);
 }
 
-TInvokerQueue::~TInvokerQueue()
-{
-}
+TInvokerQueue::~TInvokerQueue() = default;
 
 void TInvokerQueue::SetThreadId(TThreadId threadId)
 {

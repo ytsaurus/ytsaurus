@@ -10,6 +10,8 @@
 #include "journal_dispatcher.h"
 #include "journal_manager.h"
 
+#include <core/concurrency/thread_pool.h>
+
 #include <core/misc/fs.h>
 
 #include <core/profiling/profile_manager.h>

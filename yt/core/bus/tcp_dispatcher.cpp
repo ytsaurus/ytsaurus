@@ -62,14 +62,12 @@ TTcpDispatcher::~TTcpDispatcher()
 
 TTcpDispatcher* TTcpDispatcher::Get()
 {
-    return TSingletonWithFlag<TTcpDispatcher>::Get();
+    return Singleton<TTcpDispatcher>();
 }
 
 void TTcpDispatcher::StaticShutdown()
 {
-    if (TSingletonWithFlag<TTcpDispatcher>::WasCreated()) {
-        TSingletonWithFlag<TTcpDispatcher>::Get()->Shutdown();
-    }
+    Get()->Shutdown();
 }
 
 void TTcpDispatcher::Shutdown()

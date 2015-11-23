@@ -120,12 +120,12 @@ public:
     void Configure(TAddressResolverConfigPtr config);
 
 private:
+    class TImpl;
+    const TIntrusivePtr<TImpl> Impl_;
+
     TAddressResolver();
 
     DECLARE_SINGLETON_FRIEND();
-
-    class TImpl;
-    TIntrusivePtr<TImpl> Impl_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

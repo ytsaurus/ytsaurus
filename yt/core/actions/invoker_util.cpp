@@ -74,18 +74,18 @@ IInvokerPtr GetNullInvoker()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static TLazyIntrusivePtr<TActionQueue> FinalizerThread(
-    TActionQueue::CreateFactory("Finalizer", false, false));
 static std::atomic<bool> FinalizerThreadIsDead = {false};
+
+static TActionQueuePtr GetFinalizerThread()
+{
+    static auto queue = New<TActionQueue>("Finalizer", false, false);
+    return queue;
+}
 
 IInvokerPtr GetFinalizerInvoker()
 {
-    // When |FinalizedThread| is already destructed, we would like to avoid
-    // member variables to avoid crashes. Since we force end-users to shutdown
-    // finalizer thread explicitly (and in a single thread) we can rely on
-    // |FinalizerThreadIsDead| to be set by appropriate shutdown code.
     if (!FinalizerThreadIsDead.load(std::memory_order_relaxed)) {
-        return FinalizerThread->GetInvoker();
+        return GetFinalizerThread()->GetInvoker();
     } else {
         return GetSyncInvoker();
     }
@@ -93,19 +93,16 @@ IInvokerPtr GetFinalizerInvoker()
 
 void ShutdownFinalizerThread()
 {
-    if (FinalizerThread.HasValue()) {
-        if (FinalizerThread->IsRunning()) {
-            // Await completion of every action enqueued before this shutdown call.
-            for (int i = 0; i < 100; ++i) {
-                auto sentinel = BIND([] () {}).AsyncVia(FinalizerThread->GetInvoker()).Run();
-                sentinel.Get().ThrowOnError();
-            }
+    bool expected = false;
+    if (FinalizerThreadIsDead.compare_exchange_strong(expected, true)) {
+        auto thread = GetFinalizerThread();
+        auto invoker = thread->GetInvoker();
+        // Spin for a while to flush pending actions.
+        for (int i = 0; i < 100; ++i) {
+            BIND([] () { }).AsyncVia(invoker).Run().Get();
         }
-        // Now kill the thread.
-        FinalizerThread->Shutdown();
-        // This code is (usually) run in a single-threaded context,
-        // so we simply raise the flag.
-        FinalizerThreadIsDead.store(true, std::memory_order_relaxed);
+        // Now shutdown finalizer thread.
+        thread->Shutdown();
     }
 }
 

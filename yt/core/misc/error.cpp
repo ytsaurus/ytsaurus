@@ -23,6 +23,22 @@ using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace {
+static char LocalHostName[1024] = {0};
+static std::atomic<bool> LocalHostNameInitialized = {false};
+const char* GetStaticLocalHostName()
+{
+    if (!LocalHostNameInitialized.load(std::memory_order_relaxed)) {
+        auto resolvedLocalHostName = TAddressResolver::Get()->GetLocalHostName();
+        YCHECK(resolvedLocalHostName.length() < sizeof(LocalHostName));
+        ::memcpy(LocalHostName, resolvedLocalHostName.c_str(), resolvedLocalHostName.length());
+        LocalHostName[resolvedLocalHostName.length()] = 0;
+        LocalHostNameInitialized = true;
+    }
+    return LocalHostName;
+}
+}
+
 void TErrorCode::Save(TStreamSaveContext& context) const
 {
     NYT::Save(context, Value_);
@@ -219,7 +235,7 @@ void TErrorOr<void>::Load(TStreamLoadContext& context)
 
 void TError::CaptureOriginAttributes()
 {
-    Attributes().Set("host", TAddressResolver::Get()->GetLocalHostName());
+    Attributes().Set("host", GetStaticLocalHostName());
     Attributes().Set("datetime", TInstant::Now());
     Attributes().Set("pid", ::getpid());
     Attributes().Set("tid", TThread::CurrentThreadId());
@@ -240,7 +256,7 @@ TNullable<TError> TError::FindMatching(TErrorCode code) const
     for (const auto& innerError : InnerErrors_) {
         auto innerResult = innerError.FindMatching(code);
         if (innerResult) {
-            return std::move(innerResult);
+            return innerResult;
         }
     }
 

@@ -34,7 +34,7 @@ TEVSchedulerThread::TEVSchedulerThread(
     const Stroka& threadName,
     bool enableLogging)
     : TSchedulerThread(
-        &CallbackEventCount,
+        std::make_shared<TEventCount>(),
         threadName,
         NProfiling::EmptyTagIds,
         enableLogging,
@@ -80,7 +80,7 @@ EBeginExecuteResult TEVSchedulerThread::BeginExecute()
 
 EBeginExecuteResult TEVSchedulerThread::BeginExecuteCallbacks()
 {
-    if (!IsRunning()) {
+    if (IsShutdown()) {
         return EBeginExecuteResult::Terminated;
     }
 
@@ -108,8 +108,9 @@ void TEVSchedulerThread::OnCallback(ev::async&, int)
 
 void TEVSchedulerThread::EnqueueCallback(const TClosure& callback)
 {
-    if (!IsRunning())
+    if (IsShutdown()) {
         return;
+    }
 
     Queue.Enqueue(callback);
     CallbackWatcher.send();
