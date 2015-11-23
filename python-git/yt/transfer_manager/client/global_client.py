@@ -37,3 +37,5 @@ def get_tasks(*args, **kwargs):
 def get_backend_config(*args, **kwargs):
     return _get_client().get_backend_config(*args, **kwargs)
 
+def match_src_dst_pattern(*args, **kwargs):
+    return _get_client().match_src_dst_pattern(*args, **kwargs)
