@@ -1,13 +1,14 @@
 from configs_provider import ConfigsProviderFactory, init_logging
-from helpers import versions_cmp, is_binary_found, makedirp, read_config, write_config, collect_events_from_logs, \
+from helpers import versions_cmp, is_binary_found, read_config, write_config, collect_events_from_logs, \
                     is_dead_or_zombie, get_open_port
 
-from yt.common import update, YtError, get_value, remove_file
+from yt.common import update, YtError, get_value, remove_file, makedirp
 import yt.yson as yson
 
 import logging
 import os
 import re
+import uuid
 import time
 import signal
 import socket
@@ -92,7 +93,7 @@ class YTEnv(object):
         pass
 
     def start(self, path_to_run, pids_filename, proxy_port=None, supress_yt_output=False, enable_debug_logging=True,
-              preserve_working_dir=False, kill_child_processes=False, tmpfs_path=None, enable_ui=False,
+              preserve_working_dir=False, kill_child_processes=False, tmpfs_path=None, enable_ui=False, port_locks_path=None,
               ports_range_start=None):
         self._lock = RLock()
 
@@ -104,6 +105,7 @@ class YTEnv(object):
         self.supress_yt_output = supress_yt_output
         self.path_to_run = os.path.abspath(path_to_run)
         self.tmpfs_path = tmpfs_path
+        self.port_locks_path = port_locks_path
         self.pids_filename = pids_filename
 
         load_existing_environment = False
@@ -113,6 +115,9 @@ class YTEnv(object):
                 makedirp(self.path_to_run)
             else:
                 load_existing_environment = True
+
+        if self.port_locks_path is not None:
+            makedirp(self.port_locks_path)
 
         self.configs = defaultdict(list)
         self.config_paths = defaultdict(list)
@@ -126,6 +131,7 @@ class YTEnv(object):
 
         ytserver_version_long = _get_ytserver_version()
         logger.info("Logging started (ytserver version: %s)", ytserver_version_long)
+        logger.info("Path to run: %s", self.path_to_run)
 
         self._ytserver_version = ytserver_version_long.split("-", 1)[0].strip()
 
@@ -164,6 +170,13 @@ class YTEnv(object):
 
             remove_file(self.pids_filename, force=True)
 
+            for lock_fd in get_open_port.lock_fds:
+                try:
+                    os.close(lock_fd)
+                except OSError as err:
+                    logger.warning("Failed to close file descriptor %d: %s",
+                                   lock_fd, os.strerror(err.errno))
+
     def check_liveness(self, callback_func):
         with self._lock:
             for pid, info in self._all_processes.iteritems():
@@ -191,7 +204,6 @@ class YTEnv(object):
                                 scheduler_count, node_count, has_proxy, proxy_port)
         self._configs_provider = self.CONFIGS_PROVIDER_FACTORY \
                 .create_for_version(self._ytserver_version, ports, enable_debug_logging)
-
         self._enable_debug_logging = enable_debug_logging
         self._load_existing_environment = load_existing_environment
 
@@ -236,12 +248,13 @@ class YTEnv(object):
 
         def random_port_generator():
             while True:
-                yield get_open_port()
+                yield get_open_port(self.port_locks_path)
 
         if ports_range_start and isinstance(ports_range_start, int):
             generator = count(ports_range_start)
         else:
             get_open_port.busy_ports = set()
+            get_open_port.lock_fds = set()
             generator = random_port_generator()
 
         if master_count > 0:
@@ -328,12 +341,12 @@ class YTEnv(object):
                 "ytserver", "--" + service_name,
                 "--config", self.config_paths[name][i]
             ]
-            if sys.platform.startswith('linux'):
-                if service_name == "node":
-                    user_name = getpass.getuser()
-                    for type_ in ["cpuacct", "cpu", "blkio", "memory", "freezer"]:
-                        cgroup_path = "/sys/fs/cgroup/{0}/{1}/yt/node{2}".format(type_, user_name, i)
-                        command.extend(["--cgroup", cgroup_path])
+            if service_name == "node" and sys.platform.startswith("linux"):
+                user_name = getpass.getuser()
+                for type_ in ["cpuacct", "cpu", "blkio", "memory", "freezer"]:
+                    cgroup_path = "/sys/fs/cgroup/{0}/{1}/yt/{2}/node{3}".format(
+                            type_, user_name, uuid.uuid4().hex, i)
+                    command.extend(["--cgroup", cgroup_path])
             self._run(command, name, i)
 
     def _kill_previously_run_services(self):

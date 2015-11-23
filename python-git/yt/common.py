@@ -5,6 +5,7 @@ import sys
 import ctypes
 import types
 import signal
+import errno
 
 class YtError(Exception):
     """Base of all YT errors"""
@@ -172,4 +173,11 @@ def remove_file(path, force=False):
         os.remove(path)
     except OSError:
         if not force:
+            raise
+
+def makedirp(path):
+    try:
+        os.makedirs(path)
+    except OSError as err:
+        if err.errno != errno.EEXIST:
             raise

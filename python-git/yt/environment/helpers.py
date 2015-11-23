@@ -4,6 +4,7 @@ import yt.yson as yson
 import socket
 import os
 import errno
+import fcntl
 
 GEN_PORT_ATTEMPTS = 10
 
@@ -74,10 +75,7 @@ def assert_items_equal(actual_seq, expected_seq):
     assert not missing, "Expected, but missing:\n    %s" % repr(missing)
     assert not unexpected, "Unexpected, but present:\n    %s" % repr(unexpected)
 
-def get_open_port():
-    if not hasattr(get_open_port, "busy_ports"):
-        get_open_port.busy_ports = set()
-
+def get_open_port(port_locks_path=None):
     for _ in xrange(GEN_PORT_ATTEMPTS):
         try:
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -89,6 +87,18 @@ def get_open_port():
 
         if port in get_open_port.busy_ports:
             continue
+
+        if port_locks_path is not None:
+            try:
+                lock_fd = os.open(os.path.join(port_locks_path, str(port)), os.O_CREAT | os.O_RDWR)
+                fcntl.lockf(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except IOError:
+                if lock_fd != -1:
+                    os.close(lock_fd)
+                get_open_port.busy_ports.add(port)
+                continue
+
+            get_open_port.lock_fds.add(lock_fd)
 
         get_open_port.busy_ports.add(port)
 
@@ -106,13 +116,6 @@ def is_binary_found(binary_name):
         if os.access(os.path.join(path, binary_name), os.X_OK):
             return True
     return False
-
-def makedirp(path):
-    try:
-        os.makedirs(path)
-    except OSError as err:
-        if err.errno != errno.EEXIST:
-            raise
 
 def collect_events_from_logs(log_files, event_filters):
     all_events = []
