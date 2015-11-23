@@ -854,8 +854,6 @@ private:
         while ((!UpperBoundCheckNeeded_ || BlockReader_->GetKey() < UpperBound_.Get()) &&
                rows->size() < rows->capacity())
         {
-            ++PerformanceCounters_->StaticChunkRowReadCount;
-
             rows->push_back(CaptureRow(BlockReader_.get()));
 
             if (!BlockReader_->NextRow()) {
@@ -867,6 +865,8 @@ private:
                 CreateBlockReader();
             }
         }
+
+        PerformanceCounters_->StaticChunkRowReadCount += rows->size();
 
         return true;
     }
