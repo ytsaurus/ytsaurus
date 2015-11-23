@@ -70,7 +70,7 @@ def _pack_module(module_name, output_dir):
     else:
         archive_filename = os.path.join(output_dir, module_name + ".tar")
         tar = tarfile.open(archive_filename, "w")
-        for root, dirs, files in os.walk(module_path):
+        for root, dirs, files in os.walk(module_path, followlinks=True):
             for file in files:
                 file_path = os.path.join(root, file)
                 assert file_path.startswith(module_path)

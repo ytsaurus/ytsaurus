@@ -2,7 +2,7 @@ from configs_provider import ConfigsProviderFactory, init_logging
 from helpers import versions_cmp, is_binary_found, makedirp, read_config, write_config, collect_events_from_logs, \
                     is_dead_or_zombie, get_open_port
 
-from yt.common import update, YtError, get_value
+from yt.common import update, YtError, get_value, remove_file
 import yt.yson as yson
 
 import logging
@@ -162,10 +162,7 @@ class YTEnv(object):
             for name in self.configs:
                 self.kill_service(name)
 
-            try:
-                os.remove(self.pids_filename)
-            except OSError:
-                pass
+            remove_file(self.pids_filename, force=True)
 
     def check_liveness(self, callback_func):
         with self._lock:

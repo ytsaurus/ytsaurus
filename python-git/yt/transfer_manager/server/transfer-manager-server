@@ -20,6 +20,7 @@ from yt.tools.remote_copy_tools import \
     copy_yt_to_yt_through_proxy, \
     copy_hive_to_yt
 
+from yt.common import remove_file
 from yt.wrapper.common import generate_uuid, get_value, update
 import yt.logger as logger
 import yt.wrapper as yt
@@ -35,6 +36,7 @@ import signal
 import socket
 import logging
 import logging.handlers
+import tempfile
 import thread
 import argparse
 import traceback
@@ -42,7 +44,7 @@ import subprocess
 import pwd
 from copy import deepcopy
 from datetime import datetime, timedelta
-from collections import defaultdict
+from collections import defaultdict, namedtuple
 from subprocess32 import TimeoutExpired
 from threading import RLock, Thread, current_thread
 from multiprocessing import Process
@@ -235,6 +237,8 @@ class Task(object):
     def copy(self):
         return Task(**dict((key, value) for key, value in self.__dict__.iteritems() if not key.startswith("_")))
 
+ClustersConfiguration = namedtuple("ClustersConfiguration", ["clusters", "availability_graph", "kiwi_transmitter"])
+
 class Application(object):
     ERROR_BUFFER_SIZE = 2 ** 16
 
@@ -246,7 +250,15 @@ class Application(object):
         self._mutex = RLock()
         self._yt = YtClientWithNotifications(**config["yt_backend_options"])
 
-        self._load_config(config)
+        self._configure_logging(config.get("logging", {}))
+
+        self._clusters_config_mutex = RLock()
+        self._clusters_configuration = self._get_clusters_configuration_from_config(config)
+        # XXX(asaitgalin): as clusters configuration is reloaded in ConfigReloadingThread
+        # we save last successfully loaded configuration so it can be passed to execute_task
+        # with guarantees that it can be loaded there.
+        self._last_successfully_loaded_config = deepcopy(config)
+
         self._path = config["path"]
         self._logging_port = self._config["port"] + 1
 
@@ -254,7 +266,7 @@ class Application(object):
 
     def init_logger(self):
         # Replace current logger with socket logger.
-        logger.LOGGER.handlers = [logging.handlers.SocketHandler('localhost', self._logging_port)]
+        logger.LOGGER.handlers = [logging.handlers.SocketHandler("localhost", self._logging_port)]
 
     def start_processes(self):
         self._sleep_step = 0.5
@@ -285,6 +297,13 @@ class Application(object):
         self._execution_thread = SafeThread(target=self._execute_tasks, name="SchedulingThread")
         self._execution_thread.daemon = True
         self._execution_thread.start()
+
+        # Run config reloading thread.
+        self._clusters_config_reloading_thread = SafeThread(target=self._reload_clusters_config,
+                                                            args=(self._config["clusters_config_reload_timeout"],),
+                                                            name="ClustersConfigReloadingThread")
+        self._clusters_config_reloading_thread.daemon = True
+        self._clusters_config_reloading_thread.start()
 
         # Add rules
         self._add_rule("/", 'main', methods=["GET"], depends_on_lock=False)
@@ -387,11 +406,12 @@ class Application(object):
                     return
                 time.sleep(self._sleep_step)
 
+    def _get_clusters_configuration(self):
+        with self._clusters_config_mutex:
+            return deepcopy(self._clusters_configuration)
 
-    def _load_config(self, config):
-        self._configure_logging(config.get("logging", {}))
-
-        self._clusters = {}
+    def _get_clusters_configuration_from_config(self, config):
+        clusters = {}
         for name, cluster_description in config["clusters"].iteritems():
             type = cluster_description["type"]
             options = cluster_description["options"]
@@ -400,49 +420,70 @@ class Application(object):
                 if "config" not in options:
                     options["config"] = {}
                 options["config"] = update(config["yt_client_config"], options["config"])
-                self._clusters[name] = YtClientWithNotifications(**options)
-                self._clusters[name]._pools = cluster_description.get("pools", {})
-                self._clusters[name]._version = cluster_description.get("version", 0)
+                clusters[name] = YtClientWithNotifications(**options)
+                clusters[name]._pools = cluster_description.get("pools", {})
+                clusters[name]._version = cluster_description.get("version", 0)
             elif type == "yamr":
-                self._clusters[name] = Yamr(**options)
+                clusters[name] = Yamr(**options)
             elif type == "kiwi":
-                self._clusters[name] = Kiwi(**options)
+                clusters[name] = Kiwi(**options)
             elif type == "hive":
-                self._clusters[name] = Hive(**options)
+                clusters[name] = Hive(**options)
             else:
                 raise yt.YtError("Incorrect cluster type " + options["type"])
 
-            self._clusters[name]._name = name
-            self._clusters[name]._type = type
-            self._clusters[name]._parameters = filter_out_keys(cluster_description, ["type", "options"])
+            clusters[name]._name = name
+            clusters[name]._type = type
+            clusters[name]._parameters = filter_out_keys(cluster_description, ["type", "options"])
 
-        self._availability_graph = deepcopy(config["availability_graph"])
+        availability_graph = config["availability_graph"]
 
-        for name in self._availability_graph:
+        for name in availability_graph:
             edges = {}
-            for neighbour in self._availability_graph[name]:
+            for neighbour in availability_graph[name]:
                 if isinstance(neighbour, dict):
                     edges[neighbour["name"]] = neighbour.get("options", {})
                 else:
                     edges[neighbour] = {}
-            self._availability_graph[name] = edges
+            availability_graph[name] = edges
 
-        for name in self._availability_graph:
-            if name not in self._clusters:
+        for name in availability_graph:
+            if name not in clusters:
                 raise yt.YtError("Incorrect availability graph, cluster {} is missing".format(name))
-            for neighbour in self._availability_graph[name]:
-                if neighbour not in self._clusters:
+            for neighbour in availability_graph[name]:
+                if neighbour not in clusters:
                     raise yt.YtError("Incorrect availability graph, cluster {} is missing".format(neighbour))
 
-        self.kiwi_transmitter = None
+        kiwi_transmitter = None
         if "kiwi_transmitter" in config:
             name = config["kiwi_transmitter"]
-            if name not in self._clusters:
-                raise yt.YtError("Incorrect kiwi transmitter, clustter {} is missing".format(name))
-            self.kiwi_transmitter = self._clusters[name]
-            if self.kiwi_transmitter._type != "yt":
+            if name not in clusters:
+                raise yt.YtError("Incorrect kiwi transmitter, cluster {} is missing".format(name))
+            kiwi_transmitter = clusters[name]
+            if kiwi_transmitter._type != "yt":
                 raise yt.YtError("Kiwi transmitter must be YT cluster")
 
+        return ClustersConfiguration(clusters, availability_graph, kiwi_transmitter)
+
+    def _reload_clusters_config(self, reload_timeout):
+        while True:
+            if not self._lock_acquired:
+                time.sleep(self._lock_timeout)
+                continue
+
+            time.sleep(reload_timeout)
+
+            try:
+                config = json.load(open(self._config_path))
+                configuration = self._get_clusters_configuration_from_config(config)
+
+                with self._clusters_config_mutex:
+                    self._clusters_configuration = configuration
+                    self._last_successfully_loaded_config = config
+
+                logger.info("Clusters configuration was successfully reloaded")
+            except:
+                logger.exception("Failed to update clusters configuration")
 
     def _configure_logging(self, logging_node):
         level = logging.__dict__[logging_node.get("level", "INFO")]
@@ -498,7 +539,8 @@ class Application(object):
                 continue
 
             try:
-                active_client, passive_client = self._get_active_and_passive_clients(task)
+                active_client, passive_client = self._get_active_and_passive_clients(
+                    task, self._get_clusters_configuration())
             except yt.YtError as err:
                 logger.warning("Failed to load task %s: %s", id, str(err))
                 continue
@@ -552,9 +594,9 @@ class Application(object):
         return pool_name
 
     # Return pair: active client, that run copy operation and passive client.
-    def _get_active_and_passive_clients(self, task):
-        source_client = task.get_source_client(self._clusters)
-        destination_client = task.get_destination_client(self._clusters)
+    def _get_active_and_passive_clients(self, task, clusters_configuration):
+        source_client = task.get_source_client(clusters_configuration.clusters)
+        destination_client = task.get_destination_client(clusters_configuration.clusters)
 
         if destination_client._type == "yamr":
             if source_client._type == "yt" and task.copy_method == "push":
@@ -563,15 +605,15 @@ class Application(object):
         elif destination_client._type == "yt":
             return destination_client, source_client
         elif destination_client._type == "kiwi":
-            return self.kiwi_transmitter, source_client
+            return clusters_configuration.kiwi_transmitter, source_client
         else:
             raise yt.YtError("Unknown destination client type: %r", destination_client._type)
 
-    def _initialize_pool(self, task):
+    def _initialize_pool(self, task, clusters_configuration):
         if task.pool is not None:
             return
 
-        active_client, passive_client = self._get_active_and_passive_clients(task)
+        active_client, passive_client = self._get_active_and_passive_clients(task, clusters_configuration)
         if active_client._type != "yt":
             return
 
@@ -633,9 +675,9 @@ class Application(object):
            self._yt.check_permission(user, "administer", self._auth_path)["action"] != "allow":
             raise RequestFailed("{0} task is not permitted.".format(action_name))
 
-    def _set_defaults(self, task):
-        source_client = task.get_source_client(self._clusters)
-        destination_client = task.get_destination_client(self._clusters)
+    def _set_defaults(self, task, clusters_configuration):
+        source_client = task.get_source_client(clusters_configuration.clusters)
+        destination_client = task.get_destination_client(clusters_configuration.clusters)
         if task.mr_user is None and (source_client._type == "yamr" or destination_client._type == "yamr"):
             task.mr_user = self._config.get("default_mr_user")
         if task.kiwi_user is None and destination_client._type == "kiwi":
@@ -645,20 +687,20 @@ class Application(object):
         if task.copy_method is None and source_client._type == "yt" and destination_client._type == "yt":
             task.copy_method = "proxy" if source_client._version != destination_client._version else "native"
 
-    def _precheck(self, task, ignore_timeout=False, yamr_timeout=None, custom_logger=None):
+    def _precheck(self, task, clusters_configuration, ignore_timeout=False, yamr_timeout=None, custom_logger=None):
         if custom_logger is None:
             custom_logger = logger
 
         # TODO(ignat): add timeout for yt
         custom_logger.info("Starting precheck")
-        source_client = task.get_source_client(self._clusters)
-        destination_client = task.get_destination_client(self._clusters)
+        source_client = task.get_source_client(clusters_configuration.clusters)
+        destination_client = task.get_destination_client(clusters_configuration.clusters)
 
         if task.copy_method not in [None, "pull", "push", "proxy", "native"]:
             raise yt.YtError("Incorrect copy method: " + str(task.copy_method))
 
-        if task.source_cluster not in self._availability_graph or \
-           task.destination_cluster not in self._availability_graph[task.source_cluster]:
+        if task.source_cluster not in clusters_configuration.availability_graph or \
+           task.destination_cluster not in clusters_configuration.availability_graph[task.source_cluster]:
             raise yt.YtError("Cluster {} not available from {}".format(task.destination_cluster, task.source_cluster))
 
         if task.destination_table is None and destination_client._type != "kiwi":
@@ -698,7 +740,7 @@ class Application(object):
                 if destination_user is None or not self._has_write_permission_on_yt(destination_client, destination_user, destination_dir):
                     raise yt.YtError("There is no permission to write to {}. Please log in.".format(task.destination_table))
 
-            if destination_client._type == "kiwi" and self.kiwi_transmitter is None:
+            if destination_client._type == "kiwi" and clusters_configuration.kiwi_transmitter is None:
                 raise yt.YtError("Transimission cluster for transfer to kiwi is not configured")
 
             if source_client._type == "hive" and "." not in task.source_table:
@@ -719,7 +761,7 @@ class Application(object):
         if datetime.now() - self._last_scheduled_time[task.get_queue_id()] < timedelta(seconds=self._config["scheduling_backoff"]):
             return False
 
-        client, _ = self._get_active_and_passive_clients(task)
+        client, _ = self._get_active_and_passive_clients(task, self._get_clusters_configuration())
         if client._type == "yt":
             if task.pool is None:
                 raise SchedulingError("Task has no pool")
@@ -893,6 +935,7 @@ class Application(object):
 
                         self._dump_task(id)
                         self._running_tasks_queues[self._tasks[id].get_queue_id()].remove(id)
+                        remove_file(process.temporary_config, force=True)
                         del self._task_processes[id]
 
                 for id in self._pending_tasks:
@@ -915,13 +958,18 @@ class Application(object):
                     self._tasks[id].progress = {"operations": []}
                     self._change_task_state(id, "running")
 
-                    task_process = subprocess.Popen(["transfer-manager-server", "--execute-task", "--config", self._config_path],
+                    _, temporary_config = tempfile.mkstemp()
+                    with open(temporary_config, "w") as fout:
+                        json.dump(self._last_successfully_loaded_config, fout)
+
+                    task_process = subprocess.Popen(["transfer-manager-server", "--execute-task", "--config", temporary_config],
                                                     stdout=subprocess.PIPE, stdin=subprocess.PIPE,
                                                     preexec_fn=prctl.set_pdeathsig(signal.SIGINT))
                     task_process.stdin.write(json.dumps(self._tasks[id].dict()))
                     task_process.stdin.close()
                     task_process.aborting = False
                     task_process.aborted = False
+                    task_process.temporary_config = temporary_config
                     queue = MessageReader(task_process.stdout)
                     self._task_processes[id] = (task_process, queue)
 
@@ -935,7 +983,8 @@ class Application(object):
 
         logger.info("Start executing task (pid %s)", os.getpid())
         try:
-            self._precheck(task)
+            clusters_configuration = self._get_clusters_configuration()
+            self._precheck(task, clusters_configuration)
 
             title = "Supervised by transfer task " + task.id
 
@@ -952,15 +1001,15 @@ class Application(object):
 
             postprocess_spec = update(get_value(task.postprocess_spec, {}), common_spec)
 
-            source_client = task.get_source_client(self._clusters)
+            source_client = task.get_source_client(clusters_configuration.clusters)
             source_client.message_queue = message_queue
 
-            destination_client = task.get_destination_client(self._clusters)
+            destination_client = task.get_destination_client(clusters_configuration.clusters)
             destination_client.message_queue = message_queue
 
-            self.kiwi_transmitter.message_queue = message_queue
+            clusters_configuration.kiwi_transmitter.message_queue = message_queue
 
-            parameters = self._availability_graph[task.source_cluster][task.destination_cluster]
+            parameters = clusters_configuration.availability_graph[task.source_cluster][task.destination_cluster]
 
             # Calculate fastbone
             fastbone = source_client._parameters.get("fastbone", False) and destination_client._parameters.get("fastbone", False)
@@ -1033,7 +1082,7 @@ class Application(object):
                 copy_yt_to_kiwi(
                     source_client,
                     destination_client,
-                    self.kiwi_transmitter,
+                    clusters_configuration.kiwi_transmitter,
                     task.source_table,
                     fastbone=fastbone,
                     kiwi_user=task.kiwi_user,
@@ -1099,7 +1148,7 @@ class Application(object):
                 continue
             for operation in task.progress["operations"]:
                 cluster_name, operation_id = operation["cluster_name"], operation["id"]
-                if self._clusters[cluster_name]._type != "yt":
+                if self._clusters_configuration.clusters[cluster_name]._type != "yt":
                     logger.warning("Transfer manager does not support progress for non-YT cluster, "
                                    "but it unexpectedly found for %s cluster." % self._clusters[cluster_name]._type)
                     continue
@@ -1107,7 +1156,7 @@ class Application(object):
                     if not self._yt.exists("//sys/operations/%s" % operation_id) or \
                            self._yt.get_operation_state(operation_id).is_finished():
                         continue
-                    self._clusters[cluster_name].abort_operation(operation_id)
+                    self._clusters_configuration.clusters[cluster_name].abort_operation(operation_id)
                     logger.info("Aborted outdated operation {} of task {}".format(operation_id, task_id))
                 except yt.YtError:
                     log_yt_exception(logger, "Failed abort operation {} of task {}".format(operation_id, task_id))
@@ -1146,15 +1195,17 @@ class Application(object):
         if self._pending_tasks_per_user[task.user] > self._config["pending_tasks_limit_per_user"]:
             raise RequestFailed("Too many pending tasks per user (>{0})".format(self._pending_tasks_per_user[task.user]))
 
-        self._set_defaults(task)
+        clusters_configuration = self._get_clusters_configuration()
+        self._set_defaults(task, clusters_configuration)
         if make_precheck:
             try:
-                self._precheck(task, ignore_timeout=True, yamr_timeout=5.0, custom_logger=TaskIdLogger(task.id))
+                self._precheck(task, clusters_configuration,
+                               ignore_timeout=True, yamr_timeout=5.0, custom_logger=TaskIdLogger(task.id))
             except yt.YtError as error:
                 raise RequestFailed("Precheck of task {} failed".format(task.id), inner_errors=[error]), None, sys.exc_info()[2]
 
         if not dry_run:
-            self._initialize_pool(task)
+            self._initialize_pool(task, clusters_configuration)
             self._yt.set(os.path.join(self._tasks_path, task.id), task.dict())
             if task.lease_timeout is not None:
                 task._last_ping_time = time.time()
@@ -1313,9 +1364,10 @@ class Application(object):
         destination_pattern = params["destination_pattern"]
         source_cluster = params["source_cluster"]
 
-        if source_cluster not in self._clusters:
+        clusters_configuration = self._get_clusters_configuration()
+        if source_cluster not in clusters_configuration.clusters:
             raise yt.YtError("Unknown cluster " + source_cluster)
-        client = deepcopy(self._clusters[source_cluster])
+        client = clusters_configuration.clusters[source_cluster]
 
         matchings = match_copy_pattern(client, source_pattern, destination_pattern)
         return Response(json.dumps(matchings), mimetype='application/json')
