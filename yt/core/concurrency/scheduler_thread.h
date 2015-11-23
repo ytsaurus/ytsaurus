@@ -37,7 +37,8 @@ public:
     virtual void Shutdown() override;
 
     TThreadId GetId() const;
-    bool IsRunning() const;
+    bool IsStarted() const;
+    bool IsShutdown() const;
 
     virtual TFiber* GetCurrentFiber() override;
     virtual void Return() override;
@@ -50,7 +51,7 @@ public:
 
 protected:
     TSchedulerThread(
-        TEventCount* callbackEventCount,
+        std::shared_ptr<TEventCount> callbackEventCount,
         const Stroka& threadName,
         const NProfiling::TTagIdList& tagIds,
         bool enableLogging,
@@ -69,23 +70,29 @@ protected:
     void ThreadMain();
     void ThreadMainStep();
 
-    void FiberMain(unsigned int spawnedEpoch);
-    bool FiberMainStep(unsigned int spawnedEpoch);
+    void FiberMain(ui64 spawnedEpoch);
+    bool FiberMainStep(ui64 spawnedEpoch);
 
     void Reschedule(TFiberPtr fiber, TFuture<void> future, IInvokerPtr invoker);
 
     void OnContextSwitch();
 
-    TEventCount* CallbackEventCount;
+    std::shared_ptr<TEventCount> CallbackEventCount;
     Stroka ThreadName;
     bool EnableLogging;
 
     NProfiling::TProfiler Profiler;
 
-    // If (Epoch & 0x1) == 0x1 then the thread is stopping.
-    std::atomic<ui32> Epoch = {0};
+    // First bit is an indicator whether startup was performed.
+    // Second bit is an indicator whether shutdown was requested.
+    std::atomic<ui64> Epoch = {0};
+    static constexpr ui64 StartedEpochMask = 0x1;
+    static constexpr ui64 ShutdownEpochMask = 0x2;
+    static constexpr ui64 TurnShift = 2;
+    static constexpr ui64 TurnDelta = 1 << TurnShift;
 
     TEvent ThreadStartedEvent;
+    TEvent ThreadShutdownEvent;
 
     TThreadId ThreadId = InvalidThreadId;
     TThread Thread;

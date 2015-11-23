@@ -6,6 +6,7 @@
 #include <core/misc/ref_counted_tracker.h>
 
 #include <core/concurrency/action_queue.h>
+#include <core/concurrency/fair_share_action_queue.h>
 #include <core/concurrency/throughput_throttler.h>
 
 #include <core/bus/server.h>

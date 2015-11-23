@@ -1,9 +1,7 @@
 #pragma once
 
 #include "public.h"
-
-#include <core/actions/callback.h>
-#include <core/actions/invoker.h>
+#include "private.h"
 
 #include <core/misc/shutdownable.h>
 
@@ -18,32 +16,13 @@ namespace NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TEventCount;
-
-class TInvokerQueue;
-typedef TIntrusivePtr<TInvokerQueue> TInvokerQueuePtr;
-
-DEFINE_ENUM(EBeginExecuteResult,
-    (Success)
-    (QueueEmpty)
-    (Terminated)
-);
-
-struct TEnqueuedAction
-{
-    bool Finished = true;
-    NProfiling::TCpuInstant EnqueuedAt = 0;
-    NProfiling::TCpuInstant StartedAt = 0;
-    TClosure Callback;
-};
-
 class TInvokerQueue
     : public IInvoker
     , public IShutdownable
 {
 public:
     TInvokerQueue(
-        TEventCount* callbackEventCount,
+        std::shared_ptr<TEventCount> callbackEventCount,
         const NProfiling::TTagIdList& tagIds,
         bool enableLogging,
         bool enableProfiling);
@@ -71,7 +50,7 @@ public:
     bool IsRunning() const;
 
 private:
-    TEventCount* CallbackEventCount;
+    std::shared_ptr<TEventCount> CallbackEventCount;
     bool EnableLogging;
 
     NConcurrency::TThreadId ThreadId = NConcurrency::InvalidThreadId;
@@ -89,6 +68,8 @@ private:
     NProfiling::TAggregateCounter ExecTimeCounter;
     NProfiling::TAggregateCounter TotalTimeCounter;
 };
+
+DEFINE_REFCOUNTED_TYPE(TInvokerQueue)
 
 ////////////////////////////////////////////////////////////////////////////////
 

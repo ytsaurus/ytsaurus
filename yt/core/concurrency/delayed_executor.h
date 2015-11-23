@@ -43,12 +43,12 @@ public:
     static void StaticShutdown();
 
 private:
-    struct TImpl;
-    std::unique_ptr<TImpl> Impl_;
+    class TImpl;
+    const TIntrusivePtr<TImpl> Impl_;
 
     TDelayedExecutor();
 
-    static TImpl* GetImpl();
+    static TImpl* const GetImpl();
 
     DECLARE_SINGLETON_FRIEND();
 };

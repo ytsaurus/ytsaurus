@@ -33,13 +33,13 @@ void Shutdown()
     NDriver::TDispatcher::StaticShutdown();
     NPipes::TIODispatcher::StaticShutdown();
     NChunkClient::TDispatcher::StaticShutdown();
+    NTracing::TTraceManager::StaticShutdown();
     NRpc::TDispatcher::StaticShutdown();
     NBus::TTcpDispatcher::StaticShutdown();
-    NTracing::TTraceManager::StaticShutdown();
-    TAddressResolver::StaticShutdown();
     NLogging::TLogManager::StaticShutdown();
     NProfiling::TProfileManager::StaticShutdown();
     NConcurrency::TDelayedExecutor::StaticShutdown();
+    TAddressResolver::StaticShutdown();
     ShutdownFinalizerThread();
 }
 

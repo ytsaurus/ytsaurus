@@ -11,6 +11,7 @@ namespace NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// XXX(sandello): Facade does not have to be ref-counted.
 class TActionQueue
     : public TRefCounted
     , public IShutdownable
@@ -25,72 +26,14 @@ public:
 
     virtual void Shutdown() override;
 
-    bool IsRunning() const;
-
     IInvokerPtr GetInvoker();
-
-    static TCallback<TActionQueuePtr()> CreateFactory(
-        const Stroka& threadName,
-        bool enableLogging = true,
-        bool enableProfiling = true);
 
 private:
     class TImpl;
-    TIntrusivePtr<TImpl> Impl;
+    const TIntrusivePtr<TImpl> Impl_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TActionQueue)
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TFairShareActionQueue
-    : public TRefCounted
-    , public IShutdownable
-{
-public:
-    explicit TFairShareActionQueue(
-        const Stroka& threadName,
-        const std::vector<Stroka>& bucketNames);
-
-    virtual ~TFairShareActionQueue();
-
-    virtual void Shutdown() override;
-
-    IInvokerPtr GetInvoker(int index);
-
-private:
-    class TImpl;
-    TIntrusivePtr<TImpl> Impl_;
-};
-
-DEFINE_REFCOUNTED_TYPE(TFairShareActionQueue)
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TThreadPool
-    : public TRefCounted
-    , public IShutdownable
-{
-public:
-    TThreadPool(
-        int threadCount,
-        const Stroka& threadNamePrefix);
-    virtual ~TThreadPool();
-
-    virtual void Shutdown() override;
-
-    IInvokerPtr GetInvoker();
-
-    static TCallback<TThreadPoolPtr()> CreateFactory(
-        int threadCount,
-        const Stroka& threadName);
-
-private:
-    class TImpl;
-    TIntrusivePtr<TImpl> Impl;
-};
-
-DEFINE_REFCOUNTED_TYPE(TThreadPool)
 
 ////////////////////////////////////////////////////////////////////////////////
 

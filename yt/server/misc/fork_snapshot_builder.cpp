@@ -21,7 +21,6 @@ using namespace NConcurrency;
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto WatchdogCheckPeriod = TDuration::MilliSeconds(100);
-static const TLazyIntrusivePtr<TActionQueue> WatchdogQueue(TActionQueue::CreateFactory("SnapshotWD"));
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -85,7 +84,7 @@ void TForkSnapshotBuilderBase::DoRunParent()
     StartTime_ = TInstant::Now();
 
     WatchdogExecutor_ = New<TPeriodicExecutor>(
-        WatchdogQueue->GetInvoker(),
+        GetWatchdogInvoker(),
         BIND(&TForkSnapshotBuilderBase::OnWatchdogCheck, MakeStrong(this)),
         WatchdogCheckPeriod);
     WatchdogExecutor_->Start();
@@ -99,7 +98,7 @@ void TForkSnapshotBuilderBase::Cleanup()
 
 IInvokerPtr TForkSnapshotBuilderBase::GetWatchdogInvoker()
 {
-    return WatchdogQueue->GetInvoker();
+    return WatchdogQueue_->GetInvoker();
 }
 
 void TForkSnapshotBuilderBase::OnWatchdogCheck()
@@ -148,7 +147,8 @@ void TForkSnapshotBuilderBase::DoCleanup()
 void TForkSnapshotBuilderBase::OnCanceled()
 {
     LOG_INFO("Snapshot builder canceled");
-    WatchdogQueue->GetInvoker()->Invoke(BIND(&TForkSnapshotBuilderBase::DoCancel, MakeStrong(this)));
+    GetWatchdogInvoker()->Invoke(
+        BIND(&TForkSnapshotBuilderBase::DoCancel, MakeStrong(this)));
 }
 
 void TForkSnapshotBuilderBase::DoCancel()

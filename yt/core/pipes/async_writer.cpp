@@ -40,11 +40,11 @@ public:
     {
         BIND([=, this_ = MakeStrong(this)] () {
             FDWatcher_.set(FD_, ev::WRITE);
-            FDWatcher_.set(TIODispatcher::Get()->Impl_->GetEventLoop());
+            FDWatcher_.set(TIODispatcher::Get()->GetEventLoop());
             FDWatcher_.set<TAsyncWriterImpl, &TAsyncWriterImpl::OnWrite>(this);
             FDWatcher_.start();
         })
-        .Via(TIODispatcher::Get()->Impl_->GetInvoker())
+        .Via(TIODispatcher::Get()->GetInvoker())
         .Run();
     }
 
@@ -98,7 +98,7 @@ public:
                     YUNREACHABLE();
             };
         })
-        .Via(TIODispatcher::Get()->Impl_->GetInvoker())
+        .Via(TIODispatcher::Get()->GetInvoker())
         .Run();
 
         return promise.ToFuture();
@@ -118,7 +118,7 @@ public:
             SafeClose(FD_, false);
             FD_ = TPipe::InvalidFD;
         })
-        .AsyncVia(TIODispatcher::Get()->Impl_->GetInvoker())
+        .AsyncVia(TIODispatcher::Get()->GetInvoker())
         .Run();
     }
 
@@ -138,7 +138,7 @@ public:
             YCHECK(TryClose(FD_, false));
             FD_ = TPipe::InvalidFD;
         })
-        .AsyncVia(TIODispatcher::Get()->Impl_->GetInvoker())
+        .AsyncVia(TIODispatcher::Get()->GetInvoker())
         .Run();
     }
 

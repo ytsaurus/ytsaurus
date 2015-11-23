@@ -121,12 +121,9 @@ void TTcpDispatcherThread::DoUnregister(IEventLoopObjectPtr object)
 TTcpDispatcher::TImpl::TImpl()
 {
     ServerThread_ = New<TTcpDispatcherThread>("BusServer");
-    ServerThread_->Start();
 
     for (int index = 0; index < ThreadCount; ++index) {
-        auto thread = New<TTcpDispatcherThread>(Format("BusClient:%v", index));
-        thread->Start();
-        ClientThreads_.push_back(thread);
+        ClientThreads_.emplace_back(New<TTcpDispatcherThread>(Format("BusClient:%v", index)));
     }
 
     for (auto type : TEnumTraits<ETcpInterfaceType>::GetDomainValues()) {
@@ -141,6 +138,8 @@ TTcpDispatcher::TImpl* TTcpDispatcher::TImpl::Get()
 
 void TTcpDispatcher::TImpl::Shutdown()
 {
+    ServerThread_->Shutdown();
+
     for (auto& thread : ClientThreads_) {
         thread->Shutdown();
     }
@@ -163,13 +162,20 @@ TTcpProfilingData* TTcpDispatcher::TImpl::GetProfilingData(ETcpInterfaceType int
 
 TTcpDispatcherThreadPtr TTcpDispatcher::TImpl::GetServerThread()
 {
+    if (Y_UNLIKELY(!ServerThread_->IsStarted())) {
+        ServerThread_->Start();
+    }
     return ServerThread_;
 }
 
 TTcpDispatcherThreadPtr TTcpDispatcher::TImpl::GetClientThread()
 {
-    size_t index = CurrentClientThreadIndex_++ % ThreadCount;
-    return ClientThreads_[index];
+    auto index = CurrentClientThreadIndex_++ % ThreadCount;
+    auto& thread = ClientThreads_[index];
+    if (Y_UNLIKELY(!thread->IsStarted())) {
+        thread->Start();
+    }
+    return thread;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

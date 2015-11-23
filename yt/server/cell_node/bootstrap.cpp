@@ -7,6 +7,7 @@
 #include <core/misc/collection_helpers.h>
 
 #include <core/concurrency/action_queue.h>
+#include <core/concurrency/thread_pool.h>
 
 #include <core/bus/server.h>
 #include <core/bus/tcp_server.h>

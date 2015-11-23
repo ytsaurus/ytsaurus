@@ -1,42 +1,44 @@
 #pragma once
 
 #include "scheduler_thread.h"
-#include "invoker_queue.h"
+#include "fair_share_invoker_queue.h"
 
 namespace NYT {
 namespace NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSingleQueueSchedulerThread;
-typedef TIntrusivePtr<TSingleQueueSchedulerThread> TSingleQueueSchedulerThreadPtr;
+class TFairShareQueueSchedulerThread;
+typedef TIntrusivePtr<TFairShareQueueSchedulerThread> TFairShareQueueSchedulerThreadPtr;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSingleQueueSchedulerThread
+class TFairShareQueueSchedulerThread
     : public TSchedulerThread
 {
 public:
-    TSingleQueueSchedulerThread(
-        TInvokerQueuePtr queue,
+    TFairShareQueueSchedulerThread(
+        TFairShareInvokerQueuePtr queue,
         std::shared_ptr<TEventCount> callbackEventCount,
         const Stroka& threadName,
         const NProfiling::TTagIdList& tagIds,
         bool enableLogging,
         bool enableProfiling);
 
-    ~TSingleQueueSchedulerThread();
+    ~TFairShareQueueSchedulerThread();
 
-    IInvokerPtr GetInvoker();
+    IInvokerPtr GetInvoker(int index);
 
 protected:
-    TInvokerQueuePtr Queue;
+    const TFairShareInvokerQueuePtr Queue_;
 
-    TEnqueuedAction CurrentAction;
+    TEnqueuedAction CurrentAction_;
 
     virtual EBeginExecuteResult BeginExecute() override;
     virtual void EndExecute() override;
 };
+
+DEFINE_REFCOUNTED_TYPE(TFairShareQueueSchedulerThread)
 
 ////////////////////////////////////////////////////////////////////////////////
 

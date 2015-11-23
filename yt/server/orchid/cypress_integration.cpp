@@ -53,7 +53,6 @@ using namespace NConcurrency;
 static const auto& Logger = OrchidLogger;
 
 static IChannelFactoryPtr ChannelFactory(CreateCachingChannelFactory(GetBusChannelFactory()));
-static TLazyIntrusivePtr<TActionQueue> OrchidQueue(TActionQueue::CreateFactory("Orchid"));
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -111,14 +110,11 @@ public:
         outerRequest->Invoke().Subscribe(
             BIND(
                 &TOrchidYPathService::OnResponse,
-                MakeStrong(this),
                 context,
                 manifest,
                 path,
-                method)
-            .Via(OrchidQueue->GetInvoker()));
+                method));
     }
-
 
     virtual void WriteAttributesFragment(
         IAsyncYsonConsumer* /*consumer*/,
@@ -147,7 +143,7 @@ private:
         return manifest;
     }
 
-    void OnResponse(
+    static void OnResponse(
         IServiceContextPtr context,
         TOrchidManifestPtr manifest,
         const TYPath& path,

@@ -18,6 +18,10 @@ set( SRCS
   ${CMAKE_CURRENT_LIST_DIR}/scheduler_thread.cpp
   ${CMAKE_CURRENT_LIST_DIR}/single_queue_scheduler_thread.cpp
   ${CMAKE_CURRENT_LIST_DIR}/throughput_throttler.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/fair_share_invoker_queue.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/fair_share_queue_scheduler_thread.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/fair_share_action_queue.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/thread_pool.cpp
 )
 set( HDRS
   ${CMAKE_CURRENT_LIST_DIR}/action_queue.h

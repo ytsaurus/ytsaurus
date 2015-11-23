@@ -11,6 +11,7 @@ namespace NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// XXX(sandello): Make this an interface with singleton implementation?
 class TDispatcher
     : public IShutdownable
 {

@@ -36,7 +36,6 @@ struct TDelayedExecutorEntry
         }
     };
 
-
     TDelayedExecutorEntry(TClosure callback, TInstant deadline)
         : Deadline(deadline)
         , Callback(std::move(callback))
@@ -53,20 +52,16 @@ DEFINE_REFCOUNTED_TYPE(TDelayedExecutorEntry)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDelayedExecutorThread
+class TDelayedExecutor::TImpl
     : public TEVSchedulerThread
 {
 public:
-    TDelayedExecutorThread()
-        : TEVSchedulerThread(
-            "DelayedExecutor",
-            false)
+    TImpl()
+        : TEVSchedulerThread("DelayedExecutor", false)
         , PeriodicWatcher_(EventLoop)
     {
-        PeriodicWatcher_.set<TDelayedExecutorThread, &TDelayedExecutorThread::OnTimer>(this);
+        PeriodicWatcher_.set<TImpl, &TImpl::OnTimer>(this);
         PeriodicWatcher_.start(0, TimeQuantum.SecondsFloat());
-
-        Start();
     }
 
     TFuture<void> MakeDelayed(TDuration delay)
@@ -92,10 +87,13 @@ public:
     TDelayedExecutorCookie Submit(TClosure callback, TInstant deadline)
     {
         auto entry = New<TDelayedExecutorEntry>(std::move(callback), deadline);
-        if (IsRunning()) {
+        if (!IsShutdown()) {
+            if (!IsStarted()) {
+                Start();
+            }
             SubmitQueue_.Enqueue(std::move(entry));
         }
-        if (!IsRunning()) {
+        if (IsShutdown()) {
             PurgeQueues();
         }
         return entry;
@@ -103,10 +101,13 @@ public:
 
     void Cancel(TDelayedExecutorCookie entry)
     {
-        if (entry && IsRunning()) {
+        if (entry && !IsShutdown()) {
+            if (!IsStarted()) {
+                Start();
+            }
             CancelQueue_.Enqueue(std::move(entry));
         }
-        if (!IsRunning()) {
+        if (IsShutdown()) {
             PurgeQueues();
         }
     }
@@ -171,86 +172,52 @@ private:
         SubmitQueue_.DequeueAll();
         CancelQueue_.DequeueAll();
     }
-
-};
-
-struct TDelayedExecutor::TImpl
-{
-    TIntrusivePtr<TDelayedExecutorThread> Thread = New<TDelayedExecutorThread>();
 };
 
 ///////////////////////////////////////////////////////////////////////////////
 
 TDelayedExecutor::TDelayedExecutor()
-    : Impl_(std::make_unique<TDelayedExecutor::TImpl>())
+    : Impl_(New<TImpl>())
 { }
 
-TDelayedExecutor::~TDelayedExecutor()
-{ }
+TDelayedExecutor::~TDelayedExecutor() = default;
 
 ///////////////////////////////////////////////////////////////////////////////
 
-TDelayedExecutor::TImpl* TDelayedExecutor::GetImpl()
+TDelayedExecutor::TImpl* const TDelayedExecutor::GetImpl()
 {
-    return TSingletonWithFlag<TDelayedExecutor>::Get()->Impl_.get();
+    return RefCountedSingleton<TDelayedExecutor::TImpl>().Get();
 }
 
 TFuture<void> TDelayedExecutor::MakeDelayed(TDuration delay)
 {
-    auto impl = GetImpl();
-    if (impl) {
-        return impl->Thread->MakeDelayed(delay);
-    } else {
-        return MakeFuture(TError("System was shut down"));
-    }
+    return GetImpl()->MakeDelayed(delay);
 }
 
 TDelayedExecutorCookie TDelayedExecutor::Submit(TClosure callback, TDuration delay)
 {
-    auto impl = GetImpl();
-    if (impl) {
-        return impl->Thread->Submit(std::move(callback), delay);
-    } else {
-        return NullDelayedExecutorCookie;
-    }
+    return GetImpl()->Submit(std::move(callback), delay);
 }
 
 TDelayedExecutorCookie TDelayedExecutor::Submit(TClosure callback, TInstant deadline)
 {
-    auto impl = GetImpl();
-    if (impl) {
-        return impl->Thread->Submit(std::move(callback), deadline);
-    } else {
-        return NullDelayedExecutorCookie;
-    }
+    return GetImpl()->Submit(std::move(callback), deadline);
 }
 
 void TDelayedExecutor::Cancel(TDelayedExecutorCookie entry)
 {
-    auto impl = GetImpl();
-    if (impl) {
-        impl->Thread->Cancel(std::move(entry));
-    }
+    GetImpl()->Cancel(std::move(entry));
 }
 
 void TDelayedExecutor::CancelAndClear(TDelayedExecutorCookie& entry)
 {
-    auto impl = GetImpl();
-    if (impl) {
-        impl->Thread->Cancel(entry);
-    }
+    GetImpl()->Cancel(entry);
     entry.Reset();
 }
 
 void TDelayedExecutor::StaticShutdown()
 {
-    if (TSingletonWithFlag<TDelayedExecutor>::WasCreated()) {
-        auto& impl = TSingletonWithFlag<TDelayedExecutor>::Get()->Impl_;
-        if (impl) {
-            impl->Thread->Shutdown();
-            impl.reset();
-        }
-    }
+    GetImpl()->Shutdown();
 }
 
 ///////////////////////////////////////////////////////////////////////////////
