@@ -70,8 +70,8 @@ class TransferManager(object):
         return task_id
 
     def add_tasks(self, source_cluster, source_pattern, destination_cluster, destination_pattern, **kwargs):
-        src_dst_pairs = self._get_src_dst_pairs(source_cluster, source_pattern,
-                                                destination_cluster, destination_pattern)
+        src_dst_pairs = self.match_src_dst_pattern(source_cluster, source_pattern,
+                                                   destination_cluster, destination_pattern)
 
         sync = kwargs.pop("sync", False)
         poll_period = kwargs.pop("poll_period", 5)
@@ -102,7 +102,7 @@ class TransferManager(object):
     def get_backend_config(self):
         return self._make_get_request("{0}/config/".format(self.backend_url)).json()
 
-    def _get_src_dst_pairs(self, source_cluster, source_table, destination_cluster, destination_table):
+    def match_src_dst_pattern(self, source_cluster, source_table, destination_cluster, destination_table):
         data = {
             "source_cluster": source_cluster,
             "source_pattern": source_table,
