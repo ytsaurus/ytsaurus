@@ -49,7 +49,7 @@ public:
 
     ~TAsyncWriterImpl()
     {
-        YCHECK(State_ != EWriterState::Active);
+        YCHECK(State_ != EWriterState::Active || AbortRequested_);
     }
 
     int GetHandle() const
@@ -124,6 +124,7 @@ public:
     TFuture<void> Abort()
     {
         VERIFY_THREAD_AFFINITY_ANY();
+        AbortRequested_ = true;
 
         return BIND([=, this_ = MakeStrong(this)] () {
             if (State_ != EWriterState::Active)
@@ -149,6 +150,7 @@ private:
 
     TPromise<void> WriteResultPromise_ = MakePromise(TError());
 
+    std::atomic<bool> AbortRequested_ = { false };
     EWriterState State_ = EWriterState::Active;
 
     TSharedRef Buffer_;
