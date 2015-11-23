@@ -854,7 +854,10 @@ private:
         while ((!UpperBoundCheckNeeded_ || BlockReader_->GetKey() < UpperBound_.Get()) &&
                rows->size() < rows->capacity())
         {
-            rows->push_back(CaptureRow(BlockReader_.get()));
+            auto row = CaptureRow(BlockReader_.get());
+            if (row) {
+                rows->push_back(row);
+            }
 
             if (!BlockReader_->NextRow()) {
                 // End-of-block.
