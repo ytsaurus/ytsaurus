@@ -1,17 +1,23 @@
 #!/bin/bash -eu
 
-PORT=6000
-
-set +u
-if [ -z "$YT_TOKEN" ]; then
-    export YT_TOKEN=$(cat ~/.yt/token)
-fi
-set -u
+TM_PORT=6000
 
 die() {
     echo $@
     exit 1
 }
+
+set +u
+if [ -z "$YT_TOKEN" ]; then
+    export YT_TOKEN=$(cat ~/.yt/token)
+fi
+
+if [ -z "$1" ]; then
+    die "Path to TM config is not specified"
+fi
+set -u
+
+TM_CONFIG=$1
 
 log() {
     echo "$@" >&2
@@ -26,7 +32,7 @@ check() {
 request() {
     local method="$1" && shift
     local path="$1" && shift
-    curl -X "$method" -sS -k -L -f "http://localhost:${PORT}/${path}" \
+    curl -X "$method" -sS -k -L "http://localhost:${TM_PORT}/${path}" \
          -H "Content-Type: application/json" \
          -H "Authorization: OAuth $YT_TOKEN" \
          "$@"
@@ -34,7 +40,7 @@ request() {
 
 get_task() {
     local id="$1"
-    request "GET" "tasks/$id/"
+    request "GET" "tasks/$id/" -f
 }
 
 get_task_state() {
@@ -47,19 +53,19 @@ get_task_state() {
 run_task() {
     local body="$1"
     log "Running task $body"
-    request "POST" "tasks/" -d "$1"
+    request "POST" "tasks/" -d "$1" -f
 }
 
 abort_task() {
     local id="$1"
     log "Aborting task $id"
-    request "POST" "tasks/$id/abort/"
+    request "POST" "tasks/$id/abort/" -f
 }
 
 restart_task() {
     local id="$1"
     log "Restarting task $id"
-    request "POST" "tasks/$id/restart/"
+    request "POST" "tasks/$id/restart/" -f
 }
 
 wait_task() {
@@ -87,7 +93,7 @@ test_copy_empty_table() {
 
     check "true" "$(yt2 exists //tmp/empty_table --proxy smith)"
     check "10" "$(yt2 get //tmp/empty_table/@test_attr --proxy smith)"
-    
+
     id=$(run_task '{"source_table": "//tmp/empty_table", "source_cluster": "plato", "destination_table": "tmp/empty_table", "destination_cluster": "sakura"}')
     wait_task $id
 }
@@ -243,8 +249,8 @@ strip_quotes() {
 }
 
 test_passing_custom_spec() {
-    echo "Test passing spec to Trasnfer Manager tasks"
-    
+    echo "Test passing spec to Transfer Manager tasks"
+
     yt2 remove //tmp/test_table --force --proxy quine
     yt2 set //tmp/test_table/@erasure_codec lrc_12_2_2 --proxy plato
 
@@ -256,6 +262,27 @@ test_passing_custom_spec() {
     op2=$(strip_quotes $(echo $task_descr | jq '.progress.operations' | jq '.[1].id'))
     check "$(yt2 get //sys/operations/$op1/@spec/type --proxy quine)" '"copy"'
     check "$(yt2 get //sys/operations/$op2/@spec/type --proxy quine)" '"postprocess"'
+}
+
+test_clusters_configuration_reloading() {
+    echo "Test clusters configuration reloading"
+    # Making config backup
+    temp_filename=$(mktemp)
+    cp $TM_CONFIG $temp_filename
+    echo "Made config backup: $temp_filename"
+
+    local config=$(cat $TM_CONFIG)
+    local config_reload_timeout=$(echo $config | jq ".clusters_config_reload_timeout")
+    local sleeping_time=$(($config_reload_timeout + 3))
+    echo $config | jq ".availability_graph.redwood = []" > $TM_CONFIG
+    echo "Sleeping for $sleeping_time seconds to ensure that config is reloaded" && sleep $sleeping_time
+
+    local task_descr='{"source_table": "tmp/yt/test_table", "source_cluster": "redwood", "destination_table": "//tmp/test_table", "destination_cluster": "plato", "mr_user": "userdata", "pool": "ignat"}'
+    local content=$(request "POST" "tasks/" -d "$task_descr")
+    check_result=$(echo $content | jq ".inner_errors[0].message" | grep "not available")
+    check "$?" "0"
+
+    cp $temp_filename $TM_CONFIG
 }
 
 # Different transfers
@@ -276,3 +303,4 @@ test_copy_table_attributes
 test_copy_to_yamr_table_with_spaces_in_name
 test_recursive_path_creation
 test_passing_custom_spec
+test_clusters_configuration_reloading

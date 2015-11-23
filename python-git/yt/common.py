@@ -166,3 +166,10 @@ def set_pdeathsig():
         libc = ctypes.CDLL("libc.so.6")
         PR_SET_PDEATHSIG = 1
         libc.prctl(PR_SET_PDEATHSIG, signal.SIGTERM)
+
+def remove_file(path, force=False):
+    try:
+        os.remove(path)
+    except OSError:
+        if not force:
+            raise
