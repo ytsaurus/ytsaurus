@@ -19,7 +19,7 @@ class TFairShareQueueSchedulerThread
 public:
     TFairShareQueueSchedulerThread(
         TFairShareInvokerQueuePtr queue,
-        TEventCount* callbackEventCount,
+        std::shared_ptr<TEventCount> callbackEventCount,
         const Stroka& threadName,
         const NProfiling::TTagIdList& tagIds,
         bool enableLogging,

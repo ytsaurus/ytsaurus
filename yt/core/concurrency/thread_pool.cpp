@@ -32,7 +32,7 @@ public:
         , EnableLogging_(enableLogging)
         , EnableProfiling_(enableProfiling)
         , Queue_(New<TInvokerQueue>(
-            &CallbackEventCount_,
+            CallbackEventCount_,
             GetThreadTagIds(enableProfiling, threadNamePrefix),
             enableLogging,
             enableProfiling))
@@ -70,8 +70,13 @@ public:
 
     void Start()
     {
-        TGuard<TSpinLock> guard(SpinLock_);
-        for (auto& thread : Threads_) {
+        decltype(Threads_) threads;
+        {
+            TGuard<TSpinLock> guard(SpinLock_);
+            threads = Threads_;
+        }
+
+        for (auto& thread : threads) {
             thread->Start();
         }
     }
@@ -80,10 +85,17 @@ public:
     {
         Queue_->Shutdown();
 
-        TGuard<TSpinLock> guard(SpinLock_);
-        for (auto& thread : Threads_) {
-            thread->Shutdown();
+        decltype(Threads_) threads;
+        {
+            TGuard<TSpinLock> guard(SpinLock_);
+            std::swap(threads, Threads_);
         }
+
+        GetFinalizerInvoker()->Invoke(BIND([threads = std::move(threads)] () {
+            for (auto& thread : threads) {
+                thread->Shutdown();
+            }
+        }));
     }
 
     IInvokerPtr GetInvoker()
@@ -104,7 +116,7 @@ private:
     std::atomic<bool> Started_ = {false};
     TSpinLock SpinLock_;
 
-    TEventCount CallbackEventCount_;
+    std::shared_ptr<TEventCount> CallbackEventCount_ = std::make_shared<TEventCount>();
     const TInvokerQueuePtr Queue_;
     std::vector<TSchedulerThreadPtr> Threads_;
 
@@ -112,7 +124,7 @@ private:
     {
         return New<TSingleQueueSchedulerThread>(
             Queue_,
-            &CallbackEventCount_,
+            CallbackEventCount_,
             Format("%v:%v", ThreadNamePrefix_, index),
             GetThreadTagIds(EnableProfiling_, ThreadNamePrefix_),
             EnableLogging_,
@@ -125,7 +137,11 @@ TThreadPool::TThreadPool(
     const Stroka& threadNamePrefix,
     bool enableLogging,
     bool enableProfiling)
-    : Impl_(New<TImpl>(threadCount, threadNamePrefix, enableLogging, enableProfiling))
+    : Impl_(New<TImpl>(
+        threadCount,
+        threadNamePrefix,
+        enableLogging,
+        enableProfiling))
 { }
 
 TThreadPool::~TThreadPool() = default;

@@ -49,12 +49,12 @@ void CheckForCanceledFiber(TFiber* fiber)
 ///////////////////////////////////////////////////////////////////////////////
 
 TSchedulerThread::TSchedulerThread(
-    TEventCount* callbackEventCount,
+    std::shared_ptr<TEventCount> callbackEventCount,
     const Stroka& threadName,
     const NProfiling::TTagIdList& tagIds,
     bool enableLogging,
     bool enableProfiling)
-    : CallbackEventCount(callbackEventCount)
+    : CallbackEventCount(std::move(callbackEventCount))
     , ThreadName(threadName)
     , EnableLogging(enableLogging)
     , Profiler("/action_queue", tagIds)

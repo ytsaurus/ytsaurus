@@ -28,13 +28,13 @@ public:
         bool enableLogging,
         bool enableProfiling)
         : Queue_(New<TFairShareInvokerQueue>(
-            &CallbackEventCount_,
+            CallbackEventCount_,
             GetBucketsTagIds(enableProfiling, threadName, bucketNames),
             enableLogging,
             enableProfiling))
         , Thread_(New<TFairShareQueueSchedulerThread>(
             Queue_,
-            &CallbackEventCount_,
+            CallbackEventCount_,
             threadName,
             GetThreadTagIds(enableProfiling, threadName),
             enableLogging,
@@ -56,7 +56,10 @@ public:
     void Shutdown()
     {
         Queue_->Shutdown();
-        Thread_->Shutdown();
+
+        GetFinalizerInvoker()->Invoke(BIND([thread = Thread_] {
+            thread->Shutdown();
+        }));
     }
 
     bool IsStarted() const
@@ -73,7 +76,7 @@ public:
     }
 
 private:
-    TEventCount CallbackEventCount_;
+    std::shared_ptr<TEventCount> CallbackEventCount_ = std::make_shared<TEventCount>();
     const TFairShareInvokerQueuePtr Queue_;
     const TFairShareQueueSchedulerThreadPtr Thread_;
 };
@@ -83,7 +86,11 @@ TFairShareActionQueue::TFairShareActionQueue(
     const std::vector<Stroka>& bucketNames,
     bool enableLogging,
     bool enableProfiling)
-    : Impl_(New<TImpl>(threadName, bucketNames, enableLogging, enableProfiling))
+    : Impl_(New<TImpl>(
+        threadName,
+        bucketNames,
+        enableLogging,
+        enableProfiling))
 { }
 
 TFairShareActionQueue::~TFairShareActionQueue() = default;

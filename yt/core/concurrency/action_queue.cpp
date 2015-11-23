@@ -29,13 +29,13 @@ public:
         bool enableLogging,
         bool enableProfiling)
         : Queue_(New<TInvokerQueue>(
-            &CallbackEventCount_,
+            CallbackEventCount_,
             GetThreadTagIds(enableProfiling, threadName),
             enableLogging,
             enableProfiling))
         , Thread_(New<TSingleQueueSchedulerThread>(
             Queue_,
-            &CallbackEventCount_,
+            CallbackEventCount_,
             threadName,
             GetThreadTagIds(enableProfiling, threadName),
             enableLogging,
@@ -57,7 +57,10 @@ public:
     void Shutdown()
     {
         Queue_->Shutdown();
-        Thread_->Shutdown();
+
+        GetFinalizerInvoker()->Invoke(BIND([thread = Thread_] {
+            thread->Shutdown();
+        }));
     }
 
     bool IsStarted() const
@@ -74,7 +77,8 @@ public:
     }
 
 private:
-    TEventCount CallbackEventCount_;
+
+    std::shared_ptr<TEventCount> CallbackEventCount_ = std::make_shared<TEventCount>();
     const TInvokerQueuePtr Queue_;
     const TSingleQueueSchedulerThreadPtr Thread_;
 };

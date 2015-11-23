@@ -224,7 +224,7 @@ class TLogManager::TImpl
 public:
     TImpl()
         : EventQueue_(New<TInvokerQueue>(
-            &EventCount_,
+            EventCount_,
             NProfiling::EmptyTagIds,
             false,
             false))
@@ -245,7 +245,7 @@ public:
         if (!LoggingThread_->IsShutdown()) {
             auto config = TLogConfig::CreateFromNode(node, path);
             LoggerQueue_.Enqueue(std::move(config));
-            EventCount_.NotifyOne();
+            EventCount_->NotifyOne();
         }
     }
 
@@ -265,7 +265,7 @@ public:
     {
         if (!LoggingThread_->IsShutdown()) {
             LoggerQueue_.Enqueue(std::move(config));
-            EventCount_.NotifyOne();
+            EventCount_->NotifyOne();
         }
     }
 
@@ -323,7 +323,7 @@ public:
                 while (enqueuedEvents > DequeuedLogEvents_.load() ||
                     TInstant::Now() - now < Config_->ShutdownGraceTimeout)
                 {
-                    EventCount_.NotifyOne();
+                    EventCount_->NotifyOne();
                     SchedYield();
                 }
             }
@@ -356,7 +356,7 @@ public:
         int backlogSize = Profiler.Increment(BacklogEventCounter_);
         Profiler.Increment(EnqueuedEventCounter_);
         PushLogEvent(std::move(event));
-        EventCount_.NotifyOne();
+        EventCount_->NotifyOne();
 
         if (!Suspended_ && backlogSize == Config_->HighBacklogWatermark) {
             LOG_WARNING("Backlog size has exceeded high watermark %v, logging suspended",
@@ -379,7 +379,7 @@ private:
     public:
         explicit TThread(TImpl* owner)
             : TSchedulerThread(
-                &owner->EventCount_,
+                owner->EventCount_,
                 "Logging",
                 NProfiling::EmptyTagIds,
                 false,
@@ -436,7 +436,7 @@ private:
 
         while (LoggerQueue_.DequeueAll(true, [&] (TLoggerQueueItem& eventOrConfig) {
                 if (empty) {
-                    EventCount_.CancelWait();
+                    EventCount_->CancelWait();
                     empty = false;
                 }
 
@@ -692,7 +692,7 @@ private:
         LoggerQueue_.Enqueue(std::move(event));
     }
 
-    TEventCount EventCount_;
+    std::shared_ptr<TEventCount> EventCount_ = std::make_shared<TEventCount>();
     TInvokerQueuePtr EventQueue_;
 
     TIntrusivePtr<TThread> LoggingThread_;

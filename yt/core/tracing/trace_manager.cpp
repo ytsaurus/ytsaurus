@@ -33,7 +33,7 @@ class TTraceManager::TImpl
 public:
     TImpl()
         : InvokerQueue_(New<TInvokerQueue>(
-            &EventCount_,
+            EventCount_,
             NProfiling::EmptyTagIds,
             true,
             false))
@@ -125,7 +125,7 @@ private:
     public:
         explicit TThread(TImpl* owner)
             : TSchedulerThread(
-                &owner->EventCount_,
+                owner->EventCount_,
                 "Tracing",
                 NProfiling::EmptyTagIds,
                 true,
@@ -147,7 +147,7 @@ private:
         }
     };
 
-    TEventCount EventCount_;
+    std::shared_ptr<TEventCount> EventCount_ = std::make_shared<TEventCount>();
     TInvokerQueuePtr InvokerQueue_;
     TIntrusivePtr<TThread> Thread_;
     TEnqueuedAction CurrentAction_;
@@ -181,7 +181,7 @@ private:
         { }
 
         if (eventsProcessed > 0) {
-            EventCount_.CancelWait();
+            EventCount_->CancelWait();
             return EBeginExecuteResult::Success;
         } else {
             return EBeginExecuteResult::QueueEmpty;
@@ -247,7 +247,7 @@ private:
         }
 
         EventQueue_.Enqueue(event);
-        EventCount_.NotifyOne();
+        EventCount_->NotifyOne();
     }
 
     NProto::TEndpoint GetLocalEndpoint()

@@ -19,7 +19,7 @@ class TSingleQueueSchedulerThread
 public:
     TSingleQueueSchedulerThread(
         TInvokerQueuePtr queue,
-        TEventCount* callbackEventCount,
+        std::shared_ptr<TEventCount> callbackEventCount,
         const Stroka& threadName,
         const NProfiling::TTagIdList& tagIds,
         bool enableLogging,

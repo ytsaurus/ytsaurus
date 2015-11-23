@@ -22,7 +22,7 @@ class TInvokerQueue
 {
 public:
     TInvokerQueue(
-        TEventCount* callbackEventCount,
+        std::shared_ptr<TEventCount> callbackEventCount,
         const NProfiling::TTagIdList& tagIds,
         bool enableLogging,
         bool enableProfiling);
@@ -50,7 +50,7 @@ public:
     bool IsRunning() const;
 
 private:
-    TEventCount* CallbackEventCount;
+    std::shared_ptr<TEventCount> CallbackEventCount;
     bool EnableLogging;
 
     NConcurrency::TThreadId ThreadId = NConcurrency::InvalidThreadId;

@@ -45,7 +45,7 @@ public:
         : WasStarted(false)
         , WasShutdown(false)
         , Queue(New<TInvokerQueue>(
-            &EventCount,
+            EventCount,
             EmptyTagIds,
             true,
             false))
@@ -90,7 +90,7 @@ public:
         }
 
         SampleQueue.Enqueue(sample);
-        EventCount.NotifyOne();
+        EventCount->NotifyOne();
     }
 
 
@@ -265,7 +265,7 @@ private:
     public:
         explicit TThread(TImpl* owner)
             : TSchedulerThread(
-                &owner->EventCount,
+                owner->EventCount,
                 "Profiling",
                 EmptyTagIds,
                 true,
@@ -285,11 +285,9 @@ private:
         {
             Owner->EndExecute();
         }
-
     };
 
-
-    TEventCount EventCount;
+    std::shared_ptr<TEventCount> EventCount = std::make_shared<TEventCount>();
     volatile bool WasStarted;
     volatile bool WasShutdown;
     TInvokerQueuePtr Queue;
@@ -326,7 +324,7 @@ private:
         int samplesProcessed = 0;
         while (SampleQueue.DequeueAll(true, [&](TQueuedSample& sample) {
                 if (samplesProcessed == 0) {
-                    EventCount.CancelWait();
+                    EventCount->CancelWait();
                 }
 
                 ProcessSample(sample);
