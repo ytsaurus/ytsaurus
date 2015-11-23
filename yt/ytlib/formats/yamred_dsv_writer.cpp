@@ -90,7 +90,9 @@ void TSchemalessWriterForYamredDsv::DoWrite(const std::vector<NTableClient::TUnv
                 RowValues_[id].Reset();
         }
         WriteYamrValue();
+        TryFlushBuffer(false);
     }
+    TryFlushBuffer(true);
 }
 
 void TSchemalessWriterForYamredDsv::WriteYamrKey(const std::vector<int>& columnIds) 
