@@ -18,7 +18,7 @@ class TFairShareInvokerQueue
 {
 public:
     TFairShareInvokerQueue(
-        TEventCount* callbackEventCount,
+        std::shared_ptr<TEventCount> callbackEventCount,
         const std::vector<NProfiling::TTagIdList> bucketsTagIds,
         bool enableLogging,
         bool enableProfiling);

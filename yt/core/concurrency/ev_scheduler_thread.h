@@ -35,10 +35,7 @@ protected:
 
     private:
         TEVSchedulerThread* Owner;
-
     };
-
-    TEventCount CallbackEventCount; // fake
 
     ev::dynamic_loop EventLoop;
     ev::async CallbackWatcher;

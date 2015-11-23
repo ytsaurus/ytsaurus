@@ -74,6 +74,8 @@ IInvokerPtr GetNullInvoker()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static std::atomic<bool> FinalizerThreadIsDead = {false};
+
 static TActionQueuePtr GetFinalizerThread()
 {
     static auto queue = New<TActionQueue>("Finalizer", false, false);
@@ -82,12 +84,26 @@ static TActionQueuePtr GetFinalizerThread()
 
 IInvokerPtr GetFinalizerInvoker()
 {
-    return GetFinalizerThread()->GetInvoker();
+    if (!FinalizerThreadIsDead.load(std::memory_order_relaxed)) {
+        return GetFinalizerThread()->GetInvoker();
+    } else {
+        return GetSyncInvoker();
+    }
 }
 
 void ShutdownFinalizerThread()
 {
-    GetFinalizerThread()->Shutdown();
+    bool expected = false;
+    if (FinalizerThreadIsDead.compare_exchange_strong(expected, true)) {
+        auto thread = GetFinalizerThread();
+        auto invoker = thread->GetInvoker();
+        // Spin for a while to flush pending actions.
+        for (int i = 0; i < 100; ++i) {
+            BIND([] () { }).AsyncVia(invoker).Run().Get();
+        }
+        // Now shutdown finalizer thread.
+        thread->Shutdown();
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

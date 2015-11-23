@@ -34,7 +34,7 @@ TEVSchedulerThread::TEVSchedulerThread(
     const Stroka& threadName,
     bool enableLogging)
     : TSchedulerThread(
-        &CallbackEventCount,
+        std::make_shared<TEventCount>(),
         threadName,
         NProfiling::EmptyTagIds,
         enableLogging,
