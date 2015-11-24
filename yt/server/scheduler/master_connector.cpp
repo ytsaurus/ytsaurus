@@ -1740,7 +1740,10 @@ private:
             Bootstrap->GetMasterClient());
 
         // NB: Result is logged in the builder.
-        WaitFor(builder->Run());
+        auto error = WaitFor(builder->Run());
+        if (!error.IsOK()) {
+            LOG_ERROR(error, "Error building snapshots");
+        }
     }
 
 
