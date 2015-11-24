@@ -412,6 +412,7 @@ class Application(object):
             return deepcopy(self._clusters_configuration)
 
     def _get_clusters_configuration_from_config(self, config):
+        config = deepcopy(config)
         clusters = {}
         for name, cluster_description in config["clusters"].iteritems():
             type = cluster_description["type"]
@@ -476,8 +477,12 @@ class Application(object):
 
             try:
                 config = json.load(open(self._config_path))
-                configuration = self._get_clusters_configuration_from_config(config)
+                with self._clusters_config_mutex:
+                    if self._last_successfully_loaded_config == config:
+                        logger.info("Config is not changed, reloading skipped")
+                        continue
 
+                configuration = self._get_clusters_configuration_from_config(config)
                 with self._clusters_config_mutex:
                     self._clusters_configuration = configuration
                     self._last_successfully_loaded_config = config
