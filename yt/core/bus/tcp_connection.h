@@ -149,8 +149,7 @@ private:
 
     NLogging::TLogger Logger;
 
-    TTcpProfilingData* const ProfilingData_;
-    NProfiling::TProfiler Profiler;
+    TTcpDispatcherStatistics* const Statistics_;
 
     // Only used by client sockets.
     int Port_ = 0;
@@ -239,7 +238,6 @@ private:
 
     void OnTerminated(const TError& error);
 
-    TTcpDispatcherStatistics& Statistics();
     void UpdateConnectionCount(int delta);
     void UpdatePendingOut(int countDelta, i64 sizeDelta);
 
