@@ -81,6 +81,7 @@ public:
         REGISTER(TReadTableExecutor,         "read"              );
 
         REGISTER(TMountTableExecutor,        "mount_table"       );
+        REGISTER(TAlterTableExecutor,        "alter_table"       );
         REGISTER(TUnmountTableExecutor,      "unmount_table"     );
         REGISTER(TRemountTableExecutor,      "remount_table"     );
         REGISTER(TReshardTableExecutor,      "reshard_table"     );

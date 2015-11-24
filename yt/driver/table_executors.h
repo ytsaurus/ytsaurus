@@ -3,6 +3,7 @@
 #include "executor.h"
 
 #include <ytlib/ypath/rich.h>
+#include <ytlib/table_client/schema.h>
 
 namespace NYT {
 namespace NDriver {
@@ -114,6 +115,22 @@ private:
 
     virtual void BuildParameters(NYson::IYsonConsumer* consumer) override;
     virtual Stroka GetCommandName() const override;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TAlterTableExecutor
+    : public TRequestExecutor
+{
+public:
+    TAlterTableExecutor();
+
+private:
+    virtual void BuildParameters(NYson::IYsonConsumer* consumer) override;
+    virtual Stroka GetCommandName() const override;
+
+    TCLAP::UnlabeledValueArg<NYPath::TRichYPath> PathArg;
+    TUnlabeledStringArg SchemaArg;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -197,29 +197,35 @@ private:
         return TBase::GetBuiltinAttribute(key, consumer);
     }
 
+    void SetSchema(const TTableSchema& newSchema) 
+    {
+        ValidateNoTransaction();
+
+        auto* table = LockThisTypedImpl();
+
+        if (table->IsDynamic()) {
+            if (table->HasMountedTablets()) {
+                THROW_ERROR_EXCEPTION("Cannot change schema of a dynamic table with mounted tablets");
+            }
+        }
+
+        ValidateTableSchemaUpdate(table->TableSchema(), newSchema);
+        auto oldKeyColumns = table->TableSchema().GetKeyColumns();
+        table->TableSchema() = newSchema;
+        // TODO(max42): put key columns validation into ValidateTableSchemaUpdate.
+        auto newKeyColumns = newSchema.GetKeyColumns();
+        if (!newKeyColumns.empty()) {
+            ValidateKeyColumnsUpdate(oldKeyColumns, newKeyColumns); 
+        }
+    }
+
     virtual bool SetBuiltinAttribute(const Stroka& key, const TYsonString& value) override
     {
+        // COMPAT(max42): remove this when setting schema via attributes
+        // becomes obsolete.
         if (key == "schema") {
             auto newSchema = ConvertTo<TTableSchema>(value);
-
-            ValidateNoTransaction();
-
-            auto* table = LockThisTypedImpl();
-
-            if (table->IsDynamic()) {
-                if (table->HasMountedTablets()) {
-                    THROW_ERROR_EXCEPTION("Cannot change schema of a dynamic table with mounted tablets");
-                }
-            }
-
-            ValidateTableSchemaUpdate(table->TableSchema(), newSchema);
-            auto oldKeyColumns = table->TableSchema().GetKeyColumns();
-            table->TableSchema() = newSchema;
-            // TODO(max42): put key columns validation into ValidateTableSchemaUpdate.
-            auto newKeyColumns = newSchema.GetKeyColumns();
-            if (!newKeyColumns.empty()) {
-                ValidateKeyColumnsUpdate(oldKeyColumns, newKeyColumns); 
-            }
+            SetSchema(newSchema);
             
             return true;
         }
@@ -286,6 +292,7 @@ private:
         DISPATCH_YPATH_SERVICE_METHOD(Remount);
         DISPATCH_YPATH_SERVICE_METHOD(Reshard);
         DISPATCH_YPATH_SERVICE_METHOD(GetMountInfo);
+        DISPATCH_YPATH_SERVICE_METHOD(Alter);
         return TBase::DoInvoke(context);
     }
 
@@ -451,6 +458,27 @@ private:
 
         for (const auto* cell : cells) {
             ToProto(response->add_tablet_cells(), cell->GetDescriptor());
+        }
+
+        context->Reply();
+    }
+
+    DECLARE_YPATH_SERVICE_METHOD(NTableClient::NProto, Alter)
+    { 
+        DeclareMutating();
+        
+        if (!request->has_schema()) {
+            // Nothing to do.
+            context->SetRequestInfo("NewSchema: <Null>");
+        } else {    
+            TTableSchema newSchema;
+            FromProto(&newSchema, request->schema());
+
+            context->SetRequestInfo(
+                "NewSchema: %v",
+                ConvertToYsonString(newSchema).Data());
+          
+            SetSchema(newSchema);
         }
 
         context->Reply();

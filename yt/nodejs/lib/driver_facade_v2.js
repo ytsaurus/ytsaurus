@@ -77,6 +77,7 @@ function YtDriverFacadeV2(driver)
     delete descriptors.write_table;
 
     delete descriptors.mount_table;
+    delete descriptors.alter_table;
     delete descriptors.unmount_table;
     delete descriptors.remount_table;
     delete descriptors.reshard_table;

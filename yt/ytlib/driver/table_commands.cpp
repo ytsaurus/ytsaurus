@@ -176,6 +176,17 @@ void TReshardTableCommand::Execute(ICommandContextPtr context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TAlterTableCommand::Execute(ICommandContextPtr context)
+{
+    auto asyncResult = context->GetClient()->AlterTable(
+        Path.GetPath(),
+        Options);
+    WaitFor(asyncResult)
+        .ThrowOnError();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TSelectRowsCommand::Execute(ICommandContextPtr context)
 {
     auto asyncResult = context->GetClient()->SelectRows(

@@ -27,6 +27,7 @@
 
 #include <ytlib/table_client/row_base.h>
 #include <ytlib/table_client/config.h>
+#include <ytlib/table_client/schema.h>
 
 #include <ytlib/tablet_client/public.h>
 
@@ -114,6 +115,13 @@ struct TReshardTableOptions
     : public TTimeoutOptions
     , public TTabletRangeOptions
 { };
+
+struct TAlterTableOptions
+    : public TTimeoutOptions
+    , public TMutatingOptions
+{
+    TNullable<NTableClient::TTableSchema> Schema; 
+};
 
 struct TAddMemberOptions
     : public TTimeoutOptions
@@ -566,6 +574,9 @@ struct IClient
         const std::vector<NTableClient::TKey>& pivotKeys,
         const TReshardTableOptions& options = TReshardTableOptions()) = 0;
 
+    virtual TFuture<void> AlterTable(
+        const NYPath::TYPath& path,
+        const TAlterTableOptions& options = TAlterTableOptions()) = 0;
 
     // Security
     virtual TFuture<void> AddMember(
