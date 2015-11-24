@@ -24,32 +24,16 @@ TTcpDispatcherStatistics& operator += (
     TTcpDispatcherStatistics& lhs,
     const TTcpDispatcherStatistics& rhs)
 {
-    lhs.PendingInPackets += rhs.PendingInPackets;
-    lhs.PendingInBytes += rhs.PendingInBytes;
-    lhs.PendingOutPackets += rhs.PendingOutPackets;
+    lhs.InBytes += rhs.InBytes;
+    lhs.InPackets += rhs.InPackets;
+    lhs.OutBytes += rhs.OutBytes;
+    lhs.OutPackets += rhs.OutPackets;
     lhs.PendingOutBytes += rhs.PendingOutBytes;
+    lhs.PendingOutPackets += rhs.PendingOutPackets;
+    lhs.ClientConnections += rhs.ClientConnections;
+    lhs.ServerConnections += rhs.ServerConnections;
     return lhs;
 }
-
-////////////////////////////////////////////////////////////////////////////////
-
-TTcpProfilingData::TTcpProfilingData()
-    : TagId(-1)
-    , ReceiveTimeCounter("/receive_time")
-    , ReceiveSizeCounter("/receive_size")
-    , InHandlerTimeCounter("/in_handler_time")
-    , InByteCounter("/in_bytes")
-    , InPacketCounter("/in_packets")
-    , SendTimeCounter("/send_time")
-    , SendSizeCounter("/send_size")
-    , OutHandlerTimeCounter("/out_handler_time")
-    , OutBytesCounter("/out_bytes")
-    , OutPacketCounter("/out_packets")
-    , PendingOutPacketCounter("/pending_out_packets")
-    , PendingOutByteCounter("/pending_out_bytes")
-    , ClientConnectionCounter("/client_connections")
-    , ServerConnectionCounter("/server_connections")
-{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -78,11 +62,6 @@ void TTcpDispatcher::Shutdown()
 TTcpDispatcherStatistics TTcpDispatcher::GetStatistics(ETcpInterfaceType interfaceType)
 {
     return Impl_->GetStatistics(interfaceType);
-}
-
-TTcpProfilingData* TTcpDispatcher::GetProfilingData(ETcpInterfaceType interfaceType)
-{
-    return Impl_->GetProfilingData(interfaceType);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
