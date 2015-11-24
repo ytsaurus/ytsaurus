@@ -7,6 +7,8 @@
 
 #include <yt/core/profiling/profile_manager.h>
 
+#include <yt/core/concurrency/periodic_executor.h>
+
 #ifdef _linux_
     #include <sys/socket.h>
     #include <sys/un.h>
@@ -20,7 +22,9 @@ using namespace NConcurrency;
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = BusLogger;
+static const auto& Profiler = BusProfiler;
 static const int ThreadCount = 8;
+static const auto ProfilingPeriod = TDuration::MilliSeconds(100);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -95,9 +99,9 @@ TFuture<void> TTcpDispatcherThread::AsyncUnregister(IEventLoopObjectPtr object)
         .Run();
 }
 
-TTcpDispatcherStatistics& TTcpDispatcherThread::Statistics(ETcpInterfaceType interfaceType)
+TTcpDispatcherStatistics* TTcpDispatcherThread::GetStatistics(ETcpInterfaceType interfaceType)
 {
-    return Statistics_[interfaceType];
+    return &Statistics_[interfaceType];
 }
 
 void TTcpDispatcherThread::DoRegister(IEventLoopObjectPtr object)
@@ -128,10 +132,12 @@ TTcpDispatcher::TImpl::TImpl()
         thread->Start();
         ClientThreads_.push_back(thread);
     }
-
-    for (auto type : TEnumTraits<ETcpInterfaceType>::GetDomainValues()) {
-        ProfilingData_[type].TagId = NProfiling::TProfileManager::Get()->RegisterTag("interface", type);
-    }
+    
+    ProfilingExecutor_ = New<TPeriodicExecutor>(
+        ServerThread_->GetInvoker(),
+        BIND(&TImpl::OnProfiling, this),
+        ProfilingPeriod);
+    ProfilingExecutor_->Start();
 }
 
 TTcpDispatcher::TImpl* TTcpDispatcher::TImpl::Get()
@@ -141,24 +147,23 @@ TTcpDispatcher::TImpl* TTcpDispatcher::TImpl::Get()
 
 void TTcpDispatcher::TImpl::Shutdown()
 {
-    for (auto& thread : ClientThreads_) {
-        thread->Shutdown();
+    ProfilingExecutor_->Stop();
+
+    ServerThread_->Shutdown();
+
+    for (const auto& clientThread : ClientThreads_) {
+        clientThread->Shutdown();
     }
 }
 
 TTcpDispatcherStatistics TTcpDispatcher::TImpl::GetStatistics(ETcpInterfaceType interfaceType) const
 {
     // This is racy but should be OK as an approximation.
-    auto result = ServerThread_->Statistics(interfaceType);
-    for (auto& thread : ClientThreads_) {
-        result += thread->Statistics(interfaceType);
+    auto result = *ServerThread_->GetStatistics(interfaceType);
+    for (const auto& clientThread : ClientThreads_) {
+        result += *clientThread->GetStatistics(interfaceType);
     }
     return result;
-}
-
-TTcpProfilingData* TTcpDispatcher::TImpl::GetProfilingData(ETcpInterfaceType interfaceType)
-{
-    return &ProfilingData_[interfaceType];
 }
 
 TTcpDispatcherThreadPtr TTcpDispatcher::TImpl::GetServerThread()
@@ -170,6 +175,25 @@ TTcpDispatcherThreadPtr TTcpDispatcher::TImpl::GetClientThread()
 {
     size_t index = CurrentClientThreadIndex_++ % ThreadCount;
     return ClientThreads_[index];
+}
+
+void TTcpDispatcher::TImpl::OnProfiling()
+{
+    for (auto interfaceType : TEnumTraits<ETcpInterfaceType>::GetDomainValues()) {
+        auto tagId = NProfiling::TProfileManager::Get()->RegisterTag("interface", interfaceType);
+        NProfiling::TTagIdList tagIds{tagId};
+
+        auto statistics = GetStatistics(interfaceType);
+
+        Profiler.Enqueue("/in_bytes", statistics.InBytes, tagIds);
+        Profiler.Enqueue("/in_packets", statistics.InPackets, tagIds);
+        Profiler.Enqueue("/out_bytes", statistics.OutBytes, tagIds);
+        Profiler.Enqueue("/out_packets", statistics.OutPackets, tagIds);
+        Profiler.Enqueue("/pending_out_bytes", statistics.PendingOutBytes, tagIds);
+        Profiler.Enqueue("/pending_out_packets", statistics.PendingOutPackets, tagIds);
+        Profiler.Enqueue("/client_connections", statistics.ClientConnections, tagIds);
+        Profiler.Enqueue("/server_connections", statistics.ServerConnections, tagIds);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
