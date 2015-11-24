@@ -160,7 +160,7 @@ class Task(object):
                  destination_table=None, source_cluster_token=None, token=None, destination_cluster_token=None, mr_user=None, error=None,
                  start_time=None, finish_time=None, copy_method=None, progress=None, backend_tag=None, kiwi_user=None, kwworm_options=None, pool=None, meta=None,
                  destination_compression_codec=None, destination_erasure_codec=None, destination_force_sort=None, copy_spec=None, postprocess_spec=None,
-                 job_timeout=None, lease_timeout=None):
+                 job_timeout=None, lease_timeout=None, queue_name=None):
         self.source_cluster = source_cluster
         self.source_table = source_table
         self.source_cluster_token = get_value(source_cluster_token, token)
@@ -194,6 +194,7 @@ class Task(object):
         self.destination_force_sort = destination_force_sort
 
         self.lease_timeout = lease_timeout
+        self.queue_name = queue_name
 
         # Special field to store meta-information for web-interface
         self.meta = meta
@@ -202,7 +203,7 @@ class Task(object):
 
 
     def get_queue_id(self):
-        return self.source_cluster, self.destination_cluster
+        return self.queue_name, self.source_cluster, self.destination_cluster
 
     def get_source_client(self, clusters):
         if self.source_cluster not in clusters:
