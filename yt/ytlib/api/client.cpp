@@ -883,6 +883,10 @@ public:
         const std::vector<NTableClient::TKey>& pivotKeys,
         const TReshardTableOptions& options),
         (path, pivotKeys, options))
+    IMPLEMENT_METHOD(void, AlterTable, (
+        const TYPath& path,
+        const TAlterTableOptions& options),
+        (path, options))
 
 
     IMPLEMENT_METHOD(TYsonString, GetNode, (
@@ -1531,6 +1535,19 @@ private:
             .ThrowOnError();
     }
 
+    void DoAlterTable(
+        const TYPath& path,
+        const TAlterTableOptions& options)
+    {
+        auto req = TTableYPathProxy::Alter(path);
+        if (options.Schema) {
+            ToProto(req->mutable_schema(), *options.Schema);
+        }
+
+        auto* proxy = GetWriteProxy();
+        WaitFor(proxy->Execute(req))
+            .ThrowOnError();
+    }
 
     TYsonString DoGetNode(
         const TYPath& path,

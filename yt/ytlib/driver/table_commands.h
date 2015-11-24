@@ -6,9 +6,9 @@
 
 #include <ytlib/formats/format.h>
 
-#include <ytlib/table_client/unversioned_row.h>
-
 #include <ytlib/table_client/config.h>
+#include <ytlib/table_client/unversioned_row.h>
+#include <ytlib/table_client/schema.h>
 
 namespace NYT {
 namespace NDriver {
@@ -139,6 +139,23 @@ public:
 
     void Execute(ICommandContextPtr context);
 
+};
+
+class TAlterTableCommand
+    : public TTypedCommand<NApi::TAlterTableOptions>
+{
+public: 
+    TAlterTableCommand()
+    {
+        RegisterParameter("path", Path);
+        RegisterParameter("schema", Options.Schema)
+            .Optional();
+    }
+
+    void Execute(ICommandContextPtr context);
+
+private:
+    NYPath::TRichYPath Path;
 };
 
 class TSelectRowsCommand

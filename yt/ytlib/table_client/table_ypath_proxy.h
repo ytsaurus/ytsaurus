@@ -24,6 +24,7 @@ struct TTableYPathProxy
     DEFINE_MUTATING_YPATH_PROXY_METHOD(NProto, Unmount);
     DEFINE_MUTATING_YPATH_PROXY_METHOD(NProto, Remount);
     DEFINE_MUTATING_YPATH_PROXY_METHOD(NProto, Reshard);
+    DEFINE_MUTATING_YPATH_PROXY_METHOD(NProto, Alter);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

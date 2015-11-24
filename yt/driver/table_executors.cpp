@@ -184,6 +184,30 @@ Stroka TReshardTableExecutor::GetCommandName() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TAlterTableExecutor::TAlterTableExecutor()
+    : PathArg("path", "table path to alter", true, "", "YPATH")
+    , SchemaArg("schema", "new table schema", true, "", "YSON")
+{
+    CmdLine.add(PathArg);
+    CmdLine.add(SchemaArg);
+}
+
+void TAlterTableExecutor::BuildParameters(IYsonConsumer* consumer)
+{
+    auto path = PreprocessYPath(PathArg.getValue());
+
+    BuildYsonMapFluently(consumer)
+        .Item("path").Value(path)
+        .Item("schema").Value(ConvertTo<TTableSchema>(TYsonString(SchemaArg.getValue(), EYsonType::Node)));
+}
+
+Stroka TAlterTableExecutor::GetCommandName() const
+{
+    return "alter_table";
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TInsertRowsExecutor::TInsertRowsExecutor()
     : PathArg("path", "table path to insert into", true, "", "YPATH")
     , UpdateArg("", "update", "update row values, don't replace the whole row", false)

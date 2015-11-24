@@ -106,12 +106,12 @@ void TTableNode::Load(TLoadContext& context)
 
     // COMPAT(max42)
     if (context.GetVersion() < 205) {
+        auto& attributesMap = GetMutableAttributes()->Attributes();
+        auto tableSchemaAttribute = attributesMap["schema"];
+        attributesMap.erase("schema");
         if (IsDynamic()) {
-            auto& attributesMap = GetMutableAttributes()->Attributes();
-            auto tableSchemaAttribute = attributesMap["schema"];
-            attributesMap.erase("schema");
             TableSchema_ = ConvertTo<TTableSchema>(tableSchemaAttribute);
-            for (auto columnName : keyColumns) {
+            for (const auto& columnName : keyColumns) {
                 auto columnSchema = TableSchema_.FindColumn(columnName);
                 YCHECK(columnSchema);
                 columnSchema->SortOrder = ESortOrder::Ascending;
@@ -217,11 +217,7 @@ protected:
     {
         if (!attributes->Contains("channels")) {
             attributes->SetYson("channels", TYsonString("[]"));
-        }
-
-        if (!attributes->Contains("schema")) {
-            attributes->SetYson("schema", TYsonString("[]"));
-        }
+        } 
 
         if (!attributes->Contains("compression_codec")) {
             attributes->Set("compression_codec", NCompression::ECodec::Lz4);
