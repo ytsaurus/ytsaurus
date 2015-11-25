@@ -102,6 +102,7 @@ public:
         , TotalAbortedJobTimeCounter_("/total_aborted_job_time")
         , TotalResourceLimits_(ZeroNodeResources())
         , TotalResourceUsage_(ZeroNodeResources())
+        , OnlineNodeCount_(0)
     {
         YCHECK(config);
         YCHECK(bootstrap);
@@ -254,7 +255,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        return GetExecNodes().size();
+        return OnlineNodeCount_;
     }
 
     virtual std::vector<TExecNodePtr> GetExecNodes() const override
@@ -531,7 +532,7 @@ public:
         }
 
         // Check for missing jobs.
-        for (auto job : missingJobs) {
+        for (const auto& job : missingJobs) {
             LOG_ERROR("Job is missing (Address: %v, JobId: %v, OperationId: %v)",
                 node->GetDefaultAddress(),
                 job->GetId(),
@@ -549,7 +550,7 @@ public:
         std::vector<TFuture<void>> asyncResults;
 
         auto specBuilderInvoker = NRpc::TDispatcher::Get()->GetInvoker();
-        for (auto job : schedulingContext->StartedJobs()) {
+        for (const auto& job : schedulingContext->StartedJobs()) {
             auto operation = FindOperation(job->GetOperationId());
             if (!operation || operation->GetState() != EOperationState::Running) {
                 LOG_DEBUG("Dangling started job found (JobId: %v, OperationId: %v)",
@@ -582,7 +583,7 @@ public:
             operationsToLog->insert(operation);
         }
 
-        for (auto job : schedulingContext->PreemptedJobs()) {
+        for (const auto& job : schedulingContext->PreemptedJobs()) {
             if (!FindOperation(job->GetOperationId())) {
                 LOG_DEBUG("Dangling preempted job found (JobId: %v, OperationId: %v)",
                     job->GetId(),
@@ -690,7 +691,7 @@ public:
         context->ReplyFrom(scheduleJobsAsyncResult);
 
         // NB: Do heavy logging after responding to heartbeat.
-        for (auto operation : operationsToLog) {
+        for (const auto& operation : operationsToLog) {
             if (!FindOperation(operation->GetId())) {
                 continue;
             }
@@ -846,6 +847,7 @@ private:
 
     TNodeResources TotalResourceLimits_;
     TNodeResources TotalResourceUsage_;
+    int OnlineNodeCount_;
 
     TPeriodicExecutorPtr LoggingExecutor_;
 
@@ -1277,7 +1279,7 @@ private:
 
     void AbortAbortingOperations(const std::vector<TOperationPtr>& operations)
     {
-        for (auto operation : operations) {
+        for (const auto& operation : operations) {
             AbortAbortingOperation(operation);
         }
     }
@@ -1287,7 +1289,7 @@ private:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         YCHECK(IdToOperation_.empty());
-        for (auto operation : operations) {
+        for (const auto& operation : operations) {
             ReviveOperation(operation);
         }
     }
@@ -1441,7 +1443,7 @@ private:
         // Make a copy, the collection will be modified.
         auto jobs = node->Jobs();
         const auto& address = node->GetDefaultAddress();
-        for (auto job : jobs) {
+        for (const auto& job : jobs) {
             LOG_DEBUG("Aborting job on an offline node %v (JobId: %v, OperationId: %v)",
                 address,
                 job->GetId(),
@@ -1483,6 +1485,7 @@ private:
     {
         TotalResourceLimits_ -= node->ResourceLimits();
         TotalResourceUsage_ -= node->ResourceUsage();
+        OnlineNodeCount_ -= 1;
 
         for (const auto& tag : node->SchedulingTags()) {
             SchedulingTagResources_[tag] -= node->ResourceLimits();
@@ -1493,6 +1496,7 @@ private:
     {
         TotalResourceLimits_ += node->ResourceLimits();
         TotalResourceUsage_ += node->ResourceUsage();
+        OnlineNodeCount_ += 1;
 
         for (const auto& tag : node->SchedulingTags()) {
             SchedulingTagResources_[tag] += node->ResourceLimits();
@@ -1538,7 +1542,7 @@ private:
     void AbortOperationJobs(TOperationPtr operation)
     {
         auto jobs = operation->Jobs();
-        for (auto job : jobs) {
+        for (const auto& job : jobs) {
             AbortJob(job, TError("Operation has state %Qlv", operation->GetState()));
             UnregisterJob(job);
         }

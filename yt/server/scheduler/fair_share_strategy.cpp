@@ -1717,12 +1717,12 @@ public:
 
     virtual void BuildOperationProgress(const TOperationId& operationId, IYsonConsumer* consumer) override
     {
-        auto element = FindOperationElement(operationId);
+        const auto& element = FindOperationElement(operationId);
         if (!element) {
             return;
         }
 
-        auto pool = element->GetPool();
+        const auto& pool = element->GetPool();
         BuildYsonMapFluently(consumer)
             .Item("pool").Value(pool->GetId())
             .Item("start_time").Value(element->DynamicAttributes().MinSubtreeStartTime)
@@ -1732,12 +1732,12 @@ public:
 
     virtual void BuildBriefOperationProgress(const TOperationId& operationId, IYsonConsumer* consumer) override
     {
-        auto element = FindOperationElement(operationId);
+        const auto& element = FindOperationElement(operationId);
         if (!element) {
             return;
         }
 
-        auto pool = element->GetPool();
+        const auto& pool = element->GetPool();
         const auto& attributes = element->Attributes();
         BuildYsonMapFluently(consumer)
             .Item("pool").Value(pool->GetId())
@@ -1746,7 +1746,7 @@ public:
 
     virtual Stroka GetOperationLoggingProgress(const TOperationId& operationId) override
     {
-        auto element = GetOperationElement(operationId);
+        const auto& element = GetOperationElement(operationId);
         const auto& attributes = element->Attributes();
         const auto& dynamicAttributes = element->DynamicAttributes();
 
@@ -1775,8 +1775,8 @@ public:
         BuildYsonMapFluently(consumer)
             .Item("pools").DoMapFor(Pools, [&] (TFluentMap fluent, const TPoolMap::value_type& pair) {
                 const auto& id = pair.first;
-                auto pool = pair.second;
-                auto config = pool->GetConfig();
+                const auto& pool = pair.second;
+                const auto& config = pool->GetConfig();
                 fluent
                     .Item(id).BeginMap()
                         .Item("mode").Value(config->Mode)
@@ -1802,7 +1802,7 @@ public:
 
     virtual void BuildBriefSpec(const TOperationId& operationId, IYsonConsumer* consumer) override
     {
-        auto element = GetOperationElement(operationId);
+        const auto& element = GetOperationElement(operationId);
         BuildYsonMapFluently(consumer)
             .Item("pool").Value(element->GetPool()->GetId());
     }
@@ -1830,8 +1830,8 @@ private:
 
     bool IsJobPreemptable(TJobPtr job)
     {
-        auto element = GetOperationElement(job->GetOperationId());
-        auto spec = element->GetSpec();
+        const auto& element = GetOperationElement(job->GetOperationId());
+        const auto& spec = element->GetSpec();
 
         double usageRatio = element->Attributes().UsageRatio;
         if (usageRatio < Config->MinPreemptableRatio) {

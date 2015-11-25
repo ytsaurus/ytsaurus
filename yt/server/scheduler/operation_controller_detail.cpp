@@ -631,7 +631,7 @@ void TOperationControllerBase::TTask::DoCheckResourceDemandSanity(
     if (nodes.size() < Controller->Config->SafeOnlineNodeCount)
         return;
 
-    for (auto node : nodes) {
+    for (const auto& node : nodes) {
         if (node->CanSchedule(Controller->Operation->GetSchedulingTag()) &&
             Dominates(node->ResourceLimits(), neededResources))
         {
@@ -1968,7 +1968,7 @@ void TOperationControllerBase::AddTaskPendingHint(TTaskPtr task)
 
 void TOperationControllerBase::AddAllTaskPendingHints()
 {
-    for (auto task : Tasks) {
+    for (const auto& task : Tasks) {
         AddTaskPendingHint(task);
     }
 }
@@ -2136,7 +2136,7 @@ TJobId TOperationControllerBase::DoScheduleNonLocalJob(
     const auto& nodeResourceLimits = context->ResourceLimits();
     const auto& address = context->GetAddress();
 
-    for (auto group : TaskGroups) {
+    for (const auto& group : TaskGroups) {
         if (!Dominates(jobLimits, group->MinNeededResources)) {
             continue;
         }
@@ -3945,7 +3945,7 @@ void TOperationControllerBase::Persist(TPersistenceContext& context)
     >(context, InputChunkSpecs);
 
     if (context.IsLoad()) {
-        for (auto task : Tasks) {
+        for (const auto& task : Tasks) {
             task->Initialize();
         }
     }
