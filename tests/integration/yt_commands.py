@@ -171,7 +171,9 @@ def set(path, value, is_raw=False, **kwargs):
 def create(object_type, path, **kwargs):
     kwargs["type"] = object_type
     kwargs["path"] = path
-    return yson.loads(execute_command("create", kwargs))
+    execute_command("create", kwargs)
+    if "schema" in kwargs:
+        alter_table(path, schema=kwargs["schema"])
 
 def copy(source_path, destination_path, **kwargs):
     kwargs["source_path"] = source_path
@@ -275,6 +277,10 @@ def reshard_table(path, pivot_keys, **kwargs):
     kwargs["path"] = path
     kwargs["pivot_keys"] = pivot_keys
     return execute_command("reshard_table", kwargs)
+
+def alter_table(path, **kwargs):
+    kwargs["path"] = path;
+    return execute_command("alter_table", kwargs)
 
 def write_file(path, data, **kwargs):
     kwargs["path"] = path
