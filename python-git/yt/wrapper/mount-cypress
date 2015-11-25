@@ -258,7 +258,7 @@ class Cypress(fuse.Operations):
             max_age_seconds=10 * 60,
         )
 
-        self._read_buffer_size = config.get("read_buffer_size", 8 * 1024 * 1024)
+        self._read_buffer_size = config.get("read_buffer_size", 4 * 1024 * 1024)
         self._slice_row_count = config.get("slice_row_count", 10000)
 
     @staticmethod
@@ -350,8 +350,11 @@ class Cypress(fuse.Operations):
             block = self._block_cache[ypath] = Block()
 
         if offset < block.offset or offset + length > block.offset + block.length:
-            block.offset = offset
             block.length = max(length, self._read_buffer_size)
+            if offset < block.offset:
+                block.offset = max(offset + length - block.length, 0)
+            else:
+                block.offset = offset
             block.content = self._client.read_file(ypath, length=block.length, offset=block.offset).read()
 
         assert block.offset <= offset
