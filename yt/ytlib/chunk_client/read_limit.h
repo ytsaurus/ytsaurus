@@ -59,6 +59,8 @@ public:
 
     void Persist(NPhoenix::TPersistenceContext& context);
 
+    size_t SpaceUsedExcludingSelf() const;
+
 private:
     NProto::TReadLimit ReadLimit_;
     NTableClient::TOwningKey Key_;

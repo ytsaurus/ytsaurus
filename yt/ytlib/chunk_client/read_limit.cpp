@@ -212,6 +212,11 @@ void TReadLimit::InitMove(NProto::TReadLimit&& readLimit)
     InitKey();
 }
 
+size_t TReadLimit::SpaceUsedExcludingSelf() const
+{
+    return ReadLimit_.SpaceUsed() - sizeof(ReadLimit_) + Key_.SpaceUsedExcludingSelf();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 Stroka ToString(const TReadLimit& limit)
