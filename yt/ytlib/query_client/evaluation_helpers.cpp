@@ -195,13 +195,13 @@ TJoinEvaluator GetJoinEvaluator(
 
         if (foreignTableSchema.Columns()[keyPrefix].Expression) {
             const auto& references = evaluator->GetReferenceIds(keyPrefix);
-            auto isEvaluatable = true;
+            auto canEvaluate = true;
             for (int referenceIndex : references) {
                 if (equationByIndex[referenceIndex] < 0) {
-                    isEvaluatable = false;
+                    canEvaluate = false;
                 }
             }
-            if (isEvaluatable) {
+            if (canEvaluate) {
                 continue;
             }
         }
