@@ -7,6 +7,7 @@ from copy import deepcopy
 
 def hide_token(headers):
     if "Authorization" in headers:
+        headers = deepcopy(headers)
         headers["Authorization"] = "x" * 32
     return headers
 
