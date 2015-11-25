@@ -182,7 +182,11 @@ private:
         }
 
         int eventsProcessed = 0;
-        while (EventQueue_.DequeueAll(true, [&](NProto::TTraceEvent& event) {
+        while (EventQueue_.DequeueAll(true, [&] (NProto::TTraceEvent& event) {
+                if (eventsProcessed == 0) {
+                    EventCount_->CancelWait();
+                }
+
                 CurrentBatch_.push_back(event);
                 ++eventsProcessed;
 
@@ -192,12 +196,9 @@ private:
             }))
         { }
 
-        if (eventsProcessed > 0) {
-            EventCount_->CancelWait();
-            return EBeginExecuteResult::Success;
-        } else {
-            return EBeginExecuteResult::QueueEmpty;
-        }
+        return eventsProcessed > 0
+            ? EBeginExecuteResult::Success
+            : EBeginExecuteResult::QueueEmpty;
     }
 
     void EndExecute()

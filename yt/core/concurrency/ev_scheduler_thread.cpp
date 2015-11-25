@@ -80,13 +80,15 @@ EBeginExecuteResult TEVSchedulerThread::BeginExecute()
 
 EBeginExecuteResult TEVSchedulerThread::BeginExecuteCallbacks()
 {
-    if (IsShutdown()) {
-        return EBeginExecuteResult::Terminated;
-    }
-
     TClosure callback;
     if (!Queue.Dequeue(&callback)) {
         return EBeginExecuteResult::QueueEmpty;
+    }
+
+    CallbackEventCount->CancelWait();
+
+    if (IsShutdown()) {
+        return EBeginExecuteResult::Terminated;
     }
 
     try {

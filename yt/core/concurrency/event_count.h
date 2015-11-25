@@ -47,7 +47,7 @@ namespace NConcurrency {
  * Waiter:
  *   if (!condition()) { // Handle fast path first.
  *     for (;;) {
- *       auto cookie = ec.PepareWait();
+ *       auto cookie = ec.PrepareWait();
  *       if (condition()) {
  *         ec.CancelWait();
  *         break;

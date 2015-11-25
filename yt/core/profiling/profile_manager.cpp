@@ -322,7 +322,7 @@ private:
 
         // Process all pending samples in a row.
         int samplesProcessed = 0;
-        while (SampleQueue.DequeueAll(true, [&](TQueuedSample& sample) {
+        while (SampleQueue.DequeueAll(true, [&] (TQueuedSample& sample) {
                 if (samplesProcessed == 0) {
                     EventCount->CancelWait();
                 }

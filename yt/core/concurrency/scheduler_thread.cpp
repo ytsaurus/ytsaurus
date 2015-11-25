@@ -219,11 +219,6 @@ void TSchedulerThread::ThreadMainStep()
             RunQueue.emplace_back(std::move(CurrentFiber));
             break;
 
-        case EFiberState::Running:
-            // We cannot reach here.
-            YUNREACHABLE();
-            break;
-
         case EFiberState::Terminated:
             maybeReleaseIdleFiber();
             // We do not own this fiber anymore, so forget about it.
@@ -270,58 +265,60 @@ void TSchedulerThread::FiberMain(ui64 spawnedEpoch)
 
 bool TSchedulerThread::FiberMainStep(ui64 spawnedEpoch)
 {
+    // Call PrepareWait before checking Epoch, which may be modified by
+    // a concurrently running Shutdown(), which updates Epoch and then notifies
+    // all waiters.
+    auto cookie = CallbackEventCount->PrepareWait();
+
     auto currentEpoch = Epoch.load(std::memory_order_relaxed);
     if ((currentEpoch & ShutdownEpochMask) != 0x0) {
+        CallbackEventCount->CancelWait();
         return false;
     }
 
-    auto cookie = CallbackEventCount->PrepareWait();
-
-    // CancelWait must be called within BeginExecute, if needed.
+    // Protocal is that BeginExecute() returns `Success` or `Terminated`
+    // if CancelWait was called. Otherwise, it returns `QueueEmpty` requesting
+    // to block until a notification.
     auto result = BeginExecute();
 
     // NB: We might get to this point after a long sleep, and scheduler might spawn
     // another event loop. So we carefully examine scheduler state.
     currentEpoch = Epoch.load(std::memory_order_relaxed);
 
+    // Make the matching call to EndExecute unless it is already done in ThreadMainStep.
+    // NB: It is safe to call EndExecute even if no actual action was dequeued and
+    // invoked in BeginExecute.
     if (spawnedEpoch == currentEpoch) {
-        // Make the matching call to EndExecute unless it is already done in ThreadMainStep.
-        // NB: It is safe to call EndExecute even if no actual action was dequeued and
-        // invoked in BeginExecute.
         EndExecute();
     }
 
-    if (result == EBeginExecuteResult::QueueEmpty) {
-        if (RunQueue.empty()) {
+    switch (result) {
+        case EBeginExecuteResult::QueueEmpty:
+            // If the fiber has yielded, we just return control to the scheduler.
+            if (spawnedEpoch != currentEpoch || !RunQueue.empty()) {
+                CallbackEventCount->CancelWait();
+                return false;
+            }
+            // Actually, await for further notifications.
             CallbackEventCount->Wait(cookie);
-            return true;
-        } else {
+            break;
+        case EBeginExecuteResult::Success:
+            // Note that if someone has called TFiber::GetCanceler and
+            // thus has got an ability to cancel the current fiber at any moment,
+            // we cannot reuse it.
+            // Also, if the fiber has yielded at some point in time,
+            // we cannot reuse it as well.
+            if (spawnedEpoch != currentEpoch || CurrentFiber->IsCancelable()) {
+                return false;
+            }
+            break;
+        case EBeginExecuteResult::Terminated:
             return false;
-        }
-    }
-
-    if (result == EBeginExecuteResult::Terminated) {
-        return false;
-    }
-
-    if (spawnedEpoch != currentEpoch) {
-        // If the current fiber has seen WaitFor/SwitchTo calls then
-        // its ownership has been transferred to the callback. In the latter case
-        // we must abandon the current fiber immediately since the queue's thread
-        // had spawned (or will soon spawn) a brand new fiber to continue
-        // serving the queue.
-        return false;
-    }
-
-    if (CurrentFiber->IsCancelable()) {
-        // Someone has called TFiber::GetCanceler and thus has got an ability to cancel
-        // the current fiber at any moment. We cannot reuse it.
-        return false;
+            break;
     }
 
     // Reuse the fiber but regenerate its id.
     CurrentFiber->RegenerateId();
-
     return true;
 }
 
