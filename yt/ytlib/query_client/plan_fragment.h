@@ -2,7 +2,6 @@
 
 #include "public.h"
 #include "ast.h"
-#include "function_registry.h"
 #include "plan_fragment_common.h"
 
 #include <yt/ytlib/node_tracker_client/node_directory.h>
@@ -410,6 +409,7 @@ TQueryPtr FromProto(const NProto::TQuery& serialized);
 
 struct TQueryOptions
 {
+    NTransactionClient::TTimestamp Timestamp = NTransactionClient::SyncLastCommittedTimestamp;
     bool VerboseLogging = false;
     int MaxSubqueries = std::numeric_limits<int>::max();
     ui64 RangeExpansionLimit = 0;
@@ -428,45 +428,28 @@ typedef std::vector<TDataSource> TDataSources;
 struct TPlanFragmentBase
     : public TIntrinsicRefCounted
 {
-    explicit TPlanFragmentBase(const Stroka& source = Stroka())
-        : Source(source)
-    { }
-
-    Stroka Source;
-
     TTimestamp Timestamp;
     TRowBufferPtr KeyRangesRowBuffer = New<TRowBuffer>();
 
     TConstQueryPtr Query;
     TQueryOptions Options;
-};
-
-
-struct TPlanFragment
-    : public TPlanFragmentBase
-{
-    explicit TPlanFragment(const Stroka& source = Stroka())
-        : TPlanFragmentBase(source)
-    { }
-
-    NObjectClient::TObjectId TableId;
-    TRowRanges Ranges;
 
 };
 
 struct TPlanSubFragment
     : public TPlanFragmentBase
 {
-    explicit TPlanSubFragment(const Stroka& source = Stroka())
-        : TPlanFragmentBase(source)
-    { }
-
     TDataSources DataSources;
 
 };
 
+struct TDataSource2
+{
+    //! Either a chunk id or tablet id.
+    NObjectClient::TObjectId Id;
+    TSharedRange<TRowRange> Ranges;
+};
 
-DEFINE_REFCOUNTED_TYPE(TPlanFragment)
 DEFINE_REFCOUNTED_TYPE(TPlanSubFragment)
 
 void ToProto(NProto::TPlanSubFragment* serialized, TConstPlanSubFragmentPtr fragment);

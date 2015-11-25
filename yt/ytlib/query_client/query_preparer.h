@@ -1,13 +1,14 @@
 #pragma once
 
 #include "plan_fragment.h"
+#include "function_registry.h"
 
 namespace NYT {
 namespace NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TPlanFragmentPtr PreparePlanFragment(
+std::pair<TQueryPtr, TDataSource2> PreparePlanFragment(
     IPrepareCallbacks* callbacks,
     const Stroka& source,
     IFunctionRegistryPtr functionRegistry,

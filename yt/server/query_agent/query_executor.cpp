@@ -177,15 +177,19 @@ private:
                 {
                     LOG_DEBUG("Evaluating remote subquery (SubqueryId: %v)", subquery->Id);
 
-                    auto planFragment = New<TPlanFragment>();
-                    planFragment->Timestamp = fragment->Timestamp;
-                    planFragment->TableId = dataId;
-                    planFragment->KeyRangesRowBuffer = buffer;
-                    planFragment->Ranges = std::move(ranges);
-                    planFragment->Query = subquery;
-                    planFragment->Options.VerboseLogging = fragment->Options.VerboseLogging;
+                    TQueryOptions subqueryOptions;
+                    subqueryOptions.Timestamp = fragment->Timestamp;
+                    subqueryOptions.VerboseLogging = fragment->Options.VerboseLogging;
 
-                    auto subqueryResult = remoteExecutor->Execute(planFragment, writer);
+                    TDataSource2 dataSource;
+                    dataSource.Id = dataId;
+                    dataSource.Ranges = MakeSharedRange(std::move(ranges), std::move(buffer));
+
+                    auto subqueryResult = remoteExecutor->Execute(
+                        subquery,
+                        dataSource,
+                        subqueryOptions,
+                        writer);
 
                     return WaitFor(subqueryResult)
                         .ValueOrThrow();
@@ -449,7 +453,7 @@ private:
         const NLogging::TLogger& Logger,
         bool verboseLogging)
     {
-        yhash_map<TGuid, std::vector<TRowRange>> rangesByTablet;
+        yhash_map<TGuid, TRowRanges> rangesByTablet;
         TDataSources allSplits;
         for (const auto& split : splits) {
             auto objectId = split.Id;
