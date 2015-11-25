@@ -80,7 +80,7 @@ void TMultiReaderBase::OpenNextChunks()
     TGuard<TSpinLock> guard(PrefetchLock_);
     for (; PrefetchIndex_ < ReaderFactories_.size(); ++PrefetchIndex_) {
         if (ReaderFactories_[PrefetchIndex_]->GetMemoryFootprint() > FreeBufferSize_ &&
-               ActiveReaderCount_ > 0 &&
+            ActiveReaderCount_ > 0 &&
             !Options_->KeepInMemory)
         {
             return;
@@ -112,6 +112,7 @@ void TMultiReaderBase::DoOpenReader(int index)
     auto error = WaitFor(reader->GetReadyEvent());
 
     if (!error.IsOK()) {
+        RegisterFailedReader(reader);
         CompletionError_.TrySet(error);
     }
 
@@ -195,9 +196,11 @@ TSequentialMultiReaderBase::TSequentialMultiReaderBase(
         NextReaders_.push_back(NewPromise<IReaderBasePtr>());
     }
 
-    ReadyEvent_ = BIND(&TSequentialMultiReaderBase::DoOpen, MakeStrong(this))
+    ReadyEvent_ = CombineCompletionError(BIND(
+            &TSequentialMultiReaderBase::DoOpen, 
+            MakeStrong(this))
         .AsyncVia(TDispatcher::Get()->GetReaderInvoker())
-        .Run();
+        .Run());
 }
 
 void TSequentialMultiReaderBase::DoOpen()
@@ -291,9 +294,11 @@ TParallelMultiReaderBase::TParallelMultiReaderBase(
 {
     LOG_DEBUG("Multi chunk reader is parallel");
 
-    ReadyEvent_ = BIND(&TParallelMultiReaderBase::DoOpen, MakeStrong(this))
+    ReadyEvent_ = CombineCompletionError(BIND(
+            &TParallelMultiReaderBase::DoOpen, 
+            MakeStrong(this))
         .AsyncVia(TDispatcher::Get()->GetReaderInvoker())
-        .Run();
+        .Run());
 }
 
 void TParallelMultiReaderBase::DoOpen()
