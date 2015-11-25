@@ -254,6 +254,8 @@ public:
     virtual int GetExecNodeCount() const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
+            
+        TReaderGuard guard(AddressToNodeLock_);
 
         return OnlineNodeCount_;
     }
