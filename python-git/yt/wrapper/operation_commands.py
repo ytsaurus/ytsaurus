@@ -140,7 +140,7 @@ def get_operation_progress(operation, client=None):
         progress = get_attribute(operation_path, "progress/jobs", client=client)
         if isinstance(progress["aborted"], dict):
             progress["aborted"] = progress["aborted"]["total"]
-    except YtError as err:
+    except YtResponseError as err:
         if err.is_resolve_error():
             progress = {}
         else:
