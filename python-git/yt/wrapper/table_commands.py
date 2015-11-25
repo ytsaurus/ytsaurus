@@ -763,6 +763,20 @@ def mount_table(path, first_tablet_index=None, last_tablet_index=None, cell_id=N
 
     make_request("mount_table", params, client=client)
 
+def alter_table(path, schema=None, client=None):
+    """Sets schema of the table. NB! This command is not currently supported! The feature is coming with 0.18+ version!
+
+    :param table: string or `TablePath`
+    :param schema: json-able object
+    """
+
+    params = {"path": path}
+    
+    if schema is not None:
+        params["schema"] = schema
+
+    make_request("alter_table", params, client=client)
+
 def unmount_table(path, first_tablet_index=None, last_tablet_index=None, force=None, client=None):
     """Unmount table (or a part of it).  NB! This command is not currently supported! The feature is coming with 0.17+ version!
 
