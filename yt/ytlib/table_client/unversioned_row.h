@@ -599,6 +599,11 @@ public:
         return StringData_.length() + RowData_.Size();
     }
 
+    size_t SpaceUsedExcludingSelf() const
+    {
+        return StringData_.capacity() + RowData_.Size();
+    }
+
     void Save(TStreamSaveContext& context) const;
     void Load(TStreamLoadContext& context);
 
