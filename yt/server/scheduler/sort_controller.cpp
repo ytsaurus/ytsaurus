@@ -595,7 +595,11 @@ protected:
         virtual TNodeResources GetMinNeededResourcesHeavy() const override
         {
             auto stat = GetChunkPoolOutput()->GetApproximateStripeStatistics();
-            YCHECK(stat.size() == 1);
+            if (Controller->SimpleSort && stat.size() > 1) {
+                stat = AggregateStatistics(stat);
+            } else {
+                YCHECK(stat.size() == 1);    
+            }
             return GetNeededResourcesForChunkStripe(stat.front(), IsMemoryReserveEnabled());
         }
 
