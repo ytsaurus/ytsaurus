@@ -577,7 +577,7 @@ public:
                 } else {
                     slices.emplace_back(std::move(slice));
                 }
-                lowerKeyPrefix = key;
+                lowerKeyPrefix = GetKeyPrefix(key.Get(), keyColumnCount);
                 startRowIndex = IndexKeys_[currentIndex].ChunkRowCount;
                 dataSize = 0;
                 sliceRowCount = 0;
