@@ -22,7 +22,7 @@ Cypress (metainformation tree) commands:
 File commands:
     write-file, read-file
 Table commands:
-    read, write
+    read, write, alter_table
 Tablet commands:
     mount-table, unmount-table, remount-table, reshard-table
 ACL commands:
@@ -348,8 +348,8 @@ def set(**args):
 def add_set_parser(add_parser):
     parser = add_parser("set", yt.set)
     add_ypath_argument(parser)
-    parser.add_argument("value", nargs="?", help='new node attribute value, in %s format. \
-You can specify in bash pipe: "cat file_with_value | yt set //tmp/my_node"" '% YT_ARGUMENTS_FORMAT)
+    parser.add_argument("value", nargs="?", help="new node attribute value, in {0} format. You can specify in bash pipe: "
+                                                 "\"cat file_with_value | yt set //tmp/my_node\"".format(YT_ARGUMENTS_FORMAT))
     parser.set_defaults(func=set)
 
 def add_remove_parser(add_parser):
@@ -396,7 +396,6 @@ def add_mount_table_parser(add_parser):
     tablet_args(parser)
     parser.add_argument("--cell-id", help="tablet cell id where the tablets will be mounted to, "
                                           "if omitted then an appropriate cell is chosen automatically")
-
 def add_unmount_table_parser(add_parser):
     parser = add_parser("unmount-table", yt.unmount_table)
     tablet_args(parser)
@@ -410,6 +409,11 @@ def add_reshard_table_parser(add_parser):
     parser = add_parser("reshard-table", yt.reshard_table)
     tablet_args(parser)
     parser.add_argument("pivot_keys", action=ParseStructuredArguments, nargs="+")
+
+def add_alter_table_parser(add_parser):
+    parser = add_parser("alter-table", yt.alter_table)
+    add_ypath_argument(parser)
+    parser.add_argument("--schema", action=ParseStructuredArgument, nargs="?", help="new schema value, in {0} format.".format(YT_ARGUMENTS_FORMAT))
 
 def select_rows(**args):
     write_silently(chunk_iter_stream(yt.select_rows(raw=True, **args), 16 * MB))
@@ -747,6 +751,7 @@ def main():
     add_unmount_table_parser(add_parser)
     add_remount_table_parser(add_parser)
     add_reshard_table_parser(add_parser)
+    add_alter_table_parser(add_parser)
 
     add_select_rows_parser(add_parser)
     add_lookup_rows_parser(add_parser)
