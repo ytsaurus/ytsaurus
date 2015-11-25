@@ -648,6 +648,13 @@ void ToProto(NProto::TChunkSlice* protoChunkSlice, const TChunkSlice& chunkSlice
     protoChunkSlice->mutable_size_override_ext()->CopyFrom(chunkSlice.SizeOverrideExt());
 }
 
+size_t SpaceUsedExcludingSelf(const TChunkSlicePtr& p)
+{
+    return p->LowerLimit_.SpaceUsedExcludingSelf() +
+        p->UpperLimit_.SpaceUsedExcludingSelf() +
+        p->SizeOverrideExt_.SpaceUsed() - sizeof(p->SizeOverrideExt_);
+}
+
 Stroka ToString(TChunkSlicePtr slice)
 {
     return Format(
