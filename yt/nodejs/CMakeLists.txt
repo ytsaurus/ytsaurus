@@ -1,4 +1,4 @@
-function(NODE target type)
+function(NODE target)
   add_library(${target} MODULE ${ARGN})
   target_link_libraries(${target} ytlib)
 
