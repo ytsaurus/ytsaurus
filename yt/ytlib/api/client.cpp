@@ -496,12 +496,32 @@ private:
 
         auto cellDirectory = Connection_->GetCellDirectory();
 
-        std::vector<std::pair<TDataSource, Stroka>> subsources;
         yhash_map<NTabletClient::TTabletCellId, std::vector<Stroka>> tabletCellReplicas;
 
-        for (const auto& range : ranges) {
-            auto lowerBound = range.first;
-            auto upperBound = range.second;
+        auto getAddresses = [&] (const TTabletInfoPtr& tabletInfo) mutable -> const std::vector<Stroka> & {
+            if (tabletInfo->State != ETabletState::Mounted) {
+                // TODO(babenko): learn to work with unmounted tablets
+                THROW_ERROR_EXCEPTION("Tablet %v is not mounted",
+                    tabletInfo->TabletId);
+            }
+
+            auto replicasIt = tabletCellReplicas.insert(MakePair(tabletInfo->CellId, std::vector<Stroka>()));
+            if (replicasIt.second) {
+                replicasIt.first->second = cellDirectory->GetAddressesOrThrow(tabletInfo->CellId);
+
+                if (replicasIt.first->second.empty()) {
+                    THROW_ERROR_EXCEPTION("No alive replicas for tablet %v",
+                        tabletInfo->TabletId);
+                }
+            }
+
+            return replicasIt.first->second;
+        };
+
+        std::vector<std::pair<TDataSource, Stroka>> subsources;
+        for (auto rangesIt = ranges.begin(); rangesIt != ranges.end();) {
+            auto lowerBound = rangesIt->first;
+            auto upperBound = rangesIt->second;
 
             // Run binary search to find the relevant tablets.
             auto startIt = std::upper_bound(
@@ -512,40 +532,54 @@ private:
                     return key < tabletInfo->PivotKey.Get();
                 }) - 1;
 
+            auto tabletInfo = *startIt;
+            auto nextPivotKey = (startIt + 1 == tableInfo->Tablets.end()) ? MaxKey() : (*(startIt + 1))->PivotKey;
 
-            for (auto it = startIt; it != tableInfo->Tablets.end(); ++it) {
-                const auto& tabletInfo = *it;
-                if (upperBound <= tabletInfo->PivotKey)
-                    break;
+            if (upperBound < nextPivotKey) {
+                const auto& addresses = getAddresses(tabletInfo);
+                const auto& address = addresses[RandomNumber(addresses.size())];
 
-                if (tabletInfo->State != ETabletState::Mounted) {
-                    // TODO(babenko): learn to work with unmounted tablets
-                    THROW_ERROR_EXCEPTION("Tablet %v is not mounted",
-                        tabletInfo->TabletId);
+                auto rangesItEnd = std::upper_bound(
+                    rangesIt,
+                    ranges.end(),
+                    nextPivotKey.Get(),
+                    [] (const TRow& key, const TRowRange& rowRange) {
+                        return key < rowRange.second;
+                    });
+
+                for (; rangesIt != rangesItEnd; ++rangesIt) {
+                    TDataSource subsource;
+                    subsource.Id = tabletInfo->TabletId;
+                    subsource.Range.first = rowBuffer->Capture(rangesIt->first);
+                    subsource.Range.second = rowBuffer->Capture(rangesIt->second);
+
+                    subsources.emplace_back(std::move(subsource), address);
                 }
+            } else {
+                for (auto it = startIt; it != tableInfo->Tablets.end(); ++it) {
+                    const auto& tabletInfo = *it;
+                    YASSERT(upperBound > tabletInfo->PivotKey);
 
-                TDataSource subsource;
-                subsource.Id = tabletInfo->TabletId;
+                    const auto& addresses = getAddresses(tabletInfo);
+                    const auto& address = addresses[RandomNumber(addresses.size())];
 
-                auto pivotKey = tabletInfo->PivotKey;
-                auto nextPivotKey = (it + 1 == tableInfo->Tablets.end()) ? MaxKey() : (*(it + 1))->PivotKey;
+                    auto pivotKey = tabletInfo->PivotKey;
+                    auto nextPivotKey = (it + 1 == tableInfo->Tablets.end()) ? MaxKey() : (*(it + 1))->PivotKey;
 
-                subsource.Range.first = rowBuffer->Capture(std::max(lowerBound, pivotKey.Get()));
-                subsource.Range.second = rowBuffer->Capture(std::min(upperBound, nextPivotKey.Get()));
+                    bool isLast = upperBound <= nextPivotKey;
 
-                auto replicasIt = tabletCellReplicas.insert(std::make_pair(tabletInfo->CellId, std::vector<Stroka>()));
-                if (replicasIt.second) {
-                    replicasIt.first->second = cellDirectory->GetAddressesOrThrow(tabletInfo->CellId);
+                    TDataSource subsource;
+                    subsource.Id = tabletInfo->TabletId;
+                    subsource.Range.first = rowBuffer->Capture(it == startIt ? lowerBound : pivotKey.Get());
+                    subsource.Range.second = rowBuffer->Capture(isLast ? upperBound : nextPivotKey.Get());
 
-                    if (replicasIt.first->second.empty()) {
-                        THROW_ERROR_EXCEPTION("No alive replicas for tablet %v",
-                            tabletInfo->TabletId);
+                    subsources.emplace_back(std::move(subsource), address);
+
+                    if (isLast) {
+                        break;
                     }
                 }
-
-                const auto& addresses = replicasIt.first->second;
-                const auto& address = addresses[RandomNumber(addresses.size())];
-                subsources.emplace_back(std::move(subsource), address);
+                ++rangesIt;
             }
         }
 
@@ -669,6 +703,7 @@ private:
         auto rowBuffer = New<TRowBuffer>();
         auto allSplits = InferRanges(fragment, rowBuffer, Logger);
 
+        // Should be already sorted
         LOG_DEBUG("Sorting %v splits", allSplits.size());
 
         std::sort(
