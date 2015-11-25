@@ -1,6 +1,7 @@
 #pragma once
 
 #include "public.h"
+#include "plan_fragment.h"
 
 #include <yt/core/actions/future.h>
 
@@ -23,8 +24,10 @@ typedef std::function<TQueryStatistics(
 struct IExecutor
     : public virtual TRefCounted
 {
-    virtual TFuture<TQueryStatistics> Execute(
-        TPlanFragmentPtr fragment,
+    virtual TFuture <TQueryStatistics> Execute(
+        TConstQueryPtr query,
+        TDataSource2 dataSource,
+        TQueryOptions options,
         ISchemafulWriterPtr writer) = 0;
 
 };

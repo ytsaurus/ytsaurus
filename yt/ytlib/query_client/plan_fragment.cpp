@@ -580,13 +580,12 @@ void ToProto(NProto::TPlanSubFragment* proto, TConstPlanSubFragmentPtr fragment)
     proto->set_max_subqueries(fragment->Options.MaxSubqueries);
     proto->set_enable_code_cache(fragment->Options.EnableCodeCache);
 
-    proto->set_source(fragment->Source);
     proto->set_timestamp(fragment->Timestamp);
 }
 
 TPlanSubFragmentPtr FromProto(const NProto::TPlanSubFragment& serialized)
 {
-    auto result = New<TPlanSubFragment>(serialized.source());
+    auto result = New<TPlanSubFragment>();
 
     result->Query = FromProto(serialized.query());
     result->Options.VerboseLogging = serialized.verbose_logging();

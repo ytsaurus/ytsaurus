@@ -35,12 +35,15 @@ protected:
 
     std::vector<TKeyRange> Coordinate(const Stroka& source, int rangeExpansionLimit = 1000)
     {
-        auto planFragment = PreparePlanFragment(&PrepareMock_, source, CreateBuiltinFunctionRegistry());
+        TQueryPtr query;
+        TDataSource2 dataSource;
+        std::tie(query, dataSource) = PreparePlanFragment(&PrepareMock_, source, CreateBuiltinFunctionRegistry());
         auto rowBuffer = New<TRowBuffer>();
+        auto ranges = dataSource.Ranges.ToVector();
         auto prunedSplits = GetPrunedRanges(
-            planFragment->Query,
-            planFragment->TableId,
-            planFragment->Ranges,
+            query,
+            dataSource.Id,
+            ranges,
             rowBuffer,
             ColumnEvaluatorCache_,
             CreateBuiltinFunctionRegistry(),
@@ -52,13 +55,14 @@ protected:
 
     std::vector<TKeyRange> CoordinateForeign(const Stroka& source)
     {
-        auto planFragment = PreparePlanFragment(&PrepareMock_, source, CreateBuiltinFunctionRegistry());
+        TQueryPtr query;
+        TDataSource2 dataSource;
+        std::tie(query, dataSource) = PreparePlanFragment(&PrepareMock_, source, CreateBuiltinFunctionRegistry());
 
-        const auto& query = planFragment->Query;
-
+        auto buffer = New<TRowBuffer>();
         TRowRanges foreignSplits{{
-                planFragment->KeyRangesRowBuffer->Capture(MinKey().Get()),
-                planFragment->KeyRangesRowBuffer->Capture(MaxKey().Get())
+                buffer->Capture(MinKey().Get()),
+                buffer->Capture(MaxKey().Get())
             }};
 
         auto rowBuffer = New<TRowBuffer>();

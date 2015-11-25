@@ -300,18 +300,20 @@ public:
     }
 
     virtual TFuture<TQueryStatistics> Execute(
-        TPlanFragmentPtr fragment,
+        TConstQueryPtr query,
+        TDataSource2 dataSource,
+        TQueryOptions options,
         ISchemafulWriterPtr writer) override
     {
         TRACE_CHILD("QueryClient", "Execute") {
 
-            auto execute = fragment->Query->IsOrdered()
+            auto execute = query->IsOrdered()
                 ? &TQueryHelper::DoExecuteOrdered
                 : &TQueryHelper::DoExecute;
 
             return BIND(execute, MakeStrong(this))
                 .AsyncVia(NDriver::TDispatcher::Get()->GetHeavyInvoker())
-                .Run(fragment, std::move(writer));
+                .Run(std::move(query), std::move(dataSource), std::move(options), std::move(writer));
         }
     }
 
@@ -587,13 +589,14 @@ private:
     }
 
     TQueryStatistics DoCoordinateAndExecute(
-        TPlanFragmentPtr fragment,
+        TConstQueryPtr query,
+        TQueryOptions options,
         ISchemafulWriterPtr writer,
         int subrangesCount,
         bool isOrdered,
         std::function<std::pair<TDataSources, Stroka>(int)> getSubsources)
     {
-        auto Logger = BuildLogger(fragment->Query);
+        auto Logger = BuildLogger(query);
 
         std::vector<TRefiner> refiners(subrangesCount, [] (
             TConstExpressionPtr expr,
@@ -603,15 +606,15 @@ private:
             });
 
         return CoordinateAndExecute(
-            fragment->Query,
+            query,
             writer,
             refiners,
             isOrdered,
             [&] (TConstQueryPtr subquery, int index) {
-                auto subfragment = New<TPlanSubFragment>(fragment->Source);
-                subfragment->Timestamp = fragment->Timestamp;
+                auto subfragment = New<TPlanSubFragment>();
+                subfragment->Timestamp = options.Timestamp;
                 subfragment->Query = subquery;
-                subfragment->Options = fragment->Options;
+                subfragment->Options = options;
 
                 Stroka address;
                 std::tie(subfragment->DataSources, address) = getSubsources(index);
@@ -631,42 +634,53 @@ private:
                     std::move(reader),
                     std::move(writer),
                     FunctionRegistry_,
-                    fragment->Options.EnableCodeCache);
+                    options.EnableCodeCache);
             },
             FunctionRegistry_);
     }
 
     std::vector<std::pair<TDataSource, Stroka>> InferRanges(
-        TPlanFragmentPtr fragment,
+        TConstQueryPtr query,
+        TDataSource2 dataSource,
+        ui64 rangeExpansionLimit,
+        bool verboseLogging,
         TRowBufferPtr rowBuffer,
         const NLogging::TLogger& Logger)
     {
-        const auto& tableId = fragment->TableId;
-        const auto& ranges = fragment->Ranges;
+        const auto& tableId = dataSource.Id;
+        auto ranges = dataSource.Ranges.ToVector();
 
         auto prunedRanges = GetPrunedRanges(
-            fragment->Query,
+            query,
             tableId,
             ranges,
             rowBuffer,
             Connection_->GetColumnEvaluatorCache(),
             FunctionRegistry_,
-            fragment->Options.RangeExpansionLimit,
-            fragment->Options.VerboseLogging);
+            rangeExpansionLimit,
+            verboseLogging);
 
         LOG_DEBUG("Splitting %v pruned splits", prunedRanges.size());
 
-        return Split(tableId, prunedRanges, rowBuffer, Logger, fragment->Options.VerboseLogging);
+        return Split(tableId, prunedRanges, rowBuffer, Logger, verboseLogging);
     }
 
     TQueryStatistics DoExecute(
-        TPlanFragmentPtr fragment,
+        TConstQueryPtr query,
+        TDataSource2 dataSource,
+        TQueryOptions options,
         ISchemafulWriterPtr writer)
     {
-        auto Logger = BuildLogger(fragment->Query);
+        auto Logger = BuildLogger(query);
 
         auto rowBuffer = New<TRowBuffer>();
-        auto allSplits = InferRanges(fragment, rowBuffer, Logger);
+        auto allSplits = InferRanges(
+            query,
+            dataSource,
+            options.RangeExpansionLimit,
+            options.VerboseLogging,
+            rowBuffer,
+            Logger);
 
         LOG_DEBUG("Regrouping %v splits into groups",
             allSplits.size());
@@ -689,19 +703,27 @@ private:
             allSplits.size(),
             groupsByAddress.size());
 
-        return DoCoordinateAndExecute(fragment, writer, groupedSplits.size(), false, [&] (int index) {
+        return DoCoordinateAndExecute(query, options, writer, groupedSplits.size(), false, [&] (int index) {
             return groupedSplits[index];
         });
     }
 
     TQueryStatistics DoExecuteOrdered(
-        TPlanFragmentPtr fragment,
+        TConstQueryPtr query,
+        TDataSource2 dataSource,
+        TQueryOptions options,
         ISchemafulWriterPtr writer)
     {
-        auto Logger = BuildLogger(fragment->Query);
+        auto Logger = BuildLogger(query);
 
         auto rowBuffer = New<TRowBuffer>();
-        auto allSplits = InferRanges(fragment, rowBuffer, Logger);
+        auto allSplits = InferRanges(
+            query,
+            dataSource,
+            options.RangeExpansionLimit,
+            options.VerboseLogging,
+            rowBuffer,
+            Logger);
 
         // Should be already sorted
         LOG_DEBUG("Sorting %v splits", allSplits.size());
@@ -713,7 +735,7 @@ private:
                 return lhs.first.Range.first < rhs.first.Range.first;
             });
 
-        return DoCoordinateAndExecute(fragment, writer, allSplits.size(), true, [&] (int index) {
+        return DoCoordinateAndExecute(query, options, writer, allSplits.size(), true, [&] (int index) {
             const auto& split = allSplits[index];
             const auto& address = split.second;
             LOG_DEBUG("Delegating to tablet %v at %v",
@@ -1511,7 +1533,7 @@ private:
     }
 
     std::pair<IRowsetPtr, TQueryStatistics> DoSelectRows(
-        const Stroka& query,
+        const Stroka& queryString,
         const TSelectRowsOptions& options)
     {
         return CallAndRetryIfMetadataCacheIsInconsistent([&] () {
@@ -1525,23 +1547,30 @@ private:
     {
         auto inputRowLimit = options.InputRowLimit.Get(Connection_->GetConfig()->DefaultInputRowLimit);
         auto outputRowLimit = options.OutputRowLimit.Get(Connection_->GetConfig()->DefaultOutputRowLimit);
-        auto fragment = PreparePlanFragment(
+
+        TQueryPtr query;
+        TDataSource2 dataSource;
+        std::tie(query, dataSource) = PreparePlanFragment(
             QueryHelper_.Get(),
-            query,
+            queryString,
             FunctionRegistry_,
             inputRowLimit,
             outputRowLimit,
             options.Timestamp);
-        fragment->Options.RangeExpansionLimit = options.RangeExpansionLimit;
-        fragment->Options.VerboseLogging = options.VerboseLogging;
-        fragment->Options.EnableCodeCache = options.EnableCodeCache;
-        fragment->Options.MaxSubqueries = options.MaxSubqueries;
+
+        TQueryOptions queryOptions;
+
+        queryOptions.Timestamp = options.Timestamp;
+        queryOptions.RangeExpansionLimit = options.RangeExpansionLimit;
+        queryOptions.VerboseLogging = options.VerboseLogging;
+        queryOptions.EnableCodeCache = options.EnableCodeCache;
+        queryOptions.MaxSubqueries = options.MaxSubqueries;
 
         ISchemafulWriterPtr writer;
         TFuture<IRowsetPtr> asyncRowset;
-        std::tie(writer, asyncRowset) = CreateSchemafulRowsetWriter(fragment->Query->GetTableSchema());
+        std::tie(writer, asyncRowset) = CreateSchemafulRowsetWriter(query->GetTableSchema());
 
-        auto statistics = WaitFor(QueryHelper_->Execute(fragment, writer))
+        auto statistics = WaitFor(QueryHelper_->Execute(query, dataSource, queryOptions, writer))
             .ValueOrThrow();
 
         auto rowset = WaitFor(asyncRowset)

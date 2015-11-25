@@ -1376,7 +1376,7 @@ void ParseYqlString(
     }
 }
 
-TPlanFragmentPtr PreparePlanFragment(
+std::pair<TQueryPtr, TDataSource2> PreparePlanFragment(
     IPrepareCallbacks* callbacks,
     const Stroka& source,
     IFunctionRegistryPtr functionRegistry,
@@ -1512,25 +1512,25 @@ TPlanFragmentPtr PreparePlanFragment(
 
     PrepareQuery(query, ast, source, schemaProxy, functionRegistry.Get(), astHead.second);
 
-    auto planFragment = New<TPlanFragment>(source);
-
     if (ast.Limit) {
         query->Limit = ast.Limit;
     } else if (query->OrderClause) {
         THROW_ERROR_EXCEPTION("ORDER BY used without LIMIT");
     }
 
-    planFragment->Query = query;
-    planFragment->Timestamp = timestamp;
-
     auto range = GetBothBoundsFromDataSplit(selfDataSplit);
 
-    planFragment->TableId = GetObjectIdFromDataSplit(selfDataSplit);
-    planFragment->Ranges.push_back({
-        planFragment->KeyRangesRowBuffer->Capture(range.first.Get()),
-        planFragment->KeyRangesRowBuffer->Capture(range.second.Get())});
+    SmallVector<TRowRange, 1> rowRanges;
+    TRowBufferPtr buffer = New<TRowBuffer>();
+    rowRanges.push_back({
+        buffer->Capture(range.first.Get()),
+        buffer->Capture(range.second.Get())});
 
-    return planFragment;
+    TDataSource2 dataSource;
+    dataSource.Id = GetObjectIdFromDataSplit(selfDataSplit);
+    dataSource.Ranges = MakeSharedRange(std::move(rowRanges), std::move(buffer));
+
+    return std::make_pair(query, dataSource);
 }
 
 TParsedQueryInfo PrepareJobQueryAst(const Stroka& source)
@@ -1628,7 +1628,6 @@ TQueryPtr PrepareJobQuery(
     const TTableSchema& tableSchema,
     IFunctionRegistryPtr functionRegistry)
 {
-    auto planFragment = New<TPlanFragment>(source);
     auto unlimited = std::numeric_limits<i64>::max();
 
     auto query = New<TQuery>(unlimited, unlimited, TGuid::Create());

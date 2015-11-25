@@ -230,20 +230,23 @@ protected:
 
     void Coordinate(const Stroka& source, const TDataSplits& dataSplits, size_t subqueriesCount)
     {
-        auto planFragment = PreparePlanFragment(&PrepareMock_, source, CreateBuiltinFunctionRegistry());
+        TQueryPtr query;
+        TDataSource2 dataSource;
+        std::tie(query, dataSource) = PreparePlanFragment(&PrepareMock_, source, CreateBuiltinFunctionRegistry());
 
+        auto buffer = New<TRowBuffer>();
         TRowRanges sources;
         for (const auto& split : dataSplits) {
             auto range = GetBothBoundsFromDataSplit(split);
     
             sources.emplace_back(
-                planFragment->KeyRangesRowBuffer->Capture(range.first.Get()),
-                planFragment->KeyRangesRowBuffer->Capture(range.second.Get()));
+                buffer->Capture(range.first.Get()),
+                buffer->Capture(range.second.Get()));
         }
 
         auto rowBuffer = New<TRowBuffer>();
         auto prunedRanges = GetPrunedRanges(
-            planFragment->Query,
+            query,
             MakeId(EObjectType::Table, 0x42, 0, 0xdeadbabe),
             sources,
             rowBuffer,
@@ -379,7 +382,7 @@ TFuture<TQueryStatistics> DoExecuteQuery(
     IFunctionRegistryPtr functionRegistry,
     TColumnEvaluatorCachePtr columnEvaluatorCache,
     EFailureLocation failureLocation,
-    TPlanFragmentPtr fragment,
+    TConstQueryPtr query,
     ISchemafulWriterPtr writer,
     TExecuteQuery executeCallback = nullptr)
 {
@@ -390,7 +393,7 @@ TFuture<TQueryStatistics> DoExecuteQuery(
 
     TKeyColumns emptyKeyColumns;
     for (const auto& row : source) {
-        owningSource.push_back(NTableClient::BuildRow(row, emptyKeyColumns, fragment->Query->TableSchema));
+        owningSource.push_back(NTableClient::BuildRow(row, emptyKeyColumns, query->TableSchema));
     }
 
     sourceRows.resize(owningSource.size());
@@ -412,7 +415,7 @@ TFuture<TQueryStatistics> DoExecuteQuery(
 
     auto evaluator = New<TEvaluator>(New<TExecutorConfig>());
     return MakeFuture(evaluator->RunWithExecutor(
-        fragment->Query,
+        query,
         readerMock,
         writer,
         executeCallback,
@@ -620,7 +623,10 @@ protected:
         }
 
         auto prepareAndExecute = [&] () {
-            auto primaryFragment = PreparePlanFragment(&PrepareMock_, query, functionRegistry, inputRowLimit, outputRowLimit);
+            TQueryPtr primaryQuery;
+            TDataSource2 primaryDataSource;
+            std::tie(primaryQuery, primaryDataSource) = PreparePlanFragment(
+                &PrepareMock_, query, functionRegistry, inputRowLimit, outputRowLimit);
 
             size_t foreignSplitIndex = 1;
             auto executeCallback = [&] (
@@ -630,20 +636,12 @@ protected:
                 TRowRanges ranges,
                 ISchemafulWriterPtr writer) mutable -> TQueryStatistics
             {
-                auto planFragment = New<TPlanFragment>();
-
-                planFragment->Timestamp = primaryFragment->Timestamp;
-                planFragment->TableId = foreignDataId;
-                planFragment->KeyRangesRowBuffer = buffer;
-                planFragment->Ranges = ranges;
-                planFragment->Query = subquery;
-
                 auto subqueryResult = DoExecuteQuery(
                     owningSources[foreignSplitIndex++],
                     functionRegistry,
                     columnEvaluatorCache,
                     failureLocation,
-                    planFragment,
+                    subquery,
                     writer);
 
                 return WaitFor(subqueryResult)
@@ -655,7 +653,7 @@ protected:
                 functionRegistry,
                 columnEvaluatorCache,
                 failureLocation,
-                primaryFragment,
+                primaryQuery,
                 WriterMock_,
                 executeCallback);
         };
