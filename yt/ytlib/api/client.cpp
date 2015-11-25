@@ -257,7 +257,7 @@ private:
             data = NCompression::DecompressWithEnvelope(response->Attachments());
         }
 
-        LOG_DEBUG("Received subquery result (deserialization_time: %v, data_size: %v)",
+        LOG_DEBUG("Received subquery result (DeserializationTime: %v, DataSize: %v)",
             deserializationTime,
             data.Size());
 
@@ -616,7 +616,7 @@ private:
                 Stroka address;
                 std::tie(subfragment->DataSources, address) = getSubsources(index);
 
-                LOG_DEBUG("Delegating subquery (SubqueryId: %v, Address: %v, Max subqueries %v)",
+                LOG_DEBUG("Delegating subquery (SubqueryId: %v, Address: %v, MaxSubqueries %v)",
                     subquery->Id,
                     address,
                     subfragment->Options.MaxSubqueries);
@@ -746,7 +746,7 @@ private:
                 req->set_response_codec(static_cast<int>(config->QueryResponseCodec));
             }
 
-            LOG_DEBUG("Sending subquery (serialization_time: %v, request_size: %v)",
+            LOG_DEBUG("Sending subquery (SerializationTime: %v, RequestSize: %v)",
                 serializationTime,
                 req->ByteSize());
 
