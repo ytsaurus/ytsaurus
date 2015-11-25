@@ -363,6 +363,9 @@ public:
     {
         TProto::Swap(&other);
     }
+
+    template <class T>
+    friend size_t SpaceUsedExcludingSelf(const TIntrusivePtr<TRefCountedProto<T>>& p);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
