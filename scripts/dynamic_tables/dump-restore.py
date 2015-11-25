@@ -101,7 +101,9 @@ class Schematizer:
 
     def schematize(self, row):
         for key, value in row.iteritems():
-            if self.type_map[key] == "int64":
+            if row[key] is None:
+                pass
+            elif self.type_map[key] == "int64":
                 row[key] = yson.YsonInt64(value)
             elif self.type_map[key] == "uint64":
                 row[key] = yson.YsonUint64(value)
