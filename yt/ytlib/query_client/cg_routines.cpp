@@ -226,8 +226,8 @@ void JoinOpHelper(
         context,
         groupHasher,
         groupComparer,
-        TSharedRange<TRow>(MakeRange(keys), context->PermanentBuffer),
-        TSharedRange<TRow>(MakeRange(allRows), context->PermanentBuffer),
+        MakeSharedRange(std::move(keys), context->PermanentBuffer),
+        MakeSharedRange(std::move(allRows), context->PermanentBuffer),
         &joinedRows);
 
     LOG_DEBUG("Joined into %v rows",
