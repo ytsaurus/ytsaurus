@@ -247,20 +247,20 @@ class Application(object):
         self._daemon = Flask(__name__)
 
         self._config_path = config_path
-        self._config = config = json.load(open(config_path))
+        self._config = json.load(open(config_path))
+        self._last_successfully_loaded_config = deepcopy(self._config)
         self._mutex = RLock()
-        self._yt = YtClientWithNotifications(**config["yt_backend_options"])
+        self._yt = YtClientWithNotifications(**self._config["yt_backend_options"])
 
-        self._configure_logging(config.get("logging", {}))
+        self._configure_logging(self._config.get("logging", {}))
 
         self._clusters_config_mutex = RLock()
-        self._clusters_configuration = self._get_clusters_configuration_from_config(config)
+        self._clusters_configuration = self._get_clusters_configuration_from_config(self._config)
         # XXX(asaitgalin): as clusters configuration is reloaded in ConfigReloadingThread
         # we save last successfully loaded configuration so it can be passed to execute_task
         # with guarantees that it can be loaded there.
-        self._last_successfully_loaded_config = deepcopy(config)
 
-        self._path = config["path"]
+        self._path = self._config["path"]
         self._logging_port = self._config["port"] + 1
 
         self._yandex_yt_python_tools_version = self._get_yandex_yt_python_tools_version()
@@ -966,7 +966,7 @@ class Application(object):
 
                     _, temporary_config = tempfile.mkstemp()
                     with open(temporary_config, "w") as fout:
-                        json.dump(self._last_successfully_loaded_config, fout)
+                        json.dump(self._get_config(), fout)
 
                     task_process = subprocess.Popen(["transfer-manager-server", "--execute-task", "--config", temporary_config],
                                                     stdout=subprocess.PIPE, stdin=subprocess.PIPE,
@@ -1137,6 +1137,14 @@ class Application(object):
                 }
             })
 
+    def _get_config(self):
+        # NB: Build the config, that actually used by transfer manager.
+        config = deepcopy(self._config)
+        with self._clusters_config_mutex:
+            for name in ["clusters", "availability_graph", "kiwi_transmitter"]:
+                config[name] = self._last_successfully_loaded_config[name]
+        return config
+
     def _get_task_description(self, task):
         task_description = task.dict(hide_token=True)
         queue_index = 1
@@ -1166,16 +1174,6 @@ class Application(object):
                     logger.info("Aborted outdated operation {} of task {}".format(operation_id, task_id))
                 except yt.YtError:
                     log_yt_exception(logger, "Failed abort operation {} of task {}".format(operation_id, task_id))
-
-    # Public interface
-    def run(self, *args, **kwargs):
-        logger.info("Starting transfer manager (pid %s)", os.getpid())
-        self._daemon.run(*args, **kwargs)
-
-
-    # Url handlers
-    def main(self):
-        return "This is YT transfer manager"
 
     def _create_task(self, params, token, user, dry_run, make_precheck):
         id = generate_uuid()
@@ -1221,6 +1219,16 @@ class Application(object):
             logger.info("Task %s added", task.id)
 
         return task.id
+
+    # Public interface
+    def run(self, *args, **kwargs):
+        logger.info("Starting transfer manager (pid %s)", os.getpid())
+        self._daemon.run(*args, **kwargs)
+
+
+    # Url handlers
+    def main(self):
+        return "This is YT transfer manager"
 
     def add(self):
         try:
@@ -1358,7 +1366,7 @@ class Application(object):
         return Response(json.dumps(tasks_descriptions), mimetype='application/json')
 
     def config(self):
-        return jsonify(self._config)
+        return jsonify(self._get_config())
 
     def ping(self):
         return "OK", 200
