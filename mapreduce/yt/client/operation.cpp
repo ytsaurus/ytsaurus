@@ -400,7 +400,7 @@ void BuildUserJobFluently(
 
 void BuildCommonOperationPart(TFluentMap fluent)
 {
-    const TProcessProperties* properties = TProcessProperties::Get();
+    const TProcessState* properties = TProcessState::Get();
     const Stroka& pool = TConfig::Get()->Pool;
 
     fluent
