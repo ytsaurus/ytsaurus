@@ -155,7 +155,7 @@ TConfig* TConfig::Get()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TProcessProperties::TProcessProperties()
+TProcessState::TProcessState()
 {
     try {
         HostName = ::HostName();
@@ -174,16 +174,16 @@ TProcessProperties::TProcessProperties()
     ClientVersion = Sprintf("YT C++ client v2 r%d", GetProgramSvnRevision());
 }
 
-void TProcessProperties::SetCommandLine(int argc, const char* argv[])
+void TProcessState::SetCommandLine(int argc, const char* argv[])
 {
     for (int i = 0; i < argc; ++i) {
         CommandLine.push_back(argv[i]);
     }
 }
 
-TProcessProperties* TProcessProperties::Get()
+TProcessState* TProcessState::Get()
 {
-    return Singleton<TProcessProperties>();
+    return Singleton<TProcessState>();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

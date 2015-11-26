@@ -16,13 +16,13 @@ namespace NYT {
 
 void WriteVersionToLog()
 {
-    LOG_INFO("Wrapper version: %s", ~TProcessProperties::Get()->ClientVersion);
+    LOG_INFO("Wrapper version: %s", ~TProcessState::Get()->ClientVersion);
 }
 
 void Initialize(int argc, const char* argv[])
 {
     SetLogger(CreateStdErrLogger(ILogger::DEBUG));
-    TProcessProperties::Get()->SetCommandLine(argc, argv);
+    TProcessState::Get()->SetCommandLine(argc, argv);
 
     if (argc != 5) {
         WriteVersionToLog();

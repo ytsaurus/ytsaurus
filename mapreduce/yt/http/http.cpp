@@ -156,7 +156,7 @@ Stroka THttpHeader::GetHeader(const Stroka& hostName, const Stroka& requestId) c
 
     header << Method << " " << GetUrl() << " HTTP/1.1\r\n";
     header << "Host: " << hostName << "\r\n";
-    header << "User-Agent: " << TProcessProperties::Get()->ClientVersion << "\r\n";
+    header << "User-Agent: " << TProcessState::Get()->ClientVersion << "\r\n";
 
     if (!Token.Empty()) {
         header << "Authorization: OAuth " << Token << "\r\n";

@@ -56,7 +56,7 @@ struct TConfig
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TProcessProperties
+struct TProcessState
 {
     Stroka HostName;
     Stroka UserName;
@@ -64,11 +64,11 @@ struct TProcessProperties
     int Pid;
     Stroka ClientVersion;
 
-    TProcessProperties();
+    TProcessState();
 
     void SetCommandLine(int argc, const char* argv[]);
 
-    static TProcessProperties* Get();
+    static TProcessState* Get();
 };
 
 ////////////////////////////////////////////////////////////////////////////////
