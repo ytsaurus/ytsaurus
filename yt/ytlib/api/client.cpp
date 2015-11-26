@@ -594,7 +594,7 @@ private:
         ISchemafulWriterPtr writer,
         int subrangesCount,
         bool isOrdered,
-        std::function<std::pair<TDataSources, Stroka>(int)> getSubsources)
+        std::function<std::pair<std::vector<TDataSource2>, Stroka>(int)> getSubsources)
     {
         auto Logger = BuildLogger(query);
 
@@ -611,20 +611,16 @@ private:
             refiners,
             isOrdered,
             [&] (TConstQueryPtr subquery, int index) {
-                auto subfragment = New<TPlanSubFragment>();
-                subfragment->Timestamp = options.Timestamp;
-                subfragment->Query = subquery;
-                subfragment->Options = options;
-
+                std::vector<TDataSource2> dataSources;
                 Stroka address;
-                std::tie(subfragment->DataSources, address) = getSubsources(index);
+                std::tie(dataSources, address) = getSubsources(index);
 
                 LOG_DEBUG("Delegating subquery (SubqueryId: %v, Address: %v, MaxSubqueries %v)",
                     subquery->Id,
                     address,
-                    subfragment->Options.MaxSubqueries);
+                    options.MaxSubqueries);
 
-                return Delegate(subfragment, address);
+                return Delegate(subquery, options, dataSources, address);
             },
             [&] (TConstQueryPtr topQuery, ISchemafulReaderPtr reader, ISchemafulWriterPtr writer) {
                 LOG_DEBUG("Evaluating top query (TopQueryId: %v)", topQuery->Id);
@@ -704,7 +700,20 @@ private:
             groupsByAddress.size());
 
         return DoCoordinateAndExecute(query, options, writer, groupedSplits.size(), false, [&] (int index) {
-            return groupedSplits[index];
+            yhash_map<TGuid, TRowRanges> rangesByTablet;
+            std::vector<TDataSource2> dataSources2;
+
+            for (const auto& dataSource : groupedSplits[index].first) {
+                rangesByTablet[dataSource.Id].push_back(dataSource.Range);
+            }
+
+            for (const auto& tabletAndRanges : rangesByTablet) {
+                dataSources2.push_back(TDataSource2{
+                    tabletAndRanges.first,
+                    MakeSharedRange(tabletAndRanges.second, rowBuffer)});
+            }
+
+            return std::make_pair(dataSources2, groupedSplits[index].second);
         });
     }
 
@@ -741,15 +750,27 @@ private:
             LOG_DEBUG("Delegating to tablet %v at %v",
                 split.first.Id,
                 address);
-            return std::make_pair(TDataSources(1, split.first), address);
+
+            SmallVector<TRowRange, 1> ranges;
+            ranges.push_back(split.first.Range);
+
+            std::vector<TDataSource2> dataSources2;
+
+            dataSources2.push_back(TDataSource2{
+                split.first.Id,
+                MakeSharedRange(std::move(ranges), rowBuffer)});
+
+            return std::make_pair(dataSources2, address);
         });
     }
 
    std::pair<ISchemafulReaderPtr, TFuture<TQueryStatistics>> Delegate(
-        TPlanSubFragmentPtr fragment,
+        TConstQueryPtr query,
+        TQueryOptions options,
+        std::vector<TDataSource2> dataSources,
         const Stroka& address)
     {
-        auto Logger = BuildLogger(fragment->Query);
+        auto Logger = BuildLogger(query);
 
         TRACE_CHILD("QueryClient", "Delegate") {
             auto channel = NodeChannelFactory_->CreateChannel(address);
@@ -763,7 +784,9 @@ private:
             TDuration serializationTime;
             {
                 NProfiling::TAggregatingTimingGuard timingGuard(&serializationTime);
-                ToProto(req->mutable_plan_fragment(), fragment);
+                ToProto(req->mutable_query(), query);
+                ToProto(req->mutable_options(), options);
+                ToProto(req->mutable_data_sources(), dataSources);
 
                 req->set_response_codec(static_cast<int>(config->QueryResponseCodec));
             }
@@ -777,7 +800,7 @@ private:
 
             auto resultReader = New<TQueryResponseReader>(
                 req->Invoke(),
-                fragment->Query->GetTableSchema(),
+                query->GetTableSchema(),
                 Logger);
             return std::make_pair(resultReader, resultReader->GetQueryResult());
         }

@@ -69,11 +69,18 @@ private:
     {
         LOG_DEBUG("Subfragemnt deserialization started");
 
-        auto planFragment = FromProto(request->plan_fragment());
+        auto query = FromProto(request->query());
+        auto options = FromProto(request->options());
+
+        std::vector<TDataSource2> dataSources;
+        dataSources.reserve(request->data_sources_size());
+        for (int i = 0; i < request->data_sources_size(); ++i) {
+            dataSources.push_back(FromProto(request->data_sources(i)));
+        }
 
         LOG_DEBUG("Subfragemnt deserialization finished");
 
-        context->SetRequestInfo("FragmentId: %v", planFragment->Query->Id);
+        context->SetRequestInfo("FragmentId: %v", query->Id);
 
         const auto& user = context->GetUser();
         auto securityManager = Bootstrap_->GetSecurityManager();
@@ -85,10 +92,10 @@ private:
             [&] () {
                 TWireProtocolWriter protocolWriter;
                 auto rowsetWriter = protocolWriter.CreateSchemafulRowsetWriter(
-                    planFragment->Query->GetTableSchema());
+                    query->GetTableSchema());
 
                 auto executor = Bootstrap_->GetQueryExecutor();
-                auto result = WaitFor(executor->Execute(planFragment, rowsetWriter))
+                auto result = WaitFor(executor->Execute(query, dataSources, options, rowsetWriter))
                     .ValueOrThrow();
 
                 auto responseCodec = request->has_response_codec()

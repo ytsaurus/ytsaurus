@@ -158,18 +158,18 @@ message TQuery
     optional TProjectClause project_clause = 10;
 }
 
-message TPlanSubFragment
+message TQueryOptions
 {
-    required string source = 1;
-    required uint64 timestamp = 2;
+    required uint64 timestamp = 1;
+    required bool verbose_logging = 2;
+    required int64 max_subqueries = 3;
+    required bool enable_code_cache = 4;
+}
 
-    repeated NYT.NProto.TGuid data_id = 3;
-    required bytes data_bounds = 8;
-
-    required TQuery query = 5;
-    optional bool verbose_logging = 7 [default = false];
-    optional int64 max_subqueries = 9 [default = 16];
-    optional bool enable_code_cache = 10 [default = true];
+message TDataSource2
+{
+    required NYT.NProto.TGuid id = 1;
+    required bytes ranges = 2;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

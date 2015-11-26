@@ -6,8 +6,6 @@
 
 #include <yt/ytlib/node_tracker_client/node_directory.h>
 
-#include <yt/ytlib/query_client/plan_fragment.pb.h>
-
 #include <yt/ytlib/table_client/row_buffer.h>
 #include <yt/ytlib/table_client/schema.h>
 #include <yt/ytlib/table_client/unversioned_row.h>
@@ -436,13 +434,6 @@ struct TPlanFragmentBase
 
 };
 
-struct TPlanSubFragment
-    : public TPlanFragmentBase
-{
-    TDataSources DataSources;
-
-};
-
 struct TDataSource2
 {
     //! Either a chunk id or tablet id.
@@ -450,10 +441,11 @@ struct TDataSource2
     TSharedRange<TRowRange> Ranges;
 };
 
-DEFINE_REFCOUNTED_TYPE(TPlanSubFragment)
+void ToProto(NProto::TQueryOptions* proto, const TQueryOptions& options);
+TQueryOptions FromProto(const NProto::TQueryOptions& serialized);
 
-void ToProto(NProto::TPlanSubFragment* serialized, TConstPlanSubFragmentPtr fragment);
-TPlanSubFragmentPtr FromProto(const NProto::TPlanSubFragment& serialized);
+void ToProto(NProto::TDataSource2* proto, const TDataSource2& dataSource);
+TDataSource2 FromProto(const NProto::TDataSource2& serialized);
 
 Stroka InferName(TConstExpressionPtr expr, bool omitValues = false);
 Stroka InferName(TConstQueryPtr query, bool omitValues = false);

@@ -112,19 +112,21 @@ public:
 
     // IExecutor implementation.
     virtual TFuture<TQueryStatistics> Execute(
-        TPlanSubFragmentPtr fragment,
+        TConstQueryPtr query,
+        std::vector<TDataSource2> dataSources,
+        TQueryOptions options,
         ISchemafulWriterPtr writer) override
     {
         auto securityManager = Bootstrap_->GetSecurityManager();
         auto maybeUser = securityManager->GetAuthenticatedUser();
 
-        auto execute = fragment->Query->IsOrdered()
+        auto execute = query->IsOrdered()
             ? &TQueryExecutor::DoExecuteOrdered
             : &TQueryExecutor::DoExecute;
 
         return BIND(execute, MakeStrong(this))
             .AsyncVia(Bootstrap_->GetQueryPoolInvoker())
-            .Run(fragment, std::move(writer), maybeUser);
+            .Run(std::move(query), std::move(dataSources), std::move(options), std::move(writer), maybeUser);
     }
 
 private:
@@ -137,13 +139,14 @@ private:
     typedef std::function<ISchemafulReaderPtr()> TSubreaderCreator;
 
     TQueryStatistics DoCoordinateAndExecute(
-        TPlanSubFragmentPtr fragment,
+        TConstQueryPtr query,
+        TQueryOptions options,
         ISchemafulWriterPtr writer,
         bool isOrdered,
         const std::vector<TRefiner>& refiners,
         const std::vector<TSubreaderCreator>& subreaderCreators)
     {
-        auto Logger = BuildLogger(fragment->Query);
+        auto Logger = BuildLogger(query);
 
         auto securityManager = Bootstrap_->GetSecurityManager();
         auto maybeUser = securityManager->GetAuthenticatedUser();
@@ -157,7 +160,7 @@ private:
             ->CreateClient(clientOptions)->GetQueryExecutor();
 
         return CoordinateAndExecute(
-            fragment->Query,
+            query,
             writer,
             refiners,
             isOrdered,
@@ -168,7 +171,7 @@ private:
 
                 LOG_DEBUG("Evaluating subquery (SubqueryId: %v)", subquery->Id);
 
-                auto foreignExecuteCallback = [fragment, remoteExecutor, Logger] (
+                auto foreignExecuteCallback = [options, remoteExecutor, Logger] (
                     const TQueryPtr& subquery,
                     TGuid dataId,
                     TRowBufferPtr buffer,
@@ -178,8 +181,8 @@ private:
                     LOG_DEBUG("Evaluating remote subquery (SubqueryId: %v)", subquery->Id);
 
                     TQueryOptions subqueryOptions;
-                    subqueryOptions.Timestamp = fragment->Timestamp;
-                    subqueryOptions.VerboseLogging = fragment->Options.VerboseLogging;
+                    subqueryOptions.Timestamp = options.Timestamp;
+                    subqueryOptions.VerboseLogging = options.VerboseLogging;
 
                     TDataSource2 dataSource;
                     dataSource.Id = dataId;
@@ -204,7 +207,7 @@ private:
                         foreignExecuteCallback,
                         FunctionRegistry_,
                         ColumnEvaluatorCache_,
-                        fragment->Options.EnableCodeCache);
+                        options.EnableCodeCache);
 
                 asyncStatistics.Subscribe(BIND([=] (const TErrorOr<TQueryStatistics>& result) {
                     if (!result.IsOK()) {
@@ -218,7 +221,7 @@ private:
             [&] (TConstQueryPtr topQuery, ISchemafulReaderPtr reader, ISchemafulWriterPtr writer) {
                 LOG_DEBUG("Evaluating top query (TopQueryId: %v)", topQuery->Id);
                 auto result = Evaluator_->Run(topQuery, std::move(reader), std::move(writer), FunctionRegistry_,
-                                              fragment->Options.EnableCodeCache);
+                                              options.EnableCodeCache);
                 LOG_DEBUG("Finished evaluating top query (TopQueryId: %v)", topQuery->Id);
                 return result;
             },
@@ -226,51 +229,58 @@ private:
     }
 
     TQueryStatistics DoExecute(
-        TPlanSubFragmentPtr fragment,
+        TConstQueryPtr query,
+        std::vector<TDataSource2> dataSources,
+        TQueryOptions options,
         ISchemafulWriterPtr writer,
         const TNullable<Stroka>& maybeUser)
     {
         auto securityManager = Bootstrap_->GetSecurityManager();
         TAuthenticatedUserGuard userGuard(securityManager, maybeUser);
 
-        auto timestamp = fragment->Timestamp;
-
-        auto Logger = BuildLogger(fragment->Query);
-
-        TDataSources rangeSources;
-
-        std::map<NObjectClient::TObjectId, std::vector<TRow>> keySources;
+        auto Logger = BuildLogger(query);
 
         LOG_DEBUG("Classifying data sources into ranges and lookup keys");
 
-        for (const auto& source : fragment->DataSources) {
-            auto lowerBound = source.Range.first;
-            auto upperBound = source.Range.second;
+        std::vector<std::pair<TGuid, TRowRanges>> rangesByTablet;
+        std::vector<std::pair<TGuid, std::vector<TRow>>> keysByTablet;
 
-            auto keySize = fragment->Query->KeyColumnsCount;
+        auto keySize = query->KeyColumnsCount;
 
-            if (keySize == lowerBound.GetCount()  &&
-                keySize + 1 == upperBound.GetCount() &&
-                upperBound[keySize].Type == EValueType::Max &&
-                CompareRows(lowerBound.Begin(), lowerBound.End(), upperBound.Begin(), upperBound.Begin() + keySize) == 0)
-            {
-                keySources[source.Id].push_back(lowerBound);
-            } else {
-                rangeSources.push_back(source);
+        for (const auto& source : dataSources) {
+            TRowRanges rowRanges;
+            std::vector<TRow> keys;
+
+            for (const auto& range : source.Ranges) {
+                auto lowerBound = range.first;
+                auto upperBound = range.second;
+
+                if (keySize == lowerBound.GetCount()  &&
+                    keySize + 1 == upperBound.GetCount() &&
+                    upperBound[keySize].Type == EValueType::Max &&
+                    CompareRows(lowerBound.Begin(), lowerBound.End(), upperBound.Begin(), upperBound.Begin() + keySize) == 0)
+                {
+                    keys.push_back(lowerBound);
+                } else {
+                    rowRanges.push_back(range);
+                }
             }
+
+            rangesByTablet.emplace_back(source.Id, std::move(rowRanges));
+            keysByTablet.emplace_back(source.Id, std::move(keys));
         }
 
-        LOG_DEBUG("Splitting %v sources", rangeSources.size());
+        LOG_DEBUG("Splitting sources");
 
         auto rowBuffer = New<TRowBuffer>();
-        auto splits = Split(rangeSources, rowBuffer, true, Logger, fragment->Options.VerboseLogging);
+        auto splits = Split(std::move(rangesByTablet), rowBuffer, true, Logger, options.VerboseLogging);
         int splitCount = splits.size();
         int splitOffset = 0;
         std::vector<TDataSources> groupedSplits;
 
         LOG_DEBUG("Grouping %v splits", splitCount);
 
-        auto maxSubqueries = std::min(fragment->Options.MaxSubqueries, Config_->MaxSubqueries);
+        auto maxSubqueries = std::min(options.MaxSubqueries, Config_->MaxSubqueries);
 
         for (int queryIndex = 1; queryIndex <= maxSubqueries; ++queryIndex) {
             int nextSplitOffset = queryIndex * splitCount / maxSubqueries;
@@ -284,7 +294,7 @@ private:
 
         auto ranges = GetRanges(groupedSplits);
 
-        if (fragment->Options.VerboseLogging) {
+        if (options.VerboseLogging) {
             LOG_DEBUG("Got ranges for groups %v",
                 JoinToString(ranges, RowRangeFormatter));
         } else {
@@ -292,8 +302,10 @@ private:
         }
 
         auto columnEvaluator = ColumnEvaluatorCache_->Find(
-            fragment->Query->TableSchema,
-            fragment->Query->KeyColumnsCount);
+            query->TableSchema,
+            query->KeyColumnsCount);
+
+        auto timestamp = options.Timestamp;
 
         std::vector<TRefiner> refiners;
         std::vector<TSubreaderCreator> subreaderCreators;
@@ -303,7 +315,7 @@ private:
                 return RefinePredicate(GetRange(groupedSplit), expr, schema, keyColumns, columnEvaluator);
             });
             subreaderCreators.push_back([&] () {
-                if (fragment->Options.VerboseLogging) {
+                if (options.VerboseLogging) {
                     LOG_DEBUG("Creating reader for ranges %v",
                         JoinToString(groupedSplit, DataSourceFormatter));
                 } else {
@@ -311,7 +323,7 @@ private:
                 }
 
                 auto bottomSplitReaderGenerator = [
-                    fragment,
+                    query,
                     groupedSplit,
                     timestamp,
                     index = 0,
@@ -321,7 +333,7 @@ private:
                         return nullptr;
                     } else {
                         return this_->GetReader(
-                            fragment->Query->TableSchema,
+                            query->TableSchema,
                             groupedSplit[index++],
                       	    timestamp);
                     }
@@ -333,7 +345,7 @@ private:
             });
         }
 
-        for (const auto& keySource : keySources) {
+        for (const auto& keySource : keysByTablet) {
             refiners.push_back([&] (TConstExpressionPtr expr, const TTableSchema& schema, const TKeyColumns& keyColumns) {
                 return RefinePredicate(keySource.second, expr, keyColumns);
             });
@@ -345,7 +357,7 @@ private:
                 LOG_DEBUG("Grouped lookup keys into %v paritions", groupedKeys.size());
 
                 for (const auto& keys : groupedKeys) {
-                    if (fragment->Options.VerboseLogging) {
+                    if (options.VerboseLogging) {
                         LOG_DEBUG("Creating lookup reader for keys %v",
                             JoinToString(keys));
                     } else {
@@ -354,14 +366,14 @@ private:
                     }
 
                     bottomSplitReaders.push_back(GetReader(
-                        fragment->Query->TableSchema,
+                        query->TableSchema,
                         keySource.first,
                         keys,
                         timestamp));
                 }
 
                 auto bottomSplitReaderGenerator = [
-                    fragment,
+                    query,
                     groupedKeys,
                     object = keySource.first,
                     timestamp,
@@ -372,7 +384,7 @@ private:
                         return nullptr;
                     } else {
                         return this_->GetReader(
-                            fragment->Query->TableSchema,
+                            query->TableSchema,
                             object,
                             groupedKeys[index++],
                             timestamp);
@@ -386,7 +398,8 @@ private:
         }
 
         return DoCoordinateAndExecute(
-            fragment,
+            query,
+            options,
             std::move(writer),
             false,
             refiners,
@@ -394,19 +407,24 @@ private:
     }
 
     TQueryStatistics DoExecuteOrdered(
-        TPlanSubFragmentPtr fragment,
+        TConstQueryPtr query,
+        std::vector<TDataSource2> dataSources,
+        TQueryOptions options,
         ISchemafulWriterPtr writer,
         const TNullable<Stroka>& maybeUser)
     {
         auto securityManager = Bootstrap_->GetSecurityManager();
         TAuthenticatedUserGuard userGuard(securityManager, maybeUser);
 
-        auto timestamp = fragment->Timestamp;
+        auto Logger = BuildLogger(query);
 
-        auto Logger = BuildLogger(fragment->Query);
+        std::vector<std::pair<TGuid, TRowRanges>> rangesByTablet;
+        for (const auto& source : dataSources) {
+            rangesByTablet.emplace_back(source.Id, source.Ranges.ToVector());
+        }
 
         auto rowBuffer = New<TRowBuffer>();
-        auto splits = Split(fragment->DataSources, rowBuffer, true, Logger, fragment->Options.VerboseLogging);
+        auto splits = Split(std::move(rangesByTablet), rowBuffer, true, Logger, options.VerboseLogging);
 
         LOG_DEBUG("Sorting %v splits", splits.size());
 
@@ -414,7 +432,7 @@ private:
             return lhs.Range.first < rhs.Range.first;
         });
 
-        if (fragment->Options.VerboseLogging) {
+        if (options.VerboseLogging) {
             LOG_DEBUG("Got ranges for groups %v",
                 JoinToString(splits, DataSourceFormatter));
         } else {
@@ -422,8 +440,10 @@ private:
         }
 
         auto columnEvaluator = ColumnEvaluatorCache_->Find(
-            fragment->Query->TableSchema,
-            fragment->Query->KeyColumnsCount);
+            query->TableSchema,
+            query->KeyColumnsCount);
+
+        auto timestamp = options.Timestamp;
 
         std::vector<TRefiner> refiners;
         std::vector<TSubreaderCreator> subreaderCreators;
@@ -433,12 +453,13 @@ private:
                 return RefinePredicate(dataSplit.Range, expr, schema, keyColumns, columnEvaluator);
             });
             subreaderCreators.push_back([&] () {
-                return GetReader(fragment->Query->TableSchema, dataSplit, timestamp);
+                return GetReader(query->TableSchema, dataSplit, timestamp);
             });
         }
 
         return DoCoordinateAndExecute(
-            fragment,
+            query,
+            options,
             std::move(writer),
             true,
             refiners,
@@ -447,24 +468,13 @@ private:
 
 
     TDataSources Split(
-        const TDataSources& splits,
+        std::vector<std::pair<TGuid, TRowRanges>> rangesByTablet,
         TRowBufferPtr rowBuffer,
         bool mergeRanges,
         const NLogging::TLogger& Logger,
         bool verboseLogging)
     {
-        yhash_map<TGuid, TRowRanges> rangesByTablet;
         TDataSources allSplits;
-        for (const auto& split : splits) {
-            auto objectId = split.Id;
-            auto type = TypeFromId(objectId);
-
-            if (type == EObjectType::Tablet) {
-                rangesByTablet[objectId].push_back(split.Range);
-            } else {
-                allSplits.push_back(split);
-            }
-        }
 
         auto securityManager = Bootstrap_->GetSecurityManager();
 

@@ -562,51 +562,58 @@ TQueryPtr FromProto(const NProto::TQuery& serialized)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ToProto(NProto::TPlanSubFragment* proto, TConstPlanSubFragmentPtr fragment)
+void ToProto(NProto::TQueryOptions* proto, const TQueryOptions& options)
 {
-    ToProto(proto->mutable_query(), fragment->Query);
+    proto->set_timestamp(options.Timestamp);
+    proto->set_verbose_logging(options.VerboseLogging);
+    proto->set_max_subqueries(options.MaxSubqueries);
+    proto->set_enable_code_cache(options.EnableCodeCache);
+}
+
+TQueryOptions FromProto(const NProto::TQueryOptions& serialized)
+{
+    TQueryOptions result;
+
+    result.Timestamp = serialized.timestamp();
+    result.VerboseLogging = serialized.verbose_logging();
+    result.MaxSubqueries = serialized.max_subqueries();
+    result.EnableCodeCache = serialized.enable_code_cache();
+
+    return result;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void ToProto(NProto::TDataSource2* proto, const TDataSource2& dataSource)
+{
+    ToProto(proto->mutable_id(), dataSource.Id);
 
     NTabletClient::TWireProtocolWriter writer;
-    for (const auto& dataSource : fragment->DataSources) {
-        ToProto(proto->add_data_id(), dataSource.Id);
-        const auto& range = dataSource.Range;
+    for (const auto& range : dataSource.Ranges) {
         writer.WriteUnversionedRow(range.first);
         writer.WriteUnversionedRow(range.second);
     }
 
-    ToProto(proto->mutable_data_bounds(), ToString(MergeRefs(writer.Flush())));
-
-    proto->set_verbose_logging(fragment->Options.VerboseLogging);
-    proto->set_max_subqueries(fragment->Options.MaxSubqueries);
-    proto->set_enable_code_cache(fragment->Options.EnableCodeCache);
-
-    proto->set_timestamp(fragment->Timestamp);
+    ToProto(proto->mutable_ranges(), ToString(MergeRefs(writer.Flush())));
 }
 
-TPlanSubFragmentPtr FromProto(const NProto::TPlanSubFragment& serialized)
+TDataSource2 FromProto(const NProto::TDataSource2& serialized)
 {
-    auto result = New<TPlanSubFragment>();
+    TDataSource2 result;
+    FromProto(&result.Id, serialized.id());
 
-    result->Query = FromProto(serialized.query());
-    result->Options.VerboseLogging = serialized.verbose_logging();
-    result->Options.MaxSubqueries = serialized.max_subqueries();
-    result->Options.EnableCodeCache = serialized.enable_code_cache();
-    result->Timestamp = serialized.timestamp();
+    auto rowBuffer = New<TRowBuffer>();
+    TRowRanges ranges;
 
-    NTabletClient::TWireProtocolReader reader(TSharedRef::FromString(serialized.data_bounds()));
-
-    const auto& rowBuffer = result->KeyRangesRowBuffer;
-    for (int i = 0; i < serialized.data_id_size(); ++i) {
-        TDataSource dataSource;
-        FromProto(&dataSource.Id, serialized.data_id(i));
-
+    NTabletClient::TWireProtocolReader reader(TSharedRef::FromString(serialized.ranges()));
+    while (!reader.IsFinished()) {
         auto lowerBound = rowBuffer->Capture(reader.ReadUnversionedRow());
         auto upperBound = rowBuffer->Capture(reader.ReadUnversionedRow());
 
-        dataSource.Range = TRowRange(lowerBound, upperBound);
-        result->DataSources.push_back(dataSource);
+        ranges.emplace_back(lowerBound, upperBound);
     }
 
+    result.Ranges = MakeSharedRange(std::move(ranges), rowBuffer);
     return result;
 }
 
