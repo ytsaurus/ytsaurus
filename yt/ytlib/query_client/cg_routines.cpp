@@ -211,12 +211,6 @@ void JoinOpHelper(
 
     // Collect join ids.
     collectRows(collectRowsClosure, &keys, &keysLookup, &allRows);
-
-    LOG_DEBUG("Sorting %v join keys",
-        keys.size());
-
-    std::sort(keys.begin(), keys.end(), keyComparer);
-
     LOG_DEBUG("Collected %v join keys from %v rows",
         keys.size(),
         allRows.size());
@@ -226,8 +220,10 @@ void JoinOpHelper(
         context,
         groupHasher,
         groupComparer,
-        MakeSharedRange(std::move(keys), context->PermanentBuffer),
-        MakeSharedRange(std::move(allRows), context->PermanentBuffer),
+        keyComparer,
+        std::move(keys),
+        std::move(allRows),
+        context->PermanentBuffer,
         &joinedRows);
 
     LOG_DEBUG("Joined into %v rows",
