@@ -38,7 +38,9 @@ struct ISubExecutor
     : public virtual TRefCounted
 {
     virtual TFuture<TQueryStatistics> Execute(
-        TPlanSubFragmentPtr fragment,
+        TConstQueryPtr query,
+        std::vector<TDataSource2> dataSources,
+        TQueryOptions options,
         ISchemafulWriterPtr writer) = 0;
 
 };
