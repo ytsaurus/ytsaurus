@@ -2,6 +2,8 @@
 
 #include "common.h"
 
+#include <library/lfalloc/helpers.h>
+
 namespace NYT {
 namespace NLFAlloc {
 
@@ -13,18 +15,6 @@ i64 GetCurrentMmappedCount();
 i64 GetCurrentLargeBlocks();
 i64 GetCurrentSmallBlocks();
 i64 GetCurrentSystem();
-
-i64 GetUserAllocated();
-i64 GetMmapped();
-i64 GetMmappedCount();
-i64 GetMunmapped();
-i64 GetMunmappedCount();
-i64 GetSystemAllocated();
-i64 GetSystemFreed();
-i64 GetSmallBlocksAllocated();
-i64 GetSmallBlocksFreed();
-i64 GetLargeBlocksAllocated();
-i64 GetLargeBlocksFreed();
 
 ////////////////////////////////////////////////////////////////////////////////
 

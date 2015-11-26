@@ -46,7 +46,7 @@ add_library( ytserver_lib
 target_link_libraries( ytserver
   ytserver_lib
   ytlib
-  ytext-arcadia-library-lfalloc
+  ytext-lfalloc
 )
 
 
@@ -54,6 +54,7 @@ set_target_properties( ytserver
   PROPERTIES
   LINK_FLAGS "-static-libstdc++"
 )
+
 
 target_link_libraries( ytserver_lib
   ytlib
