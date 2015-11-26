@@ -68,7 +68,7 @@ void TSchemafulDsvParser::Read(const TStringBuf& data)
 const char* TSchemafulDsvParser::Consume(const char* begin, const char* end)
 {
     // Process escaping symbols.
-    if (!ExpectingEscapedChar_ && *begin == Config_->EscapingSymbol) {
+    if (Config_->EnableEscaping && !ExpectingEscapedChar_ && *begin == Config_->EscapingSymbol) {
         ExpectingEscapedChar_ = true;
         return begin + 1;
     }
