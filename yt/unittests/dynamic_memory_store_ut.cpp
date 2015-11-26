@@ -265,10 +265,10 @@ public:
 
         Transaction_ = StartTransaction();
 
-        int keyColumnCount = GetKeyColumns().size();
         auto schema = GetSchema();
+        int keyColumnCount = schema.GetKeyColumnCount();
 
-        StaticComparer_ = TStaticComparer(keyColumnCount, schema);
+        StaticComparer_ = TStaticComparer(schema);
         LlvmComparer_ = TDynamicRowKeyComparer::Create(keyColumnCount, schema);
     }
 
@@ -291,8 +291,8 @@ private:
     public:
         TStaticComparer() = default;
 
-        TStaticComparer(int keyColumnCount, const TTableSchema& schema)
-            : KeyColumnCount_(keyColumnCount)
+        TStaticComparer(const TTableSchema& schema)
+            : KeyColumnCount_(schema.GetKeyColumnCount())
             , Schema_(schema)
         { }
 
@@ -510,23 +510,12 @@ protected:
     virtual TTableSchema GetSchema() const override
     {
         TTableSchema schema;
-        schema.Columns().push_back(TColumnSchema("a", EValueType::Int64));
-        schema.Columns().push_back(TColumnSchema("b", EValueType::Uint64));
-        schema.Columns().push_back(TColumnSchema("c", EValueType::Boolean));
-        schema.Columns().push_back(TColumnSchema("d", EValueType::Double));
-        schema.Columns().push_back(TColumnSchema("e", EValueType::String));
+        schema.Columns().push_back(TColumnSchema("a", EValueType::Int64, Null, Null, Null, ESortOrder::Ascending));
+        schema.Columns().push_back(TColumnSchema("b", EValueType::Uint64, Null, Null, Null, ESortOrder::Ascending));
+        schema.Columns().push_back(TColumnSchema("c", EValueType::Boolean, Null, Null, Null, ESortOrder::Ascending));
+        schema.Columns().push_back(TColumnSchema("d", EValueType::Double, Null, Null, Null, ESortOrder::Ascending));
+        schema.Columns().push_back(TColumnSchema("e", EValueType::String, Null, Null, Null, ESortOrder::Ascending));
         return schema;
-    }
-
-    virtual TKeyColumns GetKeyColumns() const override
-    {
-        TKeyColumns keyColumns;
-        keyColumns.push_back("a");
-        keyColumns.push_back("b");
-        keyColumns.push_back("c");
-        keyColumns.push_back("d");
-        keyColumns.push_back("e");
-        return keyColumns;
     }
 
     std::unique_ptr<TTransaction> Transaction_;
@@ -542,7 +531,7 @@ TEST_P(TDynamicRowKeyComparerTest, Test)
     auto urow1 = BuildRow(str1, false);
     auto urow2 = BuildRow(str2, false);
 
-    int keyColumnCount = GetKeyColumns().size();
+    int keyColumnCount = GetSchema().GetKeyColumnCount();
 
     if (urow1.GetCount() == keyColumnCount) {
         auto drow1 = BuildDynamicRow(urow1);
@@ -1371,7 +1360,7 @@ protected:
     {
         // NB: Key columns must go first.
         TTableSchema schema;
-        schema.Columns().push_back(TColumnSchema("key", EValueType::Int64));
+        schema.Columns().push_back(TColumnSchema("key", EValueType::Int64, Null, Null, Null, ESortOrder::Ascending));
         schema.Columns().push_back(TColumnSchema("a", EValueType::Int64, Stroka("l1")));
         schema.Columns().push_back(TColumnSchema("b", EValueType::Double, Stroka("l2")));
         schema.Columns().push_back(TColumnSchema("c", EValueType::String));

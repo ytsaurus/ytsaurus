@@ -87,7 +87,7 @@ TVersionedChunkReaderBase::TVersionedChunkReaderBase(
         SchemaIdMapping_ = CachedChunkMeta_->SchemaIdMapping();
     } else {
         SchemaIdMapping_.reserve(CachedChunkMeta_->SchemaIdMapping().size());
-        int keyColumnCount = static_cast<int>(CachedChunkMeta_->KeyColumns().size());
+        int keyColumnCount = static_cast<int>(CachedChunkMeta_->GetKeyColumnCount());
         for (auto index : columnFilter.Indexes) {
             if (index < keyColumnCount) {
                 continue;

@@ -589,8 +589,7 @@ TCachedVersionedChunkMetaPtr TChunkStore::PrepareCachedVersionedChunkMeta(IChunk
 
     auto cachedMetaOrError = WaitFor(TCachedVersionedChunkMeta::Load(
         chunkReader,
-        Schema_,
-        KeyColumns_));
+        Schema_));
     THROW_ERROR_EXCEPTION_IF_FAILED(cachedMetaOrError);
     auto cachedMeta = cachedMetaOrError.Value();
 

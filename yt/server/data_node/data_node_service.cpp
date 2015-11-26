@@ -562,6 +562,7 @@ private:
                 THROW_ERROR_EXCEPTION("Chunk %v is not sorted", chunkId);
             }
 
+            // TODO(psushin): mirgate to schemaful chunks.
             auto keyColumnsExt = GetProtoExtension<TKeyColumnsExt>(meta.extensions());
             auto chunkKeyColumns = FromProto<TKeyColumns>(keyColumnsExt);
             ValidateKeyColumns(keyColumns, chunkKeyColumns);
@@ -761,8 +762,15 @@ private:
     {
         auto chunkId = FromProto<TChunkId>(sampleRequest->chunk_id());
 
-        auto keyColumnsExt = GetProtoExtension<TKeyColumnsExt>(chunkMeta.extensions());
-        auto chunkKeyColumns = NYT::FromProto<TKeyColumns>(keyColumnsExt);
+        // COMPAT(psushin)
+        TKeyColumns chunkKeyColumns;
+        auto maybeKeyColumnsExt = FindProtoExtension<TKeyColumnsExt>(chunkMeta.extensions());
+        if (maybeKeyColumnsExt) {
+            chunkKeyColumns = NYT::FromProto<TKeyColumns>(*maybeKeyColumnsExt);
+        } else {
+            auto schemaExt = GetProtoExtension<TTableSchemaExt>(chunkMeta.extensions());
+            chunkKeyColumns = FromProto<TTableSchema>(schemaExt).GetKeyColumns();
+        }
 
         int prefixLength = std::min(chunkKeyColumns.size(), keyColumns.size());
         bool isCompatibleKeyColumns = std::equal(

@@ -35,7 +35,6 @@ protected:
     }
 
     TTableSchema Schema;
-    TKeyColumns KeyColumns;
 
     TSharedRef Data;
     NProto::TBlockMeta Meta;
@@ -53,17 +52,15 @@ protected:
     virtual void SetUp() override
     {
         Schema.Columns() = {
-            TColumnSchema("k1", EValueType::String),
-            TColumnSchema("k2", EValueType::Int64),
-            TColumnSchema("k3", EValueType::Double),
+            TColumnSchema("k1", EValueType::String, Null, Null, Null, ESortOrder::Ascending),
+            TColumnSchema("k2", EValueType::Int64, Null, Null, Null, ESortOrder::Ascending),
+            TColumnSchema("k3", EValueType::Double, Null, Null, Null, ESortOrder::Ascending),
             TColumnSchema("v1", EValueType::Int64),
             TColumnSchema("v2", EValueType::Boolean),
             TColumnSchema("v3", EValueType::Int64)
         };
 
-        KeyColumns = {"k1", "k2", "k3"};
-
-        TSimpleVersionedBlockWriter blockWriter(Schema, KeyColumns);
+        TSimpleVersionedBlockWriter blockWriter(Schema);
 
         auto row = TMutableVersionedRow::Allocate(&MemoryPool, 3, 5, 3, 1);
         row.BeginKeys()[0] = MakeUnversionedStringValue("a", 0);
@@ -105,8 +102,8 @@ TEST_F(TVersionedBlocksTestOneRow, ReadByTimestamp1)
         Data,
         Meta,
         Schema,
-        KeyColumns.size(),
-        KeyColumns.size() + 2, // Two padding key columns.
+        Schema.GetKeyColumnCount(),
+        Schema.GetKeyColumnCount() + 2, // Two padding key columns.
         schemaIdMapping,
         7);
 
@@ -136,8 +133,8 @@ TEST_F(TVersionedBlocksTestOneRow, ReadByTimestamp2)
         Data,
         Meta,
         Schema,
-        KeyColumns.size(),
-        KeyColumns.size(),
+        Schema.GetKeyColumnCount(),
+        Schema.GetKeyColumnCount(),
         schemaIdMapping,
         9);
 
@@ -161,8 +158,8 @@ TEST_F(TVersionedBlocksTestOneRow, ReadLastCommitted)
         Data,
         Meta,
         Schema,
-        KeyColumns.size(),
-        KeyColumns.size(),
+        Schema.GetKeyColumnCount(),
+        Schema.GetKeyColumnCount(),
         schemaIdMapping,
         SyncLastCommittedTimestamp);
 
@@ -188,8 +185,8 @@ TEST_F(TVersionedBlocksTestOneRow, ReadAllCommitted)
         Data,
         Meta,
         Schema,
-        KeyColumns.size(),
-        KeyColumns.size(),
+        Schema.GetKeyColumnCount(),
+        Schema.GetKeyColumnCount(),
         schemaIdMapping,
         AllCommittedTimestamp);
 

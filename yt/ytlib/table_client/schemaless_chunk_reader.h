@@ -102,7 +102,6 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessMergingMultiChunkReader(
     TNameTablePtr nameTable,
     TColumnFilter columnFilter,
     const TTableSchema& tableSchema,
-    const TKeyColumns& keyColumns,
     NConcurrency::IThroughputThrottlerPtr throttler = NConcurrency::GetUnlimitedThrottler());
 
 ////////////////////////////////////////////////////////////////////////////////

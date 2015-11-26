@@ -620,18 +620,11 @@ class TSingleLockStoreManagerTestWithStringKeys
     : public TSingleLockStoreManagerTest
 {
 protected:
-    virtual TKeyColumns GetKeyColumns() const
-    {
-        TKeyColumns keyColumns;
-        keyColumns.push_back("key");
-        return keyColumns;
-    }
-
     virtual TTableSchema GetSchema() const
     {
         // NB: Key columns must go first.
         TTableSchema schema;
-        schema.Columns().push_back(TColumnSchema("key", EValueType::String));
+        schema.Columns().push_back(TColumnSchema("key", EValueType::String, Null, Null, Null, ESortOrder::Ascending));
         schema.Columns().push_back(TColumnSchema("a", EValueType::Int64));
         schema.Columns().push_back(TColumnSchema("b", EValueType::Double));
         schema.Columns().push_back(TColumnSchema("c", EValueType::String));
@@ -664,20 +657,12 @@ class TSingleLockStoreManagerTestWithCompositeKeys
     : public TSingleLockStoreManagerTest
 {
 protected:
-    virtual TKeyColumns GetKeyColumns() const
-    {
-        TKeyColumns keyColumns;
-        keyColumns.push_back("k1");
-        keyColumns.push_back("k2");
-        return keyColumns;
-    }
-
     virtual TTableSchema GetSchema() const
     {
         // NB: Key columns must go first.
         TTableSchema schema;
-        schema.Columns().push_back(TColumnSchema("k1", EValueType::Int64));
-        schema.Columns().push_back(TColumnSchema("k2", EValueType::Int64));
+        schema.Columns().push_back(TColumnSchema("k1", EValueType::Int64, Null, Null, Null, ESortOrder::Ascending));
+        schema.Columns().push_back(TColumnSchema("k2", EValueType::Int64, Null, Null, Null, ESortOrder::Ascending));
         schema.Columns().push_back(TColumnSchema("v", EValueType::Int64));
         return schema;
     }
@@ -715,7 +700,7 @@ protected:
     {
         // NB: Key columns must go first.
         TTableSchema schema;
-        schema.Columns().push_back(TColumnSchema("key", EValueType::Int64));
+        schema.Columns().push_back(TColumnSchema("key", EValueType::Int64, Null, Null, Null, ESortOrder::Ascending));
         schema.Columns().push_back(TColumnSchema("a", EValueType::Int64, Stroka("l1")));
         schema.Columns().push_back(TColumnSchema("b", EValueType::Double, Stroka("l2")));
         schema.Columns().push_back(TColumnSchema("c", EValueType::String));

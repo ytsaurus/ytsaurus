@@ -1724,7 +1724,6 @@ TCallback<void(TSaveContext& context)> TDynamicMemoryStore::AsyncSave()
             tableWriterConfig,
             tableWriterOptions,
             Schema_,
-            KeyColumns_,
             chunkWriter);
         WaitFor(tableWriter->Open())
             .ThrowOnError();
@@ -1773,7 +1772,7 @@ void TDynamicMemoryStore::AsyncLoad(TLoadContext& context)
 
         auto chunkReader = CreateMemoryReader(chunkMeta, blocks);
 
-        auto asyncCachedMeta = TCachedVersionedChunkMeta::Load(chunkReader, Schema_, KeyColumns_);
+        auto asyncCachedMeta = TCachedVersionedChunkMeta::Load(chunkReader, Schema_);
         auto cachedMeta = WaitFor(asyncCachedMeta)
             .ValueOrThrow();
 
