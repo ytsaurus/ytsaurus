@@ -242,13 +242,15 @@ TJoinEvaluator GetJoinEvaluator(
         TExecutionContext* context,
         THasherFunction* groupHasher,
         TComparerFunction* groupComparer,
-        TSharedRange<TRow> keys,
-        TSharedRange<TRow> allRows,
+        TComparerFunction* keyComparer,
+        std::vector<TRow> keys,
+        std::vector<TRow> allRows,
+        TRowBufferPtr permanentBuffer,
         std::vector<TRow>* joinedRows)
     {
         // TODO: keys should be joined with allRows: [(key, sourceRow)]
 
-        auto rowBuffer = New<TRowBuffer>();
+        auto rowBuffer = permanentBuffer;
         TRowRanges ranges;
 
         if (canUseSourceRanges) {
@@ -275,20 +277,29 @@ TJoinEvaluator GetJoinEvaluator(
                 upperBound[keyPrefix] = MakeUnversionedSentinelValue(EValueType::Max);
                 ranges.emplace_back(lowerBound, upperBound);
             }
+
+            std::sort(ranges.begin(), ranges.end(), [] (const TRowRange& lhs, const TRowRange& rhs) {
+                return lhs.first < rhs.first;
+            });
         } else {
             LOG_DEBUG("Using join via IN clause");
             ranges.emplace_back(
                 rowBuffer->Capture(NTableClient::MinKey().Get()),
                 rowBuffer->Capture(NTableClient::MaxKey().Get()));
 
-            auto inClause = New<TInOpExpression>(joinKeyExprs, keys);
+            LOG_DEBUG("Sorting %v join keys",
+                keys.size());
+
+            std::sort(keys.begin(), keys.end(), keyComparer);
+
+            auto inClause = New<TInOpExpression>(joinKeyExprs, MakeSharedRange(std::move(keys), permanentBuffer));
 
             subquery->WhereClause = subquery->WhereClause
                 ? MakeAndExpression(inClause, subquery->WhereClause)
                 : inClause;
         }
 
-        // Execute subquery.
+        LOG_DEBUG("Executing subquery");
         NApi::IRowsetPtr rowset;
 
         {
@@ -339,7 +350,7 @@ TJoinEvaluator GetJoinEvaluator(
 
         LOG_DEBUG("Joining started");
 
-        for (auto row : allRows.ToVector()) {
+        for (auto row : allRows) {
             auto equalRange = foreignLookup.equal_range(row);
             for (auto it = equalRange.first; it != equalRange.second; ++it) {
                 rowBuilder.Reset();

@@ -34,8 +34,10 @@ using TJoinEvaluator = std::function<void(
     TExecutionContext* executionContext,
     THasherFunction* hasher,
     TComparerFunction* comparer,
-    TSharedRange<TRow> keys,
-    TSharedRange<TRow> allRows,
+    TComparerFunction* keyComparer,
+    std::vector<TRow> keys,
+    std::vector<TRow> allRows,
+    TRowBufferPtr permanentBuffer,
     // TODO(babenko): TSharedRange?
     std::vector<TRow>* joinedRows)>;
 
