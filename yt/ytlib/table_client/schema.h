@@ -51,6 +51,8 @@ void Deserialize(TColumnSchema& schema, NYTree::INodePtr node);
 void ToProto(NProto::TColumnSchema* protoSchema, const TColumnSchema& schema);
 void FromProto(TColumnSchema* schema, const NProto::TColumnSchema& protoSchema);
 
+void ValidateColumnSchema(const TColumnSchema& columnSchema);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTableSchema

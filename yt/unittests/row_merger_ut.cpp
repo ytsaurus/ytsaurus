@@ -191,7 +191,9 @@ protected:
         schema.Columns().push_back(TColumnSchema("k", EValueType::Int64));
         schema.Columns().push_back(TColumnSchema("l", EValueType::Int64));
         schema.Columns().push_back(TColumnSchema("m", EValueType::Int64));
-        schema.Columns().push_back(TColumnSchema("n", EValueType::Int64).SetAggregate(Stroka("sum")));
+        schema.Columns().push_back(TColumnSchema("n", EValueType::Int64)
+             .SetSortOrder(ESortOrder::Ascending)
+             .SetAggregate(Stroka("sum")));
         return schema;
     }
 };

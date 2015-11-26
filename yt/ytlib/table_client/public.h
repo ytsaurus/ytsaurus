@@ -52,6 +52,8 @@ const int MaxValuesPerRow = 1024;
 const int MaxRowsPerRowset = 1024 * 1024;
 const i64 MaxStringValueLength = (i64) 1024 * 1024;
 const i64 MaxRowWeightLimit = (i64) 128 * 1024 * 1024;
+const int MaxColumnNameLength = 256;
+const int MaxColumnLockLength = 256;
 
 const int DefaultPartitionTag = -1;
 
