@@ -485,18 +485,31 @@ void TChunkReplicator::ProcessExistingJobs(
         const auto& jobId = job->GetJobId();
         switch (job->GetState()) {
             case EJobState::Running:
+            case EJobState::Waiting: {
                 if (TInstant::Now() - job->GetStartTime() > Config_->JobTimeout) {
                     jobsToAbort->push_back(job);
                     LOG_WARNING("Job timed out (JobId: %v, Address: %v, Duration: %v)",
                         jobId,
                         address,
                         TInstant::Now() - job->GetStartTime());
-                } else {
-                    LOG_INFO("Job is running (JobId: %v, Address: %v)",
-                        jobId,
-                        address);
+                    break;
+                }
+
+                switch (job->GetState()) {
+                    case EJobState::Running:
+                        LOG_INFO("Job is running (JobId: %v, Address: %v)",
+                            jobId,
+                            address);
+                        break;
+
+                    case EJobState::Waiting:
+                        LOG_INFO("Job is waiting (JobId: %v, Address: %v)",
+                            jobId,
+                            address);
+                        break;
                 }
                 break;
+            }
 
             case EJobState::Completed:
             case EJobState::Failed:
@@ -527,12 +540,6 @@ void TChunkReplicator::ProcessExistingJobs(
                 UnregisterJob(job);
                 break;
             }
-
-            case EJobState::Waiting:
-                LOG_INFO("Job is waiting (JobId: %v, Address: %v)",
-                    jobId,
-                    address);
-                break;
 
             default:
                 YUNREACHABLE();
