@@ -63,6 +63,8 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(TInstant, SamplingRequestTime);
     DEFINE_BYVAL_RW_PROPERTY(TKeyListPtr, SampleKeys);
 
+    DEFINE_BYVAL_RW_PROPERTY(TInstant, CompactionTime);
+
 public:
     TPartition(
         TTablet* tablet,
@@ -85,6 +87,9 @@ public:
     bool IsEden() const;
 
     TPartitionSnapshotPtr RebuildSnapshot();
+
+    void StartEpoch();
+    void StopEpoch();
 
 };
 
