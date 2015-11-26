@@ -135,6 +135,56 @@ TEST(TSchemafulDsvParserTest, SpecialSymbols)
     ParseSchemafulDsv(input, &Mock, config);
 }
 
+TEST(TSchemafulDsvParserTest, EnabledEscaping)
+{
+    StrictMock<NYTree::TMockYsonConsumer> Mock;
+    InSequence dummy;
+
+    auto value = Stroka("6\0", 2);
+    EXPECT_CALL(Mock, OnListItem());
+    EXPECT_CALL(Mock, OnBeginMap());
+        EXPECT_CALL(Mock, OnKeyedItem("a"));
+        EXPECT_CALL(Mock, OnStringScalar("5\r\r"));
+        EXPECT_CALL(Mock, OnKeyedItem("b"));
+        EXPECT_CALL(Mock, OnStringScalar(value));
+    EXPECT_CALL(Mock, OnEndMap());
+
+    Stroka input("5\r\\r\t6\0\n", 8);
+
+    auto config = New<TSchemafulDsvFormatConfig>();
+    config->Columns = std::vector<Stroka>();
+    config->Columns->push_back("a");
+    config->Columns->push_back("b");
+    config->EnableEscaping = true;
+
+    ParseSchemafulDsv(input, &Mock, config);
+}
+
+TEST(TSchemafulDsvParserTest, DisabledEscaping)
+{
+    StrictMock<NYTree::TMockYsonConsumer> Mock;
+    InSequence dummy;
+
+    auto value = Stroka("6\0", 2);
+    EXPECT_CALL(Mock, OnListItem());
+    EXPECT_CALL(Mock, OnBeginMap());
+        EXPECT_CALL(Mock, OnKeyedItem("a"));
+        EXPECT_CALL(Mock, OnStringScalar("5\r\\r"));
+        EXPECT_CALL(Mock, OnKeyedItem("b"));
+        EXPECT_CALL(Mock, OnStringScalar(value));
+    EXPECT_CALL(Mock, OnEndMap());
+
+    Stroka input("5\r\\r\t6\0\n", 8);
+
+    auto config = New<TSchemafulDsvFormatConfig>();
+    config->Columns = std::vector<Stroka>();
+    config->Columns->push_back("a");
+    config->Columns->push_back("b");
+    config->EnableEscaping = false;
+
+    ParseSchemafulDsv(input, &Mock, config);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
