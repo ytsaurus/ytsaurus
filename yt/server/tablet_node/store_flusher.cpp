@@ -269,7 +269,6 @@ private:
         auto tabletManager = slot->GetTabletManager();
         auto storeManager = tablet->GetStoreManager();
         auto tabletId = tablet->GetTabletId();
-        auto keyColumns = tablet->KeyColumns();
         auto schema = tablet->Schema();
         auto tabletConfig = tablet->GetConfig();
         auto writerOptions = CloneYsonSerializable(tablet->GetWriterOptions());
@@ -325,7 +324,6 @@ private:
                 Config_->ChunkWriter,
                 writerOptions,
                 schema,
-                keyColumns,
                 Bootstrap_->GetMasterClient(),
                 Bootstrap_->GetMasterClient()->GetConnection()->GetPrimaryMasterCellTag(),
                 transaction->GetId(),

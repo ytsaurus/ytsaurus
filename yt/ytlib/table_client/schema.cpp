@@ -234,6 +234,15 @@ TKeyColumns TTableSchema::GetKeyColumns() const
     }
     return keyColumns;
 }
+
+int TTableSchema::GetKeyColumnCount() const
+{
+    int keyColumnCount = 0;
+    while (keyColumnCount < Columns().size() && Columns()[keyColumnCount].SortOrder) {
+        ++keyColumnCount;
+    }
+    return keyColumnCount;
+}
     
 TTableSchema TTableSchema::FromKeyColumns(const TKeyColumns& keyColumns)
 {
@@ -286,6 +295,21 @@ void FromProto(TTableSchema* schema, const NProto::TTableSchemaExt& protoSchema)
 {
     schema->Columns() = NYT::FromProto<TColumnSchema>(protoSchema.columns());
     schema->SetStrict(protoSchema.has_strict() ? protoSchema.strict() : true);
+}
+
+void FromProto(
+    TTableSchema* schema,
+    const NProto::TTableSchemaExt& protoSchema,
+    const NProto::TKeyColumnsExt& protoKeyColumns)
+{
+    FromProto(schema, protoSchema);
+    YCHECK(!schema->IsSorted());
+
+    for (int columnIndex = 0; columnIndex < protoKeyColumns.names_size(); ++columnIndex) {
+        auto& columnSchema = schema->Columns()[columnIndex];
+        YCHECK(columnSchema.Name == protoKeyColumns.names(columnIndex));
+        columnSchema.SortOrder = ESortOrder::Ascending;
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

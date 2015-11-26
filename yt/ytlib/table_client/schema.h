@@ -60,7 +60,7 @@ public:
 
 public:
     TTableSchema();
-    
+
     TColumnSchema* FindColumn(const TStringBuf& name);
     const TColumnSchema* FindColumn(const TStringBuf& name) const;
 
@@ -77,6 +77,7 @@ public:
     bool IsSorted() const;
 
     TKeyColumns GetKeyColumns() const;
+    int GetKeyColumnCount() const;
     static TTableSchema FromKeyColumns(const TKeyColumns& keyColumns);
 
     void Save(TStreamSaveContext& context) const;
@@ -88,6 +89,10 @@ void Deserialize(TTableSchema& schema, NYTree::INodePtr node);
 
 void ToProto(NProto::TTableSchemaExt* protoSchema, const TTableSchema& schema);
 void FromProto(TTableSchema* schema, const NProto::TTableSchemaExt& protoSchema);
+void FromProto(
+    TTableSchema* schema,
+    const NProto::TTableSchemaExt& protoSchema,
+    const NProto::TKeyColumnsExt& keyColumnsExt);
 
 bool operator == (const TColumnSchema& lhs, const TColumnSchema& rhs);
 bool operator != (const TColumnSchema& lhs, const TColumnSchema& rhs);

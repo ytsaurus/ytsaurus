@@ -50,21 +50,18 @@ protected:
     virtual void SetUp() override
     {
         Schema.Columns() = {
-            TColumnSchema("k1", EValueType::String),
-            TColumnSchema("k2", EValueType::Int64),
-            TColumnSchema("k3", EValueType::Double),
+            TColumnSchema("k1", EValueType::String, Null, Null, Null, ESortOrder::Ascending),
+            TColumnSchema("k2", EValueType::Int64, Null, Null, Null, ESortOrder::Ascending),
+            TColumnSchema("k3", EValueType::Double, Null, Null, Null, ESortOrder::Ascending),
             TColumnSchema("v1", EValueType::Int64),
             TColumnSchema("v2", EValueType::Int64)
         };
-
-        KeyColumns = {"k1", "k2", "k3"};
 
         MemoryWriter = New<TMemoryWriter>();
         ChunkWriter = CreateVersionedChunkWriter(
             New<TChunkWriterConfig>(),
             New<TChunkWriterOptions>(),
             Schema,
-            KeyColumns,
             MemoryWriter);
 
         EXPECT_TRUE(ChunkWriter->Open().Get().IsOK());
@@ -236,8 +233,7 @@ TEST_F(TVersionedChunksTest, ReadEmptyWiderSchema)
 
     auto chunkMeta = TCachedVersionedChunkMeta::Load(
         MemoryReader,
-        schema,
-        KeyColumns).Get().ValueOrThrow();
+        schema).Get().ValueOrThrow();
 
     TUnversionedOwningRowBuilder lowerKeyBuilder;
     lowerKeyBuilder.AddValue(MakeUnversionedStringValue(B, 0));
@@ -307,22 +303,18 @@ TEST_F(TVersionedChunksTest, ReadLastCommitted)
 
     TTableSchema schema;
     schema.Columns() = {
-        TColumnSchema("k1", EValueType::String),
-        TColumnSchema("k2", EValueType::Int64),
-        TColumnSchema("k3", EValueType::Double),
-        TColumnSchema("kN", EValueType::String),
+        TColumnSchema("k1", EValueType::String, Null, Null, Null, ESortOrder::Ascending),
+        TColumnSchema("k2", EValueType::Int64, Null, Null, Null, ESortOrder::Ascending),
+        TColumnSchema("k3", EValueType::Double, Null, Null, Null, ESortOrder::Ascending),
+        TColumnSchema("kN", EValueType::String, Null, Null, Null, ESortOrder::Ascending),
         TColumnSchema("v1", EValueType::Int64),
         TColumnSchema("v2", EValueType::Int64),
         TColumnSchema("vN", EValueType::Double)
     };
 
-    auto keyColumns = KeyColumns;
-    keyColumns.push_back("kN");
-
     auto chunkMeta = TCachedVersionedChunkMeta::Load(
         MemoryReader,
-        schema,
-        keyColumns).Get().ValueOrThrow();
+        schema).Get().ValueOrThrow();
 
     TColumnFilter filter;
     filter.All = false;
@@ -374,8 +366,7 @@ TEST_F(TVersionedChunksTest, ReadByTimestamp)
 
     auto chunkMeta = TCachedVersionedChunkMeta::Load(
         MemoryReader,
-        Schema,
-        KeyColumns).Get().ValueOrThrow();
+        Schema).Get().ValueOrThrow();
 
     auto chunkReader = CreateVersionedChunkReader(
         New<TChunkReaderConfig>(),
@@ -424,15 +415,14 @@ TEST_F(TVersionedChunksTest, ReadAllLimitsSchema)
     WriteThreeRows();
 
     TTableSchema schema;
-    schema.Columns().emplace_back("k1", EValueType::String);
-    schema.Columns().emplace_back("k2", EValueType::Int64);
-    schema.Columns().emplace_back("k3", EValueType::Double);
+    schema.Columns().emplace_back("k1", EValueType::String, Null, Null, Null, ESortOrder::Ascending);
+    schema.Columns().emplace_back("k2", EValueType::Int64, Null, Null, Null, ESortOrder::Ascending);
+    schema.Columns().emplace_back("k3", EValueType::Double, Null, Null, Null, ESortOrder::Ascending);
     schema.Columns().emplace_back("v2", EValueType::Int64);
 
     auto chunkMeta = TCachedVersionedChunkMeta::Load(
         MemoryReader,
-        schema,
-        KeyColumns).Get().ValueOrThrow();
+        schema).Get().ValueOrThrow();
 
     TUnversionedOwningRowBuilder lowerKeyBuilder;
     lowerKeyBuilder.AddValue(MakeUnversionedStringValue(A, 0));
@@ -471,8 +461,7 @@ TEST_F(TVersionedChunksTest, ReadEmpty)
 
     auto chunkMeta = TCachedVersionedChunkMeta::Load(
         MemoryReader,
-        Schema,
-        KeyColumns).Get().ValueOrThrow();
+        Schema).Get().ValueOrThrow();
 
     TUnversionedOwningRowBuilder lowerKeyBuilder;
     lowerKeyBuilder.AddValue(MakeUnversionedStringValue(B, 0));
@@ -516,8 +505,7 @@ TEST_F(TVersionedChunksTest, ReadManyRows)
 
     auto chunkMeta = TCachedVersionedChunkMeta::Load(
         MemoryReader,
-        Schema,
-        KeyColumns).Get().ValueOrThrow();
+        Schema).Get().ValueOrThrow();
 
     {
         auto chunkReader = CreateVersionedChunkReader(
@@ -632,19 +620,16 @@ TEST_F(TVersionedChunksTest, WideSchemaBoundaryRow)
 
     TTableSchema widerSchema;
     widerSchema.Columns() = {
-        TColumnSchema("k1", EValueType::String),
-        TColumnSchema("k2", EValueType::Int64),
-        TColumnSchema("k3", EValueType::Double),
-        TColumnSchema("k4", EValueType::Int64),
+        TColumnSchema("k1", EValueType::String, Null, Null, Null, ESortOrder::Ascending),
+        TColumnSchema("k2", EValueType::Int64, Null, Null, Null, ESortOrder::Ascending),
+        TColumnSchema("k3", EValueType::Double, Null, Null, Null, ESortOrder::Ascending),
+        TColumnSchema("k4", EValueType::Int64, Null, Null, Null, ESortOrder::Ascending),
         TColumnSchema("v1", EValueType::Int64),
     };
 
-    TKeyColumns widerKeyColumns = {"k1", "k2", "k3", "k4"};
-
     auto chunkMeta = TCachedVersionedChunkMeta::Load(
         MemoryReader,
-        widerSchema,
-        widerKeyColumns).Get().ValueOrThrow();
+        widerSchema).Get().ValueOrThrow();
 
     TUnversionedOwningRowBuilder keyBuilder;
     keyBuilder.AddValue(rows.front().BeginKeys()[0]);

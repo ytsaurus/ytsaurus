@@ -39,6 +39,7 @@ TTableSchema GetTableSchemaFromDataSplit(const TDataSplit& dataSplit)
 
 TKeyColumns GetKeyColumnsFromDataSplit(const TDataSplit& dataSplit)
 {
+    // TODO(psushin): migrate to schemaful chunks.
     auto keyColumnsExt = GetProtoExtension<TKeyColumnsExt>(
         dataSplit.chunk_meta().extensions());
     return FromProto<TKeyColumns>(keyColumnsExt);

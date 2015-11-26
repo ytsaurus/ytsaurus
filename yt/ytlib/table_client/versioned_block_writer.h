@@ -25,8 +25,7 @@ public:
 
 public:
     TSimpleVersionedBlockWriter(
-        const TTableSchema& schema,
-        const TKeyColumns& keyColumns);
+        const TTableSchema& schema);
 
     void WriteRow(
         TVersionedRow row,

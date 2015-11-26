@@ -152,7 +152,9 @@ void TSchemalessTableReader::DoOpen()
         SetSuppressAccessTracking(req, Config_->SuppressAccessTracking);
 
         auto rspOrError = WaitFor(proxy.Execute(req));
-        THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error getting basic attributes for table %v",
+        THROW_ERROR_EXCEPTION_IF_FAILED(
+            rspOrError,
+            "Error getting basic attributes for table %v",
             path);
 
         const auto& rsp = rspOrError.Value();
@@ -179,7 +181,6 @@ void TSchemalessTableReader::DoOpen()
 
     bool dynamic;
     TTableSchema schema;
-    TKeyColumns keyColumns;
 
     {
         LOG_INFO("Requesting table schema");
@@ -193,7 +194,6 @@ void TSchemalessTableReader::DoOpen()
         TAttributeFilter attributeFilter(EAttributeFilterMode::MatchingOnly);
         attributeFilter.Keys.push_back("dynamic");
         attributeFilter.Keys.push_back("schema");
-        attributeFilter.Keys.push_back("key_columns");
         ToProto(req->mutable_attribute_filter(), attributeFilter);
 
         auto rspOrError = WaitFor(proxy.Execute(req));
@@ -208,7 +208,6 @@ void TSchemalessTableReader::DoOpen()
 
         if (dynamic) {
             schema = attributes.Get<TTableSchema>("schema");
-            keyColumns = attributes.Get<TKeyColumns>("key_columns");
         }
     }
 
@@ -260,8 +259,7 @@ void TSchemalessTableReader::DoOpen()
             std::move(chunkSpecs),
             New<TNameTable>(),
             TColumnFilter(),
-            schema,
-            keyColumns);
+            schema);
     } else {
         auto factory = Unordered_
             ? CreateSchemalessParallelMultiChunkReader

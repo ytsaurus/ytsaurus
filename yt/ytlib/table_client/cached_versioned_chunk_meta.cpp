@@ -8,6 +8,7 @@
 #include <core/concurrency/scheduler.h>
 
 #include <core/misc/bloom_filter.h>
+#include <core/ytree/convert.h>
 
 namespace NYT {
 namespace NTableClient {
@@ -16,6 +17,8 @@ using namespace NConcurrency;
 using namespace NTableClient::NProto;
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
+using namespace NYson;
+using namespace NYTree;
 
 using NYT::FromProto;
 
@@ -23,29 +26,20 @@ using NYT::FromProto;
 
 TFuture<TCachedVersionedChunkMetaPtr> TCachedVersionedChunkMeta::Load(
     IChunkReaderPtr chunkReader,
-    const TTableSchema& schema,
-    const TKeyColumns& keyColumns)
+    const TTableSchema& schema)
 {
     auto cachedMeta = New<TCachedVersionedChunkMeta>();
     return BIND(&TCachedVersionedChunkMeta::DoLoad, cachedMeta)
         .AsyncVia(TDispatcher::Get()->GetReaderInvoker())
-        .Run(chunkReader, schema, keyColumns);
-}
-
-int TCachedVersionedChunkMeta::GetKeyColumnCount() const
-{
-    return KeyColumns_.size();
+        .Run(chunkReader, schema);
 }
 
 TCachedVersionedChunkMetaPtr TCachedVersionedChunkMeta::DoLoad(
     IChunkReaderPtr chunkReader,
-    const TTableSchema& readerSchema,
-    const TKeyColumns& keyColumns)
+    const TTableSchema& readerSchema)
 {
     try {
-        KeyColumns_ = keyColumns;
-
-        ValidateTableSchemaAndKeyColumns(readerSchema, keyColumns);
+        KeyColumnCount_ = readerSchema.GetKeyColumns().size();
 
         auto asyncChunkMeta = chunkReader->GetMeta();
         ChunkMeta_ = WaitFor(asyncChunkMeta)
@@ -93,44 +87,55 @@ void TCachedVersionedChunkMeta::ValidateChunkMeta()
     }
 }
 
-void TCachedVersionedChunkMeta::ValidateKeyColumns(const TKeyColumns& chunkKeyColumns)
-{
-    if (KeyColumns_.size() < chunkKeyColumns.size()) {
-        THROW_ERROR_EXCEPTION("Key column count is less than expected: chunk key columns [%v], reader key columns [%v]",
-            JoinToString(chunkKeyColumns),
-            JoinToString(KeyColumns_));
-    }
-
-    for (int i = 0; i < chunkKeyColumns.size(); ++i) {
-        if (KeyColumns_[i] != chunkKeyColumns[i]) {
-            THROW_ERROR_EXCEPTION("Incompatible key columns: chunk key columns [%v], reader key colums [%v]",
-                JoinToString(chunkKeyColumns),
-                JoinToString(KeyColumns_));
-        }
-    }
-
-    for (int i = chunkKeyColumns.size(); i < KeyColumns_.size(); ++i) {
-        if (ChunkSchema_.FindColumn(KeyColumns_[i])) {
-            THROW_ERROR_EXCEPTION("Incompatible wider key columns: %Qv is a non-key column",
-                KeyColumns_[i]);
-        }
-    }
-
-    ChunkKeyColumnCount_ = chunkKeyColumns.size();
-}
-
 void TCachedVersionedChunkMeta::ValidateSchema(const TTableSchema& readerSchema)
 {
-    auto protoSchema = GetProtoExtension<TTableSchemaExt>(ChunkMeta_.extensions());
-    FromProto(&ChunkSchema_, protoSchema);
+    auto maybeKeyColumnsExt = FindProtoExtension<TKeyColumnsExt>(ChunkMeta_.extensions());
+    auto tableSchemaExt = GetProtoExtension<TTableSchemaExt>(ChunkMeta_.extensions());
+    if (maybeKeyColumnsExt) {
+        FromProto(&ChunkSchema_, tableSchemaExt, *maybeKeyColumnsExt);
+    } else {
+        FromProto(&ChunkSchema_, tableSchemaExt);
+    }
 
-    auto chunkKeyColumnsExt = GetProtoExtension<TKeyColumnsExt>(ChunkMeta_.extensions());
-    auto chunkKeyColumns = NYT::FromProto<TKeyColumns>(chunkKeyColumnsExt);
+    ChunkKeyColumnCount_ = ChunkSchema_.GetKeyColumnCount();
 
-    ValidateKeyColumns(chunkKeyColumns);
+    auto throwIncompatibleKeyColumns = [&] () {
+        THROW_ERROR_EXCEPTION(
+            "Reader key columns [%v] are incompatible with chunk key columns [%v]",
+            JoinToString(readerSchema.GetKeyColumns()),
+            JoinToString(ChunkSchema_.GetKeyColumns()));
+    };
 
-    SchemaIdMapping_.reserve(readerSchema.Columns().size() - KeyColumns_.size());
-    for (int readerIndex = KeyColumns_.size(); readerIndex < readerSchema.Columns().size(); ++readerIndex) {
+    if (readerSchema.GetKeyColumnCount() < ChunkSchema_.GetKeyColumnCount()) {
+        throwIncompatibleKeyColumns();
+    }
+
+    for (int readerIndex = 0; readerIndex < readerSchema.GetKeyColumnCount(); ++readerIndex) {
+        auto& column = readerSchema.Columns()[readerIndex];
+        YCHECK (column.SortOrder);
+
+        if (readerIndex < ChunkSchema_.GetKeyColumnCount()) {
+            const auto& chunkColumn = ChunkSchema_.Columns()[readerIndex];
+            YCHECK(chunkColumn.SortOrder);
+
+            if (chunkColumn.Name != column.Name ||
+                chunkColumn.Type != column.Type ||
+                chunkColumn.SortOrder != column.SortOrder)
+            {
+                throwIncompatibleKeyColumns();
+            }
+        } else {
+            auto* chunkColumn = ChunkSchema_.FindColumn(column.Name);
+            if (chunkColumn) {
+                THROW_ERROR_EXCEPTION(
+                    "Incompatible reader key columns: %Qv is a non-key column in chunk schema %v",
+                    column.Name,
+                    ConvertToYsonString(ChunkSchema_, EYsonFormat::Text).Data());
+            }
+        }
+    }
+
+    for (int readerIndex = readerSchema.GetKeyColumnCount(); readerIndex < readerSchema.Columns().size(); ++readerIndex) {
         auto& column = readerSchema.Columns()[readerIndex];
         auto* chunkColumn = ChunkSchema_.FindColumn(column.Name);
         if (!chunkColumn) {
@@ -139,10 +144,11 @@ void TCachedVersionedChunkMeta::ValidateSchema(const TTableSchema& readerSchema)
         }
 
         if (chunkColumn->Type != column.Type) {
-            THROW_ERROR_EXCEPTION("Incompatible type for column %Qv: actual: %Qlv, expected %Qlv",
+            THROW_ERROR_EXCEPTION(
+                "Incompatible type %Qlv for column %Qv in chunk schema %v",
+                column.Type,
                 column.Name,
-                chunkColumn->Type,
-                column.Type);
+                ConvertToYsonString(ChunkSchema_, EYsonFormat::Text).Data());
         }
 
         TColumnIdMapping mapping;

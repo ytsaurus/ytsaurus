@@ -37,7 +37,6 @@ public:
         TChunkWriterConfigPtr config,
         TChunkWriterOptionsPtr options,
         const TTableSchema& schema,
-        const TKeyColumns& keyColumns,
         IChunkWriterPtr chunkWriter,
         IBlockCachePtr blockCache);
 
@@ -64,7 +63,6 @@ private:
 
     TChunkWriterConfigPtr Config_;
     TTableSchema Schema_;
-    TKeyColumns KeyColumns_;
 
     TEncodingChunkWriterPtr EncodingChunkWriter_;
 
@@ -114,12 +112,10 @@ TVersionedChunkWriter::TVersionedChunkWriter(
     TChunkWriterConfigPtr config,
     TChunkWriterOptionsPtr options,
     const TTableSchema& schema,
-    const TKeyColumns& keyColumns,
     IChunkWriterPtr chunkWriter,
     IBlockCachePtr blockCache)
     : Config_(config)
     , Schema_(schema)
-    , KeyColumns_(keyColumns)
     , EncodingChunkWriter_(New<TEncodingChunkWriter>(
         config,
         options,
@@ -127,7 +123,7 @@ TVersionedChunkWriter::TVersionedChunkWriter(
         blockCache,
         Logger))
     , LastKey_(static_cast<TUnversionedValue*>(nullptr), static_cast<TUnversionedValue*>(nullptr))
-    , BlockWriter_(new TSimpleVersionedBlockWriter(Schema_, KeyColumns_))
+    , BlockWriter_(new TSimpleVersionedBlockWriter(Schema_))
     , MinTimestamp_(MaxTimestamp)
     , MaxTimestamp_(MinTimestamp)
 #if 0
@@ -139,12 +135,7 @@ TVersionedChunkWriter::TVersionedChunkWriter(
 
 TFuture<void> TVersionedChunkWriter::Open()
 {
-    try {
-        ValidateTableSchemaAndKeyColumns(Schema_, KeyColumns_);
-        return VoidFuture;
-    } catch (const std::exception& ex) {
-        return MakeFuture<void>(ex);
-    }
+    return VoidFuture;
 }
 
 bool TVersionedChunkWriter::Write(const std::vector<TVersionedRow>& rows)
@@ -255,7 +246,7 @@ void TVersionedChunkWriter::FinishBlockIfLarge(TVersionedRow row)
     }
 
     FinishBlock(row.BeginKeys(), row.EndKeys());
-    BlockWriter_.reset(new TSimpleVersionedBlockWriter(Schema_, KeyColumns_));
+    BlockWriter_.reset(new TSimpleVersionedBlockWriter(Schema_));
 }
 
 void TVersionedChunkWriter::FinishBlock(const TUnversionedValue* beginKey, const TUnversionedValue* endKey)
@@ -288,12 +279,6 @@ void TVersionedChunkWriter::DoClose()
     FillCommonMeta(&meta);
 
     SetProtoExtension(meta.mutable_extensions(), ToProto<TTableSchemaExt>(Schema_));
-
-    TKeyColumnsExt keyColumnsExt;
-    for (const auto& name : KeyColumns_) {
-        keyColumnsExt.add_names(name);
-    }
-    SetProtoExtension(meta.mutable_extensions(), keyColumnsExt);
 
     SetProtoExtension(meta.mutable_extensions(), BlockMetaExt_);
     SetProtoExtension(meta.mutable_extensions(), SamplesExt_);
@@ -338,7 +323,6 @@ IVersionedChunkWriterPtr CreateVersionedChunkWriter(
     TChunkWriterConfigPtr config,
     TChunkWriterOptionsPtr options,
     const TTableSchema& schema,
-    const TKeyColumns& keyColumns,
     IChunkWriterPtr chunkWriter,
     IBlockCachePtr blockCache)
 {
@@ -346,7 +330,6 @@ IVersionedChunkWriterPtr CreateVersionedChunkWriter(
         config,
         options,
         schema,
-        keyColumns,
         chunkWriter,
         blockCache);
 }
@@ -357,7 +340,6 @@ IVersionedMultiChunkWriterPtr CreateVersionedMultiChunkWriter(
     TTableWriterConfigPtr config,
     TTableWriterOptionsPtr options,
     const TTableSchema& schema,
-    const TKeyColumns& keyColumns,
     IClientPtr client,
     TCellTag cellTag,
     const NTransactionClient::TTransactionId& transactionId,
@@ -375,7 +357,6 @@ IVersionedMultiChunkWriterPtr CreateVersionedMultiChunkWriter(
             config,
             options,
             schema,
-            keyColumns,
             underlyingWriter,
             blockCache);
     };

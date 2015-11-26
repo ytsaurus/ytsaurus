@@ -20,13 +20,12 @@ static const i64 NullValue = 0;
 struct TSimpleVersionedBlockWriterTag { };
 
 TSimpleVersionedBlockWriter::TSimpleVersionedBlockWriter(
-    const TTableSchema& schema,
-    const TKeyColumns& keyColumns)
+    const TTableSchema& schema)
     : MinTimestamp_(MaxTimestamp)
     , MaxTimestamp_(MinTimestamp)
     , Schema_(schema)
     , SchemaColumnCount_(schema.Columns().size())
-    , KeyColumnCount_(keyColumns.size())
+    , KeyColumnCount_(schema.GetKeyColumnCount())
     , KeyStream_(TSimpleVersionedBlockWriterTag())
     , ValueStream_(TSimpleVersionedBlockWriterTag())
     , TimestampStream_(TSimpleVersionedBlockWriterTag())

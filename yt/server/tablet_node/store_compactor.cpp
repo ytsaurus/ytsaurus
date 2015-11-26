@@ -357,7 +357,6 @@ private:
         auto writerOptions = tablet->GetWriterOptions();
         auto tabletPivotKey = tablet->GetPivotKey();
         auto nextTabletPivotKey = tablet->GetNextPivotKey();
-        auto keyColumns = tablet->KeyColumns();
         auto schema = tablet->Schema();
         auto tabletConfig = tablet->GetConfig();
 
@@ -453,7 +452,6 @@ private:
                     Config_->ChunkWriter,
                     writerOptions,
                     schema,
-                    keyColumns,
                     Bootstrap_->GetMasterClient(),
                     Bootstrap_->GetMasterClient()->GetConnection()->GetPrimaryMasterCellTag(),
                     transaction->GetId(),
@@ -613,7 +611,6 @@ private:
         auto writerOptions = tablet->GetWriterOptions();
         auto tabletPivotKey = tablet->GetPivotKey();
         auto nextTabletPivotKey = tablet->GetNextPivotKey();
-        auto keyColumns = tablet->KeyColumns();
         auto schema = tablet->Schema();
         auto tabletConfig = tablet->GetConfig();
         writerOptions->ChunksEden = partition->IsEden();
@@ -683,7 +680,6 @@ private:
                 Config_->ChunkWriter,
                 writerOptions,
                 schema,
-                keyColumns,
                 Bootstrap_->GetMasterClient(),
                 Bootstrap_->GetMasterClient()->GetConnection()->GetPrimaryMasterCellTag(),
                 transaction->GetId(),

@@ -54,7 +54,6 @@ class TMemoryStoreTestBase
 protected:
     virtual void SetUp() override
     {
-        auto keyColumns = GetKeyColumns();
         auto schema = GetSchema();
 
         for (const auto& column : schema.Columns()) {
@@ -73,7 +72,7 @@ protected:
             nullptr,
             columnEvaluatorCache,
             schema,
-            keyColumns,
+            schema.GetKeyColumns(),
             MinKey(),
             MaxKey(),
             GetAtomicity()));
@@ -81,18 +80,11 @@ protected:
         Tablet_->StartEpoch(nullptr);
     }
 
-    virtual TKeyColumns GetKeyColumns() const
-    {
-        TKeyColumns keyColumns;
-        keyColumns.push_back("key");
-        return keyColumns;
-    }
-
     virtual TTableSchema GetSchema() const
     {
         // NB: Key columns must go first.
         TTableSchema schema;
-        schema.Columns().push_back(TColumnSchema("key", EValueType::Int64));
+        schema.Columns().push_back(TColumnSchema("key", EValueType::Int64, Null, Null, Null, ESortOrder::Ascending));
         schema.Columns().push_back(TColumnSchema("a", EValueType::Int64));
         schema.Columns().push_back(TColumnSchema("b", EValueType::Double));
         schema.Columns().push_back(TColumnSchema("c", EValueType::String));
@@ -108,7 +100,6 @@ protected:
     {
         return NTableClient::BuildRow(yson, Tablet_->KeyColumns(), Tablet_->Schema(), treatMissingAsNull);
     }
-
 
     TTimestamp GenerateTimestamp()
     {
