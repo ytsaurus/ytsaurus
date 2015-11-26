@@ -305,12 +305,12 @@ public:
 
     const T* operator->() const
     {
-        return GetPtr();
+        return &Get();
     }
 
     T* operator->()
     {
-        return GetPtr();
+        return &Get();
     }
 
 private:
