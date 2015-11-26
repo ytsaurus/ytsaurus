@@ -1,17 +1,17 @@
-function(NODE target type)
-  add_library(${target} MODULE ${ARGN})
-  target_link_libraries(${target} ytlib)
+function( NODE target type )
+  add_library( ${target} ${type} ${ARGN} )
+  target_link_libraries( ${target} ytlib ytext-lfalloc )
 
-  set(_node_compile_definitions
+  set( _node_compile_definitions
     "_GNU_SOURCE;_LARGEFILE_SOURCE;_FILE_OFFSET_BITS=64")
-  set(_node_link_flags
+  set( _node_link_flags
     "-static-libstdc++")
 
-  if(APPLE)
-    set(_node_link_flags "${_node_link_flags} -undefined dynamic_lookup")
+  if (APPLE)
+    set( _node_link_flags "${_node_link_flags} -undefined dynamic_lookup" )
   endif()
 
-  set_target_properties(${target}
+  set_target_properties( ${target}
     PROPERTIES
     PREFIX ""
     SUFFIX ".node"
@@ -48,7 +48,7 @@ set( SRCS
   src/stream_stack.cpp
 )
 
-NODE(ytnode ${SRCS} src/ytnode.cpp)
+NODE( ytnode SHARED ${SRCS} src/ytnode.cpp )
 
 configure_file(
   ${CMAKE_CURRENT_SOURCE_DIR}/run_tests.sh.in

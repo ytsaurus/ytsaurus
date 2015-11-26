@@ -1,3 +1,4 @@
+
 #include "job_proxy.h"
 #include "config.h"
 #include "job_prober_service.h"
@@ -45,8 +46,6 @@
 #include <yt/core/rpc/server.h>
 
 #include <yt/core/ytree/public.h>
-
-#include <library/malloc/api/malloc.h>
 
 namespace NYT {
 namespace NJobProxy {
@@ -300,9 +299,7 @@ TJobResult TJobProxy::DoRun()
     RetrieveJobSpec();
 
     const auto& schedulerJobSpecExt = JobSpec_.GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
-    NMalloc::MallocInfo().SetParam(
-        "LB_LIMIT_TOTAL_SIZE",
-        ~ToString(schedulerJobSpecExt.lfalloc_buffer_size()));
+    SetLargeBlockLimit(schedulerJobSpecExt.lfalloc_buffer_size());
     EnableJobProxyMemoryControl_ = schedulerJobSpecExt.enable_job_proxy_memory_control();
 
     if (Config_->IsCGroupSupported(TCpu::Name)) {
