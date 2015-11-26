@@ -24,11 +24,7 @@ struct TColumnSchema
     TColumnSchema();
     TColumnSchema(
         const Stroka& name,
-        EValueType type,
-        const TNullable<Stroka>& lock = Null,
-        const TNullable<Stroka>& expression = Null,
-        const TNullable<Stroka>& aggregate = Null,
-        const TNullable<ESortOrder>& sortOrder = Null);
+        EValueType type);
 
     TColumnSchema(const TColumnSchema&) = default;
     TColumnSchema(TColumnSchema&&) = default;
@@ -36,12 +32,17 @@ struct TColumnSchema
     TColumnSchema& operator=(const TColumnSchema&) = default;
     TColumnSchema& operator=(TColumnSchema&&) = default;
 
+    TColumnSchema& SetSortOrder(const TNullable<ESortOrder>& value);
+    TColumnSchema& SetLock(const TNullable<Stroka>& value);
+    TColumnSchema& SetExpression(const TNullable<Stroka>& value);
+    TColumnSchema& SetAggregate(const TNullable<Stroka>& value);
+
     Stroka Name;
     EValueType Type;
+    TNullable<ESortOrder> SortOrder;
     TNullable<Stroka> Lock;
     TNullable<Stroka> Expression;
     TNullable<Stroka> Aggregate;
-    TNullable<ESortOrder> SortOrder;
 };
 
 void Serialize(const TColumnSchema& schema, NYson::IYsonConsumer* consumer);
