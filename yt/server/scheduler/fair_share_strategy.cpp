@@ -9,6 +9,8 @@
 #include <core/concurrency/async_rw_lock.h>
 #include <core/profiling/scoped_timer.h>
 
+#include <forward_list>
+
 namespace NYT {
 namespace NScheduler {
 
@@ -27,11 +29,12 @@ static const auto& Profiler = SchedulerProfiler;
 static const double RatioComputationPrecision = std::numeric_limits<double>::epsilon();
 static const double RatioComparisonPrecision = sqrt(RatioComputationPrecision);
 
+static const int GlobalAttributesIndex = 0;
+
 ////////////////////////////////////////////////////////////////////
 
 struct ISchedulerElement;
 typedef TIntrusivePtr<ISchedulerElement> ISchedulerElementPtr;
-typedef TWeakPtr<ISchedulerElement> ISchedulerElementWeakPtr;
 
 class TOperationElement;
 typedef TIntrusivePtr<TOperationElement> TOperationElementPtr;
@@ -67,7 +70,7 @@ struct TDynamicAttributes
 {
     double SatisfactionRatio = 0.0;
     bool Active = false;
-    ISchedulerElementWeakPtr BestLeafDescendant;
+    ISchedulerElementPtr BestLeafDescendant;
     TInstant MinSubtreeStartTime;
     TNodeResources ResourceUsageDiscount = ZeroNodeResources();
 };
@@ -81,14 +84,14 @@ DEFINE_ENUM(ESchedulableStatus,
 ////////////////////////////////////////////////////////////////////
 
 struct ISchedulerElement
-    : public TRefCounted
+    : public TIntrinsicRefCounted
 {
     virtual void Update() = 0;
     virtual void UpdateBottomUp() = 0;
     virtual void UpdateTopDown() = 0;
 
     virtual void BeginHeartbeat() = 0;
-    virtual void UpdateDynamicAttributes(TDynamicAttributesMap& dynamicAttributesMap) = 0;
+    virtual void UpdateDynamicAttributes(int attributesIndex) = 0;
     virtual void PrescheduleJob(TFairShareContext& context, bool starvingOnly) = 0;
     virtual bool ScheduleJob(TFairShareContext& context) = 0;
     virtual void EndHeartbeat() = 0;
@@ -97,8 +100,10 @@ struct ISchedulerElement
     virtual TSchedulableAttributes& Attributes() = 0;
     virtual void UpdateAttributes() = 0;
 
-    virtual const TDynamicAttributes& DynamicAttributes() const = 0;
-    virtual TDynamicAttributes& DynamicAttributes() = 0;
+    virtual const TDynamicAttributes& DynamicAttributes(int attributesIndex) const = 0;
+    virtual TDynamicAttributes& DynamicAttributes(int attributesIndex) = 0;
+
+    virtual bool IsActive(int attributsIndex) const = 0;
 
     virtual int GetPendingJobCount() const = 0;
 
@@ -139,76 +144,52 @@ namespace NScheduler {
 
 ////////////////////////////////////////////////////////////////////
 
-class TDynamicAttributesMap
-{
-public:
-    void Initialize(const ISchedulerElement* element, TDynamicAttributes value = TDynamicAttributes())
-    {
-        Impl_[element] = value;
-    }
-
-    void Initialize(const ISchedulerElementPtr& element, TDynamicAttributes value = TDynamicAttributes())
-    {
-        Initialize(element.Get(), value);
-    }
-
-    void Erase(const ISchedulerElement* element)
-    {
-        YCHECK(Impl_.erase(element));
-    }
-
-    void Erase(const ISchedulerElementPtr& element)
-    {
-        Erase(element.Get());
-    }
-
-    TDynamicAttributes& At(const ISchedulerElement* element)
-    {
-        return Impl_.at(element);
-    }
-
-    TDynamicAttributes& At(const ISchedulerElementPtr& element)
-    {
-        return At(element.Get());
-    }
-
-    const TDynamicAttributes& At(const ISchedulerElement* element) const
-    {
-        return Impl_.at(element);
-    }
-
-    const TDynamicAttributes& At(const ISchedulerElementPtr& element) const
-    {
-        return At(element.Get());
-    }
-
-    bool GetActive(const ISchedulerElement* element) const
-    {
-        auto it = Impl_.find(element);
-        if (it == Impl_.end()) {
-            return false;
-        }
-        return it->second.Active;
-    }
-
-    bool GetActive(const ISchedulerElementPtr& element) const
-    {
-        return GetActive(element.Get());
-    }
-
-private:
-    std::unordered_map<const ISchedulerElement*, TDynamicAttributes> Impl_;
-
-};
-
 struct TFairShareContext
 {
-    explicit TFairShareContext(ISchedulingContext* schedulingContext)
+    TFairShareContext(ISchedulingContext* schedulingContext, int attributesIndex)
         : SchedulingContext(schedulingContext)
+        , AttributesIndex(attributesIndex)
     { }
 
     ISchedulingContext* SchedulingContext;
-    TDynamicAttributesMap DynamicAttributesMap;
+    int AttributesIndex;
+};
+
+class TDynamicAttributesList
+{
+public:
+    void Initialize(int index)
+    {
+        while (index >= DynamicAttributesListIterators_.size()) {
+            DynamicAttributesList_.emplace_front();
+            DynamicAttributesListIterators_.push_back(DynamicAttributesList_.begin());
+        }
+        *DynamicAttributesListIterators_[index] = TDynamicAttributes();
+    }
+
+    TDynamicAttributes& Get(int index)
+    {
+        YCHECK(index < DynamicAttributesListIterators_.size());
+        return *DynamicAttributesListIterators_[index];
+    }
+
+    const TDynamicAttributes& Get(int index) const
+    {
+        YCHECK(index < DynamicAttributesListIterators_.size());
+        return *DynamicAttributesListIterators_[index];
+    }
+
+    bool IsActive(int index) const
+    {
+        if (index >= DynamicAttributesListIterators_.size()) {
+            return false;
+        }
+        return DynamicAttributesListIterators_[index]->Active;
+    }
+
+private:
+    std::forward_list<TDynamicAttributes> DynamicAttributesList_;
+    std::vector<std::forward_list<TDynamicAttributes>::iterator> DynamicAttributesListIterators_;
 };
 
 ////////////////////////////////////////////////////////////////////
@@ -228,8 +209,8 @@ public:
     virtual void UpdateBottomUp() override
     {
         UpdateAttributes();
-        DynamicAttributesMap.At(this).Active = true;
-        UpdateDynamicAttributes(DynamicAttributesMap);
+        DynamicAttributes(GlobalAttributesIndex).Active = true;
+        UpdateDynamicAttributes(GlobalAttributesIndex);
     }
 
     // Updates attributes that are propagated from root down to leafs.
@@ -240,15 +221,15 @@ public:
     virtual void BeginHeartbeat() override
     { }
 
-    virtual void UpdateDynamicAttributes(TDynamicAttributesMap& dynamicAttributesMap) override
+    virtual void UpdateDynamicAttributes(int attributesIndex) override
     {
-        YCHECK(dynamicAttributesMap.GetActive(this));
-        dynamicAttributesMap.At(this).SatisfactionRatio = ComputeLocalSatisfactionRatio();
+        YCHECK(IsActive(attributesIndex));
+        DynamicAttributes(attributesIndex).SatisfactionRatio = ComputeLocalSatisfactionRatio();
     }
 
     virtual void PrescheduleJob(TFairShareContext& context, bool starvingOnly) override
     {
-        UpdateDynamicAttributes(context.DynamicAttributesMap);
+        UpdateDynamicAttributes(context.AttributesIndex);
     }
 
     virtual void EndHeartbeat() override
@@ -303,14 +284,19 @@ public:
         }
     }
 
-    virtual const TDynamicAttributes& DynamicAttributes() const override
+    virtual const TDynamicAttributes& DynamicAttributes(int attributesIndex) const override
     {
-        return DynamicAttributesMap.At(this);
+        return DynamicAttributesList_.Get(attributesIndex);
     }
 
-    virtual TDynamicAttributes& DynamicAttributes() override
+    virtual TDynamicAttributes& DynamicAttributes(int attributesIndex) override
     {
-        return DynamicAttributesMap.At(this);
+        return DynamicAttributesList_.Get(attributesIndex);
+    }
+
+    virtual bool IsActive(int attributesIndex) const override
+    {
+        return DynamicAttributesList_.IsActive(attributesIndex);
     }
 
     ESchedulableStatus GetStatus(double defaultTolerance) const
@@ -395,13 +381,14 @@ public:
 protected:
     ISchedulerStrategyHost* Host;
 
-    TDynamicAttributesMap& DynamicAttributesMap;
+    TDynamicAttributesList DynamicAttributesList_;
 
-    TSchedulerElementBase(ISchedulerStrategyHost* host, TDynamicAttributesMap& dynamicAttributesMap)
+    explicit TSchedulerElementBase(ISchedulerStrategyHost* host)
         : Starving_(false)
         , Host(host)
-        , DynamicAttributesMap(dynamicAttributesMap)
-    { }
+    {
+        DynamicAttributesList_.Initialize(GlobalAttributesIndex);
+    }
 
     double ComputeLocalSatisfactionRatio() const
     {
@@ -430,8 +417,8 @@ class TCompositeSchedulerElement
     : public TSchedulerElementBase
 {
 public:
-    TCompositeSchedulerElement(ISchedulerStrategyHost* host, TDynamicAttributesMap& dynamicAttributesMap)
-        : TSchedulerElementBase(host, dynamicAttributesMap)
+    explicit TCompositeSchedulerElement(ISchedulerStrategyHost* host)
+        : TSchedulerElementBase(host)
         , Parent_(nullptr)
         , ResourceDemand_(ZeroNodeResources())
         , ResourceUsage_(ZeroNodeResources())
@@ -491,10 +478,10 @@ public:
         }
     }
 
-    virtual void UpdateDynamicAttributes(TDynamicAttributesMap& dynamicAttributesMap) override
+    virtual void UpdateDynamicAttributes(int attributesIndex) override
     {
-        YCHECK(dynamicAttributesMap.GetActive(this));
-        auto& attributes = dynamicAttributesMap.At(this);
+        YCHECK(IsActive(attributesIndex));
+        auto& attributes = DynamicAttributes(attributesIndex);
 
         // Compute local satisfaction ratio.
         attributes.SatisfactionRatio = ComputeLocalSatisfactionRatio();
@@ -505,28 +492,28 @@ public:
         attributes.Active = false;
         attributes.BestLeafDescendant.Reset();
 
-        while (auto bestChild = GetBestActiveChild(dynamicAttributesMap)) {
-            auto childBestLeafDescendant = dynamicAttributesMap.At(bestChild).BestLeafDescendant.Lock();
-            if (!childBestLeafDescendant) {
-                bestChild->UpdateDynamicAttributes(dynamicAttributesMap);
-                if (!dynamicAttributesMap.GetActive(bestChild)) {
+        while (auto bestChild = GetBestActiveChild(attributesIndex)) {
+            auto childBestLeafDescendant = bestChild->DynamicAttributes(attributesIndex).BestLeafDescendant;
+            if (!childBestLeafDescendant->IsActive(GlobalAttributesIndex)) {
+                bestChild->UpdateDynamicAttributes(attributesIndex);
+                if (!bestChild->IsActive(attributesIndex)) {
                     continue;
                 }
-                childBestLeafDescendant = dynamicAttributesMap.At(bestChild).BestLeafDescendant.Lock();
-                YCHECK(childBestLeafDescendant);
+                childBestLeafDescendant = bestChild->DynamicAttributes(attributesIndex).BestLeafDescendant;
+                YCHECK(childBestLeafDescendant->IsActive(GlobalAttributesIndex));
             }
 
             // We need to evaluate both MinSubtreeStartTime and SatisfactionRatio
             // because parent can use different scheduling mode.
             attributes.MinSubtreeStartTime = std::min(
                 attributes.MinSubtreeStartTime,
-                dynamicAttributesMap.At(bestChild).MinSubtreeStartTime);
+                bestChild->DynamicAttributes(attributesIndex).MinSubtreeStartTime);
 
             attributes.SatisfactionRatio = std::min(
                 attributes.SatisfactionRatio,
-                dynamicAttributesMap.At(bestChild).SatisfactionRatio);
+                bestChild->DynamicAttributes(attributesIndex).SatisfactionRatio);
 
-            attributes.BestLeafDescendant = dynamicAttributesMap.At(bestChild).BestLeafDescendant;
+            attributes.BestLeafDescendant = bestChild->DynamicAttributes(attributesIndex).BestLeafDescendant;
             attributes.Active = true;
             break;
         }
@@ -534,9 +521,9 @@ public:
 
     virtual void PrescheduleJob(TFairShareContext& context, bool starvingOnly) override
     {
+        DynamicAttributesList_.Initialize(context.AttributesIndex);
+        auto& attributes = DynamicAttributes(context.AttributesIndex);
         const auto& node = context.SchedulingContext->GetNode();
-        context.DynamicAttributesMap.Initialize(this);
-        auto& attributes = context.DynamicAttributesMap.At(this);
 
         attributes.Active = true;
 
@@ -559,22 +546,22 @@ public:
 
     virtual bool ScheduleJob(TFairShareContext& context) override
     {
-        auto& attributes = context.DynamicAttributesMap.At(this);
+        auto& attributes = DynamicAttributes(context.AttributesIndex);
         if (!attributes.Active) {
             return false;
         }
 
-        auto bestLeafDescendant = attributes.BestLeafDescendant.Lock();
-        if (!bestLeafDescendant || !DynamicAttributesMap.GetActive(bestLeafDescendant)) {
+        auto bestLeafDescendant = attributes.BestLeafDescendant;
+        if (!bestLeafDescendant->IsActive(GlobalAttributesIndex)) {
             // NB: This can only happen as a result of deletion of bestLeafDescendant node
             // from scheduling tree in another fiber (e.x. operation abort),
             // while this fiber was waiting for controller.
-            UpdateDynamicAttributes(context.DynamicAttributesMap);
+            UpdateDynamicAttributes(context.AttributesIndex);
             if (!attributes.Active) {
                 return false;
             }
-            bestLeafDescendant = attributes.BestLeafDescendant.Lock();
-            YCHECK(bestLeafDescendant);
+            bestLeafDescendant = attributes.BestLeafDescendant;
+            YCHECK(bestLeafDescendant->IsActive(GlobalAttributesIndex));
         }
 
         // NB: Ignore the child's result.
@@ -706,7 +693,7 @@ protected:
 
     void UpdateFifo()
     {
-        auto bestChild = GetBestActiveChildFifo(DynamicAttributesMap);
+        auto bestChild = GetBestActiveChildFifo(GlobalAttributesIndex);
         for (const auto& child : Children) {
             auto& childAttributes = child->Attributes();
             if (child == bestChild) {
@@ -774,33 +761,21 @@ protected:
     }
 
 
-    std::vector<ISchedulerElementPtr> GetActiveChildren(const TDynamicAttributesMap& dynamicAttributesMap) const
-    {
-        std::vector<ISchedulerElementPtr> result;
-        result.reserve(Children.size());
-        for (const auto& child : Children) {
-            if (dynamicAttributesMap.GetActive(child)) {
-                result.push_back(child);
-            }
-        }
-        return result;
-    }
-
-    ISchedulerElementPtr GetBestActiveChild(const TDynamicAttributesMap& dynamicAttributesMap) const
+    ISchedulerElementPtr GetBestActiveChild(int attributesIndex) const
     {
         switch (Mode) {
             case ESchedulingMode::Fifo:
-                return GetBestActiveChildFifo(dynamicAttributesMap);
+                return GetBestActiveChildFifo(attributesIndex);
             case ESchedulingMode::FairShare:
-                return GetBestActiveChildFairShare(dynamicAttributesMap);
+                return GetBestActiveChildFairShare(attributesIndex);
             default:
                 YUNREACHABLE();
         }
     }
 
-    ISchedulerElementPtr GetBestActiveChildFifo(const TDynamicAttributesMap& dynamicAttributesMap) const
+    ISchedulerElementPtr GetBestActiveChildFifo(int attributesIndex) const
     {
-        auto isBetter = [this, &dynamicAttributesMap] (const ISchedulerElementPtr& lhs, const ISchedulerElementPtr& rhs) -> bool {
+        auto isBetter = [this, &attributesIndex] (const ISchedulerElementPtr& lhs, const ISchedulerElementPtr& rhs) -> bool {
             for (auto parameter : FifoSortParameters) {
                 switch (parameter) {
                     case EFifoSortParameter::Weight:
@@ -809,8 +784,8 @@ protected:
                         }
                         break;
                     case EFifoSortParameter::StartTime: {
-                        const auto& lhsStartTime = dynamicAttributesMap.At(lhs).MinSubtreeStartTime;
-                        const auto& rhsStartTime = dynamicAttributesMap.At(rhs).MinSubtreeStartTime;
+                        const auto& lhsStartTime = lhs->DynamicAttributes(attributesIndex).MinSubtreeStartTime;
+                        const auto& rhsStartTime = rhs->DynamicAttributes(attributesIndex).MinSubtreeStartTime;
                         if (lhsStartTime != rhsStartTime) {
                             return lhsStartTime < rhsStartTime;
                         }
@@ -829,24 +804,28 @@ protected:
         };
 
         ISchedulerElementPtr bestChild;
-        for (const auto& child : GetActiveChildren(dynamicAttributesMap)) {
-            if (bestChild && isBetter(bestChild, child))
-                continue;
+        for (const auto& child : Children) {
+            if (child->IsActive(attributesIndex)) {
+                if (bestChild && isBetter(bestChild, child))
+                    continue;
 
-            bestChild = child;
+                bestChild = child;
+            }
         }
         return bestChild;
     }
-    ISchedulerElementPtr GetBestActiveChildFairShare(const TDynamicAttributesMap& dynamicAttributesMap) const
+    ISchedulerElementPtr GetBestActiveChildFairShare(int attributesIndex) const
     {
         ISchedulerElementPtr bestChild;
         double bestChildSatisfactionRatio = std::numeric_limits<double>::max();
-        for (const auto& child : GetActiveChildren(dynamicAttributesMap)) {
-            double childSatisfactionRatio = dynamicAttributesMap.At(child).SatisfactionRatio;
-            if (!bestChild || childSatisfactionRatio < bestChildSatisfactionRatio)
-            {
-                bestChild = child;
-                bestChildSatisfactionRatio = childSatisfactionRatio;
+        for (const auto& child : Children) {
+            if (child->IsActive(attributesIndex)) {
+                double childSatisfactionRatio = child->DynamicAttributes(attributesIndex).SatisfactionRatio;
+                if (!bestChild || childSatisfactionRatio < bestChildSatisfactionRatio)
+                {
+                    bestChild = child;
+                    bestChildSatisfactionRatio = childSatisfactionRatio;
+                }
             }
         }
         return bestChild;
@@ -862,13 +841,11 @@ public:
     TPool(
         ISchedulerStrategyHost* host,
         const Stroka& id,
-        TFairShareStrategyConfigPtr strategyConfig,
-        TDynamicAttributesMap& dynamicAttributesMap)
-        : TCompositeSchedulerElement(host, dynamicAttributesMap)
+        TFairShareStrategyConfigPtr strategyConfig)
+        : TCompositeSchedulerElement(host)
         , Id(id)
         , StrategyConfig_(strategyConfig)
     {
-        DynamicAttributesMap.Initialize(this);
         SetDefaultConfig();
     }
 
@@ -1015,9 +992,8 @@ public:
         TStrategyOperationSpecPtr spec,
         TOperationRuntimeParamsPtr runtimeParams,
         ISchedulerStrategyHost* host,
-        TOperationPtr operation,
-        TDynamicAttributesMap& dynamicAttributesMap)
-        : TSchedulerElementBase(host, dynamicAttributesMap)
+        TOperationPtr operation)
+        : TSchedulerElementBase(host)
         , Operation_(operation)
         , Spec_(spec)
         , RuntimeParams_(runtimeParams)
@@ -1027,10 +1003,10 @@ public:
         , Config(config)
         , OperationId_(Operation_->GetId())
     {
-        DynamicAttributesMap.Initialize(this);
-        DynamicAttributesMap.At(this).Active = true;
-        DynamicAttributesMap.At(this).MinSubtreeStartTime = operation->GetStartTime();
-        DynamicAttributesMap.At(this).BestLeafDescendant = MakeWeak(this);
+        auto& attributes = DynamicAttributes(GlobalAttributesIndex);
+        attributes.Active = true;
+        attributes.MinSubtreeStartTime = operation->GetStartTime();
+        attributes.BestLeafDescendant = this;
     }
 
     virtual void UpdateBottomUp() override
@@ -1052,8 +1028,9 @@ public:
 
     virtual void PrescheduleJob(TFairShareContext& context, bool starvingOnly) override
     {
-        context.DynamicAttributesMap.Initialize(this, DynamicAttributesMap.At(this));
-        auto& attributes = context.DynamicAttributesMap.At(this);
+        DynamicAttributesList_.Initialize(context.AttributesIndex);
+        auto& attributes = DynamicAttributes(context.AttributesIndex);
+        attributes = DynamicAttributes(GlobalAttributesIndex);
         const auto& node = context.SchedulingContext->GetNode();
 
         attributes.Active = true;
@@ -1078,18 +1055,18 @@ public:
 
     virtual bool ScheduleJob(TFairShareContext& context) override
     {
-        YCHECK(DynamicAttributesMap.GetActive(this));
+        YCHECK(IsActive(GlobalAttributesIndex));
 
         auto updateAncestorsAttributes = [&] () {
             TCompositeSchedulerElement* pool = Pool_;
             while (pool) {
-                pool->UpdateDynamicAttributes(context.DynamicAttributesMap);
+                pool->UpdateDynamicAttributes(context.AttributesIndex);
                 pool = pool->GetParent();
             }
         };
 
         if (!Operation_->IsSchedulable()) {
-            context.DynamicAttributesMap.At(this).Active = false;
+            DynamicAttributes(context.AttributesIndex).Active = false;
             updateAncestorsAttributes();
             return false;
         }
@@ -1109,21 +1086,21 @@ public:
         // In this case current operation element is removed from scheduling tree and we don't
         // need to update parent attributes.
         if (!jobIdOrError.IsOK()) {
-            YCHECK(!DynamicAttributesMap.GetActive(this));
+            YCHECK(!IsActive(GlobalAttributesIndex));
             return false;
         }
 
         // This can happen if operation controller was canceled after invocation
         // of IOperationController::ScheduleJob. In this case cancel won't be applied
         // to the last action in invoker but its result should be ignored.
-        if (!DynamicAttributesMap.GetActive(this)) {
+        if (!IsActive(GlobalAttributesIndex)) {
             return false;
         }
 
         auto jobId = jobIdOrError.Value();
 
         if (!jobId) {
-            context.DynamicAttributesMap.At(this).Active = false;
+            DynamicAttributes(context.AttributesIndex).Active = false;
             updateAncestorsAttributes();
             Operation_->UpdateControllerTimeStatistics("/schedule_job/fail", scheduleJobDuration);
             return false;
@@ -1132,7 +1109,7 @@ public:
         const auto& job = context.SchedulingContext->FindStartedJob(jobId);
         context.SchedulingContext->GetNode()->ResourceUsage() += job->ResourceUsage();
         OnJobStarted(jobId, job->ResourceUsage());
-        UpdateDynamicAttributes(context.DynamicAttributesMap);
+        UpdateDynamicAttributes(context.AttributesIndex);
         updateAncestorsAttributes();
         Operation_->UpdateControllerTimeStatistics("/schedule_job/success", scheduleJobDuration);
 
@@ -1402,7 +1379,7 @@ private:
             auto poolLimits =
                 pool->ResourceLimits()
                 - pool->ResourceUsage()
-                + context.DynamicAttributesMap.At(pool).ResourceUsageDiscount;
+                + pool->DynamicAttributes(context.AttributesIndex).ResourceUsageDiscount;
 
             limits = Min(limits, poolLimits);
             pool = pool->GetParent();
@@ -1445,12 +1422,10 @@ class TRootElement
 public:
     TRootElement(
         ISchedulerStrategyHost* host,
-        TDynamicAttributesMap& dynamicAttributesMap,
         TFairShareStrategyConfigPtr strategyConfig)
-        : TCompositeSchedulerElement(host, dynamicAttributesMap)
+        : TCompositeSchedulerElement(host)
         , StrategyConfig_(strategyConfig)
     {
-        DynamicAttributesMap.Initialize(this);
         Attributes_.FairShareRatio = 1.0;
         Attributes_.AdjustedMinShareRatio = 1.0;
         Mode = ESchedulingMode::FairShare;
@@ -1518,7 +1493,7 @@ public:
         Host->SubscribeOperationRuntimeParamsUpdated(
             BIND(&TFairShareStrategy::OnOperationRuntimeParamsUpdated, this));
 
-        RootElement = New<TRootElement>(Host, DynamicAttributesMap, config);
+        RootElement = New<TRootElement>(Host, config);
     }
 
 
@@ -1528,7 +1503,8 @@ public:
 
         auto now = schedulingContext->GetNow();
         auto node = schedulingContext->GetNode();
-        TFairShareContext context(schedulingContext);
+        int attributesIndex = AllocateAttributesIndex();
+        TFairShareContext context(schedulingContext, attributesIndex);
 
         RootElement->BeginHeartbeat();
 
@@ -1601,7 +1577,7 @@ public:
                 TCompositeSchedulerElement* pool = operationElement->GetPool();
                 while (pool) {
                     discountedPools.insert(pool);
-                    context.DynamicAttributesMap.At(pool).ResourceUsageDiscount += job->ResourceUsage();
+                    pool->DynamicAttributes(context.AttributesIndex).ResourceUsageDiscount += job->ResourceUsage();
                     pool = pool->GetParent();
                 }
                 context.SchedulingContext->ResourceUsageDiscount() += job->ResourceUsage();
@@ -1633,7 +1609,7 @@ public:
         // Reset discounts.
         context.SchedulingContext->ResourceUsageDiscount() = ZeroNodeResources();
         for (const auto& pool : discountedPools) {
-            context.DynamicAttributesMap.At(pool).ResourceUsageDiscount = ZeroNodeResources();
+            pool->DynamicAttributes(context.AttributesIndex).ResourceUsageDiscount = ZeroNodeResources();
         }
 
         // Preempt jobs if needed.
@@ -1699,6 +1675,7 @@ public:
         }
 
         RootElement->EndHeartbeat();
+        FreeAttributesIndex(attributesIndex);
 
         LOG_DEBUG("Heartbeat info (StartedJobs: %v, PreemptedJobs: %v, "
             "JobsScheduledDuringPreemption: %v, PreemptableJobs: %v, PreemptableResources: {%v})",
@@ -1727,7 +1704,7 @@ public:
         const auto& pool = element->GetPool();
         BuildYsonMapFluently(consumer)
             .Item("pool").Value(pool->GetId())
-            .Item("start_time").Value(element->DynamicAttributes().MinSubtreeStartTime)
+            .Item("start_time").Value(element->DynamicAttributes(GlobalAttributesIndex).MinSubtreeStartTime)
             .Item("preemptable_job_count").Value(element->PreemptableJobs().size())
             .Do(BIND(&TFairShareStrategy::BuildElementYson, pool, element));
     }
@@ -1750,7 +1727,7 @@ public:
     {
         const auto& element = GetOperationElement(operationId);
         const auto& attributes = element->Attributes();
-        const auto& dynamicAttributes = element->DynamicAttributes();
+        const auto& dynamicAttributes = element->DynamicAttributes(GlobalAttributesIndex);
 
         return Format(
             "Scheduling = {Status: %v, DominantResource: %v, Demand: %.4lf, "
@@ -1826,9 +1803,10 @@ private:
     TNullable<TInstant> LastUpdateTime;
     TNullable<TInstant> LastLogTime;
 
-    TDynamicAttributesMap DynamicAttributesMap;
-
     TAsyncReaderWriterLock ScheduleJobsLock;
+
+    std::vector<int> FreeAttributesIndices;
+    int MaxUsedAttributesIndex = GlobalAttributesIndex;
 
     bool IsJobPreemptable(TJobPtr job)
     {
@@ -1902,14 +1880,13 @@ private:
             spec,
             params,
             Host,
-            operation,
-            DynamicAttributesMap);
+            operation);
         YCHECK(OperationToElement.insert(std::make_pair(operation->GetId(), operationElement)).second);
 
         auto poolName = spec->Pool ? *spec->Pool : operation->GetAuthenticatedUser();
         auto pool = FindPool(poolName);
         if (!pool) {
-            pool = New<TPool>(Host, poolName, Config, DynamicAttributesMap);
+            pool = New<TPool>(Host, poolName, Config);
             RegisterPool(pool);
         }
         if (!pool->GetParent()) {
@@ -1954,7 +1931,7 @@ private:
         auto* pool = operationElement->GetPool();
 
         YCHECK(OperationToElement.erase(operation->GetId()) == 1);
-        DynamicAttributesMap.Erase(operationElement);
+        operationElement->DynamicAttributes(GlobalAttributesIndex).Active = false;
         pool->RemoveChild(operationElement);
         pool->IncreaseUsage(-operationElement->ResourceUsage());
 
@@ -2050,7 +2027,7 @@ private:
     void UnregisterPool(TPoolPtr pool)
     {
         YCHECK(Pools.erase(pool->GetId()) == 1);
-        DynamicAttributesMap.Erase(pool);
+        pool->DynamicAttributes(GlobalAttributesIndex).Active = false;
         auto parent = pool->GetParent();
         SetPoolParent(pool, nullptr);
 
@@ -2172,7 +2149,7 @@ private:
                             YCHECK(orphanPoolIds.erase(childId) == 1);
                         } else {
                             // Create new pool.
-                            pool = New<TPool>(Host, childId, Config, DynamicAttributesMap);
+                            pool = New<TPool>(Host, childId, Config);
                             pool->SetConfig(config);
                             RegisterPool(pool, parent);
                         }
@@ -2211,7 +2188,7 @@ private:
         IYsonConsumer* consumer)
     {
         const auto& attributes = element->Attributes();
-        const auto& dynamicAttributes = element->DynamicAttributes();
+        const auto& dynamicAttributes = element->DynamicAttributes(GlobalAttributesIndex);
 
         BuildYsonMapFluently(consumer)
             .Item("scheduling_status").Value(element->GetStatus())
@@ -2230,6 +2207,21 @@ private:
             .Item("fair_share_ratio").Value(attributes.FairShareRatio)
             .Item("satisfaction_ratio").Value(dynamicAttributes.SatisfactionRatio)
             .Item("best_allocation_ratio").Value(attributes.BestAllocationRatio);
+    }
+
+    int AllocateAttributesIndex()
+    {
+        if (FreeAttributesIndices.empty()) {
+            FreeAttributesIndices.push_back(++MaxUsedAttributesIndex);
+        }
+        int index = FreeAttributesIndices.back();
+        FreeAttributesIndices.pop_back();
+        return index;
+    }
+
+    void FreeAttributesIndex(int index)
+    {
+        FreeAttributesIndices.push_back(index);
     }
 
 };
