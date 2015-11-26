@@ -634,16 +634,16 @@ private:
 
         if (!chunkBoundaries.empty()) {
             std::sort(chunkBoundaries.begin(), chunkBoundaries.end());
-            std::vector<TOwningKey> pivots{pivotKey};
+            std::vector<TOwningKey> pivotKeys{pivotKey};
             int depth = 0;
             for (const auto& boundary : chunkBoundaries) {
                 if (std::get<1>(boundary) == -1 && depth == 0 && std::get<0>(boundary) > pivotKey) {
-                    pivots.push_back(std::get<0>(boundary));
+                    pivotKeys.push_back(std::get<0>(boundary));
                 }
                 depth -= std::get<1>(boundary);
             }
             YCHECK(tablet->Partitions().size() == 1);
-            tablet->SplitPartition(0, pivots);
+            SplitTabletPartition(tablet, 0, pivotKeys);
         }
 
         for (const auto& descriptor : request.chunk_stores()) {
@@ -1106,7 +1106,7 @@ private:
         int partitionIndex = partition->GetIndex();
         i64 partitionDataSize = partition->GetUncompressedDataSize();
 
-        tablet->SplitPartition(partitionIndex, pivotKeys);
+        SplitTabletPartition(tablet, partitionIndex, pivotKeys);
 
         auto resultingPartitionIds = JoinToString(ConvertToStrings(
             tablet->Partitions().begin() + partitionIndex,
@@ -1158,7 +1158,7 @@ private:
                 return ToString(partition->GetId());
             }));
 
-        tablet->MergePartitions(firstPartitionIndex, lastPartitionIndex);
+        MergeTabletPartitions(tablet, firstPartitionIndex, lastPartitionIndex);
 
         LOG_INFO_UNLESS(IsRecovery(), "Merging partitions (TabletId: %v, OriginalPartitionIds: [%v], ResultingPartitionId: %v, DataSize: %v)",
             tablet->GetTabletId(),
@@ -1661,6 +1661,25 @@ private:
     }
 
 
+    void SplitTabletPartition(TTablet* tablet, int partitionIndex, const std::vector<TOwningKey>& pivotKeys)
+    {
+        tablet->SplitPartition(partitionIndex, pivotKeys);
+        if (!IsRecovery()) {
+            for (int currentIndex = partitionIndex; currentIndex < partitionIndex + pivotKeys.size(); ++currentIndex) {
+                tablet->Partitions()[currentIndex]->StartEpoch();
+            }
+        }
+    }
+
+    void MergeTabletPartitions(TTablet* tablet, int firstIndex, int lastIndex)
+    {
+        tablet->MergePartitions(firstIndex, lastIndex);
+        if (!IsRecovery()) {
+            tablet->Partitions()[firstIndex]->StartEpoch();
+        }
+    }
+
+
     void SetBackingStore(TTablet* tablet, TChunkStorePtr store, IStorePtr backingStore)
     {
         store->SetBackingStore(backingStore);
@@ -1712,6 +1731,7 @@ private:
                 .Item("sample_key_count").Value(partition->GetSampleKeys()->Keys.size())
                 .Item("sampling_time").Value(partition->GetSamplingTime())
                 .Item("sampling_request_time").Value(partition->GetSamplingRequestTime())
+                .Item("compaction_time").Value(partition->GetCompactionTime())
                 .Item("uncompressed_data_size").Value(partition->GetUncompressedDataSize())
                 .Item("unmerged_row_count").Value(partition->GetUnmergedRowCount())
                 .Item("stores").DoMapFor(partition->Stores(), [&] (TFluentMap fluent, const IStorePtr& store) {

@@ -207,7 +207,9 @@ private:
             auto candidate = store->AsChunk();
             candidates.push_back(candidate);
 
-            if (IsCompactionForced(candidate) && forcedCandidates.size() < config->MaxPartitioningStoreCount) {
+            if ((IsCompactionForced(candidate) || IsPeriodicCompactionNeeded(eden)) &&
+                forcedCandidates.size() < config->MaxPartitioningStoreCount)
+            {
                 forcedCandidates.push_back(candidate);
             }
         }
@@ -271,7 +273,9 @@ private:
             auto candidate = store->AsChunk();
             candidates.push_back(candidate);
 
-            if (IsCompactionForced(candidate) && forcedCandidates.size() < config->MaxCompactionStoreCount) {
+            if ((IsCompactionForced(candidate) || IsPeriodicCompactionNeeded(partition)) &&
+                forcedCandidates.size() < config->MaxCompactionStoreCount)
+            {
                 forcedCandidates.push_back(candidate);
             }
         }
@@ -378,6 +382,8 @@ private:
             auto timestampProvider = Bootstrap_->GetMasterClient()->GetConnection()->GetTimestampProvider();
             auto currentTimestamp = WaitFor(timestampProvider->GenerateTimestamps())
                 .ValueOrThrow();
+
+            eden->SetCompactionTime(TInstant::Now());
 
             LOG_INFO("Eden partitioning started (PartitionCount: %v, DataSize: %v, ChunkCount: %v, CurrentTimestamp: %v)",
                 pivotKeys.size(),
@@ -642,6 +648,8 @@ private:
             auto currentTimestamp = WaitFor(timestampProvider->GenerateTimestamps())
                 .ValueOrThrow();
 
+            partition->SetCompactionTime(TInstant::Now());
+
             LOG_INFO("Partition compaction started (DataSize: %v, ChunkCount: %v, CurrentTimestamp: %v, MajorTimestamp: %v)",
                 dataSize,
                 stores.size(),
@@ -784,6 +792,20 @@ private:
 
         ui64 revision = CounterFromId(store->GetId());
         if (revision > *config->ForcedCompactionRevision) {
+            return false;
+        }
+
+        return true;
+    }
+
+    static bool IsPeriodicCompactionNeeded(TPartition* partition)
+    {
+        const auto& config = partition->GetTablet()->GetConfig();
+        if (!config->AutoCompactionPeriod) {
+            return false;
+        }
+
+        if (TInstant::Now() < partition->GetCompactionTime() + *config->AutoCompactionPeriod) {
             return false;
         }
 

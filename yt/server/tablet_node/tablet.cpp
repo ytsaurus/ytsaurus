@@ -588,6 +588,11 @@ void TTablet::StartEpoch(TTabletSlotPtr slot)
             ? slot->GetEpochAutomatonInvoker(queue)
             : GetSyncInvoker());
     }
+
+    Eden_->StartEpoch();
+    for (const auto& partition : PartitionList_) {
+        partition->StartEpoch();
+    }
 }
 
 void TTablet::StopEpoch()
@@ -600,6 +605,11 @@ void TTablet::StopEpoch()
     std::fill(EpochAutomatonInvokers_.begin(), EpochAutomatonInvokers_.end(), GetNullInvoker());
 
     SetState(GetPersistentState());
+
+    Eden_->StopEpoch();
+    for (const auto& partition : PartitionList_) {
+        partition->StopEpoch();
+    }
 }
 
 IInvokerPtr TTablet::GetEpochAutomatonInvoker(EAutomatonThreadQueue queue)
