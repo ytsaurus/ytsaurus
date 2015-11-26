@@ -212,12 +212,10 @@ TEST(TableSchemaSerialization, Simple)
     TTableSchema tableSchema;
     tableSchema.SetStrict(true); 
     tableSchema.Columns().emplace_back(
-        "key",
-        EValueType::Any,
-        Null,
-        MakeNullable<Stroka>("other * 10"),
-        MakeNullable<Stroka>("sum"),
-        ESortOrder::Ascending);
+        TColumnSchema("key", EValueType::Any)
+            .SetSortOrder(ESortOrder::Ascending)
+            .SetExpression(Stroka("other * 10"))
+            .SetAggregate(Stroka("sum")));
     auto ysonString = ConvertToYsonString(tableSchema, EYsonFormat::Text);
     auto expectedYsonString = Stroka(
         "<\"strict\"=\%true;>[{\"aggregate\"=\"sum\";\"name\"=\"key\";\""
