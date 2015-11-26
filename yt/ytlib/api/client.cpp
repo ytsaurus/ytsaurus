@@ -700,6 +700,8 @@ private:
             groupsByAddress.size());
 
         return DoCoordinateAndExecute(query, options, writer, groupedSplits.size(), false, [&] (int index) {
+            const auto& address = groupedSplits[index].second;
+
             yhash_map<TGuid, TRowRanges> rangesByTablet;
             std::vector<TDataSource2> dataSources2;
 
@@ -708,12 +710,16 @@ private:
             }
 
             for (const auto& tabletAndRanges : rangesByTablet) {
+                LOG_DEBUG_IF(options.VerboseLogging, "Delegating to tablet %v at %v",
+                    tabletAndRanges.first,
+                    address);
+
                 dataSources2.push_back(TDataSource2{
                     tabletAndRanges.first,
                     MakeSharedRange(tabletAndRanges.second, rowBuffer)});
             }
 
-            return std::make_pair(dataSources2, groupedSplits[index].second);
+            return std::make_pair(dataSources2, address);
         });
     }
 
