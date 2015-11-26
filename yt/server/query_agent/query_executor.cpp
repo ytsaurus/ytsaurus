@@ -242,8 +242,8 @@ private:
 
         LOG_DEBUG("Classifying data sources into ranges and lookup keys");
 
-        std::vector<std::pair<TGuid, TRowRanges>> rangesByTablet;
-        std::vector<std::pair<TGuid, std::vector<TRow>>> keysByTablet;
+        std::vector<std::pair<TGuid, TRowRanges>> rangesByTablePart;
+        std::vector<std::pair<TGuid, std::vector<TRow>>> keysByTablePart;
 
         auto keySize = query->KeyColumnsCount;
 
@@ -266,14 +266,19 @@ private:
                 }
             }
 
-            rangesByTablet.emplace_back(source.Id, std::move(rowRanges));
-            keysByTablet.emplace_back(source.Id, std::move(keys));
+
+            if (!rowRanges.empty()) {
+                rangesByTablePart.emplace_back(source.Id, std::move(rowRanges));
+            }
+            if (!keys.empty()) {
+                keysByTablePart.emplace_back(source.Id, std::move(keys));
+            }
         }
 
         LOG_DEBUG("Splitting sources");
 
         auto rowBuffer = New<TRowBuffer>();
-        auto splits = Split(std::move(rangesByTablet), rowBuffer, true, Logger, options.VerboseLogging);
+        auto splits = Split(std::move(rangesByTablePart), rowBuffer, true, Logger, options.VerboseLogging);
         int splitCount = splits.size();
         int splitOffset = 0;
         std::vector<TDataSources> groupedSplits;
@@ -345,15 +350,18 @@ private:
             });
         }
 
-        for (const auto& keySource : keysByTablet) {
+        for (auto& keySource : keysByTablePart) {
+            const auto& tablePartId = keySource.first;
+            auto& keys = keySource.second;
+
             refiners.push_back([&] (TConstExpressionPtr expr, const TTableSchema& schema, const TKeyColumns& keyColumns) {
-                return RefinePredicate(keySource.second, expr, keyColumns);
+                return RefinePredicate(keys, expr, keyColumns);
             });
             subreaderCreators.push_back([&] () {
                 std::vector<ISchemafulReaderPtr> bottomSplitReaders;
 
-                LOG_DEBUG("Grouping %v lookup keys by parition", keySource.second.size());
-                auto groupedKeys = GroupKeysByPartition(keySource.first, keySource.second);
+                LOG_DEBUG("Grouping %v lookup keys by parition", keys.size());
+                auto groupedKeys = GroupKeysByPartition(tablePartId, std::move());
                 LOG_DEBUG("Grouped lookup keys into %v paritions", groupedKeys.size());
 
                 for (const auto& keys : groupedKeys) {
@@ -367,7 +375,7 @@ private:
 
                     bottomSplitReaders.push_back(GetReader(
                         query->TableSchema,
-                        keySource.first,
+                        tablePartId,
                         keys,
                         timestamp));
                 }
@@ -375,7 +383,7 @@ private:
                 auto bottomSplitReaderGenerator = [
                     query,
                     groupedKeys,
-                    object = keySource.first,
+                    tablePartId,
                     timestamp,
                     index = 0,
                     this_ = MakeStrong(this)
@@ -385,7 +393,7 @@ private:
                     } else {
                         return this_->GetReader(
                             query->TableSchema,
-                            object,
+                            tablePartId,
                             groupedKeys[index++],
                             timestamp);
                     }
@@ -418,13 +426,13 @@ private:
 
         auto Logger = BuildLogger(query);
 
-        std::vector<std::pair<TGuid, TRowRanges>> rangesByTablet;
+        std::vector<std::pair<TGuid, TRowRanges>> rangesByTablePart;
         for (const auto& source : dataSources) {
-            rangesByTablet.emplace_back(source.Id, source.Ranges.ToVector());
+            rangesByTablePart.emplace_back(source.Id, source.Ranges.ToVector());
         }
 
         auto rowBuffer = New<TRowBuffer>();
-        auto splits = Split(std::move(rangesByTablet), rowBuffer, true, Logger, options.VerboseLogging);
+        auto splits = Split(std::move(rangesByTablePart), rowBuffer, true, Logger, options.VerboseLogging);
 
         LOG_DEBUG("Sorting %v splits", splits.size());
 
@@ -468,7 +476,7 @@ private:
 
 
     TDataSources Split(
-        std::vector<std::pair<TGuid, TRowRanges>> rangesByTablet,
+        std::vector<std::pair<TGuid, TRowRanges>> rangesByTablePart,
         TRowBufferPtr rowBuffer,
         bool mergeRanges,
         const NLogging::TLogger& Logger,
@@ -478,9 +486,16 @@ private:
 
         auto securityManager = Bootstrap_->GetSecurityManager();
 
-        for (auto& tabletIdRange : rangesByTablet) {
-            auto tabletId = tabletIdRange.first;
-            auto& keyRanges = tabletIdRange.second;
+        for (auto& tablePartIdRange : rangesByTablePart) {
+            auto tablePartId = tablePartIdRange.first;
+            auto& keyRanges = tablePartIdRange.second;
+
+            if (TypeFromId(tablePartId) != EObjectType::Tablet) {
+                for (const auto& range : keyRanges) {
+                    allSplits.push_back(TDataSource{tablePartId, range});
+                }
+                continue;
+            }
 
             YCHECK(!keyRanges.empty());
 
@@ -489,7 +504,7 @@ private:
             });
 
             auto slotManager = Bootstrap_->GetTabletSlotManager();
-            auto tabletSnapshot = slotManager->GetTabletSnapshotOrThrow(tabletId);
+            auto tabletSnapshot = slotManager->GetTabletSnapshotOrThrow(tablePartId);
 
             securityManager->ValidatePermission(tabletSnapshot, NYTree::EPermission::Read);
 
@@ -553,7 +568,7 @@ private:
                     const auto& nextKey = (splitKeyIndex == splitKeys.size() - 1)
                         ? MaxKey()
                         : splitKeys[splitKeyIndex + 1];
-                    allSplits.push_back({tabletId, TRowRange(
+                    allSplits.push_back({tablePartId, TRowRange(
                         rowBuffer->Capture(std::max(range.first, thisKey.Get())),
                         rowBuffer->Capture(std::min(range.second, nextKey.Get()))
                     )});
