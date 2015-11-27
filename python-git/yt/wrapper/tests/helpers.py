@@ -6,6 +6,7 @@ import string
 TEST_DIR = "//home/wrapper_tests"
 
 TESTS_LOCATION = os.path.dirname(os.path.abspath(__file__))
+TESTS_SANDBOX = os.environ.get("TESTS_SANDBOX", TESTS_LOCATION + ".sandbox")
 
 def get_test_file_path(name):
     return os.path.join(TESTS_LOCATION, "files", name)
@@ -23,9 +24,11 @@ def get_temp_dsv_records():
     return map(dumps_row, zip(*columns))
 
 def get_environment_for_binary_test():
-    env = {"PYTHONPATH": os.environ["PYTHONPATH"],
-          "YT_USE_TOKEN": "0",
-          "YT_VERSION": yt.config["api_version"]}
+    env = {
+        "PYTHONPATH": os.environ["PYTHONPATH"],
+        "YT_USE_TOKEN": "0",
+        "YT_VERSION": yt.config["api_version"]
+    }
     if yt.config["proxy"]["url"] is not None:
         env["YT_PROXY"] = yt.config["proxy"]["url"]
     if yt.config["driver_config_path"] is not None:
