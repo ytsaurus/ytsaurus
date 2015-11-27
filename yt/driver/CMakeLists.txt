@@ -34,7 +34,7 @@ add_executable( yt ${SRCS} ${HDRS} )
 
 target_link_libraries( yt
   ytlib
-  ytext-lfalloc
+  ytext-arcadia-library-lfalloc
 )
 
 if (NOT WIN32)
