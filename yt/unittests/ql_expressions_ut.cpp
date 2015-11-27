@@ -663,8 +663,12 @@ TEST_P(TArithmeticTest, Evaluate)
     std::vector<std::vector<bool>> allLiteralArgs;
     auto keyColumns = GetSampleKeyColumns();
     auto schema = GetSampleTableSchema();
-    schema.Columns()[0].Type = type;
-    schema.Columns()[1].Type = type;
+    TColumnSchema column0 = schema.Columns()[0];
+    TColumnSchema column1 = schema.Columns()[1];
+    column0.Type = type;
+    column1.Type = type;
+    schema.AlterColumn(0, column0);
+    schema.AlterColumn(1, column1);
 
     auto expr = PrepareExpression(Stroka("k") + op + "l", schema);
     auto callback = Profile(expr, schema, nullptr, &variables, nullptr, &allLiteralArgs, CreateBuiltinFunctionRegistry())();
@@ -944,10 +948,10 @@ TEST_P(TEvaluateExpressionTest, Basic)
     const auto& expected = std::get<2>(param);
 
     TTableSchema schema;
-    schema.Columns().emplace_back(TColumnSchema("i1", EValueType::Int64));
-    schema.Columns().emplace_back(TColumnSchema("i2", EValueType::Int64));
-    schema.Columns().emplace_back(TColumnSchema("u1", EValueType::Uint64));
-    schema.Columns().emplace_back(TColumnSchema("u2", EValueType::Uint64));
+    schema.PushColumn(TColumnSchema("i1", EValueType::Int64));
+    schema.PushColumn(TColumnSchema("i2", EValueType::Int64));
+    schema.PushColumn(TColumnSchema("u1", EValueType::Uint64));
+    schema.PushColumn(TColumnSchema("u2", EValueType::Uint64));
     TKeyColumns keyColumns;
 
     auto expr = PrepareExpression(exprString, schema);

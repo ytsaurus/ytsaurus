@@ -209,13 +209,12 @@ TEST_F(TSchemaTest, ChannelSubtract)
 
 TEST(TableSchemaSerialization, Simple)
 {
-    TTableSchema tableSchema;
-    tableSchema.SetStrict(true); 
-    tableSchema.Columns().emplace_back(
-        TColumnSchema("key", EValueType::Any)
+    TTableSchema tableSchema(
+        { TColumnSchema("key", EValueType::Any)
             .SetSortOrder(ESortOrder::Ascending)
             .SetExpression(Stroka("other * 10"))
-            .SetAggregate(Stroka("sum")));
+            .SetAggregate(Stroka("sum")) },
+        true /* strict */);
     auto ysonString = ConvertToYsonString(tableSchema, EYsonFormat::Text);
     auto expectedYsonString = Stroka(
         "<\"strict\"=\%true;>[{\"aggregate\"=\"sum\";\"name\"=\"key\";\""

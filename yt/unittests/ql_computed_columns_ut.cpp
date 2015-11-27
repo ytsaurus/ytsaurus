@@ -90,13 +90,14 @@ protected:
 private:
     void SetUpSchema()
     {
-        TTableSchema tableSchema;
-        tableSchema.Columns().emplace_back(TColumnSchema("k", EValueType::Int64)
+        TTableSchema tableSchema({
+            TColumnSchema("k", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(Stroka("l * 2")));
-        tableSchema.Columns().emplace_back(TColumnSchema("l", EValueType::Int64));
-        tableSchema.Columns().emplace_back(TColumnSchema("m", EValueType::Int64));
-        tableSchema.Columns().emplace_back(TColumnSchema("a", EValueType::Int64));
+            .SetExpression(Stroka("l * 2")),
+            TColumnSchema("l", EValueType::Int64),
+            TColumnSchema("m", EValueType::Int64),
+            TColumnSchema("a", EValueType::Int64)
+        });
 
         TKeyColumns keyColumns{"k", "l", "m"};
 
@@ -216,12 +217,13 @@ TEST_F(TComputedColumnTest, ComputedKeyInPredicate)
 
 TEST_F(TComputedColumnTest, ComputedColumnLast)
 {
-    TTableSchema tableSchema;
-    tableSchema.Columns().emplace_back(TColumnSchema("k", EValueType::Int64));
-    tableSchema.Columns().emplace_back(TColumnSchema("l", EValueType::Int64)
+    TTableSchema tableSchema({
+        TColumnSchema("k", EValueType::Int64),
+        TColumnSchema("l", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(Stroka("k + 3")));
-    tableSchema.Columns().emplace_back(TColumnSchema("a", EValueType::Int64));
+            .SetExpression(Stroka("k + 3")),
+        TColumnSchema("a", EValueType::Int64),
+    });
 
     TKeyColumns keyColumns{"k", "l"};
 
@@ -238,17 +240,18 @@ TEST_F(TComputedColumnTest, ComputedColumnLast)
 
 TEST_F(TComputedColumnTest, Complex1)
 {
-    TTableSchema tableSchema;
-    tableSchema.Columns().emplace_back(TColumnSchema("k", EValueType::Int64));
-    tableSchema.Columns().emplace_back(TColumnSchema("l", EValueType::Int64)
+    TTableSchema tableSchema({
+        TColumnSchema("k", EValueType::Int64),
+        TColumnSchema("l", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(Stroka("n + 1")));
-    tableSchema.Columns().emplace_back(TColumnSchema("m", EValueType::Int64)
+            .SetExpression(Stroka("n + 1")),
+        TColumnSchema("m", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(Stroka("o + 2")));
-    tableSchema.Columns().emplace_back(TColumnSchema("n", EValueType::Int64));
-    tableSchema.Columns().emplace_back(TColumnSchema("o", EValueType::Int64));
-    tableSchema.Columns().emplace_back(TColumnSchema("a", EValueType::Int64));
+            .SetExpression(Stroka("o + 2")),
+        TColumnSchema("n", EValueType::Int64),
+        TColumnSchema("o", EValueType::Int64),
+        TColumnSchema("a", EValueType::Int64)
+    });
 
     TKeyColumns keyColumns{"k", "l", "m", "n", "o"};
 
@@ -265,17 +268,18 @@ TEST_F(TComputedColumnTest, Complex1)
 
 TEST_F(TComputedColumnTest, Complex2)
 {
-    TTableSchema tableSchema;
-    tableSchema.Columns().emplace_back(TColumnSchema("k", EValueType::Int64));
-    tableSchema.Columns().emplace_back(TColumnSchema("l", EValueType::Int64)
+    TTableSchema tableSchema({
+        TColumnSchema("k", EValueType::Int64),
+        TColumnSchema("l", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(Stroka("n + 1")));
-    tableSchema.Columns().emplace_back(TColumnSchema("m", EValueType::Int64)
+            .SetExpression(Stroka("n + 1")),
+        TColumnSchema("m", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(Stroka("o + 2")));
-    tableSchema.Columns().emplace_back(TColumnSchema("n", EValueType::Int64));
-    tableSchema.Columns().emplace_back(TColumnSchema("o", EValueType::Int64));
-    tableSchema.Columns().emplace_back(TColumnSchema("a", EValueType::Int64));
+            .SetExpression(Stroka("o + 2")),
+        TColumnSchema("n", EValueType::Int64),
+        TColumnSchema("o", EValueType::Int64),
+        TColumnSchema("a", EValueType::Int64)
+    });
 
     TKeyColumns keyColumns{"k", "l", "m", "n", "o"};
 
@@ -294,17 +298,18 @@ TEST_F(TComputedColumnTest, Complex2)
 
 TEST_F(TComputedColumnTest, Complex3)
 {
-    TTableSchema tableSchema;
-    tableSchema.Columns().emplace_back(TColumnSchema("k", EValueType::Int64));
-    tableSchema.Columns().emplace_back(TColumnSchema("l", EValueType::Int64)
+    TTableSchema tableSchema({
+        TColumnSchema("k", EValueType::Int64),
+        TColumnSchema("l", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(Stroka("o + 1")));
-    tableSchema.Columns().emplace_back(TColumnSchema("m", EValueType::Int64)
+            .SetExpression(Stroka("o + 1")),
+        TColumnSchema("m", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(Stroka("o + 2")));
-    tableSchema.Columns().emplace_back(TColumnSchema("n", EValueType::Int64));
-    tableSchema.Columns().emplace_back(TColumnSchema("o", EValueType::Int64));
-    tableSchema.Columns().emplace_back(TColumnSchema("a", EValueType::Int64));
+            .SetExpression(Stroka("o + 2")),
+        TColumnSchema("n", EValueType::Int64),
+        TColumnSchema("o", EValueType::Int64),
+        TColumnSchema("a", EValueType::Int64)
+    });
 
     TKeyColumns keyColumns{"k", "l", "m", "n", "o"};
 
@@ -321,13 +326,14 @@ TEST_F(TComputedColumnTest, Complex3)
 
 TEST_F(TComputedColumnTest, Far1)
 {
-    TTableSchema tableSchema;
-    tableSchema.Columns().emplace_back(TColumnSchema("k", EValueType::Int64)
+    TTableSchema tableSchema({
+        TColumnSchema("k", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(Stroka("m + 1")));
-    tableSchema.Columns().emplace_back(TColumnSchema("l", EValueType::Int64));
-    tableSchema.Columns().emplace_back(TColumnSchema("m", EValueType::Int64));
-    tableSchema.Columns().emplace_back(TColumnSchema("a", EValueType::Int64));
+            .SetExpression(Stroka("m + 1")),
+        TColumnSchema("l", EValueType::Int64),
+        TColumnSchema("m", EValueType::Int64),
+        TColumnSchema("a", EValueType::Int64)
+    });
 
     TKeyColumns keyColumns{"k", "l", "m"};
 
@@ -344,14 +350,15 @@ TEST_F(TComputedColumnTest, Far1)
 
 TEST_F(TComputedColumnTest, Far2)
 {
-    TTableSchema tableSchema;
-    tableSchema.Columns().emplace_back(TColumnSchema("k", EValueType::Int64)
+    TTableSchema tableSchema({
+        TColumnSchema("k", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(Stroka("n + 1")));
-    tableSchema.Columns().emplace_back(TColumnSchema("l", EValueType::Int64));
-    tableSchema.Columns().emplace_back(TColumnSchema("m", EValueType::Int64));
-    tableSchema.Columns().emplace_back(TColumnSchema("n", EValueType::Int64));
-    tableSchema.Columns().emplace_back(TColumnSchema("a", EValueType::Int64));
+            .SetExpression(Stroka("n + 1")),
+        TColumnSchema("l", EValueType::Int64),
+        TColumnSchema("m", EValueType::Int64),
+        TColumnSchema("n", EValueType::Int64),
+        TColumnSchema("a", EValueType::Int64)
+    });
 
     TKeyColumns keyColumns{"k", "l", "m", "n"};
 
@@ -368,14 +375,15 @@ TEST_F(TComputedColumnTest, Far2)
 
 TEST_F(TComputedColumnTest, Far3)
 {
-    TTableSchema tableSchema;
-    tableSchema.Columns().emplace_back(TColumnSchema("k", EValueType::Int64)
+    TTableSchema tableSchema({
+        TColumnSchema("k", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(Stroka("n + 1")));
-    tableSchema.Columns().emplace_back(TColumnSchema("l", EValueType::Int64));
-    tableSchema.Columns().emplace_back(TColumnSchema("m", EValueType::Int64));
-    tableSchema.Columns().emplace_back(TColumnSchema("n", EValueType::Int64));
-    tableSchema.Columns().emplace_back(TColumnSchema("a", EValueType::Int64));
+            .SetExpression(Stroka("n + 1")),
+        TColumnSchema("l", EValueType::Int64),
+        TColumnSchema("m", EValueType::Int64),
+        TColumnSchema("n", EValueType::Int64),
+        TColumnSchema("a", EValueType::Int64)
+    });
 
     TKeyColumns keyColumns{"k", "l", "m", "n"};
 
@@ -394,14 +402,15 @@ TEST_F(TComputedColumnTest, Far3)
 
 TEST_F(TComputedColumnTest, Far4)
 {
-    TTableSchema tableSchema;
-    tableSchema.Columns().emplace_back(TColumnSchema("k", EValueType::Int64)
+    TTableSchema tableSchema({
+        TColumnSchema("k", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(Stroka("n + 1")));
-    tableSchema.Columns().emplace_back(TColumnSchema("l", EValueType::Int64));
-    tableSchema.Columns().emplace_back(TColumnSchema("m", EValueType::Int64));
-    tableSchema.Columns().emplace_back(TColumnSchema("n", EValueType::Int64));
-    tableSchema.Columns().emplace_back(TColumnSchema("a", EValueType::Int64));
+            .SetExpression(Stroka("n + 1")),
+        TColumnSchema("l", EValueType::Int64),
+        TColumnSchema("m", EValueType::Int64),
+        TColumnSchema("n", EValueType::Int64),
+        TColumnSchema("a", EValueType::Int64)
+    });
 
     TKeyColumns keyColumns{"k", "l", "m", "n"};
 
@@ -424,10 +433,11 @@ TEST_F(TComputedColumnTest, Far4)
 
 TEST_F(TComputedColumnTest, NoComputedColumns)
 {
-    TTableSchema tableSchema;
-    tableSchema.Columns().emplace_back(TColumnSchema("k", EValueType::Int64));
-    tableSchema.Columns().emplace_back(TColumnSchema("l", EValueType::Int64));
-    tableSchema.Columns().emplace_back(TColumnSchema("a", EValueType::Int64));
+    TTableSchema tableSchema({
+        TColumnSchema("k", EValueType::Int64),
+        TColumnSchema("l", EValueType::Int64),
+        TColumnSchema("a", EValueType::Int64)
+    });
 
     TKeyColumns keyColumns{"k", "l"};
 
@@ -444,12 +454,13 @@ TEST_F(TComputedColumnTest, NoComputedColumns)
 
 TEST_F(TComputedColumnTest, Modulo0)
 {
-    TTableSchema tableSchema;
-    tableSchema.Columns().emplace_back(TColumnSchema("k", EValueType::Int64)
+    TTableSchema tableSchema({
+        TColumnSchema("k", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(Stroka("l % 2")));
-    tableSchema.Columns().emplace_back(TColumnSchema("l", EValueType::Int64));
-    tableSchema.Columns().emplace_back(TColumnSchema("a", EValueType::Int64));
+            .SetExpression(Stroka("l % 2")),
+        TColumnSchema("l", EValueType::Int64),
+        TColumnSchema("a", EValueType::Int64)
+    });
 
     TKeyColumns keyColumns{"k", "l"};
 
@@ -466,12 +477,13 @@ TEST_F(TComputedColumnTest, Modulo0)
 
 TEST_F(TComputedColumnTest, Modulo1)
 {
-    TTableSchema tableSchema;
-    tableSchema.Columns().emplace_back(TColumnSchema("k", EValueType::Int64)
+    TTableSchema tableSchema({
+        TColumnSchema("k", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(Stroka("l % 2")));
-    tableSchema.Columns().emplace_back(TColumnSchema("l", EValueType::Int64));
-    tableSchema.Columns().emplace_back(TColumnSchema("a", EValueType::Int64));
+            .SetExpression(Stroka("l % 2")),
+        TColumnSchema("l", EValueType::Int64),
+        TColumnSchema("a", EValueType::Int64)
+    });
 
     TKeyColumns keyColumns{"k", "l"};
 
@@ -494,16 +506,17 @@ TEST_F(TComputedColumnTest, Modulo1)
 
 TEST_F(TComputedColumnTest, Modulo2)
 {
-    TTableSchema tableSchema;
-    tableSchema.Columns().emplace_back(TColumnSchema("k", EValueType::Uint64)
+    TTableSchema tableSchema({
+        TColumnSchema("k", EValueType::Uint64)
             .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(Stroka("n % 1u")));
-    tableSchema.Columns().emplace_back(TColumnSchema("l", EValueType::Uint64)
+            .SetExpression(Stroka("n % 1u")),
+        TColumnSchema("l", EValueType::Uint64)
             .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(Stroka("n % 1u")));
-    tableSchema.Columns().emplace_back(TColumnSchema("m", EValueType::Int64));
-    tableSchema.Columns().emplace_back(TColumnSchema("n", EValueType::Uint64));
-    tableSchema.Columns().emplace_back(TColumnSchema("a", EValueType::Int64));
+            .SetExpression(Stroka("n % 1u")),
+        TColumnSchema("m", EValueType::Int64),
+        TColumnSchema("n", EValueType::Uint64),
+        TColumnSchema("a", EValueType::Int64)
+    });
 
     TKeyColumns keyColumns{"k", "l", "m", "n"};
 
@@ -526,15 +539,16 @@ TEST_F(TComputedColumnTest, Modulo2)
 
 TEST_F(TComputedColumnTest, Modulo3)
 {
-    TTableSchema tableSchema;
-    tableSchema.Columns().emplace_back(TColumnSchema("k", EValueType::Uint64)
+    TTableSchema tableSchema({
+        TColumnSchema("k", EValueType::Uint64)
             .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(Stroka("m % 1u")));
-    tableSchema.Columns().emplace_back(TColumnSchema("l", EValueType::Uint64)
+            .SetExpression(Stroka("m % 1u")),
+        TColumnSchema("l", EValueType::Uint64)
             .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(Stroka("m % 1u")));
-    tableSchema.Columns().emplace_back(TColumnSchema("m", EValueType::Uint64));
-    tableSchema.Columns().emplace_back(TColumnSchema("a", EValueType::Int64));
+            .SetExpression(Stroka("m % 1u")),
+        TColumnSchema("m", EValueType::Uint64),
+        TColumnSchema("a", EValueType::Int64)
+    });
 
     TKeyColumns keyColumns{"k", "l", "m"};
 
@@ -551,13 +565,14 @@ TEST_F(TComputedColumnTest, Modulo3)
 
 TEST_F(TComputedColumnTest, Modulo4)
 {
-    TTableSchema tableSchema;
-    tableSchema.Columns().emplace_back(TColumnSchema("k", EValueType::Int64)
+    TTableSchema tableSchema({
+        TColumnSchema("k", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(Stroka("m % 2")));
-    tableSchema.Columns().emplace_back(TColumnSchema("l", EValueType::Int64));
-    tableSchema.Columns().emplace_back(TColumnSchema("m", EValueType::Int64));
-    tableSchema.Columns().emplace_back(TColumnSchema("a", EValueType::Int64));
+            .SetExpression(Stroka("m % 2")),
+        TColumnSchema("l", EValueType::Int64),
+        TColumnSchema("m", EValueType::Int64),
+        TColumnSchema("a", EValueType::Int64)
+    });
 
     TKeyColumns keyColumns{"k", "l", "m"};
 
@@ -580,12 +595,13 @@ TEST_F(TComputedColumnTest, Modulo4)
 
 TEST_F(TComputedColumnTest, Divide1)
 {
-    TTableSchema tableSchema;
-    tableSchema.Columns().emplace_back(TColumnSchema("k", EValueType::Int64)
+    TTableSchema tableSchema({
+        TColumnSchema("k", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(Stroka("l / 2")));
-    tableSchema.Columns().emplace_back(TColumnSchema("l", EValueType::Int64));
-    tableSchema.Columns().emplace_back(TColumnSchema("a", EValueType::Int64));
+            .SetExpression(Stroka("l / 2")),
+        TColumnSchema("l", EValueType::Int64),
+        TColumnSchema("a", EValueType::Int64)
+    });
 
     TKeyColumns keyColumns{"k", "l"};
 
@@ -604,15 +620,16 @@ TEST_F(TComputedColumnTest, Divide1)
 
 TEST_F(TComputedColumnTest, Divide2)
 {
-    TTableSchema tableSchema;
-    tableSchema.Columns().emplace_back(TColumnSchema("k", EValueType::Int64)
+    TTableSchema tableSchema({
+        TColumnSchema("k", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(Stroka("m / 3")));
-    tableSchema.Columns().emplace_back(TColumnSchema("l", EValueType::Int64)
+            .SetExpression(Stroka("m / 3")),
+        TColumnSchema("l", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(Stroka("m / 4")));
-    tableSchema.Columns().emplace_back(TColumnSchema("m", EValueType::Int64));
-    tableSchema.Columns().emplace_back(TColumnSchema("a", EValueType::Int64));
+            .SetExpression(Stroka("m / 4")),
+        TColumnSchema("m", EValueType::Int64),
+        TColumnSchema("a", EValueType::Int64)
+    });
 
     TKeyColumns keyColumns{"k", "l", "m"};
 
@@ -635,16 +652,17 @@ TEST_F(TComputedColumnTest, Divide2)
 
 TEST_F(TComputedColumnTest, Divide3)
 {
-    TTableSchema tableSchema;
-    tableSchema.Columns().emplace_back(TColumnSchema("k", EValueType::Uint64)
+    TTableSchema tableSchema({
+        TColumnSchema("k", EValueType::Uint64)
             .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(Stroka("m / 2u")));
-    tableSchema.Columns().emplace_back(TColumnSchema("l", EValueType::Uint64)
+            .SetExpression(Stroka("m / 2u")),
+        TColumnSchema("l", EValueType::Uint64)
             .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(Stroka("n % 1u")));
-    tableSchema.Columns().emplace_back(TColumnSchema("m", EValueType::Uint64));
-    tableSchema.Columns().emplace_back(TColumnSchema("n", EValueType::Uint64));
-    tableSchema.Columns().emplace_back(TColumnSchema("a", EValueType::Uint64));
+            .SetExpression(Stroka("n % 1u")),
+        TColumnSchema("m", EValueType::Uint64),
+        TColumnSchema("n", EValueType::Uint64),
+        TColumnSchema("a", EValueType::Uint64)
+    });
 
     TKeyColumns keyColumns{"k", "l", "m", "n"};
 
@@ -667,12 +685,13 @@ TEST_F(TComputedColumnTest, Divide3)
 
 TEST_F(TComputedColumnTest, Divide4)
 {
-    TTableSchema tableSchema;
-    tableSchema.Columns().emplace_back(TColumnSchema("k", EValueType::Int64)
+    TTableSchema tableSchema({
+        TColumnSchema("k", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(Stroka("l / -9223372036854775808")));
-    tableSchema.Columns().emplace_back(TColumnSchema("l", EValueType::Int64));
-    tableSchema.Columns().emplace_back(TColumnSchema("a", EValueType::Int64));
+            .SetExpression(Stroka("l / -9223372036854775808")),
+        TColumnSchema("l", EValueType::Int64),
+        TColumnSchema("a", EValueType::Int64)
+    });
 
     TKeyColumns keyColumns{"k", "l"};
 
@@ -691,13 +710,14 @@ TEST_F(TComputedColumnTest, Divide4)
 
 TEST_F(TComputedColumnTest, FarDivide1)
 {
-    TTableSchema tableSchema;
-    tableSchema.Columns().emplace_back(TColumnSchema("k", EValueType::Int64)
+    TTableSchema tableSchema({
+        TColumnSchema("k", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(Stroka("m / 2")));
-    tableSchema.Columns().emplace_back(TColumnSchema("l", EValueType::Int64));
-    tableSchema.Columns().emplace_back(TColumnSchema("m", EValueType::Int64));
-    tableSchema.Columns().emplace_back(TColumnSchema("a", EValueType::Int64));
+            .SetExpression(Stroka("m / 2")),
+        TColumnSchema("l", EValueType::Int64),
+        TColumnSchema("m", EValueType::Int64),
+        TColumnSchema("a", EValueType::Int64)
+    });
 
     TKeyColumns keyColumns{"k", "l", "m"};
 
