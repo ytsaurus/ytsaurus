@@ -216,7 +216,11 @@ private:
                 const auto& path = ypathExt.path();
                 bool mutating = ypathExt.mutating();
 
-                if (IsBarrierNeeded(mutating) && !LastMutationCommitted.IsSet()) {
+                if (mutating) {
+                    Owner->ValidatePeer(EPeerKind::Leader);
+                }
+
+                if (!mutating && !LastMutationCommitted.IsSet()) {
                     LastMutationCommitted.Subscribe(
                         BIND(&TExecuteSession::CheckAndContinue, MakeStrong(this))
                             .Via(EpochAutomatonInvoker));
@@ -282,20 +286,6 @@ private:
             }
         } catch (const std::exception& ex) {
             Reply(ex);
-        }
-    }
-
-    bool IsBarrierNeeded(bool mutating)
-    {
-        if (mutating) {
-            // Always place a barrier before each write request when doing leader forwarding
-            // since the forwarded requests may be served out of order.
-            auto hydraFacade = Owner->Bootstrap_->GetHydraFacade();
-            auto hydraManager = hydraFacade->GetHydraManager();
-            return hydraManager->IsFollower();
-        } else {
-            // Forbid to reorder read requests before write ones.
-            return true;
         }
     }
 
