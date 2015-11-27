@@ -2029,7 +2029,6 @@ private:
 
         LOG_DEBUG_UNLESS(IsRecovery(), "Creating foreign node (NodeId: %v, Type: %v, Account: %v)",
             versionedNodeId,
-            transactionId,
             type,
             account ? MakeNullable(account->GetName()) : Null);
 
