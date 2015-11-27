@@ -247,7 +247,7 @@ public:
             MakeWeak(this),
             Unretained(store.Get()),
             tablet->GetTabletId(),
-            Slot_->GetGuardedAutomatonInvoker(EAutomatonThreadQueue::Read)));
+            Slot_->GetEpochAutomatonInvoker(EAutomatonThreadQueue::Read)));
         StartMemoryUsageTracking(store);
         return store;
     }
