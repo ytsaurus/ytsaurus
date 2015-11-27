@@ -61,7 +61,6 @@ public:
         ISchemafulWriterPtr writer,
         const TExecuteQuery& executeCallback,
         const IFunctionRegistryPtr functionRegistry,
-        const TColumnEvaluatorCachePtr evaluatorCache,
         bool enableCodeCache)
     {
         TRACE_CHILD("QueryClient", "Evaluate") {
@@ -89,7 +88,6 @@ public:
                     query,
                     fragmentParams,
                     functionRegistry,
-                    evaluatorCache,
                     allLiteralArgs,
                     statistics,
                     enableCodeCache);
@@ -199,14 +197,13 @@ private:
         TConstQueryPtr query,
         TCGVariables& variables,
         const IFunctionRegistryPtr functionRegistry,
-        const TColumnEvaluatorCachePtr evaluatorCache,
         std::vector<std::vector<bool>>& literalArgs,
         TQueryStatistics& statistics,
         bool enableCodeCache)
     {
         llvm::FoldingSetNodeID id;
 
-        auto makeCodegenQuery = Profile(query, &id, &variables, nullptr, &literalArgs, functionRegistry, evaluatorCache);
+        auto makeCodegenQuery = Profile(query, &id, &variables, nullptr, &literalArgs, functionRegistry);
 
         auto Logger = BuildLogger(query);
 
@@ -272,7 +269,6 @@ TQueryStatistics TEvaluator::RunWithExecutor(
     ISchemafulWriterPtr writer,
     TExecuteQuery executeCallback,
     const IFunctionRegistryPtr functionRegistry,
-    const TColumnEvaluatorCachePtr evaluatorCache,
     bool enableCodeCache)
 {
     return Impl_->Run(
@@ -281,7 +277,6 @@ TQueryStatistics TEvaluator::RunWithExecutor(
         std::move(writer),
         executeCallback,
         functionRegistry,
-        evaluatorCache,
         enableCodeCache);
 }
 
@@ -298,7 +293,6 @@ TQueryStatistics TEvaluator::Run(
         std::move(writer),
         nullptr,
         functionRegistry,
-        nullptr,
         enableCodeCache);
 }
 

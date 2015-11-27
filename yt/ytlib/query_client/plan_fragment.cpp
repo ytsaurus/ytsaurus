@@ -147,6 +147,11 @@ Stroka InferName(TConstQueryPtr query, bool omitValues)
 
 void ToProto(NProto::TExpression* serialized, TConstExpressionPtr original)
 {
+    if (!original) {
+        serialized->set_kind(static_cast<int>(EExpressionKind::None));
+        return;
+    }
+
     serialized->set_type(static_cast<int>(original->Type));
 
     if (auto literalExpr = original->As<TLiteralExpression>()) {
@@ -213,14 +218,17 @@ void ToProto(NProto::TExpression* serialized, TConstExpressionPtr original)
         NTabletClient::TWireProtocolWriter writer;
         writer.WriteUnversionedRowset(inOpExpr->Values);
         ToProto(proto->mutable_values(), ToString(MergeRefs(writer.Flush())));
-    } else {
-        YUNREACHABLE();
     }
 }
 
 TExpressionPtr FromProto(const NProto::TExpression& serialized)
 {
     auto kind = EExpressionKind(serialized.kind());
+
+    if (kind == EExpressionKind::None) {
+        return nullptr;
+    }
+
     auto type = EValueType(serialized.type());
 
     switch (kind) {
@@ -308,7 +316,7 @@ TExpressionPtr FromProto(const NProto::TExpression& serialized)
             typedResult->Values = reader.ReadUnversionedRowset();
 
             return typedResult;
-        } 
+        }
     }
 
     YUNREACHABLE();
@@ -346,6 +354,11 @@ void ToProto(NProto::TJoinClause* proto, TConstJoinClausePtr original)
     proto->set_foreign_key_columns_count(original->ForeignKeyColumnsCount);
     ToProto(proto->mutable_foreign_data_id(), original->ForeignDataId);
     proto->set_is_left(original->IsLeft);
+
+    proto->set_can_use_source_ranges(original->canUseSourceRanges);
+    proto->set_key_prefix(original->keyPrefix);
+    ToProto(proto->mutable_equation_by_index(), original->equationByIndex);
+    ToProto(proto->mutable_evaluated_columns(), original->EvaluatedColumns);
 }
 
 void ToProto(NProto::TGroupClause* proto, TConstGroupClausePtr original)
@@ -465,6 +478,20 @@ TJoinClausePtr FromProto(const NProto::TJoinClause& serialized)
     FromProto(&result->ForeignKeyColumnsCount, serialized.foreign_key_columns_count());
     FromProto(&result->ForeignDataId, serialized.foreign_data_id());
     FromProto(&result->IsLeft, serialized.is_left());
+
+    FromProto(&result->canUseSourceRanges, serialized.can_use_source_ranges());
+    FromProto(&result->keyPrefix, serialized.key_prefix());
+
+    result->equationByIndex.reserve(serialized.equation_by_index_size());
+    for (int i = 0; i < serialized.equation_by_index_size(); ++i) {
+        result->equationByIndex.push_back(serialized.equation_by_index(i));
+    }
+
+    result->EvaluatedColumns.reserve(serialized.evaluated_columns_size());
+    for (int i = 0; i < serialized.evaluated_columns_size(); ++i) {
+        result->EvaluatedColumns.push_back(
+            FromProto(serialized.evaluated_columns(i)));
+    }
 
     return result;
 }

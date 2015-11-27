@@ -340,30 +340,15 @@ private:
         return result;
     }
 
-    std::vector<std::pair<TDataSource, Stroka>> Split(
-        TGuid objectId,
+    std::vector<std::pair<TDataSource, Stroka>> SplitTable(
+        TGuid tableId,
         const TRowRanges& ranges,
         TRowBufferPtr rowBuffer,
         const NLogging::TLogger& Logger,
         bool verboseLogging)
     {
-        std::vector<std::pair<TDataSource, Stroka>> result;
+        YCHECK(TypeFromId(tableId) == EObjectType::Table);
 
-        if (TypeFromId(objectId) == EObjectType::Table) {
-            result = SplitTableFurther(objectId, ranges, std::move(rowBuffer));
-            LOG_DEBUG_IF(verboseLogging, "Got %v sources for input %v",
-                result.size(),
-                objectId);
-        }
-
-        return result;
-    }
-
-    std::vector<std::pair<TDataSource, Stroka>> SplitTableFurther(
-        TGuid tableId,
-        const TRowRanges& ranges,
-        TRowBufferPtr rowBuffer)
-    {
         auto tableMountCache = Connection_->GetTableMountCache();
         auto tableInfo = WaitFor(tableMountCache->GetTableInfo(FromObjectId(tableId)))
             .ValueOrThrow();
@@ -372,12 +357,18 @@ private:
             THROW_ERROR_EXCEPTION("Expected a sorted table, but got unsorted");
         }
 
-        return tableInfo->Dynamic
-            ? SplitDynamicTableFurther(tableId, ranges, std::move(rowBuffer), std::move(tableInfo))
-            : SplitStaticTableFurther(tableId, ranges, std::move(rowBuffer));
+        auto result = tableInfo->Dynamic
+            ? SplitDynamicTable(tableId, ranges, std::move(rowBuffer), std::move(tableInfo))
+            : SplitStaticTable(tableId, ranges, std::move(rowBuffer));
+
+        LOG_DEBUG_IF(verboseLogging, "Got %v sources for input %v",
+            result.size(),
+            objectId);
+
+        return result;
     }
 
-    std::vector<std::pair<TDataSource, Stroka>> SplitStaticTableFurther(
+    std::vector<std::pair<TDataSource, Stroka>> SplitStaticTable(
         TGuid tableId,
         const TRowRanges& ranges,
         TRowBufferPtr rowBuffer)
@@ -485,7 +476,7 @@ private:
         return subsources;
     }
 
-    std::vector<std::pair<TDataSource, Stroka>> SplitDynamicTableFurther(
+    std::vector<std::pair<TDataSource, Stroka>> SplitDynamicTable(
         TGuid tableId,
         const TRowRanges& ranges,
         TRowBufferPtr rowBuffer,
@@ -552,8 +543,8 @@ private:
                 for (; rangesIt != rangesItEnd; ++rangesIt) {
                     TDataSource subsource;
                     subsource.Id = tabletInfo->TabletId;
-                    subsource.Range.first = rowBuffer->Capture(rangesIt->first);
-                    subsource.Range.second = rowBuffer->Capture(rangesIt->second);
+                    subsource.Range.first = rangesIt->first;
+                    subsource.Range.second = rangesIt->second;
 
                     subsources.emplace_back(std::move(subsource), address);
                 }
@@ -572,8 +563,9 @@ private:
 
                     TDataSource subsource;
                     subsource.Id = tabletInfo->TabletId;
-                    subsource.Range.first = rowBuffer->Capture(it == startIt ? lowerBound : pivotKey.Get());
-                    subsource.Range.second = rowBuffer->Capture(isLast ? upperBound : nextPivotKey.Get());
+
+                    subsource.Range.first = it == startIt ? lowerBound : rowBuffer->Capture(pivotKey.Get());
+                    subsource.Range.second = isLast ? upperBound : rowBuffer->Capture(nextPivotKey.Get());
 
                     subsources.emplace_back(std::move(subsource), address);
 
@@ -586,6 +578,32 @@ private:
         }
 
         return subsources;
+    }
+
+    std::vector<std::pair<TDataSource, Stroka>> InferRanges(
+        TConstQueryPtr query,
+        TDataSource2 dataSource,
+        ui64 rangeExpansionLimit,
+        bool verboseLogging,
+        TRowBufferPtr rowBuffer,
+        const NLogging::TLogger& Logger)
+    {
+        const auto& tableId = dataSource.Id;
+        auto ranges = dataSource.Ranges;
+
+        auto prunedRanges = GetPrunedRanges(
+            query,
+            tableId,
+            ranges,
+            rowBuffer,
+            Connection_->GetColumnEvaluatorCache(),
+            FunctionRegistry_,
+            rangeExpansionLimit,
+            verboseLogging);
+
+        LOG_DEBUG("Splitting %v pruned splits", prunedRanges.size());
+
+        return SplitTable(tableId, prunedRanges, rowBuffer, Logger, verboseLogging);
     }
 
     TQueryStatistics DoCoordinateAndExecute(
@@ -633,32 +651,6 @@ private:
                     options.EnableCodeCache);
             },
             FunctionRegistry_);
-    }
-
-    std::vector<std::pair<TDataSource, Stroka>> InferRanges(
-        TConstQueryPtr query,
-        TDataSource2 dataSource,
-        ui64 rangeExpansionLimit,
-        bool verboseLogging,
-        TRowBufferPtr rowBuffer,
-        const NLogging::TLogger& Logger)
-    {
-        const auto& tableId = dataSource.Id;
-        auto ranges = dataSource.Ranges.ToVector();
-
-        auto prunedRanges = GetPrunedRanges(
-            query,
-            tableId,
-            ranges,
-            rowBuffer,
-            Connection_->GetColumnEvaluatorCache(),
-            FunctionRegistry_,
-            rangeExpansionLimit,
-            verboseLogging);
-
-        LOG_DEBUG("Splitting %v pruned splits", prunedRanges.size());
-
-        return Split(tableId, prunedRanges, rowBuffer, Logger, verboseLogging);
     }
 
     TQueryStatistics DoExecute(
@@ -716,7 +708,7 @@ private:
 
                 dataSources2.push_back(TDataSource2{
                     tabletAndRanges.first,
-                    MakeSharedRange(tabletAndRanges.second, rowBuffer)});
+                    MakeSharedRange(tabletAndRanges.second, rowBuffer, dataSource.Ranges)});
             }
 
             return std::make_pair(dataSources2, address);
@@ -764,7 +756,7 @@ private:
 
             dataSources2.push_back(TDataSource2{
                 split.first.Id,
-                MakeSharedRange(std::move(ranges), rowBuffer)});
+                MakeSharedRange(std::move(ranges), rowBuffer, dataSource.Ranges)});
 
             return std::make_pair(dataSources2, address);
         });
@@ -1583,6 +1575,7 @@ private:
             QueryHelper_.Get(),
             queryString,
             FunctionRegistry_,
+            Connection_->GetColumnEvaluatorCache(),
             inputRowLimit,
             outputRowLimit,
             options.Timestamp);

@@ -37,7 +37,11 @@ protected:
     {
         TQueryPtr query;
         TDataSource2 dataSource;
-        std::tie(query, dataSource) = PreparePlanFragment(&PrepareMock_, source, CreateBuiltinFunctionRegistry());
+        std::tie(query, dataSource) = PreparePlanFragment(
+            &PrepareMock_,
+            source,
+            CreateBuiltinFunctionRegistry(),
+            ColumnEvaluatorCache_);
         auto rowBuffer = New<TRowBuffer>();
         auto ranges = dataSource.Ranges.ToVector();
         auto prunedSplits = GetPrunedRanges(
@@ -57,7 +61,11 @@ protected:
     {
         TQueryPtr query;
         TDataSource2 dataSource;
-        std::tie(query, dataSource) = PreparePlanFragment(&PrepareMock_, source, CreateBuiltinFunctionRegistry());
+        std::tie(query, dataSource) = PreparePlanFragment(
+            &PrepareMock_,
+            source,
+            CreateBuiltinFunctionRegistry(),
+            ColumnEvaluatorCache_);
 
         auto buffer = New<TRowBuffer>();
         TRowRanges foreignSplits{{

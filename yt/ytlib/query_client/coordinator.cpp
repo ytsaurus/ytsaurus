@@ -173,7 +173,7 @@ TRowRanges GetPrunedRanges(
     const TTableSchema& tableSchema,
     const TKeyColumns& keyColumns,
     NObjectClient::TObjectId tableId,
-    TRowRanges ranges,
+    TSharedRange<TRowRange> ranges,
     const TRowBufferPtr& rowBuffer,
     const TColumnEvaluatorCachePtr& evaluatorCache,
     const IFunctionRegistryPtr functionRegistry,
@@ -198,7 +198,7 @@ TRowRanges GetPrunedRanges(
             range.second);
     };
 
-    LOG_DEBUG("Splitting %v sources according to ranges", ranges.size());
+    LOG_DEBUG("Splitting %v sources according to ranges", ranges.Size());
 
     TRowRanges result;
     for (const auto& originalRange : ranges) {
@@ -219,7 +219,7 @@ TRowRanges GetPrunedRanges(
 TRowRanges GetPrunedRanges(
     TConstQueryPtr query,
     NObjectClient::TObjectId tableId,
-    TRowRanges ranges,
+    TSharedRange<TRowRange> ranges,
     const TRowBufferPtr& rowBuffer,
     const TColumnEvaluatorCachePtr& evaluatorCache,
     const IFunctionRegistryPtr functionRegistry,
@@ -232,7 +232,7 @@ TRowRanges GetPrunedRanges(
         query->TableSchema,
         TableSchemaToKeyColumns(query->RenamedTableSchema, query->KeyColumnsCount),
         tableId,
-        ranges,
+        std::move(ranges),
         rowBuffer,
         evaluatorCache,
         functionRegistry,

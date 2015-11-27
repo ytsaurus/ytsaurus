@@ -1,6 +1,7 @@
 #include "query_preparer.h"
 #include "callbacks.h"
 #include "function_registry.h"
+#include "column_evaluator.h"
 #include "functions.h"
 #include "helpers.h"
 #include "lexer.h"
@@ -1380,6 +1381,7 @@ std::pair<TQueryPtr, TDataSource2> PreparePlanFragment(
     IPrepareCallbacks* callbacks,
     const Stroka& source,
     IFunctionRegistryPtr functionRegistry,
+    TColumnEvaluatorCachePtr evaluatorCache,
     i64 inputRowLimit,
     i64 outputRowLimit,
     TTimestamp timestamp)
@@ -1420,11 +1422,11 @@ std::pair<TQueryPtr, TDataSource2> PreparePlanFragment(
             .ValueOrThrow();
 
         auto foreignTableSchema = GetTableSchemaFromDataSplit(foreignDataSplit);
-        auto foreignKeyColumns = GetKeyColumnsFromDataSplit(foreignDataSplit);
+        auto foreignKeyColumnsCount = GetKeyColumnsFromDataSplit(foreignDataSplit).size();
 
         auto joinClause = New<TJoinClause>();
 
-        joinClause->ForeignKeyColumnsCount = foreignKeyColumns.size();
+        joinClause->ForeignKeyColumnsCount = foreignKeyColumnsCount;
         joinClause->ForeignDataId = GetObjectIdFromDataSplit(foreignDataSplit);
         joinClause->IsLeft = join.IsLeft;
 
@@ -1432,8 +1434,10 @@ std::pair<TQueryPtr, TDataSource2> PreparePlanFragment(
             &joinClause->RenamedTableSchema,
             &joinClause->ForeignTableSchema,
             foreignTableSchema,
-            foreignKeyColumns.size(),
+            foreignKeyColumnsCount,
             join.Table.Alias);
+
+        std::vector<std::pair<TConstExpressionPtr, TConstExpressionPtr>> equations;
 
         // Merge columns.
         for (const auto& reference : join.Fields) {
@@ -1456,7 +1460,7 @@ std::pair<TQueryPtr, TDataSource2> PreparePlanFragment(
                     << TErrorAttribute("foreign_type", foreignColumn->Type);
             }
 
-            joinClause->Equations.emplace_back(
+            equations.emplace_back(
                 New<TReferenceExpression>(selfColumn->Type, selfColumn->Name),
                 New<TReferenceExpression>(foreignColumn->Type, foreignColumn->Name));
 
@@ -1499,8 +1503,80 @@ std::pair<TQueryPtr, TDataSource2> PreparePlanFragment(
                     << TErrorAttribute("foreign_type", rightEquations[index]->Type);
             }
 
-            joinClause->Equations.emplace_back(leftEquations[index], rightEquations[index]);
+            equations.emplace_back(leftEquations[index], rightEquations[index]);
         }
+
+        // If can use ranges, rearrange equations according to key columns and enrich with evaluated columns
+        const auto& renamedTableSchema = joinClause->RenamedTableSchema;
+
+        bool canUseSourceRanges = true;
+        std::vector<int> equationByIndex(foreignKeyColumnsCount, -1);
+        for (size_t equationIndex = 0; equationIndex < equations.size(); ++equationIndex) {
+            const auto& column = equations[equationIndex];
+            const auto& expr = column.second;
+
+            if (const auto* refExpr = expr->As<TReferenceExpression>()) {
+                auto index = renamedTableSchema.GetColumnIndexOrThrow(refExpr->ColumnName);
+                if (index < foreignKeyColumnsCount) {
+                    equationByIndex[index] = equationIndex;
+                    continue;
+                }
+            }
+            break;
+        }
+
+        std::vector<bool> usedJoinKeyEquations(equations.size(), false);
+        //std::vector<int> equationToPosMapping(equations.size(), -1);
+
+        auto evaluator = evaluatorCache->Find(foreignTableSchema, foreignKeyColumnsCount);
+        size_t keyPrefix = 0;
+        for (; keyPrefix < foreignKeyColumnsCount; ++keyPrefix) {
+            if (equationByIndex[keyPrefix] >= 0) {
+                usedJoinKeyEquations[equationByIndex[keyPrefix]] = true;
+                continue;
+            }
+
+            if (foreignTableSchema.Columns()[keyPrefix].Expression) {
+                const auto& references = evaluator->GetReferenceIds(keyPrefix);
+                auto canEvaluate = true;
+                for (int referenceIndex : references) {
+                    if (equationByIndex[referenceIndex] < 0) {
+                        canEvaluate = false;
+                    }
+                }
+                if (canEvaluate) {
+                    continue;
+                }
+            }
+            break;
+        }
+
+        for (auto flag : usedJoinKeyEquations) {
+            if (!flag) {
+                canUseSourceRanges = false;
+            }
+        }
+
+        joinClause->canUseSourceRanges = canUseSourceRanges;
+        if (canUseSourceRanges) {
+            equationByIndex.resize(keyPrefix);
+            joinClause->EvaluatedColumns.resize(keyPrefix);
+
+            for (int column = 0; column < keyPrefix; ++column) {
+                joinClause->EvaluatedColumns[column] = evaluator->GetExpression(column);
+            }
+        } else {
+            keyPrefix = equations.size();
+            equationByIndex.resize(keyPrefix);
+            joinClause->EvaluatedColumns.resize(keyPrefix);
+            for (size_t index = 0; index < keyPrefix; ++index) {
+                equationByIndex[index] = index;
+            }
+        }
+
+        joinClause->equationByIndex = equationByIndex;
+        joinClause->keyPrefix = keyPrefix;
+        joinClause->Equations = std::move(equations);
 
         schemaProxy = New<TJoinSchemaProxy>(
             &joinClause->JoinedTableSchema,

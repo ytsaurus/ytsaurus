@@ -206,7 +206,6 @@ private:
                         pipe->GetWriter(),
                         foreignExecuteCallback,
                         FunctionRegistry_,
-                        ColumnEvaluatorCache_,
                         options.EnableCodeCache);
 
                 asyncStatistics.Subscribe(BIND([=] (const TErrorOr<TQueryStatistics>& result) {
@@ -473,7 +472,6 @@ private:
             refiners,
             subreaderCreators);
     }
-
 
     TDataSources Split(
         std::vector<std::pair<TGuid, TRowRanges>> rangesByTablePart,
