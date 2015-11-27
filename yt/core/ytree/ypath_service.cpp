@@ -78,7 +78,7 @@ public:
     }
 
 private:
-    TYsonProducer Producer_;
+    const TYsonProducer Producer_;
 
     virtual bool DoInvoke(IServiceContextPtr context) override
     {
@@ -150,8 +150,8 @@ public:
     }
 
 private:
-    IYPathServicePtr UnderlyingService_;
-    IInvokerPtr Invoker_;
+    const IYPathServicePtr UnderlyingService_;
+    const IInvokerPtr Invoker_;
 
     virtual bool DoInvoke(IServiceContextPtr context) override
     {
@@ -190,8 +190,8 @@ public:
     }
 
 private:
-    IYPathServicePtr UnderlyingService_;
-    TDuration ExpirationTime_;
+    const IYPathServicePtr UnderlyingService_;
+    const TDuration ExpirationTime_;
 
     TSpinLock SpinLock_;
     TFuture<INodePtr> CachedTree_;
@@ -228,7 +228,7 @@ private:
         return true;
     }
 
-    void OnGotTree(TPromise<INodePtr> promise, TErrorOr<TYsonString> result)
+    void OnGotTree(TPromise<INodePtr> promise, const TErrorOr<TYsonString>& result)
     {
         YCHECK(result.IsOK());
 
