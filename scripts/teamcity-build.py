@@ -258,6 +258,7 @@ def run_pytest(options, suite_name, suite_path, pytest_args=None):
                 "--verbose",
                 "--capture=fd",
                 "--tb=native",
+                "--debug",
                 "--junitxml={0}".format(handle.name)]
                 + pytest_args,
                 cwd=suite_path,
