@@ -14,10 +14,10 @@ Options:
   -h, --help    Show this help.
 
 """
-import fuse
 import yt.wrapper.client
 
 from yt.packages.expiringdict import ExpiringDict
+import yt.packages.fuse as fuse
 
 import stat
 import errno

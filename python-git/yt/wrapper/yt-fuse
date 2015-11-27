@@ -1,8 +1,7 @@
 #!/usr/bin/env python
 
 import yt.wrapper.cypress_fuse as cypress_fuse
-
-import fuse
+from yt.packages.fuse import FUSE
 
 from argparse import ArgumentParser
 
@@ -11,7 +10,7 @@ import sys
 def mount_cypress(proxy, mountpoint):
     """Mount a Cypress."""
     cypress = cypress_fuse.Cypress(cypress_fuse.CachedYtClient(proxy=proxy))
-    fuse.FUSE(
+    FUSE(
         cypress, mountpoint,
         raw_fi=True, nothreads=True, foreground=True
     )
