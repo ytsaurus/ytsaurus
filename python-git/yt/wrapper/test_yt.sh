@@ -2,6 +2,13 @@
 
 cd $(dirname "${BASH_SOURCE[0]}")
 
+set +u
+if [ -z "$1" ]; then
+    echo "Tests sandbox path should be specified" && exit 1
+fi
+set -u
+
+SANDBOX_DIR=$1
 PIDS=""
 
 add_pid_to_kill() {
@@ -23,7 +30,7 @@ tear_down() {
         fi
     done
 
-    rm -f script.sh
+    rm -f $SANDBOX_DIR/script.sh
 }
 
 die() {
@@ -92,10 +99,10 @@ test_table_commands()
 # download and upload file, use it in map operation
 test_file_commands()
 {
-    echo "grep x" >script
-    chmod +x script
+    echo "grep x" >$SANDBOX_DIR/script
+    chmod +x $SANDBOX_DIR/script
 
-    cat script | ./yt upload //home/wrapper_test/script --executable
+    cat $SANDBOX_DIR/script | ./yt upload //home/wrapper_test/script --executable
 
     check "grep x" "`./yt download //home/wrapper_test/script`"
 
@@ -106,10 +113,10 @@ test_file_commands()
     check "value=x\n" "`./yt read //home/wrapper_test/output_table --format dsv`"
 
     ./yt map "./script" --src //home/wrapper_test/input_table --dst //home/wrapper_test/output_table \
-        --local-file ./script --format dsv
+        --local-file $SANDBOX_DIR/script --format dsv
     check "value=x\n" "`./yt read //home/wrapper_test/output_table --format dsv`"
 
-    rm -f script
+    rm -f $SANDBOX_DIR/script
 }
 
 test_copy_move_link()
@@ -180,14 +187,14 @@ test_users()
 #TODO(ignat): move this test to python
 test_concurrent_upload_in_operation()
 {
-    echo "cat" > script.sh
-    chmod +x script.sh
+    echo "cat" > $SANDBOX_DIR/script.sh
+    chmod +x $SANDBOX_DIR/script.sh
 
     echo "x=y" | ./yt write //home/wrapper_test/table --format dsv
 
-    ./yt map "cat" --src "//home/wrapper_test/table" --dst "//home/wrapper_test/out1" --format dsv --local-file script.sh &
+    ./yt map "cat" --src "//home/wrapper_test/table" --dst "//home/wrapper_test/out1" --format dsv --local-file $SANDBOX_DIR/script.sh &
     add_pid_to_kill "$!"
-    ./yt map "cat" --src "//home/wrapper_test/table" --dst "//home/wrapper_test/out2" --format dsv --local-file script.sh &
+    ./yt map "cat" --src "//home/wrapper_test/table" --dst "//home/wrapper_test/out2" --format dsv --local-file $SANDBOX_DIR/script.sh &
     add_pid_to_kill "$!"
 
     ok=0

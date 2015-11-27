@@ -5,7 +5,7 @@ import yt.logger as logger
 import yt.wrapper as yt
 import yt.tests_runner as tests_runner
 
-from helpers import TEST_DIR
+from helpers import TESTS_LOCATION, TEST_DIR, TESTS_SANDBOX
 
 import os
 import re
@@ -15,9 +15,6 @@ import shutil
 import logging
 import pytest
 from collections import defaultdict
-
-TESTS_LOCATION = os.path.dirname(os.path.abspath(__file__))
-TESTS_SANDBOX = os.environ.get("TESTS_SANDBOX", TESTS_LOCATION + ".sandbox")
 
 def pytest_ignore_collect(path, config):
     path = str(path)

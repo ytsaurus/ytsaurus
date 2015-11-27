@@ -1,20 +1,24 @@
 from yt.wrapper.keyboard_interrupts_catcher import KeyboardInterruptsCatcher
 from yt.wrapper.response_stream import ResponseStream, EmptyResponseStream
 from yt.wrapper.verified_dict import VerifiedDict
+from yt.common import makedirp
 import yt.yson as yson
 import yt.wrapper as yt
 
-from helpers import TEST_DIR, get_environment_for_binary_test, check
+from helpers import TEST_DIR, TESTS_SANDBOX, TESTS_LOCATION, \
+                    get_environment_for_binary_test, check
 
 import inspect
 import random
 import string
 import os
 import sys
+import uuid
 import subprocess
 import tempfile
 import time
 import pytest
+import shutil
 
 def test_docs_exist():
     functions = inspect.getmembers(yt, lambda o: inspect.isfunction(o) and \
@@ -43,14 +47,15 @@ def test_yt_binary():
         env["FALSE"] = '%false'
         env["TRUE"] = '%true'
 
-    current_dir = os.path.dirname(os.path.abspath(__file__))
-    proc = subprocess.Popen(
-        os.path.join(current_dir, "../test_yt.sh"),
-        shell=True,
-        env=env)
-    proc.communicate()
-    assert proc.returncode == 0
-
+    sandbox_dir = os.path.join(TESTS_SANDBOX, "TestYtBinary_" + uuid.uuid4().hex[:8])
+    makedirp(sandbox_dir)
+    try:
+        test_binary = os.path.join(TESTS_LOCATION, "../test_yt.sh")
+        proc = subprocess.Popen([test_binary, sandbox_dir], env=env)
+        proc.communicate()
+        assert proc.returncode == 0
+    finally:
+        shutil.rmtree(sandbox_dir, ignore_errors=True)
 
 @pytest.mark.usefixtures("yt_env")
 class TestMutations(object):
