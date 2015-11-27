@@ -15,7 +15,7 @@ from copy import deepcopy
 
 import __builtin__
 
-def get(path, attributes=None, format=None, ignore_opaque=False, spec=None, client=None):
+def get(path, attributes=None, format=None, ignore_opaque=False, client=None):
     """Get Cypress node content (attribute tree).
 
     :param path: (string or `yt.wrapper.table.TablePath`) path to tree, it must exist!
@@ -23,7 +23,6 @@ def get(path, attributes=None, format=None, ignore_opaque=False, spec=None, clie
     :param format: (string or descendant of `yt.wrapper.format.Format`) output format \
         (by default python dict automatically parsed from YSON).
     :param ignore_opaque: (bool)
-    :param spec: (dict)
     Be careful: attributes have specific representation in JSON format.
 
     :return: node tree content in `format`
