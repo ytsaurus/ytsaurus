@@ -1239,7 +1239,9 @@ public:
         }
 
         TSchedulerElementBase::CheckForStarvation(
-            minSharePreemptionTimeout, fairSharePreemptionTimeout, now);
+            minSharePreemptionTimeout,
+            fairSharePreemptionTimeout,
+            now);
     }
 
     virtual void IncreaseUsage(const TNodeResources& delta) override
