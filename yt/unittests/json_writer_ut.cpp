@@ -486,10 +486,11 @@ TEST(TJsonWriterTest, TestAnnotateWithTypesStringify)
 TEST(TJsonWriterTest, SeveralOptions)
 {
     TStringStream outputStream;
+    TBufferedOutput bufferedOutput(&outputStream);
     auto config = New<TJsonFormatConfig>();
     config->StringLengthLimit = 2;
     config->AnnotateWithTypes = true;
-    auto writer = CreateJsonConsumer(&outputStream, EYsonType::Node, config);
+    auto writer = CreateJsonConsumer(&bufferedOutput, EYsonType::Node, config);
 
     writer->OnBeginMap();
         writer->OnKeyedItem("hello");
