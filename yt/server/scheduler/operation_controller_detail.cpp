@@ -2749,12 +2749,12 @@ void TOperationControllerBase::FetchInputTables()
 
 void TOperationControllerBase::LockInputTables()
 {
-    auto channel = AuthenticatedInputMasterClient->GetMasterChannelOrThrow(EMasterChannelKind::LeaderOrFollower);
-    TObjectServiceProxy proxy(channel);
-
     LOG_INFO("Locking input tables");
 
     {
+        auto channel = AuthenticatedInputMasterClient->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
+        TObjectServiceProxy proxy(channel);
+
         auto batchReq = proxy.ExecuteBatch();
 
         for (const auto& table : InputTables) {
@@ -2775,6 +2775,9 @@ void TOperationControllerBase::LockInputTables()
     LOG_INFO("Getting input tables attributes");
 
     {
+        auto channel = AuthenticatedInputMasterClient->GetMasterChannelOrThrow(EMasterChannelKind::LeaderOrFollower);
+        TObjectServiceProxy proxy(channel);
+
         auto batchReq = proxy.ExecuteBatch();
 
         for (const auto& table : InputTables) {
@@ -2943,7 +2946,8 @@ void TOperationControllerBase::GetOutputTablesUploadParams()
         LOG_INFO("Getting output tables upload parameters (CellTag: %v)", cellTag);
 
         auto channel = AuthenticatedOutputMasterClient->GetMasterChannelOrThrow(
-            EMasterChannelKind::LeaderOrFollower, cellTag);
+            EMasterChannelKind::LeaderOrFollower,
+            cellTag);
         TObjectServiceProxy proxy(channel);
 
         auto batchReq = proxy.ExecuteBatch();
@@ -2990,7 +2994,8 @@ void TOperationControllerBase::FetchUserFiles(std::vector<TUserFile>* files)
             path);
 
         auto channel = AuthenticatedInputMasterClient->GetMasterChannelOrThrow(
-            EMasterChannelKind::LeaderOrFollower, file.CellTag);
+            EMasterChannelKind::LeaderOrFollower,
+            file.CellTag);
         TObjectServiceProxy proxy(channel);
 
         auto batchReq = proxy.ExecuteBatch();
