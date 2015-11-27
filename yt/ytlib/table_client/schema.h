@@ -87,6 +87,11 @@ public:
 
     void Save(TStreamSaveContext& context) const;
     void Load(TStreamLoadContext& context);
+
+private:
+    void UpdateKeyColumnCount();
+
+    int KeyColumnCount_;
 };
 
 void Serialize(const TTableSchema& schema, NYson::IYsonConsumer* consumer);

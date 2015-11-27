@@ -174,6 +174,9 @@ TJoinEvaluator GetJoinEvaluator(
     }
 
     for (const auto& column : renamedTableSchema.Columns()) {
+        if (projectClause->ProjectTableSchema.FindColumn(column.Name)) {
+            continue;
+        }
         projectClause->AddProjection(New<TReferenceExpression>(
             column.Type,
             column.Name),
