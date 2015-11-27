@@ -580,6 +580,15 @@ void TBlockIO::ThrottleOperations(const Stroka& deviceId, i64 operations) const
     Append("blkio.throttle.write_iops_device", value);
 }
 
+void TBlockIO::SetWeight(int weight)
+{   
+    // These are the extreme values defined in
+    // https://www.kernel.org/doc/Documentation/cgroups/blkio-controller.txt
+    weight = std::min(weight, 1000);
+    weight = std::max(weight, 10);
+    Append("blkio.weight", ToString(weight));
+}
+
 void Serialize(const TBlockIO::TStatistics& statistics, NYson::IYsonConsumer* consumer)
 {
     NYTree::BuildYsonFluently(consumer)
