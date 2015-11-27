@@ -39,11 +39,16 @@ private:
 
     TDsvTable Table_;
 
+    // Returns the number of columns we currently know about
+    // (note that the NameTable_ may be expanded concurrently from
+    // the other thread in arbitrary moments of time).
+    int GetColumnCount() const;
+
     void WriteYamrKey(const std::vector<int>& columnIds);
-    ui32 CalculateTotalKeyLength(const std::vector<int>& columnIds);
+    ui32 CalculateTotalKeyLength(const std::vector<int>& columnIds) const;
     void WriteYamrValue(); 
-    ui32 CalculateTotalValueLength();
-    ui32 CalculateLength(const TStringBuf& string, bool inKey);
+    ui32 CalculateTotalValueLength() const;
+    ui32 CalculateLength(const TStringBuf& string, bool inKey) const;
 
     void UpdateEscapedColumnNames();
 };
