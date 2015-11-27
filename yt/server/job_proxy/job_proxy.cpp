@@ -1,4 +1,3 @@
-
 #include "job_proxy.h"
 #include "config.h"
 #include "job_prober_service.h"
@@ -299,7 +298,7 @@ TJobResult TJobProxy::DoRun()
     RetrieveJobSpec();
 
     const auto& schedulerJobSpecExt = JobSpec_.GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
-    SetLargeBlockLimit(schedulerJobSpecExt.lfalloc_buffer_size());
+    NLFAlloc::SetBufferSize(schedulerJobSpecExt.lfalloc_buffer_size());
     EnableJobProxyMemoryControl_ = schedulerJobSpecExt.enable_job_proxy_memory_control();
 
     if (Config_->IsCGroupSupported(TCpu::Name)) {
