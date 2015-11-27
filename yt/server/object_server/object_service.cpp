@@ -96,6 +96,7 @@ public:
         : Owner(std::move(owner))
         , Context(std::move(context))
         , RequestCount(Context->Request().part_counts_size())
+        , EpochAutomatonInvoker(Owner->Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker())
     { }
 
     void Run()
@@ -117,7 +118,7 @@ public:
             CheckAndContinue(sync.Get());
         } else {
             sync.Subscribe(BIND(&TExecuteSession::CheckAndContinue, MakeStrong(this))
-                .Via(GetCurrentInvoker()));
+                .Via(EpochAutomatonInvoker));
         }
     }
 
@@ -126,6 +127,7 @@ private:
     const TCtxExecutePtr Context;
 
     const int RequestCount;
+    const IInvokerPtr EpochAutomatonInvoker;
 
     TFuture<void> LastMutationCommitted = VoidFuture;
     std::atomic<bool> Replied = {false};
@@ -155,9 +157,6 @@ private:
             auto objectManager = Owner->Bootstrap_->GetObjectManager();
             auto rootService = objectManager->GetRootService();
 
-            auto hydraFacade = Owner->Bootstrap_->GetHydraFacade();
-            auto hydraManager = hydraFacade->GetHydraManager();
-
             auto batchStartInstant = NProfiling::GetCpuInstant();
 
             auto& request = Context->Request();
@@ -175,7 +174,7 @@ private:
             while (CurrentRequestIndex < request.part_counts_size()) {
                 // Don't allow the thread to be blocked for too long by a single batch.
                 if (objectManager->AdviceYield(batchStartInstant)) {
-                    hydraFacade->GetEpochAutomatonInvoker()->Invoke(
+                    EpochAutomatonInvoker->Invoke(
                         BIND(&TExecuteSession::Continue, MakeStrong(this)));
                     return;
                 }
@@ -220,7 +219,7 @@ private:
                 if (IsBarrierNeeded(mutating) && !LastMutationCommitted.IsSet()) {
                     LastMutationCommitted.Subscribe(
                         BIND(&TExecuteSession::CheckAndContinue, MakeStrong(this))
-                            .Via(hydraFacade->GetEpochAutomatonInvoker()));
+                            .Via(EpochAutomatonInvoker));
                     return;
                 }
 
