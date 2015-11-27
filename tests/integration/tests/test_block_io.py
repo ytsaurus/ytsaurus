@@ -36,6 +36,12 @@ class TestBlockIO(YTEnvSetup):
     NUM_NODES = 5
     NUM_SCHEDULERS = 1
 
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler" : {
+            "user_job_blkio_weight" : 10
+        }
+    }
+
     DELTA_NODE_CONFIG = {
         "exec_agent" : {
             'enable_cgroups' : 'true',
