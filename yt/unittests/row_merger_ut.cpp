@@ -177,23 +177,25 @@ protected:
 
     static TTableSchema GetTypicalSchema()
     {
-        TTableSchema schema;
-        schema.Columns().push_back(TColumnSchema("k", EValueType::Int64));
-        schema.Columns().push_back(TColumnSchema("l", EValueType::Int64));
-        schema.Columns().push_back(TColumnSchema("m", EValueType::Int64));
-        schema.Columns().push_back(TColumnSchema("n", EValueType::Int64));
+        TTableSchema schema({
+            TColumnSchema(TColumnSchema("k", EValueType::Int64)),
+            TColumnSchema(TColumnSchema("l", EValueType::Int64)),
+            TColumnSchema(TColumnSchema("m", EValueType::Int64)),
+            TColumnSchema(TColumnSchema("n", EValueType::Int64))
+        });
         return schema;
     }
 
     static TTableSchema GetAggregateSumSchema()
     {
-        TTableSchema schema;
-        schema.Columns().push_back(TColumnSchema("k", EValueType::Int64));
-        schema.Columns().push_back(TColumnSchema("l", EValueType::Int64));
-        schema.Columns().push_back(TColumnSchema("m", EValueType::Int64));
-        schema.Columns().push_back(TColumnSchema("n", EValueType::Int64)
-             .SetSortOrder(ESortOrder::Ascending)
-             .SetAggregate(Stroka("sum")));
+        TTableSchema schema({
+            TColumnSchema(TColumnSchema("k", EValueType::Int64)),
+            TColumnSchema(TColumnSchema("l", EValueType::Int64)),
+            TColumnSchema(TColumnSchema("m", EValueType::Int64)),
+            TColumnSchema("n", EValueType::Int64)
+                .SetSortOrder(ESortOrder::Ascending)
+                .SetAggregate(Stroka("sum"))
+        });
         return schema;
     }
 };
