@@ -44,10 +44,15 @@ void TSchemalessWriterForYamredDsv::UpdateEscapedColumnNames()
 {
     // Storing escaped column names in order to not re-escape them each time we write a column name.
     EscapedColumnNames_.reserve(NameTable_->GetSize());
-    for (int columnIndex = EscapedColumnNames_.size(); columnIndex < NameTable_->GetSize(); columnIndex++) {
+    for (int columnIndex = EscapedColumnNames_.size(); columnIndex < NameTable_->GetSize(); ++columnIndex) {
         EscapedColumnNames_.emplace_back(
                 Escape(NameTable_->GetName(columnIndex), Table_.KeyStops, Table_.Escapes, Config_->EscapingSymbol));
     }
+}
+
+int TSchemalessWriterForYamredDsv::GetColumnCount() const
+{
+    return EscapedColumnNames_.size();
 }
 
 void TSchemalessWriterForYamredDsv::DoWrite(const std::vector<NTableClient::TUnversionedRow>& rows) 
@@ -55,10 +60,10 @@ void TSchemalessWriterForYamredDsv::DoWrite(const std::vector<NTableClient::TUnv
     auto* stream = GetOutputStream();
     
     UpdateEscapedColumnNames();
-    RowValues_.resize(NameTable_->GetSize());
+    RowValues_.resize(GetColumnCount());
     // Invariant: at the beginning of each loop iteration RowValues contains
     // empty TNullable<TStringBuf> in each element.
-    for (int i = 0; i < static_cast<int>(rows.size()); i++) { 
+    for (int i = 0; i < static_cast<int>(rows.size()); ++i) { 
         if (CheckKeySwitch(rows[i], i + 1 == rows.size() /* isLastRow */)) {
             if (!Config_->Lenval) {
                 THROW_ERROR_EXCEPTION("Key switches are not supported in text YAMRed DSV format.");
@@ -73,7 +78,7 @@ void TSchemalessWriterForYamredDsv::DoWrite(const std::vector<NTableClient::TUnv
             } else if (item->Type != EValueType::String) {
                 THROW_ERROR_EXCEPTION("YAMRed DSV doesn't support any value type except String and Null");
             }
-            YCHECK(item->Id < NameTable_->GetSize());
+            YCHECK(item->Id < GetColumnCount());
             RowValues_[item->Id] = TStringBuf(item->Data.String, item->Length);
         }
 
@@ -122,7 +127,7 @@ void TSchemalessWriterForYamredDsv::WriteYamrKey(const std::vector<int>& columnI
     }    
 }
 
-ui32 TSchemalessWriterForYamredDsv::CalculateTotalKeyLength(const std::vector<int>& columnIds) 
+ui32 TSchemalessWriterForYamredDsv::CalculateTotalKeyLength(const std::vector<int>& columnIds) const 
 {
     ui32 sum = 0;
     for (int id : columnIds) {
@@ -151,7 +156,7 @@ void TSchemalessWriterForYamredDsv::WriteYamrValue()
     }
 
     bool firstColumn = true;
-    for (int id = 0; id < NameTable_->GetSize(); id++) {
+    for (int id = 0; id < GetColumnCount(); ++id) {
         if (RowValues_[id]) {
             if (!firstColumn) {
                 stream->Write(Config_->FieldSeparator);
@@ -170,11 +175,11 @@ void TSchemalessWriterForYamredDsv::WriteYamrValue()
     }
 }
 
-ui32 TSchemalessWriterForYamredDsv::CalculateTotalValueLength() 
+ui32 TSchemalessWriterForYamredDsv::CalculateTotalValueLength() const 
 {
     ui32 sum = 0;
     bool firstColumn = true;
-    for (int id = 0; id < NameTable_->GetSize(); id++) {
+    for (int id = 0; id < GetColumnCount(); ++id) {
         if (RowValues_[id]) {
             if (!firstColumn) {
                 sum += 1; // The yamr_keys_separator.
@@ -189,7 +194,7 @@ ui32 TSchemalessWriterForYamredDsv::CalculateTotalValueLength()
     return sum;
 }
 
-ui32 TSchemalessWriterForYamredDsv::CalculateLength(const TStringBuf& string, bool inKey)
+ui32 TSchemalessWriterForYamredDsv::CalculateLength(const TStringBuf& string, bool inKey) const
 {
     return Config_->EnableEscaping
         ?  CalculateEscapedLength(
