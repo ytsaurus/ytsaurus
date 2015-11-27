@@ -174,11 +174,23 @@ void FromProto(TColumnSchema* schema, const NProto::TColumnSchema& protoSchema)
 
 TTableSchema::TTableSchema()
     : Strict_(false)
+    , KeyColumnCount_(0)
 { }
 
 TTableSchema::TTableSchema(const std::vector<TColumnSchema>& columns, bool strict)
-    : Columns_(columns), Strict_(strict)
+    : Columns_(columns)
+    , Strict_(strict)
 {
+    UpdateKeyColumnCount();
+    ValidateTableSchema(*this);
+}
+
+void TTableSchema::UpdateKeyColumnCount()
+{
+    KeyColumnCount_ = 0;
+    while (KeyColumnCount_ < Columns_.size() && Columns_[KeyColumnCount_].SortOrder) {
+        KeyColumnCount_++;
+    }
 }
 
 const TColumnSchema* TTableSchema::FindColumn(const TStringBuf& name) const
@@ -223,6 +235,7 @@ TTableSchema TTableSchema::Filter(const TColumnFilter& columnFilter) const
     return result;
 }
 
+// TODO(max42): refactor this method so that it doesn't use keyColumns argument.
 TTableSchema TTableSchema::TrimNonkeyColumns(const TKeyColumns& keyColumns) const
 {
     TTableSchema result;
@@ -231,21 +244,26 @@ TTableSchema TTableSchema::TrimNonkeyColumns(const TKeyColumns& keyColumns) cons
         YCHECK(Columns_[id].Name == keyColumns[id]);
         result.Columns_.push_back(Columns_[id]);
     }
+    ValidateTableSchema(*this);
     return result;
 }
     
 void TTableSchema::PushColumn(const TColumnSchema& column)
 {
+    ValidateColumnSchema(column);
     Columns_.push_back(column);
+    ValidateTableSchema(*this);
 }
 
 void TTableSchema::InsertColumn(int position, const TColumnSchema& column)
 {
+    ValidateColumnSchema(column);
     if (position < 0 || position > Columns_.size()) {
         THROW_ERROR_EXCEPTION("Position is invalid: %v (table contains %v columns)",
             position, Columns_.size());
     }
     Columns_.insert(Columns_.begin() + position, column);
+    ValidateTableSchema(*this);
 }
     
 void TTableSchema::EraseColumn(int position)
@@ -255,15 +273,18 @@ void TTableSchema::EraseColumn(int position)
            position, Columns_.size()); 
     }
     Columns_.erase(Columns_.begin() + position);
+    ValidateTableSchema(*this);
 }
     
 void TTableSchema::AlterColumn(int position, const TColumnSchema& column)
 {
+    ValidateColumnSchema(column);
     if (position < 0 || position > Columns_.size()) {
         THROW_ERROR_EXCEPTION("Position is invalid: %v (table contains %v columns)",
             position, Columns_.size());
     }
     Columns_[position] = column;
+    ValidateTableSchema(*this);
 }
 
 bool TTableSchema::HasComputedColumns() const
@@ -309,6 +330,7 @@ TTableSchema TTableSchema::FromKeyColumns(const TKeyColumns& keyColumns)
             TColumnSchema(columnName, EValueType::Any)
                 .SetSortOrder(ESortOrder::Ascending)); 
     }
+    ValidateTableSchema(tableSchema);
     return tableSchema;
 }
 
@@ -340,7 +362,6 @@ void Deserialize(TTableSchema& schema, INodePtr node)
     std::vector<TColumnSchema> columns;
     NYTree::Deserialize(columns, node);
     schema = TTableSchema(columns, node->Attributes().Get<bool>("strict", true));
-    ValidateTableSchema(schema);
 }
 
 void ToProto(NProto::TTableSchemaExt* protoSchema, const TTableSchema& schema)
