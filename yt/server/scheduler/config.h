@@ -320,6 +320,9 @@ public:
     //! Maximum number of files per user job.
     int MaxUserFileCount;
 
+    //! blkio.weight set on user job cgroup.
+    TNullable<int> UserJobBlkioWeight;
+
     //! Maximum number of jobs to start within a single heartbeat.
     TNullable<int> MaxStartedJobsPerHeartbeat;
 
@@ -450,6 +453,9 @@ public:
         RegisterParameter("max_user_file_count", MaxUserFileCount)
             .Default(1000)
             .GreaterThan(0);
+
+        RegisterParameter("user_job_blkio_weigth", UserJobBlkioWeight)
+            .Default(Null);
 
         RegisterParameter("max_output_table_count", MaxOutputTableCount)
             .Default(20)

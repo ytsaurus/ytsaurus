@@ -689,6 +689,9 @@ private:
 
             if (Config_->IsCGroupSupported(TBlockIO::Name)) {
                 BlockIO_.Create();
+                if (UserJobSpec_.has_blkio_weight()) {
+                    BlockIO_.SetWeight(UserJobSpec_.blkio_weight());
+                }
                 Process_.AddArguments({ "--cgroup", BlockIO_.GetFullPath() });
                 Process_.AddArguments({ "--env", Format("YT_CGROUP_BLKIO=%v", BlockIO_.GetFullPath()) });
             }
