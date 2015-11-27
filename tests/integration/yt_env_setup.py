@@ -1,6 +1,7 @@
 import yt_commands
 
 from yt.environment import YTEnv
+from yt.common import makedirp
 import yt_driver_bindings
 
 import pytest
@@ -32,10 +33,6 @@ def resolve_test_paths(name):
     path_to_sandbox = os.path.join(SANDBOX_ROOTDIR, name)
     path_to_environment = os.path.join(path_to_sandbox, 'run')
     return path_to_sandbox, path_to_environment
-
-def _working_dir(test_name):
-    path_to_test = os.path.join(SANDBOX_ROOTDIR, test_name)
-    return os.path.join(path_to_test, "run")
 
 def _wait(predicate):
     for _ in xrange(100):
@@ -80,13 +77,15 @@ class YTEnvSetup(YTEnv):
         # Should create before env start for correct behaviour of teardown.
         cls.liveness_checker = None
 
-        # For running parallel
-        path_to_run = os.path.join(path_to_test, "run_" + str(uuid.uuid4().hex)[:8])
-        pids_filename = os.path.join(path_to_run, 'pids.txt')
-
+        # For running in parallel
         cls.path_to_test = path_to_test
+        cls.run_id = "run_" + uuid.uuid4().hex[:8]
+        cls.path_to_run = os.path.join(path_to_test, cls.run_id)
+        pids_filename = os.path.join(cls.path_to_run, "pids.txt")
+
         cls.Env = cls()
-        cls.Env.start(path_to_run, pids_filename, kill_child_processes=True)
+        cls.Env.start(cls.path_to_run, pids_filename, kill_child_processes=True,
+                      port_locks_path=os.path.join(SANDBOX_ROOTDIR, "ports"))
 
         if cls.Env.configs['driver']:
             yt_commands.init_driver(cls.Env.configs['driver'])
@@ -108,15 +107,14 @@ class YTEnvSetup(YTEnv):
         yt_commands.driver = None
         gc.collect()
 
-        if SANDBOX_STORAGE_ROOTDIR is not None:
-            if not os.path.exists(SANDBOX_STORAGE_ROOTDIR):
-                os.makedirs(SANDBOX_STORAGE_ROOTDIR)
-            
-            destination_path = os.path.join(SANDBOX_STORAGE_ROOTDIR, cls.test_name)
+        if SANDBOX_STORAGE_ROOTDIR is not None and os.path.exists(cls.path_to_run):
+            makedirp(SANDBOX_STORAGE_ROOTDIR)
+
+            destination_path = os.path.join(SANDBOX_STORAGE_ROOTDIR, cls.test_name, cls.run_id)
             if os.path.exists(destination_path):
                 shutil.rmtree(destination_path)
 
-            shutil.move(cls.path_to_test, os.path.join(SANDBOX_STORAGE_ROOTDIR, cls.test_name))
+            shutil.move(cls.path_to_run, destination_path)
 
     def setup_method(self, method):
         if self.Env.NUM_MASTERS > 0:
