@@ -278,6 +278,9 @@ TJoinEvaluator GetJoinEvaluator(
                 ranges.emplace_back(lowerBound, upperBound);
             }
 
+            LOG_DEBUG("Sorting %v ranges",
+                ranges.size());
+
             std::sort(ranges.begin(), ranges.end(), [] (const TRowRange& lhs, const TRowRange& rhs) {
                 return lhs.first < rhs.first;
             });
