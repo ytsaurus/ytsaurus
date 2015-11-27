@@ -36,18 +36,18 @@ TTableSchema GetIntermediateSchema(
     auto schema = TTableSchema();
 
     for (auto item : groupClause->GroupItems) {
-        schema.Columns().emplace_back(
+        schema.PushColumn(TColumnSchema(
             item.Name,
-            item.Expression->Type);
+            item.Expression->Type));
     }
 
     for (auto item : groupClause->AggregateItems) {
         auto intermediateType = functionRegistry
             ->GetAggregateFunction(item.AggregateFunction)
             ->GetStateType(item.Expression->Type);
-        schema.Columns().emplace_back(
+        schema.PushColumn(TColumnSchema(
             item.Name,
-            intermediateType);
+            intermediateType));
     }
 
     return schema;
