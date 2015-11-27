@@ -3560,6 +3560,10 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
     jobSpec->set_max_stderr_size(config->MaxStderrSize);
     jobSpec->set_enable_core_dump(config->EnableCoreDump);
     jobSpec->set_custom_statistics_count_limit(config->CustomStatisticsCountLimit);
+    
+    if (Config->UserJobBlkioWeight) {
+        jobSpec->set_blkio_weight(*Config->UserJobBlkioWeight);
+    }
 
     {
         // Set input and output format.
