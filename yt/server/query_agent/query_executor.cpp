@@ -865,8 +865,8 @@ private:
         return CreateSchemafulTabletReader(
             std::move(tabletSnapshot),
             columnFilter,
-            lowerBound,
-            upperBound,
+            std::move(lowerBound),
+            std::move(upperBound),
             timestamp);
     }
 
