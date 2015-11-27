@@ -152,6 +152,7 @@ public:
     std::vector<TStatisticsItem> GetIOServiced() const;
 
     void ThrottleOperations(const Stroka& deviceId, i64 operations) const;
+    void SetWeight(int weight);
 
 private:
     std::vector<TBlockIO::TStatisticsItem> GetDetailedStatistics(const char* filename) const;
