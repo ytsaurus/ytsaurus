@@ -14,16 +14,17 @@ Options:
   -h, --help    Show this help.
 
 """
+import fuse
+import yt.wrapper.client
+
+from yt.packages.expiringdict import ExpiringDict
+
 import stat
 import errno
 import time
 import logging
 import functools
 import sys
-
-import expiringdict
-import fuse
-import yt.wrapper.client
 
 
 logging.basicConfig(
@@ -88,7 +89,7 @@ class CachedYtClient(yt.wrapper.client.Yt):
         """
         super(CachedYtClient, self).__init__(**kwargs)
 
-        self._cache = expiringdict.ExpiringDict(
+        self._cache = ExpiringDict(
             max_len=max_len,
             max_age_seconds=max_age_seconds
         )
