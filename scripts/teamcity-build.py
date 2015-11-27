@@ -12,6 +12,7 @@ import pprint
 import re
 import resource
 import select
+import socket
 import shutil
 import signal
 import subprocess
@@ -255,9 +256,8 @@ def run_pytest(options, suite_name, suite_path, pytest_args=None):
                 "py.test",
                 "-r", "x",
                 "--verbose",
-                "--capture=no",
+                "--capture=fd",
                 "--tb=native",
-                "--timeout=300",
                 "--junitxml={0}".format(handle.name)]
                 + pytest_args,
                 cwd=suite_path,
@@ -338,15 +338,26 @@ def kill_by_name(name):
 @yt_register_build_step
 def run_integration_tests(options):
     kill_by_name("^ytserver")
-    run_pytest(options, "integration", "{0}/tests/integration".format(options.checkout_directory))
+
+    pytest_args = []
+    if options.enable_parallel_testing:
+        pytest_args.extend(["--process-count", "6"])
+
+    run_pytest(options, "integration", "{0}/tests/integration".format(options.checkout_directory),
+               pytest_args=pytest_args)
 
 
 @yt_register_build_step
 def run_python_libraries_tests(options):
     kill_by_name("^ytserver")
     kill_by_name("^node")
+
+    pytest_args = []
+    if options.enable_parallel_testing:
+        pytest_args.extend(["--process-count", "4"])
+
     run_pytest(options, "python_libraries", "{0}/python".format(options.checkout_directory),
-               pytest_args=["--ignore=pyinstaller"])
+               pytest_args=["--ignore=pyinstaller"] + pytest_args)
 
 
 @yt_register_build_step
@@ -780,8 +791,10 @@ def main():
         type=str, action="store", required=False, default="g++-4.8")
 
     options = parser.parse_args()
-    status = 0
+    # XXX(asaitgalin): parallel testing is enabled only for bare metal machines.
+    options.enable_parallel_testing = socket.getfqdn().endswith("tc.yt.yandex.net")
 
+    status = 0
     try:
         for step in _build_steps:
             try:
