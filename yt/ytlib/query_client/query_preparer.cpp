@@ -197,15 +197,16 @@ public:
     // NOTE: result must be used before next call
     const TColumnSchema* GetColumnPtr(const TStringBuf& name, const TStringBuf& tableName)
     {
-        auto& resultColumns = TableSchema_->Columns();
+        const auto& resultColumns = TableSchema_->Columns();
         auto it = Lookup_.find(MakePair(Stroka(name), Stroka(tableName)));
         if (it != Lookup_.end()) {
             return &resultColumns[it->second];
         } else if (auto original = AddColumnPtr(name, tableName)) {
             auto index = resultColumns.size();
             Lookup_.insert(MakePair(MakePair(Stroka(name), Stroka(tableName)), index));
-            resultColumns.push_back(*original);
-            resultColumns.back().Name = NAst::FormatColumn(name, tableName);
+            TColumnSchema newColumn = *original;
+            newColumn.Name = NAst::FormatColumn(name, tableName);
+            TableSchema_->PushColumn(newColumn);
             return &resultColumns.back();
         }
         return nullptr;
@@ -240,7 +241,7 @@ public:
 
         auto index = resultColumns.size();
         Lookup_.insert(MakePair(MakePair(Stroka(subexprName), Stroka()), index));
-        resultColumns.push_back(original);
+        TableSchema_->PushColumn(original);
         return &resultColumns.back();
     }
 
@@ -1048,7 +1049,7 @@ public:
 
         auto column = SourceTableSchema_.FindColumn(name);
         if (column) {
-            RefinedTableSchema_->Columns().push_back(*column);
+            RefinedTableSchema_->PushColumn(*column);
         }
         return column;
     }
@@ -1458,7 +1459,7 @@ TPlanFragmentPtr PreparePlanFragment(
                 New<TReferenceExpression>(selfColumn->Type, selfColumn->Name),
                 New<TReferenceExpression>(foreignColumn->Type, foreignColumn->Name));
 
-            joinClause->JoinedTableSchema.Columns().push_back(*selfColumn);
+            joinClause->JoinedTableSchema.PushColumn(*selfColumn);
         }
 
         std::vector<TConstExpressionPtr> leftEquations;
