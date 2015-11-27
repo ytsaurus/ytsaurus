@@ -193,7 +193,6 @@ protected:
             TColumnSchema(TColumnSchema("l", EValueType::Int64)),
             TColumnSchema(TColumnSchema("m", EValueType::Int64)),
             TColumnSchema("n", EValueType::Int64)
-                .SetSortOrder(ESortOrder::Ascending)
                 .SetAggregate(Stroka("sum"))
         });
         return schema;
