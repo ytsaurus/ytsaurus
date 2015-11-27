@@ -50,16 +50,24 @@ class TQueryPrepareTest
     : public ::testing::Test
 {
 protected:
+
+    virtual void SetUp() override
+    {
+        auto config = New<TColumnEvaluatorCacheConfig>();
+        ColumnEvaluatorCache_ = New<TColumnEvaluatorCache>(config, CreateBuiltinFunctionRegistry());
+    }
+
     template <class TMatcher>
     void ExpectPrepareThrowsWithDiagnostics(
         const Stroka& query,
         TMatcher matcher)
     {
         EXPECT_THROW_THAT(
-            [&] { PreparePlanFragment(&PrepareMock_, query, CreateBuiltinFunctionRegistry()); },
+            [&] { PreparePlanFragment(&PrepareMock_, query, CreateBuiltinFunctionRegistry(), ColumnEvaluatorCache_); },
             matcher);
     }
 
+    TColumnEvaluatorCachePtr ColumnEvaluatorCache_;
     StrictMock<TPrepareCallbacksMock> PrepareMock_;
 
 };
@@ -69,7 +77,7 @@ TEST_F(TQueryPrepareTest, Simple)
     EXPECT_CALL(PrepareMock_, GetInitialSplit("//t", _))
         .WillOnce(Return(WrapInFuture(MakeSimpleSplit("//t"))));
 
-    PreparePlanFragment(&PrepareMock_, "a, b FROM [//t] WHERE k > 3", CreateBuiltinFunctionRegistry());
+    PreparePlanFragment(&PrepareMock_, "a, b FROM [//t] WHERE k > 3", CreateBuiltinFunctionRegistry(), ColumnEvaluatorCache_);
 }
 
 TEST_F(TQueryPrepareTest, BadSyntax)
@@ -146,7 +154,7 @@ TEST_F(TQueryPrepareTest, BigQuery)
     EXPECT_CALL(PrepareMock_, GetInitialSplit("//t", _))
         .WillOnce(Return(WrapInFuture(MakeSimpleSplit("//t"))));
 
-    PreparePlanFragment(&PrepareMock_, query, CreateBuiltinFunctionRegistry());
+    PreparePlanFragment(&PrepareMock_, query, CreateBuiltinFunctionRegistry(), ColumnEvaluatorCache_);
 }
 
 TEST_F(TQueryPrepareTest, ResultSchemaCollision)
@@ -232,7 +240,11 @@ protected:
     {
         TQueryPtr query;
         TDataSource2 dataSource;
-        std::tie(query, dataSource) = PreparePlanFragment(&PrepareMock_, source, CreateBuiltinFunctionRegistry());
+        std::tie(query, dataSource) = PreparePlanFragment(
+            &PrepareMock_,
+            source,
+            CreateBuiltinFunctionRegistry(),
+            ColumnEvaluatorCache_);
 
         auto buffer = New<TRowBuffer>();
         TRowRanges sources;
@@ -431,6 +443,9 @@ class TQueryEvaluateTest
 protected:
     virtual void SetUp() override
     {
+        auto config = New<TColumnEvaluatorCacheConfig>();
+        ColumnEvaluatorCache_ = New<TColumnEvaluatorCache>(config, CreateBuiltinFunctionRegistry());
+
         WriterMock_ = New<StrictMock<TWriterMock>>();
 
         ActionQueue_ = New<TActionQueue>("Test");
@@ -626,7 +641,7 @@ protected:
             TQueryPtr primaryQuery;
             TDataSource2 primaryDataSource;
             std::tie(primaryQuery, primaryDataSource) = PreparePlanFragment(
-                &PrepareMock_, query, functionRegistry, inputRowLimit, outputRowLimit);
+                &PrepareMock_, query, functionRegistry, ColumnEvaluatorCache_, inputRowLimit, outputRowLimit);
 
             size_t foreignSplitIndex = 1;
             auto executeCallback = [&] (
@@ -668,6 +683,7 @@ protected:
     StrictMock<TPrepareCallbacksMock> PrepareMock_;
     TIntrusivePtr<StrictMock<TWriterMock>> WriterMock_;
     TActionQueuePtr ActionQueue_;
+    TColumnEvaluatorCachePtr ColumnEvaluatorCache_;
 
     IFunctionDescriptorPtr AbsUdf_;
     IFunctionDescriptorPtr ExpUdf_;

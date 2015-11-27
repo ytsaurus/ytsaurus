@@ -20,19 +20,13 @@ namespace NQueryClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_ENUM(EExpressionKind,
+    (None)
     (Literal)
     (Reference)
     (Function)
     (UnaryOp)
     (BinaryOp)
     (InOp)
-);
-
-DEFINE_ENUM(EOperatorKind,
-    (Scan)
-    (Filter)
-    (Group)
-    (Project)
 );
 
 struct TExpression
@@ -240,6 +234,15 @@ struct TJoinClause
     i64 ForeignKeyColumnsCount;
 
     TTableSchema RenamedTableSchema;
+
+    bool canUseSourceRanges;
+    size_t keyPrefix;
+    std::vector<int> equationByIndex;
+
+
+    //std::vector<int> equationToPosMapping; // reverse to equationByIndex
+
+    std::vector<TConstExpressionPtr> EvaluatedColumns;
 
     std::vector<std::pair<TConstExpressionPtr, TConstExpressionPtr>> Equations;
 

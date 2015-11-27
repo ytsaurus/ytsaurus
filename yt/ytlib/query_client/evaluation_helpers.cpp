@@ -136,11 +136,12 @@ bool UpdateAndCheckRowLimit(i64* limit, char* flag)
 TJoinEvaluator GetJoinEvaluator(
     const TJoinClause& joinClause,
     TConstExpressionPtr predicate,
-    const TTableSchema& selfTableSchema,
-    const TColumnEvaluatorCachePtr evaluatorCache)
+    const TTableSchema& selfTableSchema)
 {
     const auto& equations = joinClause.Equations;
     auto isLeft = joinClause.IsLeft;
+    auto canUseSourceRanges = joinClause.canUseSourceRanges;
+    auto keyPrefix = joinClause.keyPrefix;
     auto& foreignTableSchema = joinClause.ForeignTableSchema;
     auto& foreignKeyColumnsCount = joinClause.ForeignKeyColumnsCount;
     auto& renamedTableSchema = joinClause.RenamedTableSchema;
@@ -159,59 +160,10 @@ TJoinEvaluator GetJoinEvaluator(
     // (join key... , other columns...)
     auto projectClause = New<TProjectClause>();
     std::vector<TConstExpressionPtr> joinKeyExprs;
+
     for (const auto& column : equations) {
         projectClause->AddProjection(column.second, InferName(column.second));
         joinKeyExprs.push_back(column.second);
-    }
-
-    // Check if equations form primary key, make foreign subquery without IN clause
-    //
-
-    bool canUseSourceRanges = true;
-    std::vector<int> equationByIndex(foreignKeyColumnsCount, -1);
-    for (size_t equationIndex = 0; equationIndex < equations.size(); ++equationIndex) {
-        const auto& column = equations[equationIndex];
-        const auto& expr = column.second;
-
-        if (const auto* refExpr = expr->As<TReferenceExpression>()) {
-            auto index = renamedTableSchema.GetColumnIndexOrThrow(refExpr->ColumnName);
-            if (index < foreignKeyColumnsCount) {
-                equationByIndex[index] = equationIndex;
-                continue;
-            }
-        }
-        break;
-    }
-
-    std::vector<bool> usedJoinKeyEquations(equations.size(), false);
-
-    auto evaluator = evaluatorCache->Find(foreignTableSchema, foreignKeyColumnsCount);
-    size_t keyPrefix = 0;
-    for (; keyPrefix < foreignKeyColumnsCount; ++keyPrefix) {
-        if (equationByIndex[keyPrefix] >= 0) {
-            usedJoinKeyEquations[equationByIndex[keyPrefix]] = true;
-            continue;
-        }
-
-        if (foreignTableSchema.Columns()[keyPrefix].Expression) {
-            const auto& references = evaluator->GetReferenceIds(keyPrefix);
-            auto canEvaluate = true;
-            for (int referenceIndex : references) {
-                if (equationByIndex[referenceIndex] < 0) {
-                    canEvaluate = false;
-                }
-            }
-            if (canEvaluate) {
-                continue;
-            }
-        }
-        break;
-    }
-
-    for (auto flag : usedJoinKeyEquations) {
-        if (!flag) {
-            canUseSourceRanges = false;
-        }
     }
 
     for (const auto& column : renamedTableSchema.Columns()) {
@@ -224,8 +176,7 @@ TJoinEvaluator GetJoinEvaluator(
     subquery->ProjectClause = projectClause;
 
     auto subqueryTableSchema = subquery->GetTableSchema();
-
-    auto joinKeySize = equations.size();
+    auto joinKeySize = canUseSourceRanges ? keyPrefix : equations.size();
 
     std::vector<std::pair<bool, int>> columnMapping;
     for (const auto& column : joinedTableSchema.Columns()) {
@@ -242,7 +193,6 @@ TJoinEvaluator GetJoinEvaluator(
         TExecutionContext* context,
         THasherFunction* groupHasher,
         TComparerFunction* groupComparer,
-        TComparerFunction* keyComparer,
         std::vector<TRow> keys,
         std::vector<TRow> allRows,
         TRowBufferPtr permanentBuffer,
@@ -258,15 +208,7 @@ TJoinEvaluator GetJoinEvaluator(
             for (auto key : keys) {
                 TRow lowerBound = TRow::Allocate(rowBuffer->GetPool(), keyPrefix);
                 for (int column = 0; column < keyPrefix; ++column) {
-                    if (equationByIndex[column] >= 0) {
-                        lowerBound[column] = key[equationByIndex[column]];
-                    }
-                }
-
-                for (int column = 0; column < keyPrefix; ++column) {
-                    if (foreignTableSchema.Columns()[column].Expression) {
-                        evaluator->EvaluateKey(lowerBound, rowBuffer, column);
-                    }
+                    lowerBound[column] = key[column];
                 }
 
                 TRow upperBound = TRow::Allocate(rowBuffer->GetPool(), keyPrefix + 1);
@@ -277,23 +219,11 @@ TJoinEvaluator GetJoinEvaluator(
                 upperBound[keyPrefix] = MakeUnversionedSentinelValue(EValueType::Max);
                 ranges.emplace_back(lowerBound, upperBound);
             }
-
-            LOG_DEBUG("Sorting %v ranges",
-                ranges.size());
-
-            std::sort(ranges.begin(), ranges.end(), [] (const TRowRange& lhs, const TRowRange& rhs) {
-                return lhs.first < rhs.first;
-            });
         } else {
             LOG_DEBUG("Using join via IN clause");
             ranges.emplace_back(
                 rowBuffer->Capture(NTableClient::MinKey().Get()),
                 rowBuffer->Capture(NTableClient::MaxKey().Get()));
-
-            LOG_DEBUG("Sorting %v join keys",
-                keys.size());
-
-            std::sort(keys.begin(), keys.end(), keyComparer);
 
             auto inClause = New<TInOpExpression>(joinKeyExprs, MakeSharedRange(std::move(keys), permanentBuffer));
 

@@ -192,7 +192,9 @@ void JoinOpHelper(
     int index,
     THasherFunction* groupHasher,
     TComparerFunction* groupComparer,
-    TComparerFunction* keyComparer,
+    THasherFunction* lookupHasher,
+    TComparerFunction* lookupEqComparer,
+    TComparerFunction* lookupLessComparer,
     void** collectRowsClosure,
     void (*collectRows)(void** closure, std::vector<TRow>* rows, TLookupRows* lookupRows, std::vector<TRow>* allRows),
     void** consumeRowsClosure,
@@ -202,8 +204,8 @@ void JoinOpHelper(
     
     TLookupRows keysLookup(
         InitialGroupOpHashtableCapacity,
-        groupHasher,
-        groupComparer);
+        lookupHasher,
+        lookupEqComparer);
 
     std::vector<TRow> allRows;
 
@@ -211,6 +213,12 @@ void JoinOpHelper(
 
     // Collect join ids.
     collectRows(collectRowsClosure, &keys, &keysLookup, &allRows);
+
+    LOG_DEBUG("Sorting %v join keys",
+        keys.size());
+
+    std::sort(keys.begin(), keys.end(), lookupLessComparer);
+
     LOG_DEBUG("Collected %v join keys from %v rows",
         keys.size(),
         allRows.size());
@@ -220,7 +228,6 @@ void JoinOpHelper(
         context,
         groupHasher,
         groupComparer,
-        keyComparer,
         std::move(keys),
         std::move(allRows),
         context->PermanentBuffer,

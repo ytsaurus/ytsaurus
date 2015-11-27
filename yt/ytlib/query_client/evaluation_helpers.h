@@ -34,7 +34,6 @@ using TJoinEvaluator = std::function<void(
     TExecutionContext* executionContext,
     THasherFunction* hasher,
     TComparerFunction* comparer,
-    TComparerFunction* keyComparer,
     std::vector<TRow> keys,
     std::vector<TRow> allRows,
     TRowBufferPtr permanentBuffer,
@@ -223,8 +222,7 @@ bool UpdateAndCheckRowLimit(i64* limit, char* flag);
 TJoinEvaluator GetJoinEvaluator(
     const TJoinClause& joinClause,
     TConstExpressionPtr predicate,
-    const TTableSchema& selfTableSchema,
-    const TColumnEvaluatorCachePtr evaluatorCache);
+    const TTableSchema& selfTableSchema);
 
 ////////////////////////////////////////////////////////////////////////////////
 

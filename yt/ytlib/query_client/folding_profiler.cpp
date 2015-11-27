@@ -38,8 +38,7 @@ class TFoldingProfiler
 {
 public:
     TFoldingProfiler(
-        const IFunctionRegistryPtr functionRegistry,
-        const TColumnEvaluatorCachePtr evaluatorCache = nullptr);
+        const IFunctionRegistryPtr functionRegistry);
 
     TCodegenSource Profile(TConstQueryPtr query);
     TCodegenExpression Profile(TConstExpressionPtr expr, const TTableSchema& tableSchema);
@@ -67,16 +66,13 @@ private:
     std::vector<std::vector<bool>>* LiteralArgs_ = nullptr;
 
     const IFunctionRegistryPtr FunctionRegistry_;
-    const TColumnEvaluatorCachePtr EvaluatorCache_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TFoldingProfiler::TFoldingProfiler(
-    const IFunctionRegistryPtr functionRegistry,
-    const TColumnEvaluatorCachePtr evaluatorCache)
+    const IFunctionRegistryPtr functionRegistry)
     : FunctionRegistry_(functionRegistry)
-    , EvaluatorCache_(evaluatorCache)
 { }
 
 void TFoldingProfiler::Set(llvm::FoldingSetNodeID* id)
@@ -123,18 +119,28 @@ TCodegenSource TFoldingProfiler::Profile(TConstQueryPtr query)
             codegenSource = MakeCodegenFilterOp(Profile(selfFilter, schema), std::move(codegenSource));
         }
 
+        std::vector<TCodegenExpression> evaluatedColumns;
+        for (const auto& column : joinClause->EvaluatedColumns) {
+            if (column) {
+                evaluatedColumns.push_back(Profile(column, joinClause->ForeignTableSchema));
+            } else {
+                evaluatedColumns.emplace_back();
+            }
+        }
+
         codegenSource = MakeCodegenJoinOp(
             Variables_->JoinEvaluators.size(),
             selfKeys,
             schema,
-            std::move(codegenSource));
-
+            std::move(codegenSource),
+            joinClause->keyPrefix,
+            joinClause->equationByIndex,
+            evaluatedColumns);
 
         Variables_->JoinEvaluators.push_back(GetJoinEvaluator(
             *joinClause,
             query->WhereClause,
-            schema,
-            EvaluatorCache_));
+            schema));
 
         schema = joinClause->JoinedTableSchema;
     }
@@ -391,10 +397,9 @@ TCGQueryCallbackGenerator Profile(
     TCGVariables* variables,
     yhash_set<Stroka>* references,
     std::vector<std::vector<bool>>* literalArgs,
-    const IFunctionRegistryPtr functionRegistry,
-    const TColumnEvaluatorCachePtr evaluatorCache)
+    const IFunctionRegistryPtr functionRegistry)
 {
-    TFoldingProfiler profiler(functionRegistry, evaluatorCache);
+    TFoldingProfiler profiler(functionRegistry);
     profiler.Set(id);
     profiler.Set(variables);
     profiler.Set(references);

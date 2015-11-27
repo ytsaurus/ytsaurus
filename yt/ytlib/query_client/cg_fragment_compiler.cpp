@@ -932,15 +932,24 @@ TCodegenSource MakeCodegenJoinOp(
     int index,
     std::vector<TCodegenExpression> equations,
     TTableSchema sourceSchema,
-    TCodegenSource codegenSource)
+    TCodegenSource codegenSource,
+    size_t keyPrefix,
+    std::vector<int> equationByIndex,
+    std::vector<TCodegenExpression> evaluatedColumns)
 {
     return [
         index,
         MOVE(equations),
         MOVE(sourceSchema),
-        codegenSource = std::move(codegenSource)
+        codegenSource = std::move(codegenSource),
+        MOVE(keyPrefix),
+        MOVE(equationByIndex),
+        MOVE(evaluatedColumns)
     ] (TCGContext& builder, const TCodegenConsumer& codegenConsumer) {
-        std::vector<EValueType> keyTypes;
+        int lookupKeySize = keyPrefix;
+        int joinKeySize = equations.size();
+        std::vector<EValueType> lookupKeyTypes(lookupKeySize);
+        std::vector<EValueType> joinKeyTypes(joinKeySize);
 
         auto collectRows = MakeClosure<void(void*, void*, void*)>(builder, "CollectRows", [&] (
             TCGContext& builder,
@@ -948,25 +957,19 @@ TCodegenSource MakeCodegenJoinOp(
             Value* keysLookup,
             Value* allRows
         ) {
-            int joinKeySize = equations.size();
-
             Value* keyPtr = builder.CreateAlloca(TypeBuilder<TRow, false>::get(builder.getContext()));
-            builder.CreateCall(
+            builder.CreateCall3(
                 builder.Module->GetRoutine("AllocatePermanentRow"),
-                {
-                    builder.GetExecutionContextPtr(),
-                    builder.getInt32(joinKeySize),
-                    keyPtr
-                });
+                builder.GetExecutionContextPtr(),
+                builder.getInt32(lookupKeySize),
+                keyPtr);
 
             Value* rowWithKeyPtr = builder.CreateAlloca(TypeBuilder<TRow, false>::get(builder.getContext()));
-            builder.CreateCall(
+            builder.CreateCall3(
                 builder.Module->GetRoutine("AllocatePermanentRow"),
-                {
-                    builder.GetExecutionContextPtr(),
-                    builder.getInt32(joinKeySize + sourceSchema.Columns().size()),
-                    rowWithKeyPtr
-                });
+                builder.GetExecutionContextPtr(),
+                builder.getInt32(joinKeySize + sourceSchema.Columns().size()),
+                rowWithKeyPtr);
 
             Value* rowWithKey = builder.CreateLoad(rowWithKeyPtr);
 
@@ -981,43 +984,52 @@ TCodegenSource MakeCodegenJoinOp(
                     Value* keyRef = builder.CreateLoad(keyPtrRef);
                     Value* rowWithKeyRef = builder.ViaClosure(rowWithKey);
 
-                    for (int index = 0; index < joinKeySize; ++index) {
-                        auto id = index;
+                    for (int column = 0; column < lookupKeySize; ++column) {
+                        int index = equationByIndex[column];
+                        if (index >= 0) {
+                            auto joinKeyValue = equations[index](builder, row);
+                            joinKeyTypes[index] = joinKeyValue.GetStaticType();
+                            lookupKeyTypes[column] = joinKeyValue.GetStaticType();
 
-                        auto joinKeyValue = equations[index](builder, row);
-                        keyTypes.push_back(joinKeyValue.GetStaticType());
-                        joinKeyValue.StoreToRow(builder, rowWithKeyRef, index, id);
-                        joinKeyValue.StoreToRow(builder, keyRef, index, id);
+                            joinKeyValue.StoreToRow(builder, keyRef, column, column);
+                            joinKeyValue.StoreToRow(builder, rowWithKeyRef, index, index);
+                        }
+                    }
+
+                    for (int column = 0; column < lookupKeySize; ++column) {
+                        if (evaluatedColumns[column]) {
+                            auto evaluatedColumn = evaluatedColumns[column](builder, keyRef);
+                            lookupKeyTypes[column] = evaluatedColumn.GetStaticType();
+
+                            evaluatedColumn.StoreToRow(builder, keyRef, column, column);
+                        }
                     }
 
                     for (int index = 0; index < sourceSchema.Columns().size(); ++index) {
                         auto column = sourceSchema.Columns()[index];
+                        auto position = joinKeySize + index;
                         TCGValue::CreateFromRow(
                             builder,
                             row,
                             index,
                             column.Type,
                             "reference." + Twine(column.Name.c_str()))
-                            .StoreToRow(builder, rowWithKeyRef, joinKeySize + index, joinKeySize + index);
+                            .StoreToRow(builder, rowWithKeyRef, position, position);
                     }
 
-                    builder.CreateCall(
+                    builder.CreateCall3(
                         builder.Module->GetRoutine("SaveJoinRow"),
-                        {
-                            executionContextPtrRef,
-                            allRowsRef,
-                            rowWithKeyRef
-                        });
+                        executionContextPtrRef,
+                        allRowsRef,
+                        rowWithKeyRef);
 
-                    builder.CreateCall(
+                    builder.CreateCall5(
                         builder.Module->GetRoutine("InsertJoinRow"),
-                        {
-                            executionContextPtrRef,
-                            keysLookupRef,
-                            keysRef,
-                            keyPtrRef,
-                            builder.getInt32(joinKeySize)
-                        });
+                        executionContextPtrRef,
+                        keysLookupRef,
+                        keysRef,
+                        keyPtrRef,
+                        builder.getInt32(lookupKeySize));
 
                 });
 
@@ -1032,23 +1044,25 @@ TCodegenSource MakeCodegenJoinOp(
         ) {
             CodegenForEachRow(
                 builder,
-                builder.CreateCall(builder.Module->GetRoutine("GetRowsData"), {joinedRows}),
-                builder.CreateCall(builder.Module->GetRoutine("GetRowsSize"), {joinedRows}),
+                builder.CreateCall(builder.Module->GetRoutine("GetRowsData"), joinedRows),
+                builder.CreateCall(builder.Module->GetRoutine("GetRowsSize"), joinedRows),
                 stopFlag,
                 codegenConsumer);
 
             builder.CreateRetVoid();
         });
 
-        builder.CreateCall(
+        builder.CreateCallWithArgs(
             builder.Module->GetRoutine("JoinOpHelper"),
             {
                 builder.GetExecutionContextPtr(),
                 builder.getInt32(index),
+                CodegenGroupHasherFunction(joinKeyTypes, *builder.Module),
+                CodegenGroupComparerFunction(joinKeyTypes, *builder.Module),
 
-                CodegenGroupHasherFunction(keyTypes, *builder.Module),
-                CodegenGroupComparerFunction(keyTypes, *builder.Module),
-                CodegenRowComparerFunction(keyTypes, *builder.Module),
+                CodegenGroupHasherFunction(lookupKeyTypes, *builder.Module),
+                CodegenGroupComparerFunction(lookupKeyTypes, *builder.Module),
+                CodegenRowComparerFunction(lookupKeyTypes, *builder.Module),
 
                 collectRows.ClosurePtr,
                 collectRows.Function,
@@ -1058,6 +1072,7 @@ TCodegenSource MakeCodegenJoinOp(
             });
     };
 }
+
 
 TCodegenSource MakeCodegenFilterOp(
     TCodegenExpression codegenPredicate,
