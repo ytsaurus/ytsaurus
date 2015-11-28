@@ -186,13 +186,16 @@ class CachedYtClient(yt.wrapper.client.Yt):
 
 
 class FileReader(object):
+    _logger = logging.getLogger(__name__ + ".FileReader")
+    _logger.setLevel(level=logging.DEBUG)
+
     def __init__(self, client, ypath, buffer_size=(4 * 1024**2)):
         self._client = client
         self._ypath = ypath
         self._buffer_size = buffer_size
 
-        self._offset = 0
         self._length = 0
+        self._offset = 0
         self._buffer = ""
 
     def read(self, length, offset):
@@ -200,6 +203,7 @@ class FileReader(object):
                 offset < self._offset
                 or offset + length > self._offset + self._length
         ):
+            self._logger.debug("\tmiss")
             self._length = max(length, self._buffer_size)
             if offset < self._offset:
                 self._offset = max(offset + length - self._length, 0)
@@ -209,6 +213,8 @@ class FileReader(object):
                 self._ypath,
                 length=self._length, offset=self._offset
             ).read()
+        else:
+            self._logger.debug("\thit")
 
         assert self._offset <= offset
         assert self._offset + self._length >= offset + length
@@ -231,7 +237,7 @@ class TableReader(object):
         while self._upper_offset < offset + length:
             next_upper_row = self._upper_row + self._row_count
             slice_ypath = self._ypath + "[#{}:#{}]".format(self._upper_row, next_upper_row)
-            slice_content = "".join(list(self._client.read_table(slice_ypath, format=yt.wrapper.JsonFormat())))
+            slice_content = "".join(self._client.read_table(slice_ypath, format="json"))
             if len(slice_content) == 0:
                 break
             self._upper_offset += len(slice_content)
@@ -241,14 +247,13 @@ class TableReader(object):
         while self._lower_offset > offset:
             next_lower_row = self._lower_row - self._row_count
             slice_ypath = ypath + "[#{}:#{}]".format(next_lower_row, self._lower_row)
-            slice_content = "".join(list(self._client.read_table(slice_ypath, format=yt.wrapper.JsonFormat())))
+            slice_content = "".join(self._client.read_table(slice_ypath, format="json"))
             self._lower_offset -= len(slice_content)
             self._lower_row -= self._row_count
             self._slices = [slice_content] + self._slices
 
-        offset -= self._lower_offset
-        return "".join(self._slices)[offset:(offset + length)]
-
+        slices_offset = offset - self._lower_offset
+        return "".join(self._slices)[slices_offset:(slices_offset + length)]
 
 
 class Cypress(fuse.Operations):
@@ -363,16 +368,12 @@ class Cypress(fuse.Operations):
         ypath = self._to_ypath(path)
 
         type_ = self._client.get_attribute(ypath, "type")
-        if type_ == "table":
+        if type_ == "file":
+            reader = FileReader(self._client, ypath, self._read_buffer_size)
+        elif type_ == "table":
             # Without this flag FUSE treats the file with st_size=0 as empty.
             fi.direct_io = True
-            reader = TableReader(
-                self._client, ypath, self._slice_row_count
-            )
-        elif type_ == "file":
-            reader = FileReader(
-                self._client, ypath, self._read_buffer_size
-            )
+            reader = TableReader(self._client, ypath, self._slice_row_count)
         else:
             raise fuse.FuseOSError(errno.EINVAL)
 
