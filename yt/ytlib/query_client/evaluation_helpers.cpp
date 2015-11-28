@@ -176,7 +176,7 @@ TJoinEvaluator GetJoinEvaluator(
     subquery->ProjectClause = projectClause;
 
     auto subqueryTableSchema = subquery->GetTableSchema();
-    auto joinKeySize = canUseSourceRanges ? keyPrefix : equations.size();
+    auto joinKeySize = equations.size();
 
     std::vector<std::pair<bool, int>> columnMapping;
     for (const auto& column : joinedTableSchema.Columns()) {
@@ -286,7 +286,9 @@ TJoinEvaluator GetJoinEvaluator(
                 rowBuilder.Reset();
                 auto foreignRow = *it;
                 for (auto columnIndex : columnMapping) {
-                    rowBuilder.AddValue(columnIndex.first ? row[joinKeySize + columnIndex.second] : foreignRow[columnIndex.second]);
+                    rowBuilder.AddValue(columnIndex.first
+                        ? row[joinKeySize + columnIndex.second]
+                        : foreignRow[columnIndex.second]);
                 }
 
                 if (addRow(rowBuilder.GetRow())) {
