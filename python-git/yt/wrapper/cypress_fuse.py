@@ -170,6 +170,13 @@ class CachedYtClient(yt.wrapper.client.Yt):
 
         return children
 
+    def create(self, type, path=None, recursive=False, ignore_existing=False, attributes=None, client=None):
+        super(CachedYtClient, self).create(
+            type, path=path, recursive=recursive,
+            ignore_existing=ignore_existing, attributes=attributes
+        )
+        self._cache.pop(path)
+
 def create_transaction_and_take_snapshot_lock(ypath, client):
     title = "FUSE: read {0}".format(yt.wrapper.to_name(ypath, client=client))
     tx = yt.wrapper.Transaction(attributes={"title": title}, client=client)
@@ -197,6 +204,7 @@ class OpenedFile(object):
         self._length = 0
         self._offset = 0
         self._buffer = ""
+        self._has_pending_write = False
         self._tx = create_transaction_and_take_snapshot_lock(ypath, client)
 
     def read(self, length, offset):
@@ -219,6 +227,30 @@ class OpenedFile(object):
 
         buffer_offset = offset - self._offset
         return self._buffer[buffer_offset:(buffer_offset + length)]
+
+    def truncate(self, length):
+        if not self._has_pending_write:
+            with yt.wrapper.Transaction(transaction_id=self._tx.transaction_id, client=self._client):
+                self._buffer = self._client.read_file(self.ypath).read()
+        self._has_pending_write = True
+
+        if len(self._buffer) < length:
+            self._buffer += " " * (length - len(self._buffer))
+        self._buffer = self._buffer[:length]
+
+    def write(self, data, offset):
+        if not self._has_pending_write:
+            with yt.wrapper.Transaction(transaction_id=self._tx.transaction_id, client=self._client):
+                self._buffer = self._client.read_file(self.ypath).read()
+        self._has_pending_write = True
+
+        self._buffer = self._buffer[:offset] + data
+        return len(data)
+
+    def flush(self):
+        if self._has_pending_write:
+            self._client.write_file(self.ypath, self._buffer)
+            self._buffer = ""
 
 
 class OpenedTable(object):
@@ -331,11 +363,11 @@ class Cypress(fuse.Operations):
         """Get st_mode for a node based on its attributes."""
         node_type = attributes["type"]
         if node_type == "file":
-            mask = stat.S_IFREG | stat.S_IRUSR | stat.S_IRGRP | stat.S_IROTH
+            mask = stat.S_IFREG | 0666
         elif node_type == "table":
             mask = stat.S_IFREG | stat.S_IRUSR | stat.S_IRGRP | stat.S_IROTH
         elif node_type == "map_node":
-            mask = stat.S_IFDIR | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH
+            mask = stat.S_IFDIR | 0755
         else:
             # Support links maybe?
             mask = stat.S_IFBLK
@@ -464,3 +496,57 @@ class Cypress(fuse.Operations):
         except yt.wrapper.YtError:
             raise fuse.FuseOSError(errno.ENODATA)
         return repr(attr)
+
+    @log_calls(_logger, "%(__name__)s(%(path)r)")
+    def mkdir(self, path, mode):
+        ypath = self._to_ypath(path)
+        self._client.create("map_node", ypath)
+
+    @log_calls(_logger, "%(__name__)s(%(path)r)")
+    def create(self, path, mode, fi):
+        ypath = self._to_ypath(path)
+        self._client.create("file", ypath)
+        attributes = self._client.get_attributes(
+            ypath,
+            self._system_attributes
+        )
+
+        fi.fh = self._next_fh
+        self._next_fh += 1
+        self._opened_files[fi.fh] = OpenedFile(
+            self._client, ypath, attributes,
+            self._minimum_file_read_size
+        )
+        return fi.fh
+
+    @log_calls(_logger, "%(__name__)s(%(path)r)")
+    def unlink(self, path):
+        ypath = self._to_ypath(path)
+        self._client.remove(ypath)
+
+    @log_calls(_logger, "%(__name__)s(%(path)r)")
+    def rmdir(self, path):
+        ypath = self._to_ypath(path)
+        try:
+            self._client.remove(ypath)
+        except yt.wrapper.YtResponseError as error:
+            if "non-empty" in error.error["message"]:
+                raise fuse.FuseOSError(errno.ENOTEMPTY)
+            raise
+
+    @log_calls(_logger, "%(__name__)s(%(path)r)")
+    def truncate(self, path, length, fh=None):
+        ypath = self._to_ypath(path)
+        for file_fh, opened_file in self._opened_files.iteritems():
+            if opened_file.ypath == ypath:
+                fh = file_fh
+                break
+        self._opened_files[fh].truncate(length)
+
+    @log_calls(_logger, "%(__name__)s(%(path)r)")
+    def write(self, path, data, offset, fi):
+        return self._opened_files[fi.fh].write(data, offset)
+
+    @log_calls(_logger, "%(__name__)s(%(path)r)")
+    def flush(self, path, fi):
+        self._opened_files[fi.fh].flush()

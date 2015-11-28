@@ -111,3 +111,77 @@ class TestCypress(object):
         assert fuse_content == content[:length]
 
         cypress.release(fuse_filepath, fi)
+
+    def test_create_file(self):
+        cypress = Cypress(
+            CachedYtClient(proxy = get_proxy_url(), config=yt.config.config))
+
+        filepath = TEST_DIR + "/file"
+
+        fi = fuse_file_info()
+        fuse_filepath = filepath[1:]
+        fh = cypress.create(fuse_filepath, 0755, fi)
+        cypress.release(fuse_filepath, fi)
+
+        assert yt.read_file(filepath).read() == ""
+
+    def test_unlink_file(self):
+        cypress = Cypress(
+            CachedYtClient(proxy = get_proxy_url(), config=yt.config.config))
+
+        filepath = TEST_DIR + "/file"
+
+        yt.create("file", filepath)
+        fuse_filepath = filepath[1:]
+        cypress.unlink(fuse_filepath)
+
+        assert "file" not in yt.list(TEST_DIR)
+
+    def test_truncate_file(self):
+        cypress = Cypress(
+            CachedYtClient(proxy = get_proxy_url(), config=yt.config.config))
+
+        filepath = TEST_DIR + "/file"
+        content = "Hello, world!" * 100
+        yt.write_file(filepath, content)
+
+        fi = fuse_file_info()
+        fuse_filepath = filepath[1:]
+
+        for truncated_length in [len(content), len(content) / 2, 0]:
+            cypress.open(fuse_filepath, fi)
+            cypress.truncate(fuse_filepath, truncated_length)
+            cypress.flush(fuse_filepath, fi)
+            cypress.release(fuse_filepath, fi)
+
+            assert yt.read_file(filepath).read() == content[:truncated_length]
+
+
+    def test_write_file(self):
+        cypress = Cypress(
+            CachedYtClient(proxy = get_proxy_url(), config=yt.config.config))
+
+        filepath = TEST_DIR + "/file"
+        content = "Hello, world!" * 100
+
+        fi = fuse_file_info()
+        fuse_filepath = filepath[1:]
+
+        fh = cypress.create(fuse_filepath, 0755, fi)
+        cypress.write(fuse_filepath, content, len(content), fi)
+        cypress.flush(fuse_filepath, fi)
+        cypress.release(fuse_filepath, fi)
+
+        assert yt.read_file(filepath).read() == content
+
+    def test_remove_directory(self):
+        cypress = Cypress(
+            CachedYtClient(proxy = get_proxy_url(), config=yt.config.config))
+
+        dirpath = TEST_DIR + "/dir"
+        yt.create("map_node", dirpath)
+
+        fuse_dirpath = dirpath[1:]
+        cypress.rmdir(fuse_dirpath)
+
+        assert "dir" not in yt.list(TEST_DIR)
