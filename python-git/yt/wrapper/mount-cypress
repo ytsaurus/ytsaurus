@@ -91,76 +91,61 @@ class CachedYtClient(yt.wrapper.client.Yt):
         max_age_seconds = kwargs.pop("max_age_seconds", 2)
         super(CachedYtClient, self).__init__(*args, **kwargs)
 
-        self._attribute_cache = expiringdict.ExpiringDict(
+        self._cache = expiringdict.ExpiringDict(
             max_len=max_len,
             max_age_seconds=max_age_seconds
         )
-        self._node_cache = expiringdict.ExpiringDict(
-            max_len=max_len,
-            max_age_seconds=max_age_seconds
-        )
+        # Keys are paths of nodes and node attributes. Each value is either
+        # (False, e), meaning that there is no such node/attribute, *e* being
+        # an exception which should be raised on access attempt, or
+        # (True, x), *x* being the list of children/the attribute value.
+
+    @staticmethod
+    def _error(attribute):
+        return yt.wrapper.YtError("No such attribute: " + attribute)
 
     @log_calls(_logger, "%(__name__)s(%(path)r)")
     def get_attributes(self, path, attributes=[]):
         """Get a subset of node's attributes."""
+        # Firstly, check whether we are sure the node doesn't exist at all.
+        flag, value = self._cache.get(path, (True, None))
+        if not flag:
+            self._logger.debug("\thit (non-existing)")
+            raise value
+
+        # Secondly, check whether all requested attributes are cached.
+        cache_slice = ((a, self._cache[path+"/@"+a]) for a in attributes)
         try:
-            flag, value = self._node_cache[path]
+            return {a: v for a, (f, v) in cache_slice if f}
         except KeyError:
             pass
-        else:
-            if not flag:
-                self._logger.debug("\thit, not exists")
-                raise value
 
-        node_attributes = {}
+        # Finally, fetch all node's attributes.
+        self._logger.debug("\tmiss")
+        try:
+            all_attributes = super(CachedYtClient, self).get(path + "/@")
+        except yt.wrapper.YtError as error:  # That could be connection error.
+            self._cache[path] = (False, error)
+            raise
+        self._cache.update(
+            (path+"/@"+a, (True, v)) for a, v in all_attributes.iteritems()
+        )
+
+        requested_attributes = {}
         for attribute in attributes:
             try:
-                flag, value = self._attribute_cache[(path, attribute)]
+                requested_attributes[attribute] = all_attributes[attribute]
             except KeyError:
-                break
-            if flag:
-                node_attributes[attribute] = value
-        else:
-            self._logger.debug("\thit, exists")
-            return node_attributes
-
-        try:
-            real_node_attributes = super(CachedYtClient, self).get(path + "/@")
-        except yt.wrapper.YtError as error:
-            self._node_cache[path] = (False, error)
-            self._logger.debug("\tmiss, not exists")
-            raise
-        self._logger.debug("\tmiss, exists")
-
-        self._attribute_cache.update(
-            ((path, attribute), (True, value))
-            for attribute, value in real_node_attributes.iteritems()
-        )
-        for attribute in attributes:
-            if attribute in real_node_attributes:
-                node_attributes[attribute] = real_node_attributes[attribute]
-            else:
-                self._attribute_cache[(path, attribute)] = (
-                    False,
-                    yt.wrapper.YtError("No such attribute: " + attribute)
+                self._cache[path+"/@"+attribute] = (
+                    False, self._error(attribute)
                 )
-
-        return node_attributes
-
-    @log_calls(_logger, "%(__name__)s(%(path)r, %(attribute)r)")
-    def get_attribute(self, path, attribute):
-        """Get a node's attribute."""
-        attributes = self.get_attributes(path, [attribute])
-        try:
-            return attributes[attribute]
-        except KeyError:
-            raise yt.wrapper.YtError("Node {} doesn't exist".format(path))
+        return requested_attributes
 
     @log_calls(_logger, "%(__name__)s(%(path)r)")
     def list(self, path, attributes=[]):
         """Get children of a node specified by a ypath."""
         try:
-            flag, value = self._node_cache[path]
+            flag, value = self._cache[path]
         except KeyError:
             pass
         else:
@@ -171,16 +156,15 @@ class CachedYtClient(yt.wrapper.client.Yt):
         children = super(CachedYtClient, self).list(
             path, attributes=attributes
         )
-        self._node_cache[path] = (True, children)
+        self._cache[path] = (True, children)
 
         for attribute in attributes:
-            for child_node in children:
-                child_path = path + "/" + child_node
+            for child in children:
                 try:
-                    cache_value = (True, child_node.attributes[attribute])
+                    cache_value = (True, child.attributes[attribute])
                 except KeyError:
-                    cache_value = (False, None)
-                self._attribute_cache[(child_path, attribute)] = cache_value
+                    cache_value = (False, self._error(attribute))
+                self._cache[path+"/"+child+"/@"+attribute] = cache_value
 
         return children
 
@@ -366,8 +350,12 @@ class Cypress(fuse.Operations):
     @log_calls(_logger, "%(__name__)s(%(path)r)")
     def open(self, path, fi):
         ypath = self._to_ypath(path)
+        attributes = self._client.get_attributes(
+            ypath,
+            self._system_attributes
+        )
 
-        type_ = self._client.get_attribute(ypath, "type")
+        type_ = attributes["type"]
         if type_ == "file":
             reader = FileReader(self._client, ypath, self._read_buffer_size)
         elif type_ == "table":
