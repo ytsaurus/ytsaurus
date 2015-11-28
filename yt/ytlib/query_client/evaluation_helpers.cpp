@@ -206,10 +206,7 @@ TJoinEvaluator GetJoinEvaluator(
         if (canUseSourceRanges) {
             LOG_DEBUG("Using join via source ranges");
             for (auto key : keys) {
-                TRow lowerBound = TRow::Allocate(rowBuffer->GetPool(), keyPrefix);
-                for (int column = 0; column < keyPrefix; ++column) {
-                    lowerBound[column] = key[column];
-                }
+                TRow lowerBound = key;
 
                 TRow upperBound = TRow::Allocate(rowBuffer->GetPool(), keyPrefix + 1);
                 for (int column = 0; column < keyPrefix; ++column) {
