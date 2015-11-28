@@ -192,6 +192,13 @@ class TableSlice:
         self.slices = []
 
 
+class Block:
+    def __init__(self):
+        self.offset = 0
+        self.length = 0
+        self.content = ""
+
+
 class Cypress(fuse.Operations):
     """An implementation of FUSE operations on a Cypress tree."""
 
@@ -207,9 +214,7 @@ class Cypress(fuse.Operations):
         "uncompressed_data_size"
     ]
 
-    _slice_row_count = 10000
-
-    def __init__(self, client):
+    def __init__(self, client, config = {}):
         super(fuse.Operations, self).__init__()
 
         self._client = client
@@ -217,7 +222,17 @@ class Cypress(fuse.Operations):
         self._next_fh = 0
         self._file_table = {}
 
-        self._slice_cache = {}
+        self._slice_cache = expiringdict.ExpiringDict(
+            max_len=100,
+            max_age_seconds=10 * 60,
+        )
+        self._block_cache = expiringdict.ExpiringDict(
+            max_len=100,
+            max_age_seconds=10 * 60,
+        )
+
+        self._read_buffer_size = config.get("read_buffer_size", 4 * 1024 * 1024)
+        self._slice_row_count = config.get("slice_row_count", 10000)
 
     @staticmethod
     def _to_ypath(path):
@@ -236,11 +251,11 @@ class Cypress(fuse.Operations):
         """Get st_mode for a node based on its attributes."""
         node_type = attributes["type"]
         if node_type == "file":
-            mask = stat.S_IFREG
-        elif node_type == "map_node":
-            mask = stat.S_IFDIR | stat.S_IXUSR
+            mask = stat.S_IFREG | stat.S_IRUSR | stat.S_IRGRP | stat.S_IROTH
         elif node_type == "table":
-            mask =  stat.S_IFREG
+            mask =  stat.S_IFREG | stat.S_IRUSR | stat.S_IRGRP | stat.S_IROTH
+        elif node_type == "map_node":
+            mask = stat.S_IFDIR | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH
         else:
             # Support links maybe?
             mask = stat.S_IFBLK
@@ -324,9 +339,27 @@ class Cypress(fuse.Operations):
         del self._file_table[fi.fh]
         return 0
 
-    def _read_file(self, ypath, length, offset, fi):
-        stream = self._client.read_file(ypath, length=length, offset=offset)
-        return stream.read()
+    def _read_file(self, ypath, length, offset, fh):
+        try:
+            block = self._block_cache[ypath]
+        except KeyError:
+            block = self._block_cache[ypath] = Block()
+
+        if offset < block.offset or offset + length > block.offset + block.length:
+            block.length = max(length, self._read_buffer_size)
+            if offset < block.offset:
+                block.offset = max(offset + length - block.length, 0)
+            else:
+                block.offset = offset
+            block.content = self._client.read_file(ypath, length=block.length, offset=block.offset).read()
+
+        assert block.offset <= offset
+        assert block.offset + block.length >= offset + length
+
+        offset -= block.offset
+        result = block.content[offset:offset + length]
+
+        return result
 
     def _read_table(self, ypath, length, offset, fi):
         if ypath not in self._slice_cache:
@@ -391,7 +424,7 @@ class Cypress(fuse.Operations):
 def mount_cypress(proxy, mountpoint):
     """Mount a Cypress."""
     cypress = Cypress(CachedYtClient(proxy=proxy))
-    fuse.FUSE(cypress, mountpoint, foreground=True, debug=False, raw_fi=True)
+    fuse.FUSE(cypress, mountpoint, foreground=True, raw_fi=True, nothreads=True)
     return 0
 
 
