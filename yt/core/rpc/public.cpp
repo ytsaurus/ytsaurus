@@ -16,6 +16,7 @@ bool IsRetriableError(const TError& error)
     auto code = error.GetCode();
     return code == NRpc::EErrorCode::TransportError ||
            code == NRpc::EErrorCode::Unavailable ||
+           code == NRpc::EErrorCode::Canceled ||
            code == NYT::EErrorCode::Timeout;
 }
 
