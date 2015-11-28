@@ -364,6 +364,11 @@ public:
         return TSharedRange<T>(begin, end, Holder_);
     }
 
+    THolderPtr GetHolder() const
+    {
+        return Holder_;
+    }
+
 protected:
     THolderPtr Holder_;
 

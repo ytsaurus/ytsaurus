@@ -340,10 +340,13 @@ private:
         return result;
     }
 
-    std::vector<std::pair<TDataSource, Stroka>> SplitTable(
+    typedef TIntrusivePtr<TIntrinsicRefCounted> THolderPtr;
+
+    std::vector<std::pair<TDataSource2, Stroka>> SplitTable(
         TGuid tableId,
         const TRowRanges& ranges,
         TRowBufferPtr rowBuffer,
+        THolderPtr parentHolder,
         const NLogging::TLogger& Logger,
         bool verboseLogging)
     {
@@ -358,20 +361,21 @@ private:
         }
 
         auto result = tableInfo->Dynamic
-            ? SplitDynamicTable(tableId, ranges, std::move(rowBuffer), std::move(tableInfo))
-            : SplitStaticTable(tableId, ranges, std::move(rowBuffer));
+            ? SplitDynamicTable(tableId, ranges, std::move(rowBuffer), std::move(parentHolder), std::move(tableInfo))
+            : SplitStaticTable(tableId, ranges, std::move(rowBuffer), std::move(parentHolder));
 
         LOG_DEBUG_IF(verboseLogging, "Got %v sources for input %v",
             result.size(),
-            objectId);
+            tableId);
 
         return result;
     }
 
-    std::vector<std::pair<TDataSource, Stroka>> SplitStaticTable(
+    std::vector<std::pair<TDataSource2, Stroka>> SplitStaticTable(
         TGuid tableId,
         const TRowRanges& ranges,
-        TRowBufferPtr rowBuffer)
+        TRowBufferPtr rowBuffer,
+        THolderPtr parentHolder)
     {
         std::vector<TReadRange> readRanges;
         for (const auto& range : ranges) {
@@ -430,7 +434,7 @@ private:
             }
         }
 
-        std::vector<std::pair<TDataSource, Stroka>> subsources;
+        std::vector<std::pair<TDataSource2, Stroka>> subsources;
         for (const auto& range : ranges) {
             auto lowerBound = range.first;
             auto upperBound = range.second;
@@ -460,15 +464,17 @@ private:
                 }
 
                 const TChunkReplica& selectedReplica = replicas[RandomNumber(replicas.size())];
-
-                TDataSource dataSource;
-                dataSource.Id = GetObjectIdFromDataSplit(chunkSpec);
-
-                dataSource.Range.first = rowBuffer->Capture(std::max(lowerBound, keyRange.first.Get()));
-                dataSource.Range.second = rowBuffer->Capture(std::min(upperBound, keyRange.second.Get()));
-
                 const auto& descriptor = nodeDirectory->GetDescriptor(selectedReplica);
                 const auto& address = descriptor.GetAddressOrThrow(networkName);
+
+                TRowRange subrange;
+                subrange.first = rowBuffer->Capture(std::max(lowerBound, keyRange.first.Get()));
+                subrange.second = rowBuffer->Capture(std::min(upperBound, keyRange.second.Get()));
+
+                TDataSource2 dataSource{
+                    GetObjectIdFromDataSplit(chunkSpec),
+                    MakeSharedRange(SmallVector<TRowRange, 1>{subrange}, rowBuffer, parentHolder)};
+
                 subsources.emplace_back(dataSource, address);
             }
         }
@@ -476,10 +482,11 @@ private:
         return subsources;
     }
 
-    std::vector<std::pair<TDataSource, Stroka>> SplitDynamicTable(
+    std::vector<std::pair<TDataSource2, Stroka>> SplitDynamicTable(
         TGuid tableId,
         const TRowRanges& ranges,
         TRowBufferPtr rowBuffer,
+        THolderPtr parentHolder,
         TTableMountInfoPtr tableInfo)
     {
         if (tableInfo->Tablets.empty()) {
@@ -511,7 +518,7 @@ private:
             return replicasIt.first->second;
         };
 
-        std::vector<std::pair<TDataSource, Stroka>> subsources;
+        std::vector<std::pair<TDataSource2, Stroka>> subsources;
         for (auto rangesIt = ranges.begin(); rangesIt != ranges.end();) {
             auto lowerBound = rangesIt->first;
             auto upperBound = rangesIt->second;
@@ -529,9 +536,6 @@ private:
             auto nextPivotKey = (startIt + 1 == tableInfo->Tablets.end()) ? MaxKey() : (*(startIt + 1))->PivotKey;
 
             if (upperBound < nextPivotKey) {
-                const auto& addresses = getAddresses(tabletInfo);
-                const auto& address = addresses[RandomNumber(addresses.size())];
-
                 auto rangesItEnd = std::upper_bound(
                     rangesIt,
                     ranges.end(),
@@ -540,14 +544,15 @@ private:
                         return key < rowRange.second;
                     });
 
-                for (; rangesIt != rangesItEnd; ++rangesIt) {
-                    TDataSource subsource;
-                    subsource.Id = tabletInfo->TabletId;
-                    subsource.Range.first = rangesIt->first;
-                    subsource.Range.second = rangesIt->second;
+                const auto& addresses = getAddresses(tabletInfo);
+                const auto& address = addresses[RandomNumber(addresses.size())];
 
-                    subsources.emplace_back(std::move(subsource), address);
-                }
+                TDataSource2 dataSource{
+                    tabletInfo->TabletId,
+                    MakeSharedRange(std::vector<TRowRange>(rangesIt, rangesItEnd), rowBuffer, parentHolder)};
+
+                subsources.emplace_back(dataSource, address);
+                rangesIt = rangesItEnd;
             } else {
                 for (auto it = startIt; it != tableInfo->Tablets.end(); ++it) {
                     const auto& tabletInfo = *it;
@@ -561,13 +566,15 @@ private:
 
                     bool isLast = upperBound <= nextPivotKey;
 
-                    TDataSource subsource;
-                    subsource.Id = tabletInfo->TabletId;
+                    TRowRange subrange;
+                    subrange.first = it == startIt ? lowerBound : rowBuffer->Capture(pivotKey.Get());
+                    subrange.second = isLast ? upperBound : rowBuffer->Capture(nextPivotKey.Get());
 
-                    subsource.Range.first = it == startIt ? lowerBound : rowBuffer->Capture(pivotKey.Get());
-                    subsource.Range.second = isLast ? upperBound : rowBuffer->Capture(nextPivotKey.Get());
+                    TDataSource2 dataSource{
+                        tabletInfo->TabletId,
+                        MakeSharedRange(SmallVector<TRowRange, 1>{subrange}, rowBuffer, parentHolder)};
 
-                    subsources.emplace_back(std::move(subsource), address);
+                    subsources.emplace_back(dataSource, address);
 
                     if (isLast) {
                         break;
@@ -580,12 +587,13 @@ private:
         return subsources;
     }
 
-    std::vector<std::pair<TDataSource, Stroka>> InferRanges(
+    std::vector<std::pair<TDataSource2, Stroka>> InferRanges(
         TConstQueryPtr query,
         TDataSource2 dataSource,
         ui64 rangeExpansionLimit,
         bool verboseLogging,
         TRowBufferPtr rowBuffer,
+        THolderPtr parentHolder,
         const NLogging::TLogger& Logger)
     {
         const auto& tableId = dataSource.Id;
@@ -603,7 +611,13 @@ private:
 
         LOG_DEBUG("Splitting %v pruned splits", prunedRanges.size());
 
-        return SplitTable(tableId, prunedRanges, rowBuffer, Logger, verboseLogging);
+        return SplitTable(
+            tableId,
+            prunedRanges,
+            std::move(rowBuffer),
+            std::move(parentHolder),
+            Logger,
+            verboseLogging);
     }
 
     TQueryStatistics DoCoordinateAndExecute(
@@ -668,22 +682,20 @@ private:
             options.RangeExpansionLimit,
             options.VerboseLogging,
             rowBuffer,
+            dataSource.Ranges.GetHolder(),
             Logger);
 
         LOG_DEBUG("Regrouping %v splits into groups",
             allSplits.size());
 
-        yhash_map<Stroka, TDataSources> groupsByAddress;
+        yhash_map<Stroka, std::vector<TDataSource2>> groupsByAddress;
         for (const auto& split : allSplits) {
             const auto& address = split.second;
             groupsByAddress[address].push_back(split.first);
         }
 
-        std::vector<std::pair<TDataSources, Stroka>> groupedSplits;
+        std::vector<std::pair<std::vector<TDataSource2>, Stroka>> groupedSplits;
         for (const auto& group : groupsByAddress) {
-            if (group.second.empty()) {
-                continue;
-            }
             groupedSplits.emplace_back(group.second, group.first);
         }
 
@@ -692,26 +704,7 @@ private:
             groupsByAddress.size());
 
         return DoCoordinateAndExecute(query, options, writer, groupedSplits.size(), false, [&] (int index) {
-            const auto& address = groupedSplits[index].second;
-
-            yhash_map<TGuid, TRowRanges> rangesByTablet;
-            std::vector<TDataSource2> dataSources2;
-
-            for (const auto& dataSource : groupedSplits[index].first) {
-                rangesByTablet[dataSource.Id].push_back(dataSource.Range);
-            }
-
-            for (const auto& tabletAndRanges : rangesByTablet) {
-                LOG_DEBUG_IF(options.VerboseLogging, "Delegating to tablet %v at %v",
-                    tabletAndRanges.first,
-                    address);
-
-                dataSources2.push_back(TDataSource2{
-                    tabletAndRanges.first,
-                    MakeSharedRange(tabletAndRanges.second, rowBuffer, dataSource.Ranges)});
-            }
-
-            return std::make_pair(dataSources2, address);
+            return groupedSplits[index];
         });
     }
 
@@ -730,6 +723,7 @@ private:
             options.RangeExpansionLimit,
             options.VerboseLogging,
             rowBuffer,
+            dataSource.Ranges.GetHolder(),
             Logger);
 
         // Should be already sorted
@@ -738,27 +732,18 @@ private:
         std::sort(
             allSplits.begin(),
             allSplits.end(),
-            [] (const std::pair<TDataSource, Stroka>& lhs, const std::pair<TDataSource, Stroka>& rhs) {
-                return lhs.first.Range.first < rhs.first.Range.first;
+            [] (const std::pair<TDataSource2, Stroka>& lhs, const std::pair<TDataSource2, Stroka>& rhs) {
+                return lhs.first.Ranges.Begin()->first < rhs.first.Ranges.Begin()->first;
             });
 
         return DoCoordinateAndExecute(query, options, writer, allSplits.size(), true, [&] (int index) {
             const auto& split = allSplits[index];
-            const auto& address = split.second;
+
             LOG_DEBUG("Delegating to tablet %v at %v",
                 split.first.Id,
-                address);
+                split.second);
 
-            SmallVector<TRowRange, 1> ranges;
-            ranges.push_back(split.first.Range);
-
-            std::vector<TDataSource2> dataSources2;
-
-            dataSources2.push_back(TDataSource2{
-                split.first.Id,
-                MakeSharedRange(std::move(ranges), rowBuffer, dataSource.Ranges)});
-
-            return std::make_pair(dataSources2, address);
+            return std::make_pair(std::vector<TDataSource2>(1, split.first), split.second);
         });
     }
 
