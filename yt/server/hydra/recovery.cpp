@@ -76,8 +76,20 @@ void TRecoveryBase::RecoverToVersion(TVersion targetVersion)
         currentVersion,
         targetVersion);
 
+    TVersion snapshotVersion;
+    ISnapshotReaderPtr snapshotReader;
+    if (snapshotId != InvalidSegmentId) {
+        snapshotReader = SnapshotStore_->CreateReader(snapshotId);
+
+        WaitFor(snapshotReader->Open())
+            .ThrowOnError();
+
+        auto meta = snapshotReader->GetParams().Meta;
+        snapshotVersion = TVersion(snapshotId - 1, meta.prev_record_count());
+    }
+
     int initialChangelogId;
-    if (snapshotId != InvalidSegmentId && snapshotId > currentVersion.SegmentId) {
+    if (snapshotVersion > currentVersion) {
         // Load the snapshot.
         LOG_INFO("Using snapshot %v for recovery", snapshotId);
 
@@ -85,16 +97,7 @@ void TRecoveryBase::RecoverToVersion(TVersion targetVersion)
             ResponseKeeper_->Stop();
         }
 
-        auto reader = SnapshotStore_->CreateReader(snapshotId);
-
-        WaitFor(reader->Open())
-            .ThrowOnError();
-
-        auto meta = reader->GetParams().Meta;
-        auto snapshotVersion = TVersion(snapshotId - 1, meta.prev_record_count());
-
-        DecoratedAutomaton_->LoadSnapshot(snapshotVersion, reader);
-
+        DecoratedAutomaton_->LoadSnapshot(snapshotVersion, snapshotReader);
         initialChangelogId = snapshotId;
     } else {
         // Recover using changelogs only.
