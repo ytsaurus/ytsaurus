@@ -260,7 +260,7 @@ protected:
         auto prunedRanges = GetPrunedRanges(
             query,
             MakeId(EObjectType::Table, 0x42, 0, 0xdeadbabe),
-            sources,
+            MakeSharedRange(std::move(sources), buffer),
             rowBuffer,
             ColumnEvaluatorCache_,
             CreateBuiltinFunctionRegistry(),
@@ -432,7 +432,6 @@ TFuture<TQueryStatistics> DoExecuteQuery(
         writer,
         executeCallback,
         functionRegistry,
-        columnEvaluatorCache,
         true));
 }
 

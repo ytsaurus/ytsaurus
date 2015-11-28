@@ -43,11 +43,10 @@ protected:
             CreateBuiltinFunctionRegistry(),
             ColumnEvaluatorCache_);
         auto rowBuffer = New<TRowBuffer>();
-        auto ranges = dataSource.Ranges.ToVector();
         auto prunedSplits = GetPrunedRanges(
             query,
             dataSource.Id,
-            ranges,
+            dataSource.Ranges,
             rowBuffer,
             ColumnEvaluatorCache_,
             CreateBuiltinFunctionRegistry(),
@@ -81,7 +80,7 @@ protected:
                 query->JoinClauses[0]->RenamedTableSchema,
                 query->JoinClauses[0]->ForeignKeyColumnsCount),
             query->JoinClauses[0]->ForeignDataId,
-            foreignSplits,
+            MakeSharedRange(foreignSplits),
             rowBuffer,
             ColumnEvaluatorCache_,
             CreateBuiltinFunctionRegistry(),
