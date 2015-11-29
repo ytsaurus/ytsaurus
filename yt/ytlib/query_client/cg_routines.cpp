@@ -202,8 +202,6 @@ void SaveJoinRow(
 void JoinOpHelper(
     TExecutionContext* context,
     int index,
-    THasherFunction* groupHasher,
-    TComparerFunction* groupComparer,
     THasherFunction* lookupHasher,
     TComparerFunction* lookupEqComparer,
     TComparerFunction* lookupLessComparer,
@@ -238,8 +236,8 @@ void JoinOpHelper(
     std::vector<TRow> joinedRows;
     context->JoinEvaluators[index](
         context,
-        groupHasher,
-        groupComparer,
+        lookupHasher,
+        lookupEqComparer,
         std::move(keys),
         std::move(allRows),
         context->PermanentBuffer,
@@ -247,7 +245,7 @@ void JoinOpHelper(
 
     LOG_DEBUG("Joined into %v rows",
         joinedRows.size());
-    
+
     // Consume joined rows.
     context->StopFlag = false;
     consumeRows(consumeRowsClosure, &joinedRows, &context->StopFlag);
