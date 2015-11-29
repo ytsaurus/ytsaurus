@@ -589,6 +589,8 @@ void TTablet::StartEpoch(TTabletSlotPtr slot)
             : GetSyncInvoker());
     }
 
+    LastPartitioningTime_ = TInstant::Now();
+
     Eden_->StartEpoch();
     for (const auto& partition : PartitionList_) {
         partition->StartEpoch();
