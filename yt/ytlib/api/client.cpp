@@ -829,6 +829,10 @@ public:
         ETransactionType type,
         const TTransactionStartOptions& options) override;
 
+    virtual ITransactionPtr AttachTransaction(
+        const TTransactionId& transactionId,
+        const TTransactionAttachOptions& options) override;
+
 #define DROP_BRACES(...) __VA_ARGS__
 #define IMPLEMENT_METHOD(returnType, method, signature, args) \
     virtual TFuture<returnType> method signature override \
@@ -2877,6 +2881,14 @@ TFuture<ITransactionPtr> TClient::StartTransaction(
         BIND([=, this_ = MakeStrong(this)] (NTransactionClient::TTransactionPtr transaction) -> ITransactionPtr {
             return New<TTransaction>(this_, transaction);
         }));
+}
+
+ITransactionPtr TClient::AttachTransaction(
+    const TTransactionId& transactionId,
+    const TTransactionAttachOptions& options)
+{
+    auto transaction = TransactionManager_->Attach(transactionId, options);
+    return New<TTransaction>(this, transaction);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
