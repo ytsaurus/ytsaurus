@@ -11,7 +11,7 @@ Arguments:
   <mountpoint>  Mountpoint directory like "/mnt/aristotle".
 
 Options:
-  -h, --help    Show this help. 
+  -h, --help    Show this help.
 
 """
 import stat
@@ -52,7 +52,7 @@ def log_calls(logger, message_format):
         @functools.wraps(function)
         def logged_function(*args, **kwargs):
             log_call(*args, **kwargs)
-            return function(*args, **kwargs) 
+            return function(*args, **kwargs)
 
         return logged_function
 
@@ -113,7 +113,7 @@ class CachedYtClient(yt.wrapper.client.Yt):
             raise value
 
         # Secondly, check whether all requested attributes are cached.
-        cache_slice = ((a, self._cache[path+"/@"+a]) for a in attributes)
+        cache_slice = ((a, self._cache[path + "/@" + a]) for a in attributes)
         try:
             return {a: v for a, (f, v) in cache_slice if f}
         except KeyError:
@@ -127,7 +127,7 @@ class CachedYtClient(yt.wrapper.client.Yt):
             self._cache[path] = (False, error)
             raise
         self._cache.update(
-            (path+"/@"+a, (True, v)) for a, v in all_attributes.iteritems()
+            (path + "/@" + a, (True, v)) for a, v in all_attributes.iteritems()
         )
 
         requested_attributes = {}
@@ -135,7 +135,7 @@ class CachedYtClient(yt.wrapper.client.Yt):
             try:
                 requested_attributes[attribute] = all_attributes[attribute]
             except KeyError:
-                self._cache[path+"/@"+attribute] = (
+                self._cache[path + "/@" + attribute] = (
                     False, self._error(attribute)
                 )
         return requested_attributes
@@ -160,10 +160,11 @@ class CachedYtClient(yt.wrapper.client.Yt):
         for attribute in attributes:
             for child in children:
                 try:
-                    cache_value = (True, child.attributes[attribute])
+                    child_value = (True, child.attributes[attribute])
                 except KeyError:
-                    cache_value = (False, self._error(attribute))
-                self._cache[path+"/"+child+"/@"+attribute] = cache_value
+                    child_value = (False, self._error(attribute))
+                child_path = path + "/" + child + "/@" + attribute
+                self._cache[child_path] = child_value
 
         return children
 
@@ -234,11 +235,19 @@ class OpenedTable(object):
         self._lower_row = self._upper_row = 0
         self._buffer = []
 
+    @staticmethod
+    def _slice_ypath(ypath, lower, upper):
+        return "{}[#{}:#{}]".format(ypath, lower, upper)
+
     def read(self, length, offset):
         while self._upper_offset < offset + length:
             next_upper_row = self._upper_row + self._buffer_rows
-            slice_ypath = self.ypath + "[#{}:#{}]".format(self._upper_row, next_upper_row)
-            slice_content = "".join(self._client.read_table(slice_ypath, format=self._format))
+            slice_ypath = self._slice_ypath(
+                self.ypath, self._upper_row, next_upper_row
+            )
+            slice_content = "".join(
+                self._client.read_table(slice_ypath, format=self._format)
+            )
             if len(slice_content) == 0:
                 break
             self._upper_offset += len(slice_content)
@@ -247,13 +256,16 @@ class OpenedTable(object):
 
         while self._lower_offset > offset:
             next_lower_row = self._lower_row - self._buffer_rows
-            slice_ypath = ypath + "[#{}:#{}]".format(next_lower_row, self._lower_row)
-            slice_content = "".join(self._client.read_table(slice_ypath, format=self._format))
+            slice_ypath = self._slice_ypath(
+                self.ypath, next_lower_row, self._lower_row
+            )
+            slice_content = "".join(
+                self._client.read_table(slice_ypath, format=self._format)
+            )
             self._lower_offset -= len(slice_content)
             self._lower_row -= self._buffer_rows
             self._buffer = [slice_content] + self._buffer
 
-        self._logger.debug("\tlower %s, upper %s", self._lower_row, self._upper_row)
         slices_offset = offset - self._lower_offset
         return "".join(self._buffer)[slices_offset:(slices_offset + length)]
 
@@ -275,7 +287,7 @@ class Cypress(fuse.Operations):
 
     def __init__(
             self, client,
-            buffer_bytes=(4 * 1024**2),
+            buffer_bytes=(4 * 1024 ** 2),
             format="json", buffer_rows=10000
     ):
         super(fuse.Operations, self).__init__()
@@ -307,7 +319,7 @@ class Cypress(fuse.Operations):
         if node_type == "file":
             mask = stat.S_IFREG | stat.S_IRUSR | stat.S_IRGRP | stat.S_IROTH
         elif node_type == "table":
-            mask =  stat.S_IFREG | stat.S_IRUSR | stat.S_IRGRP | stat.S_IROTH
+            mask = stat.S_IFREG | stat.S_IRUSR | stat.S_IRGRP | stat.S_IROTH
         elif node_type == "map_node":
             mask = stat.S_IFDIR | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH
         else:
@@ -443,7 +455,10 @@ class Cypress(fuse.Operations):
 def mount_cypress(proxy, mountpoint):
     """Mount a Cypress."""
     cypress = Cypress(CachedYtClient(proxy=proxy))
-    fuse.FUSE(cypress, mountpoint, foreground=True, raw_fi=True, nothreads=True)
+    fuse.FUSE(
+        cypress, mountpoint,
+        raw_fi=True, nothreads=True, foreground=True
+    )
     return 0
 
 
