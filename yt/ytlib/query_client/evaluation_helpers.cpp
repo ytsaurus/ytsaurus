@@ -270,7 +270,7 @@ TJoinEvaluator GetJoinEvaluator(
         const auto& foreignRows = rowset->GetRows();
 
         LOG_DEBUG("Got %v foreign rows", foreignRows.size());
-
+/*
         TJoinLookupRows foreignLookup(
             InitialGroupOpHashtableCapacity,
             groupHasher,
@@ -279,7 +279,7 @@ TJoinEvaluator GetJoinEvaluator(
         for (auto row : foreignRows) {
             foreignLookup.insert(row);
         }
-
+*/
         // Join rowsets.
         TRowBuilder rowBuilder;
         // allRows have format (join key... , other columns...)
@@ -295,16 +295,20 @@ TJoinEvaluator GetJoinEvaluator(
         };
 
         LOG_DEBUG("Joining started");
-
+/*
         for (auto key : joinLookup) {
             auto equalRange = foreignLookup.equal_range(key.first);
-            int chainedRowIndex = key.second;
-            while (chainedRowIndex >= 0) {
+            for (
+                int chainedRowIndex = key.second;
+                chainedRowIndex >= 0;
+                chainedRowIndex = chainedRows[chainedRowIndex].second)
+            {
 
                 auto row = chainedRows[chainedRowIndex].first;
                 for (auto it = equalRange.first; it != equalRange.second; ++it) {
-                    rowBuilder.Reset();
                     auto foreignRow = *it;
+
+                    rowBuilder.Reset();
                     for (auto columnIndex : columnMapping) {
                         rowBuilder.AddValue(columnIndex.first
                             ? row[columnIndex.second]
@@ -328,7 +332,28 @@ TJoinEvaluator GetJoinEvaluator(
                         return;
                     }
                 }
-                chainedRowIndex = chainedRows[chainedRowIndex].second;
+                ;
+            }
+        }
+*/
+        for (auto foreignRow : foreignRows) {
+            auto it = joinLookup.find(foreignRow);
+            for (
+                int chainedRowIndex = it->second;
+                chainedRowIndex >= 0;
+                chainedRowIndex = chainedRows[chainedRowIndex].second)
+            {
+                auto row = chainedRows[chainedRowIndex].first;
+                rowBuilder.Reset();
+                for (auto columnIndex : columnMapping) {
+                    rowBuilder.AddValue(columnIndex.first
+                        ? row[columnIndex.second]
+                        : foreignRow[columnIndex.second]);
+                }
+
+                if (addRow(rowBuilder.GetRow())) {
+                    return;
+                }
             }
         }
 
