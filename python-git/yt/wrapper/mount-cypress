@@ -83,8 +83,8 @@ class CachedYtClient(yt.wrapper.client.Yt):
         max_len:
           Maximum number of cached nodes; the default is 16384.
         max_age_seconds:
-            After this period the node is removed from cache;
-            the default value is 2 seconds.
+          After this period the node is removed from cache;
+          the default value is 2 seconds.
         The rest of the arguments are passed to the parent constructor.
         """
         max_len = kwargs.pop("max_len", 16384)
@@ -110,7 +110,6 @@ class CachedYtClient(yt.wrapper.client.Yt):
         # Firstly, check whether we are sure the node doesn't exist at all.
         flag, value = self._cache.get(path, (True, None))
         if not flag:
-            self._logger.debug("\thit (non-existing)")
             raise value
 
         # Secondly, check whether all requested attributes are cached.
@@ -169,14 +168,22 @@ class CachedYtClient(yt.wrapper.client.Yt):
         return children
 
 
-class FileReader(object):
-    _logger = logging.getLogger(__name__ + ".FileReader")
+class OpenedFile(object):
+    """Stores information and cache for currently opened regular file."""
+
+    _logger = logging.getLogger(__name__ + ".OpenedFile")
     _logger.setLevel(level=logging.DEBUG)
 
-    def __init__(self, client, ypath, buffer_size=(4 * 1024**2)):
+    def __init__(self, client, ypath, attributes, buffer_bytes):
+        """Set up cache.
+
+        buffer_bytes:
+          The minimal number of bytes to read from the cluster at once.
+        """
         self._client = client
-        self._ypath = ypath
-        self._buffer_size = buffer_size
+        self.ypath = ypath
+        self.attributes = attributes
+        self._buffer_bytes = buffer_bytes
 
         self._length = 0
         self._offset = 0
@@ -188,17 +195,15 @@ class FileReader(object):
                 or offset + length > self._offset + self._length
         ):
             self._logger.debug("\tmiss")
-            self._length = max(length, self._buffer_size)
+            self._length = max(length, self._buffer_bytes)
             if offset < self._offset:
                 self._offset = max(offset + length - self._length, 0)
             else:
                 self._offset = offset
             self._buffer = self._client.read_file(
-                self._ypath,
+                self.ypath,
                 length=self._length, offset=self._offset
             ).read()
-        else:
-            self._logger.debug("\thit")
 
         assert self._offset <= offset
         assert self._offset + self._length >= offset + length
@@ -207,37 +212,50 @@ class FileReader(object):
         return self._buffer[buffer_offset:(buffer_offset + length)]
 
 
-class TableReader(object):
-    def __init__(self, client, ypath, row_count):
+class OpenedTable(object):
+    """Stores information and cache for currently opened table."""
+
+    _logger = logging.getLogger(__name__ + ".OpenedTable")
+    _logger.setLevel(level=logging.DEBUG)
+
+    def __init__(self, client, ypath, attributes, format, buffer_rows):
+        """Set up cache.
+
+        buffer_rows:
+          The minimal number of rows to read from the cluster at once.
+        """
         self._client = client
-        self._ypath = ypath
-        self._row_count = row_count
+        self.ypath = ypath
+        self.attributes = attributes
+        self._format = format
+        self._buffer_rows = buffer_rows
 
         self._lower_offset = self._upper_offset = 0
         self._lower_row = self._upper_row = 0
-        self._slices = []
+        self._buffer = []
 
     def read(self, length, offset):
         while self._upper_offset < offset + length:
-            next_upper_row = self._upper_row + self._row_count
-            slice_ypath = self._ypath + "[#{}:#{}]".format(self._upper_row, next_upper_row)
-            slice_content = "".join(self._client.read_table(slice_ypath, format="json"))
+            next_upper_row = self._upper_row + self._buffer_rows
+            slice_ypath = self.ypath + "[#{}:#{}]".format(self._upper_row, next_upper_row)
+            slice_content = "".join(self._client.read_table(slice_ypath, format=self._format))
             if len(slice_content) == 0:
                 break
             self._upper_offset += len(slice_content)
-            self._upper_row += self._row_count
-            self._slices += [slice_content]
+            self._upper_row += self._buffer_rows
+            self._buffer += [slice_content]
 
         while self._lower_offset > offset:
-            next_lower_row = self._lower_row - self._row_count
+            next_lower_row = self._lower_row - self._buffer_rows
             slice_ypath = ypath + "[#{}:#{}]".format(next_lower_row, self._lower_row)
-            slice_content = "".join(self._client.read_table(slice_ypath, format="json"))
+            slice_content = "".join(self._client.read_table(slice_ypath, format=self._format))
             self._lower_offset -= len(slice_content)
-            self._lower_row -= self._row_count
-            self._slices = [slice_content] + self._slices
+            self._lower_row -= self._buffer_rows
+            self._buffer = [slice_content] + self._buffer
 
+        self._logger.debug("\tlower %s, upper %s", self._lower_row, self._upper_row)
         slices_offset = offset - self._lower_offset
-        return "".join(self._slices)[slices_offset:(slices_offset + length)]
+        return "".join(self._buffer)[slices_offset:(slices_offset + length)]
 
 
 class Cypress(fuse.Operations):
@@ -255,16 +273,20 @@ class Cypress(fuse.Operations):
         "uncompressed_data_size"
     ]
 
-    def __init__(self, client, config={}):
+    def __init__(
+            self, client,
+            buffer_bytes=(4 * 1024**2),
+            format="json", buffer_rows=10000
+    ):
         super(fuse.Operations, self).__init__()
 
         self._client = client
+        self._buffer_bytes = buffer_bytes
+        self._format = format
+        self._buffer_rows = buffer_rows
 
         self._next_fh = 0
-        self._readers = {}
-
-        self._read_buffer_size = config.get("read_buffer_size", 4 * 1024**2)
-        self._slice_row_count = config.get("slice_row_count", 10000)
+        self._opened_files = {}
 
     @staticmethod
     def _to_ypath(path):
@@ -357,23 +379,30 @@ class Cypress(fuse.Operations):
 
         type_ = attributes["type"]
         if type_ == "file":
-            reader = FileReader(self._client, ypath, self._read_buffer_size)
+            opened_file = OpenedFile(
+                self._client, ypath, attributes,
+                self._buffer_bytes
+            )
         elif type_ == "table":
             # Without this flag FUSE treats the file with st_size=0 as empty.
             fi.direct_io = True
-            reader = TableReader(self._client, ypath, self._slice_row_count)
+            opened_file = OpenedTable(
+                self._client, ypath, attributes,
+                self._format, self._buffer_rows
+            )
         else:
             raise fuse.FuseOSError(errno.EINVAL)
 
         # Non-atomic :(
         fi.fh = self._next_fh
         self._next_fh += 1
-        self._readers[fi.fh] = reader
+
+        self._opened_files[fi.fh] = opened_file
         return 0
 
     @log_calls(_logger, "%(__name__)s()")
     def release(self, _, fi):
-        del self._readers[fi.fh]
+        del self._opened_files[fi.fh]
         return 0
 
     @handle_yt_errors
@@ -382,8 +411,8 @@ class Cypress(fuse.Operations):
         "%(__name__)s(offset=%(offset)r, length=%(length)r)"
     )
     def read(self, _, length, offset, fi):
-        reader = self._readers[fi.fh]
-        return reader.read(length, offset)
+        opened_file = self._opened_files[fi.fh]
+        return opened_file.read(length, offset)
 
     # NB: implementing readdir could greatly improve unix find speed, no?
 
