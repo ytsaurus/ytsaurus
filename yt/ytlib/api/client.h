@@ -168,6 +168,14 @@ struct TTransactionStartOptions
     NTransactionClient::EDurability Durability = NTransactionClient::EDurability::Sync;
 };
 
+struct TTransactionAttachOptions
+{
+    bool AutoAbort = false;
+    TNullable<TDuration> PingPeriod;
+    bool Ping = true;
+    bool PingAncestors = false;
+};
+
 struct TTransactionCommitOptions
     : public TMutatingOptions
     , public TPrerequisiteOptions
@@ -555,6 +563,12 @@ struct IClient
     //! Aborts all pending uncommitted transactions.
     //! Returns a async flag indicating completion.
     virtual TFuture<void> Terminate() = 0;
+
+
+    // Transactions
+    virtual ITransactionPtr AttachTransaction(
+        const NTransactionClient::TTransactionId& transactionId,
+        const TTransactionAttachOptions& options = TTransactionAttachOptions()) = 0;
 
 
     // Tables

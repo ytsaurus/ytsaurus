@@ -18,15 +18,8 @@ namespace NTransactionClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TTransactionAttachOptions
-{
-    bool AutoAbort = false;
-    TNullable<TDuration> PingPeriod;
-    bool Ping = true;
-    bool PingAncestors = false;
-};
-
 using TTransactionStartOptions = NApi::TTransactionStartOptions;
+using TTransactionAttachOptions = NApi::TTransactionAttachOptions;
 using TTransactionCommitOptions = NApi::TTransactionCommitOptions;
 using TTransactionAbortOptions = NApi::TTransactionAbortOptions;
 
