@@ -1636,8 +1636,6 @@ private:
 
     void StartTabletEpoch(TTablet* tablet)
     {
-        tablet->SetLastPartitioningTime(TInstant::Now());
-
         const auto& storeManager = tablet->GetStoreManager();
         storeManager->StartEpoch(Slot_);
 
@@ -1647,12 +1645,6 @@ private:
 
     void StopTabletEpoch(TTablet* tablet)
     {
-        // TODO(babenko): consider moving
-        tablet->GetEden()->SetState(EPartitionState::Normal);
-        for (const auto& partition : tablet->Partitions()) {
-            partition->SetState(EPartitionState::Normal);
-        }
-
         const auto& storeManager = tablet->GetStoreManager();
         storeManager->StopEpoch();
 

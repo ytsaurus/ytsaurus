@@ -150,7 +150,9 @@ void TPartition::StartEpoch()
 }
 
 void TPartition::StopEpoch()
-{  }
+{
+    State_ = EPartitionState::Normal;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
