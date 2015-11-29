@@ -112,6 +112,11 @@ public:
         RequestHeaders.resize(RequestCount);
         UserName = Context->GetUser();
 
+        if (Context->Request().suppress_upstream_sync()) {
+            Continue();
+            return;
+        }
+
         auto hydraManager = Owner->Bootstrap_->GetHydraFacade()->GetHydraManager();
         auto sync = hydraManager->SyncWithUpstream();
         if (sync.IsSet()) {
