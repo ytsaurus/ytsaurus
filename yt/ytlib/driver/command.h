@@ -135,7 +135,7 @@ class TReadOnlyCommandBase
 template <class TOptions>
 class TReadOnlyCommandBase <
     TOptions,
-    typename NMpl::TEnableIf<NMpl::TIsConvertible<TOptions&, NApi::TReadOnlyOptions&>>::TType
+    typename NMpl::TEnableIf<NMpl::TIsConvertible<TOptions&, NApi::TReadOptions&>>::TType
 >
     : public virtual TTypedCommandBase<TOptions>
 {
