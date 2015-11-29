@@ -57,13 +57,16 @@ public:
         //! Overrides base method for fluent use.
         TReqExecuteBatchPtr SetTimeout(TNullable<TDuration> timeout);
 
+        //! Sets the upstream sync suppression option.
+        TReqExecuteBatchPtr SetSuppressUpstreamSync(bool value);
+
         //! Adds an individual request into the batch.
         /*!
          *  Each individual request may be marked with a key.
          *  These keys can be used to retrieve the corresponding responses
          *  (thus avoiding complicated and error-prone index calculations).
          *
-         *  The client is allowed to issue an empty (|NULL|) request. This request is treated
+         *  The client is allowed to issue an empty (|nullptr|) request. This request is treated
          *  like any other and it sent to the server. The server typically sends an empty (|NULL|)
          *  response back. This feature is useful for adding dummy requests to keep
          *  the request list aligned with some other data structure.
@@ -85,6 +88,9 @@ public:
 
         std::vector<TSharedRefArray> InnerRequestMessages;
         TKeyToIndexMultimap KeyToIndexes;
+
+        bool SuppressUpstreamSync = false;
+
 
         virtual TSharedRef SerializeBody() override;
 
