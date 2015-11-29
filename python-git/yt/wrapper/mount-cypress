@@ -351,10 +351,15 @@ class Cypress(fuse.Operations):
     @log_calls(_logger, "%(__name__)s(%(path)r)")
     def getattr(self, path, fi):
         ypath = self._to_ypath(path)
-        attributes = self._client.get_attributes(
-            ypath,
-            self._system_attributes
-        )
+        for opened_file in self._opened_files.itervalues():
+            if opened_file.ypath == ypath:
+                attributes = opened_file.attributes
+                break
+        else:
+            attributes = self._client.get_attributes(
+                ypath,
+                self._system_attributes
+            )
         return self._get_stat(attributes)
 
     @handle_yt_errors
