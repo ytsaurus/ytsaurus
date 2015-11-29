@@ -648,18 +648,15 @@ protected:
                 TGuid foreignDataId,
                 TRowBufferPtr buffer,
                 TRowRanges ranges,
-                ISchemafulWriterPtr writer) mutable -> TQueryStatistics
+                ISchemafulWriterPtr writer) mutable -> TFuture<TQueryStatistics>
             {
-                auto subqueryResult = DoExecuteQuery(
+                return DoExecuteQuery(
                     owningSources[foreignSplitIndex++],
                     functionRegistry,
                     columnEvaluatorCache,
                     failureLocation,
                     subquery,
                     writer);
-
-                return WaitFor(subqueryResult)
-                    .ValueOrThrow();
             };
 
             return DoExecuteQuery(

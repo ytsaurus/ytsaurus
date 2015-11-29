@@ -12,7 +12,7 @@ namespace NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-typedef std::function<TQueryStatistics(
+typedef std::function<TFuture<TQueryStatistics>(
     const TQueryPtr& query,
     TGuid dataId,
     TRowBufferPtr buffer,
