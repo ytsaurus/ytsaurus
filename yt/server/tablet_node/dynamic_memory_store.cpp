@@ -644,6 +644,18 @@ int TDynamicMemoryStore::Unlock()
     return result;
 }
 
+void TDynamicMemoryStore::SetRowBlockedHandler(TRowBlockedHandler handler)
+{
+    TWriterGuard guard(RowBlockedLock_);
+    RowBlockedHandler_ = std::move(handler);
+}
+
+void TDynamicMemoryStore::ResetRowBlockedHandler()
+{
+    TWriterGuard guard(RowBlockedLock_);
+    RowBlockedHandler_.Reset();
+}
+
 void TDynamicMemoryStore::WaitOnBlockedRow(
     TDynamicRow row,
     ui32 lockMask,
@@ -659,17 +671,27 @@ void TDynamicMemoryStore::WaitOnBlockedRow(
 
     while (true) {
         int lockIndex = GetBlockingLockIndex(row, lockMask, timestamp);
-        if (lockIndex < 0)
+        if (lockIndex < 0) {
             break;
+        }
 
-        RowBlocked_.Fire(row, lockIndex);
-
-        if (NProfiling::GetCpuInstant() > deadline) {
-            THROW_ERROR_EXCEPTION("Timed out waiting on blocked row")
+        auto throwError = [&] (const Stroka& message) {
+            THROW_ERROR_EXCEPTION(message)
                 << TErrorAttribute("lock", LockIndexToName_[lockIndex])
                 << TErrorAttribute("tablet_id", TabletId_)
                 << TErrorAttribute("key", RowToKey(row))
                 << TErrorAttribute("timeout", Config_->MaxBlockedRowWaitTime);
+        };
+
+        auto handler = GetRowBlockedHandler();
+        if (!handler) {
+            throwError("Row is blocked");
+        }
+
+        handler.Run(row, lockIndex);
+
+        if (NProfiling::GetCpuInstant() > deadline) {
+            throwError("Timed out waiting on blocked row");
         }
     }
 }
@@ -1090,6 +1112,12 @@ TDynamicRow TDynamicMemoryStore::AllocateRow()
         KeyColumnCount_,
         ColumnLockCount_,
         SchemaColumnCount_);
+}
+
+TDynamicMemoryStore::TRowBlockedHandler TDynamicMemoryStore::GetRowBlockedHandler()
+{
+    TReaderGuard guard(RowBlockedLock_);
+    return RowBlockedHandler_;
 }
 
 int TDynamicMemoryStore::GetBlockingLockIndex(
