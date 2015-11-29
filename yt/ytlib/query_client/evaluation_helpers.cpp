@@ -324,9 +324,6 @@ TJoinEvaluator GetJoinEvaluator(
             bool hasMoreData = reader->Read(&foreignRows);
             bool shouldWait = foreignRows.empty();
 
-            LOG_DEBUG("Got %v foreign rows", foreignRows.size());
-
-
             for (auto foreignRow : foreignRows) {
                 auto it = joinLookup.find(foreignRow);
 
@@ -360,8 +357,10 @@ TJoinEvaluator GetJoinEvaluator(
             }
 
             if (shouldWait) {
+                LOG_DEBUG("Started waiting for more foreign rows");
                 WaitFor(reader->GetReadyEvent())
                     .ThrowOnError();
+                LOG_DEBUG("Finished waiting for more foreign rows");
             }
         }
 
