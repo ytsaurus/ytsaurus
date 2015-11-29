@@ -71,6 +71,13 @@ TObjectServiceProxy::TReqExecuteBatchPtr TObjectServiceProxy::TReqExecuteBatch::
     return this;
 }
 
+TObjectServiceProxy::TReqExecuteBatchPtr TObjectServiceProxy::TReqExecuteBatch::SetSuppressUpstreamSync(
+    bool value)
+{
+    SuppressUpstreamSync = value;
+    return this;
+}
+
 int TObjectServiceProxy::TReqExecuteBatch::GetSize() const
 {
     return static_cast<int>(InnerRequestMessages.size());
@@ -93,6 +100,7 @@ TSharedRef TObjectServiceProxy::TReqExecuteBatch::SerializeBody()
     }
 
     NProto::TReqExecute req;
+    req.set_suppress_upstream_sync(SuppressUpstreamSync);
     for (const auto& innerRequestMessage : InnerRequestMessages) {
         if (innerRequestMessage) {
             req.add_part_counts(innerRequestMessage.Size());
