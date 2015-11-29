@@ -219,39 +219,6 @@ public:
     }
 
 
-    TChunkStorePtr CreateChunkStore(
-        const TStoreId& storeId,
-        TTablet* tablet,
-        const TChunkMeta* chunkMeta)
-    {
-        auto store = New<TChunkStore>(
-            storeId,
-            tablet,
-            chunkMeta,
-            Bootstrap_);
-        store->SetInMemoryMode(tablet->GetConfig()->InMemoryMode);
-        StartMemoryUsageTracking(store);
-        return store;
-    }
-
-    TDynamicMemoryStorePtr CreateDynamicMemoryStore(
-        const TStoreId& storeId,
-        TTablet* tablet)
-    {
-        auto store = New<TDynamicMemoryStore>(
-            Config_,
-            storeId,
-            tablet);
-        store->SubscribeRowBlocked(BIND(
-            &TImpl::OnRowBlocked,
-            MakeWeak(this),
-            Unretained(store.Get()),
-            tablet->GetTabletId(),
-            Slot_->GetGuardedAutomatonInvoker(EAutomatonThreadQueue::Read)));
-        StartMemoryUsageTracking(store);
-        return store;
-    }
-
     IStorePtr CreateStore(TTablet* tablet, const TStoreId& storeId)
     {
         switch (TypeFromId(storeId)) {
@@ -267,51 +234,6 @@ public:
         }
     }
 
-
-    void OnRowBlocked(
-        IStore* store,
-        const TTabletId& tabletId,
-        IInvokerPtr invoker,
-        TDynamicRow row,
-        int lockIndex)
-    {
-        WaitFor(
-            BIND(
-                &TImpl::WaitOnBlockedRow,
-                MakeStrong(this),
-                MakeStrong(store),
-                tabletId,
-                row,
-                lockIndex)
-            .AsyncVia(invoker)
-            .Run());
-    }
-
-    void WaitOnBlockedRow(
-        IStorePtr /*store*/,
-        const TTabletId& tabletId,
-        TDynamicRow row,
-        int lockIndex)
-    {
-        auto* tablet = FindTablet(tabletId);
-        if (!tablet) {
-            return;
-        }
-
-        const auto& lock = row.BeginLocks(tablet->GetKeyColumnCount())[lockIndex];
-        const auto* transaction = lock.Transaction;
-        if (!transaction) {
-            return;
-        }
-
-        LOG_DEBUG("Waiting on blocked row (Key: %v, LockIndex: %v, TabletId: %v, TransactionId: %v)",
-            RowToKey(tablet->Schema(), tablet->KeyColumns(), row),
-            lockIndex,
-            tabletId,
-            transaction->GetId());
-
-        WaitFor(transaction->GetFinished().WithTimeout(BlockedRowWaitQuantum));
-    }
 
     void ScheduleStoreRotation(TTablet* tablet)
     {
@@ -1891,6 +1813,86 @@ private:
         auto adjustedTimestamp = std::max(timestamp, LastCommittedTimestamp_ + 1);
         UpdateLastCommittedTimestamp(adjustedTimestamp);
         return adjustedTimestamp;
+    }
+
+
+    void OnRowBlocked(
+        IStore* store,
+        const TTabletId& tabletId,
+        IInvokerPtr invoker,
+        TDynamicRow row,
+        int lockIndex)
+    {
+        WaitFor(
+            BIND(
+                &TImpl::WaitOnBlockedRow,
+                MakeStrong(this),
+                MakeStrong(store),
+                tabletId,
+                row,
+                lockIndex)
+                .AsyncVia(invoker)
+                .Run());
+    }
+
+    void WaitOnBlockedRow(
+        IStorePtr /*store*/,
+        const TTabletId& tabletId,
+        TDynamicRow row,
+        int lockIndex)
+    {
+        auto* tablet = FindTablet(tabletId);
+        if (!tablet) {
+            return;
+        }
+
+        const auto& lock = row.BeginLocks(tablet->GetKeyColumnCount())[lockIndex];
+        const auto* transaction = lock.Transaction;
+        if (!transaction) {
+            return;
+        }
+
+        LOG_DEBUG("Waiting on blocked row (Key: %v, LockIndex: %v, TabletId: %v, TransactionId: %v)",
+            RowToKey(tablet->Schema(), tablet->KeyColumns(), row),
+            lockIndex,
+            tabletId,
+            transaction->GetId());
+
+        WaitFor(transaction->GetFinished().WithTimeout(BlockedRowWaitQuantum));
+    }
+
+
+    TChunkStorePtr CreateChunkStore(
+        const TStoreId& storeId,
+        TTablet* tablet,
+        const TChunkMeta* chunkMeta)
+    {
+        auto store = New<TChunkStore>(
+            storeId,
+            tablet,
+            chunkMeta,
+            Bootstrap_);
+        store->SetInMemoryMode(tablet->GetConfig()->InMemoryMode);
+        StartMemoryUsageTracking(store);
+        return store;
+    }
+
+    TDynamicMemoryStorePtr CreateDynamicMemoryStore(
+        const TStoreId& storeId,
+        TTablet* tablet)
+    {
+        auto store = New<TDynamicMemoryStore>(
+            Config_,
+            storeId,
+            tablet);
+        store->SubscribeRowBlocked(BIND(
+            &TImpl::OnRowBlocked,
+            MakeWeak(this),
+            Unretained(store.Get()),
+            tablet->GetTabletId(),
+            Slot_->GetGuardedAutomatonInvoker(EAutomatonThreadQueue::Read)));
+        StartMemoryUsageTracking(store);
+        return store;
     }
 
 };
