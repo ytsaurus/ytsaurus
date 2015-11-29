@@ -17,6 +17,7 @@
 #include <unordered_set>
 
 #include <sparsehash/dense_hash_set>
+#include <sparsehash/dense_hash_map>
 
 namespace NYT {
 namespace NQueryClient {
@@ -28,14 +29,62 @@ static const size_t InitialGroupOpHashtableCapacity = 1024;
 using THasherFunction = ui64(TRow);
 using TComparerFunction = char(TRow, TRow);
 
+namespace NDetail {
+struct TGroupHasher
+{
+    THasherFunction* Ptr_;
+    TGroupHasher(THasherFunction* ptr)
+        : Ptr_(ptr)
+    { }
+
+    ui64 operator () (TRow row) const
+    {
+        return Ptr_(row);
+    }
+};
+
+struct TRowComparer
+{
+public:
+    TRowComparer(TComparerFunction* ptr)
+        : Ptr_(ptr)
+    { }
+
+    bool operator () (TRow a, TRow b) const
+    {
+        return a.GetHeader() == b.GetHeader() || a.GetHeader() && b.GetHeader() && Ptr_(a, b);
+    }
+
+private:
+    TComparerFunction* Ptr_;
+};
+} // namespace NDetail
+
+using TLookupRows = google::sparsehash::dense_hash_set<
+    TRow,
+    NDetail::TGroupHasher,
+    NDetail::TRowComparer>;
+
+using TJoinLookup = google::sparsehash::dense_hash_map<
+    TRow,
+    int,
+    NDetail::TGroupHasher,
+    NDetail::TRowComparer>;
+
+using TJoinLookupRows = std::unordered_multiset<
+    TRow,
+    NDetail::TGroupHasher,
+    NDetail::TRowComparer>;
+
 struct TExecutionContext;
 
 using TJoinEvaluator = std::function<void(
     TExecutionContext* executionContext,
     THasherFunction* hasher,
     TComparerFunction* comparer,
+    const TJoinLookup& joinLookup,
     std::vector<TRow> keys,
-    std::vector<TRow> allRows,
+    std::vector<std::pair<TRow, int>> chainedRows,
     TRowBufferPtr permanentBuffer,
     // TODO(babenko): TSharedRange?
     std::vector<TRow>* joinedRows)>;
@@ -83,47 +132,6 @@ struct TExecutionContext
 
     std::deque<TFunctionContext> FunctionContexts;
 };
-
-namespace NDetail {
-struct TGroupHasher
-{
-    THasherFunction* Ptr_;
-    TGroupHasher(THasherFunction* ptr)
-        : Ptr_(ptr)
-    { }
-
-    ui64 operator () (TRow row) const
-    {
-        return Ptr_(row);
-    }
-};
-
-struct TRowComparer
-{
-public:
-    TRowComparer(TComparerFunction* ptr)
-        : Ptr_(ptr)
-    { }
-
-    bool operator () (TRow a, TRow b) const
-    {
-        return a.GetHeader() == b.GetHeader() || a.GetHeader() && b.GetHeader() && Ptr_(a, b);
-    }
-
-private:
-    TComparerFunction* Ptr_;
-};
-} // namespace NDetail
-
-using TLookupRows = google::sparsehash::dense_hash_set<
-    TRow,
-    NDetail::TGroupHasher,
-    NDetail::TRowComparer>;
-
-using TJoinLookupRows = std::unordered_multiset<
-    TRow,
-    NDetail::TGroupHasher,
-    NDetail::TRowComparer>;
 
 class TTopCollector
 {
