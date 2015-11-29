@@ -6,6 +6,9 @@
 #include "plan_helpers.h"
 #include "query_statistics.h"
 
+#include <yt/ytlib/table_client/pipe.h>
+#include <yt/ytlib/table_client/schemaful_reader.h>
+
 #include <yt/core/concurrency/scheduler.h>
 
 #include <yt/core/misc/common.h>
@@ -246,40 +249,15 @@ TJoinEvaluator GetJoinEvaluator(
         }
 
         LOG_DEBUG("Executing subquery");
-        NApi::IRowsetPtr rowset;
 
-        {
-            ISchemafulWriterPtr writer;
-            TFuture<NApi::IRowsetPtr> rowsetFuture;
-            std::tie(writer, rowsetFuture) = NApi::CreateSchemafulRowsetWriter(subquery->GetTableSchema());
-            NProfiling::TAggregatingTimingGuard timingGuard(&context->Statistics->AsyncTime);
+        auto pipe = New<NTableClient::TSchemafulPipe>();
+        auto subqueryResult = context->ExecuteCallback(
+            subquery,
+            foreignDataId,
+            std::move(rowBuffer),
+            std::move(ranges),
+            pipe->GetWriter());
 
-            auto statistics = context->ExecuteCallback(
-                subquery,
-                foreignDataId,
-                std::move(rowBuffer),
-                std::move(ranges),
-                writer);
-
-            LOG_DEBUG("Remote subquery statistics %v", statistics);
-            *context->Statistics += statistics;
-
-            rowset = WaitFor(rowsetFuture).ValueOrThrow();
-        }
-
-        const auto& foreignRows = rowset->GetRows();
-
-        LOG_DEBUG("Got %v foreign rows", foreignRows.size());
-/*
-        TJoinLookupRows foreignLookup(
-            InitialGroupOpHashtableCapacity,
-            groupHasher,
-            groupComparer);
-
-        for (auto row : foreignRows) {
-            foreignLookup.insert(row);
-        }
-*/
         // Join rowsets.
         TRowBuilder rowBuilder;
         // allRows have format (join key... , other columns...)
@@ -336,28 +314,65 @@ TJoinEvaluator GetJoinEvaluator(
             }
         }
 */
-        for (auto foreignRow : foreignRows) {
-            auto it = joinLookup.find(foreignRow);
-            for (
-                int chainedRowIndex = it->second;
-                chainedRowIndex >= 0;
-                chainedRowIndex = chainedRows[chainedRowIndex].second)
-            {
-                auto row = chainedRows[chainedRowIndex].first;
-                rowBuilder.Reset();
-                for (auto columnIndex : columnMapping) {
-                    rowBuilder.AddValue(columnIndex.first
-                        ? row[columnIndex.second]
-                        : foreignRow[columnIndex.second]);
+
+        std::vector<TRow> foreignRows;
+        foreignRows.reserve(MaxRowsPerRead);
+
+        auto reader = pipe->GetReader();
+
+        while (true) {
+            bool hasMoreData = reader->Read(&foreignRows);
+            bool shouldWait = foreignRows.empty();
+
+            LOG_DEBUG("Got %v foreign rows", foreignRows.size());
+
+
+            for (auto foreignRow : foreignRows) {
+                auto it = joinLookup.find(foreignRow);
+
+                if (it == joinLookup.end()) {
+                    continue;
                 }
 
-                if (addRow(rowBuilder.GetRow())) {
-                    return;
+                for (
+                    int chainedRowIndex = it->second;
+                    chainedRowIndex >= 0;
+                    chainedRowIndex = chainedRows[chainedRowIndex].second)
+                {
+                    auto row = chainedRows[chainedRowIndex].first;
+                    rowBuilder.Reset();
+                    for (auto columnIndex : columnMapping) {
+                        rowBuilder.AddValue(columnIndex.first
+                            ? row[columnIndex.second]
+                            : foreignRow[columnIndex.second]);
+                    }
+
+                    if (addRow(rowBuilder.GetRow())) {
+                        return;
+                    }
                 }
+            }
+
+            foreignRows.clear();
+
+            if (!hasMoreData) {
+                break;
+            }
+
+            if (shouldWait) {
+                WaitFor(reader->GetReadyEvent())
+                    .ThrowOnError();
             }
         }
 
         LOG_DEBUG("Joining finished");
+
+        auto statistics = WaitFor(subqueryResult)
+            .ValueOrThrow();
+
+        LOG_DEBUG("Remote subquery statistics %v", statistics);
+        *context->Statistics += statistics;
+
     };
 }
 

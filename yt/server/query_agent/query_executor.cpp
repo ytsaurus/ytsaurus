@@ -176,7 +176,7 @@ private:
                     TGuid dataId,
                     TRowBufferPtr buffer,
                     TRowRanges ranges,
-                    ISchemafulWriterPtr writer) -> TQueryStatistics
+                    ISchemafulWriterPtr writer) -> TFuture<TQueryStatistics>
                 {
                     LOG_DEBUG("Evaluating remote subquery (SubqueryId: %v)", subquery->Id);
 
@@ -188,14 +188,11 @@ private:
                     dataSource.Id = dataId;
                     dataSource.Ranges = MakeSharedRange(std::move(ranges), std::move(buffer));
 
-                    auto subqueryResult = remoteExecutor->Execute(
+                    return remoteExecutor->Execute(
                         subquery,
                         dataSource,
                         subqueryOptions,
                         writer);
-
-                    return WaitFor(subqueryResult)
-                        .ValueOrThrow();
                 };
 
                 auto asyncStatistics = BIND(&TEvaluator::RunWithExecutor, Evaluator_)
