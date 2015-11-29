@@ -306,20 +306,30 @@ TFuture<std::vector<std::pair<TCellTag, i64>>> TVirtualMulticellMapBase::FetchSi
             if (!channel)
                 continue;
 
+            TObjectServiceProxy proxy(channel);
+            auto batchReq = proxy.ExecuteBatch();
+            batchReq->SetSuppressUpstreamSync(true);
+
             auto path = GetWellKnownPath();
             auto req = TYPathProxy::Get(path + "/@count");
+            batchReq->AddRequest(req, "get_count");
 
-            TObjectServiceProxy proxy(channel);
-            auto asyncResult = proxy.Execute(req).Apply(BIND([=, this_ = MakeStrong(this)] (const TYPathProxy::TErrorOrRspGetPtr& rspOrError) {
-                if (!rspOrError.IsOK()) {
-                    THROW_ERROR_EXCEPTION("Error fetching size of virtual map %v from cell %v",
-                        path,
-                        cellTag)
-                        << rspOrError;
-                }
-                const auto& rsp = rspOrError.Value();
-                return std::make_pair(cellTag, ConvertTo<i64>(TYsonString(rsp->value())));
-            }));
+            auto asyncResult = batchReq->Invoke()
+                .Apply(BIND([=, this_ = MakeStrong(this)] (const TObjectServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError) {
+                    auto cumulativeError = GetCumulativeError(batchRspOrError);
+                    if (!cumulativeError.IsOK()) {
+                        THROW_ERROR_EXCEPTION("Error fetching size of virtual map %v from cell %v",
+                            path,
+                            cellTag)
+                            << cumulativeError;
+                    }
+
+                    const auto& batchRsp = batchRspOrError.Value();
+
+                    auto rspOrError = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_count");
+                    const auto& rsp = rspOrError.Value();
+                    return std::make_pair(cellTag, ConvertTo<i64>(TYsonString(rsp->value())));
+                }));
 
             asyncResults.push_back(asyncResult);
         }
@@ -422,23 +432,30 @@ void TVirtualMulticellMapBase::FetchItemsFromRemote(
         return;
     }
 
+    TObjectServiceProxy proxy(channel);
+    auto batchReq = proxy.ExecuteBatch();
+    batchReq->SetSuppressUpstreamSync(true);
+
     auto path = GetWellKnownPath();
     auto req = TCypressYPathProxy::Enumerate(path);
     req->set_limit(session->Limit - session->Items.size());
     ToProto(req->mutable_attribute_filter(), session->AttributeFilter);
+    batchReq->AddRequest(req, "enumerate");
 
-    TObjectServiceProxy proxy(channel);
-    proxy.Execute(req)
-        .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TCypressYPathProxy::TErrorOrRspEnumeratePtr& rspOrError) mutable {
-            if (!rspOrError.IsOK()) {
-                auto error = TError("Error fetching content of virtual map %v from cell %v",
+    batchReq->Invoke()
+        .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TObjectServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError) mutable {
+            auto cumulativeError = GetCumulativeError(batchRspOrError);
+            if (!cumulativeError.IsOK()) {
+                promise.Set(TError("Error fetching content of virtual map %v from cell %v",
                     path,
                     cellTag)
-                    << rspOrError;
-                promise.Set(error);
+                    << cumulativeError);
                 return;
             }
 
+            const auto& batchRsp = batchRspOrError.Value();
+
+            auto rspOrError = batchRsp->GetResponse<TCypressYPathProxy::TRspEnumerate>("enumerate");
             const auto& rsp = rspOrError.Value();
 
             session->Incomplete |= rsp->incomplete();
