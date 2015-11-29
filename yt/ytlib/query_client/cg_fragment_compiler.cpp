@@ -947,7 +947,7 @@ TCodegenSource MakeCodegenJoinOp(
         MOVE(evaluatedColumns)
     ] (TCGContext& builder, const TCodegenConsumer& codegenConsumer) {
         int lookupKeySize = keyPrefix;
-        int joinKeySize = equations.size();
+        int joinKeySize = keyPrefix; //equations.size();
         std::vector<EValueType> lookupKeyTypes(lookupKeySize);
         std::vector<EValueType> joinKeyTypes(joinKeySize);
 
@@ -993,15 +993,13 @@ TCodegenSource MakeCodegenJoinOp(
 
                             joinKeyValue.StoreToRow(builder, keyRef, column, column);
                             joinKeyValue.StoreToRow(builder, rowWithKeyRef, index, index);
-                        }
-                    }
-
-                    for (int column = 0; column < lookupKeySize; ++column) {
-                        if (evaluatedColumns[column]) {
+                        } else {
+                            YCHECK(evaluatedColumns[column]);
                             auto evaluatedColumn = evaluatedColumns[column](builder, keyRef);
                             lookupKeyTypes[column] = evaluatedColumn.GetStaticType();
 
                             evaluatedColumn.StoreToRow(builder, keyRef, column, column);
+                            evaluatedColumn.StoreToRow(builder, rowWithKeyRef, index, index);
                         }
                     }
 
@@ -1057,8 +1055,6 @@ TCodegenSource MakeCodegenJoinOp(
             {
                 builder.GetExecutionContextPtr(),
                 builder.getInt32(index),
-                CodegenGroupHasherFunction(joinKeyTypes, *builder.Module),
-                CodegenGroupComparerFunction(joinKeyTypes, *builder.Module),
 
                 CodegenGroupHasherFunction(lookupKeyTypes, *builder.Module),
                 CodegenGroupComparerFunction(lookupKeyTypes, *builder.Module),
