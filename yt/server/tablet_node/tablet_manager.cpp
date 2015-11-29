@@ -1563,6 +1563,18 @@ private:
 
         auto slotManager = Bootstrap_->GetTabletSlotManager();
         slotManager->RegisterTabletSnapshot(tablet);
+
+        for (const auto& pair : tablet->Stores()) {
+            const auto& store = pair.second;
+            if (store->GetType() == EStoreType::DynamicMemory) {
+                store->AsDynamicMemory()->SetRowBlockedHandler(BIND(
+                    &TImpl::OnRowBlocked,
+                    MakeWeak(this),
+                    Unretained(store.Get()),
+                    tablet->GetTabletId(),
+                    Slot_->GetEpochAutomatonInvoker(EAutomatonThreadQueue::Read)));
+            }
+        }
     }
 
     void StopTabletEpoch(TTablet* tablet)
@@ -1572,6 +1584,13 @@ private:
 
         auto slotManager = Bootstrap_->GetTabletSlotManager();
         slotManager->UnregisterTabletSnapshot(tablet);
+
+        for (const auto& pair : tablet->Stores()) {
+            const auto& store = pair.second;
+            if (store->GetType() == EStoreType::DynamicMemory) {
+                store->AsDynamicMemory()->ResetRowBlockedHandler();
+            }
+        }
     }
 
 
@@ -1831,8 +1850,8 @@ private:
                 tabletId,
                 row,
                 lockIndex)
-                .AsyncVia(invoker)
-                .Run());
+            .AsyncVia(invoker)
+            .Run());
     }
 
     void WaitOnBlockedRow(
@@ -1885,12 +1904,6 @@ private:
             Config_,
             storeId,
             tablet);
-        store->SubscribeRowBlocked(BIND(
-            &TImpl::OnRowBlocked,
-            MakeWeak(this),
-            Unretained(store.Get()),
-            tablet->GetTabletId(),
-            Slot_->GetGuardedAutomatonInvoker(EAutomatonThreadQueue::Read)));
         StartMemoryUsageTracking(store);
         return store;
     }

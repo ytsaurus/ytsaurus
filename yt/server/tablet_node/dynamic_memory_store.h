@@ -18,6 +18,8 @@
 #include <yt/core/misc/chunked_vector.h>
 #include <yt/core/misc/property.h>
 
+#include <yt/core/concurrency/rw_spinlock.h>
+
 namespace NYT {
 namespace NTabletNode {
 
@@ -81,6 +83,14 @@ public:
     int GetLockCount() const;
     int Lock();
     int Unlock();
+
+    using TRowBlockedHandler = TCallback<void(TDynamicRow row, int lockIndex)>;
+
+    //! Sets the handler that is being invoked when read request faces a block row.
+    void SetRowBlockedHandler(TRowBlockedHandler handler);
+
+    //! Clears the blocked row handler.
+    void ResetRowBlockedHandler();
 
     //! Checks if a given #row has any locks from #lockMask with prepared timestamp
     //! less that #timestamp. If so, raises |RowBlocked| signal and loops.
@@ -187,8 +197,6 @@ public:
 
     virtual void BuildOrchidYson(NYson::IYsonConsumer* consumer) override;
 
-    DEFINE_SIGNAL(void(TDynamicRow row, int lockIndex), RowBlocked)
-
 private:
     class TReaderBase;
     class TRangeReader;
@@ -213,9 +221,13 @@ private:
     static const size_t MaxRevisionChunks = HardRevisionsPerDynamicMemoryStoreLimit / RevisionsPerChunk + 1;
     TChunkedVector<TTimestamp, RevisionsPerChunk> RevisionToTimestamp_;
 
+    NConcurrency::TReaderWriterSpinLock RowBlockedLock_;
+    TRowBlockedHandler RowBlockedHandler_;
+
 
     TDynamicRow AllocateRow();
 
+    TRowBlockedHandler GetRowBlockedHandler();
     int GetBlockingLockIndex(
         TDynamicRow row,
         ui32 lockMask,
