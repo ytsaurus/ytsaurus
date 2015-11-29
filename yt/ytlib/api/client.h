@@ -75,7 +75,7 @@ struct TMutatingOptions
     bool Retry = false;
 };
 
-struct TReadOnlyOptions
+struct TReadOptions
 {
     EMasterChannelKind ReadFrom = EMasterChannelKind::LeaderOrFollower;
 };
@@ -135,7 +135,7 @@ struct TRemoveMemberOptions
 
 struct TCheckPermissionOptions
     : public TTimeoutOptions
-    , public TReadOnlyOptions
+    , public TReadOptions
     , public TTransactionalOptions
     , public TPrerequisiteOptions
 { };
@@ -215,7 +215,7 @@ struct TSelectRowsOptions
 struct TGetNodeOptions
     : public TTimeoutOptions
     , public TTransactionalOptions
-    , public TReadOnlyOptions
+    , public TReadOptions
     , public TSuppressableAccessTrackingOptions
     , public TPrerequisiteOptions
 {
@@ -246,7 +246,7 @@ struct TRemoveNodeOptions
 struct TListNodeOptions
     : public TTimeoutOptions
     , public TTransactionalOptions
-    , public TReadOnlyOptions
+    , public TReadOptions
     , public TSuppressableAccessTrackingOptions
     , public TPrerequisiteOptions
 {
@@ -318,6 +318,7 @@ struct TLinkNodeOptions
 struct TConcatenateNodesOptions
     : public TTimeoutOptions
     , public TTransactionalOptions
+    , public TReadOptions
     , public TMutatingOptions
 {
     bool Append = false;
@@ -325,7 +326,7 @@ struct TConcatenateNodesOptions
 
 struct TNodeExistsOptions
     : public TTimeoutOptions
-    , public TReadOnlyOptions
+    , public TReadOptions
     , public TTransactionalOptions
     , public TPrerequisiteOptions
 { };

@@ -1182,16 +1182,11 @@ private:
     }
 
 
-    TObjectServiceProxy* GetReadProxy(const TReadOnlyOptions& options)
+    TObjectServiceProxy* GetReadProxy(const TReadOptions& options)
     {
         return ObjectProxies_[options.ReadFrom].get();
     }
 
-    TObjectServiceProxy* GetReadProxy()
-    {
-        return ObjectProxies_[EMasterChannelKind::LeaderOrFollower].get();
-    }
-    
     TObjectServiceProxy* GetWriteProxy()
     {
         return ObjectProxies_[EMasterChannelKind::Leader].get();
@@ -1778,7 +1773,7 @@ private:
             std::vector<TObjectId> srcIds;
             TObjectId dstId;
             {
-                auto* proxy = GetReadProxy();
+                auto* proxy = GetReadProxy(options);
 
                 auto batchReq = proxy->ExecuteBatch();
                 auto requestAttributes = [&] (const Stroka& key, const TYPath& path) {
@@ -1842,7 +1837,7 @@ private:
             // Get source chunk ids.
             std::vector<TChunkId> chunkIds;
             {
-                auto* proxy = GetReadProxy();
+                auto* proxy = GetReadProxy(options);
 
                 auto batchReq = proxy->ExecuteBatch();
                 for (const auto& srcId : srcIds) {
@@ -1894,7 +1889,7 @@ private:
             // Get upload params.
             TChunkListId chunkListId;
             {
-                auto* proxy = GetReadProxy();
+                auto* proxy = GetReadProxy(options);
 
                 auto req = TChunkOwnerYPathProxy::GetUploadParams(dstIdPath);
                 NCypressClient::SetTransactionId(req, uploadTransactionId);
