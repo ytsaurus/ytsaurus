@@ -953,9 +953,9 @@ TCodegenSource MakeCodegenJoinOp(
 
         auto collectRows = MakeClosure<void(void*, void*, void*)>(builder, "CollectRows", [&] (
             TCGContext& builder,
+            Value* joinLookup,
             Value* keys,
-            Value* keysLookup,
-            Value* allRows
+            Value* chainedRows
         ) {
             Value* keyPtr = builder.CreateAlloca(TypeBuilder<TRow, false>::get(builder.getContext()));
             builder.CreateCall3(
@@ -978,8 +978,8 @@ TCodegenSource MakeCodegenJoinOp(
                 [&] (TCGContext& builder, Value* row) {
                     Value* executionContextPtrRef = builder.GetExecutionContextPtr();
                     Value* keysRef = builder.ViaClosure(keys);
-                    Value* allRowsRef = builder.ViaClosure(allRows);
-                    Value* keysLookupRef = builder.ViaClosure(keysLookup);
+                    Value* chainedRowsRef = builder.ViaClosure(chainedRows);
+                    Value* joinLookupRef = builder.ViaClosure(joinLookup);
                     Value* keyPtrRef = builder.ViaClosure(keyPtr);
                     Value* keyRef = builder.CreateLoad(keyPtrRef);
                     Value* rowWithKeyRef = builder.ViaClosure(rowWithKey);
@@ -992,43 +992,26 @@ TCodegenSource MakeCodegenJoinOp(
                             lookupKeyTypes[column] = joinKeyValue.GetStaticType();
 
                             joinKeyValue.StoreToRow(builder, keyRef, column, column);
-                            joinKeyValue.StoreToRow(builder, rowWithKeyRef, index, index);
                         } else {
                             YCHECK(evaluatedColumns[column]);
-                            auto evaluatedColumn = evaluatedColumns[column](builder, keyRef);
+                            auto evaluatedColumn = evaluatedColumns[column](builder, rowWithKeyRef);
                             lookupKeyTypes[column] = evaluatedColumn.GetStaticType();
 
                             evaluatedColumn.StoreToRow(builder, keyRef, column, column);
-                            evaluatedColumn.StoreToRow(builder, rowWithKeyRef, index, index);
                         }
                     }
 
-                    for (int index = 0; index < sourceSchema.Columns().size(); ++index) {
-                        auto column = sourceSchema.Columns()[index];
-                        auto position = joinKeySize + index;
-                        TCGValue::CreateFromRow(
-                            builder,
-                            row,
-                            index,
-                            column.Type,
-                            "reference." + Twine(column.Name.c_str()))
-                            .StoreToRow(builder, rowWithKeyRef, position, position);
-                    }
-
-                    builder.CreateCall3(
-                        builder.Module->GetRoutine("SaveJoinRow"),
-                        executionContextPtrRef,
-                        allRowsRef,
-                        rowWithKeyRef);
-
-                    builder.CreateCall5(
+                    builder.CreateCallWithArgs(
                         builder.Module->GetRoutine("InsertJoinRow"),
-                        executionContextPtrRef,
-                        keysLookupRef,
-                        keysRef,
-                        keyPtrRef,
-                        builder.getInt32(lookupKeySize));
-
+                        {
+                            executionContextPtrRef,
+                            joinLookupRef,
+                            keysRef,
+                            chainedRowsRef,
+                            keyPtrRef,
+                            row,
+                            builder.getInt32(lookupKeySize)
+                        });
                 });
 
             builder.CreateRetVoid();

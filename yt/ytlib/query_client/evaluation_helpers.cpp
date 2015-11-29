@@ -210,13 +210,13 @@ TJoinEvaluator GetJoinEvaluator(
         TExecutionContext* context,
         THasherFunction* groupHasher,
         TComparerFunction* groupComparer,
+        const TJoinLookup& joinLookup,
         std::vector<TRow> keys,
-        std::vector<TRow> allRows,
+        std::vector<std::pair<TRow, int>> chainedRows,
         TRowBufferPtr permanentBuffer,
         std::vector<TRow>* joinedRows)
     {
         // TODO: keys should be joined with allRows: [(key, sourceRow)]
-
         auto rowBuffer = permanentBuffer;
         TRowRanges ranges;
 
@@ -297,33 +297,39 @@ TJoinEvaluator GetJoinEvaluator(
 
         LOG_DEBUG("Joining started");
 
-        for (auto row : allRows) {
-            auto equalRange = foreignLookup.equal_range(row);
-            for (auto it = equalRange.first; it != equalRange.second; ++it) {
-                rowBuilder.Reset();
-                auto foreignRow = *it;
-                for (auto columnIndex : columnMapping) {
-                    rowBuilder.AddValue(columnIndex.first
-                        ? row[joinKeySize + columnIndex.second]
-                        : foreignRow[columnIndex.second]);
+        for (auto key : joinLookup) {
+            auto equalRange = foreignLookup.equal_range(key.first);
+            int chainedRowIndex = key.second;
+            while (chainedRowIndex > 0) {
+
+                auto row = chainedRows[chainedRowIndex].first;
+                for (auto it = equalRange.first; it != equalRange.second; ++it) {
+                    rowBuilder.Reset();
+                    auto foreignRow = *it;
+                    for (auto columnIndex : columnMapping) {
+                        rowBuilder.AddValue(columnIndex.first
+                            ? row[joinKeySize + columnIndex.second]
+                            : foreignRow[columnIndex.second]);
+                    }
+
+                    if (addRow(rowBuilder.GetRow())) {
+                        return;
+                    }
                 }
 
-                if (addRow(rowBuilder.GetRow())) {
-                    return;
-                }
-            }
+                if (isLeft && equalRange.first == equalRange.second) {
+                    rowBuilder.Reset();
+                    for (auto columnIndex : columnMapping) {
+                        rowBuilder.AddValue(columnIndex.first
+                            ? row[joinKeySize + columnIndex.second]
+                            : MakeUnversionedSentinelValue(EValueType::Null));
+                    }
 
-            if (isLeft && equalRange.first == equalRange.second) {
-                rowBuilder.Reset();
-                for (auto columnIndex : columnMapping) {
-                    rowBuilder.AddValue(columnIndex.first
-                        ? row[joinKeySize + columnIndex.second]
-                        : MakeUnversionedSentinelValue(EValueType::Null));
+                    if (addRow(rowBuilder.GetRow())) {
+                        return;
+                    }
                 }
-
-                if (addRow(rowBuilder.GetRow())) {
-                    return;
-                }
+                chainedRowIndex = chainedRows[chainedRowIndex].second;
             }
         }
 

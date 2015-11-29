@@ -170,22 +170,25 @@ void ScanOpHelper(
 
 void InsertJoinRow(
     TExecutionContext* context,
-    TLookupRows* lookupRows,
-    std::vector<TRow>* rows,
+    TJoinLookup* lookup,
+    std::vector<std::pair<TRow, int>>* chainedRows,
     TRow* rowPtr,
     int valueCount)
 {
     CHECK_STACK();
 
     TRow row = *rowPtr;
-    auto inserted = lookupRows->insert(row);
+    int pointer = chainedRows->size();
+    chainedRows->emplace_back(row, -1);
+    for (int index = 0; index < valueCount; ++index) {
+        context->PermanentBuffer->Capture(&row[index]);
+    }
+    *rowPtr = TRow::Allocate(context->PermanentBuffer->GetPool(), valueCount);
 
-    if (inserted.second) {
-        rows->push_back(row);
-        for (int index = 0; index < valueCount; ++index) {
-            context->PermanentBuffer->Capture(&row[index]);
-        }
-        *rowPtr = TRow::Allocate(context->PermanentBuffer->GetPool(), valueCount);
+    auto inserted = lookup->insert(std::make_pair(row, pointer));
+    if (!inserted.second) {
+        chainedRows->back().second = inserted.first->second;
+        inserted.first->second = pointer;
     }
 }
 
@@ -206,23 +209,26 @@ void JoinOpHelper(
     TComparerFunction* lookupEqComparer,
     TComparerFunction* lookupLessComparer,
     void** collectRowsClosure,
-    void (*collectRows)(void** closure, std::vector<TRow>* rows, TLookupRows* lookupRows, std::vector<TRow>* allRows),
+    void (*collectRows)(
+        void** closure,
+        TJoinLookup* joinLookup,
+        std::vector<TRow>* keys,
+        std::vector<std::pair<TRow, int>>* chainedRows),
     void** consumeRowsClosure,
     void (*consumeRows)(void** closure, std::vector<TRow>* rows, char* stopFlag))
 {
-    std::vector<TRow> keys;
-    
-    TLookupRows keysLookup(
+    TJoinLookup joinLookup(
         InitialGroupOpHashtableCapacity,
         lookupHasher,
         lookupEqComparer);
 
-    std::vector<TRow> allRows;
+    std::vector<TRow> keys;
+    std::vector<std::pair<TRow, int>> chainedRows;
 
-    keysLookup.set_empty_key(TRow());
+    joinLookup.set_empty_key(TRow());
 
     // Collect join ids.
-    collectRows(collectRowsClosure, &keys, &keysLookup, &allRows);
+    collectRows(collectRowsClosure, &joinLookup, &keys, &chainedRows);
 
     LOG_DEBUG("Sorting %v join keys",
         keys.size());
@@ -231,15 +237,16 @@ void JoinOpHelper(
 
     LOG_DEBUG("Collected %v join keys from %v rows",
         keys.size(),
-        allRows.size());
+        chainedRows.size());
 
     std::vector<TRow> joinedRows;
     context->JoinEvaluators[index](
         context,
         lookupHasher,
         lookupEqComparer,
+        joinLookup,
         std::move(keys),
-        std::move(allRows),
+        std::move(chainedRows),
         context->PermanentBuffer,
         &joinedRows);
 
