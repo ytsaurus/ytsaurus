@@ -355,9 +355,9 @@ void ToProto(NProto::TJoinClause* proto, TConstJoinClausePtr original)
     ToProto(proto->mutable_foreign_data_id(), original->ForeignDataId);
     proto->set_is_left(original->IsLeft);
 
-    proto->set_can_use_source_ranges(original->canUseSourceRanges);
-    proto->set_key_prefix(original->keyPrefix);
-    ToProto(proto->mutable_equation_by_index(), original->equationByIndex);
+    proto->set_can_use_source_ranges(original->CanUseSourceRanges);
+    proto->set_key_prefix(original->KeyPrefix);
+    ToProto(proto->mutable_equation_by_index(), original->EquationByIndex);
     ToProto(proto->mutable_evaluated_columns(), original->EvaluatedColumns);
 }
 
@@ -479,12 +479,12 @@ TJoinClausePtr FromProto(const NProto::TJoinClause& serialized)
     FromProto(&result->ForeignDataId, serialized.foreign_data_id());
     FromProto(&result->IsLeft, serialized.is_left());
 
-    FromProto(&result->canUseSourceRanges, serialized.can_use_source_ranges());
-    FromProto(&result->keyPrefix, serialized.key_prefix());
+    FromProto(&result->CanUseSourceRanges, serialized.can_use_source_ranges());
+    FromProto(&result->KeyPrefix, serialized.key_prefix());
 
-    result->equationByIndex.reserve(serialized.equation_by_index_size());
+    result->EquationByIndex.reserve(serialized.equation_by_index_size());
     for (int i = 0; i < serialized.equation_by_index_size(); ++i) {
-        result->equationByIndex.push_back(serialized.equation_by_index(i));
+        result->EquationByIndex.push_back(serialized.equation_by_index(i));
     }
 
     result->EvaluatedColumns.reserve(serialized.evaluated_columns_size());

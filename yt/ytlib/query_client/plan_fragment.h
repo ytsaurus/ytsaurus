@@ -235,12 +235,12 @@ struct TJoinClause
 
     TTableSchema RenamedTableSchema;
 
-    bool canUseSourceRanges;
-    size_t keyPrefix;
-    std::vector<int> equationByIndex;
+    bool CanUseSourceRanges;
+    size_t KeyPrefix;
+    std::vector<int> EquationByIndex;
 
 
-    //std::vector<int> equationToPosMapping; // reverse to equationByIndex
+    //std::vector<int> equationToPosMapping; // reverse to EquationByIndex
 
     std::vector<TConstExpressionPtr> EvaluatedColumns;
 
