@@ -13,7 +13,6 @@
 #include <yt/core/yson/parser.h>
 
 #include <util/generic/typehelpers.h>
-#include <util/generic/static_assert.h>
 
 #include <yt/core/misc/preprocessor.h>
 #include <yt/core/misc/small_vector.h>

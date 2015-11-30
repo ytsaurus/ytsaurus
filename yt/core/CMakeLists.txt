@@ -23,21 +23,12 @@ foreach( _d_ ${DIRS} )
   source_group( ${_d_} REGULAR_EXPRESSION "${_d_}/.*\\.((cpp)|(h)|(proto))")
 endforeach()
 
-configure_file(
-  ${CMAKE_CURRENT_SOURCE_DIR}/build.cpp.in
-  ${CMAKE_CURRENT_BINARY_DIR}/build.cpp
-)
-
-list(APPEND YT_SOURCE_FILES
-  ${CMAKE_CURRENT_SOURCE_DIR}/build.h
-  ${CMAKE_CURRENT_BINARY_DIR}/build.cpp
-)
-
 add_library(ytcore STATIC
   ${YT_SOURCE_FILES}
 )
 
 target_link_libraries ( ytcore
+  yt-build
   ytext-arcadia-util
   ytext-arcadia-library-streams-lz
   yt-contrib-jerasure

@@ -22,7 +22,7 @@
 
 #include <yt/ytlib/shutdown.h>
 
-#include <yt/core/build.h>
+#include <yt/build/build.h>
 
 #include <yt/core/logging/config.h>
 #include <yt/core/logging/log_manager.h>

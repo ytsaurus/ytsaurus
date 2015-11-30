@@ -1,6 +1,6 @@
 #include "stack_trace.h"
 
-#include <yt/config.h>
+#include <yt/build/config.h>
 
 #ifndef _win_
 
