@@ -904,7 +904,7 @@ private:
             }
             auto clusterDirectory = Bootstrap->GetClusterDirectory();
             auto connection = clusterDirectory->GetConnection(CellTagFromId(id));
-            auto client = connection->CreateClient(GetRootClientOptions());
+            auto client = connection->CreateClient(TClientOptions(SchedulerUserName));
             auto transactionManager = client->GetTransactionManager();
             TTransactionAttachOptions options;
             options.Ping = ping;

@@ -30,10 +30,12 @@ struct TAdminOptions
 
 struct TClientOptions
 {
-    Stroka User = NSecurityClient::GuestUserName;
-};
+    explicit TClientOptions(const Stroka& user =  NSecurityClient::GuestUserName)
+        : User(user)
+    { }
 
-TClientOptions GetRootClientOptions();
+    Stroka User;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 

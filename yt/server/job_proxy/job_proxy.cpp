@@ -286,9 +286,7 @@ TJobResult TJobProxy::DoRun()
 
     auto clusterConnection = CreateConnection(Config_->ClusterConnection);
 
-    TClientOptions clientOptions;
-    clientOptions.User = NSecurityClient::JobUserName;
-    Client_ = clusterConnection->CreateClient(clientOptions);
+    Client_ = clusterConnection->CreateClient(TClientOptions(NSecurityClient::JobUserName));
 
     RetrieveJobSpec();
 

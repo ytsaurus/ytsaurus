@@ -16,6 +16,7 @@ namespace NHive {
 using namespace NRpc;
 using namespace NApi;
 using namespace NObjectClient;
+using namespace NSecurityClient;
 using namespace NYTree;
 using namespace NConcurrency;
 
@@ -23,7 +24,7 @@ using namespace NConcurrency;
 
 TClusterDirectory::TClusterDirectory(IConnectionPtr selfConnection)
     : SelfConnection_(selfConnection)
-    , SelfClient_(SelfConnection_->CreateClient(GetRootClientOptions()))
+    , SelfClient_(SelfConnection_->CreateClient(TClientOptions(RootUserName)))
 { }
 
 IConnectionPtr TClusterDirectory::GetConnection(TCellTag cellTag) const
