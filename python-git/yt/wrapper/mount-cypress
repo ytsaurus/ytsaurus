@@ -77,7 +77,7 @@ class CachedYtClient(yt.wrapper.client.Yt):
     _logger = logging.getLogger(__name__ + ".CachedYtClient")
     _logger.setLevel(level=logging.DEBUG)
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, max_len=16384, max_age_seconds=2, **kwargs):
         """Initialize the client.
 
         max_len:
@@ -87,9 +87,7 @@ class CachedYtClient(yt.wrapper.client.Yt):
           the default value is 2 seconds.
         The rest of the arguments are passed to the parent constructor.
         """
-        max_len = kwargs.pop("max_len", 16384)
-        max_age_seconds = kwargs.pop("max_age_seconds", 2)
-        super(CachedYtClient, self).__init__(*args, **kwargs)
+        super(CachedYtClient, self).__init__(**kwargs)
 
         self._cache = expiringdict.ExpiringDict(
             max_len=max_len,
@@ -105,7 +103,7 @@ class CachedYtClient(yt.wrapper.client.Yt):
         return yt.wrapper.YtError("No such attribute: " + attribute)
 
     @log_calls(_logger, "%(__name__)s(%(path)r)")
-    def get_attributes(self, path, attributes=[]):
+    def get_attributes(self, path, attributes):
         """Get a subset of node's attributes."""
         # Firstly, check whether we are sure the node doesn't exist at all.
         flag, value = self._cache.get(path, (True, None))
@@ -141,7 +139,7 @@ class CachedYtClient(yt.wrapper.client.Yt):
         return requested_attributes
 
     @log_calls(_logger, "%(__name__)s(%(path)r)")
-    def list(self, path, attributes=[]):
+    def list(self, path, attributes):
         """Get children of a node specified by a ypath."""
         try:
             flag, value = self._cache[path]
@@ -151,6 +149,9 @@ class CachedYtClient(yt.wrapper.client.Yt):
             if flag:
                 return value
             raise value
+
+        if attributes is None:
+            attributes = []
 
         children = super(CachedYtClient, self).list(
             path, attributes=attributes
@@ -235,15 +236,14 @@ class OpenedTable(object):
         self._lower_row = self._upper_row = 0
         self._buffer = []
 
-    @staticmethod
-    def _slice_ypath(ypath, lower, upper):
-        return "{}[#{}:#{}]".format(ypath, lower, upper)
-
     def read(self, length, offset):
         while self._upper_offset < offset + length:
             next_upper_row = self._upper_row + self._buffer_rows
-            slice_ypath = self._slice_ypath(
-                self.ypath, self._upper_row, next_upper_row
+            slice_ypath = yt.wrapper.TablePath(
+                self.ypath,
+                start_index=self._upper_row,
+                end_index=next_upper_row,
+                client=self._client
             )
             slice_content = "".join(
                 self._client.read_table(slice_ypath, format=self._format)
@@ -256,8 +256,11 @@ class OpenedTable(object):
 
         while self._lower_offset > offset:
             next_lower_row = self._lower_row - self._buffer_rows
-            slice_ypath = self._slice_ypath(
-                self.ypath, next_lower_row, self._lower_row
+            slice_ypath = yt.wrapper.TablePath(
+                self.ypath,
+                start_index=next_lower_row,
+                end_index=self._lower_row,
+                client=self._client
             )
             slice_content = "".join(
                 self._client.read_table(slice_ypath, format=self._format)
@@ -343,9 +346,9 @@ class Cypress(fuse.Operations):
             "st_nlink": attributes["ref_counter"],
             "st_uid": -1,
             "st_gid": -1,
-            "st_atime": Cypress._to_timestamp(attributes["access_time"]),
-            "st_mtime": Cypress._to_timestamp(attributes["modification_time"]),
-            "st_ctime": Cypress._to_timestamp(attributes["creation_time"]),
+            "st_atime": self._to_timestamp(attributes["access_time"]),
+            "st_mtime": self._to_timestamp(attributes["modification_time"]),
+            "st_ctime": self._to_timestamp(attributes["creation_time"]),
             "st_size": self._get_st_size(attributes)
         }
 
