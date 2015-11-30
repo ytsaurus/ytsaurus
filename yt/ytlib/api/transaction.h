@@ -7,6 +7,8 @@
 
 #include <yt/ytlib/tablet_client/public.h>
 
+#include <core/actions/signal.h>
+
 namespace NYT {
 namespace NApi {
 
@@ -47,6 +49,8 @@ struct ITransaction
     virtual TFuture<void> Ping() = 0;
     virtual TFuture<void> Commit(const TTransactionCommitOptions& options = TTransactionCommitOptions()) = 0;
     virtual TFuture<void> Abort(const TTransactionAbortOptions& options = TTransactionAbortOptions()) = 0;
+
+    DECLARE_INTERFACE_SIGNAL(void(), Aborted);
 
     // Tables
     virtual void WriteRow(

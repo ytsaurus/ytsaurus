@@ -2217,6 +2217,17 @@ public:
     }
 
 
+    virtual void SubscribeAborted(const TClosure& callback) override
+    {
+        Transaction_->SubscribeAborted(callback);
+    }
+
+    virtual void UnsubscribeAborted(const TClosure& callback) override
+    {
+        Transaction_->UnsubscribeAborted(callback);
+    }
+
+
     virtual TFuture<ITransactionPtr> StartTransaction(
         ETransactionType type,
         const TTransactionStartOptions& options) override
