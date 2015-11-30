@@ -16,9 +16,20 @@ TM_HEADERS = {
     "Content-Type": "application/json"
 }
 
+class YtTransferManagerUnavailableError(YtError):
+    pass
+
 def _raise_for_status(response):
     if response.status_code == 200:
         return
+
+    if str(response.status_code).startswith("5"):
+        if response.content:
+            message = "Transfer Manager is not available: {0}".format(response.content)
+        else:
+            message = "Transfer manager is not available"
+
+        raise YtTransferManagerUnavailableError(message)
 
     raise YtError(**response.json())
 
@@ -56,7 +67,7 @@ class TransferManager(object):
             data["destination_table"] = destination_table
         if attached:
             params["lease_timeout"] = max(120, 2 * poll_period)
-  
+
         update(data, params)
 
         task_id = self._make_post_request(self.backend_url + "/tasks/", data=json.dumps(data)).content
@@ -114,15 +125,14 @@ class TransferManager(object):
 
     def _make_get_request(self, url):
         def make_request():
-            return requests.get(url, headers=TM_HEADERS, timeout=self.http_request_timeout)
+            return _raise_for_status(requests.get(url, headers=TM_HEADERS, timeout=self.http_request_timeout))
 
         if not self.enable_read_retries:
             response = make_request()
         else:
-            response = run_with_retries(make_request,
-                                        exceptions=get_retriable_errors())
+            retriable_errors = get_retriable_errors() + (YtTransferManagerUnavailableError,)
+            response = run_with_retries(make_request, exceptions=retriable_errors)
 
-        _raise_for_status(response)
         return response
 
     def _make_post_request(self, url, **kwargs):
