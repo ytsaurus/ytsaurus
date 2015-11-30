@@ -5,4 +5,5 @@ package NYT;
 extend google.protobuf.FieldOptions
 {
     optional string column_name = 56789;
+    optional string key_column_name = 56790;
 }
