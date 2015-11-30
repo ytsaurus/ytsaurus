@@ -92,9 +92,8 @@ class YTEnv(object):
     def modify_proxy_config(self, config):
         pass
 
-    def start(self, path_to_run, pids_filename, proxy_port=None, supress_yt_output=False, enable_debug_logging=True,
-              preserve_working_dir=False, kill_child_processes=False, tmpfs_path=None, enable_ui=False, port_locks_path=None,
-              ports_range_start=None):
+    def start(self, path_to_run, pids_filename, proxy_port=None, enable_debug_logging=True, preserve_working_dir=False,
+              kill_child_processes=False, tmpfs_path=None, enable_ui=False, port_locks_path=None, ports_range_start=None):
         self._lock = RLock()
 
         logger.propagate = False
@@ -102,7 +101,6 @@ class YTEnv(object):
             logger.addHandler(logging.StreamHandler())
         logger.handlers[0].setFormatter(logging.Formatter("%(message)s"))
 
-        self.supress_yt_output = supress_yt_output
         self.path_to_run = os.path.abspath(path_to_run)
         self.tmpfs_path = tmpfs_path
         self.port_locks_path = port_locks_path
@@ -299,18 +297,17 @@ class YTEnv(object):
         self.pids_file.flush()
 
     def _run(self, args, name, number=1, timeout=0.1):
-        if sys.platform.startswith('linux'):
+        if sys.platform.startswith("linux"):
             ctypes.cdll.LoadLibrary("libc.so.6")
-            LIBC = ctypes.CDLL('libc.so.6')
+            LIBC = ctypes.CDLL("libc.so.6")
             PR_SET_PDEATHSIG = 1
 
         with self._lock:
-            if self.supress_yt_output:
-                stdout = open("/dev/null", "w")
-                stderr = open("/dev/null", "w")
-            else:
-                stdout = sys.stdout
-                stderr = sys.stderr
+            stderrs_dir = os.path.join(self.path_to_run, "stderrs")
+            makedirp(stderrs_dir)
+
+            stdout = open(os.devnull, "w")
+            stderr = open(os.path.join(stderrs_dir, "stderr.{0}_{1}".format(name, number)), "w")
 
             def preexec():
                 os.setsid()
