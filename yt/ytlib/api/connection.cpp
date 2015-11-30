@@ -41,15 +41,6 @@ using namespace NHydra;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TClientOptions GetRootClientOptions()
-{
-    TClientOptions options;
-    options.User = NSecurityClient::RootUserName;
-    return options;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 IAdminPtr CreateAdmin(IConnectionPtr connection, const TAdminOptions& options);
 IClientPtr CreateClient(IConnectionPtr connection, const TClientOptions& options);
 

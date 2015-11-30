@@ -89,9 +89,7 @@ public:
 
         RemoteConnection_ = CreateConnection(RemoteConnectionConfig_);
 
-        TClientOptions clientOptions;
-        clientOptions.User = NSecurityClient::JobUserName;
-        RemoteClient_ = RemoteConnection_->CreateClient(clientOptions);
+        RemoteClient_ = RemoteConnection_->CreateClient(TClientOptions(NSecurityClient::JobUserName));
     }
 
     virtual NJobTrackerClient::NProto::TJobResult Run() override
