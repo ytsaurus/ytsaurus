@@ -125,7 +125,9 @@ class TransferManager(object):
 
     def _make_get_request(self, url):
         def make_request():
-            return _raise_for_status(requests.get(url, headers=TM_HEADERS, timeout=self.http_request_timeout))
+            response = requests.get(url, headers=TM_HEADERS, timeout=self.http_request_timeout)
+            _raise_for_status(response)
+            return response
 
         if not self.enable_read_retries:
             response = make_request()
