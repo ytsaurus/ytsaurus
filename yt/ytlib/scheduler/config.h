@@ -604,6 +604,11 @@ public:
     TDuration SortAssignmentTimeout;
     TDuration MergeLocalityTimeout;
 
+    TJobIOConfigPtr PartitionJobIO;
+    // Also works for ReduceCombiner if present.
+    TJobIOConfigPtr SortJobIO;
+    TJobIOConfigPtr MergeJobIO;
+
     int ShuffleNetworkLimit;
 
     std::vector<Stroka> SortBy;
@@ -660,10 +665,6 @@ public:
 
     // Desired number of samples per partition.
     int SamplesPerPartition;
-
-    TJobIOConfigPtr PartitionJobIO;
-    TJobIOConfigPtr SortJobIO;
-    TJobIOConfigPtr MergeJobIO;
 
     TSortOperationSpec()
     {
@@ -727,11 +728,6 @@ public:
     TUserJobSpecPtr ReduceCombiner;
     TUserJobSpecPtr Reducer;
 
-    TJobIOConfigPtr MapJobIO;
-    // Also works for ReduceCombiner if present.
-    TJobIOConfigPtr SortJobIO;
-    TJobIOConfigPtr ReduceJobIO;
-
     TMapReduceOperationSpec()
     {
         RegisterParameter("output_table_paths", OutputTablePaths)
@@ -746,11 +742,11 @@ public:
             .Default();
         RegisterParameter("reducer", Reducer)
             .DefaultNew();
-        RegisterParameter("map_job_io", MapJobIO)
+        RegisterParameter("map_job_io", PartitionJobIO)
             .DefaultNew();
         RegisterParameter("sort_job_io", SortJobIO)
             .DefaultNew();
-        RegisterParameter("reduce_job_io", ReduceJobIO)
+        RegisterParameter("reduce_job_io", MergeJobIO)
             .DefaultNew();
 
         // Provide custom names for shared settings.
@@ -775,8 +771,8 @@ public:
         //   MapSelectivityFactor
 
         RegisterInitializer([&] () {
-            MapJobIO->TableReader->MaxBufferSize = (i64) 256 * 1024 * 1024;
-            MapJobIO->TableWriter->MaxBufferSize = (i64) 2 * 1024 * 1024 * 1024; // 2 GBs
+            PartitionJobIO->TableReader->MaxBufferSize = (i64) 256 * 1024 * 1024;
+            PartitionJobIO->TableWriter->MaxBufferSize = (i64) 2 * 1024 * 1024 * 1024; // 2 GBs
 
             SortJobIO->TableReader->MaxBufferSize = (i64) 1024 * 1024 * 1024;
         });
@@ -799,7 +795,7 @@ public:
                     throwError(NTableClient::EControlAttribute::RangeIndex, jobType);
                 }
             };
-            validateControlAttributes(ReduceJobIO->ControlAttributes, "reduce");
+            validateControlAttributes(MergeJobIO->ControlAttributes, "reduce");
             validateControlAttributes(SortJobIO->ControlAttributes, "reduce_combiner");
 
             if (!ReduceBy.empty()) {
@@ -819,9 +815,9 @@ public:
         OutputTablePaths = NYT::NYPath::Normalize(OutputTablePaths);
 
         if (Mapper) {
-            Mapper->InitEnableInputTableIndex(InputTablePaths.size(), MapJobIO);
+            Mapper->InitEnableInputTableIndex(InputTablePaths.size(), PartitionJobIO);
         }
-        Reducer->InitEnableInputTableIndex(1, ReduceJobIO);
+        Reducer->InitEnableInputTableIndex(1, MergeJobIO);
     }
 };
 
