@@ -210,7 +210,6 @@ def start(masters_count=1, nodes_count=3, schedulers_count=1, start_proxy=True,
     sandbox_tmpfs_path = os.path.join(tmpfs_path, sandbox_id) if tmpfs_path else None
     environment.start(sandbox_path, pids_file_path,
                       proxy_port=proxy_port,
-                      supress_yt_output=True,
                       enable_debug_logging=enable_debug_logging,
                       preserve_working_dir=True,
                       tmpfs_path=sandbox_tmpfs_path,
