@@ -1833,7 +1833,6 @@ private:
     bool IsJobPreemptable(TJobPtr job)
     {
         const auto& element = GetOperationElement(job->GetOperationId());
-        const auto& spec = element->GetSpec();
 
         double usageRatio = element->Attributes().UsageRatio;
         if (usageRatio < Config->MinPreemptableRatio) {
