@@ -1557,7 +1557,7 @@ std::pair<TQueryPtr, TDataSource2> PreparePlanFragment(
             }
         }
 
-        joinClause->canUseSourceRanges = canUseSourceRanges;
+        joinClause->CanUseSourceRanges = canUseSourceRanges;
         if (canUseSourceRanges) {
             equationByIndex.resize(keyPrefix);
             joinClause->EvaluatedColumns.resize(keyPrefix);
@@ -1574,8 +1574,8 @@ std::pair<TQueryPtr, TDataSource2> PreparePlanFragment(
             }
         }
 
-        joinClause->equationByIndex = equationByIndex;
-        joinClause->keyPrefix = keyPrefix;
+        joinClause->EquationByIndex = equationByIndex;
+        joinClause->KeyPrefix = keyPrefix;
         joinClause->Equations = std::move(equations);
 
         schemaProxy = New<TJoinSchemaProxy>(

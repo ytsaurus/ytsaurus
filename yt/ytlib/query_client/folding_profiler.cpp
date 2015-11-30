@@ -133,8 +133,8 @@ TCodegenSource TFoldingProfiler::Profile(TConstQueryPtr query)
             selfKeys,
             schema,
             std::move(codegenSource),
-            joinClause->keyPrefix,
-            joinClause->equationByIndex,
+            joinClause->KeyPrefix,
+            joinClause->EquationByIndex,
             evaluatedColumns);
 
         Variables_->JoinEvaluators.push_back(GetJoinEvaluator(

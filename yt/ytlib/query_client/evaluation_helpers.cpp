@@ -143,9 +143,9 @@ TJoinEvaluator GetJoinEvaluator(
 {
     const auto& equations = joinClause.Equations;
     auto isLeft = joinClause.IsLeft;
-    auto canUseSourceRanges = joinClause.canUseSourceRanges;
-    auto keyPrefix = joinClause.keyPrefix;
-    const auto& equationByIndex = joinClause.equationByIndex;
+    auto canUseSourceRanges = joinClause.CanUseSourceRanges;
+    auto keyPrefix = joinClause.KeyPrefix;
+    const auto& equationByIndex = joinClause.EquationByIndex;
     auto& foreignTableSchema = joinClause.ForeignTableSchema;
     auto& foreignKeyColumnsCount = joinClause.ForeignKeyColumnsCount;
     auto& renamedTableSchema = joinClause.RenamedTableSchema;
