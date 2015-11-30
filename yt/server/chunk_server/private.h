@@ -28,7 +28,7 @@ DEFINE_ENUM(ERemoveReplicaReason,
     (IncrementalHeartbeat)
     (FailedToApprove)
     (ChunkIsDead)
-    (NodeRemoved)
+    (NodeDisposed)
 );
 
 DEFINE_BIT_ENUM(EJobUnregisterFlags,

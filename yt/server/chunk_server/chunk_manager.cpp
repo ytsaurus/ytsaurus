@@ -1041,11 +1041,11 @@ private:
     void OnNodeDisposed(TNode* node)
     {
         for (auto replica : node->StoredReplicas()) {
-            RemoveChunkReplica(node, replica, false, ERemoveReplicaReason::NodeRemoved);
+            RemoveChunkReplica(node, replica, false, ERemoveReplicaReason::NodeDisposed);
         }
 
         for (auto replica : node->CachedReplicas()) {
-            RemoveChunkReplica(node, replica, true, ERemoveReplicaReason::NodeRemoved);
+            RemoveChunkReplica(node, replica, true, ERemoveReplicaReason::NodeDisposed);
         }
 
         node->ClearReplicas();
@@ -1518,7 +1518,7 @@ private:
                     ChunkReplicator_->OnReplicaRemoved(node, chunkWithIndex, reason);
                 }
                 break;
-            case ERemoveReplicaReason::NodeRemoved:
+            case ERemoveReplicaReason::NodeDisposed:
                 // Do nothing.
                 break;
             default:
@@ -1528,7 +1528,7 @@ private:
         if (!IsRecovery()) {
             LOG_EVENT(
                 Logger,
-                reason == ERemoveReplicaReason::NodeRemoved ||
+                reason == ERemoveReplicaReason::NodeDisposed ||
                 reason == ERemoveReplicaReason::ChunkIsDead
                 ? NLogging::ELogLevel::Trace : NLogging::ELogLevel::Debug,
                 "Chunk replica removed (ChunkId: %v, Cached: %v, Reason: %v, NodeId: %v, Address: %v)",
