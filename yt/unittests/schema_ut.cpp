@@ -207,19 +207,6 @@ TEST_F(TSchemaTest, ChannelSubtract)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(TableSchemaSerialization, Simple)
-{
-    TTableSchema tableSchema({ 
-        TColumnSchema("key", EValueType::Any)
-            .SetSortOrder(ESortOrder::Ascending)
-            .SetExpression(Stroka("other * 10")) },
-        true /* strict */);
-    auto ysonString = ConvertToYsonString(tableSchema, EYsonFormat::Text);
-    auto expectedYsonString = Stroka(
-        "<\"strict\"=\%true;>[{\"name\"=\"key\";\""
-        "sort_order\"=\"ascending\";\"type\"=\"any\";\"expression\"=\"other * 10\";};]");
-    EXPECT_EQ(expectedYsonString, ysonString.Data());
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 
