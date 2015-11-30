@@ -73,6 +73,9 @@ public:
     TTableSchema Filter(const TColumnFilter& columnFilter) const;
     TTableSchema TrimNonkeyColumns(const TKeyColumns& keyColumns) const;
 
+    // These functions perform all necessary validation at each call,
+    // so don't call them frequently. If you need to store and modify
+    // a set of columns, use std::vector<TColumnSchema> instead.
     void PushColumn(const TColumnSchema& column);
     void InsertColumn(int position, const TColumnSchema& column);
     void EraseColumn(int position);
@@ -89,8 +92,6 @@ public:
     void Load(TStreamLoadContext& context);
 
 private:
-    void UpdateKeyColumnCount();
-
     int KeyColumnCount_;
 };
 
@@ -115,7 +116,6 @@ bool operator != (const TTableSchema& lhs, const TTableSchema& rhs);
 void ValidateKeyColumns(const TKeyColumns& keyColumns);
 void ValidateKeyColumnsUpdate(const TKeyColumns& oldKeyColumns, const TKeyColumns& newKeyColumns);
 void ValidateTableSchema(const TTableSchema& schema);
-void ValidateTableSchemaAndKeyColumns(const TTableSchema& schema, const TKeyColumns& keyColumns);
 void ValidateTableSchemaUpdate(const TTableSchema& oldSchema, const TTableSchema& newSchema);
 void ValidatePivotKey(const TOwningKey& pivotKey, const TTableSchema& schema, int keyColumnCount);
 
