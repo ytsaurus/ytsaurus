@@ -4,7 +4,7 @@
 
 #include <yt/ytlib/ypath/rich.h>
 
-#include <yt/core/build.h>
+#include <yt/build/build.h>
 
 #include <yt/core/concurrency/scheduler.h>
 

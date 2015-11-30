@@ -85,13 +85,6 @@ endif()
 include(PCH)
 include(PCFromUcontext)
 
-# Write down configuration.
-configure_file(
-  ${CMAKE_SOURCE_DIR}/yt/config.h.in
-  ${CMAKE_BINARY_DIR}/yt/config.h
-  @ONLY
-)
-
 # Discover Python world.
 if(YT_BUILD_ENABLE_PYTHON)
   find_package(PythonInterp)

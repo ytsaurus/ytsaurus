@@ -15,7 +15,7 @@
 
 #include <yt/ytlib/shutdown.h>
 
-#include <yt/core/build.h>
+#include <yt/build/build.h>
 
 #include <yt/core/misc/collection_helpers.h>
 #include <yt/core/misc/crash_handler.h>

@@ -10,7 +10,7 @@
 
 #include <signal.h>
 #include <time.h>
-#include <yt/config.h>
+#include <yt/build/config.h>
 #ifdef HAVE_SYS_TYPES_H
 #   include <sys/types.h>
 #endif

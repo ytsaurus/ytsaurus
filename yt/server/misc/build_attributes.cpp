@@ -1,6 +1,6 @@
 #include "build_attributes.h"
 
-#include <yt/core/build.h>
+#include <yt/build/build.h>
 
 #include <yt/core/misc/common.h>
 

@@ -7,7 +7,7 @@
 #include <yt/ytlib/driver/dispatcher.h>
 #include <yt/ytlib/driver/driver.h>
 
-#include <yt/core/build.h>
+#include <yt/build/build.h>
 
 #include <yt/core/logging/log_manager.h>
 

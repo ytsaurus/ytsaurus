@@ -2,7 +2,7 @@
 #include "private.h"
 #include "log.h"
 
-#include <yt/core/build.h>
+#include <yt/build/build.h>
 
 #include <yt/core/misc/common.h>
 #include <yt/core/misc/fs.h>
