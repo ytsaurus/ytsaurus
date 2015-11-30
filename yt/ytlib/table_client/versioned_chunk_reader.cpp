@@ -746,7 +746,7 @@ private:
         while (KeyIndex_ < Keys_.Size() && rows->size() < rows->capacity()) {
             rows->push_back(Lookup(Keys_[KeyIndex_++]));
         }
-        return KeyIndex_ >= Keys_.Size();
+        return KeyIndex_ < Keys_.Size();
     }
 
     TVersionedRow Lookup(TKey key)
