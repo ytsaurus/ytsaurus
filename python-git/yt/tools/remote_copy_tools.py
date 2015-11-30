@@ -253,8 +253,8 @@ def copy_yt_to_yt(source_client, destination_client, src, dst, network_name, cop
         copy_codec_attributes(source_client, destination_client, src, dst)
         copy_user_attributes(source_client, destination_client, src, dst)
 
-def copy_yt_to_yt_through_proxy(source_client, destination_client, src, dst, fastbone, copy_spec_template=None, postprocess_spec_template=None):
-    tmp_dir = tempfile.mkdtemp()
+def copy_yt_to_yt_through_proxy(source_client, destination_client, src, dst, fastbone, copy_spec_template=None, postprocess_spec_template=None, default_tmp_dir=None):
+    tmp_dir = tempfile.mkdtemp(dir=default_tmp_dir)
 
     destination_client.create("map_node", os.path.dirname(dst), recursive=True, ignore_existing=True)
     try:
@@ -390,8 +390,8 @@ done"""
         if not yamr_client.supports_read_snapshots:
             yamr_client.drop(temp_yamr_table)
 
-def copy_yt_to_yamr_pull(yt_client, yamr_client, src, dst, parallel_job_count=None, force_sort=None, fastbone=True):
-    tmp_dir = tempfile.mkdtemp()
+def copy_yt_to_yamr_pull(yt_client, yamr_client, src, dst, parallel_job_count=None, force_sort=None, fastbone=True, default_tmp_dir=None):
+    tmp_dir = tempfile.mkdtemp(dir=default_tmp_dir)
 
     lenval_to_nums_file = _pack_string(
         "lenval_to_nums.py",
@@ -486,7 +486,7 @@ def copy_yt_to_yamr_push(yt_client, yamr_client, src, dst, fastbone, copy_spec_t
         logger.error(error)
         raise IncorrectRowCount(error)
 
-def _copy_to_kiwi(kiwi_client, kiwi_transmittor, src, read_command, ranges, kiwi_user, files=None, copy_spec_template=None, write_to_table=False, protobin=True, kwworm_options=None):
+def _copy_to_kiwi(kiwi_client, kiwi_transmittor, src, read_command, ranges, kiwi_user, files=None, copy_spec_template=None, write_to_table=False, protobin=True, kwworm_options=None, default_tmp_dir=None):
     extract_value_script_to_table = """\
 import sys
 import struct
@@ -558,7 +558,7 @@ while True:
         write_command = "| {0} >output 2>&1; RESULT=$?; cat output; tail -n 100 output >&2; exit $RESULT".format(kiwi_command)
         output_format = yt.SchemafulDsvFormat(columns=["error"])
 
-    tmp_dir = tempfile.mkdtemp()
+    tmp_dir = tempfile.mkdtemp(dir=default_tmp_dir)
     if files is None:
         files = []
     command_script = "set -o pipefail; {0} | python extract_value.py {1}".format(read_command, write_command)
@@ -584,7 +584,7 @@ def copy_yt_to_kiwi(yt_client, kiwi_client, kiwi_transmittor, src, **kwargs):
     if "fastbone" in kwargs:
         del kwargs["fastbone"]
 
-    tmp_dir = tempfile.mkdtemp()
+    tmp_dir = tempfile.mkdtemp(dir=kwargs.get("tmp_dir"))
     try:
         with yt_client.Transaction():
             yt_client.lock(src, mode="snapshot")

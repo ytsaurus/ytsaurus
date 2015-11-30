@@ -964,7 +964,7 @@ class Application(object):
                     self._tasks[id].progress = {"operations": []}
                     self._change_task_state(id, "running")
 
-                    with tempfile.NamedTemporaryFile(delete=False) as fout:
+                    with tempfile.NamedTemporaryFile(delete=False, dir=self._config.get("default_tmp_dir")) as fout:
                         temporary_config = fout.name
                         json.dump(self._get_config(), fout)
 
@@ -1031,7 +1031,8 @@ class Application(object):
                         task.destination_table,
                         fastbone=fastbone,
                         copy_spec_template=copy_spec,
-                        postprocess_spec_template=postprocess_spec)
+                        postprocess_spec_template=postprocess_spec,
+                        default_tmp_dir=self._config.get("default_tmp_dir"))
                 else:  # native
                     network_name = "fastbone" if fastbone else "default"
                     network_name = parameters.get("network_name", network_name)
@@ -1060,7 +1061,8 @@ class Application(object):
                         task.source_table,
                         task.destination_table,
                         fastbone=fastbone,
-                        force_sort=task.destination_force_sort)
+                        force_sort=task.destination_force_sort,
+                        default_tmp_dir=self._config.get("default_tmp_dir"))
             elif source_client._type == "yamr" and destination_client._type == "yt":
                 logger.info("Running YAMR -> YT remote copy")
                 copy_yamr_to_yt_pull(
@@ -1093,7 +1095,8 @@ class Application(object):
                     fastbone=fastbone,
                     kiwi_user=task.kiwi_user,
                     kwworm_options=task.kwworm_options,
-                    copy_spec_template=copy_spec)
+                    copy_spec_template=copy_spec,
+                    default_tmp_dir=self._config.get("default_tmp_dir"))
             elif source_client._type == "hive" and destination_client._type == "yt":
                 copy_hive_to_yt(
                     source_client,
