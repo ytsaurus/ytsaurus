@@ -623,10 +623,10 @@ protected:
     {
         // NB: Key columns must go first.
         TTableSchema schema({
-            TColumnSchema(TColumnSchema("key", EValueType::String).SetSortOrder(ESortOrder::Ascending)),
-            TColumnSchema(TColumnSchema("a", EValueType::Int64)),
-            TColumnSchema(TColumnSchema("b", EValueType::Double)),
-            TColumnSchema(TColumnSchema("c", EValueType::String))
+            TColumnSchema("key", EValueType::String).SetSortOrder(ESortOrder::Ascending),
+            TColumnSchema("a", EValueType::Int64),
+            TColumnSchema("b", EValueType::Double),
+            TColumnSchema("c", EValueType::String)
         });
         return schema;
     }
@@ -661,9 +661,9 @@ protected:
     {
         // NB: Key columns must go first.
         TTableSchema schema({
-            TColumnSchema(TColumnSchema("k1", EValueType::Int64).SetSortOrder(ESortOrder::Ascending)),
-            TColumnSchema(TColumnSchema("k2", EValueType::Int64).SetSortOrder(ESortOrder::Ascending)),
-            TColumnSchema(TColumnSchema("v", EValueType::Int64))
+            TColumnSchema("k1", EValueType::Int64).SetSortOrder(ESortOrder::Ascending),
+            TColumnSchema("k2", EValueType::Int64).SetSortOrder(ESortOrder::Ascending),
+            TColumnSchema("v", EValueType::Int64)
         });
         return schema;
     }
@@ -700,21 +700,12 @@ protected:
     virtual TTableSchema GetSchema() const
     {
         // NB: Key columns must go first.
-<<<<<<< 65d20088b4666bb48902fb9ccdc16acf65e366d6
-        TTableSchema schema;
-        schema.Columns().push_back(TColumnSchema("key", EValueType::Int64).SetSortOrder(ESortOrder::Ascending));
-        schema.Columns().push_back(TColumnSchema("a", EValueType::Int64).SetLock(Stroka("l1")));
-        schema.Columns().push_back(TColumnSchema("b", EValueType::Double).SetLock(Stroka("l2")));
->>>>>>> Refactored TColumnSchema, now it uses method chaining.
-        schema.Columns().push_back(TColumnSchema("c", EValueType::String));
-=======
         TTableSchema schema({
-            TColumnSchema(TColumnSchema("key", EValueType::Int64)),
-            TColumnSchema(TColumnSchema("a", EValueType::Int64).SetLock(Stroka("l1"))),
-            TColumnSchema(TColumnSchema("b", EValueType::Double).SetLock(Stroka("l2"))),
-            TColumnSchema(TColumnSchema("c", EValueType::String))
+            TColumnSchema("key", EValueType::Int64).SetSortOrder(ESortOrder::Ascending),
+            TColumnSchema("a", EValueType::Int64).SetLock(Stroka("l1")),
+            TColumnSchema("b", EValueType::Double).SetLock(Stroka("l2")),
+            TColumnSchema("c", EValueType::String)
         });
->>>>>>> Made Columns() read-only, refactored lots of its usages.
         return schema;
     }
 
