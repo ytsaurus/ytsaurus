@@ -964,8 +964,8 @@ class Application(object):
                     self._tasks[id].progress = {"operations": []}
                     self._change_task_state(id, "running")
 
-                    _, temporary_config = tempfile.mkstemp()
-                    with open(temporary_config, "w") as fout:
+                    with tempfile.NamedTemporaryFile(delete=False) as fout:
+                        temporary_config = fout.name
                         json.dump(self._get_config(), fout)
 
                     task_process = subprocess.Popen(["transfer-manager-server", "--execute-task", "--config", temporary_config],
