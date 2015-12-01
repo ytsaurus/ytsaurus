@@ -44,6 +44,7 @@ struct ITransaction
     virtual NTransactionClient::EAtomicity GetAtomicity() const = 0;
     virtual NTransactionClient::EDurability GetDurability() const = 0;
 
+    virtual TFuture<void> Ping() = 0;
     virtual TFuture<void> Commit(const TTransactionCommitOptions& options = TTransactionCommitOptions()) = 0;
     virtual TFuture<void> Abort(const TTransactionAbortOptions& options = TTransactionAbortOptions()) = 0;
 

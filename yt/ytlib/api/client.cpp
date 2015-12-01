@@ -2174,6 +2174,11 @@ public:
     }
 
 
+    virtual TFuture<void> Ping() override
+    {
+        return Transaction_->Ping();
+    }
+
     virtual TFuture<void> Commit(const TTransactionCommitOptions& options) override
     {
         return BIND(&TTransaction::DoCommit, MakeStrong(this))
