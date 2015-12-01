@@ -277,6 +277,7 @@ void TNode::ApproveReplica(TChunkPtrWithIndex replica)
 
 void TNode::AddToChunkRemovalQueue(const TChunkIdWithIndex& replica)
 {
+    YASSERT(GetLocalState() == ENodeState::Online);
     ChunkRemovalQueue_.insert(ToGeneric(replica));
 }
 
@@ -287,6 +288,7 @@ void TNode::RemoveFromChunkRemovalQueue(const TChunkIdWithIndex& replica)
 
 void TNode::AddToChunkReplicationQueue(TChunkPtrWithIndex replica, int priority)
 {
+    YASSERT(GetLocalState() == ENodeState::Online);
     ChunkReplicationQueues_[priority].insert(ToGeneric(replica));
 }
 
@@ -300,6 +302,7 @@ void TNode::RemoveFromChunkReplicationQueues(TChunkPtrWithIndex replica)
 
 void TNode::AddToChunkSealQueue(TChunk* chunk)
 {
+    YASSERT(GetLocalState() == ENodeState::Online);
     ChunkSealQueue_.insert(chunk);
 }
 

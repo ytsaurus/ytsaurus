@@ -412,7 +412,7 @@ void TChunkReplicator::OnNodeRegistered(TNode* /*node*/)
 
 void TChunkReplicator::OnNodeUnregistered(TNode* node)
 {
-    for (auto job : node->Jobs()) {
+    for (const auto& job : node->Jobs()) {
         UnregisterJob(
             job,
             EJobUnregisterFlags(EJobUnregisterFlags::UnregisterFromChunk | EJobUnregisterFlags::ScheduleChunkRefresh));
@@ -423,6 +423,11 @@ void TChunkReplicator::OnNodeUnregistered(TNode* node)
 void TChunkReplicator::OnNodeDisposed(TNode* node)
 {
     YCHECK(node->Jobs().empty());
+    YCHECK(node->ChunkSealQueue().empty());
+    YCHECK(node->ChunkRemovalQueue().empty());
+    for (const auto& queue : node->ChunkReplicationQueues()) {
+        YCHECK(queue.empty());
+    }
 }
 
 void TChunkReplicator::OnChunkDestroyed(TChunk* chunk)
@@ -1015,7 +1020,10 @@ void TChunkReplicator::RefreshChunk(TChunk* chunk)
             for (auto nodeWithIndex : statistics.DecommissionedRemovalReplicas) {
                 int index = nodeWithIndex.GetIndex();
                 TChunkIdWithIndex chunkIdWithIndex(chunk->GetId(), index);
-                nodeWithIndex.GetPtr()->AddToChunkRemovalQueue(chunkIdWithIndex);
+                auto* node = nodeWithIndex.GetPtr();
+                if (node->GetLocalState() == ENodeState::Online) {
+                    node->AddToChunkRemovalQueue(chunkIdWithIndex);
+                }
             }
 
             for (int index : statistics.BalancingRemovalIndexes) {
@@ -1042,7 +1050,10 @@ void TChunkReplicator::RefreshChunk(TChunk* chunk)
                         chunk->IsErasure() && replica.GetIndex() == index ||
                         chunk->IsJournal() && replica.GetIndex() == SealedChunkReplicaIndex)
                     {
-                        replica.GetPtr()->AddToChunkReplicationQueue(chunkWithIndex, priority);
+                        auto* node = replica.GetPtr();
+                        if (node->GetLocalState() == ENodeState::Online) {
+                            node->AddToChunkReplicationQueue(chunkWithIndex, priority);
+                        }
                     }
                 }
             }
@@ -1052,7 +1063,10 @@ void TChunkReplicator::RefreshChunk(TChunk* chunk)
             YASSERT(chunk->IsJournal());
             for (auto replica : chunk->StoredReplicas()) {
                 if (replica.GetIndex() == UnsealedChunkReplicaIndex) {
-                    replica.GetPtr()->AddToChunkSealQueue(chunk);
+                    auto* node = replica.GetPtr();
+                    if (node->GetLocalState() == ENodeState::Online) {
+                        node->AddToChunkSealQueue(chunk);
+                    }
                 }
             }
         }
