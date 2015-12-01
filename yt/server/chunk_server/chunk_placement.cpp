@@ -490,7 +490,11 @@ bool TChunkPlacement::IsValidBalancingTarget(
 
 bool TChunkPlacement::IsValidRemovalTarget(TNode* node)
 {
-    // Always valid :)
+    if (node->GetLocalState() != ENodeState::Online) {
+        // Do not remove anything from a node before its first heartbeat or after it is unregistered.
+        return false;
+    }
+
     return true;
 }
 
