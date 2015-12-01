@@ -1465,6 +1465,8 @@ protected:
             // Rationale and details are on the wiki.
             // https://wiki.yandex-team.ru/yt/design/partitioncount/
             i64 uncompressedBlockSize = static_cast<i64>(Options->CompressedBlockSize / GetCompressionRatio());
+            uncompressedBlockSize = std::min(uncompressedBlockSize, Spec->PartitionJobIO->TableWriter->BlockSize);
+
             double partitionDataSize = sqrt(dataSizeAfterPartition * uncompressedBlockSize);
 
             int maxPartitionCount = GetMaxPartitionJobBufferSize() / uncompressedBlockSize;
@@ -1486,10 +1488,10 @@ protected:
             // Rationale and details are on the wiki.
             // https://wiki.yandex-team.ru/yt/design/partitioncount/
             i64 uncompressedBlockSize = static_cast<i64>(Options->CompressedBlockSize / GetCompressionRatio());
-            double partitionJobDataSize = sqrt(TotalEstimatedInputDataSize * uncompressedBlockSize);
-            if (partitionJobDataSize > GetMaxPartitionJobBufferSize()) {
-                partitionJobDataSize = GetMaxPartitionJobBufferSize();
-            }
+            uncompressedBlockSize = std::min(uncompressedBlockSize, Spec->PartitionJobIO->TableWriter->BlockSize);
+
+            i64 partitionJobDataSize = static_cast<i64>(sqrt(TotalEstimatedInputDataSize * uncompressedBlockSize));
+            partitionJobDataSize = std::min(partitionJobDataSize, GetMaxPartitionJobBufferSize());
 
             return static_cast<int>(Clamp(
                 static_cast<i64>(TotalEstimatedInputDataSize / partitionJobDataSize),
