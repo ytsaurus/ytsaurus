@@ -453,20 +453,3 @@ class Cypress(fuse.Operations):
         except yt.wrapper.YtError:
             raise fuse.FuseOSError(errno.ENODATA)
         return repr(attr)
-
-
-def mount_cypress(proxy, mountpoint):
-    """Mount a Cypress."""
-    cypress = Cypress(CachedYtClient(proxy=proxy))
-    fuse.FUSE(
-        cypress, mountpoint,
-        raw_fi=True, nothreads=True, foreground=True
-    )
-    return 0
-
-
-if __name__ == "__main__":
-    arguments = docopt.docopt(__doc__)
-    sys.exit(
-        mount_cypress(arguments["<proxy>"], arguments["<mountpoint>"])
-    )
