@@ -400,7 +400,10 @@ private:
             auto* transaction = pair.second;
             int rowCount = 0;
             for (const auto& record : transaction->WriteLog()) {
-                auto* tablet = GetTablet(record.TabletId);
+                auto* tablet = FindTablet(record.TabletId);
+                // NB: Tablet could be missing if it was e.g. forcefully removed.
+                if (!tablet)
+                    continue;
                 TWireProtocolReader reader(record.Data);
                 while (!reader.IsFinished()) {
                     ExecuteSingleWriteAtomic(tablet, transaction, &reader, false);
@@ -801,8 +804,11 @@ private:
         auto atomicity = AtomicityFromTransactionId(transactionId);
 
         auto tabletId = FromProto<TTabletId>(request.tablet_id());
-        auto* tablet = GetTablet(tabletId);
-
+        auto* tablet = FindTablet(tabletId);
+        // NB: Tablet could be missing if it was e.g. forcefully removed.
+        if (!tablet)
+            return;
+                
         auto codecId = ECodec(request.codec());
         auto* codec = GetCodec(codecId);
         auto compressedRecordData = TSharedRef::FromString(request.compressed_data());
