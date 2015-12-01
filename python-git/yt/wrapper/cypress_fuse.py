@@ -21,7 +21,6 @@ import logging
 import functools
 import sys
 
-import docopt
 import expiringdict
 import fuse
 import yt.wrapper.client
