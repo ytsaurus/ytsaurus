@@ -203,7 +203,7 @@ public:
             .GreaterThan(1024);
 
         RegisterParameter("compressed_block_size", CompressedBlockSize)
-            .Default(2 * 1024 * 1024)
+            .Default(1 * 1024 * 1024)
             .GreaterThan(1024);
     }
 };
