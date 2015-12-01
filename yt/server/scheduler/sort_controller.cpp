@@ -1467,7 +1467,8 @@ protected:
             i64 uncompressedBlockSize = static_cast<i64>(Options->CompressedBlockSize / GetCompressionRatio());
             uncompressedBlockSize = std::min(uncompressedBlockSize, Spec->PartitionJobIO->TableWriter->BlockSize);
 
-            double partitionDataSize = sqrt(dataSizeAfterPartition * uncompressedBlockSize);
+            // Product may not fit into i64.
+            double partitionDataSize = sqrt((double)dataSizeAfterPartition * uncompressedBlockSize);
 
             int maxPartitionCount = GetMaxPartitionJobBufferSize() / uncompressedBlockSize;
             result = std::min(static_cast<int>(dataSizeAfterPartition / partitionDataSize), maxPartitionCount);
@@ -1490,8 +1491,9 @@ protected:
             i64 uncompressedBlockSize = static_cast<i64>(Options->CompressedBlockSize / GetCompressionRatio());
             uncompressedBlockSize = std::min(uncompressedBlockSize, Spec->PartitionJobIO->TableWriter->BlockSize);
 
-            i64 partitionJobDataSize = static_cast<i64>(sqrt(TotalEstimatedInputDataSize * uncompressedBlockSize));
-            partitionJobDataSize = std::min(partitionJobDataSize, GetMaxPartitionJobBufferSize());
+            // Product may not fit into i64.
+            double partitionJobDataSize = sqrt((double)TotalEstimatedInputDataSize * uncompressedBlockSize);
+            partitionJobDataSize = std::min(partitionJobDataSize, static_cast<double>(GetMaxPartitionJobBufferSize()));
 
             return static_cast<int>(Clamp(
                 static_cast<i64>(TotalEstimatedInputDataSize / partitionJobDataSize),
