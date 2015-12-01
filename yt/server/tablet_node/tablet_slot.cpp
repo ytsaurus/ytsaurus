@@ -28,12 +28,12 @@
 #include <ytlib/hive/cell_directory.h>
 
 #include <ytlib/transaction_client/timestamp_provider.h>
-#include <ytlib/transaction_client/transaction_manager.h>
 
 #include <ytlib/tablet_client/config.h>
 
 #include <ytlib/api/connection.h>
 #include <ytlib/api/client.h>
+#include <ytlib/api/transaction.h>
 
 #include <server/election/election_manager.h>
 #include <server/election/election_manager_thunk.h>
@@ -66,8 +66,8 @@ using namespace NHydra;
 using namespace NHive;
 using namespace NNodeTrackerClient::NProto;
 using namespace NObjectClient;
-using namespace NTransactionClient;
 using namespace NQueryClient;
+using namespace NApi;
 
 using NHydra::EPeerState;
 
@@ -322,10 +322,9 @@ public:
         Options_ = ConvertTo<TTabletCellOptionsPtr>(TYsonString(createInfo.options()));
 
         auto prerequisiteTransactionId = FromProto<TTransactionId>(createInfo.prerequisite_transaction_id());
-        auto transactionManager = Bootstrap_->GetMasterClient()->GetTransactionManager();
         TTransactionAttachOptions attachOptions;
         attachOptions.Ping = false;
-        PrerequisiteTransaction_ = transactionManager->Attach(prerequisiteTransactionId, attachOptions);
+        PrerequisiteTransaction_ = Bootstrap_->GetMasterClient()->AttachTransaction(prerequisiteTransactionId, attachOptions);
 
         Initialized_ = true;
 
@@ -523,7 +522,7 @@ private:
     TPeerId PeerId_ = InvalidPeerId;
     TCellDescriptor CellDescriptor_;
     TTabletCellOptionsPtr Options_;
-    TTransactionPtr PrerequisiteTransaction_;
+    ITransactionPtr PrerequisiteTransaction_;
 
     TCellManagerPtr CellManager_;
 
