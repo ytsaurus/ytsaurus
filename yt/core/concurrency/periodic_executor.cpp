@@ -64,6 +64,8 @@ void TPeriodicExecutor::ScheduleOutOfBand()
 
 void TPeriodicExecutor::ScheduleNext()
 {
+    TGuard<TSpinLock> guard(SpinLock_);
+    
     // There several reasons why this may fail:
     // 1) Calling ScheduleNext outside of the periodic action
     // 2) Calling ScheduleNext more than once
@@ -71,7 +73,6 @@ void TPeriodicExecutor::ScheduleNext()
     YCHECK(Busy_);
     Busy_ = false;
 
-    TGuard<TSpinLock> guard(SpinLock_);
     if (!Started_)
         return;
 
