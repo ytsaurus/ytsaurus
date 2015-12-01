@@ -242,7 +242,14 @@ public:
 
         auto* transaction = GetTransactionOrThrow(transactionId);
 
-        if (transaction->GetState() != ETransactionState::Active) {
+        auto persistentState = transaction->GetPersistentState();
+
+        if (persistentState == ETransactionState::PersistentCommitPrepared) {
+            // Just ignore; clients may ping transactions during commit.
+            return;
+        }
+
+        if (persistentState != ETransactionState::Active) {
             transaction->ThrowInvalidState();
         }
 

@@ -437,10 +437,6 @@ public:
 
         auto* currentTransaction = transaction;
         while (currentTransaction) {
-            if (currentTransaction->GetPersistentState() != ETransactionState::Active) {
-                currentTransaction->ThrowInvalidState();
-            }
-
             DoPingTransaction(currentTransaction);
 
             if (!pingAncestors)
@@ -639,6 +635,17 @@ private:
     void DoPingTransaction(TTransaction* transaction)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        auto persistentState = transaction->GetPersistentState();
+
+        if (persistentState == ETransactionState::PersistentCommitPrepared) {
+            // Just ignore; clients may ping transactions during commit.
+            return;
+        }
+
+        if (persistentState != ETransactionState::Active) {
+            transaction->ThrowInvalidState();
+        }
 
         auto timeout = transaction->GetTimeout();
         if (timeout) {
