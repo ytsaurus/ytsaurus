@@ -625,8 +625,6 @@ int TDynamicMemoryStore::GetLockCount() const
 
 int TDynamicMemoryStore::Lock()
 {
-    YASSERT(Tablet_->GetAtomicity() == EAtomicity::Full);
-
     int result = ++StoreLockCount_;
     LOG_TRACE("Store locked (Count: %v)",
         result);
@@ -635,7 +633,6 @@ int TDynamicMemoryStore::Lock()
 
 int TDynamicMemoryStore::Unlock()
 {
-    YASSERT(Tablet_->GetAtomicity() == EAtomicity::Full);
     YASSERT(StoreLockCount_ > 0);
 
     int result = --StoreLockCount_;
