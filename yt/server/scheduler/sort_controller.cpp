@@ -1443,7 +1443,7 @@ protected:
     // Returns compression ratio of input data.
     double GetCompressionRatio() const
     {
-        return (double)TotalEstimatedCompressedDataSize / TotalEstimatedInputDataSize;
+        return static_cast<double>(TotalEstimatedCompressedDataSize) / TotalEstimatedInputDataSize;
     }
 
     i64 GetMaxPartitionJobBufferSize() const 
@@ -1462,12 +1462,9 @@ protected:
         } else if (Spec->PartitionDataSize) {
             result = 1 + dataSizeAfterPartition / Spec->PartitionDataSize.Get();
         } else {
-
-            // Rationale and details are on the wiki
+            // Rationale and details are on the wiki.
             // https://wiki.yandex-team.ru/yt/design/partitioncount/
-            i64 uncompressedBlockSize = static_cast<i64>(Options->CompressedBlockSize * GetCompressionRatio());
-            YCHECK(uncompressedBlockSize < GetMaxPartitionJobBufferSize());
-
+            i64 uncompressedBlockSize = static_cast<i64>(Options->CompressedBlockSize / GetCompressionRatio());
             double partitionDataSize = sqrt(dataSizeAfterPartition * uncompressedBlockSize);
 
             int maxPartitionCount = GetMaxPartitionJobBufferSize() / uncompressedBlockSize;
@@ -1486,11 +1483,9 @@ protected:
                 Spec->PartitionJobCount,
                 Options->MaxPartitionJobCount);
         } else {
-            // Rationale and details are on the wiki
+            // Rationale and details are on the wiki.
             // https://wiki.yandex-team.ru/yt/design/partitioncount/
-            i64 uncompressedBlockSize = static_cast<i64>(Options->CompressedBlockSize * GetCompressionRatio());
-            YCHECK(uncompressedBlockSize < GetMaxPartitionJobBufferSize());
-
+            i64 uncompressedBlockSize = static_cast<i64>(Options->CompressedBlockSize / GetCompressionRatio());
             double partitionJobDataSize = sqrt(TotalEstimatedInputDataSize * uncompressedBlockSize);
             if (partitionJobDataSize > GetMaxPartitionJobBufferSize()) {
                 partitionJobDataSize = GetMaxPartitionJobBufferSize();
@@ -1502,7 +1497,6 @@ protected:
                 Options->MaxPartitionJobCount));
         }
     }
-
 
     // Partition progress.
 
