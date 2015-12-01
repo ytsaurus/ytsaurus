@@ -42,6 +42,7 @@ set( SRCS
   ${BASE}/nullable_ut.cpp
   ${BASE}/pattern_formatter_ut.cpp
   ${BASE}/phoenix_ut.cpp
+  ${BASE}/periodic_ut.cpp
   ${BASE}/pipes_ut.cpp
   ${BASE}/preprocessor_ut.cpp
   ${BASE}/process_ut.cpp
