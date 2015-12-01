@@ -722,7 +722,7 @@ Examples:
         print bool_to_string(yt.exists(args.exists))
 
     if args.get is not None:
-        sys.stdout.write(yt.get(args.get, spec=spec, format=yt.create_format("<format=pretty>json")))
+        sys.stdout.write(yt.get(args.get, format=yt.create_format("<format=pretty>json")))
     if args.set is not None:
         if args.value is None:
             die("Value option is necessary for set command")
