@@ -139,7 +139,7 @@ class CachedYtClient(yt.wrapper.client.Yt):
         return requested_attributes
 
     @log_calls(_logger, "%(__name__)s(%(path)r)")
-    def list(self, path, attributes):
+    def list(self, path, attributes=None):
         """Get children of a node specified by a ypath."""
         try:
             flag, value = self._cache[path]
