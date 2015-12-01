@@ -4,6 +4,8 @@ import yt.wrapper.cypress_fuse as cypress_fuse
 
 import fuse
 
+from argparse import ArgumentParser
+
 import sys
 
 def mount_cypress(proxy, mountpoint):
@@ -17,7 +19,13 @@ def mount_cypress(proxy, mountpoint):
 
 
 if __name__ == "__main__":
-    arguments = docopt.docopt(__doc__)
+    parser = ArgumentParser(description="Mount a Cypress, an YT cluster metainformation tree")
+
+    parser.add_argument("proxy", help="Proxy alias like \"aristotle.yt.yandex.net\" or just \"aristotle\".")
+    parser.add_argument("mountpoint", help="Mountpoint directory like \"/mnt/aristotle\".")
+
+    args = parser.parse_args()
+
     sys.exit(
-        mount_cypress(arguments["<proxy>"], arguments["<mountpoint>"])
+        mount_cypress(args.proxy, args.mountpoint)
     )
