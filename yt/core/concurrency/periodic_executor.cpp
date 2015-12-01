@@ -42,6 +42,7 @@ TFuture<void> TPeriodicExecutor::Stop()
     TGuard<TSpinLock> guard(SpinLock_);
     if (Started_) {
         Started_ = false;
+        OutOfBandRequested_ = false;
         TDelayedExecutor::CancelAndClear(Cookie_);
     }
     return IdlePromise_;
@@ -52,6 +53,7 @@ void TPeriodicExecutor::ScheduleOutOfBand()
     TGuard<TSpinLock> guard(SpinLock_);
     if (!Started_)
         return;
+
     if (Busy_) {
         OutOfBandRequested_ = true;
     } else {
@@ -62,16 +64,16 @@ void TPeriodicExecutor::ScheduleOutOfBand()
 
 void TPeriodicExecutor::ScheduleNext()
 {
-    TGuard<TSpinLock> guard(SpinLock_);
-    if (!Started_)
-        return;
-
     // There several reasons why this may fail:
     // 1) Calling ScheduleNext outside of the periodic action
     // 2) Calling ScheduleNext more than once
     // 3) Calling ScheduleNext for an invoker in automatic mode
     YCHECK(Busy_);
     Busy_ = false;
+
+    TGuard<TSpinLock> guard(SpinLock_);
+    if (!Started_)
+        return;
 
     if (OutOfBandRequested_) {
         OutOfBandRequested_ = false;
@@ -88,7 +90,7 @@ void TPeriodicExecutor::PostDelayedCallback(TDuration delay)
     TDelayedExecutor::CancelAndClear(Cookie_);
     Cookie_ = TDelayedExecutor::Submit(
         BIND(&TPeriodicExecutor::PostCallback, MakeWeak(this)),
-        delay);
+        delay); 
 }
 
 void TPeriodicExecutor::PostCallback()
