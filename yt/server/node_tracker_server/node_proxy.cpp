@@ -183,20 +183,6 @@ private:
                 return true;
             }
 
-            // XXX(babenko): multicell?
-            if (key == "stored_replica_count") {
-                BuildYsonFluently(consumer)
-                    .Value(node->StoredReplicas().size());
-                return true;
-            }
-
-            // XXX(babenko): multicell?
-            if (key == "cached_replica_count") {
-                BuildYsonFluently(consumer)
-                    .Value(node->CachedReplicas().size());
-                return true;
-            }
-
             if (key == "tablet_slots") {
                 BuildYsonFluently(consumer)
                     .DoListFor(node->TabletSlots(), [] (TFluentList fluent, const TNode::TTabletSlot& slot) {
