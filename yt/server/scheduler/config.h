@@ -452,7 +452,7 @@ public:
             .Default(1000)
             .GreaterThan(0);
 
-        RegisterParameter("user_job_blkio_weigth", UserJobBlkioWeight)
+        RegisterParameter("user_job_blkio_weight", UserJobBlkioWeight)
             .Default(Null);
 
         RegisterParameter("max_output_table_count", MaxOutputTableCount)
