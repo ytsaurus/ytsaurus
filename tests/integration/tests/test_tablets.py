@@ -186,7 +186,6 @@ class TestTablets(YTEnvSetup):
         with pytest.raises(YtError): read_table("//tmp/t")
         with pytest.raises(YtError): write_table("//tmp/t", [{"key": 1, "value": 2}])
 
-    @pytest.mark.skipif('os.environ.get("BUILD_ENABLE_LLVM", None) == "NO"')
     def test_computed_columns(self):
         self._sync_create_cells(1, 1)
 
@@ -233,7 +232,6 @@ class TestTablets(YTEnvSetup):
         actual = select_rows("* from [//tmp/t]")
         assert_items_equal(actual, expected)
 
-    @pytest.mark.skipif('os.environ.get("BUILD_ENABLE_LLVM", None) == "NO"')
     def test_computed_hash(self):
         self._sync_create_cells(1, 1)
 
@@ -256,7 +254,6 @@ class TestTablets(YTEnvSetup):
         actual = select_rows("key, value from [//tmp/t]")
         assert_items_equal(actual, row2)
 
-    @pytest.mark.skipif('os.environ.get("BUILD_ENABLE_LLVM", None) == "NO"')
     def test_computed_column_update_consistency(self):
         self._sync_create_cells(1, 1)
 

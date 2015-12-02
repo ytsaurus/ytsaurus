@@ -10,6 +10,11 @@
 
 #include <yt/ytlib/object_client/object_service_proxy.h>
 
+#include <yt/ytlib/query_client/folding_profiler.h>
+#include <yt/ytlib/query_client/cg_types.h>
+#include <yt/ytlib/query_client/cg_fragment_compiler.h>
+#include <yt/ytlib/query_client/query_statistics.h>
+
 #include <yt/ytlib/table_client/table_ypath_proxy.h>
 #include <yt/ytlib/table_client/unversioned_row.h>
 
@@ -23,13 +28,6 @@
 #include <yt/core/misc/string.h>
 
 #include <yt/core/ytree/ypath.pb.h>
-
-#ifdef YT_USE_LLVM
-#include <yt/ytlib/query_client/folding_profiler.h>
-#include <yt/ytlib/query_client/cg_types.h>
-#include <yt/ytlib/query_client/cg_fragment_compiler.h>
-#include <yt/ytlib/query_client/query_statistics.h>
-#endif
 
 namespace NYT {
 namespace NTabletClient {
@@ -45,9 +43,7 @@ using namespace NCypressClient;
 using namespace NTableClient;
 using namespace NHive;
 using namespace NNodeTrackerClient;
-#ifdef YT_USE_LLVM
 using namespace NQueryClient;
-#endif
 
 ////////////////////////////////////////////////////////////////////////////////
 
