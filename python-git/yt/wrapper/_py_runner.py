@@ -21,6 +21,11 @@ def main():
         __zip.close()
 
         sys.path = ["./modules"] + sys.path
+        # Python with pre-3.3 version does not support namespace packages,
+        # so we scan modules directory and manually create them in sys.modules.
+        # See https://www.python.org/dev/peps/pep-0420/ and YT-3337 for more details.
+        from _py_runner_helpers import _create_namespace_packages
+        _create_namespace_packages("./modules")
 
         sys.modules['__main__'] = imp.load_module(__main_module_name,
                                                   open(__main_filename, 'rU'),
