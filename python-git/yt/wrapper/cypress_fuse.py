@@ -174,17 +174,17 @@ class OpenedFile(object):
     _logger = logging.getLogger(__name__ + ".OpenedFile")
     _logger.setLevel(level=logging.DEBUG)
 
-    def __init__(self, client, ypath, attributes, buffer_bytes):
+    def __init__(self, client, ypath, attributes, minimum_read_size):
         """Set up cache.
 
-        buffer_bytes:
-          The minimal number of bytes to read from the cluster at once.
+        minimum_read_size:
+          The minimum number of bytes to read from the cluster at once.
         """
         self.ypath = ypath
         self.attributes = attributes
 
         self._client = client
-        self._buffer_bytes = buffer_bytes
+        self._minimum_read_size = minimum_read_size
         self._length = 0
         self._offset = 0
         self._buffer = ""
@@ -193,7 +193,7 @@ class OpenedFile(object):
         if offset < self._offset \
                 or offset + length > self._offset + self._length:
             self._logger.debug("\tmiss")
-            self._length = max(length, self._buffer_bytes)
+            self._length = max(length, self._minimum_read_size)
             if offset < self._offset:
                 self._offset = max(offset + length - self._length, 0)
             else:
@@ -216,25 +216,25 @@ class OpenedTable(object):
     _logger = logging.getLogger(__name__ + ".OpenedTable")
     _logger.setLevel(level=logging.DEBUG)
 
-    def __init__(self, client, ypath, attributes, format, buffer_rows):
+    def __init__(self, client, ypath, attributes, format, minimum_read_row_count):
         """Set up cache.
 
-        buffer_rows:
-          The minimal number of rows to read from the cluster at once.
+        minimum_table_read_row_count:
+          The minimum number of rows to read from the cluster at once.
         """
         self.ypath = ypath
         self.attributes = attributes
 
         self._client = client
         self._format = format
-        self._buffer_rows = buffer_rows
+        self._minimum_read_row_count = minimum_read_row_count
         self._lower_offset = self._upper_offset = 0
         self._lower_row = self._upper_row = 0
         self._buffer = []
 
     def read(self, length, offset):
         while self._upper_offset < offset + length:
-            next_upper_row = self._upper_row + self._buffer_rows
+            next_upper_row = self._upper_row + self._minimum_read_row_count
             slice_ypath = yt.wrapper.TablePath(
                 self.ypath,
                 start_index=self._upper_row,
@@ -247,11 +247,11 @@ class OpenedTable(object):
             if len(slice_content) == 0:
                 break
             self._upper_offset += len(slice_content)
-            self._upper_row += self._buffer_rows
+            self._upper_row += self._minimum_read_row_count
             self._buffer += [slice_content]
 
         while self._lower_offset > offset:
-            next_lower_row = self._lower_row - self._buffer_rows
+            next_lower_row = self._lower_row - self._minimum_read_row_count
             slice_ypath = yt.wrapper.TablePath(
                 self.ypath,
                 start_index=next_lower_row,
@@ -262,7 +262,7 @@ class OpenedTable(object):
                 self._client.read_table(slice_ypath, format=self._format)
             )
             self._lower_offset -= len(slice_content)
-            self._lower_row -= self._buffer_rows
+            self._lower_row -= self._minimum_read_row_count
             self._buffer = [slice_content] + self._buffer
 
         slices_offset = offset - self._lower_offset
@@ -286,15 +286,16 @@ class Cypress(fuse.Operations):
 
     def __init__(
             self, client,
-            buffer_bytes=(4 * 1024 ** 2),
-            format="json", buffer_rows=10000
+            minimum_file_read_size=(4 * 1024 ** 2),
+            table_format="json",
+            minimum_table_read_row_count=10000
     ):
         super(fuse.Operations, self).__init__()
 
         self._client = client
-        self._buffer_bytes = buffer_bytes
-        self._format = format
-        self._buffer_rows = buffer_rows
+        self._minimum_file_read_size = minimum_file_read_size
+        self._table_format = table_format
+        self._minimum_table_read_row_count = minimum_table_read_row_count
 
         self._next_fh = 0
         self._opened_files = {}
@@ -397,14 +398,14 @@ class Cypress(fuse.Operations):
         if type_ == "file":
             opened_file = OpenedFile(
                 self._client, ypath, attributes,
-                self._buffer_bytes
+                self._minimum_file_read_size
             )
         elif type_ == "table":
             # Without this flag FUSE treats the file with st_size=0 as empty.
             fi.direct_io = True
             opened_file = OpenedTable(
                 self._client, ypath, attributes,
-                self._format, self._buffer_rows
+                self._table_format, self._minimum_table_read_row_count
             )
         else:
             raise fuse.FuseOSError(errno.EINVAL)
