@@ -252,7 +252,7 @@ add_library( ytext-arcadia-util STATIC
 )
 
 target_link_libraries ( ytext-arcadia-util
-  ytext-snappy
+  deps-arcadia-contrib-libs-snappy
   ytext-lz4
   ytext-fastlz
   ytext-minilzo
