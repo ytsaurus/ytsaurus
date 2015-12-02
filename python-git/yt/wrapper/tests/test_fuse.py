@@ -1,19 +1,19 @@
+from helpers import TEST_DIR
+
 from yt.wrapper.cypress_fuse import CachedYtClient, Cypress
 from yt.wrapper.common import parse_bool
 from yt.wrapper.http import get_proxy_url
 import yt.wrapper as yt
 
-from helpers import TEST_DIR
-
-from fuse import fuse_file_info
+from yt.packages.fuse import fuse_file_info
 
 import pytest
+
 import random
 import json
 
 @pytest.mark.usefixtures("yt_env")
 class TestCachedYtClient(object):
-
     def test_list(self):
         client = CachedYtClient(proxy = get_proxy_url(), config=yt.config.config)
         assert sorted(client.list("/")) == sorted(yt.list("/"))
