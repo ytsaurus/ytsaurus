@@ -111,9 +111,9 @@ class CachedYtClient(yt.wrapper.client.Yt):
             raise value
 
         # Secondly, check whether all requested attributes are cached.
-        cache_slice = ((a, self._cache[path + "/@" + a]) for a in attributes)
         try:
-            return {a: v for a, (f, v) in cache_slice if f}
+            cache_slice = ((a, self._cache[path + "/@" + a]) for a in attributes)
+            return dict((a, v) for a, (f, v) in cache_slice if f)
         except KeyError:
             pass
 
@@ -130,9 +130,9 @@ class CachedYtClient(yt.wrapper.client.Yt):
 
         requested_attributes = {}
         for attribute in attributes:
-            try:
+            if attribute in all_attributes:
                 requested_attributes[attribute] = all_attributes[attribute]
-            except KeyError:
+            else:
                 self._cache[path + "/@" + attribute] = (
                     False, self._error(attribute)
                 )
@@ -141,11 +141,9 @@ class CachedYtClient(yt.wrapper.client.Yt):
     @log_calls(_logger, "%(__name__)s(%(path)r)")
     def list(self, path, attributes=None):
         """Get children of a node specified by a ypath."""
-        try:
-            flag, value = self._cache[path]
-        except KeyError:
-            pass
-        else:
+        cached_value = self._cache.get(path)
+        if cached_value is not None:
+            flag, value = cached_value
             if flag:
                 return value
             raise value
@@ -160,9 +158,9 @@ class CachedYtClient(yt.wrapper.client.Yt):
 
         for attribute in attributes:
             for child in children:
-                try:
+                if attribute in child.attributes:
                     child_value = (True, child.attributes[attribute])
-                except KeyError:
+                else:
                     child_value = (False, self._error(attribute))
                 child_path = path + "/" + child + "/@" + attribute
                 self._cache[child_path] = child_value
@@ -192,10 +190,8 @@ class OpenedFile(object):
         self._buffer = ""
 
     def read(self, length, offset):
-        if (
-                offset < self._offset
-                or offset + length > self._offset + self._length
-        ):
+        if offset < self._offset \
+                or offset + length > self._offset + self._length:
             self._logger.debug("\tmiss")
             self._length = max(length, self._buffer_bytes)
             if offset < self._offset:
