@@ -27,24 +27,6 @@ add_library( ytext-snappy STATIC
   ${BASE}/snappy/snappy-c.cc
 )
 
-add_library( ytext-zlib STATIC
-  ${BASE}/zlib/adler32.c
-  ${BASE}/zlib/compress.c
-  ${BASE}/zlib/crc32.c
-  ${BASE}/zlib/deflate.c
-  ${BASE}/zlib/gzclose.c
-  ${BASE}/zlib/gzlib.c
-  ${BASE}/zlib/gzread.c
-  ${BASE}/zlib/gzwrite.c
-  ${BASE}/zlib/infback.c
-  ${BASE}/zlib/inffast.c
-  ${BASE}/zlib/inflate.c
-  ${BASE}/zlib/inftrees.c
-  ${BASE}/zlib/trees.c
-  ${BASE}/zlib/uncompr.c
-  ${BASE}/zlib/zutil.c
-)
-
 # zlib uses util/ which resides in the project root.
 include_directories(
   ${CMAKE_SOURCE_DIR}
@@ -53,10 +35,6 @@ include_directories(
 add_library( ytext-zstd STATIC
   ${BASE}/zstd/lib/fse.c
   ${BASE}/zstd/lib/zstd.c
-)
-
-set_target_properties( ytext-zlib PROPERTIES
-  COMPILE_DEFINITIONS BUILD_ZLIB
 )
 
 set_target_properties( ytext-fastlz PROPERTIES
@@ -82,11 +60,6 @@ set_target_properties( ytext-quicklz PROPERTIES
 set_target_properties( ytext-snappy PROPERTIES
   VERSION   1.0.4
   SOVERSION 1.0
-)
-
-set_target_properties( ytext-zlib PROPERTIES
-  VERSION   1.2.3
-  SOVERSION 1.2.3
 )
 
 set_target_properties( ytext-quicklz PROPERTIES
