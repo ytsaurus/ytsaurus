@@ -20,18 +20,6 @@ add_library( ytext-quicklz STATIC
 
 set ( BASE ${CMAKE_SOURCE_DIR}/contrib/libs )
 
-add_library( ytext-snappy STATIC
-  ${BASE}/snappy/snappy.cc
-  ${BASE}/snappy/snappy-sinksource.cc
-  ${BASE}/snappy/snappy-stubs-internal.cc
-  ${BASE}/snappy/snappy-c.cc
-)
-
-# zlib uses util/ which resides in the project root.
-include_directories(
-  ${CMAKE_SOURCE_DIR}
-)
-
 add_library( ytext-zstd STATIC
   ${BASE}/zstd/lib/fse.c
   ${BASE}/zstd/lib/zstd.c
@@ -55,11 +43,6 @@ set_target_properties( ytext-minilzo PROPERTIES
 set_target_properties( ytext-quicklz PROPERTIES
   VERSION   1.5.1
   SOVERSION 1.5
-)
-
-set_target_properties( ytext-snappy PROPERTIES
-  VERSION   1.0.4
-  SOVERSION 1.0
 )
 
 set_target_properties( ytext-quicklz PROPERTIES
