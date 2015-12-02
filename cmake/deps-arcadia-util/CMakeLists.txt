@@ -256,7 +256,7 @@ target_link_libraries ( ytext-arcadia-util
   ytext-lz4
   ytext-fastlz
   ytext-minilzo
-  ytext-zlib
+  deps-arcadia-contrib-libs-zlib
   ytext-quicklz
   ytext-zstd
 )
