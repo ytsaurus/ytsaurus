@@ -85,7 +85,7 @@ def main():
 
     # check broken links
     for obj in yt.search(args.directory, node_type=["link"], attributes=["broken"]):
-        if obj.attributes["broken"] == "true":
+        if str(obj.attributes["broken"]) == "true":
             logger.warning("Removing broken link %s", obj)
             yt.remove(obj, force=True)
 
