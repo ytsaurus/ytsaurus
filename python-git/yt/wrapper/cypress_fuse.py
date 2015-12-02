@@ -180,11 +180,11 @@ class OpenedFile(object):
         buffer_bytes:
           The minimal number of bytes to read from the cluster at once.
         """
-        self._client = client
         self.ypath = ypath
         self.attributes = attributes
-        self._buffer_bytes = buffer_bytes
 
+        self._client = client
+        self._buffer_bytes = buffer_bytes
         self._length = 0
         self._offset = 0
         self._buffer = ""
@@ -222,12 +222,12 @@ class OpenedTable(object):
         buffer_rows:
           The minimal number of rows to read from the cluster at once.
         """
-        self._client = client
         self.ypath = ypath
         self.attributes = attributes
+
+        self._client = client
         self._format = format
         self._buffer_rows = buffer_rows
-
         self._lower_offset = self._upper_offset = 0
         self._lower_row = self._upper_row = 0
         self._buffer = []
