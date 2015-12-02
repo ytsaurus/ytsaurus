@@ -109,17 +109,8 @@ set( HDRS
   ${BASE}/versioned_row.h
   ${BASE}/versioned_writer.h
   ${BASE}/writer.h
+  ${BASE}/llvm_types.h
 )
-
-if (YT_BUILD_ENABLE_LLVM)
-  set( SRCS
-    ${SRCS}
-  )
-  set( HDRS
-    ${HDRS}
-    ${BASE}/llvm_types.h
-  )
-endif()
 
 list(APPEND YT_SOURCE_FILES
   ${SRCS}

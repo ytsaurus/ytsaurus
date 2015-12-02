@@ -27,7 +27,12 @@ add_library(ytcore STATIC
   ${YT_SOURCE_FILES}
 )
 
-target_link_libraries ( ytcore
+llvm_map_components_to_libraries(
+  REQUIRED_LLVM_LIBRARIES
+  mcjit ipo x86 mcdisassembler linker asmparser irreader
+)
+
+target_link_libraries(ytcore
   yt-build
   ytext-arcadia-util
   ytext-arcadia-library-streams-lz
@@ -39,17 +44,13 @@ target_link_libraries ( ytcore
   ytext-re2
   protobuf
   farmhash
+  ${REQUIRED_LLVM_LIBRARIES} 
 )
 
 if (CMAKE_COMPILER_IS_CLANG AND NOT APPLE)
   target_link_libraries ( ytcore
     -latomic -ldl
   )
-endif()
-
-if (YT_BUILD_ENABLE_LLVM)
-  llvm_map_components_to_libraries(REQUIRED_LLVM_LIBRARIES mcjit ipo x86 mcdisassembler linker asmparser irreader)
-  target_link_libraries( ytcore ${REQUIRED_LLVM_LIBRARIES} )
 endif()
 
 include_directories(

@@ -18,7 +18,6 @@ option(YT_BUILD_ENABLE_TESTS              "Build tests" TRUE)
 option(YT_BUILD_ENABLE_NODEJS             "Build NodeJS bindings" FALSE)
 option(YT_BUILD_ENABLE_PYTHON             "Build Python bindings" TRUE)
 option(YT_BUILD_ENABLE_PERL               "Build Perl bindings" FALSE)
-option(YT_BUILD_ENABLE_LLVM               "Build LLVM MCJIT" TRUE)
 option(YT_BUILD_ENABLE_SERIALIZATION_DUMP "Enable dumping snapshots" FALSE)
 option(YT_BUILD_HAVE_RAGEL                "Do you have Ragel 6.8?" FALSE)
 option(YT_BUILD_HAVE_BISON                "Do you have Bison 3.0?" FALSE)
@@ -84,6 +83,12 @@ endif()
 include(PCH)
 include(PCFromUcontext)
 
+# Using CMake module FindLLVM.cmake form <root>/cmake directory.
+find_package(LLVM)
+
+link_directories(${LLVM_LIBRARY_DIRS})
+include_directories(${LLVM_INCLUDE_DIRS})
+
 # Discover Python world.
 if(YT_BUILD_ENABLE_PYTHON)
   find_package(PythonInterp)
@@ -108,16 +113,6 @@ if(YT_BUILD_ENABLE_PERL)
     message(FATAL_ERROR "Could not find Perl libraries to build with YT_BUILD_ENABLE_PERL=TRUE")
   endif()
   message(STATUS "Using Perl: ${PERL_EXECUTABLE} (-I${PERL_INCLUDE_DIR} -l${PERL_LIBRARY})")
-endif()
-
-# Discover LLVM.
-if(YT_BUILD_ENABLE_LLVM)
-  # Using CMake module FindLLVM.cmake form <root>/cmake directory.
-  find_package(LLVM)
-
-  link_directories(${LLVM_LIBRARY_DIRS})
-  include_directories(${LLVM_INCLUDE_DIRS})
-  add_definitions(-DYT_USE_LLVM)
 endif()
 
 # Serialization dumps.
