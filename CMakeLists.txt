@@ -24,7 +24,6 @@ option(YT_BUILD_HAVE_RAGEL                "Do you have Ragel 6.8?" FALSE)
 option(YT_BUILD_HAVE_BISON                "Do you have Bison 3.0?" FALSE)
 option(YT_BUILD_YTCORE_SHARED             "Build ytcore as a shared lib" FALSE)
 option(YT_BUILD_ENABLE_ASAN               "Build with Address Sanitizer enabled" FALSE)
-option(YT_USE_FOLDERS                     "Enable solution folders in Visual Studio; disable for Express versions" TRUE)
 option(YT_USE_LTO                         "Enable link time optimizations" FALSE)
 
 ################################################################################
@@ -275,41 +274,4 @@ add_custom_target( install-debian-yandex-yt-perl-${YT_ABI_VERSION}
     -P ${CMAKE_BINARY_DIR}/cmake_install.cmake
   COMMENT "Installing for package 'yandex-yt-perl-${YT_ABI_VERSION}'..."
 )
-
-if(YT_USE_FOLDERS)
-  set_property(GLOBAL PROPERTY USE_FOLDERS ON)
-endif()
-
-# TODO(sandello): Move these properties closer to target definitions.
-set_target_properties(ytext-arcadia-util PROPERTIES FOLDER "Contrib")
-set_target_properties(ytext-arcadia-library-blockcodecs PROPERTIES FOLDER "Contrib")
-set_target_properties(ytext-arcadia-library-lwtrace PROPERTIES FOLDER "Contrib")
-set_target_properties(ytext-arcadia-library-messagebus PROPERTIES FOLDER "Contrib")
-set_target_properties(ytext-arcadia-library-http PROPERTIES FOLDER "Contrib")
-set_target_properties(protobuf PROPERTIES FOLDER "Contrib")
-set_target_properties(protoc PROPERTIES FOLDER "Contrib")
-set_target_properties(ytext-fastlz PROPERTIES FOLDER "Contrib")
-set_target_properties(ytext-lz4 PROPERTIES FOLDER "Contrib")
-set_target_properties(ytext-minilzo PROPERTIES FOLDER "Contrib")
-set_target_properties(ytext-quicklz PROPERTIES FOLDER "Contrib")
-set_target_properties(ytext-snappy PROPERTIES FOLDER "Contrib")
-set_target_properties(ytext-zlib PROPERTIES FOLDER "Contrib")
-set_target_properties(ytext-yajl PROPERTIES FOLDER "Contrib")
-set_target_properties(ytext-json PROPERTIES FOLDER "Contrib")
-set_target_properties(yt-contrib-benchmark PROPERTIES FOLDER "Contrib")
-set_target_properties(ytext-zstd PROPERTIES FOLDER "Contrib")
-set_target_properties(ytext-re2 PROPERTIES FOLDER "Contrib")
-
-set_target_properties(install-debian-yandex-yt PROPERTIES FOLDER "Misc")
-set_target_properties(install-debian-yandex-yt-http-proxy PROPERTIES FOLDER "Misc")
-set_target_properties(install-debian-yandex-yt-perl PROPERTIES FOLDER "Misc")
-set_target_properties(package PROPERTIES FOLDER "Misc")
-set_target_properties(version PROPERTIES FOLDER "Misc")
-
-set_target_properties(unittester PROPERTIES FOLDER "YT")
-set_target_properties(ytcore PROPERTIES FOLDER "YT")
-set_target_properties(yt PROPERTIES FOLDER "YT")
-set_target_properties(ytlib PROPERTIES FOLDER "YT")
-set_target_properties(ytserver PROPERTIES FOLDER "YT")
-set_target_properties(ytserver_lib PROPERTIES FOLDER "YT")
 
