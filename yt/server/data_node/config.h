@@ -461,6 +461,10 @@ public:
             RepairWriter->WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::SystemRepair);
             SealReader->WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::SystemReplication);
             ReplicationWriter->WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::SystemReplication);
+
+            // Don't populate caches in chunk jobs.
+            RepairReader->PopulateCache = false;
+            SealReader->PopulateCache = false;
         });
     }
 
