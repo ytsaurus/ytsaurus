@@ -9,7 +9,7 @@ from yt.transfer_manager.server.yt_client import YtClientWithNotifications
 
 from yt.tools.logging_server import LogRecordSocketReceiver
 from yt.tools.yamr import Yamr, YamrError
-from yt.tools.hadoop import Hive
+from yt.tools.hadoop import Hive, Airflow, Hdfs
 from yt.tools.remote_copy_tools import Kiwi
 from yt.tools.remote_copy_tools import \
     copy_yamr_to_yt_pull, \
@@ -18,7 +18,8 @@ from yt.tools.remote_copy_tools import \
     copy_yt_to_kiwi, \
     copy_yt_to_yt, \
     copy_yt_to_yt_through_proxy, \
-    copy_hive_to_yt
+    copy_hive_to_yt, \
+    copy_hadoop_to_hadoop_with_airflow
 
 from yt.common import remove_file
 from yt.wrapper.common import generate_uuid, get_value, update
@@ -44,7 +45,7 @@ import subprocess
 import pwd
 from copy import deepcopy
 from datetime import datetime, timedelta
-from collections import defaultdict, namedtuple
+from collections import defaultdict
 from subprocess32 import TimeoutExpired
 from threading import RLock, Thread, current_thread
 from multiprocessing import Process
@@ -239,7 +240,12 @@ class Task(object):
     def copy(self):
         return Task(**dict((key, value) for key, value in self.__dict__.iteritems() if not key.startswith("_")))
 
-ClustersConfiguration = namedtuple("ClustersConfiguration", ["clusters", "availability_graph", "kiwi_transmitter"])
+class ClustersConfiguration(object):
+    def __init__(self, clusters, availability_graph, kiwi_transmitter, airflow_client):
+        self.clusters = clusters
+        self.availability_graph = availability_graph
+        self.kiwi_transmitter = kiwi_transmitter
+        self.airflow_client = airflow_client
 
 class Application(object):
     ERROR_BUFFER_SIZE = 2 ** 16
@@ -417,7 +423,7 @@ class Application(object):
         clusters = {}
         for name, cluster_description in config["clusters"].iteritems():
             type = cluster_description["type"]
-            options = cluster_description["options"]
+            options = cluster_description.get("options", {})
 
             if type == "yt":
                 if "config" not in options:
@@ -432,6 +438,8 @@ class Application(object):
                 clusters[name] = Kiwi(**options)
             elif type == "hive":
                 clusters[name] = Hive(**options)
+            elif type == "hdfs":
+                clusters[name] = Hdfs(**options)
             else:
                 raise yt.YtError("Incorrect cluster type " + options["type"])
 
@@ -466,7 +474,11 @@ class Application(object):
             if kiwi_transmitter._type != "yt":
                 raise yt.YtError("Kiwi transmitter must be YT cluster")
 
-        return ClustersConfiguration(clusters, availability_graph, kiwi_transmitter)
+        airflow_client = None
+        if "airflow_address" in config:
+            airflow_client = Airflow(config["airflow_address"])
+
+        return ClustersConfiguration(clusters, availability_graph, kiwi_transmitter, airflow_client)
 
     def _reload_clusters_config(self, reload_timeout):
         while True:
@@ -507,8 +519,8 @@ class Application(object):
         new_logger.handlers[0].setFormatter(logger.BASIC_FORMATTER)
         logger.LOGGER = new_logger
 
-        logging.getLogger('werkzeug').setLevel(level)
-        logging.getLogger('werkzeug').addHandler(handler)
+        logging.getLogger("werkzeug").setLevel(level)
+        logging.getLogger("werkzeug").addHandler(handler)
 
     def _run_logging_server(self):
         prctl.set_pdeathsig(signal.SIGINT)
@@ -613,6 +625,8 @@ class Application(object):
             return destination_client, source_client
         elif destination_client._type == "kiwi":
             return clusters_configuration.kiwi_transmitter, source_client
+        elif destination_client._type in ["hive", "hdfs"]:
+            return source_client, destination_client
         else:
             raise yt.YtError("Unknown destination client type: %r", destination_client._type)
 
@@ -752,6 +766,11 @@ class Application(object):
 
             if source_client._type == "hive" and "." not in task.source_table:
                 raise yt.YtError("Incorrect source table for hive, it must have format {database_name}.{table_name}")
+
+            if (source_client._type == "hive" or source_client._type == "hdfs") and clusters_configuration.airflow_client is None:
+                raise yt.YtError("Airflow client should be configured for transfer from {0} to {1}"
+                                 .format(source_client._type, destination_client._type))
+
         except TimeoutExpired:
             custom_logger.info("Precheck timed out")
             if not ignore_timeout:
@@ -1119,6 +1138,18 @@ class Application(object):
                     task.source_table,
                     task.destination_table,
                     copy_spec_template=copy_spec)
+            elif (source_client._type == "hdfs" and destination_client._type == "hdfs") \
+                    or (source_client._type == "hive" and destination_client._type == "hive"):
+                type_to_task_type = {"hdfs": "distcp", "hive": "hivecp"}
+                copy_hadoop_to_hadoop_with_airflow(
+                    type_to_task_type[source_client._type],
+                    clusters_configuration.airflow_client,
+                    task.source_table,
+                    source_client.airflow_name,
+                    task.destination_table,
+                    destination_client.airflow_name,
+                    task.user,
+                    message_queue)
             else:
                 raise Exception("Incorrect cluster types: {} source and {} destination".format(
                                 source_client._type,

@@ -1,12 +1,15 @@
 from yt.wrapper.common import generate_uuid, bool_to_string, MB
 from yt.tools.conversion_tools import convert_to_erasure
 from yt.common import get_value
+import yt.packages.requests as requests
 import yt.yson as yson
 import yt.logger as logger
 import yt.wrapper as yt
+from yt.tools.hadoop import AirflowError
 
 import os
 import json
+import time
 import shutil
 import tempfile
 import tarfile
@@ -627,4 +630,28 @@ def copy_hive_to_yt(hive_client, yt_client, source_table, destination_table, cop
         files=hive_client.hive_importer_library,
         spec=spec)
 
+def copy_hadoop_to_hadoop_with_airflow(task_type, airflow_client, source_path, source_cluster,
+                                       destination_path, destination_cluster, user, message_queue):
+    task_id = airflow_client.add_task(
+        task_type=task_type,
+        source_cluster=source_cluster,
+        source_path=source_path,
+        destination_cluster=destination_cluster,
+        destination_path=destination_path,
+        owner=user)
 
+    message_queue.put({"type": "operation_started", "operation": {"airflow_task_id": task_id}})
+
+    while True:
+        task_info = airflow_client.get_task_info(task_id)
+        state = task_info.get("state")
+        if not airflow_client.is_task_finished(state):
+            time.sleep(3.0)
+            continue
+
+        if airflow_client.is_task_unsuccessfully_finished(state):
+            error = yt.YtError("Copy task unsuccessfully finished with status: " + state)
+            error.attributes["details"] = airflow_client.get_task_logs(task_id)
+            raise error
+        else:
+            break
