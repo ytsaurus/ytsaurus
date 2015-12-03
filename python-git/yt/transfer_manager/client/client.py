@@ -7,6 +7,7 @@ import yt.packages.requests as requests
 import yt.packages.simplejson as json
 
 import time
+from copy import deepcopy
 
 TM_BACKEND_URL = "http://transfer-manager.yt.yandex.net/api/v1"
 TM_TASK_URL_PATTERN = "https://transfer-manager.yt.yandex-team.ru/task?id={id}&tab=details&backend={backend_tag}"
@@ -85,7 +86,7 @@ class TransferManager(object):
                                                    destination_cluster, destination_pattern)
 
         sync = kwargs.pop("sync", False)
-        poll_period = kwargs.pop("poll_period", 5)
+        poll_period = get_value(kwargs.pop("poll_period", None), 5)
 
         tasks = []
         for source_table, destination_table in src_dst_pairs:
@@ -147,17 +148,36 @@ class TransferManager(object):
         return response
 
     def _wait_for_tasks(self, tasks, poll_period):
-        for task in tasks:
-            while True:
-                logger.info("Waiting for task %s", task)
+        remaining_tasks = deepcopy(tasks)
+        aborted_task_count = 0
+        failed_task_count = 0
+
+        while True:
+            tasks_to_remove = []
+            logger.info("Waiting for tasks...")
+            for task in remaining_tasks:
                 state = self.get_task_info(task)["state"]
                 if state == "completed":
                     logger.info("Task %s completed", task)
-                    break
-                if state == "aborted":
-                    raise YtError("Task {0} was aborted".format(task))
-                if state == "failed":
-                    raise YtError("Task {0} failed. Use get_task_info for more info".format(task))
+                elif state == "aborted":
+                    logger.warning("Task {0} was aborted".format(task))
+                    aborted_task_count += 1
+                elif state == "failed":
+                    logger.warning("Task {0} failed. Use get_task_info for more info".format(task))
+                    failed_task_count += 1
+                else:
+                    continue
 
-                time.sleep(poll_period)
+                tasks_to_remove.append(task)
 
+            for task in tasks_to_remove:
+                remaining_tasks.remove(task)
+
+            if not remaining_tasks:
+                break
+
+            time.sleep(poll_period)
+
+        if aborted_task_count or failed_task_count:
+            raise YtError("All tasks done but there are {0} failed and {1} aborted tasks"
+                          .format(failed_task_count, aborted_task_count))
