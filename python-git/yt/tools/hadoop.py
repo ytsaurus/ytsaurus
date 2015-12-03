@@ -1,3 +1,8 @@
+from yt.wrapper.common import generate_uuid, run_with_retries
+from yt.wrapper.http import get_retriable_errors
+import yt.packages.requests as requests
+from yt.json import loads_as_bytes
+
 import os
 import json
 from subprocess import check_output
@@ -6,7 +11,8 @@ class HiveError(Exception):
     pass
 
 class Hive(object):
-    def __init__(self, hcatalog_host, hdfs_host, hive_importer_library, java_path=""):
+    def __init__(self, airflow_name, hcatalog_host, hdfs_host, hive_importer_library, java_path=""):
+        self.airflow_name = airflow_name
         self.hcatalog_host = hcatalog_host
         self.hdfs_host = hdfs_host
         self.hive_importer_library = hive_importer_library
@@ -49,3 +55,90 @@ done
                     hive_importer_library=os.path.basename(self.hive_importer_library),
                     hdfs_host=self.hdfs_host,
                     read_config=read_config)
+
+class AirflowError(Exception):
+    pass
+
+class Airflow(object):
+    def __init__(self, airflow_address):
+        self.airflow_address = airflow_address
+        self._headers = {
+            "Content-Type": "application/json"
+        }
+
+    def add_task(self, task_type, source_cluster, source_path, destination_cluster, destination_path, owner):
+        if task_type == "distcp":
+            pattern = "{cluster}{path}"
+        elif task_type == "hivecp":
+            pattern = "{cluster}.{path}"
+        else:
+            raise AirflowError("Unsupported airflow task type: {0}".format(task_type))
+
+        src = pattern.format(cluster=source_cluster, path=source_path)
+        dst = pattern.format(cluster=destination_cluster, path=destination_path)
+
+        task_id = generate_uuid()
+        data = {
+            "owner": owner,
+            "operation_type": task_type,
+            "src": src,
+            "dst": dst,
+            "dag_id": task_id
+        }
+
+        submit_url = "http://{0}/admin/airflow/submit".format(self.airflow_address)
+        # XXX(asaitgalin): Retries will be added when HDPDEV-279 is done.
+        response = requests.post(submit_url, data=json.dumps(data), headers=self._headers)
+        response.raise_for_status()
+
+        return task_id
+
+    def get_task_info(self, task_id):
+        graph_url = "http://{0}/admin/airflow/graph".format(self.airflow_address)
+        params = {
+            "dag_id": task_id,
+            "no_render": "true"
+        }
+        response = self._make_get_request(graph_url, params=params)
+        if response.status_code == 400:
+            raise AirflowError("Task {0} not found".format(task_id))
+
+        info = loads_as_bytes(response.content)
+        return info.values()[0] if info else {}
+
+    def get_task_logs(self, task_id):
+        info = self.get_task_info(task_id)
+        if not info:
+            return ""
+
+        log_url = "http://{0}/admin/airflow/log".format(self.airflow_address)
+        params = {
+            "dag_id": task_id,
+            "task_id": info["task_id"],
+            "execution_date": info["execution_date"],
+            "no_render": "true"
+        }
+        response = self._make_get_request(log_url, params=params)
+        if response.status_code == 400:
+            raise AirflowError("Task {0} not found".format(task_id))
+
+        return response.content
+
+    @staticmethod
+    def is_task_unsuccessfully_finished(state):
+        return state in ["shutdown", "failed", "upstream_failed"]
+
+    @staticmethod
+    def is_task_finished(state):
+        return state in ["success", "shutdown", "failed", "skipped", "upstream_failed"]
+
+    def _make_get_request(self, url, params):
+        def make_request():
+            response = requests.get(url, params=params, headers=self._headers)
+            return response
+
+        return run_with_retries(make_request, exceptions=get_retriable_errors())
+
+class Hdfs(object):
+    def __init__(self, airflow_name):
+        self.airflow_name = airflow_name
