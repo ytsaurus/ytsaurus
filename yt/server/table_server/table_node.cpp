@@ -224,10 +224,8 @@ protected:
         clonedNode->KeyColumns() = sourceNode->KeyColumns();
 
         if (sourceNode->IsDynamic()) {
-            auto objectManager = Bootstrap_->GetObjectManager();
-            for (auto* tablet : sourceNode->Tablets()) {
-                objectManager->RefObject(tablet);
-                clonedNode->Tablets().push_back(tablet);
+            clonedNode->Tablets() = std::move(sourceNode->Tablets());
+            for (auto* tablet : clonedNode->Tablets()) {
                 tablet->SetTable(clonedNode);
             }
         }
