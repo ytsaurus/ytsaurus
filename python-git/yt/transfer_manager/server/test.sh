@@ -285,6 +285,21 @@ test_clusters_configuration_reloading() {
     cp $temp_filename $TM_CONFIG
 }
 
+test_types_preserving_during_copy() {
+    echo "Test that different column types are copied correctly"
+
+    export YT_VERSION="v3"
+
+    yt2 remove --force //tmp/test_table --proxy quine
+    echo '{"a": true, "b": 0, "c": "str"}' | yt2 write //tmp/test_table --proxy quine --format json
+    id=$(run_task '{"source_table": "//tmp/test_table", "source_cluster": "quine", "destination_table": "//tmp/test_table", "destination_cluster": "plato", "copy_method": "proxy"}')
+    wait_task $id
+
+    check "$(yt2 read //tmp/test_table --proxy quine --format json)" "$(yt2 read //tmp/test_table --proxy plato --format json)"
+
+    unset YT_VERSION
+}
+
 # Different transfers
 echo -e "a\tb\nc\td\ne\tf" | yt2 write //tmp/test_table --format yamr --proxy smith.yt.yandex.net
 yt2 sort --src //tmp/test_table --dst //tmp/test_table --sort-by key --sort-by subkey --proxy smith.yt.yandex.net
@@ -304,3 +319,4 @@ test_copy_to_yamr_table_with_spaces_in_name
 test_recursive_path_creation
 test_passing_custom_spec
 test_clusters_configuration_reloading
+test_types_preserving_during_copy

@@ -201,11 +201,11 @@ def _request_api(proxy, version=None, client=None):
 
 def get_api_version(client=None):
     api_version_option = get_option("_api_version", client)
-    if api_version_option is not None:
+    if api_version_option:
         return api_version_option
 
     api_version_from_config = get_config(client)["api_version"]
-    if api_version_from_config is not None:
+    if api_version_from_config:
         set_option("_api_version", api_version_from_config, client)
         return api_version_from_config
 

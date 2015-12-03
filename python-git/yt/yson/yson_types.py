@@ -151,6 +151,9 @@ class YsonEntity(YsonType):
     def __ne__(self, other):
         return not (self == other)
 
+    def __nonzero__(self):
+        return False
+
     def __repr__(self):
         if self.attributes:
             return repr({"value": "YsonEntity", "attributes": self.attributes})
