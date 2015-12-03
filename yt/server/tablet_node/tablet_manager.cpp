@@ -198,6 +198,7 @@ public:
 
         auto* tablet = GetTabletOrThrow(tabletSnapshot->TabletId);
 
+        tablet->ValidateMountRevision(tabletSnapshot->MountRevision);
         ValidateTabletMounted(tablet);
         ValidateStoreLimit(tablet);
         ValidateMemoryLimit();
@@ -248,6 +249,7 @@ public:
 
         TReqRotateStore request;
         ToProto(request.mutable_tablet_id(), tablet->GetTabletId());
+        request.set_mount_revision(tablet->GetMountRevision());
 
         CommitTabletMutation(request)
             .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<TMutationResponse>& error) {
@@ -510,6 +512,7 @@ private:
     void HydraMountTablet(const TReqMountTablet& request)
     {
         auto tabletId = FromProto<TTabletId>(request.tablet_id());
+        auto mountRevision = request.mount_revision();
         auto tableId = FromProto<TObjectId>(request.table_id());
         auto schema = FromProto<TTableSchema>(request.schema());
         auto keyColumns = FromProto<TKeyColumns>(request.key_columns());
@@ -523,6 +526,7 @@ private:
             mountConfig,
             writerOptions,
             tabletId,
+            mountRevision,
             tableId,
             Slot_,
             schema,
@@ -595,9 +599,10 @@ private:
             StartTabletEpoch(tablet);
         }
 
-        LOG_INFO_UNLESS(IsRecovery(), "Tablet mounted (TabletId: %v, TableId: %v, Keys: %v .. %v, StoreCount: %v, "
-            "PartitionCount: %v, Atomicity: %v)",
+        LOG_INFO_UNLESS(IsRecovery(), "Tablet mounted (TabletId: %v, MountRevision: %x, TableId: %v, Keys: %v .. %v,"
+            "StoreCount: %v, PartitionCount: %v, Atomicity: %v)",
             tabletId,
+            mountRevision,
             tableId,
             pivotKey,
             nextPivotKey,
@@ -702,6 +707,11 @@ private:
             return;
         }
 
+        auto mountRevision = request.mount_revision();
+        if (mountRevision != tablet->GetMountRevision()) {
+            return;
+        }
+
         auto requestedState = ETabletState(request.state());
 
         switch (requestedState) {
@@ -775,13 +785,17 @@ private:
 
     void HydraLeaderExecuteWriteNonAtomic(
         const TTabletId& tabletId,
+        i64 mountRevision,
         const TTransactionId& transactionId,
         const TSharedRef& recordData)
     {
         auto* tablet = FindTablet(tabletId);
+        // NB: Tablet could be missing if it was e.g. forcefully removed.
         if (!tablet) {
             return;
         }
+
+        tablet->ValidateMountRevision(mountRevision);
 
         TWireProtocolReader reader(recordData);
         int rowCount = 0;
@@ -806,9 +820,15 @@ private:
         auto tabletId = FromProto<TTabletId>(request.tablet_id());
         auto* tablet = FindTablet(tabletId);
         // NB: Tablet could be missing if it was e.g. forcefully removed.
-        if (!tablet)
+        if (!tablet) {
             return;
-                
+        }
+
+        auto mountRevision = request.mount_revision();
+        if (mountRevision != tablet->GetMountRevision()) {
+            return;
+        }
+
         auto codecId = ECodec(request.codec());
         auto* codec = GetCodec(codecId);
         auto compressedRecordData = TSharedRef::FromString(request.compressed_data());
@@ -855,7 +875,15 @@ private:
     {
         auto tabletId = FromProto<TTabletId>(request.tablet_id());
         auto* tablet = FindTablet(tabletId);
-        if (!tablet || tablet->GetState() != ETabletState::Mounted) {
+        if (!tablet) {
+            return;
+        }
+        if (tablet->GetState() != ETabletState::Mounted) {
+            return;
+        }
+
+        auto mountRevision = request.mount_revision();
+        if (mountRevision != tablet->GetMountRevision()) {
             return;
         }
 
@@ -869,6 +897,11 @@ private:
         auto tabletId = FromProto<TTabletId>(commitRequest.tablet_id());
         auto* tablet = FindTablet(tabletId);
         if (!tablet) {
+            return;
+        }
+
+        auto mountRevision = commitRequest.mount_revision();
+        if (mountRevision != tablet->GetMountRevision()) {
             return;
         }
 
@@ -897,6 +930,7 @@ private:
         {
             TReqUpdateTabletStores masterRequest;
             ToProto(masterRequest.mutable_tablet_id(), tabletId);
+            masterRequest.set_mount_revision(mountRevision);
             masterRequest.mutable_stores_to_add()->MergeFrom(commitRequest.stores_to_add());
             masterRequest.mutable_stores_to_remove()->MergeFrom(commitRequest.stores_to_remove());
 
@@ -919,6 +953,11 @@ private:
         auto tabletId = FromProto<TTabletId>(response.tablet_id());
         auto* tablet = FindTablet(tabletId);
         if (!tablet) {
+            return;
+        }
+
+        auto mountRevision = response.mount_revision();
+        if (mountRevision != tablet->GetMountRevision()) {
             return;
         }
 
@@ -1020,6 +1059,11 @@ private:
             return;
         }
 
+        auto mountRevision = request.mount_revision();
+        if (mountRevision != tablet->GetMountRevision()) {
+            return;
+        }
+
         auto partitionId = FromProto<TPartitionId>(request.partition_id());
         auto* partition = tablet->GetPartitionById(partitionId);
         auto pivotKeys = FromProto<TOwningKey>(request.pivot_keys());
@@ -1060,6 +1104,11 @@ private:
         auto tabletId = FromProto<TTabletId>(request.tablet_id());
         auto* tablet = FindTablet(tabletId);
         if (!tablet) {
+            return;
+        }
+
+        auto mountRevision = request.mount_revision();
+        if (mountRevision != tablet->GetMountRevision()) {
             return;
         }
 
@@ -1104,6 +1153,11 @@ private:
         auto tabletId = FromProto<TTabletId>(request.tablet_id());
         auto* tablet = FindTablet(tabletId);
         if (!tablet) {
+            return;
+        }
+
+        auto mountRevision = request.mount_revision();
+        if (mountRevision != tablet->GetMountRevision()) {
             return;
         }
 
@@ -1333,6 +1387,7 @@ private:
             TReqExecuteWrite hydraRequest;
             ToProto(hydraRequest.mutable_transaction_id(), transactionId);
             ToProto(hydraRequest.mutable_tablet_id(), tabletId);
+            hydraRequest.set_mount_revision(tablet->GetMountRevision());
             hydraRequest.set_codec(static_cast<int>(ChangelogCodec_->GetId()));
             hydraRequest.set_compressed_data(ToString(compressedRecordData));
             *commitResult = CreateMutation(Slot_->GetHydraManager(), hydraRequest)
@@ -1377,6 +1432,7 @@ private:
         TReqExecuteWrite hydraRequest;
         ToProto(hydraRequest.mutable_transaction_id(), transactionId);
         ToProto(hydraRequest.mutable_tablet_id(), tablet->GetTabletId());
+        hydraRequest.set_mount_revision(tablet->GetMountRevision());
         hydraRequest.set_codec(static_cast<int>(ChangelogCodec_->GetId()));
         hydraRequest.set_compressed_data(ToString(compressedRecordData));
         *commitResult = CreateMutation(Slot_->GetHydraManager(), hydraRequest)
@@ -1385,6 +1441,7 @@ private:
                     &TImpl::HydraLeaderExecuteWriteNonAtomic,
                     MakeStrong(this),
                     tablet->GetTabletId(),
+                    tablet->GetMountRevision(),
                     transactionId,
                     recordData))
             ->Commit()
@@ -1489,6 +1546,7 @@ private:
 
         TReqSetTabletState request;
         ToProto(request.mutable_tablet_id(), tablet->GetTabletId());
+        request.set_mount_revision(tablet->GetMountRevision());
         request.set_state(static_cast<int>(ETabletState::Flushing));
 
         CommitTabletMutation(request)
@@ -1516,6 +1574,7 @@ private:
 
         TReqSetTabletState request;
         ToProto(request.mutable_tablet_id(), tablet->GetTabletId());
+        request.set_mount_revision(tablet->GetMountRevision());
         request.set_state(static_cast<int>(ETabletState::Unmounted));
 
         CommitTabletMutation(request)

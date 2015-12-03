@@ -196,6 +196,7 @@ private:
 
             TReqSplitPartition request;
             ToProto(request.mutable_tablet_id(), tablet->GetTabletId());
+            request.set_mount_revision(tablet->GetMountRevision());
             ToProto(request.mutable_partition_id(), partition->GetId());
             ToProto(request.mutable_pivot_keys(), pivotKeys);
 
@@ -247,6 +248,7 @@ private:
 
         TReqMergePartitions request;
         ToProto(request.mutable_tablet_id(), tablet->GetTabletId());
+        request.set_mount_revision(tablet->GetMountRevision());
         ToProto(request.mutable_partition_id(), tablet->Partitions()[firstPartitionIndex]->GetId());
         request.set_partition_count(lastPartitionIndex - firstPartitionIndex + 1);
 
@@ -299,6 +301,7 @@ private:
 
             TReqUpdatePartitionSampleKeys request;
             ToProto(request.mutable_tablet_id(), tablet->GetTabletId());
+            request.set_mount_revision(tablet->GetMountRevision());
             ToProto(request.mutable_partition_id(), partition->GetId());
             ToProto(request.mutable_sample_keys(), samples);
 

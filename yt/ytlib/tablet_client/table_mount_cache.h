@@ -44,6 +44,7 @@ struct TTabletInfo
     : public TIntrinsicRefCounted
 {
     NObjectClient::TObjectId TabletId;
+    i64 MountRevision = 0;
     NTabletClient::ETabletState State;
     NTableClient::TOwningKey PivotKey;
     NTabletClient::TTabletCellId CellId;

@@ -2515,14 +2515,14 @@ private:
             int keyColumnCount,
             int schemaColumnCount)
             : TransactionId_(owner->Transaction_->GetId())
-            , TabletId_(tabletInfo->TabletId)
+            , TabletInfo_(std::move(tabletInfo))
             , Config_(owner->Client_->Connection_->GetConfig())
             , Durability_(owner->Transaction_->GetDurability())
             , KeyColumnCount_(keyColumnCount)
             , SchemaColumnCount_(schemaColumnCount)
             , Logger(owner->Logger)
         {
-            Logger.AddTag("TabletId: %v", TabletId_);
+            Logger.AddTag("TabletId: %v", TabletInfo_->TabletId);
         }
 
         TWireProtocolWriter* GetWriter()
@@ -2626,7 +2626,7 @@ private:
 
     private:
         const TTransactionId TransactionId_;
-        const TTabletId TabletId_;
+        const TTabletInfoPtr TabletInfo_;
         const TConnectionConfigPtr Config_;
         const EDurability Durability_;
         const int KeyColumnCount_;
@@ -2709,7 +2709,8 @@ private:
 
             auto req = proxy.Write();
             ToProto(req->mutable_transaction_id(), TransactionId_);
-            ToProto(req->mutable_tablet_id(), TabletId_);
+            ToProto(req->mutable_tablet_id(), TabletInfo_->TabletId);
+            req->set_mount_revision(TabletInfo_->MountRevision);
             req->set_durability(static_cast<int>(Durability_));
             req->Attachments() = std::move(batch->RequestData);
 

@@ -44,6 +44,7 @@ private:
         attributes->push_back("state");
         attributes->push_back("statistics");
         attributes->push_back(TAttributeInfo("performance_counters", tablet->GetState() == ETabletState::Mounted));
+        attributes->push_back(TAttributeInfo("mount_revision", tablet->GetState() == ETabletState::Mounted));
         attributes->push_back("index");
         attributes->push_back("table_id");
         attributes->push_back("pivot_key");
@@ -71,10 +72,18 @@ private:
             return true;
         }
 
-        if (key == "performance_counters" && tablet->GetState() == ETabletState::Mounted) {
-            BuildYsonFluently(consumer)
-                .Value(tablet->PerformanceCounters());
-            return true;
+        if (tablet->GetState() == ETabletState::Mounted) {
+            if (key == "performance_counters") {
+                BuildYsonFluently(consumer)
+                    .Value(tablet->PerformanceCounters());
+                return true;
+            }
+
+            if (key == "mount_revision") {
+                BuildYsonFluently(consumer)
+                    .Value(tablet->GetMountRevision());
+                return true;
+            }
         }
 
         if (key == "index") {

@@ -358,6 +358,7 @@ private:
         auto storeManager = tablet->GetStoreManager();
         auto slot = tablet->GetSlot();
         auto tabletId = tablet->GetTabletId();
+        auto mountRevision = tablet->GetMountRevision();
         auto writerOptions = tablet->GetWriterOptions();
         auto tabletPivotKey = tablet->GetPivotKey();
         auto nextTabletPivotKey = tablet->GetNextPivotKey();
@@ -437,6 +438,7 @@ private:
 
             TReqCommitTabletStoresUpdate hydraRequest;
             ToProto(hydraRequest.mutable_tablet_id(), tabletId);
+            hydraRequest.set_mount_revision(mountRevision);
             ToProto(hydraRequest.mutable_transaction_id(), transaction->GetId());
             for (const auto& store : stores) {
                 auto* descriptor = hydraRequest.add_stores_to_remove();
@@ -620,6 +622,7 @@ private:
         auto storeManager = tablet->GetStoreManager();
         auto slot = tablet->GetSlot();
         auto tabletId = tablet->GetTabletId();
+        auto mountRevision = tablet->GetMountRevision();
         auto writerOptions = tablet->GetWriterOptions();
         auto tabletPivotKey = tablet->GetPivotKey();
         auto nextTabletPivotKey = tablet->GetNextPivotKey();
@@ -745,6 +748,7 @@ private:
 
             TReqCommitTabletStoresUpdate hydraRequest;
             ToProto(hydraRequest.mutable_tablet_id(), tabletId);
+            hydraRequest.set_mount_revision(mountRevision);
             ToProto(hydraRequest.mutable_transaction_id(), transaction->GetId());
 
             for (const auto& store : stores) {

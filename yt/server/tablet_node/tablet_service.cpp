@@ -144,6 +144,7 @@ private:
         ValidatePeer(EPeerKind::Leader);
 
         auto tabletId = FromProto<TTabletId>(request->tablet_id());
+        auto mountRevision = request->mount_revision();
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
         auto atomicity = AtomicityFromTransactionId(transactionId);
         auto durability = EDurability(request->durability());
@@ -179,6 +180,8 @@ private:
         if (tabletSnapshot->Config->ReadOnly) {
             THROW_ERROR_EXCEPTION("Table is read-only");
         }
+
+        tabletSnapshot->ValiateMountRevision(mountRevision);
 
         auto requestData = NCompression::DecompressWithEnvelope(request->Attachments());
         TWireProtocolReader reader(requestData);

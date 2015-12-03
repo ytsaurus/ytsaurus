@@ -88,6 +88,7 @@ class TTablet
 public:
     DEFINE_BYVAL_RW_PROPERTY(int, Index);
     DEFINE_BYVAL_RW_PROPERTY(ETabletState, State);
+    DEFINE_BYVAL_RW_PROPERTY(i64, MountRevision);
     DEFINE_BYVAL_RW_PROPERTY(NTableServer::TTableNode*, Table);
     DEFINE_BYVAL_RW_PROPERTY(TTabletCell*, Cell);
     DEFINE_BYVAL_RW_PROPERTY(NTableClient::TOwningKey, PivotKey);
@@ -101,6 +102,8 @@ public:
 
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);
+
+    void ValidateMountRevision(i64 mountRevision);
 
 };
 

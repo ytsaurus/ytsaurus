@@ -151,6 +151,7 @@ private:
                     auto tabletInfo = New<TTabletInfo>();
                     tabletInfo->CellId = FromProto<TCellId>(protoTabletInfo.cell_id());
                     tabletInfo->TabletId = FromProto<TObjectId>(protoTabletInfo.tablet_id());
+                    tabletInfo->MountRevision = protoTabletInfo.mount_revision();
                     tabletInfo->State = ETabletState(protoTabletInfo.state());
                     tabletInfo->PivotKey = FromProto<TOwningKey>(protoTabletInfo.pivot_key());
 
