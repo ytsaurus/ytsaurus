@@ -72,7 +72,7 @@ class YtTestEnvironment(object):
             }
         }
 
-        self.env.start(dir, os.path.join(dir, "pids.txt"), supress_yt_output=True,
+        self.env.start(dir, os.path.join(dir, "pids.txt"),
                        port_locks_path=os.path.join(TESTS_SANDBOX, "ports"))
         self.version = self.env._ytserver_version
 
