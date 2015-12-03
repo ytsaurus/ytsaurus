@@ -346,6 +346,8 @@ protected:
         return PeerIndex_ < PeerList_.size();
     }
 
+    virtual bool IsCanceled() const = 0;
+
     Stroka PickNextPeer()
     {
         // When the time comes to fetch from a non-seeding node, pick a random one.
@@ -357,10 +359,10 @@ protected:
         return PeerList_[PeerIndex_++];
     }
 
-    virtual void NextRetry()
+    void NextRetry()
     {
         auto reader = Reader_.Lock();
-        if (!reader) {
+        if (!reader || IsCanceled()) {
             return;
         }
 
@@ -412,7 +414,7 @@ protected:
     bool PrepareNextPass()
     {
         auto reader = Reader_.Lock();
-        if (!reader)
+        if (!reader || IsCanceled())
             return false;
 
         LOG_DEBUG("Pass started: %v of %v",
@@ -593,6 +595,10 @@ private:
     //! Maps peer addresses to block indexes.
     yhash_map<Stroka, yhash_set<int>> PeerBlocksMap_;
 
+    virtual bool IsCanceled() const override
+    {
+        return Promise_.IsCanceled();
+    }
 
     virtual void NextPass() override
     {
@@ -661,7 +667,7 @@ private:
     void RequestBlocks()
     {
         auto reader = Reader_.Lock();
-        if (!reader)
+        if (!reader || IsCanceled())
             return;
 
         while (true) {
@@ -753,7 +759,7 @@ private:
         TDataNodeServiceProxy::TRspGetBlockSetPtr rsp)
     {
         auto reader = Reader_.Lock();
-        if (!reader) {
+        if (!reader || IsCanceled()) {
             return VoidFuture;
         }
 
@@ -920,6 +926,10 @@ private:
     //! Blocks that are fetched so far.
     std::vector<TSharedRef> FetchedBlocks_;
 
+    virtual bool IsCanceled() const override
+    {
+        return Promise_.IsCanceled();
+    }
 
     virtual void NextPass() override
     {
@@ -932,7 +942,7 @@ private:
     void RequestBlocks()
     {
         auto reader = Reader_.Lock();
-        if (!reader)
+        if (!reader || IsCanceled())
             return;
 
         while (true) {
@@ -1015,7 +1025,7 @@ private:
         TDataNodeServiceProxy::TRspGetBlockRangePtr rsp)
     {
         auto reader = Reader_.Lock();
-        if (!reader) {
+        if (!reader || IsCanceled()) {
             return VoidFuture;
         }
 
@@ -1136,6 +1146,10 @@ private:
     const TNullable<int> PartitionTag_;
     const TNullable<std::vector<int>> ExtensionTags_;
 
+    virtual bool IsCanceled() const override
+    {
+        return Promise_.IsCanceled();
+    }
 
     virtual void NextPass()
     {
@@ -1148,7 +1162,7 @@ private:
     void RequestMeta()
     {
         auto reader = Reader_.Lock();
-        if (!reader)
+        if (!reader || IsCanceled())
             return;
 
         if (!HasMorePeers()) {
