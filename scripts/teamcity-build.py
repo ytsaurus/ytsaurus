@@ -323,6 +323,14 @@ def run_pytest(options, suite_name, suite_path, pytest_args=None):
                 for file in files:
                     if file.startswith("core."):
                         shutil.copy(os.path.join(dir, file), core_dumps_path)
+            for dir, _, files in os.walk(sandbox_archive):
+                for file in files:
+                    if file.startswith("stderr."):
+                        fullpath = os.path.join(dir, file)
+                        content = open(fullpath).read()
+                        if content:
+                            teamcity_message("Detected non-empty daemon stderr {0}: {1}".format(fullpath, content), status="WARNING")
+
             raise StepFailedWithNonCriticalError("Tests '{0}' failed".format(suite_name))
     finally:
         shutil.rmtree(sandbox_current)
