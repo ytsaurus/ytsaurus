@@ -348,8 +348,13 @@ class TestTablets(YTEnvSetup):
 
         move("//tmp/t1", "//tmp/t2")
 
+        mount_table("//tmp/t2")
+        sleep(1)
+        assert get("//tmp/t2/@tablets/0/state") == "mounted"
+
         table_id2 = get("//tmp/t2/@id")
         assert get("#" + tablet_id + "/@table_id") == table_id2
+        assert get("//tmp/t2/@tablets/0/tablet_id") == tablet_id
 
         
     def test_any_value_type(self):
