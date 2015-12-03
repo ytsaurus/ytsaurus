@@ -30,6 +30,7 @@ struct TTabletSnapshot
     : public TIntrinsicRefCounted
 {
     TTabletId TabletId;
+    i64 MountRevision = 0;
     NObjectClient::TObjectId TableId;
     TTabletSlotPtr Slot;
     TTableMountConfigPtr Config;
@@ -63,6 +64,8 @@ struct TTabletSnapshot
     //! Returns a partition possibly containing a given #key or
     //! |nullptr| is there's none.
     TPartitionSnapshotPtr FindContainingPartition(TKey key);
+
+    void ValiateMountRevision(i64 mountRevision);
 };
 
 DEFINE_REFCOUNTED_TYPE(TTabletSnapshot)
@@ -90,6 +93,7 @@ class TTablet
 {
 public:
     DEFINE_BYVAL_RO_PROPERTY(TTabletId, TabletId);
+    DEFINE_BYVAL_RO_PROPERTY(i64, MountRevision);
     DEFINE_BYVAL_RO_PROPERTY(NObjectClient::TObjectId, TableId);
     DEFINE_BYVAL_RO_PROPERTY(TTabletSlotPtr, Slot);
 
@@ -123,6 +127,7 @@ public:
         TTableMountConfigPtr config,
         TTabletWriterOptionsPtr writerOptions,
         const TTabletId& tabletId,
+        i64 mountRevision,
         const NObjectClient::TObjectId& tableId,
         TTabletSlotPtr slot,
         const NTableClient::TTableSchema& schema,
@@ -190,6 +195,8 @@ public:
     void ResetSnapshot();
 
     const TDynamicRowKeyComparer& GetRowKeyComparer() const;
+
+    void ValidateMountRevision(i64 mountRevision);
 
 private:
     TTableMountConfigPtr Config_;

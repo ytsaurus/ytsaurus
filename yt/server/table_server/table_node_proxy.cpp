@@ -367,10 +367,12 @@ private:
         i64 estimatedCompressedSize = request->estimated_compressed_size();
         context->SetRequestInfo(
             "FirstTabletIndex: %v, LastTabletIndex: %v, CellId: %v, "
-            "EstimatedUncompressedSize: %v, EsimatedCompressedSize: %v",
+            "EstimatedUncompressedSize: %v, EstimatedCompressedSize: %v",
             firstTabletIndex,
             lastTabletIndex,
-            cellId);
+            cellId,
+            estimatedUncompressedSize,
+            estimatedCompressedSize);
 
         ValidateNoTransaction();
         ValidatePermission(EPermissionCheckScope::This, EPermission::Administer);
@@ -491,6 +493,7 @@ private:
             auto* cell = tablet->GetCell();
             auto* protoTablet = response->add_tablets();
             ToProto(protoTablet->mutable_tablet_id(), tablet->GetId());
+            protoTablet->set_mount_revision(tablet->GetMountRevision());
             protoTablet->set_state(static_cast<int>(tablet->GetState()));
             ToProto(protoTablet->mutable_pivot_key(), tablet->GetPivotKey());
             if (cell) {

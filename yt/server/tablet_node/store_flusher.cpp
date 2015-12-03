@@ -269,6 +269,7 @@ private:
         auto tabletManager = slot->GetTabletManager();
         auto storeManager = tablet->GetStoreManager();
         auto tabletId = tablet->GetTabletId();
+        auto mountRevision = tablet->GetMountRevision();
         auto keyColumns = tablet->KeyColumns();
         auto schema = tablet->Schema();
         auto tabletConfig = tablet->GetConfig();
@@ -358,6 +359,7 @@ private:
 
             TReqCommitTabletStoresUpdate hydraRequest;
             ToProto(hydraRequest.mutable_tablet_id(), tabletId);
+            hydraRequest.set_mount_revision(mountRevision);
             ToProto(hydraRequest.mutable_transaction_id(), transaction->GetId());
             {
                 auto* descriptor = hydraRequest.add_stores_to_remove();

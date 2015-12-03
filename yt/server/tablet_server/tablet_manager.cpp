@@ -527,8 +527,12 @@ public:
             tablet->SetState(ETabletState::Mounting);
             tablet->SetInMemoryMode(mountConfig->InMemoryMode);
 
+            const auto* context = GetCurrentMutationContext();
+            tablet->SetMountRevision(context->GetVersion().ToRevision());
+
             TReqMountTablet req;
             ToProto(req.mutable_tablet_id(), tablet->GetId());
+            req.set_mount_revision(tablet->GetMountRevision());
             ToProto(req.mutable_table_id(), table->GetId());
             ToProto(req.mutable_schema(), schema);
             ToProto(req.mutable_key_columns()->mutable_names(), table->KeyColumns());
@@ -1293,9 +1297,10 @@ private:
         auto* table = tablet->GetTable();
         auto* cell = tablet->GetCell();
 
-        LOG_INFO_UNLESS(IsRecovery(), "Tablet mounted (TableId: %v, TabletId: %v, CellId: %v)",
+        LOG_INFO_UNLESS(IsRecovery(), "Tablet mounted (TableId: %v, MountRevision: %v, TabletId: %v, CellId: %v)",
             table->GetId(),
             tablet->GetId(),
+            tablet->GetMountRevision(),
             cell->GetId());
 
         cell->TotalStatistics() += GetTabletStatistics(tablet);
@@ -1347,8 +1352,11 @@ private:
     {
         auto tabletId = FromProto<TTabletId>(request.tablet_id());
         auto* tablet = FindTablet(tabletId);
-        if (!IsObjectAlive(tablet))
+        if (!IsObjectAlive(tablet)) {
             return;
+        }
+
+        auto mountRevision = request.mount_revision();
 
         // NB: Stores may be updated while unmounting to facilitate flush.
         if (tablet->GetState() != ETabletState::Mounted &&
@@ -1362,18 +1370,23 @@ private:
 
         auto* cell = tablet->GetCell();
         auto* table = tablet->GetTable();
-        if (!IsObjectAlive(table))
+        if (!IsObjectAlive(table)) {
             return;
+        }
 
         auto cypressManager = Bootstrap_->GetCypressManager();
         cypressManager->SetModified(table, nullptr);
 
         TRspUpdateTabletStores response;
         response.mutable_tablet_id()->MergeFrom(request.tablet_id());
+        // NB: Take mount revision from the request, not from the tablet.
+        response.set_mount_revision(mountRevision);
         response.mutable_stores_to_add()->MergeFrom(request.stores_to_add());
         response.mutable_stores_to_remove()->MergeFrom(request.stores_to_remove());
 
         try {
+            tablet->ValidateMountRevision(mountRevision);
+
             auto chunkManager = Bootstrap_->GetChunkManager();
             auto securityManager = Bootstrap_->GetSecurityManager();
 
