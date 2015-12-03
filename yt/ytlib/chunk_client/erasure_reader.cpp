@@ -94,7 +94,6 @@ public:
         }
 
         std::vector<TFuture<std::vector<TSharedRef>>> readBlocksFutures;
-        auto awaiter = New<TParallelAwaiter>(TDispatcher::Get()->GetReaderInvoker());
         for (int readerIndex = 0; readerIndex < Readers_.size(); ++readerIndex) {
             auto reader = Readers_[readerIndex];
             readBlocksFutures.push_back(reader->ReadBlocks(blockLocations[readerIndex].first));
