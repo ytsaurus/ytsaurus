@@ -2643,7 +2643,7 @@ void TOperationControllerBase::RequestInputObjects()
                 const auto& attributes = node->Attributes();
 
                 if (attributes.Get<bool>("dynamic")) {
-                    THROW_ERROR_EXCEPTION("Expected a static table but got dynamic")
+                    THROW_ERROR_EXCEPTION("Expected a static table, but got dynamic")
                         << TErrorAttribute("input_table", table.Path.GetPath());
                 }
 
