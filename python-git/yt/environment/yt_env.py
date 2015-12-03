@@ -307,7 +307,7 @@ class YTEnv(object):
             makedirp(stderrs_dir)
 
             stdout = open(os.devnull, "w")
-            stderr = open(os.path.join(stderrs_dir, "stderr.{0}_{1}".format(name, number)), "w")
+            stderr = open(os.path.join(stderrs_dir, "stderr.{0}-{1}".format(name, number)), "w")
 
             def preexec():
                 os.setsid()
