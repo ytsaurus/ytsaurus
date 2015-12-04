@@ -167,6 +167,12 @@ class CachedYtClient(yt.wrapper.client.Yt):
 
         return children
 
+def create_transaction_and_take_snapshot_lock(ypath, client):
+    title = "FUSE: read {0}".format(yt.wrapper.to_name(ypath, client=client))
+    tx = yt.wrapper.Transaction(attributes={"title": title}, client=client)
+    with yt.wrapper.Transaction(transaction_id=tx.transaction_id, client=client):
+        yt.wrapper.lock(ypath, mode="snapshot", client=client)
+    return tx
 
 class OpenedFile(object):
     """Stores information and cache for currently opened regular file."""
@@ -188,6 +194,7 @@ class OpenedFile(object):
         self._length = 0
         self._offset = 0
         self._buffer = ""
+        self._tx = create_transaction_and_take_snapshot_lock(ypath, client)
 
     def read(self, length, offset):
         if offset < self._offset \
@@ -198,10 +205,11 @@ class OpenedFile(object):
                 self._offset = max(offset + length - self._length, 0)
             else:
                 self._offset = offset
-            self._buffer = self._client.read_file(
-                self.ypath,
-                length=self._length, offset=self._offset
-            ).read()
+            with yt.wrapper.Transaction(transaction_id=self._tx.transaction_id, client=self._client):
+                self._buffer = self._client.read_file(
+                    self.ypath,
+                    length=self._length, offset=self._offset
+                ).read()
 
         assert self._offset <= offset
         assert self._offset + self._length >= offset + length
@@ -231,6 +239,7 @@ class OpenedTable(object):
         self._lower_offset = self._upper_offset = 0
         self._lower_row = self._upper_row = 0
         self._buffer = []
+        self._tx = create_transaction_and_take_snapshot_lock(ypath, client)
 
     def read(self, length, offset):
         while self._upper_offset < offset + length:
@@ -241,9 +250,10 @@ class OpenedTable(object):
                 end_index=next_upper_row,
                 client=self._client
             )
-            slice_content = "".join(
-                self._client.read_table(slice_ypath, format=self._format)
-            )
+            with yt.wrapper.Transaction(transaction_id=self._tx.transaction_id, client=self._client):
+                slice_content = "".join(
+                    self._client.read_table(slice_ypath, format=self._format)
+                )
             if len(slice_content) == 0:
                 break
             self._upper_offset += len(slice_content)
@@ -258,9 +268,10 @@ class OpenedTable(object):
                 end_index=self._lower_row,
                 client=self._client
             )
-            slice_content = "".join(
-                self._client.read_table(slice_ypath, format=self._format)
-            )
+            with yt.wrapper.Transaction(transaction_id=self._tx.transaction_id, client=self._client):
+                slice_content = "".join(
+                    self._client.read_table(slice_ypath, format=self._format)
+                )
             self._lower_offset -= len(slice_content)
             self._lower_row -= self._minimum_read_row_count
             self._buffer = [slice_content] + self._buffer
