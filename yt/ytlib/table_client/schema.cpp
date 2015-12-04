@@ -204,7 +204,7 @@ TTableSchema TTableSchema::TrimNonkeyColumns(const TKeyColumns& keyColumns) cons
     return result;
 }
     
-void TTableSchema::PushColumn(const TColumnSchema& column)
+void TTableSchema::AppendColumn(const TColumnSchema& column)
 {
     ValidateColumnSchema(column);
     Columns_.push_back(column);
