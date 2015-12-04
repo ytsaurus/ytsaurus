@@ -83,7 +83,7 @@ DEFINE_ENUM(EErrorCode,
     ((BlockContentMismatch)     (706))
     ((NoSuchBlock)              (707))
     ((NoSuchChunk)              (708))
-    ((OutOfSpace)               (710))
+    ((NoLocationAvailable)      (710))
     ((IOError)                  (711))
     ((MasterCommunicationFailed)(712))
     ((NoSuchChunkTree)          (713))

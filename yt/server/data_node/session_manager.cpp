@@ -113,7 +113,7 @@ ISessionPtr TSessionManager::CreateSession(
     auto chunkType = TypeFromId(DecodeChunkId(chunkId).Id);
 
     auto chunkStore = Bootstrap_->GetChunkStore();
-    auto location = chunkStore->GetNewChunkLocation(chunkType);
+    auto location = chunkStore->GetNewChunkLocation(chunkType, options.WorkloadDescriptor);
 
     auto lease = TLeaseManager::CreateLease(
         Config_->SessionTimeout,

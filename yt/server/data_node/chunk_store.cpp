@@ -338,14 +338,16 @@ TFuture<void> TChunkStore::RemoveChunk(IChunkPtr chunk)
             .Via(Bootstrap_->GetControlInvoker()));
 }
 
-TStoreLocationPtr TChunkStore::GetNewChunkLocation(EObjectType chunkType)
+TStoreLocationPtr TChunkStore::GetNewChunkLocation(
+    EObjectType chunkType,
+    const TWorkloadDescriptor& workloadDescriptor)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     std::vector<TStoreLocationPtr> candidates;
     int minCount = std::numeric_limits<int>::max();
     for (const auto& location : Locations_) {
-        if (location->IsFull() || !location->IsEnabled() || !location->IsChunkTypeAccepted(chunkType)) {
+        if (!CanStartNewSession(location, chunkType, workloadDescriptor)) {
             continue;
         }
         int count = location->GetSessionCount();
@@ -360,15 +362,55 @@ TStoreLocationPtr TChunkStore::GetNewChunkLocation(EObjectType chunkType)
 
     if (candidates.empty()) {
         THROW_ERROR_EXCEPTION(
-            NChunkClient::EErrorCode::OutOfSpace,
-            "All locations are either disabled or full");
+            NChunkClient::EErrorCode::NoLocationAvailable,
+            "No write location is available");
     }
 
     return candidates[RandomNumber(candidates.size())];
 }
 
+bool TChunkStore::IsReadThrottling(
+    const TLocationPtr& location,
+    const TWorkloadDescriptor& workloadDescriptor)
+{
+    auto size = location->GetPendingIOSize(EIODirection::Read, workloadDescriptor);
+    return size > Config_->DiskReadThrottlingLimit;
+}
+
+bool TChunkStore::IsWriteThrottling(
+    const TLocationPtr& location,
+    const TWorkloadDescriptor& workloadDescriptor)
+{
+    auto size = location->GetPendingIOSize(EIODirection::Write, workloadDescriptor);
+    return size > Config_->DiskWriteThrottlingLimit;
+}
+
+bool TChunkStore::CanStartNewSession(
+    const TStoreLocationPtr& location,
+    EObjectType chunkType,
+    const TWorkloadDescriptor& workloadDescriptor)
+{
+    if (location->IsFull()) {
+        return false;
+    }
+
+    if (!location->IsEnabled()) {
+        return false;
+    }
+
+    if (!location->IsChunkTypeAccepted(chunkType)) {
+        return false;
+    }
+
+    if (IsWriteThrottling(location, workloadDescriptor)) {
+        return false;
+    }
+
+    return true;
+}
+
 IChunkPtr TChunkStore::CreateFromDescriptor(
-    TStoreLocationPtr location,
+    const TStoreLocationPtr& location,
     const TChunkDescriptor& descriptor)
 {
     auto chunkType = TypeFromId(DecodeChunkId(descriptor.Id).Id);

@@ -930,22 +930,21 @@ private:
         const TChunkId& chunkId,
         const TWorkloadDescriptor& workloadDescriptor)
     {
-        auto chunkRegistry = Bootstrap_->GetChunkRegistry();
+        const auto& chunkRegistry = Bootstrap_->GetChunkRegistry();
         auto chunk = chunkRegistry->FindChunk(chunkId);
         if (!chunk) {
             return false;
         }
-        auto location = chunk->GetLocation();
-        auto size = location->GetPendingIOSize(EIODirection::Read, workloadDescriptor);
-        return size > Config_->DiskReadThrottlingLimit;
+        const auto& chunkStore = Bootstrap_->GetChunkStore();
+        return chunkStore->IsReadThrottling(chunk->GetLocation(), workloadDescriptor);
     }
 
     bool IsDiskWriteThrottling(
-        TLocationPtr location,
+        const TLocationPtr& location,
         const TWorkloadDescriptor& workloadDescriptor)
     {
-        auto size = location->GetPendingIOSize(EIODirection::Write, workloadDescriptor);
-        return size > Config_->DiskWriteThrottlingLimit;
+        const auto& chunkStore = Bootstrap_->GetChunkStore();
+        return chunkStore->IsWriteThrottling(location, workloadDescriptor);
     }
 };
 
