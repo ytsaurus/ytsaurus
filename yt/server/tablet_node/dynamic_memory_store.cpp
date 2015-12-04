@@ -556,7 +556,8 @@ TDynamicMemoryStore::TDynamicMemoryStore(
         tablet)
     , FlushState_(EStoreFlushState::None)
     , Config_(config)
-    , RowKeyComparer_(tablet->GetRowKeyComparer())
+    , Atomicity_(Tablet_->GetAtomicity())
+    , RowKeyComparer_(Tablet_->GetRowKeyComparer())
     , RowBuffer_(New<TRowBuffer>(
         Config_->PoolChunkSize,
         Config_->MaxPoolSmallBlockRatio))
@@ -625,6 +626,8 @@ int TDynamicMemoryStore::GetLockCount() const
 
 int TDynamicMemoryStore::Lock()
 {
+    YASSERT(Atomicity_ == EAtomicity::Full);
+
     int result = ++StoreLockCount_;
     LOG_TRACE("Store locked (Count: %v)",
         result);
@@ -633,6 +636,7 @@ int TDynamicMemoryStore::Lock()
 
 int TDynamicMemoryStore::Unlock()
 {
+    YASSERT(Atomicity_ == EAtomicity::Full);
     YASSERT(StoreLockCount_ > 0);
 
     int result = --StoreLockCount_;
@@ -660,7 +664,7 @@ void TDynamicMemoryStore::WaitOnBlockedRow(
 {
     if (timestamp == AsyncLastCommittedTimestamp)
         return;
-    if (Tablet_->GetAtomicity() == EAtomicity::None)
+    if (Atomicity_ == EAtomicity::None)
         return;
 
     auto now = NProfiling::GetCpuInstant();
@@ -699,7 +703,7 @@ TDynamicRow TDynamicMemoryStore::WriteRowAtomic(
     bool prelock,
     ui32 lockMask)
 {
-    YASSERT(Tablet_->GetAtomicity() == EAtomicity::Full);
+    YASSERT(Atomicity_ == EAtomicity::Full);
     YASSERT(lockMask != 0);
     YASSERT(FlushRevision_ != MaxRevision);
 
@@ -760,7 +764,7 @@ TDynamicRow TDynamicMemoryStore::WriteRowNonAtomic(
     TUnversionedRow row,
     TTimestamp commitTimestamp)
 {
-    YASSERT(Tablet_->GetAtomicity() == EAtomicity::None);
+    YASSERT(Atomicity_ == EAtomicity::None);
     YASSERT(FlushRevision_ != MaxRevision);
 
     TDynamicRow result;
@@ -816,7 +820,7 @@ TDynamicRow TDynamicMemoryStore::DeleteRowAtomic(
     NTableClient::TKey key,
     bool prelock)
 {
-    YASSERT(Tablet_->GetAtomicity() == EAtomicity::Full);
+    YASSERT(Atomicity_ == EAtomicity::Full);
     YASSERT(FlushRevision_ != MaxRevision);
 
     TDynamicRow result;
@@ -860,7 +864,7 @@ TDynamicRow TDynamicMemoryStore::DeleteRowNonAtomic(
     NTableClient::TKey key,
     TTimestamp commitTimestamp)
 {
-    YASSERT(Tablet_->GetAtomicity() == EAtomicity::None);
+    YASSERT(Atomicity_ == EAtomicity::None);
     YASSERT(FlushRevision_ != MaxRevision);
 
     ui32 commitRevision = RegisterRevision(commitTimestamp);
@@ -898,7 +902,7 @@ TDynamicRow TDynamicMemoryStore::DeleteRowNonAtomic(
 
 TDynamicRow TDynamicMemoryStore::MigrateRow(TTransaction* transaction, TDynamicRow row)
 {
-    YASSERT(Tablet_->GetAtomicity() == EAtomicity::Full);
+    YASSERT(Atomicity_ == EAtomicity::Full);
     YASSERT(FlushRevision_ != MaxRevision);
 
     auto migrateLocksAndValues = [&] (TDynamicRow migratedRow) {
@@ -978,7 +982,7 @@ TDynamicRow TDynamicMemoryStore::MigrateRow(TTransaction* transaction, TDynamicR
 
 void TDynamicMemoryStore::ConfirmRow(TTransaction* transaction, TDynamicRow row)
 {
-    YASSERT(Tablet_->GetAtomicity() == EAtomicity::Full);
+    YASSERT(Atomicity_ == EAtomicity::Full);
     YASSERT(FlushRevision_ != MaxRevision);
 
     transaction->LockedRows().push_back(TDynamicRowRef(this, row));
@@ -986,7 +990,7 @@ void TDynamicMemoryStore::ConfirmRow(TTransaction* transaction, TDynamicRow row)
 
 void TDynamicMemoryStore::PrepareRow(TTransaction* transaction, TDynamicRow row)
 {
-    YASSERT(Tablet_->GetAtomicity() == EAtomicity::Full);
+    YASSERT(Atomicity_ == EAtomicity::Full);
     YASSERT(FlushRevision_ != MaxRevision);
 
     auto prepareTimestamp = transaction->GetPrepareTimestamp();
@@ -1004,7 +1008,7 @@ void TDynamicMemoryStore::PrepareRow(TTransaction* transaction, TDynamicRow row)
 
 void TDynamicMemoryStore::CommitRow(TTransaction* transaction, TDynamicRow row)
 {
-    YASSERT(Tablet_->GetAtomicity() == EAtomicity::Full);
+    YASSERT(Atomicity_ == EAtomicity::Full);
     YASSERT(FlushRevision_ != MaxRevision);
 
     auto commitTimestamp = transaction->GetCommitTimestamp();
@@ -1051,7 +1055,7 @@ void TDynamicMemoryStore::CommitRow(TTransaction* transaction, TDynamicRow row)
 
 void TDynamicMemoryStore::AbortRow(TTransaction* transaction, TDynamicRow row)
 {
-    YASSERT(Tablet_->GetAtomicity() == EAtomicity::Full);
+    YASSERT(Atomicity_ == EAtomicity::Full);
     YASSERT(FlushRevision_ != MaxRevision);
 
     auto* locks = row.BeginLocks(KeyColumnCount_);
@@ -1122,7 +1126,7 @@ int TDynamicMemoryStore::GetBlockingLockIndex(
     ui32 lockMask,
     TTimestamp timestamp)
 {
-    YASSERT(Tablet_->GetAtomicity() == EAtomicity::Full);
+    YASSERT(Atomicity_ == EAtomicity::Full);
 
     const auto* lock = row.BeginLocks(KeyColumnCount_);
     ui32 lockMaskBit = 1;
@@ -1178,7 +1182,7 @@ void TDynamicMemoryStore::CheckRowLocks(
     TTransaction* transaction,
     ui32 lockMask)
 {
-    YASSERT(Tablet_->GetAtomicity() == EAtomicity::Full);
+    YASSERT(Atomicity_ == EAtomicity::Full);
 
     const auto* lock = row.BeginLocks(KeyColumnCount_);
     ui32 lockMaskBit = 1;
@@ -1228,7 +1232,7 @@ void TDynamicMemoryStore::AcquireRowLocks(
     ui32 lockMask,
     bool deleteFlag)
 {
-    YASSERT(Tablet_->GetAtomicity() == EAtomicity::Full);
+    YASSERT(Atomicity_ == EAtomicity::Full);
 
     if (!prelock) {
         transaction->LockedRows().push_back(TDynamicRowRef(this, row));
@@ -1294,7 +1298,7 @@ void TDynamicMemoryStore::AddDeleteRevisionNonAtomic(
     TTimestamp commitTimestamp,
     ui32 commitRevision)
 {
-    YASSERT(Tablet_->GetAtomicity() == EAtomicity::None);
+    YASSERT(Atomicity_ == EAtomicity::None);
 
     AddDeleteRevision(row, commitRevision);
     UpdateTimestampRange(commitTimestamp);
@@ -1305,7 +1309,7 @@ void TDynamicMemoryStore::AddWriteRevisionNonAtomic(
     TTimestamp commitTimestamp,
     ui32 commitRevision)
 {
-    YASSERT(Tablet_->GetAtomicity() == EAtomicity::None);
+    YASSERT(Atomicity_ == EAtomicity::None);
 
     auto& lock = row.BeginLocks(KeyColumnCount_)[TDynamicRow::PrimaryLockIndex];
     AddWriteRevision(lock, commitRevision);
