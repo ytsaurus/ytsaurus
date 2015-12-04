@@ -150,7 +150,6 @@ class Yt(object):
     def read_table(self, *args, **kwargs):
         return read_table(*args, client=self, **kwargs)
 
-    @functools.wraps(records_count)
     def records_count(self, *args, **kwargs):
         return row_count(*args, client=self, **kwargs)
 
