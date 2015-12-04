@@ -1066,7 +1066,7 @@ void TDecoratedAutomaton::StartEpoch(TEpochContextPtr epochContext)
 {
     YCHECK(!EpochContext_);
     EpochContext_ = epochContext;
-    LoggedVersion_ = epochContext->ReachableVersion;
+    LoggedVersion_ = epochContext->ChangelogStore->GetReachableVersion();
 }
 
 void TDecoratedAutomaton::StopEpoch()
