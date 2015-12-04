@@ -127,6 +127,9 @@ void TServiceContextBase::Reply(TSharedRefArray responseMessage)
     }
 }
 
+void TServiceContextBase::SetComplete()
+{ }
+
 TFuture<TSharedRefArray> TServiceContextBase::GetAsyncResponseMessage() const
 {
     YCHECK(!Replied_);
@@ -368,6 +371,11 @@ void TServiceContextWrapper::Reply(const TError& error)
 void TServiceContextWrapper::Reply(TSharedRefArray responseMessage)
 {
     UnderlyingContext_->Reply(responseMessage);
+}
+
+void TServiceContextWrapper::SetComplete()
+{
+    UnderlyingContext_->SetComplete();
 }
 
 void TServiceContextWrapper::SubscribeCanceled(const TClosure& /*callback*/)
