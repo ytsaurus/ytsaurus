@@ -388,6 +388,7 @@ private:
             blocksSize);
 
         // Throttle response.
+        context->SetComplete();
         auto throttler = Bootstrap_->GetOutThrottler(workloadDescriptor);
         context->ReplyFrom(throttler->Throttle(blocksSize));
     }
@@ -444,6 +445,7 @@ private:
             blocksSize);
 
         // Throttle response.
+        context->SetComplete();
         auto throttler = Bootstrap_->GetOutThrottler(workloadDescriptor);
         context->ReplyFrom(throttler->Throttle(blocksSize));
     }
