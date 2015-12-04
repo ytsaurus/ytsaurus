@@ -507,6 +507,9 @@ void TChunkReplicator::ProcessExistingJobs(
                             jobId,
                             address);
                         break;
+
+                    default:
+                        YUNREACHABLE();
                 }
                 break;
             }
