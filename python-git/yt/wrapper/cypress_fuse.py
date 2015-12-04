@@ -65,8 +65,10 @@ def handle_yt_errors(function):
     def cautious_function(*args, **kwargs):
         try:
             return function(*args, **kwargs)
-        except yt.wrapper.YtError:
+        except yt.wrapper.YtResponseError:
             raise fuse.FuseOSError(errno.ENOENT)
+        except yt.packages.requests.ConnectionError:
+            raise fuse.FuseOSError(errno.EAGAIN)
 
     return cautious_function
 
@@ -100,7 +102,7 @@ class CachedYtClient(yt.wrapper.client.Yt):
 
     @staticmethod
     def _error(attribute):
-        return yt.wrapper.YtError("No such attribute: " + attribute)
+        return yt.wrapper.YtResponseError("No such attribute: " + attribute)
 
     @log_calls(_logger, "%(__name__)s(%(path)r)")
     def get_attributes(self, path, attributes):
@@ -121,8 +123,9 @@ class CachedYtClient(yt.wrapper.client.Yt):
         self._logger.debug("\tmiss")
         try:
             all_attributes = super(CachedYtClient, self).get(path + "/@")
-        except yt.wrapper.YtError as error:  # That could be connection error.
-            self._cache[path] = (False, error)
+        except yt.wrapper.YtResponseError as error:
+            if error.is_resolve_error():
+                self._cache[path] = (False, error)
             raise
         self._cache.update(
             (path + "/@" + a, (True, v)) for a, v in all_attributes.iteritems()
