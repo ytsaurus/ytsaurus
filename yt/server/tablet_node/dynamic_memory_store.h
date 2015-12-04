@@ -204,15 +204,18 @@ private:
 
     const TTabletManagerConfigPtr Config_;
 
+    //! Some sanity checks may need the tablet's atomicity mode but the tablet may die.
+    //! So we capture a copy of this mode upon store's construction.
+    const NTransactionClient::EAtomicity Atomicity_;
+
+    const TDynamicRowKeyComparer RowKeyComparer_;
+    const NTableClient::TRowBufferPtr RowBuffer_;
+    const std::unique_ptr<TSkipList<TDynamicRow, TDynamicRowKeyComparer>> Rows_;
+
     ui32 FlushRevision_ = InvalidRevision;
 
     int StoreLockCount_ = 0;
     int StoreValueCount_ = 0;
-
-    TDynamicRowKeyComparer RowKeyComparer_;
-
-    NTableClient::TRowBufferPtr RowBuffer_;
-    std::unique_ptr<TSkipList<TDynamicRow, TDynamicRowKeyComparer>> Rows_;
 
     TTimestamp MinTimestamp_ = NTransactionClient::MaxTimestamp;
     TTimestamp MaxTimestamp_ = NTransactionClient::MinTimestamp;
