@@ -79,8 +79,6 @@
 #include <yt/ytlib/table_client/row_merger.h>
 #include <yt/ytlib/table_client/row_base.h>
 
-#include <unordered_map>
-
 namespace NYT {
 namespace NApi {
 
@@ -1074,6 +1072,40 @@ private:
             .WithTimeout(options.Timeout);
     }
 
+    template <class T>
+    auto CallAndRetryIfMetadataCacheIsInconsistent(T callback) -> decltype(callback())
+    {
+        int retryCount = 0;
+        while (true) {
+            try {
+                return callback();
+            } catch (const NYT::TErrorException& ex) {
+                auto config = Connection_->GetConfig();
+                if (++retryCount <= config->TableMountInfoUpdateRetryCount) {
+                    const auto& error = ex.Error();
+                    if (error.FindMatching(NTabletClient::EErrorCode::NoSuchTablet) ||
+                        error.FindMatching(NTabletClient::EErrorCode::TabletNotMounted))
+                    {
+                        LOG_DEBUG(error, "Got error, will clear table mount cache and retry");
+                        auto tabletId = error.Attributes().Get<TTabletId>("tablet_id");
+                        auto tableMountCache = Connection_->GetTableMountCache();
+                        auto tabletInfo = tableMountCache->FindTablet(tabletId);
+                        if (tabletInfo) {
+                            tableMountCache->InvalidateTablet(tabletInfo);
+                            auto now = Now();
+                            auto retryTime = tabletInfo->UpdateTime + config->TableMountInfoUpdateRetryPeriod;
+                            if (retryTime > now) {
+                                WaitFor(TDelayedExecutor::MakeDelayed(retryTime - now))
+                                    .ThrowOnError();
+                            }
+                        }
+                        continue;
+                    }
+                }
+                throw;
+            }
+        }
+    }
 
     TTableMountInfoPtr SyncGetTableInfo(const TYPath& path)
     {
@@ -1088,10 +1120,13 @@ private:
     {
         auto tabletInfo = tableInfo->GetTablet(key);
         if (tabletInfo->State != ETabletState::Mounted) {
-            THROW_ERROR_EXCEPTION("Tablet %v of table %v is in %Qlv state",
+            THROW_ERROR_EXCEPTION(
+                NTabletClient::EErrorCode::TabletNotMounted,
+                "Tablet %v of table %v is in %Qlv state",
                 tabletInfo->TabletId,
                 tableInfo->Path,
-                tabletInfo->State);
+                tabletInfo->State)
+                << TErrorAttribute("tablet_id", tabletInfo->TabletId);
         }
         return tabletInfo;
     }
@@ -1318,6 +1353,17 @@ private:
         const std::vector<NTableClient::TKey>& keys,
         const TLookupRowsOptions& options)
     {
+        return CallAndRetryIfMetadataCacheIsInconsistent([&] () {
+            return DoLookupRowsOnce(path, nameTable, keys, options);
+        });
+    }
+
+    IRowsetPtr DoLookupRowsOnce(
+        const TYPath& path,
+        TNameTablePtr nameTable,
+        const std::vector<NTableClient::TKey>& keys,
+        const TLookupRowsOptions& options)
+    {
         auto tableInfo = SyncGetTableInfo(path);
 
         int schemaColumnCount = static_cast<int>(tableInfo->Schema.Columns().size());
@@ -1412,6 +1458,15 @@ private:
         const Stroka& query,
         const TSelectRowsOptions& options)
     {
+        return CallAndRetryIfMetadataCacheIsInconsistent([&] () {
+            return DoSelectRowsOnce(query, options);
+        });
+    }
+
+    std::pair<IRowsetPtr, TQueryStatistics> DoSelectRowsOnce(
+        const Stroka& query,
+        const TSelectRowsOptions& options)
+    {
         auto inputRowLimit = options.InputRowLimit.Get(Connection_->GetConfig()->DefaultInputRowLimit);
         auto outputRowLimit = options.OutputRowLimit.Get(Connection_->GetConfig()->DefaultOutputRowLimit);
         auto fragment = PreparePlanFragment(
@@ -1447,7 +1502,6 @@ private:
         }
         return std::make_pair(rowset, statistics);
     }
-
 
     void DoMountTable(
         const TYPath& path,
