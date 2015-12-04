@@ -354,8 +354,6 @@ private:
                 return RefinePredicate(keys, expr, keyColumns);
             });
             subreaderCreators.push_back([&] () {
-                std::vector<ISchemafulReaderPtr> bottomSplitReaders;
-
                 LOG_DEBUG("Grouping %v lookup keys by parition", keys.size());
                 auto groupedKeys = GroupKeysByPartition(tablePartId, std::move(keys));
                 LOG_DEBUG("Grouped lookup keys into %v paritions", groupedKeys.size());
@@ -368,12 +366,6 @@ private:
                         LOG_DEBUG("Creating lookup reader for %v keys",
                             keys.Size());
                     }
-
-                    bottomSplitReaders.push_back(GetReader(
-                        query->TableSchema,
-                        tablePartId,
-                        keys,
-                        timestamp));
                 }
 
                 auto bottomSplitReaderGenerator = [
