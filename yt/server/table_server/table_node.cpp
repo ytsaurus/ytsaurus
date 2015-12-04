@@ -74,6 +74,10 @@ void TTableNode::Load(TLoadContext& context)
     if (context.GetVersion() >= 121) {
         Load(context, Atomicity_);
     }
+    // COMPAT(savrus) Mark dynamic tables as sorted.
+    if (!Tablets_.empty()) {
+        Sorted_ = true;
+    }
 }
 
 std::pair<TTableNode::TTabletListIterator, TTableNode::TTabletListIterator> TTableNode::GetIntersectingTablets(
