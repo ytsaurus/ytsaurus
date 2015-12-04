@@ -361,14 +361,18 @@ private:
                 for (const auto& keys : groupedKeys) {
                     if (options.VerboseLogging) {
                         LOG_DEBUG("Creating lookup reader for keys %v",
-                            JoinToString(keys));
+                            JoinToString(keys.second));
                     } else {
                         LOG_DEBUG("Creating lookup reader for %v keys",
-                            keys.Size());
+                            keys.second.Size());
                     }
                 }
 
+                auto slotManager = Bootstrap_->GetTabletSlotManager();
+                auto tabletSnapshot = slotManager->GetTabletSnapshotOrThrow(tablePartId);
+
                 auto bottomSplitReaderGenerator = [
+                    tabletSnapshot,
                     query,
                     groupedKeys,
                     tablePartId,
@@ -379,10 +383,16 @@ private:
                     if (index == groupedKeys.size()) {
                         return nullptr;
                     } else {
-                        return this_->GetReader(
+                        auto group = groupedKeys[index++];
+
+
+
+                        // TODO(lukyan): Validate timestamp and read permission
+                        return CreateSchemafulTabletReader(
+                            std::move(tabletSnapshot),
                             query->TableSchema,
-                            tablePartId,
-                            groupedKeys[index++],
+                            group.first,
+                            group.second,
                             timestamp);
                     }
                 };
@@ -566,46 +576,41 @@ private:
         return allSplits;
     }
 
-    std::vector<TSharedRange<TRow>> GroupKeysByPartition(
+    std::vector<std::pair<TPartitionSnapshotPtr, TSharedRange<TRow>>> GroupKeysByPartition(
         const NObjectClient::TObjectId& objectId,
         std::vector<TRow> keys)
     {
-        std::vector<TSharedRange<TRow>> result;
-        std::sort(keys.begin(), keys.end());
+        std::vector<std::pair<TPartitionSnapshotPtr, TSharedRange<TRow>>> result;
+        // TODO(lukyan): YCHECK(sorted)
 
         if (TypeFromId(objectId) == EObjectType::Tablet) {
             auto slotManager = Bootstrap_->GetTabletSlotManager();
             auto tabletSnapshot = slotManager->GetTabletSnapshotOrThrow(objectId);
             const auto& partitions = tabletSnapshot->Partitions;
 
-            // Group keys by partitions.
-            auto addRange = [&] (std::vector<TRow>::iterator begin, std::vector<TRow>::iterator end) {
-                std::vector<TRow> selectedKeys(begin, end);
-                // TODO(babenko): fixme, data ownership?
-                result.emplace_back(MakeSharedRange(std::move(selectedKeys)));
-            };
-
+            auto currentPartition = partitions.begin();
             auto currentIt = keys.begin();
             while (currentIt != keys.end()) {
                 auto nextPartition = std::upper_bound(
-                    partitions.begin(),
+                    currentPartition,
                     partitions.end(),
                     *currentIt,
                     [] (TRow lhs, const TPartitionSnapshotPtr& rhs) {
                         return lhs < rhs->PivotKey.Get();
                     });
 
-                if (nextPartition == partitions.end()) {
-                    addRange(currentIt, keys.end());
-                    break;
-                }
+                auto nextIt = nextPartition != partitions.end()
+                    ? std::lower_bound(currentIt, keys.end(), (*nextPartition)->PivotKey.Get())
+                    : keys.end();
 
-                auto nextIt = std::lower_bound(currentIt, keys.end(), (*nextPartition)->PivotKey.Get());
-                addRange(currentIt, nextIt);
+                // TODO(babenko): fixme, data ownership?
+                TPartitionSnapshotPtr ptr = *currentPartition;
+                result.emplace_back(ptr, MakeSharedRange<TRow>(std::vector<TRow>(currentIt, nextIt)));
                 currentIt = nextIt;
+                currentPartition = nextPartition;
             }
         } else {
-            result.emplace_back(MakeSharedRange(std::move(keys)));
+            result.emplace_back(nullptr, MakeSharedRange(std::move(keys)));
         }
 
         return result;
