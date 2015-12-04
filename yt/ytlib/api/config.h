@@ -86,6 +86,9 @@ public:
     bool EnableUdf;
     NYPath::TYPath UdfRegistryPath;
 
+    int TableMountInfoUpdateRetryCount;
+    TDuration TableMountInfoUpdateRetryPeriod;
+
     TConnectionConfig();
 
 };
