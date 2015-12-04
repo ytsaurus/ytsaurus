@@ -44,10 +44,16 @@ udf_bc( ${BASE}/udf/int64.c YT_SOURCE_FILES )
 udf_bc( ${BASE}/udf/is_null.c YT_SOURCE_FILES )
 udf_bc( ${BASE}/udf/is_substr.c YT_SOURCE_FILES )
 udf_bc( ${BASE}/udf/is_prefix.c YT_SOURCE_FILES )
-udf_bc( ${BASE}/udf/lower.c YT_SOURCE_FILES )
 udf_bc( ${BASE}/udf/sleep.c YT_SOURCE_FILES )
 udf_bc( ${BASE}/udf/uint64.c YT_SOURCE_FILES )
 udf_bc( ${BASE}/udf/min.c YT_SOURCE_FILES )
 udf_bc( ${BASE}/udf/max.c YT_SOURCE_FILES )
 udf_bc( ${BASE}/udf/sum.c YT_SOURCE_FILES )
 udf_bc( ${BASE}/udf/avg.c YT_SOURCE_FILES )
+
+udf_bc(
+  ${BASE}/udf/lower.cpp
+  YT_SOURCE_FILES
+  FILES
+    ${CMAKE_SOURCE_DIR}/util/charset/utf.cpp
+    ${CMAKE_SOURCE_DIR}/util/charset/generated/unidata.cpp)

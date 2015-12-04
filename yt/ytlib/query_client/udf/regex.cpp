@@ -52,15 +52,15 @@ extern "C" void regex_full_match(
     TUnversionedValue* regexp,
     TUnversionedValue* input)
 {
-    if (regexp->Type == Null || input->Type == Null) {
-        result->Type = Boolean;
+    if (regexp->Type == EValueType::Null || input->Type == EValueType::Null) {
+        result->Type = EValueType::Boolean;
         result->Data.Boolean = false;
     } else {
         regex_work(
             functonContext,
             regexp,
             [=] (TData* data) {
-                result->Type = Boolean;
+                result->Type = EValueType::Boolean;
                 result->Data.Boolean = RegexFullMatch(data->Re2, input);
             });
     }
@@ -73,15 +73,15 @@ extern "C" void regex_partial_match(
     TUnversionedValue* regexp,
     TUnversionedValue* input)
 {
-    if (regexp->Type == Null || input->Type == Null) {
-        result->Type = Boolean;
+    if (regexp->Type == EValueType::Null || input->Type == EValueType::Null) {
+        result->Type = EValueType::Boolean;
         result->Data.Boolean = false;
     } else {
         regex_work(
             functonContext,
             regexp,
             [=] (TData* data) {
-                result->Type = Boolean;
+                result->Type = EValueType::Boolean;
                 result->Data.Boolean = RegexPartialMatch(data->Re2, input);
             });
     }
@@ -95,8 +95,8 @@ extern "C" void regex_replace_first(
     TUnversionedValue* input,
     TUnversionedValue* rewrite)
 {
-    if (regexp->Type == Null || input->Type == Null || rewrite->Type == Null) {
-        result->Type = Null;
+    if (regexp->Type == EValueType::Null || input->Type == EValueType::Null || rewrite->Type == EValueType::Null) {
+        result->Type = EValueType::Null;
     } else {
         regex_work(
             functonContext,
@@ -115,8 +115,8 @@ extern "C" void regex_replace_all(
     TUnversionedValue* input,
     TUnversionedValue* rewrite)
 {
-    if (regexp->Type == Null || input->Type == Null || rewrite->Type == Null) {
-        result->Type = Null;
+    if (regexp->Type == EValueType::Null || input->Type == EValueType::Null || rewrite->Type == EValueType::Null) {
+        result->Type = EValueType::Null;
     } else {
         regex_work(
             functonContext,
@@ -135,8 +135,8 @@ extern "C" void regex_extract(
     TUnversionedValue* input,
     TUnversionedValue* rewrite)
 {
-    if (regexp->Type == Null || input->Type == Null || rewrite->Type == Null) {
-        result->Type = Null;
+    if (regexp->Type == EValueType::Null || input->Type == EValueType::Null || rewrite->Type == EValueType::Null) {
+        result->Type = EValueType::Null;
     } else {
         regex_work(
             functonContext,
@@ -153,8 +153,8 @@ extern "C" void regex_escape(
     TUnversionedValue* result,
     TUnversionedValue* input)
 {
-    if (input->Type == Null) {
-        result->Type = Null;
+    if (input->Type == EValueType::Null) {
+        result->Type = EValueType::Null;
     } else {
         RegexEscape(executionContext, input, result);
     }

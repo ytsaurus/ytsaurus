@@ -1,10 +1,12 @@
 set( CHARSET_BASE ${CMAKE_SOURCE_DIR}/util/charset )
 set( CHARSET_SRCS
   ${CHARSET_BASE}/stroka.cpp
+  ${CHARSET_BASE}/utf.cpp
+  ${CHARSET_BASE}/unidata.cpp
   #${CHARSET_BASE}/iconv.cpp (uses iconv)
   #${CHARSET_BASE}/generated/cp_data.cpp (uses iconv)
   #${CHARSET_BASE}/generated/encrec_data.cpp (uses iconv)
-  #${CHARSET_BASE}/generated/unidata.cpp (uses iconv)
+  ${CHARSET_BASE}/generated/unidata.cpp
 )
 
 set( STRING_BASE ${CMAKE_SOURCE_DIR}/util/string )
