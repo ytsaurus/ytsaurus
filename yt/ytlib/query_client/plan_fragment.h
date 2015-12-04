@@ -275,7 +275,7 @@ struct TGroupClause
     void AddGroupItem(const TNamedItem& namedItem)
     {
         GroupItems.push_back(namedItem);
-        GroupedTableSchema.PushColumn(TColumnSchema(namedItem.Name, namedItem.Expression->Type));
+        GroupedTableSchema.AppendColumn(TColumnSchema(namedItem.Name, namedItem.Expression->Type));
     }
 
     void AddGroupItem(TConstExpressionPtr expression, Stroka name)
@@ -312,7 +312,7 @@ struct TProjectClause
     void AddProjection(const TNamedItem& namedItem)
     {
         Projections.push_back(namedItem);
-        ProjectTableSchema.PushColumn(TColumnSchema(namedItem.Name, namedItem.Expression->Type));
+        ProjectTableSchema.AppendColumn(TColumnSchema(namedItem.Name, namedItem.Expression->Type));
     }
 
     void AddProjection(TConstExpressionPtr expression, Stroka name)
