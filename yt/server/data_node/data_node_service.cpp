@@ -680,7 +680,8 @@ private:
     static void SerializeSample(
         TRspGetTableSamples::TSample* protoSample, 
         std::vector<TUnversionedValue> values, 
-        i32 maxSampleSize)
+        i32 maxSampleSize,
+        i64 weight)
     {
         size_t size = 0;
         bool incomplete = false;
@@ -699,6 +700,7 @@ private:
 
         ToProto(protoSample->mutable_key(), values.data(), values.data() + values.size());
         protoSample->set_incomplete(incomplete);
+        protoSample->set_weight(weight);
     }
 
 
@@ -710,6 +712,9 @@ private:
         const TChunkMeta& chunkMeta)
     {
         auto samplesExt = GetProtoExtension<TOldSamplesExt>(chunkMeta.extensions());
+        auto miscExt = GetProtoExtension<TMiscExt>(chunkMeta.extensions());
+        i64 weight = std::max((i64)1, miscExt.uncompressed_data_size() / samplesExt.items_size());
+
         std::vector<TSample> samples;
         RandomSampleN(
             samplesExt.items().begin(),
@@ -750,7 +755,7 @@ private:
                 }
                 values.push_back(keyPart);
             }
-            SerializeSample(chunkSamples->add_samples(), std::move(values), maxSampleSize);
+            SerializeSample(chunkSamples->add_samples(), std::move(values), maxSampleSize, weight);
         }
     }
 
@@ -813,6 +818,7 @@ private:
                 protoSample->mutable_key(), 
                 WidenKey(sample, keyColumns.size()));
             protoSample->set_incomplete(false);
+            protoSample->set_weight(1);
         }
     }
 
@@ -837,6 +843,9 @@ private:
         }
 
         auto samplesExt = GetProtoExtension<TSamplesExt>(chunkMeta.extensions());
+        auto miscExt = GetProtoExtension<TMiscExt>(chunkMeta.extensions());
+        i64 weight = std::max((i64)1, miscExt.uncompressed_data_size() / samplesExt.entries_size());
+
         std::vector<TProtoStringType> samples;
         samples.reserve(sampleRequest->sample_count());
 
@@ -861,7 +870,7 @@ private:
                 values[keyIndex] = value;
             }
 
-            SerializeSample(chunkSamples->add_samples(), std::move(values), maxSampleSize);
+            SerializeSample(chunkSamples->add_samples(), std::move(values), maxSampleSize, weight);
         }
     }
 

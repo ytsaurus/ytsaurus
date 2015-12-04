@@ -18,8 +18,11 @@ namespace NVersionedTableClient {
 struct TSample {
     TOwningKey Key;
 
-    // Is true, if sample is trimmed to fulfil #MaxSampleSize_.
+    //! True, if the sample is trimmed to fulfil #MaxSampleSize_.
     bool Incomplete;
+
+    //! Proportional to  data size this sample represents.
+    i64 Weight;
 };
 
 bool operator==(const TSample& lhs, const TSample& rhs);
