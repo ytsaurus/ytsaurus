@@ -153,6 +153,15 @@ public:
         Canceled_.Fire();
     }
 
+    virtual void SetComplete() override
+    {
+        if (RuntimeInfo_->Descriptor.OneWay)
+            return;
+
+        TGuard<TSpinLock> guard(SpinLock_);
+        DoSetComplete();
+    }
+
 private:
     const TServiceBasePtr Service_;
     const TRequestId RequestId_;
@@ -207,12 +216,7 @@ private:
             Service_->UnregisterCancelableRequest(this);
         }
 
-        // NB: This counter is also used to track queue size limit so
-        // it must be maintained even if the profiler is OFF.
-        Profiler.Increment(RuntimeInfo_->QueueSizeCounter, -1);
-
-        TServiceBase::ReleaseRequestSemaphore(RuntimeInfo_);
-        TServiceBase::ScheduleRequests(RuntimeInfo_);
+        DoSetComplete();
 
         Finalized_ = true;
     }
@@ -335,9 +339,6 @@ private:
                 RuntimeInfo_->Descriptor.Method,
                 NTracing::ServerSendAnnotation);
 
-            YASSERT(!Completed_);
-            Completed_ = true;
-
             auto responseMessage = GetResponseMessage();
 
             ReplyBus_->Send(std::move(responseMessage), EDeliveryTrackingLevel::None);
@@ -361,6 +362,23 @@ private:
         }
 
         Finalize();
+    }
+
+    void DoSetComplete()
+    {
+        VERIFY_SPINLOCK_AFFINITY(SpinLock_);
+
+        if (Completed_)
+            return;
+
+        // NB: This counter is also used to track queue size limit so
+        // it must be maintained even if the profiler is OFF.
+        Profiler.Increment(RuntimeInfo_->QueueSizeCounter, -1);
+
+        TServiceBase::ReleaseRequestSemaphore(RuntimeInfo_);
+        TServiceBase::ScheduleRequests(RuntimeInfo_);
+
+        Completed_ = true;
     }
 
 
