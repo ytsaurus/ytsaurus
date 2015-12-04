@@ -125,8 +125,8 @@ TFuture<void> TBlobSession::DoPutBlocks(
 
         if (!Location_->HasEnoughSpace(block.Size())) {
             return MakeFuture(TError(
-                NChunkClient::EErrorCode::OutOfSpace,
-                "No enough space left on node"));
+                NChunkClient::EErrorCode::NoLocationAvailable,
+                "No enough space left on location"));
         }
 
         auto* tracker = Bootstrap_->GetMemoryUsageTracker();

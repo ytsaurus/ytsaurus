@@ -91,12 +91,21 @@ public:
 
     //! Finds a suitable storage location for a new chunk.
     /*!
-     *  Among enabled locations that are not full and support chunks of a given type,
+     *  Among enabled locations that are not full, support chunks of a given type
+     *  and don't currently throttle writes for a given workload,
      *  returns a random one with the minimum number of active sessions.
      *
      *  Throws exception if no suitable location could be found.
      */
-    TStoreLocationPtr GetNewChunkLocation(NObjectClient::EObjectType chunkType);
+    TStoreLocationPtr GetNewChunkLocation(
+        NObjectClient::EObjectType chunkType,
+        const TWorkloadDescriptor& workloadDescriptor);
+
+    //! Returns |true| if too much data is aleady scheduled for read.
+    bool IsReadThrottling(const TLocationPtr& location, const TWorkloadDescriptor& workloadDescriptor);
+
+    //! Returns |true| if too much data is aleady scheduled for write.
+    bool IsWriteThrottling(const TLocationPtr& location, const TWorkloadDescriptor& workloadDescriptor);
 
     //! Storage locations.
     DEFINE_BYREF_RO_PROPERTY(TLocations, Locations);
@@ -108,8 +117,8 @@ public:
     DEFINE_SIGNAL(void(IChunkPtr), ChunkRemoved);
 
 private:
-    TDataNodeConfigPtr Config_;
-    NCellNode::TBootstrap* Bootstrap_;
+    const TDataNodeConfigPtr Config_;
+    NCellNode::TBootstrap* const Bootstrap_;
 
     struct TChunkEntry
     {
@@ -121,10 +130,15 @@ private:
     yhash_map<TChunkId, TChunkEntry> ChunkMap_;
 
 
+    bool CanStartNewSession(
+        const TStoreLocationPtr& location,
+        NObjectClient::EObjectType chunkType,
+        const TWorkloadDescriptor& workloadDescriptor);
+
     void DoRegisterChunk(const TChunkEntry& entry);
 
     static TChunkEntry BuildEntry(IChunkPtr chunk);
-    IChunkPtr CreateFromDescriptor(TStoreLocationPtr location, const TChunkDescriptor& descriptor);
+    IChunkPtr CreateFromDescriptor(const TStoreLocationPtr& location, const TChunkDescriptor& descriptor);
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
