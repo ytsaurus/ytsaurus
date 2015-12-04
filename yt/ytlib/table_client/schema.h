@@ -74,7 +74,7 @@ public:
     // These functions perform all necessary validation at each call,
     // so don't call them frequently. If you need to store and modify
     // a set of columns, use std::vector<TColumnSchema> instead.
-    void PushColumn(const TColumnSchema& column);
+    void AppendColumn(const TColumnSchema& column);
     void InsertColumn(int position, const TColumnSchema& column);
     void EraseColumn(int position);
     void AlterColumn(int position, const TColumnSchema& column);
