@@ -998,6 +998,15 @@ INSTANTIATE_TEST_CASE_P(
     TEvaluateExpressionTest,
     ::testing::Values(
         std::tuple<const char*, const char*, TUnversionedValue>(
+            "",
+            "lower('')",
+            MakeString("")),
+        std::tuple<const char*, const char*, TUnversionedValue>(
+            "",
+            "lower('ПрИвЕт, КаК ДеЛа?')",
+            MakeString("привет, как дела?")),
+
+        std::tuple<const char*, const char*, TUnversionedValue>(
             "i1=33;i2=22",
             "i1 + i2",
             MakeInt64(33 + 22)),
@@ -1025,6 +1034,7 @@ INSTANTIATE_TEST_CASE_P(
             "i1=-9223372036854775808",
             "uint64(i1)",
             MakeUint64(9223372036854775808ULL))
+
 ));
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -10,5 +10,5 @@ extern "C" void farm_hash(
 {
     auto argsValue = (NYT::NTableClient::TUnversionedValue*)args;
     result->Data.Uint64 = NYT::NTableClient::GetFarmFingerprint(argsValue, argsValue + args_len);
-    result->Type = Uint64;
+    result->Type = EValueType::Uint64;
 }
