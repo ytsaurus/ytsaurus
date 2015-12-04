@@ -62,6 +62,7 @@ protected:
             New<TTableMountConfig>(),
             New<TTabletWriterOptions>(),
             NullTabletId,
+            0,
             NullObjectId,
             nullptr,
             schema,
