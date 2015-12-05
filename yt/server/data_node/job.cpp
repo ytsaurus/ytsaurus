@@ -233,7 +233,7 @@ protected:
     void GuardedRun()
     {
         LOG_INFO("Job started (JobType: %v)",
-            EJobType(JobSpec_.type()));
+        EJobType(JobSpec_.type()));
         try {
             DoRun();
         } catch (const std::exception& ex) {

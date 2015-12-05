@@ -237,8 +237,8 @@ void TBlobChunkBase::DoReadBlockSet(
         LOG_DEBUG(
             "Started reading blob chunk blocks (BlockIds: %v:%v-%v, LocationId: %v)",
             Id_,
-            beginIndex,
-            endIndex - 1,
+            firstBlockIndex + beginIndex,
+            firstBlockIndex + endIndex - 1,
             Location_->GetId());
 
         NProfiling::TScopedTimer timer;
@@ -285,8 +285,8 @@ void TBlobChunkBase::DoReadBlockSet(
         LOG_DEBUG(
             "Finished reading blob chunk blocks (BlockIds: %v:%v-%v, BytesRead: %v, LocationId: %v)",
             Id_,
-            beginIndex,
-            endIndex - 1,
+            firstBlockIndex + beginIndex,
+            firstBlockIndex + endIndex - 1,
             bytesRead,
             Location_->GetId());
 
