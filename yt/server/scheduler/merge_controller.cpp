@@ -1564,11 +1564,13 @@ private:
                     return cmpResult < 0;
                 }
 
-                cmpResult = CompareRows(lhs.MinBoundaryKey, rhs.MinBoundaryKey);
+                // If keys (trimmed to key columns) are equal, we put slices in 
+                // the same order they are in the original table.
+                cmpResult = lhs.ChunkSlice->ChunkSpec()->table_row_index() - 
+                    rhs.ChunkSlice->ChunkSpec()->table_row_index();      
                 if (cmpResult != 0) {
                     return cmpResult < 0;
                 }                
-
                 
                 return (reinterpret_cast<intptr_t>(lhs.ChunkSlice->ChunkSpec().Get())
                     - reinterpret_cast<intptr_t>(rhs.ChunkSlice->ChunkSpec().Get())) < 0;
