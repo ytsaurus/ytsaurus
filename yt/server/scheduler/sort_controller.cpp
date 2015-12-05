@@ -1867,6 +1867,9 @@ private:
             }
         }
 
+        // Construct the leftmost partition.
+        Partitions.push_back(New<TPartition>(this, 0));
+
         // Invariant:
         //   lastPartition = Partitions.back()
         //   lastKey = PartitionKeys.back()
