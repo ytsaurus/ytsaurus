@@ -1468,7 +1468,7 @@ protected:
             uncompressedBlockSize = std::min(uncompressedBlockSize, Spec->PartitionJobIO->TableWriter->BlockSize);
 
             // Product may not fit into i64.
-            double partitionDataSize = sqrt((double)dataSizeAfterPartition * uncompressedBlockSize);
+            double partitionDataSize = sqrt(dataSizeAfterPartition) * sqrt(uncompressedBlockSize);
 
             int maxPartitionCount = GetMaxPartitionJobBufferSize() / uncompressedBlockSize;
             result = std::min(static_cast<int>(dataSizeAfterPartition / partitionDataSize), maxPartitionCount);
@@ -1492,7 +1492,7 @@ protected:
             uncompressedBlockSize = std::min(uncompressedBlockSize, Spec->PartitionJobIO->TableWriter->BlockSize);
 
             // Product may not fit into i64.
-            double partitionJobDataSize = sqrt((double)TotalEstimatedInputDataSize * uncompressedBlockSize);
+            double partitionJobDataSize = sqrt(TotalEstimatedInputDataSize) * sqrt(uncompressedBlockSize);
             partitionJobDataSize = std::min(partitionJobDataSize, static_cast<double>(GetMaxPartitionJobBufferSize()));
 
             return static_cast<int>(Clamp(
@@ -1853,9 +1853,27 @@ private:
     {
         LOG_INFO("Building partition keys");
 
-        auto getSample = [&](int sampleIndex) {
-            return sortedSamples[(sampleIndex + 1) * (sortedSamples.size() - 1) / partitionCount];
-        };
+        i64 totalSamplesWeight = 0;
+        for (const auto* sample : sortedSamples) {
+            totalSamplesWeight += sample->Weight;
+        }
+
+        // Select samples evenly wrt weights.
+        std::vector<const TSample*> selectedSamples;
+        selectedSamples.reserve(partitionCount - 1);
+
+        double weightPerPartition = (double)totalSamplesWeight / partitionCount;
+        i64 processedWeight = 0;
+        for (const auto* sample : sortedSamples) {
+            processedWeight += sample->Weight;
+            if (processedWeight / weightPerPartition > selectedSamples.size() + 1) {
+                selectedSamples.push_back(sample);
+            }
+            if (selectedSamples.size() == partitionCount - 1) {
+                // We need exactly partitionCount - 1 partition keys.
+                break;
+            }
+        }
 
         // Construct the leftmost partition.
         Partitions.push_back(New<TPartition>(this, 0));
@@ -1867,10 +1885,9 @@ private:
         //
         // Initially PartitionKeys is empty so lastKey is assumed to be -inf.
 
-        // Take partition keys evenly.
         int sampleIndex = 0;
         while (sampleIndex < partitionCount - 1) {
-            auto* sample = getSample(sampleIndex);
+            auto* sample = selectedSamples[sampleIndex];
             // Check for same keys.
             if (PartitionKeys.empty() || CompareRows(sample->Key, PartitionKeys.back()) != 0) {
                 AddPartition(sample->Key);
@@ -1879,13 +1896,13 @@ private:
                 // Skip same keys.
                 int skippedCount = 0;
                 while (sampleIndex < partitionCount - 1 &&
-                    CompareRows(getSample(sampleIndex)->Key, PartitionKeys.back()) == 0)
+                    CompareRows(selectedSamples[sampleIndex]->Key, PartitionKeys.back()) == 0)
                 {
                     ++sampleIndex;
                     ++skippedCount;
                 }
 
-                auto* lastManiacSample = getSample(sampleIndex - 1);
+                auto* lastManiacSample = selectedSamples[sampleIndex - 1];
                 auto lastPartition = Partitions.back();
 
                 if (!lastManiacSample->Incomplete) {
@@ -1906,7 +1923,7 @@ private:
                     LOG_DEBUG("Partition %v is oversized, skipped %v samples",
                         lastPartition->Index,
                         skippedCount);
-                    AddPartition(getSample(sampleIndex)->Key);
+                    AddPartition(selectedSamples[sampleIndex]->Key);
                     ++sampleIndex;
                 }
             }

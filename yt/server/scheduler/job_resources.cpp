@@ -11,7 +11,6 @@ namespace NScheduler {
 using namespace NChunkClient;
 using namespace NNodeTrackerClient::NProto;
 
-using NChunkClient::MaxPrefetchWindow;
 using NChunkClient::ChunkReaderMemorySize;
 
 ////////////////////////////////////////////////////////////////////
@@ -78,7 +77,7 @@ i64 GetInputIOMemorySize(
     if (stat.ChunkCount == 0)
         return 0;
 
-    int concurrentReaders = std::min(stat.ChunkCount, MaxPrefetchWindow);
+    int concurrentReaders = std::min(stat.ChunkCount, ioConfig->TableReader->MaxPrefetchWindow);
 
     // Group can be overcommited by one block.
     i64 groupSize = stat.MaxBlockSize + ioConfig->TableReader->GroupSize;

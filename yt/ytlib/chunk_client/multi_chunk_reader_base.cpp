@@ -149,7 +149,7 @@ void TMultiChunkReaderBase::OpenNextChunks()
             return;
         }
 
-        if (ActiveReaderCount_ > MaxPrefetchWindow) {
+        if (ActiveReaderCount_ > Config_->MaxPrefetchWindow) {
             return;
         }
 

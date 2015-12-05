@@ -256,6 +256,12 @@ void TInsertRowsCommand::Execute(ICommandContextPtr context)
     auto tableInfo = WaitFor(tableMountCache->GetTableInfo(Path.GetPath()))
         .ValueOrThrow();
 
+    if (tableInfo->Tablets.empty()) {
+        THROW_ERROR_EXCEPTION(
+            "Cannot execute lookup command on static table %v",
+            Request_->Path.GetPath());
+    } 
+
     // Parse input data.
     auto valueConsumer = New<TBuildingValueConsumer>(
         tableInfo->Schema,

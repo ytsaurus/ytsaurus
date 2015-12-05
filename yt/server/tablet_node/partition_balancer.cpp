@@ -410,6 +410,7 @@ private:
         std::vector<TOwningKey> samples;
         for (const auto& sample : fetcher->GetSamples()) {
             YCHECK(!sample.Incomplete);
+            YCHECK(sample.Weight == 1);
             samples.push_back(sample.Key);
         }
 
