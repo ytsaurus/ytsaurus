@@ -22,7 +22,6 @@ PEERDIR(
     mapreduce/yt/interface
     mapreduce/yt/yson
     mapreduce/yt/http
-    util/random
 )
 
 END()
