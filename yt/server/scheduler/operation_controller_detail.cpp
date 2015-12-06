@@ -2543,7 +2543,11 @@ void TOperationControllerBase::FetchInputTables()
                 auto req = TTableYPathProxy::Fetch(FromObjectId(table.ObjectId));
                 InitializeFetchRequest(req.Get(), table.Path);
                 ToProto(req->mutable_ranges(), std::vector<TReadRange>({adjustedRange}));
-                req->set_fetch_all_meta_extensions(true);
+                req->set_fetch_all_meta_extensions(false);
+                req->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
+                if (IsBoundaryKeysFetchEnabled()) {
+                    req->add_extension_tags(TProtoExtensionTag<NTableClient::NProto::TBoundaryKeysExt>::Value);
+                }
                 req->set_fetch_parity_replicas(IsParityReplicasFetchEnabled());
                 SetTransactionId(req, InputTransactionId);
                 batchReq->AddRequest(req, Format("fetch_input_table_%v", tableIndex));
@@ -3237,6 +3241,11 @@ bool TOperationControllerBase::IsSortedOutputSupported() const
 }
 
 bool TOperationControllerBase::IsParityReplicasFetchEnabled() const
+{
+    return false;
+}
+
+bool TOperationControllerBase::IsBoundaryKeysFetchEnabled() const
 {
     return false;
 }
