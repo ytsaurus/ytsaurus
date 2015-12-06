@@ -8,8 +8,6 @@
 #include "journal_dispatcher.h"
 #include "location.h"
 #include "master_connector.h"
-#include "session.h"
-#include "session_manager.h"
 
 #include <yt/server/cell_node/bootstrap.h>
 #include <yt/server/cell_node/config.h>
@@ -337,12 +335,6 @@ public:
 private:
     virtual void DoRun() override
     {
-        auto sessionManager = Bootstrap_->GetSessionManager();
-        auto session = sessionManager->FindSession(Chunk_->GetId());
-        if (session) {
-            session->Cancel(TError("Chunk is removed"));
-        }
-
         auto chunkStore = Bootstrap_->GetChunkStore();
         WaitFor(chunkStore->RemoveChunk(Chunk_))
             .ThrowOnError();
@@ -635,7 +627,7 @@ private:
             .ValueOrThrow();
 
         if (journalChunk->HasAttachedChangelog()) {
-            THROW_ERROR_EXCEPTION("Journal chunk %v is already being written to",
+            THROW_ERROR_EXCEPTION("Journal chunk %v is already being written",
                 ChunkId_);
         }
 
