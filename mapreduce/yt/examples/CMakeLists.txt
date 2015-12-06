@@ -8,7 +8,6 @@ SRCS(
 )
 
 PEERDIR(
-    util/random
     mapreduce/yt/client
 )
 
