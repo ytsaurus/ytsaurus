@@ -171,7 +171,8 @@ void TSamplesFetcher::DoFetchFromNode(TNodeId nodeId, std::vector<int> chunkInde
         for (const auto& protoSample : sampleResponse.samples()) {
             TSample sample = {
                 FromProto<TOwningKey>(protoSample.key()),
-                protoSample.incomplete()
+                protoSample.incomplete(),
+                protoSample.weight()
             };
 
             YCHECK(sample.Key.GetCount() == KeyColumns_.size());

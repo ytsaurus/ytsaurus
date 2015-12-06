@@ -423,6 +423,10 @@ public:
             // Disable target allocation from master.
             ReplicationWriter->UploadReplicationFactor = 1;
             RepairWriter->UploadReplicationFactor = 1;
+
+            // Don't populate caches in chunk jobs.
+            RepairReader->PopulateCache = false;
+            SealReader->PopulateCache = false;
         });
     }
 };

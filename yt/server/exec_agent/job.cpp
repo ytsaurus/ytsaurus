@@ -744,6 +744,21 @@ private:
     {
         auto resultError = FromProto<TError>(jobResult.error());
 
+        if (jobResult.HasExtension(TSchedulerJobResultExt::scheduler_job_result_ext)) {
+            const auto& schedulerResultExt = jobResult.GetExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
+            if (schedulerResultExt.failed_chunk_ids_size() > 0) {
+                return MakeNullable(EAbortReason::FailedChunks);
+            }
+        }
+
+        if (resultError.FindMatching(NExecAgent::EErrorCode::ResourceOverdraft)) {
+            return MakeNullable(EAbortReason::ResourceOverdraft);
+        } 
+
+        if (resultError.FindMatching(NExecAgent::EErrorCode::AbortByScheduler)) {
+            return MakeNullable(EAbortReason::Scheduler);
+        } 
+
         if (resultError.FindMatching(NChunkClient::EErrorCode::AllTargetNodesFailed) ||
             resultError.FindMatching(NChunkClient::EErrorCode::MasterCommunicationFailed) ||
             resultError.FindMatching(NChunkClient::EErrorCode::MasterNotConnected) ||
@@ -751,17 +766,6 @@ private:
             resultError.FindMatching(static_cast<int>(EExitStatus::ExitCodeBase) + static_cast<int>(EJobProxyExitCode::HeartbeatFailed)))
         {
             return MakeNullable(EAbortReason::Other);
-        } else if (resultError.FindMatching(NExecAgent::EErrorCode::ResourceOverdraft)) {
-            return MakeNullable(EAbortReason::ResourceOverdraft);
-        } else if (resultError.FindMatching(NExecAgent::EErrorCode::AbortByScheduler)) {
-            return MakeNullable(EAbortReason::Scheduler);
-        }
-
-        if (jobResult.HasExtension(TSchedulerJobResultExt::scheduler_job_result_ext)) {
-            const auto& schedulerResultExt = jobResult.GetExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
-            if (schedulerResultExt.failed_chunk_ids_size() > 0) {
-                return MakeNullable(EAbortReason::FailedChunks);
-            }
         }
 
         return Null;
