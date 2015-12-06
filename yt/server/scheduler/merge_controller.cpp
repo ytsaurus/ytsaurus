@@ -1134,6 +1134,11 @@ protected:
         return !chunkSpec->lower_limit().has_row_index() && 
             !chunkSpec->upper_limit().has_row_index();
     }
+
+    virtual bool IsBoundaryKeysFetchEnabled() const override
+    {
+        return true;
+    }
 };
 
 DEFINE_DYNAMIC_PHOENIX_TYPE(TSortedMergeControllerBase::TManiacTask);
@@ -2144,6 +2149,11 @@ private:
     }
 
     virtual bool IsOutputLivePreviewSupported() const override
+    {
+        return true;
+    }
+
+    virtual bool IsBoundaryKeysFetchEnabled() const override
     {
         return true;
     }

@@ -716,6 +716,9 @@ protected:
     //! Enables fetching all input replicas (not only data)
     virtual bool IsParityReplicasFetchEnabled() const;
 
+    //! Enables fetching boundary keys for chunk specs.
+    virtual bool IsBoundaryKeysFetchEnabled() const;
+
     //! If |true| then all jobs started within the operation must
     //! preserve row count. This invariant is checked for each completed job.
     //! Should a violation be discovered, the operation fails.
