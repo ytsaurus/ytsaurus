@@ -80,6 +80,13 @@ TTabletInfoPtr TTableMountInfo::GetTablet(TUnversionedRow row)
     return *(it - 1);
 }
 
+void TTableMountInfo::ValidateDynamic()
+{
+    if (!Dynamic) {
+        THROW_ERROR_EXCEPTION("Table %v is not dynamic", Path);
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTableMountCache::TImpl
