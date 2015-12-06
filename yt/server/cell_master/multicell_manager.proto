@@ -1,13 +1,25 @@
 package NYT.NCellMaster.NProto;
 
+import "yt/core/misc/error.proto";
+
 ////////////////////////////////////////////////////////////////////////////////
 
-message TReqRegisterSecondaryMaster
+message TReqRegisterSecondaryMasterAtPrimary
 {
     required int32 cell_tag = 1;
 }
 
-message TReqRegisterAtPrimaryMaster
+message TRspRegisterSecondaryMasterAtPrimary
+{
+    optional NYT.NProto.TError error = 1;
+}
+
+message TReqRegisterSecondaryMasterAtSecondary
+{
+    required int32 cell_tag = 1;
+}
+
+message TReqStartSecondaryMasterRegistration
 { }
 
 ////////////////////////////////////////////////////////////////////////////////

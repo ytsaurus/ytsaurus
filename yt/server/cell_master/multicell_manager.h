@@ -86,6 +86,7 @@ public:
     //! Same as #GetMasterChannelOrThrow but returns |nullptr| if no channel is currently known.
     NRpc::IChannelPtr FindMasterChannel(NObjectClient::TCellTag cellTag, NHydra::EPeerKind peerKind);
 
+    DECLARE_SIGNAL(void(NObjectClient::TCellTag), ValidateSecondaryMasterRegistration);
     DECLARE_SIGNAL(void(NObjectClient::TCellTag), SecondaryMasterRegistered);
 
 private:
