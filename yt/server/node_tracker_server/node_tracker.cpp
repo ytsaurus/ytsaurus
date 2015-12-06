@@ -1460,8 +1460,8 @@ IObjectProxyPtr TNodeTracker::TClusterNodeTypeHandler::DoGetProxy(
 void TNodeTracker::TClusterNodeTypeHandler::DoZombifyObject(TNode* node)
 {
     TObjectTypeHandlerWithMapBase::DoZombifyObject(node);
-    // NB: Destroy the cell right away and do not wait for GC to prevent
-    // dangling links from occuring in //sys/tablet_cells.
+    // NB: Destroy the node right away and do not wait for GC to prevent
+    // dangling links from occuring in //sys/nodes.
     Owner_->DestroyNode(node);
 }
 
