@@ -205,6 +205,7 @@ message TRspGetTableSamples
     {
         required bytes key = 1;
         required bool incomplete = 2;
+        required int64 weight = 3;
     }
 
     message TChunkSamples

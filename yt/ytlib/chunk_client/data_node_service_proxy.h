@@ -20,6 +20,11 @@ public:
         return "DataNode";
     }
 
+    static int GetProtocolVersion()
+    {
+        return 1;
+    }
+
     explicit TDataNodeServiceProxy(NRpc::IChannelPtr channel)
         : TProxyBase(channel, GetServiceName())
     { }
