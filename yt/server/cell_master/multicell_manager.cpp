@@ -6,6 +6,7 @@
 #include "automaton.h"
 #include "serialize.h"
 #include "hydra_facade.h"
+#include "world_initializer.h"
 
 #include <core/misc/collection_helpers.h>
 
@@ -47,6 +48,12 @@ static const auto RegisterRetryPeriod = TDuration::Seconds(3);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(EPrimaryRegisterState,
+    (None)
+    (Registering)
+    (Registered)
+);
+
 class TMulticellManager::TImpl
     : public TMasterAutomatonPart
 {
@@ -59,8 +66,10 @@ public:
     {
         YCHECK(Config_);
 
-        TMasterAutomatonPart::RegisterMethod(BIND(&TImpl::HydraRegisterSecondaryMaster, Unretained(this)));
-        TMasterAutomatonPart::RegisterMethod(BIND(&TImpl::HydraRegisterAtPrimaryMaster, Unretained(this)));
+        TMasterAutomatonPart::RegisterMethod(BIND(&TImpl::HydraRegisterSecondaryMasterAtPrimary, Unretained(this)));
+        TMasterAutomatonPart::RegisterMethod(BIND(&TImpl::HydraOnSecondaryMasterRegisteredAtPrimary, Unretained(this)));
+        TMasterAutomatonPart::RegisterMethod(BIND(&TImpl::HydraRegisterSecondaryMasterAtSecondary, Unretained(this)));
+        TMasterAutomatonPart::RegisterMethod(BIND(&TImpl::HydraStartSecondaryMasterRegistration, Unretained(this)));
         TMasterAutomatonPart::RegisterMethod(BIND(&TImpl::HydraSetCellStatistics, Unretained(this)));
 
         RegisterLoader(
@@ -238,6 +247,7 @@ public:
     }
 
 
+    DEFINE_SIGNAL(void(TCellTag), ValidateSecondaryMasterRegistration);
     DEFINE_SIGNAL(void(TCellTag), SecondaryMasterRegistered);
 
 private:
@@ -258,7 +268,7 @@ private:
 
     // NB: Must ensure stable order.
     std::map<TCellTag, TMasterEntry> RegisteredMasterMap_;
-    bool RegisteredAtPrimaryMaster_ = false;
+    EPrimaryRegisterState RegisterState_;
 
     TMailbox* PrimaryMasterMailbox_ = nullptr;
 
@@ -284,7 +294,7 @@ private:
             ValidateCellTag(cellTag);
         }
 
-        if (RegisteredAtPrimaryMaster_) {
+        if (RegisterState_ == EPrimaryRegisterState::Registered) {
             YCHECK(!PrimaryMasterMailbox_);
             auto hiveManager = Bootstrap_->GetHiveManager();
             PrimaryMasterMailbox_ = hiveManager->GetMailbox(Bootstrap_->GetPrimaryCellId());
@@ -300,7 +310,7 @@ private:
             RegisterMasterEntry(Bootstrap_->GetPrimaryCellTag());
         }
 
-        RegisteredAtPrimaryMaster_ = false;
+        RegisterState_ = EPrimaryRegisterState::None;
         PrimaryMasterMailbox_ = nullptr;
     }
 
@@ -310,7 +320,12 @@ private:
         using NYT::Load;
 
         Load(context, RegisteredMasterMap_);
-        Load(context, RegisteredAtPrimaryMaster_);
+        // COMPAT(babenko)
+        if (context.GetVersion() >= 207) {
+            Load(context, RegisterState_);
+        } else {
+            RegisterState_ = Load<bool>(context) ? EPrimaryRegisterState::Registered : EPrimaryRegisterState::None;
+        }
     }
 
     void SaveValues(TSaveContext& context) const
@@ -318,7 +333,7 @@ private:
         using NYT::Save;
 
         Save(context, RegisteredMasterMap_);
-        Save(context, RegisteredAtPrimaryMaster_);
+        Save(context, RegisterState_);
     }
 
 
@@ -329,7 +344,7 @@ private:
         if (Bootstrap_->IsSecondaryMaster()) {
             RegisterAtPrimaryMasterExecutor_ = New<TPeriodicExecutor>(
                 Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(),
-                BIND(&TImpl::OnRegisterAtPrimaryMaster, MakeWeak(this)),
+                BIND(&TImpl::OnStartSecondaryMasterRegistration, MakeWeak(this)),
                 RegisterRetryPeriod);
             RegisterAtPrimaryMasterExecutor_->Start();
 
@@ -372,55 +387,108 @@ private:
     }
 
 
-    void HydraRegisterSecondaryMaster(const NProto::TReqRegisterSecondaryMaster& request)
+    void HydraRegisterSecondaryMasterAtPrimary(const NProto::TReqRegisterSecondaryMasterAtPrimary& request)
     {
+        YCHECK(Bootstrap_->IsPrimaryMaster());
+
         auto cellTag = request.cell_tag();
-        ValidateSecondaryCellTag(cellTag);
+        try {
+            ValidateSecondaryCellTag(cellTag);
 
-        if (FindMasterEntry(cellTag))  {
-            LOG_ERROR_UNLESS(IsRecovery(), "Attempted to re-register secondary master (CellTag: %v)", cellTag);
-            return;
-        }
-
-        LOG_INFO_UNLESS(IsRecovery(), "Secondary master registered (CellTag: %v)", cellTag);
-
-        RegisterMasterEntry(cellTag);
-
-        SecondaryMasterRegistered_.Fire(cellTag);
-
-        if (Bootstrap_->IsPrimaryMaster()) {
-            // Inform others about the new secondary.
-            for (const auto& pair : RegisteredMasterMap_) {
-                if (pair.first != cellTag) {
-                    PostToMaster(request, pair.first, true);
-                }
+            if (FindMasterEntry(cellTag))  {
+                THROW_ERROR_EXCEPTION("Attempted to re-register secondary master %v", cellTag);
             }
 
-            // Inform the new secondary about others.
+            ValidateSecondaryMasterRegistration_.Fire(cellTag);
+
+            LOG_INFO_UNLESS(IsRecovery(), "Secondary master registered (CellTag: %v)", cellTag);
+
+            RegisterMasterEntry(cellTag);
+
+            SecondaryMasterRegistered_.Fire(cellTag);
+
             for (const auto& pair : RegisteredMasterMap_) {
-                if (pair.first != cellTag) {
-                    NProto::TReqRegisterSecondaryMaster request;
+                if (pair.first == cellTag) {
+                    continue;
+                }
+                
+                {
+                    // Inform others about the new secondary.
+                    NProto::TReqRegisterSecondaryMasterAtSecondary request;
+                    request.set_cell_tag(cellTag);
+                    PostToMaster(request, pair.first, true);
+                }
+                {
+                    // Inform the new secondary about others.
+                    NProto::TReqRegisterSecondaryMasterAtSecondary request;
                     request.set_cell_tag(pair.first);
                     PostToMaster(request, cellTag, true);
                 }
             }
+
+            NProto::TRspRegisterSecondaryMasterAtPrimary response;
+            PostToMaster(response, cellTag, true);
+        } catch (const std::exception& ex) {
+            NProto::TRspRegisterSecondaryMasterAtPrimary response;
+            ToProto(response.mutable_error(), TError(ex).Sanitize());
+            PostToMaster(response, cellTag, true);
         }
     }
 
-    void HydraRegisterAtPrimaryMaster(const NProto::TReqRegisterAtPrimaryMaster& /*request*/)
+    void HydraOnSecondaryMasterRegisteredAtPrimary(const NProto::TRspRegisterSecondaryMasterAtPrimary& response)
     {
-        if (RegisteredAtPrimaryMaster_)
+        YCHECK(Bootstrap_->IsSecondaryMaster());
+
+        if (response.has_error()) {
+            auto error = FromProto<TError>(response.error());
+            LOG_ERROR_UNLESS(IsRecovery(), error, "Error registering at primary master");
+            RegisterState_ = EPrimaryRegisterState::None;
             return;
+        }
+
+        RegisterState_ = EPrimaryRegisterState::Registered;
+
+        LOG_INFO_UNLESS(IsRecovery(), "Successfully registered at primary master");
+    }
+
+    void HydraRegisterSecondaryMasterAtSecondary(const NProto::TReqRegisterSecondaryMasterAtSecondary& request)
+    {
+        YCHECK(Bootstrap_->IsSecondaryMaster());
+
+        auto cellTag = request.cell_tag();
+        try {
+            ValidateSecondaryCellTag(cellTag);
+
+            if (FindMasterEntry(cellTag))  {
+                THROW_ERROR_EXCEPTION("Attempted to re-register secondary master %v", cellTag);
+            }
+
+            LOG_INFO_UNLESS(IsRecovery(), "Secondary master registered (CellTag: %v)", cellTag);
+
+            RegisterMasterEntry(cellTag);
+        } catch (const std::exception& ex) {
+            LOG_FATAL(ex, "Error registering secondary master %v", cellTag);
+        }
+    }
+
+    void HydraStartSecondaryMasterRegistration(const NProto::TReqStartSecondaryMasterRegistration& /*request*/)
+    {
+        YCHECK(Bootstrap_->IsSecondaryMaster());
+
+        if (RegisterState_ != EPrimaryRegisterState::None) {
+            return;
+        }
 
         LOG_INFO_UNLESS(IsRecovery(), "Registering at primary master");
 
-        RegisteredAtPrimaryMaster_ = true;
+        RegisterState_ = EPrimaryRegisterState::Registering;
 
-        YCHECK(!PrimaryMasterMailbox_);
-        auto hiveManager = Bootstrap_->GetHiveManager();
-        PrimaryMasterMailbox_ = hiveManager->GetOrCreateMailbox(Bootstrap_->GetPrimaryCellId());
+        if (!PrimaryMasterMailbox_) {
+            auto hiveManager = Bootstrap_->GetHiveManager();
+            PrimaryMasterMailbox_ = hiveManager->GetOrCreateMailbox(Bootstrap_->GetPrimaryCellId());
+        }
 
-        NProto::TReqRegisterSecondaryMaster request;
+        NProto::TReqRegisterSecondaryMasterAtPrimary request;
         request.set_cell_tag(Bootstrap_->GetCellTag());
         PostToMaster(request, PrimaryMasterCellTag, true);
     }
@@ -445,7 +513,7 @@ private:
             if (CellTagFromId(cellConfig->CellId) == cellTag)
                 return;
         }
-        LOG_FATAL("Unknown secondary master cell tag %v", cellTag);
+        THROW_ERROR_EXCEPTION("Unknown secondary master cell tag %v", cellTag);
     }
 
     void ValidateCellTag(TCellTag cellTag)
@@ -457,7 +525,7 @@ private:
             if (CellTagFromId(cellConfig->CellId) == cellTag)
                 return;
         }
-        LOG_FATAL("Unknown master cell tag %v", cellTag);
+        THROW_ERROR_EXCEPTION("Unknown master cell tag %v", cellTag);
     }
 
 
@@ -484,14 +552,20 @@ private:
     }
 
 
-    void OnRegisterAtPrimaryMaster()
+    void OnStartSecondaryMasterRegistration()
     {
         YCHECK(Bootstrap_->IsSecondaryMaster());
 
-        if (RegisteredAtPrimaryMaster_)
+        auto worldInitializer = Bootstrap_->GetWorldInitializer();
+        if (!worldInitializer->CheckInitialized()) {
             return;
+        }
 
-        NProto::TReqRegisterAtPrimaryMaster request;
+        if (RegisterState_ != EPrimaryRegisterState::None) {
+            return;
+        }
+
+        NProto::TReqStartSecondaryMasterRegistration request;
         CreateMutation(Bootstrap_->GetHydraFacade()->GetHydraManager(), request)
             ->CommitAndLog(Logger);
     }
@@ -500,8 +574,9 @@ private:
     {
         YCHECK(Bootstrap_->IsSecondaryMaster());
 
-        if (!RegisteredAtPrimaryMaster_)
+        if (RegisterState_ != EPrimaryRegisterState::Registered) {
             return;
+        }
 
         LOG_INFO("Sending cell statistics gossip message");
 
@@ -679,6 +754,7 @@ IChannelPtr TMulticellManager::FindMasterChannel(TCellTag cellTag, EPeerKind pee
     return Impl_->FindMasterChannel(cellTag, peerKind);
 }
 
+DELEGATE_SIGNAL(TMulticellManager, void(TCellTag), ValidateSecondaryMasterRegistration, *Impl_);
 DELEGATE_SIGNAL(TMulticellManager, void(TCellTag), SecondaryMasterRegistered, *Impl_);
 
 ////////////////////////////////////////////////////////////////////////////////

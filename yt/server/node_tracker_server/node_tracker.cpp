@@ -222,6 +222,8 @@ public:
 
         if (Bootstrap_->IsPrimaryMaster()) {
             auto multicellManager = Bootstrap_->GetMulticellManager();
+            multicellManager->SubscribeValidateSecondaryMasterRegistration(
+                BIND(&TImpl::OnValidateSecondaryMasterRegistration, MakeWeak(this)));
             multicellManager->SubscribeSecondaryMasterRegistered(
                 BIND(&TImpl::OnSecondaryMasterRegistered, MakeWeak(this)));
         }
@@ -1256,10 +1258,20 @@ private:
     }
 
 
+    void OnValidateSecondaryMasterRegistration(TCellTag cellTag)
+    {
+        auto nodes = GetValuesSortedByKey(NodeMap_);
+        for (const auto* node : nodes) {
+            if (node->GetAggregatedState() != ENodeState::Offline) {
+                THROW_ERROR_EXCEPTION("Cannot register a new secondary master %v while node %v is not offline",
+                    cellTag,
+                    node->GetDefaultAddress());
+            }
+        }
+    }
+
     void OnSecondaryMasterRegistered(TCellTag cellTag)
     {
-        auto objectManager = Bootstrap_->GetObjectManager();
-
         auto nodes = GetValuesSortedByKey(NodeMap_);
         for (const auto* node : nodes) {
             TReqRegisterNode request;

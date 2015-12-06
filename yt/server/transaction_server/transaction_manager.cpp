@@ -443,8 +443,8 @@ public:
 
         if (Bootstrap_->IsPrimaryMaster()) {
             auto multicellManager = Bootstrap_->GetMulticellManager();
-            multicellManager->SubscribeSecondaryMasterRegistered(
-                BIND(&TImpl::OnSecondaryMasterRegistered, MakeWeak(this)));
+            multicellManager->SubscribeValidateSecondaryMasterRegistration(
+                BIND(&TImpl::OnValidateSecondaryMasterRegistration, MakeWeak(this)));
         }
     }
 
@@ -1014,22 +1014,13 @@ private:
     }
 
 
-    void OnSecondaryMasterRegistered(TCellTag cellTag)
+    void OnValidateSecondaryMasterRegistration(TCellTag cellTag)
     {
-        // Run stable BFS to figure out the order in which transactions are to be replicated.
-        auto transactions = SortTransactions(TopmostTransactions_);
-        for (auto* transaction : transactions) {
-            auto nestedTransactions = SortTransactions(transaction->NestedTransactions());
-            transactions.insert(transactions.end(), nestedTransactions.begin(), nestedTransactions.end());
+        if (TransactionMap_.GetSize() > 0) {
+            THROW_ERROR_EXCEPTION("Cannot register a new secondary master %v while %d transaction(s) are present",
+                cellTag,
+                TransactionMap_.GetSize());
         }
-
-        // Replicate transactions to the secondary master.
-        auto objectManager = Bootstrap_->GetObjectManager();
-        for (auto* transaction : transactions) {
-            objectManager->ReplicateObjectCreationToSecondaryMaster(transaction, cellTag);
-        }
-
-        // TODO(babenko): do we need to replicate prepare requests?
     }
 
     static std::vector<TTransaction*> SortTransactions(const yhash_set<TTransaction*>& set)
