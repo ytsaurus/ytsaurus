@@ -333,6 +333,17 @@ TFuture<void> TChunkStore::RemoveChunk(IChunkPtr chunk)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
+    auto sessionManager = Bootstrap_->GetSessionManager();
+    auto session = sessionManager->FindSession(chunk->GetId());
+    if (session) {
+        // NB: Cannot remove the chunk while there's a corresponding session for it.
+        // Must wait for the session cancelation (which is an asynchronous process).
+        session->Cancel(TError("Chunk %v is about to be removed",
+            chunk->GetId()));
+        return MakeFuture<void>(TError("Chunk %v is still being written",
+            chunk->GetId()));
+    }
+
     return chunk->ScheduleRemove().Apply(
         BIND(&TChunkStore::UnregisterChunk, MakeStrong(this), chunk)
             .Via(Bootstrap_->GetControlInvoker()));
