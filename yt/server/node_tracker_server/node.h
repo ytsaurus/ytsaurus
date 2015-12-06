@@ -141,6 +141,7 @@ public:
 
     // Chunk Manager stuff.
     void ReserveStoredReplicas(int sizeHint);
+    void ReserveCachedReplicas(int sizeHint);
     bool AddReplica(TChunkPtrWithIndex replica, bool cached);
     void RemoveReplica(TChunkPtrWithIndex replica, bool cached);
     bool HasReplica(TChunkPtrWithIndex, bool cached) const;

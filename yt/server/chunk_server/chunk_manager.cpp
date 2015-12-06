@@ -1280,14 +1280,31 @@ private:
     {
         TMasterAutomatonPart::OnAfterSnapshotLoaded();
 
+        // Populate nodes' chunk replica sets.
         // Compute chunk replica count.
-        auto nodeTracker = Bootstrap_->GetNodeTracker();
+
+        LOG_INFO("Started populating nodes' chunk replicas");
+
         TotalReplicaCount_ = 0;
-        for (const auto& pair : nodeTracker->Nodes()) {
-            auto* node = pair.second;
-            TotalReplicaCount_ += node->StoredReplicas().size();
-            TotalReplicaCount_ += node->CachedReplicas().size();
+        for (const auto& pair : ChunkMap_) {
+            auto* chunk = pair.second;
+
+            for (auto nodePtrWithIndex : chunk->StoredReplicas()) {
+                TChunkPtrWithIndex chunkPtrWithIndex(chunk, nodePtrWithIndex.GetIndex());
+                nodePtrWithIndex.GetPtr()->AddReplica(chunkPtrWithIndex, false);
+            }
+            TotalReplicaCount_ += chunk->StoredReplicas().size();
+
+            if (chunk->CachedReplicas()) {
+                for (auto nodePtrWithIndex : *chunk->CachedReplicas()) {
+                    TChunkPtrWithIndex chunkPtrWithIndex(chunk, nodePtrWithIndex.GetIndex());
+                    nodePtrWithIndex.GetPtr()->AddReplica(chunkPtrWithIndex, true);
+                }
+                TotalReplicaCount_ += chunk->CachedReplicas()->size();
+            }
         }
+
+        LOG_INFO("Finished populating nodes' chunk replicas");
     }
 
 

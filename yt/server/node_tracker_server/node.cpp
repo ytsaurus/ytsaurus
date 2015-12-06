@@ -143,14 +143,17 @@ void TNode::Save(NCellMaster::TSaveContext& context) const
     Save(context, Alerts_);
     Save(context, Rack_);
     Save(context, LeaseTransaction_);
-    Save(context, StoredReplicas_);
-    Save(context, CachedReplicas_);
+    TSizeSerializer::Save(context, StoredReplicas_.size());
+    TSizeSerializer::Save(context, CachedReplicas_.size());
     Save(context, UnapprovedReplicas_);
     Save(context, TabletSlots_);
 }
 
 void TNode::Load(NCellMaster::TLoadContext& context)
 {
+    // COMPAT(babenko)
+    YCHECK(context.GetVersion() >= 208);
+
     TObjectBase::Load(context);
 
     using NYT::Load;
@@ -164,8 +167,8 @@ void TNode::Load(NCellMaster::TLoadContext& context)
     Load(context, Alerts_);
     Load(context, Rack_);
     Load(context, LeaseTransaction_);
-    Load(context, StoredReplicas_);
-    Load(context, CachedReplicas_);
+    ReserveStoredReplicas(TSizeSerializer::Load(context));
+    ReserveCachedReplicas(TSizeSerializer::Load(context));
     Load(context, UnapprovedReplicas_);
     Load(context, TabletSlots_);
 }
@@ -174,6 +177,11 @@ void TNode::ReserveStoredReplicas(int sizeHint)
 {
     StoredReplicas_.resize(sizeHint);
     RandomReplicaIt_ = StoredReplicas_.end();
+}
+
+void TNode::ReserveCachedReplicas(int sizeHint)
+{
+    CachedReplicas_.resize(sizeHint);
 }
 
 bool TNode::AddReplica(TChunkPtrWithIndex replica, bool cached)
