@@ -879,7 +879,7 @@ public:
 
     TFuture<IChangelogPtr> OpenChangelog(const TChunkId& chunkId)
     {
-        return DisableLocationOnError(BIND(&TImpl::DoOpenChangelog, MakeStrong(this), chunkId), chunkId)
+        return Location_->DisableOnError(BIND(&TImpl::DoOpenChangelog, MakeStrong(this), chunkId))
             .AsyncVia(SplitChangelogDispatcher_->GetInvoker())
             .Run();
     }
@@ -888,7 +888,7 @@ public:
         const TChunkId& chunkId,
         bool enableMultiplexing)
     {
-        auto creator = DisableLocationOnError(BIND(&TImpl::DoCreateChangelog, MakeStrong(this), chunkId), chunkId)
+        auto creator = Location_->DisableOnError(BIND(&TImpl::DoCreateChangelog, MakeStrong(this), chunkId))
             .AsyncVia(SplitChangelogDispatcher_->GetInvoker());
         if (enableMultiplexing) {
             auto barrier = MultiplexedWriter_->RegisterBarrier();
@@ -907,7 +907,7 @@ public:
         TJournalChunkPtr chunk,
         bool enableMultiplexing)
     {
-        auto remover = DisableLocationOnError(BIND(&TImpl::DoRemoveChangelog, MakeStrong(this), chunk), chunk->GetId())
+        auto remover = Location_->DisableOnError(BIND(&TImpl::DoRemoveChangelog, MakeStrong(this), chunk))
             .AsyncVia(SplitChangelogDispatcher_->GetInvoker());
         if (enableMultiplexing) {
             auto barrier = MultiplexedWriter_->RegisterBarrier();
@@ -938,14 +938,14 @@ public:
 
     TFuture<bool> IsChangelogSealed(const TChunkId& chunkId)
     {
-        return DisableLocationOnError(BIND(&TImpl::DoIsChangelogSealed, MakeStrong(this), chunkId), chunkId)
+        return Location_->DisableOnError(BIND(&TImpl::DoIsChangelogSealed, MakeStrong(this), chunkId))
             .AsyncVia(SplitChangelogDispatcher_->GetInvoker())
             .Run();
     }
 
     TFuture<void> SealChangelog(TJournalChunkPtr chunk)
     {
-        return DisableLocationOnError(BIND(&TImpl::DoSealChangelog, MakeStrong(this), chunk), chunk->GetId())
+        return Location_->DisableOnError(BIND(&TImpl::DoSealChangelog, MakeStrong(this), chunk))
             .AsyncVia(SplitChangelogDispatcher_->GetInvoker())
             .Run();
     }
@@ -962,24 +962,6 @@ private:
 
     NLogging::TLogger Logger;
 
-
-    template <class T>
-    TCallback<T()> DisableLocationOnError(TCallback<T()> callback, const TChunkId& chunkId)
-    {
-        return BIND([=] () -> T {
-            try {
-                return callback.Run();
-            } catch (const std::exception& ex) {
-                auto error = TError(
-                    NChunkClient::EErrorCode::IOError,
-                    "Error accessing journal chunk %v",
-                    chunkId)
-                    << ex;
-                Location_->Disable(error);
-                YUNREACHABLE(); // Disable() exits the process.
-            }
-        });
-    }
 
     IChangelogPtr DoCreateChangelog(const TChunkId& chunkId)
     {

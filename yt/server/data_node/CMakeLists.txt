@@ -52,6 +52,7 @@ set( HDRS
   ${BASE}/journal_session.h
   ${BASE}/local_chunk_reader.h
   ${BASE}/location.h
+  ${BASE}/location-inl.h
   ${BASE}/master_connector.h
   ${BASE}/peer_block_table.h
   ${BASE}/peer_block_updater.h
