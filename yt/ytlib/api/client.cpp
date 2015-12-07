@@ -132,6 +132,36 @@ TNameTableToSchemaIdMapping BuildColumnIdMapping(
     return mapping;
 }
 
+TUnversionedRow CaptureRow(
+    TUnversionedRow row,
+    TRowBufferPtr rowBuffer,
+    const TTableSchema& tableSchema,
+    int keyColumnCount,
+    const TNameTableToSchemaIdMapping& idMapping)
+{
+    int columnCount = keyColumnCount;
+
+    for (int index = 0; index < row.GetCount(); ++index) {
+        int id = row[index].Id;
+        id = idMapping[id];
+        if (id >= keyColumnCount) {
+            ++columnCount;
+        }
+    }
+
+    auto capturedRow = TUnversionedRow::Allocate(rowBuffer->GetPool(), columnCount);
+    columnCount = keyColumnCount;
+
+    for (int index = 0; index < row.GetCount(); ++index) {
+        int id = idMapping[row[index].Id];
+        int place = id < keyColumnCount ? id : columnCount++;
+        capturedRow[place] = row[index];
+        capturedRow[place].Id = id;
+    }
+
+    return capturedRow;
+}
+
 } // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1194,7 +1224,7 @@ private:
                 TWireProtocolWriter writer;
                 writer.WriteCommand(EWireProtocolCommand::LookupRows);
                 writer.WriteMessage(req);
-                writer.WriteSchemafulRowset(batch->Keys, &IdMapping_);
+                writer.WriteSchemafulRowset(batch->Keys, IdMapping_.empty() ? nullptr : &IdMapping_);
 
                 batch->RequestData = NCompression::CompressWithEnvelope(
                     writer.Flush(),
@@ -1310,13 +1340,15 @@ private:
             auto evaluator = evaluatorCache->Find(tableInfo->Schema, keyColumnCount);
 
             for (int index = 0; index < keys.size(); ++index) {
-                ValidateClientKey(keys[index], keyColumnCount, tableInfo->Schema);
-                evaluator->EvaluateKeys(keys[index], rowBuffer);
-                sortedKeys.push_back(std::make_pair(keys[index], index));
+                ValidateClientKey(keys[index], keyColumnCount, tableInfo->Schema, idMapping);
+                auto capturedKey = evaluator->EvaluateKeys(keys[index], rowBuffer, idMapping);
+                sortedKeys.push_back(std::make_pair(capturedKey, index));
             }
+
+            idMapping.clear();
         } else {
             for (int index = 0; index < static_cast<int>(keys.size()); ++index) {
-                ValidateClientKey(keys[index], keyColumnCount, tableInfo->Schema);
+                ValidateClientKey(keys[index], keyColumnCount, tableInfo->Schema, idMapping);
                 sortedKeys.push_back(std::make_pair(keys[index], index));
             }
         }
@@ -2395,7 +2427,7 @@ private:
         : public TRequestBase
     {
     protected:
-        using TRowValidator = std::function<void(TUnversionedRow, int, const TNameTableToSchemaIdMapping&, const TTableSchema&)>;
+        using TRowValidator = void(TUnversionedRow, int, const TTableSchema&, const TNameTableToSchemaIdMapping&);
 
         TModifyRequest(
             TTransaction* transaction,
@@ -2412,28 +2444,28 @@ private:
         {
             const auto& idMapping = Transaction_->GetColumnIdMapping(TableInfo_, NameTable_);
             int keyColumnCount = TableInfo_->KeyColumns.size();
+            const auto& rowBuffer = Transaction_->GetRowBuffer();
 
             auto writeRequest = [&] (const TUnversionedRow row) {
                 auto tabletInfo = Transaction_->Client_->SyncGetTabletInfo(TableInfo_, row);
                 auto* session = Transaction_->GetTabletSession(tabletInfo, TableInfo_);
-                session->SubmitRow(command, row, &idMapping);
+                session->SubmitRow(command, row);
             };
 
             if (TableInfo_->NeedKeyEvaluation) {
-                const auto& rowBuffer = Transaction_->GetRowBuffer();
                 auto evaluatorCache = Transaction_->GetConnection()->GetColumnEvaluatorCache();
                 auto evaluator = evaluatorCache->Find(TableInfo_->Schema, keyColumnCount);
 
                 for (auto row : rows) {
-                    validateRow(row, keyColumnCount, idMapping, TableInfo_->Schema);
-                    evaluator->EvaluateKeys(row, rowBuffer);
-                    writeRequest(row);
-                    rowBuffer->Clear();
+                    validateRow(row, keyColumnCount, TableInfo_->Schema, idMapping);
+                    auto capturedRow = evaluator->EvaluateKeys(row, rowBuffer, idMapping);
+                    writeRequest(capturedRow);
                 }
             } else {
                 for (auto row : rows) {
-                    validateRow(row, keyColumnCount, idMapping, TableInfo_->Schema);
-                    writeRequest(row);
+                    validateRow(row, keyColumnCount, TableInfo_->Schema, idMapping);
+                    auto capturedRow = CaptureRow(row, rowBuffer, TableInfo_->Schema, keyColumnCount, idMapping);
+                    writeRequest(capturedRow);
                 }
             }
         }
@@ -2493,13 +2525,7 @@ private:
                 Keys_,
                 EWireProtocolCommand::DeleteRow,
                 TableInfo_->KeyColumns.size(),
-                [ ](
-                    TUnversionedRow row,
-                    int keyColumnCount,
-                    const TNameTableToSchemaIdMapping& idMapping,
-                    const TTableSchema& schema) {
-                    ValidateClientKey(row, keyColumnCount, schema);
-                });
+                ValidateClientKey);
         }
     };
 
@@ -2537,13 +2563,11 @@ private:
 
         void SubmitRow(
             EWireProtocolCommand command,
-            TUnversionedRow row,
-            const TNameTableToSchemaIdMapping* idMapping)
+            TUnversionedRow row)
         {
             SubmittedRows_.push_back(TSubmittedRow{
                 command,
                 row,
-                idMapping,
                 static_cast<int>(SubmittedRows_.size())});
         }
 
@@ -2649,7 +2673,6 @@ private:
         {
             EWireProtocolCommand Command;
             TUnversionedRow Row;
-            const TNameTableToSchemaIdMapping* IdMapping;
             int SequentialId;
         };
 
@@ -2686,7 +2709,7 @@ private:
                     YUNREACHABLE();
             }
 
-            writer.WriteUnversionedRow(submittedRow.Row, submittedRow.IdMapping);
+            writer.WriteUnversionedRow(submittedRow.Row);
         }
 
         void InvokeNextBatch()
