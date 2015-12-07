@@ -102,8 +102,7 @@ std::pair<TTableNode::TTabletListIterator, TTableNode::TTabletListIterator> TTab
 bool TTableNode::HasMountedTablets() const
 {
     for (const auto* tablet : Tablets_) {
-        if (tablet->GetState() == ETabletState::Mounting ||
-            tablet->GetState() == ETabletState::Mounted)
+        if (tablet->GetState() != ETabletState::Unmounted)
         {
             return true;
         }
