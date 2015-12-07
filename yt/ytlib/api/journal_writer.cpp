@@ -516,8 +516,7 @@ private:
                 auto result = WaitFor(Combine(asyncResults));
                 THROW_ERROR_EXCEPTION_IF_FAILED(result, "Error starting chunk sessions");
             } catch (const std::exception& ex) {
-                LOG_WARNING(ex, "Error starting chunk sessions (ChunkId: %v)",
-                    CurrentSession_->ChunkId);
+                LOG_WARNING(TError(ex));
                 CurrentSession_.Reset();
                 return false;
             }
