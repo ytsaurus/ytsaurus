@@ -854,7 +854,7 @@ class YTEnv(object):
 
         self._wait_for(started, name="proxy", max_wait_time=20)
 
-    def _wait_for(self, condition, max_wait_time=20, sleep_quantum=0.1, name=""):
+    def _wait_for(self, condition, max_wait_time=40, sleep_quantum=0.1, name=""):
         current_wait_time = 0
         logger.info("Waiting for %s...", name)
         while current_wait_time < max_wait_time:
