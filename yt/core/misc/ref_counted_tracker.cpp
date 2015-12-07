@@ -367,6 +367,7 @@ void TRefCountedTracker::PreparePerThreadSlot(TRefCountedTypeCookie cookie)
 
     auto* statistics = holder->GetStatistics();
     if (statistics->size() <= cookie) {
+        TGuard<TForkAwareSpinLock> guard(SpinLock_);
         statistics->resize(std::max(
             static_cast<size_t>(cookie + 1),
             statistics->size() * 2));
