@@ -203,13 +203,11 @@ TSchemalessWriterForSchemafulDsv::TSchemalessWriterForSchemafulDsv(
 
 void TSchemalessWriterForSchemafulDsv::DoWrite(const std::vector<TUnversionedRow>& rows)
 {
+    IdToIndexInRowMapping_.resize(GetNameTable()->GetSize());
     for (auto row : rows) {
         IdToIndexInRowMapping_.assign(IdToIndexInRowMapping_.size(), -1);
-        if (IdToIndexInRowMapping_.size() < row.GetCount()) {
-            IdToIndexInRowMapping_.resize(row.GetCount(), -1);
-        }
         for (auto item = row.Begin(); item != row.End(); ++item) {
-            YCHECK(item->Id >= 0 && item->Id < IdToIndexInRowMapping_.size());
+            YASSERT(item->Id >= 0 && item->Id < IdToIndexInRowMapping_.size());
             IdToIndexInRowMapping_[item->Id] = item - row.Begin();
         }
         bool firstValue = true;
