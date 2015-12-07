@@ -176,6 +176,7 @@ class CachedYtClient(yt.wrapper.client.Yt):
             ignore_existing=ignore_existing, attributes=attributes
         )
         self._cache.pop(path)
+        self._cache.pop(path + "/@")
 
 def create_transaction_and_take_snapshot_lock(ypath, client):
     title = "FUSE: read {0}".format(yt.wrapper.to_name(ypath, client=client))
@@ -517,7 +518,7 @@ class Cypress(fuse.Operations):
             self._client, ypath, attributes,
             self._minimum_file_read_size
         )
-        return fi.fh
+        return 0
 
     @log_calls(_logger, "%(__name__)s(%(path)r)")
     def unlink(self, path):
