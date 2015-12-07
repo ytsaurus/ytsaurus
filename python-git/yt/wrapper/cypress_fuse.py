@@ -170,13 +170,21 @@ class CachedYtClient(yt.wrapper.client.Yt):
 
         return children
 
-    def create(self, type, path=None, recursive=False, ignore_existing=False, attributes=None, client=None):
+    def create(self, type, path=None, recursive=False, ignore_existing=False, attributes=None):
         super(CachedYtClient, self).create(
             type, path=path, recursive=recursive,
             ignore_existing=ignore_existing, attributes=attributes
         )
         self._cache.pop(path)
         self._cache.pop(path + "/@")
+
+    def remove(self, path, recursive=False, force=False):
+        super(CachedYtClient, self).remove(
+            path, recursive=recursive, force=force
+        )
+        self._cache.pop(path)
+        self._cache.pop(path + "/@")
+
 
 def create_transaction_and_take_snapshot_lock(ypath, client):
     title = "FUSE: read {0}".format(yt.wrapper.to_name(ypath, client=client))
