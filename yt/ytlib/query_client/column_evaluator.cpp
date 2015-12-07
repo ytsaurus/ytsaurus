@@ -113,7 +113,7 @@ TRow TColumnEvaluator::EvaluateKeys(
     for (int index = 0; index < partialRow.GetCount(); ++index) {
         int id = partialRow[index].Id;
 
-        if (id >= idMapping.size()) {
+        if (id < 0 || id >= idMapping.size()) {
             THROW_ERROR_EXCEPTION("Invalid column id %v, expected in range [0,%v]",
                 id,
                 idMapping.size() - 1);
@@ -146,20 +146,16 @@ TRow TColumnEvaluator::EvaluateKeys(
 
     for (int index = 0; index < KeySize_; ++index) {
         fullRow[index].Type = EValueType::Null;
+        fullRow[index].Id = index;
     }
 
     int dataColumnId = KeySize_;
     for (int index = 0; index < partialRow.GetCount(); ++index) {
         int id = partialRow[index].Id;
         int schemaId = idMapping[id];
-
-        if (schemaId < KeySize_) {
-            fullRow[schemaId] = partialRow[index];
-        } else {
-            fullRow[dataColumnId] = partialRow[index];
-            fullRow[dataColumnId].Id = schemaId;
-            ++dataColumnId;
-        }
+        int place = id < KeySize_ ? id : dataColumnId++;
+        fullRow[place] = partialRow[index];
+        fullRow[place].Id = schemaId;
     }
 
     EvaluateKeys(fullRow, buffer);
