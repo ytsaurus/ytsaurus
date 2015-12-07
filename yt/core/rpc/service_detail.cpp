@@ -366,8 +366,6 @@ private:
 
     void DoSetComplete()
     {
-        VERIFY_SPINLOCK_AFFINITY(SpinLock_);
-
         if (Completed_)
             return;
 
