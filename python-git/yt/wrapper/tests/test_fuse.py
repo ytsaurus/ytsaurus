@@ -5,7 +5,7 @@ from yt.wrapper.common import parse_bool
 from yt.wrapper.http import get_proxy_url
 import yt.wrapper as yt
 
-from yt.packages.fuse import fuse_file_info
+from yt.packages.fuse import fuse_file_info, FuseOSError
 
 import pytest
 
@@ -156,7 +156,6 @@ class TestCypress(object):
 
             assert yt.read_file(filepath).read() == content[:truncated_length]
 
-
     def test_write_file(self):
         cypress = Cypress(
             CachedYtClient(proxy = get_proxy_url(), config=yt.config.config))
@@ -174,14 +173,38 @@ class TestCypress(object):
 
         assert yt.read_file(filepath).read() == content
 
+    def test_create_directory(self):
+        cypress = Cypress(
+            CachedYtClient(proxy = get_proxy_url(), config=yt.config.config))
+
+        dirpath = TEST_DIR + "/dir"
+        fuse_dirpath = dirpath[1:]
+
+        cypress.mkdir(fuse_dirpath, 0755)
+        assert "dir" in yt.list(TEST_DIR)
+
+        cypress.rmdir(fuse_dirpath)
+        assert "dir" not in yt.list(TEST_DIR)
+
+        cypress.mkdir(fuse_dirpath, 0755)
+        assert "dir" in yt.list(TEST_DIR)
+
     def test_remove_directory(self):
         cypress = Cypress(
             CachedYtClient(proxy = get_proxy_url(), config=yt.config.config))
 
         dirpath = TEST_DIR + "/dir"
+        filepath = dirpath + "/file"
         yt.create("map_node", dirpath)
+        yt.create("file", filepath)
 
+        # Try to remove non-empty directory.
         fuse_dirpath = dirpath[1:]
-        cypress.rmdir(fuse_dirpath)
+        with pytest.raises(FuseOSError):
+            cypress.rmdir(fuse_dirpath)
+        assert "dir" in yt.list(TEST_DIR)
 
+        # Remove empty directory.
+        yt.remove(filepath)
+        cypress.rmdir(fuse_dirpath)
         assert "dir" not in yt.list(TEST_DIR)
