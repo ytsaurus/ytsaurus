@@ -163,8 +163,8 @@ TRefCountedTracker::TNamedStatistics TRefCountedTracker::GetSnapshot() const
     TGuard<TForkAwareSpinLock> guard(SpinLock_);
 
     TNamedStatistics result;
-    for (auto cookie : CookieToKey_) {
-        result.emplace_back(cookie);
+    for (const auto& key : CookieToKey_) {
+        result.emplace_back(key);
     }
 
     auto accumulateResult = [&] (const TAnonymousStatistics& statistics) {
