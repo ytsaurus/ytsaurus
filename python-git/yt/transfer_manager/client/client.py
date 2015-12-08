@@ -36,7 +36,7 @@ def _raise_for_status(response):
 
 class TransferManager(object):
     def __init__(self, url=None, token=None, http_request_timeout=10000,
-                 enable_read_retries=True, read_retry_count=5):
+                 enable_read_retries=True, read_retry_count=6):
         backend_url = get_value(url, TM_BACKEND_URL)
 
         # Backend url can be specified in short form.
@@ -134,7 +134,8 @@ class TransferManager(object):
             response = make_request()
         else:
             retriable_errors = get_retriable_errors() + (YtTransferManagerUnavailableError,)
-            response = run_with_retries(make_request, exceptions=retriable_errors)
+            response = run_with_retries(make_request, retry_count=self.read_retry_count,
+                                        exceptions=retriable_errors)
 
         return response
 
