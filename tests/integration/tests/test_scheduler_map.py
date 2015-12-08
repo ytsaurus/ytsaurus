@@ -275,7 +275,7 @@ done
 
             # Send signal and wait for a new job
             signal_job(jobs[0], "SIGUSR1")
-            while get("//sys/operations/{0}/@progress/jobs/aborted/total".format(op_id)) == 0:
+            while not exists("//sys/operations/{0}/@progress/jobs".format(op_id)) or get("//sys/operations/{0}/@progress/jobs/aborted/total".format(op_id)) == 0:
                 time.sleep(0.5)
             while not os.access(pin_filename, os.F_OK):
                 time.sleep(0.5)
