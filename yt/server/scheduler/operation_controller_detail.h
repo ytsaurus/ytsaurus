@@ -533,6 +533,11 @@ protected:
 
     };
 
+    NTransactionClient::TTransactionId StartTransaction(
+        const Stroka& transactionName,
+        NApi::IClientPtr client,
+        const TNullable<NTransactionClient::TTransactionId>& parentTransactionId);
+
     //! All task groups declared by calling #RegisterTaskGroup, in the order of decreasing priority.
     std::vector<TTaskGroupPtr> TaskGroups;
 
