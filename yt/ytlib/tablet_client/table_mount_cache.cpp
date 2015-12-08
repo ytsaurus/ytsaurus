@@ -58,7 +58,7 @@ TTabletReplica::TTabletReplica(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTabletInfoPtr TTableMountInfo::GetTablet(TUnversionedRow row)
+TTabletInfoPtr TTableMountInfo::GetTablet(TUnversionedRow row) const
 {
     if (Tablets.empty()) {
         THROW_ERROR_EXCEPTION("Table %v has no tablets",
@@ -72,6 +72,13 @@ TTabletInfoPtr TTableMountInfo::GetTablet(TUnversionedRow row)
             return CompareRows(lhs, rhs->PivotKey.Get(), KeyColumns.size()) < 0;
         });
     return *(it - 1);
+}
+
+void TTableMountInfo::ValidateDynamic() const
+{
+    if (Tablets.empty()) {
+        THROW_ERROR_EXCEPTION("Table %v must be dynamic", Path);
+    } 
 }
 
 ////////////////////////////////////////////////////////////////////////////////
