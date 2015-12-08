@@ -289,11 +289,7 @@ void TInsertRowsCommand::DoExecute()
     auto tableInfo = WaitFor(tableMountCache->GetTableInfo(Request_->Path.GetPath()))
         .ValueOrThrow();
 
-    if (tableInfo->Tablets.empty()) {
-        THROW_ERROR_EXCEPTION(
-            "Cannot execute lookup command on static table %v",
-            Request_->Path.GetPath());
-    } 
+    tableInfo->ValidateDynamic();
 
     // Parse input data.
     auto valueConsumer = New<TBuildingValueConsumer>(
@@ -335,6 +331,9 @@ void TLookupRowsCommand::DoExecute()
     auto asyncTableInfo = tableMountCache->GetTableInfo(Request_->Path.GetPath());
     auto tableInfo = WaitFor(asyncTableInfo)
         .ValueOrThrow();
+
+    tableInfo->ValidateDynamic();
+
     auto nameTable = TNameTable::FromSchema(tableInfo->Schema);
 
     // Parse input data.
@@ -395,6 +394,7 @@ void TDeleteRowsCommand::DoExecute()
     auto asyncTableInfo = tableMountCache->GetTableInfo(Request_->Path.GetPath());
     auto tableInfo = WaitFor(asyncTableInfo)
         .ValueOrThrow();
+    tableInfo->ValidateDynamic();
 
     // Parse input data.
     auto valueConsumer = New<TBuildingValueConsumer>(

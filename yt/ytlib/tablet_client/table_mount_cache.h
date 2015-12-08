@@ -65,9 +65,10 @@ struct TTableMountInfo
 
     std::vector<TTabletInfoPtr> Tablets;
 
-    TTabletInfoPtr GetTablet(NVersionedTableClient::TUnversionedRow row);
-
     bool NeedKeyEvaluation = false;
+
+    TTabletInfoPtr GetTablet(NVersionedTableClient::TUnversionedRow row) const;
+    void ValidateDynamic() const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TTableMountInfo)
