@@ -123,6 +123,7 @@ public:
 };
 
 using IClientPtr = TIntrusivePtr<IClient>;
+using IClientBasePtr = TIntrusivePtr<IClientBase>;
 
 IClientPtr CreateClient(
     const Stroka& serverName,
