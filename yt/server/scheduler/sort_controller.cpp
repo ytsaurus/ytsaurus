@@ -1878,7 +1878,7 @@ private:
         // Initially PartitionKeys is empty so lastKey is assumed to be -inf.
 
         int sampleIndex = 0;
-        while (sampleIndex < partitionCount - 1) {
+        while (sampleIndex < selectedSamples.size()) {
             auto* sample = selectedSamples[sampleIndex];
             // Check for same keys.
             if (PartitionKeys.empty() || CompareRows(sample->Key, PartitionKeys.back()) != 0) {
@@ -1887,7 +1887,7 @@ private:
             } else {
                 // Skip same keys.
                 int skippedCount = 0;
-                while (sampleIndex < partitionCount - 1 &&
+                while (sampleIndex < selectedSamples.size() &&
                     CompareRows(selectedSamples[sampleIndex]->Key, PartitionKeys.back()) == 0)
                 {
                     ++sampleIndex;
