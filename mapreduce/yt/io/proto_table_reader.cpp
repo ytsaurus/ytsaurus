@@ -20,9 +20,13 @@ void ReadMessageFromNode(const TNode& node, Message* row)
     for (int i = 0; i < count; ++i) {
         auto* fieldDesc = descriptor->field(i);
 
-        const auto& columnName = fieldDesc->options().GetExtension(column_name);
+        Stroka columnName = fieldDesc->options().GetExtension(column_name);
         if (columnName.empty()) {
-            continue; // cannot be read from table
+            const auto& keyColumnName = fieldDesc->options().GetExtension(key_column_name);
+            if(keyColumnName.empty()) {
+                continue; // cannot be read from table
+            }
+            columnName = keyColumnName;
         }
 
         const auto& nodeMap = node.AsMap();
