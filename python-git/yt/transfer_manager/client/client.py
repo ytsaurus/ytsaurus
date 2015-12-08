@@ -126,7 +126,7 @@ class TransferManager(object):
 
     def _make_get_request(self, url):
         def make_request():
-            response = requests.get(url, headers=TM_HEADERS, timeout=self.http_request_timeout)
+            response = requests.get(url, headers=TM_HEADERS, timeout=self.http_request_timeout / 1000.0)
             _raise_for_status(response)
             return response
 
@@ -143,7 +143,11 @@ class TransferManager(object):
         require(self.token is not None, YtError("YT token is not specified"))
 
         post_headers = update(TM_HEADERS, {"Authorization": "OAuth " + self.token})
-        response = requests.post(url, headers=post_headers, timeout=self.http_request_timeout, **kwargs)
+        response = requests.post(
+            url,
+            headers=post_headers,
+            timeout=self.http_request_timeout / 1000.0,
+            **kwargs)
 
         _raise_for_status(response)
         return response
