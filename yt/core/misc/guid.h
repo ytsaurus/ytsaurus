@@ -2,9 +2,9 @@
 
 #include "common.h"
 
-#include <util/generic/typetraits.h>
+#include <yt/core/misc/guid.pb.h>
 
-#include <core/misc/guid.pb.h>
+#include <util/generic/typetraits.h>
 
 namespace NYT {
 

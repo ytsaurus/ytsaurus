@@ -2,7 +2,7 @@
 
 #include "election_service_proxy.h"
 
-#include <core/rpc/service_detail.h>
+#include <yt/core/rpc/service_detail.h>
 
 #include <yt/unittests/framework.h>
 

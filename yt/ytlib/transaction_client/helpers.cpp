@@ -1,12 +1,11 @@
-#include "stdafx.h"
 #include "helpers.h"
 #include "transaction_manager.h"
 
-#include <core/rpc/client.h>
+#include <yt/ytlib/cypress_client/rpc_helpers.h>
 
-#include <ytlib/object_client/helpers.h>
+#include <yt/ytlib/object_client/helpers.h>
 
-#include <ytlib/cypress_client/rpc_helpers.h>
+#include <yt/core/rpc/client.h>
 
 namespace NYT {
 namespace NTransactionClient {

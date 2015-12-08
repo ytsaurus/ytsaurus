@@ -1,12 +1,10 @@
-#include "stdafx.h"
-
-#include "private.h"
 #include "versioned_block_reader.h"
+#include "private.h"
 #include "versioned_block_writer.h"
 
-#include <ytlib/transaction_client/public.h>
+#include <yt/ytlib/transaction_client/public.h>
 
-#include <core/misc/serialize.h>
+#include <yt/core/misc/serialize.h>
 
 namespace NYT {
 namespace NTableClient {
@@ -23,6 +21,7 @@ TSimpleVersionedBlockReader::TSimpleVersionedBlockReader(
     int chunkKeyColumnCount,
     int keyColumnCount,
     const std::vector<TColumnIdMapping>& schemaIdMapping,
+    const TKeyComparer& keyComparer,
     TTimestamp timestamp)
     : Block_(block)
     , Timestamp_(timestamp)
@@ -32,14 +31,26 @@ TSimpleVersionedBlockReader::TSimpleVersionedBlockReader(
     , ChunkSchema_(chunkSchema)
     , Meta_(meta)
     , VersionedMeta_(Meta_.GetExtension(TSimpleVersionedBlockMeta::block_meta_ext))
+    , KeyComparer_(keyComparer)
 {
     YCHECK(Meta_.row_count() > 0);
     YCHECK(KeyColumnCount_ >= ChunkKeyColumnCount_);
 
+    auto keyDataSize = GetUnversionedRowDataSize(KeyColumnCount_);
+    KeyBuffer_.reserve(keyDataSize);
+    Key_ = TKey(reinterpret_cast<TUnversionedRowHeader*>(KeyBuffer_.data()));
+    Key_.SetCount(KeyColumnCount_);
+
     for (int index = 0; index < KeyColumnCount_; ++index) {
-        KeyBuilder_.AddValue(MakeUnversionedSentinelValue(EValueType::Null, index));
+        auto& value = Key_[index];
+        value.Id = index;
     }
-    Key_ = KeyBuilder_.GetRow();
+
+    for (int index = ChunkKeyColumnCount_; index < KeyColumnCount_; ++index) {
+        auto& value = Key_[index];
+        value.Id = index;
+        value.Type = EValueType::Null;
+    }
 
     KeyData_ = TRef(const_cast<char*>(Block_.Begin()), TSimpleVersionedBlockWriter::GetPaddedKeySize(
         ChunkKeyColumnCount_,
@@ -89,7 +100,7 @@ bool TSimpleVersionedBlockReader::SkipToKey(TKey key)
 {
     YCHECK(!Closed_);
 
-    if (GetKey() >= key) {
+    if (KeyComparer_(GetKey(), key) >= 0) {
         // We are already further than pivot key.
         return true;
     }
@@ -99,7 +110,7 @@ bool TSimpleVersionedBlockReader::SkipToKey(TKey key)
         Meta_.row_count(),
         [&] (int index) -> bool {
             YCHECK(JumpToRowIndex(index));
-            return GetKey() < key;
+            return KeyComparer_(GetKey(), key) < 0;
         });
 
     return JumpToRowIndex(index);
@@ -319,8 +330,6 @@ TVersionedRow TSimpleVersionedBlockReader::ReadValuesByTimestamp(TChunkedMemoryP
 
 void TSimpleVersionedBlockReader::ReadKeyValue(TUnversionedValue* value, int id)
 {
-    value->Id = id;
-
     const char* ptr = KeyDataPtr_;
     KeyDataPtr_ += 8;
 

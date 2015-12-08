@@ -3,6 +3,8 @@ import pytest
 from yt_env_setup import YTEnvSetup, unix_only
 from yt_commands import *
 
+from yt.environment.helpers import assert_items_equal
+
 
 ##################################################################
 
@@ -193,7 +195,11 @@ class TestAcls(YTEnvSetup):
 
         set("//tmp/p/@acl/end", self._make_ace("allow", "u", ["read", "write"]))
         set("//tmp/p/a", "b", user="u")
+<<<<<<< HEAD
         assert ls("//tmp/p", user="u") == ["a"]
+=======
+        assert_items_equal(ls("//tmp/p", user="u"), ["a"])
+>>>>>>> origin/prestable/0.17.4
         assert get("//tmp/p/a", user="u") == "b"
 
     def test_create_in_tx1(self):
@@ -481,7 +487,11 @@ class TestAcls(YTEnvSetup):
         RWRAC = RWRA + ["create"]
 
         def check(path, permissions):
+<<<<<<< HEAD
             assert sorted(get(path + "/@supported_permissions")) == sorted(permissions)
+=======
+            assert_items_equal(get(path + "/@supported_permissions"), permissions)
+>>>>>>> origin/prestable/0.17.4
 
         # cypress node
         check("//tmp", RWRA)

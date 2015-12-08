@@ -1,13 +1,12 @@
 #pragma once
 
 #include "public.h"
-
 #include "unversioned_row.h"
 
-#include <ytlib/table_client/chunk_meta.pb.h>
-#include <ytlib/table_client/legacy_chunk_meta.pb.h>
+#include <yt/ytlib/table_client/chunk_meta.pb.h>
+#include <yt/ytlib/table_client/legacy_chunk_meta.pb.h>
 
-#include <core/misc/protobuf_helpers.h>
+#include <yt/core/misc/protobuf_helpers.h>
 
 namespace NYT {
 

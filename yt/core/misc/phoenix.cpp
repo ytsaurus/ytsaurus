@@ -1,4 +1,3 @@
-#include "stdafx.h"
 #include "phoenix.h"
 
 namespace NYT {

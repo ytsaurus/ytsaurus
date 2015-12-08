@@ -1,16 +1,16 @@
-#include "stdafx.h"
-#include "private.h"
 #include "cgroup.h"
+#include "private.h"
 
-#include <core/ytree/fluent.h>
+#include <yt/core/misc/fs.h>
+#include <yt/core/misc/proc.h>
 
-#include <core/misc/fs.h>
-#include <core/misc/proc.h>
+#include <yt/core/tools/registry.h>
+#include <yt/core/tools/tools.h>
 
-#include <core/tools/tools.h>
-#include <core/tools/registry.h>
+#include <yt/core/ytree/fluent.h>
 
 #include <util/string/split.h>
+
 #include <util/system/yield.h>
 
 #ifdef _linux_
@@ -343,7 +343,7 @@ void TNonOwningCGroup::DoKill() const
             JoinToString(pids));
 
         for (int pid : pids) {
-            auto result = kill(pid, 9);
+            auto result = kill(pid, SIGKILL);
             if (result == -1) {
                 YCHECK(errno == ESRCH);
             }
@@ -364,8 +364,8 @@ void TNonOwningCGroup::DoRemove() const
 }
 
 void TNonOwningCGroup::Traverse(
-        const TCallback<void(const TNonOwningCGroup&)> preorderAction,
-        const TCallback<void(const TNonOwningCGroup&)> postorderAction) const
+    const TCallback<void(const TNonOwningCGroup&)>& preorderAction,
+    const TCallback<void(const TNonOwningCGroup&)>& postorderAction) const
 {
     preorderAction.Run(*this);
 
@@ -577,6 +577,15 @@ void TBlockIO::ThrottleOperations(const Stroka& deviceId, i64 operations) const
     auto value = Format("%v %v", deviceId, operations);
     Append("blkio.throttle.read_iops_device", value);
     Append("blkio.throttle.write_iops_device", value);
+}
+
+void TBlockIO::SetWeight(int weight)
+{   
+    // These are the extreme values defined in
+    // https://www.kernel.org/doc/Documentation/cgroups/blkio-controller.txt
+    weight = std::min(weight, 1000);
+    weight = std::max(weight, 10);
+    Append("blkio.weight", ToString(weight));
 }
 
 void Serialize(const TBlockIO::TStatistics& statistics, NYson::IYsonConsumer* consumer)

@@ -1,9 +1,8 @@
-#include "stdafx.h"
 #include "framework.h"
 #include "probe.h"
 
-#include <core/misc/nullable.h>
-#include <core/misc/property.h>
+#include <yt/core/misc/nullable.h>
+#include <yt/core/misc/property.h>
 
 namespace NYT {
 namespace {

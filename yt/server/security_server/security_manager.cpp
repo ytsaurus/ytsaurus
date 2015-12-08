@@ -1,44 +1,33 @@
-#include "stdafx.h"
 #include "security_manager.h"
 #include "private.h"
 #include "account.h"
 #include "account_proxy.h"
-#include "user.h"
-#include "user_proxy.h"
+#include "acl.h"
+#include "config.h"
 #include "group.h"
 #include "group_proxy.h"
-#include "acl.h"
 #include "request_tracker.h"
-#include "config.h"
+#include "user.h"
+#include "user_proxy.h"
 
-#include <core/concurrency/periodic_executor.h>
+#include <yt/server/cell_master/bootstrap.h>
+#include <yt/server/cell_master/hydra_facade.h>
+#include <yt/server/cell_master/serialize.h>
 
-#include <core/profiling/profile_manager.h>
+#include <yt/server/cypress_server/node.h>
 
-#include <ytlib/object_client/helpers.h>
+#include <yt/server/hydra/composite_automaton.h>
+#include <yt/server/hydra/entity_map.h>
 
-#include <ytlib/security_client/group_ypath_proxy.h>
-#include <ytlib/security_client/helpers.h>
+#include <yt/server/object_server/type_handler_detail.h>
 
-#include <server/hydra/entity_map.h>
-#include <server/hydra/composite_automaton.h>
+#include <yt/server/transaction_server/transaction.h>
 
-#include <server/hive/hive_manager.h>
+#include <yt/ytlib/object_client/helpers.h>
 
-#include <server/object_server/type_handler_detail.h>
+#include <yt/core/profiling/profile_manager.h>
 
-#include <server/transaction_server/transaction.h>
-
-#include <server/cell_master/bootstrap.h>
-#include <server/cell_master/hydra_facade.h>
-#include <server/cell_master/multicell_manager.h>
-#include <server/cell_master/serialize.h>
-
-#include <server/transaction_server/transaction.h>
-
-#include <server/cypress_server/cypress_manager.h>
-#include <server/cypress_server/node.h>
-#include <server/cypress_server/type_handler.h>
+#include <yt/core/ypath/token.h>
 
 namespace NYT {
 namespace NSecurityServer {
@@ -667,7 +656,7 @@ public:
 
         if (member->GetType() == EObjectType::Group) {
             auto* memberGroup = member->AsGroup();
-            if (group->RecursiveMemberOf().find(memberGroup) != group->RecursiveMemberOf().end()) {
+            if (group == memberGroup || group->RecursiveMemberOf().find(memberGroup) != group->RecursiveMemberOf().end()) {
                 THROW_ERROR_EXCEPTION("Adding group %Qv to group %Qv would produce a cycle",
                     memberGroup->GetName(),
                     group->GetName());

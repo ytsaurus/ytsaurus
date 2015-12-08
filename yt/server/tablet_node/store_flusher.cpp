@@ -1,59 +1,58 @@
-#include "stdafx.h"
 #include "store_flusher.h"
 #include "private.h"
+#include "chunk_store.h"
 #include "config.h"
 #include "dynamic_memory_store.h"
-#include "chunk_store.h"
-#include "tablet.h"
-#include "tablet_slot.h"
-#include "tablet_manager.h"
+#include "in_memory_manager.h"
 #include "slot_manager.h"
 #include "store_manager.h"
-#include "in_memory_manager.h"
+#include "tablet.h"
+#include "tablet_manager.h"
+#include "tablet_slot.h"
 
-#include <core/misc/address.h>
+#include <yt/server/cell_node/bootstrap.h>
+#include <yt/server/cell_node/config.h>
 
-#include <core/concurrency/thread_pool.h>
-#include <core/concurrency/scheduler.h>
-#include <core/concurrency/async_semaphore.h>
+#include <yt/server/hive/hive_manager.h>
 
-#include <core/ytree/attribute_helpers.h>
+#include <yt/server/hydra/mutation.h>
 
-#include <core/logging/log.h>
+#include <yt/server/misc/memory_usage_tracker.h>
 
-#include <ytlib/transaction_client/transaction_manager.h>
+#include <yt/server/tablet_node/tablet_manager.pb.h>
 
-#include <ytlib/object_client/object_service_proxy.h>
-#include <ytlib/object_client/master_ypath_proxy.h>
-#include <ytlib/object_client/helpers.h>
+#include <yt/server/tablet_server/tablet_manager.pb.h>
 
-#include <ytlib/chunk_client/chunk_writer.h>
-#include <ytlib/chunk_client/replication_writer.h>
-#include <ytlib/chunk_client/chunk_ypath_proxy.h>
+#include <yt/ytlib/api/client.h>
+#include <yt/ytlib/api/transaction.h>
 
-#include <ytlib/table_client/unversioned_row.h>
-#include <ytlib/table_client/versioned_row.h>
-#include <ytlib/table_client/versioned_reader.h>
-#include <ytlib/table_client/versioned_writer.h>
-#include <ytlib/table_client/versioned_chunk_writer.h>
+#include <yt/ytlib/chunk_client/chunk_writer.h>
+#include <yt/ytlib/chunk_client/chunk_ypath_proxy.h>
+#include <yt/ytlib/chunk_client/replication_writer.h>
 
-#include <ytlib/node_tracker_client/node_directory.h>
+#include <yt/ytlib/node_tracker_client/node_directory.h>
 
-#include <ytlib/api/client.h>
-#include <ytlib/api/transaction.h>
+#include <yt/ytlib/object_client/helpers.h>
+#include <yt/ytlib/object_client/master_ypath_proxy.h>
+#include <yt/ytlib/object_client/object_service_proxy.h>
 
-#include <server/misc/memory_usage_tracker.h>
+#include <yt/ytlib/table_client/unversioned_row.h>
+#include <yt/ytlib/table_client/versioned_chunk_writer.h>
+#include <yt/ytlib/table_client/versioned_reader.h>
+#include <yt/ytlib/table_client/versioned_row.h>
+#include <yt/ytlib/table_client/versioned_writer.h>
 
-#include <server/tablet_server/tablet_manager.pb.h>
+#include <yt/ytlib/transaction_client/transaction_manager.h>
 
-#include <server/tablet_node/tablet_manager.pb.h>
+#include <yt/core/concurrency/action_queue.h>
+#include <yt/core/concurrency/async_semaphore.h>
+#include <yt/core/concurrency/scheduler.h>
 
-#include <server/hydra/mutation.h>
+#include <yt/core/logging/log.h>
 
-#include <server/hive/hive_manager.h>
+#include <yt/core/misc/address.h>
 
-#include <server/cell_node/bootstrap.h>
-#include <server/cell_node/config.h>
+#include <yt/core/ytree/attribute_helpers.h>
 
 namespace NYT {
 namespace NTabletNode {
@@ -269,6 +268,8 @@ private:
         auto tabletManager = slot->GetTabletManager();
         auto storeManager = tablet->GetStoreManager();
         auto tabletId = tablet->GetTabletId();
+        auto mountRevision = tablet->GetMountRevision();
+        auto keyColumns = tablet->KeyColumns();
         auto schema = tablet->Schema();
         auto tabletConfig = tablet->GetConfig();
         auto writerOptions = CloneYsonSerializable(tablet->GetWriterOptions());
@@ -357,6 +358,7 @@ private:
 
             TReqCommitTabletStoresUpdate hydraRequest;
             ToProto(hydraRequest.mutable_tablet_id(), tabletId);
+            hydraRequest.set_mount_revision(mountRevision);
             ToProto(hydraRequest.mutable_transaction_id(), transaction->GetId());
             {
                 auto* descriptor = hydraRequest.add_stores_to_remove();

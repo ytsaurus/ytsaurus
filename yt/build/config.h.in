@@ -40,5 +40,4 @@
     #cmakedefine HAVE_UNISTD_H
 #endif
 
-
 #cmakedefine PC_FROM_UCONTEXT @PC_FROM_UCONTEXT@

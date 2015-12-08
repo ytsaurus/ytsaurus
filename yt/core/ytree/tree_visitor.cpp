@@ -1,16 +1,15 @@
-#include "stdafx.h"
 #include "tree_visitor.h"
+#include "attribute_helpers.h"
 #include "attributes.h"
 #include "attribute_helpers.h"
+#include "node.h"
+#include "convert.h"
 
-#include <core/misc/serialize.h>
-#include <core/misc/assert.h>
+#include <yt/core/misc/serialize.h>
+#include <yt/core/misc/assert.h>
 
-#include <core/yson/producer.h>
-#include <core/yson/async_consumer.h>
-
-#include <core/ytree/node.h>
-#include <core/ytree/convert.h>
+#include <yt/core/yson/producer.h>
+#include <yt/core/yson/async_consumer.h>
 
 namespace NYT {
 namespace NYTree {

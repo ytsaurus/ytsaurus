@@ -28,7 +28,7 @@
 }
 
 %code {
-    #include <ytlib/query_client/lexer.h>
+    #include <yt/ytlib/query_client/lexer.h>
 
     #define yt_ql_yylex lexer.GetNextToken
 
@@ -621,7 +621,7 @@ const-tuple-list
 
 %%
 
-#include <core/misc/format.h>
+#include <yt/core/misc/format.h>
 
 namespace NYT {
 namespace NQueryClient {

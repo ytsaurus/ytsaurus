@@ -23,27 +23,17 @@ foreach( _d_ ${DIRS} )
   source_group( ${_d_} REGULAR_EXPRESSION "${_d_}/.*\\.((cpp)|(h)|(proto))")
 endforeach()
 
-add_msvc_precompiled_header(
-  stdafx.h
-  stdafx.cpp
-  YT_SOURCE_FILES
-)
-
-configure_file(
-  ${CMAKE_CURRENT_SOURCE_DIR}/build.cpp.in
-  ${CMAKE_CURRENT_BINARY_DIR}/build.cpp
-)
-
-list(APPEND YT_SOURCE_FILES
-  ${CMAKE_CURRENT_SOURCE_DIR}/build.h
-  ${CMAKE_CURRENT_BINARY_DIR}/build.cpp
-)
-
 add_library(ytcore STATIC
   ${YT_SOURCE_FILES}
 )
 
-target_link_libraries ( ytcore
+llvm_map_components_to_libraries(
+  REQUIRED_LLVM_LIBRARIES
+  mcjit ipo x86 mcdisassembler linker asmparser irreader
+)
+
+target_link_libraries(ytcore
+  yt-build
   ytext-arcadia-util
   ytext-arcadia-library-streams-lz
   yt-contrib-jerasure
@@ -54,17 +44,13 @@ target_link_libraries ( ytcore
   ytext-re2
   protobuf
   farmhash
+  ${REQUIRED_LLVM_LIBRARIES} 
 )
 
 if (CMAKE_COMPILER_IS_CLANG AND NOT APPLE)
   target_link_libraries ( ytcore
     -latomic -ldl
   )
-endif()
-
-if (YT_BUILD_ENABLE_LLVM)
-  llvm_map_components_to_libraries(REQUIRED_LLVM_LIBRARIES mcjit ipo x86 mcdisassembler linker asmparser irreader)
-  target_link_libraries( ytcore ${REQUIRED_LLVM_LIBRARIES} )
 endif()
 
 include_directories(

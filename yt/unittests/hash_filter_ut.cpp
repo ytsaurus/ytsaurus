@@ -1,13 +1,12 @@
-#include "stdafx.h"
 #include "framework.h"
 
-#include <core/misc/bloom_filter.h>
-#include <core/misc/bloom_filter.pb.h>
-#include <core/misc/farm_hash.h>
+#include <yt/core/misc/bloom_filter.h>
+#include <yt/core/misc/bloom_filter.pb.h>
+#include <yt/core/misc/farm_hash.h>
 
-#include <vector>
 #include <random>
 #include <unordered_set>
+#include <vector>
 
 namespace NYT {
 namespace {

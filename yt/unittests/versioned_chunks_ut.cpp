@@ -1,24 +1,22 @@
-#include "stdafx.h"
 #include "framework.h"
-
 #include "versioned_table_client_ut.h"
 
-#include <ytlib/table_client/config.h>
-#include <ytlib/table_client/schema.h>
-#include <ytlib/table_client/versioned_chunk_reader.h>
-#include <ytlib/table_client/versioned_chunk_writer.h>
-#include <ytlib/table_client/versioned_reader.h>
-#include <ytlib/table_client/versioned_row.h>
-#include <ytlib/table_client/versioned_writer.h>
-#include <ytlib/table_client/cached_versioned_chunk_meta.h>
+#include <yt/ytlib/chunk_client/client_block_cache.h>
+#include <yt/ytlib/chunk_client/memory_reader.h>
+#include <yt/ytlib/chunk_client/memory_writer.h>
 
-#include <ytlib/chunk_client/memory_reader.h>
-#include <ytlib/chunk_client/memory_writer.h>
-#include <ytlib/chunk_client/client_block_cache.h>
+#include <yt/ytlib/table_client/cached_versioned_chunk_meta.h>
+#include <yt/ytlib/table_client/config.h>
+#include <yt/ytlib/table_client/schema.h>
+#include <yt/ytlib/table_client/versioned_chunk_reader.h>
+#include <yt/ytlib/table_client/versioned_chunk_writer.h>
+#include <yt/ytlib/table_client/versioned_reader.h>
+#include <yt/ytlib/table_client/versioned_row.h>
+#include <yt/ytlib/table_client/versioned_writer.h>
 
-#include <ytlib/transaction_client/public.h>
+#include <yt/ytlib/transaction_client/public.h>
 
-#include <core/compression/public.h>
+#include <yt/core/compression/public.h>
 
 namespace NYT {
 namespace NTableClient {
@@ -221,6 +219,9 @@ protected:
         GetRowAndResetWriter();
     }
 
+    TKeyComparer KeyComparer_ = [] (TKey lhs, TKey rhs) {
+        return CompareRows(lhs, rhs);
+    };
 };
 
 TEST_F(TVersionedChunksTest, ReadEmptyWiderSchema)
@@ -604,6 +605,7 @@ TEST_F(TVersionedChunksTest, ReadManyRows)
             sharedKeys,
             TColumnFilter(),
             New<TChunkReaderPerformanceCounters>(),
+            KeyComparer_,
             AllCommittedTimestamp);
 
         EXPECT_TRUE(chunkReader->Open().Get().IsOK());

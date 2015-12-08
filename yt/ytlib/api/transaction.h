@@ -3,9 +3,9 @@
 #include "public.h"
 #include "client.h"
 
-#include <ytlib/table_client/public.h>
+#include <yt/ytlib/table_client/public.h>
 
-#include <ytlib/tablet_client/public.h>
+#include <yt/ytlib/tablet_client/public.h>
 
 namespace NYT {
 namespace NApi {

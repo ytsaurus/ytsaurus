@@ -1,51 +1,49 @@
-
-#include "stdafx.h"
-#include "config.h"
 #include "job_proxy.h"
-#include "user_job.h"
-#include "sorted_merge_job.h"
-#include "remote_copy_job.h"
-#include "merge_job.h"
-#include "simple_sort_job.h"
-#include "partition_sort_job.h"
-#include "partition_job.h"
-#include "map_job_io.h"
-#include "partition_map_job_io.h"
-#include "sorted_reduce_job_io.h"
-#include "partition_reduce_job_io.h"
-#include "user_job_io.h"
+#include "config.h"
 #include "job_prober_service.h"
+#include "map_job_io.h"
+#include "merge_job.h"
+#include "partition_job.h"
+#include "partition_map_job_io.h"
+#include "partition_reduce_job_io.h"
+#include "partition_sort_job.h"
+#include "remote_copy_job.h"
+#include "simple_sort_job.h"
+#include "sorted_merge_job.h"
+#include "sorted_reduce_job_io.h"
+#include "user_job.h"
+#include "user_job_io.h"
 
-#include <core/concurrency/action_queue.h>
-#include <core/concurrency/periodic_executor.h>
+#include <yt/ytlib/api/client.h>
+#include <yt/ytlib/api/connection.h>
 
-#include <core/misc/proc.h>
-#include <core/misc/ref_counted_tracker.h>
-#include <core/misc/lfalloc_helpers.h>
+#include <yt/ytlib/cgroup/cgroup.h>
 
-#include <core/logging/log_manager.h>
+#include <yt/ytlib/chunk_client/client_block_cache.h>
+#include <yt/ytlib/chunk_client/config.h>
+#include <yt/ytlib/chunk_client/data_statistics.h>
 
-#include <core/bus/tcp_client.h>
-#include <core/bus/tcp_server.h>
+#include <yt/ytlib/node_tracker_client/node_directory.h>
 
-#include <core/rpc/bus_channel.h>
-#include <core/rpc/server.h>
-#include <core/rpc/helpers.h>
+#include <yt/ytlib/scheduler/public.h>
 
-#include <core/ytree/public.h>
+#include <yt/core/bus/tcp_client.h>
+#include <yt/core/bus/tcp_server.h>
 
-#include <ytlib/api/client.h>
-#include <ytlib/api/connection.h>
+#include <yt/core/concurrency/action_queue.h>
+#include <yt/core/concurrency/periodic_executor.h>
 
-#include <ytlib/scheduler/public.h>
+#include <yt/core/logging/log_manager.h>
 
-#include <ytlib/cgroup/cgroup.h>
+#include <yt/core/misc/lfalloc_helpers.h>
+#include <yt/core/misc/proc.h>
+#include <yt/core/misc/ref_counted_tracker.h>
 
-#include <ytlib/chunk_client/config.h>
-#include <ytlib/chunk_client/client_block_cache.h>
-#include <ytlib/chunk_client/data_statistics.h>
+#include <yt/core/rpc/bus_channel.h>
+#include <yt/core/rpc/helpers.h>
+#include <yt/core/rpc/server.h>
 
-#include <ytlib/node_tracker_client/node_directory.h>
+#include <yt/core/ytree/public.h>
 
 namespace NYT {
 namespace NJobProxy {
@@ -96,6 +94,12 @@ NYson::TYsonString TJobProxy::Strace(const TJobId& jobId)
 {
     ValidateJobId(jobId);
     return Job_->Strace();
+}
+
+void TJobProxy::SignalJob(const TJobId& jobId, const Stroka& signalName)
+{
+    ValidateJobId(jobId);
+    Job_->SignalJob(signalName);
 }
 
 void TJobProxy::ValidateJobId(const TJobId& jobId)
@@ -291,7 +295,7 @@ TJobResult TJobProxy::DoRun()
     RetrieveJobSpec();
 
     const auto& schedulerJobSpecExt = JobSpec_.GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
-    SetLargeBlockLimit(schedulerJobSpecExt.lfalloc_buffer_size());
+    NLFAlloc::SetBufferSize(schedulerJobSpecExt.lfalloc_buffer_size());
     EnableJobProxyMemoryControl_ = schedulerJobSpecExt.enable_job_proxy_memory_control();
 
     if (Config_->IsCGroupSupported(TCpu::Name)) {

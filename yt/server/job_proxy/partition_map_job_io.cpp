@@ -1,18 +1,14 @@
-#include "stdafx.h"
-
 #include "partition_map_job_io.h"
 #include "job.h"
 #include "user_job_io_detail.h"
 
-#include <ytlib/object_client/helpers.h>
+#include <yt/ytlib/node_tracker_client/node_directory.h>
 
-#include <ytlib/table_client/name_table.h>
-#include <ytlib/table_client/partitioner.h>
-#include <ytlib/table_client/schemaless_chunk_writer.h>
+#include <yt/ytlib/scheduler/config.h>
 
-#include <ytlib/node_tracker_client/node_directory.h>
-
-#include <ytlib/scheduler/config.h>
+#include <yt/ytlib/table_client/name_table.h>
+#include <yt/ytlib/table_client/partitioner.h>
+#include <yt/ytlib/table_client/schemaless_chunk_writer.h>
 
 namespace NYT {
 namespace NJobProxy {

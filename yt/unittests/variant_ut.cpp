@@ -1,8 +1,7 @@
-#include "stdafx.h"
 #include "framework.h"
 
-#include <core/misc/variant.h>
-#include <core/misc/nullable.h>
+#include <yt/core/misc/nullable.h>
+#include <yt/core/misc/variant.h>
 
 #include <util/generic/noncopyable.h>
 

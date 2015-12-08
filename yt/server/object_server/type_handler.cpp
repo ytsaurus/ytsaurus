@@ -1,4 +1,3 @@
-#include "stdafx.h"
 #include "type_handler.h"
 
 namespace NYT {

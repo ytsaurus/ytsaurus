@@ -1,21 +1,19 @@
-#include "stdafx.h"
 #include "merge_controller.h"
 #include "private.h"
+#include "chunk_list_pool.h"
+#include "chunk_pool.h"
+#include "helpers.h"
+#include "job_resources.h"
+#include "map_controller.h"
 #include "operation_controller.h"
 #include "operation_controller_detail.h"
-#include "map_controller.h"
-#include "chunk_pool.h"
-#include "chunk_list_pool.h"
-#include "job_resources.h"
-#include "helpers.h"
 
-#include <ytlib/chunk_client/chunk_scraper.h>
-#include <ytlib/chunk_client/chunk_slice.h>
-#include <ytlib/chunk_client/chunk_meta_extensions.h>
+#include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
+#include <yt/ytlib/chunk_client/chunk_scraper.h>
+#include <yt/ytlib/chunk_client/chunk_slice.h>
 
-#include <ytlib/table_client/config.h>
-#include <ytlib/table_client/chunk_meta_extensions.h>
-#include <ytlib/table_client/chunk_slices_fetcher.h>
+#include <yt/ytlib/table_client/chunk_meta_extensions.h>
+#include <yt/ytlib/table_client/chunk_slices_fetcher.h>
 
 namespace NYT {
 namespace NScheduler {
@@ -1142,6 +1140,11 @@ protected:
         return !chunkSpec->lower_limit().has_row_index() && 
             !chunkSpec->upper_limit().has_row_index();
     }
+
+    virtual bool IsBoundaryKeysFetchEnabled() const override
+    {
+        return true;
+    }
 };
 
 DEFINE_DYNAMIC_PHOENIX_TYPE(TSortedMergeControllerBase::TManiacTask);
@@ -1567,12 +1570,29 @@ private:
                     return cmpResult < 0;
                 }
 
+<<<<<<< HEAD
                 if (lhs.Type < rhs.Type) {
                     return true;
                 } else {
                     return (reinterpret_cast<intptr_t>(lhs.ChunkSlice->GetChunkSpec().Get())
                         - reinterpret_cast<intptr_t>(rhs.ChunkSlice->GetChunkSpec().Get())) < 0;
+=======
+                cmpResult = static_cast<int>(lhs.Type) - static_cast<int>(rhs.Type);
+                if (cmpResult != 0) {
+                    return cmpResult < 0;
+>>>>>>> origin/prestable/0.17.4
                 }
+
+                // If keys (trimmed to key columns) are equal, we put slices in 
+                // the same order they are in the original table.
+                cmpResult = lhs.ChunkSlice->ChunkSpec()->table_row_index() - 
+                    rhs.ChunkSlice->ChunkSpec()->table_row_index();      
+                if (cmpResult != 0) {
+                    return cmpResult < 0;
+                }                
+                
+                return (reinterpret_cast<intptr_t>(lhs.ChunkSlice->ChunkSpec().Get())
+                    - reinterpret_cast<intptr_t>(rhs.ChunkSlice->ChunkSpec().Get())) < 0;
             });
     }
 
@@ -2145,6 +2165,11 @@ private:
     }
 
     virtual bool IsOutputLivePreviewSupported() const override
+    {
+        return true;
+    }
+
+    virtual bool IsBoundaryKeysFetchEnabled() const override
     {
         return true;
     }

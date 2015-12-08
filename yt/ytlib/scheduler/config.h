@@ -2,27 +2,27 @@
 
 #include "public.h"
 
-#include <ytlib/ypath/rich.h>
+#include <yt/server/security_server/acl.h>
 
-#include <ytlib/api/config.h>
+#include <yt/ytlib/api/config.h>
 
-#include <ytlib/table_client/config.h>
-#include <ytlib/table_client/helpers.h>
+#include <yt/ytlib/formats/format.h>
+#include <yt/ytlib/formats/config.h>
 
-#include <ytlib/formats/format.h>
-#include <ytlib/formats/config.h>
+#include <yt/ytlib/node_tracker_client/public.h>
+#include <yt/ytlib/node_tracker_client/helpers.h>
+#include <yt/ytlib/node_tracker_client/node.pb.h>
 
-#include <ytlib/node_tracker_client/public.h>
-#include <ytlib/node_tracker_client/helpers.h>
-#include <ytlib/node_tracker_client/node.pb.h>
+#include <yt/ytlib/table_client/config.h>
+#include <yt/ytlib/table_client/helpers.h>
 
-#include <server/security_server/acl.h>
+#include <yt/ytlib/ypath/rich.h>
 
-#include <core/rpc/config.h>
-#include <core/rpc/retrying_channel.h>
+#include <yt/core/rpc/config.h>
+#include <yt/core/rpc/retrying_channel.h>
 
-#include <core/ytree/fluent.h>
-#include <core/ytree/yson_serializable.h>
+#include <yt/core/ytree/fluent.h>
+#include <yt/core/ytree/yson_serializable.h>
 
 namespace NYT {
 namespace NScheduler {
@@ -627,6 +627,11 @@ public:
     TDuration SortAssignmentTimeout;
     TDuration MergeLocalityTimeout;
 
+    TJobIOConfigPtr PartitionJobIO;
+    // Also works for ReduceCombiner if present.
+    TJobIOConfigPtr SortJobIO;
+    TJobIOConfigPtr MergeJobIO;
+
     int ShuffleNetworkLimit;
 
     std::vector<Stroka> SortBy;
@@ -683,10 +688,6 @@ public:
 
     // Desired number of samples per partition.
     int SamplesPerPartition;
-
-    TJobIOConfigPtr PartitionJobIO;
-    TJobIOConfigPtr SortJobIO;
-    TJobIOConfigPtr MergeJobIO;
 
     TSortOperationSpec()
     {
@@ -750,11 +751,6 @@ public:
     TUserJobSpecPtr ReduceCombiner;
     TUserJobSpecPtr Reducer;
 
-    TJobIOConfigPtr MapJobIO;
-    // Also works for ReduceCombiner if present.
-    TJobIOConfigPtr SortJobIO;
-    TJobIOConfigPtr ReduceJobIO;
-
     TMapReduceOperationSpec()
     {
         RegisterParameter("output_table_paths", OutputTablePaths)
@@ -769,11 +765,11 @@ public:
             .Default();
         RegisterParameter("reducer", Reducer)
             .DefaultNew();
-        RegisterParameter("map_job_io", MapJobIO)
+        RegisterParameter("map_job_io", PartitionJobIO)
             .DefaultNew();
         RegisterParameter("sort_job_io", SortJobIO)
             .DefaultNew();
-        RegisterParameter("reduce_job_io", ReduceJobIO)
+        RegisterParameter("reduce_job_io", MergeJobIO)
             .DefaultNew();
 
         // Provide custom names for shared settings.
@@ -798,8 +794,8 @@ public:
         //   MapSelectivityFactor
 
         RegisterInitializer([&] () {
-            MapJobIO->TableReader->MaxBufferSize = (i64) 256 * 1024 * 1024;
-            MapJobIO->TableWriter->MaxBufferSize = (i64) 2 * 1024 * 1024 * 1024; // 2 GBs
+            PartitionJobIO->TableReader->MaxBufferSize = (i64) 256 * 1024 * 1024;
+            PartitionJobIO->TableWriter->MaxBufferSize = (i64) 2 * 1024 * 1024 * 1024; // 2 GBs
 
             SortJobIO->TableReader->MaxBufferSize = (i64) 1024 * 1024 * 1024;
         });
@@ -822,7 +818,7 @@ public:
                     throwError(NTableClient::EControlAttribute::RangeIndex, jobType);
                 }
             };
-            validateControlAttributes(ReduceJobIO->ControlAttributes, "reduce");
+            validateControlAttributes(MergeJobIO->ControlAttributes, "reduce");
             validateControlAttributes(SortJobIO->ControlAttributes, "reduce_combiner");
 
             if (!ReduceBy.empty()) {
@@ -842,9 +838,9 @@ public:
         OutputTablePaths = NYT::NYPath::Normalize(OutputTablePaths);
 
         if (Mapper) {
-            Mapper->InitEnableInputTableIndex(InputTablePaths.size(), MapJobIO);
+            Mapper->InitEnableInputTableIndex(InputTablePaths.size(), PartitionJobIO);
         }
-        Reducer->InitEnableInputTableIndex(1, ReduceJobIO);
+        Reducer->InitEnableInputTableIndex(1, MergeJobIO);
     }
 };
 

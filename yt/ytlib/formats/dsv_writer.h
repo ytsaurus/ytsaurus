@@ -2,13 +2,13 @@
 
 #include "public.h"
 #include "config.h"
-#include "helpers.h"
 #include "dsv_table.h"
+#include "helpers.h"
 #include "schemaless_writer_adapter.h"
 
-#include <ytlib/table_client/public.h>
+#include <yt/ytlib/table_client/public.h>
 
-#include <core/misc/enum.h>
+#include <yt/core/misc/enum.h>
 
 namespace NYT {
 namespace NFormats {
@@ -43,6 +43,15 @@ public:
 
     virtual void DoWrite(const std::vector<NTableClient::TUnversionedRow>& rows) override;
 
+<<<<<<< HEAD
+=======
+    virtual void WriteTableIndex(i32 tableIndex) override;
+
+    virtual void WriteRangeIndex(i32 rangeIndex) override;
+
+    virtual void WriteRowIndex(i64 rowIndex) override;
+
+>>>>>>> origin/prestable/0.17.4
 private:
     int TableIndex_ = 0;
 

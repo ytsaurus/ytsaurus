@@ -1,12 +1,11 @@
-#include "stdafx.h"
 #include "client.h"
 #include "private.h"
-#include "message.h"
 #include "dispatcher.h"
+#include "message.h"
+
+#include <yt/core/misc/address.h>
 
 #include <iterator>
-
-#include <core/misc/address.h>
 
 namespace NYT {
 namespace NRpc {

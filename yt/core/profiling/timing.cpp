@@ -1,7 +1,6 @@
-#include "stdafx.h"
 #include "timing.h"
 
-#include <core/misc/high_resolution_clock.h>
+#include <yt/core/misc/high_resolution_clock.h>
 
 namespace NYT {
 namespace NProfiling  {

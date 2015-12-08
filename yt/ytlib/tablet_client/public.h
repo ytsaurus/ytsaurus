@@ -1,10 +1,10 @@
-﻿#pragma once
+#pragma once
 
-#include <core/misc/public.h>
+#include <yt/ytlib/hydra/public.h>
 
-#include <ytlib/hydra/public.h>
+#include <yt/ytlib/object_client/public.h>
 
-#include <ytlib/object_client/public.h>
+#include <yt/core/misc/public.h>
 
 namespace NYT {
 namespace NTabletClient {
@@ -27,6 +27,10 @@ DEFINE_ENUM(ETabletState,
     ((Mounted)         (1))
     ((Unmounting)      (2))
     ((Unmounted)       (3))
+);
+
+DEFINE_ENUM(EErrorCode,
+    ((TransactionLockConflict)  (1700))
 );
 
 static const int TypicalCellSize = 5;

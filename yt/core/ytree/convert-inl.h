@@ -6,15 +6,15 @@
 #include "tree_builder.h"
 #include "attribute_helpers.h"
 
-#include <core/ypath/token.h>
+#include <yt/core/ypath/token.h>
 
-#include <core/yson/tokenizer.h>
-#include <core/yson/parser.h>
-#include <core/yson/stream.h>
-#include <core/yson/producer.h>
+#include <yt/core/yson/tokenizer.h>
+#include <yt/core/yson/parser.h>
+#include <yt/core/yson/stream.h>
+#include <yt/core/yson/producer.h>
 
-#include <core/misc/preprocessor.h>
-#include <core/misc/small_vector.h>
+#include <yt/core/misc/preprocessor.h>
+#include <yt/core/misc/small_vector.h>
 
 #include <util/generic/typehelpers.h>
 #include <util/generic/static_assert.h>

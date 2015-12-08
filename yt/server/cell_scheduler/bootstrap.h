@@ -2,25 +2,21 @@
 
 #include "public.h"
 
-#include <core/concurrency/action_queue.h>
+#include <yt/server/scheduler/public.h>
 
-#include <core/bus/public.h>
+#include <yt/ytlib/api/public.h>
 
-#include <core/rpc/public.h>
+#include <yt/ytlib/hive/public.h>
 
-#include <ytlib/monitoring/http_server.h>
+#include <yt/ytlib/monitoring/http_server.h>
 
-#include <ytlib/api/public.h>
+#include <yt/ytlib/transaction_client/public.h>
 
-#include <ytlib/chunk_client/public.h>
+#include <yt/core/bus/public.h>
 
-#include <ytlib/hive/public.h>
+#include <yt/core/concurrency/action_queue.h>
 
-#include <ytlib/object_client/public.h>
-
-#include <ytlib/transaction_client/public.h>
-
-#include <server/scheduler/public.h>
+#include <yt/core/rpc/public.h>
 
 
 namespace NYT {

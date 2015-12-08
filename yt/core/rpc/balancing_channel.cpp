@@ -1,21 +1,20 @@
-#include "stdafx.h"
 #include "balancing_channel.h"
-#include "roaming_channel.h"
-#include "caching_channel_factory.h"
-#include "config.h"
-#include "client.h"
 #include "private.h"
+#include "caching_channel_factory.h"
+#include "client.h"
+#include "config.h"
+#include "roaming_channel.h"
 
-#include <core/concurrency/delayed_executor.h>
-#include <core/concurrency/rw_spinlock.h>
+#include <yt/core/concurrency/delayed_executor.h>
+#include <yt/core/concurrency/rw_spinlock.h>
 
-#include <core/misc/string.h>
-#include <core/misc/variant.h>
+#include <yt/core/logging/log.h>
 
-#include <core/ytree/convert.h>
-#include <core/ytree/fluent.h>
+#include <yt/core/misc/string.h>
+#include <yt/core/misc/variant.h>
 
-#include <core/logging/log.h>
+#include <yt/core/ytree/convert.h>
+#include <yt/core/ytree/fluent.h>
 
 #include <util/random/random.h>
 

@@ -1,9 +1,8 @@
-#include "stdafx.h"
 #include "subject.h"
-#include "user.h"
 #include "group.h"
+#include "user.h"
 
-#include <server/cell_master/serialize.h>
+#include <yt/server/cell_master/serialize.h>
 
 namespace NYT {
 namespace NSecurityServer {

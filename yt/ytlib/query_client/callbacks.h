@@ -2,11 +2,9 @@
 
 #include "public.h"
 
-#include <ytlib/ypath/rich.h>
+#include <yt/ytlib/ypath/public.h>
 
-#include <core/rpc/public.h>
-
-#include <core/actions/future.h>
+#include <yt/core/rpc/public.h>
 
 namespace NYT {
 namespace NQueryClient {

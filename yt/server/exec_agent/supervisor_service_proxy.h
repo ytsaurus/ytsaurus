@@ -1,10 +1,10 @@
-﻿#pragma once
+#pragma once
 
 #include "public.h"
 
-#include <core/rpc/client.h>
+#include <yt/server/exec_agent/supervisor_service.pb.h>
 
-#include <server/exec_agent/supervisor_service.pb.h>
+#include <yt/core/rpc/client.h>
 
 namespace NYT {
 namespace NExecAgent {

@@ -1,27 +1,26 @@
 #include "slot_manager.h"
+#include "private.h"
 #include "config.h"
 #include "tablet.h"
-#include "tablet_slot.h"
 #include "tablet_manager.h"
-#include "private.h"
+#include "tablet_slot.h"
 
-#include <core/misc/fs.h>
+#include <yt/server/cell_node/bootstrap.h>
+#include <yt/server/cell_node/config.h>
 
-#include <core/concurrency/rw_spinlock.h>
-#include <core/concurrency/thread_affinity.h>
-#include <core/concurrency/periodic_executor.h>
+#include <yt/server/data_node/config.h>
+#include <yt/server/data_node/master_connector.h>
 
-#include <core/ytree/ypath_service.h>
-#include <core/ytree/fluent.h>
+#include <yt/server/misc/memory_usage_tracker.h>
 
-#include <server/misc/memory_usage_tracker.h>
+#include <yt/core/concurrency/periodic_executor.h>
+#include <yt/core/concurrency/rw_spinlock.h>
+#include <yt/core/concurrency/thread_affinity.h>
 
-#include <server/data_node/master_connector.h>
+#include <yt/core/misc/fs.h>
 
-#include <server/cell_node/bootstrap.h>
-#include <server/cell_node/config.h>
-
-#include <server/data_node/config.h>
+#include <yt/core/ytree/fluent.h>
+#include <yt/core/ytree/ypath_service.h>
 
 namespace NYT {
 namespace NTabletNode {

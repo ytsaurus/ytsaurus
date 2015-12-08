@@ -1,15 +1,15 @@
-#include "stdafx.h"
 #include "chunk_slice.h"
+#include "private.h"
 #include "chunk_meta_extensions.h"
 #include "schema.h"
-#include "private.h"
 
-#include <ytlib/table_client/chunk_meta_extensions.h>
+#include <yt/ytlib/table_client/chunk_meta_extensions.h>
 
-#include <core/misc/protobuf_helpers.h>
+#include <yt/core/erasure/codec.h>
 
-#include <core/erasure/codec.h>
-#include <core/logging/log.h>
+#include <yt/core/logging/log.h>
+
+#include <yt/core/misc/protobuf_helpers.h>
 
 #include <cmath>
 
@@ -576,7 +576,7 @@ public:
                 } else {
                     slices.emplace_back(std::move(slice));
                 }
-                lowerKeyPrefix = key;
+                lowerKeyPrefix = GetKeyPrefix(key.Get(), keyColumnCount);
                 startRowIndex = IndexKeys_[currentIndex].ChunkRowCount;
                 dataSize = 0;
                 sliceRowCount = 0;
@@ -646,6 +646,13 @@ void ToProto(NProto::TChunkSlice* protoChunkSlice, const TChunkSlice& chunkSlice
         ToProto(protoChunkSlice->mutable_upper_limit(), chunkSlice.UpperLimit());
     }
     protoChunkSlice->mutable_size_override_ext()->CopyFrom(chunkSlice.SizeOverrideExt());
+}
+
+size_t SpaceUsedExcludingSelf(const TChunkSlicePtr& p)
+{
+    return p->LowerLimit_.SpaceUsedExcludingSelf() +
+        p->UpperLimit_.SpaceUsedExcludingSelf() +
+        p->SizeOverrideExt_.SpaceUsed() - sizeof(p->SizeOverrideExt_);
 }
 
 Stroka ToString(TChunkSlicePtr slice)

@@ -1,30 +1,23 @@
-#include "stdafx.h"
+#include "module.h"
 #include "private.h"
 #include "init.h"
-#include "module.h"
 #include "routine_registry.h"
 
 #include <llvm/ADT/Triple.h>
-
+#include <llvm/ExecutionEngine/ExecutionEngine.h>
+#include <llvm/ExecutionEngine/MCJIT.h>
+#include <llvm/ExecutionEngine/SectionMemoryManager.h>
 #include <llvm/IR/DiagnosticInfo.h>
 #include <llvm/IR/DiagnosticPrinter.h>
 #include <llvm/IR/LLVMContext.h>
 #include <llvm/IR/Module.h>
 #include <llvm/IR/Verifier.h>
-
-#include <llvm/ExecutionEngine/ExecutionEngine.h>
-#include <llvm/ExecutionEngine/MCJIT.h>
-#include <llvm/ExecutionEngine/SectionMemoryManager.h>
-
+#include <llvm/Object/ObjectFile.h>
 #include <llvm/PassManager.h>
-
+#include <llvm/Support/Host.h>
+#include <llvm/Support/raw_ostream.h>
 #include <llvm/Transforms/IPO.h>
 #include <llvm/Transforms/IPO/PassManagerBuilder.h>
-
-#include <llvm/Support/raw_ostream.h>
-#include <llvm/Support/Host.h>
-
-#include <llvm/Object/ObjectFile.h>
 
 namespace NYT {
 namespace NCodegen {

@@ -1,10 +1,10 @@
 #pragma once
 
-#include <core/misc/public.h>
+#include <yt/server/misc/public.h>
 
-#include <ytlib/node_tracker_client/public.h>
+#include <yt/ytlib/node_tracker_client/public.h>
 
-#include <server/misc/public.h>
+#include <yt/core/misc/public.h>
 
 namespace NYT {
 namespace NCellNode {

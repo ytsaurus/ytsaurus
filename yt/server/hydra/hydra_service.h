@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <core/rpc/service_detail.h>
+#include <yt/core/rpc/service_detail.h>
 
 namespace NYT {
 namespace NHydra {

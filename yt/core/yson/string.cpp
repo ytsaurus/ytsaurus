@@ -5,7 +5,7 @@
 #include "parser.h"
 #include "consumer.h"
 
-#include <core/misc/serialize.h>
+#include <yt/core/misc/serialize.h>
 
 namespace NYT {
 namespace NYson {

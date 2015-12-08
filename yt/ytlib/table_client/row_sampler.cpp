@@ -1,5 +1,3 @@
-#include "stdafx.h"
-
 #include "row_sampler.h"
 
 namespace NYT {

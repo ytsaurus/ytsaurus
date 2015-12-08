@@ -1,11 +1,10 @@
-#include "stdafx.h"
 #include "lock.h"
 
-#include <core/misc/serialize.h>
+#include <yt/server/cell_master/serialize.h>
 
-#include <server/transaction_server/transaction.h>
+#include <yt/server/transaction_server/transaction.h>
 
-#include <server/cell_master/serialize.h>
+#include <yt/core/misc/serialize.h>
 
 namespace NYT {
 namespace NCypressServer {

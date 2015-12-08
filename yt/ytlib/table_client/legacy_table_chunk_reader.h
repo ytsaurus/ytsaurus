@@ -2,15 +2,14 @@
 
 #include "public.h"
 #include "row_sampler.h"
-
 #include "schemaless_chunk_reader.h"
 #include "config.h"
 
-#include <ytlib/chunk_client/chunk_spec.pb.h>
+#include <yt/core/logging/log.h>
 
-#include <core/logging/log.h>
+#include <yt/core/yson/lexer.h>
 
-#include <core/yson/lexer.h>
+#include <yt/ytlib/chunk_client/chunk_spec.pb.h>
 
 namespace NYT {
 namespace NTableClient {

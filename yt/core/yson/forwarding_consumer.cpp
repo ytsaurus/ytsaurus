@@ -1,7 +1,6 @@
-#include "stdafx.h"
 #include "forwarding_consumer.h"
 
-#include <core/misc/assert.h>
+#include <yt/core/misc/assert.h>
 
 namespace NYT {
 namespace NYson {

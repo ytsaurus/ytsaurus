@@ -2,9 +2,9 @@
 
 #include "command.h"
 
-#include <ytlib/scheduler/public.h>
+#include <yt/ytlib/job_tracker_client/public.h>
 
-#include <ytlib/job_tracker_client/public.h>
+#include <yt/ytlib/scheduler/public.h>
 
 namespace NYT {
 namespace NDriver {
@@ -44,6 +44,42 @@ public:
     void Execute(ICommandContextPtr context);
 
 };
+
+class TSignalJobCommand
+    : public TTypedCommand<NApi::TSignalJobOptions>
+{
+private:
+    NJobTrackerClient::TJobId JobId;
+    Stroka SignalName;
+
+public:
+    TSignalJobCommand()
+    {
+        RegisterParameter("job_id", JobId);
+        RegisterParameter("signal_name", SignalName);
+    }
+
+    void Execute(ICommandContextPtr context);
+
+};
+
+struct TAbandonJobCommand
+    : public TTypedCommand<NApi::TAbandonJobOptions>
+{
+private:
+    NJobTrackerClient::TJobId JobId;
+
+public:
+    TAbandonJobCommand()
+    {
+        RegisterParameter("job_id", JobId);
+    }
+
+    void Execute(ICommandContextPtr context);
+
+};
+
+//////////////////////////////////////////////////////////////////////////////
 
 class TStartOperationCommandBase
     : public TTypedCommand<NApi::TStartOperationOptions>

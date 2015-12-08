@@ -2,16 +2,16 @@
 
 #include "public.h"
 
-#include <core/actions/signal.h>
-#include <core/actions/future.h>
+#include <yt/core/actions/future.h>
+#include <yt/core/actions/signal.h>
 
-#include <core/misc/error.h>
+#include <yt/core/misc/error.h>
 
-#include <core/ytree/public.h>
+#include <yt/core/ytree/public.h>
 
-#include <ytlib/hydra/version.h>
+#include <yt/ytlib/hydra/version.h>
 
-#include <server/election/public.h>
+#include <yt/server/election/public.h>
 
 namespace NYT {
 namespace NHydra {

@@ -1,11 +1,10 @@
-#include "stdafx.h"
 #include "node_directory.h"
 
-#include <core/misc/address.h>
-#include <core/misc/protobuf_helpers.h>
-#include <core/misc/string.h>
+#include <yt/core/concurrency/thread_affinity.h>
 
-#include <core/concurrency/thread_affinity.h>
+#include <yt/core/misc/address.h>
+#include <yt/core/misc/protobuf_helpers.h>
+#include <yt/core/misc/string.h>
 
 namespace NYT {
 namespace NNodeTrackerClient {

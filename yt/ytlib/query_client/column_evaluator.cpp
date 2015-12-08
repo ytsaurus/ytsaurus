@@ -1,15 +1,11 @@
-#include "stdafx.h"
-
 #include "column_evaluator.h"
-#include "config.h"
-
 #include "cg_fragment_compiler.h"
+#include "config.h"
+#include "folding_profiler.h"
 #include "query_preparer.h"
 #include "query_statistics.h"
-#include "folding_profiler.h"
-#include "functions.h"
 
-#include <core/misc/sync_cache.h>
+#include <yt/core/misc/sync_cache.h>
 
 namespace NYT {
 namespace NQueryClient {
@@ -135,7 +131,7 @@ TMutableRow TColumnEvaluator::EvaluateKeys(
     for (int index = 0; index < partialRow.GetCount(); ++index) {
         int id = partialRow[index].Id;
 
-        if (id >= idMapping.size()) {
+        if (id < 0 || id >= idMapping.size()) {
             THROW_ERROR_EXCEPTION("Invalid column id %v, expected in range [0,%v]",
                 id,
                 idMapping.size() - 1);
@@ -168,12 +164,14 @@ TMutableRow TColumnEvaluator::EvaluateKeys(
 
     for (int index = 0; index < KeyColumnCount_; ++index) {
         fullRow[index].Type = EValueType::Null;
+        fullRow[index].Id = index;
     }
 
     int dataColumnId = KeyColumnCount_;
     for (int index = 0; index < partialRow.GetCount(); ++index) {
         int id = partialRow[index].Id;
         int schemaId = idMapping[id];
+<<<<<<< HEAD
 
         if (schemaId < KeyColumnCount_) {
             fullRow[schemaId] = partialRow[index];
@@ -182,6 +180,11 @@ TMutableRow TColumnEvaluator::EvaluateKeys(
             fullRow[dataColumnId].Id = schemaId;
             ++dataColumnId;
         }
+=======
+        int place = id < KeySize_ ? id : dataColumnId++;
+        fullRow[place] = partialRow[index];
+        fullRow[place].Id = schemaId;
+>>>>>>> origin/prestable/0.17.4
     }
 
     EvaluateKeys(fullRow, buffer);

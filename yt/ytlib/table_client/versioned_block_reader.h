@@ -1,13 +1,14 @@
 #pragma once
 
 #include "public.h"
-
 #include "chunk_meta_extensions.h"
 #include "schema.h"
 #include "versioned_row.h"
+#include "unversioned_row.h"
 
-#include <core/misc/ref.h>
-#include <core/misc/bitmap.h>
+#include <yt/core/misc/bitmap.h>
+#include <yt/core/misc/ref.h>
+#include <yt/core/misc/small_vector.h>
 
 namespace NYT {
 namespace NTableClient {
@@ -24,6 +25,7 @@ public:
         int chunkKeyColumnCount,
         int keyColumnCount,
         const std::vector<TColumnIdMapping>& schemaIdMapping,
+        const TKeyComparer& keyComparer,
         TTimestamp timestamp);
 
     bool NextRow();
@@ -67,14 +69,18 @@ private:
 
     i64 RowIndex_;
 
-    TUnversionedRowBuilder KeyBuilder_;
-    TMutableKey Key_;
+    const static size_t DefaultKeyBufferCapacity = 256;
+    SmallVector<char, DefaultKeyBufferCapacity> KeyBuffer_;
+    TKey Key_;
 
     const char* KeyDataPtr_;
     i64 TimestampOffset_;
     i64 ValueOffset_;
     ui16 WriteTimestampCount_;
     ui16 DeleteTimestampCount_;
+
+    // NB: chunk reader holds the comparer.
+    const TKeyComparer& KeyComparer_;
 
     bool JumpToRowIndex(i64 index);
     TVersionedRow ReadAllValues(TChunkedMemoryPool* memoryPool);

@@ -2,9 +2,9 @@
 
 #include "private.h"
 
-#include <core/logging/log.h>
+#include <yt/server/cell_scheduler/public.h>
 
-#include <server/cell_scheduler/public.h>
+#include <yt/core/logging/log.h>
 
 namespace NYT {
 namespace NScheduler {

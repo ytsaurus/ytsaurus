@@ -2,10 +2,10 @@
 
 #include "stream_base.h"
 
-#include <deque>
-
-#include <util/system/mutex.h>
 #include <util/system/condvar.h>
+#include <util/system/mutex.h>
+
+#include <deque>
 
 namespace NYT {
 namespace NNodeJS {

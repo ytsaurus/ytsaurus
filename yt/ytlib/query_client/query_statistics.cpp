@@ -1,9 +1,6 @@
-#include "stdafx.h"
 #include "query_statistics.h"
 
-#include <yt/core/misc/protobuf_helpers.h>
-
-#include <ytlib/query_client/query_statistics.pb.h>
+#include <yt/ytlib/query_client/query_statistics.pb.h>
 
 namespace NYT {
 namespace NQueryClient {

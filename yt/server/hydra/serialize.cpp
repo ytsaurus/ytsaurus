@@ -1,7 +1,6 @@
-#include "stdafx.h"
 #include "serialize.h"
 
-#include <core/misc/protobuf_helpers.h>
+#include <yt/core/misc/protobuf_helpers.h>
 
 namespace NYT {
 namespace NHydra {

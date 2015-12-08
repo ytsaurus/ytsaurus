@@ -1,4 +1,3 @@
-#include "stdafx.h"
 #include "schemaless_block_writer.h"
 
 namespace NYT {

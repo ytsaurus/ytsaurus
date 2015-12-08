@@ -1,11 +1,12 @@
-#include "stdafx.h"
 #include "tcp_dispatcher_impl.h"
 #include "config.h"
 #include "tcp_connection.h"
 
-#include <core/misc/address.h>
+#include <yt/core/misc/address.h>
 
-#include <core/profiling/profile_manager.h>
+#include <yt/core/profiling/profile_manager.h>
+
+#include <yt/core/concurrency/periodic_executor.h>
 
 #include <yt/core/concurrency/periodic_executor.h>
 
@@ -127,7 +128,13 @@ TTcpDispatcher::TImpl::TImpl()
     ServerThread_ = New<TTcpDispatcherThread>("BusServer");
 
     for (int index = 0; index < ThreadCount; ++index) {
+<<<<<<< HEAD
         ClientThreads_.emplace_back(New<TTcpDispatcherThread>(Format("BusClient:%v", index)));
+=======
+        auto thread = New<TTcpDispatcherThread>(Format("BusClient:%v", index));
+        thread->Start();
+        ClientThreads_.push_back(thread);
+>>>>>>> origin/prestable/0.17.4
     }
     
     ProfilingExecutor_ = New<TPeriodicExecutor>(
@@ -179,6 +186,25 @@ TTcpDispatcherThreadPtr TTcpDispatcher::TImpl::GetClientThread()
         thread->Start();
     }
     return thread;
+}
+
+void TTcpDispatcher::TImpl::OnProfiling()
+{
+    for (auto interfaceType : TEnumTraits<ETcpInterfaceType>::GetDomainValues()) {
+        auto tagId = NProfiling::TProfileManager::Get()->RegisterTag("interface", interfaceType);
+        NProfiling::TTagIdList tagIds{tagId};
+
+        auto statistics = GetStatistics(interfaceType);
+
+        Profiler.Enqueue("/in_bytes", statistics.InBytes, tagIds);
+        Profiler.Enqueue("/in_packets", statistics.InPackets, tagIds);
+        Profiler.Enqueue("/out_bytes", statistics.OutBytes, tagIds);
+        Profiler.Enqueue("/out_packets", statistics.OutPackets, tagIds);
+        Profiler.Enqueue("/pending_out_bytes", statistics.PendingOutBytes, tagIds);
+        Profiler.Enqueue("/pending_out_packets", statistics.PendingOutPackets, tagIds);
+        Profiler.Enqueue("/client_connections", statistics.ClientConnections, tagIds);
+        Profiler.Enqueue("/server_connections", statistics.ServerConnections, tagIds);
+    }
 }
 
 void TTcpDispatcher::TImpl::OnProfiling()

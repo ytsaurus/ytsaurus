@@ -1,35 +1,31 @@
-#include "stdafx.h"
 #include "object_service.h"
 #include "private.h"
-#include "object_manager.h"
 #include "config.h"
+#include "object_manager.h"
 
-#include <core/ytree/ypath_detail.h>
+#include <yt/server/cell_master/bootstrap.h>
+#include <yt/server/cell_master/hydra_facade.h>
+#include <yt/server/cell_master/master_hydra_service.h>
 
-#include <core/rpc/message.h>
-#include <core/rpc/service_detail.h>
-#include <core/rpc/helpers.h>
+#include <yt/server/cypress_server/cypress_manager.h>
 
-#include <core/profiling/timing.h>
-#include <core/profiling/scoped_timer.h>
+#include <yt/server/security_server/security_manager.h>
+#include <yt/server/security_server/user.h>
 
-#include <ytlib/security_client/public.h>
+#include <yt/server/transaction_server/transaction.h>
+#include <yt/server/transaction_server/transaction_manager.h>
 
-#include <ytlib/object_client/object_service_proxy.h>
+#include <yt/ytlib/cypress_client/rpc_helpers.h>
 
-#include <ytlib/cypress_client/rpc_helpers.h>
+#include <yt/ytlib/object_client/object_service_proxy.h>
 
-#include <server/transaction_server/transaction.h>
-#include <server/transaction_server/transaction_manager.h>
+#include <yt/ytlib/security_client/public.h>
 
-#include <server/cell_master/bootstrap.h>
-#include <server/cell_master/hydra_facade.h>
-#include <server/cell_master/master_hydra_service.h>
+#include <yt/core/rpc/helpers.h>
+#include <yt/core/rpc/message.h>
+#include <yt/core/rpc/service_detail.h>
 
-#include <server/security_server/security_manager.h>
-#include <server/security_server/user.h>
-
-#include <server/cypress_server/cypress_manager.h>
+#include <yt/core/ytree/ypath_detail.h>
 
 #include <atomic>
 

@@ -1,7 +1,4 @@
-#include "stdafx.h"
-
 #include "schemaless_row_reorderer.h"
-
 #include "name_table.h"
 
 

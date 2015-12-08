@@ -3,18 +3,18 @@
 #include "public.h"
 #include "dynamic_memory_store_bits.h"
 
-#include <core/misc/property.h>
-#include <core/misc/ref_tracked.h>
-#include <core/misc/ring_queue.h>
-#include <core/misc/persistent_queue.h>
+#include <yt/server/hydra/entity_map.h>
 
-#include <core/actions/future.h>
+#include <yt/ytlib/transaction_client/public.h>
 
-#include <core/concurrency/public.h>
+#include <yt/core/actions/future.h>
 
-#include <ytlib/transaction_client/public.h>
+#include <yt/core/concurrency/public.h>
 
-#include <server/hydra/entity_map.h>
+#include <yt/core/misc/persistent_queue.h>
+#include <yt/core/misc/property.h>
+#include <yt/core/misc/ref_tracked.h>
+#include <yt/core/misc/ring_queue.h>
 
 namespace NYT {
 namespace NTabletNode {

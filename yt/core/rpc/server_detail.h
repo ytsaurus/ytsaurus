@@ -1,13 +1,13 @@
 #pragma once
 
-#include "service.h"
 #include "server.h"
+#include "service.h"
 
-#include <core/concurrency/rw_spinlock.h>
+#include <yt/core/concurrency/rw_spinlock.h>
 
-#include <core/rpc/rpc.pb.h>
+#include <yt/core/logging/log.h>
 
-#include <core/logging/log.h>
+#include <yt/core/rpc/rpc.pb.h>
 
 #include <atomic>
 
@@ -39,6 +39,8 @@ public:
     virtual void Reply(const TError& error) override;
     virtual void Reply(TSharedRefArray responseMessage) override;
     using IServiceContext::Reply;
+
+    virtual void SetComplete() override;
 
     virtual TFuture<TSharedRefArray> GetAsyncResponseMessage() const override;
     virtual TSharedRefArray GetResponseMessage() const override;
@@ -81,6 +83,7 @@ protected:
     std::vector<TSharedRef> RequestAttachments_;
 
     bool Replied_ = false;
+    bool ProcessingComplete_ = false;
     TError Error_;
 
     TSharedRef ResponseBody_;
@@ -157,6 +160,8 @@ public:
     virtual bool IsReplied() const override;
     virtual void Reply(const TError& error) override;
     virtual void Reply(TSharedRefArray responseMessage) override;
+
+    virtual void SetComplete() override;
 
     virtual TFuture<TSharedRefArray> GetAsyncResponseMessage() const override;
     virtual TSharedRefArray GetResponseMessage() const override;

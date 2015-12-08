@@ -1,4 +1,4 @@
-#!/bin/sh -eu
+#!/bin/bash -eu
 
 export PYTHONPATH="/home/ignat/yt/python/yt_wrapper:$PYTHONPATH"
 

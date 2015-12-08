@@ -2,9 +2,9 @@
 
 #include "public.h"
 
-#include <core/actions/callback.h>
+#include <yt/core/actions/callback.h>
 
-#include <core/misc/nullable.h>
+#include <yt/core/misc/nullable.h>
 
 namespace NYT {
 

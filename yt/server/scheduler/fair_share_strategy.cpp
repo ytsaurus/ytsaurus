@@ -1,13 +1,12 @@
-#include "stdafx.h"
-#include "config.h"
 #include "fair_share_strategy.h"
 #include "public.h"
-#include "scheduler_strategy.h"
-#include "master_connector.h"
+#include "config.h"
 #include "job_resources.h"
+#include "master_connector.h"
+#include "scheduler_strategy.h"
 
-#include <core/concurrency/async_rw_lock.h>
-#include <core/profiling/scoped_timer.h>
+#include <yt/core/concurrency/async_rw_lock.h>
+#include <yt/core/profiling/scoped_timer.h>
 
 #include <forward_list>
 

@@ -2,14 +2,14 @@
 
 #include "public.h"
 
-#include <core/misc/property.h>
-#include <core/misc/lease_manager.h>
+#include <yt/server/node_tracker_server/node.h>
 
-#include <ytlib/node_tracker_client/node_directory.h>
+#include <yt/ytlib/node_tracker_client/node_directory.h>
 
-#include <ytlib/scheduler/scheduler_service.pb.h>
+#include <yt/ytlib/scheduler/scheduler_service.pb.h>
 
-#include <server/node_tracker_server/node.h>
+#include <yt/core/misc/lease_manager.h>
+#include <yt/core/misc/property.h>
 
 namespace NYT {
 namespace NScheduler {

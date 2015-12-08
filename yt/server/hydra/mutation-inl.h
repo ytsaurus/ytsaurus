@@ -4,11 +4,11 @@
 
 #include "hydra_manager.h"
 
-#include <core/misc/protobuf_helpers.h>
+#include <yt/core/misc/protobuf_helpers.h>
 
-#include <core/rpc/message.h>
+#include <yt/core/rpc/message.h>
 
-#include <ytlib/hydra/hydra_manager.pb.h>
+#include <yt/ytlib/hydra/hydra_manager.pb.h>
 
 namespace NYT {
 namespace NHydra {

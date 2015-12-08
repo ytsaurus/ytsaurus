@@ -2,23 +2,23 @@
 
 #include "public.h"
 
-#include <core/rpc/public.h>
+#include <yt/ytlib/chunk_client/public.h>
 
-#include <core/actions/callback.h>
+#include <yt/ytlib/hive/public.h>
 
-#include <ytlib/chunk_client/public.h>
+#include <yt/ytlib/query_client/public.h>
 
-#include <ytlib/transaction_client/public.h>
+#include <yt/ytlib/security_client/public.h>
 
-#include <ytlib/hive/public.h>
+#include <yt/ytlib/tablet_client/public.h>
 
-#include <ytlib/tablet_client/public.h>
+#include <yt/ytlib/transaction_client/public.h>
 
-#include <ytlib/query_client/public.h>
+#include <yt/core/actions/callback.h>
 
-#include <ytlib/security_client/public.h>
+#include <yt/core/rpc/public.h>
 
-#include <ytlib/object_client/public.h>
+#include <yt/ytlib/object_client/public.h>
 
 namespace NYT {
 namespace NApi {

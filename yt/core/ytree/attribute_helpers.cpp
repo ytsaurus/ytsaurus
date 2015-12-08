@@ -1,7 +1,6 @@
-#include "stdafx.h"
 #include "attribute_helpers.h"
 
-#include <core/misc/error.h>
+#include <yt/core/misc/error.h>
 
 namespace NYT {
 namespace NYTree {

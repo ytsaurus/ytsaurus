@@ -1,10 +1,9 @@
 #pragma once
 
-#include <core/misc/common.h>
-#include <core/misc/error.h>
-#include <core/misc/lazy_ptr.h>
+#include <yt/core/misc/error.h>
+#include <yt/core/misc/lazy_ptr.h>
 
-#include <core/ytree/public.h>
+#include <yt/core/ytree/public.h>
 
 #define BUILDING_NODE_EXTENSION
 

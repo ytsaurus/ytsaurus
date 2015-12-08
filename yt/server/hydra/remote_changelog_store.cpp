@@ -1,22 +1,21 @@
-#include "stdafx.h"
 #include "remote_changelog_store.h"
+#include "private.h"
 #include "changelog.h"
 #include "config.h"
 #include "lazy_changelog.h"
-#include "private.h"
 
-#include <core/misc/protobuf_helpers.h>
+#include <yt/ytlib/api/client.h>
+#include <yt/ytlib/api/journal_reader.h>
+#include <yt/ytlib/api/journal_writer.h>
+#include <yt/ytlib/api/transaction.h>
 
-#include <core/concurrency/scheduler.h>
+#include <yt/ytlib/hydra/hydra_manager.pb.h>
 
-#include <core/ytree/attribute_helpers.h>
+#include <yt/core/concurrency/scheduler.h>
 
-#include <ytlib/api/client.h>
-#include <ytlib/api/journal_reader.h>
-#include <ytlib/api/journal_writer.h>
-#include <ytlib/api/transaction.h>
+#include <yt/core/misc/protobuf_helpers.h>
 
-#include <ytlib/hydra/hydra_manager.pb.h>
+#include <yt/core/ytree/attribute_helpers.h>
 
 namespace NYT {
 namespace NHydra {

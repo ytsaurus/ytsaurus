@@ -1,43 +1,42 @@
-#include "stdafx.h"
 #include "world_initializer.h"
-#include "hydra_facade.h"
-#include "config.h"
 #include "private.h"
+#include "config.h"
+#include "hydra_facade.h"
 
-#include <core/misc/collection_helpers.h>
+#include <yt/server/cell_master/bootstrap.h>
 
-#include <core/ytree/ypath_proxy.h>
-#include <core/ytree/ypath_client.h>
+#include <yt/server/cypress_server/cypress_manager.h>
+#include <yt/server/cypress_server/node_detail.h>
 
-#include <core/ypath/token.h>
+#include <yt/server/hive/transaction_supervisor.h>
 
-#include <core/concurrency/scheduler.h>
+#include <yt/server/security_server/acl.h>
+#include <yt/server/security_server/group.h>
+#include <yt/server/security_server/security_manager.h>
 
-#include <core/logging/log.h>
+#include <yt/ytlib/cypress_client/cypress_ypath_proxy.h>
+#include <yt/ytlib/cypress_client/rpc_helpers.h>
 
-#include <ytlib/cypress_client/cypress_ypath_proxy.h>
-#include <ytlib/cypress_client/rpc_helpers.h>
+#include <yt/ytlib/election/cell_manager.h>
 
-#include <ytlib/object_client/object_service_proxy.h>
-#include <ytlib/object_client/master_ypath_proxy.h>
-#include <ytlib/object_client/helpers.h>
+#include <yt/ytlib/object_client/helpers.h>
+#include <yt/ytlib/object_client/master_ypath_proxy.h>
+#include <yt/ytlib/object_client/object_service_proxy.h>
 
-#include <ytlib/election/cell_manager.h>
+#include <yt/ytlib/transaction_client/transaction_ypath_proxy.h>
 
-#include <ytlib/transaction_client/transaction_ypath_proxy.h>
+#include <yt/core/concurrency/scheduler.h>
 
-#include <server/hive/transaction_supervisor.h>
+#include <yt/core/logging/log.h>
 
-#include <server/cell_master/bootstrap.h>
+#include <yt/core/misc/collection_helpers.h>
 
-#include <server/cypress_server/cypress_manager.h>
-#include <server/cypress_server/node_detail.h>
+#include <yt/core/ypath/token.h>
 
-#include <server/security_server/security_manager.h>
-#include <server/security_server/acl.h>
-#include <server/security_server/group.h>
+#include <yt/core/ytree/ypath_client.h>
+#include <yt/core/ytree/ypath_proxy.h>
 
-#include <server/transaction_server/transaction_manager.h>
+#include <yt/server/transaction_server/transaction_manager.h>
 
 namespace NYT {
 namespace NCellMaster {

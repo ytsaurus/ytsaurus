@@ -1,8 +1,7 @@
-#include "stdafx.h"
 #include "automaton.h"
-#include "serialize.h"
-#include "hydra_facade.h"
 #include "bootstrap.h"
+#include "hydra_facade.h"
+#include "serialize.h"
 
 namespace NYT {
 namespace NCellMaster {

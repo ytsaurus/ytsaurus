@@ -4,7 +4,7 @@
 #include "evaluation_helpers.h"
 #include "function_context.h"
 
-#include <ytlib/table_client/llvm_types.h>
+#include <yt/ytlib/table_client/llvm_types.h>
 
 namespace llvm {
 

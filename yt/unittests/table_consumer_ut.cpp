@@ -1,11 +1,10 @@
-#include "stdafx.h"
 #include "framework.h"
 
-#include <ytlib/table_client/value_consumer-mock.h>
-#include <ytlib/table_client/table_consumer.h>
-#include <ytlib/table_client/unversioned_row.h>
+#include <yt/ytlib/table_client/table_consumer.h>
+#include <yt/ytlib/table_client/unversioned_row.h>
+#include <yt/ytlib/table_client/value_consumer-mock.h>
 
-#include <core/ytree/fluent.h>
+#include <yt/core/ytree/fluent.h>
 
 namespace NYT {
 namespace NTableClient {

@@ -1,4 +1,3 @@
-#include "stdafx.h"
 #include "serialize.h"
 
 namespace NYT {
@@ -14,7 +13,7 @@ int GetCurrentSnapshotVersion()
 bool ValidateSnapshotVersion(int version)
 {
     return
-        version == 124 ||
+        version == 125 ||
         version == 200 ||
         version == 201 ||
         version == 202 ||

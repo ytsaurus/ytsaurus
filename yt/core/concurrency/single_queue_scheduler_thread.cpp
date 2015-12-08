@@ -1,4 +1,3 @@
-#include "stdafx.h"
 #include "single_queue_scheduler_thread.h"
 
 namespace NYT {

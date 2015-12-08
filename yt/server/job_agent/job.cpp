@@ -1,4 +1,3 @@
-#include "stdafx.h"
 #include "job.h"
 
 namespace NYT {

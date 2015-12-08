@@ -1,11 +1,10 @@
-#include "stdafx.h"
-#include "private.h"
 #include "init.h"
+#include "private.h"
+
+#include <mutex>
 
 #include <llvm/Support/TargetSelect.h>
 #include <llvm/Support/Threading.h>
-
-#include <mutex>
 
 namespace NYT {
 namespace NCodegen {

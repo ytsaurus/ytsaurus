@@ -1,13 +1,12 @@
-#include "stdafx.h"
 #include "job_tracker_service.h"
-#include "scheduler.h"
 #include "private.h"
+#include "scheduler.h"
 
-#include <ytlib/job_tracker_client/job_tracker_service_proxy.h>
+#include <yt/server/cell_scheduler/bootstrap.h>
 
-#include <ytlib/node_tracker_client/helpers.h>
+#include <yt/ytlib/job_tracker_client/job_tracker_service_proxy.h>
 
-#include <server/cell_scheduler/bootstrap.h>
+#include <yt/ytlib/node_tracker_client/helpers.h>
 
 namespace NYT {
 namespace NScheduler {

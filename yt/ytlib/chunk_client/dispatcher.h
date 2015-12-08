@@ -2,9 +2,9 @@
 
 #include "public.h"
 
-#include <core/misc/shutdownable.h>
+#include <yt/core/actions/public.h>
 
-#include <core/actions/public.h>
+#include <yt/core/misc/shutdownable.h>
 
 namespace NYT {
 namespace NChunkClient {

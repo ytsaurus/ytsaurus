@@ -2,13 +2,13 @@
 
 #include "public.h"
 
-#include <ytlib/object_client/public.h>
+#include <yt/ytlib/object_client/public.h>
 
-#include <ytlib/node_tracker_client/node.pb.h>
+#include <yt/ytlib/node_tracker_client/node.pb.h>
 
-#include <core/profiling/profiler.h>
+#include <yt/core/profiling/profiler.h>
 
-#include <core/yson/public.h>
+#include <yt/core/yson/public.h>
 
 namespace NYT {
 namespace NNodeTrackerClient {

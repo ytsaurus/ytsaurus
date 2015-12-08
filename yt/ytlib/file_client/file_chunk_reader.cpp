@@ -1,33 +1,31 @@
-#include "stdafx.h"
-
 #include "file_chunk_reader.h"
 #include "private.h"
-#include "config.h"
 #include "chunk_meta_extensions.h"
+#include "config.h"
 
-#include <ytlib/api/client.h>
+#include <yt/ytlib/api/client.h>
 
-#include <ytlib/chunk_client/public.h>
-#include <ytlib/chunk_client/chunk_reader.h>
-#include <ytlib/chunk_client/chunk_spec.h>
-#include <ytlib/chunk_client/sequential_reader.h>
-#include <ytlib/chunk_client/replication_reader.h>
-#include <ytlib/chunk_client/chunk_meta_extensions.h>
-#include <ytlib/chunk_client/multi_reader_base.h>
-#include <ytlib/chunk_client/dispatcher.h>
-#include <ytlib/chunk_client/helpers.h>
-#include <ytlib/chunk_client/config.h>
-#include <ytlib/chunk_client/reader_factory.h>
+#include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
+#include <yt/ytlib/chunk_client/chunk_reader.h>
+#include <yt/ytlib/chunk_client/chunk_spec.h>
+#include <yt/ytlib/chunk_client/config.h>
+#include <yt/ytlib/chunk_client/dispatcher.h>
+#include <yt/ytlib/chunk_client/multi_chunk_reader_base.h>
+#include <yt/ytlib/chunk_client/public.h>
+#include <yt/ytlib/chunk_client/replication_reader.h>
+#include <yt/ytlib/chunk_client/sequential_reader.h>
+#include <yt/ytlib/chunk_client/config.h>
 
-#include <ytlib/node_tracker_client/node_directory.h>
+#include <yt/ytlib/node_tracker_client/node_directory.h>
 
-#include <core/concurrency/scheduler.h>
+#include <yt/core/compression/codec.h>
 
-#include <core/logging/log.h>
+#include <yt/core/concurrency/scheduler.h>
 
-#include <core/rpc/channel.h>
+#include <yt/core/logging/log.h>
 
-#include <core/compression/codec.h>
+#include <yt/core/rpc/channel.h>
+
 namespace NYT {
 namespace NFileClient {
 
@@ -175,7 +173,7 @@ private:
         i64 selectedSize = 0;
         int blockIndex = 0;
         auto addBlock = [&] (int index, i64 size) -> bool {
-            if (StartOffset_ >= size) {
+            if (selectedSize == 0 && StartOffset_ >= size) {
                 StartOffset_ -= size;
                 EndOffset_ -= size;
                 ++blockIndex;

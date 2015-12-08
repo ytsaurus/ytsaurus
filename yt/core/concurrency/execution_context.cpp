@@ -1,4 +1,3 @@
-#include "stdafx.h"
 #include "execution_context.h"
 #include "execution_stack.h"
 

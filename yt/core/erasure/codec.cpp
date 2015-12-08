@@ -1,6 +1,6 @@
 #include "codec.h"
-#include "reed_solomon.h"
 #include "lrc.h"
+#include "reed_solomon.h"
 
 namespace NYT {
 namespace NErasure {

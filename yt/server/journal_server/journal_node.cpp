@@ -1,18 +1,16 @@
-#include "stdafx.h"
 #include "journal_node.h"
-#include "journal_node_proxy.h"
-#include "journal_manager.h"
 #include "private.h"
+#include "journal_node_proxy.h"
 
-#include <server/chunk_server/chunk_owner_type_handler.h>
-#include <server/chunk_server/chunk_manager.h>
+#include <yt/server/cell_master/bootstrap.h>
+#include <yt/server/cell_master/serialize.h>
 
-#include <server/cell_master/bootstrap.h>
-#include <server/cell_master/serialize.h>
+#include <yt/server/chunk_server/chunk_manager.h>
+#include <yt/server/chunk_server/chunk_owner_type_handler.h>
 
-#include <ytlib/journal_client/journal_ypath_proxy.h>
+#include <yt/ytlib/journal_client/journal_ypath_proxy.h>
 
-#include <ytlib/object_client/helpers.h>
+#include <yt/ytlib/object_client/helpers.h>
 
 namespace NYT {
 namespace NJournalServer {

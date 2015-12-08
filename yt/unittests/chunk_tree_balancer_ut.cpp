@@ -1,18 +1,16 @@
-#include "stdafx.h"
 #include "framework.h"
 
-#include <server/chunk_server/chunk_tree_balancer.h>
-#include <server/chunk_server/chunk_list.h>
-#include <server/chunk_server/chunk.h>
-#include <server/chunk_server/helpers.h>
+#include <yt/server/chunk_server/chunk.h>
+#include <yt/server/chunk_server/chunk_list.h>
+#include <yt/server/chunk_server/chunk_tree_balancer.h>
+#include <yt/server/chunk_server/helpers.h>
 
-#include <ytlib/chunk_client/chunk_meta.pb.h>
-#include <ytlib/chunk_client/chunk_meta_extensions.h>
+#include <yt/ytlib/chunk_client/chunk_meta.pb.h>
+#include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 
-#include <ytlib/object_client/helpers.h>
+#include <yt/ytlib/object_client/helpers.h>
 
-#include <core/misc/protobuf_helpers.h>
-
+#include <yt/core/misc/protobuf_helpers.h>
 
 namespace NYT {
 namespace NChunkServer {

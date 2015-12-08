@@ -1,4 +1,3 @@
-#include "stdafx.h"
 #include "format.h"
 
 namespace NYT {

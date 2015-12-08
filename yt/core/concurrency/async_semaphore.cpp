@@ -1,4 +1,3 @@
-#include "stdafx.h"
 #include "async_semaphore.h"
 
 namespace NYT {

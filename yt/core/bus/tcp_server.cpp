@@ -1,21 +1,20 @@
-#include "stdafx.h"
 #include "tcp_server.h"
-#include "tcp_dispatcher_impl.h"
-#include "server.h"
-#include "config.h"
 #include "bus.h"
+#include "config.h"
+#include "server.h"
 #include "tcp_connection.h"
+#include "tcp_dispatcher_impl.h"
 
-#include <core/misc/address.h>
+#include <yt/core/concurrency/thread_affinity.h>
 
-#include <core/concurrency/thread_affinity.h>
+#include <yt/core/logging/log.h>
 
-#include <core/ytree/convert.h>
-#include <core/ytree/fluent.h>
+#include <yt/core/misc/address.h>
 
-#include <core/rpc/public.h>
+#include <yt/core/rpc/public.h>
 
-#include <core/logging/log.h>
+#include <yt/core/ytree/convert.h>
+#include <yt/core/ytree/fluent.h>
 
 #include <errno.h>
 

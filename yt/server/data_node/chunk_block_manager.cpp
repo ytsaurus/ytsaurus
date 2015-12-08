@@ -1,24 +1,23 @@
-#include "stdafx.h"
-#include "block_store.h"
+#include "chunk_block_manager.h"
 #include "private.h"
-#include "chunk.h"
-#include "config.h"
-#include "chunk_registry.h"
 #include "blob_reader_cache.h"
+#include "chunk.h"
+#include "chunk_registry.h"
+#include "config.h"
 #include "location.h"
 
-#include <ytlib/object_client/helpers.h>
+#include <yt/server/cell_node/bootstrap.h>
 
-#include <ytlib/chunk_client/file_reader.h>
-#include <ytlib/chunk_client/block_cache.h>
-#include <ytlib/chunk_client/chunk_meta_extensions.h>
-#include <ytlib/chunk_client/data_node_service_proxy.h>
-#include <ytlib/chunk_client/chunk_meta.pb.h>
+#include <yt/ytlib/chunk_client/block_cache.h>
+#include <yt/ytlib/chunk_client/chunk_meta.pb.h>
+#include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
+#include <yt/ytlib/chunk_client/data_node_service_proxy.h>
+#include <yt/ytlib/chunk_client/file_reader.h>
 
-#include <server/cell_node/bootstrap.h>
+#include <yt/ytlib/object_client/helpers.h>
 
-#include <core/concurrency/parallel_awaiter.h>
-#include <core/concurrency/thread_affinity.h>
+#include <yt/core/concurrency/parallel_awaiter.h>
+#include <yt/core/concurrency/thread_affinity.h>
 
 namespace NYT {
 namespace NDataNode {
@@ -48,7 +47,7 @@ TCachedBlock::TCachedBlock(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TBlockStore::TImpl
+class TChunkBlockManager::TImpl
     : public TAsyncSlruCacheBase<TBlockId, TCachedBlock>
 {
 public:
@@ -125,7 +124,7 @@ public:
             auto chunk = chunkRegistry->GetChunkOrThrow(chunkId);
 
             // Hold the read guard.
-            auto readGuard = AcquireReadGuard(chunk);
+            auto readGuard = TChunkReadGuard::AcquireOrThrow(chunk);
             auto asyncBlocks = chunk->ReadBlockRange(
                 firstBlockIndex,
                 blockCount,
@@ -167,7 +166,7 @@ public:
                 return MakeFuture(blocks);
             }
 
-            auto readGuard = AcquireReadGuard(chunk);
+            auto readGuard = TChunkReadGuard::AcquireOrThrow(chunk);
             auto asyncBlocks = chunk->ReadBlockSet(
                 blockIndexes,
                 workloadDescriptor,
@@ -215,21 +214,21 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TBlockStore::TBlockStore(
+TChunkBlockManager::TChunkBlockManager(
     TDataNodeConfigPtr config,
     TBootstrap* bootstrap)
     : Impl_(New<TImpl>(config, bootstrap))
 { }
 
-TBlockStore::~TBlockStore()
+TChunkBlockManager::~TChunkBlockManager()
 { }
 
-TCachedBlockPtr TBlockStore::FindCachedBlock(const TBlockId& blockId)
+TCachedBlockPtr TChunkBlockManager::FindCachedBlock(const TBlockId& blockId)
 {
     return Impl_->FindCachedBlock(blockId);
 }
 
-void TBlockStore::PutCachedBlock(
+void TChunkBlockManager::PutCachedBlock(
     const TBlockId& blockId,
     const TSharedRef& data,
     const TNullable<TNodeDescriptor>& source)
@@ -237,12 +236,12 @@ void TBlockStore::PutCachedBlock(
     Impl_->PutCachedBlock(blockId, data, source);
 }
 
-TCachedBlockCookie TBlockStore::BeginInsertCachedBlock(const TBlockId& blockId)
+TCachedBlockCookie TChunkBlockManager::BeginInsertCachedBlock(const TBlockId& blockId)
 {
     return Impl_->BeginInsertCachedBlock(blockId);
 }
 
-TFuture<std::vector<TSharedRef>> TBlockStore::ReadBlockRange(
+TFuture<std::vector<TSharedRef>> TChunkBlockManager::ReadBlockRange(
     const TChunkId& chunkId,
     int firstBlockIndex,
     int blockCount,
@@ -259,7 +258,7 @@ TFuture<std::vector<TSharedRef>> TBlockStore::ReadBlockRange(
         populateCache);
 }
 
-TFuture<std::vector<TSharedRef>> TBlockStore::ReadBlockSet(
+TFuture<std::vector<TSharedRef>> TChunkBlockManager::ReadBlockSet(
     const TChunkId& chunkId,
     const std::vector<int>& blockIndexes,
     const TWorkloadDescriptor& workloadDescriptor,
@@ -274,7 +273,7 @@ TFuture<std::vector<TSharedRef>> TBlockStore::ReadBlockSet(
         populateCache);
 }
 
-std::vector<TCachedBlockPtr> TBlockStore::GetAllBlocks() const
+std::vector<TCachedBlockPtr> TChunkBlockManager::GetAllBlocks() const
 {
     return Impl_->GetAll();
 }

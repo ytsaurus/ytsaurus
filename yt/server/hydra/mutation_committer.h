@@ -3,16 +3,16 @@
 #include "private.h"
 #include "mutation_context.h"
 
-#include <core/concurrency/thread_affinity.h>
+#include <yt/ytlib/election/public.h>
 
-#include <core/actions/signal.h>
+#include <yt/ytlib/hydra/hydra_service_proxy.h>
+#include <yt/ytlib/hydra/version.h>
 
-#include <core/logging/log.h>
+#include <yt/core/actions/signal.h>
 
-#include <ytlib/election/public.h>
+#include <yt/core/concurrency/thread_affinity.h>
 
-#include <ytlib/hydra/hydra_service_proxy.h>
-#include <ytlib/hydra/version.h>
+#include <yt/core/logging/log.h>
 
 namespace NYT {
 namespace NHydra {

@@ -1,36 +1,35 @@
-#include "stdafx.h"
 #include "schemaful_chunk_reader.h"
-#include "config.h"
 #include "private.h"
-#include "schemaful_block_reader.h"
-#include "name_table.h"
 #include "chunk_meta_extensions.h"
+#include "config.h"
+#include "name_table.h"
 #include "schema.h"
+#include "schemaful_block_reader.h"
 #include "schemaful_reader.h"
-#include "unversioned_row.h"
-#include "schemaless_chunk_reader.h"
 #include "schemaful_reader_adapter.h"
+#include "schemaless_chunk_reader.h"
+#include "unversioned_row.h"
 
-#include <ytlib/chunk_client/chunk_reader.h>
-#include <ytlib/chunk_client/chunk_spec.h>
-#include <ytlib/chunk_client/read_limit.h>
-#include <ytlib/chunk_client/sequential_reader.h>
-#include <ytlib/chunk_client/chunk_meta_extensions.h>
-#include <ytlib/chunk_client/dispatcher.h>
+#include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
+#include <yt/ytlib/chunk_client/chunk_reader.h>
+#include <yt/ytlib/chunk_client/chunk_spec.h>
+#include <yt/ytlib/chunk_client/dispatcher.h>
+#include <yt/ytlib/chunk_client/read_limit.h>
+#include <yt/ytlib/chunk_client/sequential_reader.h>
 
-#include <core/compression/public.h>
+#include <yt/ytlib/node_tracker_client/node_directory.h>
 
-#include <core/misc/async_stream_state.h>
-#include <core/misc/protobuf_helpers.h>
-#include <core/misc/chunked_memory_pool.h>
+#include <yt/core/compression/public.h>
 
-#include <core/concurrency/scheduler.h>
+#include <yt/core/concurrency/scheduler.h>
 
-#include <core/logging/log.h>
+#include <yt/core/logging/log.h>
 
-#include <ytlib/node_tracker_client/node_directory.h>
+#include <yt/core/misc/async_stream_state.h>
+#include <yt/core/misc/chunked_memory_pool.h>
+#include <yt/core/misc/protobuf_helpers.h>
 
-#include <core/rpc/channel.h>
+#include <yt/core/rpc/channel.h>
 
 namespace NYT {
 namespace NTableClient {

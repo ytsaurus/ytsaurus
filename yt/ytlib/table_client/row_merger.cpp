@@ -1,11 +1,10 @@
-#include "stdafx.h"
 #include "row_merger.h"
 #include "config.h"
 #include "row_buffer.h"
 
-#include <ytlib/query_client/column_evaluator.h>
+#include <yt/ytlib/query_client/column_evaluator.h>
 
-#include <ytlib/transaction_client/helpers.h>
+#include <yt/ytlib/transaction_client/helpers.h>
 
 namespace NYT {
 namespace NTableClient {

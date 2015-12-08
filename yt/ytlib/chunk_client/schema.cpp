@@ -1,11 +1,10 @@
-#include "stdafx.h"
 #include "schema.h"
 
-#include <core/misc/error.h>
+#include <yt/core/misc/error.h>
 
-#include <core/ytree/node.h>
-#include <core/ytree/convert.h>
-#include <core/ytree/fluent.h>
+#include <yt/core/ytree/convert.h>
+#include <yt/core/ytree/fluent.h>
+#include <yt/core/ytree/node.h>
 
 namespace NYT {
 namespace NChunkClient {

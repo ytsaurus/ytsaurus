@@ -5,6 +5,7 @@ from yt_commands import *
 
 from time import sleep
 
+from yt.environment.helpers import assert_items_equal
 
 ##################################################################
 
@@ -62,6 +63,7 @@ class TestUsers(YTEnvSetup):
         assert get("//sys/users/u/@request_counter") == 0
 
     def test_builtin_init(self):
+<<<<<<< HEAD
         assert sorted(get("//sys/groups/everyone/@members")) == sorted(["users", "guest"])
         assert get("//sys/groups/users/@members") == ["superusers"]
         assert sorted(get("//sys/groups/superusers/@members")) == sorted(["root", "scheduler", "job"])
@@ -75,12 +77,31 @@ class TestUsers(YTEnvSetup):
         assert get("//sys/users/guest/@member_of_closure") == ["everyone"]
         assert sorted(get("//sys/users/scheduler/@member_of_closure")) == sorted(["superusers", "users", "everyone"])
         assert sorted(get("//sys/users/job/@member_of_closure")) == sorted(["superusers", "users", "everyone"])
+=======
+        assert_items_equal(get("//sys/groups/everyone/@members"), ["users", "guest"])
+        assert_items_equal(get("//sys/groups/users/@members"), ["superusers"])
+        assert_items_equal(get("//sys/groups/superusers/@members"), ["root", "scheduler", "job"])
+
+        assert_items_equal(get("//sys/users/root/@member_of"), ["superusers"])
+        assert_items_equal(get("//sys/users/guest/@member_of"), ["everyone"])
+        assert_items_equal(get("//sys/users/scheduler/@member_of"), ["superusers"])
+        assert_items_equal(get("//sys/users/job/@member_of"), ["superusers"])
+        
+        assert_items_equal(get("//sys/users/root/@member_of_closure"), ["superusers", "users", "everyone"])
+        assert_items_equal(get("//sys/users/guest/@member_of_closure"), ["everyone"])
+        assert_items_equal(get("//sys/users/scheduler/@member_of_closure"), ["superusers", "users", "everyone"])
+        assert_items_equal(get("//sys/users/job/@member_of_closure"), ["superusers", "users", "everyone"])
+>>>>>>> origin/prestable/0.17.4
         
     def test_create_user1(self):
         create_user("max")
         assert get("//sys/users/max/@name") == "max"
         assert "max" in get("//sys/groups/users/@members")
+<<<<<<< HEAD
         assert get("//sys/users/max/@member_of") == ["users"]
+=======
+        assert_items_equal(get("//sys/users/max/@member_of"), ["users"])
+>>>>>>> origin/prestable/0.17.4
 
     def test_create_user2(self):
         create_user("max")
@@ -109,7 +130,11 @@ class TestUsers(YTEnvSetup):
         create_group("devs")
         add_member("max", "devs")
         assert get("//sys/groups/devs/@members") == ["max"]
+<<<<<<< HEAD
         assert get("//sys/groups/devs/@members") == ["max"]
+=======
+        assert_items_equal(get("//sys/groups/devs/@members"), ["max"])
+>>>>>>> origin/prestable/0.17.4
 
     def test_membership2(self):
         create_user("u1")
@@ -121,6 +146,7 @@ class TestUsers(YTEnvSetup):
         add_member("g2", "g1")
         add_member("u2", "g2")
 
+<<<<<<< HEAD
         assert sorted(get("//sys/groups/g1/@members")) == sorted(["u1", "g2"])
         assert get("//sys/groups/g2/@members") == ["u2"]
 
@@ -140,6 +166,27 @@ class TestUsers(YTEnvSetup):
 
         assert sorted(get("//sys/users/u1/@member_of_closure")) == sorted(["g1", "users", "everyone"])
         assert sorted(get("//sys/users/u2/@member_of_closure")) == sorted(["g2", "users", "everyone"])
+=======
+        assert_items_equal(get("//sys/groups/g1/@members"), ["u1", "g2"])
+        assert_items_equal(get("//sys/groups/g2/@members"), ["u2"])
+
+        assert_items_equal(get("//sys/users/u1/@member_of"), ["g1", "users"])
+        assert_items_equal(get("//sys/users/u2/@member_of"), ["g2", "users"])
+
+        assert_items_equal(get("//sys/users/u1/@member_of_closure"), ["g1", "users", "everyone"])
+        assert_items_equal(get("//sys/users/u2/@member_of_closure"), ["g1", "g2", "users", "everyone"])
+
+        remove_member("g2", "g1")
+
+        assert_items_equal(get("//sys/groups/g1/@members"), ["u1"])
+        assert_items_equal(get("//sys/groups/g2/@members"), ["u2"])
+
+        assert_items_equal(get("//sys/users/u1/@member_of"), ["g1", "users"])
+        assert_items_equal(get("//sys/users/u2/@member_of"), ["g2", "users"])
+
+        assert_items_equal(get("//sys/users/u1/@member_of_closure"), ["g1", "users", "everyone"])
+        assert_items_equal(get("//sys/users/u2/@member_of_closure"), ["g2", "users", "everyone"])
+>>>>>>> origin/prestable/0.17.4
 
     def test_membership3(self):
         create_group("g1")
@@ -161,9 +208,15 @@ class TestUsers(YTEnvSetup):
         create_user("u")
         create_group("g")
         add_member("u", "g")
+<<<<<<< HEAD
         assert sorted(get("//sys/users/u/@member_of")) == sorted(["g", "users"])
         remove_group("g")
         assert get("//sys/users/u/@member_of") == ["users"]
+=======
+        assert_items_equal(get("//sys/users/u/@member_of"), ["g", "users"])
+        remove_group("g")
+        assert_items_equal(get("//sys/users/u/@member_of"), ["users"])
+>>>>>>> origin/prestable/0.17.4
 
     def test_membership6(self):
         create_user("u")
@@ -173,6 +226,10 @@ class TestUsers(YTEnvSetup):
 
         add_member("u", "g")
         with pytest.raises(YtError): add_member("u", "g")
+
+    def test_membership7(self):
+        create_group("g")
+        with pytest.raises(YtError): add_member("g", "g")
 
     def test_modify_builtin(self):
         create_user("u")
@@ -197,6 +254,7 @@ class TestUsers(YTEnvSetup):
         create_group("g")
         add_member("u", "g")
 
+<<<<<<< HEAD
         assert sorted(get("//sys/users/u/@member_of")) == sorted(["g", "users"])
         assert sorted(get("//sys/users/u/@member_of_closure")) == sorted(["g", "users", "everyone"])
         
@@ -210,3 +268,12 @@ class TestUsers(YTEnvSetup):
 class TestUsersMulticell(TestUsers):
     NUM_SECONDARY_MASTER_CELLS = 2
 
+=======
+        assert_items_equal(get("//sys/users/u/@member_of"), ["g", "users"])
+        assert_items_equal(get("//sys/users/u/@member_of_closure"), ["g", "users", "everyone"])
+        
+        remove_group("g")
+        
+        assert_items_equal(get("//sys/users/u/@member_of"), ["users"])
+        assert_items_equal(get("//sys/users/u/@member_of_closure"), ["users", "everyone"])
+>>>>>>> origin/prestable/0.17.4

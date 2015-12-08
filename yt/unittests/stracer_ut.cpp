@@ -1,7 +1,6 @@
-#include "stdafx.h"
 #include "framework.h"
 
-#include <server/job_proxy/stracer.h>
+#include <yt/server/job_proxy/stracer.h>
 
 #include <util/system/thread.h>
 
@@ -39,7 +38,7 @@ TEST(TStracer, Basic)
 
     auto result = Strace(std::vector<int>({pid}));
 
-    ASSERT_EQ(0, kill(pid, 9));
+    ASSERT_EQ(0, kill(pid, SIGKILL));
     ASSERT_EQ(pid, waitpid(pid, NULL, 0));
 
     EXPECT_TRUE(result.Traces[pid].ProcessName == "SomeCoolProcess")

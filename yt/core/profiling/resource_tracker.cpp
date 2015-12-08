@@ -1,20 +1,19 @@
-#include "stdafx.h"
 #include "resource_tracker.h"
 #include "profile_manager.h"
 #include "profiler.h"
 #include "timing.h"
 
-#include <core/misc/fs.h>
-#include <core/misc/proc.h>
-#include <core/misc/lfalloc_helpers.h>
+#include <yt/core/misc/fs.h>
+#include <yt/core/misc/lfalloc_helpers.h>
+#include <yt/core/misc/proc.h>
 
-#include <core/ypath/token.h>
+#include <yt/core/ypath/token.h>
 
 #include <util/folder/filelist.h>
-#include <util/stream/file.h>
-#include <util/string/vector.h>
 
-#include <core/misc/lfalloc_helpers.h>
+#include <util/stream/file.h>
+
+#include <util/string/vector.h>
 
 #ifdef RESOURCE_TRACKER_ENABLED
     #include <unistd.h>
@@ -163,21 +162,23 @@ void TResourceTracker::EnqueueMemoryUsage()
 
 void TResourceTracker::EnqueueLFAllocCounters()
 {
-    Profiler.Enqueue("/lf_alloc/total/user_allocated", GetLFAllocCounterFull(CT_USER_ALLOC));
-    Profiler.Enqueue("/lf_alloc/total/mmapped", GetLFAllocCounterFull(CT_MMAP));
-    Profiler.Enqueue("/lf_alloc/total/mmapped_count", GetLFAllocCounterFull(CT_MMAP_CNT));
-    Profiler.Enqueue("/lf_alloc/total/munmapped", GetLFAllocCounterFull(CT_MUNMAP));
-    Profiler.Enqueue("/lf_alloc/total/munmapped_count", GetLFAllocCounterFull(CT_MUNMAP_CNT));
-    Profiler.Enqueue("/lf_alloc/total/system_allocated", GetLFAllocCounterFull(CT_SYSTEM_ALLOC));
-    Profiler.Enqueue("/lf_alloc/total/system_deallocated", GetLFAllocCounterFull(CT_SYSTEM_FREE));
-    Profiler.Enqueue("/lf_alloc/total/small_blocks_allocated", GetLFAllocCounterFull(CT_SMALL_ALLOC));
-    Profiler.Enqueue("/lf_alloc/total/small_blocks_deallocated", GetLFAllocCounterFull(CT_SMALL_FREE));
-    Profiler.Enqueue("/lf_alloc/total/large_blocks_allocated", GetLFAllocCounterFull(CT_LARGE_ALLOC));
-    Profiler.Enqueue("/lf_alloc/total/large_blocks_deallocated", GetLFAllocCounterFull(CT_LARGE_FREE));
+    using namespace NLFAlloc;
 
-    Profiler.Enqueue("/lf_alloc/current/system", NLFAlloc::GetCurrentSystem());
-    Profiler.Enqueue("/lf_alloc/current/small_blocks", NLFAlloc::GetCurrentSmallBlocks());
-    Profiler.Enqueue("/lf_alloc/current/large_blocks", NLFAlloc::GetCurrentLargeBlocks());
+    Profiler.Enqueue("/lf_alloc/total/user_allocated", GetUserAllocated());
+    Profiler.Enqueue("/lf_alloc/total/mmapped", GetMmapped());
+    Profiler.Enqueue("/lf_alloc/total/mmapped_count", GetMmappedCount());
+    Profiler.Enqueue("/lf_alloc/total/munmapped", GetMunmapped());
+    Profiler.Enqueue("/lf_alloc/total/munmapped_count", GetMunmappedCount());
+    Profiler.Enqueue("/lf_alloc/total/system_allocated", GetSystemAllocated());
+    Profiler.Enqueue("/lf_alloc/total/system_deallocated", GetSystemFreed());
+    Profiler.Enqueue("/lf_alloc/total/small_blocks_allocated", GetSmallBlocksAllocated());
+    Profiler.Enqueue("/lf_alloc/total/small_blocks_deallocated", GetSmallBlocksFreed());
+    Profiler.Enqueue("/lf_alloc/total/large_blocks_allocated", GetLargeBlocksAllocated());
+    Profiler.Enqueue("/lf_alloc/total/large_blocks_deallocated", GetLargeBlocksFreed());
+
+    Profiler.Enqueue("/lf_alloc/current/system", GetCurrentSystem());
+    Profiler.Enqueue("/lf_alloc/current/small_blocks", GetCurrentSmallBlocks());
+    Profiler.Enqueue("/lf_alloc/current/large_blocks", GetCurrentLargeBlocks());
 
     auto mmapped = NLFAlloc::GetCurrentMmapped();
     Profiler.Enqueue("/lf_alloc/current/mmapped", mmapped);

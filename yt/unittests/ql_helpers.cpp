@@ -1,5 +1,3 @@
-#include "stdafx.h"
-
 #include "ql_helpers.h"
 
 namespace NYT {

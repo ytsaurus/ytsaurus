@@ -1,9 +1,8 @@
-#include "stdafx.h"
 #include "framework.h"
 
-#include <core/yson/lexer.h>
+#include <yt/core/misc/nullable.h>
 
-#include <core/misc/nullable.h>
+#include <yt/core/yson/lexer.h>
 
 namespace NYT {
 namespace NYson {

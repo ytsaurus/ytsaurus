@@ -1,26 +1,21 @@
-#include "stdafx.h"
 #include "chunk_service.h"
-#include "chunk_manager.h"
-#include "chunk.h"
-#include "helpers.h"
-#include "chunk_owner_base.h"
 #include "private.h"
+#include "chunk.h"
+#include "chunk_manager.h"
 
-#include <core/erasure/codec.h>
+#include <yt/server/cell_master/bootstrap.h>
+#include <yt/server/cell_master/hydra_facade.h>
+#include <yt/server/cell_master/master_hydra_service.h>
 
-#include <ytlib/chunk_client/chunk_service_proxy.h>
+#include <yt/server/node_tracker_server/node.h>
+#include <yt/server/node_tracker_server/node_directory_builder.h>
+#include <yt/server/node_tracker_server/node_tracker.h>
 
-#include <server/node_tracker_server/node_directory_builder.h>
-#include <server/node_tracker_server/node_tracker.h>
-#include <server/node_tracker_server/node.h>
+#include <yt/server/object_server/object.h>
 
-#include <server/object_server/object.h>
+#include <yt/ytlib/chunk_client/chunk_service_proxy.h>
 
-#include <server/transaction_server/transaction.h>
-
-#include <server/cell_master/bootstrap.h>
-#include <server/cell_master/hydra_facade.h>
-#include <server/cell_master/master_hydra_service.h>
+#include <yt/core/erasure/codec.h>
 
 namespace NYT {
 namespace NChunkServer {

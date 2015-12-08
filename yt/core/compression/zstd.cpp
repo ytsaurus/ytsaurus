@@ -1,9 +1,10 @@
+#include "zstd.h"
 #include "details.h"
 
-#include <contrib/libs/zstd/lib/zstd_static.h>
+#include <yt/core/misc/blob.h>
+#include <yt/core/misc/finally.h>
 
-#include <core/misc/finally.h>
-#include <core/misc/blob.h>
+#include <contrib/libs/zstd/lib/zstd_static.h>
 
 namespace NYT {
 namespace NCompression {

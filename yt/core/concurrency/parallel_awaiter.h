@@ -2,9 +2,9 @@
 
 #include "public.h"
 
-#include <core/actions/future.h>
-#include <core/actions/invoker_util.h>
-#include <core/actions/cancelable_context.h>
+#include <yt/core/actions/cancelable_context.h>
+#include <yt/core/actions/future.h>
+#include <yt/core/actions/invoker_util.h>
 
 namespace NYT {
 namespace NConcurrency {

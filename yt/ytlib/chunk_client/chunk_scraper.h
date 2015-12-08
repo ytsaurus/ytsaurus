@@ -2,13 +2,13 @@
 
 #include "public.h"
 
-#include <ytlib/api/public.h>
-#include <ytlib/chunk_client/chunk_service_proxy.h>
-#include <ytlib/node_tracker_client/public.h>
-#include <ytlib/object_client/public.h>
+#include <yt/ytlib/chunk_client/chunk_service_proxy.h>
 
-#include <core/logging/log.h>
-#include <core/rpc/public.h>
+#include <yt/ytlib/node_tracker_client/public.h>
+
+#include <yt/core/logging/log.h>
+
+#include <yt/core/rpc/public.h>
 
 namespace NYT {
 namespace NChunkClient {
@@ -48,11 +48,11 @@ public:
 private:
     const TChunkScraperConfigPtr Config_;
     const IInvokerPtr Invoker_;
-    TThrottlerManagerPtr ThrottlerManager_;
-    NApi::IClientPtr MasterClient_;
-    NNodeTrackerClient::TNodeDirectoryPtr NodeDirectory_;
-    TChunkLocatedHandler OnChunkLocated_;
-    NLogging::TLogger Logger;
+    const TThrottlerManagerPtr ThrottlerManager_;
+    const NApi::IClientPtr MasterClient_;
+    const NNodeTrackerClient::TNodeDirectoryPtr NodeDirectory_;
+    const TChunkLocatedHandler OnChunkLocated_;
+    const NLogging::TLogger Logger;
 
     TSpinLock SpinLock_;
     std::vector<TScraperTaskPtr> ScraperTasks_;

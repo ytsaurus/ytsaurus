@@ -18,7 +18,9 @@ struct TSchemafulDsvTable
         std::vector<char> stopSymbols;
         stopSymbols.push_back(config->RecordSeparator);
         stopSymbols.push_back(config->FieldSeparator);
-        stopSymbols.push_back(config->EscapingSymbol);
+        if (config->EnableEscaping) {
+            stopSymbols.push_back(config->EscapingSymbol);
+        }
 
         Stops.Fill(
             stopSymbols.data(),

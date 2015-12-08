@@ -1,19 +1,19 @@
-#include "stdafx.h"
 #include "wire_protocol.h"
 
-#include <core/actions/future.h>
+#include <yt/ytlib/table_client/chunk_meta.pb.h>
+#include <yt/ytlib/table_client/row_buffer.h>
+#include <yt/ytlib/table_client/schemaful_reader.h>
+#include <yt/ytlib/table_client/schemaful_writer.h>
+#include <yt/ytlib/table_client/unversioned_row.h>
 
-#include <core/misc/error.h>
-#include <core/misc/chunked_memory_pool.h>
-#include <core/misc/chunked_output_stream.h>
-#include <core/misc/serialize.h>
-#include <core/misc/protobuf_helpers.h>
+#include <yt/core/actions/future.h>
 
-#include <ytlib/table_client/unversioned_row.h>
-#include <ytlib/table_client/schemaful_reader.h>
-#include <ytlib/table_client/schemaful_writer.h>
-#include <ytlib/table_client/row_buffer.h>
-#include <ytlib/table_client/chunk_meta.pb.h>
+#include <yt/core/misc/bitmap.h>
+#include <yt/core/misc/chunked_memory_pool.h>
+#include <yt/core/misc/chunked_output_stream.h>
+#include <yt/core/misc/error.h>
+#include <yt/core/misc/protobuf_helpers.h>
+#include <yt/core/misc/serialize.h>
 
 #include <contrib/libs/protobuf/io/coded_stream.h>
 
@@ -66,14 +66,25 @@ public:
         Current_ += AlignUp(size);
     }
 
+    void WriteSchemafulRow(
+        TUnversionedRow row,
+        const TNameTableToSchemaIdMapping* idMapping = nullptr)
+    {
+        if (row) {
+            WriteRowValues<true>(TRange<TUnversionedValue>(row.Begin(), row.End()), idMapping);
+        } else {
+            WriteRowValues<true>(TRange<TUnversionedValue>(), idMapping);
+        }
+    }
+
     void WriteUnversionedRow(
         TUnversionedRow row,
         const TNameTableToSchemaIdMapping* idMapping = nullptr)
     {
         if (row) {
-            WriteRowValues(TRange<TUnversionedValue>(row.Begin(), row.End()), idMapping);
+            WriteRowValues<false>(TRange<TUnversionedValue>(row.Begin(), row.End()), idMapping);
         } else {
-            WriteRowValues(TRange<TUnversionedValue>(), idMapping);
+            WriteRowValues<false>(TRange<TUnversionedValue>(), idMapping);
         }
     }
 
@@ -81,18 +92,26 @@ public:
         const TRange<TUnversionedValue>& values,
         const TNameTableToSchemaIdMapping* idMapping = nullptr)
     {
-        WriteRowValues(values, idMapping);
+        WriteRowValues<false>(values, idMapping);
     }
 
     void WriteUnversionedRowset(
         const TRange<TUnversionedRow>& rowset,
         const TNameTableToSchemaIdMapping* idMapping = nullptr)
     {
-        int rowCount = static_cast<int>(rowset.Size());
-        ValidateRowCount(rowCount);
-        WriteInt64(rowCount);
+        WriteRowCount(rowset);
         for (auto row : rowset) {
             WriteUnversionedRow(row, idMapping);
+        }
+    }
+
+    void WriteSchemafulRowset(
+        const TRange<TUnversionedRow>& rowset,
+        const TNameTableToSchemaIdMapping* idMapping = nullptr)
+    {
+        WriteRowCount(rowset);
+        for (auto row : rowset) {
+            WriteSchemafulRow(row, idMapping);
         }
     }
 
@@ -116,6 +135,7 @@ private:
         if (!Current_)
             return;
 
+        YCHECK(Current_ <= EndPreallocated_);
         Stream_.Advance(Current_ - BeginPreallocated_);
         BeginPreallocated_ = EndPreallocated_ = Current_ = nullptr;
     }
@@ -163,17 +183,33 @@ private:
         WriteRaw(value.begin(), value.length());
     }
 
+    void WriteRowCount(const TRange<TUnversionedRow>& rowset)
+    {
+        int rowCount = static_cast<int>(rowset.Size());
+        ValidateRowCount(rowCount);
+        WriteInt64(rowCount);
+    }
+
+    template <bool Schemaful>
     void WriteRowValue(const TUnversionedValue& value)
     {
         // This includes the value itself and possible serialization alignment.
+<<<<<<< HEAD
         i64 bytes = 2 * sizeof (i64);
         if (IsStringLikeType(value.Type)) {
             bytes += value.Length;
+=======
+        i64 bytes = (Schemaful ? 1 : 2) * sizeof (i64);
+        if (IsStringLikeType(EValueType(value.Type))) {
+            bytes += value.Length + (Schemaful ? sizeof (i64) : 0);
+>>>>>>> origin/prestable/0.17.4
         }
         EnsureCapacity(bytes);
 
         const i64* rawValue = reinterpret_cast<const i64*>(&value);
-        UnsafeWriteInt64(rawValue[0]);
+        if (!Schemaful) {
+            UnsafeWriteInt64(rawValue[0]);
+        }
         switch (value.Type) {
             case EValueType::Int64:
             case EValueType::Uint64:
@@ -184,6 +220,9 @@ private:
 
             case EValueType::String:
             case EValueType::Any:
+                if (Schemaful) {
+                    UnsafeWriteInt64(value.Length);
+                }
                 UnsafeWriteRaw(value.Data.String, value.Length);
                 break;
 
@@ -192,6 +231,19 @@ private:
         }
     }
 
+    template <bool Schemaful>
+    void WriteNullVector(const TRange<TUnversionedValue>& values)
+    {
+        if (Schemaful) {
+            auto nullBitmap = TAppendOnlyBitmap<ui64>(values.Size());
+            for (int index = 0; index < values.Size(); ++index) {
+                nullBitmap.Append(values[index].Type == EValueType::Null);
+            }
+            WriteRaw(nullBitmap.Data(), nullBitmap.Size());
+        }
+    }
+
+    template <bool Schemaful>
     void WriteRowValues(
         const TRange<TUnversionedValue>& values,
         const TNameTableToSchemaIdMapping* idMapping)
@@ -220,12 +272,15 @@ private:
                     return lhs.Id < rhs.Id;
                 });
 
+            WriteNullVector<Schemaful>(
+                TRange<TUnversionedValue>(PooledValues_.data(), PooledValues_.size()));
             for (int index = 0; index < valueCount; ++index) {
-                WriteRowValue(PooledValues_[index]);
+                WriteRowValue<Schemaful>(PooledValues_[index]);
             }
         } else {
+            WriteNullVector<Schemaful>(values);
             for (const auto& value : values) {
-                WriteRowValue(value);
+                WriteRowValue<Schemaful>(value);
             }
         }
     }
@@ -294,6 +349,13 @@ void TWireProtocolWriter::WriteMessage(const ::google::protobuf::MessageLite& me
     Impl_->WriteMessage(message);
 }
 
+void TWireProtocolWriter::WriteSchemafulRow(
+    TUnversionedRow row,
+    const TNameTableToSchemaIdMapping* idMapping)
+{
+    Impl_->WriteSchemafulRow(row, idMapping);
+}
+
 void TWireProtocolWriter::WriteUnversionedRow(
     TUnversionedRow row,
     const TNameTableToSchemaIdMapping* idMapping)
@@ -313,6 +375,13 @@ void TWireProtocolWriter::WriteUnversionedRowset(
     const TNameTableToSchemaIdMapping* idMapping)
 {
     Impl_->WriteUnversionedRowset(rowset, idMapping);
+}
+
+void TWireProtocolWriter::WriteSchemafulRowset(
+    const TRange<TUnversionedRow>& rowset,
+    const TNameTableToSchemaIdMapping* idMapping)
+{
+    Impl_->WriteSchemafulRowset(rowset, idMapping);
 }
 
 ISchemafulWriterPtr TWireProtocolWriter::CreateSchemafulRowsetWriter(
@@ -385,28 +454,29 @@ public:
         Current_ += AlignUp(size);
     }
 
+    TUnversionedRow ReadSchemafulRow(const TSchemaData& schemaData)
+    {
+        return ReadRow<true>(&schemaData);
+    }
+
     TUnversionedRow ReadUnversionedRow()
     {
-        return ReadRow();
+        return ReadRow<false>();
     }
 
     TSharedRange<TUnversionedRow> ReadUnversionedRowset()
     {
-        int rowCount = ReadInt32();
-        ValidateRowCount(rowCount);
+        return ReadRowset<false>();
+    }
 
-        auto* rows = RowBuffer_->GetPool()->AllocateUninitialized<TUnversionedRow>(rowCount);
-        for (int index = 0; index != rowCount; ++index) {
-            rows[index] = ReadRow();
-        }
-
-        return TSharedRange<TUnversionedRow>(rows, rows + rowCount, RowBuffer_);
+    TSharedRange<TUnversionedRow> ReadSchemafulRowset(const TSchemaData& schemaData)
+    {
+        return ReadRowset<true>(&schemaData);
     }
 
 private:
     TSharedRef Data_;
     TIterator Current_;
-
     const TRowBufferPtr RowBuffer_ = New<TRowBuffer>(
         ReaderChunkSize,
         TChunkedMemoryPool::DefaultMaxSmallBlockSizeRatio,
@@ -415,8 +485,9 @@ private:
 
     i64 ReadInt64()
     {
+        YCHECK(Current_ + sizeof(i64) <= Data_.End());
         i64 result = *reinterpret_cast<const i64*>(Current_);
-        Current_ += sizeof (result);
+        Current_ += sizeof(result);
         return result;
     }
 
@@ -429,12 +500,18 @@ private:
         return static_cast<i32>(result);
     }
 
+    void Skip(size_t size)
+    {
+        YCHECK(Current_ + size <= Data_.End());
+        Current_ += size;
+        Current_ += GetPaddingSize(size);
+    }
 
     void ReadRaw(void* buffer, size_t size)
     {
+        YCHECK(Current_ + size <= Data_.End());
         memcpy(buffer, Current_, size);
-        Current_ += size;
-        Current_ += GetPaddingSize(size);
+        Skip(size);
     }
 
 
@@ -447,10 +524,22 @@ private:
         return value;
     }
 
-    void ReadRowValue(TUnversionedValue* value)
+    template <bool Schemaful>
+    void ReadRowValue(
+        TUnversionedValue* value,
+        const TSchemaData* schemaData,
+        const TReadOnlyBitmap<ui64>& nullBitmap,
+        int index)
     {
         i64* rawValue = reinterpret_cast<i64*>(value);
-        rawValue[0] = ReadInt64();
+        if (Schemaful) {
+            rawValue[0] = (*schemaData)[index];
+            if (nullBitmap[index]) {
+                value->Type = EValueType::Null;
+            }
+        } else {
+            rawValue[0] = ReadInt64();
+        }
 
         switch (value->Type) {
             case EValueType::Int64:
@@ -462,6 +551,9 @@ private:
 
             case EValueType::String:
             case EValueType::Any:
+                if (Schemaful) {
+                    value->Length = ReadInt32();
+                }
                 if (value->Length > MaxStringValueLength) {
                     THROW_ERROR_EXCEPTION("Value is too long: length %v, limit %v",
                         value->Length,
@@ -476,7 +568,8 @@ private:
         }
     }
 
-    TUnversionedRow ReadRow()
+    template <bool Schemaful>
+    TUnversionedRow ReadRow(const TSchemaData* schemaData = nullptr)
     {
         int valueCount = ReadInt32();
         if (valueCount == -1) {
@@ -485,11 +578,35 @@ private:
 
         ValidateRowValueCount(valueCount);
 
+<<<<<<< HEAD
         auto row = TMutableUnversionedRow::Allocate(RowBuffer_->GetPool(), valueCount);
+=======
+        auto nullBitmap = TReadOnlyBitmap<ui64>();
+        if (schemaData) {
+            nullBitmap.Reset(reinterpret_cast<const ui64*>(Current_), valueCount);
+            Skip(nullBitmap.GetByteSize());
+        }
+
+        auto row = TUnversionedRow::Allocate(RowBuffer_->GetPool(), valueCount);
+>>>>>>> origin/prestable/0.17.4
         for (int index = 0; index < valueCount; ++index) {
-            ReadRowValue(&row[index]);
+            ReadRowValue<Schemaful>(&row[index], schemaData, nullBitmap, index);
         }
         return row;
+    }
+
+    template <bool Schemaful>
+    TSharedRange<TUnversionedRow> ReadRowset(const TSchemaData* schemaData = nullptr)
+    {
+        int rowCount = ReadInt32();
+        ValidateRowCount(rowCount);
+
+        auto* rows = RowBuffer_->GetPool()->AllocateUninitialized<TUnversionedRow>(rowCount);
+        for (int index = 0; index != rowCount; ++index) {
+            rows[index] = ReadRow<Schemaful>(schemaData);
+        }
+
+        return TSharedRange<TUnversionedRow>(rows, rows + rowCount, RowBuffer_);
     }
 
 };
@@ -597,9 +714,19 @@ TUnversionedRow TWireProtocolReader::ReadUnversionedRow()
     return Impl_->ReadUnversionedRow();
 }
 
+TUnversionedRow TWireProtocolReader::ReadSchemafulRow(const TSchemaData& schemaData)
+{
+    return Impl_->ReadSchemafulRow(schemaData);
+}
+
 TSharedRange<TUnversionedRow> TWireProtocolReader::ReadUnversionedRowset()
 {
     return Impl_->ReadUnversionedRowset();
+}
+
+TSharedRange<TUnversionedRow> TWireProtocolReader::ReadSchemafulRowset(const TSchemaData& schemaData)
+{
+    return Impl_->ReadSchemafulRowset(schemaData);
 }
 
 ISchemafulReaderPtr TWireProtocolReader::CreateSchemafulRowsetReader(const TTableSchema& schema)
@@ -609,6 +736,46 @@ ISchemafulReaderPtr TWireProtocolReader::CreateSchemafulRowsetReader(const TTabl
         THROW_ERROR_EXCEPTION("Schema mismatch while parsing wire protocol");
     }
     return New<TSchemafulRowsetReader>(Impl_);
+}
+
+auto TWireProtocolReader::GetSchemaData(
+    const TTableSchema& schema,
+    const TColumnFilter& filter) -> TSchemaData
+{
+    TSchemaData schemaData;
+    auto addColumn = [&] (int id) {
+        TUnversionedValue value;
+        value.Id = id;
+        value.Type = schema.Columns()[id].Type;
+        schemaData.push_back(*reinterpret_cast<ui32*>(&value));
+    };
+
+    if (!filter.All) {
+        for (int id : filter.Indexes) {
+            addColumn(id);
+        }
+    } else {
+        for (int id = 0; id < schema.Columns().size(); ++id) {
+            addColumn(id);
+        }
+    }
+    return schemaData;
+}
+
+auto TWireProtocolReader::GetSchemaData(
+    const TTableSchema& schema,
+    int keyColumnCount) -> TSchemaData
+{
+    TSchemaData schemaData;
+    //TODO(savrus) merge with new schema.
+    YCHECK(keyColumnCount <= schema.Columns().size());
+    for (int id = 0; id < keyColumnCount; ++id) {
+        TUnversionedValue value;
+        value.Id = id;
+        value.Type = schema.Columns()[id].Type;
+        schemaData.push_back(*reinterpret_cast<ui32*>(&value));
+    }
+    return schemaData;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

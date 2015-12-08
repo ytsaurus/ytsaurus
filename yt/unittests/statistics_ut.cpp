@@ -1,14 +1,14 @@
-#include "stdafx.h"
 #include "framework.h"
 
-#include <ytlib/job_tracker_client/statistics.h>
+#include <yt/ytlib/formats/format.h>
+#include <yt/ytlib/formats/parser.h>
 
-#include <ytlib/formats/format.h>
-#include <ytlib/formats/parser.h>
+#include <yt/ytlib/job_tracker_client/statistics.h>
 
-#include <core/ytree/convert.h>
-#include <core/ytree/fluent.h>
-#include <core/misc/protobuf_helpers.h>
+#include <yt/core/misc/protobuf_helpers.h>
+
+#include <yt/core/ytree/convert.h>
+#include <yt/core/ytree/fluent.h>
 
 namespace NYT {
 namespace NJobTrackerClient {

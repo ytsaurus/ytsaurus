@@ -1,4 +1,3 @@
-#include "stdafx.h"
 #include "ev_scheduler_thread.h"
 
 namespace NYT {

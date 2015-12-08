@@ -1,11 +1,10 @@
-#include "stdafx.h"
 #include "framework.h"
 
-#include <core/misc/varint.h>
-
-#include <util/string/escape.h>
+#include <yt/core/misc/varint.h>
 
 #include <util/random/random.h>
+
+#include <util/string/escape.h>
 
 namespace NYT {
 namespace {

@@ -1,4 +1,3 @@
-﻿#include "stdafx.h"
 #include "async_stream_state.h"
 
 #include <util/system/guard.h>

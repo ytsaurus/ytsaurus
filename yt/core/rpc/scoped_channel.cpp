@@ -1,10 +1,8 @@
-#include "stdafx.h"
 #include "scoped_channel.h"
-#include "channel_detail.h"
 #include "channel_detail.h"
 #include "client.h"
 
-#include <core/actions/future.h>
+#include <yt/core/actions/future.h>
 
 namespace NYT {
 namespace NRpc {

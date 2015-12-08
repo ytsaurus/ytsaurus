@@ -1,7 +1,7 @@
 #include "stdafx.h"
 #include "config.h"
 
-#include <ytlib/object_client/helpers.h>
+#include <yt/ytlib/object_client/helpers.h>
 
 namespace NYT {
 namespace NCellMaster {

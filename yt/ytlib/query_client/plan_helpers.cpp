@@ -1,18 +1,15 @@
-#include "stdafx.h"
 #include "plan_helpers.h"
-#include "key_trie.h"
-#include "functions.h"
-
 #include "private.h"
-#include "helpers.h"
-
-#include "plan_fragment.h"
-#include "function_registry.h"
 #include "column_evaluator.h"
+#include "function_registry.h"
+#include "functions.h"
+#include "helpers.h"
+#include "key_trie.h"
+#include "plan_fragment.h"
 
-#include <ytlib/table_client/schema.h>
-#include <ytlib/table_client/name_table.h>
-#include <ytlib/table_client/unversioned_row.h>
+#include <yt/ytlib/table_client/name_table.h>
+#include <yt/ytlib/table_client/schema.h>
+#include <yt/ytlib/table_client/unversioned_row.h>
 
 namespace NYT {
 namespace NQueryClient {

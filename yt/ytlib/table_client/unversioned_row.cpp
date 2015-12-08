@@ -1,23 +1,22 @@
-#include "stdafx.h"
 #include "unversioned_row.h"
 
-#include <util/stream/str.h>
+#include <yt/ytlib/table_client/name_table.h>
+#include <yt/ytlib/table_client/row_buffer.h>
+#include <yt/ytlib/table_client/schema.h>
 
-#include <core/misc/varint.h>
-#include <core/misc/string.h>
-#include <core/misc/hash.h>
-#include <core/misc/farm_hash.h>
+#include <yt/core/misc/farm_hash.h>
+#include <yt/core/misc/hash.h>
+#include <yt/core/misc/string.h>
+#include <yt/core/misc/varint.h>
 
-#include <core/yson/consumer.h>
+#include <yt/core/yson/consumer.h>
 
-#include <core/ytree/node.h>
-#include <core/ytree/attribute_helpers.h>
-
-#include <ytlib/table_client/row_buffer.h>
-#include <ytlib/table_client/name_table.h>
-#include <ytlib/table_client/schema.h>
+#include <yt/core/ytree/attribute_helpers.h>
+#include <yt/core/ytree/node.h>
 
 #include <util/generic/ymath.h>
+
+#include <util/stream/str.h>
 
 #include <cmath>
 
@@ -666,8 +665,7 @@ int ApplyIdMapping(
 void ValidateKeyPart(
     TUnversionedRow row,
     int keyColumnCount,
-    const TTableSchema& schema,
-    bool checkComputedColumns)
+    const TTableSchema& schema)
 {
     ValidateKeyColumnCount(keyColumnCount);
 
@@ -687,11 +685,6 @@ void ValidateKeyPart(
                 schema.Columns()[schemaId].Name,
                 schema.Columns()[index].Name);
         }
-        if (checkComputedColumns && value.Type != EValueType::Null && schema.Columns()[schemaId].Expression) {
-            THROW_ERROR_EXCEPTION(
-                "Column %Qv is computed automatically and should not be provided by user",
-                schema.Columns()[schemaId].Name);
-        }
     }
 }
 
@@ -699,11 +692,10 @@ void ValidateDataRow(
     TUnversionedRow row,
     int keyColumnCount,
     const TNameTableToSchemaIdMapping* idMappingPtr,
-    const TTableSchema& schema,
-    bool checkComputedColumns)
+    const TTableSchema& schema)
 {
     ValidateRowValueCount(row.GetCount());
-    ValidateKeyPart(row, keyColumnCount, schema, checkComputedColumns);
+    ValidateKeyPart(row, keyColumnCount, schema);
 
     for (int index = keyColumnCount; index < row.GetCount(); ++index) {
         const auto& value = row[index];
@@ -716,8 +708,7 @@ void ValidateDataRow(
 void ValidateKey(
     TKey key,
     int keyColumnCount,
-    const TTableSchema& schema,
-    bool checkComputedColumns)
+    const TTableSchema& schema)
 {
     if (!key) {
         THROW_ERROR_EXCEPTION("Key cannot be null");
@@ -729,7 +720,55 @@ void ValidateKey(
             key.GetCount());
     }
 
-    ValidateKeyPart(key, keyColumnCount, schema, checkComputedColumns);
+    ValidateKeyPart(key, keyColumnCount, schema);
+}
+
+void ValidateClientRow(
+    TUnversionedRow row,
+    int keyColumnCount,
+    const TTableSchema& schema,
+    const TNameTableToSchemaIdMapping& idMapping,
+    bool isKey)
+{
+    ValidateRowValueCount(row.GetCount());
+    ValidateKeyColumnCount(keyColumnCount);
+
+    bool keyColumnSeen[MaxKeyColumnCount] {};
+
+    for (int index = 0; index < row.GetCount(); ++index) {
+        const auto& value = row[index];
+        int schemaId = ApplyIdMapping(value, schema, &idMapping);
+        const auto& column = schema.Columns()[schemaId];
+        ValidateValueType(value, schema, schemaId);
+
+        if (column.Expression) {
+            THROW_ERROR_EXCEPTION(
+                "Column %Qv is computed automatically and should not be provided by user",
+                column.Name);
+        }
+
+        if (schemaId < keyColumnCount) {
+            if (keyColumnSeen[schemaId]) {
+                THROW_ERROR_EXCEPTION("Duplicate key column %Qv",
+                    column.Name);
+            }
+
+            keyColumnSeen[schemaId] = true;
+            ValidateKeyValue(value);
+        } else if (isKey) {
+                THROW_ERROR_EXCEPTION("Non-key column %Qv in a key",
+                    column.Name);
+        } else {
+            ValidateDataValue(value);
+        }
+    }
+
+    for (int index = 0; index < keyColumnCount; ++index) {
+        if (!keyColumnSeen[index] && !schema.Columns()[index].Expression) {
+            THROW_ERROR_EXCEPTION("Missing key column %Qv",
+                schema.Columns()[index].Name);
+        }
+    }
 }
 
 } // namespace
@@ -826,10 +865,10 @@ void ValidateRowCount(int count)
 void ValidateClientDataRow(
     TUnversionedRow row,
     int keyColumnCount,
-    const TNameTableToSchemaIdMapping& idMapping,
-    const TTableSchema& schema)
+    const TTableSchema& schema,
+    const TNameTableToSchemaIdMapping& idMapping)
 {
-    ValidateDataRow(row, keyColumnCount, &idMapping, schema, true);
+    ValidateClientRow(row, keyColumnCount, schema, idMapping, false);
 }
 
 void ValidateServerDataRow(
@@ -837,15 +876,16 @@ void ValidateServerDataRow(
     int keyColumnCount,
     const TTableSchema& schema)
 {
-    ValidateDataRow(row, keyColumnCount, nullptr, schema, false);
+    ValidateDataRow(row, keyColumnCount, nullptr, schema);
 }
 
 void ValidateClientKey(
     TKey key,
     int keyColumnCount,
-    const TTableSchema& schema)
+    const TTableSchema& schema,
+    const TNameTableToSchemaIdMapping& idMapping)
 {
-    ValidateKey(key, keyColumnCount, schema, true);
+    ValidateClientRow(key, keyColumnCount, schema, idMapping, true);
 }
 
 void ValidateServerKey(
@@ -853,7 +893,7 @@ void ValidateServerKey(
     int keyColumnCount,
     const TTableSchema& schema)
 {
-    ValidateKey(key, keyColumnCount, schema, false);
+    ValidateKey(key, keyColumnCount, schema);
 }
 
 void ValidateReadTimestamp(TTimestamp timestamp)

@@ -1,35 +1,33 @@
-#include "stdafx.h"
-
 #include "file_chunk_output.h"
-
+#include "private.h"
 #include "config.h"
 #include "file_chunk_writer.h"
-#include "private.h"
 
-#include <core/misc/address.h>
-#include <core/misc/protobuf_helpers.h>
+#include <yt/ytlib/api/client.h>
+#include <yt/ytlib/api/config.h>
+#include <yt/ytlib/api/connection.h>
 
-#include <core/compression/codec.h>
+#include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
+#include <yt/ytlib/chunk_client/chunk_replica.h>
+#include <yt/ytlib/chunk_client/chunk_writer.h>
+#include <yt/ytlib/chunk_client/chunk_ypath_proxy.h>
+#include <yt/ytlib/chunk_client/confirming_writer.h>
+#include <yt/ytlib/chunk_client/helpers.h>
 
-#include <core/rpc/helpers.h>
-#include <core/concurrency/scheduler.h>
+#include <yt/ytlib/node_tracker_client/node_directory.h>
 
-#include <ytlib/api/config.h>
-#include <ytlib/api/client.h>
-#include <ytlib/api/connection.h>
+#include <yt/ytlib/object_client/helpers.h>
+#include <yt/ytlib/object_client/master_ypath_proxy.h>
+#include <yt/ytlib/object_client/object_service_proxy.h>
 
-#include <ytlib/chunk_client/chunk_writer.h>
-#include <ytlib/chunk_client/chunk_meta_extensions.h>
-#include <ytlib/chunk_client/chunk_replica.h>
-#include <ytlib/chunk_client/chunk_ypath_proxy.h>
-#include <ytlib/chunk_client/confirming_writer.h>
-#include <ytlib/chunk_client/helpers.h>
+#include <yt/core/compression/codec.h>
 
-#include <ytlib/node_tracker_client/node_directory.h>
+#include <yt/core/concurrency/scheduler.h>
 
-#include <ytlib/object_client/object_service_proxy.h>
-#include <ytlib/object_client/master_ypath_proxy.h>
-#include <ytlib/object_client/helpers.h>
+#include <yt/core/misc/address.h>
+#include <yt/core/misc/protobuf_helpers.h>
+
+#include <yt/core/rpc/helpers.h>
 
 namespace NYT {
 namespace NFileClient {

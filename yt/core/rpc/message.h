@@ -2,9 +2,9 @@
 
 #include "public.h"
 
-#include <core/misc/ref.h>
+#include <yt/core/misc/ref.h>
 
-#include <core/rpc/rpc.pb.h>
+#include <yt/core/rpc/rpc.pb.h>
 
 namespace NYT {
 namespace NRpc {

@@ -1,24 +1,33 @@
 #pragma once
 
 #include "public.h"
+#include "lock.h"
 #include "node.h"
+#include "node_proxy.h"
+#include "type_handler.h"
 
-#include <core/misc/small_vector.h>
+#include <yt/server/cell_master/automaton.h>
 
-#include <core/rpc/service_detail.h>
+#include <yt/server/cypress_server/cypress_manager.pb.h>
 
-#include <ytlib/cypress_client/public.h>
+#include <yt/server/hydra/composite_automaton.h>
+#include <yt/server/hydra/entity_map.h>
+#include <yt/server/hydra/mutation.h>
 
-#include <server/transaction_server/public.h>
+#include <yt/server/object_server/object_manager.h>
 
-#include <server/security_server/public.h>
+#include <yt/server/security_server/public.h>
 
-#include <server/journal_server/public.h>
+#include <yt/server/transaction_server/transaction.h>
+#include <yt/server/transaction_server/transaction_manager.h>
 
-#include <server/hydra/entity_map.h>
+#include <yt/core/concurrency/thread_affinity.h>
 
-#include <server/cell_master/public.h>
-#include <yt/ytlib/chunk_client/data_statistics.pb.h>
+#include <yt/core/misc/id_generator.h>
+#include <yt/core/misc/small_vector.h>
+
+#include <yt/core/ytree/tree_builder.h>
+#include <yt/core/ytree/ypath_service.h>
 
 namespace NYT {
 namespace NCypressServer {

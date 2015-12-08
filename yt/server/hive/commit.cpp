@@ -1,9 +1,8 @@
-#include "stdafx.h"
 #include "commit.h"
 
-#include <core/misc/serialize.h>
+#include <yt/server/hydra/composite_automaton.h>
 
-#include <server/hydra/composite_automaton.h>
+#include <yt/core/misc/serialize.h>
 
 namespace NYT {
 namespace NHive {

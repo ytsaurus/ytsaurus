@@ -1,6 +1,7 @@
 import pytest
 
 from yt_env_setup import YTEnvSetup
+from yt.environment.helpers import assert_items_equal
 from yt_commands import *
 
 import time
@@ -114,8 +115,13 @@ class TestRacks(YTEnvSetup):
             self._set_rack(node, "r")
         for node in nodes:
             assert self._get_rack(node) == "r"
+<<<<<<< HEAD
         assert sorted(get("//sys/racks/r/@nodes")) == sorted(nodes)
 
+=======
+        assert_items_equal(get("//sys/racks/r/@nodes"), nodes)
+        
+>>>>>>> origin/prestable/0.17.4
     def test_remove(self):
         create_rack("r")
         nodes = get_nodes()

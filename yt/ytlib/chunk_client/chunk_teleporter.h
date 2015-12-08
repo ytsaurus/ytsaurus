@@ -2,17 +2,17 @@
 
 #include "public.h"
 
-#include <core/actions/future.h>
+#include <yt/core/actions/future.h>
 
-#include <core/logging/log.h>
+#include <yt/core/logging/log.h>
 
-#include <ytlib/api/public.h>
+#include <yt/ytlib/api/public.h>
 
-#include <ytlib/object_client/public.h>
+#include <yt/ytlib/object_client/public.h>
 
-#include <ytlib/transaction_client/public.h>
+#include <yt/ytlib/transaction_client/public.h>
 
-#include <ytlib/chunk_client/chunk_service.pb.h>
+#include <yt/ytlib/chunk_client/chunk_service.pb.h>
 
 namespace NYT {
 namespace NChunkClient {

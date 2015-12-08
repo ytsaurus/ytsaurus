@@ -1,9 +1,8 @@
 #include "dispatcher.h"
 
-#include <core/misc/lazy_ptr.h>
-#include <core/misc/singleton.h>
+#include <yt/core/concurrency/thread_pool.h>
 
-#include <core/concurrency/thread_pool.h>
+#include <yt/core/misc/singleton.h>
 
 namespace NYT {
 namespace NRpc {

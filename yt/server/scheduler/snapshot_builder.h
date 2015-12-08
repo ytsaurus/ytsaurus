@@ -2,11 +2,11 @@
 
 #include "public.h"
 
-#include <ytlib/api/public.h>
+#include <yt/server/cell_scheduler/public.h>
 
-#include <server/misc/fork_snapshot_builder.h>
+#include <yt/server/misc/fork_snapshot_builder.h>
 
-#include <server/cell_scheduler/public.h>
+#include <yt/ytlib/api/public.h>
 
 namespace NYT {
 namespace NScheduler {

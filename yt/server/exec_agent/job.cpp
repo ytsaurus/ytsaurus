@@ -1,53 +1,52 @@
-#include "stdafx.h"
 #include "job.h"
+#include "private.h"
+#include "config.h"
+#include "environment.h"
 #include "environment_manager.h"
 #include "slot.h"
-#include "environment.h"
-#include "private.h"
 #include "slot_manager.h"
-#include "config.h"
 
-#include <core/misc/proc.h>
+#include <yt/server/cell_node/bootstrap.h>
+#include <yt/server/cell_node/config.h>
 
-#include <core/actions/cancelable_context.h>
+#include <yt/server/data_node/artifact.h>
+#include <yt/server/data_node/chunk_block_manager.h>
+#include <yt/server/data_node/chunk.h>
+#include <yt/server/data_node/chunk_cache.h>
+#include <yt/server/data_node/master_connector.h>
 
-#include <core/logging/log_manager.h>
+#include <yt/server/job_agent/job.h>
 
-#include <core/bus/tcp_client.h>
+#include <yt/server/scheduler/config.h>
 
-#include <core/rpc/bus_channel.h>
+#include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 
-#include <core/concurrency/async_stream.h>
+#include <yt/ytlib/file_client/config.h>
+#include <yt/ytlib/file_client/file_chunk_reader.h>
+#include <yt/ytlib/file_client/file_ypath_proxy.h>
 
-#include <ytlib/transaction_client/transaction_manager.h>
+#include <yt/ytlib/job_prober_client/job_prober_service_proxy.h>
 
-#include <ytlib/file_client/config.h>
-#include <ytlib/file_client/file_ypath_proxy.h>
-#include <ytlib/file_client/file_chunk_reader.h>
+#include <yt/ytlib/security_client/public.h>
 
-#include <ytlib/table_client/name_table.h>
-#include <ytlib/table_client/schemaless_chunk_reader.h>
-#include <ytlib/table_client/schemaless_writer.h>
-#include <ytlib/table_client/helpers.h>
+#include <yt/ytlib/table_client/helpers.h>
+#include <yt/ytlib/table_client/name_table.h>
+#include <yt/ytlib/table_client/schemaless_chunk_reader.h>
+#include <yt/ytlib/table_client/schemaless_writer.h>
 
-#include <ytlib/chunk_client/chunk_meta_extensions.h>
+#include <yt/ytlib/transaction_client/transaction_manager.h>
 
-#include <ytlib/job_prober_client/job_prober_service_proxy.h>
+#include <yt/core/actions/cancelable_context.h>
 
-#include <ytlib/security_client/public.h>
+#include <yt/core/bus/tcp_client.h>
 
-#include <server/data_node/chunk.h>
-#include <server/data_node/chunk_cache.h>
-#include <server/data_node/block_store.h>
-#include <server/data_node/master_connector.h>
-#include <server/data_node/artifact.h>
+#include <yt/core/concurrency/async_stream.h>
 
-#include <server/job_agent/job.h>
+#include <yt/core/logging/log_manager.h>
 
-#include <server/scheduler/config.h>
+#include <yt/core/misc/proc.h>
 
-#include <server/cell_node/bootstrap.h>
-#include <server/cell_node/config.h>
+#include <yt/core/rpc/bus_channel.h>
 
 namespace NYT {
 namespace NExecAgent {
@@ -265,6 +264,18 @@ public:
         return TYsonString(FromProto<Stroka>(res->trace()));
     }
 
+    virtual void SignalJob(const Stroka& signalName) override
+    {
+        auto jobProberProxy = CreateJobProber();
+        auto req = jobProberProxy.SignalJob();
+
+        ToProto(req->mutable_job_id(), JobId);
+        ToProto(req->mutable_signal_name(), signalName);
+        Signaled = true;
+        WaitFor(req->Invoke())
+            .ThrowOnError();
+    }
+
 private:
     const TJobId JobId;
     NCellNode::TBootstrap* const Bootstrap;
@@ -281,6 +292,7 @@ private:
 
     double Progress = 0.0;
     NJobTrackerClient::NProto::TStatistics Statistics;
+    bool Signaled = false;
 
     TNullable<TJobResult> JobResult;
 
@@ -382,7 +394,7 @@ private:
             return;
         }
 
-        auto abortReason = GetAbortReason(jobResult);
+        auto abortReason = GetAbortReason(jobResult, Signaled);
         if (abortReason) {
             error.Attributes().Set("abort_reason", abortReason);
             ToProto(JobResult->mutable_error(), error);
@@ -579,9 +591,24 @@ private:
             fileName);
     }
 
-    static TNullable<EAbortReason> GetAbortReason(const TJobResult& jobResult)
+    static TNullable<EAbortReason> GetAbortReason(const TJobResult& jobResult, bool signaled)
     {
         auto resultError = FromProto<TError>(jobResult.error());
+
+        if (jobResult.HasExtension(TSchedulerJobResultExt::scheduler_job_result_ext)) {
+            const auto& schedulerResultExt = jobResult.GetExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
+            if (schedulerResultExt.failed_chunk_ids_size() > 0) {
+                return MakeNullable(EAbortReason::FailedChunks);
+            }
+        }
+
+        if (resultError.FindMatching(NExecAgent::EErrorCode::ResourceOverdraft)) {
+            return MakeNullable(EAbortReason::ResourceOverdraft);
+        } 
+
+        if (resultError.FindMatching(NExecAgent::EErrorCode::AbortByScheduler)) {
+            return MakeNullable(EAbortReason::Scheduler);
+        } 
 
         if (resultError.FindMatching(NChunkClient::EErrorCode::AllTargetNodesFailed) ||
             resultError.FindMatching(NChunkClient::EErrorCode::MasterCommunicationFailed) ||
@@ -590,17 +617,10 @@ private:
             resultError.FindMatching(static_cast<int>(EExitStatus::ExitCodeBase) + static_cast<int>(EJobProxyExitCode::HeartbeatFailed)))
         {
             return MakeNullable(EAbortReason::Other);
-        } else if (resultError.FindMatching(NExecAgent::EErrorCode::ResourceOverdraft)) {
-            return MakeNullable(EAbortReason::ResourceOverdraft);
-        } else if (resultError.FindMatching(NExecAgent::EErrorCode::AbortByScheduler)) {
-            return MakeNullable(EAbortReason::Scheduler);
         }
 
-        if (jobResult.HasExtension(TSchedulerJobResultExt::scheduler_job_result_ext)) {
-            const auto& schedulerResultExt = jobResult.GetExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
-            if (schedulerResultExt.failed_chunk_ids_size() > 0) {
-                return MakeNullable(EAbortReason::FailedChunks);
-            }
+        if (signaled) {
+            return EAbortReason::Other;
         }
 
         return Null;

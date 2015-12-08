@@ -1,4 +1,3 @@
-#include "stdafx.h"
 #include "checkpointable_stream.h"
 #include "serialize.h"
 

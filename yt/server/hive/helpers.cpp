@@ -1,7 +1,7 @@
 #include "stdafx.h"
 #include "helpers.h"
 
-#include <core/misc/protobuf_helpers.h>
+#include <yt/core/misc/protobuf_helpers.h>
 
 namespace NYT {
 namespace NHive {

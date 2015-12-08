@@ -3,10 +3,11 @@
 #include "serialize.h"
 #include "stream.h"
 
-#include <contrib/libs/pycxx/Extensions.hxx>
+#include <yt/ytlib/driver/driver.h>
 
-#include <ytlib/driver/driver.h>
-#include <core/yson/consumer.h>
+#include <yt/core/yson/consumer.h>
+
+#include <contrib/libs/pycxx/Extensions.hxx>
 
 namespace NYT {
 namespace NPython {

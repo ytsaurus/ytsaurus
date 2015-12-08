@@ -2,18 +2,18 @@
 
 #include "public.h"
 
-#include <core/actions/signal.h>
+#include <yt/server/cell_node/public.h>
 
-#include <core/yson/public.h>
+#include <yt/server/hive/transaction_manager.h>
 
-#include <ytlib/tablet_client/tablet_service.pb.h>
+#include <yt/server/hydra/composite_automaton.h>
+#include <yt/server/hydra/entity_map.h>
 
-#include <server/hydra/composite_automaton.h>
-#include <server/hydra/entity_map.h>
+#include <yt/ytlib/tablet_client/tablet_service.pb.h>
 
-#include <server/hive/transaction_manager.h>
+#include <yt/core/actions/signal.h>
 
-#include <server/cell_node/public.h>
+#include <yt/core/yson/public.h>
 
 namespace NYT {
 namespace NTabletNode {

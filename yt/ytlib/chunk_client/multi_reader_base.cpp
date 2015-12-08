@@ -7,7 +7,7 @@
 #include "private.h"
 #include "reader_factory.h"
 
-#include <core/concurrency/scheduler.h>
+#include <yt/core/concurrency/scheduler.h>
 
 namespace NYT {
 namespace NChunkClient {

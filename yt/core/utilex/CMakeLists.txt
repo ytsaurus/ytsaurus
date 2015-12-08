@@ -1,12 +1,11 @@
 #:yt-updatable
-set( BASE ${CMAKE_SOURCE_DIR}/yt/core/utilex )
 set( SRCS
-  ${BASE}/random.cpp
-  ${BASE}/lzop.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/random.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/lzop.cpp
 )
 set( HDRS
-  ${BASE}/random.h
-  ${BASE}/lzop.h
+  ${CMAKE_CURRENT_LIST_DIR}/random.h
+  ${CMAKE_CURRENT_LIST_DIR}/lzop.h
 )
 
 list(APPEND YT_SOURCE_FILES

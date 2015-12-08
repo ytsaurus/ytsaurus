@@ -1,18 +1,16 @@
-#include "stdafx.h"
 #include "http_integration.h"
 
-#include <core/misc/url.h>
+#include <yt/ytlib/formats/config.h>
+#include <yt/ytlib/formats/json_writer.h>
 
-#include <core/ytree/ypath_proxy.h>
-#include <core/ytree/attribute_helpers.h>
+#include <yt/core/misc/url.h>
 
-#include <core/yson/parser.h>
+#include <yt/core/yson/parser.h>
 
-#include <core/ytree/ypath_detail.h>
-#include <core/ytree/virtual.h>
-
-#include <ytlib/formats/json_writer.h>
-#include <ytlib/formats/config.h>
+#include <yt/core/ytree/attribute_helpers.h>
+#include <yt/core/ytree/virtual.h>
+#include <yt/core/ytree/ypath_detail.h>
+#include <yt/core/ytree/ypath_proxy.h>
 
 #include <library/json/json_writer.h>
 

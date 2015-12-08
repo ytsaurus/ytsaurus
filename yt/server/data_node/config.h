@@ -2,13 +2,13 @@
 
 #include "public.h"
 
-#include <core/misc/config.h>
+#include <yt/server/hydra/config.h>
 
-#include <core/concurrency/throughput_throttler.h>
+#include <yt/ytlib/chunk_client/config.h>
 
-#include <ytlib/chunk_client/config.h>
+#include <yt/core/concurrency/throughput_throttler.h>
 
-#include <server/hydra/config.h>
+#include <yt/core/misc/config.h>
 
 namespace NYT {
 namespace NDataNode {
@@ -237,20 +237,23 @@ public:
      */
     TDuration FullHeartbeatTimeout;
 
+    //! Cache for chunk metas.
+    TSlruCacheConfigPtr ChunkMetaCache;
+
     //! Cache for all types of blocks.
     NChunkClient::TBlockCacheConfigPtr BlockCache;
 
     //! Opened blob chunks cache.
     TSlruCacheConfigPtr BlobReaderCache;
 
+    //! Opened changelogs cache.
+    TSlruCacheConfigPtr ChangelogReaderCache;
+
     //! Multiplexed changelog configuration.
     TMultiplexedChangelogConfigPtr MultiplexedChangelog;
 
     //! Split (per chunk) changelog configuration.
     NHydra::TFileChangelogConfigPtr SplitChangelog;
-
-    //! Opened changelogs cache.
-    TSlruCacheConfigPtr ChangelogReaderCache;
 
     //! Upload session timeout.
     /*!
@@ -358,17 +361,18 @@ public:
         RegisterParameter("full_heartbeat_timeout", FullHeartbeatTimeout)
             .Default(TDuration::Seconds(60));
         
+        RegisterParameter("chunk_meta_cache", ChunkMetaCache)
+            .DefaultNew();
         RegisterParameter("block_cache", BlockCache)
             .DefaultNew();
-
         RegisterParameter("blob_reader_cache", BlobReaderCache)
+            .DefaultNew();
+        RegisterParameter("changelog_reader_cache", ChangelogReaderCache)
             .DefaultNew();
 
         RegisterParameter("multiplexed_changelog", MultiplexedChangelog)
             .DefaultNew();
         RegisterParameter("split_changelog", SplitChangelog)
-            .DefaultNew();
-        RegisterParameter("changelog_reader_cache", ChangelogReaderCache)
             .DefaultNew();
 
         RegisterParameter("session_timeout", SessionTimeout)
@@ -445,6 +449,8 @@ public:
             .Default(true);
 
         RegisterInitializer([&] () {
+            ChunkMetaCache->Capacity = (i64) 1024 * 1024 * 1024;
+
             BlockCache->CompressedData->Capacity = (i64) 1024 * 1024 * 1024;
             BlockCache->UncompressedData->Capacity = (i64) 1024 * 1024 * 1024;
 
@@ -465,6 +471,10 @@ public:
             RepairWriter->WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::SystemRepair);
             SealReader->WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::SystemReplication);
             ReplicationWriter->WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::SystemReplication);
+
+            // Don't populate caches in chunk jobs.
+            RepairReader->PopulateCache = false;
+            SealReader->PopulateCache = false;
         });
     }
 

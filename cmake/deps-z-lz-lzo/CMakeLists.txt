@@ -20,41 +20,12 @@ add_library( ytext-quicklz STATIC
 
 set ( BASE ${CMAKE_SOURCE_DIR}/contrib/libs )
 
-add_library( ytext-snappy STATIC
-  ${BASE}/snappy/snappy.cc
-  ${BASE}/snappy/snappy-sinksource.cc
-  ${BASE}/snappy/snappy-stubs-internal.cc
-  ${BASE}/snappy/snappy-c.cc
-)
-
-add_library( ytext-zlib STATIC
-  ${BASE}/zlib/adler32.c
-  ${BASE}/zlib/compress.c
-  ${BASE}/zlib/crc32.c
-  ${BASE}/zlib/deflate.c
-  ${BASE}/zlib/gzclose.c
-  ${BASE}/zlib/gzlib.c
-  ${BASE}/zlib/gzread.c
-  ${BASE}/zlib/gzwrite.c
-  ${BASE}/zlib/infback.c
-  ${BASE}/zlib/inffast.c
-  ${BASE}/zlib/inflate.c
-  ${BASE}/zlib/inftrees.c
-  ${BASE}/zlib/trees.c
-  ${BASE}/zlib/uncompr.c
-  ${BASE}/zlib/zutil.c
-)
-
-# zlib uses util/ which resides in the project root.
-include_directories(
-  ${CMAKE_SOURCE_DIR}
-)
-
 add_library( ytext-zstd STATIC
   ${BASE}/zstd/lib/fse.c
   ${BASE}/zstd/lib/zstd.c
 )
 
+<<<<<<< HEAD
 add_library( ytext-brotli STATIC
   ${BASE}/brotli/enc/backward_references.cc
   ${BASE}/brotli/enc/block_splitter.cc
@@ -80,6 +51,8 @@ set_target_properties( ytext-zlib PROPERTIES
   COMPILE_DEFINITIONS BUILD_ZLIB
 )
 
+=======
+>>>>>>> origin/prestable/0.17.4
 set_target_properties( ytext-fastlz PROPERTIES
   VERSION   0.1.0
   SOVERSION 0.1
@@ -98,16 +71,6 @@ set_target_properties( ytext-minilzo PROPERTIES
 set_target_properties( ytext-quicklz PROPERTIES
   VERSION   1.5.1
   SOVERSION 1.5
-)
-
-set_target_properties( ytext-snappy PROPERTIES
-  VERSION   1.0.4
-  SOVERSION 1.0
-)
-
-set_target_properties( ytext-zlib PROPERTIES
-  VERSION   1.2.3
-  SOVERSION 1.2.3
 )
 
 set_target_properties( ytext-quicklz PROPERTIES

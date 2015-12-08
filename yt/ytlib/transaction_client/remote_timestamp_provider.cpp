@@ -1,17 +1,16 @@
-#include "stdafx.h"
-#include "timestamp_provider.h"
 #include "remote_timestamp_provider.h"
-#include "timestamp_service_proxy.h"
-#include "config.h"
 #include "private.h"
+#include "config.h"
+#include "timestamp_provider.h"
+#include "timestamp_service_proxy.h"
 
-#include <core/concurrency/thread_affinity.h>
-#include <core/concurrency/periodic_executor.h>
+#include <yt/core/concurrency/periodic_executor.h>
+#include <yt/core/concurrency/thread_affinity.h>
 
-#include <core/rpc/balancing_channel.h>
+#include <yt/core/rpc/balancing_channel.h>
 
-#include <core/ytree/convert.h>
-#include <core/ytree/fluent.h>
+#include <yt/core/ytree/convert.h>
+#include <yt/core/ytree/fluent.h>
 
 namespace NYT {
 namespace NTransactionClient {

@@ -1,24 +1,23 @@
-#include "stdafx.h"
 #include "tablet.h"
-#include "partition.h"
 #include "automaton.h"
-#include "store_manager.h"
-#include "dynamic_memory_store.h"
 #include "chunk_store.h"
-#include "tablet_slot.h"
-#include "tablet_manager.h"
 #include "config.h"
+#include "dynamic_memory_store.h"
+#include "partition.h"
+#include "store_manager.h"
+#include "tablet_manager.h"
+#include "tablet_slot.h"
 
-#include <core/misc/serialize.h>
-#include <core/misc/protobuf_helpers.h>
-#include <core/misc/collection_helpers.h>
+#include <yt/ytlib/table_client/chunk_meta.pb.h>
+#include <yt/ytlib/table_client/schema.h>
 
-#include <core/concurrency/delayed_executor.h>
+#include <yt/ytlib/tablet_client/config.h>
 
-#include <ytlib/table_client/schema.h>
-#include <ytlib/table_client/chunk_meta.pb.h>
+#include <yt/core/concurrency/delayed_executor.h>
 
-#include <ytlib/tablet_client/config.h>
+#include <yt/core/misc/collection_helpers.h>
+#include <yt/core/misc/protobuf_helpers.h>
+#include <yt/core/misc/serialize.h>
 
 namespace NYT {
 namespace NTabletNode {
@@ -71,12 +70,25 @@ TPartitionSnapshotPtr TTabletSnapshot::FindContainingPartition(TKey key)
     return it == Partitions.begin() ? nullptr : *(--it);
 }
 
+void TTabletSnapshot::ValiateMountRevision(i64 mountRevision)
+{
+    if (MountRevision != mountRevision) {
+        THROW_ERROR_EXCEPTION(
+            NRpc::EErrorCode::Unavailable,
+            "Invalid mount revision of tablet %v: expected %x, received %x",
+            TabletId,
+            MountRevision,
+            mountRevision);
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TTablet::TTablet(
     const TTabletId& tabletId,
     TTabletSlotPtr slot)
     : TabletId_(tabletId)
+    , MountRevision_(0)
     , Slot_(slot)
     , Config_(New<TTableMountConfig>())
     , WriterOptions_(New<TTabletWriterOptions>())
@@ -87,6 +99,7 @@ TTablet::TTablet(
     TTableMountConfigPtr config,
     TTabletWriterOptionsPtr writerOptions,
     const TTabletId& tabletId,
+    i64 mountRevision,
     const TObjectId& tableId,
     TTabletSlotPtr slot,
     TColumnEvaluatorCachePtr columnEvaluatorCache,
@@ -96,6 +109,7 @@ TTablet::TTablet(
     TOwningKey nextPivotKey,
     EAtomicity atomicity)
     : TabletId_(tabletId)
+    , MountRevision_(mountRevision)
     , TableId_(tableId)
     , Slot_(slot)
     , Schema_(schema)
@@ -174,6 +188,7 @@ void TTablet::Save(TSaveContext& context) const
     using NYT::Save;
 
     Save(context, TableId_);
+    Save(context, MountRevision_);
     Save(context, GetPersistentState());
     Save(context, Schema_);
     Save(context, KeyColumns_);
@@ -209,6 +224,10 @@ void TTablet::Load(TLoadContext& context)
     auto tabletManager = Slot_->GetTabletManager();
 
     Load(context, TableId_);
+    // COMPAT(babenko)
+    if (context.GetVersion() >= 10) {
+        Load(context, MountRevision_);
+    }
     Load(context, State_);
     // TODO(babenko): consider moving schema and key columns to async part
     Load(context, Schema_);
@@ -592,6 +611,13 @@ void TTablet::StartEpoch(TTabletSlotPtr slot)
             ? slot->GetEpochAutomatonInvoker(queue)
             : GetSyncInvoker());
     }
+
+    LastPartitioningTime_ = TInstant::Now();
+
+    Eden_->StartEpoch();
+    for (const auto& partition : PartitionList_) {
+        partition->StartEpoch();
+    }
 }
 
 void TTablet::StopEpoch()
@@ -604,6 +630,11 @@ void TTablet::StopEpoch()
     std::fill(EpochAutomatonInvokers_.begin(), EpochAutomatonInvokers_.end(), GetNullInvoker());
 
     SetState(GetPersistentState());
+
+    Eden_->StopEpoch();
+    for (const auto& partition : PartitionList_) {
+        partition->StopEpoch();
+    }
 }
 
 IInvokerPtr TTablet::GetEpochAutomatonInvoker(EAutomatonThreadQueue queue)
@@ -615,6 +646,7 @@ TTabletSnapshotPtr TTablet::RebuildSnapshot()
 {
     Snapshot_ = New<TTabletSnapshot>();
     Snapshot_->TabletId = TabletId_;
+    Snapshot_->MountRevision = MountRevision_;
     Snapshot_->TableId = TableId_;
     Snapshot_->Slot = Slot_;
     Snapshot_->Config = Config_;
@@ -720,6 +752,18 @@ TPartition* TTablet::GetContainingPartition(IStorePtr store)
 const TDynamicRowKeyComparer& TTablet::GetRowKeyComparer() const
 {
     return RowKeyComparer_;
+}
+
+void TTablet::ValidateMountRevision(i64 mountRevision)
+{
+    if (MountRevision_ != mountRevision) {
+        THROW_ERROR_EXCEPTION(
+            NRpc::EErrorCode::Unavailable,
+            "Invalid mount revision of tablet %v: expected %x, received %x",
+            TabletId_,
+            MountRevision_,
+            mountRevision);
+    }
 }
 
 TObjectId TTablet::GenerateId(EObjectType type)

@@ -1,64 +1,32 @@
-#include "stdafx.h"
 #include "cypress_manager.h"
+#include "private.h"
+#include "access_tracker.h"
+#include "config.h"
+#include "lock_proxy.h"
 #include "node_detail.h"
 #include "node_proxy_detail.h"
-#include "config.h"
-#include "access_tracker.h"
-#include "lock_proxy.h"
-#include "private.h"
-#include "public.h"
-#include "node.h"
-#include "type_handler.h"
-#include "node_proxy.h"
-#include "lock.h"
 
-#include <core/misc/id_generator.h>
+#include <yt/server/cell_master/bootstrap.h>
+#include <yt/server/cell_master/hydra_facade.h>
 
-#include <core/concurrency/thread_affinity.h>
+#include <yt/server/object_server/object_detail.h>
+#include <yt/server/object_server/type_handler_detail.h>
 
-#include <core/ytree/ypath_service.h>
-#include <core/ytree/tree_builder.h>
+#include <yt/server/security_server/account.h>
+#include <yt/server/security_server/group.h>
+#include <yt/server/security_server/security_manager.h>
+#include <yt/server/security_server/user.h>
 
-#include <core/ytree/ephemeral_node_factory.h>
-#include <core/ytree/ypath_detail.h>
+#include <yt/ytlib/cypress_client/cypress_ypath.pb.h>
+#include <yt/ytlib/cypress_client/cypress_ypath_proxy.h>
 
-#include <ytlib/cypress_client/cypress_ypath_proxy.h>
-#include <ytlib/cypress_client/cypress_ypath.pb.h>
+#include <yt/ytlib/object_client/helpers.h>
+#include <yt/ytlib/object_client/object_service_proxy.h>
 
-#include <ytlib/object_client/object_service_proxy.h>
-#include <ytlib/object_client/helpers.h>
+#include <yt/core/misc/singleton.h>
 
-#include <ytlib/journal_client/journal_ypath_proxy.h>
-
-#include <server/cell_master/bootstrap.h>
-#include <server/cell_master/hydra_facade.h>
-
-#include <server/object_server/object_manager.h>
-#include <server/object_server/type_handler_detail.h>
-#include <server/object_server/object_detail.h>
-
-#include <server/security_server/account.h>
-#include <server/security_server/group.h>
-#include <server/security_server/user.h>
-#include <server/security_server/security_manager.h>
-
-#include <server/hydra/composite_automaton.h>
-#include <server/hydra/entity_map.h>
-#include <server/hydra/mutation.h>
-
-#include <server/cell_master/automaton.h>
-#include <server/cell_master/multicell_manager.h>
-
-#include <server/transaction_server/transaction.h>
-#include <server/transaction_server/transaction_manager.h>
-
-#include <server/cypress_server/cypress_manager.pb.h>
-
-#include <server/journal_server/journal_node.h>
-
-// COMPAT(babenko)
-#include <server/chunk_server/chunk_owner_base.h>
-#include <server/chunk_server/chunk_list.h>
+#include <yt/core/ytree/ephemeral_node_factory.h>
+#include <yt/core/ytree/ypath_detail.h>
 
 namespace NYT {
 namespace NCypressServer {
@@ -75,11 +43,6 @@ using namespace NObjectServer;
 using namespace NSecurityClient;
 using namespace NSecurityServer;
 using namespace NCypressClient::NProto;
-// COMPAT(babenko)
-using namespace NChunkServer;
-using namespace NJournalClient;
-using namespace NJournalServer;
-using namespace NChunkClient::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 

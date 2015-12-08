@@ -2,21 +2,19 @@
 
 #include "public.h"
 
-#include <core/misc/property.h>
-#include <core/misc/error.h>
-#include <core/misc/ref.h>
+#include <yt/ytlib/hydra/public.h>
 
-#include <core/actions/future.h>
+#include <yt/ytlib/scheduler/scheduler_service.pb.h>
 
-#include <core/ytree/node.h>
+#include <yt/ytlib/transaction_client/transaction_manager.h>
 
-#include <ytlib/transaction_client/transaction_manager.h>
+#include <yt/core/actions/future.h>
 
-#include <ytlib/job_tracker_client/statistics.h>
+#include <yt/core/misc/error.h>
+#include <yt/core/misc/property.h>
+#include <yt/core/misc/ref.h>
 
-#include <ytlib/scheduler/scheduler_service.pb.h>
-
-#include <ytlib/hydra/public.h>
+#include <yt/core/ytree/node.h>
 
 namespace NYT {
 namespace NScheduler {

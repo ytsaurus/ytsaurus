@@ -1,7 +1,6 @@
-#include "stdafx.h"
 #include "row_buffer.h"
-#include "versioned_row.h"
 #include "unversioned_row.h"
+#include "versioned_row.h"
 
 namespace NYT {
 namespace NTableClient {

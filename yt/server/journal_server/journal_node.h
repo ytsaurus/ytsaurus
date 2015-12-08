@@ -2,9 +2,9 @@
 
 #include "public.h"
 
-#include <server/chunk_server/chunk_owner_base.h>
+#include <yt/server/chunk_server/chunk_owner_base.h>
 
-#include <server/cypress_server/node_detail.h>
+#include <yt/server/cypress_server/node_detail.h>
 
 namespace NYT {
 namespace NJournalServer {

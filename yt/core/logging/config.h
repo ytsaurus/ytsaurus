@@ -2,8 +2,8 @@
 
 #include "public.h"
 
-#include <core/ytree/public.h>
-#include <core/ytree/yson_serializable.h>
+#include <yt/core/ytree/public.h>
+#include <yt/core/ytree/yson_serializable.h>
 
 namespace NYT {
 namespace NLogging {

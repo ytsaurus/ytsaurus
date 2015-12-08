@@ -1,16 +1,15 @@
-#include "stdafx.h"
 #include "cypress_traversing.h"
 
-#include <core/ytree/public.h>
+#include <yt/server/cell_master/bootstrap.h>
+#include <yt/server/cell_master/hydra_facade.h>
 
-#include <server/cell_master/bootstrap.h>
-#include <server/cell_master/hydra_facade.h>
+#include <yt/server/cypress_server/cypress_manager.h>
+#include <yt/server/cypress_server/node_proxy.h>
 
-#include <server/transaction_server/transaction_manager.h>
-#include <server/transaction_server/transaction.h>
+#include <yt/server/transaction_server/transaction.h>
+#include <yt/server/transaction_server/transaction_manager.h>
 
-#include <server/cypress_server/node_proxy.h>
-#include <server/cypress_server/cypress_manager.h>
+#include <yt/core/ytree/public.h>
 
 namespace NYT {
 namespace NCypressServer {

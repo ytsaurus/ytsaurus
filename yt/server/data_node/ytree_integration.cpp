@@ -1,13 +1,12 @@
-#include "stdafx.h"
 #include "ytree_integration.h"
-#include "chunk_store.h"
-#include "chunk_cache.h"
-#include "chunk.h"
-#include "location.h"
 #include "artifact.h"
+#include "chunk.h"
+#include "chunk_cache.h"
+#include "chunk_store.h"
+#include "location.h"
 
-#include <core/ytree/virtual.h>
-#include <core/ytree/fluent.h>
+#include <yt/core/ytree/fluent.h>
+#include <yt/core/ytree/virtual.h>
 
 namespace NYT {
 namespace NDataNode {

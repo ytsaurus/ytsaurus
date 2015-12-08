@@ -5,10 +5,10 @@
 
 #include "bind.h"
 
-#include <core/concurrency/delayed_executor.h>
-#include <core/concurrency/event_count.h>
+#include <yt/core/concurrency/delayed_executor.h>
+#include <yt/core/concurrency/event_count.h>
 
-#include <core/misc/small_vector.h>
+#include <yt/core/misc/small_vector.h>
 
 #include <atomic>
 

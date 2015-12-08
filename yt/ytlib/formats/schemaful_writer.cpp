@@ -1,8 +1,7 @@
-#include "stdafx.h"
 #include "schemaful_writer.h"
 #include "config.h"
 
-#include <core/concurrency/async_stream.h>
+#include <yt/core/concurrency/async_stream.h>
 
 namespace NYT {
 namespace NFormats {

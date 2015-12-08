@@ -1,12 +1,12 @@
 #include "common.h"
+#include "driver.h"
 #include "error.h"
 #include "future.h"
-#include "node.h"
 #include "input_stream.h"
 #include "input_stub.h"
+#include "node.h"
 #include "output_stream.h"
 #include "output_stub.h"
-#include "driver.h"
 
 namespace NYT {
 namespace NNodeJS {

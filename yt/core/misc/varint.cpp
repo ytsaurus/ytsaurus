@@ -1,11 +1,10 @@
-#include "stdafx.h"
 #include "varint.h"
 #include "zigzag.h"
 
-#include <core/misc/error.h>
+#include <yt/core/misc/error.h>
 
-#include <util/stream/output.h>
 #include <util/stream/input.h>
+#include <util/stream/output.h>
 
 namespace NYT {
 

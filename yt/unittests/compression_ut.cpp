@@ -1,10 +1,9 @@
-#include "stdafx.h"
 #include "framework.h"
 
-#include <core/compression/codec.h>
+#include <yt/core/compression/codec.h>
 
-#include <contrib/libs/snappy/snappy.h>
 #include <contrib/libs/snappy/snappy-sinksource.h>
+#include <contrib/libs/snappy/snappy.h>
 
 namespace NYT {
 namespace NCompression {

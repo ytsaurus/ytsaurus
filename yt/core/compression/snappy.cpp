@@ -1,7 +1,7 @@
 #include "snappy.h"
 
-#include <contrib/libs/snappy/snappy.h>
 #include <contrib/libs/snappy/snappy-stubs-internal.h>
+#include <contrib/libs/snappy/snappy.h>
 
 namespace NYT {
 namespace NCompression {

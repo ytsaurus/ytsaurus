@@ -4,8 +4,11 @@ from yt_env_setup import YTEnvSetup, unix_only
 from yt_commands import *
 
 from yt.environment.helpers import assert_items_equal
+<<<<<<< HEAD
 
 from time import sleep
+=======
+>>>>>>> origin/prestable/0.17.4
 
 ##################################################################
 
@@ -155,7 +158,11 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         merge(mode="sorted",
               in_=[t1, t2],
               out="//tmp/t_out")
+<<<<<<< HEAD
         assert_items_equal(read_table("//tmp/t_out"), v + v)
+=======
+        assert_items_equal(read_table("//tmp/t_out"), sorted(v + v))
+>>>>>>> origin/prestable/0.17.4
 
     def test_sorted_combine(self):
         create("table", "//tmp/t1")
@@ -224,7 +231,11 @@ class TestSchedulerMergeCommands(YTEnvSetup):
             {"k" : "c", "s" : 0} ]
 
         for i, j in zip(res, expected):
+<<<<<<< HEAD
             assert i == j
+=======
+            assert_items_equal(i, j)
+>>>>>>> origin/prestable/0.17.4
 
         assert get("//tmp/t_out/@chunk_count") == 1
 
