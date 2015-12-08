@@ -1,8 +1,9 @@
 #include "lz.h"
 
-#include <contrib/z-lz-lzo/lz4.h>
-#include <contrib/z-lz-lzo/lz4hc.h>
-#include <contrib/z-lz-lzo/quicklz.h>
+#include <yt/contrib/lz4/lz4.h>
+#include <yt/contrib/lz4/lz4hc.h>
+
+#include <yt/contrib/quicklz/quicklz.h>
 
 namespace NYT {
 namespace NCompression {
