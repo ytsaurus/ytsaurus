@@ -170,7 +170,7 @@ class Yamr(object):
         return int(obj)
 
     def write(self, table, data):
-        command = 'MR_USER={0} {1} -server {2} -write "{3}"'.format(self.mr_user, self.binary, self.server, table)
+        command = '{0} MR_USER={1} {2} -server {3} -write "{4}"'.format(self.opts, self.mr_user, self.binary, self.server, table)
         proc = subprocess.Popen(command, stdin=subprocess.PIPE, stderr=subprocess.PIPE, preexec_fn=set_pdeathsig, shell=True)
         _, stderr = proc.communicate(data)
         if proc.returncode != 0:
