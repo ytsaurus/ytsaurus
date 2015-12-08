@@ -509,11 +509,16 @@ protected:
     virtual TTableSchema GetSchema() const override
     {
         TTableSchema schema({
-            TColumnSchema(TColumnSchema("a", EValueType::Int64).SetSortOrder(ESortOrder::Ascending)),
-            TColumnSchema(TColumnSchema("b", EValueType::Uint64).SetSortOrder(ESortOrder::Ascending)),
-            TColumnSchema(TColumnSchema("c", EValueType::Boolean).SetSortOrder(ESortOrder::Ascending)),
-            TColumnSchema(TColumnSchema("d", EValueType::Double).SetSortOrder(ESortOrder::Ascending)),
-            TColumnSchema(TColumnSchema("e", EValueType::String).SetSortOrder(ESortOrder::Ascending))
+            TColumnSchema("a", EValueType::Int64)
+                .SetSortOrder(ESortOrder::Ascending),
+            TColumnSchema("b", EValueType::Uint64)
+                .SetSortOrder(ESortOrder::Ascending),
+            TColumnSchema("c", EValueType::Boolean)
+                .SetSortOrder(ESortOrder::Ascending),
+            TColumnSchema("d", EValueType::Double)
+                .SetSortOrder(ESortOrder::Ascending),
+            TColumnSchema("e", EValueType::String).
+                SetSortOrder(ESortOrder::Ascending)
         });
         return schema;
     }

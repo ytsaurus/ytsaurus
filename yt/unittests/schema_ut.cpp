@@ -223,21 +223,28 @@ TEST_F(TTableSchemaTest, ColumnSchemaValidationTest)
         // Empty names are not ok.
         TColumnSchema("", EValueType::String),
         // Names starting from SystemColumnNamePrefix are not ok.
-        TColumnSchema("$Name", EValueType::String),
+        TColumnSchema(SystemColumnNamePrefix + "Name", EValueType::String),
         // Names longer than MaxColumnNameLength are not ok.
-        TColumnSchema(Stroka(257, 'z'), EValueType::String),
+        TColumnSchema(Stroka(MaxColumnNameLength + 1, 'z'), EValueType::String),
         // Empty lock names are not ok.
-        TColumnSchema("Name", EValueType::String).SetLock(Stroka("")),
+        TColumnSchema("Name", EValueType::String)
+            .SetLock(Stroka("")),
         // Locks on key columns are not ok.
-        TColumnSchema("Name", EValueType::String).SetSortOrder(ESortOrder::Ascending).SetLock(Stroka("LockName")),
-        // Locks longer than MaxLockNameLength are not ok.
-        TColumnSchema("Name", EValueType::String).SetLock(Stroka(257, 'z')),
+        TColumnSchema("Name", EValueType::String)
+            .SetSortOrder(ESortOrder::Ascending)
+            .SetLock(Stroka("LockName")),
+        // Locks longer than MaxColumnLockLength are not ok.
+        TColumnSchema("Name", EValueType::String)
+            .SetLock(Stroka(MaxColumnLockLength + 1, 'z')),
         // Column type should be valid according to the ValidateSchemaValueType function.
         TColumnSchema("Name", EValueType::TheBottom),
         // Non-key columns can't be computed.
-        TColumnSchema("Name", EValueType::String).SetExpression(Stroka("SomeExpression")),
+        TColumnSchema("Name", EValueType::String)
+            .SetExpression(Stroka("SomeExpression")),
         // Key columns can't be aggregated.
-        TColumnSchema("Name", EValueType::String).SetSortOrder(ESortOrder::Ascending).SetAggregate(Stroka("sum"))
+        TColumnSchema("Name", EValueType::String)
+            .SetSortOrder(ESortOrder::Ascending)
+            .SetAggregate(Stroka("sum"))
     };
 
     for (const auto& columnSchema : invalidSchemas) {
@@ -247,9 +254,13 @@ TEST_F(TTableSchemaTest, ColumnSchemaValidationTest)
     std::vector<TColumnSchema> validSchemas = {
         TColumnSchema("Name", EValueType::String),
         TColumnSchema("Name", EValueType::Any),
-        TColumnSchema(Stroka(256, 'z'), EValueType::String).SetLock(Stroka(256, 'z')),
-        TColumnSchema("Name", EValueType::String).SetSortOrder(ESortOrder::Ascending).SetExpression(Stroka("SomeExpression")),
-        TColumnSchema("Name", EValueType::String).SetAggregate(Stroka("sum"))
+        TColumnSchema(Stroka(256, 'z'), EValueType::String)
+            .SetLock(Stroka(256, 'z')),
+        TColumnSchema("Name", EValueType::String)
+            .SetSortOrder(ESortOrder::Ascending)
+            .SetExpression(Stroka("SomeExpression")),
+        TColumnSchema("Name", EValueType::String)
+            .SetAggregate(Stroka("sum"))
     };
 
     for (const auto& columnSchema : validSchemas) {
@@ -268,33 +279,48 @@ TEST_F(TTableSchemaTest, ColumnSchemaUpdateValidationTest)
         // Changing column sort order is not ok.
         {
             TColumnSchema("Name", EValueType::String),
-            TColumnSchema("Name", EValueType::String).SetSortOrder(ESortOrder::Ascending)
+            TColumnSchema("Name", EValueType::String)
+                .SetSortOrder(ESortOrder::Ascending)
         },
         {
-            TColumnSchema("Name", EValueType::String).SetSortOrder(ESortOrder::Ascending),
+            TColumnSchema("Name", EValueType::String)
+                .SetSortOrder(ESortOrder::Ascending),
             TColumnSchema("Name", EValueType::String)
         },
         // Changing column expression is not ok.
         {
-            TColumnSchema("Name", EValueType::String).SetSortOrder(ESortOrder::Ascending),
-            TColumnSchema("Name", EValueType::String).SetSortOrder(ESortOrder::Ascending).SetExpression(Stroka("SomeExpression"))
+            TColumnSchema("Name", EValueType::String)
+                .SetSortOrder(ESortOrder::Ascending),
+            TColumnSchema("Name", EValueType::String)
+                .SetSortOrder(ESortOrder::Ascending)
+                .SetExpression(Stroka("SomeExpression"))
         },
         {
-            TColumnSchema("Name", EValueType::String).SetSortOrder(ESortOrder::Ascending).SetExpression(Stroka("SomeExpression")),
-            TColumnSchema("Name", EValueType::String).SetSortOrder(ESortOrder::Ascending)
+            TColumnSchema("Name", EValueType::String)
+                .SetSortOrder(ESortOrder::Ascending)
+                .SetExpression(Stroka("SomeExpression")),
+            TColumnSchema("Name", EValueType::String)
+                .SetSortOrder(ESortOrder::Ascending)
         },
         {
-            TColumnSchema("Name", EValueType::String).SetSortOrder(ESortOrder::Ascending).SetExpression(Stroka("SomeExpression")),
-            TColumnSchema("Name", EValueType::String).SetSortOrder(ESortOrder::Ascending).SetExpression(Stroka("SomeOtherExpression"))
+            TColumnSchema("Name", EValueType::String)
+                .SetSortOrder(ESortOrder::Ascending)
+                .SetExpression(Stroka("SomeExpression")),
+            TColumnSchema("Name", EValueType::String)
+                .SetSortOrder(ESortOrder::Ascending)
+                .SetExpression(Stroka("SomeOtherExpression"))
         },
         // Changing column aggregate is only allowed if columns was not aggregated.
         {
-            TColumnSchema("Name", EValueType::String).SetAggregate(Stroka("sum")),
+            TColumnSchema("Name", EValueType::String)
+                .SetAggregate(Stroka("sum")),
             TColumnSchema("Name", EValueType::String)
         },
         {
-            TColumnSchema("Name", EValueType::String).SetAggregate(Stroka("sum")),
-            TColumnSchema("Name", EValueType::String).SetAggregate(Stroka("max"))
+            TColumnSchema("Name", EValueType::String)
+                .SetAggregate(Stroka("sum")),
+            TColumnSchema("Name", EValueType::String)
+                .SetAggregate(Stroka("max"))
         },
     };
 
@@ -308,20 +334,25 @@ TEST_F(TTableSchemaTest, ColumnSchemaUpdateValidationTest)
         // Making column aggregated if it wasn't is ok.
         {
             TColumnSchema("Name", EValueType::String),
-            TColumnSchema("Name", EValueType::String).SetAggregate(Stroka("sum"))
+            TColumnSchema("Name", EValueType::String)
+                .SetAggregate(Stroka("sum"))
         },
         // Changing column lock is ok.
         {
             TColumnSchema("Name", EValueType::String),
-            TColumnSchema("Name", EValueType::String).SetLock(Stroka("Lock"))
+            TColumnSchema("Name", EValueType::String)
+                .SetLock(Stroka("Lock"))
         },
         {
-            TColumnSchema("Name", EValueType::String).SetLock(Stroka("Lock")),
+            TColumnSchema("Name", EValueType::String)
+                .SetLock(Stroka("Lock")),
             TColumnSchema("Name", EValueType::String)
         },
         {
-            TColumnSchema("Name", EValueType::String).SetLock(Stroka("Lock")),
-            TColumnSchema("Name", EValueType::String).SetLock(Stroka("OtherLock"))
+            TColumnSchema("Name", EValueType::String)
+                .SetLock(Stroka("Lock")),
+            TColumnSchema("Name", EValueType::String)
+                .SetLock(Stroka("OtherLock"))
         }
     };
 
@@ -346,40 +377,55 @@ TEST_F(TTableSchemaTest, TableSchemaValidationTest)
         },
         {
             // Key columns should form a prefix.
-            TColumnSchema("Key1", EValueType::String).SetSortOrder(ESortOrder::Ascending),
+            TColumnSchema("Key1", EValueType::String)
+                .SetSortOrder(ESortOrder::Ascending),
             TColumnSchema("Value", EValueType::String),
-            TColumnSchema("Key2", EValueType::String).SetSortOrder(ESortOrder::Ascending)
+            TColumnSchema("Key2", EValueType::String)
+                .SetSortOrder(ESortOrder::Ascending)
         },
         {
             // Expression type should match the type of a column.
-            TColumnSchema("Key1", EValueType::String).SetSortOrder(ESortOrder::Ascending).SetExpression(Stroka("Key2")),
-            TColumnSchema("Key2", EValueType::Int64).SetSortOrder(ESortOrder::Ascending)
+            TColumnSchema("Key1", EValueType::String)
+                .SetSortOrder(ESortOrder::Ascending)
+                .SetExpression(Stroka("Key2")),
+            TColumnSchema("Key2", EValueType::Int64)
+                .SetSortOrder(ESortOrder::Ascending)
         },
         {
             // Computed columns may only depend on key columns.
-            TColumnSchema("Key1", EValueType::String).SetSortOrder(ESortOrder::Ascending).SetExpression(Stroka("Key2")),
+            TColumnSchema("Key1", EValueType::String)
+                .SetSortOrder(ESortOrder::Ascending)
+                .SetExpression(Stroka("Key2")),
             TColumnSchema("Key2", EValueType::String)
         },
         {
             // Computed columns may only depend on non-computed columns.
-            TColumnSchema("Key1", EValueType::String).SetSortOrder(ESortOrder::Ascending).SetExpression(Stroka("Key2")),
-            TColumnSchema("Key2", EValueType::String).SetSortOrder(ESortOrder::Ascending).SetExpression(Stroka("Key3")),
-            TColumnSchema("Key3", EValueType::String).SetSortOrder(ESortOrder::Ascending)
+            TColumnSchema("Key1", EValueType::String)
+                .SetSortOrder(ESortOrder::Ascending)
+                .SetExpression(Stroka("Key2")),
+            TColumnSchema("Key2", EValueType::String)
+                .SetSortOrder(ESortOrder::Ascending)
+                .SetExpression(Stroka("Key3")),
+            TColumnSchema("Key3", EValueType::String)
+                .SetSortOrder(ESortOrder::Ascending)
         },
         {
             // Aggregate function should appear in a pre-defined list.
-            TColumnSchema("Key1", EValueType::String).SetAggregate(Stroka("MyFancyAggregateFunction")),
+            TColumnSchema("Key1", EValueType::String)
+                .SetAggregate(Stroka("MyFancyAggregateFunction")),
         },
         {
             // Type of aggregate function should match the type of a column.
-            TColumnSchema("Key1", EValueType::String).SetAggregate(Stroka("sum"))
+            TColumnSchema("Key1", EValueType::String)
+                .SetAggregate(Stroka("sum"))
         }
     };
 
     // There should be no more than MaxColumnLockCount locks.
     std::vector<TColumnSchema> schemaWithManyLocks;
-    for (int index = 0; index < 33; ++index) {
-        schemaWithManyLocks.push_back(TColumnSchema("Name" + ToString(index), EValueType::String).SetLock("Lock" + ToString(index)));
+    for (int index = 0; index < MaxColumnLockCount + 1; ++index) {
+        schemaWithManyLocks.push_back(TColumnSchema("Name" + ToString(index), EValueType::String)
+            .SetLock("Lock" + ToString(index)));
     }
 
     std::vector<std::vector<TColumnSchema>> validSchemas = {
@@ -392,15 +438,22 @@ TEST_F(TTableSchemaTest, TableSchemaValidationTest)
         },
         {
             // Schema consisting only of key columns is also valid.
-            TColumnSchema("Name", EValueType::String).SetSortOrder(ESortOrder::Ascending)
+            TColumnSchema("Name", EValueType::String)
+                .SetSortOrder(ESortOrder::Ascending)
         },
         {
             // Example of a well-formed schema.
-            TColumnSchema("Name", EValueType::String).SetSortOrder(ESortOrder::Ascending),
-            TColumnSchema("Height", EValueType::Int64).SetSortOrder(ESortOrder::Ascending),
-            TColumnSchema("Weight", EValueType::Int64).SetSortOrder(ESortOrder::Ascending),
-            TColumnSchema("HeightPlusWeight", EValueType::Int64).SetSortOrder(ESortOrder::Ascending).SetExpression(Stroka("Height + Weight")),
-            TColumnSchema("MaximumActivity", EValueType::Int64).SetAggregate(Stroka("max"))
+            TColumnSchema("Name", EValueType::String)
+                .SetSortOrder(ESortOrder::Ascending),
+            TColumnSchema("Height", EValueType::Int64)
+                .SetSortOrder(ESortOrder::Ascending),
+            TColumnSchema("Weight", EValueType::Int64)
+                .SetSortOrder(ESortOrder::Ascending),
+            TColumnSchema("HeightPlusWeight", EValueType::Int64)
+                .SetSortOrder(ESortOrder::Ascending)
+                .SetExpression(Stroka("Height + Weight")),
+            TColumnSchema("MaximumActivity", EValueType::Int64)
+                .SetAggregate(Stroka("max"))
         }
     };
        
@@ -436,23 +489,40 @@ TEST_F(TTableSchemaTest, TableSchemaUpdateValidationTest)
             TTableSchema({}, true)
         },
         {
+            // Changing columns simultaneously with changing Strict = true to
+            // Strict = false is not ok.
+            TTableSchema({
+                TColumnSchema("Name", EValueType::String)
+            }, true),
+            TTableSchema({
+                TColumnSchema("Name", EValueType::String),
+                TColumnSchema("Name2", EValueType::String)
+            }, false)
+        },
+        {
             // Changing positions of key columns is not ok.
             TTableSchema({
-                TColumnSchema("Name1", EValueType::String).SetSortOrder(ESortOrder::Ascending),
-                TColumnSchema("Name2", EValueType::String).SetSortOrder(ESortOrder::Ascending)
+                TColumnSchema("Name1", EValueType::String)
+                    .SetSortOrder(ESortOrder::Ascending),
+                TColumnSchema("Name2", EValueType::String)
+                    .SetSortOrder(ESortOrder::Ascending)
             }),
             TTableSchema({
-                TColumnSchema("Name2", EValueType::String).SetSortOrder(ESortOrder::Ascending),
-                TColumnSchema("Name1", EValueType::String).SetSortOrder(ESortOrder::Ascending)
+                TColumnSchema("Name2", EValueType::String)
+                    .SetSortOrder(ESortOrder::Ascending),
+                TColumnSchema("Name1", EValueType::String)
+                    .SetSortOrder(ESortOrder::Ascending)
             })
         },
         {
             // Changing columns attributes should be validated by ValidateColumnSchemaUpdate function.
             TTableSchema({
-                TColumnSchema("Name", EValueType::Int64).SetAggregate(Stroka("sum"))
+                TColumnSchema("Name", EValueType::Int64)
+                    .SetAggregate(Stroka("sum"))
             }),
             TTableSchema({
-                TColumnSchema("Name", EValueType::Int64).SetAggregate(Stroka("max"))
+                TColumnSchema("Name", EValueType::Int64)
+                    .SetAggregate(Stroka("max"))
             })
         },
         {
@@ -461,28 +531,19 @@ TEST_F(TTableSchemaTest, TableSchemaUpdateValidationTest)
             // is considered non-empty).
             TTableSchema({}, true),
             TTableSchema({
-                TColumnSchema("Name", EValueType::Int64).SetSortOrder(ESortOrder::Ascending),
-                TColumnSchema("Name2", EValueType::Int64).SetSortOrder(ESortOrder::Ascending).SetExpression(Stroka("Name"))
+                TColumnSchema("Name", EValueType::Int64)
+                    .SetSortOrder(ESortOrder::Ascending),
+                TColumnSchema("Name2", EValueType::Int64)
+                    .SetSortOrder(ESortOrder::Ascending)
+                    .SetExpression(Stroka("Name"))
             })
         }
     };
       
     for (const auto& pairOfSchemas : invalidUpdates) {
-        ValidateTableSchema(pairOfSchemas[0]);
-        ValidateTableSchema(pairOfSchemas[1]);
         EXPECT_THROW(ValidateTableSchemaUpdate(pairOfSchemas[0], pairOfSchemas[1]), std::exception);
     }
     
-    // It is not allowed to add computed column 
-    EXPECT_THROW(ValidateTableSchemaUpdate(
-        TTableSchema({
-            TColumnSchema("Name", EValueType::Int64).SetSortOrder(ESortOrder::Ascending),
-        }),
-        TTableSchema({
-            TColumnSchema("Name", EValueType::Int64).SetSortOrder(ESortOrder::Ascending),
-            TColumnSchema("Name2", EValueType::Int64).SetSortOrder(ESortOrder::Ascending).SetExpression(Stroka("Name"))
-        }), false /* isDynamicTable */, true /* isEmptyTable */), std::exception);
-
     EXPECT_THROW(ValidateTableSchemaUpdate(
         TTableSchema({}, true),
         TTableSchema({}, false),
@@ -514,81 +575,86 @@ TEST_F(TTableSchemaTest, TableSchemaUpdateValidationTest)
         {
             // Adding key columns at the end of key columns prefix when Strict = true is ok.
             TTableSchema({
-                TColumnSchema("Name1", EValueType::String).SetSortOrder(ESortOrder::Ascending)
+                TColumnSchema("Name1", EValueType::String)
+                    .SetSortOrder(ESortOrder::Ascending)
             }, true),
             TTableSchema({
-                TColumnSchema("Name1", EValueType::String).SetSortOrder(ESortOrder::Ascending),
-                TColumnSchema("Name2", EValueType::String).SetSortOrder(ESortOrder::Ascending)
+                TColumnSchema("Name1", EValueType::String)
+                    .SetSortOrder(ESortOrder::Ascending),
+                TColumnSchema("Name2", EValueType::String)
+                    .SetSortOrder(ESortOrder::Ascending)
             }, true)
         },
         {
             // Adding non-key columns at arbitrary place (after key columns) when Strict = true is ok.
             TTableSchema({
-                TColumnSchema("Name1", EValueType::String).SetSortOrder(ESortOrder::Ascending)
+                TColumnSchema("Name1", EValueType::String)
+                    .SetSortOrder(ESortOrder::Ascending)
             }, true),
             TTableSchema({
-                TColumnSchema("Name1", EValueType::String).SetSortOrder(ESortOrder::Ascending),
+                TColumnSchema("Name1", EValueType::String)
+                    .SetSortOrder(ESortOrder::Ascending),
                 TColumnSchema("Name2", EValueType::String)
             }, true)
         },
         {
             // Removing key columns from the end of key columns prefix when Strict = false is ok.
             TTableSchema({
-                TColumnSchema("Name1", EValueType::String).SetSortOrder(ESortOrder::Ascending),
-                TColumnSchema("Name2", EValueType::String).SetSortOrder(ESortOrder::Ascending)
+                TColumnSchema("Name1", EValueType::String)
+                    .SetSortOrder(ESortOrder::Ascending),
+                TColumnSchema("Name2", EValueType::String)
+                    .SetSortOrder(ESortOrder::Ascending)
             }, false),
             TTableSchema({
-                TColumnSchema("Name1", EValueType::String).SetSortOrder(ESortOrder::Ascending)
+                TColumnSchema("Name1", EValueType::String)
+                    .SetSortOrder(ESortOrder::Ascending)
             }, false)
         },
         {
             // Removing key columns from arbitrary place when Strict = false is ok.
             TTableSchema({
-                TColumnSchema("Name1", EValueType::String).SetSortOrder(ESortOrder::Ascending),
+                TColumnSchema("Name1", EValueType::String)
+                    .SetSortOrder(ESortOrder::Ascending),
                 TColumnSchema("Name2", EValueType::String)
             }, false),
             TTableSchema({
-                TColumnSchema("Name1", EValueType::String).SetSortOrder(ESortOrder::Ascending)
+                TColumnSchema("Name1", EValueType::String)
+                    .SetSortOrder(ESortOrder::Ascending)
             }, false)
         },
         {
-            // NB: When changing Strict = true to Strict = false, it is allowed to perform two
-            // actions simultaneosly: add some key columns and non-key columns as if Strict = true,
-            // and after that remove some key columns and non-key columns from the result as if Strict = false.
-            // Note that attributes of all columns that are presented both in old and new schema should
-            // not be changed.
+            // Changing Strict = true to Strict = false without changing anything else is ok.
             TTableSchema({
-                TColumnSchema("KeyName1", EValueType::String).SetSortOrder(ESortOrder::Ascending),
-                TColumnSchema("KeyName2", EValueType::String).SetSortOrder(ESortOrder::Ascending),
+                TColumnSchema("KeyName1", EValueType::String)
+                    .SetSortOrder(ESortOrder::Ascending),
                 TColumnSchema("Name1", EValueType::String),
-                TColumnSchema("Name2", EValueType::String),
-                TColumnSchema("Name3", EValueType::String)
             }, true),
             TTableSchema({
-                TColumnSchema("KeyName1", EValueType::String).SetSortOrder(ESortOrder::Ascending),
-                TColumnSchema("KeyName3", EValueType::String).SetSortOrder(ESortOrder::Ascending),
-                TColumnSchema("KeyName4", EValueType::String).SetSortOrder(ESortOrder::Ascending),
-                TColumnSchema("Name4", EValueType::String),
-                TColumnSchema("Name3", EValueType::String),
+                TColumnSchema("KeyName1", EValueType::String)
+                    .SetSortOrder(ESortOrder::Ascending),
+                TColumnSchema("Name1", EValueType::String),
             }, false)
         }
     };
     
     for (const auto& pairOfSchemas : validUpdates) {
-        ValidateTableSchema(pairOfSchemas[0]);
-        ValidateTableSchema(pairOfSchemas[1]);
         ValidateTableSchemaUpdate(pairOfSchemas[0], pairOfSchemas[1]);
     }
 
-    // It allowed to add computed columns if table is empty and table schema is empty. 
+    // It allowed to add computed columns if table is empty. 
     ValidateTableSchemaUpdate(
-        TTableSchema({}, true),
         TTableSchema({
-            TColumnSchema("Name", EValueType::Int64).SetSortOrder(ESortOrder::Ascending),
-            TColumnSchema("Name2", EValueType::Int64).SetSortOrder(ESortOrder::Ascending).SetExpression(Stroka("Name"))
+            TColumnSchema("Name", EValueType::Int64)
+                .SetSortOrder(ESortOrder::Ascending),
+        }, true),
+        TTableSchema({
+            TColumnSchema("Name", EValueType::Int64)
+                .SetSortOrder(ESortOrder::Ascending),
+            TColumnSchema("Name2", EValueType::Int64)
+                .SetSortOrder(ESortOrder::Ascending)
+                .SetExpression(Stroka("Name"))
         }), false /* isDynamicTable */, true /* isEmptyTable */);
 }
-
 
 } // namespace NTableClient
 } // namespace NYT

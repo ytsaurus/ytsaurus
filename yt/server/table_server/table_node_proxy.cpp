@@ -207,14 +207,8 @@ private:
             }
         }
 
-        // If table is not empty, we the set of allowed schema changes is restricted,
-        // otherwise any new schema is allowed.
-        if (!table->IsEmpty()) {
-            ValidateTableSchemaUpdate(table->TableSchema(), newSchema, table->IsDynamic(), table->IsEmpty());
-        } else {
-            ValidateTableSchema(newSchema);
-        }
-        auto oldKeyColumns = table->TableSchema().GetKeyColumns();
+        ValidateTableSchemaUpdate(table->TableSchema(), newSchema, table->IsDynamic(), table->IsEmpty());
+        
         table->TableSchema() = newSchema;
     }
 
@@ -305,21 +299,6 @@ private:
         }
     }
 
-    void ValidateMountPreconditions() 
-    {
-        const auto* table = GetThisTypedImpl();
-        const auto& schema = table->TableSchema();
-        if (!schema.GetStrict()) {
-            THROW_ERROR_EXCEPTION("Table schema should be strict");
-        }
-        if (schema.GetKeyColumnCount() == 0) {
-            THROW_ERROR_EXCEPTION("There should be at least one key column");
-        }
-        if (schema.GetKeyColumnCount() == schema.Columns().size()) {
-            THROW_ERROR_EXCEPTION("There should be at least one non-key column");
-        }
-    }
-
     DECLARE_YPATH_SERVICE_METHOD(NTableClient::NProto, Mount)
     {
         DeclareMutating();
@@ -341,7 +320,7 @@ private:
         ValidateNotExternal();
         ValidateNoTransaction();
         ValidatePermission(EPermissionCheckScope::This, EPermission::Administer);
-        ValidateMountPreconditions();
+        ValidateDynamicTableConstraints(GetThisTypedImpl()->TableSchema());
 
         auto* table = LockThisTypedImpl();
 
@@ -372,7 +351,7 @@ private:
         ValidateNotExternal();
         ValidateNoTransaction();
         ValidatePermission(EPermissionCheckScope::This, EPermission::Administer);
-        ValidateMountPreconditions();
+        ValidateDynamicTableConstraints(GetThisTypedImpl()->TableSchema());
 
         auto* table = LockThisTypedImpl();
 
