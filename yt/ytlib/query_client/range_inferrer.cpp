@@ -1,18 +1,16 @@
-#include "stdafx.h"
-
-#include "private.h"
 #include "range_inferrer.h"
-#include "plan_helpers.h"
-#include "key_trie.h"
+#include "private.h"
 #include "folding_profiler.h"
-
-#include <yt/core/misc/ref_counted.h>
-#include <yt/core/misc/variant.h>
-#include <yt/core/misc/small_vector.h>
+#include "key_trie.h"
+#include "plan_helpers.h"
 
 #include <yt/ytlib/table_client/row_buffer.h>
 #include <yt/ytlib/table_client/schema.h>
 #include <yt/ytlib/table_client/unversioned_row.h>
+
+#include <yt/core/misc/ref_counted.h>
+#include <yt/core/misc/small_vector.h>
+#include <yt/core/misc/variant.h>
 
 #include <cstdlib>
 

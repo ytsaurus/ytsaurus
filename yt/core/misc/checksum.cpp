@@ -1,11 +1,10 @@
-#include "stdafx.h"
 #include "checksum.h"
 
 #ifdef YT_USE_CRC_PCLMUL
     #include <tmmintrin.h>
     #include <nmmintrin.h>
     #include <wmmintrin.h>
-    #include <core/misc/cpuid.h>
+    #include <yt/core/misc/cpuid.h>
 #endif
 
 namespace NYT {

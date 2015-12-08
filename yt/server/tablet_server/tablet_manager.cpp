@@ -1,67 +1,60 @@
-#include "stdafx.h"
 #include "tablet_manager.h"
-#include "tablet_cell.h"
+#include "private.h"
+#include "config.h"
+#include "cypress_integration.h"
 #include "tablet.h"
+#include "tablet_cell.h"
 #include "tablet_cell_proxy.h"
 #include "tablet_cell_bundle_proxy.h"
 #include "tablet_proxy.h"
-#include "cypress_integration.h"
-#include "config.h"
 #include "tablet_tracker.h"
-#include "private.h"
 
-#include <core/misc/address.h>
-#include <core/misc/string.h>
-#include <core/misc/collection_helpers.h>
+#include <yt/server/cell_master/bootstrap.h>
+#include <yt/server/cell_master/hydra_facade.h>
+#include <yt/server/cell_master/serialize.h>
 
-#include <core/concurrency/periodic_executor.h>
+#include <yt/server/chunk_server/chunk_list.h>
+#include <yt/server/chunk_server/chunk_manager.h>
+#include <yt/server/chunk_server/chunk_tree_traversing.h>
 
-#include <ytlib/election/config.h>
+#include <yt/server/cypress_server/cypress_manager.h>
 
-#include <ytlib/hive/cell_directory.h>
+#include <yt/server/hive/hive_manager.h>
 
-#include <ytlib/table_client/schema.h>
-#include <ytlib/table_client/chunk_meta_extensions.h>
+#include <yt/server/node_tracker_server/node.h>
+#include <yt/server/node_tracker_server/node_tracker.h>
 
-#include <ytlib/object_client/helpers.h>
+#include <yt/server/object_server/object_manager.h>
+#include <yt/server/object_server/type_handler_detail.h>
 
-#include <ytlib/tablet_client/config.h>
+#include <yt/server/security_server/security_manager.h>
 
-#include <ytlib/chunk_client/config.h>
-#include <ytlib/chunk_client/chunk_meta_extensions.h>
+#include <yt/server/table_server/table_node.h>
 
-#include <ytlib/cypress_client/cypress_ypath_proxy.h>
+#include <yt/server/tablet_node/config.h>
+#include <yt/server/tablet_node/tablet_manager.pb.h>
 
-#include <server/object_server/type_handler_detail.h>
+#include <yt/server/tablet_server/tablet_manager.pb.h>
 
-#include <server/tablet_server/tablet_manager.pb.h>
+#include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
+#include <yt/ytlib/chunk_client/config.h>
 
-#include <server/node_tracker_server/node_tracker.h>
-#include <server/node_tracker_server/node.h>
+#include <yt/ytlib/election/config.h>
 
-#include <server/table_server/table_node.h>
+#include <yt/ytlib/hive/cell_directory.h>
 
-#include <server/tablet_node/config.h>
-#include <server/tablet_node/tablet_manager.pb.h>
+#include <yt/ytlib/object_client/helpers.h>
 
-#include <server/hive/hive_manager.h>
+#include <yt/ytlib/table_client/chunk_meta_extensions.h>
+#include <yt/ytlib/table_client/schema.h>
 
-#include <server/chunk_server/chunk_list.h>
-#include <server/chunk_server/chunk_manager.h>
-#include <server/chunk_server/chunk_tree_traversing.h>
+#include <yt/ytlib/tablet_client/config.h>
 
-#include <server/cypress_server/cypress_manager.h>
-#include <server/cypress_server/node_proxy.h>
+#include <yt/core/concurrency/periodic_executor.h>
 
-#include <server/security_server/security_manager.h>
-
-#include <server/object_server/object_manager.h>
-
-#include <server/transaction_server/transaction_manager.h>
-
-#include <server/cell_master/bootstrap.h>
-#include <server/cell_master/hydra_facade.h>
-#include <server/cell_master/serialize.h>
+#include <yt/core/misc/address.h>
+#include <yt/core/misc/collection_helpers.h>
+#include <yt/core/misc/string.h>
 
 #include <util/random/random.h>
 
@@ -551,6 +544,7 @@ public:
             tablet->SetIndex(0);
             tablet->SetPivotKey(EmptyKey());
             table->Tablets().push_back(tablet);
+            table->SetSorted(true);
             firstTabletIndex = 0;
             lastTabletIndex = 0;
 
@@ -605,8 +599,12 @@ public:
             tablet->SetState(ETabletState::Mounting);
             tablet->SetInMemoryMode(mountConfig->InMemoryMode);
 
+            const auto* context = GetCurrentMutationContext();
+            tablet->SetMountRevision(context->GetVersion().ToRevision());
+
             TReqMountTablet req;
             ToProto(req.mutable_tablet_id(), tablet->GetId());
+            req.set_mount_revision(tablet->GetMountRevision());
             ToProto(req.mutable_table_id(), table->GetId());
             ToProto(req.mutable_schema(), schema);
             ToProto(req.mutable_key_columns()->mutable_names(), table->TableSchema().GetKeyColumns()); // max42: What do we do here?
@@ -887,6 +885,7 @@ public:
         objectManager->UnrefObject(oldRootChunkList);
 
         table->SnapshotStatistics() = table->GetChunkList()->Statistics().ToDataStatistics();
+        table->SetSorted(true);
     }
 
     TTabletCell* GetTabletCellOrThrow(const TTabletCellId& id)
@@ -1324,9 +1323,10 @@ private:
         auto* table = tablet->GetTable();
         auto* cell = tablet->GetCell();
 
-        LOG_INFO_UNLESS(IsRecovery(), "Tablet mounted (TableId: %v, TabletId: %v, CellId: %v)",
+        LOG_INFO_UNLESS(IsRecovery(), "Tablet mounted (TableId: %v, MountRevision: %v, TabletId: %v, CellId: %v)",
             table->GetId(),
             tablet->GetId(),
+            tablet->GetMountRevision(),
             cell->GetId());
 
         cell->TotalStatistics() += GetTabletStatistics(tablet);
@@ -1438,8 +1438,11 @@ private:
     {
         auto tabletId = FromProto<TTabletId>(request.tablet_id());
         auto* tablet = FindTablet(tabletId);
-        if (!IsObjectAlive(tablet))
+        if (!IsObjectAlive(tablet)) {
             return;
+        }
+
+        auto mountRevision = request.mount_revision();
 
         // NB: Stores may be updated while unmounting to facilitate flush.
         if (tablet->GetState() != ETabletState::Mounted &&
@@ -1453,18 +1456,23 @@ private:
 
         auto* cell = tablet->GetCell();
         auto* table = tablet->GetTable();
-        if (!IsObjectAlive(table))
+        if (!IsObjectAlive(table)) {
             return;
+        }
 
         auto cypressManager = Bootstrap_->GetCypressManager();
         cypressManager->SetModified(table, nullptr);
 
         TRspUpdateTabletStores response;
         response.mutable_tablet_id()->MergeFrom(request.tablet_id());
+        // NB: Take mount revision from the request, not from the tablet.
+        response.set_mount_revision(mountRevision);
         response.mutable_stores_to_add()->MergeFrom(request.stores_to_add());
         response.mutable_stores_to_remove()->MergeFrom(request.stores_to_remove());
 
         try {
+            tablet->ValidateMountRevision(mountRevision);
+
             auto chunkManager = Bootstrap_->GetChunkManager();
             auto securityManager = Bootstrap_->GetSecurityManager();
 
@@ -1515,7 +1523,7 @@ private:
             }
             securityManager->UpdateAccountNodeUsage(table);
 
-            LOG_INFO_UNLESS(IsRecovery(), "Tablet stores updated (TableId: %v, TabletId: %v, AttachedChunkIds: [%v], DetachedChunkIds: [%v], "
+            LOG_DEBUG_UNLESS(IsRecovery(), "Tablet stores updated (TableId: %v, TabletId: %v, AttachedChunkIds: [%v], DetachedChunkIds: [%v], "
                 "AttachedRowCount: %v, DetachedRowCount: %v)",
                 table->GetId(),
                 tabletId,

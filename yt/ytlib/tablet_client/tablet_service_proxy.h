@@ -2,9 +2,9 @@
 
 #include "public.h"
 
-#include <core/rpc/client.h>
+#include <yt/ytlib/tablet_client/tablet_service.pb.h>
 
-#include <ytlib/tablet_client/tablet_service.pb.h>
+#include <yt/core/rpc/client.h>
 
 namespace NYT {
 namespace NTabletClient {
@@ -22,7 +22,7 @@ public:
 
     static int GetProtocolVersion()
     {
-        return 5;
+        return 7;
     }
 
     explicit TTabletServiceProxy(NRpc::IChannelPtr channel)

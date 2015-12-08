@@ -1,7 +1,7 @@
 #include "stdafx.h"
 #include "election_manager_thunk.h"
 
-#include <core/yson/producer.h>
+#include <yt/core/yson/producer.h>
 
 namespace NYT {
 namespace NElection {

@@ -4,14 +4,14 @@
 #include "format.h"
 #include "helpers.h"
 
-#include <ytlib/table_client/public.h>
-#include <ytlib/table_client/schemaless_writer.h>
+#include <yt/ytlib/table_client/public.h>
+#include <yt/ytlib/table_client/schemaless_writer.h>
 
-#include <core/yson/public.h>
+#include <yt/core/concurrency/public.h>
 
-#include <core/concurrency/public.h>
+#include <yt/core/misc/blob_output.h>
 
-#include <core/misc/blob_output.h>
+#include <yt/core/yson/public.h>
 
 #include <memory>
 
@@ -45,7 +45,11 @@ protected:
         NTableClient::TNameTablePtr nameTable,
         NConcurrency::IAsyncOutputStreamPtr output,
         bool enableContextSaving,
+<<<<<<< HEAD
         TControlAttributesConfigPtr controlAttributesConfig,
+=======
+        bool enableKeySwitch,
+>>>>>>> origin/prestable/0.17.4
         int keyColumnCount);
 
     TBlobOutput* GetOutputStream();
@@ -53,6 +57,15 @@ protected:
     void TryFlushBuffer(bool force);
 
     virtual void DoWrite(const std::vector<NTableClient::TUnversionedRow> &rows) = 0;
+    
+    int KeyColumnCount_;
+    
+    NTableClient::TOwningKey LastKey_;
+    NTableClient::TKey CurrentKey_;
+    
+    NTableClient::TNameTablePtr NameTable_;
+
+    bool CheckKeySwitch(NTableClient::TUnversionedRow row, bool isLastRow);
 
     bool CheckKeySwitch(NTableClient::TUnversionedRow row, bool isLastRow);
 
@@ -70,8 +83,12 @@ protected:
 
 private:
     bool EnableContextSaving_;
+<<<<<<< HEAD
 
     NTableClient::TNameTablePtr NameTable_;
+=======
+    bool EnableKeySwitch_;
+>>>>>>> origin/prestable/0.17.4
 
     TBlobOutput CurrentBuffer_;
     TBlobOutput PreviousBuffer_;
@@ -110,9 +127,24 @@ public:
         int keyColumnCount);
 
     void Init(const TFormat& format);
+<<<<<<< HEAD
 
 private:
     std::unique_ptr<NYson::IYsonConsumer> Consumer_;
+=======
+
+    virtual void WriteTableIndex(i32 tableIndex) override;
+
+    virtual void WriteRangeIndex(i32 rangeIndex) override;
+
+    virtual void WriteRowIndex(i64 rowIndex) override;
+
+private:
+    std::unique_ptr<NYson::IYsonConsumer> Consumer_;
+    NTableClient::TNameTablePtr NameTable_;
+
+    TError Error_;
+>>>>>>> origin/prestable/0.17.4
 
     template <class T>
     void WriteControlAttribute(

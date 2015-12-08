@@ -2,8 +2,8 @@
 
 #include "public.h"
 
-#include <core/yson/consumer.h>
-#include <core/yson/parser.h>
+#include <yt/core/yson/consumer.h>
+#include <yt/core/yson/parser.h>
 
 namespace NYT {
 namespace NFormats {

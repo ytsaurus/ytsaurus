@@ -5,7 +5,7 @@
 #include "callback_internal.h"
 
 #ifdef YT_ENABLE_BIND_LOCATION_TRACKING
-#include <core/misc/source_location.h>
+#include <yt/core/misc/source_location.h>
 #endif
 
 namespace NYT {

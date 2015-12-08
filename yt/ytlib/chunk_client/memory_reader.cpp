@@ -1,6 +1,6 @@
 #include "memory_reader.h"
-#include "chunk_reader.h"
 #include "chunk_meta_extensions.h"
+#include "chunk_reader.h"
 
 namespace NYT {
 namespace NChunkClient {

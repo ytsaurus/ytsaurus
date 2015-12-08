@@ -3,20 +3,20 @@
 #include "public.h"
 #include "channel.h"
 
-#include <core/misc/property.h>
-#include <core/misc/protobuf_helpers.h>
-#include <core/misc/nullable.h>
+#include <yt/core/actions/future.h>
 
-#include <core/compression/public.h>
+#include <yt/core/bus/client.h>
 
-#include <core/bus/client.h>
+#include <yt/core/compression/public.h>
 
-#include <core/rpc/helpers.h>
-#include <core/rpc/rpc.pb.h>
+#include <yt/core/misc/nullable.h>
+#include <yt/core/misc/property.h>
+#include <yt/core/misc/protobuf_helpers.h>
 
-#include <core/actions/future.h>
+#include <yt/core/rpc/helpers.h>
+#include <yt/core/rpc/rpc.pb.h>
 
-#include <core/tracing/trace_context.h>
+#include <yt/core/tracing/trace_context.h>
 
 namespace NYT {
 namespace NRpc {

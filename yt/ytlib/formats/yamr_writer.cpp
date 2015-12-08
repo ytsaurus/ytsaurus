@@ -1,11 +1,10 @@
-#include "stdafx.h"
 #include "yamr_writer.h"
 
-#include <ytlib/table_client/name_table.h>
+#include <yt/ytlib/table_client/name_table.h>
 
-#include <core/misc/error.h>
+#include <yt/core/misc/error.h>
 
-#include <core/yson/format.h>
+#include <yt/core/yson/format.h>
 
 namespace NYT {
 namespace NFormats {
@@ -21,14 +20,22 @@ TSchemalessWriterForYamr::TSchemalessWriterForYamr(
     TNameTablePtr nameTable, 
     IAsyncOutputStreamPtr output,
     bool enableContextSaving,
+<<<<<<< HEAD
     TControlAttributesConfigPtr controlAttributesConfig,
+=======
+    bool enableKeySwitch,
+>>>>>>> origin/prestable/0.17.4
     int keyColumnCount,
     TYamrFormatConfigPtr config)
     : TSchemalessWriterForYamrBase(
         nameTable, 
         std::move(output),
         enableContextSaving, 
+<<<<<<< HEAD
         controlAttributesConfig,
+=======
+        enableKeySwitch,
+>>>>>>> origin/prestable/0.17.4
         keyColumnCount,
         config)
     , Table_(
@@ -43,7 +50,11 @@ TSchemalessWriterForYamr::TSchemalessWriterForYamr(
     SubkeyId_ = Config_->HasSubkey ? nameTable->GetIdOrRegisterName(config->Subkey) : -1;
     ValueId_ = nameTable->GetIdOrRegisterName(config->Value);
 }
+<<<<<<< HEAD
 
+=======
+    
+>>>>>>> origin/prestable/0.17.4
 void TSchemalessWriterForYamr::ValidateColumnType(const TUnversionedValue* value)
 {
     if (value->Type != EValueType::String) {
@@ -59,6 +70,7 @@ void TSchemalessWriterForYamr::DoWrite(const std::vector<TUnversionedRow>& rows)
     TYamrFormatConfigPtr config(static_cast<TYamrFormatConfig*>(Config_.Get()));
 
     for (int i = 0; i < static_cast<int>(rows.size()); i++) {
+<<<<<<< HEAD
         auto row = rows[i];
         if (CheckKeySwitch(row, i + 1 == rows.size() /* isLastRow */)) {
             YCHECK(config->Lenval);
@@ -66,12 +78,24 @@ void TSchemalessWriterForYamr::DoWrite(const std::vector<TUnversionedRow>& rows)
         }
 
         WriteControlAttributes(row);
+=======
+        if (CheckKeySwitch(rows[i], i + 1 == rows.size() /* isLastRow */)) {
+            if (!config->Lenval) {
+                THROW_ERROR_EXCEPTION("Key switches are not supported in text YAMR format.");
+            }
+            WritePod(*stream, static_cast<ui32>(-2));
+        }
+>>>>>>> origin/prestable/0.17.4
         
         TNullable<TStringBuf> key;
         TNullable<TStringBuf> subkey;
         TNullable<TStringBuf> value;
 
+<<<<<<< HEAD
         for (const auto* item = row.Begin(); item != row.End(); ++item) {
+=======
+        for (const auto* item = rows[i].Begin(); item != rows[i].End(); ++item) {
+>>>>>>> origin/prestable/0.17.4
             if (item->Id == KeyId_) {
                 ValidateColumnType(item);
                 key = TStringBuf(item->Data.String, item->Length);
@@ -100,7 +124,11 @@ void TSchemalessWriterForYamr::DoWrite(const std::vector<TUnversionedRow>& rows)
         if (!value) {
             THROW_ERROR_EXCEPTION("Missing value column %Qv in YAMR record", config->Value);
         }
+<<<<<<< HEAD
 
+=======
+             
+>>>>>>> origin/prestable/0.17.4
         if (!config->Lenval) {
             EscapeAndWrite(*key, Table_.KeyStops, Table_.Escapes);
             stream->Write(config->FieldSeparator);

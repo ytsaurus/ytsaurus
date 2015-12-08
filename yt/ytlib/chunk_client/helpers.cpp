@@ -1,32 +1,23 @@
-#include "stdafx.h"
-
 #include "helpers.h"
-#include "chunk_meta_extensions.h"
-#include "config.h"
-#include "chunk_service_proxy.h"
 #include "private.h"
-#include "replication_reader.h"
+#include "config.h"
 #include "erasure_reader.h"
 #include "replication_reader.h"
 
-#include <ytlib/api/client.h>
+#include <yt/ytlib/api/client.h>
 
-#include <ytlib/object_client/object_service_proxy.h>
-#include <ytlib/object_client/master_ypath_proxy.h>
-#include <ytlib/object_client/helpers.h>
+#include <yt/ytlib/chunk_client/chunk_replica.h>
+#include <yt/ytlib/chunk_client/chunk_ypath_proxy.h>
 
-#include <ytlib/chunk_client/chunk_ypath_proxy.h>
-#include <ytlib/chunk_client/chunk_spec.h>
+#include <yt/ytlib/node_tracker_client/node_directory.h>
 
-#include <ytlib/node_tracker_client/node_directory.h>
+#include <yt/ytlib/object_client/object_service_proxy.h>
 
-#include <ytlib/node_tracker_client/node_directory.h>
+#include <yt/core/erasure/codec.h>
 
-#include <core/erasure/codec.h>
-
-#include <core/concurrency/scheduler.h>
-#include <core/compression/codec.h>
-#include <core/erasure/codec.h>
+#include <yt/core/concurrency/scheduler.h>
+#include <yt/core/compression/codec.h>
+#include <yt/core/erasure/codec.h>
 
 namespace NYT {
 namespace NChunkClient {

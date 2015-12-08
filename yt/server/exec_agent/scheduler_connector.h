@@ -2,11 +2,11 @@
 
 #include "public.h"
 
-#include <core/concurrency/periodic_executor.h>
+#include <yt/server/cell_node/public.h>
 
-#include <ytlib/job_tracker_client/job_tracker_service_proxy.h>
+#include <yt/ytlib/job_tracker_client/job_tracker_service_proxy.h>
 
-#include <server/cell_node/public.h>
+#include <yt/core/concurrency/periodic_executor.h>
 
 namespace NYT {
 namespace NExecAgent {

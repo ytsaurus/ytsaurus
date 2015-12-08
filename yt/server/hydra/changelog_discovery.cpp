@@ -1,13 +1,12 @@
-#include "stdafx.h"
 #include "changelog_discovery.h"
 #include "private.h"
 #include "config.h"
 
-#include <core/concurrency/thread_affinity.h>
+#include <yt/ytlib/election/cell_manager.h>
 
-#include <ytlib/election/cell_manager.h>
+#include <yt/ytlib/hydra/hydra_service_proxy.h>
 
-#include <ytlib/hydra/hydra_service_proxy.h>
+#include <yt/core/concurrency/thread_affinity.h>
 
 namespace NYT {
 namespace NHydra {

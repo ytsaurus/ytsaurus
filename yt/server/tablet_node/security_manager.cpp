@@ -1,19 +1,18 @@
-#include "stdafx.h"
 #include "security_manager.h"
-#include "tablet.h"
-#include "config.h"
 #include "private.h"
+#include "config.h"
+#include "tablet.h"
 
-#include <core/misc/expiring_cache.h>
+#include <yt/server/cell_node/bootstrap.h>
 
-#include <core/concurrency/scheduler.h>
-#include <core/concurrency/fls.h>
+#include <yt/ytlib/api/client.h>
 
-#include <ytlib/api/client.h>
+#include <yt/ytlib/object_client/helpers.h>
 
-#include <ytlib/object_client/helpers.h>
+#include <yt/core/concurrency/fls.h>
+#include <yt/core/concurrency/scheduler.h>
 
-#include <server/cell_node/bootstrap.h>
+#include <yt/core/misc/expiring_cache.h>
 
 namespace NYT {
 namespace NTabletNode {

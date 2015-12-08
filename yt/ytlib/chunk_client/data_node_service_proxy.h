@@ -2,9 +2,9 @@
 
 #include "public.h"
 
-#include <core/rpc/client.h>
+#include <yt/ytlib/chunk_client/data_node_service.pb.h>
 
-#include <ytlib/chunk_client/data_node_service.pb.h>
+#include <yt/core/rpc/client.h>
 
 namespace NYT {
 namespace NChunkClient {
@@ -18,6 +18,11 @@ public:
     static Stroka GetServiceName()
     {
         return "DataNode";
+    }
+
+    static int GetProtocolVersion()
+    {
+        return 1;
     }
 
     explicit TDataNodeServiceProxy(NRpc::IChannelPtr channel)

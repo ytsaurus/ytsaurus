@@ -49,8 +49,9 @@ message TRemoveStoreDescriptor
 message TReqUpdateTabletStores
 {
     required NYT.NProto.TGuid tablet_id = 1;
-	repeated TAddStoreDescriptor stores_to_add = 2;	
-	repeated TRemoveStoreDescriptor stores_to_remove = 3;	
+    required int64 mount_revision = 4;
+    repeated TAddStoreDescriptor stores_to_add = 2;
+    repeated TRemoveStoreDescriptor stores_to_remove = 3;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

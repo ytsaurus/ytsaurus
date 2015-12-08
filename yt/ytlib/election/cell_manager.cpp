@@ -1,17 +1,16 @@
-#include "stdafx.h"
 #include "cell_manager.h"
 #include "private.h"
 #include "config.h"
 
-#include <core/misc/address.h>
+#include <yt/core/bus/client.h>
+#include <yt/core/bus/config.h>
+#include <yt/core/bus/tcp_client.h>
 
-#include <core/bus/config.h>
-#include <core/bus/client.h>
-#include <core/bus/tcp_client.h>
+#include <yt/core/misc/address.h>
 
-#include <core/rpc/helpers.h>
+#include <yt/core/profiling/profile_manager.h>
 
-#include <core/profiling/profile_manager.h>
+#include <yt/core/rpc/helpers.h>
 
 namespace NYT {
 namespace NElection {

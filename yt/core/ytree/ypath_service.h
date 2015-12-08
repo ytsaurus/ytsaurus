@@ -2,15 +2,15 @@
 
 #include "public.h"
 
-#include <core/yson/consumer.h>
+#include <yt/core/actions/public.h>
 
-#include <core/rpc/public.h>
+#include <yt/core/logging/log.h>
 
-#include <core/misc/property.h>
+#include <yt/core/misc/property.h>
 
-#include <core/actions/public.h>
+#include <yt/core/rpc/public.h>
 
-#include <core/logging/log.h>
+#include <yt/core/yson/consumer.h>
 
 namespace NYT {
 namespace NYTree {

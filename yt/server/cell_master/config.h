@@ -2,35 +2,33 @@
 
 #include "public.h"
 
-#include <core/rpc/config.h>
+#include <yt/server/chunk_server/config.h>
 
-#include <ytlib/election/config.h>
+#include <yt/server/cypress_server/config.h>
 
-#include <ytlib/hive/config.h>
+#include <yt/server/hive/config.h>
 
-#include <ytlib/transaction_client/config.h>
+#include <yt/server/hydra/config.h>
 
-#include <server/hydra/config.h>
+#include <yt/server/misc/config.h>
 
-#include <server/hive/config.h>
+#include <yt/server/node_tracker_server/config.h>
 
-#include <server/node_tracker_server/config.h>
+#include <yt/server/object_server/config.h>
 
-#include <server/transaction_server/config.h>
+#include <yt/server/security_server/config.h>
 
-#include <server/chunk_server/config.h>
+#include <yt/server/tablet_server/config.h>
 
-#include <server/journal_server/config.h>
+#include <yt/server/transaction_server/config.h>
 
-#include <server/cypress_server/config.h>
+#include <yt/ytlib/election/config.h>
 
-#include <server/object_server/config.h>
+#include <yt/ytlib/hive/config.h>
 
-#include <server/security_server/config.h>
+#include <yt/ytlib/transaction_client/config.h>
 
-#include <server/tablet_server/config.h>
-
-#include <server/misc/config.h>
+#include <yt/core/rpc/config.h>
 
 namespace NYT {
 namespace NCellMaster {

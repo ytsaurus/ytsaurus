@@ -1,21 +1,20 @@
-#include "stdafx.h"
 #include "tablet_proxy.h"
+#include "private.h"
 #include "tablet.h"
 #include "tablet_cell.h"
 #include "tablet_manager.h"
-#include "private.h"
 
-#include <core/yson/consumer.h>
+#include <yt/server/cell_master/bootstrap.h>
 
-#include <core/ytree/fluent.h>
+#include <yt/server/chunk_server/chunk_list.h>
 
-#include <server/object_server/object_detail.h>
+#include <yt/server/object_server/object_detail.h>
 
-#include <server/table_server/table_node.h>
+#include <yt/server/table_server/table_node.h>
 
-#include <server/chunk_server/chunk_list.h>
+#include <yt/core/yson/consumer.h>
 
-#include <server/cell_master/bootstrap.h>
+#include <yt/core/ytree/fluent.h>
 
 namespace NYT {
 namespace NTabletServer {
@@ -47,6 +46,8 @@ private:
         descriptors->push_back("statistics");
         descriptors->push_back(TAttributeDescriptor("performance_counters")
             .SetPresent(tablet->GetState() == ETabletState::Mounted));
+        descriptors->push_back(TAttributeDescriptor("mount_revision")
+            .SetPresent(tablet->GetState() == ETabletState::Mounted));
         descriptors->push_back("index");
         descriptors->push_back("table_id");
         descriptors->push_back("pivot_key");
@@ -74,10 +75,18 @@ private:
             return true;
         }
 
-        if (key == "performance_counters" && tablet->GetState() == ETabletState::Mounted) {
-            BuildYsonFluently(consumer)
-                .Value(tablet->PerformanceCounters());
-            return true;
+        if (tablet->GetState() == ETabletState::Mounted) {
+            if (key == "performance_counters") {
+                BuildYsonFluently(consumer)
+                    .Value(tablet->PerformanceCounters());
+                return true;
+            }
+
+            if (key == "mount_revision") {
+                BuildYsonFluently(consumer)
+                    .Value(tablet->GetMountRevision());
+                return true;
+            }
         }
 
         if (key == "index") {

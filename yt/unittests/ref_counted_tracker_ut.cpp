@@ -1,17 +1,16 @@
-#include "stdafx.h"
 #include "framework.h"
 
 #define YT_ENABLE_REF_COUNTED_TRACKING
 
-#include <core/misc/public.h>
-#include <core/misc/ref_counted_tracker.h>
-#include <core/misc/ref_counted.h>
-#include <core/misc/new.h>
-#include <core/misc/blob.h>
+#include <yt/core/misc/public.h>
+#include <yt/core/misc/ref_counted_tracker.h>
+#include <yt/core/misc/ref_counted.h>
+#include <yt/core/misc/new.h>
+#include <yt/core/misc/blob.h>
 
-#include <core/actions/future.h>
+#include <yt/core/actions/future.h>
 
-#include <core/concurrency/action_queue.h>
+#include <yt/core/concurrency/action_queue.h>
 
 namespace NYT {
 namespace {

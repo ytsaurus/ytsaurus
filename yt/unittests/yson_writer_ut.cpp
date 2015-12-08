@@ -1,10 +1,9 @@
-#include "stdafx.h"
 #include "framework.h"
 
-#include <core/yson/writer.h>
-#include <core/yson/parser.h>
-#include <core/yson/consumer-mock.h>
-#include <core/yson/stream.h>
+#include <yt/core/yson/writer.h>
+#include <yt/core/yson/parser.h>
+#include <yt/core/yson/consumer-mock.h>
+#include <yt/core/yson/stream.h>
 
 #include <util/string/escape.h>
 

@@ -2,22 +2,22 @@
 #include "error.h"
 #include "stream_stack.h"
 
-#include <core/ytree/node.h>
-#include <core/ytree/tree_builder.h>
-#include <core/ytree/ephemeral_node_factory.h>
-#include <core/ytree/convert.h>
-#include <core/ytree/ypath_client.h>
+#include <yt/ytlib/formats/format.h>
+#include <yt/ytlib/formats/utf8_decoder.h>
 
-#include <core/yson/consumer.h>
-#include <core/yson/writer.h>
-#include <core/yson/string.h>
+#include <yt/core/yson/consumer.h>
+#include <yt/core/yson/writer.h>
+#include <yt/core/yson/string.h>
 
-#include <ytlib/formats/format.h>
-#include <ytlib/formats/utf8_decoder.h>
-
-#include <util/stream/zlib.h>
+#include <yt/core/ytree/convert.h>
+#include <yt/core/ytree/ephemeral_node_factory.h>
+#include <yt/core/ytree/node.h>
+#include <yt/core/ytree/tree_builder.h>
+#include <yt/core/ytree/ypath_client.h>
 
 #include <library/streams/lz/lz.h>
+
+#include <util/stream/zlib.h>
 
 namespace NYT {
 namespace NNodeJS {

@@ -1,4 +1,3 @@
-#include "stdafx.h"
 #include "operation_controller_detail.h"
 #include "private.h"
 #include "chunk_list_pool.h"
@@ -6,40 +5,33 @@
 #include "helpers.h"
 #include "master_connector.h"
 
-#include <ytlib/transaction_client/helpers.h>
+#include <yt/ytlib/chunk_client/chunk_list_ypath_proxy.h>
+#include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
+#include <yt/ytlib/chunk_client/chunk_scraper.h>
+#include <yt/ytlib/chunk_client/chunk_slice.h>
+#include <yt/ytlib/chunk_client/data_statistics.h>
 
-#include <ytlib/node_tracker_client/node_directory.h>
-#include <ytlib/node_tracker_client/node_directory_builder.h>
+#include <yt/ytlib/cypress_client/rpc_helpers.h>
 
-#include <ytlib/chunk_client/chunk_list_ypath_proxy.h>
-#include <ytlib/chunk_client/chunk_meta_extensions.h>
-#include <ytlib/chunk_client/chunk_scraper.h>
-#include <ytlib/chunk_client/chunk_teleporter.h>
-#include <ytlib/chunk_client/chunk_slice.h>
-#include <ytlib/chunk_client/data_statistics.h>
-#include <ytlib/chunk_client/helpers.h>
+#include <yt/ytlib/node_tracker_client/node_directory_builder.h>
 
-#include <ytlib/table_client/schema.h>
-#include <ytlib/table_client/chunk_meta_extensions.h>
-#include <ytlib/cypress_client/rpc_helpers.h>
+#include <yt/ytlib/object_client/helpers.h>
 
-#include <ytlib/transaction_client/transaction_ypath_proxy.h>
+#include <yt/ytlib/query_client/plan_fragment.h>
+#include <yt/ytlib/query_client/query_preparer.h>
+#include <yt/ytlib/query_client/udf_descriptor.h>
 
-#include <ytlib/scheduler/helpers.h>
+#include <yt/ytlib/scheduler/helpers.h>
 
-#include <ytlib/object_client/helpers.h>
+#include <yt/ytlib/table_client/chunk_meta_extensions.h>
+#include <yt/ytlib/table_client/schema.h>
 
-#include <ytlib/cypress_client/rpc_helpers.h>
+#include <yt/ytlib/transaction_client/helpers.h>
+#include <yt/ytlib/transaction_client/transaction_ypath_proxy.h>
 
-#include <ytlib/query_client/plan_fragment.h>
-#include <ytlib/query_client/query_preparer.h>
-#include <ytlib/query_client/udf_descriptor.h>
+#include <yt/core/erasure/codec.h>
 
-#include <core/concurrency/action_queue.h>
-
-#include <core/erasure/codec.h>
-
-#include <core/misc/fs.h>
+#include <yt/core/misc/fs.h>
 
 #include <functional>
 
@@ -547,26 +539,33 @@ void TOperationControllerBase::TTask::OnJobStarted(TJobletPtr /* joblet */)
 
 void TOperationControllerBase::TTask::OnJobCompleted(TJobletPtr joblet, const TCompletedJobSummary& jobSummary)
 {
-    const auto& statistics = jobSummary.Statistics;
-    auto outputStatisticsMap = GetOutputDataStatistics(statistics);
-    for (int index = 0; index < static_cast<int>(joblet->ChunkListIds.size()); ++index) {
-        YCHECK(outputStatisticsMap.find(index) != outputStatisticsMap.end());
-        auto outputStatistics = outputStatisticsMap[index];
-        if (outputStatistics.chunk_count() == 0) {
+    if (!jobSummary.Abandoned) {
+        const auto& statistics = jobSummary.Statistics;
+        auto outputStatisticsMap = GetOutputDataStatistics(statistics);
+        for (int index = 0; index < static_cast<int>(joblet->ChunkListIds.size()); ++index) {
+            YCHECK(outputStatisticsMap.find(index) != outputStatisticsMap.end());
+            auto outputStatistics = outputStatisticsMap[index];
+            if (outputStatistics.chunk_count() == 0) {
+                Controller->ChunkListPool->Reinstall(joblet->ChunkListIds[index]);
+                joblet->ChunkListIds[index] = NullChunkListId;
+            }
+        }
+
+        auto inputStatistics = GetTotalInputDataStatistics(statistics);
+        auto outputStatistics = GetTotalOutputDataStatistics(statistics);
+        if (Controller->IsRowCountPreserved()) {
+            if (inputStatistics.row_count() != outputStatistics.row_count()) {
+                Controller->OnOperationFailed(TError(
+                    "Input/output row count mismatch in completed job: %v != %v",
+                    inputStatistics.row_count(),
+                    outputStatistics.row_count())
+                    << TErrorAttribute("task", GetId()));
+            }
+        }
+    } else {
+        for (int index = 0; index < static_cast<int>(joblet->ChunkListIds.size()); ++index) {
             Controller->ChunkListPool->Reinstall(joblet->ChunkListIds[index]);
             joblet->ChunkListIds[index] = NullChunkListId;
-        }
-    }
-
-    auto inputStatistics = GetTotalInputDataStatistics(statistics);
-    auto outputStatistics = GetTotalOutputDataStatistics(statistics);
-    if (Controller->IsRowCountPreserved()) {
-        if (inputStatistics.row_count() != outputStatistics.row_count()) {
-            Controller->OnOperationFailed(TError(
-                "Input/output row count mismatch in completed job: %v != %v",
-                inputStatistics.row_count(),
-                outputStatistics.row_count())
-                << TErrorAttribute("task", GetId()));
         }
     }
     GetChunkPoolOutput()->Completed(joblet->OutputCookie);
@@ -1329,7 +1328,11 @@ void TOperationControllerBase::InitInputChunkScraper()
         InputNodeDirectory,
         std::move(chunkIds),
         BIND(&TThis::OnInputChunkLocated, MakeWeak(this))
+<<<<<<< HEAD
             .Via(CancelableInvoker),
+=======
+            .Via(CancelableControlInvoker),
+>>>>>>> origin/prestable/0.17.4
         Logger
     );
 
@@ -2709,7 +2712,11 @@ void TOperationControllerBase::FetchInputTables()
                 auto req = TTableYPathProxy::Fetch(FromObjectId(table.ObjectId));
                 InitializeFetchRequest(req.Get(), table.Path);
                 ToProto(req->mutable_ranges(), std::vector<TReadRange>({adjustedRange}));
-                req->set_fetch_all_meta_extensions(true);
+                req->set_fetch_all_meta_extensions(false);
+                req->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
+                if (IsBoundaryKeysFetchEnabled()) {
+                    req->add_extension_tags(TProtoExtensionTag<NTableClient::NProto::TBoundaryKeysExt>::Value);
+                }
                 req->set_fetch_parity_replicas(IsParityReplicasFetchEnabled());
                 SetTransactionId(req, InputTransactionId);
                 batchReq->AddRequest(req, "fetch");
@@ -2757,6 +2764,7 @@ void TOperationControllerBase::LockInputTables()
 
         auto batchReq = proxy.ExecuteBatch();
 
+<<<<<<< HEAD
         for (const auto& table : InputTables) {
             auto objectIdPath = FromObjectId(table.ObjectId);
             {
@@ -2766,6 +2774,27 @@ void TOperationControllerBase::LockInputTables()
                 GenerateMutationId(req);
                 batchReq->AddRequest(req, "lock");
             }
+=======
+    for (const auto& table : InputTables) {
+        auto path = FromObjectId(table.ObjectId);
+        {
+            auto req = TCypressYPathProxy::Lock(path);
+            req->set_mode(static_cast<int>(ELockMode::Snapshot));
+            SetTransactionId(req, InputTransactionId);
+            GenerateMutationId(req);
+            batchReq->AddRequest(req, "lock_in");
+        }
+        {
+            auto req = TYPathProxy::Get(path);
+            TAttributeFilter attributeFilter(EAttributeFilterMode::MatchingOnly);
+            attributeFilter.Keys.push_back("dynamic");
+            attributeFilter.Keys.push_back("sorted");
+            attributeFilter.Keys.push_back("sorted_by");
+            attributeFilter.Keys.push_back("chunk_count");
+            ToProto(req->mutable_attribute_filter(), attributeFilter);
+            SetTransactionId(req, InputTransactionId);
+            batchReq->AddRequest(req, "get_in_attributes");
+>>>>>>> origin/prestable/0.17.4
         }
 
         auto batchRspOrError = WaitFor(batchReq->Invoke());
@@ -2810,7 +2839,12 @@ void TOperationControllerBase::LockInputTables()
                 const auto& attributes = node->Attributes();
 
                 if (attributes.Get<bool>("dynamic")) {
+<<<<<<< HEAD
                     THROW_ERROR_EXCEPTION("Input table %v is not static", path);
+=======
+                    THROW_ERROR_EXCEPTION("Expected a static table, but got dynamic")
+                        << TErrorAttribute("input_table", table.Path.GetPath());
+>>>>>>> origin/prestable/0.17.4
                 }
 
                 if (attributes.Get<bool>("sorted")) {
@@ -3452,6 +3486,11 @@ bool TOperationControllerBase::IsParityReplicasFetchEnabled() const
     return false;
 }
 
+bool TOperationControllerBase::IsBoundaryKeysFetchEnabled() const
+{
+    return false;
+}
+
 void TOperationControllerBase::UpdateAllTasksIfNeeded(const TProgressCounter& jobCounter)
 {
     if (jobCounter.GetAborted(EAbortReason::ResourceOverdraft) == Config->MaxMemoryReserveAbortJobCount) {
@@ -3735,6 +3774,10 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
     jobSpec->set_max_stderr_size(config->MaxStderrSize);
     jobSpec->set_enable_core_dump(config->EnableCoreDump);
     jobSpec->set_custom_statistics_count_limit(config->CustomStatisticsCountLimit);
+    
+    if (Config->UserJobBlkioWeight) {
+        jobSpec->set_blkio_weight(*Config->UserJobBlkioWeight);
+    }
 
     {
         // Set input and output format.

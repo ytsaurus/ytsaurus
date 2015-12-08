@@ -1,4 +1,3 @@
-#include "stdafx.h"
 #include "changelog.h"
 
 namespace NYT {

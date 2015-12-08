@@ -2,7 +2,7 @@
 
 #include "private.h"
 
-#include <core/misc/checksum.h>
+#include <yt/core/misc/checksum.h>
 
 namespace NYT {
 namespace NChunkClient {

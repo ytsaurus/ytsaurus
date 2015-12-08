@@ -1,4 +1,3 @@
-#include "stdafx.h"
 #include "local_server.h"
 #include "server_detail.h"
 

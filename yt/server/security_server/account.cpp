@@ -1,12 +1,9 @@
-#include "stdafx.h"
 #include "account.h"
 
-#include <core/ytree/convert.h>
-#include <core/ytree/fluent.h>
+#include <yt/server/cell_master/serialize.h>
 
-#include <server/security_server/security_manager.pb.h>
-
-#include <server/cell_master/serialize.h>
+#include <yt/core/ytree/convert.h>
+#include <yt/core/ytree/fluent.h>
 
 namespace NYT {
 namespace NSecurityServer {

@@ -1,4 +1,3 @@
-#include "stdafx.h"
 #include "high_resolution_clock.h"
 
 #include <util/datetime/cputimer.h>

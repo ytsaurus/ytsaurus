@@ -1,4 +1,3 @@
-#include "stdafx.h"
 #include "plan_fragment_common.h"
 
 namespace NYT {

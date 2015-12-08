@@ -2,10 +2,10 @@
 
 #include "public.h"
 
-#include <ytlib/formats/format.h>
+#include <yt/ytlib/formats/format.h>
 
-#include <core/yson/public.h>
-#include <core/yson/lexer.h>
+#include <yt/core/yson/lexer.h>
+#include <yt/core/yson/public.h>
 
 namespace NYT {
 namespace NTableClient {

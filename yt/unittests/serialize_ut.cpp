@@ -1,8 +1,8 @@
-#include "stdafx.h"
 #include "framework.h"
 
-#include <core/misc/serialize.h>
-#include <core/ytree/convert.h>
+#include <yt/core/misc/serialize.h>
+
+#include <yt/core/ytree/convert.h>
 
 namespace NYT {
 namespace NYTree {

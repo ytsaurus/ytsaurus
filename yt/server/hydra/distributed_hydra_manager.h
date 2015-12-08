@@ -2,11 +2,11 @@
 
 #include "public.h"
 
-#include <core/rpc/public.h>
+#include <yt/server/election/public.h>
 
-#include <core/actions/public.h>
+#include <yt/ytlib/election/public.h>
 
-#include <server/election/public.h>
+#include <yt/core/actions/public.h>
 
 namespace NYT {
 namespace NHydra {

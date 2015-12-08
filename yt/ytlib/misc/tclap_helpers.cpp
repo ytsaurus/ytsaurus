@@ -1,4 +1,3 @@
-#include "stdafx.h"
 #include "tclap_helpers.h"
 
 namespace std {

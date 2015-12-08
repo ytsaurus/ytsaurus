@@ -2,7 +2,7 @@
 #error "Direct inclusion of this file is not allowed, include tools.h"
 #endif
 
-#include <core/ytree/convert.h>
+#include <yt/core/ytree/convert.h>
 
 #include "registry.h"
 

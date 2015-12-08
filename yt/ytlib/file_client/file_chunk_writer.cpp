@@ -1,17 +1,15 @@
-#include "stdafx.h"
-
 #include "file_chunk_writer.h"
+#include "private.h"
 #include "chunk_meta_extensions.h"
 #include "config.h"
-#include "private.h"
 
-#include <ytlib/api/config.h>
+#include <yt/ytlib/api/config.h>
 
-#include <ytlib/chunk_client/encoding_chunk_writer.h>
-#include <ytlib/chunk_client/chunk_writer.h>
-#include <ytlib/chunk_client/chunk_spec.h>
-#include <ytlib/chunk_client/dispatcher.h>
-#include <ytlib/chunk_client/multi_chunk_writer_base.h>
+#include <yt/ytlib/chunk_client/chunk_spec.h>
+#include <yt/ytlib/chunk_client/chunk_writer.h>
+#include <yt/ytlib/chunk_client/dispatcher.h>
+#include <yt/ytlib/chunk_client/encoding_chunk_writer.h>
+#include <yt/ytlib/chunk_client/multi_chunk_writer_base.h>
 
 namespace NYT {
 namespace NFileClient {

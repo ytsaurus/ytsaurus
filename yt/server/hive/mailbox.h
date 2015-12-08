@@ -2,18 +2,18 @@
 
 #include "public.h"
 
-#include <core/misc/property.h>
-#include <core/misc/ref_tracked.h>
+#include <yt/server/hive/hive_manager.pb.h>
 
-#include <core/rpc/public.h>
+#include <yt/server/hydra/entity_map.h>
 
-#include <core/tracing/public.h>
+#include <yt/ytlib/hydra/hydra_manager.pb.h>
 
-#include <ytlib/hydra/hydra_manager.pb.h>
+#include <yt/core/misc/property.h>
+#include <yt/core/misc/ref_tracked.h>
 
-#include <server/hydra/entity_map.h>
+#include <yt/core/rpc/public.h>
 
-#include <server/hive/hive_manager.pb.h>
+#include <yt/core/tracing/public.h>
 
 namespace NYT {
 namespace NHive {

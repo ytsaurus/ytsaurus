@@ -1,106 +1,97 @@
-#include "stdafx.h"
 #include "bootstrap.h"
 #include "config.h"
 
-#include <core/misc/address.h>
-#include <core/misc/ref_counted_tracker.h>
-#include <core/misc/collection_helpers.h>
+#include <yt/server/data_node/blob_reader_cache.h>
+#include <yt/server/data_node/block_cache.h>
+#include <yt/server/data_node/chunk_block_manager.h>
+#include <yt/server/data_node/chunk_cache.h>
+#include <yt/server/data_node/chunk_registry.h>
+#include <yt/server/data_node/chunk_store.h>
+#include <yt/server/data_node/config.h>
+#include <yt/server/data_node/data_node_service.h>
+#include <yt/server/data_node/job.h>
+#include <yt/server/data_node/journal_dispatcher.h>
+#include <yt/server/data_node/location.h>
+#include <yt/server/data_node/master_connector.h>
+#include <yt/server/data_node/peer_block_table.h>
+#include <yt/server/data_node/peer_block_updater.h>
+#include <yt/server/data_node/private.h>
+#include <yt/server/data_node/session_manager.h>
+#include <yt/server/data_node/ytree_integration.h>
+#include <yt/server/data_node/chunk_meta_manager.h>
 
-#include <core/concurrency/action_queue.h>
-#include <core/concurrency/thread_pool.h>
+#include <yt/server/exec_agent/config.h>
+#include <yt/server/exec_agent/environment.h>
+#include <yt/server/exec_agent/environment_manager.h>
+#include <yt/server/exec_agent/job.h>
+#include <yt/server/exec_agent/job_prober_service.h>
+#include <yt/server/exec_agent/private.h>
+#include <yt/server/exec_agent/scheduler_connector.h>
+#include <yt/server/exec_agent/slot_manager.h>
+#include <yt/server/exec_agent/supervisor_service.h>
+#include <yt/server/exec_agent/unsafe_environment.h>
 
-#include <core/bus/server.h>
-#include <core/bus/tcp_server.h>
-#include <core/bus/config.h>
+#include <yt/server/job_agent/job_controller.h>
 
-#include <core/rpc/channel.h>
-#include <core/rpc/bus_channel.h>
-#include <core/rpc/caching_channel_factory.h>
-#include <core/rpc/server.h>
-#include <core/rpc/bus_server.h>
-#include <core/rpc/redirector_service.h>
-#include <core/rpc/throttling_channel.h>
+#include <yt/server/misc/build_attributes.h>
+#include <yt/server/misc/memory_usage_tracker.h>
 
-#include <ytlib/orchid/orchid_service.h>
+#include <yt/server/object_server/master_cache_service.h>
 
-#include <core/ytree/ephemeral_node_factory.h>
-#include <core/ytree/virtual.h>
-#include <core/ytree/ypath_client.h>
+#include <yt/server/query_agent/query_executor.h>
+#include <yt/server/query_agent/query_service.h>
 
-#include <core/profiling/profile_manager.h>
+#include <yt/server/tablet_node/in_memory_manager.h>
+#include <yt/server/tablet_node/partition_balancer.h>
+#include <yt/server/tablet_node/security_manager.h>
+#include <yt/server/tablet_node/slot_manager.h>
+#include <yt/server/tablet_node/store_compactor.h>
+#include <yt/server/tablet_node/store_flusher.h>
 
-#include <ytlib/misc/workload.h>
+#include <yt/server/transaction_server/timestamp_proxy_service.h>
 
-#include <ytlib/monitoring/monitoring_manager.h>
-#include <ytlib/monitoring/http_server.h>
-#include <ytlib/monitoring/http_integration.h>
+#include <yt/server/hive/cell_directory_synchronizer.h>
 
-#include <ytlib/object_client/helpers.h>
-#include <ytlib/object_client/object_service_proxy.h>
+#include <yt/ytlib/api/client.h>
+#include <yt/ytlib/api/connection.h>
 
-#include <ytlib/chunk_client/chunk_service_proxy.h>
-#include <ytlib/chunk_client/client_block_cache.h>
+#include <yt/ytlib/chunk_client/chunk_service_proxy.h>
+#include <yt/ytlib/chunk_client/client_block_cache.h>
 
-#include <ytlib/object_client/helpers.h>
+#include <yt/ytlib/hydra/peer_channel.h>
 
-#include <ytlib/api/client.h>
-#include <ytlib/api/connection.h>
+#include <yt/ytlib/misc/workload.h>
 
-#include <ytlib/hydra/peer_channel.h>
+#include <yt/ytlib/monitoring/http_integration.h>
+#include <yt/ytlib/monitoring/http_server.h>
+#include <yt/ytlib/monitoring/monitoring_manager.h>
 
-#include <ytlib/query_client/column_evaluator.h>
-#include <ytlib/query_client/config.h>
+#include <yt/ytlib/object_client/helpers.h>
+#include <yt/ytlib/object_client/object_service_proxy.h>
 
-#include <server/misc/build_attributes.h>
-#include <server/misc/memory_usage_tracker.h>
+#include <yt/ytlib/orchid/orchid_service.h>
 
-#include <server/data_node/config.h>
-#include <server/data_node/ytree_integration.h>
-#include <server/data_node/chunk_cache.h>
-#include <server/data_node/peer_block_table.h>
-#include <server/data_node/peer_block_updater.h>
-#include <server/data_node/chunk_store.h>
-#include <server/data_node/chunk_cache.h>
-#include <server/data_node/chunk_registry.h>
-#include <server/data_node/block_store.h>
-#include <server/data_node/block_cache.h>
-#include <server/data_node/blob_reader_cache.h>
-#include <server/data_node/journal_dispatcher.h>
-#include <server/data_node/location.h>
-#include <server/data_node/data_node_service.h>
-#include <server/data_node/master_connector.h>
-#include <server/data_node/session_manager.h>
-#include <server/data_node/job.h>
-#include <server/data_node/private.h>
+#include <yt/core/bus/config.h>
+#include <yt/core/bus/server.h>
+#include <yt/core/bus/tcp_server.h>
 
-#include <server/job_agent/job_controller.h>
+#include <yt/core/concurrency/action_queue.h>
 
-#include <server/exec_agent/private.h>
-#include <server/exec_agent/config.h>
-#include <server/exec_agent/slot_manager.h>
-#include <server/exec_agent/supervisor_service.h>
-#include <server/exec_agent/job_prober_service.h>
-#include <server/exec_agent/environment.h>
-#include <server/exec_agent/environment_manager.h>
-#include <server/exec_agent/unsafe_environment.h>
-#include <server/exec_agent/scheduler_connector.h>
-#include <server/exec_agent/job.h>
+#include <yt/core/misc/address.h>
+#include <yt/core/misc/collection_helpers.h>
+#include <yt/core/misc/ref_counted_tracker.h>
 
-#include <server/tablet_node/slot_manager.h>
-#include <server/tablet_node/store_flusher.h>
-#include <server/tablet_node/store_compactor.h>
-#include <server/tablet_node/partition_balancer.h>
-#include <server/tablet_node/security_manager.h>
-#include <server/tablet_node/in_memory_manager.h>
+#include <yt/core/profiling/profile_manager.h>
 
-#include <server/query_agent/query_executor.h>
-#include <server/query_agent/query_service.h>
+#include <yt/core/rpc/bus_channel.h>
+#include <yt/core/rpc/bus_server.h>
+#include <yt/core/rpc/caching_channel_factory.h>
+#include <yt/core/rpc/channel.h>
+#include <yt/core/rpc/redirector_service.h>
+#include <yt/core/rpc/server.h>
+#include <yt/core/rpc/throttling_channel.h>
 
-#include <server/transaction_server/timestamp_proxy_service.h>
-
-#include <server/object_server/master_cache_service.h>
-
-#include <server/hive/cell_directory_synchronizer.h>
+#include <yt/core/ytree/ephemeral_node_factory.h>
 
 namespace NYT {
 namespace NCellNode {
@@ -201,14 +192,6 @@ void TBootstrap::DoRun()
     QueryThreadPool = New<TThreadPool>(
         Config->QueryAgent->ThreadPoolSize,
         "Query");
-    BoundedConcurrencyQueryPoolInvoker = CreateBoundedConcurrencyInvoker(
-        QueryThreadPool->GetInvoker(),
-        Config->QueryAgent->MaxConcurrentQueries,
-        "Queries");
-    BoundedConcurrencyQueryPoolInvoker = CreateBoundedConcurrencyInvoker(
-        QueryThreadPool->GetInvoker(),
-        Config->QueryAgent->MaxConcurrentReads,
-        "Reads");
 
     BusServer = CreateTcpBusServer(TTcpBusServerConfig::CreateTcp(Config->RpcPort));
 
@@ -253,7 +236,9 @@ void TBootstrap::DoRun()
 
     ChunkRegistry = New<TChunkRegistry>(this);
 
-    BlockStore = New<TBlockStore>(Config->DataNode, this);
+    ChunkMetaManager = New<TChunkMetaManager>(Config->DataNode, this);
+
+    ChunkBlockManager = New<TChunkBlockManager>(Config->DataNode, this);
 
     BlockCache = CreateServerBlockCache(Config->DataNode, this);
 
@@ -491,16 +476,6 @@ IInvokerPtr TBootstrap::GetQueryPoolInvoker() const
     return QueryThreadPool->GetInvoker();
 }
 
-IInvokerPtr TBootstrap::GetBoundedConcurrencyQueryPoolInvoker() const
-{
-    return BoundedConcurrencyQueryPoolInvoker;
-}
-
-IInvokerPtr TBootstrap::GetBoundedConcurrencyReadPoolInvoker() const
-{
-    return BoundedConcurrencyReadPoolInvoker;
-}
-
 IClientPtr TBootstrap::GetMasterClient() const
 {
     return MasterClient;
@@ -581,9 +556,14 @@ TSessionManagerPtr TBootstrap::GetSessionManager() const
     return SessionManager;
 }
 
-TBlockStorePtr TBootstrap::GetBlockStore() const
+TChunkBlockManagerPtr TBootstrap::GetChunkBlockManager() const
 {
-    return BlockStore;
+    return ChunkBlockManager;
+}
+
+TChunkMetaManagerPtr TBootstrap::GetChunkMetaManager() const
+{
+    return ChunkMetaManager;
 }
 
 IBlockCachePtr TBootstrap::GetBlockCache() const
@@ -697,7 +677,7 @@ TAddressMap TBootstrap::GetLocalAddresses()
 
 void TBootstrap::PopulateAlerts(std::vector<TError>* alerts)
 {
-    // NB: Don't used IsXXXExceeded helpers to be atomic.
+    // NB: Don't expect IsXXXExceeded helpers to be atomic.
     auto totalUsed = MemoryUsageTracker->GetTotalUsed();
     auto totalLimit = MemoryUsageTracker->GetTotalLimit();
     if (totalUsed > totalLimit) {

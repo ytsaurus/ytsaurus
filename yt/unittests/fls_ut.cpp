@@ -1,7 +1,6 @@
-#include "stdafx.h"
 #include "framework.h"
 
-#include <core/concurrency/fls.h>
+#include <yt/core/concurrency/fls.h>
 
 namespace NYT {
 namespace NConcurrency {

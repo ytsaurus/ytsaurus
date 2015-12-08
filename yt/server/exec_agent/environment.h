@@ -1,12 +1,14 @@
-﻿#pragma once
+#pragma once
 
 #include "public.h"
 
-#include <ytlib/cgroup/public.h>
+#include <yt/ytlib/cgroup/public.h>
 
-#include <core/ytree/node.h>
-#include <core/misc/error.h>
-#include <core/actions/signal.h>
+#include <yt/core/actions/signal.h>
+
+#include <yt/core/misc/error.h>
+
+#include <yt/core/ytree/node.h>
 
 namespace NYT {
 namespace NExecAgent {

@@ -1,7 +1,4 @@
-#include "stdafx.h"
-
 #include "schemaless_chunk_writer.h"
-
 #include "chunk_meta_extensions.h"
 #include "chunk_writer_base.h"
 #include "config.h"
@@ -11,31 +8,29 @@
 #include "schemaless_row_reorderer.h"
 #include "table_ypath_proxy.h"
 
-#include <ytlib/api/client.h>
+#include <yt/ytlib/api/client.h>
 
-#include <ytlib/chunk_client/dispatcher.h>
-#include <ytlib/chunk_client/chunk_writer.h>
-#include <ytlib/chunk_client/encoding_chunk_writer.h>
-#include <ytlib/chunk_client/multi_chunk_writer_base.h>
+#include <yt/ytlib/chunk_client/chunk_writer.h>
+#include <yt/ytlib/chunk_client/dispatcher.h>
+#include <yt/ytlib/chunk_client/encoding_chunk_writer.h>
+#include <yt/ytlib/chunk_client/multi_chunk_writer_base.h>
 
-#include <ytlib/cypress_client/cypress_ypath_proxy.h>
+#include <yt/ytlib/cypress_client/cypress_ypath_proxy.h>
 
-#include <ytlib/object_client/object_service_proxy.h>
-#include <ytlib/object_client/helpers.h>
+#include <yt/ytlib/object_client/object_service_proxy.h>
+#include <yt/ytlib/object_client/helpers.h>
 
-#include <ytlib/transaction_client/helpers.h>
-#include <ytlib/transaction_client/transaction_listener.h>
-#include <ytlib/transaction_client/transaction_manager.h>
+#include <yt/ytlib/transaction_client/helpers.h>
+#include <yt/ytlib/transaction_client/transaction_listener.h>
+#include <yt/ytlib/transaction_client/transaction_manager.h>
 
-#include <ytlib/ypath/rich.h>
+#include <yt/ytlib/ypath/rich.h>
 
-#include <ytlib/api/client.h>
+#include <yt/core/concurrency/scheduler.h>
 
-#include <core/concurrency/scheduler.h>
+#include <yt/core/rpc/channel.h>
 
-#include <core/rpc/channel.h>
-
-#include <core/ytree/attribute_helpers.h>
+#include <yt/core/ytree/attribute_helpers.h>
 
 namespace NYT {
 namespace NTableClient {

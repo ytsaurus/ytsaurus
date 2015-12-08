@@ -1,11 +1,10 @@
-#include "stdafx.h"
 #include "unordered_schemaful_reader.h"
 #include "schemaful_reader.h"
 #include "unversioned_row.h"
 
-#include <core/actions/cancelable_context.h>
+#include <yt/core/actions/cancelable_context.h>
 
-#include <core/concurrency/rw_spinlock.h>
+#include <yt/core/concurrency/rw_spinlock.h>
 
 namespace NYT {
 namespace NTableClient {

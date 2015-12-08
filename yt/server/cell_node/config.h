@@ -2,21 +2,21 @@
 
 #include "public.h"
 
-#include <ytlib/api/config.h>
+#include <yt/server/exec_agent/config.h>
 
-#include <ytlib/node_tracker_client/public.h>
+#include <yt/server/misc/config.h>
 
-#include <server/misc/config.h>
+#include <yt/server/object_server/config.h>
 
-#include <server/exec_agent/config.h>
+#include <yt/server/query_agent/config.h>
 
-#include <server/tablet_node/config.h>
+#include <yt/server/tablet_node/config.h>
 
-#include <server/query_agent/config.h>
+#include <yt/ytlib/api/config.h>
 
-#include <server/object_server/config.h>
+#include <yt/ytlib/node_tracker_client/public.h>
 
-#include <server/hive/config.h>
+#include <yt/server/hive/config.h>
 
 namespace NYT {
 namespace NCellNode {

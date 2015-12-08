@@ -1,8 +1,8 @@
 #pragma once
 
-#include <core/ytree/ypath_proxy.h>
+#include <yt/ytlib/security_client/group_ypath.pb.h>
 
-#include <ytlib/security_client/group_ypath.pb.h>
+#include <yt/core/ytree/ypath_proxy.h>
 
 namespace NYT {
 namespace NSecurityClient {

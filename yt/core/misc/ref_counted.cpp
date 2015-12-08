@@ -1,5 +1,3 @@
-#include "stdafx.h"
-#include "public.h"
 #include "ref_counted.h"
 #include "ref_counted_tracker.h"
 

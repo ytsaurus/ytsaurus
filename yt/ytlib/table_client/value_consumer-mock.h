@@ -1,7 +1,7 @@
 #pragma once
 
-#include "value_consumer.h"
 #include "name_table.h"
+#include "value_consumer.h"
 
 #include <contrib/testing/gmock.h>
 

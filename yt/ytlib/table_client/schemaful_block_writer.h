@@ -2,11 +2,11 @@
 
 #include "public.h"
 
-#include <ytlib/table_client/chunk_meta.pb.h>
+#include <yt/ytlib/table_client/chunk_meta.pb.h>
 
-#include <core/misc/ref.h>
-#include <core/misc/chunked_output_stream.h>
-#include <core/misc/blob_output.h>
+#include <yt/core/misc/blob_output.h>
+#include <yt/core/misc/chunked_output_stream.h>
+#include <yt/core/misc/ref.h>
 
 #include <util/generic/bitmap.h>
 

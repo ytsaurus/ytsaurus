@@ -2,17 +2,17 @@
 
 #include "public.h"
 
-#include <core/misc/property.h>
+#include <yt/ytlib/table_client/public.h>
+#include <yt/ytlib/table_client/schemaless_writer.h>
 
-#include <core/ytree/public.h>
-#include <core/ytree/attributes.h>
+#include <yt/core/concurrency/public.h>
 
-#include <core/yson/public.h>
+#include <yt/core/misc/property.h>
 
-#include <core/concurrency/public.h>
+#include <yt/core/yson/public.h>
 
-#include <ytlib/table_client/public.h>
-#include <ytlib/table_client/schemaless_writer.h>
+#include <yt/core/ytree/attributes.h>
+#include <yt/core/ytree/public.h>
 
 namespace NYT {
 namespace NFormats {
@@ -65,6 +65,15 @@ void Deserialize(TFormat& value, NYTree::INodePtr node);
 struct ISchemalessFormatWriter
     : public NTableClient::ISchemalessWriter
 {
+<<<<<<< HEAD
+=======
+    virtual void WriteTableIndex(i32 tableIndex) = 0;
+
+    virtual void WriteRangeIndex(i32 rangeIndex) = 0;
+
+    virtual void WriteRowIndex(i64 rowIndex) = 0;
+
+>>>>>>> origin/prestable/0.17.4
     virtual TBlob GetContext() const = 0;
 };
 
@@ -77,14 +86,21 @@ NTableClient::ISchemafulWriterPtr CreateSchemafulWriterForFormat(
     const NTableClient::TTableSchema& schema,
     NConcurrency::IAsyncOutputStreamPtr output);
 
+<<<<<<< HEAD
 ////////////////////////////////////////////////////////////////////////////////
 
+=======
+>>>>>>> origin/prestable/0.17.4
 ISchemalessFormatWriterPtr CreateSchemalessWriterForDsv(
     const NYTree::IAttributeDictionary& attributes,
     NTableClient::TNameTablePtr nameTable,
     NConcurrency::IAsyncOutputStreamPtr output,
     bool enableContextSaving,
+<<<<<<< HEAD
     TControlAttributesConfigPtr controlAttributesConfig,
+=======
+    bool enableKeySwitch,
+>>>>>>> origin/prestable/0.17.4
     int /* keyColumnCount */);
 
 ISchemalessFormatWriterPtr CreateSchemalessWriterForYamr(
@@ -92,7 +108,11 @@ ISchemalessFormatWriterPtr CreateSchemalessWriterForYamr(
     NTableClient::TNameTablePtr nameTable,
     NConcurrency::IAsyncOutputStreamPtr output,
     bool enableContextSaving,
+<<<<<<< HEAD
     TControlAttributesConfigPtr controlAttributesConfig,
+=======
+    bool enableKeySwitch,
+>>>>>>> origin/prestable/0.17.4
     int keyColumnCount);
 
 ISchemalessFormatWriterPtr CreateSchemalessWriterForYamredDsv(
@@ -100,6 +120,7 @@ ISchemalessFormatWriterPtr CreateSchemalessWriterForYamredDsv(
     NTableClient::TNameTablePtr nameTable,
     NConcurrency::IAsyncOutputStreamPtr output,
     bool enableContextSaving,
+<<<<<<< HEAD
     TControlAttributesConfigPtr controlAttributesConfig,
     int keyColumnCount);
 
@@ -111,6 +132,11 @@ ISchemalessFormatWriterPtr CreateSchemalessWriterForSchemafulDsv(
     TControlAttributesConfigPtr controlAttributesConfig,
     int /* keyColumnCount */);
 
+=======
+    bool enableKeySwitch,
+    int keyColumnCount);
+
+>>>>>>> origin/prestable/0.17.4
 ISchemalessFormatWriterPtr CreateSchemalessWriterForFormat(
     const TFormat& format,
     NTableClient::TNameTablePtr nameTable,

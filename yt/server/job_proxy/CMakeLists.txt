@@ -3,6 +3,7 @@ set( SRCS
   ${CMAKE_CURRENT_LIST_DIR}/job_detail.cpp
   ${CMAKE_CURRENT_LIST_DIR}/job_prober_service.cpp
   ${CMAKE_CURRENT_LIST_DIR}/job_proxy.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/job_signaler.cpp
   ${CMAKE_CURRENT_LIST_DIR}/map_job_io.cpp
   ${CMAKE_CURRENT_LIST_DIR}/merge_job.cpp
   ${CMAKE_CURRENT_LIST_DIR}/partition_job.cpp
@@ -25,6 +26,7 @@ set( HDRS
   ${CMAKE_CURRENT_LIST_DIR}/job_detail.h
   ${CMAKE_CURRENT_LIST_DIR}/job_prober_service.h
   ${CMAKE_CURRENT_LIST_DIR}/job_proxy.h
+  ${CMAKE_CURRENT_LIST_DIR}/job_signaler.h
   ${CMAKE_CURRENT_LIST_DIR}/map_job_io.h
   ${CMAKE_CURRENT_LIST_DIR}/merge_job.h
   ${CMAKE_CURRENT_LIST_DIR}/partition_job.h

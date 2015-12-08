@@ -1,15 +1,13 @@
 include_directories(
-  ${CMAKE_CURRENT_SOURCE_DIR}
   ${CMAKE_SOURCE_DIR}
-  ${CMAKE_SOURCE_DIR}/yt
   ${CMAKE_SOURCE_DIR}/contrib/tclap
   ${CMAKE_SOURCE_DIR}/contrib/libs/sparsehash/src
   ${CMAKE_SOURCE_DIR}/contrib/libs/re2
   ${CMAKE_BINARY_DIR}
-  ${CMAKE_BINARY_DIR}/yt
   ${CMAKE_BINARY_DIR}/include
 )
 
+add_subdirectory(build)
 add_subdirectory(core)
 add_subdirectory(ytlib)
 add_subdirectory(server)

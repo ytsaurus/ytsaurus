@@ -1,9 +1,8 @@
-#include "stdafx.h"
 #include "framework.h"
 
-#include <ytlib/formats/dsv_parser.h>
+#include <yt/ytlib/formats/dsv_parser.h>
 
-#include <core/yson/consumer-mock.h>
+#include <yt/core/yson/consumer-mock.h>
 
 namespace NYT {
 namespace NFormats {

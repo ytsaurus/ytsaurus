@@ -1,15 +1,14 @@
-#include "stdafx.h"
 #include "peer_block_updater.h"
 #include "private.h"
-#include "block_store.h"
+#include "chunk_block_manager.h"
 #include "config.h"
 #include "master_connector.h"
 
-#include <core/concurrency/periodic_executor.h>
+#include <yt/server/cell_node/bootstrap.h>
 
-#include <ytlib/chunk_client/data_node_service_proxy.h>
+#include <yt/ytlib/chunk_client/data_node_service_proxy.h>
 
-#include <server/cell_node/bootstrap.h>
+#include <yt/core/concurrency/periodic_executor.h>
 
 namespace NYT {
 namespace NDataNode {
@@ -57,7 +56,7 @@ void TPeerBlockUpdater::Update()
 
     yhash_map<Stroka, TProxy::TReqUpdatePeerPtr> requests;
 
-    auto blocks = Bootstrap->GetBlockStore()->GetAllBlocks();
+    auto blocks = Bootstrap->GetChunkBlockManager()->GetAllBlocks();
     for (auto block : blocks) {
         if (block->Source()) {
             const auto& sourceAddress = block->Source()->GetInterconnectAddress();

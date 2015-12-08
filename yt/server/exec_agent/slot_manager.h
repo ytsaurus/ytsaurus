@@ -4,9 +4,9 @@
 // TODO(babenko): remove after switching to refcounted macros
 #include "slot.h"
 
-#include <server/cell_node/public.h>
+#include <yt/server/cell_node/public.h>
 
-#include <core/concurrency/public.h>
+#include <yt/core/concurrency/public.h>
 
 namespace NYT {
 namespace NExecAgent {

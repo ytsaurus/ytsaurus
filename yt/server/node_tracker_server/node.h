@@ -2,25 +2,22 @@
 
 #include "public.h"
 
-#include <core/misc/property.h>
-#include <core/misc/nullable.h>
-#include <core/misc/ref_tracked.h>
+#include <yt/server/cell_master/public.h>
 
-#include <ytlib/node_tracker_client/node_directory.h>
-#include <ytlib/node_tracker_client/node_tracker_service.pb.h>
+#include <yt/server/chunk_server/chunk_replica.h>
+#include <yt/server/chunk_server/public.h>
 
-#include <server/hydra/entity_map.h>
+#include <yt/server/hydra/entity_map.h>
 
-#include <server/object_server/object_detail.h>
+#include <yt/server/tablet_server/public.h>
 
-#include <server/chunk_server/public.h>
-#include <server/chunk_server/chunk_replica.h>
+#include <yt/server/transaction_server/public.h>
 
-#include <server/transaction_server/public.h>
+#include <yt/ytlib/node_tracker_client/node_directory.h>
+#include <yt/ytlib/node_tracker_client/node_tracker_service.pb.h>
 
-#include <server/tablet_server/public.h>
-
-#include <server/cell_master/public.h>
+#include <yt/core/misc/nullable.h>
+#include <yt/core/misc/property.h>
 
 namespace NYT {
 namespace NNodeTrackerServer {

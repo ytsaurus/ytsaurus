@@ -1,26 +1,23 @@
-#include "stdafx.h"
-
 #include "chunk_slices_fetcher.h"
-
 #include "private.h"
 
-#include <ytlib/chunk_client/chunk_replica.h>
-#include <ytlib/chunk_client/chunk_slice.h>
-#include <ytlib/chunk_client/chunk_spec.h>
-#include <ytlib/chunk_client/config.h>
-#include <ytlib/chunk_client/data_node_service_proxy.h>
-#include <ytlib/chunk_client/dispatcher.h>
-#include <ytlib/chunk_client/private.h>
+#include <yt/ytlib/chunk_client/chunk_replica.h>
+#include <yt/ytlib/chunk_client/chunk_slice.h>
+#include <yt/ytlib/chunk_client/chunk_spec.h>
+#include <yt/ytlib/chunk_client/config.h>
+#include <yt/ytlib/chunk_client/data_node_service_proxy.h>
+#include <yt/ytlib/chunk_client/dispatcher.h>
+#include <yt/ytlib/chunk_client/private.h>
 
-#include <ytlib/table_client/chunk_meta_extensions.h>
+#include <yt/ytlib/node_tracker_client/node_directory.h>
 
-#include <ytlib/node_tracker_client/node_directory.h>
+#include <yt/ytlib/table_client/chunk_meta_extensions.h>
 
-#include <core/concurrency/scheduler.h>
+#include <yt/core/concurrency/scheduler.h>
 
-#include <core/misc/protobuf_helpers.h>
+#include <yt/core/misc/protobuf_helpers.h>
 
-#include <core/rpc/channel.h>
+#include <yt/core/rpc/channel.h>
 
 namespace NYT {
 namespace NTableClient {

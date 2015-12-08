@@ -1,64 +1,60 @@
-#include "stdafx.h"
 #include "bootstrap.h"
 #include "config.h"
 
-#include <core/misc/address.h>
-#include <core/misc/ref_counted_tracker.h>
+#include <yt/server/job_proxy/config.h>
 
-#include <core/concurrency/action_queue.h>
-#include <core/concurrency/fair_share_action_queue.h>
-#include <core/concurrency/throughput_throttler.h>
+#include <yt/server/misc/build_attributes.h>
 
-#include <core/bus/server.h>
-#include <core/bus/tcp_server.h>
-#include <core/bus/config.h>
+#include <yt/server/scheduler/config.h>
+#include <yt/server/scheduler/job_prober_service.h>
+#include <yt/server/scheduler/job_tracker_service.h>
+#include <yt/server/scheduler/private.h>
+#include <yt/server/scheduler/scheduler.h>
+#include <yt/server/scheduler/scheduler_service.h>
 
-#include <core/rpc/server.h>
-#include <core/rpc/bus_server.h>
-#include <core/rpc/retrying_channel.h>
-#include <core/rpc/bus_channel.h>
-#include <core/rpc/response_keeper.h>
+#include <yt/ytlib/api/client.h>
+#include <yt/ytlib/api/connection.h>
 
-#include <core/ytree/virtual.h>
-#include <core/ytree/ypath_client.h>
+#include <yt/ytlib/hive/cell_directory.h>
+#include <yt/ytlib/hive/cluster_directory.h>
 
-#include <core/profiling/profile_manager.h>
+#include <yt/ytlib/hydra/config.h>
+#include <yt/ytlib/hydra/peer_channel.h>
 
-#include <ytlib/api/connection.h>
-#include <ytlib/api/client.h>
+#include <yt/ytlib/monitoring/http_integration.h>
+#include <yt/ytlib/monitoring/http_server.h>
+#include <yt/ytlib/monitoring/monitoring_manager.h>
 
-#include <ytlib/chunk_client/throttler_manager.h>
+#include <yt/ytlib/orchid/orchid_service.h>
 
-#include <ytlib/hydra/peer_channel.h>
-#include <ytlib/hydra/config.h>
+#include <yt/ytlib/scheduler/config.h>
 
-#include <ytlib/orchid/orchid_service.h>
+#include <yt/ytlib/security_client/public.h>
 
-#include <ytlib/monitoring/monitoring_manager.h>
-#include <ytlib/monitoring/http_server.h>
-#include <ytlib/monitoring/http_integration.h>
+#include <yt/ytlib/transaction_client/remote_timestamp_provider.h>
+#include <yt/ytlib/transaction_client/timestamp_provider.h>
+#include <yt/ytlib/transaction_client/transaction_manager.h>
 
-#include <ytlib/scheduler/config.h>
+#include <yt/core/bus/config.h>
+#include <yt/core/bus/server.h>
+#include <yt/core/bus/tcp_server.h>
 
-#include <ytlib/transaction_client/transaction_manager.h>
-#include <ytlib/transaction_client/timestamp_provider.h>
-#include <ytlib/transaction_client/remote_timestamp_provider.h>
+#include <yt/core/concurrency/action_queue.h>
+#include <yt/core/concurrency/throughput_throttler.h>
 
-#include <ytlib/hive/cell_directory.h>
-#include <ytlib/hive/cluster_directory.h>
+#include <yt/core/misc/address.h>
+#include <yt/core/misc/ref_counted_tracker.h>
 
-#include <ytlib/security_client/public.h>
+#include <yt/core/profiling/profile_manager.h>
 
-#include <server/misc/build_attributes.h>
+#include <yt/core/rpc/bus_channel.h>
+#include <yt/core/rpc/bus_server.h>
+#include <yt/core/rpc/response_keeper.h>
+#include <yt/core/rpc/retrying_channel.h>
+#include <yt/core/rpc/server.h>
 
-#include <server/job_proxy/config.h>
-
-#include <server/scheduler/scheduler.h>
-#include <server/scheduler/scheduler_service.h>
-#include <server/scheduler/job_tracker_service.h>
-#include <server/scheduler/job_prober_service.h>
-#include <server/scheduler/config.h>
-#include <server/scheduler/private.h>
+#include <yt/core/ytree/virtual.h>
+#include <yt/core/ytree/ypath_client.h>
 
 namespace NYT {
 namespace NCellScheduler {

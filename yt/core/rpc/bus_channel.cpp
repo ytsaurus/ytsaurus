@@ -1,29 +1,28 @@
-#include "stdafx.h"
 #include "bus_channel.h"
 #include "private.h"
 #include "client.h"
-#include "message.h"
 #include "dispatcher.h"
+#include "message.h"
 
-#include <core/misc/singleton.h>
+#include <yt/core/actions/future.h>
 
-#include <core/actions/future.h>
+#include <yt/core/bus/bus.h>
+#include <yt/core/bus/config.h>
+#include <yt/core/bus/tcp_client.h>
 
-#include <core/concurrency/delayed_executor.h>
-#include <core/concurrency/thread_affinity.h>
-#include <core/concurrency/rw_spinlock.h>
+#include <yt/core/concurrency/delayed_executor.h>
+#include <yt/core/concurrency/rw_spinlock.h>
+#include <yt/core/concurrency/thread_affinity.h>
 
-#include <core/bus/bus.h>
-#include <core/bus/tcp_client.h>
-#include <core/bus/config.h>
+#include <yt/core/misc/singleton.h>
 
-#include <core/ypath/token.h>
+#include <yt/core/profiling/profile_manager.h>
 
-#include <core/yson/string.h>
+#include <yt/core/rpc/rpc.pb.h>
 
-#include <core/rpc/rpc.pb.h>
+#include <yt/core/ypath/token.h>
 
-#include <core/profiling/profile_manager.h>
+#include <yt/core/yson/yson.h>
 
 namespace NYT {
 namespace NRpc {

@@ -2,10 +2,10 @@
 
 #include "public.h"
 
-#include <core/misc/property.h>
-#include <core/misc/nullable.h>
+#include <yt/core/misc/nullable.h>
+#include <yt/core/misc/property.h>
 
-#include <core/ypath/public.h>
+#include <yt/core/ypath/public.h>
 
 #include <atomic>
 

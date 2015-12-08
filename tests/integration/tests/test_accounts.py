@@ -3,6 +3,7 @@ import pytest
 from yt_env_setup import YTEnvSetup
 from yt_commands import *
 
+from yt.environment.helpers import assert_items_equal
 
 ##################################################################
 
@@ -61,14 +62,22 @@ class TestAccounts(YTEnvSetup):
 
 
     def test_init(self):
+<<<<<<< HEAD
         assert sorted(ls("//sys/accounts")) == sorted(["sys", "tmp", "intermediate"])
+=======
+        assert_items_equal(sorted(ls("//sys/accounts")), sorted(["sys", "tmp", "intermediate"]))
+>>>>>>> origin/prestable/0.17.4
         assert get("//@account") == "sys"
         assert get("//sys/@account") == "sys"
         assert get("//tmp/@account") == "tmp"
 
     def test_account_create1(self):
         create_account("max")
+<<<<<<< HEAD
         assert sorted(ls("//sys/accounts")) == sorted(["sys", "tmp", "intermediate", "max"])
+=======
+        assert_items_equal(sorted(ls("//sys/accounts")), sorted(["sys", "tmp", "intermediate", "max"]))
+>>>>>>> origin/prestable/0.17.4
         assert self._get_account_disk_space("max") == 0
         assert self._get_account_node_count("max") == 0
         assert self._get_account_chunk_count("max") == 0

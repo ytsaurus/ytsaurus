@@ -1,10 +1,9 @@
-#include "stdafx.h"
 #include "framework.h"
 
-#include <core/misc/public.h>
+#include <yt/core/concurrency/coroutine.h>
+#include <yt/core/concurrency/delayed_executor.h>
 
-#include <core/concurrency/coroutine.h>
-#include <core/concurrency/delayed_executor.h>
+#include <yt/core/misc/public.h>
 
 namespace NYT {
 namespace NConcurrency {

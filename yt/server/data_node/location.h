@@ -2,18 +2,18 @@
 
 #include "public.h"
 
-#include <core/concurrency/action_queue.h>
-#include <core/concurrency/periodic_executor.h>
+#include <yt/server/cell_node/public.h>
 
-#include <core/actions/signal.h>
+#include <yt/ytlib/chunk_client/chunk_info.pb.h>
 
-#include <core/logging/log.h>
+#include <yt/core/actions/signal.h>
 
-#include <core/profiling/profiler.h>
+#include <yt/core/concurrency/action_queue.h>
+#include <yt/core/concurrency/periodic_executor.h>
 
-#include <ytlib/chunk_client/chunk_info.pb.h>
+#include <yt/core/logging/log.h>
 
-#include <server/cell_node/public.h>
+#include <yt/core/profiling/profiler.h>
 
 #include <atomic>
 #include <map>
@@ -89,8 +89,13 @@ public:
     //! Returns |true| iff the location is enabled.
     bool IsEnabled() const;
 
-    //! Marks the location as disabled.
+    //! Marks the location as disabled by attempting to create a lock file and terminates the process.
     void Disable(const TError& reason);
+
+    //! Wraps a given #callback with try/catch block that intercepts all exceptions
+    //! and calls #Disable when one happens.
+    template <class T>
+    TCallback<T()> DisableOnError(const TCallback<T()> callback);
 
     //! Updates #UsedSpace and #AvailableSpace
     void UpdateUsedSpace(i64 size);
@@ -147,10 +152,12 @@ protected:
 
 
     static Stroka GetRelativeChunkPath(const TChunkId& chunkId);
+    static void ForceHashDirectories(const Stroka& rootPath);
 
     virtual bool ShouldSkipFileName(const Stroka& fileName) const;
 
     virtual void DoStart();
+    virtual std::vector<TChunkDescriptor> DoScan();
 
 private:
     friend class TPendingIOGuard;
@@ -204,9 +211,7 @@ private:
     virtual TNullable<TChunkDescriptor> RepairChunk(const TChunkId& chunkId) = 0;
 
     virtual std::vector<Stroka> GetChunkPartNames(const TChunkId& chunkId) const = 0;
-    virtual void DoAdditionalScan();
 
-    std::vector<TChunkDescriptor> DoScan();
 };
 
 DEFINE_REFCOUNTED_TYPE(TLocation);
@@ -275,9 +280,9 @@ private:
 
     virtual std::vector<Stroka> GetChunkPartNames(const TChunkId& chunkId) const override;
     virtual bool ShouldSkipFileName(const Stroka& fileName) const override;
-    virtual void DoAdditionalScan() override;
 
     virtual void DoStart() override;
+    virtual std::vector<TChunkDescriptor> DoScan() override;
 
 };
 
@@ -344,3 +349,6 @@ private:
 } // namespace NDataNode
 } // namespace NYT
 
+#define LOCATION_INL_H_
+#include "location-inl.h"
+#undef LOCATION_INL_H_

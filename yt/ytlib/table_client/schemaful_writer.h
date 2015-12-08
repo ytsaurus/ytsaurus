@@ -3,9 +3,9 @@
 #include "schema.h"
 #include "unversioned_row.h"
 
-#include <core/actions/future.h>
+#include <yt/core/actions/future.h>
 
-#include <core/misc/nullable.h>
+#include <yt/core/misc/nullable.h>
 
 namespace NYT {
 namespace NTableClient {

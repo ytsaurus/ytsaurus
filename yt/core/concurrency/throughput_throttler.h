@@ -2,15 +2,15 @@
 
 #include "public.h"
 
-#include <core/actions/future.h>
+#include <yt/core/actions/future.h>
 
-#include <core/ytree/yson_serializable.h>
+#include <yt/core/logging/log.h>
 
-#include <core/ypath/public.h>
+#include <yt/core/profiling/profiler.h>
 
-#include <core/logging/log.h>
+#include <yt/core/ypath/public.h>
 
-#include <core/profiling/profiler.h>
+#include <yt/core/ytree/yson_serializable.h>
 
 namespace NYT {
 namespace NConcurrency {

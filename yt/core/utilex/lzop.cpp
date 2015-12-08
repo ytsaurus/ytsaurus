@@ -1,9 +1,10 @@
 #include "lzop.h"
 
-#include <contrib/z-lz-lzo/minilzo.h>
-
 #include <util/generic/buffer.h>
+
 #include <util/system/info.h>
+
+#include <contrib/z-lz-lzo/minilzo.h>
 
 // See https://svn.yandex.ru/statbox/packages/yandex/statbox-binaries/include/Statbox/LZOP.h
 // As the source for the inspiration.

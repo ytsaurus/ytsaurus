@@ -1,36 +1,34 @@
-#include "stdafx.h"
 #include "hive_manager.h"
+#include "private.h"
 #include "config.h"
+#include "hive_service_proxy.h"
 #include "mailbox.h"
-#include "helpers.h"
 
-#include <core/misc/address.h>
+#include <yt/server/election/election_manager.h>
 
-#include <core/actions/cancelable_context.h>
+#include <yt/server/hydra/composite_automaton.h>
+#include <yt/server/hydra/hydra_manager.h>
+#include <yt/server/hydra/hydra_service.h>
+#include <yt/server/hydra/mutation.h>
+#include <yt/server/hydra/mutation_context.h>
+#include <yt/server/hydra/rpc_helpers.h>
 
-#include <core/rpc/service_detail.h>
-#include <core/rpc/server.h>
+#include <yt/ytlib/hive/cell_directory.h>
 
-#include <core/concurrency/delayed_executor.h>
+#include <yt/ytlib/hydra/config.h>
+#include <yt/ytlib/hydra/peer_channel.h>
 
-#include <core/ytree/fluent.h>
+#include <yt/core/concurrency/delayed_executor.h>
 
-#include <core/tracing/trace_context.h>
+#include <yt/core/misc/address.h>
 
-#include <core/rpc/rpc.pb.h>
+#include <yt/core/rpc/rpc.pb.h>
+#include <yt/core/rpc/server.h>
+#include <yt/core/rpc/service_detail.h>
 
-#include <ytlib/hydra/peer_channel.h>
-#include <ytlib/hydra/config.h>
+#include <yt/core/tracing/trace_context.h>
 
-#include <ytlib/hive/private.h>
-#include <ytlib/hive/cell_directory.h>
-#include <ytlib/hive/hive_service_proxy.h>
-
-#include <server/hydra/composite_automaton.h>
-#include <server/hydra/hydra_manager.h>
-#include <server/hydra/mutation_context.h>
-#include <server/hydra/mutation.h>
-#include <server/hydra/hydra_service.h>
+#include <yt/core/ytree/fluent.h>
 
 namespace NYT {
 namespace NHive {

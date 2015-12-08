@@ -2,13 +2,11 @@
 
 #include "public.h"
 
-#include <ytlib/api/public.h>
+#include <yt/ytlib/api/public.h>
 
-#include <ytlib/api/public.h>
+#include <yt/ytlib/transaction_client/public.h>
 
-#include <ytlib/transaction_client/public.h>
-
-#include <ytlib/ypath/public.h>
+#include <yt/ytlib/ypath/public.h>
 
 namespace NYT {
 namespace NTableClient {

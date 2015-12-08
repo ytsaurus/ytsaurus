@@ -1,11 +1,10 @@
-#include "stdafx.h"
 #include "statistics.h"
 
-#include <ytlib/chunk_client/data_statistics.h>
+#include <yt/ytlib/chunk_client/data_statistics.h>
 
-#include <core/ytree/fluent.h>
+#include <yt/core/misc/protobuf_helpers.h>
 
-#include <core/misc/protobuf_helpers.h>
+#include <yt/core/ytree/fluent.h>
 
 namespace NYT {
 namespace NJobTrackerClient {

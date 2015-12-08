@@ -1,4 +1,3 @@
-#include "stdafx.h"
 #include "transaction_ypath_proxy.h"
 
 namespace NYT {

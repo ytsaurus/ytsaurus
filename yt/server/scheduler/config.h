@@ -2,21 +2,21 @@
 
 #include "private.h"
 
-#include <core/concurrency/throughput_throttler.h>
+#include <yt/server/job_proxy/config.h>
 
-#include <core/rpc/config.h>
+#include <yt/ytlib/api/config.h>
 
-#include <ytlib/table_client/config.h>
+#include <yt/ytlib/chunk_client/config.h>
 
-#include <ytlib/chunk_client/config.h>
+#include <yt/ytlib/table_client/config.h>
 
-#include <ytlib/api/config.h>
+#include <yt/ytlib/ypath/public.h>
 
-#include <ytlib/ypath/public.h>
+#include <yt/core/concurrency/throughput_throttler.h>
 
-#include <core/ytree/yson_serializable.h>
+#include <yt/core/rpc/config.h>
 
-#include <server/job_proxy/config.h>
+#include <yt/core/ytree/yson_serializable.h>
 
 namespace NYT {
 namespace NScheduler {
@@ -209,20 +209,15 @@ class TSortOperationOptionsBase
 {
 public:
     int MaxPartitionJobCount;
-
-    int MaxPartitionCount;
     i64 SortJobMaxSliceDataSize;
     i64 PartitionJobMaxSliceDataSize;
     i32 MaxSampleSize;
+    i64 CompressedBlockSize;
 
     TSortOperationOptionsBase()
     {
         RegisterParameter("max_partition_job_count", MaxPartitionJobCount)
-            .Default(20000)
-            .GreaterThan(0);
-
-        RegisterParameter("max_partition_count", MaxPartitionCount)
-            .Default(2000)
+            .Default(100000)
             .GreaterThan(0);
 
         RegisterParameter("partition_job_max_slice_data_size", PartitionJobMaxSliceDataSize)
@@ -237,6 +232,9 @@ public:
             .Default(10 * 1024)
             .GreaterThan(1024);
 
+        RegisterParameter("compressed_block_size", CompressedBlockSize)
+            .Default(1 * 1024 * 1024)
+            .GreaterThan(1024);
     }
 };
 
@@ -367,6 +365,9 @@ public:
 
     //! Maximum number of files per user job.
     int MaxUserFileCount;
+
+    //! blkio.weight set on user job cgroup.
+    TNullable<int> UserJobBlkioWeight;
 
     //! Maximum number of jobs to start within a single heartbeat.
     TNullable<int> MaxStartedJobsPerHeartbeat;
@@ -504,6 +505,9 @@ public:
         RegisterParameter("max_user_file_count", MaxUserFileCount)
             .Default(1000)
             .GreaterThan(0);
+
+        RegisterParameter("user_job_blkio_weight", UserJobBlkioWeight)
+            .Default(Null);
 
         RegisterParameter("max_output_table_count", MaxOutputTableCount)
             .Default(20)

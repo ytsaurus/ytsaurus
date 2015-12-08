@@ -2,10 +2,10 @@
 
 #include "dynamic_memory_store_bits.h"
 
-#include <ytlib/table_client/unversioned_row.h>
-#include <ytlib/table_client/schema.h>
+#include <yt/ytlib/table_client/schema.h>
+#include <yt/ytlib/table_client/unversioned_row.h>
 
-#include <core/codegen/function.h>
+#include <yt/core/codegen/function.h>
 
 ////////////////////////////////////////////////////////////////////////////////
 

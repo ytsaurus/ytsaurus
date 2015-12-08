@@ -1,98 +1,84 @@
-#include "stdafx.h"
 #include "bootstrap.h"
+#include "private.h"
+#include "config.h"
 #include "hydra_facade.h"
 #include "world_initializer.h"
-#include "multicell_manager.h"
-#include "config.h"
-#include "private.h"
 
-#include <core/misc/ref_counted_tracker.h>
+#include <yt/server/chunk_server/chunk_manager.h>
+#include <yt/server/chunk_server/chunk_service.h>
+#include <yt/server/chunk_server/cypress_integration.h>
+#include <yt/server/chunk_server/job_tracker_service.h>
 
-#include <core/bus/config.h>
+#include <yt/server/cypress_server/cypress_integration.h>
+#include <yt/server/cypress_server/cypress_manager.h>
 
-#include <core/ytree/tree_builder.h>
-#include <core/ytree/ephemeral_node_factory.h>
-#include <core/ytree/virtual.h>
+#include <yt/server/file_server/file_node.h>
 
-#include <core/ytree/ypath_service.h>
-#include <core/ytree/ypath_client.h>
+#include <yt/server/hive/hive_manager.h>
+#include <yt/server/hive/transaction_manager.h>
+#include <yt/server/hive/transaction_supervisor.h>
 
-#include <core/bus/server.h>
-#include <core/bus/tcp_server.h>
+#include <yt/server/hydra/changelog.h>
+#include <yt/server/hydra/file_snapshot_store.h>
+#include <yt/server/hydra/local_changelog_store.h>
+#include <yt/server/hydra/local_snapshot_service.h>
+#include <yt/server/hydra/local_snapshot_store.h>
+#include <yt/server/hydra/snapshot.h>
 
-#include <core/rpc/server.h>
-#include <core/rpc/bus_server.h>
-#include <core/rpc/bus_channel.h>
+#include <yt/server/journal_server/journal_node.h>
 
-#include <core/profiling/profile_manager.h>
+#include <yt/server/misc/build_attributes.h>
 
-#include <ytlib/monitoring/monitoring_manager.h>
-#include <ytlib/monitoring/http_integration.h>
+#include <yt/server/node_tracker_server/cypress_integration.h>
+#include <yt/server/node_tracker_server/node_tracker.h>
+#include <yt/server/node_tracker_server/node_tracker_service.h>
 
-#include <ytlib/orchid/orchid_service.h>
+#include <yt/server/object_server/object_manager.h>
+#include <yt/server/object_server/object_service.h>
 
-#include <ytlib/election/cell_manager.h>
+#include <yt/server/orchid/cypress_integration.h>
 
-#include <ytlib/object_client/helpers.h>
+#include <yt/server/security_server/cypress_integration.h>
+#include <yt/server/security_server/security_manager.h>
 
-#include <ytlib/transaction_client/timestamp_provider.h>
-#include <ytlib/transaction_client/remote_timestamp_provider.h>
+#include <yt/server/table_server/table_node.h>
 
-#include <ytlib/hive/cell_directory.h>
+#include <yt/server/tablet_server/cypress_integration.h>
+#include <yt/server/tablet_server/tablet_manager.h>
 
-#include <server/election/election_manager.h>
+#include <yt/server/transaction_server/cypress_integration.h>
+#include <yt/server/transaction_server/timestamp_manager.h>
+#include <yt/server/transaction_server/transaction_manager.h>
 
-#include <server/hydra/changelog.h>
-#include <server/hydra/local_changelog_store.h>
-#include <server/hydra/snapshot.h>
-#include <server/hydra/file_snapshot_store.h>
-#include <server/hydra/local_snapshot_service.h>
-#include <server/hydra/local_snapshot_store.h>
+#include <yt/ytlib/election/cell_manager.h>
 
-#include <server/hive/hive_manager.h>
-#include <server/hive/transaction_manager.h>
-#include <server/hive/transaction_supervisor.h>
-#include <server/hive/cell_directory_synchronizer.h>
+#include <yt/ytlib/hive/cell_directory.h>
 
-#include <server/node_tracker_server/node_tracker.h>
+#include <yt/ytlib/monitoring/http_integration.h>
+#include <yt/ytlib/monitoring/monitoring_manager.h>
 
-#include <server/object_server/object_manager.h>
-#include <server/object_server/object_service.h>
-#include <server/object_server/sys_node.h>
+#include <yt/ytlib/orchid/orchid_service.h>
 
-#include <server/transaction_server/transaction_manager.h>
-#include <server/transaction_server/cypress_integration.h>
-#include <server/transaction_server/timestamp_manager.h>
+#include <yt/ytlib/transaction_client/remote_timestamp_provider.h>
+#include <yt/ytlib/transaction_client/timestamp_provider.h>
 
-#include <server/cypress_server/cypress_manager.h>
-#include <server/cypress_server/cypress_integration.h>
+#include <yt/core/bus/config.h>
+#include <yt/core/bus/server.h>
+#include <yt/core/bus/tcp_server.h>
 
-#include <server/node_tracker_server/node_tracker_service.h>
-#include <server/node_tracker_server/cypress_integration.h>
+#include <yt/core/misc/ref_counted_tracker.h>
 
-#include <server/chunk_server/chunk_manager.h>
-#include <server/chunk_server/job_tracker_service.h>
-#include <server/chunk_server/chunk_service.h>
-#include <server/chunk_server/cypress_integration.h>
+#include <yt/core/profiling/profile_manager.h>
 
-#include <server/security_server/security_manager.h>
-#include <server/security_server/cypress_integration.h>
+#include <yt/core/rpc/bus_channel.h>
+#include <yt/core/rpc/bus_server.h>
+#include <yt/core/rpc/server.h>
 
-#include <server/file_server/file_node.h>
-
-#include <server/table_server/table_node.h>
-
-#include <server/journal_server/journal_node.h>
-#include <server/journal_server/journal_manager.h>
-
-#include <server/orchid/cypress_integration.h>
-
-#include <server/security_server/security_manager.h>
-
-#include <server/tablet_server/tablet_manager.h>
-#include <server/tablet_server/cypress_integration.h>
-
-#include <server/misc/build_attributes.h>
+#include <yt/core/ytree/ephemeral_node_factory.h>
+#include <yt/core/ytree/tree_builder.h>
+#include <yt/core/ytree/virtual.h>
+#include <yt/core/ytree/ypath_client.h>
+#include <yt/core/ytree/ypath_service.h>
 
 namespace NYT {
 namespace NCellMaster {

@@ -2,7 +2,7 @@
 #error "Direct inclusion of this file is not allowed, include statistics.h"
 #endif
 
-#include <core/ypath/tokenizer.h>
+#include <yt/core/ypath/tokenizer.h>
 
 namespace NYT {
 namespace NJobTrackerClient {

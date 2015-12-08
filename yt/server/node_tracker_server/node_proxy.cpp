@@ -3,17 +3,17 @@
 #include "rack.h"
 #include "node_tracker.h"
 
-#include <core/ytree/fluent.h>
+#include <yt/core/ytree/fluent.h>
 
-#include <ytlib/node_tracker_client/public.h>
+#include <yt/ytlib/node_tracker_client/public.h>
 
-#include <server/object_server/object_detail.h>
+#include <yt/server/object_server/object_detail.h>
 
-#include <server/transaction_server/transaction.h>
+#include <yt/server/transaction_server/transaction.h>
 
-#include <server/tablet_server/tablet_cell.h>
+#include <yt/server/tablet_server/tablet_cell.h>
 
-#include <server/cell_master/bootstrap.h>
+#include <yt/server/cell_master/bootstrap.h>
 
 namespace NYT {
 namespace NNodeTrackerServer {

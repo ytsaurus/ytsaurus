@@ -1,12 +1,9 @@
-#include "stdafx.h"
-#include "chunk_list.h"
 #include "chunk_owner_base.h"
+#include "chunk_list.h"
 
-#include <ytlib/chunk_client/data_statistics.h>
+#include <yt/server/cell_master/serialize.h>
 
-#include <server/cell_master/serialize.h>
-
-#include <server/security_server/cluster_resources.h>
+#include <yt/server/security_server/cluster_resources.h>
 
 namespace NYT {
 namespace NChunkServer {

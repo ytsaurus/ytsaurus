@@ -1,29 +1,27 @@
+#include "erasure_writer.h"
 #include "public.h"
+#include "chunk_meta_extensions.h"
+#include "chunk_replica.h"
+#include "chunk_writer.h"
 #include "config.h"
 #include "dispatcher.h"
-#include "chunk_writer.h"
-#include "chunk_replica.h"
-#include "chunk_meta_extensions.h"
 #include "replication_writer.h"
 
-#include <ytlib/object_client/helpers.h>
+#include <yt/ytlib/api/client.h>
 
-#include <ytlib/api/client.h>
+#include <yt/ytlib/chunk_client/chunk_info.pb.h>
+#include <yt/ytlib/chunk_client/chunk_service_proxy.h>
 
-#include <ytlib/chunk_client/chunk_service_proxy.h>
-#include <ytlib/chunk_client/chunk_info.pb.h>
-#include <ytlib/chunk_client/data_statistics.pb.h>
+#include <yt/ytlib/node_tracker_client/node_directory.h>
 
-#include <ytlib/node_tracker_client/node_directory.h>
+#include <yt/core/concurrency/parallel_awaiter.h>
+#include <yt/core/concurrency/scheduler.h>
 
-#include <core/concurrency/scheduler.h>
-#include <core/concurrency/parallel_awaiter.h>
+#include <yt/core/erasure/codec.h>
 
-#include <core/erasure/codec.h>
+#include <yt/core/misc/address.h>
 
-#include <core/misc/address.h>
-
-#include <core/ytree/yson_serializable.h>
+#include <yt/core/ytree/yson_serializable.h>
 
 namespace NYT {
 namespace NChunkClient {

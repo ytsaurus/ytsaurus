@@ -1,11 +1,10 @@
 #pragma once
 
 #include "public.h"
-
 #include "chunk_meta_extensions.h"
 #include "unversioned_row.h"
 
-#include <core/yson/lexer.h>
+#include <yt/core/yson/lexer.h>
 
 namespace NYT {
 namespace NTableClient {

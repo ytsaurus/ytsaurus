@@ -1,4 +1,3 @@
-#include "stdafx.h"
 #include "election_service_proxy.h"
 
 namespace NYT {

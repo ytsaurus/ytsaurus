@@ -2,16 +2,16 @@
 
 #include "public.h"
 
-#include <core/misc/small_vector.h>
-#include <core/misc/property.h>
+#include <yt/server/cell_master/public.h>
 
-#include <core/ytree/permission.h>
+#include <yt/server/object_server/public.h>
 
-#include <core/yson/public.h>
+#include <yt/core/misc/property.h>
+#include <yt/core/misc/small_vector.h>
 
-#include <server/cell_master/public.h>
+#include <yt/core/yson/public.h>
 
-#include <server/object_server/public.h>
+#include <yt/core/ytree/permission.h>
 
 namespace NYT {
 namespace NSecurityServer {

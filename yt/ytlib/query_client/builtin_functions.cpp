@@ -1,10 +1,8 @@
 #include "builtin_functions.h"
-
+#include "private.h"
 #include "cg_fragment_compiler.h"
 #include "helpers.h"
 #include "plan_fragment.h"
-#include "private.h"
-
 #include "udf/is_prefix.h"
 
 namespace NYT {

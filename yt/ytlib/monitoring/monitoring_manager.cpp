@@ -1,15 +1,14 @@
-#include "stdafx.h"
 #include "monitoring_manager.h"
 #include "private.h"
 
-#include <core/concurrency/action_queue.h>
-#include <core/concurrency/periodic_executor.h>
+#include <yt/core/concurrency/action_queue.h>
+#include <yt/core/concurrency/periodic_executor.h>
 
-#include <core/ytree/ephemeral_node_factory.h>
-#include <core/ytree/ypath_detail.h>
-#include <core/ytree/tree_visitor.h>
-#include <core/ytree/node.h>
-#include <core/ytree/convert.h>
+#include <yt/core/ytree/convert.h>
+#include <yt/core/ytree/ephemeral_node_factory.h>
+#include <yt/core/ytree/node.h>
+#include <yt/core/ytree/tree_visitor.h>
+#include <yt/core/ytree/ypath_detail.h>
 
 namespace NYT {
 namespace NMonitoring {

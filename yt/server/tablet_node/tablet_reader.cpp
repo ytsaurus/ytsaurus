@@ -1,19 +1,23 @@
-#include "stdafx.h"
 #include "tablet_reader.h"
-#include "tablet.h"
-#include "tablet_slot.h"
+#include "private.h"
+#include "config.h"
 #include "partition.h"
 #include "store.h"
-#include "config.h"
-#include "private.h"
+#include "tablet.h"
+#include "tablet_slot.h"
 
-#include <ytlib/table_client/row_merger.h>
-#include <ytlib/table_client/row_buffer.h>
-#include <ytlib/table_client/unordered_schemaful_reader.h>
-#include <ytlib/table_client/schemaful_overlapping_chunk_reader.h>
+#include <yt/ytlib/table_client/row_merger.h>
+#include <yt/ytlib/table_client/schemaful_reader.h>
+#include <yt/ytlib/table_client/versioned_reader.h>
+#include <yt/ytlib/table_client/versioned_row.h>
 
-#include <core/misc/error.h>
-#include <core/misc/range.h>
+#include <yt/core/concurrency/scheduler.h>
+
+#include <yt/core/misc/chunked_memory_pool.h>
+#include <yt/core/misc/heap.h>
+
+#include <yt/core/misc/error.h>
+#include <yt/core/misc/range.h>
 
 namespace NYT {
 namespace NTabletNode {

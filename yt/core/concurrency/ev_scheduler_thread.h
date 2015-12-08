@@ -2,7 +2,7 @@
 
 #include "scheduler_thread.h"
 
-#include <contrib/libev/ev++.h>
+#include <yt/contrib/libev/ev++.h>
 
 namespace NYT {
 namespace NConcurrency {

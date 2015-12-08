@@ -1,8 +1,7 @@
-#include "stdafx.h"
 #include "execution_stack.h"
 #include "execution_context.h"
 
-#include <core/misc/serialize.h>
+#include <yt/core/misc/serialize.h>
 
 #if defined(_unix_)
 #   include <sys/mman.h>
@@ -13,8 +12,8 @@
 #   endif
 #endif
 
-#include <core/misc/error.h>
-#include <core/misc/object_pool.h>
+#include <yt/core/misc/error.h>
+#include <yt/core/misc/object_pool.h>
 
 namespace NYT {
 namespace NConcurrency {

@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <core/misc/property.h>
+#include <yt/core/misc/property.h>
 
 namespace NYT {
 namespace NYson {

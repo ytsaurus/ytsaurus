@@ -6,10 +6,10 @@
 #include "yamr_table.h"
 #include "yamr_writer_base.h"
 
-#include <ytlib/table_client/public.h>
+#include <yt/ytlib/table_client/public.h>
 
-#include <core/misc/blob_output.h>
-#include <core/misc/nullable.h>
+#include <yt/core/misc/blob_output.h>
+#include <yt/core/misc/nullable.h>
 
 namespace NYT {
 namespace NFormats {
@@ -24,7 +24,11 @@ public:
         NTableClient::TNameTablePtr nameTable,
         NConcurrency::IAsyncOutputStreamPtr output,
         bool enableContextSaving,
+<<<<<<< HEAD
         TControlAttributesConfigPtr controlAttributesConfig,
+=======
+        bool enableKeySwitch,
+>>>>>>> origin/prestable/0.17.4
         int keyColumnCount,
         TYamrFormatConfigPtr config = New<TYamrFormatConfig>());
 

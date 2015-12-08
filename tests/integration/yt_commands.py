@@ -145,6 +145,15 @@ def strace_job(job_id, **kwargs):
     result = execute_command('strace_job', kwargs)
     return yson.loads(result)
 
+def signal_job(job_id, signal_name, **kwargs):
+    kwargs["job_id"] = job_id
+    kwargs["signal_name"] = signal_name
+    execute_command('signal_job', kwargs)
+
+def abandon_job(job_id, **kwargs):
+    kwargs["job_id"] = job_id
+    execute_command('abandon_job', kwargs)
+
 def lock(path, waitable=False, **kwargs):
     kwargs["path"] = path
     kwargs["waitable"] = waitable

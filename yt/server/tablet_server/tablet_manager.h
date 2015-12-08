@@ -4,20 +4,20 @@
 #include "tablet_cell.h"
 #include "tablet_cell_bundle.h"
 
-#include <ytlib/table_client/public.h>
+#include <yt/server/cell_master/public.h>
 
-#include <server/hydra/entity_map.h>
-#include <server/hydra/mutation.h>
+#include <yt/server/chunk_server/chunk_tree_statistics.h>
 
-#include <server/cell_master/public.h>
+#include <yt/server/hydra/entity_map.h>
+#include <yt/server/hydra/mutation.h>
 
-#include <server/object_server/public.h>
+#include <yt/server/object_server/public.h>
 
-#include <server/table_server/public.h>
+#include <yt/server/table_server/public.h>
 
-#include <server/tablet_server/tablet_manager.pb.h>
+#include <yt/server/tablet_server/tablet_manager.pb.h>
 
-#include <server/chunk_server/chunk_tree_statistics.h>
+#include <yt/ytlib/table_client/public.h>
 
 namespace NYT {
 namespace NTabletServer {

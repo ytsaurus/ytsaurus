@@ -1,25 +1,29 @@
-#include "stdafx.h"
 #include "cypress_integration.h"
-#include "node.h"
-#include "rack.h"
-#include "node_tracker.h"
 #include "config.h"
+#include "node.h"
+#include "node_tracker.h"
+#include "rack.h"
 
-#include <core/ytree/virtual.h>
-#include <core/ytree/fluent.h>
-#include <core/ytree/exception_helpers.h>
+#include <yt/server/cell_master/bootstrap.h>
 
-#include <server/cypress_server/virtual.h>
-#include <server/cypress_server/node_proxy_detail.h>
+#include <yt/server/chunk_server/chunk_manager.h>
 
-#include <server/chunk_server/chunk_manager.h>
+#include <yt/server/cypress_server/node_proxy_detail.h>
+#include <yt/server/cypress_server/virtual.h>
 
-#include <server/object_server/object_detail.h>
-#include <server/object_server/type_handler_detail.h>
+#include <yt/server/object_server/object.h>
 
-#include <server/cell_master/bootstrap.h>
+#include <yt/server/tablet_server/tablet_cell.h>
 
-#include <server/misc/object_helpers.h>
+#include <yt/ytlib/cypress_client/cypress_ypath_proxy.h>
+
+#include <yt/ytlib/node_tracker_client/node_tracker_service.pb.h>
+
+#include <yt/core/ytree/exception_helpers.h>
+#include <yt/core/ytree/fluent.h>
+#include <yt/core/ytree/virtual.h>
+
+#include <yt/server/misc/object_helpers.h>
 
 namespace NYT {
 namespace NNodeTrackerServer {

@@ -1,12 +1,11 @@
-#include "stdafx.h"
 #include "framework.h"
 
-#include <core/yson/string.h>
-#include <core/yson/stream.h>
+#include <yt/core/yson/string.h>
+#include <yt/core/yson/stream.h>
 
-#include <core/ytree/convert.h>
-#include <core/ytree/fluent.h>
-#include <core/ytree/ypath_client.h>
+#include <yt/core/ytree/convert.h>
+#include <yt/core/ytree/fluent.h>
+#include <yt/core/ytree/ypath_client.h>
 
 namespace NYT {
 namespace NYson {

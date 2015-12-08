@@ -1,15 +1,14 @@
-#include "stdafx.h"
 #include "account_proxy.h"
 #include "account.h"
 #include "security_manager.h"
 
-#include <core/ytree/fluent.h>
+#include <yt/server/cell_master/bootstrap.h>
 
-#include <ytlib/security_client/account_ypath.pb.h>
+#include <yt/server/object_server/object_detail.h>
 
-#include <server/object_server/object_detail.h>
+#include <yt/ytlib/security_client/account_ypath.pb.h>
 
-#include <server/cell_master/bootstrap.h>
+#include <yt/core/ytree/fluent.h>
 
 namespace NYT {
 namespace NSecurityServer {

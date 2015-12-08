@@ -1,7 +1,6 @@
-#include "stdafx.h"
 #include "pattern.h"
 
-#include <core/misc/fs.h>
+#include <yt/core/misc/fs.h>
 
 #ifdef YT_USE_SSE42
     #include <emmintrin.h>

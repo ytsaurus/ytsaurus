@@ -1,10 +1,10 @@
 #pragma once
 
-#include <ytlib/tablet_client/public.h>
+#include <yt/ytlib/node_tracker_client/public.h>
 
-#include <ytlib/table_client/public.h>
+#include <yt/ytlib/table_client/public.h>
 
-#include <ytlib/node_tracker_client/public.h>
+#include <yt/ytlib/tablet_client/public.h>
 
 // TODO(babenko): kill this when refactoring TDataSplit
 namespace NYT { namespace NChunkClient { namespace NProto {

@@ -1,10 +1,10 @@
 #pragma once
 
-#include <core/misc/small_vector.h>
+#include <yt/ytlib/chunk_client/public.h>
 
-#include <ytlib/node_tracker_client/public.h>
+#include <yt/ytlib/node_tracker_client/public.h>
 
-#include <ytlib/chunk_client/public.h>
+#include <yt/core/misc/small_vector.h>
 
 namespace NYT {
 namespace NNodeTrackerServer {

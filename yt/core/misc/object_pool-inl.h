@@ -5,9 +5,9 @@
 #include "mpl.h"
 #include "ref_counted_tracker.h"
 
-#include <core/utilex/random.h>
+#include <yt/core/utilex/random.h>
 
-#include <core/profiling/timing.h>
+#include <yt/core/profiling/timing.h>
 
 namespace NYT {
 

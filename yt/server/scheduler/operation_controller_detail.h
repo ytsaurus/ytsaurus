@@ -1,47 +1,45 @@
 #pragma once
 
 #include "private.h"
-#include "config.h"
-#include "operation_controller.h"
-#include "chunk_pool.h"
 #include "chunk_list_pool.h"
-#include "job_resources.h"
-#include "serialize.h"
+#include "chunk_pool.h"
+#include "config.h"
 #include "event_log.h"
+#include "job_resources.h"
+#include "operation_controller.h"
+#include "serialize.h"
 
-#include <core/misc/nullable.h>
-#include <core/misc/id_generator.h>
+#include <yt/server/chunk_server/public.h>
 
-#include <core/concurrency/periodic_executor.h>
-#include <core/concurrency/rw_spinlock.h>
-#include <core/concurrency/thread_affinity.h>
+#include <yt/ytlib/chunk_client/chunk_owner_ypath_proxy.h>
+#include <yt/ytlib/chunk_client/chunk_service_proxy.h>
+#include <yt/ytlib/chunk_client/public.h>
 
-#include <core/actions/cancelable_context.h>
+#include <yt/ytlib/cypress_client/public.h>
 
-#include <core/ytree/ypath_client.h>
+#include <yt/ytlib/file_client/file_ypath_proxy.h>
 
-#include <core/yson/string.h>
+#include <yt/ytlib/job_tracker_client/statistics.h>
 
-#include <core/logging/log.h>
+#include <yt/ytlib/node_tracker_client/helpers.h>
+#include <yt/ytlib/node_tracker_client/public.h>
 
-#include <ytlib/chunk_client/chunk_owner_ypath_proxy.h>
+#include <yt/ytlib/table_client/table_ypath_proxy.h>
+#include <yt/ytlib/table_client/unversioned_row.h>
 
-#include <ytlib/table_client/table_ypath_proxy.h>
-#include <ytlib/table_client/unversioned_row.h>
+#include <yt/core/actions/cancelable_context.h>
 
-#include <ytlib/file_client/file_ypath_proxy.h>
+#include <yt/core/concurrency/periodic_executor.h>
+#include <yt/core/concurrency/thread_affinity.h>
 
-#include <ytlib/cypress_client/public.h>
+#include <yt/core/logging/log.h>
 
-#include <ytlib/chunk_client/public.h>
-#include <ytlib/chunk_client/chunk_service_proxy.h>
+#include <yt/core/misc/id_generator.h>
+#include <yt/core/misc/nullable.h>
 
-#include <ytlib/node_tracker_client/public.h>
-#include <ytlib/node_tracker_client/helpers.h>
+#include <yt/core/ytree/ypath_client.h>
 
-#include <ytlib/job_tracker_client/statistics.h>
-
-#include <server/chunk_server/public.h>
+#include <yt/core/yson/string.h>
 
 namespace NYT {
 namespace NScheduler {
@@ -752,6 +750,9 @@ protected:
 
     //! Enables fetching all input replicas (not only data)
     virtual bool IsParityReplicasFetchEnabled() const;
+
+    //! Enables fetching boundary keys for chunk specs.
+    virtual bool IsBoundaryKeysFetchEnabled() const;
 
     //! If |true| then all jobs started within the operation must
     //! preserve row count. This invariant is checked for each completed job.

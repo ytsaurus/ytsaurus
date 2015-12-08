@@ -1,4 +1,3 @@
-#include "stdafx.h"
 #include "yamred_dsv_parser.h"
 #include "dsv_parser.h"
 #include "yamr_base_parser.h"

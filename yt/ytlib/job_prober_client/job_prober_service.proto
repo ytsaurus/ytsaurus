@@ -24,4 +24,13 @@ message TRspStrace
     required string trace = 1;
 }
 
+message TReqSignalJob
+{
+    required NYT.NProto.TGuid job_id = 1;
+    required string signal_name = 2;
+}
+
+message TRspSignalJob
+{ }
+
 ////////////////////////////////////////////////////////////////////////////////

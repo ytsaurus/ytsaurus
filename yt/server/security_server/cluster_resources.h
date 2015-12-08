@@ -2,9 +2,9 @@
 
 #include "public.h"
 
-#include <core/yson/public.h>
+#include <yt/server/cell_master/public.h>
 
-#include <server/cell_master/public.h>
+#include <yt/core/yson/public.h>
 
 namespace NYT {
 namespace NSecurityServer {

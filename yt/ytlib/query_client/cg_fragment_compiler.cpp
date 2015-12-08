@@ -1,18 +1,16 @@
-#include "stdafx.h"
 #include "cg_fragment_compiler.h"
 #include "private.h"
-
-#include "cg_routines.h"
 #include "cg_ir_builder.h"
+#include "cg_routines.h"
 
-#include <core/codegen/public.h>
-#include <core/codegen/module.h>
+#include <yt/ytlib/table_client/name_table.h>
+#include <yt/ytlib/table_client/schema.h>
+#include <yt/ytlib/table_client/unversioned_row.h>
 
-#include <ytlib/table_client/unversioned_row.h>
-#include <ytlib/table_client/name_table.h>
-#include <ytlib/table_client/schema.h>
+#include <yt/core/codegen/module.h>
+#include <yt/core/codegen/public.h>
 
-#include <core/logging/log.h>
+#include <yt/core/logging/log.h>
 
 #include <llvm/IR/Module.h>
 

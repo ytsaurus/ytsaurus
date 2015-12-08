@@ -1,14 +1,13 @@
-#include "stdafx.h"
 #include "throughput_throttler.h"
 #include "periodic_executor.h"
 
-#include <core/misc/singleton.h>
+#include <yt/core/actions/invoker_util.h>
 
-#include <core/concurrency/thread_affinity.h>
+#include <yt/core/concurrency/thread_affinity.h>
 
-#include <core/actions/invoker_util.h>
+#include <yt/core/misc/singleton.h>
 
-#include <core/profiling/profiler.h>
+#include <yt/core/profiling/profiler.h>
 
 #include <queue>
 

@@ -1,7 +1,6 @@
-#include "stdafx.h"
 #include "framework.h"
 
-#include <core/misc/zigzag.h>
+#include <yt/core/misc/zigzag.h>
 
 namespace NYT {
 namespace {

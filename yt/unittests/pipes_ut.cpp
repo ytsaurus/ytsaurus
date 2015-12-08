@@ -1,15 +1,14 @@
-#include "stdafx.h"
 #include "framework.h"
 
-#include <core/concurrency/action_queue.h>
-#include <core/concurrency/scheduler.h>
+#include <yt/core/concurrency/action_queue.h>
+#include <yt/core/concurrency/scheduler.h>
 
-#include <core/misc/proc.h>
+#include <yt/core/misc/proc.h>
 
-#include <core/pipes/io_dispatcher.h>
-#include <core/pipes/pipe.h>
-#include <core/pipes/async_reader.h>
-#include <core/pipes/async_writer.h>
+#include <yt/core/pipes/async_reader.h>
+#include <yt/core/pipes/async_writer.h>
+#include <yt/core/pipes/io_dispatcher.h>
+#include <yt/core/pipes/pipe.h>
 
 #include <random>
 

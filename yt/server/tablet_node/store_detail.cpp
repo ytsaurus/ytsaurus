@@ -1,10 +1,9 @@
-#include "stdafx.h"
 #include "store_detail.h"
-#include "tablet.h"
-#include "automaton.h"
 #include "private.h"
+#include "automaton.h"
+#include "tablet.h"
 
-#include <core/ytree/fluent.h>
+#include <yt/core/ytree/fluent.h>
 
 namespace NYT {
 namespace NTabletNode {

@@ -49,6 +49,26 @@ class TestFiles(YTEnvSetup):
         assert read_file("//tmp/file", length=length) == content[:length]
         assert read_file("//tmp/file", offset=offset, length=length) == content[offset:offset + length]
 
+<<<<<<< HEAD
+=======
+        chunk_ids = get("//tmp/file/@chunk_ids")
+        assert get_chunks() == chunk_ids
+        assert get("//tmp/file/@uncompressed_data_size") == len(content)
+
+        # check that chunk was deleted
+        remove("//tmp/file")
+        assert get_chunks() == []
+
+    def test_read_all_intervals(self):
+        content = "".join(chr(c) for c in range(ord("a"), ord("a") + 8))
+        create("file", "//tmp/file")
+        write_file("//tmp/file", content, file_writer={"block_size": 3})
+
+        for offset in range(len(content)):
+            for length in range(1, len(content) - offset):
+                assert read_file("//tmp/file", offset=offset, length=length) == content[offset:offset + length]
+
+>>>>>>> origin/prestable/0.17.4
     def test_copy(self):
         content = "some_data"
         create("file", "//tmp/f")

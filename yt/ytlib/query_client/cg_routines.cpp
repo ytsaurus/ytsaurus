@@ -1,29 +1,28 @@
-#include "stdafx.h"
 #include "cg_routines.h"
-#include "cg_types.h"
-
-#include "helpers.h"
 #include "callbacks.h"
-#include "query_statistics.h"
+#include "cg_types.h"
 #include "evaluation_helpers.h"
+#include "helpers.h"
+#include "query_statistics.h"
 
-#include <ytlib/table_client/unversioned_row.h>
-#include <ytlib/table_client/schemaful_reader.h>
-#include <ytlib/table_client/schemaful_writer.h>
-#include <ytlib/table_client/unordered_schemaful_reader.h>
-#include <ytlib/table_client/row_buffer.h>
+#include <yt/ytlib/chunk_client/chunk_spec.h>
 
-#include <ytlib/chunk_client/chunk_spec.h>
+#include <yt/ytlib/table_client/row_buffer.h>
+#include <yt/ytlib/table_client/schemaful_reader.h>
+#include <yt/ytlib/table_client/schemaful_writer.h>
+#include <yt/ytlib/table_client/unordered_schemaful_reader.h>
+#include <yt/ytlib/table_client/unversioned_row.h>
 
-#include <core/concurrency/scheduler.h>
+#include <yt/core/concurrency/scheduler.h>
 
-#include <core/profiling/scoped_timer.h>
+#include <yt/core/misc/farm_hash.h>
 
-#include <core/misc/farm_hash.h>
+#include <yt/core/profiling/scoped_timer.h>
 
 #include <contrib/libs/re2/re2/re2.h>
 
 #include <mutex>
+
 #include <string.h>
 
 namespace llvm {

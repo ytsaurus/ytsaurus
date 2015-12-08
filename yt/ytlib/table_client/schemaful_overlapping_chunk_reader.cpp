@@ -5,9 +5,9 @@
 #include "row_merger.h"
 #include "versioned_reader.h"
 
-#include <ytlib/chunk_client/data_statistics.h>
+#include <yt/ytlib/chunk_client/data_statistics.h>
 
-#include <core/misc/heap.h>
+#include <yt/core/misc/heap.h>
 
 #include <tuple>
 

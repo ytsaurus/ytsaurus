@@ -2,11 +2,11 @@
 
 #include "public.h"
 
-#include <core/misc/small_vector.h>
+#include <yt/server/cell_master/public.h>
 
-#include <server/node_tracker_server/public.h>
+#include <yt/server/node_tracker_server/public.h>
 
-#include <server/cell_master/public.h>
+#include <yt/core/misc/small_vector.h>
 
 namespace NYT {
 namespace NChunkServer {

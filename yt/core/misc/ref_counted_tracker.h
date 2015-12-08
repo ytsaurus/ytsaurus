@@ -3,9 +3,9 @@
 #include "public.h"
 #include "source_location.h"
 
-#include <core/yson/consumer.h>
+#include <yt/core/yson/public.h>
 
-#include <core/concurrency/fork_aware_spinlock.h>
+#include <yt/core/concurrency/fork_aware_spinlock.h>
 
 namespace NYT {
 

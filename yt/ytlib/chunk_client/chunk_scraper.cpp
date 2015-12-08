@@ -1,21 +1,13 @@
-#include "stdafx.h"
 #include "chunk_scraper.h"
-
-#include "config.h"
 #include "private.h"
+#include "config.h"
 
-#include <ytlib/api/client.h>
+#include <yt/ytlib/chunk_client/chunk_service_proxy.h>
 
-#include <ytlib/chunk_client/chunk_service_proxy.h>
-#include <ytlib/chunk_client/throttler_manager.h>
+#include <yt/ytlib/node_tracker_client/node_directory.h>
 
-#include <ytlib/node_tracker_client/node_directory.h>
-
-#include <ytlib/object_client/helpers.h>
-#include <ytlib/object_client/public.h>
-
-#include <core/concurrency/periodic_executor.h>
-#include <core/concurrency/throughput_throttler.h>
+#include <yt/core/concurrency/periodic_executor.h>
+#include <yt/core/concurrency/throughput_throttler.h>
 
 namespace NYT {
 namespace NChunkClient {

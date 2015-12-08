@@ -3,13 +3,13 @@
 #include "private.h"
 #include "chunk_list.h"
 
-#include <core/ytree/public.h>
+#include <yt/server/cypress_server/type_handler.h>
 
-#include <ytlib/chunk_client/chunk_owner_ypath_proxy.h>
+#include <yt/server/transaction_server/public.h>
 
-#include <server/cypress_server/type_handler.h>
+#include <yt/ytlib/chunk_client/chunk_owner_ypath_proxy.h>
 
-#include <server/transaction_server/public.h>
+#include <yt/core/ytree/public.h>
 
 namespace NYT {
 namespace NChunkServer {

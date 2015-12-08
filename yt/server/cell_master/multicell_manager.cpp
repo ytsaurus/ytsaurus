@@ -8,27 +8,27 @@
 #include "hydra_facade.h"
 #include "world_initializer.h"
 
-#include <core/misc/collection_helpers.h>
+#include <yt/core/misc/collection_helpers.h>
 
-#include <core/ytree/ypath_client.h>
+#include <yt/core/ytree/ypath_client.h>
 
-#include <core/concurrency/periodic_executor.h>
+#include <yt/core/concurrency/periodic_executor.h>
 
-#include <ytlib/object_client/helpers.h>
+#include <yt/ytlib/object_client/helpers.h>
 
-#include <ytlib/hive/cell_directory.h>
+#include <yt/ytlib/hive/cell_directory.h>
 
-#include <server/hive/hive_manager.h>
-#include <server/hive/mailbox.h>
+#include <yt/server/hive/hive_manager.h>
+#include <yt/server/hive/mailbox.h>
 
-#include <server/hydra/mutation.h>
+#include <yt/server/hydra/mutation.h>
 
-#include <server/security_server/security_manager.h>
-#include <server/security_server/user.h>
+#include <yt/server/security_server/security_manager.h>
+#include <yt/server/security_server/user.h>
 
-#include <server/chunk_server/chunk_manager.h>
+#include <yt/server/chunk_server/chunk_manager.h>
 
-#include <server/cell_master/multicell_manager.pb.h>
+#include <yt/server/cell_master/multicell_manager.pb.h>
 
 namespace NYT {
 namespace NCellMaster {

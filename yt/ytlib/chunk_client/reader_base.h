@@ -2,11 +2,7 @@
 
 #include "public.h"
 
-#include "data_statistics.h"
-
-#include <core/actions/future.h>
-
-#include <core/misc/ref_counted.h>
+#include <yt/core/actions/future.h>
 
 namespace NYT {
 namespace NChunkClient {

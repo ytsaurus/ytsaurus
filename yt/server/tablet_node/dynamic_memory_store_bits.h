@@ -2,10 +2,10 @@
 
 #include "public.h"
 
-#include <core/misc/enum.h>
-#include <core/misc/chunked_memory_pool.h>
+#include <yt/ytlib/table_client/unversioned_row.h>
 
-#include <ytlib/table_client/unversioned_row.h>
+#include <yt/core/misc/chunked_memory_pool.h>
+#include <yt/core/misc/enum.h>
 
 #include <atomic>
 

@@ -1,38 +1,14 @@
-#include "stdafx.h"
-#include "dispatcher.h"
 #include "driver.h"
-#include "config.h"
 #include "command.h"
-#include "transaction_commands.h"
+#include "config.h"
 #include "cypress_commands.h"
+#include "dispatcher.h"
 #include "etc_commands.h"
 #include "file_commands.h"
-#include "table_commands.h"
-#include "scheduler_commands.h"
 #include "journal_commands.h"
-#include "private.h"
-
-#include <core/concurrency/parallel_awaiter.h>
-#include <core/concurrency/scheduler.h>
-
-#include <core/ytree/ephemeral_node_factory.h>
-
-#include <core/yson/forwarding_consumer.h>
-#include <core/yson/null_consumer.h>
-
-#include <core/yson/parser.h>
-
-#include <core/rpc/scoped_channel.h>
-
-#include <ytlib/transaction_client/timestamp_provider.h>
-
-#include <ytlib/hive/cell_directory.h>
-
-#include <ytlib/chunk_client/block_cache.h>
-
-#include <ytlib/tablet_client/table_mount_cache.h>
-
-#include <ytlib/api/connection.h>
+#include "scheduler_commands.h"
+#include "table_commands.h"
+#include "transaction_commands.h"
 
 namespace NYT {
 namespace NDriver {
@@ -148,6 +124,9 @@ public:
 
         REGISTER(TDumpJobContextCommand,       "dump_job_context",        Null,       Null,       true,  false);
         REGISTER(TStraceJobCommand,            "strace_job",              Null,       Structured, false, false);
+        REGISTER(TSignalJobCommand,            "signal_job",              Null,       Null,       false, false);
+        REGISTER(TAbandonJobCommand,           "abandon_job",             Null,       Null,       false, false);
+
         REGISTER(TGetVersionCommand,           "get_version",             Null,       Structured, false, false);
 
 #undef REGISTER

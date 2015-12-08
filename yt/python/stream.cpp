@@ -6,8 +6,8 @@
 
 #include <contrib/libs/pycxx/Objects.hxx>
 
-#include <string>
 #include <iostream>
+#include <string>
 
 namespace NYT {
 namespace NPython {

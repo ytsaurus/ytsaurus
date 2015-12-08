@@ -1,14 +1,13 @@
 #pragma once
 
 #include "public.h"
-
 #include "row_base.h"
 
-#include <ytlib/chunk_client/schema.h>
+#include <yt/ytlib/chunk_client/schema.h>
 
-#include <core/logging/log.h>
+#include <yt/core/logging/log.h>
 
-#include <core/profiling/profiler.h>
+#include <yt/core/profiling/profiler.h>
 
 namespace NYT {
 namespace NTableClient {

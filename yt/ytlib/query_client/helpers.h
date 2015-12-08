@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <ytlib/object_client/public.h>
+#include <yt/ytlib/object_client/public.h>
 
 namespace NYT {
 namespace NQueryClient {

@@ -1,31 +1,31 @@
 #include "query_service.h"
-#include "private.h"
 #include "public.h"
+#include "private.h"
 
-#include <core/concurrency/scheduler.h>
+#include <yt/server/cell_node/bootstrap.h>
 
-#include <core/rpc/service_detail.h>
+#include <yt/server/query_agent/config.h>
+#include <yt/server/query_agent/helpers.h>
 
-#include <core/compression/public.h>
-#include <core/compression/helpers.h>
+#include <yt/server/tablet_node/security_manager.h>
 
-#include <ytlib/table_client/schemaful_writer.h>
+#include <yt/ytlib/node_tracker_client/node_directory.h>
 
-#include <ytlib/query_client/plan_fragment.h>
-#include <ytlib/query_client/query_service_proxy.h>
-#include <ytlib/query_client/query_statistics.h>
-#include <ytlib/query_client/callbacks.h>
+#include <yt/ytlib/query_client/callbacks.h>
+#include <yt/ytlib/query_client/plan_fragment.h>
+#include <yt/ytlib/query_client/query_service_proxy.h>
+#include <yt/ytlib/query_client/query_statistics.h>
 
-#include <ytlib/node_tracker_client/node_directory.h>
+#include <yt/ytlib/table_client/schemaful_writer.h>
 
-#include <ytlib/tablet_client/wire_protocol.h>
+#include <yt/ytlib/tablet_client/wire_protocol.h>
 
-#include <server/query_agent/config.h>
-#include <server/query_agent/helpers.h>
+#include <yt/core/compression/helpers.h>
+#include <yt/core/compression/public.h>
 
-#include <server/tablet_node/security_manager.h>
+#include <yt/core/concurrency/scheduler.h>
 
-#include <server/cell_node/bootstrap.h>
+#include <yt/core/rpc/service_detail.h>
 
 namespace NYT {
 namespace NQueryAgent {

@@ -1,16 +1,16 @@
-#include "stdafx.h"
 #include "framework.h"
 
-#include <core/erasure/codec.h>
+#include <yt/ytlib/chunk_client/config.h>
+#include <yt/ytlib/chunk_client/erasure_reader.h>
+#include <yt/ytlib/chunk_client/erasure_writer.h>
+#include <yt/ytlib/chunk_client/file_reader.h>
+#include <yt/ytlib/chunk_client/file_writer.h>
 
-#include <ytlib/chunk_client/file_reader.h>
-#include <ytlib/chunk_client/file_writer.h>
-#include <ytlib/chunk_client/erasure_writer.h>
-#include <ytlib/chunk_client/erasure_reader.h>
-#include <ytlib/chunk_client/config.h>
+#include <yt/core/erasure/codec.h>
+
+#include <util/stream/file.h>
 
 #include <util/system/fs.h>
-#include <util/stream/file.h>
 
 #include <random>
 

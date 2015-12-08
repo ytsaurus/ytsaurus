@@ -1,6 +1,5 @@
-#include "stdafx.h"
-#include "private.h"
 #include "peer_block_table.h"
+#include "private.h"
 #include "config.h"
 
 namespace NYT {

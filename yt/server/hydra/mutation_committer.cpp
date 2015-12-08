@@ -1,20 +1,19 @@
-#include "stdafx.h"
 #include "mutation_committer.h"
 #include "private.h"
+#include "changelog.h"
 #include "config.h"
 #include "decorated_automaton.h"
-#include "serialize.h"
 #include "mutation_context.h"
-#include "changelog.h"
+#include "serialize.h"
 
-#include <core/concurrency/periodic_executor.h>
+#include <yt/ytlib/election/cell_manager.h>
 
-#include <core/profiling/profiler.h>
-#include <core/profiling/timing.h>
+#include <yt/core/concurrency/periodic_executor.h>
 
-#include <core/tracing/trace_context.h>
+#include <yt/core/profiling/profiler.h>
+#include <yt/core/profiling/timing.h>
 
-#include <ytlib/election/cell_manager.h>
+#include <yt/core/tracing/trace_context.h>
 
 namespace NYT {
 namespace NHydra {
@@ -486,7 +485,9 @@ void TLeaderCommitter::OnAutoCheckpointCheck()
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    if (TInstant::Now() > DecoratedAutomaton_->GetLastSnapshotTime() + Config_->SnapshotBuildPeriod) {
+    if (TInstant::Now() > DecoratedAutomaton_->GetLastSnapshotTime() + Config_->SnapshotBuildPeriod &&
+        DecoratedAutomaton_->GetLoggedVersion().RecordId > 0)
+    {
         CheckpointNeeded_.Fire();
     }
 }

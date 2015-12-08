@@ -1,22 +1,21 @@
-#include "stdafx.h"
 #include "rich.h"
 
-#include <core/ypath/tokenizer.h>
+#include <yt/ytlib/chunk_client/chunk_owner_ypath.pb.h>
+#include <yt/ytlib/chunk_client/chunk_spec.pb.h>
+#include <yt/ytlib/chunk_client/read_limit.h>
+#include <yt/ytlib/chunk_client/schema.h>
 
-#include <core/misc/error.h>
+#include <yt/ytlib/table_client/unversioned_row.h>
 
-#include <core/yson/consumer.h>
-#include <core/yson/tokenizer.h>
-#include <core/yson/token.h>
+#include <yt/core/misc/error.h>
 
-#include <core/ytree/fluent.h>
+#include <yt/core/ypath/tokenizer.h>
 
-#include <ytlib/table_client/unversioned_row.h>
+#include <yt/core/yson/consumer.h>
+#include <yt/core/yson/token.h>
+#include <yt/core/yson/tokenizer.h>
 
-#include <ytlib/chunk_client/schema.h>
-#include <ytlib/chunk_client/read_limit.h>
-#include <ytlib/chunk_client/chunk_spec.pb.h>
-#include <ytlib/chunk_client/chunk_owner_ypath.pb.h>
+#include <yt/core/ytree/fluent.h>
 
 namespace NYT {
 namespace NYPath {

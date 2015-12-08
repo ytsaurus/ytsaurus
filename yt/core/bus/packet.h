@@ -2,9 +2,9 @@
 
 #include "private.h"
 
-#include <core/misc/public.h>
-#include <core/misc/small_vector.h>
-#include <core/misc/chunked_memory_allocator.h>
+#include <yt/core/misc/chunked_memory_allocator.h>
+#include <yt/core/misc/public.h>
+#include <yt/core/misc/small_vector.h>
 
 namespace NYT {
 namespace NBus {

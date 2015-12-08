@@ -1,9 +1,9 @@
 #pragma once
 
-#include <vector>
-#include <utility>
 #include <functional>
 #include <memory>
+#include <utility>
+#include <vector>
 
 namespace NYT {
 namespace NQueryClient {

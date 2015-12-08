@@ -2,9 +2,9 @@
 
 #include "public.h"
 
-#include <core/yson/string.h>
+#include <yt/core/yson/string.h>
 
-#include <core/misc/nullable.h>
+#include <yt/core/misc/nullable.h>
 
 namespace NYT {
 namespace NYTree {

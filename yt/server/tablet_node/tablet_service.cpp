@@ -1,31 +1,30 @@
-#include "stdafx.h"
 #include "tablet_service.h"
-#include "tablet.h"
-#include "tablet_slot.h"
-#include "tablet_manager.h"
-#include "slot_manager.h"
-#include "transaction_manager.h"
-#include "transaction.h"
-#include "store_manager.h"
-#include "security_manager.h"
 #include "private.h"
+#include "security_manager.h"
+#include "slot_manager.h"
+#include "store_manager.h"
+#include "tablet.h"
+#include "tablet_manager.h"
+#include "tablet_slot.h"
+#include "transaction.h"
+#include "transaction_manager.h"
 
-#include <core/compression/helpers.h>
+#include <yt/server/cell_node/bootstrap.h>
+#include <yt/server/cell_node/config.h>
 
-#include <ytlib/tablet_client/tablet_service_proxy.h>
-#include <ytlib/tablet_client/wire_protocol.h>
+#include <yt/server/hydra/hydra_manager.h>
+#include <yt/server/hydra/hydra_service.h>
+#include <yt/server/hydra/mutation.h>
+#include <yt/server/hydra/rpc_helpers.h>
 
-#include <ytlib/transaction_client/helpers.h>
+#include <yt/server/query_agent/helpers.h>
 
-#include <server/hydra/hydra_service.h>
+#include <yt/ytlib/tablet_client/tablet_service_proxy.h>
+#include <yt/ytlib/tablet_client/wire_protocol.h>
 
-#include <server/hydra/hydra_manager.h>
-#include <server/hydra/mutation.h>
+#include <yt/ytlib/transaction_client/helpers.h>
 
-#include <server/query_agent/helpers.h>
-
-#include <server/cell_node/bootstrap.h>
-#include <server/cell_node/config.h>
+#include <yt/core/compression/helpers.h>
 
 namespace NYT {
 namespace NTabletNode {
@@ -62,7 +61,6 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(StartTransaction)
             .SetInvoker(Slot_->GetGuardedAutomatonInvoker(EAutomatonThreadQueue::Write)));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Read)
-            .SetCancelable(true)
             .SetInvoker(Bootstrap_->GetQueryPoolInvoker()));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Write)
             .SetInvoker(Slot_->GetGuardedAutomatonInvoker(EAutomatonThreadQueue::Write)));
@@ -143,6 +141,7 @@ private:
         ValidatePeer(EPeerKind::Leader);
 
         auto tabletId = FromProto<TTabletId>(request->tablet_id());
+        auto mountRevision = request->mount_revision();
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
         auto atomicity = AtomicityFromTransactionId(transactionId);
         auto durability = EDurability(request->durability());
@@ -178,6 +177,8 @@ private:
         if (tabletSnapshot->Config->ReadOnly) {
             THROW_ERROR_EXCEPTION("Table is read-only");
         }
+
+        tabletSnapshot->ValiateMountRevision(mountRevision);
 
         auto requestData = NCompression::DecompressWithEnvelope(request->Attachments());
         TWireProtocolReader reader(requestData);

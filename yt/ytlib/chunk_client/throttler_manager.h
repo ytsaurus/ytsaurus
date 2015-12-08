@@ -2,10 +2,10 @@
 
 #include "private.h"
 
-#include <ytlib/object_client/public.h>
+#include <yt/ytlib/object_client/public.h>
 
-#include <core/logging/log.h>
-#include <core/concurrency/throughput_throttler.h>
+#include <yt/core/logging/log.h>
+#include <yt/core/concurrency/throughput_throttler.h>
 
 namespace NYT {
 namespace NChunkClient {

@@ -1,4 +1,3 @@
-#include "stdafx.h"
 #include "invoker_detail.h"
 
 namespace NYT {

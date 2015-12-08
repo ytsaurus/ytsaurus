@@ -1,9 +1,8 @@
-#include "stdafx.h"
 #include "framework.h"
 
-#include <core/misc/public.h>
-#include <core/misc/enum.h>
-#include <core/misc/serialize.h>
+#include <yt/core/misc/enum.h>
+#include <yt/core/misc/public.h>
+#include <yt/core/misc/serialize.h>
 
 namespace NYT {
 namespace {

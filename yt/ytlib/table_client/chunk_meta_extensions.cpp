@@ -1,5 +1,3 @@
-#include "stdafx.h"
-
 #include "chunk_meta_extensions.h"
 
 namespace NYT {

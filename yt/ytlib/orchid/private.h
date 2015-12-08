@@ -1,7 +1,8 @@
 #pragma once
 
-#include <core/misc/public.h>
-#include <core/logging/log.h>
+#include <yt/core/logging/log.h>
+
+#include <yt/core/misc/public.h>
 
 namespace NYT {
 namespace NOrchid {

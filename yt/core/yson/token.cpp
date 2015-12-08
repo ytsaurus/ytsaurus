@@ -1,8 +1,7 @@
-#include "stdafx.h"
 #include "token.h"
 
-#include <core/misc/error.h>
-#include <util/string/vector.h>
+#include <yt/core/misc/error.h>
+#include <yt/core/misc/string.h>
 
 namespace NYT {
 namespace NYson {
@@ -169,7 +168,7 @@ void TToken::ExpectTypes(const std::vector<ETokenType>& expectedTypes) const
         auto typeStrings = ConvertToStrings(expectedTypes, [] (ETokenType type) {
             return Format("Qlv", type);
         });
-        auto typesString = JoinStroku(typeStrings.begin(), typeStrings.end(), " or ");
+        auto typesString = JoinToString(expectedTypes.begin(), expectedTypes.end(), Stroka(" or "));
         if (Type_ == ETokenType::EndOfStream) {
             THROW_ERROR_EXCEPTION("Unexpected end of stream; expected types are %v",
                 typesString);

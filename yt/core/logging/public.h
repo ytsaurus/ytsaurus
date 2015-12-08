@@ -1,7 +1,6 @@
 #pragma once
 
-#include <core/misc/common.h>
-#include <core/misc/enum.h>
+#include <yt/core/misc/enum.h>
 
 namespace NYT {
 namespace NLogging {

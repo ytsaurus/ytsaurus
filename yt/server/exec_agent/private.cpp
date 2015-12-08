@@ -1,4 +1,3 @@
-#include "stdafx.h"
 #include "private.h"
 #include "public.h"
 

@@ -12,6 +12,12 @@
 //===----------------------------------------------------------------------===//
 
 #pragma once
+#include "public.h"
+#include "align_of.h"
+#include "mpl.h"
+
+#include <util/system/defaults.h>
+
 #include <algorithm>
 #include <cassert>
 #include <cstddef>
@@ -20,12 +26,6 @@
 #include <initializer_list>
 #include <iterator>
 #include <memory>
-
-#include "public.h"
-#include "mpl.h"
-#include "align_of.h"
-
-#include <util/system/defaults.h>
 
 #define YT_LLVM_ATTRIBUTE_UNUSED_RESULT
 #define YT_LLVM_UNLIKELY Y_UNLIKELY

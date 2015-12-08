@@ -1,7 +1,7 @@
 #include "artifact.h"
 
-#include <core/misc/hash.h>
-#include <core/misc/protobuf_helpers.h>
+#include <yt/core/misc/hash.h>
+#include <yt/core/misc/protobuf_helpers.h>
 
 namespace NYT {
 namespace NDataNode {

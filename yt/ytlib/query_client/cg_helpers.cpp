@@ -1,5 +1,3 @@
-#include "stdafx.h"
-
 #include "cg_helpers.h"
 
 namespace NYT {

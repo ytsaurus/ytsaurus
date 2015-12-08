@@ -2,11 +2,11 @@
 
 #include "common.h"
 
-#include <util/thread/lfqueue.h>
+#include <yt/core/profiling/public.h>
 
 #include <util/generic/singleton.h>
 
-#include <core/profiling/public.h>
+#include <util/thread/lfqueue.h>
 
 #include <atomic>
 

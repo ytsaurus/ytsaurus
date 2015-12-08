@@ -1,12 +1,11 @@
 #pragma once
 
 #include "public.h"
-
 #include "plan_fragment_common.h"
 
-#include <ytlib/ypath/rich.h>
+#include <yt/ytlib/ypath/rich.h>
 
-#include <core/misc/variant.h>
+#include <yt/core/misc/variant.h>
 
 namespace NYT {
 namespace NQueryClient {

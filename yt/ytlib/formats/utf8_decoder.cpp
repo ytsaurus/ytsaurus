@@ -1,6 +1,6 @@
 #include "utf8_decoder.h"
 
-#include <core/misc/error.h>
+#include <yt/core/misc/error.h>
 
 namespace NYT {
 namespace NFormats {

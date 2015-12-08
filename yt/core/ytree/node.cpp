@@ -2,7 +2,7 @@
 #include "convert.h"
 #include "node_detail.h"
 
-#include <core/yson/async_writer.h>
+#include <yt/core/yson/writer.h>
 
 namespace NYT {
 namespace NYTree {

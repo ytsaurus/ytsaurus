@@ -1,9 +1,8 @@
-#include "stdafx.h"
 #include "helpers.h"
 
-#include <core/ytree/fluent.h>
+#include <yt/core/ytree/fluent.h>
 
-#include <ytlib/object_client/helpers.h>
+#include <yt/ytlib/object_client/helpers.h>
 
 #include <limits>
 

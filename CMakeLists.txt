@@ -18,12 +18,9 @@ option(YT_BUILD_ENABLE_TESTS              "Build tests" TRUE)
 option(YT_BUILD_ENABLE_NODEJS             "Build NodeJS bindings" FALSE)
 option(YT_BUILD_ENABLE_PYTHON             "Build Python bindings" TRUE)
 option(YT_BUILD_ENABLE_PERL               "Build Perl bindings" FALSE)
-option(YT_BUILD_ENABLE_LLVM               "Build LLVM MCJIT" TRUE)
 option(YT_BUILD_HAVE_RAGEL                "Do you have Ragel 6.8?" FALSE)
 option(YT_BUILD_HAVE_BISON                "Do you have Bison 3.0?" FALSE)
-option(YT_BUILD_YTCORE_SHARED             "Build ytcore as a shared lib" FALSE)
 option(YT_BUILD_ENABLE_ASAN               "Build with Address Sanitizer enabled" FALSE)
-option(YT_USE_FOLDERS                     "Enable solution folders in Visual Studio; disable for Express versions" TRUE)
 option(YT_USE_LTO                         "Enable link time optimizations" FALSE)
 
 ################################################################################
@@ -84,12 +81,11 @@ endif()
 include(PCH)
 include(PCFromUcontext)
 
-# Write down configuration.
-configure_file(
-  ${CMAKE_SOURCE_DIR}/yt/config.h.in
-  ${CMAKE_BINARY_DIR}/yt/config.h
-  @ONLY
-)
+# Using CMake module FindLLVM.cmake form <root>/cmake directory.
+find_package(LLVM)
+
+link_directories(${LLVM_LIBRARY_DIRS})
+include_directories(${LLVM_INCLUDE_DIRS})
 
 # Discover Python world.
 if(YT_BUILD_ENABLE_PYTHON)
@@ -117,16 +113,6 @@ if(YT_BUILD_ENABLE_PERL)
   message(STATUS "Using Perl: ${PERL_EXECUTABLE} (-I${PERL_INCLUDE_DIR} -l${PERL_LIBRARY})")
 endif()
 
-# Discover LLVM.
-if(YT_BUILD_ENABLE_LLVM)
-  # Using CMake module FindLLVM.cmake form <root>/cmake directory.
-  find_package(LLVM)
-
-  link_directories(${LLVM_LIBRARY_DIRS})
-  include_directories(${LLVM_INCLUDE_DIRS})
-  add_definitions(-DYT_USE_LLVM)
-endif()
-
 # Check for Ragel.
 if(YT_BUILD_HAVE_RAGEL)
   find_program(RAGEL_EXECUTABLE ragel)
@@ -151,12 +137,16 @@ add_subdirectory(debian)
 add_subdirectory(cmake/deps-protobuf)
 add_subdirectory(cmake/deps-farmhash)
 add_subdirectory(cmake/deps-arcadia-util)
+add_subdirectory(cmake/deps-arcadia-contrib-libs-snappy)
+add_subdirectory(cmake/deps-arcadia-contrib-libs-zlib)
 add_subdirectory(cmake/deps-arcadia-library-blockcodecs)
-add_subdirectory(cmake/deps-arcadia-library-lwtrace)
-add_subdirectory(cmake/deps-arcadia-library-messagebus)
-add_subdirectory(cmake/deps-arcadia-library-http)
-add_subdirectory(cmake/deps-arcadia-library-streams-lz)
 add_subdirectory(cmake/deps-arcadia-library-getopt)
+add_subdirectory(cmake/deps-arcadia-library-http)
+add_subdirectory(cmake/deps-arcadia-library-lfalloc)
+add_subdirectory(cmake/deps-arcadia-library-lwtrace)
+add_subdirectory(cmake/deps-arcadia-library-malloc-api)
+add_subdirectory(cmake/deps-arcadia-library-messagebus)
+add_subdirectory(cmake/deps-arcadia-library-streams-lz)
 add_subdirectory(cmake/deps-z-lz-lzo)
 add_subdirectory(cmake/deps-yt-contrib-jerasure)
 add_subdirectory(cmake/deps-yt-contrib-libev)
@@ -164,7 +154,7 @@ add_subdirectory(cmake/deps-yajl)
 add_subdirectory(cmake/deps-contrib-benchmark)
 add_subdirectory(cmake/deps-re2)
 add_subdirectory(library/json)
-add_subdirectory(library/lfalloc)
+add_subdirectory(python)
 
 add_subdirectory(yt)
 
@@ -276,45 +266,4 @@ add_custom_target( install-debian-yandex-yt-perl-${YT_ABI_VERSION}
     -P ${CMAKE_BINARY_DIR}/cmake_install.cmake
   COMMENT "Installing for package 'yandex-yt-perl-${YT_ABI_VERSION}'..."
 )
-
-if(YT_USE_FOLDERS)
-  set_property(GLOBAL PROPERTY USE_FOLDERS ON)
-endif()
-
-# TODO(sandello): Move these properties closer to target definitions.
-set_target_properties(ytext-arcadia-util PROPERTIES FOLDER "Contrib")
-set_target_properties(ytext-arcadia-library-blockcodecs PROPERTIES FOLDER "Contrib")
-set_target_properties(ytext-arcadia-library-lwtrace PROPERTIES FOLDER "Contrib")
-set_target_properties(ytext-arcadia-library-messagebus PROPERTIES FOLDER "Contrib")
-set_target_properties(ytext-arcadia-library-http PROPERTIES FOLDER "Contrib")
-set_target_properties(protobuf PROPERTIES FOLDER "Contrib")
-set_target_properties(protoc PROPERTIES FOLDER "Contrib")
-set_target_properties(ytext-fastlz PROPERTIES FOLDER "Contrib")
-set_target_properties(ytext-lz4 PROPERTIES FOLDER "Contrib")
-set_target_properties(ytext-minilzo PROPERTIES FOLDER "Contrib")
-set_target_properties(ytext-quicklz PROPERTIES FOLDER "Contrib")
-set_target_properties(ytext-snappy PROPERTIES FOLDER "Contrib")
-set_target_properties(ytext-zlib PROPERTIES FOLDER "Contrib")
-set_target_properties(ytext-lfalloc PROPERTIES FOLDER "Contrib")
-set_target_properties(ytext-lfalloc-impl PROPERTIES FOLDER "Contrib")
-set_target_properties(ytext-lfalloc-fake PROPERTIES FOLDER "Contrib")
-set_target_properties(ytext-lfalloc-fake-impl PROPERTIES FOLDER "Contrib")
-set_target_properties(ytext-yajl PROPERTIES FOLDER "Contrib")
-set_target_properties(ytext-json PROPERTIES FOLDER "Contrib")
-set_target_properties(yt-contrib-benchmark PROPERTIES FOLDER "Contrib")
-set_target_properties(ytext-zstd PROPERTIES FOLDER "Contrib")
-set_target_properties(ytext-re2 PROPERTIES FOLDER "Contrib")
-
-set_target_properties(install-debian-yandex-yt PROPERTIES FOLDER "Misc")
-set_target_properties(install-debian-yandex-yt-http-proxy PROPERTIES FOLDER "Misc")
-set_target_properties(install-debian-yandex-yt-perl PROPERTIES FOLDER "Misc")
-set_target_properties(package PROPERTIES FOLDER "Misc")
-set_target_properties(version PROPERTIES FOLDER "Misc")
-
-set_target_properties(unittester PROPERTIES FOLDER "YT")
-set_target_properties(ytcore PROPERTIES FOLDER "YT")
-set_target_properties(yt PROPERTIES FOLDER "YT")
-set_target_properties(ytlib PROPERTIES FOLDER "YT")
-set_target_properties(ytserver PROPERTIES FOLDER "YT")
-set_target_properties(ytserver_lib PROPERTIES FOLDER "YT")
 

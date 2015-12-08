@@ -65,7 +65,15 @@ class TestErasure(YTEnvSetup):
             replica_index = r.attributes["index"]
             address = str(r)
             print >>sys.stderr, "Banning node %s containing replica %d" % (address, replica_index)
+<<<<<<< HEAD
             self.set_node_banned(address, True)
+=======
+            set("//sys/nodes/%s/@banned" % r, True)
+
+            # Give it enough time to unregister the node
+            time.sleep(1.0)
+            assert get("//sys/nodes/%s/@state" % r) == "offline"
+>>>>>>> origin/prestable/0.17.4
 
             ok = False
             for i in xrange(10):

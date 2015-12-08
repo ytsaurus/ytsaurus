@@ -1,4 +1,4 @@
-#include <ytlib/query_client/lexer.h>
+#include <yt/ytlib/query_client/lexer.h>
 
 #include <util/system/defaults.h>
 #include <util/string/cast.h>
@@ -132,7 +132,7 @@ typedef TParser::token_type TToken;
             fgoto quoted_identifier;
         };
         ']' => {
-            YUNREACHABLE();
+            THROW_ERROR_EXCEPTION("Unexpected symbol \"]\" at position %v", ts - p);
         };
 
         '<=' => { type = TToken::OpLessOrEqual; fbreak; };
