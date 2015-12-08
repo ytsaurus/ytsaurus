@@ -44,7 +44,7 @@ TCachedVersionedChunkMetaPtr TCachedVersionedChunkMeta::DoLoad(
     KeyColumnCount_ = keyColumns.size();
 
     try {
-        ValidateTableSchemaAndKeyColumns(readerSchema, keyColumns);
+        //ValidateTableSchemaAndKeyColumns(readerSchema, keyColumns);
 
         auto asyncChunkMeta = chunkReader->GetMeta();
         ChunkMeta_ = WaitFor(asyncChunkMeta)

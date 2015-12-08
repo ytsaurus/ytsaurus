@@ -111,11 +111,12 @@ void TTableNode::Load(TLoadContext& context)
         attributesMap.erase("schema");
         if (IsDynamic()) {
             TableSchema_ = ConvertTo<TTableSchema>(tableSchemaAttribute);
-            for (auto columnName : keyColumns) {
-                int columnIndex = TableSchema_.GetColumnIndexOrThrow(columnName);
-                TColumnSchema columnSchema = TableSchema_.GetColumnOrThrow(columnName);
-                columnSchema.SetSortOrder(ESortOrder::Ascending);
-                TableSchema_.AlterColumn(columnIndex, columnSchema);
+            auto columns = TableSchema_.Columns();
+            for (int index = 0; index < keyColumns.size(); ++index) {
+                const auto& columnName = keyColumns[index];
+                YCHECK(columns[index].Name == columnName);
+                columns[index].SetSortOrder(ESortOrder::Ascending);
+                TableSchema_ = TTableSchema(columns, true /* strict */);
             }
         } else {
             TableSchema_ = TTableSchema::FromKeyColumns(keyColumns);

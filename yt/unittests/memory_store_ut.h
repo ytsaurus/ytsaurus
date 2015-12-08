@@ -84,10 +84,11 @@ protected:
     {
         // NB: Key columns must go first.
         TTableSchema schema({
-            TColumnSchema(TColumnSchema("key", EValueType::Int64).SetSortOrder(ESortOrder::Ascending)),
-            TColumnSchema(TColumnSchema("a", EValueType::Int64)),
-            TColumnSchema(TColumnSchema("b", EValueType::Double)),
-            TColumnSchema(TColumnSchema("c", EValueType::String))
+            TColumnSchema("key", EValueType::Int64)
+                .SetSortOrder(ESortOrder::Ascending),
+            TColumnSchema("a", EValueType::Int64),
+            TColumnSchema("b", EValueType::Double),
+            TColumnSchema("c", EValueType::String)
         });
         return schema;
     }
