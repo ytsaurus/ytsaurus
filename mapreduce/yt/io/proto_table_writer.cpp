@@ -27,9 +27,13 @@ TNode MakeNodeFromMessage(const Message& row)
             continue;
         }
 
-        const auto& columnName = fieldDesc->options().GetExtension(column_name);
+        Stroka columnName = fieldDesc->options().GetExtension(column_name);
         if (columnName.empty()) {
-            ythrow yexception() << "column_name extension must be set for field";
+            const auto& keyColumnName = fieldDesc->options().GetExtension(key_column_name);
+            if(keyColumnName.empty()) {
+                ythrow yexception() << "column_name or key_column_name extension must be set for field";
+            }
+            columnName = keyColumnName;
         }
 
         builder.OnKeyedItem(columnName);
