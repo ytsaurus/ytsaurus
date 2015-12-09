@@ -2,31 +2,31 @@
 
 #include "public.h"
 
-#include <core/misc/config.h>
+#include <yt/ytlib/chunk_client/config.h>
 
-#include <core/ytree/yson_serializable.h>
+#include <yt/ytlib/file_client/config.h>
 
-#include <core/compression/public.h>
+#include <yt/ytlib/hive/config.h>
 
-#include <ytlib/object_client/public.h>
+#include <yt/ytlib/hydra/config.h>
 
-#include <ytlib/hydra/config.h>
+#include <yt/ytlib/object_client/public.h>
 
-#include <ytlib/transaction_client/public.h>
+#include <yt/ytlib/query_client/config.h>
 
-#include <ytlib/file_client/config.h>
+#include <yt/ytlib/scheduler/public.h>
 
-#include <ytlib/chunk_client/config.h>
+#include <yt/ytlib/table_client/config.h>
 
-#include <ytlib/table_client/config.h>
+#include <yt/ytlib/tablet_client/config.h>
 
-#include <ytlib/scheduler/public.h>
+#include <yt/ytlib/transaction_client/public.h>
 
-#include <ytlib/hive/config.h>
+#include <yt/core/compression/public.h>
 
-#include <ytlib/tablet_client/config.h>
+#include <yt/core/misc/config.h>
 
-#include <ytlib/query_client/config.h>
+#include <yt/core/ytree/yson_serializable.h>
 
 namespace NYT {
 namespace NApi {

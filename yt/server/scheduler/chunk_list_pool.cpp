@@ -1,12 +1,9 @@
-#include "stdafx.h"
 #include "chunk_list_pool.h"
-#include "config.h"
 #include "private.h"
+#include "config.h"
 
-#include <ytlib/object_client/master_ypath_proxy.h>
-#include <ytlib/object_client/helpers.h>
-
-#include <core/concurrency/thread_affinity.h>
+#include <yt/ytlib/object_client/master_ypath_proxy.h>
+#include <yt/ytlib/object_client/helpers.h>
 
 namespace NYT {
 namespace NScheduler {

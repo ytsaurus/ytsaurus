@@ -1,7 +1,6 @@
-#include "stdafx.h"
 #include "helpers.h"
 
-#include <core/ypath/token.h>
+#include <yt/core/ypath/token.h>
 
 namespace NYT {
 namespace NSecurityClient {

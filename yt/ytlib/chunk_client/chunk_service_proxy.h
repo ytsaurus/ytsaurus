@@ -2,9 +2,9 @@
 
 #include "public.h"
 
-#include <core/rpc/client.h>
+#include <yt/ytlib/chunk_client/chunk_service.pb.h>
 
-#include <ytlib/chunk_client/chunk_service.pb.h>
+#include <yt/core/rpc/client.h>
 
 namespace NYT {
 namespace NChunkClient {

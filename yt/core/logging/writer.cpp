@@ -1,13 +1,10 @@
-#include "stdafx.h"
 #include "writer.h"
-#include "log.h"
 #include "private.h"
+#include "log.h"
 
-#include <core/misc/fs.h>
+#include <yt/build/build.h>
 
-#include <core/build.h>
-
-#include <contrib/libev/event.h>
+#include <yt/core/misc/fs.h>
 
 namespace NYT {
 namespace NLogging {

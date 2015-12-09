@@ -2,9 +2,9 @@
 #error "Direct inclusion of this file is not allowed, include memory_usage_tracker.h"
 #endif
 
-#include <core/concurrency/thread_affinity.h>
+#include <yt/core/concurrency/thread_affinity.h>
 
-#include <core/profiling/profile_manager.h>
+#include <yt/core/profiling/profile_manager.h>
 
 namespace NYT {
 
@@ -249,6 +249,12 @@ template <class ECategory>
 TMemoryUsageTrackerGuard<ECategory>::operator bool() const
 {
     return Tracker_ != nullptr;
+}
+
+template <class ECategory>
+i64 TMemoryUsageTrackerGuard<ECategory>::GetSize() const
+{
+    return Size_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

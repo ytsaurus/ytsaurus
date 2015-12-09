@@ -54,8 +54,11 @@ class Checker(Thread):
         self._check_function = check_function
         self._active = None
 
-    def run(self):
+    def start(self):
         self._active = True
+        super(Checker, self).start()
+
+    def run(self):
         while self._active:
             self._check_function()
             sleep(1.0)
@@ -77,8 +80,8 @@ class YTEnvSetup(YTEnv):
         # Should create before env start for correct behaviour of teardown.
         cls.liveness_checker = None
 
-        # For running in parallel
         cls.path_to_test = path_to_test
+        # For running in parallel
         cls.run_id = "run_" + uuid.uuid4().hex[:8]
         cls.path_to_run = os.path.join(path_to_test, cls.run_id)
         pids_filename = os.path.join(cls.path_to_run, "pids.txt")
@@ -87,8 +90,8 @@ class YTEnvSetup(YTEnv):
         cls.Env.start(cls.path_to_run, pids_filename, kill_child_processes=True,
                       port_locks_path=os.path.join(SANDBOX_ROOTDIR, "ports"))
 
-        if cls.Env.configs['driver']:
-            yt_commands.init_driver(cls.Env.configs['driver'])
+        if cls.Env.configs["driver"]:
+            yt_commands.init_driver(cls.Env.configs["driver"])
             yt_commands.is_multicell = (cls.Env.NUM_SECONDARY_MASTER_CELLS > 0)
             yt_driver_bindings.configure_logging(cls.Env.driver_logging_config)
 

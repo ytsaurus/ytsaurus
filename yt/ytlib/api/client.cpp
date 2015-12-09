@@ -1,83 +1,81 @@
-#include "stdafx.h"
 #include "client.h"
-#include "transaction.h"
+#include "private.h"
+#include "box.h"
+#include "config.h"
 #include "connection.h"
 #include "file_reader.h"
 #include "file_writer.h"
 #include "journal_reader.h"
 #include "journal_writer.h"
-#include "table_reader.h"
 #include "rowset.h"
-#include "config.h"
-#include "box.h"
-#include "private.h"
+#include "table_reader.h"
+#include "transaction.h"
 
-#include <core/profiling/scoped_timer.h>
+#include <yt/ytlib/chunk_client/chunk_list_ypath_proxy.h>
+#include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
+#include <yt/ytlib/chunk_client/chunk_replica.h>
+#include <yt/ytlib/chunk_client/read_limit.h>
 
-#include <core/concurrency/scheduler.h>
+#include <yt/ytlib/cypress_client/cypress_ypath_proxy.h>
+#include <yt/ytlib/cypress_client/rpc_helpers.h>
 
-#include <core/ytree/attribute_helpers.h>
-#include <core/ytree/ypath_proxy.h>
+#include <yt/ytlib/driver/dispatcher.h>
 
-#include <core/rpc/helpers.h>
-#include <core/rpc/scoped_channel.h>
+#include <yt/ytlib/hive/cell_directory.h>
+#include <yt/ytlib/hive/config.h>
 
-#include <core/compression/helpers.h>
+#include <yt/ytlib/object_client/helpers.h>
+#include <yt/ytlib/object_client/master_ypath_proxy.h>
+#include <yt/ytlib/object_client/object_service_proxy.h>
 
-#include <ytlib/transaction_client/public.h>
-#include <ytlib/transaction_client/transaction_manager.h>
-#include <ytlib/transaction_client/timestamp_provider.h>
+#include <yt/ytlib/query_client/column_evaluator.h>
+#include <yt/ytlib/query_client/coordinator.h>
+#include <yt/ytlib/query_client/evaluator.h>
+#include <yt/ytlib/query_client/helpers.h>
+#include <yt/ytlib/query_client/plan_fragment.h>
+#include <yt/ytlib/query_client/plan_helpers.h>
+#include <yt/ytlib/query_client/private.h> // XXX(sandello): refactor BuildLogger
+#include <yt/ytlib/query_client/query_preparer.h>
+#include <yt/ytlib/query_client/query_service_proxy.h>
+#include <yt/ytlib/query_client/query_statistics.h>
 
-#include <ytlib/object_client/object_service_proxy.h>
-#include <ytlib/object_client/master_ypath_proxy.h>
-#include <ytlib/object_client/helpers.h>
+#include <yt/ytlib/scheduler/job_prober_service_proxy.h>
+#include <yt/ytlib/scheduler/scheduler_service_proxy.h>
 
-#include <ytlib/cypress_client/cypress_ypath_proxy.h>
-#include <ytlib/cypress_client/rpc_helpers.h>
+#include <yt/ytlib/security_client/group_ypath_proxy.h>
+#include <yt/ytlib/security_client/helpers.h>
 
-#include <ytlib/tablet_client/wire_protocol.h>
-#include <ytlib/tablet_client/table_mount_cache.h>
-#include <ytlib/tablet_client/tablet_service_proxy.h>
-#include <ytlib/tablet_client/wire_protocol.pb.h>
+#include <yt/ytlib/table_client/name_table.h>
+#include <yt/ytlib/table_client/schema.h>
+#include <yt/ytlib/table_client/schemaful_writer.h>
 
-#include <ytlib/security_client/group_ypath_proxy.h>
-#include <ytlib/security_client/helpers.h>
+#include <yt/ytlib/tablet_client/table_mount_cache.h>
+#include <yt/ytlib/tablet_client/tablet_service_proxy.h>
+#include <yt/ytlib/tablet_client/wire_protocol.h>
+#include <yt/ytlib/tablet_client/wire_protocol.pb.h>
 
-#include <ytlib/driver/dispatcher.h>
+#include <yt/ytlib/transaction_client/timestamp_provider.h>
+#include <yt/ytlib/transaction_client/transaction_manager.h>
 
-#include <ytlib/hive/config.h>
-#include <ytlib/hive/cell_directory.h>
+#include <yt/core/compression/helpers.h>
 
-#include <ytlib/table_client/schemaful_writer.h>
-#include <ytlib/table_client/name_table.h>
+#include <yt/core/concurrency/scheduler.h>
 
-#include <ytlib/query_client/plan_fragment.h>
-#include <ytlib/query_client/query_preparer.h>
-#include <ytlib/query_client/plan_helpers.h>
-#include <ytlib/query_client/coordinator.h>
-#include <ytlib/query_client/helpers.h>
-#include <ytlib/query_client/query_statistics.h>
-#include <ytlib/query_client/query_service_proxy.h>
-#include <ytlib/query_client/query_statistics.h>
-#include <ytlib/query_client/evaluator.h>
-#include <ytlib/query_client/column_evaluator.h>
-#include <ytlib/query_client/private.h> // XXX(sandello): refactor BuildLogger
+#include <yt/core/profiling/scoped_timer.h>
 
-#include <ytlib/chunk_client/chunk_list_ypath_proxy.h>
-#include <ytlib/chunk_client/chunk_replica.h>
-#include <ytlib/chunk_client/read_limit.h>
-#include <ytlib/chunk_client/chunk_meta_extensions.h>
+#include <yt/core/rpc/helpers.h>
+#include <yt/core/rpc/scoped_channel.h>
 
-#include <ytlib/scheduler/scheduler_service_proxy.h>
-#include <ytlib/scheduler/job_prober_service_proxy.h>
+#include <yt/core/ytree/attribute_helpers.h>
+#include <yt/core/ytree/ypath_proxy.h>
 
 // TODO(babenko): refactor this
-#include <ytlib/object_client/object_service_proxy.h>
-#include <ytlib/table_client/chunk_meta_extensions.h>
-#include <ytlib/table_client/schemaful_reader.h>
-#include <ytlib/table_client/table_ypath_proxy.h>
-#include <ytlib/table_client/row_merger.h>
-#include <ytlib/table_client/row_base.h>
+#include <yt/ytlib/object_client/object_service_proxy.h>
+#include <yt/ytlib/table_client/chunk_meta_extensions.h>
+#include <yt/ytlib/table_client/schemaful_reader.h>
+#include <yt/ytlib/table_client/table_ypath_proxy.h>
+#include <yt/ytlib/table_client/row_merger.h>
+#include <yt/ytlib/table_client/row_base.h>
 
 #include <unordered_map>
 
@@ -326,7 +324,7 @@ private:
     }
 
     std::vector<std::pair<TDataSource, Stroka>> SplitTableFurther(
-        TGuid tableId,
+        const TObjectId& tableId,
         const std::vector<TRowRange>& ranges,
         TRowBufferPtr rowBuffer)
     {
@@ -344,7 +342,7 @@ private:
     }
 
     std::vector<std::pair<TDataSource, Stroka>> SplitStaticTableFurther(
-        TGuid tableId,
+        const TObjectId& tableId,
         const std::vector<TRowRange>& ranges,
         TRowBufferPtr rowBuffer)
     {
@@ -453,7 +451,7 @@ private:
     }
 
     std::vector<std::pair<TDataSource, Stroka>> SplitDynamicTableFurther(
-        TGuid tableId,
+        const TObjectId& tableId,
         const std::vector<TRowRange>& ranges,
         TRowBufferPtr rowBuffer,
         TTableMountInfoPtr tableInfo)
@@ -522,7 +520,6 @@ private:
         return subsources;
     }
 
-
     TQueryStatistics DoCoordinateAndExecute(
         TPlanFragmentPtr fragment,
         ISchemafulWriterPtr writer,
@@ -540,7 +537,7 @@ private:
             });
 
         return CoordinateAndExecute(
-            fragment,
+            fragment->Query,
             writer,
             refiners,
             isOrdered,
@@ -570,15 +567,13 @@ private:
             FunctionRegistry_);
     }
 
-    TQueryStatistics DoExecute(
+    std::vector<std::pair<TDataSource, Stroka>> InferRanges(
         TPlanFragmentPtr fragment,
-        ISchemafulWriterPtr writer)
+        TRowBufferPtr rowBuffer,
+        const NLogging::TLogger& Logger)
     {
-        auto Logger = BuildLogger(fragment->Query);
-
         const auto& dataSources = fragment->DataSources;
 
-        auto rowBuffer = New<TRowBuffer>();
         auto prunedRanges = GetPrunedRanges(
             fragment->Query,
             dataSources,
@@ -592,11 +587,23 @@ private:
 
         std::vector<std::pair<TDataSource, Stroka>> allSplits;
         for (int index = 0; index < dataSources.size(); ++index) {
-            auto id = dataSources[index].Id;
+            const auto& id = dataSources[index].Id;
             const auto& ranges = prunedRanges[index];
             auto splits = Split(id, ranges, rowBuffer, Logger, fragment->VerboseLogging);
-            allSplits.insert(allSplits.begin(), splits.begin(), splits.end());
+            std::move(splits.begin(), splits.end(), std::back_inserter(allSplits));
         }
+
+        return allSplits;
+    }
+
+    TQueryStatistics DoExecute(
+        TPlanFragmentPtr fragment,
+        ISchemafulWriterPtr writer)
+    {
+        auto Logger = BuildLogger(fragment->Query);
+
+        auto rowBuffer = New<TRowBuffer>();
+        auto allSplits = InferRanges(fragment, rowBuffer, Logger);
 
         yhash_map<Stroka, TDataSources> groupsByAddress;
         for (const auto& split : allSplits) {
@@ -627,29 +634,8 @@ private:
     {
         auto Logger = BuildLogger(fragment->Query);
 
-        const auto& dataSources = fragment->DataSources;
-
         auto rowBuffer = New<TRowBuffer>();
-        auto prunedRanges = GetPrunedRanges(
-            fragment->Query,
-            dataSources,
-            rowBuffer,
-            Connection_->GetColumnEvaluatorCache(),
-            FunctionRegistry_,
-            fragment->RangeExpansionLimit,
-            fragment->VerboseLogging);
-
-        LOG_DEBUG("Splitting %v pruned splits", prunedRanges.size());
-
-        std::vector<std::pair<TDataSource, Stroka>> allSplits;
-
-        for (int index = 0; index < dataSources.size(); ++index) {
-            const auto& id = dataSources[index].Id;
-            const auto& ranges = prunedRanges[index];
-
-            auto splits = Split(id, ranges, rowBuffer, Logger, fragment->VerboseLogging);
-            std::move(splits.begin(), splits.end(), std::back_inserter(allSplits));
-        }
+        auto allSplits = InferRanges(fragment, rowBuffer, Logger);
 
         LOG_DEBUG("Sorting %v splits", allSplits.size());
 
@@ -1032,6 +1018,15 @@ public:
         const TJobId& jobId,
         const TStraceJobOptions& options),
         (jobId, options))
+    IMPLEMENT_METHOD(void, SignalJob, (
+        const TJobId& jobId,
+        const Stroka& signalName,
+        const TSignalJobOptions& options),
+        (jobId, signalName, options))
+    IMPLEMENT_METHOD(void, AbandonJob, (
+        const TJobId& jobId,
+        const TAbandonJobOptions& options),
+        (jobId, options))
 
 #undef DROP_BRACES
 #undef IMPLEMENT_METHOD
@@ -1206,11 +1201,13 @@ private:
             TClient* owner,
             TTabletInfoPtr tabletInfo,
             const TLookupRowsOptions& options,
-            const TNameTableToSchemaIdMapping& idMapping)
+            const TNameTableToSchemaIdMapping& idMapping,
+            const TTableSchema& schema)
             : Config_(owner->Connection_->GetConfig())
             , TabletId_(tabletInfo->TabletId)
             , Options_(options)
             , IdMapping_(idMapping)
+            , Schema_(schema)
         { }
 
         void AddKey(int index, NTableClient::TKey key)
@@ -1236,7 +1233,7 @@ private:
                 TWireProtocolWriter writer;
                 writer.WriteCommand(EWireProtocolCommand::LookupRows);
                 writer.WriteMessage(req);
-                writer.WriteUnversionedRowset(batch->Keys, &IdMapping_);
+                writer.WriteSchemafulRowset(batch->Keys, IdMapping_.empty() ? nullptr : &IdMapping_);
 
                 batch->RequestData = NCompression::CompressWithEnvelope(
                     writer.Flush(),
@@ -1252,11 +1249,12 @@ private:
             std::vector<TUnversionedRow>* resultRows,
             std::vector<std::unique_ptr<TWireProtocolReader>>* readers)
         {
+            auto schemaData = TWireProtocolReader::GetSchemaData(Schema_, Options_.ColumnFilter);
             for (const auto& batch : Batches_) {
                 auto data = NCompression::DecompressWithEnvelope(batch->Response->Attachments());
                 auto reader = std::make_unique<TWireProtocolReader>(data);
                 for (int index = 0; index < batch->Keys.size(); ++index) {
-                    auto row = reader->ReadUnversionedRow();
+                    auto row = reader->ReadSchemafulRow(schemaData);
                     (*resultRows)[batch->Indexes[index]] = row;
                 }
                 readers->push_back(std::move(reader));
@@ -1268,6 +1266,7 @@ private:
         TTabletId TabletId_;
         TLookupRowsOptions Options_;
         TNameTableToSchemaIdMapping IdMapping_;
+        const TTableSchema& Schema_;
 
         struct TBatch
         {
@@ -1350,14 +1349,16 @@ private:
             auto evaluator = evaluatorCache->Find(tableInfo->Schema, keyColumnCount);
 
             for (int index = 0; index < keys.size(); ++index) {
-                ValidateClientKey(keys[index], keyColumnCount, tableInfo->Schema);
-                auto newKey = rowBuffer->Capture(keys[index], false);
-                evaluator->EvaluateKeys(newKey, rowBuffer);
-                sortedKeys.push_back(std::make_pair(newKey, index));
+                ValidateClientKey(keys[index], keyColumnCount, tableInfo->Schema, idMapping);
+                auto capturedKey = rowBuffer->CaptureAndPermuteRow(keys[index], tableInfo->Schema, idMapping);
+                evaluator->EvaluateKeys(capturedKey, rowBuffer);
+                sortedKeys.push_back(std::make_pair(capturedKey, index));
             }
+
+            idMapping.clear();
         } else {
             for (int index = 0; index < static_cast<int>(keys.size()); ++index) {
-                ValidateClientKey(keys[index], keyColumnCount, tableInfo->Schema);
+                ValidateClientKey(keys[index], keyColumnCount, tableInfo->Schema, idMapping);
                 sortedKeys.push_back(std::make_pair(keys[index], index));
             }
         }
@@ -1373,7 +1374,7 @@ private:
             if (it == tabletToSession.end()) {
                 it = tabletToSession.insert(std::make_pair(
                     tabletInfo,
-                    New<TTabletLookupSession>(this, tabletInfo, options, idMapping))).first;
+                    New<TTabletLookupSession>(this, tabletInfo, options, idMapping, tableInfo->Schema))).first;
             }
             const auto& session = it->second;
             session->AddKey(index, key);
@@ -2112,6 +2113,30 @@ private:
 
         return TYsonString(FromProto<Stroka>(rsp->trace()));
     }
+
+    void DoSignalJob(
+        const TJobId& jobId,
+        const Stroka& signalName,
+        const TSignalJobOptions& /*options*/)
+    {
+        auto req = JobProberProxy_->SignalJob();
+        ToProto(req->mutable_job_id(), jobId);
+        ToProto(req->mutable_signal_name(), signalName);
+
+        WaitFor(req->Invoke())
+            .ThrowOnError();
+    }
+
+    void DoAbandonJob(
+        const TJobId& jobId,
+        const TAbandonJobOptions& /*options*/)
+    {
+        auto req = JobProberProxy_->AbandonJob();
+        ToProto(req->mutable_job_id(), jobId);
+
+        WaitFor(req->Invoke())
+            .ThrowOnError();
+    }
 };
 
 DEFINE_REFCOUNTED_TYPE(TClient)
@@ -2445,11 +2470,7 @@ private:
         : public TRequestBase
     {
     protected:
-        using TRowValidator = std::function<void(
-            TUnversionedRow,
-            int,
-            const TNameTableToSchemaIdMapping&,
-            const TTableSchema&)>;
+        using TRowValidator = void(TUnversionedRow, int, const TTableSchema&, const TNameTableToSchemaIdMapping&);
 
         TModifyRequest(
             TTransaction* transaction,
@@ -2475,14 +2496,13 @@ private:
                 : nullptr;
 
             for (auto row : rows) {
-                validateRow(row, keyColumnCount, idMapping, TableInfo_->Schema);
+                validateRow(row, keyColumnCount, TableInfo_->Schema, idMapping);
 
-                auto capturedRow = rowBuffer->Capture(row, false);
+                auto capturedRow = rowBuffer->CaptureAndPermuteRow(row, TableInfo_->Schema, idMapping);
 
                 for (int index = keyColumnCount; index < capturedRow.GetCount(); ++index) {
                     auto& value = capturedRow[index];
-                    int schemaId = idMapping[value.Id];
-                    const auto& columnSchema = schema.Columns()[schemaId];
+                    const auto& columnSchema = schema.Columns()[value.Id];
                     value.Aggregate = columnSchema.Aggregate ? writeOptions.Aggregate : false;
                 }
 
@@ -2492,7 +2512,7 @@ private:
 
                 auto tabletInfo = Transaction_->Client_->SyncGetTabletInfo(TableInfo_, capturedRow);
                 auto* session = Transaction_->GetTabletSession(tabletInfo, TableInfo_);
-                session->SubmitRow(command, capturedRow, &idMapping);
+                session->SubmitRow(command, capturedRow);
             }
         }
     };
@@ -2552,13 +2572,7 @@ private:
                 Keys_,
                 EWireProtocolCommand::DeleteRow,
                 TableInfo_->KeyColumns.size(),
-                [ ](
-                    TUnversionedRow row,
-                    int keyColumnCount,
-                    const TNameTableToSchemaIdMapping& idMapping,
-                    const TTableSchema& schema) {
-                    ValidateClientKey(row, keyColumnCount, schema);
-                });
+                ValidateClientKey);
         }
     };
 
@@ -2574,8 +2588,9 @@ private:
             TTableMountInfoPtr tableInfo,
             TColumnEvaluatorPtr columnEvauator)
             : TransactionId_(owner->Transaction_->GetId())
-            , TabletId_(tabletInfo->TabletId)
             , TableInfo_(std::move(tableInfo))
+            , TabletInfo_(std::move(tabletInfo))
+            , TabletId_(TabletInfo_->TabletId)
             , Config_(owner->Client_->Connection_->GetConfig())
             , Durability_(owner->Transaction_->GetDurability())
             , KeyColumnCount_(TableInfo_->KeyColumns.size())
@@ -2583,7 +2598,7 @@ private:
             , RowBuffer_(New<TRowBuffer>())
             , Logger(owner->Logger)
         {
-            Logger.AddTag("TabletId: %v", TabletId_);
+            Logger.AddTag("TabletId: %v", TabletInfo_->TabletId);
         }
 
         TWireProtocolWriter* GetWriter()
@@ -2598,13 +2613,11 @@ private:
 
         void SubmitRow(
             EWireProtocolCommand command,
-            TUnversionedRow row,
-            const TNameTableToSchemaIdMapping* idMapping)
+            TUnversionedRow row)
         {
             SubmittedRows_.push_back(TSubmittedRow{
                 command,
                 row,
-                idMapping,
                 static_cast<int>(SubmittedRows_.size())});
         }
 
@@ -2686,8 +2699,9 @@ private:
 
     private:
         const TTransactionId TransactionId_;
-        const TTabletId TabletId_;
         const TTableMountInfoPtr TableInfo_;
+        const TTabletInfoPtr TabletInfo_;
+        const TTabletId TabletId_;
         const TConnectionConfigPtr Config_;
         const EDurability Durability_;
         const int KeyColumnCount_;
@@ -2710,7 +2724,6 @@ private:
         {
             EWireProtocolCommand Command;
             TUnversionedRow Row;
-            const TNameTableToSchemaIdMapping* IdMapping;
             int SequentialId;
         };
 
@@ -2747,7 +2760,7 @@ private:
                     YUNREACHABLE();
             }
 
-            writer.WriteUnversionedRow(submittedRow.Row, submittedRow.IdMapping);
+            writer.WriteUnversionedRow(submittedRow.Row);
         }
 
         void InvokeNextBatch()
@@ -2770,7 +2783,8 @@ private:
 
             auto req = proxy.Write();
             ToProto(req->mutable_transaction_id(), TransactionId_);
-            ToProto(req->mutable_tablet_id(), TabletId_);
+            ToProto(req->mutable_tablet_id(), TabletInfo_->TabletId);
+            req->set_mount_revision(TabletInfo_->MountRevision);
             req->set_durability(static_cast<int>(Durability_));
             req->Attachments() = std::move(batch->RequestData);
 

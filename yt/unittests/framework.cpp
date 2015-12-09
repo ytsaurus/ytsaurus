@@ -1,16 +1,15 @@
-#include "stdafx.h"
 #include "framework.h"
 
-#include <core/misc/format.h>
+#include <yt/core/actions/future.h>
 
-#include <core/actions/future.h>
+#include <yt/core/concurrency/action_queue.h>
+#include <yt/core/concurrency/fiber.h>
+#include <yt/core/concurrency/scheduler.h>
 
-#include <core/concurrency/scheduler.h>
-#include <core/concurrency/fiber.h>
-#include <core/concurrency/action_queue.h>
+#include <yt/core/logging/config.h>
+#include <yt/core/logging/log_manager.h>
 
-#include <core/logging/log_manager.h>
-#include <core/logging/config.h>
+#include <yt/core/misc/format.h>
 
 #include <util/random/random.h>
 

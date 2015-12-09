@@ -1,7 +1,6 @@
-#include "stdafx.h"
 #include "guid.h"
 
-#include <core/misc/error.h>
+#include <yt/core/misc/error.h>
 
 #include <util/datetime/cputimer.h>
 

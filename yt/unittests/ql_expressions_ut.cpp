@@ -1,14 +1,12 @@
-#include "stdafx.h"
 #include "framework.h"
-
 #include "ql_helpers.h"
 
-#include <ytlib/query_client/plan_helpers.h>
-#include <ytlib/query_client/query_preparer.h>
-#include <ytlib/query_client/folding_profiler.h>
-#include <ytlib/query_client/query_statistics.h>
-#include <ytlib/query_client/column_evaluator.h>
-#include <ytlib/query_client/config.h>
+#include <yt/ytlib/query_client/column_evaluator.h>
+#include <yt/ytlib/query_client/config.h>
+#include <yt/ytlib/query_client/folding_profiler.h>
+#include <yt/ytlib/query_client/plan_helpers.h>
+#include <yt/ytlib/query_client/query_preparer.h>
+#include <yt/ytlib/query_client/query_statistics.h>
 
 // Tests:
 // TCompareExpressionTest

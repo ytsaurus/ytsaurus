@@ -1,4 +1,3 @@
-#include "stdafx.h"
 #include "chunked_output_stream.h"
 
 namespace NYT {

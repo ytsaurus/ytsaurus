@@ -2,13 +2,13 @@
 
 #include "public.h"
 
-#include <core/ytree/yson_serializable.h>
+#include <yt/ytlib/chunk_client/config.h>
 
-#include <core/misc/address.h>
+#include <yt/core/misc/address.h>
 
-#include <core/rpc/config.h>
+#include <yt/core/rpc/config.h>
 
-#include <ytlib/chunk_client/config.h>
+#include <yt/core/ytree/yson_serializable.h>
 
 namespace NYT {
 

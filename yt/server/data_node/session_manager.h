@@ -2,11 +2,11 @@
 
 #include "public.h"
 
-#include <core/concurrency/thread_affinity.h>
+#include <yt/server/cell_node/public.h>
 
-#include <core/profiling/profiler.h>
+#include <yt/core/concurrency/thread_affinity.h>
 
-#include <server/cell_node/public.h>
+#include <yt/core/profiling/profiler.h>
 
 namespace NYT {
 namespace NDataNode {

@@ -2,14 +2,14 @@
 
 #include "public.h"
 
-#include <core/misc/error.h>
+#include <yt/core/actions/public.h>
 
-#include <core/rpc/public.h>
-#include <core/rpc/rpc.pb.h>
+#include <yt/core/misc/error.h>
 
-#include <core/tracing/trace_context.h>
+#include <yt/core/rpc/public.h>
+#include <yt/core/rpc/rpc.pb.h>
 
-#include <core/actions/public.h>
+#include <yt/core/tracing/trace_context.h>
 
 namespace NYT {
 namespace NRpc {

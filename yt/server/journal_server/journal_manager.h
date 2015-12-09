@@ -2,13 +2,13 @@
 
 #include "public.h"
 
-#include <server/chunk_server/public.h>
+#include <yt/server/chunk_server/public.h>
 
-#include <server/cell_master/public.h>
+#include <yt/server/cell_master/public.h>
 
-#include <ytlib/chunk_client/public.h>
+#include <yt/ytlib/chunk_client/public.h>
 
-#include <core/actions/future.h>
+#include <yt/core/actions/future.h>
 
 namespace NYT {
 namespace NJournalServer {

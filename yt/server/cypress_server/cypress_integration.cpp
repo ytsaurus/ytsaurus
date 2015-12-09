@@ -1,9 +1,8 @@
-#include "stdafx.h"
 #include "cypress_integration.h"
 #include "cypress_manager.h"
 #include "virtual.h"
 
-#include <server/cell_master/bootstrap.h>
+#include <yt/server/cell_master/bootstrap.h>
 
 namespace NYT {
 namespace NCypressServer {

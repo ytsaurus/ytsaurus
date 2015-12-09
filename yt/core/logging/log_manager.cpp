@@ -1,29 +1,28 @@
-#include "stdafx.h"
 #include "log_manager.h"
+#include "private.h"
+#include "config.h"
 #include "log.h"
 #include "writer.h"
-#include "config.h"
-#include "private.h"
 
-#include <core/misc/property.h>
-#include <core/misc/pattern_formatter.h>
-#include <core/misc/raw_formatter.h>
-#include <core/misc/hash.h>
-#include <core/misc/lock_free.h>
-#include <core/misc/variant.h>
-#include <core/misc/singleton.h>
+#include <yt/core/concurrency/fork_aware_spinlock.h>
+#include <yt/core/concurrency/periodic_executor.h>
+#include <yt/core/concurrency/scheduler_thread.h>
+#include <yt/core/concurrency/thread_affinity.h>
 
-#include <core/concurrency/periodic_executor.h>
-#include <core/concurrency/thread_affinity.h>
-#include <core/concurrency/scheduler_thread.h>
-#include <core/concurrency/fork_aware_spinlock.h>
+#include <yt/core/misc/hash.h>
+#include <yt/core/misc/lock_free.h>
+#include <yt/core/misc/pattern_formatter.h>
+#include <yt/core/misc/property.h>
+#include <yt/core/misc/raw_formatter.h>
+#include <yt/core/misc/singleton.h>
+#include <yt/core/misc/variant.h>
 
-#include <core/ytree/ypath_client.h>
-#include <core/ytree/ypath_service.h>
-#include <core/ytree/yson_serializable.h>
+#include <yt/core/profiling/profiler.h>
+#include <yt/core/profiling/timing.h>
 
-#include <core/profiling/profiler.h>
-#include <core/profiling/timing.h>
+#include <yt/core/ytree/ypath_client.h>
+#include <yt/core/ytree/ypath_service.h>
+#include <yt/core/ytree/yson_serializable.h>
 
 #include <util/system/defaults.h>
 #include <util/system/sigset.h>

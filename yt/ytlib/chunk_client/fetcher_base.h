@@ -2,16 +2,16 @@
 
 #include "public.h"
 
-#include <ytlib/api/public.h>
-#include <ytlib/node_tracker_client/public.h>
-#include <ytlib/object_client/public.h>
+#include <yt/ytlib/node_tracker_client/public.h>
 
-#include <core/misc/guid.h>
-#include <core/misc/error.h>
+#include <yt/ytlib/api/public.h>
 
-#include <core/rpc/public.h>
+#include <yt/core/logging/log.h>
 
-#include <core/logging/log.h>
+#include <yt/core/misc/error.h>
+#include <yt/core/misc/guid.h>
+
+#include <yt/core/rpc/public.h>
 
 namespace NYT {
 namespace NChunkClient {
@@ -24,7 +24,7 @@ TScrapeChunksCallback CreateScrapeChunksSessionCallback(
     const TChunkScraperConfigPtr config,
     const IInvokerPtr invoker,
     TThrottlerManagerPtr throttlerManager,
-    NApi::IClientPtr masterClient,
+    NApi::IClientPtr client,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
     const NLogging::TLogger& logger);
 

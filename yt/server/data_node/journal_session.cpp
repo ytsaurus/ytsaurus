@@ -1,12 +1,11 @@
-#include "stdafx.h"
 #include "journal_session.h"
+#include "chunk_store.h"
 #include "journal_chunk.h"
 #include "journal_dispatcher.h"
-#include "chunk_store.h"
 
-#include <server/hydra/changelog.h>
+#include <yt/server/cell_node/bootstrap.h>
 
-#include <server/cell_node/bootstrap.h>
+#include <yt/server/hydra/changelog.h>
 
 namespace NYT {
 namespace NDataNode {

@@ -2,9 +2,9 @@
 
 #include "public.h"
 
-#include <core/misc/shutdownable.h>
+#include <yt/core/misc/shutdownable.h>
 
-#include <core/ytree/public.h>
+#include <yt/core/ytree/public.h>
 
 namespace NYT {
 namespace NLogging {

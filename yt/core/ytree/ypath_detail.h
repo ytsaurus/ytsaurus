@@ -1,23 +1,23 @@
 #pragma once
 
-#include "ypath_service.h"
-#include "tree_builder.h"
 #include "attributes.h"
 #include "permission.h"
+#include "tree_builder.h"
+#include "ypath_service.h"
 
-#include <core/misc/assert.h>
+#include <yt/core/logging/log.h>
 
-#include <core/yson/consumer.h>
-#include <core/yson/writer.h>
-#include <core/yson/producer.h>
-#include <core/yson/forwarding_consumer.h>
+#include <yt/core/misc/assert.h>
 
-#include <core/ytree/node.h>
-#include <core/ytree/ypath.pb.h>
+#include <yt/core/rpc/service_detail.h>
 
-#include <core/logging/log.h>
+#include <yt/core/yson/consumer.h>
+#include <yt/core/yson/writer.h>
+#include <yt/core/yson/producer.h>
+#include <yt/core/yson/forwarding_consumer.h>
 
-#include <core/rpc/service_detail.h>
+#include <yt/core/ytree/node.h>
+#include <yt/core/ytree/ypath.pb.h>
 
 namespace NYT {
 namespace NYTree {

@@ -1,7 +1,6 @@
-#include "stdafx.h"
 #include "store.h"
-#include "dynamic_memory_store.h"
 #include "chunk_store.h"
+#include "dynamic_memory_store.h"
 
 namespace NYT {
 namespace NTabletNode {

@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <ytlib/node_tracker_client/public.h>
+#include <yt/ytlib/node_tracker_client/public.h>
 
 namespace NYT {
 namespace NChunkClient {

@@ -1,17 +1,17 @@
-#include "stdafx.h"
 #include "fetcher_base.h"
+#include "private.h"
 #include "chunk_replica.h"
 #include "chunk_spec.h"
 #include "config.h"
-#include "private.h"
 
-#include <ytlib/chunk_client/chunk_scraper.h>
-#include <ytlib/node_tracker_client/node_directory.h>
+#include <yt/ytlib/chunk_client/chunk_scraper.h>
 
-#include <core/misc/protobuf_helpers.h>
-#include <core/misc/string.h>
+#include <yt/ytlib/node_tracker_client/node_directory.h>
 
-#include <core/rpc/retrying_channel.h>
+#include <yt/core/misc/protobuf_helpers.h>
+#include <yt/core/misc/string.h>
+
+#include <yt/core/rpc/retrying_channel.h>
 
 namespace NYT {
 namespace NChunkClient {
@@ -20,6 +20,7 @@ using namespace NConcurrency;
 using namespace NNodeTrackerClient;
 using namespace NRpc;
 using namespace NObjectClient;
+using namespace NApi;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -31,15 +32,15 @@ public:
         const TChunkScraperConfigPtr config,
         const IInvokerPtr invoker,
         TThrottlerManagerPtr throttlerManager,
-        NApi::IClientPtr masterClient,
-        NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
+        IClientPtr client,
+        TNodeDirectoryPtr nodeDirectory,
         const NLogging::TLogger& logger = ChunkClientLogger)
         : Scraper_(
             New<TChunkScraper>(
                 config,
                 invoker,
                 throttlerManager,
-                masterClient,
+                client,
                 nodeDirectory,
                 yhash_set<TChunkId>(),
                 BIND(&TScrapeChunksSession::OnChunkLocated, MakeWeak(this)),
@@ -119,15 +120,15 @@ TScrapeChunksCallback CreateScrapeChunksSessionCallback(
     const TChunkScraperConfigPtr config,
     const IInvokerPtr invoker,
     TThrottlerManagerPtr throttlerManager,
-    NApi::IClientPtr masterClient,
-    NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
+    IClientPtr client,
+    TNodeDirectoryPtr nodeDirectory,
     const NLogging::TLogger& logger)
 {
     auto scrapeChunksSession = New<TScrapeChunksSession>(
         config,
         invoker,
         throttlerManager,
-        masterClient,
+        client,
         nodeDirectory,
         logger);
     return BIND(&TScrapeChunksSession::ScrapeChunks, scrapeChunksSession)
@@ -138,7 +139,7 @@ TScrapeChunksCallback CreateScrapeChunksSessionCallback(
 
 TFetcherBase::TFetcherBase(
     TFetcherConfigPtr config,
-    NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
+    TNodeDirectoryPtr nodeDirectory,
     IInvokerPtr invoker,
     TScrapeChunksCallback scraperCallback,
     const NLogging::TLogger& logger)

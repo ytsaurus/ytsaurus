@@ -1,12 +1,12 @@
 #pragma once
 
-#include <core/misc/enum.h>
-#include <core/misc/error.h>
-#include <core/misc/protobuf_helpers.h>
+#include <yt/ytlib/job_tracker_client/public.h>
 
-#include <ytlib/scheduler/public.h>
+#include <yt/ytlib/scheduler/public.h>
 
-#include <ytlib/job_tracker_client/public.h>
+#include <yt/core/misc/enum.h>
+#include <yt/core/misc/error.h>
+#include <yt/core/misc/protobuf_helpers.h>
 
 namespace NYT {
 namespace NScheduler {

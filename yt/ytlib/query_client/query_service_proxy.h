@@ -2,9 +2,9 @@
 
 #include "public.h"
 
-#include <core/rpc/client.h>
+#include <yt/ytlib/query_client/query_service.pb.h>
 
-#include <ytlib/query_client/query_service.pb.h>
+#include <yt/core/rpc/client.h>
 
 namespace NYT {
 namespace NQueryClient {

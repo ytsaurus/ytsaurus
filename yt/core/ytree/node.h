@@ -4,9 +4,9 @@
 #include "attribute_owner.h"
 #include "ypath_service.h"
 
-#include <core/yson/public.h>
+#include <yt/core/misc/mpl.h>
 
-#include <core/misc/mpl.h>
+#include <yt/core/yson/public.h>
 
 namespace NYT {
 namespace NYTree {

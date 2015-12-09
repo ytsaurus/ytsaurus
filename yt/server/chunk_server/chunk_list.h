@@ -4,10 +4,10 @@
 #include "chunk_tree.h"
 #include "chunk_tree_statistics.h"
 
-#include <core/misc/property.h>
-#include <core/misc/ref_tracked.h>
+#include <yt/server/cell_master/public.h>
 
-#include <server/cell_master/public.h>
+#include <yt/core/misc/property.h>
+#include <yt/core/misc/ref_tracked.h>
 
 namespace NYT {
 namespace NChunkServer {

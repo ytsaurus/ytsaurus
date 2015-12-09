@@ -1,6 +1,6 @@
 #pragma once
 
-#include <core/profiling/profile_manager.h>
+#include <yt/core/profiling/profile_manager.h>
 
 namespace NYT {
 namespace NConcurrency {

@@ -1,19 +1,18 @@
-#include "stdafx.h"
 #include "scheduler_channel.h"
 #include "config.h"
 
-#include <ytlib/object_client/object_service_proxy.h>
+#include <yt/ytlib/object_client/object_service_proxy.h>
 
-#include <core/ytree/convert.h>
-#include <core/ytree/ypath_proxy.h>
-#include <core/ytree/fluent.h>
+#include <yt/core/bus/config.h>
+#include <yt/core/bus/tcp_client.h>
 
-#include <core/bus/config.h>
-#include <core/bus/tcp_client.h>
+#include <yt/core/rpc/bus_channel.h>
+#include <yt/core/rpc/retrying_channel.h>
+#include <yt/core/rpc/roaming_channel.h>
 
-#include <core/rpc/roaming_channel.h>
-#include <core/rpc/bus_channel.h>
-#include <core/rpc/retrying_channel.h>
+#include <yt/core/ytree/convert.h>
+#include <yt/core/ytree/fluent.h>
+#include <yt/core/ytree/ypath_proxy.h>
 
 namespace NYT {
 namespace NScheduler {

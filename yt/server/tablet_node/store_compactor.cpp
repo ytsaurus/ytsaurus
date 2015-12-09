@@ -1,48 +1,46 @@
-#include "stdafx.h"
 #include "store_compactor.h"
-#include "config.h"
-#include "slot_manager.h"
-#include "store_manager.h"
-#include "tablet_slot.h"
-#include "tablet_manager.h"
-#include "tablet.h"
+#include "private.h"
 #include "chunk_store.h"
-#include "partition.h"
-#include "tablet_reader.h"
 #include "config.h"
 #include "in_memory_manager.h"
-#include "private.h"
+#include "partition.h"
+#include "slot_manager.h"
+#include "store_manager.h"
+#include "tablet.h"
+#include "tablet_manager.h"
+#include "tablet_reader.h"
+#include "tablet_slot.h"
 
-#include <core/concurrency/thread_pool.h>
-#include <core/concurrency/scheduler.h>
-#include <core/concurrency/async_semaphore.h>
+#include <yt/server/cell_node/bootstrap.h>
 
-#include <core/logging/log.h>
+#include <yt/server/hydra/hydra_manager.h>
+#include <yt/server/hydra/mutation.h>
 
-#include <core/ytree/attribute_helpers.h>
+#include <yt/ytlib/api/client.h>
+#include <yt/ytlib/api/connection.h>
+#include <yt/ytlib/api/transaction.h>
 
-#include <ytlib/tablet_client/config.h>
+#include <yt/ytlib/chunk_client/chunk_spec.h>
+#include <yt/ytlib/chunk_client/config.h>
 
-#include <ytlib/transaction_client/transaction_manager.h>
-#include <ytlib/transaction_client/timestamp_provider.h>
+#include <yt/ytlib/object_client/helpers.h>
 
-#include <ytlib/table_client/versioned_row.h>
-#include <ytlib/table_client/versioned_reader.h>
-#include <ytlib/table_client/versioned_chunk_writer.h>
+#include <yt/ytlib/table_client/versioned_chunk_writer.h>
+#include <yt/ytlib/table_client/versioned_reader.h>
+#include <yt/ytlib/table_client/versioned_row.h>
 
-#include <ytlib/chunk_client/config.h>
-#include <ytlib/chunk_client/chunk_spec.h>
+#include <yt/ytlib/tablet_client/config.h>
 
-#include <ytlib/api/client.h>
-#include <ytlib/api/connection.h>
-#include <ytlib/api/transaction.h>
+#include <yt/ytlib/transaction_client/timestamp_provider.h>
+#include <yt/ytlib/transaction_client/transaction_manager.h>
 
-#include <ytlib/object_client/helpers.h>
+#include <yt/core/concurrency/thread_pool.h>
+#include <yt/core/concurrency/async_semaphore.h>
+#include <yt/core/concurrency/scheduler.h>
 
-#include <server/hydra/hydra_manager.h>
-#include <server/hydra/mutation.h>
+#include <yt/core/logging/log.h>
 
-#include <server/cell_node/bootstrap.h>
+#include <yt/core/ytree/attribute_helpers.h>
 
 namespace NYT {
 namespace NTabletNode {
@@ -207,7 +205,9 @@ private:
             auto candidate = store->AsChunk();
             candidates.push_back(candidate);
 
-            if (IsCompactionForced(candidate) && forcedCandidates.size() < config->MaxPartitioningStoreCount) {
+            if ((IsCompactionForced(candidate) || IsPeriodicCompactionNeeded(eden)) &&
+                forcedCandidates.size() < config->MaxPartitioningStoreCount)
+            {
                 forcedCandidates.push_back(candidate);
             }
         }
@@ -271,7 +271,9 @@ private:
             auto candidate = store->AsChunk();
             candidates.push_back(candidate);
 
-            if (IsCompactionForced(candidate) && forcedCandidates.size() < config->MaxCompactionStoreCount) {
+            if ((IsCompactionForced(candidate) || IsPeriodicCompactionNeeded(partition)) &&
+                forcedCandidates.size() < config->MaxCompactionStoreCount)
+            {
                 forcedCandidates.push_back(candidate);
             }
         }
@@ -354,6 +356,7 @@ private:
         auto storeManager = tablet->GetStoreManager();
         auto slot = tablet->GetSlot();
         auto tabletId = tablet->GetTabletId();
+        auto mountRevision = tablet->GetMountRevision();
         auto writerOptions = tablet->GetWriterOptions();
         auto tabletPivotKey = tablet->GetPivotKey();
         auto nextTabletPivotKey = tablet->GetNextPivotKey();
@@ -377,6 +380,8 @@ private:
             auto timestampProvider = Bootstrap_->GetMasterClient()->GetConnection()->GetTimestampProvider();
             auto currentTimestamp = WaitFor(timestampProvider->GenerateTimestamps())
                 .ValueOrThrow();
+
+            eden->SetCompactionTime(TInstant::Now());
 
             LOG_INFO("Eden partitioning started (PartitionCount: %v, DataSize: %v, ChunkCount: %v, CurrentTimestamp: %v)",
                 pivotKeys.size(),
@@ -430,6 +435,7 @@ private:
 
             TReqCommitTabletStoresUpdate hydraRequest;
             ToProto(hydraRequest.mutable_tablet_id(), tabletId);
+            hydraRequest.set_mount_revision(mountRevision);
             ToProto(hydraRequest.mutable_transaction_id(), transaction->GetId());
             for (const auto& store : stores) {
                 auto* descriptor = hydraRequest.add_stores_to_remove();
@@ -608,6 +614,7 @@ private:
         auto storeManager = tablet->GetStoreManager();
         auto slot = tablet->GetSlot();
         auto tabletId = tablet->GetTabletId();
+        auto mountRevision = tablet->GetMountRevision();
         auto writerOptions = tablet->GetWriterOptions();
         auto tabletPivotKey = tablet->GetPivotKey();
         auto nextTabletPivotKey = tablet->GetNextPivotKey();
@@ -634,6 +641,8 @@ private:
             auto timestampProvider = Bootstrap_->GetMasterClient()->GetConnection()->GetTimestampProvider();
             auto currentTimestamp = WaitFor(timestampProvider->GenerateTimestamps())
                 .ValueOrThrow();
+
+            partition->SetCompactionTime(TInstant::Now());
 
             LOG_INFO("Partition compaction started (DataSize: %v, ChunkCount: %v, CurrentTimestamp: %v, MajorTimestamp: %v)",
                 dataSize,
@@ -731,6 +740,7 @@ private:
 
             TReqCommitTabletStoresUpdate hydraRequest;
             ToProto(hydraRequest.mutable_tablet_id(), tabletId);
+            hydraRequest.set_mount_revision(mountRevision);
             ToProto(hydraRequest.mutable_transaction_id(), transaction->GetId());
 
             for (const auto& store : stores) {
@@ -773,6 +783,20 @@ private:
 
         ui64 revision = CounterFromId(store->GetId());
         if (revision > *config->ForcedCompactionRevision) {
+            return false;
+        }
+
+        return true;
+    }
+
+    static bool IsPeriodicCompactionNeeded(TPartition* partition)
+    {
+        const auto& config = partition->GetTablet()->GetConfig();
+        if (!config->AutoCompactionPeriod) {
+            return false;
+        }
+
+        if (TInstant::Now() < partition->GetCompactionTime() + *config->AutoCompactionPeriod) {
             return false;
         }
 

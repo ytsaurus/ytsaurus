@@ -1,30 +1,29 @@
-#include "stdafx.h"
 #include "remote_snapshot_store.h"
+#include "private.h"
+#include "config.h"
 #include "file_snapshot_store.h"
 #include "snapshot.h"
-#include "config.h"
-#include "private.h"
 
-#include <core/misc/fs.h>
+#include <yt/ytlib/api/client.h>
+#include <yt/ytlib/api/config.h>
+#include <yt/ytlib/api/connection.h>
+#include <yt/ytlib/api/file_reader.h>
+#include <yt/ytlib/api/file_writer.h>
+#include <yt/ytlib/api/transaction.h>
 
-#include <core/concurrency/scheduler.h>
+#include <yt/ytlib/hydra/hydra_manager.pb.h>
 
-#include <core/ytree/ypath_proxy.h>
-#include <core/ytree/convert.h>
-#include <core/ytree/attribute_helpers.h>
+#include <yt/core/concurrency/scheduler.h>
 
-#include <core/ypath/token.h>
+#include <yt/core/logging/log.h>
 
-#include <core/logging/log.h>
+#include <yt/core/misc/fs.h>
 
-#include <ytlib/api/config.h>
-#include <ytlib/api/client.h>
-#include <ytlib/api/connection.h>
-#include <ytlib/api/transaction.h>
-#include <ytlib/api/file_reader.h>
-#include <ytlib/api/file_writer.h>
+#include <yt/core/ypath/token.h>
 
-#include <ytlib/hydra/hydra_manager.pb.h>
+#include <yt/core/ytree/attribute_helpers.h>
+#include <yt/core/ytree/convert.h>
+#include <yt/core/ytree/ypath_proxy.h>
 
 namespace NYT {
 namespace NHydra {
@@ -51,12 +50,12 @@ public:
         TRemoteSnapshotStoreConfigPtr config,
         TRemoteSnapshotStoreOptionsPtr options,
         const TYPath& path,
-        IClientPtr masterClient,
+        IClientPtr client,
         const TTransactionId& prerequisiteTransactionId)
         : Config_(config)
         , Options_(options)
         , Path_(path)
-        , MasterClient_(masterClient)
+        , Client_(client)
         , PrerequisiteTransactionId_(prerequisiteTransactionId)
     {
         Logger.AddTag("Path: %v", Path_);
@@ -83,7 +82,7 @@ private:
     const TRemoteSnapshotStoreConfigPtr Config_;
     const TRemoteSnapshotStoreOptionsPtr Options_;
     const TYPath Path_;
-    const IClientPtr MasterClient_;
+    const IClientPtr Client_;
     const TTransactionId PrerequisiteTransactionId_;
 
     NLogging::TLogger Logger = HydraLogger;
@@ -142,7 +141,7 @@ private:
                     TGetNodeOptions options;
                     options.AttributeFilter.Mode = EAttributeFilterMode::MatchingOnly;
                     options.AttributeFilter.Keys.push_back("prev_record_count");
-                    auto asyncResult = Store_->MasterClient_->GetNode(Path_, options);
+                    auto asyncResult = Store_->Client_->GetNode(Path_, options);
                     auto result = WaitFor(asyncResult)
                         .ValueOrThrow();
                     node = ConvertToNode(result);
@@ -160,7 +159,7 @@ private:
                 {
                     TFileReaderOptions options;
                     options.Config = Store_->Config_->Reader;
-                    UnderlyingReader_ = Store_->MasterClient_->CreateFileReader(Store_->GetSnapshotPath(SnapshotId_), options);
+                    UnderlyingReader_ = Store_->Client_->CreateFileReader(Store_->GetSnapshotPath(SnapshotId_), options);
 
                     WaitFor(UnderlyingReader_->Open())
                         .ThrowOnError();
@@ -258,7 +257,7 @@ private:
                         Path_));
                     options.Attributes = std::move(attributes);
 
-                    auto asyncResult = Store_->MasterClient_->StartTransaction(
+                    auto asyncResult = Store_->Client_->StartTransaction(
                         NTransactionClient::ETransactionType::Master,
                         options);
                     Transaction_ = WaitFor(asyncResult)
@@ -301,7 +300,7 @@ private:
                     options.Config->UploadReplicationFactor = Store_->Options_->SnapshotReplicationFactor;
                     options.Config->MinUploadReplicationFactor = Store_->Options_->SnapshotReplicationFactor;
 
-                    Writer_ = Store_->MasterClient_->CreateFileWriter(Store_->GetSnapshotPath(SnapshotId_), options);
+                    Writer_ = Store_->Client_->CreateFileWriter(Store_->GetSnapshotPath(SnapshotId_), options);
 
                     WaitFor(Writer_->Open())
                         .ThrowOnError();
@@ -350,7 +349,7 @@ private:
     {
         try {
             LOG_DEBUG("Requesting snapshot list from remote store");
-            auto asyncResult = MasterClient_->ListNode(Path_);
+            auto asyncResult = Client_->ListNode(Path_);
             auto result = WaitFor(asyncResult)
                 .ValueOrThrow();
             LOG_DEBUG("Snapshot list received");
@@ -393,14 +392,14 @@ ISnapshotStorePtr CreateRemoteSnapshotStore(
     TRemoteSnapshotStoreConfigPtr config,
     TRemoteSnapshotStoreOptionsPtr options,
     const TYPath& path,
-    IClientPtr masterClient,
+    IClientPtr client,
     const TTransactionId& prerequisiteTransactionId)
 {
     return New<TRemoteSnapshotStore>(
         config,
         options,
         path,
-        masterClient,
+        client,
         prerequisiteTransactionId);
 }
 

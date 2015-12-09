@@ -1,23 +1,22 @@
-#include "stdafx.h"
 #include "blob_session.h"
-#include "session_manager.h"
 #include "private.h"
+#include "blob_chunk.h"
+#include "chunk_block_manager.h"
+#include "chunk_store.h"
 #include "config.h"
 #include "location.h"
-#include "block_store.h"
-#include "blob_chunk.h"
-#include "chunk_store.h"
+#include "session_manager.h"
 
-#include <core/misc/fs.h>
+#include <yt/server/cell_node/bootstrap.h>
 
-#include <ytlib/chunk_client/file_writer.h>
-#include <ytlib/chunk_client/chunk_meta.pb.h>
+#include <yt/ytlib/chunk_client/chunk_meta.pb.h>
+#include <yt/ytlib/chunk_client/file_writer.h>
 
-#include <ytlib/node_tracker_client/node_directory.h>
+#include <yt/ytlib/node_tracker_client/node_directory.h>
 
-#include <core/profiling/scoped_timer.h>
+#include <yt/core/misc/fs.h>
 
-#include <server/cell_node/bootstrap.h>
+#include <yt/core/profiling/scoped_timer.h>
 
 namespace NYT {
 namespace NDataNode {
@@ -114,7 +113,7 @@ TFuture<void> TBlobSession::DoPutBlocks(
         return VoidFuture;
     }
 
-    auto blockStore = Bootstrap_->GetBlockStore();
+    auto chunkBlockManager = Bootstrap_->GetChunkBlockManager();
 
     int blockIndex = startBlockIndex;
     i64 requestSize = 0;
@@ -125,8 +124,8 @@ TFuture<void> TBlobSession::DoPutBlocks(
 
         if (!Location_->HasEnoughSpace(block.Size())) {
             return MakeFuture(TError(
-                NChunkClient::EErrorCode::OutOfSpace,
-                "No enough space left on node"));
+                NChunkClient::EErrorCode::NoLocationAvailable,
+                "No enough space left on location"));
         }
 
         auto* tracker = Bootstrap_->GetMemoryUsageTracker();
@@ -160,7 +159,7 @@ TFuture<void> TBlobSession::DoPutBlocks(
         slot.MemoryTrackerGuard = std::move(guardOrError.Value());
 
         if (enableCaching) {
-            blockStore->PutCachedBlock(blockId, block, Null);
+            chunkBlockManager->PutCachedBlock(blockId, block, Null);
         }
 
         Location_->UpdateUsedSpace(block.Size());

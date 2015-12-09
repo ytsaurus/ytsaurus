@@ -3,17 +3,17 @@
 #include "public.h"
 #include "object_proxy.h"
 
-#include <core/misc/nullable.h>
+#include <yt/server/security_server/acl.h>
 
-#include <core/ytree/public.h>
+#include <yt/server/transaction_server/public.h>
 
-#include <core/rpc/service_detail.h>
+#include <yt/ytlib/object_client/master_ypath.pb.h>
 
-#include <ytlib/object_client/public.h>
+#include <yt/core/misc/nullable.h>
 
-#include <server/transaction_server/public.h>
+#include <yt/core/rpc/service_detail.h>
 
-#include <server/security_server/acl.h>
+#include <yt/core/ytree/public.h>
 
 namespace NYT {
 namespace NObjectServer {

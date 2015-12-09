@@ -2,11 +2,11 @@
 
 #include "public.h"
 
-#include <ytlib/ypath/rich.h>
+#include <yt/ytlib/ypath/public.h>
 
-#include <core/rpc/public.h>
+#include <yt/core/rpc/public.h>
 
-#include <core/actions/future.h>
+#include <yt/core/actions/future.h>
 
 namespace NYT {
 namespace NQueryClient {
@@ -26,7 +26,6 @@ struct IExecutor
     virtual TFuture<TQueryStatistics> Execute(
         TPlanFragmentPtr fragment,
         ISchemafulWriterPtr writer) = 0;
-
 };
 
 DEFINE_REFCOUNTED_TYPE(IExecutor)

@@ -2,9 +2,9 @@
 
 #include "public.h"
 
-#include <core/concurrency/rw_spinlock.h>
+#include <yt/core/concurrency/rw_spinlock.h>
 
-#include <core/profiling/profiler.h>
+#include <yt/core/profiling/profiler.h>
 
 #include <atomic>
 

@@ -3,20 +3,20 @@
 #include "public.h"
 #include "chunk_meta_extensions.h"
 
-#include <ytlib/chunk_client/public.h>
-#include <ytlib/chunk_client/chunk_replica.h>
+#include <yt/server/chunk_server/public.h>
 
-#include <ytlib/api/public.h>
+#include <yt/server/object_server/public.h>
 
-#include <server/chunk_server/public.h>
+#include <yt/ytlib/api/public.h>
 
-#include <server/object_server/public.h>
+#include <yt/ytlib/chunk_client/chunk_replica.h>
+#include <yt/ytlib/chunk_client/public.h>
 
-#include <core/compression/codec.h>
+#include <yt/core/compression/codec.h>
 
-#include <core/rpc/public.h>
+#include <yt/core/logging/log.h>
 
-#include <core/logging/log.h>
+#include <yt/core/rpc/public.h>
 
 namespace NYT {
 namespace NFileClient {

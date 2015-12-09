@@ -1,8 +1,8 @@
 #pragma once
 
-#include <core/rpc/client.h>
+#include <yt/core/rpc/client.h>
 
-#include <core/tracing/trace_service.pb.h>
+#include <yt/core/tracing/trace_service.pb.h>
 
 namespace NYT {
 namespace NTracing {

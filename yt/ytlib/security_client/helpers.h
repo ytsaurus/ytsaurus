@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <ytlib/ypath/public.h>
+#include <yt/ytlib/ypath/public.h>
 
 namespace NYT {
 namespace NSecurityClient {

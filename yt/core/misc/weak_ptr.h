@@ -16,9 +16,9 @@ public:
     typedef T TUnderlying;
 
     //! Empty constructor.
-    TWeakPtr() // noexcept
-        : T_(NULL)
-        , RefCounter(NULL)
+    TWeakPtr() = default;
+
+    TWeakPtr(std::nullptr_t)
     { }
 
     //! Constructor from an unqualified reference.
@@ -26,9 +26,8 @@ public:
      * Note that this constructor could be racy due to unsynchronized operations
      * on the object and on the counter.
      */
-    explicit TWeakPtr(T* p) // noexcept
+    explicit TWeakPtr(T* p) noexcept
         : T_(p)
-        , RefCounter(NULL)
     {
         if (T_) {
             RefCounter = T_->GetRefCounter();
@@ -42,9 +41,8 @@ public:
     template <class U>
     TWeakPtr(
         const TIntrusivePtr<U>& p,
-        typename NMpl::TEnableIf<NMpl::TIsConvertible<U*, T*>, int>::TType = 0) // noexcept
+        typename NMpl::TEnableIf<NMpl::TIsConvertible<U*, T*>, int>::TType = 0) noexcept
         : T_(p.Get())
-        , RefCounter(NULL)
     {
         if (T_) {
             RefCounter = T_->GetRefCounter();
@@ -55,7 +53,7 @@ public:
     }
 
     //! Copy constructor.
-    explicit TWeakPtr(const TWeakPtr& other) // noexcept
+    explicit TWeakPtr(const TWeakPtr& other) noexcept
         : T_(other.T_)
         , RefCounter(other.RefCounter)
     {
@@ -70,9 +68,7 @@ public:
     template <class U>
     TWeakPtr(
         const TWeakPtr<U>& other,
-        typename NMpl::TEnableIf<NMpl::TIsConvertible<U*, T*>, int>::TType = 0) // noexcept
-        : T_(NULL)
-        , RefCounter(NULL)
+        typename NMpl::TEnableIf<NMpl::TIsConvertible<U*, T*>, int>::TType = 0) noexcept
     {
         TIntrusivePtr<U> strongOther = other.Lock();
         if (strongOther) {
@@ -89,8 +85,8 @@ public:
         : T_(other.T_)
         , RefCounter(other.RefCounter)
     {
-        other.T_ = NULL;
-        other.RefCounter = NULL;
+        other.T_ = nullptr;
+        other.RefCounter = nullptr;
 
         YASSERT(!T_ || RefCounter);
     }
@@ -99,17 +95,15 @@ public:
     template <class U>
     TWeakPtr(
         TWeakPtr<U>&& other,
-        typename NMpl::TEnableIf<NMpl::TIsConvertible<U*, T*>, int>::TType = 0) // noexcept
-        : T_(NULL)
-        , RefCounter(NULL)
+        typename NMpl::TEnableIf<NMpl::TIsConvertible<U*, T*>, int>::TType = 0) noexcept
     {
         TIntrusivePtr<U> strongOther = other.Lock();
         if (strongOther) {
             T_ = other.T_;
             RefCounter = other.RefCounter;
 
-            other.T_ = NULL;
-            other.RefCounter = NULL;
+            other.T_ = nullptr;
+            other.RefCounter = nullptr;
         }
 
         YASSERT(!T_ || RefCounter);
@@ -125,7 +119,7 @@ public:
 
     //! Assignment operator from a strong reference.
     template <class U>
-    TWeakPtr& operator=(const TIntrusivePtr<U>& p) // noexcept
+    TWeakPtr& operator=(const TIntrusivePtr<U>& p) noexcept
     {
         static_assert(
             NMpl::TIsConvertible<U*, T*>::Value,
@@ -135,7 +129,7 @@ public:
     }
 
     //! Copy assignment operator.
-    TWeakPtr& operator=(const TWeakPtr& other) // noexcept
+    TWeakPtr& operator=(const TWeakPtr& other) noexcept
     {
         TWeakPtr(other).Swap(*this);
         return *this;
@@ -143,7 +137,7 @@ public:
 
     //! Copy assignment operator with an upcast.
     template <class U>
-    TWeakPtr& operator=(const TWeakPtr<U>& other) // noexcept
+    TWeakPtr& operator=(const TWeakPtr<U>& other) noexcept
     {
         static_assert(
             NMpl::TIsConvertible<U*, T*>::Value,
@@ -161,7 +155,7 @@ public:
 
     //! Move assignment operator with an upcast.
     template <class U>
-    TWeakPtr& operator=(TWeakPtr<U>&& other) // noexcept
+    TWeakPtr& operator=(TWeakPtr<U>&& other) noexcept
     {
         static_assert(NMpl::TIsConvertible<U*, T*>::Value, "U* have to be convertible to T*");
         TWeakPtr(std::move(other)).Swap(*this);
@@ -191,7 +185,7 @@ public:
     }
 
     //! Acquire a strong reference to the pointee and return a strong pointer.
-    TIntrusivePtr<T> Lock() const // noexcept
+    TIntrusivePtr<T> Lock() const noexcept
     {
         if (RefCounter && RefCounter->TryRef()) {
             return TIntrusivePtr<T>(T_, false);
@@ -201,13 +195,13 @@ public:
     }
 
     //! Swap the pointer with the other one.
-    void Swap(TWeakPtr& r) // noexcept
+    void Swap(TWeakPtr& r) noexcept
     {
         DoSwap(T_, r.T_);
         DoSwap(RefCounter, r.RefCounter);
     }
 
-    bool IsExpired() const // noexcept
+    bool IsExpired() const noexcept
     {
         return !RefCounter || (RefCounter->GetRefCount() == 0);
     }
@@ -218,8 +212,8 @@ private:
     template <class U>
     friend struct ::hash;
 
-    T* T_;
-    NYT::NDetail::TRefCounter* RefCounter;
+    T* T_ = nullptr;
+    NYT::NDetail::TRefCounter* RefCounter = nullptr;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

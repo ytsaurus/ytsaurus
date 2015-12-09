@@ -1,11 +1,11 @@
-﻿#pragma once
+#pragma once
 
 #include "common.h"
 #include "error.h"
 
-#include <core/ytree/yson_serializable.h>
+#include <yt/core/actions/future.h>
 
-#include <core/actions/future.h>
+#include <yt/core/ytree/yson_serializable.h>
 
 #ifdef _WIN32
     #include <ws2tcpip.h>

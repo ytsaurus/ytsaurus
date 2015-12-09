@@ -1,11 +1,10 @@
 #pragma once
 
+#include <util/generic/noncopyable.h>
 #include <util/generic/strbuf.h>
 #include <util/generic/stroka.h>
 
 #include <contrib/libs/pycxx/Objects.hxx>
-
-#include <util/generic/noncopyable.h>
 
 namespace Py {
 

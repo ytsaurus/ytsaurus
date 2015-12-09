@@ -1,4 +1,3 @@
-#include "stdafx.h"
 #include "serialize.h"
 
 namespace NYT {

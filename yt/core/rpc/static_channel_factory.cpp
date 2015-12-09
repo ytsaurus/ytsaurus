@@ -1,4 +1,3 @@
-#include "stdafx.h"
 #include "static_channel_factory.h"
 
 namespace NYT {

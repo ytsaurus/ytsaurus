@@ -1,17 +1,16 @@
-#include "stdafx.h"
 #include "unsafe_environment.h"
-#include "environment.h"
 #include "private.h"
+#include "environment.h"
 
-#include <server/exec_agent/slot.h>
+#include <yt/server/exec_agent/slot.h>
 
-#include <server/job_proxy/public.h>
+#include <yt/server/job_proxy/public.h>
 
-#include <core/concurrency/thread_affinity.h>
+#include <yt/core/concurrency/thread_affinity.h>
 
-#include <core/misc/process.h>
+#include <yt/core/misc/process.h>
 
-#include <core/tools/tools.h>
+#include <yt/core/tools/tools.h>
 
 #include <util/system/execpath.h>
 
@@ -123,7 +122,7 @@ public:
         // before this line due to thread affinity
         if (Process.Started()) {
             try {
-                Process.Kill(9);
+                Process.Kill(SIGKILL);
             } catch (const std::exception& ex) {
                 LOG_FATAL(ex, "Failed to kill job proxy: kill failed");
             }

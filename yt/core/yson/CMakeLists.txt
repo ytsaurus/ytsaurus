@@ -17,6 +17,7 @@ set( SRCS
 )
 set( HDRS
   ${CMAKE_CURRENT_LIST_DIR}/consumer.h
+  ${CMAKE_CURRENT_LIST_DIR}/consumer_mock.h
   ${CMAKE_CURRENT_LIST_DIR}/async_consumer.h
   ${CMAKE_CURRENT_LIST_DIR}/detail.h
   ${CMAKE_CURRENT_LIST_DIR}/format.h

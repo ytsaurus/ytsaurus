@@ -1,4 +1,3 @@
-#include "stdafx.h"
 #include "ephemeral_attribute_owner.h"
 #include "attribute_helpers.h"
 

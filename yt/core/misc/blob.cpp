@@ -1,4 +1,3 @@
-#include "stdafx.h"
 #include "blob.h"
 #include "ref.h"
 #include "ref_counted_tracker.h"

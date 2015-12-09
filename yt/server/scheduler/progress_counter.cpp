@@ -1,4 +1,3 @@
-#include "stdafx.h"
 #include "progress_counter.h"
 #include "private.h"
 

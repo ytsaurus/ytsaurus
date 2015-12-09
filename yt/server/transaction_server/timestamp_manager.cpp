@@ -1,27 +1,26 @@
-#include "stdafx.h"
 #include "timestamp_manager.h"
-#include "config.h"
 #include "private.h"
+#include "config.h"
 
-#include <core/misc/serialize.h>
+#include <yt/server/election/election_manager.h>
 
-#include <core/actions/cancelable_context.h>
+#include <yt/server/hydra/composite_automaton.h>
+#include <yt/server/hydra/hydra_manager.h>
+#include <yt/server/hydra/mutation.h>
 
-#include <core/concurrency/action_queue.h>
-#include <core/concurrency/thread_affinity.h>
-#include <core/concurrency/periodic_executor.h>
-#include <core/concurrency/delayed_executor.h>
+#include <yt/server/transaction_server/timestamp_manager.pb.h>
 
-#include <core/rpc/service_detail.h>
-#include <core/rpc/server.h>
+#include <yt/ytlib/transaction_client/timestamp_service_proxy.h>
 
-#include <ytlib/transaction_client/timestamp_service_proxy.h>
+#include <yt/core/concurrency/action_queue.h>
+#include <yt/core/concurrency/delayed_executor.h>
+#include <yt/core/concurrency/periodic_executor.h>
+#include <yt/core/concurrency/thread_affinity.h>
 
-#include <server/hydra/composite_automaton.h>
-#include <server/hydra/hydra_manager.h>
-#include <server/hydra/mutation.h>
+#include <yt/core/misc/serialize.h>
 
-#include <server/transaction_server/timestamp_manager.pb.h>
+#include <yt/core/rpc/server.h>
+#include <yt/core/rpc/service_detail.h>
 
 #include <time.h>
 

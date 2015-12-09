@@ -2,12 +2,12 @@
 
 #include "public.h"
 
-#include <core/misc/ref.h>
-#include <core/misc/random.h>
+#include <yt/ytlib/hydra/version.h>
 
-#include <core/actions/callback.h>
+#include <yt/core/actions/callback.h>
 
-#include <ytlib/hydra/version.h>
+#include <yt/core/misc/random.h>
+#include <yt/core/misc/ref.h>
 
 namespace NYT {
 namespace NHydra {

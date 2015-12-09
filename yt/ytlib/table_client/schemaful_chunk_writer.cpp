@@ -1,24 +1,21 @@
-#include "stdafx.h"
-
 #include "schemaful_chunk_writer.h"
-
-#include "schemaful_block_writer.h"
+#include "private.h"
 #include "chunk_meta_extensions.h"
 #include "config.h"
 #include "name_table.h"
-#include "private.h"
 #include "schema.h"
+#include "schemaful_block_writer.h"
 #include "schemaful_writer.h"
 #include "unversioned_row.h"
 
-#include <ytlib/chunk_client/chunk_writer.h>
-#include <ytlib/chunk_client/chunk_meta_extensions.h>
-#include <ytlib/chunk_client/dispatcher.h>
-#include <ytlib/chunk_client/encoding_writer.h>
+#include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
+#include <yt/ytlib/chunk_client/chunk_writer.h>
+#include <yt/ytlib/chunk_client/dispatcher.h>
+#include <yt/ytlib/chunk_client/encoding_writer.h>
 
-#include <core/concurrency/scheduler.h>
+#include <yt/core/concurrency/scheduler.h>
 
-#include <core/misc/error.h>
+#include <yt/core/misc/error.h>
 
 namespace NYT {
 namespace NTableClient {

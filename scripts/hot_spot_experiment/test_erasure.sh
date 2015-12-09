@@ -1,4 +1,4 @@
-#!/bin/sh -eu
+#!/bin/bash -eu
 
 export YT_PROXY=smith.yt.yandex.net
 

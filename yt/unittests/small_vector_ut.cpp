@@ -11,12 +11,13 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "stdafx.h"
 #include "framework.h"
 
-#include <core/misc/small_vector.h>
+#include <yt/core/misc/small_vector.h>
+
 #include <algorithm>
 #include <list>
+
 #include <stdarg.h>
 
 #define YT_LLVM_ATTRIBUTE_UNUSED

@@ -2,9 +2,9 @@
 
 #include "public.h"
 
-#include <core/rpc/public.h>
+#include <yt/server/cell_master/public.h>
 
-#include <server/cell_master/public.h>
+#include <yt/core/rpc/public.h>
 
 namespace NYT {
 namespace NNodeTrackerServer {

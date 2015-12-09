@@ -1,19 +1,17 @@
-#include "stdafx.h"
-
 #include "schemaless_writer_adapter.h"
 #include "config.h"
 
-#include <ytlib/table_client/name_table.h>
+#include <yt/ytlib/table_client/name_table.h>
 
-#include <core/actions/future.h>
+#include <yt/core/actions/future.h>
 
-#include <core/concurrency/async_stream.h>
+#include <yt/core/concurrency/async_stream.h>
 
-#include <core/misc/error.h>
+#include <yt/core/misc/error.h>
 
-#include <core/yson/consumer.h>
+#include <yt/core/yson/consumer.h>
 
-#include <core/ytree/fluent.h>
+#include <yt/core/ytree/fluent.h>
 
 namespace NYT {
 namespace NFormats {
@@ -25,7 +23,7 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const i64 ContextBufferSize = (i64) 1024 * 1024;
+static const i64 ContextBufferSize = (i64) 1024 * 1024;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -35,10 +33,10 @@ TSchemalessFormatWriterBase::TSchemalessFormatWriterBase(
     bool enableContextSaving,
     TControlAttributesConfigPtr controlAttributesConfig,
     int keyColumnCount)
-    : ControlAttributesConfig_(controlAttributesConfig)
-    , EnableContextSaving_(enableContextSaving)
-    , NameTable_(nameTable)
+    : NameTable_(nameTable)
     , Output_(CreateSyncAdapter(output))
+    , EnableContextSaving_(enableContextSaving)
+    , ControlAttributesConfig_(controlAttributesConfig)
     , KeyColumnCount_(keyColumnCount)
 {
     CurrentBuffer_.Reserve(ContextBufferSize);

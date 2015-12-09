@@ -1,7 +1,7 @@
 #pragma once
 
-#include "ypath_detail.h"
 #include "system_attribute_provider.h"
+#include "ypath_detail.h"
 
 namespace NYT {
 namespace NYTree {

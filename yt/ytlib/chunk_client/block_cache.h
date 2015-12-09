@@ -2,9 +2,9 @@
 
 #include "block_id.h"
 
-#include <ytlib/node_tracker_client/public.h>
+#include <yt/ytlib/node_tracker_client/public.h>
 
-#include <core/misc/ref.h>
+#include <yt/core/misc/ref.h>
 
 namespace NYT {
 namespace NChunkClient {

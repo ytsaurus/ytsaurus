@@ -1,11 +1,10 @@
-#include "stdafx.h"
 #include "node.h"
 
-#include <server/security_server/account.h>
+#include <yt/server/cell_master/serialize.h>
 
-#include <server/transaction_server/transaction.h>
+#include <yt/server/security_server/account.h>
 
-#include <server/cell_master/serialize.h>
+#include <yt/server/transaction_server/transaction.h>
 
 namespace NYT {
 namespace NCypressServer {

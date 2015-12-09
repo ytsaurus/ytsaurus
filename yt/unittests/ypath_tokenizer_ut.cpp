@@ -1,7 +1,6 @@
-#include "stdafx.h"
 #include "framework.h"
 
-#include <core/ypath/tokenizer.h>
+#include <yt/core/ypath/tokenizer.h>
 
 #include <util/string/vector.h>
 

@@ -13,8 +13,18 @@ set( SRCS
   ${CMAKE_CURRENT_LIST_DIR}/column_evaluator.cpp
   ${CMAKE_CURRENT_LIST_DIR}/range_inferrer.cpp
   ${CMAKE_CURRENT_LIST_DIR}/function_context.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/cg_routines.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/cg_ir_builder.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/cg_helpers.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/cg_fragment_compiler.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/folding_profiler.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/evaluation_helpers.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/functions.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/builtin_functions.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/user_defined_functions.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/function_registry.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/udf_descriptor.cpp
 )
-
 set( HDRS
   ${CMAKE_CURRENT_LIST_DIR}/private.h
   ${CMAKE_CURRENT_LIST_DIR}/public.h
@@ -38,48 +48,23 @@ set( HDRS
   ${CMAKE_CURRENT_LIST_DIR}/column_evaluator.h
   ${CMAKE_CURRENT_LIST_DIR}/range_inferrer.h
   ${CMAKE_CURRENT_LIST_DIR}/function_context.h
+  ${CMAKE_CURRENT_LIST_DIR}/cg_types.h
+  ${CMAKE_CURRENT_LIST_DIR}/cg_routines.h
+  ${CMAKE_CURRENT_LIST_DIR}/cg_ir_builder.h
+  ${CMAKE_CURRENT_LIST_DIR}/cg_helpers.h
+  ${CMAKE_CURRENT_LIST_DIR}/cg_fragment_compiler.h
+  ${CMAKE_CURRENT_LIST_DIR}/folding_profiler.h
+  ${CMAKE_CURRENT_LIST_DIR}/evaluation_helpers.h
+  ${CMAKE_CURRENT_LIST_DIR}/functions.h
+  ${CMAKE_CURRENT_LIST_DIR}/builtin_functions.h
+  ${CMAKE_CURRENT_LIST_DIR}/user_defined_functions.h
+  ${CMAKE_CURRENT_LIST_DIR}/function_registry.h
+  ${CMAKE_CURRENT_LIST_DIR}/udf_descriptor.h
 )
-
-if (YT_BUILD_ENABLE_LLVM)
-  set( SRCS
-    ${SRCS}
-    ${CMAKE_CURRENT_LIST_DIR}/cg_routines.cpp
-    ${CMAKE_CURRENT_LIST_DIR}/cg_ir_builder.cpp
-    ${CMAKE_CURRENT_LIST_DIR}/cg_helpers.cpp
-    ${CMAKE_CURRENT_LIST_DIR}/cg_fragment_compiler.cpp
-    ${CMAKE_CURRENT_LIST_DIR}/folding_profiler.cpp
-    ${CMAKE_CURRENT_LIST_DIR}/evaluation_helpers.cpp
-    ${CMAKE_CURRENT_LIST_DIR}/functions.cpp
-    ${CMAKE_CURRENT_LIST_DIR}/builtin_functions.cpp
-    ${CMAKE_CURRENT_LIST_DIR}/user_defined_functions.cpp
-    ${CMAKE_CURRENT_LIST_DIR}/function_registry.cpp
-    ${CMAKE_CURRENT_LIST_DIR}/udf_descriptor.cpp
-  )
-
-  set( HDRS
-    ${HDRS}
-    ${CMAKE_CURRENT_LIST_DIR}/cg_types.h
-    ${CMAKE_CURRENT_LIST_DIR}/cg_routines.h
-    ${CMAKE_CURRENT_LIST_DIR}/cg_ir_builder.h
-    ${CMAKE_CURRENT_LIST_DIR}/cg_helpers.h
-    ${CMAKE_CURRENT_LIST_DIR}/cg_fragment_compiler.h
-    ${CMAKE_CURRENT_LIST_DIR}/folding_profiler.h
-    ${CMAKE_CURRENT_LIST_DIR}/evaluation_helpers.h
-    ${CMAKE_CURRENT_LIST_DIR}/functions.h
-    ${CMAKE_CURRENT_LIST_DIR}/builtin_functions.h
-    ${CMAKE_CURRENT_LIST_DIR}/user_defined_functions.h
-    ${CMAKE_CURRENT_LIST_DIR}/function_registry.h
-    ${CMAKE_CURRENT_LIST_DIR}/udf_descriptor.h
-  )
-endif()
 
 list( APPEND YT_SOURCE_FILES
   ${SRCS}
   ${HDRS}
-)
-
-include_directories(
-  ${CMAKE_SOURCE_DIR}/contrib/libs/re2
 )
 
 bison( ${CMAKE_CURRENT_LIST_DIR}/parser.yy YT_SOURCE_FILES )

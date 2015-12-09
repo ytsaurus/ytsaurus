@@ -1,23 +1,20 @@
-#include "stdafx.h"
 #include "recovery.h"
+#include "changelog.h"
+#include "changelog_download.h"
 #include "config.h"
 #include "decorated_automaton.h"
-#include "changelog.h"
 #include "snapshot.h"
-#include "changelog_download.h"
 
-#include <core/concurrency/scheduler.h>
+#include <yt/ytlib/election/cell_manager.h>
 
-#include <core/profiling/scoped_timer.h>
+#include <yt/ytlib/hydra/hydra_manager.pb.h>
+#include <yt/ytlib/hydra/hydra_service_proxy.h>
 
-#include <core/rpc/response_keeper.h>
+#include <yt/core/concurrency/scheduler.h>
 
-#include <core/profiling/scoped_timer.h>
+#include <yt/core/profiling/scoped_timer.h>
 
-#include <ytlib/election/cell_manager.h>
-
-#include <ytlib/hydra/hydra_service_proxy.h>
-#include <ytlib/hydra/hydra_manager.pb.h>
+#include <yt/core/rpc/response_keeper.h>
 
 namespace NYT {
 namespace NHydra {
@@ -77,8 +74,20 @@ void TRecoveryBase::RecoverToVersion(TVersion targetVersion)
         currentVersion,
         targetVersion);
 
+    TVersion snapshotVersion;
+    ISnapshotReaderPtr snapshotReader;
+    if (snapshotId != InvalidSegmentId) {
+        snapshotReader = SnapshotStore_->CreateReader(snapshotId);
+
+        WaitFor(snapshotReader->Open())
+            .ThrowOnError();
+
+        auto meta = snapshotReader->GetParams().Meta;
+        snapshotVersion = TVersion(snapshotId - 1, meta.prev_record_count());
+    }
+
     int initialChangelogId;
-    if (snapshotId != InvalidSegmentId && snapshotId > currentVersion.SegmentId) {
+    if (snapshotVersion > currentVersion) {
         // Load the snapshot.
         LOG_INFO("Using snapshot %v for recovery", snapshotId);
 
@@ -86,16 +95,7 @@ void TRecoveryBase::RecoverToVersion(TVersion targetVersion)
             ResponseKeeper_->Stop();
         }
 
-        auto reader = SnapshotStore_->CreateReader(snapshotId);
-
-        WaitFor(reader->Open())
-            .ThrowOnError();
-
-        auto meta = reader->GetParams().Meta;
-        auto snapshotVersion = TVersion(snapshotId - 1, meta.prev_record_count());
-
-        DecoratedAutomaton_->LoadSnapshot(snapshotVersion, reader);
-
+        DecoratedAutomaton_->LoadSnapshot(snapshotVersion, snapshotReader);
         initialChangelogId = snapshotId;
     } else {
         // Recover using changelogs only.

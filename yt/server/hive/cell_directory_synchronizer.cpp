@@ -1,14 +1,13 @@
-#include "stdafx.h"
 #include "cell_directory_synchronizer.h"
 #include "config.h"
 
-#include <core/concurrency/periodic_executor.h>
-#include <core/concurrency/scheduler.h>
+#include <yt/core/concurrency/periodic_executor.h>
+#include <yt/core/concurrency/scheduler.h>
 
-#include <core/rpc/dispatcher.h>
+#include <yt/core/rpc/dispatcher.h>
 
-#include <ytlib/hive/private.h>
-#include <ytlib/hive/cell_directory.h>
+#include <yt/ytlib/hive/private.h>
+#include <yt/ytlib/hive/cell_directory.h>
 
 namespace NYT {
 namespace NHive {

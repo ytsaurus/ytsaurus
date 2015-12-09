@@ -2,7 +2,7 @@
 
 #include "ypath_service.h"
 
-#include <core/yson/consumer.h>
+#include <yt/core/yson/consumer.h>
 
 namespace NYT {
 namespace NYTree {

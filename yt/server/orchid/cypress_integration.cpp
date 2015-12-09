@@ -1,37 +1,33 @@
-#include "stdafx.h"
 #include "cypress_integration.h"
 
-#include <core/misc/lazy_ptr.h>
+#include <yt/server/cell_master/bootstrap.h>
+#include <yt/server/cell_master/hydra_facade.h>
 
-#include <core/concurrency/action_queue.h>
+#include <yt/server/cypress_server/node.h>
+#include <yt/server/cypress_server/virtual.h>
 
-#include <core/ytree/ephemeral_node_factory.h>
-#include <core/ytree/ypath_detail.h>
+#include <yt/server/hydra/hydra_manager.h>
+#include <yt/server/hydra/mutation_context.h>
 
-#include <core/ytree/ypath.pb.h>
+#include <yt/server/object_server/object_manager.h>
+#include <yt/server/object_server/object_proxy.h>
 
-#include <ytlib/orchid/private.h>
+#include <yt/ytlib/orchid/orchid_service_proxy.h>
+#include <yt/ytlib/orchid/private.h>
 
-#include <core/rpc/channel.h>
-#include <core/rpc/message.h>
-#include <core/rpc/caching_channel_factory.h>
-#include <core/rpc/bus_channel.h>
-#include <core/rpc/helpers.h>
+#include <yt/core/concurrency/action_queue.h>
 
-#include <ytlib/orchid/orchid_service_proxy.h>
+#include <yt/core/misc/lazy_ptr.h>
 
-#include <server/cell_master/bootstrap.h>
-#include <server/cell_master/hydra_facade.h>
+#include <yt/core/rpc/bus_channel.h>
+#include <yt/core/rpc/caching_channel_factory.h>
+#include <yt/core/rpc/channel.h>
+#include <yt/core/rpc/helpers.h>
+#include <yt/core/rpc/message.h>
 
-#include <server/object_server/object_manager.h>
-#include <server/object_server/object_proxy.h>
-
-#include <server/cypress_server/node.h>
-#include <server/cypress_server/node_proxy.h>
-#include <server/cypress_server/virtual.h>
-
-#include <server/hydra/mutation_context.h>
-#include <server/hydra/hydra_manager.h>
+#include <yt/core/ytree/ephemeral_node_factory.h>
+#include <yt/core/ytree/ypath.pb.h>
+#include <yt/core/ytree/ypath_detail.h>
 
 namespace NYT {
 namespace NOrchid {

@@ -130,12 +130,12 @@ class TestTransactions(YTEnvSetup):
     def test_timeout(self):
         tx = start_transaction(timeout=2000)
 
-        # check that transaction is still alive after 2 seconds
+        # check that transaction is still alive after 1 seconds
         sleep(1.0)
         assert exists("//sys/transactions/" + tx)
 
-        # check that transaction is expired after 4 seconds
-        sleep(1.5)
+        # check that transaction is expired after 3 seconds
+        sleep(3.0)
         assert not exists("//sys/transactions/" + tx)
 
     def test_ping(self):

@@ -5,9 +5,10 @@ set( SRCS
   ${CMAKE_CURRENT_LIST_DIR}/blob_reader_cache.cpp
   ${CMAKE_CURRENT_LIST_DIR}/blob_session.cpp
   ${CMAKE_CURRENT_LIST_DIR}/block_cache.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/block_store.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_block_manager.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_cache.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_meta_manager.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_detail.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_registry.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_store.cpp
@@ -34,9 +35,10 @@ set( HDRS
   ${CMAKE_CURRENT_LIST_DIR}/blob_reader_cache.h
   ${CMAKE_CURRENT_LIST_DIR}/blob_session.h
   ${CMAKE_CURRENT_LIST_DIR}/block_cache.h
-  ${CMAKE_CURRENT_LIST_DIR}/block_store.h
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_block_manager.h
   ${CMAKE_CURRENT_LIST_DIR}/chunk.h
   ${CMAKE_CURRENT_LIST_DIR}/chunk_cache.h
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_meta_manager.h
   ${CMAKE_CURRENT_LIST_DIR}/chunk_detail.h
   ${CMAKE_CURRENT_LIST_DIR}/chunk_registry.h
   ${CMAKE_CURRENT_LIST_DIR}/chunk_store.h
@@ -50,6 +52,7 @@ set( HDRS
   ${CMAKE_CURRENT_LIST_DIR}/journal_session.h
   ${CMAKE_CURRENT_LIST_DIR}/local_chunk_reader.h
   ${CMAKE_CURRENT_LIST_DIR}/location.h
+  ${CMAKE_CURRENT_LIST_DIR}/location-inl.h
   ${CMAKE_CURRENT_LIST_DIR}/master_connector.h
   ${CMAKE_CURRENT_LIST_DIR}/peer_block_table.h
   ${CMAKE_CURRENT_LIST_DIR}/peer_block_updater.h

@@ -1,6 +1,7 @@
-#include "stdafx.h"
 #include "stream.h"
 #include "parser.h"
+
+#include <yt/core/yson/parser.h>
 
 namespace NYT {
 namespace NYson {

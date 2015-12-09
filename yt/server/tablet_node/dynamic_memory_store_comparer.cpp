@@ -1,7 +1,7 @@
-#include "dynamic_memory_store_bits.h"
 #include "dynamic_memory_store_comparer.h"
-#include "row_comparer_generator.h"
 #include "private.h"
+#include "dynamic_memory_store_bits.h"
+#include "row_comparer_generator.h"
 
 namespace NYT {
 namespace NTabletNode {
@@ -63,6 +63,11 @@ int TDynamicRowKeyComparer::operator()(TDynamicRow lhs, TKeyWrapper rhs) const
         lhs.BeginKeys(),
         rhs.Row.Begin(),
         rhs.Row.GetCount());
+}
+
+int TDynamicRowKeyComparer::operator()(TUnversionedRow lhs, TUnversionedRow rhs) const
+{
+    return operator()(lhs.Begin(), lhs.End(), rhs.Begin(), rhs.End());
 }
 
 int TDynamicRowKeyComparer::operator()(

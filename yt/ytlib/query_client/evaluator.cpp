@@ -1,25 +1,21 @@
-#include "stdafx.h"
 #include "evaluator.h"
-
-#include "helpers.h"
 #include "private.h"
-#include "plan_fragment.h"
-#include "query_statistics.h"
 #include "config.h"
-
 #include "evaluation_helpers.h"
 #include "folding_profiler.h"
+#include "helpers.h"
+#include "plan_fragment.h"
+#include "query_statistics.h"
 
-#include <ytlib/table_client/schemaful_writer.h>
+#include <yt/ytlib/table_client/schemaful_writer.h>
 
-#include <core/profiling/scoped_timer.h>
+#include <yt/core/misc/sync_cache.h>
 
-#include <core/misc/sync_cache.h>
+#include <yt/core/profiling/scoped_timer.h>
 
 #include <llvm/ADT/FoldingSet.h>
-
-#include <llvm/Support/Threading.h>
 #include <llvm/Support/TargetSelect.h>
+#include <llvm/Support/Threading.h>
 
 namespace NYT {
 namespace NQueryClient {

@@ -1,7 +1,6 @@
-#include "stdafx.h"
 #include "system_attribute_provider.h"
 
-#include <core/yson/writer.h>
+#include <yt/core/yson/writer.h>
 
 namespace NYT {
 namespace NYTree {

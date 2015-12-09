@@ -2,13 +2,13 @@
 
 #include "public.h"
 
-#include <core/rpc/config.h>
+#include <yt/server/misc/config.h>
 
-#include <ytlib/api/config.h>
+#include <yt/server/scheduler/config.h>
 
-#include <server/misc/config.h>
+#include <yt/ytlib/api/config.h>
 
-#include <server/scheduler/config.h>
+#include <yt/core/rpc/config.h>
 
 namespace NYT {
 namespace NCellScheduler {

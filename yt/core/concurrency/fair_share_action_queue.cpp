@@ -1,13 +1,12 @@
-#include "stdafx.h"
 #include "fair_share_action_queue.h"
 #include "fair_share_queue_scheduler_thread.h"
 #include "profiler_utils.h"
 
-#include <core/actions/invoker_detail.h>
+#include <yt/core/actions/invoker_detail.h>
 
-#include <core/ypath/token.h>
+#include <yt/core/ypath/token.h>
 
-#include <core/profiling/profile_manager.h>
+#include <yt/core/profiling/profile_manager.h>
 
 namespace NYT {
 namespace NConcurrency {

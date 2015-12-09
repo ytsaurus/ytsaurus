@@ -1,13 +1,10 @@
-#include "stdafx.h"
-
 #include "subprocess.h"
-
-#include "proc.h"
 #include "finally.h"
+#include "proc.h"
 
-#include <core/pipes/async_reader.h>
+#include <yt/core/logging/log.h>
 
-#include <core/logging/log.h>
+#include <yt/core/pipes/async_reader.h>
 
 #include <util/system/execpath.h>
 

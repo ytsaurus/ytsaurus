@@ -1,44 +1,38 @@
-#include "stdafx.h"
-
 #include "schemaless_chunk_reader.h"
+#include "private.h"
 #include "chunk_reader_base.h"
 #include "config.h"
 #include "helpers.h"
 #include "legacy_table_chunk_reader.h"
+#include "versioned_chunk_reader.h"
+#include "schemaful_overlapping_chunk_reader.h"
 #include "name_table.h"
-#include "private.h"
 #include "row_sampler.h"
 #include "schema.h"
 #include "schemaless_block_reader.h"
-#include "row_merger.h"
 #include "cached_versioned_chunk_meta.h"
-#include "row_buffer.h"
-#include "versioned_row.h"
-#include "versioned_reader.h"
-#include "versioned_chunk_reader.h"
 #include "schemaful_reader.h"
-#include "schemaful_overlapping_chunk_reader.h"
+#include "row_merger.h"
 
-#include <ytlib/api/client.h>
-#include <ytlib/api/connection.h>
+#include <yt/ytlib/api/client.h>
+#include <yt/ytlib/api/connection.h>
 
-#include <ytlib/chunk_client/chunk_spec.h>
-#include <ytlib/chunk_client/dispatcher.h>
-#include <ytlib/chunk_client/chunk_spec.h>
-#include <ytlib/chunk_client/dispatcher.h>
-#include <ytlib/chunk_client/helpers.h>
-#include <ytlib/chunk_client/multi_reader_base.h>
-#include <ytlib/chunk_client/reader_factory.h>
-#include <ytlib/chunk_client/replication_reader.h>
-#include <ytlib/chunk_client/schema.h>
+#include <yt/ytlib/chunk_client/chunk_spec.h>
+#include <yt/ytlib/chunk_client/dispatcher.h>
+#include <yt/ytlib/chunk_client/chunk_spec.h>
+#include <yt/ytlib/chunk_client/dispatcher.h>
+#include <yt/ytlib/chunk_client/helpers.h>
+#include <yt/ytlib/chunk_client/multi_reader_base.h>
+#include <yt/ytlib/chunk_client/reader_factory.h>
+#include <yt/ytlib/chunk_client/replication_reader.h>
 
-#include <ytlib/node_tracker_client/node_directory.h>
+#include <yt/ytlib/node_tracker_client/node_directory.h>
 
-#include <ytlib/query_client/column_evaluator.h>
+#include <yt/ytlib/query_client/column_evaluator.h>
 
-#include <core/concurrency/scheduler.h>
+#include <yt/core/concurrency/scheduler.h>
 
-#include <core/misc/protobuf_helpers.h>
+#include <yt/core/misc/protobuf_helpers.h>
 
 namespace NYT {
 namespace NTableClient {

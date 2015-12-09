@@ -1,18 +1,19 @@
-﻿#include "stdafx.h"
 #include "scheduler_connector.h"
 #include "private.h"
-#include "job.h"
 #include "config.h"
+#include "job.h"
 
-#include <core/concurrency/scheduler.h>
+#include <yt/server/cell_node/bootstrap.h>
 
-#include <ytlib/api/client.h>
+#include <yt/server/data_node/master_connector.h>
 
-#include <server/job_agent/job_controller.h>
+#include <yt/server/data_node/master_connector.h>
 
-#include <server/data_node/master_connector.h>
+#include <yt/server/job_agent/job_controller.h>
 
-#include <server/cell_node/bootstrap.h>
+#include <yt/ytlib/api/client.h>
+
+#include <yt/core/concurrency/scheduler.h>
 
 namespace NYT {
 namespace NExecAgent {
@@ -66,13 +67,13 @@ void TSchedulerConnector::SendHeartbeat()
         return;
     }
 
-    auto masterClient = Bootstrap_->GetMasterClient();
+    auto client = Bootstrap_->GetMasterClient();
 
-    TJobTrackerServiceProxy proxy(masterClient->GetSchedulerChannel());
+    TJobTrackerServiceProxy proxy(client->GetSchedulerChannel());
     auto req = proxy.Heartbeat();
 
     auto jobController = Bootstrap_->GetJobController();
-    auto masterConnection = masterClient->GetConnection();
+    auto masterConnection = client->GetConnection();
     jobController->PrepareHeartbeatRequest(
         masterConnection->GetPrimaryMasterCellTag(),
         EObjectType::SchedulerJob,

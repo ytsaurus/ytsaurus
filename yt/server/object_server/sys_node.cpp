@@ -1,16 +1,15 @@
-#include "stdafx.h"
 #include "sys_node.h"
 #include "private.h"
 
-#include <core/ytree/fluent.h>
+#include <yt/core/ytree/fluent.h>
 
-#include <server/cypress_server/node_detail.h>
-#include <server/cypress_server/node_proxy_detail.h>
+#include <yt/server/cypress_server/node_detail.h>
+#include <yt/server/cypress_server/node_proxy_detail.h>
 
-#include <server/hydra/hydra_manager.h>
+#include <yt/server/hydra/hydra_manager.h>
 
-#include <server/cell_master/bootstrap.h>
-#include <server/cell_master/hydra_facade.h>
+#include <yt/server/cell_master/bootstrap.h>
+#include <yt/server/cell_master/hydra_facade.h>
 
 namespace NYT {
 namespace NObjectServer {

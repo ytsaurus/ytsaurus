@@ -1,11 +1,10 @@
-#include "stdafx.h"
 #include "yson_serializable.h"
 
-#include <core/ytree/node.h>
-#include <core/ytree/ephemeral_node_factory.h>
-#include <core/ytree/ypath_detail.h>
+#include <yt/core/yson/consumer.h>
 
-#include <core/yson/consumer.h>
+#include <yt/core/ytree/ephemeral_node_factory.h>
+#include <yt/core/ytree/node.h>
+#include <yt/core/ytree/ypath_detail.h>
 
 namespace NYT {
 namespace NYTree {

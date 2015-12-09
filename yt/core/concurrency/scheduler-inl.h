@@ -3,7 +3,7 @@
 #endif
 #undef SCHEDULER_INL_H_
 
-#include <core/actions/invoker_util.h>
+#include <yt/core/actions/invoker_util.h>
 
 namespace NYT {
 namespace NConcurrency {

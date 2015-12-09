@@ -1,10 +1,10 @@
 #pragma once
 
-#include <core/yson/public.h>
+#include <yt/ytlib/chunk_client/data_statistics.pb.h>
 
-#include <core/ytree/public.h>
+#include <yt/core/yson/public.h>
 
-#include <ytlib/chunk_client/data_statistics.pb.h>
+#include <yt/core/ytree/public.h>
 
 namespace NYT {
 namespace NChunkClient {

@@ -1,8 +1,7 @@
-#include "stdafx.h"
 #include "name_table.h"
 #include "schema.h"
 
-#include <ytlib/table_client/chunk_meta.pb.h>
+#include <yt/ytlib/table_client/chunk_meta.pb.h>
 
 namespace NYT {
 namespace NTableClient {

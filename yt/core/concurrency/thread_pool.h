@@ -2,9 +2,9 @@
 
 #include "public.h"
 
-#include <core/actions/callback.h>
+#include <yt/core/actions/callback.h>
 
-#include <core/misc/shutdownable.h>
+#include <yt/core/misc/shutdownable.h>
 
 namespace NYT {
 namespace NConcurrency {

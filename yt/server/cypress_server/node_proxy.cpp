@@ -1,4 +1,3 @@
-#include "stdafx.h"
 #include "node_proxy.h"
 
 namespace NYT {

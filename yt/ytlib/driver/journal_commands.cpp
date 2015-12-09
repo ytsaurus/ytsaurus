@@ -1,22 +1,21 @@
-#include "stdafx.h"
 #include "journal_commands.h"
 #include "config.h"
 
-#include <core/misc/blob_output.h>
+#include <yt/ytlib/api/journal_reader.h>
+#include <yt/ytlib/api/journal_writer.h>
 
-#include <core/concurrency/scheduler.h>
+#include <yt/ytlib/chunk_client/read_limit.h>
 
-#include <core/yson/consumer.h>
+#include <yt/ytlib/formats/format.h>
+#include <yt/ytlib/formats/parser.h>
 
-#include <core/ytree/fluent.h>
+#include <yt/core/concurrency/scheduler.h>
 
-#include <ytlib/chunk_client/read_limit.h>
+#include <yt/core/misc/blob_output.h>
 
-#include <ytlib/formats/format.h>
-#include <ytlib/formats/parser.h>
+#include <yt/core/yson/consumer.h>
 
-#include <ytlib/api/journal_reader.h>
-#include <ytlib/api/journal_writer.h>
+#include <yt/core/ytree/fluent.h>
 
 namespace NYT {
 namespace NDriver {

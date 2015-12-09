@@ -1,33 +1,28 @@
-#include "stdafx.h"
 #include "framework.h"
 #include "ql_helpers.h"
-
+#include "udf/invalid_ir.h"
+#include "udf/malloc_udf.h"
 #include "udf/test_udfs.h"
 #include "udf/test_udfs_o.h"
-#include "udf/malloc_udf.h"
-#include "udf/invalid_ir.h"
 
-#include <core/concurrency/action_queue.h>
+#include <yt/ytlib/query_client/callbacks.h>
+#include <yt/ytlib/query_client/column_evaluator.h>
+#include <yt/ytlib/query_client/config.h>
+#include <yt/ytlib/query_client/coordinator.h>
+#include <yt/ytlib/query_client/evaluator.h>
+#include <yt/ytlib/query_client/folding_profiler.h>
+#include <yt/ytlib/query_client/helpers.h>
+#include <yt/ytlib/query_client/plan_fragment.h>
+#include <yt/ytlib/query_client/plan_fragment.pb.h>
+#include <yt/ytlib/query_client/query_preparer.h>
+#include <yt/ytlib/query_client/user_defined_functions.h>
 
-#include <ytlib/query_client/config.h>
-#include <ytlib/query_client/plan_fragment.h>
-#include <ytlib/query_client/query_preparer.h>
-#include <ytlib/query_client/callbacks.h>
-#include <ytlib/query_client/helpers.h>
-#include <ytlib/query_client/coordinator.h>
-#include <ytlib/query_client/evaluator.h>
-#include <ytlib/query_client/column_evaluator.h>
+#include <yt/ytlib/table_client/name_table.h>
+#include <yt/ytlib/table_client/schema.h>
+#include <yt/ytlib/table_client/schemaful_reader.h>
+#include <yt/ytlib/table_client/schemaful_writer.h>
 
-#include <ytlib/query_client/helpers.h>
-#include <ytlib/query_client/plan_fragment.pb.h>
-#include <ytlib/query_client/user_defined_functions.h>
-
-#include <ytlib/table_client/schema.h>
-#include <ytlib/table_client/name_table.h>
-#include <ytlib/table_client/schemaful_reader.h>
-#include <ytlib/table_client/schemaful_writer.h>
-
-#include <ytlib/query_client/folding_profiler.h>
+#include <yt/core/concurrency/action_queue.h>
 
 #include <tuple>
 

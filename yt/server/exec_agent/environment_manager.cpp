@@ -1,8 +1,7 @@
-﻿#include "stdafx.h"
 #include "environment_manager.h"
-#include "environment.h"
-#include "config.h"
 #include "private.h"
+#include "config.h"
+#include "environment.h"
 
 namespace NYT {
 namespace NExecAgent {

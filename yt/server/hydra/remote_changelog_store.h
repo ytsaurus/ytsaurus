@@ -2,11 +2,11 @@
 
 #include "public.h"
 
-#include <ytlib/api/public.h>
+#include <yt/ytlib/api/public.h>
 
-#include <ytlib/ypath/public.h>
+#include <yt/ytlib/transaction_client/public.h>
 
-#include <ytlib/transaction_client/public.h>
+#include <yt/ytlib/ypath/public.h>
 
 namespace NYT {
 namespace NHydra {
@@ -17,7 +17,7 @@ IChangelogStoreFactoryPtr CreateRemoteChangelogStoreFactory(
     TRemoteChangelogStoreConfigPtr config,
     TRemoteChangelogStoreOptionsPtr options,
     const NYPath::TYPath& path,
-    NApi::IClientPtr masterClient,
+    NApi::IClientPtr client,
     const NTransactionClient::TTransactionId& prerequisiteTransactionId =
         NTransactionClient::NullTransactionId);
 

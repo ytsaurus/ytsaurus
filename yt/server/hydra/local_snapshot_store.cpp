@@ -1,15 +1,14 @@
-#include "stdafx.h"
 #include "local_snapshot_store.h"
-#include "snapshot.h"
+#include "private.h"
+#include "config.h"
 #include "file_snapshot_store.h"
+#include "snapshot.h"
 #include "snapshot_discovery.h"
 #include "snapshot_download.h"
-#include "config.h"
-#include "private.h"
 
-#include <core/concurrency/scheduler.h>
+#include <yt/ytlib/election/cell_manager.h>
 
-#include <ytlib/election/cell_manager.h>
+#include <yt/core/concurrency/scheduler.h>
 
 namespace NYT {
 namespace NHydra {

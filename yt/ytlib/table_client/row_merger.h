@@ -1,14 +1,14 @@
 #pragma once
 
 #include "public.h"
-#include "versioned_row.h"
 #include "unversioned_row.h"
+#include "versioned_row.h"
 
-#include <core/misc/small_vector.h>
+#include <yt/core/misc/small_vector.h>
 
-#include <ytlib/api/public.h>
+#include <yt/ytlib/query_client/public.h>
 
-#include <ytlib/query_client/public.h>
+#include <yt/ytlib/api/public.h>
 
 namespace NYT {
 namespace NTableClient {

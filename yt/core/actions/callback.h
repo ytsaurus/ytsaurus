@@ -105,11 +105,11 @@
 #include "callback_internal.h"
 #include "bind_internal.h"
 
-#include <core/misc/mpl.h>
-#include <core/misc/error.h>
+#include <yt/core/misc/mpl.h>
+#include <yt/core/misc/error.h>
 
 #ifdef YT_ENABLE_BIND_LOCATION_TRACKING
-#include <core/misc/source_location.h>
+#include <yt/core/misc/source_location.h>
 #endif
 
 namespace NYT {

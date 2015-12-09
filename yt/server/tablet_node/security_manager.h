@@ -3,13 +3,13 @@
 #include "public.h"
 #include "config.h"
 
-#include <core/misc/nullable.h>
+#include <yt/server/cell_node/public.h>
 
-#include <core/ytree/permission.h>
+#include <yt/core/actions/future.h>
 
-#include <core/actions/future.h>
+#include <yt/core/misc/nullable.h>
 
-#include <server/cell_node/public.h>
+#include <yt/core/ytree/permission.h>
 
 namespace NYT {
 namespace NTabletNode {

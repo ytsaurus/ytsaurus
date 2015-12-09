@@ -3,7 +3,7 @@
 #endif
 #undef CODEGEN_MODULE_INL_H_
 
-#include <core/actions/bind.h>
+#include <yt/core/actions/bind.h>
 
 namespace NYT {
 namespace NCodegen {

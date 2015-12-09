@@ -1,51 +1,46 @@
-#include "stdafx.h"
 #include "transaction_manager.h"
-#include "transaction.h"
-#include "config.h"
 #include "private.h"
+#include "config.h"
+#include "transaction.h"
 
-#include <core/misc/string.h>
-#include <core/misc/id_generator.h>
-#include <core/misc/lease_manager.h>
+#include <yt/server/cell_master/automaton.h>
+#include <yt/server/cell_master/bootstrap.h>
+#include <yt/server/cell_master/hydra_facade.h>
+#include <yt/server/cell_master/multicell_manager.h>
+#include <yt/server/cell_master/serialize.h>
 
-#include <core/concurrency/thread_affinity.h>
+#include <yt/server/cypress_server/cypress_manager.h>
+#include <yt/server/cypress_server/node.h>
 
-#include <core/ytree/ephemeral_node_factory.h>
-#include <core/ytree/fluent.h>
-#include <core/ytree/attributes.h>
+#include <yt/server/hive/transaction_supervisor.h>
 
-#include <ytlib/transaction_client/transaction_ypath_proxy.h>
+#include <yt/server/hydra/composite_automaton.h>
+#include <yt/server/hydra/mutation.h>
 
-#include <ytlib/object_client/object_service_proxy.h>
-#include <ytlib/object_client/helpers.h>
+#include <yt/server/object_server/attribute_set.h>
+#include <yt/server/object_server/object.h>
+#include <yt/server/object_server/type_handler_detail.h>
 
-#include <ytlib/hive/cell_directory.h>
+#include <yt/server/security_server/account.h>
+#include <yt/server/security_server/security_manager.h>
+#include <yt/server/security_server/user.h>
 
-#include <server/hydra/composite_automaton.h>
-#include <server/hydra/mutation.h>
+#include <yt/server/transaction_server/transaction_manager.pb.h>
 
-#include <server/cypress_server/cypress_manager.h>
+#include <yt/ytlib/object_client/object_service_proxy.h>
+#include <yt/ytlib/object_client/helpers.h>
 
-#include <server/object_server/object.h>
-#include <server/object_server/type_handler_detail.h>
-#include <server/object_server/attribute_set.h>
+#include <yt/ytlib/transaction_client/transaction_ypath_proxy.h>
 
-#include <server/cypress_server/node.h>
+#include <yt/core/concurrency/thread_affinity.h>
 
-#include <server/cell_master/automaton.h>
-#include <server/cell_master/serialize.h>
-#include <server/cell_master/bootstrap.h>
-#include <server/cell_master/hydra_facade.h>
-#include <server/cell_master/multicell_manager.h>
-#include <server/cell_master/config.h>
+#include <yt/core/misc/id_generator.h>
+#include <yt/core/misc/lease_manager.h>
+#include <yt/core/misc/string.h>
 
-#include <server/security_server/account.h>
-#include <server/security_server/user.h>
-#include <server/security_server/security_manager.h>
-
-#include <server/hive/transaction_supervisor.h>
-
-#include <server/transaction_server/transaction_manager.pb.h>
+#include <yt/core/ytree/attributes.h>
+#include <yt/core/ytree/ephemeral_node_factory.h>
+#include <yt/core/ytree/fluent.h>
 
 namespace NYT {
 namespace NTransactionServer {
@@ -597,10 +592,6 @@ public:
 
         auto* currentTransaction = transaction;
         while (currentTransaction) {
-            if (currentTransaction->GetPersistentState() != ETransactionState::Active) {
-                currentTransaction->ThrowInvalidState();
-            }
-
             DoPingTransaction(currentTransaction);
 
             if (!pingAncestors)
@@ -880,6 +871,17 @@ private:
     void DoPingTransaction(TTransaction* transaction)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        auto persistentState = transaction->GetPersistentState();
+
+        if (persistentState == ETransactionState::PersistentCommitPrepared) {
+            // Just ignore; clients may ping transactions during commit.
+            return;
+        }
+
+        if (persistentState != ETransactionState::Active) {
+            transaction->ThrowInvalidState();
+        }
 
         auto timeout = transaction->GetTimeout();
         if (timeout) {

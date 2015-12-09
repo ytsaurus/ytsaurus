@@ -1,14 +1,13 @@
-#include "stdafx.h"
 #include "lock_proxy.h"
+#include "private.h"
 #include "lock.h"
 #include "node.h"
-#include "private.h"
 
-#include <core/ytree/fluent.h>
+#include <yt/server/object_server/object_detail.h>
 
-#include <server/object_server/object_detail.h>
+#include <yt/server/transaction_server/transaction.h>
 
-#include <server/transaction_server/transaction.h>
+#include <yt/core/ytree/fluent.h>
 
 namespace NYT {
 namespace NCypressServer {

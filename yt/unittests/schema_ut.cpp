@@ -1,10 +1,9 @@
-#include "stdafx.h"
 #include "framework.h"
 
-#include <core/ytree/convert.h>
+#include <yt/core/ytree/convert.h>
 
-#include <ytlib/table_client/schema.h>
-#include <ytlib/chunk_client/schema.h>
+#include <yt/ytlib/table_client/schema.h>
+#include <yt/ytlib/chunk_client/schema.h>
 
 namespace NYT {
 namespace NChunkClient {

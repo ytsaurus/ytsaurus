@@ -3,13 +3,11 @@
 #include "public.h"
 #include "job.h"
 
-#include <core/actions/signal.h>
+#include <yt/server/cell_node/public.h>
 
-#include <ytlib/job_tracker_client/public.h>
+#include <yt/ytlib/job_tracker_client/public.h>
 
-#include <ytlib/node_tracker_client/public.h>
-
-#include <server/cell_node/public.h>
+#include <yt/core/actions/signal.h>
 
 namespace NYT {
 namespace NJobAgent {

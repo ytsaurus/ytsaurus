@@ -1,8 +1,7 @@
 #include "memory_writer.h"
-
 #include "chunk_replica.h"
 
-#include <core/actions/future.h>
+#include <yt/core/actions/future.h>
 
 namespace NYT {
 namespace NChunkClient {

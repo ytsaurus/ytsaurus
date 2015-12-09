@@ -1,17 +1,16 @@
 #include "crash_handler.h"
-#include "stack_trace.h"
 #include "assert.h"
+#include "stack_trace.h"
 
-#include <yt/config.h>
+#include <yt/core/logging/log_manager.h>
 
-#include <core/misc/raw_formatter.h>
-
-#include <core/logging/log_manager.h>
+#include <yt/core/misc/raw_formatter.h>
 
 #include <util/system/defaults.h>
 
 #include <signal.h>
 #include <time.h>
+#include <yt/build/config.h>
 #ifdef HAVE_SYS_TYPES_H
 #   include <sys/types.h>
 #endif

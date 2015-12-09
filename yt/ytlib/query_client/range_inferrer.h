@@ -2,10 +2,10 @@
 
 #include "public.h"
 #include "callbacks.h"
-#include "plan_fragment.h"
-#include "query_statistics.h"
 #include "column_evaluator.h"
 #include "function_registry.h"
+#include "plan_fragment.h"
+#include "query_statistics.h"
 
 #include <functional>
 

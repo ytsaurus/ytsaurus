@@ -1,9 +1,8 @@
-#include "stdafx.h"
 #include "throttling_channel.h"
 #include "channel_detail.h"
 #include "config.h"
 
-#include <core/concurrency/throughput_throttler.h>
+#include <yt/core/concurrency/throughput_throttler.h>
 
 namespace NYT {
 namespace NRpc {

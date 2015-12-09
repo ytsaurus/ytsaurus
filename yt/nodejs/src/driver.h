@@ -2,9 +2,9 @@
 
 #include "common.h"
 
-#include <ytlib/driver/public.h>
+#include <yt/ytlib/driver/public.h>
 
-#include <core/ytree/public.h>
+#include <yt/core/ytree/public.h>
 
 namespace NYT {
 namespace NNodeJS {

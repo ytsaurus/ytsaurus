@@ -1,8 +1,8 @@
-﻿#pragma once
+#pragma once
 
-#include <ytlib/scheduler/public.h>
+#include <yt/ytlib/scheduler/public.h>
 
-#include <core/misc/enum.h>
+#include <yt/core/misc/enum.h>
 
 namespace NYT {
 namespace NJobProxy {

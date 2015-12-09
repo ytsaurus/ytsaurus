@@ -2,10 +2,10 @@
 
 #include "public.h"
 
-#include <core/misc/ref.h>
+#include <yt/ytlib/table_client/chunk_meta.pb.h>
+#include <yt/ytlib/table_client/row_base.h>
 
-#include <ytlib/table_client/row_base.h>
-#include <ytlib/table_client/chunk_meta.pb.h>
+#include <yt/core/misc/ref.h>
 
 #include <util/generic/bitmap.h>
 

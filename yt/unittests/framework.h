@@ -1,21 +1,20 @@
 #pragma once
 
-// Include Google Test and Google Mock headers.
-#define GTEST_DONT_DEFINE_FAIL 1
+#include <yt/core/actions/public.h>
 
-#include <contrib/testing/gtest.h>
-#include <contrib/testing/gmock.h>
+#include <yt/core/misc/enum.h>
+#include <yt/core/misc/lifecycle.h>
+#include <yt/core/misc/preprocessor.h>
 
 // Custom includes to glue Google and YT stuff together.
 #include <util/generic/stroka.h>
 #include <util/generic/strbuf.h>
 
-#include <core/misc/preprocessor.h>
-#include <core/misc/enum.h>
+// Include Google Test and Google Mock headers.
+#define GTEST_DONT_DEFINE_FAIL 1
 
-#include <core/misc/lifecycle.h>
-
-#include <core/actions/public.h>
+#include <contrib/testing/gmock.h>
+#include <contrib/testing/gtest.h>
 
 namespace NYT {
 

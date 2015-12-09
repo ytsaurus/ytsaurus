@@ -2,13 +2,13 @@
 
 #include "public.h"
 
-#include <core/ytree/yson_serializable.h>
+#include <yt/server/job_agent/config.h>
 
-#include <ytlib/cgroup/config.h>
+#include <yt/server/job_proxy/config.h>
 
-#include <server/job_agent/config.h>
+#include <yt/ytlib/cgroup/config.h>
 
-#include <server/job_proxy/config.h>
+#include <yt/core/ytree/yson_serializable.h>
 
 namespace NYT {
 namespace NExecAgent {

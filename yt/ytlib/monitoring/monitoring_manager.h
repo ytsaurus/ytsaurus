@@ -2,11 +2,11 @@
 
 #include "public.h"
 
-#include <core/yson/consumer.h>
+#include <yt/core/yson/consumer.h>
 
-#include <core/ypath/public.h>
+#include <yt/core/ypath/public.h>
 
-#include <core/ytree/public.h>
+#include <yt/core/ytree/public.h>
 
 namespace NYT {
 namespace NMonitoring {

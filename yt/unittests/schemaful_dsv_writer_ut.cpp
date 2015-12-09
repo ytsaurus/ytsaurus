@@ -1,11 +1,10 @@
-#include "stdafx.h"
 #include "framework.h"
 
-#include <ytlib/table_client/name_table.h>
+#include <yt/ytlib/formats/schemaful_dsv_writer.h>
 
-#include <ytlib/formats/schemaful_dsv_writer.h>
+#include <yt/ytlib/table_client/name_table.h>
 
-#include <core/concurrency/async_stream.h>
+#include <yt/core/concurrency/async_stream.h>
 
 #include <limits>
 

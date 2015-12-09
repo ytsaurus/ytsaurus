@@ -1,10 +1,10 @@
 #pragma once
 
-#include <core/misc/public.h>
+#include <yt/ytlib/hydra/public.h>
 
-#include <ytlib/hydra/public.h>
+#include <yt/ytlib/transaction_client/public.h>
 
-#include <ytlib/transaction_client/public.h>
+#include <yt/core/misc/public.h>
 
 namespace NYT {
 namespace NHive {

@@ -1,4 +1,4 @@
-#include "stdafx.h"
+#include "serialize.h"
 #include "private.h"
 
 namespace NYT {
@@ -8,12 +8,12 @@ namespace NTabletNode {
 
 int GetCurrentSnapshotVersion()
 {
-    return 9;
+    return 10;
 }
 
 bool ValidateSnapshotVersion(int version)
 {
-    return version == 9;
+    return version == 10;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

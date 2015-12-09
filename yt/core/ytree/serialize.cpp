@@ -1,6 +1,6 @@
-#include "stdafx.h"
+#include "serialize.h"
 
-#include <core/ytree/yson_serializable.h>
+#include <yt/core/ytree/yson_serializable.h>
 
 namespace NYT {
 namespace NYTree {

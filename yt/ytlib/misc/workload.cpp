@@ -1,13 +1,12 @@
-#include "stdafx.h"
 #include "workload.h"
 
-#include <core/misc/string.h>
+#include <yt/ytlib/misc/workload.pb.h>
 
-#include <core/ytree/yson_serializable.h>
+#include <yt/core/misc/string.h>
 
-#include <core/rpc/service.h>
+#include <yt/core/rpc/service.h>
 
-#include <ytlib/misc/workload.pb.h>
+#include <yt/core/ytree/yson_serializable.h>
 
 namespace NYT {
 

@@ -1,4 +1,3 @@
-#include "stdafx.h"
 #include "service.h"
 
 namespace NYT {

@@ -2,9 +2,9 @@
 
 #include "public.h"
 
-#include <ytlib/election/election_service.pb.h>
+#include <yt/ytlib/election/election_service.pb.h>
 
-#include <core/rpc/client.h>
+#include <yt/core/rpc/client.h>
 
 namespace NYT {
 namespace NElection {

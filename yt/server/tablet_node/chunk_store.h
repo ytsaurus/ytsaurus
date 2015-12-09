@@ -3,27 +3,27 @@
 #include "public.h"
 #include "store_detail.h"
 
-#include <core/misc/nullable.h>
+#include <yt/server/cell_node/public.h>
 
-#include <core/concurrency/rw_spinlock.h>
+#include <yt/server/data_node/public.h>
 
-#include <core/rpc/public.h>
+#include <yt/server/query_agent/public.h>
 
-#include <core/profiling/public.h>
+#include <yt/ytlib/chunk_client/chunk_meta.pb.h>
+#include <yt/ytlib/chunk_client/public.h>
 
-#include <ytlib/table_client/unversioned_row.h>
-#include <ytlib/table_client/versioned_row.h>
+#include <yt/ytlib/node_tracker_client/node_directory.h>
 
-#include <ytlib/chunk_client/public.h>
-#include <ytlib/chunk_client/chunk_meta.pb.h>
+#include <yt/ytlib/table_client/unversioned_row.h>
+#include <yt/ytlib/table_client/versioned_row.h>
 
-#include <ytlib/node_tracker_client/node_directory.h>
+#include <yt/core/concurrency/rw_spinlock.h>
 
-#include <server/cell_node/public.h>
+#include <yt/core/misc/nullable.h>
 
-#include <server/query_agent/public.h>
+#include <yt/core/profiling/public.h>
 
-#include <server/data_node/public.h>
+#include <yt/core/rpc/public.h>
 
 namespace NYT {
 namespace NTabletNode {
@@ -54,8 +54,7 @@ public:
 
     EInMemoryMode GetInMemoryMode() const;
     void SetInMemoryMode(EInMemoryMode mode);
-    NChunkClient::IBlockCachePtr GetPreloadedBlockCache();
-    void PreloadFromInterceptedData(TInterceptedChunkDataPtr chunkData);
+    void Preload(TInMemoryChunkDataPtr chunkData);
 
     NChunkClient::IChunkReaderPtr GetChunkReader();
 
@@ -111,24 +110,32 @@ private:
 
     NChunkClient::NProto::TChunkMeta ChunkMeta_;
 
-    NConcurrency::TReaderWriterSpinLock ChunkLock_;
+    NConcurrency::TReaderWriterSpinLock SpinLock_;
+
     bool ChunkInitialized_ = false;
     NDataNode::IChunkPtr Chunk_;
 
-    NConcurrency::TReaderWriterSpinLock ChunkReaderLock_;
     NChunkClient::IChunkReaderPtr ChunkReader_;
 
-    NConcurrency::TReaderWriterSpinLock CachedVersionedChunkMetaLock_;
     NTableClient::TCachedVersionedChunkMetaPtr CachedVersionedChunkMeta_;
 
-    NConcurrency::TReaderWriterSpinLock BackingStoreLock_;
     IStorePtr BackingStore_;
 
-    NConcurrency::TReaderWriterSpinLock PreloadedBlockCacheLock_;
     TPreloadedBlockCachePtr PreloadedBlockCache_;
 
     EInMemoryMode InMemoryMode_ = EInMemoryMode::None;
 
+    const NTableClient::TKeyComparer KeyComparer_;
+
+    NTableClient::IVersionedReaderPtr CreateCacheBasedReader(
+        const TSharedRange<TKey>& keys,
+        TTimestamp timestamp,
+        const TColumnFilter& columnFilter);
+    NTableClient::IVersionedReaderPtr CreateCacheBasedReader(
+        TOwningKey lowerKey,
+        TOwningKey upperKey,
+        TTimestamp timestamp,
+        const TColumnFilter& columnFilter);
 
     NDataNode::IChunkPtr PrepareChunk();
     NChunkClient::IChunkReaderPtr PrepareChunkReader(

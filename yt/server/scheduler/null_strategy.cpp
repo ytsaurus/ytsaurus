@@ -1,10 +1,9 @@
-#include "stdafx.h"
 #include "null_strategy.h"
-#include "scheduler_strategy.h"
-#include "operation.h"
 #include "exec_node.h"
 #include "job.h"
+#include "operation.h"
 #include "operation_controller.h"
+#include "scheduler_strategy.h"
 
 namespace NYT {
 namespace NScheduler {

@@ -1,12 +1,11 @@
 #pragma once
 
 #include "public.h"
-
 #include "user_job_io.h"
 
-#include <ytlib/table_client/public.h>
+#include <yt/ytlib/table_client/public.h>
 
-#include <core/logging/log.h>
+#include <yt/core/logging/log.h>
 
 namespace NYT {
 namespace NJobProxy {

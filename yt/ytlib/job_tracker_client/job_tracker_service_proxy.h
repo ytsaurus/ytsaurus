@@ -2,9 +2,9 @@
 
 #include "public.h"
 
-#include <core/rpc/client.h>
+#include <yt/ytlib/job_tracker_client/job_tracker_service.pb.h>
 
-#include <ytlib/job_tracker_client/job_tracker_service.pb.h>
+#include <yt/core/rpc/client.h>
 
 namespace NYT {
 namespace NJobTrackerClient {
@@ -22,7 +22,7 @@ public:
 
     static int GetProtocolVersion()
     {
-        return 1;
+        return 2;
     }
 
     explicit TJobTrackerServiceProxy(NRpc::IChannelPtr channel)

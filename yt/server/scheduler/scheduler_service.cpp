@@ -1,18 +1,17 @@
-#include "stdafx.h"
 #include "scheduler_service.h"
-#include "scheduler.h"
 #include "private.h"
+#include "scheduler.h"
 
-#include <core/rpc/response_keeper.h>
+#include <yt/server/cell_scheduler/bootstrap.h>
 
-#include <core/ytree/permission.h>
+#include <yt/ytlib/cypress_client/rpc_helpers.h>
 
-#include <ytlib/scheduler/scheduler_service_proxy.h>
-#include <ytlib/scheduler/helpers.h>
+#include <yt/ytlib/scheduler/helpers.h>
+#include <yt/ytlib/scheduler/scheduler_service_proxy.h>
 
-#include <ytlib/cypress_client/rpc_helpers.h>
+#include <yt/core/rpc/response_keeper.h>
 
-#include <server/cell_scheduler/bootstrap.h>
+#include <yt/core/ytree/permission.h>
 
 namespace NYT {
 namespace NScheduler {

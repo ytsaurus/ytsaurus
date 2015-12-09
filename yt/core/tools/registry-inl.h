@@ -2,9 +2,9 @@
 #error "Direct inclusion of this file is not allowed, include registry.h"
 #endif
 
-#include <core/ytree/convert.h>
+#include <yt/core/ytree/convert.h>
 
-#include <core/misc/function_traits.h>
+#include <yt/core/misc/function_traits.h>
 
 namespace NYT {
 namespace NDetail {

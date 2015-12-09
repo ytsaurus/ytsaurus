@@ -1,8 +1,6 @@
-#include "stdafx.h"
 #include "scheduler.h"
-#include "scheduler.h"
-#include "fls.h"
 #include "fiber.h"
+#include "fls.h"
 
 namespace NYT {
 namespace NConcurrency {

@@ -1,12 +1,11 @@
-#include "stdafx.h"
 #include "object.h"
 
-#include <ytlib/object_client/helpers.h>
+#include <yt/server/cell_master/serialize.h>
+#include <yt/server/cell_master/bootstrap.h>
 
-#include <server/cypress_server/node.h>
+#include <yt/server/cypress_server/node.h>
 
-#include <server/cell_master/serialize.h>
-#include <server/cell_master/bootstrap.h>
+#include <yt/ytlib/object_client/helpers.h>
 
 namespace NYT {
 namespace NObjectServer {

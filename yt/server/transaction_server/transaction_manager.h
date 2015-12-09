@@ -2,19 +2,19 @@
 
 #include "public.h"
 
-#include <core/misc/property.h>
+#include <yt/server/cell_master/public.h>
 
-#include <core/actions/signal.h>
+#include <yt/server/cypress_server/public.h>
 
-#include <server/hydra/entity_map.h>
+#include <yt/server/hive/transaction_manager.h>
 
-#include <server/hive/transaction_manager.h>
+#include <yt/server/hydra/entity_map.h>
 
-#include <server/object_server/public.h>
+#include <yt/server/object_server/public.h>
 
-#include <server/cypress_server/public.h>
+#include <yt/core/actions/signal.h>
 
-#include <server/cell_master/public.h>
+#include <yt/core/misc/property.h>
 
 namespace NYT {
 namespace NTransactionServer {

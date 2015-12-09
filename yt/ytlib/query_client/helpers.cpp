@@ -1,16 +1,16 @@
-#include "stdafx.h"
+#include "helpers.h"
 #include "public.h"
 
-#include <core/misc/protobuf_helpers.h>
+#include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
+#include <yt/ytlib/chunk_client/chunk_spec.h>
+#include <yt/ytlib/chunk_client/read_limit.h>
+#include <yt/ytlib/chunk_client/schema.h>
 
-#include <ytlib/chunk_client/schema.h>
-#include <ytlib/chunk_client/read_limit.h>
-#include <ytlib/chunk_client/chunk_meta_extensions.h>
-#include <ytlib/chunk_client/chunk_spec.h>
+#include <yt/ytlib/table_client/chunk_meta_extensions.h>
+#include <yt/ytlib/table_client/schema.h>
+#include <yt/ytlib/table_client/unversioned_row.h>
 
-#include <ytlib/table_client/schema.h>
-#include <ytlib/table_client/unversioned_row.h>
-#include <ytlib/table_client/chunk_meta_extensions.h>
+#include <yt/core/misc/protobuf_helpers.h>
 
 namespace NYT {
 namespace NQueryClient {

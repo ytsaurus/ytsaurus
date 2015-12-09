@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <ytlib/election/public.h>
+#include <yt/ytlib/election/public.h>
 
 namespace NYT {
 namespace NHydra {

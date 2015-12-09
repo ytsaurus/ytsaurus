@@ -1,13 +1,12 @@
-#include "stdafx.h"
 #include "chunk_replica.h"
 
-#include <core/misc/format.h>
+#include <yt/ytlib/node_tracker_client/node_directory.h>
 
-#include <core/erasure/public.h>
+#include <yt/ytlib/object_client/helpers.h>
 
-#include <ytlib/node_tracker_client/node_directory.h>
+#include <yt/core/erasure/public.h>
 
-#include <ytlib/object_client/helpers.h>
+#include <yt/core/misc/format.h>
 
 namespace NYT {
 namespace NChunkClient {

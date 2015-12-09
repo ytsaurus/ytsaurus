@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <core/ytree/yson_serializable.h>
+#include <yt/core/ytree/yson_serializable.h>
 
 namespace NYT {
 namespace NJobAgent {
@@ -18,8 +18,10 @@ public:
     int Network;
     i64 Memory;
     int ReplicationSlots;
+    i64 ReplicationDataSize;
     int RemovalSlots;
     int RepairSlots;
+    i64 RepairDataSize;
     int SealSlots;
 
     TResourceLimitsConfig()
@@ -41,12 +43,18 @@ public:
         RegisterParameter("replication_slots", ReplicationSlots)
             .GreaterThanOrEqual(0)
             .Default(16);
+        RegisterParameter("replication_data_size", ReplicationDataSize)
+            .Default((i64) 1024 * 1024 * 1024)
+            .GreaterThanOrEqual(0);
         RegisterParameter("removal_slots", RemovalSlots)
             .GreaterThanOrEqual(0)
             .Default(16);
         RegisterParameter("repair_slots", RepairSlots)
             .GreaterThanOrEqual(0)
             .Default(4);
+        RegisterParameter("repair_data_size", RepairDataSize)
+            .Default((i64) 4 * 1024 * 1024 * 1024)
+            .GreaterThanOrEqual(0);
         RegisterParameter("seal_slots", SealSlots)
             .GreaterThanOrEqual(0)
             .Default(16);

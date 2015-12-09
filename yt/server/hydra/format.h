@@ -2,9 +2,9 @@
 
 #include "public.h"
 
-#include <core/misc/serialize.h>
+#include <yt/core/compression/public.h>
 
-#include <core/compression/public.h>
+#include <yt/core/misc/serialize.h>
 
 namespace NYT {
 namespace NHydra {
