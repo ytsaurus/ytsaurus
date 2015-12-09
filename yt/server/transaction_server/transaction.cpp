@@ -1,14 +1,14 @@
-#include "stdafx.h"
 #include "transaction.h"
 
-#include <core/misc/string.h>
+#include <yt/server/cell_master/bootstrap.h>
+#include <yt/server/cell_master/serialize.h>
 
-#include <core/ytree/fluent.h>
+#include <yt/server/security_server/account.h>
 
-#include <server/cell_master/bootstrap.h>
-#include <server/cell_master/serialize.h>
+#include <yt/core/misc/common.h>
+#include <yt/core/misc/string.h>
 
-#include <server/security_server/account.h>
+#include <yt/core/ytree/fluent.h>
 
 namespace NYT {
 namespace NTransactionServer {

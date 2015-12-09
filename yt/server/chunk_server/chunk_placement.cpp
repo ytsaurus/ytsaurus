@@ -1,20 +1,20 @@
-#include "stdafx.h"
 #include "chunk_placement.h"
-#include "chunk.h"
-#include "job.h"
-#include "chunk_manager.h"
 #include "private.h"
+#include "chunk.h"
+#include "chunk_manager.h"
+#include "job.h"
 
-#include <core/misc/small_set.h>
+#include <yt/server/cell_master/bootstrap.h>
+#include <yt/server/cell_master/config.h>
 
-#include <server/node_tracker_server/node.h>
-#include <server/node_tracker_server/rack.h>
-#include <server/node_tracker_server/node_tracker.h>
+#include <yt/server/node_tracker_server/node.h>
+#include <yt/server/node_tracker_server/node_tracker.h>
+#include <yt/server/node_tracker_server/rack.h>
 
-#include <server/object_server/object.h>
+#include <yt/server/object_server/object.h>
 
-#include <server/cell_master/bootstrap.h>
-#include <server/cell_master/config.h>
+#include <yt/core/misc/common.h>
+#include <yt/core/misc/small_set.h>
 
 #include <util/random/random.h>
 

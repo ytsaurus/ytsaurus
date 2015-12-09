@@ -1,18 +1,18 @@
-#include "stdafx.h"
 #include "framework.h"
 #include "probe.h"
 
-#include <core/misc/public.h>
-#include <core/misc/lazy_ptr.h>
+#include <yt/core/actions/cancelable_context.h>
+#include <yt/core/actions/invoker_util.h>
 
-#include <core/concurrency/scheduler.h>
-#include <core/concurrency/fiber.h>
-#include <core/concurrency/action_queue.h>
-#include <core/concurrency/parallel_awaiter.h>
-#include <core/concurrency/delayed_executor.h>
+#include <yt/core/concurrency/action_queue.h>
+#include <yt/core/concurrency/delayed_executor.h>
+#include <yt/core/concurrency/fiber.h>
+#include <yt/core/concurrency/parallel_awaiter.h>
+#include <yt/core/concurrency/scheduler.h>
 
-#include <core/actions/cancelable_context.h>
-#include <core/actions/invoker_util.h>
+#include <yt/core/misc/common.h>
+#include <yt/core/misc/lazy_ptr.h>
+#include <yt/core/misc/public.h>
 
 #include <exception>
 

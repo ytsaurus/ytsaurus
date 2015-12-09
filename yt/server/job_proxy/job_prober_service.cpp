@@ -1,11 +1,12 @@
-#include "stdafx.h"
 #include "job_prober_service.h"
 #include "private.h"
 #include "job_proxy.h"
 
-#include <ytlib/job_prober_client/job_prober_service_proxy.h>
+#include <yt/ytlib/job_prober_client/job_prober_service_proxy.h>
 
-#include <core/rpc/service_detail.h>
+#include <yt/core/misc/common.h>
+
+#include <yt/core/rpc/service_detail.h>
 
 namespace NYT {
 namespace NJobProxy {
@@ -31,6 +32,7 @@ public:
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(DumpInputContext));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Strace));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(SignalJob));
     }
 
 private:
@@ -59,6 +61,20 @@ private:
         context->SetResponseInfo("Trace: %Qv", trace.Data());
 
         ToProto(response->mutable_trace(), trace.Data());
+        context->Reply();
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NJobProberClient::NProto, SignalJob)
+    {
+        auto jobId = FromProto<TJobId>(request->job_id());
+        auto signalName = FromProto<Stroka>(request->signal_name());
+
+        context->SetRequestInfo("JobId: %v, SignalName: %v",
+            jobId,
+            signalName);
+
+        JobProxy_->SignalJob(jobId, signalName);
+
         context->Reply();
     }
 };

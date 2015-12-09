@@ -1,8 +1,8 @@
-#include "stdafx.h"
-
 #include "registry.h"
 
-#include <core/ytree/fluent.h>
+#include <yt/core/misc/common.h>
+
+#include <yt/core/ytree/fluent.h>
 
 namespace NYT {
 

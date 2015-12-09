@@ -1,20 +1,20 @@
-#include "stdafx.h"
 #include "journal_dispatcher.h"
 #include "private.h"
-#include "config.h"
 #include "chunk.h"
-#include "journal_chunk.h"
-#include "location.h"
-#include "journal_manager.h"
 #include "chunk_store.h"
+#include "config.h"
+#include "journal_chunk.h"
+#include "journal_manager.h"
+#include "location.h"
 
-#include <core/misc/async_cache.h>
+#include <yt/server/cell_node/bootstrap.h>
 
-#include <core/concurrency/thread_affinity.h>
+#include <yt/server/hydra/changelog.h>
 
-#include <server/hydra/changelog.h>
+#include <yt/core/concurrency/thread_affinity.h>
 
-#include <server/cell_node/bootstrap.h>
+#include <yt/core/misc/async_cache.h>
+#include <yt/core/misc/common.h>
 
 namespace NYT {
 namespace NDataNode {

@@ -1,5 +1,6 @@
-#include "stdafx.h"
 #include "blob_output.h"
+
+#include <yt/core/misc/common.h>
 
 namespace NYT {
 

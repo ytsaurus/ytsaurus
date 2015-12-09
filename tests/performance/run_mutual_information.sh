@@ -1,4 +1,4 @@
-#!/bin/sh -eux
+#!/bin/bash -eux
 
 # 1Tb = 10^12 = (word_size + space) 10 * (words in record) 10000 * (jobs) 1000 * (records) 10000
 

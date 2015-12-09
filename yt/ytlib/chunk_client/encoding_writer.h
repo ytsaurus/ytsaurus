@@ -1,15 +1,15 @@
-﻿#pragma once
+#pragma once
 
 #include "public.h"
 
-#include <core/misc/ref.h>
+#include <yt/core/compression/public.h>
 
-#include <core/concurrency/async_semaphore.h>
-#include <core/concurrency/nonblocking_queue.h>
+#include <yt/core/concurrency/async_semaphore.h>
+#include <yt/core/concurrency/nonblocking_queue.h>
 
-#include <core/compression/public.h>
+#include <yt/core/logging/log.h>
 
-#include <core/logging/log.h>
+#include <yt/core/misc/ref.h>
 
 namespace NYT {
 namespace NChunkClient {

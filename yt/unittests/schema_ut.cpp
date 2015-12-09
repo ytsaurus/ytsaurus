@@ -1,7 +1,8 @@
-#include "stdafx.h"
 #include "framework.h"
 
-#include <ytlib/chunk_client/schema.h>
+#include <yt/ytlib/chunk_client/schema.h>
+
+#include <yt/core/misc/common.h>
 
 namespace NYT {
 namespace NChunkClient {

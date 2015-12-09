@@ -1,6 +1,6 @@
-#include "stdafx.h"
-
 #include "ql_helpers.h"
+
+#include <yt/core/misc/common.h>
 
 namespace NYT {
 namespace NTableClient {

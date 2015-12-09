@@ -1,10 +1,11 @@
-#include "stdafx.h"
 #include "framework.h"
 
-#include <core/tools/tools.h>
-#include <core/tools/registry.h>
+#include <yt/core/misc/common.h>
 
-#include <core/ytree/serialize.h>
+#include <yt/core/tools/registry.h>
+#include <yt/core/tools/tools.h>
+
+#include <yt/core/ytree/serialize.h>
 
 namespace NYT {
 namespace {

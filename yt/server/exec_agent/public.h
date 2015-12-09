@@ -1,8 +1,8 @@
 #pragma once
 
-#include <core/misc/public.h>
+#include <yt/ytlib/job_tracker_client/public.h>
 
-#include <ytlib/job_tracker_client/public.h>
+#include <yt/core/misc/public.h>
 
 namespace NYT {
 namespace NExecAgent {

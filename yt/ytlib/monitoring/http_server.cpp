@@ -1,17 +1,17 @@
-#include "stdafx.h"
 #include "http_server.h"
 
-#include <core/misc/id_generator.h>
+#include <yt/core/actions/bind.h>
+#include <yt/core/actions/future.h>
 
-#include <core/actions/bind.h>
-#include <core/actions/future.h>
+#include <yt/core/logging/log.h>
 
-#include <core/logging/log.h>
+#include <yt/core/misc/common.h>
+#include <yt/core/misc/id_generator.h>
 
-#include <core/profiling/profiler.h>
+#include <yt/core/profiling/profiler.h>
 
-#include <library/http/server/http.h>
 #include <library/http/misc/parsed_request.h>
+#include <library/http/server/http.h>
 
 namespace NYT {
 namespace NHttp {

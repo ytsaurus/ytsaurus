@@ -1,8 +1,9 @@
-#include "stdafx.h"
 #include "rpc_helpers.h"
 #include "mutation_context.h"
 
-#include <core/rpc/service.h>
+#include <yt/core/misc/common.h>
+
+#include <yt/core/rpc/service.h>
 
 namespace NYT {
 namespace NHydra {

@@ -1,7 +1,7 @@
-#include "stdafx.h"
 #include "framework.h"
 
-#include <core/misc/skip_list.h>
+#include <yt/core/misc/common.h>
+#include <yt/core/misc/skip_list.h>
 
 namespace NYT {
 namespace {

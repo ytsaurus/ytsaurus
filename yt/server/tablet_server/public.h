@@ -1,11 +1,11 @@
 #pragma once
 
-#include <core/misc/public.h>
-#include <core/misc/enum.h>
+#include <yt/ytlib/hydra/public.h>
 
-#include <ytlib/hydra/public.h>
+#include <yt/ytlib/tablet_client/public.h>
 
-#include <ytlib/tablet_client/public.h>
+#include <yt/core/misc/enum.h>
+#include <yt/core/misc/public.h>
 
 namespace NYT {
 namespace NTabletServer {

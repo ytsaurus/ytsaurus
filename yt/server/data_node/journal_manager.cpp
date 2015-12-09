@@ -1,31 +1,31 @@
-#include "stdafx.h"
 #include "journal_manager.h"
-#include "journal_dispatcher.h"
 #include "private.h"
-#include "config.h"
-#include "location.h"
 #include "chunk_store.h"
+#include "config.h"
 #include "journal_chunk.h"
+#include "journal_dispatcher.h"
+#include "location.h"
 
-#include <core/misc/enum.h>
-#include <core/misc/fs.h>
+#include <yt/server/cell_node/bootstrap.h>
 
-#include <core/concurrency/thread_affinity.h>
-#include <core/concurrency/parallel_awaiter.h>
-#include <core/concurrency/periodic_executor.h>
+#include <yt/server/hydra/changelog.h>
+#include <yt/server/hydra/file_changelog_dispatcher.h>
+#include <yt/server/hydra/file_helpers.h>
+#include <yt/server/hydra/lazy_changelog.h>
+#include <yt/server/hydra/private.h>
 
-#include <core/profiling/timing.h>
+#include <yt/ytlib/hydra/hydra_manager.pb.h>
+#include <yt/ytlib/hydra/version.h>
 
-#include <ytlib/hydra/hydra_manager.pb.h>
-#include <ytlib/hydra/version.h>
+#include <yt/core/concurrency/parallel_awaiter.h>
+#include <yt/core/concurrency/periodic_executor.h>
+#include <yt/core/concurrency/thread_affinity.h>
 
-#include <server/hydra/changelog.h>
-#include <server/hydra/file_changelog_dispatcher.h>
-#include <server/hydra/lazy_changelog.h>
-#include <server/hydra/file_helpers.h>
-#include <server/hydra/private.h>
+#include <yt/core/misc/common.h>
+#include <yt/core/misc/enum.h>
+#include <yt/core/misc/fs.h>
 
-#include <server/cell_node/bootstrap.h>
+#include <yt/core/profiling/timing.h>
 
 namespace NYT {
 namespace NDataNode {
@@ -879,7 +879,7 @@ public:
 
     TFuture<IChangelogPtr> OpenChangelog(const TChunkId& chunkId)
     {
-        return DisableLocationOnError(BIND(&TImpl::DoOpenChangelog, MakeStrong(this), chunkId), chunkId)
+        return Location_->DisableOnError(BIND(&TImpl::DoOpenChangelog, MakeStrong(this), chunkId))
             .AsyncVia(SplitChangelogDispatcher_->GetInvoker())
             .Run();
     }
@@ -888,7 +888,7 @@ public:
         const TChunkId& chunkId,
         bool enableMultiplexing)
     {
-        auto creator = DisableLocationOnError(BIND(&TImpl::DoCreateChangelog, MakeStrong(this), chunkId), chunkId)
+        auto creator = Location_->DisableOnError(BIND(&TImpl::DoCreateChangelog, MakeStrong(this), chunkId))
             .AsyncVia(SplitChangelogDispatcher_->GetInvoker());
         if (enableMultiplexing) {
             auto barrier = MultiplexedWriter_->RegisterBarrier();
@@ -907,7 +907,7 @@ public:
         TJournalChunkPtr chunk,
         bool enableMultiplexing)
     {
-        auto remover = DisableLocationOnError(BIND(&TImpl::DoRemoveChangelog, MakeStrong(this), chunk), chunk->GetId())
+        auto remover = Location_->DisableOnError(BIND(&TImpl::DoRemoveChangelog, MakeStrong(this), chunk))
             .AsyncVia(SplitChangelogDispatcher_->GetInvoker());
         if (enableMultiplexing) {
             auto barrier = MultiplexedWriter_->RegisterBarrier();
@@ -938,14 +938,14 @@ public:
 
     TFuture<bool> IsChangelogSealed(const TChunkId& chunkId)
     {
-        return DisableLocationOnError(BIND(&TImpl::DoIsChangelogSealed, MakeStrong(this), chunkId), chunkId)
+        return Location_->DisableOnError(BIND(&TImpl::DoIsChangelogSealed, MakeStrong(this), chunkId))
             .AsyncVia(SplitChangelogDispatcher_->GetInvoker())
             .Run();
     }
 
     TFuture<void> SealChangelog(TJournalChunkPtr chunk)
     {
-        return DisableLocationOnError(BIND(&TImpl::DoSealChangelog, MakeStrong(this), chunk), chunk->GetId())
+        return Location_->DisableOnError(BIND(&TImpl::DoSealChangelog, MakeStrong(this), chunk))
             .AsyncVia(SplitChangelogDispatcher_->GetInvoker())
             .Run();
     }
@@ -962,24 +962,6 @@ private:
 
     NLogging::TLogger Logger;
 
-
-    template <class T>
-    TCallback<T()> DisableLocationOnError(TCallback<T()> callback, const TChunkId& chunkId)
-    {
-        return BIND([=] () -> T {
-            try {
-                return callback.Run();
-            } catch (const std::exception& ex) {
-                auto error = TError(
-                    NChunkClient::EErrorCode::IOError,
-                    "Error accessing journal chunk %v",
-                    chunkId)
-                    << ex;
-                Location_->Disable(error);
-                YUNREACHABLE(); // Disable() exits the process.
-            }
-        });
-    }
 
     IChangelogPtr DoCreateChangelog(const TChunkId& chunkId)
     {

@@ -1,62 +1,62 @@
-#include "stdafx.h"
 #include "tablet_manager.h"
-#include "tablet_slot.h"
+#include "private.h"
 #include "automaton.h"
-#include "tablet.h"
+#include "chunk_store.h"
+#include "config.h"
+#include "dynamic_memory_store.h"
+#include "in_memory_manager.h"
+#include "lookup.h"
 #include "partition.h"
+#include "security_manager.h"
+#include "slot_manager.h"
+#include "store_flusher.h"
+#include "store_manager.h"
+#include "tablet.h"
+#include "tablet_slot.h"
 #include "transaction.h"
 #include "transaction_manager.h"
-#include "config.h"
-#include "store_manager.h"
-#include "slot_manager.h"
-#include "dynamic_memory_store.h"
-#include "chunk_store.h"
-#include "store_flusher.h"
-#include "lookup.h"
-#include "private.h"
-#include "security_manager.h"
-#include "in_memory_manager.h"
 
-#include <core/misc/ring_queue.h>
-#include <core/misc/string.h>
-#include <core/misc/nullable.h>
+#include <yt/server/cell_node/bootstrap.h>
 
-#include <core/ytree/fluent.h>
+#include <yt/server/data_node/chunk_block_manager.h>
 
-#include <core/compression/codec.h>
+#include <yt/server/hive/hive_manager.h>
+#include <yt/server/hive/transaction_supervisor.pb.h>
 
-#include <ytlib/table_client/name_table.h>
-#include <ytlib/table_client/chunk_meta_extensions.h>
+#include <yt/server/hydra/hydra_manager.h>
+#include <yt/server/hydra/mutation.h>
+#include <yt/server/hydra/mutation_context.h>
 
-#include <ytlib/tablet_client/config.h>
-#include <ytlib/tablet_client/wire_protocol.h>
-#include <ytlib/tablet_client/wire_protocol.pb.h>
+#include <yt/server/misc/memory_usage_tracker.h>
 
-#include <ytlib/chunk_client/block_cache.h>
-#include <ytlib/chunk_client/chunk_meta_extensions.h>
+#include <yt/server/tablet_node/tablet_manager.pb.h>
+#include <yt/server/tablet_node/transaction_manager.h>
 
-#include <ytlib/object_client/helpers.h>
+#include <yt/server/tablet_server/tablet_manager.pb.h>
 
-#include <ytlib/transaction_client/helpers.h>
-#include <ytlib/transaction_client/timestamp_provider.h>
+#include <yt/ytlib/chunk_client/block_cache.h>
+#include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 
-#include <server/misc/memory_usage_tracker.h>
+#include <yt/ytlib/object_client/helpers.h>
 
-#include <server/hydra/hydra_manager.h>
-#include <server/hydra/mutation.h>
-#include <server/hydra/mutation_context.h>
+#include <yt/ytlib/table_client/chunk_meta_extensions.h>
+#include <yt/ytlib/table_client/name_table.h>
 
-#include <server/tablet_node/transaction_manager.h>
-#include <server/tablet_node/tablet_manager.pb.h>
+#include <yt/ytlib/tablet_client/config.h>
+#include <yt/ytlib/tablet_client/wire_protocol.h>
+#include <yt/ytlib/tablet_client/wire_protocol.pb.h>
 
-#include <server/tablet_server/tablet_manager.pb.h>
+#include <yt/ytlib/transaction_client/helpers.h>
+#include <yt/ytlib/transaction_client/timestamp_provider.h>
 
-#include <server/hive/hive_manager.h>
-#include <server/hive/transaction_supervisor.pb.h>
+#include <yt/core/compression/codec.h>
 
-#include <server/data_node/block_store.h>
+#include <yt/core/misc/common.h>
+#include <yt/core/misc/nullable.h>
+#include <yt/core/misc/ring_queue.h>
+#include <yt/core/misc/string.h>
 
-#include <server/cell_node/bootstrap.h>
+#include <yt/core/ytree/fluent.h>
 
 namespace NYT {
 namespace NTabletNode {
@@ -198,6 +198,7 @@ public:
 
         auto* tablet = GetTabletOrThrow(tabletSnapshot->TabletId);
 
+        tablet->ValidateMountRevision(tabletSnapshot->MountRevision);
         ValidateTabletMounted(tablet);
         ValidateStoreLimit(tablet);
         ValidateMemoryLimit();
@@ -219,39 +220,6 @@ public:
     }
 
 
-    TChunkStorePtr CreateChunkStore(
-        const TStoreId& storeId,
-        TTablet* tablet,
-        const TChunkMeta* chunkMeta)
-    {
-        auto store = New<TChunkStore>(
-            storeId,
-            tablet,
-            chunkMeta,
-            Bootstrap_);
-        store->SetInMemoryMode(tablet->GetConfig()->InMemoryMode);
-        StartMemoryUsageTracking(store);
-        return store;
-    }
-
-    TDynamicMemoryStorePtr CreateDynamicMemoryStore(
-        const TStoreId& storeId,
-        TTablet* tablet)
-    {
-        auto store = New<TDynamicMemoryStore>(
-            Config_,
-            storeId,
-            tablet);
-        store->SubscribeRowBlocked(BIND(
-            &TImpl::OnRowBlocked,
-            MakeWeak(this),
-            Unretained(store.Get()),
-            tablet->GetTabletId(),
-            Slot_->GetGuardedAutomatonInvoker(EAutomatonThreadQueue::Read)));
-        StartMemoryUsageTracking(store);
-        return store;
-    }
-
     IStorePtr CreateStore(TTablet* tablet, const TStoreId& storeId)
     {
         switch (TypeFromId(storeId)) {
@@ -268,51 +236,6 @@ public:
     }
 
 
-    void OnRowBlocked(
-        IStore* store,
-        const TTabletId& tabletId,
-        IInvokerPtr invoker,
-        TDynamicRow row,
-        int lockIndex)
-    {
-        WaitFor(
-            BIND(
-                &TImpl::WaitOnBlockedRow,
-                MakeStrong(this),
-                MakeStrong(store),
-                tabletId,
-                row,
-                lockIndex)
-            .AsyncVia(invoker)
-            .Run());
-    }
-
-    void WaitOnBlockedRow(
-        IStorePtr /*store*/,
-        const TTabletId& tabletId,
-        TDynamicRow row,
-        int lockIndex)
-    {
-        auto* tablet = FindTablet(tabletId);
-        if (!tablet) {
-            return;
-        }
-
-        const auto& lock = row.BeginLocks(tablet->GetKeyColumnCount())[lockIndex];
-        const auto* transaction = lock.Transaction;
-        if (!transaction) {
-            return;
-        }
-
-        LOG_DEBUG("Waiting on blocked row (Key: %v, LockIndex: %v, TabletId: %v, TransactionId: %v)",
-            RowToKey(tablet->Schema(), tablet->KeyColumns(), row),
-            lockIndex,
-            tabletId,
-            transaction->GetId());
-
-        WaitFor(transaction->GetFinished().WithTimeout(BlockedRowWaitQuantum));
-    }
-
     void ScheduleStoreRotation(TTablet* tablet)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
@@ -326,6 +249,7 @@ public:
 
         TReqRotateStore request;
         ToProto(request.mutable_tablet_id(), tablet->GetTabletId());
+        request.set_mount_revision(tablet->GetMountRevision());
 
         CommitTabletMutation(request)
             .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<TMutationResponse>& error) {
@@ -478,7 +402,10 @@ private:
             auto* transaction = pair.second;
             int rowCount = 0;
             for (const auto& record : transaction->WriteLog()) {
-                auto* tablet = GetTablet(record.TabletId);
+                auto* tablet = FindTablet(record.TabletId);
+                // NB: Tablet could be missing if it was e.g. forcefully removed.
+                if (!tablet)
+                    continue;
                 TWireProtocolReader reader(record.Data);
                 while (!reader.IsFinished()) {
                     ExecuteSingleWriteAtomic(tablet, transaction, &reader, false);
@@ -560,8 +487,6 @@ private:
             auto* tablet = pair.second;
             StopTabletEpoch(tablet);
         }
-
-        OrphanedStores_.clear();
     }
 
 
@@ -587,6 +512,7 @@ private:
     void HydraMountTablet(const TReqMountTablet& request)
     {
         auto tabletId = FromProto<TTabletId>(request.tablet_id());
+        auto mountRevision = request.mount_revision();
         auto tableId = FromProto<TObjectId>(request.table_id());
         auto schema = FromProto<TTableSchema>(request.schema());
         auto keyColumns = FromProto<TKeyColumns>(request.key_columns());
@@ -600,6 +526,7 @@ private:
             mountConfig,
             writerOptions,
             tabletId,
+            mountRevision,
             tableId,
             Slot_,
             schema,
@@ -636,16 +563,16 @@ private:
 
         if (!chunkBoundaries.empty()) {
             std::sort(chunkBoundaries.begin(), chunkBoundaries.end());
-            std::vector<TOwningKey> pivots{pivotKey};
+            std::vector<TOwningKey> pivotKeys{pivotKey};
             int depth = 0;
             for (const auto& boundary : chunkBoundaries) {
                 if (std::get<1>(boundary) == -1 && depth == 0 && std::get<0>(boundary) > pivotKey) {
-                    pivots.push_back(std::get<0>(boundary));
+                    pivotKeys.push_back(std::get<0>(boundary));
                 }
                 depth -= std::get<1>(boundary);
             }
             YCHECK(tablet->Partitions().size() == 1);
-            tablet->SplitPartition(0, pivots);
+            SplitTabletPartition(tablet, 0, pivotKeys);
         }
 
         for (const auto& descriptor : request.chunk_stores()) {
@@ -672,9 +599,10 @@ private:
             StartTabletEpoch(tablet);
         }
 
-        LOG_INFO_UNLESS(IsRecovery(), "Tablet mounted (TabletId: %v, TableId: %v, Keys: %v .. %v, StoreCount: %v, "
-            "PartitionCount: %v, Atomicity: %v)",
+        LOG_INFO_UNLESS(IsRecovery(), "Tablet mounted (TabletId: %v, MountRevision: %x, TableId: %v, Keys: %v .. %v,"
+            "StoreCount: %v, PartitionCount: %v, Atomicity: %v)",
             tabletId,
+            mountRevision,
             tableId,
             pivotKey,
             nextPivotKey,
@@ -779,6 +707,11 @@ private:
             return;
         }
 
+        auto mountRevision = request.mount_revision();
+        if (mountRevision != tablet->GetMountRevision()) {
+            return;
+        }
+
         auto requestedState = ETabletState(request.state());
 
         switch (requestedState) {
@@ -852,13 +785,17 @@ private:
 
     void HydraLeaderExecuteWriteNonAtomic(
         const TTabletId& tabletId,
+        i64 mountRevision,
         const TTransactionId& transactionId,
         const TSharedRef& recordData)
     {
         auto* tablet = FindTablet(tabletId);
+        // NB: Tablet could be missing if it was e.g. forcefully removed.
         if (!tablet) {
             return;
         }
+
+        tablet->ValidateMountRevision(mountRevision);
 
         TWireProtocolReader reader(recordData);
         int rowCount = 0;
@@ -881,7 +818,16 @@ private:
         auto atomicity = AtomicityFromTransactionId(transactionId);
 
         auto tabletId = FromProto<TTabletId>(request.tablet_id());
-        auto* tablet = GetTablet(tabletId);
+        auto* tablet = FindTablet(tabletId);
+        // NB: Tablet could be missing if it was e.g. forcefully removed.
+        if (!tablet) {
+            return;
+        }
+
+        auto mountRevision = request.mount_revision();
+        if (mountRevision != tablet->GetMountRevision()) {
+            return;
+        }
 
         auto codecId = ECodec(request.codec());
         auto* codec = GetCodec(codecId);
@@ -929,7 +875,15 @@ private:
     {
         auto tabletId = FromProto<TTabletId>(request.tablet_id());
         auto* tablet = FindTablet(tabletId);
-        if (!tablet || tablet->GetState() != ETabletState::Mounted) {
+        if (!tablet) {
+            return;
+        }
+        if (tablet->GetState() != ETabletState::Mounted) {
+            return;
+        }
+
+        auto mountRevision = request.mount_revision();
+        if (mountRevision != tablet->GetMountRevision()) {
             return;
         }
 
@@ -943,6 +897,11 @@ private:
         auto tabletId = FromProto<TTabletId>(commitRequest.tablet_id());
         auto* tablet = FindTablet(tabletId);
         if (!tablet) {
+            return;
+        }
+
+        auto mountRevision = commitRequest.mount_revision();
+        if (mountRevision != tablet->GetMountRevision()) {
             return;
         }
 
@@ -971,6 +930,7 @@ private:
         {
             TReqUpdateTabletStores masterRequest;
             ToProto(masterRequest.mutable_tablet_id(), tabletId);
+            masterRequest.set_mount_revision(mountRevision);
             masterRequest.mutable_stores_to_add()->MergeFrom(commitRequest.stores_to_add());
             masterRequest.mutable_stores_to_remove()->MergeFrom(commitRequest.stores_to_remove());
 
@@ -993,6 +953,11 @@ private:
         auto tabletId = FromProto<TTabletId>(response.tablet_id());
         auto* tablet = FindTablet(tabletId);
         if (!tablet) {
+            return;
+        }
+
+        auto mountRevision = response.mount_revision();
+        if (mountRevision != tablet->GetMountRevision()) {
             return;
         }
 
@@ -1094,6 +1059,11 @@ private:
             return;
         }
 
+        auto mountRevision = request.mount_revision();
+        if (mountRevision != tablet->GetMountRevision()) {
+            return;
+        }
+
         auto partitionId = FromProto<TPartitionId>(request.partition_id());
         auto* partition = tablet->GetPartitionById(partitionId);
         auto pivotKeys = FromProto<TOwningKey>(request.pivot_keys());
@@ -1108,7 +1078,7 @@ private:
         int partitionIndex = partition->GetIndex();
         i64 partitionDataSize = partition->GetUncompressedDataSize();
 
-        tablet->SplitPartition(partitionIndex, pivotKeys);
+        SplitTabletPartition(tablet, partitionIndex, pivotKeys);
 
         auto resultingPartitionIds = JoinToString(ConvertToStrings(
             tablet->Partitions().begin() + partitionIndex,
@@ -1137,6 +1107,11 @@ private:
             return;
         }
 
+        auto mountRevision = request.mount_revision();
+        if (mountRevision != tablet->GetMountRevision()) {
+            return;
+        }
+
         auto firstPartitionId = FromProto<TPartitionId>(request.partition_id());
         auto* firstPartition = tablet->GetPartitionById(firstPartitionId);
 
@@ -1160,7 +1135,7 @@ private:
                 return ToString(partition->GetId());
             }));
 
-        tablet->MergePartitions(firstPartitionIndex, lastPartitionIndex);
+        MergeTabletPartitions(tablet, firstPartitionIndex, lastPartitionIndex);
 
         LOG_INFO_UNLESS(IsRecovery(), "Merging partitions (TabletId: %v, OriginalPartitionIds: [%v], ResultingPartitionId: %v, DataSize: %v)",
             tablet->GetTabletId(),
@@ -1178,6 +1153,11 @@ private:
         auto tabletId = FromProto<TTabletId>(request.tablet_id());
         auto* tablet = FindTablet(tabletId);
         if (!tablet) {
+            return;
+        }
+
+        auto mountRevision = request.mount_revision();
+        if (mountRevision != tablet->GetMountRevision()) {
             return;
         }
 
@@ -1342,7 +1322,6 @@ private:
         switch (command) {
             case EWireProtocolCommand::LookupRows:
                 LookupRows(
-                    Bootstrap_->GetBoundedConcurrencyReadPoolInvoker(),
                     std::move(tabletSnapshot),
                     timestamp,
                     reader,
@@ -1408,6 +1387,7 @@ private:
             TReqExecuteWrite hydraRequest;
             ToProto(hydraRequest.mutable_transaction_id(), transactionId);
             ToProto(hydraRequest.mutable_tablet_id(), tabletId);
+            hydraRequest.set_mount_revision(tablet->GetMountRevision());
             hydraRequest.set_codec(static_cast<int>(ChangelogCodec_->GetId()));
             hydraRequest.set_compressed_data(ToString(compressedRecordData));
             *commitResult = CreateMutation(Slot_->GetHydraManager(), hydraRequest)
@@ -1452,6 +1432,7 @@ private:
         TReqExecuteWrite hydraRequest;
         ToProto(hydraRequest.mutable_transaction_id(), transactionId);
         ToProto(hydraRequest.mutable_tablet_id(), tablet->GetTabletId());
+        hydraRequest.set_mount_revision(tablet->GetMountRevision());
         hydraRequest.set_codec(static_cast<int>(ChangelogCodec_->GetId()));
         hydraRequest.set_compressed_data(ToString(compressedRecordData));
         *commitResult = CreateMutation(Slot_->GetHydraManager(), hydraRequest)
@@ -1460,6 +1441,7 @@ private:
                     &TImpl::HydraLeaderExecuteWriteNonAtomic,
                     MakeStrong(this),
                     tablet->GetTabletId(),
+                    tablet->GetMountRevision(),
                     transactionId,
                     recordData))
             ->Commit()
@@ -1564,6 +1546,7 @@ private:
 
         TReqSetTabletState request;
         ToProto(request.mutable_tablet_id(), tablet->GetTabletId());
+        request.set_mount_revision(tablet->GetMountRevision());
         request.set_state(static_cast<int>(ETabletState::Flushing));
 
         CommitTabletMutation(request)
@@ -1591,6 +1574,7 @@ private:
 
         TReqSetTabletState request;
         ToProto(request.mutable_tablet_id(), tablet->GetTabletId());
+        request.set_mount_revision(tablet->GetMountRevision());
         request.set_state(static_cast<int>(ETabletState::Unmounted));
 
         CommitTabletMutation(request)
@@ -1639,28 +1623,58 @@ private:
 
     void StartTabletEpoch(TTablet* tablet)
     {
-        tablet->SetLastPartitioningTime(TInstant::Now());
-
         const auto& storeManager = tablet->GetStoreManager();
         storeManager->StartEpoch(Slot_);
 
         auto slotManager = Bootstrap_->GetTabletSlotManager();
         slotManager->RegisterTabletSnapshot(tablet);
+
+        for (const auto& pair : tablet->Stores()) {
+            const auto& store = pair.second;
+            if (store->GetType() == EStoreType::DynamicMemory) {
+                store->AsDynamicMemory()->SetRowBlockedHandler(BIND(
+                    &TImpl::OnRowBlocked,
+                    MakeWeak(this),
+                    Unretained(store.Get()),
+                    tablet->GetTabletId(),
+                    Slot_->GetEpochAutomatonInvoker(EAutomatonThreadQueue::Read)));
+            }
+        }
     }
 
     void StopTabletEpoch(TTablet* tablet)
     {
-        // TODO(babenko): consider moving
-        tablet->GetEden()->SetState(EPartitionState::Normal);
-        for (const auto& partition : tablet->Partitions()) {
-            partition->SetState(EPartitionState::Normal);
-        }
-
         const auto& storeManager = tablet->GetStoreManager();
         storeManager->StopEpoch();
 
         auto slotManager = Bootstrap_->GetTabletSlotManager();
         slotManager->UnregisterTabletSnapshot(tablet);
+
+        for (const auto& pair : tablet->Stores()) {
+            const auto& store = pair.second;
+            if (store->GetType() == EStoreType::DynamicMemory) {
+                store->AsDynamicMemory()->ResetRowBlockedHandler();
+            }
+        }
+    }
+
+
+    void SplitTabletPartition(TTablet* tablet, int partitionIndex, const std::vector<TOwningKey>& pivotKeys)
+    {
+        tablet->SplitPartition(partitionIndex, pivotKeys);
+        if (!IsRecovery()) {
+            for (int currentIndex = partitionIndex; currentIndex < partitionIndex + pivotKeys.size(); ++currentIndex) {
+                tablet->Partitions()[currentIndex]->StartEpoch();
+            }
+        }
+    }
+
+    void MergeTabletPartitions(TTablet* tablet, int firstIndex, int lastIndex)
+    {
+        tablet->MergePartitions(firstIndex, lastIndex);
+        if (!IsRecovery()) {
+            tablet->Partitions()[firstIndex]->StartEpoch();
+        }
     }
 
 
@@ -1715,6 +1729,7 @@ private:
                 .Item("sample_key_count").Value(partition->GetSampleKeys()->Keys.size())
                 .Item("sampling_time").Value(partition->GetSamplingTime())
                 .Item("sampling_request_time").Value(partition->GetSamplingRequestTime())
+                .Item("compaction_time").Value(partition->GetCompactionTime())
                 .Item("uncompressed_data_size").Value(partition->GetUncompressedDataSize())
                 .Item("unmerged_row_count").Value(partition->GetUnmergedRowCount())
                 .Item("stores").DoMapFor(partition->Stores(), [&] (TFluentMap fluent, const IStorePtr& store) {
@@ -1882,6 +1897,80 @@ private:
         auto adjustedTimestamp = std::max(timestamp, LastCommittedTimestamp_ + 1);
         UpdateLastCommittedTimestamp(adjustedTimestamp);
         return adjustedTimestamp;
+    }
+
+
+    void OnRowBlocked(
+        IStore* store,
+        const TTabletId& tabletId,
+        IInvokerPtr invoker,
+        TDynamicRow row,
+        int lockIndex)
+    {
+        WaitFor(
+            BIND(
+                &TImpl::WaitOnBlockedRow,
+                MakeStrong(this),
+                MakeStrong(store),
+                tabletId,
+                row,
+                lockIndex)
+            .AsyncVia(invoker)
+            .Run());
+    }
+
+    void WaitOnBlockedRow(
+        IStorePtr /*store*/,
+        const TTabletId& tabletId,
+        TDynamicRow row,
+        int lockIndex)
+    {
+        auto* tablet = FindTablet(tabletId);
+        if (!tablet) {
+            return;
+        }
+
+        const auto& lock = row.BeginLocks(tablet->GetKeyColumnCount())[lockIndex];
+        const auto* transaction = lock.Transaction;
+        if (!transaction) {
+            return;
+        }
+
+        LOG_DEBUG("Waiting on blocked row (Key: %v, LockIndex: %v, TabletId: %v, TransactionId: %v)",
+            RowToKey(tablet->Schema(), tablet->KeyColumns(), row),
+            lockIndex,
+            tabletId,
+            transaction->GetId());
+
+        WaitFor(transaction->GetFinished().WithTimeout(BlockedRowWaitQuantum));
+    }
+
+
+    TChunkStorePtr CreateChunkStore(
+        const TStoreId& storeId,
+        TTablet* tablet,
+        const TChunkMeta* chunkMeta)
+    {
+        auto store = New<TChunkStore>(
+            storeId,
+            tablet,
+            chunkMeta,
+            Bootstrap_);
+        store->SetInMemoryMode(tablet->GetConfig()->InMemoryMode);
+        StartMemoryUsageTracking(store);
+        return store;
+    }
+
+    TDynamicMemoryStorePtr CreateDynamicMemoryStore(
+        const TStoreId& storeId,
+        TTablet* tablet)
+    {
+        auto store = New<TDynamicMemoryStore>(
+            Config_,
+            storeId,
+            tablet);
+        StartMemoryUsageTracking(store);
+        return store;
     }
 
 };

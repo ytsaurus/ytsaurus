@@ -1,7 +1,9 @@
 import pytest
 
-from yt_env_setup import YTEnvSetup
+from yt_env_setup import YTEnvSetup, unix_only
 from yt_commands import *
+
+from yt.environment.helpers import assert_items_equal
 
 
 ##################################################################
@@ -156,19 +158,19 @@ class TestAcls(YTEnvSetup):
         # just a sanity check
         map(in_="//tmp/t1", out="//tmp/t2", command="cat", user="u")
 
-    @only_linux
+    @unix_only
     def test_scheduler_in_acl(self):
         self._prepare_scheduler_test()
         set("//tmp/t1/@acl/end", self._make_ace("deny", "u", "read"))
         with pytest.raises(YtError): map(in_="//tmp/t1", out="//tmp/t2", command="cat", user="u")
 
-    @only_linux
+    @unix_only
     def test_scheduler_out_acl(self):
         self._prepare_scheduler_test()
         set("//tmp/t2/@acl/end", self._make_ace("deny", "u", "write"))
         with pytest.raises(YtError): map(in_="//tmp/t1", out="//tmp/t2", command="cat", user="u")
 
-    @only_linux
+    @unix_only
     def test_scheduler_account_quota(self):
         self._prepare_scheduler_test()
         set("//tmp/t2/@account", "a")
@@ -193,7 +195,7 @@ class TestAcls(YTEnvSetup):
 
         set("//tmp/p/@acl/end", self._make_ace("allow", "u", ["read", "write"]))
         set("//tmp/p/a", "b", user="u")
-        self.assertItemsEqual(ls("//tmp/p", user="u"), ["a"])
+        assert_items_equal(ls("//tmp/p", user="u"), ["a"])
         assert get("//tmp/p/a", user="u") == "b"
 
     def test_create_in_tx1(self):
@@ -481,7 +483,7 @@ class TestAcls(YTEnvSetup):
         RWRAC = RWRA + ["create"]
 
         def check(path, permissions):
-            self.assertItemsEqual(get(path + "/@supported_permissions"), permissions)
+            assert_items_equal(get(path + "/@supported_permissions"), permissions)
 
         # cypress node
         check("//tmp", RWRA)

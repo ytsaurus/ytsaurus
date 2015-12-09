@@ -3,15 +3,15 @@
 #include "private.h"
 #include "tcp_dispatcher.h"
 
-#include <core/misc/error.h>
-#include <core/misc/address.h>
+#include <yt/core/concurrency/ev_scheduler_thread.h>
+#include <yt/core/concurrency/event_count.h>
 
-#include <core/concurrency/ev_scheduler_thread.h>
-#include <core/concurrency/event_count.h>
+#include <yt/core/misc/address.h>
+#include <yt/core/misc/error.h>
 
 #include <util/thread/lfqueue.h>
 
-#include <contrib/libev/ev++.h>
+#include <yt/contrib/libev/ev++.h>
 
 #include <atomic>
 
@@ -49,7 +49,7 @@ public:
     TFuture<void> AsyncRegister(IEventLoopObjectPtr object);
     TFuture<void> AsyncUnregister(IEventLoopObjectPtr object);
 
-    TTcpDispatcherStatistics& Statistics(ETcpInterfaceType interfaceType);
+    TTcpDispatcherStatistics* GetStatistics(ETcpInterfaceType interfaceType);
 
 private:
     friend class TTcpDispatcherInvokerQueue;
@@ -75,7 +75,6 @@ public:
     void Shutdown();
 
     TTcpDispatcherStatistics GetStatistics(ETcpInterfaceType interfaceType) const;
-    TTcpProfilingData* GetProfilingData(ETcpInterfaceType interfaceType);
 
     TTcpDispatcherThreadPtr GetServerThread();
     TTcpDispatcherThreadPtr GetClientThread();
@@ -84,13 +83,15 @@ private:
     friend TTcpDispatcher;
 
     TImpl();
+    void OnProfiling();
+
 
     TTcpDispatcherThreadPtr ServerThread_;
 
     std::vector<TTcpDispatcherThreadPtr> ClientThreads_;
     std::atomic<size_t> CurrentClientThreadIndex_ = {0};
 
-    TEnumIndexedVector<TTcpProfilingData, ETcpInterfaceType> ProfilingData_;
+    NConcurrency::TPeriodicExecutorPtr ProfilingExecutor_;
 
 };
 

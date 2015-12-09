@@ -3,8 +3,9 @@
 #include "public.h"
 #include "config.h"
 
-#include <ytlib/formats/parser.h>
-#include <core/yson/consumer.h>
+#include <yt/ytlib/formats/parser.h>
+
+#include <yt/core/yson/consumer.h>
 
 namespace NYT {
 namespace NFormats {
@@ -20,7 +21,7 @@ class TJsonParser
 public:
     TJsonParser(
         NYson::IYsonConsumer* consumer,
-        TJsonFormatConfigPtr config = NULL,
+        TJsonFormatConfigPtr config = nullptr,
         NYson::EYsonType type = NYson::EYsonType::Node);
 
     virtual void Read(const TStringBuf& data);
@@ -38,7 +39,7 @@ private:
 void ParseJson(
     TInputStream* input,
     NYson::IYsonConsumer* consumer,
-    TJsonFormatConfigPtr config = NULL,
+    TJsonFormatConfigPtr config = nullptr,
     NYson::EYsonType type = NYson::EYsonType::Node);
 
 ////////////////////////////////////////////////////////////////////////////////

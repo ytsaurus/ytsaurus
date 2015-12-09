@@ -2,7 +2,9 @@
 
 #include "public.h"
 
-#include <core/yson/public.h>
+#include <yt/core/actions/public.h>
+
+#include <yt/core/yson/public.h>
 
 #include <vector>
 
@@ -70,8 +72,8 @@ protected:
     void DoRemove() const;
 
     void Traverse(
-        const TCallback<void(const TNonOwningCGroup&)> preorderAction,
-        const TCallback<void(const TNonOwningCGroup&)> postorderAction) const;
+        const TCallback<void(const TNonOwningCGroup&)>& preorderAction,
+        const TCallback<void(const TNonOwningCGroup&)>& postorderAction) const;
 
     Stroka GetPath(const Stroka& filename) const;
 
@@ -165,6 +167,7 @@ public:
     std::vector<TStatisticsItem> GetIOServiced() const;
 
     void ThrottleOperations(const Stroka& deviceId, i64 operations) const;
+    void SetWeight(int weight);
 
 private:
     std::vector<TBlockIO::TStatisticsItem> GetDetailedStatistics(const char* filename) const;

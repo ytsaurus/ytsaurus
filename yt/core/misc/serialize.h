@@ -1,18 +1,18 @@
 #pragma once
 
 #include "public.h"
-#include "guid.h"
-#include "ref.h"
 #include "assert.h"
-#include "mpl.h"
-#include "property.h"
-#include "nullable.h"
 #include "enum.h"
+#include "guid.h"
+#include "mpl.h"
+#include "nullable.h"
+#include "property.h"
+#include "ref.h"
 #include "serialize_dump.h"
 
+#include <util/stream/file.h>
 #include <util/stream/input.h>
 #include <util/stream/output.h>
-#include <util/stream/file.h>
 
 #include <contrib/libs/protobuf/message.h>
 #include <contrib/libs/protobuf/repeated_field.h>

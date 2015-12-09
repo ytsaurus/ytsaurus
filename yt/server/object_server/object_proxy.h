@@ -2,9 +2,9 @@
 
 #include "public.h"
 
-#include <core/ytree/ypath_service.h>
-#include <core/ytree/attribute_owner.h>
-#include <core/ytree/system_attribute_provider.h>
+#include <yt/core/ytree/attribute_owner.h>
+#include <yt/core/ytree/system_attribute_provider.h>
+#include <yt/core/ytree/ypath_service.h>
 
 namespace NYT {
 namespace NObjectServer {

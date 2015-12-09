@@ -1,14 +1,12 @@
-#include "stdafx.h"
-
 #include "schemaful_writer_adapter.h"
-
 #include "name_table.h"
 #include "schema.h"
 #include "schemaful_writer.h"
-#include "schemaless_writer.h"
 #include "schemaless_row_reorderer.h"
+#include "schemaless_writer.h"
 
-#include <core/misc/chunked_memory_pool.h>
+#include <yt/core/misc/chunked_memory_pool.h>
+#include <yt/core/misc/common.h>
 
 namespace NYT {
 namespace NTableClient {

@@ -1,7 +1,7 @@
-#include "stdafx.h"
 #include "attribute_helpers.h"
 
-#include <core/misc/error.h>
+#include <yt/core/misc/common.h>
+#include <yt/core/misc/error.h>
 
 namespace NYT {
 namespace NYTree {
@@ -114,9 +114,10 @@ const IAttributeDictionary& EmptyAttributes()
 
 void Serialize(const IAttributeDictionary& attributes, IYsonConsumer* consumer)
 {
-    auto list = attributes.List();
+    auto keys = attributes.List();
+    std::sort(keys.begin(), keys.end());
     consumer->OnBeginMap();
-    for (const auto& key : list) {
+    for (const auto& key : keys) {
         consumer->OnKeyedItem(key);
         auto yson = attributes.GetYson(key);
         consumer->OnRaw(yson.Data(), yson.GetType());
@@ -127,7 +128,9 @@ void Serialize(const IAttributeDictionary& attributes, IYsonConsumer* consumer)
 void ToProto(NProto::TAttributes* protoAttributes, const IAttributeDictionary& attributes)
 {
     protoAttributes->Clear();
-    for (const auto& key : attributes.List()) {
+    auto keys = attributes.List();
+    std::sort(keys.begin(), keys.end());
+    for (const auto& key : keys) {
         auto value = attributes.GetYson(key);
         auto protoAttribute = protoAttributes->add_attributes();
         protoAttribute->set_key(key);
@@ -152,6 +155,7 @@ void TAttributeDictionaryValueSerializer::Save(TStreamSaveContext& context, cons
 {
     using NYT::Save;
     auto keys = obj.List();
+    std::sort(keys.begin(), keys.end());
     TSizeSerializer::Save(context, keys.size());
     for (const auto& key : keys) {
         Save(context, key);

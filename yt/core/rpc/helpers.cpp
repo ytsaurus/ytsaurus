@@ -1,9 +1,10 @@
-#include "stdafx.h"
 #include "helpers.h"
 #include "channel_detail.h"
 #include "service.h"
 
-#include <core/ytree/attribute_helpers.h>
+#include <yt/core/misc/common.h>
+
+#include <yt/core/ytree/attribute_helpers.h>
 
 namespace NYT {
 namespace NRpc {

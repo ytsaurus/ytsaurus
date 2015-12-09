@@ -1,10 +1,11 @@
-#include "stdafx.h"
-#include "parser.h"
 #include "yson_parser.h"
+#include "parser.h"
 
-#include <ytlib/table_client/public.h>
+#include <yt/ytlib/table_client/public.h>
 
-#include <core/yson/parser.h>
+#include <yt/core/misc/common.h>
+
+#include <yt/core/yson/parser.h>
 
 namespace NYT {
 namespace NFormats {

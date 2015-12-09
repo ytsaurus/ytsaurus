@@ -1,35 +1,35 @@
-﻿#include "stdafx.h"
+#include "remote_copy_job.h"
 #include "private.h"
-#include "job_detail.h"
 #include "config.h"
+#include "job_detail.h"
 
-#include <ytlib/api/connection.h>
+#include <yt/ytlib/api/client.h>
+#include <yt/ytlib/api/config.h>
+#include <yt/ytlib/api/connection.h>
 
-#include <ytlib/chunk_client/chunk_writer.h>
-#include <ytlib/chunk_client/chunk_reader.h>
-#include <ytlib/chunk_client/helpers.h>
-#include <ytlib/chunk_client/replication_reader.h>
-#include <ytlib/chunk_client/erasure_reader.h>
-#include <ytlib/chunk_client/replication_writer.h>
-#include <ytlib/chunk_client/erasure_writer.h>
-#include <ytlib/chunk_client/client_block_cache.h>
-#include <ytlib/chunk_client/chunk_meta_extensions.h>
-#include <ytlib/chunk_client/chunk_list_ypath_proxy.h>
-#include <ytlib/chunk_client/chunk_ypath_proxy.h>
-#include <ytlib/chunk_client/data_statistics.h>
+#include <yt/ytlib/chunk_client/chunk_list_ypath_proxy.h>
+#include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
+#include <yt/ytlib/chunk_client/chunk_reader.h>
+#include <yt/ytlib/chunk_client/chunk_writer.h>
+#include <yt/ytlib/chunk_client/chunk_ypath_proxy.h>
+#include <yt/ytlib/chunk_client/client_block_cache.h>
+#include <yt/ytlib/chunk_client/data_statistics.h>
+#include <yt/ytlib/chunk_client/erasure_reader.h>
+#include <yt/ytlib/chunk_client/erasure_writer.h>
+#include <yt/ytlib/chunk_client/helpers.h>
+#include <yt/ytlib/chunk_client/replication_reader.h>
+#include <yt/ytlib/chunk_client/replication_writer.h>
 
-#include <ytlib/object_client/object_service_proxy.h>
-#include <ytlib/object_client/helpers.h>
+#include <yt/ytlib/node_tracker_client/node_directory.h>
 
-#include <ytlib/node_tracker_client/node_directory.h>
+#include <yt/ytlib/object_client/helpers.h>
+#include <yt/ytlib/object_client/object_service_proxy.h>
 
-#include <ytlib/table_client/chunk_meta_extensions.h>
+#include <yt/ytlib/table_client/chunk_meta_extensions.h>
 
-#include <ytlib/api/connection.h>
-#include <ytlib/api/client.h>
-#include <ytlib/api/config.h>
+#include <yt/core/erasure/codec.h>
 
-#include <core/erasure/codec.h>
+#include <yt/core/misc/common.h>
 
 namespace NYT {
 namespace NJobProxy {

@@ -1,9 +1,10 @@
-#include "stdafx.h"
 #include "schemaful_dsv_parser.h"
-#include "schemaful_dsv_table.h"
 #include "parser.h"
+#include "schemaful_dsv_table.h"
 
-#include <ytlib/table_client/public.h>
+#include <yt/ytlib/table_client/public.h>
+
+#include <yt/core/misc/common.h>
 
 namespace NYT {
 namespace NFormats {
@@ -67,7 +68,7 @@ void TSchemafulDsvParser::Read(const TStringBuf& data)
 const char* TSchemafulDsvParser::Consume(const char* begin, const char* end)
 {
     // Process escaping symbols.
-    if (!ExpectingEscapedChar_ && *begin == Config_->EscapingSymbol) {
+    if (Config_->EnableEscaping && !ExpectingEscapedChar_ && *begin == Config_->EscapingSymbol) {
         ExpectingEscapedChar_ = true;
         return begin + 1;
     }

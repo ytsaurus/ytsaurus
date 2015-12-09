@@ -1,20 +1,20 @@
-#include "stdafx.h"
 #include "tcp_client.h"
 #include "private.h"
-#include "client.h"
 #include "bus.h"
+#include "client.h"
 #include "config.h"
 #include "tcp_connection.h"
 
-#include <core/misc/error.h>
-#include <core/misc/address.h>
+#include <yt/core/concurrency/thread_affinity.h>
 
-#include <core/concurrency/thread_affinity.h>
+#include <yt/core/misc/address.h>
+#include <yt/core/misc/common.h>
+#include <yt/core/misc/error.h>
 
-#include <core/rpc/public.h>
+#include <yt/core/rpc/public.h>
 
-#include <core/ytree/convert.h>
-#include <core/ytree/fluent.h>
+#include <yt/core/ytree/convert.h>
+#include <yt/core/ytree/fluent.h>
 
 #include <errno.h>
 

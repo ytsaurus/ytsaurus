@@ -1,9 +1,13 @@
-#include "stdafx.h"
 #include "schemaful_dsv_writer.h"
 
-#include <core/misc/error.h>
+#include <yt/ytlib/table_client/name_table.h>
 
-#include <core/yson/format.h>
+#include <yt/core/misc/common.h>
+#include <yt/core/misc/error.h>
+
+#include <yt/core/yson/format.h>
+
+#include <limits>
 
 namespace NYT {
 namespace NFormats {
@@ -14,286 +18,41 @@ using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSchemafulDsvConsumer::TSchemafulDsvConsumer(
-    TOutputStream* stream,
-    TSchemafulDsvFormatConfigPtr config)
-    : Stream_(stream)
-    , Config_(config)
-    , Table_(Config_)
-{
-    const auto& columns = Config_->GetColumnsOrThrow();
-    Keys_.insert(columns.begin(), columns.end());
-
-    // Initialize Values_ with alive keys.
-    for (const auto& key: Keys_) {
-        Values_[key] = TStringBuf();
-    }
-}
-
-void TSchemafulDsvConsumer::OnUint64Scalar(ui64 value)
-{
-    if (State_ == EState::None) {
-        return;
-    }
-
-    if (State_ == EState::ExpectValue) {
-        ValueHolder_.push_back(::ToString(value));
-        Values_[CurrentKey_] = ValueHolder_.back();
-        State_ = EState::None;
-        ValueCount_ += 1;
-    } else {
-        YCHECK(State_ == EState::None);
-    }
-}
-
-void TSchemafulDsvConsumer::OnDoubleScalar(double value)
-{
-    if (State_ == EState::None) {
-        return;
-    }
-
-    if (State_ == EState::ExpectValue) {
-        ValueHolder_.push_back(::ToString(value));
-        Values_[CurrentKey_] = ValueHolder_.back();
-        State_ = EState::None;
-        ValueCount_ += 1;
-    } else {
-        YCHECK(State_ == EState::None);
-    }
-}
-
-void TSchemafulDsvConsumer::OnBooleanScalar(bool value)
-{
-    if (State_ == EState::None) {
-        return;
-    }
-
-    if (State_ == EState::ExpectValue) {
-        ValueHolder_.push_back(Stroka(FormatBool(value)));
-        Values_[CurrentKey_] = ValueHolder_.back();
-        State_ = EState::None;
-        ValueCount_ += 1;
-    } else {
-        YCHECK(State_ == EState::None);
-    }
-}
-
-void TSchemafulDsvConsumer::OnBeginList()
-{
-    THROW_ERROR_EXCEPTION("Lists are not supported by schemaful DSV");
-}
-
-void TSchemafulDsvConsumer::OnListItem()
-{
-    YASSERT(State_ == EState::None);
-}
-
-void TSchemafulDsvConsumer::OnEndList()
-{
-    YUNREACHABLE();
-}
-
-void TSchemafulDsvConsumer::OnBeginAttributes()
-{
-    if (State_ == EState::ExpectValue) {
-        THROW_ERROR_EXCEPTION("Attributes are not supported by schemaful DSV");
-    }
-
-    YASSERT(State_ == EState::None);
-    State_ = EState::ExpectAttributeName;
-}
-
-void TSchemafulDsvConsumer::OnEndAttributes()
-{
-    YASSERT(State_ == EState::ExpectEndAttributes);
-    State_ = EState::ExpectEntity;
-}
-
-void TSchemafulDsvConsumer::OnBeginMap()
-{
-    if (State_ == EState::ExpectValue) {
-        THROW_ERROR_EXCEPTION("Embedded maps are not supported by schemaful DSV");
-    }
-    YASSERT(State_ == EState::None);
-}
-
-void TSchemafulDsvConsumer::OnEntity()
-{
-    YASSERT(State_ == EState::ExpectEntity || State_ == EState::ExpectValue || State_ == EState::None);
-    State_ = EState::None;
-}
-
-void TSchemafulDsvConsumer::OnInt64Scalar(i64 value)
-{
-    if (State_ == EState::None) {
-        return;
-    }
-
-    if (State_ == EState::ExpectValue) {
-        ValueHolder_.push_back(::ToString(value));
-        Values_[CurrentKey_] = ValueHolder_.back();
-        State_ = EState::None;
-        ValueCount_ += 1;
-        return;
-    }
-
-    YASSERT(State_ == EState::ExpectAttributeValue);
-
-    switch (ControlAttribute_) {
-    case EControlAttribute::TableIndex:
-        TableIndex_ = value;
-        break;
-
-    default:
-        YUNREACHABLE();
-    }
-
-    State_ = EState::ExpectEndAttributes;
-}
-
-void TSchemafulDsvConsumer::OnStringScalar(const TStringBuf& value)
-{
-    if (State_ == EState::ExpectValue) {
-        Values_[CurrentKey_] = value;
-        State_ = EState::None;
-        ValueCount_ += 1;
-    } else {
-        YCHECK(State_ == EState::None);
-    }
-}
-
-void TSchemafulDsvConsumer::OnKeyedItem(const TStringBuf& key)
-{
-    if (State_ ==  EState::ExpectAttributeName) {
-        ControlAttribute_ = ParseEnum<EControlAttribute>(ToString(key));
-        State_ = EState::ExpectAttributeValue;
-    } else {
-        YASSERT(State_ == EState::None);
-        if (Keys_.find(key) != Keys_.end()) {
-            CurrentKey_ = key;
-            State_ = EState::ExpectValue;
-        }
-    }
-}
-
-void TSchemafulDsvConsumer::OnEndMap()
-{
-    YASSERT(State_ == EState::None);
-
-    WriteRow();
-}
-
-void TSchemafulDsvConsumer::WriteRow()
-{
-    if (ValueCount_ != Keys_.size() && Config_->MissingValueMode == EMissingSchemafulDsvValueMode::Fail) {
-        THROW_ERROR_EXCEPTION("Some column is missing in row");
-    }
-
-    if (ValueCount_ == Keys_.size() || Config_->MissingValueMode == EMissingSchemafulDsvValueMode::PrintSentinel) {
-        if (Config_->EnableTableIndex) {
-            Stream_->Write(ToString(TableIndex_));
-            Stream_->Write(Config_->FieldSeparator);
-        }
-        for (int i = 0; i < Keys_.size(); ++i) {
-            auto key = (*Config_->Columns)[i];
-            TStringBuf value = Values_[key];
-            if (!value.IsInited()) {
-                value = Config_->MissingValueSentinel;
-            }
-            EscapeAndWrite(value);
-            Stream_->Write(
-                i + 1 < Keys_.size()
-                ? Config_->FieldSeparator
-                : Config_->RecordSeparator);
-        }
-    }
-
-    // Clear row
-    ValueCount_ = 0;
-    ValueHolder_.clear();
-    if (Config_->MissingValueMode == EMissingSchemafulDsvValueMode::PrintSentinel) {
-        for (const auto& key: Keys_) {
-            Values_[key] = TStringBuf();
-        }
-    }
-}
-
-void TSchemafulDsvConsumer::EscapeAndWrite(const TStringBuf& value) const
-{
-    if (Config_->EnableEscaping) {
-        WriteEscaped(
-            Stream_,
-            value,
-            Table_.Stops,
-            Table_.Escapes,
-            Config_->EscapingSymbol);
-    } else {
-        Stream_->Write(value);
-    }
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TSchemafulDsvWriter::TSchemafulDsvWriter(
-    IAsyncOutputStreamPtr stream,
-    std::vector<int> columnIdMapping,
-    TSchemafulDsvFormatConfigPtr config)
-    : Stream_(stream)
-    , ColumnIdMapping_(std::move(columnIdMapping))
-    , Config_(config)
+TSchemafulDsvWriterBase::TSchemafulDsvWriterBase(
+        TSchemafulDsvFormatConfigPtr config)
+    : Config_(config)
+    , Table_(config)
 { }
 
-TFuture<void> TSchemafulDsvWriter::Close()
-{
-    return VoidFuture;
-}
-
-bool TSchemafulDsvWriter::Write(const std::vector<TUnversionedRow>& rows)
-{
-    // TODO(babenko): handle escaping properly
-    Buffer_.Clear();
-
-    auto idMappingBegin = ColumnIdMapping_.begin();
-    auto idMappingEnd = ColumnIdMapping_.end();
-    for (auto row : rows) {
-        for (auto idMappingCurrent = idMappingBegin; idMappingCurrent != idMappingEnd; ++idMappingCurrent) {
-            int id = *idMappingCurrent;
-            WriteValue(row[id]);
-            if (idMappingCurrent != idMappingEnd) {
-                WriteRaw('\t');
-            }
-        }
-        WriteRaw('\n');
-    }
-
-    auto buffer = TSharedRef::FromBlob(std::move(Buffer_));
-    Result_ = Stream_->Write(buffer);
-
-    return Result_.IsSet() && Result_.Get().IsOK();
-}
-
-TFuture<void> TSchemafulDsvWriter::GetReadyEvent()
-{
-    return Result_;
-}
-
 static ui16 DigitPairs[100] = {
-    12336,  12337,  12338,  12339,  12340,  12341,  12342,  12343,  12344,  12345,
-    12592,  12593,  12594,  12595,  12596,  12597,  12598,  12599,  12600,  12601,
-    12848,  12849,  12850,  12851,  12852,  12853,  12854,  12855,  12856,  12857,
-    13104,  13105,  13106,  13107,  13108,  13109,  13110,  13111,  13112,  13113,
-    13360,  13361,  13362,  13363,  13364,  13365,  13366,  13367,  13368,  13369,
-    13616,  13617,  13618,  13619,  13620,  13621,  13622,  13623,  13624,  13625,
-    13872,  13873,  13874,  13875,  13876,  13877,  13878,  13879,  13880,  13881,
-    14128,  14129,  14130,  14131,  14132,  14133,  14134,  14135,  14136,  14137,
-    14384,  14385,  14386,  14387,  14388,  14389,  14390,  14391,  14392,  14393,
-    14640,  14641,  14642,  14643,  14644,  14645,  14646,  14647,  14648,  14649
+    12336,  12592,  12848,  13104,  13360,  13616,  13872,  14128,  14384,  14640,
+    12337,  12593,  12849,  13105,  13361,  13617,  13873,  14129,  14385,  14641,
+    12338,  12594,  12850,  13106,  13362,  13618,  13874,  14130,  14386,  14642,
+    12339,  12595,  12851,  13107,  13363,  13619,  13875,  14131,  14387,  14643,
+    12340,  12596,  12852,  13108,  13364,  13620,  13876,  14132,  14388,  14644,
+    12341,  12597,  12853,  13109,  13365,  13621,  13877,  14133,  14389,  14645,
+    12342,  12598,  12854,  13110,  13366,  13622,  13878,  14134,  14390,  14646,
+    12343,  12599,  12855,  13111,  13367,  13623,  13879,  14135,  14391,  14647,
+    12344,  12600,  12856,  13112,  13368,  13624,  13880,  14136,  14392,  14648,
+    12345,  12601,  12857,  13113,  13369,  13625,  13881,  14137,  14393,  14649,
 };
 
-char* TSchemafulDsvWriter::WriteInt64Reversed(char* ptr, i64 value)
+// This function fills a specific range in the memory with a decimal representation
+// of value in backwards, meaning that the resulting representation will occupy
+// range [ptr - length, ptr). Return value is ptr - length, i. e. the pointer to the
+// beginning of the result.
+char* TSchemafulDsvWriterBase::WriteInt64Backwards(char* ptr, i64 value)
 {
     if (value == 0) {
-        *ptr++ = '0';
+        --ptr;
+        *ptr = '0';
+        return ptr;
+    }
+
+    // The negative value handling code below works incorrectly for value = -2^63.
+    if (value == std::numeric_limits<i64>::min()) {
+        ptr -= 20;
+        memcpy(ptr, "-9223372036854775808", 20);
         return ptr;
     }
 
@@ -306,45 +65,50 @@ char* TSchemafulDsvWriter::WriteInt64Reversed(char* ptr, i64 value)
     while (value >= 10) {
         i64 rem = value % 100;
         i64 quot = value / 100;
+        ptr -= 2;
         *reinterpret_cast<ui16*>(ptr) = DigitPairs[rem];
-        ptr += 2;
         value = quot;
     }
 
     if (value > 0) {
-        *ptr++ = ('0' + value);
+        --ptr;
+        *ptr = ('0' + value);
     }
 
     if (negative) {
-        *ptr++ = '-';
+        --ptr;
+        *ptr = '-';
     }
 
     return ptr;
 }
 
-char* TSchemafulDsvWriter::WriteUint64Reversed(char* ptr, ui64 value)
+// Same as WriteInt64Backwards for ui64.
+char* TSchemafulDsvWriterBase::WriteUint64Backwards(char* ptr, ui64 value)
 {
     if (value == 0) {
-        *ptr++ = '0';
+        --ptr;
+        *ptr = '0';
         return ptr;
     }
 
     while (value >= 10) {
         i64 rem = value % 100;
         i64 quot = value / 100;
+        ptr -= 2;
         *reinterpret_cast<ui16*>(ptr) = DigitPairs[rem];
-        ptr += 2;
         value = quot;
     }
 
     if (value > 0) {
-        *ptr++ = ('0' + value);
+        --ptr;
+        *ptr = ('0' + value);
     }
 
     return ptr;
 }
 
-void TSchemafulDsvWriter::WriteValue(const TUnversionedValue& value)
+void TSchemafulDsvWriterBase::WriteValue(const TUnversionedValue& value)
 {
     switch (value.Type) {
         case EValueType::Null:
@@ -353,27 +117,21 @@ void TSchemafulDsvWriter::WriteValue(const TUnversionedValue& value)
         case EValueType::Int64:
         case EValueType::Uint64: {
             char buf[64];
-            char* begin = buf;
-            char* end = value.Type == EValueType::Int64
-                ? WriteInt64Reversed(begin, value.Data.Int64)
-                : WriteUint64Reversed(begin, value.Data.Uint64);
+            char* end = buf + 64;
+            char* begin = value.Type == EValueType::Int64
+                ? WriteInt64Backwards(end, value.Data.Int64)
+                : WriteUint64Backwards(end, value.Data.Uint64);
             size_t length = end - begin;
-
-            Buffer_.Resize(Buffer_.Size() + length, false);
-            char* src = begin;
-            char* dst = Buffer_.End() - 1;
-            while (src != end) {
-                *dst-- = *src++;
-            }
+            BlobOutput_->Write(begin, length);
             break;
         }
 
         case EValueType::Double: {
             // TODO(babenko): optimize
-            const size_t maxSize = 64;
-            Buffer_.Resize(Buffer_.Size() + maxSize);
-            int size = sprintf(Buffer_.End() - maxSize, "%lf", value.Data.Double);
-            Buffer_.Resize(Buffer_.Size() - maxSize + size);
+            char buf[64];
+            char* begin = buf;
+            int length = sprintf(buf, "%lg", value.Data.Double);
+            BlobOutput_->Write(begin, length);
             break;
         }
 
@@ -382,31 +140,179 @@ void TSchemafulDsvWriter::WriteValue(const TUnversionedValue& value)
             break;
         }
 
-        case EValueType::String:
-            WriteRaw(TStringBuf(value.Data.String, value.Length));
+        case EValueType::String: {
+            EscapeAndWrite(TStringBuf(value.Data.String, value.Length));
             break;
+        }
 
-        default:
+        default: {
             WriteRaw('?');
             break;
+        }
     }
 }
 
-void TSchemafulDsvWriter::WriteRaw(const TStringBuf& str)
+void TSchemafulDsvWriterBase::WriteRaw(const TStringBuf& str)
 {
-    Buffer_.Append(str.begin(), str.length());
+    BlobOutput_->Write(str.begin(), str.length());
 }
 
-void TSchemafulDsvWriter::WriteRaw(char ch)
+void TSchemafulDsvWriterBase::WriteRaw(char ch)
 {
-    Buffer_.Append(ch);
+    BlobOutput_->Write(ch);
+}
+
+void TSchemafulDsvWriterBase::EscapeAndWrite(const TStringBuf& string)
+{
+    if (Config_->EnableEscaping) {
+        WriteEscaped(
+            BlobOutput_,
+            string,
+            Table_.Stops,
+            Table_.Escapes,
+            Config_->EscapingSymbol);
+    } else {
+        BlobOutput_->Write(string);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NTableClient::ISchemafulWriterPtr CreateSchemafulDsvWriter(
-    NConcurrency::IAsyncOutputStreamPtr stream,
-    const NTableClient::TTableSchema& schema,
+TSchemalessWriterForSchemafulDsv::TSchemalessWriterForSchemafulDsv(
+    TNameTablePtr nameTable, 
+    IAsyncOutputStreamPtr output,
+    bool enableContextSaving,
+    TSchemafulDsvFormatConfigPtr config)
+    : TSchemalessFormatWriterBase(
+        nameTable,
+        std::move(output),
+        enableContextSaving,
+        false /* enableKeySwitch */,
+        0 /* keyColumnCount */)
+    , TSchemafulDsvWriterBase(config)
+{
+    BlobOutput_ = GetOutputStream();
+    YCHECK(Config_->Columns);
+    const auto& columns = Config_->Columns.Get();
+    for (int columnIndex = 0; columnIndex < static_cast<int>(columns.size()); ++columnIndex) {
+        ColumnIdMapping_.push_back(NameTable_->GetIdOrRegisterName(columns[columnIndex]));
+    }
+    IdToIndexInRowMapping_.resize(nameTable->GetSize());
+}
+
+void TSchemalessWriterForSchemafulDsv::DoWrite(const std::vector<TUnversionedRow>& rows)
+{
+    IdToIndexInRowMapping_.resize(GetNameTable()->GetSize());
+    for (auto row : rows) {
+        IdToIndexInRowMapping_.assign(IdToIndexInRowMapping_.size(), -1);
+        for (auto item = row.Begin(); item != row.End(); ++item) {
+            YASSERT(item->Id >= 0 && item->Id < IdToIndexInRowMapping_.size());
+            IdToIndexInRowMapping_[item->Id] = item - row.Begin();
+        }
+        bool firstValue = true;
+        for (auto currentId : ColumnIdMapping_) {
+            if (!firstValue) {
+                WriteRaw(Config_->FieldSeparator);
+            } else {
+                firstValue = false;
+            }
+            int index = IdToIndexInRowMapping_[currentId];
+            if (index == -1) {
+                THROW_ERROR_EXCEPTION("Column %Qv is in schema but missing", NameTable_->GetName(currentId));
+            }
+            WriteValue(row[index]);
+        }
+        WriteRaw(Config_->RecordSeparator);
+        TryFlushBuffer(false);
+    }    
+    TryFlushBuffer(true);
+}
+
+void TSchemalessWriterForSchemafulDsv::WriteTableIndex(i32 tableIndex)
+{
+    THROW_ERROR_EXCEPTION("Table inidices are not supported in schemaful DSV");
+}
+
+void TSchemalessWriterForSchemafulDsv::WriteRangeIndex(i32 rangeIndex)
+{
+    THROW_ERROR_EXCEPTION("Range inidices are not supported in schemaful DSV");
+}
+    
+void TSchemalessWriterForSchemafulDsv::WriteRowIndex(i64 rowIndex)
+{
+    THROW_ERROR_EXCEPTION("Row inidices are not supported in schemaful DSV");
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TSchemafulWriterForSchemafulDsv::TSchemafulWriterForSchemafulDsv(
+    IAsyncOutputStreamPtr stream,
+    std::vector<int> columnIdMapping,
+    TSchemafulDsvFormatConfigPtr config)
+    : TSchemafulDsvWriterBase(config)
+    , Output_(CreateSyncAdapter(stream))
+{
+    BlobOutput_ = &UnderlyingBlobOutput_; 
+    ColumnIdMapping_.swap(columnIdMapping); 
+}
+
+TFuture<void> TSchemafulWriterForSchemafulDsv::Close()
+{
+    DoFlushBuffer(true);
+    return VoidFuture;
+}
+
+bool TSchemafulWriterForSchemafulDsv::Write(const std::vector<TUnversionedRow>& rows)
+{
+    for (auto row : rows) {
+        bool firstValue = true;
+        for (auto id : ColumnIdMapping_) {
+            if (!firstValue) {
+                WriteRaw(Config_->FieldSeparator);
+            } else {
+                firstValue = false;
+            }
+            WriteValue(row[id]);
+        }
+        WriteRaw(Config_->RecordSeparator);
+        TryFlushBuffer();
+    }
+    
+    return true;
+}
+
+// TODO(max42): Eliminate copy-paste from schemaless_writer_adapter.cpp.
+void TSchemafulWriterForSchemafulDsv::TryFlushBuffer()
+{
+    DoFlushBuffer(false);
+}
+
+void TSchemafulWriterForSchemafulDsv::DoFlushBuffer(bool force)
+{
+    if (UnderlyingBlobOutput_.Size() == 0) {
+        return;
+    }
+
+    if (!force && UnderlyingBlobOutput_.Size() < UnderlyingBlobOutput_.Blob().Capacity() / 2) {
+        return;
+    }
+
+    const auto& buffer = UnderlyingBlobOutput_.Blob();
+    Output_->Write(buffer.Begin(), buffer.Size());
+
+    UnderlyingBlobOutput_.Clear();
+}
+
+TFuture<void> TSchemafulWriterForSchemafulDsv::GetReadyEvent()
+{
+    return Result_;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+ISchemafulWriterPtr CreateSchemafulWriterForSchemafulDsv(
+    IAsyncOutputStreamPtr stream,
+    const TTableSchema& schema,
     TSchemafulDsvFormatConfigPtr config)
 {
     std::vector<int> columnIdMapping;
@@ -420,7 +326,7 @@ NTableClient::ISchemafulWriterPtr CreateSchemafulDsvWriter(
         }
     }
 
-    return New<TSchemafulDsvWriter>(stream, std::move(columnIdMapping), config);
+    return New<TSchemafulWriterForSchemafulDsv>(stream, std::move(columnIdMapping), config);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

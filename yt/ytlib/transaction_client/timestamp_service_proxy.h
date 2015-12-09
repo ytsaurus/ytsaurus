@@ -2,9 +2,9 @@
 
 #include "public.h"
 
-#include <core/rpc/client.h>
+#include <yt/ytlib/transaction_client/timestamp_service.pb.h>
 
-#include <ytlib/transaction_client/timestamp_service.pb.h>
+#include <yt/core/rpc/client.h>
 
 namespace NYT {
 namespace NTransactionClient {

@@ -1,13 +1,14 @@
-#include "stdafx.h"
 #include "snapshot_downloader.h"
-#include "scheduler.h"
 #include "config.h"
+#include "scheduler.h"
 
-#include <ytlib/scheduler/helpers.h>
+#include <yt/server/cell_scheduler/bootstrap.h>
 
-#include <ytlib/api/file_reader.h>
+#include <yt/ytlib/api/file_reader.h>
 
-#include <server/cell_scheduler/bootstrap.h>
+#include <yt/ytlib/scheduler/helpers.h>
+
+#include <yt/core/misc/common.h>
 
 namespace NYT {
 namespace NScheduler {

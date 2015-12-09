@@ -2,12 +2,12 @@
 
 #include "public.h"
 
-#include <core/actions/callback.h>
-#include <core/actions/invoker.h>
+#include <yt/core/actions/callback.h>
+#include <yt/core/actions/invoker.h>
 
-#include <core/misc/shutdownable.h>
+#include <yt/core/misc/shutdownable.h>
 
-#include <core/profiling/profiler.h>
+#include <yt/core/profiling/profiler.h>
 
 #include <util/thread/lfqueue.h>
 

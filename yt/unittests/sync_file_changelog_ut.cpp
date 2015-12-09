@@ -1,16 +1,16 @@
-#include "stdafx.h"
 #include "framework.h"
 
-#include <server/hydra/config.h>
-#include <server/hydra/changelog.h>
-#include <server/hydra/sync_file_changelog.h>
-#include <server/hydra/format.h>
+#include <yt/server/hydra/changelog.h>
+#include <yt/server/hydra/config.h>
+#include <yt/server/hydra/format.h>
+#include <yt/server/hydra/sync_file_changelog.h>
 
-#include <ytlib/hydra/hydra_manager.pb.h>
+#include <yt/ytlib/hydra/hydra_manager.pb.h>
 
-#include <core/profiling/scoped_timer.h>
+#include <yt/core/misc/common.h>
+#include <yt/core/misc/fs.h>
 
-#include <core/misc/fs.h>
+#include <yt/core/profiling/scoped_timer.h>
 
 #include <util/random/random.h>
 

@@ -1,4 +1,6 @@
-#include <ytlib/query_client/parser.hpp>
+#pragma once
+
+#include <yt/ytlib/query_client/parser.hpp>
 
 namespace NYT {
 namespace NQueryClient {

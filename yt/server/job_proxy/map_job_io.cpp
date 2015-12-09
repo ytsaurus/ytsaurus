@@ -1,9 +1,9 @@
-#include "stdafx.h"
-
 #include "map_job_io.h"
 #include "user_job_io_detail.h"
 
-#include <ytlib/scheduler/config.h>
+#include <yt/ytlib/scheduler/config.h>
+
+#include <yt/core/misc/common.h>
 
 namespace NYT {
 namespace NJobProxy {

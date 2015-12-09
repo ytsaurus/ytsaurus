@@ -1,28 +1,28 @@
 #pragma once
 
 #include "public.h"
-#include "type_handler.h"
 #include "schema.h"
+#include "type_handler.h"
 
-#include <core/concurrency/thread_affinity.h>
-#include <core/concurrency/periodic_executor.h>
+#include <yt/server/cell_master/automaton.h>
 
-#include <core/profiling/profiler.h>
+#include <yt/server/cypress_server/public.h>
 
-#include <ytlib/object_client/object_ypath_proxy.h>
+#include <yt/server/hydra/entity_map.h>
+#include <yt/server/hydra/mutation.h>
 
-#include <server/hydra/mutation.h>
-#include <server/hydra/entity_map.h>
+#include <yt/server/object_server/object_manager.pb.h>
 
-#include <server/cell_master/automaton.h>
+#include <yt/server/security_server/public.h>
 
-#include <server/transaction_server/public.h>
+#include <yt/server/transaction_server/public.h>
 
-#include <server/object_server/object_manager.pb.h>
+#include <yt/ytlib/object_client/object_ypath_proxy.h>
 
-#include <server/security_server/public.h>
+#include <yt/core/concurrency/periodic_executor.h>
+#include <yt/core/concurrency/thread_affinity.h>
 
-#include <server/cypress_server/public.h>
+#include <yt/core/profiling/profiler.h>
 
 namespace NYT {
 namespace NObjectServer {

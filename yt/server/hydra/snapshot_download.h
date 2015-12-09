@@ -2,9 +2,9 @@
 
 #include "public.h"
 
-#include <core/actions/future.h>
+#include <yt/ytlib/election/public.h>
 
-#include <ytlib/election/public.h>
+#include <yt/core/actions/future.h>
 
 namespace NYT {
 namespace NHydra {

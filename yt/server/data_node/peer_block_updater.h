@@ -2,9 +2,9 @@
 
 #include "public.h"
 
-#include <core/concurrency/public.h>
+#include <yt/server/cell_node/public.h>
 
-#include <server/cell_node/public.h>
+#include <yt/core/concurrency/public.h>
 
 namespace NYT {
 namespace NDataNode {

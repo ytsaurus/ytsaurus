@@ -1,7 +1,7 @@
 #include "cypress_executors.h"
 #include "preprocess.h"
 
-#include <ytlib/driver/driver.h>
+#include <yt/ytlib/driver/driver.h>
 
 namespace NYT {
 namespace NDriver {

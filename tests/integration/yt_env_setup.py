@@ -3,6 +3,8 @@ import yt_commands
 from yt.environment import YTEnv
 import yt_driver_bindings
 
+import pytest
+
 import gc
 import os
 import sys
@@ -15,6 +17,9 @@ from threading import Thread
 
 SANDBOX_ROOTDIR = os.environ.get("TESTS_SANDBOX", os.path.abspath('tests.sandbox'))
 TOOLS_ROOTDIR = os.path.abspath('tools')
+
+linux_only = pytest.mark.skipif('not sys.platform.startswith("linux")')
+unix_only = pytest.mark.skipif('not sys.platform.startswith("linux") and not sys.platform.startswith("darwin")')
 
 def resolve_test_paths(name):
     path_to_sandbox = os.path.join(SANDBOX_ROOTDIR, name)
@@ -42,8 +47,11 @@ class Checker(Thread):
         self._check_function = check_function
         self._active = None
 
-    def run(self):
+    def start(self):
         self._active = True
+        super(Checker, self).start()
+
+    def run(self):
         while self._active:
             self._check_function()
             sleep(1.0)
@@ -68,9 +76,11 @@ class YTEnvSetup(YTEnv):
         path_to_run = os.path.join(path_to_test, "run_" + str(uuid.uuid4().hex)[:8])
         pids_filename = os.path.join(path_to_run, 'pids.txt')
 
+        cls.liveness_checker = None
+
         cls.path_to_test = path_to_test
         cls.Env = cls()
-        cls.Env.start(path_to_run, pids_filename)
+        cls.Env.start(path_to_run, pids_filename, kill_child_processes=True)
 
         if cls.Env.configs['driver']:
             yt_commands.init_driver(cls.Env.configs['driver'])

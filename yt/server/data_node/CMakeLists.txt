@@ -6,7 +6,7 @@ set( SRCS
   ${BASE}/blob_reader_cache.cpp
   ${BASE}/blob_session.cpp
   ${BASE}/block_cache.cpp
-  ${BASE}/block_store.cpp
+  ${BASE}/chunk_block_manager.cpp
   ${BASE}/chunk.cpp
   ${BASE}/chunk_cache.cpp
   ${BASE}/chunk_detail.cpp
@@ -28,6 +28,7 @@ set( SRCS
   ${BASE}/session_detail.cpp
   ${BASE}/session_manager.cpp
   ${BASE}/ytree_integration.cpp
+  ${BASE}/chunk_meta_manager.cpp
 )
 set( HDRS
   ${BASE}/artifact.h
@@ -35,7 +36,7 @@ set( HDRS
   ${BASE}/blob_reader_cache.h
   ${BASE}/blob_session.h
   ${BASE}/block_cache.h
-  ${BASE}/block_store.h
+  ${BASE}/chunk_block_manager.h
   ${BASE}/chunk.h
   ${BASE}/chunk_cache.h
   ${BASE}/chunk_detail.h
@@ -51,6 +52,7 @@ set( HDRS
   ${BASE}/journal_session.h
   ${BASE}/local_chunk_reader.h
   ${BASE}/location.h
+  ${BASE}/location-inl.h
   ${BASE}/master_connector.h
   ${BASE}/peer_block_table.h
   ${BASE}/peer_block_updater.h
@@ -60,6 +62,7 @@ set( HDRS
   ${BASE}/session_detail.h
   ${BASE}/session_manager.h
   ${BASE}/ytree_integration.h
+  ${BASE}/chunk_meta_manager.h
 )
 
 list(APPEND YT_SOURCE_FILES

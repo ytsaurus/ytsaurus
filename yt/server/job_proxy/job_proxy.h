@@ -1,22 +1,22 @@
 #pragma once
 
 #include "public.h"
-#include "config.h"
 #include "private.h"
+#include "config.h"
 #include "job.h"
 
-#include <server/job_agent/public.h>
+#include <yt/server/exec_agent/supervisor_service_proxy.h>
 
-#include <server/exec_agent/supervisor_service_proxy.h>
+#include <yt/server/job_agent/public.h>
 
-#include <ytlib/api/public.h>
+#include <yt/ytlib/api/public.h>
 
-#include <ytlib/job_tracker_client/public.h>
-#include <ytlib/job_tracker_client/statistics.h>
+#include <yt/ytlib/job_tracker_client/public.h>
+#include <yt/ytlib/job_tracker_client/statistics.h>
 
-#include <core/concurrency/public.h>
+#include <yt/core/concurrency/public.h>
 
-#include <core/logging/log.h>
+#include <yt/core/logging/log.h>
 
 namespace NYT {
 namespace NJobProxy {
@@ -38,6 +38,7 @@ public:
 
     virtual std::vector<NChunkClient::TChunkId> DumpInputContext(const NJobTrackerClient::TJobId& jobId) override;
     virtual NYTree::TYsonString Strace(const NJobTrackerClient::TJobId& jobId) override;
+    virtual void SignalJob(const NJobTrackerClient::TJobId& jobId, const Stroka& signalName) override;
 
 private:
     const NYTree::INodePtr ConfigNode_;

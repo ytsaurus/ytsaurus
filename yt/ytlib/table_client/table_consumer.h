@@ -3,10 +3,10 @@
 #include "public.h"
 #include "value_consumer.h"
 
-#include <core/misc/error.h>
+#include <yt/core/misc/error.h>
 
-#include <core/yson/consumer.h>
-#include <core/yson/writer.h>
+#include <yt/core/yson/consumer.h>
+#include <yt/core/yson/writer.h>
 
 namespace NYT {
 namespace NTableClient {

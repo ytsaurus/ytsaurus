@@ -1,13 +1,11 @@
-#include "stdafx.h"
-
 #include "schemaless_sorted_merging_reader.h"
-
 #include "private.h"
 #include "schemaless_chunk_reader.h"
 
-#include <ytlib/chunk_client/dispatcher.h>
+#include <yt/ytlib/chunk_client/dispatcher.h>
 
-#include <core/misc/heap.h>
+#include <yt/core/misc/common.h>
+#include <yt/core/misc/heap.h>
 
 namespace NYT {
 namespace NTableClient {

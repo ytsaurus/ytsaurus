@@ -1,7 +1,5 @@
-#include "stdafx.h"
-
 #include "multi_chunk_reader_base.h"
-
+#include "private.h"
 #include "block_cache.h"
 #include "chunk_meta_extensions.h"
 #include "chunk_reader_base.h"
@@ -9,19 +7,19 @@
 #include "config.h"
 #include "dispatcher.h"
 #include "helpers.h"
-#include "private.h"
 
-#include <ytlib/api/client.h>
-#include <ytlib/api/connection.h>
-#include <ytlib/api/config.h>
+#include <yt/ytlib/api/client.h>
+#include <yt/ytlib/api/config.h>
+#include <yt/ytlib/api/connection.h>
 
-#include <ytlib/node_tracker_client/node_directory.h>
+#include <yt/ytlib/node_tracker_client/node_directory.h>
 
-#include <core/concurrency/scheduler.h>
+#include <yt/core/concurrency/scheduler.h>
 
-#include <core/erasure/codec.h>
+#include <yt/core/erasure/codec.h>
 
-#include <core/misc/protobuf_helpers.h>
+#include <yt/core/misc/common.h>
+#include <yt/core/misc/protobuf_helpers.h>
 
 namespace NYT {
 namespace NChunkClient {
@@ -151,7 +149,7 @@ void TMultiChunkReaderBase::OpenNextChunks()
             return;
         }
 
-        if (ActiveReaderCount_ > MaxPrefetchWindow) {
+        if (ActiveReaderCount_ > Config_->MaxPrefetchWindow) {
             return;
         }
 

@@ -5,10 +5,10 @@ import os
 import tempfile
 
 from yt.wrapper import format
+from yt.environment.helpers import assert_items_equal
 
-from yt_env_setup import YTEnvSetup
+from yt_env_setup import YTEnvSetup, unix_only
 from yt_commands import *
-from distutils.spawn import find_executable
 
 def get_statistics(statistics, complex_key):
     result = statistics
@@ -158,10 +158,187 @@ class TestJobProber(YTEnvSetup):
                 pass
 
         for pid, trace in result['traces'].iteritems():
-            if trace['trace'] != "attach: ptrace(PTRACE_ATTACH, ...): No such process\n":
+            if "No such process" not in trace['trace']:
                 assert trace['trace'].startswith("Process {0} attached".format(pid))
         track_op(op_id)
 
+    def test_signal_job_with_no_job_restart(self):
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+        write_table("//tmp/t1", {"foo": "bar"})
+
+        tmpdir = tempfile.mkdtemp(prefix="signal_job")
+        mapper = \
+"""
+#!/bin/bash
+trap "echo got=SIGUSR1" USR1
+trap "echo got=SIGUSR2" USR2
+cat
+touch {0}/started || exit 1
+until rmdir {0} 2>/dev/null
+    do sleep 1
+done
+""".format(tmpdir)
+
+        create("file", "//tmp/mapper.sh")
+        write_file("//tmp/mapper.sh", mapper)
+        set("//tmp/mapper.sh/@executable", True)
+
+        op_id = map(
+            dont_track=True,
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            command="./mapper.sh",
+            file="//tmp/mapper.sh",
+            spec={
+                "mapper": {
+                    "format": "dsv"
+                },
+                "max_failed_job_count": 1
+            })
+
+        try:
+            pin_filename = os.path.join(tmpdir, "started")
+            while not os.access(pin_filename, os.F_OK):
+                time.sleep(0.5)
+
+            jobs_path = "//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(op_id)
+            jobs = ls(jobs_path)
+            assert jobs
+
+            signal_job(jobs[0], "SIGUSR1")
+            signal_job(jobs[0], "SIGUSR2")
+
+        finally:
+            try:
+                os.unlink(pin_filename)
+            except OSError:
+                pass
+
+        track_op(op_id)
+        try:
+            os.unlink(tmpdir)
+        except OSError:
+            pass
+        assert get("//sys/operations/{0}/@progress/jobs/aborted/total".format(op_id)) == 0
+        assert get("//sys/operations/{0}/@progress/jobs/failed".format(op_id)) == 0
+        assert read_table("//tmp/t2") == [{"foo": "bar"}, {"got": "SIGUSR1"}, {"got": "SIGUSR2"}]
+
+    def test_signal_job_with_job_restart(self):
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+        write_table("//tmp/t1", {"foo": "bar"})
+
+        tmpdir = tempfile.mkdtemp(prefix="signal_job")
+        mapper = \
+"""
+#!/bin/bash
+trap "echo got=SIGUSR1; rm -f {0}/started; exit 1" USR1
+cat
+touch {0}/started || exit 1
+until rmdir {0} 2>/dev/null
+    do sleep 1
+done
+""".format(tmpdir)
+
+        create("file", "//tmp/mapper.sh")
+        write_file("//tmp/mapper.sh", mapper)
+        set("//tmp/mapper.sh/@executable", True)
+
+        op_id = map(
+            dont_track=True,
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            command="./mapper.sh",
+            file="//tmp/mapper.sh",
+            spec={
+                "mapper": {
+                    "format": "dsv"
+                },
+                "max_failed_job_count": 1
+            })
+
+        try:
+            pin_filename = os.path.join(tmpdir, "started")
+            while not os.access(pin_filename, os.F_OK):
+                time.sleep(0.5)
+
+            jobs_path = "//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(op_id)
+            jobs = ls(jobs_path)
+            assert jobs
+            initial_job = jobs[0]
+
+            # Send signal and wait for a new job
+            signal_job(jobs[0], "SIGUSR1")
+            while not exists("//sys/operations/{0}/@progress/jobs".format(op_id)) or get("//sys/operations/{0}/@progress/jobs/aborted/total".format(op_id)) == 0:
+                time.sleep(0.5)
+            while not os.access(pin_filename, os.F_OK):
+                time.sleep(0.5)
+
+        finally:
+            try:
+                os.unlink(pin_filename)
+            except OSError:
+                pass
+
+        track_op(op_id)
+        try:
+            os.unlink(tmpdir)
+        except OSError:
+            pass
+        assert get("//sys/operations/{0}/@progress/jobs/aborted/total".format(op_id)) == 1
+        assert get("//sys/operations/{0}/@progress/jobs/aborted/other".format(op_id)) == 1
+        assert get("//sys/operations/{0}/@progress/jobs/failed".format(op_id)) == 0
+        assert read_table("//tmp/t2") == [{"foo": "bar"}]
+
+
+    def test_abandon_job(self):
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+        for i in xrange(5):
+            write_table("<append=true>//tmp/t1", {"key": str(i), "value": "foo"})
+
+        tmpdir = tempfile.mkdtemp(prefix="abandon_job")
+
+        command = 'cat; if [ "$YT_JOB_INDEX" = 3 ]; then echo -n "$YT_JOB_ID" >{0}/started || exit 1; sleep 300; fi'.format(tmpdir)
+
+        op_id = map(
+            dont_track=True,
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            command=command,
+            spec={
+                "mapper": {
+                    "format": "dsv"
+                },
+                "data_size_per_job": 1
+            })
+
+        try:
+            pin_filename = os.path.join(tmpdir, "started")
+            while not os.access(pin_filename, os.F_OK):
+                time.sleep(0.2)
+
+            jobs_path = "//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(op_id)
+            jobs = ls(jobs_path)
+            assert jobs
+
+            job_id = open(pin_filename).read()
+            assert job_id
+
+            result = abandon_job(job_id)
+        finally:
+            try:
+                os.unlink(pin_filename)
+            except OSError:
+                pass
+            try:
+                os.unlink(tmpdir)
+            except OSError:
+                pass
+
+        track_op(op_id)
+        assert(2, len(read_table("//tmp/t2")))
 
 class TestSchedulerMapCommands(YTEnvSetup):
     NUM_MASTERS = 3
@@ -181,7 +358,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
 
         assert read_table("//tmp/t2") == []
 
-    @only_linux
+    @unix_only
     def test_one_chunk(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -262,7 +439,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
         with pytest.raises(YtError):
             track_op(op_id)
 
-    @only_linux
+    @unix_only
     def test_in_equal_to_out(self):
         create("table", "//tmp/t1")
         write_table("//tmp/t1", {"foo": "bar"})
@@ -279,7 +456,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
             assert read_file(jobs_path + "/" + job_id + "/stderr") == expected_content
 
     # check that stderr is captured for successfull job
-    @only_linux
+    @unix_only
     def test_stderr_ok(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -294,7 +471,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
         self._check_all_stderrs(op_id, "stderr\n", 1)
 
     # check that stderr is captured for failed jobs
-    @only_linux
+    @unix_only
     def test_stderr_failed(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -310,7 +487,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
         self._check_all_stderrs(op_id, "stderr\n", 10)
 
     # check max_stderr_count
-    @only_linux
+    @unix_only
     def test_stderr_limit(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -458,7 +635,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
                 out="//tmp/t2",
                 spec={"mapper": {"format": "yamr"}})
 
-    @only_linux
+    @unix_only
     def test_fail_context(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -516,7 +693,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
         assert get("//tmp/input_context/@description/type") == "input_context"
         assert format.JsonFormat(process_table_index=True).loads_row(context)["foo"] == "bar"
 
-    @only_linux
+    @unix_only
     def test_sorted_output(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -572,7 +749,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
                 command=command,
                 spec={"job_count": 2})
 
-    @only_linux
+    @unix_only
     def test_job_count(self):
         create("table", "//tmp/t1")
         for i in xrange(5):
@@ -591,7 +768,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
         check("//tmp/t2", 3, 3)
         check("//tmp/t3", 10, 5) # number of jobs can"t be more that number of chunks
 
-    @only_linux
+    @unix_only
     def test_with_user_files(self):
         create("table", "//tmp/input")
         write_table("//tmp/input", {"foo": "bar"})
@@ -619,7 +796,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
 
         assert read_table("//tmp/output") == [{"value": 42}, {"a": "b"}, {"text": "info"}]
 
-    @only_linux
+    @unix_only
     def test_empty_user_files(self):
         create("table", "//tmp/input")
         write_table("//tmp/input", {"foo": "bar"})
@@ -641,7 +818,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
 
         assert read_table("//tmp/output") == []
 
-    @only_linux
+    @unix_only
     def test_multi_chunk_user_files(self):
         create("table", "//tmp/input")
         write_table("//tmp/input", {"foo": "bar"})
@@ -697,7 +874,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
 
         assert read_table("//tmp/output") == [{"value": 42}, {"a": "b"}, {"text": "info"}, {"text": "info"}]
 
-    @only_linux
+    @unix_only
     def run_many_output_tables(self, yamr_mode=False):
         output_tables = ["//tmp/t%d" % i for i in range(3)]
 
@@ -725,15 +902,15 @@ class TestSchedulerMapCommands(YTEnvSetup):
         assert read_table(output_tables[1]) == [{"v": 1}]
         assert read_table(output_tables[2]) == [{"v": 2}]
 
-    @only_linux
+    @unix_only
     def test_many_output_yt(self):
         self.run_many_output_tables()
 
-    @only_linux
+    @unix_only
     def test_many_output_yamr(self):
         self.run_many_output_tables(True)
 
-    @only_linux
+    @unix_only
     def test_output_tables_switch(self):
         output_tables = ["//tmp/t%d" % i for i in range(3)]
 
@@ -756,7 +933,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
         assert read_table(output_tables[1]) == []
         assert read_table(output_tables[2]) == [{"v": 0}, {"v": 1}]
 
-    @only_linux
+    @unix_only
     def test_tskv_input_format(self):
         create("table", "//tmp/t_in")
         write_table("//tmp/t_in", {"foo": "bar"})
@@ -781,7 +958,7 @@ print '{hello=world}'
 
         assert read_table("//tmp/t_out") == [{"hello": "world"}]
 
-    @only_linux
+    @unix_only
     def test_tskv_output_format(self):
         create("table", "//tmp/t_in")
         write_table("//tmp/t_in", {"foo": "bar"})
@@ -811,7 +988,7 @@ print "tskv" + "\\t" + "hello=world"
 
         assert read_table("//tmp/t_out") == [{"hello": "world"}]
 
-    @only_linux
+    @unix_only
     def test_yamr_output_format(self):
         create("table", "//tmp/t_in")
         write_table("//tmp/t_in", {"foo": "bar"})
@@ -839,7 +1016,7 @@ print "key\\tsubkey\\tvalue"
 
         assert read_table("//tmp/t_out") == [{"key": "key", "subkey": "subkey", "value": "value"}]
 
-    @only_linux
+    @unix_only
     def test_yamr_input_format(self):
         create("table", "//tmp/t_in")
         write_table("//tmp/t_in", {"value": "value", "subkey": "subkey", "key": "key", "a": "another"})
@@ -864,14 +1041,14 @@ print '{hello=world}'
 
         assert read_table("//tmp/t_out") == [{"hello": "world"}]
 
-    @only_linux
+    @unix_only
     def test_executable_mapper(self):
         create("table", "//tmp/t_in")
         write_table("//tmp/t_in", {"foo": "bar"})
 
         mapper =  \
 """
-#!/bin/sh
+#!/bin/bash
 cat > /dev/null; echo {hello=world}
 """
 
@@ -903,7 +1080,7 @@ cat > /dev/null; echo {hello=world}
         assert get(path) == "aborted"
 
 
-    @only_linux
+    @unix_only
     def test_table_index(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -935,7 +1112,7 @@ print row + table_index
 
         expected = [{"key": "a", "value": "value0"},
                     {"key": "b", "value": "value1"}]
-        self.assertItemsEqual(read_table("//tmp/out"), expected)
+        assert_items_equal(read_table("//tmp/out"), expected)
 
     def test_insane_demand(self):
         create("table", "//tmp/t_in")
@@ -1038,7 +1215,7 @@ print row + table_index
         finally:
             self._set_banned("false")
 
-@only_linux
+@unix_only
 class TestJobQuery(YTEnvSetup):
     NUM_MASTERS = 3
     NUM_NODES = 5
@@ -1122,13 +1299,12 @@ class TestJobQuery(YTEnvSetup):
                 if column["name"] not in row.keys():
                     row[column["name"]] = None
 
-        yamred_format = yson.to_yson_type("yamred_dsv", attributes={"has_subkey": False, "key_column_names": ["a", "b"]})
         map(in_="//tmp/t1", out="//tmp/t2", command="cat",
             spec={
                 "input_query": "* where a > 0 or b > 0",
                 "input_schema": schema})
 
-        self.assertItemsEqual(read_table("//tmp/t2"), rows)
+        assert_items_equal(read_table("//tmp/t2"), rows)
 
     def test_query_udf(self):
         self._init_udf_registry()

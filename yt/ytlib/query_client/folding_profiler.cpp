@@ -1,10 +1,10 @@
-#include "stdafx.h"
 #include "folding_profiler.h"
-#include "plan_helpers.h"
+#include "cg_fragment_compiler.h"
 #include "function_registry.h"
 #include "functions.h"
+#include "plan_helpers.h"
 
-#include "cg_fragment_compiler.h"
+#include <yt/core/misc/common.h>
 
 namespace NYT {
 namespace NQueryClient {

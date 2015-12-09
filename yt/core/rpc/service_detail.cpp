@@ -1,23 +1,23 @@
-#include "stdafx.h"
 #include "service_detail.h"
 #include "private.h"
-#include "dispatcher.h"
-#include "server_detail.h"
-#include "message.h"
 #include "config.h"
+#include "dispatcher.h"
 #include "helpers.h"
+#include "message.h"
 #include "response_keeper.h"
+#include "server_detail.h"
 
-#include <core/misc/string.h>
-#include <core/misc/address.h>
+#include <yt/core/bus/bus.h>
 
-#include <core/concurrency/thread_affinity.h>
-#include <core/concurrency/delayed_executor.h>
+#include <yt/core/concurrency/delayed_executor.h>
+#include <yt/core/concurrency/thread_affinity.h>
 
-#include <core/bus/bus.h>
+#include <yt/core/misc/address.h>
+#include <yt/core/misc/common.h>
+#include <yt/core/misc/string.h>
 
-#include <core/profiling/timing.h>
-#include <core/profiling/profile_manager.h>
+#include <yt/core/profiling/profile_manager.h>
+#include <yt/core/profiling/timing.h>
 
 namespace NYT {
 namespace NRpc {
@@ -153,6 +153,15 @@ public:
         Canceled_.Fire();
     }
 
+    virtual void SetComplete() override
+    {
+        if (RuntimeInfo_->Descriptor.OneWay)
+            return;
+
+        TGuard<TSpinLock> guard(SpinLock_);
+        DoSetComplete();
+    }
+
 private:
     const TServiceBasePtr Service_;
     const TRequestId RequestId_;
@@ -207,12 +216,7 @@ private:
             Service_->UnregisterCancelableRequest(this);
         }
 
-        // NB: This counter is also used to track queue size limit so
-        // it must be maintained even if the profiler is OFF.
-        Profiler.Increment(RuntimeInfo_->QueueSizeCounter, -1);
-
-        TServiceBase::ReleaseRequestSemaphore(RuntimeInfo_);
-        TServiceBase::ScheduleRequests(RuntimeInfo_);
+        DoSetComplete();
 
         Finalized_ = true;
     }
@@ -335,9 +339,6 @@ private:
                 RuntimeInfo_->Descriptor.Method,
                 NTracing::ServerSendAnnotation);
 
-            YASSERT(!Completed_);
-            Completed_ = true;
-
             auto responseMessage = GetResponseMessage();
 
             ReplyBus_->Send(std::move(responseMessage), EDeliveryTrackingLevel::None);
@@ -361,6 +362,21 @@ private:
         }
 
         Finalize();
+    }
+
+    void DoSetComplete()
+    {
+        if (Completed_)
+            return;
+
+        // NB: This counter is also used to track queue size limit so
+        // it must be maintained even if the profiler is OFF.
+        Profiler.Increment(RuntimeInfo_->QueueSizeCounter, -1);
+
+        TServiceBase::ReleaseRequestSemaphore(RuntimeInfo_);
+        TServiceBase::ScheduleRequests(RuntimeInfo_);
+
+        Completed_ = true;
     }
 
 

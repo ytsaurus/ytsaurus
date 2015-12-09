@@ -3,7 +3,7 @@
 #include "parser.h"
 #include "yamr_table.h"
 
-#include <core/ytree/attributes.h>
+#include <yt/core/ytree/attributes.h>
 
 namespace NYT {
 namespace NFormats {

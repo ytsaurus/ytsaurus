@@ -2,11 +2,11 @@
 
 #include "public.h"
 
-#include <core/misc/config.h>
+#include <yt/core/misc/config.h>
 
-#include <core/ytree/yson_serializable.h>
+#include <yt/core/rpc/config.h>
 
-#include <core/rpc/config.h>
+#include <yt/core/ytree/yson_serializable.h>
 
 namespace NYT {
 namespace NObjectServer {

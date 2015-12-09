@@ -2,14 +2,14 @@
 
 #include "public.h"
 
-#include <core/misc/small_set.h>
+#include <yt/server/cell_master/public.h>
 
-#include <core/concurrency/public.h>
-#include <core/concurrency/thread_affinity.h>
+#include <yt/server/node_tracker_server//public.h>
 
-#include <server/node_tracker_server//public.h>
+#include <yt/core/concurrency/public.h>
+#include <yt/core/concurrency/thread_affinity.h>
 
-#include <server/cell_master/public.h>
+#include <yt/core/misc/small_set.h>
 
 namespace NYT {
 namespace NTabletServer {

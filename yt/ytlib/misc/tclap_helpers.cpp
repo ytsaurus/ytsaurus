@@ -1,5 +1,6 @@
-#include "stdafx.h"
 #include "tclap_helpers.h"
+
+#include <yt/core/misc/common.h>
 
 namespace std {
 

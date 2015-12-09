@@ -1,6 +1,6 @@
 #:yt-updatable
-set( BASE ${CMAKE_SOURCE_DIR}/yt/unittests )
-set( SRCS
+set(BASE ${CMAKE_SOURCE_DIR}/yt/unittests)
+set(SRCS
   ${BASE}/any_ut.cpp
   ${BASE}/attributes_ut.cpp
   ${BASE}/bind_ut.cpp
@@ -28,6 +28,7 @@ set( SRCS
   ${BASE}/hash_filter_ut.cpp
   ${BASE}/heap_ut.cpp
   ${BASE}/intrusive_ptr_ut.cpp
+  ${BASE}/job_signaler_ut.cpp
   ${BASE}/json_parser_ut.cpp
   ${BASE}/json_writer_ut.cpp
   ${BASE}/lexer_ut.cpp
@@ -41,6 +42,7 @@ set( SRCS
   ${BASE}/nullable_ut.cpp
   ${BASE}/pattern_formatter_ut.cpp
   ${BASE}/phoenix_ut.cpp
+  ${BASE}/periodic_ut.cpp
   ${BASE}/pipes_ut.cpp
   ${BASE}/preprocessor_ut.cpp
   ${BASE}/process_ut.cpp
@@ -97,12 +99,15 @@ set( SRCS
   ${BASE}/persistent_queue_ut.cpp
   ${BASE}/hyperloglog_ut.cpp
   ${BASE}/udf/invalid_ir.h
+  ${BASE}/lfalloc_helpers_ut.cpp
 )
 
-protoc( ${BASE}/rpc_ut.proto SRCS )
+protoc(${BASE}/rpc_ut.proto SRCS)
 
-udf_bc( ${BASE}/udf/sum_udf2.c SRCS )
-udf_bc( ${BASE}/udf/malloc_udf.c SRCS )
+udf_bc(${BASE}/udf/sum_udf2.c SRCS)
+
+udf_bc(${BASE}/udf/malloc_udf.c SRCS)
+
 udf_bc(
   ${BASE}/udf/test_udfs.c
   SRCS
@@ -133,28 +138,22 @@ udf_o(
     max_udaf_finalize
 )
 
-add_msvc_precompiled_header(
-  "stdafx.h"
-  "stdafx.cpp"
-  SRCS
-)
-
-if (MSVC)
-  add_definitions( -D_VARIADIC_MAX=10 )
-  add_definitions( -DGTEST_HAS_SEH=0 )
+if(MSVC)
+  add_definitions(-D_VARIADIC_MAX=10)
+  add_definitions(-DGTEST_HAS_SEH=0)
 endif()
 
 include_directories(
   ${CMAKE_CURRENT_SOURCE_DIR}
 )
 
-add_executable( unittester
+add_executable(unittester
   ${CMAKE_SOURCE_DIR}/contrib/testing/framework.cpp
   ${SRCS}
 )
 
-target_link_libraries( unittester
+target_link_libraries(unittester
   ytlib
   ytserver_lib
-  ytext-lfalloc
+  ytext-arcadia-library-lfalloc
 )

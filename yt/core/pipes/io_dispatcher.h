@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <core/misc/shutdownable.h>
+#include <yt/core/misc/shutdownable.h>
 
 namespace NYT {
 namespace NPipes {

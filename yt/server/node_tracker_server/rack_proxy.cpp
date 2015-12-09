@@ -1,13 +1,14 @@
-#include "stdafx.h"
 #include "rack_proxy.h"
-#include "rack.h"
 #include "node_tracker.h"
+#include "rack.h"
 
-#include <core/ytree/fluent.h>
+#include <yt/server/cell_master/bootstrap.h>
 
-#include <server/object_server/object_detail.h>
+#include <yt/server/object_server/object_detail.h>
 
-#include <cell_master/bootstrap.h>
+#include <yt/core/misc/common.h>
+
+#include <yt/core/ytree/fluent.h>
 
 namespace NYT {
 namespace NNodeTrackerServer {

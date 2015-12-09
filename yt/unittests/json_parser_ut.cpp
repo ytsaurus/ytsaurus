@@ -1,9 +1,10 @@
-#include "stdafx.h"
 #include "framework.h"
 
-#include <ytlib/formats/json_parser.h>
+#include <yt/ytlib/formats/json_parser.h>
 
-#include <core/ytree/yson_consumer-mock.h>
+#include <yt/core/misc/common.h>
+
+#include <yt/core/ytree/yson_consumer-mock.h>
 
 #include <util/string/base64.h>
 

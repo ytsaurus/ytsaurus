@@ -1,19 +1,20 @@
-#include "stdafx.h"
 #include "table_node.h"
-#include "table_node_proxy.h"
 #include "private.h"
+#include "table_node_proxy.h"
 
-#include <ytlib/chunk_client/schema.h>
+#include <yt/server/cell_master/bootstrap.h>
 
-#include <server/chunk_server/chunk.h>
-#include <server/chunk_server/chunk_list.h>
-#include <server/chunk_server/chunk_owner_type_handler.h>
-#include <server/chunk_server/chunk_manager.h>
+#include <yt/server/chunk_server/chunk.h>
+#include <yt/server/chunk_server/chunk_list.h>
+#include <yt/server/chunk_server/chunk_manager.h>
+#include <yt/server/chunk_server/chunk_owner_type_handler.h>
 
-#include <server/tablet_server/tablet_manager.h>
-#include <server/tablet_server/tablet.h>
+#include <yt/server/tablet_server/tablet.h>
+#include <yt/server/tablet_server/tablet_manager.h>
 
-#include <server/cell_master/bootstrap.h>
+#include <yt/ytlib/chunk_client/schema.h>
+
+#include <yt/core/misc/common.h>
 
 namespace NYT {
 namespace NTableServer {
@@ -73,6 +74,10 @@ void TTableNode::Load(TLoadContext& context)
     if (context.GetVersion() >= 121) {
         Load(context, Atomicity_);
     }
+    // COMPAT(savrus): Mark dynamic tables as sorted.
+    if (context.GetVersion() <= 125 && !Tablets_.empty()) {
+        Sorted_ = true;
+    }
 }
 
 std::pair<TTableNode::TTabletListIterator, TTableNode::TTabletListIterator> TTableNode::GetIntersectingTablets(
@@ -102,9 +107,7 @@ std::pair<TTableNode::TTabletListIterator, TTableNode::TTabletListIterator> TTab
 bool TTableNode::HasMountedTablets() const
 {
     for (const auto* tablet : Tablets_) {
-        if (tablet->GetState() == ETabletState::Mounting ||
-            tablet->GetState() == ETabletState::Mounted)
-        {
+        if (tablet->GetState() != ETabletState::Unmounted) {
             return true;
         }
     }
@@ -223,10 +226,8 @@ protected:
         clonedNode->KeyColumns() = sourceNode->KeyColumns();
 
         if (sourceNode->IsDynamic()) {
-            auto objectManager = Bootstrap_->GetObjectManager();
-            for (auto* tablet : sourceNode->Tablets()) {
-                objectManager->RefObject(tablet);
-                clonedNode->Tablets().push_back(tablet);
+            clonedNode->Tablets() = std::move(sourceNode->Tablets());
+            for (auto* tablet : clonedNode->Tablets()) {
                 tablet->SetTable(clonedNode);
             }
         }

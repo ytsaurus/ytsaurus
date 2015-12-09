@@ -1,7 +1,8 @@
 #pragma once
 
-#include <ytlib/file_client/file_chunk_meta.pb.h>
-#include <core/misc/protobuf_helpers.h>
+#include <yt/ytlib/file_client/file_chunk_meta.pb.h>
+
+#include <yt/core/misc/protobuf_helpers.h>
 
 namespace NYT {
 

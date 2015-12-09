@@ -1,8 +1,8 @@
-#include "stdafx.h"
 #include "token.h"
 
-#include <core/misc/error.h>
-#include <util/string/vector.h>
+#include <yt/core/misc/common.h>
+#include <yt/core/misc/error.h>
+#include <yt/core/misc/string.h>
 
 namespace NYT {
 namespace NYson {
@@ -166,7 +166,7 @@ void TToken::CheckType(const std::vector<ETokenType>& expectedTypes) const
     if (expectedTypes.size() == 1) {
         CheckType(expectedTypes.front());
     } else if (std::find(expectedTypes.begin(), expectedTypes.end(), Type_) == expectedTypes.end()) {
-        auto typesString = JoinStroku(expectedTypes.begin(), expectedTypes.end(), " or ");
+        auto typesString = JoinToString(expectedTypes.begin(), expectedTypes.end(), Stroka(" or "));
         if (Type_ == ETokenType::EndOfStream) {
             THROW_ERROR_EXCEPTION("Unexpected end of stream (ExpectedType: %v)",
                 typesString);

@@ -1,5 +1,6 @@
-#include "stdafx.h"
 #include "callback_internal.h"
+
+#include <yt/core/misc/common.h>
 
 namespace NYT {
 namespace NDetail {

@@ -2,13 +2,13 @@
 
 #include "public.h"
 
-#include <core/ytree/yson_serializable.h>
+#include <yt/ytlib/chunk_client/public.h>
 
-#include <core/rpc/config.h>
+#include <yt/core/compression/public.h>
 
-#include <core/compression/public.h>
+#include <yt/core/rpc/config.h>
 
-#include <ytlib/chunk_client/public.h>
+#include <yt/core/ytree/yson_serializable.h>
 
 namespace NYT {
 namespace NHydra {

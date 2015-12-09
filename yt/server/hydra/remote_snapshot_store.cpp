@@ -1,30 +1,30 @@
-#include "stdafx.h"
 #include "remote_snapshot_store.h"
+#include "private.h"
+#include "config.h"
 #include "file_snapshot_store.h"
 #include "snapshot.h"
-#include "config.h"
-#include "private.h"
 
-#include <core/misc/fs.h>
+#include <yt/ytlib/api/client.h>
+#include <yt/ytlib/api/config.h>
+#include <yt/ytlib/api/connection.h>
+#include <yt/ytlib/api/file_reader.h>
+#include <yt/ytlib/api/file_writer.h>
+#include <yt/ytlib/api/transaction.h>
 
-#include <core/concurrency/scheduler.h>
+#include <yt/ytlib/hydra/hydra_manager.pb.h>
 
-#include <core/ytree/ypath_proxy.h>
-#include <core/ytree/convert.h>
-#include <core/ytree/attribute_helpers.h>
+#include <yt/core/concurrency/scheduler.h>
 
-#include <core/ypath/token.h>
+#include <yt/core/logging/log.h>
 
-#include <core/logging/log.h>
+#include <yt/core/misc/common.h>
+#include <yt/core/misc/fs.h>
 
-#include <ytlib/api/config.h>
-#include <ytlib/api/client.h>
-#include <ytlib/api/connection.h>
-#include <ytlib/api/transaction.h>
-#include <ytlib/api/file_reader.h>
-#include <ytlib/api/file_writer.h>
+#include <yt/core/ypath/token.h>
 
-#include <ytlib/hydra/hydra_manager.pb.h>
+#include <yt/core/ytree/attribute_helpers.h>
+#include <yt/core/ytree/convert.h>
+#include <yt/core/ytree/ypath_proxy.h>
 
 namespace NYT {
 namespace NHydra {

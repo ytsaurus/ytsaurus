@@ -2,22 +2,22 @@
 
 #include "public.h"
 
-#include <core/misc/property.h>
-#include <core/misc/enum.h>
-#include <core/misc/ref_tracked.h>
-#include <core/misc/nullable.h>
+#include <yt/server/cell_master/public.h>
 
-#include <ytlib/table_client/unversioned_row.h>
+#include <yt/server/object_server/object.h>
 
-#include <ytlib/node_tracker_client/node_tracker_service.pb.h>
+#include <yt/server/table_server/public.h>
 
-#include <server/object_server/object.h>
+#include <yt/server/tablet_node/public.h>
 
-#include <server/table_server/public.h>
+#include <yt/ytlib/node_tracker_client/node_tracker_service.pb.h>
 
-#include <server/tablet_node/public.h>
+#include <yt/ytlib/table_client/unversioned_row.h>
 
-#include <server/cell_master/public.h>
+#include <yt/core/misc/enum.h>
+#include <yt/core/misc/nullable.h>
+#include <yt/core/misc/property.h>
+#include <yt/core/misc/ref_tracked.h>
 
 namespace NYT {
 namespace NTabletServer {
@@ -88,6 +88,7 @@ class TTablet
 public:
     DEFINE_BYVAL_RW_PROPERTY(int, Index);
     DEFINE_BYVAL_RW_PROPERTY(ETabletState, State);
+    DEFINE_BYVAL_RW_PROPERTY(i64, MountRevision);
     DEFINE_BYVAL_RW_PROPERTY(NTableServer::TTableNode*, Table);
     DEFINE_BYVAL_RW_PROPERTY(TTabletCell*, Cell);
     DEFINE_BYVAL_RW_PROPERTY(NTableClient::TOwningKey, PivotKey);
@@ -101,6 +102,8 @@ public:
 
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);
+
+    void ValidateMountRevision(i64 mountRevision);
 
 };
 

@@ -2,7 +2,7 @@
 
 #include "yt_udf_types.h"
 
-#include <ytlib/query_client/function_context.h>
+#include <yt/ytlib/query_client/function_context.h>
 
 #include <stdlib.h>
 

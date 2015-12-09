@@ -2,8 +2,8 @@
 
 #include <util/generic/typetraits.h>
 
-#include <type_traits>
 #include <tuple>
+#include <type_traits>
 
 // See the following references for an inspiration:
 //   * http://llvm.org/viewvc/llvm-project/libcxx/trunk/include/type_traits?revision=HEAD&view=markup

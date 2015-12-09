@@ -2,9 +2,9 @@
 
 #include "public.h"
 
-#include <core/misc/lazy_ptr.h>
+#include <yt/ytlib/hydra/private.h>
 
-#include <ytlib/hydra/private.h>
+#include <yt/core/misc/lazy_ptr.h>
 
 namespace NYT {
 namespace NHydra {

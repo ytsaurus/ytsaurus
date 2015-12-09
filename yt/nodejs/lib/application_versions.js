@@ -18,7 +18,7 @@ var TIMEOUT = 1000;
 
 function YtApplicationVersions(driver)
 {
-    function executeWithTimout(commandName, parameters)
+    function executeWithTimeout(commandName, parameters)
     {
         parameters.timeout = TIMEOUT;
         return driver.executeSimple(commandName, parameters);
@@ -26,7 +26,7 @@ function YtApplicationVersions(driver)
     
     function getDataFromOrchid(entity, name)
     {
-        return executeWithTimout("get", { path: "//sys/" + entity + "/" + name + "/orchid/service"})
+        return executeWithTimeout("get", { path: "//sys/" + entity + "/" + name + "/orchid/service"})
         .then(function(result) {
             return utils.pick(result, ["start_time", "version"]);
         });
@@ -34,7 +34,7 @@ function YtApplicationVersions(driver)
 
     function getListAndData(entity, dataLoader)
     {
-        return executeWithTimout("list", { path: "//sys/" + entity })
+        return executeWithTimeout("list", { path: "//sys/" + entity })
         .then(function(names) {
             __DBG("Got " + entity + ": " + names);
             return Q.settle(names.map(function(name) {

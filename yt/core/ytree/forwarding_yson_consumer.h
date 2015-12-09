@@ -1,8 +1,10 @@
 #pragma once
 
 #include "yson_string.h"
-#include <core/yson/consumer.h>
-#include <core/actions/callback.h>
+
+#include <yt/core/actions/callback.h>
+
+#include <yt/core/yson/consumer.h>
 
 namespace NYT {
 namespace NYTree {

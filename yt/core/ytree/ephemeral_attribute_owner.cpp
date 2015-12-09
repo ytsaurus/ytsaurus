@@ -1,6 +1,7 @@
-#include "stdafx.h"
 #include "ephemeral_attribute_owner.h"
 #include "attribute_helpers.h"
+
+#include <yt/core/misc/common.h>
 
 namespace NYT {
 namespace NYTree {

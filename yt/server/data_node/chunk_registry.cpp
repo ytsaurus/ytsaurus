@@ -1,13 +1,14 @@
-#include "stdafx.h"
 #include "chunk_registry.h"
 #include "chunk.h"
-#include "location.h"
-#include "chunk_store.h"
 #include "chunk_cache.h"
+#include "chunk_store.h"
+#include "location.h"
 
-#include <core/concurrency/thread_affinity.h>
+#include <yt/server/cell_node/bootstrap.h>
 
-#include <server/cell_node/bootstrap.h>
+#include <yt/core/concurrency/thread_affinity.h>
+
+#include <yt/core/misc/common.h>
 
 namespace NYT {
 namespace NDataNode {

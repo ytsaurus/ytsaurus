@@ -1,8 +1,9 @@
-#include "stdafx.h"
 #include "server_detail.h"
 #include "private.h"
-#include "message.h"
 #include "config.h"
+#include "message.h"
+
+#include <yt/core/misc/common.h>
 
 namespace NYT {
 namespace NRpc {
@@ -125,6 +126,9 @@ void TServiceContextBase::Reply(TSharedRefArray responseMessage)
         AsyncResponseMessage_.Set(GetResponseMessage());
     }
 }
+
+void TServiceContextBase::SetComplete()
+{ }
 
 TFuture<TSharedRefArray> TServiceContextBase::GetAsyncResponseMessage() const
 {
@@ -367,6 +371,11 @@ void TServiceContextWrapper::Reply(const TError& error)
 void TServiceContextWrapper::Reply(TSharedRefArray responseMessage)
 {
     UnderlyingContext_->Reply(responseMessage);
+}
+
+void TServiceContextWrapper::SetComplete()
+{
+    UnderlyingContext_->SetComplete();
 }
 
 void TServiceContextWrapper::SubscribeCanceled(const TClosure& /*callback*/)

@@ -1,5 +1,6 @@
-#include "stdafx.h"
 #include "system_attribute_provider.h"
+
+#include <yt/core/misc/common.h>
 
 namespace NYT {
 namespace NYTree {

@@ -2,9 +2,9 @@
 
 #include "public.h"
 
-#include <core/compression/codec.h>
+#include <yt/core/compression/codec.h>
 
-#include <core/ytree/yson_serializable.h>
+#include <yt/core/ytree/yson_serializable.h>
 
 namespace NYT {
 namespace NRpc {

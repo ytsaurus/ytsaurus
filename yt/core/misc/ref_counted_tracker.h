@@ -3,9 +3,9 @@
 #include "public.h"
 #include "source_location.h"
 
-#include <core/ytree/yson_producer.h>
+#include <yt/core/concurrency/fork_aware_spinlock.h>
 
-#include <core/concurrency/fork_aware_spinlock.h>
+#include <yt/core/ytree/yson_producer.h>
 
 namespace NYT {
 

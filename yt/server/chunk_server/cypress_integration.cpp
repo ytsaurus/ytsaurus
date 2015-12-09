@@ -1,16 +1,16 @@
-#include "stdafx.h"
 #include "cypress_integration.h"
 #include "private.h"
 #include "chunk.h"
 #include "chunk_list.h"
 
-#include <core/misc/collection_helpers.h>
+#include <yt/server/cell_master/bootstrap.h>
 
-#include <server/cypress_server/virtual.h>
+#include <yt/server/chunk_server/chunk_manager.h>
 
-#include <server/chunk_server/chunk_manager.h>
+#include <yt/server/cypress_server/virtual.h>
 
-#include <server/cell_master/bootstrap.h>
+#include <yt/core/misc/collection_helpers.h>
+#include <yt/core/misc/common.h>
 
 namespace NYT {
 namespace NChunkServer {

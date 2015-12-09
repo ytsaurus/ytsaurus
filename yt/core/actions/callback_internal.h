@@ -12,13 +12,13 @@ $$ See bind.h for an extended commentary.
 $$==============================================================================
 */
 
-#include <core/misc/common.h>
+#include <yt/core/misc/common.h>
 
 #ifdef YT_ENABLE_BIND_LOCATION_TRACKING
-#include <core/misc/source_location.h>
+#include <yt/core/misc/source_location.h>
 #endif
 
-#include <core/tracing/trace_context.h>
+#include <yt/core/tracing/trace_context.h>
 
 namespace NYT {
 namespace NDetail {

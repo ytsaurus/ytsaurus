@@ -1,18 +1,18 @@
-#include "stdafx.h"
 #include "sync_file_changelog.h"
 #include "config.h"
-#include "format.h"
 #include "file_helpers.h"
+#include "format.h"
 
-#include <core/misc/fs.h>
-#include <core/misc/string.h>
-#include <core/misc/serialize.h>
-#include <core/misc/blob_output.h>
-#include <core/misc/checksum.h>
+#include <yt/ytlib/hydra/hydra_manager.pb.h>
 
-#include <core/concurrency/thread_affinity.h>
+#include <yt/core/concurrency/thread_affinity.h>
 
-#include <ytlib/hydra/hydra_manager.pb.h>
+#include <yt/core/misc/blob_output.h>
+#include <yt/core/misc/checksum.h>
+#include <yt/core/misc/common.h>
+#include <yt/core/misc/fs.h>
+#include <yt/core/misc/serialize.h>
+#include <yt/core/misc/string.h>
 
 #include <mutex>
 
@@ -68,9 +68,9 @@ TErrorOr<TRecordInfo> TryReadRecord(TInput& input)
             input.Avail());
     }
 
-    int readSize = 0;
+    int totalSize = 0;
     TChangelogRecordHeader header;
-    readSize += ReadPodPadded(input, header);
+    totalSize += ReadPodPadded(input, header);
     if (!input.Success()) {
         return TError("Error reading record header");
     }
@@ -85,7 +85,7 @@ TErrorOr<TRecordInfo> TryReadRecord(TInput& input)
             header.DataSize,
             input.Avail());
     }
-    readSize += ReadPadded(input, data);
+    totalSize += ReadPadded(input, data);
     if (!input.Success()) {
         return TError("Error reading record data");
     }
@@ -95,7 +95,7 @@ TErrorOr<TRecordInfo> TryReadRecord(TInput& input)
         return TError("Record data checksum mismatch of record %v", header.RecordId);
     }
 
-    return TRecordInfo(header.RecordId, readSize);
+    return TRecordInfo(header.RecordId, totalSize);
 }
 
 // Computes the length of the maximal valid prefix of index records sequence.
@@ -238,29 +238,36 @@ public:
 
         YCHECK(!Open_);
 
-        LOG_DEBUG("Opening changelog");
+        Error_.ThrowOnError();
 
-        DataFile_.reset(new TFileWrapper(FileName_, RdWr | Seq | CloseOnExec));
-        LockDataFile();
+        try {
+            DataFile_.reset(new TFileWrapper(FileName_, RdWr | Seq | CloseOnExec));
+            LockDataFile();
 
-        // Read and check changelog header.
-        TChangelogHeader header;
-        ReadPod(*DataFile_, header);
-        ValidateSignature(header);
+            // Read and check changelog header.
+            TChangelogHeader header;
+            ReadPod(*DataFile_, header);
+            ValidateSignature(header);
 
-        // Read meta.
-        auto serializedMeta = TSharedMutableRef::Allocate(header.MetaSize);
-        ReadPadded(*DataFile_, serializedMeta);
-        DeserializeFromProto(&Meta_, serializedMeta);
-        SerializedMeta_ = serializedMeta;
+            // Read meta.
+            auto serializedMeta = TSharedMutableRef::Allocate(header.MetaSize);
+            ReadPadded(*DataFile_, serializedMeta);
+            DeserializeFromProto(&Meta_, serializedMeta);
+            SerializedMeta_ = serializedMeta;
+
+            TruncatedRecordCount_ = header.TruncatedRecordCount == TChangelogHeader::NotTruncatedRecordCount
+                ? Null
+                : MakeNullable(header.TruncatedRecordCount);
+
+            ReadIndex(header);
+            ReadChangelogUntilEnd(header);
+        } catch (const std::exception& ex) {
+            LOG_ERROR(ex, "Error opening changelog");
+            Error_ = ex;
+            throw;
+        }
 
         Open_ = true;
-        TruncatedRecordCount_ = header.TruncatedRecordCount == TChangelogHeader::NotTruncatedRecordCount
-            ? Null
-            : MakeNullable(header.TruncatedRecordCount);
-
-        ReadIndex(header);
-        ReadChangelogUntilEnd(header);
 
         LOG_DEBUG("Changelog opened (RecordCount: %v, Truncated: %v)",
             RecordCount_,
@@ -273,18 +280,26 @@ public:
 
         std::lock_guard<std::mutex> guard(Mutex_);
 
+        Error_.ThrowOnError();
+
         if (!Open_)
             return;
 
-        DataFile_->FlushData();
-        DataFile_->Close();
+        try {
+            DataFile_->FlushData();
+            DataFile_->Close();
 
-        IndexFile_->FlushData() ;
-        IndexFile_->Close();
-
-        LOG_DEBUG("Changelog closed");
+            IndexFile_->FlushData() ;
+            IndexFile_->Close();
+        } catch (const std::exception& ex) {
+            LOG_ERROR(ex, "Error closing changelog");
+            Error_ = ex;
+            throw;
+        }
 
         Open_ = false;
+
+        LOG_DEBUG("Changelog closed");
     }
 
     void Create(const TChangelogMeta& meta)
@@ -293,20 +308,27 @@ public:
 
         std::lock_guard<std::mutex> guard(Mutex_);
 
-        LOG_DEBUG("Creating changelog");
+        Error_.ThrowOnError();
 
         YCHECK(!Open_);
 
-        Meta_ = meta;
-        SerializedMeta_ = SerializeToProto(Meta_);
-        RecordCount_ = 0;
+        try {
+            Meta_ = meta;
+            SerializedMeta_ = SerializeToProto(Meta_);
+            RecordCount_ = 0;
+
+            CreateDataFile();
+            CreateIndexFile();
+
+            CurrentFilePosition_ = DataFile_->GetPosition();
+            CurrentBlockSize_ = 0;
+        } catch (const std::exception& ex) {
+            LOG_ERROR(ex, "Error creating changelog");
+            Error_ = ex;
+            throw;
+        }
+
         Open_ = true;
-
-        CreateDataFile();
-        CreateIndexFile();
-
-        CurrentFilePosition_ = DataFile_->GetPosition();
-        CurrentBlockSize_ = 0;
 
         LOG_DEBUG("Changelog created");
     }
@@ -353,37 +375,48 @@ public:
 
         std::lock_guard<std::mutex> guard(Mutex_);
 
-        LOG_DEBUG("Appending to changelog (RecordIds: %v-%v)",
-            firstRecordId,
-            firstRecordId + records.size() - 1);
-
         YCHECK(Open_);
         YCHECK(!TruncatedRecordCount_);
         YCHECK(firstRecordId == RecordCount_);
 
-        // Write records to one blob in memory.
-        TBlobOutput memoryOutput;
-        int currentRecordCount = RecordCount_;
-        std::vector<int> recordSizes;
-        for (int i = 0; i < records.size(); ++i) {
-            const auto& record = records[i];
-            YCHECK(!record.Empty());
-            int recordId = currentRecordCount + i;
+        Error_.ThrowOnError();
 
-            int totalSize = 0;
-            TChangelogRecordHeader header(recordId, record.Size(), GetChecksum(record));
-            totalSize += WritePodPadded(memoryOutput, header);
-            totalSize += WritePadded(memoryOutput, record);
-            recordSizes.push_back(totalSize);
-        }
+        LOG_DEBUG("Appending to changelog (RecordIds: %v-%v)",
+            firstRecordId,
+            firstRecordId + records.size() - 1);
 
-        // Write blob to file.
-        DataFile_->Seek(0, sEnd);
-        DataFile_->Write(memoryOutput.Begin(), memoryOutput.Size());
+        try {
+            AppendSizes_.clear();
+            AppendSizes_.reserve(records.size());
 
-        // Process written records (update index etc).
-        for (int i = 0; i < records.size(); ++i) {
-            ProcessRecord(currentRecordCount + i, recordSizes[i]);
+            AppendOutput_.Clear();
+
+            // Combine records into a single memory blob.
+            for (int index = 0; index < records.size(); ++index) {
+                const auto& record = records[index];
+                YCHECK(!record.Empty());
+
+                int totalSize = 0;
+                TChangelogRecordHeader header(firstRecordId + index, record.Size(), GetChecksum(record));
+                totalSize += WritePodPadded(AppendOutput_, header);
+                totalSize += WritePadded(AppendOutput_, record);
+
+                AppendSizes_.push_back(totalSize);
+            }
+
+            // Write blob to file.
+            DataFile_->Seek(0, sEnd);
+            DataFile_->Write(AppendOutput_.Begin(), AppendOutput_.Size());
+
+
+            // Process written records (update index etc).
+            for (int index = 0; index < records.size(); ++index) {
+                ProcessRecord(firstRecordId + index, AppendSizes_[index]);
+            }
+        } catch (const std::exception& ex) {
+            LOG_DEBUG(ex, "Error appending to changelog");
+            Error_ = ex;
+            throw;
         }
     }
 
@@ -393,13 +426,22 @@ public:
 
         std::lock_guard<std::mutex> guard(Mutex_);
 
+        YCHECK(Open_);
+
+        Error_.ThrowOnError();
+
         LOG_DEBUG("Flushing changelog");
 
-        DataFile_->FlushData();
-        IndexFile_->FlushData();
-        LastFlushed_ = TInstant::Now();
+        try {
+            DataFile_->FlushData();
+            IndexFile_->FlushData();
 
-        LOG_DEBUG("Changelog flushed");
+            LastFlushed_ = TInstant::Now();
+        } catch (const std::exception& ex) {
+            LOG_ERROR(ex, "Error flushing changelog");
+            Error_ = ex;
+            throw;
+        }
     }
 
     std::vector<TSharedRef> Read(
@@ -411,55 +453,62 @@ public:
 
         std::lock_guard<std::mutex> guard(Mutex_);
 
-        // Sanity check.
         YCHECK(firstRecordId >= 0);
         YCHECK(maxRecords >= 0);
         YCHECK(Open_);
+
+        Error_.ThrowOnError();
 
         LOG_DEBUG("Reading changelog (FirstRecordId: %v, MaxRecords: %v, MaxBytes: %v)",
             firstRecordId,
             maxRecords,
             maxBytes);
 
-        std::vector<TSharedRef> records;
+        try {
+            std::vector<TSharedRef> records;
 
-        // Prevent search in empty index.
-        if (Index_.empty()) {
-            return std::move(records);
-        }
-
-        maxRecords = std::min(maxRecords, RecordCount_ - firstRecordId);
-        int lastRecordId = firstRecordId + maxRecords; // non-inclusive
-
-        // Read envelope piece of changelog.
-        auto envelope = ReadEnvelope(firstRecordId, lastRecordId, std::min(Index_.back().FilePosition, maxBytes));
-
-        // Read records from envelope data and save them to the records.
-        i64 readBytes = 0;
-        TMemoryInput inputStream(envelope.Blob.Begin(), envelope.GetLength());
-        for (int recordId = envelope.GetStartRecordId();
-             recordId < envelope.GetEndRecordId() && recordId < lastRecordId && readBytes < maxBytes;
-             ++recordId)
-        {
-            // Read and check header.
-            TChangelogRecordHeader header;
-            ReadPodPadded(inputStream, header);
-            YCHECK(header.RecordId == recordId);
-
-            // Save and pad data.
-            i64 startOffset = inputStream.Buf() - envelope.Blob.Begin();
-            i64 endOffset = startOffset + header.DataSize;
-            auto data = envelope.Blob.Slice(startOffset, endOffset);
-            inputStream.Skip(AlignUp(header.DataSize));
-
-            // Add data to the records.
-            if (recordId >= firstRecordId) {
-                records.push_back(data);
-                readBytes += data.Size();
+            // Prevent search in empty index.
+            if (Index_.empty()) {
+                return std::move(records);
             }
-        }
 
-        return records;
+            maxRecords = std::min(maxRecords, RecordCount_ - firstRecordId);
+            int lastRecordId = firstRecordId + maxRecords; // non-inclusive
+
+            // Read envelope piece of changelog.
+            auto envelope = ReadEnvelope(firstRecordId, lastRecordId, std::min(Index_.back().FilePosition, maxBytes));
+
+            // Read records from envelope data and save them to the records.
+            i64 readBytes = 0;
+            TMemoryInput inputStream(envelope.Blob.Begin(), envelope.GetLength());
+            for (int recordId = envelope.GetStartRecordId();
+                 recordId < envelope.GetEndRecordId() && recordId < lastRecordId && readBytes < maxBytes;
+                 ++recordId)
+            {
+                // Read and check header.
+                TChangelogRecordHeader header;
+                ReadPodPadded(inputStream, header);
+                YCHECK(header.RecordId == recordId);
+
+                // Save and pad data.
+                i64 startOffset = inputStream.Buf() - envelope.Blob.Begin();
+                i64 endOffset = startOffset + header.DataSize;
+                auto data = envelope.Blob.Slice(startOffset, endOffset);
+                inputStream.Skip(AlignUp(header.DataSize));
+
+                // Add data to the records.
+                if (recordId >= firstRecordId) {
+                    records.push_back(data);
+                    readBytes += data.Size();
+                }
+            }
+
+            return records;
+        } catch (const std::exception& ex) {
+            LOG_ERROR(ex, "Error reading changelog");
+            Error_ = ex;
+            throw;
+        }
     }
 
     void Truncate(int recordCount)
@@ -472,13 +521,20 @@ public:
         YCHECK(recordCount >= 0);
         YCHECK(!TruncatedRecordCount_ || recordCount <= *TruncatedRecordCount_);
 
-        RecordCount_ = recordCount;
-        TruncatedRecordCount_ = recordCount;
+        Error_.ThrowOnError();
 
-        UpdateLogHeader();
-
-        LOG_DEBUG("Changelog truncated (RecordCount: %v)",
+        LOG_DEBUG("Truncating changelog (RecordCount: %v)",
             recordCount);
+
+        try {
+            RecordCount_ = recordCount;
+            TruncatedRecordCount_ = recordCount;
+            UpdateLogHeader();
+        } catch (const std::exception& ex) {
+            LOG_ERROR(ex, "Error truncating changelog");
+            Error_ = ex;
+            throw;
+        }
     }
 
 private:
@@ -578,7 +634,7 @@ private:
      *  Checks record id for correctness, updates index, record count,
      *  current block size and current file position.
      */
-    void ProcessRecord(int recordId, int readSize)
+    void ProcessRecord(int recordId, int totalSize)
     {
         YCHECK(RecordCount_ == recordId);
 
@@ -598,8 +654,8 @@ private:
                 CurrentFilePosition_);
         }
         // Record appended successfully.
-        CurrentBlockSize_ += readSize;
-        CurrentFilePosition_ += readSize;
+        CurrentBlockSize_ += totalSize;
+        CurrentFilePosition_ += totalSize;
         RecordCount_ += 1;
     }
 
@@ -687,10 +743,9 @@ private:
             i64 maxFilePosition = result.LowerBound.FilePosition + maxBytes;
             it = std::min(it, FirstGreater(Index_, TChangelogIndexRecord(-1, maxFilePosition), CompareFilePositions));
         }
-        result.UpperBound =
-            it != Index_.end() ?
-                *it :
-                TChangelogIndexRecord(RecordCount_, CurrentFilePosition_);
+        result.UpperBound = (it != Index_.end())
+            ? *it
+            : TChangelogIndexRecord(RecordCount_, CurrentFilePosition_);
 
         struct TSyncChangelogEnvelopeTag { };
         result.Blob = TSharedMutableRef::Allocate<TSyncChangelogEnvelopeTag>(result.GetLength(), false);
@@ -774,6 +829,7 @@ private:
     const Stroka IndexFileName_;
     const TFileChangelogConfigPtr Config_;
 
+    TError Error_;
     bool Open_ = false;
     int RecordCount_ = -1;
     TNullable<int> TruncatedRecordCount_;
@@ -788,6 +844,10 @@ private:
 
     std::unique_ptr<TFileWrapper> DataFile_;
     std::unique_ptr<TFile> IndexFile_;
+
+    // Reused by Append.
+    std::vector<int> AppendSizes_;
+    TBlobOutput AppendOutput_;
 
     //! Auxiliary data.
     //! Protects file resources.

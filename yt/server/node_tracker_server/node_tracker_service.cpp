@@ -1,24 +1,25 @@
-#include "stdafx.h"
 #include "node_tracker_service.h"
-#include "node.h"
-#include "node_tracker.h"
 #include "private.h"
 #include "config.h"
+#include "node.h"
+#include "node_tracker.h"
 
-#include <ytlib/node_tracker_client/node_tracker_service_proxy.h>
+#include <yt/server/cell_master/bootstrap.h>
+#include <yt/server/cell_master/hydra_facade.h>
+#include <yt/server/cell_master/master_hydra_service.h>
+#include <yt/server/cell_master/world_initializer.h>
 
-#include <ytlib/hive/cell_directory.h>
+#include <yt/server/chunk_server/chunk_manager.h>
 
-#include <server/hydra/rpc_helpers.h>
+#include <yt/server/hydra/rpc_helpers.h>
 
-#include <server/object_server/object_manager.h>
+#include <yt/server/object_server/object_manager.h>
 
-#include <server/chunk_server/chunk_manager.h>
+#include <yt/ytlib/hive/cell_directory.h>
 
-#include <server/cell_master/bootstrap.h>
-#include <server/cell_master/hydra_facade.h>
-#include <server/cell_master/master_hydra_service.h>
-#include <server/cell_master/world_initializer.h>
+#include <yt/ytlib/node_tracker_client/node_tracker_service_proxy.h>
+
+#include <yt/core/misc/common.h>
 
 namespace NYT {
 namespace NNodeTrackerServer {

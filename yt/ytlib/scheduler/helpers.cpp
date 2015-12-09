@@ -1,7 +1,8 @@
-#include "stdafx.h"
 #include "helpers.h"
 
-#include <core/ypath/token.h>
+#include <yt/core/misc/common.h>
+
+#include <yt/core/ypath/token.h>
 
 namespace NYT {
 namespace NScheduler {
@@ -65,6 +66,13 @@ TYPath GetLivePreviewIntermediatePath(const TOperationId& operationId)
     return
         GetOperationPath(operationId)
         + "/intermediate";
+}
+
+TYPath GetTransactionPath(const NTransactionClient::TTransactionId& transactionId)
+{
+    return
+        "//sys/transactions/" +
+        ToYPathLiteral(ToString(transactionId));
 }
 
 bool IsOperationFinished(EOperationState state)

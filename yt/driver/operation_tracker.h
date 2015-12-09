@@ -2,13 +2,13 @@
 
 #include "executor.h"
 
-#include <core/misc/nullable.h>
+#include <yt/server/job_proxy/public.h>
 
-#include <ytlib/driver/driver.h>
+#include <yt/ytlib/driver/driver.h>
 
-#include <core/ytree/yson_string.h>
+#include <yt/core/misc/nullable.h>
 
-#include <server/job_proxy/public.h>
+#include <yt/core/ytree/yson_string.h>
 
 namespace NYT {
 namespace NDriver {

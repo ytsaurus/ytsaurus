@@ -1,25 +1,25 @@
-#include "stdafx.h"
 #include "master_cache_service.h"
-#include "config.h"
 #include "private.h"
+#include "config.h"
 
-#include <core/misc/async_cache.h>
-#include <core/misc/string.h>
-#include <core/misc/property.h>
+#include <yt/ytlib/object_client/object_service_proxy.h>
 
-#include <core/concurrency/thread_affinity.h>
+#include <yt/ytlib/security_client/public.h>
 
-#include <core/rpc/service_detail.h>
-#include <core/rpc/dispatcher.h>
-#include <core/rpc/helpers.h>
-#include <core/rpc/message.h>
-#include <core/rpc/throttling_channel.h>
+#include <yt/core/concurrency/thread_affinity.h>
 
-#include <core/ytree/ypath.pb.h>
+#include <yt/core/misc/async_cache.h>
+#include <yt/core/misc/common.h>
+#include <yt/core/misc/property.h>
+#include <yt/core/misc/string.h>
 
-#include <ytlib/object_client/object_service_proxy.h>
+#include <yt/core/rpc/dispatcher.h>
+#include <yt/core/rpc/helpers.h>
+#include <yt/core/rpc/message.h>
+#include <yt/core/rpc/service_detail.h>
+#include <yt/core/rpc/throttling_channel.h>
 
-#include <ytlib/security_client/public.h>
+#include <yt/core/ytree/ypath.pb.h>
 
 namespace NYT {
 namespace NObjectServer {

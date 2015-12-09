@@ -1,29 +1,28 @@
-#include "stdafx.h"
 #include "session_manager.h"
-#include "blob_session.h"
-#include "journal_session.h"
 #include "private.h"
-#include "config.h"
-#include "location.h"
-#include "block_store.h"
 #include "blob_chunk.h"
+#include "blob_session.h"
+#include "chunk_block_manager.h"
 #include "chunk_store.h"
+#include "config.h"
+#include "journal_session.h"
+#include "location.h"
 
-#include <core/misc/fs.h>
+#include <yt/server/cell_node/bootstrap.h>
 
-#include <core/profiling/profile_manager.h>
+#include <yt/ytlib/chunk_client/chunk_meta.pb.h>
+#include <yt/ytlib/chunk_client/chunk_replica.h>
+#include <yt/ytlib/chunk_client/file_writer.h>
 
-#include <ytlib/object_client/helpers.h>
+#include <yt/ytlib/node_tracker_client/node_directory.h>
 
-#include <ytlib/chunk_client/chunk_replica.h>
-#include <ytlib/chunk_client/file_writer.h>
-#include <ytlib/chunk_client/chunk_meta.pb.h>
+#include <yt/ytlib/object_client/helpers.h>
 
-#include <ytlib/node_tracker_client/node_directory.h>
+#include <yt/core/misc/common.h>
+#include <yt/core/misc/fs.h>
 
-#include <core/profiling/scoped_timer.h>
-
-#include <server/cell_node/bootstrap.h>
+#include <yt/core/profiling/profile_manager.h>
+#include <yt/core/profiling/scoped_timer.h>
 
 namespace NYT {
 namespace NDataNode {
@@ -114,7 +113,7 @@ ISessionPtr TSessionManager::CreateSession(
     auto chunkType = TypeFromId(DecodeChunkId(chunkId).Id);
 
     auto chunkStore = Bootstrap_->GetChunkStore();
-    auto location = chunkStore->GetNewChunkLocation(chunkType);
+    auto location = chunkStore->GetNewChunkLocation(chunkType, options.WorkloadDescriptor);
 
     auto lease = TLeaseManager::CreateLease(
         Config_->SessionTimeout,

@@ -2,8 +2,8 @@
 #error "Direct inclusion of this file is not allowed, include object_service_proxy.h"
 #endif
 
-#include <core/rpc/service.h>
-#include <core/rpc/client.h>
+#include <yt/core/rpc/service.h>
+#include <yt/core/rpc/client.h>
 
 namespace NYT {
 namespace NObjectClient {

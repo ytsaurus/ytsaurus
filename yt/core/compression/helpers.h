@@ -2,8 +2,8 @@
 
 #include "public.h"
 
-#include <core/misc/public.h>
-#include <core/misc/ref.h>
+#include <yt/core/misc/public.h>
+#include <yt/core/misc/ref.h>
 
 namespace NYT {
 namespace NCompression {

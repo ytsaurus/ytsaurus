@@ -1,10 +1,11 @@
-#include "stdafx.h"
 #include "build_attributes.h"
 
-#include <core/ytree/ypath_client.h>
-#include <core/ytree/fluent.h>
+#include <yt/build/build.h>
 
-#include <core/build.h>
+#include <yt/core/misc/common.h>
+
+#include <yt/core/ytree/fluent.h>
+#include <yt/core/ytree/ypath_client.h>
 
 namespace NYT {
 

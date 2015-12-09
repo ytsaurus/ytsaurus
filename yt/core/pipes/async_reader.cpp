@@ -1,16 +1,15 @@
-#include "stdafx.h"
 #include "async_reader.h"
-
+#include "private.h"
 #include "io_dispatcher.h"
 #include "io_dispatcher_impl.h"
-#include "private.h"
 #include "pipe.h"
 
-#include <core/concurrency/thread_affinity.h>
+#include <yt/core/concurrency/thread_affinity.h>
 
-#include <core/misc/proc.h>
+#include <yt/core/misc/common.h>
+#include <yt/core/misc/proc.h>
 
-#include <contrib/libev/ev++.h>
+#include <yt/contrib/libev/ev++.h>
 
 #include <errno.h>
 
@@ -50,7 +49,7 @@ public:
 
     ~TAsyncReaderImpl()
     {
-        YCHECK(State_ != EReaderState::Active);
+        YCHECK(State_ != EReaderState::Active || AbortRequested_);
     }
 
     int GetHandle() const
@@ -104,6 +103,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
+        AbortRequested_ = true;
         return BIND([=, this_ = MakeStrong(this)] () {
                 if (State_ == EReaderState::Active) { 
                     State_ = EReaderState::Aborted;
@@ -125,6 +125,7 @@ private:
 
     TPromise<size_t> ReadResultPromise_ = MakePromise<size_t>(0);
 
+    std::atomic<bool> AbortRequested_ = { false };
     EReaderState State_ = EReaderState::Active;
 
     TSharedMutableRef Buffer_;

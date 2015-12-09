@@ -1,5 +1,6 @@
-#include "stdafx.h"
 #include "memory_store_ut.h"
+
+#include <yt/core/misc/common.h>
 
 #include <yt/core/profiling/scoped_timer.h>
 

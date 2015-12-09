@@ -3,9 +3,9 @@
 #include "public.h"
 #include "session_detail.h"
 
-#include <server/hydra/public.h>
+#include <yt/server/cell_node/public.h>
 
-#include <server/cell_node/public.h>
+#include <yt/server/hydra/public.h>
 
 namespace NYT {
 namespace NDataNode {

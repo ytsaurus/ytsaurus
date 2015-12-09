@@ -1,6 +1,6 @@
-﻿#pragma once
+#pragma once
 
-#include <core/misc/public.h>
+#include <yt/core/misc/public.h>
 
 namespace NYT {
 namespace NTracing {

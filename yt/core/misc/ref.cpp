@@ -1,8 +1,9 @@
-#include "stdafx.h"
 #include "ref.h"
 #include "ref_counted_tracker.h"
-#include "small_vector.h"
 #include "serialize.h"
+#include "small_vector.h"
+
+#include <yt/core/misc/common.h>
 
 #include <util/system/info.h>
 

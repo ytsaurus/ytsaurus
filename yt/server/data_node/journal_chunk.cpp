@@ -1,24 +1,24 @@
-#include "stdafx.h"
 #include "journal_chunk.h"
+#include "private.h"
 #include "journal_dispatcher.h"
 #include "location.h"
 #include "session.h"
-#include "private.h"
 
-#include <core/misc/fs.h>
+#include <yt/server/cell_node/bootstrap.h>
+#include <yt/server/cell_node/config.h>
 
-#include <core/concurrency/thread_affinity.h>
-#include <core/concurrency/scheduler.h>
+#include <yt/server/hydra/changelog.h>
+#include <yt/server/hydra/sync_file_changelog.h>
 
-#include <core/profiling/scoped_timer.h>
+#include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 
-#include <ytlib/chunk_client/chunk_meta_extensions.h>
+#include <yt/core/concurrency/scheduler.h>
+#include <yt/core/concurrency/thread_affinity.h>
 
-#include <server/hydra/changelog.h>
-#include <server/hydra/sync_file_changelog.h>
+#include <yt/core/misc/common.h>
+#include <yt/core/misc/fs.h>
 
-#include <server/cell_node/bootstrap.h>
-#include <server/cell_node/config.h>
+#include <yt/core/profiling/scoped_timer.h>
 
 namespace NYT {
 namespace NDataNode {

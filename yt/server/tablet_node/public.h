@@ -1,20 +1,20 @@
 #pragma once
 
-#include <core/misc/common.h>
+#include <yt/server/hive/public.h>
 
-#include <ytlib/election/public.h>
+#include <yt/server/hydra/public.h>
 
-#include <ytlib/tablet_client/public.h>
+#include <yt/ytlib/chunk_client/public.h>
 
-#include <ytlib/table_client/public.h>
+#include <yt/ytlib/election/public.h>
 
-#include <ytlib/transaction_client/public.h>
+#include <yt/ytlib/table_client/public.h>
 
-#include <ytlib/chunk_client/public.h>
+#include <yt/ytlib/tablet_client/public.h>
 
-#include <server/hydra/public.h>
+#include <yt/ytlib/transaction_client/public.h>
 
-#include <server/hive/public.h>
+#include <yt/core/misc/common.h>
 
 namespace NYT {
 namespace NTabletNode {
@@ -181,7 +181,7 @@ DECLARE_REFCOUNTED_CLASS(TChunkStore)
 DECLARE_REFCOUNTED_CLASS(TStoreManager)
 DECLARE_REFCOUNTED_CLASS(TSecurityManager)
 
-DECLARE_REFCOUNTED_STRUCT(TInterceptedChunkData)
+DECLARE_REFCOUNTED_STRUCT(TInMemoryChunkData)
 DECLARE_REFCOUNTED_CLASS(TInMemoryManager)
 
 struct TDynamicRowHeader;

@@ -2,15 +2,15 @@
 #error "Direct inclusion of this file is not allowed, include chunk_owner_type_handler.h"
 #endif
 
-#include <core/erasure/public.h>
+#include <yt/core/erasure/public.h>
 
-#include <server/cypress_server/node.h>
-#include <server/cypress_server/node_detail.h>
-#include <server/cypress_server/cypress_manager.h>
+#include <yt/server/cypress_server/node.h>
+#include <yt/server/cypress_server/node_detail.h>
+#include <yt/server/cypress_server/cypress_manager.h>
 
-#include <server/chunk_server/chunk_manager.h>
+#include <yt/server/chunk_server/chunk_manager.h>
 
-#include <server/cell_master/hydra_facade.h>
+#include <yt/server/cell_master/hydra_facade.h>
 
 namespace NYT {
 namespace NChunkServer {

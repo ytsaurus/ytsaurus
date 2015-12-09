@@ -1,9 +1,9 @@
-#include "stdafx.h"
 #include "memory_store_ut.h"
 
-#include <core/misc/string.h>
+#include <yt/core/actions/invoker_util.h>
 
-#include <core/actions/invoker_util.h>
+#include <yt/core/misc/common.h>
+#include <yt/core/misc/string.h>
 
 #include <tuple>
 
@@ -965,7 +965,7 @@ TEST_F(TSingleLockDynamicMemoryStoreTest, ReadNotBlocked)
     PrepareRow(transaction.get(), row);
 
     bool blocked = false;
-    Store_->SubscribeRowBlocked(BIND([&] (TDynamicRow /*row*/, int /*lockIndex*/) {
+    Store_->SetRowBlockedHandler(BIND([&] (TDynamicRow /*row*/, int /*lockIndex*/) {
         blocked = true;
     }));
 
@@ -988,7 +988,7 @@ TEST_F(TSingleLockDynamicMemoryStoreTest, ReadBlockedAbort)
     PrepareRow(transaction.get(), row);
 
     bool blocked = false;
-    Store_->SubscribeRowBlocked(BIND([&] (TDynamicRow blockedRow, int lockIndex) {
+    Store_->SetRowBlockedHandler(BIND([&] (TDynamicRow blockedRow, int lockIndex) {
         EXPECT_EQ(TDynamicRow::PrimaryLockIndex, lockIndex);
         EXPECT_EQ(blockedRow, row);
         AbortTransaction(transaction.get());
@@ -1013,7 +1013,7 @@ TEST_F(TSingleLockDynamicMemoryStoreTest, ReadBlockedCommit)
     PrepareRow(transaction.get(), row);
 
     bool blocked = false;
-    Store_->SubscribeRowBlocked(BIND([&] (TDynamicRow blockedRow, int lockIndex) {
+    Store_->SetRowBlockedHandler(BIND([&] (TDynamicRow blockedRow, int lockIndex) {
         EXPECT_EQ(TDynamicRow::PrimaryLockIndex, lockIndex);
         EXPECT_EQ(blockedRow, row);
         CommitTransaction(transaction.get());
@@ -1038,7 +1038,7 @@ TEST_F(TSingleLockDynamicMemoryStoreTest, ReadBlockedTimeout)
     PrepareRow(transaction.get(), row);
 
     bool blocked = false;
-    Store_->SubscribeRowBlocked(BIND([&] (TDynamicRow blockedRow, int lockIndex) {
+    Store_->SetRowBlockedHandler(BIND([&] (TDynamicRow blockedRow, int lockIndex) {
         blocked = true;
         Sleep(TDuration::MilliSeconds(10));
     }));
@@ -1063,7 +1063,7 @@ TEST_F(TSingleLockDynamicMemoryStoreTest, WriteNotBlocked)
     PrepareRow(transaction1.get(), row);
 
     bool blocked = false;
-    Store_->SubscribeRowBlocked(BIND([&] (TDynamicRow /*blockedRow*/, int /*lockIndex*/) {
+    Store_->SetRowBlockedHandler(BIND([&] (TDynamicRow /*blockedRow*/, int /*lockIndex*/) {
         blocked = true;
     }));
 
@@ -1594,7 +1594,7 @@ TEST_F(TMultiLockDynamicMemoryStoreTest, WriteNotBlocked)
     PrepareRow(transaction1.get(), row1);
 
     bool blocked = false;
-    Store_->SubscribeRowBlocked(BIND([&] (TDynamicRow /*blockedRow*/, int /*lockIndex*/) {
+    Store_->SetRowBlockedHandler(BIND([&] (TDynamicRow /*blockedRow*/, int /*lockIndex*/) {
         blocked = true;
     }));
 

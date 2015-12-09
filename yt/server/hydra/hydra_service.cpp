@@ -1,10 +1,11 @@
-#include "stdafx.h"
 #include "hydra_service.h"
 #include "hydra_manager.h"
 
-#include <ytlib/hydra/hydra_service.pb.h>
+#include <yt/server/election/election_manager.h>
 
-#include <server/election/election_manager.h>
+#include <yt/ytlib/hydra/hydra_service.pb.h>
+
+#include <yt/core/misc/common.h>
 
 namespace NYT {
 namespace NHydra {

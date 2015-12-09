@@ -1,9 +1,12 @@
 
-#include <ytlib/query_client/lexer.h>
+#include "lexer.h"
 
-#include <util/system/defaults.h>
+#include <yt/ytlib/query_client/lexer.h>
+
 #include <util/string/cast.h>
 #include <util/string/escape.h>
+
+#include <util/system/defaults.h>
 
 namespace NYT {
 namespace NQueryClient {
@@ -220,7 +223,7 @@ tr40:
 	goto st12;
 tr41:
 	{te = p+1;{
-            YUNREACHABLE();
+            THROW_ERROR_EXCEPTION("Unexpected symbol \"]\" at position %v", ts - p);
         }}
 	goto st12;
 tr42:

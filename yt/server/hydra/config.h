@@ -2,15 +2,15 @@
 
 #include "public.h"
 
-#include <core/misc/config.h>
+#include <yt/server/election/config.h>
 
-#include <core/compression/public.h>
+#include <yt/ytlib/api/config.h>
 
-#include <core/ytree/yson_serializable.h>
+#include <yt/core/compression/public.h>
 
-#include <ytlib/api/config.h>
+#include <yt/core/misc/config.h>
 
-#include <server/election/config.h>
+#include <yt/core/ytree/yson_serializable.h>
 
 namespace NYT {
 namespace NHydra {

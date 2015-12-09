@@ -3,7 +3,7 @@
 #endif
 #undef PARALLEL_AWAITER_INL_H_
 
-#include <core/concurrency/thread_affinity.h>
+#include <yt/core/concurrency/thread_affinity.h>
 
 namespace NYT {
 namespace NConcurrency {

@@ -2,13 +2,13 @@
 
 #include "public.h"
 
-#include <core/misc/checksum.h>
+#include <yt/ytlib/hydra/hydra_manager.pb.h>
 
-#include <core/concurrency/async_stream.h>
+#include <yt/core/actions/future.h>
 
-#include <core/actions/future.h>
+#include <yt/core/concurrency/async_stream.h>
 
-#include <ytlib/hydra/hydra_manager.pb.h>
+#include <yt/core/misc/checksum.h>
 
 namespace NYT {
 namespace NHydra {

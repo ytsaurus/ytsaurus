@@ -1,6 +1,6 @@
 #pragma once
 
-#include <core/misc/public.h>
+#include <yt/core/misc/public.h>
 
 namespace NYT {
 namespace NBus {
@@ -13,7 +13,6 @@ DECLARE_REFCOUNTED_STRUCT(IBusClient)
 DECLARE_REFCOUNTED_STRUCT(IBusServer)
 
 struct TTcpDispatcherStatistics;
-struct TTcpProfilingData;
 
 DECLARE_REFCOUNTED_CLASS(TTcpBusConfig)
 DECLARE_REFCOUNTED_CLASS(TTcpBusServerConfig)

@@ -1,10 +1,9 @@
-#include "stdafx.h"
-
 #include "table_consumer.h"
-
 #include "name_table.h"
 
-#include <core/concurrency/scheduler.h>
+#include <yt/core/concurrency/scheduler.h>
+
+#include <yt/core/misc/common.h>
 
 #include <cmath>
 

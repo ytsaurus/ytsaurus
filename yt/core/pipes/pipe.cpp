@@ -1,10 +1,9 @@
-#include "stdafx.h"
-
 #include "pipe.h"
 #include "async_reader.h"
 #include "async_writer.h"
 
-#include <core/misc/proc.h>
+#include <yt/core/misc/common.h>
+#include <yt/core/misc/proc.h>
 
 namespace NYT {
 namespace NPipes {

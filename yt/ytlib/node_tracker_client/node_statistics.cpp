@@ -1,9 +1,9 @@
-#include "stdafx.h"
 #include "node_statistics.h"
 
-#include <core/misc/format.h>
+#include <yt/ytlib/node_tracker_client/node.pb.h>
 
-#include <ytlib/node_tracker_client/node.pb.h>
+#include <yt/core/misc/common.h>
+#include <yt/core/misc/format.h>
 
 namespace NYT {
 namespace NNodeTrackerClient {

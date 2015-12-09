@@ -1,21 +1,21 @@
-﻿#pragma once
+#pragma once
 
 #include "public.h"
 
-#include <ytlib/api/public.h>
+#include <yt/ytlib/api/public.h>
 
-#include <ytlib/node_tracker_client/public.h>
+#include <yt/ytlib/chunk_client/public.h>
 
-#include <ytlib/chunk_client/public.h>
+#include <yt/ytlib/job_tracker_client/public.h>
+#include <yt/ytlib/job_tracker_client/statistics.h>
 
-#include <ytlib/scheduler/job.pb.h>
-#include <ytlib/job_tracker_client/statistics.h>
+#include <yt/ytlib/node_tracker_client/public.h>
 
-#include <ytlib/job_tracker_client/public.h>
+#include <yt/ytlib/scheduler/job.pb.h>
 
-#include <core/logging/log.h>
+#include <yt/core/logging/log.h>
 
-#include <core/rpc/public.h>
+#include <yt/core/rpc/public.h>
 
 namespace NYT {
 namespace NJobProxy {
@@ -44,6 +44,7 @@ struct IJobHost
 
     virtual std::vector<NChunkClient::TChunkId> DumpInputContext(const NJobTrackerClient::TJobId& jobId) = 0;
     virtual NYTree::TYsonString Strace(const NJobTrackerClient::TJobId& jobId) = 0;
+    virtual void SignalJob(const NJobTrackerClient::TJobId& jobId, const Stroka& signalName) = 0;
 
 };
 
@@ -72,6 +73,7 @@ struct IJob
 
     virtual std::vector<NChunkClient::TChunkId> DumpInputContext() = 0;
     virtual NYTree::TYsonString Strace() = 0;
+    virtual void SignalJob(const Stroka& signalName) = 0;
 
 };
 

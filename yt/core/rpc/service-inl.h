@@ -2,7 +2,7 @@
 #error "Direct inclusion of this file is not allowed, include service.h"
 #endif
 
-#include <core/misc/format.h>
+#include <yt/core/misc/format.h>
 
 namespace NYT {
 namespace NRpc {

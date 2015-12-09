@@ -1,13 +1,14 @@
-#include "stdafx.h"
 #include "framework.h"
 
-#include <ytlib/table_client/unversioned_row.h>
-#include <ytlib/table_client/name_table.h>
+#include <yt/ytlib/formats/dsv_parser.h>
+#include <yt/ytlib/formats/dsv_writer.h>
 
-#include <ytlib/formats/dsv_writer.h>
-#include <ytlib/formats/dsv_parser.h>
+#include <yt/ytlib/table_client/name_table.h>
+#include <yt/ytlib/table_client/unversioned_row.h>
 
-#include <core/concurrency/async_stream.h>
+#include <yt/core/concurrency/async_stream.h>
+
+#include <yt/core/misc/common.h>
 
 namespace NYT {
 namespace NFormats {
@@ -154,7 +155,7 @@ TEST(TDsvWriterTest, SimpleTabular)
     TStringStream outputStream;
     auto config = New<TDsvFormatConfig>();
     config->EnableTableIndex = true;
-    auto writer = New<TSchemalessDsvWriter>(
+    auto writer = New<TSchemalessWriterForDsv>(
         nameTable, 
         false, 
         CreateAsyncAdapter(static_cast<TOutputStream*>(&outputStream)),
@@ -183,7 +184,7 @@ TEST(TDsvWriterTest, AnyTabular)
     std::vector<TUnversionedRow> rows = { row.GetRow() };
 
     TStringStream outputStream;
-    auto writer = New<TSchemalessDsvWriter>(
+    auto writer = New<TSchemalessWriterForDsv>(
         nameTable, 
         false, 
         CreateAsyncAdapter(static_cast<TOutputStream*>(&outputStream)));
@@ -196,7 +197,7 @@ TEST(TDsvWriterTest, RangeAndRowIndex)
 {
     auto nameTable = New<TNameTable>();
     TStringStream outputStream;
-    auto writer = New<TSchemalessDsvWriter>(
+    auto writer = New<TSchemalessWriterForDsv>(
         nameTable, 
         false, 
         CreateAsyncAdapter(static_cast<TOutputStream*>(&outputStream)));
@@ -229,7 +230,7 @@ TEST(TTskvWriterTest, SimpleTabular)
     auto config = New<TDsvFormatConfig>();
     config->LinePrefix = "tskv";
 
-    auto writer = New<TSchemalessDsvWriter>(
+    auto writer = New<TSchemalessWriterForDsv>(
         nameTable, 
         false, 
         CreateAsyncAdapter(static_cast<TOutputStream*>(&outputStream)),
@@ -266,7 +267,7 @@ TEST(TTskvWriterTest, Escaping)
     auto config = New<TDsvFormatConfig>();
     config->LinePrefix = "tskv";
 
-    auto writer = New<TSchemalessDsvWriter>(
+    auto writer = New<TSchemalessWriterForDsv>(
         nameTable, 
         false, 
         CreateAsyncAdapter(static_cast<TOutputStream*>(&outputStream)),

@@ -1,7 +1,7 @@
-#include "stdafx.h"
 #include "version.h"
 
-#include <core/misc/format.h>
+#include <yt/core/misc/common.h>
+#include <yt/core/misc/format.h>
 
 namespace NYT {
 namespace NHydra {

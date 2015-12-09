@@ -1,8 +1,8 @@
-#include "stdafx.h"
 #include "framework.h"
 
-#include <core/misc/guid.h>
-#include <core/misc/protobuf_helpers.h>
+#include <yt/core/misc/common.h>
+#include <yt/core/misc/guid.h>
+#include <yt/core/misc/protobuf_helpers.h>
 
 namespace NYT {
 namespace {

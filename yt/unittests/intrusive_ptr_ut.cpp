@@ -1,10 +1,10 @@
-#include "stdafx.h"
 #include "framework.h"
 
-#include <core/misc/public.h>
-#include <core/misc/ref_counted.h>
-#include <core/misc/new.h>
-#include <core/misc/format.h>
+#include <yt/core/misc/common.h>
+#include <yt/core/misc/format.h>
+#include <yt/core/misc/new.h>
+#include <yt/core/misc/public.h>
+#include <yt/core/misc/ref_counted.h>
 
 namespace NYT {
 namespace {

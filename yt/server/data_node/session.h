@@ -2,17 +2,17 @@
 
 #include "public.h"
 
-#include <core/misc/error.h>
-#include <core/misc/lease_manager.h>
-#include <core/misc/nullable.h>
+#include <yt/ytlib/chunk_client/chunk_meta.pb.h>
 
-#include <core/actions/signal.h>
+#include <yt/ytlib/misc/workload.h>
 
-#include <ytlib/misc/workload.h>
+#include <yt/ytlib/node_tracker_client/node_directory.h>
 
-#include <ytlib/node_tracker_client/node_directory.h>
+#include <yt/core/actions/signal.h>
 
-#include <ytlib/chunk_client/chunk_meta.pb.h>
+#include <yt/core/misc/error.h>
+#include <yt/core/misc/lease_manager.h>
+#include <yt/core/misc/nullable.h>
 
 namespace NYT {
 namespace NDataNode {

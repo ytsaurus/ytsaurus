@@ -1,46 +1,46 @@
-#include "stdafx.h"
 #include "chunk_store.h"
-#include "tablet.h"
-#include "config.h"
 #include "automaton.h"
-#include "transaction.h"
+#include "config.h"
 #include "in_memory_manager.h"
+#include "tablet.h"
+#include "transaction.h"
 
-#include <core/concurrency/scheduler.h>
-#include <core/concurrency/delayed_executor.h>
-#include <core/concurrency/thread_affinity.h>
+#include <yt/server/cell_node/bootstrap.h>
+#include <yt/server/cell_node/config.h>
 
-#include <core/ytree/fluent.h>
+#include <yt/server/data_node/chunk_block_manager.h>
+#include <yt/server/data_node/chunk.h>
+#include <yt/server/data_node/chunk_registry.h>
+#include <yt/server/data_node/local_chunk_reader.h>
+#include <yt/server/data_node/master_connector.h>
 
-#include <core/misc/protobuf_helpers.h>
+#include <yt/server/query_agent/config.h>
 
-#include <ytlib/object_client/helpers.h>
+#include <yt/ytlib/api/client.h>
 
-#include <ytlib/table_client/versioned_reader.h>
-#include <ytlib/table_client/versioned_chunk_reader.h>
-#include <ytlib/table_client/cached_versioned_chunk_meta.h>
-#include <ytlib/table_client/chunk_meta_extensions.h>
+#include <yt/ytlib/chunk_client/block_cache.h>
+#include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
+#include <yt/ytlib/chunk_client/chunk_reader.h>
+#include <yt/ytlib/chunk_client/read_limit.h>
+#include <yt/ytlib/chunk_client/replication_reader.h>
 
-#include <ytlib/api/client.h>
+#include <yt/ytlib/object_client/helpers.h>
 
-#include <ytlib/chunk_client/chunk_reader.h>
-#include <ytlib/chunk_client/replication_reader.h>
-#include <ytlib/chunk_client/read_limit.h>
-#include <ytlib/chunk_client/block_cache.h>
-#include <ytlib/chunk_client/chunk_meta_extensions.h>
+#include <yt/ytlib/table_client/cached_versioned_chunk_meta.h>
+#include <yt/ytlib/table_client/chunk_meta_extensions.h>
+#include <yt/ytlib/table_client/versioned_chunk_reader.h>
+#include <yt/ytlib/table_client/versioned_reader.h>
 
-#include <ytlib/transaction_client/helpers.h>
+#include <yt/ytlib/transaction_client/helpers.h>
 
-#include <server/data_node/block_store.h>
-#include <server/data_node/chunk_registry.h>
-#include <server/data_node/chunk.h>
-#include <server/data_node/master_connector.h>
-#include <server/data_node/local_chunk_reader.h>
+#include <yt/core/concurrency/delayed_executor.h>
+#include <yt/core/concurrency/scheduler.h>
+#include <yt/core/concurrency/thread_affinity.h>
 
-#include <server/query_agent/config.h>
+#include <yt/core/misc/common.h>
+#include <yt/core/misc/protobuf_helpers.h>
 
-#include <server/cell_node/bootstrap.h>
-#include <server/cell_node/config.h>
+#include <yt/core/ytree/fluent.h>
 
 namespace NYT {
 namespace NTabletNode {
@@ -99,33 +99,7 @@ public:
         const TSharedRef& data,
         const TNullable<NNodeTrackerClient::TNodeDescriptor>& source) override
     {
-        YASSERT(id.ChunkId == ChunkId_);
-
-        if (type != Type_) {
-            UnderlyingCache_->Put(id, type, data, source);
-            return;
-        }
-
-        auto owner = Owner_.Lock();
-        if (!owner)
-            return;
-
-        {
-            TWriterGuard guard(SpinLock_);
-
-            if (id.BlockIndex >= Blocks_.size()) {
-                Blocks_.resize(id.BlockIndex + 1);
-            }
-
-            auto& existingBlock = Blocks_[id.BlockIndex];
-            if (existingBlock) {
-                YASSERT(TRef::AreBitwiseEqual(existingBlock, data));
-            } else {
-                existingBlock = data;
-                DataSize_ += data.Size();
-                owner->SetMemoryUsage(DataSize_);
-            }
-        }
+        UnderlyingCache_->Put(id, type, data, source);
     }
 
     virtual TSharedRef Find(
@@ -134,19 +108,12 @@ public:
     {
         YASSERT(id.ChunkId == ChunkId_);
 
-        if (type != Type_) {
+        if (type == Type_ && IsPreloaded()) {
+            YASSERT(id.BlockIndex >= 0 && id.BlockIndex < Blocks_.size());
+            return Blocks_[id.BlockIndex];
+        } else {
             return UnderlyingCache_->Find(id, type);
         }
-
-        TReaderGuard guard(SpinLock_);
-        if (id.BlockIndex < Blocks_.size()) {
-            const auto& block = Blocks_[id.BlockIndex];
-            if (block) {
-                return block;
-            }
-        }
-
-        return UnderlyingCache_->Find(id, type);
     }
 
     virtual EBlockType GetSupportedBlockTypes() const override
@@ -154,18 +121,23 @@ public:
         return Type_;
     }
 
-    void PreloadFromInterceptedData(TInterceptedChunkDataPtr chunkData)
+    void Preload(TInMemoryChunkDataPtr chunkData)
     {
         auto owner = Owner_.Lock();
         if (!owner)
             return;
 
-        YCHECK(Blocks_.empty());
-        YCHECK(DataSize_ == 0);
-
         Blocks_ = std::move(chunkData->Blocks);
         DataSize_ = GetByteSize(Blocks_);
+
         owner->SetMemoryUsage(DataSize_);
+
+        Preloaded_ = true;
+    }
+
+    bool IsPreloaded() const
+    {
+        return Preloaded_.load();
     }
 
 private:
@@ -174,9 +146,10 @@ private:
     const EBlockType Type_;
     const IBlockCachePtr UnderlyingCache_;
 
-    TReaderWriterSpinLock SpinLock_;
     std::vector<TSharedRef> Blocks_;
     i64 DataSize_ = 0;
+
+    std::atomic<bool> Preloaded_ = {false};
 
 };
 
@@ -193,6 +166,7 @@ TChunkStore::TChunkStore(
     , PreloadState_(EStorePreloadState::Disabled)
     , CompactionState_(EStoreCompactionState::None)
     , Bootstrap_(boostrap)
+    , KeyComparer_(tablet->GetRowKeyComparer())
 {
     YCHECK(
         TypeFromId(StoreId_) == EObjectType::Chunk ||
@@ -223,7 +197,7 @@ IStorePtr TChunkStore::GetBackingStore()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    TReaderGuard guard(BackingStoreLock_);
+    TReaderGuard guard(SpinLock_);
     return BackingStore_;
 }
 
@@ -231,96 +205,88 @@ void TChunkStore::SetBackingStore(IStorePtr store)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    TWriterGuard guard(BackingStoreLock_);
+    TWriterGuard guard(SpinLock_);
     BackingStore_ = store;
 }
 
 bool TChunkStore::HasBackingStore() const
 {
-    TReaderGuard guard(BackingStoreLock_);
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    TReaderGuard guard(SpinLock_);
     return BackingStore_.operator bool();
 }
 
 EInMemoryMode TChunkStore::GetInMemoryMode() const
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    TReaderGuard guard(SpinLock_);
     return InMemoryMode_;
 }
 
 void TChunkStore::SetInMemoryMode(EInMemoryMode mode)
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    TWriterGuard guard(SpinLock_);
+
     if (InMemoryMode_ == mode)
         return;
 
-    {
-        TWriterGuard guard(PreloadedBlockCacheLock_);
+    PreloadedBlockCache_.Reset();
 
-        PreloadedBlockCache_.Reset();
+    if (PreloadFuture_) {
+        PreloadFuture_.Cancel();
+        PreloadFuture_.Reset();
+    }
 
-        if (PreloadFuture_) {
-            PreloadFuture_.Cancel();
-            PreloadFuture_.Reset();
-        }
+    if (mode == EInMemoryMode::None) {
+        PreloadState_ = EStorePreloadState::Disabled;
+    } else {
+        auto blockType =
+               mode == EInMemoryMode::Compressed      ? EBlockType::CompressedData :
+            /* mode == EInMemoryMode::Uncompressed */   EBlockType::UncompressedData;
 
-        if (mode == EInMemoryMode::None) {
-            PreloadState_ = EStorePreloadState::Disabled;
-        } else {
-            switch (mode) {
-                case EInMemoryMode::Compressed:
-                    PreloadedBlockCache_ = New<TPreloadedBlockCache>(
-                        this,
-                        StoreId_,
-                        EBlockType::CompressedData,
-                        Bootstrap_->GetBlockCache());
-                    break;
-                case EInMemoryMode::Uncompressed:
-                    PreloadedBlockCache_ = New<TPreloadedBlockCache>(
-                        this,
-                        StoreId_,
-                        EBlockType::UncompressedData,
-                        Bootstrap_->GetBlockCache());
-                    break;
-                default:
-                    YUNREACHABLE();
-            }
-            switch (PreloadState_) {
-                case EStorePreloadState::Disabled:
-                case EStorePreloadState::Failed:
-                case EStorePreloadState::Running:
-                case EStorePreloadState::Complete:
-                    PreloadState_ = EStorePreloadState::None;
-                    break;
-                case EStorePreloadState::None:
-                case EStorePreloadState::Scheduled:
-                    break;
-                default:
-                    YUNREACHABLE();
-            }
+        PreloadedBlockCache_ = New<TPreloadedBlockCache>(
+            this,
+            StoreId_,
+            blockType,
+            Bootstrap_->GetBlockCache());
+
+        switch (PreloadState_) {
+            case EStorePreloadState::Disabled:
+            case EStorePreloadState::Failed:
+            case EStorePreloadState::Running:
+            case EStorePreloadState::Complete:
+                PreloadState_ = EStorePreloadState::None;
+                break;
+            case EStorePreloadState::None:
+            case EStorePreloadState::Scheduled:
+                break;
+            default:
+                YUNREACHABLE();
         }
     }
 
-    {
-        TWriterGuard guard(ChunkReaderLock_);
-        ChunkReader_.Reset();
-    }
+    ChunkReader_.Reset();
 
     InMemoryMode_ = mode;
 }
 
-IBlockCachePtr TChunkStore::GetPreloadedBlockCache()
+void TChunkStore::Preload(TInMemoryChunkDataPtr chunkData)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    TReaderGuard guard(PreloadedBlockCacheLock_);
-    return PreloadedBlockCache_;
+    TWriterGuard guard(SpinLock_);
+
+    if (chunkData->InMemoryMode != InMemoryMode_)
+        return;
+
+    PreloadedBlockCache_->Preload(chunkData);
 }
 
-void TChunkStore::PreloadFromInterceptedData(TInterceptedChunkDataPtr chunkData)
-{
-    YCHECK(chunkData->InMemoryMode == InMemoryMode_);
-    PreloadedBlockCache_->PreloadFromInterceptedData(chunkData);
-}
-
-NChunkClient::IChunkReaderPtr TChunkStore::GetChunkReader()
+IChunkReaderPtr TChunkStore::GetChunkReader()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -375,6 +341,16 @@ IVersionedReaderPtr TChunkStore::CreateReader(
         return nullptr;
     }
 
+    // Fast lane: check for in-memory reads.
+    auto reader = CreateCacheBasedReader(
+        lowerKey,
+        upperKey,
+        timestamp,
+        columnFilter);
+    if (reader) {
+        return reader;
+    }
+
     auto backingStore = GetBackingStore();
     if (backingStore) {
         return backingStore->CreateReader(
@@ -407,12 +383,49 @@ IVersionedReaderPtr TChunkStore::CreateReader(
         timestamp);
 }
 
+IVersionedReaderPtr TChunkStore::CreateCacheBasedReader(
+    TOwningKey lowerKey,
+    TOwningKey upperKey,
+    TTimestamp timestamp,
+    const TColumnFilter& columnFilter)
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    TReaderGuard guard(SpinLock_);
+
+    if (!PreloadedBlockCache_ || !PreloadedBlockCache_->IsPreloaded()) {
+        return nullptr;
+    }
+
+    if (!CachedVersionedChunkMeta_) {
+        return nullptr;
+    }
+
+    return CreateCacheBasedVersionedChunkReader(
+        PreloadedBlockCache_,
+        CachedVersionedChunkMeta_,
+        std::move(lowerKey),
+        std::move(upperKey),
+        columnFilter,
+        PerformanceCounters_,
+        timestamp);
+}
+
 IVersionedReaderPtr TChunkStore::CreateReader(
     const TSharedRange<TKey>& keys,
     TTimestamp timestamp,
     const TColumnFilter& columnFilter)
 {
     VERIFY_THREAD_AFFINITY_ANY();
+
+    // Fast lane: check for in-memory reads.
+    auto reader = CreateCacheBasedReader(
+        keys,
+        timestamp,
+        columnFilter);
+    if (reader) {
+        return reader;
+    }
 
     auto backingStore = GetBackingStore();
     if (backingStore) {
@@ -435,6 +448,34 @@ IVersionedReaderPtr TChunkStore::CreateReader(
         keys,
         columnFilter,
         PerformanceCounters_,
+        KeyComparer_,
+        timestamp);
+}
+
+IVersionedReaderPtr TChunkStore::CreateCacheBasedReader(
+    const TSharedRange<TKey>& keys,
+    TTimestamp timestamp,
+    const TColumnFilter& columnFilter)
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    TReaderGuard guard(SpinLock_);
+
+    if (!PreloadedBlockCache_ || !PreloadedBlockCache_->IsPreloaded()) {
+        return nullptr;
+    }
+
+    if (!CachedVersionedChunkMeta_) {
+        return nullptr;
+    }
+
+    return CreateCacheBasedVersionedChunkReader(
+        PreloadedBlockCache_,
+        CachedVersionedChunkMeta_,
+        keys,
+        columnFilter,
+        PerformanceCounters_,
+        KeyComparer_,
         timestamp);
 }
 
@@ -509,7 +550,7 @@ IChunkPtr TChunkStore::PrepareChunk()
     VERIFY_THREAD_AFFINITY_ANY();
 
     {
-        TReaderGuard guard(ChunkLock_);
+        TReaderGuard guard(SpinLock_);
         if (ChunkInitialized_) {
             return Chunk_;
         }
@@ -519,7 +560,7 @@ IChunkPtr TChunkStore::PrepareChunk()
     auto chunk = chunkRegistry->FindChunk(StoreId_);
 
     {
-        TWriterGuard guard(ChunkLock_);
+        TWriterGuard guard(SpinLock_);
         ChunkInitialized_ = true;
         Chunk_ = chunk;
     }
@@ -536,7 +577,7 @@ IChunkReaderPtr TChunkStore::PrepareChunkReader(IChunkPtr chunk)
     VERIFY_THREAD_AFFINITY_ANY();
 
     {
-        TReaderGuard guard(ChunkReaderLock_);
+        TReaderGuard guard(SpinLock_);
         if (ChunkReader_) {
             return ChunkReader_;
         }
@@ -565,7 +606,7 @@ IChunkReaderPtr TChunkStore::PrepareChunkReader(IChunkPtr chunk)
     }
 
     {
-        TWriterGuard guard(ChunkReaderLock_);
+        TWriterGuard guard(SpinLock_);
         ChunkReader_ = chunkReader;
     }
 
@@ -581,7 +622,7 @@ TCachedVersionedChunkMetaPtr TChunkStore::PrepareCachedVersionedChunkMeta(IChunk
     VERIFY_THREAD_AFFINITY_ANY();
 
     {
-        TReaderGuard guard(CachedVersionedChunkMetaLock_);
+        TReaderGuard guard(SpinLock_);
         if (CachedVersionedChunkMeta_) {
             return CachedVersionedChunkMeta_;
         }
@@ -595,7 +636,7 @@ TCachedVersionedChunkMetaPtr TChunkStore::PrepareCachedVersionedChunkMeta(IChunk
     auto cachedMeta = cachedMetaOrError.Value();
 
     {
-        TWriterGuard guard(CachedVersionedChunkMetaLock_);
+        TWriterGuard guard(SpinLock_);
         CachedVersionedChunkMeta_ = cachedMeta;
     }
 
@@ -606,7 +647,7 @@ IBlockCachePtr TChunkStore::GetBlockCache()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    TReaderGuard guard(PreloadedBlockCacheLock_);
+    TReaderGuard guard(SpinLock_);
     return PreloadedBlockCache_
         ? PreloadedBlockCache_
         : Bootstrap_->GetBlockCache();
@@ -638,7 +679,7 @@ void TChunkStore::OnChunkExpired()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    TWriterGuard guard(ChunkLock_);
+    TWriterGuard guard(SpinLock_);
     ChunkInitialized_ = false;
     Chunk_.Reset();
 }
@@ -647,7 +688,7 @@ void TChunkStore::OnChunkReaderExpired()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    TWriterGuard guard(ChunkReaderLock_);
+    TWriterGuard guard(SpinLock_);
     ChunkReader_.Reset();
 }
 

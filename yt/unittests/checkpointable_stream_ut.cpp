@@ -1,10 +1,10 @@
-#include "stdafx.h"
 #include "framework.h"
 
-#include <core/misc/checkpointable_stream.h>
+#include <yt/core/misc/checkpointable_stream.h>
+#include <yt/core/misc/common.h>
 
-#include <util/stream/str.h>
 #include <util/stream/mem.h>
+#include <util/stream/str.h>
 
 #include <array>
 

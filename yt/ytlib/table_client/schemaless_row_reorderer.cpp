@@ -1,8 +1,7 @@
-#include "stdafx.h"
-
 #include "schemaless_row_reorderer.h"
-
 #include "name_table.h"
+
+#include <yt/core/misc/common.h>
 
 
 namespace NYT {

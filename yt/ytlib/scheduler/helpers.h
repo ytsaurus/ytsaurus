@@ -2,7 +2,9 @@
 
 #include "public.h"
 
-#include <core/ytree/public.h>
+#include <yt/core/ytree/public.h>
+
+#include <yt/ytlib/transaction_client/public.h>
 
 namespace NYT {
 namespace NScheduler {
@@ -17,6 +19,7 @@ NYPath::TYPath GetFailContextPath(const TOperationId& operationId, const TJobId&
 NYPath::TYPath GetLivePreviewOutputPath(const TOperationId& operationId, int tableIndex);
 NYPath::TYPath GetLivePreviewIntermediatePath(const TOperationId& operationId);
 NYPath::TYPath GetSnapshotPath(const TOperationId& operationId);
+NYPath::TYPath GetTransactionPath(const NTransactionClient::TTransactionId& transactionId);
 
 bool IsOperationFinished(EOperationState state);
 bool IsOperationFinishing(EOperationState state);

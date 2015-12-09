@@ -1,11 +1,11 @@
-#include "stdafx.h"
 #include "disk_health_checker.h"
 #include "private.h"
 #include "config.h"
 
-#include <core/actions/future.h>
+#include <yt/core/actions/future.h>
 
-#include <core/misc/fs.h>
+#include <yt/core/misc/common.h>
+#include <yt/core/misc/fs.h>
 
 #include <util/random/random.h>
 

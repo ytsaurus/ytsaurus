@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <server/cell_node/public.h>
+#include <yt/server/cell_node/public.h>
 
 namespace NYT {
 namespace NDataNode {

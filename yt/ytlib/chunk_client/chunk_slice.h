@@ -2,13 +2,15 @@
 
 #include "public.h"
 
-#include <core/misc/nullable.h>
-#include <core/misc/phoenix.h>
+#include <yt/ytlib/chunk_client/chunk_slice.pb.h>
+#include <yt/ytlib/chunk_client/chunk_spec.h>
+#include <yt/ytlib/chunk_client/read_limit.h>
 
-#include <ytlib/chunk_client/chunk_slice.pb.h>
-#include <ytlib/chunk_client/chunk_spec.h>
-#include <ytlib/chunk_client/read_limit.h>
-#include <ytlib/table_client/unversioned_row.h>
+#include <yt/ytlib/table_client/unversioned_row.h>
+
+#include <yt/core/misc/new.h>
+#include <yt/core/misc/nullable.h>
+#include <yt/core/misc/phoenix.h>
 
 namespace NYT {
 namespace NChunkClient {

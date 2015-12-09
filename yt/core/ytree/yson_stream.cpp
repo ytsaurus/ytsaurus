@@ -1,7 +1,8 @@
-#include "stdafx.h"
 #include "yson_stream.h"
 
-#include <core/yson/parser.h>
+#include <yt/core/misc/common.h>
+
+#include <yt/core/yson/parser.h>
 
 namespace NYT {
 namespace NYTree {

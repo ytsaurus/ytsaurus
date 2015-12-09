@@ -1,11 +1,11 @@
-﻿#pragma once
+#pragma once
 
-#include <core/misc/public.h>
-#include <core/misc/small_vector.h>
+#include <yt/ytlib/misc/public.h>
 
-#include <ytlib/misc/public.h>
+#include <yt/ytlib/object_client/public.h>
 
-#include <ytlib/object_client/public.h>
+#include <yt/core/misc/public.h>
+#include <yt/core/misc/small_vector.h>
 
 namespace NYT {
 namespace NChunkClient {
@@ -83,7 +83,7 @@ DEFINE_ENUM(EErrorCode,
     ((BlockContentMismatch)     (706))
     ((NoSuchBlock)              (707))
     ((NoSuchChunk)              (708))
-    ((OutOfSpace)               (710))
+    ((NoLocationAvailable)      (710))
     ((IOError)                  (711))
     ((MasterCommunicationFailed)(712))
     ((NoSuchChunkTree)          (713))

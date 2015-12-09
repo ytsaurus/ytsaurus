@@ -3,23 +3,27 @@
 #include "public.h"
 #include "unversioned_row.h"
 
-#include <core/logging/log.h>
+#include <yt/ytlib/chunk_client/fetcher_base.h>
+#include <yt/ytlib/chunk_client/public.h>
 
-#include <ytlib/chunk_client/public.h>
-#include <ytlib/chunk_client/fetcher_base.h>
+#include <yt/ytlib/node_tracker_client/public.h>
 
-#include <ytlib/node_tracker_client/public.h>
+#include <yt/core/logging/log.h>
 
 namespace NYT {
 namespace NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TSample {
+struct TSample 
+{   
     TOwningKey Key;
 
-    // Is true, if sample is trimmed to fulfil #MaxSampleSize_.
+    //! True, if the sample is trimmed to fulfil #MaxSampleSize_.
     bool Incomplete;
+
+    //! Proportional to  data size this sample represents.
+    i64 Weight;
 };
 
 bool operator==(const TSample& lhs, const TSample& rhs);

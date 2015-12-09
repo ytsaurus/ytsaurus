@@ -1,5 +1,6 @@
-#include "stdafx.h"
 #include "type_handler.h"
+
+#include <yt/core/misc/common.h>
 
 namespace NYT {
 namespace NObjectServer {

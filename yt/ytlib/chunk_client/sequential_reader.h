@@ -3,16 +3,16 @@
 #include "public.h"
 #include "chunk_reader.h"
 
-#include <core/actions/future.h>
+#include <yt/core/actions/future.h>
 
-#include <core/misc/ref.h>
-#include <core/misc/property.h>
+#include <yt/core/compression/public.h>
 
-#include <core/concurrency/async_semaphore.h>
+#include <yt/core/concurrency/async_semaphore.h>
 
-#include <core/compression/public.h>
+#include <yt/core/logging/log.h>
 
-#include <core/logging/log.h>
+#include <yt/core/misc/property.h>
+#include <yt/core/misc/ref.h>
 
 namespace NYT {
 namespace NChunkClient {

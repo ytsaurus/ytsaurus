@@ -1,8 +1,8 @@
 #pragma once
 
-#include <core/misc/public.h>
+#include <yt/ytlib/election/public.h>
 
-#include <ytlib/election/public.h>
+#include <yt/core/misc/public.h>
 
 namespace NYT {
 namespace NElection {

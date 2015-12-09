@@ -3,7 +3,7 @@
 #include "public.h"
 #include "chunk_writer.h"
 
-#include <ytlib/chunk_client/chunk_meta.pb.h>
+#include <yt/ytlib/chunk_client/chunk_meta.pb.h>
 
 namespace NYT {
 namespace NChunkClient {

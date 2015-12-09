@@ -1,66 +1,65 @@
-﻿#include "stdafx.h"
-
 #include "user_job.h"
-
+#include "private.h"
 #include "config.h"
 #include "job_detail.h"
-#include "private.h"
+#include "stracer.h"
 #include "table_output.h"
 #include "user_job_io.h"
-#include "stracer.h"
 
-#include <server/exec_agent/public.h>
+#include <yt/server/exec_agent/public.h>
 
-#include <ytlib/chunk_client/public.h>
+#include <yt/server/job_proxy/job_signaler.h>
 
-#include <ytlib/table_client/helpers.h>
-#include <ytlib/table_client/name_table.h>
-#include <ytlib/table_client/schemaless_writer.h>
-#include <ytlib/table_client/table_consumer.h>
-#include <ytlib/table_client/schemaless_chunk_reader.h>
-#include <ytlib/table_client/schemaless_chunk_writer.h>
-#include <ytlib/table_client/schemaful_reader_adapter.h>
-#include <ytlib/table_client/schemaful_writer_adapter.h>
+#include <yt/ytlib/cgroup/cgroup.h>
 
-#include <ytlib/file_client/file_chunk_output.h>
+#include <yt/ytlib/chunk_client/public.h>
 
-#include <ytlib/job_tracker_client/statistics.h>
+#include <yt/ytlib/file_client/file_chunk_output.h>
 
-#include <ytlib/formats/parser.h>
+#include <yt/ytlib/formats/parser.h>
 
-#include <ytlib/transaction_client/public.h>
+#include <yt/ytlib/job_tracker_client/statistics.h>
 
-#include <ytlib/cgroup/cgroup.h>
+#include <yt/ytlib/query_client/evaluator.h>
+#include <yt/ytlib/query_client/plan_fragment.h>
+#include <yt/ytlib/query_client/public.h>
+#include <yt/ytlib/query_client/query_statistics.h>
 
-#include <ytlib/query_client/public.h>
-#include <ytlib/query_client/evaluator.h>
-#include <ytlib/query_client/plan_fragment.h>
-#include <ytlib/query_client/query_statistics.h>
+#include <yt/ytlib/table_client/helpers.h>
+#include <yt/ytlib/table_client/name_table.h>
+#include <yt/ytlib/table_client/schemaful_reader_adapter.h>
+#include <yt/ytlib/table_client/schemaful_writer_adapter.h>
+#include <yt/ytlib/table_client/schemaless_chunk_reader.h>
+#include <yt/ytlib/table_client/schemaless_chunk_writer.h>
+#include <yt/ytlib/table_client/schemaless_writer.h>
+#include <yt/ytlib/table_client/table_consumer.h>
 
-#include <core/pipes/async_reader.h>
-#include <core/pipes/async_writer.h>
+#include <yt/ytlib/transaction_client/public.h>
 
-#include <core/misc/fs.h>
-#include <core/misc/proc.h>
-#include <core/misc/process.h>
-#include <core/misc/subprocess.h>
-#include <core/misc/pattern_formatter.h>
-#include <core/misc/finally.h>
+#include <yt/core/concurrency/action_queue.h>
+#include <yt/core/concurrency/periodic_executor.h>
 
-#include <core/ypath/tokenizer.h>
+#include <yt/core/misc/common.h>
+#include <yt/core/misc/finally.h>
+#include <yt/core/misc/fs.h>
+#include <yt/core/misc/pattern_formatter.h>
+#include <yt/core/misc/proc.h>
+#include <yt/core/misc/process.h>
+#include <yt/core/misc/public.h>
+#include <yt/core/misc/subprocess.h>
 
-#include <core/tools/tools.h>
+#include <yt/core/pipes/async_reader.h>
+#include <yt/core/pipes/async_writer.h>
 
-#include <core/concurrency/action_queue.h>
-#include <core/concurrency/periodic_executor.h>
+#include <yt/core/tools/tools.h>
 
-#include <core/misc/public.h>
+#include <yt/core/ypath/tokenizer.h>
 
 #include <util/folder/dirut.h>
 
-#include <util/system/execpath.h>
-
 #include <util/stream/null.h>
+
+#include <util/system/execpath.h>
 
 namespace NYT {
 namespace NJobProxy {
@@ -282,7 +281,6 @@ private:
 
     NLogging::TLogger Logger;
 
-
     void Prepare()
     {
         PrepareCGroups();
@@ -456,7 +454,7 @@ private:
         {
             TGuard<TSpinLock> guard(FreezerLock_);
             if (!Freezer_.IsCreated()) {
-                THROW_ERROR_EXCEPTION("Cannot determine user job processes: freezer cgoup is not created");
+                THROW_ERROR_EXCEPTION("Cannot determine user job processes: freezer cgroup is not created");
             }
 
             pids = Freezer_.GetTasks();
@@ -482,6 +480,34 @@ private:
         }
 
         return ConvertToYsonString(asyncTraces.Value());
+    }
+
+    virtual void SignalJob(const Stroka& signalName) override
+    {
+        if (!Prepared_) {
+            THROW_ERROR_EXCEPTION("Job has not started yet");
+        }
+
+        TJobSignalerArg arg;
+
+        {
+            TGuard<TSpinLock> guard(FreezerLock_);
+            if (!Freezer_.IsCreated()) {
+                THROW_ERROR_EXCEPTION("Cannot determine user job processes: freezer cgroup is not created");
+            }
+
+            arg.Pids = Freezer_.GetTasks();
+        }
+
+        arg.Pids.erase(std::find(arg.Pids.begin(), arg.Pids.end(), Process_.GetProcessId()));
+        arg.SignalName = signalName;
+        LOG_INFO("Sending signal %v to pids [%v]", arg.SignalName, JoinToString(arg.Pids.begin(), arg.Pids.end()));
+
+        WaitFor(BIND([&] () {
+            return RunTool<TJobSignalerTool>(arg);
+        })
+            .AsyncVia(JobProberQueue_->GetInvoker())
+            .Run());
     }
 
     int GetMaxReservedDescriptor() const
@@ -768,6 +794,9 @@ private:
 
             if (Config_->IsCGroupSupported(TBlockIO::Name)) {
                 BlockIO_.Create();
+                if (UserJobSpec_.has_blkio_weight()) {
+                    BlockIO_.SetWeight(UserJobSpec_.blkio_weight());
+                }
                 Process_.AddArguments({ "--cgroup", BlockIO_.GetFullPath() });
                 Process_.AddArguments({ "--env", Format("YT_CGROUP_BLKIO=%v", BlockIO_.GetFullPath()) });
             }

@@ -1,7 +1,7 @@
-#include "stdafx.h"
 #include "framework.h"
 
-#include <core/misc/lifecycle.h>
+#include <yt/core/misc/common.h>
+#include <yt/core/misc/lifecycle.h>
 
 namespace NYT {
 namespace {

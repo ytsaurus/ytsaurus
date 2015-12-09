@@ -2,7 +2,7 @@
 #error "Direct inclusion of this file is not allowed, include entity_map.h"
 #endif
 
-#include <core/misc/serialize.h>
+#include <yt/core/misc/serialize.h>
 
 namespace NYT {
 namespace NHydra {

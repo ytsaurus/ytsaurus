@@ -1,8 +1,9 @@
-#include "stdafx.h"
 #include "assert.h"
 #include "raw_formatter.h"
 
-#include <core/logging/log_manager.h>
+#include <yt/core/logging/log_manager.h>
+
+#include <yt/core/misc/common.h>
 
 #ifdef _win_
     #include <io.h>

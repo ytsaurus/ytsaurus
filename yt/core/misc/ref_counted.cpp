@@ -1,7 +1,7 @@
-#include "stdafx.h"
-#include "public.h"
 #include "ref_counted.h"
 #include "ref_counted_tracker.h"
+
+#include <yt/core/misc/common.h>
 
 namespace NYT {
 

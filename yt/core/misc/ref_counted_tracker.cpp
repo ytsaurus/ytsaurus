@@ -1,8 +1,9 @@
-#include "stdafx.h"
 #include "ref_counted_tracker.h"
 #include "demangle.h"
 
-#include <core/ytree/fluent.h>
+#include <yt/core/misc/common.h>
+
+#include <yt/core/ytree/fluent.h>
 
 #include <util/system/tls.h>
 
@@ -162,8 +163,8 @@ TRefCountedTracker::TNamedStatistics TRefCountedTracker::GetSnapshot() const
     TGuard<TForkAwareSpinLock> guard(SpinLock_);
 
     TNamedStatistics result;
-    for (auto cookie : CookieToKey_) {
-        result.emplace_back(cookie);
+    for (const auto& key : CookieToKey_) {
+        result.emplace_back(key);
     }
 
     auto accumulateResult = [&] (const TAnonymousStatistics& statistics) {
@@ -215,7 +216,7 @@ void TRefCountedTracker::SortSnapshot(TNamedStatistics* snapshot, int sortByColu
             };
             break;
     }
-    std::sort(snapshot->begin(), snapshot->end(), predicate);
+    //std::sort(snapshot->begin(), snapshot->end(), predicate);
 }
 
 Stroka TRefCountedTracker::GetDebugInfo(int sortByColumn) const
@@ -366,6 +367,7 @@ void TRefCountedTracker::PreparePerThreadSlot(TRefCountedTypeCookie cookie)
 
     auto* statistics = holder->GetStatistics();
     if (statistics->size() <= cookie) {
+        TGuard<TForkAwareSpinLock> guard(SpinLock_);
         statistics->resize(std::max(
             static_cast<size_t>(cookie + 1),
             statistics->size() * 2));
