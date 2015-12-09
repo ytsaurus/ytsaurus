@@ -7,6 +7,10 @@
 #include <mapreduce/yt/yson/parser.h>
 #include <mapreduce/yt/yson/writer.h>
 #include <mapreduce/yt/yson/json_writer.h>
+
+#include <library/json/json_reader.h>
+#include <library/json/json_value.h>
+
 #include "serialize.h"
 #include "fluent.h"
 
@@ -25,6 +29,15 @@ TNode NodeFromYsonString(const Stroka& input, EYsonType type)
     TNodeBuilder builder(&result);
     TYsonParser parser(&builder, &stream, type);
     parser.Parse();
+    return result;
+}
+
+TNode NodeFromJsonString(const Stroka& input) {
+    TStringInput stream(input);
+    TNode result;
+    TNodeBuilder builder(&result);
+    TYson2JsonCallbacksAdapter adapter(&builder);
+    NJson::ReadJson(&stream, &adapter);
     return result;
 }
 

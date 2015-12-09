@@ -13,6 +13,8 @@ namespace NYT {
 
 TNode NodeFromYsonString(const Stroka& input, EYsonType type = YT_NODE);
 
+TNode NodeFromJsonString(const Stroka& input);
+
 Stroka NodeToYsonString(const TNode& node);
 
 Stroka NodeToJsonString(const TNode& node);
