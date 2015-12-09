@@ -1,52 +1,49 @@
-#include "stdafx.h"
 #include "chunk_cache.h"
 #include "private.h"
-#include "blob_reader_cache.h"
-#include "location.h"
-#include "blob_chunk.h"
-#include "block_store.h"
-#include "config.h"
-#include "master_connector.h"
 #include "artifact.h"
+#include "blob_chunk.h"
+#include "blob_reader_cache.h"
+#include "chunk_block_manager.h"
+#include "config.h"
+#include "location.h"
+#include "master_connector.h"
 
-#include <core/concurrency/thread_affinity.h>
-#include <core/concurrency/scheduler.h>
-#include <core/concurrency/async_stream.h>
+#include <yt/server/cell_node/bootstrap.h>
 
-#include <core/misc/serialize.h>
-#include <core/misc/string.h>
-#include <core/misc/fs.h>
+#include <yt/ytlib/formats/config.h>
 
-#include <core/logging/log.h>
+#include <yt/ytlib/api/client.h>
+#include <yt/ytlib/api/config.h>
 
-#include <ytlib/hydra/peer_channel.h>
+#include <yt/ytlib/chunk_client/block_cache.h>
+#include <yt/ytlib/chunk_client/chunk_meta.pb.h>
+#include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
+#include <yt/ytlib/chunk_client/client_block_cache.h>
+#include <yt/ytlib/chunk_client/file_writer.h>
+#include <yt/ytlib/chunk_client/replication_reader.h>
+#include <yt/ytlib/chunk_client/sequential_reader.h>
 
-#include <ytlib/chunk_client/block_cache.h>
-#include <ytlib/chunk_client/file_writer.h>
-#include <ytlib/chunk_client/replication_reader.h>
-#include <ytlib/chunk_client/sequential_reader.h>
-#include <ytlib/chunk_client/chunk_meta_extensions.h>
-#include <ytlib/chunk_client/client_block_cache.h>
-#include <ytlib/chunk_client/chunk_meta.pb.h>
+#include <yt/ytlib/file_client/file_chunk_reader.h>
 
-#include <ytlib/file_client/file_chunk_reader.h>
+#include <yt/ytlib/formats/format.h>
 
-#include <ytlib/file_client/file_chunk_reader.h>
+#include <yt/ytlib/hydra/peer_channel.h>
 
-#include <ytlib/node_tracker_client/node_directory.h>
+#include <yt/ytlib/node_tracker_client/node_directory.h>
 
-#include <ytlib/table_client/name_table.h>
-#include <ytlib/table_client/schemaless_chunk_reader.h>
-#include <ytlib/table_client/helpers.h>
-#include <ytlib/table_client/config.h>
+#include <yt/ytlib/table_client/helpers.h>
+#include <yt/ytlib/table_client/name_table.h>
+#include <yt/ytlib/table_client/schemaless_chunk_reader.h>
 
-#include <ytlib/formats/config.h>
-#include <ytlib/formats/format.h>
+#include <yt/core/concurrency/async_stream.h>
+#include <yt/core/concurrency/scheduler.h>
+#include <yt/core/concurrency/thread_affinity.h>
 
-#include <ytlib/api/client.h>
-#include <ytlib/api/config.h>
+#include <yt/core/logging/log.h>
 
-#include <server/cell_node/bootstrap.h>
+#include <yt/core/misc/fs.h>
+#include <yt/core/misc/serialize.h>
+#include <yt/core/misc/string.h>
 
 #include <util/random/random.h>
 
@@ -70,6 +67,7 @@ using namespace NFormats;
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = DataNodeLogger;
+static const int TableArtifactBufferRowCount = 10000;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -90,6 +88,140 @@ public:
 
 private:
     const TLocationPtr Location_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TErrorInterceptingOutput
+    : public TOutputStream
+{
+public:
+    TErrorInterceptingOutput(TLocationPtr location, TOutputStream* underlying)
+        : Location_(std::move(location))
+        , Underlying_(underlying)
+    { }
+
+private:
+    const TLocationPtr Location_;
+    TOutputStream* const Underlying_;
+
+
+    virtual void DoWrite(const void* buf, size_t len) override
+    {
+        try {
+            Underlying_->Write(buf, len);
+        } catch (const std::exception& ex) {
+            Location_->Disable(ex);
+            YUNREACHABLE();
+        }
+    }
+
+    virtual void DoWriteV(const TPart* parts, size_t count) override
+    {
+        try {
+            Underlying_->Write(parts, count);
+        } catch (const std::exception& ex) {
+            Location_->Disable(ex);
+            YUNREACHABLE();
+        }
+    }
+
+    virtual void DoFlush() override
+    {
+        try {
+            Underlying_->Flush();
+        } catch (const std::exception& ex) {
+            Location_->Disable(ex);
+            YUNREACHABLE();
+        }
+    }
+
+    virtual void DoFinish() override
+    {
+        try {
+            Underlying_->Finish();
+        } catch (const std::exception& ex) {
+            Location_->Disable(ex);
+            YUNREACHABLE();
+        }
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TErrorInterceptingChunkWriter
+    : public IChunkWriter
+{
+public:
+    TErrorInterceptingChunkWriter(TLocationPtr location, IChunkWriterPtr underlying)
+        : Location_(std::move(location))
+        , Underlying_(std::move(underlying))
+    { }
+
+    virtual TFuture<void> Open() override
+    {
+        return Check(Underlying_->Open());
+    }
+
+    virtual bool WriteBlock(const TSharedRef& block) override
+    {
+        return Underlying_->WriteBlock(block);
+    }
+
+    virtual bool WriteBlocks(const std::vector<TSharedRef>& blocks) override
+    {
+        return Underlying_->WriteBlocks(blocks);
+    }
+
+    virtual TFuture<void> GetReadyEvent() override
+    {
+        return Check(Underlying_->GetReadyEvent());
+    }
+
+    virtual TFuture<void> Close(const NChunkClient::NProto::TChunkMeta& chunkMeta) override
+    {
+        return Check(Underlying_->Close(chunkMeta));
+    }
+
+    virtual const NChunkClient::NProto::TChunkInfo& GetChunkInfo() const override
+    {
+        return Underlying_->GetChunkInfo();
+    }
+
+    virtual TChunkReplicaList GetWrittenChunkReplicas() const override
+    {
+        return Underlying_->GetWrittenChunkReplicas();
+    }
+
+    virtual TChunkId GetChunkId() const override
+    {
+        return Underlying_->GetChunkId();
+    }
+
+    virtual NErasure::ECodec GetErasureCodecId() const override
+    {
+        return Underlying_->GetErasureCodecId();
+    }
+
+    virtual const NChunkClient::NProto::TDataStatistics& GetDataStatistics() const override
+    {
+        return Underlying_->GetDataStatistics();
+    }
+
+private:
+    const TLocationPtr Location_;
+    const IChunkWriterPtr Underlying_;
+
+
+    TFuture<void> Check(TFuture<void> result)
+    {
+        return result.Apply(BIND([location = Location_] (const TError& error) {
+            if (!error.IsOK()) {
+                location->Disable(error);
+                YUNREACHABLE();
+            }
+        }));
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -180,8 +312,7 @@ public:
 
             auto location = FindNewChunkLocation();
             if (!location) {
-                auto error = TError("Cannot find suitable location for chunk %v",
-                    chunkId);
+                auto error = TError("Cannot find a suitable location for artifact chunk");
                 cookie.Cancel(error);
                 LOG_ERROR(error);
                 return cookieValue.As<IChunkPtr>();
@@ -277,23 +408,18 @@ private:
         const TChunkDescriptor& descriptor)
     {
         const auto& chunkId = descriptor.Id;
-        auto chunkFileName = location->GetChunkPath(chunkId);
 
-        TArtifactKey key;
-        if (IsArtifactChunkId(chunkId)) {
-            if (!TryLoadArtifactMeta(chunkFileName, &key)) {
-                return;
-            }
-        } else {
-            key = TArtifactKey(chunkId);
+        auto maybeKey = TryParseArtifactMeta(location, chunkId);
+        if (!maybeKey) {
+            return;
         }
 
+        const auto& key = *maybeKey;
         auto cookie = BeginInsert(key);
         if (!cookie.IsActive()) {
-            LOG_WARNING("Removing duplicate cached chunk: %v",
-                chunkFileName);
+            LOG_WARNING("Removing duplicate cached chunk (ChunkId: %v)",
+                chunkId);
             location->RemoveChunkFilesPermanently(chunkId);
-
         } else {
             auto chunk = CreateChunk(location, key, descriptor);
             cookie.EndInsert(chunk);
@@ -426,19 +552,16 @@ private:
 
             auto fileName = location->GetChunkPath(chunkId);
             auto chunkWriter = New<TFileWriter>(chunkId, fileName);
+            auto checkedChunkWriter = New<TErrorInterceptingChunkWriter>(location, chunkWriter);
 
-            try {
-                NFS::ForcePath(NFS::GetDirectoryName(fileName));
-                WaitFor(chunkWriter->Open())
-                    .ThrowOnError();
-            } catch (const std::exception& ex) {
-                LOG_FATAL(ex, "Error opening cached chunk for writing");
-            }
+            LOG_DEBUG("Opening chunk writer");
 
-            LOG_INFO("Getting chunk meta");
+            WaitFor(checkedChunkWriter->Open())
+                .ThrowOnError();
+
+            LOG_DEBUG("Getting chunk meta");
             auto chunkMeta = WaitFor(chunkReader->GetMeta())
                 .ValueOrThrow();
-            LOG_INFO("Chunk meta received");
 
             // Download all blocks.
             auto blocksExt = GetProtoExtension<TBlocksExt>(chunkMeta.extensions());
@@ -459,27 +582,27 @@ private:
                 NCompression::ECodec::None);
 
             for (int blockIndex = 0; blockIndex < blockCount; ++blockIndex) {
-                LOG_INFO("Downloading block (BlockIndex: %v)",
+                LOG_DEBUG("Downloading block (BlockIndex: %v)",
                     blockIndex);
 
                 WaitFor(sequentialReader->FetchNextBlock())
                     .ThrowOnError();
 
-                LOG_INFO("Writing block (BlockIndex: %v)",
+                LOG_DEBUG("Writing block (BlockIndex: %v)",
                     blockIndex);
-                // NB: This is always done synchronously.
+
                 auto block = sequentialReader->GetCurrentBlock();
-                if (!chunkWriter->WriteBlock(block)) {
-                    THROW_ERROR_EXCEPTION(chunkWriter->GetReadyEvent().Get());
+
+                if (!checkedChunkWriter->WriteBlock(block)) {
+                    WaitFor(chunkWriter->GetReadyEvent())
+                        .ThrowOnError();
                 }
-                LOG_INFO("Block written");
             }
 
+            LOG_DEBUG("Closing chunk");
 
-            LOG_INFO("Closing chunk");
-            WaitFor(chunkWriter->Close(chunkMeta))
+            WaitFor(checkedChunkWriter->Close(chunkMeta))
                 .ThrowOnError();
-            LOG_INFO("Chunk is closed");
 
             LOG_INFO("Chunk is downloaded into cache");
 
@@ -579,7 +702,7 @@ private:
                     false, /* enableContextSaving */
                     New<TControlAttributesConfig>(),
                     0);
-                PipeReaderToWriter(reader, writer, 10000);
+                PipeReaderToWriter(reader, writer, TableArtifactBufferRowCount);
             };
 
             auto chunk = ProduceArtifactFile(key, location, chunkId, producer);
@@ -588,11 +711,10 @@ private:
             ChunkAdded_.Fire(chunk);
 
         } catch (const std::exception& ex) {
-            auto error = TError("Error downloading table artifact into cache: %v",
-                key)
+            auto error = TError("Error downloading table artifact into cache")
+                << TErrorAttribute("key", key)
                 << ex;
             cookie.Cancel(error);
-            LOG_WARNING(error);
         }
     }
 
@@ -605,63 +727,77 @@ private:
         LOG_INFO("Producing artifact file (ChunkId: %v)",
             chunkId);
 
-        auto fileName = location->GetChunkPath(chunkId);
-        auto metaFileName = fileName + ArtifactMetaSuffix;
-        auto tempFileName = fileName + NFS::TempFileSuffix;
+        auto dataFileName = location->GetChunkPath(chunkId);
+        auto metaFileName = dataFileName + ArtifactMetaSuffix;
+        auto tempDataFileName = dataFileName + NFS::TempFileSuffix;
         auto tempMetaFileName = metaFileName + NFS::TempFileSuffix;
 
-        TFile file(
-            tempFileName,
-            CreateAlways | WrOnly | Seq | CloseOnExec);
-        file.Flock(LOCK_EX);
-        TFileOutput fileOutput(file);
-        producer(&fileOutput);
-        file.Close();
+        auto metaBlob = SerializeToProto(key);
 
-        auto chunkSize = NFS::GetFileStatistics(tempFileName).Size;
+        std::unique_ptr<TFile> tempDataFile;
+        std::unique_ptr<TFile> tempMetaFile;
+        i64 chunkSize;
 
-        TFile metaFile(
-            tempMetaFileName,
-            CreateAlways | WrOnly | Seq | CloseOnExec);
-        metaFile.Flock(LOCK_EX);
-        auto metaData = SerializeToProto(key);
-        metaFile.Write(metaData.Begin(), metaData.Size());
-        metaFile.Close();
+        location->DisableOnError(BIND([&] () {
+            tempDataFile = std::make_unique<TFile>(
+                tempDataFileName,
+                CreateAlways | WrOnly | Seq | CloseOnExec);
+            tempDataFile->Flock(LOCK_EX);
 
-        NFS::Rename(tempMetaFileName, metaFileName);
-        NFS::Rename(tempFileName, fileName);
+            tempMetaFile = std::make_unique<TFile>(
+                tempMetaFileName,
+                CreateAlways | WrOnly | Seq | CloseOnExec);
+            tempMetaFile->Flock(LOCK_EX);
+        })).Run();
+
+        TFileOutput fileOutput(*tempDataFile);
+        TErrorInterceptingOutput checkedOutput(location, &fileOutput);
+
+        producer(&checkedOutput);
+
+        location->DisableOnError(BIND([&] () {
+            chunkSize = tempDataFile->GetLength();
+            tempDataFile->Close();
+
+            tempMetaFile->Write(metaBlob.Begin(), metaBlob.Size());
+            tempMetaFile->Close();
+
+            NFS::Rename(tempMetaFileName, metaFileName);
+            NFS::Rename(tempDataFileName, dataFileName);
+        })).Run();
 
         TChunkDescriptor descriptor(chunkId);
-        descriptor.DiskSpace = chunkSize + metaData.Size();
+        descriptor.DiskSpace = chunkSize + metaBlob.Size();
         return CreateChunk(location, key, descriptor);
     }
 
-    bool TryLoadArtifactMeta(const Stroka& fileName, TArtifactKey* key)
+    TNullable<TArtifactKey> TryParseArtifactMeta(TLocationPtr location, const TChunkId& chunkId)
     {
-        auto metaFileName = fileName + ArtifactMetaSuffix;
-        try {
+        if (!IsArtifactChunkId(chunkId)) {
+            return TArtifactKey(chunkId);
+        }
+
+        auto dataFileName = location->GetChunkPath(chunkId);
+        auto metaFileName = dataFileName + ArtifactMetaSuffix;
+
+        Stroka metaBlob;
+
+        location->DisableOnError(BIND([&] () {
             TFile metaFile(
                 metaFileName,
                 OpenExisting | RdOnly | Seq | CloseOnExec);
             TBufferedFileInput metaInput(metaFile);
+            metaBlob = metaInput.ReadAll();
+        })).Run();
 
-            auto metaBlob = metaInput.ReadAll();
-            auto metaBlobRef = TRef::FromString(metaBlob);
-
-            if (!TryDeserializeFromProto(key, metaBlobRef)) {
-                THROW_ERROR_EXCEPTION("Failed to parse artifact meta file");
-            }
-
-            LOG_DEBUG("Artifact meta file loaded (FileName: %v)",
+        TArtifactKey key;
+        if (!TryDeserializeFromProto(&key, TRef::FromString(metaBlob))) {
+            LOG_WARNING("Failed to parse artifact meta file %v",
                 metaFileName);
-            return true;
-        } catch (const std::exception& ex) {
-            auto error = TError("Error loading artifact meta file (FileName: %v)",
-                metaFileName)
-                << ex;
-            LOG_WARNING(error);
-            return false;
+            return Null;
         }
+
+        return key;
     }
 
 };

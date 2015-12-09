@@ -78,7 +78,6 @@ set( HDRS
   ${CMAKE_CURRENT_LIST_DIR}/schemaful_block_writer.h
   ${CMAKE_CURRENT_LIST_DIR}/schemaful_chunk_reader.h
   ${CMAKE_CURRENT_LIST_DIR}/schemaful_chunk_writer.h
-  ${CMAKE_CURRENT_LIST_DIR}/schemaful_overlapping_chunk_reader.h
   ${CMAKE_CURRENT_LIST_DIR}/schemaful_reader.h
   ${CMAKE_CURRENT_LIST_DIR}/schemaful_reader_adapter.h
   ${CMAKE_CURRENT_LIST_DIR}/schemaful_writer_adapter.h
@@ -101,7 +100,7 @@ set( HDRS
   ${CMAKE_CURRENT_LIST_DIR}/unversioned_row.h
   ${CMAKE_CURRENT_LIST_DIR}/unversioned_writer.h
   ${CMAKE_CURRENT_LIST_DIR}/value_consumer.h
-  ${CMAKE_CURRENT_LIST_DIR}/value_consumer-mock.h
+  ${CMAKE_CURRENT_LIST_DIR}/value_consumer_mock.h
   ${CMAKE_CURRENT_LIST_DIR}/versioned_block_reader.h
   ${CMAKE_CURRENT_LIST_DIR}/versioned_block_writer.h
   ${CMAKE_CURRENT_LIST_DIR}/versioned_chunk_reader.h
@@ -110,17 +109,8 @@ set( HDRS
   ${CMAKE_CURRENT_LIST_DIR}/versioned_row.h
   ${CMAKE_CURRENT_LIST_DIR}/versioned_writer.h
   ${CMAKE_CURRENT_LIST_DIR}/writer.h
+  ${CMAKE_CURRENT_LIST_DIR}/llvm_types.h
 )
-
-if (YT_BUILD_ENABLE_LLVM)
-  set( SRCS
-    ${SRCS}
-  )
-  set( HDRS
-    ${HDRS}
-    ${CMAKE_CURRENT_LIST_DIR}/llvm_types.h
-  )
-endif()
 
 list(APPEND YT_SOURCE_FILES
   ${SRCS}

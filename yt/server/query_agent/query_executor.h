@@ -2,9 +2,9 @@
 
 #include "public.h"
 
-#include <ytlib/query_client/public.h>
+#include <yt/server/cell_node/public.h>
 
-#include <server/cell_node/public.h>
+#include <yt/ytlib/query_client/public.h>
 
 namespace NYT {
 namespace NQueryAgent {

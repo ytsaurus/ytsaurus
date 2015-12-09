@@ -28,21 +28,21 @@ add_library( ytext-snappy STATIC
 )
 
 add_library( ytext-zlib STATIC
-  ${BASE}/zlib/adler32.c
-  ${BASE}/zlib/compress.c
-  ${BASE}/zlib/crc32.c
-  ${BASE}/zlib/deflate.c
-  ${BASE}/zlib/gzclose.c
-  ${BASE}/zlib/gzlib.c
-  ${BASE}/zlib/gzread.c
-  ${BASE}/zlib/gzwrite.c
-  ${BASE}/zlib/infback.c
-  ${BASE}/zlib/inffast.c
-  ${BASE}/zlib/inflate.c
-  ${BASE}/zlib/inftrees.c
-  ${BASE}/zlib/trees.c
-  ${BASE}/zlib/uncompr.c
-  ${BASE}/zlib/zutil.c
+    ${BASE}/zlib/adler32.c
+    ${BASE}/zlib/compress.c
+    ${BASE}/zlib/crc32.c
+    ${BASE}/zlib/deflate.c
+    ${BASE}/zlib/gzclose.c
+    ${BASE}/zlib/gzlib.c
+    ${BASE}/zlib/gzread.c
+    ${BASE}/zlib/gzwrite.c
+    ${BASE}/zlib/infback.c
+    ${BASE}/zlib/inffast.c
+    ${BASE}/zlib/inflate.c
+    ${BASE}/zlib/inftrees.c
+    ${BASE}/zlib/trees.c
+    ${BASE}/zlib/uncompr.c
+    ${BASE}/zlib/zutil.c
 )
 
 # zlib uses util/ which resides in the project root.
@@ -98,16 +98,6 @@ set_target_properties( ytext-minilzo PROPERTIES
 set_target_properties( ytext-quicklz PROPERTIES
   VERSION   1.5.1
   SOVERSION 1.5
-)
-
-set_target_properties( ytext-snappy PROPERTIES
-  VERSION   1.0.4
-  SOVERSION 1.0
-)
-
-set_target_properties( ytext-zlib PROPERTIES
-  VERSION   1.2.3
-  SOVERSION 1.2.3
 )
 
 set_target_properties( ytext-quicklz PROPERTIES

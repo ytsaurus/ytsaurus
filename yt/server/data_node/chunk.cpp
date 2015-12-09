@@ -1,10 +1,9 @@
-#include "stdafx.h"
 #include "chunk.h"
 #include "journal_chunk.h"
 
-#include <ytlib/object_client/helpers.h>
+#include <yt/ytlib/chunk_client/chunk_replica.h>
 
-#include <ytlib/chunk_client/chunk_replica.h>
+#include <yt/ytlib/object_client/helpers.h>
 
 namespace NYT {
 namespace NDataNode {
@@ -61,6 +60,18 @@ TChunkReadGuard TChunkReadGuard::TryAcquire(IChunkPtr chunk)
     return chunk->TryAcquireReadLock()
         ? TChunkReadGuard(chunk)
         : TChunkReadGuard();
+}
+
+TChunkReadGuard TChunkReadGuard::AcquireOrThrow(IChunkPtr chunk)
+{
+    auto guard = TryAcquire(chunk);
+    if (!guard) {
+        THROW_ERROR_EXCEPTION(
+            NChunkClient::EErrorCode::NoSuchChunk,
+            "Cannot read chunk %v since it is scheduled for removal",
+            chunk->GetId());
+    }
+    return guard;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

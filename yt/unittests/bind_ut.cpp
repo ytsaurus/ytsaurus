@@ -1,11 +1,10 @@
-#include "stdafx.h"
 #include "framework.h"
 #include "probe.h"
 
-#include <core/misc/public.h>
+#include <yt/core/actions/bind.h>
+#include <yt/core/actions/callback.h>
 
-#include <core/actions/bind.h>
-#include <core/actions/callback.h>
+#include <yt/core/misc/public.h>
 
 namespace NYT {
 namespace {

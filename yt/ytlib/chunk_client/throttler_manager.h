@@ -2,10 +2,10 @@
 
 #include "private.h"
 
-#include <ytlib/object_client/public.h>
+#include <yt/ytlib/object_client/public.h>
 
-#include <core/logging/log.h>
-#include <core/concurrency/throughput_throttler.h>
+#include <yt/core/logging/log.h>
+#include <yt/core/concurrency/throughput_throttler.h>
 
 namespace NYT {
 namespace NChunkClient {
@@ -25,8 +25,8 @@ public:
 
 private:
     const NConcurrency::TThroughputThrottlerConfigPtr Config_;
-    NLogging::TLogger Logger;
-    NProfiling::TProfiler Profiler_;
+    const NLogging::TLogger Logger_;
+    const NProfiling::TProfiler Profiler_;
 
     //! Protects the section immediately following it.
     TSpinLock SpinLock_;

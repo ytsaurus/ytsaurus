@@ -1,18 +1,18 @@
-#include "stdafx.h"
-#include "map_controller.h"
+#include "sort_controller.h"
 #include "private.h"
-#include "operation_controller_detail.h"
-#include "chunk_pool.h"
 #include "chunk_list_pool.h"
-#include "job_resources.h"
+#include "chunk_pool.h"
 #include "helpers.h"
+#include "job_resources.h"
+#include "map_controller.h"
+#include "operation_controller_detail.h"
 
-#include <ytlib/chunk_client/chunk_scraper.h>
+#include <yt/ytlib/chunk_client/chunk_scraper.h>
 
-#include <ytlib/table_client/config.h>
-#include <ytlib/table_client/samples_fetcher.h>
-#include <ytlib/table_client/unversioned_row.h>
-#include <ytlib/table_client/schemaless_block_writer.h>
+#include <yt/ytlib/table_client/config.h>
+#include <yt/ytlib/table_client/samples_fetcher.h>
+#include <yt/ytlib/table_client/unversioned_row.h>
+#include <yt/ytlib/table_client/schemaless_block_writer.h>
 
 #include <cmath>
 
@@ -610,7 +610,11 @@ protected:
         virtual TNodeResources GetMinNeededResourcesHeavy() const override
         {
             auto stat = GetChunkPoolOutput()->GetApproximateStripeStatistics();
-            YCHECK(stat.size() == 1);
+            if (Controller->SimpleSort && stat.size() > 1) {
+                stat = AggregateStatistics(stat);
+            } else {
+                YCHECK(stat.size() == 1);    
+            }
             return GetNeededResourcesForChunkStripe(stat.front(), IsMemoryReserveEnabled());
         }
 
@@ -1431,20 +1435,15 @@ protected:
         return static_cast<i64>((double) TotalEstimatedInputValueCount * dataSize / TotalEstimatedInputDataSize);
     }
 
-    int GetEmpiricalParitionCount(i64 dataSize) const
+    // Returns compression ratio of input data.
+    double GetCompressionRatio() const
     {
-        // Suggest partition count using some (highly experimental)
-        // formula, which is inspired by the following practical
-        // observations:
-        // 1) Partitions of size < 32Mb make no sense.
-        // 2) The larger input is, the bigger is the optimal partition size.
-        // 3) The larger input is, the more parallelism is required to process it efficiently, hence the bigger is the optimal partition count.
-        // 4) Partitions of size > 2GB require too much resources and are thus harmful.
-        // To accommodate both (2) and (3), partition size growth rate is logarithmic
-        i64 partitionSize = static_cast<i64>(32 * 1024 * 1024 * (1.0 + std::log10((double) dataSize / ((i64)100 * 1024 * 1024))));
-        i64 suggestedPartitionCount = static_cast<i64>(dataSize / partitionSize);
-        i64 upperPartitionCountCap = 1000 + dataSize / ((i64)2 * 1024 * 1024 * 1024);
-        return static_cast<int>(Clamp(suggestedPartitionCount, 1, upperPartitionCountCap));
+        return static_cast<double>(TotalEstimatedCompressedDataSize) / TotalEstimatedInputDataSize;
+    }
+
+    i64 GetMaxPartitionJobBufferSize() const 
+    {
+        return Spec->PartitionJobIO->TableWriter->MaxBufferSize;
     }
 
     int SuggestPartitionCount() const
@@ -1452,18 +1451,25 @@ protected:
         YCHECK(TotalEstimatedInputDataSize > 0);
         i64 dataSizeAfterPartition = 1 + static_cast<i64>(TotalEstimatedInputDataSize * Spec->MapSelectivityFactor);
 
-        i64 result;
-        if (Spec->PartitionDataSize || Spec->PartitionCount) {
-            if (Spec->PartitionCount) {
-                result = *Spec->PartitionCount;
-            } else {
-                // NB: Spec->PartitionDataSize is not Null.
-                result = 1 + dataSizeAfterPartition / *Spec->PartitionDataSize;
-            }
+        int result;
+        if (Spec->PartitionCount) {
+            result = Spec->PartitionCount.Get();
+        } else if (Spec->PartitionDataSize) {
+            result = 1 + dataSizeAfterPartition / Spec->PartitionDataSize.Get();
         } else {
-            result = GetEmpiricalParitionCount(dataSizeAfterPartition);
+            // Rationale and details are on the wiki.
+            // https://wiki.yandex-team.ru/yt/design/partitioncount/
+            i64 uncompressedBlockSize = static_cast<i64>(Options->CompressedBlockSize / GetCompressionRatio());
+            uncompressedBlockSize = std::min(uncompressedBlockSize, Spec->PartitionJobIO->TableWriter->BlockSize);
+
+            // Product may not fit into i64.
+            double partitionDataSize = sqrt(dataSizeAfterPartition) * sqrt(uncompressedBlockSize);
+
+            int maxPartitionCount = GetMaxPartitionJobBufferSize() / uncompressedBlockSize;
+            result = std::min(static_cast<int>(dataSizeAfterPartition / partitionDataSize), maxPartitionCount);
         }
-        return static_cast<int>(Clamp(result, 1, Options->MaxPartitionCount));
+
+        return std::max(result, 1);
     }
 
     int SuggestPartitionJobCount() const
@@ -1475,16 +1481,21 @@ protected:
                 Spec->PartitionJobCount,
                 Options->MaxPartitionJobCount);
         } else {
-            // Experiments show that this number is suitable as default
-            // both for partition count and for partition job count.
-            int partitionCount = GetEmpiricalParitionCount(TotalEstimatedInputDataSize);
+            // Rationale and details are on the wiki.
+            // https://wiki.yandex-team.ru/yt/design/partitioncount/
+            i64 uncompressedBlockSize = static_cast<i64>(Options->CompressedBlockSize / GetCompressionRatio());
+            uncompressedBlockSize = std::min(uncompressedBlockSize, Spec->PartitionJobIO->TableWriter->BlockSize);
+
+            // Product may not fit into i64.
+            double partitionJobDataSize = sqrt(TotalEstimatedInputDataSize) * sqrt(uncompressedBlockSize);
+            partitionJobDataSize = std::min(partitionJobDataSize, static_cast<double>(GetMaxPartitionJobBufferSize()));
+
             return static_cast<int>(Clamp(
-                partitionCount,
+                static_cast<i64>(TotalEstimatedInputDataSize / partitionJobDataSize),
                 1,
                 Options->MaxPartitionJobCount));
         }
     }
-
 
     // Partition progress.
 
@@ -1837,9 +1848,27 @@ private:
     {
         LOG_INFO("Building partition keys");
 
-        auto getSample = [&](int sampleIndex) {
-            return sortedSamples[(sampleIndex + 1) * (sortedSamples.size() - 1) / partitionCount];
-        };
+        i64 totalSamplesWeight = 0;
+        for (const auto* sample : sortedSamples) {
+            totalSamplesWeight += sample->Weight;
+        }
+
+        // Select samples evenly wrt weights.
+        std::vector<const TSample*> selectedSamples;
+        selectedSamples.reserve(partitionCount - 1);
+
+        double weightPerPartition = (double)totalSamplesWeight / partitionCount;
+        i64 processedWeight = 0;
+        for (const auto* sample : sortedSamples) {
+            processedWeight += sample->Weight;
+            if (processedWeight / weightPerPartition > selectedSamples.size() + 1) {
+                selectedSamples.push_back(sample);
+            }
+            if (selectedSamples.size() == partitionCount - 1) {
+                // We need exactly partitionCount - 1 partition keys.
+                break;
+            }
+        }
 
         // Construct the leftmost partition.
         Partitions.push_back(New<TPartition>(this, 0));
@@ -1851,10 +1880,9 @@ private:
         //
         // Initially PartitionKeys is empty so lastKey is assumed to be -inf.
 
-        // Take partition keys evenly.
         int sampleIndex = 0;
         while (sampleIndex < partitionCount - 1) {
-            auto* sample = getSample(sampleIndex);
+            auto* sample = selectedSamples[sampleIndex];
             // Check for same keys.
             if (PartitionKeys.empty() || CompareRows(sample->Key, PartitionKeys.back()) != 0) {
                 AddPartition(sample->Key);
@@ -1863,13 +1891,13 @@ private:
                 // Skip same keys.
                 int skippedCount = 0;
                 while (sampleIndex < partitionCount - 1 &&
-                    CompareRows(getSample(sampleIndex)->Key, PartitionKeys.back()) == 0)
+                    CompareRows(selectedSamples[sampleIndex]->Key, PartitionKeys.back()) == 0)
                 {
                     ++sampleIndex;
                     ++skippedCount;
                 }
 
-                auto* lastManiacSample = getSample(sampleIndex - 1);
+                auto* lastManiacSample = selectedSamples[sampleIndex - 1];
                 auto lastPartition = Partitions.back();
 
                 if (!lastManiacSample->Incomplete) {
@@ -1890,7 +1918,7 @@ private:
                     LOG_DEBUG("Partition %v is oversized, skipped %v samples",
                         lastPartition->Index,
                         skippedCount);
-                    AddPartition(getSample(sampleIndex)->Key);
+                    AddPartition(selectedSamples[sampleIndex]->Key);
                     ++sampleIndex;
                 }
             }
@@ -2334,9 +2362,6 @@ private:
         // Otherwise use size estimates.
         int partitionCount = SuggestPartitionCount();
 
-        // Don't create more partitions than allowed by the global config.
-        partitionCount = std::min(partitionCount, Options->MaxPartitionCount);
-
         InitJobIOConfigs();
 
         CheckPartitionWriterBuffer(partitionCount, PartitionJobIOConfig->TableWriter);
@@ -2374,7 +2399,7 @@ private:
     {
         {
             // This is not a typo!
-            PartitionJobIOConfig = CloneYsonSerializable(Spec->MapJobIO);
+            PartitionJobIOConfig = CloneYsonSerializable(Spec->PartitionJobIO);
             InitIntermediateOutputConfig(PartitionJobIOConfig);
         }
 
@@ -2386,7 +2411,7 @@ private:
 
         {
             // Partition reduce: writer like in merge and reader like in sort.
-            FinalSortJobIOConfig = CloneYsonSerializable(Spec->ReduceJobIO);
+            FinalSortJobIOConfig = CloneYsonSerializable(Spec->MergeJobIO);
             FinalSortJobIOConfig->TableReader = CloneYsonSerializable(Spec->SortJobIO->TableReader);
             InitIntermediateInputConfig(FinalSortJobIOConfig);
             InitFinalOutputConfig(FinalSortJobIOConfig);
@@ -2394,7 +2419,7 @@ private:
 
         {
             // Sorted reduce.
-            SortedMergeJobIOConfig = CloneYsonSerializable(Spec->ReduceJobIO);
+            SortedMergeJobIOConfig = CloneYsonSerializable(Spec->MergeJobIO);
             InitIntermediateInputConfig(SortedMergeJobIOConfig);
             InitFinalOutputConfig(SortedMergeJobIOConfig);
         }

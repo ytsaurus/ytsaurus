@@ -1,7 +1,6 @@
-#include "stdafx.h"
 #include "framework.h"
 
-#include <core/misc/string.h>
+#include <yt/core/misc/string.h>
 
 namespace NYT {
 namespace {

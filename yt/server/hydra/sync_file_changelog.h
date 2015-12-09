@@ -2,9 +2,9 @@
 
 #include "private.h"
 
-#include <core/misc/ref.h>
-
 #include <yt/ytlib/hydra/hydra_manager.pb.h>
+
+#include <yt/core/misc/ref.h>
 
 namespace NYT {
 namespace NHydra {

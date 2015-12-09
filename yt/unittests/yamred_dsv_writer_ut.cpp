@@ -1,12 +1,11 @@
-#include "stdafx.h"
 #include "framework.h"
 
-#include <ytlib/table_client/unversioned_row.h>
-#include <ytlib/table_client/name_table.h>
+#include <yt/ytlib/table_client/unversioned_row.h>
+#include <yt/ytlib/table_client/name_table.h>
 
-#include <ytlib/formats/yamred_dsv_writer.h>
+#include <yt/ytlib/formats/yamred_dsv_writer.h>
 
-#include <core/concurrency/async_stream.h>
+#include <yt/core/concurrency/async_stream.h>
 
 #include <util/string/vector.h>
 

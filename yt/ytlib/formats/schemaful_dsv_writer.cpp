@@ -1,11 +1,12 @@
-#include "stdafx.h"
 #include "schemaful_dsv_writer.h"
 
-#include <ytlib/table_client/name_table.h>
+#include <yt/ytlib/table_client/name_table.h>
 
-#include <core/misc/error.h>
+#include <yt/core/misc/error.h>
 
-#include <core/yson/format.h>
+#include <yt/core/yson/format.h>
+
+#include <yt/core/concurrency/async_stream.h>
 
 #include <limits>
 
@@ -107,7 +108,6 @@ char* TSchemafulDsvWriterBase::WriteUint64Backwards(char* ptr, ui64 value)
 
     return ptr;
 }
-
 void TSchemafulDsvWriterBase::WriteValue(const TUnversionedValue& value)
 {
     switch (value.Type) {

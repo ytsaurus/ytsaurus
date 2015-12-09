@@ -2,23 +2,23 @@
 
 #include "public.h"
 
-#include <core/misc/small_vector.h>
+#include <yt/server/cell_node/public.h>
 
-#include <core/yson/public.h>
+#include <yt/server/hydra/entity_map.h>
 
-#include <ytlib/transaction_client/public.h>
+#include <yt/server/tablet_node/tablet_manager.pb.h>
 
-#include <ytlib/table_client/public.h>
+#include <yt/ytlib/chunk_client/chunk_meta.pb.h>
 
-#include <ytlib/chunk_client/chunk_meta.pb.h>
+#include <yt/ytlib/table_client/public.h>
 
-#include <ytlib/tablet_client/public.h>
+#include <yt/ytlib/tablet_client/public.h>
 
-#include <server/hydra/entity_map.h>
+#include <yt/ytlib/transaction_client/public.h>
 
-#include <server/cell_node/public.h>
+#include <yt/core/misc/small_vector.h>
 
-#include <server/tablet_node/tablet_manager.pb.h>
+#include <yt/core/yson/public.h>
 
 namespace NYT {
 namespace NTabletNode {

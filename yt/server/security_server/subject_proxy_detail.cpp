@@ -1,4 +1,3 @@
-#include "stdafx.h"
 #include "subject_proxy_detail.h"
 
 namespace NYT {

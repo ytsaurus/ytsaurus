@@ -1,11 +1,10 @@
-#include "stdafx.h"
 #include "framework.h"
 
-#include <core/concurrency/thread_affinity.h>
-#include <core/concurrency/action_queue.h>
+#include <yt/core/actions/bind.h>
+#include <yt/core/actions/future.h>
 
-#include <core/actions/bind.h>
-#include <core/actions/future.h>
+#include <yt/core/concurrency/action_queue.h>
+#include <yt/core/concurrency/thread_affinity.h>
 
 namespace NYT {
 namespace NConcurrency {

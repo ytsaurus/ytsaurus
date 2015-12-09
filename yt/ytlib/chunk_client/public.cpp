@@ -1,7 +1,6 @@
-#include "stdafx.h"
 #include "public.h"
 
-#include <ytlib/misc/workload.h>
+#include <yt/ytlib/misc/workload.h>
 
 namespace NYT {
 namespace NChunkClient {

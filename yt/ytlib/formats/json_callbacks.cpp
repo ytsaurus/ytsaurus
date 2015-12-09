@@ -1,8 +1,8 @@
 #include "json_callbacks.h"
 
-#include <core/ytree/node.h>
-#include <core/ytree/tree_builder.h>
-#include <core/ytree/ephemeral_node_factory.h>
+#include <yt/core/ytree/ephemeral_node_factory.h>
+#include <yt/core/ytree/node.h>
+#include <yt/core/ytree/tree_builder.h>
 
 namespace NYT {
 namespace NFormats {

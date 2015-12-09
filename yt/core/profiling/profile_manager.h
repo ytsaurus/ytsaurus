@@ -2,13 +2,13 @@
 
 #include "public.h"
 
-#include <core/actions/public.h>
+#include <yt/core/actions/public.h>
 
-#include <core/misc/shutdownable.h>
+#include <yt/core/misc/shutdownable.h>
 
-#include <core/yson/string.h>
+#include <yt/core/yson/string.h>
 
-#include <core/ytree/convert.h>
+#include <yt/core/ytree/convert.h>
 
 namespace NYT {
 namespace NProfiling {

@@ -1,4 +1,3 @@
-#include "stdafx.h"
 #include "chunked_memory_allocator.h"
 #include "serialize.h"
 

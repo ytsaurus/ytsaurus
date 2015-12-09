@@ -1,12 +1,11 @@
-#include "stdafx.h"
 #include "node_detail.h"
-#include "node_proxy_detail.h"
 #include "helpers.h"
+#include "node_proxy_detail.h"
 
-#include <server/security_server/security_manager.h>
-#include <server/security_server/user.h>
+#include <yt/server/cell_master/hydra_facade.h>
 
-#include <server/cell_master/hydra_facade.h>
+#include <yt/server/security_server/security_manager.h>
+#include <yt/server/security_server/user.h>
 
 namespace NYT {
 namespace NCypressServer {

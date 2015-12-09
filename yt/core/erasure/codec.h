@@ -2,8 +2,8 @@
 
 #include "public.h"
 
-#include <core/misc/ref.h>
-#include <core/misc/nullable.h>
+#include <yt/core/misc/nullable.h>
+#include <yt/core/misc/ref.h>
 
 namespace NYT {
 namespace NErasure {

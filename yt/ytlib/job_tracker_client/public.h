@@ -1,8 +1,8 @@
 #pragma once
 
-#include <core/misc/public.h>
-#include <core/misc/enum.h>
-#include <core/misc/guid.h>
+#include <yt/core/misc/enum.h>
+#include <yt/core/misc/guid.h>
+#include <yt/core/misc/public.h>
 
 namespace NYT {
 namespace NJobTrackerClient {
@@ -52,12 +52,13 @@ DEFINE_ENUM(EJobType,
 );
 
 DEFINE_ENUM(EJobState,
-    ((Waiting)  (0))
-    ((Running)  (1))
-    ((Aborting) (2))
-    ((Completed)(3))
-    ((Failed)   (4))
-    ((Aborted)  (5))
+    ((Waiting)    (0))
+    ((Running)    (1))
+    ((Aborting)   (2))
+    ((Completed)  (3))
+    ((Failed)     (4))
+    ((Aborted)    (5))
+    ((Abandoning) (6))
 );
 
 DEFINE_ENUM(EJobPhase,

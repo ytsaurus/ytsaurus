@@ -6,10 +6,10 @@
 #include "yamr_table.h"
 #include "schemaless_writer_adapter.h"
 
-#include <ytlib/table_client/public.h>
+#include <yt/ytlib/table_client/public.h>
 
-#include <core/misc/blob_output.h>
-#include <core/misc/nullable.h>
+#include <yt/core/misc/blob_output.h>
+#include <yt/core/misc/nullable.h>
 
 namespace NYT {
 namespace NFormats {

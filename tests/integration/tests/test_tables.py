@@ -7,6 +7,8 @@ from yt.environment.helpers import assert_items_equal
 from time import sleep
 import pytest
 
+from yt.environment.helpers import assert_items_equal
+
 ##################################################################
 
 class TestTables(YTEnvSetup):
@@ -359,7 +361,8 @@ class TestTables(YTEnvSetup):
         assert read_table("//tmp/table", tx=outer_tx) == [v1]
         assert read_table("//tmp/table", tx=inner_tx) == [v1, v2]
 
-        write_table("<append=true>//tmp/table", v3, tx=outer_tx) # this won"t be seen from inner
+        # this won"t be seen from inner
+        write_table("<append=true>//tmp/table", v3, tx=outer_tx)
         assert read_table("//tmp/table", tx=outer_tx) == [v1, v3]
         assert read_table("//tmp/table", tx=inner_tx) == [v1, v2]
 
@@ -368,6 +371,7 @@ class TestTables(YTEnvSetup):
         assert read_table("//tmp/table", tx=inner_tx) == [v1, v2, v4]
 
         commit_transaction(inner_tx)
+        # order is not specified
         assert_items_equal(read_table("//tmp/table", tx=outer_tx), [v1, v2, v4, v3])
 
         commit_transaction(outer_tx)
@@ -762,3 +766,18 @@ class TestTables(YTEnvSetup):
 #        concatenate(["//tmp/t2", "//tmp/t1"], "<append=true>//tmp/union")
 #        assert read_table("//tmp/union") == [{"key": "y"}, {"key": "x"}]
 #        assert get("//tmp/union/@sorted", "false")
+
+    def test_extracting_table_columns_in_schemaful_dsv_from_complex_table(self):
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+        write_table("//tmp/t1", [
+            {"column1": {"childA" : "some_value", "childB" : "42"}, 
+            "column2" : "value12", 
+            "column3" : "value13"},
+            {"column1": {"childA" : "some_other_value", "childB" : "321"}, 
+            "column2" : "value22", 
+            "column3" : "value23"}])
+
+        tabular_data = read_table("//tmp/t1", output_format=yson.loads("<columns=[column2;column3]>schemaful_dsv"))
+        assert tabular_data == "value12\tvalue13\nvalue22\tvalue23\n"
+

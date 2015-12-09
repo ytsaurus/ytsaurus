@@ -1,8 +1,8 @@
 #pragma once
 
-#include <core/misc/public.h>
+#include <yt/core/misc/public.h>
 
-#include <core/ypath/public.h>
+#include <yt/core/ypath/public.h>
 
 namespace NYT {
 namespace NYPath {

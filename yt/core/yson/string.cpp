@@ -1,11 +1,10 @@
-#include "stdafx.h"
 #include "string.h"
 #include "stream.h"
 #include "null_consumer.h"
 #include "parser.h"
 #include "consumer.h"
 
-#include <core/misc/serialize.h>
+#include <yt/core/misc/serialize.h>
 
 namespace NYT {
 namespace NYson {

@@ -2,36 +2,38 @@
 
 #include "public.h"
 
-#include <core/concurrency/action_queue.h>
+#include <yt/server/chunk_server/public.h>
 
-#include <core/rpc/public.h>
+#include <yt/server/cypress_server/public.h>
 
-#include <ytlib/monitoring/public.h>
-#include <ytlib/monitoring/http_server.h>
+#include <yt/server/hive/public.h>
 
-#include <ytlib/election/public.h>
+#include <yt/server/hydra/public.h>
 
-#include <server/hydra/public.h>
+#include <yt/server/journal_server/public.h>
 
-#include <server/hive/public.h>
+#include <yt/server/node_tracker_server/public.h>
 
-#include <server/node_tracker_server/public.h>
+#include <yt/server/object_server/public.h>
 
-#include <server/object_server/public.h>
+#include <yt/server/security_server/public.h>
 
-#include <server/chunk_server/public.h>
+#include <yt/server/tablet_server/public.h>
 
-#include <server/journal_server/public.h>
+#include <yt/server/transaction_server/public.h>
 
-#include <server/journal_server/public.h>
+#include <yt/server/journal_server/public.h>
 
-#include <server/transaction_server/public.h>
+#include <yt/server/transaction_server/public.h>
 
-#include <server/cypress_server/public.h>
+#include <yt/ytlib/election/public.h>
 
-#include <server/security_server/public.h>
+#include <yt/ytlib/monitoring/http_server.h>
+#include <yt/ytlib/monitoring/public.h>
 
-#include <server/tablet_server/public.h>
+#include <yt/core/concurrency/action_queue.h>
+
+#include <yt/core/rpc/public.h>
 
 namespace NYT {
 namespace NCellMaster {

@@ -3,23 +3,23 @@
 #include "public.h"
 #include "automaton.h"
 
-#include <server/hydra/composite_automaton.h>
+#include <yt/server/chunk_server/public.h>
 
-#include <server/node_tracker_server/public.h>
+#include <yt/server/cypress_server/public.h>
 
-#include <server/object_server/public.h>
+#include <yt/server/hydra/composite_automaton.h>
 
-#include <server/transaction_server/public.h>
+#include <yt/server/node_tracker_server/public.h>
 
-#include <server/chunk_server/public.h>
+#include <yt/server/object_server/public.h>
 
-#include <server/cypress_server/public.h>
+#include <yt/server/security_server/public.h>
 
-#include <server/security_server/public.h>
+#include <yt/server/table_server/public.h>
 
-#include <server/table_server/public.h>
+#include <yt/server/tablet_server/public.h>
 
-#include <server/tablet_server/public.h>
+#include <yt/server/transaction_server/public.h>
 
 namespace NYT {
 namespace NCellMaster {

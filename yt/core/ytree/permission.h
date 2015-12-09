@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <core/misc/enum.h>
+#include <yt/core/misc/enum.h>
 
 namespace NYT {
 namespace NYTree {

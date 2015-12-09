@@ -1,4 +1,3 @@
-﻿#include "stdafx.h"
 #include "id_generator.h"
 #include "serialize.h"
 

@@ -1,4 +1,3 @@
-#include "stdafx.h"
 #include "node_directory_builder.h"
 #include "node_directory.h"
 

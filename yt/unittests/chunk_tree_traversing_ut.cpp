@@ -1,23 +1,22 @@
-#include "stdafx.h"
 #include "framework.h"
 
-#include <server/chunk_server/chunk_tree_traversing.h>
-#include <server/chunk_server/chunk_list.h>
-#include <server/chunk_server/chunk.h>
-#include <server/chunk_server/helpers.h>
+#include <yt/server/chunk_server/chunk.h>
+#include <yt/server/chunk_server/chunk_list.h>
+#include <yt/server/chunk_server/chunk_tree_traversing.h>
+#include <yt/server/chunk_server/helpers.h>
 
-#include <ytlib/object_client/helpers.h>
+#include <yt/ytlib/chunk_client/chunk_meta.pb.h>
+#include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
+#include <yt/ytlib/chunk_client/dispatcher.h>
+#include <yt/ytlib/chunk_client/read_limit.h>
 
-#include <ytlib/chunk_client/chunk_meta_extensions.h>
-#include <ytlib/chunk_client/dispatcher.h>
-#include <ytlib/chunk_client/read_limit.h>
-#include <ytlib/chunk_client/chunk_meta.pb.h>
+#include <yt/ytlib/object_client/helpers.h>
 
-#include <core/misc/protobuf_helpers.h>
+#include <yt/core/actions/invoker_util.h>
 
-#include <core/actions/invoker_util.h>
+#include <yt/core/misc/protobuf_helpers.h>
 
-#include <core/profiling/profile_manager.h>
+#include <yt/core/profiling/profile_manager.h>
 
 
 namespace NYT {

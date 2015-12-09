@@ -1,8 +1,8 @@
 #include "client.h"
 
-#include <ytlib/table_client/public.h>
+#include <yt/ytlib/table_client/public.h>
 
-#include <ytlib/ypath/public.h>
+#include <yt/ytlib/ypath/public.h>
 
 namespace NYT {
 namespace NApi {

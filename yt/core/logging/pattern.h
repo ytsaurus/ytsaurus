@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <core/misc/raw_formatter.h>
+#include <yt/core/misc/raw_formatter.h>
 
 namespace NYT {
 namespace NLogging {

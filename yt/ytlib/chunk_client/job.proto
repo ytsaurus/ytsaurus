@@ -23,10 +23,8 @@ message TReplicateChunkJobSpecExt
         optional TReplicateChunkJobSpecExt replicate_chunk_job_spec_ext = 201;
     }
 
-    // Deprecated = 1;
-
-    required NYT.NNodeTrackerClient.NProto.TNodeDirectory node_directory = 2;
-    repeated fixed32 targets = 3;
+    required NYT.NNodeTrackerClient.NProto.TNodeDirectory node_directory = 1;
+    repeated fixed32 targets = 2;
 }
 
 message TRepairChunkJobSpecExt
@@ -39,11 +37,8 @@ message TRepairChunkJobSpecExt
     required int32 erasure_codec = 1;
     required NYT.NNodeTrackerClient.NProto.TNodeDirectory node_directory = 2;
     repeated fixed32 replicas = 3;
-
-    // Deprecated = 4;
-
-    repeated int32 erased_indexes = 5;
-    repeated fixed32 targets = 6;
+    repeated int32 erased_indexes = 4;
+    repeated fixed32 targets = 5;
 }
 
 message TSealChunkJobSpecExt

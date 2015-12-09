@@ -2,7 +2,9 @@
 
 #include "callback.h"
 
-#include <core/misc/small_vector.h>
+#include <yt/core/misc/small_vector.h>
+
+#include <yt/core/concurrency/rw_spinlock.h>
 
 namespace NYT {
 
@@ -60,8 +62,9 @@ public:
     void FireAndClear(TCallArgs&&... args);
 
 private:
-    mutable TSpinLock SpinLock_;
-    SmallVector<TCallback, 4> Callbacks_;
+    mutable NConcurrency::TReaderWriterSpinLock SpinLock_;
+    using TCallbackVector = SmallVector<TCallback, 4>;
+    TCallbackVector Callbacks_;
 
 };
 
@@ -111,9 +114,10 @@ public:
     bool IsFired() const;
 
 private:
-    mutable TSpinLock SpinLock_;
+    mutable NConcurrency::TReaderWriterSpinLock SpinLock_;
     bool Fired_ = false;
-    SmallVector<TCallback, 4> Callbacks_;
+    using TCallbackVector = SmallVector<TCallback, 4>;
+    TCallbackVector Callbacks_;
     std::tuple<typename std::decay<TArgs>::type...> Args_;
 
 };

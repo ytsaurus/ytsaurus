@@ -1,7 +1,6 @@
-#include "stdafx.h"
 #include "convert.h"
 
-#include <core/yson/tokenizer.h>
+#include <yt/core/yson/tokenizer.h>
 
 namespace NYT {
 namespace NYTree {

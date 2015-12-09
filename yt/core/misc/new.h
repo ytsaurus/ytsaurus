@@ -1,10 +1,11 @@
 #pragma once
 
+#include "ref_counted.h"
 #include "source_location.h"
 
-#include <typeinfo>
-
 #include <util/system/defaults.h>
+
+#include <typeinfo>
 
 namespace NYT {
 
@@ -114,10 +115,18 @@ struct TCurrentTranslationUnitTag
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <class T>
+size_t SpaceUsedExcludingSelf(const T&)
+{
+    return 0;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 #ifdef YT_ENABLE_REF_COUNTED_TRACKING
 
 #define REF_COUNTED_NEW_EPILOGUE() \
-    InitializeTracking(result.Get(), cookie, sizeof (T))
+    InitializeTracking(result.Get(), cookie, sizeof (T) + SpaceUsedExcludingSelf(result))
 
 #else // !YT_ENABLE_REF_COUNTED_TRACKING
 

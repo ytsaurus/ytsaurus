@@ -1,15 +1,14 @@
-#include "stdafx.h"
 #include "blob_reader_cache.h"
 #include "private.h"
-#include "config.h"
 #include "chunk.h"
+#include "config.h"
 #include "location.h"
 
-#include <core/misc/async_cache.h>
+#include <yt/ytlib/chunk_client/file_reader.h>
 
-#include <core/concurrency/thread_affinity.h>
+#include <yt/core/concurrency/thread_affinity.h>
 
-#include <ytlib/chunk_client/file_reader.h>
+#include <yt/core/misc/async_cache.h>
 
 namespace NYT {
 namespace NDataNode {

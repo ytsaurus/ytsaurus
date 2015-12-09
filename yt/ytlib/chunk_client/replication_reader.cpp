@@ -1,38 +1,38 @@
-#include "stdafx.h"
-#include "config.h"
 #include "replication_reader.h"
-#include "chunk_reader.h"
-#include "block_cache.h"
 #include "private.h"
+#include "block_cache.h"
 #include "block_id.h"
+#include "chunk_reader.h"
 #include "chunk_ypath_proxy.h"
+#include "config.h"
 #include "data_node_service_proxy.h"
 #include "dispatcher.h"
 
-#include <ytlib/api/config.h>
-#include <ytlib/api/client.h>
-#include <ytlib/api/connection.h>
+#include <yt/ytlib/api/client.h>
+#include <yt/ytlib/api/config.h>
+#include <yt/ytlib/api/connection.h>
 
-#include <ytlib/object_client/object_service_proxy.h>
-#include <ytlib/object_client/helpers.h>
+#include <yt/ytlib/chunk_client/chunk_service_proxy.h>
+#include <yt/ytlib/chunk_client/replication_reader.h>
 
-#include <ytlib/cypress_client/cypress_ypath_proxy.h>
+#include <yt/ytlib/cypress_client/cypress_ypath_proxy.h>
 
-#include <ytlib/node_tracker_client/node_directory.h>
+#include <yt/ytlib/node_tracker_client/node_directory.h>
 
-#include <ytlib/chunk_client/chunk_service_proxy.h>
-#include <ytlib/chunk_client/replication_reader.h>
+#include <yt/ytlib/object_client/object_service_proxy.h>
+#include <yt/ytlib/object_client/helpers.h>
 
-#include <core/misc/string.h>
-#include <core/misc/protobuf_helpers.h>
+#include <yt/core/concurrency/delayed_executor.h>
+#include <yt/core/concurrency/thread_affinity.h>
 
-#include <core/concurrency/thread_affinity.h>
-#include <core/concurrency/delayed_executor.h>
+#include <yt/core/logging/log.h>
 
-#include <core/logging/log.h>
+#include <yt/core/misc/protobuf_helpers.h>
+#include <yt/core/misc/string.h>
+
+#include <util/generic/ymath.h>
 
 #include <util/random/shuffle.h>
-#include <util/generic/ymath.h>
 
 #include <cmath>
 
@@ -443,6 +443,8 @@ protected:
         return !PeerQueue_.empty();
     }
 
+    virtual bool IsCanceled() const = 0;
+
     Stroka PickNextPeer()
     {
         YCHECK(!PeerQueue_.empty());
@@ -463,10 +465,10 @@ protected:
         }
     }
 
-    virtual void NextRetry()
+    void NextRetry()
     {
         auto reader = Reader_.Lock();
-        if (!reader) {
+        if (!reader || IsCanceled()) {
             return;
         }
 
@@ -518,7 +520,7 @@ protected:
     bool PrepareNextPass()
     {
         auto reader = Reader_.Lock();
-        if (!reader)
+        if (!reader || IsCanceled())
             return false;
 
         LOG_DEBUG("Pass started: %v of %v",
@@ -681,6 +683,10 @@ private:
     //! Maps peer addresses to block indexes.
     yhash_map<Stroka, yhash_set<int>> PeerBlocksMap_;
 
+    virtual bool IsCanceled() const override
+    {
+        return Promise_.IsCanceled();
+    }
 
     virtual void NextPass() override
     {
@@ -749,7 +755,7 @@ private:
     void RequestBlocks()
     {
         auto reader = Reader_.Lock();
-        if (!reader)
+        if (!reader || IsCanceled())
             return;
 
         while (true) {
@@ -845,7 +851,7 @@ private:
         TDataNodeServiceProxy::TRspGetBlockSetPtr rsp)
     {
         auto reader = Reader_.Lock();
-        if (!reader) {
+        if (!reader || IsCanceled()) {
             return VoidFuture;
         }
 
@@ -1010,6 +1016,10 @@ private:
     //! Blocks that are fetched so far.
     std::vector<TSharedRef> FetchedBlocks_;
 
+    virtual bool IsCanceled() const override
+    {
+        return Promise_.IsCanceled();
+    }
 
     virtual void NextPass() override
     {
@@ -1022,7 +1032,7 @@ private:
     void RequestBlocks()
     {
         auto reader = Reader_.Lock();
-        if (!reader)
+        if (!reader || IsCanceled())
             return;
 
         while (true) {
@@ -1108,7 +1118,7 @@ private:
         TDataNodeServiceProxy::TRspGetBlockRangePtr rsp)
     {
         auto reader = Reader_.Lock();
-        if (!reader) {
+        if (!reader || IsCanceled()) {
             return VoidFuture;
         }
 
@@ -1229,6 +1239,10 @@ private:
     const TNullable<int> PartitionTag_;
     const TNullable<std::vector<int>> ExtensionTags_;
 
+    virtual bool IsCanceled() const override
+    {
+        return Promise_.IsCanceled();
+    }
 
     virtual void NextPass()
     {
@@ -1241,7 +1255,7 @@ private:
     void RequestMeta()
     {
         auto reader = Reader_.Lock();
-        if (!reader)
+        if (!reader || IsCanceled())
             return;
 
         if (!HasMorePeers()) {

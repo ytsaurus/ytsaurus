@@ -1,20 +1,17 @@
-#include "stdafx.h"
 #include "access_tracker.h"
-#include "node.h"
+#include "private.h"
 #include "config.h"
 #include "cypress_manager.h"
-#include "private.h"
+#include "node.h"
 
-#include <core/profiling/timing.h>
+#include <yt/server/cell_master/bootstrap.h>
+#include <yt/server/cell_master/hydra_facade.h>
 
-#include <core/concurrency/scheduler.h>
+#include <yt/server/object_server/object_manager.h>
 
-#include <server/cell_master/bootstrap.h>
-#include <server/cell_master/hydra_facade.h>
+#include <yt/core/profiling/timing.h>
 
-#include <server/object_server/object_manager.h>
-
-#include <server/transaction_server/transaction.h>
+#include <yt/server/transaction_server/transaction.h>
 
 namespace NYT {
 namespace NCypressServer {

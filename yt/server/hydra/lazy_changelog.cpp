@@ -1,8 +1,7 @@
-#include "stdafx.h"
 #include "lazy_changelog.h"
 #include "changelog.h"
 
-#include <core/concurrency/scheduler.h>
+#include <yt/core/concurrency/scheduler.h>
 
 namespace NYT {
 namespace NHydra {

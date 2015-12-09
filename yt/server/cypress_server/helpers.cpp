@@ -1,12 +1,11 @@
-#include "stdafx.h"
 #include "helpers.h"
 #include "node_detail.h"
 
-#include <server/cell_master/bootstrap.h>
+#include <yt/server/cell_master/bootstrap.h>
 
-#include <server/transaction_server/transaction_manager.h>
+#include <yt/server/cypress_server/cypress_manager.h>
 
-#include <server/cypress_server/cypress_manager.h>
+#include <yt/server/transaction_server/transaction_manager.h>
 
 namespace NYT {
 namespace NCypressServer {

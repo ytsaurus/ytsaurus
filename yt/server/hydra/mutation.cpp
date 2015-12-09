@@ -1,7 +1,6 @@
-#include "stdafx.h"
 #include "mutation.h"
 
-#include <core/rpc/service.h>
+#include <yt/core/rpc/service.h>
 
 namespace NYT {
 namespace NHydra {

@@ -5,6 +5,7 @@ from yt_commands import *
 
 from time import sleep
 
+from yt.environment.helpers import assert_items_equal
 
 ##################################################################
 
@@ -173,6 +174,10 @@ class TestUsers(YTEnvSetup):
 
         add_member("u", "g")
         with pytest.raises(YtError): add_member("u", "g")
+
+    def test_membership7(self):
+        create_group("g")
+        with pytest.raises(YtError): add_member("g", "g")
 
     def test_modify_builtin(self):
         create_user("u")

@@ -3,6 +3,7 @@
 #include "preprocessor.h"
 
 #include <util/generic/strbuf.h>
+
 #include <util/string/cast.h>
 
 #include <stdexcept>
@@ -58,7 +59,7 @@ struct TEnumTraits<T, true>
     static constexpr TType GetMinValue();
     static constexpr TType GetMaxValue();
 
-	// For bit enums only.
+    // For bit enums only.
     static std::vector<TType> Decompose(TType value);
 };
 

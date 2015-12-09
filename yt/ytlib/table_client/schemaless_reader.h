@@ -3,9 +3,9 @@
 #include "public.h"
 #include "unversioned_row.h"
 
-#include <ytlib/chunk_client/reader_base.h>
+#include <yt/ytlib/chunk_client/reader_base.h>
 
-#include <core/misc/error.h>
+#include <yt/core/misc/error.h>
 
 namespace NYT {
 namespace NTableClient {

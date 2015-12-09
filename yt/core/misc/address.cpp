@@ -1,16 +1,15 @@
-﻿#include "stdafx.h"
 #include "address.h"
 #include "lazy_ptr.h"
 
-#include <core/concurrency/action_queue.h>
-#include <core/concurrency/periodic_executor.h>
+#include <yt/core/concurrency/action_queue.h>
+#include <yt/core/concurrency/periodic_executor.h>
 
-#include <core/misc/singleton.h>
+#include <yt/core/logging/log.h>
 
-#include <core/logging/log.h>
+#include <yt/core/misc/singleton.h>
 
-#include <core/profiling/profiler.h>
-#include <core/profiling/scoped_timer.h>
+#include <yt/core/profiling/profiler.h>
+#include <yt/core/profiling/scoped_timer.h>
 
 #include <util/generic/singleton.h>
 

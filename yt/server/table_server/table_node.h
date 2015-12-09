@@ -2,23 +2,22 @@
 
 #include "public.h"
 
-#include <core/misc/property.h>
-#include <core/misc/small_vector.h>
+#include <yt/server/cell_master/public.h>
 
-#include <ytlib/chunk_client/chunk_owner_ypath_proxy.h>
+#include <yt/server/chunk_server/chunk_owner_base.h>
 
-#include <ytlib/table_client/public.h>
-#include <ytlib/table_client/schema.h>
+#include <yt/server/cypress_server/node_detail.h>
 
-#include <ytlib/transaction_client/public.h>
+#include <yt/server/tablet_server/public.h>
 
-#include <server/chunk_server/chunk_owner_base.h>
+#include <yt/ytlib/chunk_client/chunk_owner_ypath_proxy.h>
 
-#include <server/cypress_server/node_detail.h>
+#include <yt/ytlib/table_client/schema.h>
 
-#include <server/tablet_server/public.h>
+#include <yt/ytlib/transaction_client/public.h>
 
-#include <server/cell_master/public.h>
+#include <yt/core/misc/property.h>
+#include <yt/core/misc/small_vector.h>
 
 namespace NYT {
 namespace NTableServer {

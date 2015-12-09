@@ -1,14 +1,13 @@
-#include "stdafx.h"
 #include "exception_helpers.h"
 #include "node.h"
 
-#include <core/misc/error.h>
+#include <yt/core/misc/error.h>
 
-#include <core/ypath/token.h>
+#include <yt/core/rpc/public.h>
 
-#include <core/ytree/attribute_helpers.h>
+#include <yt/core/ypath/token.h>
 
-#include <core/rpc/public.h>
+#include <yt/core/ytree/attribute_helpers.h>
 
 namespace NYT {
 namespace NYTree {

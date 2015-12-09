@@ -2,15 +2,15 @@
 
 #include "public.h"
 
-#include <core/misc/range.h>
+#include <yt/ytlib/api/public.h>
 
-#include <core/actions/signal.h>
+#include <yt/ytlib/table_client/public.h>
 
-#include <core/yson/public.h>
+#include <yt/core/actions/signal.h>
 
-#include <ytlib/table_client/public.h>
+#include <yt/core/misc/range.h>
 
-#include <ytlib/api/public.h>
+#include <yt/core/yson/public.h>
 
 namespace NYT {
 namespace NTabletNode {

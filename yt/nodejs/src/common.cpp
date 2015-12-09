@@ -2,15 +2,15 @@
 #include "config.h"
 #include "node.h"
 
-#include <core/logging/log_manager.h>
+#include <yt/ytlib/chunk_client/dispatcher.h>
 
-#include <core/tracing/trace_manager.h>
+#include <yt/ytlib/shutdown.h>
 
-#include <core/misc/address.h>
+#include <yt/core/logging/log_manager.h>
 
-#include <ytlib/chunk_client/dispatcher.h>
+#include <yt/core/misc/address.h>
 
-#include <ytlib/shutdown.h>
+#include <yt/core/tracing/trace_manager.h>
 
 #include <util/string/escape.h>
 

@@ -1,37 +1,24 @@
-#include "stdafx.h"
 #include "helpers.h"
 #include "chunk_owner_base.h"
 #include "chunk_manager.h"
 
-#include <core/ytree/fluent.h>
+#include <yt/server/cypress_server/cypress_manager.h>
 
-#include <core/concurrency/scheduler.h>
+#include <yt/server/cell_master/bootstrap.h>
+#include <yt/server/cell_master/hydra_facade.h>
+#include <yt/server/cell_master/multicell_manager.h>
 
-#include <core/misc/protobuf_helpers.h>
+#include <yt/ytlib/object_client/helpers.h>
+#include <yt/ytlib/object_client/object_service_proxy.h>
 
-#include <ytlib/object_client/helpers.h>
+#include <yt/ytlib/table_client/chunk_meta_extensions.h>
+#include <yt/ytlib/table_client/unversioned_row.h>
 
-#include <ytlib/table_client/unversioned_row.h>
-#include <ytlib/table_client/chunk_meta_extensions.h>
+#include <yt/ytlib/chunk_client/chunk_service_proxy.h>
 
-#include <ytlib/chunk_client/chunk_service_proxy.h>
+#include <yt/ytlib/cypress_client/rpc_helpers.h>
 
-#include <ytlib/object_client/object_service_proxy.h>
-
-#include <ytlib/cypress_client/cypress_ypath_proxy.h>
-#include <ytlib/cypress_client/rpc_helpers.h>
-
-#include <server/cypress_server/cypress_manager.h>
-#include <server/cypress_server/node_proxy.h>
-
-#include <server/transaction_server/transaction.h>
-
-#include <server/object_server/object.h>
-
-#include <server/cell_master/bootstrap.h>
-#include <server/cell_master/hydra_facade.h>
-#include <server/cell_master/multicell_manager.h>
-#include <server/cell_master/config.h>
+#include <yt/core/ytree/fluent.h>
 
 namespace NYT {
 namespace NChunkServer {

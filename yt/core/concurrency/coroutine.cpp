@@ -1,4 +1,3 @@
-#include "stdafx.h"
 #include "coroutine.h"
 
 namespace NYT {

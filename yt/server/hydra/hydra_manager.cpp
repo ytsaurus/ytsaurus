@@ -1,4 +1,3 @@
-#include "stdafx.h"
 #include "hydra_manager.h"
 
 namespace NYT {

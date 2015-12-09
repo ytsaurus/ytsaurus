@@ -3,24 +3,24 @@
 #include "public.h"
 #include "chunk_replica.h"
 
-#include <core/misc/small_vector.h>
-#include <core/misc/nullable.h>
+#include <yt/server/cell_master/public.h>
 
-#include <core/actions/signal.h>
+#include <yt/server/chunk_server/chunk_manager.pb.h>
 
-#include <core/rpc/service_detail.h>
+#include <yt/server/hydra/composite_automaton.h>
+#include <yt/server/hydra/entity_map.h>
+#include <yt/server/hydra/mutation.h>
 
-#include <server/hydra/composite_automaton.h>
-#include <server/hydra/mutation.h>
-#include <server/hydra/entity_map.h>
+#include <yt/server/object_server/public.h>
 
-#include <ytlib/chunk_client/chunk_replica.h>
+#include <yt/ytlib/chunk_client/chunk_replica.h>
 
-#include <server/object_server/public.h>
+#include <yt/core/actions/signal.h>
 
-#include <server/chunk_server/chunk_manager.pb.h>
+#include <yt/core/misc/nullable.h>
+#include <yt/core/misc/small_vector.h>
 
-#include <server/cell_master/public.h>
+#include <yt/core/rpc/service_detail.h>
 
 namespace NYT {
 namespace NChunkServer {

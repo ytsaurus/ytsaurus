@@ -95,6 +95,14 @@ bool RemoveProtoExtension(NProto::TExtensionSet* extensions)
     return false;
 }
 
+//! Gives the extra allocated size for protobuf types.
+//! This function is used for ref counted tracking.
+template <class TProto>
+size_t SpaceUsedExcludingSelf(const TIntrusivePtr<TRefCountedProto<TProto>>& p)
+{
+    return p->TProto::SpaceUsed() - sizeof(TProto);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT

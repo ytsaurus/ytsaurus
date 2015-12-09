@@ -4,14 +4,14 @@
 #include "format.h"
 #include "helpers.h"
 
-#include <ytlib/table_client/public.h>
-#include <ytlib/table_client/schemaless_writer.h>
+#include <yt/ytlib/table_client/public.h>
+#include <yt/ytlib/table_client/schemaless_writer.h>
 
-#include <core/yson/public.h>
+#include <yt/core/concurrency/public.h>
 
-#include <core/concurrency/public.h>
+#include <yt/core/misc/blob_output.h>
 
-#include <core/misc/blob_output.h>
+#include <yt/core/yson/public.h>
 
 #include <memory>
 
@@ -39,7 +39,14 @@ public:
     virtual TBlob GetContext() const;
 
 protected:
-    TControlAttributesConfigPtr ControlAttributesConfig_;
+    const NTableClient::TNameTablePtr NameTable_;
+    const std::unique_ptr<TOutputStream> Output_;
+    const bool EnableContextSaving_;
+    const TControlAttributesConfigPtr ControlAttributesConfig_;
+    const int KeyColumnCount_;
+
+    NTableClient::TOwningKey LastKey_;
+    NTableClient::TKey CurrentKey_;
 
     TSchemalessFormatWriterBase(
         NTableClient::TNameTablePtr nameTable,
@@ -53,7 +60,7 @@ protected:
     void TryFlushBuffer(bool force);
 
     virtual void DoWrite(const std::vector<NTableClient::TUnversionedRow> &rows) = 0;
-
+    
     bool CheckKeySwitch(NTableClient::TUnversionedRow row, bool isLastRow);
 
     bool IsSystemColumnId(int id) const;
@@ -69,18 +76,8 @@ protected:
     virtual void WriteRowIndex(i64 rowIndex);
 
 private:
-    bool EnableContextSaving_;
-
-    NTableClient::TNameTablePtr NameTable_;
-
     TBlobOutput CurrentBuffer_;
     TBlobOutput PreviousBuffer_;
-    std::unique_ptr<TOutputStream> Output_;
-
-    NTableClient::TOwningKey LastKey_;
-    NTableClient::TKey CurrentKey_;
-
-    int KeyColumnCount_;
 
     int RowIndexId_ = -1;
     int RangeIndexId_ = -1;

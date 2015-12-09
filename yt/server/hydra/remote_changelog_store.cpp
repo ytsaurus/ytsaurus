@@ -1,22 +1,21 @@
-#include "stdafx.h"
 #include "remote_changelog_store.h"
+#include "private.h"
 #include "changelog.h"
 #include "config.h"
 #include "lazy_changelog.h"
-#include "private.h"
 
-#include <core/misc/protobuf_helpers.h>
+#include <yt/ytlib/api/client.h>
+#include <yt/ytlib/api/journal_reader.h>
+#include <yt/ytlib/api/journal_writer.h>
+#include <yt/ytlib/api/transaction.h>
 
-#include <core/concurrency/scheduler.h>
+#include <yt/ytlib/hydra/hydra_manager.pb.h>
 
-#include <core/ytree/attribute_helpers.h>
+#include <yt/core/concurrency/scheduler.h>
 
-#include <ytlib/api/client.h>
-#include <ytlib/api/journal_reader.h>
-#include <ytlib/api/journal_writer.h>
-#include <ytlib/api/transaction.h>
+#include <yt/core/misc/protobuf_helpers.h>
 
-#include <ytlib/hydra/hydra_manager.pb.h>
+#include <yt/core/ytree/attribute_helpers.h>
 
 namespace NYT {
 namespace NHydra {
@@ -53,13 +52,13 @@ public:
         TRemoteChangelogStoreConfigPtr config,
         TRemoteChangelogStoreOptionsPtr options,
         const TYPath& remotePath,
-        IClientPtr masterClient,
+        IClientPtr client,
         ITransactionPtr prerequisiteTransaction,
         TVersion reachableVersion)
         : Config_(config)
         , Options_(options)
         , Path_(remotePath)
-        , MasterClient_(masterClient)
+        , Client_(client)
         , PrerequisiteTransaction_(prerequisiteTransaction)
         , ReachableVersion_(reachableVersion)
     {
@@ -89,7 +88,7 @@ private:
     const TRemoteChangelogStoreConfigPtr Config_;
     const TRemoteChangelogStoreOptionsPtr Options_;
     const TYPath Path_;
-    const IClientPtr MasterClient_;
+    const IClientPtr Client_;
     const ITransactionPtr PrerequisiteTransaction_;
     const TVersion ReachableVersion_;
 
@@ -113,7 +112,7 @@ private:
                 options.Attributes = std::move(attributes);
                 options.PrerequisiteTransactionIds.push_back(PrerequisiteTransaction_->GetId());
 
-                auto asyncResult = MasterClient_->CreateNode(
+                auto asyncResult = Client_->CreateNode(
                     path,
                     EObjectType::Journal,
                     options);
@@ -126,7 +125,7 @@ private:
                 TJournalWriterOptions options;
                 options.PrerequisiteTransactionIds.push_back(PrerequisiteTransaction_->GetId());
                 options.Config = Config_->Writer;
-                writer = MasterClient_->CreateJournalWriter(path, options);
+                writer = Client_->CreateJournalWriter(path, options);
                 WaitFor(writer->Open())
                     .ThrowOnError();
             }
@@ -164,7 +163,7 @@ private:
                 options.AttributeFilter.Keys.push_back("sealed");
                 options.AttributeFilter.Keys.push_back("prev_record_count");
                 options.AttributeFilter.Keys.push_back("uncompressed_data_size");
-                auto result = WaitFor(MasterClient_->GetNode(path, options));
+                auto result = WaitFor(Client_->GetNode(path, options));
                 if (result.FindMatching(NYTree::EErrorCode::ResolveError)) {
                     THROW_ERROR_EXCEPTION(
                         NHydra::EErrorCode::NoSuchChangelog,
@@ -191,7 +190,7 @@ private:
             LOG_DEBUG("Getting remote changelog quorum record count (ChangelogId: %v)",
                 id);
             {
-                auto asyncResult = MasterClient_->GetNode(path + "/@quorum_row_count");
+                auto asyncResult = Client_->GetNode(path + "/@quorum_row_count");
                 auto result = WaitFor(asyncResult)
                     .ValueOrThrow();
                 recordCount = ConvertTo<int>(result);
@@ -321,7 +320,7 @@ private:
                 options.FirstRowIndex = firstRecordId;
                 options.RowCount = maxRecords;
                 options.Config = Owner_->Config_->Reader;
-                auto reader = Owner_->MasterClient_->CreateJournalReader(Path_, options);
+                auto reader = Owner_->Client_->CreateJournalReader(Path_, options);
 
                 WaitFor(reader->Open())
                     .ThrowOnError();
@@ -349,12 +348,12 @@ public:
         TRemoteChangelogStoreConfigPtr config,
         TRemoteChangelogStoreOptionsPtr options,
         const TYPath& remotePath,
-        IClientPtr masterClient,
+        IClientPtr client,
         const TTransactionId& prerequisiteTransactionId)
         : Config_(config)
         , Options_(options)
         , Path_(remotePath)
-        , MasterClient_(masterClient)
+        , MasterClient_(client)
         , PrerequisiteTransactionId_(prerequisiteTransactionId)
     {
         Logger.AddTag("Path: %v", Path_);
@@ -498,14 +497,14 @@ IChangelogStoreFactoryPtr CreateRemoteChangelogStoreFactory(
     TRemoteChangelogStoreConfigPtr config,
     TRemoteChangelogStoreOptionsPtr options,
     const TYPath& path,
-    IClientPtr masterClient,
+    IClientPtr client,
     const TTransactionId& prerequisiteTransactionId)
 {
     return New<TRemoteChangelogStoreFactory>(
         config,
         options,
         path,
-        masterClient,
+        client,
         prerequisiteTransactionId);
 }
 

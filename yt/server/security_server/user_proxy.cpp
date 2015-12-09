@@ -1,12 +1,11 @@
-#include "stdafx.h"
 #include "user_proxy.h"
-#include "user.h"
 #include "security_manager.h"
 #include "subject_proxy_detail.h"
+#include "user.h"
 
-#include <core/ytree/fluent.h>
+#include <yt/ytlib/security_client/user_ypath.pb.h>
 
-#include <ytlib/security_client/user_ypath.pb.h>
+#include <yt/core/ytree/fluent.h>
 
 namespace NYT {
 namespace NSecurityServer {

@@ -1,7 +1,6 @@
-#include "stdafx.h"
 #include "framework.h"
 
-#include <ytlib/shutdown.h>
+#include <yt/ytlib/shutdown.h>
 
 class TYTEnvironment
     : public ::testing::Environment

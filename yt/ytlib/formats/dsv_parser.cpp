@@ -1,4 +1,3 @@
-#include "stdafx.h"
 #include "dsv_parser.h"
 #include "dsv_table.h"
 #include "parser.h"

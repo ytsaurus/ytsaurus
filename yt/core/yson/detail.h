@@ -2,11 +2,11 @@
 
 #include "public.h"
 
-#include <core/misc/error.h>
-#include <core/misc/property.h>
-#include <core/misc/zigzag.h>
+#include <yt/core/concurrency/coroutine.h>
 
-#include <core/concurrency/coroutine.h>
+#include <yt/core/misc/error.h>
+#include <yt/core/misc/property.h>
+#include <yt/core/misc/zigzag.h>
 
 #include <util/string/escape.h>
 

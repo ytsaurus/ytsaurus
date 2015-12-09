@@ -1,12 +1,11 @@
-#include "stdafx.h"
 #include "lease_tracker.h"
 #include "private.h"
 #include "config.h"
 #include "decorated_automaton.h"
 
-#include <core/concurrency/scheduler.h>
+#include <yt/ytlib/election/cell_manager.h>
 
-#include <ytlib/election/cell_manager.h>
+#include <yt/core/concurrency/scheduler.h>
 
 namespace NYT {
 namespace NHydra {

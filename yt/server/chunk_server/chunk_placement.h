@@ -3,11 +3,11 @@
 #include "public.h"
 #include "chunk_replica.h"
 
-#include <core/misc/nullable.h>
+#include <yt/server/cell_master/public.h>
 
-#include <server/node_tracker_server/node.h>
+#include <yt/server/node_tracker_server/node.h>
 
-#include <server/cell_master/public.h>
+#include <yt/core/misc/nullable.h>
 
 #include <util/generic/map.h>
 

@@ -1,6 +1,6 @@
 #include "yamred_dsv_writer.h"
 
-#include <ytlib/table_client/name_table.h>
+#include <yt/ytlib/table_client/name_table.h>
 
 namespace NYT {
 namespace NFormats {
@@ -44,10 +44,14 @@ TSchemalessWriterForYamredDsv::TSchemalessWriterForYamredDsv(
 void TSchemalessWriterForYamredDsv::UpdateEscapedColumnNames()
 {
     // Storing escaped column names in order to not re-escape them each time we write a column name.
-    EscapedColumnNames_.reserve(GetNameTable()->GetSize());
-    for (int columnIndex = EscapedColumnNames_.size(); columnIndex < GetNameTable()->GetSize(); columnIndex++) {
-        EscapedColumnNames_.emplace_back(
-                Escape(GetNameTable()->GetName(columnIndex), Table_.KeyStops, Table_.Escapes, Config_->EscapingSymbol));
+    auto nameTable = GetNameTable();
+    EscapedColumnNames_.reserve(nameTable->GetSize());
+    for (int columnIndex = EscapedColumnNames_.size(); columnIndex < GetNameTable()->GetSize(); ++columnIndex) {
+        EscapedColumnNames_.emplace_back(Escape(
+            nameTable->GetName(columnIndex),
+            Table_.KeyStops,
+            Table_.Escapes,
+            Config_->EscapingSymbol));
     }
 }
 

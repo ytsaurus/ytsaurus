@@ -1,27 +1,26 @@
-#include "stdafx.h"
 #include "job_tracker_service.h"
+#include "private.h"
+#include "chunk.h"
 #include "chunk_manager.h"
 #include "job.h"
-#include "chunk.h"
-#include "private.h"
 
-#include <core/misc/string.h>
-#include <core/misc/protobuf_helpers.h>
+#include <yt/server/cell_master/bootstrap.h>
+#include <yt/server/cell_master/master_hydra_service.h>
 
-#include <core/rpc/helpers.h>
+#include <yt/server/node_tracker_server/node.h>
+#include <yt/server/node_tracker_server/node_directory_builder.h>
+#include <yt/server/node_tracker_server/node_tracker.h>
 
-#include <ytlib/job_tracker_client/job_tracker_service_proxy.h>
+#include <yt/ytlib/chunk_client/job.pb.h>
 
-#include <ytlib/node_tracker_client/helpers.h>
+#include <yt/ytlib/job_tracker_client/job_tracker_service_proxy.h>
 
-#include <ytlib/chunk_client/job.pb.h>
+#include <yt/ytlib/node_tracker_client/helpers.h>
 
-#include <server/node_tracker_server/node_tracker.h>
-#include <server/node_tracker_server/node.h>
-#include <server/node_tracker_server/node_directory_builder.h>
+#include <yt/core/misc/protobuf_helpers.h>
+#include <yt/core/misc/string.h>
 
-#include <server/cell_master/bootstrap.h>
-#include <server/cell_master/master_hydra_service.h>
+#include <yt/core/rpc/helpers.h>
 
 namespace NYT {
 namespace NChunkServer {
@@ -138,7 +137,7 @@ private:
             &jobsToAbort,
             &jobsToRemove);
 
-        for (auto job : jobsToStart) {
+        for (const auto& job : jobsToStart) {
             const auto& chunkIdWithIndex = job->GetChunkIdWithIndex();
 
             auto* jobInfo = response->add_jobs_to_start();
@@ -153,12 +152,12 @@ private:
 
             switch (job->GetType()) {
                 case EJobType::ReplicateChunk: {
-                    auto* replciateChunkJobSpecExt = jobSpec->MutableExtension(TReplicateChunkJobSpecExt::replicate_chunk_job_spec_ext);
+                    auto* replicateChunkJobSpecExt = jobSpec->MutableExtension(TReplicateChunkJobSpecExt::replicate_chunk_job_spec_ext);
 
                     auto targetReplicas = AddressesToReplicas(job->TargetAddresses());
-                    ToProto(replciateChunkJobSpecExt->mutable_targets(), targetReplicas);
+                    ToProto(replicateChunkJobSpecExt->mutable_targets(), targetReplicas);
 
-                    NNodeTrackerServer::TNodeDirectoryBuilder builder(replciateChunkJobSpecExt->mutable_node_directory());
+                    NNodeTrackerServer::TNodeDirectoryBuilder builder(replicateChunkJobSpecExt->mutable_node_directory());
                     builder.Add(targetReplicas);
                     break;
                 }
@@ -203,11 +202,11 @@ private:
             }
         }
 
-        for (auto job : jobsToAbort) {
+        for (const auto& job : jobsToAbort) {
             ToProto(response->add_jobs_to_abort(), job->GetJobId());
         }
 
-        for (auto job : jobsToRemove) {
+        for (const auto& job : jobsToRemove) {
             ToProto(response->add_jobs_to_remove(), job->GetJobId());
         }
 

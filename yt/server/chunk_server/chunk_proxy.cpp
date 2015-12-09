@@ -1,38 +1,35 @@
-#include "stdafx.h"
 #include "chunk_proxy.h"
 #include "private.h"
-#include "chunk_manager.h"
 #include "chunk.h"
+#include "chunk_manager.h"
 #include "helpers.h"
 
-#include <core/misc/protobuf_helpers.h>
+#include <yt/server/cell_master/bootstrap.h>
+#include <yt/server/cell_master/multicell_manager.h>
 
-#include <core/ytree/fluent.h>
+#include <yt/server/cypress_server/cypress_manager.h>
 
-#include <ytlib/chunk_client/chunk_meta.pb.h>
-#include <ytlib/chunk_client/chunk_ypath.pb.h>
-#include <ytlib/chunk_client/chunk_meta_extensions.h>
-#include <ytlib/chunk_client/schema.h>
-#include <ytlib/chunk_client/chunk_owner_ypath.pb.h>
+#include <yt/server/node_tracker_server/node.h>
+#include <yt/server/node_tracker_server/node_directory_builder.h>
 
-#include <ytlib/table_client/chunk_meta_extensions.h>
-#include <ytlib/table_client/unversioned_row.h>
+#include <yt/server/object_server/object_detail.h>
 
-#include <server/node_tracker_server/node.h>
-#include <server/node_tracker_server/node_directory_builder.h>
+#include <yt/server/security_server/account.h>
 
-#include <server/object_server/object_detail.h>
+#include <yt/server/transaction_server/transaction.h>
 
-#include <server/cypress_server/cypress_manager.h>
+#include <yt/ytlib/chunk_client/chunk_meta.pb.h>
+#include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
+#include <yt/ytlib/chunk_client/chunk_owner_ypath.pb.h>
+#include <yt/ytlib/chunk_client/chunk_ypath.pb.h>
+#include <yt/ytlib/chunk_client/schema.h>
 
-#include <server/transaction_server/transaction.h>
+#include <yt/ytlib/table_client/chunk_meta_extensions.h>
+#include <yt/ytlib/table_client/unversioned_row.h>
 
-#include <server/security_server/account.h>
+#include <yt/core/misc/protobuf_helpers.h>
 
-#include <server/journal_server/journal_manager.h>
-
-#include <server/cell_master/bootstrap.h>
-#include <server/cell_master/multicell_manager.h>
+#include <yt/core/ytree/fluent.h>
 
 namespace NYT {
 namespace NChunkServer {

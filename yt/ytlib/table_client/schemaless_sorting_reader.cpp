@@ -1,14 +1,13 @@
-#include "stdafx.h"
-
 #include "schemaless_sorting_reader.h"
-
 #include "name_table.h"
 #include "schemaless_row_reorderer.h"
 
-#include <ytlib/chunk_client/dispatcher.h>
+#include <yt/ytlib/chunk_client/dispatcher.h>
+#include <yt/ytlib/chunk_client/data_statistics.pb.h>
 
-#include <core/concurrency/scheduler.h>
-#include <core/misc/error.h>
+#include <yt/core/concurrency/scheduler.h>
+
+#include <yt/core/misc/error.h>
 
 namespace NYT {
 namespace NTableClient {
@@ -18,8 +17,8 @@ using namespace NChunkClient::NProto;
 using namespace NConcurrency;
 
 // Reasonable default for max data size per one read call.
-const i64 MaxDataSizePerRead = 16 * 1024 * 1024;
-const i64 RowsPerRead = 10000;
+static const i64 MaxDataSizePerRead = 16 * 1024 * 1024;
+static const int RowsPerRead = 10000;
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -1,15 +1,14 @@
-#include "stdafx.h"
 #include "local_snapshot_service.h"
-#include "snapshot_service_proxy.h"
-#include "snapshot.h"
-#include "file_snapshot_store.h"
 #include "private.h"
+#include "file_snapshot_store.h"
+#include "snapshot.h"
+#include "snapshot_service_proxy.h"
 
-#include <core/misc/string.h>
+#include <yt/core/concurrency/scheduler.h>
 
-#include <core/rpc/service_detail.h>
+#include <yt/core/misc/string.h>
 
-#include <core/concurrency/scheduler.h>
+#include <yt/core/rpc/service_detail.h>
 
 namespace NYT {
 namespace NHydra {

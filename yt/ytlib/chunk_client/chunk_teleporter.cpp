@@ -1,13 +1,12 @@
-#include "stdafx.h"
 #include "chunk_teleporter.h"
 #include "config.h"
 #include "chunk_service_proxy.h"
 
-#include <ytlib/api/client.h>
+#include <yt/ytlib/api/client.h>
 
-#include <ytlib/object_client/helpers.h>
+#include <yt/ytlib/object_client/helpers.h>
 
-#include <core/concurrency/scheduler.h>
+#include <yt/core/concurrency/scheduler.h>
 
 namespace NYT {
 namespace NChunkClient {

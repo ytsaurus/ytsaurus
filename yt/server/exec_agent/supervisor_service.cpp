@@ -1,15 +1,14 @@
-#include "stdafx.h"
 #include "supervisor_service.h"
-#include "supervisor_service_proxy.h"
-#include "job.h"
 #include "private.h"
+#include "job.h"
+#include "supervisor_service_proxy.h"
 
-#include <ytlib/node_tracker_client/helpers.h>
+#include <yt/server/cell_node/bootstrap.h>
 
-#include <server/job_agent/public.h>
-#include <server/job_agent/job_controller.h>
+#include <yt/server/job_agent/job_controller.h>
+#include <yt/server/job_agent/public.h>
 
-#include <server/cell_node/bootstrap.h>
+#include <yt/ytlib/node_tracker_client/helpers.h>
 
 namespace NYT {
 namespace NExecAgent {

@@ -1,12 +1,10 @@
-#include "stdafx.h"
-
 #include "process.h"
 #include "proc.h"
 
-#include <core/logging/log.h>
+#include <yt/core/logging/log.h>
 
-#include <core/misc/error.h>
-#include <core/misc/fs.h>
+#include <yt/core/misc/error.h>
+#include <yt/core/misc/fs.h>
 
 #include <util/system/execpath.h>
 

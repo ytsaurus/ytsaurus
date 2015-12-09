@@ -1,12 +1,12 @@
 #include "etc_executors.h"
 #include "preprocess.h"
 
-#include <core/concurrency/scheduler.h>
+#include <yt/ytlib/api/admin.h>
+#include <yt/ytlib/api/connection.h>
 
-#include <ytlib/driver/driver.h>
+#include <yt/ytlib/driver/driver.h>
 
-#include <ytlib/api/connection.h>
-#include <ytlib/api/admin.h>
+#include <yt/core/concurrency/scheduler.h>
 
 namespace NYT {
 namespace NDriver {

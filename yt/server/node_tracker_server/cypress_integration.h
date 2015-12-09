@@ -2,11 +2,9 @@
 
 #include "public.h"
 
-#include <server/cypress_server/public.h>
+#include <yt/server/cell_master/public.h>
 
-#include <server/object_server/public.h>
-
-#include <server/cell_master/public.h>
+#include <yt/server/cypress_server/public.h>
 
 namespace NYT {
 namespace NNodeTrackerServer {

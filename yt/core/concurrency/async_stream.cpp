@@ -1,4 +1,3 @@
-#include "stdafx.h"
 #include "async_stream.h"
 #include "scheduler.h"
 

@@ -1,13 +1,12 @@
-#include "stdafx.h"
 #include "session_detail.h"
-#include "session_manager.h"
 #include "private.h"
 #include "config.h"
 #include "location.h"
+#include "session_manager.h"
 
-#include <core/profiling/scoped_timer.h>
+#include <yt/server/cell_node/bootstrap.h>
 
-#include <server/cell_node/bootstrap.h>
+#include <yt/core/profiling/scoped_timer.h>
 
 namespace NYT {
 namespace NDataNode {

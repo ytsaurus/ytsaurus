@@ -3,7 +3,7 @@
 #include "public.h"
 #include "ephemeral_node_factory.h"
 
-#include <core/yson/string.h>
+#include <yt/core/yson/string.h>
 
 namespace NYT {
 namespace NYTree {

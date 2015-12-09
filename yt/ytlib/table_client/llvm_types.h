@@ -2,9 +2,9 @@
 
 #include "unversioned_row.h"
 
-#include <llvm/IR/TypeBuilder.h>
-
 #include <type_traits>
+
+#include <llvm/IR/TypeBuilder.h>
 
 namespace llvm {
 

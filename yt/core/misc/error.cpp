@@ -1,18 +1,17 @@
-#include "stdafx.h"
 #include "error.h"
 #include "address.h"
 #include "serialize.h"
 
-#include <core/misc/error.pb.h>
+#include <yt/core/concurrency/scheduler.h>
 
-#include <core/ytree/convert.h>
-#include <core/ytree/fluent.h>
+#include <yt/core/misc/error.pb.h>
 
-#include <core/yson/tokenizer.h>
+#include <yt/core/tracing/trace_context.h>
 
-#include <core/tracing/trace_context.h>
+#include <yt/core/yson/tokenizer.h>
 
-#include <core/concurrency/scheduler.h>
+#include <yt/core/ytree/convert.h>
+#include <yt/core/ytree/fluent.h>
 
 #include <util/system/error.h>
 

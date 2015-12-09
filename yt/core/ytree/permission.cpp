@@ -1,8 +1,7 @@
-#include "stdafx.h"
 #include "permission.h"
 
-#include <core/misc/string.h>
-#include <core/misc/error.h>
+#include <yt/core/misc/error.h>
+#include <yt/core/misc/string.h>
 
 namespace NYT {
 namespace NYTree {

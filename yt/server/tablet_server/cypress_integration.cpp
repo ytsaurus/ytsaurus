@@ -1,18 +1,17 @@
-#include "stdafx.h"
 #include "cypress_integration.h"
-#include "tablet_cell.h"
 #include "tablet.h"
+#include "tablet_cell.h"
 #include "tablet_manager.h"
 
-#include <server/cell_master/bootstrap.h>
+#include <yt/server/cell_master/bootstrap.h>
 
-#include <server/cypress_server/virtual.h>
-#include <server/cypress_server/node_detail.h>
-#include <server/cypress_server/node_proxy_detail.h>
+#include <yt/server/cypress_server/node_detail.h>
+#include <yt/server/cypress_server/node_proxy_detail.h>
+#include <yt/server/cypress_server/virtual.h>
 
-#include <server/tablet_server/tablet_manager.h>
+#include <yt/server/tablet_server/tablet_manager.h>
 
-#include <server/misc/object_helpers.h>
+#include <yt/server/misc/object_helpers.h>
 
 namespace NYT {
 namespace NTabletServer {

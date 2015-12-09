@@ -1,15 +1,14 @@
-#include "stdafx.h"
 #include "bus_server.h"
-#include "server_detail.h"
 #include "private.h"
+#include "server_detail.h"
 
-#include <core/misc/protobuf_helpers.h>
+#include <yt/core/bus/bus.h>
+#include <yt/core/bus/server.h>
 
-#include <core/bus/server.h>
-#include <core/bus/bus.h>
+#include <yt/core/misc/protobuf_helpers.h>
 
-#include <core/rpc/message.h>
-#include <core/rpc/rpc.pb.h>
+#include <yt/core/rpc/message.h>
+#include <yt/core/rpc/rpc.pb.h>
 
 namespace NYT {
 namespace NRpc {

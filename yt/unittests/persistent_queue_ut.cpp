@@ -1,7 +1,6 @@
-#include "stdafx.h"
 #include "framework.h"
 
-#include <core/misc/persistent_queue.h>
+#include <yt/core/misc/persistent_queue.h>
 
 namespace NYT {
 namespace {

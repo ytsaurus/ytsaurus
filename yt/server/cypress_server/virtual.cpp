@@ -1,38 +1,39 @@
-#include "stdafx.h"
 #include "virtual.h"
+#include "node.h"
+#include "node_detail.h"
+#include "node_proxy_detail.h"
 
-#include <core/misc/singleton.h>
+#include <yt/server/cell_master/bootstrap.h>
+#include <yt/server/cell_master/hydra_facade.h>
 
-#include <core/ypath/tokenizer.h>
-#include <core/ypath/token.h>
+#include <yt/server/hydra/hydra_manager.h>
 
-#include <core/ytree/convert.h>
-#include <core/ytree/ypath_proxy.h>
+#include <yt/server/cell_master/bootstrap.h>
+#include <yt/server/cell_master/hydra_facade.h>
+#include <yt/server/cell_master/multicell_manager.h>
+#include <yt/server/cell_master/config.h>
 
-#include <core/yson/writer.h>
-#include <core/yson/async_writer.h>
-#include <core/yson/attribute_consumer.h>
+#include <yt/ytlib/hive/cell_directory.h>
 
-#include <core/rpc/dispatcher.h>
+#include <yt/ytlib/object_client/object_service_proxy.h>
+#include <yt/ytlib/object_client/helpers.h>
 
-#include <core/concurrency/scheduler.h>
+#include <yt/ytlib/cypress_client/cypress_ypath_proxy.h>
 
-#include <ytlib/hive/cell_directory.h>
+#include <yt/core/ypath/tokenizer.h>
+#include <yt/core/ypath/token.h>
 
-#include <ytlib/object_client/object_service_proxy.h>
-#include <ytlib/object_client/helpers.h>
+#include <yt/core/ytree/convert.h>
+#include <yt/core/ytree/ypath_proxy.h>
+#include <yt/core/ytree/fluent.h>
 
-#include <ytlib/cypress_client/cypress_ypath_proxy.h>
+#include <yt/core/yson/writer.h>
+#include <yt/core/yson/async_writer.h>
+#include <yt/core/yson/attribute_consumer.h>
 
-#include <server/hydra/hydra_manager.h>
+#include <yt/core/rpc/dispatcher.h>
 
-#include <server/cypress_server/node_detail.h>
-#include <server/cypress_server/node_proxy_detail.h>
-
-#include <server/cell_master/bootstrap.h>
-#include <server/cell_master/hydra_facade.h>
-#include <server/cell_master/multicell_manager.h>
-#include <server/cell_master/config.h>
+#include <yt/core/concurrency/scheduler.h>
 
 namespace NYT {
 namespace NCypressServer {

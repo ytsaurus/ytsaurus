@@ -1,13 +1,12 @@
-#include "stdafx.h"
 #include "framework.h"
 
-#include <ytlib/table_client/unversioned_row.h>
-#include <ytlib/table_client/name_table.h>
+#include <yt/ytlib/formats/dsv_parser.h>
+#include <yt/ytlib/formats/dsv_writer.h>
 
-#include <ytlib/formats/dsv_writer.h>
-#include <ytlib/formats/dsv_parser.h>
+#include <yt/ytlib/table_client/name_table.h>
+#include <yt/ytlib/table_client/unversioned_row.h>
 
-#include <core/concurrency/async_stream.h>
+#include <yt/core/concurrency/async_stream.h>
 
 namespace NYT {
 namespace NFormats {

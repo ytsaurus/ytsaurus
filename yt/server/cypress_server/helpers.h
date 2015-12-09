@@ -2,11 +2,11 @@
 
 #include "public.h"
 
-#include <core/yson/string.h>
+#include <yt/server/cell_master/public.h>
 
-#include <server/transaction_server/public.h>
+#include <yt/server/transaction_server/public.h>
 
-#include <server/cell_master/public.h>
+#include <yt/core/yson/string.h>
 
 namespace NYT {
 namespace NCypressServer {

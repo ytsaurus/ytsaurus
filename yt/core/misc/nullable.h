@@ -1,7 +1,7 @@
 #pragma once
 
-#include "mpl.h"
 #include "intrusive_ptr.h"
+#include "mpl.h"
 
 #include <util/string/cast.h>
 
@@ -305,12 +305,12 @@ public:
 
     const T* operator->() const
     {
-        return GetPtr();
+        return &Get();
     }
 
     T* operator->()
     {
-        return GetPtr();
+        return &Get();
     }
 
 private:

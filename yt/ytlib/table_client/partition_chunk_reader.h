@@ -1,19 +1,18 @@
 #pragma once
 
 #include "public.h"
-
 #include "chunk_reader_base.h"
 #include "schemaless_block_reader.h"
 
-#include <ytlib/chunk_client/multi_reader_base.h>
+#include <yt/ytlib/chunk_client/multi_reader_base.h>
 
-#include <ytlib/node_tracker_client/public.h>
+#include <yt/ytlib/node_tracker_client/public.h>
 
-#include <ytlib/transaction_client/public.h>
+#include <yt/ytlib/transaction_client/public.h>
 
-#include <core/rpc/public.h>
+#include <yt/core/concurrency/throughput_throttler.h>
 
-#include <core/concurrency/throughput_throttler.h>
+#include <yt/core/rpc/public.h>
 
 namespace NYT {
 namespace NTableClient {

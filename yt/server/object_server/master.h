@@ -3,7 +3,7 @@
 #include "public.h"
 #include "object_detail.h"
 
-#include <server/cell_master/public.h>
+#include <yt/server/cell_master/public.h>
 
 namespace NYT {
 namespace NObjectServer {

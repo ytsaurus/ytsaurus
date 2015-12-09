@@ -2,9 +2,9 @@
 
 #include "public.h"
 
-#include <server/hydra/snapshot_service.pb.h>
+#include <yt/server/hydra/snapshot_service.pb.h>
 
-#include <core/rpc/service_detail.h>
+#include <yt/core/rpc/service_detail.h>
 
 namespace NYT {
 namespace NHydra {

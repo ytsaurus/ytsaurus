@@ -4,12 +4,12 @@
 #include "progress_counter.h"
 #include "serialize.h"
 
-#include <core/misc/small_vector.h>
+#include <yt/server/chunk_server/public.h>
 
-#include <ytlib/chunk_client/public.h>
-#include <ytlib/chunk_client/chunk_spec.h>
+#include <yt/ytlib/chunk_client/chunk_spec.h>
+#include <yt/ytlib/chunk_client/public.h>
 
-#include <server/chunk_server/public.h>
+#include <yt/core/misc/small_vector.h>
 
 namespace NYT {
 namespace NScheduler {

@@ -1,30 +1,29 @@
-#include "stdafx.h"
 #include "connection.h"
+#include "private.h"
 #include "admin.h"
 #include "config.h"
-#include "private.h"
 
-#include <core/rpc/bus_channel.h>
-#include <core/rpc/retrying_channel.h>
-#include <core/rpc/caching_channel_factory.h>
+#include <yt/ytlib/chunk_client/client_block_cache.h>
 
-#include <ytlib/hydra/peer_channel.h>
+#include <yt/ytlib/hive/cell_directory.h>
 
-#include <ytlib/scheduler/scheduler_channel.h>
+#include <yt/ytlib/hydra/peer_channel.h>
 
-#include <ytlib/chunk_client/client_block_cache.h>
+#include <yt/ytlib/query_client/column_evaluator.h>
+#include <yt/ytlib/query_client/evaluator.h>
 
-#include <ytlib/hive/cell_directory.h>
+#include <yt/ytlib/scheduler/scheduler_channel.h>
 
-#include <ytlib/tablet_client/table_mount_cache.h>
+#include <yt/ytlib/tablet_client/table_mount_cache.h>
 
-#include <ytlib/transaction_client/remote_timestamp_provider.h>
-#include <ytlib/transaction_client/config.h>
+#include <yt/ytlib/transaction_client/config.h>
+#include <yt/ytlib/transaction_client/remote_timestamp_provider.h>
 
-#include <ytlib/object_client/helpers.h>
+#include <yt/ytlib/object_client/helpers.h>
 
-#include <ytlib/query_client/evaluator.h>
-#include <ytlib/query_client/column_evaluator.h>
+#include <yt/core/rpc/bus_channel.h>
+#include <yt/core/rpc/caching_channel_factory.h>
+#include <yt/core/rpc/retrying_channel.h>
 
 namespace NYT {
 namespace NApi {

@@ -26,6 +26,7 @@ message TReqMountTablet
     required string mount_config = 7;
     required string writer_options = 8;
     required int32 atomicity = 10; // EAtomicity
+    required int64 mount_revision = 11;
 }
 
 message TReqUnmountTablet
@@ -44,6 +45,7 @@ message TReqRemountTablet
 message TReqSetTabletState
 {
     required NYT.NProto.TGuid tablet_id = 1;
+    required int64 mount_revision = 3;
     required int32 state = 2;
 }
 
@@ -51,6 +53,7 @@ message TReqExecuteWrite
 {
     required NYT.NProto.TGuid transaction_id = 1;
     required NYT.NProto.TGuid tablet_id = 2;
+    required int64 mount_revision = 7;
     required int32 codec = 3;
     required bytes compressed_data = 4;
     // For atomic transactions only.
@@ -62,11 +65,13 @@ message TReqExecuteWrite
 message TReqRotateStore
 {
     required NYT.NProto.TGuid tablet_id = 1;
+    required int64 mount_revision = 2;
 }
 
 message TReqCommitTabletStoresUpdate
 {
     required NYT.NProto.TGuid tablet_id = 1;
+    required int64 mount_revision = 5;
     repeated NYT.NTabletServer.NProto.TAddStoreDescriptor stores_to_add = 2;
     repeated NYT.NTabletServer.NProto.TRemoveStoreDescriptor stores_to_remove = 3;
     optional NYT.NProto.TGuid transaction_id = 4;
@@ -75,6 +80,7 @@ message TReqCommitTabletStoresUpdate
 message TRspUpdateTabletStores
 {
     required NYT.NProto.TGuid tablet_id = 1;
+    required int64 mount_revision = 5;
     optional NYT.NProto.TError error = 2;
     repeated NYT.NTabletServer.NProto.TAddStoreDescriptor stores_to_add = 3;
     repeated NYT.NTabletServer.NProto.TRemoveStoreDescriptor stores_to_remove = 4;
@@ -83,6 +89,7 @@ message TRspUpdateTabletStores
 message TReqSplitPartition
 {
     required NYT.NProto.TGuid tablet_id = 1;
+    required int64 mount_revision = 4;
     required NYT.NProto.TGuid partition_id = 2;
     repeated bytes pivot_keys = 3;
 }
@@ -90,6 +97,7 @@ message TReqSplitPartition
 message TReqMergePartitions
 {
     required NYT.NProto.TGuid tablet_id = 1;
+    required int64 mount_revision = 4;
     required NYT.NProto.TGuid partition_id = 2;
     required int32 partition_count = 3;
 }
@@ -97,6 +105,7 @@ message TReqMergePartitions
 message TReqUpdatePartitionSampleKeys
 {
     required NYT.NProto.TGuid tablet_id = 1;
+    required int64 mount_revision = 5;
     required NYT.NProto.TGuid partition_id = 4;
     required bytes pivot_key = 2;
     repeated bytes sample_keys = 3;

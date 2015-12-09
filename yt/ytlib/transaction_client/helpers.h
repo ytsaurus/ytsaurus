@@ -3,7 +3,7 @@
 #include "public.h"
 #include "transaction_manager.h"
 
-#include <core/rpc/public.h>
+#include <yt/core/rpc/public.h>
 
 namespace NYT {
 namespace NTransactionClient {

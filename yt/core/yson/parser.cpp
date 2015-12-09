@@ -1,12 +1,11 @@
-#include "stdafx.h"
 #include "parser.h"
 #include "consumer.h"
 #include "format.h"
 #include "parser_detail.h"
 
-#include <core/misc/error.h>
+#include <yt/core/concurrency/coroutine.h>
 
-#include <core/concurrency/coroutine.h>
+#include <yt/core/misc/error.h>
 
 namespace NYT {
 namespace NYson {

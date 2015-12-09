@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 export YT_PROXY=barney.yt.yandex.net
 

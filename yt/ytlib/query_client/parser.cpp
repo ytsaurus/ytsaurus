@@ -50,7 +50,7 @@
 
 // Unqualified %code blocks.
 
-    #include <ytlib/query_client/lexer.h>
+    #include <yt/ytlib/query_client/lexer.h>
 
     #define yt_ql_yylex lexer.GetNextToken
 
@@ -2750,7 +2750,7 @@ namespace NYT { namespace NQueryClient { namespace NAst {
 } } } // NYT::NQueryClient::NAst
 
 
-#include <core/misc/format.h>
+#include <yt/core/misc/format.h>
 
 namespace NYT {
 namespace NQueryClient {

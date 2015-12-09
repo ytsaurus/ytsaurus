@@ -2,13 +2,13 @@
 
 #include "public.h"
 
-#include <core/misc/property.h>
+#include <yt/server/chunk_server/public.h>
 
-#include <ytlib/object_client/public.h>
+#include <yt/server/hydra/composite_automaton.h>
 
-#include <server/hydra/composite_automaton.h>
+#include <yt/ytlib/object_client/public.h>
 
-#include <server/chunk_server/public.h>
+#include <yt/core/misc/property.h>
 
 namespace NYT {
 namespace NCellMaster {

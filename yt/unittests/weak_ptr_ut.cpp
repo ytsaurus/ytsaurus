@@ -1,11 +1,10 @@
-#include "stdafx.h"
 #include "framework.h"
 
-#include <core/misc/public.h>
-#include <core/misc/weak_ptr.h>
-#include <core/misc/format.h>
+#include <yt/core/concurrency/event_count.h>
 
-#include <core/concurrency/event_count.h>
+#include <yt/core/misc/format.h>
+#include <yt/core/misc/public.h>
+#include <yt/core/misc/weak_ptr.h>
 
 #include <util/system/thread.h>
 

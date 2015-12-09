@@ -1,18 +1,18 @@
-﻿#pragma once
+#pragma once
 
 #include "public.h"
 
-#include <core/ytree/attributes.h>
+#include <yt/ytlib/chunk_client/chunk_meta.pb.h>
+#include <yt/ytlib/chunk_client/chunk_spec.pb.h>
+#include <yt/ytlib/chunk_client/schema.pb.h>
 
-#include <ytlib/chunk_client/chunk_spec.pb.h>
-#include <ytlib/chunk_client/chunk_meta.pb.h>
-#include <ytlib/chunk_client/schema.pb.h>
+#include <yt/ytlib/node_tracker_client/public.h>
 
-#include <core/erasure/public.h>
+#include <yt/core/erasure/public.h>
 
-#include <core/misc/protobuf_helpers.h>
+#include <yt/core/misc/protobuf_helpers.h>
 
-#include <ytlib/node_tracker_client/public.h>
+#include <yt/core/ytree/attributes.h>
 
 namespace NYT {
 namespace NChunkClient {

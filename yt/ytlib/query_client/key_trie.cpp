@@ -1,4 +1,3 @@
-#include "stdafx.h"
 #include "key_trie.h"
 #include "plan_helpers.h"
 

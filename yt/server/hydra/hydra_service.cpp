@@ -1,12 +1,11 @@
-#include "stdafx.h"
 #include "hydra_service.h"
 #include "hydra_manager.h"
 
-#include <core/concurrency/scheduler.h>
+#include <yt/server/election/election_manager.h>
 
-#include <core/actions/cancelable_context.h>
+#include <yt/ytlib/hydra/hydra_service.pb.h>
 
-#include <ytlib/hydra/hydra_service.pb.h>
+#include <yt/core/actions/cancelable_context.h>
 
 namespace NYT {
 namespace NHydra {

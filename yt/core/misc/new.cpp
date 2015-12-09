@@ -1,6 +1,5 @@
-#include "stdafx.h"
-#include "common.h"
 #include "new.h"
+#include "common.h"
 #include "ref_counted_tracker.h"
 
 namespace NYT {
@@ -8,8 +7,8 @@ namespace NYT {
 ////////////////////////////////////////////////////////////////////////////////
 
 TRefCountedTypeCookie GetRefCountedTypeCookie(
-	TRefCountedTypeKey typeKey,
-	const TSourceLocation& location)
+    TRefCountedTypeKey typeKey,
+    const TSourceLocation& location)
 {
     return TRefCountedTracker::Get()->GetCookie(typeKey, location);
 }

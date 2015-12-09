@@ -1,13 +1,12 @@
-#include "stdafx.h"
 #include "snapshot_discovery.h"
 #include "private.h"
 #include "config.h"
 
-#include <core/concurrency/thread_affinity.h>
+#include <yt/server/hydra/snapshot_service_proxy.h>
 
-#include <ytlib/election/cell_manager.h>
+#include <yt/ytlib/election/cell_manager.h>
 
-#include <server/hydra/snapshot_service_proxy.h>
+#include <yt/core/concurrency/thread_affinity.h>
 
 namespace NYT {
 namespace NHydra {

@@ -1,15 +1,13 @@
-#include "stdafx.h"
 #include "folding_profiler.h"
-#include "plan_helpers.h"
+#include "cg_fragment_compiler.h"
 #include "function_registry.h"
 #include "functions.h"
-
-#include "cg_fragment_compiler.h"
+#include "plan_helpers.h"
 
 namespace NYT {
 namespace NQueryClient {
 
-// Folding profiler computes a strong structural hash used to cache query fragments.
+////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_ENUM(EFoldingObjectType,
     (ScanOp)
@@ -33,6 +31,7 @@ DEFINE_ENUM(EFoldingObjectType,
     (TableSchema)
 );
 
+//! Computes a strong structural hash used to cache query fragments.
 class TFoldingProfiler
     : private TNonCopyable
 {

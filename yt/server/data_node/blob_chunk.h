@@ -1,15 +1,16 @@
 #pragma once
 
 #include "public.h"
-#include "chunk_detail.h"
-#include "block_store.h"
 #include "artifact.h"
+#include "chunk_block_manager.h"
+#include "chunk_detail.h"
+#include "chunk_meta_manager.h"
 
-#include <core/misc/async_cache.h>
+#include <yt/server/misc/memory_usage_tracker.h>
 
-#include <core/concurrency/rw_spinlock.h>
+#include <yt/core/concurrency/rw_spinlock.h>
 
-#include <server/misc/memory_usage_tracker.h>
+#include <yt/core/misc/async_cache.h>
 
 namespace NYT {
 namespace NDataNode {
@@ -27,7 +28,7 @@ public:
 
     virtual TFuture<TRefCountedChunkMetaPtr> ReadMeta(
         const TWorkloadDescriptor& workloadDescriptor,
-        const TNullable<std::vector<int>>& extensionTags) override;
+        const TNullable<std::vector<int>>& extensionTags = Null) override;
 
     virtual TFuture<std::vector<TSharedRef>> ReadBlockSet(
         const std::vector<int>& blockIndexes,
@@ -74,17 +75,18 @@ private:
 
     NChunkClient::NProto::TChunkInfo Info_;
 
-    NConcurrency::TReaderWriterSpinLock CachedMetaLock_;
-    TPromise<void> CachedMetaPromise_;
-    TRefCountedChunkMetaPtr CachedMeta_;
-    NCellNode::TNodeMemoryTrackerGuard MemoryTrackerGuard_;
+    NConcurrency::TReaderWriterSpinLock CachedBlocksExtLock_;
     NChunkClient::NProto::TBlocksExt CachedBlocksExt_;
+    bool HasCachedBlocksExt_ = false;
 
 
-    TFuture<void> GetMeta(const TWorkloadDescriptor& workloadDescriptor);
-    void SetMetaLoadSuccess(const NChunkClient::NProto::TChunkMeta& meta);
-    void SetMetaLoadError(const TError& error);
-    void DoReadMeta(TChunkReadGuard readGuard);
+    TFuture<void> LoadBlocksExt(const TWorkloadDescriptor& workloadDescriptor);
+    const NChunkClient::NProto::TBlocksExt& GetBlocksExt();
+    void InitBlocksExt(const NChunkClient::NProto::TChunkMeta& meta);
+
+    void DoReadMeta(
+        TChunkReadGuard readGuard,
+        TCachedChunkMetaCookie cookie);
     void DoReadBlockSet(
         TReadBlockSetSessionPtr session,
         const TWorkloadDescriptor& workloadDescriptor);

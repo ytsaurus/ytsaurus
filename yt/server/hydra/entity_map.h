@@ -3,9 +3,9 @@
 #include "public.h"
 #include "composite_automaton.h"
 
-#include <core/concurrency/thread_affinity.h>
+#include <yt/core/concurrency/thread_affinity.h>
 
-#include <core/misc/chunked_memory_pool.h>
+#include <yt/core/misc/chunked_memory_pool.h>
 
 #include <type_traits>
 

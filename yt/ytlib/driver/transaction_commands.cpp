@@ -1,12 +1,11 @@
-#include "stdafx.h"
 #include "transaction_commands.h"
 
-#include <core/concurrency/scheduler.h>
+#include <yt/ytlib/transaction_client/transaction_manager.h>
 
-#include <core/ytree/fluent.h>
-#include <core/ytree/attribute_helpers.h>
+#include <yt/core/concurrency/scheduler.h>
 
-#include <ytlib/transaction_client/transaction_manager.h>
+#include <yt/core/ytree/attribute_helpers.h>
+#include <yt/core/ytree/fluent.h>
 
 namespace NYT {
 namespace NDriver {

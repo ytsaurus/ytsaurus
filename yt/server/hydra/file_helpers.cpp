@@ -1,8 +1,7 @@
-#include "stdafx.h"
 #include "file_helpers.h"
 #include "private.h"
 
-#include <core/misc/fs.h>
+#include <yt/core/misc/fs.h>
 
 namespace NYT {
 namespace NHydra {

@@ -1,4 +1,3 @@
-#include "stdafx.h"
 #include "transaction_listener.h"
 #include "transaction_manager.h"
 

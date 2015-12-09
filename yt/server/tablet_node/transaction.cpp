@@ -1,20 +1,19 @@
-#include "stdafx.h"
 #include "transaction.h"
 #include "automaton.h"
-#include "tablet.h"
-#include "tablet_slot.h"
-#include "tablet_manager.h"
 #include "dynamic_memory_store.h"
+#include "tablet.h"
+#include "tablet_manager.h"
+#include "tablet_slot.h"
 
-#include <core/misc/small_vector.h>
+#include <yt/server/hydra/composite_automaton.h>
 
-#include <ytlib/table_client/versioned_row.h>
+#include <yt/ytlib/table_client/versioned_row.h>
 
-#include <ytlib/tablet_client/public.h>
+#include <yt/ytlib/tablet_client/public.h>
 
-#include <ytlib/transaction_client/helpers.h>
+#include <yt/ytlib/transaction_client/helpers.h>
 
-#include <server/hydra/composite_automaton.h>
+#include <yt/core/misc/small_vector.h>
 
 namespace NYT {
 namespace NTabletNode {

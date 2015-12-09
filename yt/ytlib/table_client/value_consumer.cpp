@@ -1,11 +1,8 @@
-#include "stdafx.h"
-
 #include "value_consumer.h"
-
 #include "name_table.h"
 #include "schemaless_writer.h"
 
-#include <core/concurrency/scheduler.h>
+#include <yt/core/concurrency/scheduler.h>
 
 namespace NYT {
 namespace NTableClient {
@@ -82,6 +79,9 @@ TUnversionedValue TBuildingValueConsumer::MakeAnyFromScalar(const TUnversionedVa
         case EValueType::String:
             ValueWriter_.OnStringScalar(TStringBuf(value.Data.String, value.Length));
             break;
+        case EValueType::Null:
+            ValueWriter_.OnEntity();
+            break;
         default:
             YUNREACHABLE();
     }
@@ -110,17 +110,11 @@ void TBuildingValueConsumer::OnEndRow()
     for (int id = 0; id < WrittenFlags_.size(); ++id) {
         if (WrittenFlags_[id]) {
             WrittenFlags_[id] = false;
-        } else if (TreatMissingAsNull_ || id < KeyColumns_.size()) {
+        } else if ((TreatMissingAsNull_ || id < KeyColumns_.size()) && !Schema_.Columns()[id].Expression) {
             Builder_.AddValue(MakeUnversionedSentinelValue(EValueType::Null, id));
         }
     }
 
-    std::sort(
-        Builder_.BeginValues(),
-        Builder_.EndValues(),
-        [] (const TUnversionedValue& lhs, const TUnversionedValue& rhs) {
-            return lhs.Id < rhs.Id;
-        });
     Rows_.emplace_back(Builder_.FinishRow());
 }
 

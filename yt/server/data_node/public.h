@@ -1,11 +1,11 @@
 #pragma once
 
-#include <core/misc/enum.h>
-#include <core/misc/public.h>
+#include <yt/server/chunk_server/public.h>
 
-#include <ytlib/chunk_client/public.h>
+#include <yt/ytlib/chunk_client/public.h>
 
-#include <server/chunk_server/public.h>
+#include <yt/core/misc/enum.h>
+#include <yt/core/misc/public.h>
 
 namespace NYT {
 namespace NDataNode {
@@ -35,9 +35,14 @@ DECLARE_REFCOUNTED_CLASS(TChunkStore)
 DECLARE_REFCOUNTED_CLASS(TChunkCache)
 DECLARE_REFCOUNTED_CLASS(TChunkRegistry)
 
-DECLARE_REFCOUNTED_CLASS(TBlockStore)
+DECLARE_REFCOUNTED_CLASS(TChunkBlockManager)
 DECLARE_REFCOUNTED_CLASS(TBlobReaderCache)
 DECLARE_REFCOUNTED_CLASS(TJournalDispatcher)
+
+using TRefCountedChunkMeta = TRefCountedProto<NChunkClient::NProto::TChunkMeta>;
+DECLARE_REFCOUNTED_TYPE(TRefCountedChunkMeta)
+DECLARE_REFCOUNTED_CLASS(TCachedChunkMeta)
+DECLARE_REFCOUNTED_CLASS(TChunkMetaManager)
 
 DECLARE_REFCOUNTED_CLASS(TLocation)
 DECLARE_REFCOUNTED_CLASS(TStoreLocation)
@@ -49,9 +54,6 @@ DECLARE_REFCOUNTED_CLASS(TCachedBlock)
 DECLARE_REFCOUNTED_CLASS(TStoredBlobChunk)
 DECLARE_REFCOUNTED_CLASS(TCachedBlobChunk)
 DECLARE_REFCOUNTED_CLASS(TJournalChunk)
-
-using TRefCountedChunkMeta = TRefCountedProto<NChunkClient::NProto::TChunkMeta>;
-DECLARE_REFCOUNTED_TYPE(TRefCountedChunkMeta)
 
 DECLARE_REFCOUNTED_STRUCT(ISession)
 DECLARE_REFCOUNTED_CLASS(TBlobSession)

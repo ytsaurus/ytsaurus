@@ -1,19 +1,18 @@
-#include "stdafx.h"
 #include "config.h"
 
-#include <ytlib/transaction_client/config.h>
+#include <yt/ytlib/hive/config.h>
 
-#include <ytlib/scheduler/config.h>
+#include <yt/ytlib/node_tracker_client/public.h>
 
-#include <ytlib/hive/config.h>
+#include <yt/ytlib/scheduler/config.h>
 
-#include <ytlib/tablet_client/config.h>
+#include <yt/ytlib/table_client/config.h>
 
-#include <ytlib/table_client/config.h>
+#include <yt/ytlib/tablet_client/config.h>
 
-#include <ytlib/node_tracker_client/public.h>
+#include <yt/ytlib/transaction_client/config.h>
 
-#include <ytlib/object_client/helpers.h>
+#include <yt/ytlib/object_client/helpers.h>
 
 namespace NYT {
 namespace NApi {

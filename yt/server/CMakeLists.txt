@@ -26,20 +26,10 @@ set( DIRS
   journal_server
 )
 
-include_directories(
-  ${CMAKE_CURRENT_SOURCE_DIR}
-)
-
 foreach( _d_ ${DIRS} )
   include( ${_d_}/CMakeLists.txt )
   source_group( ${_d_} REGULAR_EXPRESSION "${_d_}/.*\\.((cpp)|(h)|(proto))")
 endforeach()
-
-add_msvc_precompiled_header(
-  "stdafx.h"
-  "stdafx.cpp"
-  YT_SOURCE_FILES
-)
 
 add_executable( ytserver
   "main.cpp"
@@ -56,7 +46,7 @@ add_library( ytserver_lib
 target_link_libraries( ytserver
   ytserver_lib
   ytlib
-  ytext-lfalloc
+  ytext-arcadia-library-lfalloc
 )
 
 
@@ -64,7 +54,6 @@ set_target_properties( ytserver
   PROPERTIES
   LINK_FLAGS "-static-libstdc++"
 )
-
 
 target_link_libraries( ytserver_lib
   ytlib

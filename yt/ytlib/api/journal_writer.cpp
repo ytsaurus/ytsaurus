@@ -1,49 +1,47 @@
-#include "stdafx.h"
 #include "journal_writer.h"
-#include "config.h"
 #include "private.h"
+#include "config.h"
 
-#include <core/concurrency/scheduler.h>
-#include <core/concurrency/delayed_executor.h>
-#include <core/concurrency/periodic_executor.h>
-#include <core/concurrency/thread_affinity.h>
-#include <core/concurrency/nonblocking_queue.h>
+#include <yt/ytlib/chunk_client/chunk_list_ypath_proxy.h>
+#include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
+#include <yt/ytlib/chunk_client/chunk_owner_ypath_proxy.h>
+#include <yt/ytlib/chunk_client/chunk_service_proxy.h>
+#include <yt/ytlib/chunk_client/chunk_ypath_proxy.h>
+#include <yt/ytlib/chunk_client/data_node_service_proxy.h>
+#include <yt/ytlib/chunk_client/dispatcher.h>
+#include <yt/ytlib/chunk_client/private.h>
 
-#include <core/misc/address.h>
-#include <core/misc/variant.h>
+#include <yt/ytlib/cypress_client/cypress_ypath_proxy.h>
+#include <yt/ytlib/cypress_client/rpc_helpers.h>
 
-#include <core/ytree/attribute_helpers.h>
+#include <yt/ytlib/journal_client/journal_ypath_proxy.h>
 
-#include <core/rpc/helpers.h>
+#include <yt/ytlib/node_tracker_client/node_directory.h>
 
-#include <core/logging/log.h>
+#include <yt/ytlib/object_client/helpers.h>
+#include <yt/ytlib/object_client/master_ypath_proxy.h>
+#include <yt/ytlib/object_client/object_service_proxy.h>
 
-#include <ytlib/object_client/object_service_proxy.h>
-#include <ytlib/object_client/master_ypath_proxy.h>
-#include <ytlib/object_client/helpers.h>
+#include <yt/ytlib/transaction_client/transaction_listener.h>
+#include <yt/ytlib/transaction_client/helpers.h>
 
-#include <ytlib/cypress_client/cypress_ypath_proxy.h>
-#include <ytlib/cypress_client/rpc_helpers.h>
+#include <yt/core/concurrency/delayed_executor.h>
+#include <yt/core/concurrency/nonblocking_queue.h>
+#include <yt/core/concurrency/periodic_executor.h>
+#include <yt/core/concurrency/scheduler.h>
+#include <yt/core/concurrency/thread_affinity.h>
 
-#include <ytlib/chunk_client/private.h>
-#include <ytlib/chunk_client/dispatcher.h>
-#include <ytlib/chunk_client/chunk_owner_ypath_proxy.h>
-#include <ytlib/chunk_client/data_node_service_proxy.h>
-#include <ytlib/chunk_client/chunk_ypath_proxy.h>
-#include <ytlib/chunk_client/chunk_list_ypath_proxy.h>
-#include <ytlib/chunk_client/chunk_meta_extensions.h>
-#include <ytlib/chunk_client/chunk_service_proxy.h>
+#include <yt/core/logging/log.h>
 
-#include <ytlib/journal_client/journal_ypath_proxy.h>
+#include <yt/core/misc/address.h>
+#include <yt/core/misc/variant.h>
 
-#include <ytlib/transaction_client/transaction_manager.h>
-#include <ytlib/transaction_client/transaction_listener.h>
-#include <ytlib/transaction_client/helpers.h>
+#include <yt/core/rpc/helpers.h>
 
-#include <ytlib/node_tracker_client/node_directory.h>
+#include <yt/core/ytree/attribute_helpers.h>
 
-#include <queue>
 #include <deque>
+#include <queue>
 
 namespace NYT {
 namespace NApi {
@@ -614,8 +612,7 @@ private:
                 auto result = WaitFor(Combine(asyncResults));
                 THROW_ERROR_EXCEPTION_IF_FAILED(result, "Error starting chunk sessions");
             } catch (const std::exception& ex) {
-                LOG_WARNING(ex, "Error starting chunk sessions (ChunkId: %v)",
-                    CurrentSession_->ChunkId);
+                LOG_WARNING(TError(ex));
                 CurrentSession_.Reset();
                 return false;
             }

@@ -1,8 +1,7 @@
-#include "stdafx.h"
 #include "framework.h"
 
-#include <core/yson/consumer-mock.h>
-#include <core/yson/parser.h>
+#include <yt/core/yson/consumer_mock.h>
+#include <yt/core/yson/parser.h>
 
 #include <util/stream/mem.h>
 

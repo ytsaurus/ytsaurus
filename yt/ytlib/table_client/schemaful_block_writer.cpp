@@ -1,10 +1,9 @@
-#include "stdafx.h"
 #include "schemaful_block_writer.h"
 #include "unversioned_row.h"
 
-#include <core/misc/varint.h>
+#include <yt/core/misc/varint.h>
 
-#include <core/yson/writer.h>
+#include <yt/core/yson/writer.h>
 
 namespace NYT {
 namespace NTableClient {

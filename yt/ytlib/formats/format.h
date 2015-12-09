@@ -2,17 +2,17 @@
 
 #include "public.h"
 
-#include <core/misc/property.h>
+#include <yt/ytlib/table_client/public.h>
+#include <yt/ytlib/table_client/schemaless_writer.h>
 
-#include <core/ytree/public.h>
-#include <core/ytree/attributes.h>
+#include <yt/core/concurrency/public.h>
 
-#include <core/yson/public.h>
+#include <yt/core/misc/property.h>
 
-#include <core/concurrency/public.h>
+#include <yt/core/yson/public.h>
 
-#include <ytlib/table_client/public.h>
-#include <ytlib/table_client/schemaless_writer.h>
+#include <yt/core/ytree/attributes.h>
+#include <yt/core/ytree/public.h>
 
 namespace NYT {
 namespace NFormats {

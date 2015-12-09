@@ -1,7 +1,6 @@
-#include "stdafx.h"
 #include "framework.h"
 
-#include <core/misc/mpl.h>
+#include <yt/core/misc/mpl.h>
 
 namespace NYT {
 namespace {

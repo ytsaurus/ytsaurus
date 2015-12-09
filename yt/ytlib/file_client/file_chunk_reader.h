@@ -2,20 +2,19 @@
 
 #include "public.h"
 
-#include <ytlib/api/public.h>
+#include <yt/ytlib/api/public.h>
 
-#include <ytlib/chunk_client/public.h>
-#include <ytlib/chunk_client/reader_base.h>
+#include <yt/ytlib/chunk_client/reader_base.h>
 
-#include <ytlib/node_tracker_client/public.h>
+#include <yt/ytlib/node_tracker_client/public.h>
 
-#include <core/rpc/public.h>
+#include <yt/core/compression/public.h>
 
-#include <core/compression/public.h>
+#include <yt/core/concurrency/throughput_throttler.h>
 
-#include <core/misc/ref.h>
+#include <yt/core/misc/ref.h>
 
-#include <core/concurrency/throughput_throttler.h>
+#include <yt/core/rpc/public.h>
 
 namespace NYT {
 namespace NFileClient {

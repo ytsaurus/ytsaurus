@@ -1,13 +1,12 @@
-#include "stdafx.h"
 #include "protobuf_helpers.h"
 #include "mpl.h"
 
-#include <core/compression/codec.h>
+#include <yt/core/compression/codec.h>
 
-#include <contrib/libs/protobuf/text_format.h>
 #include <contrib/libs/protobuf/io/coded_stream.h>
 #include <contrib/libs/protobuf/io/zero_copy_stream.h>
 #include <contrib/libs/protobuf/io/zero_copy_stream_impl_lite.h>
+#include <contrib/libs/protobuf/text_format.h>
 
 namespace NYT {
 

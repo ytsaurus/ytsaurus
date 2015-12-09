@@ -11,10 +11,10 @@ from yt.environment.helpers import assert_items_equal
 from random import randint
 from random import shuffle
 
+from yt.environment.helpers import assert_items_equal
+
 ##################################################################
 
-
-@pytest.mark.skipif('os.environ.get("BUILD_ENABLE_LLVM", None) == "NO"')
 class TestQuery(YTEnvSetup):
     NUM_MASTERS = 3
     NUM_NODES = 3
@@ -69,7 +69,7 @@ class TestQuery(YTEnvSetup):
         self._sample_data(path="//tmp/t")
         expected = [{"s": 450}]
         actual = select_rows("sum(b) as s from [{0}//tmp/t] group by 1 as k".format(TestQuery.yson_schema_attribute))
-        assert actual == expected
+        assert_items_equal(actual, expected)
 
     def test_group_by2(self):
         self._sample_data(path="//tmp/t")
@@ -341,7 +341,7 @@ class TestQuery(YTEnvSetup):
 
         expected = [{"hash": 42 * 33, "key": 42, "value": 42 * 2}]
         actual = select_rows("* from [//tmp/t] where key = 42")
-        assert actual == expected
+        assert_items_equal(actual, expected)
 
         expected = [{"hash": i * 33, "key": i, "value": i * 2} for i in xrange(10,80)]
         actual = sorted(select_rows("* from [//tmp/t] where key >= 10 and key < 80"))
@@ -477,7 +477,7 @@ class TestQuery(YTEnvSetup):
         self._sample_data(path="//tmp/ua")
         expected = [{"x": 5.0}]
         actual = select_rows("avg_udaf(a) as x from [{0}//tmp/ua] group by 1".format(TestQuery.yson_schema_attribute))
-        assert actual == expected
+        assert_items_equal(actual, expected)
 
     def test_aggregate_string_capture(self):
         create("table", "//tmp/t")
@@ -491,7 +491,7 @@ class TestQuery(YTEnvSetup):
 
         expected = [{"m": "a1000bcd"}]
         actual = select_rows("min(lower(a)) as m from [<schema=[{name=a;type=string}]>//tmp/t] group by 1")
-        assert actual == expected
+        assert_items_equal(actual, expected)
 
     def test_cardinality(self):
         self.sync_create_cells(3, 3)
@@ -574,4 +574,3 @@ class TestQuery(YTEnvSetup):
         assert_items_equal(select_rows("a, b from [{0}//tmp/t] where a in (1, 3)".format(schema)), [{"a": i, "b": i} for i in (1,3)])
         assert_items_equal(select_rows("a, b from [{0}//tmp/t] where a in (4)".format(schema)), [{"a": 4, "b": i} for i in (4,5)])
         assert_items_equal(select_rows("a, b from [{0}//tmp/t] where a > 0 and a < 3".format(schema)), [{"a": i, "b": i} for i in (1,2)])
-

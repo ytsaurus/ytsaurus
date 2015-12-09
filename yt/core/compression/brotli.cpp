@@ -1,9 +1,9 @@
 #include "details.h"
 
+#include <yt/core/misc/blob.h>
+
 #include <contrib/libs/brotli/enc/encode.h>
 #include <contrib/libs/brotli/dec/decode.h>
-
-#include <core/misc/blob.h>
 
 namespace NYT {
 namespace NCompression {

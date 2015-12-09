@@ -2,14 +2,15 @@
 
 #include "private.h"
 
-#include <core/actions/signal.h>
-#include <core/ytree/public.h>
+#include <yt/server/cell_scheduler/public.h>
 
-#include <ytlib/object_client/object_service_proxy.h>
+#include <yt/server/chunk_server/public.h>
 
-#include <server/cell_scheduler/public.h>
+#include <yt/ytlib/object_client/object_service_proxy.h>
 
-#include <server/chunk_server/public.h>
+#include <yt/core/actions/signal.h>
+
+#include <yt/core/ytree/public.h>
 
 namespace NYT {
 namespace NScheduler {

@@ -3,7 +3,7 @@
 #include "public.h"
 #include "chunk_detail.h"
 
-#include <server/hydra/public.h>
+#include <yt/server/hydra/public.h>
 
 namespace NYT {
 namespace NDataNode {

@@ -1,13 +1,13 @@
 #pragma once
 
 #include "public.h"
-#include "ref.h"
 #include "property.h"
 #include "protobuf_helpers.h"
-
-#include <util/system/defaults.h>
+#include "ref.h"
 
 #include <util/generic/noncopyable.h>
+
+#include <util/system/defaults.h>
 
 namespace NYT {
 

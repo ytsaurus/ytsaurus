@@ -1,10 +1,10 @@
 #pragma once
 
-#include <core/logging/log.h>
+#include <yt/core/logging/log.h>
 
-#include <core/profiling/profiler.h>
+#include <yt/core/profiling/profiler.h>
 
-#include <core/rpc/public.h>
+#include <yt/core/rpc/public.h>
 
 namespace NYT {
 namespace NDataNode {

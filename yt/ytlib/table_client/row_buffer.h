@@ -3,7 +3,7 @@
 #include "public.h"
 #include "unversioned_row.h"
 
-#include <core/misc/chunked_memory_pool.h>
+#include <yt/core/misc/chunked_memory_pool.h>
 
 namespace NYT {
 namespace NTableClient {
@@ -42,6 +42,11 @@ public:
 
     TMutableUnversionedRow Capture(TUnversionedRow row, bool deep = true);
     std::vector<TMutableUnversionedRow> Capture(const std::vector<TUnversionedRow>& rows, bool deep = true);
+
+    TMutableUnversionedRow CaptureAndPermuteRow(
+        TUnversionedRow row,
+        const TTableSchema& tableSchema,
+        const TNameTableToSchemaIdMapping& idMapping);
 
     i64 GetSize() const;
     i64 GetCapacity() const;

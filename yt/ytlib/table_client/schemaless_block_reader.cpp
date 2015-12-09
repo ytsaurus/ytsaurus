@@ -1,8 +1,6 @@
-#include "stdafx.h"
-
 #include "schemaless_block_reader.h"
-#include "helpers.h"
 #include "private.h"
+#include "helpers.h"
 
 namespace NYT {
 namespace NTableClient {

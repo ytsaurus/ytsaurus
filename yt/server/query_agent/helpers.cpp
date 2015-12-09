@@ -1,11 +1,10 @@
-#include "stdafx.h"
 #include "helpers.h"
 
-#include <core/logging/log.h>
+#include <yt/server/data_node/public.h>
 
-#include <ytlib/chunk_client/public.h>
+#include <yt/ytlib/chunk_client/public.h>
 
-#include <server/data_node/public.h>
+#include <yt/core/logging/log.h>
 
 namespace NYT {
 namespace NQueryAgent {

@@ -1,30 +1,19 @@
 #include "stack_trace.h"
 
-#include <yt/config.h>
+#include <yt/build/config.h>
 
 #ifndef _win_
-
-#if defined(HAVE_UNWIND_H)
-#   define ENABLE_GCC_STACKTRACE
-#endif
-#if defined(HAVE_EXECINFO_H)
-#   define ENABLE_GLIBC_STACKTRACE
-#endif
-#if defined(HAVE_LIBUNWIND_H)
-#   define ENABLE_LIBUNWIND_STACKTRACE
-#endif
-#if !defined(ENABLE_GCC_STACKTRACE) && !defined(ENABLE_GLIBC_STACKTRACE) && !defined(ENABLE_LIBUNWIND_STACKTRACE)
-#   error "No feasible stack unwinding avaliable."
-#endif
+#define ENABLE_GLIBC_STACKTRACE
 
 ////////////////////////////////////////////////////////////////////////////////
 // libgcc-based implementation.
 ////////////////////////////////////////////////////////////////////////////////
-#ifdef ENABLE_GCC_STACKTRACE
+#if 0
+// #ifdef ENABLE_GCC_STACKTRACE
 
 extern "C" {
-#include <stdlib.h>
-#include <unwind.h>
+// #include <stdlib.h>
+// #include <unwind.h>
 }
 
 namespace NYT {
@@ -135,11 +124,12 @@ int GetStackTrace__glibc(void** result, int maxFrames, int skipFrames)
 ////////////////////////////////////////////////////////////////////////////////
 // libunwind-based implementation.
 ////////////////////////////////////////////////////////////////////////////////
-#ifdef ENABLE_LIBUNWIND_STACKTRACE
+#if 0
+// #ifdef ENABLE_LIBUNWIND_STACKTRACE
 
 extern "C" {
-#define UNW_LOCAL_ONLY
-#include <libunwind.h>
+// #define UNW_LOCAL_ONLY
+// #include <libunwind.h>
 }
 
 namespace NYT {

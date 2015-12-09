@@ -1,13 +1,10 @@
-#include "stdafx.h"
-
 #include "multi_reader_base.h"
-
 #include "config.h"
 #include "dispatcher.h"
 #include "private.h"
 #include "reader_factory.h"
 
-#include <core/concurrency/scheduler.h>
+#include <yt/core/concurrency/scheduler.h>
 
 namespace NYT {
 namespace NChunkClient {
@@ -86,7 +83,7 @@ void TMultiReaderBase::OpenNextChunks()
             return;
         }
 
-        if (ActiveReaderCount_ > MaxPrefetchWindow) {
+        if (ActiveReaderCount_ > Config_->MaxPrefetchWindow) {
             return;
         }
 

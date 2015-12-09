@@ -2,9 +2,9 @@
 
 #include "public.h"
 
-#include <core/misc/error.h>
+#include <yt/ytlib/table_client/chunk_meta.pb.h>
 
-#include <ytlib/table_client/chunk_meta.pb.h>
+#include <yt/core/misc/error.h>
 
 namespace NYT {
 namespace NTableClient {

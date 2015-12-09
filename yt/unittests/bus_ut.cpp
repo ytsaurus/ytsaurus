@@ -1,14 +1,13 @@
-#include "stdafx.h"
 #include "framework.h"
 
-#include <core/bus/bus.h>
-#include <core/bus/config.h>
-#include <core/bus/server.h>
-#include <core/bus/client.h>
-#include <core/bus/tcp_server.h>
-#include <core/bus/tcp_client.h>
+#include <yt/core/bus/bus.h>
+#include <yt/core/bus/client.h>
+#include <yt/core/bus/config.h>
+#include <yt/core/bus/server.h>
+#include <yt/core/bus/tcp_client.h>
+#include <yt/core/bus/tcp_server.h>
 
-#include <core/concurrency/event_count.h>
+#include <yt/core/concurrency/event_count.h>
 
 namespace NYT {
 namespace NBus {

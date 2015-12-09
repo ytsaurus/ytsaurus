@@ -1,22 +1,21 @@
-#include "stdafx.h"
 #include "schema.h"
 #include "unversioned_row.h"
 
-#include <core/ytree/serialize.h>
-#include <core/ytree/convert.h>
-#include <core/ytree/fluent.h>
+#include <yt/core/ytree/serialize.h>
+#include <yt/core/ytree/convert.h>
+#include <yt/core/ytree/fluent.h>
 
-#include <core/misc/protobuf_helpers.h>
+#include <yt/core/misc/protobuf_helpers.h>
 
-#include <ytlib/table_client/chunk_meta.pb.h>
+#include <yt/ytlib/table_client/chunk_meta.pb.h>
 
 // TODO(sandello): Refine this dependencies.
 // TODO(lukyan): Remove this dependencies.
-#include <ytlib/query_client/plan_fragment.h>
-#include <ytlib/query_client/query_preparer.h>
-#include <ytlib/query_client/folding_profiler.h>
-#include <ytlib/query_client/function_registry.h>
-#include <ytlib/query_client/functions.h>
+#include <yt/ytlib/query_client/plan_fragment.h>
+#include <yt/ytlib/query_client/query_preparer.h>
+#include <yt/ytlib/query_client/folding_profiler.h>
+#include <yt/ytlib/query_client/function_registry.h>
+#include <yt/ytlib/query_client/functions.h>
 
 namespace NYT {
 namespace NTableClient {

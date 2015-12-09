@@ -2,14 +2,14 @@
 
 #include "public.h"
 
-#include <core/misc/async_cache.h>
-#include <core/misc/ref.h>
+#include <yt/server/cell_node/public.h>
 
-#include <ytlib/chunk_client/public.h>
+#include <yt/ytlib/chunk_client/public.h>
 
-#include <ytlib/node_tracker_client/node_directory.h>
+#include <yt/ytlib/node_tracker_client/node_directory.h>
 
-#include <server/cell_node/public.h>
+#include <yt/core/misc/async_cache.h>
+#include <yt/core/misc/ref.h>
 
 namespace NYT {
 namespace NDataNode {
@@ -44,17 +44,17 @@ using TCachedBlockCookie = TAsyncSlruCacheBase<TBlockId, TCachedBlock>::TInsertC
  *  \note
  *  Thread affinity: any
  */
-class TBlockStore
+class TChunkBlockManager
     : public TRefCounted
 {
 public:
-    TBlockStore(
+    TChunkBlockManager(
         TDataNodeConfigPtr config,
         NCellNode::TBootstrap* bootstrap);
 
-    ~TBlockStore();
+    ~TChunkBlockManager();
 
-    //! Synchronously looks up a compressed block in the store's cache.
+    //! Synchronously looks up a compressed block in the block cache.
     TCachedBlockPtr FindCachedBlock(const TBlockId& blockId);
 
     //! Puts a compressed block into the store's cache.
@@ -115,7 +115,7 @@ private:
 
 };
 
-DEFINE_REFCOUNTED_TYPE(TBlockStore)
+DEFINE_REFCOUNTED_TYPE(TChunkBlockManager)
 
 ////////////////////////////////////////////////////////////////////////////////
 

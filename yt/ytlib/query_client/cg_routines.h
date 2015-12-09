@@ -1,6 +1,6 @@
 #pragma once
 
-#include <core/codegen/routine_registry.h>
+#include <yt/core/codegen/routine_registry.h>
 
 namespace NYT {
 namespace NQueryClient {

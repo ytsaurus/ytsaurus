@@ -1,8 +1,7 @@
-#include "stdafx.h"
 #include "private.h"
 
-#include <core/rpc/caching_channel_factory.h>
-#include <core/rpc/bus_channel.h>
+#include <yt/core/rpc/bus_channel.h>
+#include <yt/core/rpc/caching_channel_factory.h>
 
 namespace NYT {
 namespace NChunkClient {

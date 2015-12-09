@@ -1,15 +1,11 @@
-#include "stdafx.h"
-
 #include "column_evaluator.h"
-#include "config.h"
-
 #include "cg_fragment_compiler.h"
+#include "config.h"
+#include "folding_profiler.h"
 #include "query_preparer.h"
 #include "query_statistics.h"
-#include "folding_profiler.h"
-#include "functions.h"
 
-#include <core/misc/sync_cache.h>
+#include <yt/core/misc/sync_cache.h>
 
 namespace NYT {
 namespace NQueryClient {
@@ -122,70 +118,6 @@ void TColumnEvaluator::EvaluateKeys(TMutableRow fullRow, const TRowBufferPtr& bu
             EvaluateKey(fullRow, buffer, index);
         }
     }
-}
-
-TMutableRow TColumnEvaluator::EvaluateKeys(
-    TMutableRow partialRow,
-    const TRowBufferPtr& buffer,
-    const TNameTableToSchemaIdMapping& idMapping) const
-{
-    bool keyColumnSeen[MaxKeyColumnCount] {};
-    int columnCount = 0;
-
-    for (int index = 0; index < partialRow.GetCount(); ++index) {
-        int id = partialRow[index].Id;
-
-        if (id >= idMapping.size()) {
-            THROW_ERROR_EXCEPTION("Invalid column id %v, expected in range [0,%v]",
-                id,
-                idMapping.size() - 1);
-        }
-
-        int schemaId = idMapping[id];
-        YCHECK(schemaId < TableSchema_.Columns().size());
-        const auto& column = TableSchema_.Columns()[schemaId];
-
-        if (column.Expression) {
-            THROW_ERROR_EXCEPTION(
-                "Column %Qv is computed automatically and should not be provided by user",
-                column.Name);
-        }
-
-        if (schemaId < KeyColumnCount_) {
-            if (keyColumnSeen[schemaId]) {
-                THROW_ERROR_EXCEPTION("Duplicate key component %Qv",
-                    column.Name);
-            }
-
-            keyColumnSeen[schemaId] = true;
-        } else {
-            ++columnCount;
-        }
-    }
-
-    columnCount += KeyColumnCount_;
-    auto fullRow = TMutableUnversionedRow::Allocate(buffer->GetPool(), columnCount);
-
-    for (int index = 0; index < KeyColumnCount_; ++index) {
-        fullRow[index].Type = EValueType::Null;
-    }
-
-    int dataColumnId = KeyColumnCount_;
-    for (int index = 0; index < partialRow.GetCount(); ++index) {
-        int id = partialRow[index].Id;
-        int schemaId = idMapping[id];
-
-        if (schemaId < KeyColumnCount_) {
-            fullRow[schemaId] = partialRow[index];
-        } else {
-            fullRow[dataColumnId] = partialRow[index];
-            fullRow[dataColumnId].Id = schemaId;
-            ++dataColumnId;
-        }
-    }
-
-    EvaluateKeys(fullRow, buffer);
-    return fullRow;
 }
 
 const std::vector<int>& TColumnEvaluator::GetReferenceIds(int index) const

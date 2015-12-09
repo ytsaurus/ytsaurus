@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <server/hydra/hydra_service.h>
+#include <yt/server/hydra/hydra_service.h>
 
 namespace NYT {
 namespace NCellMaster {

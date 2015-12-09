@@ -133,28 +133,22 @@ udf_o(
     max_udaf_finalize
 )
 
-add_msvc_precompiled_header(
-  "stdafx.h"
-  "stdafx.cpp"
-  SRCS
-)
-
-if (MSVC)
-  add_definitions( -D_VARIADIC_MAX=10 )
-  add_definitions( -DGTEST_HAS_SEH=0 )
+if(MSVC)
+  add_definitions(-D_VARIADIC_MAX=10)
+  add_definitions(-DGTEST_HAS_SEH=0)
 endif()
 
 include_directories(
   ${CMAKE_CURRENT_SOURCE_DIR}
 )
 
-add_executable( unittester
+add_executable(unittester
   ${CMAKE_SOURCE_DIR}/contrib/testing/framework.cpp
   ${SRCS}
 )
 
-target_link_libraries( unittester
+target_link_libraries(unittester
   ytlib
   ytserver_lib
-  ytext-lfalloc
+  ytext-arcadia-library-lfalloc
 )

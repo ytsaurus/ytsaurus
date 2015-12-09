@@ -1,7 +1,6 @@
-#include "stdafx.h"
 #include "public.h"
 
-#include <core/misc/format.h>
+#include <yt/core/misc/format.h>
 
 #include <util/string/vector.h>
 

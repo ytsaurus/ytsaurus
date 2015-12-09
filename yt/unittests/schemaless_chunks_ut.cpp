@@ -1,23 +1,21 @@
-#include "stdafx.h"
 #include "framework.h"
-
 #include "versioned_table_client_ut.h"
 
-#include <ytlib/table_client/config.h>
-#include <ytlib/table_client/name_table.h>
-#include <ytlib/table_client/schemaless_chunk_reader.h>
-#include <ytlib/table_client/schemaless_chunk_writer.h>
-#include <ytlib/table_client/unversioned_row.h>
+#include <yt/ytlib/chunk_client/client_block_cache.h>
+#include <yt/ytlib/chunk_client/data_statistics.h>
+#include <yt/ytlib/chunk_client/memory_reader.h>
+#include <yt/ytlib/chunk_client/memory_writer.h>
+#include <yt/ytlib/chunk_client/chunk_spec.pb.h>
 
-#include <ytlib/chunk_client/client_block_cache.h>
-#include <ytlib/chunk_client/data_statistics.h>
-#include <ytlib/chunk_client/memory_reader.h>
-#include <ytlib/chunk_client/memory_writer.h>
-#include <ytlib/chunk_client/chunk_spec.h>
+#include <yt/ytlib/table_client/config.h>
+#include <yt/ytlib/table_client/name_table.h>
+#include <yt/ytlib/table_client/schemaless_chunk_reader.h>
+#include <yt/ytlib/table_client/schemaless_chunk_writer.h>
+#include <yt/ytlib/table_client/unversioned_row.h>
 
-#include <ytlib/transaction_client/public.h>
+#include <yt/ytlib/transaction_client/public.h>
 
-#include <core/compression/public.h>
+#include <yt/core/compression/public.h>
 
 namespace NYT {
 namespace NTableClient {

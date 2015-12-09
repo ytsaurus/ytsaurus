@@ -1,12 +1,9 @@
-#include "stdafx.h"
-
 #include "encoding_chunk_writer.h"
-#include "encoding_writer.h"
-
 #include "chunk_writer.h"
 #include "config.h"
+#include "encoding_writer.h"
 
-#include <core/concurrency/scheduler.h>
+#include <yt/core/concurrency/scheduler.h>
 
 namespace NYT {
 namespace NChunkClient {

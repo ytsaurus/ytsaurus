@@ -1,17 +1,16 @@
 #pragma once
 
 #include "public.h"
-
 #include "unversioned_row.h"
 
-#include <core/actions/future.h>
+#include <yt/core/actions/future.h>
 
 namespace NYT {
 namespace NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-typedef std::function<ISchemalessReaderPtr(TNameTablePtr, TColumnFilter)> TSchemalessReaderFactory;
+typedef std::function<ISchemalessReaderPtr(TNameTablePtr, const TColumnFilter&)> TSchemalessReaderFactory;
 
 ISchemafulReaderPtr CreateSchemafulReaderAdapter(
     TSchemalessReaderFactory createReader,

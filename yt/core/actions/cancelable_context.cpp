@@ -1,8 +1,7 @@
-#include "stdafx.h"
 #include "cancelable_context.h"
 #include "callback.h"
-#include "invoker_util.h"
 #include "invoker_detail.h"
+#include "invoker_util.h"
 
 namespace NYT {
 

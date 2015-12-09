@@ -1,4 +1,3 @@
-#include "stdafx.h"
 #include "snapshot.h"
 
 namespace NYT {

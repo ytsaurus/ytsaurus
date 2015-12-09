@@ -1,39 +1,37 @@
-#include "stdafx.h"
 #include "master_connector.h"
-#include "scheduler.h"
 #include "private.h"
 #include "helpers.h"
+#include "scheduler.h"
+#include "scheduler_strategy.h"
+#include "serialize.h"
 #include "snapshot_builder.h"
 #include "snapshot_downloader.h"
-#include "serialize.h"
-#include "scheduler_strategy.h"
 
-#include <core/rpc/serialized_channel.h>
+#include <yt/server/cell_scheduler/bootstrap.h>
+#include <yt/server/cell_scheduler/config.h>
 
-#include <core/concurrency/thread_affinity.h>
+#include <yt/ytlib/chunk_client/chunk_list_ypath_proxy.h>
 
-#include <ytlib/transaction_client/helpers.h>
-#include <ytlib/transaction_client/transaction_ypath_proxy.h>
+#include <yt/ytlib/cypress_client/cypress_ypath_proxy.h>
+#include <yt/ytlib/cypress_client/rpc_helpers.h>
 
-#include <ytlib/chunk_client/chunk_list_ypath_proxy.h>
+#include <yt/ytlib/file_client/file_ypath_proxy.h>
 
-#include <ytlib/cypress_client/cypress_ypath_proxy.h>
-#include <ytlib/cypress_client/rpc_helpers.h>
+#include <yt/ytlib/hive/cluster_directory.h>
 
-#include <ytlib/file_client/file_ypath_proxy.h>
+#include <yt/ytlib/object_client/helpers.h>
+#include <yt/ytlib/object_client/master_ypath_proxy.h>
 
-#include <ytlib/scheduler/helpers.h>
+#include <yt/ytlib/scheduler/helpers.h>
 
-#include <ytlib/object_client/master_ypath_proxy.h>
-#include <ytlib/object_client/helpers.h>
+#include <yt/ytlib/transaction_client/helpers.h>
+#include <yt/ytlib/transaction_client/transaction_ypath_proxy.h>
 
-#include <ytlib/hive/cluster_directory.h>
+#include <yt/ytlib/api/transaction.h>
 
-#include <ytlib/api/client.h>
-#include <ytlib/api/transaction.h>
+#include <yt/core/concurrency/thread_affinity.h>
 
-#include <server/cell_scheduler/bootstrap.h>
-#include <server/cell_scheduler/config.h>
+#include <yt/core/rpc/serialized_channel.h>
 
 namespace NYT {
 namespace NScheduler {

@@ -3,7 +3,7 @@
 #include "cg_fragment_compiler.h"
 #include "key_trie.h"
 
-#include <core/misc/variant.h>
+#include <yt/core/misc/variant.h>
 
 namespace NYT {
 namespace NQueryClient {

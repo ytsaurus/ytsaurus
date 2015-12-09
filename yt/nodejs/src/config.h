@@ -1,12 +1,12 @@
 #pragma once
 
-#include <core/ytree/yson_serializable.h>
+#include <yt/ytlib/chunk_client/config.h>
 
-#include <ytlib/driver/config.h>
+#include <yt/ytlib/driver/config.h>
 
-#include <ytlib/chunk_client/config.h>
+#include <yt/core/misc/address.h>
 
-#include <core/misc/address.h>
+#include <yt/core/ytree/yson_serializable.h>
 
 namespace NYT {
 namespace NNodeJS {

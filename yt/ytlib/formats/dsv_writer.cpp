@@ -1,11 +1,10 @@
-#include "stdafx.h"
 #include "dsv_writer.h"
 
-#include <ytlib/table_client/name_table.h>
+#include <yt/ytlib/table_client/name_table.h>
 
-#include <core/misc/error.h>
+#include <yt/core/misc/error.h>
 
-#include <core/yson/format.h>
+#include <yt/core/yson/format.h>
 
 namespace NYT {
 namespace NFormats {

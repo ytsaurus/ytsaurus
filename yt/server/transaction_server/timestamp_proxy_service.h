@@ -2,9 +2,9 @@
 
 #include "public.h"
 
-#include <core/rpc/public.h>
+#include <yt/ytlib/transaction_client/public.h>
 
-#include <ytlib/transaction_client/public.h>
+#include <yt/core/rpc/public.h>
 
 namespace NYT {
 namespace NTransactionServer {

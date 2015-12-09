@@ -1,4 +1,3 @@
-#include "stdafx.h"
 #include "tablet_cell_bundle_proxy.h"
 #include "tablet_cell_bundle.h"
 #include "tablet_cell.h"
