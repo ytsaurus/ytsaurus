@@ -94,7 +94,7 @@ def main():
     def push_thunk(args):
         do_push(args.path)
 
-    parser = argparse.ArgumentParser("yt/contrib/ manager")
+    parser = argparse.ArgumentParser()
     subparsers = parser.add_subparsers()
 
     parser_add = subparsers.add_parser(
