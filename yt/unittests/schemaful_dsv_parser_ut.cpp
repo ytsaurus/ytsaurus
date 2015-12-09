@@ -2,7 +2,7 @@
 
 #include <yt/ytlib/formats/schemaful_dsv_parser.h>
 
-#include <yt/core/yson/consumer-mock.h>
+#include <yt/core/yson/consumer_mock.h>
 #include <yt/core/yson/null_consumer.h>
 
 namespace NYT {

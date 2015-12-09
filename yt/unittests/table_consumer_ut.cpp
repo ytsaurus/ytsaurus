@@ -2,7 +2,7 @@
 
 #include <yt/ytlib/table_client/table_consumer.h>
 #include <yt/ytlib/table_client/unversioned_row.h>
-#include <yt/ytlib/table_client/value_consumer-mock.h>
+#include <yt/ytlib/table_client/value_consumer_mock.h>
 
 #include <yt/core/ytree/fluent.h>
 
