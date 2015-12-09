@@ -30,7 +30,7 @@ cat "$EGG_FILEPATH" | $YT upload "$DEST/$EGG_FILE"
 make_link "$DEST/$EGG_FILE" "$DEST/yandex-yt.egg"
 
 # Upload self-contained binaries
-for name in yt mapreduce-yt; do
+for name in yt mapreduce-yt yt-fuse; do
     rm -rf build dist
     pyinstaller/pyinstaller.py --noconfirm --onefile yt/wrapper/$name
     pyinstaller/pyinstaller.py --noconfirm "${name}.spec"

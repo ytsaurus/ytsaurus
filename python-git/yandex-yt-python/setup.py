@@ -36,7 +36,10 @@ def main():
     if sys.version_info[:2] <= (2, 6):
         requires.append("argparse")
 
-    scripts, data_files = prepare_files(["yt/wrapper/mapreduce-yt", "yt/wrapper/yt2"])
+    scripts, data_files = prepare_files([
+        "yt/wrapper/mapreduce-yt",
+        "yt/wrapper/yt2",
+        "yt/wrapper/yt-fuse"])
     if "DEB" in os.environ:
         if not os.path.exists("docs"):
             subprocess.check_call("PYTHONPATH=$(pwd) sphinx-apidoc -F -o docs yt", shell=True)
