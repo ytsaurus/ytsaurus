@@ -207,6 +207,7 @@ class TestRetries(object):
             yt.config["write_retries"]["enable"] = old_enable_write_retries
 
     def test_http_retries(self):
+        random.seed(7)
         old_request_retry_timeout = yt.config["proxy"]["request_retry_timeout"]
         yt.config._ENABLE_HTTP_CHAOS_MONKEY = True
         yt.config["proxy"]["request_retry_timeout"] = 1000
