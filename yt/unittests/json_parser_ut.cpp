@@ -2,7 +2,7 @@
 
 #include <yt/ytlib/formats/json_parser.h>
 
-#include <yt/core/yson/consumer-mock.h>
+#include <yt/core/yson/consumer_mock.h>
 
 #include <util/string/base64.h>
 

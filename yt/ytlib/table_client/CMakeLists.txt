@@ -100,7 +100,7 @@ set( HDRS
   ${CMAKE_CURRENT_LIST_DIR}/unversioned_row.h
   ${CMAKE_CURRENT_LIST_DIR}/unversioned_writer.h
   ${CMAKE_CURRENT_LIST_DIR}/value_consumer.h
-  ${CMAKE_CURRENT_LIST_DIR}/value_consumer-mock.h
+  ${CMAKE_CURRENT_LIST_DIR}/value_consumer_mock.h
   ${CMAKE_CURRENT_LIST_DIR}/versioned_block_reader.h
   ${CMAKE_CURRENT_LIST_DIR}/versioned_block_writer.h
   ${CMAKE_CURRENT_LIST_DIR}/versioned_chunk_reader.h

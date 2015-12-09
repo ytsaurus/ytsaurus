@@ -1,6 +1,6 @@
 #include "framework.h"
 
-#include <yt/core/yson/consumer-mock.h>
+#include <yt/core/yson/consumer_mock.h>
 #include <yt/core/yson/writer.h>
 
 #include <yt/core/ytree/tree_builder.h>

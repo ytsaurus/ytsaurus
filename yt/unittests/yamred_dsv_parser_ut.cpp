@@ -2,7 +2,7 @@
 
 #include <yt/ytlib/formats/yamred_dsv_parser.h>
 
-#include <yt/core/yson/consumer-mock.h>
+#include <yt/core/yson/consumer_mock.h>
 
 namespace NYT {
 namespace NFormats {
