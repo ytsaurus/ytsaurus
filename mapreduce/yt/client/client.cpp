@@ -52,6 +52,7 @@ Stroka ToString(ENodeType type)
         case NT_LIST: return "list_node";
         case NT_FILE: return "file";
         case NT_TABLE: return "table";
+        case NT_DOCUMENT: return "document";
         default:
             LOG_FATAL("Invalid node type %i", static_cast<int>(type));
     }
