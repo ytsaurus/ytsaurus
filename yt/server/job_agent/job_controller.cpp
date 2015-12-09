@@ -87,14 +87,16 @@ TNodeResources TJobController::GetResourceLimits()
     result.set_cpu(Config_->ResourceLimits->Cpu);
     result.set_network(Config_->ResourceLimits->Network);
     result.set_replication_slots(Config_->ResourceLimits->ReplicationSlots);
+    result.set_replication_data_size(Config_->ResourceLimits->ReplicationDataSize);
     result.set_removal_slots(Config_->ResourceLimits->RemovalSlots);
     result.set_repair_slots(Config_->ResourceLimits->RepairSlots);
+    result.set_repair_data_size(Config_->ResourceLimits->RepairDataSize);
     result.set_seal_slots(Config_->ResourceLimits->SealSlots);
 
     const auto* tracker = Bootstrap_->GetMemoryUsageTracker();
     result.set_memory(std::min(
         tracker->GetLimit(EMemoryCategory::Jobs),
-        // NB: sum of the category limits can be greater than the total memory limit.
+        // NB: The sum of per-category limits can be greater than the total memory limit.
         // Therefore we need bound memory limit by actually available memory.
         tracker->GetUsed(EMemoryCategory::Jobs) + tracker->GetTotalFree()));
 
@@ -105,9 +107,9 @@ TNodeResources TJobController::GetResourceUsage(bool includeWaiting)
 {
     auto result = ZeroNodeResources();
     for (const auto& pair : Jobs_) {
-        if (includeWaiting || pair.second->GetState() != EJobState::Waiting) {
-            auto usage = pair.second->GetResourceUsage();
-            result += usage;
+        const auto& job = pair.second;
+        if (includeWaiting || job->GetState() != EJobState::Waiting) {
+            result += job->GetResourceUsage();
         }
     }
     return result;
@@ -279,7 +281,7 @@ void TJobController::PrepareHeartbeatRequest(
 
     for (const auto& pair : Jobs_) {
         const auto& jobId = pair.first;
-        auto job = pair.second;
+        const auto& job = pair.second;
         if (CellTagFromId(jobId) != cellTag)
             continue;
         if (TypeFromId(jobId) != jobObjectType)

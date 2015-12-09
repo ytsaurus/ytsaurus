@@ -137,7 +137,7 @@ private:
             &jobsToAbort,
             &jobsToRemove);
 
-        for (auto job : jobsToStart) {
+        for (const auto& job : jobsToStart) {
             const auto& chunkIdWithIndex = job->GetChunkIdWithIndex();
 
             auto* jobInfo = response->add_jobs_to_start();
@@ -152,12 +152,12 @@ private:
 
             switch (job->GetType()) {
                 case EJobType::ReplicateChunk: {
-                    auto* replciateChunkJobSpecExt = jobSpec->MutableExtension(TReplicateChunkJobSpecExt::replicate_chunk_job_spec_ext);
+                    auto* replicateChunkJobSpecExt = jobSpec->MutableExtension(TReplicateChunkJobSpecExt::replicate_chunk_job_spec_ext);
 
                     auto targetReplicas = AddressesToReplicas(job->TargetAddresses());
-                    ToProto(replciateChunkJobSpecExt->mutable_targets(), targetReplicas);
+                    ToProto(replicateChunkJobSpecExt->mutable_targets(), targetReplicas);
 
-                    NNodeTrackerServer::TNodeDirectoryBuilder builder(replciateChunkJobSpecExt->mutable_node_directory());
+                    NNodeTrackerServer::TNodeDirectoryBuilder builder(replicateChunkJobSpecExt->mutable_node_directory());
                     builder.Add(targetReplicas);
                     break;
                 }
@@ -202,11 +202,11 @@ private:
             }
         }
 
-        for (auto job : jobsToAbort) {
+        for (const auto& job : jobsToAbort) {
             ToProto(response->add_jobs_to_abort(), job->GetJobId());
         }
 
-        for (auto job : jobsToRemove) {
+        for (const auto& job : jobsToRemove) {
             ToProto(response->add_jobs_to_remove(), job->GetJobId());
         }
 
