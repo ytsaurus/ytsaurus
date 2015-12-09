@@ -2,11 +2,11 @@
 
 #include "public.h"
 
-#include <core/actions/future.h>
+#include <yt/server/cell_node/public.h>
 
-#include <server/hydra/public.h>
+#include <yt/server/hydra/public.h>
 
-#include <server/cell_node/public.h>
+#include <yt/core/actions/future.h>
 
 namespace NYT {
 namespace NDataNode {

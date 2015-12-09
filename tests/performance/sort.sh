@@ -1,4 +1,4 @@
-#!/bin/sh -eu
+#!/bin/bash -eu
 
 if [ "$SYSTEM" = "mapreduce" ]; then
     $MAPREDUCE -server "$SERVER" $PARAMS -src "$OUTPUT" -dst "$OUTPUT" -sort

@@ -2,11 +2,11 @@
 
 #include "public.h"
 
-#include <core/actions/callback.h>
+#include <yt/server/cell_node/public.h>
 
-#include <ytlib/chunk_client/public.h>
+#include <yt/ytlib/chunk_client/public.h>
 
-#include <server/cell_node/public.h>
+#include <yt/core/actions/callback.h>
 
 namespace NYT {
 namespace NDataNode {

@@ -3,11 +3,11 @@
 #include "public.h"
 #include "chunk_owner_base.h"
 
-#include <ytlib/chunk_client/chunk_owner_ypath_proxy.h>
-#include <ytlib/chunk_client/schema.h>
-#include <ytlib/chunk_client/read_limit.h>
+#include <yt/server/cypress_server/node_proxy_detail.h>
 
-#include <server/cypress_server/node_proxy_detail.h>
+#include <yt/ytlib/chunk_client/chunk_owner_ypath_proxy.h>
+#include <yt/ytlib/chunk_client/read_limit.h>
+#include <yt/ytlib/chunk_client/schema.h>
 
 namespace NYT {
 namespace NChunkServer {

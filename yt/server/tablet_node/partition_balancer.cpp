@@ -1,38 +1,39 @@
-#include "stdafx.h"
 #include "partition_balancer.h"
-#include "config.h"
-#include "tablet_slot.h"
-#include "slot_manager.h"
-#include "tablet_manager.h"
-#include "tablet.h"
-#include "partition.h"
-#include "store.h"
-#include "chunk_store.h"
 #include "private.h"
+#include "chunk_store.h"
+#include "config.h"
+#include "partition.h"
+#include "slot_manager.h"
+#include "store.h"
+#include "tablet.h"
+#include "tablet_manager.h"
+#include "tablet_slot.h"
 
-#include <core/concurrency/scheduler.h>
-#include <core/concurrency/async_semaphore.h>
+#include <yt/server/cell_node/bootstrap.h>
 
-#include <core/logging/log.h>
+#include <yt/server/hydra/hydra_manager.h>
+#include <yt/server/hydra/mutation.h>
 
-#include <ytlib/tablet_client/config.h>
+#include <yt/server/tablet_node/tablet_manager.pb.h>
 
-#include <ytlib/table_client/unversioned_row.h>
-#include <ytlib/table_client/samples_fetcher.h>
+#include <yt/ytlib/api/client.h>
 
-#include <ytlib/node_tracker_client/node_directory.h>
+#include <yt/ytlib/chunk_client/chunk_service_proxy.h>
+#include <yt/ytlib/chunk_client/chunk_spec.h>
 
-#include <ytlib/chunk_client/chunk_spec.h>
-#include <ytlib/chunk_client/chunk_service_proxy.h>
+#include <yt/ytlib/node_tracker_client/node_directory.h>
 
-#include <ytlib/api/client.h>
+#include <yt/ytlib/table_client/samples_fetcher.h>
+#include <yt/ytlib/table_client/unversioned_row.h>
 
-#include <server/hydra/hydra_manager.h>
-#include <server/hydra/mutation.h>
+#include <yt/ytlib/tablet_client/config.h>
 
-#include <server/tablet_node/tablet_manager.pb.h>
+#include <yt/core/concurrency/async_semaphore.h>
+#include <yt/core/concurrency/scheduler.h>
 
-#include <server/cell_node/bootstrap.h>
+#include <yt/core/logging/log.h>
+
+#include <yt/core/misc/common.h>
 
 namespace NYT {
 namespace NTabletNode {
@@ -195,6 +196,7 @@ private:
 
             TReqSplitPartition request;
             ToProto(request.mutable_tablet_id(), tablet->GetTabletId());
+            request.set_mount_revision(tablet->GetMountRevision());
             ToProto(request.mutable_partition_id(), partition->GetId());
             ToProto(request.mutable_pivot_keys(), pivotKeys);
 
@@ -246,6 +248,7 @@ private:
 
         TReqMergePartitions request;
         ToProto(request.mutable_tablet_id(), tablet->GetTabletId());
+        request.set_mount_revision(tablet->GetMountRevision());
         ToProto(request.mutable_partition_id(), tablet->Partitions()[firstPartitionIndex]->GetId());
         request.set_partition_count(lastPartitionIndex - firstPartitionIndex + 1);
 
@@ -298,6 +301,7 @@ private:
 
             TReqUpdatePartitionSampleKeys request;
             ToProto(request.mutable_tablet_id(), tablet->GetTabletId());
+            request.set_mount_revision(tablet->GetMountRevision());
             ToProto(request.mutable_partition_id(), partition->GetId());
             ToProto(request.mutable_sample_keys(), samples);
 
@@ -406,6 +410,7 @@ private:
         std::vector<TOwningKey> samples;
         for (const auto& sample : fetcher->GetSamples()) {
             YCHECK(!sample.Incomplete);
+            YCHECK(sample.Weight == 1);
             samples.push_back(sample.Key);
         }
 

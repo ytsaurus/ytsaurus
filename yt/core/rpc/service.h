@@ -2,15 +2,15 @@
 
 #include "public.h"
 
-#include <core/misc/ref.h>
+#include <yt/core/actions/signal.h>
 
-#include <core/actions/signal.h>
+#include <yt/core/bus/public.h>
 
-#include <core/bus/public.h>
+#include <yt/core/logging/log.h>
 
-#include <core/rpc/rpc.pb.h>
+#include <yt/core/misc/ref.h>
 
-#include <core/logging/log.h>
+#include <yt/core/rpc/rpc.pb.h>
 
 namespace NYT {
 namespace NRpc {
@@ -69,6 +69,16 @@ struct IServiceContext
 
     //! Parses the message and forwards to the client.
     virtual void Reply(TSharedRefArray message) = 0;
+
+    //! Called by the service request handler (prior to calling #Reply or #ReplyFrom) to indicate
+    //! that the bulk of the request processing is complete.
+    /*!
+     *  Both calling and handling this method is completely optional.
+     *
+     *  Upon receiving this call, the current RPC infrastructure decrements the queue size counters and
+     *  starts pumping more requests from the queue.
+     */
+    virtual void SetComplete() = 0;
 
     //! Raised when request processing is canceled.
     DECLARE_INTERFACE_SIGNAL(void(), Canceled);

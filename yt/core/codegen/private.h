@@ -1,7 +1,8 @@
 #pragma once
 
-#include <core/misc/assert.h>
-#include <core/logging/log.h>
+#include <yt/core/logging/log.h>
+
+#include <yt/core/misc/assert.h>
 
 namespace NYT {
 namespace NCodegen {

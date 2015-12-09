@@ -1,5 +1,6 @@
-#include "stdafx.h"
 #include "schemaless_block_writer.h"
+
+#include <yt/core/misc/common.h>
 
 namespace NYT {
 namespace NTableClient {

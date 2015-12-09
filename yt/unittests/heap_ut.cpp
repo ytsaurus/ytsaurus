@@ -1,7 +1,7 @@
-#include "stdafx.h"
 #include "framework.h"
 
-#include <core/misc/heap.h>
+#include <yt/core/misc/common.h>
+#include <yt/core/misc/heap.h>
 
 #include <vector>
 

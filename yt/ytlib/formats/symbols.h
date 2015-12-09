@@ -2,8 +2,8 @@
 
 #include "public.h"
 
-#include <vector>
 #include <string>
+#include <vector>
 
 #ifdef YT_USE_SSE42
 #   include <nmmintrin.h>
@@ -59,6 +59,12 @@ void WriteEscaped(
     char escapingSymbol);
 
 ui32 CalculateEscapedLength(
+    const TStringBuf& string,
+    const TLookupTable& lookupTable,
+    const TEscapeTable& escapeTable,
+    char escapingSymbol);
+
+Stroka Escape(
     const TStringBuf& string,
     const TLookupTable& lookupTable,
     const TEscapeTable& escapeTable,

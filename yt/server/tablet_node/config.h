@@ -2,27 +2,27 @@
 
 #include "public.h"
 
-#include <core/misc/config.h>
+#include <yt/server/data_node/config.h>
 
-#include <core/ytree/yson_serializable.h>
+#include <yt/server/hive/config.h>
 
-#include <core/compression/public.h>
+#include <yt/server/hydra/config.h>
 
-#include <core/rpc/config.h>
+#include <yt/server/tablet_node/config.h>
 
-#include <ytlib/misc/workload.h>
+#include <yt/ytlib/chunk_client/config.h>
 
-#include <ytlib/table_client/config.h>
+#include <yt/ytlib/misc/workload.h>
 
-#include <ytlib/chunk_client/config.h>
+#include <yt/ytlib/table_client/config.h>
 
-#include <server/hydra/config.h>
+#include <yt/core/compression/public.h>
 
-#include <server/hive/config.h>
+#include <yt/core/misc/config.h>
 
-#include <server/data_node/config.h>
+#include <yt/core/rpc/config.h>
 
-#include <server/tablet_node/config.h>
+#include <yt/core/ytree/yson_serializable.h>
 
 namespace NYT {
 namespace NTabletNode {
@@ -53,7 +53,6 @@ public:
     int MaxMemoryStoreKeyCount;
     int MaxMemoryStoreValueCount;
     i64 MaxMemoryStorePoolSize;
-    TDuration MemoryStoreAutoFlushPeriod;
 
     i64 MaxPartitionDataSize;
     i64 DesiredPartitionDataSize;
@@ -85,6 +84,9 @@ public:
 
     TNullable<ui64> ForcedCompactionRevision;
 
+    TDuration MemoryStoreAutoFlushPeriod;
+    TNullable<TDuration> AutoCompactionPeriod;
+
     TTableMountConfig()
     {
         RegisterParameter("max_memory_store_key_count", MaxMemoryStoreKeyCount)
@@ -99,8 +101,6 @@ public:
         RegisterParameter("max_memory_store_pool_size", MaxMemoryStorePoolSize)
             .GreaterThan(0)
             .Default((i64) 1024 * 1024 * 1024);
-        RegisterParameter("memory_store_auto_flush_period", MemoryStoreAutoFlushPeriod)
-            .Default(TDuration::Hours(1));
 
         RegisterParameter("max_partition_data_size", MaxPartitionDataSize)
             .Default((i64) 320 * 1024 * 1024)
@@ -164,6 +164,11 @@ public:
             .GreaterThan(0);
 
         RegisterParameter("forced_compaction_revision", ForcedCompactionRevision)
+            .Default(Null);
+
+        RegisterParameter("memory_store_auto_flush_period", MemoryStoreAutoFlushPeriod)
+            .Default(TDuration::Hours(1));
+        RegisterParameter("auto_compaction_period", AutoCompactionPeriod)
             .Default(Null);
 
         RegisterValidator([&] () {

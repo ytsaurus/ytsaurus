@@ -2,17 +2,17 @@
 
 #include "private.h"
 
-#include <core/rpc/public.h>
+#include <yt/ytlib/election/public.h>
 
-#include <core/misc/ref.h>
+#include <yt/ytlib/hydra/version.h>
 
-#include <core/concurrency/thread_affinity.h>
+#include <yt/core/concurrency/thread_affinity.h>
 
-#include <core/logging/log.h>
+#include <yt/core/logging/log.h>
 
-#include <ytlib/election/public.h>
+#include <yt/core/misc/ref.h>
 
-#include <ytlib/hydra/version.h>
+#include <yt/core/rpc/public.h>
 
 namespace NYT {
 namespace NHydra {

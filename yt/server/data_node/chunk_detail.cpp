@@ -1,16 +1,16 @@
-#include "stdafx.h"
 #include "chunk_detail.h"
+#include "private.h"
 #include "location.h"
 #include "session_manager.h"
-#include "private.h"
 
-#include <core/misc/fs.h>
+#include <yt/server/cell_node/bootstrap.h>
 
-#include <core/concurrency/thread_affinity.h>
+#include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 
-#include <server/cell_node/bootstrap.h>
+#include <yt/core/concurrency/thread_affinity.h>
 
-#include <ytlib/chunk_client/chunk_meta_extensions.h>
+#include <yt/core/misc/common.h>
+#include <yt/core/misc/fs.h>
 
 namespace NYT {
 namespace NDataNode {

@@ -1,12 +1,13 @@
-#include "stdafx.h"
 #include "periodic_executor.h"
 
-#include <core/actions/invoker_util.h>
-#include <core/actions/bind.h>
+#include <yt/core/actions/bind.h>
+#include <yt/core/actions/invoker_util.h>
 
-#include <core/concurrency/thread_affinity.h>
+#include <yt/core/concurrency/thread_affinity.h>
 
-#include <core/utilex/random.h>
+#include <yt/core/misc/common.h>
+
+#include <yt/core/utilex/random.h>
 
 namespace NYT {
 namespace NConcurrency {
@@ -41,6 +42,7 @@ TFuture<void> TPeriodicExecutor::Stop()
     TGuard<TSpinLock> guard(SpinLock_);
     if (Started_) {
         Started_ = false;
+        OutOfBandRequested_ = false;
         TDelayedExecutor::CancelAndClear(Cookie_);
     }
     return IdlePromise_;
@@ -51,6 +53,7 @@ void TPeriodicExecutor::ScheduleOutOfBand()
     TGuard<TSpinLock> guard(SpinLock_);
     if (!Started_)
         return;
+
     if (Busy_) {
         OutOfBandRequested_ = true;
     } else {
@@ -62,15 +65,16 @@ void TPeriodicExecutor::ScheduleOutOfBand()
 void TPeriodicExecutor::ScheduleNext()
 {
     TGuard<TSpinLock> guard(SpinLock_);
-    if (!Started_)
-        return;
-
+    
     // There several reasons why this may fail:
     // 1) Calling ScheduleNext outside of the periodic action
     // 2) Calling ScheduleNext more than once
     // 3) Calling ScheduleNext for an invoker in automatic mode
     YCHECK(Busy_);
     Busy_ = false;
+
+    if (!Started_)
+        return;
 
     if (OutOfBandRequested_) {
         OutOfBandRequested_ = false;
@@ -87,7 +91,7 @@ void TPeriodicExecutor::PostDelayedCallback(TDuration delay)
     TDelayedExecutor::CancelAndClear(Cookie_);
     Cookie_ = TDelayedExecutor::Submit(
         BIND(&TPeriodicExecutor::PostCallback, MakeWeak(this)),
-        delay);
+        delay); 
 }
 
 void TPeriodicExecutor::PostCallback()

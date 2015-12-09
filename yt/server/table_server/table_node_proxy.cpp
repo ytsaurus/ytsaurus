@@ -1,37 +1,36 @@
-#include "stdafx.h"
-#include "stdafx.h"
 #include "table_node_proxy.h"
-#include "table_node.h"
 #include "private.h"
+#include "table_node.h"
 
-#include <core/misc/string.h>
-#include <core/misc/serialize.h>
+#include <yt/server/cell_master/bootstrap.h>
 
-#include <core/erasure/codec.h>
+#include <yt/server/chunk_server/chunk.h>
+#include <yt/server/chunk_server/chunk_list.h>
+#include <yt/server/chunk_server/chunk_owner_node_proxy.h>
 
-#include <core/ytree/tree_builder.h>
-#include <core/ytree/ephemeral_node_factory.h>
+#include <yt/server/node_tracker_server/node_directory_builder.h>
 
-#include <core/ypath/token.h>
+#include <yt/server/tablet_server/tablet.h>
+#include <yt/server/tablet_server/tablet_cell.h>
+#include <yt/server/tablet_server/tablet_manager.h>
 
-#include <ytlib/tablet_client/config.h>
+#include <yt/ytlib/chunk_client/read_limit.h>
 
-#include <ytlib/table_client/table_ypath_proxy.h>
-#include <ytlib/table_client/schema.h>
+#include <yt/ytlib/table_client/schema.h>
+#include <yt/ytlib/table_client/table_ypath_proxy.h>
 
-#include <ytlib/chunk_client/read_limit.h>
+#include <yt/ytlib/tablet_client/config.h>
 
-#include <server/node_tracker_server/node_directory_builder.h>
+#include <yt/core/erasure/codec.h>
 
-#include <server/chunk_server/chunk.h>
-#include <server/chunk_server/chunk_list.h>
-#include <server/chunk_server/chunk_owner_node_proxy.h>
+#include <yt/core/misc/common.h>
+#include <yt/core/misc/serialize.h>
+#include <yt/core/misc/string.h>
 
-#include <server/tablet_server/tablet_manager.h>
-#include <server/tablet_server/tablet.h>
-#include <server/tablet_server/tablet_cell.h>
+#include <yt/core/ypath/token.h>
 
-#include <server/cell_master/bootstrap.h>
+#include <yt/core/ytree/ephemeral_node_factory.h>
+#include <yt/core/ytree/tree_builder.h>
 
 namespace NYT {
 namespace NTableServer {
@@ -368,10 +367,12 @@ private:
         i64 estimatedCompressedSize = request->estimated_compressed_size();
         context->SetRequestInfo(
             "FirstTabletIndex: %v, LastTabletIndex: %v, CellId: %v, "
-            "EstimatedUncompressedSize: %v, EsimatedCompressedSize: %v",
+            "EstimatedUncompressedSize: %v, EstimatedCompressedSize: %v",
             firstTabletIndex,
             lastTabletIndex,
-            cellId);
+            cellId,
+            estimatedUncompressedSize,
+            estimatedCompressedSize);
 
         ValidateNoTransaction();
         ValidatePermission(EPermissionCheckScope::This, EPermission::Administer);
@@ -492,6 +493,7 @@ private:
             auto* cell = tablet->GetCell();
             auto* protoTablet = response->add_tablets();
             ToProto(protoTablet->mutable_tablet_id(), tablet->GetId());
+            protoTablet->set_mount_revision(tablet->GetMountRevision());
             protoTablet->set_state(static_cast<int>(tablet->GetState()));
             ToProto(protoTablet->mutable_pivot_key(), tablet->GetPivotKey());
             if (cell) {

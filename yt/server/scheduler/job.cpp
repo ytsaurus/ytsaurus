@@ -1,9 +1,10 @@
-#include "stdafx.h"
 #include "job.h"
+#include "exec_node.h"
 #include "helpers.h"
 #include "operation.h"
-#include "exec_node.h"
 #include "operation_controller.h"
+
+#include <yt/core/misc/common.h>
 
 namespace NYT {
 namespace NScheduler {
@@ -84,6 +85,13 @@ TJobSummary::TJobSummary(const TJobId& id)
     , Id(id)
     , Statistics()
     , StatisticsSuffix()
+{ }
+
+////////////////////////////////////////////////////////////////////
+
+TCompletedJobSummary::TCompletedJobSummary(TJobPtr job, bool abandoned)
+    : TJobSummary(job)
+    , Abandoned(abandoned)
 { }
 
 ////////////////////////////////////////////////////////////////////

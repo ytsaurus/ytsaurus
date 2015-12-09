@@ -80,6 +80,7 @@ message TReqGetMountInfo
 message TTabletInfo
 {
     required NYT.NProto.TGuid tablet_id = 1;
+    required int64 mount_revision = 7;
     required int32 state = 2;
     required bytes pivot_key = 3;
     optional NYT.NProto.TGuid cell_id = 4;

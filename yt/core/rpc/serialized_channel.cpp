@@ -1,7 +1,8 @@
-#include "stdafx.h"
 #include "serialized_channel.h"
 #include "channel_detail.h"
 #include "client.h"
+
+#include <yt/core/misc/common.h>
 
 #include <queue>
 

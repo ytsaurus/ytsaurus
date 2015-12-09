@@ -1,29 +1,27 @@
-#include "stdafx.h"
-
 #include "multi_chunk_writer_base.h"
-
-#include "chunk_writer.h"
+#include "private.h"
 #include "chunk_replica.h"
+#include "chunk_writer.h"
 #include "chunk_writer_base.h"
 #include "config.h"
-#include "dispatcher.h"
-#include "private.h"
 #include "confirming_writer.h"
+#include "dispatcher.h"
 
-#include <ytlib/api/client.h>
-#include <ytlib/api/connection.h>
-#include <ytlib/api/config.h>
+#include <yt/ytlib/api/client.h>
+#include <yt/ytlib/api/config.h>
+#include <yt/ytlib/api/connection.h>
 
-#include <ytlib/node_tracker_client/node_directory.h>
+#include <yt/ytlib/chunk_client/chunk_spec.pb.h>
 
-#include <ytlib/chunk_client/chunk_spec.pb.h>
+#include <yt/ytlib/node_tracker_client/node_directory.h>
 
-#include <core/concurrency/scheduler.h>
+#include <yt/core/concurrency/scheduler.h>
 
-#include <core/misc/address.h>
+#include <yt/core/misc/address.h>
+#include <yt/core/misc/common.h>
 
-#include <core/rpc/channel.h>
-#include <core/rpc/helpers.h>
+#include <yt/core/rpc/channel.h>
+#include <yt/core/rpc/helpers.h>
 
 namespace NYT {
 namespace NChunkClient {

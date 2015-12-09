@@ -1,7 +1,8 @@
-#include "stdafx.h"
 #include "framework.h"
 
-#include <core/concurrency/nonblocking_queue.h>
+#include <yt/core/concurrency/nonblocking_queue.h>
+
+#include <yt/core/misc/common.h>
 
 namespace NYT {
 namespace NConcurrency {

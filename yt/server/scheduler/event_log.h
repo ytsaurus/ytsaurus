@@ -2,9 +2,9 @@
 
 #include "public.h"
 
-#include <core/misc/enum.h>
+#include <yt/core/misc/enum.h>
 
-#include <core/ytree/fluent.h>
+#include <yt/core/ytree/fluent.h>
 
 #include <atomic>
 

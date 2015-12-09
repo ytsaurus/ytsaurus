@@ -1,28 +1,28 @@
-#include "stdafx.h"
 #include "location.h"
 #include "private.h"
 #include "blob_chunk.h"
-#include "journal_chunk.h"
 #include "blob_reader_cache.h"
 #include "config.h"
 #include "disk_health_checker.h"
-#include "master_connector.h"
+#include "journal_chunk.h"
 #include "journal_dispatcher.h"
 #include "journal_manager.h"
+#include "master_connector.h"
 
-#include <core/misc/fs.h>
+#include <yt/server/cell_node/bootstrap.h>
+#include <yt/server/cell_node/config.h>
 
-#include <core/profiling/profile_manager.h>
+#include <yt/server/hydra/changelog.h>
+#include <yt/server/hydra/private.h>
 
-#include <ytlib/chunk_client/format.h>
+#include <yt/ytlib/chunk_client/format.h>
 
-#include <ytlib/object_client/helpers.h>
+#include <yt/ytlib/object_client/helpers.h>
 
-#include <server/hydra/changelog.h>
-#include <server/hydra/private.h>
+#include <yt/core/misc/common.h>
+#include <yt/core/misc/fs.h>
 
-#include <server/cell_node/bootstrap.h>
-#include <server/cell_node/config.h>
+#include <yt/core/profiling/profile_manager.h>
 
 namespace NYT {
 namespace NDataNode {
@@ -356,7 +356,9 @@ void TLocation::RemoveChunkFilesPermanently(const TChunkId& chunkId)
 
         for (const auto& name : partNames) {
             auto fileName = NFS::CombinePaths(directory, name);
-            NFS::Remove(fileName);
+            if (NFS::Exists(fileName)) {
+                NFS::Remove(fileName);
+            }
         }
 
         LOG_DEBUG("Finished removing chunk files (ChunkId: %v)", chunkId);
@@ -381,6 +383,14 @@ Stroka TLocation::GetRelativeChunkPath(const TChunkId& chunkId)
 {
     int hashByte = chunkId.Parts32[0] & 0xff;
     return NFS::CombinePaths(Format("%02x", hashByte), ToString(chunkId));
+}
+
+void TLocation::ForceHashDirectories(const Stroka& rootPath)
+{
+    for (int hashByte = 0; hashByte <= 0xff; ++hashByte) {
+        auto hashDirectory = Format("%02x", hashByte);
+        NFS::ForcePath(NFS::CombinePaths(rootPath, hashDirectory), ChunkFilesPermissions);
+    }
 }
 
 void TLocation::ValidateMinimumSpace()
@@ -428,13 +438,6 @@ void TLocation::ValidateLockFile()
 void TLocation::ValidateWritable()
 {
     NFS::ForcePath(GetPath(), ChunkFilesPermissions);
-    NFS::CleanTempFiles(GetPath());
-
-    // Force subdirectories.
-    for (int hashByte = 0; hashByte <= 0xff; ++hashByte) {
-        auto hashDirectory = Format("%02x", hashByte);
-        NFS::ForcePath(NFS::CombinePaths(GetPath(), hashDirectory), ChunkFilesPermissions);
-    }
 
     // Run first health check before to sort out read-only drives.
     HealthChecker_->RunCheck()
@@ -482,12 +485,12 @@ bool TLocation::ShouldSkipFileName(const Stroka& fileName) const
     return false;
 }
 
-void TLocation::DoAdditionalScan()
-{ }
-
 std::vector<TChunkDescriptor> TLocation::DoScan()
 {
     LOG_INFO("Scanning storage location");
+
+    NFS::CleanTempFiles(GetPath());
+    ForceHashDirectories(GetPath());
 
     yhash_set<TChunkId> chunkIds;
     {
@@ -521,8 +524,6 @@ std::vector<TChunkDescriptor> TLocation::DoScan()
     }
 
     LOG_INFO("Done, %v chunks found", descriptors.size());
-
-    DoAdditionalScan();
 
     return descriptors;
 }
@@ -829,7 +830,6 @@ TNullable<TChunkDescriptor> TStoreLocation::RepairBlobChunk(const TChunkId& chun
     return Null;
 }
 
-
 TNullable<TChunkDescriptor> TStoreLocation::RepairJournalChunk(const TChunkId& chunkId)
 {
     auto fileName = GetChunkPath(chunkId);
@@ -931,18 +931,13 @@ bool TStoreLocation::ShouldSkipFileName(const Stroka& fileName) const
     return false;
 }
 
-void TStoreLocation::DoAdditionalScan()
+std::vector<TChunkDescriptor> TStoreLocation::DoScan()
 {
-    NFS::ForcePath(GetTrashPath(), ChunkFilesPermissions);
-    NFS::CleanTempFiles(GetPath());
-
-    // Force subdirectories.
-    for (int hashByte = 0; hashByte <= 0xff; ++hashByte) {
-        auto hashDirectory = Format("%02x", hashByte);
-        NFS::ForcePath(NFS::CombinePaths(GetTrashPath(), hashDirectory), ChunkFilesPermissions);
-    }
+    auto result = TLocation::DoScan();
 
     LOG_INFO("Scanning storage trash");
+
+    ForceHashDirectories(GetTrashPath());
 
     yhash_set<TChunkId> trashChunkIds;
     {
@@ -966,6 +961,8 @@ void TStoreLocation::DoAdditionalScan()
     }
 
     LOG_INFO("Done, %v trash chunks found", trashChunkIds.size());
+
+    return result;
 }
 
 void TStoreLocation::DoStart()

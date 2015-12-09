@@ -1,14 +1,15 @@
-#include "stdafx.h"
 #include "framework.h"
 
-#include <core/actions/future.h>
-#include <core/actions/invoker_util.h>
-#include <core/actions/cancelable_context.h>
+#include <yt/core/actions/cancelable_context.h>
+#include <yt/core/actions/future.h>
+#include <yt/core/actions/invoker_util.h>
 
-#include <core/concurrency/parallel_awaiter.h>
+#include <yt/core/concurrency/parallel_awaiter.h>
+
+#include <yt/core/misc/common.h>
+#include <yt/core/misc/ref_counted_tracker.h>
 
 #include <util/system/thread.h>
-#include <core/misc/ref_counted_tracker.h>
 
 namespace NYT {
 namespace {

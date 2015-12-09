@@ -1,20 +1,21 @@
-#include "stdafx.h"
 #include "merge_controller.h"
 #include "private.h"
+#include "chunk_list_pool.h"
+#include "chunk_pool.h"
+#include "helpers.h"
+#include "job_resources.h"
+#include "map_controller.h"
 #include "operation_controller.h"
 #include "operation_controller_detail.h"
-#include "map_controller.h"
-#include "chunk_pool.h"
-#include "chunk_list_pool.h"
-#include "job_resources.h"
-#include "helpers.h"
 
-#include <ytlib/chunk_client/chunk_scraper.h>
-#include <ytlib/chunk_client/chunk_slice.h>
-#include <ytlib/chunk_client/chunk_meta_extensions.h>
+#include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
+#include <yt/ytlib/chunk_client/chunk_scraper.h>
+#include <yt/ytlib/chunk_client/chunk_slice.h>
 
-#include <ytlib/table_client/chunk_meta_extensions.h>
-#include <ytlib/table_client/chunk_slices_fetcher.h>
+#include <yt/ytlib/table_client/chunk_meta_extensions.h>
+#include <yt/ytlib/table_client/chunk_slices_fetcher.h>
+
+#include <yt/core/misc/common.h>
 
 namespace NYT {
 namespace NScheduler {

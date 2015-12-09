@@ -1,9 +1,9 @@
-#include "stdafx.h"
 #include "versioned_block_writer.h"
 
-#include <ytlib/transaction_client/public.h>
+#include <yt/ytlib/transaction_client/public.h>
 
-#include <core/misc/serialize.h>
+#include <yt/core/misc/common.h>
+#include <yt/core/misc/serialize.h>
 
 namespace NYT {
 namespace NTableClient {
@@ -190,6 +190,7 @@ i64 TSimpleVersionedBlockWriter::GetBlockSize() const
         KeyStream_.GetSize() +
         ValueStream_.GetSize() +
         TimestampStream_.GetSize() +
+        StringDataStream_.GetSize() +
         KeyNullFlags_.Size() +
         ValueNullFlags_.Size();
 }

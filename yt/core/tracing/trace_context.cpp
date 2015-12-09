@@ -1,11 +1,11 @@
-#include "stdafx.h"
 #include "trace_context.h"
-#include "trace_manager.h"
 #include "private.h"
+#include "trace_manager.h"
 
-#include <core/concurrency/fls.h>
+#include <yt/core/concurrency/fls.h>
 
-#include <core/misc/guid.h>
+#include <yt/core/misc/common.h>
+#include <yt/core/misc/guid.h>
 
 namespace NYT {
 namespace NTracing {

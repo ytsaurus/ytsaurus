@@ -2,12 +2,11 @@
 
 #include "public.h"
 #include "row_sampler.h"
-
 #include "schemaless_chunk_reader.h"
 
-#include <core/logging/log.h>
+#include <yt/core/logging/log.h>
 
-#include <core/yson/lexer.h>
+#include <yt/core/yson/lexer.h>
 
 namespace NYT {
 namespace NTableClient {

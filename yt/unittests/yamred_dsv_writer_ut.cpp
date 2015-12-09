@@ -1,7 +1,15 @@
-#include "stdafx.h"
 #include "framework.h"
 
-#include <ytlib/formats/yamred_dsv_writer.h>
+#include <yt/ytlib/formats/yamred_dsv_writer.h>
+
+#include <yt/ytlib/table_client/name_table.h>
+#include <yt/ytlib/table_client/unversioned_row.h>
+
+#include <yt/core/concurrency/async_stream.h>
+
+#include <yt/core/misc/common.h>
+
+#include <util/string/vector.h>
 
 namespace NYT {
 namespace NFormats {
@@ -9,279 +17,354 @@ namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(TYamredDsvWriterTest, Simple)
+using namespace NYTree;
+using namespace NYson;
+using namespace NConcurrency;
+using namespace NTableClient;
+
+class TSchemalessWriterForYamredDsvTest
+    : public ::testing::Test
 {
-    TStringStream outputStream;
-    auto config = New<TYamredDsvFormatConfig>();
-    config->HasSubkey = true;
-    config->KeyColumnNames.push_back("key_a");
-    config->KeyColumnNames.push_back("key_b");
-    TYamredDsvConsumer consumer(&outputStream, config);
+protected:
+    TNameTablePtr NameTable_;
+    TYamredDsvFormatConfigPtr Config_;
+    TSchemalessWriterForYamredDsvPtr Writer_;
 
-    consumer.OnListItem();
-    consumer.OnBeginMap();
-        consumer.OnKeyedItem("key_a");
-        consumer.OnStringScalar("a");
-        consumer.OnKeyedItem("key_b");
-        consumer.OnStringScalar("b");
-    consumer.OnEndMap();
+    TStringStream OutputStream_;
 
-    consumer.OnListItem();
-    consumer.OnBeginMap();
-        consumer.OnKeyedItem("key_b");
-        consumer.OnStringScalar("1");
-        consumer.OnKeyedItem("column");
-        consumer.OnStringScalar("2");
-        consumer.OnKeyedItem("subkey");
-        consumer.OnStringScalar("3");
-        consumer.OnKeyedItem("null");
-        consumer.OnEntity();
-        consumer.OnKeyedItem("key_a");
-        consumer.OnStringScalar("xxx");
-    consumer.OnEndMap();
-
-    Stroka output =
-        "a b\t\t\n"
-        "xxx 1\t\tcolumn=2\tsubkey=3\n";
-
-    EXPECT_EQ(output, outputStream.Str());
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TEST(TYamredDsvWriterTest, RowIndex)
-{
-    TStringStream outputStream;
-    auto config = New<TYamredDsvFormatConfig>();
-    config->Lenval = true;
-    TYamredDsvConsumer consumer(&outputStream, config);
-
-    consumer.OnListItem();
-    consumer.OnBeginAttributes();
-        consumer.OnKeyedItem("row_index");
-        consumer.OnInt64Scalar(10);
-    consumer.OnEndAttributes();
-    consumer.OnEntity();
-
-    Stroka output(
-        "\xfc\xff\xff\xff" "\x0a\x00\x00\x00" "\x00\x00\x00\x00",
-        4 + 4 + 4);
-
-    EXPECT_EQ(output, outputStream.Str());
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TEST(TYamredDsvWriterTest, TestLiveConditions)
-{
-    TStringStream outputStream;
-    auto config = New<TYamredDsvFormatConfig>();
-    config->KeyColumnNames.push_back("key_a");
-    config->KeyColumnNames.push_back("key_b");
-    TYamredDsvConsumer consumer(&outputStream, config);
-
+    int KeyAId_;
+    int KeyBId_;
+    int KeyCId_;
+    int ValueXId_;
+    int ValueYId_;
+    
+    TSchemalessWriterForYamredDsvTest() 
     {
-        Stroka keyA = "key_a";
-        Stroka a = "a";
-        Stroka keyB = "key_b";
-        Stroka b = "b";
-        consumer.OnListItem();
-        consumer.OnBeginMap();
-            consumer.OnKeyedItem(keyA);
-            consumer.OnStringScalar(a);
-            consumer.OnKeyedItem(keyB);
-            consumer.OnStringScalar(b);
-        consumer.OnEndMap();
+        NameTable_ = New<TNameTable>();
+        KeyAId_ = NameTable_->RegisterName("key_a");
+        KeyBId_ = NameTable_->RegisterName("key_b");
+        KeyCId_ = NameTable_->RegisterName("key_c");
+        ValueXId_ = NameTable_->RegisterName("value_x");
+        ValueYId_ = NameTable_->RegisterName("value_y");
+        Config_ = New<TYamredDsvFormatConfig>();
     }
 
-    // Make some allocations!
-    for (int i = 0; i < 100; ++i) {
-        std::vector<int> x(i);
-        for (int j = 0; j < x.size(); ++j) {
-            x[j] = j;
+    void CreateStandardWriter() 
+    {
+        Writer_ = New<TSchemalessWriterForYamredDsv>(
+            NameTable_,
+            CreateAsyncAdapter(static_cast<TOutputStream*>(&OutputStream_)),
+            false, // enableContextSaving  
+            false, // enableKeySwitch
+            0, // keyColumnCount
+            Config_);
+    }
+
+    // Splits output into key and sorted vector of values that are entries of the last YAMR column.
+    // Returns true if success (there are >= 2 values after splitting by field separator), otherwise false.
+    bool ExtractKeyValue(Stroka output, Stroka& key, VectorStrok& value, char fieldSeparator = '\t') 
+    {
+        char delimiter[2] = {fieldSeparator, 0}; 
+        // Splitting by field separator.
+        value = splitStroku(output, delimiter, 0 /* maxFields */, KEEP_EMPTY_TOKENS);
+        // We should at least have key and the rest of values.
+        if (value.size() < 2)
+            return false;
+        key = value[0];
+        value.erase(value.begin());
+        std::sort(value.begin(), value.end());
+        return true;
+    }
+
+    // The same function as previous, version with subkey.
+    bool ExtractKeySubkeyValue(Stroka output, Stroka& key, Stroka& subkey, VectorStrok& value, char fieldSeparator = '\t')
+    {
+        char delimiter[2] = {fieldSeparator, 0}; 
+        // Splitting by field separator.
+        value = splitStroku(output, delimiter, 0 /* maxFields */, KEEP_EMPTY_TOKENS);         
+        // We should at least have key, subkey and the rest of values.
+        if (value.size() < 3) 
+           return false;
+        key = value[0];
+        subkey = value[1];
+        value.erase(value.begin(), value.end());
+        std::sort(value.begin(), value.end());
+        return true; 
+    }
+
+    // Compares output and expected output ignoring the order of entries in YAMR value column.
+    void CompareKeyValue(Stroka output, Stroka expected, char recordSeparator = '\n', char fieldSeparator = '\t')
+    {
+        char delimiter[2] = {recordSeparator, 0};
+        VectorStrok outputRows = splitStroku(output, delimiter, 0 /* maxFields */ , KEEP_EMPTY_TOKENS);
+        VectorStrok expectedRows = splitStroku(expected, delimiter, 0 /* maxFields */, KEEP_EMPTY_TOKENS);
+        EXPECT_EQ(outputRows.size(), expectedRows.size());
+        // Since there is \n after each row, there will be an extra empty string in both vectors.
+        EXPECT_EQ(outputRows.back(), "");
+        ASSERT_EQ(expectedRows.back(), "");
+        outputRows.pop_back();
+        expectedRows.pop_back();
+        
+        Stroka outputKey;
+        Stroka expectedKey;
+        VectorStrok outputValue;
+        VectorStrok expectedValue;
+        for (int rowIndex = 0; rowIndex < static_cast<int>(outputRows.size()); rowIndex++) {
+            EXPECT_TRUE(ExtractKeyValue(outputRows[rowIndex], outputKey, outputValue, fieldSeparator));
+            ASSERT_TRUE(ExtractKeyValue(expectedRows[rowIndex], expectedKey, expectedValue, fieldSeparator));
+            EXPECT_EQ(outputKey, expectedKey);
+            EXPECT_EQ(outputValue, expectedValue);
         }
     }
 
+    // The same function as previous, version with subkey.
+    void CompareKeySubkeyValue(Stroka output, Stroka expected, char recordSeparator = '\n', char fieldSeparator = '\t')
     {
-        Stroka keyA = "key_a";
-        Stroka a = "_a_";
-        Stroka keyB = "key_b";
-        Stroka b = "xbx";
-        consumer.OnListItem();
-        consumer.OnBeginMap();
-            consumer.OnKeyedItem(keyA);
-            consumer.OnStringScalar(a);
-            consumer.OnKeyedItem(keyB);
-            consumer.OnStringScalar(b);
-        consumer.OnEndMap();
+        char delimiter[2] = {recordSeparator, 0};
+        VectorStrok outputRows = splitStroku(output, delimiter, 0 /* maxFields */ , KEEP_EMPTY_TOKENS);
+        VectorStrok expectedRows = splitStroku(expected, delimiter, 0 /* maxFields */, KEEP_EMPTY_TOKENS);
+        EXPECT_EQ(outputRows.size(), expectedRows.size());
+        // Since there is \n after each row, there will be an extra empty string in both vectors.
+        EXPECT_EQ(outputRows.back(), "");
+        ASSERT_EQ(expectedRows.back(), "");
+        outputRows.pop_back();
+        expectedRows.pop_back();
+        
+        Stroka outputKey;
+        Stroka expectedKey;
+        Stroka outputSubkey;
+        Stroka expectedSubkey;
+        VectorStrok outputValue;
+        VectorStrok expectedValue;
+        for (int rowIndex = 0; rowIndex < static_cast<int>(outputRows.size()); rowIndex++) {
+            EXPECT_TRUE(ExtractKeySubkeyValue(outputRows[rowIndex], outputKey, outputSubkey, outputValue, fieldSeparator));
+            ASSERT_TRUE(ExtractKeySubkeyValue(expectedRows[rowIndex], expectedKey, expectedSubkey, expectedValue, fieldSeparator));
+            EXPECT_EQ(outputKey, expectedKey);
+            EXPECT_EQ(outputSubkey, expectedSubkey);
+            EXPECT_EQ(outputValue, expectedValue);
+        }
     }
+};
 
-    Stroka output =
-        "a b\t\n"
-        "_a_ xbx\t\n";
+////////////////////////////////////////////////////////////////////////////////
 
-    EXPECT_EQ(output, outputStream.Str());
+TEST_F(TSchemalessWriterForYamredDsvTest, Simple) 
+{
+    Config_->KeyColumnNames.emplace_back("key_a");
+    CreateStandardWriter();
+
+    TUnversionedRowBuilder row1;
+    row1.AddValue(MakeUnversionedStringValue("a1", KeyAId_));
+    row1.AddValue(MakeUnversionedStringValue("x", ValueXId_));
+    row1.AddValue(MakeUnversionedSentinelValue(EValueType::Null, ValueYId_));
+
+    TUnversionedRowBuilder row2;
+    row2.AddValue(MakeUnversionedStringValue("a2", KeyAId_));
+    row2.AddValue(MakeUnversionedStringValue("y", ValueYId_));
+    row2.AddValue(MakeUnversionedStringValue("b", KeyBId_));
+    
+    std::vector<TUnversionedRow> rows = {row1.GetRow(), row2.GetRow()};
+    
+    EXPECT_EQ(true, Writer_->Write(rows));
+    Writer_->Close()
+        .Get()
+        .ThrowOnError();
+
+    Stroka expectedOutput =
+        "a1\tvalue_x=x\n"
+        "a2\tvalue_y=y\tkey_b=b\n";
+   
+    Stroka output = OutputStream_.Str(); 
+
+    CompareKeyValue(expectedOutput, output); 
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(TYamredDsvWriterTest, WithoutSubkey)
+TEST_F(TSchemalessWriterForYamredDsvTest, SimpleWithSubkey)
 {
-    TStringStream outputStream;
-    auto config = New<TYamredDsvFormatConfig>();
-    config->HasSubkey = false;
-    config->KeyColumnNames.push_back("key_a");
-    config->KeyColumnNames.push_back("key_b");
-    config->SubkeyColumnNames.push_back("subkey");
-    TYamredDsvConsumer consumer(&outputStream, config);
+    Config_->HasSubkey = true;
+    Config_->KeyColumnNames.emplace_back("key_a");
+    Config_->KeyColumnNames.emplace_back("key_b");
+    Config_->SubkeyColumnNames.emplace_back("key_c");
+    CreateStandardWriter();
 
-    consumer.OnListItem();
-    consumer.OnBeginMap();
-        consumer.OnKeyedItem("key_a");
-        consumer.OnStringScalar("a");
-        consumer.OnKeyedItem("key_b");
-        consumer.OnStringScalar("b");
-        consumer.OnKeyedItem("column");
-        consumer.OnStringScalar("value");
-    consumer.OnEndMap();
+    TUnversionedRowBuilder row1;
+    row1.AddValue(MakeUnversionedStringValue("a", KeyAId_));
+    row1.AddValue(MakeUnversionedStringValue("b1", KeyBId_));
+    row1.AddValue(MakeUnversionedStringValue("c", KeyCId_));
 
-    consumer.OnListItem();
-    consumer.OnBeginMap();
-        consumer.OnKeyedItem("key_b");
-        consumer.OnStringScalar("1");
-        consumer.OnKeyedItem("column");
-        consumer.OnStringScalar("2");
-        consumer.OnKeyedItem("subkey");
-        consumer.OnStringScalar("3");
-        consumer.OnKeyedItem("key_a");
-        consumer.OnStringScalar("xxx");
-    consumer.OnEndMap();
+    TUnversionedRowBuilder row2;
+    row2.AddValue(MakeUnversionedStringValue("a", KeyAId_));
+    row2.AddValue(MakeUnversionedStringValue("b2", KeyBId_));
+    row2.AddValue(MakeUnversionedStringValue("c", KeyCId_));
+    
+    std::vector<TUnversionedRow> rows = {row1.GetRow(), row2.GetRow()};
+   
+    EXPECT_EQ(true, Writer_->Write(rows));
+    Writer_->Close()
+        .Get()
+        .ThrowOnError();
 
-    Stroka output =
-        "a b\tcolumn=value\n"
-        "xxx 1\tcolumn=2\n";
+    Stroka expectedOutput =
+        "a b1\tc\t\n"
+        "a b2\tc\t\n";
+   
+    Stroka output = OutputStream_.Str(); 
 
-    EXPECT_EQ(output, outputStream.Str());
+    CompareKeySubkeyValue(expectedOutput, output); 
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(TYamredDsvWriterTest, Escaping)
+TEST_F(TSchemalessWriterForYamredDsvTest, Lenval)
 {
-    TStringStream outputStream;
-    auto config = New<TYamredDsvFormatConfig>();
-    config->HasSubkey = false;
-    config->KeyColumnNames.push_back("key_a");
-    config->KeyColumnNames.push_back("key_b");
-    config->SubkeyColumnNames.push_back("subkey");
-    TYamredDsvConsumer consumer(&outputStream, config);
+    Config_->Lenval = true;
+    Config_->HasSubkey = true;
+    Config_->EnableTableIndex = true;
+    Config_->KeyColumnNames.emplace_back("key_a");
+    Config_->KeyColumnNames.emplace_back("key_b");
+    Config_->SubkeyColumnNames.emplace_back("key_c");
+    CreateStandardWriter();
 
-    consumer.OnListItem();
-    consumer.OnBeginMap();
-        consumer.OnKeyedItem("key_a");
-        consumer.OnStringScalar("a\n");
-        consumer.OnKeyedItem("key_b");
-        consumer.OnStringScalar("\nb\t");
-        consumer.OnKeyedItem("column");
-        consumer.OnStringScalar("\nva\\lue\t");
-    consumer.OnEndMap();
+    TUnversionedRowBuilder row1;
+    row1.AddValue(MakeUnversionedStringValue("a", KeyAId_));
+    row1.AddValue(MakeUnversionedStringValue("b1", KeyBId_));
+    row1.AddValue(MakeUnversionedStringValue("c", KeyCId_));
+    row1.AddValue(MakeUnversionedStringValue("x", ValueXId_));
 
-    Stroka output = "a\\n \\nb\\t\tcolumn=\\nva\\\\lue\\t\n";
 
-    EXPECT_EQ(output, outputStream.Str());
+    TUnversionedRowBuilder row2;
+    row2.AddValue(MakeUnversionedStringValue("a", KeyAId_));
+    row2.AddValue(MakeUnversionedStringValue("b2", KeyBId_));
+    row2.AddValue(MakeUnversionedStringValue("c", KeyCId_));
+    
+    std::vector<TUnversionedRow> rows = {row1.GetRow(), row2.GetRow()};
+   
+    Writer_->WriteTableIndex(42);
+    Writer_->WriteRangeIndex(23);
+    EXPECT_EQ(true, Writer_->Write(rows));
+    Writer_->WriteRowIndex(17);
+
+    Writer_->Close()
+        .Get()
+        .ThrowOnError();
+
+    // ToDo(makhmedov): compare Yamr values ignoring the order of entries.
+    Stroka expectedOutput = Stroka(
+        "\xff\xff\xff\xff" "\x2a\x00\x00\x00" // Table index.
+        "\xfd\xff\xff\xff" "\x17\x00\x00\x00" // Row index.
+
+        "\x04\x00\x00\x00" "a b1"
+        "\x01\x00\x00\x00" "c"
+        "\x09\x00\x00\x00" "value_x=x"
+
+        "\x04\x00\x00\x00" "a b2"
+        "\x01\x00\x00\x00" "c"
+        "\x00\x00\x00\x00" ""
+
+        "\xfc\xff\xff\xff" "\x11\x00\x00\x00\x00\x00\x00\x00",
+        13 * 4 + 4 + 1 + 9 + 4 + 1 + 0
+    );
+
+    Stroka output = OutputStream_.Str(); 
+    
+    EXPECT_EQ(expectedOutput, output);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(TYamredDsvWriterTest, Lenval)
+TEST_F(TSchemalessWriterForYamredDsvTest, Escaping)
 {
-    TStringStream outputStream;
-    auto config = New<TYamredDsvFormatConfig>();
-    config->Lenval = true;
-    config->HasSubkey = true;
-    config->KeyColumnNames.push_back("key_a");
-    config->KeyColumnNames.push_back("key_b");
-    config->SubkeyColumnNames.push_back("subkey");
-    TYamredDsvConsumer consumer(&outputStream, config);
+    Config_->KeyColumnNames.emplace_back("key_a");
+    Config_->KeyColumnNames.emplace_back("key_b");
+    CreateStandardWriter();
+    
+    TUnversionedRowBuilder row1;
+    row1.AddValue(MakeUnversionedStringValue("a\n", KeyAId_));
+    row1.AddValue(MakeUnversionedStringValue("\nb\t", KeyBId_));
+    row1.AddValue(MakeUnversionedStringValue("\nva\\lue\t", ValueXId_));
+ 
+    std::vector<TUnversionedRow> rows = {row1.GetRow()};
 
-    consumer.OnListItem();
-    consumer.OnBeginMap();
-        consumer.OnKeyedItem("subkey");
-        consumer.OnStringScalar("xxx");
-        consumer.OnKeyedItem("key_a");
-        consumer.OnStringScalar("a");
-        consumer.OnKeyedItem("column");
-        consumer.OnStringScalar("value");
-        consumer.OnKeyedItem("key_b");
-        consumer.OnStringScalar("b");
-    consumer.OnEndMap();
+    EXPECT_EQ(true, Writer_->Write(rows));
+    Writer_->Close()
+        .Get()
+        .ThrowOnError();
+    
+    Stroka expectedOutput = "a\\n \\nb\\t\tvalue_x=\\nva\\\\lue\\t\n";
+    Stroka output = OutputStream_.Str();
 
-    Stroka output = Stroka(
-        "\x03\x00\x00\x00" "a b"
-        "\x03\x00\x00\x00" "xxx"
-        "\x0C\x00\x00\x00" "column=value"
-        , 3 * 4 + 3 + 3 + 12
-    );
-
-    EXPECT_EQ(output, outputStream.Str());
+    EXPECT_EQ(expectedOutput, output);
 }
 
-TEST(TYamredDsvWriterTest, TableIndex)
+////////////////////////////////////////////////////////////////////////////////
+
+TEST_F(TSchemalessWriterForYamredDsvTest, SkippedKey)
 {
-    TStringStream outputStream;
-    auto config = New<TYamredDsvFormatConfig>();
-    config->Lenval = true;
-    config->EnableTableIndex = true;
-    config->KeyColumnNames.push_back("key");
-    TYamredDsvConsumer consumer(&outputStream, config);
+    Config_->KeyColumnNames.emplace_back("key_a");
+    Config_->KeyColumnNames.emplace_back("key_b");
+    CreateStandardWriter();
 
-    consumer.OnListItem();
-    consumer.OnBeginAttributes();
-        consumer.OnKeyedItem("table_index");
-        consumer.OnInt64Scalar(0);
-    consumer.OnEndAttributes();
-    consumer.OnEntity();
+    TUnversionedRowBuilder row;
+    row.AddValue(MakeUnversionedStringValue("b", KeyBId_));
 
-    consumer.OnBeginMap();
-        consumer.OnKeyedItem("key");
-        consumer.OnStringScalar("x");
-        consumer.OnKeyedItem("value");
-        consumer.OnStringScalar("y");
-    consumer.OnEndMap();
+    std::vector<TUnversionedRow> rows = { row.GetRow() };
 
-    Stroka output = Stroka(
-        "\xff\xff\xff\xff" "\x00\x00\x00\x00"
-        "\x01\x00\x00\x00" "x"
-        "\x07\x00\x00\x00" "value=y"
-        , 4 + 4 + 2 * 4 + 1 + 7
-    );
+    EXPECT_FALSE(Writer_->Write(rows));
 
-    EXPECT_EQ(output, outputStream.Str());
+    EXPECT_THROW(Writer_->Close()
+                     .Get()
+                     .ThrowOnError(), std::exception);
 }
 
-TEST(TYamredDsvWriterTest, EscapingInLenval)
+////////////////////////////////////////////////////////////////////////////////
+
+TEST_F(TSchemalessWriterForYamredDsvTest, SkippedSubkey)
 {
-    TStringStream outputStream;
-    auto config = New<TYamredDsvFormatConfig>();
-    config->Lenval = true;
-    config->KeyColumnNames.push_back("key");
-    TYamredDsvConsumer consumer(&outputStream, config);
+    Config_->HasSubkey = true;
+    Config_->KeyColumnNames.emplace_back("key_a");
+    Config_->SubkeyColumnNames.emplace_back("key_c");
+    CreateStandardWriter();
 
-    consumer.OnListItem();
-    consumer.OnBeginMap();
-        consumer.OnKeyedItem("key");
-        consumer.OnStringScalar("\tx");
-        consumer.OnKeyedItem("value");
-        consumer.OnStringScalar("\ty");
-    consumer.OnEndMap();
+    TUnversionedRowBuilder row;
+    row.AddValue(MakeUnversionedStringValue("a", KeyAId_));
 
-    Stroka output = Stroka(
-        "\x03\x00\x00\x00" "\\tx"
-        "\x09\x00\x00\x00" "value=\\ty"
-        , 2 * 4 + 3 + 9
-    );
+    std::vector<TUnversionedRow> rows = { row.GetRow() };
 
-    EXPECT_EQ(output, outputStream.Str());
+    EXPECT_FALSE(Writer_->Write(rows));
+
+    EXPECT_THROW(Writer_->Close()
+                     .Get()
+                     .ThrowOnError(), std::exception);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST_F(TSchemalessWriterForYamredDsvTest, ErasingSubkeyColumnsWhenHasSubkeyIsFalse)
+{
+    Config_->KeyColumnNames.emplace_back("key_a");
+    Config_->SubkeyColumnNames.emplace_back("key_b");
+    // Config->HasSubkey = false by default.
+    CreateStandardWriter();
+    
+    TUnversionedRowBuilder row1;
+    row1.AddValue(MakeUnversionedStringValue("a", KeyAId_));
+    row1.AddValue(MakeUnversionedStringValue("b", KeyBId_));
+    row1.AddValue(MakeUnversionedStringValue("c", KeyCId_));
+    row1.AddValue(MakeUnversionedStringValue("x", ValueXId_));
+ 
+    std::vector<TUnversionedRow> rows = {row1.GetRow()};
+
+    EXPECT_EQ(true, Writer_->Write(rows));
+    Writer_->Close()
+        .Get()
+        .ThrowOnError();
+    
+    Stroka expectedOutput = "a\tkey_c=c\tvalue_x=x\n";
+    Stroka output = OutputStream_.Str();
+
+    EXPECT_EQ(expectedOutput, output);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

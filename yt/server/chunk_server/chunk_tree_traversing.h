@@ -2,11 +2,11 @@
 
 #include "private.h"
 
-#include <core/misc/error.h>
+#include <yt/server/cell_master/public.h>
 
-#include <ytlib/chunk_client/read_limit.h>
+#include <yt/ytlib/chunk_client/read_limit.h>
 
-#include <server/cell_master/public.h>
+#include <yt/core/misc/error.h>
 
 namespace NYT {
 namespace NChunkServer {

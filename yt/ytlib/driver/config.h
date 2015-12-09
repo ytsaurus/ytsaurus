@@ -2,21 +2,21 @@
 
 #include "public.h"
 
-#include <core/ytree/yson_serializable.h>
+#include <yt/ytlib/api/config.h>
 
-#include <core/rpc/retrying_channel.h>
+#include <yt/ytlib/hive/config.h>
 
-#include <ytlib/hydra/config.h>
+#include <yt/ytlib/hydra/config.h>
 
-#include <ytlib/transaction_client/config.h>
+#include <yt/ytlib/scheduler/config.h>
 
-#include <ytlib/table_client/config.h>
+#include <yt/ytlib/table_client/config.h>
 
-#include <ytlib/scheduler/config.h>
+#include <yt/ytlib/transaction_client/config.h>
 
-#include <ytlib/hive/config.h>
+#include <yt/core/rpc/retrying_channel.h>
 
-#include <ytlib/api/config.h>
+#include <yt/core/ytree/yson_serializable.h>
 
 namespace NYT {
 namespace NDriver {

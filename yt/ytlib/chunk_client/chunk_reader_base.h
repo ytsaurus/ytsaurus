@@ -1,7 +1,6 @@
 #pragma once
 
 #include "public.h"
-
 #include "data_statistics.h"
 #include "reader_base.h"
 

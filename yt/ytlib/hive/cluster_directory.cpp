@@ -1,12 +1,12 @@
 #include "cluster_directory.h"
 
-#include <core/ytree/convert.h>
+#include <yt/ytlib/api/client.h>
+#include <yt/ytlib/api/config.h>
+#include <yt/ytlib/api/connection.h>
 
-#include <core/concurrency/scheduler.h>
+#include <yt/core/concurrency/scheduler.h>
 
-#include <ytlib/api/config.h>
-#include <ytlib/api/connection.h>
-#include <ytlib/api/client.h>
+#include <yt/core/ytree/convert.h>
 
 namespace NYT {
 namespace NHive {

@@ -89,6 +89,8 @@ function YtDriverFacadeV2(driver)
 
     delete descriptors.dump_job_context;
     delete descriptors.strace_job;
+    delete descriptors.signal_job;
+    delete descriptors.abandon_job;
 
     delete descriptors.join_reduce;
 

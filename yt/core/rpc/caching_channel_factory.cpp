@@ -1,10 +1,11 @@
-#include "stdafx.h"
 #include "caching_channel_factory.h"
-#include "channel_detail.h"
 #include "channel.h"
+#include "channel_detail.h"
 #include "client.h"
 
-#include <core/concurrency/rw_spinlock.h>
+#include <yt/core/concurrency/rw_spinlock.h>
+
+#include <yt/core/misc/common.h>
 
 namespace NYT {
 namespace NRpc {

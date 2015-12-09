@@ -4,12 +4,12 @@
 #include "function.h"
 #include "routine_registry.h"
 
-#include <llvm/IR/Module.h>
-#include <llvm/IR/Function.h>
-#include <llvm/IR/TypeBuilder.h>
-#include <llvm/ExecutionEngine/ExecutionEngine.h>
-
 #include <memory>
+
+#include <llvm/ExecutionEngine/ExecutionEngine.h>
+#include <llvm/IR/Function.h>
+#include <llvm/IR/Module.h>
+#include <llvm/IR/TypeBuilder.h>
 
 namespace NYT {
 namespace NCodegen {

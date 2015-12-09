@@ -1,6 +1,7 @@
-#include "stdafx.h"
 #include "local_server.h"
 #include "server_detail.h"
+
+#include <yt/core/misc/common.h>
 
 namespace NYT {
 namespace NRpc {

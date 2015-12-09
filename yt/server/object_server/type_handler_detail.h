@@ -1,14 +1,14 @@
 #pragma once
 
-#include "type_handler.h"
 #include "object_detail.h"
 #include "object_manager.h"
+#include "type_handler.h"
 
-#include <server/hydra/entity_map.h>
+#include <yt/server/cell_master/bootstrap.h>
 
-#include <server/cell_master/bootstrap.h>
+#include <yt/server/hydra/entity_map.h>
 
-#include <server/transaction_server/public.h>
+#include <yt/server/transaction_server/public.h>
 
 namespace NYT {
 namespace NObjectServer {

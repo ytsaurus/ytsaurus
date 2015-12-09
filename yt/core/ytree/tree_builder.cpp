@@ -1,14 +1,14 @@
-#include "stdafx.h"
 #include "tree_builder.h"
+#include "attribute_consumer.h"
+#include "attribute_helpers.h"
 #include "attributes.h"
 #include "forwarding_yson_consumer.h"
-#include "attribute_consumer.h"
 #include "node.h"
-#include "attribute_helpers.h"
 
-#include <core/actions/bind.h>
+#include <yt/core/actions/bind.h>
 
-#include <core/misc/assert.h>
+#include <yt/core/misc/assert.h>
+#include <yt/core/misc/common.h>
 
 #include <stack>
 

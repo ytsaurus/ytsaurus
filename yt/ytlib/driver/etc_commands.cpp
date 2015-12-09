@@ -1,14 +1,16 @@
-#include "stdafx.h"
 #include "etc_commands.h"
 
-#include <core/build.h>
-#include <core/concurrency/scheduler.h>
+#include <yt/ytlib/api/client.h>
 
-#include <ytlib/ypath/rich.h>
+#include <yt/ytlib/ypath/rich.h>
 
-#include <ytlib/api/client.h>
+#include <yt/build/build.h>
 
-#include <core/ytree/fluent.h>
+#include <yt/core/concurrency/scheduler.h>
+
+#include <yt/core/misc/common.h>
+
+#include <yt/core/ytree/fluent.h>
 
 namespace NYT {
 namespace NDriver {

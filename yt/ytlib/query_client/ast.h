@@ -1,10 +1,9 @@
 #pragma once
 
 #include "public.h"
-
 #include "plan_fragment_common.h"
 
-#include <core/misc/variant.h>
+#include <yt/core/misc/variant.h>
 
 namespace NYT {
 namespace NQueryClient {

@@ -1,15 +1,16 @@
-#include "stdafx.h"
 #include "rowset.h"
 
-#include <core/actions/future.h>
+#include <yt/ytlib/table_client/name_table.h>
+#include <yt/ytlib/table_client/row_buffer.h>
+#include <yt/ytlib/table_client/schema.h>
+#include <yt/ytlib/table_client/schemaful_writer.h>
+#include <yt/ytlib/table_client/unversioned_row.h>
 
-#include <ytlib/table_client/schema.h>
-#include <ytlib/table_client/name_table.h>
-#include <ytlib/table_client/unversioned_row.h>
-#include <ytlib/table_client/schemaful_writer.h>
-#include <ytlib/table_client/row_buffer.h>
+#include <yt/ytlib/tablet_client/wire_protocol.h>
 
-#include <ytlib/tablet_client/wire_protocol.h>
+#include <yt/core/actions/future.h>
+
+#include <yt/core/misc/common.h>
 
 namespace NYT {
 namespace NApi {

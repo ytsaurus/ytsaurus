@@ -1,22 +1,21 @@
 #pragma once
 
 #include "public.h"
-
 #include "data_statistics.h"
 #include "multi_chunk_reader.h"
 
-#include <ytlib/api/public.h>
+#include <yt/ytlib/api/public.h>
 
-#include <ytlib/chunk_client/chunk_spec.pb.h>
+#include <yt/ytlib/chunk_client/chunk_spec.pb.h>
 
-#include <ytlib/node_tracker_client/public.h>
+#include <yt/ytlib/node_tracker_client/public.h>
 
-#include <core/concurrency/nonblocking_queue.h>
-#include <core/concurrency/public.h>
+#include <yt/core/concurrency/nonblocking_queue.h>
+#include <yt/core/concurrency/public.h>
 
-#include <core/logging/log.h>
+#include <yt/core/logging/log.h>
 
-#include <core/rpc/public.h>
+#include <yt/core/rpc/public.h>
 
 namespace NYT {
 namespace NChunkClient {

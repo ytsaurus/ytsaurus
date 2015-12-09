@@ -1,7 +1,7 @@
-#include "stdafx.h"
 #include "pattern_formatter.h"
 
-#include <core/misc/error.h>
+#include <yt/core/misc/common.h>
+#include <yt/core/misc/error.h>
 
 #include <util/stream/str.h>
 

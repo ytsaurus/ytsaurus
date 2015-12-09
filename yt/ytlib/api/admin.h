@@ -3,9 +3,9 @@
 #include "public.h"
 #include "connection.h"
 
-#include <core/actions/future.h>
+#include <yt/ytlib/tablet_client/public.h>
 
-#include <ytlib/tablet_client/public.h>
+#include <yt/core/actions/future.h>
 
 namespace NYT {
 namespace NApi {

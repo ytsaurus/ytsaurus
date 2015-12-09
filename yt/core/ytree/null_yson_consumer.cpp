@@ -1,8 +1,9 @@
-#include "stdafx.h"
 #include "null_yson_consumer.h"
-
-#include <core/yson/consumer.h>
 #include "yson_string.h"
+
+#include <yt/core/misc/common.h>
+
+#include <yt/core/yson/consumer.h>
 
 namespace NYT {
 namespace NYTree {

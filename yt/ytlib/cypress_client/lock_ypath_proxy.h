@@ -2,10 +2,10 @@
 
 #include "public.h"
 
-#include <core/rpc/public.h>
-#include <core/rpc/rpc.pb.h>
+#include <yt/ytlib/object_client/object_ypath_proxy.h>
 
-#include <ytlib/object_client/object_ypath_proxy.h>
+#include <yt/core/rpc/public.h>
+#include <yt/core/rpc/rpc.pb.h>
 
 namespace NYT {
 namespace NCypressClient {

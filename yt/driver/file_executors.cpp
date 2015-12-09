@@ -1,9 +1,9 @@
 #include "file_executors.h"
 #include "preprocess.h"
 
-#include <ytlib/driver/driver.h>
+#include <yt/server/job_proxy/config.h>
 
-#include <server/job_proxy/config.h>
+#include <yt/ytlib/driver/driver.h>
 
 namespace NYT {
 namespace NDriver {

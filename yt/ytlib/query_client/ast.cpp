@@ -1,6 +1,6 @@
-#include "stdafx.h"
-
 #include "ast.h"
+
+#include <yt/core/misc/common.h>
 
 namespace NYT {
 namespace NQueryClient {

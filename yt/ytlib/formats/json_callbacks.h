@@ -3,11 +3,11 @@
 #include "public.h"
 #include "utf8_decoder.h"
 
-#include <core/ytree/public.h>
-#include <core/ytree/tree_builder.h>
+#include <yt/core/ytree/public.h>
+#include <yt/core/ytree/tree_builder.h>
 
-#include <stack>
 #include <queue>
+#include <stack>
 
 namespace NYT {
 namespace NFormats {

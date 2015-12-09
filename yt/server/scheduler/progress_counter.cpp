@@ -1,6 +1,7 @@
-#include "stdafx.h"
 #include "progress_counter.h"
 #include "private.h"
+
+#include <yt/core/misc/common.h>
 
 namespace NYT {
 namespace NScheduler {

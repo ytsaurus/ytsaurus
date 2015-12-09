@@ -1,9 +1,9 @@
-#include "stdafx.h"
 #include "private.h"
 
-#include <core/misc/lazy_ptr.h>
+#include <yt/core/concurrency/action_queue.h>
 
-#include <core/concurrency/action_queue.h>
+#include <yt/core/misc/common.h>
+#include <yt/core/misc/lazy_ptr.h>
 
 namespace NYT {
 namespace NHydra {

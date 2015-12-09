@@ -1,5 +1,6 @@
-#include "stdafx.h"
 #include "demangle.h"
+
+#include <yt/core/misc/common.h>
 
 #if defined(__GNUC__)
 #include <util/memory/tempbuf.h>

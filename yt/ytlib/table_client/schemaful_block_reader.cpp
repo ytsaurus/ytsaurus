@@ -1,8 +1,8 @@
-#include "stdafx.h"
 #include "schemaful_block_reader.h"
 #include "unversioned_row.h"
 
-#include <core/misc/varint.h>
+#include <yt/core/misc/common.h>
+#include <yt/core/misc/varint.h>
 
 #include <util/stream/mem.h>
 

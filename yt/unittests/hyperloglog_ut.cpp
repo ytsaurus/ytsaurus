@@ -1,9 +1,9 @@
-#include "stdafx.h"
 #include "framework.h"
 
-#include <core/misc/hyperloglog.h>
-#include <core/misc/random.h>
-#include <core/misc/farm_hash.h>
+#include <yt/core/misc/common.h>
+#include <yt/core/misc/farm_hash.h>
+#include <yt/core/misc/hyperloglog.h>
+#include <yt/core/misc/random.h>
 
 namespace NYT {
 namespace {

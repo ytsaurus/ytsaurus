@@ -2,13 +2,13 @@
 
 #include "public.h"
 
-#include <core/misc/nullable.h>
-#include <core/misc/property.h>
-#include <core/misc/enum.h>
+#include <yt/ytlib/chunk_client/chunk_replica.h>
 
-#include <ytlib/chunk_client/chunk_replica.h>
+#include <yt/ytlib/node_tracker_client/node_tracker_service.pb.h>
 
-#include <ytlib/node_tracker_client/node_tracker_service.pb.h>
+#include <yt/core/misc/enum.h>
+#include <yt/core/misc/nullable.h>
+#include <yt/core/misc/property.h>
 
 namespace NYT {
 namespace NNodeTrackerClient {

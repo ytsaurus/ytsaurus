@@ -1,12 +1,13 @@
-#include "stdafx.h"
 #include "journal_node_proxy.h"
-#include "journal_node.h"
 #include "private.h"
+#include "journal_node.h"
 
-#include <server/chunk_server/chunk_owner_node_proxy.h>
-#include <server/chunk_server/chunk_manager.h>
-#include <server/chunk_server/chunk.h>
-#include <server/chunk_server/chunk_list.h>
+#include <yt/server/chunk_server/chunk.h>
+#include <yt/server/chunk_server/chunk_list.h>
+#include <yt/server/chunk_server/chunk_manager.h>
+#include <yt/server/chunk_server/chunk_owner_node_proxy.h>
+
+#include <yt/core/misc/common.h>
 
 namespace NYT {
 namespace NJournalServer {

@@ -1,9 +1,11 @@
 import pytest
 
-from yt_env_setup import YTEnvSetup
+from yt_env_setup import YTEnvSetup, unix_only
+from yt.environment.helpers import assert_items_equal
 from yt_commands import *
 
 from collections import defaultdict
+
 
 ##################################################################
 
@@ -154,27 +156,27 @@ for key, rows in groupby(read_table(), lambda row: row["word"]):
         if method != "reduce_combiner_dev_null":
             for word, count in expected.items():
                 output.append( {"word": word, "count": str(count)} )
-            self.assertItemsEqual(read_table("//tmp/t_out"), output)
+            assert_items_equal(read_table("//tmp/t_out"), output)
         else:
-            self.assertItemsEqual(read_table("//tmp/t_out"), output)
+            assert_items_equal(read_table("//tmp/t_out"), output)
 
-    @only_linux
+    @unix_only
     def test_map_sort_reduce(self):
         self.do_run_test("map_sort_reduce")
 
-    @only_linux
+    @unix_only
     def test_map_reduce(self):
         self.do_run_test("map_reduce")
 
-    @only_linux
+    @unix_only
     def test_map_reduce_1partition(self):
         self.do_run_test("map_reduce_1p")
 
-    @only_linux
+    @unix_only
     def test_map_reduce_reduce_combiner_dev_null(self):
         self.do_run_test("reduce_combiner_dev_null")
 
-    @only_linux
+    @unix_only
     def test_many_output_tables(self):
         create("table", "//tmp/t_in")
         create("table", "//tmp/t_out1")
@@ -186,7 +188,7 @@ for key, rows in groupby(read_table(), lambda row: row["word"]):
                    reducer_command="cat",
                    spec={"reducer": {"format": "dsv"}})
 
-    @only_linux
+    @unix_only
     def test_reduce_with_sort(self):
         create("table", "//tmp/t_in")
         create("table", "//tmp/t_out")
@@ -269,7 +271,7 @@ print "x={0}\ty={1}".format(x, y)
                        in_="//tmp/t1", out="//tmp/t2",
                        sort_by=["foo"], spec={"intermediate_data_acl": acl})
 
-    @only_linux
+    @unix_only
     def test_query_simple(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -280,7 +282,7 @@ print "x={0}\ty={1}".format(x, y)
 
         assert read_table("//tmp/t2") == [{"a": "b"}]
 
-    @only_linux
+    @unix_only
     def test_query_reader_projection(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -291,7 +293,7 @@ print "x={0}\ty={1}".format(x, y)
 
         assert read_table("//tmp/t2") == [{"a": "b"}]
 
-    @only_linux
+    @unix_only
     def test_query_with_condition(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -302,7 +304,7 @@ print "x={0}\ty={1}".format(x, y)
 
         assert read_table("//tmp/t2") == [{"a": 1}]
 
-    @only_linux
+    @unix_only
     def test_query_asterisk(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -330,7 +332,7 @@ print "x={0}\ty={1}".format(x, y)
                 "input_query": "* where a > 0 or b > 0",
                 "input_schema": schema})
 
-        self.assertItemsEqual(read_table("//tmp/t2"), rows)
+        assert_items_equal(read_table("//tmp/t2"), rows)
 
     def test_bad_control_attributes(self):
         create("table", "//tmp/t1")

@@ -1,6 +1,6 @@
 #pragma once
 
-#include <core/logging/log.h>
+#include <yt/core/logging/log.h>
 
 namespace NYT {
 namespace NCellMaster {

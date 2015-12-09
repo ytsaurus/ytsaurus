@@ -2,9 +2,9 @@
 
 #include "public.h"
 
-#include <core/logging/log.h>
+#include <yt/ytlib/table_client/public.h>
 
-#include <ytlib/table_client/public.h>
+#include <yt/core/logging/log.h>
 
 // FIXME(lukyan): try to fix in new visual studio
 #ifdef _win_

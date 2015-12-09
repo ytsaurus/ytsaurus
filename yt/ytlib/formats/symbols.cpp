@@ -1,8 +1,9 @@
-#include "stdafx.h"
 #include "symbols.h"
 
+#include <yt/core/misc/common.h>
+
 #ifdef YT_USE_SSE42
-    #include <core/misc/cpuid.h>
+    #include <yt/core/misc/cpuid.h>
 #endif
 
 namespace NYT {
@@ -261,6 +262,30 @@ ui32 CalculateEscapedLength(
         }
     }
     return length;
+}
+
+Stroka Escape(
+    const TStringBuf& string,
+    const TLookupTable& lookupTable,
+    const TEscapeTable& escapeTable,
+    char escapingSymbol)
+{
+    Stroka result;
+    // In worst case result length will be twice the original length.
+    result.reserve(2 * string.length());
+    auto* begin = string.begin();
+    auto* end = string.end();
+    auto* next = begin;
+    for (; begin != end; begin = next) {
+        next = lookupTable.FindNext(begin, end);
+        result.append(begin, end);
+        if (next != end) {
+            result.append(escapingSymbol);
+            result.append(escapeTable.Forward[static_cast<ui8>(*next)]);
+            ++next;
+        }
+    }
+    return result;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

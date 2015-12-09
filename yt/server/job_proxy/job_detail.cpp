@@ -1,24 +1,23 @@
-#include "stdafx.h"
-
 #include "job_detail.h"
-
 #include "private.h"
 
-#include <server/exec_agent/public.h>
+#include <yt/server/exec_agent/public.h>
 
-#include <ytlib/table_client/helpers.h>
-#include <ytlib/table_client/name_table.h>
-#include <ytlib/table_client/schemaless_writer.h>
-#include <ytlib/table_client/schemaless_chunk_reader.h>
-#include <ytlib/table_client/schemaless_chunk_writer.h>
+#include <yt/ytlib/node_tracker_client/node_directory.h>
 
-#include <ytlib/node_tracker_client/node_directory.h>
+#include <yt/ytlib/query_client/config.h>
+#include <yt/ytlib/query_client/evaluator.h>
+#include <yt/ytlib/query_client/plan_fragment.h>
+#include <yt/ytlib/query_client/public.h>
+#include <yt/ytlib/query_client/query_statistics.h>
 
-#include <ytlib/query_client/public.h>
-#include <ytlib/query_client/config.h>
-#include <ytlib/query_client/evaluator.h>
-#include <ytlib/query_client/plan_fragment.h>
-#include <ytlib/query_client/query_statistics.h>
+#include <yt/ytlib/table_client/helpers.h>
+#include <yt/ytlib/table_client/name_table.h>
+#include <yt/ytlib/table_client/schemaless_chunk_reader.h>
+#include <yt/ytlib/table_client/schemaless_chunk_writer.h>
+#include <yt/ytlib/table_client/schemaless_writer.h>
+
+#include <yt/core/misc/common.h>
 
 namespace NYT {
 namespace NJobProxy {
@@ -58,6 +57,11 @@ std::vector<NChunkClient::TChunkId> TJob::DumpInputContext()
 TYsonString TJob::Strace()
 {
     THROW_ERROR_EXCEPTION("Stracing is not supported for built-in jobs");
+}
+
+void TJob::SignalJob(const Stroka& /*signalName*/)
+{
+    THROW_ERROR_EXCEPTION("Signaling is not supported for built-in jobs");
 }
 
 ////////////////////////////////////////////////////////////////////////////////

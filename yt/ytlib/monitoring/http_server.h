@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <core/actions/public.h>
+#include <yt/core/actions/public.h>
 
 namespace NYT {
 namespace NHttp {

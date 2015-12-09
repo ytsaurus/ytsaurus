@@ -1,8 +1,9 @@
-#include "stdafx.h"
 #include "attributes.h"
 #include "attribute_helpers.h"
-#include "exception_helpers.h"
 #include "ephemeral_node_factory.h"
+#include "exception_helpers.h"
+
+#include <yt/core/misc/common.h>
 
 namespace NYT {
 namespace NYTree {

@@ -1,40 +1,41 @@
-#include "stdafx.h"
 #include "scheduler.h"
-#include "scheduler_strategy.h"
-#include "fair_share_strategy.h"
-#include "operation_controller.h"
-#include "map_controller.h"
-#include "merge_controller.h"
-#include "remote_copy_controller.h"
-#include "sort_controller.h"
-#include "helpers.h"
-#include "master_connector.h"
-#include "job_resources.h"
 #include "private.h"
-#include "snapshot_downloader.h"
 #include "event_log.h"
+#include "fair_share_strategy.h"
+#include "helpers.h"
+#include "job_resources.h"
+#include "map_controller.h"
+#include "master_connector.h"
+#include "merge_controller.h"
+#include "operation_controller.h"
+#include "remote_copy_controller.h"
+#include "scheduler_strategy.h"
+#include "snapshot_downloader.h"
+#include "sort_controller.h"
 
-#include <core/concurrency/thread_affinity.h>
-#include <core/concurrency/periodic_executor.h>
+#include <yt/server/cell_scheduler/bootstrap.h>
+#include <yt/server/cell_scheduler/config.h>
 
-#include <core/rpc/message.h>
-#include <core/rpc/response_keeper.h>
+#include <yt/ytlib/chunk_client/private.h>
 
-#include <ytlib/job_prober_client/job_prober_service_proxy.h>
+#include <yt/ytlib/job_prober_client/job_prober_service_proxy.h>
 
-#include <ytlib/object_client/master_ypath_proxy.h>
+#include <yt/ytlib/object_client/master_ypath_proxy.h>
 
-#include <ytlib/chunk_client/private.h>
+#include <yt/ytlib/scheduler/helpers.h>
 
-#include <ytlib/scheduler/helpers.h>
+#include <yt/ytlib/table_client/name_table.h>
+#include <yt/ytlib/table_client/schemaless_buffered_table_writer.h>
+#include <yt/ytlib/table_client/schemaless_writer.h>
+#include <yt/ytlib/table_client/table_consumer.h>
 
-#include <ytlib/table_client/name_table.h>
-#include <ytlib/table_client/schemaless_writer.h>
-#include <ytlib/table_client/schemaless_buffered_table_writer.h>
-#include <ytlib/table_client/table_consumer.h>
+#include <yt/core/concurrency/periodic_executor.h>
+#include <yt/core/concurrency/thread_affinity.h>
 
-#include <server/cell_scheduler/config.h>
-#include <server/cell_scheduler/bootstrap.h>
+#include <yt/core/misc/common.h>
+
+#include <yt/core/rpc/message.h>
+#include <yt/core/rpc/response_keeper.h>
 
 namespace NYT {
 namespace NScheduler {
@@ -452,6 +453,64 @@ public:
         LOG_INFO("Input context saved (JobId: %v, Path: %v)",
             jobId,
             path);
+    }
+
+    TFuture<void> SignalJob(const TJobId& jobId, const Stroka& signalName)
+    {
+        return BIND(&TImpl::DoSignalJob, MakeStrong(this), jobId, signalName)
+            .AsyncVia(MasterConnector_->GetCancelableControlInvoker())
+            .Run();
+    }
+
+    TFuture<void> AbandonJob(const TJobId& jobId)
+    {
+        return BIND(&TImpl::DoAbandonJob, MakeStrong(this), jobId)
+            .AsyncVia(MasterConnector_->GetCancelableControlInvoker())
+            .Run();
+    }
+
+    void DoSignalJob(const TJobId& jobId, const Stroka& signalName)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        auto proxy = CreateJobProberProxy(jobId);
+
+        auto req = proxy.SignalJob();
+        ToProto(req->mutable_job_id(), jobId);
+        ToProto(req->mutable_signal_name(), signalName);
+
+        WaitFor(req->Invoke())
+            .ThrowOnError();
+    }
+
+    void DoAbandonJob(const TJobId& jobId)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        auto job = FindJob(jobId);
+        if (!job) {
+            THROW_ERROR_EXCEPTION("No such job %v", jobId);
+        }
+        switch (job->GetType()) {
+            case EJobType::Map:
+            case EJobType::OrderedMap:
+            case EJobType::SortedReduce:
+            case EJobType::PartitionMap:
+            case EJobType::ReduceCombiner:
+            case EJobType::PartitionReduce:
+                break;
+            default:
+                THROW_ERROR_EXCEPTION("Can't abondon job %v of %v type", jobId, job->GetType());
+        }
+        if (job->GetState() != EJobState::Running &&
+            job->GetState() != EJobState::Waiting)
+        {
+            THROW_ERROR_EXCEPTION("Abandoned job %v is not running", jobId);
+        }
+
+        TJobResult result;
+        job->SetState(EJobState::Abandoning);
+        OnJobCompleted(job, &result);
     }
 
     TJobProberServiceProxy CreateJobProberProxy(const TJobId& jobId)
@@ -1629,8 +1688,10 @@ private:
 
     void OnJobCompleted(TJobPtr job, TJobResult* result)
     {
+        bool abandoned = (job->GetState() == EJobState::Abandoning);
         if (job->GetState() == EJobState::Running ||
-            job->GetState() == EJobState::Waiting)
+            job->GetState() == EJobState::Waiting ||
+            job->GetState() == EJobState::Abandoning)
         {
             job->SetState(EJobState::Completed);
             job->SetResult(std::move(*result));
@@ -1642,7 +1703,7 @@ private:
 
             if (operation->GetState() == EOperationState::Running) {
                 LogFinishedJobFluently(ELogEventType::JobCompleted, job);
-                operation->GetController()->OnJobCompleted(TCompletedJobSummary(job));
+                operation->GetController()->OnJobCompleted(TCompletedJobSummary(job, abandoned));
             }
 
             ProcessFinishedJobResult(job);
@@ -2330,14 +2391,24 @@ TFuture<void> TScheduler::ResumeOperation(TOperationPtr operation)
     return Impl_->ResumeOperation(operation);
 }
 
+TFuture<void> TScheduler::DumpInputContext(const TJobId& jobId, const NYPath::TYPath& path)
+{
+    return Impl_->DumpInputContext(jobId, path);
+}
+
 TFuture<TYsonString> TScheduler::Strace(const TJobId& jobId)
 {
     return Impl_->Strace(jobId);
 }
 
-TFuture<void> TScheduler::DumpInputContext(const TJobId& jobId, const NYPath::TYPath& path)
+TFuture<void> TScheduler::SignalJob(const TJobId& jobId, const Stroka& signalName)
 {
-    return Impl_->DumpInputContext(jobId, path);
+    return Impl_->SignalJob(jobId, signalName);
+}
+
+TFuture<void> TScheduler::AbandonJob(const TJobId& jobId)
+{
+    return Impl_->AbandonJob(jobId);
 }
 
 void TScheduler::ProcessHeartbeat(TExecNodePtr node, TCtxHeartbeatPtr context)

@@ -1,20 +1,21 @@
-#include "stdafx.h"
 #include "table_commands.h"
 #include "config.h"
 
-#include <ytlib/table_client/helpers.h>
-#include <ytlib/table_client/name_table.h>
-#include <ytlib/table_client/schemaful_writer.h>
-#include <ytlib/table_client/schemaless_chunk_reader.h>
-#include <ytlib/table_client/schemaless_chunk_writer.h>
-#include <ytlib/table_client/table_consumer.h>
+#include <yt/ytlib/api/rowset.h>
+#include <yt/ytlib/api/transaction.h>
 
-#include <ytlib/tablet_client/table_mount_cache.h>
+#include <yt/ytlib/query_client/query_statistics.h>
 
-#include <ytlib/query_client/query_statistics.h>
+#include <yt/ytlib/table_client/helpers.h>
+#include <yt/ytlib/table_client/name_table.h>
+#include <yt/ytlib/table_client/schemaful_writer.h>
+#include <yt/ytlib/table_client/schemaless_chunk_reader.h>
+#include <yt/ytlib/table_client/schemaless_chunk_writer.h>
+#include <yt/ytlib/table_client/table_consumer.h>
 
-#include <ytlib/api/transaction.h>
-#include <ytlib/api/rowset.h>
+#include <yt/ytlib/tablet_client/table_mount_cache.h>
+
+#include <yt/core/misc/common.h>
 
 namespace NYT {
 namespace NDriver {
@@ -255,6 +256,8 @@ void TInsertRowsCommand::Execute(ICommandContextPtr context)
     auto tableInfo = WaitFor(tableMountCache->GetTableInfo(Path.GetPath()))
         .ValueOrThrow();
 
+    tableInfo->ValidateDynamic();
+
     // Parse input data.
     auto valueConsumer = New<TBuildingValueConsumer>(
         tableInfo->Schema,
@@ -284,6 +287,8 @@ void TLookupRowsCommand::Execute(ICommandContextPtr context)
     auto asyncTableInfo = tableMountCache->GetTableInfo(Path.GetPath());
     auto tableInfo = WaitFor(asyncTableInfo)
         .ValueOrThrow();
+    tableInfo->ValidateDynamic();
+
     auto nameTable = TNameTable::FromSchema(tableInfo->Schema);
 
     if (ColumnNames) {
@@ -347,6 +352,8 @@ void TDeleteRowsCommand::Execute(ICommandContextPtr context)
     auto asyncTableInfo = tableMountCache->GetTableInfo(Path.GetPath());
     auto tableInfo = WaitFor(asyncTableInfo)
         .ValueOrThrow();
+    tableInfo->ValidateDynamic();
+
 
     // Parse input data.
     auto valueConsumer = New<TBuildingValueConsumer>(

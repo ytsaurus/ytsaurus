@@ -1,14 +1,15 @@
-#include "stdafx.h"
 #include "redirector_service.h"
-#include "client.h"
-#include "service.h"
-#include "message.h"
-#include "channel_detail.h"
 #include "private.h"
+#include "channel_detail.h"
+#include "client.h"
+#include "message.h"
+#include "service.h"
 
-#include <core/bus/bus.h>
+#include <yt/core/bus/bus.h>
 
-#include <core/ytree/node.h>
+#include <yt/core/misc/common.h>
+
+#include <yt/core/ytree/node.h>
 
 namespace NYT {
 namespace NRpc {

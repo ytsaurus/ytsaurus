@@ -1,9 +1,9 @@
 #include "dispatcher.h"
 
-#include <core/misc/lazy_ptr.h>
-#include <core/misc/singleton.h>
+#include <yt/core/concurrency/action_queue.h>
 
-#include <core/concurrency/action_queue.h>
+#include <yt/core/misc/lazy_ptr.h>
+#include <yt/core/misc/singleton.h>
 
 namespace NYT {
 namespace NDriver {

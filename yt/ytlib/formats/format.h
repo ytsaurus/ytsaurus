@@ -2,17 +2,17 @@
 
 #include "public.h"
 
-#include <core/misc/property.h>
+#include <yt/ytlib/table_client/public.h>
+#include <yt/ytlib/table_client/schemaless_writer.h>
 
-#include <core/ytree/public.h>
-#include <core/ytree/attributes.h>
+#include <yt/core/concurrency/public.h>
 
-#include <core/yson/public.h>
+#include <yt/core/misc/property.h>
 
-#include <core/concurrency/public.h>
+#include <yt/core/yson/public.h>
 
-#include <ytlib/table_client/public.h>
-#include <ytlib/table_client/schemaless_writer.h>
+#include <yt/core/ytree/attributes.h>
+#include <yt/core/ytree/public.h>
 
 namespace NYT {
 namespace NFormats {
@@ -65,7 +65,7 @@ void Deserialize(TFormat& value, NYTree::INodePtr node);
 struct ISchemalessFormatWriter
     : public NTableClient::ISchemalessWriter
 {
-    virtual void WriteTableIndex(int tableIndex) = 0;
+    virtual void WriteTableIndex(i32 tableIndex) = 0;
 
     virtual void WriteRangeIndex(i32 rangeIndex) = 0;
 
@@ -87,6 +87,30 @@ NTableClient::ISchemafulWriterPtr CreateSchemafulWriterForFormat(
     const TFormat& Format,
     const NTableClient::TTableSchema& schema,
     NConcurrency::IAsyncOutputStreamPtr output);
+
+ISchemalessFormatWriterPtr CreateSchemalessWriterForDsv(
+    const NYTree::IAttributeDictionary& attributes,
+    NTableClient::TNameTablePtr nameTable,
+    NConcurrency::IAsyncOutputStreamPtr output,
+    bool enableContextSaving,
+    bool enableKeySwitch,
+    int /* keyColumnCount */);
+
+ISchemalessFormatWriterPtr CreateSchemalessWriterForYamr(
+    const NYTree::IAttributeDictionary& attributes,
+    NTableClient::TNameTablePtr nameTable,
+    NConcurrency::IAsyncOutputStreamPtr output,
+    bool enableContextSaving,
+    bool enableKeySwitch,
+    int keyColumnCount);
+
+ISchemalessFormatWriterPtr CreateSchemalessWriterForYamredDsv(
+    const NYTree::IAttributeDictionary& attributes,
+    NTableClient::TNameTablePtr nameTable,
+    NConcurrency::IAsyncOutputStreamPtr output,
+    bool enableContextSaving,
+    bool enableKeySwitch,
+    int keyColumnCount);
 
 ISchemalessFormatWriterPtr CreateSchemalessWriterForFormat(
     const TFormat& format,

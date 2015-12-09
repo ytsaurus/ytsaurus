@@ -8,6 +8,9 @@ namespace NFormats {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// TODO(max42): introduce a single interface for classes TYamrTable and TDsvTable
+// and refactor TYamrWriterBase::EscapeAndWrite.
+
 struct TYamrTable
 {
     TLookupTable KeyStops;

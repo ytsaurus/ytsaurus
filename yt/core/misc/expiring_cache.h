@@ -2,8 +2,8 @@
 
 #include "public.h"
 
-#include <core/concurrency/delayed_executor.h>
-#include <core/concurrency/rw_spinlock.h>
+#include <yt/core/concurrency/delayed_executor.h>
+#include <yt/core/concurrency/rw_spinlock.h>
 
 namespace NYT {
 

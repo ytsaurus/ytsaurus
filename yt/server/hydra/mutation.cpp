@@ -1,7 +1,8 @@
-#include "stdafx.h"
 #include "mutation.h"
 
-#include <core/concurrency/delayed_executor.h>
+#include <yt/core/concurrency/delayed_executor.h>
+
+#include <yt/core/misc/common.h>
 
 namespace NYT {
 namespace NHydra {

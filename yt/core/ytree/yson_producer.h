@@ -3,7 +3,7 @@
 #include "public.h"
 #include "yson_string.h"
 
-#include <core/actions/callback.h>
+#include <yt/core/actions/callback.h>
 
 namespace NYT {
 namespace NYTree {

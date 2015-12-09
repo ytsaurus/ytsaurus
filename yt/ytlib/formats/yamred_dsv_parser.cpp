@@ -1,7 +1,8 @@
-#include "stdafx.h"
 #include "yamred_dsv_parser.h"
 #include "dsv_parser.h"
 #include "yamr_base_parser.h"
+
+#include <yt/core/misc/common.h>
 
 namespace NYT {
 namespace NFormats {
@@ -20,7 +21,7 @@ public:
     TYamredDsvParserConsumer(IYsonConsumer* consumer, TYamredDsvFormatConfigPtr config)
         : TYamrConsumerBase(consumer)
         , Config(config)
-        , DsvParser(CreateParserForDsv(consumer, Config, /*wrapWithMap*/ false))
+        , DsvParser(CreateParserForDsv(consumer, ConvertTo<TDsvFormatConfigPtr>(Config), /*wrapWithMap*/ false))
     { }
 
     void ConsumeKey(const TStringBuf& key) override

@@ -1,16 +1,14 @@
-#include "stdafx.h"
-
 #include "partition_chunk_reader.h"
-
+#include "private.h"
 #include "chunk_meta_extensions.h"
-
 #include "name_table.h"
 #include "schema.h"
-#include "private.h"
 
-#include <ytlib/chunk_client/config.h>
+#include <yt/ytlib/chunk_client/config.h>
 
-#include <core/concurrency/scheduler.h>
+#include <yt/core/concurrency/scheduler.h>
+
+#include <yt/core/misc/common.h>
 
 namespace NYT {
 namespace NTableClient {

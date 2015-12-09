@@ -1,9 +1,10 @@
-#include "stdafx.h"
 #include "chunk_reader_base.h"
-#include "config.h"
 #include "private.h"
+#include "config.h"
 
-#include <ytlib/chunk_client/chunk_reader.h>
+#include <yt/ytlib/chunk_client/chunk_reader.h>
+
+#include <yt/core/misc/common.h>
 
 #include <algorithm>
 

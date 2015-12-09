@@ -2,13 +2,13 @@
 
 #include "public.h"
 
-#include <ytlib/job_tracker_client/job.pb.h>
+#include <yt/server/cell_node/public.h>
 
-#include <ytlib/node_tracker_client/node.pb.h>
+#include <yt/server/job_agent/public.h>
 
-#include <server/job_agent/public.h>
+#include <yt/ytlib/job_tracker_client/job.pb.h>
 
-#include <server/cell_node/public.h>
+#include <yt/ytlib/node_tracker_client/node.pb.h>
 
 namespace NYT {
 namespace NDataNode {

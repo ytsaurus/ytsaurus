@@ -3,10 +3,10 @@
 #include "public.h"
 #include "client.h"
 
-#include <core/misc/ref.h>
-#include <core/misc/error.h>
+#include <yt/core/misc/error.h>
+#include <yt/core/misc/ref.h>
 
-#include <core/ypath/public.h>
+#include <yt/core/ypath/public.h>
 
 namespace NYT {
 namespace NApi {

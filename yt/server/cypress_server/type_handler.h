@@ -2,15 +2,15 @@
 
 #include "public.h"
 
-#include <core/rpc/service_detail.h>
+#include <yt/server/security_server/public.h>
 
-#include <core/ytree/public.h>
+#include <yt/server/transaction_server/public.h>
 
-#include <ytlib/cypress_client/cypress_ypath.pb.h>
+#include <yt/ytlib/cypress_client/cypress_ypath.pb.h>
 
-#include <server/transaction_server/public.h>
+#include <yt/core/rpc/service_detail.h>
 
-#include <server/security_server/public.h>
+#include <yt/core/ytree/public.h>
 
 namespace NYT {
 namespace NCypressServer {

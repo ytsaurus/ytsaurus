@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 yt create group --opt /attributes/name=admins
 yt set //@acl/end '{action=allow;permissions=[write;administer];subjects=[admins]}'

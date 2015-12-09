@@ -65,6 +65,8 @@ message TUserJobSpec
     required int64 custom_statistics_count_limit = 18;
 
     optional int32 iops_threshold = 19 [default = 1000];
+
+    optional int32 blkio_weight = 20;
 }
 
 // User code result.

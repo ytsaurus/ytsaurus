@@ -1,4 +1,4 @@
-#!/bin/sh -eux
+#!/bin/bash -eux
 
 LOG_NAME="/opt/cron/export_to_yt_log_$YT_PROXY"
 

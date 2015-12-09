@@ -1,27 +1,27 @@
-#include "stdafx.h"
 #include "job_tracker_service.h"
+#include "private.h"
+#include "chunk.h"
 #include "chunk_manager.h"
 #include "job.h"
-#include "chunk.h"
-#include "private.h"
 
-#include <core/misc/string.h>
-#include <core/misc/protobuf_helpers.h>
+#include <yt/server/cell_master/bootstrap.h>
+#include <yt/server/cell_master/master_hydra_service.h>
 
-#include <core/rpc/helpers.h>
+#include <yt/server/node_tracker_server/node.h>
+#include <yt/server/node_tracker_server/node_directory_builder.h>
+#include <yt/server/node_tracker_server/node_tracker.h>
 
-#include <ytlib/job_tracker_client/job_tracker_service_proxy.h>
+#include <yt/ytlib/chunk_client/job.pb.h>
 
-#include <ytlib/node_tracker_client/helpers.h>
+#include <yt/ytlib/job_tracker_client/job_tracker_service_proxy.h>
 
-#include <ytlib/chunk_client/job.pb.h>
+#include <yt/ytlib/node_tracker_client/helpers.h>
 
-#include <server/node_tracker_server/node_tracker.h>
-#include <server/node_tracker_server/node.h>
-#include <server/node_tracker_server/node_directory_builder.h>
+#include <yt/core/misc/common.h>
+#include <yt/core/misc/protobuf_helpers.h>
+#include <yt/core/misc/string.h>
 
-#include <server/cell_master/bootstrap.h>
-#include <server/cell_master/master_hydra_service.h>
+#include <yt/core/rpc/helpers.h>
 
 namespace NYT {
 namespace NChunkServer {

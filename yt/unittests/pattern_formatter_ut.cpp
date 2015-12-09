@@ -1,7 +1,7 @@
-#include "stdafx.h"
 #include "framework.h"
 
-#include <core/misc/pattern_formatter.h>
+#include <yt/core/misc/common.h>
+#include <yt/core/misc/pattern_formatter.h>
 
 namespace NYT {
 namespace {

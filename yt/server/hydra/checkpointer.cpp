@@ -1,16 +1,17 @@
-#include "stdafx.h"
 #include "checkpointer.h"
+#include "changelog.h"
 #include "config.h"
 #include "decorated_automaton.h"
 #include "mutation_committer.h"
 #include "snapshot.h"
-#include "changelog.h"
 #include "snapshot_discovery.h"
 
-#include <ytlib/election/cell_manager.h>
+#include <yt/ytlib/election/cell_manager.h>
 
-#include <ytlib/hydra/version.h>
-#include <ytlib/hydra/hydra_service_proxy.h>
+#include <yt/ytlib/hydra/hydra_service_proxy.h>
+#include <yt/ytlib/hydra/version.h>
+
+#include <yt/core/misc/common.h>
 
 namespace NYT {
 namespace NHydra {
@@ -354,7 +355,10 @@ bool TCheckpointer::CanBuildSnapshot() const
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    return !BuildingSnapshot_ && !RotatingChangelogs_;
+    return
+        !BuildingSnapshot_ &&
+        !RotatingChangelogs_ &&
+        DecoratedAutomaton_->GetLoggedVersion().RecordId > 0;
 }
 
 bool TCheckpointer::CanRotateChangelogs() const

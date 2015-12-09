@@ -1,22 +1,22 @@
-#include "stdafx.h"
 #include "proc.h"
-#include "string.h"
 #include "process.h"
+#include "string.h"
 
-#include <core/tools/registry.h>
+#include <yt/core/logging/log.h>
 
-#include <core/logging/log.h>
+#include <yt/core/misc/common.h>
+#include <yt/core/misc/string.h>
 
-#include <core/misc/string.h>
+#include <yt/core/tools/registry.h>
 
-#include <core/ytree/convert.h>
+#include <yt/core/ytree/convert.h>
 
 #include <util/stream/file.h>
 
 #include <util/string/vector.h>
 
-#include <util/system/yield.h>
 #include <util/system/info.h>
+#include <util/system/yield.h>
 
 #ifdef _unix_
     #include <stdio.h>
@@ -168,9 +168,12 @@ TError StatusToError(int status)
     }
 }
 
-bool TryExecve(const char *path, char* const argv[], char* const env[])
+bool TryExecve(const char* path, const char* const* argv, const char* const* env)
 {
-    ::execve(path, argv, env);
+    ::execve(
+        path,
+        const_cast<char* const*>(argv),
+        const_cast<char* const*>(env));
     // If we are still here, it's an error.
     return false;
 }

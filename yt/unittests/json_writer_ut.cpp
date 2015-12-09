@@ -1,7 +1,8 @@
-#include "stdafx.h"
 #include "framework.h"
 
-#include <ytlib/formats/json_writer.h>
+#include <yt/ytlib/formats/json_writer.h>
+
+#include <yt/core/misc/common.h>
 
 #include <util/string/base64.h>
 
@@ -518,6 +519,21 @@ TEST(TJsonWriterTest, SeveralOptions2)
 
     Stroka output = "{\"hello\":{\"$attributes\":{\"mood\":{\"$type\":\"int64\",\"$value\":42}},"
         "\"$incomplete\":true,\"$type\":\"string\",\"$value\":\"AAAA\"}}";
+    EXPECT_EQ(output, outputStream.Str());
+}
+
+TEST(TJsonWriterTest, SeveralOptionsFlushBuffer)
+{
+    TStringStream outputStream;
+    auto config = New<TJsonFormatConfig>();
+    config->StringLengthLimit = 2;
+    config->AnnotateWithTypes = true;
+    auto writer = CreateJsonConsumer(&outputStream, EYsonType::ListFragment, config);
+
+    writer->OnListItem();
+    writer->OnStringScalar(Stroka(10000, 'A'));
+
+    Stroka output = "{\"$incomplete\":true,\"$type\":\"string\",\"$value\":\"AA\"}\n";
     EXPECT_EQ(output, outputStream.Str());
 }
 

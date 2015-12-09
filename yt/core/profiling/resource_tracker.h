@@ -2,9 +2,9 @@
 
 #include "public.h"
 
-#include <core/concurrency/periodic_executor.h>
+#include <yt/core/concurrency/periodic_executor.h>
 
-#include <core/profiling/public.h>
+#include <yt/core/profiling/public.h>
 
 namespace NYT {
 namespace NProfiling {

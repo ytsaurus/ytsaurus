@@ -1,25 +1,25 @@
-#include "stdafx.h"
 #include "transaction_manager.h"
-#include "transaction.h"
-#include "config.h"
-#include "automaton.h"
-#include "tablet_slot.h"
 #include "private.h"
+#include "automaton.h"
+#include "config.h"
+#include "tablet_slot.h"
+#include "transaction.h"
 
-#include <core/misc/lease_manager.h>
+#include <yt/server/hive/transaction_supervisor.h>
 
-#include <core/concurrency/thread_affinity.h>
+#include <yt/server/hydra/hydra_manager.h>
+#include <yt/server/hydra/mutation.h>
 
-#include <core/ytree/fluent.h>
+#include <yt/ytlib/transaction_client/helpers.h>
 
-#include <core/logging/log.h>
+#include <yt/core/concurrency/thread_affinity.h>
 
-#include <ytlib/transaction_client/helpers.h>
+#include <yt/core/logging/log.h>
 
-#include <server/hydra/hydra_manager.h>
-#include <server/hydra/mutation.h>
+#include <yt/core/misc/common.h>
+#include <yt/core/misc/lease_manager.h>
 
-#include <server/hive/transaction_supervisor.h>
+#include <yt/core/ytree/fluent.h>
 
 namespace NYT {
 namespace NTabletNode {
@@ -242,7 +242,14 @@ public:
 
         auto* transaction = GetTransactionOrThrow(transactionId);
 
-        if (transaction->GetState() != ETransactionState::Active) {
+        auto persistentState = transaction->GetPersistentState();
+
+        if (persistentState == ETransactionState::PersistentCommitPrepared) {
+            // Just ignore; clients may ping transactions during commit.
+            return;
+        }
+
+        if (persistentState != ETransactionState::Active) {
             transaction->ThrowInvalidState();
         }
 
@@ -406,7 +413,7 @@ private:
         TTabletAutomatonPart::OnStopLeading();
 
         // Reset all transiently prepared transactions back into active state.
-        // Mark all transactions are finished to release pending readers.
+        // Mark all transactions as finished to release pending readers.
         for (const auto& pair : TransactionMap_) {
             auto* transaction = pair.second;
             transaction->SetState(transaction->GetPersistentState());

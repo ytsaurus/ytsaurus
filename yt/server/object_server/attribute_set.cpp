@@ -1,9 +1,9 @@
-#include "stdafx.h"
 #include "attribute_set.h"
 
-#include <core/misc/serialize.h>
+#include <yt/server/cell_master/serialize.h>
 
-#include <server/cell_master/serialize.h>
+#include <yt/core/misc/common.h>
+#include <yt/core/misc/serialize.h>
 
 namespace NYT {
 namespace NObjectServer {

@@ -1,11 +1,12 @@
-#include "stdafx.h"
 #include "memory_store_ut.h"
 
-#include <ytlib/tablet_client/wire_protocol.h>
-#include <ytlib/tablet_client/wire_protocol.pb.h>
+#include <yt/server/tablet_node/lookup.h>
+#include <yt/server/tablet_node/store_manager.h>
 
-#include <server/tablet_node/store_manager.h>
-#include <server/tablet_node/lookup.h>
+#include <yt/ytlib/tablet_client/wire_protocol.h>
+#include <yt/ytlib/tablet_client/wire_protocol.pb.h>
+
+#include <yt/core/misc/common.h>
 
 namespace NYT {
 namespace NTabletNode {
@@ -122,7 +123,7 @@ protected:
 
             TWireProtocolWriter writer;
             writer.WriteMessage(req);
-            writer.WriteUnversionedRowset(keys);
+            writer.WriteSchemafulRowset(keys);
 
             request = MergeRefs(writer.Flush());
         }
@@ -132,7 +133,6 @@ protected:
             TWireProtocolReader reader(request);
             TWireProtocolWriter writer;
             LookupRows(
-                GetSyncInvoker(),
                 Tablet_->RebuildSnapshot(),
                 timestamp,
                 &reader,
@@ -142,7 +142,8 @@ protected:
 
         {
             TWireProtocolReader reader(response);
-            auto row = reader.ReadUnversionedRow();
+            auto schemaData = TWireProtocolReader::GetSchemaData(Tablet_->Schema(), TColumnFilter());
+            auto row = reader.ReadSchemafulRow(schemaData);
             return TUnversionedOwningRow(row);
         }
     }

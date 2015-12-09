@@ -1,15 +1,14 @@
-#include "stdafx.h"
-
 #include "helpers.h"
 #include "config.h"
-
+#include "schemaless_chunk_reader.h"
 #include "schemaless_reader.h"
 #include "schemaless_writer.h"
-#include "schemaless_chunk_reader.h"
 
-#include <ytlib/formats/parser.h>
+#include <yt/ytlib/formats/parser.h>
 
-#include <core/concurrency/scheduler.h>
+#include <yt/core/concurrency/scheduler.h>
+
+#include <yt/core/misc/common.h>
 
 namespace NYT {
 namespace NTableClient {

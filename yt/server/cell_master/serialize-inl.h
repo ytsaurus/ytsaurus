@@ -2,16 +2,16 @@
 #error "Direct inclusion of this file is not allowed, include serialize.h"
 #endif
 
-#include <core/misc/serialize.h>
-#include <core/misc/mpl.h>
+#include <yt/core/misc/serialize.h>
+#include <yt/core/misc/mpl.h>
 
-#include <server/object_server/object.h>
+#include <yt/server/object_server/object.h>
 
-#include <server/cypress_server/node.h>
+#include <yt/server/cypress_server/node.h>
 
-#include <server/node_tracker_server/node.h>
+#include <yt/server/node_tracker_server/node.h>
 
-#include <server/chunk_server/chunk.h>
+#include <yt/server/chunk_server/chunk.h>
 
 namespace NYT {
 namespace NCellMaster {

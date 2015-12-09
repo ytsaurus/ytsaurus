@@ -2,9 +2,9 @@
 
 #include "public.h"
 
-#include <core/misc/error.h>
+#include <yt/ytlib/chunk_client/public.h>
 
-#include <ytlib/chunk_client/public.h>
+#include <yt/core/misc/error.h>
 
 namespace NYT {
 namespace NDataNode {

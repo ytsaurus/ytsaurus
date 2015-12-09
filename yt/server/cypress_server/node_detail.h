@@ -1,25 +1,25 @@
 #pragma once
 
-#include "node.h"
 #include "cypress_manager.h"
 #include "helpers.h"
+#include "node.h"
 
-#include <core/misc/serialize.h>
+#include <yt/server/cell_master/bootstrap.h>
+#include <yt/server/cell_master/serialize.h>
 
-#include <core/ytree/node_detail.h>
-#include <core/ytree/fluent.h>
-#include <core/ytree/ephemeral_node_factory.h>
-#include <core/ytree/tree_builder.h>
-#include <core/ytree/ypath.pb.h>
+#include <yt/server/object_server/attribute_set.h>
+#include <yt/server/object_server/object_detail.h>
 
-#include <server/object_server/object_detail.h>
-#include <server/object_server/attribute_set.h>
+#include <yt/server/security_server/account.h>
+#include <yt/server/security_server/security_manager.h>
 
-#include <server/security_server/account.h>
-#include <server/security_server/security_manager.h>
+#include <yt/core/misc/serialize.h>
 
-#include <server/cell_master/bootstrap.h>
-#include <server/cell_master/serialize.h>
+#include <yt/core/ytree/ephemeral_node_factory.h>
+#include <yt/core/ytree/fluent.h>
+#include <yt/core/ytree/node_detail.h>
+#include <yt/core/ytree/tree_builder.h>
+#include <yt/core/ytree/ypath.pb.h>
 
 namespace NYT {
 namespace NCypressServer {

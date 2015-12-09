@@ -1,23 +1,24 @@
-#include "stdafx.h"
 #include "remote_copy_controller.h"
 #include "private.h"
-#include "helpers.h"
-#include "operation_controller_detail.h"
 #include "chunk_pool.h"
+#include "helpers.h"
 #include "job_resources.h"
+#include "operation_controller_detail.h"
 
-#include <ytlib/chunk_client/chunk_slice.h>
+#include <yt/ytlib/api/config.h>
+#include <yt/ytlib/api/connection.h>
 
-#include <ytlib/node_tracker_client/node_directory_builder.h>
+#include <yt/ytlib/chunk_client/chunk_slice.h>
 
-#include <ytlib/api/connection.h>
-#include <ytlib/api/config.h>
+#include <yt/ytlib/cypress_client/rpc_helpers.h>
 
-#include <ytlib/cypress_client/rpc_helpers.h>
+#include <yt/ytlib/node_tracker_client/node_directory_builder.h>
 
-#include <ytlib/object_client/object_service_proxy.h>
+#include <yt/ytlib/object_client/object_service_proxy.h>
 
-#include <ytlib/transaction_client/helpers.h>
+#include <yt/ytlib/transaction_client/helpers.h>
+
+#include <yt/core/misc/common.h>
 
 namespace NYT {
 namespace NScheduler {

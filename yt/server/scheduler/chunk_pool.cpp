@@ -1,10 +1,11 @@
-#include "stdafx.h"
 #include "chunk_pool.h"
 #include "private.h"
 
-#include <ytlib/chunk_client/chunk_slice.h>
+#include <yt/ytlib/chunk_client/chunk_slice.h>
 
-#include <ytlib/table_client/chunk_meta_extensions.h>
+#include <yt/ytlib/table_client/chunk_meta_extensions.h>
+
+#include <yt/core/misc/common.h>
 
 namespace NYT {
 namespace NScheduler {

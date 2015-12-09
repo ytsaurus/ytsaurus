@@ -1,45 +1,45 @@
-#include "stdafx.h"
 #include "object_manager.h"
-#include "object.h"
-#include "config.h"
 #include "private.h"
+#include "config.h"
 #include "garbage_collector.h"
-#include "schema.h"
 #include "master.h"
+#include "object.h"
+#include "schema.h"
 
-#include <core/ypath/tokenizer.h>
+#include <yt/server/cell_master/bootstrap.h>
+#include <yt/server/cell_master/hydra_facade.h>
+#include <yt/server/cell_master/serialize.h>
 
-#include <core/rpc/response_keeper.h>
+#include <yt/server/chunk_server/chunk_list.h>
 
-#include <core/erasure/public.h>
+#include <yt/server/cypress_server/cypress_manager.h>
 
-#include <core/profiling/profile_manager.h>
+#include <yt/server/election/election_manager.h>
 
-#include <ytlib/object_client/helpers.h>
-#include <ytlib/object_client/object_ypath_proxy.h>
+#include <yt/server/security_server/group.h>
+#include <yt/server/security_server/security_manager.h>
+#include <yt/server/security_server/user.h>
 
-#include <ytlib/cypress_client/cypress_ypath_proxy.h>
-#include <ytlib/cypress_client/rpc_helpers.h>
+#include <yt/server/transaction_server/transaction.h>
+#include <yt/server/transaction_server/transaction_manager.h>
 
-#include <ytlib/election/cell_manager.h>
+#include <yt/ytlib/cypress_client/cypress_ypath_proxy.h>
+#include <yt/ytlib/cypress_client/rpc_helpers.h>
 
-#include <server/election/election_manager.h>
+#include <yt/ytlib/election/cell_manager.h>
 
-#include <server/cell_master/serialize.h>
+#include <yt/ytlib/object_client/helpers.h>
+#include <yt/ytlib/object_client/object_ypath_proxy.h>
 
-#include <server/transaction_server/transaction_manager.h>
-#include <server/transaction_server/transaction.h>
+#include <yt/core/erasure/public.h>
 
-#include <server/cypress_server/cypress_manager.h>
+#include <yt/core/misc/common.h>
 
-#include <server/chunk_server/chunk_list.h>
+#include <yt/core/profiling/profile_manager.h>
 
-#include <server/cell_master/bootstrap.h>
-#include <server/cell_master/hydra_facade.h>
+#include <yt/core/rpc/response_keeper.h>
 
-#include <server/security_server/user.h>
-#include <server/security_server/group.h>
-#include <server/security_server/security_manager.h>
+#include <yt/core/ypath/tokenizer.h>
 
 namespace NYT {
 namespace NObjectServer {

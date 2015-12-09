@@ -1,8 +1,8 @@
-#include "stdafx.h"
 #include "row_base.h"
 
-#include <core/misc/error.h>
-#include <core/misc/small_vector.h>
+#include <yt/core/misc/common.h>
+#include <yt/core/misc/error.h>
+#include <yt/core/misc/small_vector.h>
 
 namespace NYT {
 namespace NTableClient {

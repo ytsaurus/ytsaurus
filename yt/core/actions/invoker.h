@@ -2,7 +2,7 @@
 
 #include "callback.h"
 
-#include <core/concurrency/public.h>
+#include <yt/core/concurrency/public.h>
 
 namespace NYT {
 

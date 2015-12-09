@@ -1,31 +1,31 @@
-#include "stdafx.h"
 #include "decorated_automaton.h"
-#include "config.h"
-#include "snapshot.h"
-#include "changelog.h"
 #include "automaton.h"
-#include "serialize.h"
+#include "changelog.h"
+#include "config.h"
 #include "mutation_context.h"
+#include "serialize.h"
+#include "snapshot.h"
 #include "snapshot_discovery.h"
 
-#include <core/misc/proc.h>
-#include <core/misc/blob.h>
+#include <yt/server/misc/fork_snapshot_builder.h>
 
-#include <core/actions/invoker_detail.h>
+#include <yt/ytlib/election/cell_manager.h>
 
-#include <core/concurrency/scheduler.h>
+#include <yt/ytlib/hydra/hydra_manager.pb.h>
+#include <yt/ytlib/hydra/hydra_service.pb.h>
 
-#include <core/pipes/async_reader.h>
-#include <core/pipes/pipe.h>
+#include <yt/core/actions/invoker_detail.h>
 
-#include <core/profiling/scoped_timer.h>
+#include <yt/core/concurrency/scheduler.h>
 
-#include <ytlib/election/cell_manager.h>
+#include <yt/core/misc/blob.h>
+#include <yt/core/misc/common.h>
+#include <yt/core/misc/proc.h>
 
-#include <ytlib/hydra/hydra_service.pb.h>
-#include <ytlib/hydra/hydra_manager.pb.h>
+#include <yt/core/pipes/async_reader.h>
+#include <yt/core/pipes/pipe.h>
 
-#include <server/misc/fork_snapshot_builder.h>
+#include <yt/core/profiling/scoped_timer.h>
 
 #include <util/random/random.h>
 
@@ -1074,7 +1074,7 @@ void TDecoratedAutomaton::StartEpoch(TEpochContextPtr epochContext)
 {
     YCHECK(!EpochContext_);
     EpochContext_ = epochContext;
-    LoggedVersion_ = epochContext->ReachableVersion;
+    LoggedVersion_ = epochContext->ChangelogStore->GetReachableVersion();
 }
 
 void TDecoratedAutomaton::StopEpoch()

@@ -1,9 +1,9 @@
-#include "stdafx.h"
-#include "blob.h"
 #include "bloom_filter.h"
+#include "blob.h"
 #include "error.h"
 
-#include <core/misc/bloom_filter.pb.h>
+#include <yt/core/misc/bloom_filter.pb.h>
+#include <yt/core/misc/common.h>
 
 #include <cmath>
 

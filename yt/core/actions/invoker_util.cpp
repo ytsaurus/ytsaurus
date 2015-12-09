@@ -1,16 +1,16 @@
-#include "stdafx.h"
 #include "invoker_util.h"
 
+#include <yt/core/actions/bind.h>
+#include <yt/core/actions/callback.h>
+
+#include <yt/core/concurrency/action_queue.h>
+#include <yt/core/concurrency/fls.h>
+
+#include <yt/core/misc/common.h>
+#include <yt/core/misc/lazy_ptr.h>
+#include <yt/core/misc/singleton.h>
+
 #include <stack>
-
-#include <core/misc/singleton.h>
-#include <core/misc/lazy_ptr.h>
-
-#include <core/actions/bind.h>
-#include <core/actions/callback.h>
-
-#include <core/concurrency/fls.h>
-#include <core/concurrency/action_queue.h>
 
 namespace NYT {
 

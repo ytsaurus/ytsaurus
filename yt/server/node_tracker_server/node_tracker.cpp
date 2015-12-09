@@ -1,42 +1,42 @@
-#include "stdafx.h"
 #include "node_tracker.h"
+#include "private.h"
 #include "config.h"
 #include "node.h"
 #include "rack.h"
 #include "rack_proxy.h"
-#include "private.h"
 
-#include <core/misc/id_generator.h>
-#include <core/misc/address.h>
+#include <yt/server/cell_master/bootstrap.h>
+#include <yt/server/cell_master/hydra_facade.h>
+#include <yt/server/cell_master/serialize.h>
 
-#include <core/ytree/convert.h>
-#include <core/ytree/ypath_client.h>
+#include <yt/server/chunk_server/job.h>
 
-#include <core/ypath/token.h>
+#include <yt/server/cypress_server/cypress_manager.h>
 
-#include <core/concurrency/scheduler.h>
+#include <yt/server/node_tracker_server/node_tracker.pb.h>
 
-#include <ytlib/cypress_client/cypress_ypath_proxy.h>
-#include <ytlib/cypress_client/rpc_helpers.h>
+#include <yt/server/object_server/attribute_set.h>
+#include <yt/server/object_server/object_manager.h>
+#include <yt/server/object_server/type_handler_detail.h>
 
-#include <ytlib/object_client/helpers.h>
+#include <yt/server/transaction_server/transaction.h>
+#include <yt/server/transaction_server/transaction_manager.h>
 
-#include <server/chunk_server/job.h>
+#include <yt/ytlib/cypress_client/cypress_ypath_proxy.h>
+#include <yt/ytlib/cypress_client/rpc_helpers.h>
 
-#include <server/node_tracker_server/node_tracker.pb.h>
+#include <yt/ytlib/object_client/helpers.h>
 
-#include <server/cypress_server/cypress_manager.h>
+#include <yt/core/concurrency/scheduler.h>
 
-#include <server/transaction_server/transaction_manager.h>
-#include <server/transaction_server/transaction.h>
+#include <yt/core/misc/address.h>
+#include <yt/core/misc/common.h>
+#include <yt/core/misc/id_generator.h>
 
-#include <server/object_server/object_manager.h>
-#include <server/object_server/attribute_set.h>
-#include <server/object_server/type_handler_detail.h>
+#include <yt/core/ypath/token.h>
 
-#include <server/cell_master/bootstrap.h>
-#include <server/cell_master/hydra_facade.h>
-#include <server/cell_master/serialize.h>
+#include <yt/core/ytree/convert.h>
+#include <yt/core/ytree/ypath_client.h>
 
 #include <deque>
 

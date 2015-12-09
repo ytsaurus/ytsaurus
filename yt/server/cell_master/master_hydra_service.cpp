@@ -1,8 +1,9 @@
-#include "stdafx.h"
-#include "hydra_facade.h"
 #include "master_hydra_service.h"
-#include "world_initializer.h"
 #include "bootstrap.h"
+#include "hydra_facade.h"
+#include "world_initializer.h"
+
+#include <yt/core/misc/common.h>
 
 namespace NYT {
 namespace NCellMaster {

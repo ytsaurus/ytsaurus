@@ -4,87 +4,79 @@
 #include "config.h"
 #include "helpers.h"
 #include "schemaful_dsv_table.h"
+#include "schemaless_writer_adapter.h"
 
-#include <core/misc/blob.h>
-#include <core/misc/nullable.h>
+#include <yt/ytlib/table_client/public.h>
+#include <yt/ytlib/table_client/schemaful_writer.h>
 
-#include <core/concurrency/async_stream.h>
+#include <yt/core/concurrency/async_stream.h>
 
-#include <ytlib/table_client/public.h>
-#include <ytlib/table_client/schemaful_writer.h>
+#include <yt/core/misc/blob.h>
+#include <yt/core/misc/blob_output.h>
+#include <yt/core/misc/nullable.h>
 
 namespace NYT {
 namespace NFormats {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_ENUM(ESchemafulDsvConsumerState,
-    (None)
-    (ExpectValue)
-    (ExpectAttributeName)
-    (ExpectAttributeValue)
-    (ExpectEndAttributes)
-    (ExpectEntity)
-);
-
-//! Note: only tabular format is supported.
-class TSchemafulDsvConsumer
-    : public virtual TFormatsConsumerBase
+// This class contains methods common for TSchemafulWriterForSchemafulDsv and TSchemalessWriterForSchemafulDsv.
+class TSchemafulDsvWriterBase
 {
-public:
-    explicit TSchemafulDsvConsumer(
-        TOutputStream* stream,
-        TSchemafulDsvFormatConfigPtr config = New<TSchemafulDsvFormatConfig>());
-
-    // IYsonConsumer overrides.
-    virtual void OnStringScalar(const TStringBuf& value) override;
-    virtual void OnInt64Scalar(i64 value) override;
-    virtual void OnUint64Scalar(ui64 value) override;
-    virtual void OnDoubleScalar(double value) override;
-    virtual void OnBooleanScalar(bool value) override;
-    virtual void OnEntity() override;
-    virtual void OnBeginList() override;
-    virtual void OnListItem() override;
-    virtual void OnEndList() override;
-    virtual void OnBeginMap() override;
-    virtual void OnKeyedItem(const TStringBuf& key) override;
-    virtual void OnEndMap() override;
-    virtual void OnBeginAttributes() override;
-    virtual void OnEndAttributes() override;
-
-private:
-    using EState = ESchemafulDsvConsumerState;
-
-    TOutputStream* Stream_;
+protected:
+    TBlobOutput* BlobOutput_;
+    
     TSchemafulDsvFormatConfigPtr Config_;
+    
+    std::vector<int> ColumnIdMapping_;
+    
+    TSchemafulDsvWriterBase(TSchemafulDsvFormatConfigPtr config);
 
+    void WriteValue(const NTableClient::TUnversionedValue& value);
+    
+    void WriteRaw(const TStringBuf& str);
+    void WriteRaw(char ch);
+
+    void EscapeAndWrite(const TStringBuf& string);
+private:
     TSchemafulDsvTable Table_;
-
-    std::set<TStringBuf> Keys_;
-    std::map<TStringBuf, TStringBuf> Values_;
-
-    std::vector<Stroka> ValueHolder_;
-
-    int ValueCount_ = 0;
-    TStringBuf CurrentKey_;
-
-    int TableIndex_ = 0;
-
-    EState State_ = EState::None;
-
-    NTableClient::EControlAttribute ControlAttribute_;
-
-    void WriteRow();
-    void EscapeAndWrite(const TStringBuf& value) const;
+    
+    static char* WriteInt64Backwards(char* ptr, i64 value);
+    static char* WriteUint64Backwards(char* ptr, ui64 value);    
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSchemafulDsvWriter
-    : public NTableClient::ISchemafulWriter
+class TSchemalessWriterForSchemafulDsv
+    : public TSchemalessFormatWriterBase
+    , public TSchemafulDsvWriterBase
 {
 public:
-    TSchemafulDsvWriter(
+    TSchemalessWriterForSchemafulDsv(
+        NTableClient::TNameTablePtr nameTable,
+        NConcurrency::IAsyncOutputStreamPtr output,
+        bool enableContextSaving,
+        TSchemafulDsvFormatConfigPtr config);
+       
+    // ISchemalessFormatWriter overrides.
+    virtual void DoWrite(const std::vector<NTableClient::TUnversionedRow>& rows) override;
+    virtual void WriteTableIndex(i32 tableIndex) override;
+    virtual void WriteRangeIndex(i32 rangeIndex) override;
+    virtual void WriteRowIndex(i64 rowIndex) override;
+private:
+    std::vector<int> IdToIndexInRowMapping_;
+};
+
+DEFINE_REFCOUNTED_TYPE(TSchemalessWriterForSchemafulDsv)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TSchemafulWriterForSchemafulDsv
+    : public NTableClient::ISchemafulWriter
+    , public TSchemafulDsvWriterBase
+{
+public:
+    TSchemafulWriterForSchemafulDsv(
         NConcurrency::IAsyncOutputStreamPtr stream,
         std::vector<int> columnIdMapping,
         TSchemafulDsvFormatConfigPtr config = New<TSchemafulDsvFormatConfig>());
@@ -96,25 +88,19 @@ public:
     virtual TFuture<void> GetReadyEvent() override;
 
 private:
-    void WriteValue(const NTableClient::TUnversionedValue& value);
-    static char* WriteInt64Reversed(char* ptr, i64 value);
-    static char* WriteUint64Reversed(char* ptr, ui64 value);
-
-    void WriteRaw(const TStringBuf& str);
-    void WriteRaw(char ch);
-
-    NConcurrency::IAsyncOutputStreamPtr Stream_;
-    std::vector<int> ColumnIdMapping_;
-    TSchemafulDsvFormatConfigPtr Config_;
-
-    TBlob Buffer_;
+    std::unique_ptr<TOutputStream> Output_;
 
     TFuture<void> Result_;
+
+    TBlobOutput UnderlyingBlobOutput_;
+
+    void TryFlushBuffer();
+    void DoFlushBuffer(bool force);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NTableClient::ISchemafulWriterPtr CreateSchemafulDsvWriter(
+NTableClient::ISchemafulWriterPtr CreateSchemafulWriterForSchemafulDsv(
     NConcurrency::IAsyncOutputStreamPtr stream,
     const NTableClient::TTableSchema& schema,
     TSchemafulDsvFormatConfigPtr config = New<TSchemafulDsvFormatConfig>());

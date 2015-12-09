@@ -1,10 +1,10 @@
-#include "stdafx.h"
 #include "framework.h"
-
 #include "ql_helpers.h"
 
-#include <ytlib/query_client/plan_helpers.h>
-#include <ytlib/query_client/query_preparer.h>
+#include <yt/ytlib/query_client/plan_helpers.h>
+#include <yt/ytlib/query_client/query_preparer.h>
+
+#include <yt/core/misc/common.h>
 
 // Tests:
 // TKeyRangeTest

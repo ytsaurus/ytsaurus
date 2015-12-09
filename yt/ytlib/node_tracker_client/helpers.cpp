@@ -1,7 +1,8 @@
-#include "stdafx.h"
 #include "helpers.h"
 
-#include <core/ytree/fluent.h>
+#include <yt/core/misc/common.h>
+
+#include <yt/core/ytree/fluent.h>
 
 #include <limits>
 

@@ -1,5 +1,6 @@
-#include "stdafx.h"
 #include "details.h"
+
+#include <yt/core/misc/common.h>
 
 namespace NYT {
 namespace NCompression {

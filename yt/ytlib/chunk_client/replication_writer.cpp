@@ -1,35 +1,34 @@
-#include "stdafx.h"
 #include "replication_writer.h"
-
+#include "private.h"
+#include "block_cache.h"
 #include "chunk_meta_extensions.h"
 #include "chunk_replica.h"
 #include "chunk_service_proxy.h"
+#include "chunk_writer.h"
 #include "config.h"
 #include "data_node_service_proxy.h"
 #include "dispatcher.h"
-#include "chunk_writer.h"
-#include "block_cache.h"
-#include "private.h"
 
-#include <ytlib/api/client.h>
-#include <ytlib/api/config.h>
-#include <ytlib/api/connection.h>
+#include <yt/ytlib/api/client.h>
+#include <yt/ytlib/api/config.h>
+#include <yt/ytlib/api/connection.h>
 
-#include <ytlib/node_tracker_client/node_directory.h>
+#include <yt/ytlib/node_tracker_client/node_directory.h>
 
-#include <core/concurrency/async_semaphore.h>
-#include <core/concurrency/scheduler.h>
-#include <core/concurrency/periodic_executor.h>
-#include <core/concurrency/thread_affinity.h>
+#include <yt/core/concurrency/async_semaphore.h>
+#include <yt/core/concurrency/periodic_executor.h>
+#include <yt/core/concurrency/scheduler.h>
+#include <yt/core/concurrency/thread_affinity.h>
 
-#include <core/misc/address.h>
-#include <core/misc/async_stream_state.h>
-#include <core/misc/nullable.h>
+#include <yt/core/logging/log.h>
 
-#include <core/logging/log.h>
+#include <yt/core/misc/address.h>
+#include <yt/core/misc/async_stream_state.h>
+#include <yt/core/misc/common.h>
+#include <yt/core/misc/nullable.h>
 
-#include <deque>
 #include <atomic>
+#include <deque>
 
 namespace NYT {
 namespace NChunkClient {

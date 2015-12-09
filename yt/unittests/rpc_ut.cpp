@@ -1,24 +1,24 @@
-#include "stdafx.h"
 #include "framework.h"
 
+#include <yt/core/bus/bus.h>
+#include <yt/core/bus/config.h>
+#include <yt/core/bus/server.h>
+#include <yt/core/bus/tcp_client.h>
+#include <yt/core/bus/tcp_server.h>
+
+#include <yt/core/concurrency/action_queue.h>
+#include <yt/core/concurrency/delayed_executor.h>
+
+#include <yt/core/misc/common.h>
+#include <yt/core/misc/error.h>
+
+#include <yt/core/rpc/bus_channel.h>
+#include <yt/core/rpc/bus_server.h>
+#include <yt/core/rpc/client.h>
+#include <yt/core/rpc/server.h>
+#include <yt/core/rpc/service_detail.h>
+
 #include <yt/unittests/rpc_ut.pb.h>
-
-#include <core/misc/error.h>
-
-#include <core/concurrency/action_queue.h>
-#include <core/concurrency/delayed_executor.h>
-
-#include <core/bus/bus.h>
-#include <core/bus/config.h>
-#include <core/bus/server.h>
-#include <core/bus/tcp_client.h>
-#include <core/bus/tcp_server.h>
-
-#include <core/rpc/client.h>
-#include <core/rpc/server.h>
-#include <core/rpc/bus_server.h>
-#include <core/rpc/service_detail.h>
-#include <core/rpc/bus_channel.h>
 
 namespace NYT {
 namespace NRpc {

@@ -1,15 +1,16 @@
-#include "stdafx.h"
 #include "chunk_slice.h"
+#include "private.h"
 #include "chunk_meta_extensions.h"
 #include "schema.h"
-#include "private.h"
 
-#include <ytlib/table_client/chunk_meta_extensions.h>
+#include <yt/ytlib/table_client/chunk_meta_extensions.h>
 
-#include <core/misc/protobuf_helpers.h>
+#include <yt/core/erasure/codec.h>
 
-#include <core/erasure/codec.h>
-#include <core/logging/log.h>
+#include <yt/core/logging/log.h>
+
+#include <yt/core/misc/common.h>
+#include <yt/core/misc/protobuf_helpers.h>
 
 #include <cmath>
 

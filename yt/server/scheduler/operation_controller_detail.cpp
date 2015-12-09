@@ -1,4 +1,3 @@
-#include "stdafx.h"
 #include "operation_controller_detail.h"
 #include "private.h"
 #include "chunk_list_pool.h"
@@ -6,33 +5,34 @@
 #include "helpers.h"
 #include "master_connector.h"
 
-#include <ytlib/transaction_client/helpers.h>
+#include <yt/ytlib/chunk_client/chunk_list_ypath_proxy.h>
+#include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
+#include <yt/ytlib/chunk_client/chunk_scraper.h>
+#include <yt/ytlib/chunk_client/chunk_slice.h>
+#include <yt/ytlib/chunk_client/data_statistics.h>
 
-#include <ytlib/node_tracker_client/node_directory_builder.h>
+#include <yt/ytlib/cypress_client/rpc_helpers.h>
 
-#include <ytlib/chunk_client/chunk_list_ypath_proxy.h>
-#include <ytlib/chunk_client/chunk_meta_extensions.h>
-#include <ytlib/chunk_client/chunk_scraper.h>
-#include <ytlib/chunk_client/chunk_slice.h>
-#include <ytlib/chunk_client/data_statistics.h>
+#include <yt/ytlib/node_tracker_client/node_directory_builder.h>
 
-#include <ytlib/table_client/schema.h>
-#include <ytlib/table_client/chunk_meta_extensions.h>
-#include <ytlib/cypress_client/rpc_helpers.h>
+#include <yt/ytlib/object_client/helpers.h>
 
-#include <ytlib/transaction_client/transaction_ypath_proxy.h>
+#include <yt/ytlib/query_client/plan_fragment.h>
+#include <yt/ytlib/query_client/query_preparer.h>
+#include <yt/ytlib/query_client/udf_descriptor.h>
 
-#include <ytlib/scheduler/helpers.h>
+#include <yt/ytlib/scheduler/helpers.h>
 
-#include <ytlib/object_client/helpers.h>
+#include <yt/ytlib/table_client/chunk_meta_extensions.h>
+#include <yt/ytlib/table_client/schema.h>
 
-#include <ytlib/query_client/plan_fragment.h>
-#include <ytlib/query_client/query_preparer.h>
-#include <ytlib/query_client/udf_descriptor.h>
+#include <yt/ytlib/transaction_client/helpers.h>
+#include <yt/ytlib/transaction_client/transaction_ypath_proxy.h>
 
-#include <core/erasure/codec.h>
+#include <yt/core/erasure/codec.h>
 
-#include <core/misc/fs.h>
+#include <yt/core/misc/common.h>
+#include <yt/core/misc/fs.h>
 
 #include <functional>
 
@@ -521,26 +521,33 @@ void TOperationControllerBase::TTask::OnJobStarted(TJobletPtr /* joblet */)
 
 void TOperationControllerBase::TTask::OnJobCompleted(TJobletPtr joblet, const TCompletedJobSummary& jobSummary)
 {
-    const auto& statistics = jobSummary.Statistics;
-    auto outputStatisticsMap = GetOutputDataStatistics(statistics);
-    for (int index = 0; index < static_cast<int>(joblet->ChunkListIds.size()); ++index) {
-        YCHECK(outputStatisticsMap.find(index) != outputStatisticsMap.end());
-        auto outputStatistics = outputStatisticsMap[index];
-        if (outputStatistics.chunk_count() == 0) {
+    if (!jobSummary.Abandoned) {
+        const auto& statistics = jobSummary.Statistics;
+        auto outputStatisticsMap = GetOutputDataStatistics(statistics);
+        for (int index = 0; index < static_cast<int>(joblet->ChunkListIds.size()); ++index) {
+            YCHECK(outputStatisticsMap.find(index) != outputStatisticsMap.end());
+            auto outputStatistics = outputStatisticsMap[index];
+            if (outputStatistics.chunk_count() == 0) {
+                Controller->ChunkListPool->Reinstall(joblet->ChunkListIds[index]);
+                joblet->ChunkListIds[index] = NullChunkListId;
+            }
+        }
+
+        auto inputStatistics = GetTotalInputDataStatistics(statistics);
+        auto outputStatistics = GetTotalOutputDataStatistics(statistics);
+        if (Controller->IsRowCountPreserved()) {
+            if (inputStatistics.row_count() != outputStatistics.row_count()) {
+                Controller->OnOperationFailed(TError(
+                    "Input/output row count mismatch in completed job: %v != %v",
+                    inputStatistics.row_count(),
+                    outputStatistics.row_count())
+                    << TErrorAttribute("task", GetId()));
+            }
+        }
+    } else {
+        for (int index = 0; index < static_cast<int>(joblet->ChunkListIds.size()); ++index) {
             Controller->ChunkListPool->Reinstall(joblet->ChunkListIds[index]);
             joblet->ChunkListIds[index] = NullChunkListId;
-        }
-    }
-
-    auto inputStatistics = GetTotalInputDataStatistics(statistics);
-    auto outputStatistics = GetTotalOutputDataStatistics(statistics);
-    if (Controller->IsRowCountPreserved()) {
-        if (inputStatistics.row_count() != outputStatistics.row_count()) {
-            Controller->OnOperationFailed(TError(
-                "Input/output row count mismatch in completed job: %v != %v",
-                inputStatistics.row_count(),
-                outputStatistics.row_count())
-                << TErrorAttribute("task", GetId()));
         }
     }
     GetChunkPoolOutput()->Completed(joblet->OutputCookie);
@@ -1062,184 +1069,105 @@ void TOperationControllerBase::InitializeTransactions()
     }
 }
 
-void TOperationControllerBase::StartAsyncSchedulerTransaction()
+TTransactionId TOperationControllerBase::StartTransaction(
+    const Stroka& transactionName,
+    IClientPtr client,
+    const TNullable<TTransactionId>& parentTransactionId = Null)
 {
-    LOG_INFO("Starting async scheduler transaction");
+    LOG_INFO("Starting %v transaction", transactionName);
 
-    auto channel = AuthenticatedMasterClient->GetMasterChannel(EMasterChannelKind::Leader);
+    auto channel = client->GetMasterChannel(EMasterChannelKind::Leader);
     TObjectServiceProxy proxy(channel);
 
     auto batchReq = proxy.ExecuteBatch();
 
     {
         auto req = TMasterYPathProxy::CreateObjects();
+        if (parentTransactionId) {
+            ToProto(req->mutable_transaction_id(), parentTransactionId.Get());
+        }
         req->set_type(static_cast<int>(EObjectType::Transaction));
 
-        auto* reqExt = req->MutableExtension(NTransactionClient::NProto::TReqStartTransactionExt::create_transaction_ext);
+        auto* reqExt = req->MutableExtension(
+            NTransactionClient::NProto::TReqStartTransactionExt::create_transaction_ext);
         reqExt->set_timeout(Config->OperationTransactionTimeout.MilliSeconds());
-        reqExt->set_enable_uncommitted_accounting(false);
-        reqExt->set_enable_staged_accounting(false);
 
         auto attributes = CreateEphemeralAttributes();
-        attributes->Set("title", Format("Scheduler async for operation %v", OperationId));
+        attributes->Set("title", Format("Scheduler %v for operation %v", transactionName, OperationId));
+        attributes->Set("operation_id", OperationId);
         ToProto(req->mutable_object_attributes(), *attributes);
 
         GenerateMutationId(req);
-        batchReq->AddRequest(req, "start_async_tx");
+        batchReq->AddRequest(req, Format("start_%v_tx", transactionName));
     }
 
     auto batchRspOrError = WaitFor(batchReq->Invoke());
-    THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError), "Error starting async scheduler transaction");
+    THROW_ERROR_EXCEPTION_IF_FAILED(
+        GetCumulativeError(batchRspOrError),
+        "Error starting %v transaction",
+        transactionName);
+
     if (Operation->GetState() != EOperationState::Initializing &&
         Operation->GetState() != EOperationState::Reviving)
         throw TFiberCanceledException();
 
+    const auto& batchRsp = batchRspOrError.Value();
+    auto rspOrError = batchRsp->GetResponse<TMasterYPathProxy::TRspCreateObjects>(
+        Format("start_%v_tx", transactionName));
+    THROW_ERROR_EXCEPTION_IF_FAILED(
+        rspOrError,
+        "Error starting %v transaction",
+        transactionName);
 
-    {
-        const auto& batchRsp = batchRspOrError.Value();
-        auto rsp = batchRsp->GetResponse<TMasterYPathProxy::TRspCreateObjects>("start_async_tx").Value();
-        AsyncSchedulerTransactionId = FromProto<TObjectId>(rsp->object_ids(0));
-        auto transactionManager = AuthenticatedMasterClient->GetTransactionManager();
-        Operation->SetAsyncSchedulerTransaction(transactionManager->Attach(AsyncSchedulerTransactionId));
-    }
-
-    LOG_INFO("Scheduler async transaction started (AsyncTranasctionId: %v)",
-        AsyncSchedulerTransactionId);
+    const auto& rsp = rspOrError.Value();
+    return FromProto<TTransactionId>(rsp->object_ids(0));
 }
 
 void TOperationControllerBase::StartSyncSchedulerTransaction()
 {
-    LOG_INFO("Starting sync scheduler transaction");
-
-    auto channel = AuthenticatedMasterClient->GetMasterChannel(EMasterChannelKind::Leader);
-    TObjectServiceProxy proxy(channel);
-
-    auto batchReq = proxy.ExecuteBatch();
-
-    {
-        auto userTransaction = Operation->GetUserTransaction();
-        auto req = TMasterYPathProxy::CreateObjects();
-        if (userTransaction) {
-            ToProto(req->mutable_transaction_id(), userTransaction->GetId());
-        }
-        req->set_type(static_cast<int>(EObjectType::Transaction));
-
-        auto* reqExt = req->MutableExtension(NTransactionClient::NProto::TReqStartTransactionExt::create_transaction_ext);
-        reqExt->set_timeout(Config->OperationTransactionTimeout.MilliSeconds());
-
-        auto attributes = CreateEphemeralAttributes();
-        attributes->Set("title", Format("Scheduler sync for operation %v", OperationId));
-        ToProto(req->mutable_object_attributes(), *attributes);
-
-        GenerateMutationId(req);
-        batchReq->AddRequest(req, "start_sync_tx");
+    TNullable<TTransactionId> userTransactionId;
+    if (Operation->GetUserTransaction()) {
+        userTransactionId = Operation->GetUserTransaction()->GetId();
     }
-
-    auto batchRspOrError = WaitFor(batchReq->Invoke());
-    THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError), "Error starting sync scheduler transaction");
-    const auto& batchRsp = batchRspOrError.Value();
-    if (Operation->GetState() != EOperationState::Initializing &&
-        Operation->GetState() != EOperationState::Reviving)
-        throw TFiberCanceledException();
-
-    {
-        auto rsp = batchRsp->GetResponse<TMasterYPathProxy::TRspCreateObjects>("start_sync_tx").Value();
-        SyncSchedulerTransactionId = FromProto<TObjectId>(rsp->object_ids(0));
-        auto transactionManager = Host->GetMasterClient()->GetTransactionManager();
-        Operation->SetSyncSchedulerTransaction(transactionManager->Attach(SyncSchedulerTransactionId));
-    }
+    SyncSchedulerTransactionId =
+        StartTransaction("sync", AuthenticatedMasterClient, userTransactionId);
+    auto transactionManager = Host->GetMasterClient()->GetTransactionManager();
+    Operation->SetSyncSchedulerTransaction(transactionManager->Attach(SyncSchedulerTransactionId));
 
     LOG_INFO("Scheduler sync transaction started (SyncTransactionId: %v)",
         SyncSchedulerTransactionId);
 }
 
+void TOperationControllerBase::StartAsyncSchedulerTransaction()
+{
+    AsyncSchedulerTransactionId = StartTransaction("async", AuthenticatedMasterClient);
+    auto transactionManager = AuthenticatedMasterClient->GetTransactionManager();
+    Operation->SetAsyncSchedulerTransaction(transactionManager->Attach(AsyncSchedulerTransactionId));
+
+    LOG_INFO("Scheduler async transaction started (AsyncTranasctionId: %v)",
+        AsyncSchedulerTransactionId);
+}
+
 void TOperationControllerBase::StartInputTransaction(TTransactionId parentTransactionId)
 {
-    LOG_INFO("Starting input transaction");
+    InputTransactionId =
+        StartTransaction("input", AuthenticatedInputMasterClient, parentTransactionId);
+    auto transactionManager = AuthenticatedInputMasterClient->GetTransactionManager();
+    Operation->SetInputTransaction(transactionManager->Attach(InputTransactionId));
 
-    auto channel = AuthenticatedInputMasterClient->GetMasterChannel(EMasterChannelKind::Leader);
-    TObjectServiceProxy proxy(channel);
-
-    auto batchReq = proxy.ExecuteBatch();
-
-    {
-        auto req = TMasterYPathProxy::CreateObjects();
-        ToProto(req->mutable_transaction_id(), parentTransactionId);
-        req->set_type(static_cast<int>(EObjectType::Transaction));
-
-        auto* reqExt = req->MutableExtension(NTransactionClient::NProto::TReqStartTransactionExt::create_transaction_ext);
-        reqExt->set_timeout(Config->OperationTransactionTimeout.MilliSeconds());
-
-        auto attributes = CreateEphemeralAttributes();
-        attributes->Set("title", Format("Scheduler input for operation %v", OperationId));
-        ToProto(req->mutable_object_attributes(), *attributes);
-
-        GenerateMutationId(req);
-        batchReq->AddRequest(req, "start_in_tx");
-    }
-
-    auto batchRspOrError = WaitFor(batchReq->Invoke());
-    THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError), "Error starting input transaction");
-    const auto& batchRsp = batchRspOrError.Value();
-    if (Operation->GetState() != EOperationState::Initializing &&
-        Operation->GetState() != EOperationState::Reviving)
-        throw TFiberCanceledException();
-
-    {
-        auto rspOrError = batchRsp->GetResponse<TMasterYPathProxy::TRspCreateObjects>("start_in_tx");
-        THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error starting input transaction");
-        const auto& rsp = rspOrError.Value();
-        InputTransactionId = FromProto<TTransactionId>(rsp->object_ids(0));
-        auto transactionManager = AuthenticatedInputMasterClient->GetTransactionManager();
-        Operation->SetInputTransaction(transactionManager->Attach(InputTransactionId));
-    }
-
-    LOG_INFO("Input transaction started (InputTransactionId: %v)", InputTransactionId);
+    LOG_INFO("Input transaction started (InputTransactionId: %v)",
+        InputTransactionId);
 }
 
 void TOperationControllerBase::StartOutputTransaction(TTransactionId parentTransactionId)
 {
-    LOG_INFO("Starting output transaction");
+    OutputTransactionId =
+        StartTransaction("output", AuthenticatedOutputMasterClient, parentTransactionId);
+    auto transactionManager = AuthenticatedOutputMasterClient->GetTransactionManager();
+    Operation->SetOutputTransaction(transactionManager->Attach(OutputTransactionId));
 
-    auto channel = AuthenticatedOutputMasterClient->GetMasterChannel(EMasterChannelKind::Leader);
-    TObjectServiceProxy proxy(channel);
-
-    auto batchReq = proxy.ExecuteBatch();
-
-    {
-        auto req = TMasterYPathProxy::CreateObjects();
-        ToProto(req->mutable_transaction_id(), parentTransactionId);
-        req->set_type(static_cast<int>(EObjectType::Transaction));
-
-        auto* reqExt = req->MutableExtension(NTransactionClient::NProto::TReqStartTransactionExt::create_transaction_ext);
-        reqExt->set_enable_uncommitted_accounting(false);
-        reqExt->set_timeout(Config->OperationTransactionTimeout.MilliSeconds());
-
-        auto attributes = CreateEphemeralAttributes();
-        attributes->Set("title", Format("Scheduler output for operation %v", OperationId));
-        ToProto(req->mutable_object_attributes(), *attributes);
-
-        GenerateMutationId(req);
-        batchReq->AddRequest(req, "start_out_tx");
-    }
-
-    auto batchRspOrError = WaitFor(batchReq->Invoke());
-    THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError), "Error starting output transactions");
-    if (Operation->GetState() != EOperationState::Initializing &&
-        Operation->GetState() != EOperationState::Reviving)
-        throw TFiberCanceledException();
-
-    {
-        const auto& batchRsp = batchRspOrError.Value();
-        auto rspOrError = batchRsp->GetResponse<TMasterYPathProxy::TRspCreateObjects>("start_out_tx");
-        THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error starting output transaction");
-        const auto& rsp = rspOrError.Value();
-        OutputTransactionId = FromProto<TTransactionId>(rsp->object_ids(0));
-        auto transactionManager = AuthenticatedOutputMasterClient->GetTransactionManager();
-        Operation->SetOutputTransaction(transactionManager->Attach(OutputTransactionId));
-    }
-
-    LOG_INFO("Output transaction started (OutputTransactionId: %v)", OutputTransactionId);
+    LOG_INFO("Output transaction started (OutputTransactionId: %v)",
+        OutputTransactionId);
 }
 
 void TOperationControllerBase::InitChunkListPool()
@@ -2604,6 +2532,7 @@ void TOperationControllerBase::RequestInputObjects()
         {
             auto req = TYPathProxy::Get(path);
             TAttributeFilter attributeFilter(EAttributeFilterMode::MatchingOnly);
+            attributeFilter.Keys.push_back("dynamic");
             attributeFilter.Keys.push_back("sorted");
             attributeFilter.Keys.push_back("sorted_by");
             attributeFilter.Keys.push_back("chunk_count");
@@ -2637,6 +2566,11 @@ void TOperationControllerBase::RequestInputObjects()
                 const auto& rsp = rspOrError.Value();
                 auto node = ConvertToNode(TYsonString(rsp->value()));
                 const auto& attributes = node->Attributes();
+
+                if (attributes.Get<bool>("dynamic")) {
+                    THROW_ERROR_EXCEPTION("Expected a static table, but got dynamic")
+                        << TErrorAttribute("input_table", table.Path.GetPath());
+                }
 
                 if (attributes.Get<bool>("sorted")) {
                     table.KeyColumns = attributes.Get<TKeyColumns>("sorted_by");
@@ -3521,6 +3455,10 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
     jobSpec->set_max_stderr_size(config->MaxStderrSize);
     jobSpec->set_enable_core_dump(config->EnableCoreDump);
     jobSpec->set_custom_statistics_count_limit(config->CustomStatisticsCountLimit);
+    
+    if (Config->UserJobBlkioWeight) {
+        jobSpec->set_blkio_weight(*Config->UserJobBlkioWeight);
+    }
 
     {
         // Set input and output format.

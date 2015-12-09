@@ -3,11 +3,11 @@
 #include "public.h"
 #include "subject.h"
 
-#include <core/misc/property.h>
+#include <yt/server/cell_master/public.h>
 
-#include <server/object_server/object.h>
+#include <yt/server/object_server/object.h>
 
-#include <server/cell_master/public.h>
+#include <yt/core/misc/property.h>
 
 namespace NYT {
 namespace NSecurityServer {

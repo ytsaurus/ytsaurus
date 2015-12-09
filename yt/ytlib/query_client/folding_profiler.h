@@ -1,14 +1,14 @@
 #pragma once
 
-#include "plan_fragment.h"
 #include "evaluation_helpers.h"
+#include "plan_fragment.h"
 
 #include <util/generic/hash_set.h>
 #include <util/generic/noncopyable.h>
 
-#include <llvm/ADT/FoldingSet.h>
-
 #include <limits>
+
+#include <llvm/ADT/FoldingSet.h>
 
 namespace NYT {
 namespace NQueryClient {

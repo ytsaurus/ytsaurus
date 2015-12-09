@@ -1,16 +1,17 @@
-﻿#include "stdafx.h"
 #include "scheduler_connector.h"
 #include "private.h"
-#include "job.h"
 #include "config.h"
+#include "job.h"
 
-#include <ytlib/api/client.h>
+#include <yt/server/cell_node/bootstrap.h>
 
-#include <server/job_agent/job_controller.h>
+#include <yt/server/data_node/master_connector.h>
 
-#include <server/data_node/master_connector.h>
+#include <yt/server/job_agent/job_controller.h>
 
-#include <server/cell_node/bootstrap.h>
+#include <yt/ytlib/api/client.h>
+
+#include <yt/core/misc/common.h>
 
 namespace NYT {
 namespace NExecAgent {

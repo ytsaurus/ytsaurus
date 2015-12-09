@@ -2,15 +2,15 @@
 #error "Direct inclusion of this file is not allowed, include virtual.h"
 #endif
 
-#include <core/misc/string.h>
-#include <core/misc/collection_helpers.h>
+#include <yt/core/misc/string.h>
+#include <yt/core/misc/collection_helpers.h>
 
-#include <core/ytree/virtual.h>
+#include <yt/core/ytree/virtual.h>
 
-#include <server/object_server/object.h>
-#include <server/object_server/object_manager.h>
+#include <yt/server/object_server/object.h>
+#include <yt/server/object_server/object_manager.h>
 
-#include <server/cell_master/bootstrap.h>
+#include <yt/server/cell_master/bootstrap.h>
 
 namespace NYT {
 namespace NCypressServer {

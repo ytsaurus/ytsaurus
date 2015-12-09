@@ -2,9 +2,9 @@
 
 #include "public.h"
 
-#include <ytlib/chunk_client/chunk_replica.h>
+#include <yt/ytlib/chunk_client/chunk_replica.h>
 
-#include <ytlib/node_tracker_client/node.pb.h>
+#include <yt/ytlib/node_tracker_client/node.pb.h>
 
 namespace NYT {
 namespace NNodeTrackerClient {

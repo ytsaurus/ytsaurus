@@ -1,21 +1,20 @@
-#include "stdafx.h"
 #include "composite_automaton.h"
+#include "private.h"
 #include "hydra_manager.h"
 #include "mutation_context.h"
 #include "snapshot.h"
-#include "private.h"
 
-#include <core/misc/serialize.h>
-#include <core/misc/finally.h>
+#include <yt/core/actions/cancelable_context.h>
 
-#include <core/concurrency/async_stream.h>
+#include <yt/core/concurrency/async_stream.h>
 
-#include <core/actions/cancelable_context.h>
+#include <yt/core/misc/common.h>
+#include <yt/core/misc/finally.h>
+#include <yt/core/misc/serialize.h>
 
-#include <core/profiling/profile_manager.h>
+#include <yt/core/profiling/profile_manager.h>
 
 #include <util/stream/buffered.h>
-#include <core/misc/finally.h>
 
 namespace NYT {
 namespace NHydra {

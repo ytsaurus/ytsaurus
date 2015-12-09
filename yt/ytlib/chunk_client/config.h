@@ -2,21 +2,21 @@
 
 #include "public.h"
 
-#include <core/compression/public.h>
+#include <yt/ytlib/misc/config.h>
+#include <yt/ytlib/misc/workload.h>
 
-#include <core/erasure/public.h>
+#include <yt/ytlib/node_tracker_client/public.h>
 
-#include <core/misc/error.h>
-#include <core/misc/config.h>
+#include <yt/core/compression/public.h>
 
-#include <core/rpc/config.h>
+#include <yt/core/erasure/public.h>
 
-#include <core/ytree/yson_serializable.h>
+#include <yt/core/misc/config.h>
+#include <yt/core/misc/error.h>
 
-#include <ytlib/misc/config.h>
-#include <ytlib/misc/workload.h>
+#include <yt/core/rpc/config.h>
 
-#include <ytlib/node_tracker_client/public.h>
+#include <yt/core/ytree/yson_serializable.h>
 
 namespace NYT {
 namespace NChunkClient {
@@ -367,6 +367,7 @@ class TMultiChunkReaderConfig
 {
 public:
     i64 MaxBufferSize;
+    int MaxPrefetchWindow;
 
     TMultiChunkReaderConfig()
     {
@@ -374,6 +375,11 @@ public:
             .GreaterThan(0L)
             .LessThanOrEqual((i64) 10 * 1024 * 1024 * 1024)
             .Default((i64) 100 * 1024 * 1024);
+
+        RegisterParameter("max_prefetch_window", MaxPrefetchWindow)
+            .GreaterThan(1)
+            .LessThanOrEqual(1000)
+            .Default(512);
 
         RegisterValidator([&] () {
             if (MaxBufferSize < 2 * WindowSize) {

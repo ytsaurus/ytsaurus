@@ -2,11 +2,11 @@
 
 #include "public.h"
 
-#include <core/misc/range.h>
+#include <yt/ytlib/table_client/public.h>
 
-#include <core/actions/public.h>
+#include <yt/core/actions/public.h>
 
-#include <ytlib/table_client/public.h>
+#include <yt/core/misc/range.h>
 
 namespace NYT {
 namespace NTabletNode {

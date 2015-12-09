@@ -1,9 +1,10 @@
-#include "stdafx.h"
 #include "user.h"
 
-#include <server/security_server/security_manager.pb.h>
+#include <yt/server/cell_master/serialize.h>
 
-#include <server/cell_master/serialize.h>
+#include <yt/server/security_server/security_manager.pb.h>
+
+#include <yt/core/misc/common.h>
 
 namespace NYT {
 namespace NSecurityServer {

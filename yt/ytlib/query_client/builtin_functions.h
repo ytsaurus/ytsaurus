@@ -3,7 +3,7 @@
 #include "functions.h"
 #include "user_defined_functions.h"
 
-#include <core/misc/variant.h>
+#include <yt/core/misc/variant.h>
 
 namespace NYT {
 namespace NQueryClient {

@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <core/profiling/profiler.h>
+#include <yt/core/profiling/profiler.h>
 
 namespace NYT {
 namespace NLogging {

@@ -36,6 +36,12 @@ class TestBlockIO(YTEnvSetup):
     NUM_NODES = 5
     NUM_SCHEDULERS = 1
 
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler" : {
+            "user_job_blkio_weight" : 10
+        }
+    }
+
     DELTA_NODE_CONFIG = {
         "exec_agent" : {
             'enable_cgroups' : 'true',
@@ -66,9 +72,7 @@ echo $CONTENT | grep ' 3' 1>/dev/null
         for job_id in ls(jobs_path):
             return read_file(jobs_path + "/" + job_id + "/stderr")
 
-    # XXX(babenko): this test is constantly failing
-    #@block_io_mark
-    @pytest.mark.xfail(run = False, reason = "YT-3148")
+    @block_io_mark
     def test_hitlimit(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")

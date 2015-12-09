@@ -1,5 +1,6 @@
-#include "stdafx.h"
 #include "election_service_proxy.h"
+
+#include <yt/core/misc/common.h>
 
 namespace NYT {
 namespace NElection {

@@ -1,5 +1,7 @@
 #pragma once
 
+#include <util/generic/stroka.h>
+
 namespace NYT {
 namespace NCGroup {
 

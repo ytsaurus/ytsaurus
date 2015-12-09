@@ -1,9 +1,10 @@
-#include "stdafx.h"
 #include "chunk_tree_balancer.h"
 #include "chunk_list.h"
 #include "chunk_manager.h"
 
-#include <server/cell_master/bootstrap.h>
+#include <yt/server/cell_master/bootstrap.h>
+
+#include <yt/core/misc/common.h>
 
 #include <stack>
 

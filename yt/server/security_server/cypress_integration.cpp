@@ -1,21 +1,21 @@
-#include "stdafx.h"
 #include "cypress_integration.h"
 #include "account.h"
-#include "user.h"
 #include "group.h"
+#include "user.h"
 
-#include <core/misc/collection_helpers.h>
+#include <yt/server/cell_master/bootstrap.h>
 
-#include <core/ytree/virtual.h>
+#include <yt/server/cypress_server/virtual.h>
 
-#include <server/cypress_server/virtual.h>
+#include <yt/server/object_server/object_detail.h>
+#include <yt/server/object_server/object_manager.h>
 
-#include <server/cell_master/bootstrap.h>
+#include <yt/server/security_server/security_manager.h>
 
-#include <server/security_server/security_manager.h>
+#include <yt/core/misc/collection_helpers.h>
+#include <yt/core/misc/common.h>
 
-#include <server/object_server/object_manager.h>
-#include <server/object_server/object_detail.h>
+#include <yt/core/ytree/virtual.h>
 
 namespace NYT {
 namespace NSecurityServer {

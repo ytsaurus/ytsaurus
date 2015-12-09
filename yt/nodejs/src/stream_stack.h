@@ -1,6 +1,11 @@
 #pragma once
 
-#include <core/misc/mpl.h>
+#include "common.h"
+
+#include <yt/core/misc/mpl.h>
+
+#include <util/stream/input.h>
+#include <util/stream/output.h>
 
 namespace NYT {
 namespace NNodeJS {

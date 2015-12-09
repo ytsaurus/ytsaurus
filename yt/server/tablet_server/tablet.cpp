@@ -1,12 +1,13 @@
-#include "stdafx.h"
 #include "tablet.h"
 #include "tablet_cell.h"
 
-#include <core/ytree/fluent.h>
+#include <yt/server/cell_master/serialize.h>
 
-#include <server/table_server/table_node.h>
+#include <yt/server/table_server/table_node.h>
 
-#include <server/cell_master/serialize.h>
+#include <yt/core/misc/common.h>
+
+#include <yt/core/ytree/fluent.h>
 
 namespace NYT {
 namespace NTabletServer {
@@ -121,6 +122,7 @@ TTablet::TTablet(const TTabletId& id)
     : TNonversionedObjectBase(id)
     , Index_(-1)
     , State_(ETabletState::Unmounted)
+    , MountRevision_(0)
     , Table_(nullptr)
     , Cell_(nullptr)
     , InMemoryMode_(NTabletNode::EInMemoryMode::None)
@@ -133,6 +135,7 @@ void TTablet::Save(TSaveContext& context) const
     using NYT::Save;
     Save(context, Index_);
     Save(context, State_);
+    Save(context, MountRevision_);
     Save(context, Table_);
     Save(context, Cell_);
     Save(context, PivotKey_);
@@ -148,6 +151,10 @@ void TTablet::Load(TLoadContext& context)
     Load(context, Index_);
     Load(context, State_);
     // COMPAT(babenko)
+    if (context.GetVersion() >= 125) {
+        Load(context, MountRevision_);
+    }
+    // COMPAT(babenko)
     if (context.GetVersion() >= 115) {
         Load(context, Table_);
     } else {
@@ -162,6 +169,18 @@ void TTablet::Load(TLoadContext& context)
     // COMPAT(babenko)
     if (context.GetVersion() >= 119) {
         Load(context, InMemoryMode_);
+    }
+}
+
+void TTablet::ValidateMountRevision(i64 mountRevision)
+{
+    if (MountRevision_ != mountRevision) {
+        THROW_ERROR_EXCEPTION(
+            NRpc::EErrorCode::Unavailable,
+            "Invalid mount revision of tablet %v: expected %x, received %x",
+            Id_,
+            MountRevision_,
+            mountRevision);
     }
 }
 

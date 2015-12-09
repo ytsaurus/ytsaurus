@@ -2,9 +2,9 @@
 
 #include "public.h"
 
-#include <core/misc/shutdownable.h>
+#include <yt/core/misc/shutdownable.h>
 
-#include <core/profiling/profiler.h>
+#include <yt/core/profiling/profiler.h>
 
 namespace NYT {
 namespace NBus {
@@ -13,11 +13,17 @@ namespace NBus {
 
 struct TTcpDispatcherStatistics
 {
-    int PendingInPackets = 0;
-    i64 PendingInBytes = 0;
+    i64 InBytes = 0;
+    i64 InPackets = 0;
 
-    int PendingOutPackets = 0;
+    i64 OutBytes = 0;
+    i64 OutPackets = 0;
+
+    i64 PendingOutPackets = 0;
     i64 PendingOutBytes = 0;
+
+    int ClientConnections = 0;
+    int ServerConnections = 0;
 };
 
 TTcpDispatcherStatistics operator + (
@@ -27,32 +33,6 @@ TTcpDispatcherStatistics operator + (
 TTcpDispatcherStatistics& operator += (
     TTcpDispatcherStatistics& lhs,
     const TTcpDispatcherStatistics& rhs);
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TTcpProfilingData
-{
-    TTcpProfilingData();
-
-    NProfiling::TTagId TagId;
-
-    NProfiling::TAggregateCounter ReceiveTimeCounter;
-    NProfiling::TAggregateCounter ReceiveSizeCounter;
-    NProfiling::TAggregateCounter InHandlerTimeCounter;
-    NProfiling::TSimpleCounter InByteCounter;
-    NProfiling::TSimpleCounter InPacketCounter;
-
-    NProfiling::TAggregateCounter SendTimeCounter;
-    NProfiling::TAggregateCounter SendSizeCounter;
-    NProfiling::TAggregateCounter OutHandlerTimeCounter;
-    NProfiling::TSimpleCounter OutBytesCounter;
-    NProfiling::TSimpleCounter OutPacketCounter;
-    NProfiling::TAggregateCounter PendingOutPacketCounter;
-    NProfiling::TAggregateCounter PendingOutByteCounter;
-
-    NProfiling::TSimpleCounter ClientConnectionCounter;
-    NProfiling::TSimpleCounter ServerConnectionCounter;
-};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -76,7 +56,6 @@ public:
     virtual void Shutdown() override;
 
     TTcpDispatcherStatistics GetStatistics(ETcpInterfaceType interfaceType);
-    TTcpProfilingData* GetProfilingData(ETcpInterfaceType interfaceType);
 
 private:
     TTcpDispatcher();

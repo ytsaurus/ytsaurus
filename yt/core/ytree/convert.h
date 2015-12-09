@@ -1,8 +1,8 @@
 #pragma once
 
 #include "public.h"
-#include "yson_string.h"
 #include "ephemeral_node_factory.h"
+#include "yson_string.h"
 
 namespace NYT {
 namespace NYTree {

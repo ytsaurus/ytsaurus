@@ -1,6 +1,6 @@
 #pragma once
 
-#include <core/misc/small_vector.h>
+#include <yt/core/misc/small_vector.h>
 
 namespace NYT {
 namespace NProfiling {

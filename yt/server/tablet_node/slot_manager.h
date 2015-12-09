@@ -2,17 +2,17 @@
 
 #include "public.h"
 
-#include <core/actions/signal.h>
+#include <yt/server/cell_node/public.h>
 
-#include <core/ytree/public.h>
+#include <yt/server/hydra/public.h>
 
-#include <ytlib/node_tracker_client/node_tracker_service.pb.h>
+#include <yt/ytlib/node_tracker_client/node_tracker_service.pb.h>
 
-#include <ytlib/table_client/unversioned_row.h>
+#include <yt/ytlib/table_client/unversioned_row.h>
 
-#include <server/cell_node/public.h>
+#include <yt/core/actions/signal.h>
 
-#include <server/hydra/public.h>
+#include <yt/core/ytree/public.h>
 
 namespace NYT {
 namespace NTabletNode {

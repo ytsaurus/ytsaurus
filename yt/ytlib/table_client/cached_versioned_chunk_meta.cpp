@@ -1,13 +1,13 @@
-#include "stdafx.h"
 #include "cached_versioned_chunk_meta.h"
 #include "schema.h"
 
-#include <ytlib/chunk_client/chunk_reader.h>
-#include <ytlib/chunk_client/dispatcher.h>
+#include <yt/ytlib/chunk_client/chunk_reader.h>
+#include <yt/ytlib/chunk_client/dispatcher.h>
 
-#include <core/concurrency/scheduler.h>
+#include <yt/core/concurrency/scheduler.h>
 
-#include <core/misc/bloom_filter.h>
+#include <yt/core/misc/bloom_filter.h>
+#include <yt/core/misc/common.h>
 
 namespace NYT {
 namespace NTableClient {
@@ -42,9 +42,10 @@ TCachedVersionedChunkMetaPtr TCachedVersionedChunkMeta::DoLoad(
     const TTableSchema& readerSchema,
     const TKeyColumns& keyColumns)
 {
-    try {
-        KeyColumns_ = keyColumns;
+    ChunkId_ = chunkReader->GetChunkId();
+    KeyColumns_ = keyColumns;
 
+    try {
         ValidateTableSchemaAndKeyColumns(readerSchema, keyColumns);
 
         auto asyncChunkMeta = chunkReader->GetMeta();
@@ -55,23 +56,23 @@ TCachedVersionedChunkMetaPtr TCachedVersionedChunkMeta::DoLoad(
         ValidateSchema(readerSchema);
 
         auto boundaryKeysExt = GetProtoExtension<TBoundaryKeysExt>(ChunkMeta_.extensions());
-        MinKey_ = FromProto<TOwningKey>(boundaryKeysExt.min());
-        MaxKey_ = FromProto<TOwningKey>(boundaryKeysExt.max());
+        MinKey_ = WidenKey(FromProto<TOwningKey>(boundaryKeysExt.min()), GetKeyColumnCount());
+        MaxKey_ = WidenKey(FromProto<TOwningKey>(boundaryKeysExt.max()), GetKeyColumnCount());
 
         Misc_ = GetProtoExtension<TMiscExt>(ChunkMeta_.extensions());
         BlockMeta_ = GetProtoExtension<TBlockMetaExt>(ChunkMeta_.extensions());
 
-        BlockIndexKeys_.reserve(BlockMeta_.blocks_size());
+        BlockLastKeys_.reserve(BlockMeta_.blocks_size());
         for (const auto& block : BlockMeta_.blocks()) {
             YCHECK(block.has_last_key());
             auto key = FromProto<TOwningKey>(block.last_key());
-            BlockIndexKeys_.push_back(WidenKey(key, GetKeyColumnCount()));
+            BlockLastKeys_.push_back(WidenKey(key, GetKeyColumnCount()));
         }
 
         return this;
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Error caching meta of chunk %v",
-            chunkReader->GetChunkId())
+            ChunkId_)
             << ex;
     }
 }

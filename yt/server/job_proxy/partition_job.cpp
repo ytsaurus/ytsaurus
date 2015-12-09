@@ -1,17 +1,16 @@
-﻿#include "stdafx.h"
-
 #include "partition_job.h"
-
-#include "job_detail.h"
-#include "config.h"
 #include "private.h"
+#include "config.h"
+#include "job_detail.h"
 
-#include <ytlib/chunk_client/chunk_spec.h>
+#include <yt/ytlib/chunk_client/chunk_spec.h>
 
-#include <ytlib/table_client/name_table.h>
-#include <ytlib/table_client/partitioner.h>
-#include <ytlib/table_client/schemaless_chunk_reader.h>
-#include <ytlib/table_client/schemaless_chunk_writer.h>
+#include <yt/ytlib/table_client/name_table.h>
+#include <yt/ytlib/table_client/partitioner.h>
+#include <yt/ytlib/table_client/schemaless_chunk_reader.h>
+#include <yt/ytlib/table_client/schemaless_chunk_writer.h>
+
+#include <yt/core/misc/common.h>
 
 namespace NYT {
 namespace NJobProxy {

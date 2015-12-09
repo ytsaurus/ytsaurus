@@ -1,6 +1,6 @@
 #pragma once
 
-#include <ytlib/ypath/rich.h>
+#include <yt/ytlib/ypath/rich.h>
 
 #include <tclap/CmdLine.h>
 

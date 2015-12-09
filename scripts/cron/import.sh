@@ -1,4 +1,4 @@
-#!/bin/sh -eux
+#!/bin/bash -eux
 
 IMPORT_QUEUE="//sys/cron/tables_to_import"
 

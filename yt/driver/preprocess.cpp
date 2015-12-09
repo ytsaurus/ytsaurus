@@ -1,6 +1,6 @@
 #include "preprocess.h"
 
-#include <core/ypath/tokenizer.h>
+#include <yt/core/ypath/tokenizer.h>
 
 namespace NYT {
 namespace NDriver {

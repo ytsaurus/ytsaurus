@@ -2,24 +2,24 @@
 
 #include "public.h"
 
-#include <core/misc/small_vector.h>
+#include <yt/ytlib/hive/public.h>
 
-#include <core/actions/future.h>
+#include <yt/ytlib/node_tracker_client/node_directory.h>
 
-#include <core/rpc/public.h>
+#include <yt/ytlib/object_client/public.h>
 
-#include <ytlib/ypath/public.h>
+#include <yt/ytlib/table_client/chunk_meta.pb.h>
+#include <yt/ytlib/table_client/public.h>
+#include <yt/ytlib/table_client/schema.h>
+#include <yt/ytlib/table_client/unversioned_row.h>
 
-#include <ytlib/object_client/public.h>
+#include <yt/ytlib/ypath/public.h>
 
-#include <ytlib/hive/public.h>
+#include <yt/core/actions/future.h>
 
-#include <ytlib/table_client/public.h>
-#include <ytlib/table_client/schema.h>
-#include <ytlib/table_client/unversioned_row.h>
-#include <ytlib/table_client/chunk_meta.pb.h>
+#include <yt/core/misc/small_vector.h>
 
-#include <ytlib/node_tracker_client/node_directory.h>
+#include <yt/core/rpc/public.h>
 
 
 namespace NYT {
@@ -44,6 +44,7 @@ struct TTabletInfo
     : public TIntrinsicRefCounted
 {
     NObjectClient::TObjectId TabletId;
+    i64 MountRevision = 0;
     NTabletClient::ETabletState State;
     NTableClient::TOwningKey PivotKey;
     NTabletClient::TTabletCellId CellId;
@@ -67,7 +68,8 @@ struct TTableMountInfo
 
     std::vector<TTabletInfoPtr> Tablets;
 
-    TTabletInfoPtr GetTablet(NTableClient::TUnversionedRow row);
+    TTabletInfoPtr GetTablet(NTableClient::TUnversionedRow row) const;
+    void ValidateDynamic() const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TTableMountInfo)

@@ -1,21 +1,21 @@
-#include "stdafx.h"
 #include "coordinator.h"
-
 #include "private.h"
-#include "helpers.h"
-#include "plan_helpers.h"
-#include "plan_fragment.h"
-#include "range_inferrer.h"
 #include "functions.h"
+#include "helpers.h"
+#include "plan_fragment.h"
+#include "plan_helpers.h"
+#include "range_inferrer.h"
 
-#include <core/logging/log.h>
+#include <yt/ytlib/table_client/schema.h>
+#include <yt/ytlib/table_client/schemaful_reader.h>
+#include <yt/ytlib/table_client/unordered_schemaful_reader.h>
+#include <yt/ytlib/table_client/writer.h>
 
-#include <ytlib/table_client/schemaful_reader.h>
-#include <ytlib/table_client/writer.h>
-#include <ytlib/table_client/schema.h>
-#include <ytlib/table_client/unordered_schemaful_reader.h>
+#include <yt/ytlib/tablet_client/public.h>
 
-#include <ytlib/tablet_client/public.h>
+#include <yt/core/logging/log.h>
+
+#include <yt/core/misc/common.h>
 
 #include <numeric>
 
@@ -287,7 +287,7 @@ TRowRanges GetRanges(const std::vector<TDataSources>& groupedSplits)
 }
 
 TQueryStatistics CoordinateAndExecute(
-    TPlanFragmentPtr fragment,
+    TConstQueryPtr query,
     ISchemafulWriterPtr writer,
     const std::vector<TRefiner>& refiners,
     bool isOrdered,
@@ -295,7 +295,6 @@ TQueryStatistics CoordinateAndExecute(
     std::function<TQueryStatistics(TConstQueryPtr, ISchemafulReaderPtr, ISchemafulWriterPtr)> evaluateTop,
     IFunctionRegistryPtr functionRegistry)
 {
-    auto query = fragment->Query;
     auto Logger = BuildLogger(query);
 
     LOG_DEBUG("Begin coordinating query");

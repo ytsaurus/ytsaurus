@@ -1,14 +1,15 @@
-#include "stdafx.h"
 #include "map_controller.h"
-#include "merge_controller.h"
 #include "private.h"
-#include "operation_controller_detail.h"
-#include "chunk_pool.h"
 #include "chunk_list_pool.h"
-#include "job_resources.h"
+#include "chunk_pool.h"
 #include "helpers.h"
+#include "job_resources.h"
+#include "merge_controller.h"
+#include "operation_controller_detail.h"
 
-#include <ytlib/chunk_client/chunk_slice.h>
+#include <yt/ytlib/chunk_client/chunk_slice.h>
+
+#include <yt/core/misc/common.h>
 
 namespace NYT {
 namespace NScheduler {

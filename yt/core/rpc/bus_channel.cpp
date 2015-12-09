@@ -1,29 +1,29 @@
-#include "stdafx.h"
 #include "bus_channel.h"
 #include "private.h"
 #include "client.h"
-#include "message.h"
 #include "dispatcher.h"
+#include "message.h"
 
-#include <core/misc/singleton.h>
+#include <yt/core/actions/future.h>
 
-#include <core/actions/future.h>
+#include <yt/core/bus/bus.h>
+#include <yt/core/bus/config.h>
+#include <yt/core/bus/tcp_client.h>
 
-#include <core/concurrency/delayed_executor.h>
-#include <core/concurrency/thread_affinity.h>
-#include <core/concurrency/rw_spinlock.h>
+#include <yt/core/concurrency/delayed_executor.h>
+#include <yt/core/concurrency/rw_spinlock.h>
+#include <yt/core/concurrency/thread_affinity.h>
 
-#include <core/bus/bus.h>
-#include <core/bus/tcp_client.h>
-#include <core/bus/config.h>
+#include <yt/core/misc/common.h>
+#include <yt/core/misc/singleton.h>
 
-#include <core/ypath/token.h>
+#include <yt/core/profiling/profile_manager.h>
 
-#include <core/ytree/yson_string.h>
+#include <yt/core/rpc/rpc.pb.h>
 
-#include <core/rpc/rpc.pb.h>
+#include <yt/core/ypath/token.h>
 
-#include <core/profiling/profile_manager.h>
+#include <yt/core/ytree/yson_string.h>
 
 namespace NYT {
 namespace NRpc {
@@ -230,22 +230,25 @@ private:
         void Terminate(const TError& error)
         {
             // Mark the channel as terminated to disallow any further usage.
-            // Swap out all active requests and mark them as failed.
-            TActiveRequestMap activeRequests;
+            std::vector<IClientResponseHandlerPtr> responseHandlers;
 
             {
                 TGuard<TSpinLock> guard(SpinLock_);
                 Terminated_ = true;
                 TerminationError_ = error;
-                activeRequests.swap(ActiveRequestMap_);
+                for (const auto& pair : ActiveRequestMap_) {
+                    const auto& requestId = pair.first;
+                    const auto& requestControl = pair.second;
+                    LOG_DEBUG(error, "Request failed due to channel termination (RequestId: %v)",
+                        requestId);
+                    responseHandlers.push_back(requestControl->GetResponseHandler());
+                    requestControl->Finalize();
+                }
+                ActiveRequestMap_.clear();
             }
 
-            for (auto& pair : activeRequests) {
-                const auto& requestId = pair.first;
-                const auto& requestControl = pair.second;
-                LOG_DEBUG(error, "Request failed due to channel termination (RequestId: %v)",
-                    requestId);
-                requestControl->Terminate(error);
+            for (const auto& responseHandler : responseHandlers) {
+                responseHandler->HandleError(error);
             }
         }
 
@@ -268,7 +271,7 @@ private:
                 responseHandler);
 
             IBusPtr bus;
-            TClientRequestControlPtr existingRequestControl;
+            IClientResponseHandlerPtr existingResponseHandler;
             {
                 TGuard<TSpinLock> guard(SpinLock_);
 
@@ -288,17 +291,21 @@ private:
                 // NB: We're OK with duplicate request ids.
                 auto pair = ActiveRequestMap_.insert(std::make_pair(requestId, requestControl));
                 if (!pair.second) {
-                    existingRequestControl = pair.first->second;
+                    const auto& existingRequestControl = pair.first->second;
+                    LOG_DEBUG("Request resent (RequestId: %v)",
+                        requestId);
+                    existingResponseHandler = existingRequestControl->GetResponseHandler();
+                    existingRequestControl->Finalize();
                     pair.first->second = requestControl;
                 }
 
                 bus = Bus_;
             }
 
-            if (existingRequestControl) {
-                LOG_DEBUG("Request resent (RequestId: %v)",
-                    requestId);
-                existingRequestControl->Terminate(TError("Request resent"));
+            if (existingResponseHandler) {
+                existingResponseHandler->HandleError(TError(
+                    NRpc::EErrorCode::TransportError,
+                    "Request resent"));
             }
 
             if (request->IsRequestHeavy()) {
@@ -338,6 +345,12 @@ private:
                 auto it = ActiveRequestMap_.find(requestId);
                 if (it == ActiveRequestMap_.end()) {
                     LOG_DEBUG("Attempt to cancel an unknown request, ignored (RequestId: %v)",
+                        requestId);
+                    return;
+                }
+
+                if (requestControl != it->second) {
+                    LOG_DEBUG("Attempt to cancel a resent request, ignored (RequestId: %v)",
                         requestId);
                     return;
                 }
@@ -730,12 +743,6 @@ private:
             Profiler.TimingStop(Timer_, STRINGBUF("total"));
             Request_.Reset();
             ResponseHandler_.Reset();
-        }
-
-        void Terminate(const TError& error)
-        {
-            ResponseHandler_->HandleError(error);
-            Finalize();
         }
 
         virtual void Cancel() override

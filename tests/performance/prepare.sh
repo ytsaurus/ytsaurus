@@ -1,4 +1,4 @@
-#!/bin/sh -eu
+#!/bin/bash -eu
 
 SIZE=`echo "10 ^ 10" | bc`
 JOB_RECORDS=`echo "$SIZE / ($JOBCOUNT * 100)" | bc`

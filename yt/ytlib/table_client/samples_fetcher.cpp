@@ -1,24 +1,23 @@
-#include "stdafx.h"
-
 #include "samples_fetcher.h"
 
-#include <ytlib/chunk_client/chunk_spec.h>
-#include <ytlib/chunk_client/config.h>
-#include <ytlib/chunk_client/data_node_service_proxy.h>
-#include <ytlib/chunk_client/dispatcher.h>
-#include <ytlib/chunk_client/private.h>
+#include <yt/ytlib/chunk_client/chunk_spec.h>
+#include <yt/ytlib/chunk_client/config.h>
+#include <yt/ytlib/chunk_client/data_node_service_proxy.h>
+#include <yt/ytlib/chunk_client/dispatcher.h>
+#include <yt/ytlib/chunk_client/private.h>
 
-#include <ytlib/node_tracker_client/node_directory.h>
+#include <yt/ytlib/node_tracker_client/node_directory.h>
 
-#include <ytlib/scheduler/config.h>
+#include <yt/ytlib/scheduler/config.h>
 
-#include <core/concurrency/scheduler.h>
+#include <yt/core/concurrency/scheduler.h>
 
-#include <core/misc/protobuf_helpers.h>
+#include <yt/core/logging/log.h>
 
-#include <core/rpc/channel.h>
+#include <yt/core/misc/common.h>
+#include <yt/core/misc/protobuf_helpers.h>
 
-#include <core/logging/log.h>
+#include <yt/core/rpc/channel.h>
 
 namespace NYT {
 namespace NTableClient {
@@ -175,7 +174,8 @@ void TSamplesFetcher::DoFetchFromNode(TNodeId nodeId, std::vector<int> chunkInde
         for (const auto& protoSample : sampleResponse.samples()) {
             TSample sample = {
                 FromProto<TOwningKey>(protoSample.key()),
-                protoSample.incomplete()
+                protoSample.incomplete(),
+                protoSample.weight()
             };
 
             YCHECK(sample.Key.GetCount() == KeyColumns_.size());

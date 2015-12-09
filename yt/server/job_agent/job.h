@@ -2,15 +2,15 @@
 
 #include "public.h"
 
-#include <core/misc/error.h>
+#include <yt/ytlib/chunk_client/public.h>
 
-#include <core/actions/signal.h>
+#include <yt/ytlib/job_tracker_client/job.pb.h>
 
-#include <ytlib/node_tracker_client/node.pb.h>
+#include <yt/ytlib/node_tracker_client/node.pb.h>
 
-#include <ytlib/job_tracker_client/job.pb.h>
+#include <yt/core/actions/signal.h>
 
-#include <ytlib/chunk_client/public.h>
+#include <yt/core/misc/error.h>
 
 namespace NYT {
 namespace NJobAgent {
@@ -55,6 +55,7 @@ struct IJob
 
     virtual std::vector<NChunkClient::TChunkId> DumpInputContexts() const = 0;
     virtual NYTree::TYsonString Strace() const = 0;
+    virtual void SignalJob(const Stroka& signalName) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IJob)

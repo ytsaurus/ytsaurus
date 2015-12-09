@@ -1,5 +1,6 @@
-#include "stdafx.h"
 #include "hydra_manager.h"
+
+#include <yt/core/misc/common.h>
 
 namespace NYT {
 namespace NHydra {

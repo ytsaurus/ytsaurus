@@ -1,5 +1,6 @@
-#include "stdafx.h"
 #include "job.h"
+
+#include <yt/core/misc/common.h>
 
 namespace NYT {
 namespace NJobAgent {

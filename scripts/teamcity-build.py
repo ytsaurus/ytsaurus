@@ -65,7 +65,6 @@ def prepare(options):
     options.build_enable_nodejs = checked_yes_no(os.environ.get("BUILD_ENABLE_NODEJS", "YES"))
     options.build_enable_python = checked_yes_no(os.environ.get("BUILD_ENABLE_PYTHON", "YES"))
     options.build_enable_perl = checked_yes_no(os.environ.get("BUILD_ENABLE_PERL", "YES"))
-    options.build_enable_llvm = checked_yes_no(os.environ.get("BUILD_ENABLE_LLVM", "YES"))
 
     options.branch = re.sub(r"^refs/heads/", "", options.branch)
     options.branch = options.branch.split("/")[0]
@@ -128,7 +127,6 @@ def configure(options):
         "-DYT_BUILD_ENABLE_NODEJS={0}".format(options.build_enable_nodejs),
         "-DYT_BUILD_ENABLE_PYTHON={0}".format(options.build_enable_python),
         "-DYT_BUILD_ENABLE_PERL={0}".format(options.build_enable_perl),
-        "-DYT_BUILD_ENABLE_LLVM={0}".format(options.build_enable_llvm),
         "-DYT_USE_LTO={0}".format(options.use_lto),
         "-DCMAKE_CXX_COMPILER={0}".format(options.cxx),
         "-DCMAKE_C_COMPILER={0}".format(options.cc),

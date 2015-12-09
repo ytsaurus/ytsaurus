@@ -1,15 +1,15 @@
-#include "stdafx.h"
 #include "framework.h"
-
 #include "versioned_table_client_ut.h"
 
-#include <ytlib/table_client/schema.h>
-#include <ytlib/table_client/versioned_block_writer.h>
-#include <ytlib/table_client/versioned_block_reader.h>
+#include <yt/ytlib/table_client/schema.h>
+#include <yt/ytlib/table_client/versioned_block_reader.h>
+#include <yt/ytlib/table_client/versioned_block_writer.h>
 
-#include <ytlib/transaction_client/public.h>
+#include <yt/ytlib/transaction_client/public.h>
 
-#include <core/compression/codec.h>
+#include <yt/core/compression/codec.h>
+
+#include <yt/core/misc/common.h>
 
 namespace NYT {
 namespace NTableClient {
@@ -94,6 +94,9 @@ protected:
         Meta = block.Meta;
     }
 
+    TKeyComparer KeyComparer_ = [] (TKey lhs, TKey rhs) {
+        return CompareRows(lhs, rhs);
+    };
 };
 
 TEST_F(TVersionedBlocksTestOneRow, ReadByTimestamp1)
@@ -108,6 +111,7 @@ TEST_F(TVersionedBlocksTestOneRow, ReadByTimestamp1)
         KeyColumns.size(),
         KeyColumns.size() + 2, // Two padding key columns.
         schemaIdMapping,
+        KeyComparer_,
         7);
 
     TVersionedRow row = TVersionedRow::Allocate(&MemoryPool, 5, 3, 1, 0);
@@ -139,6 +143,7 @@ TEST_F(TVersionedBlocksTestOneRow, ReadByTimestamp2)
         KeyColumns.size(),
         KeyColumns.size(),
         schemaIdMapping,
+        KeyComparer_,
         9);
 
     TVersionedRow row = TVersionedRow::Allocate(&MemoryPool, 3, 0, 0, 1);
@@ -164,6 +169,7 @@ TEST_F(TVersionedBlocksTestOneRow, ReadLastCommitted)
         KeyColumns.size(),
         KeyColumns.size(),
         schemaIdMapping,
+        KeyComparer_,
         SyncLastCommittedTimestamp);
 
     TVersionedRow row = TVersionedRow::Allocate(&MemoryPool, 3, 0, 1, 1);
@@ -191,6 +197,7 @@ TEST_F(TVersionedBlocksTestOneRow, ReadAllCommitted)
         KeyColumns.size(),
         KeyColumns.size(),
         schemaIdMapping,
+        KeyComparer_,
         AllCommittedTimestamp);
 
     TVersionedRow row = TVersionedRow::Allocate(&MemoryPool, 3, 1, 3, 1);

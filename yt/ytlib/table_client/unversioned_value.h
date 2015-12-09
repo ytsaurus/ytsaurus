@@ -1,8 +1,8 @@
 #include "row_base.h"
 
-#include <util/system/defaults.h>
+#include <yt/core/misc/farm_hash.h>
 
-#include <core/misc/farm_hash.h>
+#include <util/system/defaults.h>
 
 namespace NYT {
 namespace NTableClient {

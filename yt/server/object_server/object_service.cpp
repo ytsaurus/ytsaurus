@@ -1,32 +1,33 @@
-#include "stdafx.h"
 #include "object_service.h"
 #include "private.h"
-#include "object_manager.h"
 #include "config.h"
+#include "object_manager.h"
 
-#include <core/ytree/ypath_detail.h>
+#include <yt/server/cell_master/bootstrap.h>
+#include <yt/server/cell_master/hydra_facade.h>
+#include <yt/server/cell_master/master_hydra_service.h>
 
-#include <core/rpc/message.h>
-#include <core/rpc/service_detail.h>
-#include <core/rpc/helpers.h>
+#include <yt/server/cypress_server/cypress_manager.h>
 
-#include <ytlib/security_client/public.h>
+#include <yt/server/security_server/security_manager.h>
+#include <yt/server/security_server/user.h>
 
-#include <ytlib/object_client/object_service_proxy.h>
+#include <yt/server/transaction_server/transaction.h>
+#include <yt/server/transaction_server/transaction_manager.h>
 
-#include <ytlib/cypress_client/rpc_helpers.h>
+#include <yt/ytlib/cypress_client/rpc_helpers.h>
 
-#include <server/transaction_server/transaction.h>
-#include <server/transaction_server/transaction_manager.h>
+#include <yt/ytlib/object_client/object_service_proxy.h>
 
-#include <server/cell_master/bootstrap.h>
-#include <server/cell_master/hydra_facade.h>
-#include <server/cell_master/master_hydra_service.h>
+#include <yt/ytlib/security_client/public.h>
 
-#include <server/security_server/security_manager.h>
-#include <server/security_server/user.h>
+#include <yt/core/misc/common.h>
 
-#include <server/cypress_server/cypress_manager.h>
+#include <yt/core/rpc/helpers.h>
+#include <yt/core/rpc/message.h>
+#include <yt/core/rpc/service_detail.h>
+
+#include <yt/core/ytree/ypath_detail.h>
 
 #include <atomic>
 
@@ -111,9 +112,9 @@ public:
         auto hydraManager = Owner->Bootstrap_->GetHydraFacade()->GetHydraManager();
         auto sync = hydraManager->SyncWithLeader();
         if (sync.IsSet()) {
-            OnSync(sync.Get());
+            CheckAndContinue(sync.Get());
         } else {
-            sync.Subscribe(BIND(&TExecuteSession::OnSync, MakeStrong(this))
+            sync.Subscribe(BIND(&TExecuteSession::CheckAndContinue, MakeStrong(this))
                 .Via(GetCurrentInvoker()));
         }
     }
@@ -136,16 +137,12 @@ private:
     const NLogging::TLogger& Logger = ObjectServerLogger;
 
 
-    void OnSync(const TError& error)
+    void CheckAndContinue(const TError& error)
     {
         if (!error.IsOK()) {
             Reply(error);
             return;
         }
-
-        auto* user = GetAuthenticatedUser();
-        auto securityManager = Owner->Bootstrap_->GetSecurityManager();
-        securityManager->ValidateUserAccess(user, RequestCount);
 
         Continue();
     }
@@ -166,6 +163,11 @@ private:
 
             auto securityManager = Owner->Bootstrap_->GetSecurityManager();
             auto* user = GetAuthenticatedUser();
+
+            if (CurrentRequestIndex == 0) {
+                securityManager->ValidateUserAccess(user, RequestCount);
+            }
+
             TAuthenticatedUserGuard userGuard(securityManager, user);
 
             while (CurrentRequestIndex < request.part_counts_size()) {
@@ -213,7 +215,7 @@ private:
 
                 if (IsBarrierNeeded(mutating) && !LastMutationCommitted.IsSet()) {
                     LastMutationCommitted.Subscribe(
-                        BIND(&TExecuteSession::OnLastMutationCommitted, MakeStrong(this))
+                        BIND(&TExecuteSession::CheckAndContinue, MakeStrong(this))
                             .Via(hydraFacade->GetEpochAutomatonInvoker()));
                     return;
                 }
@@ -284,16 +286,6 @@ private:
             // Forbid to reorder read requests before write ones.
             return true;
         }
-    }
-
-    void OnLastMutationCommitted(const TError& error)
-    {
-        if (!error.IsOK()) {
-            Reply(error);
-            return;
-        }
-
-        Continue();
     }
 
     void OnResponse(

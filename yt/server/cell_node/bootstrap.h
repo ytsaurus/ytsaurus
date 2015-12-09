@@ -2,38 +2,38 @@
 
 #include "public.h"
 
-#include <core/concurrency/throughput_throttler.h>
-#include <core/concurrency/action_queue.h>
+#include <yt/server/chunk_server/public.h>
 
-#include <core/bus/public.h>
+#include <yt/server/data_node/public.h>
 
-#include <core/rpc/public.h>
+#include <yt/server/exec_agent/public.h>
 
-#include <core/ytree/public.h>
+#include <yt/server/job_agent/public.h>
 
-#include <ytlib/misc/public.h>
+#include <yt/server/job_proxy/public.h>
 
-#include <ytlib/monitoring/http_server.h>
+#include <yt/server/tablet_node/public.h>
 
-#include <ytlib/chunk_client/public.h>
+#include <yt/ytlib/api/public.h>
 
-#include <ytlib/node_tracker_client/node_directory.h>
+#include <yt/ytlib/chunk_client/public.h>
 
-#include <ytlib/api/public.h>
+#include <yt/ytlib/misc/public.h>
 
-#include <ytlib/query_client/public.h>
+#include <yt/ytlib/monitoring/http_server.h>
 
-#include <server/data_node/public.h>
+#include <yt/ytlib/node_tracker_client/node_directory.h>
 
-#include <server/chunk_server/public.h>
+#include <yt/ytlib/query_client/public.h>
 
-#include <server/job_agent/public.h>
+#include <yt/core/bus/public.h>
 
-#include <server/exec_agent/public.h>
+#include <yt/core/concurrency/action_queue.h>
+#include <yt/core/concurrency/throughput_throttler.h>
 
-#include <server/job_proxy/public.h>
+#include <yt/core/rpc/public.h>
 
-#include <server/tablet_node/public.h>
+#include <yt/core/ytree/public.h>
 
 namespace NYT {
 namespace NCellNode {
@@ -49,8 +49,6 @@ public:
     TCellNodeConfigPtr GetConfig() const;
     IInvokerPtr GetControlInvoker() const;
     IInvokerPtr GetQueryPoolInvoker() const;
-    IInvokerPtr GetBoundedConcurrencyQueryPoolInvoker() const;
-    IInvokerPtr GetBoundedConcurrencyReadPoolInvoker() const;
     NApi::IClientPtr GetMasterClient() const;
     NRpc::IServerPtr GetRpcServer() const;
     NRpc::IChannelFactoryPtr GetTabletChannelFactory() const;
@@ -67,7 +65,8 @@ public:
     NDataNode::TChunkCachePtr GetChunkCache() const;
     NDataNode::TChunkRegistryPtr GetChunkRegistry() const;
     NDataNode::TSessionManagerPtr GetSessionManager() const;
-    NDataNode::TBlockStorePtr GetBlockStore() const;
+    NDataNode::TChunkMetaManagerPtr GetChunkMetaManager() const;
+    NDataNode::TChunkBlockManagerPtr GetChunkBlockManager() const;
     NChunkClient::IBlockCachePtr GetBlockCache() const;
     NDataNode::TPeerBlockTablePtr GetPeerBlockTable() const;
     NDataNode::TBlobReaderCachePtr GetBlobReaderCache() const;
@@ -114,7 +113,8 @@ private:
     NDataNode::TChunkCachePtr ChunkCache;
     NDataNode::TChunkRegistryPtr ChunkRegistry;
     NDataNode::TSessionManagerPtr SessionManager;
-    NDataNode::TBlockStorePtr BlockStore;
+    NDataNode::TChunkMetaManagerPtr ChunkMetaManager;
+    NDataNode::TChunkBlockManagerPtr ChunkBlockManager;
     NChunkClient::IBlockCachePtr BlockCache;
     NDataNode::TPeerBlockTablePtr PeerBlockTable;
     NDataNode::TPeerBlockUpdaterPtr PeerBlockUpdater;

@@ -1,17 +1,18 @@
-#include "stdafx.h"
 #include "local_channel.h"
 #include "channel.h"
-#include "server.h"
 #include "client.h"
-#include "service.h"
 #include "message.h"
+#include "server.h"
+#include "service.h"
 
-#include <core/ytree/convert.h>
-#include <core/ytree/fluent.h>
+#include <yt/core/bus/bus.h>
 
-#include <core/concurrency/delayed_executor.h>
+#include <yt/core/concurrency/delayed_executor.h>
 
-#include <core/bus/bus.h>
+#include <yt/core/misc/common.h>
+
+#include <yt/core/ytree/convert.h>
+#include <yt/core/ytree/fluent.h>
 
 #include <atomic>
 

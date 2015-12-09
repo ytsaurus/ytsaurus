@@ -1,7 +1,8 @@
-#include "stdafx.h"
 #include "scheduler_thread.h"
-#include "fiber.h"
 #include "private.h"
+#include "fiber.h"
+
+#include <yt/core/misc/common.h>
 
 #include <util/system/sigset.h>
 

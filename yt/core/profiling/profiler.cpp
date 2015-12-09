@@ -1,11 +1,11 @@
-#include "stdafx.h"
 #include "profiler.h"
 #include "profile_manager.h"
 #include "timing.h"
 
-#include <core/misc/nullable.h>
+#include <yt/core/misc/common.h>
+#include <yt/core/misc/nullable.h>
 
-#include <core/ypath/token.h>
+#include <yt/core/ypath/token.h>
 
 namespace NYT {
 namespace NProfiling  {

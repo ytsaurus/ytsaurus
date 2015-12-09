@@ -1,18 +1,17 @@
-#include "stdafx.h"
-
 #include "schemaless_writer_adapter.h"
 
-#include <ytlib/table_client/name_table.h>
+#include <yt/ytlib/table_client/name_table.h>
 
-#include <core/actions/future.h>
+#include <yt/core/actions/future.h>
 
-#include <core/concurrency/async_stream.h>
+#include <yt/core/concurrency/async_stream.h>
 
-#include <core/misc/error.h>
+#include <yt/core/misc/common.h>
+#include <yt/core/misc/error.h>
 
-#include <core/yson/consumer.h>
+#include <yt/core/yson/consumer.h>
 
-#include <core/ytree/fluent.h>
+#include <yt/core/ytree/fluent.h>
 
 namespace NYT {
 namespace NFormats {
@@ -30,11 +29,15 @@ const i64 ContextBufferSize = (i64) 1024 * 1024;
 
 TSchemalessFormatWriterBase::TSchemalessFormatWriterBase(
     TNameTablePtr nameTable,
+    IAsyncOutputStreamPtr output,
     bool enableContextSaving,
-    IAsyncOutputStreamPtr output)
-    : EnableContextSaving_(enableContextSaving)
-    , Output_(CreateSyncAdapter(output))
+    bool enableKeySwitch,
+    int keyColumnCount)
+    : KeyColumnCount_(keyColumnCount)
     , NameTable_(nameTable)
+    , EnableContextSaving_(enableContextSaving)
+    , EnableKeySwitch_(enableKeySwitch)
+    , Output_(CreateSyncAdapter(output))
 {
     CurrentBuffer_.Reserve(ContextBufferSize);
 
@@ -75,7 +78,7 @@ TNameTablePtr TSchemalessFormatWriterBase::GetNameTable() const
     return NameTable_;
 }
 
-TOutputStream* TSchemalessFormatWriterBase::GetOutputStream()
+TBlobOutput* TSchemalessFormatWriterBase::GetOutputStream()
 {
     return &CurrentBuffer_;
 }
@@ -122,50 +125,69 @@ bool TSchemalessFormatWriterBase::Write(const std::vector<TUnversionedRow> &rows
     return true;
 }
 
+bool TSchemalessFormatWriterBase::CheckKeySwitch(TUnversionedRow row, bool isLastRow) 
+{
+    if (!EnableKeySwitch_) {
+        return false;
+    }
+
+    bool needKeySwitch = false;
+    try {
+        needKeySwitch = CurrentKey_ && CompareRows(row, CurrentKey_, KeyColumnCount_);
+        CurrentKey_ = row;
+    } catch (const std::exception& ex) {
+        // COMPAT(psushin): composite values are not comparable anymore.
+        THROW_ERROR_EXCEPTION("Cannot inject key switch into output stream") << ex;
+    }
+
+    if (isLastRow && CurrentKey_) {
+        // After processing last row we create a copy of CurrentKey.
+        LastKey_ = GetKeyPrefix(CurrentKey_, KeyColumnCount_);
+        CurrentKey_ = LastKey_.Get();
+    }
+
+    return needKeySwitch;
+}
+
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TSchemalessWriterAdapter::TSchemalessWriterAdapter(
-    const TFormat& format,
     TNameTablePtr nameTable,
     IAsyncOutputStreamPtr output,
     bool enableContextSaving,
     bool enableKeySwitch,
     int keyColumnCount)
-    : TSchemalessFormatWriterBase(nameTable, enableContextSaving, std::move(output))
-    , EnableKeySwitch_(enableKeySwitch)
-    , KeyColumnCount_(keyColumnCount)
+    : TSchemalessFormatWriterBase(
+        nameTable, 
+        std::move(output), 
+        enableContextSaving, 
+        enableKeySwitch, 
+        keyColumnCount)
+{ }
+
+// CreateConsumerForFormat may throw an exception if there is no consumer for the given format,
+// so we set Consumer_ inside Init function rather than inside the constructor.
+void TSchemalessWriterAdapter::Init(const TFormat& format)
 {
     Consumer_ = CreateConsumerForFormat(format, EDataType::Tabular, GetOutputStream());
 }
 
 void TSchemalessWriterAdapter::DoWrite(const std::vector<TUnversionedRow>& rows)
 {
-    for (const auto& row : rows) {
-        if (EnableKeySwitch_) {
-            try {
-                if (CurrentKey_ && CompareRows(row, CurrentKey_, KeyColumnCount_)) {
-                    WriteControlAttribute(EControlAttribute::KeySwitch, true);
-                }
-                CurrentKey_ = row;
-            } catch (const std::exception& ex) {
-                // COMPAT(psushin): composite values are not comparable anymore.
-                THROW_ERROR_EXCEPTION("Cannot inject key switch into output stream") << ex;
-            }
+    for (int index = 0; index < static_cast<int>(rows.size()); ++index) {
+        if (CheckKeySwitch(rows[index], index + 1 == rows.size() /* isLastRow */)) {
+            WriteControlAttribute(EControlAttribute::KeySwitch, true);
         }
 
-        ConsumeRow(row);
+        ConsumeRow(rows[index]);
         TryFlushBuffer(false);
     }
 
     TryFlushBuffer(true);
-
-    if (EnableKeySwitch_ && CurrentKey_) {
-        LastKey_ = GetKeyPrefix(CurrentKey_, KeyColumnCount_);
-        CurrentKey_ = LastKey_.Get();
-    }
 }
 
-void TSchemalessWriterAdapter::WriteTableIndex(int tableIndex)
+void TSchemalessWriterAdapter::WriteTableIndex(i32 tableIndex)
 {
     WriteControlAttribute(EControlAttribute::TableIndex, tableIndex);
 }

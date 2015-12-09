@@ -1,15 +1,15 @@
-#include "stdafx.h"
 #include "framework.h"
 
-#include <core/misc/protobuf_helpers.h>
+#include <yt/ytlib/table_client/config.h>
+#include <yt/ytlib/table_client/row_buffer.h>
+#include <yt/ytlib/table_client/row_merger.h>
+#include <yt/ytlib/table_client/unversioned_row.h>
+#include <yt/ytlib/table_client/versioned_row.h>
 
-#include <core/ytree/convert.h>
+#include <yt/core/misc/common.h>
+#include <yt/core/misc/protobuf_helpers.h>
 
-#include <ytlib/table_client/versioned_row.h>
-#include <ytlib/table_client/unversioned_row.h>
-#include <ytlib/table_client/row_buffer.h>
-#include <ytlib/table_client/row_merger.h>
-#include <ytlib/table_client/config.h>
+#include <yt/core/ytree/convert.h>
 
 namespace NYT {
 namespace NTableClient {

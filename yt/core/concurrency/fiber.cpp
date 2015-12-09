@@ -1,11 +1,12 @@
-#include "stdafx.h"
-#include "action_queue.h"
 #include "fiber.h"
-#include "scheduler.h"
-#include "fls.h"
-#include "thread_affinity.h"
-#include "atomic_flag_spinlock.h"
 #include "private.h"
+#include "action_queue.h"
+#include "atomic_flag_spinlock.h"
+#include "fls.h"
+#include "scheduler.h"
+#include "thread_affinity.h"
+
+#include <yt/core/misc/common.h>
 
 namespace NYT {
 namespace NConcurrency {
