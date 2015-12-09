@@ -27,12 +27,12 @@ struct ISchedulerStrategyHost
     DECLARE_INTERFACE_SIGNAL(void(TOperationPtr, NYTree::INodePtr update), OperationRuntimeParamsUpdated);
 
     DECLARE_INTERFACE_SIGNAL(void(TJobPtr job), JobFinished);
-    DECLARE_INTERFACE_SIGNAL(void(TJobPtr job, const NNodeTrackerClient::NProto::TNodeResources& resourcesDelta), JobUpdated);
+    DECLARE_INTERFACE_SIGNAL(void(TJobPtr job, const TJobResources& resourcesDelta), JobUpdated);
 
     DECLARE_INTERFACE_SIGNAL(void(NYTree::INodePtr pools), PoolsUpdated);
 
-    virtual NNodeTrackerClient::NProto::TNodeResources GetTotalResourceLimits() = 0;
-    virtual NNodeTrackerClient::NProto::TNodeResources GetResourceLimits(const TNullable<Stroka>& schedulingTag) = 0;
+    virtual TJobResources GetTotalResourceLimits() = 0;
+    virtual TJobResources GetResourceLimits(const TNullable<Stroka>& schedulingTag) = 0;
 
     virtual void ActivateOperation(const TOperationId& operationId) = 0;
 

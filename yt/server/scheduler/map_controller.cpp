@@ -1,10 +1,10 @@
 #include "map_controller.h"
-#include "private.h"
-#include "chunk_list_pool.h"
-#include "chunk_pool.h"
-#include "helpers.h"
-#include "job_resources.h"
 #include "merge_controller.h"
+#include "private.h"
+#include "chunk_pool.h"
+#include "chunk_list_pool.h"
+#include "helpers.h"
+#include "job_memory.h"
 #include "operation_controller_detail.h"
 
 #include <yt/ytlib/chunk_client/chunk_slice.h>
@@ -102,7 +102,7 @@ protected:
             return Controller->Spec->LocalityTimeout;
         }
 
-        virtual TNodeResources GetNeededResources(TJobletPtr joblet) const override
+        virtual TJobResources GetNeededResources(TJobletPtr joblet) const override
         {
             return Controller->GetUnorderedOperationResources(
                 joblet->InputStripeList->GetStatistics(),
@@ -140,7 +140,7 @@ protected:
             return Controller->IsMemoryReserveEnabled(Controller->JobCounter);
         }
 
-        virtual TNodeResources GetMinNeededResourcesHeavy() const override
+        virtual TJobResources GetMinNeededResourcesHeavy() const override
         {
             return Controller->GetUnorderedOperationResources(
                 ChunkPool->GetApproximateStripeStatistics(),
@@ -274,14 +274,14 @@ protected:
 
 
     // Resource management.
-    virtual TNodeResources GetUnorderedOperationResources(
+    virtual TJobResources GetUnorderedOperationResources(
         const TChunkStripeStatisticsVector& statistics,
         bool isReserveEnabled) const
     {
-        TNodeResources result;
-        result.set_user_slots(1);
-        result.set_cpu(GetCpuLimit());
-        result.set_memory(
+        TJobResources result;
+        result.SetUserSlots(1);
+        result.SetCpu(GetCpuLimit());
+        result.SetMemory(
             GetFinalIOMemorySize(
                 Spec->JobIO,
                 AggregateStatistics(statistics)) +

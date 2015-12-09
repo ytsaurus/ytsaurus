@@ -3,7 +3,7 @@
 #include "chunk_list_pool.h"
 #include "chunk_pool.h"
 #include "helpers.h"
-#include "job_resources.h"
+#include "job_memory.h"
 #include "map_controller.h"
 #include "operation_controller_detail.h"
 
@@ -312,7 +312,7 @@ protected:
             return Controller->Spec->PartitionLocalityTimeout;
         }
 
-        virtual TNodeResources GetNeededResources(TJobletPtr joblet) const override
+        virtual TJobResources GetNeededResources(TJobletPtr joblet) const override
         {
             auto resources = Controller->GetPartitionResources(
                 joblet->InputStripeList->GetStatistics(),
@@ -361,7 +361,7 @@ protected:
             return options;
         }
 
-        virtual TNodeResources GetMinNeededResourcesHeavy() const override
+        virtual TJobResources GetMinNeededResourcesHeavy() const override
         {
             auto statistics = ChunkPool->GetApproximateStripeStatistics();
             return Controller->GetPartitionResources(
@@ -559,7 +559,7 @@ protected:
             return Controller->SortTaskGroup;
         }
 
-        virtual TNodeResources GetNeededResources(TJobletPtr joblet) const override
+        virtual TJobResources GetNeededResources(TJobletPtr joblet) const override
         {
             return GetNeededResourcesForChunkStripe(
                 joblet->InputStripeList->GetAggregateStatistics(),
@@ -590,7 +590,7 @@ protected:
             }
         }
 
-        TNodeResources GetNeededResourcesForChunkStripe(
+        TJobResources GetNeededResourcesForChunkStripe(
             const TChunkStripeStatistics& stat,
             bool memoryReserveEnabled) const
         {
@@ -607,13 +607,13 @@ protected:
             }
         }
 
-        virtual TNodeResources GetMinNeededResourcesHeavy() const override
+        virtual TJobResources GetMinNeededResourcesHeavy() const override
         {
             auto stat = GetChunkPoolOutput()->GetApproximateStripeStatistics();
             if (Controller->SimpleSort && stat.size() > 1) {
                 stat = AggregateStatistics(stat);
             } else {
-                YCHECK(stat.size() == 1);    
+                YCHECK(stat.size() == 1);
             }
             return GetNeededResourcesForChunkStripe(stat.front(), IsMemoryReserveEnabled());
         }
@@ -906,7 +906,7 @@ protected:
                 : Controller->Spec->MergeLocalityTimeout;
         }
 
-        virtual TNodeResources GetNeededResources(TJobletPtr joblet) const override
+        virtual TJobResources GetNeededResources(TJobletPtr joblet) const override
         {
             return Controller->GetSortedMergeResources(
                 joblet->InputStripeList->GetStatistics(),
@@ -941,7 +941,7 @@ protected:
             return Controller->IsMemoryReserveEnabled(Controller->SortedMergeJobCounter);
         }
 
-        virtual TNodeResources GetMinNeededResourcesHeavy() const override
+        virtual TJobResources GetMinNeededResourcesHeavy() const override
         {
             return Controller->GetSortedMergeResources(
                 ChunkPool->GetApproximateStripeStatistics(),
@@ -1031,7 +1031,7 @@ protected:
             return TDuration::Zero();
         }
 
-        virtual TNodeResources GetNeededResources(TJobletPtr joblet) const override
+        virtual TJobResources GetNeededResources(TJobletPtr joblet) const override
         {
             return Controller->GetUnorderedMergeResources(
                 joblet->InputStripeList->GetStatistics());
@@ -1060,7 +1060,7 @@ protected:
             return true;
         }
 
-        virtual TNodeResources GetMinNeededResourcesHeavy() const override
+        virtual TJobResources GetMinNeededResourcesHeavy() const override
         {
             return Controller->GetUnorderedMergeResources(
                 Partition->ChunkPoolOutput->GetApproximateStripeStatistics());
@@ -1135,7 +1135,7 @@ protected:
         RegisterTaskGroup(MergeTaskGroup);
 
         SortTaskGroup = New<TTaskGroup>();
-        SortTaskGroup->MinNeededResources.set_network(Spec->ShuffleNetworkLimit);
+        SortTaskGroup->MinNeededResources.SetNetwork(Spec->ShuffleNetworkLimit);
         RegisterTaskGroup(SortTaskGroup);
 
         PartitionTaskGroup = New<TTaskGroup>();
@@ -1173,7 +1173,7 @@ protected:
         LOG_DEBUG("Examining online nodes");
 
         auto nodes = Host->GetExecNodes();
-        auto maxResourceLimits = ZeroNodeResources();
+        auto maxResourceLimits = ZeroJobResources();
         double maxIOWeight = 0;
         for (auto node : nodes) {
             maxResourceLimits = Max(maxResourceLimits, node->ResourceLimits());
@@ -1386,24 +1386,24 @@ protected:
 
     // Resource management.
 
-    virtual TNodeResources GetPartitionResources(
+    virtual TJobResources GetPartitionResources(
         const TChunkStripeStatisticsVector& statistics,
         bool memoryReserveEnabled) const = 0;
 
-    virtual TNodeResources GetSimpleSortResources(
+    virtual TJobResources GetSimpleSortResources(
         const TChunkStripeStatistics& stat,
         i64 valueCount) const = 0;
 
-    virtual TNodeResources GetPartitionSortResources(
+    virtual TJobResources GetPartitionSortResources(
         TPartitionPtr partition,
         const TChunkStripeStatistics& stat,
         bool memoryReserveEnabled) const = 0;
 
-    virtual TNodeResources GetSortedMergeResources(
+    virtual TJobResources GetSortedMergeResources(
         const TChunkStripeStatisticsVector& statistics,
         bool memoryReserveEnabled) const = 0;
 
-    virtual TNodeResources GetUnorderedMergeResources(
+    virtual TJobResources GetUnorderedMergeResources(
         const TChunkStripeStatisticsVector& statistics) const = 0;
 
     // Unsorted helpers.
@@ -1441,7 +1441,7 @@ protected:
         return static_cast<double>(TotalEstimatedCompressedDataSize) / TotalEstimatedInputDataSize;
     }
 
-    i64 GetMaxPartitionJobBufferSize() const 
+    i64 GetMaxPartitionJobBufferSize() const
     {
         return Spec->PartitionJobIO->TableWriter->MaxBufferSize;
     }
@@ -2041,7 +2041,7 @@ private:
 
     // Resource management.
 
-    virtual TNodeResources GetPartitionResources(
+    virtual TJobResources GetPartitionResources(
         const TChunkStripeStatisticsVector& statistics,
         bool memoryReserveEnabled) const override
     {
@@ -2058,10 +2058,10 @@ private:
             outputBufferSize,
             PartitionJobIOConfig->TableWriter->MaxBufferSize);
 
-        TNodeResources result;
-        result.set_user_slots(1);
-        result.set_cpu(1);
-        result.set_memory(
+        TJobResources result;
+        result.SetUserSlots(1);
+        result.SetCpu(1);
+        result.SetMemory(
             // NB: due to large MaxBufferSize for partition that was accounted in buffer size
             // we eliminate number of output streams to zero.
             GetInputIOMemorySize(PartitionJobIOConfig, stat) +
@@ -2071,15 +2071,15 @@ private:
         return result;
     }
 
-    virtual TNodeResources GetSimpleSortResources(
+    virtual TJobResources GetSimpleSortResources(
         const TChunkStripeStatistics& stat,
         i64 valueCount) const override
     {
         // ToDo(psushin): rewrite simple sort estimates.
-        TNodeResources result;
-        result.set_user_slots(1);
-        result.set_cpu(1);
-        result.set_memory(
+        TJobResources result;
+        result.SetUserSlots(1);
+        result.SetCpu(1);
+        result.SetMemory(
             GetSortInputIOMemorySize(stat) +
             GetFinalOutputIOMemorySize(FinalSortJobIOConfig) +
             GetSortBuffersMemorySize(stat) +
@@ -2090,7 +2090,7 @@ private:
         return result;
     }
 
-    virtual TNodeResources GetPartitionSortResources(
+    virtual TJobResources GetPartitionSortResources(
         TPartitionPtr partition,
         const TChunkStripeStatistics& stat,
         bool memoryReserveEnabled) const override
@@ -2108,25 +2108,25 @@ private:
         }
 
 
-        TNodeResources result;
-        result.set_user_slots(1);
-        result.set_cpu(1);
-        result.set_memory(memory);
-        result.set_network(Spec->ShuffleNetworkLimit);
+        TJobResources result;
+        result.SetUserSlots(1);
+        result.SetCpu(1);
+        result.SetMemory(memory);
+        result.SetNetwork(Spec->ShuffleNetworkLimit);
 
         return result;
     }
 
-    virtual TNodeResources GetSortedMergeResources(
+    virtual TJobResources GetSortedMergeResources(
         const TChunkStripeStatisticsVector& statistics,
         bool memoryReserveEnabled) const override
     {
         UNUSED(memoryReserveEnabled);
 
-        TNodeResources result;
-        result.set_user_slots(1);
-        result.set_cpu(1);
-        result.set_memory(
+        TJobResources result;
+        result.SetUserSlots(1);
+        result.SetCpu(1);
+        result.SetMemory(
             GetFinalIOMemorySize(SortedMergeJobIOConfig, statistics) +
             GetFootprintMemorySize());
         return result;
@@ -2137,13 +2137,13 @@ private:
         return true;
     }
 
-    virtual TNodeResources GetUnorderedMergeResources(
+    virtual TJobResources GetUnorderedMergeResources(
         const TChunkStripeStatisticsVector& statistics) const override
     {
-        TNodeResources result;
-        result.set_user_slots(1);
-        result.set_cpu(1);
-        result.set_memory(
+        TJobResources result;
+        result.SetUserSlots(1);
+        result.SetCpu(1);
+        result.SetMemory(
             GetFinalIOMemorySize(UnorderedMergeJobIOConfig, AggregateStatistics(statistics)) +
             GetFootprintMemorySize());
         return result;
@@ -2586,7 +2586,7 @@ private:
 
     // Resource management.
 
-    virtual TNodeResources GetPartitionResources(
+    virtual TJobResources GetPartitionResources(
             const TChunkStripeStatisticsVector& statistics,
             bool memoryReserveEnabled) const override
     {
@@ -2597,12 +2597,12 @@ private:
             reserveSize + PartitionJobIOConfig->TableWriter->BlockSize * static_cast<i64>(Partitions.size()),
             PartitionJobIOConfig->TableWriter->MaxBufferSize);
 
-        TNodeResources result;
-        result.set_user_slots(1);
+        TJobResources result;
+        result.SetUserSlots(1);
         if (Spec->Mapper) {
             bufferSize += GetOutputWindowMemorySize(PartitionJobIOConfig);
-            result.set_cpu(Spec->Mapper->CpuLimit);
-            result.set_memory(
+            result.SetCpu(Spec->Mapper->CpuLimit);
+            result.SetMemory(
                 GetInputIOMemorySize(PartitionJobIOConfig, stat) +
                 bufferSize +
                 GetMemoryReserve(memoryReserveEnabled, Spec->Mapper) +
@@ -2610,8 +2610,8 @@ private:
         } else {
             bufferSize = std::min(bufferSize, stat.DataSize + reserveSize);
             bufferSize += GetOutputWindowMemorySize(PartitionJobIOConfig);
-            result.set_cpu(1);
-            result.set_memory(
+            result.SetCpu(1);
+            result.SetMemory(
                 GetInputIOMemorySize(PartitionJobIOConfig, stat) +
                 bufferSize +
                 GetFootprintMemorySize());
@@ -2619,20 +2619,20 @@ private:
         return result;
     }
 
-    virtual TNodeResources GetSimpleSortResources(
+    virtual TJobResources GetSimpleSortResources(
         const TChunkStripeStatistics& stat,
         i64 valueCount) const override
     {
         YUNREACHABLE();
     }
 
-    virtual TNodeResources GetPartitionSortResources(
+    virtual TJobResources GetPartitionSortResources(
         TPartitionPtr partition,
         const TChunkStripeStatistics& stat,
         bool memoryReserveEnabled) const override
     {
-        TNodeResources result;
-        result.set_user_slots(1);
+        TJobResources result;
+        result.SetUserSlots(1);
 
         i64 memory =
             GetSortInputIOMemorySize(stat) +
@@ -2640,36 +2640,36 @@ private:
             GetFootprintMemorySize();
 
         if (!IsSortedMergeNeeded(partition)) {
-            result.set_cpu(Spec->Reducer->CpuLimit);
-            result.set_memory(
+            result.SetCpu(Spec->Reducer->CpuLimit);
+            result.SetMemory(
                 memory +
                 GetFinalOutputIOMemorySize(FinalSortJobIOConfig) +
                 GetMemoryReserve(memoryReserveEnabled, Spec->Reducer));
         } else if (Spec->ReduceCombiner) {
-            result.set_cpu(Spec->ReduceCombiner->CpuLimit);
-            result.set_memory(
+            result.SetCpu(Spec->ReduceCombiner->CpuLimit);
+            result.SetMemory(
                 memory +
                 GetIntermediateOutputIOMemorySize(IntermediateSortJobIOConfig) +
                 GetMemoryReserve(memoryReserveEnabled, Spec->ReduceCombiner));
         } else {
-            result.set_cpu(1);
-            result.set_memory(
+            result.SetCpu(1);
+            result.SetMemory(
                 memory +
                 GetIntermediateOutputIOMemorySize(IntermediateSortJobIOConfig));
         }
 
-        result.set_network(Spec->ShuffleNetworkLimit);
+        result.SetNetwork(Spec->ShuffleNetworkLimit);
         return result;
     }
 
-    virtual TNodeResources GetSortedMergeResources(
+    virtual TJobResources GetSortedMergeResources(
         const TChunkStripeStatisticsVector& statistics,
         bool memoryReserveEnabled) const override
     {
-        TNodeResources result;
-        result.set_user_slots(1);
-        result.set_cpu(Spec->Reducer->CpuLimit);
-        result.set_memory(
+        TJobResources result;
+        result.SetUserSlots(1);
+        result.SetCpu(Spec->Reducer->CpuLimit);
+        result.SetMemory(
             GetFinalIOMemorySize(
                 SortedMergeJobIOConfig,
                 statistics) +
@@ -2678,7 +2678,7 @@ private:
         return result;
     }
 
-    virtual TNodeResources GetUnorderedMergeResources(
+    virtual TJobResources GetUnorderedMergeResources(
         const TChunkStripeStatisticsVector& statistics) const override
     {
         YUNREACHABLE();

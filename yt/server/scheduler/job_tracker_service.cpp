@@ -54,7 +54,7 @@ private:
         context->SetRequestInfo("NodeId: %v, Address: %v, ResourceUsage: {%v}",
             nodeId,
             descriptor.GetDefaultAddress(),
-            FormatResourceUsage(resourceUsage, resourceLimits));
+            NNodeTrackerClient::FormatResourceUsage(resourceUsage, resourceLimits));
 
         auto scheduler = Bootstrap_->GetScheduler();
         scheduler->ValidateConnected();

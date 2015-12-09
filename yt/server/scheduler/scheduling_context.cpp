@@ -20,7 +20,7 @@ TSchedulingContextBase::TSchedulingContextBase(
     const std::vector<TJobPtr>& runningJobs,
     TCellTag cellTag)
     : Node_(node)
-    , ResourceUsageDiscount_(ZeroNodeResources())
+    , ResourceUsageDiscount_(ZeroJobResources())
     , RunningJobs_(runningJobs)
     , Config_(config)
     , CellTag_(cellTag)
@@ -31,7 +31,7 @@ Stroka TSchedulingContextBase::GetAddress() const
     return Node_->GetDefaultAddress();
 }
 
-const TNodeResources& TSchedulingContextBase::ResourceLimits() const
+const TJobResources& TSchedulingContextBase::ResourceLimits() const
 {
     return Node_->ResourceLimits();
 }
@@ -64,7 +64,7 @@ bool TSchedulingContextBase::CanStartMoreJobs() const
 TJobId TSchedulingContextBase::StartJob(
     TOperationPtr operation,
     EJobType type,
-    const TNodeResources& resourceLimits,
+    const TJobResources& resourceLimits,
     bool restarted,
     TJobSpecBuilder specBuilder)
 {
@@ -101,7 +101,7 @@ class TSchedulingContext
 {
 public:
     DEFINE_BYVAL_RO_PROPERTY(Stroka, Address);
-    DEFINE_BYREF_RO_PROPERTY(TNodeResources, ResourceLimits);
+    DEFINE_BYREF_RO_PROPERTY(TJobResources, ResourceLimits);
 
 public:
     TSchedulingContext(

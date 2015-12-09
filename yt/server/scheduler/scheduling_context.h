@@ -18,8 +18,8 @@ struct ISchedulingContext
     virtual TExecNodePtr GetNode() const = 0;
     virtual Stroka GetAddress() const = 0;
 
-    virtual const NNodeTrackerClient::NProto::TNodeResources& ResourceLimits() const = 0;
-    virtual NNodeTrackerClient::NProto::TNodeResources& ResourceUsageDiscount() = 0;
+    virtual const TJobResources& ResourceLimits() const = 0;
+    virtual TJobResources& ResourceUsageDiscount() = 0;
 
     virtual const std::vector<TJobPtr>& StartedJobs() const = 0;
     virtual const std::vector<TJobPtr>& PreemptedJobs() const = 0;
@@ -32,7 +32,7 @@ struct ISchedulingContext
     virtual TJobId StartJob(
         TOperationPtr operation,
         EJobType type,
-        const NNodeTrackerClient::NProto::TNodeResources& resourceLimits,
+        const TJobResources& resourceLimits,
         bool restarted,
         TJobSpecBuilder specBuilder) = 0;
 
@@ -56,7 +56,7 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(TExecNodePtr, Node);
 
     //! Used during preemption to allow second-chance scheduling.
-    DEFINE_BYREF_RW_PROPERTY(NNodeTrackerClient::NProto::TNodeResources, ResourceUsageDiscount);
+    DEFINE_BYREF_RW_PROPERTY(TJobResources, ResourceUsageDiscount);
 
     DEFINE_BYREF_RO_PROPERTY(std::vector<TJobPtr>, StartedJobs);
     DEFINE_BYREF_RO_PROPERTY(std::vector<TJobPtr>, PreemptedJobs);
@@ -71,7 +71,7 @@ public:
 
     virtual Stroka GetAddress() const override;
 
-    virtual const NNodeTrackerClient::NProto::TNodeResources& ResourceLimits() const override;
+    virtual const TJobResources& ResourceLimits() const override;
 
     virtual TJobPtr FindStartedJob(const TJobId& jobId) const override;
 
@@ -80,7 +80,7 @@ public:
     virtual TJobId StartJob(
         TOperationPtr operation,
         EJobType type,
-        const NNodeTrackerClient::NProto::TNodeResources& resourceLimits,
+        const TJobResources& resourceLimits,
         bool restarted,
         TJobSpecBuilder specBuilder) override;
 

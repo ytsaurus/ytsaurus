@@ -1,6 +1,5 @@
 #include "exec_node.h"
 #include "job.h"
-#include "job_resources.h"
 #include "operation.h"
 #include "operation_controller.h"
 
@@ -12,8 +11,6 @@ namespace NScheduler {
 using namespace NNodeTrackerClient;
 using namespace NNodeTrackerServer;
 
-using NNodeTrackerClient::NProto::TNodeResources;
-
 ////////////////////////////////////////////////////////////////////
 
 TExecNode::TExecNode(
@@ -21,21 +18,21 @@ TExecNode::TExecNode(
     const TNodeDescriptor& descriptor)
     : Id_(id)
     , Descriptor_(descriptor)
-    , ResourceLimits_(ZeroNodeResources())
-    , ResourceUsage_(ZeroNodeResources())
+    , ResourceLimits_(ZeroJobResources())
+    , ResourceUsage_(ZeroJobResources())
     , MasterState_(ENodeState::Offline)
     , HasOngoingHeartbeat_(false)
     , IOWeight_(0)
 { }
 
-bool TExecNode::HasEnoughResources(const TNodeResources& neededResources) const
+bool TExecNode::HasEnoughResources(const TJobResources& neededResources) const
 {
     return Dominates(
         ResourceLimits_,
         ResourceUsage_ + neededResources);
 }
 
-bool TExecNode::HasSpareResources(const TNodeResources& resourceDiscount) const
+bool TExecNode::HasSpareResources(const TJobResources& resourceDiscount) const
 {
     return HasEnoughResources(MinSpareNodeResources() - resourceDiscount);
 }

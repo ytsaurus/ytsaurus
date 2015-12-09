@@ -206,7 +206,7 @@ struct IOperationController
      *  \note Thread affinity: any
      */
     //! Returns the total resources that are additionally needed.
-    virtual NNodeTrackerClient::NProto::TNodeResources GetNeededResources() const = 0;
+    virtual TJobResources GetNeededResources() const = 0;
 
     /*!
      *  \note Invoker affinity: Cancellable controller invoker
@@ -238,7 +238,7 @@ struct IOperationController
     //! Called during heartbeat processing to request actions the node must perform.
     virtual TJobId ScheduleJob(
         ISchedulingContext* context,
-        const NNodeTrackerClient::NProto::TNodeResources& jobLimits) = 0;
+        const TJobResources& jobLimits) = 0;
 
     /*!
      *  \note Invoker affinity: Controller invoker

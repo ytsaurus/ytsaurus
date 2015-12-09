@@ -44,30 +44,6 @@ DEFINE_ENUM(EResourceType,
 Stroka FormatResourceUsage(const NProto::TNodeResources& usage, const NProto::TNodeResources& limits);
 Stroka FormatResources(const NProto::TNodeResources& resources);
 
-void ProfileResources(NProfiling::TProfiler& profiler, const NProto::TNodeResources& resources);
-
-EResourceType GetDominantResource(
-    const NProto::TNodeResources& demand,
-    const NProto::TNodeResources& limits);
-
-i64 GetResource(
-    const NProto::TNodeResources& resources,
-    EResourceType type);
-
-void SetResource(
-    NProto::TNodeResources& resources,
-    EResourceType type,
-    i64 value);
-
-double GetMinResourceRatio(
-    const NProto::TNodeResources& nominator,
-    const NProto::TNodeResources& denominator);
-
-NProto::TNodeResources GetAdjustedResourceLimits(
-    const NProto::TNodeResources& demand,
-    const NProto::TNodeResources& limits,
-    int nodeCount);
-
 const NProto::TNodeResources& ZeroNodeResources();
 const NProto::TNodeResources& InfiniteNodeResources();
 

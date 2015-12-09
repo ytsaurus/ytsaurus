@@ -1,6 +1,7 @@
 #pragma once
 
 #include "public.h"
+#include "job_resources.h"
 
 #include <yt/server/node_tracker_server/node.h>
 
@@ -28,7 +29,7 @@ public:
     DEFINE_BYREF_RW_PROPERTY(yhash_set<TJobPtr>, Jobs);
 
     //! Resource limits, as reported by the node.
-    DEFINE_BYREF_RW_PROPERTY(NNodeTrackerClient::NProto::TNodeResources, ResourceLimits);
+    DEFINE_BYREF_RW_PROPERTY(TJobResources, ResourceLimits);
 
     //! A set of scheduling tags assigned to this node.
     DEFINE_BYREF_RW_PROPERTY(yhash_set<Stroka>, SchedulingTags);
@@ -40,7 +41,7 @@ public:
      *  E.g. when the scheduler decides to
      *  start a new job it decrements the appropriate counters.
      */
-    DEFINE_BYREF_RW_PROPERTY(NNodeTrackerClient::NProto::TNodeResources, ResourceUsage);
+    DEFINE_BYREF_RW_PROPERTY(TJobResources, ResourceUsage);
 
     //! Last time when logging of jobs on node took place.
     DEFINE_BYREF_RW_PROPERTY(TNullable<TInstant>, LastJobsLogTime);
@@ -62,8 +63,8 @@ public:
         NNodeTrackerClient::TNodeId id,
         const NNodeTrackerClient::TNodeDescriptor& descriptor);
 
-    bool HasEnoughResources(const NNodeTrackerClient::NProto::TNodeResources& neededResources) const;
-    bool HasSpareResources(const NNodeTrackerClient::NProto::TNodeResources& resourceDiscount) const;
+    bool HasEnoughResources(const TJobResources& neededResources) const;
+    bool HasSpareResources(const TJobResources& resourceDiscount) const;
 
     const Stroka& GetDefaultAddress() const;
     const Stroka& GetInterconnectAddress() const;

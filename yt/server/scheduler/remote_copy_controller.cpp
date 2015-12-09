@@ -2,7 +2,7 @@
 #include "private.h"
 #include "chunk_pool.h"
 #include "helpers.h"
-#include "job_resources.h"
+#include "job_memory.h"
 #include "operation_controller_detail.h"
 
 #include <yt/ytlib/api/config.h>
@@ -127,7 +127,7 @@ private:
             return false;
         }
 
-        virtual TNodeResources GetNeededResources(TJobletPtr joblet) const override
+        virtual TJobResources GetNeededResources(TJobletPtr joblet) const override
         {
             return GetRemoteCopyResources(
                 joblet->InputStripeList->GetStatistics(),
@@ -172,19 +172,19 @@ private:
             return New<NTableClient::TTableReaderOptions>();
         }
 
-        virtual TNodeResources GetMinNeededResourcesHeavy() const override
+        virtual TJobResources GetMinNeededResourcesHeavy() const override
         {
             return GetRemoteCopyResources(
                 ChunkPool_->GetApproximateStripeStatistics(),
                 IsMemoryReserveEnabled());
         }
 
-        TNodeResources GetRemoteCopyResources(const TChunkStripeStatisticsVector& statistics, bool isReserveEnabled) const
+        TJobResources GetRemoteCopyResources(const TChunkStripeStatisticsVector& statistics, bool isReserveEnabled) const
         {
-            TNodeResources result;
-            result.set_user_slots(1);
-            result.set_cpu(0);
-            result.set_memory(GetMemoryResources(statistics));
+            TJobResources result;
+            result.SetUserSlots(1);
+            result.SetCpu(0);
+            result.SetMemory(GetMemoryResources(statistics));
             return result;
         }
 
