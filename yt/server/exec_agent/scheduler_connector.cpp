@@ -67,13 +67,13 @@ void TSchedulerConnector::SendHeartbeat()
         return;
     }
 
-    auto masterClient = Bootstrap_->GetMasterClient();
+    auto client = Bootstrap_->GetMasterClient();
 
-    TJobTrackerServiceProxy proxy(masterClient->GetSchedulerChannel());
+    TJobTrackerServiceProxy proxy(client->GetSchedulerChannel());
     auto req = proxy.Heartbeat();
 
     auto jobController = Bootstrap_->GetJobController();
-    auto masterConnection = masterClient->GetConnection();
+    auto masterConnection = client->GetConnection();
     jobController->PrepareHeartbeatRequest(
         masterConnection->GetPrimaryMasterCellTag(),
         EObjectType::SchedulerJob,

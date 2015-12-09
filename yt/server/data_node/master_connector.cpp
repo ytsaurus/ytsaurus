@@ -695,8 +695,8 @@ void TMasterConnector::SendJobHeartbeat()
 
     auto* delta = GetChunksDelta(cellTag);
     if (delta->State == EState::Online) {
-        auto masterClient = Bootstrap_->GetMasterClient();
-        auto channel = masterClient->GetMasterChannelOrThrow(EMasterChannelKind::Leader, cellTag);
+        auto client = Bootstrap_->GetMasterClient();
+        auto channel = client->GetMasterChannelOrThrow(EMasterChannelKind::Leader, cellTag);
         TJobTrackerServiceProxy proxy(channel);
 
         auto req = proxy.Heartbeat();

@@ -24,7 +24,7 @@ TScrapeChunksCallback CreateScrapeChunksSessionCallback(
     const TChunkScraperConfigPtr config,
     const IInvokerPtr invoker,
     TThrottlerManagerPtr throttlerManager,
-    NApi::IClientPtr masterClient,
+    NApi::IClientPtr client,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
     const NLogging::TLogger& logger);
 
