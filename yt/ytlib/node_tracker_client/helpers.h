@@ -15,6 +15,18 @@ namespace NNodeTrackerClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+#define ITERATE_NODE_RESOURCES(XX) \
+    XX(user_slots,            UserSlots) \
+    XX(cpu,                   Cpu) \
+    XX(memory,                Memory) \
+    XX(network,               Network) \
+    XX(replication_slots,     ReplicationSlots) \
+    XX(replication_data_size, ReplicationDataSize) \
+    XX(removal_slots,         RemovalSlots) \
+    XX(repair_slots,          RepairSlots) \
+    XX(repair_data_size,      RepairDataSize) \
+    XX(seal_slots,            SealSlots)
+
 // NB: Types must be numbered from 0 to N - 1.
 DEFINE_ENUM(EResourceType,
     (UserSlots)
@@ -22,8 +34,10 @@ DEFINE_ENUM(EResourceType,
     (Memory)
     (Network)
     (ReplicationSlots)
+    (ReplicationDataSize)
     (RemovalSlots)
     (RepairSlots)
+    (RepairDataSize)
     (SealSlots)
 );
 

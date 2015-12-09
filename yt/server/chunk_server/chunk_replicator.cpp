@@ -626,15 +626,11 @@ bool TChunkReplicator::CreateReplicationJob(
         return false;
     }
 
-    TNodeResources resourceUsage;
-    resourceUsage.set_replication_slots(1);
-
     *job = TJob::CreateReplicate(
         GenerateJobId(),
-        TChunkIdWithIndex(chunk->GetId(), index),
+        chunkWithIndex,
         sourceNode,
-        targetNodes,
-        resourceUsage);
+        targetNodes);
 
     LOG_INFO("Replication job scheduled (JobId: %v, Address: %v, ChunkId: %v, TargetAddresses: [%v])",
         (*job)->GetJobId(),
@@ -661,21 +657,16 @@ bool TChunkReplicator::CreateBalancingJob(
         return false;
     }
 
-    TNodeResources resourceUsage;
-    resourceUsage.set_replication_slots(1);
-
-    TChunkIdWithIndex chunkIdWithIndex(chunk->GetId(), chunkWithIndex.GetIndex());
     *job = TJob::CreateReplicate(
         GenerateJobId(),
-        chunkIdWithIndex,
+        chunkWithIndex,
         sourceNode,
-        TNodeList(1, targetNode),
-        resourceUsage);
+        TNodeList(1, targetNode));
 
     LOG_INFO("Balancing job scheduled (JobId: %v, Address: %v, ChunkId: %v, TargetAddress: %v)",
         (*job)->GetJobId(),
         sourceNode->GetDefaultAddress(),
-        chunkIdWithIndex,
+        chunkWithIndex,
         targetNode->GetDefaultAddress());
 
     return true;
@@ -698,14 +689,10 @@ bool TChunkReplicator::CreateRemovalJob(
         }
     }
 
-    TNodeResources resourceUsage;
-    resourceUsage.set_removal_slots(1);
-
     *job = TJob::CreateRemove(
         GenerateJobId(),
         chunkIdWithIndex,
-        node,
-        resourceUsage);
+        node);
 
     LOG_INFO("Removal job scheduled (JobId: %v, Address: %v, ChunkId: %v)",
         (*job)->GetJobId(),
@@ -762,17 +749,13 @@ bool TChunkReplicator::CreateRepairJob(
         return false;
     }
 
-    TNodeResources resourceUsage;
-    resourceUsage.set_repair_slots(1);
-    resourceUsage.set_memory(Config_->RepairJobMemoryUsage);
-
     *job = TJob::CreateRepair(
         GenerateJobId(),
-        chunk->GetId(),
+        chunk,
         node,
         targetNodes,
         erasedIndexes,
-        resourceUsage);
+        Config_->RepairJobMemoryUsage);
 
     LOG_INFO("Repair job scheduled (JobId: %v, Address: %v, ChunkId: %v, TargetAddresses: [%v], ErasedIndexes: [%v])",
         (*job)->GetJobId(),
@@ -802,14 +785,10 @@ bool TChunkReplicator::CreateSealJob(
         return true;
     }
 
-    TNodeResources resourceUsage;
-    resourceUsage.set_seal_slots(1);
-
     *job = TJob::CreateSeal(
         GenerateJobId(),
-        chunk->GetId(),
-        node,
-        resourceUsage);
+        chunk,
+        node);
 
     LOG_INFO("Seal job scheduled (JobId: %v, Address: %v, ChunkId: %v)",
         (*job)->GetJobId(),
@@ -829,62 +808,37 @@ void TChunkReplicator::ScheduleNewJobs(
     const auto& resourceLimits = node->ResourceLimits();
     auto& resourceUsage = node->ResourceUsage();
 
-    i64 runningReplicationSize = 0;
-    i64 runningRepairSize = 0;
-    auto increaseRunningSizes = [&] (TJobPtr job) {
-        auto type = job->GetType();
-        if (type != EJobType::ReplicateChunk && type != EJobType::RepairChunk)
-            return;
-
-        auto* chunk = chunkManager->FindChunk(job->GetChunkIdWithIndex().Id);
-        if (!chunk)
-            return;
-
-        i64 size = chunk->ChunkInfo().disk_space();
-
-        // Adjust data size of erasure chunk replicas.
-        auto codecId = chunk->GetErasureCodec();
-        if (codecId != NErasure::ECodec::None) {
-            auto* codec = NErasure::GetCodec(codecId);
-            size /= codec->GetTotalPartCount();
-        }
-
-        switch (type) {
-            case EJobType::ReplicateChunk:
-                runningReplicationSize += size;
-                break;
-            case EJobType::RepairChunk:
-                runningRepairSize += size;
-                break;
-            default:
-                break;
+    auto registerJob = [&] (TJobPtr job) {
+        if (job) {
+            resourceUsage += job->ResourceUsage();
+            jobsToStart->push_back(job);
+            RegisterJob(std::move(job));
         }
     };
 
-    // Compute current data sizes for running replication and repair jobs.
-    for (auto job : node->Jobs()) {
-        increaseRunningSizes(job);
-    }
+    // NB: Beware of chunks larger than the limit; we still need to be able to replicate them one by one.
+    auto hasSpareReplicationResources = [&] () {
+        return
+            resourceUsage.replication_slots() < resourceLimits.replication_slots() &&
+            (resourceUsage.replication_slots() == 0 || resourceUsage.replication_data_size() < resourceLimits.replication_data_size());
+    };
 
-    auto registerJob = [&] (TJobPtr job) {
-        if (job) {
-            jobsToStart->push_back(job);
-            RegisterJob(job);
-            resourceUsage += job->ResourceUsage();
-            increaseRunningSizes(job);
-        }
+    // NB: Beware of chunks larger than the limit; we still need to be able to repair them one by one.
+    auto hasSpareRepairResources = [&] () {
+        return
+            resourceUsage.repair_slots() < resourceLimits.repair_slots() &&
+            (resourceUsage.repair_slots() == 0 || resourceUsage.repair_data_size() < resourceLimits.repair_data_size());
+    };
+
+    auto hasSpareSealResources = [&] () {
+        return resourceUsage.seal_slots() < resourceLimits.seal_slots();
     };
 
     if (IsEnabled()) {
         // Schedule replication jobs.
         for (auto& queue : node->ChunkReplicationQueues()) {
             auto it = queue.begin();
-            while (it != queue.end()) {
-                if (resourceUsage.replication_slots() >= resourceLimits.replication_slots())
-                    break;
-                if (runningReplicationSize > Config_->MaxReplicationJobsSize)
-                    break;
-
+            while (it != queue.end() && hasSpareReplicationResources()) {
                 auto jt = it++;
                 auto chunkWithIndex = *jt;
 
@@ -892,19 +846,14 @@ void TChunkReplicator::ScheduleNewJobs(
                 if (CreateReplicationJob(node, chunkWithIndex, &job)) {
                     queue.erase(jt);
                 }
-                registerJob(job);
+                registerJob(std::move(job));
             }
         }
 
         // Schedule repair jobs.
         {
             auto it = ChunkRepairQueue_.begin();
-            while (it != ChunkRepairQueue_.end()) {
-                if (resourceUsage.repair_slots() >= resourceLimits.repair_slots())
-                    break;
-                if (runningRepairSize > Config_->MaxRepairJobsSize)
-                    break;
-
+            while (it != ChunkRepairQueue_.end() && hasSpareRepairResources()) {
                 auto jt = it++;
                 auto* chunk = *jt;
 
@@ -913,7 +862,7 @@ void TChunkReplicator::ScheduleNewJobs(
                     chunk->SetRepairQueueIterator(Null);
                     ChunkRepairQueue_.erase(jt);
                 }
-                registerJob(job);
+                registerJob(std::move(job));
             }
         }
 
@@ -932,28 +881,26 @@ void TChunkReplicator::ScheduleNewJobs(
                 if (CreateRemovalJob(node, chunkId, &job)) {
                     queue.erase(jt);
                 }
-                registerJob(job);
+                registerJob(std::move(job));
             }
         }
 
         // Schedule balancing jobs.
         double sourceFillFactor = ChunkPlacement_->GetFillFactor(node);
         double targetFillFactor = sourceFillFactor - Config_->MinBalancingFillFactorDiff;
-        if (resourceUsage.replication_slots() < resourceLimits.replication_slots() &&
+        if (hasSpareReplicationResources() &&
             sourceFillFactor > Config_->MinBalancingFillFactor &&
             ChunkPlacement_->HasBalancingTargets(targetFillFactor))
         {
             int maxJobs = std::max(0, resourceLimits.replication_slots() - resourceUsage.replication_slots());
             auto chunksToBalance = ChunkPlacement_->GetBalancingChunks(node, maxJobs);
             for (auto chunkWithIndex : chunksToBalance) {
-                if (resourceUsage.replication_slots() >= resourceLimits.replication_slots())
-                    break;
-                if (runningReplicationSize > Config_->MaxReplicationJobsSize)
+                if (!hasSpareReplicationResources())
                     break;
 
                 TJobPtr job;
                 CreateBalancingJob(node, chunkWithIndex, targetFillFactor, &job);
-                registerJob(job);
+                registerJob(std::move(job));
             }
         }
     }
@@ -963,10 +910,7 @@ void TChunkReplicator::ScheduleNewJobs(
     {
         auto& queue = node->ChunkSealQueue();
         auto it = queue.begin();
-        while (it != queue.end()) {
-            if (resourceUsage.seal_slots() >= resourceLimits.seal_slots())
-                break;
-
+        while (it != queue.end() && hasSpareSealResources()) {
             auto jt = it++;
             auto* chunk = *jt;
 
@@ -974,10 +918,9 @@ void TChunkReplicator::ScheduleNewJobs(
             if (CreateSealJob(node, chunk, &job)) {
                 queue.erase(jt);
             }
-            registerJob(job);
+            registerJob(std::move(job));
         }
     }
-
 }
 
 void TChunkReplicator::RefreshChunk(TChunk* chunk)

@@ -22,7 +22,10 @@ Stroka FormatResourceUsage(
 {
     return Format(
         "UserSlots: %v/%v, Cpu: %v/%v, Memory: %v/%v, Network: %v/%v, "
-        "ReplicationSlots: %v/%v, RemovalSlots: %v/%v, RepairSlots: %v/%v, SealSlots: %v/%v",
+        "ReplicationSlots: %v/%v, ReplicationDataSize: %v/%v, "
+        "RemovalSlots: %v/%v, "
+        "RepairSlots: %v/%v, RepairDataSize: %v/%v, "
+        "SealSlots: %v/%v",
         // User slots
         usage.user_slots(),
         limits.user_slots(),
@@ -38,12 +41,18 @@ Stroka FormatResourceUsage(
         // Replication slots
         usage.replication_slots(),
         limits.replication_slots(),
+        // Replication data size
+        usage.replication_data_size(),
+        limits.replication_data_size(),
         // Removal slots
         usage.removal_slots(),
         limits.removal_slots(),
         // Repair slots
         usage.repair_slots(),
         limits.repair_slots(),
+        // Repair data size
+        usage.repair_data_size(),
+        limits.repair_data_size(),
         // Seal slots
         usage.seal_slots(),
         limits.seal_slots());
@@ -53,26 +62,27 @@ Stroka FormatResources(const TNodeResources& resources)
 {
     return Format(
         "UserSlots: %v, Cpu: %v, Memory: %v, Network: %v, "
-        "ReplicationSlots: %v, RemovalSlots: %v, RepairSlots: %v, SealSlots: %v",
+        "ReplicationSlots: %v, ReplicationDataSize: %v, "
+        "RemovalSlots: %v, "
+        "RepairSlots: %v, RepairDataSize: %v, "
+        "SealSlots: %v",
         resources.user_slots(),
         resources.cpu(),
         resources.memory() / (1024 * 1024),
         resources.network(),
         resources.replication_slots(),
+        resources.replication_data_size() / (1024 * 1024),
         resources.removal_slots(),
         resources.repair_slots(),
+        resources.repair_data_size() / (1024 * 1024),
         resources.seal_slots());
 }
 
 void ProfileResources(NProfiling::TProfiler& profiler, const TNodeResources& resources)
 {
-    profiler.Enqueue("/user_slots", resources.user_slots());
-    profiler.Enqueue("/cpu", resources.cpu());
-    profiler.Enqueue("/memory", resources.memory());
-    profiler.Enqueue("/replication_slots", resources.replication_slots());
-    profiler.Enqueue("/removal_slots", resources.removal_slots());
-    profiler.Enqueue("/repair_slots", resources.repair_slots());
-    profiler.Enqueue("/seal_slots", resources.seal_slots());
+    #define XX(name, Name) profiler.Enqueue("/" #name, resources.name());
+    ITERATE_NODE_RESOURCES(XX)
+    #undef XX
 }
 
 EResourceType GetDominantResource(
@@ -100,22 +110,9 @@ EResourceType GetDominantResource(
 i64 GetResource(const TNodeResources& resources, EResourceType type)
 {
     switch (type) {
-        case EResourceType::UserSlots:
-            return resources.user_slots();
-        case EResourceType::Cpu:
-            return resources.cpu();
-        case EResourceType::Memory:
-            return resources.memory();
-        case EResourceType::Network:
-            return resources.network();
-        case EResourceType::ReplicationSlots:
-            return resources.replication_slots();
-        case EResourceType::RemovalSlots:
-            return resources.removal_slots();
-        case EResourceType::RepairSlots:
-            return resources.repair_slots();
-        case EResourceType::SealSlots:
-            return resources.seal_slots();
+        #define XX(name, Name) case EResourceType::Name: return resources.name();
+        ITERATE_NODE_RESOURCES(XX)
+        #undef XX
         default:
             YUNREACHABLE();
     }
@@ -124,30 +121,11 @@ i64 GetResource(const TNodeResources& resources, EResourceType type)
 void SetResource(TNodeResources& resources, EResourceType type, i64 value)
 {
     switch (type) {
-        case EResourceType::UserSlots:
-            resources.set_user_slots(static_cast<i32>(value));
-            break;
-        case EResourceType::Cpu:
-            resources.set_cpu(static_cast<i32>(value));
-            break;
-        case EResourceType::Memory:
-            resources.set_memory(value);
-            break;
-        case EResourceType::Network:
-            resources.set_network(static_cast<i32>(value));
-            break;
-        case EResourceType::ReplicationSlots:
-            resources.set_replication_slots(static_cast<i32>(value));
-            break;
-        case EResourceType::RemovalSlots:
-            resources.set_removal_slots(static_cast<i32>(value));
-            break;
-        case EResourceType::RepairSlots:
-            resources.set_repair_slots(static_cast<i32>(value));
-            break;
-        case EResourceType::SealSlots:
-            resources.set_seal_slots(static_cast<i32>(value));
-            break;
+        #define XX(name, Name) \
+            case EResourceType::Name: \
+            resources.set_##name(static_cast<decltype(resources.name())>(value)); break;
+        ITERATE_NODE_RESOURCES(XX)
+        #undef XX
         default:
             YUNREACHABLE();
     }
@@ -192,14 +170,9 @@ TNodeResources GetAdjustedResourceLimits(
 TNodeResources GetZeroNodeResources()
 {
     TNodeResources result;
-    result.set_user_slots(0);
-    result.set_cpu(0);
-    result.set_memory(0);
-    result.set_network(0);
-    result.set_replication_slots(0);
-    result.set_removal_slots(0);
-    result.set_repair_slots(0);
-    result.set_seal_slots(0);
+    #define XX(name, Name) result.set_##name(0);
+    ITERATE_NODE_RESOURCES(XX)
+    #undef XX
     return result;
 }
 
@@ -212,14 +185,9 @@ const TNodeResources& ZeroNodeResources()
 TNodeResources GetInfiniteResources()
 {
     TNodeResources result;
-    result.set_user_slots(1000000);
-    result.set_cpu(1000000);
-    result.set_memory((i64) 1000000000000000000);
-    result.set_network(1000000);
-    result.set_replication_slots(1000000);
-    result.set_removal_slots(1000000);
-    result.set_repair_slots(1000000);
-    result.set_seal_slots(1000000);
+    #define XX(name, Name) result.set_##name(std::numeric_limits<decltype(result.name())>::max() / 4);
+    ITERATE_NODE_RESOURCES(XX)
+    #undef XX
     return result;
 }
 
@@ -244,135 +212,87 @@ namespace NProto {
 TNodeResources operator + (const TNodeResources& lhs, const TNodeResources& rhs)
 {
     TNodeResources result;
-    result.set_user_slots(lhs.user_slots() + rhs.user_slots());
-    result.set_cpu(lhs.cpu() + rhs.cpu());
-    result.set_memory(lhs.memory() + rhs.memory());
-    result.set_network(lhs.network() + rhs.network());
-    result.set_replication_slots(lhs.replication_slots() + rhs.replication_slots());
-    result.set_removal_slots(lhs.removal_slots() + rhs.removal_slots());
-    result.set_repair_slots(lhs.repair_slots() + rhs.repair_slots());
-    result.set_seal_slots(lhs.seal_slots() + rhs.seal_slots());
+    #define XX(name, Name) result.set_##name(lhs.name() + rhs.name());
+    ITERATE_NODE_RESOURCES(XX)
+    #undef XX
     return result;
 }
 
 TNodeResources& operator += (TNodeResources& lhs, const TNodeResources& rhs)
 {
-    lhs.set_user_slots(lhs.user_slots() + rhs.user_slots());
-    lhs.set_cpu(lhs.cpu() + rhs.cpu());
-    lhs.set_memory(lhs.memory() + rhs.memory());
-    lhs.set_network(lhs.network() + rhs.network());
-    lhs.set_replication_slots(lhs.replication_slots() + rhs.replication_slots());
-    lhs.set_removal_slots(lhs.removal_slots() + rhs.removal_slots());
-    lhs.set_repair_slots(lhs.repair_slots() + rhs.repair_slots());
-    lhs.set_seal_slots(lhs.seal_slots() + rhs.seal_slots());
+    #define XX(name, Name) lhs.set_##name(lhs.name() + rhs.name());
+    ITERATE_NODE_RESOURCES(XX)
+    #undef XX
     return lhs;
 }
 
 TNodeResources operator - (const TNodeResources& lhs, const TNodeResources& rhs)
 {
     TNodeResources result;
-    result.set_user_slots(lhs.user_slots() - rhs.user_slots());
-    result.set_cpu(lhs.cpu() - rhs.cpu());
-    result.set_memory(lhs.memory() - rhs.memory());
-    result.set_network(lhs.network() - rhs.network());
-    result.set_replication_slots(lhs.replication_slots() - rhs.replication_slots());
-    result.set_removal_slots(lhs.removal_slots() - rhs.removal_slots());
-    result.set_repair_slots(lhs.repair_slots() - rhs.repair_slots());
-    result.set_seal_slots(lhs.seal_slots() - rhs.seal_slots());
+    #define XX(name, Name) result.set_##name(lhs.name() - rhs.name());
+    ITERATE_NODE_RESOURCES(XX)
+    #undef XX
     return result;
 }
 
 TNodeResources& operator -= (TNodeResources& lhs, const TNodeResources& rhs)
 {
-    lhs.set_user_slots(lhs.user_slots() - rhs.user_slots());
-    lhs.set_cpu(lhs.cpu() - rhs.cpu());
-    lhs.set_memory(lhs.memory() - rhs.memory());
-    lhs.set_network(lhs.network() - rhs.network());
-    lhs.set_replication_slots(lhs.replication_slots() - rhs.replication_slots());
-    lhs.set_removal_slots(lhs.removal_slots() - rhs.removal_slots());
-    lhs.set_repair_slots(lhs.repair_slots() - rhs.repair_slots());
-    lhs.set_seal_slots(lhs.seal_slots() - rhs.seal_slots());
+    #define XX(name, Name) lhs.set_##name(lhs.name() - rhs.name());
+    ITERATE_NODE_RESOURCES(XX)
+    #undef XX
     return lhs;
 }
 
 TNodeResources operator * (const TNodeResources& lhs, i64 rhs)
 {
     TNodeResources result;
-    result.set_user_slots(lhs.user_slots() * rhs);
-    result.set_cpu(lhs.cpu() * rhs);
-    result.set_memory(lhs.memory() * rhs);
-    result.set_network(lhs.network() * rhs);
-    result.set_replication_slots(lhs.replication_slots() * rhs);
-    result.set_removal_slots(lhs.removal_slots() * rhs);
-    result.set_repair_slots(lhs.repair_slots() * rhs);
-    result.set_seal_slots(lhs.seal_slots() * rhs);
+    #define XX(name, Name) result.set_##name(lhs.name() * rhs);
+    ITERATE_NODE_RESOURCES(XX)
+    #undef XX
     return result;
 }
 
 TNodeResources operator * (const TNodeResources& lhs, double rhs)
 {
     TNodeResources result;
-    result.set_user_slots(static_cast<int>(lhs.user_slots() * rhs + 0.5));
-    result.set_cpu(static_cast<int>(lhs.cpu() * rhs + 0.5));
-    result.set_memory(static_cast<i64>(lhs.memory() * rhs + 0.5));
-    result.set_network(static_cast<int>(lhs.network() * rhs + 0.5));
-    result.set_replication_slots(static_cast<int>(lhs.replication_slots() * rhs + 0.5));
-    result.set_removal_slots(static_cast<int>(lhs.removal_slots() * rhs + 0.5));
-    result.set_repair_slots(static_cast<int>(lhs.repair_slots() * rhs + 0.5));
-    result.set_seal_slots(static_cast<int>(lhs.seal_slots() * rhs + 0.5));
+    #define XX(name, Name) result.set_##name(static_cast<decltype(lhs.name())>(lhs.name() * rhs + 0.5));
+    ITERATE_NODE_RESOURCES(XX)
+    #undef XX
     return result;
 }
 
 TNodeResources& operator *= (TNodeResources& lhs, i64 rhs)
 {
-    lhs.set_user_slots(lhs.user_slots() * rhs);
-    lhs.set_cpu(lhs.cpu() * rhs);
-    lhs.set_memory(lhs.memory() * rhs);
-    lhs.set_network(lhs.network() * rhs);
-    lhs.set_replication_slots(lhs.replication_slots() * rhs);
-    lhs.set_removal_slots(lhs.removal_slots() * rhs);
-    lhs.set_repair_slots(lhs.repair_slots() * rhs);
-    lhs.set_seal_slots(lhs.seal_slots() * rhs);
+    #define XX(name, Name) lhs.set_##name(lhs.name() * rhs);
+    ITERATE_NODE_RESOURCES(XX)
+    #undef XX
     return lhs;
 }
 
 TNodeResources& operator *= (TNodeResources& lhs, double rhs)
 {
-    lhs.set_user_slots(static_cast<int>(lhs.user_slots() * rhs + 0.5));
-    lhs.set_cpu(static_cast<int>(lhs.cpu() * rhs + 0.5));
-    lhs.set_memory(static_cast<i64>(lhs.memory() * rhs + 0.5));
-    lhs.set_network(static_cast<int>(lhs.network() * rhs + 0.5));
-    lhs.set_replication_slots(static_cast<int>(lhs.replication_slots() * rhs + 0.5));
-    lhs.set_removal_slots(static_cast<int>(lhs.removal_slots() * rhs + 0.5));
-    lhs.set_repair_slots(static_cast<int>(lhs.repair_slots() * rhs + 0.5));
-    lhs.set_seal_slots(static_cast<int>(lhs.seal_slots() * rhs + 0.5));
+    #define XX(name, Name) lhs.set_##name(static_cast<decltype(lhs.name())>(lhs.name() * rhs + 0.5));
+    ITERATE_NODE_RESOURCES(XX)
+    #undef XX
     return lhs;
 }
 
 TNodeResources  operator - (const TNodeResources& resources)
 {
     TNodeResources result;
-    result.set_user_slots(-resources.user_slots());
-    result.set_cpu(-resources.cpu());
-    result.set_memory(-resources.memory());
-    result.set_network(-resources.network());
-    result.set_replication_slots(-resources.replication_slots());
-    result.set_removal_slots(-resources.removal_slots());
-    result.set_repair_slots(-resources.repair_slots());
-    result.set_seal_slots(-resources.seal_slots());
+    #define XX(name, Name) result.set_##name(-resources.name());
+    ITERATE_NODE_RESOURCES(XX)
+    #undef XX
     return result;
 }
 
 bool operator == (const TNodeResources& lhs, const TNodeResources& rhs)
 {
-    return lhs.user_slots() == rhs.user_slots() &&
-           lhs.cpu() == rhs.cpu() &&
-           lhs.memory() == rhs.memory() &&
-           lhs.network() == rhs.network() &&
-           lhs.replication_slots() == rhs.replication_slots() &&
-           lhs.removal_slots() == rhs.removal_slots() &&
-           lhs.repair_slots() == rhs.repair_slots() &&
-           lhs.seal_slots() == rhs.seal_slots();
+    return
+        #define XX(name, Name) lhs.name() == rhs.name() &&
+        ITERATE_NODE_RESOURCES(XX)
+        #undef XX
+        true;
 }
 
 bool operator != (const TNodeResources& lhs, const TNodeResources& rhs)
@@ -383,27 +303,19 @@ bool operator != (const TNodeResources& lhs, const TNodeResources& rhs)
 TNodeResources MakeNonnegative(const TNodeResources& resources)
 {
     TNodeResources result;
-    result.set_user_slots(std::max(i32(0), resources.user_slots()));
-    result.set_cpu(std::max(i32(0), resources.cpu()));
-    result.set_memory(std::max(i64(0), resources.memory()));
-    result.set_network(std::max(i32(0), resources.network()));
-    result.set_replication_slots(std::max(i32(0), resources.replication_slots()));
-    result.set_removal_slots(std::max(i32(0), resources.removal_slots()));
-    result.set_repair_slots(std::max(i32(0), resources.repair_slots()));
-    result.set_seal_slots(std::max(i32(0), resources.seal_slots()));
+    #define XX(name, Name) result.set_##name(std::max(resources.name(), static_cast<decltype(resources.name())>(0)));
+    ITERATE_NODE_RESOURCES(XX)
+    #undef XX
     return result;
 }
 
 bool Dominates(const TNodeResources& lhs, const TNodeResources& rhs)
 {
-    return lhs.user_slots() >= rhs.user_slots() &&
-           lhs.cpu() >= rhs.cpu() &&
-           lhs.memory() >= rhs.memory() &&
-           lhs.network() >= rhs.network() &&
-           lhs.replication_slots() >= rhs.replication_slots() &&
-           lhs.removal_slots() >= rhs.removal_slots() &&
-           lhs.repair_slots() >= rhs.repair_slots() &&
-           lhs.seal_slots() >= rhs.seal_slots();
+    return
+        #define XX(name, Name) lhs.name() >= rhs.name() &&
+        ITERATE_NODE_RESOURCES(XX)
+        #undef XX
+        true;
 }
 
 bool DominatesNonnegative(const TNodeResources& lhs, const TNodeResources& rhs)
@@ -416,28 +328,18 @@ bool DominatesNonnegative(const TNodeResources& lhs, const TNodeResources& rhs)
 TNodeResources Max(const TNodeResources& a, const TNodeResources& b)
 {
     TNodeResources result;
-    result.set_user_slots(std::max(a.user_slots(), b.user_slots()));
-    result.set_cpu(std::max(a.cpu(), b.cpu()));
-    result.set_memory(std::max(a.memory(), b.memory()));
-    result.set_network(std::max(a.network(), b.network()));
-    result.set_replication_slots(std::max(a.replication_slots(), b.replication_slots()));
-    result.set_removal_slots(std::max(a.removal_slots(), b.removal_slots()));
-    result.set_repair_slots(std::max(a.repair_slots(), b.repair_slots()));
-    result.set_seal_slots(std::max(a.seal_slots(), b.seal_slots()));
+    #define XX(name, Name) result.set_##name(std::max(a.name(), b.name()));
+    ITERATE_NODE_RESOURCES(XX)
+    #undef XX
     return result;
 }
 
 TNodeResources Min(const TNodeResources& a, const TNodeResources& b)
 {
     TNodeResources result;
-    result.set_user_slots(std::min(a.user_slots(), b.user_slots()));
-    result.set_cpu(std::min(a.cpu(), b.cpu()));
-    result.set_memory(std::min(a.memory(), b.memory()));
-    result.set_network(std::min(a.network(), b.network()));
-    result.set_replication_slots(std::min(a.replication_slots(), b.replication_slots()));
-    result.set_removal_slots(std::min(a.removal_slots(), b.removal_slots()));
-    result.set_repair_slots(std::min(a.repair_slots(), b.repair_slots()));
-    result.set_seal_slots(std::min(a.seal_slots(), b.seal_slots()));
+    #define XX(name, Name) result.set_##name(std::min(a.name(), b.name()));
+    ITERATE_NODE_RESOURCES(XX)
+    #undef XX
     return result;
 }
 
@@ -445,14 +347,9 @@ void Serialize(const TNodeResources& resources, IYsonConsumer* consumer)
 {
     BuildYsonFluently(consumer)
         .BeginMap()
-            .Item("user_slots").Value(resources.user_slots())
-            .Item("cpu").Value(resources.cpu())
-            .Item("memory").Value(resources.memory())
-            .Item("network").Value(resources.network())
-            .Item("replication_slots").Value(resources.replication_slots())
-            .Item("removal_slots").Value(resources.removal_slots())
-            .Item("repair_slots").Value(resources.repair_slots())
-            .Item("seal_slots").Value(resources.seal_slots())
+            #define XX(name, Name) .Item(#name).Value(resources.name())
+            ITERATE_NODE_RESOURCES(XX)
+            #undef XX
         .EndMap();
 }
 
