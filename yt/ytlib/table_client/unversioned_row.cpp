@@ -681,7 +681,7 @@ void ValidateKeyPart(
         int schemaId = ApplyIdMapping(value, schema, nullptr);
         ValidateValueType(value, schema, schemaId);
         if (schemaId != index) {
-            THROW_ERROR_EXCEPTION("Invalid column: actual %v, expected %v",
+            THROW_ERROR_EXCEPTION("Invalid column: actual %Qv, expected %Qv",
                 schema.Columns()[schemaId].Name,
                 schema.Columns()[index].Name);
         }
