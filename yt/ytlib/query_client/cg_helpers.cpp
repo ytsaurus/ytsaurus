@@ -19,7 +19,7 @@ Value* CodegenValuesPtrFromRow(TCGIRBuilder& builder, Value* row)
         TypeBuilder<TRow, false>::Fields::Header,
         namePrefix + "headerPtr");
     auto valuesPtr = builder.CreatePointerCast(
-        builder.CreateConstInBoundsGEP1_32(headerPtr, 1, "valuesPtrUncasted"),
+        builder.CreateConstInBoundsGEP1_32(nullptr, headerPtr, 1, "valuesPtrUncasted"),
         TypeBuilder<TValue*, false>::get(builder.getContext()),
         namePrefix + "valuesPtr");
 

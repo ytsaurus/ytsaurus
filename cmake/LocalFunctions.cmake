@@ -65,23 +65,6 @@ function(UDF udf output type)
     set(_include_dirs ${_include_dirs} -I${_dir})
   endforeach()
 
-  find_program(CLANG_EXECUTABLE
-    NAMES clang-3.6 clang
-    PATHS $ENV{LLVM_ROOT}/bin
-  )
-  find_program(CLANGPP_EXECUTABLE
-    NAMES clang++-3.6 clang++
-    PATHS $ENV{LLVM_ROOT}/bin
-  )
-  find_program(LINK_EXECUTABLE
-    NAMES llvm-link-3.6 llvm-link
-    PATHS $ENV{LLVM_ROOT}/bin
-  )
-  find_program(OPT_EXECUTABLE
-    NAMES opt-3.6 opt
-    PATHS $ENV{LLVM_ROOT}/bin
-  )
-
   if(${_extension} STREQUAL ".cpp") 
     set(_compiler ${CLANGPP_EXECUTABLE})
     set(_options -std=c++1y -Wglobal-constructors)
@@ -115,13 +98,13 @@ function(UDF udf output type)
           $$f\;
       done
     COMMAND
-      ${LINK_EXECUTABLE}
+      ${LLVM_LINK_EXECUTABLE}
         -o ${_bc_filename}.tmp
         ${_bc_filename} ${_extra_bc_filenames}
     COMMAND
       mv ${_bc_filename}.tmp ${_bc_filename}
     COMMAND
-      ${OPT_EXECUTABLE}
+      ${LLVM_OPT_EXECUTABLE}
         -O2
         -internalize
         -internalize-public-api-list=${_filename},${_filename}_init,${_filename}_update,${_filename}_merge,${_filename}_finalize,${_extrasymbols}

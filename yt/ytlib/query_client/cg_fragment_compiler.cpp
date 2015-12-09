@@ -145,11 +145,13 @@ Function* CodegenGroupComparerFunction(
                                 lhsLength,
                                 rhsLength);
 
-                            Value* cmpResult = builder.CreateCall3(
+                            Value* cmpResult = builder.CreateCall(
                                 module.GetRoutine("memcmp"),
-                                lhsData,
-                                rhsData,
-                                builder.CreateZExt(minLength, builder.getSizeType()));
+                                {
+                                    lhsData,
+                                    rhsData,
+                                    builder.CreateZExt(minLength, builder.getSizeType())
+                                });
 
                             returnIf(builder.CreateOr(
                                 builder.CreateICmpNE(cmpResult, builder.getInt32(0)),
@@ -209,20 +211,22 @@ Function* CodegenGroupHasherFunction(
                 case EValueType::Uint64:
                     thenResult = builder.CreateCall(
                         module.GetRoutine("FarmHashUint64"),
-                        value.Cast(builder, EValueType::Uint64).GetData());
+                        {value.Cast(builder, EValueType::Uint64).GetData()});
                     break;
 
                 case EValueType::Double:
                     thenResult = builder.CreateCall(
                         module.GetRoutine("FarmHashUint64"),
-                        value.Cast(builder, EValueType::Uint64, true).GetData());
+                        {value.Cast(builder, EValueType::Uint64, true).GetData()});
                     break;
 
                 case EValueType::String:
-                    thenResult = builder.CreateCall2(
+                    thenResult = builder.CreateCall(
                         module.GetRoutine("StringHash"),
-                        value.GetData(),
-                        value.GetLength());
+                        {
+                            value.GetData(),
+                            value.GetLength()
+                        });
                     break;
 
                 default:
@@ -347,11 +351,13 @@ Function* CodegenTupleComparerFunction(
                                 lhsLength,
                                 rhsLength);
 
-                            Value* cmpResult = builder.CreateCall3(
+                            Value* cmpResult = builder.CreateCall(
                                 module.GetRoutine("memcmp"),
-                                lhsData,
-                                rhsData,
-                                builder.CreateZExt(minLength, builder.getSizeType()));
+                                {
+                                    lhsData,
+                                    rhsData,
+                                    builder.CreateZExt(minLength, builder.getSizeType())
+                                });
 
                             returnIf(
                                 builder.CreateICmpNE(cmpResult, builder.getInt32(0)),
@@ -415,11 +421,13 @@ Value* CodegenLexicographicalCompare(
         lhsLength,
         rhsLength);
 
-    Value* cmpResult = builder.CreateCall3(
+    Value* cmpResult = builder.CreateCall(
         builder.Module->GetRoutine("memcmp"),
-        lhsData,
-        rhsData,
-        builder.CreateZExt(minLength, builder.getSizeType()));
+        {
+            lhsData,
+            rhsData,
+            builder.CreateZExt(minLength, builder.getSizeType())
+        });
 
     return builder.CreateOr(
         builder.CreateICmpSLT(cmpResult, builder.getInt32(0)),
@@ -676,11 +684,13 @@ TCodegenExpression MakeCodegenBinaryOpExpr(
                                                     lhsLength,
                                                     rhsLength);
 
-                                                Value* cmpResult = builder.CreateCall3(
+                                                Value* cmpResult = builder.CreateCall(
                                                     builder.Module->GetRoutine("memcmp"),
-                                                    lhsData,
-                                                    rhsData,
-                                                    builder.CreateZExt(minLength, builder.getSizeType()));
+                                                    {
+                                                        lhsData,
+                                                        rhsData,
+                                                        builder.CreateZExt(minLength, builder.getSizeType())
+                                                    });
 
                                                 return builder.CreateICmpEQ(cmpResult, builder.getInt32(0));
                                             },
@@ -855,11 +865,13 @@ TCodegenExpression MakeCodegenInOpExpr(
         Value* newRowPtr = builder.CreateAlloca(TypeBuilder<TRow, false>::get(builder.getContext()));
         Value* executionContextPtrRef = builder.GetExecutionContextPtr();
 
-        builder.CreateCall3(
+        builder.CreateCall(
             builder.Module->GetRoutine("AllocateRow"),
-            executionContextPtrRef,
-            builder.getInt32(keySize),
-            newRowPtr);
+            {
+                executionContextPtrRef,
+                builder.getInt32(keySize),
+                newRowPtr
+            });
 
         Value* newRowRef = builder.CreateLoad(newRowPtr);
 
@@ -871,12 +883,14 @@ TCodegenExpression MakeCodegenInOpExpr(
             value.StoreToRow(builder, newRowRef, index, id);
         }
 
-        Value* result = builder.CreateCall4(
+        Value* result = builder.CreateCall(
             builder.Module->GetRoutine("IsRowInArray"),
-            executionContextPtrRef,
-            CodegenRowComparerFunction(keyTypes, *builder.Module),
-            newRowRef,
-            builder.getInt32(arrayIndex));
+            {
+                executionContextPtrRef,
+                CodegenRowComparerFunction(keyTypes, *builder.Module),
+                newRowRef,
+                builder.getInt32(arrayIndex)
+            });
 
         return TCGValue::CreateFromValue(
             builder,
@@ -905,11 +919,13 @@ void CodegenScanOp(
         builder.CreateRetVoid();
     });
 
-    builder.CreateCall3(
+    builder.CreateCall(
         builder.Module->GetRoutine("ScanOpHelper"),
-        builder.GetExecutionContextPtr(),
-        consume.ClosurePtr,
-        consume.Function);
+        {
+            builder.GetExecutionContextPtr(),
+            consume.ClosurePtr,
+            consume.Function
+        });
 }
 
 TCodegenSource MakeCodegenJoinOp(
@@ -935,18 +951,22 @@ TCodegenSource MakeCodegenJoinOp(
             int joinKeySize = equations.size();
 
             Value* keyPtr = builder.CreateAlloca(TypeBuilder<TRow, false>::get(builder.getContext()));
-            builder.CreateCall3(
+            builder.CreateCall(
                 builder.Module->GetRoutine("AllocatePermanentRow"),
-                builder.GetExecutionContextPtr(),
-                builder.getInt32(joinKeySize),
-                keyPtr);
+                {
+                    builder.GetExecutionContextPtr(),
+                    builder.getInt32(joinKeySize),
+                    keyPtr
+                });
 
             Value* rowWithKeyPtr = builder.CreateAlloca(TypeBuilder<TRow, false>::get(builder.getContext()));
-            builder.CreateCall3(
+            builder.CreateCall(
                 builder.Module->GetRoutine("AllocatePermanentRow"),
-                builder.GetExecutionContextPtr(),
-                builder.getInt32(joinKeySize + sourceSchema.Columns().size()),
-                rowWithKeyPtr);
+                {
+                    builder.GetExecutionContextPtr(),
+                    builder.getInt32(joinKeySize + sourceSchema.Columns().size()),
+                    rowWithKeyPtr
+                });
 
             Value* rowWithKey = builder.CreateLoad(rowWithKeyPtr);
 
@@ -981,19 +1001,23 @@ TCodegenSource MakeCodegenJoinOp(
                             .StoreToRow(builder, rowWithKeyRef, joinKeySize + index, joinKeySize + index);
                     }
 
-                    builder.CreateCall3(
+                    builder.CreateCall(
                         builder.Module->GetRoutine("SaveJoinRow"),
-                        executionContextPtrRef,
-                        allRowsRef,
-                        rowWithKeyRef);
+                        {
+                            executionContextPtrRef,
+                            allRowsRef,
+                            rowWithKeyRef
+                        });
 
-                    builder.CreateCall5(
+                    builder.CreateCall(
                         builder.Module->GetRoutine("InsertJoinRow"),
-                        executionContextPtrRef,
-                        keysLookupRef,
-                        keysRef,
-                        keyPtrRef,
-                        builder.getInt32(joinKeySize));
+                        {
+                            executionContextPtrRef,
+                            keysLookupRef,
+                            keysRef,
+                            keyPtrRef,
+                            builder.getInt32(joinKeySize)
+                        });
 
                 });
 
@@ -1008,19 +1032,20 @@ TCodegenSource MakeCodegenJoinOp(
         ) {
             CodegenForEachRow(
                 builder,
-                builder.CreateCall(builder.Module->GetRoutine("GetRowsData"), joinedRows),
-                builder.CreateCall(builder.Module->GetRoutine("GetRowsSize"), joinedRows),
+                builder.CreateCall(builder.Module->GetRoutine("GetRowsData"), {joinedRows}),
+                builder.CreateCall(builder.Module->GetRoutine("GetRowsSize"), {joinedRows}),
                 stopFlag,
                 codegenConsumer);
 
             builder.CreateRetVoid();
         });
 
-        builder.CreateCallWithArgs(
+        builder.CreateCall(
             builder.Module->GetRoutine("JoinOpHelper"),
             {
                 builder.GetExecutionContextPtr(),
                 builder.getInt32(index),
+
                 CodegenGroupHasherFunction(keyTypes, *builder.Module),
                 CodegenGroupComparerFunction(keyTypes, *builder.Module),
 
@@ -1082,11 +1107,13 @@ TCodegenSource MakeCodegenProjectOp(
             [&] (TCGContext& builder, Value* row) {
                 Value* newRowPtr = builder.CreateAlloca(TypeBuilder<TRow, false>::get(builder.getContext()));
 
-                builder.CreateCall3(
+                builder.CreateCall(
                     builder.Module->GetRoutine("AllocateRow"),
-                    builder.GetExecutionContextPtr(),
-                    builder.getInt32(projectionCount),
-                    newRowPtr);
+                    {
+                        builder.GetExecutionContextPtr(),
+                        builder.getInt32(projectionCount),
+                        newRowPtr
+                    });
 
                 Value* newRow = builder.CreateLoad(newRowPtr);
 
@@ -1191,9 +1218,11 @@ std::function<void(TCGContext& builder, Value*, Value*)> MakeCodegenAggregateUpd
     ] (TCGContext& builder, Value* newRow, Value* groupRow) {
         for (int index = 0; index < codegenAggregates.size(); index++) {
             auto aggState = builder.CreateConstInBoundsGEP1_32(
+                nullptr,
                 CodegenValuesPtrFromRow(builder, groupRow),
                 keySize + index);
             auto newValue = builder.CreateConstInBoundsGEP1_32(
+                nullptr,
                 CodegenValuesPtrFromRow(builder, newRow),
                 keySize + index);
 
@@ -1236,6 +1265,7 @@ std::function<void(TCGContext& builder, Value* row)> MakeCodegenAggregateFinaliz
             auto resultValue = codegenAggregates[index].Finalize(
                 builder,
                 builder.CreateConstInBoundsGEP1_32(
+                    nullptr,
                     valuesPtr,
                     keySize + index));
             resultValue.StoreToRow(
@@ -1279,11 +1309,13 @@ TCodegenSource MakeCodegenGroupOp(
         ) {
             Value* newRowPtr = builder.CreateAlloca(TypeBuilder<TRow, false>::get(builder.getContext()));
 
-            builder.CreateCall3(
+            builder.CreateCall(
                 builder.Module->GetRoutine("AllocatePermanentRow"),
-                builder.GetExecutionContextPtr(),
-                builder.getInt32(groupRowSize),
-                newRowPtr);
+                {
+                    builder.GetExecutionContextPtr(),
+                    builder.getInt32(groupRowSize),
+                    newRowPtr
+                });
 
             codegenSource(
                 builder,
@@ -1296,13 +1328,15 @@ TCodegenSource MakeCodegenGroupOp(
 
                     codegenEvaluateGroups(builder, row, newRowRef);
 
-                    auto groupRowPtr = builder.CreateCall5(
+                    auto groupRowPtr = builder.CreateCall(
                         builder.Module->GetRoutine("InsertGroupRow"),
-                        executionContextPtrRef,
-                        lookupRef,
-                        groupedRowsRef,
-                        newRowRef,
-                        builder.getInt32(keyTypes.size()));
+                        {
+                            executionContextPtrRef,
+                            lookupRef,
+                            groupedRowsRef,
+                            newRowRef,
+                            builder.getInt32(keyTypes.size())
+                        });
 
                     CodegenIf<TCGContext>(
                         builder,
@@ -1324,11 +1358,13 @@ TCodegenSource MakeCodegenGroupOp(
                                 [&] (TCGContext& builder) {
                                     codegenInitialize(builder, groupRow);
 
-                                    builder.CreateCall3(
+                                    builder.CreateCall(
                                         builder.Module->GetRoutine("AllocatePermanentRow"),
-                                        builder.GetExecutionContextPtr(),
-                                        builder.getInt32(groupRowSize),
-                                        newRowPtrRef);
+                                        {
+                                            builder.GetExecutionContextPtr(),
+                                            builder.getInt32(groupRowSize),
+                                            newRowPtrRef
+                                        });
                                 });
 
                             // Here *newRowPtrRef != groupRow.
@@ -1357,15 +1393,15 @@ TCodegenSource MakeCodegenGroupOp(
 
             CodegenForEachRow(
                 builder,
-                builder.CreateCall(builder.Module->GetRoutine("GetRowsData"), finalGroupedRows),
-                builder.CreateCall(builder.Module->GetRoutine("GetRowsSize"), finalGroupedRows),
+                builder.CreateCall(builder.Module->GetRoutine("GetRowsData"), {finalGroupedRows}),
+                builder.CreateCall(builder.Module->GetRoutine("GetRowsSize"), {finalGroupedRows}),
                 stopFlag,
                 codegenFinalizingConsumer);
 
             builder.CreateRetVoid();
         });
 
-        builder.CreateCallWithArgs(
+        builder.CreateCall(
             builder.Module->GetRoutine("GroupOpHelper"),
             {
                 builder.GetExecutionContextPtr(),
@@ -1403,11 +1439,13 @@ TCodegenSource MakeCodegenOrderOp(
         ) {
             Value* newRowPtr = builder.CreateAlloca(TypeBuilder<TRow, false>::get(builder.getContext()));
 
-            builder.CreateCall3(
+            builder.CreateCall(
                 builder.Module->GetRoutine("AllocatePermanentRow"),
-                builder.GetExecutionContextPtr(),
-                builder.getInt32(sourceSchema.Columns().size() + codegenExprs.size()),
-                newRowPtr);
+                {
+                    builder.GetExecutionContextPtr(),
+                    builder.getInt32(sourceSchema.Columns().size() + codegenExprs.size()),
+                    newRowPtr
+                });
 
             Value* newRow = builder.CreateLoad(newRowPtr);
 
@@ -1436,10 +1474,9 @@ TCodegenSource MakeCodegenOrderOp(
                         orderValue.StoreToRow(builder, newRowRef, columnIndex, columnIndex);
                     }
 
-                    builder.CreateCall2(
+                    builder.CreateCall(
                         builder.Module->GetRoutine("AddRow"),
-                        topNRef,
-                        newRowRef);
+                        {topNRef, newRowRef});
                 });
 
             builder.CreateRetVoid();
@@ -1452,8 +1489,8 @@ TCodegenSource MakeCodegenOrderOp(
         ) {
             CodegenForEachRow(
                 builder,
-                builder.CreateCall(builder.Module->GetRoutine("GetRowsData"), orderedRows),
-                builder.CreateCall(builder.Module->GetRoutine("GetRowsSize"), orderedRows),
+                builder.CreateCall(builder.Module->GetRoutine("GetRowsData"), {orderedRows}),
+                builder.CreateCall(builder.Module->GetRoutine("GetRowsSize"), {orderedRows}),
                 stopFlag,
                 codegenConsumer);
 
@@ -1474,7 +1511,7 @@ TCodegenSource MakeCodegenOrderOp(
             });
         }
 
-        builder.CreateCallWithArgs(
+        builder.CreateCall(
             builder.Module->GetRoutine("OrderOpHelper"),
             {
                 builder.GetExecutionContextPtr(),
@@ -1523,7 +1560,9 @@ TCGQueryCallback CodegenEvaluate(
     codegenSource(
         builder,
         [&] (TCGContext& builder, Value* row) {
-            builder.CreateCall2(module->GetRoutine("WriteRow"), row, builder.GetExecutionContextPtr());
+            builder.CreateCall(
+                module->GetRoutine("WriteRow"),
+                {row, builder.GetExecutionContextPtr()});
         });
 
     builder.CreateRetVoid();
