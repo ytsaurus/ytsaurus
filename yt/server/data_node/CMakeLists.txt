@@ -8,6 +8,7 @@ set( SRCS
   ${CMAKE_CURRENT_LIST_DIR}/chunk_block_manager.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_cache.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_meta_manager.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_detail.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_registry.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_store.cpp
@@ -37,6 +38,7 @@ set( HDRS
   ${CMAKE_CURRENT_LIST_DIR}/chunk_block_manager.h
   ${CMAKE_CURRENT_LIST_DIR}/chunk.h
   ${CMAKE_CURRENT_LIST_DIR}/chunk_cache.h
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_meta_manager.h
   ${CMAKE_CURRENT_LIST_DIR}/chunk_detail.h
   ${CMAKE_CURRENT_LIST_DIR}/chunk_registry.h
   ${CMAKE_CURRENT_LIST_DIR}/chunk_store.h

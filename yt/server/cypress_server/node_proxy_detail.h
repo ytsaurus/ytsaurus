@@ -3,7 +3,7 @@
 #include "node_detail.h"
 #include "node_proxy.h"
 
-#include <yt/server/cell_master/public.h>
+#include <yt/server/cell_master/config.h>
 
 #include <yt/server/object_server/public.h>
 

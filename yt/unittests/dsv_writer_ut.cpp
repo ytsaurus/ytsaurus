@@ -161,12 +161,9 @@ TEST(TDsvWriterTest, SimpleTabular)
     TStringStream outputStream;
     auto config = New<TDsvFormatConfig>();
     config->EnableTableIndex = true;
-<<<<<<< HEAD
 
     auto controlAttributes = New<TControlAttributesConfig>();
     controlAttributes->EnableTableIndex = true;
-=======
->>>>>>> origin/prestable/0.17.4
     auto writer = New<TSchemalessWriterForDsv>(
         nameTable, 
         false,
@@ -206,22 +203,6 @@ TEST(TDsvWriterTest, AnyTabular)
     EXPECT_ANY_THROW(writer->GetReadyEvent().Get().ThrowOnError());
 }
 
-<<<<<<< HEAD
-=======
-TEST(TDsvWriterTest, RangeAndRowIndex)
-{
-    auto nameTable = New<TNameTable>();
-    TStringStream outputStream;
-    auto writer = New<TSchemalessWriterForDsv>(
-        nameTable, 
-        false, 
-        CreateAsyncAdapter(static_cast<TOutputStream*>(&outputStream)));
-
-    EXPECT_ANY_THROW(writer->WriteRangeIndex(1));
-    EXPECT_ANY_THROW(writer->WriteRowIndex(1));
-}
-
->>>>>>> origin/prestable/0.17.4
 ////////////////////////////////////////////////////////////////////////////////
 
 TEST(TTskvWriterTest, SimpleTabular)

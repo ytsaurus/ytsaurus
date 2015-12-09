@@ -4,6 +4,8 @@
 #include <yt/ytlib/chunk_client/chunk_reader.h>
 #include <yt/ytlib/chunk_client/dispatcher.h>
 
+#include <yt/core/ytree/convert.h>
+
 #include <yt/core/concurrency/scheduler.h>
 
 #include <yt/core/misc/bloom_filter.h>
@@ -37,7 +39,9 @@ TCachedVersionedChunkMetaPtr TCachedVersionedChunkMeta::DoLoad(
     const TTableSchema& readerSchema)
 {
     ChunkId_ = chunkReader->GetChunkId();
-	KeyColumnCount_ = readerSchema.GetKeyColumns().size();
+
+    auto keyColumns = readerSchema.GetKeyColumns();
+    KeyColumnCount_ = keyColumns.size();
 
     try {
         ValidateTableSchemaAndKeyColumns(readerSchema, keyColumns);

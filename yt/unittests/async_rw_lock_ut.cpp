@@ -1,4 +1,3 @@
-#include "stdafx.h"
 #include "framework.h"
 
 #include <yt/core/concurrency/async_rw_lock.h>

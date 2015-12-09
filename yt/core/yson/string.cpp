@@ -1,4 +1,3 @@
-#include "stdafx.h"
 #include "string.h"
 #include "stream.h"
 #include "null_consumer.h"

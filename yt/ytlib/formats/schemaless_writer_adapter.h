@@ -39,17 +39,20 @@ public:
     virtual TBlob GetContext() const;
 
 protected:
-    TControlAttributesConfigPtr ControlAttributesConfig_;
+    const NTableClient::TNameTablePtr NameTable_;
+    const std::unique_ptr<TOutputStream> Output_;
+    const bool EnableContextSaving_;
+    const TControlAttributesConfigPtr ControlAttributesConfig_;
+    const int KeyColumnCount_;
+
+    NTableClient::TOwningKey LastKey_;
+    NTableClient::TKey CurrentKey_;
 
     TSchemalessFormatWriterBase(
         NTableClient::TNameTablePtr nameTable,
         NConcurrency::IAsyncOutputStreamPtr output,
         bool enableContextSaving,
-<<<<<<< HEAD
         TControlAttributesConfigPtr controlAttributesConfig,
-=======
-        bool enableKeySwitch,
->>>>>>> origin/prestable/0.17.4
         int keyColumnCount);
 
     TBlobOutput* GetOutputStream();
@@ -58,15 +61,6 @@ protected:
 
     virtual void DoWrite(const std::vector<NTableClient::TUnversionedRow> &rows) = 0;
     
-    int KeyColumnCount_;
-    
-    NTableClient::TOwningKey LastKey_;
-    NTableClient::TKey CurrentKey_;
-    
-    NTableClient::TNameTablePtr NameTable_;
-
-    bool CheckKeySwitch(NTableClient::TUnversionedRow row, bool isLastRow);
-
     bool CheckKeySwitch(NTableClient::TUnversionedRow row, bool isLastRow);
 
     bool IsSystemColumnId(int id) const;
@@ -82,22 +76,8 @@ protected:
     virtual void WriteRowIndex(i64 rowIndex);
 
 private:
-    bool EnableContextSaving_;
-<<<<<<< HEAD
-
-    NTableClient::TNameTablePtr NameTable_;
-=======
-    bool EnableKeySwitch_;
->>>>>>> origin/prestable/0.17.4
-
     TBlobOutput CurrentBuffer_;
     TBlobOutput PreviousBuffer_;
-    std::unique_ptr<TOutputStream> Output_;
-
-    NTableClient::TOwningKey LastKey_;
-    NTableClient::TKey CurrentKey_;
-
-    int KeyColumnCount_;
 
     int RowIndexId_ = -1;
     int RangeIndexId_ = -1;
@@ -127,24 +107,9 @@ public:
         int keyColumnCount);
 
     void Init(const TFormat& format);
-<<<<<<< HEAD
 
 private:
     std::unique_ptr<NYson::IYsonConsumer> Consumer_;
-=======
-
-    virtual void WriteTableIndex(i32 tableIndex) override;
-
-    virtual void WriteRangeIndex(i32 rangeIndex) override;
-
-    virtual void WriteRowIndex(i64 rowIndex) override;
-
-private:
-    std::unique_ptr<NYson::IYsonConsumer> Consumer_;
-    NTableClient::TNameTablePtr NameTable_;
-
-    TError Error_;
->>>>>>> origin/prestable/0.17.4
 
     template <class T>
     void WriteControlAttribute(

@@ -137,7 +137,7 @@ TEST(TSchemafulDsvParserTest, SpecialSymbols)
 
 TEST(TSchemafulDsvParserTest, EnabledEscaping)
 {
-    StrictMock<NYTree::TMockYsonConsumer> Mock;
+    StrictMock<TMockYsonConsumer> Mock;
     InSequence dummy;
 
     auto value = Stroka("6\0", 2);
@@ -162,7 +162,7 @@ TEST(TSchemafulDsvParserTest, EnabledEscaping)
 
 TEST(TSchemafulDsvParserTest, DisabledEscaping)
 {
-    StrictMock<NYTree::TMockYsonConsumer> Mock;
+    StrictMock<TMockYsonConsumer> Mock;
     InSequence dummy;
 
     auto value = Stroka("6\0", 2);

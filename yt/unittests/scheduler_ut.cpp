@@ -11,10 +11,10 @@
 #include <yt/core/concurrency/thread_pool.h>
 #include <yt/core/concurrency/delayed_executor.h>
 
-#include <cyt/ore/actions/cancelable_context.h>
+#include <yt/core/actions/cancelable_context.h>
 #include <yt/core/actions/invoker_util.h>
 
-#include <yt/core/misc/public.h>
+#include <yt/core/misc/lazy_ptr.h>
 
 #include <exception>
 

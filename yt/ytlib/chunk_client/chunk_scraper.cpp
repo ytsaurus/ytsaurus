@@ -3,8 +3,13 @@
 #include "config.h"
 
 #include <yt/ytlib/chunk_client/chunk_service_proxy.h>
+#include <yt/ytlib/chunk_client/throttler_manager.h>
 
 #include <yt/ytlib/node_tracker_client/node_directory.h>
+
+#include <yt/ytlib/object_client/helpers.h>
+
+#include <yt/ytlib/api/client.h>
 
 #include <yt/core/concurrency/periodic_executor.h>
 #include <yt/core/concurrency/throughput_throttler.h>
@@ -180,7 +185,7 @@ void TChunkScraper::Start()
 
 void TChunkScraper::DoStart()
 {
-    for (auto& task : ScraperTasks_) {
+    for (const auto& task : ScraperTasks_) {
         task->Start();
     }
 }
@@ -212,7 +217,7 @@ void TChunkScraper::Reset(const yhash_set<TChunkId>& chunkIds)
 //! Create scraper tasks for each cell.
 void TChunkScraper::CreateTasks(const yhash_set<TChunkId>& chunkIds)
 {
-	// Group chunks by cell tags.
+    // Group chunks by cell tags.
     yhash_map<TCellTag, int> cellTags;
     for (const auto& chunkId : chunkIds) {
         auto cellTag = CellTagFromId(chunkId);
@@ -232,9 +237,7 @@ void TChunkScraper::CreateTasks(const yhash_set<TChunkId>& chunkIds)
     for (const auto& cellChunks : chunksByCells) {
         auto cellTag = cellChunks.first;
         auto throttler = ThrottlerManager_->GetThrottler(cellTag);
-        YCHECK(throttler);
         auto masterChannel = MasterClient_->GetMasterChannelOrThrow(NApi::EMasterChannelKind::Leader, cellTag);
-        YCHECK(masterChannel);
         auto task = New<TScraperTask>(
             Config_,
             Invoker_,
@@ -244,8 +247,7 @@ void TChunkScraper::CreateTasks(const yhash_set<TChunkId>& chunkIds)
             cellTag,
             std::move(cellChunks.second),
             OnChunkLocated_,
-            Logger
-        );
+            Logger);
         ScraperTasks_.push_back(std::move(task));
     }
 }

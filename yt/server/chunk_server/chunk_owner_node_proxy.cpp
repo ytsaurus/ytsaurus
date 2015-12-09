@@ -8,6 +8,7 @@
 #include "helpers.h"
 
 #include <yt/server/cell_master/config.h>
+#include <yt/server/cell_master/multicell_manager.h>
 
 #include <yt/server/node_tracker_server/node_directory_builder.h>
 
@@ -17,6 +18,8 @@
 #include <yt/ytlib/chunk_client/chunk_spec.h>
 
 #include <yt/ytlib/object_client/helpers.h>
+
+#include <yt/ytlib/cypress_client/rpc_helpers.h>
 
 #include <yt/core/concurrency/scheduler.h>
 

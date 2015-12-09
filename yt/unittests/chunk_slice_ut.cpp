@@ -12,7 +12,7 @@
 
 #include <yt/core/ytree/convert.h>
 
-#include <yt/core/yson/yson_string.h>
+#include <yt/core/yson/string.h>
 
 namespace NYT {
 

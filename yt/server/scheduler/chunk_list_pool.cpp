@@ -3,6 +3,7 @@
 #include "config.h"
 
 #include <yt/ytlib/object_client/master_ypath_proxy.h>
+#include <yt/ytlib/object_client/helpers.h>
 
 namespace NYT {
 namespace NScheduler {

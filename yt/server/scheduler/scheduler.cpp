@@ -21,6 +21,7 @@
 #include <yt/ytlib/job_prober_client/job_prober_service_proxy.h>
 
 #include <yt/ytlib/object_client/master_ypath_proxy.h>
+#include <yt/ytlib/object_client/helpers.h>
 
 #include <yt/ytlib/scheduler/helpers.h>
 
@@ -31,9 +32,14 @@
 
 #include <yt/core/concurrency/periodic_executor.h>
 #include <yt/core/concurrency/thread_affinity.h>
+#include <yt/core/concurrency/thread_pool.h>
 
 #include <yt/core/rpc/message.h>
 #include <yt/core/rpc/response_keeper.h>
+
+#include <yt/core/misc/finally.h>
+
+#include <yt/core/profiling/scoped_timer.h>
 
 namespace NYT {
 namespace NScheduler {
@@ -414,7 +420,6 @@ public:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         auto job = GetJobOrThrow(jobId);
-
         auto proxy = CreateJobProberProxy(job);
 
         auto req = proxy.Strace();
@@ -482,7 +487,8 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        auto proxy = CreateJobProberProxy(jobId);
+        auto job = GetJobOrThrow(jobId);
+        auto proxy = CreateJobProberProxy(job);
 
         auto req = proxy.SignalJob();
         ToProto(req->mutable_job_id(), jobId);
@@ -523,7 +529,7 @@ public:
         OnJobCompleted(job, &result);
     }
 
-    TJobProberServiceProxy CreateJobProberProxy(const TJobId& jobId)
+    TJobProberServiceProxy CreateJobProberProxy(TJobPtr job)
     {
         const auto& address = job->GetNode()->GetInterconnectAddress();
         auto channel = NChunkClient::LightNodeChannelFactory->CreateChannel(address);

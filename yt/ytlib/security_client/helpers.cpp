@@ -1,4 +1,3 @@
-#include "stdafx.h"
 #include "helpers.h"
 
 #include <yt/core/ypath/token.h>

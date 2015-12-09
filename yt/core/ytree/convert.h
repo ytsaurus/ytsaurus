@@ -2,7 +2,6 @@
 
 #include "public.h"
 #include "ephemeral_node_factory.h"
-#include "yson_string.h"
 
 #include <yt/core/yson/string.h>
 

@@ -1,7 +1,4 @@
-#include "stdafx.h"
-
 #include "multi_reader_base.h"
-
 #include "config.h"
 #include "dispatcher.h"
 #include "private.h"
@@ -86,7 +83,7 @@ void TMultiReaderBase::OpenNextChunks()
             return;
         }
 
-        if (ActiveReaderCount_ > MaxPrefetchWindow) {
+        if (ActiveReaderCount_ > Config_->MaxPrefetchWindow) {
             return;
         }
 

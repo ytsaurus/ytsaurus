@@ -4,6 +4,7 @@
 #include "helpers.h"
 
 #include <yt/server/cell_master/config.h>
+#include <yt/server/cell_master/multicell_manager.h>
 
 #include <yt/server/security_server/account.h>
 #include <yt/server/security_server/security_manager.h>

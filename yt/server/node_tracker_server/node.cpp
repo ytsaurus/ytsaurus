@@ -14,6 +14,8 @@
 
 #include <yt/ytlib/object_client/helpers.h>
 
+#include <yt/ytlib/node_tracker_client/helpers.h>
+
 #include <yt/core/misc/collection_helpers.h>
 
 #include <atomic>

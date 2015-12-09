@@ -13,6 +13,8 @@
 
 #include <yt/ytlib/tablet_client/config.h>
 
+#include <yt/ytlib/query_client/column_evaluator.h>
+
 #include <yt/core/concurrency/delayed_executor.h>
 
 #include <yt/core/misc/collection_helpers.h>

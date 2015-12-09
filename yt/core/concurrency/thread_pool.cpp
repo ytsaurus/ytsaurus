@@ -1,4 +1,3 @@
-#include "stdafx.h"
 #include "thread_pool.h"
 #include "single_queue_scheduler_thread.h"
 #include "private.h"

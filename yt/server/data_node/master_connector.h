@@ -9,6 +9,8 @@
 #include <yt/ytlib/node_tracker_client/node_directory.h>
 #include <yt/ytlib/node_tracker_client/node_tracker_service_proxy.h>
 
+#include <yt/ytlib/transaction_client/public.h>
+
 #include <yt/core/actions/cancelable_context.h>
 #include <yt/core/actions/signal.h>
 

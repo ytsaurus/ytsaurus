@@ -1,4 +1,3 @@
-#include "stdafx.h"
 #include "config.h"
 
 #include <yt/ytlib/object_client/helpers.h>

@@ -1,4 +1,3 @@
-#include "stdafx.h"
 #include "journal_manager.h"
 #include "journal_node.h"
 #include "config.h"

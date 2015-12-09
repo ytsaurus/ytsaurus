@@ -20,6 +20,8 @@
 #include <yt/core/misc/nullable.h>
 #include <yt/core/misc/small_vector.h>
 
+#include <yt/core/rpc/service_detail.h>
+
 namespace NYT {
 namespace NChunkServer {
 

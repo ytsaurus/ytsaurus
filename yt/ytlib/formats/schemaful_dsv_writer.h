@@ -41,11 +41,7 @@ private:
     TSchemafulDsvTable Table_;
     
     static char* WriteInt64Backwards(char* ptr, i64 value);
-<<<<<<< HEAD
     static char* WriteUint64Backwards(char* ptr, ui64 value);
-=======
-    static char* WriteUint64Backwards(char* ptr, ui64 value);    
->>>>>>> origin/prestable/0.17.4
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -59,20 +55,11 @@ public:
         NTableClient::TNameTablePtr nameTable,
         NConcurrency::IAsyncOutputStreamPtr output,
         bool enableContextSaving,
-<<<<<<< HEAD
         TControlAttributesConfigPtr controlAttributesConfig,
-=======
->>>>>>> origin/prestable/0.17.4
         TSchemafulDsvFormatConfigPtr config);
        
     // ISchemalessFormatWriter overrides.
     virtual void DoWrite(const std::vector<NTableClient::TUnversionedRow>& rows) override;
-<<<<<<< HEAD
-=======
-    virtual void WriteTableIndex(i32 tableIndex) override;
-    virtual void WriteRangeIndex(i32 rangeIndex) override;
-    virtual void WriteRowIndex(i64 rowIndex) override;
->>>>>>> origin/prestable/0.17.4
 private:
     std::vector<int> IdToIndexInRowMapping_;
 };
@@ -100,12 +87,9 @@ public:
 private:
     std::unique_ptr<TOutputStream> Output_;
 
-<<<<<<< HEAD
     void TryFlushBuffer(bool force);
     void DoFlushBuffer();
 
-=======
->>>>>>> origin/prestable/0.17.4
     TFuture<void> Result_;
 
     TBlobOutput UnderlyingBlobOutput_;

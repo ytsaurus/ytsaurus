@@ -1451,22 +1451,11 @@ protected:
         YCHECK(TotalEstimatedInputDataSize > 0);
         i64 dataSizeAfterPartition = 1 + static_cast<i64>(TotalEstimatedInputDataSize * Spec->MapSelectivityFactor);
 
-<<<<<<< HEAD
-        i64 result;
-        if (Spec->PartitionDataSize || Spec->PartitionCount) {
-            if (Spec->PartitionCount) {
-                result = *Spec->PartitionCount;
-            } else {
-                // NB: Spec->PartitionDataSize is not Null.
-                result = 1 + dataSizeAfterPartition / *Spec->PartitionDataSize;
-            }
-=======
         int result;
         if (Spec->PartitionCount) {
             result = Spec->PartitionCount.Get();
         } else if (Spec->PartitionDataSize) {
             result = 1 + dataSizeAfterPartition / Spec->PartitionDataSize.Get();
->>>>>>> origin/prestable/0.17.4
         } else {
             // Rationale and details are on the wiki.
             // https://wiki.yandex-team.ru/yt/design/partitioncount/

@@ -1,5 +1,4 @@
 #include "transaction_supervisor.h"
-#include "private.h"
 #include "commit.h"
 #include "config.h"
 #include "hive_manager.h"
@@ -14,9 +13,9 @@
 #include <yt/server/hydra/hydra_manager.h>
 #include <yt/server/hydra/hydra_service.h>
 #include <yt/server/hydra/mutation.h>
-#include <yt/server/hydra/rpc_helpers.h>
 
 #include <yt/ytlib/hive/transaction_supervisor_service_proxy.h>
+#include <yt/ytlib/hive/private.h>
 
 #include <yt/ytlib/transaction_client/timestamp_provider.h>
 

@@ -6,6 +6,7 @@
 #include <yt/server/cell_master/automaton.h>
 #include <yt/server/cell_master/bootstrap.h>
 #include <yt/server/cell_master/hydra_facade.h>
+#include <yt/server/cell_master/multicell_manager.h>
 #include <yt/server/cell_master/serialize.h>
 
 #include <yt/server/cypress_server/cypress_manager.h>
@@ -24,7 +25,10 @@
 #include <yt/server/security_server/security_manager.h>
 #include <yt/server/security_server/user.h>
 
+#include <yt/server/transaction_server/transaction_manager.pb.h>
+
 #include <yt/ytlib/object_client/object_service_proxy.h>
+#include <yt/ytlib/object_client/helpers.h>
 
 #include <yt/ytlib/transaction_client/transaction_ypath_proxy.h>
 
@@ -37,8 +41,6 @@
 #include <yt/core/ytree/attributes.h>
 #include <yt/core/ytree/ephemeral_node_factory.h>
 #include <yt/core/ytree/fluent.h>
-
-#include <yt/server/transaction_server/transaction_manager.pb.h>
 
 namespace NYT {
 namespace NTransactionServer {

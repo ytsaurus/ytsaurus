@@ -10,6 +10,8 @@
 
 #include <yt/server/cell_node/bootstrap.h>
 
+#include <yt/ytlib/formats/config.h>
+
 #include <yt/ytlib/api/client.h>
 #include <yt/ytlib/api/config.h>
 
@@ -199,6 +201,11 @@ public:
     virtual NErasure::ECodec GetErasureCodecId() const override
     {
         return Underlying_->GetErasureCodecId();
+    }
+
+    virtual const NChunkClient::NProto::TDataStatistics& GetDataStatistics() const override
+    {
+        return Underlying_->GetDataStatistics();
     }
 
 private:
@@ -695,7 +702,7 @@ private:
                     false, /* enableContextSaving */
                     New<TControlAttributesConfig>(),
                     0);
-                PipeReaderToWriter(reader, writer, controlAttributesConfig, TableArtifactBufferRowCount);
+                PipeReaderToWriter(reader, writer, TableArtifactBufferRowCount);
             };
 
             auto chunk = ProduceArtifactFile(key, location, chunkId, producer);

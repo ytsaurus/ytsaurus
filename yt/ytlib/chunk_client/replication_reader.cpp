@@ -20,6 +20,7 @@
 #include <yt/ytlib/node_tracker_client/node_directory.h>
 
 #include <yt/ytlib/object_client/object_service_proxy.h>
+#include <yt/ytlib/object_client/helpers.h>
 
 #include <yt/core/concurrency/delayed_executor.h>
 #include <yt/core/concurrency/thread_affinity.h>

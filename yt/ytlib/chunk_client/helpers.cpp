@@ -8,15 +8,21 @@
 
 #include <yt/ytlib/chunk_client/chunk_replica.h>
 #include <yt/ytlib/chunk_client/chunk_ypath_proxy.h>
+#include <yt/ytlib/chunk_client/chunk_service_proxy.h>
+#include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
+#include <yt/ytlib/chunk_client/chunk_spec.h>
 
 #include <yt/ytlib/node_tracker_client/node_directory.h>
 
 #include <yt/ytlib/object_client/object_service_proxy.h>
+#include <yt/ytlib/object_client/helpers.h>
 
 #include <yt/core/erasure/codec.h>
 
 #include <yt/core/concurrency/scheduler.h>
+
 #include <yt/core/compression/codec.h>
+
 #include <yt/core/erasure/codec.h>
 
 namespace NYT {

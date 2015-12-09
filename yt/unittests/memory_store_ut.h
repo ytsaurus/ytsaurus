@@ -26,6 +26,9 @@
 #include <yt/ytlib/tablet_client/config.h>
 #include <yt/ytlib/tablet_client/public.h>
 
+#include <yt/ytlib/query_client/function_registry.h>
+#include <yt/ytlib/query_client/column_evaluator.h>
+
 #include <yt/core/concurrency/scheduler.h>
 
 #include <yt/core/misc/nullable.h>

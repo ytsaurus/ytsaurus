@@ -10,6 +10,8 @@
 #include <yt/ytlib/chunk_client/chunk_scraper.h>
 #include <yt/ytlib/chunk_client/chunk_slice.h>
 #include <yt/ytlib/chunk_client/data_statistics.h>
+#include <yt/ytlib/chunk_client/chunk_teleporter.h>
+#include <yt/ytlib/chunk_client/helpers.h>
 
 #include <yt/ytlib/cypress_client/rpc_helpers.h>
 
@@ -32,6 +34,8 @@
 #include <yt/core/erasure/codec.h>
 
 #include <yt/core/misc/fs.h>
+
+#include <yt/core/concurrency/action_queue.h>
 
 #include <functional>
 
@@ -1328,11 +1332,7 @@ void TOperationControllerBase::InitInputChunkScraper()
         InputNodeDirectory,
         std::move(chunkIds),
         BIND(&TThis::OnInputChunkLocated, MakeWeak(this))
-<<<<<<< HEAD
-            .Via(CancelableInvoker),
-=======
             .Via(CancelableControlInvoker),
->>>>>>> origin/prestable/0.17.4
         Logger
     );
 
@@ -2764,7 +2764,6 @@ void TOperationControllerBase::LockInputTables()
 
         auto batchReq = proxy.ExecuteBatch();
 
-<<<<<<< HEAD
         for (const auto& table : InputTables) {
             auto objectIdPath = FromObjectId(table.ObjectId);
             {
@@ -2774,27 +2773,6 @@ void TOperationControllerBase::LockInputTables()
                 GenerateMutationId(req);
                 batchReq->AddRequest(req, "lock");
             }
-=======
-    for (const auto& table : InputTables) {
-        auto path = FromObjectId(table.ObjectId);
-        {
-            auto req = TCypressYPathProxy::Lock(path);
-            req->set_mode(static_cast<int>(ELockMode::Snapshot));
-            SetTransactionId(req, InputTransactionId);
-            GenerateMutationId(req);
-            batchReq->AddRequest(req, "lock_in");
-        }
-        {
-            auto req = TYPathProxy::Get(path);
-            TAttributeFilter attributeFilter(EAttributeFilterMode::MatchingOnly);
-            attributeFilter.Keys.push_back("dynamic");
-            attributeFilter.Keys.push_back("sorted");
-            attributeFilter.Keys.push_back("sorted_by");
-            attributeFilter.Keys.push_back("chunk_count");
-            ToProto(req->mutable_attribute_filter(), attributeFilter);
-            SetTransactionId(req, InputTransactionId);
-            batchReq->AddRequest(req, "get_in_attributes");
->>>>>>> origin/prestable/0.17.4
         }
 
         auto batchRspOrError = WaitFor(batchReq->Invoke());
@@ -2839,12 +2817,8 @@ void TOperationControllerBase::LockInputTables()
                 const auto& attributes = node->Attributes();
 
                 if (attributes.Get<bool>("dynamic")) {
-<<<<<<< HEAD
-                    THROW_ERROR_EXCEPTION("Input table %v is not static", path);
-=======
                     THROW_ERROR_EXCEPTION("Expected a static table, but got dynamic")
-                        << TErrorAttribute("input_table", table.Path.GetPath());
->>>>>>> origin/prestable/0.17.4
+                        << TErrorAttribute("input_table", path);
                 }
 
                 if (attributes.Get<bool>("sorted")) {

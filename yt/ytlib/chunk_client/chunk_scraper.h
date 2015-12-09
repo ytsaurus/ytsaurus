@@ -6,6 +6,8 @@
 
 #include <yt/ytlib/node_tracker_client/public.h>
 
+#include <yt/ytlib/api/public.h>
+
 #include <yt/core/logging/log.h>
 
 #include <yt/core/rpc/public.h>

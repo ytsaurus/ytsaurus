@@ -9,8 +9,11 @@
 #include <yt/server/cypress_server/node_detail.h>
 
 #include <yt/server/election/election_manager.h>
+#include <yt/server/election/distributed_election_manager.h>
+#include <yt/server/election/election_manager_thunk.h>
 
 #include <yt/server/hive/transaction_supervisor.h>
+#include <yt/server/hive/hive_manager.h>
 
 #include <yt/server/hydra/changelog.h>
 #include <yt/server/hydra/composite_automaton.h>
@@ -36,6 +39,7 @@
 
 #include <yt/core/concurrency/periodic_executor.h>
 #include <yt/core/concurrency/scheduler.h>
+#include <yt/core/concurrency/fair_share_action_queue.h>
 
 #include <yt/core/misc/fs.h>
 

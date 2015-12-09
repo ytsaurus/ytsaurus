@@ -28,12 +28,9 @@ protected:
     int KeyBId_;
     int KeyCId_;
     int KeyDId_;
-<<<<<<< HEAD
     int TableIndexId_;
     int RangeIndexId_;
     int RowIndexId_;
-=======
->>>>>>> origin/prestable/0.17.4
     TSchemafulDsvFormatConfigPtr Config_;
 
     TSchemalessWriterForSchemafulDsvPtr Writer_;
@@ -46,13 +43,10 @@ protected:
         KeyBId_ = NameTable_->RegisterName("column_b");
         KeyCId_ = NameTable_->RegisterName("column_c");
         KeyDId_ = NameTable_->RegisterName("column_d");
-<<<<<<< HEAD
         TableIndexId_ = NameTable_->RegisterName(TableIndexColumnName);
         RowIndexId_ = NameTable_->RegisterName(RowIndexColumnName);
         RangeIndexId_ = NameTable_->RegisterName(RangeIndexColumnName);
 
-=======
->>>>>>> origin/prestable/0.17.4
         Config_ = New<TSchemafulDsvFormatConfig>();
     }
 
@@ -61,10 +55,7 @@ protected:
             NameTable_, 
             CreateAsyncAdapter(static_cast<TOutputStream*>(&OutputStream_)),
             false, // enableContextSaving  
-<<<<<<< HEAD
             New<TControlAttributesConfig>(),
-=======
->>>>>>> origin/prestable/0.17.4
             Config_);
     }
 };
@@ -73,24 +64,18 @@ TEST_F(TSchemalessWriterForSchemafulDsvTest, Simple)
 {
     Config_->Columns = {"column_b", "column_c", "column_a"};
     CreateStandardWriter();
-<<<<<<< HEAD
 
-=======
->>>>>>> origin/prestable/0.17.4
     TUnversionedRowBuilder row1;
     row1.AddValue(MakeUnversionedStringValue("value_a", KeyAId_));
     row1.AddValue(MakeUnversionedInt64Value(-42, KeyBId_));
     row1.AddValue(MakeUnversionedBooleanValue(true, KeyCId_));
     row1.AddValue(MakeUnversionedStringValue("garbage", KeyDId_));
 
-<<<<<<< HEAD
     // Ignore system columns.
     row1.AddValue(MakeUnversionedInt64Value(2, TableIndexId_));
     row1.AddValue(MakeUnversionedInt64Value(42, RowIndexId_));
     row1.AddValue(MakeUnversionedInt64Value(1, RangeIndexId_));
 
-=======
->>>>>>> origin/prestable/0.17.4
     TUnversionedRowBuilder row2;
     // The order is reversed.
     row2.AddValue(MakeUnversionedStringValue("value_c", KeyCId_));

@@ -65,15 +65,6 @@ void Deserialize(TFormat& value, NYTree::INodePtr node);
 struct ISchemalessFormatWriter
     : public NTableClient::ISchemalessWriter
 {
-<<<<<<< HEAD
-=======
-    virtual void WriteTableIndex(i32 tableIndex) = 0;
-
-    virtual void WriteRangeIndex(i32 rangeIndex) = 0;
-
-    virtual void WriteRowIndex(i64 rowIndex) = 0;
-
->>>>>>> origin/prestable/0.17.4
     virtual TBlob GetContext() const = 0;
 };
 
@@ -86,21 +77,14 @@ NTableClient::ISchemafulWriterPtr CreateSchemafulWriterForFormat(
     const NTableClient::TTableSchema& schema,
     NConcurrency::IAsyncOutputStreamPtr output);
 
-<<<<<<< HEAD
 ////////////////////////////////////////////////////////////////////////////////
 
-=======
->>>>>>> origin/prestable/0.17.4
 ISchemalessFormatWriterPtr CreateSchemalessWriterForDsv(
     const NYTree::IAttributeDictionary& attributes,
     NTableClient::TNameTablePtr nameTable,
     NConcurrency::IAsyncOutputStreamPtr output,
     bool enableContextSaving,
-<<<<<<< HEAD
     TControlAttributesConfigPtr controlAttributesConfig,
-=======
-    bool enableKeySwitch,
->>>>>>> origin/prestable/0.17.4
     int /* keyColumnCount */);
 
 ISchemalessFormatWriterPtr CreateSchemalessWriterForYamr(
@@ -108,11 +92,7 @@ ISchemalessFormatWriterPtr CreateSchemalessWriterForYamr(
     NTableClient::TNameTablePtr nameTable,
     NConcurrency::IAsyncOutputStreamPtr output,
     bool enableContextSaving,
-<<<<<<< HEAD
     TControlAttributesConfigPtr controlAttributesConfig,
-=======
-    bool enableKeySwitch,
->>>>>>> origin/prestable/0.17.4
     int keyColumnCount);
 
 ISchemalessFormatWriterPtr CreateSchemalessWriterForYamredDsv(
@@ -120,7 +100,6 @@ ISchemalessFormatWriterPtr CreateSchemalessWriterForYamredDsv(
     NTableClient::TNameTablePtr nameTable,
     NConcurrency::IAsyncOutputStreamPtr output,
     bool enableContextSaving,
-<<<<<<< HEAD
     TControlAttributesConfigPtr controlAttributesConfig,
     int keyColumnCount);
 
@@ -132,11 +111,6 @@ ISchemalessFormatWriterPtr CreateSchemalessWriterForSchemafulDsv(
     TControlAttributesConfigPtr controlAttributesConfig,
     int /* keyColumnCount */);
 
-=======
-    bool enableKeySwitch,
-    int keyColumnCount);
-
->>>>>>> origin/prestable/0.17.4
 ISchemalessFormatWriterPtr CreateSchemalessWriterForFormat(
     const TFormat& format,
     NTableClient::TNameTablePtr nameTable,

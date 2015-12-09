@@ -6,12 +6,11 @@
 
 #include <yt/server/cell_master/bootstrap.h>
 #include <yt/server/cell_master/hydra_facade.h>
+#include <yt/server/cell_master/multicell_manager.h>
 #include <yt/server/cell_master/master_hydra_service.h>
 #include <yt/server/cell_master/world_initializer.h>
 
 #include <yt/server/chunk_server/chunk_manager.h>
-
-#include <yt/server/hydra/rpc_helpers.h>
 
 #include <yt/server/object_server/object_manager.h>
 

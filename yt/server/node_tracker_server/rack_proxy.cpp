@@ -1,6 +1,7 @@
 #include "rack_proxy.h"
 #include "node_tracker.h"
 #include "rack.h"
+#include "node.h"
 
 #include <yt/server/cell_master/bootstrap.h>
 

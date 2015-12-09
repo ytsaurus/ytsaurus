@@ -1,8 +1,7 @@
 #include "hive_manager.h"
-#include "private.h"
 #include "config.h"
-#include "hive_service_proxy.h"
 #include "mailbox.h"
+#include "helpers.h"
 
 #include <yt/server/election/election_manager.h>
 
@@ -11,9 +10,10 @@
 #include <yt/server/hydra/hydra_service.h>
 #include <yt/server/hydra/mutation.h>
 #include <yt/server/hydra/mutation_context.h>
-#include <yt/server/hydra/rpc_helpers.h>
 
 #include <yt/ytlib/hive/cell_directory.h>
+#include <yt/ytlib/hive/hive_service_proxy.h>
+#include <yt/ytlib/hive/private.h>
 
 #include <yt/ytlib/hydra/config.h>
 #include <yt/ytlib/hydra/peer_channel.h>

@@ -18,7 +18,6 @@ using namespace NYson;
 using namespace NConcurrency;
 using namespace NTableClient;
 
-<<<<<<< HEAD
 class TSchemalessWriterForYamrTest 
     : public ::testing::Test
 {
@@ -63,56 +62,16 @@ protected:
 
 TEST_F(TSchemalessWriterForYamrTest, Simple)
 {
-=======
-class TSchemalessWriterForYamrTest : 
-    public ::testing::Test
-{
-protected:
-    TNameTablePtr NameTable_;
-    int KeyId_;
-    int SubkeyId_;
-    int ValueId_;
-    TYamrFormatConfigPtr Config_;
-
-    TSchemalessWriterForYamrPtr Writer_;
-
-    TStringStream OutputStream_;
-
-    TSchemalessWriterForYamrTest() {
-        NameTable_ = New<TNameTable>();
-        KeyId_ = NameTable_->RegisterName("key");
-        SubkeyId_ = NameTable_->RegisterName("subkey");
-        ValueId_ = NameTable_->RegisterName("value");
-        Config_ = New<TYamrFormatConfig>();
-    }
-
-    void CreateStandardWriter() {
-        Writer_ = New<TSchemalessWriterForYamr>(
-            NameTable_, 
-            CreateAsyncAdapter(static_cast<TOutputStream*>(&OutputStream_)),
-            false, // enableContextSaving  
-            false, // enableKeySwitch
-            0, // keyColumnCount
-            Config_);
-    }
-};
-
-TEST_F(TSchemalessWriterForYamrTest, Simple)
-{
->>>>>>> origin/prestable/0.17.4
     CreateStandardWriter();
 
     TUnversionedRowBuilder row1;
     row1.AddValue(MakeUnversionedStringValue("key1", KeyId_));
     row1.AddValue(MakeUnversionedStringValue("value1", ValueId_));
-<<<<<<< HEAD
 
     // Ignore system columns.
     row1.AddValue(MakeUnversionedInt64Value(2, TableIndexId_));
     row1.AddValue(MakeUnversionedInt64Value(42, RowIndexId_));
     row1.AddValue(MakeUnversionedInt64Value(1, RangeIndexId_));
-=======
->>>>>>> origin/prestable/0.17.4
     
     // Note that key and value follow not in order.
     TUnversionedRowBuilder row2;
@@ -323,48 +282,28 @@ TEST_F(TSchemalessWriterForYamrTest, Escaping)
 TEST_F(TSchemalessWriterForYamrTest, SimpleWithTableIndex)
 {
     Config_->EnableTableIndex = true;
-<<<<<<< HEAD
 
     auto controlAttributes = New<TControlAttributesConfig>();
     controlAttributes->EnableTableIndex = true;
     CreateStandardWriter(controlAttributes);
-=======
-    CreateStandardWriter();
-
-    Writer_->WriteTableIndex(42);
->>>>>>> origin/prestable/0.17.4
 
     TUnversionedRowBuilder row1;
     row1.AddValue(MakeUnversionedStringValue("key1", KeyId_));
     row1.AddValue(MakeUnversionedStringValue("value1", ValueId_));
-<<<<<<< HEAD
     row1.AddValue(MakeUnversionedInt64Value(42, TableIndexId_));
-=======
->>>>>>> origin/prestable/0.17.4
     
     TUnversionedRowBuilder row2;
     row2.AddValue(MakeUnversionedStringValue("key2", KeyId_));
     row2.AddValue(MakeUnversionedStringValue("value2", ValueId_));
-<<<<<<< HEAD
     row2.AddValue(MakeUnversionedInt64Value(42, TableIndexId_));
     
     std::vector<TUnversionedRow> rows = { row1.GetRow(), row2.GetRow() };
     EXPECT_EQ(true, Writer_->Write(rows));
-=======
-    
-    std::vector<TUnversionedRow> rows = { row1.GetRow(), row2.GetRow() };
-    EXPECT_EQ(true, Writer_->Write(rows));
-   
-    Writer_->WriteTableIndex(23);
->>>>>>> origin/prestable/0.17.4
 
     TUnversionedRowBuilder row3;
     row3.AddValue(MakeUnversionedStringValue("key3", KeyId_));
     row3.AddValue(MakeUnversionedStringValue("value3", ValueId_));
-<<<<<<< HEAD
     row3.AddValue(MakeUnversionedInt64Value(23, TableIndexId_));
-=======
->>>>>>> origin/prestable/0.17.4
 
     rows = { row3.GetRow() };
     EXPECT_EQ(true, Writer_->Write(rows));
@@ -471,22 +410,15 @@ TEST_F(TSchemalessWriterForYamrTest, LenvalWithKeySwitch)
 {
     Config_->HasSubkey = true;
     Config_->Lenval = true;
-<<<<<<< HEAD
 
     auto controlAttributes = New<TControlAttributesConfig>();
     controlAttributes->EnableKeySwitch = true;
 
-=======
->>>>>>> origin/prestable/0.17.4
     Writer_ = New<TSchemalessWriterForYamr>(
         NameTable_, 
         CreateAsyncAdapter(static_cast<TOutputStream*>(&OutputStream_)),
         false, // enableContextSaving  
-<<<<<<< HEAD
         controlAttributes,
-=======
-        true, // enableKeySwitch
->>>>>>> origin/prestable/0.17.4
         1, // keyColumnCount
         Config_);
 
@@ -552,48 +484,28 @@ TEST_F(TSchemalessWriterForYamrTest, LenvalWithTableIndex)
 {
     Config_->EnableTableIndex = true;
     Config_->Lenval = true;
-<<<<<<< HEAD
 
     auto controlAttributes = New<TControlAttributesConfig>();
     controlAttributes->EnableTableIndex = true;
     CreateStandardWriter(controlAttributes);
-=======
-    CreateStandardWriter();
-
-    Writer_->WriteTableIndex(42);
->>>>>>> origin/prestable/0.17.4
 
     TUnversionedRowBuilder row1;
     row1.AddValue(MakeUnversionedStringValue("key1", KeyId_));
     row1.AddValue(MakeUnversionedStringValue("value1", ValueId_));
-<<<<<<< HEAD
     row1.AddValue(MakeUnversionedInt64Value(42, TableIndexId_));
-=======
->>>>>>> origin/prestable/0.17.4
     
     TUnversionedRowBuilder row2;
     row2.AddValue(MakeUnversionedStringValue("key2", KeyId_));
     row2.AddValue(MakeUnversionedStringValue("value2", ValueId_));
-<<<<<<< HEAD
     row2.AddValue(MakeUnversionedInt64Value(42, TableIndexId_));
 
     std::vector<TUnversionedRow> rows = { row1.GetRow(), row2.GetRow() };
     EXPECT_EQ(true, Writer_->Write(rows));
-=======
-    
-    std::vector<TUnversionedRow> rows = { row1.GetRow(), row2.GetRow() };
-    EXPECT_EQ(true, Writer_->Write(rows));
-   
-    Writer_->WriteTableIndex(23);
->>>>>>> origin/prestable/0.17.4
 
     TUnversionedRowBuilder row3;
     row3.AddValue(MakeUnversionedStringValue("key3", KeyId_));
     row3.AddValue(MakeUnversionedStringValue("value3", ValueId_));
-<<<<<<< HEAD
     row3.AddValue(MakeUnversionedInt64Value(23, TableIndexId_));
-=======
->>>>>>> origin/prestable/0.17.4
 
     rows = { row3.GetRow() };
     EXPECT_EQ(true, Writer_->Write(rows));
@@ -623,52 +535,32 @@ TEST_F(TSchemalessWriterForYamrTest, LenvalWithTableIndex)
 TEST_F(TSchemalessWriterForYamrTest, LenvalWithRangeAndRowIndex)
 {
     Config_->Lenval = true;
-<<<<<<< HEAD
     
     auto controlAttributes = New<TControlAttributesConfig>();
     controlAttributes->EnableRowIndex = true;
     controlAttributes->EnableRangeIndex = true;
     CreateStandardWriter(controlAttributes);
-=======
-    CreateStandardWriter();
-
-    Writer_->WriteRangeIndex(static_cast<i32>(42));
->>>>>>> origin/prestable/0.17.4
     
     TUnversionedRowBuilder row1;
     row1.AddValue(MakeUnversionedStringValue("key1", KeyId_));
     row1.AddValue(MakeUnversionedStringValue("value1", ValueId_));
-<<<<<<< HEAD
     row1.AddValue(MakeUnversionedInt64Value(42, RangeIndexId_));
     row1.AddValue(MakeUnversionedInt64Value(23, RowIndexId_));
-=======
->>>>>>> origin/prestable/0.17.4
     
     TUnversionedRowBuilder row2;
     row2.AddValue(MakeUnversionedStringValue("key2", KeyId_));
     row2.AddValue(MakeUnversionedStringValue("value2", ValueId_));
-<<<<<<< HEAD
     row2.AddValue(MakeUnversionedInt64Value(42, RangeIndexId_));
     row2.AddValue(MakeUnversionedInt64Value(24, RowIndexId_));
     
     std::vector<TUnversionedRow> rows = { row1.GetRow(), row2.GetRow() };
     EXPECT_EQ(true, Writer_->Write(rows));
-=======
-    
-    std::vector<TUnversionedRow> rows = { row1.GetRow(), row2.GetRow() };
-    EXPECT_EQ(true, Writer_->Write(rows));
-   
-    Writer_->WriteRowIndex(static_cast<i64>(23));
->>>>>>> origin/prestable/0.17.4
 
     TUnversionedRowBuilder row3;
     row3.AddValue(MakeUnversionedStringValue("key3", KeyId_));
     row3.AddValue(MakeUnversionedStringValue("value3", ValueId_));
-<<<<<<< HEAD
     row3.AddValue(MakeUnversionedInt64Value(42, RangeIndexId_));
     row3.AddValue(MakeUnversionedInt64Value(25, RowIndexId_));
-=======
->>>>>>> origin/prestable/0.17.4
 
     rows = { row3.GetRow() };
     EXPECT_EQ(true, Writer_->Write(rows));
@@ -679,10 +571,7 @@ TEST_F(TSchemalessWriterForYamrTest, LenvalWithRangeAndRowIndex)
 
     Stroka output(
         "\xfd\xff\xff\xff" "\x2a\x00\x00\x00" // 42
-<<<<<<< HEAD
         "\xfc\xff\xff\xff" "\x17\x00\x00\x00\x00\x00\x00\x00" // 23
-=======
->>>>>>> origin/prestable/0.17.4
         
         "\x04\x00\x00\x00" "key1"
         "\x06\x00\x00\x00" "value1"
@@ -690,11 +579,6 @@ TEST_F(TSchemalessWriterForYamrTest, LenvalWithRangeAndRowIndex)
         "\x04\x00\x00\x00" "key2"
         "\x06\x00\x00\x00" "value2"
         
-<<<<<<< HEAD
-=======
-        "\xfc\xff\xff\xff" "\x17\x00\x00\x00\x00\x00\x00\x00" // 23
-        
->>>>>>> origin/prestable/0.17.4
         "\x04\x00\x00\x00" "key3"
         "\x06\x00\x00\x00" "value3"
     , 11 * 4 + 3 * (4 + 6));

@@ -3,6 +3,7 @@
 #include "cypress_manager.h"
 #include "helpers.h"
 #include "node.h"
+#include "private.h"
 
 #include <yt/server/cell_master/bootstrap.h>
 #include <yt/server/cell_master/serialize.h>

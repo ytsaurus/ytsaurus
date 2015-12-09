@@ -35,14 +35,10 @@ protected:
     int KeyCId_;
     int ValueXId_;
     int ValueYId_;
-<<<<<<< HEAD
     int TableIndexId_;
     int RangeIndexId_;
     int RowIndexId_;
 
-=======
-    
->>>>>>> origin/prestable/0.17.4
     TSchemalessWriterForYamredDsvTest() 
     {
         NameTable_ = New<TNameTable>();
@@ -51,7 +47,6 @@ protected:
         KeyCId_ = NameTable_->RegisterName("key_c");
         ValueXId_ = NameTable_->RegisterName("value_x");
         ValueYId_ = NameTable_->RegisterName("value_y");
-<<<<<<< HEAD
         TableIndexId_ = NameTable_->RegisterName(TableIndexColumnName);
         RowIndexId_ = NameTable_->RegisterName(RowIndexColumnName);
         RangeIndexId_ = NameTable_->RegisterName(RangeIndexColumnName);
@@ -59,22 +54,12 @@ protected:
     }
 
     void CreateStandardWriter(TControlAttributesConfigPtr controlAttributes = New<TControlAttributesConfig>()) 
-=======
-        Config_ = New<TYamredDsvFormatConfig>();
-    }
-
-    void CreateStandardWriter() 
->>>>>>> origin/prestable/0.17.4
     {
         Writer_ = New<TSchemalessWriterForYamredDsv>(
             NameTable_,
             CreateAsyncAdapter(static_cast<TOutputStream*>(&OutputStream_)),
             false, // enableContextSaving  
-<<<<<<< HEAD
             controlAttributes,
-=======
-            false, // enableKeySwitch
->>>>>>> origin/prestable/0.17.4
             0, // keyColumnCount
             Config_);
     }
@@ -164,7 +149,6 @@ protected:
         }
     }
 };
-<<<<<<< HEAD
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -190,27 +174,6 @@ TEST_F(TSchemalessWriterForYamredDsvTest, Simple)
     
     std::vector<TUnversionedRow> rows = {row1.GetRow(), row2.GetRow()};
     
-=======
-
-////////////////////////////////////////////////////////////////////////////////
-
-TEST_F(TSchemalessWriterForYamredDsvTest, Simple) 
-{
-    Config_->KeyColumnNames.emplace_back("key_a");
-    CreateStandardWriter();
-
-    TUnversionedRowBuilder row1;
-    row1.AddValue(MakeUnversionedStringValue("a1", KeyAId_));
-    row1.AddValue(MakeUnversionedStringValue("x", ValueXId_));
-    row1.AddValue(MakeUnversionedSentinelValue(EValueType::Null, ValueYId_));
-
-    TUnversionedRowBuilder row2;
-    row2.AddValue(MakeUnversionedStringValue("a2", KeyAId_));
-    row2.AddValue(MakeUnversionedStringValue("y", ValueYId_));
-    row2.AddValue(MakeUnversionedStringValue("b", KeyBId_));
-    
-    std::vector<TUnversionedRow> rows = {row1.GetRow(), row2.GetRow()};
-    
     EXPECT_EQ(true, Writer_->Write(rows));
     Writer_->Close()
         .Get()
@@ -247,79 +210,11 @@ TEST_F(TSchemalessWriterForYamredDsvTest, SimpleWithSubkey)
     
     std::vector<TUnversionedRow> rows = {row1.GetRow(), row2.GetRow()};
    
->>>>>>> origin/prestable/0.17.4
     EXPECT_EQ(true, Writer_->Write(rows));
     Writer_->Close()
         .Get()
         .ThrowOnError();
 
-    Stroka expectedOutput =
-<<<<<<< HEAD
-        "a1\tvalue_x=x\n"
-        "a2\tvalue_y=y\tkey_b=b\n";
-   
-    Stroka output = OutputStream_.Str(); 
-
-    CompareKeyValue(expectedOutput, output); 
-=======
-        "a b1\tc\t\n"
-        "a b2\tc\t\n";
-   
-    Stroka output = OutputStream_.Str(); 
-
-    CompareKeySubkeyValue(expectedOutput, output); 
->>>>>>> origin/prestable/0.17.4
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-<<<<<<< HEAD
-TEST_F(TSchemalessWriterForYamredDsvTest, SimpleWithSubkey)
-{
-    Config_->HasSubkey = true;
-=======
-TEST_F(TSchemalessWriterForYamredDsvTest, Lenval)
-{
-    Config_->Lenval = true;
-    Config_->HasSubkey = true;
-    Config_->EnableTableIndex = true;
->>>>>>> origin/prestable/0.17.4
-    Config_->KeyColumnNames.emplace_back("key_a");
-    Config_->KeyColumnNames.emplace_back("key_b");
-    Config_->SubkeyColumnNames.emplace_back("key_c");
-    CreateStandardWriter();
-
-    TUnversionedRowBuilder row1;
-    row1.AddValue(MakeUnversionedStringValue("a", KeyAId_));
-    row1.AddValue(MakeUnversionedStringValue("b1", KeyBId_));
-    row1.AddValue(MakeUnversionedStringValue("c", KeyCId_));
-<<<<<<< HEAD
-=======
-    row1.AddValue(MakeUnversionedStringValue("x", ValueXId_));
-
->>>>>>> origin/prestable/0.17.4
-
-    TUnversionedRowBuilder row2;
-    row2.AddValue(MakeUnversionedStringValue("a", KeyAId_));
-    row2.AddValue(MakeUnversionedStringValue("b2", KeyBId_));
-    row2.AddValue(MakeUnversionedStringValue("c", KeyCId_));
-    
-    std::vector<TUnversionedRow> rows = {row1.GetRow(), row2.GetRow()};
-   
-<<<<<<< HEAD
-    EXPECT_EQ(true, Writer_->Write(rows));
-=======
-    Writer_->WriteTableIndex(42);
-    Writer_->WriteRangeIndex(23);
-    EXPECT_EQ(true, Writer_->Write(rows));
-    Writer_->WriteRowIndex(17);
-
->>>>>>> origin/prestable/0.17.4
-    Writer_->Close()
-        .Get()
-        .ThrowOnError();
-
-<<<<<<< HEAD
     Stroka expectedOutput =
         "a b1\tc\t\n"
         "a b2\tc\t\n";
@@ -327,33 +222,10 @@ TEST_F(TSchemalessWriterForYamredDsvTest, Lenval)
     Stroka output = OutputStream_.Str(); 
 
     CompareKeySubkeyValue(expectedOutput, output); 
-=======
-    // ToDo(makhmedov): compare Yamr values ignoring the order of entries.
-    Stroka expectedOutput = Stroka(
-        "\xff\xff\xff\xff" "\x2a\x00\x00\x00" // Table index.
-        "\xfd\xff\xff\xff" "\x17\x00\x00\x00" // Row index.
-
-        "\x04\x00\x00\x00" "a b1"
-        "\x01\x00\x00\x00" "c"
-        "\x09\x00\x00\x00" "value_x=x"
-
-        "\x04\x00\x00\x00" "a b2"
-        "\x01\x00\x00\x00" "c"
-        "\x00\x00\x00\x00" ""
-
-        "\xfc\xff\xff\xff" "\x11\x00\x00\x00\x00\x00\x00\x00",
-        13 * 4 + 4 + 1 + 9 + 4 + 1 + 0
-    );
-
-    Stroka output = OutputStream_.Str(); 
-    
-    EXPECT_EQ(expectedOutput, output);
->>>>>>> origin/prestable/0.17.4
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-<<<<<<< HEAD
 TEST_F(TSchemalessWriterForYamredDsvTest, Lenval)
 {
     Config_->Lenval = true;
@@ -389,26 +261,11 @@ TEST_F(TSchemalessWriterForYamredDsvTest, Lenval)
     row2.AddValue(MakeUnversionedInt64Value(18, RowIndexId_));
 
     std::vector<TUnversionedRow> rows = {row1.GetRow(), row2.GetRow()};
-=======
-TEST_F(TSchemalessWriterForYamredDsvTest, Escaping)
-{
-    Config_->KeyColumnNames.emplace_back("key_a");
-    Config_->KeyColumnNames.emplace_back("key_b");
-    CreateStandardWriter();
-    
-    TUnversionedRowBuilder row1;
-    row1.AddValue(MakeUnversionedStringValue("a\n", KeyAId_));
-    row1.AddValue(MakeUnversionedStringValue("\nb\t", KeyBId_));
-    row1.AddValue(MakeUnversionedStringValue("\nva\\lue\t", ValueXId_));
- 
-    std::vector<TUnversionedRow> rows = {row1.GetRow()};
->>>>>>> origin/prestable/0.17.4
 
     EXPECT_EQ(true, Writer_->Write(rows));
     Writer_->Close()
         .Get()
         .ThrowOnError();
-<<<<<<< HEAD
 
     // ToDo(makhmedov): compare Yamr values ignoring the order of entries.
     Stroka expectedOutput = Stroka(
@@ -432,18 +289,10 @@ TEST_F(TSchemalessWriterForYamredDsvTest, Escaping)
         << "expected length: " << expectedOutput.length() 
         << ", " 
         << "actual length: " << output.length();
-=======
-    
-    Stroka expectedOutput = "a\\n \\nb\\t\tvalue_x=\\nva\\\\lue\\t\n";
-    Stroka output = OutputStream_.Str();
-
-    EXPECT_EQ(expectedOutput, output);
->>>>>>> origin/prestable/0.17.4
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-<<<<<<< HEAD
 TEST_F(TSchemalessWriterForYamredDsvTest, Escaping)
 {
     Config_->KeyColumnNames.emplace_back("key_a");
@@ -467,29 +316,10 @@ TEST_F(TSchemalessWriterForYamredDsvTest, Escaping)
     Stroka output = OutputStream_.Str();
 
     EXPECT_EQ(expectedOutput, output);
-=======
-TEST_F(TSchemalessWriterForYamredDsvTest, SkippedKey)
-{
-    Config_->KeyColumnNames.emplace_back("key_a");
-    Config_->KeyColumnNames.emplace_back("key_b");
-    CreateStandardWriter();
-
-    TUnversionedRowBuilder row;
-    row.AddValue(MakeUnversionedStringValue("b", KeyBId_));
-
-    std::vector<TUnversionedRow> rows = { row.GetRow() };
-
-    EXPECT_FALSE(Writer_->Write(rows));
-
-    EXPECT_THROW(Writer_->Close()
-                     .Get()
-                     .ThrowOnError(), std::exception);
->>>>>>> origin/prestable/0.17.4
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-<<<<<<< HEAD
 TEST_F(TSchemalessWriterForYamredDsvTest, SkippedKey)
 {
     Config_->KeyColumnNames.emplace_back("key_a");
@@ -498,24 +328,12 @@ TEST_F(TSchemalessWriterForYamredDsvTest, SkippedKey)
 
     TUnversionedRowBuilder row;
     row.AddValue(MakeUnversionedStringValue("b", KeyBId_));
-=======
-TEST_F(TSchemalessWriterForYamredDsvTest, SkippedSubkey)
-{
-    Config_->HasSubkey = true;
-    Config_->KeyColumnNames.emplace_back("key_a");
-    Config_->SubkeyColumnNames.emplace_back("key_c");
-    CreateStandardWriter();
-
-    TUnversionedRowBuilder row;
-    row.AddValue(MakeUnversionedStringValue("a", KeyAId_));
->>>>>>> origin/prestable/0.17.4
 
     std::vector<TUnversionedRow> rows = { row.GetRow() };
 
     EXPECT_FALSE(Writer_->Write(rows));
 
     EXPECT_THROW(Writer_->Close()
-<<<<<<< HEAD
         .Get()
         .ThrowOnError(), std::exception);
 }
@@ -543,14 +361,6 @@ TEST_F(TSchemalessWriterForYamredDsvTest, SkippedSubkey)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-=======
-                     .Get()
-                     .ThrowOnError(), std::exception);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
->>>>>>> origin/prestable/0.17.4
 TEST_F(TSchemalessWriterForYamredDsvTest, ErasingSubkeyColumnsWhenHasSubkeyIsFalse)
 {
     Config_->KeyColumnNames.emplace_back("key_a");

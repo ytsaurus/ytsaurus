@@ -11,7 +11,7 @@
 
 #include <yt/core/actions/callback.h>
 
-#include <yt/yt/core/misc/phoenix.h>
+#include <yt/core/misc/phoenix.h>
 #include <yt/core/misc/property.h>
 
 namespace NYT {

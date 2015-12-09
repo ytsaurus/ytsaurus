@@ -12,9 +12,11 @@
 
 #include <yt/server/cell_master/bootstrap.h>
 #include <yt/server/cell_master/hydra_facade.h>
+#include <yt/server/cell_master/multicell_manager.h>
 #include <yt/server/cell_master/serialize.h>
 
 #include <yt/server/cypress_server/node.h>
+#include <yt/server/cypress_server/cypress_manager.h>
 
 #include <yt/server/hydra/composite_automaton.h>
 #include <yt/server/hydra/entity_map.h>
@@ -24,6 +26,8 @@
 #include <yt/server/transaction_server/transaction.h>
 
 #include <yt/ytlib/object_client/helpers.h>
+
+#include <yt/ytlib/security_client/group_ypath_proxy.h>
 
 #include <yt/core/profiling/profile_manager.h>
 

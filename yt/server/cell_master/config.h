@@ -22,6 +22,8 @@
 
 #include <yt/server/transaction_server/config.h>
 
+#include <yt/server/journal_server/config.h>
+
 #include <yt/ytlib/election/config.h>
 
 #include <yt/ytlib/hive/config.h>

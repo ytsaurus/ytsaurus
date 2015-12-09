@@ -7,6 +7,7 @@
 #include <yt/server/cell_master/bootstrap.h>
 #include <yt/server/cell_master/config.h>
 #include <yt/server/cell_master/hydra_facade.h>
+#include <yt/server/cell_master/multicell_manager.h>
 #include <yt/server/cell_master/serialize.h>
 
 #include <yt/server/cypress_server/virtual.h>
@@ -22,6 +23,7 @@
 #include <yt/server/security_server/acl.h>
 #include <yt/server/security_server/security_manager.h>
 #include <yt/server/security_server/user.h>
+#include <yt/server/security_server/security_manager.pb.h>
 
 #include <yt/server/transaction_server/transaction.h>
 
@@ -45,6 +47,8 @@
 #include <yt/core/ytree/fluent.h>
 
 #include <yt/core/yson/string.h>
+#include <yt/core/yson/async_consumer.h>
+#include <yt/core/yson/attribute_consumer.h>
 
 namespace NYT {
 namespace NObjectServer {

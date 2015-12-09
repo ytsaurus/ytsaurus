@@ -18,7 +18,8 @@
 #include <yt/core/yson/writer.h>
 
 #include <yt/core/ytree/fluent.h>
-#include <yt/core/ytree/forwarding_yson_consumer.h>
+
+#include <yt/core/yson/forwarding_consumer.h>
 
 namespace NYT {
 namespace NFormats {
@@ -241,16 +242,12 @@ ISchemalessFormatWriterPtr CreateSchemalessWriterForDsv(
     }
 
     auto config = ConvertTo<TDsvFormatConfigPtr>(&attributes);
-<<<<<<< HEAD
     return New<TSchemalessWriterForDsv>(
         nameTable, 
         enableContextSaving,
         controlAttributesConfig, 
         output, 
         config);
-=======
-    return New<TSchemalessWriterForDsv>(nameTable, enableContextSaving, output, config);
->>>>>>> origin/prestable/0.17.4
 }
 
 ISchemalessFormatWriterPtr CreateSchemalessWriterForYamr(
@@ -258,7 +255,6 @@ ISchemalessFormatWriterPtr CreateSchemalessWriterForYamr(
     TNameTablePtr nameTable,
     NConcurrency::IAsyncOutputStreamPtr output,
     bool enableContextSaving,
-<<<<<<< HEAD
     TControlAttributesConfigPtr controlAttributesConfig,
     int keyColumnCount)
 {
@@ -275,25 +271,11 @@ ISchemalessFormatWriterPtr CreateSchemalessWriterForYamr(
          THROW_ERROR_EXCEPTION("Row indices are not supported in text YAMR format");
     }
 
-=======
-    bool enableKeySwitch,
-    int keyColumnCount)
-{
-    auto config = ConvertTo<TYamrFormatConfigPtr>(&attributes);
-    if (enableKeySwitch && !config->Lenval) {
-        THROW_ERROR_EXCEPTION("Key switches are not supported in text YAMR format");
-    }
-
->>>>>>> origin/prestable/0.17.4
     return New<TSchemalessWriterForYamr>(
         nameTable, 
         output, 
         enableContextSaving, 
-<<<<<<< HEAD
         controlAttributesConfig,
-=======
-        enableKeySwitch, 
->>>>>>> origin/prestable/0.17.4
         keyColumnCount, 
         config);
 }
@@ -303,7 +285,6 @@ ISchemalessFormatWriterPtr CreateSchemalessWriterForYamredDsv(
     TNameTablePtr nameTable,
     NConcurrency::IAsyncOutputStreamPtr output,
     bool enableContextSaving,
-<<<<<<< HEAD
     TControlAttributesConfigPtr controlAttributesConfig,
     int keyColumnCount)
 {
@@ -320,25 +301,11 @@ ISchemalessFormatWriterPtr CreateSchemalessWriterForYamredDsv(
          THROW_ERROR_EXCEPTION("Row indices are not supported in text YAMRed DSV format");
     }
 
-=======
-    bool enableKeySwitch,
-    int keyColumnCount)
-{
-    auto config = ConvertTo<TYamredDsvFormatConfigPtr>(&attributes);
-    if (enableKeySwitch && !config->Lenval) {
-        THROW_ERROR_EXCEPTION("Key switches are not supported in text YAMRed DSV format");
-    }
-
->>>>>>> origin/prestable/0.17.4
     return New<TSchemalessWriterForYamredDsv>(
         nameTable, 
         output, 
         enableContextSaving, 
-<<<<<<< HEAD
         controlAttributesConfig, 
-=======
-        enableKeySwitch, 
->>>>>>> origin/prestable/0.17.4
         keyColumnCount, 
         config);
 }
@@ -348,7 +315,6 @@ ISchemalessFormatWriterPtr CreateSchemalessWriterForSchemafulDsv(
     TNameTablePtr nameTable,
     NConcurrency::IAsyncOutputStreamPtr output,
     bool enableContextSaving,
-<<<<<<< HEAD
     TControlAttributesConfigPtr controlAttributesConfig,
     int /* keyColumnCount */)
 {
@@ -371,28 +337,13 @@ ISchemalessFormatWriterPtr CreateSchemalessWriterForSchemafulDsv(
     auto config = ConvertTo<TSchemafulDsvFormatConfigPtr>(&attributes);
     if (!config->Columns) {
         THROW_ERROR_EXCEPTION("Config must contain columns for schemaful DSV schemaless writer");
-=======
-    bool enableKeySwitch,
-    int /* keyColumnCount */)
-{
-    auto config = ConvertTo<TSchemafulDsvFormatConfigPtr>(&attributes);
-    if (enableKeySwitch) {
-        THROW_ERROR_EXCEPTION("Key switches are not supported in schemaful DSV format.");
-    }
-    if (!config->Columns) {
-        THROW_ERROR_EXCEPTION("Config must contain columns for schemaful DSV schemaless writer.");
->>>>>>> origin/prestable/0.17.4
     }
 
     return New<TSchemalessWriterForSchemafulDsv>(
         nameTable, 
         output, 
-<<<<<<< HEAD
         enableContextSaving,
         controlAttributesConfig, 
-=======
-        enableContextSaving, 
->>>>>>> origin/prestable/0.17.4
         config);
 }
 
@@ -419,11 +370,7 @@ ISchemalessFormatWriterPtr CreateSchemalessWriterForFormat(
                 nameTable,
                 std::move(output),
                 enableContextSaving,
-<<<<<<< HEAD
                 controlAttributesConfig,
-=======
-                enableKeySwitch,
->>>>>>> origin/prestable/0.17.4
                 keyColumnCount);
         case EFormatType::YamredDsv:
             return CreateSchemalessWriterForYamredDsv(
@@ -431,11 +378,7 @@ ISchemalessFormatWriterPtr CreateSchemalessWriterForFormat(
                 nameTable,
                 std::move(output),
                 enableContextSaving,
-<<<<<<< HEAD
                 controlAttributesConfig,
-=======
-                enableKeySwitch,
->>>>>>> origin/prestable/0.17.4
                 keyColumnCount);
         case EFormatType::SchemafulDsv:
             return CreateSchemalessWriterForSchemafulDsv(
@@ -443,11 +386,7 @@ ISchemalessFormatWriterPtr CreateSchemalessWriterForFormat(
                 nameTable,
                 std::move(output),
                 enableContextSaving,
-<<<<<<< HEAD
                 controlAttributesConfig,
-=======
-                enableKeySwitch,
->>>>>>> origin/prestable/0.17.4
                 keyColumnCount); 
         default:
             auto adapter = New<TSchemalessWriterAdapter>(

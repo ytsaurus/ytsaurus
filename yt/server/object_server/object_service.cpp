@@ -27,6 +27,8 @@
 
 #include <yt/core/ytree/ypath_detail.h>
 
+#include <yt/core/profiling/scoped_timer.h>
+
 #include <atomic>
 
 namespace NYT {

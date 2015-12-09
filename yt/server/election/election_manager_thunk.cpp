@@ -1,4 +1,3 @@
-#include "stdafx.h"
 #include "election_manager_thunk.h"
 
 #include <yt/core/yson/producer.h>

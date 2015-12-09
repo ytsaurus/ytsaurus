@@ -544,7 +544,6 @@ public:
             tablet->SetIndex(0);
             tablet->SetPivotKey(EmptyKey());
             table->Tablets().push_back(tablet);
-            table->SetSorted(true);
             firstTabletIndex = 0;
             lastTabletIndex = 0;
 
@@ -885,7 +884,6 @@ public:
         objectManager->UnrefObject(oldRootChunkList);
 
         table->SnapshotStatistics() = table->GetChunkList()->Statistics().ToDataStatistics();
-        table->SetSorted(true);
     }
 
     TTabletCell* GetTabletCellOrThrow(const TTabletCellId& id)

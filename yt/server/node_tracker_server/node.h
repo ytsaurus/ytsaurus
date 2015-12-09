@@ -13,11 +13,14 @@
 
 #include <yt/server/transaction_server/public.h>
 
+#include <yt/server/object_server/object.h>
+
 #include <yt/ytlib/node_tracker_client/node_directory.h>
 #include <yt/ytlib/node_tracker_client/node_tracker_service.pb.h>
 
 #include <yt/core/misc/nullable.h>
 #include <yt/core/misc/property.h>
+#include <yt/core/misc/ref_tracked.h>
 
 namespace NYT {
 namespace NNodeTrackerServer {

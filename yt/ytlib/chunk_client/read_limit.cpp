@@ -213,7 +213,7 @@ void TReadLimit::InitMove(NProto::TReadLimit&& readLimit)
 
 size_t TReadLimit::SpaceUsedExcludingSelf() const
 {
-    return ReadLimit_.SpaceUsed() - sizeof(ReadLimit_) + Key_.SpaceUsedExcludingSelf();
+    return ReadLimit_.SpaceUsed() - sizeof(ReadLimit_) + Key_.GetSpaceUsedExcludingSelf();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

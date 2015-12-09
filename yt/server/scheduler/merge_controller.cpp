@@ -1570,29 +1570,21 @@ private:
                     return cmpResult < 0;
                 }
 
-<<<<<<< HEAD
-                if (lhs.Type < rhs.Type) {
-                    return true;
-                } else {
-                    return (reinterpret_cast<intptr_t>(lhs.ChunkSlice->GetChunkSpec().Get())
-                        - reinterpret_cast<intptr_t>(rhs.ChunkSlice->GetChunkSpec().Get())) < 0;
-=======
                 cmpResult = static_cast<int>(lhs.Type) - static_cast<int>(rhs.Type);
                 if (cmpResult != 0) {
                     return cmpResult < 0;
->>>>>>> origin/prestable/0.17.4
                 }
 
                 // If keys (trimmed to key columns) are equal, we put slices in 
                 // the same order they are in the original table.
-                cmpResult = lhs.ChunkSlice->ChunkSpec()->table_row_index() - 
-                    rhs.ChunkSlice->ChunkSpec()->table_row_index();      
+                cmpResult = lhs.ChunkSlice->GetChunkSpec()->table_row_index() -
+                    rhs.ChunkSlice->GetChunkSpec()->table_row_index();
                 if (cmpResult != 0) {
                     return cmpResult < 0;
                 }                
                 
-                return (reinterpret_cast<intptr_t>(lhs.ChunkSlice->ChunkSpec().Get())
-                    - reinterpret_cast<intptr_t>(rhs.ChunkSlice->ChunkSpec().Get())) < 0;
+                return (reinterpret_cast<intptr_t>(lhs.ChunkSlice->GetChunkSpec().Get())
+                    - reinterpret_cast<intptr_t>(rhs.ChunkSlice->GetChunkSpec().Get())) < 0;
             });
     }
 

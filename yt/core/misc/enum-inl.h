@@ -2,6 +2,10 @@
 #error "Direct inclusion of this file is not allowed, include enum.h"
 #endif
 
+#include <yt/core/misc/mpl.h>
+
+#include <util/string/printf.h>
+
 #include <stdexcept>
 
 namespace NYT {

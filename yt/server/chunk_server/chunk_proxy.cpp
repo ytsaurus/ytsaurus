@@ -5,6 +5,7 @@
 #include "helpers.h"
 
 #include <yt/server/cell_master/bootstrap.h>
+#include <yt/server/cell_master/multicell_manager.h>
 
 #include <yt/server/cypress_server/cypress_manager.h>
 

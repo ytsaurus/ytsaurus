@@ -3,6 +3,7 @@
 #include "config.h"
 #include "hydra_facade.h"
 #include "world_initializer.h"
+#include "multicell_manager.h"
 
 #include <yt/server/chunk_server/chunk_manager.h>
 #include <yt/server/chunk_server/chunk_service.h>
@@ -17,6 +18,7 @@
 #include <yt/server/hive/hive_manager.h>
 #include <yt/server/hive/transaction_manager.h>
 #include <yt/server/hive/transaction_supervisor.h>
+#include <yt/server/hive/cell_directory_synchronizer.h>
 
 #include <yt/server/hydra/changelog.h>
 #include <yt/server/hydra/file_snapshot_store.h>
@@ -26,6 +28,7 @@
 #include <yt/server/hydra/snapshot.h>
 
 #include <yt/server/journal_server/journal_node.h>
+#include <yt/server/journal_server/journal_manager.h>
 
 #include <yt/server/misc/build_attributes.h>
 
@@ -35,6 +38,7 @@
 
 #include <yt/server/object_server/object_manager.h>
 #include <yt/server/object_server/object_service.h>
+#include <yt/server/object_server/sys_node.h>
 
 #include <yt/server/orchid/cypress_integration.h>
 
@@ -50,6 +54,8 @@
 #include <yt/server/transaction_server/timestamp_manager.h>
 #include <yt/server/transaction_server/transaction_manager.h>
 
+#include <yt/server/election/election_manager.h>
+
 #include <yt/ytlib/election/cell_manager.h>
 
 #include <yt/ytlib/hive/cell_directory.h>
@@ -61,6 +67,8 @@
 
 #include <yt/ytlib/transaction_client/remote_timestamp_provider.h>
 #include <yt/ytlib/transaction_client/timestamp_provider.h>
+
+#include <yt/ytlib/object_client/helpers.h>
 
 #include <yt/core/bus/config.h>
 #include <yt/core/bus/server.h>
