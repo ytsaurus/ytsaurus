@@ -258,7 +258,7 @@ target_link_libraries ( ytext-arcadia-util
   deps-yt-contrib-fastlz
   deps-yt-contrib-minilzo
   deps-yt-contrib-quicklz
-  ytext-zstd
+  deps-yt-contrib-zstd
 )
 
 if (CMAKE_COMPILER_IS_GNUCXX)
