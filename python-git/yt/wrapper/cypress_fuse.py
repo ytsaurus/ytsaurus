@@ -486,8 +486,6 @@ class Cypress(fuse.Operations):
         opened_file = self._opened_files[fi.fh]
         return opened_file.read(length, offset)
 
-    # NB: implementing readdir could greatly improve unix find speed, no?
-
     @handle_yt_errors
     @log_calls(_logger, "%(__name__)s(%(path)r)")
     def listxattr(self, path):
