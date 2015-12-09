@@ -10,8 +10,6 @@
 
 #include <yt/server/misc/memory_usage_tracker.h>
 
-#include <yt/server/scheduler/job_resources.h>
-
 #include <yt/ytlib/node_tracker_client/helpers.h>
 
 #include <yt/ytlib/object_client/helpers.h>
@@ -176,7 +174,7 @@ void TJobController::StartWaitingJobs()
 
 IJobPtr TJobController::CreateJob(
     const TJobId& jobId,
-    const NNodeTrackerClient::NProto::TNodeResources& resourceLimits,
+    const TNodeResources& resourceLimits,
     TJobSpec&& jobSpec)
 {
     auto type = EJobType(jobSpec.type());

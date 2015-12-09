@@ -1,6 +1,7 @@
 #pragma once
 
 #include "public.h"
+#include "job_resources.h"
 
 #include <yt/ytlib/chunk_client/data_statistics.h>
 
@@ -68,8 +69,8 @@ public:
     //! Some rough approximation that is updated with every heartbeat.
     DEFINE_BYVAL_RW_PROPERTY(double, Progress);
 
-    DEFINE_BYREF_RW_PROPERTY(NNodeTrackerClient::NProto::TNodeResources, ResourceUsage);
-    DEFINE_BYREF_RO_PROPERTY(NNodeTrackerClient::NProto::TNodeResources, ResourceLimits);
+    DEFINE_BYREF_RW_PROPERTY(TJobResources, ResourceUsage);
+    DEFINE_BYREF_RO_PROPERTY(TJobResources, ResourceLimits);
 
     //! Asynchronous spec builder callback.
     DEFINE_BYVAL_RW_PROPERTY(TJobSpecBuilder, SpecBuilder);
@@ -82,7 +83,7 @@ public:
         TOperationPtr operation,
         TExecNodePtr node,
         TInstant startTime,
-        const NNodeTrackerClient::NProto::TNodeResources& resourceLimits,
+        const TJobResources& resourceLimits,
         bool restarted,
         TJobSpecBuilder specBuilder);
 

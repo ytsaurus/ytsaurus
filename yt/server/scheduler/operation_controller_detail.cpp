@@ -297,7 +297,7 @@ int TOperationControllerBase::TTask::GetTotalJobCountDelta()
     return newValue - oldValue;
 }
 
-TNodeResources TOperationControllerBase::TTask::GetTotalNeededResourcesDelta()
+TJobResources TOperationControllerBase::TTask::GetTotalNeededResourcesDelta()
 {
     auto oldValue = CachedTotalNeededResources;
     auto newValue = GetTotalNeededResources();
@@ -306,11 +306,11 @@ TNodeResources TOperationControllerBase::TTask::GetTotalNeededResourcesDelta()
     return newValue;
 }
 
-TNodeResources TOperationControllerBase::TTask::GetTotalNeededResources() const
+TJobResources TOperationControllerBase::TTask::GetTotalNeededResources() const
 {
     i64 count = GetPendingJobCount();
     // NB: Don't call GetMinNeededResources if there are no pending jobs.
-    return count == 0 ? ZeroNodeResources() : GetMinNeededResources() * count;
+    return count == 0 ? ZeroJobResources() : GetMinNeededResources() * count;
 }
 
 bool TOperationControllerBase::TTask::IsIntermediateOutput() const
@@ -367,7 +367,7 @@ void TOperationControllerBase::TTask::CheckCompleted()
 
 TJobId TOperationControllerBase::TTask::ScheduleJob(
     ISchedulingContext* context,
-    const TNodeResources& jobLimits)
+    const TJobResources& jobLimits)
 {
     bool intermediateOutput = IsIntermediateOutput();
     if (!Controller->HasEnoughChunkLists(intermediateOutput)) {
@@ -630,7 +630,7 @@ void TOperationControllerBase::TTask::OnTaskCompleted()
 }
 
 void TOperationControllerBase::TTask::DoCheckResourceDemandSanity(
-    const TNodeResources& neededResources)
+    const TJobResources& neededResources)
 {
     auto nodes = Controller->Host->GetExecNodes();
     if (nodes.size() < Controller->Config->SafeOnlineNodeCount)
@@ -652,7 +652,7 @@ void TOperationControllerBase::TTask::DoCheckResourceDemandSanity(
 }
 
 void TOperationControllerBase::TTask::CheckResourceDemandSanity(
-    const TNodeResources& neededResources)
+    const TJobResources& neededResources)
 {
     // Run sanity check to see if any node can provide enough resources.
     // Don't run these checks too often to avoid jeopardizing performance.
@@ -669,8 +669,8 @@ void TOperationControllerBase::TTask::CheckResourceDemandSanity(
 }
 
 void TOperationControllerBase::TTask::CheckResourceDemandSanity(
-    const TNodeResources& nodeResourceLimits,
-    const TNodeResources& neededResources)
+    const TJobResources& nodeResourceLimits,
+    const TJobResources& neededResources)
 {
     // The task is requesting more than some node is willing to provide it.
     // Maybe it's OK and we should wait for some time.
@@ -805,7 +805,7 @@ void TOperationControllerBase::TTask::ResetCachedMinNeededResources()
     CachedMinNeededResources.Reset();
 }
 
-const TNodeResources& TOperationControllerBase::TTask::GetMinNeededResources() const
+const TJobResources& TOperationControllerBase::TTask::GetMinNeededResources() const
 {
     if (!CachedMinNeededResources) {
         YCHECK(GetPendingJobCount() > 0);
@@ -814,7 +814,7 @@ const TNodeResources& TOperationControllerBase::TTask::GetMinNeededResources() c
     return *CachedMinNeededResources;
 }
 
-TNodeResources TOperationControllerBase::TTask::GetNeededResources(TJobletPtr /* joblet */) const
+TJobResources TOperationControllerBase::TTask::GetNeededResources(TJobletPtr /* joblet */) const
 {
     return GetMinNeededResources();
 }
@@ -905,7 +905,7 @@ TOperationControllerBase::TOperationControllerBase(
     , CancelableInvoker(CancelableContext->CreateInvoker(SuspendableInvoker))
     , JobCounter(0)
     , Spec(spec)
-    , CachedNeededResources(ZeroNodeResources())
+    , CachedNeededResources(ZeroJobResources())
     , CheckTimeLimitExecutor(New<TPeriodicExecutor>(
         GetCancelableInvoker(),
         BIND(&TThis::CheckTimeLimit, MakeWeak(this)),
@@ -1781,7 +1781,7 @@ void TOperationControllerBase::CheckTimeLimit()
 
 TJobId TOperationControllerBase::ScheduleJob(
     ISchedulingContext* context,
-    const TNodeResources& jobLimits)
+    const TJobResources& jobLimits)
 {
     VERIFY_INVOKER_AFFINITY(CancelableInvoker);
 
@@ -1861,7 +1861,7 @@ void TOperationControllerBase::MoveTaskToCandidates(
 {
     const auto& neededResources = task->GetMinNeededResources();
     task->CheckResourceDemandSanity(neededResources);
-    i64 minMemory = neededResources.memory();
+    i64 minMemory = neededResources.GetMemory();
     candidateTasks.insert(std::make_pair(minMemory, task));
     LOG_DEBUG("Task moved to candidates (Task: %v, MinMemory: %v)",
         task->GetId(),
@@ -1934,8 +1934,8 @@ void TOperationControllerBase::ResetTaskLocalityDelays()
 
 bool TOperationControllerBase::CheckJobLimits(
     TTaskPtr task,
-    const TNodeResources& jobLimits,
-    const TNodeResources& nodeResourceLimits)
+    const TJobResources& jobLimits,
+    const TJobResources& nodeResourceLimits)
 {
     auto neededResources = task->GetMinNeededResources();
     if (Dominates(jobLimits, neededResources)) {
@@ -1947,7 +1947,7 @@ bool TOperationControllerBase::CheckJobLimits(
 
 TJobId TOperationControllerBase::DoScheduleJob(
     ISchedulingContext* context,
-    const TNodeResources& jobLimits)
+    const TJobResources& jobLimits)
 {
     VERIFY_INVOKER_AFFINITY(CancelableInvoker);
 
@@ -1966,7 +1966,7 @@ TJobId TOperationControllerBase::DoScheduleJob(
 
 TJobId TOperationControllerBase::DoScheduleLocalJob(
     ISchedulingContext* context,
-    const TNodeResources& jobLimits)
+    const TJobResources& jobLimits)
 {
     const auto& nodeResourceLimits = context->ResourceLimits();
     const auto& address = context->GetAddress();
@@ -2045,7 +2045,7 @@ TJobId TOperationControllerBase::DoScheduleLocalJob(
 
 TJobId TOperationControllerBase::DoScheduleNonLocalJob(
     ISchedulingContext* context,
-    const TNodeResources& jobLimits)
+    const TJobResources& jobLimits)
 {
     auto now = context->GetNow();
     const auto& nodeResourceLimits = context->ResourceLimits();
@@ -2099,7 +2099,7 @@ TJobId TOperationControllerBase::DoScheduleNonLocalJob(
                 }
 
                 // Check min memory demand for early exit.
-                if (task->GetMinNeededResources().memory() > jobLimits.memory()) {
+                if (task->GetMinNeededResources().GetMemory() > jobLimits.GetMemory()) {
                     break;
                 }
 
@@ -2143,7 +2143,7 @@ TJobId TOperationControllerBase::DoScheduleNonLocalJob(
                 }
 
                 // If task failed to schedule job, its min resources might have been updated.
-                auto minMemory = task->GetMinNeededResources().memory();
+                auto minMemory = task->GetMinNeededResources().GetMemory();
                 if (it->first == minMemory) {
                     ++it;
                 } else {
@@ -2230,7 +2230,7 @@ int TOperationControllerBase::GetTotalJobCount() const
     return JobCounter.GetTotal();
 }
 
-void TOperationControllerBase::IncreaseNeededResources(const TNodeResources& resourcesDelta)
+void TOperationControllerBase::IncreaseNeededResources(const TJobResources& resourcesDelta)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -2238,7 +2238,7 @@ void TOperationControllerBase::IncreaseNeededResources(const TNodeResources& res
     CachedNeededResources += resourcesDelta;
 }
 
-TNodeResources TOperationControllerBase::GetNeededResources() const
+TJobResources TOperationControllerBase::GetNeededResources() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 

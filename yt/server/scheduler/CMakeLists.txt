@@ -9,6 +9,7 @@ set( SRCS
   ${CMAKE_CURRENT_LIST_DIR}/job.cpp
   ${CMAKE_CURRENT_LIST_DIR}/job_prober_service.cpp
   ${CMAKE_CURRENT_LIST_DIR}/job_resources.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/job_memory.cpp
   ${CMAKE_CURRENT_LIST_DIR}/job_tracker_service.cpp
   ${CMAKE_CURRENT_LIST_DIR}/map_controller.cpp
   ${CMAKE_CURRENT_LIST_DIR}/master_connector.cpp
@@ -39,6 +40,7 @@ set( HDRS
   ${CMAKE_CURRENT_LIST_DIR}/job.h
   ${CMAKE_CURRENT_LIST_DIR}/job_prober_service.h
   ${CMAKE_CURRENT_LIST_DIR}/job_resources.h
+  ${CMAKE_CURRENT_LIST_DIR}/job_memory.h
   ${CMAKE_CURRENT_LIST_DIR}/job_tracker_service.h
   ${CMAKE_CURRENT_LIST_DIR}/map_controller.h
   ${CMAKE_CURRENT_LIST_DIR}/master_connector.h

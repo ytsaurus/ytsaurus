@@ -3,7 +3,7 @@
 #include "chunk_list_pool.h"
 #include "chunk_pool.h"
 #include "helpers.h"
-#include "job_resources.h"
+#include "job_memory.h"
 #include "map_controller.h"
 #include "operation_controller.h"
 #include "operation_controller_detail.h"
@@ -165,10 +165,10 @@ protected:
             return Controller->Spec->LocalityTimeout;
         }
 
-        virtual TNodeResources GetNeededResources(TJobletPtr joblet) const override
+        virtual TJobResources GetNeededResources(TJobletPtr joblet) const override
         {
             auto result = GetMinNeededResources();
-            result.set_memory(
+            result.SetMemory(
                 Controller->GetFinalIOMemorySize(
                     Controller->Spec->JobIO,
                     UpdateChunkStripeStatistics(joblet->InputStripeList->GetStatistics())) +
@@ -223,13 +223,13 @@ protected:
             return Controller->IsMemoryReserveEnabled(Controller->JobCounter);
         }
 
-        virtual TNodeResources GetMinNeededResourcesHeavy() const override
+        virtual TJobResources GetMinNeededResourcesHeavy() const override
         {
-            TNodeResources result;
+            TJobResources result;
 
-            result.set_user_slots(1);
-            result.set_cpu(Controller->GetCpuLimit());
-            result.set_memory(
+            result.SetUserSlots(1);
+            result.SetCpu(Controller->GetCpuLimit());
+            result.SetMemory(
                 Controller->GetFinalIOMemorySize(
                     Controller->Spec->JobIO,
                     UpdateChunkStripeStatistics(ChunkPool->GetApproximateStripeStatistics())) +
@@ -1575,7 +1575,7 @@ private:
                     return cmpResult < 0;
                 }
 
-                // If keys (trimmed to key columns) are equal, we put slices in 
+                // If keys (trimmed to key columns) are equal, we put slices in
                 // the same order they are in the original table.
                 cmpResult = lhs.ChunkSlice->GetChunkSpec()->table_row_index() -
                     rhs.ChunkSlice->GetChunkSpec()->table_row_index();

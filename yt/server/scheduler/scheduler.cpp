@@ -100,8 +100,8 @@ public:
         , TotalCompletedJobTimeCounter_("/total_completed_job_time")
         , TotalFailedJobTimeCounter_("/total_failed_job_time")
         , TotalAbortedJobTimeCounter_("/total_aborted_job_time")
-        , TotalResourceLimits_(ZeroNodeResources())
-        , TotalResourceUsage_(ZeroNodeResources())
+        , TotalResourceLimits_(ZeroJobResources())
+        , TotalResourceUsage_(ZeroJobResources())
         , OnlineNodeCount_(0)
     {
         YCHECK(config);
@@ -537,7 +537,7 @@ public:
 
             auto* startInfo = response->add_jobs_to_start();
             ToProto(startInfo->mutable_job_id(), job->GetId());
-            *startInfo->mutable_resource_limits() = job->ResourceUsage();
+            *startInfo->mutable_resource_limits() = job->ResourceUsage().ToNodeResources();
 
             // Build spec asynchronously.
             asyncResults.push_back(
@@ -679,7 +679,7 @@ public:
     DEFINE_SIGNAL(void(TOperationPtr, INodePtr update), OperationRuntimeParamsUpdated);
 
     DEFINE_SIGNAL(void(TJobPtr job), JobFinished);
-    DEFINE_SIGNAL(void(TJobPtr, const TNodeResources& resourcesDelta), JobUpdated);
+    DEFINE_SIGNAL(void(TJobPtr, const TJobResources& resourcesDelta), JobUpdated);
 
     DEFINE_SIGNAL(void(INodePtr pools), PoolsUpdated);
 
@@ -689,12 +689,12 @@ public:
         return MasterConnector_.get();
     }
 
-    virtual TNodeResources GetTotalResourceLimits() override
+    virtual TJobResources GetTotalResourceLimits() override
     {
         return TotalResourceLimits_;
     }
 
-    virtual TNodeResources GetResourceLimits(const TNullable<Stroka>& schedulingTag) override
+    virtual TJobResources GetResourceLimits(const TNullable<Stroka>& schedulingTag) override
     {
         if (!schedulingTag || SchedulingTagResources_.find(*schedulingTag) == SchedulingTagResources_.end()) {
             return TotalResourceLimits_;
@@ -817,8 +817,8 @@ private:
     TEnumIndexedVector<int, EJobType> JobTypeCounters_;
     TPeriodicExecutorPtr ProfilingExecutor_;
 
-    TNodeResources TotalResourceLimits_;
-    TNodeResources TotalResourceUsage_;
+    TJobResources TotalResourceLimits_;
+    TJobResources TotalResourceUsage_;
     int OnlineNodeCount_;
 
     TPeriodicExecutorPtr LoggingExecutor_;
@@ -828,7 +828,7 @@ private:
     ISchemalessWriterPtr EventLogWriter_;
     std::unique_ptr<IYsonConsumer> EventLogConsumer_;
 
-    yhash_map<Stroka, TNodeResources> SchedulingTagResources_;
+    yhash_map<Stroka, TJobResources> SchedulingTagResources_;
 
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
@@ -1432,7 +1432,7 @@ private:
         for (const auto& tag : schedulingTags) {
             tags.insert(tag);
             if (SchedulingTagResources_.find(tag) == SchedulingTagResources_.end()) {
-                SchedulingTagResources_.insert(std::make_pair(tag, TNodeResources()));
+                SchedulingTagResources_.insert(std::make_pair(tag, TJobResources()));
             }
         }
 

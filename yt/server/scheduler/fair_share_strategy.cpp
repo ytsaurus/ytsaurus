@@ -71,7 +71,7 @@ struct TDynamicAttributes
     bool Active = false;
     ISchedulerElementPtr BestLeafDescendant;
     TInstant MinSubtreeStartTime;
-    TNodeResources ResourceUsageDiscount = ZeroNodeResources();
+    TJobResources ResourceUsageDiscount = ZeroJobResources();
 };
 
 DEFINE_ENUM(ESchedulableStatus,
@@ -118,12 +118,12 @@ struct ISchedulerElement
     virtual void SetStarving(bool starving) = 0;
     virtual void CheckForStarvation(TInstant now) = 0;
 
-    virtual const TNodeResources& ResourceDemand() const = 0;
-    virtual const TNodeResources& ResourceUsage() const = 0;
-    virtual const TNodeResources& ResourceLimits() const = 0;
-    virtual const TNodeResources& MaxPossibleResourceUsage() const = 0;
+    virtual const TJobResources& ResourceDemand() const = 0;
+    virtual const TJobResources& ResourceUsage() const = 0;
+    virtual const TJobResources& ResourceLimits() const = 0;
+    virtual const TJobResources& MaxPossibleResourceUsage() const = 0;
 
-    virtual void IncreaseUsage(const TNodeResources& delta) = 0;
+    virtual void IncreaseUsage(const TJobResources& delta) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////
@@ -248,7 +248,7 @@ public:
 
         auto maxPossibleResourceUsage = Min(totalLimits, MaxPossibleResourceUsage());
 
-        if (usage == ZeroNodeResources()) {
+        if (usage == ZeroJobResources()) {
             Attributes_.DominantResource = GetDominantResource(demand, totalLimits);
         } else {
             Attributes_.DominantResource = GetDominantResource(usage, totalLimits);
@@ -360,7 +360,7 @@ public:
         YUNREACHABLE();
     }
 
-    void IncreaseUsageRatio(const TNodeResources& delta)
+    void IncreaseUsageRatio(const TJobResources& delta)
     {
         if (Attributes_.DominantLimit != 0) {
             i64 dominantDeltaUsage = GetResource(delta, Attributes_.DominantResource);
@@ -370,7 +370,7 @@ public:
         }
     }
 
-    virtual void IncreaseUsage(const TNodeResources& delta) override
+    virtual void IncreaseUsage(const TJobResources& delta) override
     { }
 
     DEFINE_BYREF_RW_PROPERTY(TSchedulableAttributes, Attributes);
@@ -419,17 +419,17 @@ public:
     explicit TCompositeSchedulerElement(ISchedulerStrategyHost* host)
         : TSchedulerElementBase(host)
         , Parent_(nullptr)
-        , ResourceDemand_(ZeroNodeResources())
-        , ResourceUsage_(ZeroNodeResources())
-        , ResourceLimits_(InfiniteNodeResources())
+        , ResourceDemand_(ZeroJobResources())
+        , ResourceUsage_(ZeroJobResources())
+        , ResourceLimits_(InfiniteJobResources())
         , Mode(ESchedulingMode::Fifo)
     { }
 
     virtual void UpdateBottomUp() override
     {
         PendingJobCount = 0;
-        ResourceDemand_ = ZeroNodeResources();
-        auto maxPossibleChildrenResourceUsage_ = ZeroNodeResources();
+        ResourceDemand_ = ZeroJobResources();
+        auto maxPossibleChildrenResourceUsage_ = ZeroJobResources();
         Attributes_.BestAllocationRatio = 0.0;
         for (const auto& child : Children) {
             child->UpdateBottomUp();
@@ -629,10 +629,10 @@ public:
 
     DEFINE_BYVAL_RW_PROPERTY(TCompositeSchedulerElement*, Parent);
 
-    DEFINE_BYREF_RW_PROPERTY(TNodeResources, ResourceDemand);
-    DEFINE_BYREF_RW_PROPERTY(TNodeResources, ResourceUsage);
-    DEFINE_BYREF_RO_PROPERTY(TNodeResources, ResourceLimits);
-    DEFINE_BYREF_RO_PROPERTY(TNodeResources, MaxPossibleResourceUsage);
+    DEFINE_BYREF_RW_PROPERTY(TJobResources, ResourceDemand);
+    DEFINE_BYREF_RW_PROPERTY(TJobResources, ResourceUsage);
+    DEFINE_BYREF_RO_PROPERTY(TJobResources, ResourceLimits);
+    DEFINE_BYREF_RO_PROPERTY(TJobResources, MaxPossibleResourceUsage);
 
 protected:
     ESchedulingMode Mode;
@@ -930,7 +930,7 @@ public:
         TCompositeSchedulerElement::UpdateBottomUp();
     }
 
-    virtual void IncreaseUsage(const TNodeResources& delta) override
+    virtual void IncreaseUsage(const TJobResources& delta) override
     {
         TCompositeSchedulerElement* currentPool = this;
         while (currentPool) {
@@ -972,10 +972,10 @@ private:
         }
     }
 
-    TNodeResources ComputeResourceLimits() const
+    TJobResources ComputeResourceLimits() const
     {
         auto poolLimits = Host->GetResourceLimits(GetSchedulingTag()) * Config_->MaxShareRatio;
-        return Min(poolLimits, Config_->ResourceLimits->ToNodeResources());
+        return Min(poolLimits, Config_->ResourceLimits->ToJobResources());
     }
 
 };
@@ -997,8 +997,8 @@ public:
         , Spec_(spec)
         , RuntimeParams_(runtimeParams)
         , Pool_(nullptr)
-        , ResourceUsage_(ZeroNodeResources())
-        , NonpreemptableResourceUsage_(ZeroNodeResources())
+        , ResourceUsage_(ZeroJobResources())
+        , NonpreemptableResourceUsage_(ZeroJobResources())
         , Config(config)
         , OperationId_(Operation_->GetId())
     {
@@ -1146,27 +1146,28 @@ public:
         return Spec_->SchedulingTag;
     }
 
-    virtual const TNodeResources& ResourceDemand() const override
+    virtual const TJobResources& ResourceDemand() const override
     {
-        ResourceDemand_ = ZeroNodeResources();
         if (Operation_->IsSchedulable()) {
             auto controller = Operation_->GetController();
             ResourceDemand_ = ResourceUsage_ + controller->GetNeededResources();
+        } else {
+            ResourceDemand_ = ZeroJobResources();
         }
         return ResourceDemand_;
     }
 
-    virtual const TNodeResources& ResourceLimits() const override
+    virtual const TJobResources& ResourceLimits() const override
     {
         ResourceLimits_ = Host->GetResourceLimits(GetSchedulingTag()) * Spec_->MaxShareRatio;
 
-        auto perTypeLimits = Spec_->ResourceLimits->ToNodeResources();
+        auto perTypeLimits = Spec_->ResourceLimits->ToJobResources();
         ResourceLimits_ = Min(ResourceLimits_, perTypeLimits);
 
         return ResourceLimits_;
     }
 
-    virtual const TNodeResources& MaxPossibleResourceUsage() const override
+    virtual const TJobResources& MaxPossibleResourceUsage() const override
     {
         MaxPossibleResourceUsage_ = Min(ResourceLimits(), ResourceDemand());
         return MaxPossibleResourceUsage_;
@@ -1220,7 +1221,7 @@ public:
             now);
     }
 
-    virtual void IncreaseUsage(const TNodeResources& delta) override
+    virtual void IncreaseUsage(const TJobResources& delta) override
     {
         ResourceUsage() += delta;
         IncreaseUsageRatio(delta);
@@ -1239,7 +1240,7 @@ public:
         return false;
     }
 
-    void IncreaseJobResourceUsage(const TJobId& jobId, const TNodeResources& resourcesDelta)
+    void IncreaseJobResourceUsage(const TJobId& jobId, const TJobResources& resourcesDelta)
     {
         auto& properties = JobPropertiesMap_.at(jobId);
         properties.ResourceUsage += resourcesDelta;
@@ -1254,7 +1255,7 @@ public:
     {
         auto limits = Host->GetTotalResourceLimits();
 
-        auto getNonpreemptableUsageRatio = [&] (const TNodeResources& extraResources) -> double {
+        auto getNonpreemptableUsageRatio = [&] (const TJobResources& extraResources) -> double {
             i64 usage = GetResource(
                 NonpreemptableResourceUsage_ + extraResources,
                 Attributes_.DominantResource);
@@ -1264,7 +1265,7 @@ public:
 
         // Remove nonpreemptable jobs exceeding the fair share.
         while (!NonpreemptableJobs_.empty()) {
-            if (getNonpreemptableUsageRatio(ZeroNodeResources()) <= Attributes_.FairShareRatio) {
+            if (getNonpreemptableUsageRatio(ZeroJobResources()) <= Attributes_.FairShareRatio) {
                 break;
             }
 
@@ -1311,13 +1312,13 @@ public:
         return JobPropertiesMap_.at(jobId).IsPreemptable;
     }
 
-    void OnJobStarted(const TJobId& jobId, const TNodeResources& resourceUsage)
+    void OnJobStarted(const TJobId& jobId, const TJobResources& resourceUsage)
     {
         PreemptableJobs_.push_back(jobId);
 
         auto it = JobPropertiesMap_.insert(std::make_pair(
             jobId,
-            TJobProperties(true, --PreemptableJobs_.end(), ZeroNodeResources())));
+            TJobProperties(true, --PreemptableJobs_.end(), ZeroJobResources())));
         YCHECK(it.second);
 
         IncreaseJobResourceUsage(jobId, resourceUsage);
@@ -1344,25 +1345,25 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(TStrategyOperationSpecPtr, Spec);
     DEFINE_BYVAL_RO_PROPERTY(TOperationRuntimeParamsPtr, RuntimeParams);
     DEFINE_BYVAL_RW_PROPERTY(TPool*, Pool);
-    DEFINE_BYREF_RW_PROPERTY(TNodeResources, ResourceUsage);
+    DEFINE_BYREF_RW_PROPERTY(TJobResources, ResourceUsage);
 
     typedef std::list<TJobId> TJobIdList;
 
     DEFINE_BYREF_RW_PROPERTY(TJobIdList, NonpreemptableJobs);
     DEFINE_BYREF_RW_PROPERTY(TJobIdList, PreemptableJobs);
 
-    DEFINE_BYREF_RW_PROPERTY(TNodeResources, NonpreemptableResourceUsage);
+    DEFINE_BYREF_RW_PROPERTY(TJobResources, NonpreemptableResourceUsage);
 
 private:
-    mutable TNodeResources ResourceDemand_;
-    mutable TNodeResources ResourceLimits_;
-    mutable TNodeResources MaxPossibleResourceUsage_;
+    mutable TJobResources ResourceDemand_;
+    mutable TJobResources ResourceLimits_;
+    mutable TJobResources MaxPossibleResourceUsage_;
 
     TFairShareStrategyConfigPtr Config;
 
     TOperationId OperationId_;
 
-    TNodeResources GetHierarchicalResourceLimits(const TFairShareContext& context) const
+    TJobResources GetHierarchicalResourceLimits(const TFairShareContext& context) const
     {
         const auto& node = context.SchedulingContext->GetNode();
 
@@ -1393,7 +1394,7 @@ private:
     // Fair share strategy stuff.
     struct TJobProperties
     {
-        TJobProperties(bool isPreemptable, TJobIdList::iterator jobIdListIterator, const TNodeResources& resourceUsage)
+        TJobProperties(bool isPreemptable, TJobIdList::iterator jobIdListIterator, const TJobResources& resourceUsage)
             : IsPreemptable(isPreemptable)
             , JobIdListIterator(jobIdListIterator)
             , ResourceUsage(resourceUsage)
@@ -1406,7 +1407,7 @@ private:
         //! Iterator in the per-operation list pointing to this particular job.
         TJobIdList::iterator JobIdListIterator;
 
-        TNodeResources ResourceUsage;
+        TJobResources ResourceUsage;
     };
 
     typedef yhash_map<TJobId, TJobProperties> TJobPropertiesMap;
@@ -1606,9 +1607,9 @@ public:
         int scheduledDuringPreemption = startedAfterPreemption - startedBeforePreemption;
 
         // Reset discounts.
-        context.SchedulingContext->ResourceUsageDiscount() = ZeroNodeResources();
+        context.SchedulingContext->ResourceUsageDiscount() = ZeroJobResources();
         for (const auto& pool : discountedPools) {
-            pool->DynamicAttributes(context.AttributesIndex).ResourceUsageDiscount = ZeroNodeResources();
+            pool->DynamicAttributes(context.AttributesIndex).ResourceUsageDiscount = ZeroJobResources();
         }
 
         // Preempt jobs if needed.
@@ -1834,7 +1835,7 @@ private:
 
         context.SchedulingContext->GetNode()->ResourceUsage() -= job->ResourceUsage();
         operationElement->IncreaseJobResourceUsage(job->GetId(), -job->ResourceUsage());
-        job->ResourceUsage() = ZeroNodeResources();
+        job->ResourceUsage() = ZeroJobResources();
 
         context.SchedulingContext->PreemptJob(job);
     }
@@ -2000,7 +2001,7 @@ private:
         element->OnJobFinished(job->GetId());
     }
 
-    void OnJobUpdated(TJobPtr job, const TNodeResources& resourcesDelta)
+    void OnJobUpdated(TJobPtr job, const TJobResources& resourcesDelta)
     {
         auto element = GetOperationElement(job->GetOperationId());
         element->IncreaseJobResourceUsage(job->GetId(), resourcesDelta);

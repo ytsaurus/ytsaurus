@@ -20,7 +20,7 @@ TJob::TJob(
     TOperationPtr operation,
     TExecNodePtr node,
     TInstant startTime,
-    const TNodeResources& resourceLimits,
+    const TJobResources& resourceLimits,
     bool restarted,
     TJobSpecBuilder specBuilder)
     : Id_(id)

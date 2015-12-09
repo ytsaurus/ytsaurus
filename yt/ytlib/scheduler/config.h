@@ -2,16 +2,13 @@
 
 #include "public.h"
 
+#include <yt/server/scheduler/job_resources.h>
 #include <yt/server/security_server/acl.h>
 
 #include <yt/ytlib/api/config.h>
 
 #include <yt/ytlib/formats/format.h>
 #include <yt/ytlib/formats/config.h>
-
-#include <yt/ytlib/node_tracker_client/public.h>
-#include <yt/ytlib/node_tracker_client/helpers.h>
-#include <yt/ytlib/node_tracker_client/node.pb.h>
 
 #include <yt/ytlib/table_client/config.h>
 #include <yt/ytlib/table_client/helpers.h>
@@ -940,20 +937,20 @@ public:
             .GreaterThanOrEqual(0);
     }
 
-    NNodeTrackerClient::NProto::TNodeResources ToNodeResources() const
+    TJobResources ToJobResources() const
     {
-        auto perTypeLimits = NNodeTrackerClient::InfiniteNodeResources();
+        auto perTypeLimits = InfiniteJobResources();
         if (UserSlots) {
-            perTypeLimits.set_user_slots(*UserSlots);
+            perTypeLimits.SetUserSlots(*UserSlots);
         }
         if (Cpu) {
-            perTypeLimits.set_cpu(*Cpu);
+            perTypeLimits.SetCpu(*Cpu);
         }
         if (Network) {
-            perTypeLimits.set_network(*Network);
+            perTypeLimits.SetNetwork(*Network);
         }
         if (Memory) {
-            perTypeLimits.set_memory(*Memory);
+            perTypeLimits.SetMemory(*Memory);
         }
         return perTypeLimits;
     }
