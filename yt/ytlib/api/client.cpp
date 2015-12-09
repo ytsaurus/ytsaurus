@@ -324,7 +324,7 @@ private:
     }
 
     std::vector<std::pair<TDataSource, Stroka>> SplitTableFurther(
-        TGuid tableId,
+        const TObjectId& tableId,
         const std::vector<TRowRange>& ranges,
         TRowBufferPtr rowBuffer)
     {
@@ -342,7 +342,7 @@ private:
     }
 
     std::vector<std::pair<TDataSource, Stroka>> SplitStaticTableFurther(
-        TGuid tableId,
+        const TObjectId& tableId,
         const std::vector<TRowRange>& ranges,
         TRowBufferPtr rowBuffer)
     {
@@ -451,7 +451,7 @@ private:
     }
 
     std::vector<std::pair<TDataSource, Stroka>> SplitDynamicTableFurther(
-        TGuid tableId,
+        const TObjectId& tableId,
         const std::vector<TRowRange>& ranges,
         TRowBufferPtr rowBuffer,
         TTableMountInfoPtr tableInfo)
