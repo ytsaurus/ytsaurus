@@ -2,7 +2,6 @@ import pytest
 
 from yt_env_setup import YTEnvSetup, skip_if_multicell
 from yt_commands import *
-from time import sleep
 
 ##################################################################
 
@@ -21,21 +20,23 @@ class TestFiles(YTEnvSetup):
         assert read_file("//tmp/file") == content
 
         chunk_ids = get("//tmp/file/@chunk_ids")
-        assert get_chunks() == chunk_ids
+        assert len(chunk_ids) == 1
+        chunk_id = chunk_ids[0]
+
         assert get("//tmp/file/@uncompressed_data_size") == len(content)
 
-        # check that chunk was deleted
         remove("//tmp/file")
-        sleep(0.2) # for multicell
-        assert get_chunks() == []
+
+        gc_collect()
+        multicell_sleep()
+        assert not exists("#%s" % chunk_id)
 
     def test_empty(self):
         create("file", "//tmp/file")
         write_file("//tmp/file", "")
         assert read_file("//tmp/file") == ""
 
-        get("//tmp/file/@chunk_ids")
-        assert get_chunks() == []
+        assert get("//tmp/file/@chunk_ids") == []
         assert get("//tmp/file/@uncompressed_data_size") == 0
 
     def test_read_interval(self):
@@ -48,14 +49,7 @@ class TestFiles(YTEnvSetup):
         assert read_file("//tmp/file", offset=offset) == content[offset:]
         assert read_file("//tmp/file", length=length) == content[:length]
         assert read_file("//tmp/file", offset=offset, length=length) == content[offset:offset + length]
-
-        chunk_ids = get("//tmp/file/@chunk_ids")
-        assert get_chunks() == chunk_ids
         assert get("//tmp/file/@uncompressed_data_size") == len(content)
-
-        # check that chunk was deleted
-        remove("//tmp/file")
-        assert get_chunks() == []
 
     def test_read_all_intervals(self):
         content = "".join(chr(c) for c in range(ord("a"), ord("a") + 8))
@@ -71,6 +65,10 @@ class TestFiles(YTEnvSetup):
         create("file", "//tmp/f")
         write_file("//tmp/f", content)
 
+        chunk_ids = get("//tmp/f/@chunk_ids")
+        assert len(chunk_ids) == 1
+        chunk_id = chunk_ids[0]
+
         assert read_file("//tmp/f") == content
         copy("//tmp/f", "//tmp/f2")
         assert read_file("//tmp/f2") == content
@@ -82,13 +80,19 @@ class TestFiles(YTEnvSetup):
         assert read_file("//tmp/f2") == content
 
         remove("//tmp/f2")
-        sleep(0.2) # for multicell
-        assert get_chunks() == []
+
+        gc_collect()
+        multicell_sleep()
+        assert not exists("#%s" % chunk_id)
 
     def test_copy_tx(self):
         content = "some_data"
         create("file", "//tmp/f")
         write_file("//tmp/f", content)
+
+        chunk_ids = get("//tmp/f/@chunk_ids")
+        assert len(chunk_ids) == 1
+        chunk_id = chunk_ids[0]
 
         tx = start_transaction()
         assert read_file("//tmp/f", tx=tx) == content
@@ -102,8 +106,10 @@ class TestFiles(YTEnvSetup):
         assert read_file("//tmp/f2") == content
 
         remove("//tmp/f2")
-        sleep(0.2) # for multicell
-        assert get_chunks() == []
+        
+        gc_collect()
+        multicell_sleep()
+        assert not exists("#%s" % chunk_id)
 
     def test_replication_factor_attr(self):
         content = "some_data"
