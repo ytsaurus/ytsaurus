@@ -160,7 +160,7 @@ TChunkScraper::TChunkScraper(
     const TChunkScraperConfigPtr config,
     const IInvokerPtr invoker,
     TThrottlerManagerPtr throttlerManager,
-    NApi::IClientPtr masterClient,
+    NApi::IClientPtr client,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
     const yhash_set<TChunkId>& chunkIds,
     TChunkLocatedHandler onChunkLocated,
@@ -168,7 +168,7 @@ TChunkScraper::TChunkScraper(
     : Config_(config)
     , Invoker_(invoker)
     , ThrottlerManager_(throttlerManager)
-    , MasterClient_(masterClient)
+    , MasterClient_(client)
     , NodeDirectory_(nodeDirectory)
     , OnChunkLocated_(onChunkLocated)
     , Logger(logger)

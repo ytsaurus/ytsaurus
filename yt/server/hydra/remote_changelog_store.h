@@ -17,7 +17,7 @@ IChangelogStoreFactoryPtr CreateRemoteChangelogStoreFactory(
     TRemoteChangelogStoreConfigPtr config,
     TRemoteChangelogStoreOptionsPtr options,
     const NYPath::TYPath& path,
-    NApi::IClientPtr masterClient,
+    NApi::IClientPtr client,
     const NTransactionClient::TTransactionId& prerequisiteTransactionId =
         NTransactionClient::NullTransactionId);
 
