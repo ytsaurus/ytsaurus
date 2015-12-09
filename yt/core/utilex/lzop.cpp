@@ -178,7 +178,6 @@ class TLzopCompress::TImpl
 public:
     inline TImpl(TOutputStream* slave, ui16 blockSize)
         : Slave(slave)
-        , BlockSize(blockSize)
         , UncompressedBuffer(blockSize)
         , CompressedBuffer(8 + 4 * blockSize)
     {
@@ -192,7 +191,6 @@ protected:
 
 private:
     TOutputStream* Slave;
-    ui16 BlockSize;
 
     NPrivate::NLzop::THeader Header;
     bool HeaderWasWritten;
