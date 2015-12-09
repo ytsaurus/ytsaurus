@@ -19,7 +19,8 @@ enum ENodeType
     NT_MAP,
     NT_LIST,
     NT_FILE,
-    NT_TABLE
+    NT_TABLE,
+    NT_DOCUMENT
 };
 
 struct TCreateOptions
