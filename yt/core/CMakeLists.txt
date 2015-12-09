@@ -241,20 +241,7 @@ END()
 ELSE()
 ################################################################################
 
-set(YT_SRCS_RESOLVED)
-foreach(_f_ ${YT_SRCS})
-  if(_f_ MATCHES "\\.cpp$")
-    list(APPEND YT_SRCS_RESOLVED "${_f_}")
-  elseif(_f_ MATCHES "\\.proto$")
-    protoc("${_f_}" YT_SRCS_RESOLVED)
-  elseif(_f_ MATCHES "\\.S$")
-    list(APPEND YT_SRCS_RESOLVED "${_f_}")
-    set_source_files_properties("${_f_}" PROPERTIES LANGUAGE C)
-  else()
-    message(FATAL_ERROR "Cannot handle source file ${_f_}")
-  endif()
-endforeach()
-
+resolve_srcs(YT_SRCS YT_SRCS_RESOLVED)
 add_library(ytcore STATIC ${YT_SRCS_RESOLVED})
 
 llvm_map_components_to_libraries(
