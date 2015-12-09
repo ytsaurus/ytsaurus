@@ -2,6 +2,8 @@
 
 #include <yt/server/security_server/security_manager.pb.h>
 
+#include <yt/server/cell_master/serialize.h>
+
 #include <yt/core/ytree/fluent.h>
 
 namespace NYT {

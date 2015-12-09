@@ -15,6 +15,8 @@
 
 #include <yt/ytlib/node_tracker_client/node_directory.h>
 
+#include <yt/ytlib/object_client/helpers.h>
+
 #include <yt/core/concurrency/async_semaphore.h>
 #include <yt/core/concurrency/periodic_executor.h>
 #include <yt/core/concurrency/scheduler.h>

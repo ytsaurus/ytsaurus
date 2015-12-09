@@ -8,6 +8,7 @@
 
 #include <yt/server/cell_master/bootstrap.h>
 #include <yt/server/cell_master/hydra_facade.h>
+#include <yt/server/cell_master/multicell_manager.h>
 #include <yt/server/cell_master/serialize.h>
 
 #include <yt/server/chunk_server/job.h>
@@ -27,6 +28,8 @@
 #include <yt/ytlib/cypress_client/rpc_helpers.h>
 
 #include <yt/ytlib/object_client/helpers.h>
+
+#include <yt/ytlib/node_tracker_client/helpers.h>
 
 #include <yt/core/concurrency/scheduler.h>
 

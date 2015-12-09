@@ -8,6 +8,7 @@
 
 #include <yt/server/cell_master/bootstrap.h>
 #include <yt/server/cell_master/hydra_facade.h>
+#include <yt/server/cell_master/multicell_manager.h>
 
 #include <yt/server/object_server/object_detail.h>
 #include <yt/server/object_server/type_handler_detail.h>
@@ -16,6 +17,10 @@
 #include <yt/server/security_server/group.h>
 #include <yt/server/security_server/security_manager.h>
 #include <yt/server/security_server/user.h>
+
+// COMPAT(babenko)
+#include <yt/server/chunk_server/chunk_owner_base.h>
+#include <yt/server/chunk_server/chunk_list.h>
 
 #include <yt/ytlib/cypress_client/cypress_ypath.pb.h>
 #include <yt/ytlib/cypress_client/cypress_ypath_proxy.h>
@@ -43,6 +48,7 @@ using namespace NObjectServer;
 using namespace NSecurityClient;
 using namespace NSecurityServer;
 using namespace NCypressClient::NProto;
+using namespace NChunkServer; // COMPAT(babenko)
 
 ////////////////////////////////////////////////////////////////////////////////
 

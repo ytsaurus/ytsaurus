@@ -5,9 +5,13 @@
 
 #include <yt/server/cypress_server/public.h>
 
+#include <yt/server/security_server/cluster_resources.h>
+
 #include <yt/ytlib/table_client/public.h>
 
 #include <yt/core/yson/public.h>
+
+#include <yt/core/actions/future.h>
 
 namespace NYT {
 namespace NChunkServer {

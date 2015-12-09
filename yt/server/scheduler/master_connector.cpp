@@ -13,6 +13,7 @@
 #include <yt/ytlib/chunk_client/chunk_list_ypath_proxy.h>
 
 #include <yt/ytlib/cypress_client/cypress_ypath_proxy.h>
+#include <yt/ytlib/cypress_client/rpc_helpers.h>
 
 #include <yt/ytlib/file_client/file_ypath_proxy.h>
 
@@ -25,6 +26,8 @@
 
 #include <yt/ytlib/transaction_client/helpers.h>
 #include <yt/ytlib/transaction_client/transaction_ypath_proxy.h>
+
+#include <yt/ytlib/api/transaction.h>
 
 #include <yt/core/concurrency/thread_affinity.h>
 

@@ -6,6 +6,8 @@
 
 #include <yt/core/yson/format.h>
 
+#include <yt/core/concurrency/async_stream.h>
+
 #include <limits>
 
 namespace NYT {
@@ -41,70 +43,6 @@ static ui16 DigitPairs[100] = {
 // range [ptr - length, ptr). Return value is ptr - length, i. e. the pointer to the
 // beginning of the result.
 char* TSchemafulDsvWriterBase::WriteInt64Backwards(char* ptr, i64 value)
-<<<<<<< HEAD
-{
-    if (value == 0) {
-        --ptr;
-        *ptr = '0';
-        return ptr;
-    }
-
-    // The negative value handling code below works incorrectly for value = -2^63.
-    if (value == std::numeric_limits<i64>::min()) {
-        ptr -= 20;
-        memcpy(ptr, "-9223372036854775808", 20);
-        return ptr;
-    }
-
-    bool negative = false;
-    if (value < 0) {
-        negative = true;
-        value = -value;
-    }
-
-    while (value >= 10) {
-        i64 rem = value % 100;
-        i64 quot = value / 100;
-        ptr -= 2;
-        *reinterpret_cast<ui16*>(ptr) = DigitPairs[rem];
-        value = quot;
-    }
-
-    if (value > 0) {
-        --ptr;
-        *ptr = ('0' + value);
-    }
-
-    if (negative) {
-        --ptr;
-        *ptr = '-';
-    }
-
-    return ptr;
-}
-
-// Same as WriteInt64Backwards for ui64.
-char* TSchemafulDsvWriterBase::WriteUint64Backwards(char* ptr, ui64 value)
-{
-    if (value == 0) {
-        --ptr;
-        *ptr = '0';
-        return ptr;
-    }
-
-    while (value >= 10) {
-        i64 rem = value % 100;
-        i64 quot = value / 100;
-        ptr -= 2;
-        *reinterpret_cast<ui16*>(ptr) = DigitPairs[rem];
-        value = quot;
-    }
-
-    if (value > 0) {
-        --ptr;
-        *ptr = ('0' + value);
-    }
-=======
 {
     if (value == 0) {
         --ptr;
@@ -170,7 +108,6 @@ char* TSchemafulDsvWriterBase::WriteUint64Backwards(char* ptr, ui64 value)
 
     return ptr;
 }
-
 void TSchemafulDsvWriterBase::WriteValue(const TUnversionedValue& value)
 {
     switch (value.Type) {
@@ -203,183 +140,6 @@ void TSchemafulDsvWriterBase::WriteValue(const TUnversionedValue& value)
             break;
         }
 
-        case EValueType::String: {
-            EscapeAndWrite(TStringBuf(value.Data.String, value.Length));
-            break;
-        }
-
-        default: {
-            WriteRaw('?');
-            break;
-        }
-    }
-}
-
-void TSchemafulDsvWriterBase::WriteRaw(const TStringBuf& str)
-{
-    BlobOutput_->Write(str.begin(), str.length());
-}
-
-void TSchemafulDsvWriterBase::WriteRaw(char ch)
-{
-    BlobOutput_->Write(ch);
-}
-
-void TSchemafulDsvWriterBase::EscapeAndWrite(const TStringBuf& string)
-{
-    if (Config_->EnableEscaping) {
-        WriteEscaped(
-            BlobOutput_,
-            string,
-            Table_.Stops,
-            Table_.Escapes,
-            Config_->EscapingSymbol);
-    } else {
-        BlobOutput_->Write(string);
-    }
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TSchemalessWriterForSchemafulDsv::TSchemalessWriterForSchemafulDsv(
-    TNameTablePtr nameTable, 
-    IAsyncOutputStreamPtr output,
-    bool enableContextSaving,
-    TSchemafulDsvFormatConfigPtr config)
-    : TSchemalessFormatWriterBase(
-        nameTable,
-        std::move(output),
-        enableContextSaving,
-        false /* enableKeySwitch */,
-        0 /* keyColumnCount */)
-    , TSchemafulDsvWriterBase(config)
-{
-    BlobOutput_ = GetOutputStream();
-    YCHECK(Config_->Columns);
-    const auto& columns = Config_->Columns.Get();
-    for (int columnIndex = 0; columnIndex < static_cast<int>(columns.size()); ++columnIndex) {
-        ColumnIdMapping_.push_back(NameTable_->GetIdOrRegisterName(columns[columnIndex]));
-    }
-    IdToIndexInRowMapping_.resize(nameTable->GetSize());
-}
-
-void TSchemalessWriterForSchemafulDsv::DoWrite(const std::vector<TUnversionedRow>& rows)
-{
-    IdToIndexInRowMapping_.resize(GetNameTable()->GetSize());
-    for (auto row : rows) {
-        IdToIndexInRowMapping_.assign(IdToIndexInRowMapping_.size(), -1);
-        for (auto item = row.Begin(); item != row.End(); ++item) {
-            YASSERT(item->Id >= 0 && item->Id < IdToIndexInRowMapping_.size());
-            IdToIndexInRowMapping_[item->Id] = item - row.Begin();
-        }
-        bool firstValue = true;
-        for (auto currentId : ColumnIdMapping_) {
-            if (!firstValue) {
-                WriteRaw(Config_->FieldSeparator);
-            } else {
-                firstValue = false;
-            }
-            int index = IdToIndexInRowMapping_[currentId];
-            if (index == -1) {
-                THROW_ERROR_EXCEPTION("Column %Qv is in schema but missing", NameTable_->GetName(currentId));
-            }
-            WriteValue(row[index]);
-        }
-        WriteRaw(Config_->RecordSeparator);
-        TryFlushBuffer(false);
-    }    
-    TryFlushBuffer(true);
-}
-
-void TSchemalessWriterForSchemafulDsv::WriteTableIndex(i32 tableIndex)
-{
-    THROW_ERROR_EXCEPTION("Table inidices are not supported in schemaful DSV");
-}
-
-void TSchemalessWriterForSchemafulDsv::WriteRangeIndex(i32 rangeIndex)
-{
-    THROW_ERROR_EXCEPTION("Range inidices are not supported in schemaful DSV");
-}
-    
-void TSchemalessWriterForSchemafulDsv::WriteRowIndex(i64 rowIndex)
-{
-    THROW_ERROR_EXCEPTION("Row inidices are not supported in schemaful DSV");
-}
-
-////////////////////////////////////////////////////////////////////////////////
->>>>>>> origin/prestable/0.17.4
-
-TSchemafulWriterForSchemafulDsv::TSchemafulWriterForSchemafulDsv(
-    IAsyncOutputStreamPtr stream,
-    std::vector<int> columnIdMapping,
-    TSchemafulDsvFormatConfigPtr config)
-    : TSchemafulDsvWriterBase(config)
-    , Output_(CreateSyncAdapter(stream))
-{
-    BlobOutput_ = &UnderlyingBlobOutput_; 
-    ColumnIdMapping_.swap(columnIdMapping); 
-}
-
-<<<<<<< HEAD
-void TSchemafulDsvWriterBase::WriteValue(const TUnversionedValue& value)
-{
-    switch (value.Type) {
-        case EValueType::Null:
-            break;
-
-        case EValueType::Int64:
-        case EValueType::Uint64: {
-            char buf[64];
-            char* end = buf + 64;
-            char* begin = value.Type == EValueType::Int64
-                ? WriteInt64Backwards(end, value.Data.Int64)
-                : WriteUint64Backwards(end, value.Data.Uint64);
-            size_t length = end - begin;
-            BlobOutput_->Write(begin, length);
-            break;
-        }
-
-        case EValueType::Double: {
-            // TODO(babenko): optimize
-            char buf[64];
-            char* begin = buf;
-            int length = sprintf(buf, "%lg", value.Data.Double);
-            BlobOutput_->Write(begin, length);
-            break;
-=======
-TFuture<void> TSchemafulWriterForSchemafulDsv::Close()
-{
-    DoFlushBuffer(true);
-    return VoidFuture;
-}
-
-bool TSchemafulWriterForSchemafulDsv::Write(const std::vector<TUnversionedRow>& rows)
-{
-    for (auto row : rows) {
-        bool firstValue = true;
-        for (auto id : ColumnIdMapping_) {
-            if (!firstValue) {
-                WriteRaw(Config_->FieldSeparator);
-            } else {
-                firstValue = false;
-            }
-            WriteValue(row[id]);
->>>>>>> origin/prestable/0.17.4
-        }
-        WriteRaw(Config_->RecordSeparator);
-        TryFlushBuffer();
-    }
-    
-    return true;
-}
-
-// TODO(max42): Eliminate copy-paste from schemaless_writer_adapter.cpp.
-void TSchemafulWriterForSchemafulDsv::TryFlushBuffer()
-{
-    DoFlushBuffer(false);
-}
-
-<<<<<<< HEAD
         case EValueType::String: {
             EscapeAndWrite(TStringBuf(value.Data.String, value.Length));
             break;
@@ -513,27 +273,15 @@ void TSchemafulWriterForSchemafulDsv::TryFlushBuffer(bool force)
 {
     if (force || UnderlyingBlobOutput_.Size() >= UnderlyingBlobOutput_.Blob().Capacity() / 2) {
         DoFlushBuffer();
-=======
-void TSchemafulWriterForSchemafulDsv::DoFlushBuffer(bool force)
-{
-    if (UnderlyingBlobOutput_.Size() == 0) {
-        return;
     }
+}
 
-    if (!force && UnderlyingBlobOutput_.Size() < UnderlyingBlobOutput_.Blob().Capacity() / 2) {
-        return;
->>>>>>> origin/prestable/0.17.4
-    }
-
-<<<<<<< HEAD
 void TSchemafulWriterForSchemafulDsv::DoFlushBuffer()
 {
     if (UnderlyingBlobOutput_.Size() == 0) {
         return;
     }
 
-=======
->>>>>>> origin/prestable/0.17.4
     const auto& buffer = UnderlyingBlobOutput_.Blob();
     Output_->Write(buffer.Begin(), buffer.Size());
 

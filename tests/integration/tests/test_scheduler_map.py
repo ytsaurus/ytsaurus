@@ -10,16 +10,8 @@ import __builtin__
 import os
 import tempfile
 
-<<<<<<< HEAD
 
 ##################################################################
-=======
-from yt.wrapper import format
-from yt.environment.helpers import assert_items_equal
-
-from yt_env_setup import YTEnvSetup, unix_only
-from yt_commands import *
->>>>>>> origin/prestable/0.17.4
 
 def get_statistics(statistics, complex_key):
     result = statistics
@@ -175,9 +167,6 @@ class TestJobProber(YTEnvSetup):
                 assert trace['trace'].startswith("Process {0} attached".format(pid))
         track_op(op_id)
 
-<<<<<<< HEAD
-##################################################################
-=======
     def test_signal_job_with_no_job_restart(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -355,7 +344,8 @@ done
 
         track_op(op_id)
         assert(2, len(read_table("//tmp/t2")))
->>>>>>> origin/prestable/0.17.4
+
+##################################################################
 
 class TestSchedulerMapCommands(YTEnvSetup):
     NUM_MASTERS = 3

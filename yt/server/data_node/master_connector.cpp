@@ -34,6 +34,10 @@
 #include <yt/ytlib/node_tracker_client/helpers.h>
 #include <yt/ytlib/node_tracker_client/node_statistics.h>
 
+#include <yt/ytlib/transaction_client/transaction_manager.h>
+
+#include <yt/ytlib/object_client/helpers.h>
+
 #include <yt/core/concurrency/delayed_executor.h>
 
 #include <yt/core/misc/serialize.h>

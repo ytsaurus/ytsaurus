@@ -14,6 +14,8 @@
 
 #include <yt/ytlib/tablet_client/public.h>
 
+#include <yt/ytlib/query_client/public.h>
+
 #include <yt/core/actions/cancelable_context.h>
 
 #include <yt/core/misc/property.h>

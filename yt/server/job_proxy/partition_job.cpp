@@ -3,14 +3,14 @@
 #include "config.h"
 #include "job_detail.h"
 
-#include <yt/yt/ytlib/chunk_client/chunk_spec.h>
-
 #include <yt/ytlib/object_client/helpers.h>
 
 #include <yt/ytlib/chunk_client/chunk_spec.h>
 
 #include <yt/ytlib/table_client/name_table.h>
 #include <yt/ytlib/table_client/partitioner.h>
+#include <yt/ytlib/table_client/schemaless_chunk_reader.h>
+#include <yt/ytlib/table_client/schemaless_chunk_writer.h>
 
 namespace NYT {
 namespace NJobProxy {
@@ -47,7 +47,7 @@ public:
 
         NameTable_ = TNameTable::FromKeyColumns(keyColumns);
 
-        ReaderFactory_ = [=] (TNameTablePtr nameTable, TColumnFilter columnFilter) {
+        ReaderFactory_ = [=] (TNameTablePtr nameTable, const TColumnFilter& columnFilter) {
             YCHECK(!Reader_);
             // NB: don't create parallel reader to eliminate non-deterministic behavior,
             // which is a nightmare for restarted (lost) jobs.

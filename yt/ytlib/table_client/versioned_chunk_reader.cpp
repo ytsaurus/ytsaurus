@@ -15,6 +15,7 @@
 #include <yt/ytlib/chunk_client/chunk_reader.h>
 #include <yt/ytlib/chunk_client/dispatcher.h>
 #include <yt/ytlib/chunk_client/sequential_reader.h>
+#include <yt/ytlib/chunk_client/data_statistics.pb.h>
 
 #include <yt/core/compression/codec.h>
 
@@ -46,9 +47,8 @@ std::vector<TColumnIdMapping> BuildSchemaIdMapping(
 
     std::vector<TColumnIdMapping> schemaIdMapping;
     schemaIdMapping.reserve(chunkMeta->SchemaIdMapping().size());
-    int keyColumnCount = static_cast<int>(chunkMeta->KeyColumns().size());
     for (auto index : columnFilter.Indexes) {
-        if (index < keyColumnCount) {
+        if (index < chunkMeta->GetKeyColumnCount()) {
             continue;
         }
 
@@ -635,6 +635,21 @@ public:
         Finished_ = !DoRead(rows);
 
         return true;
+    }
+
+    virtual NChunkClient::NProto::TDataStatistics GetDataStatistics() const override
+    {
+        YUNREACHABLE();
+    }
+
+    virtual bool IsFetchingCompleted() const override
+    {
+        YUNREACHABLE();
+    }
+
+    virtual std::vector<TChunkId> GetFailedChunkIds() const override
+    {
+        YUNREACHABLE();
     }
 
 protected:

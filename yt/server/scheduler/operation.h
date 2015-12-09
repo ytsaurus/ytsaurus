@@ -8,6 +8,8 @@
 
 #include <yt/ytlib/transaction_client/transaction_manager.h>
 
+#include <yt/ytlib/job_tracker_client/statistics.h>
+
 #include <yt/core/actions/future.h>
 
 #include <yt/core/misc/error.h>

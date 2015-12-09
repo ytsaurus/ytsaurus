@@ -194,15 +194,9 @@ private:
     void WriteRowValue(const TUnversionedValue& value)
     {
         // This includes the value itself and possible serialization alignment.
-<<<<<<< HEAD
-        i64 bytes = 2 * sizeof (i64);
-        if (IsStringLikeType(value.Type)) {
-            bytes += value.Length;
-=======
         i64 bytes = (Schemaful ? 1 : 2) * sizeof (i64);
-        if (IsStringLikeType(EValueType(value.Type))) {
+        if (IsStringLikeType(value.Type)) {
             bytes += value.Length + (Schemaful ? sizeof (i64) : 0);
->>>>>>> origin/prestable/0.17.4
         }
         EnsureCapacity(bytes);
 
@@ -578,17 +572,13 @@ private:
 
         ValidateRowValueCount(valueCount);
 
-<<<<<<< HEAD
-        auto row = TMutableUnversionedRow::Allocate(RowBuffer_->GetPool(), valueCount);
-=======
         auto nullBitmap = TReadOnlyBitmap<ui64>();
         if (schemaData) {
             nullBitmap.Reset(reinterpret_cast<const ui64*>(Current_), valueCount);
             Skip(nullBitmap.GetByteSize());
         }
 
-        auto row = TUnversionedRow::Allocate(RowBuffer_->GetPool(), valueCount);
->>>>>>> origin/prestable/0.17.4
+        auto row = TMutableUnversionedRow::Allocate(RowBuffer_->GetPool(), valueCount);
         for (int index = 0; index < valueCount; ++index) {
             ReadRowValue<Schemaful>(&row[index], schemaData, nullBitmap, index);
         }

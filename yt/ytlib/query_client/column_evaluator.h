@@ -30,11 +30,6 @@ public:
         TMutableRow fullRow,
         const TRowBufferPtr& buffer) const;
 
-    TMutableRow EvaluateKeys(
-        TMutableRow partialRow,
-        const TRowBufferPtr& buffer,
-        const NTableClient::TNameTableToSchemaIdMapping& idMapping) const;
-
     const std::vector<int>& GetReferenceIds(int index) const;
     TConstExpressionPtr GetExpression(int index) const;
 

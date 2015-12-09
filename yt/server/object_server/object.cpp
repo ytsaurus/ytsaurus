@@ -1,6 +1,7 @@
 #include "object.h"
 
 #include <yt/server/cell_master/serialize.h>
+#include <yt/server/cell_master/bootstrap.h>
 
 #include <yt/server/cypress_server/node.h>
 

@@ -71,11 +71,15 @@
 
 #include <yt/ytlib/orchid/orchid_service.h>
 
+#include <yt/ytlib/query_client/function_registry.h>
+#include <yt/ytlib/query_client/column_evaluator.h>
+
 #include <yt/core/bus/config.h>
 #include <yt/core/bus/server.h>
 #include <yt/core/bus/tcp_server.h>
 
 #include <yt/core/concurrency/action_queue.h>
+#include <yt/core/concurrency/thread_pool.h>
 
 #include <yt/core/misc/address.h>
 #include <yt/core/misc/collection_helpers.h>
@@ -92,6 +96,7 @@
 #include <yt/core/rpc/throttling_channel.h>
 
 #include <yt/core/ytree/ephemeral_node_factory.h>
+#include <yt/core/ytree/virtual.h>
 
 namespace NYT {
 namespace NCellNode {

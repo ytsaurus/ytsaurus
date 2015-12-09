@@ -43,15 +43,6 @@ public:
 
     virtual void DoWrite(const std::vector<NTableClient::TUnversionedRow>& rows) override;
 
-<<<<<<< HEAD
-=======
-    virtual void WriteTableIndex(i32 tableIndex) override;
-
-    virtual void WriteRangeIndex(i32 rangeIndex) override;
-
-    virtual void WriteRowIndex(i64 rowIndex) override;
-
->>>>>>> origin/prestable/0.17.4
 private:
     int TableIndex_ = 0;
 

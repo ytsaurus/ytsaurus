@@ -43,6 +43,7 @@
 #include <yt/ytlib/scheduler/scheduler_service_proxy.h>
 
 #include <yt/ytlib/security_client/group_ypath_proxy.h>
+#include <yt/ytlib/security_client/helpers.h>
 
 #include <yt/ytlib/table_client/name_table.h>
 #include <yt/ytlib/table_client/schema.h>
@@ -133,36 +134,6 @@ TNameTableToSchemaIdMapping BuildColumnIdMapping(
         mapping[nameTableId] = schemaId;
     }
     return mapping;
-}
-
-TUnversionedRow CaptureRow(
-    TUnversionedRow row,
-    TRowBufferPtr rowBuffer,
-    const TTableSchema& tableSchema,
-    int keyColumnCount,
-    const TNameTableToSchemaIdMapping& idMapping)
-{
-    int columnCount = keyColumnCount;
-
-    for (int index = 0; index < row.GetCount(); ++index) {
-        int id = row[index].Id;
-        id = idMapping[id];
-        if (id >= keyColumnCount) {
-            ++columnCount;
-        }
-    }
-
-    auto capturedRow = TUnversionedRow::Allocate(rowBuffer->GetPool(), columnCount);
-    columnCount = keyColumnCount;
-
-    for (int index = 0; index < row.GetCount(); ++index) {
-        int id = idMapping[row[index].Id];
-        int place = id < keyColumnCount ? id : columnCount++;
-        capturedRow[place] = row[index];
-        capturedRow[place].Id = id;
-    }
-
-    return capturedRow;
 }
 
 } // namespace
@@ -1378,16 +1349,10 @@ private:
             auto evaluator = evaluatorCache->Find(tableInfo->Schema, keyColumnCount);
 
             for (int index = 0; index < keys.size(); ++index) {
-<<<<<<< HEAD
-                ValidateClientKey(keys[index], keyColumnCount, tableInfo->Schema);
-                auto newKey = rowBuffer->Capture(keys[index], false);
-                evaluator->EvaluateKeys(newKey, rowBuffer);
-                sortedKeys.push_back(std::make_pair(newKey, index));
-=======
                 ValidateClientKey(keys[index], keyColumnCount, tableInfo->Schema, idMapping);
-                auto capturedKey = evaluator->EvaluateKeys(keys[index], rowBuffer, idMapping);
+                auto capturedKey = rowBuffer->CaptureAndPermuteRow(keys[index], tableInfo->Schema, idMapping);
+                evaluator->EvaluateKeys(capturedKey, rowBuffer);
                 sortedKeys.push_back(std::make_pair(capturedKey, index));
->>>>>>> origin/prestable/0.17.4
             }
 
             idMapping.clear();
@@ -2505,15 +2470,7 @@ private:
         : public TRequestBase
     {
     protected:
-<<<<<<< HEAD
-        using TRowValidator = std::function<void(
-            TUnversionedRow,
-            int,
-            const TNameTableToSchemaIdMapping&,
-            const TTableSchema&)>;
-=======
         using TRowValidator = void(TUnversionedRow, int, const TTableSchema&, const TNameTableToSchemaIdMapping&);
->>>>>>> origin/prestable/0.17.4
 
         TModifyRequest(
             TTransaction* transaction,
@@ -2531,7 +2488,6 @@ private:
         {
             const auto& idMapping = Transaction_->GetColumnIdMapping(TableInfo_, NameTable_);
             int keyColumnCount = TableInfo_->KeyColumns.size();
-<<<<<<< HEAD
             const auto& schema = TableInfo_->Schema;
             const auto& rowBuffer = Transaction_->GetRowBuffer();
             auto evaluatorCache = Transaction_->GetConnection()->GetColumnEvaluatorCache();
@@ -2540,48 +2496,23 @@ private:
                 : nullptr;
 
             for (auto row : rows) {
-                validateRow(row, keyColumnCount, idMapping, TableInfo_->Schema);
+                validateRow(row, keyColumnCount, TableInfo_->Schema, idMapping);
 
-                auto capturedRow = rowBuffer->Capture(row, false);
+                auto capturedRow = rowBuffer->CaptureAndPermuteRow(row, TableInfo_->Schema, idMapping);
 
                 for (int index = keyColumnCount; index < capturedRow.GetCount(); ++index) {
                     auto& value = capturedRow[index];
-                    int schemaId = idMapping[value.Id];
-                    const auto& columnSchema = schema.Columns()[schemaId];
+                    const auto& columnSchema = schema.Columns()[value.Id];
                     value.Aggregate = columnSchema.Aggregate ? writeOptions.Aggregate : false;
                 }
 
                 if (evaluator) {
                     evaluator->EvaluateKeys(capturedRow, rowBuffer);
-=======
-            const auto& rowBuffer = Transaction_->GetRowBuffer();
-
-            auto writeRequest = [&] (const TUnversionedRow row) {
-                auto tabletInfo = Transaction_->Client_->SyncGetTabletInfo(TableInfo_, row);
-                auto* session = Transaction_->GetTabletSession(tabletInfo, TableInfo_);
-                session->SubmitRow(command, row);
-            };
-
-            if (TableInfo_->NeedKeyEvaluation) {
-                auto evaluatorCache = Transaction_->GetConnection()->GetColumnEvaluatorCache();
-                auto evaluator = evaluatorCache->Find(TableInfo_->Schema, keyColumnCount);
-
-                for (auto row : rows) {
-                    validateRow(row, keyColumnCount, TableInfo_->Schema, idMapping);
-                    auto capturedRow = evaluator->EvaluateKeys(row, rowBuffer, idMapping);
-                    writeRequest(capturedRow);
-                }
-            } else {
-                for (auto row : rows) {
-                    validateRow(row, keyColumnCount, TableInfo_->Schema, idMapping);
-                    auto capturedRow = CaptureRow(row, rowBuffer, TableInfo_->Schema, keyColumnCount, idMapping);
-                    writeRequest(capturedRow);
->>>>>>> origin/prestable/0.17.4
                 }
 
                 auto tabletInfo = Transaction_->Client_->SyncGetTabletInfo(TableInfo_, capturedRow);
                 auto* session = Transaction_->GetTabletSession(tabletInfo, TableInfo_);
-                session->SubmitRow(command, capturedRow, &idMapping);
+                session->SubmitRow(command, capturedRow);
             }
         }
     };
@@ -2657,12 +2588,9 @@ private:
             TTableMountInfoPtr tableInfo,
             TColumnEvaluatorPtr columnEvauator)
             : TransactionId_(owner->Transaction_->GetId())
-<<<<<<< HEAD
-            , TabletId_(tabletInfo->TabletId)
             , TableInfo_(std::move(tableInfo))
-=======
             , TabletInfo_(std::move(tabletInfo))
->>>>>>> origin/prestable/0.17.4
+            , TabletId_(TabletInfo_->TabletId)
             , Config_(owner->Client_->Connection_->GetConfig())
             , Durability_(owner->Transaction_->GetDurability())
             , KeyColumnCount_(TableInfo_->KeyColumns.size())
@@ -2771,12 +2699,9 @@ private:
 
     private:
         const TTransactionId TransactionId_;
-<<<<<<< HEAD
-        const TTabletId TabletId_;
         const TTableMountInfoPtr TableInfo_;
-=======
         const TTabletInfoPtr TabletInfo_;
->>>>>>> origin/prestable/0.17.4
+        const TTabletId TabletId_;
         const TConnectionConfigPtr Config_;
         const EDurability Durability_;
         const int KeyColumnCount_;

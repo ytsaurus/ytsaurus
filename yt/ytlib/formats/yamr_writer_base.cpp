@@ -21,18 +21,13 @@ TSchemalessWriterForYamrBase::TSchemalessWriterForYamrBase(
     TNameTablePtr nameTable, 
     IAsyncOutputStreamPtr output,
     bool enableContextSaving,
-<<<<<<< HEAD
     TControlAttributesConfigPtr controlAttributesConfig,
-=======
-    bool enableKeySwitch,
->>>>>>> origin/prestable/0.17.4
     int keyColumnCount,
     TYamrFormatConfigBasePtr config)
     : TSchemalessFormatWriterBase(
         nameTable, 
         std::move(output),
         enableContextSaving, 
-<<<<<<< HEAD
         controlAttributesConfig,
         keyColumnCount)
     , Config_(config)
@@ -42,15 +37,6 @@ void TSchemalessWriterForYamrBase::EscapeAndWrite(
     const TStringBuf& value, 
     TLookupTable stops, 
     TEscapeTable escapes)
-=======
-        enableKeySwitch,
-        keyColumnCount)
-    , Config_(config)
-{
-}
-
-void TSchemalessWriterForYamrBase::EscapeAndWrite(const TStringBuf& value, TLookupTable stops, TEscapeTable escapes)
->>>>>>> origin/prestable/0.17.4
 {
     auto* stream = GetOutputStream();
     if (Config_->EnableEscaping) {
@@ -72,11 +58,7 @@ void TSchemalessWriterForYamrBase::WriteInLenvalMode(const TStringBuf& value)
     stream->Write(value);
 }
 
-<<<<<<< HEAD
 void TSchemalessWriterForYamrBase::WriteTableIndex(i64 tableIndex)
-=======
-void TSchemalessWriterForYamrBase::WriteTableIndex(i32 tableIndex)
->>>>>>> origin/prestable/0.17.4
 {
     auto* stream = GetOutputStream();
     
@@ -94,38 +76,20 @@ void TSchemalessWriterForYamrBase::WriteTableIndex(i32 tableIndex)
     }
 }
 
-<<<<<<< HEAD
 void TSchemalessWriterForYamrBase::WriteRangeIndex(i64 rangeIndex)
 {
     YCHECK(Config_->Lenval);
 
     auto* stream = GetOutputStream();
-=======
-void TSchemalessWriterForYamrBase::WriteRangeIndex(i32 rangeIndex)
-{
-    auto* stream = GetOutputStream();
-
-    if (!Config_->Lenval) {
-        THROW_ERROR_EXCEPTION("Range indices are not supported in text YAMR format");
-    }
->>>>>>> origin/prestable/0.17.4
     WritePod(*stream, static_cast<ui32>(-3));
     WritePod(*stream, static_cast<ui32>(rangeIndex));
 }
 
 void TSchemalessWriterForYamrBase::WriteRowIndex(i64 rowIndex)
 {
-<<<<<<< HEAD
     YCHECK(Config_->Lenval);
 
     auto* stream = GetOutputStream();
-=======
-    auto* stream = GetOutputStream();
-
-    if (!Config_->Lenval) {
-         THROW_ERROR_EXCEPTION("Row indices are not supported in text YAMR format");
-    }
->>>>>>> origin/prestable/0.17.4
     WritePod(*stream, static_cast<ui32>(-4));
     WritePod(*stream, static_cast<ui64>(rowIndex));
 }

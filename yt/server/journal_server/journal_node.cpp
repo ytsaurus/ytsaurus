@@ -1,6 +1,7 @@
 #include "journal_node.h"
 #include "private.h"
 #include "journal_node_proxy.h"
+#include "journal_manager.h"
 
 #include <yt/server/cell_master/bootstrap.h>
 #include <yt/server/cell_master/serialize.h>

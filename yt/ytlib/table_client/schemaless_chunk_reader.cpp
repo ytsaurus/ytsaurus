@@ -4,10 +4,15 @@
 #include "config.h"
 #include "helpers.h"
 #include "legacy_table_chunk_reader.h"
+#include "versioned_chunk_reader.h"
+#include "schemaful_overlapping_chunk_reader.h"
 #include "name_table.h"
 #include "row_sampler.h"
 #include "schema.h"
 #include "schemaless_block_reader.h"
+#include "cached_versioned_chunk_meta.h"
+#include "schemaful_reader.h"
+#include "row_merger.h"
 
 #include <yt/ytlib/api/client.h>
 #include <yt/ytlib/api/connection.h>
@@ -20,7 +25,6 @@
 #include <yt/ytlib/chunk_client/multi_reader_base.h>
 #include <yt/ytlib/chunk_client/reader_factory.h>
 #include <yt/ytlib/chunk_client/replication_reader.h>
-#include <yt/ytlib/chunk_client/schema.h>
 
 #include <yt/ytlib/node_tracker_client/node_directory.h>
 

@@ -23,7 +23,7 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const i64 ContextBufferSize = (i64) 1024 * 1024;
+static const i64 ContextBufferSize = (i64) 1024 * 1024;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -31,23 +31,13 @@ TSchemalessFormatWriterBase::TSchemalessFormatWriterBase(
     TNameTablePtr nameTable,
     IAsyncOutputStreamPtr output,
     bool enableContextSaving,
-<<<<<<< HEAD
     TControlAttributesConfigPtr controlAttributesConfig,
     int keyColumnCount)
-    : ControlAttributesConfig_(controlAttributesConfig)
-    , EnableContextSaving_(enableContextSaving)
-    , NameTable_(nameTable)
+    : NameTable_(nameTable)
     , Output_(CreateSyncAdapter(output))
+    , EnableContextSaving_(enableContextSaving)
+    , ControlAttributesConfig_(controlAttributesConfig)
     , KeyColumnCount_(keyColumnCount)
-=======
-    bool enableKeySwitch,
-    int keyColumnCount)
-    : KeyColumnCount_(keyColumnCount)
-    , NameTable_(nameTable)
-    , EnableContextSaving_(enableContextSaving)
-    , EnableKeySwitch_(enableKeySwitch)
-    , Output_(CreateSyncAdapter(output))
->>>>>>> origin/prestable/0.17.4
 {
     CurrentBuffer_.Reserve(ContextBufferSize);
 
@@ -145,11 +135,7 @@ bool TSchemalessFormatWriterBase::Write(const std::vector<TUnversionedRow> &rows
 
 bool TSchemalessFormatWriterBase::CheckKeySwitch(TUnversionedRow row, bool isLastRow) 
 {
-<<<<<<< HEAD
     if (!ControlAttributesConfig_->EnableKeySwitch) {
-=======
-    if (!EnableKeySwitch_) {
->>>>>>> origin/prestable/0.17.4
         return false;
     }
 
@@ -171,7 +157,6 @@ bool TSchemalessFormatWriterBase::CheckKeySwitch(TUnversionedRow row, bool isLas
     return needKeySwitch;
 }
 
-<<<<<<< HEAD
 bool TSchemalessFormatWriterBase::IsSystemColumnId(int id) const
 {
     return IsTableIndexColumnId(id) || 
@@ -242,8 +227,6 @@ void TSchemalessFormatWriterBase::WriteRangeIndex(i64 rangeIndex)
 
 void TSchemalessFormatWriterBase::WriteRowIndex(i64 rowIndex)
 { }
-=======
->>>>>>> origin/prestable/0.17.4
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -257,11 +240,7 @@ TSchemalessWriterAdapter::TSchemalessWriterAdapter(
         nameTable, 
         std::move(output), 
         enableContextSaving, 
-<<<<<<< HEAD
         controlAttributesConfig, 
-=======
-        enableKeySwitch, 
->>>>>>> origin/prestable/0.17.4
         keyColumnCount)
 { }
 
@@ -286,14 +265,10 @@ void TSchemalessWriterAdapter::DoWrite(const std::vector<TUnversionedRow>& rows)
     TryFlushBuffer(true);
 }
 
-<<<<<<< HEAD
 template <class T>
 void TSchemalessWriterAdapter::WriteControlAttribute(
     EControlAttribute controlAttribute,
     T value)
-=======
-void TSchemalessWriterAdapter::WriteTableIndex(i32 tableIndex)
->>>>>>> origin/prestable/0.17.4
 {
     BuildYsonListFluently(Consumer_.get())
         .Item()

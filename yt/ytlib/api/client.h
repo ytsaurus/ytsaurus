@@ -19,6 +19,7 @@
 
 #include <yt/ytlib/table_client/config.h>
 #include <yt/ytlib/table_client/row_base.h>
+#include <yt/ytlib/table_client/schema.h>
 
 #include <yt/ytlib/tablet_client/public.h>
 
@@ -33,7 +34,6 @@
 
 #include <yt/core/rpc/public.h>
 
-#include <yt/core/ytree/attribute_provider.h>
 #include <yt/core/ytree/permission.h>
 
 #include <yt/core/yson/string.h>

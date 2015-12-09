@@ -3,6 +3,8 @@
 #include "config.h"
 #include "job_detail.h"
 
+#include <yt/ytlib/object_client/helpers.h>
+
 #include <yt/ytlib/chunk_client/chunk_spec.h>
 
 #include <yt/ytlib/table_client/name_table.h>

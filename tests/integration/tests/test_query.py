@@ -68,22 +68,13 @@ class TestQuery(YTEnvSetup):
     def test_group_by1(self):
         self._sample_data(path="//tmp/t")
         expected = [{"s": 450}]
-<<<<<<< HEAD
         actual = select_rows("sum(b) as s from [{0}//tmp/t] group by 1 as k".format(TestQuery.yson_schema_attribute))
-        assert actual == expected
-=======
-        actual = select_rows("sum(b) as s from [//tmp/t] group by 1 as k")
         assert_items_equal(actual, expected)
->>>>>>> origin/prestable/0.17.4
 
     def test_group_by2(self):
         self._sample_data(path="//tmp/t")
         expected = [{"k": 0, "s": 200}, {"k": 1, "s": 250}]
-<<<<<<< HEAD
         actual = select_rows("k, sum(b) as s from [{0}//tmp/t] group by a % 2 as k".format(TestQuery.yson_schema_attribute))
-=======
-        actual = select_rows("k, sum(b) as s from [//tmp/t] group by a % 2 as k")
->>>>>>> origin/prestable/0.17.4
         assert_items_equal(actual, expected)
 
     def test_merging_group_by(self):
@@ -350,11 +341,7 @@ class TestQuery(YTEnvSetup):
 
         expected = [{"hash": 42 * 33, "key": 42, "value": 42 * 2}]
         actual = select_rows("* from [//tmp/t] where key = 42")
-<<<<<<< HEAD
-        assert actual == expected
-=======
         assert_items_equal(actual, expected)
->>>>>>> origin/prestable/0.17.4
 
         expected = [{"hash": i * 33, "key": i, "value": i * 2} for i in xrange(10,80)]
         actual = sorted(select_rows("* from [//tmp/t] where key >= 10 and key < 80"))
@@ -462,11 +449,7 @@ class TestQuery(YTEnvSetup):
 
         self._sample_data(path="//tmp/u")
         expected = [{"s": 2 * i} for i in xrange(1, 10)]
-<<<<<<< HEAD
         actual = select_rows("abs_udf(-2 * a) as s from [{0}//tmp/u] where sum_udf2(b, 1, 2) = sum_udf2(3, b)".format(TestQuery.yson_schema_attribute))
-=======
-        actual = select_rows("abs_udf(-2 * a) as s from [//tmp/u] where sum_udf2(b, 1, 2) = sum_udf2(3, b)")
->>>>>>> origin/prestable/0.17.4
         assert_items_equal(actual, expected)
 
     def test_udaf(self):
@@ -493,13 +476,8 @@ class TestQuery(YTEnvSetup):
 
         self._sample_data(path="//tmp/ua")
         expected = [{"x": 5.0}]
-<<<<<<< HEAD
         actual = select_rows("avg_udaf(a) as x from [{0}//tmp/ua] group by 1".format(TestQuery.yson_schema_attribute))
-        assert actual == expected
-=======
-        actual = select_rows("avg_udaf(a) as x from [//tmp/ua] group by 1")
         assert_items_equal(actual, expected)
->>>>>>> origin/prestable/0.17.4
 
     def test_aggregate_string_capture(self):
         create("table", "//tmp/t")
@@ -512,13 +490,8 @@ class TestQuery(YTEnvSetup):
         sort(in_="//tmp/t", out="//tmp/t", sort_by=["a"])
 
         expected = [{"m": "a1000bcd"}]
-<<<<<<< HEAD
         actual = select_rows("min(lower(a)) as m from [<schema=[{name=a;type=string}]>//tmp/t] group by 1")
-        assert actual == expected
-=======
-        actual = select_rows("min(lower(a)) as m from [//tmp/t] group by 1")
         assert_items_equal(actual, expected)
->>>>>>> origin/prestable/0.17.4
 
     def test_cardinality(self):
         self.sync_create_cells(3, 3)
@@ -569,11 +542,7 @@ class TestQuery(YTEnvSetup):
 
         self._sample_data(path="//tmp/sou")
         expected = [{"s": 2 * i} for i in xrange(1, 10)]
-<<<<<<< HEAD
         actual = select_rows("abs_udf(-2 * a) as s from [{0}//tmp/sou]".format(TestQuery.yson_schema_attribute))
-=======
-        actual = select_rows("abs_udf(-2 * a) as s from [//tmp/sou]")
->>>>>>> origin/prestable/0.17.4
         assert_items_equal(actual, expected)
 
     def test_YT_2375(self):
@@ -600,17 +569,8 @@ class TestQuery(YTEnvSetup):
         write_table("<sorted_by=[a];append=true>" + path, [{"a": 4, "b": i} for i in xrange(4,6)])
         assert get("//tmp/t/@sorted")
 
-<<<<<<< HEAD
         assert_items_equal(select_rows("a, b from [{0}//tmp/t] where a = 0".format(schema)), [{"a": 0, "b": 0}])
         assert_items_equal(select_rows("a, b from [{0}//tmp/t] where a in (0, 1)".format(schema)), [{"a": i, "b": i} for i in (0,1)])
         assert_items_equal(select_rows("a, b from [{0}//tmp/t] where a in (1, 3)".format(schema)), [{"a": i, "b": i} for i in (1,3)])
         assert_items_equal(select_rows("a, b from [{0}//tmp/t] where a in (4)".format(schema)), [{"a": 4, "b": i} for i in (4,5)])
         assert_items_equal(select_rows("a, b from [{0}//tmp/t] where a > 0 and a < 3".format(schema)), [{"a": i, "b": i} for i in (1,2)])
-=======
-        assert_items_equal(select_rows("a, b from [//tmp/t] where a = 0"), [{"a": 0, "b": 0}])
-        assert_items_equal(select_rows("a, b from [//tmp/t] where a in (0, 1)"), [{"a": i, "b": i} for i in (0,1)])
-        assert_items_equal(select_rows("a, b from [//tmp/t] where a in (1, 3)"), [{"a": i, "b": i} for i in (1,3)])
-        assert_items_equal(select_rows("a, b from [//tmp/t] where a in (4)"), [{"a": 4, "b": i} for i in (4,5)])
-        assert_items_equal(select_rows("a, b from [//tmp/t] where a > 0 and a < 3"), [{"a": i, "b": i} for i in (1,2)])
->>>>>>> origin/prestable/0.17.4
-

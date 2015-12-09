@@ -4,6 +4,7 @@
 #include "name_table.h"
 
 #include <yt/ytlib/chunk_client/dispatcher.h>
+#include <yt/ytlib/chunk_client/data_statistics.h>
 
 #include <yt/core/misc/heap.h>
 

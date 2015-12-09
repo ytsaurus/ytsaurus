@@ -8,13 +8,14 @@
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/ytlib/chunk_client/chunk_reader.h>
 #include <yt/ytlib/chunk_client/chunk_spec.h>
-#include <yt/ytlib/chunk_client/config.h>
 #include <yt/ytlib/chunk_client/dispatcher.h>
-#include <yt/ytlib/chunk_client/multi_chunk_reader_base.h>
-#include <yt/ytlib/chunk_client/public.h>
 #include <yt/ytlib/chunk_client/replication_reader.h>
 #include <yt/ytlib/chunk_client/sequential_reader.h>
 #include <yt/ytlib/chunk_client/config.h>
+#include <yt/ytlib/chunk_client/data_statistics.pb.h>
+#include <yt/ytlib/chunk_client/multi_reader_base.h>
+#include <yt/ytlib/chunk_client/helpers.h>
+#include <yt/ytlib/chunk_client/reader_factory.h>
 
 #include <yt/ytlib/node_tracker_client/node_directory.h>
 

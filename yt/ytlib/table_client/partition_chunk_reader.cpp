@@ -5,6 +5,9 @@
 #include "schema.h"
 
 #include <yt/ytlib/chunk_client/config.h>
+#include <yt/ytlib/chunk_client/dispatcher.h>
+#include <yt/ytlib/chunk_client/helpers.h>
+#include <yt/ytlib/chunk_client/reader_factory.h>
 
 #include <yt/core/concurrency/scheduler.h>
 

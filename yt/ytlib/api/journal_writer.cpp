@@ -23,7 +23,7 @@
 #include <yt/ytlib/object_client/object_service_proxy.h>
 
 #include <yt/ytlib/transaction_client/transaction_listener.h>
-#include <yt/ytlib/transaction_client/transaction_manager.h>
+#include <yt/ytlib/transaction_client/helpers.h>
 
 #include <yt/core/concurrency/delayed_executor.h>
 #include <yt/core/concurrency/nonblocking_queue.h>

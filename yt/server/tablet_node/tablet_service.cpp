@@ -15,12 +15,13 @@
 #include <yt/server/hydra/hydra_manager.h>
 #include <yt/server/hydra/hydra_service.h>
 #include <yt/server/hydra/mutation.h>
-#include <yt/server/hydra/rpc_helpers.h>
 
 #include <yt/server/query_agent/helpers.h>
 
 #include <yt/ytlib/tablet_client/tablet_service_proxy.h>
 #include <yt/ytlib/tablet_client/wire_protocol.h>
+
+#include <yt/ytlib/table_client/row_buffer.h>
 
 #include <yt/ytlib/transaction_client/helpers.h>
 

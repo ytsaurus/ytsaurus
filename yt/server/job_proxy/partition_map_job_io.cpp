@@ -2,6 +2,8 @@
 #include "job.h"
 #include "user_job_io_detail.h"
 
+#include <yt/ytlib/object_client/helpers.h>
+
 #include <yt/ytlib/node_tracker_client/node_directory.h>
 
 #include <yt/ytlib/scheduler/config.h>

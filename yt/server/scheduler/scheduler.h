@@ -64,16 +64,13 @@ public:
 
     TFuture<NYson::TYsonString> Strace(const TJobId& jobId);
     TFuture<void> DumpInputContext(const TJobId& jobId, const NYPath::TYPath& path);
-    TFuture<NYTree::TYsonString> Strace(const TJobId& jobId);
     TFuture<void> SignalJob(const TJobId& jobId, const Stroka& signalName);
     TFuture<void> AbandonJob(const TJobId& jobId);
 
-    typedef
-        NRpc::TTypedServiceContext<
-            NJobTrackerClient::NProto::TReqHeartbeat,
-            NJobTrackerClient::NProto::TRspHeartbeat>
-        TCtxHeartbeat;
-    typedef TIntrusivePtr<TCtxHeartbeat> TCtxHeartbeatPtr;
+    using TCtxHeartbeat = NRpc::TTypedServiceContext<
+        NJobTrackerClient::NProto::TReqHeartbeat,
+        NJobTrackerClient::NProto::TRspHeartbeat>;
+    using TCtxHeartbeatPtr = TIntrusivePtr<TCtxHeartbeat>;
     void ProcessHeartbeat(TCtxHeartbeatPtr context);
 
 private:

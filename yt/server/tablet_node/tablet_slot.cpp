@@ -37,6 +37,8 @@
 #include <yt/server/hive/mailbox.h>
 #include <yt/server/hive/transaction_supervisor.h>
 
+#include <yt/server/cell_node/bootstrap.h>
+
 #include <yt/ytlib/api/client.h>
 #include <yt/ytlib/api/connection.h>
 
@@ -48,7 +50,9 @@
 #include <yt/ytlib/api/client.h>
 #include <yt/ytlib/api/transaction.h>
 
-#include <yt/core/concurrency/action_queue.h>
+#include <yt/ytlib/election/cell_manager.h>
+
+#include <yt/core/concurrency/fair_share_action_queue.h>
 #include <yt/core/concurrency/scheduler.h>
 #include <yt/core/concurrency/thread_affinity.h>
 

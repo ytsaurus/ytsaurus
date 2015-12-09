@@ -1,6 +1,7 @@
 #include "dispatcher.h"
 #include "config.h"
 
+#include <yt/core/concurrency/thread_pool.h>
 #include <yt/core/concurrency/action_queue.h>
 
 #include <yt/core/misc/lazy_ptr.h>

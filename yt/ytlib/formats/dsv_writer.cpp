@@ -50,11 +50,7 @@ TSchemalessWriterForDsv::TSchemalessWriterForDsv(
          nameTable, 
          std::move(output), 
          enableContextSaving,
-<<<<<<< HEAD
          controlAttributesConfig, 
-=======
-         false /* enableKeySwitch */, 
->>>>>>> origin/prestable/0.17.4
          0 /* keyColumnCount */)
     , TDsvWriterBase(config)
 { }
@@ -100,25 +96,6 @@ void TSchemalessWriterForDsv::DoWrite(const std::vector<NTableClient::TUnversion
     TryFlushBuffer(true);
 }
 
-<<<<<<< HEAD
-=======
-void TSchemalessWriterForDsv::FinalizeRow(bool firstValue)
-{
-    auto* output = GetOutputStream();
-    if (Config_->EnableTableIndex) {
-        if (!firstValue) {
-            output->Write(Config_->FieldSeparator);
-        }
-        
-        EscapeAndWrite(Config_->TableIndexColumn, true, output);
-        output->Write(Config_->KeyValueSeparator);
-        output->Write(::ToString(TableIndex_));
-    }
-
-    output->Write(Config_->RecordSeparator);
-}
-
->>>>>>> origin/prestable/0.17.4
 void TSchemalessWriterForDsv::WriteValue(const TUnversionedValue& value) 
 {
     auto nameTable = GetNameTable();
@@ -161,28 +138,12 @@ void TSchemalessWriterForDsv::WriteValue(const TUnversionedValue& value)
     }
 }
 
-<<<<<<< HEAD
 void TSchemalessWriterForDsv::WriteTableIndexValue(const TUnversionedValue& value)
 {
     auto* output = GetOutputStream();
     EscapeAndWrite(Config_->TableIndexColumn, true, output);
     output->Write(Config_->KeyValueSeparator);
     output->Write(::ToString(value.Data.Int64));
-=======
-void TSchemalessWriterForDsv::WriteTableIndex(i32 tableIndex)
-{
-    TableIndex_ = tableIndex;
-}
-
-void TSchemalessWriterForDsv::WriteRangeIndex(i32 rangeIndex)
-{
-    THROW_ERROR_EXCEPTION("Range indexes are not supported by dsv format");
-}
-
-void TSchemalessWriterForDsv::WriteRowIndex(i64 rowIndex)
-{
-    THROW_ERROR_EXCEPTION("Row indexes are not supported by dsv format");
->>>>>>> origin/prestable/0.17.4
 }
 
 ////////////////////////////////////////////////////////////////////////////////

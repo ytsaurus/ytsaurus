@@ -1,4 +1,3 @@
-#include "stdafx.h"
 #include "node.h"
 #include "rack.h"
 #include "node_tracker.h"

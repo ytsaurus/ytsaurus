@@ -2,6 +2,8 @@
 
 #include <yt/server/cell_master/serialize.h>
 
+#include <yt/server/security_server/security_manager.pb.h>
+
 #include <yt/core/ytree/convert.h>
 #include <yt/core/ytree/fluent.h>
 

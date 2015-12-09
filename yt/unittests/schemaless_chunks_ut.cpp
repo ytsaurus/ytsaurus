@@ -5,6 +5,7 @@
 #include <yt/ytlib/chunk_client/data_statistics.h>
 #include <yt/ytlib/chunk_client/memory_reader.h>
 #include <yt/ytlib/chunk_client/memory_writer.h>
+#include <yt/ytlib/chunk_client/chunk_spec.pb.h>
 
 #include <yt/ytlib/table_client/config.h>
 #include <yt/ytlib/table_client/name_table.h>

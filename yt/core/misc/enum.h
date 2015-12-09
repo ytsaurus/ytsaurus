@@ -59,7 +59,7 @@ struct TEnumTraits<T, true>
     static constexpr TType GetMinValue();
     static constexpr TType GetMaxValue();
 
-	// For bit enums only.
+    // For bit enums only.
     static std::vector<TType> Decompose(TType value);
 };
 

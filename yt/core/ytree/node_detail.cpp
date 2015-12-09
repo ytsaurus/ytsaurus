@@ -7,12 +7,13 @@
 #include "ypath_service.h"
 
 #include <yt/core/misc/protobuf_helpers.h>
+#include <yt/core/misc/singleton.h>
 
 #include <yt/core/ypath/token.h>
 #include <yt/core/ypath/tokenizer.h>
 
 #include <yt/core/yson/tokenizer.h>
-#include <yt/core/yson/writer.h>
+#include <yt/core/yson/async_writer.h>
 
 namespace NYT {
 namespace NYTree {

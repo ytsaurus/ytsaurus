@@ -155,10 +155,7 @@ add_subdirectory(cmake/deps-contrib-benchmark)
 add_subdirectory(cmake/deps-re2)
 add_subdirectory(library/json)
 add_subdirectory(python)
-
 add_subdirectory(yt)
-
-add_subdirectory(python)
 
 if(YT_BUILD_ENABLE_PERL)
   add_subdirectory(perl)

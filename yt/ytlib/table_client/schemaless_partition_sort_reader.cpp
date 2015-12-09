@@ -6,6 +6,8 @@
 
 #include <yt/ytlib/api/client.h>
 
+#include <yt/ytlib/chunk_client/dispatcher.h>
+
 #include <yt/core/concurrency/action_queue.h>
 #include <yt/core/concurrency/scheduler.h>
 
@@ -15,7 +17,6 @@
 #include <yt/core/profiling/profiler.h>
 
 #include <util/system/yield.h>
-
 
 namespace NYT {
 namespace NTableClient {

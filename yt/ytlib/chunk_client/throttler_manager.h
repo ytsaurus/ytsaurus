@@ -25,8 +25,8 @@ public:
 
 private:
     const NConcurrency::TThroughputThrottlerConfigPtr Config_;
-    NLogging::TLogger Logger;
-    NProfiling::TProfiler Profiler_;
+    const NLogging::TLogger Logger_;
+    const NProfiling::TProfiler Profiler_;
 
     //! Protects the section immediately following it.
     TSpinLock SpinLock_;

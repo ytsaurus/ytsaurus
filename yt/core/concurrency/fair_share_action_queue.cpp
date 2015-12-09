@@ -1,4 +1,3 @@
-#include "stdafx.h"
 #include "fair_share_action_queue.h"
 #include "fair_share_queue_scheduler_thread.h"
 #include "profiler_utils.h"

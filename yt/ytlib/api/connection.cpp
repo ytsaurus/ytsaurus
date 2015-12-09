@@ -19,6 +19,8 @@
 #include <yt/ytlib/transaction_client/config.h>
 #include <yt/ytlib/transaction_client/remote_timestamp_provider.h>
 
+#include <yt/ytlib/object_client/helpers.h>
+
 #include <yt/core/rpc/bus_channel.h>
 #include <yt/core/rpc/caching_channel_factory.h>
 #include <yt/core/rpc/retrying_channel.h>

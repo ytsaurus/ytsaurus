@@ -1,5 +1,3 @@
-#include "stdafx.h"
-
 #include "reader_factory.h"
 
 namespace NYT {

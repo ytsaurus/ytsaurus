@@ -1,8 +1,9 @@
 #include "public.h"
+#include "chunk_owner_ypath_proxy.h"
 
 #include <yt/ytlib/api/public.h>
 
-#include <yt/ytlib/chunk_client/chunk_spec.pb.h>
+#include <yt/ytlib/chunk_client/public.h>
 
 #include <yt/ytlib/node_tracker_client/public.h>
 

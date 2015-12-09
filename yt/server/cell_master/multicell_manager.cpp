@@ -1,4 +1,3 @@
-#include "stdafx.h"
 #include "multicell_manager.h"
 #include "config.h"
 #include "bootstrap.h"

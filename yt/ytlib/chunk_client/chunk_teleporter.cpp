@@ -1,4 +1,3 @@
-#include "stdafx.h"
 #include "chunk_teleporter.h"
 #include "config.h"
 #include "chunk_service_proxy.h"

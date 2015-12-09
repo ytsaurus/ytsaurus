@@ -125,11 +125,6 @@ void TTableNode::Load(TLoadContext& context)
     if (context.GetVersion() < 206) {
         YCHECK(!(sorted && !TableSchema_.IsSorted()));
     }
-
-    // COMPAT(savrus): Mark dynamic tables as sorted.
-    if (context.GetVersion() <= 125 && !Tablets_.empty()) {
-        Sorted_ = true;
-    }
 }
 
 std::pair<TTableNode::TTabletListIterator, TTableNode::TTabletListIterator> TTableNode::GetIntersectingTablets(

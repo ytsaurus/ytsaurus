@@ -2,6 +2,9 @@
 #include "name_table.h"
 #include "schemaless_row_reorderer.h"
 
+#include <yt/ytlib/chunk_client/dispatcher.h>
+#include <yt/ytlib/chunk_client/data_statistics.pb.h>
+
 #include <yt/core/concurrency/scheduler.h>
 
 #include <yt/core/misc/error.h>

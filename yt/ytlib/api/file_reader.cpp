@@ -6,6 +6,7 @@
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/ytlib/chunk_client/dispatcher.h>
 #include <yt/ytlib/chunk_client/read_limit.h>
+#include <yt/ytlib/chunk_client/helpers.h>
 
 #include <yt/ytlib/cypress_client/rpc_helpers.h>
 
@@ -15,6 +16,7 @@
 #include <yt/ytlib/node_tracker_client/node_directory.h>
 
 #include <yt/ytlib/object_client/object_service_proxy.h>
+#include <yt/ytlib/object_client/helpers.h>
 
 #include <yt/ytlib/transaction_client/helpers.h>
 #include <yt/ytlib/transaction_client/transaction_listener.h>

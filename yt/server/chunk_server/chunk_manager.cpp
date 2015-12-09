@@ -15,6 +15,7 @@
 
 #include <yt/server/cell_master/bootstrap.h>
 #include <yt/server/cell_master/hydra_facade.h>
+#include <yt/server/cell_master/multicell_manager.h>
 #include <yt/server/cell_master/serialize.h>
 
 #include <yt/server/chunk_server/chunk_manager.pb.h>
@@ -39,15 +40,19 @@
 #include <yt/server/transaction_server/transaction_manager.h>
 
 #include <yt/server/journal_server/journal_node.h>
+#include <yt/server/journal_server/journal_manager.h>
 
 #include <yt/ytlib/chunk_client/chunk_list_ypath.pb.h>
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
-#include <yt/ytlib/chunk_client/chunk_ypath.pb.h>
 #include <yt/ytlib/chunk_client/schema.h>
+#include <yt/ytlib/chunk_client/chunk_ypath.pb.h>
+#include <yt/ytlib/chunk_client/chunk_service.pb.h>
 
 #include <yt/ytlib/journal_client/helpers.h>
 
 #include <yt/ytlib/object_client/helpers.h>
+
+#include <yt/ytlib/cypress_client/rpc_helpers.h>
 
 #include <yt/core/compression/codec.h>
 

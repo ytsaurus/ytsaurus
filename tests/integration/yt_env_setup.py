@@ -80,31 +80,18 @@ class YTEnvSetup(YTEnv):
         # Should create before env start for correct behaviour of teardown.
         cls.liveness_checker = None
 
-<<<<<<< HEAD
-        # For running in parallel
-=======
-        # For running parallel
-        path_to_run = os.path.join(path_to_test, "run_" + str(uuid.uuid4().hex)[:8])
-        pids_filename = os.path.join(path_to_run, 'pids.txt')
-
-        cls.liveness_checker = None
-
->>>>>>> origin/prestable/0.17.4
         cls.path_to_test = path_to_test
+        # For running in parallel
         cls.run_id = "run_" + uuid.uuid4().hex[:8]
         cls.path_to_run = os.path.join(path_to_test, cls.run_id)
         pids_filename = os.path.join(cls.path_to_run, "pids.txt")
 
         cls.Env = cls()
-<<<<<<< HEAD
         cls.Env.start(cls.path_to_run, pids_filename, kill_child_processes=True,
                       port_locks_path=os.path.join(SANDBOX_ROOTDIR, "ports"))
-=======
-        cls.Env.start(path_to_run, pids_filename, kill_child_processes=True)
->>>>>>> origin/prestable/0.17.4
 
-        if cls.Env.configs['driver']:
-            yt_commands.init_driver(cls.Env.configs['driver'])
+        if cls.Env.configs["driver"]:
+            yt_commands.init_driver(cls.Env.configs["driver"])
             yt_commands.is_multicell = (cls.Env.NUM_SECONDARY_MASTER_CELLS > 0)
             yt_driver_bindings.configure_logging(cls.Env.driver_logging_config)
 

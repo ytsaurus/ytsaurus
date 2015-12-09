@@ -22,8 +22,6 @@
 
 #include <yt/core/ypath/token.h>
 
-#include <yt/core/yson/yson.h>
-
 namespace NYT {
 namespace NRpc {
 

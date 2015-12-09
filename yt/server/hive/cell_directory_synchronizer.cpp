@@ -1,4 +1,3 @@
-#include "stdafx.h"
 #include "cell_directory_synchronizer.h"
 #include "config.h"
 

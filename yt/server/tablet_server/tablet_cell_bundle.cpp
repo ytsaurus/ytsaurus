@@ -1,4 +1,3 @@
-#include "stdafx.h"
 #include "tablet_cell_bundle.h"
 
 #include <yt/ytlib/tablet_client/config.h>

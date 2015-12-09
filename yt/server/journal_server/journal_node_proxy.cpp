@@ -1,11 +1,14 @@
 #include "journal_node_proxy.h"
 #include "private.h"
 #include "journal_node.h"
+#include "journal_manager.h"
 
 #include <yt/server/chunk_server/chunk.h>
 #include <yt/server/chunk_server/chunk_list.h>
 #include <yt/server/chunk_server/chunk_manager.h>
 #include <yt/server/chunk_server/chunk_owner_node_proxy.h>
+
+#include <yt/ytlib/journal_client/journal_ypath.pb.h>
 
 namespace NYT {
 namespace NJournalServer {

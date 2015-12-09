@@ -34,7 +34,7 @@
 #include <yt/ytlib/transaction_client/timestamp_provider.h>
 #include <yt/ytlib/transaction_client/transaction_manager.h>
 
-#include <yt/core/concurrency/action_queue.h>
+#include <yt/core/concurrency/thread_pool.h>
 #include <yt/core/concurrency/async_semaphore.h>
 #include <yt/core/concurrency/scheduler.h>
 

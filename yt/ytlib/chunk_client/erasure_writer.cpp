@@ -12,6 +12,8 @@
 #include <yt/ytlib/chunk_client/chunk_info.pb.h>
 #include <yt/ytlib/chunk_client/chunk_service_proxy.h>
 
+#include <yt/ytlib/object_client/helpers.h>
+
 #include <yt/ytlib/node_tracker_client/node_directory.h>
 
 #include <yt/core/concurrency/parallel_awaiter.h>

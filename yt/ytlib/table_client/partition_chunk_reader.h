@@ -4,7 +4,7 @@
 #include "chunk_reader_base.h"
 #include "schemaless_block_reader.h"
 
-#include <yt/ytlib/chunk_client/multi_chunk_reader_base.h>
+#include <yt/ytlib/chunk_client/multi_reader_base.h>
 
 #include <yt/ytlib/node_tracker_client/public.h>
 

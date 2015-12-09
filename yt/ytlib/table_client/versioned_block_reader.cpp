@@ -36,9 +36,9 @@ TSimpleVersionedBlockReader::TSimpleVersionedBlockReader(
     YCHECK(Meta_.row_count() > 0);
     YCHECK(KeyColumnCount_ >= ChunkKeyColumnCount_);
 
-    auto keyDataSize = GetUnversionedRowDataSize(KeyColumnCount_);
+    auto keyDataSize = GetUnversionedRowByteSize(KeyColumnCount_);
     KeyBuffer_.reserve(keyDataSize);
-    Key_ = TKey(reinterpret_cast<TUnversionedRowHeader*>(KeyBuffer_.data()));
+    Key_ = TMutableKey(reinterpret_cast<TUnversionedRowHeader*>(KeyBuffer_.data()));
     Key_.SetCount(KeyColumnCount_);
 
     for (int index = 0; index < KeyColumnCount_; ++index) {

@@ -1,4 +1,3 @@
-#include "stdafx.h"
 #include "attribute_consumer.h"
 #include "writer.h"
 

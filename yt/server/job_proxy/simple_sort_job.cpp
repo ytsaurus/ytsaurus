@@ -8,6 +8,9 @@
 #include <yt/ytlib/chunk_client/chunk_spec.h>
 
 #include <yt/ytlib/table_client/name_table.h>
+#include <yt/ytlib/table_client/schemaless_chunk_reader.h>
+#include <yt/ytlib/table_client/schemaless_chunk_writer.h>
+#include <yt/ytlib/table_client/schemaless_sorting_reader.h>
 
 namespace NYT {
 namespace NJobProxy {

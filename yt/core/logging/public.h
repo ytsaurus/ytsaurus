@@ -1,6 +1,6 @@
 #pragma once
 
-#include <yt/core/misc/enum.h>
+#include <yt/core/misc/public.h>
 
 namespace NYT {
 namespace NLogging {
