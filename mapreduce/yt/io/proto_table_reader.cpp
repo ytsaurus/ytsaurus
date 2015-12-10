@@ -66,6 +66,15 @@ void ReadMessageFromNode(const TNode& node, Message* row)
                 checkType(TNode::BOOL, actualType);
                 reflection->SetBool(row, fieldDesc, it->second.AsBool());
                 break;
+            case FieldDescriptor::TYPE_MESSAGE:
+            {
+                checkType(TNode::STRING, actualType);
+                google::protobuf::Message* message = reflection->MutableMessage(row, fieldDesc);
+                if (!message->ParseFromArray(~it->second.AsString(), +it->second.AsString())) {
+                    ythrow yexception() << "Failed to parse protobuf message";
+                }
+                break;
+            }
             default:
                 ythrow yexception() << "Incorrect protobuf type";
         }
