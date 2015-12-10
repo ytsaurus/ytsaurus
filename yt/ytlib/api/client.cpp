@@ -2216,6 +2216,11 @@ public:
         return Transaction_->Abort(options);
     }
 
+    virtual void Detach() override
+    {
+        Transaction_->Detach();
+    }
+
 
     virtual void SubscribeAborted(const TClosure& callback) override
     {
