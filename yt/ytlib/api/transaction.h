@@ -49,6 +49,7 @@ struct ITransaction
     virtual TFuture<void> Ping() = 0;
     virtual TFuture<void> Commit(const TTransactionCommitOptions& options = TTransactionCommitOptions()) = 0;
     virtual TFuture<void> Abort(const TTransactionAbortOptions& options = TTransactionAbortOptions()) = 0;
+    virtual void Detach() = 0;
 
     DECLARE_INTERFACE_SIGNAL(void(), Aborted);
 
