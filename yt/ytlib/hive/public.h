@@ -21,7 +21,7 @@ class TEncapsulatedMessage;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TMessageId = int;
+using TMessageId = i64;
 
 struct TCellDescriptor;
 struct TCellInfo;

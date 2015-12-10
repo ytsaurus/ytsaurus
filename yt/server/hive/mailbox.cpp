@@ -36,10 +36,22 @@ void TMailbox::Load(TLoadContext& context)
 {
     using NYT::Load;
 
-    Load(context, FirstOutcomingMessageId_);
-    Load(context, LastIncomingMessageId_);
-    Load(context, OutcomingMessages_);
-    Load(context, IncomingMessages_);
+    // COMPAT(babenko)
+    if (context.GetVersion() < 2) {
+        FirstOutcomingMessageId_ = Load<int>(context);
+        LastIncomingMessageId_ = Load<int>(context);
+        Load(context, OutcomingMessages_);
+        std::map<int, NProto::TEncapsulatedMessage> incomingMessages;
+        Load(context, incomingMessages);
+        for (const auto& pair : incomingMessages) {
+            YCHECK(IncomingMessages_.insert(pair).second);
+        }
+    } else {
+        Load(context, FirstOutcomingMessageId_);
+        Load(context, LastIncomingMessageId_);
+        Load(context, OutcomingMessages_);
+        Load(context, IncomingMessages_);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

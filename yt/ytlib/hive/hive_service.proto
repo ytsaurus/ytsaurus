@@ -24,7 +24,7 @@ message TReqPing
 
 message TRspPing
 {
-    required int32 last_outcoming_message_id = 2;
+    required int64 last_outcoming_message_id = 2;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -55,13 +55,13 @@ message TRspSyncCells
 message TReqPostMessages
 {
     required NYT.NProto.TGuid src_cell_id = 1;
-    required int32 first_message_id = 2;
+    required int64 first_message_id = 2;
     repeated TEncapsulatedMessage messages = 3;
 }
 
 message TRspPostMessages
 {
-    required int32 last_acknowledged_message_id = 1;
+    required int64 last_acknowledged_message_id = 1;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
