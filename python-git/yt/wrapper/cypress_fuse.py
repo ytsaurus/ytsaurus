@@ -139,7 +139,7 @@ class CachedYtClient(yt.wrapper.client.Yt):
         super(CachedYtClient, self).__init__(**kwargs)
 
         self._cache = ExpiringDict(
-            max_len=max_len,
+            max_len=max_cache_size,
             max_age_seconds=max_age_seconds
         )
         # Keys are paths of nodes and node attributes. Each value is either
@@ -307,6 +307,7 @@ class OpenedFile(object):
         if self._has_pending_write:
             self._client.write_file(self.ypath, self._buffer)
             self._buffer = ""
+            self._has_pending_write = False
 
 
 class OpenedTable(object):
