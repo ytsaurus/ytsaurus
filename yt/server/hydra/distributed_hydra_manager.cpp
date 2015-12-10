@@ -1145,8 +1145,7 @@ private:
             SwitchTo(epochContext->EpochSystemAutomatonInvoker);
             VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-            auto version = DecoratedAutomaton_->GetLoggedVersion();
-            auto asyncRecoveryResult = epochContext->LeaderRecovery->Run(version);
+            auto asyncRecoveryResult = epochContext->LeaderRecovery->Run(epochContext->ReachableVersion);
             WaitFor(asyncRecoveryResult)
                 .ThrowOnError();
 
