@@ -189,8 +189,25 @@ def smart_upload_file(filename, destination=None, yt_filename=None, placement_st
 
     if placement_strategy == "hash":
         md5 = md5sum(filename)
-        destination = os.path.join(get_config(client)["remote_temp_files_directory"], "hash", md5)
-        link_exists = exists(destination + "&", client=client)
+        hash_path = os.path.join(get_config(client)["remote_temp_files_directory"], "hash")
+        destination = os.path.join(hash_path, md5)
+
+        destination_is_file = False
+        try:
+            link_exists = exists(destination + "&", client=client)
+        except YtResponseError as rsp:
+            # XXX(asaitgalin): destination can be file instead of link and
+            # in this case exists() will fail with 'Unexpected "ampersand" token "&"'
+            if not rsp.is_resolve_error():
+                raise
+
+            destination_type = get_attribute(destination, "type")
+            if destination_type != "file":
+                raise YtError("Path {0} should contain only files or links, found {1}: {2}"
+                              .format(hash_path, destination_type, destination))
+
+            link_exists = True
+            destination_is_file = True
 
         # COMPAT(ignat): old versions of 0.14 have not support attribute broken
         try:
@@ -208,14 +225,18 @@ def smart_upload_file(filename, destination=None, yt_filename=None, placement_st
             else:
                 # Touch file and link to update modification time
                 set(destination + "/@touched", "true", client=client)
-                set(destination + "&/@touched", "true", client=client)
+                if not destination_is_file:
+                    set(destination + "&/@touched", "true", client=client)
         if not link_exists:
             real_destination = find_free_subpath(prefix, client=client)
             upload_with_check(real_destination)
             link(real_destination, destination, ignore_existing=True, client=client)
             set_attribute(real_destination, "hash", md5, client=client)
         else:
-            logger.debug("Link '%s' of file '%s' exists, skipping upload", destination, filename)
+            if not destination_is_file:
+                logger.debug("Link '%s' of file '%s' exists, skipping upload", destination, filename)
+            else:
+                logger.debug("Node '%s' exists but it is a file, skipping upload", destination)
     else:
         upload_with_check(destination)
 
