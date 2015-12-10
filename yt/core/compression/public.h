@@ -3,8 +3,6 @@
 #include <yt/core/misc/public.h>
 #include <yt/core/misc/string.h>
 
-#include <unordered_map>
-
 namespace NYT {
 namespace NCompression {
 
