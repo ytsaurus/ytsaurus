@@ -33,15 +33,12 @@ inline NCompression::ECodec ParseEnum(
     const Stroka& value,
     typename TEnumTraits<NCompression::ECodec>::TType*)
 {
-    Stroka decodedValue;
+    Stroka decodedValue = DecodeEnumValue(value);
     if (value == "GzipNormal") {
         decodedValue = "Zlib6";
     } else if (value == "GzipBestCompression") {
         decodedValue = "Zlib9";
-    } else {
-        decodedValue = value;
     }
-
     return TEnumTraits<NCompression::ECodec>::FromString(decodedValue);
 }
 
