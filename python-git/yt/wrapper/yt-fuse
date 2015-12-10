@@ -19,6 +19,9 @@ def mount_cypress(proxy, mountpoint, disable_cache):
         cypress, mountpoint,
         raw_fi=True, nothreads=True, foreground=True
     )
+
+    cypress_fuse.CachedYtClient._statistics.report()
+    cypress_fuse.Cypress._statistics.report()
     return 0
 
 
