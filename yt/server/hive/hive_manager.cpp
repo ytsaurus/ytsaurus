@@ -244,7 +244,7 @@ private:
             SelfCellId_);
 
         auto* mailbox = FindMailbox(srcCellId);
-        int lastOutcomingMessageId = mailbox
+        auto lastOutcomingMessageId = mailbox
             ? mailbox->GetFirstOutcomingMessageId() + mailbox->OutcomingMessages().size() - 1
             : -1;
 
@@ -320,7 +320,7 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NProto, PostMessages)
     {
         auto srcCellId = FromProto<TCellId>(request->src_cell_id());
-        int firstMessageId = request->first_message_id();
+        auto firstMessageId = request->first_message_id();
 
         context->SetRequestInfo("SrcCellId: %v, DstCellId: %v, MessageIds: %v-%v",
             srcCellId,
@@ -357,8 +357,8 @@ private:
 
         mailbox->SetPostMessagesInFlight(false);
 
-        int lastAcknowledgedMessageId = request.last_acknowledged_message_id();
-        int acknowledgeCount = lastAcknowledgedMessageId - mailbox->GetFirstOutcomingMessageId() + 1;
+        auto lastAcknowledgedMessageId = request.last_acknowledged_message_id();
+        auto acknowledgeCount = lastAcknowledgedMessageId - mailbox->GetFirstOutcomingMessageId() + 1;
         if (acknowledgeCount <= 0) {
             LOG_DEBUG_UNLESS(IsRecovery(), "No messages acknowledged (SrcCellId: %v, DstCellId: %v, FirstOutcomingMessageId: %v)",
                 SelfCellId_,
@@ -395,7 +395,7 @@ private:
     void HydraPostMessages(TCtxPostMessagesPtr context, const TReqPostMessages& request)
     {
         auto srcCellId = FromProto<TCellId>(request.src_cell_id());
-        int firstMessageId = request.first_message_id();
+        auto firstMessageId = request.first_message_id();
         auto* mailbox = FindMailbox(srcCellId);
         if (!mailbox) {
             if (firstMessageId == 0) {
@@ -417,7 +417,7 @@ private:
 
         if (context) {
             auto* response = &context->Response();
-            int lastAcknowledgedMessageId = mailbox->GetLastIncomingMessageId();
+            auto lastAcknowledgedMessageId = mailbox->GetLastIncomingMessageId();
             response->set_last_acknowledged_message_id(lastAcknowledgedMessageId);
             context->SetResponseInfo("LastAcknowledgedMessageId: %v",
                 lastAcknowledgedMessageId);
@@ -484,9 +484,9 @@ private:
         // A typical mistake is to try sending a Hive message outside of a mutation.
         YCHECK(HasMutationContext());
 
-        int messageId =
+        auto messageId =
             mailbox->GetFirstOutcomingMessageId() +
-            static_cast<int>(mailbox->OutcomingMessages().size());
+            mailbox->OutcomingMessages().size();
 
         LOG_DEBUG_UNLESS(IsRecovery(), "Reliable outcoming message added (SrcCellId: %v, DstCellId: %v, MessageId: %v, MutationType: %v)",
             SelfCellId_,
@@ -656,7 +656,7 @@ private:
         }
 
         const auto& rsp = rspOrError.Value();
-        int lastOutcomingMessageId = rsp->last_outcoming_message_id();
+        auto lastOutcomingMessageId = rsp->last_outcoming_message_id();
 
         LOG_DEBUG("Periodic ping succeeded (SrcCellId: %v, DstCellId: %v, LastOutcomingMessageId: %v)",
             SelfCellId_,
@@ -686,7 +686,7 @@ private:
         }
 
         const auto& rsp = rspOrError.Value();
-        int messageId = rsp->last_outcoming_message_id();
+        auto messageId = rsp->last_outcoming_message_id();
 
         if (messageId <= mailbox->GetLastIncomingMessageId()) {
             LOG_DEBUG("Already synchronized with another instance (SrcCellId: %v, DstCellId: %v, NeededMessageId: %v, CurrentMessageId: %v)",
@@ -706,7 +706,7 @@ private:
         return RegisterSyncRequest(mailbox, messageId);
     }
 
-    TFuture<void> RegisterSyncRequest(TMailbox* mailbox, int messageId)
+    TFuture<void> RegisterSyncRequest(TMailbox* mailbox, TMessageId messageId)
     {
         auto& syncRequests = mailbox->SyncRequests();
 
@@ -729,7 +729,7 @@ private:
         auto& syncRequests = mailbox->SyncRequests();
         while (!syncRequests.empty()) {
             auto it = syncRequests.begin();
-            int messageId = it->first;
+            auto messageId = it->first;
             if (messageId > mailbox->GetLastIncomingMessageId())
                 break;
 
@@ -764,7 +764,7 @@ private:
         if (!proxy)
             return;
 
-        int firstMessageId = mailbox->GetFirstOutcomingMessageId();
+        auto firstMessageId = mailbox->GetFirstOutcomingMessageId();
         int messageCount = mailbox->OutcomingMessages().size();
 
         auto req = proxy->PostMessages();
@@ -802,7 +802,7 @@ private:
         }
 
         const auto& rsp = rspOrError.Value();
-        int lastAcknowledgedMessageId = rsp->last_acknowledged_message_id();
+        auto lastAcknowledgedMessageId = rsp->last_acknowledged_message_id();
         LOG_DEBUG("Outcoming reliable messages posted successfully (SrcCellId: %v, DstCellId: %v, LastAcknowledgedMessageId: %v)",
             SelfCellId_,
             mailbox->GetCellId(),
@@ -864,7 +864,7 @@ private:
     }
 
 
-    void HandleAcknowledgedMessages(TMailbox* mailbox, int lastAcknowledgedMessageId)
+    void HandleAcknowledgedMessages(TMailbox* mailbox, TMessageId lastAcknowledgedMessageId)
     {
         TReqAcknowledgeMessages req;
         ToProto(req.mutable_cell_id(), mailbox->GetCellId());
@@ -877,12 +877,12 @@ private:
     void HandleReliableIncomingMessages(TMailbox* mailbox, const TReqPostMessages& req)
     {
         for (int index = 0; index < req.messages_size(); ++index) {
-            int messageId = req.first_message_id() + index;
+            auto messageId = req.first_message_id() + index;
             HandleReliableIncomingMessage(mailbox, messageId, req.messages(index));
         }
     }
 
-    void HandleReliableIncomingMessage(TMailbox* mailbox, int messageId, const TEncapsulatedMessage& incomingMessage)
+    void HandleReliableIncomingMessage(TMailbox* mailbox, TMessageId messageId, const TEncapsulatedMessage& incomingMessage)
     {
         if (messageId <= mailbox->GetLastIncomingMessageId()) {
             LOG_DEBUG_UNLESS(IsRecovery(), "Dropping obsolete incoming message (SrcCellId: %v, DstCellId: %v, MessageId: %v)",
@@ -904,7 +904,7 @@ private:
         bool consumed = false;
         while (!incomingMessages.empty()) {
             const auto& frontPair = *incomingMessages.begin();
-            int frontMessageId = frontPair.first;
+            auto frontMessageId = frontPair.first;
             const auto& frontMessage = frontPair.second;
             if (frontMessageId != mailbox->GetLastIncomingMessageId() + 1)
                 break;
