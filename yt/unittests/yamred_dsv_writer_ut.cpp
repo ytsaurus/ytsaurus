@@ -26,7 +26,7 @@ class TSchemalessWriterForYamredDsvTest
 protected:
     TNameTablePtr NameTable_;
     TYamredDsvFormatConfigPtr Config_;
-    TSchemalessWriterForYamredDsvPtr Writer_;
+    ISchemalessWriterPtr Writer_;
 
     TStringStream OutputStream_;
 
@@ -55,13 +55,13 @@ protected:
 
     void CreateStandardWriter(TControlAttributesConfigPtr controlAttributes = New<TControlAttributesConfig>()) 
     {
-        Writer_ = New<TSchemalessWriterForYamredDsv>(
+        Writer_ = CreateSchemalessWriterForYamredDsv(
+            Config_,
             NameTable_,
             CreateAsyncAdapter(static_cast<TOutputStream*>(&OutputStream_)),
-            false, // enableContextSaving  
+            false, /* enableContextSaving */ 
             controlAttributes,
-            0, // keyColumnCount
-            Config_);
+            0 /* keyColumnCount */);
     }
 
     // Splits output into key and sorted vector of values that are entries of the last YAMR column.

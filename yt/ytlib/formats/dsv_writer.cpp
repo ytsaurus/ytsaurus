@@ -40,111 +40,120 @@ void TDsvWriterBase::EscapeAndWrite(const TStringBuf& string, bool inKey, TOutpu
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSchemalessWriterForDsv::TSchemalessWriterForDsv(
-    TNameTablePtr nameTable, 
-    bool enableContextSaving,
-    TControlAttributesConfigPtr controlAttributesConfig,
-    IAsyncOutputStreamPtr output,
-    TDsvFormatConfigPtr config)
-    : TSchemalessFormatWriterBase(
-         nameTable, 
-         std::move(output), 
-         enableContextSaving,
-         controlAttributesConfig, 
-         0 /* keyColumnCount */)
-    , TDsvWriterBase(config)
-{ }
-
-void TSchemalessWriterForDsv::DoWrite(const std::vector<NTableClient::TUnversionedRow>& rows)
+class TSchemalessWriterForDsv
+    : public TSchemalessFormatWriterBase
+    , public TDsvWriterBase
 {
-    auto* output = GetOutputStream();
-    for (const auto& row : rows) {
-        bool firstValue = true;
+public:
+    TSchemalessWriterForDsv(
+        NTableClient::TNameTablePtr nameTable,
+        bool enableContextSaving,
+        TControlAttributesConfigPtr controlAttributesConfig,
+        NConcurrency::IAsyncOutputStreamPtr output,
+        TDsvFormatConfigPtr config = New<TDsvFormatConfig>())
+        : TSchemalessFormatWriterBase(
+             nameTable, 
+             std::move(output), 
+             enableContextSaving,
+             controlAttributesConfig, 
+             0 /* keyColumnCount */)
+        , TDsvWriterBase(config)
+    { }
 
-        if (Config_->LinePrefix) {
-            output->Write(Config_->LinePrefix.Get());
-            firstValue = false;
+    virtual void DoWrite(const std::vector<NTableClient::TUnversionedRow>& rows) override
+    {
+        auto* output = GetOutputStream();
+        for (const auto& row : rows) {
+            bool firstValue = true;
+
+            if (Config_->LinePrefix) {
+                output->Write(Config_->LinePrefix.Get());
+                firstValue = false;
+            }
+
+            for (const auto* value = row.Begin(); value != row.End(); ++value) {
+                if (value->Type == EValueType::Null) {
+                    continue;
+                }
+
+                if (IsRangeIndexColumnId(value->Id) || 
+                    IsRowIndexColumnId(value->Id) || 
+                    (IsTableIndexColumnId(value->Id) && !Config_->EnableTableIndex)) 
+                {
+                    continue;
+                }
+
+                if (!firstValue) {
+                    output->Write(Config_->FieldSeparator);
+                }
+                firstValue = false;
+
+                if (IsTableIndexColumnId(value->Id)) {
+                    WriteTableIndexValue(*value);
+                } else {
+                    WriteValue(*value);
+                }
+            }
+
+            output->Write(Config_->RecordSeparator);
+            TryFlushBuffer(false);
         }
-
-        for (const auto* value = row.Begin(); value != row.End(); ++value) {
-            if (value->Type == EValueType::Null) {
-                continue;
-            }
-
-            if (IsRangeIndexColumnId(value->Id) || 
-                IsRowIndexColumnId(value->Id) || 
-                (IsTableIndexColumnId(value->Id) && !Config_->EnableTableIndex)) 
-            {
-                continue;
-            }
-
-            if (!firstValue) {
-                output->Write(Config_->FieldSeparator);
-            }
-            firstValue = false;
-
-            if (IsTableIndexColumnId(value->Id)) {
-                WriteTableIndexValue(*value);
-            } else {
-                WriteValue(*value);
-            }
-        }
-
-        output->Write(Config_->RecordSeparator);
-        TryFlushBuffer(false);
+        TryFlushBuffer(true);
     }
-    TryFlushBuffer(true);
-}
 
-void TSchemalessWriterForDsv::WriteValue(const TUnversionedValue& value) 
-{
-    auto nameTable = GetNameTable();
-    auto* output = GetOutputStream();
-    EscapeAndWrite(nameTable->GetName(value.Id), true, output);
-    output->Write(Config_->KeyValueSeparator);
+private:
+    int TableIndex_ = 0;
 
-    switch (value.Type) {
-        case EValueType::Int64:
-            output->Write(::ToString(value.Data.Int64));
-            break;
+    void WriteValue(const NTableClient::TUnversionedValue& value)
+    {
+        auto nameTable = GetNameTable();
+        auto* output = GetOutputStream();
+        EscapeAndWrite(nameTable->GetName(value.Id), true, output);
+        output->Write(Config_->KeyValueSeparator);
 
-        case EValueType::Uint64:
-            output->Write(::ToString(value.Data.Uint64));
-            break;
+        switch (value.Type) {
+            case EValueType::Int64:
+                output->Write(::ToString(value.Data.Int64));
+                break;
 
-        case EValueType::Double: {
-            auto str = ::ToString(value.Data.Double);
-            output->Write(str);
-            if (str.find('.') == Stroka::npos && str.find('e') == Stroka::npos) {
-                output->Write(".");
+            case EValueType::Uint64:
+                output->Write(::ToString(value.Data.Uint64));
+                break;
+
+            case EValueType::Double: {
+                auto str = ::ToString(value.Data.Double);
+                output->Write(str);
+                if (str.find('.') == Stroka::npos && str.find('e') == Stroka::npos) {
+                    output->Write(".");
+                }
+
+                break;
             }
 
-            break;
+            case EValueType::Boolean:
+                output->Write(FormatBool(value.Data.Boolean));
+                break;
+
+            case EValueType::String:
+                EscapeAndWrite(TStringBuf(value.Data.String, value.Length), false, output);
+                break;
+
+            case EValueType::Any:
+                THROW_ERROR_EXCEPTION("Values of type \"any\" are not supported by dsv format (Value: %v)", value);
+
+            default:
+                YUNREACHABLE();
         }
-
-        case EValueType::Boolean:
-            output->Write(FormatBool(value.Data.Boolean));
-            break;
-
-        case EValueType::String:
-            EscapeAndWrite(TStringBuf(value.Data.String, value.Length), false, output);
-            break;
-
-        case EValueType::Any:
-            THROW_ERROR_EXCEPTION("Values of type \"any\" are not supported by dsv format (Value: %v)", value);
-
-        default:
-            YUNREACHABLE();
     }
-}
-
-void TSchemalessWriterForDsv::WriteTableIndexValue(const TUnversionedValue& value)
-{
-    auto* output = GetOutputStream();
-    EscapeAndWrite(Config_->TableIndexColumn, true, output);
-    output->Write(Config_->KeyValueSeparator);
-    output->Write(::ToString(value.Data.Int64));
-}
+    
+    void WriteTableIndexValue(const NTableClient::TUnversionedValue& value)
+    {
+        auto* output = GetOutputStream();
+        EscapeAndWrite(Config_->TableIndexColumn, true, output);
+        output->Write(Config_->KeyValueSeparator);
+        output->Write(::ToString(value.Data.Int64));
+    }
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -254,6 +263,54 @@ void TDsvNodeConsumer::OnBeginAttributes()
 void TDsvNodeConsumer::OnEndAttributes()
 {
     YUNREACHABLE();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+ISchemalessFormatWriterPtr CreateSchemalessWriterForDsv(
+    TDsvFormatConfigPtr config,
+    TNameTablePtr nameTable,
+    NConcurrency::IAsyncOutputStreamPtr output,
+    bool enableContextSaving,
+    TControlAttributesConfigPtr controlAttributesConfig,
+    int keyColumnCount)
+{
+    if (controlAttributesConfig->EnableKeySwitch) {
+        THROW_ERROR_EXCEPTION("Key switches are not supported in DSV format");
+    }
+
+    if (controlAttributesConfig->EnableRangeIndex) {
+        THROW_ERROR_EXCEPTION("Range indices are not supported in DSV format");
+    }
+
+    if (controlAttributesConfig->EnableRowIndex) {
+        THROW_ERROR_EXCEPTION("Row indices are not supported in DSV format");
+    }
+
+    return New<TSchemalessWriterForDsv>(
+        nameTable, 
+        enableContextSaving,
+        controlAttributesConfig, 
+        output, 
+        config);
+}
+
+ISchemalessFormatWriterPtr CreateSchemalessWriterForDsv(
+    const IAttributeDictionary& attributes,
+    TNameTablePtr nameTable,
+    NConcurrency::IAsyncOutputStreamPtr output,
+    bool enableContextSaving,
+    TControlAttributesConfigPtr controlAttributesConfig,
+    int keyColumnCount)
+{
+    auto config = ConvertTo<TDsvFormatConfigPtr>(&attributes);
+    return CreateSchemalessWriterForDsv(
+        config,
+        nameTable, 
+        output,
+        enableContextSaving,
+        controlAttributesConfig, 
+        keyColumnCount); 
 }
 
 ////////////////////////////////////////////////////////////////////////////////
