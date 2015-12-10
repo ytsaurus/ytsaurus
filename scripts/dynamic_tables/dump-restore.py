@@ -5,6 +5,7 @@ import yt.yson as yson
 from yt.common import YtError
 from yt.wrapper.client import Yt
 from yt.wrapper.http import get_token
+from yt.wrapper.native_driver import make_request
 
 import os
 import sys
@@ -65,31 +66,6 @@ def prepare(value):
 def mounted(path):
     return all(x["state"] == "mounted" for x in yt.get(path + "/@tablets"))
 
-# Call subprocess with retries
-def call_subprocess(command, stdin, max_retry_count, sleep_interval, env):
-    errors = []
-    def single_call():
-        p = sp.Popen(command, stdin=sp.PIPE if stdin is not None else None, stdout=sp.PIPE, stderr=sp.PIPE, env=env)
-        out, err = p.communicate(stdin)
-        return p.returncode, out, err
-    attempt = 0
-    ret, out, err = single_call()
-    errors.append((attempt, ret, out, err))
-    while attempt < max_retry_count and ret != 0:
-        attempt +=1
-        sleep(randint(1, sleep_interval))
-        ret, out, err = single_call()
-        errors.append((attempt, ret, out, err))
-    if ret == 0:
-        return out
-    else:
-        errors = ["try: %s\nreturn code: %s\nstdout:\n%s\n\nstderr:\n%s\n" % (attempt, ret, out, err) for attempt, ret, out, err in errors]
-        errors = [e +  "\n\n===================================================================\n\n" for e in errors]
-        stderr = "".join(errors)
-        #print >> sys.stderr, "stdin:\n%s\n" % stdin
-        print >> sys.stderr, stderr
-        raise sp.CalledProcessError(ret, " ".join(command), errors)
-
 ####################################################################################################
 
 # Schema altering helper.
@@ -138,10 +114,20 @@ class ArgsMapper(object):
         self.max_retry_count = args.max_retry_count
         self.rows_per_insert = args.insert_size
 
-    def call_subprocess(self, command, stdin):
-        env = deepcopy(os.environ)
-        env["YT_VERSION"] = "v3"
-        return call_subprocess(command, stdin, self.max_retry_count, self.sleep_interval, env) 
+    def make_request(self, command, params, data, client):
+        errors = []
+        attempt = 0
+        while attempt < self.max_retry_count:
+            try:
+                return make_request(command, params, data=data, client=client)
+            except YtResponseError as error:
+                errors.append((attempt, str(error)))
+                sleep(randint(1, self.sleep_interval))
+        errors = ["try: %s\nerror:%s\n" % (attempt, err) for attempt, err in errors]
+        errors = [e +  "\n\n===================================================================\n\n" for e in errors]
+        stderr = "".join(errors)
+        print >> sys.stderr, stderr
+        raise Exception("\n".join((command, params, errors)))
 
 # Mapper - output rows with keys between r["left"] and r["right"].
 class DumpMapper(ArgsMapper):
@@ -152,6 +138,9 @@ class DumpMapper(ArgsMapper):
         self.source = source
 
     def __call__(self, r):
+        config = {"driver_config_path": "/etc/ytdriver.conf"}
+        client = Yt(config=config)
+
         # Get something like ((key1, key2, key3), (bound1, bound2, bound3)) from a bound.
         get_bound_value = lambda bound : ",".join([yson.dumps(x, yson_format="text") for x in bound])
         get_bound_key = lambda width : ",".join([str(x) for x in self.key_columns[:width]])
@@ -164,17 +153,13 @@ class DumpMapper(ArgsMapper):
             bounds = [x for x in [left, right] if x is not None]
             where = (" where " + " and ".join(bounds)) if len(bounds) > 0 else ""
             query = "%s from [%s]%s" % (self.select_columns, self.source, where)
-            command = [
-                "yt",
-                "select_rows",
-                "--input_row_limit",
-                str(self.input_row_limit),
-                "--output_row_limit",
-                str(self.output_row_limit),
-                "--format",
-                "<format=text>yson",
-                query]
-            return self.call_subprocess(command, None) 
+            params = {
+                "query": query,
+                "input_row_limit": self.input_row_limit,
+                "output_row_limit": self.output_row_limit,
+                "output_format": "yson"
+            }
+            return self.make_request("select_rows", params, None, client)
 
         count = 0
         raw_data = StringIO(query(r["left"], r["right"]))
@@ -192,16 +177,17 @@ class RestoreMapper(ArgsMapper):
         self.schematizer = Schematizer(schema)
 
     def __call__(self, rows):
+        config = {"driver_config_path": "/etc/ytdriver.conf"}
+        client = Yt(config=config)
+
         # Insert data into the destination table.
         new_data = []
         def dump_data():
-            command = [
-                "yt",
-                "insert_rows",
-                "--format",
-                "<format=text>yson",
-                self.destination]
-            self.call_subprocess(command, prepare(new_data))
+            params = {
+                "path": self.destination,
+                "input_format": "yson"
+            }
+            self.make_request("insert_rows", params, prepare(new_data), client)
             yt.write_statistics({"processed_rows": len(new_data)})             
             del new_data[:]
 
