@@ -46,10 +46,10 @@ class TSchemalessWriterForDsv
 {
 public:
     TSchemalessWriterForDsv(
-        NTableClient::TNameTablePtr nameTable,
+        TNameTablePtr nameTable,
         bool enableContextSaving,
         TControlAttributesConfigPtr controlAttributesConfig,
-        NConcurrency::IAsyncOutputStreamPtr output,
+        IAsyncOutputStreamPtr output,
         TDsvFormatConfigPtr config = New<TDsvFormatConfig>())
         : TSchemalessFormatWriterBase(
              nameTable, 
@@ -60,7 +60,7 @@ public:
         , TDsvWriterBase(config)
     { }
 
-    virtual void DoWrite(const std::vector<NTableClient::TUnversionedRow>& rows) override
+    virtual void DoWrite(const std::vector<TUnversionedRow>& rows) override
     {
         auto* output = GetOutputStream();
         for (const auto& row : rows) {
@@ -104,7 +104,7 @@ public:
 private:
     int TableIndex_ = 0;
 
-    void WriteValue(const NTableClient::TUnversionedValue& value)
+    void WriteValue(const TUnversionedValue& value)
     {
         auto nameTable = GetNameTable();
         auto* output = GetOutputStream();
@@ -146,7 +146,7 @@ private:
         }
     }
     
-    void WriteTableIndexValue(const NTableClient::TUnversionedValue& value)
+    void WriteTableIndexValue(const TUnversionedValue& value)
     {
         auto* output = GetOutputStream();
         EscapeAndWrite(Config_->TableIndexColumn, true, output);
@@ -270,7 +270,7 @@ void TDsvNodeConsumer::OnEndAttributes()
 ISchemalessFormatWriterPtr CreateSchemalessWriterForDsv(
     TDsvFormatConfigPtr config,
     TNameTablePtr nameTable,
-    NConcurrency::IAsyncOutputStreamPtr output,
+    IAsyncOutputStreamPtr output,
     bool enableContextSaving,
     TControlAttributesConfigPtr controlAttributesConfig,
     int keyColumnCount)
@@ -298,7 +298,7 @@ ISchemalessFormatWriterPtr CreateSchemalessWriterForDsv(
 ISchemalessFormatWriterPtr CreateSchemalessWriterForDsv(
     const IAttributeDictionary& attributes,
     TNameTablePtr nameTable,
-    NConcurrency::IAsyncOutputStreamPtr output,
+    IAsyncOutputStreamPtr output,
     bool enableContextSaving,
     TControlAttributesConfigPtr controlAttributesConfig,
     int keyColumnCount)

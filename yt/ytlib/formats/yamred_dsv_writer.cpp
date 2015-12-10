@@ -18,8 +18,8 @@ class TSchemalessWriterForYamredDsv
 {
 public:
     TSchemalessWriterForYamredDsv(
-        NTableClient::TNameTablePtr nameTable,
-        NConcurrency::IAsyncOutputStreamPtr output,
+        TNameTablePtr nameTable,
+        IAsyncOutputStreamPtr output,
         bool enableContextSaving,
         TControlAttributesConfigPtr controlAttributesConfig,
         int keyColumnCount,
@@ -46,7 +46,7 @@ public:
     }
 
     // ISchemalessFormatWriter override.
-    virtual void DoWrite(const std::vector<NTableClient::TUnversionedRow>& rows) override
+    virtual void DoWrite(const std::vector<TUnversionedRow>& rows) override
     {
         auto* stream = GetOutputStream();
         
@@ -208,7 +208,7 @@ private:
 
     void UpdateEscapedColumnNames()
     {
-        // Storing escaped column names in order to not re-escape them each time we write a column name.
+        // We store escaped column names in order to not re-escape them each time we write a column name.
         auto nameTable = GetNameTable();
         EscapedColumnNames_.reserve(nameTable->GetSize());
         for (int columnIndex = EscapedColumnNames_.size(); columnIndex < GetNameTable()->GetSize(); ++columnIndex) {
@@ -226,7 +226,7 @@ private:
 ISchemalessFormatWriterPtr CreateSchemalessWriterForYamredDsv(
     TYamredDsvFormatConfigPtr config,
     TNameTablePtr nameTable,
-    NConcurrency::IAsyncOutputStreamPtr output,
+    IAsyncOutputStreamPtr output,
     bool enableContextSaving,
     TControlAttributesConfigPtr controlAttributesConfig,
     int keyColumnCount)
@@ -255,7 +255,7 @@ ISchemalessFormatWriterPtr CreateSchemalessWriterForYamredDsv(
 ISchemalessFormatWriterPtr CreateSchemalessWriterForYamredDsv(
     const IAttributeDictionary& attributes,
     TNameTablePtr nameTable,
-    NConcurrency::IAsyncOutputStreamPtr output,
+    IAsyncOutputStreamPtr output,
     bool enableContextSaving,
     TControlAttributesConfigPtr controlAttributesConfig,
     int keyColumnCount)

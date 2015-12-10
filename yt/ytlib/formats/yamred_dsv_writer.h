@@ -34,7 +34,6 @@ ISchemalessFormatWriterPtr CreateSchemalessWriterForYamredDsv(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-
 } // namespace NFormats
 } // namespace NYT
 

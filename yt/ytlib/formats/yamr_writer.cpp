@@ -21,8 +21,8 @@ class TSchemalessWriterForYamr
 {
 public:
     TSchemalessWriterForYamr(
-        NTableClient::TNameTablePtr nameTable,
-        NConcurrency::IAsyncOutputStreamPtr output,
+        TNameTablePtr nameTable,
+        IAsyncOutputStreamPtr output,
         bool enableContextSaving,
         TControlAttributesConfigPtr controlAttributesConfig,
         int keyColumnCount,
@@ -48,7 +48,7 @@ public:
     }
 
     // ISchemalessFormatWriter override.
-    virtual void DoWrite(const std::vector<NTableClient::TUnversionedRow>& rows) override
+    virtual void DoWrite(const std::vector<TUnversionedRow>& rows) override
     {
         auto* stream = GetOutputStream();
         // This nasty line is needed to use Config as TYamrFormatConfigPtr
@@ -128,7 +128,7 @@ private:
     
     TYamrTable Table_;
 
-    void ValidateColumnType(const NTableClient::TUnversionedValue* value)
+    void ValidateColumnType(const TUnversionedValue* value)
     {
         if (value->Type != EValueType::String) {
             THROW_ERROR_EXCEPTION("Wrong column type %Qlv in YAMR record", value->Type);
@@ -141,7 +141,7 @@ private:
 ISchemalessFormatWriterPtr CreateSchemalessWriterForYamr(
     TYamrFormatConfigPtr config,
     TNameTablePtr nameTable,
-    NConcurrency::IAsyncOutputStreamPtr output,
+    IAsyncOutputStreamPtr output,
     bool enableContextSaving,
     TControlAttributesConfigPtr controlAttributesConfig,
     int keyColumnCount)
@@ -170,7 +170,7 @@ ISchemalessFormatWriterPtr CreateSchemalessWriterForYamr(
 ISchemalessFormatWriterPtr CreateSchemalessWriterForYamr(
     const IAttributeDictionary& attributes,
     TNameTablePtr nameTable,
-    NConcurrency::IAsyncOutputStreamPtr output,
+    IAsyncOutputStreamPtr output,
     bool enableContextSaving,
     TControlAttributesConfigPtr controlAttributesConfig,
     int keyColumnCount)
