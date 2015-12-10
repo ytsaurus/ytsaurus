@@ -25,6 +25,7 @@ import time
 import logging
 import functools
 import sys
+import collections
 
 
 logging.basicConfig(
@@ -34,7 +35,42 @@ logging.basicConfig(
 )
 
 
-def log_calls(logger, message_format):
+class Statistics(object):
+    """Structure to collect execution timings."""
+
+    def __init__(self, logger):
+        self._timings = collections.defaultdict(float)
+        self._calls = collections.defaultdict(int)
+        self._logger = logger
+
+    def update(self, name, time):
+        self._timings[name] += time
+        self._calls[name] += 1
+
+    def report(self):
+        self._logger.debug("Statistics:")
+        for name in self._timings.keys():
+            time = self._timings[name]
+            calls = self._calls[name]
+            self._logger.debug("{}: {}, {}".format(name, time, calls))
+
+
+class Timer(object):
+    def __init__(self, name, statistics):
+        self._name = name
+        self._statistics = statistics
+
+    def __enter__(self):
+        self.start = time.time()
+        return self
+
+    def __exit__(self, *args):
+        self.end = time.time()
+        self.interval = self.end - self.start
+        self._statistics.update(self._name, self.interval)
+
+
+def log_calls(logger, message_format, statistics):
     """Create a decorator for logging each wrapped function call.
 
     message_format:
@@ -53,7 +89,8 @@ def log_calls(logger, message_format):
         @functools.wraps(function)
         def logged_function(*args, **kwargs):
             log_call(*args, **kwargs)
-            return function(*args, **kwargs)
+            with Timer(function.__name__, statistics) as t:
+                return function(*args, **kwargs)
 
         return logged_function
 
@@ -87,10 +124,12 @@ class CachedYtClient(yt.wrapper.client.Yt):
     _logger = logging.getLogger(__name__ + ".CachedYtClient")
     _logger.setLevel(level=logging.DEBUG)
 
-    def __init__(self, max_len=16384, max_age_seconds=2, **kwargs):
+    _statistics = Statistics(_logger)
+
+    def __init__(self, max_cache_size=16384, max_age_seconds=2, **kwargs):
         """Initialize the client.
 
-        max_len:
+        max_cache_size:
           Maximum number of cached nodes; the default is 16384.
         max_age_seconds:
           After this period the node is removed from cache;
@@ -112,7 +151,7 @@ class CachedYtClient(yt.wrapper.client.Yt):
     def _error(attribute):
         return yt.wrapper.YtResponseError("No such attribute: " + attribute)
 
-    @log_calls(_logger, "%(__name__)s(%(path)r)")
+    @log_calls(_logger, "%(__name__)s(%(path)r)", _statistics)
     def get_attributes(self, path, attributes):
         """Get a subset of node's attributes."""
         # Firstly, check whether we are sure the node doesn't exist at all.
@@ -149,7 +188,7 @@ class CachedYtClient(yt.wrapper.client.Yt):
                 )
         return requested_attributes
 
-    @log_calls(_logger, "%(__name__)s(%(path)r)")
+    @log_calls(_logger, "%(__name__)s(%(path)r)", _statistics)
     def list(self, path, attributes=None):
         """Get children of a node specified by a ypath."""
         cached_value = self._cache.get(path)
@@ -338,6 +377,8 @@ class Cypress(fuse.Operations):
     _logger = logging.getLogger(__name__ + ".Cypress")
     _logger.setLevel(level=logging.DEBUG)
 
+    _statistics = Statistics(_logger)
+
     _system_attributes = [
         "type",
         "ref_counter",
@@ -423,7 +464,7 @@ class Cypress(fuse.Operations):
         return ".".join(xattr.split(".")[1:])
 
     @handle_yt_errors(_logger)
-    @log_calls(_logger, "%(__name__)s(%(path)r)")
+    @log_calls(_logger, "%(__name__)s(%(path)r)", _statistics)
     def getattr(self, path, fi):
         ypath = self._to_ypath(path)
         for opened_file in self._opened_files.itervalues():
@@ -438,7 +479,7 @@ class Cypress(fuse.Operations):
         return self._get_stat(attributes)
 
     @handle_yt_errors(_logger)
-    @log_calls(_logger, "%(__name__)s(%(path)r)")
+    @log_calls(_logger, "%(__name__)s(%(path)r)", _statistics)
     def readdir(self, path, fi):
         ypath = self._to_ypath(path)
         # Attributes are queried to speed up subsequent "getattr" queries
@@ -449,7 +490,7 @@ class Cypress(fuse.Operations):
         return (child.decode("utf-8") for child in children)
 
     @handle_yt_errors(_logger)
-    @log_calls(_logger, "%(__name__)s(%(path)r)")
+    @log_calls(_logger, "%(__name__)s(%(path)r)", _statistics)
     def open(self, path, fi):
         ypath = self._to_ypath(path)
         attributes = self._client.get_attributes(
@@ -481,7 +522,7 @@ class Cypress(fuse.Operations):
         return 0
 
     @handle_yt_errors(_logger)
-    @log_calls(_logger, "%(__name__)s()")
+    @log_calls(_logger, "%(__name__)s()", _statistics)
     def release(self, _, fi):
         del self._opened_files[fi.fh]
         return 0
@@ -489,21 +530,22 @@ class Cypress(fuse.Operations):
     @handle_yt_errors(_logger)
     @log_calls(
         _logger,
-        "%(__name__)s(offset=%(offset)r, length=%(length)r)"
+        "%(__name__)s(offset=%(offset)r, length=%(length)r)",
+        _statistics
     )
     def read(self, _, length, offset, fi):
         opened_file = self._opened_files[fi.fh]
         return opened_file.read(length, offset)
 
     @handle_yt_errors(_logger)
-    @log_calls(_logger, "%(__name__)s(%(path)r)")
+    @log_calls(_logger, "%(__name__)s(%(path)r)", _statistics)
     def listxattr(self, path):
         ypath = self._to_ypath(path)
         attributes = self._client.get(ypath + "/@")
         return (self._get_xattr(attribute) for attribute in attributes)
 
     @handle_yt_errors(_logger)
-    @log_calls(_logger, "%(__name__)s(%(path)r, name=%(name)r)")
+    @log_calls(_logger, "%(__name__)s(%(path)r, name=%(name)r)", _statistics)
     def getxattr(self, path, name, position=0):
         ypath = self._to_ypath(path)
         attribute = self._get_attribute(name)
@@ -514,13 +556,13 @@ class Cypress(fuse.Operations):
         return repr(attr)
 
     @handle_yt_errors(_logger)
-    @log_calls(_logger, "%(__name__)s(%(path)r)")
+    @log_calls(_logger, "%(__name__)s(%(path)r)", _statistics)
     def mkdir(self, path, mode):
         ypath = self._to_ypath(path)
         self._client.create("map_node", ypath)
 
     @handle_yt_errors(_logger)
-    @log_calls(_logger, "%(__name__)s(%(path)r)")
+    @log_calls(_logger, "%(__name__)s(%(path)r)", _statistics)
     def create(self, path, mode, fi):
         ypath = self._to_ypath(path)
         self._client.create("file", ypath)
@@ -538,13 +580,13 @@ class Cypress(fuse.Operations):
         return 0
 
     @handle_yt_errors(_logger)
-    @log_calls(_logger, "%(__name__)s(%(path)r)")
+    @log_calls(_logger, "%(__name__)s(%(path)r)", _statistics)
     def unlink(self, path):
         ypath = self._to_ypath(path)
         self._client.remove(ypath)
 
     @handle_yt_errors(_logger)
-    @log_calls(_logger, "%(__name__)s(%(path)r)")
+    @log_calls(_logger, "%(__name__)s(%(path)r)", _statistics)
     def rmdir(self, path):
         ypath = self._to_ypath(path)
         try:
@@ -555,7 +597,7 @@ class Cypress(fuse.Operations):
             raise
 
     @handle_yt_errors(_logger)
-    @log_calls(_logger, "%(__name__)s(%(path)r)")
+    @log_calls(_logger, "%(__name__)s(%(path)r)", _statistics)
     def truncate(self, path, length, fh=None):
         ypath = self._to_ypath(path)
         for file_fh, opened_file in self._opened_files.iteritems():
@@ -565,11 +607,11 @@ class Cypress(fuse.Operations):
         self._opened_files[fh].truncate(length)
 
     @handle_yt_errors(_logger)
-    @log_calls(_logger, "%(__name__)s(%(path)r)")
+    @log_calls(_logger, "%(__name__)s(%(path)r)", _statistics)
     def write(self, path, data, offset, fi):
         return self._opened_files[fi.fh].write(data, offset)
 
     @handle_yt_errors(_logger)
-    @log_calls(_logger, "%(__name__)s(%(path)r)")
+    @log_calls(_logger, "%(__name__)s(%(path)r)", _statistics)
     def flush(self, path, fi):
         self._opened_files[fi.fh].flush()
