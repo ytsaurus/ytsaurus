@@ -33,7 +33,7 @@ protected:
     int RowIndexId_;
     TSchemafulDsvFormatConfigPtr Config_;
 
-    TSchemalessWriterForSchemafulDsvPtr Writer_;
+    ISchemalessWriterPtr Writer_;
 
     TStringStream OutputStream_;
 
@@ -51,12 +51,13 @@ protected:
     }
 
     void CreateStandardWriter() {
-        Writer_ = New<TSchemalessWriterForSchemafulDsv>(
+        Writer_ = CreateSchemalessWriterForSchemafulDsv(
+            Config_,
             NameTable_, 
             CreateAsyncAdapter(static_cast<TOutputStream*>(&OutputStream_)),
             false, // enableContextSaving  
             New<TControlAttributesConfig>(),
-            Config_);
+            0 /* keyColumnCount */);
     }
 };
 

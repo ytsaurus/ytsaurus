@@ -29,31 +29,6 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSchemalessWriterForDsv
-    : public TSchemalessFormatWriterBase
-    , public TDsvWriterBase
-{
-public:
-    TSchemalessWriterForDsv(
-        NTableClient::TNameTablePtr nameTable,
-        bool enableContextSaving,
-        TControlAttributesConfigPtr controlAttributesConfig,
-        NConcurrency::IAsyncOutputStreamPtr output,
-        TDsvFormatConfigPtr config = New<TDsvFormatConfig>());
-
-    virtual void DoWrite(const std::vector<NTableClient::TUnversionedRow>& rows) override;
-
-private:
-    int TableIndex_ = 0;
-
-    void WriteValue(const NTableClient::TUnversionedValue& value);
-    void WriteTableIndexValue(const NTableClient::TUnversionedValue& value);
-};
-
-DEFINE_REFCOUNTED_TYPE(TSchemalessWriterForDsv)
-
-////////////////////////////////////////////////////////////////////////////////
-
 // YsonNode is written as follows:
 //  * Each element of list is ended with RecordSeparator
 //  * Items in map are separated with FieldSeparator
@@ -92,6 +67,24 @@ private:
 
     TOutputStream* Stream_;
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+ISchemalessFormatWriterPtr CreateSchemalessWriterForDsv(
+    TDsvFormatConfigPtr config,
+    NTableClient::TNameTablePtr nameTable,
+    NConcurrency::IAsyncOutputStreamPtr output,
+    bool enableContextSaving,
+    TControlAttributesConfigPtr controlAttributesConfig,
+    int /* keyColumnCount */);
+
+ISchemalessFormatWriterPtr CreateSchemalessWriterForDsv(
+    const NYTree::IAttributeDictionary& attributes,
+    NTableClient::TNameTablePtr nameTable,
+    NConcurrency::IAsyncOutputStreamPtr output,
+    bool enableContextSaving,
+    TControlAttributesConfigPtr controlAttributesConfig,
+    int /* keyColumnCount */);
 
 ////////////////////////////////////////////////////////////////////////////////
 

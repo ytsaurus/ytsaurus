@@ -32,7 +32,7 @@ protected:
 
     TYamrFormatConfigPtr Config_;
 
-    TSchemalessWriterForYamrPtr Writer_;
+    ISchemalessWriterPtr Writer_;
 
     TStringStream OutputStream_;
 
@@ -50,13 +50,13 @@ protected:
 
     void CreateStandardWriter(TControlAttributesConfigPtr controlAttributes = New<TControlAttributesConfig>()) 
     {
-        Writer_ = New<TSchemalessWriterForYamr>(
+        Writer_ = CreateSchemalessWriterForYamr(
+            Config_,
             NameTable_, 
             CreateAsyncAdapter(static_cast<TOutputStream*>(&OutputStream_)),
-            false, // enableContextSaving  
+            false, /* enableContextSaving */
             controlAttributes,
-            0, // keyColumnCount
-            Config_);
+            0 /* keyColumnCount */);
     }
 };
 
@@ -414,14 +414,13 @@ TEST_F(TSchemalessWriterForYamrTest, LenvalWithKeySwitch)
     auto controlAttributes = New<TControlAttributesConfig>();
     controlAttributes->EnableKeySwitch = true;
 
-    Writer_ = New<TSchemalessWriterForYamr>(
+    Writer_ = CreateSchemalessWriterForYamr(
+        Config_,
         NameTable_, 
         CreateAsyncAdapter(static_cast<TOutputStream*>(&OutputStream_)),
-        false, // enableContextSaving  
+        false, /* enableContextSaving */
         controlAttributes,
-        1, // keyColumnCount
-        Config_);
-
+        1 /* keyColumnCount */);
 
     TUnversionedRowBuilder row1;
     row1.AddValue(MakeUnversionedStringValue("key1", KeyId_));

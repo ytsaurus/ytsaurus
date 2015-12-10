@@ -19,91 +19,33 @@ namespace NFormats {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// This class contains methods common for TSchemafulWriterForSchemafulDsv and TSchemalessWriterForSchemafulDsv.
-class TSchemafulDsvWriterBase
-{
-protected:
-    TBlobOutput* BlobOutput_;
-    
-    TSchemafulDsvFormatConfigPtr Config_;
-    
-    std::vector<int> ColumnIdMapping_;
-    
-    TSchemafulDsvWriterBase(TSchemafulDsvFormatConfigPtr config);
+ISchemalessFormatWriterPtr CreateSchemalessWriterForSchemafulDsv(
+    TSchemafulDsvFormatConfigPtr config,
+    NTableClient::TNameTablePtr nameTable,
+    NConcurrency::IAsyncOutputStreamPtr output,
+    bool enableContextSaving,
+    TControlAttributesConfigPtr controlAttributesConfig,
+    int keyColumnCount);
 
-    void WriteValue(const NTableClient::TUnversionedValue& value);
-    
-    void WriteRaw(const TStringBuf& str);
-    void WriteRaw(char ch);
-
-    void EscapeAndWrite(const TStringBuf& string);
-private:
-    TSchemafulDsvTable Table_;
-    
-    static char* WriteInt64Backwards(char* ptr, i64 value);
-    static char* WriteUint64Backwards(char* ptr, ui64 value);
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TSchemalessWriterForSchemafulDsv
-    : public TSchemalessFormatWriterBase
-    , public TSchemafulDsvWriterBase
-{
-public:
-    TSchemalessWriterForSchemafulDsv(
-        NTableClient::TNameTablePtr nameTable,
-        NConcurrency::IAsyncOutputStreamPtr output,
-        bool enableContextSaving,
-        TControlAttributesConfigPtr controlAttributesConfig,
-        TSchemafulDsvFormatConfigPtr config);
-       
-    // ISchemalessFormatWriter overrides.
-    virtual void DoWrite(const std::vector<NTableClient::TUnversionedRow>& rows) override;
-private:
-    std::vector<int> IdToIndexInRowMapping_;
-};
-
-DEFINE_REFCOUNTED_TYPE(TSchemalessWriterForSchemafulDsv)
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TSchemafulWriterForSchemafulDsv
-    : public NTableClient::ISchemafulWriter
-    , public TSchemafulDsvWriterBase
-{
-public:
-    TSchemafulWriterForSchemafulDsv(
-        NConcurrency::IAsyncOutputStreamPtr stream,
-        std::vector<int> columnIdMapping,
-        TSchemafulDsvFormatConfigPtr config = New<TSchemafulDsvFormatConfig>());
-
-    virtual TFuture<void> Close() override;
-
-    virtual bool Write(const std::vector<NTableClient::TUnversionedRow>& rows) override;
-
-    virtual TFuture<void> GetReadyEvent() override;
-
-private:
-    std::unique_ptr<TOutputStream> Output_;
-
-    void TryFlushBuffer(bool force);
-    void DoFlushBuffer();
-
-    TFuture<void> Result_;
-
-    TBlobOutput UnderlyingBlobOutput_;
-
-    void TryFlushBuffer();
-    void DoFlushBuffer(bool force);
-};
+ISchemalessFormatWriterPtr CreateSchemalessWriterForSchemafulDsv(
+    const NYTree::IAttributeDictionary& attributes,
+    NTableClient::TNameTablePtr nameTable,
+    NConcurrency::IAsyncOutputStreamPtr output,
+    bool enableContextSaving,
+    TControlAttributesConfigPtr controlAttributesConfig,
+    int keyColumnCount);
 
 ////////////////////////////////////////////////////////////////////////////////
 
 NTableClient::ISchemafulWriterPtr CreateSchemafulWriterForSchemafulDsv(
-    NConcurrency::IAsyncOutputStreamPtr stream,
+    TSchemafulDsvFormatConfigPtr config,
     const NTableClient::TTableSchema& schema,
-    TSchemafulDsvFormatConfigPtr config = New<TSchemafulDsvFormatConfig>());
+    NConcurrency::IAsyncOutputStreamPtr stream);
+
+NTableClient::ISchemafulWriterPtr CreateSchemafulWriterForSchemafulDsv(
+    const NYTree::IAttributeDictionary& attributes,
+    const NTableClient::TTableSchema& schema,
+    NConcurrency::IAsyncOutputStreamPtr stream);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -16,32 +16,21 @@ namespace NFormats {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSchemalessWriterForYamr
-    : public TSchemalessWriterForYamrBase
-{
-public:
-    TSchemalessWriterForYamr(
-        NTableClient::TNameTablePtr nameTable,
-        NConcurrency::IAsyncOutputStreamPtr output,
-        bool enableContextSaving,
-        TControlAttributesConfigPtr controlAttributesConfig,
-        int keyColumnCount,
-        TYamrFormatConfigPtr config = New<TYamrFormatConfig>());
+ISchemalessFormatWriterPtr CreateSchemalessWriterForYamr(
+    TYamrFormatConfigPtr config,
+    NTableClient::TNameTablePtr nameTable,
+    NConcurrency::IAsyncOutputStreamPtr output,
+    bool enableContextSaving,
+    TControlAttributesConfigPtr controlAttributesConfig,
+    int keyColumnCount);
 
-    // ISchemalessFormatWriter override.
-    virtual void DoWrite(const std::vector<NTableClient::TUnversionedRow>& rows) override;
-
-private:
-    int KeyId_;
-    int SubkeyId_;
-    int ValueId_;
-    
-    TYamrTable Table_;
-
-    void ValidateColumnType(const NTableClient::TUnversionedValue* value);
-};
-
-DEFINE_REFCOUNTED_TYPE(TSchemalessWriterForYamr)
+ISchemalessFormatWriterPtr CreateSchemalessWriterForYamr(
+    const NYTree::IAttributeDictionary& attributes,
+    NTableClient::TNameTablePtr nameTable,
+    NConcurrency::IAsyncOutputStreamPtr output,
+    bool enableContextSaving,
+    TControlAttributesConfigPtr controlAttributesConfig,
+    int keyColumnCount);
 
 ////////////////////////////////////////////////////////////////////////////////
 

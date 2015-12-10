@@ -21,11 +21,6 @@ DECLARE_REFCOUNTED_STRUCT(IYamrConsumer)
 
 DECLARE_REFCOUNTED_STRUCT(ISchemalessFormatWriter)
 
-DECLARE_REFCOUNTED_CLASS(TSchemalessWriterForDsv)
-DECLARE_REFCOUNTED_CLASS(TSchemalessWriterForYamr)
-DECLARE_REFCOUNTED_CLASS(TSchemalessWriterForYamredDsv)
-DECLARE_REFCOUNTED_CLASS(TSchemalessWriterForSchemafulDsv)
-
 DECLARE_REFCOUNTED_CLASS(TControlAttributesConfig)
 
 struct IParser;

@@ -164,12 +164,13 @@ TEST(TDsvWriterTest, SimpleTabular)
 
     auto controlAttributes = New<TControlAttributesConfig>();
     controlAttributes->EnableTableIndex = true;
-    auto writer = New<TSchemalessWriterForDsv>(
+    auto writer = CreateSchemalessWriterForDsv(
+        config,
         nameTable, 
+        CreateAsyncAdapter(static_cast<TOutputStream*>(&outputStream)),
         false,
         controlAttributes,
-        CreateAsyncAdapter(static_cast<TOutputStream*>(&outputStream)),
-        config);
+        0);
 
     EXPECT_EQ(true, writer->Write(rows));
     writer->Close()
@@ -193,11 +194,14 @@ TEST(TDsvWriterTest, AnyTabular)
     std::vector<TUnversionedRow> rows = { row.GetRow() };
 
     TStringStream outputStream;
-    auto writer = New<TSchemalessWriterForDsv>(
+    auto controlAttributes = New<TControlAttributesConfig>();
+    auto writer = CreateSchemalessWriterForDsv(
+        New<TDsvFormatConfig>(),
         nameTable, 
-        false, 
-        New<TControlAttributesConfig>(),
-        CreateAsyncAdapter(static_cast<TOutputStream*>(&outputStream)));
+        CreateAsyncAdapter(static_cast<TOutputStream*>(&outputStream)),
+        false,
+        controlAttributes,
+        0);
 
     EXPECT_FALSE(writer->Write(rows));
     EXPECT_ANY_THROW(writer->GetReadyEvent().Get().ThrowOnError());
@@ -234,12 +238,14 @@ TEST(TTskvWriterTest, SimpleTabular)
     auto config = New<TDsvFormatConfig>();
     config->LinePrefix = "tskv";
 
-    auto writer = New<TSchemalessWriterForDsv>(
+    auto controlAttributes = New<TControlAttributesConfig>();
+    auto writer = CreateSchemalessWriterForDsv(
+        config,
         nameTable, 
-        false, 
-        New<TControlAttributesConfig>(),
         CreateAsyncAdapter(static_cast<TOutputStream*>(&outputStream)),
-        config);
+        false,
+        controlAttributes,
+        0);
 
     EXPECT_EQ(true, writer->Write(rows));
     writer->Close()
@@ -272,12 +278,14 @@ TEST(TTskvWriterTest, Escaping)
     auto config = New<TDsvFormatConfig>();
     config->LinePrefix = "tskv";
 
-    auto writer = New<TSchemalessWriterForDsv>(
+    auto controlAttributes = New<TControlAttributesConfig>();
+    auto writer = CreateSchemalessWriterForDsv(
+        config,
         nameTable, 
-        false, 
-        New<TControlAttributesConfig>(),
         CreateAsyncAdapter(static_cast<TOutputStream*>(&outputStream)),
-        config);
+        false,
+        controlAttributes,
+        0);
 
     EXPECT_EQ(true, writer->Write(rows));
     writer->Close()

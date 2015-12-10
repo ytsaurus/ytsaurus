@@ -79,38 +79,6 @@ NTableClient::ISchemafulWriterPtr CreateSchemafulWriterForFormat(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-ISchemalessFormatWriterPtr CreateSchemalessWriterForDsv(
-    const NYTree::IAttributeDictionary& attributes,
-    NTableClient::TNameTablePtr nameTable,
-    NConcurrency::IAsyncOutputStreamPtr output,
-    bool enableContextSaving,
-    TControlAttributesConfigPtr controlAttributesConfig,
-    int /* keyColumnCount */);
-
-ISchemalessFormatWriterPtr CreateSchemalessWriterForYamr(
-    const NYTree::IAttributeDictionary& attributes,
-    NTableClient::TNameTablePtr nameTable,
-    NConcurrency::IAsyncOutputStreamPtr output,
-    bool enableContextSaving,
-    TControlAttributesConfigPtr controlAttributesConfig,
-    int keyColumnCount);
-
-ISchemalessFormatWriterPtr CreateSchemalessWriterForYamredDsv(
-    const NYTree::IAttributeDictionary& attributes,
-    NTableClient::TNameTablePtr nameTable,
-    NConcurrency::IAsyncOutputStreamPtr output,
-    bool enableContextSaving,
-    TControlAttributesConfigPtr controlAttributesConfig,
-    int keyColumnCount);
-
-ISchemalessFormatWriterPtr CreateSchemalessWriterForSchemafulDsv(
-    const NYTree::IAttributeDictionary& attributes,
-    NTableClient::TNameTablePtr nameTable,
-    NConcurrency::IAsyncOutputStreamPtr output,
-    bool enableContextSaving,
-    TControlAttributesConfigPtr controlAttributesConfig,
-    int /* keyColumnCount */);
-
 ISchemalessFormatWriterPtr CreateSchemalessWriterForFormat(
     const TFormat& format,
     NTableClient::TNameTablePtr nameTable,

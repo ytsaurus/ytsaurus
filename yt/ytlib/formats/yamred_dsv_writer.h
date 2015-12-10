@@ -16,41 +16,24 @@ namespace NFormats {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSchemalessWriterForYamredDsv
-    : public TSchemalessWriterForYamrBase
-{
-public:
-    TSchemalessWriterForYamredDsv(
-        NTableClient::TNameTablePtr nameTable,
-        NConcurrency::IAsyncOutputStreamPtr output,
-        bool enableContextSaving,
-        TControlAttributesConfigPtr controlAttributesConfig,
-        int keyColumnCount,
-        TYamredDsvFormatConfigPtr config = New<TYamredDsvFormatConfig>());
+ISchemalessFormatWriterPtr CreateSchemalessWriterForYamredDsv(
+    TYamredDsvFormatConfigPtr config,
+    NTableClient::TNameTablePtr nameTable,
+    NConcurrency::IAsyncOutputStreamPtr output,
+    bool enableContextSaving,
+    TControlAttributesConfigPtr controlAttributesConfig,
+    int keyColumnCount);
 
-    // ISchemalessFormatWriter override.
-    virtual void DoWrite(const std::vector<NTableClient::TUnversionedRow>& rows) override;
-private:
-    std::vector<TNullable<TStringBuf>> RowValues_;
-    
-    std::vector<int> KeyColumnIds_;
-    std::vector<int> SubkeyColumnIds_;
-    std::vector<Stroka> EscapedColumnNames_;
-
-    TDsvTable Table_;
-
-    void WriteYamrKey(const std::vector<int>& columnIds);
-    ui32 CalculateTotalKeyLength(const std::vector<int>& columnIds);
-    void WriteYamrValue(); 
-    ui32 CalculateTotalValueLength();
-    ui32 CalculateLength(const TStringBuf& string, bool inKey);
-
-    void UpdateEscapedColumnNames();
-};
-
-DEFINE_REFCOUNTED_TYPE(TSchemalessWriterForYamredDsv)
+ISchemalessFormatWriterPtr CreateSchemalessWriterForYamredDsv(
+    const NYTree::IAttributeDictionary& attributes,
+    NTableClient::TNameTablePtr nameTable,
+    NConcurrency::IAsyncOutputStreamPtr output,
+    bool enableContextSaving,
+    TControlAttributesConfigPtr controlAttributesConfig,
+    int keyColumnCount);
 
 ////////////////////////////////////////////////////////////////////////////////
+
 
 } // namespace NFormats
 } // namespace NYT
