@@ -28,6 +28,7 @@ import sys
 
 
 logging.basicConfig(
+    filename="yt-fuse.log",
     format="%(name)s\t%(asctime)s.%(msecs)03d\t%(message)s",
     datefmt="%H:%M:%S"
 )
@@ -59,18 +60,25 @@ def log_calls(logger, message_format):
     return get_logged_version
 
 
-def handle_yt_errors(function):
+def handle_yt_errors(logger):
     """Modify the function so it raises FuseOSError instead of YtError."""
-    @functools.wraps(function)
-    def cautious_function(*args, **kwargs):
-        try:
-            return function(*args, **kwargs)
-        except yt.wrapper.YtResponseError:
-            raise fuse.FuseOSError(errno.ENOENT)
-        except yt.packages.requests.ConnectionError:
-            raise fuse.FuseOSError(errno.EAGAIN)
+    def get_logged_version(function):
 
-    return cautious_function
+        @functools.wraps(function)
+        def cautious_function(*args, **kwargs):
+            try:
+                return function(*args, **kwargs)
+            except yt.wrapper.YtResponseError as error:
+                if not error.is_resolve_error():
+                    logger.exception("Exception caught in {}".format(function.__name__))
+                raise fuse.FuseOSError(errno.ENOENT)
+            except yt.packages.requests.ConnectionError:
+                logger.exception("Exception caught in {}".format(function.__name__))
+                raise fuse.FuseOSError(errno.EAGAIN)
+
+        return cautious_function
+
+    return get_logged_version
 
 
 class CachedYtClient(yt.wrapper.client.Yt):
@@ -414,7 +422,7 @@ class Cypress(fuse.Operations):
             raise fuse.FuseOSError(errno.ENODATA)
         return ".".join(xattr.split(".")[1:])
 
-    @handle_yt_errors
+    @handle_yt_errors(_logger)
     @log_calls(_logger, "%(__name__)s(%(path)r)")
     def getattr(self, path, fi):
         ypath = self._to_ypath(path)
@@ -429,7 +437,7 @@ class Cypress(fuse.Operations):
             )
         return self._get_stat(attributes)
 
-    @handle_yt_errors
+    @handle_yt_errors(_logger)
     @log_calls(_logger, "%(__name__)s(%(path)r)")
     def readdir(self, path, fi):
         ypath = self._to_ypath(path)
@@ -440,7 +448,7 @@ class Cypress(fuse.Operations):
         # try listing //statbox/home/zahaaar at Plato.
         return (child.decode("utf-8") for child in children)
 
-    @handle_yt_errors
+    @handle_yt_errors(_logger)
     @log_calls(_logger, "%(__name__)s(%(path)r)")
     def open(self, path, fi):
         ypath = self._to_ypath(path)
@@ -472,12 +480,13 @@ class Cypress(fuse.Operations):
         self._opened_files[fi.fh] = opened_file
         return 0
 
+    @handle_yt_errors(_logger)
     @log_calls(_logger, "%(__name__)s()")
     def release(self, _, fi):
         del self._opened_files[fi.fh]
         return 0
 
-    @handle_yt_errors
+    @handle_yt_errors(_logger)
     @log_calls(
         _logger,
         "%(__name__)s(offset=%(offset)r, length=%(length)r)"
@@ -486,14 +495,14 @@ class Cypress(fuse.Operations):
         opened_file = self._opened_files[fi.fh]
         return opened_file.read(length, offset)
 
-    @handle_yt_errors
+    @handle_yt_errors(_logger)
     @log_calls(_logger, "%(__name__)s(%(path)r)")
     def listxattr(self, path):
         ypath = self._to_ypath(path)
         attributes = self._client.get(ypath + "/@")
         return (self._get_xattr(attribute) for attribute in attributes)
 
-    @handle_yt_errors
+    @handle_yt_errors(_logger)
     @log_calls(_logger, "%(__name__)s(%(path)r, name=%(name)r)")
     def getxattr(self, path, name, position=0):
         ypath = self._to_ypath(path)
@@ -504,11 +513,13 @@ class Cypress(fuse.Operations):
             raise fuse.FuseOSError(errno.ENODATA)
         return repr(attr)
 
+    @handle_yt_errors(_logger)
     @log_calls(_logger, "%(__name__)s(%(path)r)")
     def mkdir(self, path, mode):
         ypath = self._to_ypath(path)
         self._client.create("map_node", ypath)
 
+    @handle_yt_errors(_logger)
     @log_calls(_logger, "%(__name__)s(%(path)r)")
     def create(self, path, mode, fi):
         ypath = self._to_ypath(path)
@@ -526,11 +537,13 @@ class Cypress(fuse.Operations):
         )
         return 0
 
+    @handle_yt_errors(_logger)
     @log_calls(_logger, "%(__name__)s(%(path)r)")
     def unlink(self, path):
         ypath = self._to_ypath(path)
         self._client.remove(ypath)
 
+    @handle_yt_errors(_logger)
     @log_calls(_logger, "%(__name__)s(%(path)r)")
     def rmdir(self, path):
         ypath = self._to_ypath(path)
@@ -541,6 +554,7 @@ class Cypress(fuse.Operations):
                 raise fuse.FuseOSError(errno.ENOTEMPTY)
             raise
 
+    @handle_yt_errors(_logger)
     @log_calls(_logger, "%(__name__)s(%(path)r)")
     def truncate(self, path, length, fh=None):
         ypath = self._to_ypath(path)
@@ -550,10 +564,12 @@ class Cypress(fuse.Operations):
                 break
         self._opened_files[fh].truncate(length)
 
+    @handle_yt_errors(_logger)
     @log_calls(_logger, "%(__name__)s(%(path)r)")
     def write(self, path, data, offset, fi):
         return self._opened_files[fi.fh].write(data, offset)
 
+    @handle_yt_errors(_logger)
     @log_calls(_logger, "%(__name__)s(%(path)r)")
     def flush(self, path, fi):
         self._opened_files[fi.fh].flush()
