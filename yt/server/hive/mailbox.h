@@ -28,13 +28,13 @@ public:
     // Persistent state.
     DEFINE_BYVAL_RO_PROPERTY(TCellId, CellId);
 
-    DEFINE_BYVAL_RW_PROPERTY(int, FirstOutcomingMessageId);
-    DEFINE_BYVAL_RW_PROPERTY(int, LastIncomingMessageId);
+    DEFINE_BYVAL_RW_PROPERTY(TMessageId, FirstOutcomingMessageId);
+    DEFINE_BYVAL_RW_PROPERTY(TMessageId, LastIncomingMessageId);
     DEFINE_BYVAL_RW_PROPERTY(bool, PostMessagesInFlight)
 
     DEFINE_BYREF_RW_PROPERTY(std::vector<NProto::TEncapsulatedMessage>, OutcomingMessages);
     
-    typedef std::map<int, NProto::TEncapsulatedMessage> TIncomingMessageMap;
+    typedef std::map<TMessageId, NProto::TEncapsulatedMessage> TIncomingMessageMap;
     DEFINE_BYREF_RW_PROPERTY(TIncomingMessageMap, IncomingMessages);
 
     // Transient state.
@@ -42,11 +42,11 @@ public:
 
     struct TSyncRequest
     {
-        int MessageId;
+        TMessageId MessageId;
         TPromise<void> Promise;
     };
 
-    typedef std::map<int, TSyncRequest> TSyncRequestMap;
+    typedef std::map<TMessageId, TSyncRequest> TSyncRequestMap;
     DEFINE_BYREF_RW_PROPERTY(TSyncRequestMap, SyncRequests);
 
 public:
