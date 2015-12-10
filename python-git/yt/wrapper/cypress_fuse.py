@@ -264,6 +264,10 @@ class OpenedFile(object):
         self._tx = create_transaction_and_take_snapshot_lock(ypath, client)
 
     def read(self, length, offset):
+        # Read file from memory
+        if self._has_pending_write:
+            return self._buffer[offset:offset + length]
+
         if offset < self._offset \
                 or offset + length > self._offset + self._length:
             self._logger.debug("\tmiss")
@@ -284,29 +288,40 @@ class OpenedFile(object):
         buffer_offset = offset - self._offset
         return self._buffer[buffer_offset:(buffer_offset + length)]
 
+    def _read_all(self):
+        with yt.wrapper.Transaction(transaction_id=self._tx.transaction_id, client=self._client):
+            self._buffer = self._client.read_file(self.ypath).read()
+            self._offset = 0
+            self._length = len(self._buffer)
+
+    def _extend_buffer(self, length):
+        if len(self._buffer) < length:
+            self._buffer += "\0" * (length - len(self._buffer))
+
     def truncate(self, length):
         if not self._has_pending_write:
-            with yt.wrapper.Transaction(transaction_id=self._tx.transaction_id, client=self._client):
-                self._buffer = self._client.read_file(self.ypath).read()
+            self._read_all()
         self._has_pending_write = True
 
-        if len(self._buffer) < length:
-            self._buffer += " " * (length - len(self._buffer))
+        self._extend_buffer(length)
         self._buffer = self._buffer[:length]
+        self._length = len(self._buffer)
 
     def write(self, data, offset):
         if not self._has_pending_write:
-            with yt.wrapper.Transaction(transaction_id=self._tx.transaction_id, client=self._client):
-                self._buffer = self._client.read_file(self.ypath).read()
+            self._read_all()
         self._has_pending_write = True
 
-        self._buffer = self._buffer[:offset] + data
+        self._extend_buffer(offset + len(data))
+        self._buffer = self._buffer[:offset] + data + self._buffer[offset + len(data):]
+        self._length = len(self._buffer)
         return len(data)
 
     def flush(self):
         if self._has_pending_write:
             self._client.write_file(self.ypath, self._buffer)
             self._buffer = ""
+            self._length = 0
             self._has_pending_write = False
 
 
@@ -531,10 +546,10 @@ class Cypress(fuse.Operations):
     @handle_yt_errors(_logger)
     @log_calls(
         _logger,
-        "%(__name__)s(offset=%(offset)r, length=%(length)r)",
+        "%(__name__)s(%(path)r, offset=%(offset)r, length=%(length)r)",
         _statistics
     )
-    def read(self, _, length, offset, fi):
+    def read(self, path, length, offset, fi):
         opened_file = self._opened_files[fi.fh]
         return opened_file.read(length, offset)
 
@@ -557,10 +572,19 @@ class Cypress(fuse.Operations):
         return repr(attr)
 
     @handle_yt_errors(_logger)
-    @log_calls(_logger, "%(__name__)s(%(path)r)", _statistics)
+    @log_calls(_logger, "%(__name__)s(%(path)r, mode=%(mode)r)", _statistics)
     def mkdir(self, path, mode):
         ypath = self._to_ypath(path)
         self._client.create("map_node", ypath)
+
+    @log_calls(_logger, "%(__name__)s(%(path)r, mode=%(mode)r)", _statistics)
+    def chmod(self, path, mode):
+        _logger.debug("chmod is not implemented")
+        return 0
+
+    @log_calls(_logger, "%(__name__)s(%(path)r, uid=%(uid)r, gid=%(gid)r)", _statistics)
+    def chown(self, path, uid, gid):
+        _logger.debug("chown is not implemented")
 
     @handle_yt_errors(_logger)
     @log_calls(_logger, "%(__name__)s(%(path)r)", _statistics)
@@ -597,8 +621,12 @@ class Cypress(fuse.Operations):
                 raise fuse.FuseOSError(errno.ENOTEMPTY)
             raise
 
-    @handle_yt_errors(_logger)
     @log_calls(_logger, "%(__name__)s(%(path)r)", _statistics)
+    def statfs(self, path):
+        return dict(f_bsize=512, f_blocks=1024 * 4096, f_bavail=1024 * 2048)
+
+    @handle_yt_errors(_logger)
+    @log_calls(_logger, "%(__name__)s(%(path)r, length=%(length)%)", _statistics)
     def truncate(self, path, length, fh=None):
         ypath = self._to_ypath(path)
         for file_fh, opened_file in self._opened_files.iteritems():
@@ -608,7 +636,11 @@ class Cypress(fuse.Operations):
         self._opened_files[fh].truncate(length)
 
     @handle_yt_errors(_logger)
-    @log_calls(_logger, "%(__name__)s(%(path)r)", _statistics)
+    @log_calls(
+        _logger,
+        "%(__name__)s(%(path)r, offset=%(offset)r)",
+        _statistics
+    )
     def write(self, path, data, offset, fi):
         return self._opened_files[fi.fh].write(data, offset)
 
