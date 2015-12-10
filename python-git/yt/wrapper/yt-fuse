@@ -25,8 +25,8 @@ def mount_cypress(proxy, mountpoint, disable_cache):
 if __name__ == "__main__":
     parser = ArgumentParser(description="Mount a Cypress, an YT cluster metainformation tree")
 
-    parser.add_argument("proxy", help="Proxy alias like \"aristotle.yt.yandex.net\" or just \"aristotle\".")
-    parser.add_argument("mountpoint", help="Mountpoint directory like \"/mnt/aristotle\".")
+    parser.add_argument("proxy", help='Proxy alias like "aristotle.yt.yandex.net" or just "aristotle".')
+    parser.add_argument("mountpoint", help='Mountpoint directory like "/mnt/aristotle".')
     parser.add_argument("--disable_cache", action="store_true", help="Disable client caching.")
 
     args = parser.parse_args()
