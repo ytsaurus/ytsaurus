@@ -38,14 +38,25 @@ protected:
     
     TSchemafulDsvFormatConfigPtr Config_;
     
-    std::vector<int> ColumnIdMapping_;
-    
-    explicit TSchemafulDsvWriterBase(TSchemafulDsvFormatConfigPtr config)
-    : Config_(config)
-    , Table_(config)
-    { }
+    // This array indicates on which position should each
+    // column stay in the resulting row.
+    std::vector<int> IdToIndexInRow_;
+   
+    // This array contains TUnversionedValue's reordered
+    // according to the desired order.
+    std::vector<const TUnversionedValue*> CurrentRowValues_;
 
-    void WriteValue(const NTableClient::TUnversionedValue& value)
+    TSchemafulDsvWriterBase(TSchemafulDsvFormatConfigPtr config, std::vector<int> idToIndexInRow)
+    : Config_(config)
+    , IdToIndexInRow_(idToIndexInRow)
+    , Table_(config)
+    { 
+        CurrentRowValues_.resize(
+            *std::max_element(IdToIndexInRow_.begin(), IdToIndexInRow_.end()) + 1);
+        YCHECK(Config_->Columns);
+    }
+
+    void WriteValue(const TUnversionedValue& value)
     {
         switch (value.Type) {
             case EValueType::Null:
@@ -113,6 +124,17 @@ protected:
         }
     }
 
+    int FindMissingValueIndex() const 
+    {
+        for (int valueIndex = 0; valueIndex < static_cast<int>(CurrentRowValues_.size()); ++valueIndex) {
+            const auto* value = CurrentRowValues_[valueIndex];
+            if (!value || value->Type == EValueType::Null) {
+                return valueIndex;
+            }
+        }
+        return -1;
+    }
+
 private:
     TSchemafulDsvTable Table_;
     
@@ -120,7 +142,7 @@ private:
     // of value in backwards, meaning that the resulting representation will occupy
     // range [ptr - length, ptr). Return value is ptr - length, i. e. the pointer to the
     // beginning of the result.
-    char* WriteInt64Backwards(char* ptr, i64 value)
+    static char* WriteInt64Backwards(char* ptr, i64 value)
     {
         if (value == 0) {
             --ptr;
@@ -163,7 +185,7 @@ private:
     }
 
     // Same as WriteInt64Backwards for ui64.
-    char* WriteUint64Backwards(char* ptr, ui64 value)
+    static char* WriteUint64Backwards(char* ptr, ui64 value)
     {
         if (value == 0) {
             --ptr;
@@ -196,77 +218,83 @@ class TSchemalessWriterForSchemafulDsv
 {
 public:
     TSchemalessWriterForSchemafulDsv(
-        NTableClient::TNameTablePtr nameTable,
-        NConcurrency::IAsyncOutputStreamPtr output,
+        TNameTablePtr nameTable,
+        IAsyncOutputStreamPtr output,
         bool enableContextSaving,
         TControlAttributesConfigPtr controlAttributesConfig,
-        TSchemafulDsvFormatConfigPtr config)
+        TSchemafulDsvFormatConfigPtr config,
+        std::vector<int> IdToIndexInRow)
         : TSchemalessFormatWriterBase(
             nameTable,
             std::move(output),
             enableContextSaving,
             controlAttributesConfig,
             0 /* keyColumnCount */)
-        , TSchemafulDsvWriterBase(config)
+        , TSchemafulDsvWriterBase(
+            config,
+            IdToIndexInRow)
     {
         BlobOutput_ = GetOutputStream();
-        YCHECK(Config_->Columns);
-        const auto& columns = Config_->Columns.Get();
-        for (int columnIndex = 0; columnIndex < static_cast<int>(columns.size()); ++columnIndex) {
-            ColumnIdMapping_.push_back(nameTable->GetIdOrRegisterName(columns[columnIndex]));
-        }
-        IdToIndexInRowMapping_.resize(nameTable->GetSize());
     }
        
     // ISchemalessFormatWriter overrides.
-    virtual void DoWrite(const std::vector<NTableClient::TUnversionedRow>& rows) override
+    virtual void DoWrite(const std::vector<TUnversionedRow>& rows) override
     {
-        IdToIndexInRowMapping_.resize(GetNameTable()->GetSize());
-        for (auto row : rows) {
-            IdToIndexInRowMapping_.assign(IdToIndexInRowMapping_.size(), -1);
+        for (const auto& row : rows) {
+            CurrentRowValues_.assign(CurrentRowValues_.size(), nullptr);
             for (auto item = row.Begin(); item != row.End(); ++item) {
-                YASSERT(item->Id >= 0 && item->Id < IdToIndexInRowMapping_.size());
-                IdToIndexInRowMapping_[item->Id] = item - row.Begin();
+                if (item->Id < IdToIndexInRow_.size() && IdToIndexInRow_[item->Id] != -1) {
+                    CurrentRowValues_[IdToIndexInRow_[item->Id]] = item;
+                }
             }
+            
+            int missingValueIndex = FindMissingValueIndex();
+            if (missingValueIndex != -1) {
+                if (Config_->MissingValueMode == EMissingSchemafulDsvValueMode::SkipRow) {
+                    continue;
+                } else if (Config_->MissingValueMode == EMissingSchemafulDsvValueMode::Fail) { 
+                    THROW_ERROR_EXCEPTION("Column %Qv is in schema but missing", (*Config_->Columns)[missingValueIndex]);
+                }
+            }
+
             bool firstValue = true;
-            for (auto currentId : ColumnIdMapping_) {
+            for (const auto* item : CurrentRowValues_) {
                 if (!firstValue) {
                     WriteRaw(Config_->FieldSeparator);
                 } else {
                     firstValue = false;
                 }
-                int index = IdToIndexInRowMapping_[currentId];
-                if (index == -1) {
-                    THROW_ERROR_EXCEPTION("Column %Qv is in schema but missing", GetNameTable()->GetName(currentId));
+                if (!item || item->Type == EValueType::Null) {
+                    // If we got here, MissingValueMode is PrintSentinel.
+                    WriteRaw(Config_->MissingValueSentinel);
+                } else {
+                    WriteValue(*item);
                 }
-                WriteValue(row[index]);
             }
             WriteRaw(Config_->RecordSeparator);
             TryFlushBuffer(false);
         }    
         TryFlushBuffer(true);
     }
-
-private:
-    std::vector<int> IdToIndexInRowMapping_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSchemafulWriterForSchemafulDsv
-    : public NTableClient::ISchemafulWriter
+    : public ISchemafulWriter
     , public TSchemafulDsvWriterBase
 {
 public:
     TSchemafulWriterForSchemafulDsv(
-        NConcurrency::IAsyncOutputStreamPtr stream,
-        std::vector<int> columnIdMapping,
-        TSchemafulDsvFormatConfigPtr config = New<TSchemafulDsvFormatConfig>())
-        : TSchemafulDsvWriterBase(config)
+        IAsyncOutputStreamPtr stream,
+        TSchemafulDsvFormatConfigPtr config,
+        std::vector<int> IdToIndexInRow)
+        : TSchemafulDsvWriterBase(
+            config,
+            IdToIndexInRow)
         , Output_(CreateSyncAdapter(stream))
     {
         BlobOutput_ = &UnderlyingBlobOutput_; 
-        ColumnIdMapping_.swap(columnIdMapping); 
     }
 
     virtual TFuture<void> Close() override
@@ -275,21 +303,43 @@ public:
         return VoidFuture;
     }
 
-    virtual bool Write(const std::vector<NTableClient::TUnversionedRow>& rows) override
+    virtual bool Write(const std::vector<TUnversionedRow>& rows) override
     {
-        for (auto row : rows) {
+        for (const auto& row : rows) {
+            CurrentRowValues_.assign(CurrentRowValues_.size(), nullptr);
+            for (auto item = row.Begin(); item != row.End(); ++item) {
+                YASSERT(item->Id >= 0 && item->Id < IdToIndexInRow_.size());
+                if (IdToIndexInRow_[item->Id] != -1) {
+                    CurrentRowValues_[IdToIndexInRow_[item->Id]] = item;
+                }
+            }
+            
+            int missingValueIndex = FindMissingValueIndex();
+            if (missingValueIndex != -1) {
+                if (Config_->MissingValueMode == EMissingSchemafulDsvValueMode::SkipRow) {
+                    continue;
+                } else if (Config_->MissingValueMode == EMissingSchemafulDsvValueMode::Fail) { 
+                    THROW_ERROR_EXCEPTION("Column %Qv is in schema but missing", (*Config_->Columns)[missingValueIndex]);
+                }
+            }
+
             bool firstValue = true;
-            for (auto id : ColumnIdMapping_) {
+            for (const auto* item : CurrentRowValues_) {
                 if (!firstValue) {
                     WriteRaw(Config_->FieldSeparator);
                 } else {
                     firstValue = false;
                 }
-                WriteValue(row[id]);
+                if (!item || item->Type == EValueType::Null) {
+                    // If we got here, MissingValueMode is PrintSentinel.
+                    WriteRaw(Config_->MissingValueSentinel);
+                } else {
+                    WriteValue(*item);
+                }
             }
             WriteRaw(Config_->RecordSeparator);
             TryFlushBuffer(false);
-        }
+        }    
         TryFlushBuffer(true);
         
         return true;
@@ -333,7 +383,7 @@ private:
 ISchemalessFormatWriterPtr CreateSchemalessWriterForSchemafulDsv(
     TSchemafulDsvFormatConfigPtr config,
     TNameTablePtr nameTable,
-    NConcurrency::IAsyncOutputStreamPtr output,
+    IAsyncOutputStreamPtr output,
     bool enableContextSaving,
     TControlAttributesConfigPtr controlAttributesConfig,
     int /* keyColumnCount */)
@@ -347,7 +397,7 @@ ISchemalessFormatWriterPtr CreateSchemalessWriterForSchemafulDsv(
     }
 
     if (controlAttributesConfig->EnableRowIndex) {
-         THROW_ERROR_EXCEPTION("Row indices are not supported in schemaful DSV format");
+        THROW_ERROR_EXCEPTION("Row indices are not supported in schemaful DSV format");
     }
 
     if (controlAttributesConfig->EnableTableIndex) {
@@ -358,18 +408,29 @@ ISchemalessFormatWriterPtr CreateSchemalessWriterForSchemafulDsv(
         THROW_ERROR_EXCEPTION("Config must contain columns for schemaful DSV schemaless writer");
     }
 
+    std::vector<int> idToIndexInRow;
+    const auto& columns = config->Columns.Get();
+    for (int columnIndex = 0; columnIndex < static_cast<int>(columns.size()); ++columnIndex) {
+        nameTable->GetIdOrRegisterName(columns[columnIndex]);
+    }
+    idToIndexInRow.resize(nameTable->GetSize(), -1);
+    for (int columnIndex = 0; columnIndex < static_cast<int>(columns.size()); ++columnIndex) {
+        idToIndexInRow[nameTable->GetId(columns[columnIndex])] = columnIndex;
+    }
+
     return New<TSchemalessWriterForSchemafulDsv>(
         nameTable, 
         output, 
         enableContextSaving,
         controlAttributesConfig, 
-        config);
+        config,
+        idToIndexInRow);
 }
 
 ISchemalessFormatWriterPtr CreateSchemalessWriterForSchemafulDsv(
     const IAttributeDictionary& attributes,
     TNameTablePtr nameTable,
-    NConcurrency::IAsyncOutputStreamPtr output,
+    IAsyncOutputStreamPtr output,
     bool enableContextSaving,
     TControlAttributesConfigPtr controlAttributesConfig,
     int keyColumnCount)
@@ -391,18 +452,21 @@ ISchemafulWriterPtr CreateSchemafulWriterForSchemafulDsv(
     const TTableSchema& schema,
     IAsyncOutputStreamPtr stream)
 {
-    std::vector<int> columnIdMapping;
+    std::vector<int> idToIndexInRow(schema.Columns().size(), -1);
     if (config->Columns) {
-        for (const auto& name : *config->Columns) {
-            columnIdMapping.push_back(schema.GetColumnIndexOrThrow(name));
+        for (int columnIndex = 0; columnIndex < static_cast<int>(config->Columns->size()); ++columnIndex) {
+            idToIndexInRow[schema.GetColumnIndexOrThrow((*config->Columns)[columnIndex])] = columnIndex;
         }
     } else {
-        for (int id = 0; id < schema.Columns().size(); ++id) {
-            columnIdMapping.push_back(id);
+        for (int id = 0; id < static_cast<int>(schema.Columns().size()); ++id) {
+            idToIndexInRow[id] = id;
         }
     }
 
-    return New<TSchemafulWriterForSchemafulDsv>(stream, std::move(columnIdMapping), config);
+    return New<TSchemafulWriterForSchemafulDsv>(
+        stream, 
+        config,
+        idToIndexInRow);
 }
 
 ISchemafulWriterPtr CreateSchemafulWriterForSchemafulDsv(
