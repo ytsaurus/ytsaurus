@@ -524,7 +524,7 @@ class Cypress(fuse.Operations):
         children = self._client.list(ypath, attributes=self._system_attributes)
         # Still having encoding problems,
         # try listing //statbox/home/zahaaar at Plato.
-        return (child.decode("utf-8") for child in children)
+        return [child.decode("utf-8") for child in children]
 
     @handle_yt_errors(_logger)
     @log_calls(_logger, "%(__name__)s(%(path)r)", _statistics)
