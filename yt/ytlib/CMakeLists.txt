@@ -287,6 +287,7 @@ LIBRARY()
 
 ADDINCL(
   contrib/libs/llvm37/include
+  contrib/libs/sparsehash/src
   contrib/libs/re2
 )
 
@@ -319,8 +320,9 @@ list(APPEND YT_SRCS_RESOLVED ${YT_SOURCE_FILES})
 
 add_library(ytlib STATIC ${YT_SRCS_RESOLVED})
 
-target_link_libraries ( ytlib
+target_link_libraries(ytlib
   ytcore
+  deps-arcadia-contrib-libs-re2
 )
 
 ################################################################################

@@ -258,7 +258,6 @@ target_link_libraries(ytcore
   ytext-json
   ytext-arcadia-library-http
   ytext-yajl
-  ytext-re2
   protobuf
   farmhash
   ${REQUIRED_LLVM_LIBRARIES} 
