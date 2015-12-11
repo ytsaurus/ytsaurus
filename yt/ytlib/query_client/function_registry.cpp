@@ -9,6 +9,7 @@
 #include "udf/is_null.h"
 #include "udf/is_substr.h"
 #include "udf/lower.h"
+#include "udf/concat.h"
 #include "udf/max.h"
 #include "udf/min.h"
 #include "udf/regex.h"
@@ -136,6 +137,16 @@ void RegisterBuiltinFunctions(TIntrusivePtr<TFunctionRegistry>& registry)
         TSharedRef(
             lower_bc,
             lower_bc_len,
+            nullptr),
+        ECallingConvention::Simple));
+
+    registry->RegisterFunction(New<TUserDefinedFunction>(
+        "concat",
+        std::vector<TType>{EValueType::String, EValueType::String},
+        EValueType::String,
+        TSharedRef(
+            concat_bc,
+            concat_bc_len,
             nullptr),
         ECallingConvention::Simple));
 

@@ -1005,7 +1005,22 @@ INSTANTIATE_TEST_CASE_P(
             "",
             "lower('ПрИвЕт, КаК ДеЛа?')",
             MakeString("привет, как дела?")),
-
+        std::tuple<const char*, const char*, TUnversionedValue>(
+            "",
+            "concat('', '')",
+            MakeString("")),
+        std::tuple<const char*, const char*, TUnversionedValue>(
+            "",
+            "concat('abc', '')",
+            MakeString("abc")),
+        std::tuple<const char*, const char*, TUnversionedValue>(
+            "",
+            "concat('', 'def')",
+            MakeString("def")),
+        std::tuple<const char*, const char*, TUnversionedValue>(
+            "",
+            "concat('abc', 'def')",
+            MakeString("abcdef")),
         std::tuple<const char*, const char*, TUnversionedValue>(
             "i1=33;i2=22",
             "i1 + i2",
