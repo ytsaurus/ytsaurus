@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <contrib/libs/farmhash/farmhash.h>
+#include <yt/contrib/farmhash/farmhash.h>
 
 namespace NYT {
 
