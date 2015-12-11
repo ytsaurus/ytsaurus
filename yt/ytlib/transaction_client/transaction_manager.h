@@ -181,9 +181,6 @@ public:
     //! Asynchronously aborts all active transactions.
     void AbortAll();
 
-    //! Returns the configuration.
-    TTransactionManagerConfigPtr GetConfig();
-
 private:
     friend class TTransaction;
     class TImpl;

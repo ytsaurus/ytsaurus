@@ -34,8 +34,6 @@
 #include <yt/ytlib/table_client/schemaless_chunk_reader.h>
 #include <yt/ytlib/table_client/schemaless_writer.h>
 
-#include <yt/ytlib/transaction_client/transaction_manager.h>
-
 #include <yt/core/actions/cancelable_context.h>
 
 #include <yt/core/bus/tcp_client.h>

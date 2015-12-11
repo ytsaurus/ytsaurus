@@ -33,7 +33,6 @@
 
 #include <yt/ytlib/transaction_client/remote_timestamp_provider.h>
 #include <yt/ytlib/transaction_client/timestamp_provider.h>
-#include <yt/ytlib/transaction_client/transaction_manager.h>
 
 #include <yt/ytlib/chunk_client/throttler_manager.h>
 

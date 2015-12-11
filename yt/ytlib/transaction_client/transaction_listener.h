@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/ytlib/api/public.h>
+
 namespace NYT {
 namespace NTransactionClient {
 
@@ -13,7 +15,7 @@ class TTransactionListener
 {
 protected:
     //! Starts listening for transaction abort.
-    void ListenTransaction(TTransactionPtr transaction);
+    void ListenTransaction(NApi::ITransactionPtr transaction);
 
     //! Checks if any of transactions that we are listening to were aborted.
     //! If so, raises an exception.

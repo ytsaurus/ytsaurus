@@ -7,6 +7,8 @@
 
 #include <yt/ytlib/node_tracker_client/helpers.h>
 
+#include <yt/ytlib/api/transaction.h>
+
 namespace NYT {
 namespace NScheduler {
 

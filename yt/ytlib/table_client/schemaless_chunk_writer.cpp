@@ -22,7 +22,10 @@
 
 #include <yt/ytlib/transaction_client/helpers.h>
 #include <yt/ytlib/transaction_client/transaction_listener.h>
-#include <yt/ytlib/transaction_client/transaction_manager.h>
+#include <yt/ytlib/transaction_client/config.h>
+
+#include <yt/ytlib/api/transaction.h>
+#include <yt/ytlib/api/config.h>
 
 #include <yt/ytlib/ypath/rich.h>
 
@@ -770,7 +773,7 @@ public:
         TNameTablePtr nameTable,
         const TKeyColumns& keyColumns,
         IClientPtr client,
-        TTransactionPtr transaction,
+        ITransactionPtr transaction,
         IThroughputThrottlerPtr throttler,
         IBlockCachePtr blockCache);
 
@@ -790,7 +793,7 @@ private:
     const TNameTablePtr NameTable_;
     const TKeyColumns KeyColumns_;
     const IClientPtr Client_;
-    const TTransactionPtr Transaction_;
+    const ITransactionPtr Transaction_;
     const IThroughputThrottlerPtr Throttler_;
     const IBlockCachePtr BlockCache_;
 
@@ -799,7 +802,7 @@ private:
     TCellTag CellTag_ = InvalidCellTag;
     TObjectId ObjectId_;
 
-    TTransactionPtr UploadTransaction_;
+    ITransactionPtr UploadTransaction_;
     TChunkListId ChunkListId_;
 
     TOwningKey LastKey_;
@@ -821,7 +824,7 @@ TSchemalessTableWriter::TSchemalessTableWriter(
     TNameTablePtr nameTable,
     const TKeyColumns& keyColumns,
     IClientPtr client,
-    TTransactionPtr transaction,
+    ITransactionPtr transaction,
     IThroughputThrottlerPtr throttler,
     IBlockCachePtr blockCache)
     : Logger(TableClientLogger)
@@ -999,13 +1002,11 @@ void TSchemalessTableWriter::DoOpen()
         auto batchReq = proxy.ExecuteBatch();
 
         {
-            auto transactionManager = Client_->GetTransactionManager();
-
             auto req = TTableYPathProxy::BeginUpload(objectIdPath);
             req->set_update_mode(static_cast<int>(append ? EUpdateMode::Append : EUpdateMode::Overwrite));
             req->set_lock_mode(static_cast<int>((append && !sorted) ? ELockMode::Shared : ELockMode::Exclusive));
             req->set_upload_transaction_title(Format("Upload to %v", path));
-            req->set_upload_transaction_timeout(ToProto(transactionManager->GetConfig()->DefaultTransactionTimeout));
+            req->set_upload_transaction_timeout(ToProto(Client_->GetConnection()->GetConfig()->TransactionManager->DefaultTransactionTimeout));
             SetTransactionId(req, Transaction_);
             GenerateMutationId(req);
             batchReq->AddRequest(req, "begin_upload");
@@ -1022,11 +1023,10 @@ void TSchemalessTableWriter::DoOpen()
             auto rsp = batchRsp->GetResponse<TTableYPathProxy::TRspBeginUpload>("begin_upload").Value();
             auto uploadTransactionId = FromProto<TTransactionId>(rsp->upload_transaction_id());
 
-            NTransactionClient::TTransactionAttachOptions options;
+            TTransactionAttachOptions options;
             options.AutoAbort = true;
 
-            auto transactionManager = Client_->GetTransactionManager();
-            UploadTransaction_ = transactionManager->Attach(uploadTransactionId, options);
+            UploadTransaction_ = Client_->AttachTransaction(uploadTransactionId, options);
             ListenTransaction(UploadTransaction_);
 
             LOG_INFO("Table upload started (UploadTransactionId: %v)",
@@ -1141,7 +1141,7 @@ ISchemalessWriterPtr CreateSchemalessTableWriter(
     TNameTablePtr nameTable,
     const TKeyColumns& keyColumns,
     IClientPtr client,
-    TTransactionPtr transaction,
+    ITransactionPtr transaction,
     IThroughputThrottlerPtr throttler,
     IBlockCachePtr blockCache)
 {

@@ -7,8 +7,6 @@
 
 #include <yt/ytlib/chunk_client/dispatcher.h>
 
-#include <yt/ytlib/transaction_client/transaction_manager.h>
-
 #include <yt/ytlib/ypath/rich.h>
 
 #include <yt/core/concurrency/delayed_executor.h>

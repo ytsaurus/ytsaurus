@@ -1,12 +1,15 @@
 #include "transaction_listener.h"
-#include "transaction_manager.h"
+
+#include <yt/ytlib/api/transaction.h>
 
 namespace NYT {
 namespace NTransactionClient {
 
+using namespace NApi;
+
 ////////////////////////////////////////////////////////////////////////////////
 
-void TTransactionListener::ListenTransaction(TTransactionPtr transaction)
+void TTransactionListener::ListenTransaction(ITransactionPtr transaction)
 {
     YCHECK(transaction);
 

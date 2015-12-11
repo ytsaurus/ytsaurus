@@ -20,6 +20,9 @@
 
 #include <yt/ytlib/table_client/config.h>
 
+#include <yt/ytlib/api/client.h>
+#include <yt/ytlib/api/transaction.h>
+
 #include <yt/core/ytree/attribute_helpers.h>
 
 namespace NYT {

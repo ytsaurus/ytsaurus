@@ -1,6 +1,6 @@
 #include "transaction_commands.h"
 
-#include <yt/ytlib/transaction_client/transaction_manager.h>
+#include <yt/ytlib/api/transaction.h>
 
 #include <yt/core/concurrency/scheduler.h>
 
@@ -27,10 +27,11 @@ void TStartTransactionCommand::Execute(ICommandContextPtr context)
         Options.Attributes = ConvertToAttributes(Attributes);
     }
 
-    auto transactionManager = context->GetClient()->GetTransactionManager();
-    auto transaction = WaitFor(transactionManager->Start(
+    auto transactionOrError = WaitFor(context->GetClient()->StartTransaction(
         ETransactionType::Master,
-        Options)).ValueOrThrow();
+        Options));
+
+    auto transaction = transactionOrError.ValueOrThrow();
     transaction->Detach();
 
     context->ProduceOutputValue(BuildYsonStringFluently()
@@ -45,7 +46,7 @@ void TPingTransactionCommand::Execute(ICommandContextPtr context)
     if (!Options.TransactionId)
         return;
 
-    auto transaction = AttachTransaction(true, context->GetClient()->GetTransactionManager());
+    auto transaction = AttachTransaction(context, true);
     WaitFor(transaction->Ping())
         .ThrowOnError();
 }
@@ -54,7 +55,7 @@ void TPingTransactionCommand::Execute(ICommandContextPtr context)
 
 void TCommitTransactionCommand::Execute(ICommandContextPtr context)
 {
-    auto transaction = AttachTransaction(true, context->GetClient()->GetTransactionManager());
+    auto transaction = AttachTransaction(context, true);
 
     WaitFor(transaction->Commit(Options))
         .ThrowOnError();
@@ -64,7 +65,7 @@ void TCommitTransactionCommand::Execute(ICommandContextPtr context)
 
 void TAbortTransactionCommand::Execute(ICommandContextPtr context)
 {
-    auto transaction = AttachTransaction(true, context->GetClient()->GetTransactionManager());
+    auto transaction = AttachTransaction(context, true);
 
     WaitFor(transaction->Abort(Options))
         .ThrowOnError();

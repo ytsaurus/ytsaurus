@@ -9,6 +9,8 @@
 #include <yt/ytlib/scheduler/helpers.h>
 #include <yt/ytlib/scheduler/scheduler_service_proxy.h>
 
+#include <yt/ytlib/api/client.h>
+
 #include <yt/core/rpc/response_keeper.h>
 
 #include <yt/core/ytree/permission.h>
@@ -18,11 +20,11 @@ namespace NScheduler {
 
 using namespace NRpc;
 using namespace NCellScheduler;
-using namespace NTransactionClient;
+using namespace NApi;
 using namespace NYTree;
 using namespace NYson;
-using namespace NSecurityClient;
 using namespace NCypressClient;
+using namespace NSecurityClient;
 using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////

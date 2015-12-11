@@ -6,9 +6,9 @@
 
 #include <yt/ytlib/scheduler/scheduler_service.pb.h>
 
-#include <yt/ytlib/transaction_client/transaction_manager.h>
-
 #include <yt/ytlib/job_tracker_client/statistics.h>
+
+#include <yt/ytlib/api/public.h>
 
 #include <yt/core/actions/future.h>
 
@@ -44,32 +44,32 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(bool, Prepared);
 
     //! User-supplied transaction where the operation resides.
-    DEFINE_BYVAL_RO_PROPERTY(NTransactionClient::TTransactionPtr, UserTransaction);
+    DEFINE_BYVAL_RO_PROPERTY(NApi::ITransactionPtr, UserTransaction);
 
     //! Transaction used for maintaining operation inputs and outputs.
     /*!
      *  SyncSchedulerTransaction is nested inside UserTransaction, if any.
      *  Input and output transactions are nested inside SyncSchedulerTransaction.
      */
-    DEFINE_BYVAL_RW_PROPERTY(NTransactionClient::TTransactionPtr, SyncSchedulerTransaction);
+    DEFINE_BYVAL_RW_PROPERTY(NApi::ITransactionPtr, SyncSchedulerTransaction);
 
     //! Transaction used for internal housekeeping, e.g. generating stderrs.
     /*!
      *  Not nested inside any other transaction.
      */
-    DEFINE_BYVAL_RW_PROPERTY(NTransactionClient::TTransactionPtr, AsyncSchedulerTransaction);
+    DEFINE_BYVAL_RW_PROPERTY(NApi::ITransactionPtr, AsyncSchedulerTransaction);
 
     //! Transaction used for taking snapshot of operation input.
     /*!
      *  InputTransaction is nested inside SyncSchedulerTransaction.
      */
-    DEFINE_BYVAL_RW_PROPERTY(NTransactionClient::TTransactionPtr, InputTransaction);
+    DEFINE_BYVAL_RW_PROPERTY(NApi::ITransactionPtr, InputTransaction);
 
     //! Transaction used for locking and writing operation output.
     /*!
      *  OutputTransaction is nested inside SyncSchedulerTransaction.
      */
-    DEFINE_BYVAL_RW_PROPERTY(NTransactionClient::TTransactionPtr, OutputTransaction);
+    DEFINE_BYVAL_RW_PROPERTY(NApi::ITransactionPtr, OutputTransaction);
 
     DEFINE_BYVAL_RO_PROPERTY(NYTree::IMapNodePtr, Spec);
 
@@ -133,7 +133,7 @@ public:
         const TOperationId& operationId,
         EOperationType type,
         const NRpc::TMutationId& mutationId,
-        NTransactionClient::TTransactionPtr userTransaction,
+        NApi::ITransactionPtr userTransaction,
         NYTree::IMapNodePtr spec,
         const Stroka& authenticatedUser,
         TInstant startTime,
@@ -141,8 +141,9 @@ public:
         bool suspended = false);
 
 private:
-    TPromise<void> StartedPromise;
-    TPromise<void> FinishedPromise;
+    TPromise<void> StartedPromise_ = NewPromise<void>();
+    TPromise<void> FinishedPromise_ = NewPromise<void>();
+
 };
 
 DEFINE_REFCOUNTED_TYPE(TOperation)

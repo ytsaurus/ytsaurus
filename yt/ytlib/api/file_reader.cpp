@@ -20,7 +20,6 @@
 
 #include <yt/ytlib/transaction_client/helpers.h>
 #include <yt/ytlib/transaction_client/transaction_listener.h>
-#include <yt/ytlib/transaction_client/transaction_manager.h>
 
 namespace NYT {
 namespace NApi {
@@ -54,8 +53,7 @@ public:
         , Logger(ApiLogger)
     {
         if (Options_.TransactionId) {
-            auto transactionManager = Client_->GetTransactionManager();
-            Transaction_ = transactionManager->Attach(Options_.TransactionId);
+            Transaction_ = Client_->AttachTransaction(Options_.TransactionId);
         }
 
         Logger.AddTag("Path: %v, TransactionId: %v",
@@ -93,7 +91,7 @@ private:
     const TFileReaderOptions Options_;
     const TFileReaderConfigPtr Config_;
 
-    TTransactionPtr Transaction_;
+    ITransactionPtr Transaction_;
 
     NFileClient::IFileReaderPtr Reader_;
 
