@@ -649,10 +649,10 @@ void ToProto(NProto::TChunkSlice* protoChunkSlice, const TChunkSlice& chunkSlice
     protoChunkSlice->mutable_size_override_ext()->CopyFrom(chunkSlice.SizeOverrideExt());
 }
 
-size_t SpaceUsedExcludingSelf(const TChunkSlicePtr& p)
+size_t SpaceUsed(const TChunkSlicePtr& p)
 {
-    return p->LowerLimit_.SpaceUsedExcludingSelf() +
-        p->UpperLimit_.SpaceUsedExcludingSelf() +
+    return sizeof(*p) + p->LowerLimit_.SpaceUsed() - sizeof(p->LowerLimit_) +
+        p->UpperLimit_.SpaceUsed() - sizeof(p->UpperLimit_) +
         p->SizeOverrideExt_.SpaceUsed() - sizeof(p->SizeOverrideExt_);
 }
 

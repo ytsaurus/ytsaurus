@@ -600,9 +600,9 @@ public:
         return StringData_.length() + RowData_.Size();
     }
 
-    size_t SpaceUsedExcludingSelf() const
+    size_t SpaceUsed() const
     {
-        return StringData_.capacity() + RowData_.Size();
+        return sizeof(*this) + StringData_.capacity() + RowData_.Size();
     }
 
     void Save(TStreamSaveContext& context) const;
