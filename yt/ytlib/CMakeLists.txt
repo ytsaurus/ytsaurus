@@ -140,7 +140,6 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/journal_client/private.cpp
   ${CMAKE_CURRENT_LIST_DIR}/journal_client/public.cpp
 
-  ${CMAKE_CURRENT_LIST_DIR}/misc/tclap_helpers.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/workload.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/workload.proto
 
@@ -286,6 +285,11 @@ IF(YMAKE)
 
 LIBRARY()
 
+ADDINCL(
+  contrib/libs/llvm37/include
+  contrib/libs/re2
+)
+
 SRCS(${YT_SRCS})
 
 CXXFLAGS(
@@ -295,6 +299,10 @@ CXXFLAGS(
   -Wno-unused-parameter
   -Wno-unused-value
   -Wno-c++14-extensions
+)
+
+PEERDIR(
+  contrib/libs/llvm37/lib
 )
 
 END()

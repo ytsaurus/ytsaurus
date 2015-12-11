@@ -2,7 +2,7 @@
 
 #include <yt/ytlib/ypath/rich.h>
 
-#include <tclap/CmdLine.h>
+#include <contrib/tclap/yt_helpers.h>
 
 /////////////////////////////////////////////////////////////////////////////
 
