@@ -304,7 +304,7 @@ public:
         if (event.Level == ELogLevel::Fatal) {
             bool shutdown = false;
             if (!ShutdownRequested_.compare_exchange_strong(shutdown, true)) {
-                // Somebody already making a fatal call.
+                // Fatal events should not get out of this call.
                 Sleep(TDuration::Max());
             }
 
