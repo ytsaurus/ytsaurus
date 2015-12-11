@@ -257,7 +257,7 @@ public:
             nullptr,
             CodegenValuesPtrFromRow(builder, row),
             index,
-            Twine(name).concat(".at.").concat(index));
+            Twine(name).concat(".at.") + Twine(index));
 
         StoreToValue(builder, valuePtr, id);
     }
