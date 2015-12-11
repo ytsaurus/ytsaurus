@@ -80,7 +80,10 @@ void TFollowerTracker::SendPing(TPeerId followerId)
         return;
     }
 
-    auto loggedVersion = DecoratedAutomaton_->GetLoggedVersion();
+    auto state = DecoratedAutomaton_->GetState();
+    auto loggedVersion = state == EPeerState::LeaderRecovery
+        ? EpochContext_->ReachableVersion
+        : DecoratedAutomaton_->GetLoggedVersion();
     auto committedVersion = DecoratedAutomaton_->GetAutomatonVersion();
 
     LOG_DEBUG("Sending ping to follower %v (LoggedVersion: %v, CommittedVersion: %v, EpochId: %v)",

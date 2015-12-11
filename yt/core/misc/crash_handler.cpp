@@ -338,9 +338,17 @@ void CrashSignalHandler(int signal, siginfo_t* si, void* uc)
         DumpStackFrameInfo(stack[i]);
     }
 
+    prefix.Reset();
+    prefix.AppendString("*** Wait for logger to shut down ***");
+    WriteToStderr(prefix.GetData(), prefix.GetBytesWritten());
+
     // Okay, we have done enough, so now we can do unsafe (async signal unsafe)
     // things. The process could be terminated or hung at any time.
     NLogging::TLogManager::StaticShutdown();
+
+    prefix.Reset();
+    prefix.AppendString("*** Terminate ***");
+    WriteToStderr(prefix.GetData(), prefix.GetBytesWritten());
 
     // Kill ourself by the default signal handler.
     Terminate(signal);
