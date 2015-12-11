@@ -362,7 +362,7 @@ class TestSchedulerRunningOperationsLimitJob(YTEnvSetup):
 
         op1 = map(
             dont_track=True,
-            command="sleep 1.7; cat >/dev/null",
+            command="sleep 2.0; cat >/dev/null",
             in_=["//tmp/in"],
             out="//tmp/out1",
             spec={"pool": "test_pool_1"})
@@ -376,7 +376,7 @@ class TestSchedulerRunningOperationsLimitJob(YTEnvSetup):
 
         op3 = map(
             dont_track=True,
-            command="sleep 1.7; cat >/dev/null",
+            command="sleep 2.0; cat >/dev/null",
             in_=["//tmp/in"],
             out="//tmp/out3",
             spec={"pool": "test_pool_2"})
