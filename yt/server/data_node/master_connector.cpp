@@ -24,6 +24,7 @@
 
 #include <yt/ytlib/api/client.h>
 #include <yt/ytlib/api/connection.h>
+#include <yt/ytlib/api/transaction.h>
 
 #include <yt/ytlib/election/config.h>
 
@@ -34,9 +35,9 @@
 #include <yt/ytlib/node_tracker_client/helpers.h>
 #include <yt/ytlib/node_tracker_client/node_statistics.h>
 
-#include <yt/ytlib/transaction_client/transaction_manager.h>
-
 #include <yt/ytlib/object_client/helpers.h>
+
+#include <yt/ytlib/api/client.h>
 
 #include <yt/core/concurrency/delayed_executor.h>
 
@@ -247,7 +248,7 @@ void TMasterConnector::RegisterAtMaster()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    NTransactionClient::TTransactionStartOptions options;
+    TTransactionStartOptions options;
     options.PingPeriod = Config_->LeaseTransactionPingPeriod;
     options.Timeout = Config_->LeaseTransactionTimeout;
 
@@ -255,8 +256,7 @@ void TMasterConnector::RegisterAtMaster()
     attributes->Set("title", Format("Lease for node %v", GetDefaultAddress(LocalAddresses_)));
     options.Attributes = std::move(attributes);
 
-    auto transactionManager = Bootstrap_->GetMasterClient()->GetTransactionManager();
-    auto asyncTransaction = transactionManager->Start(ETransactionType::Master, options);
+    auto asyncTransaction = Bootstrap_->GetMasterClient()->StartTransaction(ETransactionType::Master, options);
     auto transactionOrError = WaitFor(asyncTransaction);
 
     if (!transactionOrError.IsOK()) {

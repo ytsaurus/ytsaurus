@@ -5,17 +5,20 @@
 
 #include <yt/ytlib/object_client/helpers.h>
 
+#include <yt/ytlib/api/transaction.h>
+
 #include <yt/core/rpc/client.h>
 
 namespace NYT {
 namespace NTransactionClient {
 
+using namespace NApi;
 using namespace NRpc;
 using namespace NObjectClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void SetTransactionId(IClientRequestPtr request, TTransactionPtr transaction)
+void SetTransactionId(IClientRequestPtr request, ITransactionPtr transaction)
 {
     NCypressClient::SetTransactionId(
         request,

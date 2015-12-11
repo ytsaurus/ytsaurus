@@ -10,8 +10,6 @@
 
 #include <yt/ytlib/security_client/public.h>
 
-#include <yt/ytlib/transaction_client/transaction_manager.h>
-
 #include <yt/core/misc/error.h>
 #include <yt/core/misc/mpl.h>
 
@@ -83,9 +81,9 @@ protected:
             .Optional();
     }
 
-    NTransactionClient::TTransactionPtr AttachTransaction(
-        bool required,
-        NTransactionClient::TTransactionManagerPtr transactionManager)
+    NApi::ITransactionPtr AttachTransaction(
+        ICommandContextPtr context,
+        bool required)
     {
         const auto& transactionId = this->Options.TransactionId;
         if (!transactionId) {
@@ -95,10 +93,10 @@ protected:
             return nullptr;
         }
 
-        NTransactionClient::TTransactionAttachOptions options;
+        NApi::TTransactionAttachOptions options;
         options.Ping = !required;
         options.PingAncestors = this->Options.PingAncestors;
-        return transactionManager->Attach(transactionId, options);
+        return context->GetClient()->AttachTransaction(transactionId, options);
     }
 
 };

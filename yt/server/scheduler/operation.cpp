@@ -8,16 +8,18 @@
 namespace NYT {
 namespace NScheduler {
 
-using namespace NTransactionClient;
+using namespace NApi;
+using namespace NRpc;
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////
 
 TOperation::TOperation(
     const TOperationId& id,
     EOperationType type,
-    const NRpc::TMutationId& mutationId,
-    TTransactionPtr userTransaction,
-    NYTree::IMapNodePtr spec,
+    const TMutationId& mutationId,
+    ITransactionPtr userTransaction,
+    IMapNodePtr spec,
     const Stroka& authenticatedUser,
     TInstant startTime,
     EOperationState state,
@@ -36,30 +38,28 @@ TOperation::TOperation(
     , StderrCount_(0)
     , MaxStderrCount_(0)
     , CleanStart_(false)
-    , StartedPromise(NewPromise<void>())
-    , FinishedPromise(NewPromise<void>())
 { }
 
 TFuture<TOperationPtr> TOperation::GetStarted()
 {
-    return StartedPromise.ToFuture().Apply(BIND([this_ = MakeStrong(this)] () -> TOperationPtr {
+    return StartedPromise_.ToFuture().Apply(BIND([this_ = MakeStrong(this)] () -> TOperationPtr {
         return this_;
     }));
 }
 
 void TOperation::SetStarted(const TError& error)
 {
-    StartedPromise.Set(error);
+    StartedPromise_.Set(error);
 }
 
 TFuture<void> TOperation::GetFinished()
 {
-    return FinishedPromise;
+    return FinishedPromise_;
 }
 
 void TOperation::SetFinished()
 {
-    FinishedPromise.Set();
+    FinishedPromise_.Set();
 }
 
 bool TOperation::IsFinishedState() const

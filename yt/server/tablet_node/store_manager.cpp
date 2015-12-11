@@ -24,7 +24,6 @@
 #include <yt/ytlib/tablet_client/config.h>
 
 #include <yt/ytlib/transaction_client/helpers.h>
-#include <yt/ytlib/transaction_client/transaction_manager.h>
 
 #include <yt/core/concurrency/scheduler.h>
 

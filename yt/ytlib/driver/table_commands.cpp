@@ -84,7 +84,7 @@ void TReadTableCommand::Execute(ICommandContextPtr context)
 
 void TWriteTableCommand::Execute(ICommandContextPtr context)
 {
-    auto transaction = AttachTransaction(false, context->GetClient()->GetTransactionManager());
+    auto transaction = AttachTransaction(context, false);
 
     // COMPAT(babenko): remove Request_->TableWriter
     auto config = UpdateYsonSerializable(

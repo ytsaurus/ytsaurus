@@ -5,6 +5,10 @@
 #include <yt/ytlib/object_client/master_ypath_proxy.h>
 #include <yt/ytlib/object_client/helpers.h>
 
+#include <yt/ytlib/api/client.h>
+
+#include <yt/core/concurrency/thread_affinity.h>
+
 namespace NYT {
 namespace NScheduler {
 

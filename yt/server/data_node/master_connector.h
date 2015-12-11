@@ -9,7 +9,7 @@
 #include <yt/ytlib/node_tracker_client/node_directory.h>
 #include <yt/ytlib/node_tracker_client/node_tracker_service_proxy.h>
 
-#include <yt/ytlib/transaction_client/public.h>
+#include <yt/ytlib/api/public.h>
 
 #include <yt/core/actions/cancelable_context.h>
 #include <yt/core/actions/signal.h>
@@ -106,7 +106,7 @@ private:
     IInvokerPtr HeartbeatInvoker_;
 
     //! The lease transaction.
-    NTransactionClient::TTransactionPtr LeaseTransaction_;
+    NApi::ITransactionPtr LeaseTransaction_;
 
     //! Node id assigned by master or |InvalidNodeId| is not registered.
     TNodeId NodeId_ = NNodeTrackerClient::InvalidNodeId;

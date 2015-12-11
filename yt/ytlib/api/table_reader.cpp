@@ -21,9 +21,10 @@
 
 #include <yt/ytlib/transaction_client/helpers.h>
 #include <yt/ytlib/transaction_client/transaction_listener.h>
-#include <yt/ytlib/transaction_client/transaction_manager.h>
 
 #include <yt/ytlib/ypath/rich.h>
+
+#include <yt/ytlib/api/transaction.h>
 
 #include <yt/core/concurrency/scheduler.h>
 #include <yt/core/concurrency/throughput_throttler.h>
@@ -45,6 +46,7 @@ using namespace NNodeTrackerClient;
 using namespace NObjectClient;
 using namespace NTableClient;
 using namespace NTableClient::NProto;
+using namespace NApi;
 using namespace NTransactionClient;
 using namespace NYPath;
 using namespace NYTree;
@@ -62,7 +64,7 @@ public:
         TTableReaderConfigPtr config,
         TRemoteReaderOptionsPtr options,
         IClientPtr client,
-        TTransactionPtr transaction,
+        ITransactionPtr transaction,
         const TRichYPath& richPath,
         bool unordered);
 
@@ -85,7 +87,7 @@ private:
     const TTableReaderConfigPtr Config_;
     const TRemoteReaderOptionsPtr Options_;
     const IClientPtr Client_;
-    const TTransactionPtr Transaction_;
+    const ITransactionPtr Transaction_;
     const TRichYPath RichPath_;
 
     const TTransactionId TransactionId_;
@@ -107,7 +109,7 @@ TSchemalessTableReader::TSchemalessTableReader(
     TTableReaderConfigPtr config,
     TRemoteReaderOptionsPtr options,
     IClientPtr client,
-    TTransactionPtr transaction,
+    ITransactionPtr transaction,
     const TRichYPath& richPath,
     bool unordered)
     : Config_(config)
@@ -388,19 +390,16 @@ TFuture<ISchemalessMultiChunkReaderPtr> CreateTableReader(
     const NYPath::TRichYPath& path,
     const TTableReaderOptions& options)
 {
-    NTransactionClient::TTransactionPtr transaction;
+    ITransactionPtr transaction;
 
     if (options.TransactionId != NTransactionClient::NullTransactionId) {
-        NTransactionClient::TTransactionAttachOptions transactionOptions;
+        TTransactionAttachOptions transactionOptions;
         transactionOptions.Ping = options.Ping;
         transactionOptions.PingAncestors = options.PingAncestors;
-
-        transaction = client->GetTransactionManager()->Attach(
-            options.TransactionId,
-            transactionOptions);
+        transaction = client->AttachTransaction(options.TransactionId, transactionOptions);
     }
 
-    ISchemalessMultiChunkReaderPtr reader = New<TSchemalessTableReader>(
+    auto reader = New<TSchemalessTableReader>(
         options.Config ? options.Config : New<TTableReaderConfig>(),
         New<TRemoteReaderOptions>(),
         client,
@@ -408,7 +407,7 @@ TFuture<ISchemalessMultiChunkReaderPtr> CreateTableReader(
         path,
         options.Unordered);
 
-    return reader->GetReadyEvent().Apply(BIND([=] () {
+    return reader->GetReadyEvent().Apply(BIND([=] () -> ISchemalessMultiChunkReaderPtr {
         return reader;
     }));
 }

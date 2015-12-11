@@ -42,8 +42,6 @@
 #include <yt/ytlib/table_client/versioned_row.h>
 #include <yt/ytlib/table_client/versioned_writer.h>
 
-#include <yt/ytlib/transaction_client/transaction_manager.h>
-
 #include <yt/core/concurrency/thread_pool.h>
 #include <yt/core/concurrency/async_semaphore.h>
 #include <yt/core/concurrency/scheduler.h>

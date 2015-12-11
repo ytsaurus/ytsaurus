@@ -97,7 +97,7 @@ ISchemalessWriterPtr CreateSchemalessTableWriter(
     TNameTablePtr nameTable,
     const TKeyColumns& keyColumns,
     NApi::IClientPtr client,
-    NTransactionClient::TTransactionPtr transaction,
+    NApi::ITransactionPtr transaction,
     NConcurrency::IThroughputThrottlerPtr throttler = NConcurrency::GetUnlimitedThrottler(),
     NChunkClient::IBlockCachePtr blockCache = NChunkClient::GetNullBlockCache());
 

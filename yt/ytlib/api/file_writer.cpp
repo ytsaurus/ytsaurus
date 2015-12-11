@@ -17,7 +17,9 @@
 
 #include <yt/ytlib/transaction_client/helpers.h>
 #include <yt/ytlib/transaction_client/transaction_listener.h>
-#include <yt/ytlib/transaction_client/transaction_manager.h>
+#include <yt/ytlib/transaction_client/config.h>
+
+#include <yt/ytlib/api/transaction.h>
 
 #include <yt/core/concurrency/scheduler.h>
 
@@ -38,6 +40,7 @@ using namespace NObjectClient;
 using namespace NObjectClient::NProto;
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
+using namespace NApi;
 using namespace NTransactionClient;
 using namespace NFileClient;
 
@@ -93,8 +96,8 @@ private:
     const TFileWriterOptions Options_;
     const TFileWriterConfigPtr Config_;
 
-    TTransactionPtr Transaction_;
-    TTransactionPtr UploadTransaction_;
+    ITransactionPtr Transaction_;
+    ITransactionPtr UploadTransaction_;
 
     IFileMultiChunkWriterPtr Writer_;
 
@@ -107,8 +110,7 @@ private:
     void DoOpen()
     {
         if (Options_.TransactionId) {
-            auto transactionManager = Client_->GetTransactionManager();
-            Transaction_ = transactionManager->Attach(Options_.TransactionId);
+            Transaction_ = Client_->AttachTransaction(Options_.TransactionId);
             ListenTransaction(Transaction_);
         }
 
@@ -201,13 +203,11 @@ private:
             }
 
             {
-                auto transactionManager = Client_->GetTransactionManager();
-
                 auto req = TFileYPathProxy::BeginUpload(objectIdPath);
                 req->set_update_mode(static_cast<int>(Options_.Append ? EUpdateMode::Append : EUpdateMode::Overwrite));
                 req->set_lock_mode(static_cast<int>(Options_.Append ? ELockMode::Shared : ELockMode::Exclusive));
                 req->set_upload_transaction_title(Format("Upload to %v", Path_));
-                req->set_upload_transaction_timeout(ToProto(transactionManager->GetConfig()->DefaultTransactionTimeout));
+                req->set_upload_transaction_timeout(ToProto(Client_->GetConnection()->GetConfig()->TransactionManager->DefaultTransactionTimeout));
                 GenerateMutationId(req);
                 SetTransactionId(req, Transaction_);
                 batchReq->AddRequest(req, "begin_upload");
@@ -224,12 +224,11 @@ private:
                 auto rsp = batchRsp->GetResponse<TFileYPathProxy::TRspBeginUpload>("begin_upload").Value();
                 auto uploadTransactionId = FromProto<TTransactionId>(rsp->upload_transaction_id());
 
-                NTransactionClient::TTransactionAttachOptions options;
+                TTransactionAttachOptions options;
                 options.PingAncestors = Options_.PingAncestors;
                 options.AutoAbort = true;
 
-                auto transactionManager = Client_->GetTransactionManager();
-                UploadTransaction_ = transactionManager->Attach(uploadTransactionId, options);
+                UploadTransaction_ = Client_->AttachTransaction(uploadTransactionId, options);
                 ListenTransaction(UploadTransaction_);
 
                 LOG_INFO("File upload started (UploadTransactionId: %v)",

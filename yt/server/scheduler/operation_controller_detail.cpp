@@ -31,6 +31,8 @@
 #include <yt/ytlib/transaction_client/helpers.h>
 #include <yt/ytlib/transaction_client/transaction_ypath_proxy.h>
 
+#include <yt/ytlib/api/transaction.h>
+
 #include <yt/core/erasure/codec.h>
 
 #include <yt/core/misc/fs.h>
@@ -1151,8 +1153,9 @@ void TOperationControllerBase::StartAsyncSchedulerTransaction()
         const auto& batchRsp = batchRspOrError.Value();
         auto rsp = batchRsp->GetResponse<TMasterYPathProxy::TRspCreateObject>("start_async_tx").Value();
         AsyncSchedulerTransactionId = FromProto<TObjectId>(rsp->object_id());
-        auto transactionManager = AuthenticatedMasterClient->GetTransactionManager();
-        Operation->SetAsyncSchedulerTransaction(transactionManager->Attach(AsyncSchedulerTransactionId));
+
+        auto transaction = AuthenticatedMasterClient->AttachTransaction(AsyncSchedulerTransactionId);
+        Operation->SetAsyncSchedulerTransaction(transaction);
     }
 
     LOG_INFO("Scheduler async transaction started (AsyncTranasctionId: %v)",
@@ -1197,8 +1200,9 @@ void TOperationControllerBase::StartSyncSchedulerTransaction()
     {
         auto rsp = batchRsp->GetResponse<TMasterYPathProxy::TRspCreateObject>("start_sync_tx").Value();
         SyncSchedulerTransactionId = FromProto<TObjectId>(rsp->object_id());
-        auto transactionManager = Host->GetMasterClient()->GetTransactionManager();
-        Operation->SetSyncSchedulerTransaction(transactionManager->Attach(SyncSchedulerTransactionId));
+
+        auto transaction = AuthenticatedMasterClient->AttachTransaction(SyncSchedulerTransactionId);
+        Operation->SetSyncSchedulerTransaction(transaction);
     }
 
     LOG_INFO("Scheduler sync transaction started (SyncTransactionId: %v)",
@@ -1242,8 +1246,9 @@ void TOperationControllerBase::StartInputTransaction(TTransactionId parentTransa
         THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error starting input transaction");
         const auto& rsp = rspOrError.Value();
         InputTransactionId = FromProto<TTransactionId>(rsp->object_id());
-        auto transactionManager = AuthenticatedInputMasterClient->GetTransactionManager();
-        Operation->SetInputTransaction(transactionManager->Attach(InputTransactionId));
+
+        auto transaction = AuthenticatedInputMasterClient->AttachTransaction(InputTransactionId);
+        Operation->SetInputTransaction(transaction);
     }
 
     LOG_INFO("Input transaction started (InputTransactionId: %v)", InputTransactionId);
@@ -1286,8 +1291,9 @@ void TOperationControllerBase::StartOutputTransaction(TTransactionId parentTrans
         THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error starting output transaction");
         const auto& rsp = rspOrError.Value();
         OutputTransactionId = FromProto<TTransactionId>(rsp->object_id());
-        auto transactionManager = AuthenticatedOutputMasterClient->GetTransactionManager();
-        Operation->SetOutputTransaction(transactionManager->Attach(OutputTransactionId));
+
+        auto transaction = AuthenticatedOutputMasterClient->AttachTransaction(OutputTransactionId);
+        Operation->SetOutputTransaction(transaction);
     }
 
     LOG_INFO("Output transaction started (OutputTransactionId: %v)", OutputTransactionId);

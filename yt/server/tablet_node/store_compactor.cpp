@@ -32,7 +32,6 @@
 #include <yt/ytlib/tablet_client/config.h>
 
 #include <yt/ytlib/transaction_client/timestamp_provider.h>
-#include <yt/ytlib/transaction_client/transaction_manager.h>
 
 #include <yt/core/concurrency/thread_pool.h>
 #include <yt/core/concurrency/async_semaphore.h>
@@ -404,7 +403,7 @@ private:
             {
                 LOG_INFO("Creating Eden partitioning transaction");
 
-                NTransactionClient::TTransactionStartOptions options;
+                TTransactionStartOptions options;
                 options.AutoAbort = false;
                 auto attributes = CreateEphemeralAttributes();
                 attributes->Set("title", Format("Eden partitioning, tablet %v",
@@ -665,7 +664,7 @@ private:
             {
                 LOG_INFO("Creating partition compaction transaction");
 
-                NTransactionClient::TTransactionStartOptions options;
+                TTransactionStartOptions options;
                 options.AutoAbort = false;
                 auto attributes = CreateEphemeralAttributes();
                 attributes->Set("title", Format("Partition compaction, tablet %v",

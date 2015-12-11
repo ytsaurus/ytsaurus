@@ -30,6 +30,8 @@
 #include <yt/ytlib/table_client/schemaless_writer.h>
 #include <yt/ytlib/table_client/table_consumer.h>
 
+#include <yt/ytlib/api/transaction.h>
+
 #include <yt/core/concurrency/periodic_executor.h>
 #include <yt/core/concurrency/thread_affinity.h>
 #include <yt/core/concurrency/thread_pool.h>
@@ -49,8 +51,7 @@ using namespace NYTree;
 using namespace NYson;
 using namespace NYPath;
 using namespace NRpc;
-using namespace NTransactionClient;
-using namespace NCypressClient;
+using namespace NApi;
 using namespace NCellScheduler;
 using namespace NObjectClient;
 using namespace NHydra;
@@ -291,12 +292,11 @@ public:
         }
 
         // Attach user transaction if any. Don't ping it.
-        auto transactionManager = GetMasterClient()->GetTransactionManager();
         TTransactionAttachOptions userAttachOptions;
         userAttachOptions.Ping = false;
         userAttachOptions.PingAncestors = false;
         auto userTransaction = transactionId
-            ? transactionManager->Attach(transactionId, userAttachOptions)
+            ? GetMasterClient()->AttachTransaction(transactionId, userAttachOptions)
             : nullptr;
 
         // Merge operation spec with template
@@ -1568,7 +1568,7 @@ private:
         LOG_INFO("Committing scheduler transactions (OperationId: %v)",
             operation->GetId());
 
-        auto commitTransaction = [&] (TTransactionPtr transaction) {
+        auto commitTransaction = [&] (ITransactionPtr transaction) {
             if (!transaction) {
                 return;
             }
@@ -1592,7 +1592,7 @@ private:
 
     void AbortSchedulerTransactions(TOperationPtr operation)
     {
-        auto abortTransaction = [&] (TTransactionPtr transaction) {
+        auto abortTransaction = [&] (ITransactionPtr transaction) {
             if (transaction) {
                 // Fire-and-forget.
                 transaction->Abort();

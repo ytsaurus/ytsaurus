@@ -309,7 +309,7 @@ private:
 
     bool Connected = false;
 
-    NTransactionClient::TTransactionPtr LockTransaction;
+    ITransactionPtr LockTransaction;
 
     TPeriodicExecutorPtr TransactionRefreshExecutor;
     TPeriodicExecutorPtr OperationNodesUpdateExecutor;
@@ -493,56 +493,29 @@ private:
         // - Start lock transaction.
         void StartLockTransaction()
         {
-            auto batchReq = Owner->StartBatchRequest(false);
-            {
-                auto req = TMasterYPathProxy::CreateObject();
-                req->set_type(static_cast<int>(EObjectType::Transaction));
+            TTransactionStartOptions options;
+            options.AutoAbort = true;
+            options.Timeout = Owner->Config->LockTransactionTimeout;
+            auto attributes = CreateEphemeralAttributes();
+            attributes->Set("title", Format("Scheduler lock at %v", ServiceAddress));
+            options.Attributes = std::move(attributes);
 
-                auto* reqExt = req->mutable_extensions()->MutableExtension(TTransactionCreationExt::transaction_creation_ext);
-                reqExt->set_timeout(ToProto(Owner->Config->LockTransactionTimeout));
+            auto client = Owner->Bootstrap->GetMasterClient();
+            auto transactionOrError = WaitFor(Owner->Bootstrap->GetMasterClient()->StartTransaction(
+                ETransactionType::Master,
+                options));
+            THROW_ERROR_EXCEPTION_IF_FAILED(transactionOrError, "Error starting lock transaction");
 
-                auto attributes = CreateEphemeralAttributes();
-                attributes->Set("title", Format("Scheduler lock at %v", ServiceAddress));
-                ToProto(req->mutable_object_attributes(), *attributes);
+            Owner->LockTransaction = transactionOrError.Value();
 
-                GenerateMutationId(req);
-                batchReq->AddRequest(req, "start_lock_tx");
-            }
-
-            auto batchRspOrError = WaitFor(batchReq->Invoke());
-            THROW_ERROR_EXCEPTION_IF_FAILED(batchRspOrError);
-            const auto& batchRsp = batchRspOrError.Value();
-
-            {
-                auto rspOrError = batchRsp->GetResponse<TMasterYPathProxy::TRspCreateObject>("start_lock_tx");
-                THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error starting lock transaction");
-
-                const auto& rsp = rspOrError.Value();
-                auto transactionId = FromProto<TTransactionId>(rsp->object_id());
-
-                TTransactionAttachOptions options;
-                options.AutoAbort = true;
-                auto transactionManager = Owner->Bootstrap->GetMasterClient()->GetTransactionManager();
-                Owner->LockTransaction = transactionManager->Attach(transactionId, options);
-
-                LOG_INFO("Lock transaction is %v", transactionId);
-            }
+            LOG_INFO("Lock transaction is %v", Owner->LockTransaction->GetId());
         }
 
         // - Take lock.
         void TakeLock()
         {
-            auto batchReq = Owner->StartBatchRequest();
-            {
-                auto req = TCypressYPathProxy::Lock("//sys/scheduler/lock");
-                SetTransactionId(req, Owner->LockTransaction);
-                req->set_mode(static_cast<int>(ELockMode::Exclusive));
-                GenerateMutationId(req);
-                batchReq->AddRequest(req, "take_lock");
-            }
-
-            auto batchRspOrError = WaitFor(batchReq->Invoke());
-            THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError));
+            auto result = WaitFor(Owner->LockTransaction->LockNode("//sys/scheduler/lock", ELockMode::Exclusive));
+            THROW_ERROR_EXCEPTION_IF_FAILED(result, "Error taking scheduler lock");
         }
 
         // - Publish scheduler address.
@@ -667,7 +640,7 @@ private:
             for (auto operation : Result.RevivingOperations) {
                 operation->SetState(EOperationState::Reviving);
 
-                auto checkTransaction = [&] (TOperationPtr operation, TTransactionPtr transaction) {
+                auto checkTransaction = [&] (TOperationPtr operation, ITransactionPtr transaction) {
                     if (!transaction)
                         return;
 
@@ -769,7 +742,7 @@ private:
         {
             std::vector<TFuture<void>> asyncResults;
             for (auto operation : Result.Operations) {
-                auto scheduleAbort = [&] (TTransactionPtr transaction) {
+                auto scheduleAbort = [&] (ITransactionPtr transaction) {
                     if (!transaction)
                         return;
                     asyncResults.push_back(transaction->Abort());
@@ -896,18 +869,17 @@ private:
 
     TOperationPtr CreateOperationFromAttributes(const TOperationId& operationId, const IAttributeDictionary& attributes)
     {
-        auto getTransaction = [&] (const TTransactionId& id, bool ping) -> TTransactionPtr {
+        auto getTransaction = [&] (const TTransactionId& id, bool ping) -> ITransactionPtr {
             if (!id) {
                 return nullptr;
             }
             auto clusterDirectory = Bootstrap->GetClusterDirectory();
             auto connection = clusterDirectory->GetConnection(CellTagFromId(id));
             auto client = connection->CreateClient(TClientOptions(SchedulerUserName));
-            auto transactionManager = client->GetTransactionManager();
             TTransactionAttachOptions options;
             options.Ping = ping;
             options.PingAncestors = false;
-            return transactionManager->Attach(id, options);
+            return client->AttachTransaction(id, options);
         };
 
         auto userTransaction = getTransaction(
@@ -1024,7 +996,7 @@ private:
 
         // Collect all transactions that are used by currently running operations.
         yhash_set<TTransactionId> watchSet;
-        auto watchTransaction = [&] (TTransactionPtr transaction) {
+        auto watchTransaction = [&] (ITransactionPtr transaction) {
             if (transaction) {
                 watchSet.insert(transaction->GetId());
             }
@@ -1089,7 +1061,7 @@ private:
 
         LOG_INFO("Transactions refreshed");
 
-        auto isTransactionAlive = [&] (TOperationPtr operation, TTransactionPtr transaction) -> bool {
+        auto isTransactionAlive = [&] (TOperationPtr operation, ITransactionPtr transaction) -> bool {
             if (!transaction) {
                 return true;
             }
@@ -1101,7 +1073,7 @@ private:
             return false;
         };
 
-        auto isUserTransactionAlive = [&] (TOperationPtr operation, TTransactionPtr transaction) -> bool {
+        auto isUserTransactionAlive = [&] (TOperationPtr operation, ITransactionPtr transaction) -> bool {
             if (isTransactionAlive(operation, transaction)) {
                 return true;
             }
@@ -1112,7 +1084,7 @@ private:
             return false;
         };
 
-        auto isSchedulerTransactionAlive = [&] (TOperationPtr operation, TTransactionPtr transaction) -> bool {
+        auto isSchedulerTransactionAlive = [&] (TOperationPtr operation, ITransactionPtr transaction) -> bool {
             if (isTransactionAlive(operation, transaction)) {
                 return true;
             }

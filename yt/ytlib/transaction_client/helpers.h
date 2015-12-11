@@ -1,7 +1,8 @@
 #pragma once
 
 #include "public.h"
-#include "transaction_manager.h"
+
+#include <yt/ytlib/api/public.h>
 
 #include <yt/core/rpc/public.h>
 
@@ -14,7 +15,7 @@ namespace NTransactionClient {
 /*!
 *  #transaction may be null.
 */
-void SetTransactionId(NRpc::IClientRequestPtr request, TTransactionPtr transaction);
+void SetTransactionId(NRpc::IClientRequestPtr request, NApi::ITransactionPtr transaction);
 
 //! Returns a range of instants containing a given timestamp.
 std::pair<TInstant, TInstant> TimestampToInstant(TTimestamp timestamp);
