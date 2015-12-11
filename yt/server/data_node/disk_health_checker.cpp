@@ -12,6 +12,7 @@ namespace NYT {
 namespace NDataNode {
 
 using namespace NConcurrency;
+using namespace NProfiling;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -22,7 +23,8 @@ static const Stroka TestFileName("health_check~");
 TDiskHealthChecker::TDiskHealthChecker(
     TDiskHealthCheckerConfigPtr config,
     const Stroka& path,
-    IInvokerPtr invoker)
+    IInvokerPtr invoker,
+    const TProfiler& profiler)
     : Config_(config)
     , Path_(path)
     , CheckInvoker_(invoker)
@@ -32,6 +34,7 @@ TDiskHealthChecker::TDiskHealthChecker(
         Config_->CheckPeriod,
         EPeriodicExecutorMode::Manual))
     , Logger(DataNodeLogger)
+    , Profiler_(profiler)
 {
     Logger.AddTag("Path: %v", Path_);
 }
@@ -83,19 +86,21 @@ void TDiskHealthChecker::DoRunCheck()
     auto testFileName = NFS::CombinePaths(Path_, TestFileName);
 
     try {
-        {
-            TFile file(testFileName, CreateAlways|WrOnly|Seq|Direct);
-            file.Write(writeData.data(), Config_->TestSize);
-        }
-
-        {
-            TFile file(testFileName, OpenExisting|RdOnly|Seq|Direct);
-            if (file.GetLength() != Config_->TestSize) {
-                THROW_ERROR_EXCEPTION("Wrong test file size: %v instead of %v",
-                    file.GetLength(),
-                    Config_->TestSize);
+        const auto& Profiler = Profiler_;
+        PROFILE_TIMING("/disk_health_check/total") {
+            PROFILE_TIMING("/disk_health_check/write") {
+                TFile file(testFileName, CreateAlways|WrOnly|Seq|Direct);
+                file.Write(writeData.data(), Config_->TestSize);
             }
-            file.Read(readData.data(), Config_->TestSize);
+            PROFILE_TIMING("/disk_health_check/read") { 
+                TFile file(testFileName, OpenExisting|RdOnly|Seq|Direct);
+                if (file.GetLength() != Config_->TestSize) {
+                    THROW_ERROR_EXCEPTION("Wrong test file size: %v instead of %v",
+                        file.GetLength(),
+                        Config_->TestSize);
+                }
+                file.Read(readData.data(), Config_->TestSize);
+            }
         }
 
         NFS::Remove(testFileName);
@@ -103,6 +108,7 @@ void TDiskHealthChecker::DoRunCheck()
         if (memcmp(readData.data(), writeData.data(), Config_->TestSize) != 0) {
             THROW_ERROR_EXCEPTION("Test file is corrupt");
         }
+            
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Disk health check failed at %v", Path_)
             << ex;

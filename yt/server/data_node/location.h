@@ -182,7 +182,7 @@ private:
     const NConcurrency::TThreadPoolPtr WriteThreadPool_;
     const IInvokerPtr WritePoolInvoker_;
 
-    const TDiskHealthCheckerPtr HealthChecker_;
+    TDiskHealthCheckerPtr HealthChecker_;
 
     NProfiling::TProfiler Profiler_;
     //! Indexed by |(ioDirection, ioCategory)|.
