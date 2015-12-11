@@ -7,13 +7,9 @@ from argparse import ArgumentParser
 
 import sys
 
-def mount_cypress(proxy, mountpoint, disable_cache):
+def mount_cypress(proxy, mountpoint, caching_period):
     """Mount a Cypress."""
-    if disable_cache:
-        yt_client = cypress_fuse.CachedYtClient(proxy=proxy, max_age_seconds=0)
-    else:
-        yt_client = cypress_fuse.CachedYtClient(proxy=proxy)
-
+    yt_client = cypress_fuse.CachedYtClient(proxy=proxy, max_age_seconds=caching_period)
     cypress = cypress_fuse.Cypress(yt_client)
     FUSE(
         cypress, mountpoint,
@@ -30,10 +26,15 @@ if __name__ == "__main__":
 
     parser.add_argument("proxy", help='Proxy alias like "aristotle.yt.yandex.net" or just "aristotle".')
     parser.add_argument("mountpoint", help='Mountpoint directory like "/mnt/aristotle".')
-    parser.add_argument("--disable_cache", action="store_true", help="Disable client caching.")
+    parser.add_argument(
+        "--caching_period",
+        action="store",
+        type=int,
+        default=2,
+        help="Cache expiration time.")
 
     args = parser.parse_args()
 
     sys.exit(
-        mount_cypress(args.proxy, args.mountpoint, args.disable_cache)
+        mount_cypress(args.proxy, args.mountpoint, args.caching_period)
     )
