@@ -116,9 +116,9 @@ struct TCurrentTranslationUnitTag
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
-size_t SpaceUsedExcludingSelf(const T&)
+size_t SpaceUsed(const T&)
 {
-    return 0;
+    return sizeof(T);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -126,7 +126,7 @@ size_t SpaceUsedExcludingSelf(const T&)
 #ifdef YT_ENABLE_REF_COUNTED_TRACKING
 
 #define REF_COUNTED_NEW_EPILOGUE() \
-    InitializeTracking(result.Get(), cookie, sizeof (T) + SpaceUsedExcludingSelf(result))
+    InitializeTracking(result.Get(), cookie, SpaceUsed(result))
 
 #else // !YT_ENABLE_REF_COUNTED_TRACKING
 
