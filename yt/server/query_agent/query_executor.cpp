@@ -324,6 +324,7 @@ private:
                 }
 
                 auto bottomSplitReaderGenerator = [
+                    Logger,
                     query,
                     groupedSplit,
                     timestamp,
@@ -333,10 +334,16 @@ private:
                     if (index == groupedSplit.size()) {
                         return nullptr;
                     } else {
-                        return this_->GetReader(
+                        LOG_DEBUG("Started creating reader for range");
+
+                        auto result =  this_->GetReader(
                             query->TableSchema,
                             groupedSplit[index++],
                       	    timestamp);
+
+                        LOG_DEBUG("Finished creating reader for range");
+
+                        return result;
                     }
                 };
 
@@ -372,6 +379,7 @@ private:
                 auto tabletSnapshot = slotManager->GetTabletSnapshotOrThrow(tablePartId);
 
                 auto bottomSplitReaderGenerator = [
+                    Logger,
                     tabletSnapshot,
                     query,
                     groupedKeys,
@@ -385,15 +393,19 @@ private:
                     } else {
                         auto group = groupedKeys[index++];
 
-
+                        LOG_DEBUG("Started creating reader for keys");
 
                         // TODO(lukyan): Validate timestamp and read permission
-                        return CreateSchemafulTabletReader(
+                        auto result = CreateSchemafulTabletReader(
                             std::move(tabletSnapshot),
                             query->TableSchema,
                             group.first,
                             group.second,
                             timestamp);
+
+                        LOG_DEBUG("Finished creating reader for keys");
+
+                        return result;
                     }
                 };
 
