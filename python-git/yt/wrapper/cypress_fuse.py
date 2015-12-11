@@ -630,7 +630,7 @@ class Cypress(fuse.Operations):
         return dict(f_bsize=512, f_blocks=1024 * 4096, f_bavail=1024 * 2048)
 
     @handle_yt_errors(_logger)
-    @log_calls(_logger, "%(__name__)s(%(path)r, length=%(length)%)", _statistics)
+    @log_calls(_logger, "%(__name__)s(%(path)r, length=%(length)r)", _statistics)
     def truncate(self, path, length, fh=None):
         ypath = self._to_ypath(path)
         for file_fh, opened_file in self._opened_files.iteritems():
