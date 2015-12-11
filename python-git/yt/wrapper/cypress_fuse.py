@@ -215,7 +215,7 @@ class CachedYtClient(yt.wrapper.client.Yt):
         children = super(CachedYtClient, self).list(
             path, attributes=attributes
         )
-        cache_entry.children = children
+        cache_entry.children = set(map(str, children))
 
         for child in children:
             child_path = path + "/" + child
@@ -238,6 +238,9 @@ class CachedYtClient(yt.wrapper.client.Yt):
             ignore_existing=ignore_existing, attributes=attributes
         )
         self._cache.pop(path)
+        parent = self._cache.get(os.path.dirname(path))
+        if parent is not None and parent.children is not None:
+            parent.children.add(os.path.basename(path))
 
     @log_calls(_logger, "%(__name__)s(%(path)r)", _statistics)
     def remove(self, path, recursive=False, force=False):
@@ -245,6 +248,9 @@ class CachedYtClient(yt.wrapper.client.Yt):
             path, recursive=recursive, force=force
         )
         self._cache.pop(path)
+        parent = self._cache.get(os.path.dirname(path))
+        if parent is not None and parent.children is not None:
+            parent.children.remove(os.path.basename(path))
 
     @log_calls(_logger, "%(__name__)s(%(path)r)", _statistics)
     def create_transaction_and_take_snapshot_lock(self, path):
