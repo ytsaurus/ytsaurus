@@ -958,11 +958,13 @@ TCodegenSource MakeCodegenJoinOp(
             Value* chainedRows
         ) {
             Value* keyPtr = builder.CreateAlloca(TypeBuilder<TRow, false>::get(builder.getContext()));
-            builder.CreateCall3(
+            builder.CreateCall(
                 builder.Module->GetRoutine("AllocatePermanentRow"),
-                builder.GetExecutionContextPtr(),
-                builder.getInt32(lookupKeySize),
-                keyPtr);
+                {
+                    builder.GetExecutionContextPtr(),
+                    builder.getInt32(lookupKeySize),
+                    keyPtr
+                });
 
             codegenSource(
                 builder,
@@ -995,7 +997,7 @@ TCodegenSource MakeCodegenJoinOp(
                         }
                     }
 
-                    builder.CreateCallWithArgs(
+                    builder.CreateCall(
                         builder.Module->GetRoutine("InsertJoinRow"),
                         {
                             executionContextPtrRef,
@@ -1027,7 +1029,7 @@ TCodegenSource MakeCodegenJoinOp(
             builder.CreateRetVoid();
         });
 
-        builder.CreateCallWithArgs(
+        builder.CreateCall(
             builder.Module->GetRoutine("JoinOpHelper"),
             {
                 builder.GetExecutionContextPtr(),
