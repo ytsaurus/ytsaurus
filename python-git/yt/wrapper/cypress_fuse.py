@@ -26,6 +26,7 @@ import logging
 import functools
 import sys
 import collections
+import os
 
 
 logging.basicConfig(
@@ -217,6 +218,7 @@ class CachedYtClient(yt.wrapper.client.Yt):
 
         return children
 
+    @log_calls(_logger, "%(__name__)s(%(path)r)", _statistics)
     def create(self, type, path=None, recursive=False, ignore_existing=False, attributes=None):
         super(CachedYtClient, self).create(
             type, path=path, recursive=recursive,
@@ -225,6 +227,7 @@ class CachedYtClient(yt.wrapper.client.Yt):
         self._cache.pop(path)
         self._cache.pop(path + "/@")
 
+    @log_calls(_logger, "%(__name__)s(%(path)r)", _statistics)
     def remove(self, path, recursive=False, force=False):
         super(CachedYtClient, self).remove(
             path, recursive=recursive, force=force
@@ -232,13 +235,14 @@ class CachedYtClient(yt.wrapper.client.Yt):
         self._cache.pop(path)
         self._cache.pop(path + "/@")
 
+    @log_calls(_logger, "%(__name__)s(%(path)r)", _statistics)
+    def create_transaction_and_take_snapshot_lock(self, path):
+        title = "FUSE: read {0}".format(yt.wrapper.to_name(path, client=self))
+        tx = self.Transaction(attributes={"title": title})
+        with self.Transaction(transaction_id=tx.transaction_id):
+            self.lock(path, mode="snapshot")
+        return tx
 
-def create_transaction_and_take_snapshot_lock(ypath, client):
-    title = "FUSE: read {0}".format(yt.wrapper.to_name(ypath, client=client))
-    tx = yt.wrapper.Transaction(attributes={"title": title}, client=client)
-    with yt.wrapper.Transaction(transaction_id=tx.transaction_id, client=client):
-        yt.wrapper.lock(ypath, mode="snapshot", client=client)
-    return tx
 
 class OpenedFile(object):
     """Stores information and cache for currently opened regular file."""
@@ -261,7 +265,7 @@ class OpenedFile(object):
         self._offset = 0
         self._buffer = ""
         self._has_pending_write = False
-        self._tx = create_transaction_and_take_snapshot_lock(ypath, client)
+        self._tx = client.create_transaction_and_take_snapshot_lock(ypath)
 
     def read(self, length, offset):
         # Read file from memory
@@ -276,7 +280,7 @@ class OpenedFile(object):
                 self._offset = max(offset + length - self._length, 0)
             else:
                 self._offset = offset
-            with yt.wrapper.Transaction(transaction_id=self._tx.transaction_id, client=self._client):
+            with self._client.Transaction(transaction_id=self._tx.transaction_id):
                 self._buffer = self._client.read_file(
                     self.ypath,
                     length=self._length, offset=self._offset
@@ -289,7 +293,7 @@ class OpenedFile(object):
         return self._buffer[buffer_offset:(buffer_offset + length)]
 
     def _read_all(self):
-        with yt.wrapper.Transaction(transaction_id=self._tx.transaction_id, client=self._client):
+        with self._client.Transaction(transaction_id=self._tx.transaction_id):
             self._buffer = self._client.read_file(self.ypath).read()
             self._offset = 0
             self._length = len(self._buffer)
@@ -346,7 +350,7 @@ class OpenedTable(object):
         self._lower_offset = self._upper_offset = 0
         self._lower_row = self._upper_row = 0
         self._buffer = []
-        self._tx = create_transaction_and_take_snapshot_lock(ypath, client)
+        self._tx = client.create_transaction_and_take_snapshot_lock(ypath)
 
     def read(self, length, offset):
         while self._upper_offset < offset + length:
@@ -357,7 +361,7 @@ class OpenedTable(object):
                 end_index=next_upper_row,
                 client=self._client
             )
-            with yt.wrapper.Transaction(transaction_id=self._tx.transaction_id, client=self._client):
+            with self._client.Transaction(transaction_id=self._tx.transaction_id):
                 slice_content = "".join(
                     self._client.read_table(slice_ypath, format=self._format)
                 )
@@ -375,7 +379,7 @@ class OpenedTable(object):
                 end_index=self._lower_row,
                 client=self._client
             )
-            with yt.wrapper.Transaction(transaction_id=self._tx.transaction_id, client=self._client):
+            with self._client.Transaction(transaction_id=self._tx.transaction_id):
                 slice_content = "".join(
                     self._client.read_table(slice_ypath, format=self._format)
                 )
