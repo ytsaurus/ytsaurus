@@ -626,7 +626,7 @@ void TChunkOwnerNodeProxy::ValidateCustomAttributeUpdate(
         if (!newValue) {
             ThrowCannotRemoveAttribute(key);
         }
-        ParseEnum<NCompression::ECodec>(ConvertTo<Stroka>(newValue.Get()));
+        ConvertTo<NCompression::ECodec>(*newValue);
         return;
     }
 
@@ -634,7 +634,7 @@ void TChunkOwnerNodeProxy::ValidateCustomAttributeUpdate(
         if (!newValue) {
             ThrowCannotRemoveAttribute(key);
         }
-        ParseEnum<NErasure::ECodec>(ConvertTo<Stroka>(newValue.Get()));
+        ConvertTo<NErasure::ECodec>(*newValue);
         return;
     }
 }
