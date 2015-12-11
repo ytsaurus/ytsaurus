@@ -59,10 +59,6 @@ TLocation::TLocation(
     , MetaReadInvoker_(CreatePrioritizedInvoker(MetaReadQueue_->GetInvoker()))
     , WriteThreadPool_(New<TThreadPool>(Bootstrap_->GetConfig()->DataNode->WriteThreadCount, Format("Write:%v", Id_)))
     , WritePoolInvoker_(WriteThreadPool_->GetInvoker())
-    , HealthChecker_(New<TDiskHealthChecker>(
-        Bootstrap_->GetConfig()->DataNode->DiskHealthChecker,
-        GetPath(),
-        GetWritePoolInvoker()))
 {
     Logger = DataNodeLogger;
     Logger.AddTag("LocationId: %v", Id_);
@@ -72,6 +68,12 @@ TLocation::TLocation(
     tagIds.push_back(profilingManager->RegisterTag("location_id", Id_));
     tagIds.push_back(profilingManager->RegisterTag("location_type", Type_));
     Profiler_ = NProfiling::TProfiler(DataNodeProfiler.GetPathPrefix(), tagIds);
+
+    HealthChecker_ = New<TDiskHealthChecker>(
+        Bootstrap_->GetConfig()->DataNode->DiskHealthChecker,
+        GetPath(),
+        GetWritePoolInvoker(),
+        Profiler_);
 
     PendingIOSizeCounters_.resize(
         TEnumTraits<EIODirection>::GetDomainSize() *
