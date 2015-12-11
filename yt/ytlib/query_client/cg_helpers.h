@@ -252,16 +252,12 @@ public:
     void StoreToRow(TCGIRBuilder& builder, Value* row, int index, ui16 id)
     {
         auto name = row->getName();
-        auto nameTwine =
-            (name.empty() ? Twine::createNull() : Twine(name).concat(".")) +
-            Twine(".at.") +
-            Twine(index);
 
         auto valuePtr = builder.CreateConstInBoundsGEP1_32(
             nullptr,
             CodegenValuesPtrFromRow(builder, row),
             index,
-            nameTwine);
+            Twine(name).concat(".at.").concat(index));
 
         StoreToValue(builder, valuePtr, id);
     }
