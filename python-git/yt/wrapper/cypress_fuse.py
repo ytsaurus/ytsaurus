@@ -18,6 +18,7 @@ import yt.wrapper.client
 
 from yt.packages.expiringdict import ExpiringDict
 import yt.packages.fuse as fuse
+import yt.packages.requests as requests
 
 import stat
 import errno
@@ -110,7 +111,7 @@ def handle_yt_errors(logger):
                 if not error.is_resolve_error():
                     logger.exception("Exception caught in {}".format(function.__name__))
                 raise fuse.FuseOSError(errno.ENOENT)
-            except yt.packages.requests.ConnectionError:
+            except requests.ConnectionError:
                 logger.exception("Exception caught in {}".format(function.__name__))
                 raise fuse.FuseOSError(errno.EAGAIN)
 
@@ -126,6 +127,14 @@ class CachedYtClient(yt.wrapper.client.Yt):
     _logger.setLevel(level=logging.DEBUG)
 
     _statistics = Statistics(_logger)
+
+    class CacheEntry(object):
+        def __init__(self, exists=None, error=None):
+            # Assume that node exists to avoid false negatives.
+            self.exists = True
+            self.attributes = {}
+            self.children = None
+            self.error = error
 
     def __init__(self, max_cache_size=16384, max_age_seconds=2, **kwargs):
         """Initialize the client.
@@ -156,13 +165,13 @@ class CachedYtClient(yt.wrapper.client.Yt):
     def get_attributes(self, path, attributes):
         """Get a subset of node's attributes."""
         # Firstly, check whether we are sure the node doesn't exist at all.
-        flag, value = self._cache.get(path, (True, None))
-        if not flag:
-            raise value
+        cache_entry = self._cache.get(path, CachedYtClient.CacheEntry(exists=True))
+        if not cache_entry.exists:
+            raise cache_entry.error
 
         # Secondly, check whether all requested attributes are cached.
         try:
-            cache_slice = ((a, self._cache[path + "/@" + a]) for a in attributes)
+            cache_slice = ((a, cache_entry.attributes[a]) for a in attributes)
             return dict((a, v) for a, (f, v) in cache_slice if f)
         except KeyError:
             pass
@@ -173,10 +182,10 @@ class CachedYtClient(yt.wrapper.client.Yt):
             all_attributes = super(CachedYtClient, self).get(path + "/@")
         except yt.wrapper.YtResponseError as error:
             if error.is_resolve_error():
-                self._cache[path] = (False, error)
+                self._cache[path] = CachedYtClient.CacheEntry(exists=False, error=error)
             raise
-        self._cache.update(
-            (path + "/@" + a, (True, v)) for a, v in all_attributes.iteritems()
+        cache_entry.attributes.update(
+            (a, (True, v)) for a, v in all_attributes.iteritems()
         )
 
         requested_attributes = {}
@@ -184,20 +193,21 @@ class CachedYtClient(yt.wrapper.client.Yt):
             if attribute in all_attributes:
                 requested_attributes[attribute] = all_attributes[attribute]
             else:
-                self._cache[path + "/@" + attribute] = (
+                cache_entry.attributes[attribute] = (
                     False, self._error(attribute)
                 )
+
+        self._cache[path] = cache_entry
         return requested_attributes
 
     @log_calls(_logger, "%(__name__)s(%(path)r)", _statistics)
     def list(self, path, attributes=None):
         """Get children of a node specified by a ypath."""
-        cached_value = self._cache.get(path)
-        if cached_value is not None:
-            flag, value = cached_value
-            if flag:
-                return value
-            raise value
+        cache_entry = self._cache.get(path, CachedYtClient.CacheEntry(exists=True))
+        if not cache_entry.exists:
+            raise cache_entry.error
+        if cache_entry.children is not None:
+            return cache_entry.children
 
         if attributes is None:
             attributes = []
@@ -205,17 +215,20 @@ class CachedYtClient(yt.wrapper.client.Yt):
         children = super(CachedYtClient, self).list(
             path, attributes=attributes
         )
-        self._cache[path] = (True, children)
+        cache_entry.children = children
 
-        for attribute in attributes:
-            for child in children:
+        for child in children:
+            child_path = path + "/" + child
+            child_cache_entry = self._cache.get(child_path, CachedYtClient.CacheEntry(exists=True))
+            for attribute in attributes:
                 if attribute in child.attributes:
                     child_value = (True, child.attributes[attribute])
                 else:
                     child_value = (False, self._error(attribute))
-                child_path = path + "/" + child + "/@" + attribute
-                self._cache[child_path] = child_value
+                child_cache_entry.attributes[attribute] = child_value
+            self._cache[child_path] = child_cache_entry
 
+        self._cache[path] = cache_entry
         return children
 
     @log_calls(_logger, "%(__name__)s(%(path)r)", _statistics)
@@ -225,7 +238,6 @@ class CachedYtClient(yt.wrapper.client.Yt):
             ignore_existing=ignore_existing, attributes=attributes
         )
         self._cache.pop(path)
-        self._cache.pop(path + "/@")
 
     @log_calls(_logger, "%(__name__)s(%(path)r)", _statistics)
     def remove(self, path, recursive=False, force=False):
@@ -233,7 +245,6 @@ class CachedYtClient(yt.wrapper.client.Yt):
             path, recursive=recursive, force=force
         )
         self._cache.pop(path)
-        self._cache.pop(path + "/@")
 
     @log_calls(_logger, "%(__name__)s(%(path)r)", _statistics)
     def create_transaction_and_take_snapshot_lock(self, path):
