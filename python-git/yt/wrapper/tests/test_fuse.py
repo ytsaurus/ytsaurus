@@ -133,9 +133,11 @@ class TestCypress(object):
 
         yt.create("file", filepath)
         fuse_filepath = filepath[1:]
+        fuse_test_dir = TEST_DIR[1:]
         cypress.unlink(fuse_filepath)
 
         assert "file" not in yt.list(TEST_DIR)
+        assert "file" not in cypress.readdir(fuse_test_dir, None)
 
     def test_truncate_file(self):
         cypress = Cypress(
@@ -167,7 +169,36 @@ class TestCypress(object):
         fuse_filepath = filepath[1:]
 
         fh = cypress.create(fuse_filepath, 0755, fi)
-        cypress.write(fuse_filepath, content, len(content), fi)
+        cypress.write(fuse_filepath, content, 0, fi)
+        cypress.flush(fuse_filepath, fi)
+        cypress.release(fuse_filepath, fi)
+
+        assert yt.read_file(filepath).read() == content
+
+    def test_write_multipart_file(self):
+        cypress = Cypress(
+            CachedYtClient(proxy = get_proxy_url(), config=yt.config.config))
+
+        filepath = TEST_DIR + "/file"
+        content = "Hello, world!" * 100
+
+        parts = []
+        part_length = 17
+        offset = 0
+        while offset < len(content):
+            length = min(part_length, len(content) - offset)
+            parts.append((offset, length))
+            offset += length
+        random.shuffle(parts)
+
+        fi = fuse_file_info()
+        fuse_filepath = filepath[1:]
+
+        fh = cypress.create(fuse_filepath, 0755, fi)
+
+        for offset, length in parts:
+            cypress.write(fuse_filepath, content[offset:offset + length], offset, fi)
+
         cypress.flush(fuse_filepath, fi)
         cypress.release(fuse_filepath, fi)
 
@@ -200,11 +231,14 @@ class TestCypress(object):
 
         # Try to remove non-empty directory.
         fuse_dirpath = dirpath[1:]
+        fuse_test_dir = TEST_DIR[1:]
         with pytest.raises(FuseOSError):
             cypress.rmdir(fuse_dirpath)
         assert "dir" in yt.list(TEST_DIR)
+        assert "dir" in cypress.readdir(fuse_test_dir, None)
 
         # Remove empty directory.
         yt.remove(filepath)
         cypress.rmdir(fuse_dirpath)
         assert "dir" not in yt.list(TEST_DIR)
+        assert "dir" not in cypress.readdir(fuse_test_dir, None)
