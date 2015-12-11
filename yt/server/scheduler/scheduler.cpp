@@ -404,55 +404,11 @@ public:
             .Run();
     }
 
-    TYsonString DoStrace(const TJobId& jobId)
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        auto proxy = CreateJobProberProxy(jobId);
-
-        auto req = proxy.Strace();
-        ToProto(req->mutable_job_id(), jobId);
-
-        auto rspOrError = WaitFor(req->Invoke());
-        THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error stracing processes of job %v",
-            jobId);
-
-        auto& res = rspOrError.Value();
-
-        return TYsonString(FromProto<Stroka>(res->trace()));
-    }
-
     TFuture<void> DumpInputContext(const TJobId& jobId, const NYPath::TYPath& path)
     {
         return BIND(&TImpl::DoDumpInputContext, MakeStrong(this), jobId, path)
             .AsyncVia(MasterConnector_->GetCancelableControlInvoker())
             .Run();
-    }
-
-    void DoDumpInputContext(const TJobId& jobId, const NYPath::TYPath& path)
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        auto proxy = CreateJobProberProxy(jobId);
-
-        auto req = proxy.DumpInputContext();
-        ToProto(req->mutable_job_id(), jobId);
-
-        auto rspOrError = WaitFor(req->Invoke());
-        THROW_ERROR_EXCEPTION_IF_FAILED(
-            rspOrError,
-            "Error saving input context for job %v into %v",
-            jobId,
-            path);
-
-        const auto& res = rspOrError.Value();
-        auto chunkIds = FromProto<TGuid>(res->chunk_id());
-        YCHECK(chunkIds.size() == 1);
-        MasterConnector_->AttachJobContext(path, chunkIds.front(), jobId);
-
-        LOG_INFO("Input context saved (JobId: %v, Path: %v)",
-            jobId,
-            path);
     }
 
     TFuture<void> SignalJob(const TJobId& jobId, const Stroka& signalName)
@@ -467,50 +423,6 @@ public:
         return BIND(&TImpl::DoAbandonJob, MakeStrong(this), jobId)
             .AsyncVia(MasterConnector_->GetCancelableControlInvoker())
             .Run();
-    }
-
-    void DoSignalJob(const TJobId& jobId, const Stroka& signalName)
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        auto proxy = CreateJobProberProxy(jobId);
-
-        auto req = proxy.SignalJob();
-        ToProto(req->mutable_job_id(), jobId);
-        ToProto(req->mutable_signal_name(), signalName);
-
-        WaitFor(req->Invoke())
-            .ThrowOnError();
-    }
-
-    void DoAbandonJob(const TJobId& jobId)
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        auto job = FindJob(jobId);
-        if (!job) {
-            THROW_ERROR_EXCEPTION("No such job %v", jobId);
-        }
-        switch (job->GetType()) {
-            case EJobType::Map:
-            case EJobType::OrderedMap:
-            case EJobType::SortedReduce:
-            case EJobType::PartitionMap:
-            case EJobType::ReduceCombiner:
-            case EJobType::PartitionReduce:
-                break;
-            default:
-                THROW_ERROR_EXCEPTION("Can't abondon job %v of %v type", jobId, job->GetType());
-        }
-        if (job->GetState() != EJobState::Running &&
-            job->GetState() != EJobState::Waiting)
-        {
-            THROW_ERROR_EXCEPTION("Abandoned job %v is not running", jobId);
-        }
-
-        TJobResult result;
-        job->SetState(EJobState::Abandoning);
-        OnJobCompleted(job, &result);
     }
 
     TJobProberServiceProxy CreateJobProberProxy(const TJobId& jobId)
@@ -1930,6 +1842,93 @@ private:
         }
     }
 
+    TYsonString DoStrace(const TJobId& jobId)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        auto proxy = CreateJobProberProxy(jobId);
+
+        auto req = proxy.Strace();
+        ToProto(req->mutable_job_id(), jobId);
+
+        auto rspOrError = WaitFor(req->Invoke());
+        THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error stracing processes of job %v",
+            jobId);
+
+        auto& res = rspOrError.Value();
+
+        return TYsonString(FromProto<Stroka>(res->trace()));
+    }
+
+    void DoDumpInputContext(const TJobId& jobId, const NYPath::TYPath& path)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        auto proxy = CreateJobProberProxy(jobId);
+
+        auto req = proxy.DumpInputContext();
+        ToProto(req->mutable_job_id(), jobId);
+
+        auto rspOrError = WaitFor(req->Invoke());
+        THROW_ERROR_EXCEPTION_IF_FAILED(
+            rspOrError,
+            "Error saving input context for job %v into %v",
+            jobId,
+            path);
+
+        const auto& res = rspOrError.Value();
+        auto chunkIds = FromProto<TGuid>(res->chunk_id());
+        YCHECK(chunkIds.size() == 1);
+        MasterConnector_->AttachJobContext(path, chunkIds.front(), jobId);
+
+        LOG_INFO("Input context saved (JobId: %v, Path: %v)",
+            jobId,
+            path);
+    }
+
+    void DoSignalJob(const TJobId& jobId, const Stroka& signalName)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        auto proxy = CreateJobProberProxy(jobId);
+
+        auto req = proxy.SignalJob();
+        ToProto(req->mutable_job_id(), jobId);
+        ToProto(req->mutable_signal_name(), signalName);
+
+        WaitFor(req->Invoke())
+            .ThrowOnError();
+    }
+
+    void DoAbandonJob(const TJobId& jobId)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        auto job = FindJob(jobId);
+        if (!job) {
+            THROW_ERROR_EXCEPTION("No such job %v", jobId);
+        }
+        switch (job->GetType()) {
+            case EJobType::Map:
+            case EJobType::OrderedMap:
+            case EJobType::SortedReduce:
+            case EJobType::PartitionMap:
+            case EJobType::ReduceCombiner:
+            case EJobType::PartitionReduce:
+                break;
+            default:
+                THROW_ERROR_EXCEPTION("Can't abondon job %v of %v type", jobId, job->GetType());
+        }
+        if (job->GetState() != EJobState::Running &&
+            job->GetState() != EJobState::Waiting)
+        {
+            THROW_ERROR_EXCEPTION("Abandoned job %v is not running", jobId);
+        }
+
+        TJobResult result;
+        job->SetState(EJobState::Abandoning);
+        OnJobCompleted(job, &result);
+    }
 
     void DoCompleteOperation(TOperationPtr operation)
     {
