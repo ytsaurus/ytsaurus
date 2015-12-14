@@ -49,16 +49,15 @@ TKeyColumns GetSampleKeyColumns2()
 
 TTableSchema GetSampleTableSchema()
 {
-    TTableSchema tableSchema({
-        { "k", EValueType::Int64 },
-        { "l", EValueType::Int64 },
-        { "m", EValueType::Int64 },
-        { "a", EValueType::Int64 },
-        { "b", EValueType::Int64 },
-        { "c", EValueType::Int64 },
-        { "s", EValueType::String },
-        { "u", EValueType::String }
-    });
+    TTableSchema tableSchema;
+    tableSchema.Columns().push_back({ "k", EValueType::Int64 });
+    tableSchema.Columns().push_back({ "l", EValueType::Int64 });
+    tableSchema.Columns().push_back({ "m", EValueType::Int64 });
+    tableSchema.Columns().push_back({ "a", EValueType::Int64 });
+    tableSchema.Columns().push_back({ "b", EValueType::Int64 });
+    tableSchema.Columns().push_back({ "c", EValueType::Int64 });
+    tableSchema.Columns().push_back({ "s", EValueType::String });
+    tableSchema.Columns().push_back({ "u", EValueType::String });
     return tableSchema;
 }
 
@@ -91,7 +90,8 @@ TDataSplit MakeSplit(const std::vector<TColumnSchema>& columns, TKeyColumns keyC
 
     SetKeyColumns(&dataSplit, keyColumns);
 
-    TTableSchema tableSchema(columns);
+    TTableSchema tableSchema;
+    tableSchema.Columns() = columns;
     SetTableSchema(&dataSplit, tableSchema);
 
     return dataSplit;

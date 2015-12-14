@@ -49,14 +49,14 @@ class TVersionedBlocksTestOneRow
 protected:
     virtual void SetUp() override
     {
-        Schema = TTableSchema({
-            TColumnSchema("k1", EValueType::String).SetSortOrder(ESortOrder::Ascending),
-            TColumnSchema("k2", EValueType::Int64).SetSortOrder(ESortOrder::Ascending),
-            TColumnSchema("k3", EValueType::Double).SetSortOrder(ESortOrder::Ascending),
+        Schema.Columns() = {
+            TColumnSchema("k1", EValueType::String, Null, Null, Null, ESortOrder::Ascending),
+            TColumnSchema("k2", EValueType::Int64, Null, Null, Null, ESortOrder::Ascending),
+            TColumnSchema("k3", EValueType::Double, Null, Null, Null, ESortOrder::Ascending),
             TColumnSchema("v1", EValueType::Int64),
             TColumnSchema("v2", EValueType::Boolean),
             TColumnSchema("v3", EValueType::Int64)
-        });
+        };
 
         TSimpleVersionedBlockWriter blockWriter(Schema);
 

@@ -176,9 +176,14 @@ TTableSchema::TTableSchema()
     : Strict_(false)
 { }
 
-TTableSchema::TTableSchema(const std::vector<TColumnSchema>& columns, bool strict)
-    : Columns_(columns), Strict_(strict)
+TColumnSchema* TTableSchema::FindColumn(const TStringBuf& name)
 {
+    for (auto& column : Columns_) {
+        if (column.Name == name) {
+            return &column;
+        }
+    }
+    return nullptr;
 }
 
 const TColumnSchema* TTableSchema::FindColumn(const TStringBuf& name) const
@@ -189,6 +194,15 @@ const TColumnSchema* TTableSchema::FindColumn(const TStringBuf& name) const
         }
     }
     return nullptr;
+}
+
+TColumnSchema& TTableSchema::GetColumnOrThrow(const TStringBuf& name)
+{
+    auto* column = FindColumn(name);
+    if (!column) {
+        THROW_ERROR_EXCEPTION("Missing schema column %Qv", name);
+    }
+    return *column;
 }
 
 const TColumnSchema& TTableSchema::GetColumnOrThrow(const TStringBuf& name) const
@@ -218,7 +232,7 @@ TTableSchema TTableSchema::Filter(const TColumnFilter& columnFilter) const
 
     TTableSchema result;
     for (int id : columnFilter.Indexes) {
-        result.Columns_.push_back(Columns_[id]);
+        result.Columns().push_back(Columns_[id]);
     }
     return result;
 }
@@ -229,41 +243,9 @@ TTableSchema TTableSchema::TrimNonkeyColumns(const TKeyColumns& keyColumns) cons
     YCHECK(Columns_.size() >= keyColumns.size());
     for (int id = 0; id < keyColumns.size(); ++id) {
         YCHECK(Columns_[id].Name == keyColumns[id]);
-        result.Columns_.push_back(Columns_[id]);
+        result.Columns().push_back(Columns_[id]);
     }
     return result;
-}
-    
-void TTableSchema::PushColumn(const TColumnSchema& column)
-{
-    Columns_.push_back(column);
-}
-
-void TTableSchema::InsertColumn(int position, const TColumnSchema& column)
-{
-    if (position < 0 || position > Columns_.size()) {
-        THROW_ERROR_EXCEPTION("Position is invalid: %v (table contains %v columns)",
-            position, Columns_.size());
-    }
-    Columns_.insert(Columns_.begin() + position, column);
-}
-    
-void TTableSchema::EraseColumn(int position)
-{
-    if (position < 0 || position > Columns_.size()) {
-        THROW_ERROR_EXCEPTION("Position is invalid: %v (table contains %v columns)",
-           position, Columns_.size()); 
-    }
-    Columns_.erase(Columns_.begin() + position);
-}
-    
-void TTableSchema::AlterColumn(int position, const TColumnSchema& column)
-{
-    if (position < 0 || position > Columns_.size()) {
-        THROW_ERROR_EXCEPTION("Position is invalid: %v (table contains %v columns)",
-            position, Columns_.size());
-    }
-    Columns_[position] = column;
 }
 
 bool TTableSchema::HasComputedColumns() const
@@ -304,8 +286,10 @@ int TTableSchema::GetKeyColumnCount() const
 TTableSchema TTableSchema::FromKeyColumns(const TKeyColumns& keyColumns)
 {
     TTableSchema tableSchema;
+    tableSchema.Columns().clear();
+    tableSchema.SetStrict(false);
     for (const auto& columnName : keyColumns) {
-        tableSchema.Columns_.push_back(
+        tableSchema.Columns().push_back(
             TColumnSchema(columnName, EValueType::Any)
                 .SetSortOrder(ESortOrder::Ascending)); 
     }
@@ -337,9 +321,8 @@ void Serialize(const TTableSchema& schema, IYsonConsumer* consumer)
 
 void Deserialize(TTableSchema& schema, INodePtr node)
 {
-    std::vector<TColumnSchema> columns;
-    NYTree::Deserialize(columns, node);
-    schema = TTableSchema(columns, node->Attributes().Get<bool>("strict", true));
+    NYTree::Deserialize(schema.Columns(), node);
+    schema.SetStrict(node->Attributes().Get<bool>("strict", true));
     ValidateTableSchema(schema);
 }
 
@@ -351,9 +334,8 @@ void ToProto(NProto::TTableSchemaExt* protoSchema, const TTableSchema& schema)
 
 void FromProto(TTableSchema* schema, const NProto::TTableSchemaExt& protoSchema)
 {
-    *schema = TTableSchema(
-        NYT::FromProto<TColumnSchema>(protoSchema.columns()), 
-        protoSchema.has_strict() ? protoSchema.strict() : true);
+    schema->Columns() = NYT::FromProto<TColumnSchema>(protoSchema.columns());
+    schema->SetStrict(protoSchema.has_strict() ? protoSchema.strict() : true);
 }
 
 void FromProto(
