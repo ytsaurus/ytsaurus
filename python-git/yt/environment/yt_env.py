@@ -206,7 +206,7 @@ class YTEnv(object):
         self._load_existing_environment = load_existing_environment
 
         logger.info("Starting up cluster instance as follows:")
-        logger.info("  masters          %d", master_count)
+        logger.info("  masters          %d (%d nonvoting)", master_count, nonvoting_master_count)
         logger.info("  nodes            %d", node_count)
         logger.info("  schedulers       %d", scheduler_count)
 
