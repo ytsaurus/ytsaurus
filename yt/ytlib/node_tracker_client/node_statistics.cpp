@@ -13,7 +13,7 @@ namespace NProto {
 Stroka ToString(const TNodeStatistics& statistics)
 {
     return Format(
-        "Space: %v/%v, StoredChunks: %v, CachedChunks: %v, UserSessions: %v, "
+        "Space: %v/%v, TotalStoredChunks: %v, TotalCachedChunks: %v, UserSessions: %v, "
         "ReplicationSessions: %v, RepairSessions: %v, TabletSlots: %v/%v",
         statistics.total_used_space(),
         statistics.total_available_space() + statistics.total_used_space(),

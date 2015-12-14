@@ -431,22 +431,36 @@ void TMasterConnector::SendFullNodeHeartbeat(TCellTag cellTag)
 
     *request->mutable_statistics() = ComputeStatistics();
 
-    // TODO(babenko): consider optimizing
+    int storedChunkCount = 0;
+    int cachedChunkCount = 0;
     auto addChunkInfo = [&] (const IChunkPtr& chunk) {
         if (CellTagFromId(chunk->GetId()) == cellTag) {
-            *request->add_chunks() = BuildAddChunkInfo(chunk);
+            auto info = BuildAddChunkInfo(chunk);
+            *request->add_chunks() = info;
+            if (info.cached()) {
+                ++cachedChunkCount;
+            } else {
+                ++storedChunkCount;
+            }
         }
     };
+
     for (const auto& chunk : Bootstrap_->GetChunkStore()->GetChunks()) {
         addChunkInfo(chunk);
     }
+
     for (const auto& chunk : Bootstrap_->GetChunkCache()->GetChunks()) {
         if (!IsArtifactChunkId(chunk->GetId())) {
             *request->add_chunks() = BuildAddChunkInfo(chunk);
         }
     }
 
-    LOG_INFO("Full node heartbeat sent to master (%v)",
+    request->set_stored_chunk_count(storedChunkCount);
+    request->set_cached_chunk_count(cachedChunkCount);
+
+    LOG_INFO("Full node heartbeat sent to master (StoredChunkCount: %v, CachedChunkCount: %v, %v)",
+        storedChunkCount,
+        cachedChunkCount,
         request->statistics());
 
     auto rspOrError = WaitFor(request->Invoke());
