@@ -104,6 +104,7 @@ public:
                     NullChunkListId,
                     GetUnlimitedThrottler(),
                     blockCache);
+                FreshWriters_.push_back(writer);
                 asyncResults.push_back(writer->Open());
             }
 
