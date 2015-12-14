@@ -178,20 +178,20 @@ protected:
     static TTableSchema GetTypicalSchema()
     {
         TTableSchema schema;
-        schema.Columns().push_back(TColumnSchema("k", EValueType::Int64));
-        schema.Columns().push_back(TColumnSchema("l", EValueType::Int64));
-        schema.Columns().push_back(TColumnSchema("m", EValueType::Int64));
-        schema.Columns().push_back(TColumnSchema("n", EValueType::Int64));
+        schema.Columns().push_back({ "k", EValueType::Int64 });
+        schema.Columns().push_back({ "l", EValueType::Int64 });
+        schema.Columns().push_back({ "m", EValueType::Int64 });
+        schema.Columns().push_back({ "n", EValueType::Int64 });
         return schema;
     }
 
     static TTableSchema GetAggregateSumSchema()
     {
         TTableSchema schema;
-        schema.Columns().push_back(TColumnSchema("k", EValueType::Int64));
-        schema.Columns().push_back(TColumnSchema("l", EValueType::Int64));
-        schema.Columns().push_back(TColumnSchema("m", EValueType::Int64));
-        schema.Columns().push_back(TColumnSchema("n", EValueType::Int64).SetAggregate(Stroka("sum")));
+        schema.Columns().push_back({ "k", EValueType::Int64 });
+        schema.Columns().push_back({ "l", EValueType::Int64 });
+        schema.Columns().push_back({ "m", EValueType::Int64 });
+        schema.Columns().push_back({ "n", EValueType::Int64, Null, Null, Stroka("sum") });
         return schema;
     }
 };

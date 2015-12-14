@@ -1359,9 +1359,9 @@ protected:
     {
         // NB: Key columns must go first.
         TTableSchema schema;
-        schema.Columns().push_back(TColumnSchema("key", EValueType::Int64).SetSortOrder(ESortOrder::Ascending));
-        schema.Columns().push_back(TColumnSchema("a", EValueType::Int64).SetLock(Stroka("l1")));
-        schema.Columns().push_back(TColumnSchema("b", EValueType::Double).SetLock(Stroka("l2")));
+        schema.Columns().push_back(TColumnSchema("key", EValueType::Int64, Null, Null, Null, ESortOrder::Ascending));
+        schema.Columns().push_back(TColumnSchema("a", EValueType::Int64, Stroka("l1")));
+        schema.Columns().push_back(TColumnSchema("b", EValueType::Double, Stroka("l2")));
         schema.Columns().push_back(TColumnSchema("c", EValueType::String));
         return schema;
     }
