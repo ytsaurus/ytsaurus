@@ -1406,7 +1406,7 @@ TPlanFragmentPtr PreparePlanFragment(
     selfDataSplit = WaitFor(callbacks->GetInitialSplit(table.Path, timestamp))
         .ValueOrThrow();
     auto tableSchema = GetTableSchemaFromDataSplit(selfDataSplit);
-    auto keyColumns = GetKeyColumnsFromDataSplit(selfDataSplit);
+    auto keyColumns = tableSchema.GetKeyColumns();
 
     std::vector<Stroka> refinedColumns;
 
@@ -1426,7 +1426,7 @@ TPlanFragmentPtr PreparePlanFragment(
             .ValueOrThrow();
 
         auto foreignTableSchema = GetTableSchemaFromDataSplit(foreignDataSplit);
-        auto foreignKeyColumns = GetKeyColumnsFromDataSplit(foreignDataSplit);
+        auto foreignKeyColumns = foreignTableSchema.GetKeyColumns();
 
         auto joinClause = New<TJoinClause>();
 

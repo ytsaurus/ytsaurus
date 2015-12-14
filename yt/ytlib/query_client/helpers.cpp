@@ -37,14 +37,6 @@ TTableSchema GetTableSchemaFromDataSplit(const TDataSplit& dataSplit)
     return NYT::FromProto<TTableSchema>(tableSchemaProto);
 }
 
-TKeyColumns GetKeyColumnsFromDataSplit(const TDataSplit& dataSplit)
-{
-    // TODO(psushin): migrate to schemaful chunks.
-    auto keyColumnsExt = GetProtoExtension<TKeyColumnsExt>(
-        dataSplit.chunk_meta().extensions());
-    return FromProto<TKeyColumns>(keyColumnsExt);
-}
-
 TOwningKey GetLowerBoundFromDataSplit(const TDataSplit& dataSplit)
 {
     if (dataSplit.has_lower_limit()) {
@@ -94,13 +86,6 @@ void SetTableSchema(TDataSplit* dataSplit, const TTableSchema& tableSchema)
     SetProtoExtension(
         dataSplit->mutable_chunk_meta()->mutable_extensions(),
         ToProto<TTableSchemaExt>(tableSchema));
-}
-
-void SetKeyColumns(TDataSplit* dataSplit, const TKeyColumns& keyColumns)
-{
-    SetProtoExtension(
-        dataSplit->mutable_chunk_meta()->mutable_extensions(),
-        ToProto<TKeyColumnsExt>(keyColumns));
 }
 
 void SetLowerBound(TDataSplit* dataSplit, const TOwningKey & lowerBound)
