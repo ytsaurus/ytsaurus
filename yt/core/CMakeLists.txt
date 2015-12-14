@@ -246,7 +246,7 @@ add_library(ytcore STATIC ${YT_SRCS_RESOLVED})
 
 llvm_map_components_to_libraries(
   REQUIRED_LLVM_LIBRARIES
-  mcjit ipo x86 mcdisassembler linker asmparser irreader
+  mcjit ipo x86 mcdisassembler linker asmparser irreader instrumentation
 )
 
 target_link_libraries(ytcore
