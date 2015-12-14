@@ -266,13 +266,14 @@ class TestTablets(YTEnvSetup):
 
     def test_computed_columns(self):
         self.sync_create_cells(1, 1)
-        with pytest.raises(YtError): 
-            create("table", "//tmp/t1",
-                schema = [
-                    {"name": "key1", "type": "int64", "expression": "key2", "sort_order": "ascending"},
-                    {"name": "key2", "type": "uint64", "sort_order": "ascending"},
-                    {"name": "value", "type": "string"}]
-                )
+
+        create("table", "//tmp/t1",
+            schema = [
+                {"name": "key1", "type": "int64", "expression": "key2", "sort_order": "ascending"},
+                {"name": "key2", "type": "uint64", "sort_order": "ascending"},
+                {"name": "value", "type": "string"}]
+            )
+        with pytest.raises(YtError): self.sync_mount_table("//tmp/t1")
 
         self._create_table_with_computed_column("//tmp/t")
         self.sync_mount_table("//tmp/t")
@@ -573,6 +574,9 @@ class TestTablets(YTEnvSetup):
 
         assert self._get_pivot_keys("//tmp/t1") == [[], [100], [200], [300], [400]]
 
+    def _prepare_allowed(self, permission):
+        self.sync_create_cells(1, 1)
+        self._create_table("//tmp/t")
         self.sync_mount_table("//tmp/t")
         create_user("u")
         set("//tmp/t/@inherit_acl", False)
@@ -747,38 +751,36 @@ class TestTablets(YTEnvSetup):
         self.sync_create_cells(1, 1)
         self._create_table("//tmp/t")
         self.sync_mount_table("//tmp/t")
-        insert_rows("//tmp/t", [{"key": 1, "value": "test"}])
         self.sync_unmount_table("//tmp/t")
         with pytest.raises(YtError): alter_table("//tmp/t", schema=[
-            {"name": "key1", "type": "int64", "sort_order": "ascending"},
+            {"name": "key1", "type": "int64"},
             {"name": "value", "type": "string"}])
-        with pytest.raises(YtError): alter_table("//tmp/t", schema=[
-            {"name": "key", "type": "uint64", "sort_order": "ascending"},
+        with pytest.raises(YtError): alter_table("//tmp/t/@schema", schema=[
+            {"name": "key", "type": "uint64"},
             {"name": "value", "type": "string"}])
-        with pytest.raises(YtError): alter_table("//tmp/t", schema=[
-            {"name": "key", "type": "int64", "sort_order": "ascending"},
+        with pytest.raises(YtError): alter_table("//tmp/t/@schema", schema=[
+            {"name": "key", "type": "int64"},
             {"name": "value1", "type": "string"}])
 
         self._create_table_with_computed_column("//tmp/t1")
         self.sync_mount_table("//tmp/t1")
-        insert_rows("//tmp/t1", [{"key1": 1, "value": "test"}])
         self.sync_unmount_table("//tmp/t1")
         with pytest.raises(YtError): alter_table("//tmp/t1", schema=[
-            {"name": "key1", "type": "int64", "sort_order": "ascending"},
-            {"name": "key2", "type": "int64", "sort_order": "ascending"},
+            {"name": "key1", "type": "int64"},
+            {"name": "key2", "type": "int64"},
             {"name": "value", "type": "string"}])
         with pytest.raises(YtError): alter_table("//tmp/t1", schema=[
-            {"name": "key1", "type": "int64", "expression": "key2 * 100 + 3", "sort_order": "ascending"},
-            {"name": "key2", "type": "int64", "sort_order": "ascending"},
+            {"name": "key1", "type": "int64", "expression": "key2 * 100 + 3"},
+            {"name": "key2", "type": "int64"},
             {"name": "value", "type": "string"}])
         with pytest.raises(YtError): alter_table("//tmp/t1", schema=[
-            {"name": "key1", "type": "int64", "sort_order": "ascending"},
-            {"name": "key2", "type": "int64", "expression": "key1 * 100", "sort_order": "ascending"},
+            {"name": "key1", "type": "int64"},
+            {"name": "key2", "type": "int64", "expression": "key1 * 100"},
             {"name": "value", "type": "string"}])
         with pytest.raises(YtError): alter_table("//tmp/t1", schema=[
-            {"name": "key1", "type": "int64", "sort_order": "ascending"},
-            {"name": "key2", "type": "int64", "expression": "key1 * 100 + 3", "sort_order": "ascending"},
-            {"name": "key3", "type": "int64", "expression": "key1 * 100 + 3", "sort_order": "ascending"},
+            {"name": "key1", "type": "int64"},
+            {"name": "key2", "type": "int64", "expression": "key1 * 100 + 3"},
+            {"name": "key3", "type": "int64", "expression": "key1 * 100 + 3"},
             {"name": "value", "type": "string"}])
 
     def test_update_key_columns_success(self):

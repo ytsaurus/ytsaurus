@@ -61,6 +61,46 @@ TColumnSchema& TColumnSchema::SetAggregate(const TNullable<Stroka>& value)
     return *this;
 }
 
+void ValidateColumnSchema(const TColumnSchema& columnSchema)
+{
+    try {
+        if (columnSchema.Name.empty()) {
+            THROW_ERROR_EXCEPTION("Column name cannot be empty");
+        }
+
+        if (columnSchema.Name.size() > MaxColumnNameLength) {
+            THROW_ERROR_EXCEPTION("Column name is longer than maximum allowed: %v > %v", 
+                columnSchema.Name.size(),
+                MaxColumnNameLength);
+        }
+
+        if (columnSchema.Lock) {
+            if (columnSchema.Lock->empty()) {
+                THROW_ERROR_EXCEPTION("Lock should either be unset or be non-empty");
+            }
+            if (columnSchema.Lock->size() > MaxColumnLockLength) {
+                THROW_ERROR_EXCEPTION("Column lock is longer than maximum allowed: %v > %v",
+                    columnSchema.Lock->size(),
+                    MaxColumnLockLength);
+            }
+        } 
+    
+        ValidateSchemaValueType(columnSchema.Type);
+
+        if (columnSchema.Expression && !columnSchema.SortOrder) {
+            THROW_ERROR_EXCEPTION("Non-key column can't be computed");
+        }
+
+        if (columnSchema.Aggregate && columnSchema.SortOrder) {
+            THROW_ERROR_EXCEPTION("Key column can't be aggregated");
+        }
+    } catch (const std::exception& ex) {
+        THROW_ERROR_EXCEPTION("Error validating schema of a column %Qv",
+            columnSchema.Name)
+            << ex;
+    }
+}
+
 struct TSerializableColumnSchema
     : public TYsonSerializableLite
     , public TColumnSchema
@@ -420,105 +460,6 @@ void ValidateKeyColumnsUpdate(const TKeyColumns& oldKeyColumns, const TKeyColumn
     }
 }
 
-////////////////////////////////////////////////////////////////////////////////
-
-void ValidateColumnSchema(const TColumnSchema& columnSchema)
-{
-    try {
-        if (columnSchema.Name.empty()) {
-            THROW_ERROR_EXCEPTION("Column name cannot be empty");
-        }
-
-        if (columnSchema.Name.substr(0, SystemColumnNamePrefix.size()) == SystemColumnNamePrefix) {
-            THROW_ERROR_EXCEPTION("Column name can't start with prefix %Qv", SystemColumnNamePrefix);
-        }
-
-        if (columnSchema.Name.size() > MaxColumnNameLength) {
-            THROW_ERROR_EXCEPTION("Column name is longer than maximum allowed: %v > %v", 
-                columnSchema.Name.size(),
-                MaxColumnNameLength);
-        }
-
-        if (columnSchema.Lock) {
-            if (columnSchema.Lock->empty()) {
-                THROW_ERROR_EXCEPTION("Lock should either be unset or be non-empty");
-            }
-            if (columnSchema.SortOrder) {
-                THROW_ERROR_EXCEPTION("Lock can't be set on a key column");
-            }
-            if (columnSchema.Lock->size() > MaxColumnLockLength) {
-                THROW_ERROR_EXCEPTION("Column lock is longer than maximum allowed: %v > %v",
-                    columnSchema.Lock->size(),
-                    MaxColumnLockLength);
-            }
-        } 
-    
-        ValidateSchemaValueType(columnSchema.Type);
-
-        if (columnSchema.Expression && !columnSchema.SortOrder) {
-            THROW_ERROR_EXCEPTION("Non-key column can't be computed");
-        }
-
-        if (columnSchema.Aggregate && columnSchema.SortOrder) {
-            THROW_ERROR_EXCEPTION("Key column can't be aggregated");
-        }
-    } catch (const std::exception& ex) {
-        THROW_ERROR_EXCEPTION("Error validating schema of a column %Qv",
-            columnSchema.Name)
-            << ex;
-    }
-}
-
-//! Validates the column schema update.
-/*! 
- *  \pre{oldColumn and newColumn should have the same name.}
- *
- *  Validates that:
- *  - Column type remains the same.
- *  - Column expression remains the same.
- *  - Column aggregate method either was introduced or remains the same.
- */
-void ValidateColumnSchemaUpdate(const TColumnSchema& oldColumn, const TColumnSchema& newColumn, bool IsKey)
-{
-    YCHECK(oldColumn.Name == newColumn.Name);
-    if (newColumn.Type != oldColumn.Type) {
-        THROW_ERROR_EXCEPTION("Type mismatch for column %Qv: old = %Qv, new = %Qv",
-            oldColumn.Name,
-            oldColumn.Type,
-            newColumn.Type);
-    }
-
-    if (newColumn.SortOrder != oldColumn.SortOrder) {
-        THROW_ERROR_EXCEPTION("SortOrder mismatch for column %Qv: old = %Qv, new = %Qv",
-            oldColumn.Name,
-            oldColumn.Type,
-            newColumn.Type);
-    }
-
-    if (newColumn.Expression != oldColumn.Expression) {
-        THROW_ERROR_EXCEPTION("Expression mismatch for column %Qv: old = %Qv, new = %Qv",
-            oldColumn.Name,
-            oldColumn.Expression,
-            newColumn.Expression);
-    }
-
-    if (oldColumn.Aggregate && oldColumn.Aggregate != newColumn.Aggregate) {
-        THROW_ERROR_EXCEPTION("Aggregate mismatch for column %Qv: old = %Qv, new = %Qv",
-            oldColumn.Name,
-            oldColumn.Aggregate,
-            newColumn.Aggregate);
-    }
-
-    if (IsKey && oldColumn.Lock != newColumn.Lock) {
-        THROW_ERROR_EXCEPTION("Lock mismatch for key column %Qv: old = %Qv, new = %Qv",
-            oldColumn.Name,
-            oldColumn.Lock,
-            newColumn.Lock);
-    }
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 //! Validates that there are no duplicates among the column names.
 static void ValidateColumnUniqueness(const TTableSchema& schema)
 {
@@ -605,7 +546,6 @@ void ValidateComputedColumns(const TTableSchema& schema)
         }
     }
 }
-
 //! Validates aggregated columns.
 /*!
  *  Validates that:
@@ -633,7 +573,6 @@ void ValidateAggregatedColumns(const TTableSchema& schema)
     }
 }
 
-//! TODO(max42): document this functions somewhere (see also https://st.yandex-team.ru/YT-1433).
 void ValidateTableSchema(const TTableSchema& schema)
 {    
     for (const auto& column : schema.Columns()) {
@@ -646,83 +585,40 @@ void ValidateTableSchema(const TTableSchema& schema)
     ValidateAggregatedColumns(schema);
 }
 
-////////////////////////////////////////////////////////////////////////////////
-
-//! Validates that all columns from the old schema are presented in the new schema.
-void ValidateColumnsWereNotRemoved(const TTableSchema& oldSchema, const TTableSchema& newSchema)
-{
-    YCHECK(newSchema.GetStrict());
-    for (int oldColumnIndex = 0; oldColumnIndex < oldSchema.Columns().size(); ++oldColumnIndex) {
-        const auto& oldColumn = oldSchema.Columns()[oldColumnIndex];
-        if (!newSchema.FindColumn(oldColumn.Name)) {
-            THROW_ERROR_EXCEPTION("Column removals are not allowed with Strict = true, missing column %Qv",
-                oldColumn.Name);
-        }
-    }
-}
-
-//! Validates that all columns from the new schema are presented in the old schema.
-void ValidateColumnsWereNotInserted(const TTableSchema& oldSchema, const TTableSchema& newSchema)
-{
-    YCHECK(!oldSchema.GetStrict());
-    for (int newColumnIndex = 0; newColumnIndex < newSchema.Columns().size(); ++newColumnIndex) {
-        const auto& newColumn = newSchema.Columns()[newColumnIndex];
-        if (!oldSchema.FindColumn(newColumn.Name)) {
-            THROW_ERROR_EXCEPTION("Column insertions are not allowed with Strict = false, extra column %Qv",
-                newColumn.Name);
-        }
-    }
-}
-
-//! Validates that for each column presented in both oldSchema and newSchema, its declarations match each other.
-//! Also validates that key columns positions are not changed.
-void ValidateColumnsMatch(const TTableSchema& oldSchema, const TTableSchema& newSchema)
-{
-    for (int oldColumnIndex = 0; oldColumnIndex < oldSchema.Columns().size(); ++oldColumnIndex) {
-        const auto& oldColumn = oldSchema.Columns()[oldColumnIndex];
-        const auto* newColumnPtr = newSchema.FindColumn(oldColumn.Name);
-        if (!newColumnPtr) {
-            // We consider only columns presented both in oldSchema and newSchema.
-            continue;
-        }
-        const auto& newColumn = *newColumnPtr;
-        ValidateColumnSchemaUpdate(oldColumn, newColumn);
-        int newColumnIndex = newSchema.GetColumnIndex(newColumn);
-        if (oldColumnIndex < oldSchema.GetKeyColumnCount()) {
-            if (oldColumnIndex != newColumnIndex) {
-                THROW_ERROR_EXCEPTION("Can't change position of a key column %Qv: old = %v, new = %v",
-                    oldColumn.Name,
-                    oldColumnIndex,
-                    newColumnIndex);
-            }
-        }
-    }
-}
-
-//! TODO(max42): document this functions somewhere (see also https://st.yandex-team.ru/YT-1433).
-void ValidateTableSchemaUpdate(const TTableSchema& oldSchema, const TTableSchema& newSchema, bool isTableDynamic, bool isTableEmpty)
+void ValidateTableSchemaUpdate(const TTableSchema& oldSchema, const TTableSchema& newSchema)
 {
     ValidateTableSchema(newSchema);
-    if (isTableDynamic) {
-        if (!newSchema.GetStrict()) {
-            THROW_ERROR_EXCEPTION("Strict can't be false for a dynamic table");
+
+    for (const auto& oldColumn : oldSchema.Columns()) {
+        const auto& newColumn = newSchema.GetColumnOrThrow(oldColumn.Name);
+
+        if (newColumn.Type != oldColumn.Type) {
+            THROW_ERROR_EXCEPTION("Type mismatch for column %Qv: expected %Qv but got %Qv",
+                oldColumn.Name,
+                oldColumn.Type,
+                newColumn.Type);
         }
+
+        if (newColumn.Expression != oldColumn.Expression) {
+            THROW_ERROR_EXCEPTION("Expression mismatch for column %Qv: expected %Qv but got %Qv",
+                oldColumn.Name,
+                oldColumn.Expression,
+                newColumn.Expression);
+        }
+
+        //FIXME(savrus) enable when aggregates merged
+#if 0
+        if (oldColumn.Aggregate && oldColumn.Aggregate != newColumn.Aggregate) {
+            THROW_ERROR_EXCEPTION("Aggregate mismatch for column %Qv: expected %Qv but got %Qv",
+                oldColumn.Name,
+                oldColumn.Aggregate,
+                newColumn.Aggregate);
+        }
+#endif
     }
 
-    if (!oldSchema.GetStrict() && newSchema.GetStrict()) {
-        THROW_ERROR_EXCEPTION("Changing Strict from false to true is not allowed.");
-    }
-
-    if (!oldSchema.GetStrict()) {
-        ValidateColumnsWereNotInserted(oldSchema, newSchema);
-    }
-    if (newSchema.GetStrict()) {
-        ValidateColumnsWereNotRemoved(oldSchema, newSchema);
-    }
-    ValidateColumnsMatch(oldSchema, newSchema);
-    
     // We allow adding computed columns only on creation of the table.
-    if (!oldSchema.Columns().empty() || !isTableEmpty) {
+    if (!oldSchema.Columns().empty()) {
         for (const auto& newColumn : newSchema.Columns()) {
             if (!oldSchema.FindColumn(newColumn.Name)) {
                 if (newColumn.Expression) {
@@ -733,8 +629,6 @@ void ValidateTableSchemaUpdate(const TTableSchema& oldSchema, const TTableSchema
         }
     }
 }
-
-////////////////////////////////////////////////////////////////////////////////
 
 void ValidatePivotKey(const TOwningKey& pivotKey, const TTableSchema& schema, int keyColumnCount)
 {
