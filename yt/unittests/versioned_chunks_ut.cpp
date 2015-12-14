@@ -230,7 +230,7 @@ TEST_F(TVersionedChunksTest, ReadEmptyWiderSchema)
     WriteThreeRows();
 
     auto schema = Schema;
-    schema.AppendColumn(TColumnSchema("kN", EValueType::Double));
+    schema.PushColumn(TColumnSchema("kN", EValueType::Double));
 
     auto chunkMeta = TCachedVersionedChunkMeta::Load(
         MemoryReader,
