@@ -25,6 +25,8 @@ class TestLocalMode(object):
                 os.environ.get("YT_LOCAL_USE_PROXY_FROM_SOURCE", None)
         os.environ["YT_LOCAL_ROOT_PATH"] = os.path.join(TESTS_SANDBOX, "TestLocalMode")
         os.environ["YT_LOCAL_USE_PROXY_FROM_SOURCE"] = '1'
+        # Add ports_lock_path argument to YTEnvironment for parallel testing.
+        os.environ["YT_LOCAL_PORT_LOCKS_PATH"] = os.path.join(TESTS_SANDBOX, "ports")
 
     @classmethod
     def teardown_class(cls):
@@ -33,6 +35,7 @@ class TestLocalMode(object):
         if cls.old_yt_local_use_proxy_from_source is not None:
             os.environ["YT_LOCAL_USE_PROXY_FROM_SOURCE"] = \
                     cls.old_yt_local_use_proxy_from_source
+        del os.environ["YT_LOCAL_PORT_LOCKS_PATH"]
 
     def test_commands_sanity(self):
         environment = start()
