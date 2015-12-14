@@ -61,7 +61,7 @@ TTabletInfoPtr TTableMountInfo::GetTablet(TUnversionedRow row) const
         Tablets.end(),
         row,
         [&] (TUnversionedRow lhs, const TTabletInfoPtr& rhs) {
-            return CompareRows(lhs, rhs->PivotKey.Get(), KeyColumns.size()) < 0;
+            return CompareRows(lhs, rhs->PivotKey.Get(), Schema.GetKeyColumnCount()) < 0;
         });
     return *(it - 1);
 }
@@ -131,8 +131,6 @@ private:
                 tableInfo->Path = path;
                 tableInfo->TableId = FromProto<TObjectId>(rsp->table_id());
                 tableInfo->Schema = FromProto<TTableSchema>(rsp->schema());
-                tableInfo->KeyColumns = FromProto<TKeyColumns>(rsp->key_columns());
-                tableInfo->Sorted = rsp->sorted();
                 tableInfo->Dynamic = rsp->dynamic();
                 tableInfo->NeedKeyEvaluation = tableInfo->Schema.HasComputedColumns();
 
@@ -160,11 +158,10 @@ private:
                     }
                 }
 
-                LOG_DEBUG("Table mount info received (Path: %v, TableId: %v, TabletCount: %v, Sorted: %v, Dynamic: %v)",
+                LOG_DEBUG("Table mount info received (Path: %v, TableId: %v, TabletCount: %v, Dynamic: %v)",
                     path,
                     tableInfo->TableId,
                     tableInfo->Tablets.size(),
-                    tableInfo->Sorted,
                     tableInfo->Dynamic);
 
                 return tableInfo;

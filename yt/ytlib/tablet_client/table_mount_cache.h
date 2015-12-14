@@ -48,8 +48,6 @@ struct TTableMountInfo
     NObjectClient::TObjectId TableId;
 
     NTableClient::TTableSchema Schema;
-    NTableClient::TKeyColumns KeyColumns;
-    bool Sorted;
     bool Dynamic;
     bool NeedKeyEvaluation;
 
