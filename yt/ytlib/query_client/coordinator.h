@@ -41,9 +41,7 @@ TRowRanges GetPrunedRanges(
     ui64 rangeExpansionLimit,
     bool verboseLogging);
 
-TRowRange GetRange(const TDataSources& sources);
-
-TRowRanges GetRanges(const std::vector<TDataSources>& groupedSplits);
+TRowRange GetRange(const std::vector<TDataSource>& sources);
 
 typedef std::pair<ISchemafulReaderPtr, TFuture<TQueryStatistics>> TEvaluateResult;
 

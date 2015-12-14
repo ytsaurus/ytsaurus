@@ -424,19 +424,6 @@ struct TDataSource
     TRowRange Range;
 };
 
-typedef std::vector<TDataSource> TDataSources;
-
-struct TPlanFragmentBase
-    : public TIntrinsicRefCounted
-{
-    TTimestamp Timestamp;
-    TRowBufferPtr KeyRangesRowBuffer = New<TRowBuffer>();
-
-    TConstQueryPtr Query;
-    TQueryOptions Options;
-
-};
-
 struct TDataSource2
 {
     //! Either a chunk id or tablet id.
