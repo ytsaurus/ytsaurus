@@ -100,7 +100,7 @@ protected:
 
     TUnversionedOwningRow BuildRow(const Stroka& yson, bool treatMissingAsNull = true)
     {
-        return NTableClient::BuildRow(yson, Tablet_->KeyColumns(), Tablet_->Schema(), treatMissingAsNull);
+        return NTableClient::BuildRow(yson, Tablet_->Schema(), treatMissingAsNull);
     }
 
     TTimestamp GenerateTimestamp()

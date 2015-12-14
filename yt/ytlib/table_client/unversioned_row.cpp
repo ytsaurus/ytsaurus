@@ -1450,7 +1450,6 @@ TOwningKey WidenKey(const TOwningKey& key, int keyColumnCount)
 
 TUnversionedOwningRow BuildRow(
     const Stroka& yson,
-    const TKeyColumns& keyColumns,
     const TTableSchema& tableSchema,
     bool treatMissingAsNull /*= true*/)
 {
@@ -1482,6 +1481,8 @@ TUnversionedOwningRow BuildRow(
                 break;
         }
     };
+
+    const auto& keyColumns = tableSchema.GetKeyColumns();
 
     // Key
     for (int id = 0; id < static_cast<int>(keyColumns.size()); ++id) {

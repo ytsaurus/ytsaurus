@@ -119,7 +119,8 @@ TNameTableToSchemaIdMapping BuildColumnIdMapping(
     const TTableMountInfoPtr& tableInfo,
     const TNameTablePtr& nameTable)
 {
-    for (const auto& name : tableInfo->KeyColumns) {
+    for (const auto& name : tableInfo->Schema.GetKeyColumns()) {
+        // We shouldn't consider computed columns below because client doesn't send them.
         if (!nameTable->FindId(name) && !tableInfo->Schema.GetColumnOrThrow(name).Expression) {
             THROW_ERROR_EXCEPTION("No such key column %Qv",
                 name);
@@ -298,7 +299,6 @@ private:
         TDataSplit result;
         SetObjectId(&result, info->TableId);
         SetTableSchema(&result, tableSchema.Get(info->Schema));
-        SetKeyColumns(&result, info->KeyColumns);
         SetTimestamp(&result, timestamp);
 
         return result;
@@ -332,7 +332,7 @@ private:
         auto tableInfo = WaitFor(tableMountCache->GetTableInfo(FromObjectId(tableId)))
             .ValueOrThrow();
 
-        if (!tableInfo->Sorted) {
+        if (!tableInfo->Schema.IsSorted()) {
             THROW_ERROR_EXCEPTION("Expected a sorted table, but got unsorted");
         }
 
@@ -388,12 +388,10 @@ private:
         const auto& networkName = Connection_->GetConfig()->NetworkName;
 
         for (auto& chunkSpec : chunkSpecs) {
-            auto chunkKeyColumns = FindProtoExtension<TKeyColumnsExt>(chunkSpec.chunk_meta().extensions());
             auto chunkSchema = FindProtoExtension<TTableSchemaExt>(chunkSpec.chunk_meta().extensions());
 
             // TODO(sandello): One day we should validate consistency.
             // Now we just check we do _not_ have any of these.
-            YCHECK(!chunkKeyColumns);
             YCHECK(!chunkSchema);
 
             TOwningKey chunkLowerBound, chunkUpperBound;
@@ -1330,7 +1328,7 @@ private:
         auto tableInfo = SyncGetTableInfo(path);
 
         int schemaColumnCount = static_cast<int>(tableInfo->Schema.Columns().size());
-        int keyColumnCount = static_cast<int>(tableInfo->KeyColumns.size());
+        int keyColumnCount = static_cast<int>(tableInfo->Schema.GetKeyColumnCount());
 
         ValidateColumnFilter(options.ColumnFilter, schemaColumnCount);
 
@@ -2503,7 +2501,7 @@ private:
             const TWriteRowsOptions& writeOptions = TWriteRowsOptions())
         {
             const auto& idMapping = Transaction_->GetColumnIdMapping(TableInfo_, NameTable_);
-            int keyColumnCount = TableInfo_->KeyColumns.size();
+            int keyColumnCount = TableInfo_->Schema.GetKeyColumnCount();
             const auto& schema = TableInfo_->Schema;
             const auto& rowBuffer = Transaction_->GetRowBuffer();
             auto evaluatorCache = Transaction_->GetConnection()->GetColumnEvaluatorCache();
@@ -2586,7 +2584,7 @@ private:
             WriteRequests(
                 Keys_,
                 EWireProtocolCommand::DeleteRow,
-                TableInfo_->KeyColumns.size(),
+                TableInfo_->Schema.GetKeyColumnCount(),
                 ValidateClientKey);
         }
     };
@@ -2608,7 +2606,7 @@ private:
             , TabletId_(TabletInfo_->TabletId)
             , Config_(owner->Client_->Connection_->GetConfig())
             , Durability_(owner->Transaction_->GetDurability())
-            , KeyColumnCount_(TableInfo_->KeyColumns.size())
+            , KeyColumnCount_(TableInfo_->Schema.GetKeyColumnCount())
             , ColumnEvaluator_(std::move(columnEvauator))
             , RowBuffer_(New<TRowBuffer>())
             , Logger(owner->Logger)
@@ -2847,7 +2845,7 @@ private:
         if (it == TabletToSession_.end()) {
             AsyncTransactionStartResults_.push_back(Transaction_->AddTabletParticipant(tabletInfo->CellId));
             auto evaluatorCache = GetConnection()->GetColumnEvaluatorCache();
-            auto evaluator = evaluatorCache->Find(tableInfo->Schema, tableInfo->KeyColumns.size());
+            auto evaluator = evaluatorCache->Find(tableInfo->Schema, tableInfo->Schema.GetKeyColumnCount());
             it = TabletToSession_.insert(std::make_pair(
                 tabletInfo,
                 New<TTabletCommitSession>(

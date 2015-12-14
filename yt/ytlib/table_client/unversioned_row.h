@@ -713,7 +713,6 @@ private:
 
 TUnversionedOwningRow BuildRow(
     const Stroka& yson,
-    const TKeyColumns& keyColumns,
     const TTableSchema& tableSchema,
     bool treatMissingAsNull = true);
 
