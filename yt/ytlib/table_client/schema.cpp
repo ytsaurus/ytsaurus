@@ -61,46 +61,6 @@ TColumnSchema& TColumnSchema::SetAggregate(const TNullable<Stroka>& value)
     return *this;
 }
 
-void ValidateColumnSchema(const TColumnSchema& columnSchema)
-{
-    try {
-        if (columnSchema.Name.empty()) {
-            THROW_ERROR_EXCEPTION("Column name cannot be empty");
-        }
-
-        if (columnSchema.Name.size() > MaxColumnNameLength) {
-            THROW_ERROR_EXCEPTION("Column name is longer than maximum allowed: %v > %v", 
-                columnSchema.Name.size(),
-                MaxColumnNameLength);
-        }
-
-        if (columnSchema.Lock) {
-            if (columnSchema.Lock->empty()) {
-                THROW_ERROR_EXCEPTION("Lock should either be unset or be non-empty");
-            }
-            if (columnSchema.Lock->size() > MaxColumnLockLength) {
-                THROW_ERROR_EXCEPTION("Column lock is longer than maximum allowed: %v > %v",
-                    columnSchema.Lock->size(),
-                    MaxColumnLockLength);
-            }
-        } 
-    
-        ValidateSchemaValueType(columnSchema.Type);
-
-        if (columnSchema.Expression && !columnSchema.SortOrder) {
-            THROW_ERROR_EXCEPTION("Non-key column can't be computed");
-        }
-
-        if (columnSchema.Aggregate && columnSchema.SortOrder) {
-            THROW_ERROR_EXCEPTION("Key column can't be aggregated");
-        }
-    } catch (const std::exception& ex) {
-        THROW_ERROR_EXCEPTION("Error validating schema of a column %Qv",
-            columnSchema.Name)
-            << ex;
-    }
-}
-
 struct TSerializableColumnSchema
     : public TYsonSerializableLite
     , public TColumnSchema
@@ -120,7 +80,24 @@ struct TSerializableColumnSchema
             .Default();
 
         RegisterValidator([&] () {
-            ValidateColumnSchema(*this);
+            // Name
+            if (Name.empty()) {
+                THROW_ERROR_EXCEPTION("Column name cannot be empty");
+            }
+
+            // Type
+            try {
+                ValidateSchemaValueType(Type);
+            } catch (const std::exception& ex) {
+                THROW_ERROR_EXCEPTION("Error validating column %Qv in table schema",
+                    Name)
+                    << ex;
+            }
+
+            if (Expression && Aggregate) {
+                THROW_ERROR_EXCEPTION("Column %Qv can be either computed or aggregated column",
+                    Name);
+            }
         });
     }
 };
@@ -167,7 +144,6 @@ void FromProto(TColumnSchema* schema, const NProto::TColumnSchema& protoSchema)
     schema->Expression = protoSchema.has_expression() ? MakeNullable(protoSchema.expression()) : Null;
     schema->Aggregate = protoSchema.has_aggregate() ? MakeNullable(protoSchema.aggregate()) : Null;
     schema->SortOrder = protoSchema.has_sort_order() ? MakeNullable(ESortOrder(protoSchema.sort_order())) : Null;
-    ValidateColumnSchema(*schema);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -419,8 +395,6 @@ void ValidateTableSchema(const TTableSchema& schema)
     yhash_set<Stroka> lockNames;
     YCHECK(lockNames.insert(PrimaryLockName).second);
     for (const auto& column : schema.Columns()) {
-        ValidateColumnSchema(column);
-
         if (!columnNames.insert(column.Name).second) {
             THROW_ERROR_EXCEPTION("Duplicate column name %Qv in table schema",
                 column.Name);
@@ -451,6 +425,10 @@ void ValidateTableSchemaAndKeyColumns(const TTableSchema& schema, const TKeyColu
         if (columnSchema.Name != keyColumns[index]) {
             THROW_ERROR_EXCEPTION("Key columns must form a prefix of schema");
         }
+        if (columnSchema.Lock) {
+            THROW_ERROR_EXCEPTION("Key column %Qv cannot have a lock",
+                columnSchema.Name);
+        }
     }
 
     if (schema.Columns().size() == keyColumns.size()) {
@@ -463,40 +441,46 @@ void ValidateTableSchemaAndKeyColumns(const TTableSchema& schema, const TKeyColu
     for (int index = 0; index < schema.Columns().size(); ++index) {
         const auto& columnSchema = schema.Columns()[index];
         if (columnSchema.Expression) {
-            YCHECK(index < keyColumns.size());
-            auto functionRegistry = CreateBuiltinFunctionRegistry();
-            auto expr = PrepareExpression(columnSchema.Expression.Get(), schema, functionRegistry);
-            if (expr->Type != columnSchema.Type) {
-                THROW_ERROR_EXCEPTION("Computed column %Qv type mismatch: declared type is %Qlv but expression type is %Qlv",
-                    columnSchema.Name,
-                    columnSchema.Type,
-                    expr->Type);
-            }
+            if (index < keyColumns.size()) {
+                auto functionRegistry = CreateBuiltinFunctionRegistry();
+                auto expr = PrepareExpression(columnSchema.Expression.Get(), schema, functionRegistry);
+                if (expr->Type != columnSchema.Type) {
+                    THROW_ERROR_EXCEPTION("Computed column %Qv type mismatch: declared type is %Qlv but expression type is %Qlv",
+                        columnSchema.Name,
+                        columnSchema.Type,
+                        expr->Type);
+                }
 
-            yhash_set<Stroka> references;
-            Profile(expr, schema, nullptr, nullptr, &references, nullptr, functionRegistry);
-            for (const auto& ref : references) {
-                if (schema.GetColumnIndexOrThrow(ref) >= keyColumns.size()) {
-                    THROW_ERROR_EXCEPTION("Computed column %Qv depends on a non-key column %Qv",
-                        columnSchema.Name,
-                        ref);
+                yhash_set<Stroka> references;
+                Profile(expr, schema, nullptr, nullptr, &references, nullptr, functionRegistry);
+                for (const auto& ref : references) {
+                    if (schema.GetColumnIndexOrThrow(ref) >= keyColumns.size()) {
+                        THROW_ERROR_EXCEPTION("Computed column %Qv depends on a non-key column %Qv",
+                            columnSchema.Name,
+                            ref);
+                    }
+                    if (schema.GetColumnOrThrow(ref).Expression) {
+                        THROW_ERROR_EXCEPTION("Computed column %Qv depends on computed column %Qv",
+                            columnSchema.Name,
+                            ref);
+                    }
                 }
-                if (schema.GetColumnOrThrow(ref).Expression) {
-                    THROW_ERROR_EXCEPTION("Computed column %Qv depends on computed column %Qv",
-                        columnSchema.Name,
-                        ref);
-                }
+            } else {
+                THROW_ERROR_EXCEPTION("Computed column %Qv is not a key column", columnSchema.Name);
             }
         }
 
         if (columnSchema.Aggregate) {
-            YCHECK(index >= keyColumns.size());    
-            if (auto descriptor = functionRegistry->FindAggregateFunction(columnSchema.Aggregate.Get())) {
-                descriptor->GetStateType(columnSchema.Type);
+            if (index < keyColumns.size()) {
+                THROW_ERROR_EXCEPTION("Aggregate column %Qv is a key column", columnSchema.Name);
             } else {
-                THROW_ERROR_EXCEPTION("Unknown aggregate function %Qv at column %Qv",
-                    columnSchema.Aggregate.Get(),
-                    columnSchema.Name);
+                if (auto descriptor = functionRegistry->FindAggregateFunction(columnSchema.Aggregate.Get())) {
+                    descriptor->GetStateType(columnSchema.Type);
+                } else {
+                    THROW_ERROR_EXCEPTION("Unknown aggregate function %Qv at column %Qv",
+                        columnSchema.Aggregate.Get(),
+                        columnSchema.Name);
+                }
             }
         }
     }
