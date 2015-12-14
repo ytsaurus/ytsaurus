@@ -1971,7 +1971,7 @@ TEST_F(TQueryEvaluateTest, TestLeftJoin)
         "a=9;b=90;c=9"
     }, resultSplit);
 
-    Evaluate("a, b, c FROM [//left] left join [//right] using b", splits, sources, result);
+    Evaluate("a, b, c FROM [//left] left join [//right] using b order by a limit 100", splits, sources, result);
 
     SUCCEED();
 }

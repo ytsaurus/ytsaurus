@@ -67,7 +67,7 @@ using TLookupRows = google::sparsehash::dense_hash_set<
 
 using TJoinLookup = google::sparsehash::dense_hash_map<
     TRow,
-    int,
+    std::pair<int, bool>,
     NDetail::TGroupHasher,
     NDetail::TRowComparer>;
 
@@ -82,7 +82,7 @@ using TJoinEvaluator = std::function<void(
     TExecutionContext* executionContext,
     THasherFunction* hasher,
     TComparerFunction* comparer,
-    const TJoinLookup& joinLookup,
+    TJoinLookup& joinLookup,
     std::vector<TRow> keys,
     std::vector<std::pair<TRow, int>> chainedRows,
     TRowBufferPtr permanentBuffer,
