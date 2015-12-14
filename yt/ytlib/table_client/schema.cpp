@@ -32,34 +32,18 @@ TColumnSchema::TColumnSchema()
 
 TColumnSchema::TColumnSchema(
     const Stroka& name,
-    EValueType type)
+    EValueType type,
+    const TNullable<Stroka>& lock,
+    const TNullable<Stroka>& expression,
+    const TNullable<Stroka>& aggregate,
+    const TNullable<ESortOrder>& sortOrder)
     : Name(name)
     , Type(type)
+    , Lock(lock)
+    , Expression(expression)
+    , Aggregate(aggregate)
+    , SortOrder(sortOrder)
 { }
-
-TColumnSchema& TColumnSchema::SetSortOrder(const TNullable<ESortOrder>& value)
-{
-    SortOrder = value;
-    return *this;
-}
-
-TColumnSchema& TColumnSchema::SetLock(const TNullable<Stroka>& value)
-{
-    Lock = value;
-    return *this;
-}
-
-TColumnSchema& TColumnSchema::SetExpression(const TNullable<Stroka>& value)
-{
-    Expression = value;
-    return *this;
-}
-
-TColumnSchema& TColumnSchema::SetAggregate(const TNullable<Stroka>& value)
-{
-    Aggregate = value;
-    return *this;
-}
 
 struct TSerializableColumnSchema
     : public TYsonSerializableLite
@@ -265,9 +249,7 @@ TTableSchema TTableSchema::FromKeyColumns(const TKeyColumns& keyColumns)
     tableSchema.Columns().clear();
     tableSchema.SetStrict(false);
     for (const auto& columnName : keyColumns) {
-        tableSchema.Columns().push_back(
-            TColumnSchema(columnName, EValueType::Any)
-                .SetSortOrder(ESortOrder::Ascending)); 
+        tableSchema.Columns().push_back(TColumnSchema(columnName, EValueType::Any, Null, Null, Null, ESortOrder::Ascending)); 
     }
     return tableSchema;
 }
