@@ -44,7 +44,9 @@ prepare_table_files() {
 cleanup() {
     for pid in `jobs -p`; do
         if ps ax | awk '{print $1}' | grep $pid; then
-            kill $pid
+            # We use "|| true" to prevent failure in case when the process 
+            # terminates before we kill it.
+            kill $pid || true
         fi
     done
     rm -f table_file big_file
