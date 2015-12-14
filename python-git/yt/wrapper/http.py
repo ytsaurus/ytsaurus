@@ -1,7 +1,8 @@
 import yt.logger as logger
 from config import get_config, get_option, set_option, get_backend_type
 from common import require, get_backoff, get_value, total_seconds
-from errors import YtError, YtTokenError, YtProxyUnavailable, YtIncorrectResponse, YtHttpResponseError, YtRequestRateLimitExceeded, YtRetriableError
+from errors import YtError, YtTokenError, YtProxyUnavailable, YtIncorrectResponse, YtHttpResponseError, \
+                   YtRequestRateLimitExceeded, YtRetriableError, hide_token
 from command import parse_commands
 
 import yt.yson as yson
@@ -164,7 +165,7 @@ def make_request_with_retries(method, url, make_retries=True, retry_unavailable_
             return response
         except tuple(retriable_errors) as error:
             logger.warning("HTTP %s request %s has failed with error %s, message: '%s', headers: %s",
-                           method, url, str(type(error)), error.message, headers)
+                           method, url, str(type(error)), error.message, hide_token(dict(headers)))
             if isinstance(error, YtError):
                 logger.info("Full error message:\n%s", str(error))
             if make_retries and attempt + 1 < get_config(client)["proxy"]["request_retry_count"]:
