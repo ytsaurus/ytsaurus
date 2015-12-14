@@ -11,7 +11,6 @@ import pytest
 import random
 import json
 
-@pytest.xfail(run=False)
 @pytest.mark.usefixtures("yt_env")
 class TestCachedYtClient(object):
     def test_list(self):
@@ -50,7 +49,6 @@ class TestCachedYtClient(object):
             assert real_attributes[name] == cached_attributes[name]
 
 
-@pytest.xfail(run=False)
 @pytest.mark.usefixtures("yt_env")
 class TestCypress(object):
     def test_readdir(self):
