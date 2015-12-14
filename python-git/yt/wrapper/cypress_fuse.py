@@ -345,6 +345,8 @@ class OpenedFile(object):
             self._length = 0
             self._has_pending_write = False
 
+    def close(self):
+        self._tx.abort()
 
 class OpenedTable(object):
     """Stores information and cache for currently opened table."""
@@ -407,6 +409,8 @@ class OpenedTable(object):
         slices_offset = offset - self._lower_offset
         return "".join(self._buffer)[slices_offset:(slices_offset + length)]
 
+    def close(self):
+        self._tx.abort()
 
 class Cypress(fuse.Operations):
     """An implementation of FUSE operations on a Cypress tree."""
@@ -561,6 +565,7 @@ class Cypress(fuse.Operations):
     @handle_yt_errors(_logger)
     @log_calls(_logger, "%(__name__)s()", _statistics)
     def release(self, _, fi):
+        self._opened_files[fi.fh].close()
         del self._opened_files[fi.fh]
         return 0
 
