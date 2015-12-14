@@ -1071,7 +1071,9 @@ private:
         YCHECK(node->StoredReplicas().empty());
         YCHECK(node->CachedReplicas().empty());
 
-        node->ReserveStoredReplicas(request.chunks_size());
+        node->ReserveStoredReplicas(request.stored_chunk_count());
+        node->ReserveCachedReplicas(request.cached_chunk_count());
+
         for (const auto& chunkInfo : request.chunks()) {
             ProcessAddedChunk(node, chunkInfo, false);
         }
