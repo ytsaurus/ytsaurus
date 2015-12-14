@@ -24,7 +24,7 @@ def pytest_ignore_collect(path, config):
 def _pytest_finalize_func(environment, process_call_args):
     pytest.exit('Process run by command "{0}" is dead! Tests terminated.' \
                 .format(" ".join(process_call_args)))
-    environment.clear_environment(safe=False)
+    environment.clear_environment()
 
 def pytest_configure(config):
     def scheduling_func(test_items, process_count):
