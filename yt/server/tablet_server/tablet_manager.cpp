@@ -504,9 +504,10 @@ public:
             THROW_ERROR_EXCEPTION("External tables cannot be dynamic");
         }
 
+        // TODO(max42): remove redundant actions below.
         ParseTabletRange(table, &firstTabletIndex, &lastTabletIndex); // may throw
         auto schema = GetTableSchema(table); // may throw
-        ValidateTableSchema(schema); // may throw
+        ValidateTableSchemaAndKeyColumns(schema, table->TableSchema().GetKeyColumns()); // may throw
 
         TTabletCell* hintedCell;
         if (!cellId) {
@@ -777,8 +778,9 @@ public:
 
         // Validate pivot keys against table schema.
         auto schema = GetTableSchema(table);
+        // TODO(max42): no need to handle key columns and schema separately.
         int keyColumnCount = table->TableSchema().GetKeyColumns().size();
-        ValidateTableSchema(schema);
+        ValidateTableSchemaAndKeyColumns(schema, table->TableSchema().GetKeyColumns());
         for (const auto& pivotKey : pivotKeys) {
             ValidatePivotKey(pivotKey, schema, keyColumnCount);
         }

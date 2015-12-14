@@ -92,12 +92,10 @@ private:
     {
         TTableSchema tableSchema({
             TColumnSchema("k", EValueType::Int64)
-                .SetSortOrder(ESortOrder::Ascending)
-                .SetExpression(Stroka("l * 2")),
-            TColumnSchema("l", EValueType::Int64)
-                .SetSortOrder(ESortOrder::Ascending),
-            TColumnSchema("m", EValueType::Int64)
-                .SetSortOrder(ESortOrder::Ascending),
+            .SetSortOrder(ESortOrder::Ascending)
+            .SetExpression(Stroka("l * 2")),
+            TColumnSchema("l", EValueType::Int64),
+            TColumnSchema("m", EValueType::Int64),
             TColumnSchema("a", EValueType::Int64)
         });
 
@@ -220,8 +218,7 @@ TEST_F(TComputedColumnTest, ComputedKeyInPredicate)
 TEST_F(TComputedColumnTest, ComputedColumnLast)
 {
     TTableSchema tableSchema({
-        TColumnSchema("k", EValueType::Int64)
-            .SetSortOrder(ESortOrder::Ascending),
+        TColumnSchema("k", EValueType::Int64),
         TColumnSchema("l", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending)
             .SetExpression(Stroka("k + 3")),
@@ -244,18 +241,15 @@ TEST_F(TComputedColumnTest, ComputedColumnLast)
 TEST_F(TComputedColumnTest, Complex1)
 {
     TTableSchema tableSchema({
-        TColumnSchema("k", EValueType::Int64)
-            .SetSortOrder(ESortOrder::Ascending),
+        TColumnSchema("k", EValueType::Int64),
         TColumnSchema("l", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending)
             .SetExpression(Stroka("n + 1")),
         TColumnSchema("m", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending)
             .SetExpression(Stroka("o + 2")),
-        TColumnSchema("n", EValueType::Int64)
-            .SetSortOrder(ESortOrder::Ascending),
-        TColumnSchema("o", EValueType::Int64)
-            .SetSortOrder(ESortOrder::Ascending),
+        TColumnSchema("n", EValueType::Int64),
+        TColumnSchema("o", EValueType::Int64),
         TColumnSchema("a", EValueType::Int64)
     });
 
@@ -275,18 +269,15 @@ TEST_F(TComputedColumnTest, Complex1)
 TEST_F(TComputedColumnTest, Complex2)
 {
     TTableSchema tableSchema({
-        TColumnSchema("k", EValueType::Int64)
-            .SetSortOrder(ESortOrder::Ascending),
+        TColumnSchema("k", EValueType::Int64),
         TColumnSchema("l", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending)
             .SetExpression(Stroka("n + 1")),
         TColumnSchema("m", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending)
             .SetExpression(Stroka("o + 2")),
-        TColumnSchema("n", EValueType::Int64)
-            .SetSortOrder(ESortOrder::Ascending),
-        TColumnSchema("o", EValueType::Int64)
-            .SetSortOrder(ESortOrder::Ascending),
+        TColumnSchema("n", EValueType::Int64),
+        TColumnSchema("o", EValueType::Int64),
         TColumnSchema("a", EValueType::Int64)
     });
 
@@ -308,18 +299,15 @@ TEST_F(TComputedColumnTest, Complex2)
 TEST_F(TComputedColumnTest, Complex3)
 {
     TTableSchema tableSchema({
-        TColumnSchema("k", EValueType::Int64)
-            .SetSortOrder(ESortOrder::Ascending),
+        TColumnSchema("k", EValueType::Int64),
         TColumnSchema("l", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending)
             .SetExpression(Stroka("o + 1")),
         TColumnSchema("m", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending)
             .SetExpression(Stroka("o + 2")),
-        TColumnSchema("n", EValueType::Int64)
-            .SetSortOrder(ESortOrder::Ascending),
-        TColumnSchema("o", EValueType::Int64)
-            .SetSortOrder(ESortOrder::Ascending),
+        TColumnSchema("n", EValueType::Int64),
+        TColumnSchema("o", EValueType::Int64),
         TColumnSchema("a", EValueType::Int64)
     });
 
@@ -342,10 +330,8 @@ TEST_F(TComputedColumnTest, Far1)
         TColumnSchema("k", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending)
             .SetExpression(Stroka("m + 1")),
-        TColumnSchema("l", EValueType::Int64)
-            .SetSortOrder(ESortOrder::Ascending),
-        TColumnSchema("m", EValueType::Int64)
-            .SetSortOrder(ESortOrder::Ascending),
+        TColumnSchema("l", EValueType::Int64),
+        TColumnSchema("m", EValueType::Int64),
         TColumnSchema("a", EValueType::Int64)
     });
 
@@ -368,12 +354,9 @@ TEST_F(TComputedColumnTest, Far2)
         TColumnSchema("k", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending)
             .SetExpression(Stroka("n + 1")),
-        TColumnSchema("l", EValueType::Int64)
-            .SetSortOrder(ESortOrder::Ascending),
-        TColumnSchema("m", EValueType::Int64)
-            .SetSortOrder(ESortOrder::Ascending),
-        TColumnSchema("n", EValueType::Int64)
-            .SetSortOrder(ESortOrder::Ascending),
+        TColumnSchema("l", EValueType::Int64),
+        TColumnSchema("m", EValueType::Int64),
+        TColumnSchema("n", EValueType::Int64),
         TColumnSchema("a", EValueType::Int64)
     });
 
@@ -396,12 +379,9 @@ TEST_F(TComputedColumnTest, Far3)
         TColumnSchema("k", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending)
             .SetExpression(Stroka("n + 1")),
-        TColumnSchema("l", EValueType::Int64)
-            .SetSortOrder(ESortOrder::Ascending),
-        TColumnSchema("m", EValueType::Int64)
-            .SetSortOrder(ESortOrder::Ascending),
-        TColumnSchema("n", EValueType::Int64)
-            .SetSortOrder(ESortOrder::Ascending),
+        TColumnSchema("l", EValueType::Int64),
+        TColumnSchema("m", EValueType::Int64),
+        TColumnSchema("n", EValueType::Int64),
         TColumnSchema("a", EValueType::Int64)
     });
 
@@ -426,12 +406,9 @@ TEST_F(TComputedColumnTest, Far4)
         TColumnSchema("k", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending)
             .SetExpression(Stroka("n + 1")),
-        TColumnSchema("l", EValueType::Int64)
-            .SetSortOrder(ESortOrder::Ascending),
-        TColumnSchema("m", EValueType::Int64)
-            .SetSortOrder(ESortOrder::Ascending),
-        TColumnSchema("n", EValueType::Int64)
-            .SetSortOrder(ESortOrder::Ascending),
+        TColumnSchema("l", EValueType::Int64),
+        TColumnSchema("m", EValueType::Int64),
+        TColumnSchema("n", EValueType::Int64),
         TColumnSchema("a", EValueType::Int64)
     });
 
@@ -457,10 +434,8 @@ TEST_F(TComputedColumnTest, Far4)
 TEST_F(TComputedColumnTest, NoComputedColumns)
 {
     TTableSchema tableSchema({
-        TColumnSchema("k", EValueType::Int64)
-            .SetSortOrder(ESortOrder::Ascending),
-        TColumnSchema("l", EValueType::Int64)
-            .SetSortOrder(ESortOrder::Ascending),
+        TColumnSchema("k", EValueType::Int64),
+        TColumnSchema("l", EValueType::Int64),
         TColumnSchema("a", EValueType::Int64)
     });
 
@@ -483,8 +458,7 @@ TEST_F(TComputedColumnTest, Modulo0)
         TColumnSchema("k", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending)
             .SetExpression(Stroka("l % 2")),
-        TColumnSchema("l", EValueType::Int64)
-            .SetSortOrder(ESortOrder::Ascending),
+        TColumnSchema("l", EValueType::Int64),
         TColumnSchema("a", EValueType::Int64)
     });
 
@@ -507,8 +481,7 @@ TEST_F(TComputedColumnTest, Modulo1)
         TColumnSchema("k", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending)
             .SetExpression(Stroka("l % 2")),
-        TColumnSchema("l", EValueType::Int64)
-            .SetSortOrder(ESortOrder::Ascending),
+        TColumnSchema("l", EValueType::Int64),
         TColumnSchema("a", EValueType::Int64)
     });
 
@@ -540,10 +513,8 @@ TEST_F(TComputedColumnTest, Modulo2)
         TColumnSchema("l", EValueType::Uint64)
             .SetSortOrder(ESortOrder::Ascending)
             .SetExpression(Stroka("n % 1u")),
-        TColumnSchema("m", EValueType::Int64)
-            .SetSortOrder(ESortOrder::Ascending),
-        TColumnSchema("n", EValueType::Uint64)
-            .SetSortOrder(ESortOrder::Ascending),
+        TColumnSchema("m", EValueType::Int64),
+        TColumnSchema("n", EValueType::Uint64),
         TColumnSchema("a", EValueType::Int64)
     });
 
@@ -575,8 +546,7 @@ TEST_F(TComputedColumnTest, Modulo3)
         TColumnSchema("l", EValueType::Uint64)
             .SetSortOrder(ESortOrder::Ascending)
             .SetExpression(Stroka("m % 1u")),
-        TColumnSchema("m", EValueType::Uint64)
-            .SetSortOrder(ESortOrder::Ascending),
+        TColumnSchema("m", EValueType::Uint64),
         TColumnSchema("a", EValueType::Int64)
     });
 
@@ -599,10 +569,8 @@ TEST_F(TComputedColumnTest, Modulo4)
         TColumnSchema("k", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending)
             .SetExpression(Stroka("m % 2")),
-        TColumnSchema("l", EValueType::Int64)
-            .SetSortOrder(ESortOrder::Ascending),
-        TColumnSchema("m", EValueType::Int64)
-            .SetSortOrder(ESortOrder::Ascending),
+        TColumnSchema("l", EValueType::Int64),
+        TColumnSchema("m", EValueType::Int64),
         TColumnSchema("a", EValueType::Int64)
     });
 
@@ -631,8 +599,7 @@ TEST_F(TComputedColumnTest, Divide1)
         TColumnSchema("k", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending)
             .SetExpression(Stroka("l / 2")),
-        TColumnSchema("l", EValueType::Int64)
-            .SetSortOrder(ESortOrder::Ascending),
+        TColumnSchema("l", EValueType::Int64),
         TColumnSchema("a", EValueType::Int64)
     });
 
@@ -660,8 +627,7 @@ TEST_F(TComputedColumnTest, Divide2)
         TColumnSchema("l", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending)
             .SetExpression(Stroka("m / 4")),
-        TColumnSchema("m", EValueType::Int64)
-            .SetSortOrder(ESortOrder::Ascending),
+        TColumnSchema("m", EValueType::Int64),
         TColumnSchema("a", EValueType::Int64)
     });
 
@@ -693,10 +659,8 @@ TEST_F(TComputedColumnTest, Divide3)
         TColumnSchema("l", EValueType::Uint64)
             .SetSortOrder(ESortOrder::Ascending)
             .SetExpression(Stroka("n % 1u")),
-        TColumnSchema("m", EValueType::Uint64)
-            .SetSortOrder(ESortOrder::Ascending),
-        TColumnSchema("n", EValueType::Uint64)
-            .SetSortOrder(ESortOrder::Ascending),
+        TColumnSchema("m", EValueType::Uint64),
+        TColumnSchema("n", EValueType::Uint64),
         TColumnSchema("a", EValueType::Uint64)
     });
 
@@ -725,8 +689,7 @@ TEST_F(TComputedColumnTest, Divide4)
         TColumnSchema("k", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending)
             .SetExpression(Stroka("l / -9223372036854775808")),
-        TColumnSchema("l", EValueType::Int64)
-            .SetSortOrder(ESortOrder::Ascending),
+        TColumnSchema("l", EValueType::Int64),
         TColumnSchema("a", EValueType::Int64)
     });
 
@@ -751,10 +714,8 @@ TEST_F(TComputedColumnTest, FarDivide1)
         TColumnSchema("k", EValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending)
             .SetExpression(Stroka("m / 2")),
-        TColumnSchema("l", EValueType::Int64)
-            .SetSortOrder(ESortOrder::Ascending),
-        TColumnSchema("m", EValueType::Int64)
-            .SetSortOrder(ESortOrder::Ascending),
+        TColumnSchema("l", EValueType::Int64),
+        TColumnSchema("m", EValueType::Int64),
         TColumnSchema("a", EValueType::Int64)
     });
 
@@ -810,55 +771,54 @@ INSTANTIATE_TEST_CASE_P(
     TComputedColumnTest,
     ::testing::Values(
         std::vector<const char*>{
-            "[{name=k;type=int64;sort_order=ascending;expression=l}; {name=l;type=int64;sort_order=ascending}; "
-                "{name=a;type=int64}]",
+            "[{name=k;type=int64;sort_order=ascending;expression=l}; {name=l;type=int64}; {name=a;type=int64}]",
             "[k;l]",
-            "[{name=n;type=int64;sort_order=ascending;expression=l}; {name=l;type=int64;sort_order=ascending}; {name=b;type=int64}]",
+            "[{name=n;type=int64;sort_order=ascending;expression=l}; {name=l;type=int64}; {name=b;type=int64}]",
             "[n;l]",
             "0;0;",
             "0;0;" _MAX_,
             "1;1;",
             "1;1;" _MAX_},
         std::vector<const char*>{
-            "[{name=l;type=int64;sort_order=ascending}; {name=a;type=int64}]",
+            "[{name=l;type=int64}; {name=a;type=int64}]",
             "[l]",
-            "[{name=l;type=int64;sort_order=ascending}; {name=b;type=int64}]",
+            "[{name=l;type=int64}; {name=b;type=int64}]",
             "[l]",
             "0;",
             "0;" _MAX_,
             "1;",
             "1;" _MAX_},
         std::vector<const char*>{
-            "[{name=l;type=int64;sort_order=ascending;expression=k}; {name=k;type=int64;sort_order=ascending}; {name=a;type=int64}]",
+            "[{name=l;type=int64;sort_order=ascending;expression=k}; {name=k;type=int64}; {name=a;type=int64}]",
             "[l;k]",
-            "[{name=l;type=int64;sort_order=ascending}; {name=b;type=int64}]",
+            "[{name=l;type=int64}; {name=b;type=int64}]",
             "[l]",
             "0;",
             "0;" _MAX_,
             "1;",
             "1;" _MAX_},
         std::vector<const char*>{
-            "[{name=l;type=int64;sort_order=ascending}; {name=a;type=int64}]",
+            "[{name=l;type=int64}; {name=a;type=int64}]",
             "[l]",
-            "[{name=n;type=int64;sort_order=ascending;expression=l}; {name=l;type=int64;sort_order=ascending}; {name=b;type=int64}]",
+            "[{name=n;type=int64;sort_order=ascending;expression=l}; {name=l;type=int64}; {name=b;type=int64}]",
             "[n;l]",
             "0;0;",
             "0;0;" _MAX_,
             "1;1;",
             "1;1;" _MAX_},
         std::vector<const char*>{
-            "[{name=l;type=int64;sort_order=ascending}; {name=a;type=int64}]",
+            "[{name=l;type=int64}; {name=a;type=int64}]",
             "[l]",
-            "[{name=l;type=int64;sort_order=ascending;expression=n}; {name=n;type=int64;sort_order=ascending}; {name=b;type=int64}]",
+            "[{name=l;type=int64;sort_order=ascending;expression=n}; {name=n;type=int64}; {name=b;type=int64}]",
             "[l;n]",
             "0;",
             "0;" _MAX_,
             "1;",
             "1;" _MAX_},
         std::vector<const char*>{
-            "[{name=l;type=int64;sort_order=ascending}; {name=a;type=int64}]",
+            "[{name=l;type=int64}; {name=a;type=int64}]",
             "[l]",
-            "[{name=l;type=int64;sort_order=ascending}; {name=n;type=int64;sort_order=ascending;expression=l}; {name=b;type=int64}]",
+            "[{name=l;type=int64}; {name=n;type=int64;sort_order=ascending;expression=l}; {name=b;type=int64}]",
             "[l;n]",
             "0;0;",
             "0;0;" _MAX_,

@@ -181,12 +181,16 @@ TTableSchema::TTableSchema(const std::vector<TColumnSchema>& columns, bool stric
     : Columns_(columns)
     , Strict_(strict)
 {
-    KeyColumnCount_ = 0;
-    for (const auto& column : Columns_) {
-        if (column.SortOrder)
-            ++KeyColumnCount_;
-    } 
+    UpdateKeyColumnCount();
     ValidateTableSchema(*this);
+}
+
+void TTableSchema::UpdateKeyColumnCount()
+{
+    KeyColumnCount_ = 0;
+    while (KeyColumnCount_ < Columns_.size() && Columns_[KeyColumnCount_].SortOrder) {
+        KeyColumnCount_++;
+    }
 }
 
 const TColumnSchema* TTableSchema::FindColumn(const TStringBuf& name) const
@@ -248,9 +252,6 @@ void TTableSchema::PushColumn(const TColumnSchema& column)
 {
     ValidateColumnSchema(column);
     Columns_.push_back(column);
-    if (column.SortOrder) {
-        ++KeyColumnCount_;
-    }
     ValidateTableSchema(*this);
 }
 
@@ -262,9 +263,6 @@ void TTableSchema::InsertColumn(int position, const TColumnSchema& column)
             position, Columns_.size());
     }
     Columns_.insert(Columns_.begin() + position, column);
-    if (column.SortOrder) {
-        ++KeyColumnCount_;
-    }
     ValidateTableSchema(*this);
 }
     
@@ -273,9 +271,6 @@ void TTableSchema::EraseColumn(int position)
     if (position < 0 || position > Columns_.size()) {
         THROW_ERROR_EXCEPTION("Position is invalid: %v (table contains %v columns)",
            position, Columns_.size()); 
-    }
-    if (Columns_[position].SortOrder) {
-        --KeyColumnCount_;
     }
     Columns_.erase(Columns_.begin() + position);
     ValidateTableSchema(*this);
@@ -288,13 +283,7 @@ void TTableSchema::AlterColumn(int position, const TColumnSchema& column)
         THROW_ERROR_EXCEPTION("Position is invalid: %v (table contains %v columns)",
             position, Columns_.size());
     }
-    if (Columns_[position].SortOrder) {
-        --KeyColumnCount_;
-    }
     Columns_[position] = column;
-    if (column.SortOrder) {
-        ++KeyColumnCount_;
-    }
     ValidateTableSchema(*this);
 }
 
@@ -310,7 +299,7 @@ bool TTableSchema::HasComputedColumns() const
 
 bool TTableSchema::IsSorted() const
 {
-    return KeyColumnCount_ > 0;
+    return !Columns_.empty() && Columns_.front().SortOrder;
 }
 
 TKeyColumns TTableSchema::GetKeyColumns() const
@@ -323,12 +312,16 @@ TKeyColumns TTableSchema::GetKeyColumns() const
     }
     return keyColumns;
 }
-   
+
 int TTableSchema::GetKeyColumnCount() const
 {
-    return KeyColumnCount_;
+    int keyColumnCount = 0;
+    while (keyColumnCount < Columns().size() && Columns()[keyColumnCount].SortOrder) {
+        ++keyColumnCount;
+    }
+    return keyColumnCount;
 }
-
+    
 TTableSchema TTableSchema::FromKeyColumns(const TKeyColumns& keyColumns)
 {
     TTableSchema tableSchema;
@@ -337,7 +330,6 @@ TTableSchema TTableSchema::FromKeyColumns(const TKeyColumns& keyColumns)
             TColumnSchema(columnName, EValueType::Any)
                 .SetSortOrder(ESortOrder::Ascending)); 
     }
-    tableSchema.KeyColumnCount_ = keyColumns.size();
     ValidateTableSchema(tableSchema);
     return tableSchema;
 }
@@ -390,16 +382,14 @@ void FromProto(
     const NProto::TTableSchemaExt& protoSchema,
     const NProto::TKeyColumnsExt& protoKeyColumns)
 {
-    std::vector<TColumnSchema> columns = NYT::FromProto<TColumnSchema>(protoSchema.columns());
+    FromProto(schema, protoSchema);
+    YCHECK(!schema->IsSorted());
+
     for (int columnIndex = 0; columnIndex < protoKeyColumns.names_size(); ++columnIndex) {
-        auto& columnSchema = columns[columnIndex];
+        auto& columnSchema = schema->Columns()[columnIndex];
         YCHECK(columnSchema.Name == protoKeyColumns.names(columnIndex));
-        YCHECK(!columnSchema.SortOrder);
         columnSchema.SortOrder = ESortOrder::Ascending;
     }
-    *schema = TTableSchema(
-        NYT::FromProto<TColumnSchema>(protoSchema.columns()), 
-        protoSchema.has_strict() ? protoSchema.strict() : true);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -460,29 +450,25 @@ void ValidateKeyColumnsUpdate(const TKeyColumns& oldKeyColumns, const TKeyColumn
     }
 }
 
-//! Validates that there are no duplicates among the column names.
-static void ValidateColumnUniqueness(const TTableSchema& schema)
+void ValidateTableSchema(const TTableSchema& schema)
 {
+    // Check for duplicate column names.
+    // Check lock groups count.
     yhash_set<Stroka> columnNames;
+    yhash_set<Stroka> lockNames;
+    YCHECK(lockNames.insert(PrimaryLockName).second);
     for (const auto& column : schema.Columns()) {
+        ValidateColumnSchema(column);
+
         if (!columnNames.insert(column.Name).second) {
             THROW_ERROR_EXCEPTION("Duplicate column name %Qv in table schema",
                 column.Name);
         }
-    }
-}
-
-//! Validates that number of locks doesn't exceed MaxColumnLockCount.
-static void ValidateLocks(const TTableSchema& schema)
-{
-    yhash_set<Stroka> lockNames;
-    YCHECK(lockNames.insert(PrimaryLockName).second);
-    for (const auto& column : schema.Columns()) {
         if (column.Lock) {
             lockNames.insert(*column.Lock);
         }
     }
-    
+
     if (lockNames.size() > MaxColumnLockCount) {
         THROW_ERROR_EXCEPTION("Too many column locks in table schema: actual %v, limit %v",
             lockNames.size(),
@@ -490,35 +476,33 @@ static void ValidateLocks(const TTableSchema& schema)
     }
 }
 
-//! Validates that key columns form a prefix of a table schema.
-static void ValidateKeyColumnsFormAPrefix(const TTableSchema& schema)
+void ValidateTableSchemaAndKeyColumns(const TTableSchema& schema, const TKeyColumns& keyColumns)
 {
-    const auto& columns = schema.Columns();
-    for (int index = 0; index < schema.GetKeyColumnCount(); ++index)
-    {
-        if (!columns[index].SortOrder) {
+    ValidateTableSchema(schema);
+    ValidateKeyColumns(keyColumns);
+
+    if (schema.Columns().size() < keyColumns.size()) {
+        THROW_ERROR_EXCEPTION("Key columns must form a prefix of schema");;
+    }
+
+    for (int index = 0; index < static_cast<int>(keyColumns.size()); ++index) {
+        const auto& columnSchema = schema.Columns()[index];
+        if (columnSchema.Name != keyColumns[index]) {
             THROW_ERROR_EXCEPTION("Key columns must form a prefix of schema");
         }
     }
-    // The fact that first GetKeyColumnCount() columns have SortOrder automatically
-    // implies that the rest of columns don't have SortOrder, so we don't need to check it.
-}
 
-//! Validates computed columns.
-/*!
- *  Checks that:
- *  - Computed column has to be key column.
- *  - Type of a computed column matches the type of its expression.
- *  - All referenced columns appear in schema, are key columns and are not computed.
- */
-void ValidateComputedColumns(const TTableSchema& schema)
-{
+    if (schema.Columns().size() == keyColumns.size()) {
+        THROW_ERROR_EXCEPTION("Schema must contains at least one non-key column");;
+    }
+
+    auto functionRegistry = CreateBuiltinFunctionRegistry();
+
+    // Validate computed columns.
     for (int index = 0; index < schema.Columns().size(); ++index) {
         const auto& columnSchema = schema.Columns()[index];
         if (columnSchema.Expression) {
-            if (index >= schema.GetKeyColumnCount()) {
-                THROW_ERROR_EXCEPTION("Non-key column %Qv can't be computed", columnSchema.Name);
-            }
+            YCHECK(index < keyColumns.size());
             auto functionRegistry = CreateBuiltinFunctionRegistry();
             auto expr = PrepareExpression(columnSchema.Expression.Get(), schema, functionRegistry);
             if (expr->Type != columnSchema.Type) {
@@ -531,37 +515,21 @@ void ValidateComputedColumns(const TTableSchema& schema)
             yhash_set<Stroka> references;
             Profile(expr, schema, nullptr, nullptr, &references, nullptr, functionRegistry);
             for (const auto& ref : references) {
-                const auto& refColumn = schema.GetColumnOrThrow(ref);
-                if (!refColumn.SortOrder) {
+                if (schema.GetColumnIndexOrThrow(ref) >= keyColumns.size()) {
                     THROW_ERROR_EXCEPTION("Computed column %Qv depends on a non-key column %Qv",
                         columnSchema.Name,
                         ref);
                 }
-                if (refColumn.Expression) {
+                if (schema.GetColumnOrThrow(ref).Expression) {
                     THROW_ERROR_EXCEPTION("Computed column %Qv depends on computed column %Qv",
                         columnSchema.Name,
                         ref);
                 }
             }
         }
-    }
-}
-//! Validates aggregated columns.
-/*!
- *  Validates that:
- *  - Aggregated columns are non-key.
- *  - Aggregate function appears in a list of pre-defined aggregate functions.
- *  - Type of an aggregated column matches the type of an aggregate function.
- */
-void ValidateAggregatedColumns(const TTableSchema& schema)
-{
-    auto functionRegistry = CreateBuiltinFunctionRegistry();
-    for (int index = 0; index < schema.Columns().size(); ++index) {
-        const auto& columnSchema = schema.Columns()[index];
+
         if (columnSchema.Aggregate) {
-            if (index < schema.GetKeyColumnCount()) {
-                THROW_ERROR_EXCEPTION("Key column %Qv can't be aggregated", columnSchema.Name);
-            }
+            YCHECK(index >= keyColumns.size());    
             if (auto descriptor = functionRegistry->FindAggregateFunction(columnSchema.Aggregate.Get())) {
                 descriptor->GetStateType(columnSchema.Type);
             } else {
@@ -571,18 +539,6 @@ void ValidateAggregatedColumns(const TTableSchema& schema)
             }
         }
     }
-}
-
-void ValidateTableSchema(const TTableSchema& schema)
-{    
-    for (const auto& column : schema.Columns()) {
-        ValidateColumnSchema(column);
-    }
-    ValidateColumnUniqueness(schema);
-    ValidateLocks(schema);
-    ValidateKeyColumnsFormAPrefix(schema);
-    ValidateComputedColumns(schema);
-    ValidateAggregatedColumns(schema);
 }
 
 void ValidateTableSchemaUpdate(const TTableSchema& oldSchema, const TTableSchema& newSchema)
