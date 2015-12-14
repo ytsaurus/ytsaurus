@@ -70,9 +70,6 @@ public:
 
     TTableSchema Filter(const TColumnFilter& columnFilter) const;
     TTableSchema TrimNonkeyColumns(const TKeyColumns& keyColumns) const;
-    TTableSchema GetPrefix(int length) const;
-
-    // TODO(max42): Get rid of functions below, make schema immutable.
 
     // These functions perform all necessary validation at each call,
     // so don't call them frequently. If you need to store and modify
@@ -92,17 +89,8 @@ public:
     void Save(TStreamSaveContext& context) const;
     void Load(TStreamLoadContext& context);
 
-    void Swap(TTableSchema& other);
-
 private:
-    int KeyColumnCount_ = 0;
-   
-    void ValidateColumnUniqueness();
-    void ValidateLocks();
-    void ValidateKeyColumnsFormPrefix();
-    void ValidateComputedColumns();
-    void ValidateAggregatedColumns();
-    void Validate();
+    int KeyColumnCount_;
 };
 
 void Serialize(const TTableSchema& schema, NYson::IYsonConsumer* consumer);
@@ -114,8 +102,6 @@ void FromProto(
     TTableSchema* schema,
     const NProto::TTableSchemaExt& protoSchema,
     const NProto::TKeyColumnsExt& keyColumnsExt);
-
-////////////////////////////////////////////////////////////////////////////////
 
 bool operator == (const TColumnSchema& lhs, const TColumnSchema& rhs);
 bool operator != (const TColumnSchema& lhs, const TColumnSchema& rhs);
@@ -131,19 +117,12 @@ void ValidateKeyColumnsUpdate(const TKeyColumns& oldKeyColumns, const TKeyColumn
 ////////////////////////////////////////////////////////////////////////////////
 
 void ValidateColumnSchema(const TColumnSchema& columnSchema);
-void ValidateColumnSchemaUpdate(const TColumnSchema& oldColumn, const TColumnSchema& newColumn);
+void ValidateColumnSchemaUpdate(const TColumnSchema& oldColumn, const TColumnSchema& newColumn, bool IsKey = false);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ValidateDynamicTableConstraints(const TTableSchema& schema);
-
-////////////////////////////////////////////////////////////////////////////////
-
-void ValidateTableSchemaUpdate(
-    const TTableSchema& oldSchema,
-    const TTableSchema& newSchema,
-    bool isTableDynamic = false,
-    bool isTableEmpty = false);
+void ValidateTableSchema(const TTableSchema& schema);
+void ValidateTableSchemaUpdate(const TTableSchema& oldSchema, const TTableSchema& newSchema, bool isTableDynamic = false, bool isTableEmpty = false);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -573,9 +573,6 @@ class TestTablets(YTEnvSetup):
 
         assert self._get_pivot_keys("//tmp/t1") == [[], [100], [200], [300], [400]]
 
-    def _prepare_allowed(self, permission):
-        self.sync_create_cells(1, 1)        
-        self._create_table("//tmp/t")
         self.sync_mount_table("//tmp/t")
         create_user("u")
         set("//tmp/t/@inherit_acl", False)
@@ -750,8 +747,6 @@ class TestTablets(YTEnvSetup):
         self.sync_create_cells(1, 1)
         self._create_table("//tmp/t")
         self.sync_mount_table("//tmp/t")
-        # We have to insert at least one row to the table because any
-        # valid schema can be set for an empty table without any checks.
         insert_rows("//tmp/t", [{"key": 1, "value": "test"}])
         self.sync_unmount_table("//tmp/t")
         with pytest.raises(YtError): alter_table("//tmp/t", schema=[

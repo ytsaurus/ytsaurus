@@ -134,17 +134,19 @@ void FromProto(TColumnSchema* schema, const NProto::TColumnSchema& protoSchema)
 
 TTableSchema::TTableSchema()
     : Strict_(false)
+    , KeyColumnCount_(0)
 { }
 
 TTableSchema::TTableSchema(const std::vector<TColumnSchema>& columns, bool strict)
     : Columns_(columns)
     , Strict_(strict)
 {
+    KeyColumnCount_ = 0;
     for (const auto& column : Columns_) {
         if (column.SortOrder)
             ++KeyColumnCount_;
     } 
-    Validate();
+    ValidateTableSchema(*this);
 }
 
 const TColumnSchema* TTableSchema::FindColumn(const TStringBuf& name) const
@@ -192,34 +194,24 @@ TTableSchema TTableSchema::Filter(const TColumnFilter& columnFilter) const
 // TODO(max42): refactor this method so that it doesn't use keyColumns argument.
 TTableSchema TTableSchema::TrimNonkeyColumns(const TKeyColumns& keyColumns) const
 {
-    std::vector<TColumnSchema> resultColumns;
+    TTableSchema result;
     YCHECK(Columns_.size() >= keyColumns.size());
     for (int id = 0; id < keyColumns.size(); ++id) {
         YCHECK(Columns_[id].Name == keyColumns[id]);
-        resultColumns.push_back(Columns_[id]);
+        result.Columns_.push_back(Columns_[id]);
     }
-    return TTableSchema(resultColumns, Strict_);
+    ValidateTableSchema(*this);
+    return result;
 }
-
-TTableSchema TTableSchema::GetPrefix(int length) const 
-{
-    return TTableSchema(
-        std::vector<TColumnSchema>(
-            Columns_.begin(),
-            Columns_.begin() + std::min(length, static_cast<int>(Columns_.size()))),
-        Strict_);
-}
-  
+    
 void TTableSchema::AppendColumn(const TColumnSchema& column)
 {
     ValidateColumnSchema(column);
-    TTableSchema temp = *this;
-    temp.Columns_.push_back(column);
+    Columns_.push_back(column);
     if (column.SortOrder) {
-        ++temp.KeyColumnCount_;
+        ++KeyColumnCount_;
     }
-    temp.Validate();
-    this->Swap(temp);
+    ValidateTableSchema(*this);
 }
 
 void TTableSchema::InsertColumn(int position, const TColumnSchema& column)
@@ -229,13 +221,11 @@ void TTableSchema::InsertColumn(int position, const TColumnSchema& column)
         THROW_ERROR_EXCEPTION("Position is invalid: %v (table contains %v columns)",
             position, Columns_.size());
     }
-    TTableSchema temp = *this;
-    temp.Columns_.insert(temp.Columns_.begin() + position, column);
+    Columns_.insert(Columns_.begin() + position, column);
     if (column.SortOrder) {
-        ++temp.KeyColumnCount_;
+        ++KeyColumnCount_;
     }
-    temp.Validate();
-    this->Swap(temp);
+    ValidateTableSchema(*this);
 }
     
 void TTableSchema::EraseColumn(int position)
@@ -244,13 +234,11 @@ void TTableSchema::EraseColumn(int position)
         THROW_ERROR_EXCEPTION("Position is invalid: %v (table contains %v columns)",
            position, Columns_.size()); 
     }
-    TTableSchema temp = *this;
     if (Columns_[position].SortOrder) {
-        --temp.KeyColumnCount_;
+        --KeyColumnCount_;
     }
-    temp.Columns_.erase(temp.Columns_.begin() + position);
-    temp.Validate();
-    this->Swap(temp);
+    Columns_.erase(Columns_.begin() + position);
+    ValidateTableSchema(*this);
 }
     
 void TTableSchema::AlterColumn(int position, const TColumnSchema& column)
@@ -260,18 +248,16 @@ void TTableSchema::AlterColumn(int position, const TColumnSchema& column)
         THROW_ERROR_EXCEPTION("Position is invalid: %v (table contains %v columns)",
             position, Columns_.size());
     }
-    TTableSchema temp = *this;
-    if (temp.Columns_[position].SortOrder) {
-        --temp.KeyColumnCount_;
+    if (Columns_[position].SortOrder) {
+        --KeyColumnCount_;
     }
-    temp.Columns_[position] = column;
+    Columns_[position] = column;
     if (column.SortOrder) {
-        ++temp.KeyColumnCount_;
+        ++KeyColumnCount_;
     }
-    temp.Validate();
-    this->Swap(temp);
+    ValidateTableSchema(*this);
 }
-    
+
 bool TTableSchema::HasComputedColumns() const
 {
     for (const auto& column : Columns()) {
@@ -312,7 +298,7 @@ TTableSchema TTableSchema::FromKeyColumns(const TKeyColumns& keyColumns)
                 .SetSortOrder(ESortOrder::Ascending)); 
     }
     tableSchema.KeyColumnCount_ = keyColumns.size();
-    tableSchema.Validate();
+    ValidateTableSchema(tableSchema);
     return tableSchema;
 }
 
@@ -328,149 +314,6 @@ void TTableSchema::Load(TStreamLoadContext& context)
     *this = NYT::FromProto<TTableSchema>(protoSchema);
 }
 
-void TTableSchema::Swap(TTableSchema& other)
-{
-    Columns_.swap(other.Columns_);
-    std::swap(Strict_, other.Strict_);
-    std::swap(KeyColumnCount_, other.KeyColumnCount_);
-}
-
-//! Validates that there are no duplicates among the column names.
-void TTableSchema::ValidateColumnUniqueness()
-{
-    yhash_set<Stroka> columnNames;
-    for (const auto& column : Columns_) {
-        if (!columnNames.insert(column.Name).second) {
-            THROW_ERROR_EXCEPTION("Duplicate column name %Qv in table schema",
-                column.Name);
-        }
-    }
-}
-
-//! Validates that number of locks doesn't exceed MaxColumnLockCount.
-void TTableSchema::ValidateLocks()
-{
-    yhash_set<Stroka> lockNames;
-    YCHECK(lockNames.insert(PrimaryLockName).second);
-    for (const auto& column : Columns_) {
-        if (column.Lock) {
-            lockNames.insert(*column.Lock);
-        }
-    }
-    
-    if (lockNames.size() > MaxColumnLockCount) {
-        THROW_ERROR_EXCEPTION("Too many column locks in table schema: actual %v, limit %v",
-            lockNames.size(),
-            MaxColumnLockCount);
-    }
-}
-
-//! Validates that key columns form a prefix of a table schema.
-void TTableSchema::ValidateKeyColumnsFormPrefix()
-{
-    for (int index = 0; index < KeyColumnCount_; ++index)
-    {
-        if (!Columns_[index].SortOrder) {
-            THROW_ERROR_EXCEPTION("Key columns must form a prefix of schema");
-        }
-    }
-    // The fact that first GetKeyColumnCount() columns have SortOrder automatically
-    // implies that the rest of columns don't have SortOrder, so we don't need to check it.
-}
-
-//! Validates computed columns.
-/*!
- *  Checks that:
- *  - Computed column has to be key column.
- *  - Type of a computed column matches the type of its expression.
- *  - All referenced columns appear in schema, are key columns and are not computed.
- */
-void TTableSchema::ValidateComputedColumns()
-{
-    // TODO(max42): Passing *this before the object is finally constructed
-    // doesn't look like a good idea (although it works :) ). Get rid of this.
-
-    for (int index = 0; index < Columns_.size(); ++index) {
-        const auto& columnSchema = Columns_[index];
-        if (columnSchema.Expression) {
-            if (index >= KeyColumnCount_) {
-                THROW_ERROR_EXCEPTION("Non-key column %Qv can't be computed", columnSchema.Name);
-            }
-            auto functionRegistry = CreateBuiltinFunctionRegistry();
-            auto expr = PrepareExpression(columnSchema.Expression.Get(), *this, functionRegistry);
-            if (expr->Type != columnSchema.Type) {
-                THROW_ERROR_EXCEPTION("Computed column %Qv type mismatch: declared type is %Qlv but expression type is %Qlv",
-                    columnSchema.Name,
-                    columnSchema.Type,
-                    expr->Type);
-            }
-
-            yhash_set<Stroka> references;
-            Profile(expr, *this, nullptr, nullptr, &references, nullptr, functionRegistry);
-            for (const auto& ref : references) {
-                const auto& refColumn = GetColumnOrThrow(ref);
-                if (!refColumn.SortOrder) {
-                    THROW_ERROR_EXCEPTION("Computed column %Qv depends on a non-key column %Qv",
-                        columnSchema.Name,
-                        ref);
-                }
-                if (refColumn.Expression) {
-                    THROW_ERROR_EXCEPTION("Computed column %Qv depends on a computed column %Qv",
-                        columnSchema.Name,
-                        ref);
-                }
-            }
-        }
-    }
-}
-
-//! Validates aggregated columns.
-/*!
- *  Validates that:
- *  - Aggregated columns are non-key.
- *  - Aggregate function appears in a list of pre-defined aggregate functions.
- *  - Type of an aggregated column matches the type of an aggregate function.
- */
-void TTableSchema::ValidateAggregatedColumns()
-{
-    auto functionRegistry = CreateBuiltinFunctionRegistry();
-    for (int index = 0; index < Columns_.size(); ++index) {
-        const auto& columnSchema = Columns_[index];
-        if (columnSchema.Aggregate) {
-            if (index < KeyColumnCount_) {
-                THROW_ERROR_EXCEPTION("Key column %Qv can't be aggregated", columnSchema.Name);
-            }
-            if (auto descriptor = functionRegistry->FindAggregateFunction(columnSchema.Aggregate.Get())) {
-                const auto& stateType = descriptor->GetStateType(columnSchema.Type);
-                if (stateType != columnSchema.Type) {
-                    THROW_ERROR_EXCEPTION("Aggregate function %Qv state type %Qv differs from column %Qv type %Qv",
-                        columnSchema.Aggregate.Get(),
-                        columnSchema.Type,
-                        columnSchema.Name,
-                        stateType);
-                }
-            } else {
-                THROW_ERROR_EXCEPTION("Unknown aggregate function %Qv at column %Qv",
-                    columnSchema.Aggregate.Get(),
-                    columnSchema.Name);
-            }
-        }
-    }
-}
-
-//! TODO(max42): document this functions somewhere (see also https://st.yandex-team.ru/YT-1433).
-void TTableSchema::Validate()
-{    
-    for (const auto& column : Columns_) {
-        ValidateColumnSchema(column);
-    }
-    ValidateColumnUniqueness();
-    ValidateLocks();
-    ValidateKeyColumnsFormPrefix();
-    ValidateComputedColumns();
-    ValidateAggregatedColumns();
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 void Serialize(const TTableSchema& schema, IYsonConsumer* consumer)
@@ -484,7 +327,8 @@ void Serialize(const TTableSchema& schema, IYsonConsumer* consumer)
 
 void Deserialize(TTableSchema& schema, INodePtr node)
 {
-    std::vector<TColumnSchema> columns = ConvertTo<std::vector<TColumnSchema>>(node);
+    std::vector<TColumnSchema> columns;
+    NYTree::Deserialize(columns, node);
     schema = TTableSchema(columns, node->Attributes().Get<bool>("strict", true));
 }
 
@@ -522,11 +366,7 @@ void FromProto(
 
 bool operator == (const TColumnSchema& lhs, const TColumnSchema& rhs)
 {
-    return lhs.Name == rhs.Name 
-        && lhs.Type == rhs.Type
-        && lhs.SortOrder == rhs.SortOrder
-        && lhs.Aggregate == rhs.Aggregate
-        && lhs.Expression == rhs.Expression;
+    return lhs.Name == rhs.Name && lhs.Type == rhs.Type;
 }
 
 bool operator != (const TColumnSchema& lhs, const TColumnSchema& rhs)
@@ -536,7 +376,7 @@ bool operator != (const TColumnSchema& lhs, const TColumnSchema& rhs)
 
 bool operator == (const TTableSchema& lhs, const TTableSchema& rhs)
 {
-    return lhs.Columns() == rhs.Columns() && lhs.GetStrict() == rhs.GetStrict();
+    return lhs.Columns() == rhs.Columns();
 }
 
 bool operator != (const TTableSchema& lhs, const TTableSchema& rhs)
@@ -601,10 +441,10 @@ void ValidateColumnSchema(const TColumnSchema& columnSchema)
 
         if (columnSchema.Lock) {
             if (columnSchema.Lock->empty()) {
-                THROW_ERROR_EXCEPTION("Column lock should either be unset or be non-empty");
+                THROW_ERROR_EXCEPTION("Lock should either be unset or be non-empty");
             }
             if (columnSchema.SortOrder) {
-                THROW_ERROR_EXCEPTION("Column lock can't be set on a key column");
+                THROW_ERROR_EXCEPTION("Lock can't be set on a key column");
             }
             if (columnSchema.Lock->size() > MaxColumnLockLength) {
                 THROW_ERROR_EXCEPTION("Column lock is longer than maximum allowed: %v > %v",
@@ -638,7 +478,7 @@ void ValidateColumnSchema(const TColumnSchema& columnSchema)
  *  - Column expression remains the same.
  *  - Column aggregate method either was introduced or remains the same.
  */
-void ValidateColumnSchemaUpdate(const TColumnSchema& oldColumn, const TColumnSchema& newColumn)
+void ValidateColumnSchemaUpdate(const TColumnSchema& oldColumn, const TColumnSchema& newColumn, bool IsKey)
 {
     YCHECK(oldColumn.Name == newColumn.Name);
     if (newColumn.Type != oldColumn.Type) {
@@ -669,7 +509,7 @@ void ValidateColumnSchemaUpdate(const TColumnSchema& oldColumn, const TColumnSch
             newColumn.Aggregate);
     }
 
-    if (oldColumn.SortOrder && oldColumn.Lock != newColumn.Lock) {
+    if (IsKey && oldColumn.Lock != newColumn.Lock) {
         THROW_ERROR_EXCEPTION("Lock mismatch for key column %Qv: old = %Qv, new = %Qv",
             oldColumn.Name,
             oldColumn.Lock,
@@ -679,23 +519,137 @@ void ValidateColumnSchemaUpdate(const TColumnSchema& oldColumn, const TColumnSch
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ValidateDynamicTableConstraints(const TTableSchema& schema)
+//! Validates that there are no duplicates among the column names.
+static void ValidateColumnUniqueness(const TTableSchema& schema)
 {
-    if (!schema.GetStrict()) {
-        THROW_ERROR_EXCEPTION("Table schema must be strict");
+    yhash_set<Stroka> columnNames;
+    for (const auto& column : schema.Columns()) {
+        if (!columnNames.insert(column.Name).second) {
+            THROW_ERROR_EXCEPTION("Duplicate column name %Qv in table schema",
+                column.Name);
+        }
     }
-    if (schema.GetKeyColumnCount() == 0) {
-        THROW_ERROR_EXCEPTION("There must be at least one key column");
+}
+
+//! Validates that number of locks doesn't exceed MaxColumnLockCount.
+static void ValidateLocks(const TTableSchema& schema)
+{
+    yhash_set<Stroka> lockNames;
+    YCHECK(lockNames.insert(PrimaryLockName).second);
+    for (const auto& column : schema.Columns()) {
+        if (column.Lock) {
+            lockNames.insert(*column.Lock);
+        }
     }
-    if (schema.GetKeyColumnCount() == schema.Columns().size()) {
-        THROW_ERROR_EXCEPTION("There must be at least one non-key column");
+    
+    if (lockNames.size() > MaxColumnLockCount) {
+        THROW_ERROR_EXCEPTION("Too many column locks in table schema: actual %v, limit %v",
+            lockNames.size(),
+            MaxColumnLockCount);
     }
+}
+
+//! Validates that key columns form a prefix of a table schema.
+static void ValidateKeyColumnsFormAPrefix(const TTableSchema& schema)
+{
+    const auto& columns = schema.Columns();
+    for (int index = 0; index < schema.GetKeyColumnCount(); ++index)
+    {
+        if (!columns[index].SortOrder) {
+            THROW_ERROR_EXCEPTION("Key columns must form a prefix of schema");
+        }
+    }
+    // The fact that first GetKeyColumnCount() columns have SortOrder automatically
+    // implies that the rest of columns don't have SortOrder, so we don't need to check it.
+}
+
+//! Validates computed columns.
+/*!
+ *  Checks that:
+ *  - Computed column has to be key column.
+ *  - Type of a computed column matches the type of its expression.
+ *  - All referenced columns appear in schema, are key columns and are not computed.
+ */
+void ValidateComputedColumns(const TTableSchema& schema)
+{
+    for (int index = 0; index < schema.Columns().size(); ++index) {
+        const auto& columnSchema = schema.Columns()[index];
+        if (columnSchema.Expression) {
+            if (index >= schema.GetKeyColumnCount()) {
+                THROW_ERROR_EXCEPTION("Non-key column %Qv can't be computed", columnSchema.Name);
+            }
+            auto functionRegistry = CreateBuiltinFunctionRegistry();
+            auto expr = PrepareExpression(columnSchema.Expression.Get(), schema, functionRegistry);
+            if (expr->Type != columnSchema.Type) {
+                THROW_ERROR_EXCEPTION("Computed column %Qv type mismatch: declared type is %Qlv but expression type is %Qlv",
+                    columnSchema.Name,
+                    columnSchema.Type,
+                    expr->Type);
+            }
+
+            yhash_set<Stroka> references;
+            Profile(expr, schema, nullptr, nullptr, &references, nullptr, functionRegistry);
+            for (const auto& ref : references) {
+                const auto& refColumn = schema.GetColumnOrThrow(ref);
+                if (!refColumn.SortOrder) {
+                    THROW_ERROR_EXCEPTION("Computed column %Qv depends on a non-key column %Qv",
+                        columnSchema.Name,
+                        ref);
+                }
+                if (refColumn.Expression) {
+                    THROW_ERROR_EXCEPTION("Computed column %Qv depends on computed column %Qv",
+                        columnSchema.Name,
+                        ref);
+                }
+            }
+        }
+    }
+}
+
+//! Validates aggregated columns.
+/*!
+ *  Validates that:
+ *  - Aggregated columns are non-key.
+ *  - Aggregate function appears in a list of pre-defined aggregate functions.
+ *  - Type of an aggregated column matches the type of an aggregate function.
+ */
+void ValidateAggregatedColumns(const TTableSchema& schema)
+{
+    auto functionRegistry = CreateBuiltinFunctionRegistry();
+    for (int index = 0; index < schema.Columns().size(); ++index) {
+        const auto& columnSchema = schema.Columns()[index];
+        if (columnSchema.Aggregate) {
+            if (index < schema.GetKeyColumnCount()) {
+                THROW_ERROR_EXCEPTION("Key column %Qv can't be aggregated", columnSchema.Name);
+            }
+            if (auto descriptor = functionRegistry->FindAggregateFunction(columnSchema.Aggregate.Get())) {
+                descriptor->GetStateType(columnSchema.Type);
+            } else {
+                THROW_ERROR_EXCEPTION("Unknown aggregate function %Qv at column %Qv",
+                    columnSchema.Aggregate.Get(),
+                    columnSchema.Name);
+            }
+        }
+    }
+}
+
+//! TODO(max42): document this functions somewhere (see also https://st.yandex-team.ru/YT-1433).
+void ValidateTableSchema(const TTableSchema& schema)
+{    
+    for (const auto& column : schema.Columns()) {
+        ValidateColumnSchema(column);
+    }
+    ValidateColumnUniqueness(schema);
+    ValidateLocks(schema);
+    ValidateKeyColumnsFormAPrefix(schema);
+    ValidateComputedColumns(schema);
+    ValidateAggregatedColumns(schema);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Validates that all columns from the old schema are present in the new schema.
-void ValidateColumnsNotRemoved(const TTableSchema& oldSchema, const TTableSchema& newSchema)
+//! Validates that all columns from the old schema are presented in the new schema.
+void ValidateColumnsWereNotRemoved(const TTableSchema& oldSchema, const TTableSchema& newSchema)
 {
     YCHECK(newSchema.GetStrict());
     for (int oldColumnIndex = 0; oldColumnIndex < oldSchema.Columns().size(); ++oldColumnIndex) {
@@ -708,7 +662,7 @@ void ValidateColumnsNotRemoved(const TTableSchema& oldSchema, const TTableSchema
 }
 
 //! Validates that all columns from the new schema are presented in the old schema.
-void ValidateColumnsNotInserted(const TTableSchema& oldSchema, const TTableSchema& newSchema)
+void ValidateColumnsWereNotInserted(const TTableSchema& oldSchema, const TTableSchema& newSchema)
 {
     YCHECK(!oldSchema.GetStrict());
     for (int newColumnIndex = 0; newColumnIndex < newSchema.Columns().size(); ++newColumnIndex) {
@@ -747,33 +701,23 @@ void ValidateColumnsMatch(const TTableSchema& oldSchema, const TTableSchema& new
 
 //! TODO(max42): document this functions somewhere (see also https://st.yandex-team.ru/YT-1433).
 void ValidateTableSchemaUpdate(const TTableSchema& oldSchema, const TTableSchema& newSchema, bool isTableDynamic, bool isTableEmpty)
-{ 
-    if (isTableEmpty) {
-        // Any valid schema is allowed to be set for an empty table.
-        return;
-    }
-
+{
+    ValidateTableSchema(newSchema);
     if (isTableDynamic) {
         if (!newSchema.GetStrict()) {
             THROW_ERROR_EXCEPTION("Strict can't be false for a dynamic table");
         }
-    } 
+    }
 
     if (!oldSchema.GetStrict() && newSchema.GetStrict()) {
         THROW_ERROR_EXCEPTION("Changing Strict from false to true is not allowed.");
     }
 
-    if (oldSchema.GetStrict() && !newSchema.GetStrict()) {
-        if (oldSchema.Columns() != newSchema.Columns()) {
-            THROW_ERROR_EXCEPTION("Changing columns is not allowed while changing Strict from true to false");
-        }
-        return;
-    }
-
     if (!oldSchema.GetStrict()) {
-        ValidateColumnsNotInserted(oldSchema, newSchema);
-    } else {
-        ValidateColumnsNotRemoved(oldSchema, newSchema);
+        ValidateColumnsWereNotInserted(oldSchema, newSchema);
+    }
+    if (newSchema.GetStrict()) {
+        ValidateColumnsWereNotRemoved(oldSchema, newSchema);
     }
     ValidateColumnsMatch(oldSchema, newSchema);
     

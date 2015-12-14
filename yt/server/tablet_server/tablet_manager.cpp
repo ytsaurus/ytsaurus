@@ -506,6 +506,7 @@ public:
 
         ParseTabletRange(table, &firstTabletIndex, &lastTabletIndex); // may throw
         auto schema = GetTableSchema(table); // may throw
+        ValidateTableSchema(schema); // may throw
 
         TTabletCell* hintedCell;
         if (!cellId) {
@@ -777,6 +778,7 @@ public:
         // Validate pivot keys against table schema.
         auto schema = GetTableSchema(table);
         int keyColumnCount = table->TableSchema().GetKeyColumns().size();
+        ValidateTableSchema(schema);
         for (const auto& pivotKey : pivotKeys) {
             ValidatePivotKey(pivotKey, schema, keyColumnCount);
         }
