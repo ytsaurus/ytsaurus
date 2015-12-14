@@ -208,7 +208,7 @@ public:
             Lookup_.insert(MakePair(MakePair(Stroka(name), Stroka(tableName)), index));
             TColumnSchema newColumn(NAst::FormatColumn(name, tableName), original->Type);
             TableSchema_->AppendColumn(newColumn);
-            return &TableSchema_->Columns().back();
+            return &resultColumns.back();
         }
         return nullptr;
     }
@@ -243,7 +243,7 @@ public:
         auto index = resultColumns.size();
         Lookup_.insert(MakePair(MakePair(Stroka(subexprName), Stroka()), index));
         TableSchema_->AppendColumn(original);
-        return &TableSchema_->Columns().back();
+        return &resultColumns.back();
     }
 
     virtual void Finish()
@@ -1235,6 +1235,7 @@ TConstGroupClausePtr BuildGroupClause(
     }
 
     TTableSchema& tableSchema = groupClause->GroupedTableSchema;
+    ValidateTableSchema(tableSchema);
     schemaProxy = New<TGroupSchemaProxy>(&tableSchema, std::move(schemaProxy), &groupClause->AggregateItems);
 
     return groupClause;
@@ -1291,6 +1292,7 @@ TConstProjectClausePtr BuildProjectClause(
         projectClause->AddProjection(typedExpr, InferName(expressionAst.Get()));
     }
 
+    ValidateTableSchema(projectClause->ProjectTableSchema);
     schemaProxy = New<TSchemaProxy>(&projectClause->ProjectTableSchema);
 
     return projectClause;
@@ -1412,7 +1414,10 @@ TPlanFragmentPtr PreparePlanFragment(
 
     query->KeyColumnsCount = keyColumns.size();
 
-    query->TableSchema = tableSchema.GetPrefix(keyColumns.size());
+    const auto& columns = tableSchema.Columns();
+    query->TableSchema = TTableSchema(std::vector<TColumnSchema>(
+        columns.begin(),
+        columns.begin() + std::min(keyColumns.size(), columns.size())));
 
     schemaProxy = New<TScanSchemaProxy>(
         &query->RenamedTableSchema,
