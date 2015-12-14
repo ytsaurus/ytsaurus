@@ -184,15 +184,13 @@ class TSchemaProxy
     : public TIntrinsicRefCounted
 {
 public:
-    explicit TSchemaProxy(
-        TTableSchema* tableSchema,
-        const TStringBuf& tableName = TStringBuf())
+    explicit TSchemaProxy(TTableSchema* tableSchema)
         : TableSchema_(tableSchema)
     {
         YCHECK(tableSchema);
         const auto& columns = TableSchema_->Columns();
         for (size_t index = 0; index < columns.size(); ++index) {
-            Lookup_.insert(MakePair(MakePair(Stroka(columns[index].Name), Stroka(tableName)), index));
+            Lookup_.insert(MakePair(MakePair(Stroka(columns[index].Name), Stroka()), index));
         }
     }
 
@@ -206,7 +204,8 @@ public:
         } else if (auto original = AddColumnPtr(name, tableName)) {
             auto index = resultColumns.size();
             Lookup_.insert(MakePair(MakePair(Stroka(name), Stroka(tableName)), index));
-            TColumnSchema newColumn(NAst::FormatColumn(name, tableName), original->Type);
+            TColumnSchema newColumn = *original;
+            newColumn.Name = NAst::FormatColumn(name, tableName);
             TableSchema_->PushColumn(newColumn);
             return &resultColumns.back();
         }
@@ -1030,7 +1029,7 @@ public:
         const TTableSchema& sourceTableSchema,
         int keyColumnCount = 0,
         const TStringBuf& tableName = TStringBuf())
-        : TSchemaProxy(tableSchema, tableName)
+        : TSchemaProxy(tableSchema)
         , SourceTableSchema_(sourceTableSchema)
         , RefinedTableSchema_(refinedTableSchema)
         , TableName_(tableName)
@@ -1048,12 +1047,7 @@ public:
             return nullptr;
         }
 
-        auto column = RefinedTableSchema_->FindColumn(name);
-        if (column) {
-            return column;
-        }
-
-        column = SourceTableSchema_.FindColumn(name);
+        auto column = SourceTableSchema_.FindColumn(name);
         if (column) {
             RefinedTableSchema_->PushColumn(*column);
         }
@@ -1413,12 +1407,6 @@ TPlanFragmentPtr PreparePlanFragment(
     std::vector<Stroka> refinedColumns;
 
     query->KeyColumnsCount = keyColumns.size();
-
-    const auto& columns = tableSchema.Columns();
-    query->TableSchema = TTableSchema(std::vector<TColumnSchema>(
-        columns.begin(),
-        columns.begin() + std::min(keyColumns.size(), columns.size())));
-
     schemaProxy = New<TScanSchemaProxy>(
         &query->RenamedTableSchema,
         &query->TableSchema,
@@ -1438,11 +1426,6 @@ TPlanFragmentPtr PreparePlanFragment(
         joinClause->ForeignKeyColumnsCount = foreignKeyColumns.size();
         joinClause->ForeignDataId = GetObjectIdFromDataSplit(foreignDataSplit);
         joinClause->IsLeft = join.IsLeft;
-
-        const auto& columns = foreignTableSchema.Columns();
-        joinClause->ForeignTableSchema = TTableSchema(std::vector<TColumnSchema>(
-            columns.begin(),
-            columns.begin() + std::min(foreignKeyColumns.size(), columns.size())));
 
         auto foreignSourceProxy = New<TScanSchemaProxy>(
             &joinClause->RenamedTableSchema,
@@ -1464,7 +1447,7 @@ TPlanFragmentPtr PreparePlanFragment(
                 THROW_ERROR_EXCEPTION("Column %Qv not found",
                     NAst::FormatColumn(reference->ColumnName, reference->TableName));
             }
-            
+
             if (selfColumn->Type != foreignColumn->Type) {
                 THROW_ERROR_EXCEPTION("Column type %Qv mismatch",
                     NAst::FormatColumn(reference->ColumnName, reference->TableName))

@@ -513,7 +513,7 @@ protected:
             TColumnSchema(TColumnSchema("b", EValueType::Uint64).SetSortOrder(ESortOrder::Ascending)),
             TColumnSchema(TColumnSchema("c", EValueType::Boolean).SetSortOrder(ESortOrder::Ascending)),
             TColumnSchema(TColumnSchema("d", EValueType::Double).SetSortOrder(ESortOrder::Ascending)),
-            TColumnSchema(TColumnSchema("e", EValueType::String).SetSortOrder(ESortOrder::Ascending))
+            TColumnSchema(TColumnSchema("e", EValueType::String.SetSortOrder(ESortOrder::Ascending)))
         });
         return schema;
     }
@@ -1359,12 +1359,20 @@ protected:
     virtual TTableSchema GetSchema() const
     {
         // NB: Key columns must go first.
+<<<<<<< 65d20088b4666bb48902fb9ccdc16acf65e366d6
+        TTableSchema schema;
+        schema.Columns().push_back(TColumnSchema("key", EValueType::Int64).SetSortOrder(ESortOrder::Ascending));
+        schema.Columns().push_back(TColumnSchema("a", EValueType::Int64).SetLock(Stroka("l1")));
+        schema.Columns().push_back(TColumnSchema("b", EValueType::Double).SetLock(Stroka("l2")));
+        schema.Columns().push_back(TColumnSchema("c", EValueType::String));
+=======
         TTableSchema schema({
-            TColumnSchema(TColumnSchema("key", EValueType::Int64).SetSortOrder(ESortOrder::Ascending)),
+            TColumnSchema(TColumnSchema("key", EValueType::Int64)),
             TColumnSchema(TColumnSchema("a", EValueType::Int64).SetLock(Stroka("l1"))),
             TColumnSchema(TColumnSchema("b", EValueType::Double).SetLock(Stroka("l2"))),
             TColumnSchema(TColumnSchema("c", EValueType::String))
         });
+>>>>>>> Made Columns() read-only, refactored lots of its usages.
         return schema;
     }
 

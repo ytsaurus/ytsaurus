@@ -178,10 +178,10 @@ protected:
     static TTableSchema GetTypicalSchema()
     {
         TTableSchema schema({
-            TColumnSchema("k", EValueType::Int64),
-            TColumnSchema("l", EValueType::Int64),
-            TColumnSchema("m", EValueType::Int64),
-            TColumnSchema("n", EValueType::Int64)
+            TColumnSchema(TColumnSchema("k", EValueType::Int64)),
+            TColumnSchema(TColumnSchema("l", EValueType::Int64)),
+            TColumnSchema(TColumnSchema("m", EValueType::Int64)),
+            TColumnSchema(TColumnSchema("n", EValueType::Int64))
         });
         return schema;
     }
@@ -189,9 +189,9 @@ protected:
     static TTableSchema GetAggregateSumSchema()
     {
         TTableSchema schema({
-            TColumnSchema("k", EValueType::Int64),
-            TColumnSchema("l", EValueType::Int64),
-            TColumnSchema("m", EValueType::Int64),
+            TColumnSchema(TColumnSchema("k", EValueType::Int64)),
+            TColumnSchema(TColumnSchema("l", EValueType::Int64)),
+            TColumnSchema(TColumnSchema("m", EValueType::Int64)),
             TColumnSchema("n", EValueType::Int64)
                 .SetAggregate(Stroka("sum"))
         });
