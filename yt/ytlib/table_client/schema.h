@@ -51,6 +51,8 @@ void Deserialize(TColumnSchema& schema, NYTree::INodePtr node);
 void ToProto(NProto::TColumnSchema* protoSchema, const TColumnSchema& schema);
 void FromProto(TColumnSchema* schema, const NProto::TColumnSchema& protoSchema);
 
+void ValidateColumnSchema(const TColumnSchema& columnSchema);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTableSchema
@@ -113,19 +115,8 @@ bool operator != (const TTableSchema& lhs, const TTableSchema& rhs);
 
 void ValidateKeyColumns(const TKeyColumns& keyColumns);
 void ValidateKeyColumnsUpdate(const TKeyColumns& oldKeyColumns, const TKeyColumns& newKeyColumns);
-
-////////////////////////////////////////////////////////////////////////////////
-
-void ValidateColumnSchema(const TColumnSchema& columnSchema);
-void ValidateColumnSchemaUpdate(const TColumnSchema& oldColumn, const TColumnSchema& newColumn, bool IsKey = false);
-
-////////////////////////////////////////////////////////////////////////////////
-
 void ValidateTableSchema(const TTableSchema& schema);
-void ValidateTableSchemaUpdate(const TTableSchema& oldSchema, const TTableSchema& newSchema, bool isTableDynamic = false, bool isTableEmpty = false);
-
-////////////////////////////////////////////////////////////////////////////////
-
+void ValidateTableSchemaUpdate(const TTableSchema& oldSchema, const TTableSchema& newSchema);
 void ValidatePivotKey(const TOwningKey& pivotKey, const TTableSchema& schema, int keyColumnCount);
 
 ////////////////////////////////////////////////////////////////////////////////

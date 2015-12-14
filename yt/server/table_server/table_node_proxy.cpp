@@ -207,15 +207,14 @@ private:
             }
         }
 
-        // If table is not empty, we the set of allowed schema changes is restricted,
-        // otherwise any new schema is allowed.
-        if (!table->IsEmpty()) {
-            ValidateTableSchemaUpdate(table->TableSchema(), newSchema, table->IsDynamic(), table->IsEmpty());
-        } else {
-            ValidateTableSchema(newSchema);
-        }
+        ValidateTableSchemaUpdate(table->TableSchema(), newSchema);
         auto oldKeyColumns = table->TableSchema().GetKeyColumns();
         table->TableSchema() = newSchema;
+        // TODO(max42): put key columns validation into ValidateTableSchemaUpdate.
+        auto newKeyColumns = newSchema.GetKeyColumns();
+        if (!newKeyColumns.empty()) {
+            ValidateKeyColumnsUpdate(oldKeyColumns, newKeyColumns); 
+        }
     }
 
     virtual bool SetBuiltinAttribute(const Stroka& key, const TYsonString& value) override
@@ -305,20 +304,6 @@ private:
         }
     }
 
-    void ValidateMountPreconditions() 
-    {
-        const auto* table = GetThisTypedImpl();
-        const auto& schema = table->TableSchema();
-        if (!schema.GetStrict()) {
-            THROW_ERROR_EXCEPTION("Table schema should be strict");
-        }
-        if (schema.GetKeyColumnCount() == 0) {
-            THROW_ERROR_EXCEPTION("There should be at least one key column");
-        }
-        if (schema.GetKeyColumnCount() == schema.Columns().size()) {
-            THROW_ERROR_EXCEPTION("There should be at least one non-key column");
-        }
-    }
 
     DECLARE_YPATH_SERVICE_METHOD(NTableClient::NProto, Mount)
     {
@@ -341,7 +326,6 @@ private:
         ValidateNotExternal();
         ValidateNoTransaction();
         ValidatePermission(EPermissionCheckScope::This, EPermission::Administer);
-        ValidateMountPreconditions();
 
         auto* table = LockThisTypedImpl();
 
@@ -372,7 +356,6 @@ private:
         ValidateNotExternal();
         ValidateNoTransaction();
         ValidatePermission(EPermissionCheckScope::This, EPermission::Administer);
-        ValidateMountPreconditions();
 
         auto* table = LockThisTypedImpl();
 
