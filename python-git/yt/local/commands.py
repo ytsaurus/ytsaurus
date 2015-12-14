@@ -214,7 +214,9 @@ def start(masters_count=1, nodes_count=3, schedulers_count=1, start_proxy=True,
                       preserve_working_dir=True,
                       tmpfs_path=sandbox_tmpfs_path,
                       enable_ui=True,
-                      ports_range_start=ports_range_start)
+                      ports_range_start=ports_range_start,
+                      # XXX(asaitgalin): For parallel testing purposes.
+                      port_locks_path=os.environ.get("YT_LOCAL_PORT_LOCKS_PATH"))
 
     environment.id = sandbox_id
 
