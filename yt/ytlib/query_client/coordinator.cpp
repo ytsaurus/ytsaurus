@@ -241,21 +241,12 @@ TRowRanges GetPrunedRanges(
         Logger);
 }
 
-TRowRange GetRange(const TDataSources& sources)
+TRowRange GetRange(const std::vector<TDataSource>& sources)
 {
     YCHECK(!sources.empty());
     return std::accumulate(sources.begin() + 1, sources.end(), sources.front().Range, [] (TRowRange keyRange, const TDataSource& source) -> TRowRange {
         return Unite(keyRange, source.Range);
     });
-}
-
-TRowRanges GetRanges(const std::vector<TDataSources>& groupedSplits)
-{
-    TRowRanges ranges(groupedSplits.size());
-    for (int index = 0; index < groupedSplits.size(); ++index) {
-        ranges[index] = GetRange(groupedSplits[index]);
-    }
-    return ranges;
 }
 
 TQueryStatistics CoordinateAndExecute(

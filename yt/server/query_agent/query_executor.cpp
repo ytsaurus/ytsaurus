@@ -277,7 +277,7 @@ private:
         auto splits = Split(std::move(rangesByTablePart), rowBuffer, true, Logger, options.VerboseLogging);
         int splitCount = splits.size();
         int splitOffset = 0;
-        std::vector<TDataSources> groupedSplits;
+        std::vector<std::vector<TDataSource>> groupedSplits;
 
         LOG_DEBUG("Grouping %v splits", splitCount);
 
@@ -292,15 +292,6 @@ private:
         }
 
         LOG_DEBUG("Got %v split groups", groupedSplits.size());
-
-        auto ranges = GetRanges(groupedSplits);
-
-        if (options.VerboseLogging) {
-            LOG_DEBUG("Got ranges for groups %v",
-                JoinToString(ranges, RowRangeFormatter));
-        } else {
-            LOG_DEBUG("Got ranges for %v groups", ranges.size());
-        }
 
         auto columnEvaluator = ColumnEvaluatorCache_->Find(
             query->TableSchema,
@@ -336,9 +327,12 @@ private:
                     } else {
                         LOG_DEBUG("Started creating reader for range");
 
+                        auto group = groupedSplit[index++];
+
                         auto result =  this_->GetReader(
                             query->TableSchema,
-                            groupedSplit[index++],
+                            group.Id,
+                            group.Range,
                       	    timestamp);
 
                         LOG_DEBUG("Finished creating reader for range");
@@ -380,7 +374,7 @@ private:
 
                 auto bottomSplitReaderGenerator = [
                     Logger,
-                    tabletSnapshot,
+                    MOVE(tabletSnapshot),
                     query,
                     groupedKeys,
                     tablePartId,
@@ -471,7 +465,7 @@ private:
                 return RefinePredicate(dataSplit.Range, expr, schema, keyColumns, columnEvaluator);
             });
             subreaderCreators.push_back([&] () {
-                return GetReader(query->TableSchema, dataSplit, timestamp);
+                return GetReader(query->TableSchema, dataSplit.Id, dataSplit.Range, timestamp);
             });
         }
 
@@ -484,14 +478,14 @@ private:
             subreaderCreators);
     }
 
-    TDataSources Split(
+    std::vector<TDataSource> Split(
         std::vector<std::pair<TGuid, TRowRanges>> rangesByTablePart,
         TRowBufferPtr rowBuffer,
         bool mergeRanges,
         const NLogging::TLogger& Logger,
         bool verboseLogging)
     {
-        TDataSources allSplits;
+        std::vector<TDataSource> allSplits;
 
         auto securityManager = Bootstrap_->GetSecurityManager();
 
@@ -767,19 +761,19 @@ private:
 
     ISchemafulReaderPtr GetReader(
         const TTableSchema& schema,
-        const TDataSource& source,
+        const NObjectClient::TObjectId& objectId,
+        const TRowRange& range,
         TTimestamp timestamp)
     {
         ValidateReadTimestamp(timestamp);
 
-        const auto& objectId = source.Id;
         switch (TypeFromId(objectId)) {
             case EObjectType::Chunk:
             case EObjectType::ErasureChunk:
-                return GetChunkReader(schema, source, timestamp);
+                return GetChunkReader(schema, objectId, range, timestamp);
 
             case EObjectType::Tablet:
-                return GetTabletReader(schema, source, timestamp);
+                return GetTabletReader(schema, objectId, range, timestamp);
 
             default:
                 THROW_ERROR_EXCEPTION("Unsupported data split type %Qlv",
@@ -811,16 +805,17 @@ private:
 
     ISchemafulReaderPtr GetChunkReader(
         const TTableSchema& schema,
-        const TDataSource& source,
+        const NObjectClient::TObjectId& chunkId,
+        const TRowRange& range,
         TTimestamp timestamp)
     {
         std::vector<TReadRange> readRanges;
         TReadLimit lowerReadLimit;
         TReadLimit upperReadLimit;
-        lowerReadLimit.SetKey(TOwningKey(source.Range.first));
-        upperReadLimit.SetKey(TOwningKey(source.Range.second));
+        lowerReadLimit.SetKey(TOwningKey(range.first));
+        upperReadLimit.SetKey(TOwningKey(range.second));
         readRanges.emplace_back(std::move(lowerReadLimit), std::move(upperReadLimit));
-        return GetChunkReader(schema, source.Id, std::move(readRanges), timestamp);
+        return GetChunkReader(schema, chunkId, std::move(readRanges), timestamp);
     }
 
     ISchemafulReaderPtr GetChunkReader(
@@ -903,19 +898,18 @@ private:
 
     ISchemafulReaderPtr GetTabletReader(
         const TTableSchema& schema,
-        const TDataSource& source,
+        const NObjectClient::TObjectId& tabletId,
+        const TRowRange& range,
         TTimestamp timestamp)
     {
-        const auto& tabletId = source.Id;
-
         auto slotManager = Bootstrap_->GetTabletSlotManager();
         auto tabletSnapshot = slotManager->GetTabletSnapshotOrThrow(tabletId);
 
         auto securityManager = Bootstrap_->GetSecurityManager();
         securityManager->ValidatePermission(tabletSnapshot, NYTree::EPermission::Read);
 
-        TOwningKey lowerBound(source.Range.first);
-        TOwningKey upperBound(source.Range.second);
+        TOwningKey lowerBound(range.first);
+        TOwningKey upperBound(range.second);
 
         return CreateSchemafulTabletReader(
             std::move(tabletSnapshot),
