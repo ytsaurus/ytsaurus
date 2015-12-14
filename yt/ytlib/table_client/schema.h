@@ -58,13 +58,16 @@ void ValidateColumnSchema(const TColumnSchema& columnSchema);
 class TTableSchema
 {
 public:
-    DEFINE_BYREF_RO_PROPERTY(std::vector<TColumnSchema>, Columns);
-    DEFINE_BYVAL_RO_PROPERTY(bool, Strict);
+    DEFINE_BYREF_RW_PROPERTY(std::vector<TColumnSchema>, Columns);
+    DEFINE_BYVAL_RW_PROPERTY(bool, Strict);
 
-    explicit TTableSchema(const std::vector<TColumnSchema>& columns, bool strict = false);
+public:
     TTableSchema();
-    
+
+    TColumnSchema* FindColumn(const TStringBuf& name);
     const TColumnSchema* FindColumn(const TStringBuf& name) const;
+
+    TColumnSchema& GetColumnOrThrow(const TStringBuf& name);
     const TColumnSchema& GetColumnOrThrow(const TStringBuf& name) const;
 
     int GetColumnIndex(const TColumnSchema& column) const;
@@ -72,11 +75,6 @@ public:
 
     TTableSchema Filter(const TColumnFilter& columnFilter) const;
     TTableSchema TrimNonkeyColumns(const TKeyColumns& keyColumns) const;
-
-    void PushColumn(const TColumnSchema& column);
-    void InsertColumn(int position, const TColumnSchema& column);
-    void EraseColumn(int position);
-    void AlterColumn(int position, const TColumnSchema& column);
 
     bool HasComputedColumns() const;
     bool IsSorted() const;

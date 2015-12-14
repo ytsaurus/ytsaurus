@@ -47,13 +47,13 @@ protected:
 
     virtual void SetUp() override
     {
-        Schema = TTableSchema({
-            TColumnSchema("k1", EValueType::String).SetSortOrder(ESortOrder::Ascending),
-            TColumnSchema("k2", EValueType::Int64).SetSortOrder(ESortOrder::Ascending),
-            TColumnSchema("k3", EValueType::Double).SetSortOrder(ESortOrder::Ascending),
+        Schema.Columns() = {
+            TColumnSchema("k1", EValueType::String, Null, Null, Null, ESortOrder::Ascending),
+            TColumnSchema("k2", EValueType::Int64, Null, Null, Null, ESortOrder::Ascending),
+            TColumnSchema("k3", EValueType::Double, Null, Null, Null, ESortOrder::Ascending),
             TColumnSchema("v1", EValueType::Int64),
             TColumnSchema("v2", EValueType::Int64)
-        });
+        };
 
         MemoryWriter = New<TMemoryWriter>();
         ChunkWriter = CreateVersionedChunkWriter(
@@ -230,7 +230,7 @@ TEST_F(TVersionedChunksTest, ReadEmptyWiderSchema)
     WriteThreeRows();
 
     auto schema = Schema;
-    schema.PushColumn(TColumnSchema("kN", EValueType::Double));
+    schema.Columns().push_back(TColumnSchema("kN", EValueType::Double));
 
     auto chunkMeta = TCachedVersionedChunkMeta::Load(
         MemoryReader,
@@ -302,24 +302,16 @@ TEST_F(TVersionedChunksTest, ReadLastCommitted)
 
     WriteThreeRows();
 
-<<<<<<< 65d20088b4666bb48902fb9ccdc16acf65e366d6
     TTableSchema schema;
     schema.Columns() = {
         TColumnSchema("k1", EValueType::String, Null, Null, Null, ESortOrder::Ascending),
         TColumnSchema("k2", EValueType::Int64, Null, Null, Null, ESortOrder::Ascending),
         TColumnSchema("k3", EValueType::Double, Null, Null, Null, ESortOrder::Ascending),
         TColumnSchema("kN", EValueType::String, Null, Null, Null, ESortOrder::Ascending),
-=======
-    TTableSchema schema({
-        TColumnSchema("k1", EValueType::String),
-        TColumnSchema("k2", EValueType::Int64),
-        TColumnSchema("k3", EValueType::Double),
-        TColumnSchema("kN", EValueType::String),
->>>>>>> Made Columns() read-only, refactored lots of its usages.
         TColumnSchema("v1", EValueType::Int64),
         TColumnSchema("v2", EValueType::Int64),
         TColumnSchema("vN", EValueType::Double)
-    });
+    };
 
     auto chunkMeta = TCachedVersionedChunkMeta::Load(
         MemoryReader,
@@ -423,20 +415,11 @@ TEST_F(TVersionedChunksTest, ReadAllLimitsSchema)
 
     WriteThreeRows();
 
-<<<<<<< 65d20088b4666bb48902fb9ccdc16acf65e366d6
     TTableSchema schema;
     schema.Columns().emplace_back("k1", EValueType::String, Null, Null, Null, ESortOrder::Ascending);
     schema.Columns().emplace_back("k2", EValueType::Int64, Null, Null, Null, ESortOrder::Ascending);
     schema.Columns().emplace_back("k3", EValueType::Double, Null, Null, Null, ESortOrder::Ascending);
     schema.Columns().emplace_back("v2", EValueType::Int64);
-=======
-    TTableSchema schema({
-        TColumnSchema("k1", EValueType::String),
-        TColumnSchema("k2", EValueType::Int64),
-        TColumnSchema("k3", EValueType::Double),
-        TColumnSchema("v2", EValueType::Int64)
-    });
->>>>>>> Made Columns() read-only, refactored lots of its usages.
 
     auto chunkMeta = TCachedVersionedChunkMeta::Load(
         MemoryReader,
@@ -637,22 +620,14 @@ TEST_F(TVersionedChunksTest, WideSchemaBoundaryRow)
     ChunkWriter->Write(rows);
     GetRowAndResetWriter();
 
-<<<<<<< 65d20088b4666bb48902fb9ccdc16acf65e366d6
     TTableSchema widerSchema;
     widerSchema.Columns() = {
         TColumnSchema("k1", EValueType::String, Null, Null, Null, ESortOrder::Ascending),
         TColumnSchema("k2", EValueType::Int64, Null, Null, Null, ESortOrder::Ascending),
         TColumnSchema("k3", EValueType::Double, Null, Null, Null, ESortOrder::Ascending),
         TColumnSchema("k4", EValueType::Int64, Null, Null, Null, ESortOrder::Ascending),
-=======
-    TTableSchema widerSchema({
-        TColumnSchema("k1", EValueType::String),
-        TColumnSchema("k2", EValueType::Int64),
-        TColumnSchema("k3", EValueType::Double),
-        TColumnSchema("k4", EValueType::Int64),
->>>>>>> Made Columns() read-only, refactored lots of its usages.
         TColumnSchema("v1", EValueType::Int64),
-    });
+    };
 
     auto chunkMeta = TCachedVersionedChunkMeta::Load(
         MemoryReader,

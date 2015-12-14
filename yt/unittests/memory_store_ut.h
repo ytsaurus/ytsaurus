@@ -83,12 +83,11 @@ protected:
     virtual TTableSchema GetSchema() const
     {
         // NB: Key columns must go first.
-        TTableSchema schema({
-            TColumnSchema(TColumnSchema("key", EValueType::Int64).SetSortOrder(ESortOrder::Ascending)),
-            TColumnSchema(TColumnSchema("a", EValueType::Int64)),
-            TColumnSchema(TColumnSchema("b", EValueType::Double)),
-            TColumnSchema(TColumnSchema("c", EValueType::String))
-        });
+        TTableSchema schema;
+        schema.Columns().push_back(TColumnSchema("key", EValueType::Int64, Null, Null, Null, ESortOrder::Ascending));
+        schema.Columns().push_back(TColumnSchema("a", EValueType::Int64));
+        schema.Columns().push_back(TColumnSchema("b", EValueType::Double));
+        schema.Columns().push_back(TColumnSchema("c", EValueType::String));
         return schema;
     }
 
