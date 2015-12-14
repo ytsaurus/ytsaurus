@@ -183,7 +183,7 @@ void InsertJoinRow(
     chainedRows->emplace_back(context->PermanentBuffer->Capture(row), -1);
 
     TRow key = *keyPtr;
-    auto inserted = lookup->insert(std::make_pair(key, chainIndex));
+    auto inserted = lookup->insert(std::make_pair(key, std::make_pair(chainIndex, false)));
     if (inserted.second) {
         keys->push_back(key);
         for (int index = 0; index < keySize; ++index) {
@@ -191,8 +191,9 @@ void InsertJoinRow(
         }
         *keyPtr = TRow::Allocate(context->PermanentBuffer->GetPool(), keySize);
     } else {
-        chainedRows->back().second = inserted.first->second;
-        inserted.first->second = chainIndex;
+        auto& startIndex = inserted.first->second.first;
+        chainedRows->back().second = startIndex;
+        startIndex = chainIndex;
     }
 }
 

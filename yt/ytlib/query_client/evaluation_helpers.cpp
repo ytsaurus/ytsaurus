@@ -212,7 +212,7 @@ TJoinEvaluator GetJoinEvaluator(
         TExecutionContext* context,
         THasherFunction* groupHasher,
         TComparerFunction* groupComparer,
-        const TJoinLookup& joinLookup,
+        TJoinLookup& joinLookup,
         std::vector<TRow> keys,
         std::vector<std::pair<TRow, int>> chainedRows,
         TRowBufferPtr permanentBuffer,
@@ -273,47 +273,6 @@ TJoinEvaluator GetJoinEvaluator(
         };
 
         LOG_DEBUG("Joining started");
-/*
-        for (auto key : joinLookup) {
-            auto equalRange = foreignLookup.equal_range(key.first);
-            for (
-                int chainedRowIndex = key.second;
-                chainedRowIndex >= 0;
-                chainedRowIndex = chainedRows[chainedRowIndex].second)
-            {
-
-                auto row = chainedRows[chainedRowIndex].first;
-                for (auto it = equalRange.first; it != equalRange.second; ++it) {
-                    auto foreignRow = *it;
-
-                    rowBuilder.Reset();
-                    for (auto columnIndex : columnMapping) {
-                        rowBuilder.AddValue(columnIndex.first
-                            ? row[columnIndex.second]
-                            : foreignRow[columnIndex.second]);
-                    }
-
-                    if (addRow(rowBuilder.GetRow())) {
-                        return;
-                    }
-                }
-
-                if (isLeft && equalRange.first == equalRange.second) {
-                    rowBuilder.Reset();
-                    for (auto columnIndex : columnMapping) {
-                        rowBuilder.AddValue(columnIndex.first
-                            ? row[columnIndex.second]
-                            : MakeUnversionedSentinelValue(EValueType::Null));
-                    }
-
-                    if (addRow(rowBuilder.GetRow())) {
-                        return;
-                    }
-                }
-                ;
-            }
-        }
-*/
 
         std::vector<TRow> foreignRows;
         foreignRows.reserve(MaxRowsPerRead);
@@ -331,8 +290,12 @@ TJoinEvaluator GetJoinEvaluator(
                     continue;
                 }
 
+                int startIndex = it->second.first;
+                bool& isJoined = it->second.second;
+                isJoined = true;
+
                 for (
-                    int chainedRowIndex = it->second;
+                    int chainedRowIndex = startIndex;
                     chainedRowIndex >= 0;
                     chainedRowIndex = chainedRows[chainedRowIndex].second)
                 {
@@ -361,6 +324,35 @@ TJoinEvaluator GetJoinEvaluator(
                 WaitFor(reader->GetReadyEvent())
                     .ThrowOnError();
                 LOG_DEBUG("Finished waiting for more foreign rows");
+            }
+        }
+
+        if (isLeft) {
+            for (auto lookup : joinLookup) {
+                int startIndex = lookup.second.first;
+                bool isJoined = lookup.second.second;
+
+                if (isJoined) {
+                    continue;
+                }
+
+                for (
+                    int chainedRowIndex = startIndex;
+                    chainedRowIndex >= 0;
+                    chainedRowIndex = chainedRows[chainedRowIndex].second)
+                {
+                    auto row = chainedRows[chainedRowIndex].first;
+                    rowBuilder.Reset();
+                    for (auto columnIndex : columnMapping) {
+                        rowBuilder.AddValue(columnIndex.first
+                            ? row[columnIndex.second]
+                            : MakeUnversionedSentinelValue(EValueType::Null));
+                    }
+
+                    if (addRow(rowBuilder.GetRow())) {
+                        return;
+                    }
+                }
             }
         }
 
