@@ -207,7 +207,7 @@ public:
             auto index = resultColumns.size();
             Lookup_.insert(MakePair(MakePair(Stroka(name), Stroka(tableName)), index));
             TColumnSchema newColumn(NAst::FormatColumn(name, tableName), original->Type);
-            TableSchema_->AppendColumn(newColumn);
+            TableSchema_->PushColumn(newColumn);
             return &resultColumns.back();
         }
         return nullptr;
@@ -242,7 +242,7 @@ public:
 
         auto index = resultColumns.size();
         Lookup_.insert(MakePair(MakePair(Stroka(subexprName), Stroka()), index));
-        TableSchema_->AppendColumn(original);
+        TableSchema_->PushColumn(original);
         return &resultColumns.back();
     }
 
@@ -1055,7 +1055,7 @@ public:
 
         column = SourceTableSchema_.FindColumn(name);
         if (column) {
-            RefinedTableSchema_->AppendColumn(*column);
+            RefinedTableSchema_->PushColumn(*column);
         }
         return column;
     }
@@ -1476,7 +1476,7 @@ TPlanFragmentPtr PreparePlanFragment(
                 New<TReferenceExpression>(selfColumn->Type, selfColumn->Name),
                 New<TReferenceExpression>(foreignColumn->Type, foreignColumn->Name));
 
-            joinClause->JoinedTableSchema.AppendColumn(*selfColumn);
+            joinClause->JoinedTableSchema.PushColumn(*selfColumn);
         }
 
         std::vector<TConstExpressionPtr> leftEquations;
