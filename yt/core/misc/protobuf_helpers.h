@@ -365,7 +365,7 @@ public:
     }
 
     template <class T>
-    friend size_t SpaceUsedExcludingSelf(const TIntrusivePtr<TRefCountedProto<T>>& p);
+    friend size_t SpaceUsed(const TIntrusivePtr<TRefCountedProto<T>>& p);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -71,7 +71,7 @@ public:
 
     void Persist(NPhoenix::TPersistenceContext& context);
 
-    friend size_t SpaceUsedExcludingSelf(const TIntrusivePtr<NChunkClient::TChunkSlice>& p);
+    friend size_t SpaceUsed(const TIntrusivePtr<NChunkClient::TChunkSlice>& p);
 
 private:
     TRefCountedChunkSpecPtr ChunkSpec_;
@@ -124,7 +124,7 @@ void ToProto(NProto::TChunkSlice* protoChunkSlice, const TChunkSlice& chunkSlice
 
 //! Gives the extra allocated size for TChunkSlice.
 //! This function is used for ref counted tracking.
-size_t SpaceUsedExcludingSelf(const TIntrusivePtr<NChunkClient::TChunkSlice>& p);
+size_t SpaceUsed(const TIntrusivePtr<NChunkClient::TChunkSlice>& p);
 
 Stroka ToString(TChunkSlicePtr slice);
 

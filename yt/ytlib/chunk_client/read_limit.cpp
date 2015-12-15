@@ -212,9 +212,10 @@ void TReadLimit::InitMove(NProto::TReadLimit&& readLimit)
     InitKey();
 }
 
-size_t TReadLimit::SpaceUsedExcludingSelf() const
+size_t TReadLimit::SpaceUsed() const
 {
-    return ReadLimit_.SpaceUsed() - sizeof(ReadLimit_) + Key_.SpaceUsedExcludingSelf();
+    return sizeof(*this) + ReadLimit_.SpaceUsed() - sizeof(ReadLimit_) +
+        Key_.SpaceUsed() - sizeof(Key_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -372,8 +373,8 @@ void TReadRange::InitCopy(const NProto::TReadRange& range)
 
 void TReadRange::InitMove(NProto::TReadRange&& range)
 {
-    LowerLimit_ = std::move(range.has_lower_limit() ? TReadLimit(range.lower_limit()) : TReadLimit());
-    UpperLimit_ = std::move(range.has_upper_limit() ? TReadLimit(range.upper_limit()) : TReadLimit());
+    LowerLimit_ = range.has_lower_limit() ? TReadLimit(range.lower_limit()) : TReadLimit();
+    UpperLimit_ = range.has_upper_limit() ? TReadLimit(range.upper_limit()) : TReadLimit();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
