@@ -297,16 +297,18 @@ def run_pytest(options, suite_name, suite_path, pytest_args=None):
 
     try:
         if failed:
-            for dir in [sandbox_storage, sandbox_current]:
+            for dir, dir_name in [(sandbox_storage, "sandbox_storage")
+                                  (sandbox_current, "sandbox")]:
                 if not os.path.exists(dir):
                     continue
+                archive_path = os.path.join(sandbox_archive, dir_name)
                 teamcity_message("Copying failed tests from '{0}' to {1}'...".format(
                     dir,
-                    sandbox_archive),
+                    archive_path),
                     status="WARNING")
                 for obj in os.listdir(dir):
                     src = os.path.join(dir, obj)
-                    dst = os.path.join(sandbox_archive, obj)
+                    dst = os.path.join(archive_path, obj)
                     if os.path.exists(dst):
                         shutil.rmtree(dst)
                     shutil.copytree(src, dst)
