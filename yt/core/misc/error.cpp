@@ -240,7 +240,7 @@ TNullable<TError> TError::FindMatching(TErrorCode code) const
     for (const auto& innerError : InnerErrors_) {
         auto innerResult = innerError.FindMatching(code);
         if (innerResult) {
-            return std::move(innerResult);
+            return innerResult;
         }
     }
 

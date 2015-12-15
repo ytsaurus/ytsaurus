@@ -6,16 +6,24 @@
 #include <yt/core/misc/common.h>
 
 #include <llvm/ADT/Triple.h>
+
+#if !( \
+    defined(LLVM_VERSION_MAJOR) && LLVM_VERSION_MAJOR == 3 && \
+    defined(LLVM_VERSION_MINOR) && LLVM_VERSION_MINOR == 7)
+#error "LLVM 3.7 is required."
+#endif
+
+#include <llvm/Config/config.h>
 #include <llvm/ExecutionEngine/ExecutionEngine.h>
 #include <llvm/ExecutionEngine/MCJIT.h>
 #include <llvm/ExecutionEngine/SectionMemoryManager.h>
 #include <llvm/IR/DiagnosticInfo.h>
 #include <llvm/IR/DiagnosticPrinter.h>
+#include <llvm/IR/LegacyPassManager.h>
 #include <llvm/IR/LLVMContext.h>
 #include <llvm/IR/Module.h>
 #include <llvm/IR/Verifier.h>
 #include <llvm/Object/ObjectFile.h>
-#include <llvm/PassManager.h>
 #include <llvm/Support/Host.h>
 #include <llvm/Support/raw_ostream.h>
 #include <llvm/Transforms/IPO.h>
@@ -176,6 +184,9 @@ private:
 
     void Compile()
     {
+        using namespace llvm;
+        using namespace llvm::legacy;
+
         if (DumpIR()) {
             llvm::errs() << "\n******** Before Optimization ***********************************\n";
             Module_->dump();
@@ -189,11 +200,10 @@ private:
         passManagerBuilder.SizeLevel = 0;
         passManagerBuilder.Inliner = llvm::createFunctionInliningPass();
 
-        std::unique_ptr<llvm::FunctionPassManager> functionPassManager_;
-        std::unique_ptr<llvm::PassManager> modulePassManager_;
+        std::unique_ptr<FunctionPassManager> functionPassManager_;
+        std::unique_ptr<PassManager> modulePassManager_;
 
-        functionPassManager_ = std::make_unique<llvm::FunctionPassManager>(Module_);
-        functionPassManager_->add(new llvm::DataLayoutPass());
+        functionPassManager_ = std::make_unique<FunctionPassManager>(Module_);
         passManagerBuilder.populateFunctionPassManager(*functionPassManager_);
 
         functionPassManager_->doInitialization();
@@ -204,8 +214,7 @@ private:
         }
         functionPassManager_->doFinalization();
 
-        modulePassManager_ = std::make_unique<llvm::PassManager>();
-        modulePassManager_->add(new llvm::DataLayoutPass());
+        modulePassManager_ = std::make_unique<PassManager>();
         passManagerBuilder.populateModulePassManager(*modulePassManager_);
 
         modulePassManager_->run(*Module_);

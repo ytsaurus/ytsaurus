@@ -25,9 +25,7 @@
 
 namespace std {
 
-#if defined(__GNUC__)
-
-#if !defined(__clang__) && __GNUC__ == 4 && __GNUC_MINOR__ < 9
+#if defined(YMAKE) || (defined(__GNUC__) && !defined(__clang__) && __GNUC__ == 4 && __GNUC_MINOR__ < 9)
 // As of now, GCC does not support make_unique.
 // See https://gcc.gnu.org/ml/libstdc++/2014-06/msg00010.html
 template <typename TResult, typename ...TArgs>
@@ -77,8 +75,6 @@ template <size_t _Len, typename... _Types>
 
 template <size_t _Len, typename... _Types>
   const size_t aligned_union<_Len, _Types...>::alignment_value;
-
-#endif
 
 #endif
 

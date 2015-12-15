@@ -41,6 +41,8 @@
     #include <sys/inotify.h>
 #endif
 
+#include <errno.h>
+
 namespace NYT {
 namespace NLogging {
 

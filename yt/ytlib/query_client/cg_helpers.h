@@ -180,6 +180,7 @@ public:
         Twine name = Twine())
     {
         auto valuePtr = builder.CreateConstInBoundsGEP1_32(
+            nullptr,
             CodegenValuesPtrFromRow(builder, row),
             index,
             name + ".valuePtr");
@@ -198,13 +199,13 @@ public:
         Twine name = Twine())
     {
         auto type = builder.CreateLoad(
-            builder.CreateStructGEP(valuePtr, TTypeBuilder::Type, name + ".typePtr"),
+            builder.CreateStructGEP(nullptr, valuePtr, TTypeBuilder::Type, name + ".typePtr"),
             name + ".type");
         auto length = builder.CreateLoad(
-            builder.CreateStructGEP(valuePtr, TTypeBuilder::Length, name + ".lengthPtr"),
+            builder.CreateStructGEP(nullptr, valuePtr, TTypeBuilder::Length, name + ".lengthPtr"),
             name + ".length");
         auto data = builder.CreateLoad(
-            builder.CreateStructGEP(valuePtr, TTypeBuilder::Data, name + ".dataPtr"),
+            builder.CreateStructGEP(nullptr, valuePtr, TTypeBuilder::Data, name + ".dataPtr"),
             name + ".data");
 
         Type* targetType = TDataTypeBuilder::get(builder.getContext(), staticType);
@@ -251,15 +252,12 @@ public:
     void StoreToRow(TCGIRBuilder& builder, Value* row, int index, ui16 id)
     {
         auto name = row->getName();
-        auto nameTwine =
-            (name.empty() ? Twine::createNull() : Twine(name).concat(".")) +
-            Twine(".at.") +
-            Twine(index);
 
         auto valuePtr = builder.CreateConstInBoundsGEP1_32(
+            nullptr,
             CodegenValuesPtrFromRow(builder, row),
             index,
-            nameTwine);
+            Twine(name).concat(".at.") + Twine(index));
 
         StoreToValue(builder, valuePtr, id);
     }
@@ -268,7 +266,7 @@ public:
     {
         builder.CreateStore(
             builder.getInt16(id),
-            builder.CreateStructGEP(valuePtr, TTypeBuilder::Id, nameTwine + ".idPtr"));
+            builder.CreateStructGEP(nullptr, valuePtr, TTypeBuilder::Id, nameTwine + ".idPtr"));
 
         StoreToValue(builder, valuePtr, nameTwine);
     }
@@ -278,12 +276,12 @@ public:
         if (IsNull_) {
             builder.CreateStore(
                 GetType(builder),
-                builder.CreateStructGEP(valuePtr, TTypeBuilder::Type, nameTwine + ".typePtr"));
+                builder.CreateStructGEP(nullptr, valuePtr, TTypeBuilder::Type, nameTwine + ".typePtr"));
         }
         if (Length_) {
             builder.CreateStore(
                 Length_,
-                builder.CreateStructGEP(valuePtr, TTypeBuilder::Length, nameTwine + ".lengthPtr"));
+                builder.CreateStructGEP(nullptr, valuePtr, TTypeBuilder::Length, nameTwine + ".lengthPtr"));
         }
         if (Data_) {
             Value* data = nullptr;
@@ -299,7 +297,7 @@ public:
 
             builder.CreateStore(
                 data,
-                builder.CreateStructGEP(valuePtr, TTypeBuilder::Data, nameTwine + ".dataPtr"));
+                builder.CreateStructGEP(nullptr, valuePtr, TTypeBuilder::Data, nameTwine + ".dataPtr"));
         }
     }
 

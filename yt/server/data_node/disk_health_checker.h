@@ -10,6 +10,8 @@
 
 #include <yt/core/misc/error.h>
 
+#include <yt/core/profiling/profiler.h>
+
 #include <atomic>
 
 namespace NYT {
@@ -28,7 +30,8 @@ public:
     TDiskHealthChecker(
         TDiskHealthCheckerConfigPtr config,
         const Stroka& path,
-        IInvokerPtr invoker);
+        IInvokerPtr invoker,
+        const NProfiling::TProfiler& profiler);
 
     //! Runs single health check. 
     //! Don't call after #Start(), otherwise two checks may interfere.
@@ -48,6 +51,7 @@ private:
 
     NLogging::TLogger Logger;
 
+    NProfiling::TProfiler Profiler_;
 
     void OnCheck();
     void OnCheckCompleted(const TError& error);

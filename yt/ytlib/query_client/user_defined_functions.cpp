@@ -517,9 +517,8 @@ bool ObjectContainsFunction(
             continue;
         }
 
-        auto name = llvm::StringRef();
-        auto nameError = symbol.getName(name);
-        if (!nameError && name.equals(StringRef(mangledName))) {
+        auto name = symbol.getName();
+        if (name && name->equals(StringRef(mangledName))) {
             return !(symbolFlags & llvm::object::SymbolRef::SF_Undefined);
         }
     }
@@ -562,10 +561,9 @@ bool LoadSharedObject(
             continue;
         }
 
-        auto name = llvm::StringRef();
-        auto nameError = symbol.getName(name);
-        if (!nameError) {
-            auto mangledName = Stroka(name.begin(), name.size());
+        auto name = symbol.getName();
+        if (name) {
+            auto mangledName = Stroka(name->begin(), name->size());
             auto nameStroka = DemangleSymbol(mangledName);
             if (nameStroka.empty()) {
                 THROW_ERROR_EXCEPTION(

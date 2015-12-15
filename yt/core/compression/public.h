@@ -3,8 +3,6 @@
 #include <yt/core/misc/public.h>
 #include <yt/core/misc/string.h>
 
-#include <unordered_map>
-
 namespace NYT {
 namespace NCompression {
 
@@ -35,16 +33,12 @@ inline NCompression::ECodec ParseEnum(
     const Stroka& value,
     typename TEnumTraits<NCompression::ECodec>::TType*)
 {
-    // TODO(acid): Replace this with yhash_map when brace initialization is supported.
-    static const std::unordered_map<Stroka, Stroka> renamedCodecs = {
-        {"GzipNormal", "Zlib6"},
-        {"GzipBestCompression", "Zlib9"}};
-
     Stroka decodedValue = DecodeEnumValue(value);
-    if (renamedCodecs.find(decodedValue) != renamedCodecs.end()) {
-        decodedValue = renamedCodecs.at(decodedValue);
+    if (decodedValue == "GzipNormal") {
+        decodedValue = "Zlib6";
+    } else if (decodedValue == "GzipBestCompression") {
+        decodedValue = "Zlib9";
     }
-
     return TEnumTraits<NCompression::ECodec>::FromString(decodedValue);
 }
 
