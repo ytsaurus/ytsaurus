@@ -1877,7 +1877,9 @@ private:
 
         // NB: Result is logged in the builder.
         auto error = WaitFor(builder->Run());
-        if (!error.IsOK()) {
+        if (error.IsOK()) {
+            LOG_INFO("Snapshot builder finished");
+        } else {
             LOG_ERROR(error, "Error building snapshots");
         }
     }

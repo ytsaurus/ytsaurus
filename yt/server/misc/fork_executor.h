@@ -15,18 +15,18 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Provides a generic infrastructure for building snapshots via fork.
-class TForkSnapshotBuilderBase
+//! Provides a generic infrastructure for executing fork.
+class TForkExecutor
     : public virtual TRefCounted
 {
 public:
     TFuture<void> Fork();
 
 protected:
-    explicit TForkSnapshotBuilderBase(NLogging::TLogger& logger);
-    ~TForkSnapshotBuilderBase();
+    explicit TForkExecutor(NLogging::TLogger& logger);
+    ~TForkExecutor();
 
-    //! Returns the timeout for building a snapshot.
+    //! Returns the timeout for running child process.
     virtual TDuration GetTimeout() const = 0;
 
     //! Called from the child process after fork.
@@ -45,7 +45,7 @@ private:
     pid_t ChildPid_ = -1;
     TPromise<void> Result_ = NewPromise<void>();
     TInstant StartTime_;
-    NConcurrency::TActionQueuePtr WatchdogQueue_ = New<NConcurrency::TActionQueue>("SnapshotWD");
+    NConcurrency::TActionQueuePtr WatchdogQueue_ = New<NConcurrency::TActionQueue>("ForkWD");
     NConcurrency::TPeriodicExecutorPtr WatchdogExecutor_;
     NLogging::TLogger& Logger;
 

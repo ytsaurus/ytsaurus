@@ -4,9 +4,13 @@
 
 #include <yt/server/cell_scheduler/public.h>
 
-#include <yt/server/misc/fork_snapshot_builder.h>
+#include <yt/server/misc/fork_executor.h>
 
 #include <yt/ytlib/api/public.h>
+
+#include <yt/core/pipes/pipe.h>
+
+#include <util/system/file.h>
 
 namespace NYT {
 namespace NScheduler {
@@ -14,7 +18,7 @@ namespace NScheduler {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSnapshotBuilder
-    : public TForkSnapshotBuilderBase
+    : public TForkExecutor
 {
 public:
     TSnapshotBuilder(
@@ -34,19 +38,18 @@ private:
     struct TJob
     {
         TOperationPtr Operation;
-        Stroka TempFileName;
-        Stroka FileName;
+        NPipes::TAsyncReaderPtr Reader;
+        std::unique_ptr<TFile> OutputFile;
     };
 
     std::vector<TJob> Jobs_;
 
 
     virtual TDuration GetTimeout() const override;
+    virtual void RunParent() override;
     virtual void RunChild() override;
 
-    void Build(const TJob& job);
-    void OnBuilt();
-
+    TFuture<void> UploadSnapshots();
     void UploadSnapshot(const TJob& job);
 
 };

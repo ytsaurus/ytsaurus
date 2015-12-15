@@ -7,7 +7,7 @@
 #include "snapshot.h"
 #include "snapshot_discovery.h"
 
-#include <yt/server/misc/fork_snapshot_builder.h>
+#include <yt/server/misc/fork_executor.h>
 
 #include <yt/ytlib/election/cell_manager.h>
 
@@ -298,14 +298,14 @@ private:
 
 class TDecoratedAutomaton::TForkSnapshotBuilder
     : public TSnapshotBuilderBase
-    , public TForkSnapshotBuilderBase
+    , public TForkExecutor
 {
 public:
     TForkSnapshotBuilder(
         TDecoratedAutomatonPtr owner,
         TVersion snapshotVersion)
         : TDecoratedAutomaton::TSnapshotBuilderBase(owner, snapshotVersion, Logger)
-        , TForkSnapshotBuilderBase(Logger)
+        , TForkExecutor(Logger)
         , Logger(owner->Logger)
     { }
 
