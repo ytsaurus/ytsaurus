@@ -83,7 +83,10 @@ class YtParallelTestsRunnerPlugin(object):
 
         if remaining_tasks:
             crashed_test = self.session.items[process_tasks[last_started_test_index]]
-            message = "Executor {0} crashed on test {1}".format(process_index, crashed_test)
+            message = "Executor {0} crashed on test {1}. For example, this can happen " \
+                      "if driver crashed or some service (master, scheduler, etc.) " \
+                      "died during test session. See build log and core dumps for more details." \
+                      .format(process_index, crashed_test)
 
             self._log_to_terminal(message)
             report = runner.TestReport(
