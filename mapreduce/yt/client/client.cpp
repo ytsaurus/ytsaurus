@@ -431,6 +431,8 @@ public:
     {
         if (PingableTx_) {
             PingableTx_->Commit();
+        } else {
+            CommitTransaction(Auth_, TransactionId_);
         }
     }
 
@@ -438,6 +440,8 @@ public:
     {
         if (PingableTx_) {
             PingableTx_->Abort();
+        } else {
+            AbortTransaction(Auth_, TransactionId_);
         }
     }
 
