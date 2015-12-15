@@ -10,10 +10,14 @@
 #include <yt/server/cell_master/bootstrap.h>
 #include <yt/server/cell_master/config.h>
 #include <yt/server/cell_master/hydra_facade.h>
+#include <yt/server/cell_master/world_initializer.h>
+#include <yt/server/cell_master/multicell_manager.h>
+#include <yt/server/cell_master/multicell_manager.pb.h>
 
 #include <yt/server/chunk_server/chunk_manager.h>
 
 #include <yt/server/cypress_server/node.h>
+#include <yt/server/cypress_server/cypress_manager.h>
 
 #include <yt/server/node_tracker_server/node.h>
 #include <yt/server/node_tracker_server/node_directory_builder.h>
@@ -27,6 +31,7 @@
 #include <yt/ytlib/node_tracker_client/helpers.h>
 #include <yt/ytlib/node_tracker_client/node_directory.h>
 
+#include <yt/ytlib/object_client/object_service_proxy.h>
 #include <yt/ytlib/object_client/helpers.h>
 
 #include <yt/core/erasure/codec.h>
@@ -39,12 +44,18 @@
 #include <yt/core/profiling/profiler.h>
 #include <yt/core/profiling/timing.h>
 
+#include <yt/core/concurrency/periodic_executor.h>
+
+#include <yt/core/ytree/ypath_proxy.h>
+
 #include <array>
 
 namespace NYT {
 namespace NChunkServer {
 
 using namespace NConcurrency;
+using namespace NYTree;
+using namespace NYson;
 using namespace NHydra;
 using namespace NObjectClient;
 using namespace NProfiling;
@@ -63,6 +74,7 @@ using NChunkClient::TReadLimit;
 
 static const auto& Logger = ChunkServerLogger;
 static const auto& Profiler = ChunkServerProfiler;
+static const auto EnabledCheckPeriod = TDuration::Seconds(3);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -101,6 +113,12 @@ void TChunkReplicator::Start()
         BIND(&TChunkReplicator::OnPropertiesUpdate, MakeWeak(this)),
         Config_->ChunkPropertiesUpdatePeriod);
     PropertiesUpdateExecutor_->Start();
+
+    EnabledCheckExecutor_ = New<TPeriodicExecutor>(
+        Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::ChunkMaintenance),
+        BIND(&TChunkReplicator::OnCheckEnabled, MakeWeak(this)),
+        Config_->ReplicatorEnabledCheckPeriod);
+    EnabledCheckExecutor_->Start();
 }
 
 void TChunkReplicator::Stop()
@@ -113,6 +131,7 @@ void TChunkReplicator::Stop()
 
     RefreshExecutor_.Reset();
     PropertiesUpdateExecutor_.Reset();
+    EnabledCheckExecutor_.Reset();
 }
 
 void TChunkReplicator::TouchChunk(TChunk* chunk)
@@ -1190,65 +1209,109 @@ void TChunkReplicator::OnRefresh()
 
 bool TChunkReplicator::IsEnabled()
 {
-    // This method also logs state changes.
+    return Enabled_;
+}
 
-    auto chunkManager = Bootstrap_->GetChunkManager();
-    auto nodeTracker = Bootstrap_->GetNodeTracker();
-
-    if (Config_->DisableChunkReplicator) {
-        if (!LastEnabled_ || *LastEnabled_) {
-            LOG_INFO("Chunk replicator disabled by configuration settings");
-            LastEnabled_ = false;
-        }
-        return false;
+void TChunkReplicator::OnCheckEnabled()
+{
+    auto worldInitializer = Bootstrap_->GetWorldInitializer();
+    if (!worldInitializer->CheckInitialized()) {
+        Enabled_ = false;
+        return;
     }
 
+    try {
+        if (Bootstrap_->IsPrimaryMaster()) {
+            OnCheckEnabledPrimary();
+        } else {
+            OnCheckEnabledSecondary();
+        }
+    } catch (const std::exception& ex) {
+        LOG_ERROR(ex, "Error updating replicator state, disabling until the next attempt");
+        Enabled_ = false;
+    }
+}
+
+void TChunkReplicator::OnCheckEnabledPrimary()
+{
+    auto cypressManager = Bootstrap_->GetCypressManager();
+    auto resolver = cypressManager->CreateResolver();
+    auto sysNode = resolver->ResolvePath("//sys");
+    if (sysNode->Attributes().Get<bool>("disable_chunk_replicator", false)) {
+        if (Enabled_) {
+            LOG_INFO("Chunk replicator is disabled by //sys/@disable_chunk_replicator setting");
+        }
+        Enabled_ = false;
+        return;
+    }
+
+    auto nodeTracker = Bootstrap_->GetNodeTracker();
     int needOnline = Config_->SafeOnlineNodeCount;
     int gotOnline = nodeTracker->GetOnlineNodeCount();
     if (gotOnline < needOnline) {
-        if (!LastEnabled_ || *LastEnabled_) {
+        if (Enabled_) {
             LOG_INFO("Chunk replicator disabled: too few online nodes, needed >= %v but got %v",
                 needOnline,
                 gotOnline);
-            LastEnabled_ = false;
         }
-        return false;
+        Enabled_ = false;
+        return;
     }
 
-    int gotChunkCount = chunkManager->Chunks().GetSize();
-    int gotLostChunkCount = chunkManager->LostVitalChunks().size();
+    auto multicellManager = Bootstrap_->GetMulticellManager();
+    auto statistics = multicellManager->ComputeClusterStatistics();
+    int gotChunkCount = statistics.chunk_count();
+    int gotLostChunkCount = statistics.lost_vital_chunk_count();
     int needLostChunkCount = Config_->SafeLostChunkCount;
-
     if (gotChunkCount > 0) {
         double needFraction = Config_->SafeLostChunkFraction;
         double gotFraction = (double) gotLostChunkCount / gotChunkCount;
         if (gotFraction > needFraction) {
-            if (!LastEnabled_ || *LastEnabled_) {
+            if (Enabled_) {
                 LOG_INFO("Chunk replicator disabled: too many lost chunks, fraction needed <= %v but got %v",
                     needFraction,
                     gotFraction);
-                LastEnabled_ = false;
             }
-            return false;
+            Enabled_ = false;
+            return;
         }
     }
 
     if (gotLostChunkCount > needLostChunkCount) {
-        if (!LastEnabled_ || *LastEnabled_) {
+        if (Enabled_) {
             LOG_INFO("Chunk replicator disabled: too many lost chunks, needed <= %v but got %v",
                 needLostChunkCount,
                 gotLostChunkCount);
-            LastEnabled_ = false;
         }
-        return false;
+        Enabled_ = false;
+        return;
     }
 
-    if (!LastEnabled_ || !*LastEnabled_) {
+    if (!Enabled_) {
         LOG_INFO("Chunk replicator enabled");
-        LastEnabled_ = true;
     }
+    Enabled_ = true;
+}
 
-    return true;
+void TChunkReplicator::OnCheckEnabledSecondary()
+{
+    auto multicellManager = Bootstrap_->GetMulticellManager();
+    auto channel = multicellManager->GetMasterChannelOrThrow(Bootstrap_->GetPrimaryCellTag(), EPeerKind::Leader);
+    TObjectServiceProxy proxy(channel);
+
+    auto req = TYPathProxy::Get("//sys/@chunk_replicator_enabled");
+    auto rsp = WaitFor(proxy.Execute(req))
+        .ValueOrThrow();
+
+    auto value = ConvertTo<bool>(TYsonString(rsp->value()));
+    if (value != Enabled_) {
+        if (value) {
+            LOG_INFO("Chunk replicator enabled at primary master");
+        } else {
+            LOG_INFO("Chunk replicator disabled at primary master");
+        }
+        Enabled_ = value;
+    }
 }
 
 int TChunkReplicator::GetRefreshListSize() const

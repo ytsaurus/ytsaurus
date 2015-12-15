@@ -78,6 +78,9 @@ public:
     //! If no secondary cells are registered then #InvalidCellTag is returned.
     NObjectClient::TCellTag PickSecondaryMasterCell();
 
+    //! Computes the total cluster statistics by summing counters for all cells (including primary).
+    NProto::TCellStatistics ComputeClusterStatistics();
+
     //! Returns the channel to be used for communicating with another master.
     //! This channel has a properly configured timeout.
     //! Throws on error.

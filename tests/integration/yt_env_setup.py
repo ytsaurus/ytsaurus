@@ -123,6 +123,7 @@ class YTEnvSetup(YTEnv):
         if self.Env.NUM_MASTERS > 0:
             self.transactions_at_start = set(yt_commands.get_transactions())
             self.wait_for_nodes()
+            self.wait_for_chunk_replicator()
 
     def teardown_method(self, method):
         self.Env.check_liveness(callback_func=_pytest_finalize_func)
@@ -141,6 +142,7 @@ class YTEnvSetup(YTEnv):
             yt_commands.clear_metadata_caches()
 
             self._unban_nodes()
+            self._reenable_chunk_replicator()
             self._remove_accounts()
             self._remove_users()
             self._remove_groups()
@@ -161,7 +163,12 @@ class YTEnvSetup(YTEnv):
             print "Node %s is unbanned" % address
 
     def wait_for_nodes(self):
+        print "Waiting for nodes to become online..."
         _wait(lambda: all(n.attributes["state"] == "online" for n in yt_commands.ls("//sys/nodes", attributes=["state"])))
+
+    def wait_for_chunk_replicator(self):
+        print "Waiting for chunk replicator to become enabled..."
+        _wait(lambda: yt_commands.get("//sys/@chunk_replicator_enabled"))
 
     def wait_for_cells(self):
         print "Waiting for tablet cells to become healthy..."
@@ -217,6 +224,10 @@ class YTEnvSetup(YTEnv):
         for node in nodes:
             if node.attributes["banned"]:
                 yt_commands.set("//sys/nodes/%s/@banned" % str(node), False)
+
+    def _reenable_chunk_replicator(self):
+        if yt_commands.exists("//sys/@disable_chunk_replicator"):
+            yt_commands.remove("//sys/@disable_chunk_replicator")
 
     def _remove_accounts(self):
         accounts = yt_commands.ls('//sys/accounts', attributes=['builtin'])

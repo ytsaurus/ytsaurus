@@ -8,6 +8,14 @@ namespace NCellMaster {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace NProto {
+
+class TCellStatistics;
+
+} // namespace NProto
+
+////////////////////////////////////////////////////////////////////////////////
+
 DECLARE_REFCOUNTED_CLASS(TMasterHydraManagerConfig)
 DECLARE_REFCOUNTED_CLASS(TMulticellManagerConfig)
 DECLARE_REFCOUNTED_CLASS(TCellMasterConfig)

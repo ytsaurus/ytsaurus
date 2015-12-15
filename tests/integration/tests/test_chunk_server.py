@@ -11,6 +11,11 @@ from time import sleep
 class TestChunkServer(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 20
+    DELTA_MASTER_CONFIG = {
+        "chunk_manager": {
+            "safe_online_node_count": 3
+        }
+    }
 
     def test_owning_nodes1(self):
         create("table", "//tmp/t")
@@ -92,6 +97,31 @@ class TestChunkServer(YTEnvSetup):
         create("table", "//tmp/t")
         write_table("//tmp/t", [{"a": "b"}])
         ls("//sys/chunks", attributes=["owning_nodes"])
+
+    def _check_replicator(self, expected):
+        assert get("//sys/@chunk_replicator_enabled") == expected
+
+    def test_disable_replicator_when_few_nodes_are_online(self):
+        nodes = ls("//sys/nodes")
+        assert len(nodes) == 20
+
+        self._check_replicator(True)
+
+        for i in xrange(18):
+            set("//sys/nodes/%s/@banned" % nodes[i], True)
+
+        sleep(2.0)
+
+        self._check_replicator(False)
+
+    def test_disable_replicator_when_explicitly_requested_so(self):
+        self._check_replicator(True)
+
+        set("//sys/@disable_chunk_replicator", True)
+
+        sleep(2.0)
+
+        self._check_replicator(False)
 
 ##################################################################
 
