@@ -306,6 +306,8 @@ CXXFLAGS(
 
 PEERDIR(
   contrib/libs/llvm37/lib
+  contrib/libs/re2
+  yt/core
 )
 
 END()
