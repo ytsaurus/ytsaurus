@@ -97,8 +97,6 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/formats/format.cpp
   ${CMAKE_CURRENT_LIST_DIR}/formats/helpers.cpp
   ${CMAKE_CURRENT_LIST_DIR}/formats/json_callbacks.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/formats/json_parser.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/formats/json_writer.cpp
   ${CMAKE_CURRENT_LIST_DIR}/formats/parser.cpp
   ${CMAKE_CURRENT_LIST_DIR}/formats/schemaful_dsv_parser.cpp
   ${CMAKE_CURRENT_LIST_DIR}/formats/schemaful_dsv_writer.cpp
@@ -291,7 +289,11 @@ ADDINCL(
   contrib/libs/re2
 )
 
-SRCS(${YT_SRCS})
+SRCS(
+  ${YT_SRCS}
+  ${CMAKE_CURRENT_LIST_DIR}/formats/json_parser_arc.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/formats/json_writer_arc.cpp
+)
 
 CXXFLAGS(
   -std=c++1y
@@ -314,6 +316,12 @@ ELSE()
 
 set(YT_SOURCE_FILES)
 include(query_client/CMakeLists.txt)
+
+set(YT_SRCS
+  ${YT_SRCS}
+  ${CMAKE_CURRENT_LIST_DIR}/formats/json_parser.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/formats/json_writer.cpp
+)
 
 resolve_srcs(YT_SRCS YT_SRCS_RESOLVED)
 list(APPEND YT_SRCS_RESOLVED ${YT_SOURCE_FILES})
