@@ -17,6 +17,7 @@
 #ifdef _linux_
     #include <unistd.h>
     #include <sys/stat.h>
+    #include <errno.h>
 #endif
 
 namespace NYT {
