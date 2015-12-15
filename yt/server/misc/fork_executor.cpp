@@ -1,4 +1,4 @@
-#include "fork_snapshot_builder.h"
+#include "fork_executor.h"
 
 #include <yt/core/concurrency/action_queue.h>
 #include <yt/core/concurrency/periodic_executor.h>
@@ -23,19 +23,19 @@ static const auto WatchdogCheckPeriod = TDuration::MilliSeconds(100);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TForkSnapshotBuilderBase::TForkSnapshotBuilderBase(NLogging::TLogger& logger)
+TForkExecutor::TForkExecutor(NLogging::TLogger& logger)
     : Logger(logger)
 { }
 
-TForkSnapshotBuilderBase::~TForkSnapshotBuilderBase()
+TForkExecutor::~TForkExecutor()
 {
     YCHECK(ChildPid_ < 0);
 }
 
-TFuture<void> TForkSnapshotBuilderBase::Fork()
+TFuture<void> TForkExecutor::Fork()
 {
 #ifndef _unix_
-    THROW_ERROR_EXCEPTION("Building snapshots is not supported on this platform");
+    THROW_ERROR_EXCEPTION("Forks are not supported on this platform");
 #else
 
     YCHECK(ChildPid_ < 0);
@@ -55,9 +55,9 @@ TFuture<void> TForkSnapshotBuilderBase::Fork()
         }
 
         DoRunParent();
-        Result_.OnCanceled(BIND(&TForkSnapshotBuilderBase::OnCanceled, MakeWeak(this)));
+        Result_.OnCanceled(BIND(&TForkExecutor::OnCanceled, MakeWeak(this)));
     } catch (const std::exception& ex) {
-        LOG_ERROR(ex, "Error building snapshot");
+        LOG_ERROR(ex, "Error executing fork");
         DoCleanup();
         Result_.Set(ex);
     }
@@ -66,45 +66,45 @@ TFuture<void> TForkSnapshotBuilderBase::Fork()
 #endif
 }
 
-void TForkSnapshotBuilderBase::DoRunChild()
+void TForkExecutor::DoRunChild()
 {
     try {
         RunChild();
         ::_exit(0);
     } catch (const std::exception& ex) {
-        fprintf(stderr, "Snapshot builder child process failed:\n%s\n",
+        fprintf(stderr, "Child process failed:\n%s\n",
             ex.what());
         ::_exit(1);
     }
 }
 
-void TForkSnapshotBuilderBase::DoRunParent()
+void TForkExecutor::DoRunParent()
 {
     LOG_INFO("Fork succeded (ChildPid: %v)", ChildPid_);
 
     RunParent();
-    
+
     StartTime_ = TInstant::Now();
 
     WatchdogExecutor_ = New<TPeriodicExecutor>(
         GetWatchdogInvoker(),
-        BIND(&TForkSnapshotBuilderBase::OnWatchdogCheck, MakeStrong(this)),
+        BIND(&TForkExecutor::OnWatchdogCheck, MakeStrong(this)),
         WatchdogCheckPeriod);
     WatchdogExecutor_->Start();
 }
 
-void TForkSnapshotBuilderBase::RunParent()
+void TForkExecutor::RunParent()
 { }
 
-void TForkSnapshotBuilderBase::Cleanup()
+void TForkExecutor::Cleanup()
 { }
 
-IInvokerPtr TForkSnapshotBuilderBase::GetWatchdogInvoker()
+IInvokerPtr TForkExecutor::GetWatchdogInvoker()
 {
     return WatchdogQueue_->GetInvoker();
 }
 
-void TForkSnapshotBuilderBase::OnWatchdogCheck()
+void TForkExecutor::OnWatchdogCheck()
 {
 #ifdef _unix_
     if (ChildPid_ < 0)
@@ -112,7 +112,7 @@ void TForkSnapshotBuilderBase::OnWatchdogCheck()
 
     auto timeout = GetTimeout();
     if (TInstant::Now() > StartTime_ + timeout) {
-        auto error = TError("Snapshot child process timed out")
+        auto error = TError("Child process timed out")
             << TErrorAttribute("timeout", timeout);
         LOG_ERROR(error);
         Result_.Set(error);
@@ -126,9 +126,9 @@ void TForkSnapshotBuilderBase::OnWatchdogCheck()
 
     auto error = StatusToError(status);
     if (error.IsOK()) {
-        LOG_INFO("Snapshot child process finished (ChildPid: %v)", ChildPid_);
+        LOG_INFO("Child process finished (ChildPid: %v)", ChildPid_);
     } else {
-        LOG_ERROR(error, "Snapshot child process failed (ChildPid: %v)", ChildPid_);
+        LOG_ERROR(error, "Child process failed (ChildPid: %v)", ChildPid_);
     }
     Result_.Set(error);
 
@@ -136,7 +136,7 @@ void TForkSnapshotBuilderBase::OnWatchdogCheck()
 #endif
 }
 
-void TForkSnapshotBuilderBase::DoCleanup()
+void TForkExecutor::DoCleanup()
 {
     ChildPid_ = -1;
     if (WatchdogExecutor_) {
@@ -147,28 +147,28 @@ void TForkSnapshotBuilderBase::DoCleanup()
     Cleanup();
 }
 
-void TForkSnapshotBuilderBase::OnCanceled()
+void TForkExecutor::OnCanceled()
 {
-    LOG_INFO("Snapshot builder canceled");
+    LOG_INFO("Fork executor canceled");
     GetWatchdogInvoker()->Invoke(
-        BIND(&TForkSnapshotBuilderBase::DoCancel, MakeStrong(this)));
+        BIND(&TForkExecutor::DoCancel, MakeStrong(this)));
 }
 
-void TForkSnapshotBuilderBase::DoCancel()
+void TForkExecutor::DoCancel()
 {
     if (ChildPid_ < 0)
         return;
 
-    LOG_INFO("Killing snapshot child process (ChildPid: %v)", ChildPid_);
+    LOG_INFO("Killing child process (ChildPid: %v)", ChildPid_);
 
 #ifdef _unix_
     ::kill(ChildPid_, SIGKILL);
     ::waitpid(ChildPid_, nullptr, 0);
 #endif
 
-    LOG_INFO("Snapshot child process killed");
+    LOG_INFO("Child process killed");
 
-    Result_.TrySet(TError("Snapshot builder canceled"));
+    Result_.TrySet(TError("Fork executor canceled"));
     DoCleanup();
 }
 

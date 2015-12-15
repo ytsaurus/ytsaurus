@@ -672,7 +672,7 @@ class TestSchedulerSnapshots(YTEnvSetup):
 
     DELTA_SCHEDULER_CONFIG = {
         "scheduler": {
-            "snapshot_period": 1000
+            "snapshot_period": 500
         }
     }
 
@@ -689,6 +689,33 @@ class TestSchedulerSnapshots(YTEnvSetup):
             in_="//tmp/in",
             out="//tmp/out",
             spec={"data_size_per_job": 1, "testing": testing_options})
-        time.sleep(1)
+
+        track_path("//sys/operations/{0}/snapshot".format(op.id), 10)
+        assert len(read_file("//sys/operations/{0}/snapshot".format(op.id), verbose=False)) > 0
 
         op.track()
+
+    def test_parallel_snapshots(self):
+        create("table", "//tmp/input")
+
+        testing_options = {"scheduling_delay": 100}
+
+        job_count = 2
+        original_data = [{"index": i} for i in xrange(job_count)]
+        write_table("//tmp/input", original_data)
+
+        operation_count = 5
+        ops = []
+        for index in range(operation_count):
+            output = "//tmp/output" + str(index)
+            create("table", output)
+            ops.append(
+                map(command="sleep 1; cat",
+                    in_="//tmp/input",
+                    out=[output],
+                    spec={"data_size_per_job": 1, "testing": testing_options},
+                    dont_track=True))
+
+        for op in ops:
+            track_path("//sys/operations/{0}/snapshot".format(op.id), 10)
+            assert len(read_file("//sys/operations/{0}/snapshot".format(op.id), verbose=False)) > 0

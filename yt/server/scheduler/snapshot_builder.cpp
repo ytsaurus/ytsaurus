@@ -10,8 +10,16 @@
 
 #include <yt/ytlib/scheduler/helpers.h>
 
+#include <yt/core/concurrency/async_stream.h>
+
 #include <yt/core/misc/fs.h>
 #include <yt/core/misc/proc.h>
+
+#include <yt/core/pipes/async_reader.h>
+#include <yt/core/pipes/async_writer.h>
+#include <yt/core/pipes/pipe.h>
+
+#include <thread>
 
 namespace NYT {
 namespace NScheduler {
@@ -20,13 +28,22 @@ using namespace NYTree;
 using namespace NObjectClient;
 using namespace NConcurrency;
 using namespace NApi;
+using namespace NPipes;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Profiler = SchedulerProfiler;
+static const NProfiling::TProfiler Profiler(SchedulerProfiler.GetPathPrefix() + "/snapshot");
 
-static const size_t LocalWriteBufferSize  = (size_t) 1024 * 1024;
+static const size_t PipeWriteBufferSize = (size_t) 1024 * 1024;
 static const size_t RemoteWriteBufferSize = (size_t) 1024 * 1024;
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TSnapshotJob
+{
+    TOperationPtr Operation;
+    std::unique_ptr<TFile> OutputFile;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -34,7 +51,7 @@ TSnapshotBuilder::TSnapshotBuilder(
     TSchedulerConfigPtr config,
     TSchedulerPtr scheduler,
     IClientPtr client)
-    : TForkSnapshotBuilderBase(Logger)
+    : TForkExecutor(Logger)
     , Config_(config)
     , Scheduler_(scheduler)
     , Client_(client)
@@ -49,14 +66,6 @@ TFuture<void> TSnapshotBuilder::Run()
 {
     LOG_INFO("Snapshot builder started");
 
-    try {
-        NFS::ForcePath(Config_->SnapshotTempPath);
-        NFS::CleanTempFiles(Config_->SnapshotTempPath);
-    } catch (const std::exception& ex) {
-        LOG_ERROR(ex, "Error preparing snapshot directory");
-        return MakeFuture(TError(ex));
-    }
-
     std::vector<TFuture<void>> operationSuspendFutures;
 
     // Capture everything needed in Build.
@@ -66,9 +75,10 @@ TFuture<void> TSnapshotBuilder::Run()
 
         TJob job;
         job.Operation = operation;
-        job.FileName = NFS::CombinePaths(Config_->SnapshotTempPath, ToString(operation->GetId()));
-        job.TempFileName = job.FileName + NFS::TempFileSuffix;
-        Jobs_.push_back(job);
+        auto pipe = TPipeFactory().Create();
+        job.Reader = pipe.CreateAsyncReader();
+        job.OutputFile = std::make_unique<TFile>(FHANDLE(pipe.ReleaseWriteFD()));
+        Jobs_.push_back(std::move(job));
 
         operationSuspendFutures.push_back(operation->GetController()->Suspend());
 
@@ -89,16 +99,15 @@ TFuture<void> TSnapshotBuilder::Run()
 
     auto forkFuture = VoidFuture;
     PROFILE_TIMING ("/fork_time") {
-        forkFuture = Fork().Apply(
-            BIND(&TSnapshotBuilder::OnBuilt, MakeStrong(this))
-                .AsyncVia(Scheduler_->GetSnapshotIOInvoker()));
+        forkFuture = Fork();
     }
 
     for (const auto& job : Jobs_) {
         job.Operation->GetController()->Resume();
     }
 
-    return forkFuture;
+    auto uploadFuture = UploadSnapshots();
+    return Combine(std::vector<TFuture<void>>{forkFuture, uploadFuture});
 }
 
 TDuration TSnapshotBuilder::GetTimeout() const
@@ -106,63 +115,88 @@ TDuration TSnapshotBuilder::GetTimeout() const
     return Config_->SnapshotTimeout;
 }
 
+void TSnapshotBuilder::RunParent()
+{
+    for (const auto& job : Jobs_) {
+        job.OutputFile->Close();
+    }
+}
+
+void DoSnapshotJobs(const std::vector<TSnapshotJob> Jobs_)
+{
+    for (const auto& job : Jobs_) {
+        TFileOutput outputStream(*job.OutputFile);
+        TBufferedOutput bufferedOutput(&outputStream, PipeWriteBufferSize);
+        job.Operation->GetController()->SaveSnapshot(&bufferedOutput);
+        try {
+            bufferedOutput.Finish();
+            job.OutputFile->Close();
+        } catch (const TFileError& ex) {
+            // Failed to save snapshot because other side of the pipe was closed.
+        }
+    }
+}
+
 void TSnapshotBuilder::RunChild()
 {
-    CloseAllDescriptors({
-        2 // stderr
-    });
+    std::vector<int> descriptors = {2};
     for (const auto& job : Jobs_) {
-        Build(job);
+        descriptors.push_back(int(job.OutputFile->GetHandle()));
+    }
+    CloseAllDescriptors(descriptors);
+
+    std::vector<std::thread> builderThreads;
+    {
+        const int jobsPerBuilder = Jobs_.size() / Config_->ParallelSnapshotBuilderCount + 1;
+        std::vector<TSnapshotJob> jobs;
+        for (int jobIndex = 0; jobIndex < Jobs_.size(); ++jobIndex) {
+            auto& job = Jobs_[jobIndex];
+            TSnapshotJob snapshotJob;
+            snapshotJob.Operation = std::move(job.Operation);
+            snapshotJob.OutputFile = std::move(job.OutputFile);
+            jobs.push_back(std::move(snapshotJob));
+
+            if (jobs.size() >= jobsPerBuilder || jobIndex + 1 == Jobs_.size()) {
+                builderThreads.emplace_back(
+                    DoSnapshotJobs, std::move(jobs));
+                jobs.clear();
+            }
+        }
+        Jobs_.clear();
+    }
+
+    for (auto& builderThread : builderThreads) {
+        builderThread.join();
     }
 }
 
-void TSnapshotBuilder::Build(const TJob& job)
+TFuture<void> TSnapshotBuilder::UploadSnapshots()
 {
-    // Save snapshot into a temp file.
-    {
-        TFileOutput fileOutput(job.TempFileName);
-        TBufferedOutput bufferedOutput(&fileOutput, LocalWriteBufferSize);
+    std::vector<TFuture<void>> snapshotUploadFutures;
+    for (auto& job : Jobs_) {
         auto controller = job.Operation->GetController();
-        controller->SaveSnapshot(&bufferedOutput);
+        auto uploadFuture = BIND(
+            &TSnapshotBuilder::UploadSnapshot,
+            MakeStrong(this),
+            Passed(std::move(job)))
+                .AsyncVia(controller->GetCancelableInvoker())
+                .Run();
+        snapshotUploadFutures.push_back(std::move(uploadFuture));
     }
-
-    // Move temp file into regular file atomically.
-    {
-        NFS::Rename(job.TempFileName, job.FileName);
-    }
-}
-
-void TSnapshotBuilder::OnBuilt()
-{
-    for (const auto& job : Jobs_) {
-        UploadSnapshot(job);
-    }
-
-    LOG_INFO("Snapshot builder finished");
+    return Combine(snapshotUploadFutures);
 }
 
 void TSnapshotBuilder::UploadSnapshot(const TJob& job)
 {
-    auto operation = job.Operation;
+    const auto& operationId = job.Operation->GetId();
 
     auto Logger = this->Logger;
-    Logger.AddTag("OperationId: %v",
-        job.Operation->GetId());
-
-    if (!NFS::Exists(job.FileName)) {
-        LOG_WARNING("Snapshot file is missing");
-        return;
-    }
-
-    if (operation->IsFinishedState()) {
-        LOG_INFO("Operation is already finished, snapshot discarded");
-        return;
-    }
+    Logger.AddTag("OperationId: %v", operationId);
 
     try {
         LOG_INFO("Started uploading snapshot");
 
-        auto snapshotPath = GetSnapshotPath(operation->GetId());
+        auto snapshotPath = GetSnapshotPath(operationId);
 
         // Start outer transaction.
         ITransactionPtr transaction;
@@ -171,7 +205,7 @@ void TSnapshotBuilder::UploadSnapshot(const TJob& job)
             auto attributes = CreateEphemeralAttributes();
             attributes->Set(
                 "title",
-                Format("Snapshot upload for operation %v", operation->GetId()));
+                Format("Snapshot upload for operation %v", operationId));
             options.Attributes = std::move(attributes);
             auto transactionOrError = WaitFor(
                 Client_->StartTransaction(
@@ -215,11 +249,11 @@ void TSnapshotBuilder::UploadSnapshot(const TJob& job)
 
             struct TSnapshotBuilderBufferTag { };
             auto buffer = TSharedMutableRef::Allocate<TSnapshotBuilderBufferTag>(RemoteWriteBufferSize, false);
-            TFileInput fileInput(job.FileName);
-            TBufferedInput bufferedInput(&fileInput, RemoteWriteBufferSize);
 
             while (true) {
-                size_t bytesRead = bufferedInput.Read(buffer.Begin(), buffer.Size());
+                size_t bytesRead = WaitFor(job.Reader->Read(buffer))
+                    .ValueOrThrow();
+
                 if (bytesRead == 0) {
                     break;
                 }

@@ -90,7 +90,6 @@ public:
         : Config_(config)
         , InitialConfig_(ConvertToNode(Config_))
         , Bootstrap_(bootstrap)
-        , SnapshotIOQueue_(New<TActionQueue>("SnapshotIO"))
         , ControllerThreadPool_(New<TThreadPool>(Config_->ControllerThreadCount, "Controller"))
         , JobSpecBuilderThreadPool_(New<TThreadPool>(Config_->JobSpecBuilderThreadCount, "SpecBuilder"))
         , MasterConnector_(new TMasterConnector(Config_, Bootstrap_))
@@ -105,7 +104,6 @@ public:
         YCHECK(config);
         YCHECK(bootstrap);
         VERIFY_INVOKER_THREAD_AFFINITY(GetControlInvoker(), ControlThread);
-        VERIFY_INVOKER_THREAD_AFFINITY(GetSnapshotIOInvoker(), SnapshotIOThread);
 
         auto localHostName = TAddressResolver::Get()->GetLocalHostName();
         int port = Bootstrap_->GetConfig()->RpcPort;
@@ -206,12 +204,6 @@ public:
         }
         return operations;
     }
-
-    IInvokerPtr GetSnapshotIOInvoker()
-    {
-        return SnapshotIOQueue_->GetInvoker();
-    }
-
 
     bool IsConnected()
     {
@@ -807,7 +799,6 @@ private:
     const INodePtr InitialConfig_;
     TBootstrap* const Bootstrap_;
 
-    TActionQueuePtr SnapshotIOQueue_;
     TThreadPoolPtr ControllerThreadPool_;
     TThreadPoolPtr JobSpecBuilderThreadPool_;
 
@@ -852,7 +843,6 @@ private:
     yhash_map<Stroka, TJobResources> SchedulingTagResources_;
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
-    DECLARE_THREAD_AFFINITY_SLOT(SnapshotIOThread);
 
 
     void OnProfiling()
@@ -2579,11 +2569,6 @@ IYPathServicePtr TScheduler::GetOrchidService()
 std::vector<TOperationPtr> TScheduler::GetOperations()
 {
     return Impl_->GetOperations();
-}
-
-IInvokerPtr TScheduler::GetSnapshotIOInvoker()
-{
-    return Impl_->GetSnapshotIOInvoker();
 }
 
 bool TScheduler::IsConnected()
