@@ -8,6 +8,8 @@
 
 #include <yt/server/hydra/hydra_manager.h>
 
+#include <yt/server/chunk_server/chunk_manager.h>
+
 #include <yt/server/cell_master/bootstrap.h>
 #include <yt/server/cell_master/hydra_facade.h>
 
@@ -41,6 +43,12 @@ public:
 private:
     typedef TMapNodeProxy TBase;
 
+    virtual bool IsLeaderReadRequired() const override
+    {
+        // Needed due to "chunk_replicator_enabled" attribute.
+        return true;
+    }
+
     void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors)
     {
         TBase::ListSystemAttributes(descriptors);
@@ -50,6 +58,7 @@ private:
         descriptors->push_back("cell_id");
         descriptors->push_back("primary_cell_id");
         descriptors->push_back("current_commit_revision");
+        descriptors->push_back("chunk_replicator_enabled");
     }
 
     bool GetBuiltinAttribute(const Stroka& key, IYsonConsumer* consumer)
@@ -87,7 +96,25 @@ private:
             return true;
         }
 
+        if (key == "chunk_replicator_enabled") {
+            auto chunkManager = Bootstrap_->GetChunkManager();
+            BuildYsonFluently(consumer)
+                .Value(chunkManager->IsReplicatorEnabled());
+            return true;
+        }
+
         return TBase::GetBuiltinAttribute(key, consumer);
+    }
+
+    void ValidateCustomAttributeUpdate(
+        const Stroka& key,
+        const TNullable<TYsonString>& /*oldValue*/,
+        const TNullable<TYsonString>& newValue)
+    {
+        if (key == "disable_chunk_replicator" && newValue) {
+            ConvertTo<bool>(*newValue);
+            return;
+        }
     }
 
 };

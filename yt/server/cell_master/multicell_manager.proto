@@ -27,6 +27,7 @@ message TReqStartSecondaryMasterRegistration
 message TCellStatistics
 {
     required int32 chunk_count = 1;
+    required int32 lost_vital_chunk_count = 2;
 }
 
 message TReqSetCellStatistics

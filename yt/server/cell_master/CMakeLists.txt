@@ -9,6 +9,7 @@ set( SRCS
   ${CMAKE_CURRENT_LIST_DIR}/serialize.cpp
   ${CMAKE_CURRENT_LIST_DIR}/world_initializer.cpp
   ${CMAKE_CURRENT_LIST_DIR}/multicell_manager.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/helpers.cpp
 )
 set( HDRS
   ${CMAKE_CURRENT_LIST_DIR}/automaton.h
@@ -22,6 +23,7 @@ set( HDRS
   ${CMAKE_CURRENT_LIST_DIR}/serialize.h
   ${CMAKE_CURRENT_LIST_DIR}/world_initializer.h
   ${CMAKE_CURRENT_LIST_DIR}/multicell_manager.h
+  ${CMAKE_CURRENT_LIST_DIR}/helpers.h
 )
 
 list(APPEND YT_SOURCE_FILES

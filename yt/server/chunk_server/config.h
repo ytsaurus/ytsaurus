@@ -16,9 +16,6 @@ class TChunkManagerConfig
     : public NYTree::TYsonSerializable
 {
 public:
-    //! If |true| then replicator is disabled regardless of anything else.
-    bool DisableChunkReplicator;
-
     //! When the number of online nodes drops below this margin,
     //! replicator gets disabled.
     int SafeOnlineNodeCount;
@@ -86,10 +83,11 @@ public:
     //! Currently used to simulate DC awareness.
     int MaxReplicasPerRack;
 
+    //! Interval between consequent replicator state checks.
+    TDuration ReplicatorEnabledCheckPeriod;
+
     TChunkManagerConfig()
     {
-        RegisterParameter("disable_chunk_replicator", DisableChunkReplicator)
-            .Default(false);
         RegisterParameter("safe_online_node_count", SafeOnlineNodeCount)
             .GreaterThanOrEqual(0)
             .Default(0);
@@ -147,6 +145,9 @@ public:
         RegisterParameter("max_replicas_per_rack", MaxReplicasPerRack)
             .GreaterThanOrEqual(0)
             .Default(std::numeric_limits<int>::max());
+
+        RegisterParameter("replicator_enabled_check_period", ReplicatorEnabledCheckPeriod)
+            .Default(TDuration::Seconds(1));
     }
 };
 

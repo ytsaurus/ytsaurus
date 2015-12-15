@@ -816,7 +816,9 @@ private:
             if (!IsObjectAlive(node))
                 continue;
 
+            UpdateNodeCounters(node, -1);
             node->MulticellStates()[cellTag] = ENodeState(entry.state());
+            UpdateNodeCounters(node, +1);
         }
     }
 
@@ -975,7 +977,7 @@ private:
 
     void UpdateNodeCounters(TNode* node, int delta)
     {
-        switch (node->GetLocalState()) {
+        switch (node->GetAggregatedState()) {
             case ENodeState::Registered:
                 RegisteredNodeCount_ += delta;
                 break;

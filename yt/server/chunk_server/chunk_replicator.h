@@ -10,7 +10,7 @@
 
 #include <yt/ytlib/node_tracker_client/node_tracker_service.pb.h>
 
-#include <yt/core/concurrency/periodic_executor.h>
+#include <yt/core/concurrency/public.h>
 
 #include <yt/core/erasure/public.h>
 
@@ -114,12 +114,11 @@ private:
         NProfiling::TCpuInstant When;
     };
 
-    TChunkManagerConfigPtr Config_;
-    NCellMaster::TBootstrap* Bootstrap_;
-    TChunkPlacementPtr ChunkPlacement_;
+    const TChunkManagerConfigPtr Config_;
+    NCellMaster::TBootstrap* const Bootstrap_;
+    const TChunkPlacementPtr ChunkPlacement_;
 
     NProfiling::TCpuDuration ChunkRefreshDelay_;
-    TNullable<bool> LastEnabled_;
 
     NConcurrency::TPeriodicExecutorPtr RefreshExecutor_;
     std::deque<TRefreshEntry> RefreshList_;
@@ -131,6 +130,9 @@ private:
     yhash_map<TChunk*, TJobListPtr> JobListMap_;
 
     TChunkRepairQueue ChunkRepairQueue_;
+
+    NConcurrency::TPeriodicExecutorPtr EnabledCheckExecutor_;
+    bool Enabled_ = false;
 
 
     void ProcessExistingJobs(
@@ -199,6 +201,10 @@ private:
 
     void AddToChunkRepairQueue(TChunk* chunk);
     void RemoveFromChunkRepairQueue(TChunk* chunk);
+
+    void OnCheckEnabled();
+    void OnCheckEnabledPrimary();
+    void OnCheckEnabledSecondary();
 
 };
 

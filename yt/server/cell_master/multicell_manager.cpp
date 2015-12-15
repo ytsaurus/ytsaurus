@@ -6,6 +6,7 @@
 #include "serialize.h"
 #include "hydra_facade.h"
 #include "world_initializer.h"
+#include "helpers.h"
 
 #include <yt/core/misc/collection_helpers.h>
 
@@ -177,7 +178,8 @@ public:
         return GetMasterEntry(cellTag)->Index;
     }
 
-    TCellTag PickCellForNode()
+
+    TCellTag PickSecondaryMasterCell()
     {
         YCHECK(Bootstrap_->IsPrimaryMaster());
 
@@ -211,6 +213,16 @@ public:
         // Sample PickCellList_ uniformly.
         auto* mutationContext = GetCurrentMutationContext();
         return PickCellList_[mutationContext->RandomGenerator().Generate<size_t>() % PickCellList_.size()];
+    }
+
+    NProto::TCellStatistics ComputeClusterStatistics()
+    {
+        auto result = GetLocalCellStatistics();
+        for (const auto& pair : RegisteredMasterMap_) {
+            const auto& entry = pair.second;
+            result += entry.Statistics;
+        }
+        return result;
     }
 
 
@@ -274,7 +286,7 @@ private:
     TPeriodicExecutorPtr RegisterAtPrimaryMasterExecutor_;
     TPeriodicExecutorPtr CellStatiticsGossipExecutor_;
 
-    //! A temporary buffer used in PickCellForNode.
+    //! A temporary buffer used in PickSecondaryMasterCell.
     std::vector<TCellTag> PickCellList_;
 
     //! Caches master channels returned by FindMasterChannel and GetMasterChannelOrThrow.
@@ -581,13 +593,17 @@ private:
 
         NProto::TReqSetCellStatistics request;
         request.set_cell_tag(Bootstrap_->GetCellTag());
-
-        auto* statistics = request.mutable_statistics();
-
-        auto chunkManager = Bootstrap_->GetChunkManager();
-        statistics->set_chunk_count(chunkManager->Chunks().GetSize());
-
+        *request.mutable_statistics() = GetLocalCellStatistics();
         PostToMaster(request, PrimaryMasterCellTag, false);
+    }
+
+    NProto::TCellStatistics GetLocalCellStatistics()
+    {
+        NProto::TCellStatistics result;
+        auto chunkManager = Bootstrap_->GetChunkManager();
+        result.set_chunk_count(chunkManager->Chunks().GetSize());
+        result.set_lost_vital_chunk_count(chunkManager->LostVitalChunks().size());
+        return result;
     }
 
 
@@ -647,7 +663,6 @@ private:
             YUNREACHABLE();
         }
     }
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -740,7 +755,12 @@ int TMulticellManager::GetRegisteredMasterCellIndex(TCellTag cellTag)
 
 TCellTag TMulticellManager::PickSecondaryMasterCell()
 {
-    return Impl_->PickCellForNode();
+    return Impl_->PickSecondaryMasterCell();
+}
+
+NProto::TCellStatistics TMulticellManager::ComputeClusterStatistics()
+{
+    return Impl_->ComputeClusterStatistics();
 }
 
 IChannelPtr TMulticellManager::GetMasterChannelOrThrow(TCellTag cellTag, EPeerKind peerKind)
