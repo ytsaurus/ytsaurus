@@ -232,7 +232,9 @@ CXXFLAGS(
 
 PEERDIR(
   contrib/libs/llvm37/lib
+  contrib/libs/snappy
   yt/build
+  yt/contrib
 )
 
 END()
