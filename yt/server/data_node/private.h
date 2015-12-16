@@ -23,7 +23,7 @@ extern const Stroka CleanExtension;
 extern const Stroka SealedFlagExtension;
 extern const Stroka ArtifactMetaSuffix;
 extern const Stroka DisabledLockFileName;
-extern const Stroka Healthove health check file name CheckFileName;
+extern const Stroka HealthCheckFileName;
 
 ////////////////////////////////////////////////////////////////////////////////
 
