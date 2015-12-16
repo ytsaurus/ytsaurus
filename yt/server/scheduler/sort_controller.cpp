@@ -1346,9 +1346,9 @@ protected:
         if (averageBufferSize < THorizontalSchemalessBlockWriter::MinReserveSize) {
             i64 minAppropriateSize = partitionCount * 2 * THorizontalSchemalessBlockWriter::MinReserveSize;
             THROW_ERROR_EXCEPTION(
-                "Too small table writer buffer size for partitioner (MaxBufferSize: %v). Min appropriate buffer size is %v",
-                averageBufferSize,
-                minAppropriateSize);
+                "Partitioner table writer buffer size is too small: expected >= %v, got %v",
+                minAppropriateSize,
+                config->MaxBufferSize);
         }
     }
 
