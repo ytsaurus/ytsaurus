@@ -527,10 +527,10 @@ void GetRangesFromTrieWithinRangeImpl(
             bool refineUpperNext = false;
 
             if (refineLower) {
-                 if (value < keyRange.first[offset]) {
-                     continue;
+                if (value < keyRange.first[offset]) {
+                    continue;
                 } else if (value == keyRange.first[offset]) {
-                     refineLowerNext = true;
+                    refineLowerNext = true;
                 }
             }
 
@@ -538,9 +538,9 @@ void GetRangesFromTrieWithinRangeImpl(
                 if (value > keyRange.second[offset] ||
                     (value == keyRange.second[offset] && offset + 1 == upperBoundSize))
                 {
-                     continue;
+                    continue;
                 } else if (value == keyRange.second[offset]) {
-                     refineUpperNext = true;
+                    refineUpperNext = true;
                 }
             }
 
