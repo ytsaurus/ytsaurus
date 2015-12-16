@@ -159,8 +159,6 @@ public:
         TFuture<void>* localFlushResult,
         TFuture<TMutationResponse>* commitResult);
 
-    void CancelPendingLeaderMutations(const TError& error);
-
     void LogFollowerMutation(
         const TSharedRef& recordData,
         TFuture<void>* localFlushResult);
