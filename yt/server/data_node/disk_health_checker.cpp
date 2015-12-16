@@ -17,10 +17,6 @@ using namespace NProfiling;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const Stroka TestFileName("health_check~");
-
-////////////////////////////////////////////////////////////////////////////////
-
 TDiskHealthChecker::TDiskHealthChecker(
     TDiskHealthCheckerConfigPtr config,
     const Stroka& path,
@@ -84,7 +80,7 @@ void TDiskHealthChecker::DoRunCheck()
         writeData[i] = RandomNumber<ui8>();
     }
 
-    auto testFileName = NFS::CombinePaths(Path_, TestFileName);
+    auto testFileName = NFS::CombinePaths(Path_, HealthCheckFileName);
 
     try {
         const auto& Profiler = Profiler_;

@@ -23,6 +23,7 @@ const Stroka CleanExtension("clean");
 const Stroka SealedFlagExtension("sealed");
 const Stroka ArtifactMetaSuffix(".artifact");
 const Stroka DisabledLockFileName("disabled");
+const Stroka HealthCheckFileName("health_check~");
 
 ////////////////////////////////////////////////////////////////////////////////
 
