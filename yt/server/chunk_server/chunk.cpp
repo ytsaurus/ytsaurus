@@ -306,16 +306,19 @@ TChunkProperties TChunk::GetChunkProperties() const
 
 int TChunk::GetMaxReplicasPerRack(TNullable<int> replicationFactorOverride) const
 {
-    int replicationFactor = replicationFactorOverride.Get(GetReplicationFactor());
     switch (GetType()) {
-        case EObjectType::Chunk:
+        case EObjectType::Chunk: {
+            int replicationFactor = replicationFactorOverride.Get(ReplicationFactor_);
             return std::max(replicationFactor - 1, 1);
+        }
 
         case EObjectType::ErasureChunk:
             return NErasure::GetCodec(GetErasureCodec())->GetGuaranteedRepairablePartCount();
 
-        case EObjectType::JournalChunk:
-            return 1;
+        case EObjectType::JournalChunk: {
+            int minQuorum = std::min(ReadQuorum_, WriteQuorum_);
+            return std::max(minQuorum - 1, 1);
+        }
 
         default:
             YUNREACHABLE();
