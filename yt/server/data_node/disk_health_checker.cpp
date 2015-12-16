@@ -73,7 +73,7 @@ void TDiskHealthChecker::DoRunCheck()
 {
     LOG_DEBUG("Disk health check started");
 
-    if (NFS::Exists(NFS::CombinePaths(Path_, DisabledLockFileName)) {
+    if (NFS::Exists(NFS::CombinePaths(Path_, DisabledLockFileName))) {
         THROW_ERROR_EXCEPTION("Lock file is found");
     }
 
