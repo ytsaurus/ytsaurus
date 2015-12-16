@@ -593,8 +593,9 @@ private:
     void AppendSentinel(TRow row, TNullable<TUnversionedValue> sentinel)
     {
         if (sentinel) {
-            row[row.GetCount()] = sentinel.Get();
-            row.SetCount(row.GetCount() + 1);
+            auto index = row.GetCount();
+            row.SetCount(index + 1);
+            row[index] = sentinel.Get();
         }
     }
 
