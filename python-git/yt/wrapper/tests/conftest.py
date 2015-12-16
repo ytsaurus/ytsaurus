@@ -155,7 +155,7 @@ def test_method_teardown():
 
     for tx in yt.list("//sys/transactions", attributes=["title"]):
         title = tx.attributes.get("title", "")
-        if "Scheduler lock" in title or "Lease for node" in title or "Prerequisite for cell" in title:
+        if "Scheduler lock" in title or "Lease for" in title or "Prerequisite for" in title:
             continue
         try:
             yt.abort_transaction(tx)
