@@ -2515,7 +2515,7 @@ void TOperationControllerBase::RequestInputObjects()
 {
     LOG_INFO("Requesting input objects");
 
-    auto channel = AuthenticatedInputMasterClient->GetMasterChannel(EMasterChannelKind::LeaderOrFollower);
+    auto channel = AuthenticatedInputMasterClient->GetMasterChannel(EMasterChannelKind::Leader);
     TObjectServiceProxy proxy(channel);
 
     auto batchReq = proxy.ExecuteBatch();
@@ -2597,7 +2597,7 @@ void TOperationControllerBase::RequestOutputObjects()
 {
     LOG_INFO("Requesting output objects");
 
-    auto channel = AuthenticatedOutputMasterClient->GetMasterChannel(EMasterChannelKind::LeaderOrFollower);
+    auto channel = AuthenticatedOutputMasterClient->GetMasterChannel(EMasterChannelKind::Leader);
     TObjectServiceProxy proxy(channel);
 
     auto batchReq = proxy.ExecuteBatch();
@@ -2756,7 +2756,7 @@ void TOperationControllerBase::DoRequestFileObjects(
     std::function<void(TAttributeFilter&)> updateAttributeFilter,
     std::function<void(const TUserFile&, const IAttributeDictionary&)> onFileObject)
 {
-    auto channel = AuthenticatedOutputMasterClient->GetMasterChannel(EMasterChannelKind::LeaderOrFollower);
+    auto channel = AuthenticatedOutputMasterClient->GetMasterChannel(EMasterChannelKind::Leader);
     TObjectServiceProxy proxy(channel);
 
     auto batchReq = proxy.ExecuteBatch();
