@@ -1068,7 +1068,7 @@ void TDecoratedAutomaton::StartEpoch(TEpochContextPtr epochContext)
 
 void TDecoratedAutomaton::StopEpoch()
 {
-    auto error = TError(NRpc::EErrorCode::Unavailable, "Peer stopped");
+    auto error = TError(NHydra::EErrorCode::MaybeCommitted, "Peer stopped");
     while (!PendingMutations_.empty()) {
         auto& pendingMutation = PendingMutations_.front();
         if (pendingMutation.CommitPromise) {
