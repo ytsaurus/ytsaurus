@@ -419,8 +419,9 @@ void GetRangesFromTrieWithinRangeImpl(
             refineLower = false;
         }
 
-        if (offset >= upperBoundSize) {
-            refineUpper = false;
+        if (refineUpper && offset >= upperBoundSize) {
+            // NB: prefix is exactly the upper bound, which is non-inlusive.
+            continue;
         }
 
         YCHECK(!refineLower || offset < lowerBoundSize);
@@ -535,9 +536,7 @@ void GetRangesFromTrieWithinRangeImpl(
             }
 
             if (refineUpper) {
-                if (value > keyRange.second[offset] ||
-                    (value == keyRange.second[offset] && offset + 1 == upperBoundSize))
-                {
+                if (value > keyRange.second[offset]) {
                     continue;
                 } else if (value == keyRange.second[offset]) {
                     refineUpperNext = true;
