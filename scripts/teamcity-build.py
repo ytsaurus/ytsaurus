@@ -297,7 +297,7 @@ def run_pytest(options, suite_name, suite_path, pytest_args=None):
 
     try:
         if failed:
-            for dir, dir_name in [(sandbox_storage, "sandbox_storage")
+            for dir, dir_name in [(sandbox_storage, "sandbox_storage"),
                                   (sandbox_current, "sandbox")]:
                 if not os.path.exists(dir):
                     continue
