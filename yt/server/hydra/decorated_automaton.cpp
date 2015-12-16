@@ -1071,7 +1071,9 @@ void TDecoratedAutomaton::StopEpoch()
     auto error = TError(NRpc::EErrorCode::Unavailable, "Peer stopped");
     while (!PendingMutations_.empty()) {
         auto& pendingMutation = PendingMutations_.front();
-        pendingMutation.CommitPromise.Set(error);
+        if (pendingMutation.CommitPromise) {
+            pendingMutation.CommitPromise.Set(error);
+        }
         PendingMutations_.pop();
     }
 
