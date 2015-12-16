@@ -1,5 +1,7 @@
 #include "operation.h"
 
+#include <mapreduce/yt/interface/errors.h>
+
 #include <mapreduce/yt/common/log.h>
 #include <mapreduce/yt/common/config.h>
 #include <mapreduce/yt/common/serialize.h>
@@ -312,16 +314,21 @@ void WaitForOperation(
             LOG_INFO("Operation %s completed", ~opIdStr);
             break;
 
-        } else if (state == "aborted") {
-            LOG_FATAL("Operation %s aborted", ~opIdStr);
-
-        } else if (state == "failed") {
-            LOG_ERROR("Operation %s failed", ~opIdStr);
+        } else if (state == "aborted" || state == "failed") {
+            LOG_ERROR("Operation %s %s", ~opIdStr, ~state);
             Stroka errorPath = opPath + "/@result/error";
-            Stroka error = Get(auth, transactionId, errorPath);
-            Cerr << error << Endl;
+            Stroka error;
+            if (Exists(auth, transactionId, errorPath)) {
+                error = Get(auth, transactionId, errorPath);
+                Cerr << error << Endl;
+            }
             DumpOperationStderrs(auth, transactionId, opPath);
-            LOG_FATAL("");
+            ythrow TOperationFailedError(
+                state == "aborted" ?
+                    TOperationFailedError::Aborted :
+                    TOperationFailedError::Failed,
+                operationId,
+                error);
         }
 
         Sleep(checkOperationStateInterval);
