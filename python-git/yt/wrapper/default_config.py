@@ -169,6 +169,7 @@ default_config = {
     "write_retries": {
         "enable": True,
         # The size of data chunk that retried.
+        # It is also used as a portion of reading file stream even if retries are disabled.
         "chunk_size": 512 * common.MB
     },
 

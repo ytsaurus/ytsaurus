@@ -1,5 +1,5 @@
 from yt.wrapper.common import update, unlist, parse_bool, dict_depth, bool_to_string, \
-                              is_prefix, prefix, first_not_none, chunk_iter_lines
+                              is_prefix, prefix, first_not_none, chunk_iter_blobs
 import yt.wrapper as yt
 
 import pytest
@@ -62,11 +62,11 @@ def test_first_not_none():
     with pytest.raises(StopIteration):
         first_not_none([])
 
-def test_chunk_iter_lines():
+def test_chunk_iter_blobs():
     # Is it right behaviour?
     lines = ["ab", "abc", "def", "ghijklmn", "op"]
-    assert list(chunk_iter_lines(lines, 100)) == [lines]
-    assert list(chunk_iter_lines(lines, 3)) == \
+    assert list(chunk_iter_blobs(lines, 100)) == [lines]
+    assert list(chunk_iter_blobs(lines, 3)) == \
            [["ab", "abc"], ["def"], ["ghijklmn"], ["op"]]
-    assert list(chunk_iter_lines(["abcdef"], 2)) == [["abcdef"], []]
+    assert list(chunk_iter_blobs(["abcdef"], 2)) == [["abcdef"], []]
 
