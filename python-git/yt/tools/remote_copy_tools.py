@@ -12,6 +12,10 @@ import tempfile
 import tarfile
 from copy import deepcopy
 
+# NB: We have no ability to discover maximum number of jobs in map operation in cluster.
+# So we suppose that it is 100000 like on most clusters.
+DEFAULT_MAXIMUM_YT_JOB_COUNT = 100000
+
 class IncorrectRowCount(yt.YtError):
     pass
 
@@ -266,15 +270,18 @@ def copy_yt_to_yt_through_proxy(source_client, destination_client, src, dst, fas
             source_client.lock(src, mode="snapshot")
             files = _prepare_read_from_yt_command(source_client, src.to_yson_string(), "json", tmp_dir, fastbone, pack=True)
 
+            ranges = _split_rows_yt(source_client, src.name, 1024 * yt.common.MB)
+            use_sorted_by_on_dst = len(ranges) <= DEFAULT_MAXIMUM_YT_JOB_COUNT
+
             sorted_by = None
             dst_table = dst
             if source_client.exists(src.name + "/@sorted_by"):
                 sorted_by = source_client.get(src.name + "/@sorted_by")
                 dst_table = yt.TablePath(dst, client=source_client)
-                dst_table.attributes["sorted_by"] = sorted_by
+                if use_sorted_by_on_dst:
+                    dst_table.attributes["sorted_by"] = sorted_by
             row_count = source_client.get(src.name + "/@row_count")
 
-            ranges = _split_rows_yt(source_client, src.name, 1024 * yt.common.MB)
             temp_table = destination_client.create_temp_table(prefix=os.path.basename(src.name))
             destination_client.write_table(temp_table, (json.dumps({"start": start, "end": end}) for start, end in ranges), format=yt.JsonFormat())
 
@@ -297,6 +304,9 @@ def copy_yt_to_yt_through_proxy(source_client, destination_client, src, dst, fas
                 error = "Incorrect record count (expected: %d, actual: %d)" % (row_count, result_row_count)
                 logger.error(error)
                 raise IncorrectRowCount(error)
+
+            if sorted_by is not None and not use_sorted_by_on_dst:
+                destination_client.run_sort(dst, sort_by=sorted_by, spec=postprocess_spec_template)
 
             run_erasure_merge(source_client, destination_client, src.name, dst, spec=postprocess_spec_template)
             copy_user_attributes(source_client, destination_client, src.name, dst)
