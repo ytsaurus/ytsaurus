@@ -339,15 +339,18 @@ def add_get_parser(add_parser):
 
 def set(**args):
     if args["value"] is None:
-        raw_value = sys.stdin.read()
+        value = sys.stdin.read()
     else:
-        raw_value = args["value"]
-    value = parse_arguments(raw_value)
-    yt.set(args["path"], value)
+        value = args["value"]
+    if args["format"] is None:
+        value = parse_arguments(value)
+    args["value"] = value
+    yt.set(**args)
 
 def add_set_parser(add_parser):
     parser = add_parser("set", yt.set)
     add_ypath_argument(parser)
+    add_structured_format_help(parser)
     parser.add_argument("value", nargs="?", help="new node attribute value, in {0} format. You can specify in bash pipe: "
                                                  "\"cat file_with_value | yt set //tmp/my_node\"".format(YT_ARGUMENTS_FORMAT))
     parser.set_defaults(func=set)

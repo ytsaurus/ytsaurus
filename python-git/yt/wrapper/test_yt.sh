@@ -81,6 +81,9 @@ test_cypress_commands()
     ./yt set //home/wrapper_test/folder/@attr '<a=b>c'
     check  '<"a"="b">"c"' "$(fix_yson_repr `./yt get //home/wrapper_test/folder/@attr --format '<format=text>yson'`)"
 
+    ./yt set //home/wrapper_test/folder/@attr '{"attr": 10}' --format json
+    check '{"attr":10}' `./yt get //home/wrapper_test/folder/@attr --format json`
+
     ./yt create file //home/wrapper_test/file_with_attrs --attributes "{testattr=1;other=2}" --ignore-existing
     check "//home/wrapper_test/file_with_attrs" "`./yt find //home/wrapper_test --attribute-filter "testattr=1"`"
     check "" "`./yt find //home/wrapper_test --attribute-filter "attr=1"`"
