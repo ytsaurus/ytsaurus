@@ -56,8 +56,7 @@ udf_bc(
   ${BASE}/udf/lower.cpp
   YT_SOURCE_FILES
   FILES
-    ${CMAKE_SOURCE_DIR}/util/charset/utf.cpp
-    ${CMAKE_SOURCE_DIR}/util/charset/generated/unidata.cpp
+    ${CMAKE_SOURCE_DIR}/util/charset/utf8.cpp
 )
 
 udf_bc(

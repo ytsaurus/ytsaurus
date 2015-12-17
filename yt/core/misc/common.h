@@ -25,9 +25,11 @@
 
 namespace std {
 
-#if defined(YMAKE) || (defined(__GNUC__) && !defined(__clang__) && __GNUC__ == 4 && __GNUC_MINOR__ < 9)
-// As of now, GCC does not support make_unique.
-// See https://gcc.gnu.org/ml/libstdc++/2014-06/msg00010.html
+// Make global hash functions from util/ visible for STL.
+template <> struct hash<Stroka> : public ::hash<Stroka> { };
+template <> struct hash<TStringBuf> : public ::hash<TStringBuf> { };
+
+#if !defined(__cpp_lib_make_unique)
 template <typename TResult, typename ...TArgs>
 std::unique_ptr<TResult> make_unique(TArgs&& ...args)
 {
@@ -51,10 +53,10 @@ template <typename _Tp, typename... _Types>
   {
     static const size_t _S_alignment =
       alignof(_Tp) > __strictest_alignment<_Types...>::_S_alignment
- ? alignof(_Tp) : __strictest_alignment<_Types...>::_S_alignment;
+      ? alignof(_Tp) : __strictest_alignment<_Types...>::_S_alignment;
     static const size_t _S_size =
       sizeof(_Tp) > __strictest_alignment<_Types...>::_S_size
- ? sizeof(_Tp) : __strictest_alignment<_Types...>::_S_size;
+      ? sizeof(_Tp) : __strictest_alignment<_Types...>::_S_size;
   };
 
 template <size_t _Len, typename... _Types>
@@ -65,7 +67,7 @@ template <size_t _Len, typename... _Types>
 
     using __strictest = __strictest_alignment<_Types...>;
     static const size_t _S_len = _Len > __strictest::_S_size
- ? _Len : __strictest::_S_size;
+      ? _Len : __strictest::_S_size;
   public:
     /// The value of the strictest alignment of _Types.
     static const size_t alignment_value = __strictest::_S_alignment;
@@ -80,7 +82,7 @@ template <size_t _Len, typename... _Types>
 
 #if defined(__GNUC__) && __GNUC__ == 4 && __GNUC_MINOR__ == 7
 // GCC 4.7 defines has_trivial_destructor instead of is_trivially_destructible.
-template<typename T>
+template <typename T>
 using is_trivially_destructible = std::has_trivial_destructor<T>;
 #endif
 
