@@ -3,8 +3,8 @@
 import yt.logger as logger
 import config
 from config import get_option, get_config, get_total_request_timeout, get_single_request_timeout, get_request_retry_count
-from common import get_backoff, chunk_iter_lines
-from errors import YtResponseError, YtRetriableError 
+from common import get_backoff, chunk_iter_blobs
+from errors import YtResponseError, YtRetriableError
 from table import to_table, to_name
 from transaction import Transaction
 from transaction_commands import _make_transactional_request
@@ -34,6 +34,9 @@ class FakeTransaction(object):
         pass
 
 def make_write_request(command_name, stream, path, params, create_object, use_retries, client=None):
+    """
+    param stream: list or iterator over string blobs.
+    """
     path = to_table(path, client=client)
     request_timeout = get_total_request_timeout(client)
 
@@ -46,7 +49,7 @@ def make_write_request(command_name, stream, path, params, create_object, use_re
             chunk_size = get_config(client)["write_retries"]["chunk_size"]
 
             started = False
-            for chunk in chunk_iter_lines(stream, chunk_size):
+            for chunk in chunk_iter_blobs(stream, chunk_size):
                 assert isinstance(chunk, list)
 
                 if started:

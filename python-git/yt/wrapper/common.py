@@ -77,7 +77,7 @@ def first_not_none(iter):
 def merge_dicts(*dicts):
     return dict(chain(*[d.iteritems() for d in dicts]))
 
-def chunk_iter_lines(lines, chunk_size):
+def chunk_iter_blobs(lines, chunk_size):
     """ Unite lines into large chunks """
     size = 0
     chunk = []

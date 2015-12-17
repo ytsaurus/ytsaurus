@@ -15,6 +15,16 @@ import os
 import hashlib
 from functools import partial
 
+def _is_freshly_opened_file(stream):
+    return hasattr(stream, "fileno") and stream.tell() == 0
+
+def _get_file_size(fstream):
+    # We presuppose that current position in file is 0
+    fstream.seek(0, os.SEEK_END)
+    size = fstream.tell()
+    fstream.seek(0, os.SEEK_SET)
+    return size
+
 def md5sum(filename):
     with open(filename, mode='rb') as fin:
         h = hashlib.md5()
@@ -92,12 +102,26 @@ def write_file(destination, stream, file_writer=None, client=None):
     :param stream: some stream, string generator or 'yt.wrapper.string_iter_io.StringIterIO' for example
     :param file_writer: (dict) spec of upload operation
     """
-    # Read stream by chunks. Also it helps to correctly process StringIO from cStringIO (it has bug with default iteration)
+
+    chunk_size = get_config(client)["write_retries"]["chunk_size"]
+
+    is_one_small_blob = False
+    # Read out file into the memory if it is small.
+    if _is_freshly_opened_file(stream) and _get_file_size(stream) <= chunk_size:
+        stream = stream.read()
+        is_one_small_blob = True
+
+    # Read stream by chunks. Also it helps to correctly process StringIO from cStringIO (it has bug with default iteration).
+    # Also it allows to avoid reading file by lines that may be slow.
     if hasattr(stream, "read"):
         # read files by chunks, not by lines
-        stream = chunk_iter_stream(stream, get_config(client)["write_retries"]["chunk_size"])
+        stream = chunk_iter_stream(stream, chunk_size)
     if isinstance(stream, basestring):
-        stream = chunk_iter_string(stream, get_config(client)["write_retries"]["chunk_size"])
+        if len(stream) <= chunk_size:
+            is_one_small_blob = True
+            stream = [stream]
+        else:
+            stream = chunk_iter_string(stream, chunk_size)
 
     params = {}
     if file_writer is not None:
@@ -108,7 +132,8 @@ def write_file(destination, stream, file_writer=None, client=None):
         if "file_writer" not in params:
             params["file_writer"] = {}
         params["file_writer"]["desired_chunk_size"] = 1024 ** 4
-        enable_retries = False
+        if not is_one_small_blob:
+            enable_retries = False
 
     make_write_request(
         "upload" if get_api_version(client=client) == "v2" else "write_file",
