@@ -43,6 +43,10 @@ class TestCypressCommands(object):
         assert json.loads(yt.get(TEST_DIR, format=yt.format.JsonFormat())) == {"some_node": {}}
         assert json.loads(yt.get(TEST_DIR, format="json")) == {"some_node": {}}
 
+        yt.set(TEST_DIR, '{"other_node": {}}', format="json")
+        assert yt.get(TEST_DIR) == {"other_node": {}}
+        assert json.loads(yt.get(TEST_DIR, format="json")) == {"other_node": {}}
+
     def test_remove(self):
         for recursive in [False, True]:
             with pytest.raises(yt.YtError):

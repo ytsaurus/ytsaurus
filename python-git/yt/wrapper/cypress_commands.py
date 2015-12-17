@@ -5,6 +5,7 @@ from errors import YtResponseError
 from transaction_commands import _make_transactional_request, \
                                  _make_formatted_transactional_request
 from table import prepare_path, to_name
+from format import create_format
 
 import yt.logger as logger
 
@@ -38,20 +39,28 @@ def get(path, attributes=None, format=None, ignore_opaque=False, client=None):
         format=format,
         client=client)
 
-def set(path, value, client=None):
+def set(path, value, format=None, client=None):
     """Set new value to Cypress node.
 
     :param path: (string or `yt.wrapper.table.TablePath`)
     :param value: json-able object.
     .. seealso:: `set on wiki <https://wiki.yandex-team.ru/yt/Design/ClientInterface/Core#set>`_
+    :param format: format of the value. If format is None than value should be json-able object. Otherwise it should be string.
     """
+    if format is None:
+        value = yson.dumps(value)
+        format = "yson"
+
+    if isinstance(format, str):
+        format = create_format(format)
+
     return _make_transactional_request(
         "set",
         {
             "path": prepare_path(path, client=client),
-            "input_format": "yson"
+            "input_format": format.to_yson_type()
         },
-        data=yson.dumps(value),
+        data=value,
         client=client)
 
 def copy(source_path, destination_path, preserve_account=None, force=None, client=None):
