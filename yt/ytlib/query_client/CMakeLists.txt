@@ -58,3 +58,16 @@ udf_bc(
   FILES
     ${CMAKE_SOURCE_DIR}/util/charset/utf.cpp
     ${CMAKE_SOURCE_DIR}/util/charset/generated/unidata.cpp)
+)
+
+udf_bc(
+  ${BASE}/udf/dates.c
+  YT_SOURCE_FILES
+  SYMBOLS
+    format_timestamp
+    timestamp_floor_hour
+    timestamp_floor_day
+    timestamp_floor_week
+    timestamp_floor_month
+    timestamp_floor_year
+)
