@@ -52,6 +52,7 @@ TFuture<void> TSnapshotBuilder::Run()
         NFS::ForcePath(Config->SnapshotTempPath);
         NFS::CleanTempFiles(Config->SnapshotTempPath);
     } catch (const std::exception& ex) {
+        LOG_ERROR(ex, "Error preparing snapshot directory");
         return MakeFuture(TError(ex));
     }
 
