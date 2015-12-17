@@ -73,8 +73,8 @@ def get_header_format(client):
         "json" if get_api_version(client=client) == "v2" else "yson")
 
 def create_response(response, request_headers, client):
-    header_format = get_header_format(client)
     def loads(str):
+        header_format = get_header_format(client)
         if header_format == "json":
             return yson.json_to_yson(json.loads(str))
         if header_format == "yson":
