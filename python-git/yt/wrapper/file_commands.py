@@ -16,7 +16,10 @@ import hashlib
 from functools import partial
 
 def _is_freshly_opened_file(stream):
-    return hasattr(stream, "fileno") and stream.tell() == 0
+    try:
+        return hasattr(stream, "fileno") and stream.tell() == 0
+    except IOError:
+        return False
 
 def _get_file_size(fstream):
     # We presuppose that current position in file is 0
