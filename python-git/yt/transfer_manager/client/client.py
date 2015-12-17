@@ -164,6 +164,8 @@ class TransferManager(object):
                 state = self.get_task_info(task)["state"]
                 if state == "completed":
                     logger.info("Task %s completed", task)
+                if state == "skipped":
+                    logger.info("Task %s skipped", task)
                 elif state == "aborted":
                     logger.warning("Task {0} was aborted".format(task))
                     aborted_task_count += 1

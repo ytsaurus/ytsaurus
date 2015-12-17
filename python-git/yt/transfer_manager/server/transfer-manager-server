@@ -158,7 +158,7 @@ class Task(object):
     # NB: destination table is missing if we copy to kiwi
     def __init__(self, source_cluster, source_table, destination_cluster, creation_time, id, state, user,
                  destination_table=None, source_cluster_token=None, token=None, destination_cluster_token=None, mr_user=None, error=None,
-                 start_time=None, finish_time=None, copy_method=None, progress=None, backend_tag=None, kiwi_user=None, kwworm_options=None, pool=None, meta=None,
+                 start_time=None, finish_time=None, copy_method=None, skip_if_destination_exists=None, progress=None, backend_tag=None, kiwi_user=None, kwworm_options=None, pool=None, meta=None,
                  destination_compression_codec=None, destination_erasure_codec=None, destination_force_sort=None, copy_spec=None, postprocess_spec=None,
                  job_timeout=None, lease_timeout=None, queue_name=None):
         self.source_cluster = source_cluster
@@ -178,6 +178,7 @@ class Task(object):
         self.error = error
         self.token = token
         self.copy_method = copy_method
+        self.skip_if_destination_exists = skip_if_destination_exists
         self.progress = progress
 
         self.backend_tag = backend_tag
@@ -895,6 +896,7 @@ class Application(object):
                     logger.info("Task %s %s", id, self._tasks[id].state)
                     error = None
                     completed = False
+                    complete_type = None
 
                     process_is_alive = process.poll() is None
 
@@ -910,8 +912,9 @@ class Application(object):
                         elif message["type"] == "operation_started":
                             self._tasks[id].progress["operations"].append(message["operation"])
                             self._dump_task(id)
-                        elif message["type"] == "completed":
+                        elif message["type"] in ["completed", "skipped"]:
                             completed = True
+                            complete_type = message["type"]
                         else:
                             assert False, "Incorrect message type: " + message["type"]
 
@@ -937,7 +940,7 @@ class Application(object):
                         elif completed:
                             if process_is_alive:
                                 logger.warning("Task completed, but process still alive!")
-                            self._change_task_state(id, "completed")
+                            self._change_task_state(id, complete_type)
 
                         self._dump_task(id)
                         self._running_tasks_queues[self._tasks[id].get_queue_id()].remove(id)
@@ -1026,7 +1029,13 @@ class Application(object):
             fastbone = source_client._parameters.get("fastbone", False) and destination_client._parameters.get("fastbone", False)
             fastbone = parameters.get("fastbone", fastbone)
 
-            if source_client._type == "yt" and destination_client._type == "yt":
+            skipped = False
+            if task.skip_if_destination_exists and (
+                    (destination_client._type == "yamr" and not destination_client.is_empty(task.destination_table)) or \
+                    (destination_client._type == "yt" and destination_client.exists(task.destination_table))):
+                logger.info("Copying skipped since 'skip_if_destination_exists' option specified and destination table exists")
+                skipped = True
+            elif source_client._type == "yt" and destination_client._type == "yt":
                 logger.info("Running YT -> YT remote copy operation")
                 if task.copy_method == "proxy":
                     copy_yt_to_yt_through_proxy(
@@ -1113,9 +1122,11 @@ class Application(object):
                 raise Exception("Incorrect cluster types: {} source and {} destination".format(
                                 source_client._type,
                                 destination_client._type))
-            logger.info("Task completed")
-
-            message_queue.put({"type": "completed"})
+            if skipped:
+                message_queue.put({"type": "skipped"})
+            else:
+                logger.info("Task completed")
+                message_queue.put({"type": "completed"})
 
             # NB: hack to avoid process died silently.
             time.sleep(0.5)

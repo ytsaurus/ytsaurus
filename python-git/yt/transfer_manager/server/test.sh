@@ -77,7 +77,7 @@ wait_task() {
         if [ "$state" = '"failed"' ] || [ "$state" = '"aborted"' ]; then
             die "Task $id $state"
         fi
-        if [ "$state" = '"completed"' ]; then
+        if [ "$state" = '"completed"' ] || [ "$state" = '"skipped"' ]; then
             break
         fi
         sleep 1.0
@@ -300,6 +300,16 @@ test_types_preserving_during_copy() {
     unset YT_VERSION
 }
 
+test_skip_if_destination_exists() {
+    echo 'a=b' | yt2 write //tmp/test_table --proxy quine --format dsv
+    echo 'c=d' | yt2 write //tmp/test_table --proxy plato --format dsv
+
+    id=$(run_task '{"source_table": "//tmp/test_table", "source_cluster": "quine", "destination_table": "//tmp/test_table", "destination_cluster": "plato", "skip_if_destination_exists": true}')
+    wait_task $id
+
+    check "c=d" "$(yt2 read //tmp/test_table --proxy plato --format dsv)"
+}
+
 # Different transfers
 echo -e "a\tb\nc\td\ne\tf" | yt2 write //tmp/test_table --format yamr --proxy smith.yt.yandex.net
 yt2 sort --src //tmp/test_table --dst //tmp/test_table --sort-by key --sort-by subkey --proxy smith.yt.yandex.net
@@ -320,3 +330,4 @@ test_recursive_path_creation
 test_passing_custom_spec
 test_clusters_configuration_reloading
 test_types_preserving_during_copy
+test_skip_if_destination_exists
