@@ -31,18 +31,15 @@ def lazy_import_requests():
         import yt.packages.requests
         requests = yt.packages.requests
 
-session_ = None
-def get_session():
+def get_session(client=None):
     lazy_import_requests()
-    global session_
-    if session_ is None:
-        session_ = requests.Session()
-    return session_
+    if get_option("_requests_session", client) is None:
+        set_option("_requests_session", requests.Session(), client)
+    return get_option("_requests_session", client)
 
-def _cleanup_http_session():
+def _cleanup_http_session(client=None):
     lazy_import_requests()
-    global session_
-    session_ = requests.Session()
+    set_option("_requests_session", requests.Session(), client)
 
 def configure_ip(client):
     if get_option("_ip_configured", client):
