@@ -158,7 +158,6 @@ public:
         if (RuntimeInfo_->Descriptor.OneWay)
             return;
 
-        TGuard<TSpinLock> guard(SpinLock_);
         DoSetComplete();
     }
 
@@ -176,12 +175,12 @@ private:
     TSpinLock SpinLock_;
     bool Started_ = false;
     bool RunningSync_ = false;
-    bool Completed_ = false;
     TSingleShotCallbackList<void()> Canceled_;
-    bool Finalized_ = false;
     NProfiling::TCpuInstant ArrivalTime_;
     NProfiling::TCpuInstant StartTime_ = -1;
 
+    std::atomic_flag Completed_ = ATOMIC_FLAG_INIT;
+    bool Finalized_ = false;
 
     void Initialize()
     {
@@ -209,16 +208,22 @@ private:
 
     void Finalize()
     {
-        if (RuntimeInfo_->Descriptor.OneWay || Finalized_)
+        if (RuntimeInfo_->Descriptor.OneWay) {
             return;
+        }
+
+        // Finalize is called from DoReply and ~TServiceContext.
+        // Clearly there could be no race between these two.
+        if (Finalized_) {
+            return;
+        }
+        Finalized_ = true;
 
         if (RuntimeInfo_->Descriptor.Cancelable) {
             Service_->UnregisterCancelableRequest(this);
         }
 
         DoSetComplete();
-
-        Finalized_ = true;
     }
 
 
@@ -366,8 +371,10 @@ private:
 
     void DoSetComplete()
     {
-        if (Completed_)
+        // DoSetComplete could be called from anywhere so it is racy.
+        if (Completed_.test_and_set()) {
             return;
+        }
 
         // NB: This counter is also used to track queue size limit so
         // it must be maintained even if the profiler is OFF.
@@ -375,8 +382,6 @@ private:
 
         TServiceBase::ReleaseRequestSemaphore(RuntimeInfo_);
         TServiceBase::ScheduleRequests(RuntimeInfo_);
-
-        Completed_ = true;
     }
 
 
