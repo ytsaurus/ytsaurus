@@ -70,8 +70,13 @@ def parse_error_from_headers(headers):
         return json.loads(headers["x-yt-error"])
     return None
 
+def get_header_format(client):
+    return get_value(
+        get_config(client)["proxy"]["header_format"],
+        "json" if get_api_version(client=client) == "v2" else "yson")
+
 def create_response(response, request_headers, client):
-    header_format = get_value(get_config(client)["proxy"]["header_format"], "json")
+    header_format = get_header_format(client)
     def loads(str):
         if header_format == "json":
             return yson.json_to_yson(json.loads(str))

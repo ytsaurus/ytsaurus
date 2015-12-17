@@ -1,9 +1,9 @@
 import yson
 from config import get_config, get_option
 from compression_wrapper import create_zlib_generator
-from common import require, generate_uuid, bool_to_string, get_value, get_version, total_seconds
+from common import require, generate_uuid, bool_to_string, get_version, total_seconds
 from errors import YtError, YtHttpResponseError, YtProxyUnavailable
-from http import make_get_request_with_retries, make_request_with_retries, get_token, get_api_version, get_api_commands, get_proxy_url, parse_error_from_headers
+from http import make_get_request_with_retries, make_request_with_retries, get_token, get_api_version, get_api_commands, get_proxy_url, parse_error_from_headers, get_header_format
 from response_stream import ResponseStream
 
 import yt.logger as logger
@@ -128,7 +128,7 @@ def make_request(command_name, params,
                "Accept-Encoding": get_config(client)["proxy"]["accept_encoding"],
                "X-YT-Correlation-Id": generate_uuid()}
 
-    header_format = get_value(get_config(client)["proxy"]["header_format"], "json")
+    header_format = get_header_format(client)
     if header_format not in ["json", "yson"]:
         raise YtError("Incorrect headers format: " + str(header_format))
     def dumps(obj):
