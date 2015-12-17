@@ -9,6 +9,7 @@ import yt.yson as yson
 import yt.json as json
 
 import os
+import sys
 import random
 import string
 import time
@@ -147,10 +148,14 @@ def make_request_with_retries(method, url, make_retries=True, retry_unavailable_
                 if get_option("_ENABLE_HTTP_CHAOS_MONKEY", client) and random.randint(1, 5) == 1:
                     raise YtIncorrectResponse("", response)
             except requests.ConnectionError as error:
-                if hasattr(error, "response") and error.response:
-                    raise YtHttpResponseError(url, headers, create_response(error.response, headers, client).error())
-                else:
-                    raise
+                exc_info = sys.exc_info()
+                if hasattr(error, "response") and error.response is not None:
+                    try:
+                        response_error = YtHttpResponseError(url, headers, create_response(error.response, headers, client).error())
+                    except:
+                        raise exc_info[0], exc_info[1], exc_info[2]
+                    raise response_error
+                raise
 
             # Sometimes (quite often) we obtain incomplete response with body expected to be JSON.
             # So we should retry such requests.
