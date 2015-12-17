@@ -782,11 +782,13 @@ class YTEnv(object):
         self.log_paths[proxy_name] = os.path.join(proxy_dir, "http_application.log")
 
         if enable_ui:
-            if not os.path.exists("/usr/share/yt-thor/"):
-                logger.warning("Failed to configure UI, /usr/share/yt-thor/ is missing, try to install yandex-yt-web-interface.")
+            web_interface_resources_path = os.environ.get("YT_LOCAL_THOR_PATH", "/usr/share/yt-thor")
+            if not os.path.exists(web_interface_resources_path):
+                logger.warning("Failed to configure UI, web interface resources are not installed. " \
+                               "Try to install yandex-yt-web-interface or set YT_LOCAL_THOR_PATH.")
                 return
             if not self._load_existing_environment:
-                shutil.copytree("/usr/share/yt-thor/", os.path.join(proxy_dir, "ui/"))
+                shutil.copytree(web_interface_resources_path, os.path.join(proxy_dir, "ui/"))
             config_path = os.path.join(proxy_dir, "ui/config.js")
             ui_config = self._get_ui_config(proxy_name)
             if not self._load_existing_environment:
