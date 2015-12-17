@@ -13,7 +13,7 @@ def _wait_task(task_id, client):
     while True:
         info = client.get_task_info(task_id)
         assert info["state"] not in ["failed", "aborted"]
-        if info["state"] == "completed":
+        if info["state"] in ["completed", "skipped"]:
             break
 
 def test_copy_between_clusters(backend_url):
