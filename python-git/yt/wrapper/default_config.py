@@ -1,6 +1,8 @@
 import common
 from verified_dict import VerifiedDict
 
+from yt.yson import YsonEntity
+
 from copy import deepcopy
 
 default_config = {
@@ -39,7 +41,7 @@ default_config = {
 
         # Format of header with yt parameters.
         # In new versions YT supports also "yson", that useful for passing unsinged int values.
-        "header_format": "json",
+        "header_format": None,
 
         # Enable using heavy proxies for heavy commands (write_*, read_*).
         "enable_proxy_discovery": True,
@@ -183,5 +185,10 @@ default_config = {
     "argcomplete_verbose": False
 }
 
+def transform_value(value):
+    if isinstance(value, YsonEntity):
+        return None
+    return value
+
 def get_default_config():
-    return VerifiedDict(["spec_defaults"], deepcopy(default_config))
+    return VerifiedDict(["spec_defaults"], transform_value, deepcopy(default_config))

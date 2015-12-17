@@ -203,7 +203,8 @@ def _prepare_format(format, raw, client):
     if format is None:
         format = get_config(client)["tabular_data_format"]
     if not raw and format is None:
-        format = YsonFormat(process_table_index=False)
+        format = YsonFormat(process_table_index=False,
+                            boolean_as_string=(get_api_version(client=client) == "v2"))
     if isinstance(format, str):
         format = create_format(format)
 
