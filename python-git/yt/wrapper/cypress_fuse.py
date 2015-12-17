@@ -3,12 +3,12 @@
 """mount-cypress -- mount a Cypress, an YT cluster metainformation tree.
 
 Usage:
-  mount-cypress <proxy> <mountpoint>
+  mount-cypress <proxy> <mount_point>
   mount-cypress (-h | --help)
 
 Arguments:
   <proxy>       Proxy alias like "aristotle.yt.yandex.net" or just "aristotle".
-  <mountpoint>  Mountpoint directory like "/mnt/aristotle".
+  <mount_point>  Mountpoint directory like "/mnt/aristotle".
 
 Options:
   -h, --help    Show this help.
@@ -108,10 +108,10 @@ def handle_yt_errors(logger):
                 return function(*args, **kwargs)
             except yt.wrapper.YtResponseError as error:
                 if not error.is_resolve_error():
-                    logger.exception("Exception caught in {}".format(function.__name__))
+                    logger.exception("Exception caught in " + function.__name__)
                 raise fuse.FuseOSError(errno.ENOENT)
             except requests.ConnectionError:
-                logger.exception("Exception caught in {}".format(function.__name__))
+                logger.exception("Exception caught in " + function.__name__)
                 raise fuse.FuseOSError(errno.EAGAIN)
 
         return cautious_function
