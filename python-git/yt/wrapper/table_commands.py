@@ -329,8 +329,9 @@ def _configure_spec(spec, client):
         "wrapper_version": get_version()}
     spec = update({"started_by": started_by}, spec)
     spec = update(deepcopy(get_config(client)["spec_defaults"]), spec)
-    if client is None and config.SPEC is not None:
-        spec = update(json.loads(get_option("SPEC", client)), spec)
+    global_spec = get_option("SPEC", client)
+    if global_spec is not None:
+        spec = update(json.loads(global_spec), spec)
     return spec
 
 def _add_input_output_spec(source_table, destination_table, spec):

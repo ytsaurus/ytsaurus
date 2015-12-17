@@ -1,4 +1,4 @@
-from config import get_config
+from config import get_config, get_option, set_option
 from common import require
 from errors import YtResponseError, YtError
 from string_iter_io import StringIterIO
@@ -12,8 +12,6 @@ except ImportError:
     Driver = None
 
 from cStringIO import StringIO
-
-driver_ = None
 
 def read_config(path):
     driver_config = yson.load(open(path))
@@ -32,17 +30,13 @@ def get_driver_instance(client):
     else:
         raise YtError("Driver config is not specified")
 
-    if client is not None:
-        if client._driver is None:
-            if Driver is None:
-                raise YtError("Driver class not found, install yt driver bindings.")
-            client._driver = Driver(driver_config)
-        return client._driver
-    else:
-        global driver_
-        if driver_ is None:
-            driver_ = Driver(driver_config)
-        return driver_
+    driver = get_option("_driver", client=client)
+    if driver is None:
+        if Driver is None:
+            raise YtError("Driver class not found, install yt driver bindings.")
+        set_option("_driver", Driver(driver_config), client=client)
+        driver = get_option("_driver", client=client)
+    return driver
 
 def convert_to_stream(data):
     if data is None:

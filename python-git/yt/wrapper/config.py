@@ -1,5 +1,6 @@
 import common
 import default_config
+import client_state
 
 import yt.yson as yson
 import yt.json as json
@@ -12,7 +13,7 @@ import types
 # To support backward compatibility we must translate uppercase fields as config values.
 # To implement this translation we replace config module with special class Config!
 
-class Config(types.ModuleType):
+class Config(types.ModuleType, client_state.ClientState):
     DEFAULT_PICKLING_FRAMEWORK = "dill"
 
     def __init__(self):
@@ -105,6 +106,7 @@ class Config(types.ModuleType):
         self.special_shortcuts = {"MERGE_INSTEAD_WARNING": int}
 
         super(Config, self).__init__(__name__)
+        client_state.ClientState.__init__(self)
 
         self.cls = Config
         self.__file__ = os.path.abspath(__file__)
@@ -135,34 +137,15 @@ class Config(types.ModuleType):
         self.common_module = common
         self.json_module = json
         self.yson_module = yson
+        self.client_state_module = client_state
 
         self._init()
         self._update_from_env()
 
     def _init(self):
+        self.client_state_module.ClientState.__init__(self)
         self.config = self.default_config_module.get_default_config()
-
-        self.CLIENT = None
-        self.RETRY = None
-        self.MUTATION_ID = None
-        self.TRACE = None
-        self.SPEC = None
-        self.TRANSACTION = "0-0-0-0"
-        self.PING_ANCESTOR_TRANSACTIONS = False
-        self._ENABLE_READ_TABLE_CHAOS_MONKEY = False
-        self._ENABLE_HTTP_CHAOS_MONKEY = False
-        self._ENABLE_HEAVY_REQUEST_CHAOS_MONKEY = False
-
         self._env_configurable_options = ["TRACE", "TRANSACTION", "PING_ANCESTOR_TRANSACTIONS", "SPEC"]
-
-        self._transaction_stack = None
-        self._banned_proxies = {}
-        self._ip_configured = False
-
-        # Cache for API version (to check it only once)
-        self._api_version = None
-        self._commands = None
-
 
     def _update_from_env(self):
         import os
@@ -285,8 +268,6 @@ class Config(types.ModuleType):
     def get_config(self, client):
         if client is not None:
             return client.config
-        elif self.CLIENT is not None:
-            return self.CLIENT.config
         else:
             return self.config
 

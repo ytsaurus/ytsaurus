@@ -1,5 +1,6 @@
 from common import update
 from default_config import get_default_config
+from client_state import ClientState
 from cypress_commands import set, get, list, exists, remove, search, mkdir, copy, move, link, get_type, create, \
                           has_attribute, get_attribute, set_attribute, list_attributes, find_free_subpath
 from acl_commands import check_permission, add_member, remove_member
@@ -19,8 +20,10 @@ from table import TempTable
 import functools
 
 # XXX(ignat): rename?
-class Yt(object):
+class Yt(ClientState):
     def __init__(self, proxy=None, token=None, config=None):
+        ClientState.__init__(self)
+
         self.config = get_default_config()
         if config is not None:
             self.config = update(self.config, config)
@@ -29,26 +32,6 @@ class Yt(object):
             self.config["proxy"]["url"] = proxy
         if token is not None:
             self.config["token"] = token
-
-        # TODO(ignat): It is copy-paste of config option. I need avoid it in some way.
-        self.RETRY = None
-        self.SPEC = None
-        self.MUTATION_ID = None
-        self.TRACE = None
-        self.TRANSACTION = "0-0-0-0"
-        self.PING_ANCESTOR_TRANSACTIONS = False
-        self._ENABLE_READ_TABLE_CHAOS_MONKEY = False
-        self._ENABLE_HTTP_CHAOS_MONKEY = False
-        self._ENABLE_HEAVY_REQUEST_CHAOS_MONKEY = False
-
-        self._transaction_stack = None
-        self._banned_proxies = {}
-        self._ip_configured = False
-        self._driver = None
-
-        # Cache for API version (to check it only once)
-        self._api_version = None
-        self._commands = None
 
     @functools.wraps(get_user_name)
     def get_user_name(self, *args, **kwargs):

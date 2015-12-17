@@ -82,10 +82,6 @@ class YtTestEnvironment(object):
 
         yt._cleanup_http_session()
 
-        # For debug purpose
-        #from yt.wrapper.client import Yt
-        #yt.config.CLIENT = Yt("localhost:%d" % cls.env._ports["proxy"][0])
-
         self.config = update(get_default_config(), config)
         self.config["operation_tracker"]["poll_period"] = 100
         self.config.DEFAULT_STRATEGY = yt.WaitStrategy(print_progress=False)
