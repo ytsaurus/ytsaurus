@@ -1259,6 +1259,9 @@ class Application(object):
         if id not in self._tasks:
             raise RequestFailed("Unknown task " + id)
 
+        with self._mutex:
+            self._check_permission(id, request.headers, "Aborting")
+
         waiting_abort = self._abort_task(id)
         if waiting_abort is not None:
             for _ in waiting_abort:
@@ -1326,9 +1329,8 @@ class Application(object):
         if id not in self._tasks:
             raise RequestFailed("Unknown task " + id)
 
-        self._check_permission(id, request.headers, "Deleting")
-
         with self._mutex:
+            self._check_permission(id, request.headers, "Deleting")
             if self._tasks[id].state not in ["completed", "aborted", "failed"]:
                 raise RequestFailed("Cannot delete running task " + self._tasks[id].state)
             self._yt.remove(os.path.join(self._tasks_path, id), recursive=True)
