@@ -231,7 +231,7 @@ def main():
 """
 Examples:
     Write data to the table with replication factor one and gzip codec:
-            mapreduce-yt -createtable 'table' -codec gzip_normal -replicationfactor 1
+            mapreduce-yt -createtable 'table' -codec zlib6 -replicationfactor 1
             mapreduce-yt -write 'table' -append < data
 
     Read 10 records from the table:
@@ -295,7 +295,7 @@ Examples:
             ("codec",
              "NEW! type of comression used while writing table, "
              "possible values 'snappy', 'lz4', 'lz4_high_compression', "
-             "'gzip_normal', 'gzip_best_compression', 'quick_lz', "
+             "'zlib6', 'zlib9', 'quick_lz', "
              "by default value depends on yt installation."),
             ("committx",
              "NEW! commit given transaction"),

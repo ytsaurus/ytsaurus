@@ -110,7 +110,7 @@ class TestTableCommands(object):
         assert yt.row_count(table) == 0
         check([], yt.read_table(table, format=yt.DsvFormat()))
 
-        yt.create_table(TEST_DIR + "/compressed", compression_codec="gzip_best_compression")
+        yt.create_table(TEST_DIR + "/compressed", compression_codec="zlib9")
         assert yt.row_count(TEST_DIR + "/compressed") == 0
 
         yt.run_erase(table)
