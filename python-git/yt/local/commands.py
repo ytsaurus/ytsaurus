@@ -281,3 +281,28 @@ def get_proxy(id, path=None):
 
     return info["proxy"]["address"]
 
+def list_instances(path=None):
+    path = get_root_path(path)
+    result = []
+    for dir_ in os.listdir(path):
+        full_path = os.path.join(path, dir_)
+        if not os.path.isdir(dir_):
+            logger.info("Found unknown object in instances root: %s", full_path)
+            continue
+
+        info_file = os.path.join(full_path, "info.yson")
+        if not os.path.exists(info_file):
+            logger.info("Path %s does not seem to contain valid local YT instance", full_path)
+            continue
+
+        stopped = _is_stopped(dir_, path)
+        if stopped:
+            result.append((dir_, "stopped", None))
+        else:
+            try:
+                proxy_address = get_proxy(dir_, path)
+            except yt.YtError:
+                proxy_address = None
+            result.append((dir_, "running", proxy_address))
+
+    return result
