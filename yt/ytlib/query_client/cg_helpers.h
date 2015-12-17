@@ -570,6 +570,8 @@ Function* MakeFunction(llvm::Module* module, llvm::Twine name, TBody&& body)
 
     auto function = TFunctionBuilder::Do(module, name);
 
+    function->addFnAttr(llvm::Attribute::AttrKind::UWTable);
+
     TFunctionDefiner<typename TFunctionBuilder::TIndexesPack>::Do(
         module,
         function,
