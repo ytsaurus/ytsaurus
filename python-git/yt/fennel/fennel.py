@@ -160,7 +160,7 @@ class EventLog(object):
             self._archive_table_name,
             attributes={
                 "erasure_codec": "lrc_12_2_2",
-                "compression_codec": "gzip_best_compression"
+                "compression_codec": "zlib9"
             },
             ignore_existing=True)
         if not self.yt.exists(self._archive_number_of_first_row_attr):
@@ -173,15 +173,15 @@ class EventLog(object):
 
     def _do_archive(self, partition):
         desired_chunk_size = 2 * 1024 ** 3
-        approximate_gzip_compression_ratio = 0.137
-        data_size_per_job = max(1, int(desired_chunk_size / approximate_gzip_compression_ratio))
+        approximate_zlib_compression_ratio = 0.137
+        data_size_per_job = max(1, int(desired_chunk_size / approximate_zlib_compression_ratio))
 
         self.log.info("Run merge; source table: %s", partition.to_yson_type())
         self.yt.run_merge(
             source_table=partition,
             destination_table=table.TablePath(self._archive_table_name, append=True),
             mode="ordered",
-            compression_codec="gzip_best_compression",
+            compression_codec="zlib9",
             spec={
                 "combine_chunks": "true",
                 "force_transform": "true",

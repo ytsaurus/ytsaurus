@@ -27,7 +27,7 @@ strategy of waiting result, `yt.wrapper.get_config(client).DEFAULT_STRATEGY` by 
 * **replication_factor** : (Deprecated!) (integer) number of output data replicas
 
 * **compression_codec** : (Deprecated!) (one of "none" (default for files), "lz4" (default for tables), "snappy",\
- "gzip_best_compression", "gzip_normal", "lz4_high_compresion", "quick_lz") compression \
+ "zlib6", "zlib9", "lz4_high_compresion", "quick_lz") compression \
 algorithm for output data
 
 * **table_writer** : (dict) spec of `"write_table" operation \

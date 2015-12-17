@@ -201,7 +201,7 @@ test_copy_table_attributes() {
 
     set_attribute "test_key" "test_value"
     set_attribute "erasure_codec" "lrc_12_2_2"
-    set_attribute "compression_codec" "gzip_best_compression"
+    set_attribute "compression_codec" "zlib9"
 
     id=$(run_task '{"source_table": "//tmp/test_table", "source_cluster": "smith", "destination_table": "//tmp/test_table_from_smith", "destination_cluster": "plato", "pool": "ignat"}')
     wait_task $id
