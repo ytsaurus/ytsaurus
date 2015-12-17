@@ -427,4 +427,16 @@ class TestTableCommands(object):
             yt.config["proxy"]["request_retry_count"] = old_request_retry_count
             self._set_banned("false")
 
+    def test_error_occured_after_starting_to_write_chunked_requests(self):
+        if yt.config["api_version"] != "v3":
+            pytest.skip()
+
+        yt.config["proxy"]["content_encoding"] = "identity"
+        table = TEST_DIR + "/table"
+        try:
+            yt.write_table(table, iter(['{"abc": "123"}\n'] * 100000 + ["{a:b}"] + ['{"abc": "123"}\n'] * 100000), format=yt.JsonFormat())
+        except yt.YtResponseError as err:
+            assert "JSON" in str(err), "Incorrect error messager: " + str(err)
+        else:
+            assert False, "Failed to catch response error"
 
