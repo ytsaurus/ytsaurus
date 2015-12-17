@@ -36,7 +36,7 @@ std::unique_ptr<TResult> make_unique(TArgs&& ...args)
 #endif
 
 // std::aligned_union is not available in early versions of libstdc++.
-#if defined(__GLIBCXX__) && __GLIBCXX__ < 20150422
+#if defined(__GLIBCXX__) && __GLIBCXX__ <= 20151129
 
 // As of now, GCC does not have std::aligned_union.
 template <typename... _Types>
