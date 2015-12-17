@@ -60,11 +60,15 @@ def prepare(value):
     if not isinstance(value, list):
         value = [value]
     # remove surrounding [ ]
-    return yson.dumps(value)[1:-1]
+    return yson.dumps(value, boolean_as_string=False)[1:-1]
 
 # Check that table is mounted
 def mounted(path):
     return all(x["state"] == "mounted" for x in yt.get(path + "/@tablets"))
+
+# Get nice yson format
+def yson_format():
+    return yt.YsonFormat(format="text", boolean_as_string=False, process_table_index=False)
 
 ####################################################################################################
 
@@ -120,7 +124,7 @@ class ArgsMapper(object):
         while attempt < self.max_retry_count:
             try:
                 return make_request(command, params, data=data, client=client)
-            except YtResponseError as error:
+            except YtError as error:
                 errors.append((attempt, str(error)))
                 sleep(randint(1, self.sleep_interval))
         errors = ["try: %s\nerror:%s\n" % (attempt, err) for attempt, err in errors]
@@ -138,7 +142,7 @@ class DumpMapper(ArgsMapper):
         self.source = source
 
     def __call__(self, r):
-        config = {"driver_config_path": "/etc/ytdriver.conf"}
+        config = {"driver_config_path": "/etc/ytdriver.conf", "api_version": "v3"}
         client = Yt(config=config)
 
         # Get something like ((key1, key2, key3), (bound1, bound2, bound3)) from a bound.
@@ -177,7 +181,7 @@ class RestoreMapper(ArgsMapper):
         self.schematizer = Schematizer(schema)
 
     def __call__(self, rows):
-        config = {"driver_config_path": "/etc/ytdriver.conf"}
+        config = {"driver_config_path": "/etc/ytdriver.conf", "api_version": "v3"}
         client = Yt(config=config)
 
         # Insert data into the destination table.
@@ -245,18 +249,18 @@ def get_partition_bounds(tablets, partition_bounds_table):
     else:
         tablets_table = yt.create_temp_table()
         partitions_table = yt.create_temp_table()
-        yt.write_table(tablets_table, tablets, format=yt.YsonFormat(format="text"), raw=False)
+        yt.write_table(tablets_table, tablets, yson_format(), raw=False)
         try:
             yt.run_map(
                 collect_pivot_keys_mapper,
                 tablets_table,
                 partitions_table,
                 spec={"job_count": 100, "max_failed_job_count":10},
-                format=yt.YsonFormat(format="text"))
+                format=yson_format())
         except YtError as e:
             print str(e)
             raise e
-        partition_keys = yt.read_table(partitions_table, format=yt.YsonFormat(format="text"), raw=False)
+        partition_keys = yt.read_table(partitions_table, format=yson_format(), raw=False)
         partition_keys = [p["pivot_key"] for p in partition_keys]
         yt.remove(tablets_table)
         yt.remove(partitions_table)
@@ -264,7 +268,7 @@ def get_partition_bounds(tablets, partition_bounds_table):
     partition_keys = [list(it.takewhile(lambda x : x is not None, key)) for key in partition_keys]
     partition_keys = [key for key in partition_keys if len(key) > 0]
     partition_keys = sorted(partition_keys)
-    print "Total %s partitions" % len(partition_keys)
+    print "Total %s partitions" % (len(partition_keys) + 1)
 
     # Write partition bounds into partition_bounds_table.
     regions = zip([None] + partition_keys, partition_keys + [None])
@@ -273,7 +277,8 @@ def get_partition_bounds(tablets, partition_bounds_table):
     yt.write_table(
         partition_bounds_table,
         regions,
-        format=yt.YsonFormat(format="text"), raw=False)
+        format=yson_format(),
+        raw=False)
 
 ####################################################################################################
 
@@ -322,7 +327,7 @@ def dump_table(args):
         partition_bounds_table,
         dst,
         spec=build_spec_from_args(args),
-        format=yt.YsonFormat(format="text"))
+        format=yson_format())
 
     yt.remove(partition_bounds_table)
 
@@ -349,7 +354,7 @@ def restore_table(args):
         src,
         out_table,
         spec=build_spec_from_args(args),
-        format=yt.YsonFormat(format="text", process_table_index=False))
+        format=yson_format())
 
     yt.remove(out_table)
 
