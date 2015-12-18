@@ -41,7 +41,7 @@ Stroka ToYPathLiteral(const TStringBuf& value)
     static const char* HexChars = "0123456789abcdef";
     Stroka result;
     result.reserve(value.length() + 16);
-    for (char ch : value) {
+    for (unsigned char ch : value) {
         if (ch == '\\' || ch == '/' || ch == '@' || ch == '&' || ch == '[' || ch == '{') {
             result.append('\\');
             result.append(ch);

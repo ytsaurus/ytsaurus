@@ -143,7 +143,7 @@ protected:
 
     Value* GetElementPtr(int index, int indexInStruct)
     {
-        return Builder_.CreateConstGEP2_32(KeyPtr_, index, indexInStruct);
+        return Builder_.CreateConstGEP2_32(nullptr, KeyPtr_, index, indexInStruct);
     }
 
     Value* LoadElement(Value* ptr, Type* type)
@@ -198,6 +198,7 @@ public:
     Value* GetStringData(int index) override
     {
         return Builder_.CreateConstGEP2_32(
+            nullptr,
             GetStringPtr(index),
             0,
             TypeBuilder<TDynamicString, false>::Fields::Data);
@@ -207,6 +208,7 @@ public:
     {
         return Builder_.CreateLoad(
             Builder_.CreateConstGEP2_32(
+                nullptr,
                 GetStringPtr(index),
                 0,
                 TypeBuilder<TDynamicString, false>::Fields::Length));
@@ -433,11 +435,13 @@ void TComparerBuilder::BuildStringCmp(Value* lhsLength, Value* lhsData, Value* r
     auto* minLength = CreateZExt(
         CreateMin(lhsLength, rhsLength, EValueType::Int64),
         Type::getInt64Ty(Context_));
-    auto* memcmpResult = CreateCall3(
+    auto* memcmpResult = CreateCall(
         Module_->GetRoutine("memcmp"),
-        lhsData,
-        rhsData,
-        minLength);
+        {
+            lhsData,
+            rhsData,
+            minLength
+        });
     auto* trueBB = CreateBB("memcmp.is.not.zero");
     auto* falseBB = CreateBB("memcmp.is.zero");
     CreateCondBr(CreateICmpNE(memcmpResult, getInt32(0)), trueBB, falseBB);

@@ -100,7 +100,6 @@ public:
         CommittedVersion_ = TVersion(StartVersion_.SegmentId, StartVersion_.RecordId + mutationCount);
 
         LOG_DEBUG("Flushing batched mutations (MutationCount: %v)",
-            StartVersion_,
             mutationCount);
 
         Profiler.Enqueue("/commit_batch_size", mutationCount);

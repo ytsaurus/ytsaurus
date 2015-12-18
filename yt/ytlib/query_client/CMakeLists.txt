@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 set( SRCS
   ${CMAKE_CURRENT_LIST_DIR}/plan_helpers.cpp
   ${CMAKE_CURRENT_LIST_DIR}/private.cpp
@@ -66,6 +67,9 @@ list( APPEND YT_SOURCE_FILES
   ${SRCS}
   ${HDRS}
 )
+=======
+set( BASE ${CMAKE_SOURCE_DIR}/yt/ytlib/query_client )
+>>>>>>> origin/prestable/0.17.4
 
 bison( ${CMAKE_CURRENT_LIST_DIR}/parser.yy YT_SOURCE_FILES )
 ragel( ${CMAKE_CURRENT_LIST_DIR}/lexer.rl YT_SOURCE_FILES )
@@ -84,14 +88,14 @@ udf_bc(
     cardinality_finalize
   FILES
     ${CMAKE_SOURCE_DIR}/yt/ytlib/table_client/unversioned_value.cpp
-    ${CMAKE_SOURCE_DIR}/contrib/libs/farmhash/farmhash.cc
+    ${CMAKE_SOURCE_DIR}/yt/contrib/farmhash/farmhash.cc
 )
 udf_bc(
   ${CMAKE_CURRENT_LIST_DIR}/udf/farm_hash.cpp
   YT_SOURCE_FILES
   FILES
     ${CMAKE_SOURCE_DIR}/yt/ytlib/table_client/unversioned_value.cpp
-    ${CMAKE_SOURCE_DIR}/contrib/libs/farmhash/farmhash.cc
+    ${CMAKE_SOURCE_DIR}/yt/contrib/farmhash/farmhash.cc
 )
 udf_bc(
   ${CMAKE_CURRENT_LIST_DIR}/udf/regex.cpp
@@ -106,6 +110,7 @@ udf_bc(
     regex_extract
     regex_escape
 )
+<<<<<<< HEAD
 udf_bc( ${CMAKE_CURRENT_LIST_DIR}/udf/double_cast.c YT_SOURCE_FILES )
 udf_bc( ${CMAKE_CURRENT_LIST_DIR}/udf/int64.c YT_SOURCE_FILES )
 udf_bc( ${CMAKE_CURRENT_LIST_DIR}/udf/is_null.c YT_SOURCE_FILES )
@@ -118,3 +123,36 @@ udf_bc( ${CMAKE_CURRENT_LIST_DIR}/udf/min.c YT_SOURCE_FILES )
 udf_bc( ${CMAKE_CURRENT_LIST_DIR}/udf/max.c YT_SOURCE_FILES )
 udf_bc( ${CMAKE_CURRENT_LIST_DIR}/udf/sum.c YT_SOURCE_FILES )
 udf_bc( ${CMAKE_CURRENT_LIST_DIR}/udf/avg.c YT_SOURCE_FILES )
+=======
+udf_bc( ${BASE}/udf/double_cast.c YT_SOURCE_FILES )
+udf_bc( ${BASE}/udf/int64.c YT_SOURCE_FILES )
+udf_bc( ${BASE}/udf/is_null.c YT_SOURCE_FILES )
+udf_bc( ${BASE}/udf/is_substr.c YT_SOURCE_FILES )
+udf_bc( ${BASE}/udf/is_prefix.c YT_SOURCE_FILES )
+udf_bc( ${BASE}/udf/concat.c YT_SOURCE_FILES )
+udf_bc( ${BASE}/udf/sleep.c YT_SOURCE_FILES )
+udf_bc( ${BASE}/udf/uint64.c YT_SOURCE_FILES )
+udf_bc( ${BASE}/udf/min.c YT_SOURCE_FILES )
+udf_bc( ${BASE}/udf/max.c YT_SOURCE_FILES )
+udf_bc( ${BASE}/udf/sum.c YT_SOURCE_FILES )
+udf_bc( ${BASE}/udf/avg.c YT_SOURCE_FILES )
+
+udf_bc(
+  ${BASE}/udf/lower.cpp
+  YT_SOURCE_FILES
+  FILES
+    ${CMAKE_SOURCE_DIR}/util/charset/utf8.cpp
+)
+
+udf_bc(
+  ${BASE}/udf/dates.c
+  YT_SOURCE_FILES
+  SYMBOLS
+    format_timestamp
+    timestamp_floor_hour
+    timestamp_floor_day
+    timestamp_floor_week
+    timestamp_floor_month
+    timestamp_floor_year
+)
+>>>>>>> origin/prestable/0.17.4

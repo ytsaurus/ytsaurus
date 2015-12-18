@@ -712,8 +712,6 @@ private:
         const TChunkMeta& chunkMeta)
     {
         auto samplesExt = GetProtoExtension<TOldSamplesExt>(chunkMeta.extensions());
-        auto miscExt = GetProtoExtension<TMiscExt>(chunkMeta.extensions());
-        i64 weight = std::max((i64)1, miscExt.uncompressed_data_size() / samplesExt.items_size());
 
         std::vector<TSample> samples;
         RandomSampleN(
@@ -755,7 +753,7 @@ private:
                 }
                 values.push_back(keyPart);
             }
-            SerializeSample(chunkSamples->add_samples(), std::move(values), maxSampleSize, weight);
+            SerializeSample(chunkSamples->add_samples(), std::move(values), maxSampleSize, 1);
         }
     }
 
@@ -850,9 +848,6 @@ private:
         }
 
         auto samplesExt = GetProtoExtension<TSamplesExt>(chunkMeta.extensions());
-        auto miscExt = GetProtoExtension<TMiscExt>(chunkMeta.extensions());
-        i64 weight = std::max((i64)1, miscExt.uncompressed_data_size() / samplesExt.entries_size());
-
         std::vector<TProtoStringType> samples;
         samples.reserve(sampleRequest->sample_count());
 
@@ -877,7 +872,7 @@ private:
                 values[keyIndex] = value;
             }
 
-            SerializeSample(chunkSamples->add_samples(), std::move(values), maxSampleSize, weight);
+            SerializeSample(chunkSamples->add_samples(), std::move(values), maxSampleSize, protoSample.length());
         }
     }
 

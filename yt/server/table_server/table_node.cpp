@@ -156,8 +156,7 @@ std::pair<TTableNode::TTabletListIterator, TTableNode::TTabletListIterator> TTab
 bool TTableNode::HasMountedTablets() const
 {
     for (const auto* tablet : Tablets_) {
-        if (tablet->GetState() != ETabletState::Unmounted)
-        {
+        if (tablet->GetState() != ETabletState::Unmounted) {
             return true;
         }
     }

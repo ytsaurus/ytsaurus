@@ -790,17 +790,6 @@ void TDecoratedAutomaton::LogLeaderMutation(
     LoggedVersion_ = pendingMutation.Version.Advance();
 }
 
-void TDecoratedAutomaton::CancelPendingLeaderMutations(const TError& error)
-{
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
-
-    while (!PendingMutations_.empty()) {
-        auto& pendingMutation = PendingMutations_.front();
-        pendingMutation.CommitPromise.Set(error);
-        PendingMutations_.pop();
-    }
-}
-
 void TDecoratedAutomaton::LogFollowerMutation(
     const TSharedRef& recordData,
     TFuture<void>* logResult)
@@ -1091,7 +1080,15 @@ void TDecoratedAutomaton::StartEpoch(TEpochContextPtr epochContext)
 
 void TDecoratedAutomaton::StopEpoch()
 {
-    PendingMutations_.clear();
+    auto error = TError(NHydra::EErrorCode::MaybeCommitted, "Peer stopped");
+    while (!PendingMutations_.empty()) {
+        auto& pendingMutation = PendingMutations_.front();
+        if (pendingMutation.CommitPromise) {
+            pendingMutation.CommitPromise.Set(error);
+        }
+        PendingMutations_.pop();
+    }
+
     Changelog_.Reset();
     EpochContext_.Reset();
     SnapshotVersion_ = TVersion();

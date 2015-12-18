@@ -314,8 +314,8 @@ static TNullable<TUnversionedValue> TrimSentinel(TMutableRow row)
 static void AppendSentinel(TMutableRow row, const TNullable<TUnversionedValue>& sentinel)
 {
     if (sentinel) {
-        row[row.GetCount()] = sentinel.Get();
         row.SetCount(row.GetCount() + 1);
+        row[row.GetCount()] = sentinel.Get();
     }
 }
 
@@ -544,7 +544,11 @@ void EnrichKeyRange(
 
     TDivisors divisors(divisorsSet.begin(), divisorsSet.end());
 
+<<<<<<< HEAD
     auto enumerateModulo = [&] (TMutableUnversionedRow prefixRow, auto yield) {
+=======
+    auto enumerateModulo = [&] (TUnversionedRow& prefixRow, std::function<void()> yield) {
+>>>>>>> origin/prestable/0.17.4
         for (auto& column : computedColumns) {
             auto columnIndex = column.first;
             if (column.second) {

@@ -1,39 +1,50 @@
-set( CHARSET_BASE ${CMAKE_SOURCE_DIR}/util/charset )
-set( CHARSET_SRCS
+set(CHARSET_BASE ${CMAKE_SOURCE_DIR}/util/charset)
+set(CHARSET_SRCS
+  ${CHARSET_BASE}/codepage.cpp
+  ${CHARSET_BASE}/cp_encrec.cpp
+  ${CHARSET_BASE}/doccodes.cpp
+  ${CHARSET_BASE}/generated/cp_data.cpp
+  ${CHARSET_BASE}/generated/encrec_data.cpp
+  ${CHARSET_BASE}/generated/unidata.cpp
+  ${CHARSET_BASE}/iconv.cpp
+  ${CHARSET_BASE}/recode_result.cpp
   ${CHARSET_BASE}/stroka.cpp
-  #${CHARSET_BASE}/iconv.cpp (uses iconv)
-  #${CHARSET_BASE}/generated/cp_data.cpp (uses iconv)
-  #${CHARSET_BASE}/generated/encrec_data.cpp (uses iconv)
-  #${CHARSET_BASE}/generated/unidata.cpp (uses iconv)
+  ${CHARSET_BASE}/unicode_table.cpp
+  ${CHARSET_BASE}/unidata.cpp
+  ${CHARSET_BASE}/utf8.cpp
+  ${CHARSET_BASE}/wide.cpp
 )
 
-set( STRING_BASE ${CMAKE_SOURCE_DIR}/util/string )
-set( STRING_SRCS
+set(STRING_BASE ${CMAKE_SOURCE_DIR}/util/string)
+set(STRING_SRCS
   ${STRING_BASE}/ascii.cpp
   ${STRING_BASE}/base64.cpp
+  ${STRING_BASE}/builder.cpp
   ${STRING_BASE}/cast.cc
- #${STRING_BASE}/cgiparam.cpp (uses charset/)
- #${STRING_BASE}/dtoa.cpp (included in cast.cc)
- #${STRING_BASE}/dtoa_impl.cpp (included in cast.cc)
- #${STRING_BASE}/encodexml.cpp (uses charset/)
+  ${STRING_BASE}/cgiparam.cpp
+  ${STRING_BASE}/cstriter.cpp
   ${STRING_BASE}/escape.cpp
- #${STRING_BASE}/htmlentity.cpp (uses charset/)
   ${STRING_BASE}/hex.cpp
+  ${STRING_BASE}/iterator.cpp
+  ${STRING_BASE}/join.cpp
   ${STRING_BASE}/kmp.cpp
- #${STRING_BASE}/pcdata.cpp (uses charset/)
+  ${STRING_BASE}/pcdata.cpp
   ${STRING_BASE}/printf.cpp
- #${STRING_BASE}/quote.cpp (uses charset/)
+  ${STRING_BASE}/quote.cpp
+  ${STRING_BASE}/scan.cpp
   ${STRING_BASE}/split.cpp
   ${STRING_BASE}/split_iterator.cpp
   ${STRING_BASE}/strip.cpp
+  ${STRING_BASE}/strspn.cpp
+  ${STRING_BASE}/subst.cpp
   ${STRING_BASE}/type.cpp
   ${STRING_BASE}/url.cpp
   ${STRING_BASE}/util.cpp
   ${STRING_BASE}/vector.cpp
 )
 
-set( GENERIC_BASE ${CMAKE_SOURCE_DIR}/util/generic )
-set( GENERIC_SRCS
+set(GENERIC_BASE ${CMAKE_SOURCE_DIR}/util/generic)
+set(GENERIC_SRCS
   ${GENERIC_BASE}/buffer.cpp
   ${GENERIC_BASE}/chartraits.cpp
   ${GENERIC_BASE}/guid.cpp
@@ -50,41 +61,58 @@ set( GENERIC_SRCS
   ${GENERIC_BASE}/hash_primes.cpp
 )
 
-set( DIGEST_BASE ${CMAKE_SOURCE_DIR}/util/digest )
-set( DIGEST_SRCS
+set(DIGEST_BASE ${CMAKE_SOURCE_DIR}/util/digest)
+set(DIGEST_SRCS
   ${DIGEST_BASE}/city.cpp
   ${DIGEST_BASE}/murmur.cpp
 )
 
-set( SYSTEM_BASE ${CMAKE_SOURCE_DIR}/util/system )
-set( SYSTEM_SRCS
+set(SYSTEM_BASE ${CMAKE_SOURCE_DIR}/util/system)
+set(SYSTEM_SRCS
+  ${SYSTEM_BASE}/align.cpp
   ${SYSTEM_BASE}/atexit.cpp
+  ${SYSTEM_BASE}/atomic.cpp
   ${SYSTEM_BASE}/backtrace.cpp
+  ${SYSTEM_BASE}/byteorder.cpp
   ${SYSTEM_BASE}/compat.cpp
+  ${SYSTEM_BASE}/compiler.cpp
   ${SYSTEM_BASE}/condvar.cpp
   ${SYSTEM_BASE}/context.cpp
+  ${SYSTEM_BASE}/cpu_id.cpp
   ${SYSTEM_BASE}/daemon.cpp
   ${SYSTEM_BASE}/datetime.cpp
+  ${SYSTEM_BASE}/defaults.c
   ${SYSTEM_BASE}/demangle.cpp
+  ${SYSTEM_BASE}/direct_io.cpp
   ${SYSTEM_BASE}/dynlib.cpp
+  ${SYSTEM_BASE}/env.cpp
   ${SYSTEM_BASE}/err.cpp
   ${SYSTEM_BASE}/error.cpp
   ${SYSTEM_BASE}/event.cpp
   ${SYSTEM_BASE}/execpath.cpp
   ${SYSTEM_BASE}/fasttime.cpp
+  ${SYSTEM_BASE}/fhandle.cpp
   ${SYSTEM_BASE}/file.cpp
+  ${SYSTEM_BASE}/file_lock.cpp
   ${SYSTEM_BASE}/filemap.cpp
   ${SYSTEM_BASE}/flock.cpp
   ${SYSTEM_BASE}/freeBSD_mktemp.cpp
   ${SYSTEM_BASE}/fs.cpp
   ${SYSTEM_BASE}/fstat.cpp
+  ${SYSTEM_BASE}/getpid.cpp
+  ${SYSTEM_BASE}/guard.cpp
   ${SYSTEM_BASE}/hostname.cpp
   ${SYSTEM_BASE}/hp_timer.cpp
   ${SYSTEM_BASE}/info.cpp
+  ${SYSTEM_BASE}/madvise.cpp
+  ${SYSTEM_BASE}/maxlen.cpp
+  ${SYSTEM_BASE}/mem_info.cpp
   ${SYSTEM_BASE}/mktemp.cpp
   ${SYSTEM_BASE}/mlock.cpp
   ${SYSTEM_BASE}/mutex.cpp
+  ${SYSTEM_BASE}/nice.cpp
   ${SYSTEM_BASE}/pipe.cpp
+  ${SYSTEM_BASE}/platform.cpp
   ${SYSTEM_BASE}/progname.cpp
   ${SYSTEM_BASE}/protect.cpp
   ${SYSTEM_BASE}/rusage.cpp
@@ -92,26 +120,34 @@ set( SYSTEM_SRCS
   ${SYSTEM_BASE}/sem.cpp
   ${SYSTEM_BASE}/shellcommand.cpp
   ${SYSTEM_BASE}/shmat.cpp
+  ${SYSTEM_BASE}/sigset.cpp
   ${SYSTEM_BASE}/spinlock.cpp
-  ${SYSTEM_BASE}/strlcpy.c
-  ${SYSTEM_BASE}/sysstat.cpp
-  ${SYSTEM_BASE}/thread.cpp
-  ${SYSTEM_BASE}/tls.cpp
-  ${SYSTEM_BASE}/user.cpp
-  ${SYSTEM_BASE}/yassert.cpp
-  ${SYSTEM_BASE}/yield.cpp
   ${SYSTEM_BASE}/src_location.cpp
   ${SYSTEM_BASE}/src_root.cpp
+  ${SYSTEM_BASE}/strlcpy.c
+  ${SYSTEM_BASE}/sys_alloc.cpp
+  ${SYSTEM_BASE}/sysstat.cpp
+  ${SYSTEM_BASE}/tempfile.cpp
+  ${SYSTEM_BASE}/thread.cpp
+  ${SYSTEM_BASE}/tls.cpp
+  ${SYSTEM_BASE}/types.cpp
+  ${SYSTEM_BASE}/unaligned_mem.cpp
+  ${SYSTEM_BASE}/user.cpp
+  ${SYSTEM_BASE}/utime.cpp
+  ${SYSTEM_BASE}/yassert.cpp
+  ${SYSTEM_BASE}/yield.cpp
+  ${SYSTEM_BASE}/context_x86.asm
 )
 
-if (WIN32)
-  set( SYSTEM_SRCS ${SYSTEM_SRCS}
+if(WIN32)
+  set(SYSTEM_SRCS ${SYSTEM_SRCS}
     ${SYSTEM_BASE}/fs_win.cpp
+    ${SYSTEM_BASE}/winint.cpp
   )
 endif()
 
-set( MEMORY_BASE ${CMAKE_SOURCE_DIR}/util/memory )
-set( MEMORY_SRCS
+set(MEMORY_BASE ${CMAKE_SOURCE_DIR}/util/memory)
+set(MEMORY_SRCS
   ${MEMORY_BASE}/alloc.cpp
   ${MEMORY_BASE}/blob.cpp
   ${MEMORY_BASE}/mmapalloc.cpp
@@ -120,17 +156,22 @@ set( MEMORY_SRCS
   ${MEMORY_BASE}/tempbuf.cpp
 )
 
-set( STREAM_BASE ${CMAKE_SOURCE_DIR}/util/stream )
-set( STREAM_SRCS
+set(STREAM_BASE ${CMAKE_SOURCE_DIR}/util/stream)
+set(STREAM_SRCS
+  ${STREAM_BASE}/aligned.cpp
+  ${STREAM_BASE}/base.cpp
   ${STREAM_BASE}/buffer.cpp
   ${STREAM_BASE}/buffered.cpp
- #${STREAM_BASE}/bzip2.cpp (uses contrib/libbz2)p
   ${STREAM_BASE}/debug.cpp
+  ${STREAM_BASE}/direct_io.cpp
   ${STREAM_BASE}/file.cpp
   ${STREAM_BASE}/format.cpp
+  ${STREAM_BASE}/hex.cpp
+  ${STREAM_BASE}/holder.cpp
   ${STREAM_BASE}/input.cpp
+  ${STREAM_BASE}/ios.cpp
+  ${STREAM_BASE}/labeled.cpp
   ${STREAM_BASE}/length.cpp
- #${STREAM_BASE}/lzma.cpp (uses contrib/lzmasdk)
   ${STREAM_BASE}/mem.cpp
   ${STREAM_BASE}/multi.cpp
   ${STREAM_BASE}/null.cpp
@@ -139,71 +180,88 @@ set( STREAM_SRCS
   ${STREAM_BASE}/printf.cpp
   ${STREAM_BASE}/str.cpp
   ${STREAM_BASE}/tee.cpp
+  ${STREAM_BASE}/tempbuf.cpp
+  ${STREAM_BASE}/tokenizer.cpp
+  ${STREAM_BASE}/trace.cpp
+  ${STREAM_BASE}/walk.cpp
   ${STREAM_BASE}/zerocopy.cpp
   ${STREAM_BASE}/zlib.cpp
-  ${STREAM_BASE}/tempbuf.cpp
 )
 
-set( NETWORK_BASE ${CMAKE_SOURCE_DIR}/util/network )
-set( NETWORK_SRCS
+set(NETWORK_BASE ${CMAKE_SOURCE_DIR}/util/network)
+set(NETWORK_SRCS
   ${NETWORK_BASE}/address.cpp
   ${NETWORK_BASE}/endpoint.cpp
   ${NETWORK_BASE}/hostip.cpp
   ${NETWORK_BASE}/init.cpp
   ${NETWORK_BASE}/interface.cpp
+  ${NETWORK_BASE}/iovec.cpp
+  ${NETWORK_BASE}/ip.cpp
+  ${NETWORK_BASE}/nonblock.cpp
   ${NETWORK_BASE}/pair.cpp
   ${NETWORK_BASE}/poller.cpp
+  ${NETWORK_BASE}/pollerimpl.cpp
+  ${NETWORK_BASE}/sock.cpp
   ${NETWORK_BASE}/socket.cpp
 )
 
-set( FOLDER_BASE ${CMAKE_SOURCE_DIR}/util/folder )
-set( FOLDER_SRCS
+set(FOLDER_BASE ${CMAKE_SOURCE_DIR}/util/folder)
+set(FOLDER_SRCS
   ${FOLDER_BASE}/dirut.cpp
   ${FOLDER_BASE}/filelist.cpp
   ${FOLDER_BASE}/fts.cpp
   ${FOLDER_BASE}/iterator.cpp
   ${FOLDER_BASE}/path.cpp
-  ${FOLDER_BASE}/tempdir.cpp
   ${FOLDER_BASE}/pathsplit.cpp
+  ${FOLDER_BASE}/tempdir.cpp
 )
 
 if(WIN32)
-  set( FOLDER_SRCS ${FOLDER_SRCS}
+  set(FOLDER_SRCS ${FOLDER_SRCS}
     ${FOLDER_BASE}/dirent_win.cpp
     ${FOLDER_BASE}/lstat_win.cpp
   )
 endif()
 
-set( DATETIME_BASE ${CMAKE_SOURCE_DIR}/util/datetime )
-set( DATETIME_SRCS
+set(DATETIME_BASE ${CMAKE_SOURCE_DIR}/util/datetime)
+set(DATETIME_SRCS
   ${DATETIME_BASE}/base.cpp
+  ${DATETIME_BASE}/constants.cpp
   ${DATETIME_BASE}/cputimer.cpp
   ${DATETIME_BASE}/parser.cpp
   ${DATETIME_BASE}/strptime.cpp
   ${DATETIME_BASE}/systime.cpp
 )
 
-if (WIN32)
-  set( DATETIME_SRCS ${DATETIME_SRCS}
+if(WIN32)
+  set(DATETIME_SRCS ${DATETIME_SRCS}
     ${DATETIME_BASE}/strptime.cpp
   )
 endif()
 
-set( THREAD_BASE ${CMAKE_SOURCE_DIR}/util/thread )
-set( THREAD_SRCS
+set(THREAD_BASE ${CMAKE_SOURCE_DIR}/util/thread)
+set(THREAD_SRCS
+  ${THREAD_BASE}/lfqueue.cpp
+  ${THREAD_BASE}/lfstack.cpp
   ${THREAD_BASE}/pool.cpp
   ${THREAD_BASE}/queue.cpp
-  ${THREAD_BASE}/tasks.cpp
+  ${THREAD_BASE}/singleton.cpp
 )
 
-set( RANDOM_BASE ${CMAKE_SOURCE_DIR}/util/random )
-set( RANDOM_SRCS
+set(RANDOM_BASE ${CMAKE_SOURCE_DIR}/util/random)
+set(RANDOM_SRCS
+  ${RANDOM_BASE}/common_ops.cpp
+  ${RANDOM_BASE}/easy.cpp
   ${RANDOM_BASE}/entropy.cpp
-  ${RANDOM_BASE}/mersenne.cpp
+  ${RANDOM_BASE}/fast.cpp
+  ${RANDOM_BASE}/lcg_engine.cpp
   ${RANDOM_BASE}/mersenne32.cpp
   ${RANDOM_BASE}/mersenne64.cpp
+  ${RANDOM_BASE}/mersenne.cpp
+  ${RANDOM_BASE}/normal.cpp
   ${RANDOM_BASE}/random.cpp
-  ${RANDOM_BASE}/fast.cpp
+  ${RANDOM_BASE}/shuffle.cpp
+  ${RANDOM_BASE}/uniform.cpp
 )
 
 set( DRAFT_BASE ${CMAKE_SOURCE_DIR}/util/draft )
@@ -221,20 +279,26 @@ set( DRAFT_SRCS
  #${DRAFT_BASE}/file_utils.cpp
  #${DRAFT_BASE}/free_thread_queue.cpp
  #${DRAFT_BASE}/modchooser.cpp
-  ${DRAFT_BASE}/netloss.cpp
+ #${DRAFT_BASE}/netloss.cpp
  #${DRAFT_BASE}/parse_utils.cpp
  #${DRAFT_BASE}/prob_distr.cpp
  #${DRAFT_BASE}/prog_options.cpp
 )
 
-set( ROOT_BASE ${CMAKE_SOURCE_DIR}/util )
-set( ROOT_SRCS
+set(ROOT_BASE ${CMAKE_SOURCE_DIR}/util)
+set(ROOT_SRCS
+  ${ROOT_BASE}/autoarray.cpp
+  ${ROOT_BASE}/cont_init.cpp
+  ${ROOT_BASE}/cpp11.cpp
   ${ROOT_BASE}/ffb.cpp
+  ${ROOT_BASE}/fgood.cpp
+  ${ROOT_BASE}/fput.cpp
+  ${ROOT_BASE}/str_stl.cpp
   ${ROOT_BASE}/ysafeptr.cpp
   ${ROOT_BASE}/ysaveload.cpp
 )
 
-add_library( ytext-arcadia-util STATIC
+add_library(ytext-arcadia-util STATIC
   ${CHARSET_SRCS}
   ${STRING_SRCS}
   ${GENERIC_SRCS}
@@ -251,30 +315,35 @@ add_library( ytext-arcadia-util STATIC
   ${ROOT_SRCS}
 )
 
-target_link_libraries ( ytext-arcadia-util
+target_link_libraries(ytext-arcadia-util
   deps-arcadia-contrib-libs-snappy
-  ytext-lz4
-  ytext-fastlz
-  ytext-minilzo
   deps-arcadia-contrib-libs-zlib
+<<<<<<< HEAD
   ytext-quicklz
   ytext-zstd
   ytext-brotli
+=======
+  deps-yt-contrib-lz4
+  deps-yt-contrib-fastlz
+  deps-yt-contrib-minilzo
+  deps-yt-contrib-quicklz
+  deps-yt-contrib-zstd
+>>>>>>> origin/prestable/0.17.4
 )
 
-if (CMAKE_COMPILER_IS_GNUCXX)
-  target_link_libraries( ytext-arcadia-util -ldl )
-  if (NOT APPLE)
-    target_link_libraries( ytext-arcadia-util -lrt )
+if(CMAKE_COMPILER_IS_GNUCXX)
+  target_link_libraries(ytext-arcadia-util -ldl)
+  if(NOT APPLE)
+    target_link_libraries(ytext-arcadia-util -lrt)
   endif()
 endif()
 
-include_directories( ${CMAKE_SOURCE_DIR} )
+include_directories(${CMAKE_SOURCE_DIR})
 
-if (CMAKE_COMPILER_IS_GNUCXX)
-  set_target_properties( ytext-arcadia-util PROPERTIES COMPILE_FLAGS "-fPIC" )
+if(CMAKE_COMPILER_IS_GNUCXX)
+  set_target_properties(ytext-arcadia-util PROPERTIES COMPILE_FLAGS "-fPIC")
 endif()
 
-if (APPLE)
-  set_target_properties( ytext-arcadia-util PROPERTIES COMPILE_DEFINITIONS "_REENTRANT;_XOPEN_SOURCE" )
+if(APPLE)
+  set_target_properties(ytext-arcadia-util PROPERTIES COMPILE_DEFINITIONS "_REENTRANT;_XOPEN_SOURCE")
 endif()

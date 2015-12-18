@@ -28,7 +28,7 @@
 namespace llvm {
 
 template <bool Cross>
-class TypeBuilder<re2::RE2*, Cross>
+class TypeBuilder<google::re2::RE2*, Cross>
     : public TypeBuilder<void*, Cross>
 { };
 
@@ -463,28 +463,32 @@ void ThrowException(const char* error)
     THROW_ERROR_EXCEPTION("Error while executing UDF: %s", error);
 }
 
-re2::RE2* RegexCreate(TUnversionedValue* regexp)
+google::re2::RE2* RegexCreate(TUnversionedValue* regexp)
 {
-    return new re2::RE2(re2::StringPiece(regexp->Data.String, regexp->Length));
+    return new google::re2::RE2(google::re2::StringPiece(regexp->Data.String, regexp->Length));
 }
 
-void RegexDestroy(re2::RE2* re2)
+void RegexDestroy(google::re2::RE2* re2)
 {
     delete re2;
 }
 
-ui8 RegexFullMatch(re2::RE2* re2, TUnversionedValue* string)
+ui8 RegexFullMatch(google::re2::RE2* re2, TUnversionedValue* string)
 {
     YCHECK(string->Type == EValueType::String);
 
-    return re2::RE2::FullMatch(re2::StringPiece(string->Data.String, string->Length), *re2);
+    return google::re2::RE2::FullMatch(
+        google::re2::StringPiece(string->Data.String, string->Length),
+        *re2);
 }
 
-ui8 RegexPartialMatch(re2::RE2* re2, TUnversionedValue* string)
+ui8 RegexPartialMatch(google::re2::RE2* re2, TUnversionedValue* string)
 {
     YCHECK(string->Type == EValueType::String);
 
-    return re2::RE2::PartialMatch(re2::StringPiece(string->Data.String, string->Length), *re2);
+    return google::re2::RE2::PartialMatch(
+        google::re2::StringPiece(string->Data.String, string->Length),
+        *re2);
 }
 
 void CopyString(TExecutionContext* context, TUnversionedValue* result, const std::string& str)
@@ -498,7 +502,7 @@ void CopyString(TExecutionContext* context, TUnversionedValue* result, const std
 
 void RegexReplaceFirst(
     TExecutionContext* context,
-    re2::RE2* re2,
+    google::re2::RE2* re2,
     TUnversionedValue* string,
     TUnversionedValue* rewrite,
     TUnversionedValue* result)
@@ -506,8 +510,11 @@ void RegexReplaceFirst(
     YCHECK(string->Type == EValueType::String);
     YCHECK(rewrite->Type == EValueType::String);
 
-    auto str = std::string(string->Data.String, string->Length);
-    re2::RE2::Replace(&str, *re2, re2::StringPiece(rewrite->Data.String, rewrite->Length));
+    google::re2::string str(string->Data.String, string->Length);
+    google::re2::RE2::Replace(
+        &str,
+        *re2,
+        google::re2::StringPiece(rewrite->Data.String, rewrite->Length));
 
     CopyString(context, result, str);
 }
@@ -515,7 +522,7 @@ void RegexReplaceFirst(
 
 void RegexReplaceAll(
     TExecutionContext* context,
-    re2::RE2* re2,
+    google::re2::RE2* re2,
     TUnversionedValue* string,
     TUnversionedValue* rewrite,
     TUnversionedValue* result)
@@ -523,15 +530,18 @@ void RegexReplaceAll(
     YCHECK(string->Type == EValueType::String);
     YCHECK(rewrite->Type == EValueType::String);
 
-    auto str = std::string(string->Data.String, string->Length);
-    re2::RE2::GlobalReplace(&str, *re2, re2::StringPiece(rewrite->Data.String, rewrite->Length));
+    google::re2::string str(string->Data.String, string->Length);
+    google::re2::RE2::GlobalReplace(
+        &str,
+        *re2,
+        google::re2::StringPiece(rewrite->Data.String, rewrite->Length));
 
     CopyString(context, result, str);
 }
 
 void RegexExtract(
     TExecutionContext* context,
-    re2::RE2* re2,
+    google::re2::RE2* re2,
     TUnversionedValue* string,
     TUnversionedValue* rewrite,
     TUnversionedValue* result)
@@ -539,11 +549,11 @@ void RegexExtract(
     YCHECK(string->Type == EValueType::String);
     YCHECK(rewrite->Type == EValueType::String);
 
-    std::string str;
-    re2::RE2::Extract(
-        re2::StringPiece(string->Data.String, string->Length),
+    google::re2::string str;
+    google::re2::RE2::Extract(
+        google::re2::StringPiece(string->Data.String, string->Length),
         *re2,
-        re2::StringPiece(rewrite->Data.String, rewrite->Length),
+        google::re2::StringPiece(rewrite->Data.String, rewrite->Length),
         &str);
 
     CopyString(context, result, str);
@@ -554,7 +564,8 @@ void RegexEscape(
     TUnversionedValue* string,
     TUnversionedValue* result)
 {
-    auto str = re2::RE2::QuoteMeta(re2::StringPiece(string->Data.String, string->Length));
+    auto str = google::re2::RE2::QuoteMeta(
+        google::re2::StringPiece(string->Data.String, string->Length));
 
     CopyString(context, result, str);
 }

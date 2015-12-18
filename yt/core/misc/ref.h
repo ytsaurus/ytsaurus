@@ -413,7 +413,7 @@ class TSharedRefArray
 public:
     TSharedRefArray();
     TSharedRefArray(const TSharedRefArray& other);
-    TSharedRefArray(TSharedRefArray&& other);
+    TSharedRefArray(TSharedRefArray&& other) noexcept;
     ~TSharedRefArray();
 
     explicit TSharedRefArray(const TSharedRef& part);

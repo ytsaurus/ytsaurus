@@ -1118,37 +1118,69 @@ void TOperationControllerBase::InitializeTransactions()
     }
 }
 
-void TOperationControllerBase::StartAsyncSchedulerTransaction()
+TTransactionId TOperationControllerBase::StartTransaction(
+    const Stroka& transactionName,
+    IClientPtr client,
+    const TNullable<TTransactionId>& parentTransactionId = Null)
 {
-    LOG_INFO("Starting async scheduler transaction");
+    LOG_INFO("Starting %v transaction", transactionName);
 
+<<<<<<< HEAD
     auto channel = AuthenticatedMasterClient->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
+=======
+    auto channel = client->GetMasterChannel(EMasterChannelKind::Leader);
+>>>>>>> origin/prestable/0.17.4
     TObjectServiceProxy proxy(channel);
 
     auto batchReq = proxy.ExecuteBatch();
 
     {
+<<<<<<< HEAD
         auto req = TMasterYPathProxy::CreateObject();
         req->set_type(static_cast<int>(EObjectType::Transaction));
 
         auto* reqExt = req->mutable_extensions()->MutableExtension(NTransactionClient::NProto::TTransactionCreationExt::transaction_creation_ext);
         reqExt->set_timeout(ToProto(Config->OperationTransactionTimeout));
+=======
+        auto req = TMasterYPathProxy::CreateObjects();
+        if (parentTransactionId) {
+            ToProto(req->mutable_transaction_id(), parentTransactionId.Get());
+        }
+        req->set_type(static_cast<int>(EObjectType::Transaction));
+
+        auto* reqExt = req->MutableExtension(
+            NTransactionClient::NProto::TReqStartTransactionExt::create_transaction_ext);
+        reqExt->set_timeout(Config->OperationTransactionTimeout.MilliSeconds());
+>>>>>>> origin/prestable/0.17.4
 
         auto attributes = CreateEphemeralAttributes();
-        attributes->Set("title", Format("Scheduler async for operation %v", OperationId));
+        attributes->Set("title", Format("Scheduler %v for operation %v", transactionName, OperationId));
+        attributes->Set("operation_id", OperationId);
         ToProto(req->mutable_object_attributes(), *attributes);
 
         GenerateMutationId(req);
-        batchReq->AddRequest(req, "start_async_tx");
+        batchReq->AddRequest(req, Format("start_%v_tx", transactionName));
     }
 
     auto batchRspOrError = WaitFor(batchReq->Invoke());
-    THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError), "Error starting async scheduler transaction");
+    THROW_ERROR_EXCEPTION_IF_FAILED(
+        GetCumulativeError(batchRspOrError),
+        "Error starting %v transaction",
+        transactionName);
+
     if (Operation->GetState() != EOperationState::Initializing &&
         Operation->GetState() != EOperationState::Reviving)
         throw TFiberCanceledException();
 
+    const auto& batchRsp = batchRspOrError.Value();
+    auto rspOrError = batchRsp->GetResponse<TMasterYPathProxy::TRspCreateObjects>(
+        Format("start_%v_tx", transactionName));
+    THROW_ERROR_EXCEPTION_IF_FAILED(
+        rspOrError,
+        "Error starting %v transaction",
+        transactionName);
 
+<<<<<<< HEAD
     {
         const auto& batchRsp = batchRspOrError.Value();
         auto rsp = batchRsp->GetResponse<TMasterYPathProxy::TRspCreateObject>("start_async_tx").Value();
@@ -1160,10 +1192,15 @@ void TOperationControllerBase::StartAsyncSchedulerTransaction()
 
     LOG_INFO("Scheduler async transaction started (AsyncTranasctionId: %v)",
         AsyncSchedulerTransactionId);
+=======
+    const auto& rsp = rspOrError.Value();
+    return FromProto<TTransactionId>(rsp->object_ids(0));
+>>>>>>> origin/prestable/0.17.4
 }
 
 void TOperationControllerBase::StartSyncSchedulerTransaction()
 {
+<<<<<<< HEAD
     LOG_INFO("Starting sync scheduler transaction");
 
     auto channel = AuthenticatedMasterClient->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
@@ -1203,14 +1240,24 @@ void TOperationControllerBase::StartSyncSchedulerTransaction()
 
         auto transaction = AuthenticatedMasterClient->AttachTransaction(SyncSchedulerTransactionId);
         Operation->SetSyncSchedulerTransaction(transaction);
+=======
+    TNullable<TTransactionId> userTransactionId;
+    if (Operation->GetUserTransaction()) {
+        userTransactionId = Operation->GetUserTransaction()->GetId();
+>>>>>>> origin/prestable/0.17.4
     }
+    SyncSchedulerTransactionId =
+        StartTransaction("sync", AuthenticatedMasterClient, userTransactionId);
+    auto transactionManager = Host->GetMasterClient()->GetTransactionManager();
+    Operation->SetSyncSchedulerTransaction(transactionManager->Attach(SyncSchedulerTransactionId));
 
     LOG_INFO("Scheduler sync transaction started (SyncTransactionId: %v)",
         SyncSchedulerTransactionId);
 }
 
-void TOperationControllerBase::StartInputTransaction(TTransactionId parentTransactionId)
+void TOperationControllerBase::StartAsyncSchedulerTransaction()
 {
+<<<<<<< HEAD
     LOG_INFO("Starting input transaction");
 
     auto channel = AuthenticatedInputMasterClient->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
@@ -1229,18 +1276,17 @@ void TOperationControllerBase::StartInputTransaction(TTransactionId parentTransa
         auto attributes = CreateEphemeralAttributes();
         attributes->Set("title", Format("Scheduler input for operation %v", OperationId));
         ToProto(req->mutable_object_attributes(), *attributes);
+=======
+    AsyncSchedulerTransactionId = StartTransaction("async", AuthenticatedMasterClient);
+    auto transactionManager = AuthenticatedMasterClient->GetTransactionManager();
+    Operation->SetAsyncSchedulerTransaction(transactionManager->Attach(AsyncSchedulerTransactionId));
+>>>>>>> origin/prestable/0.17.4
 
-        GenerateMutationId(req);
-        batchReq->AddRequest(req, "start_in_tx");
-    }
+    LOG_INFO("Scheduler async transaction started (AsyncTranasctionId: %v)",
+        AsyncSchedulerTransactionId);
+}
 
-    auto batchRspOrError = WaitFor(batchReq->Invoke());
-    THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError), "Error starting input transaction");
-    const auto& batchRsp = batchRspOrError.Value();
-    if (Operation->GetState() != EOperationState::Initializing &&
-        Operation->GetState() != EOperationState::Reviving)
-        throw TFiberCanceledException();
-
+<<<<<<< HEAD
     {
         auto rspOrError = batchRsp->GetResponse<TMasterYPathProxy::TRspCreateObject>("start_in_tx");
         THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error starting input transaction");
@@ -1250,12 +1296,22 @@ void TOperationControllerBase::StartInputTransaction(TTransactionId parentTransa
         auto transaction = AuthenticatedInputMasterClient->AttachTransaction(InputTransactionId);
         Operation->SetInputTransaction(transaction);
     }
+=======
+void TOperationControllerBase::StartInputTransaction(TTransactionId parentTransactionId)
+{
+    InputTransactionId =
+        StartTransaction("input", AuthenticatedInputMasterClient, parentTransactionId);
+    auto transactionManager = AuthenticatedInputMasterClient->GetTransactionManager();
+    Operation->SetInputTransaction(transactionManager->Attach(InputTransactionId));
+>>>>>>> origin/prestable/0.17.4
 
-    LOG_INFO("Input transaction started (InputTransactionId: %v)", InputTransactionId);
+    LOG_INFO("Input transaction started (InputTransactionId: %v)",
+        InputTransactionId);
 }
 
 void TOperationControllerBase::StartOutputTransaction(TTransactionId parentTransactionId)
 {
+<<<<<<< HEAD
     LOG_INFO("Starting output transaction");
 
     auto channel = AuthenticatedOutputMasterClient->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
@@ -1297,6 +1353,15 @@ void TOperationControllerBase::StartOutputTransaction(TTransactionId parentTrans
     }
 
     LOG_INFO("Output transaction started (OutputTransactionId: %v)", OutputTransactionId);
+=======
+    OutputTransactionId =
+        StartTransaction("output", AuthenticatedOutputMasterClient, parentTransactionId);
+    auto transactionManager = AuthenticatedOutputMasterClient->GetTransactionManager();
+    Operation->SetOutputTransaction(transactionManager->Attach(OutputTransactionId));
+
+    LOG_INFO("Output transaction started (OutputTransactionId: %v)",
+        OutputTransactionId);
+>>>>>>> origin/prestable/0.17.4
 }
 
 void TOperationControllerBase::PickIntermediateDataCell()
@@ -2764,9 +2829,14 @@ void TOperationControllerBase::LockInputTables()
 {
     LOG_INFO("Locking input tables");
 
+<<<<<<< HEAD
     {
         auto channel = AuthenticatedInputMasterClient->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
         TObjectServiceProxy proxy(channel);
+=======
+    auto channel = AuthenticatedInputMasterClient->GetMasterChannel(EMasterChannelKind::Leader);
+    TObjectServiceProxy proxy(channel);
+>>>>>>> origin/prestable/0.17.4
 
         auto batchReq = proxy.ExecuteBatch();
 
@@ -2845,10 +2915,17 @@ void TOperationControllerBase::BeginUploadOutputTables()
 {
     LOG_INFO("Locking output tables");
 
+<<<<<<< HEAD
     {
         auto channel = AuthenticatedOutputMasterClient->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
         TObjectServiceProxy proxy(channel);
         auto batchReq = proxy.ExecuteBatch();
+=======
+    auto channel = AuthenticatedOutputMasterClient->GetMasterChannel(EMasterChannelKind::Leader);
+    TObjectServiceProxy proxy(channel);
+
+    auto batchReq = proxy.ExecuteBatch();
+>>>>>>> origin/prestable/0.17.4
 
         for (const auto& table : OutputTables) {
             auto objectIdPath = FromObjectId(table.ObjectId);
@@ -3061,7 +3138,12 @@ void TOperationControllerBase::LockUserFiles(
     std::vector<TUserFile>* files,
     const std::vector<Stroka>& attributeKeys)
 {
+<<<<<<< HEAD
     LOG_INFO("Locking user files");
+=======
+    auto channel = AuthenticatedOutputMasterClient->GetMasterChannel(EMasterChannelKind::Leader);
+    TObjectServiceProxy proxy(channel);
+>>>>>>> origin/prestable/0.17.4
 
     {
         auto channel = AuthenticatedOutputMasterClient->GetMasterChannelOrThrow(EMasterChannelKind::Leader);

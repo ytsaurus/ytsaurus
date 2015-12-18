@@ -170,7 +170,7 @@ inline TUnversionedValue MakeUnversionedAnyValue(const TStringBuf& value, int id
 struct TUnversionedRowHeader
 {
     ui32 Count;
-    ui32 Padding;
+    ui32 Capacity;
 };
 
 static_assert(
@@ -317,12 +317,25 @@ public:
         return Header_->Count;
     }
 
+    void SetCount(int count)
+    {
+        YASSERT(count >= 0 && count <= Header_->Capacity);
+        Header_->Count = count;
+    }
+
     const TUnversionedValue& operator[] (int index) const
     {
+        YASSERT(index >= 0 && index < GetCount());
         return Begin()[index];
     }
 
-protected:
+    TUnversionedValue& operator[] (int index)
+    {
+        YASSERT(index >= 0 && index < GetCount());
+        return Begin()[index];
+    }
+
+private:
     const TUnversionedRowHeader* Header_;
 
 };
@@ -574,6 +587,7 @@ public:
 
     const TUnversionedValue& operator[] (int index) const
     {
+        YASSERT(index >= 0 && index < GetCount());
         return Begin()[index];
     }
 
@@ -610,6 +624,19 @@ public:
         return *this;
     }
 
+<<<<<<< HEAD
+=======
+    int GetSize() const
+    {
+        return StringData_.length() + RowData_.Size();
+    }
+
+    size_t SpaceUsed() const
+    {
+        return sizeof(*this) + StringData_.capacity() + RowData_.Size();
+    }
+
+>>>>>>> origin/prestable/0.17.4
     void Save(TStreamSaveContext& context) const;
     void Load(TStreamLoadContext& context);
 
@@ -669,7 +696,6 @@ private:
         sizeof(TUnversionedRowHeader) +
         DefaultValueCapacity * sizeof(TUnversionedValue);
 
-    int ValueCapacity_;
     SmallVector<char, DefaultBlobCapacity> RowData_;
 
     TUnversionedRowHeader* GetHeader();
@@ -696,7 +722,6 @@ public:
 
 private:
     int InitialValueCapacity_;
-    int ValueCapacity_;
 
     TBlob RowData_;
     Stroka StringData_;
