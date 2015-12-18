@@ -434,6 +434,11 @@ EExitCode GuardedMain(int argc, const char* argv[])
                 << ex;
         }
 
+
+        // NB: There are some cyclic references here:
+        // JobProxy <-> Job
+        // JobProxy <-> JobProberService
+        // But we (currently) don't care.
         auto jobProxy = New<TJobProxy>(configNode, jobId);
         jobProxy->Run();
     }

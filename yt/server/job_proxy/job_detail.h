@@ -23,16 +23,15 @@ class TJob
     : public IJob
 {
 public:
-    explicit TJob(IJobHost* host);
-
-protected:
-    TWeakPtr<IJobHost> Host;
-
-    TInstant StartTime;
+    explicit TJob(IJobHostPtr host);
 
     virtual std::vector<NChunkClient::TChunkId> DumpInputContext() override;
     virtual NYson::TYsonString Strace() override;
     virtual void SignalJob(const Stroka& signalName) override;
+
+protected:
+    const IJobHostPtr Host_;
+    const TInstant StartTime_;
 
 };
 
@@ -42,7 +41,7 @@ class TSimpleJobBase
     : public TJob
 {
 public:
-    explicit TSimpleJobBase(IJobHost *host);
+    explicit TSimpleJobBase(IJobHostPtr host);
 
     virtual NJobTrackerClient::NProto::TJobResult Run() override;
 
@@ -63,7 +62,8 @@ protected:
     NTableClient::TSchemalessReaderFactory ReaderFactory_;
     NTableClient::TSchemalessWriterFactory WriterFactory_;
 
-    i64 TotalRowCount_;
+    i64 TotalRowCount_ = 0;
+
 
     virtual void CreateReader() = 0;
     virtual void CreateWriter() = 0;

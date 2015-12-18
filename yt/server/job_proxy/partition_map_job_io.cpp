@@ -28,7 +28,7 @@ class TPartitionMapJobIO
     : public TUserJobIOBase
 {
 public:
-    explicit TPartitionMapJobIO(IJobHost* host)
+    explicit TPartitionMapJobIO(IJobHostPtr host)
         : TUserJobIOBase(host)
     { }
 
@@ -80,9 +80,7 @@ public:
 
 };
 
-////////////////////////////////////////////////////////////////////
-
-std::unique_ptr<IUserJobIO> CreatePartitionMapJobIO(IJobHost* host)
+std::unique_ptr<IUserJobIO> CreatePartitionMapJobIO(IJobHostPtr host)
 {
     return std::unique_ptr<IUserJobIO>(new TPartitionMapJobIO(host));
 }

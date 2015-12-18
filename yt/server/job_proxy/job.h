@@ -42,11 +42,6 @@ struct IJobHost
     virtual NNodeTrackerClient::TNodeDirectoryPtr GetAuxNodeDirectory() const = 0;
 
     virtual NLogging::TLogger GetLogger() const = 0;
-
-    virtual std::vector<NChunkClient::TChunkId> DumpInputContext(const NJobTrackerClient::TJobId& jobId) = 0;
-    virtual NYson::TYsonString Strace(const NJobTrackerClient::TJobId& jobId) = 0;
-    virtual void SignalJob(const NJobTrackerClient::TJobId& jobId, const Stroka& signalName) = 0;
-
 };
 
 DEFINE_REFCOUNTED_TYPE(IJobHost)
@@ -57,9 +52,7 @@ DEFINE_REFCOUNTED_TYPE(IJobHost)
 struct IJob
     : public virtual TRefCounted
 {
-    virtual ~IJob()
-    { }
-
+    virtual void Initialize() = 0;
     virtual NJobTrackerClient::NProto::TJobResult Run() = 0;
 
     //! Tries to clean up (e.g. user processes), best effort guarantees.

@@ -16,13 +16,14 @@ class TMapJobIO
     : public TUserJobIOBase
 {
 public:
-    TMapJobIO(IJobHost* host, bool isParallel)
+    TMapJobIO(IJobHostPtr host, bool useParallelReader)
         : TUserJobIOBase(host)
-        , IsParallel_(isParallel)
+        , UseParallelReader_(useParallelReader)
     { }
 
 private:
-    bool IsParallel_;
+    const bool UseParallelReader_;
+
 
     virtual ISchemalessMultiChunkWriterPtr DoCreateWriter(
         TTableWriterOptionsPtr options,
@@ -37,17 +38,17 @@ private:
         TNameTablePtr nameTable,
         const TColumnFilter& columnFilter) override
     {
-        return CreateRegularReader(IsParallel_, std::move(nameTable), columnFilter);
+        return CreateRegularReader(UseParallelReader_, std::move(nameTable), columnFilter);
     }
 
 };
 
-std::unique_ptr<IUserJobIO> CreateMapJobIO(IJobHost* host)
+std::unique_ptr<IUserJobIO> CreateMapJobIO(IJobHostPtr host)
 {
     return std::unique_ptr<IUserJobIO>(new TMapJobIO(host, true));
 }
 
-std::unique_ptr<IUserJobIO> CreateOrderedMapJobIO(IJobHost* host)
+std::unique_ptr<IUserJobIO> CreateOrderedMapJobIO(IJobHostPtr host)
 {
     return std::unique_ptr<IUserJobIO>(new TMapJobIO(host, false));
 }

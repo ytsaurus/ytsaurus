@@ -16,7 +16,7 @@ class TUserJobIOBase
     : public IUserJobIO
 {
 public:
-    TUserJobIOBase(IJobHost* host);
+    explicit TUserJobIOBase(IJobHostPtr host);
 
     virtual void Init() override;
 
@@ -32,7 +32,7 @@ public:
     virtual NTableClient::TSchemalessReaderFactory GetReaderFactory() override;
 
 protected:
-    IJobHost* Host_;
+    const IJobHostPtr Host_;
 
     std::atomic<bool> Initialized_ = { false };
 

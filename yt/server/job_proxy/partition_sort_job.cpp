@@ -31,11 +31,14 @@ class TPartitionSortJob
     : public TSimpleJobBase
 {
 public:
-    explicit TPartitionSortJob(IJobHost* host)
+    explicit TPartitionSortJob(IJobHostPtr host)
         : TSimpleJobBase(host)
         , SortJobSpecExt_(JobSpec_.GetExtension(TSortJobSpecExt::sort_job_spec_ext))
+    { }
+
+    virtual void Initialize() override
     {
-        auto config = host->GetConfig();
+        auto config = Host_->GetConfig();
 
         auto keyColumns = FromProto<Stroka>(SortJobSpecExt_.key_columns());
         auto nameTable = TNameTable::FromKeyColumns(keyColumns);
@@ -48,12 +51,12 @@ public:
 
         Reader_ = CreateSchemalessPartitionSortReader(
             config->JobIO->TableReader,
-            host->GetClient(),
-            host->GetBlockCache(),
-            host->GetInputNodeDirectory(),
+            Host_->GetClient(),
+            Host_->GetBlockCache(),
+            Host_->GetInputNodeDirectory(),
             keyColumns,
             nameTable,
-            BIND(&IJobHost::ReleaseNetwork, host),
+            BIND(&IJobHost::ReleaseNetwork, Host_),
             chunkSpecs,
             TotalRowCount_,
             SchedulerJobSpecExt_.is_approximate());
@@ -70,7 +73,7 @@ public:
             nameTable,
             keyColumns,
             TOwningKey(),
-            host->GetClient(),
+            Host_->GetClient(),
             CellTagFromId(chunkListId),
             transactionId,
             chunkListId);
@@ -95,6 +98,7 @@ public:
 private:
     const TSortJobSpecExt& SortJobSpecExt_;
 
+
     virtual void CreateReader() override
     { }
 
@@ -102,7 +106,7 @@ private:
     { }
 };
 
-IJobPtr CreatePartitionSortJob(IJobHost* host)
+IJobPtr CreatePartitionSortJob(IJobHostPtr host)
 {
     return New<TPartitionSortJob>(host);
 }

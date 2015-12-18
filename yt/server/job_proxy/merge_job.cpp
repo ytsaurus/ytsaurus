@@ -33,15 +33,16 @@ class TMergeJob
     : public TSimpleJobBase
 {
 public:
-    explicit TMergeJob(IJobHost* host, bool parallelReader)
+    TMergeJob(IJobHostPtr host, bool userParallelReader)
         : TSimpleJobBase(host)
+        , UseParallelReader_(userParallelReader)
     {
-        auto config = host->GetConfig();
-
         YCHECK(SchedulerJobSpecExt_.output_specs_size() == 1);
+    }
 
+    virtual void Initialize() override
+    {
         TKeyColumns keyColumns;
-
         if (JobSpec_.HasExtension(TMergeJobSpecExt::merge_job_spec_ext)) {
             const auto& mergeJobSpec = JobSpec_.GetExtension(TMergeJobSpecExt::merge_job_spec_ext);
             keyColumns = FromProto<Stroka>(mergeJobSpec.key_columns());
@@ -58,7 +59,10 @@ public:
         TotalRowCount_ = GetCumulativeRowCount(chunkSpecs);
 
         NameTable_ = TNameTable::FromKeyColumns(keyColumns);
-        auto readerFactory = parallelReader
+
+        auto config = Host_->GetConfig();
+
+        auto readerFactory = UseParallelReader_
             ? CreateSchemalessParallelMultiChunkReader
             : CreateSchemalessSequentialMultiChunkReader;
 
@@ -67,9 +71,9 @@ public:
             Reader_ = readerFactory(
                 config->JobIO->TableReader,
                 New<NTableClient::TTableReaderOptions>(),
-                host->GetClient(),
-                host->GetBlockCache(),
-                host->GetInputNodeDirectory(),
+                Host_->GetClient(),
+                Host_->GetBlockCache(),
+                Host_->GetInputNodeDirectory(),
                 std::move(chunkSpecs),
                 nameTable,
                 columnFilter,
@@ -91,7 +95,7 @@ public:
                 nameTable,
                 keyColumns,
                 TOwningKey(),
-                host->GetClient(),
+                Host_->GetClient(),
                 CellTagFromId(chunkListId),
                 transactionId,
                 chunkListId,
@@ -101,7 +105,10 @@ public:
     }
 
 private:
+    const bool UseParallelReader_;
+
     TNameTablePtr NameTable_;
+
 
     virtual void CreateReader() override
     {
@@ -114,12 +121,12 @@ private:
     }
 };
 
-IJobPtr CreateOrderedMergeJob(IJobHost* host)
+IJobPtr CreateOrderedMergeJob(IJobHostPtr host)
 {
     return New<TMergeJob>(host, false);
 }
 
-IJobPtr CreateUnorderedMergeJob(IJobHost* host)
+IJobPtr CreateUnorderedMergeJob(IJobHostPtr host)
 {
     return New<TMergeJob>(host, true);
 }

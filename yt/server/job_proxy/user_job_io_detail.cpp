@@ -35,7 +35,7 @@ using namespace NObjectClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TUserJobIOBase::TUserJobIOBase(IJobHost* host)
+TUserJobIOBase::TUserJobIOBase(IJobHostPtr host)
     : Host_(host)
     , SchedulerJobSpec_(Host_->GetJobSpec().GetExtension(
         TSchedulerJobSpecExt::scheduler_job_spec_ext))

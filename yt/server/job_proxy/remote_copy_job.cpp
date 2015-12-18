@@ -60,15 +60,14 @@ class TRemoteCopyJob
     : public TJob
 {
 public:
-    explicit TRemoteCopyJob(IJobHost* host)
+    explicit TRemoteCopyJob(IJobHostPtr host)
         : TJob(host)
         , JobSpec_(host->GetJobSpec())
         , SchedulerJobSpecExt_(JobSpec_.GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext))
+        , RemoteCopyJobSpecExt_(JobSpec_.GetExtension(TRemoteCopyJobSpecExt::remote_copy_job_spec_ext))
+        , ReaderConfig_(Host_->GetConfig()->JobIO->TableReader)
+        , WriterConfig_(Host_->GetConfig()->JobIO->TableWriter)
     {
-        auto config = host->GetConfig();
-        ReaderConfig_ = config->JobIO->TableReader;
-        WriterConfig_ = config->JobIO->TableWriter;
-
         YCHECK(SchedulerJobSpecExt_.input_specs_size() == 1);
         YCHECK(SchedulerJobSpecExt_.output_specs_size() == 1);
 
@@ -76,21 +75,23 @@ public:
             YCHECK(!inputChunkSpec.has_lower_limit());
             YCHECK(!inputChunkSpec.has_upper_limit());
         }
+    }
 
+    virtual void Initialize() override
+    {
         WriterOptionsTemplate_ = ConvertTo<TTableWriterOptionsPtr>(
             TYsonString(SchedulerJobSpecExt_.output_specs(0).table_writer_options()));
         OutputChunkListId_ = FromProto<TChunkListId>(
             SchedulerJobSpecExt_.output_specs(0).chunk_list_id());
 
         const auto& remoteCopySpec = JobSpec_.GetExtension(TRemoteCopyJobSpecExt::remote_copy_job_spec_ext);
-        RemoteConnectionConfig_ = ConvertTo<TConnectionConfigPtr>(TYsonString(remoteCopySpec.connection_config()));
-
-        RemoteConnection_ = CreateConnection(RemoteConnectionConfig_);
+        auto remoteConnectionConfig = ConvertTo<TConnectionConfigPtr>(TYsonString(remoteCopySpec.connection_config()));
+        RemoteConnection_ = CreateConnection(remoteConnectionConfig);
 
         RemoteClient_ = RemoteConnection_->CreateClient(TClientOptions(NSecurityClient::JobUserName));
     }
 
-    virtual NJobTrackerClient::NProto::TJobResult Run() override
+    virtual TJobResult Run() override
     {
         PROFILE_TIMING ("/remote_copy_time") {
             for (const auto& inputChunkSpec : SchedulerJobSpecExt_.input_specs(0).chunks()) {
@@ -109,16 +110,15 @@ public:
     virtual double GetProgress() const override
     {
         // Caution: progress calculated approximately (assuming all chunks have equal size).
-        double chunkProgress = TotalChunkSize_ ? CopiedChunkSize_ / *TotalChunkSize_ : 0.0;
-        return (CopiedChunks_ + chunkProgress) / SchedulerJobSpecExt_.input_specs(0).chunks_size();
+        double chunkProgress = TotalChunkSize_ ? static_cast<double>(CopiedChunkSize_) / *TotalChunkSize_ : 0.0;
+        return (CopiedChunkCount_ + chunkProgress) / SchedulerJobSpecExt_.input_specs(0).chunks_size();
     }
 
     virtual std::vector<TChunkId> GetFailedChunkIds() const override
     {
-        if (FailedChunkId_) {
-            return std::vector<TChunkId>(1, *FailedChunkId_);
-        }
-        return std::vector<TChunkId>();
+        return FailedChunkId_
+            ? std::vector<TChunkId>(1, *FailedChunkId_)
+            : std::vector<TChunkId>();
     }
 
     virtual TStatistics GetStatistics() const override
@@ -128,27 +128,26 @@ public:
         result.AddSample(
             "/data/output/" + NYPath::ToYPathLiteral(0),
             DataStatistics_);
-
         return result;
     }
 
 private:
     const TJobSpec& JobSpec_;
     const TSchedulerJobSpecExt& SchedulerJobSpecExt_;
+    const TRemoteCopyJobSpecExt& RemoteCopyJobSpecExt_;
+    const TTableReaderConfigPtr ReaderConfig_;
+    const TTableWriterConfigPtr WriterConfig_;
 
-    TConnectionConfigPtr RemoteConnectionConfig_;
-    IConnectionPtr RemoteConnection_;
-    IClientPtr RemoteClient_;
-
-    TTableReaderConfigPtr ReaderConfig_;
-    TTableWriterConfigPtr WriterConfig_;
     TTableWriterOptionsPtr WriterOptionsTemplate_;
 
     TChunkListId OutputChunkListId_;
 
-    int CopiedChunks_ = 0;
-    double CopiedChunkSize_ = 0.0;
-    TNullable<double> TotalChunkSize_;
+    IConnectionPtr RemoteConnection_;
+    IClientPtr RemoteClient_;
+
+    int CopiedChunkCount_ = 0;
+    i64 CopiedChunkSize_ = 0;
+    TNullable<i64> TotalChunkSize_;
 
     TDataStatistics DataStatistics_;
 
@@ -157,16 +156,11 @@ private:
 
     void CopyChunk(const TChunkSpec& inputChunkSpec)
     {
-        auto host = Host.Lock();
-        if (!host) {
-            return;
-        }
-
         auto outputCellTag = CellTagFromId(OutputChunkListId_);
-        auto outputMasterChannel = host->GetClient()->GetMasterChannelOrThrow(EMasterChannelKind::Leader, outputCellTag);
+        auto outputMasterChannel = Host_->GetClient()->GetMasterChannelOrThrow(EMasterChannelKind::Leader, outputCellTag);
         TObjectServiceProxy outputObjectProxy(outputMasterChannel);
 
-        CopiedChunkSize_ = 0.0;
+        CopiedChunkSize_ = 0;
 
         auto writerOptions = CloneYsonSerializable(WriterOptionsTemplate_);
         auto inputChunkId = NYT::FromProto<TChunkId>(inputChunkSpec.chunk_id());
@@ -185,7 +179,7 @@ private:
         TChunkId outputChunkId;
         try {
             outputChunkId = CreateChunk(
-                host->GetClient(),
+                Host_->GetClient(),
                 CellTagFromId(OutputChunkListId_),
                 writerOptions,
                 transactionId,
@@ -214,11 +208,11 @@ private:
                 ReaderConfig_,
                 New<TRemoteReaderOptions>(),
                 RemoteClient_,
-                host->GetInputNodeDirectory(),
+                Host_->GetInputNodeDirectory(),
                 inputChunkId,
                 inputReplicas,
                 erasureCodec,
-                host->GetBlockCache());
+                Host_->GetBlockCache());
 
             chunkMeta = GetChunkMeta(readers.front());
 
@@ -228,7 +222,7 @@ private:
                 outputChunkId,
                 erasureCodec,
                 New<TNodeDirectory>(),
-                host->GetClient());
+                Host_->GetClient());
 
             YCHECK(readers.size() == writers.size());
 
@@ -261,11 +255,11 @@ private:
                 ReaderConfig_,
                 New<TRemoteReaderOptions>(),
                 RemoteClient_,
-                host->GetInputNodeDirectory(),
+                Host_->GetInputNodeDirectory(),
                 Null,
                 inputChunkId,
                 TChunkReplicaList(),
-                host->GetBlockCache());
+                Host_->GetBlockCache());
 
             chunkMeta = GetChunkMeta(reader);
 
@@ -275,7 +269,7 @@ private:
                 outputChunkId,
                 TChunkReplicaList(),
                 New<TNodeDirectory>(),
-                host->GetClient());
+                Host_->GetClient());
 
             auto blocksExt = GetProtoExtension<TBlocksExt>(chunkMeta.extensions());
             int blockCount = static_cast<int>(blocksExt.blocks_size());
@@ -368,7 +362,7 @@ private:
     }
 };
 
-IJobPtr CreateRemoteCopyJob(IJobHost* host)
+IJobPtr CreateRemoteCopyJob(IJobHostPtr host)
 {
     return New<TRemoteCopyJob>(host);
 }

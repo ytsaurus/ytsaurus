@@ -25,16 +25,14 @@ class TPartitionReduceJobIO
     : public TUserJobIOBase
 {
 public:
-    TPartitionReduceJobIO(IJobHost* host)
+    explicit TPartitionReduceJobIO(IJobHostPtr host)
         : TUserJobIOBase(host)
-    { 
-        const auto& reduceJobSpecExt = Host_->GetJobSpec().GetExtension(TReduceJobSpecExt::reduce_job_spec_ext);
-        ReduceKeyColumnCount_ = reduceJobSpecExt.reduce_key_column_count();
-    }
+        , ReduceJobSpecExt_(Host_->GetJobSpec().GetExtension(TReduceJobSpecExt::reduce_job_spec_ext))
+    { }
 
     virtual int GetReduceKeyColumnCount() const override
     {
-        return ReduceKeyColumnCount_;
+        return ReduceJobSpecExt_.reduce_key_column_count();
     }
 
     virtual ISchemalessMultiChunkReaderPtr DoCreateReader(
@@ -88,10 +86,11 @@ public:
     }
 
 private:
-    int ReduceKeyColumnCount_;
+    const TReduceJobSpecExt& ReduceJobSpecExt_;
+
 };
 
-std::unique_ptr<IUserJobIO> CreatePartitionReduceJobIO(IJobHost* host)
+std::unique_ptr<IUserJobIO> CreatePartitionReduceJobIO(IJobHostPtr host)
 {
     return std::unique_ptr<IUserJobIO>(new TPartitionReduceJobIO(host));
 }

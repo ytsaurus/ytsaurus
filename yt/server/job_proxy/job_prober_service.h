@@ -1,7 +1,6 @@
 #pragma once
 
 #include "public.h"
-#include "job_proxy.h"
 
 #include <yt/core/rpc/public.h>
 
@@ -10,7 +9,7 @@ namespace NJobProxy {
 
 ////////////////////////////////////////////////////////////////////
 
-NRpc::IServicePtr CreateJobProberService(TJobProxy* jobProxy);
+NRpc::IServicePtr CreateJobProberService(TJobProxyPtr jobProxy);
 
 ////////////////////////////////////////////////////////////////////
 

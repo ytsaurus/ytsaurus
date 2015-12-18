@@ -29,11 +29,14 @@ class TSortedMergeJob
     : public TSimpleJobBase
 {
 public:
-    explicit TSortedMergeJob(IJobHost* host)
+    explicit TSortedMergeJob(IJobHostPtr host)
         : TSimpleJobBase(host)
         , MergeJobSpecExt_(JobSpec_.GetExtension(TMergeJobSpecExt::merge_job_spec_ext))
+    { }
+
+    virtual void Initialize() override
     {
-        auto config = host->GetConfig();
+        auto config = Host_->GetConfig();
 
         YCHECK(SchedulerJobSpecExt_.output_specs_size() == 1);
         const auto& outputSpec = SchedulerJobSpecExt_.output_specs(0);
@@ -51,9 +54,9 @@ public:
             auto reader = CreateSchemalessSequentialMultiChunkReader(
                 config->JobIO->TableReader,
                 New<NTableClient::TTableReaderOptions>(),
-                host->GetClient(),
-                host->GetBlockCache(),
-                host->GetInputNodeDirectory(),
+                Host_->GetClient(),
+                Host_->GetBlockCache(),
+                Host_->GetInputNodeDirectory(),
                 std::move(chunkSpecs),
                 nameTable,
                 TColumnFilter(),
@@ -63,7 +66,6 @@ public:
         }
 
         Reader_ = CreateSchemalessSortedMergingReader(readers, keyColumns.size());
-
 
         auto transactionId = FromProto<TTransactionId>(SchedulerJobSpecExt_.output_transaction_id());
         auto chunkListId = FromProto<TChunkListId>(outputSpec.chunk_list_id());
@@ -75,7 +77,7 @@ public:
             nameTable,
             keyColumns,
             TOwningKey(),
-            host->GetClient(),
+            Host_->GetClient(),
             CellTagFromId(chunkListId),
             transactionId,
             chunkListId,
@@ -85,6 +87,7 @@ public:
 private:
     const TMergeJobSpecExt& MergeJobSpecExt_;
 
+
     virtual void CreateReader() override
     { }
 
@@ -92,7 +95,7 @@ private:
     { }
 };
 
-IJobPtr CreateSortedMergeJob(IJobHost* host)
+IJobPtr CreateSortedMergeJob(IJobHostPtr host)
 {
     return New<TSortedMergeJob>(host);
 }
