@@ -50,24 +50,7 @@ static const auto& Logger = TabletClientLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-<<<<<<< HEAD
-TTabletInfoPtr TTableMountInfo::GetTablet(TUnversionedRow row)
-=======
-TTabletReplica::TTabletReplica()
-    : Id(InvalidNodeId)
-{ }
-
-TTabletReplica::TTabletReplica(
-    NNodeTrackerClient::TNodeId id,
-    const TNodeDescriptor& descriptor)
-    : Id(id)
-    , Descriptor(descriptor)
-{ }
-
-////////////////////////////////////////////////////////////////////////////////
-
 TTabletInfoPtr TTableMountInfo::GetTablet(TUnversionedRow row) const
->>>>>>> origin/prestable/0.17.4
 {
     if (Tablets.empty()) {
         THROW_ERROR_EXCEPTION("Table %v has no tablets",
