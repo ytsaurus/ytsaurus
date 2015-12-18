@@ -1474,12 +1474,7 @@ TCodegenSource MakeCodegenOrderOp(
 
                     builder.CreateCall(
                         builder.Module->GetRoutine("AddRow"),
-<<<<<<< HEAD
-                        topCollectorRef,
-                        newRowRef);
-=======
-                        {topNRef, newRowRef});
->>>>>>> origin/prestable/0.17.4
+                        {topCollectorRef, newRowRef});
                 });
 
             builder.CreateRetVoid();
