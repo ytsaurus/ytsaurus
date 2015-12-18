@@ -544,11 +544,7 @@ void EnrichKeyRange(
 
     TDivisors divisors(divisorsSet.begin(), divisorsSet.end());
 
-<<<<<<< HEAD
-    auto enumerateModulo = [&] (TMutableUnversionedRow prefixRow, auto yield) {
-=======
-    auto enumerateModulo = [&] (TUnversionedRow& prefixRow, std::function<void()> yield) {
->>>>>>> origin/prestable/0.17.4
+    auto enumerateModulo = [&] (TMutableUnversionedRow prefixRow, std::function<void()> yield) {
         for (auto& column : computedColumns) {
             auto columnIndex = column.first;
             if (column.second) {
