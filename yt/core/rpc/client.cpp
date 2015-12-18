@@ -243,7 +243,7 @@ void TClientResponse::HandleAcknowledgement()
 void TClientResponse::HandleResponse(TSharedRefArray message)
 {
     auto prevState = State_.exchange(EState::Done);
-    YASSERT(State_ == EState::Sent || State_ == EState::Ack);
+    YASSERT(prevState == EState::Sent || prevState == EState::Ack);
 
     TDispatcher::Get()->GetInvoker()->Invoke(
         BIND(&TClientResponse::DoHandleResponse, MakeStrong(this), Passed(std::move(message))));
