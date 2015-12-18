@@ -216,8 +216,8 @@ private:
             for (const auto& stripe : list->Stripes) {
                 for (const auto& chunkSlice : stripe->ChunkSlices) {
                     auto* chunkSpec = inputSpec->add_chunks();
-                    ToProto(chunkSpec, *chunkSlice);
-                    for (ui32 protoReplica : chunkSlice->ChunkSpec()->replicas()) {
+                    ToProto(chunkSpec, chunkSlice);
+                    for (ui32 protoReplica : chunkSlice->GetChunkSpec()->replicas()) {
                         auto replica = FromProto<NChunkClient::TChunkReplica>(protoReplica);
                         directoryBuilder.Add(replica);
                     }

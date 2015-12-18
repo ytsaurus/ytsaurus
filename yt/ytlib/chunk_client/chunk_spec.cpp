@@ -132,6 +132,18 @@ bool IsLargeCompleteChunk(const NProto::TChunkSpec& chunkSpec, i64 desiredChunkS
     return 0.9 * miscExt.compressed_data_size() >= desiredChunkSize;
 }
 
+Stroka ToString(TRefCountedChunkSpecPtr spec)
+{
+    auto chunkLowerLimit = NYT::FromProto<NChunkClient::TReadLimit>(spec->lower_limit());
+    auto chunkUpperLimit = NYT::FromProto<NChunkClient::TReadLimit>(spec->upper_limit());
+    auto chunkId = NYT::FromProto<TChunkId>(spec->chunk_id());
+    return Format(
+        "ChunkId: %v, LowerLimit: {%v}, UpperLimit: {%v}",
+        chunkId,
+        ToString(chunkLowerLimit),
+        ToString(chunkUpperLimit));
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NChunkClient

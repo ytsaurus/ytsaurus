@@ -707,8 +707,8 @@ void TOperationControllerBase::TTask::AddChunksToInputSpec(
 {
     for (const auto& chunkSlice : stripe->ChunkSlices) {
         auto* chunkSpec = inputSpec->add_chunks();
-        ToProto(chunkSpec, *chunkSlice);
-        for (ui32 protoReplica : chunkSlice->ChunkSpec()->replicas()) {
+        ToProto(chunkSpec, chunkSlice);
+        for (ui32 protoReplica : chunkSlice->GetChunkSpec()->replicas()) {
             auto replica = FromProto<TChunkReplica>(protoReplica);
             directoryBuilder->Add(replica);
         }
@@ -1597,7 +1597,7 @@ void TOperationControllerBase::OnInputChunkUnavailable(const TChunkId& chunkId, 
                     slices.end(),
                     inputStripe.Stripe->ChunkSlices.begin(),
                     [&] (TChunkSlicePtr slice) {
-                        return chunkId != FromProto<TChunkId>(slice->ChunkSpec()->chunk_id());
+                        return chunkId != FromProto<TChunkId>(slice->GetChunkSpec()->chunk_id());
                     });
 
                 // Reinstall patched stripe.
@@ -1816,7 +1816,7 @@ void TOperationControllerBase::AddTaskLocalityHint(TTaskPtr task, const Stroka& 
 void TOperationControllerBase::AddTaskLocalityHint(TTaskPtr task, TChunkStripePtr stripe)
 {
     for (const auto& chunkSlice : stripe->ChunkSlices) {
-        for (ui32 protoReplica : chunkSlice->ChunkSpec()->replicas()) {
+        for (ui32 protoReplica : chunkSlice->GetChunkSpec()->replicas()) {
             auto replica = FromProto<NChunkClient::TChunkReplica>(protoReplica);
 
             if (chunkSlice->GetLocality(replica.GetIndex()) > 0) {
@@ -3287,7 +3287,7 @@ void TOperationControllerBase::RegisterInputStripe(TChunkStripePtr stripe, TTask
     stripeDescriptor.Cookie = task->GetChunkPoolInput()->Add(stripe);
 
     for (const auto& slice : stripe->ChunkSlices) {
-        auto chunkSpec = slice->ChunkSpec();
+        auto chunkSpec = slice->GetChunkSpec();
         auto chunkId = FromProto<TChunkId>(chunkSpec->chunk_id());
 
         auto pair = InputChunkMap.insert(std::make_pair(chunkId, TInputChunkDescriptor()));
@@ -3313,7 +3313,7 @@ void TOperationControllerBase::RegisterIntermediate(
     TChunkStripePtr stripe)
 {
     for (const auto& chunkSlice : stripe->ChunkSlices) {
-        auto chunkId = FromProto<TChunkId>(chunkSlice->ChunkSpec()->chunk_id());
+        auto chunkId = FromProto<TChunkId>(chunkSlice->GetChunkSpec()->chunk_id());
         YCHECK(ChunkOriginMap.insert(std::make_pair(chunkId, completedJob)).second);
 
         if (IsIntermediateLivePreviewSupported()) {
