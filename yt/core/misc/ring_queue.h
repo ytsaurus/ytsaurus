@@ -44,12 +44,12 @@ public:
 
         const T* operator-> () const
         {
-            return &*Ptr_;
+            return Ptr_;
         }
 
         T* operator-> ()
         {
-            return &*Ptr_;
+            return Ptr_;
         }
 
         bool operator == (TIterator other) const
@@ -79,7 +79,6 @@ public:
     
     };
 
-
     explicit TRingQueue(const TAllocator& allocator = TAllocator())
         : Allocator_(allocator)
     {
@@ -90,11 +89,30 @@ public:
         Size_ = 0;
         Head_ = Tail_ = Begin_;
     }
-    
+
+    TRingQueue(TRingQueue&& other)
+        : std::move(Allocator_(other.Allocator_))
+    {
+        Capacity_ = other.Capacity_;
+        Begin_ = other.Begin_;
+        End_ = other.End_;
+
+        Size_ = other.Size_;
+        Head_ = other.Head_;
+        Tail_ = other.Tail_;
+
+        other.Capacity_ = other.Size_ = 0;
+        other.Begin_ = other.End_ = other.Head_ = other.Tail_ = nullptr;
+    }
+
+    TRingQueue(const TRingQueue& other) = delete;
+
     ~TRingQueue()
     {
         DestroyElements();
-        Allocator_.deallocate(Begin_, Capacity_);
+        if (Begin_) {
+            Allocator_.deallocate(Begin_, Capacity_);
+        }
     }
         
 
@@ -110,12 +128,20 @@ public:
 
     T& back()
     {
-        return *(Tail_ - 1);
+        if (Tail_ == Begin_) {
+            return *(End_ - 1);
+        } else {
+            return *(Tail_ - 1);
+        }
     }
 
     const T& back() const
     {
-        return *(Tail_ - 1);
+        if (Tail_ == Begin_) {
+            return *(End_ - 1);
+        } else {
+            return *(Tail_ - 1);
+        }
     }
 
 
