@@ -87,7 +87,7 @@ template<typename T>
 using is_trivially_destructible = has_trivial_destructor<T>;
 #endif
 
-#if defined(__GNUC__) && !defined(__clang__) && __GNUC__ < 5
+#if defined(__GNUC__) && __GNUC__ < 5
 // GCC 4 lacks some useful type traits. Here we provide some pessimistic approximations. 
 template<typename T>
 using is_trivially_copy_constructible = is_trivial<T>;
