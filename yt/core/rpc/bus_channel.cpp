@@ -308,7 +308,7 @@ private:
                     "Request resent"));
             }
 
-            if (request->IsRequestHeavy()) {
+            if (request->IsHeavy()) {
                 BIND(&IClientRequest::Serialize, request)
                     .AsyncVia(TDispatcher::Get()->GetInvoker())
                     .Run()
