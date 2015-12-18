@@ -500,14 +500,8 @@ private:
                 subsource.Range.first = rowBuffer->Capture(std::max(lowerBound, pivotKey.Get()));
                 subsource.Range.second = rowBuffer->Capture(std::min(upperBound, nextPivotKey.Get()));
 
-<<<<<<< HEAD
                 auto insertResult = tabletCellReplicas.insert(std::make_pair(tabletInfo->CellId, TCellDescriptor()));
                 auto& descriptor = insertResult.first->second;
-=======
-                auto replicasIt = tabletCellReplicas.insert(std::make_pair(tabletInfo->CellId, std::vector<Stroka>()));
-                if (replicasIt.second) {
-                    replicasIt.first->second = cellDirectory->GetAddressesOrThrow(tabletInfo->CellId);
->>>>>>> origin/prestable/0.17.4
 
                 if (insertResult.second) {
                     descriptor = cellDirectory->GetDescriptorOrThrow(tabletInfo->CellId);
