@@ -415,11 +415,7 @@ public:
             .Run();
     }
 
-<<<<<<< HEAD
     TFuture<void> DumpInputContext(const TJobId& jobId, const TYPath& path)
-=======
-    TFuture<void> DumpInputContext(const TJobId& jobId, const NYPath::TYPath& path)
->>>>>>> origin/prestable/0.17.4
     {
         return BIND(&TImpl::DoDumpInputContext, MakeStrong(this), jobId, path)
             .AsyncVia(MasterConnector_->GetCancelableControlInvoker())
@@ -440,9 +436,9 @@ public:
             .Run();
     }
 
-<<<<<<< HEAD
-    TJobProberServiceProxy CreateJobProberProxy(TJobPtr job)
+    TJobProberServiceProxy CreateJobProberProxy(const TJobId& jobId)
     {
+        auto job = GetJobOrThrow(jobId);
         const auto& address = job->GetNode()->GetInterconnectAddress();
         auto channel = NChunkClient::LightNodeChannelFactory->CreateChannel(address);
 
@@ -518,9 +514,6 @@ public:
         ISchedulingContext* schedulingContext,
         NJobTrackerClient::NProto::TRspHeartbeat* response,
         yhash_set<TOperationPtr>* operationsToLog)
-=======
-    TJobProberServiceProxy CreateJobProberProxy(const TJobId& jobId)
->>>>>>> origin/prestable/0.17.4
     {
         std::vector<TFuture<void>> asyncResults;
 
@@ -1994,12 +1987,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-<<<<<<< HEAD
-        auto job = GetJobOrThrow(jobId);
-        auto proxy = CreateJobProberProxy(job);
-=======
         auto proxy = CreateJobProberProxy(jobId);
->>>>>>> origin/prestable/0.17.4
 
         auto req = proxy.Strace();
         ToProto(req->mutable_job_id(), jobId);
@@ -2013,21 +2001,11 @@ private:
         return TYsonString(FromProto<Stroka>(res->trace()));
     }
 
-<<<<<<< HEAD
     void DoDumpInputContext(const TJobId& jobId, const TYPath& path)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        auto job = GetJobOrThrow(jobId);
-
-        auto proxy = CreateJobProberProxy(job);
-=======
-    void DoDumpInputContext(const TJobId& jobId, const NYPath::TYPath& path)
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
         auto proxy = CreateJobProberProxy(jobId);
->>>>>>> origin/prestable/0.17.4
 
         auto req = proxy.DumpInputContext();
         ToProto(req->mutable_job_id(), jobId);
@@ -2042,11 +2020,9 @@ private:
         const auto& res = rspOrError.Value();
         auto chunkIds = FromProto<TGuid>(res->chunk_id());
         YCHECK(chunkIds.size() == 1);
-<<<<<<< HEAD
+
+        auto job = GetJobOrThrow(jobId);
         MasterConnector_->AttachJobContext(path, chunkIds.front(), job);
-=======
-        MasterConnector_->AttachJobContext(path, chunkIds.front(), jobId);
->>>>>>> origin/prestable/0.17.4
 
         LOG_INFO("Input context saved (JobId: %v, Path: %v)",
             jobId,
@@ -2057,12 +2033,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-<<<<<<< HEAD
-        auto job = GetJobOrThrow(jobId);
-        auto proxy = CreateJobProberProxy(job);
-=======
         auto proxy = CreateJobProberProxy(jobId);
->>>>>>> origin/prestable/0.17.4
 
         auto req = proxy.SignalJob();
         ToProto(req->mutable_job_id(), jobId);
@@ -2076,14 +2047,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-<<<<<<< HEAD
         auto job = GetJobOrThrow(jobId);
-=======
-        auto job = FindJob(jobId);
-        if (!job) {
-            THROW_ERROR_EXCEPTION("No such job %v", jobId);
-        }
->>>>>>> origin/prestable/0.17.4
         switch (job->GetType()) {
             case EJobType::Map:
             case EJobType::OrderedMap:
@@ -2093,7 +2057,6 @@ private:
             case EJobType::PartitionReduce:
                 break;
             default:
-<<<<<<< HEAD
                 THROW_ERROR_EXCEPTION("Cannot abandon job %v of type %Qv",
                     jobId,
                     job->GetType());
@@ -2104,14 +2067,6 @@ private:
         {
             THROW_ERROR_EXCEPTION("Cannot abandon job %v since is not running",
                 jobId);
-=======
-                THROW_ERROR_EXCEPTION("Can't abondon job %v of %v type", jobId, job->GetType());
-        }
-        if (job->GetState() != EJobState::Running &&
-            job->GetState() != EJobState::Waiting)
-        {
-            THROW_ERROR_EXCEPTION("Abandoned job %v is not running", jobId);
->>>>>>> origin/prestable/0.17.4
         }
 
         TJobResult result;
