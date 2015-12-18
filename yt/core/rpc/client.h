@@ -18,6 +18,8 @@
 
 #include <yt/core/tracing/trace_context.h>
 
+#include <atomic>
+
 namespace NYT {
 namespace NRpc {
 
@@ -257,9 +259,7 @@ protected:
 
     const TClientContextPtr ClientContext_;
 
-    //! Protects State_ and some members in the derived classes.
-    TSpinLock SpinLock_;
-    EState State_ = EState::Sent;
+    std::atomic<EState> State_ = {EState::Sent};
 
 
     explicit TClientResponseBase(TClientContextPtr clientContext);
@@ -295,7 +295,6 @@ protected:
     virtual void DeserializeBody(const TRef& data) = 0;
 
 private:
-    //! Protected by #SpinLock.
     TSharedRefArray ResponseMessage_;
 
 
