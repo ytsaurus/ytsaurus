@@ -58,6 +58,7 @@ TChunkSlice::TChunkSlice(
     const TNullable<NTableClient::TOwningKey>& lowerKey,
     const TNullable<NTableClient::TOwningKey>& upperKey)
     : ChunkSpec_(chunkSlice->GetChunkSpec())
+    , LowerLimit_(chunkSlice->LowerLimit())
     , UpperLimit_(chunkSlice->UpperLimit())
     , PartIndex_(chunkSlice->GetPartIndex())
     , SizeOverridden_(chunkSlice->GetSizeOverridden())
