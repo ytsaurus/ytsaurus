@@ -315,8 +315,8 @@ static TNullable<TUnversionedValue> TrimSentinel(TRow row)
 static void AppendSentinel(TRow row, TNullable<TUnversionedValue> sentinel)
 {
     if (sentinel) {
-        row[row.GetCount()] = sentinel.Get();
         row.SetCount(row.GetCount() + 1);
+        row[row.GetCount()] = sentinel.Get();
     }
 }
 
