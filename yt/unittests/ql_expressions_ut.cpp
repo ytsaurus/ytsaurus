@@ -937,29 +937,12 @@ INSTANTIATE_TEST_CASE_P(
 
 void EvaluateExpression(
     TConstExpressionPtr expr,
-    Stroka rowString,
+    const Stroka& rowString,
     const TTableSchema& schema,
     const TKeyColumns& keyColumns,
     TUnversionedValue* result,
     TRowBufferPtr buffer)
 {
-<<<<<<< HEAD
-    const auto& param = GetParam();
-    const auto& rowString = std::get<0>(param);
-    const auto& exprString = std::get<1>(param);
-    const auto& expected = std::get<2>(param);
-
-    TTableSchema schema;
-    schema.AppendColumn(TColumnSchema("i1", EValueType::Int64));
-    schema.AppendColumn(TColumnSchema("i2", EValueType::Int64));
-    schema.AppendColumn(TColumnSchema("u1", EValueType::Uint64));
-    schema.AppendColumn(TColumnSchema("u2", EValueType::Uint64));
-    TKeyColumns keyColumns;
-
-    auto expr = PrepareExpression(exprString, schema);
-
-=======
->>>>>>> origin/prestable/0.17.4
     TCGVariables variables;
     std::vector<std::vector<bool>> allLiteralArgs;
 

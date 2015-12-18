@@ -70,7 +70,6 @@ public:
         TTabletWriterOptionsPtr writerOptions,
         TTableMountConfigPtr tabletConfig,
         const TTableSchema& schema,
-        const TKeyColumns& keyColumns,
         IClientPtr client,
         const TTransactionId& transactionId)
         : Bootstrap_(bootstrap)
@@ -79,7 +78,6 @@ public:
         , WriterOptions_(std::move(writerOptions))
         , TabletConfig_(std::move(tabletConfig))
         , Schema_(schema)
-        , KeyColumns_(keyColumns)
         , Client_(std::move(client))
         , TransactionId_(transactionId)
     { }
@@ -95,8 +93,8 @@ public:
                     WriterConfig_,
                     WriterOptions_,
                     Schema_,
-                    KeyColumns_,
                     Client_,
+                    Client_->GetConnection()->GetPrimaryMasterCellTag(),
                     TransactionId_,
                     NullChunkListId,
                     GetUnlimitedThrottler(),
@@ -135,7 +133,6 @@ private:
     const TTabletWriterOptionsPtr WriterOptions_;
     const TTableMountConfigPtr TabletConfig_;
     const TTableSchema& Schema_;
-    const TKeyColumns& KeyColumns_;
     const IClientPtr Client_;
     const TTransactionId TransactionId_;
 
@@ -532,7 +529,6 @@ private:
                 writerOptions,
                 tabletConfig,
                 schema,
-                keyColumns,
                 Bootstrap_->GetMasterClient(),
                 transaction->GetId());
 

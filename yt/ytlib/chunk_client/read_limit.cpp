@@ -216,7 +216,7 @@ size_t TReadLimit::SpaceUsed() const
     return
        sizeof(*this) +
        ReadLimit_.SpaceUsed() - sizeof(ReadLimit_) +
-       Key_.SpaceUsed() - sizeof(Key_);
+       Key_.GetSpaceUsed() - sizeof(Key_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
