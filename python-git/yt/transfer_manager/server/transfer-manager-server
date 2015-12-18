@@ -867,8 +867,9 @@ class Application(object):
         def wait():
             while True:
                 with self._mutex:
-                    if not process.aborted:
-                        yield
+                    if process.aborted:
+                        return
+                yield
 
         return wait()
 
