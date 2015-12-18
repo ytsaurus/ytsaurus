@@ -185,7 +185,7 @@ public:
                 &TImpl::OnRevivingOperationNodeReset,
                 MakeStrong(this),
                 operation)
-            .AsyncVia(Bootstrap->GetControlInvoker()));
+            .AsyncVia(Bootstrap->GetCancelableControlInvoker()));
     }
 
     TFuture<void> FlushOperationNode(TOperationPtr operation)
