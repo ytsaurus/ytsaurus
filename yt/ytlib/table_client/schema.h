@@ -147,7 +147,7 @@ void ValidateTableSchemaUpdate(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ValidatePivotKey(const TOwningKey& pivotKey, const TTableSchema& schema, int keyColumnCount);
+void ValidatePivotKey(const TOwningKey& pivotKey, const TTableSchema& schema);
 
 ////////////////////////////////////////////////////////////////////////////////
 
