@@ -939,7 +939,6 @@ void EvaluateExpression(
     TConstExpressionPtr expr,
     const Stroka& rowString,
     const TTableSchema& schema,
-    const TKeyColumns& keyColumns,
     TUnversionedValue* result,
     TRowBufferPtr buffer)
 {
@@ -948,7 +947,7 @@ void EvaluateExpression(
 
     auto callback = Profile(expr, schema, nullptr, &variables, nullptr, &allLiteralArgs, CreateBuiltinFunctionRegistry())();
 
-    auto row = NTableClient::BuildRow(rowString, keyColumns, schema, true);
+    auto row = NTableClient::BuildRow(rowString, schema.GetKeyColumns(), schema, true);
 
     TQueryStatistics statistics;
     // NB: function contexts need to be destroyed before callback since it hosts destructors.
@@ -997,7 +996,7 @@ TEST_P(TEvaluateExpressionTest, Basic)
 
     auto buffer = New<TRowBuffer>();
     TUnversionedValue result;
-    EvaluateExpression(expr, rowString, schema, keyColumns, &result, buffer);
+    EvaluateExpression(expr, rowString, schema, &result, buffer);
 
     EXPECT_EQ(result, expected);
 }
@@ -1114,7 +1113,7 @@ TEST_F(TFormatTimestampExpressionTest, TooSmallTimestamp)
     TUnversionedValue result;
 
     EXPECT_THROW_THAT(
-        [&] { EvaluateExpression(expr, "", schema, keyColumns, &result, buffer); },
+        [&] { EvaluateExpression(expr, "", schema, &result, buffer); },
         HasSubstr("Timestamp is smaller than minimal value"));
 }
 
@@ -1129,7 +1128,7 @@ TEST_F(TFormatTimestampExpressionTest, TooLargeTimestamp)
     TUnversionedValue result;
 
     EXPECT_THROW_THAT(
-        [&] { EvaluateExpression(expr, "", schema, keyColumns, &result, buffer); },
+        [&] { EvaluateExpression(expr, "", schema, &result, buffer); },
         HasSubstr("Timestamp is greater than maximal value"));
 }
 
@@ -1144,7 +1143,7 @@ TEST_F(TFormatTimestampExpressionTest, InvalidFormat)
     TUnversionedValue result;
 
     EXPECT_THROW_THAT(
-        [&] { EvaluateExpression(expr, "", schema, keyColumns, &result, buffer); },
+        [&] { EvaluateExpression(expr, "", schema, &result, buffer); },
         HasSubstr("Format string is too long"));
 }
 
