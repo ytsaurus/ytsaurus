@@ -21,6 +21,8 @@ namespace NChunkClient {
 
 DEFINE_REFCOUNTED_TYPE(TRefCountedChunkSpec)
 
+Stroka ToString(TRefCountedChunkSpecPtr spec);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 bool IsUnavailable(

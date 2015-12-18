@@ -54,6 +54,12 @@ public:
 
     bool IsTrivial() const;
 
+    void MergeLowerKey(const NTableClient::TOwningKey& key);
+    void MergeUpperKey(const NTableClient::TOwningKey& key);
+
+    void MergeLowerRowIndex(i64 rowIndex);
+    void MergeUpperRowIndex(i64 rowIndex);
+
     void MergeLowerLimit(const NProto::TReadLimit& readLimit);
     void MergeUpperLimit(const NProto::TReadLimit& readLimit);
 

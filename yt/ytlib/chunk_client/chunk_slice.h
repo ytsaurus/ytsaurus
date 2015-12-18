@@ -17,16 +17,27 @@ namespace NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+extern const int DefaultPartIndex;
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TChunkSlice
     : public TIntrinsicRefCounted
 {
+    DECLARE_BYVAL_RW_PROPERTY(i64, DataSize);
+    DECLARE_BYVAL_RW_PROPERTY(i64, RowCount);
+
+    DECLARE_BYVAL_RO_PROPERTY(bool, SizeOverridden);
+    DECLARE_BYVAL_RO_PROPERTY(int, PartIndex);
+    DECLARE_BYVAL_RO_PROPERTY(i64, MaxBlockSize);
+
+    DEFINE_BYVAL_RO_PROPERTY(TRefCountedChunkSpecPtr, ChunkSpec);
+    DEFINE_BYREF_RO_PROPERTY(TReadLimit, LowerLimit);
+    DEFINE_BYREF_RO_PROPERTY(TReadLimit, UpperLimit);
+
 public:
-    //! Use #CreateChunkSlice instead.
-    TChunkSlice();
-
-    TChunkSlice(const TChunkSlice& other);
-
-    TChunkSlice(TChunkSlice&& other);
+    TChunkSlice() = default;
+    TChunkSlice(TChunkSlice&& other) = default;
 
     TChunkSlice(
         TRefCountedChunkSpecPtr chunkSpec,
@@ -34,9 +45,9 @@ public:
         const TNullable<NTableClient::TOwningKey>& upperKey);
 
     TChunkSlice(
-        TChunkSlicePtr other,
-        const TNullable<NTableClient::TOwningKey>& lowerKey,
-        const TNullable<NTableClient::TOwningKey>& upperKey);
+        const TIntrusivePtr<const TChunkSlice>& chunkSlice,
+        const TNullable<NTableClient::TOwningKey>& lowerKey = Null,
+        const TNullable<NTableClient::TOwningKey>& upperKey = Null);
 
     TChunkSlice(
         TRefCountedChunkSpecPtr chunkSpec,
@@ -54,35 +65,29 @@ public:
 
     i64 GetLocality(int replicaIndex) const;
 
-    TRefCountedChunkSpecPtr ChunkSpec() const;
-    int GetPartIndex() const;
-    const TReadLimit& LowerLimit() const;
-    const TReadLimit& UpperLimit() const;
-    const NProto::TSizeOverrideExt& SizeOverrideExt() const;
-
-    i64 GetMaxBlockSize() const;
-    i64 GetDataSize() const;
-    i64 GetRowCount() const;
-
-    void SetDataSize(i64 data);
-    void SetRowCount(i64 rowCount);
-    void SetLowerRowIndex(i64 rowIndex);
     void SetKeys(const NTableClient::TOwningKey& lowerKey, const NTableClient::TOwningKey& upperKey);
 
     void Persist(NPhoenix::TPersistenceContext& context);
 
-    friend size_t SpaceUsed(const TIntrusivePtr<NChunkClient::TChunkSlice>& p);
+    friend size_t SpaceUsed(const TChunkSlicePtr chunkSlice);
 
 private:
-    TRefCountedChunkSpecPtr ChunkSpec_;
-    int PartIndex_ = -1;
+    int PartIndex_ = DefaultPartIndex;
 
-    TReadLimit LowerLimit_;
-    TReadLimit UpperLimit_;
-    NProto::TSizeOverrideExt SizeOverrideExt_;
+    bool SizeOverridden_ = false;
+    i64 RowCount_ = 0;
+    i64 DataSize_ = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(TChunkSlice)
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Returns the size allocated for TChunkSlice.
+//! This function is used for ref counted tracking.
+size_t SpaceUsed(const TChunkSlicePtr p);
+
+Stroka ToString(TChunkSlicePtr slice);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -100,8 +105,6 @@ TChunkSlicePtr CreateChunkSlice(
     const TNullable<NTableClient::TOwningKey>& lowerKey = Null,
     const TNullable<NTableClient::TOwningKey>& upperKey = Null);
 
-//! Constructs a new chunk slice from the original one, restricting
-//! it to a given range. The original chunk may already contain non-trivial limits.
 TChunkSlicePtr CreateChunkSlice(
     TRefCountedChunkSpecPtr chunkSpec,
     const NProto::TChunkSlice& protoChunkSlice);
@@ -119,20 +122,10 @@ std::vector<TChunkSlicePtr> SliceChunk(
 
 std::vector<TChunkSlicePtr> SliceChunkByRowIndexes(TRefCountedChunkSpecPtr chunkSpec, i64 sliceDataSize);
 
-void ToProto(NProto::TChunkSpec* chunkSpec, const TChunkSlice& chunkSlice);
-void ToProto(NProto::TChunkSlice* protoChunkSlice, const TChunkSlice& chunkSlice);
+////////////////////////////////////////////////////////////////////////////////
 
-//! Gives the extra allocated size for TChunkSlice.
-//! This function is used for ref counted tracking.
-size_t SpaceUsed(const TIntrusivePtr<NChunkClient::TChunkSlice>& p);
-
-Stroka ToString(TChunkSlicePtr slice);
-
-namespace NProto {
-
-Stroka ToString(TRefCountedChunkSpecPtr spec);
-
-} // namespace NProto
+void ToProto(NProto::TChunkSpec* chunkSpec, const TChunkSlicePtr& chunk_slice);
+void ToProto(NProto::TChunkSlice* protoChunkSlice, const TChunkSlicePtr& chunkSlice);
 
 ////////////////////////////////////////////////////////////////////////////////
 

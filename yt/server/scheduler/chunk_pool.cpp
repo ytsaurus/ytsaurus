@@ -46,7 +46,7 @@ void AddStripeToList(
     if (address) {
         for (const auto& chunkSlice : stripe->ChunkSlices) {
             bool isLocal = false;
-            for (ui32 protoReplica : chunkSlice->ChunkSpec()->replicas()) {
+            for (ui32 protoReplica : chunkSlice->GetChunkSpec()->replicas()) {
                 auto replica = FromProto<NChunkClient::TChunkReplica>(protoReplica);
                 const auto& descriptor = nodeDirectory->GetDescriptor(replica);
                 i64 locality = chunkSlice->GetLocality(replica.GetIndex());
@@ -556,7 +556,7 @@ private:
     void UpdateLocality(TChunkStripePtr stripe, int delta)
     {
         for (const auto& chunkSlice : stripe->ChunkSlices) {
-            for (ui32 protoReplica : chunkSlice->ChunkSpec()->replicas()) {
+            for (ui32 protoReplica : chunkSlice->GetChunkSpec()->replicas()) {
                 auto replica = FromProto<NChunkClient::TChunkReplica>(protoReplica);
                 const auto& descriptor = NodeDirectory->GetDescriptor(replica);
                 i64 localityDelta = chunkSlice->GetLocality(replica.GetIndex()) * delta;
@@ -1003,7 +1003,7 @@ private:
 
         auto stripe = suspendableStripe.GetStripe();
         for (const auto& chunkSlice : stripe->ChunkSlices) {
-            for (ui32 protoReplica : chunkSlice->ChunkSpec()->replicas()) {
+            for (ui32 protoReplica : chunkSlice->GetChunkSpec()->replicas()) {
                 auto replica = FromProto<NChunkClient::TChunkReplica>(protoReplica);
 
                 auto locality = chunkSlice->GetLocality(replica.GetIndex());
@@ -1028,7 +1028,7 @@ private:
 
         auto stripe = suspendableStripe.GetStripe();
         for (const auto& chunkSlice : stripe->ChunkSlices) {
-            for (ui32 protoReplica : chunkSlice->ChunkSpec()->replicas()) {
+            for (ui32 protoReplica : chunkSlice->GetChunkSpec()->replicas()) {
                 auto replica = FromProto<NChunkClient::TChunkReplica>(protoReplica);
                 auto locality = chunkSlice->GetLocality(replica.GetIndex());
                 if (locality > 0) {
@@ -1187,7 +1187,7 @@ public:
             ElementaryStripes.push_back(elementaryStripe);
 
             auto partitionsExt = GetProtoExtension<TPartitionsExt>(
-                chunkSlice->ChunkSpec()->chunk_meta().extensions());
+                chunkSlice->GetChunkSpec()->chunk_meta().extensions());
 
             YCHECK(partitionsExt.partitions_size() == Outputs.size());
 
@@ -1200,7 +1200,7 @@ public:
             }
 
             RemoveProtoExtension<TPartitionsExt>(
-                chunkSlice->ChunkSpec()->mutable_chunk_meta()->mutable_extensions());
+                chunkSlice->GetChunkSpec()->mutable_chunk_meta()->mutable_extensions());
         }
 
         inputStripe.ElementaryIndexEnd = static_cast<int>(ElementaryStripes.size());
@@ -1224,7 +1224,7 @@ public:
         // Remove all partition extensions.
         for (auto chunkSlice : stripe->ChunkSlices) {
             RemoveProtoExtension<TPartitionsExt>(
-                chunkSlice->ChunkSpec()->mutable_chunk_meta()->mutable_extensions());
+                chunkSlice->GetChunkSpec()->mutable_chunk_meta()->mutable_extensions());
         }
 
         // Although the sizes and even the row count may have changed (mind unordered reader and
