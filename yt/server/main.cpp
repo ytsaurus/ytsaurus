@@ -13,8 +13,6 @@
 
 #include <yt/ytlib/chunk_client/dispatcher.h>
 
-#include <yt/ytlib/misc/tclap_helpers.h>
-
 #include <yt/ytlib/monitoring/http_server.h>
 #include <yt/ytlib/monitoring/monitoring_manager.h>
 
@@ -40,7 +38,7 @@
 
 #include <util/system/sigset.h>
 
-#include <contrib/tclap/tclap/CmdLine.h>
+#include <contrib/tclap/yt_helpers.h>
 
 #ifdef _unix_
     #include <sys/resource.h>

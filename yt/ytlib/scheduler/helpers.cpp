@@ -66,6 +66,13 @@ TYPath GetLivePreviewIntermediatePath(const TOperationId& operationId)
         + "/intermediate";
 }
 
+TYPath GetTransactionPath(const NTransactionClient::TTransactionId& transactionId)
+{
+    return
+        "//sys/transactions/" +
+        ToYPathLiteral(ToString(transactionId));
+}
+
 bool IsOperationFinished(EOperationState state)
 {
     return

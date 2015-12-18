@@ -59,7 +59,7 @@ public:
 
     void Persist(NPhoenix::TPersistenceContext& context);
 
-    size_t SpaceUsedExcludingSelf() const;
+    size_t SpaceUsed() const;
 
 private:
     NProto::TReadLimit ReadLimit_;

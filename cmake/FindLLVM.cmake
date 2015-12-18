@@ -1,4 +1,4 @@
-#  Find the native LLVM includes and libraries
+#  Find LLVM includes and libraries.
 #
 #  LLVM_VERSION      - LLVM version.
 #  LLVM_INCLUDE_DIRS - Directory containing LLVM headers.
@@ -6,28 +6,42 @@
 #  LLVM_CPPFLAGS     - C preprocessor flags for files that include LLVM headers.
 #  LLVM_CXXFLAGS     - C++ compiler flags for files that include LLVM headers.
 #  LLVM_LDFLAGS      - Linker flags.
-#  LLVM_FOUND        - True if LLVM found.
+#  LLVM_FOUND        - True if LLVM was found.
 
 #  llvm_map_components_to_libraries - Maps LLVM used components to required libraries.
 #  Usage: llvm_map_components_to_libraries(REQUIRED_LLVM_LIBRARIES core jit interpreter native ...)
 
-# First look in ENV{LLVM_ROOT} then system path.
 find_program(LLVM_CONFIG_EXECUTABLE
-  llvm-config-3.6
-  llvm-config-3.5
-  llvm-config-mp-3.6
-  llvm-config-mp-3.5
-  llvm-config
-  PATHS
-  $ENV{LLVM_ROOT}/bin
+  NAMES llvm-config-3.7 llvm-config-mp-3.7 llvm-config
+  PATHS $ENV{LLVM_ROOT}/bin
 )
 
 mark_as_advanced(LLVM_CONFIG_EXECUTABLE)
 
 if(NOT LLVM_CONFIG_EXECUTABLE)
-  message(FATAL_ERROR "LLVM cannot be found (could not find llvm-config). Set environment variable LLVM_ROOT.")
+  message(FATAL_ERROR "Cannot find LLVM (looking for `llvm-config`). Please, provide LLVM_ROOT environment variable.")
 else()
   set(LLVM_FOUND TRUE)
+
+  find_program(CLANG_EXECUTABLE
+    NAMES clang-3.7 clang-mp-3.7 clang
+    PATHS $ENV{LLVM_ROOT}/bin
+  )
+
+  find_program(CLANGPP_EXECUTABLE
+    NAMES clang++-3.7 clang++-mp-3.7 clang++
+    PATHS $ENV{LLVM_ROOT}/bin
+  )
+
+  find_program(LLVM_LINK_EXECUTABLE
+    NAMES llvm-link-3.7 llvm-link-mp-3.7 llvm-link
+    PATHS $ENV{LLVM_ROOT}/bin
+  )
+
+  find_program(LLVM_OPT_EXECUTABLE
+    NAMES opt-3.7 opt-mp-3.7 opt
+    PATHS $ENV{LLVM_ROOT}/bin
+  )
 
   execute_process(
     COMMAND ${LLVM_CONFIG_EXECUTABLE} --version
@@ -35,8 +49,8 @@ else()
     OUTPUT_STRIP_TRAILING_WHITESPACE
   )
 
-  if(LLVM_VERSION VERSION_LESS "3.6")
-    message(FATAL_ERROR "LLVM 3.6+ is required.")
+  if(LLVM_VERSION VERSION_LESS "3.7")
+    message(FATAL_ERROR "LLVM 3.7+ is required.")
   endif()
 
   execute_process(
@@ -116,7 +130,6 @@ else()
   message(STATUS "LLVM Library Directory: ${LLVM_LIBRARY_DIRS}")
   message(STATUS "LLVM C++ Preprocessor: ${LLVM_CPPFLAGS}")
   message(STATUS "LLVM C++ Compiler: ${LLVM_CXXFLAGS}")
-
 endif()
 
 

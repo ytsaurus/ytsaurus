@@ -25,11 +25,11 @@
 
 namespace std {
 
-#if defined(__GNUC__)
+// Make global hash functions from util/ visible for STL.
+template <> struct hash<Stroka> : public ::hash<Stroka> { };
+template <> struct hash<TStringBuf> : public ::hash<TStringBuf> { };
 
-#if !defined(__clang__) && __GNUC__ == 4 && __GNUC_MINOR__ < 9
-// As of now, GCC does not support make_unique.
-// See https://gcc.gnu.org/ml/libstdc++/2014-06/msg00010.html
+#if defined(__GLIBCXX__) && !defined(__cpp_lib_make_unique)
 template <typename TResult, typename ...TArgs>
 std::unique_ptr<TResult> make_unique(TArgs&& ...args)
 {
@@ -38,7 +38,7 @@ std::unique_ptr<TResult> make_unique(TArgs&& ...args)
 #endif
 
 // std::aligned_union is not available in early versions of libstdc++.
-#if defined(__GLIBCXX__) && __GLIBCXX__ < 20150422
+#if defined(__GLIBCXX__) && __GLIBCXX__ <= 20151129
 
 // As of now, GCC does not have std::aligned_union.
 template <typename... _Types>
@@ -53,10 +53,10 @@ template <typename _Tp, typename... _Types>
   {
     static const size_t _S_alignment =
       alignof(_Tp) > __strictest_alignment<_Types...>::_S_alignment
- ? alignof(_Tp) : __strictest_alignment<_Types...>::_S_alignment;
+      ? alignof(_Tp) : __strictest_alignment<_Types...>::_S_alignment;
     static const size_t _S_size =
       sizeof(_Tp) > __strictest_alignment<_Types...>::_S_size
- ? sizeof(_Tp) : __strictest_alignment<_Types...>::_S_size;
+      ? sizeof(_Tp) : __strictest_alignment<_Types...>::_S_size;
   };
 
 template <size_t _Len, typename... _Types>
@@ -67,7 +67,7 @@ template <size_t _Len, typename... _Types>
 
     using __strictest = __strictest_alignment<_Types...>;
     static const size_t _S_len = _Len > __strictest::_S_size
- ? _Len : __strictest::_S_size;
+      ? _Len : __strictest::_S_size;
   public:
     /// The value of the strictest alignment of _Types.
     static const size_t alignment_value = __strictest::_S_alignment;
@@ -80,11 +80,9 @@ template <size_t _Len, typename... _Types>
 
 #endif
 
-#endif
-
 #if defined(__GNUC__) && __GNUC__ == 4 && __GNUC_MINOR__ == 7
 // GCC 4.7 defines has_trivial_destructor instead of is_trivially_destructible.
-template<typename T>
+template <typename T>
 using is_trivially_destructible = std::has_trivial_destructor<T>;
 #endif
 

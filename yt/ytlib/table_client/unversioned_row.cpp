@@ -607,8 +607,13 @@ TMutableUnversionedRow TMutableUnversionedRow::Allocate(TChunkedMemoryPool* pool
     size_t byteSize = GetUnversionedRowByteSize(valueCount);
     auto* header = reinterpret_cast<TUnversionedRowHeader*>(pool->AllocateAligned(byteSize));
     header->Count = valueCount;
+<<<<<<< HEAD
     header->Padding = 0;
     return TMutableUnversionedRow(header);
+=======
+    header->Capacity = valueCount;
+    return TUnversionedRow(header);
+>>>>>>> origin/prestable/0.17.4
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1265,19 +1270,32 @@ void TUnversionedOwningRow::Load(TStreamLoadContext& context)
 
 TUnversionedRowBuilder::TUnversionedRowBuilder(int initialValueCapacity /*= 16*/)
 {
+<<<<<<< HEAD
     ValueCapacity_ = initialValueCapacity;
     RowData_.resize(GetUnversionedRowByteSize(ValueCapacity_));
+=======
+    RowData_.resize(GetUnversionedRowDataSize(initialValueCapacity));
+>>>>>>> origin/prestable/0.17.4
     Reset();
+    GetHeader()->Capacity = initialValueCapacity;
 }
 
 int TUnversionedRowBuilder::AddValue(const TUnversionedValue& value)
 {
+<<<<<<< HEAD
     if (GetHeader()->Count == ValueCapacity_) {
         ValueCapacity_ = 2 * std::max(1, ValueCapacity_);
         RowData_.resize(GetUnversionedRowByteSize(ValueCapacity_));
+=======
+    auto* header = GetHeader();
+    if (header->Count == header->Capacity) {
+        auto valueCapacity = 2 * std::max(1U, header->Capacity);
+        RowData_.resize(GetUnversionedRowDataSize(valueCapacity));
+        header = GetHeader();
+        header->Capacity = valueCapacity;
+>>>>>>> origin/prestable/0.17.4
     }
 
-    auto* header = GetHeader();
     *GetValue(header->Count) = value;
     return header->Count++;
 }
@@ -1314,12 +1332,20 @@ TUnversionedOwningRowBuilder::TUnversionedOwningRowBuilder(int initialValueCapac
 
 int TUnversionedOwningRowBuilder::AddValue(const TUnversionedValue& value)
 {
+<<<<<<< HEAD
     if (GetHeader()->Count == ValueCapacity_) {
         ValueCapacity_ = ValueCapacity_ == 0 ? 1 : ValueCapacity_ * 2;
         RowData_.Resize(GetUnversionedRowByteSize(ValueCapacity_));
+=======
+    auto* header = GetHeader();
+    if (header->Count == header->Capacity) {
+        auto valueCapacity = 2 * std::max(1U, header->Capacity);
+        RowData_.Resize(GetUnversionedRowDataSize(valueCapacity));
+        header = GetHeader();
+        header->Capacity = valueCapacity;
+>>>>>>> origin/prestable/0.17.4
     }
 
-    auto* header = GetHeader();
     auto* newValue = GetValue(header->Count);
     *newValue = value;
 
@@ -1365,11 +1391,16 @@ TUnversionedOwningRow TUnversionedOwningRowBuilder::FinishRow()
 
 void TUnversionedOwningRowBuilder::Reset()
 {
+<<<<<<< HEAD
     ValueCapacity_ = InitialValueCapacity_;
     RowData_.Resize(GetUnversionedRowByteSize(ValueCapacity_));
+=======
+    RowData_.Resize(GetUnversionedRowDataSize(InitialValueCapacity_));
+>>>>>>> origin/prestable/0.17.4
 
     auto* header = GetHeader();
     header->Count = 0;
+    header->Capacity = InitialValueCapacity_;
 }
 
 TUnversionedRowHeader* TUnversionedOwningRowBuilder::GetHeader()
@@ -1393,7 +1424,7 @@ void TUnversionedOwningRow::Init(const TUnversionedValue* begin, const TUnversio
     auto* header = GetHeader();
 
     header->Count = count;
-    header->Padding = 0;
+    header->Capacity = count;
     ::memcpy(header + 1, begin, reinterpret_cast<const char*>(end) - reinterpret_cast<const char*>(begin));
 
     size_t variableSize = 0;

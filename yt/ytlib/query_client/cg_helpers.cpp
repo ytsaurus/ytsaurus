@@ -10,16 +10,15 @@ namespace NQueryClient {
 Value* CodegenValuesPtrFromRow(TCGIRBuilder& builder, Value* row)
 {
     auto name = row->getName();
-    auto namePrefix = name.empty() ? Twine::createNull() : Twine(name).concat(".");
 
     auto headerPtr = builder.CreateExtractValue(
         row,
         TypeBuilder<TRow, false>::Fields::Header,
-        namePrefix + "headerPtr");
+        Twine(name).concat(".headerPtr"));
     auto valuesPtr = builder.CreatePointerCast(
-        builder.CreateConstInBoundsGEP1_32(headerPtr, 1, "valuesPtrUncasted"),
+        builder.CreateConstInBoundsGEP1_32(nullptr, headerPtr, 1, "valuesPtrUncasted"),
         TypeBuilder<TValue*, false>::get(builder.getContext()),
-        namePrefix + "valuesPtr");
+        Twine(name).concat(".valuesPtr"));
 
     return valuesPtr;
 }

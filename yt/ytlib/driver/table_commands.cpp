@@ -299,7 +299,6 @@ void TLookupRowsCommand::Execute(ICommandContextPtr context)
     auto asyncTableInfo = tableMountCache->GetTableInfo(Path.GetPath());
     auto tableInfo = WaitFor(asyncTableInfo)
         .ValueOrThrow();
-
     tableInfo->ValidateDynamic();
 
     auto nameTable = TNameTable::FromSchema(tableInfo->Schema);
@@ -365,8 +364,8 @@ void TDeleteRowsCommand::Execute(ICommandContextPtr context)
     auto asyncTableInfo = tableMountCache->GetTableInfo(Path.GetPath());
     auto tableInfo = WaitFor(asyncTableInfo)
         .ValueOrThrow();
-
     tableInfo->ValidateDynamic();
+
 
     // Parse input data.
     auto valueConsumer = New<TBuildingValueConsumer>(

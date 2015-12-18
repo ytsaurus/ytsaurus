@@ -334,16 +334,21 @@ bool TChunk::UpdateExternalProprties(int cellIndex, const TChunkProperties& prop
 
 int TChunk::GetMaxReplicasPerRack(TNullable<int> replicationFactorOverride) const
 {
-    int replicationFactor = replicationFactorOverride.Get(ComputeReplicationFactor());
     switch (GetType()) {
-        case EObjectType::Chunk:
+        case EObjectType::Chunk: {
+            int replicationFactor = replicationFactorOverride
+            	? *replicationFactorOverride
+            	: ComputeReplicationFactor();
             return std::max(replicationFactor - 1, 1);
+        }
 
         case EObjectType::ErasureChunk:
             return NErasure::GetCodec(GetErasureCodec())->GetGuaranteedRepairablePartCount();
 
-        case EObjectType::JournalChunk:
-            return 1;
+        case EObjectType::JournalChunk: {
+            int minQuorum = std::min(ReadQuorum_, WriteQuorum_);
+            return std::max(minQuorum - 1, 1);
+        }
 
         default:
             YUNREACHABLE();

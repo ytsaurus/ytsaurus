@@ -935,13 +935,15 @@ INSTANTIATE_TEST_CASE_P(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TEvaluateExpressionTest
-    : public ::testing::Test
-    , public ::testing::WithParamInterface<std::tuple<const char*, const char*, TUnversionedValue>>
-{ };
-
-TEST_P(TEvaluateExpressionTest, Basic)
+void EvaluateExpression(
+    TConstExpressionPtr expr,
+    Stroka rowString,
+    const TTableSchema& schema,
+    const TKeyColumns& keyColumns,
+    TUnversionedValue* result,
+    TRowBufferPtr buffer)
 {
+<<<<<<< HEAD
     const auto& param = GetParam();
     const auto& rowString = std::get<0>(param);
     const auto& exprString = std::get<1>(param);
@@ -956,26 +958,23 @@ TEST_P(TEvaluateExpressionTest, Basic)
 
     auto expr = PrepareExpression(exprString, schema);
 
+=======
+>>>>>>> origin/prestable/0.17.4
     TCGVariables variables;
     std::vector<std::vector<bool>> allLiteralArgs;
 
     auto callback = Profile(expr, schema, nullptr, &variables, nullptr, &allLiteralArgs, CreateBuiltinFunctionRegistry())();
 
     auto row = NTableClient::BuildRow(rowString, keyColumns, schema, true);
-    TUnversionedValue result;
 
     TQueryStatistics statistics;
-    auto permanentBuffer = New<TRowBuffer>();
-    auto outputBuffer = New<TRowBuffer>();
-    auto intermediateBuffer = New<TRowBuffer>();
-
     // NB: function contexts need to be destroyed before callback since it hosts destructors.
     TExecutionContext executionContext;
     executionContext.Schema = &schema;
     executionContext.LiteralRows = &variables.LiteralRows;
-    executionContext.PermanentBuffer = permanentBuffer;
-    executionContext.OutputBuffer = outputBuffer;
-    executionContext.IntermediateBuffer = intermediateBuffer;
+    executionContext.PermanentBuffer = buffer;
+    executionContext.OutputBuffer = buffer;
+    executionContext.IntermediateBuffer = buffer;
     executionContext.Statistics = &statistics;
 #ifndef NDEBUG
     volatile int dummy;
@@ -990,7 +989,33 @@ TEST_P(TEvaluateExpressionTest, Basic)
         functionContexts.push_back(&functionContext);
     }
 
-    callback(&result, row.Get(), variables.ConstantsRowBuilder.GetRow(), &executionContext, &functionContexts[0]);
+    callback(result, row.Get(), variables.ConstantsRowBuilder.GetRow(), &executionContext, &functionContexts[0]);
+}
+
+class TEvaluateExpressionTest
+    : public ::testing::Test
+    , public ::testing::WithParamInterface<std::tuple<const char*, const char*, TUnversionedValue>>
+{ };
+
+TEST_P(TEvaluateExpressionTest, Basic)
+{
+    const auto& param = GetParam();
+    const auto& rowString = std::get<0>(param);
+    const auto& exprString = std::get<1>(param);
+    const auto& expected = std::get<2>(param);
+
+    TTableSchema schema;
+    schema.Columns().emplace_back(TColumnSchema("i1", EValueType::Int64));
+    schema.Columns().emplace_back(TColumnSchema("i2", EValueType::Int64));
+    schema.Columns().emplace_back(TColumnSchema("u1", EValueType::Uint64));
+    schema.Columns().emplace_back(TColumnSchema("u2", EValueType::Uint64));
+    TKeyColumns keyColumns;
+
+    auto expr = PrepareExpression(exprString, schema);
+
+    auto buffer = New<TRowBuffer>();
+    TUnversionedValue result;
+    EvaluateExpression(expr, rowString, schema, keyColumns, &result, buffer);
 
     EXPECT_EQ(result, expected);
 }
@@ -999,6 +1024,30 @@ INSTANTIATE_TEST_CASE_P(
     EvaluateExpressionTest,
     TEvaluateExpressionTest,
     ::testing::Values(
+        std::tuple<const char*, const char*, TUnversionedValue>(
+            "",
+            "lower('')",
+            MakeString("")),
+        std::tuple<const char*, const char*, TUnversionedValue>(
+            "",
+            "lower('ПрИвЕт, КаК ДеЛа?')",
+            MakeString("привет, как дела?")),
+        std::tuple<const char*, const char*, TUnversionedValue>(
+            "",
+            "concat('', '')",
+            MakeString("")),
+        std::tuple<const char*, const char*, TUnversionedValue>(
+            "",
+            "concat('abc', '')",
+            MakeString("abc")),
+        std::tuple<const char*, const char*, TUnversionedValue>(
+            "",
+            "concat('', 'def')",
+            MakeString("def")),
+        std::tuple<const char*, const char*, TUnversionedValue>(
+            "",
+            "concat('abc', 'def')",
+            MakeString("abcdef")),
         std::tuple<const char*, const char*, TUnversionedValue>(
             "i1=33;i2=22",
             "i1 + i2",
@@ -1027,7 +1076,95 @@ INSTANTIATE_TEST_CASE_P(
             "i1=-9223372036854775808",
             "uint64(i1)",
             MakeUint64(9223372036854775808ULL))
+
 ));
+
+INSTANTIATE_TEST_CASE_P(
+    EvaluateTimestampExpressionTest,
+    TEvaluateExpressionTest,
+    ::testing::Values(
+        std::tuple<const char*, const char*, TUnversionedValue>(
+            "i1=1446325284",
+            "format_timestamp(i1, '')",
+            MakeString("")),
+        std::tuple<const char*, const char*, TUnversionedValue>(
+            "i1=1446325284",
+            "format_timestamp(i1, '%Y-%m-%dT%H:%M:%S')",
+            MakeString("2015-10-31T21:01:24")),
+        std::tuple<const char*, const char*, TUnversionedValue>(
+            "i1=1446325284",
+            "timestamp_floor_hour(i1)",
+            MakeInt64(1446325200)),
+        std::tuple<const char*, const char*, TUnversionedValue>(
+            "i1=1446325284",
+            "timestamp_floor_day(i1)",
+            MakeInt64(1446249600)),
+        std::tuple<const char*, const char*, TUnversionedValue>(
+            "i1=1446325284",
+            "timestamp_floor_week(i1)",
+            MakeInt64(1445817600)),
+        std::tuple<const char*, const char*, TUnversionedValue>(
+            "i1=1446325284",
+            "timestamp_floor_month(i1)",
+            MakeInt64(1443657600)),
+        std::tuple<const char*, const char*, TUnversionedValue>(
+            "i1=1446325284",
+            "timestamp_floor_year(i1)",
+            MakeInt64(1420070400))
+));
+
+class TFormatTimestampExpressionTest
+    : public ::testing::Test
+{
+protected:
+    virtual void SetUp() override
+    { }
+};
+
+TEST_F(TFormatTimestampExpressionTest, TooSmallTimestamp)
+{
+    TTableSchema schema;
+    TKeyColumns keyColumns;
+
+    auto expr = PrepareExpression("format_timestamp(-62135596801, '')", schema);
+    auto buffer = New<TRowBuffer>();
+
+    TUnversionedValue result;
+
+    EXPECT_THROW_THAT(
+        [&] { EvaluateExpression(expr, "", schema, keyColumns, &result, buffer); },
+        HasSubstr("Timestamp is smaller than minimal value"));
+}
+
+TEST_F(TFormatTimestampExpressionTest, TooLargeTimestamp)
+{
+    TTableSchema schema;
+    TKeyColumns keyColumns;
+
+    auto expr = PrepareExpression("format_timestamp(253402300800, '%Y%m%d')", schema);
+    auto buffer = New<TRowBuffer>();
+
+    TUnversionedValue result;
+
+    EXPECT_THROW_THAT(
+        [&] { EvaluateExpression(expr, "", schema, keyColumns, &result, buffer); },
+        HasSubstr("Timestamp is greater than maximal value"));
+}
+
+TEST_F(TFormatTimestampExpressionTest, InvalidFormat)
+{
+    TTableSchema schema;
+    TKeyColumns keyColumns;
+
+    auto expr = PrepareExpression("format_timestamp(0, '11111111112222222222333333333344')", schema);
+    auto buffer = New<TRowBuffer>();
+
+    TUnversionedValue result;
+
+    EXPECT_THROW_THAT(
+        [&] { EvaluateExpression(expr, "", schema, keyColumns, &result, buffer); },
+        HasSubstr("Format string is too long"));
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

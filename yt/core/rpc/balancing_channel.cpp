@@ -63,22 +63,23 @@ public:
     TFuture<IChannelPtr> GetChannel()
     {
         auto channel = PickViableChannel();
-        return channel ? MakeFuture(std::move(channel)) : RunDiscovery();
+        return channel ? MakeFuture(std::move(channel)) : RunDiscoverySession();
     }
 
     TFuture<void> Terminate(const TError& error)
     {
-        std::vector<IChannelPtr> channels;
+        yhash_map<Stroka, IChannelPtr> addressToViableChannel;
         {
             TWriterGuard guard(SpinLock_);
             Terminated_ = true;
             TerminationError_ = error;
-            channels = std::move(ViableChannels_);
+            AddressToViableChannel_.swap(addressToViableChannel);
+            AddressToViableChannelIt_ = AddressToViableChannel_.end();
         }
 
         std::vector<TFuture<void>> asyncResults;
-        for (const auto& channel : channels) {
-            asyncResults.push_back(channel->Terminate(error));
+        for (const auto& pair : addressToViableChannel) {
+            asyncResults.push_back(pair.second->Terminate(error));
         }
 
         return Combine(asyncResults);
@@ -94,10 +95,12 @@ private:
 
     mutable TReaderWriterSpinLock SpinLock_;
     bool Terminated_ = false;
+    TFuture<IChannelPtr> CurrentDiscoverySessionResult_;
     TError TerminationError_;
     yhash_set<Stroka> ActiveAddresses_;
     yhash_set<Stroka> BannedAddresses_;
-    std::vector<IChannelPtr> ViableChannels_;
+    yhash_map<Stroka, IChannelPtr> AddressToViableChannel_;
+    yhash_map<Stroka, IChannelPtr>::iterator AddressToViableChannelIt_ = AddressToViableChannel_.end();
 
     NLogging::TLogger Logger;
 
@@ -119,11 +122,15 @@ private:
             , Logger(Owner_->Logger)
         { }
 
-        TFuture<IChannelPtr> Run()
+        TFuture<IChannelPtr> GetResult()
+        {
+            return Promise_;
+        }
+
+        void Run()
         {
             LOG_DEBUG("Starting peer discovery");
             DoRun();
-            return Promise_;
         }
 
     private:
@@ -267,6 +274,8 @@ private:
             }
 
             Promise_.TrySet(result);
+
+            Owner_->OnDiscoverySessionFinished();
         }
     };
 
@@ -274,24 +283,54 @@ private:
     IChannelPtr PickViableChannel()
     {
         TReaderGuard guard(SpinLock_);
-        if (ViableChannels_.empty()) {
+        if (AddressToViableChannel_.empty()) {
             return nullptr;
         }
-        return ViableChannels_[RandomNumber(ViableChannels_.size())];
+        if (AddressToViableChannelIt_ == AddressToViableChannel_.end()) {
+            AddressToViableChannelIt_ = AddressToViableChannel_.begin();
+        }
+        return (AddressToViableChannelIt_++)->second;
     }
 
-    TFuture<IChannelPtr> RunDiscovery()
+
+    TFuture<IChannelPtr> RunDiscoverySession()
     {
+        TIntrusivePtr<TDiscoverySession> session;
         {
-            TReaderGuard guard(SpinLock_);
+            TWriterGuard guard(SpinLock_);
+
             if (Terminated_) {
-                return MakeFuture<IChannelPtr>(TError(NRpc::EErrorCode::TransportError, "Channel terminated")
+                return MakeFuture<IChannelPtr>(TError(
+                    NRpc::EErrorCode::TransportError,
+                    "Channel terminated")
                     << *EndpointAttributes_
                     << TerminationError_);
             }
+
+            if (CurrentDiscoverySessionResult_) {
+                return CurrentDiscoverySessionResult_;
+            }
+
+            session = New<TDiscoverySession>(this);
+            CurrentDiscoverySessionResult_ = session->GetResult();
         }
-        return New<TDiscoverySession>(this)->Run();
+
+        session->Run();
+        return session->GetResult();
     }
+
+    void OnDiscoverySessionFinished()
+    {
+        TWriterGuard guard(SpinLock_);
+
+        YCHECK(CurrentDiscoverySessionResult_);
+        CurrentDiscoverySessionResult_.Reset();
+
+        TDelayedExecutor::Submit(
+            BIND(IgnoreResult(&TBalancingChannelSubprovider::RunDiscoverySession), MakeWeak(this)),
+            Config_->RediscoverPeriod);
+    }
+
 
     std::vector<Stroka> GetAllAddresses() const
     {
@@ -320,7 +359,7 @@ private:
         yhash_set<Stroka>* requestingAddresses,
         yhash_set<Stroka>* requestedAddresses)
     {
-        TWriterGuard guard(SpinLock_);
+        TReaderGuard guard(SpinLock_);
 
         if (requestingAddresses->size() >= Config_->MaxConcurrentDiscoverRequests) {
             return TTooManyConcurrentRequests();
@@ -387,7 +426,7 @@ private:
 
         {
             TWriterGuard guard(SpinLock_);
-            ViableChannels_.push_back(wrappedChannel);
+            AddressToViableChannel_[address] = wrappedChannel;
         }
 
         LOG_DEBUG("Peer is up (Address: %v)", address);
@@ -398,10 +437,12 @@ private:
     {
         {
             TWriterGuard guard(SpinLock_);
-            auto it = std::find(ViableChannels_.begin(), ViableChannels_.end(), channel);
-            // NB: Multiple failures is possible.
-            if (it != ViableChannels_.end()) {
-                ViableChannels_.erase(it);
+            auto it = AddressToViableChannel_.find(address);
+            if (it != AddressToViableChannel_.end() && it->second == channel) {
+                if (it == AddressToViableChannelIt_) {
+                    ++AddressToViableChannelIt_;
+                }
+                AddressToViableChannel_.erase(it);
             }
         }
 

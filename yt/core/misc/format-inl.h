@@ -28,7 +28,11 @@ void FormatValue(TStringBuilder* builder, const TValue& value, const TStringBuf&
 
 #ifdef __GNUC__
 // Catch attempts to format 128-bit numbers early.
+#ifdef YDEPRECATED
 void FormatValue(TStringBuilder* builder, __int128 value, const TStringBuf& format) YDEPRECATED();
+#else
+void FormatValue(TStringBuilder* builder, __int128 value, const TStringBuf& format) Y_DEPRECATED();
+#endif
 #endif
 
 // TStringBuf

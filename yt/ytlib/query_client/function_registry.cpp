@@ -9,12 +9,14 @@
 #include "udf/is_null.h"
 #include "udf/is_substr.h"
 #include "udf/lower.h"
+#include "udf/concat.h"
 #include "udf/max.h"
 #include "udf/min.h"
 #include "udf/regex.h"
 #include "udf/sleep.h"
 #include "udf/sum.h"
 #include "udf/uint64.h"
+#include "udf/dates.h"
 #include "udf_descriptor.h"
 #include "user_defined_functions.h"
 
@@ -136,6 +138,16 @@ void RegisterBuiltinFunctions(TIntrusivePtr<TFunctionRegistry>& registry)
         TSharedRef(
             lower_bc,
             lower_bc_len,
+            nullptr),
+        ECallingConvention::Simple));
+
+    registry->RegisterFunction(New<TUserDefinedFunction>(
+        "concat",
+        std::vector<TType>{EValueType::String, EValueType::String},
+        EValueType::String,
+        TSharedRef(
+            concat_bc,
+            concat_bc_len,
             nullptr),
         ECallingConvention::Simple));
 
@@ -371,6 +383,36 @@ void RegisterBuiltinFunctions(TIntrusivePtr<TFunctionRegistry>& registry)
             hyperloglog_bc_len,
             nullptr),
         ECallingConvention::UnversionedValue));
+
+    registry->RegisterFunction(New<TUserDefinedFunction>(
+            "format_timestamp",
+            std::vector<TType>{EValueType::Int64, EValueType::String},
+            EValueType::String,
+            TSharedRef(
+                dates_bc,
+                dates_bc_len,
+                nullptr),
+            ECallingConvention::Simple));
+
+    std::vector<Stroka> timestampFloorFunctions = {
+        "timestamp_floor_hour",
+        "timestamp_floor_day",
+        "timestamp_floor_week",
+        "timestamp_floor_month",
+        "timestamp_floor_year"};
+
+    for (const auto& name : timestampFloorFunctions) {
+        registry->RegisterFunction(New<TUserDefinedFunction>(
+            name,
+            std::vector<TType>{EValueType::Int64},
+            EValueType::Int64,
+            TSharedRef(
+                dates_bc,
+                dates_bc_len,
+                nullptr),
+            ECallingConvention::Simple));
+    }
+
 }
 
 ////////////////////////////////////////////////////////////////////////////////

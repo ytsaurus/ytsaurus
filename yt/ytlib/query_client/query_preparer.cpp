@@ -192,28 +192,44 @@ public:
         YCHECK(tableSchema);
         const auto& columns = TableSchema_->Columns();
         for (size_t index = 0; index < columns.size(); ++index) {
+<<<<<<< HEAD
             Lookup_.insert(MakePair(MakePair(Stroka(columns[index].Name), Stroka(tableName)), index));
+=======
+            Lookup_.insert(std::make_pair(std::make_pair(Stroka(columns[index].Name), Stroka()), index));
+>>>>>>> origin/prestable/0.17.4
         }
     }
 
     // NOTE: result must be used before next call
     const TColumnSchema* GetColumnPtr(const TStringBuf& name, const TStringBuf& tableName)
     {
+<<<<<<< HEAD
         const auto& resultColumns = TableSchema_->Columns();
         auto it = Lookup_.find(MakePair(Stroka(name), Stroka(tableName)));
+=======
+        auto& resultColumns = TableSchema_->Columns();
+        auto it = Lookup_.find(std::make_pair(Stroka(name), Stroka(tableName)));
+>>>>>>> origin/prestable/0.17.4
         if (it != Lookup_.end()) {
             return &resultColumns[it->second];
         } else if (auto original = AddColumnPtr(name, tableName)) {
             auto index = resultColumns.size();
+<<<<<<< HEAD
             Lookup_.insert(MakePair(MakePair(Stroka(name), Stroka(tableName)), index));
             TColumnSchema newColumn(NAst::FormatColumn(name, tableName), original->Type);
             TableSchema_->AppendColumn(newColumn);
             return &TableSchema_->Columns().back();
+=======
+            Lookup_.insert(std::make_pair(std::make_pair(Stroka(name), Stroka(tableName)), index));
+            resultColumns.push_back(*original);
+            resultColumns.back().Name = NAst::FormatColumn(name, tableName);
+            return &resultColumns.back();
+>>>>>>> origin/prestable/0.17.4
         }
         return nullptr;
     }
 
-    const yhash_map<TPair<Stroka, Stroka>, size_t>& GetLookup() const
+    const yhash_map<std::pair<Stroka, Stroka>, size_t>& GetLookup() const
     {
         return Lookup_;
     }
@@ -227,7 +243,7 @@ public:
         const NAst::TAliasMap& aliasMap)
     {
         auto& resultColumns = TableSchema_->Columns();
-        auto it = Lookup_.find(MakePair(Stroka(subexprName), Stroka()));
+        auto it = Lookup_.find(std::make_pair(Stroka(subexprName), Stroka()));
         if (it != Lookup_.end()) {
             return &resultColumns[it->second];
         }
@@ -241,9 +257,15 @@ public:
             aliasMap);
 
         auto index = resultColumns.size();
+<<<<<<< HEAD
         Lookup_.insert(MakePair(MakePair(Stroka(subexprName), Stroka()), index));
         TableSchema_->AppendColumn(original);
         return &TableSchema_->Columns().back();
+=======
+        Lookup_.insert(std::make_pair(std::make_pair(Stroka(subexprName), Stroka()), index));
+        resultColumns.push_back(original);
+        return &resultColumns.back();
+>>>>>>> origin/prestable/0.17.4
     }
 
     virtual void Finish()
@@ -599,7 +621,7 @@ protected:
     }
 
 private:
-    yhash_map<TPair<Stroka, Stroka>, size_t> Lookup_;
+    yhash_map<std::pair<Stroka, Stroka>, size_t> Lookup_;
 
 protected:
     virtual const TColumnSchema* AddColumnPtr(const TStringBuf& name, const TStringBuf& tableName)
