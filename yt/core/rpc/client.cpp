@@ -171,14 +171,11 @@ TClientResponseBase::TClientResponseBase(TClientContextPtr clientContext)
 
 void TClientResponseBase::HandleError(const TError& error)
 {
-    {
-        TGuard<TSpinLock> guard(SpinLock_);
-        if (State_ == EState::Done) {
-            // Ignore the error.
-            // Most probably this is a late timeout.
-            return;
-        }
-        State_ = EState::Done;
+    auto prevState = State_.exchange(EState::Done);
+    if (prevState == EState::Done) {
+        // Ignore the error.
+        // Most probably this is a late timeout.
+        return;
     }
 
     TDispatcher::Get()->GetInvoker()->Invoke(
@@ -239,19 +236,14 @@ void TClientResponse::Deserialize(TSharedRefArray responseMessage)
 void TClientResponse::HandleAcknowledgement()
 {
     // NB: Handle without switching to another invoker.
-    TGuard<TSpinLock> guard(SpinLock_);
-    if (State_ == EState::Sent) {
-        State_ = EState::Ack;
-    }
+    auto expected = EState::Sent;
+    State_.compare_exchange_strong(expected, EState::Ack);
 }
 
 void TClientResponse::HandleResponse(TSharedRefArray message)
 {
-    {
-        TGuard<TSpinLock> guard(SpinLock_);
-        YASSERT(State_ == EState::Sent || State_ == EState::Ack);
-        State_ = EState::Done;
-    }
+    auto prevState = State_.exchange(EState::Done);
+    YASSERT(State_ == EState::Sent || State_ == EState::Ack);
 
     TDispatcher::Get()->GetInvoker()->Invoke(
         BIND(&TClientResponse::DoHandleResponse, MakeStrong(this), Passed(std::move(message))));
@@ -271,13 +263,10 @@ TOneWayClientResponse::TOneWayClientResponse(TClientContextPtr clientContext)
 
 void TOneWayClientResponse::HandleAcknowledgement()
 {
-    {
-        TGuard<TSpinLock> guard(SpinLock_);
-        if (State_ == EState::Done) {
-            // Ignore the ack.
-            return;
-        }
-        State_ = EState::Done;
+    auto prevState = State_.exchange(EState::Done);
+    if (prevState == EState::Done) {
+        // Ignore the ack.
+        return;
     }
 
     Finish(TError());
