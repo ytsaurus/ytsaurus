@@ -282,6 +282,7 @@ protected:
 
 private:
     void TraceResponse();
+    void DoHandleError(const TError& error);
 
 };
 
@@ -311,6 +312,7 @@ private:
     virtual void HandleAcknowledgement() override;
     virtual void HandleResponse(TSharedRefArray message) override;
 
+    void DoHandleResponse(TSharedRefArray message);
     void Deserialize(TSharedRefArray responseMessage);
 };
 
