@@ -187,6 +187,12 @@ void TClientResponseBase::HandleError(const TError& error)
         State_ = EState::Done;
     }
 
+    TDispatcher::Get()->GetInvoker()->Invoke(
+        BIND(&TClientResponseBase::DoHandleError, MakeStrong(this), error));
+}
+
+void TClientResponseBase::DoHandleError(const TError& error)
+{
     Finish(error);
 }
 
@@ -238,6 +244,7 @@ void TClientResponse::Deserialize(TSharedRefArray responseMessage)
 
 void TClientResponse::HandleAcknowledgement()
 {
+    // NB: Handle without switching to another invoker.
     TGuard<TSpinLock> guard(SpinLock_);
     if (State_ == EState::Sent) {
         State_ = EState::Ack;
@@ -252,6 +259,12 @@ void TClientResponse::HandleResponse(TSharedRefArray message)
         State_ = EState::Done;
     }
 
+    TDispatcher::Get()->GetInvoker()->Invoke(
+        BIND(&TClientResponse::DoHandleResponse, MakeStrong(this), Passed(std::move(message))));
+}
+
+void TClientResponse::DoHandleResponse(TSharedRefArray message)
+{
     Deserialize(std::move(message));
     Finish(TError());
 }
