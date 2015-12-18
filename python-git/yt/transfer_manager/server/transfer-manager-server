@@ -984,7 +984,7 @@ class Application(object):
                     self._task_processes[id] = (task_process, queue)
 
                     runned_tasks += 1
-                    if runned_tasks >= self._config["max_tasks_to_run_per_sheduling_round"]:
+                    if runned_tasks >= self._config["max_tasks_to_run_per_scheduling_round"]:
                         break
 
                 self._pending_tasks = filter(lambda id: self._tasks[id].state == "pending", self._pending_tasks)
