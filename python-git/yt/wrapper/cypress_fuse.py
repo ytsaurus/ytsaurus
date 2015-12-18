@@ -25,7 +25,6 @@ import errno
 import time
 import logging
 import functools
-import sys
 import collections
 import os
 
@@ -52,9 +51,9 @@ class Statistics(object):
     def report(self):
         self._logger.debug("Statistics:")
         for name in self._timings.keys():
-            time = self._timings[name]
+            duration = self._timings[name]
             calls = self._calls[name]
-            self._logger.debug("{}: {}, {}".format(name, time, calls))
+            self._logger.debug("{0}: {1}, {2}".format(name, duration, calls))
 
 
 class Timer(object):
@@ -91,7 +90,7 @@ def log_calls(logger, message_format, statistics):
         @functools.wraps(function)
         def logged_function(*args, **kwargs):
             log_call(*args, **kwargs)
-            with Timer(function.__name__, statistics) as t:
+            with Timer(function.__name__, statistics):
                 return function(*args, **kwargs)
 
         return logged_function
@@ -131,7 +130,7 @@ class CachedYtClient(yt.wrapper.client.Yt):
     class CacheEntry(object):
         def __init__(self, exists=None, error=None):
             # Assume that node exists to avoid false negatives.
-            self.exists = True
+            self.exists = exists
             self.attributes = {}
             self.children = None
             self.error = error
@@ -605,12 +604,12 @@ class Cypress(fuse.Operations):
 
     @log_calls(_logger, "%(__name__)s(%(path)r, mode=%(mode)r)", _statistics)
     def chmod(self, path, mode):
-        _logger.debug("chmod is not implemented")
+        self._logger.debug("chmod is not implemented")
         return 0
 
     @log_calls(_logger, "%(__name__)s(%(path)r, uid=%(uid)r, gid=%(gid)r)", _statistics)
     def chown(self, path, uid, gid):
-        _logger.debug("chown is not implemented")
+        self._logger.debug("chown is not implemented")
 
     @handle_yt_errors(_logger)
     @log_calls(_logger, "%(__name__)s(%(path)r)", _statistics)
