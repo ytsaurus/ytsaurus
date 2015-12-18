@@ -436,9 +436,8 @@ public:
             .Run();
     }
 
-    TJobProberServiceProxy CreateJobProberProxy(const TJobId& jobId)
+    TJobProberServiceProxy CreateJobProberProxy(const TJobPtr& job)
     {
-        auto job = GetJobOrThrow(jobId);
         const auto& address = job->GetNode()->GetInterconnectAddress();
         auto channel = NChunkClient::LightNodeChannelFactory->CreateChannel(address);
 
@@ -1987,7 +1986,8 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        auto proxy = CreateJobProberProxy(jobId);
+        auto job = GetJobOrThrow(jobId);
+        auto proxy = CreateJobProberProxy(job);
 
         auto req = proxy.Strace();
         ToProto(req->mutable_job_id(), jobId);
@@ -2005,7 +2005,8 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        auto proxy = CreateJobProberProxy(jobId);
+        auto job = GetJobOrThrow(jobId);
+        auto proxy = CreateJobProberProxy(job);
 
         auto req = proxy.DumpInputContext();
         ToProto(req->mutable_job_id(), jobId);
@@ -2021,7 +2022,6 @@ private:
         auto chunkIds = FromProto<TGuid>(res->chunk_id());
         YCHECK(chunkIds.size() == 1);
 
-        auto job = GetJobOrThrow(jobId);
         MasterConnector_->AttachJobContext(path, chunkIds.front(), job);
 
         LOG_INFO("Input context saved (JobId: %v, Path: %v)",
@@ -2033,7 +2033,8 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        auto proxy = CreateJobProberProxy(jobId);
+        auto job = GetJobOrThrow(jobId);
+        auto proxy = CreateJobProberProxy(job);
 
         auto req = proxy.SignalJob();
         ToProto(req->mutable_job_id(), jobId);
