@@ -24,8 +24,8 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/block_id.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/chunk_info.proto
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/chunk_list_ypath.proto
-  ${CMAKE_CURRENT_LIST_DIR}/chunk_client/chunk_meta_extensions.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/chunk_meta.proto
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_client/chunk_meta_extensions.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/chunk_owner_ypath.proto
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/chunk_replica.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/chunk_scraper.cpp
@@ -34,6 +34,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/chunk_slice.proto
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/chunk_spec.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/chunk_spec.proto
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_client/chunk_teleporter.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/chunk_ypath.proto
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/client_block_cache.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/confirming_writer.cpp
@@ -55,19 +56,22 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/memory_writer.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/multi_chunk_reader_base.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/multi_chunk_writer_base.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_client/multi_reader_base.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/private.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/public.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/read_limit.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_client/reader_factory.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/replication_reader.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/replication_writer.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/schema.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/schema.proto
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/sequential_reader.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_client/throttler_manager.cpp
 
   ${CMAKE_CURRENT_LIST_DIR}/cypress_client/cypress_ypath.proto
   ${CMAKE_CURRENT_LIST_DIR}/cypress_client/public.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/cypress_client/rpc_helpers.cpp
   ${CMAKE_CURRENT_LIST_DIR}/cypress_client/rpc.proto
+  ${CMAKE_CURRENT_LIST_DIR}/cypress_client/rpc_helpers.cpp
 
   ${CMAKE_CURRENT_LIST_DIR}/driver/cypress_commands.cpp
   ${CMAKE_CURRENT_LIST_DIR}/driver/dispatcher.cpp
@@ -81,6 +85,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/driver/transaction_commands.cpp
 
   ${CMAKE_CURRENT_LIST_DIR}/election/cell_manager.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/election/config.cpp
   ${CMAKE_CURRENT_LIST_DIR}/election/election_service.proto
   ${CMAKE_CURRENT_LIST_DIR}/election/election_service_proxy.cpp
   ${CMAKE_CURRENT_LIST_DIR}/election/private.cpp
@@ -105,16 +110,18 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/formats/symbols.cpp
   ${CMAKE_CURRENT_LIST_DIR}/formats/utf8_decoder.cpp
   ${CMAKE_CURRENT_LIST_DIR}/formats/yamr_base_parser.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/formats/yamr_parser.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/formats/yamr_writer.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/formats/yamr_writer_base.cpp
   ${CMAKE_CURRENT_LIST_DIR}/formats/yamred_dsv_parser.cpp
   ${CMAKE_CURRENT_LIST_DIR}/formats/yamred_dsv_writer.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/formats/yamr_parser.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/formats/yamr_writer_base.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/formats/yamr_writer.cpp
   ${CMAKE_CURRENT_LIST_DIR}/formats/yson_parser.cpp
 
   ${CMAKE_CURRENT_LIST_DIR}/hive/cell_directory.cpp
   ${CMAKE_CURRENT_LIST_DIR}/hive/cell_directory.proto
   ${CMAKE_CURRENT_LIST_DIR}/hive/cluster_directory.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/hive/hive_service.proto
+  ${CMAKE_CURRENT_LIST_DIR}/hive/private.cpp
   ${CMAKE_CURRENT_LIST_DIR}/hive/public.cpp
   ${CMAKE_CURRENT_LIST_DIR}/hive/transaction_supervisor_service.proto
 
@@ -147,9 +154,9 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/monitoring/private.cpp
 
   ${CMAKE_CURRENT_LIST_DIR}/node_tracker_client/helpers.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/node_tracker_client/node_directory_builder.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/node_tracker_client/node_directory.cpp
   ${CMAKE_CURRENT_LIST_DIR}/node_tracker_client/node.proto
+  ${CMAKE_CURRENT_LIST_DIR}/node_tracker_client/node_directory.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/node_tracker_client/node_directory_builder.cpp
   ${CMAKE_CURRENT_LIST_DIR}/node_tracker_client/node_statistics.cpp
   ${CMAKE_CURRENT_LIST_DIR}/node_tracker_client/node_tracker_service.proto
   ${CMAKE_CURRENT_LIST_DIR}/node_tracker_client/public.cpp
@@ -183,9 +190,9 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/query_client/key_trie.cpp
   ${CMAKE_CURRENT_LIST_DIR}/query_client/lexer.cpp
   ${CMAKE_CURRENT_LIST_DIR}/query_client/parser.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/query_client/plan_fragment_common.cpp
   ${CMAKE_CURRENT_LIST_DIR}/query_client/plan_fragment.cpp
   ${CMAKE_CURRENT_LIST_DIR}/query_client/plan_fragment.proto
+  ${CMAKE_CURRENT_LIST_DIR}/query_client/plan_fragment_common.cpp
   ${CMAKE_CURRENT_LIST_DIR}/query_client/plan_helpers.cpp
   ${CMAKE_CURRENT_LIST_DIR}/query_client/private.cpp
   ${CMAKE_CURRENT_LIST_DIR}/query_client/query_preparer.cpp
@@ -197,19 +204,20 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/query_client/user_defined_functions.cpp
 
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/helpers.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/scheduler/job_prober_service.proto
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/job.proto
+  ${CMAKE_CURRENT_LIST_DIR}/scheduler/job_prober_service.proto
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/scheduler_channel.cpp
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/scheduler_service.proto
 
   ${CMAKE_CURRENT_LIST_DIR}/security_client/account_ypath.proto
   ${CMAKE_CURRENT_LIST_DIR}/security_client/group_ypath.proto
+  ${CMAKE_CURRENT_LIST_DIR}/security_client/helpers.cpp
   ${CMAKE_CURRENT_LIST_DIR}/security_client/public.cpp
   ${CMAKE_CURRENT_LIST_DIR}/security_client/user_ypath.proto
 
   ${CMAKE_CURRENT_LIST_DIR}/table_client/cached_versioned_chunk_meta.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/table_client/chunk_meta_extensions.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_client/chunk_meta.proto
+  ${CMAKE_CURRENT_LIST_DIR}/table_client/chunk_meta_extensions.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_client/chunk_reader_base.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_client/chunk_slices_fetcher.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_client/chunk_writer_base.cpp
@@ -233,6 +241,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/table_client/schemaful_block_writer.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_client/schemaful_chunk_reader.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_client/schemaful_chunk_writer.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/table_client/schemaful_overlapping_chunk_reader.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_client/schemaful_reader_adapter.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_client/schemaful_writer_adapter.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_client/schemaless_block_reader.cpp
@@ -289,13 +298,6 @@ ADDINCL(
   contrib/libs/re2
 )
 
-<<<<<<< HEAD
-set( SRCS
-  ${CMAKE_CURRENT_LIST_DIR}/shutdown.cpp
-)
-set( HDRS
-  ${CMAKE_CURRENT_LIST_DIR}/shutdown.h
-=======
 SRCS(
   ${YT_SRCS}
   ${CMAKE_CURRENT_LIST_DIR}/formats/json_parser_arc.cpp
@@ -309,7 +311,6 @@ CXXFLAGS(
   -Wno-unused-parameter
   -Wno-unused-value
   -Wno-c++14-extensions
->>>>>>> origin/prestable/0.17.4
 )
 
 PEERDIR(
@@ -346,3 +347,4 @@ target_link_libraries(ytlib
 ################################################################################
 ENDIF()
 ################################################################################
+
