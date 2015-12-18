@@ -30,11 +30,14 @@ class TPartitionJob
     : public TSimpleJobBase
 {
 public:
-    explicit TPartitionJob(IJobHost* host)
+    explicit TPartitionJob(IJobHostPtr host)
         : TSimpleJobBase(host)
         , PartitionJobSpecExt_(host->GetJobSpec().GetExtension(TPartitionJobSpecExt::partition_job_spec_ext))
+    { }
+
+    virtual void Initialize() override
     {
-        auto config = host->GetConfig();
+        auto config = Host_->GetConfig();
 
         YCHECK(SchedulerJobSpecExt_.input_specs_size() == 1);
         const auto& inputSpec = SchedulerJobSpecExt_.input_specs(0);
@@ -54,9 +57,9 @@ public:
             Reader_ = CreateSchemalessSequentialMultiChunkReader(
                 config->JobIO->TableReader,
                 New<NTableClient::TTableReaderOptions>(),
-                host->GetClient(),
-                host->GetBlockCache(),
-                host->GetInputNodeDirectory(),
+                Host_->GetClient(),
+                Host_->GetBlockCache(),
+                Host_->GetInputNodeDirectory(),
                 std::move(chunkSpecs),
                 nameTable,
                 columnFilter,
@@ -79,7 +82,7 @@ public:
                 options,
                 nameTable,
                 keyColumns,
-                host->GetClient(),
+                Host_->GetClient(),
                 CellTagFromId(chunkListId),
                 transactionId,
                 chunkListId,
@@ -90,8 +93,10 @@ public:
 
 private:
     const TPartitionJobSpecExt& PartitionJobSpecExt_;
+
     std::vector<TOwningKey> PartitionKeys_;
     TNameTablePtr NameTable_;
+
 
     virtual void CreateReader() override
     {
@@ -105,25 +110,19 @@ private:
 
     std::unique_ptr<IPartitioner> GetPartitioner()
     {
-        std::unique_ptr<IPartitioner> partitioner;
         if (PartitionJobSpecExt_.partition_keys_size() > 0) {
             YCHECK(PartitionJobSpecExt_.partition_keys_size() + 1 == PartitionJobSpecExt_.partition_count());
-            for (const auto& protoKey : PartitionJobSpecExt_.partition_keys()) {
-                TOwningKey key;
-                FromProto(&key, protoKey);
-                PartitionKeys_.push_back(key);
-            }
-            partitioner = CreateOrderedPartitioner(&PartitionKeys_);
+            PartitionKeys_ = FromProto<TOwningKey>(PartitionJobSpecExt_.partition_keys());
+            return CreateOrderedPartitioner(&PartitionKeys_);
         } else {
-            partitioner = CreateHashPartitioner(
+            return CreateHashPartitioner(
                 PartitionJobSpecExt_.partition_count(),
                 PartitionJobSpecExt_.reduce_key_column_count());
         }
-        return partitioner;
     }
 };
 
-IJobPtr CreatePartitionJob(IJobHost* host)
+IJobPtr CreatePartitionJob(IJobHostPtr host)
 {
     return New<TPartitionJob>(host);
 }

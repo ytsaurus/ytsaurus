@@ -41,11 +41,11 @@ static const auto& Logger = JobProxyLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TJob::TJob(IJobHost* host)
-    : Host(MakeWeak(host))
-    , StartTime(TInstant::Now())
+TJob::TJob(IJobHostPtr host)
+    : Host_(std::move(host))
+    , StartTime_(TInstant::Now())
 {
-    YCHECK(host);
+    YCHECK(Host_);
 }
 
 std::vector<NChunkClient::TChunkId> TJob::DumpInputContext()
@@ -65,11 +65,10 @@ void TJob::SignalJob(const Stroka& /*signalName*/)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSimpleJobBase::TSimpleJobBase(IJobHost* host)
+TSimpleJobBase::TSimpleJobBase(IJobHostPtr host)
     : TJob(host)
     , JobSpec_(host->GetJobSpec())
     , SchedulerJobSpecExt_(JobSpec_.GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext))
-    , TotalRowCount_(0)
 { }
 
 TJobResult TSimpleJobBase::Run()
@@ -77,13 +76,8 @@ TJobResult TSimpleJobBase::Run()
     PROFILE_TIMING ("/job_time") {
         LOG_INFO("Initializing");
 
-        auto host = Host.Lock();
-        YCHECK(host);
-
-        const auto& jobSpec = host->GetJobSpec().GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
+        const auto& jobSpec = Host_->GetJobSpec().GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
         if (jobSpec.has_input_query_spec()) {
-
-
             auto querySpec = jobSpec.input_query_spec();
             auto query = FromProto(querySpec.query());
             auto resultSchema = query->GetTableSchema();

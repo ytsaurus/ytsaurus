@@ -30,11 +30,14 @@ class TSimpleSortJob
     : public TSimpleJobBase
 {
 public:
-    explicit TSimpleSortJob(IJobHost* host)
+    explicit TSimpleSortJob(IJobHostPtr host)
         : TSimpleJobBase(host)
         , SortJobSpecExt_(JobSpec_.GetExtension(TSortJobSpecExt::sort_job_spec_ext))
+    { }
+
+    virtual void Initialize() override
     {
-        auto config = host->GetConfig();
+        auto config = Host_->GetConfig();
 
         auto keyColumns = FromProto<Stroka>(SortJobSpecExt_.key_columns());
         auto nameTable = TNameTable::FromKeyColumns(keyColumns);
@@ -47,9 +50,9 @@ public:
         auto reader = CreateSchemalessParallelMultiChunkReader(
             config->JobIO->TableReader,
             New<NTableClient::TTableReaderOptions>(),
-            host->GetClient(),
-            host->GetBlockCache(),
-            host->GetInputNodeDirectory(),
+            Host_->GetClient(),
+            Host_->GetBlockCache(),
+            Host_->GetInputNodeDirectory(),
             chunkSpecs,
             nameTable);
 
@@ -66,7 +69,7 @@ public:
             nameTable,
             keyColumns,
             TOwningKey(),
-            host->GetClient(),
+            Host_->GetClient(),
             CellTagFromId(chunkListId),
             transactionId,
             chunkListId);
@@ -75,6 +78,7 @@ public:
 private:
     const TSortJobSpecExt& SortJobSpecExt_;
 
+
     virtual void CreateReader() override
     { }
 
@@ -82,7 +86,7 @@ private:
     { }
 };
 
-IJobPtr CreateSimpleSortJob(IJobHost* host)
+IJobPtr CreateSimpleSortJob(IJobHostPtr host)
 {
     return New<TSimpleSortJob>(host);
 }

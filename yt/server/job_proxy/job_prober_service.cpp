@@ -20,7 +20,7 @@ class TJobProberService
     : public TServiceBase
 {
 public:
-    TJobProberService(TJobProxy* jobProxy)
+    explicit TJobProberService(TJobProxyPtr jobProxy)
         : TServiceBase(
             jobProxy->GetControlInvoker(),
             TJobProberServiceProxy::GetServiceName(),
@@ -34,7 +34,8 @@ public:
     }
 
 private:
-    TJobProxy* JobProxy_;
+    const TJobProxyPtr JobProxy_;
+
 
     DECLARE_RPC_SERVICE_METHOD(NJobProberClient::NProto, DumpInputContext)
     {
@@ -43,7 +44,7 @@ private:
         context->SetRequestInfo("JobId: %v", jobId);
 
         auto chunkIds = JobProxy_->DumpInputContext(jobId);
-        context->SetResponseInfo("ChunkId: [%v]", JoinToString(chunkIds));
+        context->SetResponseInfo("ChunkIds: [%v]", JoinToString(chunkIds));
 
         ToProto(response->mutable_chunk_id(), chunkIds);
         context->Reply();
@@ -55,8 +56,6 @@ private:
         context->SetRequestInfo("JobId: %v", jobId);
 
         auto trace = JobProxy_->Strace(jobId);
-
-        context->SetResponseInfo("Trace: %Qv", trace.Data());
 
         ToProto(response->mutable_trace(), trace.Data());
         context->Reply();
@@ -77,7 +76,7 @@ private:
     }
 };
 
-IServicePtr CreateJobProberService(TJobProxy* jobProxy)
+IServicePtr CreateJobProberService(TJobProxyPtr jobProxy)
 {
     return New<TJobProberService>(jobProxy);
 }

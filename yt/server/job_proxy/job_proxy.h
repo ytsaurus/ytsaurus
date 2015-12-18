@@ -36,9 +36,9 @@ public:
 
     IInvokerPtr GetControlInvoker() const;
 
-    virtual std::vector<NChunkClient::TChunkId> DumpInputContext(const NJobTrackerClient::TJobId& jobId) override;
-    virtual NYson::TYsonString Strace(const NJobTrackerClient::TJobId& jobId) override;
-    virtual void SignalJob(const NJobTrackerClient::TJobId& jobId, const Stroka& signalName) override;
+    std::vector<NChunkClient::TChunkId> DumpInputContext(const NJobTrackerClient::TJobId& jobId);
+    NYson::TYsonString Strace(const NJobTrackerClient::TJobId& jobId);
+    void SignalJob(const NJobTrackerClient::TJobId& jobId, const Stroka& signalName);
 
 private:
     const NYTree::INodePtr ConfigNode_;
@@ -112,6 +112,8 @@ private:
     void Exit(EJobProxyExitCode exitCode);
 
 };
+
+DEFINE_REFCOUNTED_TYPE(TJobProxy)
 
 ////////////////////////////////////////////////////////////////////////////////
 

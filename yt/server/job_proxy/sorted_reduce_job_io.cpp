@@ -26,7 +26,7 @@ class TSortedReduceJobIO
     : public TUserJobIOBase
 {
 public:
-    explicit TSortedReduceJobIO(IJobHost* host)
+    explicit TSortedReduceJobIO(IJobHostPtr host)
         : TUserJobIOBase(host)
     {
         const auto& reduceJobSpecExt = Host_->GetJobSpec().GetExtension(TReduceJobSpecExt::reduce_job_spec_ext);
@@ -87,7 +87,7 @@ private:
     int ReduceKeyColumnCount_;
 };
 
-std::unique_ptr<IUserJobIO> CreateSortedReduceJobIO(IJobHost* host)
+std::unique_ptr<IUserJobIO> CreateSortedReduceJobIO(IJobHostPtr host)
 {
     return std::unique_ptr<IUserJobIO>(new TSortedReduceJobIO(host));
 }

@@ -333,6 +333,8 @@ TJobResult TJobProxy::DoRun()
         Job_ = CreateBuiltinJob();
     }
 
+    Job_->Initialize();
+
     MemoryWatchdogExecutor_->Start();
     HeartbeatExecutor_->Start();
 
@@ -467,6 +469,7 @@ void TJobProxy::Exit(EJobProxyExitCode exitCode)
     if (Job_) {
         Job_->Abort();
     }
+
     NLogging::TLogManager::Get()->Shutdown();
     _exit(static_cast<int>(exitCode));
 }

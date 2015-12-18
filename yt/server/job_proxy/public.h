@@ -14,8 +14,9 @@ struct IUserJobIO;
 DECLARE_REFCOUNTED_CLASS(TJobProxyConfig)
 
 DECLARE_REFCOUNTED_STRUCT(IJob)
-
 DECLARE_REFCOUNTED_STRUCT(IJobHost)
+
+DECLARE_REFCOUNTED_CLASS(TJobProxy)
 
 DEFINE_ENUM(EJobProxyExitCode,
     ((HeartbeatFailed)        (20))

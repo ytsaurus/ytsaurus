@@ -106,17 +106,16 @@ class TUserJob
 {
 public:
     TUserJob(
-        IJobHost* host,
+        IJobHostPtr host,
         const TUserJobSpec& userJobSpec,
         const TJobId& jobId,
         std::unique_ptr<IUserJobIO> userJobIO)
         : TJob(host)
         , JobIO_(std::move(userJobIO))
         , UserJobSpec_(userJobSpec)
-        , Config_(host->GetConfig())
+        , Config_(Host_->GetConfig())
         , JobErrorPromise_(NewPromise<void>())
         , MemoryUsage_(UserJobSpec_.memory_reserve())
-        , CumulativeMemoryUsageMbSec_(0)
         , PipeIOQueue_(New<TActionQueue>("PipeIO"))
         , PeriodicQueue_(New<TActionQueue>("UserJobPeriodic"))
         , JobProberQueue_(New<TActionQueue>("JobProber"))
@@ -125,18 +124,19 @@ public:
         , BlockIO_(CGroupPrefix + ToString(jobId))
         , Memory_(CGroupPrefix + ToString(jobId))
         , Freezer_(CGroupPrefix + ToString(jobId))
-        , Logger(host->GetLogger())
-    {
-        MemoryWatchdogExecutor_ = New<TPeriodicExecutor>(
+        , MemoryWatchdogExecutor_(New<TPeriodicExecutor>(
             PeriodicQueue_->GetInvoker(),
             BIND(&TUserJob::CheckMemoryUsage, MakeWeak(this)),
-            Config_->MemoryWatchdogPeriod);
-
-        BlockIOWatchdogExecutor_ = New<TPeriodicExecutor>(
+            Config_->MemoryWatchdogPeriod))
+        , BlockIOWatchdogExecutor_ (New<TPeriodicExecutor>(
             PeriodicQueue_->GetInvoker(),
             BIND(&TUserJob::CheckBlockIOUsage, MakeWeak(this)),
-            Config_->BlockIOWatchdogPeriod);
-    }
+            Config_->BlockIOWatchdogPeriod))
+        , Logger(Host_->GetLogger())
+    { }
+
+    virtual void Initialize() override
+    { }
 
     virtual TJobResult Run() override
     {
@@ -225,27 +225,24 @@ public:
     }
 
 private:
-    std::unique_ptr<IUserJobIO> JobIO_;
+    const std::unique_ptr<IUserJobIO> JobIO_;
 
     const TUserJobSpec& UserJobSpec_;
 
-    TJobProxyConfigPtr Config_;
+    const TJobProxyConfigPtr Config_;
 
     TPromise<void> JobErrorPromise_;
 
-    std::atomic<bool> Prepared_ = { false };
-    std::atomic<bool> IsWoodpecker_ = { false };
+    std::atomic<bool> Prepared_ = {false};
+    std::atomic<bool> IsWoodpecker_ = {false};
 
     std::atomic_flag Stracing_ = ATOMIC_FLAG_INIT;
 
     i64 MemoryUsage_;
-    i64 CumulativeMemoryUsageMbSec_;
+    i64 CumulativeMemoryUsageMbSec_ = 0;
 
-    TActionQueuePtr PipeIOQueue_;
-
-    TActionQueuePtr PeriodicQueue_;
-    TPeriodicExecutorPtr MemoryWatchdogExecutor_;
-    TPeriodicExecutorPtr BlockIOWatchdogExecutor_;
+    const TActionQueuePtr PipeIOQueue_;
+    const TActionQueuePtr PeriodicQueue_;
 
     std::vector<std::unique_ptr<TOutputStream>> TableOutputs_;
     std::vector<TWritingValueConsumerPtr> WritingValueConsumers_;
@@ -270,15 +267,18 @@ private:
     TBlockIO BlockIO_;
     TMemory Memory_;
     TFreezer Freezer_;
-
     TSpinLock FreezerLock_;
+
+    const TPeriodicExecutorPtr MemoryWatchdogExecutor_;
+    const TPeriodicExecutorPtr BlockIOWatchdogExecutor_;
+
+    const NLogging::TLogger Logger;
 
     std::vector<TBlockIO::TStatisticsItem> LastServicedIOs_;
 
     TSpinLock StatisticsLock_;
     TStatistics CustomStatistics_;
 
-    NLogging::TLogger Logger;
 
     void Prepare()
     {
@@ -349,13 +349,10 @@ private:
 
     TOutputStream* CreateErrorOutput()
     {
-        auto host = Host.Lock();
-        YCHECK(host);
-
         ErrorOutput_.reset(new TFileChunkOutput(
             Config_->JobIO->ErrorFileWriter,
             CreateSystemFileOptions(),
-            host->GetClient(),
+            Host_->GetClient(),
             FromProto<TTransactionId>(UserJobSpec_.async_scheduler_transaction_id()),
             UserJobSpec_.max_stderr_size()));
 
@@ -403,9 +400,6 @@ private:
 
     std::vector<TChunkId> DoDumpInputContexts(const std::vector<TBlob>& contexts)
     {
-        auto host = Host.Lock();
-        YCHECK(host);
-
         std::vector<TChunkId> result;
 
         auto transactionId = FromProto<TTransactionId>(UserJobSpec_.async_scheduler_transaction_id());
@@ -413,7 +407,7 @@ private:
             TFileChunkOutput contextOutput(
                 Config_->JobIO->ErrorFileWriter,
                 CreateSystemFileOptions(),
-                host->GetClient(),
+                Host_->GetClient(),
                 transactionId);
 
             const auto& context = contexts[index];
@@ -460,25 +454,25 @@ private:
         }
 
         if (Stracing_.test_and_set()) {
-            THROW_ERROR_EXCEPTION("Cannot strace while other stracing routing is active");
+            THROW_ERROR_EXCEPTION("Another strace session is in progress");
         }
 
-        TFinallyGuard guard([this] () {
+        TFinallyGuard guard([&] () {
             Stracing_.clear();
         });
 
-        auto asyncTraces = WaitFor(BIND([&] () {
+        auto result = WaitFor(BIND([&] () {
             return RunTool<TStraceTool>(pids);
         })
             .AsyncVia(JobProberQueue_->GetInvoker())
             .Run());
 
-        if (!asyncTraces.IsOK()) {
+        if (!result.IsOK()) {
             THROW_ERROR_EXCEPTION("Failed to strace")
-                << asyncTraces;
+                << result;
         }
 
-        return ConvertToYsonString(asyncTraces.Value());
+        return ConvertToYsonString(result.Value());
     }
 
     virtual void SignalJob(const Stroka& signalName) override
@@ -689,10 +683,7 @@ private:
         // NB: we do not bother to close it. Anyway, job proxy process would not live long.
         auto readFD = pipe.ReleaseReadFD();
 
-        auto host = Host.Lock();
-        YCHECK(host);
-
-        auto jobSpec = host->GetJobSpec().GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
+        auto jobSpec = Host_->GetJobSpec().GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
         if (jobSpec.has_input_query_spec()) {
             PrepareInputActionsQuery(jobSpec.input_query_spec(), jobDescriptor, format, asyncOutput);
         } else {
@@ -979,18 +970,14 @@ private:
 
     void UpdateMemoryUsage(i64 rss)
     {
-        auto host = Host.Lock();
-        if (!host)
-            return;
-
         i64 delta = rss - MemoryUsage_;
         LOG_DEBUG("Memory usage increased by %v", delta);
 
         MemoryUsage_ = rss;
 
-        auto resourceUsage = host->GetResourceUsage();
+        auto resourceUsage = Host_->GetResourceUsage();
         resourceUsage.set_memory(resourceUsage.memory() + delta);
-        host->SetResourceUsage(resourceUsage);
+        Host_->SetResourceUsage(resourceUsage);
     }
 
     void CheckMemoryUsage()
@@ -1100,14 +1087,14 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 IJobPtr CreateUserJob(
-    IJobHost* host,
-    const TUserJobSpec& UserJobSpec_,
+    IJobHostPtr host,
+    const TUserJobSpec& userJobSpec,
     const TJobId& jobId,
     std::unique_ptr<IUserJobIO> userJobIO)
 {
     return New<TUserJob>(
         host,
-        UserJobSpec_,
+        userJobSpec,
         jobId,
         std::move(userJobIO));
 }
@@ -1115,7 +1102,7 @@ IJobPtr CreateUserJob(
 #else
 
 IJobPtr CreateUserJob(
-    IJobHost* host,
+    IJobHostPtr host,
     const TUserJobSpec& UserJobSpec_,
     const TJobId& jobId,
     std::unique_ptr<IUserJobIO> userJobIO)

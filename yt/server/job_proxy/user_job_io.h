@@ -16,6 +16,9 @@ namespace NJobProxy {
 struct IUserJobIO
     : private TNonCopyable
 {
+    virtual ~IUserJobIO()
+    { }
+
     virtual void Init() = 0;
 
     virtual std::vector<NTableClient::ISchemalessMultiChunkWriterPtr> GetWriters() const = 0;
@@ -29,9 +32,6 @@ struct IUserJobIO
     virtual void CreateReader() = 0;
 
     virtual NTableClient::TSchemalessReaderFactory GetReaderFactory() = 0;
-
-    virtual ~IUserJobIO()
-    { }
 };
 
 ////////////////////////////////////////////////////////////////////////////////

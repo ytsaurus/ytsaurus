@@ -7,8 +7,8 @@ namespace NJobProxy {
 
 ////////////////////////////////////////////////////////////////////
 
-std::unique_ptr<IUserJobIO> CreateMapJobIO(IJobHost* host);
-std::unique_ptr<IUserJobIO> CreateOrderedMapJobIO(IJobHost* host);
+std::unique_ptr<IUserJobIO> CreateMapJobIO(IJobHostPtr host);
+std::unique_ptr<IUserJobIO> CreateOrderedMapJobIO(IJobHostPtr host);
 
 ////////////////////////////////////////////////////////////////////
 
