@@ -988,11 +988,10 @@ TEST_P(TEvaluateExpressionTest, Basic)
     const auto& expected = std::get<2>(param);
 
     TTableSchema schema;
-    schema.Columns().emplace_back(TColumnSchema("i1", EValueType::Int64));
-    schema.Columns().emplace_back(TColumnSchema("i2", EValueType::Int64));
-    schema.Columns().emplace_back(TColumnSchema("u1", EValueType::Uint64));
-    schema.Columns().emplace_back(TColumnSchema("u2", EValueType::Uint64));
-    TKeyColumns keyColumns;
+    schema.AppendColumn(TColumnSchema("i1", EValueType::Int64));
+    schema.AppendColumn(TColumnSchema("i2", EValueType::Int64));
+    schema.AppendColumn(TColumnSchema("u1", EValueType::Uint64));
+    schema.AppendColumn(TColumnSchema("u2", EValueType::Uint64));
 
     auto expr = PrepareExpression(exprString, schema);
 
