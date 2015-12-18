@@ -596,7 +596,7 @@ public:
         return StringData_.length() + RowData_.Size();
     }
 
-	size_t GetSpaceUsedExcludingSelf() const
+	size_t GetSpaceUsed() const
     {
         return StringData_.capacity() + RowData_.Size();
     }
@@ -624,19 +624,6 @@ public:
         return *this;
     }
 
-<<<<<<< HEAD
-=======
-    int GetSize() const
-    {
-        return StringData_.length() + RowData_.Size();
-    }
-
-    size_t SpaceUsed() const
-    {
-        return sizeof(*this) + StringData_.capacity() + RowData_.Size();
-    }
-
->>>>>>> origin/prestable/0.17.4
     void Save(TStreamSaveContext& context) const;
     void Load(TStreamLoadContext& context);
 
