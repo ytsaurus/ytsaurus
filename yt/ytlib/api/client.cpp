@@ -1347,7 +1347,7 @@ private:
             auto evaluator = evaluatorCache->Find(tableInfo->Schema, keyColumnCount);
 
             for (int index = 0; index < keys.size(); ++index) {
-                ValidateClientKey(keys[index], keyColumnCount, tableInfo->Schema, idMapping);
+                ValidateClientKey(keys[index], tableInfo->Schema, idMapping);
                 auto capturedKey = rowBuffer->CaptureAndPermuteRow(keys[index], tableInfo->Schema, idMapping);
                 evaluator->EvaluateKeys(capturedKey, rowBuffer);
                 sortedKeys.push_back(std::make_pair(capturedKey, index));
@@ -1356,7 +1356,7 @@ private:
             idMapping.clear();
         } else {
             for (int index = 0; index < static_cast<int>(keys.size()); ++index) {
-                ValidateClientKey(keys[index], keyColumnCount, tableInfo->Schema, idMapping);
+                ValidateClientKey(keys[index], tableInfo->Schema, idMapping);
                 sortedKeys.push_back(std::make_pair(keys[index], index));
             }
         }
@@ -2484,7 +2484,7 @@ private:
         : public TRequestBase
     {
     protected:
-        using TRowValidator = void(TUnversionedRow, int, const TTableSchema&, const TNameTableToSchemaIdMapping&);
+        using TRowValidator = void(TUnversionedRow, const TTableSchema&, const TNameTableToSchemaIdMapping&);
 
         TModifyRequest(
             TTransaction* transaction,
@@ -2510,7 +2510,7 @@ private:
                 : nullptr;
 
             for (auto row : rows) {
-                validateRow(row, keyColumnCount, TableInfo_->Schema, idMapping);
+                validateRow(row, TableInfo_->Schema, idMapping);
 
                 auto capturedRow = rowBuffer->CaptureAndPermuteRow(row, TableInfo_->Schema, idMapping);
 
