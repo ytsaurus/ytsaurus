@@ -170,7 +170,7 @@ inline TUnversionedValue MakeUnversionedAnyValue(const TStringBuf& value, int id
 struct TUnversionedRowHeader
 {
     ui32 Count;
-    ui32 Padding;
+    ui32 Capacity;
 };
 
 static_assert(
@@ -343,17 +343,20 @@ public:
 
     void SetCount(int count)
     {
+        YASSERT(count >= 0 && count <= Header->Capacity);
         Header->Count = count;
     }
 
 
     const TUnversionedValue& operator[] (int index) const
     {
+        YASSERT(index >= 0 && index < GetCount());
         return Begin()[index];
     }
 
     TUnversionedValue& operator[] (int index)
     {
+        YASSERT(index >= 0 && index < GetCount());
         return Begin()[index];
     }
 
@@ -569,6 +572,7 @@ public:
 
     const TUnversionedValue& operator[] (int index) const
     {
+        YASSERT(index >= 0 && index < GetCount());
         return Begin()[index];
     }
 
@@ -658,7 +662,6 @@ private:
         sizeof(TUnversionedRowHeader) +
         DefaultValueCapacity * sizeof(TUnversionedValue);
 
-    int ValueCapacity_;
     SmallVector<char, DefaultBlobCapacity> RowData_;
 
     TUnversionedRowHeader* GetHeader();
@@ -685,7 +688,6 @@ public:
 
 private:
     int InitialValueCapacity_;
-    int ValueCapacity_;
 
     TBlob RowData_;
     Stroka StringData_;

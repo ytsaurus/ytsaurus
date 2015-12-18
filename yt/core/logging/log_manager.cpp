@@ -302,16 +302,12 @@ public:
 
     void Enqueue(TLogEvent&& event)
     {
-        if (ShutdownRequested_) {
-            if (event.Level == ELogLevel::Fatal) {
+        if (event.Level == ELogLevel::Fatal) {
+            bool shutdown = false;
+            if (!ShutdownRequested_.compare_exchange_strong(shutdown, true)) {
                 // Fatal events should not get out of this call.
                 Sleep(TDuration::Max());
             }
-            return;
-        }
-
-        if (event.Level == ELogLevel::Fatal) {
-            ShutdownRequested_ = true;
 
             // Add fatal message to log and notify event log queue.
             Profiler.Increment(EnqueuedEventCounter_);
@@ -349,6 +345,10 @@ public:
             (void)unused;
 
             std::terminate();
+        }
+
+        if (ShutdownRequested_) {
+            return;
         }
 
         if (!LoggingThread_->IsRunning() || Suspended_) {
