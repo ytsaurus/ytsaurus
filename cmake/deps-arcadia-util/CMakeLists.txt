@@ -318,17 +318,11 @@ add_library(ytext-arcadia-util STATIC
 target_link_libraries(ytext-arcadia-util
   deps-arcadia-contrib-libs-snappy
   deps-arcadia-contrib-libs-zlib
-<<<<<<< HEAD
-  ytext-quicklz
-  ytext-zstd
-  ytext-brotli
-=======
   deps-yt-contrib-lz4
   deps-yt-contrib-fastlz
   deps-yt-contrib-minilzo
   deps-yt-contrib-quicklz
   deps-yt-contrib-zstd
->>>>>>> origin/prestable/0.17.4
 )
 
 if(CMAKE_COMPILER_IS_GNUCXX)

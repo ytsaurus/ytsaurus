@@ -312,27 +312,15 @@ public:
         return Begin() + GetCount();
     }
 
-    int GetCount() const
-    {
-        return Header_->Count;
-    }
-
-    void SetCount(int count)
-    {
-        YASSERT(count >= 0 && count <= Header_->Capacity);
-        Header_->Count = count;
-    }
-
     const TUnversionedValue& operator[] (int index) const
     {
         YASSERT(index >= 0 && index < GetCount());
         return Begin()[index];
     }
 
-    TUnversionedValue& operator[] (int index)
+    int GetCount() const
     {
-        YASSERT(index >= 0 && index < GetCount());
-        return Begin()[index];
+        return Header_->Count;
     }
 
 private:
@@ -579,16 +567,16 @@ public:
         return Begin() + GetCount();
     }
 
-    int GetCount() const
-    {
-        const auto* header = GetHeader();
-        return header ? static_cast<int>(header->Count) : 0;
-    }
-
     const TUnversionedValue& operator[] (int index) const
     {
         YASSERT(index >= 0 && index < GetCount());
         return Begin()[index];
+    }
+
+    int GetCount() const
+    {
+        const auto* header = GetHeader();
+        return header ? static_cast<int>(header->Count) : 0;
     }
 
     size_t GetByteSize() const
@@ -596,7 +584,7 @@ public:
         return StringData_.length() + RowData_.Size();
     }
 
-	size_t GetSpaceUsed() const
+    size_t GetSpaceUsed() const
     {
         return StringData_.capacity() + RowData_.Size();
     }

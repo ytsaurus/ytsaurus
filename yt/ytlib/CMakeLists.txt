@@ -54,7 +54,6 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/job.proto
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/memory_reader.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/memory_writer.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/chunk_client/multi_chunk_reader_base.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/multi_chunk_writer_base.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/multi_reader_base.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/private.cpp
