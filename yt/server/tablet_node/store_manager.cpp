@@ -145,7 +145,7 @@ TDynamicRowRef TStoreManager::WriteRowAtomic(
     TUnversionedRow row,
     bool prelock)
 {
-    ValidateServerDataRow(row, KeyColumnCount_, Tablet_->Schema());
+    ValidateServerDataRow(row, Tablet_->Schema());
 
     YASSERT(row.GetCount() >= KeyColumnCount_);
     if (row.GetCount() == KeyColumnCount_) {
@@ -178,7 +178,7 @@ void TStoreManager::WriteRowNonAtomic(
     TTimestamp commitTimestamp,
     TUnversionedRow row)
 {
-    ValidateServerDataRow(row, KeyColumnCount_, Tablet_->Schema());
+    ValidateServerDataRow(row, Tablet_->Schema());
 
     YASSERT(row.GetCount() >= KeyColumnCount_);
     if (row.GetCount() == KeyColumnCount_) {
@@ -197,7 +197,7 @@ TDynamicRowRef TStoreManager::DeleteRowAtomic(
     NTableClient::TKey key,
     bool prelock)
 {
-    ValidateServerKey(key, KeyColumnCount_, Tablet_->Schema());
+    ValidateServerKey(key, Tablet_->Schema());
 
     if (prelock) {
         CheckInactiveStoresLocks(
@@ -219,7 +219,7 @@ void TStoreManager::DeleteRowNonAtomic(
     TTimestamp commitTimestamp,
     NTableClient::TKey key)
 {
-    ValidateServerKey(key, KeyColumnCount_, Tablet_->Schema());
+    ValidateServerKey(key, Tablet_->Schema());
 
     const auto& store = Tablet_->GetActiveStore();
     store->DeleteRowNonAtomic(key, commitTimestamp);

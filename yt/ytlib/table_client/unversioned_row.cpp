@@ -664,18 +664,17 @@ int ApplyIdMapping(
 
 void ValidateKeyPart(
     TUnversionedRow row,
-    int keyColumnCount,
     const TTableSchema& schema)
 {
-    ValidateKeyColumnCount(keyColumnCount);
+    ValidateKeyColumnCount(schema.GetKeyColumnCount());
 
-    if (row.GetCount() < keyColumnCount) {
+    if (row.GetCount() < schema.GetKeyColumnCount()) {
         THROW_ERROR_EXCEPTION("Too few values in row: actual %v, expected >= %v",
             row.GetCount(),
-            keyColumnCount);
+            schema.GetKeyColumnCount());
     }
 
-    for (int index = 0; index < keyColumnCount; ++index) {
+    for (int index = 0; index < schema.GetKeyColumnCount(); ++index) {
         const auto& value = row[index];
         ValidateKeyValue(value);
         int schemaId = ApplyIdMapping(value, schema, nullptr);
@@ -690,14 +689,13 @@ void ValidateKeyPart(
 
 void ValidateDataRow(
     TUnversionedRow row,
-    int keyColumnCount,
     const TNameTableToSchemaIdMapping* idMappingPtr,
     const TTableSchema& schema)
 {
     ValidateRowValueCount(row.GetCount());
-    ValidateKeyPart(row, keyColumnCount, schema);
+    ValidateKeyPart(row, schema);
 
-    for (int index = keyColumnCount; index < row.GetCount(); ++index) {
+    for (int index = schema.GetKeyColumnCount(); index < row.GetCount(); ++index) {
         const auto& value = row[index];
         ValidateDataValue(value);
         int schemaId = ApplyIdMapping(value, schema, idMappingPtr);
@@ -707,31 +705,29 @@ void ValidateDataRow(
 
 void ValidateKey(
     TKey key,
-    int keyColumnCount,
     const TTableSchema& schema)
 {
     if (!key) {
         THROW_ERROR_EXCEPTION("Key cannot be null");
     }
 
-    if (key.GetCount() != keyColumnCount) {
+    if (key.GetCount() != schema.GetKeyColumnCount()) {
         THROW_ERROR_EXCEPTION("Invalid number of key components: expected %v, actual %v",
-            keyColumnCount,
+            schema.GetKeyColumnCount(),
             key.GetCount());
     }
 
-    ValidateKeyPart(key, keyColumnCount, schema);
+    ValidateKeyPart(key, schema);
 }
 
 void ValidateClientRow(
     TUnversionedRow row,
-    int keyColumnCount,
     const TTableSchema& schema,
     const TNameTableToSchemaIdMapping& idMapping,
     bool isKey)
 {
     ValidateRowValueCount(row.GetCount());
-    ValidateKeyColumnCount(keyColumnCount);
+    ValidateKeyColumnCount(schema.GetKeyColumnCount());
 
     bool keyColumnSeen[MaxKeyColumnCount] {};
 
@@ -747,7 +743,7 @@ void ValidateClientRow(
                 column.Name);
         }
 
-        if (schemaId < keyColumnCount) {
+        if (schemaId < schema.GetKeyColumnCount()) {
             if (keyColumnSeen[schemaId]) {
                 THROW_ERROR_EXCEPTION("Duplicate key column %Qv",
                     column.Name);
@@ -763,7 +759,7 @@ void ValidateClientRow(
         }
     }
 
-    for (int index = 0; index < keyColumnCount; ++index) {
+    for (int index = 0; index < schema.GetKeyColumnCount(); ++index) {
         if (!keyColumnSeen[index] && !schema.Columns()[index].Expression) {
             THROW_ERROR_EXCEPTION("Missing key column %Qv",
                 schema.Columns()[index].Name);
@@ -837,9 +833,6 @@ void ValidateRowValueCount(int count)
 
 void ValidateKeyColumnCount(int count)
 {
-    if (count < 0) {
-        THROW_ERROR_EXCEPTION("Negative number of key columns");
-    }
     if (count == 0) {
         THROW_ERROR_EXCEPTION("At least one key column expected");
     }
@@ -864,36 +857,32 @@ void ValidateRowCount(int count)
 
 void ValidateClientDataRow(
     TUnversionedRow row,
-    int keyColumnCount,
     const TTableSchema& schema,
     const TNameTableToSchemaIdMapping& idMapping)
 {
-    ValidateClientRow(row, keyColumnCount, schema, idMapping, false);
+    ValidateClientRow(row, schema, idMapping, false);
 }
 
 void ValidateServerDataRow(
     TUnversionedRow row,
-    int keyColumnCount,
     const TTableSchema& schema)
 {
-    ValidateDataRow(row, keyColumnCount, nullptr, schema);
+    ValidateDataRow(row, nullptr, schema);
 }
 
 void ValidateClientKey(
     TKey key,
-    int keyColumnCount,
     const TTableSchema& schema,
     const TNameTableToSchemaIdMapping& idMapping)
 {
-    ValidateClientRow(key, keyColumnCount, schema, idMapping, true);
+    ValidateClientRow(key, schema, idMapping, true);
 }
 
 void ValidateServerKey(
     TKey key,
-    int keyColumnCount,
     const TTableSchema& schema)
 {
-    ValidateKey(key, keyColumnCount, schema);
+    ValidateKey(key, schema);
 }
 
 void ValidateReadTimestamp(TTimestamp timestamp)
