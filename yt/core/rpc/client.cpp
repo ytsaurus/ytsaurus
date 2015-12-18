@@ -28,8 +28,7 @@ TClientRequest::TClientRequest(
     bool oneWay,
     int protocolVersion)
     : RequestAck_(true)
-    , RequestHeavy_(false)
-    , ResponseHeavy_(false)
+    , Heavy_(false)
     , Channel_(std::move(channel))
 {
     YASSERT(Channel_);
@@ -78,14 +77,9 @@ bool TClientRequest::IsOneWay() const
     return Header_.one_way();
 }
 
-bool TClientRequest::IsRequestHeavy() const
+bool TClientRequest::IsHeavy() const
 {
-    return RequestHeavy_;
-}
-
-bool TClientRequest::IsResponseHeavy() const
-{
-    return RequestHeavy_;
+    return Heavy_;
 }
 
 TRequestId TClientRequest::GetRequestId() const
