@@ -144,12 +144,24 @@ public:
     //! Maximum number of peers to query in parallel when locating alive endpoint.
     int MaxConcurrentDiscoverRequests;
 
+    //! Interval between automatic rediscovery of active peers.
+    /*!
+     *  Discovery is started automatically if no active peers are known.
+     *  In some cases, however, this is not enough.
+     *  E.g. a follower may become active and thus eligible for load balancing.
+     *  This setting controls the period of time after which the channel
+     *  starts rediscoverying peers even if an active one is known.
+     */
+    TDuration RediscoverPeriod;
+
     TBalancingChannelConfig()
     {
         RegisterParameter("addresses", Addresses);
         RegisterParameter("max_concurrent_discover_requests", MaxConcurrentDiscoverRequests)
             .GreaterThan(0)
             .Default(1);
+        RegisterParameter("rediscover_period", RediscoverPeriod)
+            .Default(TDuration::Seconds(30));
     }
 };
 
