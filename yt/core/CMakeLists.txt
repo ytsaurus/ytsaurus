@@ -264,6 +264,7 @@ target_link_libraries(ytcore
   yt-contrib-jerasure
   yt-contrib-libev
   deps-yt-contrib-farmhash
+  deps-contrib-libs-brotli
   ytext-json
   ytext-arcadia-library-http
   ytext-yajl
