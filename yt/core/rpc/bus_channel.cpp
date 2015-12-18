@@ -289,7 +289,7 @@ private:
                 bus = Bus_;
             }
 
-            if (request->IsRequestHeavy()) {
+            if (request->IsHeavy()) {
                 BIND(&IClientRequest::Serialize, request)
                     .AsyncVia(TDispatcher::Get()->GetInvoker())
                     .Run()
