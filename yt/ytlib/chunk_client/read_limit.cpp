@@ -196,7 +196,7 @@ void TReadLimit::MergeLowerLimit(const NProto::TReadLimit& readLimit)
     }
     if (readLimit.has_key()) {
         auto key = NYT::FromProto<TOwningKey>(readLimit.key());
-        MergeLowerKey(key);       
+        MergeLowerKey(key);
     }
 }
 
@@ -213,7 +213,7 @@ void TReadLimit::MergeUpperLimit(const NProto::TReadLimit& readLimit)
     }
     if (readLimit.has_key()) {
         auto key = NYT::FromProto<TOwningKey>(readLimit.key());
-        MergeUpperKey(key);       
+        MergeUpperKey(key);
     }
 }
 
