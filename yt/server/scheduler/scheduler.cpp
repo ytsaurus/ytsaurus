@@ -1155,11 +1155,12 @@ private:
             controller->Initialize();
             controller->Essentiate();
 
-            auto error = WaitFor(MasterConnector_->CreateOperationNode(operation));
-            THROW_ERROR_EXCEPTION_IF_FAILED(error);
+            WaitFor(MasterConnector_->CreateOperationNode(operation))
+                .ThrowOnError();
 
-            if (operation->GetState() != EOperationState::Initializing)
+            if (operation->GetState() != EOperationState::Initializing) {
                 throw TFiberCanceledException();
+            }
         } catch (const std::exception& ex) {
             auto wrappedError = TError("Operation has failed to initialize")
                 << ex;
