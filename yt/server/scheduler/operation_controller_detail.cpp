@@ -1188,8 +1188,7 @@ void TOperationControllerBase::StartAsyncSchedulerTransaction()
 
 void TOperationControllerBase::StartInputTransaction(TTransactionId parentTransactionId)
 {
-    auto InputTransactionId =
-        StartTransaction("input", AuthenticatedInputMasterClient, parentTransactionId);
+    InputTransactionId = StartTransaction("input", AuthenticatedInputMasterClient, parentTransactionId);
     auto transaction = AuthenticatedInputMasterClient->AttachTransaction(InputTransactionId);
     Operation->SetInputTransaction(transaction);
 
@@ -1199,8 +1198,7 @@ void TOperationControllerBase::StartInputTransaction(TTransactionId parentTransa
 
 void TOperationControllerBase::StartOutputTransaction(TTransactionId parentTransactionId)
 {
-    auto OutputTransactionId =
-        StartTransaction("output", AuthenticatedOutputMasterClient, parentTransactionId);
+    OutputTransactionId = StartTransaction("output", AuthenticatedOutputMasterClient, parentTransactionId);
     auto transaction = AuthenticatedOutputMasterClient->AttachTransaction(OutputTransactionId);
     Operation->SetOutputTransaction(transaction);
 
