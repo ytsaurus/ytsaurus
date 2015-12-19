@@ -295,9 +295,9 @@ SRCS(
   ${CMAKE_CURRENT_LIST_DIR}/formats/json_writer_arc.cpp
 )
 
+SET_APPEND(BASE_CXXFLAGS -std=c++1y)
+
 CXXFLAGS(
-  -std=c++1y
-  -DYMAKE
   -Wno-sign-compare
   -Wno-unused-parameter
   -Wno-unused-value
