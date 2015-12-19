@@ -44,7 +44,8 @@ private:
         TBase::ListSystemAttributes(descriptors);
 
         descriptors->push_back(TAttributeDescriptor("name")
-            .SetReplicated(true));
+            .SetReplicated(true)
+            .SetMandatory(true));
         descriptors->push_back("resource_usage");
         descriptors->push_back("committed_resource_usage");
         descriptors->push_back(TAttributeDescriptor("multicell_statistics")

@@ -37,7 +37,8 @@ private:
         TBase::ListSystemAttributes(descriptors);
 
         descriptors->push_back(TAttributeDescriptor("name")
-            .SetReplicated(true));
+            .SetReplicated(true)
+            .SetMandatory(true));
         descriptors->push_back("index");
         descriptors->push_back("nodes");
     }

@@ -38,7 +38,8 @@ protected:
         TBase::ListSystemAttributes(descriptors);
 
         descriptors->push_back(NYTree::ISystemAttributeProvider::TAttributeDescriptor("name")
-            .SetReplicated(true));
+            .SetReplicated(true)
+            .SetMandatory(true));
         descriptors->push_back("member_of");
         descriptors->push_back("member_of_closure");
     }

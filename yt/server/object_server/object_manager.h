@@ -274,8 +274,10 @@ private:
 
     void OnProfiling();
 
-    std::unique_ptr<NYTree::IAttributeDictionary> GetReplicatedAttributes(TObjectBase  * object);
-    void OnSecondaryMasterRegistered(TCellTag cellTag);
+    std::unique_ptr<NYTree::IAttributeDictionary> GetReplicatedAttributes(
+        TObjectBase* object,
+        bool mandatory);
+    void OnReplicateValuesToSecondaryMaster(TCellTag cellTag);
 
 };
 

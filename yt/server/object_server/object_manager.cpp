@@ -433,8 +433,8 @@ void TObjectManager::Initialize()
 {
     if (Bootstrap_->IsPrimaryMaster()) {
         auto multicellManager = Bootstrap_->GetMulticellManager();
-        multicellManager->SubscribeSecondaryMasterRegistered(
-            BIND(&TObjectManager::OnSecondaryMasterRegistered, MakeWeak(this)));
+        multicellManager->SubscribeReplicateValuesToSecondaryMaster(
+            BIND(&TObjectManager::OnReplicateValuesToSecondaryMaster, MakeWeak(this)));
     }
 
     ProfilingExecutor_ = New<TPeriodicExecutor>(
@@ -1173,14 +1173,13 @@ void TObjectManager::ReplicateObjectCreationToSecondaryMaster(
     TCellTag cellTag)
 {
     if (object->IsBuiltin()) {
-        ReplicateObjectAttributesToSecondaryMaster(object, cellTag);
         return;
     }
 
     NProto::TReqCreateForeignObject request;
     ToProto(request.mutable_object_id(), object->GetId());
     request.set_type(static_cast<int>(object->GetType()));
-    ToProto(request.mutable_object_attributes(), *GetReplicatedAttributes(object));
+    ToProto(request.mutable_object_attributes(), *GetReplicatedAttributes(object, true));
 
     auto handler = GetHandler(object);
     handler->PopulateObjectReplicationRequest(object, &request);
@@ -1194,7 +1193,7 @@ void TObjectManager::ReplicateObjectAttributesToSecondaryMaster(
     TCellTag cellTag)
 {
     auto req = TYPathProxy::Set(FromObjectId(object->GetId()) + "/@");
-    req->set_value(ConvertToYsonString(GetReplicatedAttributes(object)->ToMap()).Data());
+    req->set_value(ConvertToYsonString(GetReplicatedAttributes(object, false)->ToMap()).Data());
 
     auto multicellManager = Bootstrap_->GetMulticellManager();
     multicellManager->PostToMaster(req, cellTag);
@@ -1415,7 +1414,9 @@ void TObjectManager::OnProfiling()
     Profiler.Enqueue("/locked_object_count", LockedObjectCount_);
 }
 
-std::unique_ptr<NYTree::IAttributeDictionary> TObjectManager::GetReplicatedAttributes(TObjectBase* object)
+std::unique_ptr<NYTree::IAttributeDictionary> TObjectManager::GetReplicatedAttributes(
+    TObjectBase* object,
+    bool mandatory)
 {
     YCHECK(!IsVersionedType(object->GetType()));
 
@@ -1434,8 +1435,13 @@ std::unique_ptr<NYTree::IAttributeDictionary> TObjectManager::GetReplicatedAttri
     std::vector<ISystemAttributeProvider::TAttributeDescriptor> descriptors;
     proxy->ListBuiltinAttributes(&descriptors);
     for (const auto& descriptor : descriptors) {
-        if (!descriptor.Replicated)
+        if (!descriptor.Replicated) {
             continue;
+        }
+
+        if (descriptor.Mandatory != mandatory) {
+            continue;
+        }
 
         auto key = Stroka(descriptor.Key);
         auto maybeValue = proxy->GetBuiltinAttribute(key);
@@ -1454,7 +1460,7 @@ std::unique_ptr<NYTree::IAttributeDictionary> TObjectManager::GetReplicatedAttri
     return attributes;
 }
 
-void TObjectManager::OnSecondaryMasterRegistered(TCellTag cellTag)
+void TObjectManager::OnReplicateValuesToSecondaryMaster(TCellTag cellTag)
 {
     auto schemas = GetValuesSortedByKey(SchemaMap_);
     for (auto* schema : schemas) {

@@ -119,6 +119,16 @@ class TestMasterCellsSync(YTEnvSetup):
 
         self._check_true_for_secondary(lambda driver: check(driver))
 
+    def test_acl_sync(self):
+        create_group("jupiter")
+        create_account("jupiter")
+        set("//sys/accounts/jupiter/@acl", [{"action": "allow", "subjects": ["jupiter"], "permissions": ["use"]}])
+
+        def check(driver):
+            return len(get("//sys/accounts/jupiter/@acl")) == 1
+
+        self._check_true_for_secondary(lambda driver: check(driver))
+
 ##################################################################
 
 class TestMasterCellsSyncDelayed(TestMasterCellsSync):
