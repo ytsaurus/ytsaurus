@@ -90,7 +90,8 @@ public:
     NRpc::IChannelPtr FindMasterChannel(NObjectClient::TCellTag cellTag, NHydra::EPeerKind peerKind);
 
     DECLARE_SIGNAL(void(NObjectClient::TCellTag), ValidateSecondaryMasterRegistration);
-    DECLARE_SIGNAL(void(NObjectClient::TCellTag), SecondaryMasterRegistered);
+    DECLARE_SIGNAL(void(NObjectClient::TCellTag), ReplicateKeysToSecondaryMaster);
+    DECLARE_SIGNAL(void(NObjectClient::TCellTag), ReplicateValuesToSecondaryMaster);
 
 private:
     class TImpl;

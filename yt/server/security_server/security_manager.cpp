@@ -304,8 +304,10 @@ public:
 
         if (Bootstrap_->IsPrimaryMaster()) {
             auto multicellManager = Bootstrap_->GetMulticellManager();
-            multicellManager->SubscribeSecondaryMasterRegistered(
-                BIND(&TImpl::OnSecondaryMasterRegistered, MakeWeak(this)));
+            multicellManager->SubscribeReplicateKeysToSecondaryMaster(
+                BIND(&TImpl::OnReplicateKeysToSecondaryMaster, MakeWeak(this)));
+            multicellManager->SubscribeReplicateValuesToSecondaryMaster(
+                BIND(&TImpl::OnReplicateValuesToSecondaryMaster, MakeWeak(this)));
         }
     }
 
@@ -1652,7 +1654,7 @@ protected:
     }
 
 
-    void OnSecondaryMasterRegistered(TCellTag cellTag)
+    void OnReplicateKeysToSecondaryMaster(TCellTag cellTag)
     {
         auto objectManager = Bootstrap_->GetObjectManager();
 
@@ -1670,7 +1672,27 @@ protected:
         for (auto* group : groups) {
             objectManager->ReplicateObjectCreationToSecondaryMaster(group, cellTag);
         }
+    }
 
+    void OnReplicateValuesToSecondaryMaster(TCellTag cellTag)
+    {
+        auto objectManager = Bootstrap_->GetObjectManager();
+
+        auto accounts = GetValuesSortedByKey(AccountMap_);
+        for (auto* account : accounts) {
+            objectManager->ReplicateObjectAttributesToSecondaryMaster(account, cellTag);
+        }
+
+        auto users = GetValuesSortedByKey(UserMap_);
+        for (auto* user : users) {
+            objectManager->ReplicateObjectAttributesToSecondaryMaster(user, cellTag);
+        }
+
+        auto groups = GetValuesSortedByKey(GroupMap_);
+        for (auto* group : groups) {
+            objectManager->ReplicateObjectAttributesToSecondaryMaster(group, cellTag);
+        }
+        
         auto multicellManager = Bootstrap_->GetMulticellManager();
         auto replicateMembership = [&] (TSubject* subject) {
             if (subject->IsBuiltin())
@@ -1684,9 +1706,11 @@ protected:
                 }
             }
         };
+
         for (auto* user : users) {
             replicateMembership(user);
         }
+
         for (auto* group : groups) {
             replicateMembership(group);
         }

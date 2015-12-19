@@ -30,6 +30,7 @@ struct ISystemAttributeProvider
         bool Custom = false;
         bool Removable = false;
         bool Replicated = false;
+        bool Mandatory = false;
         bool External = false;
         EPermissionSet WritePermission = EPermission::Write;
 
@@ -60,6 +61,12 @@ struct ISystemAttributeProvider
         TAttributeDescriptor& SetReplicated(bool value)
         {
             Replicated = value;
+            return *this;
+        }
+
+        TAttributeDescriptor& SetMandatory(bool value)
+        {
+            Mandatory = value;
             return *this;
         }
 

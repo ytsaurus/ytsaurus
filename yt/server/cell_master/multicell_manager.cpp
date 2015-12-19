@@ -259,7 +259,8 @@ public:
 
 
     DEFINE_SIGNAL(void(TCellTag), ValidateSecondaryMasterRegistration);
-    DEFINE_SIGNAL(void(TCellTag), SecondaryMasterRegistered);
+    DEFINE_SIGNAL(void(TCellTag), ReplicateKeysToSecondaryMaster);
+    DEFINE_SIGNAL(void(TCellTag), ReplicateValuesToSecondaryMaster);
 
 private:
     const TMulticellManagerConfigPtr Config_;
@@ -416,7 +417,8 @@ private:
 
             RegisterMasterEntry(cellTag);
 
-            SecondaryMasterRegistered_.Fire(cellTag);
+            ReplicateKeysToSecondaryMaster_.Fire(cellTag);
+            ReplicateValuesToSecondaryMaster_.Fire(cellTag);
 
             for (const auto& pair : RegisteredMasterMap_) {
                 if (pair.first == cellTag) {
@@ -774,7 +776,8 @@ IChannelPtr TMulticellManager::FindMasterChannel(TCellTag cellTag, EPeerKind pee
 }
 
 DELEGATE_SIGNAL(TMulticellManager, void(TCellTag), ValidateSecondaryMasterRegistration, *Impl_);
-DELEGATE_SIGNAL(TMulticellManager, void(TCellTag), SecondaryMasterRegistered, *Impl_);
+DELEGATE_SIGNAL(TMulticellManager, void(TCellTag), ReplicateKeysToSecondaryMaster, *Impl_);
+DELEGATE_SIGNAL(TMulticellManager, void(TCellTag), ReplicateValuesToSecondaryMaster, *Impl_);
 
 ////////////////////////////////////////////////////////////////////////////////
 

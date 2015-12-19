@@ -220,8 +220,8 @@ public:
             auto multicellManager = Bootstrap_->GetMulticellManager();
             multicellManager->SubscribeValidateSecondaryMasterRegistration(
                 BIND(&TImpl::OnValidateSecondaryMasterRegistration, MakeWeak(this)));
-            multicellManager->SubscribeSecondaryMasterRegistered(
-                BIND(&TImpl::OnSecondaryMasterRegistered, MakeWeak(this)));
+            multicellManager->SubscribeReplicateKeysToSecondaryMaster(
+                BIND(&TImpl::OnReplicateKeysToSecondaryMaster, MakeWeak(this)));
         }
     }
 
@@ -1268,7 +1268,7 @@ private:
         }
     }
 
-    void OnSecondaryMasterRegistered(TCellTag cellTag)
+    void OnReplicateKeysToSecondaryMaster(TCellTag cellTag)
     {
         auto nodes = GetValuesSortedByKey(NodeMap_);
         for (const auto* node : nodes) {
@@ -1276,9 +1276,6 @@ private:
             request.set_node_id(node->GetId());
             ToProto(request.mutable_addresses(), node->GetAddresses());
             *request.mutable_statistics() = node->Statistics();
-            if (node->GetLeaseTransaction()) {
-                ToProto(request.mutable_lease_transaction_id(), node->GetLeaseTransaction()->GetId());
-            }
 
             auto multicellManager = Bootstrap_->GetMulticellManager();
             multicellManager->PostToMaster(request, cellTag);
