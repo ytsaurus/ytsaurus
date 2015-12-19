@@ -27,8 +27,8 @@ class TSequentialReader
     : public TRefCounted
 {
 public:
-    DEFINE_BYVAL_RO_PROPERTY(volatile i64, UncompressedDataSize);
-    DEFINE_BYVAL_RO_PROPERTY(volatile i64, CompressedDataSize);
+    DEFINE_BYVAL_RO_PROPERTY(i64, UncompressedDataSize);
+    DEFINE_BYVAL_RO_PROPERTY(i64, CompressedDataSize);
 
 public:
     struct TBlockInfo

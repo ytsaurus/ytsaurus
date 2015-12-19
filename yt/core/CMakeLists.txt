@@ -221,9 +221,9 @@ ADDINCL(
 
 SRCS(${YT_SRCS})
 
+SET_APPEND(BASE_CXXFLAGS -std=c++1y)
+
 CXXFLAGS(
-  -std=c++1y
-  -DYMAKE
   -Wno-sign-compare
   -Wno-unused-parameter
   -Wno-unused-value
