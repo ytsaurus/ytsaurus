@@ -311,14 +311,6 @@ static TNullable<TUnversionedValue> TrimSentinel(TMutableRow row)
     return result;
 }
 
-static void AppendSentinel(TMutableRow row, const TNullable<TUnversionedValue>& sentinel)
-{
-    if (sentinel) {
-        row.SetCount(row.GetCount() + 1);
-        row[row.GetCount()] = sentinel.Get();
-    }
-}
-
 void Copy(TRow source, TMutableRow dest, int count)
 {
     count = std::min(count, source.GetCount());
@@ -327,12 +319,13 @@ void Copy(TRow source, TMutableRow dest, int count)
     }
 }
 
-TMutableRow Copy(TRowBuffer* buffer, TRow source, int size = std::numeric_limits<int>::max())
+TMutableRow CaptureRowWithSentinel(TRowBuffer* buffer, TRow src, int size, TNullable<TUnversionedValue> sentinel)
 {
-    size = std::min(size, source.GetCount());
-    auto row = TMutableUnversionedRow::Allocate(buffer->GetPool(), size);
-    for (int index = 0; index < size; ++index) {
-        row[index] = source[index];
+    int rowSize = size + static_cast<bool>(sentinel);
+    auto row = TMutableUnversionedRow::Allocate(buffer->GetPool(), rowSize);
+    Copy(src, row, size);
+    if (sentinel) {
+        row[size] = sentinel.Get();
     }
     return row;
 }
@@ -593,8 +586,8 @@ void EnrichKeyRange(
     Copy(range.first, lowerRow, keySize + 1);
     Copy(range.second, upperRow, keySize + 1);
 
-    std::function<void(
-        TMutableRow row,
+    std::function<TMutableRow(
+        TUnversionedRow row,
         size_t size,
         const TNullable<TUnversionedValue>& finalizeSentinel,
         const TNullable<TUnversionedValue>& sentinel)> finalizeRow;
@@ -602,22 +595,22 @@ void EnrichKeyRange(
         // Shrinked.
         // If is shrinked, then we append fixed sentinels: No sentinel for lower bound and Max sentinel for
         // upper bound
-        finalizeRow = [&] (TMutableRow row,
+        finalizeRow = [&] (
+            TUnversionedRow src,
             size_t size,
             const TNullable<TUnversionedValue>& finalizeSentinel,
             const TNullable<TUnversionedValue>& sentinel)
         {
-            row.SetCount(shrinkSize);
-            AppendSentinel(row, finalizeSentinel);
+            return CaptureRowWithSentinel(buffer, src, shrinkSize, finalizeSentinel);
         };
     } else {
-        finalizeRow = [&] (TMutableRow row,
+        finalizeRow = [&] (
+            TUnversionedRow src,
             size_t size,
-            TNullable<TUnversionedValue> finalizeSentinel,
-            TNullable<TUnversionedValue> sentinel)
+            const TNullable<TUnversionedValue>& finalizeSentinel,
+            const TNullable<TUnversionedValue>& sentinel)
         {
-            row.SetCount(size);
-            AppendSentinel(row, sentinel);
+            return CaptureRowWithSentinel(buffer, src, size, sentinel);
         };
     }
 
@@ -628,10 +621,12 @@ void EnrichKeyRange(
         const TNullable<TUnversionedValue>& lowerSentinel,
         const TNullable<TUnversionedValue>& upperSentinel)
     {
-        finalizeRow(lowerRow, lowerSize, Null, lowerSentinel);
-        finalizeRow(upperRow, upperSize, MakeUnversionedSentinelValue(EValueType::Max), upperSentinel);
-        YASSERT(lowerRow <= upperRow);
-        ranges.push_back(std::make_pair(Copy(buffer, lowerRow), Copy(buffer, upperRow)));
+        auto lower = finalizeRow(lowerRow, lowerSize, Null, lowerSentinel);
+        auto upper = finalizeRow(upperRow, upperSize, MakeUnversionedSentinelValue(EValueType::Max), upperSentinel);
+        YASSERT(lower <= upper);
+        if (lower < upper) {
+            ranges.push_back(std::make_pair(lower, upper));
+        }
     };
 
     auto prefixRow = TMutableUnversionedRow::Allocate(buffer->GetPool(), keySize + 1);

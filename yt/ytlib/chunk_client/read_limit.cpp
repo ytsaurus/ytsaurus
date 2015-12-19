@@ -154,10 +154,38 @@ void TReadLimit::Persist(NPhoenix::TPersistenceContext& context)
     Persist(context, Key_);
 }
 
+void TReadLimit::MergeLowerKey(const TOwningKey& key)
+{
+    if (!HasKey() || GetKey() < key) {
+        SetKey(key);
+    }
+}
+
+void TReadLimit::MergeUpperKey(const TOwningKey& key)
+{
+    if (!HasKey() || GetKey() > key) {
+        SetKey(key);
+    }
+}
+
+void TReadLimit::MergeLowerRowIndex(i64 rowIndex)
+{
+    if (!HasRowIndex() || GetRowIndex() < rowIndex) {
+        SetRowIndex(rowIndex);
+    }   
+}
+
+void TReadLimit::MergeUpperRowIndex(i64 rowIndex)
+{
+    if (!HasRowIndex() || GetRowIndex() > rowIndex) {
+        SetRowIndex(rowIndex);
+    }   
+}
+
 void TReadLimit::MergeLowerLimit(const NProto::TReadLimit& readLimit)
 {
-    if (readLimit.has_row_index() && (!HasRowIndex() || GetRowIndex() < readLimit.row_index())) {
-        SetRowIndex(readLimit.row_index());
+    if (readLimit.has_row_index()) {
+        MergeLowerRowIndex(readLimit.row_index());
     }
     if (readLimit.has_chunk_index() && (!HasChunkIndex() || GetChunkIndex() < readLimit.chunk_index())) {
         SetChunkIndex(readLimit.chunk_index());
@@ -167,16 +195,14 @@ void TReadLimit::MergeLowerLimit(const NProto::TReadLimit& readLimit)
     }
     if (readLimit.has_key()) {
         auto key = NYT::FromProto<TOwningKey>(readLimit.key());
-        if (!HasKey() || GetKey() < key) {
-            SetKey(key);
-        }
+        MergeLowerKey(key);
     }
 }
 
 void TReadLimit::MergeUpperLimit(const NProto::TReadLimit& readLimit)
 {
-    if (readLimit.has_row_index() && (!HasRowIndex() || GetRowIndex() > readLimit.row_index())) {
-        SetRowIndex(readLimit.row_index());
+    if (readLimit.has_row_index()) {
+        MergeUpperRowIndex(readLimit.row_index());
     }
     if (readLimit.has_chunk_index() && (!HasChunkIndex() || GetChunkIndex() > readLimit.chunk_index())) {
         SetChunkIndex(readLimit.chunk_index());
@@ -186,9 +212,7 @@ void TReadLimit::MergeUpperLimit(const NProto::TReadLimit& readLimit)
     }
     if (readLimit.has_key()) {
         auto key = NYT::FromProto<TOwningKey>(readLimit.key());
-        if (!HasKey() || GetKey() > key) {
-            SetKey(key);
-        }
+        MergeUpperKey(key);
     }
 }
 

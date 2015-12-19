@@ -38,8 +38,10 @@ TSimpleVersionedBlockReader::TSimpleVersionedBlockReader(
 
     auto keyDataSize = GetUnversionedRowByteSize(KeyColumnCount_);
     KeyBuffer_.reserve(keyDataSize);
-    Key_ = TMutableKey(reinterpret_cast<TUnversionedRowHeader*>(KeyBuffer_.data()));
-    Key_.SetCount(KeyColumnCount_);
+    auto header = reinterpret_cast<TUnversionedRowHeader*>(KeyBuffer_.data());
+    header->Capacity = KeyColumnCount_;
+    header->Count = KeyColumnCount_;
+    Key_ = TMutableKey(header);
 
     for (int index = 0; index < KeyColumnCount_; ++index) {
         auto& value = Key_[index];
