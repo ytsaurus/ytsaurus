@@ -500,11 +500,13 @@ public:
 
     void SetCount(int count)
     {
+        YASSERT(count >= 0 && count <= GetHeader()->Capacity);
         GetHeader()->Count = count;
     }
 
     TUnversionedValue& operator[] (int index)
     {
+        YASSERT(index >= 0 && index < GetCount());
         return Begin()[index];
     }
 };

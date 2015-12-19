@@ -736,7 +736,7 @@ void TOperationControllerBase::TTask::AddChunksToInputSpec(
 {
     for (const auto& chunkSlice : stripe->ChunkSlices) {
         auto* chunkSpec = inputSpec->add_chunks();
-        ToProto(chunkSpec, *chunkSlice);
+        ToProto(chunkSpec, chunkSlice);
         for (ui32 protoReplica : chunkSlice->GetChunkSpec()->replicas()) {
             auto replica = FromProto<TChunkReplica>(protoReplica);
             directoryBuilder->Add(replica);
@@ -1124,7 +1124,6 @@ TTransactionId TOperationControllerBase::StartTransaction(
             ToProto(req->mutable_transaction_id(), parentTransactionId.Get());
         }
         req->set_type(static_cast<int>(EObjectType::Transaction));
-
 
         auto* reqExt = req->mutable_extensions()->MutableExtension(
             NTransactionClient::NProto::TTransactionCreationExt::transaction_creation_ext);

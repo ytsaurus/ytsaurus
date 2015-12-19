@@ -1004,8 +1004,11 @@ private:
 
         auto operations = Bootstrap->GetScheduler()->GetOperations();
         for (auto operation : operations) {
-            if (operation->GetState() != EOperationState::Running)
+            if (operation->GetState() != EOperationState::Preparing &&
+                operation->GetState() != EOperationState::Running)
+            {
                 continue;
+            }
 
             watchTransaction(operation->GetUserTransaction());
             watchTransaction(operation->GetSyncSchedulerTransaction());
@@ -1097,8 +1100,11 @@ private:
 
         // Check every operation's transactions and raise appropriate notifications.
         for (auto operation : operations) {
-            if (operation->GetState() != EOperationState::Running)
+            if (operation->GetState() != EOperationState::Preparing &&
+                operation->GetState() != EOperationState::Running)
+            {
                 continue;
+            }
 
             if (!isUserTransactionAlive(operation, operation->GetUserTransaction())) {
                 UserTransactionAborted_.Fire(operation);
