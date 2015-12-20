@@ -29,7 +29,8 @@ typedef union TUnversionedValueData
 typedef struct TUnversionedValue
 {
     int16_t Id;
-    int16_t Type;
+    uint8_t Type;
+    uint8_t Aggregate;
     int32_t Length;
     TUnversionedValueData Data;
 } TUnversionedValue;
