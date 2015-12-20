@@ -1531,11 +1531,9 @@ TCGQueryCallback CodegenEvaluate(
     TCodegenSource codegenSource)
 {
     auto module = TCGModule::Create(GetQueryRoutineRegistry());
-
     auto& context = module->GetContext();
 
-    auto entryFunctionName = Stroka("Evaluate");
-
+    const auto entryFunctionName = Stroka("EvaluateQuery");
     Function* function = Function::Create(
         TypeBuilder<TCGQuerySignature, false>::get(context),
         Function::ExternalLinkage,
@@ -1543,6 +1541,8 @@ TCGQueryCallback CodegenEvaluate(
         module->GetModule());
 
     function->addFnAttr(llvm::Attribute::AttrKind::UWTable);
+
+    module->ExportSymbol(entryFunctionName);
 
     auto args = function->arg_begin();
     Value* constants = args; constants->setName("constants");
@@ -1575,8 +1575,7 @@ TCGExpressionCallback CodegenExpression(TCodegenExpression codegenExpression)
     auto module = TCGModule::Create(GetQueryRoutineRegistry());
     auto& context = module->GetContext();
 
-    auto entryFunctionName = Stroka("EvaluateExpression");
-
+    const auto entryFunctionName = Stroka("EvaluateExpression");
     Function* function = Function::Create(
         TypeBuilder<TCGExpressionSignature, false>::get(context),
         Function::ExternalLinkage,
@@ -1584,6 +1583,8 @@ TCGExpressionCallback CodegenExpression(TCodegenExpression codegenExpression)
         module->GetModule());
 
     function->addFnAttr(llvm::Attribute::AttrKind::UWTable);
+
+    module->ExportSymbol(entryFunctionName);
 
     auto args = function->arg_begin();
     Value* resultPtr = args; resultPtr->setName("resultPtr");
@@ -1614,7 +1615,7 @@ TCGAggregateCallbacks CodegenAggregate(TCodegenAggregate codegenAggregate)
     auto module = TCGModule::Create(GetQueryRoutineRegistry());
     auto& context = module->GetContext();
 
-    auto initName = Stroka("init");
+    const auto initName = Stroka("init");
     {
         Function* function = Function::Create(
             TypeBuilder<TCGAggregateInitSignature, false>::get(context),
@@ -1623,6 +1624,8 @@ TCGAggregateCallbacks CodegenAggregate(TCodegenAggregate codegenAggregate)
             module->GetModule());
 
         function->addFnAttr(llvm::Attribute::AttrKind::UWTable);
+
+        module->ExportSymbol(initName);
 
         auto args = function->arg_begin();
         Value* executionContextPtr = args; executionContextPtr->setName("executionContextPtr");
@@ -1635,7 +1638,7 @@ TCGAggregateCallbacks CodegenAggregate(TCodegenAggregate codegenAggregate)
         builder.CreateRetVoid();
     }
 
-    auto updateName = Stroka("update");
+    const auto updateName = Stroka("update");
     {
         Function* function = Function::Create(
             TypeBuilder<TCGAggregateUpdateSignature, false>::get(context),
@@ -1644,6 +1647,8 @@ TCGAggregateCallbacks CodegenAggregate(TCodegenAggregate codegenAggregate)
             module->GetModule());
 
         function->addFnAttr(llvm::Attribute::AttrKind::UWTable);
+
+        module->ExportSymbol(updateName);
 
         auto args = function->arg_begin();
         Value* executionContextPtr = args; executionContextPtr->setName("executionContextPtr");
@@ -1658,7 +1663,7 @@ TCGAggregateCallbacks CodegenAggregate(TCodegenAggregate codegenAggregate)
         builder.CreateRetVoid();
     }
 
-    auto mergeName = Stroka("merge");
+    const auto mergeName = Stroka("merge");
     {
         Function* function = Function::Create(
             TypeBuilder<TCGAggregateMergeSignature, false>::get(context),
@@ -1667,6 +1672,8 @@ TCGAggregateCallbacks CodegenAggregate(TCodegenAggregate codegenAggregate)
             module->GetModule());
 
         function->addFnAttr(llvm::Attribute::AttrKind::UWTable);
+
+        module->ExportSymbol(mergeName);
 
         auto args = function->arg_begin();
         Value* executionContextPtr = args; executionContextPtr->setName("executionContextPtr");
@@ -1681,7 +1688,7 @@ TCGAggregateCallbacks CodegenAggregate(TCodegenAggregate codegenAggregate)
         builder.CreateRetVoid();
     }
 
-    auto finalizeName = Stroka("finalize");
+    const auto finalizeName = Stroka("finalize");
     {
         Function* function = Function::Create(
             TypeBuilder<TCGAggregateFinalizeSignature, false>::get(context),
@@ -1690,6 +1697,8 @@ TCGAggregateCallbacks CodegenAggregate(TCodegenAggregate codegenAggregate)
             module->GetModule());
 
         function->addFnAttr(llvm::Attribute::AttrKind::UWTable);
+
+        module->ExportSymbol(finalizeName);
 
         auto args = function->arg_begin();
         Value* executionContextPtr = args; executionContextPtr->setName("executionContextPtr");
@@ -1702,6 +1711,7 @@ TCGAggregateCallbacks CodegenAggregate(TCodegenAggregate codegenAggregate)
         result.StoreToValue(builder, resultPtr, 0, "writeResult");
         builder.CreateRetVoid();
     }
+
 
     return TCGAggregateCallbacks{
         module->GetCompiledFunction<TCGAggregateInitSignature>(initName),

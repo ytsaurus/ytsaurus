@@ -138,6 +138,11 @@ public:
         return Module_->getOrInsertFunction(symbol.c_str(), type);
     }
 
+    void ExportSymbol(const Stroka& name)
+    {
+        YCHECK(ExportedSymbols_.insert(name).second);
+    }
+
     uint64_t GetFunctionAddress(const Stroka& name)
     {
         if (!Compiled_) {
@@ -193,29 +198,40 @@ private:
 
         YCHECK(!llvm::verifyModule(*Module_, &llvm::errs()));
 
+        std::unique_ptr<PassManager> modulePassManager;
+        std::unique_ptr<FunctionPassManager> functionPassManager;
+
+        // Run DCE pass to strip unused code.
+        std::vector<const char*> exportedNames;
+        for (const auto& exportedSymbol : ExportedSymbols_) {
+            exportedNames.emplace_back(exportedSymbol.c_str());
+        }
+        modulePassManager = std::make_unique<PassManager>();
+        modulePassManager->add(llvm::createInternalizePass(exportedNames));
+        modulePassManager->add(llvm::createGlobalDCEPass());
+        modulePassManager->run(*Module_);
+
+        // Now, setup optimization pipeline and run actual optimizations.
         llvm::PassManagerBuilder passManagerBuilder;
         passManagerBuilder.OptLevel = 2;
         passManagerBuilder.SizeLevel = 0;
         passManagerBuilder.Inliner = llvm::createFunctionInliningPass();
 
-        std::unique_ptr<FunctionPassManager> functionPassManager_;
-        std::unique_ptr<PassManager> modulePassManager_;
+        functionPassManager = std::make_unique<FunctionPassManager>(Module_);
+        passManagerBuilder.populateFunctionPassManager(*functionPassManager);
 
-        functionPassManager_ = std::make_unique<FunctionPassManager>(Module_);
-        passManagerBuilder.populateFunctionPassManager(*functionPassManager_);
-
-        functionPassManager_->doInitialization();
+        functionPassManager->doInitialization();
         for (auto it = Module_->begin(), jt = Module_->end(); it != jt; ++it) {
             if (!it->isDeclaration()) {
-                functionPassManager_->run(*it);
+                functionPassManager->run(*it);
             }
         }
-        functionPassManager_->doFinalization();
+        functionPassManager->doFinalization();
 
-        modulePassManager_ = std::make_unique<PassManager>();
-        passManagerBuilder.populateModulePassManager(*modulePassManager_);
+        modulePassManager = std::make_unique<PassManager>();
+        passManagerBuilder.populateModulePassManager(*modulePassManager);
 
-        modulePassManager_->run(*Module_);
+        modulePassManager->run(*Module_);
 
         if (DumpIR()) {
             llvm::errs() << "\n******** After Optimization ************************************\n";
@@ -249,6 +265,8 @@ private:
     static const char* DiagnosticKindToString(llvm::DiagnosticKind kind)
     {
         switch (kind) {
+            case llvm::DK_Bitcode:
+                return "DK_Bitcode";
             case llvm::DK_InlineAsm:
                 return "DK_InlineAsm";
             case llvm::DK_StackSize:
@@ -265,6 +283,10 @@ private:
                 return "DK_OptimizationRemarkMissed";
             case llvm::DK_OptimizationRemarkAnalysis:
                 return "DK_OptimizationRemarkAnalysis";
+            case llvm::DK_OptimizationFailure:
+                return "DK_OptimizationFailure";
+            case llvm::DK_MIRParser:
+                return "DK_MIRParser";
             case llvm::DK_FirstPluginKind:
                 return "DK_FirstPluginKind";
             default:
@@ -280,6 +302,8 @@ private:
                 return "DS_Error";
             case llvm::DS_Warning:
                 return "DS_Warning";
+            case llvm::DS_Remark:
+                return "DS_Remark";
             case llvm::DS_Note:
                 return "DS_Note";
             default:
@@ -293,6 +317,8 @@ private:
     llvm::Module* Module_;
 
     std::unique_ptr<llvm::ExecutionEngine> Engine_;
+
+    std::set<Stroka> ExportedSymbols_;
 
     std::set<Stroka> LoadedFunctions_;
     std::set<Stroka> LoadedSymbols_;
@@ -325,6 +351,11 @@ llvm::Module* TCGModule::GetModule() const
 llvm::Constant* TCGModule::GetRoutine(const Stroka& symbol) const
 {
     return Impl_->GetRoutine(symbol);
+}
+
+void TCGModule::ExportSymbol(const Stroka& name)
+{
+    Impl_->ExportSymbol(name);
 }
 
 llvm::LLVMContext& TCGModule::GetContext()

@@ -43,6 +43,8 @@ public:
 
     llvm::Constant* GetRoutine(const Stroka& symbol) const;
 
+    void ExportSymbol(const Stroka& name);
+
     template <class TSignature>
     TCGFunction<TSignature> GetCompiledFunction(const Stroka& name);
 
