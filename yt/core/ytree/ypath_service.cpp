@@ -42,7 +42,8 @@ public:
     }
 
 private:
-    TYsonProducer Producer_;
+    const TYsonProducer Producer_;
+
 
     virtual bool DoInvoke(IServiceContextPtr context) override
     {
@@ -114,8 +115,9 @@ public:
     }
 
 private:
-    IYPathServicePtr UnderlyingService_;
-    IInvokerPtr Invoker_;
+    const IYPathServicePtr UnderlyingService_;
+    const IInvokerPtr Invoker_;
+
 
     virtual bool DoInvoke(IServiceContextPtr context) override
     {
@@ -154,8 +156,8 @@ public:
     }
 
 private:
-    IYPathServicePtr UnderlyingService_;
-    TDuration ExpirationTime_;
+    const IYPathServicePtr UnderlyingService_;
+    const TDuration ExpirationTime_;
 
     TSpinLock SpinLock_;
     TFuture<INodePtr> CachedTree_;
