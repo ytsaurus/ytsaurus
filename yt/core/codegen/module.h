@@ -6,10 +6,23 @@
 
 #include <memory>
 
+#ifdef DEBUG
+#  define DEFINED_DEBUG
+#  undef DEBUG
+#endif
+
 #include <llvm/ExecutionEngine/ExecutionEngine.h>
 #include <llvm/IR/Function.h>
 #include <llvm/IR/Module.h>
 #include <llvm/IR/TypeBuilder.h>
+
+#ifdef DEFINED_DEBUG
+#  ifdef DEBUG
+#    undef DEBUG
+#    define DEBUG
+#  endif
+#  undef DEFINED_DEBUG
+#endif
 
 namespace NYT {
 namespace NCodegen {
@@ -29,6 +42,8 @@ public:
     llvm::Module* GetModule() const;
 
     llvm::Constant* GetRoutine(const Stroka& symbol) const;
+
+    void ExportSymbol(const Stroka& name);
 
     template <class TSignature>
     TCGFunction<TSignature> GetCompiledFunction(const Stroka& name);

@@ -13,12 +13,6 @@
 #include <yt/core/yson/stream.h>
 #include <yt/core/yson/producer.h>
 
-#include <yt/core/misc/preprocessor.h>
-#include <yt/core/misc/small_vector.h>
-
-#include <util/generic/typehelpers.h>
-#include <util/generic/static_assert.h>
-
 namespace NYT {
 namespace NYTree {
 

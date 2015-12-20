@@ -1773,7 +1773,7 @@ namespace NYT { namespace NQueryClient { namespace NAst {
             if (yystack_[2].value.as< TExpressionList > ().size() != 1) {
                 THROW_ERROR_EXCEPTION("Aliased expression %Qv must be scalar", GetSource(yylhs.location, source));
             }
-            auto inserted = head->second.insert(MakePair(Stroka(yystack_[0].value.as< TStringBuf > ()), yystack_[2].value.as< TExpressionList > ().front()));
+            auto inserted = head->second.insert(std::make_pair(Stroka(yystack_[0].value.as< TStringBuf > ()), yystack_[2].value.as< TExpressionList > ().front()));
             if (!inserted.second) {
                 THROW_ERROR_EXCEPTION("Alias %Qv has been already used", yystack_[0].value.as< TStringBuf > ());
             }

@@ -50,7 +50,7 @@ static const auto& Logger = TabletClientLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTabletInfoPtr TTableMountInfo::GetTablet(TUnversionedRow row)
+TTabletInfoPtr TTableMountInfo::GetTablet(TUnversionedRow row) const
 {
     if (Tablets.empty()) {
         THROW_ERROR_EXCEPTION("Table %v has no tablets",
@@ -66,7 +66,7 @@ TTabletInfoPtr TTableMountInfo::GetTablet(TUnversionedRow row)
     return *(it - 1);
 }
 
-void TTableMountInfo::ValidateDynamic()
+void TTableMountInfo::ValidateDynamic() const
 {
     if (!Dynamic) {
         THROW_ERROR_EXCEPTION("Table %v is not dynamic", Path);

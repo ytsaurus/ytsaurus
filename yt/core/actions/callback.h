@@ -174,7 +174,7 @@ public:
         : TCallbackBase(other)
     { }
 
-    TCallback(TCallback&& other)
+    TCallback(TCallback&& other) noexcept
         : TCallbackBase(std::move(other))
     { }
 

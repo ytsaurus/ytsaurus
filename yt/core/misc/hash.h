@@ -20,16 +20,6 @@ inline size_t HashCombine(size_t seed, const T& value)
     return HashCombineImpl(seed, THash<T>()(value));
 }
 
-//! A hasher for std::pair.
-template <class T1, class T2>
-struct hash<std::pair<T1, T2>>
-{
-    size_t operator () (const std::pair<T1, T2>& pair) const
-    {
-        return THash<T1>()(pair.first) + 1877 * THash<T2>()(pair.second);
-    }
-};
-
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace NYT {

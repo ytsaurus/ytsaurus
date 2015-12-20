@@ -1341,9 +1341,9 @@ protected:
         if (averageBufferSize < THorizontalSchemalessBlockWriter::MinReserveSize) {
             i64 minAppropriateSize = partitionCount * 2 * THorizontalSchemalessBlockWriter::MinReserveSize;
             THROW_ERROR_EXCEPTION(
-                "Too small table writer buffer size for partitioner (MaxBufferSize: %v). Min appropriate buffer size is %v",
-                averageBufferSize,
-                minAppropriateSize);
+                "Partitioner table writer buffer size is too small: expected >= %v, got %v",
+                minAppropriateSize,
+                config->MaxBufferSize);
         }
     }
 
@@ -1881,7 +1881,7 @@ private:
         // Initially PartitionKeys is empty so lastKey is assumed to be -inf.
 
         int sampleIndex = 0;
-        while (sampleIndex < partitionCount - 1) {
+        while (sampleIndex < selectedSamples.size()) {
             auto* sample = selectedSamples[sampleIndex];
             // Check for same keys.
             if (PartitionKeys.empty() || CompareRows(sample->Key, PartitionKeys.back()) != 0) {
@@ -1890,7 +1890,7 @@ private:
             } else {
                 // Skip same keys.
                 int skippedCount = 0;
-                while (sampleIndex < partitionCount - 1 &&
+                while (sampleIndex < selectedSamples.size() &&
                     CompareRows(selectedSamples[sampleIndex]->Key, PartitionKeys.back()) == 0)
                 {
                     ++sampleIndex;

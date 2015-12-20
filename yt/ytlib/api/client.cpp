@@ -2550,7 +2550,6 @@ private:
 
     private:
         const std::vector<TUnversionedRow> Rows_;
-        const TWriteRowsOptions Options_;
 
         virtual void DoRun() override
         {
@@ -2561,6 +2560,8 @@ private:
                 ValidateClientDataRow,
                 Options_);
         }
+
+        TWriteRowsOptions Options_;
     };
 
     class TDeleteRequest
@@ -2572,15 +2573,13 @@ private:
             const TYPath& path,
             TNameTablePtr nameTable,
             std::vector<NTableClient::TKey> keys,
-            const TDeleteRowsOptions& options)
+            const TDeleteRowsOptions& /*options*/)
             : TModifyRequest(transaction, path, std::move(nameTable))
             , Keys_(std::move(keys))
-            , Options_(options)
         { }
 
     private:
         const std::vector<TUnversionedRow> Keys_;
-        const TDeleteRowsOptions Options_;
 
         virtual void DoRun() override
         {

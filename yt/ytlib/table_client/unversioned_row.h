@@ -170,7 +170,7 @@ inline TUnversionedValue MakeUnversionedAnyValue(const TStringBuf& value, int id
 struct TUnversionedRowHeader
 {
     ui32 Count;
-    ui32 Padding;
+    ui32 Capacity;
 };
 
 static_assert(
@@ -312,17 +312,18 @@ public:
         return Begin() + GetCount();
     }
 
+    const TUnversionedValue& operator[] (int index) const
+    {
+        YASSERT(index >= 0 && index < GetCount());
+        return Begin()[index];
+    }
+
     int GetCount() const
     {
         return Header_->Count;
     }
 
-    const TUnversionedValue& operator[] (int index) const
-    {
-        return Begin()[index];
-    }
-
-protected:
+private:
     const TUnversionedRowHeader* Header_;
 
 };
@@ -499,11 +500,13 @@ public:
 
     void SetCount(int count)
     {
+        YASSERT(count >= 0 && count <= GetHeader()->Capacity);
         GetHeader()->Count = count;
     }
 
     TUnversionedValue& operator[] (int index)
     {
+        YASSERT(index >= 0 && index < GetCount());
         return Begin()[index];
     }
 };
@@ -566,15 +569,16 @@ public:
         return Begin() + GetCount();
     }
 
+    const TUnversionedValue& operator[] (int index) const
+    {
+        YASSERT(index >= 0 && index < GetCount());
+        return Begin()[index];
+    }
+
     int GetCount() const
     {
         const auto* header = GetHeader();
         return header ? static_cast<int>(header->Count) : 0;
-    }
-
-    const TUnversionedValue& operator[] (int index) const
-    {
-        return Begin()[index];
     }
 
     size_t GetByteSize() const
@@ -582,7 +586,7 @@ public:
         return StringData_.length() + RowData_.Size();
     }
 
-	size_t GetSpaceUsedExcludingSelf() const
+    size_t GetSpaceUsed() const
     {
         return StringData_.capacity() + RowData_.Size();
     }
@@ -669,7 +673,6 @@ private:
         sizeof(TUnversionedRowHeader) +
         DefaultValueCapacity * sizeof(TUnversionedValue);
 
-    int ValueCapacity_;
     SmallVector<char, DefaultBlobCapacity> RowData_;
 
     TUnversionedRowHeader* GetHeader();
@@ -696,7 +699,6 @@ public:
 
 private:
     int InitialValueCapacity_;
-    int ValueCapacity_;
 
     TBlob RowData_;
     Stroka StringData_;

@@ -463,14 +463,14 @@ public:
             maxRecords,
             maxBytes);
 
-        std::vector<TSharedRef> records;
-
-        // Prevent search in empty index.
-        if (Index_.empty()) {
-            return records;
-        }
-
         try {
+            std::vector<TSharedRef> records;
+
+            // Prevent search in empty index.
+            if (Index_.empty()) {
+                return records;
+            }
+
             maxRecords = std::min(maxRecords, RecordCount_ - firstRecordId);
             int lastRecordId = firstRecordId + maxRecords; // non-inclusive
 

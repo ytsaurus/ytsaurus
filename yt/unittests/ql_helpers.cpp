@@ -15,6 +15,11 @@ void PrintTo(const TUnversionedValue& value, ::std::ostream* os)
     *os << ToString(value);
 }
 
+void PrintTo(const TUnversionedRow& value, ::std::ostream* os)
+{
+    *os << ToString(value);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NTableClient

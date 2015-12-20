@@ -7,9 +7,6 @@ namespace NHydra {
 
 ///////////////////////////////////////////////////////////////////////////////
 
-TMutationRequest::TMutationRequest()
-{ }
-
 TMutationRequest::TMutationRequest(
     Stroka type,
     TSharedRef data,
@@ -20,9 +17,6 @@ TMutationRequest::TMutationRequest(
 { }
 
 ///////////////////////////////////////////////////////////////////////////////
-
-TMutationResponse::TMutationResponse()
-{ }
 
 TMutationResponse::TMutationResponse(TSharedRefArray data)
     : Data(std::move(data))

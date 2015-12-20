@@ -72,8 +72,8 @@ struct IMessageHandler
      *  \param replyBus A bus that can be used for replying back.
      *
      *  \note
-     *  Thread affinity: the method is called from an unspecified thread
-     *  and must return ASAP.
+     *  Thread affinity: this method is called from an unspecified thread
+     *  and must return ASAP. No context switch or fiber cancelation is possible.
      *
      */
     virtual void HandleMessage(TSharedRefArray message, IBusPtr replyBus) = 0;

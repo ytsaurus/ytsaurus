@@ -295,6 +295,7 @@ public:
     int ThreadPoolSize;
     int MaxConcurrentCompactions;
     int MaxConcurrentPartitionings;
+    int PartitioningWriterPoolSize;
 
     TStoreCompactorConfig()
     {
@@ -307,6 +308,9 @@ public:
         RegisterParameter("max_concurrent_partitionings", MaxConcurrentPartitionings)
             .GreaterThan(0)
             .Default(1);
+        RegisterParameter("partitioning_writer_pool_size", PartitioningWriterPoolSize)
+            .GreaterThan(0)
+            .Default(10);
     }
 };
 
@@ -471,7 +475,6 @@ public:
 
     //! Controls outcoming bandwidth used by store flushes.
     NConcurrency::TThroughputThrottlerConfigPtr StoreFlushOutThrottler;
-
 
     //! Controls incoming bandwidth used by store compactions.
     NConcurrency::TThroughputThrottlerConfigPtr StoreCompactionInThrottler;

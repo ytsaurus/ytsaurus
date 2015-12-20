@@ -15,7 +15,8 @@ namespace NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TSample {
+struct TSample 
+{   
     TOwningKey Key;
 
     //! True, if the sample is trimmed to fulfil #MaxSampleSize_.

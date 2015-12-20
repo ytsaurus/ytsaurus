@@ -40,6 +40,8 @@
     #include <sys/inotify.h>
 #endif
 
+#include <errno.h>
+
 namespace NYT {
 namespace NLogging {
 
@@ -299,16 +301,12 @@ public:
 
     void Enqueue(TLogEvent&& event)
     {
-        if (ShutdownRequested_) {
-            if (event.Level == ELogLevel::Fatal) {
+        if (event.Level == ELogLevel::Fatal) {
+            bool shutdown = false;
+            if (!ShutdownRequested_.compare_exchange_strong(shutdown, true)) {
                 // Fatal events should not get out of this call.
                 Sleep(TDuration::Max());
             }
-            return;
-        }
-
-        if (event.Level == ELogLevel::Fatal) {
-            ShutdownRequested_ = true;
 
             // Add fatal message to log and notify event log queue.
             Profiler.Increment(EnqueuedEventCounter_);
@@ -348,11 +346,19 @@ public:
             std::terminate();
         }
 
-        if (LoggingThread_->IsShutdown() || Suspended_) {
+        if (ShutdownRequested_) {
             return;
         }
 
-        int backlogSize = Profiler.Increment(BacklogEventCounter_);
+        if (LoggingThread_->IsShutdown()) {
+            return;
+        }
+
+        if (Suspended_) {
+            return;
+        }
+
+		int backlogSize = Profiler.Increment(BacklogEventCounter_);
         Profiler.Increment(EnqueuedEventCounter_);
         PushLogEvent(std::move(event));
         EventCount_->NotifyOne();

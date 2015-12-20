@@ -30,8 +30,12 @@ class TBusServer
 {
 public:
     explicit TBusServer(IBusServerPtr busServer)
-        : BusServer_(busServer)
+        : BusServer_(std::move(busServer))
     { }
+
+private:
+    IBusServerPtr BusServer_;
+
 
     virtual void DoStart() override
     {
@@ -47,10 +51,6 @@ public:
         BusServer_->Stop();
         BusServer_.Reset();
     }
-
-private:
-    IBusServerPtr BusServer_;
-
 
     virtual void HandleMessage(TSharedRefArray message, IBusPtr replyBus) override
     {
@@ -137,7 +137,7 @@ private:
 
             if (!isOneWay) {
                 auto response = CreateErrorResponseMessage(requestId, error);
-                replyBus->Send(response, EDeliveryTrackingLevel::None);
+                replyBus->Send(std::move(response), EDeliveryTrackingLevel::None);
             }
             return;
         }

@@ -1009,8 +1009,6 @@ private:
 
         auto wrappedError = TError("Error committing mutation")
             << error;
-
-        DecoratedAutomaton_->CancelPendingLeaderMutations(wrappedError);
         Restart(epochContext, wrappedError);
     }
 
