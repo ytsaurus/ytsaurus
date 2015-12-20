@@ -76,7 +76,7 @@ public:
             YCHECK(blockIndex >= 0);
 
             // Searching for the part of a given block.
-            auto it = upper_bound(PartInfos_.begin(), PartInfos_.end(), blockIndex, TPartComparer());
+            auto it = std::upper_bound(PartInfos_.begin(), PartInfos_.end(), blockIndex, TPartComparer());
             YCHECK(it != PartInfos_.begin());
             do {
                 --it;

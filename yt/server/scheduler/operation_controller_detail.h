@@ -155,17 +155,17 @@ protected:
     ISuspendableInvokerPtr SuspendableInvoker;
     IInvokerPtr CancelableInvoker;
 
-    EControllerState State;
+    EControllerState State = EControllerState::Preparing;
     NConcurrency::TReaderWriterSpinLock StateLock;
 
     // These totals are approximate.
-    int TotalEstimatedInputChunkCount;
-    i64 TotalEstimatedInputDataSize;
-    i64 TotalEstimatedInputRowCount;
-    i64 TotalEstimatedInputValueCount;
-    i64 TotalEstimatedCompressedDataSize;
+    int TotalEstimatedInputChunkCount = 0;
+    i64 TotalEstimatedInputDataSize = 0;
+    i64 TotalEstimatedInputRowCount = 0;
+    i64 TotalEstimatedInputValueCount = 0;
+    i64 TotalEstimatedCompressedDataSize = 0;
 
-    int UnavailableInputChunkCount;
+    int UnavailableInputChunkCount = 0;
 
     // Job counters.
     TProgressCounter JobCounter;
@@ -555,6 +555,11 @@ protected:
 
     };
 
+    NTransactionClient::TTransactionId StartTransaction(
+        const Stroka& transactionName,
+        NApi::IClientPtr client,
+        const TNullable<NTransactionClient::TTransactionId>& parentTransactionId);
+
     //! All task groups declared by calling #RegisterTaskGroup, in the order of decreasing priority.
     std::vector<TTaskGroupPtr> TaskGroups;
 
@@ -867,7 +872,7 @@ private:
     TChunkListPoolPtr ChunkListPool;
     yhash<NObjectClient::TCellTag, int> CellTagToOutputTableCount;
 
-    std::atomic<int> CachedPendingJobCount;
+    std::atomic<int> CachedPendingJobCount = {0};
 
     NNodeTrackerClient::NProto::TNodeResources CachedNeededResources;
     NConcurrency::TReaderWriterSpinLock CachedNeededResourcesLock;

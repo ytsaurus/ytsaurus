@@ -607,7 +607,7 @@ TMutableUnversionedRow TMutableUnversionedRow::Allocate(TChunkedMemoryPool* pool
     size_t byteSize = GetUnversionedRowByteSize(valueCount);
     auto* header = reinterpret_cast<TUnversionedRowHeader*>(pool->AllocateAligned(byteSize));
     header->Count = valueCount;
-    header->Padding = 0;
+    header->Capacity = valueCount;
     return TMutableUnversionedRow(header);
 }
 
@@ -1265,19 +1265,21 @@ void TUnversionedOwningRow::Load(TStreamLoadContext& context)
 
 TUnversionedRowBuilder::TUnversionedRowBuilder(int initialValueCapacity /*= 16*/)
 {
-    ValueCapacity_ = initialValueCapacity;
-    RowData_.resize(GetUnversionedRowByteSize(ValueCapacity_));
+    RowData_.resize(GetUnversionedRowByteSize(initialValueCapacity));
     Reset();
+    GetHeader()->Capacity = initialValueCapacity;
 }
 
 int TUnversionedRowBuilder::AddValue(const TUnversionedValue& value)
 {
-    if (GetHeader()->Count == ValueCapacity_) {
-        ValueCapacity_ = 2 * std::max(1, ValueCapacity_);
-        RowData_.resize(GetUnversionedRowByteSize(ValueCapacity_));
+    auto* header = GetHeader();
+    if (header->Count == header->Capacity) {
+        auto valueCapacity = 2 * std::max(1U, header->Capacity);
+        RowData_.resize(GetUnversionedRowByteSize(valueCapacity));
+        header = GetHeader();
+        header->Capacity = valueCapacity;
     }
 
-    auto* header = GetHeader();
     *GetValue(header->Count) = value;
     return header->Count++;
 }
@@ -1314,12 +1316,14 @@ TUnversionedOwningRowBuilder::TUnversionedOwningRowBuilder(int initialValueCapac
 
 int TUnversionedOwningRowBuilder::AddValue(const TUnversionedValue& value)
 {
-    if (GetHeader()->Count == ValueCapacity_) {
-        ValueCapacity_ = ValueCapacity_ == 0 ? 1 : ValueCapacity_ * 2;
-        RowData_.Resize(GetUnversionedRowByteSize(ValueCapacity_));
+    auto* header = GetHeader();
+    if (header->Count == header->Capacity) {
+        auto valueCapacity = 2 * std::max(1U, header->Capacity);
+        RowData_.Resize(GetUnversionedRowByteSize(valueCapacity));
+        header = GetHeader();
+        header->Capacity = valueCapacity;
     }
 
-    auto* header = GetHeader();
     auto* newValue = GetValue(header->Count);
     *newValue = value;
 
@@ -1365,11 +1369,11 @@ TUnversionedOwningRow TUnversionedOwningRowBuilder::FinishRow()
 
 void TUnversionedOwningRowBuilder::Reset()
 {
-    ValueCapacity_ = InitialValueCapacity_;
-    RowData_.Resize(GetUnversionedRowByteSize(ValueCapacity_));
+    RowData_.Resize(GetUnversionedRowByteSize(InitialValueCapacity_));
 
     auto* header = GetHeader();
     header->Count = 0;
+    header->Capacity = InitialValueCapacity_;
 }
 
 TUnversionedRowHeader* TUnversionedOwningRowBuilder::GetHeader()
@@ -1393,7 +1397,7 @@ void TUnversionedOwningRow::Init(const TUnversionedValue* begin, const TUnversio
     auto* header = GetHeader();
 
     header->Count = count;
-    header->Padding = 0;
+    header->Capacity = count;
     ::memcpy(header + 1, begin, reinterpret_cast<const char*>(end) - reinterpret_cast<const char*>(begin));
 
     size_t variableSize = 0;

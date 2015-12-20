@@ -28,7 +28,7 @@ def compress(table):
             return
 
         logger.info("Compressing table %s", table)
-        convert_to_erasure(table, erasure_codec="lrc_12_2_2", compression_codec="gzip_best_compression")
+        convert_to_erasure(table, erasure_codec="lrc_12_2_2", compression_codec="zlib9")
         yt.remove(table + "/@force_nightly_compress")
 
     except yt.YtError as e:

@@ -1259,7 +1259,7 @@ private:
             }
 
             // No current Teleport candidate.
-            if (endpoint.Type == EEndpointType::Left && 
+            if (endpoint.Type == EEndpointType::Left &&
                 CompareRows(minKey, endpoint.MinBoundaryKey, KeyColumns.size()) == 0 &&
                 IsTeleportCandidate(chunkSlice->GetChunkSpec()))
             {
@@ -1553,9 +1553,9 @@ private:
     }
 
     virtual bool IsTeleportCandidate(TRefCountedChunkSpecPtr chunkSpec) const override
-    {   
+    {
         auto tableIndex = chunkSpec->table_index();
-        return TSortedMergeControllerBase::IsTeleportCandidate(chunkSpec) && 
+        return TSortedMergeControllerBase::IsTeleportCandidate(chunkSpec) &&
             InputTables[tableIndex].Path.Attributes().Get<bool>("teleport", false);;
     }
 
@@ -1581,8 +1581,8 @@ private:
                     rhs.ChunkSlice->GetChunkSpec()->table_row_index();
                 if (cmpResult != 0) {
                     return cmpResult < 0;
-                }                
-                
+                }
+
                 return (reinterpret_cast<intptr_t>(lhs.ChunkSlice->GetChunkSpec().Get())
                     - reinterpret_cast<intptr_t>(rhs.ChunkSlice->GetChunkSpec().Get())) < 0;
             });

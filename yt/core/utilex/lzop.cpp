@@ -4,7 +4,7 @@
 
 #include <util/system/info.h>
 
-#include <contrib/z-lz-lzo/minilzo.h>
+#include <yt/contrib/minilzo/minilzo.h>
 
 // See https://svn.yandex.ru/statbox/packages/yandex/statbox-binaries/include/Statbox/LZOP.h
 // As the source for the inspiration.
@@ -178,7 +178,6 @@ class TLzopCompress::TImpl
 public:
     inline TImpl(TOutputStream* slave, ui16 blockSize)
         : Slave(slave)
-        , BlockSize(blockSize)
         , UncompressedBuffer(blockSize)
         , CompressedBuffer(8 + 4 * blockSize)
     {
@@ -192,7 +191,6 @@ protected:
 
 private:
     TOutputStream* Slave;
-    ui16 BlockSize;
 
     NPrivate::NLzop::THeader Header;
     bool HeaderWasWritten;

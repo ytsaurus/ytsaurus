@@ -1317,7 +1317,7 @@ private:
         auto* table = tablet->GetTable();
         auto* cell = tablet->GetCell();
 
-        LOG_INFO_UNLESS(IsRecovery(), "Tablet mounted (TableId: %v, MountRevision: %v, TabletId: %v, CellId: %v)",
+        LOG_INFO_UNLESS(IsRecovery(), "Tablet mounted (TableId: %v, TabletId: %v, MountRevision: %v, CellId: %v)",
             table->GetId(),
             tablet->GetId(),
             tablet->GetMountRevision(),

@@ -436,7 +436,7 @@ public:
             .Run();
     }
 
-    TJobProberServiceProxy CreateJobProberProxy(TJobPtr job)
+    TJobProberServiceProxy CreateJobProberProxy(const TJobPtr& job)
     {
         const auto& address = job->GetNode()->GetInterconnectAddress();
         auto channel = NChunkClient::LightNodeChannelFactory->CreateChannel(address);
@@ -1155,11 +1155,12 @@ private:
             controller->Initialize();
             controller->Essentiate();
 
-            auto error = WaitFor(MasterConnector_->CreateOperationNode(operation));
-            THROW_ERROR_EXCEPTION_IF_FAILED(error);
+            WaitFor(MasterConnector_->CreateOperationNode(operation))
+                .ThrowOnError();
 
-            if (operation->GetState() != EOperationState::Initializing)
+            if (operation->GetState() != EOperationState::Initializing) {
                 throw TFiberCanceledException();
+            }
         } catch (const std::exception& ex) {
             auto wrappedError = TError("Operation has failed to initialize")
                 << ex;
@@ -2006,7 +2007,6 @@ private:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         auto job = GetJobOrThrow(jobId);
-
         auto proxy = CreateJobProberProxy(job);
 
         auto req = proxy.DumpInputContext();
@@ -2022,6 +2022,7 @@ private:
         const auto& res = rspOrError.Value();
         auto chunkIds = FromProto<TGuid>(res->chunk_id());
         YCHECK(chunkIds.size() == 1);
+
         MasterConnector_->AttachJobContext(path, chunkIds.front(), job);
 
         LOG_INFO("Input context saved (JobId: %v, Path: %v)",
