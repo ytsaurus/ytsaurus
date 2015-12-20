@@ -530,9 +530,14 @@ GenerateComparers(int keyColumnCount, const TTableSchema& schema)
     builder.BuildDUComparer(duComparerName);
     builder.BuildUUComparer(uuComparerName);
 
+    module->ExportSymbol(ddComparerName);
+    module->ExportSymbol(duComparerName);
+    module->ExportSymbol(uuComparerName);
+
     auto ddComparer = module->GetCompiledFunction<TDDComparerSignature>(ddComparerName);
     auto duComparer = module->GetCompiledFunction<TDUComparerSignature>(duComparerName);
     auto uuComparer = module->GetCompiledFunction<TUUComparerSignature>(uuComparerName);
+
     return std::tie(ddComparer, duComparer, uuComparer);
 }
 
