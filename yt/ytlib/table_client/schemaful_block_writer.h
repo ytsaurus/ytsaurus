@@ -56,8 +56,8 @@ private:
     {
         TChunkedOutputStream Stream;
         // Bit is set, if corresponding value is not null.
-        TDynBitMap NullBitmap;
-        int ValueSize;
+        TDynBitMap NullBitmap = TDynBitMap();
+        int ValueSize = 0;
     };
 
     TDynBitMap EndOfKeyFlags;

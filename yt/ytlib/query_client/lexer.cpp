@@ -24,12 +24,6 @@ typedef TParser::token_type TToken;
 namespace {
 
 static const int Lexer_start = 12;
-static const int Lexer_first_final = 12;
-static const int Lexer_error = 0;
-
-static const int Lexer_en_quoted_identifier = 77;
-static const int Lexer_en_main = 12;
-
 
 } // namespace anonymous
 

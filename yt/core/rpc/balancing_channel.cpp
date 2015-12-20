@@ -68,17 +68,16 @@ public:
 
     TFuture<void> Terminate(const TError& error)
     {
-        yhash_map<Stroka, IChannelPtr> addressToViableChannel;
+        std::vector<std::pair<Stroka, IChannelPtr>> viableChannels;
         {
             TWriterGuard guard(SpinLock_);
             Terminated_ = true;
             TerminationError_ = error;
-            AddressToViableChannel_.swap(addressToViableChannel);
-            AddressToViableChannelIt_ = AddressToViableChannel_.end();
+            ViableChannels_.swap(viableChannels);
         }
 
         std::vector<TFuture<void>> asyncResults;
-        for (const auto& pair : addressToViableChannel) {
+        for (const auto& pair : viableChannels) {
             asyncResults.push_back(pair.second->Terminate(error));
         }
 
@@ -99,8 +98,7 @@ private:
     TError TerminationError_;
     yhash_set<Stroka> ActiveAddresses_;
     yhash_set<Stroka> BannedAddresses_;
-    yhash_map<Stroka, IChannelPtr> AddressToViableChannel_;
-    yhash_map<Stroka, IChannelPtr>::iterator AddressToViableChannelIt_ = AddressToViableChannel_.end();
+    std::vector<std::pair<Stroka, IChannelPtr>> ViableChannels_;
 
     NLogging::TLogger Logger;
 
@@ -283,13 +281,11 @@ private:
     IChannelPtr PickViableChannel()
     {
         TReaderGuard guard(SpinLock_);
-        if (AddressToViableChannel_.empty()) {
+        if (ViableChannels_.empty()) {
             return nullptr;
         }
-        if (AddressToViableChannelIt_ == AddressToViableChannel_.end()) {
-            AddressToViableChannelIt_ = AddressToViableChannel_.begin();
-        }
-        return (AddressToViableChannelIt_++)->second;
+        int index = RandomNumber(ViableChannels_.size());
+        return ViableChannels_[index].second;
     }
 
 
@@ -426,7 +422,17 @@ private:
 
         {
             TWriterGuard guard(SpinLock_);
-            AddressToViableChannel_[address] = wrappedChannel;
+            bool found = false;
+            for (auto& pair : ViableChannels_) {
+                if (pair.first == address) {
+                    pair.second = wrappedChannel;
+                    found = true;
+                    break;
+                }
+            }
+            if (!found) {
+                ViableChannels_.push_back(std::make_pair(address, wrappedChannel));
+            }
         }
 
         LOG_DEBUG("Peer is up (Address: %v)", address);
@@ -437,12 +443,13 @@ private:
     {
         {
             TWriterGuard guard(SpinLock_);
-            auto it = AddressToViableChannel_.find(address);
-            if (it != AddressToViableChannel_.end() && it->second == channel) {
-                if (it == AddressToViableChannelIt_) {
-                    ++AddressToViableChannelIt_;
+            for (int index = 0; index < ViableChannels_.size(); ++index) {
+                const auto& pair = ViableChannels_[index];
+                if (pair.first == address && pair.second == channel) {
+                    std::swap(ViableChannels_[index], ViableChannels_[ViableChannels_.size() - 1]);
+                    ViableChannels_.resize(ViableChannels_.size() - 1);
+                    break;
                 }
-                AddressToViableChannel_.erase(it);
             }
         }
 
