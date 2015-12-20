@@ -1,16 +1,18 @@
+#include "yt_udf_cpp.h"
+
 #include <functional>
 
-#include <yt_udf_cpp.h>
+namespace google { namespace re2 {
+    class RE2;
+} }
 
-class RE2;
-
-extern "C" RE2* RegexCreate(TUnversionedValue*);
-extern "C" void RegexDestroy(RE2*);
-extern "C" bool RegexFullMatch(RE2*, TUnversionedValue*);
-extern "C" bool RegexPartialMatch(RE2*, TUnversionedValue*);
-extern "C" void RegexReplaceFirst(TExecutionContext*, RE2*, TUnversionedValue*, TUnversionedValue*, TUnversionedValue*);
-extern "C" void RegexReplaceAll(TExecutionContext*, RE2*, TUnversionedValue*, TUnversionedValue*, TUnversionedValue*);
-extern "C" void RegexExtract(TExecutionContext*, RE2*, TUnversionedValue*, TUnversionedValue*, TUnversionedValue*);
+extern "C" google::re2::RE2* RegexCreate(TUnversionedValue*);
+extern "C" void RegexDestroy(google::re2::RE2*);
+extern "C" bool RegexFullMatch(google::re2::RE2*, TUnversionedValue*);
+extern "C" bool RegexPartialMatch(google::re2::RE2*, TUnversionedValue*);
+extern "C" void RegexReplaceFirst(TExecutionContext*, google::re2::RE2*, TUnversionedValue*, TUnversionedValue*, TUnversionedValue*);
+extern "C" void RegexReplaceAll(TExecutionContext*, google::re2::RE2*, TUnversionedValue*, TUnversionedValue*, TUnversionedValue*);
+extern "C" void RegexExtract(TExecutionContext*, google::re2::RE2*, TUnversionedValue*, TUnversionedValue*, TUnversionedValue*);
 extern "C" void RegexEscape(TExecutionContext*, TUnversionedValue*, TUnversionedValue*);
 
 struct TData
@@ -24,7 +26,7 @@ struct TData
         RegexDestroy(Re2);
     }
 
-    RE2* Re2;
+    google::re2::RE2* Re2;
 };
 
 void regex_work(
