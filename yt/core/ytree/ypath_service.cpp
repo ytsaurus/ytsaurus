@@ -11,11 +11,14 @@
 
 #include <yt/core/yson/writer.h>
 
+#include <yt/core/concurrency/scheduler.h>
+
 namespace NYT {
 namespace NYTree {
 
 using namespace NYson;
 using namespace NRpc;
+using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -160,50 +163,75 @@ private:
     const TDuration ExpirationTime_;
 
     TSpinLock SpinLock_;
-    TFuture<INodePtr> CachedTree_;
+    TErrorOr<INodePtr> CachedTreeOrError_;
+    TPromise<INodePtr> CachedTreePromise_;
     TInstant LastUpdateTime_;
 
 
     virtual bool DoInvoke(IServiceContextPtr context) override
     {
-        TGuard<TSpinLock> guard(SpinLock_);
-        
-        if (!CachedTree_ ||
-            (CachedTree_.IsSet() && LastUpdateTime_ + ExpirationTime_ < TInstant::Now()))
-        {
-            auto promise = NewPromise<INodePtr>();
-            CachedTree_ = promise;
-            guard.Release();
-
-            AsyncYPathGet(
-                UnderlyingService_,
-                "",
-                TAttributeFilter::All,
-                true)
-                .Subscribe(BIND(&TCachedYPathService::OnGotTree, MakeStrong(this), promise)
-                    // Nothing to be proud of, but we do need some large pool.
-                    .Via(NRpc::TDispatcher::Get()->GetInvoker()));
-        }
-
-        CachedTree_.Subscribe(BIND([=] (const TErrorOr<INodePtr>& rootOrError) {
-            if (rootOrError.IsOK()) {
-                ExecuteVerb(rootOrError.Value(), context);
+        GetAsyncCachedTree().Subscribe(BIND([=] (const TErrorOr<INodePtr>& result) {
+            if (!result.IsOK()) {
+                context->Reply(result);
+                return;
             }
-        }));
-
+            ExecuteVerb(result.Value(), context);
+        }).Via(NRpc::TDispatcher::Get()->GetInvoker()));
         return true;
     }
 
-    void OnGotTree(TPromise<INodePtr> promise, TErrorOr<TYsonString> result)
+    TFuture<INodePtr> GetAsyncCachedTree()
     {
-        YCHECK(result.IsOK());
+        TFuture<INodePtr> result;
 
         {
             TGuard<TSpinLock> guard(SpinLock_);
-            LastUpdateTime_ = TInstant::Now();
+
+            if (LastUpdateTime_ + ExpirationTime_ > TInstant::Now()) {
+                return MakeFuture(CachedTreeOrError_);
+            }
+
+            if (CachedTreePromise_ && !CachedTreePromise_.IsSet()) {
+                return CachedTreePromise_.ToFuture();
+            }
+
+            CachedTreePromise_ = NewPromise<INodePtr>();
+            result = CachedTreePromise_.ToFuture();
         }
 
-        promise.Set(ConvertToNode(result.Value()));
+        GetWorkerInvoker()->Invoke(
+            BIND(&TCachedYPathService::BuildCachedTree, MakeStrong(this)));
+
+        return result;
+    }
+
+    void BuildCachedTree()
+    {
+        auto asyncYson = AsyncYPathGet(
+            UnderlyingService_,
+            TYPath(),
+            TAttributeFilter::All,
+            true);
+
+        auto ysonOrError = WaitFor(asyncYson);
+        auto nodeOrError = ysonOrError.IsOK()
+            ? TErrorOr<INodePtr>(ConvertToNode(ysonOrError.Value()))
+            : TErrorOr<INodePtr>(TError(ysonOrError));
+
+        TPromise<INodePtr> promise;
+        {
+            TGuard<TSpinLock> guard(SpinLock_);
+            CachedTreeOrError_ = nodeOrError;
+            LastUpdateTime_ = TInstant::Now();
+            promise = CachedTreePromise_;
+        }
+
+        promise.Set(nodeOrError);
+    }
+
+    static IInvokerPtr GetWorkerInvoker()
+    {
+        return NRpc::TDispatcher::Get()->GetInvoker();
     }
 
 };
