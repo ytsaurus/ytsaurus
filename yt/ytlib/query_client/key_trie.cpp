@@ -415,11 +415,12 @@ void GetRangesFromTrieWithinRangeImpl(
 
         size_t offset = prefix.size();
 
-        if (refineLower && offset >= lowerBoundSize) {
+        if (offset >= lowerBoundSize) {
             refineLower = false;
         }
 
         if (refineUpper && offset >= upperBoundSize) {
+            // NB: prefix is exactly the upper bound, which is non-inlusive.
             continue;
         }
 
@@ -492,23 +493,23 @@ void GetRangesFromTrieWithinRangeImpl(
 
             YCHECK(CompareBound(lower, upper, true, false) < 0);
 
-            auto keyRangeLowerBound = TBound(keyRange.first[offset], true);
-            auto keyRangeUpperBound = TBound(keyRange.second[offset], offset + 1 < upperBoundSize);
-
             bool lowerBoundRefined = false;
-            if (refineLower) {
+            bool upperBoundRefined = false;
+
+            if (offset < lowerBoundSize) {
+                auto keyRangeLowerBound = TBound(keyRange.first[offset], true);
                 if (CompareBound(upper, keyRangeLowerBound, false, true) < 0) {
                     continue;
-                } else if (CompareBound(lower, keyRangeLowerBound, true, true) <= 0) {
+                } else if (refineLower && CompareBound(lower, keyRangeLowerBound, true, true) <= 0) {
                     lowerBoundRefined = true;
                 }
             }
 
-            bool upperBoundRefined = false;
-            if (refineUpper) {
+            if (offset < upperBoundSize) {
+                auto keyRangeUpperBound = TBound(keyRange.second[offset], offset + 1 < upperBoundSize);
                 if (CompareBound(lower, keyRangeUpperBound, true, false) > 0) {
                     continue;
-                } else if (CompareBound(upper, keyRangeUpperBound, false, false) >= 0) {
+                } else if (refineUpper && CompareBound(upper, keyRangeUpperBound, false, false) >= 0) {
                     upperBoundRefined = true;
                 }
             }
@@ -524,6 +525,8 @@ void GetRangesFromTrieWithinRangeImpl(
             auto value = next.first;
 
             bool refineLowerNext = false;
+            bool refineUpperNext = false;
+
             if (refineLower) {
                 if (value < keyRange.first[offset]) {
                     continue;
@@ -532,7 +535,6 @@ void GetRangesFromTrieWithinRangeImpl(
                 }
             }
 
-            bool refineUpperNext = false;
             if (refineUpper) {
                 if (value > keyRange.second[offset]) {
                     continue;
