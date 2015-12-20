@@ -2545,6 +2545,7 @@ private:
             const TWriteRowsOptions& options)
             : TModifyRequest(transaction, path, std::move(nameTable))
             , Rows_(std::move(rows))
+            , Options_(options)
         { }
 
     private:
@@ -2556,8 +2557,11 @@ private:
                 Rows_,
                 EWireProtocolCommand::WriteRow,
                 TableInfo_->Schema.Columns().size(),
-                ValidateClientDataRow);
+                ValidateClientDataRow,
+                Options_);
         }
+
+        TWriteRowsOptions Options_;
     };
 
     class TDeleteRequest
