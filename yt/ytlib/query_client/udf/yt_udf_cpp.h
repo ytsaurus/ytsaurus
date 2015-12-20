@@ -6,7 +6,7 @@
 
 namespace NYT {
 
-enum class EValueType : int16_t
+enum class EValueType : uint8_t
 {
     Min = 0x00,
     TheBottom = 0x01,
@@ -38,6 +38,7 @@ struct TUnversionedValue
 {
     int16_t Id;
     EValueType Type;
+    uint8_t Aggregate;
     int32_t Length;
     TUnversionedValueData Data;
 };
