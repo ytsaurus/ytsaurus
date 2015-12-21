@@ -21,6 +21,10 @@
 
     // This define enables tracking of BIND callbacks location.
     #define YT_ENABLE_BIND_LOCATION_TRACKING
+
+    // This define enables checking that all required protobuf fields are present
+    // during serialization.
+    #define YT_VALIDATE_REQUIRED_PROTO_FIELDS
 #endif
 
 // Configure SSE usage.
