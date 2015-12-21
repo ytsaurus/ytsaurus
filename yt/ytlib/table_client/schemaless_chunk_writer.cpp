@@ -1097,6 +1097,9 @@ void TSchemalessTableWriter::DoClose()
         THROW_ERROR_EXCEPTION_IF_FAILED(error, "Error closing chunk writer");
     }
 
+    UploadTransaction_->Ping();
+    UploadTransaction_->Detach();
+
     auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
     TObjectServiceProxy proxy(channel);
 
@@ -1116,8 +1119,6 @@ void TSchemalessTableWriter::DoClose()
         GetCumulativeError(batchRspOrError),
         "Error finishing upload to table %v",
         path);
-
-    UploadTransaction_->Detach();
 
     LOG_INFO("Table closed");
 }

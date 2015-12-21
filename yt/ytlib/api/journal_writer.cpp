@@ -500,6 +500,9 @@ private:
                 }
             }
 
+            UploadTransaction_->Ping();
+            UploadTransaction_->Detach();
+
             {
                 auto req = TJournalYPathProxy::EndUpload(objectIdPath);
                 SetTransactionId(req, UploadTransaction_);
@@ -512,9 +515,6 @@ private:
                 GetCumulativeError(batchRspOrError),
                 "Error finishing upload to journal %v",
                 Path_);
-
-            UploadTransaction_->Detach();
-
 
             LOG_INFO("Journal closed");
             ClosedPromise_.TrySet(TError());

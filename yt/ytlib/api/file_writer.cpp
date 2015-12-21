@@ -295,6 +295,9 @@ private:
             THROW_ERROR_EXCEPTION_IF_FAILED(result, "Failed to close file writer");
         }
 
+        UploadTransaction_->Ping();
+        UploadTransaction_->Detach();
+
         auto objectIdPath = FromObjectId(ObjectId_);
 
         auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
@@ -323,8 +326,6 @@ private:
             GetCumulativeError(batchRspOrError),
             "Error finishing upload to file %v",
             Path_);
-
-        UploadTransaction_->Detach();
 
         LOG_INFO("File closed");
     }
