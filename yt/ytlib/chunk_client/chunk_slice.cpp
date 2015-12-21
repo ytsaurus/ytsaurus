@@ -220,14 +220,14 @@ void TChunkSlice::Persist(NPhoenix::TPersistenceContext& context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-size_t SpaceUsed(const TChunkSlicePtr chunkSlice)
+size_t SpaceUsed(const TChunkSlicePtr& slice)
 {
-    return sizeof(*chunkSlice) + 
-        chunkSlice->LowerLimit_.SpaceUsed() - sizeof(chunkSlice->LowerLimit_) +
-        chunkSlice->UpperLimit_.SpaceUsed() - sizeof(chunkSlice->UpperLimit_);
+    return sizeof(*slice) +
+           slice->LowerLimit_.SpaceUsed() - sizeof(slice->LowerLimit_) +
+           slice->UpperLimit_.SpaceUsed() - sizeof(slice->UpperLimit_);
 }
 
-Stroka ToString(TChunkSlicePtr slice)
+Stroka ToString(const TChunkSlicePtr& slice)
 {
     return Format(
         "LowerLimit: {%v}, UpperLimit: {%v}, RowCount: %v, DataSize: %v, PartIndex: %v",

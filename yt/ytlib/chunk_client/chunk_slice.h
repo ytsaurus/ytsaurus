@@ -69,7 +69,7 @@ public:
 
     void Persist(NPhoenix::TPersistenceContext& context);
 
-    friend size_t SpaceUsed(const TChunkSlicePtr chunkSlice);
+    friend size_t SpaceUsed(const TChunkSlicePtr& chunkSlice);
 
 private:
     int PartIndex_ = DefaultPartIndex;
@@ -85,9 +85,9 @@ DEFINE_REFCOUNTED_TYPE(TChunkSlice)
 
 //! Returns the size allocated for TChunkSlice.
 //! This function is used for ref counted tracking.
-size_t SpaceUsed(const TChunkSlicePtr p);
+size_t SpaceUsed(const TChunkSlicePtr& slice);
 
-Stroka ToString(TChunkSlicePtr slice);
+Stroka ToString(const TChunkSlicePtr& slice);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -120,7 +120,9 @@ std::vector<TChunkSlicePtr> SliceChunk(
     int keyColumnCount,
     bool sliceByKeys);
 
-std::vector<TChunkSlicePtr> SliceChunkByRowIndexes(TRefCountedChunkSpecPtr chunkSpec, i64 sliceDataSize);
+std::vector<TChunkSlicePtr> SliceChunkByRowIndexes(
+    TRefCountedChunkSpecPtr chunkSpec,
+    i64 sliceDataSize);
 
 void ToProto(NProto::TChunkSpec* chunkSpec, const TChunkSlicePtr& chunk_slice);
 void ToProto(NProto::TChunkSlice* protoChunkSlice, const TChunkSlicePtr& chunkSlice);
