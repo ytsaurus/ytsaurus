@@ -704,7 +704,7 @@ void TOperationControllerBase::TTask::AddSequentialInputSpec(
         schedulerJobSpecExt->mutable_input_node_directory());
     auto* inputSpec = schedulerJobSpecExt->add_input_specs();
     inputSpec->set_table_reader_options(ConvertToYsonString(GetTableReaderOptions()).Data());
-    auto list = joblet->InputStripeList;
+    const auto& list = joblet->InputStripeList;
     for (const auto& stripe : list->Stripes) {
         AddChunksToInputSpec(&directoryBuilder, inputSpec, stripe, list->PartitionTag);
     }
@@ -719,7 +719,7 @@ void TOperationControllerBase::TTask::AddParallelInputSpec(
     TNodeDirectoryBuilder directoryBuilder(
         Controller->InputNodeDirectory,
         schedulerJobSpecExt->mutable_input_node_directory());
-    auto list = joblet->InputStripeList;
+    const auto& list = joblet->InputStripeList;
     for (const auto& stripe : list->Stripes) {
         auto* inputSpec = schedulerJobSpecExt->add_input_specs();
         inputSpec->set_table_reader_options(ConvertToYsonString(GetTableReaderOptions()).Data());
@@ -751,7 +751,7 @@ void TOperationControllerBase::TTask::UpdateInputSpecTotals(
     TJobSpec* jobSpec,
     TJobletPtr joblet)
 {
-    auto list = joblet->InputStripeList;
+    const auto& list = joblet->InputStripeList;
     auto* schedulerJobSpecExt = jobSpec->MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
     schedulerJobSpecExt->set_input_uncompressed_data_size(
         schedulerJobSpecExt->input_uncompressed_data_size() +
