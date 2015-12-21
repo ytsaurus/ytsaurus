@@ -85,7 +85,7 @@ struct TPooledObjectTraitsBase
 
     static int GetMaxPoolSize()
     {
-        return 1024;
+        return 256;
     }
 
     static TDuration GetMaxLifetime()
