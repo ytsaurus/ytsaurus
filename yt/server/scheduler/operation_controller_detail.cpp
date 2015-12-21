@@ -1127,7 +1127,7 @@ TTransactionId TOperationControllerBase::StartTransaction(
 
         auto* reqExt = req->mutable_extensions()->MutableExtension(
             NTransactionClient::NProto::TTransactionCreationExt::transaction_creation_ext);
-        reqExt->set_timeout(Config->OperationTransactionTimeout.MilliSeconds());
+        reqExt->set_timeout(ToProto(Config->OperationTransactionTimeout));
 
         auto attributes = CreateEphemeralAttributes();
         attributes->Set("title", Format("Scheduler %v for operation %v", transactionName, OperationId));
