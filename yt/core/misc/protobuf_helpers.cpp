@@ -23,8 +23,9 @@ TSharedRef SerializeToProto(
     bool partial)
 {
 #ifdef YT_VALIDATE_REQUIRED_PROTO_FIELDS
-    if (!partial) {
-        message.CheckInitialized();
+    if (!partial && !message.IsInitialized()) {
+        fprintf(stderr, "Missing required fields: %s\n", message.InitializationErrorString().c_str());
+        YUNREACHABLE();
     }
 #endif
     auto size = message.ByteSize();
