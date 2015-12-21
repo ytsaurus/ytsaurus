@@ -195,7 +195,7 @@ private:
             const TGenericProxy::TErrorOrRspDiscoverPtr& rspOrError)
         {
             if (Promise_.IsCanceled()) {
-                Promise_.TrySet(TError(NYT::EErrorCode::Canceled, "Discovery session has been canceled"));
+                TrySetResult(TError(NYT::EErrorCode::Canceled, "Discovery session has been canceled"));
                 return;
             }
  
@@ -258,7 +258,7 @@ private:
         void AddViablePeer(const Stroka& address, IChannelPtr channel)
         {
             auto wrappedChannel = Owner_->AddViablePeer(address, channel);
-            Promise_.TrySet(wrappedChannel);
+            TrySetResult(wrappedChannel);
         }
 
         void OnFinished()
@@ -271,9 +271,14 @@ private:
                     << InnerErrors_;
             }
 
-            Promise_.TrySet(result);
+            TrySetResult(result);
+        }
 
-            Owner_->OnDiscoverySessionFinished();
+        void TrySetResult(const TErrorOr<IChannelPtr>& result)
+        {
+            if (Promise_.TrySet(result)) {
+                Owner_->OnDiscoverySessionFinished();
+            }
         }
     };
 
