@@ -599,8 +599,13 @@ public:
             auto oldResourceLimits = node->ResourceLimits();
             auto oldResourceUsage = node->ResourceUsage();
 
-            node->ResourceLimits() = request->resource_limits();
-            node->ResourceUsage() = request->resource_usage();
+            if (request->resource_limits().user_slots() != 0) {
+                node->ResourceLimits() = request->resource_limits();
+                node->ResourceUsage() = request->resource_usage();
+            } else {
+                node->ResourceLimits() = ZeroNodeResources();
+                node->ResourceUsage() = ZeroNodeResources();
+            }
 
             // Update total resource limits _before_ processing the heartbeat to
             // maintain exact values of total resource limits.
