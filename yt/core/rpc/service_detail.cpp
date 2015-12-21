@@ -522,7 +522,12 @@ void TServiceBase::HandleRequest(
             << TErrorAttribute("request_id", requestId)
             << TErrorAttribute("service", ServiceId_.ServiceName)
             << TErrorAttribute("method", method);
-        LOG_WARNING(error);
+
+        auto logLevel = error.GetCode() == EErrorCode::Unavailable
+            ? NLogging::ELogLevel::Debug
+            : NLogging::ELogLevel::Warning;
+        LOG_EVENT(Logger, logLevel, error);
+
         if (!oneWay) {
             auto errorMessage = CreateErrorResponseMessage(requestId, error);
             replyBus->Send(errorMessage, EDeliveryTrackingLevel::None);
