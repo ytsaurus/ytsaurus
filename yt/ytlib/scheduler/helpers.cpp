@@ -94,6 +94,7 @@ bool IsOperationInProgress(EOperationState state)
     return
         state == EOperationState::Initializing ||
         state == EOperationState::Preparing ||
+        state == EOperationState::Materializing ||
         state == EOperationState::Pending ||
         state == EOperationState::Reviving ||
         state == EOperationState::Running ||
