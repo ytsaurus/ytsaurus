@@ -83,7 +83,7 @@ def _pretty_format(error, attribute_length_limit=None, indent=0):
 
     return result
 
-def format_error(error, attribute_length_limit=150):
+def format_error(error, attribute_length_limit=300):
     return _pretty_format(error, attribute_length_limit)
 
 def which(name, flags=os.X_OK):
