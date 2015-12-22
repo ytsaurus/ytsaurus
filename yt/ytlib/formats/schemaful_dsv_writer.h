@@ -28,9 +28,17 @@ protected:
     
     TSchemafulDsvFormatConfigPtr Config_;
     
-    std::vector<int> ColumnIdMapping_;
+    // This array indicates on which position should each
+    // column stay in the resulting row.
+    std::vector<int> IdToIndexInRow_;
+   
+    // This array contains TUnversionedValue's reordered
+    // according to the desired order.
+    std::vector<const NTableClient::TUnversionedValue*> CurrentRowValues_;
     
-    TSchemafulDsvWriterBase(TSchemafulDsvFormatConfigPtr config);
+    TSchemafulDsvWriterBase(
+        TSchemafulDsvFormatConfigPtr config,
+        std::vector<int> idToIndexInRow);
 
     void WriteValue(const NTableClient::TUnversionedValue& value);
     
@@ -38,9 +46,11 @@ protected:
     void WriteRaw(char ch);
 
     void EscapeAndWrite(const TStringBuf& string);
+    
+    int FindMissingValueIndex() const; 
 private:
     TSchemafulDsvTable Table_;
-    
+ 
     static char* WriteInt64Backwards(char* ptr, i64 value);
     static char* WriteUint64Backwards(char* ptr, ui64 value);    
 };
@@ -56,7 +66,8 @@ public:
         NTableClient::TNameTablePtr nameTable,
         NConcurrency::IAsyncOutputStreamPtr output,
         bool enableContextSaving,
-        TSchemafulDsvFormatConfigPtr config);
+        TSchemafulDsvFormatConfigPtr config,
+        std::vector<int> idToIndexInRow);
        
     // ISchemalessFormatWriter overrides.
     virtual void DoWrite(const std::vector<NTableClient::TUnversionedRow>& rows) override;
@@ -78,8 +89,8 @@ class TSchemafulWriterForSchemafulDsv
 public:
     TSchemafulWriterForSchemafulDsv(
         NConcurrency::IAsyncOutputStreamPtr stream,
-        std::vector<int> columnIdMapping,
-        TSchemafulDsvFormatConfigPtr config = New<TSchemafulDsvFormatConfig>());
+        TSchemafulDsvFormatConfigPtr config,
+        std::vector<int> idToIndexInRow);
 
     virtual TFuture<void> Close() override;
 
@@ -94,8 +105,8 @@ private:
 
     TBlobOutput UnderlyingBlobOutput_;
 
-    void TryFlushBuffer();
-    void DoFlushBuffer(bool force);
+    void TryFlushBuffer(bool force);
+    void DoFlushBuffer();
 };
 
 ////////////////////////////////////////////////////////////////////////////////
