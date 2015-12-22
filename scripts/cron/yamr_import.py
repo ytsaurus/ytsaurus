@@ -170,6 +170,12 @@ class TaskRunner(object):
 
 
 def create_task_runner(destination_cluster_name, tm_url="transfer-manager.yt.yandex.net/api/v1"):
+    def check_yamr(client):
+        try:
+            client.list("tmp")
+            return True
+        except Exception:
+            return False
     yamr_cluster_names = ["redwood", "sakura"]
     yamr_clusters = [Yamr(binary="/Berkanavt/bin/mapreduce-dev",
                           name=name,
@@ -178,6 +184,7 @@ def create_task_runner(destination_cluster_name, tm_url="transfer-manager.yt.yan
                           http_port="13013",
                           timeout=180.0
                      ) for name in yamr_cluster_names]
+    yamr_clusters = filter(check_yamr, yamr_clusters)
     return TaskRunner(yamr_clusters, destination_cluster_name, tm_url=tm_url, copy_pool="yamr_copy", postprocess_pool="yamr_postprocess")
 
 def get_dash_date_table(table):
