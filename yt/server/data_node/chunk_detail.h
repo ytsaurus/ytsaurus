@@ -76,8 +76,8 @@ protected:
     void StartAsyncRemove();
     virtual TFuture<void> AsyncRemove() = 0;
 
-    static TRefCountedChunkMetaPtr FilterMeta(
-        TRefCountedChunkMetaPtr meta,
+    static NChunkClient::TRefCountedChunkMetaPtr FilterMeta(
+        NChunkClient::TRefCountedChunkMetaPtr meta,
         const TNullable<std::vector<int>>& extensionTags);
 
 };
