@@ -179,7 +179,6 @@ private:
     NYTree::INodePtr TableWriter;
     NYPath::TRichYPath Path;
     bool Update;
-    bool Aggregate;
 
 public:
     TInsertRowsCommand()

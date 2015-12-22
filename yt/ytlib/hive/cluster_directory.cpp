@@ -1,3 +1,4 @@
+#include "public.h"
 #include "cluster_directory.h"
 
 #include <yt/ytlib/api/client.h>
