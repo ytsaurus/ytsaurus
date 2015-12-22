@@ -34,7 +34,13 @@ class TestCachedYtClient(object):
 
     def test_get_attributes_list(self):
         client = CachedYtClient(proxy=get_proxy_url(), config=yt.config.config)
+
         real_attributes = yt.get("//home/@")
+        # TODO(acid): Replace this with single get when YT-3522 is ready.
+        for attribute in real_attributes.keys():
+            if isinstance(real_attributes[attribute], yt.yson.YsonEntity):
+                real_attributes[attribute] = yt.get("//home/@" + attribute)
+
         cached_attributes = client.get_attributes("//home", real_attributes.keys())
         for attribute in ["access_time", "access_counter", "weak_ref_counter"]:
             for attributes in [real_attributes, cached_attributes]:
