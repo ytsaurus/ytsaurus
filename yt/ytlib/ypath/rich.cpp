@@ -441,6 +441,16 @@ TNullable<Stroka> TRichYPath::FindFileName() const
     return Attributes().Find<Stroka>("file_name");
 }
 
+TNullable<bool> TRichYPath::FindExecutable() const
+{
+    return Attributes().Find<bool>("executable");
+}
+
+TNullable<TYsonString> TRichYPath::FindFormat() const
+{
+    return Attributes().FindYson("format");
+}
+
 TNullable<TTableSchema> TRichYPath::FindTableSchema() const
 {
     return Attributes().Find<TTableSchema>("schema");   
