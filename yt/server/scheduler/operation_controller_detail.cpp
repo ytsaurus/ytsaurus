@@ -2988,10 +2988,10 @@ void TOperationControllerBase::LockUserFiles(
                 auto req = TYPathProxy::Get(objectIdPath);
                 SetTransactionId(req, InputTransactionId);
                 TAttributeFilter attributeFilter(EAttributeFilterMode::MatchingOnly);
+                attributeFilter.Keys.push_back("file_name");
                 switch (file.Type) {
                     case EObjectType::File:
                         attributeFilter.Keys.push_back("executable");
-                        attributeFilter.Keys.push_back("file_name");
                         break;
 
                     case EObjectType::Table:
@@ -3043,20 +3043,18 @@ void TOperationControllerBase::LockUserFiles(
                 const auto& attributes = *file.Attributes;
 
                 file.FileName = attributes.Get<Stroka>("key");
-                file.FileName = attributes.Get<Stroka>("file_name", file.FileName);
-                file.FileName = path.FindFileName().Get(file.FileName);
-
-                file.Format = attributes.FindYson("format").Get(TYsonString());
-
-                const auto& path = file.Path;
+                file.FileName = attributes.Find<Stroka>("file_name").Get(file.FileName);
+                file.FileName = file.Path.FindFileName().Get(file.FileName);
 
                 switch (file.Type) {
                     case EObjectType::File:
-                        file.Executable = path.FindExecutable().Get(file.Executable);
+                        file.Executable = attributes.Find<bool>("executable").Get(file.Executable);
+                        file.Executable = file.Path.FindExecutable().Get(file.Executable);
                         break;
 
                     case EObjectType::Table:
-                        file.Format = path.FindFormat().Get(file.Format);
+                        file.Format = attributes.FindYson("format").Get(TYsonString());
+                        file.Format = file.Path.FindFormat().Get(file.Format);
                         break;
 
                     default:
