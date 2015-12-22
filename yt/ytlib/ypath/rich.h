@@ -44,6 +44,8 @@ public:
     NChunkClient::TChannel GetChannel() const;
     std::vector<NChunkClient::TReadRange> GetRanges() const;
     TNullable<Stroka> FindFileName() const;
+    TNullable<bool> FindExecutable() const;
+    TNullable<NYson::TYsonString> FindFormat() const;
     TNullable<NTableClient::TTableSchema> FindTableSchema() const;
 
 private:
