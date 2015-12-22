@@ -18,7 +18,6 @@ using namespace NYTree;
 using namespace NYson;
 using namespace NObjectClient;
 using namespace NNodeTrackerClient;
-using namespace NNodeTrackerClient::NProto;
 
 ////////////////////////////////////////////////////////////////////
 

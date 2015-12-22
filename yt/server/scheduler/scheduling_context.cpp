@@ -8,8 +8,6 @@
 namespace NYT {
 namespace NScheduler {
 
-using namespace NNodeTrackerClient;
-using namespace NNodeTrackerClient::NProto;
 using namespace NObjectClient;
 
 ////////////////////////////////////////////////////////////////////

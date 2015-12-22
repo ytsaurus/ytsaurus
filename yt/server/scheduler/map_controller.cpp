@@ -22,7 +22,6 @@ using namespace NJobProxy;
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
 using namespace NScheduler::NProto;
-using namespace NNodeTrackerClient::NProto;
 using namespace NJobTrackerClient::NProto;
 using namespace NTableClient;
 
