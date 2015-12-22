@@ -556,7 +556,7 @@ protected:
 
     };
 
-    NTransactionClient::TTransactionId StartTransaction(
+    NApi::ITransactionPtr StartTransaction(
         const Stroka& transactionName,
         NApi::IClientPtr client,
         const TNullable<NTransactionClient::TTransactionId>& parentTransactionId);
@@ -640,8 +640,8 @@ protected:
     // Initialize transactions
     void StartAsyncSchedulerTransaction();
     void StartSyncSchedulerTransaction();
-    virtual void StartInputTransaction(NObjectClient::TTransactionId parentTransactionId);
-    virtual void StartOutputTransaction(NObjectClient::TTransactionId parentTransactionId);
+    virtual void StartInputTransaction(const NObjectClient::TTransactionId& parentTransactionId);
+    virtual void StartOutputTransaction(const NObjectClient::TTransactionId& parentTransactionId);
 
     // Completion.
     void DoCommit();
