@@ -262,7 +262,7 @@ void TSlot::MakeLink(
     } catch (const std::exception& ex) {
         // Occured IO error in the slot, restart node immediately.
         LogErrorAndExit(TError(
-            "Failed to create a symlink in the slot %Qv (LinkPath: %Qv, TargetPath: %Qv, IsExecutable: %lv)",
+            "Failed to create a symlink in sandbox (SandboxPath: %v, LinkPath: %v, TargetPath: %v, IsExecutable: %v)",
             sandboxPath,
             linkPath,
             targetPath,
