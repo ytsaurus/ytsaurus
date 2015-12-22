@@ -1,5 +1,5 @@
 from yt.common import YtError
-from yt.wrapper.common import get_value, require, update, run_with_retries
+from yt.wrapper.common import get_value, require, update, run_with_retries, generate_uuid, bool_to_string
 from yt.wrapper.http import get_retriable_errors, get_token
 import yt.logger as logger
 
@@ -36,7 +36,7 @@ def _raise_for_status(response):
 
 class TransferManager(object):
     def __init__(self, url=None, token=None, http_request_timeout=10000,
-                 enable_read_retries=True, read_retry_count=6):
+                 enable_retries=True, retry_count=6):
         backend_url = get_value(url, TM_BACKEND_URL)
 
         # Backend url can be specified in short form.
@@ -49,8 +49,8 @@ class TransferManager(object):
 
         self.http_request_timeout = http_request_timeout
 
-        self.enable_read_retries = enable_read_retries
-        self.read_retry_count = read_retry_count
+        self.enable_retries = enable_retries
+        self.retry_count = retry_count
 
         self._backend_config = self.get_backend_config()
 
@@ -71,7 +71,11 @@ class TransferManager(object):
 
         update(data, params)
 
-        task_id = self._make_post_request(self.backend_url + "/tasks/", data=json.dumps(data)).content
+        task_id = self._make_request(
+            "POST",
+            self.backend_url + "/tasks/",
+            is_mutating=True,
+            data=json.dumps(data)).content
 
         logger.info("Transfer task started: %s", TM_TASK_URL_PATTERN.format(
             id=task_id, backend_tag=self._backend_config["backend_tag"]))
@@ -100,19 +104,25 @@ class TransferManager(object):
         return tasks
 
     def abort_task(self, task_id):
-        self._make_post_request("{0}/tasks/{1}/abort/".format(self.backend_url, task_id))
+        self._make_request(
+            "POST",
+            "{0}/tasks/{1}/abort/".format(self.backend_url, task_id),
+            is_mutating=True)
 
     def restart_task(self, task_id):
-        self._make_post_request("{0}/tasks/{1}/restart/".format(self.backend_url, task_id))
+        self._make_request(
+            "POST",
+            "{0}/tasks/{1}/restart/".format(self.backend_url, task_id),
+            is_mutating=True)
 
     def get_task_info(self, task_id):
-        return self._make_get_request("{0}/tasks/{1}/".format(self.backend_url, task_id)).json()
+        return self._make_request("GET", "{0}/tasks/{1}/".format(self.backend_url, task_id)).json()
 
     def get_tasks(self):
-        return self._make_get_request("{0}/tasks/".format(self.backend_url)).json()
+        return self._make_request("GET", "{0}/tasks/".format(self.backend_url)).json()
 
     def get_backend_config(self):
-        return self._make_get_request("{0}/config/".format(self.backend_url)).json()
+        return self._make_request("GET", "{0}/config/".format(self.backend_url)).json()
 
     def match_src_dst_pattern(self, source_cluster, source_table, destination_cluster, destination_table):
         data = {
@@ -122,35 +132,48 @@ class TransferManager(object):
             "destination_pattern": destination_table
         }
 
-        return self._make_post_request(self.backend_url + "/match/", data=json.dumps(data)).json()
+        return self._make_request(
+            "POST",
+            self.backend_url + "/match/",
+            is_mutating=False,
+            data=json.dumps(data)).json()
 
-    def _make_get_request(self, url):
+    def _make_request(self, method, url, is_mutating=False, **kwargs):
+        headers = kwargs.get("headers", {})
+        update(headers, TM_HEADERS)
+
+        if method == "POST":
+            require(self.token is not None, YtError("YT token is not specified"))
+            headers["Authorization"] = "OAuth " + self.token
+
+        params = kwargs.get("params", {})
+        if is_mutating:
+            params["mutation_id"] = generate_uuid()
+            params["retry"] = bool_to_string(False)
+
+        def except_action():
+            if is_mutating:
+                params["retry"] = bool_to_string(True)
+
         def make_request():
-            response = requests.get(url, headers=TM_HEADERS, timeout=self.http_request_timeout / 1000.0)
+            update(headers, {"X-TM-Parameters": json.dumps(params)})
+            response = requests.request(
+                method,
+                url,
+                headers=headers,
+                timeout=self.http_request_timeout / 1000.0,
+                **kwargs)
+
             _raise_for_status(response)
             return response
 
-        if not self.enable_read_retries:
-            response = make_request()
-        else:
+        if self.enable_retries:
             retriable_errors = get_retriable_errors() + (YtTransferManagerUnavailableError,)
-            response = run_with_retries(make_request, retry_count=self.read_retry_count,
-                                        exceptions=retriable_errors)
+            return run_with_retries(make_request, self.retry_count, exceptions=retriable_errors,
+                                    except_action=except_action)
 
-        return response
-
-    def _make_post_request(self, url, **kwargs):
-        require(self.token is not None, YtError("YT token is not specified"))
-
-        post_headers = update(TM_HEADERS, {"Authorization": "OAuth " + self.token})
-        response = requests.post(
-            url,
-            headers=post_headers,
-            timeout=self.http_request_timeout / 1000.0,
-            **kwargs)
-
-        _raise_for_status(response)
-        return response
+        else:
+            return make_request()
 
     def _wait_for_tasks(self, tasks, poll_period):
         remaining_tasks = deepcopy(tasks)

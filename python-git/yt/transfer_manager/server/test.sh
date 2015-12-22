@@ -310,6 +310,30 @@ test_skip_if_destination_exists() {
     check "c=d" "$(yt2 read //tmp/test_table --proxy plato --format dsv)"
 }
 
+test_mutating_requests_retries() {
+    echo "Test mutating requests retries"
+
+    sleep_time=$(($(jq .mutating_requests_cache_expiration_timeout $TM_CONFIG) / 1000 + 3))
+    echo "Waiting for $sleep_time seconds to ensure that TM will process retry requests"
+    sleep $sleep_time
+
+    local task='{"source_table": "//tmp/test_table", "source_cluster": "quine", "destination_table": "//tmp/test_table", "destination_cluster": "plato"}'
+    echo "Adding task with mutation id"
+    task_id=$(request "POST" "tasks/" -d "$task" --header 'X-TM-Parameters:{"mutation_id": "tm_test_mutation_id_123"}')
+    sleep 3.0
+
+    echo "Adding task with the same mutation id and retry"
+    retry_task_id=$(request "POST" "tasks/" -d "$task" --header 'X-TM-Parameters:{"mutation_id": "tm_test_mutation_id_123", "retry": "true"}')
+    echo "Checking that these tasks have the same id"
+    check "$task_id" "$retry_task_id"
+
+    echo "Checking that request with the same mutation id but without retry flag will fail"
+    retry_task_id2=$(request "POST" "tasks/" -d "$task" --header 'X-TM-Parameters:{"mutation_id": "tm_test_mutation_id_123"}')
+    grep_result=$(echo $retry_task_id2 | grep "is not marked as")
+    check "$?" "0"
+    echo "Ok"
+}
+
 # Different transfers
 echo -e "a\tb\nc\td\ne\tf" | yt2 write //tmp/test_table --format yamr --proxy smith.yt.yandex.net
 yt2 sort --src //tmp/test_table --dst //tmp/test_table --sort-by key --sort-by subkey --proxy smith.yt.yandex.net
@@ -331,3 +355,4 @@ test_passing_custom_spec
 test_clusters_configuration_reloading
 test_types_preserving_during_copy
 test_skip_if_destination_exists
+test_mutating_requests_retries
