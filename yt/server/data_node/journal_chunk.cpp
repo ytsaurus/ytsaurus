@@ -11,6 +11,7 @@
 #include <yt/server/hydra/sync_file_changelog.h>
 
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
+#include <yt/ytlib/chunk_client/ref_counted_proto.h>
 
 #include <yt/core/concurrency/scheduler.h>
 #include <yt/core/concurrency/thread_affinity.h>
@@ -45,6 +46,7 @@ TJournalChunk::TJournalChunk(
         location,
         descriptor.Id)
     , StoreLocation_(location)
+    , Meta_(New<TRefCountedChunkMeta>())
 {
     CachedRowCount_ = descriptor.RowCount;
     CachedDataSize_ = descriptor.DiskSpace;
