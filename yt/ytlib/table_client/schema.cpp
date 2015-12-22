@@ -590,7 +590,8 @@ void ValidateColumnSchema(const TColumnSchema& columnSchema)
         }
 
         if (columnSchema.Name.substr(0, SystemColumnNamePrefix.size()) == SystemColumnNamePrefix) {
-            THROW_ERROR_EXCEPTION("Column name can't start with prefix %Qv", SystemColumnNamePrefix);
+            THROW_ERROR_EXCEPTION("Column name cannot start with prefix %Qv",
+                SystemColumnNamePrefix);
         }
 
         if (columnSchema.Name.size() > MaxColumnNameLength) {
@@ -604,10 +605,10 @@ void ValidateColumnSchema(const TColumnSchema& columnSchema)
                 THROW_ERROR_EXCEPTION("Column lock should either be unset or be non-empty");
             }
             if (columnSchema.SortOrder) {
-                THROW_ERROR_EXCEPTION("Column lock can't be set on a key column");
+                THROW_ERROR_EXCEPTION("Column lock cannbot be set on a key column");
             }
             if (columnSchema.Lock->size() > MaxColumnLockLength) {
-                THROW_ERROR_EXCEPTION("Column lock is longer than maximum allowed: %v > %v",
+                THROW_ERROR_EXCEPTION("Column lock name is longer than maximum allowed: %v > %v",
                     columnSchema.Lock->size(),
                     MaxColumnLockLength);
             }
@@ -616,11 +617,11 @@ void ValidateColumnSchema(const TColumnSchema& columnSchema)
         ValidateSchemaValueType(columnSchema.Type);
 
         if (columnSchema.Expression && !columnSchema.SortOrder) {
-            THROW_ERROR_EXCEPTION("Non-key column can't be computed");
+            THROW_ERROR_EXCEPTION("Non-key column cannot be computed");
         }
 
         if (columnSchema.Aggregate && columnSchema.SortOrder) {
-            THROW_ERROR_EXCEPTION("Key column can't be aggregated");
+            THROW_ERROR_EXCEPTION("Key column cannot be aggregated");
         }
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Error validating schema of a column %Qv",
@@ -642,35 +643,35 @@ void ValidateColumnSchemaUpdate(const TColumnSchema& oldColumn, const TColumnSch
 {
     YCHECK(oldColumn.Name == newColumn.Name);
     if (newColumn.Type != oldColumn.Type) {
-        THROW_ERROR_EXCEPTION("Type mismatch for column %Qv: old = %Qv, new = %Qv",
+        THROW_ERROR_EXCEPTION("Type mismatch for column %Qv: old %Qlv, new %Qlv",
             oldColumn.Name,
             oldColumn.Type,
             newColumn.Type);
     }
 
     if (newColumn.SortOrder != oldColumn.SortOrder) {
-        THROW_ERROR_EXCEPTION("SortOrder mismatch for column %Qv: old = %Qv, new = %Qv",
+        THROW_ERROR_EXCEPTION("Sort order mismatch for column %Qv: old %Qlv, new %Qlv",
             oldColumn.Name,
-            oldColumn.Type,
-            newColumn.Type);
+            oldColumn.SortOrder,
+            newColumn.SortOrder);
     }
 
     if (newColumn.Expression != oldColumn.Expression) {
-        THROW_ERROR_EXCEPTION("Expression mismatch for column %Qv: old = %Qv, new = %Qv",
+        THROW_ERROR_EXCEPTION("Expression mismatch for column %Qv: old %Qv, new %Qv",
             oldColumn.Name,
             oldColumn.Expression,
             newColumn.Expression);
     }
 
     if (oldColumn.Aggregate && oldColumn.Aggregate != newColumn.Aggregate) {
-        THROW_ERROR_EXCEPTION("Aggregate mismatch for column %Qv: old = %Qv, new = %Qv",
+        THROW_ERROR_EXCEPTION("Aggregate mode mismatch for column %Qv: old %Qv, new %Qv",
             oldColumn.Name,
             oldColumn.Aggregate,
             newColumn.Aggregate);
     }
 
     if (oldColumn.SortOrder && oldColumn.Lock != newColumn.Lock) {
-        THROW_ERROR_EXCEPTION("Lock mismatch for key column %Qv: old = %Qv, new = %Qv",
+        THROW_ERROR_EXCEPTION("Lock mismatch for key column %Qv: old %Qv, new %Qv",
             oldColumn.Name,
             oldColumn.Lock,
             newColumn.Lock);
@@ -684,9 +685,11 @@ void ValidateDynamicTableConstraints(const TTableSchema& schema)
     if (!schema.GetStrict()) {
         THROW_ERROR_EXCEPTION("Table schema must be strict");
     }
+
     if (schema.GetKeyColumnCount() == 0) {
         THROW_ERROR_EXCEPTION("There must be at least one key column");
     }
+
     if (schema.GetKeyColumnCount() == schema.Columns().size()) {
         THROW_ERROR_EXCEPTION("There must be at least one non-key column");
     }
@@ -701,7 +704,7 @@ void ValidateColumnsNotRemoved(const TTableSchema& oldSchema, const TTableSchema
     for (int oldColumnIndex = 0; oldColumnIndex < oldSchema.Columns().size(); ++oldColumnIndex) {
         const auto& oldColumn = oldSchema.Columns()[oldColumnIndex];
         if (!newSchema.FindColumn(oldColumn.Name)) {
-            THROW_ERROR_EXCEPTION("Column removals are not allowed with Strict = true, missing column %Qv",
+            THROW_ERROR_EXCEPTION("Cannot remove column %Qv from a strict schema",
                 oldColumn.Name);
         }
     }
@@ -714,7 +717,7 @@ void ValidateColumnsNotInserted(const TTableSchema& oldSchema, const TTableSchem
     for (int newColumnIndex = 0; newColumnIndex < newSchema.Columns().size(); ++newColumnIndex) {
         const auto& newColumn = newSchema.Columns()[newColumnIndex];
         if (!oldSchema.FindColumn(newColumn.Name)) {
-            THROW_ERROR_EXCEPTION("Column insertions are not allowed with Strict = false, extra column %Qv",
+            THROW_ERROR_EXCEPTION("Cannot insert a new column %Qv into non-strict schema",
                 newColumn.Name);
         }
     }
@@ -736,7 +739,7 @@ void ValidateColumnsMatch(const TTableSchema& oldSchema, const TTableSchema& new
         int newColumnIndex = newSchema.GetColumnIndex(newColumn);
         if (oldColumnIndex < oldSchema.GetKeyColumnCount()) {
             if (oldColumnIndex != newColumnIndex) {
-                THROW_ERROR_EXCEPTION("Can't change position of a key column %Qv: old = %v, new = %v",
+                THROW_ERROR_EXCEPTION("Cannot change position of a key column %Qv: old %v, new %v",
                     oldColumn.Name,
                     oldColumnIndex,
                     newColumnIndex);
@@ -746,26 +749,28 @@ void ValidateColumnsMatch(const TTableSchema& oldSchema, const TTableSchema& new
 }
 
 //! TODO(max42): document this functions somewhere (see also https://st.yandex-team.ru/YT-1433).
-void ValidateTableSchemaUpdate(const TTableSchema& oldSchema, const TTableSchema& newSchema, bool isTableDynamic, bool isTableEmpty)
+void ValidateTableSchemaUpdate(
+    const TTableSchema& oldSchema,
+    const TTableSchema& newSchema,
+    bool isTableDynamic,
+    bool isTableEmpty)
 { 
     if (isTableEmpty) {
         // Any valid schema is allowed to be set for an empty table.
         return;
     }
 
-    if (isTableDynamic) {
-        if (!newSchema.GetStrict()) {
-            THROW_ERROR_EXCEPTION("Strict can't be false for a dynamic table");
-        }
-    } 
+    if (isTableDynamic && !newSchema.GetStrict()) {
+        THROW_ERROR_EXCEPTION("\"strict\" cannot be \"false\" for a dynamic table");
+    }
 
     if (!oldSchema.GetStrict() && newSchema.GetStrict()) {
-        THROW_ERROR_EXCEPTION("Changing Strict from false to true is not allowed.");
+        THROW_ERROR_EXCEPTION("Changing \"strict\" from \"false\" to \"true\" is not allowed");
     }
 
     if (oldSchema.GetStrict() && !newSchema.GetStrict()) {
         if (oldSchema.Columns() != newSchema.Columns()) {
-            THROW_ERROR_EXCEPTION("Changing columns is not allowed while changing Strict from true to false");
+            THROW_ERROR_EXCEPTION("Changing columns is not allowed while changing \"strict\" from \"true\" to \"false\"");
         }
         return;
     }
@@ -828,7 +833,6 @@ void FromProto(TKeyColumns* keyColumns, const TKeyColumnsExt& protoKeyColumns)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NProto
-
 
 ////////////////////////////////////////////////////////////////////////////////
 
