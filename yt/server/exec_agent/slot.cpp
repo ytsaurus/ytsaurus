@@ -258,8 +258,8 @@ void TSlot::MakeLink(
             file.Flock(LOCK_EX);
         }
 
+        NFS::SetExecutableMode(targetPath, isExecutable);
         NFS::MakeSymbolicLink(targetPath, linkPath);
-        NFS::SetExecutableMode(linkPath, isExecutable);
     } catch (const std::exception& ex) {
         // Occured IO error in the slot, restart node immediately.
         LogErrorAndExit(TError(
