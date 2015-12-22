@@ -116,6 +116,7 @@ TTablet::TTablet(
     , NextPivotKey_(std::move(nextPivotKey))
     , State_(ETabletState::Mounted)
     , Atomicity_(atomicity)
+    , EnableLookupHashTable_(config->EnableLookupHashTable)
     , Config_(config)
     , WriterOptions_(writerOptions)
     , Eden_(std::make_unique<TPartition>(
@@ -190,6 +191,7 @@ void TTablet::Save(TSaveContext& context) const
     Save(context, Schema_);
     Save(context, KeyColumns_);
     Save(context, Atomicity_);
+    Save(context, EnableLookupHashTable_);
 
     TSizeSerializer::Save(context, Stores_.size());
     // NB: This is not stable.
@@ -230,6 +232,10 @@ void TTablet::Load(TLoadContext& context)
     Load(context, Schema_);
     Load(context, KeyColumns_);
     Load(context, Atomicity_);
+    // COMPAT(savrus)
+    if (context.GetVersion() >= 11) {
+        Load(context, EnableLookupHashTable_);
+    }
 
     // NB: Call Initialize here since stores that we're about to create
     // may request some tablet properties (e.g. column lock count) during construction.

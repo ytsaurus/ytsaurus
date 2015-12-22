@@ -27,12 +27,14 @@ set( SRCS
   ${BASE}/transaction.cpp
   ${BASE}/transaction_manager.cpp
   ${BASE}/in_memory_manager.cpp
+  ${BASE}/writer_pool.cpp
 )
 set( HDRS
   ${BASE}/automaton.h
   ${BASE}/chunk_store.h
   ${BASE}/config.h
   ${BASE}/dynamic_memory_store.h
+  ${BASE}/dynamic_memory_store-inl.h
   ${BASE}/dynamic_memory_store_bits.h
   ${BASE}/dynamic_memory_store_comparer.h
   ${BASE}/llvm_types.h
@@ -58,6 +60,7 @@ set( HDRS
   ${BASE}/transaction.h
   ${BASE}/transaction_manager.h
   ${BASE}/in_memory_manager.h
+  ${BASE}/writer_pool.h
 )
 
 list(APPEND YT_SOURCE_FILES

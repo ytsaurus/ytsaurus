@@ -120,7 +120,7 @@ TBoundaryKeysExt TUserJobIOBase::GetBoundaryKeys(ISchemalessMultiChunkWriterPtr 
 {
     static TBoundaryKeysExt emptyBoundaryKeys = EmptyBoundaryKeys();
 
-    const auto& chunks = writer->GetWrittenChunks();
+    const auto& chunks = writer->GetWrittenChunksMasterMeta();
     if (!writer->IsSorted() || chunks.empty()) {
         return emptyBoundaryKeys;
     }

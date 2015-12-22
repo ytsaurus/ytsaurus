@@ -25,6 +25,7 @@
 #include <yt/core/misc/common.h>
 #include <yt/core/misc/skip_list.h>
 #include <yt/core/misc/small_vector.h>
+#include <yt/core/misc/linear_probe.h>
 
 #include <yt/core/profiling/timing.h>
 
@@ -93,6 +94,57 @@ bool AllocateListForPushIfNeeded(
 }
 
 } // namespace
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TDynamicMemoryStore::TDynamicStoreLookupHashTable
+{
+public:
+    TDynamicStoreLookupHashTable(
+        int size,
+        TDynamicRowKeyComparer keyComparer,
+        int keyColumnCount)
+        : HashTable_(size)
+        , KeyComparer_(std::move(keyComparer))
+        , KeyColumnCount_(keyColumnCount)
+    { }
+
+    void Insert(const TUnversionedValue* keyBegin, TDynamicRow dynamicRow)
+    {
+        auto fingerprint = GetFarmFingerprint(keyBegin, keyBegin + KeyColumnCount_);
+        auto value = reinterpret_cast<ui64>(dynamicRow.GetHeader());
+        YCHECK(HashTable_.Insert(fingerprint, value));
+    }
+
+    void Insert(TUnversionedRow row, TDynamicRow dynamicRow)
+    {
+        Insert(row.Begin(), dynamicRow);
+    }
+
+    TDynamicRow Find(TKey key) const
+    {
+        auto fingerprint = GetFarmFingerprint(key);
+        SmallVector<ui64,1> items;
+        HashTable_.Find(fingerprint, &items);
+        for (auto item : items) {
+            auto dynamicRow = TDynamicRow(reinterpret_cast<TDynamicRowHeader*>(item));
+            if (KeyComparer_(dynamicRow, TKeyWrapper{key}) == 0) {
+                return dynamicRow;
+            }
+        }
+        return TDynamicRow();
+    }
+
+    size_t GetByteSize() const
+    {
+        return HashTable_.GetByteSize();
+    }
+
+private:
+    TLinearProbeHashTable HashTable_;
+    const TDynamicRowKeyComparer KeyComparer_;
+    const int KeyColumnCount_;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -517,13 +569,19 @@ public:
             if (RowCount_ == Keys_.Size())
                 break;
 
-            auto iterator = Store_->Rows_->FindEqualTo(TKeyWrapper{Keys_[RowCount_]});
-            if (iterator.IsValid()) {
-                auto row = ProduceSingleRowVersion(iterator.GetCurrent());
-                rows->push_back(row);
+            TVersionedRow row;
+            if (Y_LIKELY(Store_->LookupHashTable_)) {
+                auto dynamicRow = Store_->LookupHashTable_->Find(Keys_[RowCount_]);
+                if (dynamicRow) {
+                    row = ProduceSingleRowVersion(dynamicRow);
+                }
             } else {
-                rows->push_back(TVersionedRow());
+                auto iterator = Store_->Rows_->FindEqualTo(TKeyWrapper{Keys_[RowCount_]});
+                if (iterator.IsValid()) {
+                    row = ProduceSingleRowVersion(iterator.GetCurrent());
+                }
             }
+            rows->push_back(row);
 
             ++RowCount_;
         }
@@ -573,8 +631,16 @@ TDynamicMemoryStore::TDynamicMemoryStore(
     RevisionToTimestamp_.PushBack(UncommittedTimestamp);
     YCHECK(TimestampFromRevision(UncommittedRevision) == UncommittedTimestamp);
 
-    LOG_DEBUG("Dynamic memory store created (TabletId: %v)",
-        TabletId_);
+    if (tablet->GetEnableLookupHashTable()) {
+        LookupHashTable_ = std::make_unique<TDynamicStoreLookupHashTable>(
+            Tablet_->GetConfig()->HardMemoryStoreKeyCountLimit,
+            RowKeyComparer_,
+            Tablet_->GetKeyColumnCount());
+    }
+
+    LOG_DEBUG("Dynamic memory store created (TabletId: %v, LookupHashTable: %v)",
+        TabletId_,
+        static_cast<bool>(LookupHashTable_));
 }
 
 TDynamicMemoryStore::~TDynamicMemoryStore()
@@ -733,6 +799,11 @@ TDynamicRow TDynamicMemoryStore::WriteRowAtomic(
         // Copy values.
         addValues(dynamicRow);
 
+        // Insert row in hash table.
+        if (LookupHashTable_) {
+            LookupHashTable_->Insert(row, dynamicRow);
+        }
+
         result = dynamicRow;
         return dynamicRow;
     };
@@ -793,6 +864,11 @@ TDynamicRow TDynamicMemoryStore::WriteRowNonAtomic(
         // Copy values.
         addValues(dynamicRow);
 
+        // Insert row in hash table.
+        if (LookupHashTable_) {
+            LookupHashTable_->Insert(row, dynamicRow);
+        }
+
         result = dynamicRow;
         return dynamicRow;
     };
@@ -836,6 +912,11 @@ TDynamicRow TDynamicMemoryStore::DeleteRowAtomic(
         // Acquire the lock.
         AcquireRowLocks(dynamicRow, transaction, prelock, TDynamicRow::PrimaryLockMask, true);
 
+        // Insert row in hash table.
+        if (LookupHashTable_) {
+            LookupHashTable_->Insert(key, dynamicRow);
+        }
+
         result = dynamicRow;
         return dynamicRow;
     };
@@ -878,6 +959,11 @@ TDynamicRow TDynamicMemoryStore::DeleteRowNonAtomic(
 
         // Copy keys.
         SetKeys(dynamicRow, key.Begin());
+
+        // Insert row in hash table.
+        if (LookupHashTable_) {
+            LookupHashTable_->Insert(key, dynamicRow);
+        }
 
         result = dynamicRow;
         return dynamicRow;
@@ -960,6 +1046,12 @@ TDynamicRow TDynamicMemoryStore::MigrateRow(TTransaction* transaction, TDynamicR
         SetKeys(migratedRow, row);
 
         migrateLocksAndValues(migratedRow);
+
+        // Insert row in hash table.
+        if (LookupHashTable_) {
+            auto key = RowToKey(row);
+            LookupHashTable_->Insert(key.Begin(), migratedRow);
+        }
 
         return migratedRow;
     };
@@ -1108,6 +1200,8 @@ std::vector<TDynamicRow> TDynamicMemoryStore::GetAllRows()
 
 TDynamicRow TDynamicMemoryStore::AllocateRow()
 {
+    ValidateKeyCountLimit();
+
     return TDynamicRow::Allocate(
         RowBuffer_->GetPool(),
         KeyColumnCount_,
@@ -1437,6 +1531,10 @@ void TDynamicMemoryStore::LoadRow(
     }
 
     Rows_->Insert(dynamicRow);
+
+    if (LookupHashTable_) {
+        LookupHashTable_->Insert(row.BeginKeys(), dynamicRow);
+    }
 }
 
 ui32 TDynamicMemoryStore::CaptureTimestamp(
@@ -1773,11 +1871,6 @@ ui32 TDynamicMemoryStore::RegisterRevision(TTimestamp timestamp)
     return GetLatestRevision();
 }
 
-TTimestamp TDynamicMemoryStore::TimestampFromRevision(ui32 revision)
-{
-    return RevisionToTimestamp_[revision];
-}
-
 void TDynamicMemoryStore::UpdateTimestampRange(TTimestamp commitTimestamp)
 {
     // NB: Don't update min/max timestamps for passive stores since
@@ -1791,7 +1884,17 @@ void TDynamicMemoryStore::UpdateTimestampRange(TTimestamp commitTimestamp)
 
 void TDynamicMemoryStore::OnMemoryUsageUpdated()
 {
-    SetMemoryUsage(GetUncompressedDataSize());
+    auto hashTableSize = LookupHashTable_ ? LookupHashTable_->GetByteSize() : 0;
+    SetMemoryUsage(GetUncompressedDataSize() + hashTableSize);
+}
+
+void TDynamicMemoryStore::ValidateKeyCountLimit() const
+{
+    if (GetKeyCount() >= Tablet_->GetConfig()->HardMemoryStoreKeyCountLimit) {
+        THROW_ERROR_EXCEPTION("Too many keys in dynamic store, all writes disabled")
+            << TErrorAttribute("tablet_id", Tablet_->GetTableId())
+            << TErrorAttribute("hard_memory_store_key_count_limit", Tablet_->GetConfig()->HardMemoryStoreKeyCountLimit);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

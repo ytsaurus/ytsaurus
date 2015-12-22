@@ -482,7 +482,7 @@ class TestTablets(YTEnvSetup):
         self._sync_create_cells(1, 1)
         self._create_table("//tmp/t")
 
-        set("//tmp/t/@max_memory_store_key_count", 10)
+        set("//tmp/t/@soft_memory_store_key_count_limit", 10)
         self._sync_mount_table("//tmp/t")
 
         tablet_id = get("//tmp/t/@tablets/0/tablet_id")
@@ -503,7 +503,7 @@ class TestTablets(YTEnvSetup):
         self._create_table("//tmp/t")
 
         set("//tmp/t/@in_memory_mode", mode)
-        set("//tmp/t/@max_memory_store_key_count", 10)
+        set("//tmp/t/@soft_memory_store_key_count_limit", 10)
         self._sync_mount_table("//tmp/t")
 
         tablet_id = get("//tmp/t/@tablets/0/tablet_id")
@@ -553,6 +553,29 @@ class TestTablets(YTEnvSetup):
 
     def test_in_memory_uncompressed(self):
         self._test_in_memory("uncompressed")
+
+    def test_lookup_hash_table(self):
+        self._sync_create_cells(1, 1)
+        self._create_table("//tmp/t")
+
+        set("//tmp/t/@in_memory_mode", "uncompressed")
+        set("//tmp/t/@enable_lookup_hash_table", True)
+        set("//tmp/t/@soft_memory_store_key_count_limit", 10)
+        set("//tmp/t/@hard_memory_store_key_count_limit", 10)
+        self._sync_mount_table("//tmp/t")
+
+        rows = [{"key": i, "value": str(i)} for i in xrange(10)]
+        keys = [{"key" : row["key"]} for row in rows]
+        insert_rows("//tmp/t", rows)
+        assert lookup_rows("//tmp/t", keys) == rows
+
+        insert_rows("//tmp/t", rows)
+        with pytest.raises(YtError): insert_rows("//tmp/t", [{"key": i, "value": str(i)} for i in xrange(10, 30)])
+
+        self._sync_unmount_table("//tmp/t")
+        self._sync_mount_table("//tmp/t")
+
+        assert lookup_rows("//tmp/t", keys) == rows
 
     def test_update_key_columns_fail1(self):
         self._sync_create_cells(1, 1)

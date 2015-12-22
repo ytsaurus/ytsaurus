@@ -466,7 +466,8 @@ private:
     virtual TFuture<void> Close() override;
 
     virtual void SetProgress(double progress) override;
-    virtual const std::vector<TChunkSpec>& GetWrittenChunks() const override;
+    virtual const std::vector<TChunkSpec>& GetWrittenChunksMasterMeta() const override;
+    virtual const std::vector<TChunkSpec>& GetWrittenChunksFullMeta() const override;
     virtual TNodeDirectoryPtr GetNodeDirectory() const override;
     virtual TDataStatistics GetDataStatistics() const override;
 
@@ -568,9 +569,14 @@ void TReorderingSchemalessMultiChunkWriter::SetProgress(double progress)
     UnderlyingWriter_->SetProgress(progress);
 }
 
-const std::vector<TChunkSpec>& TReorderingSchemalessMultiChunkWriter::GetWrittenChunks() const
+const std::vector<TChunkSpec>& TReorderingSchemalessMultiChunkWriter::GetWrittenChunksMasterMeta() const
 {
-    return UnderlyingWriter_->GetWrittenChunks();
+    return UnderlyingWriter_->GetWrittenChunksMasterMeta();
+}
+
+const std::vector<TChunkSpec>& TReorderingSchemalessMultiChunkWriter::GetWrittenChunksFullMeta() const
+{
+    return GetWrittenChunksMasterMeta();
 }
 
 TNodeDirectoryPtr TReorderingSchemalessMultiChunkWriter::GetNodeDirectory() const

@@ -1,22 +1,15 @@
-#include "serialize.h"
-#include "private.h"
-
-#include <yt/core/misc/common.h>
+#ifndef DYNAMIC_MEMORY_STORE_INL_H_
+#error "Direct inclusion of this file is not allowed, include dynamic_memory_store.h"
+#endif
 
 namespace NYT {
 namespace NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-int GetCurrentSnapshotVersion()
+TTimestamp TDynamicMemoryStore::TimestampFromRevision(ui32 revision) const
 {
-    return 11;
-}
-
-bool ValidateSnapshotVersion(int version)
-{
-    return version == 10 ||
-        version == 11;
+    return RevisionToTimestamp_[revision];
 }
 
 ////////////////////////////////////////////////////////////////////////////////
