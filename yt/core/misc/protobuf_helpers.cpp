@@ -3,6 +3,8 @@
 
 #include <yt/core/compression/codec.h>
 
+#include <yt/core/logging/log.h>
+
 #include <contrib/libs/protobuf/io/coded_stream.h>
 #include <contrib/libs/protobuf/io/zero_copy_stream.h>
 #include <contrib/libs/protobuf/io/zero_copy_stream_impl_lite.h>
@@ -14,6 +16,7 @@ using namespace google::protobuf::io;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static const NLogging::TLogger Logger("Serialize");
 struct TSerializedMessageTag { };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -24,8 +27,7 @@ TSharedRef SerializeToProto(
 {
 #ifdef YT_VALIDATE_REQUIRED_PROTO_FIELDS
     if (!partial && !message.IsInitialized()) {
-        fprintf(stderr, "Missing required fields: %s\n", message.InitializationErrorString().c_str());
-        YUNREACHABLE();
+        LOG_FATAL("Missing required fields: %v", message.InitializationErrorString());
     }
 #endif
     auto size = message.ByteSize();
