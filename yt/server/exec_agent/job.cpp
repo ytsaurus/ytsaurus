@@ -555,8 +555,10 @@ private:
     void PrepareFile(ESandboxKind sandboxKind, const TFileDescriptor& descriptor)
     {
         const auto& fileName = descriptor.file_name();
-        LOG_INFO("Preparing user file (FileName: %v)",
-            fileName);
+        bool isExecutable = descriptor.executable();
+        LOG_INFO("Preparing user file (FileName: %v, Executable: %v)",
+            fileName,
+            isExecutable);
 
         TArtifactKey key(descriptor);
         auto chunkCache = Bootstrap->GetChunkCache();
@@ -577,7 +579,7 @@ private:
                 sandboxKind,
                 chunk->GetFileName(),
                 fileName,
-                descriptor.executable());
+                isExecutable);
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION(
                 "Failed to create a symlink for user file %Qv",
