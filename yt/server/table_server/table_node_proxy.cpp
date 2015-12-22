@@ -199,10 +199,8 @@ private:
     {
         auto* table = LockThisTypedImpl();
 
-        if (table->IsDynamic()) {
-            if (table->HasMountedTablets()) {
-                THROW_ERROR_EXCEPTION("Cannot change schema of a dynamic table with mounted tablets");
-            }
+        if (table->HasMountedTablets()) {
+            THROW_ERROR_EXCEPTION("Cannot change schema of a dynamic table with mounted tablets");
         }
 
         ValidateTableSchemaUpdate(table->TableSchema(), newSchema, table->IsDynamic(), table->IsEmpty());
@@ -217,13 +215,10 @@ private:
         if (key == "schema") {
             auto newSchema = ConvertTo<TTableSchema>(value);
             SetSchema(newSchema);
-            
             return true;
         }
 
         if (key == "atomicity") {
-            auto atomicity = ConvertTo<NTransactionClient::EAtomicity>(value);
-
             ValidateNoTransaction();
 
             auto* table = LockThisTypedImpl();
@@ -231,6 +226,7 @@ private:
                 THROW_ERROR_EXCEPTION("Cannot atomicity mode of a dynamic table with mounted tablets");
             }
 
+            auto atomicity = ConvertTo<NTransactionClient::EAtomicity>(value);
             table->SetAtomicity(atomicity);
             return true;
         }
@@ -462,18 +458,16 @@ private:
     { 
         DeclareMutating();
         
-        if (!request->has_schema()) {
-            // Nothing to do.
-            context->SetRequestInfo("NewSchema: <Null>");
-        } else {    
-            TTableSchema newSchema;
-            FromProto(&newSchema, request->schema());
+        if (request->has_schema()) {
+            auto newSchema = FromProto<TTableSchema>(request->schema());
+            SetSchema(newSchema);
 
             context->SetRequestInfo(
                 "NewSchema: %v",
                 ConvertToYsonString(newSchema).Data());
-          
-            SetSchema(newSchema);
+        } else {
+            // Nothing to do.
+            context->SetRequestInfo("NewSchema: <Null>");
         }
 
         context->Reply();
