@@ -2573,15 +2573,16 @@ private:
             GetMemoryReserve(joblet->MemoryReserveEnabled, userJobSpec));
     }
 
-    virtual bool IsOutputLivePreviewSupported() const override
-    {
-        return true;
-    }
-
-    virtual bool IsIntermediateLivePreviewSupported() const override
-    {
-        return true;
-    }
+    // XXX(babenko): https://st.yandex-team.ru/YT-2741
+    //virtual bool IsOutputLivePreviewSupported() const override
+    //{
+    //    return true;
+    //}
+    //
+    //virtual bool IsIntermediateLivePreviewSupported() const override
+    //{
+    //    return true;
+    //}
 
     // Resource management.
 
