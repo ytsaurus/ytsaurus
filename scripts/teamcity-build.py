@@ -239,9 +239,9 @@ def run_pytest(options, suite_name, suite_path, pytest_args=None):
 
     sandbox_current = "{0}/{1}".format(options.sandbox_directory, suite_name)
     sandbox_archive = "{0}/{1}".format(
-        os.path.expanduser("~/failed_tests/"),
+        os.path.expanduser("~/failed_tests"),
         "__".join([options.btid, options.build_number, suite_name]))
-    sandbox_storage = "{0}/{1}".format(os.path.expanduser("~/sandbox_storage/"), suite_name)
+    sandbox_storage = "{0}/{1}".format(os.path.expanduser("~/sandbox_storage"), suite_name)
     working_files_to_archive = ["bin/yt", "bin/ytserver", "lib/*.so"]
 
     mkdirp(sandbox_current)
@@ -307,27 +307,46 @@ def run_pytest(options, suite_name, suite_path, pytest_args=None):
                     archive_path),
                     status="WARNING")
                 for obj in os.listdir(dir):
-                    src = os.path.join(dir, obj)
                     dst = os.path.join(archive_path, obj)
                     if os.path.exists(dst):
                         shutil.rmtree(dst)
-                    shutil.copytree(src, dst)
+                    shutil.copytree(os.path.join(dir, obj), dst)
+
             artifact_path = os.path.join(sandbox_archive, "artifacts")
             core_dumps_path = os.path.join(sandbox_archive, "core_dumps")
             mkdirp(artifact_path)
             mkdirp(core_dumps_path)
+
+            artifacts = set()
             for fileglob in working_files_to_archive:
                 for file in glob.glob(os.path.join(options.working_directory, fileglob)):
+                    artifacts.add(os.path.basename(file))
                     shutil.copy(file, artifact_path)
+
             for dir, _, files in os.walk(sandbox_archive):
                 for file in files:
                     if file.startswith("core."):
                         shutil.copy(os.path.join(dir, file), core_dumps_path)
+                        core_path = os.path.join(core_dumps_path, file)
+
+                        command = get_command_from_core_file(core_path)
+                        if command:
+                            binary = os.path.basename(command)
+                            if binary in artifacts:
+                                binary = os.path.join(artifact_path, binary)
+
+                            gdb_command = "gdb {0} {1}".format(binary, core_path)
+                            teamcity_message("Detected core file {0}. Gdb command:\n{1}"
+                                             .format(core_path, gdb_command), status="WARNING")
+                        else:
+                            teamcity_message("Detected core file {0}".format(core_path), status="WARNING")
+
                     if file.startswith("stderr."):
                         fullpath = os.path.join(dir, file)
                         content = open(fullpath).read()
                         if content:
-                            teamcity_message("Detected non-empty daemon stderr {0}: {1}".format(fullpath, content), status="WARNING")
+                            teamcity_message("Detected non-empty daemon stderr {0}: {1}"
+                                             .format(fullpath, content), status="WARNING")
 
             raise StepFailedWithNonCriticalError("Tests '{0}' failed".format(suite_name))
     finally:
@@ -575,6 +594,17 @@ def mkdirp(path):
     except OSError as ex:
         if ex.errno != errno.EEXIST:
             raise
+
+
+def get_command_from_core_file(core_path):
+    # Example output:
+    # core: ELF 64-bit LSB core file x86-64, version 1 (SYSV), SVR4-style, from 'ytserver <args>'
+    output = subprocess.check_output(["file", core_path]).split(" from ")
+    try:
+        command = output[1][1:-1]  # strip quotes
+        return command.split(None, 1)[0].strip()  # extract binary name
+    except IndexError:
+        return None
 
 
 _signals = dict((k, v) for v, k in signal.__dict__.iteritems() if v.startswith("SIG"))
