@@ -22,10 +22,11 @@ from yt.tools.remote_copy_tools import \
     copy_hadoop_to_hadoop_with_airflow
 
 from yt.common import remove_file
-from yt.wrapper.common import generate_uuid, get_value, update
+from yt.wrapper.common import generate_uuid, get_value, update, parse_bool
 import yt.logger as logger
 import yt.wrapper as yt
 import yt.json as json
+from yt.packages.expiringdict import ExpiringDict
 
 from flask import Flask, request, jsonify, Response, make_response
 
@@ -251,6 +252,7 @@ class Application(object):
     ERROR_BUFFER_SIZE = 2 ** 16
 
     def __init__(self, config_path):
+        self._start_time = time.time()
         self._daemon = Flask(__name__)
 
         self._config_path = config_path
@@ -263,9 +265,6 @@ class Application(object):
 
         self._clusters_config_mutex = RLock()
         self._clusters_configuration = self._get_clusters_configuration_from_config(self._config)
-        # XXX(asaitgalin): as clusters configuration is reloaded in ConfigReloadingThread
-        # we save last successfully loaded configuration so it can be passed to execute_task
-        # with guarantees that it can be loaded there.
 
         self._path = self._config["path"]
         self._logging_port = self._config["port"] + 1
@@ -313,14 +312,19 @@ class Application(object):
         self._clusters_config_reloading_thread.daemon = True
         self._clusters_config_reloading_thread.start()
 
+        # Initialize mutating requests cache.
+        self._mutating_requests_cache = ExpiringDict(
+            self._config["mutating_requests_cache_size"],
+            self._config["mutating_requests_cache_expiration_timeout"] / 1000.0)
+
         # Add rules
         self._add_rule("/", 'main', methods=["GET"], depends_on_lock=False)
         self._add_rule("/tasks/", 'get_tasks', methods=["GET"])
-        self._add_rule("/tasks/", 'add', methods=["POST"])
+        self._add_rule("/tasks/", 'add', methods=["POST"], is_mutating=True)
         self._add_rule("/tasks/<id>/", 'get_task', methods=["GET"])
-        self._add_rule("/tasks/<id>/", 'delete_task', methods=["DELETE"])
-        self._add_rule("/tasks/<id>/abort/", 'abort', methods=["POST"])
-        self._add_rule("/tasks/<id>/restart/", 'restart', methods=["POST"])
+        self._add_rule("/tasks/<id>/", 'delete_task', methods=["DELETE"], is_mutating=True)
+        self._add_rule("/tasks/<id>/abort/", 'abort', methods=["POST"], is_mutating=True)
+        self._add_rule("/tasks/<id>/restart/", 'restart', methods=["POST"], is_mutating=True)
         self._add_rule("/tasks/<id>/ping/", 'ping_task', methods=["POST"])
         self._add_rule("/config/", 'config', methods=["GET"])
         self._add_rule("/ping/", 'ping', methods=["GET"])
@@ -331,21 +335,21 @@ class Application(object):
         self._lock_thread.join(self._sleep_step)
         self._execution_thread.join(self._sleep_step)
 
-    def _add_rule(self, rule, endpoint, methods, depends_on_lock=True):
+    def _add_rule(self, rule, endpoint, methods, depends_on_lock=True, is_mutating=False):
         methods.append("OPTIONS")
-        self._daemon.add_url_rule(
-            rule,
-            endpoint,
-            self._process_lock(
-                process_gzip(
-                    self._process_cors(
-                        self._process_exception(
-                            Application.__dict__[endpoint]
-                        ),
-                        methods)
-                    ),
-                depends_on_lock),
-            methods=methods)
+
+        middlewares = [(self._process_lock, (depends_on_lock, )),
+                       (process_gzip, ()),
+                       (self._process_cors, (methods, )),
+                       (self._process_exception, ())]
+        if is_mutating:
+            middlewares.insert(1, (self._process_mutating_request, ()))
+
+        endpoint_method = Application.__dict__[endpoint]
+        for middleware, middleware_args in reversed(middlewares):
+            endpoint_method = middleware(endpoint_method, *middleware_args)
+
+        self._daemon.add_url_rule(rule, endpoint, endpoint_method, methods=methods)
 
     def _process_lock(self, func, depends_on_lock):
         def decorator(*args, **kwargs):
@@ -382,6 +386,39 @@ class Application(object):
                 return json.dumps({"code": 1, "message": "Unknown error: " + str(error)}), 502
 
         return decorator
+
+    def _process_mutating_request(self, func):
+        def decorator(*args, **kwargs):
+            params = json.loads_as_bytes(request.headers.get("X-TM-Parameters", "{}"))
+            mutation_id = params.get("mutation_id")
+            retry = parse_bool(params.get("retry", "false"))
+
+            if retry and time.time() - self._start_time < self._mutating_requests_cache.max_age:
+                raise RequestFailed("Transfer Manager just started and cannot process retry requests")
+
+            if retry and not mutation_id:
+                raise RequestFailed('Cannot process retry request without specified "mutation_id" header')
+
+            if retry:
+                processed_request = self._mutating_requests_cache.get(mutation_id)
+                if processed_request is not None:
+                    return processed_request
+                else:
+                    raise RequestFailed("Cached response for request with mutation id {0} not found"
+                                        .format(mutation_id))
+            else:
+               if mutation_id in self._mutating_requests_cache:
+                    raise RequestFailed('Duplicate request with mutation id {0} is not marked as "retry"'\
+                                        .format(mutation_id))
+               else:
+                   response = func(*args, **kwargs)
+                   if mutation_id is not None:
+                       self._mutating_requests_cache[mutation_id] = response
+                   return response
+
+        # XXX(asaitgalin): Decorator is wrapped with process_exception for correct handling RequestFailed
+        # (client expects to receive json, so process_exception will dump RequestFailed to json)
+        return self._process_exception(decorator)
 
     def _take_lock(self):
         yt_client = deepcopy(self._yt)
