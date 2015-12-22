@@ -110,6 +110,9 @@ default_config = {
         "use_yamr_style_prefix": False
     },
 
+    # Run sorted merge instead of sort if input tables are sorted by sort_by prefix.
+    "run_merge_instead_of_sort_if_input_tables_are_sorted": True,
+
     "tabular_data_format": None,
 
     # Remove temporary files after creation.
@@ -153,6 +156,8 @@ default_config = {
     # How often wake up to determine whether transaction need to be pinged.
     "transaction_sleep_period": 100,
 
+    # Always write files as one chunks.
+    # It forces disabling of write retries for large files.
     "write_file_as_one_chunk": True,
 
     # Default value of raw option in read, write, select, insert, lookup, delete.

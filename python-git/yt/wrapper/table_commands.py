@@ -45,7 +45,6 @@ data of operation
 Operation run under self-pinged transaction, if `yt.wrapper.get_config(client)["detached"]` is `False`.
 """
 
-import config
 from config import get_config, get_option
 import py_wrapper
 from common import flatten, require, unlist, update, parse_bool, is_prefix, get_value, \
@@ -1050,7 +1049,8 @@ def run_sort(source_table, destination_table=None, sort_by=None,
         _remove_tables([destination_table], client=client)
         return
 
-    if all(sort_by == get_sorted_by(table.name, [], client=client) for table in source_table):
+    if get_config(client)["run_merge_instead_of_sort_if_input_tables_are_sorted"] \
+            and all(sort_by == get_sorted_by(table.name, [], client=client) for table in source_table):
         run_merge(source_table, destination_table, "sorted",
                   strategy=strategy, table_writer=table_writer, spec=spec, client=client)
         return
