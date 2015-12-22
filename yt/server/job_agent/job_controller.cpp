@@ -133,15 +133,13 @@ void TJobController::StartWaitingJobs()
         if (job->GetState() != EJobState::Waiting)
             continue;
 
-        auto usedResources = GetResourceUsage(false);
-        auto spareResources = GetResourceLimits() - usedResources;
         auto jobResources = job->GetResourceUsage();
-
-        if (!DominatesNonnegative(spareResources, jobResources)) {
-            LOG_DEBUG("Not enough resources to start waiting job (JobId: %v, SpareResources: {%v}, JobResources: {%v})",
+        auto usedResources = GetResourceUsage(false);
+        if (!HasEnoughResources(jobResources, usedResources)) {
+            LOG_DEBUG("Not enough resources to start waiting job (JobId: %v, JobResources: {%v}, UsedResources: {%v})",
                 job->GetId(),
-                FormatResources(spareResources),
-                FormatResources(jobResources));
+                FormatResources(jobResources),
+                FormatResources(usedResources));
             continue;
         }
 
@@ -264,6 +262,21 @@ bool TJobController::CheckResourceUsageDelta(const TNodeResources& delta)
     }
 
     return true;
+}
+
+bool TJobController::HasEnoughResources(
+    const TNodeResources& jobResources,
+    const TNodeResources& usedResources)
+{
+    auto totalResources = GetResourceLimits();
+    auto spareResources = MakeNonnegative(totalResources - usedResources);
+    if (usedResources.replication_slots() == 0) {
+        spareResources.set_replication_data_size(InfiniteNodeResources().replication_data_size());
+    }
+    if (usedResources.repair_slots() == 0) {
+        spareResources.set_repair_data_size(InfiniteNodeResources().repair_data_size());
+    }
+    return Dominates(spareResources, jobResources);
 }
 
 void TJobController::PrepareHeartbeatRequest(
