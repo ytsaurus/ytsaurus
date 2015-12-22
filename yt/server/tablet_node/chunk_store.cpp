@@ -23,6 +23,7 @@
 #include <yt/ytlib/chunk_client/chunk_reader.h>
 #include <yt/ytlib/chunk_client/read_limit.h>
 #include <yt/ytlib/chunk_client/replication_reader.h>
+#include <yt/ytlib/chunk_client/ref_counted_proto.h>
 
 #include <yt/ytlib/object_client/helpers.h>
 
@@ -166,6 +167,7 @@ TChunkStore::TChunkStore(
     , PreloadState_(EStorePreloadState::Disabled)
     , CompactionState_(EStoreCompactionState::None)
     , Bootstrap_(boostrap)
+    , ChunkMeta_(New<TRefCountedChunkMeta>())
     , KeyComparer_(tablet->GetRowKeyComparer())
 {
     YCHECK(
@@ -175,7 +177,7 @@ TChunkStore::TChunkStore(
     StoreState_ = EStoreState::Persistent;
 
     if (chunkMeta) {
-        ChunkMeta_ = *chunkMeta;
+        ChunkMeta_->CopyFrom(*chunkMeta);
         PrecacheProperties();
     }
 
@@ -190,7 +192,7 @@ TChunkStore::~TChunkStore()
 
 const TChunkMeta& TChunkStore::GetChunkMeta() const
 {
-    return ChunkMeta_;
+    return *ChunkMeta_;
 }
 
 IStorePtr TChunkStore::GetBackingStore()
@@ -512,10 +514,10 @@ void TChunkStore::Load(TLoadContext& context)
 
 TCallback<void(TSaveContext&)> TChunkStore::AsyncSave()
 {
-    return BIND([=, this_ = MakeStrong(this)] (TSaveContext& context) {
+    return BIND([chunkMeta = ChunkMeta_] (TSaveContext& context) {
         using NYT::Save;
 
-        Save(context, ChunkMeta_);
+        Save(context, *chunkMeta);
     });
 }
 
@@ -523,7 +525,7 @@ void TChunkStore::AsyncLoad(TLoadContext& context)
 {
     using NYT::Load;
 
-    Load(context, ChunkMeta_);
+    Load(context, *ChunkMeta_);
 
     PrecacheProperties();
 }
@@ -533,7 +535,7 @@ void TChunkStore::BuildOrchidYson(IYsonConsumer* consumer)
     TStoreBase::BuildOrchidYson(consumer);
 
     auto backingStore = GetBackingStore();
-    auto miscExt = GetProtoExtension<TMiscExt>(ChunkMeta_.extensions());
+    auto miscExt = GetProtoExtension<TMiscExt>(ChunkMeta_->extensions());
     BuildYsonMapFluently(consumer)
         .Item("preload_state").Value(PreloadState_)
         .Item("compaction_state").Value(CompactionState_)
@@ -656,13 +658,13 @@ IBlockCachePtr TChunkStore::GetBlockCache()
 void TChunkStore::PrecacheProperties()
 {
     // Precache frequently used values.
-    auto miscExt = GetProtoExtension<TMiscExt>(ChunkMeta_.extensions());
+    auto miscExt = GetProtoExtension<TMiscExt>(ChunkMeta_->extensions());
     DataSize_ = miscExt.uncompressed_data_size();
     RowCount_ = miscExt.row_count();
     MinTimestamp_ = miscExt.min_timestamp();
     MaxTimestamp_ = miscExt.max_timestamp();
 
-    auto boundaryKeysExt = GetProtoExtension<TBoundaryKeysExt>(ChunkMeta_.extensions());
+    auto boundaryKeysExt = GetProtoExtension<TBoundaryKeysExt>(ChunkMeta_->extensions());
     MinKey_ = WidenKey(FromProto<TOwningKey>(boundaryKeysExt.min()), KeyColumnCount_);
     MaxKey_ = WidenKey(FromProto<TOwningKey>(boundaryKeysExt.max()), KeyColumnCount_);
 }
