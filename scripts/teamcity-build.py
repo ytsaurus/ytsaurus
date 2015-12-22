@@ -327,26 +327,27 @@ def run_pytest(options, suite_name, suite_path, pytest_args=None):
                 for file in files:
                     if file.startswith("core."):
                         shutil.copy(os.path.join(dir, file), core_dumps_path)
-                        core_path = os.path.join(core_dumps_path, file)
-
-                        command = get_command_from_core_file(core_path)
-                        if command:
-                            binary = os.path.basename(command)
-                            if binary in artifacts:
-                                binary = os.path.join(artifact_path, binary)
-
-                            gdb_command = "gdb {0} {1}".format(binary, core_path)
-                            teamcity_message("Detected core file {0}. Gdb command:\n{1}"
-                                             .format(core_path, gdb_command), status="WARNING")
-                        else:
-                            teamcity_message("Detected core file {0}".format(core_path), status="WARNING")
-
                     if file.startswith("stderr."):
                         fullpath = os.path.join(dir, file)
                         content = open(fullpath).read()
                         if content:
                             teamcity_message("Detected non-empty daemon stderr {0}: {1}"
                                              .format(fullpath, content), status="WARNING")
+
+            for core_dump in os.listdir(core_dumps_path):
+                core_path = os.path.join(core_dumps_path, core_dump)
+
+                command = get_command_from_core_file(core_path)
+                if command:
+                    binary = os.path.basename(command)
+                    if binary in artifacts:
+                        binary = os.path.join(artifact_path, binary)
+
+                    gdb_command = "gdb {0} {1}".format(binary, core_path)
+                    teamcity_message("Detected core file {0}. Gdb command:\n{1}"
+                                     .format(core_path, gdb_command), status="WARNING")
+                else:
+                    teamcity_message("Detected core file {0}".format(core_path), status="WARNING")
 
             raise StepFailedWithNonCriticalError("Tests '{0}' failed".format(suite_name))
     finally:
