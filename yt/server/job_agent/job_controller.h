@@ -97,6 +97,14 @@ private:
     //! Compares new usage with resource limits. Detects resource overdraft.
     bool CheckResourceUsageDelta(const NNodeTrackerClient::NProto::TNodeResources& delta);
 
+    //! Returns |true| if a job with given #jobResources can be started.
+    //! Takes special care with ReplicationDataSize and RepairDataSize enabling
+    // an arbitrary large overdraft for the
+    //! first job.
+    bool HasEnoughResources(
+        const NNodeTrackerClient::NProto::TNodeResources& jobResources,
+        const NNodeTrackerClient::NProto::TNodeResources& usedResources);
+
 };
 
 DEFINE_REFCOUNTED_TYPE(TJobController)

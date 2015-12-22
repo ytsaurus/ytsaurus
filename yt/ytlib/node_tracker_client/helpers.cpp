@@ -229,13 +229,6 @@ bool Dominates(const TNodeResources& lhs, const TNodeResources& rhs)
         true;
 }
 
-bool DominatesNonnegative(const TNodeResources& lhs, const TNodeResources& rhs)
-{
-    auto nonnegLhs = MakeNonnegative(lhs);
-    auto nonnegRhs = MakeNonnegative(rhs);
-    return Dominates(nonnegLhs, nonnegRhs);
-}
-
 TNodeResources Max(const TNodeResources& a, const TNodeResources& b)
 {
     TNodeResources result;
