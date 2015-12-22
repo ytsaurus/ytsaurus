@@ -302,6 +302,10 @@ private:
 
         TObjectServiceProxy proxy(channel);
         return proxy.Execute(req).Apply(BIND([=] (const TYPathProxy::TErrorOrRspGetPtr& rspOrError) {
+            if (rspOrError.GetCode() == NYTree::EErrorCode::ResolveError) {
+                // Transaction is missing.
+                return std::make_pair(cellTag, TAccountResourcesMap());
+            }
             THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error fetching resource usage of transaction %v from cell %v",
                 id,
                 cellTag);
