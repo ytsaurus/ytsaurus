@@ -117,6 +117,8 @@ public:
 
     DEFINE_BYVAL_RO_PROPERTY(NTransactionClient::EAtomicity, Atomicity);
 
+    DEFINE_BYVAL_RO_PROPERTY(bool, EnableLookupHashTable);
+
 public:
     TTablet(
         const TTabletId& tabletId,

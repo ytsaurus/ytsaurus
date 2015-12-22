@@ -36,6 +36,7 @@ public:
 
     virtual NChunkClient::NProto::TChunkMeta GetMasterMeta() const override;
     virtual NChunkClient::NProto::TChunkMeta GetSchedulerMeta() const override;
+    virtual NChunkClient::NProto::TChunkMeta GetNodeMeta() const override;
 
     virtual NChunkClient::NProto::TDataStatistics GetDataStatistics() const override;
 

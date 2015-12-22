@@ -358,6 +358,11 @@ public:
     static const ui32 PrimaryLockMask = (1 << PrimaryLockIndex);
     static const ui32 AllLocksMask = 0xffffffff;
 
+    TDynamicRowHeader* GetHeader() const
+    {
+        return Header_;
+    }
+
     const TDynamicValueData* BeginKeys() const
     {
         return reinterpret_cast<const TDynamicValueData*>(Header_ + 1);
