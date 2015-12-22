@@ -215,11 +215,7 @@ IF(YMAKE)
 
 LIBRARY()
 
-ADDINCL(
-  contrib/libs/llvm37/include
-)
-
-SRCS(${YT_SRCS})
+OWNER(sandello)
 
 SET_APPEND(BASE_CXXFLAGS -std=c++1y)
 
@@ -229,6 +225,12 @@ CXXFLAGS(
   -Wno-unused-value
   -Wno-c++14-extensions
 )
+
+ADDINCL(
+  contrib/libs/llvm37/include
+)
+
+SRCS(${YT_SRCS})
 
 PEERDIR(
   contrib/libs/llvm37/lib
