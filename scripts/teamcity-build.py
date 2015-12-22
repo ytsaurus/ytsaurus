@@ -319,12 +319,10 @@ def run_pytest(options, suite_name, suite_path, pytest_args=None):
             for fileglob in working_files_to_archive:
                 for file in glob.glob(os.path.join(options.working_directory, fileglob)):
                     shutil.copy(file, artifact_path)
-            for dir, _, files in os.walk(suite_path):
+            for dir, _, files in os.walk(sandbox_archive):
                 for file in files:
                     if file.startswith("core."):
                         shutil.copy(os.path.join(dir, file), core_dumps_path)
-            for dir, _, files in os.walk(sandbox_archive):
-                for file in files:
                     if file.startswith("stderr."):
                         fullpath = os.path.join(dir, file)
                         content = open(fullpath).read()
