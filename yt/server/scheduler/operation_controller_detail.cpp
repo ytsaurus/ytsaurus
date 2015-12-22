@@ -2988,9 +2988,18 @@ void TOperationControllerBase::LockUserFiles(
                 auto req = TYPathProxy::Get(objectIdPath);
                 SetTransactionId(req, InputTransactionId);
                 TAttributeFilter attributeFilter(EAttributeFilterMode::MatchingOnly);
-                if (file.Type == EObjectType::File) {
-                    attributeFilter.Keys.push_back("executable");
-                    attributeFilter.Keys.push_back("file_name");
+                switch (file.Type) {
+                    case EObjectType::File:
+                        attributeFilter.Keys.push_back("executable");
+                        attributeFilter.Keys.push_back("file_name");
+                        break;
+
+                    case EObjectType::Table:
+                        attributeFilter.Keys.push_back("format");
+                        break;
+
+                    default:
+                        YUNREACHABLE();
                 }
                 attributeFilter.Keys.push_back("key");
                 attributeFilter.Keys.push_back("chunk_count");
@@ -3035,15 +3044,19 @@ void TOperationControllerBase::LockUserFiles(
 
                 file.FileName = attributes.Get<Stroka>("key");
                 file.FileName = attributes.Get<Stroka>("file_name", file.FileName);
-                file.FileName = file.Path.FindFileName().Get(file.FileName);
+                file.FileName = path.FindFileName().Get(file.FileName);
+
+                file.Format = attributes.FindYson("format").Get(TYsonString());
+
+                const auto& path = file.Path;
 
                 switch (file.Type) {
                     case EObjectType::File:
-                        file.Executable = attributes.Get<bool>("executable", false);
+                        file.Executable = path.FindExecutable().Get(file.Executable);
                         break;
 
                     case EObjectType::Table:
-                        file.Format = file.Path.Attributes().GetYson("format");
+                        file.Format = path.FindFormat().Get(file.Format);
                         break;
 
                     default:
