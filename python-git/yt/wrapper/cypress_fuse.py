@@ -157,11 +157,25 @@ class CachedYtClient(yt.wrapper.client.Yt):
         # (True, x), *x* being the list of children/the attribute value.
 
     @staticmethod
-    def _error(attribute):
-        return yt.wrapper.YtResponseError("No such attribute: " + attribute)
+    def _attribute_error(attribute):
+        error = yt.wrapper.YtError(message="No such attribute: " + attribute, code=500)
+        return yt.wrapper.YtResponseError(error.simplify())
+
+    @staticmethod
+    def _node_error(path):
+        error = yt.wrapper.YtError(message="No such node: " + path, code=500)
+        return yt.wrapper.YtResponseError(error.simplify())
+
+    @staticmethod
+    def _ypath_dirname(path):
+        """Find parent directory for given YPath."""
+        parent_path = os.path.dirname(path)
+        if parent_path == u"//":
+            parent_path = u"/"
+        return parent_path
 
     @log_calls(_logger, "%(__name__)s(%(path)r)", _statistics)
-    def get_attributes(self, path, attributes):
+    def get_attributes(self, path, attributes, use_list_optimization=True):
         """Get a subset of node's attributes."""
         # Firstly, check whether we are sure the node doesn't exist at all.
         cache_entry = self._cache.get(path, CachedYtClient.CacheEntry(exists=True))
@@ -174,6 +188,21 @@ class CachedYtClient(yt.wrapper.client.Yt):
             return dict((a, v) for a, (f, v) in cache_slice if f)
         except KeyError:
             pass
+
+        # Check parent children list
+        parent_path = CachedYtClient._ypath_dirname(path)
+        if path != parent_path:
+            parent_cache_entry = self._cache.get(parent_path)
+            if parent_cache_entry is not None \
+                   and parent_cache_entry.children is not None \
+                   and os.path.basename(path) not in parent_cache_entry.children:
+                error = CachedYtClient._node_error(path)
+                self._cache[path] = CachedYtClient.CacheEntry(exists=False, error=error)
+                raise error
+
+            if use_list_optimization:
+                self.list(parent_path, attributes=attributes)
+                return self.get_attributes(path, attributes, use_list_optimization=False)
 
         # Finally, fetch all node's attributes.
         self._logger.debug("\tmiss")
@@ -193,7 +222,7 @@ class CachedYtClient(yt.wrapper.client.Yt):
                 requested_attributes[attribute] = all_attributes[attribute]
             else:
                 cache_entry.attributes[attribute] = (
-                    False, self._error(attribute)
+                    False, CachedYtClient._attribute_error(attribute)
                 )
 
         self._cache[path] = cache_entry
@@ -205,7 +234,7 @@ class CachedYtClient(yt.wrapper.client.Yt):
         cache_entry = self._cache.get(path, CachedYtClient.CacheEntry(exists=True))
         if not cache_entry.exists:
             raise cache_entry.error
-        if cache_entry.children is not None:
+        if cache_entry.children is not None and attributes is None:
             return cache_entry.children
 
         if attributes is None:
@@ -223,7 +252,7 @@ class CachedYtClient(yt.wrapper.client.Yt):
                 if attribute in child.attributes:
                     child_value = (True, child.attributes[attribute])
                 else:
-                    child_value = (False, self._error(attribute))
+                    child_value = (False, CachedYtClient._attribute_error(attribute))
                 child_cache_entry.attributes[attribute] = child_value
             self._cache[child_path] = child_cache_entry
 
@@ -237,7 +266,7 @@ class CachedYtClient(yt.wrapper.client.Yt):
             ignore_existing=ignore_existing, attributes=attributes
         )
         self._cache.pop(path)
-        parent = self._cache.get(os.path.dirname(path))
+        parent = self._cache.get(CachedYtClient._ypath_dirname(path))
         if parent is not None and parent.children is not None:
             parent.children.add(os.path.basename(path))
 
@@ -247,7 +276,7 @@ class CachedYtClient(yt.wrapper.client.Yt):
             path, recursive=recursive, force=force
         )
         self._cache.pop(path)
-        parent = self._cache.get(os.path.dirname(path))
+        parent = self._cache.get(CachedYtClient._ypath_dirname(path))
         if parent is not None and parent.children is not None:
             parent.children.remove(os.path.basename(path))
 
