@@ -19,10 +19,15 @@ using namespace NTableClient;
 ////////////////////////////////////////////////////////////////////////////////
 
 TSchemafulDsvWriterBase::TSchemafulDsvWriterBase(
-        TSchemafulDsvFormatConfigPtr config)
+        TSchemafulDsvFormatConfigPtr config, std::vector<int> idToIndexInRow)
     : Config_(config)
+    , IdToIndexInRow_(idToIndexInRow)
     , Table_(config)
-{ }
+{
+    CurrentRowValues_.resize(
+        *std::max_element(IdToIndexInRow_.begin(), IdToIndexInRow_.end()) + 1);
+    YCHECK(Config_->Columns); 
+}
 
 static ui16 DigitPairs[100] = {
     12336,  12592,  12848,  13104,  13360,  13616,  13872,  14128,  14384,  14640,
@@ -108,6 +113,17 @@ char* TSchemafulDsvWriterBase::WriteUint64Backwards(char* ptr, ui64 value)
     return ptr;
 }
 
+int TSchemafulDsvWriterBase::FindMissingValueIndex() const 
+{
+    for (int valueIndex = 0; valueIndex < static_cast<int>(CurrentRowValues_.size()); ++valueIndex) {
+        const auto* value = CurrentRowValues_[valueIndex];
+        if (!value || value->Type == EValueType::Null) {
+            return valueIndex;
+        }
+    }
+    return -1;
+}
+
 void TSchemafulDsvWriterBase::WriteValue(const TUnversionedValue& value)
 {
     switch (value.Type) {
@@ -182,45 +198,53 @@ TSchemalessWriterForSchemafulDsv::TSchemalessWriterForSchemafulDsv(
     TNameTablePtr nameTable, 
     IAsyncOutputStreamPtr output,
     bool enableContextSaving,
-    TSchemafulDsvFormatConfigPtr config)
+    TSchemafulDsvFormatConfigPtr config,
+    std::vector<int> idToIndexInRow)
     : TSchemalessFormatWriterBase(
         nameTable,
         std::move(output),
         enableContextSaving,
         false /* enableKeySwitch */,
         0 /* keyColumnCount */)
-    , TSchemafulDsvWriterBase(config)
+    , TSchemafulDsvWriterBase(
+        config,
+        idToIndexInRow)
 {
     BlobOutput_ = GetOutputStream();
-    YCHECK(Config_->Columns);
-    const auto& columns = Config_->Columns.Get();
-    for (int columnIndex = 0; columnIndex < static_cast<int>(columns.size()); ++columnIndex) {
-        ColumnIdMapping_.push_back(NameTable_->GetIdOrRegisterName(columns[columnIndex]));
-    }
-    IdToIndexInRowMapping_.resize(nameTable->GetSize());
 }
 
 void TSchemalessWriterForSchemafulDsv::DoWrite(const std::vector<TUnversionedRow>& rows)
 {
-    IdToIndexInRowMapping_.resize(GetNameTable()->GetSize());
-    for (auto row : rows) {
-        IdToIndexInRowMapping_.assign(IdToIndexInRowMapping_.size(), -1);
+    for (const auto& row : rows) {
+        CurrentRowValues_.assign(CurrentRowValues_.size(), nullptr);
         for (auto item = row.Begin(); item != row.End(); ++item) {
-            YASSERT(item->Id < IdToIndexInRowMapping_.size());
-            IdToIndexInRowMapping_[item->Id] = item - row.Begin();
+            if (item->Id < IdToIndexInRow_.size() && IdToIndexInRow_[item->Id] != -1) {
+                CurrentRowValues_[IdToIndexInRow_[item->Id]] = item;
+            }
         }
+        
+        int missingValueIndex = FindMissingValueIndex();
+        if (missingValueIndex != -1) {
+            if (Config_->MissingValueMode == EMissingSchemafulDsvValueMode::SkipRow) {
+                continue;
+            } else if (Config_->MissingValueMode == EMissingSchemafulDsvValueMode::Fail) { 
+                THROW_ERROR_EXCEPTION("Column %Qv is in schema but missing", (*Config_->Columns)[missingValueIndex]);
+            }
+        }
+
         bool firstValue = true;
-        for (auto currentId : ColumnIdMapping_) {
+        for (const auto* item : CurrentRowValues_) {
             if (!firstValue) {
                 WriteRaw(Config_->FieldSeparator);
             } else {
                 firstValue = false;
             }
-            int index = IdToIndexInRowMapping_[currentId];
-            if (index == -1) {
-                THROW_ERROR_EXCEPTION("Column %Qv is in schema but missing", NameTable_->GetName(currentId));
+            if (!item || item->Type == EValueType::Null) {
+                // If we got here, MissingValueMode is PrintSentinel.
+                WriteRaw(Config_->MissingValueSentinel);
+            } else {
+                WriteValue(*item);
             }
-            WriteValue(row[index]);
         }
         WriteRaw(Config_->RecordSeparator);
         TryFlushBuffer(false);
@@ -247,53 +271,75 @@ void TSchemalessWriterForSchemafulDsv::WriteRowIndex(i64 rowIndex)
 
 TSchemafulWriterForSchemafulDsv::TSchemafulWriterForSchemafulDsv(
     IAsyncOutputStreamPtr stream,
-    std::vector<int> columnIdMapping,
-    TSchemafulDsvFormatConfigPtr config)
-    : TSchemafulDsvWriterBase(config)
+    TSchemafulDsvFormatConfigPtr config,
+    std::vector<int> idToIndexInRow)
+    : TSchemafulDsvWriterBase(
+        config,
+        idToIndexInRow)
     , Output_(CreateSyncAdapter(stream))
 {
     BlobOutput_ = &UnderlyingBlobOutput_; 
-    ColumnIdMapping_.swap(columnIdMapping); 
 }
 
 TFuture<void> TSchemafulWriterForSchemafulDsv::Close()
 {
-    DoFlushBuffer(true);
+    DoFlushBuffer();
     return VoidFuture;
 }
 
 bool TSchemafulWriterForSchemafulDsv::Write(const std::vector<TUnversionedRow>& rows)
 {
-    for (auto row : rows) {
+    for (const auto& row : rows) {
+        CurrentRowValues_.assign(CurrentRowValues_.size(), nullptr);
+        for (auto item = row.Begin(); item != row.End(); ++item) {
+            YASSERT(item->Id >= 0 && item->Id < IdToIndexInRow_.size());
+            if (IdToIndexInRow_[item->Id] != -1) {
+                CurrentRowValues_[IdToIndexInRow_[item->Id]] = item;
+            }
+        }
+        
+        int missingValueIndex = FindMissingValueIndex();
+        if (missingValueIndex != -1) {
+            if (Config_->MissingValueMode == EMissingSchemafulDsvValueMode::SkipRow) {
+                continue;
+            } else if (Config_->MissingValueMode == EMissingSchemafulDsvValueMode::Fail) { 
+                THROW_ERROR_EXCEPTION("Column %Qv is in schema but missing", (*Config_->Columns)[missingValueIndex]);
+            }
+        }
+
         bool firstValue = true;
-        for (auto id : ColumnIdMapping_) {
+        for (const auto* item : CurrentRowValues_) {
             if (!firstValue) {
                 WriteRaw(Config_->FieldSeparator);
             } else {
                 firstValue = false;
             }
-            WriteValue(row[id]);
+            if (!item || item->Type == EValueType::Null) {
+                // If we got here, MissingValueMode is PrintSentinel.
+                WriteRaw(Config_->MissingValueSentinel);
+            } else {
+                WriteValue(*item);
+            }
         }
         WriteRaw(Config_->RecordSeparator);
-        TryFlushBuffer();
-    }
+        TryFlushBuffer(false);
+    }    
+    TryFlushBuffer(true);
     
     return true;
 }
 
 // TODO(max42): Eliminate copy-paste from schemaless_writer_adapter.cpp.
-void TSchemafulWriterForSchemafulDsv::TryFlushBuffer()
+void TSchemafulWriterForSchemafulDsv::TryFlushBuffer(bool force)
 {
-    DoFlushBuffer(false);
+    if (force || UnderlyingBlobOutput_.Size() >= UnderlyingBlobOutput_.Blob().Capacity() / 2) {
+        DoFlushBuffer();
+    }
 }
 
-void TSchemafulWriterForSchemafulDsv::DoFlushBuffer(bool force)
+void TSchemafulWriterForSchemafulDsv::DoFlushBuffer()
 {
     if (UnderlyingBlobOutput_.Size() == 0) {
-        return;
-    }
-
-    if (!force && UnderlyingBlobOutput_.Size() < UnderlyingBlobOutput_.Blob().Capacity() / 2) {
         return;
     }
 
@@ -315,18 +361,21 @@ ISchemafulWriterPtr CreateSchemafulWriterForSchemafulDsv(
     const TTableSchema& schema,
     TSchemafulDsvFormatConfigPtr config)
 {
-    std::vector<int> columnIdMapping;
+    std::vector<int> idToIndexInRow(schema.Columns().size(), -1);
     if (config->Columns) {
-        for (const auto& name : *config->Columns) {
-            columnIdMapping.push_back(schema.GetColumnIndexOrThrow(name));
+        for (int columnIndex = 0; columnIndex < static_cast<int>(config->Columns->size()); ++columnIndex) {
+            idToIndexInRow[schema.GetColumnIndexOrThrow((*config->Columns)[columnIndex])] = columnIndex;
         }
     } else {
-        for (int id = 0; id < schema.Columns().size(); ++id) {
-            columnIdMapping.push_back(id);
+        for (int id = 0; id < static_cast<int>(schema.Columns().size()); ++id) {
+            idToIndexInRow[id] = id;
         }
     }
 
-    return New<TSchemafulWriterForSchemafulDsv>(stream, std::move(columnIdMapping), config);
+    return New<TSchemafulWriterForSchemafulDsv>(
+        stream, 
+        config,
+        idToIndexInRow);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
