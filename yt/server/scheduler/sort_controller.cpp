@@ -28,7 +28,6 @@ using namespace NJobProxy;
 using namespace NObjectClient;
 using namespace NCypressClient;
 using namespace NNodeTrackerClient;
-using namespace NNodeTrackerClient::NProto;
 using namespace NScheduler::NProto;
 using namespace NChunkClient::NProto;
 using namespace NJobTrackerClient::NProto;

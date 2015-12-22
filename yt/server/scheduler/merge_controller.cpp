@@ -28,7 +28,6 @@ using namespace NCypressClient;
 using namespace NScheduler::NProto;
 using namespace NChunkClient::NProto;
 using namespace NJobTrackerClient::NProto;
-using namespace NNodeTrackerClient::NProto;
 using namespace NConcurrency;
 using namespace NTableClient;
 

@@ -38,7 +38,6 @@ using namespace NObjectClient;
 using namespace NCypressClient;
 using namespace NTransactionClient;
 using namespace NScheduler::NProto;
-using namespace NNodeTrackerClient::NProto;
 using namespace NJobTrackerClient::NProto;
 using namespace NApi;
 using namespace NConcurrency;
