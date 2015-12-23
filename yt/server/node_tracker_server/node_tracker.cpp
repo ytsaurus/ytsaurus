@@ -183,7 +183,6 @@ public:
         , Config_(config)
     {
         RegisterMethod(BIND(&TImpl::HydraRegisterNode, Unretained(this)));
-        RegisterMethod(BIND(&TImpl::HydraUnregisterNode, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraDisposeNode, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraFullHeartbeat, Unretained(this), nullptr));
         RegisterMethod(BIND(&TImpl::HydraIncrementalHeartbeat, Unretained(this), nullptr, nullptr));
@@ -236,14 +235,6 @@ public:
 
     TMutationPtr CreateRegisterNodeMutation(
         const TReqRegisterNode& request)
-    {
-        return CreateMutation(
-            Bootstrap_->GetHydraFacade()->GetHydraManager(),
-            request);
-    }
-
-    TMutationPtr CreateUnregisterNodeMutation(
-        const TReqUnregisterNode& request)
     {
         return CreateMutation(
             Bootstrap_->GetHydraFacade()->GetHydraManager(),
@@ -696,26 +687,6 @@ private:
         TRspRegisterNode response;
         response.set_node_id(node->GetId());
         return response;
-    }
-
-    void HydraUnregisterNode(const TReqUnregisterNode& request)
-    {
-        auto nodeId = request.node_id();
-
-        auto* node = FindNode(nodeId);
-        if (!IsObjectAlive(node))
-            return;
-
-        auto state = node->GetLocalState();
-        if (state != ENodeState::Registered && state != ENodeState::Online)
-            return;
-
-        UnregisterNode(node, true);
-
-        if (Bootstrap_->IsPrimaryMaster()) {
-            auto multicellManager = Bootstrap_->GetMulticellManager();
-            multicellManager->PostToSecondaryMasters(request);
-        }
     }
 
     void HydraDisposeNode(const TReqDisposeNode& request)
@@ -1211,16 +1182,6 @@ private:
     }
 
 
-    void PostUnregisterNodeMutation(TNode* node)
-    {
-        TReqUnregisterNode request;
-        request.set_node_id(node->GetId());
-
-        auto mutation = CreateUnregisterNodeMutation(request);
-        Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker()->Invoke(
-            BIND(IgnoreResult(&TMutation::CommitAndLog), mutation, Logger));
-    }
-
     void MaybePostDisposeNodeMutations()
     {
         while (
@@ -1399,12 +1360,6 @@ TMutationPtr TNodeTracker::CreateRegisterNodeMutation(
     const TReqRegisterNode& request)
 {
     return Impl_->CreateRegisterNodeMutation(request);
-}
-
-TMutationPtr TNodeTracker::CreateUnregisterNodeMutation(
-    const TReqUnregisterNode& request)
-{
-    return Impl_->CreateUnregisterNodeMutation(request);
 }
 
 TMutationPtr TNodeTracker::CreateFullHeartbeatMutation(

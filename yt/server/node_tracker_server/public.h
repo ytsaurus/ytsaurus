@@ -13,7 +13,6 @@ namespace NNodeTrackerServer {
 
 namespace NProto {
 
-class TReqUnregisterNode;
 class TReqRemoveNode;
 
 typedef NNodeTrackerClient::NProto::TReqRegisterNode TReqRegisterNode;
