@@ -652,7 +652,13 @@ private:
                     node->GetId(),
                     address,
                     node->GetLocalState());
+
                 EnsureNodeDisposed(node);
+
+                // NB: Recheck lease transaction state since EnsureNodeDisposed could have just aborted it.
+                if (leaseTransaction->GetPersistentState() != ETransactionState::Active) {
+                    leaseTransaction->ThrowInvalidState();
+                }
             }
 
             UpdateNode(node, addresses);
