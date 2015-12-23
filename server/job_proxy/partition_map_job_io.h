@@ -1,0 +1,15 @@
+#pragma once
+
+#include "public.h"
+
+namespace NYT {
+namespace NJobProxy {
+
+////////////////////////////////////////////////////////////////////
+
+std::unique_ptr<IUserJobIO> CreatePartitionMapJobIO(IJobHost* host);
+
+////////////////////////////////////////////////////////////////////
+
+} // namespace NJobProxy
+} // namespace NYT

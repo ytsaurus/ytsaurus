@@ -1,0 +1,18 @@
+#pragma once
+
+#include "public.h"
+
+#include <yt/core/logging/log.h>
+
+namespace NYT {
+namespace NTransactionServer {
+
+////////////////////////////////////////////////////////////////////////////////
+
+extern const NLogging::TLogger TransactionServerLogger;
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NTransactionServer
+} // namespace NYT
+

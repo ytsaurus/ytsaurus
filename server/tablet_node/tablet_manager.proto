@@ -1,0 +1,115 @@
+package NYT.NTabletNode.NProto;
+
+import "yt/core/misc/guid.proto";
+import "yt/core/misc/error.proto";
+import "yt/ytlib/table_client/chunk_meta.proto";
+import "yt/ytlib/chunk_client/chunk_meta.proto";
+import "yt/server/tablet_server/tablet_manager.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TChunkStoreDescriptor
+{
+    required NYT.NProto.TGuid store_id = 1;
+    required NYT.NChunkClient.NProto.TChunkMeta chunk_meta = 2;
+}
+
+message TReqMountTablet
+{
+    required NYT.NProto.TGuid tablet_id = 1;
+    required NYT.NProto.TGuid table_id = 9;
+    required NYT.NTableClient.NProto.TTableSchemaExt schema = 2;
+    required NYT.NTableClient.NProto.TKeyColumnsExt key_columns = 3;
+    repeated TChunkStoreDescriptor chunk_stores = 4;
+    required bytes pivot_key = 5;
+    required bytes next_pivot_key = 6;
+    required string mount_config = 7;
+    required string writer_options = 8;
+    required int32 atomicity = 10; // EAtomicity
+    required int64 mount_revision = 11;
+}
+
+message TReqUnmountTablet
+{
+    required NYT.NProto.TGuid tablet_id = 1;
+    required bool force = 2;
+}
+
+message TReqRemountTablet
+{
+    required NYT.NProto.TGuid tablet_id = 1;
+    required string mount_config = 7;
+    required string writer_options = 8;
+}
+
+message TReqSetTabletState
+{
+    required NYT.NProto.TGuid tablet_id = 1;
+    required int64 mount_revision = 3;
+    required int32 state = 2;
+}
+
+message TReqExecuteWrite
+{
+    required NYT.NProto.TGuid transaction_id = 1;
+    required NYT.NProto.TGuid tablet_id = 2;
+    required int64 mount_revision = 7;
+    required int32 codec = 3;
+    required bytes compressed_data = 4;
+    // For atomic transactions only.
+    optional uint64 signature = 5;
+    // For non-atomic transactions only.
+    optional int64 timestamp = 6;
+}
+
+message TReqRotateStore
+{
+    required NYT.NProto.TGuid tablet_id = 1;
+    required int64 mount_revision = 2;
+}
+
+message TReqCommitTabletStoresUpdate
+{
+    required NYT.NProto.TGuid tablet_id = 1;
+    required int64 mount_revision = 5;
+    repeated NYT.NTabletServer.NProto.TAddStoreDescriptor stores_to_add = 2;
+    repeated NYT.NTabletServer.NProto.TRemoveStoreDescriptor stores_to_remove = 3;
+    optional NYT.NProto.TGuid transaction_id = 4;
+}
+
+message TRspUpdateTabletStores
+{
+    required NYT.NProto.TGuid tablet_id = 1;
+    required int64 mount_revision = 5;
+    optional NYT.NProto.TError error = 2;
+    repeated NYT.NTabletServer.NProto.TAddStoreDescriptor stores_to_add = 3;
+    repeated NYT.NTabletServer.NProto.TRemoveStoreDescriptor stores_to_remove = 4;
+}
+
+message TReqSplitPartition
+{
+    required NYT.NProto.TGuid tablet_id = 1;
+    required int64 mount_revision = 4;
+    required NYT.NProto.TGuid partition_id = 2;
+    repeated bytes pivot_keys = 3;
+}
+
+message TReqMergePartitions
+{
+    required NYT.NProto.TGuid tablet_id = 1;
+    required int64 mount_revision = 4;
+    required NYT.NProto.TGuid partition_id = 2;
+    required int32 partition_count = 3;
+}
+
+message TReqUpdatePartitionSampleKeys
+{
+    required NYT.NProto.TGuid tablet_id = 1;
+    required int64 mount_revision = 5;
+    required NYT.NProto.TGuid partition_id = 4;
+    required bytes pivot_key = 2;
+    repeated bytes sample_keys = 3;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+

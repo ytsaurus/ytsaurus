@@ -1,0 +1,177 @@
+package NYT.NQueryClient.NProto;
+
+import "yt/core/misc/guid.proto";
+import "yt/ytlib/table_client/chunk_meta.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TExpression
+{
+    required int32 kind = 1;
+    required uint32 type = 2;
+
+    // required int32 location_begin = 3; (deprecated)
+    // required int32 location_end = 4; (deprecated)
+
+    extensions 100 to max;
+}
+
+message TLiteralExpression
+{
+    extend TExpression
+    {
+        optional TLiteralExpression literal_expression = 103;
+    }
+
+    optional int64 int64_value = 1;
+    optional uint64 uint64_value = 2;
+    optional double double_value = 3;
+    optional string string_value = 4;
+    optional bool boolean_value = 5;
+}
+
+message TReferenceExpression
+{
+    extend TExpression
+    {
+        optional TReferenceExpression reference_expression = 104;
+    }
+    required string column_name = 1;
+}
+
+message TFunctionExpression
+{
+    extend TExpression
+    {
+        optional TFunctionExpression function_expression = 105;
+    }
+    required string function_name = 1;
+    repeated TExpression arguments = 2;
+}
+
+message TUnaryOpExpression
+{
+    extend TExpression
+    {
+        optional TUnaryOpExpression unary_op_expression = 106;
+    }
+    required int32 opcode = 1; // EUnaryOp
+    required TExpression operand = 2;
+}
+
+message TBinaryOpExpression
+{
+    extend TExpression
+    {
+        optional TBinaryOpExpression binary_op_expression = 107;
+    }
+    required int32 opcode = 1; // EBinaryOp
+    required TExpression lhs = 2;
+    required TExpression rhs = 3;
+}
+
+message TInOpExpression
+{
+    extend TExpression
+    {
+        optional TInOpExpression in_op_expression = 108;
+    }
+    repeated TExpression arguments = 1;
+    required bytes values = 2;
+}
+
+message TNamedItem
+{
+    required TExpression expression = 1;
+    required string name = 2;
+}
+
+message TAggregateItem
+{
+    required TExpression expression = 1;
+    optional int32 aggregate_function = 2;
+    required string name = 3;
+    optional string aggregate_function_name = 4;
+    optional uint32 state_type = 5;
+    optional uint32 result_type = 6;
+}
+
+message TEquation
+{
+    required TExpression left = 1;
+    required TExpression right = 2;
+}
+
+message TJoinClause
+{
+    repeated TEquation equations = 1;
+    required NYT.NTableClient.NProto.TTableSchemaExt joined_table_schema = 2;
+    required NYT.NTableClient.NProto.TTableSchemaExt foreign_table_schema = 3;
+    required NYT.NTableClient.NProto.TTableSchemaExt renamed_table_schema = 6;
+    required int64 foreign_key_columns_count = 4;
+    required NYT.NProto.TGuid foreign_data_id = 5;
+    required bool is_left = 7;
+}
+
+message TGroupClause
+{
+    repeated TNamedItem group_items = 1;
+    repeated TAggregateItem aggregate_items = 2;
+    required NYT.NTableClient.NProto.TTableSchemaExt grouped_table_schema = 3;
+    required bool is_merge = 4;
+    required bool is_final = 5;
+}
+
+message TOrderItem
+{
+    required TExpression expression = 1;
+    required bool is_descending = 2;
+}
+
+message TOrderClause
+{
+    repeated TOrderItem order_items = 1;
+}
+
+message TProjectClause
+{
+    repeated TNamedItem projections = 1;
+}
+
+message TQuery
+{
+    required NYT.NProto.TGuid id = 1;
+    required int64 input_row_limit = 2;
+    required int64 output_row_limit = 3;
+
+    required int64 limit = 4;
+
+    required NYT.NTableClient.NProto.TTableSchemaExt table_schema = 5;
+    required NYT.NTableClient.NProto.TTableSchemaExt renamed_table_schema = 13;
+    required int64 key_columns_count = 6;
+
+    repeated TJoinClause join_clauses = 7;
+    optional TExpression predicate = 8;
+    optional TGroupClause group_clause = 9;
+    optional TExpression having_clause = 12;
+    optional TOrderClause order_clause = 11;
+    optional TProjectClause project_clause = 10;
+}
+
+message TPlanFragment
+{
+    required string source = 1;
+    required uint64 timestamp = 2;
+
+    repeated NYT.NProto.TGuid data_id = 3;
+    required bytes data_bounds = 8;
+
+    required TQuery query = 5;
+    required bool ordered = 6;
+    optional bool verbose_logging = 7 [default = false];
+    optional int64 max_subqueries = 9 [default = 16];
+    optional bool enable_code_cache = 10 [default = true];
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
