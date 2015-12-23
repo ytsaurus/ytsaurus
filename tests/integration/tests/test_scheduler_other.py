@@ -165,7 +165,7 @@ class TestSchedulerOther(YTEnvSetup):
         for i in xrange(1, 4):
             self._create_table("//tmp/in" + str(i))
             self._create_table("//tmp/out" + str(i))
-            write_table("//tmp/in" + str(i), [{"foo": j} for j in xrange(2 * (4 - i))])
+            write_table("//tmp/in" + str(i), [{"foo": j} for j in xrange(3 * (4 - i))])
 
         create("map_node", "//sys/pools/fifo_pool", ignore_existing=True)
         set("//sys/pools/fifo_pool/@mode", "fifo")
