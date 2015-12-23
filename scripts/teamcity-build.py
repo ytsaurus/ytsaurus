@@ -331,7 +331,7 @@ def run_pytest(options, suite_name, suite_path, pytest_args=None):
                         fullpath = os.path.join(dir, file)
                         content = open(fullpath).read()
                         if content:
-                            teamcity_message("Detected non-empty daemon stderr {0}: {1}"
+                            teamcity_message("Detected non-empty daemon stderr {0}:\n{1}"
                                              .format(fullpath, content), status="WARNING")
 
             for core_dump in os.listdir(core_dumps_path):
