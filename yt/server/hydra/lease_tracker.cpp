@@ -181,14 +181,11 @@ TLeaseTracker::TLeaseTracker(
 
 void TLeaseTracker::Start()
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
-
     LeaseCheckExecutor_ = New<TPeriodicExecutor>(
         EpochContext_->EpochControlInvoker,
         BIND(&TLeaseTracker::OnLeaseCheck, MakeWeak(this)),
         Config_->LeaderLeaseCheckPeriod);
     LeaseCheckExecutor_->Start();
-
 }
 
 TFuture<void> TLeaseTracker::GetLeaseAcquired()
