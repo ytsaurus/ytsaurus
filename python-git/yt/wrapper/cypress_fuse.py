@@ -468,7 +468,7 @@ class Cypress(fuse.Operations):
     ]
 
     def __init__(
-            self, client,
+            self, client, enable_write_access,
             minimum_file_read_size=(4 * 1024 ** 2),
             table_format="json",
             minimum_table_read_row_count=10000
@@ -476,6 +476,7 @@ class Cypress(fuse.Operations):
         super(fuse.Operations, self).__init__()
 
         self._client = client
+        self._enable_write_access = enable_write_access
         self._minimum_file_read_size = minimum_file_read_size
         self._table_format = table_format
         self._minimum_table_read_row_count = minimum_table_read_row_count
@@ -495,6 +496,10 @@ class Cypress(fuse.Operations):
         """Convert a time string in YT format to UNIX timestamp."""
         parsed_time = time.strptime(timestring, "%Y-%m-%dT%H:%M:%S.%fZ")
         return time.mktime(parsed_time)
+
+    def _validate_write_access(self):
+        if not self._enable_write_access:
+            raise fuse.FuseOSError(errno.EROFS)
 
     def _get_st_mode(self, attributes):
         """Get st_mode for a node based on its attributes."""
@@ -638,21 +643,25 @@ class Cypress(fuse.Operations):
     @handle_yt_errors(_logger)
     @log_calls(_logger, "%(__name__)s(%(path)r, mode=%(mode)r)", _statistics)
     def mkdir(self, path, mode):
+        self._validate_write_access()
         ypath = self._to_ypath(path)
         self._client.create("map_node", ypath)
 
     @log_calls(_logger, "%(__name__)s(%(path)r, mode=%(mode)r)", _statistics)
     def chmod(self, path, mode):
+        self._validate_write_access()
         self._logger.debug("chmod is not implemented")
         return 0
 
     @log_calls(_logger, "%(__name__)s(%(path)r, uid=%(uid)r, gid=%(gid)r)", _statistics)
     def chown(self, path, uid, gid):
+        self._validate_write_access()
         self._logger.debug("chown is not implemented")
 
     @handle_yt_errors(_logger)
     @log_calls(_logger, "%(__name__)s(%(path)r)", _statistics)
     def create(self, path, mode, fi):
+        self._validate_write_access()
         ypath = self._to_ypath(path)
         self._client.create("file", ypath)
         attributes = self._client.get_attributes(
@@ -671,12 +680,14 @@ class Cypress(fuse.Operations):
     @handle_yt_errors(_logger)
     @log_calls(_logger, "%(__name__)s(%(path)r)", _statistics)
     def unlink(self, path):
+        self._validate_write_access()
         ypath = self._to_ypath(path)
         self._client.remove(ypath)
 
     @handle_yt_errors(_logger)
     @log_calls(_logger, "%(__name__)s(%(path)r)", _statistics)
     def rmdir(self, path):
+        self._validate_write_access()
         ypath = self._to_ypath(path)
         try:
             self._client.remove(ypath)
@@ -692,6 +703,7 @@ class Cypress(fuse.Operations):
     @handle_yt_errors(_logger)
     @log_calls(_logger, "%(__name__)s(%(path)r, length=%(length)r)", _statistics)
     def truncate(self, path, length, fh=None):
+        self._validate_write_access()
         ypath = self._to_ypath(path)
         for file_fh, opened_file in self._opened_files.iteritems():
             if opened_file.ypath == ypath:
@@ -706,6 +718,7 @@ class Cypress(fuse.Operations):
         _statistics
     )
     def write(self, path, data, offset, fi):
+        self._validate_write_access()
         return self._opened_files[fi.fh].write(data, offset)
 
     @handle_yt_errors(_logger)

@@ -7,10 +7,10 @@ from argparse import ArgumentParser
 
 import sys
 
-def mount_cypress(proxy, mount_point, caching_period):
+def mount_cypress(proxy, mount_point, caching_period, enable_write_access):
     """Mount a Cypress."""
     yt_client = cypress_fuse.CachedYtClient(proxy=proxy, max_age_seconds=caching_period)
-    cypress = cypress_fuse.Cypress(yt_client)
+    cypress = cypress_fuse.Cypress(yt_client, enable_write_access)
     FUSE(
         cypress, mount_point,
         raw_fi=True, nothreads=True, foreground=True
@@ -31,7 +31,12 @@ if __name__ == "__main__":
         type=int,
         default=2,
         help="Cache expiration time.")
+    parser.add_argument(
+        "--enable-write-access",
+        action="store_true",
+        default=False,
+        help="Enable write access to cypress.")
 
     args = parser.parse_args()
 
-    mount_cypress(args.proxy, args.mount_point, args.caching_period)
+    mount_cypress(args.proxy, args.mount_point, args.caching_period, args.enable_write_access)

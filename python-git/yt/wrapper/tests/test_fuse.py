@@ -59,13 +59,15 @@ class TestCachedYtClient(object):
 class TestCypress(object):
     def test_readdir(self):
         cypress = Cypress(
-            CachedYtClient(proxy=get_proxy_url(), config=yt.config.config))
+            CachedYtClient(proxy=get_proxy_url(), config=yt.config.config),
+            enable_write_access=False)
 
         assert sorted(cypress.readdir("/", None)) == sorted(yt.list("/"))
 
     def test_read_file(self):
         cypress = Cypress(
-            CachedYtClient(proxy=get_proxy_url(), config=yt.config.config))
+            CachedYtClient(proxy=get_proxy_url(), config=yt.config.config),
+            enable_write_access=False)
 
         filepath = TEST_DIR + "/file"
         content = "Hello, world!" * 100
@@ -90,7 +92,8 @@ class TestCypress(object):
 
     def test_read_table(self):
         cypress = Cypress(
-            CachedYtClient(proxy=get_proxy_url(), config=yt.config.config))
+            CachedYtClient(proxy=get_proxy_url(), config=yt.config.config),
+            enable_write_access=False)
 
         filepath = TEST_DIR + "/file"
         content = ""
@@ -119,7 +122,8 @@ class TestCypress(object):
 
     def test_create_file(self):
         cypress = Cypress(
-            CachedYtClient(proxy=get_proxy_url(), config=yt.config.config))
+            CachedYtClient(proxy=get_proxy_url(), config=yt.config.config),
+            enable_write_access=True)
 
         filepath = TEST_DIR + "/file"
 
@@ -132,7 +136,8 @@ class TestCypress(object):
 
     def test_unlink_file(self):
         cypress = Cypress(
-            CachedYtClient(proxy=get_proxy_url(), config=yt.config.config))
+            CachedYtClient(proxy=get_proxy_url(), config=yt.config.config),
+            enable_write_access=True)
 
         filepath = TEST_DIR + "/file"
 
@@ -146,7 +151,8 @@ class TestCypress(object):
 
     def test_truncate_file(self):
         cypress = Cypress(
-            CachedYtClient(proxy=get_proxy_url(), config=yt.config.config))
+            CachedYtClient(proxy=get_proxy_url(), config=yt.config.config),
+            enable_write_access=True)
 
         filepath = TEST_DIR + "/file"
         content = "Hello, world!" * 100
@@ -165,7 +171,8 @@ class TestCypress(object):
 
     def test_write_file(self):
         cypress = Cypress(
-            CachedYtClient(proxy=get_proxy_url(), config=yt.config.config))
+            CachedYtClient(proxy=get_proxy_url(), config=yt.config.config),
+            enable_write_access=True)
 
         filepath = TEST_DIR + "/file"
         content = "Hello, world!" * 100
@@ -182,7 +189,8 @@ class TestCypress(object):
 
     def test_write_multipart_file(self):
         cypress = Cypress(
-            CachedYtClient(proxy = get_proxy_url(), config=yt.config.config))
+            CachedYtClient(proxy = get_proxy_url(), config=yt.config.config),
+            enable_write_access=True)
 
         filepath = TEST_DIR + "/file"
         content = "Hello, world!" * 100
@@ -211,7 +219,8 @@ class TestCypress(object):
 
     def test_create_directory(self):
         cypress = Cypress(
-            CachedYtClient(proxy=get_proxy_url(), config=yt.config.config))
+            CachedYtClient(proxy=get_proxy_url(), config=yt.config.config),
+            enable_write_access=True)
 
         dirpath = TEST_DIR + "/dir"
         fuse_dirpath = dirpath[1:]
@@ -227,7 +236,8 @@ class TestCypress(object):
 
     def test_remove_directory(self):
         cypress = Cypress(
-            CachedYtClient(proxy=get_proxy_url(), config=yt.config.config))
+            CachedYtClient(proxy=get_proxy_url(), config=yt.config.config),
+            enable_write_access=True)
 
         dirpath = TEST_DIR + "/dir"
         filepath = dirpath + "/file"
@@ -247,3 +257,32 @@ class TestCypress(object):
         cypress.rmdir(fuse_dirpath)
         assert "dir" not in yt.list(TEST_DIR)
         assert "dir" not in cypress.readdir(fuse_test_dir, None)
+
+    def test_write_access_guards(self):
+        cypress = Cypress(
+            CachedYtClient(proxy=get_proxy_url(), config=yt.config.config),
+            enable_write_access=False)
+
+        filepath = TEST_DIR + "/file"
+        dirpath = TEST_DIR + "/dir"
+        fuse_filepath = filepath[1:]
+        fuse_dirpath = dirpath[1:]
+
+        fi = fuse_file_info()
+        with pytest.raises(FuseOSError):
+            fh = cypress.create(fuse_filepath, 0755, fi)
+        assert "file" not in yt.list(TEST_DIR)
+
+        with pytest.raises(FuseOSError):
+            cypress.mkdir(fuse_dirpath, 0755)
+        assert "dir" not in yt.list(TEST_DIR)
+
+        yt.create("file", filepath)
+        with pytest.raises(FuseOSError):
+            cypress.unlink(fuse_filepath)
+        assert "file" in yt.list(TEST_DIR)
+
+        yt.create("map_node", dirpath)
+        with pytest.raises(FuseOSError):
+            cypress.rmdir(fuse_dirpath)
+        assert "dir" in yt.list(TEST_DIR)
