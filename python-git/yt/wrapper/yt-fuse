@@ -5,6 +5,7 @@ from yt.packages.fuse import FUSE
 
 from argparse import ArgumentParser
 
+import logging
 import sys
 
 def mount_cypress(proxy, mount_point, caching_period, enable_write_access):
@@ -36,7 +37,27 @@ if __name__ == "__main__":
         action="store_true",
         default=False,
         help="Enable write access to cypress.")
+    parser.add_argument(
+        "--enable-logging",
+        action="store_true",
+        default=False,
+        help="Enable logging.")
+    parser.add_argument(
+        "--log-file",
+        action="store",
+        type=str,
+        help="File for logging. If empty - write to stderr.")
 
     args = parser.parse_args()
+
+    if args.enable_logging:
+        if args.log_file:
+            handler = logging.FileHandler(args.log_file)
+        else:
+            handler = logging.StreamHandler()
+        handler.setFormatter(cypress_fuse.BASIC_FORMATTER)
+        logging.getLogger(cypress_fuse.LOGGER_NAME).handlers = [handler]
+    else:
+        logging.disable(logging.CRITICAL)
 
     mount_cypress(args.proxy, args.mount_point, args.caching_period, args.enable_write_access)

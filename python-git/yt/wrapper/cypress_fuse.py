@@ -28,12 +28,15 @@ import functools
 import collections
 import os
 
+LOGGER_NAME = "CypressFuse"
+LOGGER = logging.getLogger(LOGGER_NAME)
+BASIC_FORMATTER = logging.Formatter(
+    fmt="%(name)s\t%(asctime)s.%(msecs)03d\t%(message)s",
+    datefmt="%H:%M:%S")
 
-logging.basicConfig(
-    filename="yt-fuse.log",
-    format="%(name)s\t%(asctime)s.%(msecs)03d\t%(message)s",
-    datefmt="%H:%M:%S"
-)
+if not LOGGER.handlers:
+    LOGGER.addHandler(logging.StreamHandler())
+LOGGER.handlers[0].setFormatter(BASIC_FORMATTER)
 
 
 class Statistics(object):
@@ -122,7 +125,7 @@ def handle_yt_errors(logger):
 class CachedYtClient(yt.wrapper.client.Yt):
     """An YT client which caches nodes and their attributes for some time."""
 
-    _logger = logging.getLogger(__name__ + ".CachedYtClient")
+    _logger = logging.getLogger(LOGGER_NAME + ".CachedYtClient")
     _logger.setLevel(level=logging.DEBUG)
 
     _statistics = Statistics(_logger)
@@ -292,7 +295,7 @@ class CachedYtClient(yt.wrapper.client.Yt):
 class OpenedFile(object):
     """Stores information and cache for currently opened regular file."""
 
-    _logger = logging.getLogger(__name__ + ".OpenedFile")
+    _logger = logging.getLogger(LOGGER_NAME + ".OpenedFile")
     _logger.setLevel(level=logging.DEBUG)
 
     def __init__(self, client, ypath, attributes, minimum_read_size):
@@ -379,7 +382,7 @@ class OpenedFile(object):
 class OpenedTable(object):
     """Stores information and cache for currently opened table."""
 
-    _logger = logging.getLogger(__name__ + ".OpenedTable")
+    _logger = logging.getLogger(LOGGER_NAME + ".OpenedTable")
     _logger.setLevel(level=logging.DEBUG)
 
     def __init__(self, client, ypath, attributes, format, minimum_read_row_count):
@@ -453,7 +456,7 @@ class OpenedTable(object):
 class Cypress(fuse.Operations):
     """An implementation of FUSE operations on a Cypress tree."""
 
-    _logger = logging.getLogger(__name__ + ".Cypress")
+    _logger = logging.getLogger(LOGGER_NAME + ".Cypress")
     _logger.setLevel(level=logging.DEBUG)
 
     _statistics = Statistics(_logger)
