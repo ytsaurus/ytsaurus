@@ -1,0 +1,64 @@
+package NYT.NTableClient.NProto;
+
+import "yt/ytlib/chunk_client/chunk_meta.proto";
+import "yt/ytlib/chunk_client/schema.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TSamplePart
+{
+    required bytes column = 1;
+    required NChunkClient.NProto.TKeyPart key_part = 2;
+}
+
+message TSample
+{
+    repeated TSamplePart parts = 1;
+}
+
+message TOldSamplesExt
+{
+    repeated TSample items = 1;
+}
+
+message TIndexRow
+{
+    required NChunkClient.NProto.TKey key = 1;
+    required int64 row_index = 2;
+}
+
+// Chunk meta extension.
+message TIndexExt
+{
+    repeated TIndexRow items = 2;
+}
+
+// Chunk meta extension.
+message TOldBoundaryKeysExt
+{
+    required NChunkClient.NProto.TKey start = 1;
+    required NChunkClient.NProto.TKey end = 2;
+}
+
+message TBlockInfo
+{
+    required int32 block_index = 1;
+    required int32 row_count = 2;
+    required int32 uncompressed_size = 3;
+
+    optional int32 partition_tag = 4 [default = -1];
+}
+
+message TChunkChannel
+{
+    required NChunkClient.NProto.TChannel channel = 1;
+    repeated TBlockInfo blocks = 2;
+}
+
+// Chunk meta extension.
+message TChannelsExt
+{
+    repeated TChunkChannel items = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////

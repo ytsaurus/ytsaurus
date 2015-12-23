@@ -1,0 +1,927 @@
+#include "transaction_manager.h"
+#include "private.h"
+#include "config.h"
+#include "transaction.h"
+
+#include <yt/server/cell_master/automaton.h>
+#include <yt/server/cell_master/bootstrap.h>
+#include <yt/server/cell_master/hydra_facade.h>
+#include <yt/server/cell_master/serialize.h>
+
+#include <yt/server/cypress_server/cypress_manager.h>
+#include <yt/server/cypress_server/node.h>
+
+#include <yt/server/hive/transaction_supervisor.h>
+
+#include <yt/server/hydra/composite_automaton.h>
+#include <yt/server/hydra/mutation.h>
+
+#include <yt/server/object_server/attribute_set.h>
+#include <yt/server/object_server/object.h>
+#include <yt/server/object_server/type_handler_detail.h>
+
+#include <yt/server/security_server/account.h>
+#include <yt/server/security_server/security_manager.h>
+#include <yt/server/security_server/user.h>
+
+#include <yt/ytlib/object_client/object_service_proxy.h>
+
+#include <yt/ytlib/transaction_client/transaction_ypath_proxy.h>
+
+#include <yt/core/concurrency/thread_affinity.h>
+
+#include <yt/core/misc/common.h>
+#include <yt/core/misc/id_generator.h>
+#include <yt/core/misc/lease_manager.h>
+#include <yt/core/misc/string.h>
+
+#include <yt/core/ytree/attributes.h>
+#include <yt/core/ytree/ephemeral_node_factory.h>
+#include <yt/core/ytree/fluent.h>
+
+namespace NYT {
+namespace NTransactionServer {
+
+using namespace NCellMaster;
+using namespace NObjectClient;
+using namespace NObjectServer;
+using namespace NCypressServer;
+using namespace NHydra;
+using namespace NYTree;
+using namespace NYson;
+using namespace NCypressServer;
+using namespace NTransactionClient;
+using namespace NSecurityServer;
+using namespace NTransactionClient::NProto;
+
+////////////////////////////////////////////////////////////////////////////////
+
+static const auto& Logger = TransactionServerLogger;
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TTransactionManager::TTransactionProxy
+    : public TNonversionedObjectProxyBase<TTransaction>
+{
+public:
+    TTransactionProxy(NCellMaster::TBootstrap* bootstrap, TTransaction* transaction)
+        : TBase(bootstrap, transaction)
+    { }
+
+private:
+    typedef TNonversionedObjectProxyBase<TTransaction> TBase;
+
+    virtual void ListSystemAttributes(std::vector<TAttributeInfo>* attributes) override
+    {
+        const auto* transaction = GetThisTypedImpl();
+
+        attributes->push_back("state");
+        attributes->push_back(TAttributeInfo("timeout", transaction->GetTimeout().HasValue()));
+        attributes->push_back(TAttributeInfo("title", transaction->GetTitle().HasValue()));
+        attributes->push_back("uncommitted_accounting_enabled");
+        attributes->push_back("staged_accounting_enabled");
+        attributes->push_back("parent_id");
+        attributes->push_back("start_time");
+        attributes->push_back("nested_transaction_ids");
+        attributes->push_back("staged_object_ids");
+        attributes->push_back("staged_node_ids");
+        attributes->push_back("branched_node_ids");
+        attributes->push_back("locked_node_ids");
+        attributes->push_back("lock_ids");
+        attributes->push_back("resource_usage");
+        TBase::ListSystemAttributes(attributes);
+    }
+
+    virtual bool GetBuiltinAttribute(const Stroka& key, IYsonConsumer* consumer) override
+    {
+        const auto* transaction = GetThisTypedImpl();
+
+        if (key == "state") {
+            BuildYsonFluently(consumer)
+                .Value(transaction->GetState());
+            return true;
+        }
+
+        if (key == "timeout" && transaction->GetTimeout()) {
+            BuildYsonFluently(consumer)
+                .Value(*transaction->GetTimeout());
+            return true;
+        }
+
+        if (key == "title" && transaction->GetTitle()) {
+            BuildYsonFluently(consumer)
+                .Value(*transaction->GetTitle());
+            return true;
+        }
+
+        if (key == "uncommitted_accounting_enabled") {
+            BuildYsonFluently(consumer)
+                .Value(transaction->GetUncommittedAccountingEnabled());
+            return true;
+        }
+
+        if (key == "staged_accounting_enabled") {
+            BuildYsonFluently(consumer)
+                .Value(transaction->GetStagedAccountingEnabled());
+            return true;
+        }
+
+        if (key == "parent_id") {
+            BuildYsonFluently(consumer)
+                .Value(GetObjectId(transaction->GetParent()));
+            return true;
+        }
+
+        if (key == "start_time") {
+            BuildYsonFluently(consumer)
+                .Value(transaction->GetStartTime());
+            return true;
+        }
+
+        if (key == "nested_transaction_ids") {
+            BuildYsonFluently(consumer)
+                .DoListFor(transaction->NestedTransactions(), [=] (TFluentList fluent, TTransaction* nestedTransaction) {
+                    fluent.Item().Value(nestedTransaction->GetId());
+                });
+            return true;
+        }
+
+        if (key == "staged_object_ids") {
+            BuildYsonFluently(consumer)
+                .DoListFor(transaction->StagedObjects(), [=] (TFluentList fluent, const TObjectBase* object) {
+                    fluent.Item().Value(object->GetId());
+                });
+            return true;
+        }
+
+        if (key == "staged_node_ids") {
+            BuildYsonFluently(consumer)
+                .DoListFor(transaction->StagedNodes(), [=] (TFluentList fluent, const TCypressNodeBase* node) {
+                    fluent.Item().Value(node->GetId());
+                });
+            return true;
+        }
+
+        if (key == "branched_node_ids") {
+            BuildYsonFluently(consumer)
+                .DoListFor(transaction->BranchedNodes(), [=] (TFluentList fluent, const TCypressNodeBase* node) {
+                    fluent.Item().Value(node->GetId());
+            });
+            return true;
+        }
+
+        if (key == "locked_node_ids") {
+            BuildYsonFluently(consumer)
+                .DoListFor(transaction->LockedNodes(), [=] (TFluentList fluent, const TCypressNodeBase* node) {
+                    fluent.Item().Value(node->GetId());
+                });
+            return true;
+        }
+
+        if (key == "lock_ids") {
+            BuildYsonFluently(consumer)
+                .DoListFor(transaction->Locks(), [=] (TFluentList fluent, const TLock* lock) {
+                    fluent.Item().Value(lock->GetId());
+            });
+            return true;
+        }
+
+        if (key == "resource_usage") {
+            BuildYsonFluently(consumer)
+                .DoMapFor(transaction->AccountResourceUsage(), [=] (TFluentMap fluent, const TTransaction::TAccountResourcesMap::value_type& pair) {
+                    const auto* account = pair.first;
+                    const auto& usage = pair.second;
+                    fluent.Item(account->GetName()).Value(usage);
+                });
+            return true;
+        }
+
+        return TBase::GetBuiltinAttribute(key, consumer);
+    }
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TTransactionManager::TTransactionTypeHandler
+    : public TObjectTypeHandlerWithMapBase<TTransaction>
+{
+public:
+    explicit TTransactionTypeHandler(TImpl* owner);
+
+    virtual EObjectType GetType() const override
+    {
+        return EObjectType::Transaction;
+    }
+
+    virtual TNullable<TTypeCreationOptions> GetCreationOptions() const override
+    {
+        return TTypeCreationOptions(
+            EObjectTransactionMode::Optional,
+            EObjectAccountMode::Forbidden);
+    }
+
+    virtual TNonversionedObjectBase* CreateObject(
+        TTransaction* parent,
+        TAccount* /*account*/,
+        IAttributeDictionary* attributes,
+        TReqCreateObjects* request,
+        TRspCreateObjects* response) override;
+
+private:
+    TImpl* Owner_;
+
+
+    virtual Stroka DoGetName(TTransaction* transaction) override
+    {
+        return Format("transaction %v", transaction->GetId());
+    }
+
+    virtual IObjectProxyPtr DoGetProxy(TTransaction* transaction, TTransaction* /*dummyTransaction*/) override
+    {
+        return New<TTransactionProxy>(Bootstrap_, transaction);
+    }
+
+    virtual TAccessControlDescriptor* DoFindAcd(TTransaction* transaction) override
+    {
+        return &transaction->Acd();
+    }
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TTransactionManager::TImpl
+    : public TMasterAutomatonPart
+{
+public:
+    //! Raised when a new transaction is started.
+    DEFINE_SIGNAL(void(TTransaction*), TransactionStarted);
+
+    //! Raised when a transaction is committed.
+    DEFINE_SIGNAL(void(TTransaction*), TransactionCommitted);
+
+    //! Raised when a transaction is aborted.
+    DEFINE_SIGNAL(void(TTransaction*), TransactionAborted);
+
+    DEFINE_BYREF_RO_PROPERTY(yhash_set<TTransaction*>, TopmostTransactions);
+
+    DECLARE_ENTITY_MAP_ACCESSORS(Transaction, TTransaction, TTransactionId);
+
+public:
+    TImpl(
+        TTransactionManagerConfigPtr config,
+        TBootstrap* bootstrap)
+        : TMasterAutomatonPart(bootstrap)
+        , Config_(config)
+    {
+        VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(), AutomatonThread);
+
+        RegisterLoader(
+            "TransactionManager.Keys",
+            BIND(&TImpl::LoadKeys, Unretained(this)));
+        RegisterLoader(
+            "TransactionManager.Values",
+            BIND(&TImpl::LoadValues, Unretained(this)));
+
+        RegisterSaver(
+            ESyncSerializationPriority::Keys,
+            "TransactionManager.Keys",
+            BIND(&TImpl::SaveKeys, Unretained(this)));
+        RegisterSaver(
+            ESyncSerializationPriority::Values,
+            "TransactionManager.Values",
+            BIND(&TImpl::SaveValues, Unretained(this)));
+    }
+
+    void Initialize()
+    {
+        auto objectManager = Bootstrap_->GetObjectManager();
+        objectManager->RegisterHandler(New<TTransactionTypeHandler>(this));
+    }
+
+    TTransaction* StartTransaction(
+        TTransaction* parent,
+        TNullable<TDuration> timeout,
+        const TNullable<Stroka>& title)
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        if (parent && parent->GetPersistentState() != ETransactionState::Active) {
+            parent->ThrowInvalidState();
+        }
+
+        auto objectManager = Bootstrap_->GetObjectManager();
+        auto id = objectManager->GenerateId(EObjectType::Transaction);
+
+        auto transactionHolder = std::make_unique<TTransaction>(id);
+        auto* transaction = TransactionMap_.Insert(id, std::move(transactionHolder));
+
+        // Every active transaction has a fake reference to itself.
+        objectManager->RefObject(transaction);
+
+        if (parent) {
+            transaction->SetParent(parent);
+            YCHECK(parent->NestedTransactions().insert(transaction).second);
+            objectManager->RefObject(transaction);
+        } else {
+            YCHECK(TopmostTransactions_.insert(transaction).second);
+        }
+
+        transaction->SetState(ETransactionState::Active);
+
+        auto actualTimeout = timeout
+            ? MakeNullable(std::min(*timeout, Config_->MaxTransactionTimeout))
+            : Null;
+        transaction->SetTimeout(actualTimeout);
+
+        transaction->SetTitle(title);
+
+        const auto* mutationContext = GetCurrentMutationContext();
+        transaction->SetStartTime(mutationContext->GetTimestamp());
+
+        auto securityManager = Bootstrap_->GetSecurityManager();
+        transaction->Acd().SetOwner(securityManager->GetRootUser());
+
+        if (IsLeader()) {
+            CreateLease(transaction);
+        }
+
+        TransactionStarted_.Fire(transaction);
+
+        LOG_DEBUG_UNLESS(IsRecovery(), "Transaction started (TransactionId: %v, ParentId: %v, Timeout: %v, Title: %v)",
+            id,
+            GetObjectId(parent),
+            actualTimeout,
+            title);
+
+        return transaction;
+    }
+
+    void CommitTransaction(TTransaction* transaction)
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        auto state = transaction->GetPersistentState();
+        
+        if (state != ETransactionState::Active &&
+            state != ETransactionState::PersistentCommitPrepared)
+        {
+            transaction->ThrowInvalidState();
+        }
+
+        // NB: Save it for logging.
+        auto id = transaction->GetId();
+
+        auto nestedTransactions = transaction->NestedTransactions();
+        for (auto* nestedTransaction : nestedTransactions) {
+            LOG_WARNING_UNLESS(IsRecovery(), "Aborting nested transaction on parent commit (TransactionId: %v, ParentId: %v)",
+                nestedTransaction->GetId(),
+                transaction->GetId());
+            AbortTransaction(nestedTransaction, true);
+        }
+        YCHECK(transaction->NestedTransactions().empty());
+
+        if (IsLeader()) {
+            CloseLease(transaction);
+        }
+
+        transaction->SetState(ETransactionState::Committed);
+
+        TransactionCommitted_.Fire(transaction);
+
+        FinishTransaction(transaction);
+
+        LOG_DEBUG_UNLESS(IsRecovery(), "Transaction committed (TransactionId: %v)",
+            id);
+    }
+
+    void AbortTransaction(TTransaction* transaction, bool force)
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        auto state = transaction->GetPersistentState();
+        if (state == ETransactionState::PersistentCommitPrepared && !force) {
+            transaction->ThrowInvalidState();
+        }
+
+        auto securityManager = Bootstrap_->GetSecurityManager();
+        securityManager->ValidatePermission(transaction, EPermission::Write);
+
+        auto id = transaction->GetId();
+
+        auto nestedTransactions = transaction->NestedTransactions();
+        for (auto* nestedTransaction : nestedTransactions) {
+            AbortTransaction(nestedTransaction, force);
+        }
+        YCHECK(transaction->NestedTransactions().empty());
+
+        if (IsLeader()) {
+            CloseLease(transaction);
+        }
+
+        transaction->SetState(ETransactionState::Aborted);
+
+        TransactionAborted_.Fire(transaction);
+
+        FinishTransaction(transaction);
+
+        LOG_DEBUG_UNLESS(IsRecovery(), "Transaction aborted (TransactionId: %v, Force: %v)",
+            id,
+            force);
+    }
+
+    void PingTransaction(TTransaction* transaction, bool pingAncestors)
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        auto* currentTransaction = transaction;
+        while (currentTransaction) {
+            DoPingTransaction(currentTransaction);
+
+            if (!pingAncestors)
+                break;
+
+            currentTransaction = currentTransaction->GetParent();
+        }
+    }
+
+    TTransaction* GetTransactionOrThrow(const TTransactionId& id)
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        auto* transaction = FindTransaction(id);
+        if (!IsObjectAlive(transaction)) {
+            THROW_ERROR_EXCEPTION(
+                NYTree::EErrorCode::ResolveError,
+                "No such transaction %v",
+                id);
+        }
+        return transaction;
+    }
+
+    void StageObject(TTransaction* transaction, TObjectBase* object)
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        auto objectManager = Bootstrap_->GetObjectManager();
+        YCHECK(transaction->StagedObjects().insert(object).second);
+        objectManager->RefObject(object);
+    }
+
+    void UnstageObject(TObjectBase* object, bool recursive)
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        auto objectManager = Bootstrap_->GetObjectManager();
+        const auto& handler = objectManager->GetHandler(object);
+        auto* transaction = handler->GetStagingTransaction(object);
+
+        handler->UnstageObject(object, recursive);
+
+        if (transaction) {
+            YCHECK(transaction->StagedObjects().erase(object) == 1);
+            objectManager->UnrefObject(object);
+        }
+    }
+
+    void StageNode(TTransaction* transaction, TCypressNodeBase* node)
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        auto objectManager = Bootstrap_->GetObjectManager();
+        transaction->StagedNodes().push_back(node);
+        objectManager->RefObject(node);
+    }
+
+    void PrepareTransactionCommit(
+        const TTransactionId& transactionId,
+        bool persistent,
+        TTimestamp prepareTimestamp)
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        auto* transaction = GetTransactionOrThrow(transactionId);
+
+        // Allow preparing transactions in Active and TransientCommitPrepared (for persistent mode) states.
+        // This check applies not only to #transaction itself but also to all of its ancestors.
+        {
+            auto* currentTransaction = transaction;
+            while (currentTransaction) {
+                auto state = persistent ? currentTransaction->GetPersistentState() : currentTransaction->GetState();
+                if (state != ETransactionState::Active) {
+                    currentTransaction->ThrowInvalidState();
+                }
+                currentTransaction = currentTransaction->GetParent();
+            }
+        }
+
+        if (!transaction->NestedTransactions().empty()) {
+            THROW_ERROR_EXCEPTION("Cannot commit transaction %v since it has %v active nested transaction(s)",
+                transaction->GetId(),
+                transaction->NestedTransactions().size());
+        }
+
+        auto securityManager = Bootstrap_->GetSecurityManager();
+        securityManager->ValidatePermission(transaction, EPermission::Write);
+
+        auto oldState = persistent ? transaction->GetPersistentState() : transaction->GetState();
+
+        transaction->SetState(persistent
+            ? ETransactionState::PersistentCommitPrepared
+            : ETransactionState::TransientCommitPrepared);
+
+        if (oldState == ETransactionState::Active) {
+            LOG_DEBUG_UNLESS(IsRecovery(), "Transaction commit prepared (TransactionId: %v, Persistent: %v)",
+                transactionId,
+                persistent);
+        }
+    }
+
+    void PrepareTransactionAbort(const TTransactionId& transactionId, bool force)
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        auto* transaction = GetTransactionOrThrow(transactionId);
+        auto state = transaction->GetState();
+        if (state != ETransactionState::Active && !force) {
+            transaction->ThrowInvalidState();
+        }
+
+        if (state == ETransactionState::Active) {
+            transaction->SetState(ETransactionState::TransientAbortPrepared);
+
+            LOG_DEBUG("Transaction abort prepared (TransactionId: %v)",
+                transactionId);
+        }
+    }
+
+    void CommitTransaction(
+        const TTransactionId& transactionId,
+        TTimestamp /*commitTimestamp*/)
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        auto* transaction = GetTransactionOrThrow(transactionId);
+
+        CommitTransaction(transaction);
+    }
+
+    void AbortTransaction(
+        const TTransactionId& transactionId,
+        bool force)
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        auto* transaction = GetTransactionOrThrow(transactionId);
+
+        AbortTransaction(transaction, force);
+    }
+
+    void PingTransaction(
+        const TTransactionId& transactionId,
+        const NHive::NProto::TReqPingTransaction& request)
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        const auto& requestExt = request.GetExtension(TReqPingTransactionExt::ping_transaction_ext);
+        auto* transaction = GetTransactionOrThrow(transactionId);
+
+        PingTransaction(transaction, requestExt.ping_ancestors());
+    }
+
+private:
+    friend class TTransactionTypeHandler;
+
+    const TTransactionManagerConfigPtr Config_;
+
+    NHydra::TEntityMap<TTransactionId, TTransaction> TransactionMap_;
+    yhash_map<TTransactionId, TLease> LeaseMap_;
+
+    DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
+
+
+    void FinishTransaction(TTransaction* transaction)
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        auto objectManager = Bootstrap_->GetObjectManager();
+
+        for (auto* object : transaction->StagedObjects()) {
+            const auto& handler = objectManager->GetHandler(object);
+            handler->UnstageObject(object, false);
+            objectManager->UnrefObject(object);
+        }
+        transaction->StagedObjects().clear();
+
+        for (auto* node : transaction->StagedNodes()) {
+            objectManager->UnrefObject(node);
+        }
+        transaction->StagedNodes().clear();
+
+        auto* parent = transaction->GetParent();
+        if (parent) {
+            YCHECK(parent->NestedTransactions().erase(transaction) == 1);
+            objectManager->UnrefObject(transaction);
+            transaction->SetParent(nullptr);
+        } else {
+            YCHECK(TopmostTransactions_.erase(transaction) == 1);
+        }
+
+        // Kill the fake reference thus destroying the object.
+        objectManager->UnrefObject(transaction);
+    }
+
+    void DoPingTransaction(TTransaction* transaction)
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        auto persistentState = transaction->GetPersistentState();
+
+        if (persistentState == ETransactionState::PersistentCommitPrepared) {
+            // Just ignore; clients may ping transactions during commit.
+            return;
+        }
+
+        if (persistentState != ETransactionState::Active) {
+            transaction->ThrowInvalidState();
+        }
+
+        auto timeout = transaction->GetTimeout();
+        if (timeout) {
+            TLeaseManager::RenewLease(transaction->GetLease(), *timeout);
+        }
+
+        LOG_DEBUG("Transaction pinged (TransactionId: %v, Timeout: %v)",
+            transaction->GetId(),
+            timeout);
+    }
+
+
+    void SaveKeys(NCellMaster::TSaveContext& context)
+    {
+        TransactionMap_.SaveKeys(context);
+    }
+
+    void SaveValues(NCellMaster::TSaveContext& context)
+    {
+        TransactionMap_.SaveValues(context);
+    }
+
+    void LoadKeys(NCellMaster::TLoadContext& context)
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        TransactionMap_.LoadKeys(context);
+    }
+
+    void LoadValues(NCellMaster::TLoadContext& context)
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        TransactionMap_.LoadValues(context);
+    }
+
+
+    virtual void OnBeforeSnapshotLoaded() override
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        TMasterAutomatonPart::OnBeforeSnapshotLoaded();
+
+        DoClear();
+    }
+
+    void OnAfterSnapshotLoaded()
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        // Reconstruct TopmostTransactions.
+        TopmostTransactions_.clear();
+        for (const auto& pair : TransactionMap_) {
+            auto* transaction = pair.second;
+            if (IsObjectAlive(transaction) && !transaction->GetParent()) {
+                YCHECK(TopmostTransactions_.insert(transaction).second);
+            }
+        }
+    }
+
+    void DoClear()
+    {
+        TransactionMap_.Clear();
+        TopmostTransactions_.clear();
+    }
+
+    virtual void Clear() override
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        TMasterAutomatonPart::Clear();
+
+        DoClear();
+    }
+
+    virtual void OnLeaderActive() override
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        TMasterAutomatonPart::OnLeaderActive();
+
+        for (const auto& pair : TransactionMap_) {
+            auto* transaction = pair.second;
+            if (transaction->GetState() == ETransactionState::Active ||
+                transaction->GetState() == ETransactionState::PersistentCommitPrepared)
+            {
+                CreateLease(transaction);
+            }
+        }
+    }
+
+    virtual void OnStopLeading() override
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        TMasterAutomatonPart::OnStopLeading();
+
+        // Reset all transiently prepared transactions back into active state.
+        for (const auto& pair : TransactionMap_) {
+            auto* transaction = pair.second;
+            transaction->SetState(transaction->GetPersistentState());
+            CloseLease(transaction);
+        }
+    }
+
+
+    void CreateLease(TTransaction* transaction)
+    {
+        if (!transaction->GetTimeout())
+            return;
+
+        auto hydraFacade = Bootstrap_->GetHydraFacade();
+        auto lease = TLeaseManager::CreateLease(
+            *transaction->GetTimeout(),
+            BIND(&TImpl::OnTransactionExpired, MakeStrong(this), transaction->GetId())
+                .Via(hydraFacade->GetEpochAutomatonInvoker()));
+        transaction->SetLease(lease);
+    }
+
+    void CloseLease(TTransaction* transaction)
+    {
+        TLeaseManager::CloseLease(transaction->GetLease());
+        transaction->SetLease(NullLease);
+    }
+
+    void OnTransactionExpired(const TTransactionId& id)
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        auto* transaction = FindTransaction(id);
+        if (!IsObjectAlive(transaction))
+            return;
+        if (transaction->GetState() != ETransactionState::Active)
+            return;
+
+        LOG_DEBUG("Transaction lease expired (TransactionId: %v)", id);
+
+        auto transactionSupervisor = Bootstrap_->GetTransactionSupervisor();
+        transactionSupervisor->AbortTransaction(id).Subscribe(BIND([=] (const TError& error) {
+            if (!error.IsOK()) {
+                LOG_DEBUG(error, "Error aborting expired transaction (TransactionId: %v)",
+                    id);
+            }
+        }));
+    }
+
+};
+
+DEFINE_ENTITY_MAP_ACCESSORS(TTransactionManager::TImpl, Transaction, TTransaction, TTransactionId, TransactionMap_)
+
+////////////////////////////////////////////////////////////////////////////////
+
+TTransactionManager::TTransactionTypeHandler::TTransactionTypeHandler(TImpl* owner)
+    : TObjectTypeHandlerWithMapBase(owner->Bootstrap_, &owner->TransactionMap_)
+    , Owner_(owner)
+{ }
+
+TNonversionedObjectBase* TTransactionManager::TTransactionTypeHandler::CreateObject(
+    TTransaction* parent,
+    TAccount* /*account*/,
+    IAttributeDictionary* attributes,
+    TReqCreateObjects* request,
+    TRspCreateObjects* /*response*/)
+{
+    const auto& requestExt = request->GetExtension(TReqStartTransactionExt::create_transaction_ext);
+
+    auto timeout = TDuration::MilliSeconds(requestExt.timeout());
+
+    auto title = attributes->Find<Stroka>("title");
+    attributes->Remove("title");
+
+    auto* transaction = Owner_->StartTransaction(parent, timeout, title);
+
+    transaction->SetUncommittedAccountingEnabled(requestExt.enable_uncommitted_accounting());
+    transaction->SetStagedAccountingEnabled(requestExt.enable_staged_accounting());
+
+    return transaction;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TTransactionManager::TTransactionManager(
+    TTransactionManagerConfigPtr config,
+    TBootstrap* bootstrap)
+    : Impl_(New<TImpl>(config, bootstrap))
+{ }
+
+void TTransactionManager::Initialize()
+{
+    Impl_->Initialize();
+}
+
+TTransaction* TTransactionManager::StartTransaction(
+    TTransaction* parent,
+    TNullable<TDuration> timeout,
+    const TNullable<Stroka>& title)
+{
+    return Impl_->StartTransaction(parent, timeout, title);
+}
+
+void TTransactionManager::CommitTransaction(TTransaction* transaction)
+{
+    Impl_->CommitTransaction(transaction);
+}
+
+void TTransactionManager::AbortTransaction(TTransaction* transaction, bool force)
+{
+    Impl_->AbortTransaction(transaction, force);
+}
+
+void TTransactionManager::PingTransaction(TTransaction* transaction, bool pingAncestors)
+{
+    Impl_->PingTransaction(transaction, pingAncestors);
+}
+
+TTransaction* TTransactionManager::GetTransactionOrThrow(const TTransactionId& id)
+{
+    return Impl_->GetTransactionOrThrow(id);
+}
+
+void TTransactionManager::StageObject(TTransaction* transaction, TObjectBase* object)
+{
+    Impl_->StageObject(transaction, object);
+}
+
+void TTransactionManager::UnstageObject(TObjectBase* object, bool recursive)
+{
+    Impl_->UnstageObject(object, recursive);
+}
+
+void TTransactionManager::StageNode(TTransaction* transaction, TCypressNodeBase* node)
+{
+    Impl_->StageNode(transaction, node);
+}
+
+void TTransactionManager::PrepareTransactionCommit(
+    const TTransactionId& transactionId,
+    bool persistent,
+    TTimestamp prepareTimestamp)
+{
+    Impl_->PrepareTransactionCommit(transactionId, persistent, prepareTimestamp);
+}
+
+void TTransactionManager::PrepareTransactionAbort(const TTransactionId& transactionId, bool force)
+{
+    Impl_->PrepareTransactionAbort(transactionId, force);
+}
+
+void TTransactionManager::CommitTransaction(
+    const TTransactionId& transactionId,
+    TTimestamp commitTimestamp)
+{
+    Impl_->CommitTransaction(transactionId, commitTimestamp);
+}
+
+void TTransactionManager::AbortTransaction(
+    const TTransactionId& transactionId,
+    bool force)
+{
+    Impl_->AbortTransaction(transactionId, force);
+}
+
+void TTransactionManager::PingTransaction(
+    const TTransactionId& transactionId,
+    const NHive::NProto::TReqPingTransaction& request)
+{
+    Impl_->PingTransaction(transactionId, request);
+}
+
+DELEGATE_SIGNAL(TTransactionManager, void(TTransaction*), TransactionStarted, *Impl_);
+DELEGATE_SIGNAL(TTransactionManager, void(TTransaction*), TransactionCommitted, *Impl_);
+DELEGATE_SIGNAL(TTransactionManager, void(TTransaction*), TransactionAborted, *Impl_);
+DELEGATE_BYREF_RO_PROPERTY(TTransactionManager, yhash_set<TTransaction*>, TopmostTransactions, *Impl_);
+DELEGATE_ENTITY_MAP_ACCESSORS(TTransactionManager, Transaction, TTransaction, TTransactionId, *Impl_)
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NTransactionServer
+} // namespace NYT

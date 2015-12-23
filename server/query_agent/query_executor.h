@@ -1,0 +1,22 @@
+#pragma once
+
+#include "public.h"
+
+#include <yt/server/cell_node/public.h>
+
+#include <yt/ytlib/query_client/public.h>
+
+namespace NYT {
+namespace NQueryAgent {
+
+////////////////////////////////////////////////////////////////////////////////
+
+NQueryClient::IExecutorPtr CreateQueryExecutor(
+    TQueryAgentConfigPtr config,
+    NCellNode::TBootstrap* bootstrap);
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NQueryAgent
+} // namespace NYT
+

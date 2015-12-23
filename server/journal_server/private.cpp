@@ -1,0 +1,16 @@
+#include "private.h"
+
+#include <yt/core/misc/common.h>
+
+namespace NYT {
+namespace NJournalServer {
+
+////////////////////////////////////////////////////////////////////////////////
+
+const NLogging::TLogger JournalServerLogger("JournalServer");
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NJournalServer
+} // namespace NYT
+

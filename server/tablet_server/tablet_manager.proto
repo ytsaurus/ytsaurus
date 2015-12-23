@@ -1,0 +1,58 @@
+package NYT.NTabletServer.NProto;
+
+import "yt/core/misc/guid.proto";
+import "yt/ytlib/chunk_client/chunk_meta.proto";
+import "yt/ytlib/node_tracker_client/node.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqAssignPeers
+{
+    message TPeerInfo
+    {
+        required int32 peer_id = 1;
+        required NYT.NNodeTrackerClient.NProto.TNodeDescriptor node_descriptor = 2;
+    }
+
+    required NYT.NProto.TGuid cell_id = 1;
+    repeated TPeerInfo peer_infos = 2;
+}
+
+message TReqRevokePeers
+{
+    required NYT.NProto.TGuid cell_id = 1;
+    repeated int32 peer_ids = 2;
+}
+
+message TRspMountTablet
+{
+    required NYT.NProto.TGuid tablet_id = 1;
+}
+
+message TRspUnmountTablet
+{
+    required NYT.NProto.TGuid tablet_id = 1;
+}
+
+message TAddStoreDescriptor
+{
+    required NYT.NProto.TGuid store_id = 1;
+    optional NYT.NChunkClient.NProto.TChunkMeta chunk_meta = 2;
+    required NYT.NProto.TGuid backing_store_id = 3;
+}
+
+message TRemoveStoreDescriptor
+{
+    required NYT.NProto.TGuid store_id = 1;
+}
+
+message TReqUpdateTabletStores
+{
+    required NYT.NProto.TGuid tablet_id = 1;
+    required int64 mount_revision = 4;
+    repeated TAddStoreDescriptor stores_to_add = 2;
+    repeated TRemoveStoreDescriptor stores_to_remove = 3;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
