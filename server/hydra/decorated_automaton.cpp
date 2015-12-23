@@ -599,8 +599,7 @@ TDecoratedAutomaton::TDecoratedAutomaton(
     IInvokerPtr controlInvoker,
     ISnapshotStorePtr snapshotStore,
     const TDistributedHydraManagerOptions& options)
-    : State_(EPeerState::Stopped)
-    , Config_(config)
+    : Config_(config)
     , CellManager_(cellManager)
     , Automaton_(automaton)
     , AutomatonInvoker_(automatonInvoker)
@@ -966,6 +965,13 @@ void TDecoratedAutomaton::DoApplyMutation(TMutationContext* context)
     }
 
     AutomatonVersion_ = automatonVersion.Advance();
+}
+
+EPeerState TDecoratedAutomaton::GetState() const
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    return State_;
 }
 
 TVersion TDecoratedAutomaton::GetLoggedVersion() const
