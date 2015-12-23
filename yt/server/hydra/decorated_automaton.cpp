@@ -856,10 +856,12 @@ void TDecoratedAutomaton::DoRotateChangelog()
     WaitFor(Changelog_->Flush())
         .ThrowOnError();
 
-    TChangelogMeta meta;
-    meta.set_prev_record_count(Changelog_->GetRecordCount());
-
     auto loggedVersion = GetLoggedVersion();
+    YCHECK(loggedVersion.RecordId == Changelog_->GetRecordCount());
+
+    TChangelogMeta meta;
+    meta.set_prev_record_count(loggedVersion.RecordId);
+
     auto asyncNewChangelog = EpochContext_->ChangelogStore->CreateChangelog(
         loggedVersion.SegmentId + 1,
         meta);
