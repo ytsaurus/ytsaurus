@@ -3,6 +3,8 @@
 
 export YT_PROXY=locke.yt.yandex.net
 export YT_TOKEN=1da6afc98d189e8ba59d2ea39f29d0f1  # Teamcity user
+export PYTHONPATH="."
+YT="yt/wrapper/yt"
 
 YANDEX_YT_LOCAL_VERSION=$(dpkg-parsechangelog | grep Version | awk '{print $2}')
 YANDEX_YT_PYTHON_VERSION="0.6.67-0"
@@ -48,6 +50,6 @@ cp -r yandex-yt-web-interface/usr/share/yt-thor/* archive/yt-thor
 
 archive_name="yt_local"
 tar cvfz $ARCHIVE_NAME archive/
-cat $ARCHIVE_NAME | yt2 upload //home/files/${ARCHIVE_NAME} --proxy locke
+cat $ARCHIVE_NAME | $YT upload //home/files/${ARCHIVE_NAME} --proxy locke
 
 rm -rf "$TMP_DIR"
