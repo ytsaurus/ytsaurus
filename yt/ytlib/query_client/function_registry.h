@@ -30,6 +30,26 @@ DEFINE_REFCOUNTED_TYPE(IFunctionRegistry)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TFunctionRegistry
+    : public IFunctionRegistry
+{
+public:
+    IFunctionDescriptorPtr RegisterFunction(IFunctionDescriptorPtr descriptor);
+
+    virtual IFunctionDescriptorPtr FindFunction(const Stroka& functionName) override;
+
+    IAggregateFunctionDescriptorPtr RegisterAggregateFunction(IAggregateFunctionDescriptorPtr descriptor);
+
+    virtual IAggregateFunctionDescriptorPtr FindAggregateFunction(const Stroka& aggregateName) override;
+
+private:
+    std::unordered_map<Stroka, IFunctionDescriptorPtr> RegisteredFunctions_;
+    std::unordered_map<Stroka, IAggregateFunctionDescriptorPtr> RegisteredAggregateFunctions_;
+    TSpinLock Lock_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 IFunctionRegistryPtr CreateBuiltinFunctionRegistry();
 
 IFunctionRegistryPtr CreateClientFunctionRegistry(NApi::IClientPtr client);

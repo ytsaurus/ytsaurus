@@ -304,6 +304,7 @@ SRCS(
   ${YT_SRCS}
   ${CMAKE_CURRENT_LIST_DIR}/formats/json_parser_arc.cpp
   ${CMAKE_CURRENT_LIST_DIR}/formats/json_writer_arc.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/query_client/builtin_function_registry_arc.cpp
 )
 
 PEERDIR(
@@ -325,6 +326,7 @@ set(YT_SRCS
   ${YT_SRCS}
   ${CMAKE_CURRENT_LIST_DIR}/formats/json_parser.cpp
   ${CMAKE_CURRENT_LIST_DIR}/formats/json_writer.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/query_client/builtin_function_registry.cpp
 )
 
 resolve_srcs(YT_SRCS YT_SRCS_RESOLVED)
