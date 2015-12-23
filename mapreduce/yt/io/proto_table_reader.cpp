@@ -54,9 +54,17 @@ void ReadMessageFromNode(const TNode& node, Message* row)
                 checkType(TNode::INT64, actualType);
                 reflection->SetInt64(row, fieldDesc, it->second.AsInt64());
                 break;
+            case FieldDescriptor::TYPE_INT32:
+                checkType(TNode::INT64, actualType);
+                reflection->SetInt32(row, fieldDesc, it->second.AsInt64());
+                break;
             case FieldDescriptor::TYPE_UINT64:
                 checkType(TNode::UINT64, actualType);
                 reflection->SetUInt64(row, fieldDesc, it->second.AsUint64());
+                break;
+            case FieldDescriptor::TYPE_UINT32:
+                checkType(TNode::UINT64, actualType);
+                reflection->SetUInt32(row, fieldDesc, it->second.AsUint64());
                 break;
             case FieldDescriptor::TYPE_DOUBLE:
                 checkType(TNode::DOUBLE, actualType);
