@@ -1,7 +1,7 @@
 from yt_env_setup import YTEnvSetup, unix_only, skip_if_multicell
 from yt_commands import *
 
-from yt.yson import to_yson_type
+from yt.yson import to_yson_type, loads
 from yt.environment.helpers import assert_items_equal
 
 from time import sleep
@@ -342,6 +342,24 @@ class TestTables(YTEnvSetup):
         # now all records are in table in specific order
         commit_transaction(tx1)
         assert read_table("//tmp/table") == [{"a" : 1}, {"c": 3}, {"d" : 4}, {"b" : 2}]
+
+    def test_set_schema_in_tx(self):
+        create("table", "//tmp/table")
+
+        tx1 = start_transaction()
+        tx2 = start_transaction()
+
+        schema = loads('<strict=%false>[{name=a;type=string}]')
+
+        set("//tmp/table/@schema", schema, tx = tx1)
+
+        with pytest.raises(YtError): set("//tmp/table/@schema", schema, tx = tx2)
+        assert get("//tmp/table/@schema") == loads('<strict=%false>[]') 
+        assert get("//tmp/table/@schema", tx = tx1) == schema
+
+        commit_transaction(tx1)
+        abort_transaction(tx2)
+        assert get("//tmp/table/@schema") == schema
 
     def test_shared_locks_nested_tx(self):
         create("table", "//tmp/table")

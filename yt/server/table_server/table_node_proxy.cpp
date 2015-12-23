@@ -197,8 +197,6 @@ private:
 
     void SetSchema(const TTableSchema& newSchema) 
     {
-        ValidateNoTransaction();
-
         auto* table = LockThisTypedImpl();
 
         if (table->IsDynamic()) {
