@@ -262,7 +262,7 @@ TFuture<void> TCompositeAutomaton::SaveSnapshot(IAsyncOutputStreamPtr writer)
             std::sort(
                 syncSavers.begin(),
                 syncSavers.end(),
-                [ ](const TSyncSaverDescriptor& lhs, const TSyncSaverDescriptor& rhs) {
+                [] (const TSyncSaverDescriptor& lhs, const TSyncSaverDescriptor& rhs) {
                     return
                         lhs.Priority < rhs.Priority ||
                         lhs.Priority == rhs.Priority && lhs.Name < rhs.Name;
@@ -287,7 +287,7 @@ TFuture<void> TCompositeAutomaton::SaveSnapshot(IAsyncOutputStreamPtr writer)
     std::sort(
         asyncSavers.begin(),
         asyncSavers.end(),
-        [ ](const TAsyncSaverDescriptor& lhs, const TAsyncSaverDescriptor& rhs) {
+        [] (const TAsyncSaverDescriptor& lhs, const TAsyncSaverDescriptor& rhs) {
             return
                 lhs.Priority < rhs.Priority ||
                 lhs.Priority == rhs.Priority && lhs.Name < rhs.Name;
