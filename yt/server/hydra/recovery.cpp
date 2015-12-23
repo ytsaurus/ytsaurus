@@ -64,7 +64,7 @@ void TRecoveryBase::RecoverToVersion(TVersion targetVersion)
     YCHECK(currentVersion <= targetVersion);
 
     auto reachableVersion = EpochContext_->ReachableVersion;
-    YCHECK(reachableVersion.SegmentId <= targetVersion.SegmentId || reachableversion == targetVersion.Rotate());
+    YCHECK(reachableVersion.SegmentId <= targetVersion.SegmentId || reachableVersion == targetVersion.Rotate());
 
     int snapshotId = InvalidSegmentId;
     if (targetVersion.SegmentId > currentVersion.SegmentId) {
