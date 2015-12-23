@@ -1099,14 +1099,13 @@ private:
             SnapshotStore_,
             epochContext.Get());
 
-        epochContext->LeaseTracker->Start();
-
         SwitchTo(DecoratedAutomaton_->GetSystemInvoker());
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         AutomatonEpochContext_ = epochContext;
         DecoratedAutomaton_->OnStartLeading(epochContext);
         StartLeading_.Fire();
+        epochContext->LeaseTracker->Start();
 
         SwitchTo(epochContext->EpochControlInvoker);
         VERIFY_THREAD_AFFINITY(ControlThread);
