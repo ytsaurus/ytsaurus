@@ -308,8 +308,8 @@ private:
         const IJournalWriterPtr Writer_;
         const TRemoteChangelogStorePtr Owner_;
 
-        int RecordCount_;
-        i64 DataSize_;
+        std::atomic<int> RecordCount_;
+        std::atomic<i64> DataSize_;
         TFuture<void> FlushResult_ = VoidFuture;
 
 

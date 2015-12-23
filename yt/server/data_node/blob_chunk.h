@@ -8,6 +8,8 @@
 
 #include <yt/server/misc/memory_usage_tracker.h>
 
+#include <yt/ytlib/chunk_client/chunk_info.pb.h>
+
 #include <yt/core/concurrency/rw_spinlock.h>
 
 #include <yt/core/misc/async_cache.h>
@@ -26,7 +28,7 @@ public:
 
     virtual bool IsActive() const override;
 
-    virtual TFuture<TRefCountedChunkMetaPtr> ReadMeta(
+    virtual TFuture<NChunkClient::TRefCountedChunkMetaPtr> ReadMeta(
         const TWorkloadDescriptor& workloadDescriptor,
         const TNullable<std::vector<int>>& extensionTags = Null) override;
 

@@ -108,7 +108,7 @@ private:
     i64 DataSize_ = -1;
     i64 RowCount_ = -1;
 
-    NChunkClient::NProto::TChunkMeta ChunkMeta_;
+    NChunkClient::TRefCountedChunkMetaPtr ChunkMeta_;
 
     NConcurrency::TReaderWriterSpinLock SpinLock_;
 

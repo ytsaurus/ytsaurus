@@ -162,6 +162,12 @@ class TReadLimit;
 class TChannel;
 typedef std::vector<TChannel> TChannels;
 
+using TRefCountedChunkMeta = TRefCountedProto<NChunkClient::NProto::TChunkMeta>;
+DECLARE_REFCOUNTED_TYPE(TRefCountedChunkMeta)
+
+using TRefCountedChunkSpec = TRefCountedProto<NChunkClient::NProto::TChunkSpec>;
+DECLARE_REFCOUNTED_TYPE(TRefCountedChunkSpec)
+
 ///////////////////////////////////////////////////////////////////////////////
 
 } // namespace NChunkClient
