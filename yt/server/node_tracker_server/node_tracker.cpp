@@ -995,6 +995,7 @@ private:
     {
         auto* transaction = node->GetLeaseTransaction();
         YCHECK(transaction);
+        YCHECK(transaction->GetPersistentState() == ETransactionState::Active);
         YCHECK(TransactionToNodeMap_.insert(std::make_pair(transaction, node)).second);
     }
 
