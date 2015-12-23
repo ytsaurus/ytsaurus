@@ -23,12 +23,13 @@ download_and_extract() {
 }
 
 TMP_DIR="$(mktemp -d /tmp/$(basename $0).XXXXXX)"
+find $(pwd)/.. -name 'yandex-yt-local_*.deb' -exec cp -r {} $TMP_DIR \;
 cd "$TMP_DIR"
 
+dpkg -x yandex-yt-local_*.deb "yandex-yt-local"
 download_and_extract yandex-yt-python $YANDEX_YT_PYTHON_VERSION
 download_and_extract yandex-yt $YANDEX_YT_VERSION
 download_and_extract yandex-yt-http-proxy $YANDEX_YT_VERSION
-download_and_extract yandex-yt-local $YANDEX_YT_LOCAL_VERSION
 download_and_extract yandex-yt-python-yson $YANDEX_YT_YSON_BINDINGS_VERSION
 download_and_extract yandex-yt-web-interface
 
