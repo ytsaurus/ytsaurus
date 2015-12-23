@@ -671,9 +671,10 @@ private:
             RegisterLeaseTransaction(node);
         }
 
-        LOG_INFO_UNLESS(IsRecovery(), "Node registered (NodeId: %v, Address: %v, %v)",
+        LOG_INFO_UNLESS(IsRecovery(), "Node registered (NodeId: %v, Address: %v, LeaseTransactionId: %v, %v)",
             node->GetId(),
             address,
+            leaseTransactionId,
             statistics);
 
         NodeRegistered_.Fire(node);
