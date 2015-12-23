@@ -605,7 +605,7 @@ void ValidateColumnSchema(const TColumnSchema& columnSchema)
                 THROW_ERROR_EXCEPTION("Column lock should either be unset or be non-empty");
             }
             if (columnSchema.SortOrder) {
-                THROW_ERROR_EXCEPTION("Column lock cannbot be set on a key column");
+                THROW_ERROR_EXCEPTION("Column lock cannot be set on a key column");
             }
             if (columnSchema.Lock->size() > MaxColumnLockLength) {
                 THROW_ERROR_EXCEPTION("Column lock name is longer than maximum allowed: %v > %v",
