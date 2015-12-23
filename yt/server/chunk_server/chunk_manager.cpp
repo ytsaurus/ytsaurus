@@ -979,11 +979,9 @@ private:
         // Unregister chunk replicas from all known locations.
         auto unregisterReplica = [&] (TNodePtrWithIndex nodeWithIndex, bool cached) {
             auto* node = nodeWithIndex.GetPtr();
-            if (node->GetLocalState() != ENodeState::Online)
-                return;
             TChunkPtrWithIndex chunkWithIndex(chunk, nodeWithIndex.GetIndex());
             node->RemoveReplica(chunkWithIndex, cached);
-            if (ChunkReplicator_ && !cached) {
+            if (ChunkReplicator_ && !cached && node->GetLocalState() == ENodeState::Online) {
                 ChunkReplicator_->ScheduleReplicaRemoval(node, chunkWithIndex);
             }
         };
