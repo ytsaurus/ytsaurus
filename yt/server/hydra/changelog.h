@@ -13,17 +13,30 @@ namespace NHydra {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-///! Represents a changelog, that is an ordered sequence of records.
+//! Represents a changelog, that is an ordered sequence of records.
+/*!
+ *  Except when speficially noted otherwise, all methods are assumed to
+ *  to invoked from a single thread.
+ */
 struct IChangelog
     : public virtual TRefCounted
 {
     //! Returns the meta.
+    /*!
+     *  Thread affinity: any
+     */
     virtual const NProto::TChangelogMeta& GetMeta() const = 0;
 
     //! Returns the number of records in the changelog.
+    /*!
+     *  Thread affinity: any
+     */
     virtual int GetRecordCount() const = 0;
 
     //! Returns an approximate byte size in a changelog.
+    /*!
+     *  Thread affinity: any
+     */
     virtual i64 GetDataSize() const = 0;
 
     //! Asynchronously appends a record to the changelog.
