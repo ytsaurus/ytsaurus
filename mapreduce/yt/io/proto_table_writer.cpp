@@ -46,8 +46,14 @@ TNode MakeNodeFromMessage(const Message& row)
             case FieldDescriptor::TYPE_INT64:
                 builder.OnInt64Scalar(reflection->GetInt64(row, fieldDesc));
                 break;
+            case FieldDescriptor::TYPE_INT32:
+                builder.OnInt64Scalar(reflection->GetInt32(row, fieldDesc));
+                break;
             case FieldDescriptor::TYPE_UINT64:
                 builder.OnUint64Scalar(reflection->GetUInt64(row, fieldDesc));
+                break;
+            case FieldDescriptor::TYPE_UINT32:
+                builder.OnUint64Scalar(reflection->GetUInt32(row, fieldDesc));
                 break;
             case FieldDescriptor::TYPE_DOUBLE:
                 builder.OnDoubleScalar(reflection->GetDouble(row, fieldDesc));
@@ -59,7 +65,7 @@ TNode MakeNodeFromMessage(const Message& row)
                 builder.OnStringScalar(reflection->GetMessage(row, fieldDesc).SerializeAsString());
                 break;
             default:
-                ythrow yexception() << "Invalid field type";
+                ythrow yexception() << "Invalid field type for column: " << columnName;
                 break;
         }
     }
