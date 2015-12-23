@@ -63,6 +63,9 @@ void TRecoveryBase::RecoverToVersion(TVersion targetVersion)
     auto currentVersion = DecoratedAutomaton_->GetAutomatonVersion();
     YCHECK(currentVersion <= targetVersion);
 
+    auto reachableVersion = EpochContext_->ReachableVersion;
+    YCHECK(reachableVersion.SegmentId <= targetVersion.SegmentId || reachableVersion == targetVersion.Rotate());
+
     int snapshotId = InvalidSegmentId;
     if (targetVersion.SegmentId > currentVersion.SegmentId) {
         auto snapshotIdOrError = WaitFor(SnapshotStore_->GetLatestSnapshotId(targetVersion.SegmentId));
