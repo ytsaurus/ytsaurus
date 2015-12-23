@@ -111,12 +111,10 @@ public:
 
     DEFINE_BYVAL_RO_PROPERTY(TOwningKey, PivotKey);
     DEFINE_BYVAL_RO_PROPERTY(TOwningKey, NextPivotKey);
-    
+
     DEFINE_BYVAL_RW_PROPERTY(ETabletState, State);
 
     DEFINE_BYVAL_RO_PROPERTY(TCancelableContextPtr, CancelableContext);
-
-    DEFINE_BYVAL_RW_PROPERTY(TInstant, LastPartitioningTime);
 
     // NB: Avoid keeping IStorePtr to simplify store removal.
     DEFINE_BYREF_RW_PROPERTY(std::deque<TStoreId>, PreloadStoreIds);

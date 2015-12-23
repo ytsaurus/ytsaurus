@@ -2,13 +2,15 @@
 
 #include "public.h"
 
+#include <yt/server/cell_node/public.h>
+
+#include <yt/ytlib/chunk_client/public.h>
+
 #include <yt/core/actions/future.h>
 
 #include <yt/core/misc/nullable.h>
 #include <yt/core/misc/async_cache.h>
 #include <yt/core/misc/property.h>
-
-#include <yt/server/cell_node/public.h>
 
 namespace NYT {
 namespace NDataNode {
@@ -20,12 +22,12 @@ class TCachedChunkMeta
     : public TAsyncCacheValueBase<TChunkId, TCachedChunkMeta>
 {
 public:
-    DEFINE_BYVAL_RO_PROPERTY(TRefCountedChunkMetaPtr, Meta);
+    DEFINE_BYVAL_RO_PROPERTY(NChunkClient::TRefCountedChunkMetaPtr, Meta);
 
 public:
     TCachedChunkMeta(
         const TChunkId& chunkId,
-        TRefCountedChunkMetaPtr meta,
+        NChunkClient::TRefCountedChunkMetaPtr meta,
         NCellNode::TNodeMemoryTracker* memoryTracker);
 
     i64 GetSize() const;
@@ -63,7 +65,7 @@ public:
      */
     void PutCachedMeta(
         const TChunkId& chunkId,
-        TRefCountedChunkMetaPtr meta);
+        NChunkClient::TRefCountedChunkMetaPtr meta);
 
     //! Starts an asynchronous chunk meta load.
     /*!

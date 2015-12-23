@@ -291,6 +291,17 @@ IF(YMAKE)
 
 LIBRARY()
 
+OWNER(sandello)
+
+SET_APPEND(BASE_CXXFLAGS -std=c++1y)
+
+CXXFLAGS(
+  -Wno-sign-compare
+  -Wno-unused-parameter
+  -Wno-unused-value
+  -Wno-c++14-extensions
+)
+
 ADDINCL(
   contrib/libs/llvm37/include
   contrib/libs/sparsehash/src
@@ -301,15 +312,6 @@ SRCS(
   ${YT_SRCS}
   ${CMAKE_CURRENT_LIST_DIR}/formats/json_parser_arc.cpp
   ${CMAKE_CURRENT_LIST_DIR}/formats/json_writer_arc.cpp
-)
-
-SET_APPEND(BASE_CXXFLAGS -std=c++1y)
-
-CXXFLAGS(
-  -Wno-sign-compare
-  -Wno-unused-parameter
-  -Wno-unused-value
-  -Wno-c++14-extensions
 )
 
 PEERDIR(

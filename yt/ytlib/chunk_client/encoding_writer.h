@@ -67,8 +67,6 @@ private:
     TPromise<void> CompletionError_ = NewPromise<void>();
     TCallback<void(const TErrorOr<TSharedRef>&)> WritePendingBlockCallback_;
 
-    bool CloseRequested_ = false;
-
     void WritePendingBlock(const TErrorOr<TSharedRef>& blockOrError);
 
     void EnsureOpen();
