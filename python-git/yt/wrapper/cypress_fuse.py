@@ -437,6 +437,16 @@ class OpenedTable(object):
         slices_offset = offset - self._lower_offset
         return "".join(self._buffer)[slices_offset:(slices_offset + length)]
 
+    def truncate(self, length):
+        self._logger.debug("truncate is not implemented")
+
+    def write(self, data, offset):
+        self._logger.debug("write is not implemented")
+        return 0
+
+    def flush(self):
+        self._logger.debug("flush is not implemented")
+
     def close(self):
         self._tx.abort()
 
