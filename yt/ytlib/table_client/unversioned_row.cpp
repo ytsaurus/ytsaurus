@@ -1,4 +1,5 @@
 #include "unversioned_row.h"
+#include "unversioned_value.h"
 
 #include <yt/ytlib/table_client/name_table.h>
 #include <yt/ytlib/table_client/row_buffer.h>
@@ -14,6 +15,7 @@
 
 #include <yt/core/ytree/attribute_helpers.h>
 #include <yt/core/ytree/node.h>
+#include <yt/core/ytree/convert.h>
 
 #include <util/generic/ymath.h>
 
