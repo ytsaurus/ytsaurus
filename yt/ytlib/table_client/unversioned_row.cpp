@@ -321,7 +321,9 @@ int CompareRowValues(const TUnversionedValue& lhs, const TUnversionedValue& rhs)
                 EErrorCode::IncomparableType,
                 "Cannot compare values of types %Qlv and %Qlv; only scalar types are allowed for key columns",
                 lhs.Type,
-                rhs.Type);
+                rhs.Type)
+                << TErrorAttribute("lhs_value", lhs)
+                << TErrorAttribute("rhs_value", rhs);
         }
     }
 
