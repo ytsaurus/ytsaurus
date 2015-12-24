@@ -81,8 +81,11 @@ do_push() {
 
     set +x
     message="Push yt/ to Arcadia"$'\n'
-    # TODO(sandello): Use force only on-demand.
-    message="$message"$'\n'"__FORCE_COMMIT__"$'\n'
+    if [[ "$force" == "y" ]]; then
+        message="$message"$'\n'"__FORCE_COMMIT__"$'\n'
+    else
+        message="$message"$'\n'"__BYPASS_CHECKS__"$'\n'
+    fi
     message="$message"$'\n'"yt:local_tree:$local_tree"
     message="$message"$'\n'"yt:remote_tree:$remote_tree"
     message="$message"$'\n'"yt:git_commit:$git_commit"
