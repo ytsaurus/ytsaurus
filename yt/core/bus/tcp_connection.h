@@ -50,7 +50,8 @@ public:
         const Stroka& address,
         bool isUnixDomain,
         int priority,
-        IMessageHandlerPtr handler);
+        IMessageHandlerPtr handler,
+        std::atomic<int>* connectionCount);
 
     ~TTcpConnection();
 
@@ -138,6 +139,7 @@ private:
     const int Priority_;
 #endif
     const IMessageHandlerPtr Handler_;
+    std::atomic<int>* const ConnectionCount_;
 
     int FD_ = INVALID_SOCKET;
 

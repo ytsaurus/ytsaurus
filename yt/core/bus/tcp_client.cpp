@@ -84,7 +84,8 @@ public:
             Config_->UnixDomainName.HasValue() ? Config_->UnixDomainName.Get() : Config_->Address.Get(),
             Config_->UnixDomainName.HasValue(),
             Config_->Priority,
-            Handler_);
+            Handler_,
+            nullptr);
         DispatcherThread_->AsyncRegister(Connection_);
     }
 
