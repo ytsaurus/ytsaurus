@@ -1392,15 +1392,16 @@ class Application(object):
         fields = request.args.getlist("fields[]")
         if not fields:
             fields = None
-        if user is not None:
-            tasks = dict([(id, task) for id, task in tasks.iteritems() if task.user == user])
 
         tasks_queue_indexes = {}
-        queue_sizes = defaultdict(lambda: 0)
+        queue_sizes = defaultdict(int)
         for id in pending_tasks:
             queue_id = tasks[id].get_queue_id()
             queue_sizes[queue_id] += 1
             tasks_queue_indexes[id] = queue_sizes[queue_id]
+
+        if user is not None:
+            tasks = dict([(id, task) for id, task in tasks.iteritems() if task.user == user])
 
         tasks_descriptions = []
         for id, task in tasks.iteritems():
