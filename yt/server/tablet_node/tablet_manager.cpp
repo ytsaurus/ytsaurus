@@ -325,7 +325,6 @@ private:
 
         return BIND(
             [
-                =,
                 capturedTablets = std::move(capturedTablets)
             ] (TSaveContext& context) {
                 using NYT::Save;
