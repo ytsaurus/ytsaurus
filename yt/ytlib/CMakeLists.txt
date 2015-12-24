@@ -248,7 +248,6 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/table_client/table_ypath.proto
   ${CMAKE_CURRENT_LIST_DIR}/table_client/unordered_schemaful_reader.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_client/unversioned_row.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/table_client/unversioned_value.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_client/value_consumer.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_client/versioned_block_reader.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_client/versioned_block_writer.cpp

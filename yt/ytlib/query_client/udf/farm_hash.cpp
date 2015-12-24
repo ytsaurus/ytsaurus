@@ -1,4 +1,4 @@
-#include <yt/ytlib/table_client/unversioned_value.h>
+#include <yt/ytlib/table_client/unversioned_row.h>
 
 #include <yt_udf_cpp.h>
 
