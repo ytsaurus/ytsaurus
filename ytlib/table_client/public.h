@@ -61,7 +61,7 @@ DEFINE_ENUM(EErrorCode,
     ((MasterCommunicationFailed)  (300))
     ((SortOrderViolation)         (301))
     ((InvalidDoubleValue)         (302))
-    ((IncomparableType)          (303))
+    ((IncomparableType)           (303))
     ((UnhashableType)             (304))
 );
 
