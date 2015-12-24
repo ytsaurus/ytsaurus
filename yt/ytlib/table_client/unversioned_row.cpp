@@ -277,7 +277,7 @@ int CompareRowValues(const TUnversionedValue& lhs, const TUnversionedValue& rhs)
             // Never compare composite values with non-sentinels.
             THROW_ERROR_EXCEPTION(
                 EErrorCode::IncomparableType,
-                "Only scalar types are allowed for the key columns. Invalid composite value: %v",
+                "Cannot compare composite values; only scalar types are allowed for the key columns. Invalid composite value: %v",
                 lhs.Type == EValueType::Any ? lhs : rhs);
         }
     }
