@@ -46,7 +46,7 @@ public:
         , LeaderChannel_(Connection_->GetMasterChannel(EMasterChannelKind::Leader))
     {
         Logger.AddTag("Admin: %p", this);
-        Options_; // Mark variable as used.
+        UNUSED(Options_);
     }
 
 #define DROP_BRACES(...) __VA_ARGS__
