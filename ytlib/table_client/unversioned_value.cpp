@@ -1,5 +1,6 @@
 #include "unversioned_value.h"
 
+#include <yt/core/misc/error.h>
 #include <yt/core/misc/farm_hash.h>
 
 namespace NYT {
@@ -34,7 +35,9 @@ TFingerprint GetFarmFingerprint(const TUnversionedValue& value)
 
         default:
             // No idea how to hash other types.
-            YUNREACHABLE();
+            THROW_ERROR_EXCEPTION(EErrorCode::UnhashableType,
+                "Cannot hash composite values; only scalar types are allowed for the key columns. Invalid composite value: %v",
+                value);
     }
 }
 
