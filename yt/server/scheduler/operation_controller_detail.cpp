@@ -353,11 +353,6 @@ TJobId TOperationControllerBase::TTask::ScheduleJob(
     const TNodeResources& jobLimits)
 {
     int chunkListCount = GetChunkListCountPerJob();
-    if (!Controller->HasEnoughChunkLists(chunkListCount)) {
-        LOG_DEBUG("Job chunk list demand is not met");
-        return NullJobId;
-    }
-
     int jobIndex = Controller->JobIndexGenerator.Next();
     auto joblet = New<TJoblet>(this, jobIndex);
 
@@ -1940,6 +1935,12 @@ TJobId TOperationControllerBase::DoScheduleLocalJob(
                 FormatResources(jobLimits),
                 bestTask->GetPendingDataSize(),
                 bestTask->GetPendingJobCount());
+
+            if (!HasEnoughChunkLists(bestTask->GetChunkListCountPerJob())) {
+                LOG_DEBUG("Job chunk list demand is not met");
+                return NullJobId;
+            }
+
             auto jobId = bestTask->ScheduleJob(context, jobLimits);
             if (jobId) {
                 UpdateTask(bestTask);
@@ -2041,6 +2042,11 @@ TJobId TOperationControllerBase::DoScheduleNonLocalJob(
                     FormatResources(jobLimits),
                     task->GetPendingDataSize(),
                     task->GetPendingJobCount());
+
+                if (!HasEnoughChunkLists(task->GetChunkListCountPerJob())) {
+                    LOG_DEBUG("Job chunk list demand is not met");
+                    return NullJobId;
+                }
 
                 auto jobId = task->ScheduleJob(context, jobLimits);
                 if (jobId) {
