@@ -16,14 +16,14 @@ udf_bc(
     cardinality_merge
     cardinality_finalize
   FILES
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/table_client/unversioned_value.cpp
+    ${CMAKE_SOURCE_DIR}/yt/ytlib/table_client/unversioned_row.cpp
     ${CMAKE_SOURCE_DIR}/yt/contrib/farmhash/farmhash.cc
 )
 udf_bc(
   ${BASE}/udf/farm_hash.cpp
   YT_SOURCE_FILES
   FILES
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/table_client/unversioned_value.cpp
+    ${CMAKE_SOURCE_DIR}/yt/ytlib/table_client/unversioned_row.cpp
     ${CMAKE_SOURCE_DIR}/yt/contrib/farmhash/farmhash.cc
 )
 udf_bc(

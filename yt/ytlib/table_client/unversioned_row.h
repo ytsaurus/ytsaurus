@@ -3,7 +3,6 @@
 #include "public.h"
 #include "row_base.h"
 #include "schema.h"
-#include "unversioned_value.h"
 
 #include <yt/ytlib/chunk_client/schema.pb.h>
 
@@ -19,6 +18,47 @@
 
 namespace NYT {
 namespace NTableClient {
+
+////////////////////////////////////////////////////////////////////////////////
+
+// NB: Wire protocol readers/writer rely on this fixed layout.
+union TUnversionedValueData
+{
+    //! |Int64| value.
+    i64 Int64;
+    //! |Uint64| value.
+    ui64 Uint64;
+    //! |Double| value.
+    double Double;
+    //! |Boolean| value.
+    bool Boolean;
+    //! String value for |String| type or YSON-encoded value for |Any| type.
+    const char* String;
+};
+
+static_assert(
+    sizeof(TUnversionedValueData) == 8,
+    "TUnversionedValueData has to be exactly 8 bytes.");
+
+// NB: Wire protocol readers/writer rely on this fixed layout.
+struct TUnversionedValue
+{
+    //! Column id obtained from a name table.
+    ui16 Id;
+    //! Column type.
+    EValueType Type;
+    //! Length of a variable-sized value (only meaningful for |String| and |Any| types).
+    ui32 Length;
+
+    TUnversionedValueData Data;
+};
+
+static_assert(
+    sizeof(TUnversionedValue) == 16,
+    "TUnversionedValue has to be exactly 16 bytes.");
+static_assert(
+    std::is_pod<TUnversionedValue>::value,
+    "TUnversionedValue must be a POD type.");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -184,12 +224,17 @@ int GetDataWeight(const TUnversionedValue& value);
 int WriteValue(char* output, const TUnversionedValue& value);
 int ReadValue(const char* input, TUnversionedValue* value);
 
-////////////////////////////////////////////////////////////////////////////////
+//! Computes hash for a given TUnversionedValue.
+ui64 GetHash(const TUnversionedValue& value);
+
+//! Computes FarmHash forever-fixed fingerprint for a given TUnversionedValue.
+TFingerprint GetFarmFingerprint(const TUnversionedValue& value);
+
+//! Computes FarmHash forever-fixed fingerprint for a given set of values.
+TFingerprint GetFarmFingerprint(const TUnversionedValue* begin, const TUnversionedValue* end);
 
 void Save(TStreamSaveContext& context, const TUnversionedValue& value);
 void Load(TStreamLoadContext& context, TUnversionedValue& value, TChunkedMemoryPool* pool);
-
-////////////////////////////////////////////////////////////////////////////////
 
 Stroka ToString(const TUnversionedValue& value);
 
@@ -203,6 +248,8 @@ bool operator <= (const TUnversionedValue& lhs, const TUnversionedValue& rhs);
 bool operator <  (const TUnversionedValue& lhs, const TUnversionedValue& rhs);
 bool operator >= (const TUnversionedValue& lhs, const TUnversionedValue& rhs);
 bool operator >  (const TUnversionedValue& lhs, const TUnversionedValue& rhs);
+
+////////////////////////////////////////////////////////////////////////////////
 
 //! Ternary comparison predicate for ranges of TUnversionedValue-s.
 int CompareRows(
@@ -493,7 +540,8 @@ void FromProto(TUnversionedOwningRow* row, const TProtoStringType& protoRow);
 void FromProto(TUnversionedOwningRow* row, const NChunkClient::NProto::TKey& protoKey);
 void FromProto(TUnversionedRow* row, const TProtoStringType& protoRow, const TRowBufferPtr& rowBuffer);
 
-void Serialize(const TKey& key, NYson::IYsonConsumer* consumer);
+void Serialize(const TUnversionedValue& value, NYson::IYsonConsumer* consumer);
+void Serialize(TKey key, NYson::IYsonConsumer* consumer);
 void Serialize(const TOwningKey& key, NYson::IYsonConsumer* consumer);
 
 void Deserialize(TOwningKey& key, NYTree::INodePtr node);
