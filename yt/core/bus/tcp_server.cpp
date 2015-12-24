@@ -97,6 +97,8 @@ protected:
 
     std::unique_ptr<ev::io> AcceptWatcher_;
 
+    std::atomic<int> ConnectionCount_ = {0};
+
     int ServerSocket_ = INVALID_SOCKET;
     int ServerFD_ = INVALID_SOCKET;
 
@@ -220,7 +222,13 @@ protected:
                 }
             }
 
-            LOG_DEBUG("Connection accepted");
+            if (ConnectionCount_ >= Config_->MaxNumberOfConnections) {
+                LOG_DEBUG("Connection dropped");
+                close(clientSocket);
+                continue;
+            } else {
+                LOG_DEBUG("Connection accepted");
+            }
 
             InitClientSocket(clientSocket);
             InitSocket(clientSocket);
@@ -237,7 +245,8 @@ protected:
                 ToString(clientAddress, false),
                 false,
                 0,
-                Handler_);
+                Handler_,
+                &ConnectionCount_);
 
             connection->SubscribeTerminated(BIND(
                 &TTcpBusServerBase::OnConnectionTerminated,
