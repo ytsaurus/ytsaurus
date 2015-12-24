@@ -494,17 +494,18 @@ class Cypress(fuse.Operations):
             return u"/"
         return u"/" + path
 
+    def _validate_write_access(self):
+        if not self._enable_write_access:
+            raise fuse.FuseOSError(errno.EROFS)
+
     @staticmethod
     def _to_timestamp(timestring):
         """Convert a time string in YT format to UNIX timestamp."""
         parsed_time = time.strptime(timestring, "%Y-%m-%dT%H:%M:%S.%fZ")
         return time.mktime(parsed_time)
 
-    def _validate_write_access(self):
-        if not self._enable_write_access:
-            raise fuse.FuseOSError(errno.EROFS)
-
-    def _get_st_mode(self, attributes):
+    @staticmethod
+    def _get_st_mode(attributes):
         """Get st_mode for a node based on its attributes."""
         node_type = attributes["type"]
         if node_type == "file":
@@ -518,11 +519,18 @@ class Cypress(fuse.Operations):
             mask = stat.S_IFBLK
         return mask | stat.S_IRUSR
 
-    def _get_st_size(self, attributes):
+    @staticmethod
+    def _get_st_size(attributes):
         """Get st_size for a node based on its attributes."""
         node_type = attributes["type"]
         if node_type == "file":
             return attributes["uncompressed_data_size"]
+        return 0
+
+    @staticmethod
+    def _get_time(name, attributes):
+        if name in attributes:
+            return Cypress._to_timestamp(attributes[name])
         return 0
 
     def _get_stat(self, attributes):
@@ -530,14 +538,14 @@ class Cypress(fuse.Operations):
         return {
             "st_dev": 0,
             "st_ino": 0,
-            "st_mode": self._get_st_mode(attributes),
+            "st_mode": Cypress._get_st_mode(attributes),
             "st_nlink": 1,
             "st_uid": 0,
             "st_gid": 0,
-            "st_atime": self._to_timestamp(attributes["access_time"]),
-            "st_mtime": self._to_timestamp(attributes["modification_time"]),
-            "st_ctime": self._to_timestamp(attributes["creation_time"]),
-            "st_size": self._get_st_size(attributes)
+            "st_atime": Cypress._get_time("access_time", attributes),
+            "st_mtime": Cypress._get_time("modification_time", attributes),
+            "st_ctime": Cypress._get_time("creation_time", attributes),
+            "st_size": Cypress._get_st_size(attributes)
         }
 
     def _get_xattr(self, attribute):
