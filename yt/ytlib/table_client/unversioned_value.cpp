@@ -35,12 +35,13 @@ TFingerprint GetFarmFingerprint(const TUnversionedValue& value)
             return FarmFingerprint(0);
 
         default:
-            // No idea how to hash other types.
-            THROW_ERROR_EXCEPTION(
-            EErrorCode::UnhashableType,
-                "Cannot hash values of type %Qlv; only scalar types are allowed for key columns",
-                type)
-                << TErrorAttribute("value", value);
+            // XXX(babenko)
+            YUNREACHABLE();
+            //THROW_ERROR_EXCEPTION(
+            //    EErrorCode::UnhashableType,
+            //    "Cannot hash values of type %Qlv; only scalar types are allowed for key columns",
+            //    type)
+            //    << TErrorAttribute("value", value);
     }
 }
 

@@ -1,3 +1,5 @@
+#pragma once
+
 #include "row_base.h"
 
 #include <yt/core/misc/farm_hash.h>
