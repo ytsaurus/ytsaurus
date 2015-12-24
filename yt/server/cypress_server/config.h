@@ -41,7 +41,7 @@ public:
             .GreaterThan(256)
             .Default(65536);
         RegisterParameter("max_attribute_size", MaxAttributeSize)
-            .GreaterThan(64 * 1024)
+            .GreaterThan(256)
             .Default(16 * 1024 * 1024);
     }
 };
