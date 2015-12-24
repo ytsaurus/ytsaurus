@@ -169,7 +169,7 @@ TTcpDispatcherStatistics& TTcpConnection::Statistics()
 void TTcpConnection::UpdateConnectionCount(int delta)
 {
     if (ConnectionCount_) {
-        ++(*ConnectionCount_);
+        *ConnectionCount_ += delta;
     }
 
     switch (ConnectionType_) {
