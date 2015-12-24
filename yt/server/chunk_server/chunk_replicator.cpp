@@ -1430,22 +1430,18 @@ void TChunkReplicator::OnPropertiesUpdate()
             PropertiesUpdateList_.pop_front();
             ++totalCount;
 
-            if (!IsObjectAlive(chunk)) {
-                continue;
+            if (IsObjectAlive(chunk)) {
+                ++aliveCount;
+                chunk->SetPropertiesUpdateScheduled(false);
+                auto newProperties = ComputeChunkProperties(chunk);
+                auto oldProperties = chunk->GetLocalProperties();
+                if (newProperties != oldProperties) {
+                    auto* update = request.add_updates();
+                    ToProto(update->mutable_chunk_id(), chunk->GetId());
+                    update->set_replication_factor(newProperties.ReplicationFactor);
+                    update->set_vital(newProperties.Vital);
+                }
             }
-
-            ++aliveCount;
-            chunk->SetPropertiesUpdateScheduled(false);
-            auto newProperties = ComputeChunkProperties(chunk);
-            auto oldProperties = chunk->GetLocalProperties();
-            if (newProperties == oldProperties) {
-                continue;
-            }
-
-            auto* update = request.add_updates();
-            ToProto(update->mutable_chunk_id(), chunk->GetId());
-            update->set_replication_factor(newProperties.ReplicationFactor);
-            update->set_vital(newProperties.Vital);
 
             objectManager->WeakUnrefObject(chunk);
         }
