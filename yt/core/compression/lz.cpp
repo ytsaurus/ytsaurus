@@ -196,7 +196,7 @@ void QuickLzDecompress(StreamSource* source, TBlob* output)
         auto input = TBlob(TLzCompressedTag(), header.OutputSize, false);
         Read(source, input.Begin(), input.Size());
 
-        YCHECK(qlz_decompress(input.Begin(), output->Begin() + outputPos, &state) >= 0);
+        qlz_decompress(input.Begin(), output->Begin() + outputPos, &state);
     }
 }
 
