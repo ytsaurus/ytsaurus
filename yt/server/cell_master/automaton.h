@@ -49,12 +49,14 @@ class TMasterAutomaton
 public:
     explicit TMasterAutomaton(TBootstrap* boostrap);
 
-    virtual TSaveContext& SaveContext() override;
-    virtual TLoadContext& LoadContext() override;
-
 private:
-    const std::unique_ptr<TSaveContext> SaveContext_;
-    const std::unique_ptr<TLoadContext> LoadContext_;
+    TBootstrap* const Bootstrap_;
+
+
+    virtual std::unique_ptr<NHydra::TSaveContext> CreateSaveContext(
+        ICheckpointableOutputStream* output) override;
+    virtual std::unique_ptr<NHydra::TLoadContext> CreateLoadContext(
+        ICheckpointableInputStream* input) override;
 
 };
 
@@ -68,19 +70,11 @@ class TMasterAutomatonPart
 protected:
     TBootstrap* const Bootstrap_;
 
+
     explicit TMasterAutomatonPart(TBootstrap* bootstrap);
 
     virtual bool ValidateSnapshotVersion(int version) override;
     virtual int GetCurrentSnapshotVersion() override;
-
-    void RegisterSaver(
-        NHydra::ESyncSerializationPriority priority,
-        const Stroka& name,
-        TCallback<void(TSaveContext&)> saver);
-
-    void RegisterLoader(
-        const Stroka& name,
-        TCallback<void(TLoadContext&)> loader);
 
 };
 
