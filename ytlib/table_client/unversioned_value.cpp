@@ -17,7 +17,8 @@ ui64 GetHash(const TUnversionedValue& value)
 // Forever-fixed Google FarmHash fingerprint.
 TFingerprint GetFarmFingerprint(const TUnversionedValue& value)
 {
-    switch (value.Type) {
+    auto type = value.Type;
+    switch (type) {
         case EValueType::String:
             return FarmFingerprint(value.Data.String, value.Length);
 
@@ -34,10 +35,13 @@ TFingerprint GetFarmFingerprint(const TUnversionedValue& value)
             return FarmFingerprint(0);
 
         default:
-            // No idea how to hash other types.
-            THROW_ERROR_EXCEPTION(EErrorCode::UnhashableType,
-                "Cannot hash composite values; only scalar types are allowed for the key columns. Invalid composite value: %v",
-                value);
+            // XXX(babenko)
+            YUNREACHABLE();
+            //THROW_ERROR_EXCEPTION(
+            //    EErrorCode::UnhashableType,
+            //    "Cannot hash values of type %Qlv; only scalar types are allowed for key columns",
+            //    type)
+            //    << TErrorAttribute("value", value);
     }
 }
 
