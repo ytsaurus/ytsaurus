@@ -1,5 +1,4 @@
 #include "function_registry.h"
-#include "builtin_functions.h"
 #include "functions.h"
 #include "udf_descriptor.h"
 #include "user_defined_functions.h"
