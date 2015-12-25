@@ -147,31 +147,23 @@ public:
         IYPathServicePtr underlyingService,
         TDuration updatePeriod)
         : UnderlyingService_(std::move(underlyingService))
+        , PeriodicExecutor_(New<TPeriodicExecutor>(
+            GetWorkerInvoker(),
+            BIND(&TCachedYPathService::RebuildCache, MakeWeak(this)),
+            updatePeriod))
     {
         YCHECK(UnderlyingService_);
-
-        if (updatePeriod != TDuration::Zero()) {
-            PeriodicExecutor_ = New<TPeriodicExecutor>(
-                GetWorkerInvoker(),
-                BIND(&TCachedYPathService::RebuildCache, MakeWeak(this)),
-                updatePeriod);
-            PeriodicExecutor_->Start();
-        }
+        PeriodicExecutor_->Start();
     }
     
     virtual TResolveResult Resolve(const TYPath& path, IServiceContextPtr /*context*/) override
     {
-        if (PeriodicExecutor_) {
-            return TResolveResult::Here(path);
-        } else {
-            return TResolveResult::There(UnderlyingService_, path);
-        }
+        return TResolveResult::Here(path);
     }
 
 private:
     const IYPathServicePtr UnderlyingService_;
-
-    TPeriodicExecutorPtr PeriodicExecutor_;
+    const TPeriodicExecutorPtr PeriodicExecutor_;
 
     TSpinLock SpinLock_;
     TErrorOr<INodePtr> CachedTreeOrError_;
@@ -233,7 +225,9 @@ private:
 
 IYPathServicePtr IYPathService::Cached(TDuration updatePeriod)
 {
-    return New<TCachedYPathService>(this, updatePeriod);
+    return updatePeriod == TDuration::Zero()
+        ? MakeStrong(this)
+        : New<TCachedYPathService>(this, updatePeriod);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
