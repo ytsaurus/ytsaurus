@@ -54,12 +54,7 @@ bool TYPathRequest::IsOneWay() const
     return false;
 }
 
-bool TYPathRequest::IsRequestHeavy() const
-{
-    return false;
-}
-
-bool TYPathRequest::IsResponseHeavy() const
+bool TYPathRequest::IsHeavy() const
 {
     return false;
 }

@@ -37,9 +37,9 @@ print 'extracted ', len(rows), ' rows'
 
 codecs = [
 	"none",
-	"gzip_normal",
+	"zlib6",
 	"snappy",
-	"gzip_best_compression",
+	"zlib9",
 	"lz4",
 	"lz4_high_compression",
 	"quick_lz"

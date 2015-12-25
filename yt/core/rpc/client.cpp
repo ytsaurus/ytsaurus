@@ -28,8 +28,7 @@ TClientRequest::TClientRequest(
     bool oneWay,
     int protocolVersion)
     : RequestAck_(true)
-    , RequestHeavy_(false)
-    , ResponseHeavy_(false)
+    , Heavy_(false)
     , Channel_(std::move(channel))
 {
     YASSERT(Channel_);
@@ -83,14 +82,9 @@ bool TClientRequest::IsOneWay() const
     return Header_.one_way();
 }
 
-bool TClientRequest::IsRequestHeavy() const
+bool TClientRequest::IsHeavy() const
 {
-    return RequestHeavy_;
-}
-
-bool TClientRequest::IsResponseHeavy() const
-{
-    return RequestHeavy_;
+    return Heavy_;
 }
 
 TRequestId TClientRequest::GetRequestId() const
@@ -202,6 +196,12 @@ void TClientResponseBase::HandleError(const TError& error)
         State_ = EState::Done;
     }
 
+    TDispatcher::Get()->GetInvoker()->Invoke(
+        BIND(&TClientResponseBase::DoHandleError, MakeStrong(this), error));
+}
+
+void TClientResponseBase::DoHandleError(const TError& error)
+{
     Finish(error);
 }
 
@@ -253,6 +253,7 @@ void TClientResponse::Deserialize(TSharedRefArray responseMessage)
 
 void TClientResponse::HandleAcknowledgement()
 {
+    // NB: Handle without switching to another invoker.
     TGuard<TSpinLock> guard(SpinLock_);
     if (State_ == EState::Sent) {
         State_ = EState::Ack;
@@ -267,6 +268,12 @@ void TClientResponse::HandleResponse(TSharedRefArray message)
         State_ = EState::Done;
     }
 
+    TDispatcher::Get()->GetInvoker()->Invoke(
+        BIND(&TClientResponse::DoHandleResponse, MakeStrong(this), Passed(std::move(message))));
+}
+
+void TClientResponse::DoHandleResponse(TSharedRefArray message)
+{
     Deserialize(std::move(message));
     Finish(TError());
 }
