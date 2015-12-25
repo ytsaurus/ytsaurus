@@ -31,20 +31,30 @@ public:
         TNullable<TDuration> timeout,
         bool requestAck) override
     {
+        auto sendTime = TInstant::Now();
         auto requestControlThunk = New<TClientRequestControlThunk>();
-        Throttler_->Throttle(1).Subscribe(BIND([=, this_ = MakeStrong(this)] (const TError& error) {
-            if (!error.IsOK()) {
-                responseHandler->HandleError(error);
-                return;
-            }
+        Throttler_->Throttle(1)
+            .WithTimeout(timeout)
+            .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TError& error) {
+                if (!error.IsOK()) {
+                    auto wrappedError = TError("Error throttling RPC request")
+                        << error;
+                    responseHandler->HandleError(wrappedError);
+                    return;
+                }
 
-            auto requestControl = UnderlyingChannel_->Send(
-                std::move(request),
-                std::move(responseHandler),
-                timeout,
-                requestAck);
-            requestControlThunk->SetUnderlying(std::move(requestControl));
-        }));
+                auto now = TInstant::Now();
+                auto adjustedTimeout = timeout
+                    ? MakeNullable(now > sendTime + *timeout ? TDuration::Zero() : *timeout - (now - sendTime))
+                    : Null;
+
+                auto requestControl = UnderlyingChannel_->Send(
+                    std::move(request),
+                    std::move(responseHandler),
+                    adjustedTimeout,
+                    requestAck);
+                requestControlThunk->SetUnderlying(std::move(requestControl));
+            }));
         return requestControlThunk;
     }
 
