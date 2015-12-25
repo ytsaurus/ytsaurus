@@ -351,7 +351,7 @@ TFuture<std::vector<TSharedRef>> TBlobChunkBase::ReadBlockSet(
         return MakeFuture(std::move(session->Blocks));
     }
 
-    // Slow path: either read data from chunk or wait for cache to be filled.
+    // Slow path: either read data from chunk or wait for the cache to be filled.
     if (!canServeFromCache) {
         // Reorder blocks sequentially to improve read performance.
         std::sort(
