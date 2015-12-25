@@ -48,7 +48,6 @@ class TransferManager(object):
         self.token = get_value(token, get_token())
 
         self.http_request_timeout = http_request_timeout
-
         self.enable_retries = enable_retries
         self.retry_count = retry_count
 
@@ -146,7 +145,7 @@ class TransferManager(object):
             require(self.token is not None, YtError("YT token is not specified"))
             headers["Authorization"] = "OAuth " + self.token
 
-        params = kwargs.get("params", {})
+        params = {}
         if is_mutating:
             params["mutation_id"] = generate_uuid()
             params["retry"] = bool_to_string(False)
@@ -187,7 +186,7 @@ class TransferManager(object):
                 state = self.get_task_info(task)["state"]
                 if state == "completed":
                     logger.info("Task %s completed", task)
-                if state == "skipped":
+                elif state == "skipped":
                     logger.info("Task %s skipped", task)
                 elif state == "aborted":
                     logger.warning("Task {0} was aborted".format(task))
