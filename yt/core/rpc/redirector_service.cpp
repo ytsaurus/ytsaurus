@@ -187,12 +187,6 @@ IClientRequestControlPtr DoRedirectServiceRequest(
         request,
         std::move(responseMessageHandler));
 
-    auto requestControl = channel->Send(
-        std::move(request),
-        std::move(responseHandler),
-        timeout,
-        true);
-
     LOG_DEBUG("Request redirected (RequestId: %v, Method: %v:%v, RealmId: %v, Timeout: %v)",
         request->GetRequestId(),
         request->GetService(),
@@ -200,7 +194,11 @@ IClientRequestControlPtr DoRedirectServiceRequest(
         request->GetRealmId(),
         timeout);
 
-    return requestControl;
+    return channel->Send(
+        std::move(request),
+        std::move(responseHandler),
+        timeout,
+        true);
 }
 
 } // namespace
