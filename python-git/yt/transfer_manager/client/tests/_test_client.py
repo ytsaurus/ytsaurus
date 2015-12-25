@@ -36,7 +36,7 @@ def test_copy_between_clusters(backend_url):
 
     assert client.get_task_info(task_id)["state"] == "completed"
     assert client.get_task_info(task_id)["pool"] == "ignat"
-    assert Yt(proxy="plato").read_table("//tmp/test_table").read() == "a\tb\nc\td\ne\tf\n"
+    assert Yt(proxy="plato").read_table("//tmp/test_table", format="yamr").read() == "a\tb\nc\td\ne\tf\n"
 
     # Abort/restart
     task_id = client.add_task("redwood", "tmp/yt/test_table", "plato", "//tmp/test_table")
