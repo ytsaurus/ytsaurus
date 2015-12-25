@@ -183,22 +183,24 @@ IClientRequestControlPtr DoRedirectServiceRequest(
         std::move(requestHeader),
         std::move(requestMessage));
 
-    LOG_DEBUG("Redirected request sent (RequestId: %v, Method: %v:%v, RealmId: %v, Timeout: %v)",
+    auto responseHandler = New<TRedirectedResponseHandler>(
+        request,
+        std::move(responseMessageHandler));
+
+    auto requestControl = channel->Send(
+        std::move(request),
+        std::move(responseHandler),
+        timeout,
+        true);
+
+    LOG_DEBUG("Request redirected (RequestId: %v, Method: %v:%v, RealmId: %v, Timeout: %v)",
         request->GetRequestId(),
         request->GetService(),
         request->GetMethod(),
         request->GetRealmId(),
         timeout);
 
-    auto responseHandler = New<TRedirectedResponseHandler>(
-        request,
-        std::move(responseMessageHandler));
-
-    return channel->Send(
-        std::move(request),
-        std::move(responseHandler),
-        timeout,
-        true);
+    return requestControl;
 }
 
 } // namespace
