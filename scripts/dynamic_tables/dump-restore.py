@@ -131,7 +131,7 @@ class ArgsMapper(object):
         errors = [e +  "\n\n===================================================================\n\n" for e in errors]
         stderr = "".join(errors)
         print >> sys.stderr, stderr
-        raise Exception("\n".join((command, params, errors)))
+        raise Exception(" ".join(("Failed to execute command (%s attempts):" % attempt, command, str(params))))
 
 # Mapper - output rows with keys between r["left"] and r["right"].
 class DumpMapper(ArgsMapper):
