@@ -146,17 +146,18 @@ public:
     TCachedYPathService(
         IYPathServicePtr underlyingService,
         TDuration updatePeriod)
-        : UnderlyingService_(underlyingService)
-        , PeriodicExecutor_(updatePeriod == TDuration::Zero()
-            ? nullptr
-            : New<TPeriodicExecutor>(
+        : UnderlyingService_(std::move(underlyingService))
+    {
+        YCHECK(UnderlyingService_);
+
+        if (updatePeriod != TDuration::Zero()) {
+            PeriodicExecutor_ = New<TPeriodicExecutor>(
                 GetWorkerInvoker(),
                 BIND(&TCachedYPathService::RebuildCache, MakeWeak(this)),
-                updatePeriod))
-        , CachedTreeOrError_(TError(
-            NYT::NRpc::EErrorCode::Unavailable,
-            "Cached data is not available yet"))
-    { }
+                updatePeriod);
+            PeriodicExecutor_->Start();
+        }
+    }
     
     virtual TResolveResult Resolve(const TYPath& path, IServiceContextPtr /*context*/) override
     {
@@ -169,7 +170,8 @@ public:
 
 private:
     const IYPathServicePtr UnderlyingService_;
-    const TPeriodicExecutorPtr PeriodicExecutor_;
+
+    TPeriodicExecutorPtr PeriodicExecutor_;
 
     TSpinLock SpinLock_;
     TErrorOr<INodePtr> CachedTreeOrError_;
