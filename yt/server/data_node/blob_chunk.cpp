@@ -118,6 +118,7 @@ TFuture<void> TBlobChunkBase::LoadBlocksExt(const TWorkloadDescriptor& workloadD
 
 const TBlocksExt& TBlobChunkBase::GetBlocksExt()
 {
+    TReaderGuard guard(CachedBlocksExtLock_);
     YCHECK(HasCachedBlocksExt_);
     return CachedBlocksExt_;
 }
@@ -125,7 +126,8 @@ const TBlocksExt& TBlobChunkBase::GetBlocksExt()
 void TBlobChunkBase::InitBlocksExt(const TChunkMeta& meta)
 {
     TWriterGuard guard(CachedBlocksExtLock_);
-    // NB: Avoid redundant updates since the readers use no locking.
+    // NB: Avoid redundant updates since readers access CachedBlocksExt_ by const ref
+    // and use no locking.
     if (!HasCachedBlocksExt_) {
         CachedBlocksExt_ = GetProtoExtension<TBlocksExt>(meta.extensions());
         HasCachedBlocksExt_ = true;
