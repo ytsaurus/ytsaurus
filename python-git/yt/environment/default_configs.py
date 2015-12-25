@@ -104,10 +104,14 @@ def get_master_config():
 """)
 
 
+# TODO(babenko): drop orchid_cache_expiration_time once 17.4 is merged
 def get_scheduler_config():
     return yson.loads(
 """
 {
+    orchid_cache_expiration_time = 0;
+    orchid_cache_update_period = 0;
+
     cluster_connection = {
         enable_read_from_followers = %true;
 
