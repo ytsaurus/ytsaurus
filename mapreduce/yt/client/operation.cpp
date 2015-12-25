@@ -158,6 +158,9 @@ private:
 
     void UploadFilesFromSpec(const TUserJobSpec& spec)
     {
+        for (const auto& file : spec.Files_) {
+            Files_.push_back(TFile{"", file, false});
+        }
         for (const auto& localFile : spec.LocalFiles_) {
             auto cachePath = UploadToCache(localFile);
             Files_.push_back(TFile{TFsPath(localFile).Basename(), cachePath, false});
@@ -357,13 +360,18 @@ void BuildUserJobFluently(
     const TMultiFormatDesc& outputDesc,
     TFluentMap fluent)
 {
+    // TODO: tables as files, check exec flag on local files
     fluent
     .Item("file_paths").DoListFor(files,
         [&] (TFluentList fluent, const TFileUploader::TFile& file) {
             fluent.Item()
                 .BeginAttributes()
-                    .Item("file_name").Value(file.SandboxName)
-                    .Item("executable").Value(file.Executable)
+                    .DoIf(!file.SandboxName.Empty(), [&] (TFluentAttributes fluent) {
+                        fluent.Item("file_name").Value(file.SandboxName);
+                    })
+                    .DoIf(file.Executable, [&] (TFluentAttributes fluent) {
+                        fluent.Item("executable").Value(true);
+                    })
                 .EndAttributes()
             .Value(file.CypressPath);
         })
