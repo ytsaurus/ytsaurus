@@ -50,7 +50,8 @@ TTcpConnection::TTcpConnection(
     const Stroka& address,
     bool isUnixDomain,
     int priority,
-    IMessageHandlerPtr handler)
+    IMessageHandlerPtr handler,
+    std::atomic<int>* connectionCount)
     : Config_(std::move(config))
     , DispatcherThread_(std::move(dispatcherThread))
     , ConnectionType_(connectionType)
@@ -63,6 +64,7 @@ TTcpConnection::TTcpConnection(
     , Priority_(priority)
 #endif
     , Handler_(std::move(handler))
+    , ConnectionCount_(connectionCount)
     , ProfilingData_(TTcpDispatcher::Get()->GetProfilingData(InterfaceType_))
     , MessageEnqueuedCallback_(BIND(&TTcpConnection::OnMessageEnqueuedThunk, MakeWeak(this)))
 {
@@ -166,6 +168,10 @@ TTcpDispatcherStatistics& TTcpConnection::Statistics()
 
 void TTcpConnection::UpdateConnectionCount(int delta)
 {
+    if (ConnectionCount_) {
+        *ConnectionCount_ += delta;
+    }
+
     switch (ConnectionType_) {
         case EConnectionType::Client: {
             int value = (Statistics().ClientConnections += delta);
