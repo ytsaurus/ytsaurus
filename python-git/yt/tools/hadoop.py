@@ -60,8 +60,8 @@ class AirflowError(Exception):
     pass
 
 class Airflow(object):
-    def __init__(self, airflow_address):
-        self.airflow_address = airflow_address
+    def __init__(self, address):
+        self._address = address
         self._headers = {
             "Content-Type": "application/json"
         }
@@ -86,7 +86,7 @@ class Airflow(object):
             "dag_id": task_id
         }
 
-        submit_url = "http://{0}/admin/airflow/submit".format(self.airflow_address)
+        submit_url = "http://{0}/admin/airflow/submit".format(self._address)
         # XXX(asaitgalin): Retries will be added when HDPDEV-279 is done.
         response = requests.post(submit_url, data=json.dumps(data), headers=self._headers)
         response.raise_for_status()
@@ -94,7 +94,7 @@ class Airflow(object):
         return task_id
 
     def get_task_info(self, task_id):
-        graph_url = "http://{0}/admin/airflow/graph".format(self.airflow_address)
+        graph_url = "http://{0}/admin/airflow/graph".format(self._address)
         params = {
             "dag_id": task_id,
             "no_render": "true"
@@ -111,7 +111,7 @@ class Airflow(object):
         if not info:
             return ""
 
-        log_url = "http://{0}/admin/airflow/log".format(self.airflow_address)
+        log_url = "http://{0}/admin/airflow/log".format(self._address)
         params = {
             "dag_id": task_id,
             "task_id": info["task_id"],

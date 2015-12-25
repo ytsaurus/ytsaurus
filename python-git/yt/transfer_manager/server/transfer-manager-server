@@ -512,8 +512,12 @@ class Application(object):
                 raise yt.YtError("Kiwi transmitter must be YT cluster")
 
         airflow_client = None
-        if "airflow_address" in config:
-            airflow_client = Airflow(config["airflow_address"])
+        if "hadoop_transmitter" in config:
+            hadoop_transmitter = config["hadoop_transmitter"]
+            if hadoop_transmitter["type"] != "airflow":
+                raise yt.YtError("Hadoop transmitter must be airflow client")
+            airflow_client = Airflow(**hadoop_transmitter["options"])
+            airflow_client._name = hadoop_transmitter["name"]
 
         return ClustersConfiguration(clusters, availability_graph, kiwi_transmitter, airflow_client)
 

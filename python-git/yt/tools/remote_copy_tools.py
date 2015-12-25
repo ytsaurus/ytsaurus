@@ -1,11 +1,9 @@
 from yt.wrapper.common import generate_uuid, bool_to_string, MB
 from yt.tools.conversion_tools import convert_to_erasure
 from yt.common import get_value
-import yt.packages.requests as requests
 import yt.yson as yson
 import yt.logger as logger
 import yt.wrapper as yt
-from yt.tools.hadoop import AirflowError
 
 import os
 import json
@@ -640,7 +638,7 @@ def copy_hadoop_to_hadoop_with_airflow(task_type, airflow_client, source_path, s
         destination_path=destination_path,
         owner=user)
 
-    message_queue.put({"type": "operation_started", "operation": {"airflow_task_id": task_id}})
+    message_queue.put({"type": "operation_started", "operation": {"id": task_id, "cluster_name": airflow_client._name}})
 
     while True:
         task_info = airflow_client.get_task_info(task_id)
