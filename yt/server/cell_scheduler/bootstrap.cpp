@@ -172,7 +172,7 @@ void TBootstrap::DoRun()
             Scheduler_
             ->GetOrchidService()
             ->Via(GetControlInvoker())
-            ->Cached(Config_->OrchidCacheExpirationTime)));
+            ->Cached(Config_->OrchidCacheUpdatePeriod)));
 
     SetBuildAttributes(orchidRoot, "scheduler");
 
