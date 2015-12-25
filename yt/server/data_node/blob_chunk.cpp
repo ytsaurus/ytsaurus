@@ -113,7 +113,10 @@ TFuture<void> TBlobChunkBase::LoadBlocksExt(const TWorkloadDescriptor& workloadD
         }
     }
 
-    return ReadMeta(workloadDescriptor).As<void>();
+    return ReadMeta(workloadDescriptor).Apply(
+        BIND([=, this_ = MakeStrong(this)] (const TRefCountedChunkMetaPtr& meta) {
+            InitBlocksExt(*meta);
+        }));
 }
 
 const TBlocksExt& TBlobChunkBase::GetBlocksExt()
@@ -159,9 +162,6 @@ void TBlobChunkBase::DoReadMeta(
         Id_);
 
     const auto& meta = reader->GetMeta();
-
-    InitBlocksExt(meta);
-
     auto cachedMeta = New<TCachedChunkMeta>(
         Id_,
         New<TRefCountedChunkMeta>(meta),
