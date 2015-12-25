@@ -208,8 +208,8 @@ public:
         TDecoratedAutomatonPtr owner,
         TVersion snapshotVersion)
         : Owner_(owner)
-          , SnapshotVersion_(snapshotVersion)
-          , SnapshotId_(SnapshotVersion_.SegmentId + 1)
+        , SnapshotVersion_(snapshotVersion)
+        , SnapshotId_(SnapshotVersion_.SegmentId + 1)
     { }
 
     ~TSnapshotBuilderBase()
@@ -260,6 +260,9 @@ protected:
                 SnapshotId_);
         }
         LockAcquired_ = true;
+
+        const auto& Logger = *GetLogger();
+        LOG_INFO("Snapshot builder lock acquired");
     }
 
     void ReleaseLock()
@@ -267,6 +270,9 @@ protected:
         if (LockAcquired_) {
             Owner_->BuildingSnapshot_.clear();
             LockAcquired_ = false;
+
+            const auto& Logger = *GetLogger();
+            LOG_INFO("Snapshot builder lock released");
         }
     }
 
