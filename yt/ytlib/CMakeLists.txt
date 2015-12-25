@@ -166,7 +166,6 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/orchid/private.cpp
 
   ${CMAKE_CURRENT_LIST_DIR}/query_client/ast.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/query_client/builtin_functions.cpp
   ${CMAKE_CURRENT_LIST_DIR}/query_client/cg_fragment_compiler.cpp
   ${CMAKE_CURRENT_LIST_DIR}/query_client/cg_helpers.cpp
   ${CMAKE_CURRENT_LIST_DIR}/query_client/cg_ir_builder.cpp
@@ -326,6 +325,7 @@ set(YT_SRCS
   ${YT_SRCS}
   ${CMAKE_CURRENT_LIST_DIR}/formats/json_parser.cpp
   ${CMAKE_CURRENT_LIST_DIR}/formats/json_writer.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/query_client/builtin_functions.cpp
   ${CMAKE_CURRENT_LIST_DIR}/query_client/builtin_function_registry.cpp
 )
 
