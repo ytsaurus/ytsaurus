@@ -222,7 +222,7 @@ protected:
                 }
             }
 
-            if (ConnectionCount_ >= Config_->MaxNumberOfConnections) {
+            if (ConnectionCount_ >= Config_->MaxSimultaneousConnections) {
                 LOG_DEBUG("Connection dropped");
                 close(clientSocket);
                 continue;

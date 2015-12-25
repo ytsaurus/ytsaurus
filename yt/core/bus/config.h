@@ -38,7 +38,7 @@ public:
     TNullable<int> Port;
     TNullable<Stroka> UnixDomainName;
     int MaxBacklogSize;
-    int MaxNumberOfConnections;
+    int MaxSimultaneousConnections;
 
     TTcpBusServerConfig()
     {
@@ -48,7 +48,7 @@ public:
             .Default();
         RegisterParameter("max_backlog_size", MaxBacklogSize)
             .Default(8192);
-        RegisterParameter("max_number_of_connections", MaxNumberOfConnections)
+        RegisterParameter("max_simultaneous_connections", MaxSimultaneousConnections)
             .Default(50000);
     }
 
