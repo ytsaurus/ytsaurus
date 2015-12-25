@@ -54,14 +54,12 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(ICheckpointableOutputStream*, CheckpointableOutput);
 
 public:
-    TSaveContext();
+    virtual ~TSaveContext() = default;
 
     TEntitySerializationKey GenerateSerializationKey();
 
-    void Reset();
-
 private:
-    int SerializationKeyIndex_;
+    int SerializationKeyIndex_ = 0;
 
 };
 
@@ -75,9 +73,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(int, Version);
 
 public:
-    TLoadContext();
-
-    void Reset();
+    virtual ~TLoadContext() = default;
 
     TEntitySerializationKey RegisterEntity(TEntityBase* entity);
 
@@ -120,30 +116,33 @@ protected:
     void RegisterSaver(
         ESyncSerializationPriority priority,
         const Stroka& name,
-        TCallback<void()> callback);
+        TCallback<void(TSaveContext&)> callback);
 
+    template <class TContext>
     void RegisterSaver(
         ESyncSerializationPriority priority,
         const Stroka& name,
-        TCallback<void(TSaveContext&)> callback);
-
-    void RegisterSaver(
-        EAsyncSerializationPriority priority,
-        const Stroka& name,
-        TCallback<TCallback<void()>()> callback);
+        TCallback<void(TContext&)> callback);
 
     void RegisterSaver(
         EAsyncSerializationPriority priority,
         const Stroka& name,
         TCallback<TCallback<void(TSaveContext&)>()> callback);
 
-    void RegisterLoader(
+    template <class TContext>
+    void RegisterSaver(
+        EAsyncSerializationPriority priority,
         const Stroka& name,
-        TCallback<void()> callback);
+        TCallback<TCallback<void(TContext&)>()> callback);
 
     void RegisterLoader(
         const Stroka& name,
         TCallback<void(TLoadContext&)> callback);
+
+    template <class TContext>
+    void RegisterLoader(
+        const Stroka& name,
+        TCallback<void(TContext&)> callback);
 
     template <class TRequest, class TResponse>
     void RegisterMethod(TCallback<TResponse(const TRequest&)> callback);
@@ -212,8 +211,17 @@ protected:
 
     void RegisterPart(TCompositeAutomatonPart* part);
 
-    virtual TSaveContext& SaveContext() = 0;
-    virtual TLoadContext& LoadContext() = 0;
+    virtual std::unique_ptr<TSaveContext> CreateSaveContext(
+        ICheckpointableOutputStream* output) = 0;
+    virtual std::unique_ptr<TLoadContext> CreateLoadContext(
+        ICheckpointableInputStream* input) = 0;
+
+    void InitSaveContext(
+        TSaveContext& context,
+        ICheckpointableOutputStream* output);
+    void InitLoadContext(
+        TLoadContext& context,
+        ICheckpointableInputStream* input);
 
 private:
     typedef TCompositeAutomaton TThis;
@@ -237,20 +245,20 @@ private:
         : public TSaverDescriptorBase
     {
         ESyncSerializationPriority Priority;
-        TCallback<void()> Callback;
+        TCallback<void(TSaveContext&)> Callback;
     };
 
     struct TAsyncSaverDescriptor
         : public TSaverDescriptorBase
     {
         EAsyncSerializationPriority Priority;
-        TCallback<TCallback<void()>()> Callback;
+        TCallback<TCallback<void(TSaveContext&)>()> Callback;
     };
 
     struct TLoaderDescriptor
     {
         Stroka Name;
-        TCallback<void()> Callback;
+        TCallback<void(TLoadContext&)> Callback;
         TCompositeAutomatonPart* Part = nullptr;
     };
 
@@ -268,13 +276,14 @@ private:
     void DoSaveSnapshot(
         NConcurrency::IAsyncOutputStreamPtr writer,
         NConcurrency::ESyncStreamAdapterStrategy strategy,
-        const std::function<void()>& callback);
-
+        const std::function<void(TSaveContext&)>& callback);
     void DoLoadSnapshot(
         NConcurrency::IAsyncZeroCopyInputStreamPtr reader,
-        const std::function<void()>& callback);
+        const std::function<void(TLoadContext&)>& callback);
 
-    void WritePartHeader(const TSaverDescriptorBase& descriptor);
+    void WritePartHeader(
+        TSaveContext& context,
+        const TSaverDescriptorBase& descriptor);
 
     void OnRecoveryStarted();
     void OnRecoveryComplete();
