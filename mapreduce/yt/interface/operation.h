@@ -60,7 +60,7 @@ struct TUserJobSpec
     using TSelf = TUserJobSpec;
 
     FLUENT_VECTOR_FIELD(TLocalFilePath, LocalFile);
-    // TODO: files from cypress
+    FLUENT_VECTOR_FIELD(TYPath, File);
 };
 
 struct TMapOperationSpec
