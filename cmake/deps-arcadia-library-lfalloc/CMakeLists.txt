@@ -1,7 +1,7 @@
 set(NAME ytext-arcadia-library-lfalloc)
 set(BASE ${CMAKE_SOURCE_DIR}/library/lfalloc)
 set(SRCS
-  ${BASE}/lf_allocX64_old.cpp
+  ${BASE}/lf_allocX64.cpp
 )
 
 include_directories(
