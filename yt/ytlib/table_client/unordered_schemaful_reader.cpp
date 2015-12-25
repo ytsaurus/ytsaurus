@@ -130,7 +130,7 @@ private:
 
     void OnCanceled()
     {
-        ReadyEvent_.TrySet(TError(NYT::EErrorCode::Canceled, "Reader canceled"));
+        ReadyEvent_.TrySet(TError(NYT::EErrorCode::Canceled, "Table reader canceled"));
         CancelableContext_->Cancel();
     }
 

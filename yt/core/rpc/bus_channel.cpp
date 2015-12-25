@@ -369,7 +369,7 @@ private:
                 requestControl,
                 request,
                 responseHandler,
-                TError(NYT::EErrorCode::Canceled, "Request canceled"));
+                TError(NYT::EErrorCode::Canceled, "RPC request canceled"));
 
             IBusPtr bus;
             {
