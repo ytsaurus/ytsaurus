@@ -101,7 +101,7 @@ public:
     {
         if (!RuntimeInfo_->Descriptor.OneWay && !Replied_ && !Canceled_.IsFired()) {
             if (Started_) {
-                Reply(TError(NYT::EErrorCode::Canceled, "Request abandoned"));
+                Reply(TError(NYT::EErrorCode::Canceled, "RPC request abandoned"));
             } else {
                 Reply(TError(NRpc::EErrorCode::Unavailable, "Service is currently unavailable"));
             }

@@ -36,10 +36,13 @@ template <class T>
 std::unique_ptr<IAttributeDictionary> ConvertToAttributes(const T& value);
 
 // Provide shared instantiations for different TUs for commonly-used types.
-// XXX(babenko): VS does not support this
-//extern template TYsonString ConvertToYsonString<int>(const int&);
-//extern template TYsonString ConvertToYsonString<unsigned long>(const unsigned long&);
-//extern template TYsonString ConvertToYsonString<Stroka>(const Stroka&);
+extern template TYsonString ConvertToYsonString<int>(const int&);
+extern template TYsonString ConvertToYsonString<long>(const long&);
+extern template TYsonString ConvertToYsonString<unsigned int>(const unsigned int&);
+extern template TYsonString ConvertToYsonString<unsigned long>(const unsigned long&);
+extern template TYsonString ConvertToYsonString<Stroka>(const Stroka&);
+extern template TYsonString ConvertToYsonString<TInstant>(const TInstant&);
+extern template TYsonString ConvertToYsonString<TDuration>(const TDuration&);
 
 ////////////////////////////////////////////////////////////////////////////////
 
