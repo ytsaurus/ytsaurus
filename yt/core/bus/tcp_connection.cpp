@@ -194,6 +194,11 @@ void TTcpConnection::SyncOpen()
 {
     State_ = EState::Open;
 
+    int port = GetSocketPort();
+    if (port >= 0) {
+        Logger.AddTag("ClientPort: %v", GetSocketPort());
+    }
+    
     LOG_DEBUG("Connection established");
 
     // Flush messages that were enqueued when the connection was still opening.
@@ -317,6 +322,28 @@ void TTcpConnection::InitFD()
 #else
     FD_ = Socket_;
 #endif
+}
+
+int TTcpConnection::GetSocketPort()
+{
+    TNetworkAddress address;
+    auto* sockAddr = address.GetSockAddr();
+    socklen_t sockAddrLen = address.GetLength();
+    int result = getsockname(FD_, sockAddr, &sockAddrLen);
+    if (result < 0) {
+        return -1;
+    }
+
+    switch (sockAddr->sa_family) {
+        case AF_INET:
+            return ntohs(reinterpret_cast<sockaddr_in*>(sockAddr)->sin_port);
+
+        case AF_INET6:
+            return ntohs(reinterpret_cast<sockaddr_in6*>(sockAddr)->sin6_port);
+
+        default:
+            return -1;
+    }
 }
 
 void TTcpConnection::InitSocketWatcher()

@@ -10,6 +10,7 @@
 #include <yt/core/logging/log.h>
 
 #include <yt/core/misc/address.h>
+#include <yt/core/misc/string.h>
 
 #include <yt/core/rpc/public.h>
 
@@ -46,14 +47,24 @@ public:
     TTcpBusServerBase(
         TTcpBusServerConfigPtr config,
         TTcpDispatcherThreadPtr dispatcherThread,
-        IMessageHandlerPtr handler)
+        IMessageHandlerPtr handler,
+        ETcpInterfaceType interfaceType)
         : Config_(std::move(config))
         , DispatcherThread_(std::move(dispatcherThread))
         , Handler_(std::move(handler))
+        , InterfaceType_(interfaceType)
     {
         VERIFY_THREAD_AFFINITY_ANY();
         YCHECK(Handler_);
-    }
+ 
+        if (Config_->Port) {
+            Logger.AddTag("ServerPort: %v", *Config_->Port);
+        }
+        if (Config_->UnixDomainName) {
+            Logger.AddTag("UnixDomainName: %v", *Config_->UnixDomainName);
+        }
+        Logger.AddTag("InterfaceType: %v", InterfaceType_);
+   }
 
     // IEventLoopObject implementation.
 
@@ -90,14 +101,14 @@ public:
     virtual Stroka GetLoggingId() const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
-
-        return Format("Port: %v", Config_->Port);
+        return Logger.GetContext();
     }
 
 protected:
     const TTcpBusServerConfigPtr Config_;
     const TTcpDispatcherThreadPtr DispatcherThread_;
     const IMessageHandlerPtr Handler_;
+    const ETcpInterfaceType InterfaceType_;
 
     std::unique_ptr<ev::io> AcceptWatcher_;
 
@@ -115,8 +126,6 @@ protected:
 
 
     virtual void CreateServerSocket() = 0;
-
-    virtual ETcpInterfaceType GetInterfaceType() = 0;
 
     virtual void InitClientSocket(SOCKET clientSocket)
     {
@@ -255,7 +264,7 @@ protected:
                 Config_,
                 dispatcherThread,
                 EConnectionType::Server,
-                GetInterfaceType(),
+                InterfaceType_,
                 TConnectionId::Create(),
                 clientSocket,
                 endpointDescription,
@@ -305,27 +314,11 @@ public:
         : TTcpBusServerBase(
             std::move(config),
             std::move(dispatcherThread),
-            std::move(handler))
-    {
-        Logger.AddTag("Port: %v", Config_->Port);
-    }
-
-
-    // IEventLoopObject implementation.
-
-    virtual Stroka GetLoggingId() const override
-    {
-        VERIFY_THREAD_AFFINITY_ANY();
-
-        return Format("Port: %v", Config_->Port);
-    }
+            std::move(handler),
+            ETcpInterfaceType::Remote)
+    { }
 
 private:
-    virtual ETcpInterfaceType GetInterfaceType() override
-    {
-        return ETcpInterfaceType::Remote;
-    }
-
     virtual void CreateServerSocket() override
     {
         int type = SOCK_STREAM;
@@ -408,27 +401,11 @@ public:
         : TTcpBusServerBase(
             std::move(config),
             std::move(dispatcherThread),
-            std::move(handler))
-    {
-        Logger.AddTag("LocalPort: %v", Config_->Port);
-    }
-
-
-    // IEventLoopObject implementation.
-
-    virtual Stroka GetLoggingId() const override
-    {
-        VERIFY_THREAD_AFFINITY_ANY();
-
-        return Format("LocalPort: %v", Config_->Port);
-    }
+            std::move(handler),
+            ETcpInterfaceType::Local)
+    { }
 
 private:
-    virtual ETcpInterfaceType GetInterfaceType() override
-    {
-        return ETcpInterfaceType::Local;
-    }
-
     virtual void CreateServerSocket() override
     {
         int type = SOCK_STREAM;
