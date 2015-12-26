@@ -42,7 +42,7 @@ message TReqGet
     optional TAttributeFilter attribute_filter = 1;
     optional int64 max_size = 2;
     optional bool ignore_opaque = 3;
-	optional NYT.NYTree.NProto.TAttributes options = 4;
+    optional NYT.NYTree.NProto.TAttributes options = 4;
 }
 
 message TRspGet
