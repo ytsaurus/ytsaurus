@@ -420,13 +420,14 @@ private:
             LOG_WARNING("Removing duplicate cached chunk (ChunkId: %v)",
                 chunkId);
             location->RemoveChunkFilesPermanently(chunkId);
-        } else {
-            auto chunk = CreateChunk(location, key, descriptor);
-            cookie.EndInsert(chunk);
-            LOG_DEBUG("Cached chunk registered (ChunkId: %v, DiskSpace: %v)",
-                chunkId,
-                descriptor.DiskSpace);
+            return;
         }
+
+        auto chunk = CreateChunk(location, key, descriptor);
+        cookie.EndInsert(chunk);
+        LOG_DEBUG("Cached chunk registered (ChunkId: %v, DiskSpace: %v)",
+            chunkId,
+            descriptor.DiskSpace);
     }
 
     virtual i64 GetWeight(const TCachedBlobChunkPtr& chunk) const override

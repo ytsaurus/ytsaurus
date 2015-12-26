@@ -1,0 +1,6 @@
+{
+  "yt/contrib/zstd": {
+    "branch": null, 
+    "repository": "git@github.yandex-team.ru:yt/github-Cyan4973-zstd.git"
+  }
+}

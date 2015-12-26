@@ -153,7 +153,7 @@ private:
             if (rspOrError.IsOK()) {
                 const auto& rsp = rspOrError.Value();
                 auto firstTimestamp = TTimestamp(rsp->timestamp());
-                LatestTimestamp_ = firstTimestamp + requests.size();
+                LatestTimestamp_ = firstTimestamp + count;
                 LOG_DEBUG("Fresh timestamps generated (Timestamps: %v-%v)",
                     firstTimestamp,
                     LatestTimestamp_);
@@ -172,7 +172,7 @@ private:
             auto timestamp = rsp->timestamp();
             for (auto& request : requests) {
                 request.Promise.Set(timestamp);
-                ++timestamp;
+                timestamp += request.Count;
             }
         } else {
             for (auto& request : requests) {

@@ -28,7 +28,7 @@ public:
 
     virtual NChunkClient::NProto::TChunkInfo GetInfo() const override;
 
-    virtual TFuture<TRefCountedChunkMetaPtr> ReadMeta(
+    virtual TFuture<NChunkClient::TRefCountedChunkMetaPtr> ReadMeta(
         const TWorkloadDescriptor& workloadDescriptor,
         const TNullable<std::vector<int>>& extensionTags) override;
 
@@ -59,7 +59,7 @@ public:
 private:
     const TStoreLocationPtr StoreLocation_;
 
-    const TRefCountedChunkMetaPtr Meta_ = New<TRefCountedChunkMeta>();
+    const NChunkClient::TRefCountedChunkMetaPtr Meta_;
 
     bool Active_ = false;
     NHydra::IChangelogPtr Changelog_;
@@ -70,7 +70,7 @@ private:
     mutable bool Sealed_ = false;
 
 
-    TRefCountedChunkMetaPtr DoReadMeta(const TNullable<std::vector<int>>& extensionTags);
+    NChunkClient::TRefCountedChunkMetaPtr DoReadMeta(const TNullable<std::vector<int>>& extensionTags);
 
     void UpdateCachedParams() const;
 

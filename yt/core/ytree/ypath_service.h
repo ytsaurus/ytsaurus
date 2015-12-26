@@ -129,7 +129,7 @@ struct IYPathService
 
     //! Creates a wrapper that makes ephemeral snapshots to cache
     //! the underlying service.
-    IYPathServicePtr Cached(TDuration expirationTime);
+    IYPathServicePtr Cached(TDuration updatePeriod);
 
     //! Wraps WriteAttributesFragment by enclosing attributes with angle brackets.
     //! If WriteAttributesFragment writes nothing then this method also does nothing.

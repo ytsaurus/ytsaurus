@@ -184,12 +184,8 @@ int GetDataWeight(const TUnversionedValue& value);
 int WriteValue(char* output, const TUnversionedValue& value);
 int ReadValue(const char* input, TUnversionedValue* value);
 
-////////////////////////////////////////////////////////////////////////////////
-
 void Save(TStreamSaveContext& context, const TUnversionedValue& value);
 void Load(TStreamLoadContext& context, TUnversionedValue& value, TChunkedMemoryPool* pool);
-
-////////////////////////////////////////////////////////////////////////////////
 
 Stroka ToString(const TUnversionedValue& value);
 
@@ -203,6 +199,8 @@ bool operator <= (const TUnversionedValue& lhs, const TUnversionedValue& rhs);
 bool operator <  (const TUnversionedValue& lhs, const TUnversionedValue& rhs);
 bool operator >= (const TUnversionedValue& lhs, const TUnversionedValue& rhs);
 bool operator >  (const TUnversionedValue& lhs, const TUnversionedValue& rhs);
+
+////////////////////////////////////////////////////////////////////////////////
 
 //! Ternary comparison predicate for ranges of TUnversionedValue-s.
 int CompareRows(
@@ -456,7 +454,8 @@ void FromProto(TUnversionedOwningRow* row, const TProtoStringType& protoRow);
 void FromProto(TUnversionedOwningRow* row, const NChunkClient::NProto::TKey& protoKey);
 void FromProto(TUnversionedRow* row, const TProtoStringType& protoRow, const TRowBufferPtr& rowBuffer);
 
-void Serialize(const TKey& key, NYson::IYsonConsumer* consumer);
+void Serialize(const TUnversionedValue& value, NYson::IYsonConsumer* consumer);
+void Serialize(TKey key, NYson::IYsonConsumer* consumer);
 void Serialize(const TOwningKey& key, NYson::IYsonConsumer* consumer);
 
 void Deserialize(TOwningKey& key, NYTree::INodePtr node);

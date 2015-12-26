@@ -28,14 +28,20 @@ TTabletAutomaton::TTabletAutomaton(
     Logger.AddTag("CellId: %v", slot->GetCellId());
 }
 
-TSaveContext& TTabletAutomaton::SaveContext()
+std::unique_ptr<NHydra::TSaveContext> TTabletAutomaton::CreateSaveContext(
+    ICheckpointableOutputStream* output)
 {
-    return SaveContext_;
+    auto context = std::make_unique<TSaveContext>();
+    TCompositeAutomaton::InitSaveContext(*context, output);
+    return std::unique_ptr<NHydra::TSaveContext>(std::move(context));
 }
 
-TLoadContext& TTabletAutomaton::LoadContext()
+std::unique_ptr<NHydra::TLoadContext> TTabletAutomaton::CreateLoadContext(
+    ICheckpointableInputStream* input)
 {
-    return LoadContext_;
+    auto context = std::make_unique<TLoadContext>();
+    TCompositeAutomaton::InitLoadContext(*context, input);
+    return std::unique_ptr<NHydra::TLoadContext>(std::move(context));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -65,49 +71,6 @@ bool TTabletAutomatonPart::ValidateSnapshotVersion(int version)
 int TTabletAutomatonPart::GetCurrentSnapshotVersion()
 {
     return NTabletNode::GetCurrentSnapshotVersion();
-}
-
-void TTabletAutomatonPart::RegisterSaver(
-    ESyncSerializationPriority priority,
-    const Stroka& name,
-    TCallback<void(TSaveContext&)> saver)
-{
-    TCompositeAutomatonPart::RegisterSaver(
-        priority,
-        name,
-        BIND([=] () {
-            auto& context = Slot_->GetAutomaton()->SaveContext();
-            saver.Run(context);
-         }));
-}
-
-void TTabletAutomatonPart::RegisterSaver(
-    EAsyncSerializationPriority priority,
-    const Stroka& name,
-    TCallback<TCallback<void(TSaveContext&)>()> callback)
-{
-    TCompositeAutomatonPart::RegisterSaver(
-        priority,
-        name,
-        BIND([=] () {
-            auto continuation = callback.Run();
-            return BIND([=] () {
-                auto& context = Slot_->GetAutomaton()->SaveContext();
-                continuation.Run(context);
-            });
-        }));
-}
-
-void TTabletAutomatonPart::RegisterLoader(
-    const Stroka& name,
-    TCallback<void(TLoadContext&)> loader)
-{
-    TCompositeAutomatonPart::RegisterLoader(
-        name,
-        BIND([=] () {
-            auto& context = Slot_->GetAutomaton()->LoadContext();
-            loader.Run(context);
-        }));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

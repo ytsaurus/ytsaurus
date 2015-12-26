@@ -37,12 +37,11 @@ public:
         TTabletSlotPtr slot,
         IInvokerPtr snapshotInvoker);
 
-    virtual TSaveContext& SaveContext() override;
-    virtual TLoadContext& LoadContext() override;
-
 private:
-    TSaveContext SaveContext_;
-    TLoadContext LoadContext_;
+    virtual std::unique_ptr<NHydra::TSaveContext> CreateSaveContext(
+        ICheckpointableOutputStream* output) override;
+    virtual std::unique_ptr<NHydra::TLoadContext> CreateLoadContext(
+        ICheckpointableInputStream* input) override;
 
 };
 
@@ -60,26 +59,12 @@ protected:
     NLogging::TLogger Logger;
 
 
-    explicit TTabletAutomatonPart(
+    TTabletAutomatonPart(
         TTabletSlotPtr slot,
         NCellNode::TBootstrap* bootstrap);
 
     virtual bool ValidateSnapshotVersion(int version) override;
     virtual int GetCurrentSnapshotVersion() override;
-
-    void RegisterSaver(
-        NHydra::ESyncSerializationPriority priority,
-        const Stroka& name,
-        TCallback<void(TSaveContext&)> saver);
-
-    void RegisterSaver(
-        NHydra::EAsyncSerializationPriority priority,
-        const Stroka& name,
-        TCallback<TCallback<void(TSaveContext&)>()> callback);
-
-    void RegisterLoader(
-        const Stroka& name,
-        TCallback<void(TLoadContext&)> loader);
 
 };
 

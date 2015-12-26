@@ -97,7 +97,9 @@ void TChunkSlicesFetcher::DoFetchFromNode(TNodeId nodeId, const std::vector<int>
         GetStatistics(*chunk, &chunkDataSize);
 
         TOwningKey minKey, maxKey;
-        YCHECK(TryGetBoundaryKeys(chunk->chunk_meta(), &minKey, &maxKey));
+        if (!TryGetBoundaryKeys(chunk->chunk_meta(), &minKey, &maxKey)) {
+            THROW_ERROR_EXCEPTION("Missing boundary keys in chunk %v", FromProto<TChunkId>(chunk->chunk_id()));
+        }
 
         if (chunkDataSize < ChunkSliceSize_ ||
             (SliceByKeys_ && CompareRows(minKey, maxKey, keyColumnCount) == 0))
