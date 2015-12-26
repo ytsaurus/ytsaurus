@@ -34,7 +34,7 @@ void ValidateKeyValueType(EValueType type)
         type != EValueType::Min &&
         type != EValueType::Max)
     {
-        THROW_ERROR_EXCEPTION("Invalid key value type %Qlv", type);
+        THROW_ERROR_EXCEPTION("Invalid key value type %Qlv; only scalar types are allowed for the key columns", type);
     }
 }
 

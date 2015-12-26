@@ -35,7 +35,7 @@ struct TSchemafulPipe::TData
     {
         ReaderReadyEvent = NewPromise<void>();
         ReaderReadyEvent.OnCanceled(BIND([=, this_ = MakeStrong(this)] () mutable {
-            Fail(TError(NYT::EErrorCode::Canceled, "Reader canceled"));
+            Fail(TError(NYT::EErrorCode::Canceled, "Table reader canceled"));
         }));
     }
 

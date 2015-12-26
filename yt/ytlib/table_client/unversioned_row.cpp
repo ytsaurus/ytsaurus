@@ -1,4 +1,5 @@
 #include "unversioned_row.h"
+#include "unversioned_value.h"
 
 #include <yt/ytlib/table_client/name_table.h>
 #include <yt/ytlib/table_client/row_buffer.h>
@@ -13,6 +14,7 @@
 
 #include <yt/core/ytree/attribute_helpers.h>
 #include <yt/core/ytree/node.h>
+#include <yt/core/ytree/convert.h>
 
 #include <util/generic/ymath.h>
 
@@ -196,8 +198,6 @@ int ReadValue(const char* input, TUnversionedValue* value)
     return current - input;
 }
 
-////////////////////////////////////////////////////////////////////////////////
-
 void Save(TStreamSaveContext& context, const TUnversionedValue& value)
 {
     auto* output = context.GetOutput();
@@ -227,8 +227,6 @@ void Load(TStreamLoadContext& context, TUnversionedValue& value, TChunkedMemoryP
         YCHECK(input->Load(&value.Data, sizeof (value.Data)) == sizeof (value.Data));
     }
 }
-
-////////////////////////////////////////////////////////////////////////////////
 
 Stroka ToString(const TUnversionedValue& value)
 {
@@ -276,7 +274,11 @@ int CompareRowValues(const TUnversionedValue& lhs, const TUnversionedValue& rhs)
             // Never compare composite values with non-sentinels.
             THROW_ERROR_EXCEPTION(
                 EErrorCode::IncomparableType,
-                "Composite types are not comparable");
+                "Cannot compare values of types %Qlv and %Qlv; only scalar types are allowed for key columns",
+                lhs.Type,
+                rhs.Type)
+                << TErrorAttribute("lhs_value", lhs)
+                << TErrorAttribute("rhs_value", rhs);
         }
     }
 
@@ -1155,46 +1157,50 @@ void FromProto(TUnversionedOwningRow* row, const NChunkClient::NProto::TKey& pro
     *row = rowBuilder.FinishRow();
 }
 
-void Serialize(const TKey& key, IYsonConsumer* consumer)
+void Serialize(const TUnversionedValue& value, IYsonConsumer* consumer)
+{
+    auto type = value.Type;
+    switch (type) {
+        case EValueType::Int64:
+            consumer->OnInt64Scalar(value.Data.Int64);
+            break;
+
+        case EValueType::Uint64:
+            consumer->OnUint64Scalar(value.Data.Uint64);
+            break;
+
+        case EValueType::Double:
+            consumer->OnDoubleScalar(value.Data.Double);
+            break;
+
+        case EValueType::Boolean:
+            consumer->OnBooleanScalar(value.Data.Boolean);
+            break;
+
+        case EValueType::String:
+            consumer->OnStringScalar(TStringBuf(value.Data.String, value.Length));
+            break;
+
+        case EValueType::Any:
+            THROW_ERROR_EXCEPTION("Key cannot contain \"any\" components");
+            break;
+
+        default:
+            consumer->OnBeginAttributes();
+            consumer->OnKeyedItem("type");
+            consumer->OnStringScalar(FormatEnum(type));
+            consumer->OnEndAttributes();
+            consumer->OnEntity();
+            break;
+    }
+}
+
+void Serialize(TKey key, IYsonConsumer* consumer)
 {
     consumer->OnBeginList();
     for (int index = 0; index < key.GetCount(); ++index) {
         consumer->OnListItem();
-        const auto& value = key[index];
-        auto type = value.Type;
-        switch (type) {
-            case EValueType::Int64:
-                consumer->OnInt64Scalar(value.Data.Int64);
-                break;
-
-            case EValueType::Uint64:
-                consumer->OnUint64Scalar(value.Data.Uint64);
-                break;
-
-            case EValueType::Double:
-                consumer->OnDoubleScalar(value.Data.Double);
-                break;
-
-            case EValueType::Boolean:
-                consumer->OnBooleanScalar(value.Data.Boolean);
-                break;
-
-            case EValueType::String:
-                consumer->OnStringScalar(TStringBuf(value.Data.String, value.Length));
-                break;
-
-            case EValueType::Any:
-                THROW_ERROR_EXCEPTION("Key cannot contain \"any\" components");
-                break;
-
-            default:
-                consumer->OnBeginAttributes();
-                consumer->OnKeyedItem("type");
-                consumer->OnStringScalar(FormatEnum(type));
-                consumer->OnEndAttributes();
-                consumer->OnEntity();
-                break;
-        }
+        Serialize(key[index], consumer);
     }
     consumer->OnEndList();
 }

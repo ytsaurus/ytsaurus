@@ -10,18 +10,23 @@ namespace NCellMaster {
 
 TMasterAutomaton::TMasterAutomaton(TBootstrap* bootstrap)
     : TCompositeAutomaton(nullptr)
-    , SaveContext_(new TSaveContext())
-    , LoadContext_(new TLoadContext(bootstrap))
+    , Bootstrap_(bootstrap)
 { }
 
-TSaveContext& TMasterAutomaton::SaveContext()
+std::unique_ptr<NHydra::TSaveContext> TMasterAutomaton::CreateSaveContext(
+    ICheckpointableOutputStream* output)
 {
-    return *SaveContext_;
+    auto context = std::make_unique<TSaveContext>();
+    TCompositeAutomaton::InitSaveContext(*context, output);
+    return std::unique_ptr<NHydra::TSaveContext>(std::move(context));
 }
 
-TLoadContext& TMasterAutomaton::LoadContext()
+std::unique_ptr<NHydra::TLoadContext> TMasterAutomaton::CreateLoadContext(
+    ICheckpointableInputStream* input)
 {
-    return *LoadContext_;
+    auto context = std::make_unique<TLoadContext>(Bootstrap_);
+    TCompositeAutomaton::InitLoadContext(*context, input);
+    return std::unique_ptr<NHydra::TLoadContext>(std::move(context));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -42,32 +47,6 @@ bool TMasterAutomatonPart::ValidateSnapshotVersion(int version)
 int TMasterAutomatonPart::GetCurrentSnapshotVersion()
 {
     return NCellMaster::GetCurrentSnapshotVersion();
-}
-
-void TMasterAutomatonPart::RegisterSaver(
-    NHydra::ESyncSerializationPriority priority,
-    const Stroka& name,
-    TCallback<void(TSaveContext&)> saver)
-{
-    TCompositeAutomatonPart::RegisterSaver(
-        priority,
-        name,
-        BIND([=] () {
-            auto& context = Bootstrap_->GetHydraFacade()->GetAutomaton()->SaveContext();
-            saver.Run(context);
-        }));
-}
-
-void TMasterAutomatonPart::RegisterLoader(
-    const Stroka& name,
-    TCallback<void(TLoadContext&)> loader)
-{
-    TCompositeAutomatonPart::RegisterLoader(
-        name,
-        BIND([=] () {
-            auto& context = Bootstrap_->GetHydraFacade()->GetAutomaton()->LoadContext();
-            loader.Run(context);
-        }));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

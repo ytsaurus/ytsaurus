@@ -39,8 +39,6 @@ DECLARE_REFCOUNTED_CLASS(TChunkBlockManager)
 DECLARE_REFCOUNTED_CLASS(TBlobReaderCache)
 DECLARE_REFCOUNTED_CLASS(TJournalDispatcher)
 
-using TRefCountedChunkMeta = TRefCountedProto<NChunkClient::NProto::TChunkMeta>;
-DECLARE_REFCOUNTED_TYPE(TRefCountedChunkMeta)
 DECLARE_REFCOUNTED_CLASS(TCachedChunkMeta)
 DECLARE_REFCOUNTED_CLASS(TChunkMetaManager)
 

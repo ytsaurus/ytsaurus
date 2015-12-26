@@ -246,7 +246,22 @@ protected:
                 }
             }
 
-            LOG_DEBUG("Connection accepted");
+            auto connectionCount = DispatcherThread_
+                ->GetStatistics(InterfaceType_)
+                ->ServerConnections;
+            if (connectionCount >= Config_->MaxSimultaneousConnections) {
+                LOG_DEBUG("Connection dropped (Address: %v, ConnectionCount: %v, ConnectionLimit: %v)",
+                    ToString(clientAddress, false),
+                    connectionCount,
+                    Config_->MaxSimultaneousConnections);
+                close(clientSocket);
+                continue;
+            } else {
+                LOG_DEBUG("Connection accepted (Address: %v, ConnectionCount: %v, ConnectionLimit: %v)",
+                    ToString(clientAddress, false),
+                    connectionCount,
+                    Config_->MaxSimultaneousConnections);
+            }
 
             InitClientSocket(clientSocket);
             InitSocket(clientSocket);
