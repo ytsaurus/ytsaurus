@@ -196,7 +196,7 @@ void TTcpConnection::SyncOpen()
 
     int port = GetSocketPort();
     if (port >= 0) {
-        Logger.AddTag("ClientPort: %v", GetSocketPort());
+        Logger.AddTag("Port: %v", GetSocketPort());
     }
     
     LOG_DEBUG("Connection established");
@@ -740,15 +740,17 @@ bool TTcpConnection::OnMessagePacketReceived()
     return true;
 }
 
-void TTcpConnection::EnqueuePacket(
+TTcpConnection::TPacket* TTcpConnection::EnqueuePacket(
     EPacketType type,
     EPacketFlags flags,
     const TPacketId& packetId,
     TSharedRefArray message)
 {
     i64 size = TPacketEncoder::GetPacketSize(type, message);
-    QueuedPackets_.push(new TPacket(type, flags, packetId, message, size));
+    auto* packet = new TPacket(type, flags, packetId, std::move(message), size);
+    QueuedPackets_.push(packet);
     UpdatePendingOut(+1, +size);
+    return packet;
 }
 
 void TTcpConnection::OnSocketWrite()
@@ -1035,9 +1037,8 @@ void  TTcpConnection::OnAckPacketSent(const TPacket& packet)
 
 void TTcpConnection::OnMessagePacketSent(const TPacket& packet)
 {
-    LOG_DEBUG("Outcoming message sent (PacketId: %v, PacketSize: %v)",
-        packet.PacketId,
-        packet.Size);
+    LOG_DEBUG("Outcoming message sent (PacketId: %v)",
+        packet.PacketId);
 }
 
 void TTcpConnection::OnMessageEnqueuedThunk(const TWeakPtr<TTcpConnection>& weakConnection)
@@ -1083,23 +1084,24 @@ void TTcpConnection::ProcessOutcomingMessages()
     for (auto it = messages.rbegin(); it != messages.rend(); ++it) {
         auto& queuedMessage = *it;
 
+        const auto& packetId = queuedMessage.PacketId;
         auto flags = queuedMessage.Level == EDeliveryTrackingLevel::Full
             ? EPacketFlags::RequestAck
             : EPacketFlags::None;
 
-        LOG_DEBUG("Outcoming message dequeued (PacketId: %v, Flags: %v)",
-            queuedMessage.PacketId,
-            flags);
-
-        EnqueuePacket(
+        auto* packet = EnqueuePacket(
             EPacketType::Message,
             flags,
-            queuedMessage.PacketId,
-            queuedMessage.Message);
+            packetId,
+            std::move(queuedMessage.Message));
+
+        LOG_DEBUG("Outcoming message dequeued (PacketId: %v, PacketSize: %v, Flags: %v)",
+            packetId,
+            packet->Size,
+            flags);
 
         if (Any(flags & EPacketFlags::RequestAck)) {
-            TUnackedMessage unackedMessage(queuedMessage.PacketId, std::move(queuedMessage.Promise));
-            UnackedMessages_.push(unackedMessage);
+            UnackedMessages_.push(TUnackedMessage(packetId, std::move(queuedMessage.Promise)));
         } else if (queuedMessage.Promise) {
             queuedMessage.Promise.Set();
         }
