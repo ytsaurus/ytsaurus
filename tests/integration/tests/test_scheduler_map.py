@@ -1169,9 +1169,9 @@ print row + table_index
         set("//tmp/t2/@acl", [{"action": "allow", "subjects": ["u"], "permissions": ["write"]}])
         effective_acl = get("//tmp/t2/@effective_acl")
 
-        op_id = map(dont_track=True, command="cat; sleep 1", in_="//tmp/t1", out="//tmp/t2")
+        op_id = map(dont_track=True, command="cat; sleep 2", in_="//tmp/t1", out="//tmp/t2")
 
-        time.sleep(0.5)
+        time.sleep(1)
         assert exists("//sys/operations/{0}/output_0".format(op_id))
         assert effective_acl == get("//sys/operations/{0}/output_0/@acl".format(op_id))
 
