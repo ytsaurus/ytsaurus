@@ -29,7 +29,7 @@ namespace std {
 template <> struct hash<Stroka> : public ::hash<Stroka> { };
 template <> struct hash<TStringBuf> : public ::hash<TStringBuf> { };
 
-#if defined(__GLIBCXX__) && !defined(__cpp_lib_make_unique)
+#if defined(__GLIBCXX__) && __GLIBCXX__ > 20140716 && !defined(__cpp_lib_make_unique)
 template <typename TResult, typename ...TArgs>
 std::unique_ptr<TResult> make_unique(TArgs&& ...args)
 {
