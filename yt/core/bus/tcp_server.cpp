@@ -238,7 +238,7 @@ protected:
                         auto wrappedError = TError(
                             NRpc::EErrorCode::TransportError,
                             "Error accepting connection")
-                            << TErrorAttribute("address", ToString(clientAddress, false))
+                            << TErrorAttribute("address", ToString(clientAddress))
                             << TError::FromSystem(error);
                         LOG_WARNING(wrappedError);
                     }
@@ -253,7 +253,7 @@ protected:
 
             auto dispatcherThread = TTcpDispatcher::TImpl::Get()->GetClientThread();
 
-            auto address = ToString(clientAddress, false);
+            auto address = ToString(clientAddress);
             auto endpointDescription = address;
             auto endpointAttributes = ConvertToAttributes(BuildYsonStringFluently()
                 .BeginMap()

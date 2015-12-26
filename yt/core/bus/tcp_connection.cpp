@@ -76,7 +76,7 @@ TTcpConnection::TTcpConnection(
     YASSERT(DispatcherThread_);
 
     Logger = BusLogger;
-    Logger.AddTag("ConnectionId: %v, Address: %v",
+    Logger.AddTag("ConnectionId: %v, RemoteAddress: %v",
         Id_,
         EndpointDescription_);
 
@@ -196,7 +196,7 @@ void TTcpConnection::SyncOpen()
 
     int port = GetSocketPort();
     if (port >= 0) {
-        Logger.AddTag("Port: %v", GetSocketPort());
+        Logger.AddTag("LocalPort: %v", GetSocketPort());
     }
     
     LOG_DEBUG("Connection established");
