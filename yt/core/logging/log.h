@@ -47,6 +47,7 @@ public:
     void AddRawTag(const Stroka& tag);
     template <class... TArgs>
     void AddTag(const char* format, const TArgs&... args);
+    const Stroka& GetContext() const;
 
 private:
     const char* Category_;
