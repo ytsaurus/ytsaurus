@@ -216,7 +216,7 @@ private:
     bool OnAckPacketReceived();
     bool OnMessagePacketReceived();
 
-    void EnqueuePacket(
+    TPacket* EnqueuePacket(
         EPacketType type,
         EPacketFlags flags,
         const TPacketId& packetId,
