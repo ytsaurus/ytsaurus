@@ -195,6 +195,8 @@ private:
     void InitFD();
     void InitSocketWatcher();
 
+    int GetSocketPort();
+
     void ConnectSocket(const TNetworkAddress& netAddress);
     void CloseSocket();
 
