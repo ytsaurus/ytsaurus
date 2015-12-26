@@ -32,7 +32,7 @@ class TestCachedYtClient(object):
         # Get cached attribute again.
         assert client.get_attributes("//sys", ["nonexistent"]) == {}
 
-    def test_get_attributes_list(self):
+    def test_get_attributes_list(self, yt_env):
         client = CachedYtClient(proxy=get_proxy_url(), config=yt.config.config)
 
         real_attributes = yt.get("//home/@")
@@ -46,7 +46,8 @@ class TestCachedYtClient(object):
         ephemeral_attributes = ["access_time", "access_counter", "weak_ref_counter"]
         # TODO(acid): This attribute is asynchronous and is not accessible through list command.
         # This is fixed in 18 version, but for back-compatibility with 0.17.4 we still need this hack.
-        ephemeral_attributes += ["recursive_resource_usage"]
+        if yt_env.version < "0.18.0":
+            ephemeral_attributes += ["recursive_resource_usage"]
 
         for attribute in ephemeral_attributes:
             for attributes in [real_attributes, cached_attributes]:
