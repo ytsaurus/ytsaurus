@@ -98,7 +98,7 @@ public:
         SchedulerChannel_ = CreateSchedulerChannel(
             Config_->Scheduler,
             GetBusChannelFactory(),
-            GetMasterChannel(EMasterChannelKind::Leader));
+            GetMasterChannelOrThrow(EMasterChannelKind::Leader));
 
         NodeChannelFactory_ = CreateCachingChannelFactory(GetBusChannelFactory());
 
@@ -114,7 +114,7 @@ public:
 
         TableMountCache_ = New<TTableMountCache>(
             Config_->TableMountCache,
-            GetMasterChannel(EMasterChannelKind::Cache),
+            GetMasterChannelOrThrow(EMasterChannelKind::Cache),
             CellDirectory_);
 
         FunctionRegistry_ = CreateClientFunctionRegistry(
@@ -148,7 +148,7 @@ public:
         return SecondaryMasterCellTags_;
     }
 
-    virtual IChannelPtr GetMasterChannel(
+    virtual IChannelPtr GetMasterChannelOrThrow(
         EMasterChannelKind kind,
         TCellTag cellTag = PrimaryMasterCellTag) override
     {

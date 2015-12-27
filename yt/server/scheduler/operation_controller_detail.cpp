@@ -2380,7 +2380,7 @@ void TOperationControllerBase::PrepareLivePreviewTablesForUpdate()
 {
     // XXX(babenko): fixme
     //// NB: use root credentials.
-    //auto channel = Host->GetMasterClient()->GetMasterChannel(EMasterChannelKind::Leader);
+    //auto channel = Host->GetMasterClient()->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
     //TObjectServiceProxy proxy(channel);
     //
     //auto batchReq = proxy.ExecuteBatch();

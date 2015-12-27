@@ -1023,7 +1023,7 @@ private:
             auto cellTag = CellTagFromId(id);
             if (batchReqs.find(cellTag) == batchReqs.end()) {
                 auto connection = ClusterDirectory->GetConnection(cellTag);
-                auto channel = connection->GetMasterChannel(EMasterChannelKind::Leader);
+                auto channel = connection->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
                 TObjectServiceProxy proxy(channel);
                 batchReqs[cellTag] = proxy.ExecuteBatch();
             }
