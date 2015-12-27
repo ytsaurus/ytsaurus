@@ -19,6 +19,7 @@
 #include <yt/ytlib/hydra/peer_channel.h>
 
 #include <yt/core/concurrency/delayed_executor.h>
+#include <yt/core/concurrency/fls.h>
 
 #include <yt/core/misc/address.h>
 
@@ -50,6 +51,31 @@ using NYT::FromProto;
 
 static const auto HiveTracingService = Stroka("HiveManager");
 static const auto ClientHostAnnotation = Stroka("client_host");
+
+////////////////////////////////////////////////////////////////////////////////
+
+static NConcurrency::TFls<bool> HiveMutation;
+
+bool IsHiveMutation()
+{
+    return *HiveMutation;
+}
+
+class THiveMutationGuard
+    : private TNonCopyable
+{
+public:
+    THiveMutationGuard()
+    {
+        YASSERT(!*HiveMutation);
+        *HiveMutation = true;
+    }
+
+    ~THiveMutationGuard()
+    {
+        *HiveMutation = false;
+    }
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -966,9 +992,12 @@ private:
             ServerReceiveAnnotation);
 
         {
-            TMutationContext context(GetCurrentMutationContext(), request);
-            TMutationContextGuard contextGuard(&context);
-            static_cast<IAutomaton*>(Automaton_)->ApplyMutation(&context);
+            TMutationContext mutationContext(GetCurrentMutationContext(), request);
+            TMutationContextGuard mutationContextGuard(&mutationContext);
+
+            THiveMutationGuard hiveMutationGuard;
+
+            static_cast<IAutomaton*>(Automaton_)->ApplyMutation(&mutationContext);
         }
 
         TRACE_ANNOTATION(
