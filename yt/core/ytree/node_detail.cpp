@@ -326,8 +326,10 @@ void TMapNodeMixin::SetChild(
 
         int maxChildCount = GetMaxChildCount();
         if (currentNode->GetChildCount() >= maxChildCount) {
-            THROW_ERROR_EXCEPTION("Too many children in map node")
-                << TErrorAttribute("limit", maxChildCount);
+            THROW_ERROR_EXCEPTION(
+                NYTree::EErrorCode::MaxChildCountViolation,
+                "Map node is not allowed to contain more than %v items",
+                maxChildCount);
         }
 
         auto newChild = lastStep ? child : factory->CreateMap();
@@ -434,8 +436,10 @@ void TListNodeMixin::SetChild(
 
     int maxChildCount = GetMaxChildCount();
     if (GetChildCount() >= maxChildCount) {
-        THROW_ERROR_EXCEPTION("Too many children in list node")
-            << TErrorAttribute("limit", maxChildCount);
+        THROW_ERROR_EXCEPTION(
+            NYTree::EErrorCode::MaxChildCountViolation,
+            "List node is not allowed to contain more than %v items",
+            maxChildCount);
     }
 
     AddChild(child, beforeIndex);
