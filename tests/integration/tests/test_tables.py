@@ -519,7 +519,7 @@ class TestTables(YTEnvSetup):
     def test_invalid_channels_in_create(self):
         with pytest.raises(YtError): create("table", "//tmp/t", attributes={"channels": "123"})
 
-    def test_replication_factor_attr(self):
+    def test_replication_factor_updates(self):
         create("table", "//tmp/t")
         assert get("//tmp/t/@replication_factor") == 3
 
@@ -530,7 +530,7 @@ class TestTables(YTEnvSetup):
         tx = start_transaction()
         with pytest.raises(YtError): set("//tmp/t/@replication_factor", 2, tx=tx)
 
-    def test_replication_factor_static(self):
+    def test_replication_factor_propagates_to_chunks(self):
         create("table", "//tmp/t")
         set("//tmp/t/@replication_factor", 2)
 
@@ -598,8 +598,11 @@ class TestTables(YTEnvSetup):
         for id in chunk_ids:
             assert get("#" + id + "/@replication_factor") == expected_rf
 
+    # In tests below we intentionally issue vital/replication_factor updates
+    # using a temporary user "u"; cf. YT-3579.
     def test_vital_update(self):
         create("table", "//tmp/t")
+        create_user("u")
         for i in xrange(0, 5):
             write_table("<append=true>//tmp/t", {"a" : "b"})
 
@@ -611,7 +614,7 @@ class TestTables(YTEnvSetup):
         assert get("//tmp/t/@vital")
         check_vital_chunks(True)
 
-        set("//tmp/t/@vital", False)
+        set("//tmp/t/@vital", False, user="u")
         assert not get("//tmp/t/@vital")
         sleep(2)
 
@@ -619,28 +622,31 @@ class TestTables(YTEnvSetup):
 
     def test_replication_factor_update1(self):
         create("table", "//tmp/t")
+        create_user("u")
         for i in xrange(0, 5):
             write_table("<append=true>//tmp/t", {"a" : "b"})
-        set("//tmp/t/@replication_factor", 4)
+        set("//tmp/t/@replication_factor", 4, user="u")
         sleep(2)
         self._check_replication_factor("//tmp/t", 4)
 
     def test_replication_factor_update2(self):
         create("table", "//tmp/t")
+        create_user("u")
         tx = start_transaction()
         for i in xrange(0, 5):
             write_table("<append=true>//tmp/t", {"a" : "b"}, tx=tx)
-        set("//tmp/t/@replication_factor", 4)
+        set("//tmp/t/@replication_factor", 4, user="u")
         commit_transaction(tx)
         sleep(2)
         self._check_replication_factor("//tmp/t", 4)
 
     def test_replication_factor_update3(self):
         create("table", "//tmp/t")
+        create_user("u")
         tx = start_transaction()
         for i in xrange(0, 5):
             write_table("<append=true>//tmp/t", {"a" : "b"}, tx=tx)
-        set("//tmp/t/@replication_factor", 2)
+        set("//tmp/t/@replication_factor", 2, user="u")
         commit_transaction(tx)
         sleep(2)
         self._check_replication_factor("//tmp/t", 2)
