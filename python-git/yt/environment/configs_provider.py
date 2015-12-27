@@ -281,13 +281,9 @@ class ConfigsProvider_17_4(ConfigsProvider_17):
         for cell_index in xrange(secondary_master_cell_count + 1):
             for config in configs[cell_index]:
                 config["hydra_manager"] = {
-                    "leader_lease_check_period": 1000,
-                    "leader_lease_timeout": 2000,
-                    "disable_leader_lease_grace_delay": True,
-                    "response_keeper": {
-                        "expiration_time": 25000,
-                        "warmup_time": 30000,
-                    }
+                    "leader_lease_check_period": 100,
+                    "leader_lease_timeout": 500,
+                    "disable_leader_lease_grace_delay": True
                 }
 
         return configs
@@ -340,13 +336,9 @@ class ConfigsProvider_18(ConfigsProvider):
                 config = default_configs.get_master_config()
 
                 config["hydra_manager"] = {
-                    "leader_lease_check_period": 1000,
-                    "leader_lease_timeout": 2000,
-                    "disable_leader_lease_grace_delay": True,
-                    "response_keeper": {
-                        "expiration_time": 25000,
-                        "warmup_time": 30000,
-                    }
+                    "leader_lease_check_period": 100,
+                    "leader_lease_timeout": 500,
+                    "disable_leader_lease_grace_delay": True
                 }
 
                 config["security_manager"]["user_statistics_gossip_period"] = 80
@@ -502,6 +494,11 @@ class ConfigsProvider_18(ConfigsProvider):
             config["exec_agent"]["job_proxy_logging"] = init_logging(config["exec_agent"]["job_proxy_logging"],
                                                                      node_dirs[i], "job_proxy-{0}".format(i),
                                                                      self.enable_debug_logging)
+            config["tablet_node"]["hydra_manager"] = {
+                "leader_lease_check_period": 100,
+                "leader_lease_timeout": 500,
+                "disable_leader_lease_grace_delay": True
+            }
 
             configs.append(config)
 

@@ -64,6 +64,10 @@ def get_master_config():
         hard_backoff_time = 100;
     };
 
+    hydra_manager = {
+        disable_leader_lease_grace_delay = %true;
+    };
+
     transaction_manager = {
         default_transaction_timeout = 300000;
     };
@@ -252,8 +256,6 @@ def get_node_config(enable_debug_logging=True):
 
     tablet_node = {
         hydra_manager = {
-            leader_lease_check_period = 100;
-            leader_lease_timeout = 200;
             disable_leader_lease_grace_delay = %true;
         };
 
