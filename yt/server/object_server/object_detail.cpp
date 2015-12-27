@@ -654,7 +654,9 @@ void TObjectProxyBase::ValidateCustomAttributeLength(const NYson::TYsonString& v
     auto size = value.Data().length();
     auto limit = Bootstrap_->GetConfig()->CypressManager->MaxAttributeSize;
     if (size > limit) {
-        THROW_ERROR_EXCEPTION("Attribute size exceeded: %v > %v",
+        THROW_ERROR_EXCEPTION(
+            NYTree::EErrorCode::MaxAttributeSizeViolation,
+            "Attribute size exceeded: %v > %v",
             size,
             limit);
     }
