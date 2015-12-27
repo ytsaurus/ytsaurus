@@ -226,7 +226,7 @@ private:
     class TUserTypeHandler;
     class TGroupTypeHandler;
     
-    TIntrusivePtr<TImpl> Impl_;
+    const TIntrusivePtr<TImpl> Impl_;
 
 };
 
