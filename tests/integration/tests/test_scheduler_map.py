@@ -1411,6 +1411,13 @@ class TestJobQuery(YTEnvSetup):
         assert get("//tmp/t_output/@sorted_by") == ["key"]
         assert read_table("//tmp/t_output") == original_data
 
+    def test_large_spec(self):
+        create("table", "//tmp/t1")
+        write_table("//tmp/t1", [{"a": "b"}])
+
+        with pytest.raises(YtError):
+            map(in_="//tmp/t1", out="//tmp/t2", command="cat", spec={"attribute": "really_large" * (2 * 10 ** 6)}, verbose=False)
+
 ##################################################################
 
 class TestSchedulerMapCommandsMulticell(TestSchedulerMapCommands):
