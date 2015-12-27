@@ -25,6 +25,8 @@
 
 #include <yt/server/transaction_server/transaction.h>
 
+#include <yt/server/hive/hive_manager.h>
+
 #include <yt/ytlib/object_client/helpers.h>
 
 #include <yt/ytlib/security_client/group_ypath_proxy.h>
@@ -47,6 +49,7 @@ using namespace NYPath;
 using namespace NCypressServer;
 using namespace NSecurityClient;
 using namespace NObjectServer;
+using namespace NHive;
 
 using NYT::FromProto;
 using NYT::ToProto;
@@ -859,6 +862,10 @@ public:
         TUser* user,
         EPermission permission)
     {
+        if (IsHiveMutation()) {
+            return;
+        }
+
         auto result = CheckPermission(object, user, permission);
         if (result.Action == ESecurityAction::Deny) {
             auto objectManager = Bootstrap_->GetObjectManager();
