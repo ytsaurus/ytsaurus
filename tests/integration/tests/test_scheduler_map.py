@@ -274,7 +274,7 @@ done
             initial_job = jobs[0]
 
             # Send signal and wait for a new job
-            signal_job(jobs[0], "SIGUSR1")
+            signal_job(initial_job, "SIGUSR1")
             while not exists("//sys/operations/{0}/@progress/jobs".format(op_id)) or get("//sys/operations/{0}/@progress/jobs/aborted/total".format(op_id)) == 0:
                 time.sleep(0.5)
             while not os.access(pin_filename, os.F_OK):
@@ -331,7 +331,7 @@ done
             job_id = open(pin_filename).read()
             assert job_id
 
-            result = abandon_job(job_id)
+            abandon_job(job_id)
         finally:
             try:
                 os.unlink(pin_filename)
