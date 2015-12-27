@@ -931,3 +931,19 @@ class TestTablets(YTEnvSetup):
         set("//tmp/t/@read_only", True)
         remount_table("//tmp/t")
 
+    def test_tablet_assignment(self):
+        self.sync_create_cells(1, 3)
+        self._create_table("//tmp/t")
+        reshard_table("//tmp/t", [[]] + [[i] for i in xrange(11)])
+        assert get("//tmp/t/@tablet_count") == 12
+
+        self.sync_mount_table("//tmp/t")
+
+        cells = ls("//sys/tablet_cells", attributes=["tablet_count"])
+        assert len(cells) == 3
+        for cell in cells:
+            assert cell.attributes["tablet_count"] == 4
+            
+
+        
+        
