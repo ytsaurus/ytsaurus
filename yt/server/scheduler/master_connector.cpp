@@ -97,11 +97,10 @@ public:
         LOG_INFO("Creating operation node (OperationId: %v)",
             operationId);
 
-        auto* list = CreateUpdateList(operation);
         auto strategy = Bootstrap->GetScheduler()->GetStrategy();
 
         auto path = GetOperationPath(operationId);
-        auto batchReq = StartBatchRequest(list);
+        auto batchReq = StartBatchRequest();
         {
             auto req = TYPathProxy::Set(path);
             req->set_value(BuildYsonStringFluently()
@@ -1568,6 +1567,8 @@ private:
         auto error = GetCumulativeError(batchRspOrError);
         THROW_ERROR_EXCEPTION_IF_FAILED(error, "Error creating operation node %v",
             operationId);
+
+        CreateUpdateList(operation);
 
         LOG_INFO("Operation node created (OperationId: %v)",
             operationId);
