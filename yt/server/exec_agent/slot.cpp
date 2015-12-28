@@ -217,8 +217,8 @@ void TSlot::Release()
         ProcessGroup_.Unlock();
     }
 
-    IsFree_.store(true);
     PathIndex_ = -1;
+    IsFree_.store(true);
 }
 
 void TSlot::InitSandbox()
