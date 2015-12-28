@@ -465,12 +465,17 @@ def clean_artifacts(options, n=10):
 
 
 @yt_register_cleanup_step
-def clean_failed_tests(options, max_allowed_size=50 * 1024 * 1024 * 1024):
+def clean_failed_tests(options, max_allowed_size=None):
+    if options.is_bare_metal_agent:
+        max_allowed_size = 200 * 1024 * 1024 * 1024
+    else:
+        max_allowed_size = 50 * 1024 * 1024 * 1024
+
     total_size = 0
     for path in ls(os.path.expanduser("~/failed_tests/"),
                    select=os.path.isdir,
                    stop=sys.maxint):
-        size = os.stat(path).st_size
+        size = get_size(path, enable_cache=True)
         if total_size + size > max_allowed_size:
             teamcity_message("Removing {0}...".format(path), status="WARNING")
             if os.path.isdir(path):
@@ -593,6 +598,20 @@ def ls(path, reverse=True, select=None, start=0, stop=None):
     iterable = itertools.islice(iterable, start, stop)
     return iterable
 
+def get_size(path, enable_cache=False):
+    if enable_cache and os.path.isdir(path) and os.path.exists(path + ".size"):
+        return int(open(path + ".size").read())
+
+    size = 0
+    for dirpath, dirnames, filenames in os.walk(path):
+        for filename in filenames:
+            size += os.stat(os.path.join(dirpath, filename)).st_size
+
+    if enable_cache:
+        with open(path + ".size", "w") as fout:
+            fout.write(str(size))
+
+    return size
 
 def mkdirp(path):
     try:
@@ -835,8 +854,9 @@ def main():
         type=str, action="store", required=False, default="g++-4.8")
 
     options = parser.parse_args()
-    # XXX(asaitgalin): parallel testing is enabled only for bare metal machines.
-    options.enable_parallel_testing = socket.getfqdn().endswith("tc.yt.yandex.net")
+    options.is_bare_metal = socket.getfqdn().endswith("tc.yt.yandex.net")
+    # NB: parallel testing is enabled by default only for bare metal machines.
+    options.enable_parallel_testing = options.is_bare_metal
 
     status = 0
     try:
