@@ -14,6 +14,8 @@
     #include <sys/wait.h>
     #include <unistd.h>
     #include <fcntl.h>
+    #include <sys/utsname.h>
+    #include <linux/version.h>
 #endif
 
 #include <array>
@@ -44,6 +46,21 @@ TEST(TCGroup, CreateDestroy)
 }
 
 #ifdef _linux_
+
+int GetLinuxVersion()
+{
+    utsname sysInfo;
+
+    VERIFY(!uname(&sysInfo), "Error while call uname: %s", LastSystemErrorText());
+
+    TStringBuf release(sysInfo.release);
+    release = release.substr(0, release.find_first_not_of(".0123456789"));
+
+    int v1 = FromString<int>(release.NextTok('.'));
+    int v2 = FromString<int>(release.NextTok('.'));
+    int v3 = FromString<int>(release.NextTok('.'));
+    return KERNEL_VERSION(v1, v2, v3);
+}
 
 TEST(TCGroup, NotExistingGroupGetTasks)
 {
@@ -257,8 +274,13 @@ TEST(TCGroup, Bug)
     EXPECT_TRUE(::read(initBarier, &num, sizeof(num)) == sizeof(num));
 
     reallyRead = ::read(fd, buffer, 1024);
-    // reallyRead SHOULD BE equal to 0
-    ASSERT_TRUE(reallyRead > 0);
+    // XXX(ignat): I failed to determine exact version where this problem was fixed.
+    // It is certanly between 3.10 and 3.18, but there are too many changes about cgroups in these versions.
+    if (GetLinuxVersion() >= KERNEL_VERSION(3, 18, 0)) {
+        ASSERT_TRUE(reallyRead == 0);
+    } else {
+        ASSERT_TRUE(reallyRead > 0);
+    }
 
     num = 1;
     EXPECT_TRUE(::write(exitBarier, &num, sizeof(num)) == sizeof(num));
