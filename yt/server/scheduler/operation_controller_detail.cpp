@@ -1223,7 +1223,7 @@ void TOperationControllerBase::InitInputChunkScraper()
         InputNodeDirectory,
         std::move(chunkIds),
         BIND(&TThis::OnInputChunkLocated, MakeWeak(this))
-            .Via(CancelableControlInvoker),
+            .Via(CancelableInvoker),
         Logger
     );
 
@@ -1604,6 +1604,8 @@ void TOperationControllerBase::OnInputChunkLocated(const TChunkId& chunkId, cons
 
 void TOperationControllerBase::OnInputChunkAvailable(const TChunkId& chunkId, TInputChunkDescriptor& descriptor, const TChunkReplicaList& replicas)
 {
+    VERIFY_INVOKER_AFFINITY(CancelableInvoker);
+
     if (descriptor.State != EInputChunkState::Waiting)
         return;
 
@@ -1640,6 +1642,8 @@ void TOperationControllerBase::OnInputChunkAvailable(const TChunkId& chunkId, TI
 
 void TOperationControllerBase::OnInputChunkUnavailable(const TChunkId& chunkId, TInputChunkDescriptor& descriptor)
 {
+    VERIFY_INVOKER_AFFINITY(CancelableInvoker);
+
     if (descriptor.State != EInputChunkState::Active)
         return;
 
