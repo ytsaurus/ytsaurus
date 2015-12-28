@@ -62,7 +62,7 @@ public:
     {
         int size = message.ByteSize();
         WriteInt64(size);
-        EnsureCapacity(size);
+        EnsureAlignedUpCapacity(size);
         YCHECK(message.SerializePartialToArray(Current_, size));
         Current_ += AlignUp(size);
     }
@@ -152,6 +152,10 @@ private:
         EndPreallocated_ = BeginPreallocated_ + size;
     }
 
+    void EnsureAlignedUpCapacity(size_t more)
+    {
+        EnsureCapacity(AlignUp(more));
+    }
 
     void UnsafeWriteInt64(i64 value)
     {
@@ -173,7 +177,7 @@ private:
 
     void WriteRaw(const void* buffer, size_t size)
     {
-        EnsureCapacity(size + SerializationAlignment);
+        EnsureAlignedUpCapacity(size);
         UnsafeWriteRaw(buffer, size);
     }
 
@@ -199,7 +203,7 @@ private:
         if (IsStringLikeType(EValueType(value.Type))) {
             bytes += value.Length + (Schemaful ? sizeof (i64) : 0);
         }
-        EnsureCapacity(bytes);
+        EnsureAlignedUpCapacity(bytes);
 
         const i64* rawValue = reinterpret_cast<const i64*>(&value);
         if (!Schemaful) {

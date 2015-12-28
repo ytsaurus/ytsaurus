@@ -1,4 +1,5 @@
 #include "unversioned_row.h"
+#include "unversioned_value.h"
 
 #include <yt/ytlib/table_client/name_table.h>
 #include <yt/ytlib/table_client/row_buffer.h>
@@ -14,6 +15,7 @@
 
 #include <yt/core/ytree/attribute_helpers.h>
 #include <yt/core/ytree/node.h>
+#include <yt/core/ytree/convert.h>
 
 #include <util/generic/ymath.h>
 
@@ -197,8 +199,6 @@ int ReadValue(const char* input, TUnversionedValue* value)
     return current - input;
 }
 
-////////////////////////////////////////////////////////////////////////////////
-
 void Save(TStreamSaveContext& context, const TUnversionedValue& value)
 {
     auto* output = context.GetOutput();
@@ -228,8 +228,6 @@ void Load(TStreamLoadContext& context, TUnversionedValue& value, TChunkedMemoryP
         YCHECK(input->Load(&value.Data, sizeof (value.Data)) == sizeof (value.Data));
     }
 }
-
-////////////////////////////////////////////////////////////////////////////////
 
 Stroka ToString(const TUnversionedValue& value)
 {
@@ -277,7 +275,11 @@ int CompareRowValues(const TUnversionedValue& lhs, const TUnversionedValue& rhs)
             // Never compare composite values with non-sentinels.
             THROW_ERROR_EXCEPTION(
                 EErrorCode::IncomparableType,
-                "Composite types are not comparable");
+                "Cannot compare values of types %Qlv and %Qlv; only scalar types are allowed for key columns",
+                lhs.Type,
+                rhs.Type)
+                << TErrorAttribute("lhs_value", lhs)
+                << TErrorAttribute("rhs_value", rhs);
         }
     }
 
@@ -608,7 +610,7 @@ TUnversionedRow TUnversionedRow::Allocate(TChunkedMemoryPool* pool, int valueCou
     auto* header = reinterpret_cast<TUnversionedRowHeader*>(pool->AllocateAligned(
         GetUnversionedRowDataSize(valueCount)));
     header->Count = valueCount;
-    header->Padding = 0;
+    header->Capacity = valueCount;
     return TUnversionedRow(header);
 }
 
@@ -1150,46 +1152,50 @@ void FromProto(TUnversionedOwningRow* row, const NChunkClient::NProto::TKey& pro
     *row = rowBuilder.FinishRow();
 }
 
-void Serialize(const TKey& key, IYsonConsumer* consumer)
+void Serialize(const TUnversionedValue& value, IYsonConsumer* consumer)
+{
+    auto type = value.Type;
+    switch (type) {
+        case EValueType::Int64:
+            consumer->OnInt64Scalar(value.Data.Int64);
+            break;
+
+        case EValueType::Uint64:
+            consumer->OnUint64Scalar(value.Data.Uint64);
+            break;
+
+        case EValueType::Double:
+            consumer->OnDoubleScalar(value.Data.Double);
+            break;
+
+        case EValueType::Boolean:
+            consumer->OnBooleanScalar(value.Data.Boolean);
+            break;
+
+        case EValueType::String:
+            consumer->OnStringScalar(TStringBuf(value.Data.String, value.Length));
+            break;
+
+        case EValueType::Any:
+            THROW_ERROR_EXCEPTION("Key cannot contain \"any\" components");
+            break;
+
+        default:
+            consumer->OnBeginAttributes();
+            consumer->OnKeyedItem("type");
+            consumer->OnStringScalar(FormatEnum(type));
+            consumer->OnEndAttributes();
+            consumer->OnEntity();
+            break;
+    }
+}
+
+void Serialize(TKey key, IYsonConsumer* consumer)
 {
     consumer->OnBeginList();
     for (int index = 0; index < key.GetCount(); ++index) {
         consumer->OnListItem();
-        const auto& value = key[index];
-        auto type = EValueType(value.Type);
-        switch (type) {
-            case EValueType::Int64:
-                consumer->OnInt64Scalar(value.Data.Int64);
-                break;
-
-            case EValueType::Uint64:
-                consumer->OnUint64Scalar(value.Data.Uint64);
-                break;
-
-            case EValueType::Double:
-                consumer->OnDoubleScalar(value.Data.Double);
-                break;
-
-            case EValueType::Boolean:
-                consumer->OnBooleanScalar(value.Data.Boolean);
-                break;
-
-            case EValueType::String:
-                consumer->OnStringScalar(TStringBuf(value.Data.String, value.Length));
-                break;
-
-            case EValueType::Any:
-                THROW_ERROR_EXCEPTION("Key cannot contain \"any\" components");
-                break;
-
-            default:
-                consumer->OnBeginAttributes();
-                consumer->OnKeyedItem("type");
-                consumer->OnStringScalar(FormatEnum(type));
-                consumer->OnEndAttributes();
-                consumer->OnEntity();
-                break;
-        }
+        Serialize(key[index], consumer);
     }
     consumer->OnEndList();
 }
@@ -1260,19 +1266,21 @@ void TUnversionedOwningRow::Load(TStreamLoadContext& context)
 
 TUnversionedRowBuilder::TUnversionedRowBuilder(int initialValueCapacity /*= 16*/)
 {
-    ValueCapacity_ = initialValueCapacity;
-    RowData_.resize(GetUnversionedRowDataSize(ValueCapacity_));
+    RowData_.resize(GetUnversionedRowDataSize(initialValueCapacity));
     Reset();
+    GetHeader()->Capacity = initialValueCapacity;
 }
 
 int TUnversionedRowBuilder::AddValue(const TUnversionedValue& value)
 {
-    if (GetHeader()->Count == ValueCapacity_) {
-        ValueCapacity_ = 2 * std::max(1, ValueCapacity_);
-        RowData_.resize(GetUnversionedRowDataSize(ValueCapacity_));
+    auto* header = GetHeader();
+    if (header->Count == header->Capacity) {
+        auto valueCapacity = 2 * std::max(1U, header->Capacity);
+        RowData_.resize(GetUnversionedRowDataSize(valueCapacity));
+        header = GetHeader();
+        header->Capacity = valueCapacity;
     }
 
-    auto* header = GetHeader();
     *GetValue(header->Count) = value;
     return header->Count++;
 }
@@ -1309,12 +1317,14 @@ TUnversionedOwningRowBuilder::TUnversionedOwningRowBuilder(int initialValueCapac
 
 int TUnversionedOwningRowBuilder::AddValue(const TUnversionedValue& value)
 {
-    if (GetHeader()->Count == ValueCapacity_) {
-        ValueCapacity_ = ValueCapacity_ == 0 ? 1 : ValueCapacity_ * 2;
-        RowData_.Resize(GetUnversionedRowDataSize(ValueCapacity_));
+    auto* header = GetHeader();
+    if (header->Count == header->Capacity) {
+        auto valueCapacity = 2 * std::max(1U, header->Capacity);
+        RowData_.Resize(GetUnversionedRowDataSize(valueCapacity));
+        header = GetHeader();
+        header->Capacity = valueCapacity;
     }
 
-    auto* header = GetHeader();
     auto* newValue = GetValue(header->Count);
     *newValue = value;
 
@@ -1360,11 +1370,11 @@ TUnversionedOwningRow TUnversionedOwningRowBuilder::FinishRow()
 
 void TUnversionedOwningRowBuilder::Reset()
 {
-    ValueCapacity_ = InitialValueCapacity_;
-    RowData_.Resize(GetUnversionedRowDataSize(ValueCapacity_));
+    RowData_.Resize(GetUnversionedRowDataSize(InitialValueCapacity_));
 
     auto* header = GetHeader();
     header->Count = 0;
+    header->Capacity = InitialValueCapacity_;
 }
 
 TUnversionedRowHeader* TUnversionedOwningRowBuilder::GetHeader()
@@ -1388,7 +1398,7 @@ void TUnversionedOwningRow::Init(const TUnversionedValue* begin, const TUnversio
     auto* header = GetHeader();
 
     header->Count = count;
-    header->Padding = 0;
+    header->Capacity = count;
     ::memcpy(header + 1, begin, reinterpret_cast<const char*>(end) - reinterpret_cast<const char*>(begin));
 
     size_t variableSize = 0;

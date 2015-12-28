@@ -28,7 +28,7 @@ for RF in {1,3,5}; do
         if [ "$i" = "1" ]; then
             yt create table $table
             yt set "$table/@replication_factor" $RF
-            yt set "$table/@compression_codec" "gzip_best_compression"
+            yt set "$table/@compression_codec" "zlib9"
             yt map "cat" --src "//statbox/access-log/2012-12-01" --dst $table --format dsv --spec "{job_io={table_writer={upload_replication_factor=$RF}}}" >>"init$RF" 2>&1
         else
             yt copy "//home/tests/rf_experiment/1" "$table" >>"init$RF" 2>&1

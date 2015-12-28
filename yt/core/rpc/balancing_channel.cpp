@@ -63,22 +63,22 @@ public:
     TFuture<IChannelPtr> GetChannel()
     {
         auto channel = PickViableChannel();
-        return channel ? MakeFuture(std::move(channel)) : RunDiscovery();
+        return channel ? MakeFuture(std::move(channel)) : RunDiscoverySession();
     }
 
     TFuture<void> Terminate(const TError& error)
     {
-        std::vector<IChannelPtr> channels;
+        std::vector<std::pair<Stroka, IChannelPtr>> viableChannels;
         {
             TWriterGuard guard(SpinLock_);
             Terminated_ = true;
             TerminationError_ = error;
-            channels = std::move(ViableChannels_);
+            ViableChannels_.swap(viableChannels);
         }
 
         std::vector<TFuture<void>> asyncResults;
-        for (const auto& channel : channels) {
-            asyncResults.push_back(channel->Terminate(error));
+        for (const auto& pair : viableChannels) {
+            asyncResults.push_back(pair.second->Terminate(error));
         }
 
         return Combine(asyncResults);
@@ -94,10 +94,11 @@ private:
 
     mutable TReaderWriterSpinLock SpinLock_;
     bool Terminated_ = false;
+    TFuture<IChannelPtr> CurrentDiscoverySessionResult_;
     TError TerminationError_;
     yhash_set<Stroka> ActiveAddresses_;
     yhash_set<Stroka> BannedAddresses_;
-    std::vector<IChannelPtr> ViableChannels_;
+    std::vector<std::pair<Stroka, IChannelPtr>> ViableChannels_;
 
     NLogging::TLogger Logger;
 
@@ -119,11 +120,15 @@ private:
             , Logger(Owner_->Logger)
         { }
 
-        TFuture<IChannelPtr> Run()
+        TFuture<IChannelPtr> GetResult()
+        {
+            return Promise_;
+        }
+
+        void Run()
         {
             LOG_DEBUG("Starting peer discovery");
             DoRun();
-            return Promise_;
         }
 
     private:
@@ -190,7 +195,7 @@ private:
             const TGenericProxy::TErrorOrRspDiscoverPtr& rspOrError)
         {
             if (Promise_.IsCanceled()) {
-                Promise_.TrySet(TError(NYT::EErrorCode::Canceled, "Discovery session has been canceled"));
+                TrySetResult(TError(NYT::EErrorCode::Canceled, "Discovery session has been canceled"));
                 return;
             }
  
@@ -253,7 +258,7 @@ private:
         void AddViablePeer(const Stroka& address, IChannelPtr channel)
         {
             auto wrappedChannel = Owner_->AddViablePeer(address, channel);
-            Promise_.TrySet(wrappedChannel);
+            TrySetResult(wrappedChannel);
         }
 
         void OnFinished()
@@ -266,7 +271,14 @@ private:
                     << InnerErrors_;
             }
 
-            Promise_.TrySet(result);
+            TrySetResult(result);
+        }
+
+        void TrySetResult(const TErrorOr<IChannelPtr>& result)
+        {
+            if (Promise_.TrySet(result)) {
+                Owner_->OnDiscoverySessionFinished();
+            }
         }
     };
 
@@ -277,21 +289,49 @@ private:
         if (ViableChannels_.empty()) {
             return nullptr;
         }
-        return ViableChannels_[RandomNumber(ViableChannels_.size())];
+        int index = RandomNumber(ViableChannels_.size());
+        return ViableChannels_[index].second;
     }
 
-    TFuture<IChannelPtr> RunDiscovery()
+
+    TFuture<IChannelPtr> RunDiscoverySession()
     {
+        TIntrusivePtr<TDiscoverySession> session;
         {
-            TReaderGuard guard(SpinLock_);
+            TWriterGuard guard(SpinLock_);
+
             if (Terminated_) {
-                return MakeFuture<IChannelPtr>(TError(NRpc::EErrorCode::TransportError, "Channel terminated")
+                return MakeFuture<IChannelPtr>(TError(
+                    NRpc::EErrorCode::TransportError,
+                    "Channel terminated")
                     << *EndpointAttributes_
                     << TerminationError_);
             }
+
+            if (CurrentDiscoverySessionResult_) {
+                return CurrentDiscoverySessionResult_;
+            }
+
+            session = New<TDiscoverySession>(this);
+            CurrentDiscoverySessionResult_ = session->GetResult();
         }
-        return New<TDiscoverySession>(this)->Run();
+
+        session->Run();
+        return session->GetResult();
     }
+
+    void OnDiscoverySessionFinished()
+    {
+        TWriterGuard guard(SpinLock_);
+
+        YCHECK(CurrentDiscoverySessionResult_);
+        CurrentDiscoverySessionResult_.Reset();
+
+        TDelayedExecutor::Submit(
+            BIND(IgnoreResult(&TBalancingChannelSubprovider::RunDiscoverySession), MakeWeak(this)),
+            Config_->RediscoverPeriod);
+    }
+
 
     std::vector<Stroka> GetAllAddresses() const
     {
@@ -320,7 +360,7 @@ private:
         yhash_set<Stroka>* requestingAddresses,
         yhash_set<Stroka>* requestedAddresses)
     {
-        TWriterGuard guard(SpinLock_);
+        TReaderGuard guard(SpinLock_);
 
         if (requestingAddresses->size() >= Config_->MaxConcurrentDiscoverRequests) {
             return TTooManyConcurrentRequests();
@@ -387,7 +427,17 @@ private:
 
         {
             TWriterGuard guard(SpinLock_);
-            ViableChannels_.push_back(wrappedChannel);
+            bool found = false;
+            for (auto& pair : ViableChannels_) {
+                if (pair.first == address) {
+                    pair.second = wrappedChannel;
+                    found = true;
+                    break;
+                }
+            }
+            if (!found) {
+                ViableChannels_.push_back(std::make_pair(address, wrappedChannel));
+            }
         }
 
         LOG_DEBUG("Peer is up (Address: %v)", address);
@@ -398,10 +448,13 @@ private:
     {
         {
             TWriterGuard guard(SpinLock_);
-            auto it = std::find(ViableChannels_.begin(), ViableChannels_.end(), channel);
-            // NB: Multiple failures is possible.
-            if (it != ViableChannels_.end()) {
-                ViableChannels_.erase(it);
+            for (int index = 0; index < ViableChannels_.size(); ++index) {
+                const auto& pair = ViableChannels_[index];
+                if (pair.first == address && pair.second == channel) {
+                    std::swap(ViableChannels_[index], ViableChannels_[ViableChannels_.size() - 1]);
+                    ViableChannels_.resize(ViableChannels_.size() - 1);
+                    break;
+                }
             }
         }
 

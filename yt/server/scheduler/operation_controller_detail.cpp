@@ -353,11 +353,6 @@ TJobId TOperationControllerBase::TTask::ScheduleJob(
     const TNodeResources& jobLimits)
 {
     int chunkListCount = GetChunkListCountPerJob();
-    if (!Controller->HasEnoughChunkLists(chunkListCount)) {
-        LOG_DEBUG("Job chunk list demand is not met");
-        return NullJobId;
-    }
-
     int jobIndex = Controller->JobIndexGenerator.Next();
     auto joblet = New<TJoblet>(this, jobIndex);
 
@@ -707,8 +702,8 @@ void TOperationControllerBase::TTask::AddChunksToInputSpec(
 {
     for (const auto& chunkSlice : stripe->ChunkSlices) {
         auto* chunkSpec = inputSpec->add_chunks();
-        ToProto(chunkSpec, *chunkSlice);
-        for (ui32 protoReplica : chunkSlice->ChunkSpec()->replicas()) {
+        ToProto(chunkSpec, chunkSlice);
+        for (ui32 protoReplica : chunkSlice->GetChunkSpec()->replicas()) {
             auto replica = FromProto<TChunkReplica>(protoReplica);
             directoryBuilder->Add(replica);
         }
@@ -1597,7 +1592,7 @@ void TOperationControllerBase::OnInputChunkUnavailable(const TChunkId& chunkId, 
                     slices.end(),
                     inputStripe.Stripe->ChunkSlices.begin(),
                     [&] (TChunkSlicePtr slice) {
-                        return chunkId != FromProto<TChunkId>(slice->ChunkSpec()->chunk_id());
+                        return chunkId != FromProto<TChunkId>(slice->GetChunkSpec()->chunk_id());
                     });
 
                 // Reinstall patched stripe.
@@ -1816,7 +1811,7 @@ void TOperationControllerBase::AddTaskLocalityHint(TTaskPtr task, const Stroka& 
 void TOperationControllerBase::AddTaskLocalityHint(TTaskPtr task, TChunkStripePtr stripe)
 {
     for (const auto& chunkSlice : stripe->ChunkSlices) {
-        for (ui32 protoReplica : chunkSlice->ChunkSpec()->replicas()) {
+        for (ui32 protoReplica : chunkSlice->GetChunkSpec()->replicas()) {
             auto replica = FromProto<NChunkClient::TChunkReplica>(protoReplica);
 
             if (chunkSlice->GetLocality(replica.GetIndex()) > 0) {
@@ -1940,6 +1935,12 @@ TJobId TOperationControllerBase::DoScheduleLocalJob(
                 FormatResources(jobLimits),
                 bestTask->GetPendingDataSize(),
                 bestTask->GetPendingJobCount());
+
+            if (!HasEnoughChunkLists(bestTask->GetChunkListCountPerJob())) {
+                LOG_DEBUG("Job chunk list demand is not met");
+                return NullJobId;
+            }
+
             auto jobId = bestTask->ScheduleJob(context, jobLimits);
             if (jobId) {
                 UpdateTask(bestTask);
@@ -2041,6 +2042,11 @@ TJobId TOperationControllerBase::DoScheduleNonLocalJob(
                     FormatResources(jobLimits),
                     task->GetPendingDataSize(),
                     task->GetPendingJobCount());
+
+                if (!HasEnoughChunkLists(task->GetChunkListCountPerJob())) {
+                    LOG_DEBUG("Job chunk list demand is not met");
+                    return NullJobId;
+                }
 
                 auto jobId = task->ScheduleJob(context, jobLimits);
                 if (jobId) {
@@ -2515,7 +2521,7 @@ void TOperationControllerBase::RequestInputObjects()
 {
     LOG_INFO("Requesting input objects");
 
-    auto channel = AuthenticatedInputMasterClient->GetMasterChannel(EMasterChannelKind::LeaderOrFollower);
+    auto channel = AuthenticatedInputMasterClient->GetMasterChannel(EMasterChannelKind::Leader);
     TObjectServiceProxy proxy(channel);
 
     auto batchReq = proxy.ExecuteBatch();
@@ -2597,7 +2603,7 @@ void TOperationControllerBase::RequestOutputObjects()
 {
     LOG_INFO("Requesting output objects");
 
-    auto channel = AuthenticatedOutputMasterClient->GetMasterChannel(EMasterChannelKind::LeaderOrFollower);
+    auto channel = AuthenticatedOutputMasterClient->GetMasterChannel(EMasterChannelKind::Leader);
     TObjectServiceProxy proxy(channel);
 
     auto batchReq = proxy.ExecuteBatch();
@@ -2756,7 +2762,7 @@ void TOperationControllerBase::DoRequestFileObjects(
     std::function<void(TAttributeFilter&)> updateAttributeFilter,
     std::function<void(const TUserFile&, const IAttributeDictionary&)> onFileObject)
 {
-    auto channel = AuthenticatedOutputMasterClient->GetMasterChannel(EMasterChannelKind::LeaderOrFollower);
+    auto channel = AuthenticatedOutputMasterClient->GetMasterChannel(EMasterChannelKind::Leader);
     TObjectServiceProxy proxy(channel);
 
     auto batchReq = proxy.ExecuteBatch();
@@ -3287,7 +3293,7 @@ void TOperationControllerBase::RegisterInputStripe(TChunkStripePtr stripe, TTask
     stripeDescriptor.Cookie = task->GetChunkPoolInput()->Add(stripe);
 
     for (const auto& slice : stripe->ChunkSlices) {
-        auto chunkSpec = slice->ChunkSpec();
+        auto chunkSpec = slice->GetChunkSpec();
         auto chunkId = FromProto<TChunkId>(chunkSpec->chunk_id());
 
         auto pair = InputChunkMap.insert(std::make_pair(chunkId, TInputChunkDescriptor()));
@@ -3313,7 +3319,7 @@ void TOperationControllerBase::RegisterIntermediate(
     TChunkStripePtr stripe)
 {
     for (const auto& chunkSlice : stripe->ChunkSlices) {
-        auto chunkId = FromProto<TChunkId>(chunkSlice->ChunkSpec()->chunk_id());
+        auto chunkId = FromProto<TChunkId>(chunkSlice->GetChunkSpec()->chunk_id());
         YCHECK(ChunkOriginMap.insert(std::make_pair(chunkId, completedJob)).second);
 
         if (IsIntermediateLivePreviewSupported()) {

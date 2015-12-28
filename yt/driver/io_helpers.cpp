@@ -1,7 +1,5 @@
 #include "io_helpers.h"
 
-#include <yt/ytlib/misc/tclap_helpers.h>
-
 namespace NYT {
 namespace NYPath {
 

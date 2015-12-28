@@ -87,7 +87,7 @@ struct IYPathService
 
     //! Creates a wrapper that makes ephemeral snapshots to cache
     //! the underlying service.
-    IYPathServicePtr Cached(TDuration expirationTime);
+    IYPathServicePtr Cached(TDuration updatePeriod);
 
 };
 

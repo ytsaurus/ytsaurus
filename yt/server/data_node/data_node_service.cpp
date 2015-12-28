@@ -576,7 +576,7 @@ private:
                 sliceByKeys);
 
             for (const auto& slice : slices) {
-                ToProto(result->add_chunk_slices(), *slice);
+                ToProto(result->add_chunk_slices(), slice);
             }
         } catch (const std::exception& ex) {
             auto error = TError(ex);

@@ -49,6 +49,10 @@ struct IAsyncOutputStream
      *  Call #Write to issue a write request.
      *  Buffer passed to #Write must remain valid until the returned future is set.
      *  One must not call #Write again before the previous call is complete.
+     *
+     *  Implementations must not rely on the content of #buffer to remain immutable
+     *  between calls to #Write; e.g. clients are allowed to reuse a single (mutable)
+     *  buffer between these calls.
      */
     virtual TFuture<void> Write(const TSharedRef& buffer) = 0;
 };

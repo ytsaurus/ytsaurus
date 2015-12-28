@@ -97,8 +97,6 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/formats/format.cpp
   ${CMAKE_CURRENT_LIST_DIR}/formats/helpers.cpp
   ${CMAKE_CURRENT_LIST_DIR}/formats/json_callbacks.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/formats/json_parser.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/formats/json_writer.cpp
   ${CMAKE_CURRENT_LIST_DIR}/formats/parser.cpp
   ${CMAKE_CURRENT_LIST_DIR}/formats/schemaful_dsv_parser.cpp
   ${CMAKE_CURRENT_LIST_DIR}/formats/schemaful_dsv_writer.cpp
@@ -140,7 +138,6 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/journal_client/private.cpp
   ${CMAKE_CURRENT_LIST_DIR}/journal_client/public.cpp
 
-  ${CMAKE_CURRENT_LIST_DIR}/misc/tclap_helpers.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/workload.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/workload.proto
 
@@ -169,7 +166,6 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/orchid/private.cpp
 
   ${CMAKE_CURRENT_LIST_DIR}/query_client/ast.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/query_client/builtin_functions.cpp
   ${CMAKE_CURRENT_LIST_DIR}/query_client/cg_fragment_compiler.cpp
   ${CMAKE_CURRENT_LIST_DIR}/query_client/cg_helpers.cpp
   ${CMAKE_CURRENT_LIST_DIR}/query_client/cg_ir_builder.cpp
@@ -286,15 +282,34 @@ IF(YMAKE)
 
 LIBRARY()
 
-SRCS(${YT_SRCS})
+OWNER(sandello)
+
+SET_APPEND(BASE_CXXFLAGS -std=c++1y)
 
 CXXFLAGS(
-  -std=c++1y
-  -DYMAKE
   -Wno-sign-compare
   -Wno-unused-parameter
   -Wno-unused-value
   -Wno-c++14-extensions
+)
+
+ADDINCL(
+  contrib/libs/llvm37/include
+  contrib/libs/sparsehash/src
+  contrib/libs/re2
+)
+
+SRCS(
+  ${YT_SRCS}
+  ${CMAKE_CURRENT_LIST_DIR}/formats/json_parser_arc.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/formats/json_writer_arc.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/query_client/builtin_function_registry_arc.cpp
+)
+
+PEERDIR(
+  contrib/libs/llvm37/lib
+  contrib/libs/re2
+  yt/core
 )
 
 END()
@@ -306,13 +321,22 @@ ELSE()
 set(YT_SOURCE_FILES)
 include(query_client/CMakeLists.txt)
 
+set(YT_SRCS
+  ${YT_SRCS}
+  ${CMAKE_CURRENT_LIST_DIR}/formats/json_parser.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/formats/json_writer.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/query_client/builtin_functions.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/query_client/builtin_function_registry.cpp
+)
+
 resolve_srcs(YT_SRCS YT_SRCS_RESOLVED)
 list(APPEND YT_SRCS_RESOLVED ${YT_SOURCE_FILES})
 
 add_library(ytlib STATIC ${YT_SRCS_RESOLVED})
 
-target_link_libraries ( ytlib
+target_link_libraries(ytlib
   ytcore
+  deps-arcadia-contrib-libs-re2
 )
 
 ################################################################################

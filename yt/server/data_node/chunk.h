@@ -2,20 +2,12 @@
 
 #include "public.h"
 
-#include <yt/ytlib/chunk_client/chunk_info.pb.h>
-#include <yt/ytlib/chunk_client/chunk_meta.pb.h>
-
 #include <yt/core/actions/future.h>
 
-#include <yt/core/misc/protobuf_helpers.h>
 #include <yt/core/misc/ref.h>
 
 namespace NYT {
 namespace NDataNode {
-
-////////////////////////////////////////////////////////////////////////////////
-
-DEFINE_REFCOUNTED_TYPE(TRefCountedChunkMeta)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -56,7 +48,7 @@ struct IChunk
      *  The meta is fetched asynchronously and is cached.
      *  Thread affinity: any
      */
-    virtual TFuture<TRefCountedChunkMetaPtr> ReadMeta(
+    virtual TFuture<NChunkClient::TRefCountedChunkMetaPtr> ReadMeta(
         const TWorkloadDescriptor& workloadDescriptor,
         const TNullable<std::vector<int>>& extensionTags = Null) = 0;
 

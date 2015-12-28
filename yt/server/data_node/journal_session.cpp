@@ -7,6 +7,8 @@
 
 #include <yt/server/hydra/changelog.h>
 
+#include <yt/ytlib/chunk_client/chunk_info.pb.h>
+
 #include <yt/core/misc/common.h>
 
 namespace NYT {

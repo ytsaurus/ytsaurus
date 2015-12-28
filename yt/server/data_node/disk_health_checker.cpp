@@ -17,10 +17,6 @@ using namespace NProfiling;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const Stroka TestFileName("health_check~");
-
-////////////////////////////////////////////////////////////////////////////////
-
 TDiskHealthChecker::TDiskHealthChecker(
     TDiskHealthCheckerConfigPtr config,
     const Stroka& path,
@@ -77,6 +73,10 @@ void TDiskHealthChecker::DoRunCheck()
 {
     LOG_DEBUG("Disk health check started");
 
+    if (NFS::Exists(NFS::CombinePaths(Path_, DisabledLockFileName))) {
+        THROW_ERROR_EXCEPTION("Lock file is found");
+    }
+
     std::vector<ui8> writeData(Config_->TestSize);
     std::vector<ui8> readData(Config_->TestSize);
 
@@ -84,17 +84,17 @@ void TDiskHealthChecker::DoRunCheck()
         writeData[i] = RandomNumber<ui8>();
     }
 
-    auto testFileName = NFS::CombinePaths(Path_, TestFileName);
+    auto fileName = NFS::CombinePaths(Path_, HealthCheckFileName);
 
     try {
         const auto& Profiler = Profiler_;
         PROFILE_TIMING("/disk_health_check/total") {
             PROFILE_TIMING("/disk_health_check/write") {
-                TFile file(testFileName, CreateAlways|WrOnly|Seq|Direct);
+                TFile file(fileName, CreateAlways | WrOnly | Seq | Direct);
                 file.Write(writeData.data(), Config_->TestSize);
             }
             PROFILE_TIMING("/disk_health_check/read") { 
-                TFile file(testFileName, OpenExisting|RdOnly|Seq|Direct);
+                TFile file(fileName, OpenExisting | RdOnly | Seq | Direct);
                 if (file.GetLength() != Config_->TestSize) {
                     THROW_ERROR_EXCEPTION("Wrong test file size: %v instead of %v",
                         file.GetLength(),
@@ -104,7 +104,7 @@ void TDiskHealthChecker::DoRunCheck()
             }
         }
 
-        NFS::Remove(testFileName);
+        NFS::Remove(fileName);
 
         if (memcmp(readData.data(), writeData.data(), Config_->TestSize) != 0) {
             THROW_ERROR_EXCEPTION("Test file is corrupt");

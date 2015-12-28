@@ -44,6 +44,49 @@ T* TLoadContext::GetEntity(TEntitySerializationKey key) const
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <class TContext>
+void TCompositeAutomatonPart::RegisterSaver(
+    ESyncSerializationPriority priority,
+    const Stroka& name,
+    TCallback<void(TContext&)> saver)
+{
+    RegisterSaver(
+        priority,
+        name,
+        BIND([=] (TSaveContext& context) {
+            saver.Run(dynamic_cast<TContext&>(context));
+        }));
+}
+
+template <class TContext>
+void TCompositeAutomatonPart::RegisterSaver(
+    EAsyncSerializationPriority priority,
+    const Stroka& name,
+    TCallback<TCallback<void(TContext&)>()> callback)
+{
+    RegisterSaver(
+        priority,
+        name,
+        BIND([=] () {
+            auto continuation = callback.Run();
+            return BIND([=] (TSaveContext& context) {
+                return continuation.Run(dynamic_cast<TContext&>(context));
+            });
+        }));
+}
+
+template <class TContext>
+void TCompositeAutomatonPart::RegisterLoader(
+    const Stroka& name,
+    TCallback<void(TContext&)> loader)
+{
+    TCompositeAutomatonPart::RegisterLoader(
+        name,
+        BIND([=] (TLoadContext& context) {
+            loader.Run(dynamic_cast<TContext&>(context));
+        }));
+}
+
 template <class TRequest, class TResponse>
 void TCompositeAutomatonPart::RegisterMethod(
     TCallback<TResponse(const TRequest&)> callback)

@@ -7,8 +7,6 @@
 
 #include <yt/ytlib/formats/format.h>
 
-#include <yt/ytlib/misc/tclap_helpers.h>
-
 #include <yt/ytlib/scheduler/public.h>
 
 #include <yt/ytlib/transaction_client/public.h>
@@ -17,6 +15,8 @@
 #include <yt/core/ytree/tree_builder.h>
 #include <yt/core/ytree/ypath_client.h>
 #include <yt/core/ytree/ypath_service.h>
+
+#include <contrib/tclap/yt_helpers.h>
 
 namespace NYT {
 namespace NDriver {

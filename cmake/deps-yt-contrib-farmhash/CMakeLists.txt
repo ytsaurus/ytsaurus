@@ -1,11 +1,7 @@
-set( BASE ${CMAKE_SOURCE_DIR}/contrib/libs/farmhash )
-
-set( SRCS_FARMHASH
+set(NAME deps-yt-contrib-farmhash)
+set(BASE ${CMAKE_SOURCE_DIR}/yt/contrib/farmhash)
+set(SRCS
   ${BASE}/farmhash.cc
-)
-
-add_library( farmhash STATIC
-  ${SRCS_FARMHASH}
 )
 
 if(_vendor_id STREQUAL "GenuineIntel")
@@ -14,14 +10,14 @@ if(_vendor_id STREQUAL "GenuineIntel")
     -DFARMHASH_ASSUME_SSE41
     -DFARMHASH_ASSUME_SSE42
   )
-endif(_vendor_id STREQUAL "GenuineIntel")
+endif()
 
-if(MSVC OR MSVC_IDE)
+if(MSVC)
   add_definitions(
     -DFARMHASH_NO_BUILTIN_EXPECT
   )
 endif()
 
-include_directories(
-  ${BASE}
-)
+#include_directories(${BASE})
+
+add_library(${NAME} STATIC ${SRCS})

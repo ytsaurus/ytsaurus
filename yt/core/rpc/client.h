@@ -18,6 +18,8 @@
 
 #include <yt/core/tracing/trace_context.h>
 
+#include <atomic>
+
 namespace NYT {
 namespace NRpc {
 
@@ -32,8 +34,7 @@ struct IClientRequest
     virtual NProto::TRequestHeader& Header() = 0;
 
     virtual bool IsOneWay() const = 0;
-    virtual bool IsRequestHeavy() const = 0;
-    virtual bool IsResponseHeavy() const = 0;
+    virtual bool IsHeavy() const = 0;
 
     virtual TRequestId GetRequestId() const = 0;
     virtual TRealmId GetRealmId() const = 0;
@@ -97,8 +98,7 @@ public:
     DEFINE_BYREF_RW_PROPERTY(std::vector<TSharedRef>, Attachments);
     DEFINE_BYVAL_RW_PROPERTY(TNullable<TDuration>, Timeout);
     DEFINE_BYVAL_RW_PROPERTY(bool, RequestAck);
-    DEFINE_BYVAL_RW_PROPERTY(bool, RequestHeavy);
-    DEFINE_BYVAL_RW_PROPERTY(bool, ResponseHeavy);
+    DEFINE_BYVAL_RW_PROPERTY(bool, Heavy);
 
 public:
     virtual TSharedRefArray Serialize() override;
@@ -130,8 +130,7 @@ protected:
         bool oneWay,
         int protocolVersion);
 
-    virtual bool IsRequestHeavy() const override;
-    virtual bool IsResponseHeavy() const override;
+    virtual bool IsHeavy() const override;
 
     virtual TSharedRef SerializeBody() = 0;
 
@@ -199,15 +198,9 @@ public:
         return this;
     }
 
-    TThisPtr SetRequestHeavy(bool value)
+    TThisPtr SetHeavy(bool value)
     {
-        TClientRequest::SetRequestHeavy(value);
-        return this;
-    }
-
-    TThisPtr SetResponseHeavy(bool value)
-    {
-        TClientRequest::SetResponseHeavy(value);
+        TClientRequest::SetHeavy(value);
         return this;
     }
 
@@ -266,9 +259,7 @@ protected:
 
     const TClientContextPtr ClientContext_;
 
-    //! Protects State_ and some members in the derived classes.
-    TSpinLock SpinLock_;
-    EState State_ = EState::Sent;
+    std::atomic<EState> State_ = {EState::Sent};
 
 
     explicit TClientResponseBase(TClientContextPtr clientContext);
@@ -282,6 +273,7 @@ protected:
 
 private:
     void TraceResponse();
+    void DoHandleError(const TError& error);
 
 };
 
@@ -303,7 +295,6 @@ protected:
     virtual void DeserializeBody(const TRef& data) = 0;
 
 private:
-    //! Protected by #SpinLock.
     TSharedRefArray ResponseMessage_;
 
 
@@ -311,6 +302,7 @@ private:
     virtual void HandleAcknowledgement() override;
     virtual void HandleResponse(TSharedRefArray message) override;
 
+    void DoHandleResponse(TSharedRefArray message);
     void Deserialize(TSharedRefArray responseMessage);
 };
 
