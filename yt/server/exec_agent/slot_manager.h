@@ -1,8 +1,6 @@
 #pragma once
 
 #include "public.h"
-// TODO(babenko): remove after switching to refcounted macros
-#include "slot.h"
 
 #include <yt/server/cell_node/public.h>
 
