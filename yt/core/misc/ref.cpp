@@ -200,7 +200,7 @@ TSharedRefArray::TSharedRefArray(const TSharedRefArray& other)
     : Impl_(other.Impl_)
 { }
 
-TSharedRefArray::TSharedRefArray(TSharedRefArray&& other)
+TSharedRefArray::TSharedRefArray(TSharedRefArray&& other) noexcept
     : Impl_(std::move(other.Impl_))
 { }
 

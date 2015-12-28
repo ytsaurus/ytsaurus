@@ -1544,6 +1544,8 @@ TCGQueryCallback CodegenEvaluate(
         entryFunctionName.c_str(),
         module->GetModule());
 
+    function->addFnAttr(llvm::Attribute::AttrKind::UWTable);
+
     auto args = function->arg_begin();
     Value* constants = args; constants->setName("constants");
     Value* executionContextPtr = ++args; executionContextPtr->setName("passedFragmentParamsPtr");
@@ -1583,6 +1585,8 @@ TCGExpressionCallback CodegenExpression(TCodegenExpression codegenExpression)
         entryFunctionName.c_str(),
         module->GetModule());
 
+    function->addFnAttr(llvm::Attribute::AttrKind::UWTable);
+
     auto args = function->arg_begin();
     Value* resultPtr = args; resultPtr->setName("resultPtr");
     Value* inputRow = ++args; inputRow->setName("inputRow");
@@ -1620,6 +1624,8 @@ TCGAggregateCallbacks CodegenAggregate(TCodegenAggregate codegenAggregate)
             initName.c_str(),
             module->GetModule());
 
+        function->addFnAttr(llvm::Attribute::AttrKind::UWTable);
+
         auto args = function->arg_begin();
         Value* executionContextPtr = args; executionContextPtr->setName("executionContextPtr");
         Value* resultPtr = ++args; resultPtr->setName("resultPtr");
@@ -1638,6 +1644,8 @@ TCGAggregateCallbacks CodegenAggregate(TCodegenAggregate codegenAggregate)
             Function::ExternalLinkage,
             updateName.c_str(),
             module->GetModule());
+
+        function->addFnAttr(llvm::Attribute::AttrKind::UWTable);
 
         auto args = function->arg_begin();
         Value* executionContextPtr = args; executionContextPtr->setName("executionContextPtr");
@@ -1660,6 +1668,8 @@ TCGAggregateCallbacks CodegenAggregate(TCodegenAggregate codegenAggregate)
             mergeName.c_str(),
             module->GetModule());
 
+        function->addFnAttr(llvm::Attribute::AttrKind::UWTable);
+
         auto args = function->arg_begin();
         Value* executionContextPtr = args; executionContextPtr->setName("executionContextPtr");
         Value* resultPtr = ++args; resultPtr->setName("resultPtr");
@@ -1680,6 +1690,8 @@ TCGAggregateCallbacks CodegenAggregate(TCodegenAggregate codegenAggregate)
             Function::ExternalLinkage,
             finalizeName.c_str(),
             module->GetModule());
+
+        function->addFnAttr(llvm::Attribute::AttrKind::UWTable);
 
         auto args = function->arg_begin();
         Value* executionContextPtr = args; executionContextPtr->setName("executionContextPtr");

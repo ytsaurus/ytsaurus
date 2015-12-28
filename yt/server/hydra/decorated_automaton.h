@@ -132,11 +132,11 @@ public:
     void OnFollowerRecoveryComplete();
     void OnStopFollowing();
 
-    DEFINE_BYVAL_RO_PROPERTY(EPeerState, State);
-
     IInvokerPtr CreateGuardedUserInvoker(IInvokerPtr underlyingInvoker);
     IInvokerPtr GetDefaultGuardedUserInvoker();
     IInvokerPtr GetSystemInvoker();
+
+    EPeerState GetState() const;
 
     TVersion GetLoggedVersion() const;
     void SetLoggedVersion(TVersion version);
@@ -158,8 +158,6 @@ public:
         TSharedRef* recordData,
         TFuture<void>* localFlushResult,
         TFuture<TMutationResponse>* commitResult);
-
-    void CancelPendingLeaderMutations(const TError& error);
 
     void LogFollowerMutation(
         const TSharedRef& recordData,
@@ -199,6 +197,8 @@ private:
 
     TEpochContextPtr EpochContext_;
     IChangelogPtr Changelog_;
+
+    std::atomic<EPeerState> State_ = {EPeerState::Stopped};
 
     // AutomatonVersion_ <= CommittedVersion_ <= LoggedVersion_
     std::atomic<TVersion> LoggedVersion_;

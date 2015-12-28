@@ -215,24 +215,28 @@ IF(YMAKE)
 
 LIBRARY()
 
-ADDINCL(
-  contrib/libs/llvm37/include
-)
+OWNER(sandello)
 
-SRCS(${YT_SRCS})
+SET_APPEND(BASE_CXXFLAGS -std=c++1y)
 
 CXXFLAGS(
-  -std=c++1y
-  -DYMAKE
   -Wno-sign-compare
   -Wno-unused-parameter
   -Wno-unused-value
   -Wno-c++14-extensions
 )
 
+ADDINCL(
+  contrib/libs/llvm37/include
+)
+
+SRCS(${YT_SRCS})
+
 PEERDIR(
   contrib/libs/llvm37/lib
+  contrib/libs/snappy
   yt/build
+  yt/contrib
 )
 
 END()
@@ -255,12 +259,11 @@ target_link_libraries(ytcore
   ytext-arcadia-library-streams-lz
   yt-contrib-jerasure
   yt-contrib-libev
+  deps-yt-contrib-farmhash
   ytext-json
   ytext-arcadia-library-http
   ytext-yajl
-  ytext-re2
   protobuf
-  farmhash
   ${REQUIRED_LLVM_LIBRARIES} 
 )
 

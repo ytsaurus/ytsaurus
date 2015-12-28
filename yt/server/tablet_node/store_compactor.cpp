@@ -274,8 +274,9 @@ private:
         }
 
         auto guard = TAsyncSemaphoreGuard::TryAcquire(&CompactionSemaphore_);
-        if (!guard)
+        if (!guard) {
             return;
+        }
 
         auto majorTimestamp = ComputeMajorTimestamp(partition, stores);
 
@@ -661,19 +662,16 @@ private:
 
             YCHECK(readRowCount == writeRowCount);
 
-            LOG_INFO("Eden partitioning completed (RowCount: %v)",
-                readRowCount);
-
-            for (const auto& store : stores) {
-                storeManager->EndStoreCompaction(store);
-            }
-
-            tablet->SetLastPartitioningTime(TInstant::Now());
-
             TReqCommitTabletStoresUpdate hydraRequest;
             ToProto(hydraRequest.mutable_tablet_id(), tabletId);
             hydraRequest.set_mount_revision(mountRevision);
             ToProto(hydraRequest.mutable_transaction_id(), transaction->GetId());
+
+            for (const auto& store : stores) {
+                auto* descriptor = hydraRequest.add_stores_to_remove();
+                ToProto(descriptor->mutable_store_id(), store->GetId());
+            }
+
             for (const auto& writer : writerPool.GetAllWriters()) {
                 for (const auto& chunkSpec : writer->GetWrittenChunks()) {
                     auto* descriptor = hydraRequest.add_stores_to_add();
@@ -681,9 +679,13 @@ private:
                     descriptor->mutable_chunk_meta()->CopyFrom(chunkSpec.chunk_meta());
                 }
             }
+
+            // NB: No exceptions must be thrown beyond this point!
+
+            LOG_INFO("Eden partitioning completed (RowCount: %v)", readRowCount);
+
             for (const auto& store : stores) {
-                auto* descriptor = hydraRequest.add_stores_to_remove();
-                ToProto(descriptor->mutable_store_id(), store->GetId());
+                storeManager->EndStoreCompaction(store);
             }
 
             CreateMutation(slot->GetHydraManager(), hydraRequest)
@@ -839,13 +841,6 @@ private:
 
             YCHECK(readRowCount == writeRowCount);
 
-            LOG_INFO("Partition compaction completed (RowCount: %v)",
-                readRowCount);
-
-            for (const auto& store : stores) {
-                storeManager->EndStoreCompaction(store);
-            }
-
             TReqCommitTabletStoresUpdate hydraRequest;
             ToProto(hydraRequest.mutable_tablet_id(), tabletId);
             hydraRequest.set_mount_revision(mountRevision);
@@ -860,6 +855,14 @@ private:
                 auto* descriptor = hydraRequest.add_stores_to_add();
                 descriptor->mutable_store_id()->CopyFrom(chunkSpec.chunk_id());
                 descriptor->mutable_chunk_meta()->CopyFrom(chunkSpec.chunk_meta());
+            }
+
+            // NB: No exceptions must be thrown beyond this point!
+
+            LOG_INFO("Partition compaction completed (RowCount: %v)", readRowCount);
+
+            for (const auto& store : stores) {
+                storeManager->EndStoreCompaction(store);
             }
 
             CreateMutation(slot->GetHydraManager(), hydraRequest)

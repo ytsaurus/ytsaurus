@@ -369,9 +369,9 @@ protected:
     //! Add chunk to the current task's pool.
     void AddPendingChunkSlice(TChunkSlicePtr chunkSlice)
     {
-        auto stripe = CurrentTaskStripes[chunkSlice->ChunkSpec()->table_index()];
+        auto stripe = CurrentTaskStripes[chunkSlice->GetChunkSpec()->table_index()];
         if (!stripe) {
-            stripe = CurrentTaskStripes[chunkSlice->ChunkSpec()->table_index()] = New<TChunkStripe>();
+            stripe = CurrentTaskStripes[chunkSlice->GetChunkSpec()->table_index()] = New<TChunkStripe>();
         }
 
         i64 chunkDataSize = chunkSlice->GetDataSize();
@@ -1117,7 +1117,7 @@ protected:
             } catch (const std::exception& ex) {
                 THROW_ERROR_EXCEPTION(
                     "Error validating sample key in input table %v",
-                    GetInputTablePaths()[slice->ChunkSpec()->table_index()])
+                    GetInputTablePaths()[slice->GetChunkSpec()->table_index()])
                     << ex;
             }
 
@@ -1197,8 +1197,8 @@ private:
                 }
 
                 // ChunkSpec address is used to identify the slices of one chunk.
-                auto cmpPtr = reinterpret_cast<intptr_t>(lhs.ChunkSlice->ChunkSpec().Get())
-                    - reinterpret_cast<intptr_t>(rhs.ChunkSlice->ChunkSpec().Get());
+                auto cmpPtr = reinterpret_cast<intptr_t>(lhs.ChunkSlice->GetChunkSpec().Get())
+                    - reinterpret_cast<intptr_t>(rhs.ChunkSlice->GetChunkSpec().Get());
                 if (cmpPtr != 0) {
                     return cmpPtr < 0;
                 }
@@ -1223,16 +1223,16 @@ private:
             openedSlicesCount += endpoint.Type == EEndpointType::Left ? 1 : -1;
 
             TOwningKey minKey, maxKey;
-            YCHECK(TryGetBoundaryKeys(chunkSlice->ChunkSpec()->chunk_meta(), &minKey, &maxKey));
+            YCHECK(TryGetBoundaryKeys(chunkSlice->GetChunkSpec()->chunk_meta(), &minKey, &maxKey));
 
             if (currentChunkSpec) {
-                if (chunkSlice->ChunkSpec() == currentChunkSpec) {
+                if (chunkSlice->GetChunkSpec() == currentChunkSpec) {
                     if (endpoint.Type == EEndpointType::Right && 
                         CompareRows(maxKey, endpoint.MaxBoundaryKey, KeyColumns.size()) == 0) 
                     {
                         // The last slice of a full chunk.
                         currentChunkSpec = nullptr;
-                        auto completeChunk = chunkSlice->ChunkSpec();
+                        auto completeChunk = chunkSlice->GetChunkSpec();
 
                         bool isManiacTeleport = CompareRows(
                             Endpoints[startTeleportIndex].GetKey(),
@@ -1256,10 +1256,10 @@ private:
             // No current Teleport candidate.
             if (endpoint.Type == EEndpointType::Left && 
                 CompareRows(minKey, endpoint.MinBoundaryKey, KeyColumns.size()) == 0 &&
-                IsTeleportCandidate(chunkSlice->ChunkSpec())) 
+                IsTeleportCandidate(chunkSlice->GetChunkSpec())) 
             {
                 // The first slice of a full chunk.
-                currentChunkSpec = chunkSlice->ChunkSpec();
+                currentChunkSpec = chunkSlice->GetChunkSpec();
                 startTeleportIndex = i;
             }
         }
@@ -1294,11 +1294,11 @@ private:
                 }
 
                 if (endpoint.IsTeleport) {
-                    auto chunkSpec = endpoint.ChunkSlice->ChunkSpec();
+                    auto chunkSpec = endpoint.ChunkSlice->GetChunkSpec();
                     YCHECK(teleportChunks.insert(chunkSpec).second);
                     while (currentIndex < static_cast<int>(Endpoints.size()) &&
                         Endpoints[currentIndex].IsTeleport &&
-                        Endpoints[currentIndex].ChunkSlice->ChunkSpec() == chunkSpec)
+                        Endpoints[currentIndex].ChunkSlice->GetChunkSpec() == chunkSpec)
                     {
                         ++currentIndex;
                     }
@@ -1572,14 +1572,14 @@ private:
 
                 // If keys (trimmed to key columns) are equal, we put slices in 
                 // the same order they are in the original table.
-                cmpResult = lhs.ChunkSlice->ChunkSpec()->table_row_index() - 
-                    rhs.ChunkSlice->ChunkSpec()->table_row_index();      
+                cmpResult = lhs.ChunkSlice->GetChunkSpec()->table_row_index() - 
+                    rhs.ChunkSlice->GetChunkSpec()->table_row_index();      
                 if (cmpResult != 0) {
                     return cmpResult < 0;
                 }                
                 
-                return (reinterpret_cast<intptr_t>(lhs.ChunkSlice->ChunkSpec().Get())
-                    - reinterpret_cast<intptr_t>(rhs.ChunkSlice->ChunkSpec().Get())) < 0;
+                return (reinterpret_cast<intptr_t>(lhs.ChunkSlice->GetChunkSpec().Get())
+                    - reinterpret_cast<intptr_t>(rhs.ChunkSlice->GetChunkSpec().Get())) < 0;
             });
     }
 
@@ -1614,7 +1614,7 @@ private:
             openedSlicesCount += endpoint.Type == EEndpointType::Left ? 1 : -1;
 
             if (currentChunkSpec &&
-                endpoint.ChunkSlice->ChunkSpec() == currentChunkSpec)
+                endpoint.ChunkSlice->GetChunkSpec() == currentChunkSpec)
             {
                 previousKey = key;
                 continue;
@@ -1628,7 +1628,7 @@ private:
 
             if (currentChunkSpec) {
                 auto& previousEndpoint = Endpoints[i - 1];
-                const auto& chunkSpec = previousEndpoint.ChunkSlice->ChunkSpec();
+                const auto& chunkSpec = previousEndpoint.ChunkSlice->GetChunkSpec();
 
                 TOwningKey maxKey, minKey;
                 YCHECK(TryGetBoundaryKeys(chunkSpec->chunk_meta(), &minKey, &maxKey));
@@ -1645,7 +1645,7 @@ private:
             previousKey = key;
 
             // No current Teleport candidate.
-            const auto& chunkSpec = endpoint.ChunkSlice->ChunkSpec();
+            const auto& chunkSpec = endpoint.ChunkSlice->GetChunkSpec();
             TOwningKey maxKey, minKey;
             YCHECK(TryGetBoundaryKeys(chunkSpec->chunk_meta(), &minKey, &maxKey));
             if (endpoint.Type == EEndpointType::Left &&
@@ -1653,7 +1653,7 @@ private:
                 IsTeleportCandidate(chunkSpec) &&
                 openedSlicesCount == 1)
             {
-                currentChunkSpec = endpoint.ChunkSlice->ChunkSpec();
+                currentChunkSpec = endpoint.ChunkSlice->GetChunkSpec();
                 startTeleportIndex = i;
             }
         }
@@ -1661,7 +1661,7 @@ private:
         if (currentChunkSpec) {
             // Last Teleport candidate.
             auto& previousEndpoint = Endpoints.back();
-            const auto& chunkSpec = previousEndpoint.ChunkSlice->ChunkSpec();
+            const auto& chunkSpec = previousEndpoint.ChunkSlice->GetChunkSpec();
             YCHECK(previousEndpoint.Type == EEndpointType::Right);
             TOwningKey maxKey, minKey;
             YCHECK(TryGetBoundaryKeys(chunkSpec->chunk_meta(), &minKey, &maxKey));
@@ -1699,12 +1699,12 @@ private:
                     YCHECK(openedSlices.empty());
                     EndTask();
 
-                    auto chunkSpec = endpoint.ChunkSlice->ChunkSpec();
+                    auto chunkSpec = endpoint.ChunkSlice->GetChunkSpec();
                     AddTeleportChunk(chunkSpec);
 
                     while (currentIndex < static_cast<int>(Endpoints.size()) &&
                         Endpoints[currentIndex].IsTeleport &&
-                        Endpoints[currentIndex].ChunkSlice->ChunkSpec() == chunkSpec)
+                        Endpoints[currentIndex].ChunkSlice->GetChunkSpec() == chunkSpec)
                     {
                         ++currentIndex;
                     }
@@ -2049,7 +2049,7 @@ private:
             } catch (const std::exception& ex) {
                 THROW_ERROR_EXCEPTION(
                     "Error validating sample key in input table %v",
-                    GetInputTablePaths()[slice->ChunkSpec()->table_index()])
+                    GetInputTablePaths()[slice->GetChunkSpec()->table_index()])
                     << ex;
             }
 

@@ -202,7 +202,7 @@ private:
         {
             auto session_ = Session_.Lock();
             if (session_) {
-                session_->HandleMessage(message, replyBus);
+                session_->HandleMessage(std::move(message), std::move(replyBus));
             }
         }
 
@@ -308,7 +308,7 @@ private:
                     "Request resent"));
             }
 
-            if (request->IsRequestHeavy()) {
+            if (request->IsHeavy()) {
                 BIND(&IClientRequest::Serialize, request)
                     .AsyncVia(TDispatcher::Get()->GetInvoker())
                     .Run()
@@ -369,7 +369,7 @@ private:
                 requestControl,
                 request,
                 responseHandler,
-                TError(NYT::EErrorCode::Canceled, "Request canceled"));
+                TError(NYT::EErrorCode::Canceled, "RPC request canceled"));
 
             IBusPtr bus;
             {
@@ -668,17 +668,7 @@ private:
             LOG_DEBUG("Response received (RequestId: %v)",
                 request->GetRequestId());
 
-            if (request->IsResponseHeavy()) {
-                TDispatcher::Get()
-                    ->GetInvoker()
-                    ->Invoke(
-                BIND(
-                    &IClientResponseHandler::HandleResponse,
-                    responseHandler,
-                    std::move(message)));
-            } else {
-                responseHandler->HandleResponse(std::move(message));
-            }
+            responseHandler->HandleResponse(std::move(message));
         }
 
     };

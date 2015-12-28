@@ -113,11 +113,15 @@ TFuture<void> TBlobChunkBase::LoadBlocksExt(const TWorkloadDescriptor& workloadD
         }
     }
 
-    return ReadMeta(workloadDescriptor).As<void>();
+    return ReadMeta(workloadDescriptor).Apply(
+        BIND([=, this_ = MakeStrong(this)] (const TRefCountedChunkMetaPtr& meta) {
+            InitBlocksExt(*meta);
+        }));
 }
 
 const TBlocksExt& TBlobChunkBase::GetBlocksExt()
 {
+    TReaderGuard guard(CachedBlocksExtLock_);
     YCHECK(HasCachedBlocksExt_);
     return CachedBlocksExt_;
 }
@@ -125,7 +129,8 @@ const TBlocksExt& TBlobChunkBase::GetBlocksExt()
 void TBlobChunkBase::InitBlocksExt(const TChunkMeta& meta)
 {
     TWriterGuard guard(CachedBlocksExtLock_);
-    // NB: Avoid redundant updates since the readers use no locking.
+    // NB: Avoid redundant updates since readers access CachedBlocksExt_ by const ref
+    // and use no locking.
     if (!HasCachedBlocksExt_) {
         CachedBlocksExt_ = GetProtoExtension<TBlocksExt>(meta.extensions());
         HasCachedBlocksExt_ = true;
@@ -157,9 +162,6 @@ void TBlobChunkBase::DoReadMeta(
         Id_);
 
     const auto& meta = reader->GetMeta();
-
-    InitBlocksExt(meta);
-
     auto cachedMeta = New<TCachedChunkMeta>(
         Id_,
         New<TRefCountedChunkMeta>(meta),
@@ -349,7 +351,7 @@ TFuture<std::vector<TSharedRef>> TBlobChunkBase::ReadBlockSet(
         return MakeFuture(std::move(session->Blocks));
     }
 
-    // Slow path: either read data from chunk or wait for cache to be filled.
+    // Slow path: either read data from chunk or wait for the cache to be filled.
     if (!canServeFromCache) {
         // Reorder blocks sequentially to improve read performance.
         std::sort(

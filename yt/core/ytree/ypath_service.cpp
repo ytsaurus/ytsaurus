@@ -11,11 +11,15 @@
 
 #include <yt/core/yson/writer.h>
 
+#include <yt/core/concurrency/scheduler.h>
+#include <yt/core/concurrency/periodic_executor.h>
+
 namespace NYT {
 namespace NYTree {
 
 using namespace NYson;
 using namespace NRpc;
+using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -42,7 +46,8 @@ public:
     }
 
 private:
-    TYsonProducer Producer_;
+    const TYsonProducer Producer_;
+
 
     virtual bool DoInvoke(IServiceContextPtr context) override
     {
@@ -114,8 +119,9 @@ public:
     }
 
 private:
-    IYPathServicePtr UnderlyingService_;
-    IInvokerPtr Invoker_;
+    const IYPathServicePtr UnderlyingService_;
+    const IInvokerPtr Invoker_;
+
 
     virtual bool DoInvoke(IServiceContextPtr context) override
     {
@@ -139,76 +145,89 @@ class TCachedYPathService
 public:
     TCachedYPathService(
         IYPathServicePtr underlyingService,
-        TDuration expirationTime)
-        : UnderlyingService_(underlyingService)
-        , ExpirationTime_(expirationTime)
-    { }
+        TDuration updatePeriod)
+        : UnderlyingService_(std::move(underlyingService))
+        , PeriodicExecutor_(New<TPeriodicExecutor>(
+            GetWorkerInvoker(),
+            BIND(&TCachedYPathService::RebuildCache, MakeWeak(this)),
+            updatePeriod))
+    {
+        YCHECK(UnderlyingService_);
+        PeriodicExecutor_->Start();
+    }
     
     virtual TResolveResult Resolve(const TYPath& path, IServiceContextPtr /*context*/) override
     {
-        if (ExpirationTime_ == TDuration::Zero()) {
-            return TResolveResult::There(UnderlyingService_, path);
-        } else {
-            return TResolveResult::Here(path);
-        }
+        return TResolveResult::Here(path);
     }
 
 private:
-    IYPathServicePtr UnderlyingService_;
-    TDuration ExpirationTime_;
+    const IYPathServicePtr UnderlyingService_;
+    const TPeriodicExecutorPtr PeriodicExecutor_;
 
     TSpinLock SpinLock_;
-    TFuture<INodePtr> CachedTree_;
-    TInstant LastUpdateTime_;
+    TErrorOr<INodePtr> CachedTreeOrError_;
 
 
     virtual bool DoInvoke(IServiceContextPtr context) override
     {
-        TGuard<TSpinLock> guard(SpinLock_);
-        
-        if (!CachedTree_ ||
-            (CachedTree_.IsSet() && LastUpdateTime_ + ExpirationTime_ < TInstant::Now()))
-        {
-            auto promise = NewPromise<INodePtr>();
-            CachedTree_ = promise;
-            guard.Release();
-
-            AsyncYPathGet(
-                UnderlyingService_,
-                "",
-                TAttributeFilter::All,
-                true)
-                .Subscribe(BIND(&TCachedYPathService::OnGotTree, MakeStrong(this), promise)
-                    // Nothing to be proud of, but we do need some large pool.
-                    .Via(NRpc::TDispatcher::Get()->GetInvoker()));
-        }
-
-        CachedTree_.Subscribe(BIND([=] (const TErrorOr<INodePtr>& rootOrError) {
-            if (rootOrError.IsOK()) {
-                ExecuteVerb(rootOrError.Value(), context);
+        GetWorkerInvoker()->Invoke(BIND([=, this_ = MakeStrong(this)] () {
+            try {
+                auto cachedTreeOrError = GetCachedTree();
+                auto cachedTree = cachedTreeOrError.ValueOrThrow();
+                ExecuteVerb(cachedTree, context);
+            } catch (const std::exception& ex) {
+                context->Reply(ex);
             }
         }));
-
         return true;
     }
 
-    void OnGotTree(TPromise<INodePtr> promise, TErrorOr<TYsonString> result)
+    void RebuildCache()
     {
-        YCHECK(result.IsOK());
+        try {
+            auto asyncYson = AsyncYPathGet(
+                UnderlyingService_,
+                TYPath(),
+                TAttributeFilter::All,
+                true);
 
-        {
-            TGuard<TSpinLock> guard(SpinLock_);
-            LastUpdateTime_ = TInstant::Now();
+            auto yson = WaitFor(asyncYson)
+                .ValueOrThrow();
+
+            auto node = ConvertToNode(yson);
+
+            SetCachedTree(node);
+        } catch (const std::exception& ex) {
+            SetCachedTree(TError(ex));
         }
-
-        promise.Set(ConvertToNode(result.Value()));
     }
 
+
+    TErrorOr<INodePtr> GetCachedTree()
+    {
+        TGuard<TSpinLock> guard(SpinLock_);
+        return CachedTreeOrError_;
+    }
+
+    void SetCachedTree(const TErrorOr<INodePtr>& cachedTreeOrError)
+    {
+        TGuard<TSpinLock> guard(SpinLock_);
+        CachedTreeOrError_ = cachedTreeOrError;
+    }
+
+
+    static IInvokerPtr GetWorkerInvoker()
+    {
+        return NRpc::TDispatcher::Get()->GetInvoker();
+    }
 };
 
-IYPathServicePtr IYPathService::Cached(TDuration expirationTime)
+IYPathServicePtr IYPathService::Cached(TDuration updatePeriod)
 {
-    return New<TCachedYPathService>(this, expirationTime);
+    return updatePeriod == TDuration::Zero()
+        ? MakeStrong(this)
+        : New<TCachedYPathService>(this, updatePeriod);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

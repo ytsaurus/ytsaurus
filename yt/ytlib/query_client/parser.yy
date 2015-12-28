@@ -323,7 +323,7 @@ expression
             if ($expr.size() != 1) {
                 THROW_ERROR_EXCEPTION("Aliased expression %Qv must be scalar", GetSource(@$, source));
             }
-            auto inserted = head->second.insert(MakePair(Stroka($name), $expr.front()));
+            auto inserted = head->second.insert(std::make_pair(Stroka($name), $expr.front()));
             if (!inserted.second) {
                 THROW_ERROR_EXCEPTION("Alias %Qv has been already used", $name);
             }

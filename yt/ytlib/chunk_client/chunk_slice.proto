@@ -16,7 +16,7 @@ message TChunkSlice
     // Upper boundary, exclusive.
     required TReadLimit upper_limit = 3;
 
-    required TSizeOverrideExt size_override_ext = 4;
+    optional TSizeOverrideExt size_override_ext = 4;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

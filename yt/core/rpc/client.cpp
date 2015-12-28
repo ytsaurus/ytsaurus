@@ -28,8 +28,7 @@ TClientRequest::TClientRequest(
     bool oneWay,
     int protocolVersion)
     : RequestAck_(true)
-    , RequestHeavy_(false)
-    , ResponseHeavy_(false)
+    , Heavy_(false)
     , Channel_(std::move(channel))
 {
     YASSERT(Channel_);
@@ -78,14 +77,9 @@ bool TClientRequest::IsOneWay() const
     return Header_.one_way();
 }
 
-bool TClientRequest::IsRequestHeavy() const
+bool TClientRequest::IsHeavy() const
 {
-    return RequestHeavy_;
-}
-
-bool TClientRequest::IsResponseHeavy() const
-{
-    return RequestHeavy_;
+    return Heavy_;
 }
 
 TRequestId TClientRequest::GetRequestId() const
@@ -177,16 +171,19 @@ TClientResponseBase::TClientResponseBase(TClientContextPtr clientContext)
 
 void TClientResponseBase::HandleError(const TError& error)
 {
-    {
-        TGuard<TSpinLock> guard(SpinLock_);
-        if (State_ == EState::Done) {
-            // Ignore the error.
-            // Most probably this is a late timeout.
-            return;
-        }
-        State_ = EState::Done;
+    auto prevState = State_.exchange(EState::Done);
+    if (prevState == EState::Done) {
+        // Ignore the error.
+        // Most probably this is a late timeout.
+        return;
     }
 
+    TDispatcher::Get()->GetInvoker()->Invoke(
+        BIND(&TClientResponseBase::DoHandleError, MakeStrong(this), error));
+}
+
+void TClientResponseBase::DoHandleError(const TError& error)
+{
     Finish(error);
 }
 
@@ -238,20 +235,22 @@ void TClientResponse::Deserialize(TSharedRefArray responseMessage)
 
 void TClientResponse::HandleAcknowledgement()
 {
-    TGuard<TSpinLock> guard(SpinLock_);
-    if (State_ == EState::Sent) {
-        State_ = EState::Ack;
-    }
+    // NB: Handle without switching to another invoker.
+    auto expected = EState::Sent;
+    State_.compare_exchange_strong(expected, EState::Ack);
 }
 
 void TClientResponse::HandleResponse(TSharedRefArray message)
 {
-    {
-        TGuard<TSpinLock> guard(SpinLock_);
-        YASSERT(State_ == EState::Sent || State_ == EState::Ack);
-        State_ = EState::Done;
-    }
+    auto prevState = State_.exchange(EState::Done);
+    YASSERT(prevState == EState::Sent || prevState == EState::Ack);
 
+    TDispatcher::Get()->GetInvoker()->Invoke(
+        BIND(&TClientResponse::DoHandleResponse, MakeStrong(this), Passed(std::move(message))));
+}
+
+void TClientResponse::DoHandleResponse(TSharedRefArray message)
+{
     Deserialize(std::move(message));
     Finish(TError());
 }
@@ -264,13 +263,10 @@ TOneWayClientResponse::TOneWayClientResponse(TClientContextPtr clientContext)
 
 void TOneWayClientResponse::HandleAcknowledgement()
 {
-    {
-        TGuard<TSpinLock> guard(SpinLock_);
-        if (State_ == EState::Done) {
-            // Ignore the ack.
-            return;
-        }
-        State_ = EState::Done;
+    auto prevState = State_.exchange(EState::Done);
+    if (prevState == EState::Done) {
+        // Ignore the ack.
+        return;
     }
 
     Finish(TError());
