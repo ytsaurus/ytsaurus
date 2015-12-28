@@ -137,6 +137,7 @@ public:
     int MaxChunkOpenAttempts;
     int MaxChunkRowCount;
     i64 MaxChunkDataSize;
+    TDuration MaxChunkSessionDuration;
 
     TJournalWriterConfig()
     {
@@ -171,6 +172,8 @@ public:
         RegisterParameter("max_chunk_data_size", MaxChunkDataSize)
             .GreaterThan(0)
             .Default((i64) 256 * 1024 * 1024);
+        RegisterParameter("max_chunk_session_duration", MaxChunkSessionDuration)
+            .Default(TDuration::Minutes(15));
     }
 };
 
