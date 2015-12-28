@@ -1,0 +1,37 @@
+#!/usr/bin/env python
+
+from yt.wrapper.native_driver import get_driver_instance
+
+from argparse import ArgumentParser
+
+def build_snapshot(*args, **kwargs):
+    get_driver_instance(None).build_snapshot(*args, **kwargs)
+
+def gc_collect(*args, **kwargs):
+    get_driver_instance(None).gc_collect(*args, **kwargs)
+
+def clear_metadata_caches(*args, **kwargs):
+    get_driver_instance(None).clear_metadata_caches(*args, **kwargs)
+
+def main():
+    parser = ArgumentParser(description="Script to run some administer stuff directly through driver")
+    subparsers = parser.add_subparsers(metavar="command")
+    
+    build_snapshot_parser = subparsers.add_parser("build-snapshot", help="Build snapshot")
+    build_snapshot_parser.set_defaults(func=build_snapshot)
+    build_snapshot_parser.add_argument("--set-read-only", action="store_true", default=False)
+    build_snapshot_parser.add_argument("--cell-id")
+
+    gc_collect_parser = subparsers.add_parser("gc-collect", help="Run garbage collection")
+    gc_collect_parser.set_defaults(func=gc_collect)
+    
+    clear_metadata_caches_parser = subparsers.add_parser("clear-caches", help="Clear metadata caches")
+    clear_metadata_caches_parser.set_defaults(func=clear_metadata_caches)
+
+    args = parser.parse_args()
+    func_args = dict(vars(args))
+    func_args.pop("func")
+    args.func(**func_args)
+
+if __name__ == "__main__":
+    main()
