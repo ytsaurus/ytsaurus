@@ -53,7 +53,7 @@ using namespace NTabletClient;
 
 Py::Exception CreateYtError(const NYT::TError& error)
 {
-    auto ysonErrorClass = Py::Callable(
+    auto ytErrorClass = Py::Callable(
         PyObject_GetAttr(
             PyImport_ImportModule("yt.common"),
             PyString_FromString("YtError")));
@@ -62,17 +62,17 @@ Py::Exception CreateYtError(const NYT::TError& error)
     options.setItem("message", ConvertTo<Py::Object>(error.GetMessage()));
     options.setItem("code", ConvertTo<Py::Object>(error.GetCode()));
     options.setItem("inner_errors", ConvertTo<Py::Object>(error.InnerErrors()));
-    auto ysonError = ysonErrorClass.apply(options);
-    return Py::Exception(*ysonError, ysonError);
+    auto ytError = ytErrorClass.apply(Py::Tuple(), options);
+    return Py::Exception(*ytErrorClass, ytError);
 }
 
 Py::Exception CreateYtError(const std::string& message)
 {
-    auto ysonErrorClass = Py::Object(
+    auto ytErrorClass = Py::Object(
         PyObject_GetAttr(
             PyImport_ImportModule("yt.common"),
             PyString_FromString("YtError")));
-    return Py::Exception(*ysonErrorClass, message);
+    return Py::Exception(*ytErrorClass, message);
 }
 
 #define CATCH \
