@@ -214,7 +214,7 @@ void TRefCountedTracker::SortSnapshot(TNamedStatistics* snapshot, int sortByColu
             };
             break;
     }
-    //std::sort(snapshot->begin(), snapshot->end(), predicate);
+    std::sort(snapshot->begin(), snapshot->end(), predicate);
 }
 
 Stroka TRefCountedTracker::GetDebugInfo(int sortByColumn) const
