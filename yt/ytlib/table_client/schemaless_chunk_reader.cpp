@@ -830,7 +830,7 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessSequentialMultiChunkReader(
     const TKeyColumns& keyColumns,
     IThroughputThrottlerPtr throttler)
 {
-    return New<TSchemalessMultiChunkReader<TSequentialMultiReaderBase>>(
+    auto reader = New<TSchemalessMultiChunkReader<TSequentialMultiReaderBase>>(
         config,
         options,
         client,
@@ -841,6 +841,8 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessSequentialMultiChunkReader(
         columnFilter,
         keyColumns,
         throttler);
+    reader->Open();
+    return reader;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -857,7 +859,7 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessParallelMultiChunkReader(
     const TKeyColumns& keyColumns,
     IThroughputThrottlerPtr throttler)
 {
-    return New<TSchemalessMultiChunkReader<TParallelMultiReaderBase>>(
+    auto reader = New<TSchemalessMultiChunkReader<TParallelMultiReaderBase>>(
         config,
         options,
         client,
@@ -868,6 +870,8 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessParallelMultiChunkReader(
         columnFilter,
         keyColumns,
         throttler);
+    reader->Open();
+    return reader;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

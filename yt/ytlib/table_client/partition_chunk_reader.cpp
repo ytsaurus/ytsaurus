@@ -173,10 +173,13 @@ TPartitionMultiChunkReaderPtr CreatePartitionMultiChunkReader(
             memoryEstimate));
     }
 
-    return New<TPartitionMultiChunkReader>(
+    auto reader = New<TPartitionMultiChunkReader>(
         config, 
         options, 
         factories);
+
+    reader->Open();
+    return reader;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

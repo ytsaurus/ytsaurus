@@ -30,6 +30,8 @@ public:
         TMultiChunkReaderOptionsPtr options,
         const std::vector<IReaderFactoryPtr>& readerFactories);
 
+    void Open();
+
     virtual TFuture<void> GetReadyEvent() override;
 
     virtual NProto::TDataStatistics GetDataStatistics() const override;
@@ -69,6 +71,8 @@ protected:
     virtual void OnReaderSwitched() = 0;
 
     virtual void OnReaderFinished();
+
+    virtual void DoOpen() = 0;
 
     virtual void OnError();
 
@@ -117,7 +121,7 @@ private:
     int FinishedReaderCount_ = 0;
     std::vector<TPromise<IReaderBasePtr>> NextReaders_;
 
-    void DoOpen();
+    virtual void DoOpen() override;
 
     virtual void OnReaderOpened(IReaderBasePtr chunkReader, int chunkIndex) override;
 
@@ -150,7 +154,7 @@ private:
     TSessionQueue ReadySessions_;
     int FinishedReaderCount_ = 0;
 
-    void DoOpen();
+    virtual void DoOpen() override;
 
     virtual void OnReaderOpened(IReaderBasePtr chunkReader, int chunkIndex) override;
 
