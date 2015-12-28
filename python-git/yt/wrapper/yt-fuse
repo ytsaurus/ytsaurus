@@ -6,7 +6,6 @@ from yt.packages.fuse import FUSE
 from argparse import ArgumentParser
 
 import logging
-import sys
 
 def mount_cypress(proxy, mount_point, caching_period, enable_write_access):
     """Mount a Cypress."""
