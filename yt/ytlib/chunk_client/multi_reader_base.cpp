@@ -38,6 +38,15 @@ TMultiReaderBase::TMultiReaderBase(
     }
 }
 
+void TMultiReaderBase::Open()
+{
+    ReadyEvent_ = CombineCompletionError(BIND(
+            &TMultiReaderBase::DoOpen, 
+            MakeStrong(this))
+        .AsyncVia(TDispatcher::Get()->GetReaderInvoker())
+        .Run());
+}
+
 TFuture<void> TMultiReaderBase::GetReadyEvent()
 {
     return ReadyEvent_;
@@ -192,12 +201,6 @@ TSequentialMultiReaderBase::TSequentialMultiReaderBase(
     for (int i = 0; i < ReaderFactories_.size(); ++i) {
         NextReaders_.push_back(NewPromise<IReaderBasePtr>());
     }
-
-    ReadyEvent_ = CombineCompletionError(BIND(
-            &TSequentialMultiReaderBase::DoOpen, 
-            MakeStrong(this))
-        .AsyncVia(TDispatcher::Get()->GetReaderInvoker())
-        .Run());
 }
 
 void TSequentialMultiReaderBase::DoOpen()
