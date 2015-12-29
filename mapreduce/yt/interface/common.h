@@ -138,22 +138,18 @@ struct TRichYPath
     using TSelf = TRichYPath;
 
     FLUENT_FIELD(TYPath, Path);
-    FLUENT_FIELD_DEFAULT(bool, Append, false);
+    FLUENT_FIELD_OPTION(bool, Append);
     FLUENT_VECTOR_FIELD(TReadRange, Range);
     FLUENT_FIELD(TKeyColumns, Columns);
     FLUENT_FIELD(TKeyColumns, SortedBy);
+    FLUENT_FIELD_OPTION(bool, Teleport);
+    FLUENT_FIELD_OPTION(bool, Primary);
 
     TRichYPath()
     { }
 
-    TRichYPath(const char* path, bool append = false)
+    TRichYPath(const TYPath& path)
         : Path_(path)
-        , Append_(append)
-    { }
-
-    TRichYPath(const TYPath& path, bool append = false)
-        : Path_(path)
-        , Append_(append)
     { }
 };
 

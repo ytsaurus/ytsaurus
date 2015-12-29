@@ -422,6 +422,30 @@ TOperationId IOperationClient::Reduce(
         options);
 }
 
+template <class TReducer>
+TOperationId IOperationClient::JoinReduce(
+    const TJoinReduceOperationSpec& spec,
+    TReducer* reducer,
+    const TOperationOptions& options)
+{
+    using TInputRow = typename TReducer::TReader::TRowType;
+    using TOutputRow = typename TReducer::TWriter::TRowType;
+
+    if (TFormatDescTraits<TInputRow>::Format != spec.InputDesc_.Format) {
+        ythrow yexception() << "cannot match reducer type and input descriptor";
+    }
+    if (TFormatDescTraits<TOutputRow>::Format != spec.OutputDesc_.Format) {
+        ythrow yexception() << "cannot match reducer type and output descriptor";
+    }
+
+    TIntrusivePtr<TReducer> reducerPtr(reducer);
+
+    return DoJoinReduce(
+        spec,
+        reducer,
+        options);
+}
+
 template <class TMapper, class TReducer>
 TOperationId IOperationClient::MapReduce(
     const TMapReduceOperationSpec& spec,

@@ -69,6 +69,7 @@ struct TMapOperationSpec
     using TSelf = TMapOperationSpec;
 
     FLUENT_FIELD(TUserJobSpec, MapperSpec);
+    FLUENT_FIELD_OPTION(bool, Ordered);
 };
 
 struct TReduceOperationSpec
@@ -91,6 +92,15 @@ struct TMapReduceOperationSpec
     //TODO: reduce combiners
     FLUENT_FIELD(TKeyColumns, SortBy);
     FLUENT_FIELD(TKeyColumns, ReduceBy);
+};
+
+struct TJoinReduceOperationSpec
+    : public TOperationIOSpec<TJoinReduceOperationSpec>
+{
+    using TSelf = TJoinReduceOperationSpec;
+
+    FLUENT_FIELD(TUserJobSpec, ReducerSpec);
+    FLUENT_FIELD(TKeyColumns, JoinBy);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -220,6 +230,12 @@ struct IOperationClient
         TReducer* reducer,
         const TOperationOptions& options = TOperationOptions());
 
+    template <class TReducer>
+    TOperationId JoinReduce(
+        const TJoinReduceOperationSpec& spec,
+        TReducer* reducer,
+        const TOperationOptions& options = TOperationOptions());
+
     template <class TMapper, class TReducer>
     TOperationId MapReduce(
         const TMapReduceOperationSpec& spec,
@@ -263,6 +279,11 @@ private:
 
     virtual TOperationId DoReduce(
         const TReduceOperationSpec& spec,
+        IJob* reducer,
+        const TOperationOptions& options) = 0;
+
+    virtual TOperationId DoJoinReduce(
+        const TJoinReduceOperationSpec& spec,
         IJob* reducer,
         const TOperationOptions& options) = 0;
 

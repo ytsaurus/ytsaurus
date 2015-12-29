@@ -130,11 +130,17 @@ void Serialize(const TRichYPath& path, IYsonConsumer* consumer)
         .DoIf(!path.Columns_.Parts_.empty(), [&] (TFluentAttributes fluent) {
             fluent.Item("channel").Value(path.Columns_);
         })
-        .DoIf(path.Append_, [&] (TFluentAttributes fluent) {
-            fluent.Item("append").Value(true);
+        .DoIf(path.Append_.Defined(), [&] (TFluentAttributes fluent) {
+            fluent.Item("append").Value(path.Append_.GetRef());
         })
         .DoIf(!path.SortedBy_.Parts_.empty(), [&] (TFluentAttributes fluent) {
             fluent.Item("sorted_by").Value(path.SortedBy_);
+        })
+        .DoIf(path.Teleport_.Defined(), [&] (TFluentAttributes fluent) {
+            fluent.Item("teleport").Value(path.Teleport_.GetRef());
+        })
+        .DoIf(path.Primary_.Defined(), [&] (TFluentAttributes fluent) {
+            fluent.Item("primary").Value(path.Primary_.GetRef());
         })
     .EndAttributes()
     .Value(path.Path_);

@@ -488,6 +488,9 @@ TOperationId ExecuteMap(
                 .Item("enable_row_index").Value(true)
             .EndMap()
         .EndMap()
+        .DoIf(spec.Ordered_.Defined(), [&] (TFluentMap fluent) {
+            fluent.Item("ordered").Value(spec.Ordered_.GetRef());
+        })
         .Do(BuildCommonOperationPart)
     .EndMap().EndMap();
 
@@ -556,6 +559,64 @@ TOperationId ExecuteReduce(
         auth,
         transactionId,
         "reduce",
+        MergeSpec(specNode, options),
+        options.Wait_);
+}
+
+TOperationId ExecuteJoinReduce(
+    const TAuth& auth,
+    const TTransactionId& transactionId,
+    const TJoinReduceOperationSpec& spec,
+    IJob* reducer,
+    const TOperationOptions& options)
+{
+    TMaybe<TNode> format;
+    if (spec.InputDesc_.Format == TMultiFormatDesc::F_YAMR &&
+        options.UseTableFormats_)
+    {
+        format = GetTableFormats(auth, transactionId, spec.Inputs_);
+    }
+
+    TKeyColumns joinBy(spec.JoinBy_);
+
+    if (spec.InputDesc_.Format == TMultiFormatDesc::F_YAMR) {
+        joinBy = TKeyColumns("key");
+    }
+
+    TFileUploader uploader(auth);
+    uploader.UploadFiles(spec.ReducerSpec_, reducer);
+
+    Stroka command = Sprintf("./cppbinary --yt-reduce \"%s\" %" PRISZT " %d",
+        ~TJobFactory::Get()->GetJobName(reducer),
+        spec.Outputs_.size(),
+        uploader.HasState());
+
+    TNode specNode = BuildYsonNodeFluently()
+    .BeginMap().Item("spec").BeginMap()
+        .Item("reducer").DoMap(std::bind(
+            BuildUserJobFluently,
+            command,
+            uploader.GetFiles(),
+            format,
+            spec.InputDesc_,
+            spec.OutputDesc_,
+            std::placeholders::_1))
+        .Item("join_by").Value(joinBy)
+        .Item("input_table_paths").DoListFor(spec.Inputs_, BuildPathPrefix)
+        .Item("output_table_paths").DoListFor(spec.Outputs_, BuildPathPrefix)
+        .Item("job_io").BeginMap()
+            .Item("control_attributes").BeginMap()
+                .Item("enable_key_switch").Value(true)
+                .Item("enable_row_index").Value(true)
+            .EndMap()
+        .EndMap()
+        .Do(BuildCommonOperationPart)
+    .EndMap().EndMap();
+
+    return StartOperation(
+        auth,
+        transactionId,
+        "join_reduce",
         MergeSpec(specNode, options),
         options.Wait_);
 }
@@ -669,6 +730,7 @@ TOperationId ExecuteMapReduce(
         MergeSpec(specNode, options),
         options.Wait_);
 }
+
 
 TOperationId ExecuteSort(
     const TAuth& auth,
