@@ -472,7 +472,7 @@ def clean_artifacts(options, n=10):
 
 @yt_register_cleanup_step
 def clean_failed_tests(options, max_allowed_size=None):
-    if options.is_bare_metal_agent:
+    if options.is_bare_metal:
         max_allowed_size = 200 * 1024 * 1024 * 1024
     else:
         max_allowed_size = 50 * 1024 * 1024 * 1024
