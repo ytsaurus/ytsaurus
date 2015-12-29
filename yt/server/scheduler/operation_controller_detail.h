@@ -346,6 +346,7 @@ protected:
             const TJobId& jobId,
             TTaskPtr sourceTask,
             IChunkPoolOutput::TCookie outputCookie,
+            i64 dataSize,
             IChunkPoolInput* destinationPool,
             IChunkPoolInput::TCookie inputCookie,
             const Stroka& address,
@@ -354,6 +355,7 @@ protected:
             , JobId(jobId)
             , SourceTask(std::move(sourceTask))
             , OutputCookie(outputCookie)
+            , DataSize(dataSize)
             , DestinationPool(destinationPool)
             , InputCookie(inputCookie)
             , Address(address)
@@ -366,6 +368,7 @@ protected:
 
         TTaskPtr SourceTask;
         IChunkPoolOutput::TCookie OutputCookie;
+        i64 DataSize;
 
         IChunkPoolInput* DestinationPool;
         IChunkPoolInput::TCookie InputCookie;
@@ -470,6 +473,10 @@ protected:
 
     protected:
         NLogging::TLogger Logger;
+
+        virtual bool CanScheduleJob(
+            ISchedulingContext* context,
+            const TJobResources& jobLimits);
 
         virtual TJobResources GetMinNeededResourcesHeavy() const = 0;
 

@@ -336,6 +336,9 @@ protected:
             using NYT::Persist;
             Persist(context, Controller);
             Persist(context, ChunkPool);
+            Persist(context, NodeIdToDataSize);
+            Persist(context, ScheduledDataSize);
+            Persist(context, DataSizePerJob);
         }
 
     private:
@@ -343,6 +346,49 @@ protected:
 
         TSortControllerBase* Controller;
         std::unique_ptr<IChunkPool> ChunkPool;
+
+        //! The total data size of jobs assigned to a particular node.
+        //! No zero values are allowed.
+        yhash_map<TNodeId, i64> NodeIdToDataSize;
+        //! The sum of all sizes appearing in #NodeIdToDataSize;
+        i64 ScheduledDataSize = 0;
+        //! Max-aggregated each time a new job is scheduled.
+        i64 DataSizePerJob = 0;
+
+
+        void UpdateNodeDataSize(TNodeId nodeId, i64 delta)
+        {
+            auto updatedNodeDataSize = (NodeIdToDataSize[nodeId] += delta);
+            YCHECK(updatedNodeDataSize >= 0);
+            if (updatedNodeDataSize == 0) {
+                YCHECK(NodeIdToDataSize.erase(nodeId) == 1);
+            }
+
+            auto updatedScheduledDataSize = (ScheduledDataSize += delta);
+            YCHECK(updatedScheduledDataSize >= 0);
+        }
+
+
+        virtual bool CanScheduleJob(
+            ISchedulingContext* context,
+            const TJobResources& /*jobLimits*/) override
+        {
+            if (!Controller->Spec->EnablePartitionedDataBalancing) {
+                return true;
+            }
+
+            if (NodeIdToDataSize.empty()) {
+                return true;
+            }
+
+            auto nodeId = context->GetNode()->GetId();
+            auto updatedScheduledDataSize = ScheduledDataSize + DataSizePerJob;
+            auto updatedAvgDataSize = updatedScheduledDataSize / NodeIdToDataSize.size();
+            auto updatedNodeDataSize = NodeIdToDataSize[nodeId] + DataSizePerJob;
+            return
+                updatedNodeDataSize <=
+                updatedAvgDataSize + Controller->Spec->PartitionedDataBalancingTolerance * DataSizePerJob;
+        }
 
         virtual bool IsMemoryReserveEnabled() const override
         {
@@ -388,6 +434,10 @@ protected:
         virtual void OnJobStarted(TJobletPtr joblet) override
         {
             Controller->PartitionJobCounter.Start(1);
+
+            auto dataSize = joblet->InputStripeList->TotalDataSize;
+            DataSizePerJob = std::max(DataSizePerJob, dataSize);
+            UpdateNodeDataSize(joblet->NodeId, +dataSize);
 
             TTask::OnJobStarted(joblet);
         }
@@ -435,6 +485,7 @@ protected:
         {
             TTask::OnJobLost(completedJob);
 
+            UpdateNodeDataSize(completedJob->NodeId, -completedJob->DataSize);
             Controller->PartitionJobCounter.Lost(1);
         }
 
@@ -442,6 +493,7 @@ protected:
         {
             TTask::OnJobFailed(joblet, jobSummary);
 
+            UpdateNodeDataSize(joblet->NodeId, -joblet->InputStripeList->TotalDataSize);
             Controller->PartitionJobCounter.Failed(1);
         }
 
@@ -449,8 +501,8 @@ protected:
         {
             TTask::OnJobAborted(joblet, jobSummary);
 
+            UpdateNodeDataSize(joblet->NodeId, -joblet->InputStripeList->TotalDataSize);
             Controller->PartitionJobCounter.Aborted(1, jobSummary.AbortReason);
-
             Controller->UpdateAllTasksIfNeeded(Controller->PartitionJobCounter);
         }
 
@@ -476,6 +528,24 @@ protected:
                 } else {
                     LOG_DEBUG("Partition[%v] = %v",
                         partition->Index,
+                        dataSize);
+                }
+            }
+
+            if (Controller->Spec->EnablePartitionedDataBalancing) {
+                auto execNodes = Controller->Host->GetExecNodes();
+                yhash_map<TNodeId, TExecNodePtr> idToNode;
+                for (const auto& node : execNodes) {
+                    YCHECK(idToNode.insert(std::make_pair(node->GetId(), node)).second);
+                }
+
+                LOG_DEBUG("Per-node partitioned sizes collected");
+                for (const auto& pair : NodeIdToDataSize) {
+                    auto nodeId = pair.first;
+                    auto dataSize = pair.second;
+                    auto nodeIt = idToNode.find(nodeId);
+                    LOG_DEBUG("Node[%v] = %v",
+                        nodeIt == idToNode.end() ? ToString(nodeId) : nodeIt->second->GetDefaultAddress(),
                         dataSize);
                 }
             }

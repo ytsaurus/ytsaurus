@@ -368,6 +368,10 @@ TJobId TOperationControllerBase::TTask::ScheduleJob(
     ISchedulingContext* context,
     const TJobResources& jobLimits)
 {
+    if (!CanScheduleJob(context, jobLimits)) {
+        return NullJobId;
+    }
+
     bool intermediateOutput = IsIntermediateOutput();
     int jobIndex = Controller->JobIndexGenerator.Next();
     auto joblet = New<TJoblet>(this, jobIndex);
@@ -623,6 +627,13 @@ void TOperationControllerBase::TTask::OnTaskCompleted()
     LOG_DEBUG("Task completed");
 }
 
+bool TOperationControllerBase::TTask::CanScheduleJob(
+    ISchedulingContext* /*context*/,
+    const TJobResources& /*jobLimits*/)
+{
+    return true;
+}
+
 void TOperationControllerBase::TTask::DoCheckResourceDemandSanity(
     const TJobResources& neededResources)
 {
@@ -847,6 +858,7 @@ void TOperationControllerBase::TTask::RegisterIntermediate(
         joblet->JobId,
         this,
         joblet->OutputCookie,
+        joblet->InputStripeList->TotalDataSize,
         destinationPool,
         inputCookie,
         joblet->Address,
