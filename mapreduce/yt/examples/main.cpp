@@ -363,13 +363,13 @@ void JoinReducerProto()
         writer->Finish();
     }
 
-    client->Reduce(
-        TReduceOperationSpec()
-            .AddInput<TJoinInputLeft>(inputLeft)
+    client->JoinReduce(
+        TJoinReduceOperationSpec()
+            .AddInput<TJoinInputLeft>(TRichYPath(inputLeft).Primary(true))
             .AddInput<TJoinInputRight>(inputRight)
             .AddOutput<TJoinOutputSum>(outputSum)
             .AddOutput<TJoinOutputProduct>(outputProduct)
-            .ReduceBy(TKeyColumns("key")),
+            .JoinBy(TKeyColumns("key")),
         new TJoinReducerProto);
 
     {

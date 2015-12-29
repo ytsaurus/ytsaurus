@@ -273,6 +273,19 @@ public:
             options);
     }
 
+    virtual TOperationId DoJoinReduce(
+        const TJoinReduceOperationSpec& spec,
+        IJob* reducer,
+        const TOperationOptions& options)
+    {
+        return ExecuteJoinReduce(
+            Auth_,
+            TransactionId_,
+            spec,
+            reducer,
+            options);
+    }
+
     virtual TOperationId DoMapReduce(
         const TMapReduceOperationSpec& spec,
         IJob* mapper,
