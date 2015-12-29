@@ -3,7 +3,7 @@ from helpers import get_version, prepare_files
 from setuptools import setup
 
 def main():
-    scripts, data_files = prepare_files(["yt/fennel/binaries/fennel.py"])
+    scripts, data_files = prepare_files(["yt/fennel/binaries/fennel.py", "yt/fennel/binaries/fennel_rotate.py"])
 
     version = get_version()
     with open("yt/fennel/version.py", "w") as version_output:
