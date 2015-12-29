@@ -136,7 +136,8 @@ TPartitionMultiChunkReaderPtr CreatePartitionMultiChunkReader(
     TNodeDirectoryPtr nodeDirectory,
     const std::vector<TChunkSpec>& chunkSpecs,
     TNameTablePtr nameTable,
-    const TKeyColumns& keyColumns)
+    const TKeyColumns& keyColumns,
+    int partitionTag)
 {
     std::vector<IReaderFactoryPtr> factories;
     for (const auto& chunkSpec : chunkSpecs) {
@@ -154,7 +155,6 @@ TPartitionMultiChunkReaderPtr CreatePartitionMultiChunkReader(
             YCHECK(!chunkSpec.has_channel());
             YCHECK(!chunkSpec.has_lower_limit());
             YCHECK(!chunkSpec.has_upper_limit());
-            YCHECK(chunkSpec.has_partition_tag());
 
             TSequentialReaderConfigPtr sequentialReaderConfig = config;
 
@@ -165,7 +165,7 @@ TPartitionMultiChunkReaderPtr CreatePartitionMultiChunkReader(
                 blockCache,
                 keyColumns,
                 chunkSpec.chunk_meta(),
-                chunkSpec.partition_tag());
+                partitionTag);
         };
 
         factories.emplace_back(CreateReaderFactory(

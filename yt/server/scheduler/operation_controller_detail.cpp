@@ -711,7 +711,7 @@ void TOperationControllerBase::TTask::AddSequentialInputSpec(
     inputSpec->set_table_reader_options(ConvertToYsonString(GetTableReaderOptions()).Data());
     const auto& list = joblet->InputStripeList;
     for (const auto& stripe : list->Stripes) {
-        AddChunksToInputSpec(&directoryBuilder, inputSpec, stripe, list->PartitionTag);
+        AddChunksToInputSpec(&directoryBuilder, inputSpec, stripe);
     }
     UpdateInputSpecTotals(jobSpec, joblet);
 }
@@ -728,7 +728,7 @@ void TOperationControllerBase::TTask::AddParallelInputSpec(
     for (const auto& stripe : list->Stripes) {
         auto* inputSpec = schedulerJobSpecExt->add_input_specs();
         inputSpec->set_table_reader_options(ConvertToYsonString(GetTableReaderOptions()).Data());
-        AddChunksToInputSpec(&directoryBuilder, inputSpec, stripe, list->PartitionTag);
+        AddChunksToInputSpec(&directoryBuilder, inputSpec, stripe);
     }
     UpdateInputSpecTotals(jobSpec, joblet);
 }
@@ -736,8 +736,7 @@ void TOperationControllerBase::TTask::AddParallelInputSpec(
 void TOperationControllerBase::TTask::AddChunksToInputSpec(
     TNodeDirectoryBuilder* directoryBuilder,
     TTableInputSpec* inputSpec,
-    TChunkStripePtr stripe,
-    TNullable<int> partitionTag)
+    TChunkStripePtr stripe)
 {
     for (const auto& chunkSlice : stripe->ChunkSlices) {
         auto* chunkSpec = inputSpec->add_chunks();
@@ -745,9 +744,6 @@ void TOperationControllerBase::TTask::AddChunksToInputSpec(
         for (ui32 protoReplica : chunkSlice->GetChunkSpec()->replicas()) {
             auto replica = FromProto<TChunkReplica>(protoReplica);
             directoryBuilder->Add(replica);
-        }
-        if (partitionTag) {
-            chunkSpec->set_partition_tag(*partitionTag);
         }
     }
 }

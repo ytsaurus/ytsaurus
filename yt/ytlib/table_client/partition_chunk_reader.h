@@ -109,7 +109,8 @@ TPartitionMultiChunkReaderPtr CreatePartitionMultiChunkReader(
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
     const std::vector<NChunkClient::NProto::TChunkSpec>& chunkSpecs,
     TNameTablePtr nameTable,
-    const TKeyColumns& keyColumns);
+    const TKeyColumns& keyColumns,
+    int partitionTag);
 
 ////////////////////////////////////////////////////////////////////////////////
 

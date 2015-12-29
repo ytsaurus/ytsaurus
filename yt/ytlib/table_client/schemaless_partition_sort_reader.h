@@ -27,7 +27,8 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessPartitionSortReader(
     TClosure onNetworkReleased,
     const std::vector<NChunkClient::NProto::TChunkSpec>& chunks,
     i64 estimatedRowCount,
-    bool isApproximate);
+    bool isApproximate,
+    int partitionTag);
 
 ////////////////////////////////////////////////////////////////////////////////
 
