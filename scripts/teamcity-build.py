@@ -58,7 +58,7 @@ def prepare(options):
 
     options.build_number = os.environ["BUILD_NUMBER"]
     options.build_vcs_number = os.environ["BUILD_VCS_NUMBER"]
-    options.build_git_depth = run_captured([os.path.join(script_directory, "git-depth.py"])
+    options.build_git_depth = run_captured([os.path.join(script_directory, "git-depth.py")])
 
     def checked_yes_no(s):
         s = s.upper()
