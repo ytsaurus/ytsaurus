@@ -293,12 +293,6 @@ TParallelMultiReaderBase::TParallelMultiReaderBase(
         readerFactories)
 {
     LOG_DEBUG("Multi chunk reader is parallel");
-
-    ReadyEvent_ = CombineCompletionError(BIND(
-            &TParallelMultiReaderBase::DoOpen, 
-            MakeStrong(this))
-        .AsyncVia(TDispatcher::Get()->GetReaderInvoker())
-        .Run());
 }
 
 void TParallelMultiReaderBase::DoOpen()
