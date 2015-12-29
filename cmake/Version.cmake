@@ -1,12 +1,5 @@
-# Set the build version
-set(YT_VERSION_MAJOR 0)
-set(YT_VERSION_MINOR 18)
-set(YT_VERSION_PATCH 0)
-
-set(YT_ABI_VERSION "${YT_VERSION_MINOR}.${YT_VERSION_PATCH}")
-
 if (NOT YT_BUILD_BRANCH)
-  set(YT_BUILD_BRANCH "unknown")
+  set(YT_BUILD_BRANCH "local")
 endif()
 
 if (NOT YT_BUILD_NUMBER)
@@ -17,13 +10,24 @@ if (NOT YT_BUILD_VCS_NUMBER)
   set(YT_BUILD_VCS_NUMBER "local")
 endif()
 
+if (NOT YT_BUILD_GIT_DEPTH)
+  set(YT_BUILD_GIT_DEPTH 0)
+endif()
+
+# Set the build version
+set(YT_VERSION_MAJOR 18)
+set(YT_VERSION_MINOR 0)
+set(YT_VERSION_PATCH ${YT_VERSION_GIT_DEPTH})
+
+set(YT_ABI_VERSION "${YT_VERSION_MAJOR}.${YT_VERSION_MINOR}")
 set(YT_VERSION "${YT_VERSION_MAJOR}.${YT_VERSION_MINOR}.${YT_VERSION_PATCH}")
+
 set(YT_VERSION "${YT_VERSION}-${YT_BUILD_BRANCH}")
 if (CMAKE_BUILD_TYPE STREQUAL "Debug")
   set(YT_VERSION "${YT_VERSION}~debug")
 endif()
-set(YT_VERSION "${YT_VERSION}~${YT_BUILD_NUMBER}")
 set(YT_VERSION "${YT_VERSION}~${YT_BUILD_VCS_NUMBER}")
+
 # Underscore is forbidden in the version
 string(REPLACE "_" "-" YT_VERSION ${YT_VERSION})
 # Underscore is forbidden in the version
@@ -36,7 +40,7 @@ find_program(_HOSTNAME NAMES hostname)
 find_program(_UNAME NAMES uname)
 find_program(_DATE NAMES date)
 
-if (_HOSTNAME)
+if(_HOSTNAME)
   set(_HOSTNAME ${_HOSTNAME} CACHE INTERNAL "")
   execute_process(
     COMMAND ${_HOSTNAME}
@@ -47,7 +51,7 @@ else()
   set(YT_BUILD_HOST "unknown")
 endif()
 
-if (_UNAME)
+if(_UNAME)
   set(_UNAME ${_UNAME} CACHE INTERNAL "")
   execute_process(
     COMMAND ${_UNAME} -a
@@ -57,7 +61,7 @@ else()
   set(YT_BUILD_MACHINE "unknown")
 endif()
 
-if (_DATE)
+if(_DATE)
   set(_DATE ${_DATE} CACHE INTERNAL "")
   execute_process(
     COMMAND ${_DATE}

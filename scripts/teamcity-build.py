@@ -54,8 +54,11 @@ def prepare(options):
     os.environ["LANG"] = "en_US.UTF-8"
     os.environ["LC_ALL"] = "en_US.UTF-8"
 
+    script_directory = os.path.dirname(os.path.realpath(__file__))
+
     options.build_number = os.environ["BUILD_NUMBER"]
     options.build_vcs_number = os.environ["BUILD_VCS_NUMBER"]
+    options.build_git_depth = run_captured([os.path.join(script_directory, "git-depth.py"])
 
     def checked_yes_no(s):
         s = s.upper()
@@ -125,6 +128,7 @@ def configure(options):
         "-DYT_BUILD_BRANCH={0}".format(options.branch),
         "-DYT_BUILD_NUMBER={0}".format(options.build_number),
         "-DYT_BUILD_VCS_NUMBER={0}".format(options.build_vcs_number[0:7]),
+        "-DYT_BUILD_GIT_DEPTH={0}".format(options.build_git_depth),
         "-DYT_BUILD_ENABLE_NODEJS={0}".format(options.build_enable_nodejs),
         "-DYT_BUILD_ENABLE_PYTHON={0}".format(options.build_enable_python),
         "-DYT_BUILD_ENABLE_PERL={0}".format(options.build_enable_perl),
