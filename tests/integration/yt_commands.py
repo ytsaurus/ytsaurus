@@ -1,8 +1,12 @@
 import yt.yson as yson
 from yt_driver_bindings import Driver, Request
-from yt.common import YtError, flatten, update
+from yt.common import YtError, YtResponseError, flatten, update
 
+import __builtin__
+
+import os
 import sys
+import tempfile
 import time
 from datetime import datetime
 import cStringIO
@@ -13,6 +17,7 @@ from cStringIO import StringIO
 
 driver = None
 is_multicell = None
+path_to_run_tests = None
 
 def get_driver():
     return driver
@@ -106,11 +111,11 @@ def execute_command(command_name, parameters, input_stream=None, output_stream=N
                 user=user))
     response.wait()
     if not response.is_ok():
-        error = YtError(**response.error())
+        error = YtResponseError(response.error())
         print >>sys.stderr, str(error)
         print >>sys.stderr
         # NB: we want to see inner errors in teamcity.
-        raise YtError(str(error))
+        raise error
     if isinstance(output_stream, cStringIO.OutputType):
         result = output_stream.getvalue()
         if verbose:
@@ -321,28 +326,119 @@ def write_journal(path, value, is_raw=False, **kwargs):
     kwargs["path"] = path
     return execute_command("write_journal", kwargs, input_stream=StringIO(value))
 
-def track_op(op_id):
-    counter = 0
-    while True:
-        state = get("//sys/operations/%s/@state" % op_id, verbose=False)
-        message = "Operation %s %s" % (op_id, state)
-        if counter % 30 == 0 or state in ["failed", "aborted", "completed"]:
-            print >>sys.stderr, message
-        if state == "failed":
-            error = get("//sys/operations/%s/@result/error" % op_id, verbose=False, is_raw=True)
-            jobs = get("//sys/operations/%s/jobs" % op_id, verbose=False)
-            for job in jobs:
-                if exists("//sys/operations/%s/jobs/%s/@error" % (op_id, job), verbose=False):
-                    error = error + "\n\n" + get("//sys/operations/%s/jobs/%s/@error" % (op_id, job), verbose=False, is_raw=True)
-                    if "stderr" in jobs[job]:
-                        error = error + "\n" + read_file("//sys/operations/%s/jobs/%s/stderr" % (op_id, job), verbose=False)
-            raise YtError(error)
-        if state == "aborted":
-            raise YtError(message)
-        if state == "completed":
-            break
-        counter += 1
-        time.sleep(0.1)
+class TimeoutError(Exception):
+    pass
+
+class Operation(object):
+    def __init__(self):
+        self.resumed_jobs = __builtin__.set()
+
+        self._tmpdir = ""
+        self._poll_frequency = 0.1
+
+    def ensure_jobs_running(self):
+        print >>sys.stderr, "Ensure operation jobs are running %s" % self.id
+
+        jobs_path = "//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(self.id)
+        progress_path = "//sys/scheduler/orchid/scheduler/operations/{0}/progress".format(self.id)
+
+        # Wait till all jobs are scheduled.
+        self.jobs = []
+        running_count = 0
+        pending_count = 0
+        while running_count == 0 or pending_count > 0:
+            time.sleep(self._poll_frequency)
+            try:
+                progress = get(progress_path + "/jobs", verbose=False)
+                running_count = progress["running"]
+                pending_count = progress["pending"]
+            except YtResponseError as error:
+                # running_jobs directory is not created yet.
+                if error.is_resolve_error():
+                    continue
+                raise
+
+        self.jobs = list(frozenset(ls(jobs_path)) - self.resumed_jobs)
+
+        # Wait till all jobs are actually running.
+        while not all([os.path.exists(os.path.join(self._tmpdir, "started_" + job)) for job in self.jobs]):
+            time.sleep(self._poll_frequency)
+
+    def ensure_running(self, timeout=2.0):
+        print >>sys.stderr, "Ensure operation is running %s" % self.id
+
+        state = self.get_state(verbose=False)
+        while state != "running" and timeout > 0:
+            time.sleep(self._poll_frequency)
+            timeout -= self._poll_frequency
+            state = self.get_state(verbose=False)
+
+        if state != "running":
+            raise TimeoutError("Operation didn't become running within timeout")
+
+    def resume_job(self, job):
+        print >>sys.stderr, "Resume operation job %s" % job
+
+        self.resumed_jobs.add(job)
+        self.jobs.remove(job)
+        os.unlink(os.path.join(self._tmpdir, "started_" + job))
+
+    def resume_jobs(self):
+        if self.jobs is None:
+            raise RuntimeError('"ensure_running" must be called before resuming jobs')
+
+        for job in self.jobs:
+            os.unlink(os.path.join(self._tmpdir, "started_" + job))
+
+        try:
+            os.rmdir(self._tmpdir)
+        except OSError:
+            sys.excepthook(*sys.exc_info())
+
+    def get_state(self, **kwargs):
+        return get("//sys/operations/{0}/@state".format(self.id), **kwargs)
+
+    def track(self):
+        jobs_path = "//sys/operations/{0}/jobs".format(self.id)
+
+        counter = 0
+        while True:
+            state = self.get_state(verbose=False)
+            message = "Operation {0} {1}".format(self.id, state)
+            if counter % 30 == 0 or state in ["failed", "aborted", "completed"]:
+                print >>sys.stderr, message
+            if state == "failed":
+                error = get("//sys/operations/{0}/@result/error".format(self.id), verbose=False, is_raw=True)
+                jobs = get(jobs_path, verbose=False)
+                for job in jobs:
+                    job_error_path = jobs_path + "/{0}/@error".format(job)
+                    job_stderr_path = jobs_path + "/{0}/stderr".format(job)
+                    if exists(job_error_path, verbose=False):
+                        error = error + "\n\n" + get(job_error_path, verbose=False, is_raw=True)
+                        if "stderr" in jobs[job]:
+                            error = error + "\n" + read_file(job_stderr_path, verbose=False)
+                raise YtError(error)
+            if state == "aborted":
+                raise YtError(message)
+            if state == "completed":
+                break
+            counter += 1
+            time.sleep(self._poll_frequency)
+
+    def abort(self, **kwargs):
+        kwargs["operation_id"] = self.id
+        execute_command("abort_op", kwargs)
+
+def create_tmpdir(prefix):
+    basedir = os.path.join(path_to_run_tests, "tmp")
+    try:
+        os.mkdir(basedir)
+    except OSError:
+        sys.excepthook(*sys.exc_info())
+
+    return tempfile.mkdtemp(
+        prefix="{0}_{1}_".format(prefix, os.getpid()),
+        dir=basedir)
 
 def start_op(op_type, **kwargs):
     op_name = None
@@ -370,6 +466,18 @@ def start_op(op_type, **kwargs):
     for opt in ["sort_by", "reduce_by", "join_by"]:
         flat(kwargs, opt)
 
+    operation = Operation()
+
+    waiting_jobs = kwargs.get("waiting_jobs", False)
+    if "command" in kwargs and waiting_jobs:
+        label = kwargs.get("label", "test")
+        operation._tmpdir = create_tmpdir(label)
+        kwargs["command"] = (
+            "(touch {0}/started_$YT_JOB_ID\n"
+            "{1}\n"
+            "while [ -f {0}/started_$YT_JOB_ID ]; do sleep 0.1; done\n)"
+            .format(operation._tmpdir, kwargs["command"]))
+
     change(kwargs, "table_path", ["spec", "table_path"])
     change(kwargs, "in_", ["spec", input_name])
     change(kwargs, "out", ["spec", output_name])
@@ -389,12 +497,15 @@ def start_op(op_type, **kwargs):
     if "dont_track" in kwargs:
         del kwargs["dont_track"]
 
-    op_id = execute_command(op_type, kwargs).strip().replace('"', '')
+    operation.id = execute_command(op_type, kwargs).strip().replace('"', '')
+
+    if waiting_jobs:
+        operation.ensure_jobs_running()
 
     if track:
-        track_op(op_id)
+        operation.track()
 
-    return op_id
+    return operation
 
 def map(**kwargs):
     change(kwargs, "ordered", ["spec", "ordered"])
@@ -425,10 +536,6 @@ def sort(**kwargs):
 
 def remote_copy(**kwargs):
     return start_op("remote_copy", **kwargs)
-
-def abort_op(op, **kwargs):
-    kwargs["operation_id"] = op
-    execute_command("abort_op", kwargs)
 
 def build_snapshot(*args, **kwargs):
     get_driver().build_snapshot(*args, **kwargs)

@@ -92,6 +92,8 @@ class YTEnvSetup(YTEnv):
         cls.Env.start(cls.path_to_run, pids_filename, kill_child_processes=True,
                       port_locks_path=os.path.join(SANDBOX_ROOTDIR, "ports"), fqdn="localhost")
 
+        yt_commands.path_to_run_tests = cls.path_to_run
+
         if cls.Env.configs["driver"]:
             yt_commands.init_driver(cls.Env.configs["driver"])
             yt_commands.is_multicell = (cls.Env.NUM_SECONDARY_MASTER_CELLS > 0)
@@ -230,21 +232,6 @@ class YTEnvSetup(YTEnv):
     def _reenable_chunk_replicator(self):
         if yt_commands.exists("//sys/@disable_chunk_replicator"):
             yt_commands.remove("//sys/@disable_chunk_replicator")
-
-    @contextlib.contextmanager
-    def tempfolder(self, prefix):
-        basedir = os.path.join(self.Env.path_to_run, "tmp")
-        try:
-            os.mkdir(basedir)
-        except:
-            pass
-        tmpdir = tempfile.mkdtemp(prefix="{0}_{1}_".format(prefix, os.getpid()), dir=basedir)
-        yield tmpdir
-        try:
-            os.rmdir(tmpdir)
-        except:
-            sys.excepthook(*sys.exc_info())
-            pass
 
     def _remove_accounts(self):
         accounts = yt_commands.ls('//sys/accounts', attributes=['builtin'])
