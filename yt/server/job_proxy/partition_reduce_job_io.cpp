@@ -51,6 +51,8 @@ public:
         auto keyColumns = FromProto<Stroka>(reduceJobSpecExt.key_columns());
         nameTable = TNameTable::FromKeyColumns(keyColumns);
 
+        YCHECK(reduceJobSpecExt.has_partition_tag());
+
         return CreateSchemalessPartitionSortReader(
             JobIOConfig_->TableReader,
             Host_->GetClient(),
@@ -61,7 +63,8 @@ public:
             BIND(&IJobHost::ReleaseNetwork, Host_),
             chunks,
             SchedulerJobSpec_.input_row_count(),
-            SchedulerJobSpec_.is_approximate());
+            SchedulerJobSpec_.is_approximate(),
+            reduceJobSpecExt.partition_tag());
     }
 
     virtual ISchemalessMultiChunkWriterPtr DoCreateWriter(

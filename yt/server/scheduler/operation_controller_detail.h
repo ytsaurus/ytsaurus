@@ -505,8 +505,7 @@ protected:
         static void AddChunksToInputSpec(
             NNodeTrackerClient::TNodeDirectoryBuilder* directoryBuilder,
             NScheduler::NProto::TTableInputSpec* inputSpec,
-            TChunkStripePtr stripe,
-            TNullable<int> partitionTag);
+            TChunkStripePtr stripe);
 
         void AddFinalOutputSpecs(NJobTrackerClient::NProto::TJobSpec* jobSpec, TJobletPtr joblet);
         void AddIntermediateOutputSpec(

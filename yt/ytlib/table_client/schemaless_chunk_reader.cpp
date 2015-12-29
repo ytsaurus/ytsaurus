@@ -131,7 +131,8 @@ public:
         IBlockCachePtr blockCache,
         const TKeyColumns& keyColumns,
         const TColumnFilter& columnFilter,
-        std::vector<TReadRange> readRanges);
+        std::vector<TReadRange> readRanges,
+        TNullable<int> partitionTag);
 
     virtual bool Read(std::vector<TUnversionedRow>* rows) override;
 
@@ -156,6 +157,8 @@ private:
 
     const int SystemColumnCount_;
     std::vector<TReadRange> ReadRanges_;
+
+    TNullable<int> PartitionTag_;
 
     // Maps chunk name table ids into client id.
     // For filtered out columns maps id to -1.
@@ -210,7 +213,8 @@ TSchemalessChunkReader::TSchemalessChunkReader(
     IBlockCachePtr blockCache,
     const TKeyColumns& keyColumns,
     const TColumnFilter& columnFilter,
-    std::vector<TReadRange> readRanges)
+    std::vector<TReadRange> readRanges,
+    TNullable<int> partitionTag)
     : TChunkReaderBase(
         config, 
         underlyingReader, 
@@ -225,6 +229,7 @@ TSchemalessChunkReader::TSchemalessChunkReader(
     , KeyColumns_(keyColumns)
     , SystemColumnCount_(GetSystemColumnCount(options))
     , ReadRanges_(readRanges)
+    , PartitionTag_(std::move(partitionTag))
 {
     if (Config_->SamplingRate) {
         RowSampler_ = CreateChunkRowSampler(
@@ -262,7 +267,7 @@ std::vector<TSequentialReader::TBlockInfo> TSchemalessChunkReader::GetBlockSeque
     YCHECK(ChunkSpec_.chunk_meta().version() == static_cast<int>(ETableChunkFormat::SchemalessHorizontal));
     YCHECK(BlockIndexes_.empty());
 
-    if (ChunkSpec_.has_partition_tag()) {
+    if (PartitionTag_) {
         InitializeBlockSequencePartition();
     } else {
         if (KeyColumns_.empty() &&
@@ -375,7 +380,7 @@ void TSchemalessChunkReader::InitializeBlockSequencePartition()
     YCHECK(ReadRanges_[0].LowerLimit().IsTrivial());
     YCHECK(ReadRanges_[0].UpperLimit().IsTrivial());
 
-    DownloadChunkMeta(std::vector<int>(), ChunkSpec_.partition_tag());
+    DownloadChunkMeta(std::vector<int>(), PartitionTag_);
     CreateBlockSequence(0, BlockMetaExt_.blocks_size());
 }
 
@@ -564,7 +569,8 @@ ISchemalessChunkReaderPtr CreateSchemalessChunkReader(
     NChunkClient::IBlockCachePtr blockCache,
     const TKeyColumns& keyColumns,
     const TColumnFilter& columnFilter,  
-    std::vector<NChunkClient::TReadRange> readRanges)
+    std::vector<NChunkClient::TReadRange> readRanges,
+    TNullable<int> partitionTag)
 {
     auto type = EChunkType(chunkSpec.chunk_meta().type());
     YCHECK(type == EChunkType::Table);
@@ -584,11 +590,12 @@ ISchemalessChunkReaderPtr CreateSchemalessChunkReader(
                 blockCache,
                 keyColumns,
                 columnFilter,
-                std::move(readRanges));
+                std::move(readRanges),
+                std::move(partitionTag));
 
         case ETableChunkFormat::Old: {
             YCHECK(readRanges.size() == 0);
-            YCHECK(!chunkSpec.has_partition_tag());
+            YCHECK(!partitionTag);
 
             return New<TLegacyTableChunkReader>(
                 chunkSpec,
@@ -630,6 +637,7 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
     TNameTablePtr nameTable,
     TColumnFilter columnFilter,
     const TKeyColumns& keyColumns,
+    TNullable<int> partitionTag,
     IThroughputThrottlerPtr throttler)
 {
     std::vector<IReaderFactoryPtr> factories;
@@ -664,7 +672,8 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
             blockCache,
             keyColumns,
             columnFilter.All ? CreateColumnFilter(channel, nameTable) : columnFilter,
-            std::vector<TReadRange>(1, std::move(range)));
+            std::vector<TReadRange>(1, std::move(range)),
+            partitionTag);
         };
 
         factories.emplace_back(CreateReaderFactory(createReader, memoryEstimate));
@@ -691,6 +700,7 @@ public:
         TNameTablePtr nameTable,
         TColumnFilter columnFilter,
         const TKeyColumns& keyColumns,
+        TNullable<int> partitionTag,
         IThroughputThrottlerPtr throttler);
 
     virtual bool Read(std::vector<TUnversionedRow>* rows) override;
@@ -732,6 +742,7 @@ TSchemalessMultiChunkReader<TBase>::TSchemalessMultiChunkReader(
     TNameTablePtr nameTable,
     TColumnFilter columnFilter,
     const TKeyColumns& keyColumns,
+    TNullable<int> partitionTag,
     IThroughputThrottlerPtr throttler)
     : TBase(
         config,
@@ -746,6 +757,7 @@ TSchemalessMultiChunkReader<TBase>::TSchemalessMultiChunkReader(
             nameTable,
             columnFilter,
             keyColumns,
+            partitionTag,
             throttler))
     , NameTable_(nameTable)
     , KeyColumns_(keyColumns)
@@ -828,6 +840,7 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessSequentialMultiChunkReader(
     TNameTablePtr nameTable,
     TColumnFilter columnFilter,
     const TKeyColumns& keyColumns,
+    TNullable<int> partitionTag,
     IThroughputThrottlerPtr throttler)
 {
     auto reader = New<TSchemalessMultiChunkReader<TSequentialMultiReaderBase>>(
@@ -840,7 +853,9 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessSequentialMultiChunkReader(
         nameTable,
         columnFilter,
         keyColumns,
+        partitionTag,
         throttler);
+
     reader->Open();
     return reader;
 }
@@ -857,6 +872,7 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessParallelMultiChunkReader(
     TNameTablePtr nameTable,
     TColumnFilter columnFilter,
     const TKeyColumns& keyColumns,
+    TNullable<int> partitionTag,
     IThroughputThrottlerPtr throttler)
 {
     auto reader = New<TSchemalessMultiChunkReader<TParallelMultiReaderBase>>(
@@ -869,7 +885,9 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessParallelMultiChunkReader(
         nameTable,
         columnFilter,
         keyColumns,
+        partitionTag,
         throttler);
+
     reader->Open();
     return reader;
 }

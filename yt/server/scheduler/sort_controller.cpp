@@ -714,6 +714,17 @@ protected:
             schedulerJobSpecExt->set_is_approximate(joblet->InputStripeList->IsApproximate);
 
             AddSequentialInputSpec(jobSpec, joblet);
+
+            const auto& list = joblet->InputStripeList;
+            if (list->PartitionTag) {
+                if (GetJobType() == EJobType::PartitionReduce) {
+                    auto* reduceJobSpecExt = jobSpec->MutableExtension(TReduceJobSpecExt::reduce_job_spec_ext);
+                    reduceJobSpecExt->set_partition_tag(*list->PartitionTag);
+                } else {
+                    auto* sortJobSpecExt = jobSpec->MutableExtension(TSortJobSpecExt::sort_job_spec_ext);
+                    sortJobSpecExt->set_partition_tag(*list->PartitionTag);
+                }
+            }
         }
 
         virtual void OnJobStarted(TJobletPtr joblet) override
@@ -1151,12 +1162,10 @@ protected:
             AddSequentialInputSpec(jobSpec, joblet);
             AddFinalOutputSpecs(jobSpec, joblet);
 
-            if (!Controller->SimpleSort) {
-                auto* schedulerJobSpecExt = jobSpec->MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
-                auto* inputSpec = schedulerJobSpecExt->mutable_input_specs(0);
-                for (auto& chunk : *inputSpec->mutable_chunks()) {
-                    chunk.set_partition_tag(Partition->Index);
-                }
+            const auto& list = joblet->InputStripeList;
+            if (list->PartitionTag) {
+                auto* mergeJobSpecExt = jobSpec->MutableExtension(TMergeJobSpecExt::merge_job_spec_ext);
+                mergeJobSpecExt->set_partition_tag(*list->PartitionTag);
             }
         }
 
