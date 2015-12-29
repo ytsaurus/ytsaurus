@@ -250,11 +250,9 @@ private:
             kind);
 
         auto isRetryableError = BIND([options = Options_] (const TError& error) {
-            if (options.RetryRequestRateLimitExceeded) {
-                return true;
-            }
-
-            if (error.GetCode() == NSecurityClient::EErrorCode::RequestRateLimitExceeded) {
+            if (options.RetryRequestRateLimitExceeded &&
+                error.GetCode() == NSecurityClient::EErrorCode::RequestRateLimitExceeded)
+            {
                 return true;
             }
 
