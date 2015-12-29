@@ -60,7 +60,7 @@ public:
             }
         }
 
-        TotalRowCount_ = GetCumulativeRowCount(chunkSpecs);
+        TotalRowCount_ = SchedulerJobSpecExt_.input_row_count();
 
         NameTable_ = TNameTable::FromKeyColumns(keyColumns);
 

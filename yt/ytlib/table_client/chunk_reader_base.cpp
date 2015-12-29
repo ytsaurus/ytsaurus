@@ -22,19 +22,19 @@ using NYT::FromProto;
 TChunkReaderBase::TChunkReaderBase(
     TSequentialReaderConfigPtr config,
     NChunkClient::IChunkReaderPtr underlyingReader,
-    const NChunkClient::NProto::TMiscExt& misc,
     IBlockCachePtr blockCache)
     : Config_(std::move(config))
     , BlockCache_(std::move(blockCache))
     , UnderlyingReader_(std::move(underlyingReader))
-    , Misc_(misc)
 {
     Logger = TableClientLogger;
     Logger.AddTag("ChunkId: %v", UnderlyingReader_->GetChunkId());
 }
 
-TFuture<void> TChunkReaderBase::DoOpen(std::vector<TSequentialReader::TBlockInfo> blockSequence)
-{    
+TFuture<void> TChunkReaderBase::DoOpen(
+    std::vector<TSequentialReader::TBlockInfo> blockSequence,
+    const TMiscExt& miscExt)
+{
     if (blockSequence.empty()) {
         return VoidFuture;
     }
@@ -44,7 +44,7 @@ TFuture<void> TChunkReaderBase::DoOpen(std::vector<TSequentialReader::TBlockInfo
         std::move(blockSequence),
         UnderlyingReader_,
         BlockCache_,
-        ECodec(Misc_.compression_codec()));
+        ECodec(miscExt.compression_codec()));
 
     InitFirstBlockNeeded_ = true;
     YCHECK(SequentialReader_->HasMoreBlocks());
@@ -143,13 +143,6 @@ int TChunkReaderBase::ApplyLowerRowLimit(const TBlockMetaExt& blockMeta, const N
         return 0;
     }
 
-    if (lowerLimit.GetRowIndex() >= Misc_.row_count()) {
-        LOG_DEBUG("Lower limit oversteps chunk boundaries (LowerLimit: {%v}, RowCount: %v)",
-            lowerLimit,
-            Misc_.row_count());
-        return blockMeta.blocks_size();
-    }
-
     const auto& blockMetaEntries = blockMeta.blocks();
 
     typedef decltype(blockMetaEntries.end()) TIter;
@@ -165,7 +158,14 @@ int TChunkReaderBase::ApplyLowerRowLimit(const TBlockMetaExt& blockMeta, const N
             return index > maxRowIndex;
         });
 
-    return (it != rend) ? std::distance(it, rend) : 0;
+    int blockIndex = (it != rend) ? std::distance(it, rend) : 0;
+    if (blockIndex == blockMeta.blocks_size()) {
+        LOG_DEBUG("Lower limit oversteps chunk boundaries (LowerLimit: {%v}, RowCount: %v)",
+            lowerLimit,
+            rbegin->chunk_row_count());
+    }
+
+    return blockIndex;
 }
 
 int TChunkReaderBase::ApplyLowerKeyLimit(const std::vector<TOwningKey>& blockIndexKeys, const NChunkClient::TReadLimit& lowerLimit) const

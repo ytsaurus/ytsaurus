@@ -66,7 +66,8 @@ private:
     THorizontalSchemalessBlockReader* BlockReader_ = nullptr;
 
 
-    std::vector<NChunkClient::TSequentialReader::TBlockInfo> GetBlockSequence();
+    TFuture<void> InitializeBlockSequence();
+
     virtual void InitFirstBlock() override;
     virtual void InitNextBlock() override;
 

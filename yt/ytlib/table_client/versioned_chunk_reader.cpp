@@ -129,7 +129,6 @@ TVersionedChunkReaderBase::TVersionedChunkReaderBase(
     : TChunkReaderBase(
         std::move(config),
         std::move(underlyingReader),
-        chunkMeta->Misc(),
         std::move(blockCache))
     , ChunkMeta_(std::move(chunkMeta))
     , Timestamp_(timestamp)
@@ -204,7 +203,7 @@ TVersionedRangeChunkReader::TVersionedRangeChunkReader(
     , LowerLimit_(std::move(lowerLimit))
     , UpperLimit_(std::move(upperLimit))
 {
-    ReadyEvent_ = DoOpen(GetBlockSequence());
+    ReadyEvent_ = DoOpen(GetBlockSequence(), ChunkMeta_->Misc());
 }
 
 bool TVersionedRangeChunkReader::Read(std::vector<TVersionedRow>* rows)
@@ -428,7 +427,7 @@ TVersionedLookupChunkReader::TVersionedLookupChunkReader(
     , Keys_(keys)
     , KeyFilterTest_(Keys_.Size(), true)
 { 
-    ReadyEvent_ = DoOpen(GetBlockSequence());
+    ReadyEvent_ = DoOpen(GetBlockSequence(), ChunkMeta_->Misc());
 }
 
 std::vector<TSequentialReader::TBlockInfo> TVersionedLookupChunkReader::GetBlockSequence()

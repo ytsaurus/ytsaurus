@@ -24,6 +24,7 @@ using NProto::TSizeOverrideExt;
 ////////////////////////////////////////////////////////////////////////////////
 
 const int DefaultPartIndex = -1;
+const i64 DefaultMaxBlockSize = (i64)16 * 1024 * 1024;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -169,8 +170,8 @@ int TChunkSlice::GetPartIndex() const
 
 i64 TChunkSlice::GetMaxBlockSize() const
 {
-    auto miscExt = GetProtoExtension<NProto::TMiscExt>(ChunkSpec_->chunk_meta().extensions());
-    return miscExt.max_block_size();
+    auto miscExt = FindProtoExtension<NProto::TMiscExt>(ChunkSpec_->chunk_meta().extensions());
+    return miscExt ? miscExt->max_block_size() : DefaultMaxBlockSize;
 }
 
 bool TChunkSlice::GetSizeOverridden() const

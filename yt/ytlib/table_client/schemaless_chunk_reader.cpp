@@ -51,6 +51,8 @@ using namespace NApi;
 using NChunkClient::TReadLimit;
 using NChunkClient::TReadRange;
 using NChunkClient::TChannel;
+using NChunkClient::NProto::TMiscExt;
+
 using NYT::FromProto;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -183,7 +185,7 @@ private:
     std::unique_ptr<IRowSampler> RowSampler_;
     std::vector<int> BlockIndexes_;
 
-    std::vector<TSequentialReader::TBlockInfo> GetBlockSequence();
+    TFuture<void> InitializeBlockSequence();
 
     virtual void InitFirstBlock() override;
     virtual void InitNextBlock() override;
@@ -217,8 +219,7 @@ TSchemalessChunkReader::TSchemalessChunkReader(
     TNullable<int> partitionTag)
     : TChunkReaderBase(
         config, 
-        underlyingReader, 
-        GetProtoExtension<TMiscExt>(chunkSpec.chunk_meta().extensions()),
+        underlyingReader,
         blockCache)
     , ChunkSpec_(chunkSpec)
     , Config_(config)
@@ -256,13 +257,12 @@ TSchemalessChunkReader::TSchemalessChunkReader(
         TableIndexId_ = NameTable_->GetIdOrRegisterName(TableIndexColumnName);
     }
 
-    ReadyEvent_ = BIND(&TSchemalessChunkReader::GetBlockSequence, MakeStrong(this))
+    ReadyEvent_ = BIND(&TSchemalessChunkReader::InitializeBlockSequence, MakeStrong(this))
         .AsyncVia(TDispatcher::Get()->GetReaderInvoker())
-        .Run()
-        .Apply(BIND(&TSchemalessChunkReader::DoOpen, MakeStrong(this)));
+        .Run();
 }
 
-std::vector<TSequentialReader::TBlockInfo> TSchemalessChunkReader::GetBlockSequence()
+TFuture<void> TSchemalessChunkReader::InitializeBlockSequence()
 {
     YCHECK(ChunkSpec_.chunk_meta().version() == static_cast<int>(ETableChunkFormat::SchemalessHorizontal));
     YCHECK(BlockIndexes_.empty());
@@ -287,7 +287,8 @@ std::vector<TSequentialReader::TBlockInfo> TSchemalessChunkReader::GetBlockSeque
     for (int index : BlockIndexes_) {
         blocks.push_back(CreateBlockInfo(index));
     }
-    return blocks;
+
+    return DoOpen(std::move(blocks), GetProtoExtension<TMiscExt>(ChunkMeta_.extensions()));
 }
 
 TSequentialReader::TBlockInfo TSchemalessChunkReader::CreateBlockInfo(int blockIndex)
@@ -302,6 +303,7 @@ TSequentialReader::TBlockInfo TSchemalessChunkReader::CreateBlockInfo(int blockI
 
 void TSchemalessChunkReader::DownloadChunkMeta(std::vector<int> extensionTags, TNullable<int> partitionTag)
 {
+    extensionTags.push_back(TProtoExtensionTag<TMiscExt>::Value);
     extensionTags.push_back(TProtoExtensionTag<TBlockMetaExt>::Value);
     extensionTags.push_back(TProtoExtensionTag<TNameTableExt>::Value);
     ChunkMeta_ = WaitFor(UnderlyingReader_->GetMeta(partitionTag, extensionTags))
@@ -333,15 +335,16 @@ void TSchemalessChunkReader::DownloadChunkMeta(std::vector<int> extensionTags, T
 
 void TSchemalessChunkReader::InitializeBlockSequenceSorted()
 {
-    if (!Misc_.sorted()) {
-        THROW_ERROR_EXCEPTION("Requested sorted read for unsorted chunk");
-    }
-
     std::vector<int> extensionTags = {
         TProtoExtensionTag<TKeyColumnsExt>::Value,
     };
 
     DownloadChunkMeta(extensionTags);
+
+    auto misc = GetProtoExtension<TMiscExt>(ChunkMeta_.extensions());
+    if (!misc.sorted()) {
+        THROW_ERROR_EXCEPTION("Requested a sorted read for an unsorted chunk");
+    }
 
     auto keyColumnsExt = GetProtoExtension<TKeyColumnsExt>(ChunkMeta_.extensions());
     TKeyColumns chunkKeyColumns = NYT::FromProto<TKeyColumns>(keyColumnsExt);

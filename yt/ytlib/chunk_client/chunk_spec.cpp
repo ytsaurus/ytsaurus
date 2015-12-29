@@ -74,9 +74,12 @@ i64 GetCumulativeRowCount(const std::vector<NProto::TChunkSpec>& chunkSpecs)
 {
     i64 result = 0;
     for (const auto& chunkSpec : chunkSpecs) {
-        i64 dataSize;
-        i64 upperRowLimit;
-        GetStatistics(chunkSpec, &dataSize, &upperRowLimit);
+        auto miscExt = FindProtoExtension<TMiscExt>(chunkSpec.chunk_meta().extensions());
+        if (!miscExt) {
+            return std::numeric_limits<i64>::max();
+        }
+
+        i64 upperRowLimit = miscExt->row_count();
         i64 lowerRowLimit = 0;
         if (chunkSpec.has_lower_limit() && chunkSpec.lower_limit().has_row_index()) {
             lowerRowLimit = chunkSpec.lower_limit().row_index();
