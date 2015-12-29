@@ -113,7 +113,7 @@ class TestSchedulerReduceCommands(YTEnvSetup):
 
         create('table', '//tmp/out')
 
-        op_id = reduce(
+        op = reduce(
             dont_track=True,
             in_=['//tmp/in1', '//tmp/in2'],
             out='<sorted_by=[key]>//tmp/out',
@@ -126,11 +126,11 @@ class TestSchedulerReduceCommands(YTEnvSetup):
                          "enable_row_index" : "true"}},
                 "job_count" : 1})
 
-        track_op(op_id)
+        op.track()
 
-        job_ids = ls('//sys/operations/{0}/jobs'.format(op_id))
+        job_ids = ls('//sys/operations/{0}/jobs'.format(op.id))
         assert len(job_ids) == 1
-        assert read_file('//sys/operations/{0}/jobs/{1}/stderr'.format(op_id, job_ids[0])) == \
+        assert read_file('//sys/operations/{0}/jobs/{1}/stderr'.format(op.id, job_ids[0])) == \
             '<"table_index"=1;>#;\n' \
             '<"row_index"=0;>#;\n' \
             '{"key"=1;"value"=6;};\n' \
@@ -382,7 +382,7 @@ echo {v = 2} >&7
             ],
             sorted_by = ['key'])
 
-        op_id = reduce(
+        op = reduce(
             in_='//tmp/in',
             out='//tmp/out',
             command='cat 1>&2',
@@ -393,7 +393,7 @@ echo {v = 2} >&7
                 "job_count": 1
             })
 
-        jobs_path = "//sys/operations/{0}/jobs".format(op_id)
+        jobs_path = "//sys/operations/{0}/jobs".format(op.id)
         job_ids = ls(jobs_path)
         assert len(job_ids) == 1
         stderr_bytes = read_file("{0}/{1}/stderr".format(jobs_path, job_ids[0]))
@@ -417,7 +417,7 @@ echo {v = 2} >&7
             ],
             sorted_by = ['key'])
 
-        op_id = reduce(
+        op = reduce(
             in_='//tmp/in',
             out='//tmp/out',
             command='cat 1>&2',
@@ -428,7 +428,7 @@ echo {v = 2} >&7
                 "job_count": 1
             })
 
-        jobs_path = "//sys/operations/{0}/jobs".format(op_id)
+        jobs_path = "//sys/operations/{0}/jobs".format(op.id)
         job_ids = ls(jobs_path)
         assert len(job_ids) == 1
         stderr_bytes = read_file("{0}/{1}/stderr".format(jobs_path, job_ids[0]))

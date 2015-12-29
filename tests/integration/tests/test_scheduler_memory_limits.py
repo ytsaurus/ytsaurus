@@ -50,7 +50,7 @@ while True:
 
         create("table", "//tmp/t_out")
 
-        op_id = map(dont_track=True,
+        op = map(dont_track=True,
              in_="//tmp/t_in",
              out="//tmp/t_out",
              command="python mapper.py",
@@ -58,9 +58,10 @@ while True:
              spec={"max_failed_job_count": 5})
 
         # if all jobs failed then operation is also failed
-        with pytest.raises(YtError): track_op(op_id)
+        with pytest.raises(YtError):
+            op.track()
         # ToDo: check job error messages.
-        check_memory_limit(op_id)
+        check_memory_limit(op.id)
 
     @unix_only
     def test_dirty_sandbox(self):

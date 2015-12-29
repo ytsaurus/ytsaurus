@@ -17,6 +17,7 @@ TNullable<int> FindSignalIdBySignalName(const Stroka& signalName)
         { "SIGTERM", SIGTERM },
         { "SIGUSR1", SIGUSR1 },
         { "SIGUSR2", SIGUSR2 },
+        { "SIGURG", SIGURG },
     };
 
     TNullable<int> result;
