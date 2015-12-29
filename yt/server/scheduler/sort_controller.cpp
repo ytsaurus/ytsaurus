@@ -717,7 +717,8 @@ protected:
 
             const auto& list = joblet->InputStripeList;
             if (list->PartitionTag) {
-                if (GetJobType() == EJobType::PartitionReduce) {
+                auto jobType = GetJobType();
+                if (jobType == EJobType::PartitionReduce || jobType == EJobType::ReduceCombiner) {
                     auto* reduceJobSpecExt = jobSpec->MutableExtension(TReduceJobSpecExt::reduce_job_spec_ext);
                     reduceJobSpecExt->set_partition_tag(*list->PartitionTag);
                 } else {
