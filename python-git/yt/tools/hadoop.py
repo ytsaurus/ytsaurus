@@ -106,7 +106,7 @@ class Airflow(object):
         info = loads_as_bytes(response.content)
         return info.values()[0] if info else {}
 
-    def get_task_logs(self, task_id):
+    def get_task_log(self, task_id):
         info = self.get_task_info(task_id)
         if not info:
             return ""

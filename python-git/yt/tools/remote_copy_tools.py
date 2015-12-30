@@ -649,7 +649,7 @@ def copy_hadoop_to_hadoop_with_airflow(task_type, airflow_client, source_path, s
 
         if airflow_client.is_task_unsuccessfully_finished(state):
             error = yt.YtError("Copy task unsuccessfully finished with status: " + state)
-            error.attributes["details"] = airflow_client.get_task_logs(task_id)
+            error.attributes["details"] = airflow_client.get_task_log(task_id)
             raise error
         else:
             break
