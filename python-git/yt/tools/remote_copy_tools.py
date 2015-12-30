@@ -638,7 +638,9 @@ def copy_hadoop_to_hadoop_with_airflow(task_type, airflow_client, source_path, s
         destination_path=destination_path,
         owner=user)
 
-    message_queue.put({"type": "operation_started", "operation": {"id": task_id, "cluster_name": airflow_client._name}})
+    # XXX(asaitgalin): not using "id" instead of "_id" here because this requires
+    # web interface improvements. See YT-3415 for details.
+    message_queue.put({"type": "operation_started", "operation": {"_id": task_id, "cluster_name": airflow_client._name}})
 
     while True:
         task_info = airflow_client.get_task_info(task_id)
