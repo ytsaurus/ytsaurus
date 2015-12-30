@@ -6,6 +6,9 @@
 #include <yt/core/yson/string.h>
 
 namespace NYT {
+
+struct TGuid;
+
 namespace NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -39,6 +42,7 @@ extern template NYson::TYsonString ConvertToYsonString<unsigned long>(const unsi
 extern template NYson::TYsonString ConvertToYsonString<Stroka>(const Stroka&);
 extern template NYson::TYsonString ConvertToYsonString<TInstant>(const TInstant&);
 extern template NYson::TYsonString ConvertToYsonString<TDuration>(const TDuration&);
+extern template NYson::TYsonString ConvertToYsonString<TGuid>(const TGuid&);
 
 ////////////////////////////////////////////////////////////////////////////////
 
