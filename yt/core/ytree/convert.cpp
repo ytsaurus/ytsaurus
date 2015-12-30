@@ -16,6 +16,7 @@ template TYsonString ConvertToYsonString<unsigned long>(const unsigned long&);
 template TYsonString ConvertToYsonString<Stroka>(const Stroka&);
 template TYsonString ConvertToYsonString<TInstant>(const TInstant&);
 template TYsonString ConvertToYsonString<TDuration>(const TDuration&);
+template TYsonString ConvertToYsonString<TGuid>(const TGuid&);
 
 TYsonString ConvertToYsonString(const char* value)
 {
