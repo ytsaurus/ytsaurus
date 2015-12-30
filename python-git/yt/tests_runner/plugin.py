@@ -9,6 +9,7 @@ import pytest
 from _pytest import runner
 
 MAX_PROCESS_COUNT = 24
+PROCESS_FAILURES_LIMIT = 10
 
 def pytest_addoption(parser):
     parser.addoption("--process-count", type=int,
@@ -25,6 +26,7 @@ class YtParallelTestsRunnerPlugin(object):
         self.config = config
         self.terminal = self.config.pluginmanager.getplugin("terminalreporter")
         self.group = execnet.Group()
+        self.failures_count = 0
 
         self.process_count = process_count
 
@@ -99,12 +101,18 @@ class YtParallelTestsRunnerPlugin(object):
             )
             self.session.config.hook.pytest_runtest_logreport(report=report)
 
-            self._log_to_terminal("Executor {0} will be restarted".format(process_index))
-            self._restart_process(process_index)
+            if self.failures_count <= PROCESS_FAILURES_LIMIT:
+                self._log_to_terminal("Executor {0} will be restarted".format(process_index))
+                self._restart_process(process_index)
 
-            self.processes_tasks[process_index] = remaining_tasks
-            self.processes[process_index].channel.send(remaining_tasks)
-            self._log_to_terminal("Executor {0} was successfully restarted".format(process_index))
+                self.processes_tasks[process_index] = remaining_tasks
+                self.processes[process_index].channel.send(remaining_tasks)
+                self._log_to_terminal("Executor {0} was successfully restarted".format(process_index))
+                self.failures_count += 1
+            else:
+                pytest.exit("Executor failures count limit exceeded ({0} > {1}). "
+                            "Test session is being terminated."
+                            .format(self.failures_count, PROCESS_FAILURES_LIMIT))
         else:
             self.finished_processes.append(process_index)
 
