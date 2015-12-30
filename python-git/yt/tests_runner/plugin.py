@@ -111,7 +111,7 @@ class YtParallelTestsRunnerPlugin(object):
                 self.failures_count += 1
             else:
                 pytest.exit("Executor failures count limit exceeded ({0} > {1}). "
-                            "Test session is being terminated."
+                            "Test session was terminated."
                             .format(self.failures_count, PROCESS_FAILURES_LIMIT))
         else:
             self.finished_processes.append(process_index)
