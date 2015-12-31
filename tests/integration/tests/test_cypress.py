@@ -519,6 +519,58 @@ class TestCypress(YTEnvSetup):
     def test_move_force4(self):
         with pytest.raises(YtError): copy("//tmp", "/", force=True)
 
+    def test_move_tx_commit(self):
+        create("table", "//tmp/t1")
+        tx = start_transaction()
+        move("//tmp/t1", "//tmp/t2", tx=tx)
+        assert exists("//tmp/t1")
+        assert not exists("//tmp/t2")
+        assert not exists("//tmp/t1", tx=tx)
+        assert exists("//tmp/t2", tx=tx)
+        commit_transaction(tx)
+        assert not exists("//tmp/t1")
+        assert exists("//tmp/t2")
+
+    def test_move_tx_abort(self):
+        create("table", "//tmp/t1")
+        tx = start_transaction()
+        move("//tmp/t1", "//tmp/t2", tx=tx)
+        assert exists("//tmp/t1")
+        assert not exists("//tmp/t2")
+        assert not exists("//tmp/t1", tx=tx)
+        assert exists("//tmp/t2", tx=tx)
+        abort_transaction(tx)
+        assert exists("//tmp/t1")
+        assert not exists("//tmp/t2")
+
+    def test_move_tx_nested(self):
+        create("table", "//tmp/t1")
+        tx1 = start_transaction()
+        move("//tmp/t1", "//tmp/t2", tx=tx1)
+        tx2 = start_transaction(tx=tx1)
+        move("//tmp/t2", "//tmp/t3", tx=tx2)
+        commit_transaction(tx2)
+        commit_transaction(tx1)
+        assert not exists("//tmp/t1")
+        assert not exists("//tmp/t2")
+        assert exists("//tmp/t3")
+
+    def test_move_tx_locking1(self):
+        create("table", "//tmp/t1")
+        tx1 = start_transaction()
+        move("//tmp/t1", "//tmp/t2", tx=tx1)
+        tx2 = start_transaction()
+        with pytest.raises(YtError): move("//tmp/t1", "//tmp/t3", tx=tx2)
+
+    def test_move_tx_locking2(self):
+        create("table", "//tmp/t1")
+        tx1 = start_transaction()
+        tx2 = start_transaction(tx=tx1)
+        tx3 = start_transaction(tx=tx1)
+        move("//tmp/t1", "//tmp/t2", tx=tx1)
+        move("//tmp/t2", "//tmp/t3", tx=tx2)
+        with pytest.raises(YtError): move("//tmp/t2", "//tmp/t4", tx=tx3)
+
     def test_embedded_attributes(self):
         set("//tmp/a", {})
         set("//tmp/a/@attr", {"key": "value"})
