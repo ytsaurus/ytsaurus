@@ -799,7 +799,8 @@ private:
 
         int messagesToPost = 0;
         i64 bytesToPost = 0;
-        while (messagesToPost < Config_->MaxMessagesPerPost &&
+        while (messagesToPost < outcomingMessages.size() &&
+               messagesToPost < Config_->MaxMessagesPerPost &&
                bytesToPost < Config_->MaxBytesPerPost)
         {
             const auto& message = outcomingMessages[messagesToPost];
