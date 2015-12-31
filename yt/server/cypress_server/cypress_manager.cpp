@@ -2033,15 +2033,19 @@ private:
         auto mode = ENodeCloneMode(request.mode());
         auto accountId = FromProto<TAccountId>(request.account_id());
 
-        auto* sourceNode = GetNode(TVersionedObjectId(sourceNodeId, sourceTransactionId));
-
-        auto securityManager = Bootstrap_->GetSecurityManager();
-        auto* account = securityManager->GetAccount(accountId);
-
         auto transactionManager = Bootstrap_->GetTransactionManager();
+        auto* sourceTransaction = sourceTransactionId
+            ? transactionManager->GetTransaction(sourceTransactionId)
+            : nullptr;
         auto* clonedTransaction = clonedTransactionId
             ? transactionManager->GetTransaction(clonedTransactionId)
             : nullptr;
+
+        auto* sourceTrunkNode = GetNode(TVersionedObjectId(sourceNodeId));
+        auto* sourceNode = LockNode(sourceTrunkNode, sourceTransaction, ELockMode::Exclusive);
+
+        auto securityManager = Bootstrap_->GetSecurityManager();
+        auto* account = securityManager->GetAccount(accountId);
 
         auto factory = CreateNodeFactory(clonedTransaction, account, false);
 
