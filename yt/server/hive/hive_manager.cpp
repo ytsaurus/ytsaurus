@@ -791,13 +791,21 @@ private:
             return;
 
         auto firstMessageId = mailbox->GetFirstOutcomingMessageId();
-        int messageCount = mailbox->OutcomingMessages().size();
+        const auto& outcomingMessages = mailbox->OutcomingMessages();
 
         auto req = proxy->PostMessages();
         ToProto(req->mutable_src_cell_id(), SelfCellId_);
         req->set_first_message_id(firstMessageId);
-        for (const auto& message : mailbox->OutcomingMessages()) {
+
+        int messagesToPost = 0;
+        i64 bytesToPost = 0;
+        while (messagesToPost < Config_->MaxMessagesPerPost &&
+               bytesToPost < Config_->MaxBytesPerPost)
+        {
+            const auto& message = outcomingMessages[messagesToPost];
             *req->add_messages() = message;
+            messagesToPost += 1;
+            bytesToPost += message.ByteSize();
         }
 
         mailbox->SetPostMessagesInFlight(true);
@@ -806,7 +814,7 @@ private:
             SelfCellId_,
             mailbox->GetCellId(),
             firstMessageId,
-            firstMessageId + messageCount - 1);
+            firstMessageId + messagesToPost - 1);
 
         req->Invoke().Subscribe(
             BIND(&TImpl::OnPostMessagesResponse, MakeStrong(this), mailbox->GetCellId())
