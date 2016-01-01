@@ -722,12 +722,12 @@ private:
     {
         if (IsLeader()) {
             YCHECK(--PendingDisposeNodeMutationCount_ >= 0);
+            MaybePostDisposeNodeMutations();
         }
 
         auto nodeId = request.node_id();
-
         auto* node = FindNode(nodeId);
-        if (!IsObjectAlive(node))
+        if (IsObjectAlive(node))
             return;
 
         if (node->GetLocalState() != ENodeState::Unregistered)
@@ -1145,10 +1145,6 @@ private:
             LOG_INFO_UNLESS(IsRecovery(), "Node offline (NodeId: %v, Address: %v)",
                 node->GetId(),
                 node->GetDefaultAddress());
-
-            if (IsLeader()) {
-                MaybePostDisposeNodeMutations();
-            }
         }
     }
 
