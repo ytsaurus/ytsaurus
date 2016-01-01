@@ -727,7 +727,7 @@ private:
 
         auto nodeId = request.node_id();
         auto* node = FindNode(nodeId);
-        if (IsObjectAlive(node))
+        if (!IsObjectAlive(node))
             return;
 
         if (node->GetLocalState() != ENodeState::Unregistered)
