@@ -781,7 +781,7 @@ void TMasterConnector::OnChunkAdded(IChunkPtr chunk)
     if (IsArtifactChunkId(chunk->GetId()))
         return;
 
-	auto* delta = GetChunksDelta(chunk->GetId());
+    auto* delta = GetChunksDelta(chunk->GetId());
     if (delta->State != EState::Online)
         return;
 
