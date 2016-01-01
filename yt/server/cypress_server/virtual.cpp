@@ -303,7 +303,7 @@ TFuture<std::vector<std::pair<TCellTag, i64>>> TVirtualMulticellMapBase::FetchSi
     if (Bootstrap_->IsPrimaryMaster()) {
         auto multicellManager = Bootstrap_->GetMulticellManager();
         for (auto cellTag : multicellManager->GetRegisteredMasterCellTags()) {
-            auto channel = multicellManager->FindMasterChannel(cellTag, NHydra::EPeerKind::LeaderOrFollower);
+            auto channel = multicellManager->FindMasterChannel(cellTag, NHydra::EPeerKind::Leader);
             if (!channel)
                 continue;
 
