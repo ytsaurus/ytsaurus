@@ -427,7 +427,7 @@ void TVirtualMulticellMapBase::FetchItemsFromRemote(
 {
     auto cellTag = session->CellTags[session->CellTagIndex++];
     auto multicellManager = Bootstrap_->GetMulticellManager();
-    auto channel = multicellManager->FindMasterChannel(cellTag, NHydra::EPeerKind::LeaderOrFollower);
+    auto channel = multicellManager->FindMasterChannel(cellTag, NHydra::EPeerKind::Leader);
     if (!channel) {
         FetchItemsFromAnywhere(session, promise);
         return;
