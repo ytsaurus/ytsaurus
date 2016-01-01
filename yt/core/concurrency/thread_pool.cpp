@@ -115,7 +115,7 @@ private:
     std::atomic<bool> Started_ = {false};
     TSpinLock SpinLock_;
 
-    std::shared_ptr<TEventCount> CallbackEventCount_ = std::make_shared<TEventCount>();
+    const std::shared_ptr<TEventCount> CallbackEventCount_ = std::make_shared<TEventCount>();
     const TInvokerQueuePtr Queue_;
     std::vector<TSchedulerThreadPtr> Threads_;
 

@@ -285,7 +285,7 @@ private:
         }
     };
 
-    std::shared_ptr<TEventCount> EventCount = std::make_shared<TEventCount>();
+    const std::shared_ptr<TEventCount> EventCount = std::make_shared<TEventCount>();
     volatile bool WasStarted;
     volatile bool WasShutdown;
     TInvokerQueuePtr Queue;

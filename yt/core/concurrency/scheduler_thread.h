@@ -77,9 +77,9 @@ protected:
 
     void OnContextSwitch();
 
-    std::shared_ptr<TEventCount> CallbackEventCount;
-    Stroka ThreadName;
-    bool EnableLogging;
+    const std::shared_ptr<TEventCount> CallbackEventCount;
+    const Stroka ThreadName;
+    const bool EnableLogging;
 
     NProfiling::TProfiler Profiler;
 

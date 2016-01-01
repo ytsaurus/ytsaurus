@@ -76,8 +76,7 @@ public:
     }
 
 private:
-
-    std::shared_ptr<TEventCount> CallbackEventCount_ = std::make_shared<TEventCount>();
+    const std::shared_ptr<TEventCount> CallbackEventCount_ = std::make_shared<TEventCount>();
     const TInvokerQueuePtr Queue_;
     const TSingleQueueSchedulerThreadPtr Thread_;
 };
