@@ -1,6 +1,5 @@
 #include "object_service.h"
 #include "private.h"
-#include "config.h"
 #include "object_manager.h"
 
 #include <yt/server/cell_master/bootstrap.h>
