@@ -393,7 +393,7 @@ private:
         { }
 
     private:
-        TImpl* Owner_;
+        TImpl* const Owner_;
 
         virtual void OnThreadStart() override
         {
@@ -697,8 +697,8 @@ private:
         LoggerQueue_.Enqueue(std::move(event));
     }
 
-    std::shared_ptr<TEventCount> EventCount_ = std::make_shared<TEventCount>();
-    TInvokerQueuePtr EventQueue_;
+    const std::shared_ptr<TEventCount> EventCount_ = std::make_shared<TEventCount>();
+    const TInvokerQueuePtr EventQueue_;
 
     TIntrusivePtr<TThread> LoggingThread_;
     DECLARE_THREAD_AFFINITY_SLOT(LoggingThread);

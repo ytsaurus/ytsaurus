@@ -50,7 +50,7 @@ public:
     bool IsRunning() const;
 
 private:
-    std::shared_ptr<TEventCount> CallbackEventCount;
+    const std::shared_ptr<TEventCount> CallbackEventCount;
     bool EnableLogging;
 
     NConcurrency::TThreadId ThreadId = NConcurrency::InvalidThreadId;
