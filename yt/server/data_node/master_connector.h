@@ -176,6 +176,15 @@ private:
     //! Computes the current node statistics.
     NNodeTrackerClient::NProto::TNodeStatistics ComputeStatistics();
 
+    //! Returns |true| if the node is allowed to send a full heartbeat to Node Tracker
+    //! of a given #cellTag.
+    /*!
+     *  To facilitate registration throttling, the node is only allowed to send
+     *  a full heartbeat to the primary cell after
+     *  it has become online at all secondary cells.
+     */
+    bool CanSendFullNodeHeartbeat(NObjectClient::TCellTag cellTag);
+
     //! Sends out a full heartbeat to Node Tracker.
     void SendFullNodeHeartbeat(NObjectClient::TCellTag cellTag);
 
