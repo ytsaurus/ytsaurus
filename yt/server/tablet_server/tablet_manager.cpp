@@ -1562,11 +1562,11 @@ private:
             switch (mountConfig->InMemoryMode) {
                 case EInMemoryMode::None:
                     result += cell->TotalStatistics().UncompressedDataSize;
-
+                    break;
                 case EInMemoryMode::Uncompressed:
                 case EInMemoryMode::Compressed:
                     result += cell->TotalStatistics().MemorySize;
-
+                    break;
                 default:
                     YUNREACHABLE();
             }
@@ -1590,13 +1590,15 @@ private:
                 case EInMemoryMode::None:
                 case EInMemoryMode::Uncompressed:
                     result += statistics.UncompressedDataSize;
+                    break;
                 case EInMemoryMode::Compressed:
                     result += statistics.CompressedDataSize;
+                    break;
                 default:
                     YUNREACHABLE();
             }
             result += Config_->TabletDataSizeFootprint;
-            return result;
+            return result;c
         };
 
         // Sort tablets by decreasing size to improve greedy heuristic performance.
