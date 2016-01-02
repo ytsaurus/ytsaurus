@@ -338,7 +338,7 @@ protected:
     {
         //! For persistence only.
         TCompletedJob()
-            : IsLost(false)
+            : Lost(false)
             , DestinationPool(nullptr)
         { }
 
@@ -351,7 +351,7 @@ protected:
             IChunkPoolInput::TCookie inputCookie,
             const Stroka& address,
             NNodeTrackerClient::TNodeId nodeId)
-            : IsLost(false)
+            : Lost(false)
             , JobId(jobId)
             , SourceTask(std::move(sourceTask))
             , OutputCookie(outputCookie)
@@ -362,7 +362,7 @@ protected:
             , NodeId(nodeId)
         { }
 
-        bool IsLost;
+        bool Lost;
 
         TJobId JobId;
 
