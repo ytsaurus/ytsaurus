@@ -633,6 +633,7 @@ private:
         // Check lease transaction.
         TTransaction* leaseTransaction = nullptr;
         if (leaseTransactionId) {
+            YCHECK(Bootstrap_->IsPrimaryMaster());
             auto transactionManager = Bootstrap_->GetTransactionManager();
             leaseTransaction = transactionManager->GetTransactionOrThrow(leaseTransactionId);
             if (leaseTransaction->GetPersistentState() != ETransactionState::Active) {
@@ -647,18 +648,24 @@ private:
                 THROW_ERROR_EXCEPTION("Node %v is banned", address);
             }
 
-            if (node->GetLocalState() != ENodeState::Offline) {
-                LOG_INFO_UNLESS(IsRecovery(), "Node kicked out due to address conflict (NodeId: %v, Address: %v, ExistingState: %v)",
-                    node->GetId(),
-                    address,
-                    node->GetLocalState());
-
-                EnsureNodeDisposed(node);
-
-                // NB: Recheck lease transaction state since EnsureNodeDisposed could have just aborted it.
-                if (leaseTransaction->GetPersistentState() != ETransactionState::Active) {
-                    leaseTransaction->ThrowInvalidState();
+            if (Bootstrap_->IsPrimaryMaster()) {
+                auto localState = node->GetLocalState();
+                if (localState == ENodeState::Registered || localState == ENodeState::Online) {
+                    LOG_INFO_UNLESS(IsRecovery(), "Kicking node out due to address conflict (NodeId: %v, Address: %v, State: %v)",
+                        node->GetId(),
+                        address,
+                        localState);
+                    UnregisterNode(node, true);
                 }
+
+                auto aggregatedState = node->GetAggregatedState();
+                if (aggregatedState != ENodeState::Offline) {
+                    THROW_ERROR_EXCEPTION("Node %v is still in %Qlv state; must wait for it become fully offline",
+                        node->GetDefaultAddress(),
+                        aggregatedState);
+                }
+            } else {
+                EnsureNodeDisposed(node);
             }
 
             UpdateNode(node, addresses);
@@ -687,6 +694,7 @@ private:
 
         if (Bootstrap_->IsPrimaryMaster()) {
             auto replicatedRequest = request;
+            replicatedRequest.clear_lease_transaction_id();
             replicatedRequest.set_node_id(node->GetId());
 
             auto multicellManager = Bootstrap_->GetMulticellManager();
@@ -1155,7 +1163,7 @@ private:
         {
             UnregisterNode(node, false);
         }
-        
+
         if (node->GetLocalState() == ENodeState::Unregistered) {
             DisposeNode(node);
         }
