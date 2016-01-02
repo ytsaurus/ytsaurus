@@ -211,6 +211,7 @@ private:
                 }
 
                 // Propagate various parameters to the subrequest.
+                ToProto(requestHeader.mutable_request_id(), Context->GetRequestId());
                 requestHeader.set_retry(requestHeader.retry() || Context->IsRetry());
                 requestHeader.set_user(user->GetName());
                 auto updatedRequestMessage = SetRequestHeader(requestMessage, requestHeader);
@@ -248,7 +249,7 @@ private:
                 try {
                     asyncResponseMessage = ExecuteVerb(
                         rootService,
-                        std::move(updatedRequestMessage),
+                        updatedRequestMessage,
                         ObjectServerLogger,
                         NLogging::ELogLevel::Debug,
                         requestInfo,
@@ -256,7 +257,7 @@ private:
                 } catch (const TLeaderFallbackException&) {
                     asyncResponseMessage = objectManager->ForwardToLeader(
                         Owner->Bootstrap_->GetCellTag(),
-                        requestMessage,
+                        updatedRequestMessage,
                         Context->GetTimeout());
                 }
 
