@@ -1598,7 +1598,7 @@ private:
                     YUNREACHABLE();
             }
             result += Config_->TabletDataSizeFootprint;
-            return result;c
+            return result;
         };
 
         // Sort tablets by decreasing size to improve greedy heuristic performance.
