@@ -106,12 +106,10 @@ void TMasterConnector::Start()
         YCHECK(ChunksDeltaMap_.insert(std::make_pair(cellTag, TChunksDelta())).second);
     };
     auto connection = Bootstrap_->GetMasterClient()->GetConnection();
+    initializeCell(connection->GetPrimaryMasterCellTag());
     for (auto cellTag : connection->GetSecondaryMasterCellTags()) {
         initializeCell(cellTag);
     }
-    // NB: The primary cell should appear at the very end to facilitate node
-    // registration throttling.
-    initializeCell(connection->GetPrimaryMasterCellTag());
 
     Bootstrap_->GetChunkStore()->SubscribeChunkAdded(
         BIND(&TMasterConnector::OnChunkAdded, MakeWeak(this))
