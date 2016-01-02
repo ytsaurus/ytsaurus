@@ -24,6 +24,11 @@ public:
     //! tablet cell peers are no longer assigned and revoked.
     int SafeOnlineNodeCount;
 
+    //! Additional number of bytes per tablet to charge each cell
+    //! for balancing pursposes.
+    //! NB: Changing this value will invalidate all changelogs!
+    i64 TabletDataSizeFootprint;
+
     TTabletManagerConfig()
     {
         RegisterParameter("peer_failover_timeout", PeerFailoverTimeout)
@@ -34,6 +39,9 @@ public:
         RegisterParameter("safe_online_node_count", SafeOnlineNodeCount)
             .GreaterThanOrEqual(0)
             .Default(0);
+        RegisterParameter("tablet_data_size_footprint", TabletDataSizeFootprint)
+            .GreaterThanOrEqual(0)
+            .Default((i64) 64 * 1024 * 1024);
     }
 };
 

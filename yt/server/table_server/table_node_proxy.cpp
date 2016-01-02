@@ -363,16 +363,11 @@ private:
         int firstTabletIndex = request->first_tablet_index();
         int lastTabletIndex = request->last_tablet_index();
         auto cellId = request->has_cell_id() ? FromProto<TTabletCellId>(request->cell_id()) : NullTabletCellId;
-        i64 estimatedUncompressedSize = request->estimated_uncompressed_size();
-        i64 estimatedCompressedSize = request->estimated_compressed_size();
         context->SetRequestInfo(
-            "FirstTabletIndex: %v, LastTabletIndex: %v, CellId: %v, "
-            "EstimatedUncompressedSize: %v, EstimatedCompressedSize: %v",
+            "FirstTabletIndex: %v, LastTabletIndex: %v, CellId: %v",
             firstTabletIndex,
             lastTabletIndex,
-            cellId,
-            estimatedUncompressedSize,
-            estimatedCompressedSize);
+            cellId);
 
         ValidateNoTransaction();
         ValidatePermission(EPermissionCheckScope::This, EPermission::Administer);
@@ -384,9 +379,7 @@ private:
             impl,
             firstTabletIndex,
             lastTabletIndex,
-            cellId,
-            estimatedUncompressedSize,
-            estimatedCompressedSize);
+            cellId);
 
         context->Reply();
     }
