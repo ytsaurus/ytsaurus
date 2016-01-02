@@ -227,7 +227,7 @@ public:
 
     bool TryAcquireNodeRegistrationSemaphore()
     {
-        if (PendingRegisterNodeMutationCount_ + RegisteredNodeCount_ >= Config_->MaxConcurrentNodeRegistrations) {
+        if (PendingRegisterNodeMutationCount_ + LocalRegisteredNodeCount_ >= Config_->MaxConcurrentNodeRegistrations) {
             return false;
         }
         ++PendingRegisterNodeMutationCount_;
@@ -527,14 +527,9 @@ public:
         return result;
     }
 
-    int GetRegisteredNodeCount()
-    {
-        return RegisteredNodeCount_;
-    }
-
     int GetOnlineNodeCount()
     {
-        return OnlineNodeCount_;
+        return AggregatedOnlineNodeCount_;
     }
 
 private:
@@ -549,8 +544,8 @@ private:
     NHydra::TEntityMap<TObjectId, TNode> NodeMap_;
     NHydra::TEntityMap<TRackId, TRack> RackMap_;
 
-    int OnlineNodeCount_ = 0;
-    int RegisteredNodeCount_ = 0;
+    int AggregatedOnlineNodeCount_ = 0;
+    int LocalRegisteredNodeCount_ = 0;
 
     TRackSet UsedRackIndexes_ = 0;
 
@@ -863,8 +858,8 @@ private:
 
         NameToRackMap_.clear();
 
-        OnlineNodeCount_ = 0;
-        RegisteredNodeCount_ = 0;
+        AggregatedOnlineNodeCount_ = 0;
+        LocalRegisteredNodeCount_ = 0;
     }
 
     virtual void OnAfterSnapshotLoaded() override
@@ -875,8 +870,8 @@ private:
         HostNameToNodeMap_.clear();
         TransactionToNodeMap_.clear();
 
-        OnlineNodeCount_ = 0;
-        RegisteredNodeCount_ = 0;
+        AggregatedOnlineNodeCount_ = 0;
+        LocalRegisteredNodeCount_ = 0;
 
         for (const auto& pair : NodeMap_) {
             auto* node = pair.second;
@@ -976,15 +971,11 @@ private:
 
     void UpdateNodeCounters(TNode* node, int delta)
     {
-        switch (node->GetAggregatedState()) {
-            case ENodeState::Registered:
-                RegisteredNodeCount_ += delta;
-                break;
-            case ENodeState::Online:
-                OnlineNodeCount_ += delta;
-                break;
-            default:
-                break;
+        if (node->GetLocalState() == ENodeState::Registered) {
+            LocalRegisteredNodeCount_ += delta;
+        }
+        if (node->GetAggregatedState() == ENodeState::Online) {
+            AggregatedOnlineNodeCount_ += delta;
         }
     }
 
@@ -1419,11 +1410,6 @@ TMutationPtr TNodeTracker::CreateIncrementalHeartbeatMutation(
 TTotalNodeStatistics TNodeTracker::GetTotalNodeStatistics()
 {
     return Impl_->GetTotalNodeStatistics();
-}
-
-int TNodeTracker::GetRegisteredNodeCount()
-{
-    return Impl_->GetRegisteredNodeCount();
 }
 
 int TNodeTracker::GetOnlineNodeCount()
