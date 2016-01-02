@@ -242,14 +242,6 @@ public:
             request);
     }
 
-    TMutationPtr CreateUnregisterNodeMutation(
-        const TReqUnregisterNode& request)
-    {
-        return CreateMutation(
-            Bootstrap_->GetHydraFacade()->GetHydraManager(),
-            request);
-    }
-
     TMutationPtr CreateDisposeNodeMutation(
         const TReqDisposeNode& request)
     {
@@ -388,9 +380,11 @@ public:
                 LOG_INFO_UNLESS(IsRecovery(), "Node banned (NodeId: %v, Address: %v)",
                     node->GetId(),
                     node->GetDefaultAddress());
-                auto state = node->GetLocalState();
-                if (state == ENodeState::Online || state == ENodeState::Registered) {
-                    UnregisterNode(node, true);
+                if (Bootstrap_->IsPrimaryMaster()) {
+                    auto state = node->GetLocalState();
+                    if (state == ENodeState::Online || state == ENodeState::Registered) {
+                        UnregisterNode(node, true);
+                    }
                 }
             } else {
                 LOG_INFO_UNLESS(IsRecovery(), "Node is no longer banned (NodeId: %v, Address: %v)",
@@ -693,12 +687,7 @@ private:
         NodeRegistered_.Fire(node);
 
         if (Bootstrap_->IsPrimaryMaster()) {
-            auto replicatedRequest = request;
-            replicatedRequest.clear_lease_transaction_id();
-            replicatedRequest.set_node_id(node->GetId());
-
-            auto multicellManager = Bootstrap_->GetMulticellManager();
-            multicellManager->PostToSecondaryMasters(replicatedRequest);
+            PostRegisterNodeMutation(node);
         }
 
         TRspRegisterNode response;
@@ -719,11 +708,6 @@ private:
             return;
 
         UnregisterNode(node, true);
-
-        if (Bootstrap_->IsPrimaryMaster()) {
-            auto multicellManager = Bootstrap_->GetMulticellManager();
-            multicellManager->PostToSecondaryMasters(request);
-        }
     }
 
     void HydraDisposeNode(const TReqDisposeNode& request)
@@ -1118,7 +1102,7 @@ private:
         }
     }
 
-    void UnregisterNode(TNode* node, bool scheduleDisposal)
+    void UnregisterNode(TNode* node, bool propagate)
     {
         PROFILE_TIMING ("/node_unregister_time") {
             auto* transaction = UnregisterLeaseTransaction(node);
@@ -1133,9 +1117,14 @@ private:
             node->SetLocalState(ENodeState::Unregistered);
             NodeUnregistered_.Fire(node);
 
-            if (scheduleDisposal && IsLeader()) {
-                NodeDisposalQueue_.push_back(node);
-                MaybePostDisposeNodeMutations();
+            if (propagate) {
+                if (IsLeader()) {
+                    NodeDisposalQueue_.push_back(node);
+                    MaybePostDisposeNodeMutations();
+                }
+                if (Bootstrap_->IsPrimaryMaster()) {
+                    PostUnregisterNodeMutation(node);
+                }
             }
 
             LOG_INFO_UNLESS(IsRecovery(), "Node unregistered (NodeId: %v, Address: %v)",
@@ -1215,16 +1204,6 @@ private:
     }
 
 
-    void PostUnregisterNodeMutation(TNode* node)
-    {
-        TReqUnregisterNode request;
-        request.set_node_id(node->GetId());
-
-        auto mutation = CreateUnregisterNodeMutation(request);
-        Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker()->Invoke(
-            BIND(IgnoreResult(&TMutation::CommitAndLog), mutation, Logger));
-    }
-
     void MaybePostDisposeNodeMutations()
     {
         while (
@@ -1243,6 +1222,26 @@ private:
             Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker()->Invoke(
                 BIND(IgnoreResult(&TMutation::CommitAndLog), mutation, Logger));
         }
+    }
+
+    void PostRegisterNodeMutation(TNode* node)
+    {
+        TReqRegisterNode request;
+        request.set_node_id(node->GetId());
+        ToProto(request.mutable_addresses(), node->GetAddresses());
+        *request.mutable_statistics() = node->Statistics();
+
+        auto multicellManager = Bootstrap_->GetMulticellManager();
+        multicellManager->PostToSecondaryMasters(request);
+    }
+
+    void PostUnregisterNodeMutation(TNode* node)
+    {
+        TReqUnregisterNode request;
+        request.set_node_id(node->GetId());
+
+        auto multicellManager = Bootstrap_->GetMulticellManager();
+        multicellManager->PostToSecondaryMasters(request);
     }
 
 
@@ -1403,12 +1402,6 @@ TMutationPtr TNodeTracker::CreateRegisterNodeMutation(
     const TReqRegisterNode& request)
 {
     return Impl_->CreateRegisterNodeMutation(request);
-}
-
-TMutationPtr TNodeTracker::CreateUnregisterNodeMutation(
-    const TReqUnregisterNode& request)
-{
-    return Impl_->CreateUnregisterNodeMutation(request);
 }
 
 TMutationPtr TNodeTracker::CreateFullHeartbeatMutation(
