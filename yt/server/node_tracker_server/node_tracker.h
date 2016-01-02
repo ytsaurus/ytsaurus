@@ -37,9 +37,6 @@ public:
     NHydra::TMutationPtr CreateRegisterNodeMutation(
         const NProto::TReqRegisterNode& request);
 
-    NHydra::TMutationPtr CreateUnregisterNodeMutation(
-        const NProto::TReqUnregisterNode& request);
-
     // Pass RPC service context to full heartbeat handler to avoid copying request message.
     typedef NRpc::TTypedServiceContext<
         NNodeTrackerClient::NProto::TReqFullHeartbeat,
