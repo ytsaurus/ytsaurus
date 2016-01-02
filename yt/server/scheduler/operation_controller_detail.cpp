@@ -164,7 +164,7 @@ void TOperationControllerBase::TUserFile::Persist(TPersistenceContext& context)
 void TOperationControllerBase::TCompletedJob::Persist(TPersistenceContext& context)
 {
     using NYT::Persist;
-    Persist(context, IsLost);
+    Persist(context, Lost);
     Persist(context, JobId);
     Persist(context, SourceTask);
     Persist(context, OutputCookie);
@@ -1286,7 +1286,7 @@ void TOperationControllerBase::ReinstallLivePreview()
         std::vector<TChunkTreeId> childrenIds;
         childrenIds.reserve(ChunkOriginMap.size());
         for (const auto& pair : ChunkOriginMap) {
-            if (!pair.second->IsLost) {
+            if (!pair.second->Lost) {
                 childrenIds.push_back(pair.first);
             }
         }
@@ -1716,7 +1716,7 @@ void TOperationControllerBase::OnIntermediateChunkUnavailable(const TChunkId& ch
     auto it = ChunkOriginMap.find(chunkId);
     YCHECK(it != ChunkOriginMap.end());
     auto completedJob = it->second;
-    if (completedJob->IsLost)
+    if (completedJob->Lost)
         return;
 
     LOG_DEBUG("Job is lost (Address: %v, JobId: %v, SourceTask: %v, OutputCookie: %v, InputCookie: %v)",
@@ -1727,7 +1727,7 @@ void TOperationControllerBase::OnIntermediateChunkUnavailable(const TChunkId& ch
         completedJob->InputCookie);
 
     JobCounter.Lost(1);
-    completedJob->IsLost = true;
+    completedJob->Lost = true;
     completedJob->DestinationPool->Suspend(completedJob->InputCookie);
     completedJob->SourceTask->GetChunkPoolOutput()->Lost(completedJob->OutputCookie);
     completedJob->SourceTask->OnJobLost(completedJob);

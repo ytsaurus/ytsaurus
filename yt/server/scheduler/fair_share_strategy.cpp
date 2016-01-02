@@ -127,21 +127,6 @@ struct ISchedulerElement
 
 ////////////////////////////////////////////////////////////////////
 
-} // namespace NScheduler
-} // namespace NYT
-
-template <>
-struct THash<NYT::NScheduler::ISchedulerElementPtr> {
-    inline size_t operator()(const NYT::NScheduler::ISchedulerElementPtr& a) const {
-        return THash<Stroka>()(a->GetId());
-    }
-};
-
-namespace NYT {
-namespace NScheduler {
-
-////////////////////////////////////////////////////////////////////
-
 struct TFairShareContext
 {
     TFairShareContext(ISchedulingContext* schedulingContext, int attributesIndex)
@@ -377,7 +362,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(TNullable<TInstant>, BelowFairShareSince);
 
 protected:
-    ISchedulerStrategyHost* Host;
+    ISchedulerStrategyHost* const Host;
 
     TDynamicAttributesList DynamicAttributesList_;
 
@@ -947,12 +932,12 @@ public:
     }
 
 private:
-    Stroka Id;
+    const Stroka Id;
+    const TFairShareStrategyConfigPtr StrategyConfig_;
 
     TPoolConfigPtr Config_;
     bool DefaultConfigured;
 
-    TFairShareStrategyConfigPtr StrategyConfig_;
 
     void DoSetConfig(TPoolConfigPtr newConfig)
     {
@@ -1243,7 +1228,7 @@ public:
     {
         auto& properties = JobPropertiesMap_.at(jobId);
         properties.ResourceUsage += resourcesDelta;
-        if (!properties.IsPreemptable) {
+        if (!properties.Preemptable) {
             NonpreemptableResourceUsage_ += resourcesDelta;
         }
         IncreaseUsage(resourcesDelta);
@@ -1270,14 +1255,14 @@ public:
 
             auto jobId = NonpreemptableJobs_.back();
             auto& jobProperties = JobPropertiesMap_.at(jobId);
-            YCHECK(!jobProperties.IsPreemptable);
+            YCHECK(!jobProperties.Preemptable);
 
             NonpreemptableJobs_.pop_back();
             NonpreemptableResourceUsage_ -= jobProperties.ResourceUsage;
 
             PreemptableJobs_.push_front(jobId);
 
-            jobProperties.IsPreemptable = true;
+            jobProperties.Preemptable = true;
             jobProperties.JobIdListIterator = PreemptableJobs_.begin();
         }
 
@@ -1285,7 +1270,7 @@ public:
         while (!PreemptableJobs_.empty()) {
             auto jobId = PreemptableJobs_.front();
             auto& jobProperties = JobPropertiesMap_.at(jobId);
-            YCHECK(jobProperties.IsPreemptable);
+            YCHECK(jobProperties.Preemptable);
 
             if (getNonpreemptableUsageRatio(jobProperties.ResourceUsage) > Attributes_.FairShareRatio) {
                 break;
@@ -1296,7 +1281,7 @@ public:
             NonpreemptableJobs_.push_back(jobId);
             NonpreemptableResourceUsage_ += jobProperties.ResourceUsage;
 
-            jobProperties.IsPreemptable = false;
+            jobProperties.Preemptable = false;
             jobProperties.JobIdListIterator = --NonpreemptableJobs_.end();
         }
     }
@@ -1308,7 +1293,7 @@ public:
 
     bool IsJobPreemptable(const TJobId& jobId) const
     {
-        return JobPropertiesMap_.at(jobId).IsPreemptable;
+        return JobPropertiesMap_.at(jobId).Preemptable;
     }
 
     void OnJobStarted(const TJobId& jobId, const TJobResources& resourceUsage)
@@ -1330,7 +1315,7 @@ public:
 
         auto& properties = it->second;
 
-        if (properties.IsPreemptable) {
+        if (properties.Preemptable) {
             PreemptableJobs_.erase(properties.JobIdListIterator);
         } else {
             NonpreemptableJobs_.erase(properties.JobIdListIterator);
@@ -1393,15 +1378,18 @@ private:
     // Fair share strategy stuff.
     struct TJobProperties
     {
-        TJobProperties(bool isPreemptable, TJobIdList::iterator jobIdListIterator, const TJobResources& resourceUsage)
-            : IsPreemptable(isPreemptable)
+        TJobProperties(
+            bool preemptable,
+            TJobIdList::iterator jobIdListIterator,
+            const TJobResources& resourceUsage)
+            : Preemptable(preemptable)
             , JobIdListIterator(jobIdListIterator)
             , ResourceUsage(resourceUsage)
         { }
 
         //! Determines the per-operation list (either preemptable or non-preemptable) this
         //! job belongs to.
-        bool IsPreemptable;
+        bool Preemptable;
 
         //! Iterator in the per-operation list pointing to this particular job.
         TJobIdList::iterator JobIdListIterator;
@@ -1409,8 +1397,7 @@ private:
         TJobResources ResourceUsage;
     };
 
-    typedef yhash_map<TJobId, TJobProperties> TJobPropertiesMap;
-    TJobPropertiesMap JobPropertiesMap_;
+    yhash_map<TJobId, TJobProperties> JobPropertiesMap_;
 };
 
 ////////////////////////////////////////////////////////////////////
@@ -1467,7 +1454,7 @@ public:
     }
 
 private:
-    TFairShareStrategyConfigPtr StrategyConfig_;
+    const TFairShareStrategyConfigPtr StrategyConfig_;
 };
 
 ////////////////////////////////////////////////////////////////////
@@ -1786,8 +1773,8 @@ public:
     }
 
 private:
-    TFairShareStrategyConfigPtr Config;
-    ISchedulerStrategyHost* Host;
+    const TFairShareStrategyConfigPtr Config;
+    ISchedulerStrategyHost* const Host;
 
     typedef yhash_map<Stroka, TPoolPtr> TPoolMap;
     TPoolMap Pools;
