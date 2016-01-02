@@ -649,7 +649,7 @@ private:
 
                 auto aggregatedState = node->GetAggregatedState();
                 if (aggregatedState != ENodeState::Offline) {
-                    THROW_ERROR_EXCEPTION("Node %v is still in %Qlv state; must wait for it become fully offline",
+                    THROW_ERROR_EXCEPTION("Node %v is still in %Qlv state; must wait for it to become fully offline",
                         node->GetDefaultAddress(),
                         aggregatedState);
                 }
