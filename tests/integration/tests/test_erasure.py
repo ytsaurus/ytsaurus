@@ -1,8 +1,5 @@
-from yt_env_setup import YTEnvSetup
+from yt_env_setup import YTEnvSetup, _wait
 from yt_commands import *
-
-import time
-
 
 ##################################################################
 
@@ -66,17 +63,8 @@ class TestErasure(YTEnvSetup):
             address = str(r)
             print >>sys.stderr, "Banning node %s containing replica %d" % (address, replica_index)
             self.set_node_banned(address, True)
-
-            ok = False
-            for i in xrange(10):
-                if self._is_chunk_ok(chunk_id):
-                    ok = True
-                    break
-                time.sleep(0.2)
-
-            assert ok
+            _wait(lambda: self._is_chunk_ok(chunk_id))
             assert read_table("//tmp/table") == [{"b":"hello"}]
-
             self.set_node_banned(r, False)
 
     def test_reed_solomon_repair(self):
