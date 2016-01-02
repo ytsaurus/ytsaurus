@@ -406,6 +406,8 @@ void TMasterConnector::SendNodeHeartbeat(TCellTag cellTag)
         case EState::Registered:
             if (CanSendFullNodeHeartbeat(cellTag)) {
                 SendFullNodeHeartbeat(cellTag);
+            } else {
+                ScheduleNodeHeartbeat(cellTag);
             }
             break;
 
