@@ -45,9 +45,7 @@ public:
         NTableServer::TTableNode* table,
         int firstTabletIndex,
         int lastTabletIndex,
-        const TTabletCellId& cellId,
-        i64 estimatedUncompressedSize,
-        i64 estimatedCompressedSize);
+        const TTabletCellId& cellId);
 
     void UnmountTable(
         NTableServer::TTableNode* table,

@@ -1463,8 +1463,6 @@ private:
         if (options.CellId) {
             ToProto(req->mutable_cell_id(), options.CellId);
         }
-        req->set_estimated_uncompressed_size(options.EstimatedUncompressedSize);
-        req->set_estimated_compressed_size(options.EstimatedCompressedSize);
 
         auto* proxy = GetWriteProxy();
         WaitFor(proxy->Execute(req))
