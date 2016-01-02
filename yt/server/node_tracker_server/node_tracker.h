@@ -146,10 +146,6 @@ public:
     //! Returns the number of nodes with ENodeState::Online aggregated state.
     int GetOnlineNodeCount();
 
-
-    //! Returns the list of all known cell descriptors.
-    std::vector<NHive::TCellDescriptor> GetCellDescriptors();
-
 private:
     class TImpl;
     class TClusterNodeTypeHandler;
