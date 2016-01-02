@@ -627,11 +627,11 @@ private:
         IServiceContextPtr context)
     {
         auto requestMessage = context->GetRequestMessage();
-        NRpc::NProto::TRequestHeader requestHeader;
-        ParseRequestHeader(requestMessage, &requestHeader);
+        auto requestHeader = context->RequestHeader();
 
-        auto updatedYPath = FromObjectId(objectId) + GetRequestYPath(context);
+        auto updatedYPath = FromObjectId(objectId) + GetRequestYPath(requestHeader);
         SetRequestYPath(&requestHeader, updatedYPath);
+
         return SetRequestHeader(requestMessage, requestHeader);
     }
 

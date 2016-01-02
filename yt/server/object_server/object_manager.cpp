@@ -95,10 +95,9 @@ public:
     virtual void Invoke(IServiceContextPtr context) override
     {
         auto requestMessage = context->GetRequestMessage();
-        NRpc::NProto::TRequestHeader requestHeader;
-        ParseRequestHeader(requestMessage, &requestHeader);
+        auto requestHeader = context->RequestHeader();
 
-        auto updatedYPath = FromObjectId(ObjectId_) + GetRequestYPath(context);
+        auto updatedYPath = FromObjectId(ObjectId_) + GetRequestYPath(requestHeader);
         SetRequestYPath(&requestHeader, updatedYPath);
         auto updatedMessage = SetRequestHeader(requestMessage, requestHeader);
 
