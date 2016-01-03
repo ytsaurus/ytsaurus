@@ -23,6 +23,7 @@ from yt.tools.remote_copy_tools import \
 
 from yt.common import remove_file
 from yt.wrapper.common import generate_uuid, get_value, update, parse_bool
+from yt.wrapper.client import Yt
 import yt.logger as logger
 import yt.wrapper as yt
 import yt.json as json
@@ -49,6 +50,7 @@ from datetime import datetime, timedelta
 from collections import defaultdict
 from subprocess32 import TimeoutExpired
 from threading import RLock, Thread, current_thread
+from lock import CountedRLock
 from multiprocessing import Process
 from itertools import chain
 import Queue
@@ -258,8 +260,9 @@ class Application(object):
         self._config_path = config_path
         self._config = json.load(open(config_path))
         self._last_successfully_loaded_config = deepcopy(self._config)
-        self._mutex = RLock()
-        self._yt = YtClientWithNotifications(**self._config["yt_backend_options"])
+        self._mutex = CountedRLock()
+        self._cypress_mutexes = defaultdict(CountedRLock)
+        self._yt = Yt(**self._config["yt_backend_options"])
 
         self._configure_logging(self._config.get("logging", {}))
 
@@ -635,7 +638,15 @@ class Application(object):
 
     def _dump_task(self, id):
         with self._mutex:
-            self._yt.set(os.path.join(self._tasks_path, id), remove_unsigned(self._tasks[id].dict()))
+            path = os.path.join(self._tasks_path, id)
+            value = remove_unsigned(self._tasks[id].dict())
+            os.path.join(self._tasks_path, id)
+            with self._mutex.discharge():
+                client = Yt(**self._config["yt_backend_options"])
+                with self._cypress_mutexes[path]:
+                    client.set(path, value)
+            if not self._cypress_mutexes[path].is_acquired():
+                del self._cypress_mutexes[path]
 
     def _create_pool(self, yt_client, destination_cluster_name):
         pool_name = "transfer_" + destination_cluster_name
