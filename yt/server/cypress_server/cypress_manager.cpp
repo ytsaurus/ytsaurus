@@ -2042,7 +2042,7 @@ private:
             : nullptr;
 
         auto* sourceTrunkNode = GetNode(TVersionedObjectId(sourceNodeId));
-        auto* sourceNode = LockNode(sourceTrunkNode, sourceTransaction, ELockMode::Exclusive);
+        auto* sourceNode = GetVersionedNode(sourceTrunkNode, sourceTransaction);
 
         auto securityManager = Bootstrap_->GetSecurityManager();
         auto* account = securityManager->GetAccount(accountId);
