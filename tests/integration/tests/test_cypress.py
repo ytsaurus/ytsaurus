@@ -452,6 +452,13 @@ class TestCypress(YTEnvSetup):
 
         assert get("//tmp/a2/@account") == "tmp"
 
+    def test_copy_locked(self):
+        create("table", "//tmp/t1")
+        tx = start_transaction()
+        lock("//tmp/t1", tx=tx)
+        copy("//tmp/t1", "//tmp/t2")
+        commit_transaction(tx)
+
     def test_move_simple1(self):
         set("//tmp/a", 1)
         move("//tmp/a", "//tmp/b")
