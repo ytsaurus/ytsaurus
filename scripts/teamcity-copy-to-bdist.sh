@@ -13,7 +13,7 @@ changes_out="yandex-yt_${version}_amd64.changes"
 changes_url="http://dist.yandex.net/yt-precise/unstable/${changes_out}"
 changes_url=${changes_url/+/\%2b}
 
-curl -sL "${changes_url}" > "${sandbox}/${changes_out}"
+curl -sfL "${changes_url}" > "${sandbox}/${changes_out}"
 
 cat "${sandbox}/${changes_out}" \
   | awk '/^Files:/ { f = 1 } /^$/ { f = 0 } { if (f > 0) { if (f++ > 1) { print } } }' \
