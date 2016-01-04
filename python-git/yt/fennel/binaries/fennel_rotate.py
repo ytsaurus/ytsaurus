@@ -9,7 +9,7 @@ from argparse import ArgumentParser
 yt.config.PREFIX = "//sys/scheduler/"
 
 def get_event_log_tables():
-    pattern = re.compile("event_log(\.\d*)?")
+    pattern = re.compile("event_log(\.\d*)?$")
     return [str(obj)
             for obj in yt.list(yt.config.PREFIX[:-1], attributes=["type"])
             if obj.attributes.get("type") == "table" 
@@ -37,16 +37,19 @@ def get_prev_table(table):
 def get_size(table):
     return yt.get(table + "/@resource_usage/disk_space")
 
-def get_archive_disk_space_ratio():
-    compression_ratio = yt.get("event_log/@compression_ratio")
-    try:
-        archive_compression_ratio = yt.get("event_log.1/@compression_ratio")
-    except yt.YtResponseError as err:
-        if err.is_resolve_error():
-            archive_compression_ratio = 0.1
-        else:
-            raise
-    return archive_compression_ratio / compression_ratio
+def get_disk_space_per_row(table):
+    attributes = yt.get(table + "/@")
+    if attributes["row_count"]:
+        return attributes["resource_usage"]["disk_space"] / attributes["row_count"]
+    return 0
+
+def get_archive_disk_space_ratio(example_of_archived_table):
+    event_log_disk_space_per_row = get_disk_space_per_row("event_log")
+    archive_disk_space_per_row = get_disk_space_per_row(example_of_archived_table)
+    if archive_disk_space_per_row == 0 or event_log_disk_space_per_row == 0:
+        return 0.1
+    else:
+        return float(archive_disk_space_per_row) / event_log_disk_space_per_row
 
 def get_archive_compression_ratio():
     try:
@@ -62,12 +65,13 @@ def get_possible_size_to_archive():
         return 0
     return (attributes["processed_row_count"] * attributes["resource_usage"]["disk_space"]) / attributes["row_count"]
 
-def get_desired_row_count_to_archive(desired_archive_size):
+def get_desired_row_count_to_archive(desired_archive_size, example_of_archived_table):
     free_archive_size = desired_archive_size
     if yt.exists("event_log.1"):
         free_archive_size -= yt.get("event_log.1/@resource_usage/disk_space")
-    archive_ratio = get_archive_disk_space_ratio()
-    size_to_archive = min(get_possible_size_to_archive(), free_archive_size / archive_ratio)
+    archive_ratio = get_archive_disk_space_ratio(example_of_archived_table)
+    size_to_archive = min(get_possible_size_to_archive(), free_archive_size) / archive_ratio
+    logger.info("Archive ratio is %f, size to archive is %d", archive_ratio, size_to_archive)
     
     attributes = yt.get("event_log/@")
     if attributes["row_count"] == 0:
@@ -102,7 +106,13 @@ def erase_archived_prefix():
         processed_row_count = yt.get("event_log/@processed_row_count")
 
         assert archived_row_count <= processed_row_count 
-        yt.lock("event_log", mode="exclusive")
+        try:
+            yt.lock("event_log", mode="exclusive")
+        except yt.YtResponseError as err:
+            if err.is_concurrent_transaction_lock_conflict():
+                logger.warning("Failed to erase archived prefix of 'event_log' due to lock conflict")
+                return
+            raise
         yt.run_erase(yt.TablePath("event_log", start_index=0, end_index=archived_row_count))
         yt.set("event_log/@archived_row_count", 0)
         yt.set("event_log/@processed_row_count", processed_row_count - archived_row_count)
@@ -119,13 +129,21 @@ def rotate_archives(archive_size_limit, min_portion_to_archive):
     
 def archive_event_log(archive_size_limit):
     logger.info("Archive prefix of event log table")
-    row_count_to_archive = get_desired_row_count_to_archive(archive_size_limit)
+
+    tables = get_event_log_tables()
+    tables.sort(key=get_archive_number)
+    if len(tables) > 0:
+        example_archive = tables[1]
+    else:
+        example_archive = "event_log.1"
+
+    row_count_to_archive = get_desired_row_count_to_archive(archive_size_limit, example_archive)
     archived_row_count = get_archived_row_count()
     assert archived_row_count == 0
 
     with yt.Transaction():
         data_size_per_job = min(10 * 1024 ** 3, int((1024 ** 3) / get_archive_compression_ratio()))
-        yt.create("table", "event_log.1", attributes={"erasure_code": "lrc_12_2_2", "compression_codec": "zlib6"}, ignore_existing=True)
+        yt.create("table", "event_log.1", attributes={"erasure_codec": "lrc_12_2_2", "compression_codec": "zlib6"}, ignore_existing=True)
         yt.run_merge(yt.TablePath("event_log", start_index=0, end_index=row_count_to_archive), yt.TablePath("event_log.1", append=True),
                      spec={"force_transform": True, "data_size_per_job": data_size_per_job})
         yt.set("event_log/@archived_row_count", row_count_to_archive)
@@ -133,7 +151,7 @@ def archive_event_log(archive_size_limit):
 def main():
     parser = ArgumentParser(description="Script to rotate scheduler event logs")
     parser.add_argument("--archive-size-limit", type=int, default=500 * 1024 ** 3)
-    parser.add_option("--min-portion-to-archive", type=int, default=10 * 1024 ** 3)
+    parser.add_argument("--min-portion-to-archive", type=int, default=10 * 1024 ** 3)
     args = parser.parse_args()
 
     if not fennel_exists():
