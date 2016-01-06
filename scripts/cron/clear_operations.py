@@ -31,7 +31,8 @@ class Try(object):
     @property
     def value(self):
         if self.exc:
-            raise self.obj
+            # In this case self.obj represents exc_info, which is tuple (type, value, traceback)
+            raise self.obj[0], self.obj[1], self.obj[2]
         else:
             return self.obj
 
@@ -50,7 +51,7 @@ def parallel_map_impl(fn, kwargs, result, items):
             local_result = Try.success(fn(item, **kwargs))
         except:
             logger.exception("Handled exception")
-            local_result = Try.failure(sys.exc_info()[0])
+            local_result = Try.failure(sys.exc_info())
 
         result.append(local_result)
 
