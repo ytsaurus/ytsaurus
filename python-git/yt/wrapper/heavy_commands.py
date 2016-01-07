@@ -134,7 +134,7 @@ def make_read_request(command_name, path, params, process_response_action, retri
                         for elem in iter():
                             yield elem
                             # NB: We should possible raise error only after row yielded.
-                            if get_option("_ENABLE_READ_TABLE_CHAOS_MONKEY", client) and random.randint(1, 2) == 1:
+                            if get_option("_ENABLE_READ_TABLE_CHAOS_MONKEY", client) and random.randint(1, 5) == 1:
                                 raise YtRetriableError()
                         break
                     except retriable_errors as err:

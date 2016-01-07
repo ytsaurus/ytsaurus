@@ -633,7 +633,7 @@ def read_table(table, format=None, table_reader=None, control_attributes=None, u
 
             if not self.started:
                 process_response(response)
-                self.index = response.response_parameters.get("start_row_index", None)
+                self.next_row_index = response.response_parameters.get("start_row_index", None)
                 self.started = True
 
             for row in format.load_rows(response, raw=True):

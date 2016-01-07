@@ -92,6 +92,7 @@ def _generate_common_proxy_config(proxy_dir, proxy_port, enable_debug_logging):
     proxy_config["port"] = proxy_port
     proxy_config["fqdn"] = "localhost:{0}".format(proxy_port)
     proxy_config["static"].append(["/ui", os.path.join(proxy_dir, "ui")])
+    proxy_config["logging"]["filename"] = os.path.join(proxy_dir, "http_application.log")
 
     return proxy_config
 
