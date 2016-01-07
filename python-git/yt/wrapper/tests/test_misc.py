@@ -2,6 +2,7 @@ from yt.wrapper.keyboard_interrupts_catcher import KeyboardInterruptsCatcher
 from yt.wrapper.response_stream import ResponseStream, EmptyResponseStream
 from yt.wrapper.verified_dict import VerifiedDict
 from yt.common import makedirp
+from yt.yson import to_yson_type
 import yt.yson as yson
 import yt.wrapper as yt
 
@@ -174,10 +175,48 @@ class TestRetries(object):
             rsp = yt.read_table(table, response_parameters=response_parameters)
             assert {"start_row_index": 0, "approximate_row_count": 2} == response_parameters
             rsp.close()
-
         finally:
             yt.config._ENABLE_READ_TABLE_CHAOS_MONKEY = False
             yt.config["read_retries"]["enable"] = old_value
+            
+
+    def test_read_ranges_with_retries(self, yt_env):
+        if yt_env.version < "0.17.4":
+            pytest.skip()
+
+        old_value = yt.config["read_retries"]["enable"], yt.config["read_retries"]["allow_multiple_ranges"]
+        yt.config["read_retries"]["enable"] = True
+        yt.config["read_retries"]["allow_multiple_ranges"] = True
+        yt.config._ENABLE_READ_TABLE_CHAOS_MONKEY = True
+        try:
+            table = TEST_DIR + "/table"
+
+            yt.create_table(table)
+            assert "" == yt.read_table(table).read()
+
+            yt.write_table("<sorted_by=[x]>" + table, ["x=1\n", "x=2\n", "x=3\n"])
+            assert [{"x": "1"}, {"x": "3"}, {"x": "2"}, {"x": "1"}, {"x": "2"}] == \
+                list(yt.read_table(table + '[#0,"2":"1",#2,#1,"1":"3"]', raw=False, format=yt.YsonFormat(process_table_index=False)))
+            
+            assert [to_yson_type(None, attributes={"range_index": 0}),
+                    to_yson_type(None, attributes={"row_index": 0L}),
+                    {"x": "1"},
+                    to_yson_type(None, attributes={"range_index": 1}),
+                    to_yson_type(None, attributes={"row_index": 2L}),
+                    {"x": "3"}] == \
+                list(yt.read_table(table + '[#0,#2]', raw=False, format=yt.YsonFormat(process_table_index=False),
+                                   control_attributes={"enable_row_index": True, "enable_range_index": True}))
+
+            with pytest.raises(yt.YtError):
+                list(yt.read_table(table + '[#0,"2"]', raw=False, format=yt.JsonFormat()))
+            
+            with pytest.raises(yt.YtError):
+                list(yt.read_table(table + '[#0,"2"]', raw=False, format=yt.YsonFormat(process_table_index=False), unordered=True))
+
+        finally:
+            yt.config._ENABLE_READ_TABLE_CHAOS_MONKEY = False
+            yt.config["read_retries"]["enable"] = old_value[0]
+            yt.config["read_retries"]["allow_multiple_ranges"] = old_value[1]
 
     def test_heavy_requests_with_retries(self):
         table = TEST_DIR + "/table"
