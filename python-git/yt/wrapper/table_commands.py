@@ -579,30 +579,105 @@ def read_table(table, format=None, table_reader=None, control_attributes=None, u
 
     class RetriableState(object):
         def __init__(self):
+            # Whether reading started, it is used only for reading without ranges in <= 0.17.3 versions.
             self.started = False
-            self.index = None
+
+            # Row and range indices.
+            self.next_row_index = None
+            self.current_range_index = 0
+
+            # It is true if and only if we read control attributes of the current range and the next range isn't started yet.
+            self.range_started = None
+
+            # We should know whether row with range/row index printed.
+            self.range_index_row_yielded = None
+            self.row_index_row_yielded = None
+
+            self.is_row_index_initially_enabled = False
+            if control_attributes and control_attributes.get("enable_row_index"):
+                self.is_row_index_initially_enabled = True
+
+            self.is_range_index_initially_enabled = False
+            if control_attributes and control_attributes.get("enable_range_index"):
+                self.is_range_index_initially_enabled = True
+
+            if unordered:
+                raise YtError("Unordered read cannot be performed with retries, try ordered read or disable retries")
 
         def prepare_params_for_retry(self):
-            if not self.started:
-                return params
-
             if "ranges" not in table.name.attributes:
-                table.name.attributes["lower_limit"] = {"row_index": self.index}
+                if self.started:
+                    table.name.attributes["lower_limit"] = {"row_index": self.next_row_index}
             else:
                 if len(table.name.attributes["ranges"]) > 1:
-                    raise YtError("Read table with multiple tanges using retries is not supported")
-                table.name.attributes["ranges"][0]["lower_limit"] = {"row_index": self.index}
+                    if not get_config(client)["read_retries"]["allow_multiple_ranges"]:
+                        raise YtError("Read table with multiple ranges using retries is disabled, turn on read_retries/allow_multiple_ranges")
+                    if format.name() not in ["yson"]:
+                        raise YtError("Read table with multiple ranges using retries is supported only in YSON format")
+
+                if "control_attributes" not in params:
+                    params["control_attributes"] = {}
+                params["control_attributes"]["enable_row_index"] = True
+                params["control_attributes"]["enable_range_index"] = True
+
+                if self.range_started and table.name.attributes["ranges"]:
+                    table.name.attributes["ranges"][0]["lower_limit"] = {"row_index": self.next_row_index}
+                self.range_started = False
+
             params["path"] = table.to_yson_type()
+
             return params
 
         def iterate(self, response):
+            range_index = 0
+
             if not self.started:
                 process_response(response)
                 self.index = response.response_parameters.get("start_row_index", None)
                 self.started = True
+
             for row in format.load_rows(response, raw=True):
+                # NB: Low level check for optimization purposes. Only YSON format supported!
+                is_control_row = row.endswith("#;")
+                if is_control_row:
+                    row = format.load_rows(StringIO(row)).next()
+
+                    # NB: row with range index must go before row with row index.
+                    if "range_index" in row.attributes:
+                        self.range_started = False
+                        ranges_to_skip = row.attributes["range_index"] - range_index
+                        table.name.attributes["ranges"] = table.name.attributes["ranges"][ranges_to_skip:]
+                        self.current_range_index += ranges_to_skip
+                        range_index = row.attributes["range_index"]
+                        if not self.is_range_index_initially_enabled:
+                            del row.attributes["range_index"]
+                            assert not row.attributes
+                            continue
+                        else:
+                            if self.range_index_row_yielded:
+                                continue
+                            row.attributes["range_index"] = self.current_range_index
+                            self.range_index_row_yielded = True
+
+                    if "row_index" in row.attributes:
+                        self.next_row_index = row.attributes["row_index"]
+                        if not self.is_row_index_initially_enabled:
+                            del row.attributes["row_index"]
+                            assert not row.attributes
+                            continue
+                        else:
+                            if self.row_index_row_yielded:
+                                continue
+                            self.row_index_row_yielded = True
+
+                    row = format.dumps_row(row)
+                else:
+                    self.range_started = True
+                    self.range_index_row_yielded = False
+                    self.row_index_row_yielded = False
+                    self.next_row_index += 1
+
                 yield row
-                self.index += 1
 
     # For read commands response is actually ResponseStream
     response = make_read_request(
@@ -772,7 +847,7 @@ def alter_table(path, schema=None, client=None):
     """
 
     params = {"path": path}
-    
+
     if schema is not None:
         params["schema"] = schema
 

@@ -132,9 +132,10 @@ def make_read_request(command_name, path, params, process_response_action, retri
                 for attempt in xrange(retry_count):
                     try:
                         for elem in iter():
-                            if get_option("_ENABLE_READ_TABLE_CHAOS_MONKEY", client) and random.randint(1, 5) == 1:
-                                raise YtRetriableError()
                             yield elem
+                            # NB: We should possible raise error only after row yielded.
+                            if get_option("_ENABLE_READ_TABLE_CHAOS_MONKEY", client) and random.randint(1, 2) == 1:
+                                raise YtRetriableError()
                         break
                     except retriable_errors as err:
                         if isinstance(err, YtResponseError) and not err.is_chunk_unavailable():
