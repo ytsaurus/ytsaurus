@@ -71,7 +71,6 @@ protected:
     virtual void GetKeySelf(TReqGetKey* request, TRspGetKey* response, TCtxGetKeyPtr context) override;
     virtual void GetSelf(TReqGet* request, TRspGet* response, TCtxGetPtr context) override;
     virtual void RemoveSelf(TReqRemove* request, TRspRemove* response, TCtxRemovePtr context) override;
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -21,7 +21,6 @@ using namespace NConcurrency;
 
 void TGetCommand::Execute(ICommandContextPtr context)
 {
-    Options.AttributeFilter = TAttributeFilter(EAttributeFilterMode::MatchingOnly, Attributes);
     Options.Options = IAttributeDictionary::FromMap(GetOptions());
 
     auto asyncResult = context->GetClient()->GetNode(
@@ -62,8 +61,6 @@ void TRemoveCommand::Execute(ICommandContextPtr context)
 
 void TListCommand::Execute(ICommandContextPtr context)
 {
-    Options.AttributeFilter = TAttributeFilter(EAttributeFilterMode::MatchingOnly, Attributes);
-
     auto asyncResult = context->GetClient()->ListNode(
         Path.GetPath(),
         Options);

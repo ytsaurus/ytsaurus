@@ -164,10 +164,7 @@ private:
                 id);
             {
                 TGetNodeOptions options;
-                options.AttributeFilter.Mode = EAttributeFilterMode::MatchingOnly;
-                options.AttributeFilter.Keys.push_back("prev_record_count");
-                options.AttributeFilter.Keys.push_back("uncompressed_data_size");
-                options.AttributeFilter.Keys.push_back("quorum_row_count");
+                options.Attributes = {"prev_record_count", "uncompressed_data_size", "quorum_row_count"};
                 auto result = WaitFor(Client_->GetNode(path, options));
                 if (result.FindMatching(NYTree::EErrorCode::ResolveError)) {
                     THROW_ERROR_EXCEPTION(
@@ -449,9 +446,7 @@ private:
             latestId);
         {
             TGetNodeOptions options;
-            options.AttributeFilter.Mode = EAttributeFilterMode::MatchingOnly;
-            options.AttributeFilter.Keys.push_back("sealed");
-            options.AttributeFilter.Keys.push_back("quorum_row_count");
+            options.Attributes = {"sealed", "quorum_row_count"};
             auto result = WaitFor(MasterClient_->GetNode(path, options));
             auto node = ConvertToNode(result.ValueOrThrow());
 

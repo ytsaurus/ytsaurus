@@ -175,12 +175,12 @@ void TOperationTracker::DumpResult()
 
     {
         auto req = TYPathProxy::Get(jobsPath);
-        auto* attributeFilter = req->mutable_attribute_filter();
-        attributeFilter->set_mode(static_cast<int>(EAttributeFilterMode::MatchingOnly));
-        attributeFilter->add_keys("job_type");
-        attributeFilter->add_keys("state");
-        attributeFilter->add_keys("address");
-        attributeFilter->add_keys("error");
+        std::vector<Stroka> attributeKeys{
+            "job_type",
+            "state",
+            "address",
+            "error"};
+        ToProto(req->mutable_attributes(), attributeKeys);
         batchReq->AddRequest(req, "get_jobs");
     }
 

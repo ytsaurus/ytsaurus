@@ -15,48 +15,32 @@
 #include <yt/core/concurrency/periodic_executor.h>
 
 namespace NYT {
+
+////////////////////////////////////////////////////////////////////////////////
+
+void ToProto(NYTree::NProto::TAttributeKeys* protoAttributes, const std::vector<Stroka>& attributes)
+{
+    for (const auto& attribute : attributes) {
+        protoAttributes->add_keys(attribute);
+    }
+}
+
+void FromProto(std::vector<Stroka>* attributes, const NYTree::NProto::TAttributeKeys& protoAttributes)
+{
+    *attributes = NYT::FromProto<std::vector<Stroka>>(protoAttributes.keys());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT
+
+
+namespace NYT {
 namespace NYTree {
 
 using namespace NYson;
 using namespace NRpc;
 using namespace NConcurrency;
-
-////////////////////////////////////////////////////////////////////////////////
-
-const TAttributeFilter TAttributeFilter::All(EAttributeFilterMode::All, std::vector<Stroka>());
-const TAttributeFilter TAttributeFilter::None(EAttributeFilterMode::None, std::vector<Stroka>());
-
-TAttributeFilter::TAttributeFilter()
-    : Mode(EAttributeFilterMode::None)
-{ }
-
-TAttributeFilter::TAttributeFilter(
-    EAttributeFilterMode mode,
-    const std::vector<Stroka>& keys)
-    : Mode(mode)
-    , Keys(keys)
-{ }
-
-TAttributeFilter::TAttributeFilter(EAttributeFilterMode mode)
-    : Mode(mode)
-{ }
-
-void ToProto(NProto::TAttributeFilter* protoFilter, const TAttributeFilter& filter)
-{
-    protoFilter->set_mode(static_cast<int>(filter.Mode));
-    for (const auto& key : filter.Keys) {
-        protoFilter->add_keys(key);
-    }
-}
-
-void FromProto(TAttributeFilter* filter, const NProto::TAttributeFilter& protoFilter)
-{
-    *filter = TAttributeFilter(
-        EAttributeFilterMode(protoFilter.mode()),
-        NYT::FromProto<std::vector<Stroka>>(protoFilter.keys()));
-}
-
-////////////////////////////////////////////////////////////////////////////////
 
 class TFromProducerYPathService
     : public TYPathServiceBase
@@ -93,8 +77,7 @@ private:
     virtual void GetSelf(TReqGet* request, TRspGet* response, TCtxGetPtr context) override
     {
         bool ignoreOpaque = request->ignore_opaque();
-        auto mode = EAttributeFilterMode(request->attribute_filter().mode());
-        if (!ignoreOpaque || mode != EAttributeFilterMode::All)  {
+        if (!ignoreOpaque || request->has_attributes())  {
             // Execute fallback.
             auto node = BuildNodeFromProducer();
             ExecuteVerb(node, IServiceContextPtr(context));
@@ -224,7 +207,7 @@ private:
             auto asyncYson = AsyncYPathGet(
                 UnderlyingService_,
                 TYPath(),
-                TAttributeFilter::All,
+                Null,
                 true);
 
             auto yson = WaitFor(asyncYson)
@@ -269,17 +252,20 @@ IYPathServicePtr IYPathService::Cached(TDuration updatePeriod)
 
 void IYPathService::WriteAttributes(
     IAsyncYsonConsumer* consumer,
-    const TAttributeFilter& filter,
+    const TNullable<std::vector<Stroka>>& attributeKeys,
     bool sortKeys)
 {
-    if (filter.Mode == EAttributeFilterMode::None)
+    if ((!attributeKeys && ShouldHideAttributes()) || (attributeKeys && attributeKeys->empty())) {
         return;
-
-    if (filter.Mode == EAttributeFilterMode::MatchingOnly && filter.Keys.empty())
-        return;
+    }
 
     TAttributeFragmentConsumer attributesConsumer(consumer);
-    WriteAttributesFragment(&attributesConsumer, filter, sortKeys);
+    WriteAttributesFragment(&attributesConsumer, attributeKeys, sortKeys);
+}
+
+bool IYPathService::ShouldHideAttributes()
+{
+    return false;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

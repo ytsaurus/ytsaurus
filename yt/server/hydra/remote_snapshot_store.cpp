@@ -142,8 +142,7 @@ private:
                 INodePtr node;
                 {
                     TGetNodeOptions options;
-                    options.AttributeFilter.Mode = EAttributeFilterMode::MatchingOnly;
-                    options.AttributeFilter.Keys.push_back("prev_record_count");
+                    options.Attributes = {"prev_record_count"};
                     auto asyncResult = Store_->Client_->GetNode(Path_, options);
                     auto result = WaitFor(asyncResult)
                         .ValueOrThrow();

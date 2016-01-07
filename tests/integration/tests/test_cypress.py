@@ -3,7 +3,7 @@ import time
 
 from yt_env_setup import YTEnvSetup
 from yt_commands import *
-from yt.yson import to_yson_type
+from yt.yson import to_yson_type, YsonEntity
 
 
 ##################################################################
@@ -156,6 +156,16 @@ class TestCypress(YTEnvSetup):
         set("//tmp/t", "<attr=100;mode=rw> {nodes=[1; 2]}", is_raw=True)
         assert get("//tmp/t/@attr") == 100
         assert get("//tmp/t/@mode") == "rw"
+
+        attrs = get("//tmp/t/@")
+        assert "attr" in attrs
+        assert "mode" in attrs
+        assert "path" in attrs
+        assert isinstance(attrs["path"], YsonEntity)
+
+        attrs = get("//tmp/t/@", attributes=["attr", "path"])
+        assert sorted(attrs.keys()) == ["attr", "path"]
+        assert attrs["path"] == "//tmp/t"
 
         remove("//tmp/t/@*")
         with pytest.raises(YtError): get("//tmp/t/@attr")

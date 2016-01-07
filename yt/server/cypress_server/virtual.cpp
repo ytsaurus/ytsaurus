@@ -26,6 +26,7 @@
 #include <yt/core/ytree/convert.h>
 #include <yt/core/ytree/ypath_proxy.h>
 #include <yt/core/ytree/fluent.h>
+#include <yt/core/ytree/ypath_service.h>
 
 #include <yt/core/yson/writer.h>
 #include <yt/core/yson/async_writer.h>
@@ -39,7 +40,6 @@ namespace NYT {
 namespace NCypressServer {
 
 using namespace NRpc;
-using namespace NYTree;
 using namespace NYTree;
 using namespace NYson;
 using namespace NYPath;
@@ -113,22 +113,24 @@ void TVirtualMulticellMapBase::GetSelf(TReqGet* request, TRspGet* response, TCtx
 {
     YASSERT(!NYson::TTokenizer(GetRequestYPath(context->RequestHeader())).ParseNext());
 
-    auto attributeFilter = request->has_attribute_filter()
-        ? FromProto<TAttributeFilter>(request->attribute_filter())
-        : TAttributeFilter::None;
+    // NB: It is impossible to call FromProto<std::vector<Stroka>>(request->attributes()) due to visibility reasons.
+    TNullable<std::vector<Stroka>> attributeKeys;
+    if (request->has_attributes()) {
+        std::vector<Stroka> keys;
+        FromProto(&keys, request->attributes());
+        attributeKeys = keys;
+    }
 
     i64 limit = request->has_limit()
         ? request->limit()
         : DefaultVirtualChildLimit;
 
-    context->SetRequestInfo("AttributeFilterMode: %v, Limit: %v",
-        attributeFilter.Mode,
-        limit);
+    context->SetRequestInfo("Limit: %v", limit);
 
     // NB: Must deal with owning node's attributes here due to thread affinity issues.
-    auto asyncOwningNodeAttributes = GetOwningNodeAttributes(attributeFilter);
+    auto asyncOwningNodeAttributes = GetOwningNodeAttributes(attributeKeys);
 
-    FetchItems(limit, attributeFilter)
+    FetchItems(limit, attributeKeys)
         .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<TFetchItemsSessionPtr>& sessionOrError) {
             if (!sessionOrError.IsOK()) {
                 context->Reply(TError(sessionOrError));
@@ -182,19 +184,21 @@ void TVirtualMulticellMapBase::GetSelf(TReqGet* request, TRspGet* response, TCtx
 
 void TVirtualMulticellMapBase::ListSelf(TReqList* request, TRspList* response, TCtxListPtr context)
 {
-    auto attributeFilter = request->has_attribute_filter()
-        ? FromProto<TAttributeFilter>(request->attribute_filter())
-        : TAttributeFilter::None;
+    // NB: It is impossible to call FromProto<std::vector<Stroka>>(request->attributes()) due to visibility reasons.
+    TNullable<std::vector<Stroka>> attributeKeys;
+    if (request->has_attributes()) {
+        std::vector<Stroka> keys;
+        FromProto(&keys, request->attributes());
+        attributeKeys = keys;
+    }
 
     i64 limit = request->has_limit()
         ? request->limit()
         : DefaultVirtualChildLimit;
 
-    context->SetRequestInfo("AttributeFilterMode: %v",
-        attributeFilter.Mode,
-        limit);
+    context->SetRequestInfo("Limit: %v", limit);
 
-    FetchItems(limit, attributeFilter)
+    FetchItems(limit, attributeKeys)
         .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<TFetchItemsSessionPtr>& sessionOrError) {
             if (!sessionOrError.IsOK()) {
                 context->Reply(TError(sessionOrError));
@@ -341,13 +345,13 @@ TFuture<std::vector<std::pair<TCellTag, i64>>> TVirtualMulticellMapBase::FetchSi
 
 TFuture<TVirtualMulticellMapBase::TFetchItemsSessionPtr> TVirtualMulticellMapBase::FetchItems(
     i64 limit,
-    const TAttributeFilter& attributeFilter)
+    const TNullable<std::vector<Stroka>>& attributeKeys)
 {
     auto multicellManager = Bootstrap_->GetMulticellManager();
 
     auto session = New<TFetchItemsSession>();
     session->Limit = limit;
-    session->AttributeFilter = attributeFilter;
+    session->AttributeKeys = attributeKeys;
     session->CellTags = multicellManager->GetRegisteredMasterCellTags();
 
     auto promise = NewPromise<TFetchItemsSessionPtr>();
@@ -389,10 +393,10 @@ void TVirtualMulticellMapBase::FetchItemsFromLocal(
         if (IsObjectAlive(object)) {
             TFetchItem item;
             item.Key = ToString(key);
-            if (session->AttributeFilter.Mode != EAttributeFilterMode::None) {
+            if (session->AttributeKeys) {
                 TAsyncYsonWriter writer(EYsonType::MapFragment);
                 auto proxy = objectManager->GetProxy(object, nullptr);
-                proxy->WriteAttributesFragment(&writer, session->AttributeFilter, false);
+                proxy->WriteAttributesFragment(&writer, session->AttributeKeys, false);
                 asyncAttributes.emplace_back(writer.Finish());
             } else {
                 static const auto EmptyFragment = MakeFuture(TYsonString(Stroka(), EYsonType::MapFragment));
@@ -440,7 +444,9 @@ void TVirtualMulticellMapBase::FetchItemsFromRemote(
     auto path = GetWellKnownPath();
     auto req = TCypressYPathProxy::Enumerate(path);
     req->set_limit(session->Limit - session->Items.size());
-    ToProto(req->mutable_attribute_filter(), session->AttributeFilter);
+    if (session->AttributeKeys) {
+        ToProto(req->mutable_attributes(), *session->AttributeKeys);
+    }
     batchReq->AddRequest(req, "enumerate");
 
     batchReq->Invoke()
@@ -474,26 +480,28 @@ void TVirtualMulticellMapBase::FetchItemsFromRemote(
         }).Via(NRpc::TDispatcher::Get()->GetInvoker()));
 }
 
-TFuture<TYsonString> TVirtualMulticellMapBase::GetOwningNodeAttributes(const TAttributeFilter& attributeFilter)
+TFuture<TYsonString> TVirtualMulticellMapBase::GetOwningNodeAttributes(const TNullable<std::vector<Stroka>>& attributeKeys)
 {
     TAsyncYsonWriter writer(EYsonType::MapFragment);
     if (OwningNode_) {
-        OwningNode_->WriteAttributesFragment(&writer, attributeFilter, false);
+        OwningNode_->WriteAttributesFragment(&writer, attributeKeys, false);
     }
     return writer.Finish();
 }
 
 DEFINE_YPATH_SERVICE_METHOD(TVirtualMulticellMapBase, Enumerate)
 {
-    auto attributeFilter = request->has_attribute_filter()
-        ? FromProto<TAttributeFilter>(request->attribute_filter())
-        : TAttributeFilter::None;
+    // NB: It is impossible to call FromProto<std::vector<Stroka>>(request->attributes()) due to visibility reasons.
+    TNullable<std::vector<Stroka>> attributeKeys;
+    if (request->has_attributes()) {
+        std::vector<Stroka> keys;
+        FromProto(&keys, request->attributes());
+        attributeKeys = keys;
+    }
 
     i64 limit = request->limit();
 
-    context->SetRequestInfo("AttributeFilterMode: %v, Limit: %v",
-        attributeFilter.Mode,
-        limit);
+    context->SetRequestInfo("Limit: %v", limit);
 
     auto keys = GetKeys(limit);
 
@@ -505,10 +513,10 @@ DEFINE_YPATH_SERVICE_METHOD(TVirtualMulticellMapBase, Enumerate)
         if (IsObjectAlive(object)) {
             auto* protoItem = response->add_items();
             protoItem->set_key(ToString(key));
-            if (attributeFilter.Mode != EAttributeFilterMode::None) {
+            if (attributeKeys) {
                 TAsyncYsonWriter writer(EYsonType::MapFragment);
                 auto proxy = objectManager->GetProxy(object, nullptr);
-                proxy->WriteAttributesFragment(&writer, attributeFilter, false);
+                proxy->WriteAttributesFragment(&writer, attributeKeys, false);
                 asyncValues.push_back(writer.Finish());
             }
         }

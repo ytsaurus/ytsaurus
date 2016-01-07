@@ -11,7 +11,7 @@ namespace NYTree {
 
 namespace NProto {
 
-class TAttributeFilter;
+class TAttributeKeys;
 
 } // namespace NProto
 
@@ -37,8 +37,6 @@ DECLARE_REFCOUNTED_STRUCT(INodeResolver);
 struct IAttributeDictionary;
 
 struct IAttributeOwner;
-
-struct TAttributeFilter;
 
 struct ISystemAttributeProvider;
 

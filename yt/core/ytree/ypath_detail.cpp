@@ -109,7 +109,7 @@ void TYPathServiceBase::AfterInvoke(IServiceContextPtr /*context*/)
 
 void TYPathServiceBase::WriteAttributesFragment(
     NYson::IAsyncYsonConsumer* /* consumer */,
-    const TAttributeFilter& /* filter */,
+    const TNullable<std::vector<Stroka>>& /* attributeKeys */,
     bool /* sortKeys */)
 { }
 
@@ -305,10 +305,12 @@ TYsonString TSupportsAttributes::DoGetAttributeFragment(
         ThrowNoSuchAttribute(key);
     }
     auto node = ConvertToNode<TYsonString>(wholeYson);
-    return SyncYPathGet(node, path, TAttributeFilter::All);
+    return SyncYPathGet(node, path, Null);
 }
 
-TFuture<TYsonString> TSupportsAttributes::DoGetAttribute(const TYPath& path)
+TFuture<TYsonString> TSupportsAttributes::DoGetAttribute(
+    const TYPath& path,
+    const TNullable<std::vector<Stroka>>& attributeKeys)
 {
     ValidatePermission(EPermissionCheckScope::This, EPermission::Read);
 
@@ -321,37 +323,41 @@ TFuture<TYsonString> TSupportsAttributes::DoGetAttribute(const TYPath& path)
 
         writer.OnBeginMap();
 
-        if (builtinAttributeProvider) {
-            std::vector<ISystemAttributeProvider::TAttributeDescriptor> builtinDescriptors;
-            builtinAttributeProvider->ListBuiltinAttributes(&builtinDescriptors);
-            for (const auto& descriptor : builtinDescriptors) {
-                if (!descriptor.Present)
-                    continue;
+        if (attributeKeys) {
+            WriteAttributesFragment(&writer, attributeKeys, /* sortKeys */ false);
+        } else {
+            if (builtinAttributeProvider) {
+                std::vector<ISystemAttributeProvider::TAttributeDescriptor> builtinDescriptors;
+                builtinAttributeProvider->ListBuiltinAttributes(&builtinDescriptors);
+                for (const auto& descriptor : builtinDescriptors) {
+                    if (!descriptor.Present)
+                        continue;
 
-                auto key = Stroka(descriptor.Key);
-                TAttributeValueConsumer attributeValueConsumer(&writer, key);
+                    auto key = Stroka(descriptor.Key);
+                    TAttributeValueConsumer attributeValueConsumer(&writer, key);
 
-                if (descriptor.Opaque) {
-                    attributeValueConsumer.OnEntity();
-                    continue;
-                }
+                    if (descriptor.Opaque) {
+                        attributeValueConsumer.OnEntity();
+                        continue;
+                    }
 
-                if (builtinAttributeProvider->GetBuiltinAttribute(key, &attributeValueConsumer)) {
-                    continue;
-                }
+                    if (builtinAttributeProvider->GetBuiltinAttribute(key, &attributeValueConsumer)) {
+                        continue;
+                    }
 
-                auto asyncValue = builtinAttributeProvider->GetBuiltinAttributeAsync(key);
-                if (asyncValue) {
-                    attributeValueConsumer.OnRaw(std::move(asyncValue));
+                    auto asyncValue = builtinAttributeProvider->GetBuiltinAttributeAsync(key);
+                    if (asyncValue) {
+                        attributeValueConsumer.OnRaw(std::move(asyncValue));
+                    }
                 }
             }
-        }
 
-        auto* customAttributes = GetCustomAttributes();
-        if (customAttributes) {
-            for (const auto& key : customAttributes->List()) {
-                writer.OnKeyedItem(key);
-                Serialize(customAttributes->GetYson(key), &writer);
+            auto* customAttributes = GetCustomAttributes();
+            if (customAttributes) {
+                for (const auto& key : customAttributes->List()) {
+                    writer.OnKeyedItem(key);
+                    Serialize(customAttributes->GetYson(key), &writer);
+                }
             }
         }
 
@@ -377,13 +383,17 @@ TFuture<TYsonString> TSupportsAttributes::DoGetAttribute(const TYPath& path)
 
 void TSupportsAttributes::GetAttribute(
     const TYPath& path,
-    TReqGet* /*request*/,
+    TReqGet* request,
     TRspGet* response,
     TCtxGetPtr context)
 {
     context->SetRequestInfo();
 
-    DoGetAttribute(path).Subscribe(BIND([=] (const TErrorOr<TYsonString>& ysonOrError) {
+    auto attributeKeys = request->has_attributes()
+        ? MakeNullable(NYT::FromProto<std::vector<Stroka>>(request->attributes()))
+        : Null;
+
+    DoGetAttribute(path, attributeKeys).Subscribe(BIND([=] (const TErrorOr<TYsonString>& ysonOrError) {
         if (!ysonOrError.IsOK()) {
             context->Reply(ysonOrError);
             return;
@@ -1218,10 +1228,10 @@ public:
     // TODO(panin): remove this when getting rid of IAttributeProvider
     virtual void WriteAttributesFragment(
         IAsyncYsonConsumer* consumer,
-        const TAttributeFilter& filter,
+        const TNullable<std::vector<Stroka>>& attributeKeys,
         bool sortKeys) override
     {
-        UnderlyingService_->WriteAttributesFragment(consumer, filter, sortKeys);
+        UnderlyingService_->WriteAttributesFragment(consumer, attributeKeys, sortKeys);
     }
 
 private:
