@@ -76,11 +76,11 @@ def read_file(path, response_type=None, file_reader=None, offset=None, length=No
 
         def iterate(self, response):
             for chunk in chunk_iter_stream(response, get_config(client)["read_buffer_size"]):
-                yield chunk
                 if self.offset is not None:
                     self.offset += len(chunk)
                 if self.length is not None:
                     self.length -= len(chunk)
+                yield chunk
 
     command_name = "download" if get_api_version(client=client) == "v2" else "read_file"
     return make_read_request(
