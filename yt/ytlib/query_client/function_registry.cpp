@@ -124,9 +124,7 @@ TDescriptor LookupDescriptor(
         functionName);
     
     auto getDescriptorOptions = NApi::TGetNodeOptions();
-    getDescriptorOptions.AttributeFilter = TAttributeFilter(
-        EAttributeFilterMode::MatchingOnly,
-        std::vector<Stroka>{descriptorAttribute});
+    getDescriptorOptions.Attributes = std::vector<Stroka>{descriptorAttribute};
 
     auto cypressFunctionOrError = WaitFor(client->GetNode(
         functionPath,

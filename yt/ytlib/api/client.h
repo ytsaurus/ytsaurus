@@ -221,7 +221,7 @@ struct TGetNodeOptions
 {
     // XXX(sandello): This one is used only in ProfileManager to pass `from_time`.
     std::shared_ptr<const NYTree::IAttributeDictionary> Options;
-    NYTree::TAttributeFilter AttributeFilter;
+    TNullable<std::vector<Stroka>> Attributes;
     TNullable<i64> MaxSize;
     bool IgnoreOpaque = false;
 };
@@ -250,7 +250,7 @@ struct TListNodeOptions
     , public TSuppressableAccessTrackingOptions
     , public TPrerequisiteOptions
 {
-    NYTree::TAttributeFilter AttributeFilter;
+    TNullable<std::vector<Stroka>> Attributes;
     TNullable<i64> MaxSize;
 };
 

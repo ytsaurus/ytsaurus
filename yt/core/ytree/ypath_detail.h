@@ -82,7 +82,7 @@ public:
     virtual TResolveResult Resolve(const TYPath& path, NRpc::IServiceContextPtr context) override;
     virtual void WriteAttributesFragment(
         NYson::IAsyncYsonConsumer* consumer,
-        const TAttributeFilter& filter,
+        const TNullable<std::vector<Stroka>>& attributeKeys,
         bool sortKeys) override;
 
 protected:
@@ -218,7 +218,9 @@ private:
         const Stroka& key,
         const TYPath& path,
         const NYson::TYsonString& wholeYson);
-    TFuture<NYson::TYsonString> DoGetAttribute(const TYPath& path);
+    TFuture<NYson::TYsonString> DoGetAttribute(
+        const TYPath& path,
+        const TNullable<std::vector<Stroka>>& attributeKeys);
 
     static bool DoExistsAttributeFragment(
         const Stroka& key,

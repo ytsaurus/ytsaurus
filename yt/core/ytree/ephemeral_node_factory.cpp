@@ -84,7 +84,7 @@ public:
 
     virtual void WriteAttributesFragment(
         IAsyncYsonConsumer* consumer,
-        const TAttributeFilter& filter,
+        const TNullable<std::vector<Stroka>>& attributeKeys,
         bool sortKeys) override
     {
         if (!HasAttributes())
@@ -95,9 +95,14 @@ public:
         if (sortKeys) {
             std::sort(keys.begin(), keys.end());
         }
-        yhash_set<Stroka> matchingKeys(filter.Keys.begin(), filter.Keys.end());
+
+        yhash_set<Stroka> matchingKeys;
+        if (attributeKeys) {
+            matchingKeys = yhash_set<Stroka>(attributeKeys->begin(), attributeKeys->end());
+        }
+
         for (const auto& key : keys) {
-            if (filter.Mode == EAttributeFilterMode::All || matchingKeys.find(key) != matchingKeys.end()) {
+            if (!attributeKeys || matchingKeys.find(key) != matchingKeys.end()) {
                 auto yson = attributes.GetYson(key);
                 consumer->OnKeyedItem(key);
                 consumer->OnRaw(yson);

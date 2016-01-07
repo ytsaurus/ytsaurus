@@ -80,10 +80,10 @@ public:
 
     virtual void WriteAttributesFragment(
         IAsyncYsonConsumer* consumer,
-        const TAttributeFilter& filter,
+        const TNullable<std::vector<Stroka>>& attributeKeys,
         bool sortKeys) override
     {
-        GetTargetProxy()->WriteAttributesFragment(consumer, filter, sortKeys);
+        GetTargetProxy()->WriteAttributesFragment(consumer, attributeKeys, sortKeys);
     }
 
 private:

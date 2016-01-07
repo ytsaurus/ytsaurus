@@ -12,14 +12,14 @@ namespace NYTree {
 void VisitTree(
     INodePtr root,
     NYson::IYsonConsumer* consumer,
-    const TAttributeFilter& attributeFilter = TAttributeFilter::All,
+    const TNullable<std::vector<Stroka>>& attributeKeys = Null,
     bool sortKeys = false,
     bool ignoreOpaque = false);
 
 void VisitTree(
     INodePtr root,
     NYson::IAsyncYsonConsumer* consumer,
-    const TAttributeFilter& attributeFilter = TAttributeFilter::All,
+    const TNullable<std::vector<Stroka>>& attributeKeys = Null,
     bool sortKeys = false,
     bool ignoreOpaque = false);
 

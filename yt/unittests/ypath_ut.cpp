@@ -166,11 +166,11 @@ TEST_F(TYPathTest, Clear)
     Set("/my", "{list=<type=list>[1;2];map=<type=map>{a=1;b=2}}");
 
     Remove("/my/list/*");
-    Check("/my/list", "[]");
+    Check("/my/list", "<type=list>[]");
     Check("/my/list/@", "{type=list}");
 
     Remove("/my/map/*");
-    Check("/my/map", "{}");
+    Check("/my/map", "<type=map>{}");
     Check("/my/map/@", "{type=map}");
 }
 
@@ -238,7 +238,7 @@ TEST_F(TYPathTest, Attributes)
     Check("", "{root={}}");
 
     Set("/root/2", "<author=ignat> #");
-    Check("", "{root={\"2\"=#}}");
+    Check("", "{root={\"2\"=<author=ignat>#}}");
     Check("/root/2/@", "{author=ignat}");
     Check("/root/2/@author", "ignat");
 

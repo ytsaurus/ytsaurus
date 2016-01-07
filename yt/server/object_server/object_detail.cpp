@@ -282,91 +282,86 @@ void TObjectProxyBase::Invoke(IServiceContextPtr context)
 
 void TObjectProxyBase::WriteAttributesFragment(
     IAsyncYsonConsumer* consumer,
-    const TAttributeFilter& filter,
+    const TNullable<std::vector<Stroka>>& attributeKeys,
     bool sortKeys)
 {
     const auto& customAttributes = Attributes();
 
-    switch (filter.Mode) {
-        case EAttributeFilterMode::All: {
-            std::vector<ISystemAttributeProvider::TAttributeDescriptor> builtinAttributes;
-            ListBuiltinAttributes(&builtinAttributes);
+    if (attributeKeys) {
+        auto keys = *attributeKeys;
 
-            auto userKeys = customAttributes.List();
-
-            // TODO(babenko): this is not exactly totally sorted keys, but should be fine.
-            if (sortKeys) {
-                std::sort(
-                    userKeys.begin(),
-                    userKeys.end());
-
-                std::sort(
-                    builtinAttributes.begin(),
-                    builtinAttributes.end(),
-                    [] (const ISystemAttributeProvider::TAttributeDescriptor& lhs, const ISystemAttributeProvider::TAttributeDescriptor& rhs) {
-                        return lhs.Key < rhs.Key;
-                    });
-            }
-
-            for (const auto& key : userKeys) {
-                auto value = customAttributes.GetYson(key);
-                consumer->OnKeyedItem(key);
-                consumer->OnRaw(value);
-            }
-
-            for (const auto& descriptor : builtinAttributes) {
-                auto key = Stroka(descriptor.Key);
-                TAttributeValueConsumer attributeValueConsumer(consumer, key);
-
-                if (descriptor.Opaque) {
-                    attributeValueConsumer.OnEntity();
-                    continue;
-                }
-
-                if (GetBuiltinAttribute(descriptor.Key, &attributeValueConsumer))
-                    continue;
-
-                auto asyncValue = GetBuiltinAttributeAsync(key);
-                if (asyncValue) {
-                    attributeValueConsumer.OnRaw(std::move(asyncValue));
-                    continue; // just for the symmetry
-                }
-            }
-            break;
+        if (sortKeys) {
+            std::sort(keys.begin(), keys.end());
         }
 
-        case EAttributeFilterMode::MatchingOnly: {
-            auto keys = filter.Keys;
-            
-            if (sortKeys) {
-                std::sort(keys.begin(), keys.end());
+        for (const auto& key : keys) {
+            TAttributeValueConsumer attributeValueConsumer(consumer, key);
+
+            auto value = customAttributes.FindYson(key);
+            if (value) {
+                attributeValueConsumer.OnRaw(*value);
+                continue;
             }
 
-            for (const auto& key : keys) {
-                TAttributeValueConsumer attributeValueConsumer(consumer, key);
+            if (GetBuiltinAttribute(key, &attributeValueConsumer))
+                continue;
 
-                auto value = customAttributes.FindYson(key);
-                if (value) {
-                    attributeValueConsumer.OnRaw(*value);
-                    continue;
-                }
-
-                if (GetBuiltinAttribute(key, &attributeValueConsumer))
-                    continue;
-
-                auto asyncValue = GetBuiltinAttributeAsync(key);
-                if (asyncValue) {
-                    attributeValueConsumer.OnRaw(std::move(asyncValue));
-                    continue; // just for the symmetry
-                }
+            auto asyncValue = GetBuiltinAttributeAsync(key);
+            if (asyncValue) {
+                attributeValueConsumer.OnRaw(std::move(asyncValue));
+                continue; // just for the symmetry
             }
+        }
+    } else {
+        std::vector<ISystemAttributeProvider::TAttributeDescriptor> builtinAttributes;
+        ListBuiltinAttributes(&builtinAttributes);
 
-            break;
+        auto userKeys = customAttributes.List();
+
+        // TODO(babenko): this is not exactly totally sorted keys, but should be fine.
+        if (sortKeys) {
+            std::sort(
+                userKeys.begin(),
+                userKeys.end());
+
+            std::sort(
+                builtinAttributes.begin(),
+                builtinAttributes.end(),
+                [] (const ISystemAttributeProvider::TAttributeDescriptor& lhs, const ISystemAttributeProvider::TAttributeDescriptor& rhs) {
+                    return lhs.Key < rhs.Key;
+                });
         }
 
-        default:
-            YUNREACHABLE();
+        for (const auto& key : userKeys) {
+            auto value = customAttributes.GetYson(key);
+            consumer->OnKeyedItem(key);
+            consumer->OnRaw(value);
+        }
+
+        for (const auto& descriptor : builtinAttributes) {
+            auto key = Stroka(descriptor.Key);
+            TAttributeValueConsumer attributeValueConsumer(consumer, key);
+
+            if (descriptor.Opaque) {
+                attributeValueConsumer.OnEntity();
+                continue;
+            }
+
+            if (GetBuiltinAttribute(descriptor.Key, &attributeValueConsumer))
+                continue;
+
+            auto asyncValue = GetBuiltinAttributeAsync(key);
+            if (asyncValue) {
+                attributeValueConsumer.OnRaw(std::move(asyncValue));
+                continue; // just for the symmetry
+            }
+        }
     }
+}
+
+bool TObjectProxyBase::ShouldHideAttributes()
+{
+    return true;
 }
 
 bool TObjectProxyBase::DoInvoke(IServiceContextPtr context)

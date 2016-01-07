@@ -74,7 +74,7 @@ private:
         : public TIntrinsicRefCounted
     {
         i64 Limit = -1;
-        NYTree::TAttributeFilter AttributeFilter;
+        TNullable<std::vector<Stroka>> AttributeKeys;
         NObjectClient::TCellTagList CellTags;
         int CellTagIndex = -1; // -1 means local
         bool Incomplete = false;
@@ -85,7 +85,7 @@ private:
 
     TFuture<TFetchItemsSessionPtr> FetchItems(
         i64 limit,
-        const NYTree::TAttributeFilter& attributeFilter);
+        const TNullable<std::vector<Stroka>>& attributeKeys);
 
     void FetchItemsFromAnywhere(
         TFetchItemsSessionPtr session,
@@ -99,7 +99,7 @@ private:
         TFetchItemsSessionPtr session,
         TPromise<TFetchItemsSessionPtr> promise);
 
-    TFuture<NYson::TYsonString> GetOwningNodeAttributes(const NYTree::TAttributeFilter& attributeFilter);
+    TFuture<NYson::TYsonString> GetOwningNodeAttributes(const TNullable<std::vector<Stroka>>& attributeKeys);
 
     DECLARE_YPATH_SERVICE_METHOD(NCypressClient::NProto, Enumerate);
 

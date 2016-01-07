@@ -377,13 +377,13 @@ private:
 
                 auto req = TCypressYPathProxy::Get(objectIdPath);
                 SetTransactionId(req, UploadTransaction_);
-                TAttributeFilter attributeFilter(EAttributeFilterMode::MatchingOnly);
-                attributeFilter.Keys.push_back("type");
-                attributeFilter.Keys.push_back("replication_factor");
-                attributeFilter.Keys.push_back("read_quorum");
-                attributeFilter.Keys.push_back("write_quorum");
-                attributeFilter.Keys.push_back("account");
-                ToProto(req->mutable_attribute_filter(), attributeFilter);
+                std::vector<Stroka> attributeKeys{
+                    "type",
+                    "replication_factor",
+                    "read_quorum",
+                    "write_quorum",
+                    "account"};
+                ToProto(req->mutable_attributes(), attributeKeys);
 
                 auto rspOrError = WaitFor(proxy.Execute(req));
                 THROW_ERROR_EXCEPTION_IF_FAILED(

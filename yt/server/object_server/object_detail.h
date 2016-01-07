@@ -35,6 +35,8 @@ public:
         NCellMaster::TBootstrap* bootstrap,
         TObjectBase* object);
 
+    virtual bool ShouldHideAttributes() override;
+
     // IObjectProxy members
     virtual const TObjectId& GetId() const override;
     virtual const NYTree::IAttributeDictionary& Attributes() const override;
@@ -43,8 +45,9 @@ public:
     virtual void Invoke(NRpc::IServiceContextPtr context) override;
     virtual void WriteAttributesFragment(
         NYson::IAsyncYsonConsumer* consumer,
-        const NYTree::TAttributeFilter& filter,
+        const TNullable<std::vector<Stroka>>& attributeKeys,
         bool sortKeys) override;
+
 
 protected:
     class TCustomAttributeDictionary;

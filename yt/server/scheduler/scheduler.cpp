@@ -987,8 +987,7 @@ private:
         auto req = TYPathProxy::Get("//sys/pools");
         static auto poolConfigTemplate = New<TPoolConfig>();
         static auto poolConfigKeys = poolConfigTemplate->GetRegisteredKeys();
-        TAttributeFilter attributeFilter(EAttributeFilterMode::MatchingOnly, poolConfigKeys);
-        ToProto(req->mutable_attribute_filter(), attributeFilter);
+        ToProto(req->mutable_attributes(), poolConfigKeys);
         batchReq->AddRequest(req, "get_pools");
     }
 
@@ -1014,14 +1013,12 @@ private:
         LOG_INFO("Updating nodes information");
 
         auto req = TYPathProxy::Get("//sys/nodes");
-        TAttributeFilter attributeFilter(
-            EAttributeFilterMode::MatchingOnly,
-            {
-                "scheduling_tags",
-                "state",
-                "io_weight"
-            });
-        ToProto(req->mutable_attribute_filter(), attributeFilter);
+
+        std::vector<Stroka> attributeKeys{
+            "scheduling_tags",
+            "state",
+            "io_weight"};
+        ToProto(req->mutable_attributes(), attributeKeys);
         batchReq->AddRequest(req, "get_nodes");
     }
 
@@ -1090,10 +1087,7 @@ private:
     {
         static auto runtimeParamsTemplate = New<TOperationRuntimeParams>();
         auto req = TYPathProxy::Get(GetOperationPath(operation->GetId()));
-        TAttributeFilter attributeFilter(
-            EAttributeFilterMode::MatchingOnly,
-            runtimeParamsTemplate->GetRegisteredKeys());
-        ToProto(req->mutable_attribute_filter(), attributeFilter);
+        ToProto(req->mutable_attributes(), runtimeParamsTemplate->GetRegisteredKeys());
         batchReq->AddRequest(req, "get_runtime_params");
     }
 

@@ -1624,7 +1624,9 @@ private:
         SetTransactionId(req, options, true);
         SetSuppressAccessTracking(req, options);
 
-        ToProto(req->mutable_attribute_filter(), options.AttributeFilter);
+        if (options.Attributes) {
+            ToProto(req->mutable_attributes(), *options.Attributes);
+        }
         if (options.MaxSize) {
             req->set_limit(*options.MaxSize);
         }
@@ -1690,7 +1692,9 @@ private:
         SetTransactionId(req, options, true);
         SetSuppressAccessTracking(req, options);
 
-        ToProto(req->mutable_attribute_filter(), options.AttributeFilter);
+        if (options.Attributes) {
+            ToProto(req->mutable_attributes(), *options.Attributes);
+        }
         if (options.MaxSize) {
             req->set_limit(*options.MaxSize);
         }

@@ -4,6 +4,7 @@
 #include "node_detail.h"
 #include "ypath_client.h"
 #include "ypath_detail.h"
+#include "ypath_service.h"
 
 #include <yt/core/yson/tokenizer.h>
 #include <yt/core/yson/async_writer.h>
@@ -60,17 +61,15 @@ void TVirtualMapBase::GetSelf(TReqGet* request, TRspGet* response, TCtxGetPtr co
 {
     YASSERT(!NYson::TTokenizer(GetRequestYPath(context->RequestHeader())).ParseNext());
 
-    auto attributeFilter = request->has_attribute_filter()
-        ? FromProto<TAttributeFilter>(request->attribute_filter())
-        : TAttributeFilter::None;
+    auto attributeKeys = request->has_attributes()
+        ? MakeNullable(NYT::FromProto<std::vector<Stroka>>(request->attributes()))
+        : Null;
 
     i64 limit = request->has_limit()
         ? request->limit()
         : DefaultVirtualChildLimit;
 
-    context->SetRequestInfo("AttributeFilterMode: %v, Limit: %v",
-        attributeFilter.Mode,
-        limit);
+    context->SetRequestInfo("Limit: %v", limit);
 
     auto keys = GetKeys(limit);
     i64 size = GetSize();
@@ -83,7 +82,7 @@ void TVirtualMapBase::GetSelf(TReqGet* request, TRspGet* response, TCtxGetPtr co
         writer.OnBooleanScalar(true);
     }
     if (OwningNode_) {
-        OwningNode_->WriteAttributesFragment(&writer, attributeFilter, false);
+        OwningNode_->WriteAttributesFragment(&writer, attributeKeys, false);
     }
     writer.OnEndAttributes();
 
@@ -92,7 +91,7 @@ void TVirtualMapBase::GetSelf(TReqGet* request, TRspGet* response, TCtxGetPtr co
         auto service = FindItemService(key);
         if (service) {
             writer.OnKeyedItem(key);
-            service->WriteAttributes(&writer, attributeFilter, false);
+            service->WriteAttributes(&writer, attributeKeys, false);
             writer.OnEntity();
         }
     }
@@ -110,17 +109,15 @@ void TVirtualMapBase::GetSelf(TReqGet* request, TRspGet* response, TCtxGetPtr co
 
 void TVirtualMapBase::ListSelf(TReqList* request, TRspList* response, TCtxListPtr context)
 {
-    auto attributeFilter = request->has_attribute_filter()
-        ? FromProto<TAttributeFilter>(request->attribute_filter())
-        : TAttributeFilter::None;
+    auto attributeKeys = request->has_attributes()
+        ? MakeNullable(FromProto<std::vector<Stroka>>(request->attributes()))
+        : Null;
 
     i64 limit = request->has_limit()
         ? request->limit()
         : DefaultVirtualChildLimit;
 
-    context->SetRequestInfo("AttributeFilterMode: %v, Limit: %v",
-        attributeFilter.Mode,
-        limit);
+    context->SetRequestInfo("Limit: %v", limit);
 
     auto keys = GetKeys(limit);
     i64 size = GetSize();
@@ -139,7 +136,7 @@ void TVirtualMapBase::ListSelf(TReqList* request, TRspList* response, TCtxListPt
         auto service = FindItemService(key);
         if (service) {
             writer.OnListItem();
-            service->WriteAttributes(&writer, attributeFilter, false);
+            service->WriteAttributes(&writer, attributeKeys, false);
             writer.OnStringScalar(key);
         }
     }
@@ -244,7 +241,7 @@ public:
 
     virtual void WriteAttributesFragment(
         IAsyncYsonConsumer* /*consumer*/,
-        const TAttributeFilter& /*filter*/,
+        const TNullable<std::vector<Stroka>>& /*attributeKeys*/,
         bool /*sortKeys*/) override
     { }
 

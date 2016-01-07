@@ -13,42 +13,19 @@
 #include <yt/core/yson/consumer.h>
 
 namespace NYT {
+
+////////////////////////////////////////////////////////////////////////////////
+
+void ToProto(NYTree::NProto::TAttributeKeys* protoAttributes, const std::vector<Stroka>& attributes);
+void FromProto(std::vector<Stroka>* attributes, const NYTree::NProto::TAttributeKeys& protoAttributes);
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT
+
+
+namespace NYT {
 namespace NYTree {
-
-////////////////////////////////////////////////////////////////////////////////
-
-//! Describes an attribute filtering mode.
-DEFINE_ENUM(EAttributeFilterMode,
-    // Accept all attributes.
-    (All)
-    // Don't accept any attribute.
-    (None)
-    // Accept only matching attributes.
-    (MatchingOnly)
-);
-
-//! Describes a filtering criteria for attributes.
-/*!
- *  If #Mode is |All| or |None| then act accordingly.
- *  If #Mode is |MatchingOnly| then only accept keys listed in #Keys.
- */
-struct TAttributeFilter
-{
-    TAttributeFilter();
-    TAttributeFilter(EAttributeFilterMode mode, const std::vector<Stroka>& keys);
-    explicit TAttributeFilter(EAttributeFilterMode mode);
-
-    EAttributeFilterMode Mode;
-    std::vector<Stroka> Keys;
-
-    static const TAttributeFilter All;
-    static const TAttributeFilter None;
-};
-
-void ToProto(NProto::TAttributeFilter* protoFilter, const TAttributeFilter& filter);
-void FromProto(TAttributeFilter* filter, const NProto::TAttributeFilter& protoFilter);
-
-////////////////////////////////////////////////////////////////////////////////
 
 //! Represents an abstract way of handling YPath requests.
 /*!
@@ -112,8 +89,11 @@ struct IYPathService
      */
     virtual void WriteAttributesFragment(
         NYson::IAsyncYsonConsumer* consumer,
-        const TAttributeFilter& filter,
+        const TNullable<std::vector<Stroka>>& attributeKeys,
         bool sortKeys) = 0;
+
+    //! Manages strategy of writing attributes if attribute keys are null.
+    virtual bool ShouldHideAttributes();
 
     // Extension methods
 
@@ -135,9 +115,8 @@ struct IYPathService
     //! If WriteAttributesFragment writes nothing then this method also does nothing.
     void WriteAttributes(
         NYson::IAsyncYsonConsumer* consumer,
-        const TAttributeFilter& filter,
+        const TNullable<std::vector<Stroka>>& attributeKeys,
         bool sortKeys);
-
 };
 
 DEFINE_REFCOUNTED_TYPE(IYPathService)

@@ -552,9 +552,8 @@ private:
             auto batchReq = Owner->StartBatchRequest();
             {
                 auto req = TYPathProxy::List("//sys/operations");
-                auto* attributeFilter = req->mutable_attribute_filter();
-                attributeFilter->set_mode(static_cast<int>(EAttributeFilterMode::MatchingOnly));
-                attributeFilter->add_keys("state");
+                std::vector<Stroka> attributeKeys{"state"};
+                ToProto(req->mutable_attributes(), attributeKeys);
                 batchReq->AddRequest(req, "list_operations");
             }
 
@@ -590,20 +589,20 @@ private:
                 for (const auto& operationId : OperationIds) {
                     auto req = TYPathProxy::Get(GetOperationPath(operationId));
                     // Keep in sync with CreateOperationFromAttributes.
-                    auto* attributeFilter = req->mutable_attribute_filter();
-                    attributeFilter->set_mode(static_cast<int>(EAttributeFilterMode::MatchingOnly));
-                    attributeFilter->add_keys("operation_type");
-                    attributeFilter->add_keys("mutation_id");
-                    attributeFilter->add_keys("user_transaction_id");
-                    attributeFilter->add_keys("sync_scheduler_transaction_id");
-                    attributeFilter->add_keys("async_scheduler_transaction_id");
-                    attributeFilter->add_keys("input_transaction_id");
-                    attributeFilter->add_keys("output_transaction_id");
-                    attributeFilter->add_keys("spec");
-                    attributeFilter->add_keys("authenticated_user");
-                    attributeFilter->add_keys("start_time");
-                    attributeFilter->add_keys("state");
-                    attributeFilter->add_keys("suspended");
+                    std::vector<Stroka> attributeKeys{
+                        "operation_type",
+                        "mutation_id",
+                        "user_transaction_id",
+                        "sync_scheduler_transaction_id",
+                        "async_scheduler_transaction_id",
+                        "input_transaction_id",
+                        "output_transaction_id",
+                        "spec",
+                        "authenticated_user",
+                        "start_time",
+                        "state",
+                        "suspended"};
+                    ToProto(req->mutable_attributes(), attributeKeys);
                     batchReq->AddRequest(req, "get_op_attr");
                 }
             }

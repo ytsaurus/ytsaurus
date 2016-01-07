@@ -74,7 +74,7 @@ TYsonString ConvertToYsonStringStable(INodePtr node)
     VisitTree(
         node,
         &writer,
-        TAttributeFilter::All,
+        Null,
         true); // truth matters :)
     return TYsonString(stream.Str(), EYsonType::Node);
 }

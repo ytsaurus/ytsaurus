@@ -161,12 +161,12 @@ private:
 
             auto req = TCypressYPathProxy::Get(objectIdPath);
             SetTransactionId(req, UploadTransaction_);
-            TAttributeFilter attributeFilter(EAttributeFilterMode::MatchingOnly);
-            attributeFilter.Keys.push_back("replication_factor");
-            attributeFilter.Keys.push_back("account");
-            attributeFilter.Keys.push_back("compression_codec");
-            attributeFilter.Keys.push_back("erasure_codec");
-            ToProto(req->mutable_attribute_filter(), attributeFilter);
+            std::vector<Stroka> attributeKeys{
+                "replication_factor",
+                "account",
+                "compression_codec",
+                "erasure_codec"};
+            ToProto(req->mutable_attributes(), attributeKeys);
 
             auto rspOrError = WaitFor(proxy.Execute(req));
             THROW_ERROR_EXCEPTION_IF_FAILED(

@@ -25,11 +25,11 @@ class TTreeVisitor
 public:
     TTreeVisitor(
         IAsyncYsonConsumer* consumer,
-        const TAttributeFilter& attributeFilter,
+        const TNullable<std::vector<Stroka>>& attributeKeys,
         bool sortKeys,
         bool ignoreOpaque)
         : Consumer(consumer)
-        , AttributeFilter(attributeFilter)
+        , AttributeKeys(attributeKeys)
         , SortKeys(sortKeys)
         , IgnoreOpaque(ignoreOpaque)
     { }
@@ -41,14 +41,14 @@ public:
 
 private:
     IAsyncYsonConsumer* const Consumer;
-    const TAttributeFilter AttributeFilter;
+    const TNullable<std::vector<Stroka>> AttributeKeys;
     const bool SortKeys;
     const bool IgnoreOpaque;
 
 
     void VisitAny(const INodePtr& node, bool isRoot = false)
     {
-        node->WriteAttributes(Consumer, AttributeFilter, SortKeys);
+        node->WriteAttributes(Consumer, AttributeKeys, SortKeys);
 
         if (!isRoot &&
             !IgnoreOpaque &&
@@ -156,7 +156,7 @@ private:
 void VisitTree(
     INodePtr root,
     IYsonConsumer* consumer,
-    const TAttributeFilter& attributeFilter,
+    const TNullable<std::vector<Stroka>>& attributeKeys,
     bool sortKeys,
     bool ignoreOpaque)
 {
@@ -164,7 +164,7 @@ void VisitTree(
     VisitTree(
         std::move(root),
         &adapter,
-        attributeFilter,
+        attributeKeys,
         sortKeys,
         ignoreOpaque);
 }
@@ -172,13 +172,13 @@ void VisitTree(
 void VisitTree(
     INodePtr root,
     IAsyncYsonConsumer* consumer,
-    const TAttributeFilter& attributeFilter,
+    const TNullable<std::vector<Stroka>>& attributeKeys,
     bool sortKeys,
     bool ignoreOpaque)
 {
     TTreeVisitor treeVisitor(
         consumer,
-        attributeFilter,
+        attributeKeys,
         sortKeys,
         ignoreOpaque);
     treeVisitor.Visit(root);

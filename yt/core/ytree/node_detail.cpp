@@ -37,9 +37,9 @@ bool TNodeBase::DoInvoke(IServiceContextPtr context)
 
 void TNodeBase::GetSelf(TReqGet* request, TRspGet* response, TCtxGetPtr context)
 {
-    auto attributeFilter = request->has_attribute_filter()
-        ? NYT::FromProto<TAttributeFilter>(request->attribute_filter())
-        : TAttributeFilter::None;
+    auto attributeKeys = request->has_attributes()
+        ? MakeNullable(NYT::FromProto<std::vector<Stroka>>(request->attributes()))
+        : Null;
 
     // TODO(babenko): make use of limit
     auto limit = request->has_limit()
@@ -48,8 +48,7 @@ void TNodeBase::GetSelf(TReqGet* request, TRspGet* response, TCtxGetPtr context)
 
     bool ignoreOpaque = request->ignore_opaque();
 
-    context->SetRequestInfo("AttributeFilterMode: %v, Limit: %v, IgnoreOpaque: %v",
-        attributeFilter.Mode,
+    context->SetRequestInfo("Limit: %v, IgnoreOpaque: %v",
         limit,
         ignoreOpaque);
 
@@ -60,7 +59,7 @@ void TNodeBase::GetSelf(TReqGet* request, TRspGet* response, TCtxGetPtr context)
     VisitTree(
         this,
         &writer,
-        attributeFilter,
+        attributeKeys,
         false,
         ignoreOpaque);
 
@@ -251,17 +250,15 @@ void TMapNodeMixin::ListSelf(TReqList* request, TRspList* response, TCtxListPtr 
 {
     ValidatePermission(EPermissionCheckScope::This, EPermission::Read);
 
-    auto attributeFilter = request->has_attribute_filter()
-        ? NYT::FromProto<TAttributeFilter>(request->attribute_filter())
-        : TAttributeFilter::None;
+    auto attributeKeys = request->has_attributes()
+        ? MakeNullable(NYT::FromProto<std::vector<Stroka>>(request->attributes()))
+        : Null;
 
     auto limit = request->has_limit()
         ? MakeNullable(request->limit())
         : Null;
 
-    context->SetRequestInfo("AttributeFilterMode: %v, Limit: %v",
-        attributeFilter.Mode,
-        limit);
+    context->SetRequestInfo("Limit: %v", limit);
 
     TAsyncYsonWriter writer;
 
@@ -280,7 +277,7 @@ void TMapNodeMixin::ListSelf(TReqList* request, TRspList* response, TCtxListPtr 
         const auto& key = pair.first;
         const auto& node = pair.second;
         writer.OnListItem();
-        node->WriteAttributes(&writer, attributeFilter, false);
+        node->WriteAttributes(&writer, attributeKeys, false);
         writer.OnStringScalar(key);
         if (limit && ++counter >= *limit) {
             break;

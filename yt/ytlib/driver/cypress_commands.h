@@ -16,13 +16,12 @@ class TGetCommand
 {
 private:
     NYPath::TRichYPath Path;
-    std::vector<Stroka> Attributes;
 
 public:
     TGetCommand()
     {
         RegisterParameter("path", Path);
-        RegisterParameter("attributes", Attributes)
+        RegisterParameter("attributes", Options.Attributes)
             .Optional();
         // TODO(babenko): rename to "limit"
         RegisterParameter("max_size", Options.MaxSize)
@@ -76,13 +75,12 @@ class TListCommand
 {
 private:
     NYPath::TRichYPath Path;
-    std::vector<Stroka> Attributes;
 
 public:
     TListCommand()
     {
         RegisterParameter("path", Path);
-        RegisterParameter("attributes", Attributes)
+        RegisterParameter("attributes", Options.Attributes)
             .Optional();
         // TODO(babenko): rename to "limit"
         RegisterParameter("max_size", Options.MaxSize)
