@@ -542,6 +542,27 @@ class TestTables(YTEnvSetup):
         chunk_id = chunk_ids[0]
         assert get("#" + chunk_id + "/@replication_factor") == 2
 
+    def test_replication_factor_recalculated_on_remove(self):
+        create("table", "//tmp/t1", attributes={"replication_factor": 1})
+        write_table("//tmp/t1", {"foo" : "bar"})
+
+        chunk_ids = get("//tmp/t1/@chunk_ids")
+        assert len(chunk_ids) == 1
+        chunk_id = chunk_ids[0]
+        
+        assert get("#" + chunk_id + "/@replication_factor") == 1
+
+        copy("//tmp/t1", "//tmp/t2")
+        set("//tmp/t2/@replication_factor", 2)
+
+        sleep(0.2)
+        assert get("#" + chunk_id + "/@replication_factor") == 2
+        
+        remove("//tmp/t2")
+        
+        sleep(0.2)
+        assert get("#" + chunk_id + "/@replication_factor") == 1
+
     def test_recursive_resource_usage(self):
         create("table", "//tmp/t1")
         write_table("//tmp/t1", {"a": "b"})

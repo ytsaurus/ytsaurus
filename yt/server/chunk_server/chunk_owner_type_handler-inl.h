@@ -3,6 +3,7 @@
 #endif
 
 #include "helpers.h"
+#include "chunk_manager.h"
 
 #include <yt/server/cypress_server/node_detail.h>
 
@@ -104,11 +105,17 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoDestroy(TChunkOwner* node)
 {
     TBase::DoDestroy(node);
 
-    auto objectManager = TBase::Bootstrap_->GetObjectManager();
-
     auto* chunkList = node->GetChunkList();
     if (chunkList) {
+        auto hydraManager = TBase::Bootstrap_->GetHydraFacade()->GetHydraManager();
+        if (hydraManager->IsLeader()) {
+            auto chunkManager = TBase::Bootstrap_->GetChunkManager();
+            chunkManager->ScheduleChunkPropertiesUpdate(chunkList);
+        }
+        
         YCHECK(chunkList->OwningNodes().erase(node) == 1);
+
+        auto objectManager = TBase::Bootstrap_->GetObjectManager();
         objectManager->UnrefObject(chunkList);
     }
 }
