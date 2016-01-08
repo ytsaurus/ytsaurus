@@ -30,9 +30,7 @@ void UnwindFiber(TFiberPtr fiber)
 {
     fiber->GetCanceler().Run();
 
-    BIND(&ResumeFiber, Passed(std::move(fiber)))
-        .Via(GetFinalizerInvoker())
-        .Run();
+    GetFinalizerInvoker()->Invoke(BIND(&ResumeFiber, Passed(std::move(fiber))));
 }
 
 void CheckForCanceledFiber(TFiber* fiber)
