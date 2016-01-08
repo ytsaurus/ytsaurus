@@ -358,7 +358,7 @@ public:
             return;
         }
 
-		int backlogSize = Profiler.Increment(BacklogEventCounter_);
+        int backlogSize = Profiler.Increment(BacklogEventCounter_);
         Profiler.Increment(EnqueuedEventCounter_);
         PushLogEvent(std::move(event));
 
