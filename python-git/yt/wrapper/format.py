@@ -286,13 +286,19 @@ class YsonFormat(Format):
     .. seealso:: `YSON on wiki <https://wiki.yandex-team.ru/yt/userdoc/formats#yson>`_
     """
 
-    def __init__(self, format=None, process_table_index=True, ignore_inner_attributes=None, boolean_as_string=None,
+    def __init__(self, format=None, process_table_index=True, control_attributes_mode="iterator",
+                 ignore_inner_attributes=None, boolean_as_string=None,
                  table_index_column="@table_index", attributes=None, raw=None, always_create_attributes=None):
         """
         :param format: (one of "text" (default), "pretty", "binary") output format \
         (actual only for output).
-        :param process_table_index: (bool) process input and output table switchers in `dump_rows`\
+        :param process_table_index: DEPRECATED! (bool) process input and output table switchers in `dump_rows`\
          and `load_rows`. `See also <https://wiki.yandex-team.ru/yt/userdoc/tableswitch#yson>`_
+        :param control_attributes_mode: (str) mode of processing rows with control attributes, must be "row_fields" or "iterator" or "none".
+        In "row_fields" mode attributes are put in the regular rows with as "@row_index", "@range_index" and "@table_index".
+        Also "@table_index" key is parsed from output rows.
+        In "iterator" mode attributes rows object is iterator and control attributes are available as fields of the iterator.
+        In "none" mode rows are unmodified.
         """
         defaults = {"boolean_as_string": True,
                     "ignore_inner_attributes": False,
@@ -305,6 +311,9 @@ class YsonFormat(Format):
         all_attributes = Format._make_attributes(get_value(attributes, {}), defaults, options)
         super(YsonFormat, self).__init__("yson", all_attributes, raw)
         self.process_table_index = process_table_index
+        if control_attributes_mode not in ["row_fields", "iterator", "none"]:
+            raise YtError("Incorrect control_attributes_mode")
+        self.control_attributes_mode = control_attributes_mode
         self.table_index_column = table_index_column
 
     def _check_bindings(self):
@@ -315,19 +324,73 @@ class YsonFormat(Format):
         raise YtFormatError("load_row is not supported in Yson")
 
     def _process_input_rows(self, rows):
-        table_index = 0
-        for row in rows:
-            if isinstance(row, yson.YsonEntity):
-                try:
-                    table_index = row.attributes["table_index"]
-                except KeyError:
-                    raise YtError("Wrong table switcher in Yson rows")
-                continue
+        def generator():
+            table_index = 0
+            row_index = None
+            range_index = None
+            for row in rows:
+                if isinstance(row, yson.YsonEntity):
+                    if "table_index" in row.attributes:
+                        table_index = row.attributes["table_index"]
+                    if "row_index" in row.attributes:
+                        row_index = row.attributes["row_index"]
+                    if "range_index" in row.attributes:
+                        range_index = row.attributes["range_index"]
+                    continue
 
-            # TODO(ignat): Deprecated!
-            row["input_table_index"] = table_index
-            row[self.table_index_column] = table_index
-            yield row
+                # TODO(ignat): Deprecated!
+                row["input_table_index"] = table_index
+                row[self.table_index_column] = table_index
+                if range_index is not None:
+                    row["@range_index"] = range_index
+                if row_index is not None:
+                    row["@row_index"] = row_index
+
+                yield row
+
+                if row_index is not None:
+                    row_index += 1
+
+        class Iterator(object):
+            def __init__(self):
+                self.table_index = None
+                self.row_index = None
+                self.range_index = None
+                self._increment_row_index = False
+
+            def next(self):
+                for row in rows:
+                    if isinstance(row, yson.YsonEntity):
+                        self._increment_row_index = False
+                        if "table_index" in row.attributes:
+                            self.table_index = row.attributes["table_index"]
+                        if "row_index" in row.attributes:
+                            self.row_index = row.attributes["row_index"]
+                        if "range_index" in row.attributes:
+                            self.range_index = row.attributes["range_index"]
+                        continue
+                    else:
+                        if self._increment_row_index and self.row_index is not None:
+                            self.row_index += 1
+                        self._increment_row_index = True
+                        return row
+
+                raise StopIteration
+
+            def __iter__(self):
+                return self
+
+        if self.process_table_index is None:
+            if self.control_attributes_mode == "row_fields":
+                return generator()
+            elif self.control_attributes_mode == "iterator":
+                return Iterator()
+            else:
+                return rows
+        elif self.process_table_index:
+            return generator()
+        else:
+            return rows
 
     def load_rows(self, stream, raw=None):
         self._check_bindings()
@@ -338,10 +401,7 @@ class YsonFormat(Format):
         if raw:
             return rows
         else:
-            if self.process_table_index:
-                return self._process_input_rows(rows)
-            else:
-                return rows
+            return self._process_input_rows(rows)
 
     def _dump_row(self, row, stream):
         self._check_bindings()
@@ -366,7 +426,7 @@ class YsonFormat(Format):
 
     def _dump_rows(self, rows, stream):
         self._check_bindings()
-        if self.process_table_index:
+        if (self.process_table_index is None and self.control_attributes_mode == "row_fields") or self.process_table_index:
             rows = self._process_output_rows(rows)
 
         kwargs = {}
@@ -800,3 +860,9 @@ def set_yamr_mode(client=None):
             continue
         config["yamr_mode"][option] = True
     config["tabular_data_format"] = YamrFormat(has_subkey=True, lenval=False)
+
+def create_table_switch(table_index):
+    table_switch = yson.YsonEntity()
+    table_switch.attributes["table_index"] = table_index
+    return table_switch
+
