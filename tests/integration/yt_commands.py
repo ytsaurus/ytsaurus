@@ -133,7 +133,7 @@ def execute_command_with_output_format(command_name, kwargs, input_stream=None):
 
 def multicell_sleep():
     if is_multicell:
-        time.sleep(0.2)
+        time.sleep(0.5)
 
 def dump_job_context(job_id, path, **kwargs):
     kwargs["job_id"] = job_id
