@@ -34,7 +34,7 @@ TAttributeFilter::TAttributeFilter(
     EAttributeFilterMode mode,
     const std::vector<Stroka>& keys)
     : Mode(mode)
-      , Keys(keys)
+    , Keys(keys)
 { }
 
 TAttributeFilter::TAttributeFilter(EAttributeFilterMode mode)
