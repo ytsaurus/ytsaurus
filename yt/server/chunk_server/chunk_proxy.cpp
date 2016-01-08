@@ -316,6 +316,8 @@ private:
                         fluent
                             .Item(ToString(cellTag)).BeginMap()
                                 .Item("ref_counter").Value(exportData.RefCounter)
+                                .Item("vital").Value(exportData.Vital)
+                                .Item("replication_factor").Value(exportData.ReplicationFactor)
                             .EndMap();
                     }
                 });
