@@ -73,7 +73,9 @@ IInvokerPtr GetNullInvoker()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static std::atomic<bool> FinalizerThreadIsDead = {false};
+static std::atomic<bool> FinalizerThreadShutdownStarted = {false};
+static std::atomic<bool> FinalizerThreadShutdownFinished = {false};
+static const int FinalizerThreadShutdownSpinCount = 100;
 
 static TActionQueuePtr GetFinalizerThread()
 {
@@ -83,26 +85,30 @@ static TActionQueuePtr GetFinalizerThread()
 
 IInvokerPtr GetFinalizerInvoker()
 {
-    if (!FinalizerThreadIsDead.load(std::memory_order_relaxed)) {
-        return GetFinalizerThread()->GetInvoker();
-    } else {
-        return GetSyncInvoker();
+    if (FinalizerThreadShutdownFinished) {
+        return GetNullInvoker();
     }
+
+    return GetFinalizerThread()->GetInvoker();
 }
 
 void ShutdownFinalizerThread()
 {
     bool expected = false;
-    if (FinalizerThreadIsDead.compare_exchange_strong(expected, true)) {
-        auto thread = GetFinalizerThread();
-        auto invoker = thread->GetInvoker();
-        // Spin for a while to flush pending actions.
-        for (int i = 0; i < 100; ++i) {
-            BIND([] () { }).AsyncVia(invoker).Run().Get();
-        }
-        // Now shutdown finalizer thread.
-        thread->Shutdown();
+    if (!FinalizerThreadShutdownStarted.compare_exchange_strong(expected, true)) {
+        return;
     }
+
+    auto thread = GetFinalizerThread();
+    auto invoker = thread->GetInvoker();
+    // Spin for a while to give pending actions a chance to complete.
+    for (int i = 0; i < FinalizerThreadShutdownSpinCount; ++i) {
+        BIND([] () { }).AsyncVia(invoker).Run().Get();
+    }
+
+    // Now shutdown the finalizer thread.
+    FinalizerThreadShutdownFinished = true;
+    thread->Shutdown();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
