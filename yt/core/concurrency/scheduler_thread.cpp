@@ -273,7 +273,7 @@ bool TSchedulerThread::FiberMainStep(ui64 spawnedEpoch)
         return false;
     }
 
-    // Protocal is that BeginExecute() returns `Success` or `Terminated`
+    // The protocol is that BeginExecute() returns `Success` or `Terminated`
     // if CancelWait was called. Otherwise, it returns `QueueEmpty` requesting
     // to block until a notification.
     auto result = BeginExecute();
