@@ -23,8 +23,8 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TAttributeFilter TAttributeFilter::All(EAttributeFilterMode::All, std::vector<Stroka>());
-TAttributeFilter TAttributeFilter::None(EAttributeFilterMode::None, std::vector<Stroka>());
+const TAttributeFilter TAttributeFilter::All(EAttributeFilterMode::All, std::vector<Stroka>());
+const TAttributeFilter TAttributeFilter::None(EAttributeFilterMode::None, std::vector<Stroka>());
 
 TAttributeFilter::TAttributeFilter()
     : Mode(EAttributeFilterMode::None)

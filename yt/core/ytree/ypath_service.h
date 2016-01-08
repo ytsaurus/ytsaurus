@@ -41,8 +41,8 @@ struct TAttributeFilter
     EAttributeFilterMode Mode;
     std::vector<Stroka> Keys;
 
-    static TAttributeFilter All;
-    static TAttributeFilter None;
+    static const TAttributeFilter All;
+    static const TAttributeFilter None;
 };
 
 void ToProto(NProto::TAttributeFilter* protoFilter, const TAttributeFilter& filter);
