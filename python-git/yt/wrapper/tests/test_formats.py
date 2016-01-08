@@ -71,18 +71,44 @@ def test_yson_format():
 
 def test_yson_table_switch():
     format = yt.YsonFormat(format="text")
-    input = '{"a"=1};\n<"table_index"=1>#;\n{"a"=1};\n'
+    input = '<"row_index"=0>#;{"a"=1};\n<"table_index"=1>#;\n{"a"=1};{"b"=2}\n'
 
     yson_rows = format.load_rows(StringIO(input))
     parsed_rows = [dict(yson) for yson in yson_rows]
-    true_input_rows = [{'a': 1, 'input_table_index': 0, '@table_index': 0}, {'a': 1, '@table_index': 1, 'input_table_index': 1}]
+    true_input_rows = [{'a': 1, 'input_table_index': 0, '@table_index': 0, "@row_index": 0}, 
+                       {'a': 1, '@table_index': 1, 'input_table_index': 1, "@row_index": 1},
+                       {'b': 2, '@table_index': 1, 'input_table_index': 1, "@row_index": 2}]
     assert true_input_rows == parsed_rows
-    output_rows = [{'a': 1}, {'a': 1, '@table_index': 1}]
+    output_rows = [{'a': 1}, {'a': 1, '@table_index': 1}, {'b': 2, '@table_index': 1}]
     stream = StringIO()
     format.dump_rows(output_rows, stream)
     dumped_output = stream.getvalue()
     # COMPAT: '.replace(";}", "}")' and '.replace(";>", ">")' is for compatibility with different yson representations in different branches.
-    assert dumped_output.replace(";}", "}").replace(";>", ">") == input
+    assert dumped_output.replace(";}", "}").replace(";>", ">") == '{"a"=1};\n<"table_index"=1>#;\n{"a"=1};\n{"b"=2};\n'
+
+def test_yson_iterator_mode():
+    format = yt.YsonFormat(process_table_index=None, control_attributes_mode="iterator")
+    input = '<"row_index"=0>#;<"range_index"=0>#;\n{"a"=1};\n<"row_index"=2>#;<"range_index"=3>#;<"table_index"=1>#;\n{"a"=1};\n{"b"=2};\n'
+
+    iterator = format.load_rows(StringIO(input))
+    assert iterator.table_index is None
+    assert iterator.row_index is None
+    assert iterator.range_index is None
+    assert iterator.next() == {"a": 1}
+    assert iterator.table_index is None
+    assert iterator.row_index == 0
+    assert iterator.range_index == 0
+    assert iterator.next() == {"a": 1}
+    assert iterator.table_index == 1
+    assert iterator.row_index == 2
+    assert iterator.range_index == 3
+    assert iterator.next() == {"b": 2}
+    assert iterator.table_index == 1
+    assert iterator.row_index == 3
+    assert iterator.range_index == 3
+    with pytest.raises(StopIteration):
+        iterator.next()
+
 
 def test_dsv_format():
     format = yt.DsvFormat()
