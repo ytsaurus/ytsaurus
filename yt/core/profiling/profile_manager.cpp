@@ -88,7 +88,11 @@ public:
         }
 
         SampleQueue.Enqueue(sample);
-        EventCount->NotifyOne();
+
+        bool expected = false;
+        if (Notified_.compare_exchange_strong(expected, true)) {
+            EventCount->NotifyOne();
+        }
     }
 
 
@@ -286,6 +290,7 @@ private:
     };
 
     const std::shared_ptr<TEventCount> EventCount = std::make_shared<TEventCount>();
+    std::atomic<bool> Notified_ = {false};
     volatile bool WasStarted;
     volatile bool WasShutdown;
     TInvokerQueuePtr Queue;

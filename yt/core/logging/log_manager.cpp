@@ -361,8 +361,12 @@ public:
 		int backlogSize = Profiler.Increment(BacklogEventCounter_);
         Profiler.Increment(EnqueuedEventCounter_);
         PushLogEvent(std::move(event));
-        EventCount_->NotifyOne();
 
+        bool expected = false;
+        if (Notified_.compare_exchange_strong(expected, true)) {
+            EventCount_->NotifyOne();
+        }
+        
         if (!Suspended_ && backlogSize == Config_->HighBacklogWatermark) {
             LOG_WARNING("Backlog size has exceeded high watermark %v, logging suspended",
                 Config_->HighBacklogWatermark);
@@ -439,6 +443,7 @@ private:
         int eventsWritten = 0;
         bool empty = true;
 
+        Notified_ = false;
         while (LoggerQueue_.DequeueAll(true, [&] (TLoggerQueueItem& eventOrConfig) {
                 if (empty) {
                     EventCount_->CancelWait();
@@ -698,6 +703,7 @@ private:
     }
 
     const std::shared_ptr<TEventCount> EventCount_ = std::make_shared<TEventCount>();
+    std::atomic<bool> Notified_ = {false};
     const TInvokerQueuePtr EventQueue_;
 
     TIntrusivePtr<TThread> LoggingThread_;

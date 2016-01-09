@@ -1377,10 +1377,8 @@ void TChunkReplicator::SchedulePropertiesUpdate(TChunkList* chunkList)
             return true;
         }
 
-        virtual void OnError(const TError& error) override
-        {
-            LOG_ERROR(error, "Error traversing chunk tree for properties update");
-        }
+        virtual void OnError(const TError& /*error*/) override
+        { }
 
         virtual void OnFinish() override
         { }
