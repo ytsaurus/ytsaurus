@@ -157,6 +157,9 @@ def make_read_request(command_name, path, params, process_response_action, retri
 
             def execute_read(self):
                 params = self.retriable_state.prepare_params_for_retry()
+                # XXX(ignat): special hack to correctly process zero legnth file reads.
+                if params.get("length") == 0:
+                    return
                 make_request = lambda: _make_transactional_request(
                     command_name,
                     params,
