@@ -1327,13 +1327,6 @@ private:
 
         GenerateMutationId(batchReq);
 
-        // Set state.
-        {
-            auto req = TYPathProxy::Set(operationPath + "/@state");
-            req->set_value(ConvertToYsonString(operation->GetState()).Data());
-            batchReq->AddRequest(req, "update_op_node");
-        }
-
         // Set suspended flag.
         {
             auto req = TYPathProxy::Set(operationPath + "/@suspended");
@@ -1376,6 +1369,13 @@ private:
         if (operation->GetFinishTime()) {
             auto req = TYPathProxy::Set(operationPath + "/@finish_time");
             req->set_value(ConvertToYsonString(operation->GetFinishTime().Get()).Data());
+            batchReq->AddRequest(req, "update_op_node");
+        }
+
+        // Set state.
+        {
+            auto req = TYPathProxy::Set(operationPath + "/@state");
+            req->set_value(ConvertToYsonString(operation->GetState()).Data());
             batchReq->AddRequest(req, "update_op_node");
         }
     }
