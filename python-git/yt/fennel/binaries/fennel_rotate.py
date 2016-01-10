@@ -45,9 +45,12 @@ def get_disk_space_per_row(table):
 
 def get_archive_disk_space_ratio(example_of_archived_table):
     event_log_disk_space_per_row = get_disk_space_per_row("event_log")
-    archive_disk_space_per_row = get_disk_space_per_row(example_of_archived_table)
+    if yt.exists(example_of_archived_table):
+        archive_disk_space_per_row = get_disk_space_per_row(example_of_archived_table)
+    else:
+        archive_disk_space_per_row = 0
     if archive_disk_space_per_row == 0 or event_log_disk_space_per_row == 0:
-        return 0.1
+        return 0.2
     else:
         return float(archive_disk_space_per_row) / event_log_disk_space_per_row
 
@@ -67,7 +70,7 @@ def get_possible_size_to_archive():
 
 def get_desired_row_count_to_archive(desired_archive_size, example_of_archived_table):
     free_archive_size = desired_archive_size
-    if yt.exists("event_log.1"):
+    if yt.exists(example_of_archived_table):
         free_archive_size -= yt.get("event_log.1/@resource_usage/disk_space")
     archive_ratio = get_archive_disk_space_ratio(example_of_archived_table)
     size_to_archive = min(get_possible_size_to_archive(), free_archive_size) / archive_ratio
@@ -132,7 +135,7 @@ def archive_event_log(archive_size_limit):
 
     tables = get_event_log_tables()
     tables.sort(key=get_archive_number)
-    if len(tables) > 0:
+    if len(tables) > 1:
         example_archive = tables[1]
     else:
         example_archive = "event_log.1"
