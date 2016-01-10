@@ -54,9 +54,13 @@ def get_archive_disk_space_ratio(example_of_archived_table):
     else:
         return float(archive_disk_space_per_row) / event_log_disk_space_per_row
 
-def get_archive_compression_ratio():
+def get_archive_compression_ratio(example_of_archived_table):
     try:
-        return yt.get("event_log.1/@compression_ratio")
+        compression_ratio = yt.get(example_of_archived_table + "/@compression_ratio")
+        if compression_ratio > 0.0:
+            return compression_ratio
+        else:
+            return 0.05
     except yt.YtResponseError as err:
         if err.is_resolve_error():
             return 0.05
@@ -70,7 +74,7 @@ def get_possible_size_to_archive():
 
 def get_desired_row_count_to_archive(desired_archive_size, example_of_archived_table):
     free_archive_size = desired_archive_size
-    if yt.exists(example_of_archived_table):
+    if yt.exists("event_log.1"):
         free_archive_size -= yt.get("event_log.1/@resource_usage/disk_space")
     archive_ratio = get_archive_disk_space_ratio(example_of_archived_table)
     size_to_archive = min(get_possible_size_to_archive(), free_archive_size) / archive_ratio
@@ -145,7 +149,7 @@ def archive_event_log(archive_size_limit):
     assert archived_row_count == 0
 
     with yt.Transaction():
-        data_size_per_job = min(10 * 1024 ** 3, int((1024 ** 3) / get_archive_compression_ratio()))
+        data_size_per_job = min(10 * 1024 ** 3, int((1024 ** 3) / get_archive_compression_ratio(example_archive)))
         yt.create("table", "event_log.1", attributes={"erasure_codec": "lrc_12_2_2", "compression_codec": "zlib6"}, ignore_existing=True)
         yt.run_merge(yt.TablePath("event_log", start_index=0, end_index=row_count_to_archive), yt.TablePath("event_log.1", append=True),
                      spec={"force_transform": True, "data_size_per_job": data_size_per_job})
