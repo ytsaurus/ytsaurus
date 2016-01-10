@@ -12,7 +12,7 @@ def get_event_log_tables():
     pattern = re.compile("event_log(\.\d*)?$")
     return [str(obj)
             for obj in yt.list(yt.config.PREFIX[:-1], attributes=["type"])
-            if obj.attributes.get("type") == "table" 
+            if obj.attributes.get("type") == "table"
                 and pattern.match(str(obj))]
 
 def get_archive_number(table):
@@ -65,12 +65,20 @@ def get_archive_compression_ratio(example_of_archived_table):
         if err.is_resolve_error():
             return 0.05
         raise
-    
+
+def get_processed_row_count(attributes=None):
+    if attributes is None:
+        attributes = yt.get("event_log/@")
+    if "processed_row_count" in attributes:
+        return attributes["processed_row_count"]
+    else:
+        return
+
 def get_possible_size_to_archive():
     attributes = yt.get("event_log/@")
     if attributes["row_count"] == 0:
         return 0
-    return (attributes["processed_row_count"] * attributes["resource_usage"]["disk_space"]) / attributes["row_count"]
+    return (get_processed_row_count(attributes) * attributes["resource_usage"]["disk_space"]) / attributes["row_count"]
 
 def get_desired_row_count_to_archive(desired_archive_size, example_of_archived_table):
     free_archive_size = desired_archive_size
@@ -79,11 +87,11 @@ def get_desired_row_count_to_archive(desired_archive_size, example_of_archived_t
     archive_ratio = get_archive_disk_space_ratio(example_of_archived_table)
     size_to_archive = min(get_possible_size_to_archive(), free_archive_size) / archive_ratio
     logger.info("Archive ratio is %f, size to archive is %d", archive_ratio, size_to_archive)
-    
+
     attributes = yt.get("event_log/@")
     if attributes["row_count"] == 0:
         return 0
-    return int(min(attributes["processed_row_count"], (attributes["row_count"] * size_to_archive) / attributes["resource_usage"]["disk_space"]))
+    return int(min(get_processed_row_count(attributes), (attributes["row_count"] * size_to_archive) / attributes["resource_usage"]["disk_space"]))
 
 def fennel_exists():
     try:
@@ -110,9 +118,9 @@ def erase_archived_prefix():
 
         logger.info("Erasing archived prefix of event log table")
 
-        processed_row_count = yt.get("event_log/@processed_row_count")
+        processed_row_count = get_processed_row_count()
 
-        assert archived_row_count <= processed_row_count 
+        assert archived_row_count <= processed_row_count
         try:
             yt.lock("event_log", mode="exclusive")
         except yt.YtResponseError as err:
@@ -122,7 +130,8 @@ def erase_archived_prefix():
             raise
         yt.run_erase(yt.TablePath("event_log", start_index=0, end_index=archived_row_count))
         yt.set("event_log/@archived_row_count", 0)
-        yt.set("event_log/@processed_row_count", processed_row_count - archived_row_count)
+        if yt.exists("event_log/@processed_row_count"):
+            yt.set("event_log/@processed_row_count", processed_row_count - archived_row_count)
 
 def rotate_archives(archive_size_limit, min_portion_to_archive):
     if yt.exists("event_log.1") and get_size("event_log.1") >= archive_size_limit - min_portion_to_archive:
@@ -133,7 +142,7 @@ def rotate_archives(archive_size_limit, min_portion_to_archive):
             if get_prev_table(table) in tables:
                 logger.info("Moving %s to %s", table, get_next_table(table))
                 yt.move(table, get_next_table(table))
-    
+
 def archive_event_log(archive_size_limit):
     logger.info("Archive prefix of event log table")
 
@@ -159,9 +168,10 @@ def main():
     parser = ArgumentParser(description="Script to rotate scheduler event logs")
     parser.add_argument("--archive-size-limit", type=int, default=500 * 1024 ** 3)
     parser.add_argument("--min-portion-to-archive", type=int, default=10 * 1024 ** 3)
+    parser.add_argument("--skip-fennel-check", action="store_true", default=False)
     args = parser.parse_args()
 
-    if not fennel_exists():
+    if not args.skip_fennel_check and not fennel_exists():
         logger.error("Event log is not processed by fennel, it is impossible to safely rotate it")
         return 1
 
