@@ -1264,6 +1264,10 @@ class Application(object):
             if not task.progress or "operations" not in task.progress:
                 continue
             for operation in task.progress["operations"]:
+                # NB: To avoid aborting Hadoop tasks.
+                # TODO(ignat): support aborting Hadoop task.
+                if "id" not in operation:
+                    continue
                 cluster_name, operation_id = operation["cluster_name"], operation["id"]
                 if self._clusters_configuration.clusters[cluster_name]._type != "yt":
                     logger.warning("Transfer manager does not support progress for non-YT cluster, "
