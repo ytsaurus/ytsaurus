@@ -4,7 +4,7 @@ import yt.transfer_manager.client as tm
 from yt.transfer_manager.client.global_client import init_client
 
 from yt.wrapper.cli_helpers import run_main
-from yt.common import YtError, filter_dict, get_value
+from yt.common import YtError, get_value
 import yt.json as json
 import yt.logger as logger
 
@@ -99,30 +99,20 @@ def add_get_task_info_subparser(subparsers):
 
 def get_tasks_func(**kwargs):
     json_output = kwargs.pop("json_output", False)
-    user = kwargs.pop("user", None)
     field = kwargs.pop("field", None)
 
     if field is not None and not json_output:
         raise YtError("--field options can be specified only with --json-output")
 
-    safe_get = lambda task, field: task.get(field, "")
-    user_filter = lambda task: safe_get(task, "user") == user
-
-    tasks = tm.get_tasks(**kwargs)
-    if user is not None:
-        tasks = filter(user_filter, tasks)
+    tasks = tm.get_tasks(fields=field, **kwargs)
 
     if json_output:
-        filtered_tasks = []
-        predicate = lambda k, v: k in field if field is not None else True
-
-        for task in tasks:
-            filtered_tasks.append(filter_dict(predicate, task))
-
-        print json.dumps(filtered_tasks, indent=4)
+        print json.dumps(tasks, indent=4)
     else:
         fields = ["id", "source_table", "source_cluster", "destination_table", "destination_cluster",
                   "user", "state"]
+
+        safe_get = lambda task, field: task.get(field, "")
 
         for task in tasks:
             info = map(partial(safe_get, task), fields)
