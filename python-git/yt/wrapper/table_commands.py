@@ -615,10 +615,11 @@ def read_table(table, format=None, table_reader=None, control_attributes=None, u
                     if format.name() not in ["yson"]:
                         raise YtError("Read table with multiple ranges using retries is supported only in YSON format")
 
-                if "control_attributes" not in params:
-                    params["control_attributes"] = {}
-                params["control_attributes"]["enable_row_index"] = True
-                params["control_attributes"]["enable_range_index"] = True
+                if get_config(client)["read_retries"]["allow_multiple_ranges"]:
+                    if "control_attributes" not in params:
+                        params["control_attributes"] = {}
+                    params["control_attributes"]["enable_row_index"] = True
+                    params["control_attributes"]["enable_range_index"] = True
 
                 if self.range_started and table.name.attributes["ranges"]:
                     table.name.attributes["ranges"][0]["lower_limit"] = {"row_index": self.next_row_index}
