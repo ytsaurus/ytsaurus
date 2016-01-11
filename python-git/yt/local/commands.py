@@ -170,7 +170,7 @@ def _safe_kill(pid):
 def start(masters_count=1, nodes_count=3, schedulers_count=1, start_proxy=True,
           master_config=None, node_config=None, scheduler_config=None, proxy_config=None,
           proxy_port=None, id=None, local_cypress_dir=None, use_proxy_from_yt_source=False,
-          enable_debug_logging=False, tmpfs_path=None, ports_range_start=None, path=None):
+          enable_debug_logging=False, tmpfs_path=None, ports_range_start=None, fqdn=None, path=None):
 
     require(masters_count >= 1, yt.YtError("Cannot start local YT instance without masters"))
 
@@ -216,7 +216,8 @@ def start(masters_count=1, nodes_count=3, schedulers_count=1, start_proxy=True,
                       enable_ui=True,
                       ports_range_start=ports_range_start,
                       # XXX(asaitgalin): For parallel testing purposes.
-                      port_locks_path=os.environ.get("YT_LOCAL_PORT_LOCKS_PATH"))
+                      port_locks_path=os.environ.get("YT_LOCAL_PORT_LOCKS_PATH"),
+                      fqdn=fqdn)
 
     environment.id = sandbox_id
 

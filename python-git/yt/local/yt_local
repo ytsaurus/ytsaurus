@@ -106,6 +106,7 @@ def add_start_subparser(subparsers):
                                              "Will be used to store performance critical parts.")
     parser.add_argument("--ports-range-start", type=int,
                         help="assign ports from continuous range starting from this port number.")
+    parser.add_argument("--fqdn", help="FQDN to use in all addresses. Detected automatically if not specified.")
 
 def add_stop_subparser(subparsers):
     parser = subparsers.add_parser("stop", help="Stop local YT with given id", func=stop)
