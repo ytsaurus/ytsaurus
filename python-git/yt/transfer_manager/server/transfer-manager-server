@@ -621,7 +621,7 @@ class Application(object):
         self._pending_tasks.sort(key=lambda id: self._tasks[id].creation_time)
 
         # Abort tasks operations (TM can fail but operations will go on)
-        self._abort_failed_transfer_manager_operations()
+        self._abort_running_operations()
 
         logger.info("Tasks load")
 
@@ -1259,7 +1259,7 @@ class Application(object):
                     queue_index += 1
         return task_description
 
-    def _abort_failed_transfer_manager_operations(self):
+    def _abort_running_operations(self):
         for task_id, task in self._tasks.iteritems():
             if not task.progress or "operations" not in task.progress:
                 continue
@@ -1269,6 +1269,8 @@ class Application(object):
                 if "id" not in operation:
                     continue
                 cluster_name, operation_id = operation["cluster_name"], operation["id"]
+                if cluster_name not in self._clusters_configuration.clusters:
+                    continue
                 if self._clusters_configuration.clusters[cluster_name]._type != "yt":
                     logger.warning("Transfer manager does not support progress for non-YT cluster, "
                                    "but it unexpectedly found for %s cluster." % self._clusters[cluster_name]._type)
