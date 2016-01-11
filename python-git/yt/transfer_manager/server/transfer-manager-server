@@ -6,6 +6,7 @@ from yt.transfer_manager.server.logger import TaskIdLogger
 from yt.transfer_manager.server.pattern_matching import match_copy_pattern
 from yt.transfer_manager.server.message_queue import MessageReader, MessageWriter
 from yt.transfer_manager.server.yt_client import YtClientWithNotifications
+from yt.transfer_manager.server.lock import CountedRLock
 
 from yt.tools.logging_server import LogRecordSocketReceiver
 from yt.tools.yamr import Yamr, YamrError
@@ -50,7 +51,6 @@ from datetime import datetime, timedelta
 from collections import defaultdict
 from subprocess32 import TimeoutExpired
 from threading import RLock, Thread, current_thread
-from lock import CountedRLock
 from multiprocessing import Process
 from itertools import chain
 import Queue
