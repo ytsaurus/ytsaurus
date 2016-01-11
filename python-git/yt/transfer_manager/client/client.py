@@ -117,8 +117,14 @@ class TransferManager(object):
     def get_task_info(self, task_id):
         return self._make_request("GET", "{0}/tasks/{1}/".format(self.backend_url, task_id)).json()
 
-    def get_tasks(self):
-        return self._make_request("GET", "{0}/tasks/".format(self.backend_url)).json()
+    def get_tasks(self, user=None, fields=None):
+        params = {}
+        if user is not None:
+            params["user"] = user
+        if fields is not None:
+            params["fields[]"] = deepcopy(fields)
+
+        return self._make_request("GET", "{0}/tasks/".format(self.backend_url), params=params).json()
 
     def get_backend_config(self):
         return self._make_request("GET", "{0}/config/".format(self.backend_url)).json()
