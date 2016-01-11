@@ -207,6 +207,12 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+enum EOperationStatus
+{
+    OS_RUNNING,
+    OS_COMPLETED
+};
+
 struct TOperationOptions
 {
     using TSelf = TOperationOptions;
@@ -269,6 +275,9 @@ struct IOperationClient
         const TOperationId& operationId) = 0;
 
     virtual void WaitForOperation(
+        const TOperationId& operationId) = 0;
+
+    virtual EOperationStatus CheckOperation(
         const TOperationId& operationId) = 0;
 
 private:
