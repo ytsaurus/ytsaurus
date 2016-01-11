@@ -31,21 +31,25 @@ def init_logging(node, path, name, enable_debug_logging):
 
 class ConfigsProviderFactory(object):
     @staticmethod
-    def create_for_version(version, ports, enable_debug_logging):
+    def create_for_version(version, ports, enable_debug_logging, fqdn):
         if versions_cmp(version, "0.17.3") <= 0:
-            return ConfigsProvider_17_3(ports, enable_debug_logging)
+            return ConfigsProvider_17_3(ports, enable_debug_logging, fqdn)
         elif versions_cmp(version, "0.17.4") >= 0 and versions_cmp(version, "0.18") < 0:
-            return ConfigsProvider_17_4(ports, enable_debug_logging)
+            return ConfigsProvider_17_4(ports, enable_debug_logging, fqdn)
         elif versions_cmp(version, "0.18") >= 0:
-            return ConfigsProvider_18(ports, enable_debug_logging)
+            return ConfigsProvider_18(ports, enable_debug_logging, fqdn)
 
         raise YtError("Cannot create configs provider for version: {0}".format(version))
 
 class ConfigsProvider(object):
     __metaclass__ = abc.ABCMeta
 
-    def __init__(self, ports, enable_debug_logging=True):
-        self.fqdn = socket.getfqdn()
+    def __init__(self, ports, enable_debug_logging=True, fqdn=None):
+        if fqdn is None:
+            self.fqdn = socket.getfqdn()
+        else:
+            self.fqdn = fqdn
+
         self.ports = ports
         self.enable_debug_logging = enable_debug_logging
         # Generated addresses
@@ -85,20 +89,20 @@ class ConfigsProvider(object):
                             "'{0}'".format(address) for address in self._master_addresses["primary"]
                         ])))
 
-def _generate_common_proxy_config(proxy_dir, proxy_port, enable_debug_logging):
+def _generate_common_proxy_config(proxy_dir, proxy_port, enable_debug_logging, fqdn):
     proxy_config = default_configs.get_proxy_config()
     proxy_config["proxy"]["logging"] = init_logging(proxy_config["proxy"]["logging"], proxy_dir, "http_proxy",
                                                     enable_debug_logging)
     proxy_config["port"] = proxy_port
-    proxy_config["fqdn"] = "localhost:{0}".format(proxy_port)
+    proxy_config["fqdn"] = "{0}:{1}".format(fqdn, proxy_port)
     proxy_config["static"].append(["/ui", os.path.join(proxy_dir, "ui")])
     proxy_config["logging"]["filename"] = os.path.join(proxy_dir, "http_application.log")
 
     return proxy_config
 
 class ConfigsProvider_17(ConfigsProvider):
-    def __init__(self, ports, enable_debug_logging=True):
-        super(ConfigsProvider_17, self).__init__(ports, enable_debug_logging)
+    def __init__(self, ports, enable_debug_logging=True, fqdn=None):
+        super(ConfigsProvider_17, self).__init__(ports, enable_debug_logging, fqdn)
         self._master_cell_tag = 0
 
     def get_master_configs(self, master_count, nonvoting_master_count, master_dirs,
@@ -119,6 +123,7 @@ class ConfigsProvider_17(ConfigsProvider):
 
             config["rpc_port"] = ports[2 * i]
             config["monitoring_port"] = ports[2 * i + 1]
+            config["address_resolver"]["localhost_fqdn"] = self.fqdn
 
             config["master"] = {
                 "cell_tag": cell_tag,
@@ -157,6 +162,8 @@ class ConfigsProvider_17(ConfigsProvider):
         for i in xrange(scheduler_count):
             config = default_configs.get_scheduler_config()
 
+            config["address_resolver"]["localhost_fqdn"] = self.fqdn
+
             config["cluster_connection"]["master"] = {
                 "addresses": self._master_addresses["primary"],
                 "cell_id": "ffffffff-ffffffff-ffffffff-ffffffff",
@@ -188,6 +195,8 @@ class ConfigsProvider_17(ConfigsProvider):
 
         for i in xrange(node_count):
             config = default_configs.get_node_config(self.enable_debug_logging)
+
+            config["address_resolver"]["localhost_fqdn"] = self.fqdn
 
             config["addresses"] = {
                 "default": self.fqdn,
@@ -245,7 +254,8 @@ class ConfigsProvider_17(ConfigsProvider):
         }
         driver_config["timestamp_provider"]["addresses"] = self._master_addresses["primary"]
 
-        proxy_config = _generate_common_proxy_config(proxy_dir, self.ports["proxy"], self.enable_debug_logging)
+        proxy_config = _generate_common_proxy_config(proxy_dir, self.ports["proxy"],
+                                                     self.enable_debug_logging, self.fqdn)
         proxy_config["proxy"]["driver"] = driver_config
 
         return proxy_config
@@ -303,8 +313,8 @@ class ConfigsProvider_17_4(ConfigsProvider_17):
         return configs
 
 class ConfigsProvider_18(ConfigsProvider):
-    def __init__(self, ports, enable_debug_logging=True):
-        super(ConfigsProvider_18, self).__init__(ports, enable_debug_logging)
+    def __init__(self, ports, enable_debug_logging=True, fqdn=None):
+        super(ConfigsProvider_18, self).__init__(ports, enable_debug_logging, fqdn)
         self._primary_master_cell_id = 0
         self._secondary_masters_cell_ids = []
 
@@ -335,6 +345,8 @@ class ConfigsProvider_18(ConfigsProvider):
 
             for master_index in xrange(master_count):
                 config = default_configs.get_master_config()
+
+                config["address_resolver"]["localhost_fqdn"] = self.fqdn
 
                 config["hydra_manager"] = {
                     "leader_lease_check_period": 100,
@@ -397,6 +409,8 @@ class ConfigsProvider_18(ConfigsProvider):
         for i in xrange(scheduler_count):
             config = default_configs.get_scheduler_config()
 
+            config["address_resolver"]["localhost_fqdn"] = self.fqdn
+
             config["cluster_connection"]["primary_master"] = {
                 "addresses": self._master_addresses["primary"],
                 "cell_id": self._primary_master_cell_id,
@@ -432,8 +446,9 @@ class ConfigsProvider_18(ConfigsProvider):
                 for addresses, cell_id in secondary_masters_info]
         driver_config["timestamp_provider"]["addresses"] = self._master_addresses["primary"]
 
-        proxy_config = _generate_common_proxy_config(proxy_dir, self.ports["proxy"], self.enable_debug_logging)
-        proxy_config["fqdn"] = "localhost"
+        proxy_config = _generate_common_proxy_config(proxy_dir, self.ports["proxy"],
+                                                     self.enable_debug_logging, self.fqdn)
+        proxy_config["fqdn"] = self.fqdn
         proxy_config["proxy"]["driver"] = driver_config
 
         return proxy_config
@@ -447,6 +462,8 @@ class ConfigsProvider_18(ConfigsProvider):
 
         for i in xrange(node_count):
             config = default_configs.get_node_config(self.enable_debug_logging)
+
+            config["address_resolver"]["localhost_fqdn"] = self.fqdn
 
             config["addresses"] = {
                 "default": self.fqdn,

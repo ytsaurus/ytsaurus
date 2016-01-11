@@ -92,7 +92,8 @@ class YTEnv(object):
         pass
 
     def start(self, path_to_run, pids_filename, proxy_port=None, enable_debug_logging=True, preserve_working_dir=False,
-              kill_child_processes=False, tmpfs_path=None, enable_ui=False, port_locks_path=None, ports_range_start=None):
+              kill_child_processes=False, tmpfs_path=None, enable_ui=False, port_locks_path=None, ports_range_start=None,
+              fqdn=None):
         self._lock = RLock()
 
         logger.propagate = False
@@ -120,7 +121,11 @@ class YTEnv(object):
         self.config_paths = defaultdict(list)
         self.log_paths = defaultdict(list)
 
-        self._hostname = socket.getfqdn()
+        if fqdn is None:
+            self._hostname = socket.getfqdn()
+        else:
+            self._hostname = fqdn
+
         self._process_to_kill = defaultdict(list)
         self._all_processes = {}
         self._kill_previously_run_services()
@@ -200,7 +205,7 @@ class YTEnv(object):
         ports = self._get_ports(ports_range_start, master_count, secondary_master_cell_count,
                                 scheduler_count, node_count, has_proxy, proxy_port)
         self._configs_provider = self.CONFIGS_PROVIDER_FACTORY \
-                .create_for_version(self._ytserver_version, ports, enable_debug_logging)
+                .create_for_version(self._ytserver_version, ports, enable_debug_logging, self._hostname)
         self._enable_debug_logging = enable_debug_logging
         self._load_existing_environment = load_existing_environment
 
@@ -742,7 +747,8 @@ class YTEnv(object):
 
             return read_config(config_path, format=None)
         else:
-            return self._configs_provider.get_ui_config("localhost:" + str(self.configs[proxy_name]["port"]))
+            return self._configs_provider.get_ui_config(
+                "{0}:{1}".format(self._hostname, self.configs[proxy_name]["port"]))
 
     def _get_proxy_config(self, proxy_name, proxy_dir):
         if self._load_existing_environment:

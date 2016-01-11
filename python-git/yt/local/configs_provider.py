@@ -4,13 +4,13 @@ from yt.environment.helpers import versions_cmp
 
 class ConfigsProviderFactory(object):
     @staticmethod
-    def create_for_version(version, ports, enable_debug_logging):
+    def create_for_version(version, ports, enable_debug_logging, fqdn):
         if versions_cmp(version, "0.17.3") <= 0:
-            return LocalModeConfigsProvider_17_3(ports, enable_debug_logging)
+            return LocalModeConfigsProvider_17_3(ports, enable_debug_logging, fqdn)
         elif versions_cmp(version, "0.17.4") >= 0 and versions_cmp(version, "0.18") < 0:
-            return LocalModeConfigsProvider_17_4(ports, enable_debug_logging)
+            return LocalModeConfigsProvider_17_4(ports, enable_debug_logging, fqdn)
         elif versions_cmp(version, "0.18") >= 0:
-            return LocalModeConfigsProvider_18(ports, enable_debug_logging)
+            return LocalModeConfigsProvider_18(ports, enable_debug_logging, fqdn)
 
         raise YtError("Cannot create configs provider for version: {0}".format(version))
 

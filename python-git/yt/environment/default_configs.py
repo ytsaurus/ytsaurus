@@ -46,6 +46,7 @@ def get_master_config():
     return yson.loads(
 """
 {
+    address_resolver = { };
     enable_provision_lock = %false;
 
     timestamp_provider = {
@@ -113,6 +114,8 @@ def get_scheduler_config():
     return yson.loads(
 """
 {
+    address_resolver = { };
+
     orchid_cache_expiration_time = 0;
     orchid_cache_update_period = 0;
 
@@ -164,6 +167,8 @@ def get_node_config(enable_debug_logging=True):
     config = yson.loads(
 """
 {
+    address_resolver = { };
+
     orchid_cache_expiration_time = 0;
     orchid_cache_update_period = 0;
 
