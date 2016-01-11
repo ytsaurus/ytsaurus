@@ -294,6 +294,45 @@ TOperationId StartOperation(
     return operationId;
 }
 
+EOperationStatus CheckOperation(
+    const TAuth& auth,
+    const TTransactionId& transactionId,
+    const TOperationId& operationId)
+{
+    auto opIdStr = GetGuidAsString(operationId);
+    auto opPath = Sprintf("//sys/operations/%s", ~opIdStr);
+    auto statePath = opPath + "/@state";
+
+    if (!Exists(auth, transactionId, opPath)) {
+        LOG_FATAL("Operation %s does not exist", ~opIdStr);
+    }
+
+    Stroka state = NodeFromYsonString(
+        Get(auth, transactionId, statePath)).AsString();
+
+    if (state == "completed") {
+        return OS_COMPLETED;
+
+    } else if (state == "aborted" || state == "failed") {
+        LOG_ERROR("Operation %s %s", ~opIdStr, ~state);
+        auto errorPath = opPath + "/@result/error";
+        Stroka error;
+        if (Exists(auth, transactionId, errorPath)) {
+            error = Get(auth, transactionId, errorPath);
+            Cerr << error << Endl;
+        }
+        DumpOperationStderrs(auth, transactionId, opPath);
+        ythrow TOperationFailedError(
+            state == "aborted" ?
+                TOperationFailedError::Aborted :
+                TOperationFailedError::Failed,
+            operationId,
+            error);
+    }
+
+    return OS_RUNNING;
+}
+
 void WaitForOperation(
     const TAuth& auth,
     const TTransactionId& transactionId,
@@ -301,39 +340,12 @@ void WaitForOperation(
 {
     const TDuration checkOperationStateInterval = TDuration::Seconds(1);
 
-    Stroka opIdStr = GetGuidAsString(operationId);
-    Stroka opPath = Sprintf("//sys/operations/%s", ~opIdStr);
-    Stroka statePath = opPath + "/@state";
-
     while (true) {
-       if (!Exists(auth, transactionId, opPath)) {
-            LOG_FATAL("Operation %s does not exist", ~opIdStr);
-        }
-
-        Stroka state = NodeFromYsonString(
-            Get(auth, transactionId, statePath)).AsString();
-
-        if (state == "completed") {
-            LOG_INFO("Operation %s completed", ~opIdStr);
+        auto status = CheckOperation(auth, transactionId, operationId);
+        if (status == OS_COMPLETED) {
+            LOG_INFO("Operation %s completed", ~GetGuidAsString(operationId));
             break;
-
-        } else if (state == "aborted" || state == "failed") {
-            LOG_ERROR("Operation %s %s", ~opIdStr, ~state);
-            Stroka errorPath = opPath + "/@result/error";
-            Stroka error;
-            if (Exists(auth, transactionId, errorPath)) {
-                error = Get(auth, transactionId, errorPath);
-                Cerr << error << Endl;
-            }
-            DumpOperationStderrs(auth, transactionId, opPath);
-            ythrow TOperationFailedError(
-                state == "aborted" ?
-                    TOperationFailedError::Aborted :
-                    TOperationFailedError::Failed,
-                operationId,
-                error);
         }
-
         Sleep(checkOperationStateInterval);
     }
 }

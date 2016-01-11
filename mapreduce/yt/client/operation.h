@@ -57,6 +57,11 @@ TOperationId ExecuteErase(
     const TEraseOperationSpec& spec,
     const TOperationOptions& options);
 
+EOperationStatus CheckOperation(
+    const TAuth& auth,
+    const TTransactionId& transactionId,
+    const TOperationId& operationId);
+
 void WaitForOperation(
     const TAuth& auth,
     const TTransactionId& transactionId,

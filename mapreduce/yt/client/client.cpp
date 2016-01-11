@@ -338,6 +338,11 @@ public:
             options);
     }
 
+    virtual EOperationStatus CheckOperation(const TOperationId& operationId)
+    {
+        return NYT::CheckOperation(Auth_, TransactionId_, operationId);
+    }
+
     virtual void AbortOperation(const TOperationId& operationId)
     {
         NYT::AbortOperation(Auth_, TransactionId_, operationId);
