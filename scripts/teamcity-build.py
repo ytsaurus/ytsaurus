@@ -318,7 +318,7 @@ def run_pytest(options, suite_name, suite_path, pytest_args=None):
                     failed_tests_sandbox_path),
                     status="WARNING")
                 copytree(dir_, failed_tests_sandbox_path,
-                        ignore=shutil.ignore_patterns("chunk_cache", "chunk_store"))
+                         ignore=shutil.ignore_patterns("chunk_cache", "chunk_store"))
 
             artifact_path = os.path.join(sandbox_archive, "artifacts")
             core_dumps_path = os.path.join(sandbox_archive, "core_dumps")
@@ -341,6 +341,11 @@ def run_pytest(options, suite_name, suite_path, pytest_args=None):
                         if content:
                             teamcity_message("Detected non-empty daemon stderr {0}:\n{1}"
                                              .format(fullpath, content), status="WARNING")
+
+            for dir_, _, files in os.walk(suite_path):
+                for file_ in files:
+                    if file_.startswith("core."):
+                        shutil.copy(os.path.join(dir_, file_), core_dumps_path)
 
             for core_dump in os.listdir(core_dumps_path):
                 core_path = os.path.join(core_dumps_path, core_dump)
