@@ -678,26 +678,15 @@ void TObjectManager::LoadValues(NCellMaster::TLoadContext& context)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    std::vector<TObjectId> keysToRemove;
-
     SchemaMap_.LoadValues(context);
-    for (const auto& pair : SchemaMap_) {
-        auto type = TypeFromSchemaType(TypeFromId(pair.first));
-        // COMPAT(sandello): CellNodeMap (408) and CellNode (410) are now obsolete.
-        if (type == 408 || type == 410) {
-            keysToRemove.push_back(pair.first);
-            continue;
-        }
-        YCHECK(RegisteredTypes_.find(type) != RegisteredTypes_.end());
-        auto& entry = TypeToEntry_[type];
-        entry.SchemaObject = pair.second;
-        entry.SchemaProxy = CreateSchemaProxy(Bootstrap_, entry.SchemaObject);
-    }
 
     // COMPAT(sandello): CellNodeMap (408) and CellNode (410) are now obsolete.
-    for (const auto& key : keysToRemove) {
-        SchemaMap_.Remove(key);
+    for (auto type : {408, 410}) {
+        auto id = MakeSchemaObjectId(EObjectType(type), Bootstrap_->GetPrimaryCellTag());
+        SchemaMap_.TryRemove(id);
     }
+
+    InitSchemas();
 
     GarbageCollector_->Load(context);
 }
@@ -713,23 +702,35 @@ void TObjectManager::Clear()
 
     MasterProxy_ = CreateMasterProxy(Bootstrap_, MasterObject_.get());
 
-    GarbageCollector_->Clear();
+    SchemaMap_.Clear();
+
+    InitSchemas();
 
     CreatedObjectCount_ = 0;
     DestroyedObjectCount_ = 0;
     LockedObjectCount_ = 0;
 
-    SchemaMap_.Clear();
+    GarbageCollector_->Clear();
+}
 
+void TObjectManager::InitSchemas()
+{
+    std::fill(TypeToEntry_.begin(), TypeToEntry_.end(), TTypeEntry());
     for (auto type : RegisteredTypes_) {
-        auto& entry = TypeToEntry_[type];
-        if (HasSchema(type)) {
-            auto id = MakeSchemaObjectId(type, Bootstrap_->GetPrimaryCellTag());
-            auto schemaObjectHolder = std::make_unique<TSchemaObject>(id);
-            entry.SchemaObject = SchemaMap_.Insert(id, std::move(schemaObjectHolder));
-            entry.SchemaObject->RefObject();
-            entry.SchemaProxy = CreateSchemaProxy(Bootstrap_, entry.SchemaObject);
+        if (!HasSchema(type)) {
+            continue;
         }
+
+        auto id = MakeSchemaObjectId(type, Bootstrap_->GetPrimaryCellTag());
+        if (!SchemaMap_.Contains(id)) {
+            auto schemaObject = std::make_unique<TSchemaObject>(id);
+            schemaObject->RefObject();
+            SchemaMap_.Insert(id, std::move(schemaObject));
+        }
+
+        auto& entry = TypeToEntry_[type];
+        entry.SchemaObject = SchemaMap_.Get(id);
+        entry.SchemaProxy = CreateSchemaProxy(Bootstrap_, entry.SchemaObject);
     }
 }
 
