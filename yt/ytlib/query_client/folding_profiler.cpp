@@ -46,7 +46,6 @@ public:
 
     void Set(llvm::FoldingSetNodeID* id);
     void Set(TCGVariables* variables);
-    void Set(yhash_set<Stroka>* references);
     void Set(std::vector<std::vector<bool>>* literalArgs);
 
 private:
@@ -58,11 +57,9 @@ private:
 
     void Fold(int numeric);
     void Fold(const char* str);
-    void Refer(const TReferenceExpression* referenceExpr);
 
     llvm::FoldingSetNodeID* Id_ = nullptr;
     TCGVariables* Variables_ = nullptr;
-    yhash_set<Stroka>* References_ = nullptr;
     std::vector<std::vector<bool>>* LiteralArgs_ = nullptr;
 
     const IFunctionRegistryPtr FunctionRegistry_;
@@ -83,11 +80,6 @@ void TFoldingProfiler::Set(llvm::FoldingSetNodeID* id)
 void TFoldingProfiler::Set(TCGVariables* variables)
 {
     Variables_ = variables;
-}
-
-void TFoldingProfiler::Set(yhash_set<Stroka>* references)
-{
-    References_ = references;
 }
 
 void TFoldingProfiler::Set(std::vector<std::vector<bool>>* literalArgs)
@@ -258,7 +250,6 @@ TCodegenExpression TFoldingProfiler::Profile(TConstExpressionPtr expr, const TTa
     } else if (auto referenceExpr = expr->As<TReferenceExpression>()) {
         Fold(static_cast<int>(EFoldingObjectType::ReferenceExpr));
         Fold(referenceExpr->ColumnName.c_str());
-        Refer(referenceExpr);
 
         return MakeCodegenReferenceExpr(
             schema.GetColumnIndexOrThrow(referenceExpr->ColumnName),
@@ -382,27 +373,18 @@ void TFoldingProfiler::Fold(const char* str)
     }
 }
 
-void TFoldingProfiler::Refer(const TReferenceExpression* referenceExpr)
-{
-    if (References_) {
-        References_->insert(referenceExpr->ColumnName);
-    }
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 TCGQueryCallbackGenerator Profile(
     TConstQueryPtr query,
     llvm::FoldingSetNodeID* id,
     TCGVariables* variables,
-    yhash_set<Stroka>* references,
     std::vector<std::vector<bool>>* literalArgs,
     const IFunctionRegistryPtr functionRegistry)
 {
     TFoldingProfiler profiler(functionRegistry);
     profiler.Set(id);
     profiler.Set(variables);
-    profiler.Set(references);
     profiler.Set(literalArgs);
 
     return [
@@ -417,13 +399,11 @@ TCGExpressionCallbackGenerator Profile(
     const TTableSchema& schema,
     llvm::FoldingSetNodeID* id,
     TCGVariables* variables,
-    yhash_set<Stroka>* references,
     std::vector<std::vector<bool>>* literalArgs,
     const IFunctionRegistryPtr functionRegistry)
 {
     TFoldingProfiler profiler(functionRegistry);
     profiler.Set(variables);
-    profiler.Set(references);
     profiler.Set(literalArgs);
 
     return [

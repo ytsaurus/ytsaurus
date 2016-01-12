@@ -1782,7 +1782,8 @@ TConstExpressionPtr PrepareExpression(
         expr.Get(),
         source,
         functionRegistry.Get(),
-        astHead.second);
+        astHead.second,
+        references);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

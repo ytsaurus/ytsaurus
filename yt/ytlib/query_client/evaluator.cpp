@@ -203,7 +203,7 @@ private:
     {
         llvm::FoldingSetNodeID id;
 
-        auto makeCodegenQuery = Profile(query, &id, &variables, nullptr, &literalArgs, functionRegistry);
+        auto makeCodegenQuery = Profile(query, &id, &variables, &literalArgs, functionRegistry);
 
         auto Logger = BuildLogger(query);
 
