@@ -356,53 +356,78 @@ private:
                 return RefinePredicate(keys, expr, keyColumns);
             });
             subreaderCreators.push_back([&] () {
-                LOG_DEBUG("Grouping %v lookup keys by parition", keys.size());
-                auto groupedKeys = GroupKeysByPartition(tablePartId, std::move(keys));
-                LOG_DEBUG("Grouped lookup keys into %v paritions", groupedKeys.size());
 
-                for (const auto& keys : groupedKeys) {
-                    if (options.VerboseLogging) {
-                        LOG_DEBUG("Generating lookup reader for keys %v",
-                            JoinToString(keys.second));
-                    } else {
-                        LOG_DEBUG("Generating lookup reader for %v keys",
-                            keys.second.Size());
-                    }
-                }
+                auto sharedKeys = MakeSharedRange<TRow>(std::move(keys));
 
-                auto slotManager = Bootstrap_->GetTabletSlotManager();
-                auto tabletSnapshot = slotManager->GetTabletSnapshotOrThrow(tablePartId);
+                // TODO(lukyan): Validate timestamp and read permission
+                ValidateReadTimestamp(timestamp);
 
-                auto bottomSplitReaderGenerator = [
-                    Logger,
-                    MOVE(tabletSnapshot),
-                    query,
-                    MOVE(groupedKeys),
-                    tablePartId,
-                    timestamp,
-                    index = 0,
-                    this_ = MakeStrong(this)
-                ] () mutable -> ISchemafulReaderPtr {
-                    if (index == groupedKeys.size()) {
-                        return nullptr;
-                    } else {
-                        const auto& group = groupedKeys[index++];
+                std::function<ISchemafulReaderPtr()> bottomSplitReaderGenerator;
 
-                        // TODO(lukyan): Validate timestamp and read permission
-                        auto result = CreateSchemafulTabletReader(
-                            std::move(tabletSnapshot),
+                switch (TypeFromId(tablePartId)) {
+                    case EObjectType::Chunk:
+                    case EObjectType::ErasureChunk: {
+                        return GetChunkReader(
                             query->TableSchema,
-                            group.first,
-                            group.second,
+                            tablePartId,
+                            sharedKeys,
                             timestamp);
-
-                        return result;
                     }
-                };
 
-                return CreateUnorderedSchemafulReader(
-                    std::move(bottomSplitReaderGenerator),
-                    Config_->MaxBottomReaderConcurrency);
+                    case EObjectType::Tablet: {
+                        LOG_DEBUG("Grouping %v lookup keys by parition", keys.size());
+                        auto groupedKeys = GroupKeysByPartition(tablePartId, std::move(sharedKeys));
+                        LOG_DEBUG("Grouped lookup keys into %v paritions", groupedKeys.size());
+
+                        for (const auto& keys : groupedKeys) {
+                            if (options.VerboseLogging) {
+                                LOG_DEBUG("Generating lookup reader for keys %v",
+                                    JoinToString(keys.second));
+                            } else {
+                                LOG_DEBUG("Generating lookup reader for %v keys",
+                                    keys.second.Size());
+                            }
+                        }
+
+                        auto slotManager = Bootstrap_->GetTabletSlotManager();
+                        auto tabletSnapshot = slotManager->GetTabletSnapshotOrThrow(tablePartId);
+
+                        bottomSplitReaderGenerator = [
+                            Logger,
+                            MOVE(tabletSnapshot),
+                            query,
+                            MOVE(groupedKeys),
+                            tablePartId,
+                            timestamp,
+                            index = 0,
+                            this_ = MakeStrong(this)
+                        ] () mutable -> ISchemafulReaderPtr {
+                            if (index == groupedKeys.size()) {
+                                return nullptr;
+                            } else {
+                                const auto& group = groupedKeys[index++];
+
+                                // TODO(lukyan): Validate timestamp and read permission
+                                auto result = CreateSchemafulTabletReader(
+                                    std::move(tabletSnapshot),
+                                    query->TableSchema,
+                                    group.first,
+                                    group.second,
+                                    timestamp);
+
+                                return result;
+                            }
+                        };
+
+                        return CreateUnorderedSchemafulReader(
+                            std::move(bottomSplitReaderGenerator),
+                            Config_->MaxBottomReaderConcurrency);
+                    }
+
+                    default:
+                        THROW_ERROR_EXCEPTION("Unsupported data split type %Qlv",
+                            TypeFromId(tablePartId));
+                }
             });
         }
 
@@ -579,39 +604,40 @@ private:
 
     std::vector<std::pair<TPartitionSnapshotPtr, TSharedRange<TRow>>> GroupKeysByPartition(
         const NObjectClient::TObjectId& objectId,
-        std::vector<TRow> keys)
+        TSharedRange<TRow> keys)
     {
         std::vector<std::pair<TPartitionSnapshotPtr, TSharedRange<TRow>>> result;
         // TODO(lukyan): YCHECK(sorted)
 
-        if (TypeFromId(objectId) == EObjectType::Tablet) {
-            auto slotManager = Bootstrap_->GetTabletSlotManager();
-            auto tabletSnapshot = slotManager->GetTabletSnapshotOrThrow(objectId);
-            const auto& partitions = tabletSnapshot->Partitions;
+        YCHECK(TypeFromId(objectId) == EObjectType::Tablet);
 
-            auto currentPartition = partitions.begin();
-            auto currentIt = keys.begin();
-            while (currentIt != keys.end()) {
-                auto nextPartition = std::upper_bound(
-                    currentPartition,
-                    partitions.end(),
-                    *currentIt,
-                    [] (TRow lhs, const TPartitionSnapshotPtr& rhs) {
-                        return lhs < rhs->PivotKey.Get();
-                    });
+        auto slotManager = Bootstrap_->GetTabletSlotManager();
+        auto tabletSnapshot = slotManager->GetTabletSnapshotOrThrow(objectId);
+        const auto& partitions = tabletSnapshot->Partitions;
 
-                auto nextIt = nextPartition != partitions.end()
-                    ? std::lower_bound(currentIt, keys.end(), (*nextPartition)->PivotKey.Get())
-                    : keys.end();
+        auto currentPartition = partitions.begin();
+        auto currentIt = begin(keys);
+        while (currentIt != end(keys)) {
+            auto nextPartition = std::upper_bound(
+                currentPartition,
+                partitions.end(),
+                *currentIt,
+                [] (TRow lhs, const TPartitionSnapshotPtr& rhs) {
+                    return lhs < rhs->PivotKey.Get();
+                });
 
-                // TODO(babenko): fixme, data ownership?
-                TPartitionSnapshotPtr ptr = *currentPartition;
-                result.emplace_back(ptr, MakeSharedRange<TRow>(std::vector<TRow>(currentIt, nextIt)));
-                currentIt = nextIt;
-                currentPartition = nextPartition;
-            }
-        } else {
-            result.emplace_back(nullptr, MakeSharedRange(std::move(keys)));
+            auto nextIt = nextPartition != partitions.end()
+                ? std::lower_bound(currentIt, end(keys), (*nextPartition)->PivotKey.Get())
+                : end(keys);
+
+            // TODO(babenko): fixme, data ownership?
+            TPartitionSnapshotPtr ptr = *currentPartition;
+            result.emplace_back(
+                ptr,
+                MakeSharedRange(MakeRange<TRow>(currentIt, nextIt), keys.GetHolder()));
+
+            currentIt = nextIt;
+            currentPartition = nextPartition;
         }
 
         return result;

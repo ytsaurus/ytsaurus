@@ -1559,7 +1559,7 @@ std::pair<TQueryPtr, TDataRanges> PreparePlanFragment(
             }
             std::sort(referenceIds[index].begin(), referenceIds[index].end());
         }
-        
+
         size_t keyPrefix = 0;
         for (; keyPrefix < foreignKeyColumnsCount; ++keyPrefix) {
             if (equationByIndex[keyPrefix] >= 0) {
