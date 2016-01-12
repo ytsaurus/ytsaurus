@@ -374,8 +374,7 @@ void TCompositeAutomaton::ApplyMutation(TMutationContext* context)
     YCHECK(it != MethodNameToDescriptor_.end());
     const auto& descriptor = it->second;
 
-    NProfiling::TTagIdList tagIds;
-    tagIds.push_back(descriptor.TagId);
+    NProfiling::TTagIdList tagIds{descriptor.TagId};
     static const auto profilingPath = NYTree::TYPath("/mutation_execute_time");
     PROFILE_TIMING (profilingPath, tagIds) {
         descriptor.Callback.Run(context);

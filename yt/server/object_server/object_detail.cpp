@@ -271,9 +271,10 @@ void TObjectProxyBase::Invoke(IServiceContextPtr context)
         GetVersionedId(),
         user->GetName());
 
-    NProfiling::TTagIdList tagIds;
-    tagIds.push_back(objectManager->GetTypeTagId(Object_->GetType()));
-    tagIds.push_back(objectManager->GetMethodTagId(context->GetMethod()));
+    NProfiling::TTagIdList tagIds{
+        objectManager->GetTypeTagId(Object_->GetType()),
+        objectManager->GetMethodTagId(context->GetMethod())
+    };
     const auto& Profiler = objectManager->GetProfiler();
     static const auto profilingPath = TYPath("/verb_execute_time");
     PROFILE_TIMING (profilingPath, tagIds) {
