@@ -2071,7 +2071,7 @@ void TChunkManager::ScheduleChunkPropertiesUpdate(TChunkTree* chunkTree)
     Impl_->ScheduleChunkPropertiesUpdate(chunkTree);
 }
 
-void TChunkManager::MaybeScheduleChunkSeal(TChunk* chunk)
+void TChunkManager::ScheduleChunkSeal(TChunk* chunk)
 {
     Impl_->ScheduleChunkSeal(chunk);
 }

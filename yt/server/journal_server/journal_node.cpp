@@ -331,7 +331,7 @@ protected:
                     trailingChunk->GetId());
                 if (IsLeader()) {
                     auto chunkManager = Bootstrap_->GetChunkManager();
-                    chunkManager->MaybeScheduleChunkSeal(trailingChunk);
+                    chunkManager->ScheduleChunkSeal(trailingChunk);
                 }
             } else {
                 auto journalManager = Bootstrap_->GetJournalManager();
