@@ -1,15 +1,24 @@
 #!/usr/bin/env python
 
 import yt.wrapper.cypress_fuse as cypress_fuse
+from yt.wrapper import yson
 from yt.packages.fuse import FUSE
 
 from argparse import ArgumentParser
 
 import logging
 
-def mount_cypress(proxy, mount_point, caching_period, enable_write_access):
+def mount_cypress(
+        proxy,
+        mount_point,
+        caching_period,
+        enable_write_access,
+        config):
     """Mount a Cypress."""
-    yt_client = cypress_fuse.CachedYtClient(proxy=proxy, max_age_seconds=caching_period)
+    yt_client = cypress_fuse.CachedYtClient(
+        max_age_seconds=caching_period,
+        proxy=proxy,
+        config=config)
     cypress = cypress_fuse.Cypress(yt_client, enable_write_access)
     FUSE(
         cypress, mount_point,
@@ -46,6 +55,10 @@ if __name__ == "__main__":
         action="store",
         type=str,
         help="File for logging. If empty - write to stderr.")
+    parser.add_argument(
+        "--config",
+        type=yson.loads,
+        help="Custom configuration for YtClient.")
 
     args = parser.parse_args()
 
@@ -59,4 +72,9 @@ if __name__ == "__main__":
     else:
         logging.disable(logging.CRITICAL)
 
-    mount_cypress(args.proxy, args.mount_point, args.caching_period, args.enable_write_access)
+    mount_cypress(
+        args.proxy,
+        args.mount_point,
+        args.caching_period,
+        args.enable_write_access,
+        args.config)
