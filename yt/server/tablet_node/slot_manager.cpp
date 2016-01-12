@@ -258,7 +258,8 @@ public:
         VERIFY_THREAD_AFFINITY_ANY();
 
         auto producer = BIND(&TImpl::BuildOrchidYson, MakeStrong(this));
-        return IYPathService::FromProducer(producer);
+        return IYPathService::FromProducer(producer)
+            ->Via(Bootstrap_->GetControlInvoker());
     }
 
     
