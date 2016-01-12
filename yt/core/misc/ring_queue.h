@@ -91,7 +91,7 @@ public:
     }
 
     TRingQueue(TRingQueue&& other)
-        : std::move(Allocator_(other.Allocator_))
+        : Allocator_(std::move(other.Allocator_))
     {
         Capacity_ = other.Capacity_;
         Begin_ = other.Begin_;
