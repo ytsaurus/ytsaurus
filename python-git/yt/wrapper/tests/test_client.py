@@ -158,7 +158,7 @@ class TestClient(object):
             yt.config["proxy"]["url"] = old_proxy_url
 
     def test_default_api_version(self):
-        client = Yt()
+        client = Yt(proxy=yt.config["proxy"]["url"])
         client.get("/")
         assert client._api_version == "v2"
 
