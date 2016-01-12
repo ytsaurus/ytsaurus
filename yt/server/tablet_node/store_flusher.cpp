@@ -281,9 +281,6 @@ private:
         auto automatonInvoker = tablet->GetEpochAutomatonInvoker();
         auto poolInvoker = ThreadPool_->GetInvoker();
 
-        auto channel = Bootstrap_->GetMasterClient()->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
-        TObjectServiceProxy proxy(channel);
-
         try {
             LOG_INFO("Store flush started");
 
