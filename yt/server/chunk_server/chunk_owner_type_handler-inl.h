@@ -107,12 +107,9 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoDestroy(TChunkOwner* node)
 
     auto* chunkList = node->GetChunkList();
     if (chunkList) {
-        auto hydraManager = TBase::Bootstrap_->GetHydraFacade()->GetHydraManager();
-        if (hydraManager->IsLeader()) {
-            auto chunkManager = TBase::Bootstrap_->GetChunkManager();
-            chunkManager->ScheduleChunkPropertiesUpdate(chunkList);
-        }
-        
+        auto chunkManager = TBase::Bootstrap_->GetChunkManager();
+        chunkManager->ScheduleChunkPropertiesUpdate(chunkList);
+
         YCHECK(chunkList->OwningNodes().erase(node) == 1);
 
         auto objectManager = TBase::Bootstrap_->GetObjectManager();
@@ -168,7 +165,6 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoMerge(
 
     bool isExternal = originatingNode->IsExternal();
 
-    auto hydraManager = TBase::Bootstrap_->GetHydraFacade()->GetHydraManager();
     auto chunkManager = TBase::Bootstrap_->GetChunkManager();
     auto objectManager = TBase::Bootstrap_->GetObjectManager();
 
@@ -196,8 +192,7 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoMerge(
         originatingNode->GetVital() != branchedNode->GetVital();
     bool propertiesUpdateNeeded =
         topmostCommit &&
-        (propertiesMismatch || branchedNode->GetChunkPropertiesUpdateNeeded()) &&
-        hydraManager->IsLeader();
+        (propertiesMismatch || branchedNode->GetChunkPropertiesUpdateNeeded());
     auto newOriginatingMode = topmostCommit || originatingNode->GetType() == NObjectClient::EObjectType::Journal
         ? NChunkClient::EUpdateMode::None
         : originatingMode == NChunkClient::EUpdateMode::Overwrite || branchedMode == NChunkClient::EUpdateMode::Overwrite

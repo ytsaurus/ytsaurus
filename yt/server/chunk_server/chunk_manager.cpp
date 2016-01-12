@@ -649,9 +649,7 @@ public:
             securityManager->UpdateAccountStagingUsage(stagingTransaction, stagingAccount, delta);
         }
 
-        if (ChunkReplicator_) {
-            ChunkReplicator_->ScheduleChunkRefresh(chunk);
-        }
+        ScheduleChunkRefresh(chunk);
 
         LOG_DEBUG_UNLESS(IsRecovery(), "Chunk confirmed (ChunkId: %v)", id);
     }
@@ -794,28 +792,36 @@ public:
 
     bool IsReplicatorEnabled()
     {
-        return ChunkReplicator_->IsEnabled();
+        return ChunkReplicator_ && ChunkReplicator_->IsEnabled();
     }
 
 
     void ScheduleChunkRefresh(TChunk* chunk)
     {
-        ChunkReplicator_->ScheduleChunkRefresh(chunk);
+        if (ChunkReplicator_) {
+            ChunkReplicator_->ScheduleChunkRefresh(chunk);
+        }
     }
 
     void ScheduleNodeRefresh(TNode* node)
     {
-        ChunkReplicator_->ScheduleNodeRefresh(node);
+        if (ChunkReplicator_) {
+            ChunkReplicator_->ScheduleNodeRefresh(node);
+        }
     }
 
     void ScheduleChunkPropertiesUpdate(TChunkTree* chunkTree)
     {
-        ChunkReplicator_->SchedulePropertiesUpdate(chunkTree);
+        if (ChunkReplicator_) {
+            ChunkReplicator_->SchedulePropertiesUpdate(chunkTree);
+        }
     }
 
     void ScheduleChunkSeal(TChunk* chunk)
     {
-        ChunkSealer_->ScheduleSeal(chunk);
+        if (ChunkSealer_) {
+            ChunkSealer_->ScheduleSeal(chunk);
+        }
     }
 
 
@@ -921,9 +927,7 @@ public:
         chunk->Seal(info);
         OnChunkSealed(chunk);
 
-        if (ChunkReplicator_) {
-            ChunkReplicator_->ScheduleChunkRefresh(chunk);
-        }
+        ScheduleChunkRefresh(chunk);
 
         LOG_DEBUG_UNLESS(IsRecovery(), "Chunk sealed (ChunkId: %v, RowCount: %v, UncompressedDataSize: %v, CompressedDataSize: %v)",
             chunk->GetId(),
@@ -1021,8 +1025,9 @@ private:
 
         if (ChunkReplicator_) {
             ChunkReplicator_->OnNodeRegistered(node);
-            ChunkReplicator_->ScheduleNodeRefresh(node);
         }
+
+        ScheduleNodeRefresh(node);
     }
 
     void OnNodeUnregistered(TNode* node)
@@ -1059,8 +1064,8 @@ private:
 
     void OnNodeChanged(TNode* node)
     {
-        if (ChunkReplicator_ && node->GetLocalState() == ENodeState::Online) {
-            ChunkReplicator_->ScheduleNodeRefresh(node);
+        if (node->GetLocalState() == ENodeState::Online) {
+            ScheduleNodeRefresh(node);
         }
     }
 
@@ -1163,8 +1168,8 @@ private:
                 YASSERT(local);
                 auto& crossCellRequest = getCrossCellRequest(chunk);
                 *crossCellRequest.add_updates() = update;
-            } else if (ChunkReplicator_) {
-                ChunkReplicator_->ScheduleChunkRefresh(chunk);
+            } else {
+                ScheduleChunkRefresh(chunk);
             }
         }
 
@@ -1494,8 +1499,8 @@ private:
                 node->GetDefaultAddress());
         }
 
-        if (ChunkReplicator_ && !cached) {
-            ChunkReplicator_->ScheduleChunkRefresh(chunk);
+        if (!cached) {
+            ScheduleChunkRefresh(chunk);
         }
 
         if (ChunkSealer_ && !cached && chunk->IsJournal()) {
@@ -1556,8 +1561,8 @@ private:
                 node->GetDefaultAddress());
         }
 
-        if (ChunkReplicator_ && !cached) {
-            ChunkReplicator_->ScheduleChunkRefresh(chunk);
+        if (!cached) {
+            ScheduleChunkRefresh(chunk);
         }
 
         Profiler.Increment(RemovedChunkReplicaCounter_);

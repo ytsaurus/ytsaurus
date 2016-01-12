@@ -666,7 +666,7 @@ bool TChunkOwnerNodeProxy::SetBuiltinAttribute(
             auto securityManager = Bootstrap_->GetSecurityManager();
             securityManager->UpdateAccountNodeUsage(node);
 
-            if (IsLeader() && !node->IsExternal()) {
+            if (!node->IsExternal()) {
                 chunkManager->ScheduleChunkPropertiesUpdate(node->GetChunkList());
             }
         }
@@ -682,7 +682,7 @@ bool TChunkOwnerNodeProxy::SetBuiltinAttribute(
         if (node->GetVital() != vital) {
             node->SetVital(vital);
 
-            if (IsLeader() && !node->IsExternal()) {
+            if (!node->IsExternal()) {
                 chunkManager->ScheduleChunkPropertiesUpdate(node->GetChunkList());
             }
         }
