@@ -265,16 +265,15 @@ public:
         const NAst::TExpression* expr,
         const Stroka& source,
         IFunctionRegistry* functionRegistry,
-        const NAst::TAliasMap& aliasMap)
+        const NAst::TAliasMap& aliasMap,
+        yhash_set<Stroka>* references = nullptr)
     {
         std::set<Stroka> usedAliases;
         return PropagateNotExpression(
-            DoBuildTypedExpression(expr, source, functionRegistry, aliasMap, usedAliases));
+            DoBuildTypedExpression(expr, source, functionRegistry, aliasMap, usedAliases, references));
     }
 
     DEFINE_BYVAL_RO_PROPERTY(TTableSchema*, TableSchema);
-
-
 
 protected:
     TConstExpressionPtr DoBuildTypedExpression(
@@ -282,7 +281,8 @@ protected:
         const Stroka& source,
         IFunctionRegistry* functionRegistry,
         const NAst::TAliasMap& aliasMap,
-        std::set<Stroka>& usedAliases)
+        std::set<Stroka>& usedAliases,
+        yhash_set<Stroka>* references)
     {
         if (auto literalExpr = expr->As<NAst::TLiteralExpression>()) {
             const auto& literalValue = literalExpr->Value;
@@ -308,7 +308,8 @@ protected:
                             source,
                             functionRegistry,
                             aliasMap,
-                            usedAliases);
+                            usedAliases,
+                            references);
 
                         usedAliases.erase(columnName);
                         return aliasExpr;
@@ -317,6 +318,10 @@ protected:
 
                 THROW_ERROR_EXCEPTION("Undefined reference %Qv",
                     NAst::FormatColumn(referenceExpr->ColumnName, referenceExpr->TableName));
+            }
+
+            if (references) {
+                references->insert(column->Name);
             }
 
             return New<TReferenceExpression>(column->Type, column->Name);
@@ -360,7 +365,8 @@ protected:
                         source,
                         functionRegistry,
                         aliasMap,
-                        usedAliases);
+                        usedAliases,
+                        references);
                     types.push_back(typedArgument->Type);
                     typedOperands.push_back(typedArgument);
                 }
@@ -382,7 +388,8 @@ protected:
                 source,
                 functionRegistry,
                 aliasMap,
-                usedAliases);
+                usedAliases,
+                references);
 
             if (auto foldedExpr = FoldConstants(unaryExpr, typedOperand)) {
                 return foldedExpr;
@@ -417,13 +424,15 @@ protected:
                     source,
                     functionRegistry,
                     aliasMap,
-                    usedAliases);
+                    usedAliases,
+                    references);
                 auto typedRhs = DoBuildTypedExpression(
                     binaryExpr->Rhs[offset].Get(),
                     source,
                     functionRegistry,
                     aliasMap,
-                    usedAliases);
+                    usedAliases,
+                    references);
 
                 if (offset + 1 < keySize) {
                     auto next = gen(offset + 1, keySize, op);
@@ -477,19 +486,21 @@ protected:
                     source,
                     functionRegistry,
                     aliasMap,
-                    usedAliases);
+                    usedAliases,
+                    references);
                 auto typedRhs = DoBuildTypedExpression(
                     binaryExpr->Rhs.front().Get(),
                     source,
                     functionRegistry,
                     aliasMap,
-                    usedAliases);
+                    usedAliases,
+                    references);
 
                 return makeBinaryExpr(binaryExpr->Opcode, typedLhs, typedRhs);
             }
         } else if (auto inExpr = expr->As<NAst::TInExpression>()) {
             std::vector<TConstExpressionPtr> typedArguments;
-            std::unordered_set<Stroka> references;
+            std::unordered_set<Stroka> columnNames;
             std::vector<EValueType> argTypes;
 
             for (const auto& argument : inExpr->Expr) {
@@ -498,16 +509,17 @@ protected:
                     source,
                     functionRegistry,
                     aliasMap,
-                    usedAliases);
+                    usedAliases,
+                    references);
 
                 typedArguments.push_back(typedArgument);
                 argTypes.push_back(typedArgument->Type);
                 if (auto reference = typedArgument->As<TReferenceExpression>()) {
-                    if (references.find(reference->ColumnName) != references.end()) {
+                    if (columnNames.find(reference->ColumnName) != columnNames.end()) {
                         THROW_ERROR_EXCEPTION("IN operator has multiple references to column %Qv", reference->ColumnName)
                             << TErrorAttribute("source", source);
                     } else {
-                        references.insert(reference->ColumnName);
+                        columnNames.insert(reference->ColumnName);
                     }
                 }
             }
@@ -1527,7 +1539,27 @@ std::pair<TQueryPtr, TDataRanges> PreparePlanFragment(
 
         std::vector<bool> usedJoinKeyEquations(equations.size(), false);
 
-        auto evaluator = evaluatorCache->Find(foreignTableSchema, foreignKeyColumnsCount);
+        std::vector<std::vector<int>> referenceIds(foreignKeyColumnsCount);
+        std::vector<TConstExpressionPtr> evaluatedColumnExprs(foreignKeyColumnsCount);
+
+        for (size_t index = 0; index < foreignKeyColumnsCount; ++index) {
+            if (!foreignTableSchema.Columns()[index].Expression) {
+                continue;
+            }
+
+            yhash_set<Stroka> references;
+            evaluatedColumnExprs[index] = PrepareExpression(
+                foreignTableSchema.Columns()[index].Expression.Get(),
+                foreignTableSchema,
+                functionRegistry,
+                &references);
+
+            for (const auto& reference : references) {
+                referenceIds[index].push_back(foreignTableSchema.GetColumnIndexOrThrow(reference));
+            }
+            std::sort(referenceIds[index].begin(), referenceIds[index].end());
+        }
+        
         size_t keyPrefix = 0;
         for (; keyPrefix < foreignKeyColumnsCount; ++keyPrefix) {
             if (equationByIndex[keyPrefix] >= 0) {
@@ -1536,7 +1568,7 @@ std::pair<TQueryPtr, TDataRanges> PreparePlanFragment(
             }
 
             if (foreignTableSchema.Columns()[keyPrefix].Expression) {
-                const auto& references = evaluator->GetReferenceIds(keyPrefix);
+                const auto& references = referenceIds[keyPrefix];
                 auto canEvaluate = true;
                 for (int referenceIndex : references) {
                     if (equationByIndex[referenceIndex] < 0) {
@@ -1563,7 +1595,7 @@ std::pair<TQueryPtr, TDataRanges> PreparePlanFragment(
             joinClause->EvaluatedColumns.resize(keyPrefix);
 
             for (int column = 0; column < keyPrefix; ++column) {
-                joinClause->EvaluatedColumns[column] = evaluator->GetExpression(column);
+                joinClause->EvaluatedColumns[column] = evaluatedColumnExprs[column];
             }
         } else {
             keyPrefix = equations.size();
@@ -1733,7 +1765,8 @@ TQueryPtr PrepareJobQuery(
 TConstExpressionPtr PrepareExpression(
     const Stroka& source,
     TTableSchema tableSchema,
-    IFunctionRegistryPtr functionRegistry)
+    IFunctionRegistryPtr functionRegistry,
+    yhash_set<Stroka>* references)
 {
     NAst::TAstHead astHead{TVariantTypeTag<NAst::TExpressionPtr>(), NAst::TAliasMap()};
     ParseYqlString(

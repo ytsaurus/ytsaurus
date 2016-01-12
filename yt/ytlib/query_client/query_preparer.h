@@ -35,7 +35,8 @@ TQueryPtr PrepareJobQuery(
 TConstExpressionPtr PrepareExpression(
     const Stroka& source,
     TTableSchema initialTableSchema,
-    IFunctionRegistryPtr functionRegistry = CreateBuiltinFunctionRegistry());
+    IFunctionRegistryPtr functionRegistry = CreateBuiltinFunctionRegistry(),
+    yhash_set<Stroka>* references = nullptr);
 
 ////////////////////////////////////////////////////////////////////////////////
 
