@@ -206,10 +206,12 @@ class TDecoratedAutomaton::TSnapshotBuilderBase
 public:
     TSnapshotBuilderBase(
         TDecoratedAutomatonPtr owner,
-        TVersion snapshotVersion)
+        TVersion snapshotVersion,
+        NLogging::TLogger& logger)
         : Owner_(owner)
         , SnapshotVersion_(snapshotVersion)
         , SnapshotId_(SnapshotVersion_.SegmentId + 1)
+        , Logger(logger)
     { }
 
     ~TSnapshotBuilderBase()
@@ -221,9 +223,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(Owner_->AutomatonThread);
 
-        auto* logger = GetLogger();
-        *logger = Owner_->Logger;
-        logger->AddTag("SnapshotId: %v", SnapshotId_);
+        Logger.AddTag("SnapshotId: %v", SnapshotId_);
 
         try {
             TryAcquireLock();
@@ -246,12 +246,12 @@ protected:
     const TDecoratedAutomatonPtr Owner_;
     const TVersion SnapshotVersion_;
     const int SnapshotId_;
+    NLogging::TLogger& Logger;
 
     ISnapshotWriterPtr SnapshotWriter_;
 
 
     virtual TFuture<void> DoRun() = 0;
-    virtual NLogging::TLogger* GetLogger() = 0;
 
     void TryAcquireLock()
     {
@@ -261,7 +261,6 @@ protected:
         }
         LockAcquired_ = true;
 
-        const auto& Logger = *GetLogger();
         LOG_INFO("Snapshot builder lock acquired");
     }
 
@@ -271,7 +270,6 @@ protected:
             Owner_->BuildingSnapshot_.clear();
             LockAcquired_ = false;
 
-            const auto& Logger = *GetLogger();
             LOG_INFO("Snapshot builder lock released");
         }
     }
@@ -307,7 +305,9 @@ public:
     TForkSnapshotBuilder(
         TDecoratedAutomatonPtr owner,
         TVersion snapshotVersion)
-        : TDecoratedAutomaton::TSnapshotBuilderBase(owner, snapshotVersion)
+        : TDecoratedAutomaton::TSnapshotBuilderBase(owner, snapshotVersion, Logger)
+        , TForkSnapshotBuilderBase(Logger)
+        , Logger(owner->Logger)
     { }
 
 private:
@@ -315,6 +315,8 @@ private:
     std::unique_ptr<TFile> OutputFile_;
 
     TFuture<void> AsyncTransferResult_;
+
+    NLogging::TLogger Logger;
 
 
     virtual TFuture<void> DoRun() override
@@ -335,11 +337,6 @@ private:
         return Fork().Apply(
             BIND(&TForkSnapshotBuilder::OnFinished, MakeStrong(this))
                 .AsyncVia(GetHydraIOInvoker()));
-    }
-
-    virtual NLogging::TLogger* GetLogger() override
-    {
-        return &Logger;
     }
 
     virtual TDuration GetTimeout() const override
@@ -527,16 +524,17 @@ public:
     TNoForkSnapshotBuilder(
         TDecoratedAutomatonPtr owner,
         TVersion snapshotVersion)
-        : TDecoratedAutomaton::TSnapshotBuilderBase(owner, snapshotVersion)
+        : TDecoratedAutomaton::TSnapshotBuilderBase(owner, snapshotVersion, Logger)
+        , Logger(owner->Logger)
     { }
 
 private:
-    NLogging::TLogger Logger;
-
     TIntrusivePtr<TSwitchableSnapshotWriter> SwitchableSnapshotWriter_;
 
     TFuture<void> AsyncOpenWriterResult_;
     TFuture<void> AsyncSaveSnapshotResult_;
+
+    NLogging::TLogger Logger;
 
 
     virtual TFuture<void> DoRun() override
@@ -558,11 +556,6 @@ private:
         return BIND(&TNoForkSnapshotBuilder::DoRunAsync, MakeStrong(this))
             .AsyncVia(GetHydraIOInvoker())
             .Run();
-    }
-
-    virtual NLogging::TLogger* GetLogger() override
-    {
-        return &Logger;
     }
 
     void DoRunAsync()
