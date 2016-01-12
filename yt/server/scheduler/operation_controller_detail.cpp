@@ -447,7 +447,7 @@ TJobId TOperationControllerBase::TTask::ScheduleJob(
     joblet->Address = address;
     joblet->NodeId = nodeId;
 
-    LOG_INFO(
+    LOG_DEBUG(
         "Job scheduled (JobId: %v, OperationId: %v, JobType: %v, Address: %v, JobIndex: %v, ChunkCount: %v (%v local), "
         "Approximate: %v, DataSize: %v (%v local), RowCount: %v, Restarted: %v, ResourceLimits: {%v})",
         joblet->JobId,
