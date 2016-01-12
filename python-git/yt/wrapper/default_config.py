@@ -62,8 +62,12 @@ default_config = {
     # $HOME/.yt/token by default
     "token_path": None,
 
-    # Version of api, None for use latest.
-    "api_version": "v2",
+    # Force using this version of api.
+    "api_version": None,
+
+    # Version of api for requests through http, None for use latest.
+    # For native driver version "v3" by default.
+    "default_api_version_for_http": "v2",
 
     # Native driver config usually read from file.
     "driver_config_path": None,
