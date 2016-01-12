@@ -22,7 +22,6 @@ TCGQueryCallbackGenerator Profile(
     TConstQueryPtr query,
     llvm::FoldingSetNodeID* id,
     TCGVariables* variables,
-    yhash_set<Stroka>* references,
     std::vector<std::vector<bool>>* literalArgs,
     const IFunctionRegistryPtr functionRegistry);
 
@@ -31,7 +30,6 @@ TCGExpressionCallbackGenerator Profile(
     const TTableSchema& schema,
     llvm::FoldingSetNodeID* id,
     TCGVariables* variables,
-    yhash_set<Stroka>* references,
     std::vector<std::vector<bool>>* literalArgs,
     const IFunctionRegistryPtr functionRegistry);
 

@@ -40,13 +40,13 @@ void TColumnEvaluator::PrepareEvaluator()
             Expressions_[index] = PrepareExpression(
                 Schema_.Columns()[index].Expression.Get(),
                 Schema_,
-                FunctionRegistry_);
+                FunctionRegistry_,
+                &references);
             Evaluators_[index] = Profile(
                 Expressions_[index],
                 Schema_,
                 nullptr,
                 &Variables_[index],
-                &references,
                 &AllLiteralArgs_[index],
                 FunctionRegistry_)();
 
