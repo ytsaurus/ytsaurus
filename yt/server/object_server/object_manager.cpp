@@ -504,8 +504,7 @@ void TObjectManager::RegisterHandler(IObjectTypeHandlerPtr handler)
 
     if (HasSchema(type)) {
         auto schemaType = SchemaTypeFromType(type);
-        auto& schemaEntry = TypeToEntry_[schemaType];
-        schemaEntry.Handler = CreateSchemaTypeHandler(Bootstrap_, type);
+        TypeToEntry_[schemaType].Handler = CreateSchemaTypeHandler(Bootstrap_, type);
 
         auto schemaObjectId = MakeSchemaObjectId(type, Bootstrap_->GetPrimaryCellTag());
 
@@ -715,7 +714,11 @@ void TObjectManager::Clear()
 
 void TObjectManager::InitSchemas()
 {
-    std::fill(TypeToEntry_.begin(), TypeToEntry_.end(), TTypeEntry());
+    for (auto& entry : TypeToEntry_) {
+        entry.SchemaObject = nullptr;
+        entry.SchemaProxy.Reset();
+    }
+
     for (auto type : RegisteredTypes_) {
         if (!HasSchema(type)) {
             continue;
