@@ -102,7 +102,6 @@ public:
         , TotalAbortedJobTimeCounter_("/total_aborted_job_time")
         , TotalResourceLimits_(ZeroJobResources())
         , TotalResourceUsage_(ZeroJobResources())
-        , OnlineNodeCount_(0)
     {
         YCHECK(config);
         YCHECK(bootstrap);
@@ -457,10 +456,10 @@ public:
         auto now = TInstant::Now();
 
         bool forceJobsLogging = false;
-        auto& lastJobsLogTime = node->LastJobsLogTime();
+        auto lastJobsLogTime = node->GetLastJobsLogTime();
         if (!lastJobsLogTime || now > lastJobsLogTime.Get() + Config_->JobsLoggingPeriod) {
             forceJobsLogging = true;
-            lastJobsLogTime = now;
+            node->SetLastJobsLogTime(now);
         }
 
         auto missingJobs = node->Jobs();
@@ -585,6 +584,20 @@ public:
             THROW_ERROR_EXCEPTION("Node has ongoing heartbeat");
         }
 
+        TLeaseManager::RenewLease(node->GetLease());
+
+        if (ConcurrentHeartbeatCount_ > Config_->HardConcurrentHeartbeatLimit) {
+            THROW_ERROR_EXCEPTION("Hard heartbeat limit reached")
+                << TErrorAttribute("hard_limit", Config_->HardConcurrentHeartbeatLimit);
+        }
+
+        if (ConcurrentHeartbeatCount_ > Config_->SoftConcurrentHeartbeatLimit &&
+            node->GetLastSeenTime() + Config_->HeartbeatProcessBackoff > TInstant::Now())
+        {
+            THROW_ERROR_EXCEPTION("Soft heartbeat limit reached")
+                << TErrorAttribute("soft_limit", Config_->SoftConcurrentHeartbeatLimit);
+        }
+
         yhash_set<TOperationPtr> operationsToLog;
         TFuture<void> scheduleJobsAsyncResult = VoidFuture;
 
@@ -594,7 +607,7 @@ public:
                 node->SetHasOngoingHeartbeat(false);
             });
 
-            TLeaseManager::RenewLease(node->GetLease());
+            ConcurrentHeartbeatCount_ += 1;
 
             auto oldResourceLimits = node->ResourceLimits();
             auto oldResourceUsage = node->ResourceUsage();
@@ -658,6 +671,9 @@ public:
             // "unsaturated CPU" phenomenon.
             TotalResourceUsage_ -= oldResourceUsage;
             TotalResourceUsage_ += node->ResourceUsage();
+
+            ConcurrentHeartbeatCount_ -= 1;
+            node->SetLastSeenTime(TInstant::Now());
         }
 
         context->ReplyFrom(scheduleJobsAsyncResult);
@@ -817,9 +833,10 @@ private:
     TEnumIndexedVector<int, EJobType> JobTypeCounters_;
     TPeriodicExecutorPtr ProfilingExecutor_;
 
-    TJobResources TotalResourceLimits_;
-    TJobResources TotalResourceUsage_;
-    int OnlineNodeCount_;
+    TJobResources TotalResourceLimits_ = ZeroJobResources();
+    TJobResources TotalResourceUsage_ = ZeroJobResources();
+    int OnlineNodeCount_ = 0;
+    int ConcurrentHeartbeatCount_ = 0;
 
     TPeriodicExecutorPtr LoggingExecutor_;
 
@@ -829,7 +846,6 @@ private:
     std::unique_ptr<IYsonConsumer> EventLogConsumer_;
 
     yhash_map<Stroka, TJobResources> SchedulingTagResources_;
-
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
     DECLARE_THREAD_AFFINITY_SLOT(SnapshotIOThread);

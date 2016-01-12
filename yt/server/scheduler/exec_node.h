@@ -44,7 +44,10 @@ public:
     DEFINE_BYREF_RW_PROPERTY(TJobResources, ResourceUsage);
 
     //! Last time when logging of jobs on node took place.
-    DEFINE_BYREF_RW_PROPERTY(TNullable<TInstant>, LastJobsLogTime);
+    DEFINE_BYVAL_RW_PROPERTY(TNullable<TInstant>, LastJobsLogTime);
+
+    //! Last time when heartbeat from node was processed.
+    DEFINE_BYVAL_RW_PROPERTY(TInstant, LastSeenTime);
 
     //! Controls heartbeat expiration.
     DEFINE_BYVAL_RW_PROPERTY(TLease, Lease);
