@@ -49,7 +49,7 @@ public:
     Stroka DefaultParentPool;
 
     // Preemption timeout for operations with small number of jobs will be
-    // discounted proportionaly to this coefficient.
+    // discounted proportionally to this coefficient.
     double JobCountPreemptionTimeoutCoefficient;
 
     TFairShareStrategyConfig()
@@ -418,6 +418,13 @@ public:
 
     TNullable<NYPath::TYPath> UdfRegistryPath;
 
+    // Backoff for processing successive heartbeats.
+    TDuration HeartbeatProcessBackoff;
+    // Number of heartbeats that can be processed without applying backoff.
+    int SoftConcurrentHeartbeatLimit;
+    // Maximum number of simultaneously processed heartbeats.
+    int HardConcurrentHeartbeatLimit;
+
     TSchedulerConfig()
     {
         RegisterParameter("controller_thread_count", ControllerThreadCount)
@@ -581,8 +588,27 @@ public:
         RegisterParameter("udf_registry_path", UdfRegistryPath)
             .Default(Null);
 
+        RegisterParameter("heartbeat_process_backoff", HeartbeatProcessBackoff)
+            .Default(TDuration::MilliSeconds(5000));
+
+        RegisterParameter("soft_concurrent_heartbeat_limit", SoftConcurrentHeartbeatLimit)
+            .Default(50)
+            .GreaterThanOrEqual(1);
+
+        RegisterParameter("hard_concurrent_heartbeat_limit", HardConcurrentHeartbeatLimit)
+            .Default(100)
+            .GreaterThanOrEqual(1);
+
         RegisterInitializer([&] () {
             ChunkLocationThrottler->Limit = 10000;
+        });
+
+        RegisterValidator([&] () {
+            if (SoftConcurrentHeartbeatLimit > HardConcurrentHeartbeatLimit) {
+                THROW_ERROR_EXCEPTION("Soft limit on concurrent heartbeats must be less than or equal to hard limit on concurrent heartbeats")
+                    << TErrorAttribute("soft_limit", SoftConcurrentHeartbeatLimit)
+                    << TErrorAttribute("hard_limit", HardConcurrentHeartbeatLimit);
+            }
         });
     }
 };
