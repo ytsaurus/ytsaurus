@@ -217,15 +217,20 @@ def get_api_version(client=None):
         set_option("_api_version", api_version_from_config, client)
         return api_version_from_config
 
-    require(get_backend_type(client) == "http",
-            YtError("Cannot automatically detect api version for non-proxy backend"))
 
-    api_versions = _request_api(get_config(client)["proxy"]["url"])
-    if "v3" in api_versions:
-        api_version = "v3"
+    if get_backend_type(client) == "http":
+        default_api_version_for_http = get_config(client)["default_api_version_for_http"]
+        if default_api_version_for_http is not None:
+            api_version = default_api_version_for_http
+        else:
+            api_versions = _request_api(get_config(client)["proxy"]["url"])
+            if "v3" in api_versions:
+                api_version = "v3"
+            else:
+                api_version = "v2"
+            require(api_version in api_versions, YtError("API {0} is not supported".format(api_version)))
     else:
-        api_version = "v2"
-    require(api_version in api_versions, YtError("API {0} is not supported".format(api_version)))
+        api_version = "v3"
 
     set_option("_api_version", api_version, client)
 

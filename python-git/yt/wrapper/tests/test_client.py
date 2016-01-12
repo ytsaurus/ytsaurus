@@ -157,9 +157,15 @@ class TestClient(object):
         finally:
             yt.config["proxy"]["url"] = old_proxy_url
 
+    def test_default_api_version(self):
+        client = Yt()
+        client.get("/")
+        assert client._api_version == "v2"
+
     def test_client_with_unknown_api_version(self):
         client = Yt(config=yt.config.config)
         client.config["api_version"] = None
+        client.config["default_api_version_for_http"] = None
         if client.config["backend"] == "native":
             pytest.skip()
         client.get("/")
