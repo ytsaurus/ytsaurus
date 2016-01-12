@@ -42,8 +42,7 @@ public:
                 channel->Terminate(TError(
                     NRpc::EErrorCode::TransportError,
                     "Channel terminated"));
-                // XXX(babenko): stop wrapping with TChannelWrapper after merging into master
-                return New<TChannelWrapper>(it->second);
+                return it->second;
             }
         }
     }
