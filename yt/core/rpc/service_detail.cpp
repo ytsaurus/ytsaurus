@@ -788,10 +788,12 @@ TServiceBase::TMethodPerformanceCounters* TServiceBase::LookupMethodPerformanceC
 
 TServiceBase::TRuntimeMethodInfoPtr TServiceBase::RegisterMethod(const TMethodDescriptor& descriptor)
 {
-    NProfiling::TTagIdList tagIds;
-    tagIds.push_back(ServiceTagId_);
-    tagIds.push_back(NProfiling::TProfileManager::Get()->RegisterTag("method", descriptor.Method));
-
+    auto* profileManager = NProfiling::TProfileManager::Get();
+    NProfiling::TTagIdList tagIds{
+        ServiceTagId_,
+        profileManager->RegisterTag("method", descriptor.Method)
+    };
+    
     auto runtimeInfo = New<TRuntimeMethodInfo>(descriptor, tagIds);
     runtimeInfo->RootPerformanceCounters = CreateMethodPerformanceCounters(runtimeInfo, "root");
 
