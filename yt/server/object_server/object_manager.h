@@ -279,6 +279,8 @@ private:
         bool mandatory);
     void OnReplicateValuesToSecondaryMaster(TCellTag cellTag);
 
+    void InitSchemas();
+
 };
 
 DEFINE_REFCOUNTED_TYPE(TObjectManager)
