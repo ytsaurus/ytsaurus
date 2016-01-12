@@ -481,6 +481,8 @@ Examples:
         config["proxy"]["url"] = args.server
     if args.prefix is not None and not config["yamr_mode"]["use_yamr_style_prefix"]:
         config["prefix"] = args.prefix
+    if config["prefix"] is None:
+        config["prefix"] = "//"
     if args.timeout is not None:
         config["transaction_timeout"] = int(args.timeout)
 

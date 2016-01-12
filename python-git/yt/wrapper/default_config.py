@@ -153,7 +153,7 @@ default_config = {
     "detached": True,
 
     # Prefix for all relative paths.
-    "prefix": "",
+    "prefix": None,
 
     # Default timeout of transactions that started manually.
     "transaction_timeout": 15 * 1000,
