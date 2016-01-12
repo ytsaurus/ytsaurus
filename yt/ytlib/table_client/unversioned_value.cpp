@@ -35,13 +35,17 @@ TFingerprint GetFarmFingerprint(const TUnversionedValue& value)
             return FarmFingerprint(0);
 
         default:
-            // XXX(babenko)
+
+#ifdef YT_COMPILING_UDF
             YUNREACHABLE();
-            //THROW_ERROR_EXCEPTION(
-            //    EErrorCode::UnhashableType,
-            //    "Cannot hash values of type %Qlv; only scalar types are allowed for key columns",
-            //    type)
-            //    << TErrorAttribute("value", value);
+#else
+            THROW_ERROR_EXCEPTION(
+                EErrorCode::UnhashableType,
+                "Cannot hash values of type %Qlv; only scalar types are allowed for key columns",
+                type)
+                << TErrorAttribute("value", value);
+#endif
+
     }
 }
 
