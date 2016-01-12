@@ -589,6 +589,16 @@ test_many_to_many_copy_move()
     check "4\t5\t6\n1\t2\t3\n" "`./mapreduce -read "ignat/in2"`"
 }
 
+test_missing_prefix()
+{
+    local prefix="$YT_PREFIX"
+    unset YT_PREFIX
+
+    ./mapreduce -get "tmp/@key"
+
+    export YT_PREFIX="$prefix"
+}
+
 prepare_table_files
 test_base_functionality
 test_list
@@ -620,5 +630,6 @@ test_write_lenval
 test_force_drop
 test_parallel_dstappend
 test_many_to_many_copy_move
+test_missing_prefix
 
 cleanup
