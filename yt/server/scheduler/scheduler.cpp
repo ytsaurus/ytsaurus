@@ -1237,7 +1237,7 @@ private:
             return;
         }
 
-        LOG_INFO("Operation has been prepared and is now running (OperationId: %v)",
+        LOG_INFO("Operation has been prepared (OperationId: %v)",
             operationId);
 
         LogEventFluently(ELogEventType::OperationPrepared)
