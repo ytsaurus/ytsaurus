@@ -1542,7 +1542,8 @@ private:
         auto controllerLoggingProgress = WaitFor(
             BIND(&IOperationController::GetLoggingProgress, controller)
                 .AsyncVia(controller->GetInvoker())
-                .Run());
+                .Run())
+            .ValueOrThrow();
 
         if (!FindOperation(operation->GetId())) {
             return;
