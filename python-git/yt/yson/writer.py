@@ -93,8 +93,11 @@ class Dumper(object):
         self._level += 1
 
         attributes = ''
-        if hasattr(obj, 'attributes') and obj.attributes:
-            attributes = self._dump_attributes(obj.attributes)
+        if hasattr(obj, 'attributes') and obj.attributes is not None:
+            if not isinstance(obj.attributes, dict):
+                raise YsonError("Invalid field 'attributes': it must be string or None")
+            if obj.attributes:
+                attributes = self._dump_attributes(obj.attributes)
 
         result = None
         if obj is False or (isinstance(obj, yt.yson.yson_types.YsonBoolean) and not obj):

@@ -238,6 +238,17 @@ class CommonTestBase(object):
         dumps = CommonTestBase.writer.dumps
         self.assertEqual('"a"="b";"c"="d";', dumps({"a": "b", "c": "d"}, yson_format="text", yson_type="map_fragment"))
 
+    def test_invalid_attributes(self):
+        dumps = CommonTestBase.writer.dumps
+
+        obj = yt.yson.yson_types.YsonEntity()
+
+        obj.attributes = None
+        self.assertEqual("#", dumps(obj))
+
+        obj.attributes = []
+        self.assertRaises(Exception, lambda: dumps(obj))
+
 class TestCommon(unittest.TestCase, CommonTestBase):
     CommonTestBase.writer = writer
     CommonTestBase.parser = parser
