@@ -1,5 +1,7 @@
 #include "memory_store_ut.h"
 
+#include <yt/server/tablet_node/automaton.h>
+
 #include <yt/core/actions/invoker_util.h>
 
 #include <yt/core/misc/string.h>
