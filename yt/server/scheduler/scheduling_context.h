@@ -16,6 +16,8 @@ struct TExecNodeDescriptor
     NNodeTrackerClient::TNodeId Id;
     Stroka Address;
     double IOWeight;
+
+    void Persist(TStreamPersistenceContext& context);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -171,7 +171,7 @@ void TOperationControllerBase::TCompletedJob::Persist(TPersistenceContext& conte
     Persist(context, OutputCookie);
     Persist(context, DestinationPool);
     Persist(context, InputCookie);
-    Persist(context, NodeId);
+    Persist(context, NodeDescriptor);
 }
 
 ////////////////////////////////////////////////////////////////////
@@ -445,8 +445,7 @@ TJobId TOperationControllerBase::TTask::ScheduleJob(
         jobSpecBuilder);
 
     joblet->JobType = jobType;
-    joblet->Address = address;
-    joblet->NodeId = nodeId;
+    joblet->NodeDescriptor = context->GetNodeDescriptor();
 
     LOG_DEBUG(
         "Job scheduled (JobId: %v, OperationId: %v, JobType: %v, Address: %v, JobIndex: %v, ChunkCount: %v (%v local), "
@@ -858,8 +857,7 @@ void TOperationControllerBase::TTask::RegisterIntermediate(
         joblet->InputStripeList->TotalDataSize,
         destinationPool,
         inputCookie,
-        joblet->Address,
-        joblet->NodeId);
+        joblet->NodeDescriptor);
 
     Controller->RegisterIntermediate(
         joblet,
@@ -1717,7 +1715,7 @@ void TOperationControllerBase::OnIntermediateChunkUnavailable(const TChunkId& ch
         return;
 
     LOG_DEBUG("Job is lost (Address: %v, JobId: %v, SourceTask: %v, OutputCookie: %v, InputCookie: %v)",
-        completedJob->Address,
+        completedJob->NodeDescriptor.Address,
         completedJob->JobId,
         completedJob->SourceTask->GetId(),
         completedJob->OutputCookie,
