@@ -8,16 +8,18 @@ import yt.packages.requests.adapters as requests_adapters
 from yt.wrapper.common import run_with_retries
 import yt.logger as logger
 import yt.wrapper as yt
+import yt.yson as yson
 
 from dateutil.parser import parse
 from collections import namedtuple, Counter
+import _strptime #http://bugs.python.org/issue7980
 from datetime import datetime, timedelta
 from threading import Thread
 from logging import Formatter
 
 import argparse
 import sys
-
+import time
 
 Operation = namedtuple("Operation", ["start_time", "finish_time", "id", "user", "state", "spec"])
 
@@ -105,14 +107,27 @@ def clean_operation(op_id, archive=False):
             (key, data[key])
             for key in ["state", "authenticated_user", "operation_type",
                         "progress", "brief_progress", "spec", "brief_spec",
-                        "start_time", "finish_time", "result"])
-        by_id_row["id"] = op_id
+                        "result"])
+
+        def datestr_to_int(time_str):
+            return int(time.mktime(datetime.strptime(time_str, "%Y-%m-%dT%H:%M:%S.%fZ").timetuple()))
+
+        id_parts = op_id.split("-")
+
+        id_hi = long(id_parts[3], 16) << 32 | int(id_parts[2], 16)
+        id_lo = long(id_parts[1], 16) << 32 | int(id_parts[0], 16)
+
+        by_id_row["id_hi"] = yson.YsonUint64(id_hi)
+        by_id_row["id_lo"] = yson.YsonUint64(id_lo)
+        by_id_row["start_time"] = datestr_to_int(data["start_time"])
+        by_id_row["finish_time"] = datestr_to_int(data["finish_time"])
         by_id_row["filter_factors"] = get_filter_factors(op_id, data)
 
         by_start_time_row = {
-            "id": by_id_row["id"],
+            "id_hi": by_id_row["id_hi"],
+            "id_lo": by_id_row["id_lo"],
             "start_time": by_id_row["start_time"],
-            "dummy": "null"
+            "dummy": 0
         }
 
         run_with_retries(lambda: yt.insert_rows(prepare_operation_tablets.BY_ID_ARCHIVE, [by_id_row], raw=False))
