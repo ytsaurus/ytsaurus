@@ -314,7 +314,7 @@ bool TStoreManager::IsOverflowRotationNeeded() const
     const auto& store = Tablet_->GetActiveStore();
     const auto& config = Tablet_->GetConfig();
     return
-        store->GetKeyCount() >= config->MaxMemoryStoreKeyCount ||
+        store->GetKeyCount() >= config->SoftMemoryStoreKeyCountLimit ||
         store->GetValueCount() >= config->MaxMemoryStoreValueCount ||
         store->GetPoolCapacity() >= config->MaxMemoryStorePoolSize;
 }

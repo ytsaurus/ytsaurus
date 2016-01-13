@@ -7,6 +7,7 @@
 #include <yt/ytlib/chunk_client/read_limit.h>
 
 #include <yt/core/misc/range.h>
+#include <yt/core/misc/linear_probe.h>
 
 namespace NYT {
 namespace NTableClient {
@@ -23,6 +24,28 @@ struct TChunkReaderPerformanceCounters
 };
 
 DEFINE_REFCOUNTED_TYPE(TChunkReaderPerformanceCounters)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TVersionedChunkLookupHashTable
+    : public TRefCounted
+{
+public:
+    explicit TVersionedChunkLookupHashTable(size_t size);
+    void Insert(TKey key, std::pair<ui16, ui32> index);
+    SmallVector<std::pair<ui16, ui32>, 1> Find(TKey key) const;
+    size_t GetByteSize() const;
+
+private:
+    TLinearProbeHashTable HashTable_;
+};
+
+DEFINE_REFCOUNTED_TYPE(TVersionedChunkLookupHashTable);
+
+TVersionedChunkLookupHashTablePtr CreateChunkLookupHashTable(
+    const std::vector<TSharedRef>& blocks,
+    TCachedVersionedChunkMetaPtr chunkMeta,
+    TKeyComparer keyComparer);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -65,6 +88,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
 IVersionedReaderPtr CreateCacheBasedVersionedChunkReader(
     NChunkClient::IBlockCachePtr blockCache,
     TCachedVersionedChunkMetaPtr chunkMeta,
+    TVersionedChunkLookupHashTablePtr lookupHashTable,
     const TSharedRange<TKey>& keys,
     const TColumnFilter& columnFilter,
     TChunkReaderPerformanceCountersPtr performanceCounters,

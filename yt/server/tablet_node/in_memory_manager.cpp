@@ -34,10 +34,34 @@ using namespace NConcurrency;
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
 using namespace NNodeTrackerClient;
+using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 const auto& Logger = TabletNodeLogger;
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace {
+
+EBlockType InMemoryModeToBlockType(EInMemoryMode mode)
+{
+    switch (mode) {
+        case EInMemoryMode::Compressed:
+            return EBlockType::CompressedData;
+
+        case EInMemoryMode::Uncompressed:
+            return EBlockType::UncompressedData;
+
+        case EInMemoryMode::None:
+            return EBlockType::None;
+
+        default:
+            YUNREACHABLE();
+    }
+}
+
+} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -87,6 +111,38 @@ public:
         return data;
     }
 
+    void FinalizeChunk(
+        const TChunkId& chunkId,
+        const TChunkMeta& chunkMeta,
+        const TTablet* tablet)
+    {
+        TInMemoryChunkDataPtr data;
+        auto mode = tablet->GetConfig()->InMemoryMode;
+        if (mode == EInMemoryMode::None) {
+            return;
+        }
+
+        {
+            TWriterGuard guard(InterceptedDataSpinLock_);
+            auto it = ChunkIdToData_.find(chunkId);
+            if (it != ChunkIdToData_.end()) {
+                data = it->second;
+            }
+        }
+
+        if (!data) {
+            LOG_INFO("Cannot find intercepted chunk (TabletId: %v, Mode: %v, ChunkId: %v)",
+                tablet->GetId(),
+                mode,
+                chunkId);
+            return;
+        }
+
+        YCHECK(data->InMemoryMode == mode);
+
+        FinalizeChunkData(data, chunkId, chunkMeta, tablet);
+    }
+
 private:
     const TInMemoryManagerConfigPtr Config_;
     NCellNode::TBootstrap* const Bootstrap_;
@@ -98,6 +154,25 @@ private:
     TReaderWriterSpinLock InterceptedDataSpinLock_;
     yhash_map<TChunkId, TInMemoryChunkDataPtr> ChunkIdToData_;
 
+
+    void FinalizeChunkData(
+        TInMemoryChunkDataPtr data,
+        const TChunkId& chunkId,
+        const TChunkMeta& chunkMeta,
+        const TTablet* tablet)
+    {
+        data->ChunkMeta = TCachedVersionedChunkMeta::Create(
+            chunkId,
+            chunkMeta,
+            tablet->Schema());
+
+        if (tablet->GetEnableLookupHashTable()) {
+            data->LookupHashTable = CreateChunkLookupHashTable(
+                data->Blocks,
+                data->ChunkMeta,
+                tablet->GetRowKeyComparer());
+        }
+    }
 
     void ScanSlot(TTabletSlotPtr slot)
     {
@@ -190,12 +265,7 @@ private:
 
         LOG_INFO("Store preload started");
 
-        std::vector<int> extensionTags = {
-            TProtoExtensionTag<TMiscExt>::Value,
-            TProtoExtensionTag<TBlocksExt>::Value
-        };
-
-        auto meta = WaitFor(reader->GetMeta(Null, extensionTags))
+        auto meta = WaitFor(reader->GetMeta())
             .ValueOrThrow();
 
         auto miscExt = GetProtoExtension<TMiscExt>(meta.extensions());
@@ -255,11 +325,12 @@ private:
             startBlockIndex += readBlockCount;
         }
 
+        FinalizeChunkData(chunkData, store->GetId(), meta, tablet);
+
         store->Preload(chunkData);
 
-        LOG_INFO("Store preload completed");
+        LOG_INFO("Store preload completed (LookupHashTable: %v)", static_cast<bool>(chunkData->LookupHashTable));
     }
-
 
     class TInterceptingBlockCache
         : public IBlockCache
@@ -316,6 +387,8 @@ private:
                 data->Blocks.resize(id.BlockIndex + 1);
             }
             data->Blocks[id.BlockIndex] = block;
+
+            YCHECK(!data->ChunkMeta);
         }
 
         virtual TSharedRef Find(
@@ -338,25 +411,6 @@ private:
         TSpinLock SpinLock_;
         yhash_set<TChunkId> ChunkIds_;
         bool Dropped_ = false;
-
-
-        static EBlockType InMemoryModeToBlockType(EInMemoryMode mode)
-        {
-            switch (mode) {
-                case EInMemoryMode::Compressed:
-                    return EBlockType::CompressedData;
-
-                case EInMemoryMode::Uncompressed:
-                    return EBlockType::UncompressedData;
-
-                case EInMemoryMode::None:
-                    return EBlockType::None;
-
-                default:
-                    YUNREACHABLE();
-            }
-        }
-
     };
 
     TInMemoryChunkDataPtr GetChunkData(const TChunkId& chunkId, EInMemoryMode mode)
@@ -424,6 +478,14 @@ IBlockCachePtr TInMemoryManager::CreateInterceptingBlockCache(EInMemoryMode mode
 TInMemoryChunkDataPtr TInMemoryManager::EvictInterceptedChunkData(const TChunkId& chunkId)
 {
     return Impl_->EvictInterceptedChunkData(chunkId);
+}
+
+void TInMemoryManager::FinalizeChunk(
+    const TChunkId& chunkId,
+    const TChunkMeta& chunkMeta,
+    const TTablet* tablet)
+{
+    Impl_->FinalizeChunk(chunkId, chunkMeta, tablet);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

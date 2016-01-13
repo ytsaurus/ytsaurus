@@ -152,7 +152,6 @@ public:
     // The following functions are made public for unit-testing.
     TDynamicRow FindRow(NTableClient::TUnversionedRow key);
     std::vector<TDynamicRow> GetAllRows();
-    TTimestamp TimestampFromRevision(ui32 revision);
     TTimestamp GetLastCommitTimestamp(TDynamicRow row, int lockIndex);
 
     int GetValueCount() const;
@@ -197,10 +196,13 @@ public:
 
     virtual void BuildOrchidYson(NYson::IYsonConsumer* consumer) override;
 
+    FORCED_INLINE TTimestamp TimestampFromRevision(ui32 revision) const;
+
 private:
     class TReaderBase;
     class TRangeReader;
     class TLookupReader;
+    class TDynamicStoreLookupHashTable;
 
     const TTabletManagerConfigPtr Config_;
 
@@ -211,6 +213,7 @@ private:
     const TDynamicRowKeyComparer RowKeyComparer_;
     const NTableClient::TRowBufferPtr RowBuffer_;
     const std::unique_ptr<TSkipList<TDynamicRow, TDynamicRowKeyComparer>> Rows_;
+    std::unique_ptr<TDynamicStoreLookupHashTable> LookupHashTable_;
 
     ui32 FlushRevision_ = InvalidRevision;
 
@@ -280,6 +283,7 @@ private:
 
     void OnMemoryUsageUpdated();
 
+    void ValidateKeyCountLimit() const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TDynamicMemoryStore)
@@ -288,3 +292,8 @@ DEFINE_REFCOUNTED_TYPE(TDynamicMemoryStore)
 
 } // namespace NTabletNode
 } // namespace NYT
+
+#define DYNAMIC_MEMORY_STORE_INL_H_
+#include "dynamic_memory_store-inl.h"
+#undef DYNAMIC_MEMORY_STORE_INL_H_
+
