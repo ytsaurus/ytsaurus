@@ -516,7 +516,7 @@ test_force_drop()
 {
     gen_data()
     {
-        echo -e "a\tb"
+        stdbuf -o 0 echo -e "a\tb"
         sleep 4
         echo -e "x\ty"
     }
@@ -528,8 +528,6 @@ test_force_drop()
     bg_pid=$!
 
     sleep 2
-
-    #check_failed './mapreduce -drop "ignat/some_table"'
 
     ./mapreduce -drop "ignat/some_table" -force
 
