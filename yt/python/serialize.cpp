@@ -130,11 +130,16 @@ void Serialize(const Py::Object& obj, IYsonConsumer* consumer, bool ignoreInnerA
 
     const char* attributesStr = "attributes";
     if ((!ignoreInnerAttributes || depth == 0) && PyObject_HasAttrString(*obj, attributesStr)) {
-        auto attributes = Py::Mapping(PyObject_GetAttrString(*obj, attributesStr), true);
-        if (attributes.length() > 0) {
-            consumer->OnBeginAttributes();
-            SerializeMapFragment(attributes, consumer, ignoreInnerAttributes, ysonType, depth);
-            consumer->OnEndAttributes();
+        auto attributeObject = Py::Object(PyObject_GetAttrString(*obj, attributesStr), true);
+        if (attributeObject.isMapping()) {
+            auto attributes = Py::Mapping(attributeObject);
+            if (attributes.length() > 0) {
+                consumer->OnBeginAttributes();
+                SerializeMapFragment(attributes, consumer, ignoreInnerAttributes, ysonType, depth);
+                consumer->OnEndAttributes();
+            }
+        } else if (!attributeObject.isNone()) {
+            throw Py::RuntimeError("Invalid field 'attributes', it is neither mapping nor None");
         }
     }
 
