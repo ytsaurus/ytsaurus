@@ -2,7 +2,7 @@ from configs_provider import ConfigsProviderFactory, init_logging
 from helpers import versions_cmp, is_binary_found, read_config, write_config, collect_events_from_logs, \
                     is_dead_or_zombie, get_open_port
 
-from yt.common import update, YtError, get_value, remove_file, makedirp
+from yt.common import update, YtError, get_value, remove_file, makedirp, set_pdeathsig
 import yt.yson as yson
 
 import logging
@@ -16,7 +16,6 @@ import shutil
 import sys
 import getpass
 from collections import defaultdict
-import ctypes
 from threading import RLock
 from itertools import takewhile, count
 
@@ -297,11 +296,6 @@ class YTEnv(object):
         self.pids_file.flush()
 
     def _run(self, args, name, number=1, timeout=0.1):
-        if sys.platform.startswith("linux"):
-            ctypes.cdll.LoadLibrary("libc.so.6")
-            LIBC = ctypes.CDLL("libc.so.6")
-            PR_SET_PDEATHSIG = 1
-
         with self._lock:
             stderrs_dir = os.path.join(self.path_to_run, "stderrs")
             makedirp(stderrs_dir)
@@ -311,8 +305,8 @@ class YTEnv(object):
 
             def preexec():
                 os.setsid()
-                if self._kill_child_processes and sys.platform.startswith("linux"):
-                    LIBC.prctl(PR_SET_PDEATHSIG, signal.SIGTERM)
+                if self._kill_child_processes:
+                    set_pdeathsig()
 
             p = subprocess.Popen(args, shell=False, close_fds=True, preexec_fn=preexec, cwd=self.path_to_run,
                                  stdout=stdout, stderr=stderr)
