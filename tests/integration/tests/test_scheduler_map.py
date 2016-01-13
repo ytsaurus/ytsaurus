@@ -1227,11 +1227,11 @@ print row + table_index
 
         testing_options = {"scheduling_delay": 100}
 
-        job_count = 10
+        job_count = 20
         original_data = [{"index": i} for i in xrange(job_count)]
         write_table("//tmp/input", original_data)
 
-        operation_count = 20
+        operation_count = 5
         op_ids = []
         for index in range(operation_count):
             output = "//tmp/output" + str(index)
