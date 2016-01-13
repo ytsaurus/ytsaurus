@@ -337,7 +337,8 @@ EExitCode GuardedMain(int argc, const char* argv[])
         }
         env.push_back(nullptr);
 
-        Stroka command = "( " + parser.Command.getValue() + " )&&:";
+        // :; is added avoid fork/exec (oneshot) optimization
+        Stroka command = ":; " + parser.Command.getValue();
         std::vector<const char*> args {
             "/bin/bash",
             "-c",
