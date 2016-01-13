@@ -4,9 +4,7 @@
 
 #include <yt/ytlib/scheduler/public.h>
 
-#include <yt/core/misc/enum.h>
-#include <yt/core/misc/error.h>
-#include <yt/core/misc/protobuf_helpers.h>
+#include <yt/core/actions/callback.h>
 
 namespace NYT {
 namespace NScheduler {
@@ -26,7 +24,11 @@ DECLARE_REFCOUNTED_CLASS(TOperation)
 DECLARE_REFCOUNTED_CLASS(TJob)
 
 using TJobList = std::list<TJobPtr>;
+using TJobSpecBuilder = TCallback<void(NJobTrackerClient::NProto::TJobSpec* jobSpec)>;
 
+class TJobResources;
+
+struct TExecNodeDescriptor;
 DECLARE_REFCOUNTED_CLASS(TExecNode)
 
 DECLARE_REFCOUNTED_CLASS(TFairShareStrategyConfig)

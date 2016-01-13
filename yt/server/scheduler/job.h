@@ -20,8 +20,6 @@ namespace NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-typedef TCallback<void(NJobTrackerClient::NProto::TJobSpec* jobSpec)> TJobSpecBuilder;
-
 class TJob
     : public TRefCounted
 {
@@ -118,7 +116,6 @@ struct TAbortedJobSummary
     : public TJobSummary
 {
     explicit TAbortedJobSummary(TJobPtr job);
-
     TAbortedJobSummary(const TJobId& id, EAbortReason abortReason);
 
     const EAbortReason AbortReason;

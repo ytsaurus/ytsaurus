@@ -17,7 +17,7 @@ namespace NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Scheduler-side representation an exec-node.
+//! Scheduler-side representation of an execution node.
 class TExecNode
     : public TRefCounted
 {

@@ -129,7 +129,9 @@ struct ISchedulerElement
 
 struct TFairShareContext
 {
-    TFairShareContext(ISchedulingContext* schedulingContext, int attributesIndex)
+    TFairShareContext(
+        ISchedulingContext* schedulingContext,
+        int attributesIndex)
         : SchedulingContext(schedulingContext)
         , AttributesIndex(attributesIndex)
     { }
@@ -506,11 +508,10 @@ public:
     {
         DynamicAttributesList_.Initialize(context.AttributesIndex);
         auto& attributes = DynamicAttributes(context.AttributesIndex);
-        const auto& node = context.SchedulingContext->GetNode();
 
         attributes.Active = true;
 
-        if (!node->CanSchedule(GetSchedulingTag())) {
+        if (!context.SchedulingContext->CanSchedule(GetSchedulingTag())) {
             attributes.Active = false;
             return;
         }
@@ -1014,11 +1015,10 @@ public:
         DynamicAttributesList_.Initialize(context.AttributesIndex);
         auto& attributes = DynamicAttributes(context.AttributesIndex);
         attributes = DynamicAttributes(GlobalAttributesIndex);
-        const auto& node = context.SchedulingContext->GetNode();
 
         attributes.Active = true;
 
-        if (!node->CanSchedule(GetSchedulingTag())) {
+        if (!context.SchedulingContext->CanSchedule(GetSchedulingTag())) {
             attributes.Active = false;
             return;
         }
@@ -1089,8 +1089,8 @@ public:
             return false;
         }
 
-        const auto& job = context.SchedulingContext->FindStartedJob(jobId);
-        context.SchedulingContext->GetNode()->ResourceUsage() += job->ResourceUsage();
+        const auto& job = context.SchedulingContext->GetStartedJob(jobId);
+        context.SchedulingContext->ResourceUsage() += job->ResourceUsage();
         OnJobStarted(jobId, job->ResourceUsage());
         UpdateDynamicAttributes(context.AttributesIndex);
         updateAncestorsAttributes();
@@ -1343,19 +1343,18 @@ private:
     mutable TJobResources ResourceLimits_;
     mutable TJobResources MaxPossibleResourceUsage_;
 
-    TFairShareStrategyConfigPtr Config;
-
-    TOperationId OperationId_;
+    const TFairShareStrategyConfigPtr Config;
+    const TOperationId OperationId_;
 
     TJobResources GetHierarchicalResourceLimits(const TFairShareContext& context) const
     {
-        const auto& node = context.SchedulingContext->GetNode();
+        auto* schedulingContext = context.SchedulingContext;
 
         // Bound limits with node free resources.
         auto limits =
-            node->ResourceLimits()
-            - node->ResourceUsage()
-            + context.SchedulingContext->ResourceUsageDiscount();
+            schedulingContext->ResourceLimits()
+            - schedulingContext->ResourceUsage()
+            + schedulingContext->ResourceUsageDiscount();
 
         // Bound limits with pool free resources.
         TCompositeSchedulerElement* pool = Pool_;
@@ -1485,10 +1484,10 @@ public:
 
     virtual void ScheduleJobs(ISchedulingContext* schedulingContext) override
     {
-        auto guard = WaitFor(TAsyncLockReaderGuard::Acquire(&ScheduleJobsLock)).Value();
+        auto guard = WaitFor(TAsyncLockReaderGuard::Acquire(&ScheduleJobsLock))
+            .Value();
 
         auto now = schedulingContext->GetNow();
-        auto node = schedulingContext->GetNode();
         int attributesIndex = AllocateAttributesIndex();
         TFairShareContext context(schedulingContext, attributesIndex);
 
@@ -1497,7 +1496,7 @@ public:
         // Run periodic update.
         if (Config->FairShareUpdatePeriod && (!LastUpdateTime || now > LastUpdateTime.Get() + *Config->FairShareUpdatePeriod)) {
             PROFILE_TIMING ("/fair_share_update_time") {
-                // The root element get the whole cluster.
+                // The root element gets the whole cluster.
                 RootElement->Update();
             }
             LastUpdateTime = now;
@@ -1563,17 +1562,17 @@ public:
                 TCompositeSchedulerElement* pool = operationElement->GetPool();
                 while (pool) {
                     discountedPools.insert(pool);
-                    pool->DynamicAttributes(context.AttributesIndex).ResourceUsageDiscount += job->ResourceUsage();
+                    pool->DynamicAttributes(attributesIndex).ResourceUsageDiscount += job->ResourceUsage();
                     pool = pool->GetParent();
                 }
-                context.SchedulingContext->ResourceUsageDiscount() += job->ResourceUsage();
+                schedulingContext->ResourceUsageDiscount() += job->ResourceUsage();
                 preemptableJobs.push_back(job);
                 LOG_DEBUG("Job is preemptable (JobId: %v)",
                     job->GetId());
             }
         }
 
-        auto resourceDiscount = context.SchedulingContext->ResourceUsageDiscount();
+        auto resourceDiscount = schedulingContext->ResourceUsageDiscount();
         int startedBeforePreemption = schedulingContext->StartedJobs().size();
 
         // Second-chance scheduling.
@@ -1593,9 +1592,9 @@ public:
         int scheduledDuringPreemption = startedAfterPreemption - startedBeforePreemption;
 
         // Reset discounts.
-        context.SchedulingContext->ResourceUsageDiscount() = ZeroJobResources();
+        schedulingContext->ResourceUsageDiscount() = ZeroJobResources();
         for (const auto& pool : discountedPools) {
-            pool->DynamicAttributes(context.AttributesIndex).ResourceUsageDiscount = ZeroJobResources();
+            pool->DynamicAttributes(attributesIndex).ResourceUsageDiscount = ZeroJobResources();
         }
 
         // Preempt jobs if needed.
@@ -1645,7 +1644,7 @@ public:
 
             // Update flags only if violation is not resolved yet to avoid costly computations.
             if (nodeLimitsViolated) {
-                nodeLimitsViolated = !Dominates(node->ResourceLimits(), node->ResourceUsage());
+                nodeLimitsViolated = !Dominates(schedulingContext->ResourceLimits(), schedulingContext->ResourceUsage());
             }
             if (!nodeLimitsViolated && poolsLimitsViolated) {
                 poolsLimitsViolated = anyPoolLimitsViolated();
@@ -1819,7 +1818,7 @@ private:
     {
         auto operationElement = GetOperationElement(job->GetOperationId());
 
-        context.SchedulingContext->GetNode()->ResourceUsage() -= job->ResourceUsage();
+        context.SchedulingContext->ResourceUsage() -= job->ResourceUsage();
         operationElement->IncreaseJobResourceUsage(job->GetId(), -job->ResourceUsage());
         job->ResourceUsage() = ZeroJobResources();
 
