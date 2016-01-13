@@ -158,7 +158,7 @@ private:
     {
         NLogging::TLogger Logger(TabletNodeLogger);
         Logger.AddTag("TabletId: %v, StoreId: %v",
-            tablet->GetTabletId(),
+            tablet->GetId(),
             store->GetId());
 
         auto storeManager = tablet->GetStoreManager();

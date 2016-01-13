@@ -1,5 +1,6 @@
 #:yt-updatable
 set( SRCS
+  ${CMAKE_CURRENT_LIST_DIR}/object_detail.cpp
   ${CMAKE_CURRENT_LIST_DIR}/automaton.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_store.cpp
   ${CMAKE_CURRENT_LIST_DIR}/dynamic_memory_store.cpp
@@ -28,6 +29,7 @@ set( SRCS
   ${CMAKE_CURRENT_LIST_DIR}/in_memory_manager.cpp
 )
 set( HDRS
+  ${CMAKE_CURRENT_LIST_DIR}/object_detail.h
   ${CMAKE_CURRENT_LIST_DIR}/automaton.h
   ${CMAKE_CURRENT_LIST_DIR}/chunk_store.h
   ${CMAKE_CURRENT_LIST_DIR}/config.h

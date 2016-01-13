@@ -59,7 +59,7 @@ TStoreManager::TStoreManager(
     YCHECK(Tablet_);
     YCHECK(DynamicMemoryStoreFactory_);
 
-    Logger.AddTag("TabletId: %v", Tablet_->GetTabletId());
+    Logger.AddTag("TabletId: %v", Tablet_->GetId());
     if (Tablet_->GetSlot()) {
         Logger.AddTag("CellId: %v", Tablet_->GetSlot()->GetCellId());
     }
@@ -151,7 +151,7 @@ TDynamicRowRef TStoreManager::WriteRowAtomic(
     if (row.GetCount() == KeyColumnCount_) {
         THROW_ERROR_EXCEPTION("Empty writes are not allowed")
             << TErrorAttribute("transaction_id", transaction->GetId())
-            << TErrorAttribute("tablet_id", Tablet_->GetTabletId())
+            << TErrorAttribute("tablet_id", Tablet_->GetId())
             << TErrorAttribute("key", row);
     }
 
@@ -184,7 +184,7 @@ void TStoreManager::WriteRowNonAtomic(
     if (row.GetCount() == KeyColumnCount_) {
         THROW_ERROR_EXCEPTION("Empty writes are not allowed")
             << TErrorAttribute("transaction_id", transactionId)
-            << TErrorAttribute("tablet_id", Tablet_->GetTabletId())
+            << TErrorAttribute("tablet_id", Tablet_->GetId())
             << TErrorAttribute("key", row);
     }
 

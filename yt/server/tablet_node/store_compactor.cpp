@@ -454,7 +454,7 @@ private:
         auto* tablet = eden->GetTablet();
         auto storeManager = tablet->GetStoreManager();
         auto slot = tablet->GetSlot();
-        auto tabletId = tablet->GetTabletId();
+        auto tabletId = tablet->GetId();
         auto mountRevision = tablet->GetMountRevision();
         auto writerOptions = tablet->GetWriterOptions();
         auto tabletPivotKey = tablet->GetPivotKey();
@@ -710,7 +710,7 @@ private:
         auto* tablet = partition->GetTablet();
         auto storeManager = tablet->GetStoreManager();
         auto slot = tablet->GetSlot();
-        auto tabletId = tablet->GetTabletId();
+        auto tabletId = tablet->GetId();
         auto mountRevision = tablet->GetMountRevision();
         auto writerOptions = tablet->GetWriterOptions();
         auto tabletPivotKey = tablet->GetPivotKey();

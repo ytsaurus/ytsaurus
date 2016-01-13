@@ -192,13 +192,13 @@ private:
 
         if (storeManager->IsPeriodicRotationNeeded()) {
             LOG_INFO("Scheduling periodic store rotation (TabletId: %v)",
-                tablet->GetTabletId());
+                tablet->GetId());
             tabletManager->ScheduleStoreRotation(tablet);
         }
 
         if (storeManager->IsOverflowRotationNeeded()) {
             LOG_INFO("Scheduling store rotation due to overflow (TabletId: %v)",
-                tablet->GetTabletId());
+                tablet->GetId());
             tabletManager->ScheduleStoreRotation(tablet);
         }
 
@@ -222,7 +222,7 @@ private:
                     PassiveMemoryUsage_ += memoryUsage;
                 } else if (store->GetUncompressedDataSize() >= Config_->StoreFlusher->MinForcedFlushDataSize) {
                     TForcedRotationCandidate candidate;
-                    candidate.TabletId = tablet->GetTabletId();
+                    candidate.TabletId = tablet->GetId();
                     candidate.MemoryUsage = memoryUsage;
                     ForcedRotationCandidates_.push_back(candidate);
                 }
@@ -265,7 +265,7 @@ private:
         auto hydraManager = slot->GetHydraManager();
         auto tabletManager = slot->GetTabletManager();
         auto storeManager = tablet->GetStoreManager();
-        auto tabletId = tablet->GetTabletId();
+        auto tabletId = tablet->GetId();
         auto mountRevision = tablet->GetMountRevision();
         auto keyColumns = tablet->KeyColumns();
         auto schema = tablet->Schema();

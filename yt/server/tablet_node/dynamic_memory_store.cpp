@@ -2,6 +2,7 @@
 #include "config.h"
 #include "tablet.h"
 #include "transaction.h"
+#include "automaton.h"
 
 #include <yt/ytlib/chunk_client/chunk_reader.h>
 #include <yt/ytlib/chunk_client/chunk_writer.h>
