@@ -1,7 +1,6 @@
 #pragma once
 
-#include <algorithm>
-#include <vector>
+#include "common.h"
 
 namespace NYT {
 
@@ -11,10 +10,10 @@ namespace NYT {
 /*!
  *  Things to keep in mind:
  *  - Capacity is doubled each time it is exhausted and is never shrinked back.
- *  - Removed items are invalidated by assigning a default-constructed instance.
  *  - Iteration is supported but iterator movement involve calling |move_forward| and |move_backward|.
+ *  - |T| must be nothrow move constructable.
  */
-template <class T>
+template <class T, class TAllocator = std::allocator<T>>
 class TRingQueue
 {
 public:
@@ -25,6 +24,8 @@ public:
     typedef const T* const_pointer;
     typedef size_t size_type;
 
+    static_assert(std::is_nothrow_move_constructible<T>::value, "T must be nothrow move constructable.");
+
     class TIterator
     {
     public:
@@ -33,59 +34,87 @@ public:
 
         const T& operator* () const
         {
-            return *It;
+            return *Ptr_;
         }
 
         T& operator* ()
         {
-            return *It;
+            return *Ptr_;
         }
 
         const T* operator-> () const
         {
-            return &*It;
+            return Ptr_;
         }
 
         T* operator-> ()
         {
-            return &*It;
+            return Ptr_;
         }
 
         bool operator == (TIterator other) const
         {
-            return It == other.It;
+            return Ptr_ == other.Ptr_;
         }
 
         bool operator != (TIterator other) const
         {
-            return It != other.It;
+            return Ptr_ != other.Ptr_;
         }
 
         TIterator& operator = (TIterator other)
         {
-            It = other.It;
+            Ptr_ = other.Ptr_;
             return *this;
         }
 
     private:
         friend class TRingQueue<T>;
-        typedef typename std::vector<T>::iterator TUnderlying;
-        
-        explicit TIterator(TUnderlying it)
-            : It(it)
+
+        explicit TIterator(T* ptr)
+            : Ptr_(ptr)
         { }
 
-        TUnderlying It;
+        T* Ptr_;
     
     };
 
-
-    TRingQueue()
+    explicit TRingQueue(const TAllocator& allocator = TAllocator())
+        : Allocator_(allocator)
     {
-        Items_.resize(16);
-        clear();
+        Capacity_ = InitialCapacity;
+        Begin_ = Allocator_.allocate(Capacity_);
+        End_ = Begin_ + Capacity_;
+
+        Size_ = 0;
+        Head_ = Tail_ = Begin_;
     }
 
+    TRingQueue(TRingQueue&& other)
+        : Allocator_(std::move(other.Allocator_))
+    {
+        Capacity_ = other.Capacity_;
+        Begin_ = other.Begin_;
+        End_ = other.End_;
+
+        Size_ = other.Size_;
+        Head_ = other.Head_;
+        Tail_ = other.Tail_;
+
+        other.Capacity_ = other.Size_ = 0;
+        other.Begin_ = other.End_ = other.Head_ = other.Tail_ = nullptr;
+    }
+
+    TRingQueue(const TRingQueue& other) = delete;
+
+    ~TRingQueue()
+    {
+        DestroyElements();
+        if (Begin_) {
+            Allocator_.deallocate(Begin_, Capacity_);
+        }
+    }
+        
 
     T& front()
     {
@@ -99,12 +128,20 @@ public:
 
     T& back()
     {
-        return *(Tail_ - 1);
+        if (Tail_ == Begin_) {
+            return *(End_ - 1);
+        } else {
+            return *(Tail_ - 1);
+        }
     }
 
     const T& back() const
     {
-        return *(Tail_ - 1);
+        if (Tail_ == Begin_) {
+            return *(End_ - 1);
+        } else {
+            return *(Tail_ - 1);
+        }
     }
 
 
@@ -122,18 +159,18 @@ public:
 
     void move_forward(TIterator& it) const
     {
-        ++it.It;
-        if (it.It == Items_.end()) {
-            it.It = const_cast<TItems&>(Items_).begin();
+        ++it.Ptr_;
+        if (it.Ptr_ == End_) {
+            it.Ptr_ = Begin_;
         }
     }
 
     void move_backward(TIterator& it) const
     {
-        if (it.It == Items_.begin()) {
-            it.It = const_cast<TItems&>(Items_).end() - 1;
+        if (it.Ptr_ == Begin_) {
+            it.Ptr_ = End_ - 1;
         } else {
-            --it.It;
+            --it.Ptr_;
         }
     }
 
@@ -151,51 +188,113 @@ public:
 
     void push(const T& value)
     {
-        // NB: Avoid filling Items_ completely and collapsing Head_ with Tail_.
-        if (Size_ == Items_.size() - 1) {
-            std::vector<T> newItems(Size_ * 2);
-            if (Head_ <= Tail_) {
-                std::copy(Head_, Tail_, newItems.begin());
-            } else {
-                auto it = std::copy(Head_, Items_.end(), newItems.begin());
-                std::copy(Items_.begin(), Tail_, it);
-            }
-            Items_.swap(newItems);
-            Head_ = Items_.begin();
-            Tail_ = Head_ + Size_;
-        }
-        *Tail_++ = value;
-        if (Tail_ == Items_.end()) {
-            Tail_ = Items_.begin();
-        }            
-        ++Size_;
+        BeforePush();
+        new(Tail_) T(value);
+        AfterPush();
+    }
+
+    void push(T&& value)
+    {
+        BeforePush();
+        new(Tail_) T(std::move(value));
+        AfterPush();
     }
 
     void pop()
     {
         YASSERT(Size_ > 0);
-        // TODO(babenko): consider calling placement ctors and dtors instead
-        *Head_ = T();
+        Head_->T::~T();
         ++Head_;
-        if (Head_ == Items_.end()) {
-            Head_ = Items_.begin();
+        if (Head_ == End_) {
+            Head_ = Begin_;
         }
         --Size_;
     }
 
     void clear()
     {
-        Head_ = Tail_ = Items_.begin();
+        DestroyElements();
         Size_ = 0;
+        Head_ = Tail_ = Begin_;
     }
 
 private:
-    typedef std::vector<T> TItems;
-    TItems Items_;
-    typename TItems::iterator Head_;
-    typename TItems::iterator Tail_;
-    size_t Size_;
+    TAllocator Allocator_;
 
+    size_t Capacity_;
+    T* Begin_;
+    T* End_;
+
+    size_t Size_;
+    T* Head_;
+    T* Tail_;
+
+    static const size_t InitialCapacity = 16;
+
+
+    void DestroyElements()
+    {
+        if (Head_ <= Tail_) {
+            DestroyRange(Head_, Tail_);
+        } else {
+            DestroyRange(Head_, End_);
+            DestroyRange(Begin_, Tail_);
+        }
+    }
+
+    static void DestroyRange(T* begin, T* end)
+    {
+        if (!std::is_trivially_destructible<T>::value) {
+            for (auto* current = begin; current != end; ++current) {
+                current->T::~T();
+            }
+        }
+    }
+
+    static void MoveRange(T* begin, T* end, T* result)
+    {
+        if (std::is_trivially_move_constructible<T>::value) {
+            ::memcpy(result, begin, sizeof (T) * (end - begin));
+        } else {
+            for (auto* current = begin; current != end; ++current) {
+                new(result++) T(std::move(*current));
+                current->T::~T();
+            }
+        }
+    }
+
+    void BeforePush() noexcept
+    {
+        // NB: Avoid filling Items_ completely and collapsing Head_ with Tail_.
+        if (Size_ == Capacity_ - 1) {
+            auto newCapacity = Capacity_ * 2;
+            auto* newBegin = Allocator_.allocate(newCapacity);
+
+            if (Head_ <= Tail_) {
+                MoveRange(Head_, Tail_, newBegin);
+            } else {
+                MoveRange(Head_, End_, newBegin);
+                MoveRange(Begin_, Tail_, newBegin + (End_ - Head_));
+            }
+
+            Allocator_.deallocate(Begin_, Capacity_);
+
+            Capacity_ = newCapacity;
+            Begin_ = newBegin;
+            End_ = Begin_ + newCapacity;
+
+            Head_ = Begin_;
+            Tail_ = Head_ + Size_;
+        }
+    }
+
+    void AfterPush()
+    {
+        if (++Tail_ == End_) {
+            Tail_ = Begin_;
+        }
+        ++Size_;
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////

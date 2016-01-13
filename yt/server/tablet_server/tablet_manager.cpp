@@ -493,9 +493,7 @@ public:
         TTableNode* table,
         int firstTabletIndex,
         int lastTabletIndex,
-        const TTabletCellId& cellId,
-        i64 estimatedUncompressedSize,
-        i64 estimatedCompressedSize)
+        const TTabletCellId& cellId)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
         YCHECK(table->IsTrunk());
@@ -575,9 +573,7 @@ public:
             table,
             mountConfig,
             hintedCell,
-            std::move(tabletsToMount),
-            estimatedUncompressedSize,
-            estimatedCompressedSize);
+            std::move(tabletsToMount));
 
         for (const auto& pair : assignment) {
             auto* tablet = pair.first;
@@ -1616,9 +1612,7 @@ private:
         TTableNode* table,
         TTableMountConfigPtr mountConfig,
         TTabletCell* hintedCell,
-        std::vector<TTablet*> tabletsToMount,
-        i64 estimatedUncompressedSize,
-        i64 estimatedCompressedSize)
+        std::vector<TTablet*> tabletsToMount)
     {
         if (hintedCell) {
             std::vector<std::pair<TTablet*, TTabletCell*>> assignment;
@@ -1645,39 +1639,48 @@ private:
             }
         };
 
-        auto getCellSize = [&] (const TTabletStatistics& statistics) -> i64 {
+        auto getCellSize = [&] (const TTabletCell* cell) -> i64 {
+            i64 result = 0;
             switch (mountConfig->InMemoryMode) {
                 case EInMemoryMode::None:
-                    return statistics.UncompressedDataSize;
+                    result += cell->TotalStatistics().UncompressedDataSize;
+                    break;
                 case EInMemoryMode::Uncompressed:
                 case EInMemoryMode::Compressed:
-                    return statistics.MemorySize;
+                    result += cell->TotalStatistics().MemorySize;
+                    break;
                 default:
                     YUNREACHABLE();
             }
+            result += cell->Tablets().size() * Config_->TabletDataSizeFootprint;
+            return result;
         };
 
         std::set<TCellKey> cellKeys;
         for (const auto& pair : TabletCellMap_) {
             auto* cell = pair.second;
             if (cell->GetHealth() == ETabletCellHealth::Good) {
-                YCHECK(cellKeys.insert(TCellKey{getCellSize(cell->TotalStatistics()), cell}).second);
+                YCHECK(cellKeys.insert(TCellKey{getCellSize(cell), cell}).second);
             }
         }
         YCHECK(!cellKeys.empty());
 
         auto getTabletSize = [&] (const TTablet* tablet) -> i64 {
+            i64 result = 0;
             auto statistics = GetTabletStatistics(tablet);
-            int totalTabletCount = table->Tablets().size();
             switch (mountConfig->InMemoryMode) {
                 case EInMemoryMode::None:
                 case EInMemoryMode::Uncompressed:
-                    return std::max(statistics.UncompressedDataSize, estimatedUncompressedSize / totalTabletCount);
+                    result += statistics.UncompressedDataSize;
+                    break;
                 case EInMemoryMode::Compressed:
-                    return std::max(statistics.CompressedDataSize, estimatedCompressedSize / totalTabletCount);
+                    result += statistics.CompressedDataSize;
+                    break;
                 default:
                     YUNREACHABLE();
             }
+            result += Config_->TabletDataSizeFootprint;
+            return result;
         };
 
         // Sort tablets by decreasing size to improve greedy heuristic performance.
@@ -1685,12 +1688,14 @@ private:
             tabletsToMount.begin(),
             tabletsToMount.end(),
             [&] (const TTablet* lhs, const TTablet* rhs) {
-                return getTabletSize(lhs) > getTabletSize(rhs);
+                return
+                    std::make_tuple(getTabletSize(lhs), lhs->GetId()) >
+                    std::make_tuple(getTabletSize(rhs), rhs->GetId());
             });
 
-        auto chargeCell = [&] (std::set<TCellKey>::iterator it, i64 sizeDelta) {
+        auto chargeCell = [&] (std::set<TCellKey>::iterator it, TTablet* tablet) {
             const auto& existingKey = *it;
-            auto newKey = TCellKey{existingKey.Size + sizeDelta, existingKey.Cell};
+            auto newKey = TCellKey{existingKey.Size + getTabletSize(tablet), existingKey.Cell};
             cellKeys.erase(it);
             YCHECK(cellKeys.insert(newKey).second);
         };
@@ -1700,7 +1705,7 @@ private:
         for (auto* tablet : tabletsToMount) {
             auto it = cellKeys.begin();
             assignment.emplace_back(tablet, it->Cell);
-            chargeCell(it, getTabletSize(tablet));
+            chargeCell(it, tablet);
         }
 
         return assignment;
@@ -2122,17 +2127,13 @@ void TTabletManager::MountTable(
     TTableNode* table,
     int firstTabletIndex,
     int lastTabletIndex,
-    const TTabletCellId& cellId,
-    i64 estimatedUncompressedSize,
-    i64 estimatedCompressedSize)
+    const TTabletCellId& cellId)
 {
     Impl_->MountTable(
         table,
         firstTabletIndex,
         lastTabletIndex,
-        cellId,
-        estimatedUncompressedSize,
-        estimatedCompressedSize);
+        cellId);
 }
 
 void TTabletManager::UnmountTable(

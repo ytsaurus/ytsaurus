@@ -9,6 +9,7 @@
 #include "tablet.h"
 #include "tablet_manager.h"
 #include "tablet_slot.h"
+#include "writer_pool.h"
 
 #include <yt/server/cell_node/bootstrap.h>
 #include <yt/server/cell_node/config.h>
@@ -316,16 +317,17 @@ private:
             auto inMemoryManager = Bootstrap_->GetInMemoryManager();
             auto blockCache = inMemoryManager->CreateInterceptingBlockCache(tabletConfig->InMemoryMode);
 
-            auto writer = CreateVersionedMultiChunkWriter(
+            TChunkWriterPool writerPool(
+                Bootstrap_->GetInMemoryManager(),
+                tablet,
+                1,
                 Config_->ChunkWriter,
                 writerOptions,
+                tabletConfig,
                 schema,
                 Bootstrap_->GetMasterClient(),
-                Bootstrap_->GetMasterClient()->GetConnection()->GetPrimaryMasterCellTag(),
-                transaction->GetId(),
-                NullChunkListId,
-                GetUnlimitedThrottler(),
-                blockCache);
+                transaction->GetId());
+            auto writer = writerPool.AllocateWriter();
 
             WaitFor(writer->Open())
                 .ThrowOnError();
@@ -361,7 +363,7 @@ private:
             }
 
             std::vector<TChunkId> chunkIds;
-            for (const auto& chunkSpec : writer->GetWrittenChunks()) {
+            for (const auto& chunkSpec : writer->GetWrittenChunksMasterMeta()) {
                 chunkIds.push_back(FromProto<TChunkId>(chunkSpec.chunk_id()));
                 auto* descriptor = hydraRequest.add_stores_to_add();
                 descriptor->mutable_store_id()->CopyFrom(chunkSpec.chunk_id());
