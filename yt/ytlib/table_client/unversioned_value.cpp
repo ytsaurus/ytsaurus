@@ -1,7 +1,17 @@
 #include "unversioned_value.h"
 
-#include <yt/core/misc/error.h>
 #include <yt/core/misc/farm_hash.h>
+
+
+#ifndef YT_COMPILING_UDF
+
+#include "unversioned_row.h"
+
+#include <yt/core/misc/error.h>
+
+#include <yt/core/ytree/convert.h>
+
+#endif
 
 namespace NYT {
 namespace NTableClient {
