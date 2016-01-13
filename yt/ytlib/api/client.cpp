@@ -500,7 +500,7 @@ private:
                     tabletInfo->TabletId);
             }
 
-            auto replicasIt = tabletCellReplicas.insert(MakePair(tabletInfo->CellId, std::vector<Stroka>()));
+            auto replicasIt = tabletCellReplicas.insert(std::make_pair(tabletInfo->CellId, std::vector<Stroka>()));
             if (replicasIt.second) {
                 replicasIt.first->second = cellDirectory->GetAddressesOrThrow(tabletInfo->CellId);
 
