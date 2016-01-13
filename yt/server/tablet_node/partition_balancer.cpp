@@ -193,7 +193,7 @@ private:
             }
 
             TReqSplitPartition request;
-            ToProto(request.mutable_tablet_id(), tablet->GetTabletId());
+            ToProto(request.mutable_tablet_id(), tablet->GetId());
             request.set_mount_revision(tablet->GetMountRevision());
             ToProto(request.mutable_partition_id(), partition->GetId());
             ToProto(request.mutable_pivot_keys(), pivotKeys);
@@ -226,7 +226,7 @@ private:
 
         auto Logger = TabletNodeLogger;
         Logger.AddTag("TabletId: %v, PartitionIds: [%v]",
-            partition->GetTablet()->GetTabletId(),
+            partition->GetTablet()->GetId(),
             JoinToString(ConvertToStrings(
                 tablet->Partitions().begin() + firstPartitionIndex,
                 tablet->Partitions().begin() + lastPartitionIndex + 1,
@@ -240,7 +240,7 @@ private:
         auto hydraManager = slot->GetHydraManager();
 
         TReqMergePartitions request;
-        ToProto(request.mutable_tablet_id(), tablet->GetTabletId());
+        ToProto(request.mutable_tablet_id(), tablet->GetId());
         request.set_mount_revision(tablet->GetMountRevision());
         ToProto(request.mutable_partition_id(), tablet->Partitions()[firstPartitionIndex]->GetId());
         request.set_partition_count(lastPartitionIndex - firstPartitionIndex + 1);
@@ -288,7 +288,7 @@ private:
                 samples.end());
 
             TReqUpdatePartitionSampleKeys request;
-            ToProto(request.mutable_tablet_id(), tablet->GetTabletId());
+            ToProto(request.mutable_tablet_id(), tablet->GetId());
             request.set_mount_revision(tablet->GetMountRevision());
             ToProto(request.mutable_partition_id(), partition->GetId());
             ToProto(request.mutable_sample_keys(), samples);
@@ -419,7 +419,7 @@ private:
     {
         auto logger = TabletNodeLogger;
         logger.AddTag("TabletId: %v, PartitionId: %v",
-            partition->GetTablet()->GetTabletId(),
+            partition->GetTablet()->GetId(),
             partition->GetId());
         return logger;
     }

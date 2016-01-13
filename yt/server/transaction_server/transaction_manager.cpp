@@ -85,7 +85,7 @@ private:
         descriptors->push_back(TAttributeDescriptor("timeout")
             .SetPresent(transaction->GetTimeout().HasValue()));
         descriptors->push_back(TAttributeDescriptor("title")
-        	.SetPresent(transaction->GetTitle().HasValue()));
+            .SetPresent(transaction->GetTitle().HasValue()));
         descriptors->push_back("accounting_enabled");
         descriptors->push_back("parent_id");
         descriptors->push_back("start_time");

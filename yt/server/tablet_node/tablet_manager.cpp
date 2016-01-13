@@ -249,7 +249,7 @@ public:
         storeManager->ScheduleRotation();
 
         TReqRotateStore request;
-        ToProto(request.mutable_tablet_id(), tablet->GetTabletId());
+        ToProto(request.mutable_tablet_id(), tablet->GetId());
         request.set_mount_revision(tablet->GetMountRevision());
         CommitTabletMutation(request);
     }
@@ -263,7 +263,7 @@ public:
             .DoMapFor(TabletMap_, [&] (TFluentMap fluent, const std::pair<TTabletId, TTablet*>& pair) {
                 auto* tablet = pair.second;
                 fluent
-                    .Item(ToString(tablet->GetTabletId()))
+                    .Item(ToString(tablet->GetId()))
                     .Do(BIND(&TImpl::BuildTabletOrchidYson, Unretained(this), tablet));
             });
     }
@@ -320,7 +320,7 @@ private:
         std::vector<std::pair<TTabletId, TCallback<void(TSaveContext&)>>> capturedTablets;
         for (const auto& pair : TabletMap_) {
             auto* tablet = pair.second;
-            capturedTablets.push_back(std::make_pair(tablet->GetTabletId(), tablet->AsyncSave()));
+            capturedTablets.push_back(std::make_pair(tablet->GetId(), tablet->AsyncSave()));
         }
 
         return BIND(
@@ -1069,7 +1069,7 @@ private:
             }));
 
         LOG_INFO_UNLESS(IsRecovery(), "Splitting partition (TabletId: %v, OriginalPartitionId: %v, ResultingPartitionIds: [%v], DataSize: %v, Keys: %v)",
-            tablet->GetTabletId(),
+            tablet->GetId(),
             partitionId,
             resultingPartitionIds,
             partitionDataSize,
@@ -1119,7 +1119,7 @@ private:
         MergeTabletPartitions(tablet, firstPartitionIndex, lastPartitionIndex);
 
         LOG_INFO_UNLESS(IsRecovery(), "Merging partitions (TabletId: %v, OriginalPartitionIds: [%v], ResultingPartitionId: %v, DataSize: %v)",
-            tablet->GetTabletId(),
+            tablet->GetId(),
             originalPartitionIds,
             tablet->Partitions()[firstPartitionIndex]->GetId(),
             partitionsDataSize);
@@ -1264,7 +1264,7 @@ private:
             YCHECK(OrphanedStores_.insert(dynamicStore).second);
             LOG_INFO_UNLESS(IsRecovery(), "Dynamic memory store is orphaned and will be kept (StoreId: %v, TabletId: %v, LockCount: %v)",
                 store->GetId(),
-                tablet->GetTabletId(),
+                tablet->GetId(),
                 lockCount);
         }
     }
@@ -1322,7 +1322,7 @@ private:
         TWireProtocolReader* reader,
         TFuture<void>* commitResult)
     {
-        const auto& tabletId = tablet->GetTabletId();
+        const auto& tabletId = tablet->GetId();
 
         auto transactionManager = Slot_->GetTransactionManager();
         auto* transaction = transactionManager->GetTransactionOrThrow(transactionId);
@@ -1412,7 +1412,7 @@ private:
 
         TReqExecuteWrite hydraRequest;
         ToProto(hydraRequest.mutable_transaction_id(), transactionId);
-        ToProto(hydraRequest.mutable_tablet_id(), tablet->GetTabletId());
+        ToProto(hydraRequest.mutable_tablet_id(), tablet->GetId());
         hydraRequest.set_mount_revision(tablet->GetMountRevision());
         hydraRequest.set_codec(static_cast<int>(ChangelogCodec_->GetId()));
         hydraRequest.set_compressed_data(ToString(compressedRecordData));
@@ -1421,7 +1421,7 @@ private:
                 BIND(
                     &TImpl::HydraLeaderExecuteWriteNonAtomic,
                     MakeStrong(this),
-                    tablet->GetTabletId(),
+                    tablet->GetId(),
                     tablet->GetMountRevision(),
                     transactionId,
                     recordData))
@@ -1521,12 +1521,12 @@ private:
         }
 
         LOG_INFO_UNLESS(IsRecovery(), "All tablet locks released (TabletId: %v)",
-            tablet->GetTabletId());
+            tablet->GetId());
 
         tablet->SetState(ETabletState::FlushPending);
 
         TReqSetTabletState request;
-        ToProto(request.mutable_tablet_id(), tablet->GetTabletId());
+        ToProto(request.mutable_tablet_id(), tablet->GetId());
         request.set_mount_revision(tablet->GetMountRevision());
         request.set_state(static_cast<int>(ETabletState::Flushing));
         CommitTabletMutation(request);
@@ -1543,12 +1543,12 @@ private:
         }
 
         LOG_INFO_UNLESS(IsRecovery(), "All tablet stores flushed (TabletId: %v)",
-            tablet->GetTabletId());
+            tablet->GetId());
 
         tablet->SetState(ETabletState::UnmountPending);
 
         TReqSetTabletState request;
-        ToProto(request.mutable_tablet_id(), tablet->GetTabletId());
+        ToProto(request.mutable_tablet_id(), tablet->GetId());
         request.set_mount_revision(tablet->GetMountRevision());
         request.set_state(static_cast<int>(ETabletState::Unmounted));
         CommitTabletMutation(request);
@@ -1604,7 +1604,7 @@ private:
                     &TImpl::OnRowBlocked,
                     MakeWeak(this),
                     Unretained(store.Get()),
-                    tablet->GetTabletId(),
+                    tablet->GetId(),
                     Slot_->GetEpochAutomatonInvoker(EAutomatonThreadQueue::Read)));
             }
         }
@@ -1820,7 +1820,7 @@ private:
 
         if (tablet->GetState() != ETabletState::Mounted) {
             THROW_ERROR_EXCEPTION("Tablet %v is not in \"mounted\" state",
-                tablet->GetTabletId());
+                tablet->GetId());
         }
     }
 

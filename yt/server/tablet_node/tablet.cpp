@@ -89,7 +89,7 @@ void TTabletSnapshot::ValiateMountRevision(i64 mountRevision)
 TTablet::TTablet(
     const TTabletId& tabletId,
     TTabletSlotPtr slot)
-    : TabletId_(tabletId)
+    : TObjectBase(tabletId)
     , MountRevision_(0)
     , Slot_(slot)
     , Config_(New<TTableMountConfig>())
@@ -110,7 +110,7 @@ TTablet::TTablet(
     TOwningKey pivotKey,
     TOwningKey nextPivotKey,
     EAtomicity atomicity)
-    : TabletId_(tabletId)
+    : TObjectBase(tabletId)
     , MountRevision_(mountRevision)
     , TableId_(tableId)
     , Slot_(slot)
@@ -645,7 +645,7 @@ IInvokerPtr TTablet::GetEpochAutomatonInvoker(EAutomatonThreadQueue queue)
 TTabletSnapshotPtr TTablet::RebuildSnapshot()
 {
     Snapshot_ = New<TTabletSnapshot>();
-    Snapshot_->TabletId = TabletId_;
+    Snapshot_->TabletId = Id_;
     Snapshot_->MountRevision = MountRevision_;
     Snapshot_->TableId = TableId_;
     Snapshot_->Slot = Slot_;
@@ -760,7 +760,7 @@ void TTablet::ValidateMountRevision(i64 mountRevision)
         THROW_ERROR_EXCEPTION(
             NRpc::EErrorCode::Unavailable,
             "Invalid mount revision of tablet %v: expected %x, received %x",
-            TabletId_,
+            Id_,
             MountRevision_,
             mountRevision);
     }
