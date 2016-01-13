@@ -313,8 +313,7 @@ protected:
         TJobId JobId;
         EJobType JobType;
 
-        Stroka Address;
-        NNodeTrackerClient::TNodeId NodeId;
+        TExecNodeDescriptor NodeDescriptor;
 
         TJobResources ResourceLimits;
 
@@ -349,8 +348,7 @@ protected:
             i64 dataSize,
             IChunkPoolInput* destinationPool,
             IChunkPoolInput::TCookie inputCookie,
-            const Stroka& address,
-            NNodeTrackerClient::TNodeId nodeId)
+            const TExecNodeDescriptor& nodeDescriptor)
             : Lost(false)
             , JobId(jobId)
             , SourceTask(std::move(sourceTask))
@@ -358,8 +356,7 @@ protected:
             , DataSize(dataSize)
             , DestinationPool(destinationPool)
             , InputCookie(inputCookie)
-            , Address(address)
-            , NodeId(nodeId)
+            , NodeDescriptor(nodeDescriptor)
         { }
 
         bool Lost;
@@ -373,8 +370,7 @@ protected:
         IChunkPoolInput* DestinationPool;
         IChunkPoolInput::TCookie InputCookie;
 
-        Stroka Address;
-        NNodeTrackerClient::TNodeId NodeId;
+        TExecNodeDescriptor NodeDescriptor;
 
         void Persist(TPersistenceContext& context);
 

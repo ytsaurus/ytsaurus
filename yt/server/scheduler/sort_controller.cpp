@@ -350,7 +350,8 @@ protected:
         TSortControllerBase* Controller;
         std::unique_ptr<IChunkPool> ChunkPool;
 
-        //! The total data size of jobs assigned to a particular node.
+        //! The total data size of jobs assigned to a particular node
+        //! All data sizes are IO weight-adjusted.
         //! No zero values are allowed.
         yhash_map<TNodeId, i64> NodeIdToDataSize;
         //! The sum of all sizes appearing in #NodeIdToDataSize;
@@ -359,15 +360,21 @@ protected:
         i64 DataSizePerJob = 0;
 
 
-        void UpdateNodeDataSize(TNodeId nodeId, i64 delta)
+        void UpdateNodeDataSize(const TExecNodeDescriptor& descriptor, i64 delta)
         {
-            auto updatedNodeDataSize = (NodeIdToDataSize[nodeId] += delta);
+            auto ioWeight = descriptor.IOWeight;
+            YASSERT(ioWeight > 0);
+            auto adjustedDelta = static_cast<i64>(delta / ioWeight);
+
+            auto nodeId = descriptor.Id;
+            auto updatedNodeDataSize = (NodeIdToDataSize[nodeId] += adjustedDelta);
             YCHECK(updatedNodeDataSize >= 0);
+
             if (updatedNodeDataSize == 0) {
                 YCHECK(NodeIdToDataSize.erase(nodeId) == 1);
             }
 
-            auto updatedScheduledDataSize = (ScheduledDataSize += delta);
+            auto updatedScheduledDataSize = (ScheduledDataSize += adjustedDelta);
             YCHECK(updatedScheduledDataSize >= 0);
         }
 
@@ -382,6 +389,10 @@ protected:
 
             if (NodeIdToDataSize.empty()) {
                 return true;
+            }
+
+            if (context->GetNodeDescriptor().IOWeight == 0) {
+                return false;
             }
 
             auto nodeId = context->GetNodeDescriptor().Id;
@@ -435,7 +446,7 @@ protected:
 
             auto dataSize = joblet->InputStripeList->TotalDataSize;
             DataSizePerJob = std::max(DataSizePerJob, dataSize);
-            UpdateNodeDataSize(joblet->NodeId, +dataSize);
+            UpdateNodeDataSize(joblet->NodeDescriptor, +dataSize);
 
             TTask::OnJobStarted(joblet);
         }
@@ -483,7 +494,7 @@ protected:
         {
             TTask::OnJobLost(completedJob);
 
-            UpdateNodeDataSize(completedJob->NodeId, -completedJob->DataSize);
+            UpdateNodeDataSize(completedJob->NodeDescriptor, -completedJob->DataSize);
             Controller->PartitionJobCounter.Lost(1);
         }
 
@@ -491,7 +502,7 @@ protected:
         {
             TTask::OnJobFailed(joblet, jobSummary);
 
-            UpdateNodeDataSize(joblet->NodeId, -joblet->InputStripeList->TotalDataSize);
+            UpdateNodeDataSize(joblet->NodeDescriptor, -joblet->InputStripeList->TotalDataSize);
             Controller->PartitionJobCounter.Failed(1);
         }
 
@@ -499,7 +510,7 @@ protected:
         {
             TTask::OnJobAborted(joblet, jobSummary);
 
-            UpdateNodeDataSize(joblet->NodeId, -joblet->InputStripeList->TotalDataSize);
+            UpdateNodeDataSize(joblet->NodeDescriptor, -joblet->InputStripeList->TotalDataSize);
             Controller->PartitionJobCounter.Aborted(1, jobSummary.AbortReason);
             Controller->UpdateAllTasksIfNeeded(Controller->PartitionJobCounter);
         }
@@ -808,7 +819,7 @@ protected:
             auto stripeList = completedJob->SourceTask->GetChunkPoolOutput()->GetStripeList(completedJob->OutputCookie);
             Controller->SortDataSizeCounter.Lost(stripeList->TotalDataSize);
 
-            auto nodeId = completedJob->NodeId;
+            auto nodeId = completedJob->NodeDescriptor.Id;
             YCHECK((Partition->NodeIdToLocality[nodeId] -= stripeList->TotalDataSize) >= 0);
 
             Controller->ResetTaskLocalityDelays();
@@ -882,15 +893,17 @@ protected:
 
         virtual void OnJobStarted(TJobletPtr joblet) override
         {
+            auto nodeId = joblet->NodeDescriptor.Id;
+
             // Increase data size for this address to ensure subsequent sort jobs
             // to be scheduled to this very node.
-            Partition->NodeIdToLocality[joblet->NodeId] += joblet->InputStripeList->TotalDataSize;
+            Partition->NodeIdToLocality[nodeId] += joblet->InputStripeList->TotalDataSize;
 
             // Don't rely on static assignment anymore.
             Partition->AssignedNodeId = InvalidNodeId;
 
             // Also add a hint to ensure that subsequent jobs are also scheduled here.
-            AddLocalityHint(joblet->NodeId);
+            AddLocalityHint(nodeId);
 
             TSortTask::OnJobStarted(joblet);
         }
