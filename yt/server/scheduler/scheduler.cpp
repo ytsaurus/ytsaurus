@@ -658,6 +658,8 @@ public:
                         Strategy_->ScheduleJobs(schedulingContext.get());
                     }
 
+                    node->ResourceUsage() = schedulingContext->ResourceUsage();
+
                     scheduleJobsAsyncResult = ProcessScheduledJobs(
                         schedulingContext.get(),
                         response,

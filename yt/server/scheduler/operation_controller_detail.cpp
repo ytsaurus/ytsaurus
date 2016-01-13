@@ -378,8 +378,8 @@ TJobId TOperationControllerBase::TTask::ScheduleJob(
     auto joblet = New<TJoblet>(this, jobIndex);
 
     const auto& nodeResourceLimits = context->ResourceLimits();
-    auto nodeId = context->GetNode()->GetId();
-    const auto& address = context->GetAddress();
+    auto nodeId = context->GetNodeDescriptor().Id;
+    const auto& address = context->GetNodeDescriptor().Address;
 
     auto* chunkPoolOutput = GetChunkPoolOutput();
     auto localityNodeId = HasInputLocality() ? nodeId : InvalidNodeId;
@@ -1961,8 +1961,8 @@ TJobId TOperationControllerBase::DoScheduleLocalJob(
     const TJobResources& jobLimits)
 {
     const auto& nodeResourceLimits = context->ResourceLimits();
-    const auto& address = context->GetAddress();
-    auto nodeId = context->GetNode()->GetId();
+    const auto& address = context->GetNodeDescriptor().Address;
+    auto nodeId = context->GetNodeDescriptor().Id;
 
     for (const auto& group : TaskGroups) {
         if (!Dominates(jobLimits, group->MinNeededResources)) {
@@ -2047,7 +2047,7 @@ TJobId TOperationControllerBase::DoScheduleNonLocalJob(
 {
     auto now = context->GetNow();
     const auto& nodeResourceLimits = context->ResourceLimits();
-    const auto& address = context->GetAddress();
+    const auto& address = context->GetNodeDescriptor().Address;
 
     for (const auto& group : TaskGroups) {
         if (!Dominates(jobLimits, group->MinNeededResources)) {

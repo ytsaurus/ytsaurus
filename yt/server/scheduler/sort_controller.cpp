@@ -384,7 +384,7 @@ protected:
                 return true;
             }
 
-            auto nodeId = context->GetNode()->GetId();
+            auto nodeId = context->GetNodeDescriptor().Id;
             auto updatedScheduledDataSize = ScheduledDataSize + DataSizePerJob;
             auto updatedAvgDataSize = updatedScheduledDataSize / NodeIdToDataSize.size();
             auto updatedNodeDataSize = NodeIdToDataSize[nodeId] + DataSizePerJob;
