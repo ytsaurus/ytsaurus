@@ -51,6 +51,7 @@ public:
 
     virtual TChunkMeta GetMasterMeta() const override;
     virtual TChunkMeta GetSchedulerMeta() const override;
+    virtual TChunkMeta GetNodeMeta() const override;
 
     virtual TDataStatistics GetDataStatistics() const override;
 
@@ -179,6 +180,11 @@ TChunkMeta TFileChunkWriter::GetMasterMeta() const
 }
 
 TChunkMeta TFileChunkWriter::GetSchedulerMeta() const
+{
+    return GetMasterMeta();
+}
+
+TChunkMeta TFileChunkWriter::GetNodeMeta() const
 {
     return GetMasterMeta();
 }

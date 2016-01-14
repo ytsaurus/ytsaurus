@@ -18,6 +18,7 @@ struct IChunkWriterBase
 
     virtual NProto::TChunkMeta GetMasterMeta() const = 0;
     virtual NProto::TChunkMeta GetSchedulerMeta() const = 0;
+    virtual NProto::TChunkMeta GetNodeMeta() const = 0;
 
     virtual NProto::TDataStatistics GetDataStatistics() const = 0;
 

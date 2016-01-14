@@ -87,6 +87,11 @@ TChunkMeta TChunkWriterBase::GetSchedulerMeta() const
     return GetMasterMeta();
 }
 
+TChunkMeta TChunkWriterBase::GetNodeMeta() const
+{
+    return GetMasterMeta();
+}
+
 TDataStatistics TChunkWriterBase::GetDataStatistics() const
 {
     auto dataStatistics = EncodingChunkWriter_->GetDataStatistics();
