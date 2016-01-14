@@ -5,8 +5,6 @@
 
 #include <yt/ytlib/api/public.h>
 
-#include <yt/ytlib/chunk_client/public.h>
-
 #include <yt/ytlib/node_tracker_client/public.h>
 
 #include <yt/ytlib/object_client/master_ypath_proxy.h>
@@ -22,6 +20,8 @@
 #include <yt/core/rpc/public.h>
 
 #include <yt/core/logging/public.h>
+
+#include <yt/core/ytree/permission.h>
 
 namespace NYT {
 namespace NChunkClient {
@@ -63,16 +63,30 @@ IChunkReaderPtr CreateRemoteReader(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TUserObjectBase
+struct TUserObject
 {
     NYPath::TRichYPath Path;
     NObjectClient::TObjectId ObjectId;
     NObjectClient::TCellTag CellTag;
+    NObjectClient::EObjectType Type = NObjectClient::EObjectType::Null;
 
     void Persist(NPhoenix::TPersistenceContext& context);
 };
+
+template <class T>
+void GetUserObjectBasicAttributes(
+    NApi::IClientPtr client, 
+    TMutableRange<T> objects,
+    NYTree::EPermission permission,
+    const NObjectClient::TTransactionId& transactionId,
+    const NLogging::TLogger& logger,
+    bool suppressAccessTracking = false);
 
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NChunkClient
 } // namespace NYT
+
+#define HELPERS_INL_H_
+#include "helpers-inl.h"
+#undef HELPERS_INL_H_

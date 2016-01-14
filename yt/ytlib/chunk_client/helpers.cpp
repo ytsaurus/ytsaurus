@@ -11,6 +11,9 @@
 #include <yt/ytlib/chunk_client/chunk_service_proxy.h>
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/ytlib/chunk_client/chunk_spec.h>
+#include <yt/ytlib/chunk_client/public.h>
+
+#include <yt/ytlib/cypress_client/rpc_helpers.cpp>
 
 #include <yt/ytlib/node_tracker_client/node_directory.h>
 
@@ -35,7 +38,8 @@ using namespace NObjectClient;
 using namespace NErasure;
 using namespace NNodeTrackerClient;
 using namespace NProto;
-using namespace NApi;
+using namespace NYTree;
+using namespace NCypressClient;
 
 using NYT::FromProto;
 
@@ -249,7 +253,7 @@ IChunkReaderPtr CreateRemoteReader(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TUserObjectBase::Persist(NPhoenix::TPersistenceContext& context)
+void TUserObject::Persist(NPhoenix::TPersistenceContext& context)
 {
     using NYT::Persist;
     Persist(context, Path);
