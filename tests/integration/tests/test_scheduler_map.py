@@ -2,7 +2,6 @@ import pytest
 import time
 import __builtin__
 import os
-import tempfile
 
 from yt.wrapper import format
 from yt.environment.helpers import assert_items_equal
@@ -122,174 +121,161 @@ class TestJobProber(YTEnvSetup):
         create("table", "//tmp/t2")
         write_table("//tmp/t1", {"foo": "bar"})
 
-        tmpdir = tempfile.mkdtemp(prefix="strace_job")
+        with self.tempfolder("strace_job") as tmpdir:
+            command = "touch {0}/started || exit 1; cat; until rmdir {0} 2>/dev/null; do sleep 1; done".format(tmpdir)
 
-        command = "touch {0}/started || exit 1; cat; until rmdir {0} 2>/dev/null; do sleep 1; done".format(tmpdir)
+            op_id = map(
+                dont_track=True,
+                in_="//tmp/t1",
+                out="//tmp/t2",
+                command=command,
+                spec={
+                    "mapper": {
+                        "format": "json"
+                    }
+                })
 
-        op_id = map(
-            dont_track=True,
-            in_="//tmp/t1",
-            out="//tmp/t2",
-            command=command,
-            spec={
-                "mapper": {
-                    "format": "json"
-                }
-            })
-
-        try:
-            pin_filename = os.path.join(tmpdir, "started")
-            while not os.access(pin_filename, os.F_OK):
-                time.sleep(0.2)
-
-            jobs_path = "//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(op_id)
-            jobs = ls(jobs_path)
-            assert jobs
-
-            result = strace_job(jobs[0])
-        finally:
             try:
-                os.unlink(pin_filename)
-            except OSError:
-                pass
-            try:
-                os.unlink(tmpdir)
-            except OSError:
-                pass
+                pin_filename = os.path.join(tmpdir, "started")
+                while not os.access(pin_filename, os.F_OK):
+                    time.sleep(0.2)
 
-        for pid, trace in result['traces'].iteritems():
-            if "No such process" not in trace['trace']:
-                assert trace['trace'].startswith("Process {0} attached".format(pid))
-        track_op(op_id)
+                jobs_path = "//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(op_id)
+                jobs = ls(jobs_path)
+                assert jobs
+
+                result = strace_job(jobs[0])
+            finally:
+                try:
+                    os.unlink(pin_filename)
+                except OSError:
+                    pass
+
+            for pid, trace in result['traces'].iteritems():
+                if "No such process" not in trace['trace']:
+                    assert trace['trace'].startswith("Process {0} attached".format(pid))
+            track_op(op_id)
 
     def test_signal_job_with_no_job_restart(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
         write_table("//tmp/t1", {"foo": "bar"})
 
-        tmpdir = tempfile.mkdtemp(prefix="signal_job")
-        mapper = \
+        with self.tempfolder("signal_job_with_no_job_restart") as tmpdir:
+            mapper = \
 """
 #!/bin/bash
 trap "echo got=SIGUSR1" USR1
 trap "echo got=SIGUSR2" USR2
 cat
-touch {0}/started || exit 1
-until rmdir {0} 2>/dev/null
+touch "{0}/started" || {{ ls -alR "{1}" >&2; exit 1; }}
+until rmdir "{0}" 2>/dev/null
     do sleep 1
 done
-""".format(tmpdir)
+""".format(tmpdir, self.Env.path_to_run)
 
-        create("file", "//tmp/mapper.sh")
-        write_file("//tmp/mapper.sh", mapper)
-        set("//tmp/mapper.sh/@executable", True)
+            create("file", "//tmp/mapper.sh")
+            write_file("//tmp/mapper.sh", mapper)
+            set("//tmp/mapper.sh/@executable", True)
 
-        op_id = map(
-            dont_track=True,
-            in_="//tmp/t1",
-            out="//tmp/t2",
-            command="./mapper.sh",
-            file="//tmp/mapper.sh",
-            spec={
-                "mapper": {
-                    "format": "dsv"
-                },
-                "max_failed_job_count": 1
-            })
+            op_id = map(
+                dont_track=True,
+                in_="//tmp/t1",
+                out="//tmp/t2",
+                command="./mapper.sh",
+                file="//tmp/mapper.sh",
+                spec={
+                    "mapper": {
+                        "format": "dsv"
+                    },
+                    "max_failed_job_count": 1
+                })
 
-        try:
-            pin_filename = os.path.join(tmpdir, "started")
-            while not os.access(pin_filename, os.F_OK):
-                time.sleep(0.5)
-
-            jobs_path = "//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(op_id)
-            jobs = ls(jobs_path)
-            assert jobs
-
-            signal_job(jobs[0], "SIGUSR1")
-            signal_job(jobs[0], "SIGUSR2")
-
-        finally:
             try:
-                os.unlink(pin_filename)
-            except OSError:
-                pass
+                pin_filename = os.path.join(tmpdir, "started")
+                while not os.access(pin_filename, os.F_OK):
+                    time.sleep(0.5)
 
-        track_op(op_id)
-        try:
-            os.unlink(tmpdir)
-        except OSError:
-            pass
-        assert get("//sys/operations/{0}/@progress/jobs/aborted/total".format(op_id)) == 0
-        assert get("//sys/operations/{0}/@progress/jobs/failed".format(op_id)) == 0
-        assert read_table("//tmp/t2") == [{"foo": "bar"}, {"got": "SIGUSR1"}, {"got": "SIGUSR2"}]
+                jobs_path = "//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(op_id)
+                jobs = ls(jobs_path)
+                assert jobs
+
+                signal_job(jobs[0], "SIGUSR1")
+                signal_job(jobs[0], "SIGUSR2")
+
+            finally:
+                try:
+                    os.unlink(pin_filename)
+                except OSError:
+                    pass
+
+            track_op(op_id)
+            assert get("//sys/operations/{0}/@progress/jobs/aborted/total".format(op_id)) == 0
+            assert get("//sys/operations/{0}/@progress/jobs/failed".format(op_id)) == 0
+            assert read_table("//tmp/t2") == [{"foo": "bar"}, {"got": "SIGUSR1"}, {"got": "SIGUSR2"}]
 
     def test_signal_job_with_job_restart(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
         write_table("//tmp/t1", {"foo": "bar"})
 
-        tmpdir = tempfile.mkdtemp(prefix="signal_job")
-        mapper = \
+        with self.tempfolder("signal_job_with_job_restart") as tmpdir:
+            mapper = \
 """
 #!/bin/bash
 trap "echo got=SIGUSR1; rm -f {0}/started; exit 1" USR1
 cat
-touch {0}/started || exit 1
-until rmdir {0} 2>/dev/null
+touch "{0}/started" || {{ ls -alR "{1}" >&2; exit 1; }}
+until rmdir "{0}" 2>/dev/null
     do sleep 1
 done
-""".format(tmpdir)
+""".format(tmpdir, self.Env.path_to_run)
 
-        create("file", "//tmp/mapper.sh")
-        write_file("//tmp/mapper.sh", mapper)
-        set("//tmp/mapper.sh/@executable", True)
+            create("file", "//tmp/mapper.sh")
+            write_file("//tmp/mapper.sh", mapper)
+            set("//tmp/mapper.sh/@executable", True)
 
-        op_id = map(
-            dont_track=True,
-            in_="//tmp/t1",
-            out="//tmp/t2",
-            command="./mapper.sh",
-            file="//tmp/mapper.sh",
-            spec={
-                "mapper": {
-                    "format": "dsv"
-                },
-                "max_failed_job_count": 1
-            })
+            op_id = map(
+                dont_track=True,
+                in_="//tmp/t1",
+                out="//tmp/t2",
+                command="./mapper.sh",
+                file="//tmp/mapper.sh",
+                spec={
+                    "mapper": {
+                        "format": "dsv"
+                    },
+                    "max_failed_job_count": 1
+                })
 
-        try:
-            pin_filename = os.path.join(tmpdir, "started")
-            while not os.access(pin_filename, os.F_OK):
-                time.sleep(0.5)
-
-            jobs_path = "//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(op_id)
-            jobs = ls(jobs_path)
-            assert jobs
-            initial_job = jobs[0]
-
-            # Send signal and wait for a new job
-            signal_job(jobs[0], "SIGUSR1")
-            while not exists("//sys/operations/{0}/@progress/jobs".format(op_id)) or get("//sys/operations/{0}/@progress/jobs/aborted/total".format(op_id)) == 0:
-                time.sleep(0.5)
-            while not os.access(pin_filename, os.F_OK):
-                time.sleep(0.5)
-
-        finally:
             try:
-                os.unlink(pin_filename)
-            except OSError:
-                pass
+                pin_filename = os.path.join(tmpdir, "started")
+                while not os.access(pin_filename, os.F_OK):
+                    time.sleep(0.5)
 
-        track_op(op_id)
-        try:
-            os.unlink(tmpdir)
-        except OSError:
-            pass
-        assert get("//sys/operations/{0}/@progress/jobs/aborted/total".format(op_id)) == 1
-        assert get("//sys/operations/{0}/@progress/jobs/aborted/other".format(op_id)) == 1
-        assert get("//sys/operations/{0}/@progress/jobs/failed".format(op_id)) == 0
-        assert read_table("//tmp/t2") == [{"foo": "bar"}]
+                jobs_path = "//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(op_id)
+                jobs = ls(jobs_path)
+                assert jobs
+                initial_job = jobs[0]
+
+                # Send signal and wait for a new job
+                signal_job(jobs[0], "SIGUSR1")
+                while not exists("//sys/operations/{0}/@progress/jobs".format(op_id)) or get("//sys/operations/{0}/@progress/jobs/aborted/total".format(op_id)) == 0:
+                    time.sleep(0.5)
+                while not os.access(pin_filename, os.F_OK):
+                    time.sleep(0.5)
+
+            finally:
+                try:
+                    os.unlink(pin_filename)
+                except OSError:
+                    pass
+
+            track_op(op_id)
+            assert get("//sys/operations/{0}/@progress/jobs/aborted/total".format(op_id)) == 1
+            assert get("//sys/operations/{0}/@progress/jobs/aborted/other".format(op_id)) == 1
+            assert get("//sys/operations/{0}/@progress/jobs/failed".format(op_id)) == 0
+            assert read_table("//tmp/t2") == [{"foo": "bar"}]
 
     def test_abandon_job(self):
         create("table", "//tmp/t1")
@@ -297,47 +283,42 @@ done
         for i in xrange(5):
             write_table("<append=true>//tmp/t1", {"key": str(i), "value": "foo"})
 
-        tmpdir = tempfile.mkdtemp(prefix="abandon_job")
+        with self.tempfolder("abandon_job") as tmpdir:
+            command = 'cat; if [ "$YT_JOB_INDEX" = 3 ]; then echo -n "$YT_JOB_ID" >{0}/started || exit 1; sleep 300; fi'.format(tmpdir)
 
-        command = 'cat; if [ "$YT_JOB_INDEX" = 3 ]; then echo -n "$YT_JOB_ID" >{0}/started || exit 1; sleep 300; fi'.format(tmpdir)
+            op_id = map(
+                dont_track=True,
+                in_="//tmp/t1",
+                out="//tmp/t2",
+                command=command,
+                spec={
+                    "mapper": {
+                        "format": "dsv"
+                    },
+                    "data_size_per_job": 1
+                })
 
-        op_id = map(
-            dont_track=True,
-            in_="//tmp/t1",
-            out="//tmp/t2",
-            command=command,
-            spec={
-                "mapper": {
-                    "format": "dsv"
-                },
-                "data_size_per_job": 1
-            })
-
-        try:
-            pin_filename = os.path.join(tmpdir, "started")
-            while not os.access(pin_filename, os.F_OK):
-                time.sleep(0.2)
-
-            jobs_path = "//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(op_id)
-            jobs = ls(jobs_path)
-            assert jobs
-
-            job_id = open(pin_filename).read()
-            assert job_id
-
-            result = abandon_job(job_id)
-        finally:
             try:
-                os.unlink(pin_filename)
-            except OSError:
-                pass
-            try:
-                os.unlink(tmpdir)
-            except OSError:
-                pass
+                pin_filename = os.path.join(tmpdir, "started")
+                while not os.access(pin_filename, os.F_OK):
+                    time.sleep(0.2)
 
-        track_op(op_id)
-        assert(2, len(read_table("//tmp/t2")))
+                jobs_path = "//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(op_id)
+                jobs = ls(jobs_path)
+                assert jobs
+
+                job_id = open(pin_filename).read()
+                assert job_id
+
+                result = abandon_job(job_id)
+            finally:
+                try:
+                    os.unlink(pin_filename)
+                except OSError:
+                    pass
+
+            track_op(op_id)
+            assert(2, len(read_table("//tmp/t2")))
 
 class TestSchedulerMapCommands(YTEnvSetup):
     NUM_MASTERS = 3
@@ -501,15 +482,13 @@ class TestSchedulerMapCommands(YTEnvSetup):
 
         self._check_all_stderrs(op_id, "stderr\n", 5)
 
-    @pytest.mark.skipif("not sys.platform.startswith(\"linux\")")
+    @unix_only
     def test_stderr_of_failed_jobs(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
         write_table("//tmp/t1", [{"foo": "bar"} for i in xrange(110)])
 
-        tmpdir = tempfile.mkdtemp(prefix="stderr_of_failed_jobs_semaphore")
-        try:
-            os.chmod(tmpdir, 0777)
+        with self.tempfolder("stderr_of_failed_jobs") as tmpdir:
             for i in xrange(109):
                 with open(os.path.join(tmpdir, str(i)), "w") as f:
                     f.close()
@@ -533,53 +512,44 @@ class TestSchedulerMapCommands(YTEnvSetup):
             # The default number of stderr is 100. We check that we have 101-st stderr of failed job,
             # that is last one.
             self._check_all_stderrs(op_id, "stderr\n", 101)
-        finally:
-            try:
-                os.rmdir(tmpdir)
-            except:
-                pass
 
     def test_job_progress(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
         write_table("//tmp/t1", [{"foo": "bar"} for i in xrange(10)])
 
-        tmpdir = tempfile.mkdtemp(prefix="job_progress")
-        keeper_filename = os.path.join(tmpdir, "keep")
+        with self.tempfolder("job_progress") as tmpdir:
+            keeper_filename = os.path.join(tmpdir, "keep")
 
-        try:
-            with open(keeper_filename, "w") as f:
-                f.close()
-
-            op_id = map(dont_track=True, in_="//tmp/t1", out="//tmp/t2", command="""
-                DIR={0}
-                until rmdir $DIR 2>/dev/null; do sleep 1; done;
-                cat
-                """.format(tmpdir))
-
-            while True:
-                try:
-                    job_id, _1 = get("//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(op_id)).popitem()
-                    time.sleep(0.1)
-                except KeyError:
-                    pass
-                else:
-                    break
-
-            progress = get("//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs/{1}/progress".format(op_id, job_id))
-            assert progress >= 0
-            os.unlink(keeper_filename)
-
-            track_op(op_id)
-        finally:
             try:
+                with open(keeper_filename, "w") as f:
+                    f.close()
+
+                op_id = map(dont_track=True, in_="//tmp/t1", out="//tmp/t2", command="""
+                    DIR={0}
+                    until rmdir $DIR 2>/dev/null; do sleep 1; done;
+                    cat
+                    """.format(tmpdir))
+
+                while True:
+                    try:
+                        job_id, _1 = get("//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(op_id)).popitem()
+                        time.sleep(0.1)
+                    except KeyError:
+                        pass
+                    else:
+                        break
+
+                progress = get("//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs/{1}/progress".format(op_id, job_id))
+                assert progress >= 0
                 os.unlink(keeper_filename)
-            except OSError:
-                pass
-            try:
-                os.unlink(tmpdir)
-            except OSError:
-                pass
+
+                track_op(op_id)
+            finally:
+                try:
+                    os.unlink(keeper_filename)
+                except OSError:
+                    pass
 
     def test_estimated_statistics(self):
         create("table", "//tmp/t1")
@@ -656,41 +626,40 @@ class TestSchedulerMapCommands(YTEnvSetup):
         create("table", "//tmp/t2")
         write_table("//tmp/t1", {"foo": "bar"})
 
-        tmpdir = tempfile.mkdtemp(prefix="dump_job_context_semaphore")
+        with self.tempfolder("dump_job_context") as tmpdir:
+            command="touch {0}/started; cat; until rmdir {0} 2>/dev/null; do sleep 1; done".format(tmpdir)
 
-        command="touch {0}/started; cat; until rmdir {0} 2>/dev/null; do sleep 1; done".format(tmpdir)
+            op_id = map(
+                dont_track=True,
+                in_="//tmp/t1",
+                out="//tmp/t2",
+                command=command,
+                spec={
+                    "mapper": {
+                        "input_format": "json",
+                        "output_format": "json"
+                    }
+                })
 
-        op_id = map(
-            dont_track=True,
-            in_="//tmp/t1",
-            out="//tmp/t2",
-            command=command,
-            spec={
-                "mapper": {
-                    "input_format": "json",
-                    "output_format": "json"
-                }
-            })
+            pin_filename = os.path.join(tmpdir, "started")
+            while not os.access(pin_filename, os.F_OK):
+                time.sleep(0.2)
 
-        pin_filename = os.path.join(tmpdir, "started")
-        while not os.access(pin_filename, os.F_OK):
-            time.sleep(0.2)
+            try:
+                jobs_path = "//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(op_id)
+                jobs = ls(jobs_path)
+                assert jobs
+                for job_id in jobs:
+                    dump_job_context(job_id, "//tmp/input_context")
 
-        try:
-            jobs_path = "//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(op_id)
-            jobs = ls(jobs_path)
-            assert jobs
-            for job_id in jobs:
-                dump_job_context(job_id, "//tmp/input_context")
+            finally:
+                os.unlink(pin_filename)
 
-        finally:
-            os.unlink(pin_filename)
+            track_op(op_id)
 
-        track_op(op_id)
-
-        context = read_file("//tmp/input_context")
-        assert get("//tmp/input_context/@description/type") == "input_context"
-        assert format.JsonFormat(process_table_index=True).loads_row(context)["foo"] == "bar"
+            context = read_file("//tmp/input_context")
+            assert get("//tmp/input_context/@description/type") == "input_context"
+            assert format.JsonFormat(process_table_index=True).loads_row(context)["foo"] == "bar"
 
     @unix_only
     def test_sorted_output(self):

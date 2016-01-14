@@ -10,7 +10,8 @@ import os
 import sys
 import logging
 import uuid
-
+import contextlib
+import tempfile
 from time import sleep
 from functools import wraps
 from threading import Thread
@@ -159,6 +160,21 @@ class YTEnvSetup(YTEnv):
 
         print "Waiting for tablets to become unmounted..."
         _wait(lambda: all(x["state"] == "unmounted" for x in yt_commands.get(path + "/@tablets")))
+
+    @contextlib.contextmanager
+    def tempfolder(self, prefix):
+        basedir = os.path.join(self.Env.path_to_run, "tmp")
+        try:
+            os.mkdir(basedir)
+        except:
+            pass
+        tmpdir = tempfile.mkdtemp(prefix="{0}_{1}_".format(prefix, os.getpid()), dir=basedir)
+        yield tmpdir
+        try:
+            os.rmdir(tmpdir)
+        except:
+            sys.excepthook(*sys.exc_info())
+            pass
 
     def _remove_accounts(self):
         accounts = yt_commands.ls('//sys/accounts', attr=['builtin'])
