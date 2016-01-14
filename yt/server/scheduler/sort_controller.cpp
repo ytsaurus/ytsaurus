@@ -1843,7 +1843,7 @@ private:
         sortedSamples.reserve(sampleCount);
         try {
             for (const auto& sample : samples) {
-                ValidateKey(sample.Key);
+                ValidateClientKey(sample.Key.Get());
                 sortedSamples.push_back(&sample);
             }
         } catch (const std::exception& ex) {

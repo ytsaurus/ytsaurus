@@ -387,6 +387,10 @@ void ValidateServerDataRow(
     const TTableSchema& schema);
 
 //! Checks that #key is a valid client-side key. Throws on failure.
+/*! The components must pass #ValidateKeyValue check. */
+void ValidateClientKey(TKey key);
+
+//! Checks that #key is a valid client-side key. Throws on failure.
 /*! The key must obey the following properties:
  *  1. It cannot be null.
  *  2. It must contain exactly #keyColumnCount components.

@@ -5,7 +5,6 @@
 #include "helpers.h"
 #include "job_memory.h"
 #include "map_controller.h"
-#include "operation_controller.h"
 #include "operation_controller_detail.h"
 
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
@@ -1115,8 +1114,8 @@ protected:
             leftEndpoint.MaxBoundaryKey = slice->UpperLimit().GetKey();
 
             try {
-                ValidateKey(leftEndpoint.MinBoundaryKey);
-                ValidateKey(leftEndpoint.MaxBoundaryKey);
+                ValidateClientKey(leftEndpoint.MinBoundaryKey.Get());
+                ValidateClientKey(leftEndpoint.MaxBoundaryKey.Get());
             } catch (const std::exception& ex) {
                 THROW_ERROR_EXCEPTION(
                     "Error validating sample key in input table %v",
@@ -2048,8 +2047,8 @@ private:
             const auto& primaryMaxKey = slice->UpperLimit().GetKey();
 
             try {
-                ValidateKey(primaryMinKey);
-                ValidateKey(primaryMaxKey);
+                ValidateClientKey(primaryMinKey.Get());
+                ValidateClientKey(primaryMaxKey.Get());
             } catch (const std::exception& ex) {
                 THROW_ERROR_EXCEPTION(
                     "Error validating sample key in input table %v",
