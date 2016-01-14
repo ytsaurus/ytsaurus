@@ -658,6 +658,7 @@ TTabletSnapshotPtr TTablet::RebuildSnapshot()
     Snapshot_->KeyColumns = KeyColumns_;
     Snapshot_->Eden = Eden_->RebuildSnapshot();
     Snapshot_->Atomicity = Atomicity_;
+    Snapshot_->EnableLookupHashTable = EnableLookupHashTable_;
     Snapshot_->Partitions.reserve(PartitionList_.size());
     for (const auto& partition : PartitionList_) {
         auto partitionSnapshot = partition->RebuildSnapshot();
