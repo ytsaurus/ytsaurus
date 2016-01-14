@@ -483,6 +483,8 @@ TOperationId ExecuteMap(
         spec.Outputs_.size(),
         uploader.HasState());
 
+    command = options.JobCommandPrefix_ + command + options.JobCommandSuffix_;
+
     TNode specNode = BuildYsonNodeFluently()
     .BeginMap().Item("spec").BeginMap()
         .Item("mapper").DoMap(std::bind(
@@ -544,6 +546,8 @@ TOperationId ExecuteReduce(
         spec.Outputs_.size(),
         uploader.HasState());
 
+    command = options.JobCommandPrefix_ + command + options.JobCommandSuffix_;
+
     TNode specNode = BuildYsonNodeFluently()
     .BeginMap().Item("spec").BeginMap()
         .Item("reducer").DoMap(std::bind(
@@ -602,6 +606,8 @@ TOperationId ExecuteJoinReduce(
         ~TJobFactory::Get()->GetJobName(reducer),
         spec.Outputs_.size(),
         uploader.HasState());
+
+    command = options.JobCommandPrefix_ + command + options.JobCommandSuffix_;
 
     TNode specNode = BuildYsonNodeFluently()
     .BeginMap().Item("spec").BeginMap()
@@ -691,12 +697,15 @@ TOperationId ExecuteMapReduce(
         mapCommand = Sprintf("./cppbinary --yt-map \"%s\" 1 %d",
             ~TJobFactory::Get()->GetJobName(mapper),
             mapUploader.HasState());
+        mapCommand = options.JobCommandPrefix_ + mapCommand + options.JobCommandSuffix_;
     }
 
     Stroka reduceCommand = Sprintf("./cppbinary --yt-reduce \"%s\" %" PRISZT " %d",
         ~TJobFactory::Get()->GetJobName(reducer),
         spec.Outputs_.size(),
         reduceUploader.HasState());
+
+    reduceCommand = options.JobCommandPrefix_ + reduceCommand + options.JobCommandSuffix_;
 
     TNode specNode = BuildYsonNodeFluently()
     .BeginMap().Item("spec").BeginMap()
