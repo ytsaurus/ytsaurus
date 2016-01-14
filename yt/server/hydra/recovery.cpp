@@ -60,6 +60,8 @@ void TRecoveryBase::RecoverToVersion(TVersion targetVersion)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
+    YCHECK(EpochContext_->ReachableVersion <= targetVersion);
+
     auto currentVersion = DecoratedAutomaton_->GetAutomatonVersion();
     YCHECK(currentVersion <= targetVersion);
 
