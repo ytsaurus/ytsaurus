@@ -40,7 +40,7 @@ struct TTabletSnapshot
     NTableClient::TTableSchema Schema;
     NTableClient::TKeyColumns KeyColumns;
     NTransactionClient::EAtomicity Atomicity;
-    bool EnableLookupHashTable;
+    bool EnableLookupHashTable = false;
 
     TPartitionSnapshotPtr Eden;
 
