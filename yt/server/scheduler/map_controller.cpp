@@ -475,10 +475,9 @@ IOperationControllerPtr CreateMapController(
     TOperation* operation)
 {
     auto spec = ParseOperationSpec<TMapOperationSpec>(operation->GetSpec());
-    if (spec->Ordered)
-        return CreateOrderedMapController(config, host, operation);
-
-    return New<TMapController>(config, spec, config->MapOperationOptions, host, operation);
+    return spec->Ordered
+        ? CreateOrderedMapController(config, host, operation)
+        : New<TMapController>(config, spec, config->MapOperationOptions, host, operation);
 }
 
 ////////////////////////////////////////////////////////////////////
@@ -526,8 +525,9 @@ private:
     //! A typical implementation of #IsTeleportChunk that depends on whether chunks must be combined or not.
     virtual bool IsTeleportChunk(const TChunkSpec& chunkSpec) const override
     {
-        if (Spec->ForceTransform)
+        if (Spec->ForceTransform) {
             return false;
+        }
 
         return Spec->CombineChunks
             ? IsLargeCompleteChunk(chunkSpec, Spec->JobIO->TableWriter->DesiredChunkSize)
