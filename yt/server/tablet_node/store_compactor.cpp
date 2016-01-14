@@ -431,7 +431,7 @@ private:
                 Config_->StoreCompactor->PartitioningWriterPoolSize);
             TChunkWriterPool writerPool(
                 Bootstrap_->GetInMemoryManager(),
-                tablet,
+                tablet->GetSnapshot(),
                 writerPoolSize,
                 Config_->ChunkWriter,
                 writerOptions,
@@ -756,12 +756,6 @@ private:
                 auto* descriptor = hydraRequest.add_stores_to_add();
                 descriptor->mutable_store_id()->CopyFrom(chunkSpec.chunk_id());
                 descriptor->mutable_chunk_meta()->CopyFrom(chunkSpec.chunk_meta());
-            }
-            for (const auto& chunkSpec : writer->GetWrittenChunksFullMeta()) {
-                inMemoryManager->FinalizeChunk(
-                    FromProto<TChunkId>(chunkSpec.chunk_id()),
-                    chunkSpec.chunk_meta(),
-                    tablet);
             }
 
             // NB: No exceptions must be thrown beyond this point!

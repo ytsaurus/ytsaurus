@@ -325,7 +325,7 @@ private:
 
             TChunkWriterPool writerPool(
                 Bootstrap_->GetInMemoryManager(),
-                tablet,
+                tablet->GetSnapshot(),
                 1,
                 Config_->ChunkWriter,
                 writerOptions,

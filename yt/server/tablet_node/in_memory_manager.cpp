@@ -116,10 +116,10 @@ public:
     void FinalizeChunk(
         const TChunkId& chunkId,
         const TChunkMeta& chunkMeta,
-        const TTablet* tablet)
+        const TTabletSnapshotPtr& tabletSnapshot)
     {
         TInMemoryChunkDataPtr data;
-        auto mode = tablet->GetConfig()->InMemoryMode;
+        auto mode = tabletSnapshot->Config->InMemoryMode;
         if (mode == EInMemoryMode::None) {
             return;
         }
@@ -134,7 +134,7 @@ public:
 
         if (!data) {
             LOG_INFO("Cannot find intercepted chunk (TabletId: %v, Mode: %v, ChunkId: %v)",
-                tablet->GetTabletId(),
+                tabletSnapshot->TabletId,
                 mode,
                 chunkId);
             return;
@@ -142,7 +142,7 @@ public:
 
         YCHECK(data->InMemoryMode == mode);
 
-        FinalizeChunkData(data, chunkId, chunkMeta, tablet);
+        FinalizeChunkData(data, chunkId, chunkMeta, tabletSnapshot);
     }
 
 private:
@@ -161,19 +161,19 @@ private:
         TInMemoryChunkDataPtr data,
         const TChunkId& chunkId,
         const TChunkMeta& chunkMeta,
-        const TTablet* tablet)
+        const TTabletSnapshotPtr& tabletSnapshot)
     {
         data->ChunkMeta = TCachedVersionedChunkMeta::Create(
             chunkId,
             chunkMeta,
-            tablet->Schema(),
-            tablet->KeyColumns());
+            tabletSnapshot->Schema,
+            tabletSnapshot->KeyColumns);
 
-        if (tablet->GetEnableLookupHashTable()) {
+        if (tabletSnapshot->EnableLookupHashTable) {
             data->LookupHashTable = CreateChunkLookupHashTable(
                 data->Blocks,
                 data->ChunkMeta,
-                tablet->GetRowKeyComparer());
+                tabletSnapshot->RowKeyComparer);
         }
     }
 
@@ -328,7 +328,7 @@ private:
             startBlockIndex += readBlockCount;
         }
 
-        FinalizeChunkData(chunkData, store->GetId(), meta, tablet);
+        FinalizeChunkData(chunkData, store->GetId(), meta, tablet->GetSnapshot());
 
         store->Preload(chunkData);
 
@@ -486,9 +486,9 @@ TInMemoryChunkDataPtr TInMemoryManager::EvictInterceptedChunkData(const TChunkId
 void TInMemoryManager::FinalizeChunk(
     const TChunkId& chunkId,
     const TChunkMeta& chunkMeta,
-    const TTablet* tablet)
+    const TTabletSnapshotPtr& tabletSnapshot)
 {
-    Impl_->FinalizeChunk(chunkId, chunkMeta, tablet);
+    Impl_->FinalizeChunk(chunkId, chunkMeta, tabletSnapshot);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
