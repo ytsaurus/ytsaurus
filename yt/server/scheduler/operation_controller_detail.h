@@ -650,7 +650,6 @@ protected:
     virtual void StartOutputTransaction(const NObjectClient::TTransactionId& parentTransactionId);
 
     // Completion.
-    void DoCommit();
     void TeleportOutputChunks();
     void AttachOutputChunks();
     void EndUploadOutputTables();
@@ -861,9 +860,6 @@ protected:
     void InitFinalOutputConfig(TJobIOConfigPtr config);
 
     static NTableClient::TTableReaderOptionsPtr CreateTableReaderOptions(TJobIOConfigPtr ioConfig);
-
-    TFluentLogEvent LogEventFluently(ELogEventType eventType);
-    TFluentLogEvent LogFinishedJobFluently(ELogEventType eventType, TJobPtr job);
 
     void ValidateUserFileCount(TUserJobSpecPtr spec, const Stroka& operation);
 
