@@ -913,9 +913,6 @@ private:
 
     static const NProto::TUserJobResult* FindUserJobResult(const TRefCountedJobResultPtr& result);
 
-    NTransactionClient::TTransactionManagerPtr GetTransactionManagerForTransaction(
-        const NObjectClient::TTransactionId& transactionId);
-
     void IncreaseNeededResources(const TJobResources& resourcesDelta);
 };
 
