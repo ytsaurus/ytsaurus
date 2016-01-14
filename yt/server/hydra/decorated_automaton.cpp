@@ -860,29 +860,19 @@ void TDecoratedAutomaton::DoRotateChangelog()
 
     auto rotatedVersion = loggedVersion.Rotate();
 
-    if (EpochContext_->ReachableVersion < rotatedVersion) {
-        TChangelogMeta meta;
-        meta.set_prev_record_count(loggedVersion.RecordId);
+    TChangelogMeta meta;
+    meta.set_prev_record_count(loggedVersion.RecordId);
 
-        auto asyncNewChangelog = EpochContext_->ChangelogStore->CreateChangelog(
-            rotatedVersion.SegmentId,
-            meta);
-        Changelog_ = WaitFor(asyncNewChangelog)
-            .ValueOrThrow();
-
-        LOG_INFO("Changelog rotated");
-    } else {
-        YCHECK(EpochContext_->ReachableVersion == rotatedVersion);
-
-        auto asyncNewChangelog = EpochContext_->ChangelogStore->OpenChangelog(
-            rotatedVersion.SegmentId);
-        Changelog_ = WaitFor(asyncNewChangelog)
-            .ValueOrThrow();
-
-        LOG_INFO("Skipping changelog rotation");
-    }
+    auto asyncNewChangelog = EpochContext_->ChangelogStore->CreateChangelog(
+        rotatedVersion.SegmentId,
+        meta);
+    Changelog_ = WaitFor(asyncNewChangelog)
+        .ValueOrThrow();
 
     LoggedVersion_ = rotatedVersion;
+    YCHECK(EpochContext_->ReachableVersion < LoggedVersion_);
+
+    LOG_INFO("Changelog rotated");
 }
 
 void TDecoratedAutomaton::CommitMutations(TVersion version, bool mayYield)
