@@ -168,7 +168,7 @@ class DumpMapper(ArgsMapper):
         count = 0
         raw_data = StringIO(query(r["left"], r["right"]))
         for row in yson.load(raw_data, yson_type="list_fragment"):
-            ++count
+            count += 1
             yield row
         yt.write_statistics({"processed_rows": count})
 
