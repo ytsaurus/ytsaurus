@@ -987,9 +987,9 @@ void TOperationControllerBase::Prepare()
     GetUserObjectBasicAttributes<TInputTable>(
         AuthenticatedInputMasterClient,
         InputTables,
-        EPermission::Read,
         InputTransactionId,
-        Logger);
+        Logger,
+        EPermission::Read);
     for (const auto& table : InputTables) {
         if (table.Type != EObjectType::Table) {
             THROW_ERROR_EXCEPTION("Object %v has invalid type: expected %Qlv, actual %Qlv",
@@ -1002,9 +1002,9 @@ void TOperationControllerBase::Prepare()
     GetUserObjectBasicAttributes<TOutputTable>(
         AuthenticatedOutputMasterClient,
         OutputTables,
-        EPermission::Write,
         OutputTransactionId,
-        Logger);
+        Logger,
+        EPermission::Write);
     for (const auto& table : OutputTables) {
         if (table.Type != EObjectType::Table) {
             THROW_ERROR_EXCEPTION("Object %v has invalid type: expected %Qlv, actual %Qlv",
@@ -1017,9 +1017,9 @@ void TOperationControllerBase::Prepare()
     GetUserObjectBasicAttributes<TUserFile>(
         AuthenticatedMasterClient,
         Files,
-        EPermission::Read,
         InputTransactionId,
-        Logger);
+        Logger,
+        EPermission::Read);
 
     LockInputTables();
     LockUserFiles(&Files, {});
@@ -2999,9 +2999,9 @@ void TOperationControllerBase::InitQuerySpec(
         GetUserObjectBasicAttributes<TUserFile>(
             AuthenticatedMasterClient,
             udfFiles,
-            EPermission::Read,
             InputTransactionId,
-            Logger);
+            Logger,
+            EPermission::Read);
 
 
         LockUserFiles(

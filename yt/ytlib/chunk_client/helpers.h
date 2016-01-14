@@ -77,9 +77,9 @@ template <class T>
 void GetUserObjectBasicAttributes(
     NApi::IClientPtr client, 
     TMutableRange<T> objects,
-    NYTree::EPermission permission,
     const NObjectClient::TTransactionId& transactionId,
     const NLogging::TLogger& logger,
+    NYTree::EPermission permission,
     bool suppressAccessTracking = false);
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -21,14 +21,14 @@ namespace NYT {
 namespace NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
-
+    
 template <class T>
 void GetUserObjectBasicAttributes(
     NApi::IClientPtr client, 
     TMutableRange<T> objects,
-    NYTree::EPermission permission,
     const NObjectClient::TTransactionId& transactionId,
     const NLogging::TLogger& logger,
+    NYTree::EPermission permission,
     bool suppressAccessTracking)
 {
     const auto& Logger = logger;
@@ -66,13 +66,6 @@ void GetUserObjectBasicAttributes(
         userObject.CellTag = rsp->cell_tag();
 
         userObject.Type = NObjectClient::TypeFromId(userObject.ObjectId);
-        if (userObject.Type != NCypressClient::EObjectType::File && userObject.Type != NCypressClient::EObjectType::Table) {
-            THROW_ERROR_EXCEPTION("Object %v has invalid type: expected %Qlv or %Qlv, actual %Qlv",
-                path,
-                NCypressClient::EObjectType::File,
-                NCypressClient::EObjectType::Table,
-                userObject.Type);
-        }
     }
 }
 

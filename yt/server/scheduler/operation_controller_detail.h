@@ -247,7 +247,7 @@ protected:
         std::vector<TJobBoundaryKeys> BoundaryKeys;
 
         NYson::TYsonString EffectiveAcl;
-
+        
         void Persist(TPersistenceContext& context);
     };
 
@@ -272,7 +272,7 @@ protected:
         std::vector<NChunkClient::NProto::TChunkSpec> ChunkSpecs;
         bool Executable = false;
         NYson::TYsonString Format;
-
+        
         void Persist(TPersistenceContext& context);
     };
 
