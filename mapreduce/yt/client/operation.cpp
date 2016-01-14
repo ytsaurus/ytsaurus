@@ -162,8 +162,15 @@ private:
             Files_.push_back(TFile{"", file, false});
         }
         for (const auto& localFile : spec.LocalFiles_) {
+            TFsPath path(localFile);
+            path.CheckExists();
             auto cachePath = UploadToCache(localFile);
-            Files_.push_back(TFile{TFsPath(localFile).Basename(), cachePath, false});
+
+            TFileStat stat;
+            path.Stat(stat);
+            bool isExecutable = stat.Mode & (S_IXUSR | S_IXGRP | S_IXOTH);
+
+            Files_.push_back(TFile{path.Basename(), cachePath, isExecutable});
         }
     }
 
