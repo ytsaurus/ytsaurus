@@ -138,47 +138,27 @@ void TSchemalessTableReader::DoOpen()
 
     LOG_INFO("Opening table reader");
 
-    auto tableCellTag = InvalidCellTag;
-    TObjectId objectId;
+    TUserObject userObject;
+    userObject.Path = path;
 
-    {
-        LOG_INFO("Requesting basic attributes");
-
-        auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::LeaderOrFollower);
-        TObjectServiceProxy proxy(channel);
-
-        auto req = TTableYPathProxy::GetBasicAttributes(path);
-        req->set_permissions(static_cast<ui32>(EPermission::Read));
-        SetTransactionId(req, Transaction_);
-        SetSuppressAccessTracking(req, Config_->SuppressAccessTracking);
-
-        auto rspOrError = WaitFor(proxy.Execute(req));
-        THROW_ERROR_EXCEPTION_IF_FAILED(
-            rspOrError,
-            "Error getting basic attributes for table %v",
-            path);
-
-        const auto& rsp = rspOrError.Value();
-
-        objectId = FromProto<TObjectId>(rsp->object_id());
-        tableCellTag = rsp->cell_tag();
-
-        LOG_INFO("Basic attributes received (ObjectId: %v, CellTag: %v)",
-            objectId,
-            tableCellTag);
+    GetUserObjectBasicAttributes<TUserObject>(
+        Client_, 
+        userObject,
+        EPermission::Read, 
+        Transaction_ ? Transaction_->GetId() : NullTransactionId,
+        Logger,
+        Config_->SuppressAccessTracking);
+    if (userObject.Type != EObjectType::Table) {
+        THROW_ERROR_EXCEPTION("Invalid type of %v: expected %Qlv, actual %Qlv",
+            path,
+            EObjectType::Table,
+            userObject.Type);
     }
+
+    const auto& objectId = userObject.ObjectId;
+    const auto tableCellTag = userObject.CellTag;
 
     auto objectIdPath = FromObjectId(objectId);
-
-    {
-        auto type = TypeFromId(objectId);
-        if (type != EObjectType::Table) {
-            THROW_ERROR_EXCEPTION("Invalid type of %v: expected %Qlv, actual %Qlv",
-                path,
-                EObjectType::Table,
-                type);
-        }
-    }
 
     bool dynamic;
     TTableSchema schema;
