@@ -14,6 +14,7 @@
 
 #include <yt/ytlib/chunk_client/chunk_owner_ypath_proxy.h>
 #include <yt/ytlib/chunk_client/chunk_service_proxy.h>
+#include <yt/ytlib/chunk_client/helpers.h>
 #include <yt/ytlib/chunk_client/public.h>
 
 #include <yt/ytlib/cypress_client/public.h>
@@ -183,16 +184,6 @@ protected:
     NObjectClient::TTransactionId InputTransactionId;
     NObjectClient::TTransactionId OutputTransactionId;
 
-    struct TUserObjectBase
-    {
-        NYPath::TRichYPath Path;
-        NObjectClient::TObjectId ObjectId;
-        NObjectClient::TCellTag CellTag;
-
-        void Persist(TPersistenceContext& context);
-    };
-
-
     struct TLivePreviewTableBase
     {
         // Live preview table id.
@@ -205,7 +196,7 @@ protected:
     };
 
     struct TInputTable
-        : public TUserObjectBase
+        : public NChunkClient::TUserObjectBase
     {
         //! Number of chunks in the whole table (without range selectors).
         int ChunkCount = -1;
@@ -229,7 +220,7 @@ protected:
     };
 
     struct TOutputTable
-        : public TUserObjectBase
+        : public NChunkClient::TUserObjectBase
         , public TLivePreviewTableBase
     {
         bool AppendRequested = false;
@@ -273,7 +264,7 @@ protected:
 
 
     struct TUserFile
-        : public TUserObjectBase
+        : public NChunkClient::TUserObjectBase
     {
         std::shared_ptr<NYTree::IAttributeDictionary> Attributes;
         EOperationStage Stage = EOperationStage::None;

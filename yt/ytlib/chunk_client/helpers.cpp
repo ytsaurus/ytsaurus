@@ -249,5 +249,15 @@ IChunkReaderPtr CreateRemoteReader(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TUserObjectBase::Persist(NPhoenix::TPersistenceContext& context)
+{
+    using NYT::Persist;
+    Persist(context, Path);
+    Persist(context, ObjectId);
+    Persist(context, CellTag);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NChunkClient
 } // namespace NYT

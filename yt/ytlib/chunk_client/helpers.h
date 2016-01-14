@@ -1,3 +1,5 @@
+#pragma once
+
 #include "public.h"
 #include "chunk_owner_ypath_proxy.h"
 
@@ -10,6 +12,8 @@
 #include <yt/ytlib/object_client/master_ypath_proxy.h>
 
 #include <yt/ytlib/transaction_client/public.h>
+
+#include <yt/ytlib/ypath/rich.h>
 
 #include <yt/core/actions/public.h>
 
@@ -56,6 +60,17 @@ IChunkReaderPtr CreateRemoteReader(
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
     IBlockCachePtr blockCache,
     NConcurrency::IThroughputThrottlerPtr throttler);
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TUserObjectBase
+{
+    NYPath::TRichYPath Path;
+    NObjectClient::TObjectId ObjectId;
+    NObjectClient::TCellTag CellTag;
+
+    void Persist(NPhoenix::TPersistenceContext& context);
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
