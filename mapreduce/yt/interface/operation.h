@@ -220,6 +220,8 @@ struct TOperationOptions
     FLUENT_FIELD_OPTION(TNode, Spec);
     FLUENT_FIELD_DEFAULT(bool, Wait, true);
     FLUENT_FIELD_DEFAULT(bool, UseTableFormats, false);
+    FLUENT_FIELD(Stroka, JobCommandPrefix);
+    FLUENT_FIELD(Stroka, JobCommandSuffix);
 };
 
 struct IOperationClient
