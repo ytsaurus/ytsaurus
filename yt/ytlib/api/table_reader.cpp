@@ -1,5 +1,6 @@
 #include "table_reader.h"
 #include "private.h"
+#include "transaction.h"
 
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/ytlib/chunk_client/chunk_spec.h>
@@ -144,10 +145,12 @@ void TSchemalessTableReader::DoOpen()
     GetUserObjectBasicAttributes<TUserObject>(
         Client_, 
         userObject,
-        EPermission::Read, 
         Transaction_ ? Transaction_->GetId() : NullTransactionId,
         Logger,
-        Config_->SuppressAccessTracking);
+        EPermission::Read);
+    const auto& objectId = userObject.ObjectId;
+    const auto tableCellTag = userObject.CellTag;
+
     if (userObject.Type != EObjectType::Table) {
         THROW_ERROR_EXCEPTION("Invalid type of %v: expected %Qlv, actual %Qlv",
             path,
@@ -157,8 +160,6 @@ void TSchemalessTableReader::DoOpen()
 
     const auto& objectId = userObject.ObjectId;
     const auto tableCellTag = userObject.CellTag;
-
-    auto objectIdPath = FromObjectId(objectId);
 
     bool dynamic;
     TTableSchema schema;
