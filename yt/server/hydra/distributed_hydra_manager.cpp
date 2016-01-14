@@ -1142,7 +1142,7 @@ private:
             SwitchTo(epochContext->EpochSystemAutomatonInvoker);
             VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-            auto asyncRecoveryResult = epochContext->LeaderRecovery->Run(epochContext->ReachableVersion);
+            auto asyncRecoveryResult = epochContext->LeaderRecovery->Run();
             WaitFor(asyncRecoveryResult)
                 .ThrowOnError();
 
@@ -1311,10 +1311,26 @@ private:
         auto epochContext = ControlEpochContext_;
 
         // Check if initial ping is already received.
-        if (epochContext->FollowerRecovery)
+        if (epochContext->FollowerRecovery) {
             return;
+        }
 
-        LOG_INFO("Received initial ping from leader (Version: %v)",
+        // Check if the logged version at leader is lower than our reachable (logged) version.
+        // This is a rare case but could happen at least in the following two scenarios:
+        // 1) When a follower restarts rapid enough and appears
+        // (for some limited time frame) ahead of the leader w.r.t. the current changelog.
+        // 2) When the quorum gets broken during changelog rotation
+        // and some follower joins the a newly established (and still recovering!) quorum
+        // with an empty changelog that nobody else has.
+        auto reachableVersion = epochContext->ReachableVersion;
+        if (version < reachableVersion) {
+            LOG_DEBUG("Received initial ping from leader with a stale version; ignored (LeaderVersion: %v, ReachableVersion: %v)",
+                version,
+                epochContext->ReachableVersion);
+            return;
+        }
+
+        LOG_INFO("Received initial ping from leader (LeaderVersion: %v)",
             version);
 
         epochContext->FollowerRecovery = New<TFollowerRecovery>(
