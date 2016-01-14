@@ -69,16 +69,6 @@ using NTableClient::NProto::TBoundaryKeysExt;
 
 ////////////////////////////////////////////////////////////////////
 
-void TOperationControllerBase::TUserObjectBase::Persist(TPersistenceContext& context)
-{
-    using NYT::Persist;
-    Persist(context, Path);
-    Persist(context, ObjectId);
-    Persist(context, CellTag);
-}
-
-////////////////////////////////////////////////////////////////////
-
 void TOperationControllerBase::TLivePreviewTableBase::Persist(TPersistenceContext& context)
 {
     using NYT::Persist;
