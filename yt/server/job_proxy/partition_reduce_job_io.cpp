@@ -82,7 +82,7 @@ public:
         // Partition reduce may come as intermediate job (reduce-combiner),
         // so we return written chunks to scheduler.
         writer->GetNodeDirectory()->DumpTo(schedulerJobResult->mutable_output_node_directory());
-        ToProto(schedulerJobResult->mutable_output_chunks(), writer->GetWrittenChunks());
+        ToProto(schedulerJobResult->mutable_output_chunks(), writer->GetWrittenChunksMasterMeta());
     }
 
 private:

@@ -46,7 +46,8 @@ public:
     /*!
      *  To get consistent data, should be called only when the writer is closed.
      */
-    virtual const std::vector<NProto::TChunkSpec>& GetWrittenChunks() const override;
+    virtual const std::vector<NProto::TChunkSpec>& GetWrittenChunksMasterMeta() const override;
+    virtual const std::vector<NProto::TChunkSpec>& GetWrittenChunksFullMeta() const override;
 
     //! Provides node id to descriptor mapping for chunks returned via #GetWrittenChunks.
     virtual NNodeTrackerClient::TNodeDirectoryPtr GetNodeDirectory() const override;
@@ -101,6 +102,7 @@ private:
     TSpinLock SpinLock_;
     NProto::TDataStatistics DataStatistics_;
     std::vector<NChunkClient::NProto::TChunkSpec> WrittenChunks_;
+    std::vector<NChunkClient::NProto::TChunkSpec> WrittenChunksFullMeta_;
 
 
     void InitSession();

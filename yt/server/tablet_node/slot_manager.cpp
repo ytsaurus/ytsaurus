@@ -13,6 +13,8 @@
 
 #include <yt/server/misc/memory_usage_tracker.h>
 
+#include <yt/ytlib/tablet_client/public.h>
+
 #include <yt/core/concurrency/periodic_executor.h>
 #include <yt/core/concurrency/rw_spinlock.h>
 #include <yt/core/concurrency/thread_affinity.h>
@@ -177,8 +179,11 @@ public:
 
         auto snapshot = FindTabletSnapshot(tabletId);
         if (!snapshot) {
-            THROW_ERROR_EXCEPTION("Tablet %v is not known",
-                tabletId);
+            THROW_ERROR_EXCEPTION(
+                NTabletClient::EErrorCode::NoSuchTablet,
+                "Tablet %v is not known",
+                tabletId)
+                << TErrorAttribute("tablet_id", tabletId);
         }
         return snapshot;
     }
