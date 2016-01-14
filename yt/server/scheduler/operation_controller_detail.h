@@ -641,8 +641,6 @@ protected:
     void PickIntermediateDataCell();
     void InitChunkListPool();
 
-    void ValidateKey(const NTableClient::TOwningKey& key);
-
     // Initialize transactions
     void StartAsyncSchedulerTransaction();
     void StartSyncSchedulerTransaction();

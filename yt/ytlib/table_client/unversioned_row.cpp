@@ -881,6 +881,13 @@ void ValidateServerDataRow(
     ValidateDataRow(row, keyColumnCount, nullptr, schema);
 }
 
+void ValidateClientKey(TKey key)
+{
+    for (int index = 0; index < key.GetCount(); ++index) {
+        ValidateKeyValue(key[index]);
+    }
+}
+
 void ValidateClientKey(
     TKey key,
     int keyColumnCount,

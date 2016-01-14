@@ -3811,13 +3811,6 @@ NTableClient::TTableReaderOptionsPtr TOperationControllerBase::CreateTableReader
     return options;
 }
 
-void TOperationControllerBase::ValidateKey(const TOwningKey& key)
-{
-    for (int i = 0; i < key.GetCount(); ++i) {
-        ValidateKeyValue(key[i]);
-    }
-}
-
 IClientPtr TOperationControllerBase::CreateClient()
 {
     TClientOptions options;
