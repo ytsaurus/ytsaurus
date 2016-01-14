@@ -139,7 +139,7 @@ private:
 
         const auto& rsp = rspOrError.Value();
 
-        LOG_DEBUG("Located %v chunks", rsp->chunks_size());
+        LOG_DEBUG("Chunks located (Count: %v)Make logging messages ", rsp->chunks_size());
 
         NodeDirectory_->MergeFrom(rsp->node_directory());
 
