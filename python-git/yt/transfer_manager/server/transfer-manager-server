@@ -1046,7 +1046,7 @@ class Application(object):
 
                     task_process = subprocess.Popen(["transfer-manager-server", "--execute-task", "--config", temporary_config],
                                                     stdout=subprocess.PIPE, stdin=subprocess.PIPE,
-                                                    preexec_fn=prctl.set_pdeathsig(signal.SIGINT))
+                                                    preexec_fn=lambda: prctl.set_pdeathsig(signal.SIGINT))
                     task_process.stdin.write(json.dumps(self._tasks[id].dict()))
                     task_process.stdin.close()
                     task_process.aborting = False
