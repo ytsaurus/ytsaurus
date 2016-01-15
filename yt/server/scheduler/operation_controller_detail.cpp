@@ -66,6 +66,7 @@ using namespace NQueryClient;
 
 using NNodeTrackerClient::TNodeId;
 using NTableClient::NProto::TBoundaryKeysExt;
+using NTableClient::TTableReaderOptions;
 
 ////////////////////////////////////////////////////////////////////
 
@@ -3798,15 +3799,24 @@ void TOperationControllerBase::InitIntermediateOutputConfig(TJobIOConfigPtr conf
     config->TableWriter->SyncOnClose = false;
 }
 
+void TOperationControllerBase::InitFinalOutputConfig(TJobIOConfigPtr /* config */)
+{ }
+
+NTableClient::TTableReaderOptionsPtr TOperationControllerBase::CreateTableReaderOptions(TJobIOConfigPtr ioConfig)
+{
+    auto options = New<TTableReaderOptions>();
+    options->EnableRowIndex = ioConfig->ControlAttributes->EnableRowIndex;
+    options->EnableTableIndex = ioConfig->ControlAttributes->EnableTableIndex;
+    options->EnableRangeIndex = ioConfig->ControlAttributes->EnableRangeIndex;
+    return options;
+}
+
 void TOperationControllerBase::ValidateKey(const TOwningKey& key)
 {
     for (int i = 0; i < key.GetCount(); ++i) {
         ValidateKeyValue(key[i]);
     }
 }
-
-void TOperationControllerBase::InitFinalOutputConfig(TJobIOConfigPtr /* config */)
-{ }
 
 IClientPtr TOperationControllerBase::CreateClient()
 {

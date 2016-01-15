@@ -68,6 +68,9 @@ protected:
     //! The template for starting new jobs.
     TJobSpec JobSpecTemplate;
 
+    //! Table reader options for map jobs.
+    TTableReaderOptionsPtr TableReaderOptions;
+
 
     class TUnorderedTask
         : public TTask
@@ -153,12 +156,7 @@ protected:
 
         virtual TTableReaderOptionsPtr GetTableReaderOptions() const override
         {
-            // ToDo(psushin): eliminate allocations.
-            auto options = New<TTableReaderOptions>();
-            options->EnableRowIndex = Controller->Spec->JobIO->ControlAttributes->EnableRowIndex;
-            options->EnableTableIndex = Controller->Spec->JobIO->ControlAttributes->EnableTableIndex;
-            options->EnableRangeIndex = Controller->Spec->JobIO->ControlAttributes->EnableRangeIndex;
-            return options;
+            return Controller->TableReaderOptions;
         }
 
         virtual EJobType GetJobType() const override
@@ -324,6 +322,8 @@ protected:
     {
         JobIOConfig = CloneYsonSerializable(Spec->JobIO);
         InitFinalOutputConfig(JobIOConfig);
+
+        TableReaderOptions = CreateTableReaderOptions(Spec->JobIO);
     }
 
     //! Returns |true| if the chunk can be included into the output as-is.

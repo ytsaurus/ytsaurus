@@ -860,6 +860,8 @@ protected:
     static void InitIntermediateOutputConfig(TJobIOConfigPtr config);
     void InitFinalOutputConfig(TJobIOConfigPtr config);
 
+    static NTableClient::TTableReaderOptionsPtr CreateTableReaderOptions(TJobIOConfigPtr ioConfig);
+
     TFluentLogEvent LogEventFluently(ELogEventType eventType);
     TFluentLogEvent LogFinishedJobFluently(ELogEventType eventType, TJobPtr job);
 
