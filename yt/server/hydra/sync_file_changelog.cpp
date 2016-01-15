@@ -309,7 +309,7 @@ public:
         std::lock_guard<std::mutex> guard(Mutex_);
 
         Error_.ThrowOnError();
-        ValidateOpen();
+        ValidateClosed();
 
         try {
             Meta_ = meta;
