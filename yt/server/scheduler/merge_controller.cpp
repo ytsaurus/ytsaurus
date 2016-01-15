@@ -118,6 +118,9 @@ protected:
     //! The template for starting new jobs.
     TJobSpec JobSpecTemplate;
 
+    //! Table reader options for merge jobs.
+    TTableReaderOptionsPtr TableReaderOptions;
+
 
     //! Overrides the spec limit to satisfy global job count limit.
     i64 MaxDataSizePerJob;
@@ -254,13 +257,7 @@ protected:
 
         virtual TTableReaderOptionsPtr GetTableReaderOptions() const override
         {
-            // ToDo(psushin): eliminate allocations.
-            auto options = New<TTableReaderOptions>();
-            options->EnableRowIndex = Controller->Spec->JobIO->ControlAttributes->EnableRowIndex;
-            options->EnableTableIndex = Controller->Spec->JobIO->ControlAttributes->EnableTableIndex;
-            options->EnableRangeIndex = Controller->Spec->JobIO->ControlAttributes->EnableRangeIndex;
-
-            return options;
+            return Controller->TableReaderOptions;
         }
 
         virtual EJobType GetJobType() const override
@@ -521,11 +518,13 @@ protected:
             : IsCompleteChunk(chunkSpec);
     }
 
-    //! Initializes #JobIOConfig.
+    //! Initializes #obIOConfig and #TableReaderOptions.
     void InitJobIOConfig()
     {
         JobIOConfig = CloneYsonSerializable(Spec->JobIO);
         InitFinalOutputConfig(JobIOConfig);
+
+        TableReaderOptions = CreateTableReaderOptions(Spec->JobIO);
     }
 
     //! Initializes #JobSpecTemplate.
