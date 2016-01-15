@@ -110,7 +110,6 @@ private:
 
     NProto::TSamplesExt SamplesExt_;
     i64 SamplesExtSize_ = 0;
-    double AverageSampleSize_ = 0.0;
 
     void DoClose();
 
