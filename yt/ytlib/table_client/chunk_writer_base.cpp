@@ -202,10 +202,7 @@ void TSequentialChunkWriterBase::OnRow(TUnversionedRow row)
 
 void TSequentialChunkWriterBase::OnRow(const TUnversionedValue* begin, const TUnversionedValue* end)
 {
-    double avgRowSize = EncodingChunkWriter_->GetCompressionRatio() * GetUncompressedSize() / RowCount_;
-    double sampleProbability = Config_->SampleRate * avgRowSize / AverageSampleSize_;
-
-    if (RandomNumber<double>() < sampleProbability || RowCount_ == 0) {
+    if (RandomNumber<double>() < Config_->SampleRate || RowCount_ == 0) {
         EmitSample(begin, end);
     }
 
@@ -225,7 +222,6 @@ void TSequentialChunkWriterBase::EmitSample(const TUnversionedValue* begin, cons
     auto entry = SerializeToString(begin, end);
     SamplesExt_.add_entries(entry);
     SamplesExtSize_ += entry.length();
-    AverageSampleSize_ = static_cast<double>(SamplesExtSize_) / SamplesExt_.entries_size();
 }
 
 void TSequentialChunkWriterBase::FinishBlock()
