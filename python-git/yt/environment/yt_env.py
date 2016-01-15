@@ -72,7 +72,7 @@ def get_busy_port_diagnostic(stderrs_path):
     if busy_port is None:
         return ""
 
-    command = "lsof -i :{0} | sed 1d".format(busy_port)
+    command = "sudo lsof -i :{0} | sed 1d".format(busy_port)
     try:
         lsof_output = subprocess.check_output(command, shell=True).strip()
         return "failed to bind port {0}, lsof output: {1}" \
