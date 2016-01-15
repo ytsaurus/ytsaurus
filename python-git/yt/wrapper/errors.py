@@ -59,7 +59,7 @@ class YtProxyUnavailable(YtError):
         self.response = response
         attributes = {
             "url": response.url,
-            "headers": hide_token(response.request_headers)}
+            "request_info": hide_token(response.request_info)}
         super(YtProxyUnavailable, self).__init__(message="Proxy is unavailable", attributes=attributes, inner_errors=[response.json()])
 
 class YtIncorrectResponse(YtError):
@@ -68,7 +68,7 @@ class YtIncorrectResponse(YtError):
         self.response = response
         attributes = {
             "url": response.url,
-            "headers": hide_token(response.request_headers)}
+            "request_info": hide_token(response.request_info)}
         super(YtIncorrectResponse, self).__init__(message, attributes=attributes)
 
 class YtTokenError(YtError):
