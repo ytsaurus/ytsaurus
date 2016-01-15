@@ -252,11 +252,12 @@ class YTEnv(object):
             while True:
                 yield get_open_port(self.port_locks_path)
 
+        get_open_port.busy_ports = set()
+        get_open_port.lock_fds = set()
+
         if ports_range_start and isinstance(ports_range_start, int):
             generator = count(ports_range_start)
         else:
-            get_open_port.busy_ports = set()
-            get_open_port.lock_fds = set()
             generator = random_port_generator()
 
         if master_count > 0:
