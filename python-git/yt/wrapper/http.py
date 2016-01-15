@@ -73,7 +73,7 @@ def get_header_format(client):
         get_config(client)["proxy"]["header_format"],
         "json" if get_api_version(client=client) == "v2" else "yson")
 
-def create_response(response, request_headers, client):
+def create_response(response, request_info, client):
     def loads(str):
         header_format = get_header_format(client)
         if header_format == "json":
@@ -111,7 +111,7 @@ def create_response(response, request_headers, client):
 
     if "X-YT-Response-Parameters" in response.headers:
         response.headers["X-YT-Response-Parameters"] = loads(response.headers["X-YT-Response-Parameters"])
-    response.request_headers = request_headers
+    response.request_info = request_info
     response._error = get_error()
     response.error = types.MethodType(error, response)
     response.is_ok = types.MethodType(is_ok, response)
@@ -128,7 +128,7 @@ def _process_request_backoff(current_time, client):
         get_session().last_request_time = now_seconds
 
 def make_request_with_retries(method, url, make_retries=True, retry_unavailable_proxy=True, response_should_be_json=False,
-                              timeout=None, retry_action=None, client=None, **kwargs):
+                              params=None, timeout=None, retry_action=None, client=None, **kwargs):
     configure_ip(client)
 
     if timeout is None:
@@ -142,16 +142,17 @@ def make_request_with_retries(method, url, make_retries=True, retry_unavailable_
         current_time = datetime.now()
         _process_request_backoff(current_time, client=client)
         headers = kwargs.get("headers", {})
+        request_info = {"headers": headers, "url": url, "params": params}
         try:
             try:
-                response = create_response(get_session().request(method, url, timeout=timeout, **kwargs), headers, client)
+                response = create_response(get_session().request(method, url, timeout=timeout, **kwargs), request_info, client)
                 if get_option("_ENABLE_HTTP_CHAOS_MONKEY", client) and random.randint(1, 5) == 1:
                     raise YtIncorrectResponse("", response)
             except requests.ConnectionError as error:
                 exc_info = sys.exc_info()
                 if hasattr(error, "response") and error.response is not None:
                     try:
-                        response_error = YtHttpResponseError(url, headers, create_response(error.response, headers, client).error())
+                        response_error = YtHttpResponseError(error=create_response(error.response, None, client).error(), **request_info)
                     except:
                         raise exc_info[0], exc_info[1], exc_info[2]
                     raise response_error
@@ -167,7 +168,7 @@ def make_request_with_retries(method, url, make_retries=True, retry_unavailable_
             if response.status_code == 503:
                 raise YtProxyUnavailable(response)
             if not response.is_ok():
-                raise YtHttpResponseError(url, headers, response.error())
+                raise YtHttpResponseError(error=response.error(), **request_info)
 
             return response
         except tuple(retriable_errors) as error:

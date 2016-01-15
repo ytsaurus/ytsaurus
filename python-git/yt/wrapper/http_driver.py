@@ -142,6 +142,7 @@ def make_request(command_name, params,
     if header_format == "yson":
         header_format_header = "<format=text>yson"
 
+    write_params_to_header = True
     headers["X-YT-Header-Format"] = header_format_header
     if command.input_type is None:
         # Should we also check that command is volatile?
@@ -149,9 +150,9 @@ def make_request(command_name, params,
         if command.is_volatile:
             headers["Content-Type"] = "application/x-yt-yson-text" if header_format == "yson" else "application/json"
             data = dumps(params)
-            params = {}
+            write_params_to_header = False
 
-    if params:
+    if write_params_to_header and params:
         headers.update({"X-YT-Parameters": dumps(params)})
 
     token = get_token(client=client)
@@ -184,6 +185,7 @@ def make_request(command_name, params,
             retry_action=retry_action,
             headers=headers,
             data=data,
+            params=params,
             stream=stream,
             response_should_be_json=response_should_be_json,
             timeout=timeout,
@@ -198,11 +200,11 @@ def make_request(command_name, params,
     if return_content:
         return response.content
     else:
-        def process_error(request):
+        def process_error(response):
             trailers = response.trailers()
             error = parse_error_from_headers(trailers)
             if error is not None:
-                raise YtHttpResponseError(response.url, response.headers, error)
+                raise YtHttpResponseError(error=error, **response.request_info)
 
         return ResponseStream(
             lambda: response,
