@@ -27,13 +27,15 @@ def _check_codec(table, codec_name, codec_value, yt_client):
                 raise
 
 def convert_to_erasure(src, dst=None, erasure_codec=None, compression_codec=None, desired_chunk_size=None, yt_client=None, spec=None):
+    if erasure_codec is None or erasure_codec == "none":
+        return
+    transform(src, dst, erasure_codec, compression_codec, desired_chunk_size, yt_client, spec)
+
+def transform(src, dst=None, erasure_codec=None, compression_codec=None, desired_chunk_size=None, yt_client=None, spec=None, check_codecs=False):
     spec = get_value(spec, {})
 
     if yt_client is None:
         yt_client = yt
-
-    if erasure_codec is None or erasure_codec == "none":
-        return
 
     if desired_chunk_size is None:
         desired_chunk_size = 2 * 1024 ** 3
@@ -53,8 +55,12 @@ def convert_to_erasure(src, dst=None, erasure_codec=None, compression_codec=None
     else:
         ratio = yt_client.get(src + "/@compression_ratio")
 
-    yt_client.set(dst + "/@erasure_codec", erasure_codec)
-    if _check_codec(dst, "compression", compression_codec, yt_client) and _check_codec(dst, "erasure", erasure_codec, yt_client):
+    if erasure_codec is not None:
+        yt_client.set(dst + "/@erasure_codec", erasure_codec)
+    else:
+        erasure_codec = yt_client.get(dst + "/@erasure_codec")
+
+    if check_codecs and _check_codec(dst, "compression", compression_codec, yt_client) and _check_codec(dst, "erasure", erasure_codec, yt_client):
         logger.info("Table already has proper codecs")
         return False
 
