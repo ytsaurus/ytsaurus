@@ -554,7 +554,25 @@ TEST_F(TSchedulerTest, SerializedDoubleWaitFor)
     EXPECT_TRUE(result);
 }
 
-TEST_F(TSchedulerTest, PollSuspendFuture)
+////////////////////////////////////////////////////////////////////////////////
+
+class TSuspendableInvokerTest
+    : public ::testing::Test
+{
+protected:
+    TLazyIntrusivePtr<TActionQueue> Queue1;
+
+    virtual void TearDown()
+    {
+        if (Queue1.HasValue()) {
+            Queue1->Shutdown();
+        }
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST_F(TSuspendableInvokerTest, PollSuspendFuture)
 {
     std::atomic<bool> flag(false);
 
@@ -576,7 +594,7 @@ TEST_F(TSchedulerTest, PollSuspendFuture)
     EXPECT_EQ(flag, future.IsSet());
 }
 
-TEST_F(TSchedulerTest, SuspendableDoubleWaitFor)
+TEST_F(TSuspendableInvokerTest, SuspendableDoubleWaitFor)
 {
     std::atomic<bool> flag(false);
 
@@ -585,22 +603,26 @@ TEST_F(TSchedulerTest, SuspendableDoubleWaitFor)
 
     auto promise = NewPromise<void>();
 
-    BIND([&] () {
+    auto setFlagFuture = BIND([&] () {
         WaitFor(VoidFuture);
+        Sleep(TDuration::MilliSeconds(10));
         WaitFor(VoidFuture);
         promise.Set();
 
         Sleep(TDuration::MilliSeconds(100));
         flag = true;
     })
-    .Via(suspendableInvoker)
+    .AsyncVia(suspendableInvoker)
     .Run();
 
     suspendableInvoker->Suspend().Get();
-    promise.ToFuture().Get();
+    EXPECT_FALSE(promise.ToFuture().IsSet());
     suspendableInvoker->Resume();
+    promise.ToFuture().Get();
 
-    auto result = BIND([&] () -> bool {
+    setFlagFuture.Get();
+
+    auto flagValue = BIND([&] () -> bool {
         return flag;
     })
     .AsyncVia(suspendableInvoker)
@@ -608,32 +630,10 @@ TEST_F(TSchedulerTest, SuspendableDoubleWaitFor)
     .Get()
     .ValueOrThrow();
 
-    EXPECT_TRUE(result);
+    EXPECT_TRUE(flagValue);
 }
 
-TEST_F(TSchedulerTest, DoubleSuspend)
-{
-    auto suspendableInvoker = CreateSuspendableInvoker(Queue1->GetInvoker());
-
-    BIND([&]() {
-        Sleep(TDuration::MilliSeconds(10));
-    })
-    .Via(suspendableInvoker)
-    .Run();
-
-    auto firstFuture = suspendableInvoker->Suspend();
-    auto secondFuture = suspendableInvoker->Suspend();
-
-    EXPECT_FALSE(firstFuture.IsSet());
-    EXPECT_FALSE(secondFuture.IsSet());
-    firstFuture.Get();
-    EXPECT_TRUE(firstFuture.IsSet());
-    EXPECT_TRUE(secondFuture.IsSet());
-
-    suspendableInvoker->Resume();
-}
-
-TEST_F(TSchedulerTest, EarlySuspend)
+TEST_F(TSuspendableInvokerTest, EarlySuspend)
 {
     auto suspendableInvoker = CreateSuspendableInvoker(Queue1->GetInvoker());
     suspendableInvoker->Suspend().Get();
@@ -652,22 +652,7 @@ TEST_F(TSchedulerTest, EarlySuspend)
     EXPECT_TRUE(promise.IsSet());
 }
 
-TEST_F(TSchedulerTest, EarlyDoubleSuspend)
-{
-    auto suspendableInvoker = CreateSuspendableInvoker(Queue1->GetInvoker());
-
-    auto firstFuture = suspendableInvoker->Suspend();
-    auto secondFuture = suspendableInvoker->Suspend();
-
-    EXPECT_EQ(firstFuture.IsSet(), secondFuture.IsSet());
-    firstFuture.Get();
-    EXPECT_TRUE(firstFuture.IsSet());
-    EXPECT_TRUE(secondFuture.IsSet());
-
-    suspendableInvoker->Resume();
-}
-
-TEST_F(TSchedulerTest, ResumeBeforeFullSuspend)
+TEST_F(TSuspendableInvokerTest, ResumeBeforeFullSuspend)
 {
     auto suspendableInvoker = CreateSuspendableInvoker(Queue1->GetInvoker());
 
@@ -682,6 +667,84 @@ TEST_F(TSchedulerTest, ResumeBeforeFullSuspend)
     EXPECT_FALSE(firstFuture.IsSet());
     suspendableInvoker->Resume();
     EXPECT_FALSE(firstFuture.Get().IsOK());
+}
+
+TEST_F(TSuspendableInvokerTest, AllowSuspendOnContextSwitch)
+{
+    std::atomic<bool> flag(false);
+
+    auto suspendableInvoker = CreateSuspendableInvoker(Queue1->GetInvoker());
+    auto promise = NewPromise<void>();
+    auto future = promise.ToFuture();
+
+    auto setFlagFuture = BIND([&]() {
+        Sleep(TDuration::MilliSeconds(10));
+        WaitFor(future);
+        flag = true;
+    })
+    .AsyncVia(suspendableInvoker)
+    .Run();
+
+    auto suspendFuture = suspendableInvoker->Suspend();
+    EXPECT_FALSE(suspendFuture.IsSet());
+    EXPECT_TRUE(suspendFuture.Get().IsOK());
+
+    suspendableInvoker->Resume();
+    promise.Set();
+    setFlagFuture.Get();
+    EXPECT_TRUE(flag);
+}
+
+TEST_F(TSuspendableInvokerTest, SuspendResumeOnFinishedRace)
+{
+    std::atomic<bool> flag(false);
+    auto suspendableInvoker = CreateSuspendableInvoker(Queue1->GetInvoker());
+
+    BIND([&]() {
+        for (int i = 0; i < 100; ++i) {
+            Sleep(TDuration::MilliSeconds(1));
+            Yield();
+        }
+    })
+    .Via(suspendableInvoker)
+    .Run();
+
+    int hits = 0;
+    while (hits < 100) {
+        flag = false;
+        auto future = suspendableInvoker->Suspend()
+            .Apply(BIND([=, &flag] () { flag = true; }));
+
+        if (future.IsSet()) {
+            ++hits;
+        }
+        suspendableInvoker->Resume();
+        auto error = future.Get();
+        if (!error.IsOK()) {
+            EXPECT_FALSE(flag);
+            YCHECK(error.GetCode() == EErrorCode::Canceled);
+        } else {
+            EXPECT_TRUE(flag);
+        }
+    }
+    auto future = suspendableInvoker->Suspend();
+    EXPECT_TRUE(future.Get().IsOK());
+}
+
+TEST_F(TSuspendableInvokerTest, ResumeInApply)
+{
+    auto suspendableInvoker = CreateSuspendableInvoker(Queue1->GetInvoker());
+
+    BIND([&]() {
+        Sleep(TDuration::MilliSeconds(10));
+    })
+    .Via(suspendableInvoker)
+    .Run();
+
+    auto suspendFuture = suspendableInvoker->Suspend()
+        .Apply(BIND([=] () { suspendableInvoker->Resume(); }));
+
+    EXPECT_TRUE(suspendFuture.Get().IsOK());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
