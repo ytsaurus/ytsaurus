@@ -94,6 +94,18 @@ TChunkMeta TChunkWriterBase::GetNodeMeta() const
     return GetMasterMeta();
 }
 
+void TChunkWriterBase::ValidateRowWeight(i64 weight)
+{
+    if (weight < Config_->MaxRowWeight) {
+        return;
+    }
+
+    THROW_ERROR_EXCEPTION("Row weight is too large")
+        << TErrorAttribute("row_weight", weight)
+        << TErrorAttribute("row_weight_limit", Config_->MaxRowWeight);
+
+}
+
 TDataStatistics TChunkWriterBase::GetDataStatistics() const
 {
     auto dataStatistics = EncodingChunkWriter_->GetDataStatistics();
@@ -174,13 +186,17 @@ i64 TSequentialChunkWriterBase::GetDataSize() const
 
 void TSequentialChunkWriterBase::OnRow(TVersionedRow row)
 {
-    DataWeight_ += GetDataWeight(row);
+    i64 weight = GetDataWeight(row);
+    ValidateRowWeight(weight);
+    DataWeight_ += weight;
     OnRow(row.BeginKeys(), row.EndKeys());
 }
 
 void TSequentialChunkWriterBase::OnRow(TUnversionedRow row)
 {
-    DataWeight_ += GetDataWeight(row);
+    i64 weight = GetDataWeight(row);
+    ValidateRowWeight(weight);
+    DataWeight_ += weight;
     OnRow(row.Begin(), row.End());
 }
 

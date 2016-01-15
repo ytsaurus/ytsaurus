@@ -289,7 +289,10 @@ bool TPartitionChunkWriter::Write(const std::vector<TUnversionedRow>& rows)
 void TPartitionChunkWriter::WriteRow(TUnversionedRow row)
 {
     ++RowCount_;
-    DataWeight_ += GetDataWeight(row);
+
+    i64 weight = GetDataWeight(row);
+    ValidateRowWeight(weight);
+    DataWeight_ += weight;
 
     auto partitionIndex = Partitioner_->GetPartitionIndex(row);
     auto& blockWriter = BlockWriters_[partitionIndex];

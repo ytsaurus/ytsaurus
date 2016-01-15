@@ -56,6 +56,7 @@ protected:
     NProto::TBlockMetaExt BlockMetaExt_;
     i64 BlockMetaExtSize_ = 0;
 
+    void ValidateRowWeight(i64 weight);
 
     void FillCommonMeta(NChunkClient::NProto::TChunkMeta* meta) const;
 
