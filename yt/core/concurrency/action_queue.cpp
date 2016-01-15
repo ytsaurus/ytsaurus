@@ -482,7 +482,9 @@ public:
 
     TFuture<void> Suspend() override
     {
-        if (!Suspended_.exchange(true)) {
+        YCHECK(!Suspended_.exchange(true));
+        {
+            TGuard<TSpinLock> guard(SpinLock_);
             FreeEvent_ = NewPromise<void>();
             if (ActiveInvocationCount_ == 0) {
                 FreeEvent_.Set();
@@ -493,15 +495,19 @@ public:
 
     void Resume() override
     {
-        if (Suspended_.exchange(false)) {
+        YCHECK(Suspended_.exchange(false));
+        {
+            TGuard<TSpinLock> guard(SpinLock_);
             FreeEvent_.Reset();
-            ScheduleMore();
         }
+        ScheduleMore();
     }
 
 private:
     std::atomic<bool> Suspended_ = {false};
     std::atomic<int> ActiveInvocationCount_ = {0};
+
+    TSpinLock SpinLock_;
 
     TLockFreeQueue<TClosure> Queue_;
 
@@ -518,6 +524,11 @@ private:
         TInvocationGuard(TInvocationGuard&& other) = default;
         TInvocationGuard(const TInvocationGuard& other) = delete;
 
+        void Reset()
+        {
+            Owner_.Reset();
+        }
+
         ~TInvocationGuard()
         {
             if (Owner_) {
@@ -531,19 +542,34 @@ private:
     };
 
 
-    void RunCallback(TClosure callback, TInvocationGuard /*invocationGuard*/)
+    void RunCallback(TClosure callback, TInvocationGuard invocationGuard)
     {
-        // Avoid deadlock caused by WaitFor in callback invoked in suspended invoker.
-        TCurrentInvokerGuard guard(UnderlyingInvoker_);
+        TCurrentInvokerGuard guard(this);
+        TContextSwitchedGuard contextSwitchGuard(BIND(
+            &TSuspendableInvoker::OnContextSwitched,
+            MakeStrong(this),
+            &invocationGuard));
+
         callback.Run();
+    }
+
+    void OnContextSwitched(TInvocationGuard* invocationGuard)
+    {
+        invocationGuard->Reset();
+        OnFinished();
     }
 
     void OnFinished()
     {
         YCHECK(ActiveInvocationCount_ > 0);
 
-        if (--ActiveInvocationCount_ == 0 && Suspended_ && FreeEvent_) {
-            FreeEvent_.Set();
+        if (--ActiveInvocationCount_ == 0 && Suspended_) {
+            TGuard<TSpinLock> guard(SpinLock_);
+            if (FreeEvent_ && !FreeEvent_.IsSet()) {
+                auto freeEvent = FreeEvent_;
+                guard.Release();
+                freeEvent.Set();
+            }
         }
     }
 
