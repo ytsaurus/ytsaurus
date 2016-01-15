@@ -133,10 +133,14 @@ class TestTables(YTEnvSetup):
         with pytest.raises(YtError): write_table("<append=true>//tmp/table", yson.loads("100"))
         with pytest.raises(YtError): write_table("<append=true>//tmp/table", yson.loads("3.14"))
 
+        # check max_row_weight limit
+        with pytest.raises(YtError):
+            write_table("//tmp/table", {"a" : "long_string"}, table_writer = {"max_row_weight" : 2})
+
         content = "some_data"
         create("file", "//tmp/file")
         write_file("//tmp/file", content)
-        with pytest.raises(YtError): read_table("//tmp/file")
+        with pytest.raises(YtError): read_table("//tmp/file") 
 
     def test_row_index_selector(self):
         create("table", "//tmp/table")
