@@ -130,7 +130,8 @@ public:
     void Start()
     {
         if (!Server->Start()) {
-            THROW_ERROR_EXCEPTION("Failed to start HTTP server")
+            THROW_ERROR_EXCEPTION("Failed to start HTTP server on port %v",
+                Server->Options().Port)
                 << TError::FromSystem(Server->GetErrorCode());
         }
     }
