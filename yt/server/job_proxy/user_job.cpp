@@ -1028,10 +1028,6 @@ private:
             rss,
             memoryLimit);
 
-        if (rss > MemoryUsage_) {
-            UpdateMemoryUsage(rss);
-        }
-
         if (rss > memoryLimit) {
             JobErrorPromise_.TrySet(TError(EErrorCode::MemoryLimitExceeded, "Memory limit exceeded")
                 << TErrorAttribute("rss", rss)
@@ -1040,7 +1036,7 @@ private:
             if (!Config_->EnableCGroups) {
                 // TODO(psushin): If someone wanted to use
                 // YT without cgroups in production than one need to
-                // implement kill by uid here
+                // implement kill by uid here.
                 return;
             }
 
@@ -1057,6 +1053,8 @@ private:
             } catch (const std::exception& ex) {
                 LOG_FATAL(ex, "Failed to clean up user processes");
             }
+        } else if (rss > MemoryUsage_) {
+            UpdateMemoryUsage(rss);
         }
     }
 
