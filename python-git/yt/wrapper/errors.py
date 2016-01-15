@@ -1,6 +1,6 @@
 """YT usage errors"""
 
-from yt.common import YtError
+from yt.common import YtError, YtResponseError
 import yt.json as json
 
 from copy import deepcopy
@@ -30,46 +30,6 @@ class YtOperationFailedError(YtError):
 class YtTimeoutError(YtError):
     """WaitStrategy timeout expired."""
     pass
-
-class YtResponseError(YtError):
-    """Error in HTTP response."""
-    def __init__(self, error):
-        super(YtResponseError, self).__init__(repr(error))
-        self.error = error
-        self.inner_errors = [self.error]
-
-    def is_resolve_error(self):
-        """Resolving error."""
-        return self.contains_code(500)
-
-    def is_access_denied(self):
-        """Access denied."""
-        return self.contains_code(901)
-
-    def is_concurrent_transaction_lock_conflict(self):
-        """Transaction lock conflict."""
-        return self.contains_code(402)
-
-    def is_request_rate_limit_exceeded(self):
-        """Request rate limit exceeded."""
-        return self.contains_code(904)
-
-    def is_chunk_unavailable(self):
-        """Chunk unavailable."""
-        return self.contains_code(716)
-
-    def contains_code(self, code):
-        """Check if HTTP response has specified status code."""
-        def contains_code_recursive(error, http_code):
-            if int(error["code"]) == http_code:
-                return True
-            for inner_error in error["inner_errors"]:
-                if contains_code_recursive(inner_error, http_code):
-                    return True
-            return False
-
-        return contains_code_recursive(self.error, code)
-
 
 class YtHttpResponseError(YtResponseError):
     def __init__(self, error, url, headers, params):
