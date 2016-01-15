@@ -144,10 +144,19 @@ int TChunkReaderBase::ApplyLowerRowLimit(const TBlockMetaExt& blockMeta, const N
     }
 
     const auto& blockMetaEntries = blockMeta.blocks();
-
     typedef decltype(blockMetaEntries.end()) TIter;
     auto rbegin = std::reverse_iterator<TIter>(blockMetaEntries.end() - 1);
     auto rend = std::reverse_iterator<TIter>(blockMetaEntries.begin());
+
+    if (lowerLimit.GetRowIndex() >= rbegin->chunk_row_count()) {
+        LOG_DEBUG("Lower limit oversteps chunk boundaries (LowerLimit: {%v}, RowCount: %v)",
+            lowerLimit,
+            rbegin->chunk_row_count());
+
+        return blockMeta.blocks_size();
+    }
+
+    
     auto it = std::upper_bound(
         rbegin,
         rend,
@@ -158,14 +167,7 @@ int TChunkReaderBase::ApplyLowerRowLimit(const TBlockMetaExt& blockMeta, const N
             return index > maxRowIndex;
         });
 
-    int blockIndex = (it != rend) ? std::distance(it, rend) : 0;
-    if (blockIndex == blockMeta.blocks_size()) {
-        LOG_DEBUG("Lower limit oversteps chunk boundaries (LowerLimit: {%v}, RowCount: %v)",
-            lowerLimit,
-            rbegin->chunk_row_count());
-    }
-
-    return blockIndex;
+    return (it != rend) ? std::distance(it, rend) : 0;
 }
 
 int TChunkReaderBase::ApplyLowerKeyLimit(const std::vector<TOwningKey>& blockIndexKeys, const NChunkClient::TReadLimit& lowerLimit) const
