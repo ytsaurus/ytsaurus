@@ -71,10 +71,14 @@ i64 GetInputIOMemorySize(
 
 i64 GetSortInputIOMemorySize(const TChunkStripeStatistics& stat)
 {
+    static const double dataOverheadFactor = 0.05;
+
     if (stat.ChunkCount == 0)
         return 0;
 
-    return stat.DataSize + stat.ChunkCount * (ChunkReaderMemorySize + ChunkSpecOverhead);
+    return static_cast<i64>(
+        stat.DataSize * (1 + dataOverheadFactor) + 
+        stat.ChunkCount * (ChunkReaderMemorySize + ChunkSpecOverhead));
 }
 
 ////////////////////////////////////////////////////////////////////
