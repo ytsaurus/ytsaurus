@@ -237,7 +237,7 @@ public:
         std::lock_guard<std::mutex> guard(Mutex_);
 
         Error_.ThrowOnError();
-        ValidateOpen();
+        ValidateClosed();
 
         try {
             DataFile_.reset(new TFileWrapper(FileName_, RdWr | Seq | CloseOnExec));
@@ -569,6 +569,15 @@ private:
     {
         if (!Open_) {
             THROW_ERROR_EXCEPTION("Changelog %v is closed",
+                FileName_);
+        }
+    }
+
+    //! Checks if #Open_ is |false|; throws otherwise.
+    void ValidateClosed()
+    {
+        if (Open_) {
+            THROW_ERROR_EXCEPTION("Changelog %v is already open",
                 FileName_);
         }
     }
