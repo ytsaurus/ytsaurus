@@ -195,13 +195,14 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 void DumpOperationStderrs(
+    TOutputStream& stream,
     const TAuth& auth,
     const TTransactionId& transactionId,
     const Stroka& operationPath)
 {
-    const size_t RESULT_LIMIT = 16 << 20;
-    const size_t BLOCK_SIZE = 64 << 10;
-    const i64 STDERR_LIMIT = 1 << 20;
+    const size_t RESULT_LIMIT = 1 << 20;
+    const size_t BLOCK_SIZE = 16 << 10;
+    const i64 STDERR_LIMIT = 64 << 10;
     const size_t STDERR_COUNT_LIMIT = 20;
 
     auto jobsPath = operationPath + "/jobs";
@@ -277,8 +278,8 @@ void DumpOperationStderrs(
         }
     }
 
-    Cerr.Write(buffer.Data(), buffer.Size());
-    Cerr << Endl;
+    stream.Write(buffer.Data(), buffer.Size());
+    stream << Endl;
 }
 
 TOperationId StartOperation(
@@ -322,13 +323,18 @@ EOperationStatus CheckOperation(
 
     } else if (state == "aborted" || state == "failed") {
         LOG_ERROR("Operation %s %s", ~opIdStr, ~state);
+
         auto errorPath = opPath + "/@result/error";
         Stroka error;
         if (Exists(auth, transactionId, errorPath)) {
             error = Get(auth, transactionId, errorPath);
-            Cerr << error << Endl;
         }
-        DumpOperationStderrs(auth, transactionId, opPath);
+
+        TStringStream jobErrors;
+        DumpOperationStderrs(jobErrors, auth, transactionId, opPath);
+        error += jobErrors.Str();
+        Cerr << error << Endl;
+
         ythrow TOperationFailedError(
             state == "aborted" ?
                 TOperationFailedError::Aborted :
