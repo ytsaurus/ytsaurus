@@ -236,9 +236,8 @@ public:
 
         std::lock_guard<std::mutex> guard(Mutex_);
 
-        YCHECK(!Open_);
-
         Error_.ThrowOnError();
+        ValidateOpen();
 
         try {
             DataFile_.reset(new TFileWrapper(FileName_, RdWr | Seq | CloseOnExec));
@@ -282,8 +281,9 @@ public:
 
         Error_.ThrowOnError();
 
-        if (!Open_)
+        if (!Open_) {
             return;
+        }
 
         try {
             DataFile_->FlushData();
@@ -309,8 +309,7 @@ public:
         std::lock_guard<std::mutex> guard(Mutex_);
 
         Error_.ThrowOnError();
-
-        YCHECK(!Open_);
+        ValidateOpen();
 
         try {
             Meta_ = meta;
@@ -375,11 +374,11 @@ public:
 
         std::lock_guard<std::mutex> guard(Mutex_);
 
-        YCHECK(Open_);
         YCHECK(!TruncatedRecordCount_);
         YCHECK(firstRecordId == RecordCount_);
 
         Error_.ThrowOnError();
+        ValidateOpen();
 
         LOG_DEBUG("Appending to changelog (RecordIds: %v-%v)",
             firstRecordId,
@@ -426,9 +425,8 @@ public:
 
         std::lock_guard<std::mutex> guard(Mutex_);
 
-        YCHECK(Open_);
-
         Error_.ThrowOnError();
+        ValidateOpen();
 
         LOG_DEBUG("Flushing changelog");
 
@@ -455,9 +453,9 @@ public:
 
         YCHECK(firstRecordId >= 0);
         YCHECK(maxRecords >= 0);
-        YCHECK(Open_);
 
         Error_.ThrowOnError();
+        ValidateOpen();
 
         LOG_DEBUG("Reading changelog (FirstRecordId: %v, MaxRecords: %v, MaxBytes: %v)",
             firstRecordId,
@@ -517,11 +515,11 @@ public:
 
         std::lock_guard<std::mutex> guard(Mutex_);
 
-        YCHECK(Open_);
         YCHECK(recordCount >= 0);
         YCHECK(!TruncatedRecordCount_ || recordCount <= *TruncatedRecordCount_);
 
         Error_.ThrowOnError();
+        ValidateOpen();
 
         LOG_DEBUG("Truncating changelog (RecordCount: %v)",
             recordCount);
@@ -566,6 +564,14 @@ private:
     };
 
 
+    //! Checks if #Open_ is |true|; throws otherwise.
+    void ValidateOpen()
+    {
+        if (!Open_) {
+            THROW_ERROR_EXCEPTION("Changelog %v is closed",
+                FileName_);
+        }
+    }
 
     //! Flocks the data file, retrying if needed.
     void LockDataFile()
