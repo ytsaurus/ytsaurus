@@ -49,6 +49,39 @@ def _get_proxy_version(proxy_binary_path):
 
     return version
 
+def get_busy_port_diagnostic(stderrs_path):
+    patterns = [
+        re.compile(r".*Failed to start HTTP server on port (\d+).*"),
+        re.compile(r".*Failed to bind a server socket to port (\d+).*")
+    ]
+
+    busy_port = None
+    for name in os.listdir(stderrs_path):
+        stderr_file = os.path.join(stderrs_path, name)
+        lines = reversed(open(stderr_file).readlines())
+        for line in lines:
+            if busy_port is not None:
+                break
+
+            for pattern in patterns:
+                match = pattern.match(line)
+                if match:
+                    busy_port = match.group(1)
+                    break
+
+    if busy_port is None:
+        return ""
+
+    command = "lsof -i :{0} | sed 1d".format(busy_port)
+    try:
+        lsof_output = subprocess.check_output(command, shell=True).strip()
+        return "failed to bind port {0}, lsof output: {1}" \
+               .format(busy_port, lsof_output)
+    except subprocess.CalledProcessError:
+        pass
+
+    return ""
+
 def _config_safe_get(config, config_path, key):
     d = config
     parts = key.split("/")
@@ -102,6 +135,7 @@ class YTEnv(object):
         logger.handlers[0].setFormatter(logging.Formatter("%(message)s"))
 
         self.path_to_run = os.path.abspath(path_to_run)
+        self.stderrs_path = os.path.join(self.path_to_run, "stderrs")
         self.tmpfs_path = tmpfs_path
         self.port_locks_path = port_locks_path
         self.pids_filename = pids_filename
@@ -116,6 +150,8 @@ class YTEnv(object):
 
         if self.port_locks_path is not None:
             makedirp(self.port_locks_path)
+
+        makedirp(self.stderrs_path)
 
         self.configs = defaultdict(list)
         self.config_paths = defaultdict(list)
@@ -242,7 +278,11 @@ class YTEnv(object):
             self._write_environment_info_to_file(has_proxy)
         except (YtError, KeyboardInterrupt) as err:
             self.clear_environment()
-            raise YtError("Failed to start environment", inner_errors=[err])
+            error = YtError("Failed to start environment", inner_errors=[err])
+            busy_port_diagnostic = get_busy_port_diagnostic(self.stderrs_path)
+            if busy_port_diagnostic:
+                error.attributes["details"] = busy_port_diagnostic
+            raise error
 
     def _get_ports(self, ports_range_start, master_count, secondary_master_cell_count,
                    scheduler_count, node_count, has_proxy, proxy_port):
@@ -303,11 +343,8 @@ class YTEnv(object):
 
     def _run(self, args, name, number=1, timeout=0.1):
         with self._lock:
-            stderrs_dir = os.path.join(self.path_to_run, "stderrs")
-            makedirp(stderrs_dir)
-
             stdout = open(os.devnull, "w")
-            stderr = open(os.path.join(stderrs_dir, "stderr.{0}-{1}".format(name, number)), "w")
+            stderr = open(os.path.join(self.stderrs_path, "stderr.{0}-{1}".format(name, number)), "w")
 
             def preexec():
                 os.setsid()
