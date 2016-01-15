@@ -216,7 +216,11 @@ private:
 
                 auto asyncStatistics = BIND(&TEvaluator::RunWithExecutor, Evaluator_)
                     .AsyncVia(Bootstrap_->GetBoundedConcurrencyQueryPoolInvoker())
-                    .Run(subquery, mergingReader, pipe->GetWriter(), [&] (const TQueryPtr& subquery, ISchemafulWriterPtr writer) -> TQueryStatistics {
+                    .Run(subquery, mergingReader, pipe->GetWriter(), [
+			    fragment,
+			    remoteExecutor = RemoteExecutor_,
+			    Logger
+			] (const TQueryPtr& subquery, ISchemafulWriterPtr writer) -> TQueryStatistics {
                         LOG_DEBUG("Evaluating remote subquery (SubqueryId: %v)", subquery->Id);
 
                         auto planFragment = New<TPlanFragment>();
@@ -231,7 +235,7 @@ private:
                         planFragment->Query = subquery;
                         planFragment->VerboseLogging = fragment->VerboseLogging;
 
-                        auto subqueryResult = RemoteExecutor_->Execute(planFragment, writer);
+                        auto subqueryResult = remoteExecutor->Execute(planFragment, writer);
 
                         return WaitFor(subqueryResult)
                             .ValueOrThrow();
