@@ -191,10 +191,10 @@ def make_read_request(command_name, path, params, process_response_action, retri
                     lock(path, mode="snapshot", client=client)
             iterator = Iterator()
             return ResponseStream(
-                lambda: iterator.response,
-                iterator,
+                get_response=lambda: iterator.response,
+                iter_content=iterator,
                 close=iterator.close,
-                process_error=lambda request: iterator.response._process_error(request),
+                process_error=lambda response: iterator.response._process_error(iterator.response._get_response()),
                 get_response_parameters=lambda: None)
         except:
             tx.abort()
