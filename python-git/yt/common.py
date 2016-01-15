@@ -31,6 +31,45 @@ class YtError(Exception):
     def __str__(self):
         return format_error(self)
 
+class YtResponseError(YtError):
+    """Represents an error in YT response"""
+    def __init__(self, error):
+        super(YtResponseError, self).__init__(repr(error))
+        self.error = error
+        self.inner_errors = [self.error]
+
+    def is_resolve_error(self):
+        """Resolution error."""
+        return self.contains_code(500)
+
+    def is_access_denied(self):
+        """Access denied."""
+        return self.contains_code(901)
+
+    def is_concurrent_transaction_lock_conflict(self):
+        """Transaction lock conflict."""
+        return self.contains_code(402)
+
+    def is_request_rate_limit_exceeded(self):
+        """Request rate limit exceeded."""
+        return self.contains_code(904)
+
+    def is_chunk_unavailable(self):
+        """Chunk unavailable."""
+        return self.contains_code(716)
+
+    def contains_code(self, code):
+        """Check if HTTP response has specified status code."""
+        def contains_code_recursive(error, http_code):
+            if int(error["code"]) == http_code:
+                return True
+            for inner_error in error["inner_errors"]:
+                if contains_code_recursive(inner_error, http_code):
+                    return True
+            return False
+
+        return contains_code_recursive(self.error, code)
+
 def _pretty_format(error, attribute_length_limit=None, indent=0):
     def format_attribute(name, value):
         value = str(value)
