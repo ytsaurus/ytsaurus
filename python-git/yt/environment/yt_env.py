@@ -80,7 +80,7 @@ def get_busy_port_diagnostic(stderrs_path):
     except subprocess.CalledProcessError:
         pass
 
-    return ""
+    return "Failed to bind port {0}, lsof found nothing."
 
 def _config_safe_get(config, config_path, key):
     d = config
@@ -277,11 +277,11 @@ class YTEnv(object):
 
             self._write_environment_info_to_file(has_proxy)
         except (YtError, KeyboardInterrupt) as err:
-            self.clear_environment()
             error = YtError("Failed to start environment", inner_errors=[err])
             busy_port_diagnostic = get_busy_port_diagnostic(self.stderrs_path)
             if busy_port_diagnostic:
                 error.attributes["details"] = busy_port_diagnostic
+            self.clear_environment()
             raise error
 
     def _get_ports(self, ports_range_start, master_count, secondary_master_cell_count,
