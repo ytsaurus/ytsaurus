@@ -328,7 +328,8 @@ void TMapNodeMixin::SetChild(
         if (currentNode->GetChildCount() >= maxChildCount) {
             THROW_ERROR_EXCEPTION(
                 NYTree::EErrorCode::MaxChildCountViolation,
-                "Map node is not allowed to contain more than %v items",
+                "Map node %v is not allowed to contain more than %v items",
+                GetPath(),
                 maxChildCount);
         }
 
@@ -438,7 +439,8 @@ void TListNodeMixin::SetChild(
     if (GetChildCount() >= maxChildCount) {
         THROW_ERROR_EXCEPTION(
             NYTree::EErrorCode::MaxChildCountViolation,
-            "List node is not allowed to contain more than %v items",
+            "List node %v is not allowed to contain more than %v items",
+            GetPath(),
             maxChildCount);
     }
 
