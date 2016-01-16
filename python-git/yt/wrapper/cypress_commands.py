@@ -29,13 +29,14 @@ def get(path, attributes=None, format=None, ignore_opaque=False, client=None):
     :return: node tree content in `format`
     .. seealso:: `get on wiki <https://wiki.yandex-team.ru/yt/Design/ClientInterface/Core#get>`_
     """
+    params = {
+        "path": prepare_path(path, client=client),
+        "ignore_opaque": bool_to_string(ignore_opaque)}
+    if attributes is not None:
+        params["attributes"] = attributes
     return _make_formatted_transactional_request(
         "get",
-        {
-            "path": prepare_path(path, client=client),
-            "attributes": get_value(attributes, []),
-            "ignore_opaque": bool_to_string(ignore_opaque)
-        },
+        params=params,
         format=format,
         client=client)
 
@@ -131,13 +132,14 @@ def list(path, max_size=1000, format=None, absolute=False, attributes=None, clie
             yson.YsonString("{0}/{1}".format(path, elem)),
             elem.attributes)
 
+    params = {
+        "path": prepare_path(path, client=client),
+        "max_size": max_size}
+    if attributes is not None:
+        params["attributes"] = get_value(attributes, [])
     result = _make_formatted_transactional_request(
         "list",
-        {
-            "path": prepare_path(path, client=client),
-            "max_size": max_size,
-            "attributes": get_value(attributes, [])
-        },
+        params=params,
         format=format,
         client=client)
     if absolute and format is None:
