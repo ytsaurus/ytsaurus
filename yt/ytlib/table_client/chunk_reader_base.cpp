@@ -144,18 +144,19 @@ int TChunkReaderBase::ApplyLowerRowLimit(const TBlockMetaExt& blockMeta, const N
     }
 
     const auto& blockMetaEntries = blockMeta.blocks();
-    typedef decltype(blockMetaEntries.end()) TIter;
-    auto rbegin = std::reverse_iterator<TIter>(blockMetaEntries.end() - 1);
-    auto rend = std::reverse_iterator<TIter>(blockMetaEntries.begin());
+    const auto& lastBlock = *(--blockMetaEntries.end());
 
-    if (lowerLimit.GetRowIndex() >= rbegin->chunk_row_count()) {
+    if (lowerLimit.GetRowIndex() >= lastBlock.chunk_row_count()) {
         LOG_DEBUG("Lower limit oversteps chunk boundaries (LowerLimit: {%v}, RowCount: %v)",
             lowerLimit,
-            rbegin->chunk_row_count());
+            lastBlock.chunk_row_count());
 
         return blockMeta.blocks_size();
     }
 
+    typedef decltype(blockMetaEntries.end()) TIter;
+    auto rbegin = std::reverse_iterator<TIter>(blockMetaEntries.end() - 1);
+    auto rend = std::reverse_iterator<TIter>(blockMetaEntries.begin());
     
     auto it = std::upper_bound(
         rbegin,
