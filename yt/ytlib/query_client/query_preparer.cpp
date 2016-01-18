@@ -1393,7 +1393,6 @@ std::pair<TQueryPtr, TDataRanges> PreparePlanFragment(
     IPrepareCallbacks* callbacks,
     const Stroka& source,
     IFunctionRegistryPtr functionRegistry,
-    TColumnEvaluatorCachePtr evaluatorCache,
     i64 inputRowLimit,
     i64 outputRowLimit,
     TTimestamp timestamp)

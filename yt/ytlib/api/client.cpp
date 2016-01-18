@@ -1552,7 +1552,6 @@ private:
             QueryHelper_.Get(),
             queryString,
             FunctionRegistry_,
-            Connection_->GetColumnEvaluatorCache(),
             inputRowLimit,
             outputRowLimit,
             options.Timestamp);
