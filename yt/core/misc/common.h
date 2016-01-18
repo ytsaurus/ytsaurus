@@ -79,6 +79,8 @@ template <size_t _Len, typename... _Types>
 template <size_t _Len, typename... _Types>
   const size_t aligned_union<_Len, _Types...>::alignment_value;
 
+// Older versions of libstdc++ lack these useful type traits.
+// Here we provide some pessimistic approximations.
 template <typename T>
 using is_trivially_copy_constructible = is_trivial<T>;
 template <typename T>
@@ -87,9 +89,11 @@ using is_trivially_move_constructible = is_trivial<T>;
 #endif
 
 #if defined(__GLIBCXX__) && __GLIBCXX__ < 20120415
+
 // GCC 4.7 defines has_trivial_XXX instead of is_trivially_XXX.
 template <typename T>
 using is_trivially_destructible = has_trivial_destructor<T>;
+
 #endif
 
 } // namespace std
