@@ -375,7 +375,7 @@ public:
         }
 
         auto epochContext = AutomatonEpochContext_;
-        if (epochContext->Restarting) {
+        if (epochContext && epochContext->Restarting) {
             return MakeFuture<TMutationResponse>(TError(
                 NRpc::EErrorCode::Unavailable,
                 "Peer is restarting"));
