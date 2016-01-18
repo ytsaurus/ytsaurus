@@ -10,6 +10,7 @@
 #include "tablet_manager.h"
 #include "tablet_reader.h"
 #include "tablet_slot.h"
+#include "writer_pool.h"
 
 #include <yt/server/cell_node/bootstrap.h>
 
@@ -60,108 +61,6 @@ using namespace NTabletNode::NProto;
 
 static const size_t MaxRowsPerRead = 1024;
 static const size_t MaxRowsPerWrite = 1024;
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TWriterPool
-{
-public:
-    TWriterPool(
-        NCellNode::TBootstrap* bootstrap,
-        int poolSize,
-        TTableWriterConfigPtr writerConfig,
-        TTabletWriterOptionsPtr writerOptions,
-        TTableMountConfigPtr tabletConfig,
-        const TTableSchema& schema,
-        const TKeyColumns& keyColumns,
-        IClientPtr client,
-        const TTransactionId& transactionId)
-        : Bootstrap_(bootstrap)
-        , PoolSize_(poolSize)
-        , WriterConfig_(std::move(writerConfig))
-        , WriterOptions_(std::move(writerOptions))
-        , TabletConfig_(std::move(tabletConfig))
-        , Schema_(schema)
-        , KeyColumns_(keyColumns)
-        , Client_(std::move(client))
-        , TransactionId_(transactionId)
-    { }
-
-    IVersionedMultiChunkWriterPtr AllocateWriter()
-    {
-        if (FreshWriters_.empty()) {
-            std::vector<TFuture<void>> asyncResults;
-            for (int index = 0; index < PoolSize_; ++index) {
-                auto inMemoryManager = Bootstrap_->GetInMemoryManager();
-                auto blockCache = inMemoryManager->CreateInterceptingBlockCache(TabletConfig_->InMemoryMode);
-                auto writer = CreateVersionedMultiChunkWriter(
-                    WriterConfig_,
-                    WriterOptions_,
-                    Schema_,
-                    KeyColumns_,
-                    Client_,
-                    TransactionId_,
-                    NullChunkListId,
-                    GetUnlimitedThrottler(),
-                    blockCache);
-                FreshWriters_.push_back(writer);
-                asyncResults.push_back(writer->Open());
-            }
-
-            WaitFor(Combine(asyncResults))
-                .ThrowOnError();
-        }
-
-        auto writer = FreshWriters_.back();
-        FreshWriters_.pop_back();
-        return writer;
-    }
-
-    void ReleaseWriter(IVersionedMultiChunkWriterPtr writer)
-    {
-        ReleasedWriters_.push_back(writer);
-        if (ReleasedWriters_.size() >= PoolSize_) {
-            CloseWriters();
-        }
-    }
-
-    const std::vector<IVersionedMultiChunkWriterPtr>& GetAllWriters()
-    {
-        CloseWriters();
-        return ClosedWriters_;
-    }
-
-private:
-    NCellNode::TBootstrap* const Bootstrap_;
-    const int PoolSize_;
-    const TTableWriterConfigPtr WriterConfig_;
-    const TTabletWriterOptionsPtr WriterOptions_;
-    const TTableMountConfigPtr TabletConfig_;
-    const TTableSchema& Schema_;
-    const TKeyColumns& KeyColumns_;
-    const IClientPtr Client_;
-    const TTransactionId TransactionId_;
-
-    std::vector<IVersionedMultiChunkWriterPtr> FreshWriters_;
-    std::vector<IVersionedMultiChunkWriterPtr> ReleasedWriters_;
-    std::vector<IVersionedMultiChunkWriterPtr> ClosedWriters_;
-
-
-    void CloseWriters()
-    {
-        std::vector<TFuture<void>> asyncResults;
-        for (const auto& writer : ReleasedWriters_) {
-            asyncResults.push_back(writer->Close());
-        }
-
-        WaitFor(Combine(asyncResults))
-            .ThrowOnError();
-
-        ClosedWriters_.insert(ClosedWriters_.end(), ReleasedWriters_.begin(), ReleasedWriters_.end());
-        ReleasedWriters_.clear();
-    }
-
-};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -468,6 +367,7 @@ private:
         auto keyColumns = tablet->KeyColumns();
         auto schema = tablet->Schema();
         auto tabletConfig = tablet->GetConfig();
+        auto tabletSnapshot = tablet->GetSnapshot();
 
         YCHECK(tabletPivotKey == pivotKeys[0]);
 
@@ -497,7 +397,7 @@ private:
 
             auto reader = CreateVersionedTabletReader(
                 Bootstrap_->GetQueryPoolInvoker(),
-                tablet->GetSnapshot(),
+                tabletSnapshot,
                 std::vector<IStorePtr>(stores.begin(), stores.end()),
                 tabletPivotKey,
                 nextTabletPivotKey,
@@ -530,8 +430,9 @@ private:
             int writerPoolSize = std::min(
                 static_cast<int>(pivotKeys.size()),
                 Config_->StoreCompactor->PartitioningWriterPoolSize);
-            TWriterPool writerPool(
-                Bootstrap_,
+            TChunkWriterPool writerPool(
+                Bootstrap_->GetInMemoryManager(),
+                tabletSnapshot,
                 writerPoolSize,
                 Config_->ChunkWriter,
                 writerOptions,
@@ -581,7 +482,7 @@ private:
             };
 
             auto writeOutputRow = [&] (TVersionedRow row) {
-                if (writeRows.size() ==  writeRows.capacity()) {
+                if (writeRows.size() == writeRows.capacity()) {
                     flushOutputRows();
                 }
                 writeRows.push_back(row);
@@ -673,7 +574,7 @@ private:
             }
 
             for (const auto& writer : writerPool.GetAllWriters()) {
-                for (const auto& chunkSpec : writer->GetWrittenChunks()) {
+                for (const auto& chunkSpec : writer->GetWrittenChunksMasterMeta()) {
                     auto* descriptor = hydraRequest.add_stores_to_add();
                     descriptor->mutable_store_id()->CopyFrom(chunkSpec.chunk_id());
                     descriptor->mutable_chunk_meta()->CopyFrom(chunkSpec.chunk_meta());
@@ -731,6 +632,7 @@ private:
         auto keyColumns = tablet->KeyColumns();
         auto schema = tablet->Schema();
         auto tabletConfig = tablet->GetConfig();
+        auto tabletSnapshot = tablet->GetSnapshot();
         writerOptions->ChunksEden = partition->IsEden();
 
         NLogging::TLogger Logger(TabletNodeLogger);
@@ -763,7 +665,7 @@ private:
 
             auto reader = CreateVersionedTabletReader(
                 Bootstrap_->GetQueryPoolInvoker(),
-                tablet->GetSnapshot(),
+                tabletSnapshot,
                 std::vector<IStorePtr>(stores.begin(), stores.end()),
                 tabletPivotKey,
                 nextTabletPivotKey,
@@ -793,19 +695,18 @@ private:
                     transaction->GetId());
             }
 
-            auto inMemoryManager = Bootstrap_->GetInMemoryManager();
-            auto blockCache = inMemoryManager->CreateInterceptingBlockCache(tabletConfig->InMemoryMode);
-
-            auto writer = CreateVersionedMultiChunkWriter(
+            TChunkWriterPool writerPool(
+                Bootstrap_->GetInMemoryManager(),
+                tabletSnapshot,
+                1,
                 Config_->ChunkWriter,
                 writerOptions,
+                tabletConfig,
                 schema,
                 keyColumns,
                 Bootstrap_->GetMasterClient(),
-                transaction->GetId(),
-                NullChunkListId,
-                GetUnlimitedThrottler(),
-                blockCache);
+                transaction->GetId());
+            auto writer = writerPool.AllocateWriter();
 
             WaitFor(reader->Open())
                 .ThrowOnError();
@@ -851,7 +752,7 @@ private:
                 ToProto(descriptor->mutable_store_id(), store->GetId());
             }
 
-            for (const auto& chunkSpec : writer->GetWrittenChunks()) {
+            for (const auto& chunkSpec : writer->GetWrittenChunksMasterMeta()) {
                 auto* descriptor = hydraRequest.add_stores_to_add();
                 descriptor->mutable_store_id()->CopyFrom(chunkSpec.chunk_id());
                 descriptor->mutable_chunk_meta()->CopyFrom(chunkSpec.chunk_meta());

@@ -291,7 +291,6 @@ done
         assert get("//sys/operations/{0}/@progress/jobs/failed".format(op_id)) == 0
         assert read_table("//tmp/t2") == [{"foo": "bar"}]
 
-
     def test_abandon_job(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -1362,3 +1361,25 @@ class TestJobQuery(YTEnvSetup):
         assert get("//tmp/t_output/@sorted_by") == ["key"]
         assert read_table("//tmp/t_output") == original_data
 
+    def test_job_with_exit_immediatey_flag(self):
+        create("table", "//tmp/t_input")
+        create("table", "//tmp/t_output")
+        write_table("//tmp/t_input", {"foo": "bar"})
+
+        op_id = map(
+            dont_track=True,
+            in_="//tmp/t_input",
+            out="//tmp/t_output",
+            command='set -e; /non_existed_command; echo stderr >&2;',
+            spec={
+                "max_failed_job_count": 1
+            })
+
+        with pytest.raises(YtError):
+            track_op(op_id)
+
+        jobs_path = "//sys/operations/" + op_id + "/jobs"
+        assert get(jobs_path + "/@count") == 1
+        for job_id in ls(jobs_path):
+            assert read_file(jobs_path + "/" + job_id + "/stderr") == \
+                "/bin/bash: /non_existed_command: No such file or directory\n"

@@ -54,6 +54,7 @@ set(SRCS
   ${BASE}/random_ut.cpp
   ${BASE}/read_limit_ut.cpp
   ${BASE}/ref_counted_tracker_ut.cpp
+  ${BASE}/ring_queue_ut.cpp
   ${BASE}/row_merger_ut.cpp
   ${BASE}/row_ut.cpp
   ${BASE}/rpc_ut.cpp

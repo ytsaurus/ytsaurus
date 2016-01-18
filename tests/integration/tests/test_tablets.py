@@ -292,7 +292,6 @@ class TestTablets(YTEnvSetup):
             self._sync_unmount_table("//tmp/t1")
             reshard_table("//tmp/t1", pivots)
             self._sync_mount_table("//tmp/t1")
-            #clear_metadata_caches()
 
         rows = [{"key": i, "value": str(i)} for i in xrange(3)]
         insert_rows("//tmp/t1", rows)
@@ -306,6 +305,52 @@ class TestTablets(YTEnvSetup):
 
         reshard([[]])
         assert_items_equal(select_rows("* from [//tmp/t1]"), rows)
+
+    def test_metadata_cache_invalidation(self):
+        def sync_mount_table_and_preserve_cache(path, **kwargs):
+            kwargs["path"] = path
+            execute_command("mount_table", kwargs)
+            self._wait(lambda: all(x["state"] == "mounted" for x in get(path + "/@tablets")))
+
+        def sync_unmount_table_and_preserve_cache(path, **kwargs):
+            kwargs["path"] = path
+            execute_command("unmount_table", kwargs)
+            self._wait(lambda: all(x["state"] == "unmounted" for x in get(path + "/@tablets")))
+
+        def reshard_and_preserve_cache(path, pivots):
+            sync_unmount_table_and_preserve_cache(path)
+            reshard_table(path, pivots)
+            sync_mount_table_and_preserve_cache(path)
+
+        self._sync_create_cells(1, 1)
+        self._create_table("//tmp/t1")
+        self._sync_mount_table("//tmp/t1")
+
+        rows = [{"key": i, "value": str(i)} for i in xrange(3)]
+        keys = [{"key": row["key"]} for row in rows]
+        insert_rows("//tmp/t1", rows)
+        assert_items_equal(lookup_rows("//tmp/t1", keys), rows)
+
+        sync_unmount_table_and_preserve_cache("//tmp/t1")
+        with pytest.raises(YtError): lookup_rows("//tmp/t1", keys)
+        clear_metadata_caches()
+        sync_mount_table_and_preserve_cache("//tmp/t1")
+
+        assert_items_equal(lookup_rows("//tmp/t1", keys), rows)
+
+        sync_unmount_table_and_preserve_cache("//tmp/t1")
+        with pytest.raises(YtError): select_rows("* from [//tmp/t1]")
+        clear_metadata_caches()
+        sync_mount_table_and_preserve_cache("//tmp/t1")
+
+        assert_items_equal(select_rows("* from [//tmp/t1]"), rows)
+
+        reshard_and_preserve_cache("//tmp/t1", [[], [1]])
+        assert_items_equal(lookup_rows("//tmp/t1", keys), rows)
+
+        reshard_and_preserve_cache("//tmp/t1", [[], [1], [2]])
+        assert_items_equal(select_rows("* from [//tmp/t1]"), rows)
+
 
     def test_no_copy(self):
         self._sync_create_cells(1, 1)
@@ -482,7 +527,7 @@ class TestTablets(YTEnvSetup):
         self._sync_create_cells(1, 1)
         self._create_table("//tmp/t")
 
-        set("//tmp/t/@max_memory_store_key_count", 10)
+        set("//tmp/t/@soft_memory_store_key_count_limit", 10)
         self._sync_mount_table("//tmp/t")
 
         tablet_id = get("//tmp/t/@tablets/0/tablet_id")
@@ -503,7 +548,7 @@ class TestTablets(YTEnvSetup):
         self._create_table("//tmp/t")
 
         set("//tmp/t/@in_memory_mode", mode)
-        set("//tmp/t/@max_memory_store_key_count", 10)
+        set("//tmp/t/@soft_memory_store_key_count_limit", 10)
         self._sync_mount_table("//tmp/t")
 
         tablet_id = get("//tmp/t/@tablets/0/tablet_id")
@@ -553,6 +598,29 @@ class TestTablets(YTEnvSetup):
 
     def test_in_memory_uncompressed(self):
         self._test_in_memory("uncompressed")
+
+    def test_lookup_hash_table(self):
+        self._sync_create_cells(1, 1)
+        self._create_table("//tmp/t")
+
+        set("//tmp/t/@in_memory_mode", "uncompressed")
+        set("//tmp/t/@enable_lookup_hash_table", True)
+        set("//tmp/t/@soft_memory_store_key_count_limit", 10)
+        set("//tmp/t/@hard_memory_store_key_count_limit", 10)
+        self._sync_mount_table("//tmp/t")
+
+        rows = [{"key": i, "value": str(i)} for i in xrange(10)]
+        keys = [{"key" : row["key"]} for row in rows]
+        insert_rows("//tmp/t", rows)
+        assert lookup_rows("//tmp/t", keys) == rows
+
+        insert_rows("//tmp/t", rows)
+        with pytest.raises(YtError): insert_rows("//tmp/t", [{"key": i, "value": str(i)} for i in xrange(10, 30)])
+
+        self._sync_unmount_table("//tmp/t")
+        self._sync_mount_table("//tmp/t")
+
+        assert lookup_rows("//tmp/t", keys) == rows
 
     def test_update_key_columns_fail1(self):
         self._sync_create_cells(1, 1)

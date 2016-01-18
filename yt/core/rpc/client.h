@@ -173,9 +173,11 @@ public:
         auto response = NYT::New<TResponse>(std::move(context));
         auto promise = response->GetPromise();
         auto requestControl = Send(std::move(response));
-        promise.OnCanceled(BIND([=] () {
-            requestControl->Cancel();
-        }));
+        if (requestControl) {
+            promise.OnCanceled(BIND([requestControl = std::move(requestControl)] () {
+                requestControl->Cancel();
+            }));
+        }
         return promise.ToFuture();
     }
 

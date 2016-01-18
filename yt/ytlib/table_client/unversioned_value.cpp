@@ -1,7 +1,17 @@
 #include "unversioned_value.h"
 
-#include <yt/core/misc/error.h>
 #include <yt/core/misc/farm_hash.h>
+
+
+#ifndef YT_COMPILING_UDF
+
+#include "unversioned_row.h"
+
+#include <yt/core/misc/error.h>
+
+#include <yt/core/ytree/convert.h>
+
+#endif
 
 namespace NYT {
 namespace NTableClient {
@@ -35,13 +45,17 @@ TFingerprint GetFarmFingerprint(const TUnversionedValue& value)
             return FarmFingerprint(0);
 
         default:
-            // XXX(babenko)
+
+#ifdef YT_COMPILING_UDF
             YUNREACHABLE();
-            //THROW_ERROR_EXCEPTION(
-            //    EErrorCode::UnhashableType,
-            //    "Cannot hash values of type %Qlv; only scalar types are allowed for key columns",
-            //    type)
-            //    << TErrorAttribute("value", value);
+#else
+            THROW_ERROR_EXCEPTION(
+                EErrorCode::UnhashableType,
+                "Cannot hash values of type %Qlv; only scalar types are allowed for key columns",
+                type)
+                << TErrorAttribute("value", value);
+#endif
+
     }
 }
 

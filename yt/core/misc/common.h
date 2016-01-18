@@ -22,6 +22,7 @@
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
+#include <type_traits>
 
 namespace std {
 
@@ -81,9 +82,17 @@ template <size_t _Len, typename... _Types>
 #endif
 
 #if defined(__GNUC__) && __GNUC__ == 4 && __GNUC_MINOR__ == 7
-// GCC 4.7 defines has_trivial_destructor instead of is_trivially_destructible.
-template <typename T>
-using is_trivially_destructible = std::has_trivial_destructor<T>;
+// GCC 4.7 defines has_trivial_XXX instead of is_trivially_XXX.
+template<typename T>
+using is_trivially_destructible = has_trivial_destructor<T>;
+#endif
+
+#if defined(__GNUC__) && __GNUC__ < 5
+// GCC 4 lacks some useful type traits. Here we provide some pessimistic approximations. 
+template<typename T>
+using is_trivially_copy_constructible = is_trivial<T>;
+template<typename T>
+using is_trivially_move_constructible = is_trivial<T>;
 #endif
 
 } // namespace std
