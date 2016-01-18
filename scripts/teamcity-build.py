@@ -374,7 +374,8 @@ def run_pytest(options, suite_name, suite_path, pytest_args=None):
             raise StepFailedWithNonCriticalError("Tests '{0}' failed".format(suite_name))
     finally:
         shutil.rmtree(sandbox_current)
-        shutil.rmtree(sandbox_storage)
+        if os.path.exists(sandbox_storage):
+            shutil.rmtree(sandbox_storage)
 
 
 def kill_by_name(name):
