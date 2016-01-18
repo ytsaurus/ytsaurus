@@ -40,8 +40,7 @@ protected:
         std::tie(query, dataSource) = PreparePlanFragment(
             &PrepareMock_,
             source,
-            CreateBuiltinFunctionRegistry(),
-            ColumnEvaluatorCache_);
+            CreateBuiltinFunctionRegistry());
         auto rowBuffer = New<TRowBuffer>();
         auto prunedSplits = GetPrunedRanges(
             query,
@@ -63,8 +62,7 @@ protected:
         std::tie(query, dataSource) = PreparePlanFragment(
             &PrepareMock_,
             source,
-            CreateBuiltinFunctionRegistry(),
-            ColumnEvaluatorCache_);
+            CreateBuiltinFunctionRegistry());
 
         auto buffer = New<TRowBuffer>();
         TRowRanges foreignSplits{{

@@ -63,7 +63,7 @@ protected:
         TMatcher matcher)
     {
         EXPECT_THROW_THAT(
-            [&] { PreparePlanFragment(&PrepareMock_, query, CreateBuiltinFunctionRegistry(), ColumnEvaluatorCache_); },
+            [&] { PreparePlanFragment(&PrepareMock_, query, CreateBuiltinFunctionRegistry()); },
             matcher);
     }
 
@@ -77,7 +77,7 @@ TEST_F(TQueryPrepareTest, Simple)
     EXPECT_CALL(PrepareMock_, GetInitialSplit("//t", _))
         .WillOnce(Return(WrapInFuture(MakeSimpleSplit("//t"))));
 
-    PreparePlanFragment(&PrepareMock_, "a, b FROM [//t] WHERE k > 3", CreateBuiltinFunctionRegistry(), ColumnEvaluatorCache_);
+    PreparePlanFragment(&PrepareMock_, "a, b FROM [//t] WHERE k > 3", CreateBuiltinFunctionRegistry());
 }
 
 TEST_F(TQueryPrepareTest, BadSyntax)
@@ -154,7 +154,7 @@ TEST_F(TQueryPrepareTest, BigQuery)
     EXPECT_CALL(PrepareMock_, GetInitialSplit("//t", _))
         .WillOnce(Return(WrapInFuture(MakeSimpleSplit("//t"))));
 
-    PreparePlanFragment(&PrepareMock_, query, CreateBuiltinFunctionRegistry(), ColumnEvaluatorCache_);
+    PreparePlanFragment(&PrepareMock_, query, CreateBuiltinFunctionRegistry());
 }
 
 TEST_F(TQueryPrepareTest, ResultSchemaCollision)
@@ -243,8 +243,7 @@ protected:
         std::tie(query, dataSource) = PreparePlanFragment(
             &PrepareMock_,
             source,
-            CreateBuiltinFunctionRegistry(),
-            ColumnEvaluatorCache_);
+            CreateBuiltinFunctionRegistry());
 
         auto buffer = New<TRowBuffer>();
         TRowRanges sources;
@@ -640,7 +639,7 @@ protected:
             TQueryPtr primaryQuery;
             TDataRanges primaryDataSource;
             std::tie(primaryQuery, primaryDataSource) = PreparePlanFragment(
-                &PrepareMock_, query, functionRegistry, ColumnEvaluatorCache_, inputRowLimit, outputRowLimit);
+                &PrepareMock_, query, functionRegistry, inputRowLimit, outputRowLimit);
 
             size_t foreignSplitIndex = 1;
             auto executeCallback = [&] (
