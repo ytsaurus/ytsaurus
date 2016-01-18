@@ -247,7 +247,7 @@ protected:
         std::vector<TJobBoundaryKeys> BoundaryKeys;
 
         NYson::TYsonString EffectiveAcl;
-        
+
         void Persist(TPersistenceContext& context);
     };
 

@@ -9,11 +9,13 @@
 #include "table_ypath_proxy.h"
 
 #include <yt/ytlib/api/client.h>
+#include <yt/ytlib/api/transaction.h>
 
 #include <yt/ytlib/chunk_client/chunk_writer.h>
 #include <yt/ytlib/chunk_client/dispatcher.h>
 #include <yt/ytlib/chunk_client/encoding_chunk_writer.h>
 #include <yt/ytlib/chunk_client/multi_chunk_writer_base.h>
+#include <yt/ytlib/chunk_client/helpers.h>
 
 #include <yt/ytlib/cypress_client/cypress_ypath_proxy.h>
 
@@ -888,39 +890,24 @@ void TSchemalessTableWriter::DoOpen()
     bool append = RichPath_.GetAppend();
     bool sorted = !KeyColumns_.empty();
 
-    {
-        auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::LeaderOrFollower);
-        TObjectServiceProxy proxy(channel);
+    TUserObject userObject;
+    userObject.Path = path;
 
-        LOG_INFO("Requesting basic table attributes");
+    GetUserObjectBasicAttributes<TUserObject>(
+        Client_, 
+        userObject,
+        Transaction_ ? Transaction_->GetId() : NullTransactionId,
+        Logger,
+        EPermission::Write);
 
-        auto req = TTableYPathProxy::GetBasicAttributes(path);
-        req->set_permissions(static_cast<ui32>(EPermission::Write));
-        SetTransactionId(req, Transaction_);
+    ObjectId_ = userObject.ObjectId;
+    CellTag_ = userObject.CellTag;
 
-        auto rspOrError = WaitFor(proxy.Execute(req));
-        THROW_ERROR_EXCEPTION_IF_FAILED(
-            rspOrError,
-            "Error requesting basic attribues of table %v",
-            path);
-
-        const auto& rsp = rspOrError.Value();
-        ObjectId_ = FromProto<TObjectId>(rsp->object_id());
-        CellTag_ = rsp->cell_tag();
-
-        LOG_INFO("Basic file attributes received (ObjectId: %v, CellTag: %v)",
-            ObjectId_,
-            CellTag_);
-    }
-
-    {
-        auto type = TypeFromId(ObjectId_);
-        if (type != EObjectType::Table) {
-            THROW_ERROR_EXCEPTION("Invalid type of %v: expected %Qlv, actual %Qlv",
-                path,
-                EObjectType::Table,
-                type);
-        }
+    if (userObject.Type != EObjectType::Table) {
+        THROW_ERROR_EXCEPTION("Invalid type of %v: expected %Qlv, actual %Qlv",
+            path,
+            EObjectType::Table,
+            userObject.Type);
     }
 
     auto uploadMasterChannel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Leader, CellTag_);
