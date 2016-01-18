@@ -373,9 +373,10 @@ def run_pytest(options, suite_name, suite_path, pytest_args=None):
             save_failed_test(options, suite_name, suite_path)
             raise StepFailedWithNonCriticalError("Tests '{0}' failed".format(suite_name))
     finally:
-        shutil.rmtree(sandbox_current)
+        # Note: ytserver tests may create files with that cannot be deleted by teamcity user.
+        sudo_rmtree(sandbox_current)
         if os.path.exists(sandbox_storage):
-            shutil.rmtree(sandbox_storage)
+            sudo_rmtree(sandbox_storage)
 
 
 def kill_by_name(name):
@@ -673,6 +674,14 @@ def copytree(src, dst, symlinks=False, ignore=None):
             os.symlink(os.readlink(src_path), dst_path)
         else:
             shutil.copy2(src_path, dst_path)
+
+def shellquote(str):
+    return "'" + str.replace("'", "'\\''") + "'"
+
+def sudo_rmtree(path):
+    abspath = os.path.abspath(path)
+    assert abspath.startswith("/home/teamcity")
+    run("sudo rm -rf " + shellquote(abspath), shell=True)
 
 def get_command_from_core_file(core_path):
     # Example output:
