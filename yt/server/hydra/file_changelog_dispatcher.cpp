@@ -120,6 +120,13 @@ public:
         return false;
     }
 
+    bool HasUnflushedRecords()
+    {
+        VERIFY_THREAD_AFFINITY(SyncThread);
+
+        return !AppendQueue_.empty() || FlushQueue_.empty();
+    }
+
     void RunPendingFlushes()
     {
         VERIFY_THREAD_AFFINITY(SyncThread);
@@ -417,10 +424,15 @@ private:
         return GetValues(QueueMap_);
     }
 
-    bool HasQueue(TSyncFileChangelogPtr changelog)
+    bool HasUnflushedRecords(TSyncFileChangelogPtr changelog)
     {
         TGuard<TSpinLock> guard(SpinLock_);
-        return QueueMap_.find(changelog) != QueueMap_.end();
+        auto it = QueueMap_.find(changelog);
+        if (it == QueueMap_.end()) {
+            return false;
+        }
+        const auto& queue = it->second;
+        return queue->HasUnflushedRecords();
     }
 
     TFileChangelogQueuePtr FindAndLockQueue(TSyncFileChangelogPtr changelog)
@@ -554,7 +566,7 @@ private:
         TSyncFileChangelogPtr changelog,
         int recordCount)
     {
-        YCHECK(!HasQueue(changelog));
+        YCHECK(!HasUnflushedRecords(changelog));
         PROFILE_TIMING("/changelog_truncate_io_time") {
             changelog->Truncate(recordCount);
         }
@@ -562,7 +574,7 @@ private:
 
     void DoClose(TSyncFileChangelogPtr changelog)
     {
-        YCHECK(!HasQueue(changelog));
+        YCHECK(!HasUnflushedRecords(changelog));
         PROFILE_TIMING("/changelog_close_io_time") {
             changelog->Close();
         }
