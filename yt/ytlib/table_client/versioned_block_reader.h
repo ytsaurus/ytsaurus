@@ -26,7 +26,8 @@ public:
         int keyColumnCount,
         const std::vector<TColumnIdMapping>& schemaIdMapping,
         const TKeyComparer& keyComparer,
-        TTimestamp timestamp);
+        TTimestamp timestamp,
+        bool initialize = true);
 
     bool NextRow();
 
@@ -87,14 +88,10 @@ private:
 
     TTimestamp ReadTimestamp(int timestampIndex);
     void ReadValue(TVersionedValue* value, int valueIndex, int id, int chunkSchemaId);
-    TTimestamp ReadValueTimestamp(int valueIndex, int id);
     void ReadKeyValue(TUnversionedValue* value, int id);
 
-    void ReadInt64(TUnversionedValue* value, const char* ptr);
-    void ReadUint64(TUnversionedValue* value, const char* ptr);
-    void ReadDouble(TUnversionedValue* value, const char* ptr);
-    void ReadBoolean(TUnversionedValue* value, const char* ptr);
-    void ReadStringLike(TUnversionedValue* value, const char* ptr);
+    FORCED_INLINE TTimestamp ReadValueTimestamp(int valueIndex, int id);
+    FORCED_INLINE void ReadStringLike(TUnversionedValue* value, const char* ptr);
 
     ui32 GetColumnValueCount(int schemaColumnId) const;
 

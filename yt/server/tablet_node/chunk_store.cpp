@@ -85,6 +85,8 @@ public:
         , UnderlyingCache_(std::move(underlyingCache))
     { }
 
+    DEFINE_BYVAL_RO_PROPERTY(TVersionedChunkLookupHashTablePtr, LookupHashTable);
+
     ~TPreloadedBlockCache()
     {
         auto owner = Owner_.Lock();
@@ -129,9 +131,14 @@ public:
             return;
 
         Blocks_ = std::move(chunkData->Blocks);
-        DataSize_ = GetByteSize(Blocks_);
+        LookupHashTable_ = chunkData->LookupHashTable;
 
-        owner->SetMemoryUsage(DataSize_);
+        i64 dataSize = GetByteSize(Blocks_);
+        if (LookupHashTable_) {
+            dataSize += LookupHashTable_->GetByteSize();
+        }
+
+        owner->SetMemoryUsage(dataSize);
 
         Preloaded_ = true;
     }
@@ -148,8 +155,6 @@ private:
     const IBlockCachePtr UnderlyingCache_;
 
     std::vector<TSharedRef> Blocks_;
-    i64 DataSize_ = 0;
-
     std::atomic<bool> Preloaded_ = {false};
 
 };
@@ -286,6 +291,7 @@ void TChunkStore::Preload(TInMemoryChunkDataPtr chunkData)
         return;
 
     PreloadedBlockCache_->Preload(chunkData);
+    CachedVersionedChunkMeta_ = chunkData->ChunkMeta;
 }
 
 IChunkReaderPtr TChunkStore::GetChunkReader()
@@ -474,6 +480,7 @@ IVersionedReaderPtr TChunkStore::CreateCacheBasedReader(
     return CreateCacheBasedVersionedChunkReader(
         PreloadedBlockCache_,
         CachedVersionedChunkMeta_,
+        PreloadedBlockCache_->GetLookupHashTable(),
         keys,
         columnFilter,
         PerformanceCounters_,

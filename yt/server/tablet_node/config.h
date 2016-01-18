@@ -50,7 +50,8 @@ class TTableMountConfig
     : public NTableClient::TRetentionConfig
 {
 public:
-    int MaxMemoryStoreKeyCount;
+    int SoftMemoryStoreKeyCountLimit;
+    int HardMemoryStoreKeyCountLimit;
     int MaxMemoryStoreValueCount;
     i64 MaxMemoryStorePoolSize;
 
@@ -87,11 +88,16 @@ public:
     TDuration MemoryStoreAutoFlushPeriod;
     TNullable<TDuration> AutoCompactionPeriod;
 
+    bool EnableLookupHashTable;
+
     TTableMountConfig()
     {
-        RegisterParameter("max_memory_store_key_count", MaxMemoryStoreKeyCount)
+        RegisterParameter("soft_memory_store_key_count_limit", SoftMemoryStoreKeyCountLimit)
             .GreaterThan(0)
             .Default(1000000);
+        RegisterParameter("hard_memory_store_key_count_limit", HardMemoryStoreKeyCountLimit)
+            .GreaterThan(0)
+            .Default(1100000);
         RegisterParameter("max_memory_store_value_count", MaxMemoryStoreValueCount)
             .GreaterThan(0)
             .Default(10000000)
@@ -171,7 +177,13 @@ public:
         RegisterParameter("auto_compaction_period", AutoCompactionPeriod)
             .Default(Null);
 
+        RegisterParameter("enable_lookup_hash_table", EnableLookupHashTable)
+            .Default(false);
+
         RegisterValidator([&] () {
+            if (SoftMemoryStoreKeyCountLimit > HardMemoryStoreKeyCountLimit) {
+                THROW_ERROR_EXCEPTION("\"hard_memory_store_key_count_limit\" must be greater than or equal to \"soft_memory_store_key_count_limit\"");
+            }
             if (MinPartitionDataSize >= DesiredPartitionDataSize) {
                 THROW_ERROR_EXCEPTION("\"min_partition_data_size\" must be less than \"desired_partition_data_size\"");
             }
@@ -186,6 +198,9 @@ public:
             }
             if (MaxCompactionStoreCount < MinCompactionStoreCount) {
                 THROW_ERROR_EXCEPTION("\"max_compaction_store_count\" must be greater than or equal to \"min_compaction_chunk_count\"");
+            }
+            if (EnableLookupHashTable && InMemoryMode != EInMemoryMode::Uncompressed) {
+                THROW_ERROR_EXCEPTION("\"enable_lookup_hash_table\"can be used only if \"in_memory_mode\" is \"uncompressed\"");
             }
         });
     }

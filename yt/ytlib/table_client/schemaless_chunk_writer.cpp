@@ -289,7 +289,10 @@ bool TPartitionChunkWriter::Write(const std::vector<TUnversionedRow>& rows)
 void TPartitionChunkWriter::WriteRow(TUnversionedRow row)
 {
     ++RowCount_;
-    DataWeight_ += GetDataWeight(row);
+
+    i64 weight = GetDataWeight(row);
+    ValidateRowWeight(weight);
+    DataWeight_ += weight;
 
     auto partitionIndex = Partitioner_->GetPartitionIndex(row);
     auto& blockWriter = BlockWriters_[partitionIndex];
@@ -466,7 +469,8 @@ private:
     virtual TFuture<void> Close() override;
 
     virtual void SetProgress(double progress) override;
-    virtual const std::vector<TChunkSpec>& GetWrittenChunks() const override;
+    virtual const std::vector<TChunkSpec>& GetWrittenChunksMasterMeta() const override;
+    virtual const std::vector<TChunkSpec>& GetWrittenChunksFullMeta() const override;
     virtual TNodeDirectoryPtr GetNodeDirectory() const override;
     virtual TDataStatistics GetDataStatistics() const override;
 
@@ -568,9 +572,14 @@ void TReorderingSchemalessMultiChunkWriter::SetProgress(double progress)
     UnderlyingWriter_->SetProgress(progress);
 }
 
-const std::vector<TChunkSpec>& TReorderingSchemalessMultiChunkWriter::GetWrittenChunks() const
+const std::vector<TChunkSpec>& TReorderingSchemalessMultiChunkWriter::GetWrittenChunksMasterMeta() const
 {
-    return UnderlyingWriter_->GetWrittenChunks();
+    return UnderlyingWriter_->GetWrittenChunksMasterMeta();
+}
+
+const std::vector<TChunkSpec>& TReorderingSchemalessMultiChunkWriter::GetWrittenChunksFullMeta() const
+{
+    return GetWrittenChunksMasterMeta();
 }
 
 TNodeDirectoryPtr TReorderingSchemalessMultiChunkWriter::GetNodeDirectory() const

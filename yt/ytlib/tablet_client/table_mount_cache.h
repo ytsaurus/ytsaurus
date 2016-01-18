@@ -21,6 +21,7 @@
 
 #include <yt/core/rpc/public.h>
 
+#include <util/datetime/base.h>
 
 namespace NYT {
 namespace NTabletClient {
@@ -41,13 +42,16 @@ struct TTabletReplica
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TTabletInfo
-    : public TIntrinsicRefCounted
+    : public TRefCounted
 {
     NObjectClient::TObjectId TabletId;
     i64 MountRevision = 0;
     NTabletClient::ETabletState State;
     NTableClient::TOwningKey PivotKey;
     NTabletClient::TTabletCellId CellId;
+    NObjectClient::TObjectId TableId;
+    TInstant UpdateTime;
+    std::vector<TWeakPtr<TTableMountInfo>> Owners;
 };
 
 DEFINE_REFCOUNTED_TYPE(TTabletInfo)
@@ -55,7 +59,7 @@ DEFINE_REFCOUNTED_TYPE(TTabletInfo)
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TTableMountInfo
-    : public TIntrinsicRefCounted
+    : public TRefCounted
 {
     NYPath::TYPath Path;
     NObjectClient::TObjectId TableId;
@@ -87,6 +91,8 @@ public:
     ~TTableMountCache();
 
     TFuture<TTableMountInfoPtr> GetTableInfo(const NYPath::TYPath& path);
+    TTabletInfoPtr FindTablet(const TTabletId& tabletId);
+    void InvalidateTablet(TTabletInfoPtr tabletInfo);
 
     void Clear();
 

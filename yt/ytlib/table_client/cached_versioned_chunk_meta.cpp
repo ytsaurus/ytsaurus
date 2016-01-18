@@ -21,6 +21,25 @@ using NYT::FromProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TCachedVersionedChunkMeta::TCachedVersionedChunkMeta() = default;
+
+TCachedVersionedChunkMetaPtr TCachedVersionedChunkMeta::Create(
+    const TChunkId& chunkId,
+    const NChunkClient::NProto::TChunkMeta& chunkMeta,
+    const TTableSchema& schema,
+    const TKeyColumns& keyColumns)
+{
+    auto cachedMeta = New<TCachedVersionedChunkMeta>();
+    try {
+        cachedMeta->Init(chunkId, chunkMeta, schema, keyColumns);
+    } catch (const std::exception& ex) {
+        THROW_ERROR_EXCEPTION("Error caching meta of chunk %v",
+            chunkId)
+            << ex;
+    }
+    return cachedMeta;
+}
+
 TFuture<TCachedVersionedChunkMetaPtr> TCachedVersionedChunkMeta::Load(
     IChunkReaderPtr chunkReader,
     const TTableSchema& schema,
@@ -42,38 +61,48 @@ TCachedVersionedChunkMetaPtr TCachedVersionedChunkMeta::DoLoad(
     const TTableSchema& readerSchema,
     const TKeyColumns& keyColumns)
 {
-    ChunkId_ = chunkReader->GetChunkId();
-    KeyColumns_ = keyColumns;
-
     try {
-        ValidateTableSchemaAndKeyColumns(readerSchema, keyColumns);
-
         auto asyncChunkMeta = chunkReader->GetMeta();
-        ChunkMeta_ = WaitFor(asyncChunkMeta)
+        auto chunkMeta = WaitFor(asyncChunkMeta)
             .ValueOrThrow();
 
-        ValidateChunkMeta();
-        ValidateSchema(readerSchema);
-
-        auto boundaryKeysExt = GetProtoExtension<TBoundaryKeysExt>(ChunkMeta_.extensions());
-        MinKey_ = WidenKey(FromProto<TOwningKey>(boundaryKeysExt.min()), GetKeyColumnCount());
-        MaxKey_ = WidenKey(FromProto<TOwningKey>(boundaryKeysExt.max()), GetKeyColumnCount());
-
-        Misc_ = GetProtoExtension<TMiscExt>(ChunkMeta_.extensions());
-        BlockMeta_ = GetProtoExtension<TBlockMetaExt>(ChunkMeta_.extensions());
-
-        BlockLastKeys_.reserve(BlockMeta_.blocks_size());
-        for (const auto& block : BlockMeta_.blocks()) {
-            YCHECK(block.has_last_key());
-            auto key = FromProto<TOwningKey>(block.last_key());
-            BlockLastKeys_.push_back(WidenKey(key, GetKeyColumnCount()));
-        }
-
+        Init(chunkReader->GetChunkId(), chunkMeta, readerSchema, keyColumns);
         return this;
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Error caching meta of chunk %v",
-            ChunkId_)
+            chunkReader->GetChunkId())
             << ex;
+    }
+}
+
+void TCachedVersionedChunkMeta::Init(
+    const TChunkId& chunkId,
+    const NChunkClient::NProto::TChunkMeta& chunkMeta,
+    const TTableSchema& schema,
+    const TKeyColumns& keyColumns)
+{
+    ChunkId_ = chunkId;
+    KeyColumns_ = keyColumns;
+    ChunkMeta_ = chunkMeta;
+
+    ValidateTableSchemaAndKeyColumns(schema, keyColumns);
+    ValidateChunkMeta();
+    ValidateSchema(schema);
+
+    auto boundaryKeysExt = GetProtoExtension<TBoundaryKeysExt>(ChunkMeta_.extensions());
+    MinKey_ = WidenKey(FromProto<TOwningKey>(boundaryKeysExt.min()), GetKeyColumnCount());
+    MaxKey_ = WidenKey(FromProto<TOwningKey>(boundaryKeysExt.max()), GetKeyColumnCount());
+
+    Misc_ = GetProtoExtension<TMiscExt>(ChunkMeta_.extensions());
+    BlockMeta_ = GetProtoExtension<TBlockMetaExt>(ChunkMeta_.extensions());
+
+    BlockLastKeys_.reserve(BlockMeta_.blocks_size());
+    BlockRowCounts_.reserve(BlockMeta_.blocks_size());
+    for (const auto& block : BlockMeta_.blocks()) {
+        YCHECK(block.has_last_key());
+        auto key = FromProto<TOwningKey>(block.last_key());
+        BlockLastKeys_.push_back(WidenKey(key, GetKeyColumnCount()));
+        BlockRowCounts_.push_back(block.chunk_row_count());
     }
 }
 

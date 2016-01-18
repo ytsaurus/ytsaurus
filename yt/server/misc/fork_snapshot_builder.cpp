@@ -25,6 +25,10 @@ static const TLazyIntrusivePtr<TActionQueue> WatchdogQueue(TActionQueue::CreateF
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TForkSnapshotBuilderBase::TForkSnapshotBuilderBase(NLogging::TLogger& logger)
+    : Logger(logger)
+{ }
+
 TForkSnapshotBuilderBase::~TForkSnapshotBuilderBase()
 {
     YCHECK(ChildPid_ < 0);

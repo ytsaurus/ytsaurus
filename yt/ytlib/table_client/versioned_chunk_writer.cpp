@@ -54,6 +54,7 @@ public:
 
     virtual TChunkMeta GetMasterMeta() const override;
     virtual TChunkMeta GetSchedulerMeta() const override;
+    virtual TChunkMeta GetNodeMeta() const override;
 
     virtual NChunkClient::NProto::TDataStatistics GetDataStatistics() const override;
 
@@ -214,6 +215,11 @@ TChunkMeta TVersionedChunkWriter::GetMasterMeta() const
 TChunkMeta TVersionedChunkWriter::GetSchedulerMeta() const
 {
     return GetMasterMeta();
+}
+
+TChunkMeta TVersionedChunkWriter::GetNodeMeta() const
+{
+   return EncodingChunkWriter_->Meta();
 }
 
 TDataStatistics TVersionedChunkWriter::GetDataStatistics() const

@@ -29,6 +29,8 @@ private:
     const TSchedulerPtr Scheduler;
     const NApi::IClientPtr MasterClient;
 
+    NLogging::TLogger Logger;
+
     struct TJob
     {
         TOperationPtr Operation;

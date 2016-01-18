@@ -26,6 +26,7 @@ public:
     DEFINE_BYREF_RO_PROPERTY(TOwningKey, MinKey);
     DEFINE_BYREF_RO_PROPERTY(TOwningKey, MaxKey);
     DEFINE_BYREF_RO_PROPERTY(std::vector<TOwningKey>, BlockLastKeys);
+    DEFINE_BYREF_RO_PROPERTY(std::vector<int>, BlockRowCounts);
     DEFINE_BYREF_RO_PROPERTY(NProto::TBlockMetaExt, BlockMeta);
     DEFINE_BYREF_RO_PROPERTY(NChunkClient::NProto::TChunkMeta, ChunkMeta);
     DEFINE_BYREF_RO_PROPERTY(TTableSchema, ChunkSchema);
@@ -33,6 +34,12 @@ public:
     DEFINE_BYREF_RO_PROPERTY(NChunkClient::NProto::TMiscExt, Misc);
     DEFINE_BYREF_RO_PROPERTY(std::vector<TColumnIdMapping>, SchemaIdMapping);
     DEFINE_BYVAL_RO_PROPERTY(int, ChunkKeyColumnCount);
+
+    static TCachedVersionedChunkMetaPtr Create(
+        const NChunkClient::TChunkId& chunkId,
+        const NChunkClient::NProto::TChunkMeta& chunkMeta,
+        const TTableSchema& schema,
+        const TKeyColumns& keyColumns);
 
     static TFuture<TCachedVersionedChunkMetaPtr> Load(
         NChunkClient::IChunkReaderPtr chunkReader,
@@ -42,15 +49,24 @@ public:
     int GetKeyColumnCount() const;
 
 private:
+    TCachedVersionedChunkMeta();
+
     TCachedVersionedChunkMetaPtr DoLoad(
         NChunkClient::IChunkReaderPtr chunkReader,
         const TTableSchema& readerSchema,
+        const TKeyColumns& keyColumns);
+
+    void Init(
+        const NChunkClient::TChunkId& chunkId,
+        const NChunkClient::NProto::TChunkMeta& chunkMeta,
+        const TTableSchema& schema,
         const TKeyColumns& keyColumns);
 
     void ValidateChunkMeta();
     void ValidateSchema(const TTableSchema& readerSchema);
     void ValidateKeyColumns(const TKeyColumns& chunkKeyColumns);
 
+    DECLARE_NEW_FRIEND();
 };
 
 DEFINE_REFCOUNTED_TYPE(TCachedVersionedChunkMeta)

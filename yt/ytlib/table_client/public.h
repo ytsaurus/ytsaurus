@@ -204,6 +204,8 @@ DECLARE_REFCOUNTED_CLASS(TRetentionConfig)
 DECLARE_REFCOUNTED_CLASS(TLegacyChannelReader)
 DECLARE_REFCOUNTED_CLASS(TLegacyTableChunkReader)
 
+DECLARE_REFCOUNTED_CLASS(TVersionedChunkLookupHashTable);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NTableClient

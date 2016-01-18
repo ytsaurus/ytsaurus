@@ -21,6 +21,8 @@
 #include <yt/core/ytree/fluent.h>
 #include <yt/core/ytree/forwarding_yson_consumer.h>
 
+#include <yt/ytlib/table_client/name_table.h>
+
 namespace NYT {
 namespace NFormats {
 
@@ -290,18 +292,28 @@ ISchemalessFormatWriterPtr CreateSchemalessWriterForSchemafulDsv(
     int /* keyColumnCount */)
 {
     auto config = ConvertTo<TSchemafulDsvFormatConfigPtr>(&attributes);
-    if (enableKeySwitch) {
-        THROW_ERROR_EXCEPTION("Key switches are not supported in schemaful DSV format.");
-    }
+
     if (!config->Columns) {
-        THROW_ERROR_EXCEPTION("Config must contain columns for schemaful DSV schemaless writer.");
+        THROW_ERROR_EXCEPTION("Config must contain columns for schemaful DSV schemaless writer");
+    }
+
+    std::vector<int> idToIndexInRow;
+    const auto& columns = config->Columns.Get();
+    for (int columnIndex = 0; columnIndex < static_cast<int>(columns.size()); ++columnIndex) {
+        nameTable->GetIdOrRegisterName(columns[columnIndex]);
+    }
+    idToIndexInRow.resize(nameTable->GetSize(), -1);
+    for (int columnIndex = 0; columnIndex < static_cast<int>(columns.size()); ++columnIndex) {
+        idToIndexInRow[nameTable->GetId(columns[columnIndex])] = columnIndex;
     }
 
     return New<TSchemalessWriterForSchemafulDsv>(
         nameTable, 
         output, 
-        enableContextSaving, 
-        config);
+        enableContextSaving,
+        config,
+        idToIndexInRow);
+
 }
 
 ISchemalessFormatWriterPtr CreateSchemalessWriterForFormat(

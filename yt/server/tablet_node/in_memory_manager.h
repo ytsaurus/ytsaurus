@@ -6,6 +6,9 @@
 
 #include <yt/ytlib/chunk_client/public.h>
 
+#include <yt/ytlib/table_client/cached_versioned_chunk_meta.h>
+#include <yt/ytlib/table_client/versioned_chunk_reader.h>
+
 #include <yt/core/misc/ref.h>
 
 namespace NYT {
@@ -19,6 +22,8 @@ struct TInMemoryChunkData
 {
     std::vector<TSharedRef> Blocks;
     EInMemoryMode InMemoryMode = EInMemoryMode::None;
+    NTableClient::TCachedVersionedChunkMetaPtr ChunkMeta;
+    NTableClient::TVersionedChunkLookupHashTablePtr LookupHashTable;
 };
 
 DEFINE_REFCOUNTED_TYPE(TInMemoryChunkData)
@@ -43,6 +48,10 @@ public:
 
     NChunkClient::IBlockCachePtr CreateInterceptingBlockCache(EInMemoryMode mode);
     TInMemoryChunkDataPtr EvictInterceptedChunkData(const NChunkClient::TChunkId& chunkId);
+    void FinalizeChunk(
+        const NChunkClient::TChunkId& chunkId,
+        const NChunkClient::NProto::TChunkMeta& chunkMeta,
+        const TTabletSnapshotPtr& tablet);
 
 private:
     class TImpl;
