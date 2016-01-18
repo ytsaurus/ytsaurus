@@ -344,7 +344,9 @@ class YTEnv(object):
     def _run(self, args, name, number=1, timeout=0.1):
         with self._lock:
             stdout = open(os.devnull, "w")
-            stderr = open(os.path.join(self.stderrs_path, "stderr.{0}-{1}".format(name, number)), "w")
+            stderr = None
+            if os.environ.get("YT_CAPTURE_STDERR_TO_FILE"):
+                stderr = open(os.path.join(self.stderrs_path, "stderr.{0}-{1}".format(name, number)), "w")
 
             def preexec():
                 os.setsid()
