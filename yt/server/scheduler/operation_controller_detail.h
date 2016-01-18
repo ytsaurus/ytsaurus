@@ -100,7 +100,7 @@ public:
 
     virtual void Abort() override;
 
-    virtual TJobId ScheduleJob(
+    virtual TJobStartRequestPtr ScheduleJob(
         ISchedulingContext* context,
         const TJobResources& jobLimits) override;
 
@@ -420,7 +420,7 @@ protected:
 
         void CheckCompleted();
 
-        TJobId ScheduleJob(
+        TJobStartRequestPtr ScheduleJob(
             ISchedulingContext* context,
             const TJobResources& jobLimits);
 
@@ -593,9 +593,9 @@ protected:
 
     void CheckTimeLimit();
 
-    TJobId DoScheduleJob(ISchedulingContext* context, const TJobResources& jobLimits);
-    TJobId DoScheduleLocalJob(ISchedulingContext* context, const TJobResources& jobLimits);
-    TJobId DoScheduleNonLocalJob(ISchedulingContext* context, const TJobResources& jobLimits);
+    TJobStartRequestPtr DoScheduleJob(ISchedulingContext* context, const TJobResources& jobLimits);
+    TJobStartRequestPtr DoScheduleLocalJob(ISchedulingContext* context, const TJobResources& jobLimits);
+    TJobStartRequestPtr DoScheduleNonLocalJob(ISchedulingContext* context, const TJobResources& jobLimits);
 
     void OnJobStarted(const TJobId& jobId);
 

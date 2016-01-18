@@ -6,6 +6,7 @@
 #include "scheduler_strategy.h"
 
 #include <yt/core/concurrency/async_rw_lock.h>
+#include <yt/core/misc/finally.h>
 #include <yt/core/profiling/scoped_timer.h>
 
 #include <forward_list>
@@ -1048,11 +1049,18 @@ public:
             }
         };
 
-        if (!Operation_->IsSchedulable()) {
+        if (!Operation_->IsSchedulable() ||
+            ConcurrentScheduleJobCalls_ >= Config->MaxConcurrentControllerScheduleJobCalls)
+        {
             DynamicAttributes(context.AttributesIndex).Active = false;
             updateAncestorsAttributes();
             return false;
         }
+
+        ++ConcurrentScheduleJobCalls_;
+        TFinallyGuard scheduleJobGuard([&] {
+            --ConcurrentScheduleJobCalls_;
+        });
 
         auto controller = Operation_->GetController();
         auto jobLimits = GetHierarchicalResourceLimits(context);
@@ -1062,13 +1070,13 @@ public:
             .Run(context.SchedulingContext, jobLimits);
 
         NProfiling::TScopedTimer timer;
-        auto jobIdOrError = WaitFor(asyncResult);
+        auto jobStartRequestOrError = WaitFor(asyncResult);
         auto scheduleJobDuration = timer.GetElapsed();
 
         // This can happen if operation is aborted from control thread during ScheduleJob call.
         // In this case current operation element is removed from scheduling tree and we don't
         // need to update parent attributes.
-        if (!jobIdOrError.IsOK()) {
+        if (!jobStartRequestOrError.IsOK()) {
             YCHECK(!IsActive(GlobalAttributesIndex));
             return false;
         }
@@ -1080,18 +1088,19 @@ public:
             return false;
         }
 
-        auto jobId = jobIdOrError.Value();
+        auto jobStartRequest = jobStartRequestOrError.Value();
 
-        if (!jobId) {
+        if (!jobStartRequest) {
             DynamicAttributes(context.AttributesIndex).Active = false;
             updateAncestorsAttributes();
             Operation_->UpdateControllerTimeStatistics("/schedule_job/fail", scheduleJobDuration);
             return false;
         }
 
-        const auto& job = context.SchedulingContext->GetStartedJob(jobId);
-        context.SchedulingContext->ResourceUsage() += job->ResourceUsage();
-        OnJobStarted(jobId, job->ResourceUsage());
+        context.SchedulingContext->ResourceUsage() += jobStartRequest->resourceLimits;
+        OnJobStarted(jobStartRequest->id, jobStartRequest->resourceLimits);
+        context.SchedulingContext->StartJob(Operation_, jobStartRequest);
+
         UpdateDynamicAttributes(context.AttributesIndex);
         updateAncestorsAttributes();
         Operation_->UpdateControllerTimeStatistics("/schedule_job/success", scheduleJobDuration);
@@ -1345,6 +1354,8 @@ private:
 
     const TFairShareStrategyConfigPtr Config;
     const TOperationId OperationId_;
+
+    int ConcurrentScheduleJobCalls_ = 0;
 
     TJobResources GetHierarchicalResourceLimits(const TFairShareContext& context) const
     {

@@ -123,5 +123,26 @@ struct TAbortedJobSummary
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TJobStartRequest
+    : public TRefCounted
+{
+    TJobStartRequest(
+        TJobId id,
+        EJobType type,
+        const TJobResources& resourceLimits,
+        bool restarted,
+        const TJobSpecBuilder& specBuilder);
+
+    const TJobId id;
+    const EJobType type;
+    const TJobResources resourceLimits;
+    const bool restarted;
+    const TJobSpecBuilder specBuilder;
+};
+
+DEFINE_REFCOUNTED_TYPE(TJobStartRequest)
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NScheduler
 } // namespace NYT
