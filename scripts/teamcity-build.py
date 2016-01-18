@@ -269,6 +269,12 @@ def run_pytest(options, suite_name, suite_path, pytest_args=None):
             teamcity_message("(ignoring child failure since we are reading test results from XML)")
             failed = True
 
+        if hasattr(etree, "ParseError"):
+            ParseError = etree.ParseError
+        else:
+            # Lucid case.
+            ParseError = TypeError
+
         try:
             result = etree.parse(handle)
             for node in (result.iter() if hasattr(result, "iter") else result.getiterator()):
@@ -283,7 +289,7 @@ def run_pytest(options, suite_name, suite_path, pytest_args=None):
             with open("{0}/junit_python_{1}.xml".format(options.working_directory, suite_name), "w+b") as handle:
                 result.write(handle, encoding="utf-8")
 
-        except (UnicodeDecodeError, etree.ParseError):
+        except (UnicodeDecodeError, ParseError):
             failed = True
             teamcity_message("Failed to parse pytest output:\n" + open(handle.name).read())
 
