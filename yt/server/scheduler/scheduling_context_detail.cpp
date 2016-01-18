@@ -66,32 +66,30 @@ bool TSchedulingContextBase::CanSchedule(const TNullable<Stroka>& tag) const
     return Node_->CanSchedule(tag);
 }
 
-TJobId TSchedulingContextBase::StartJob(
-    TOperationPtr operation,
-    EJobType type,
-    const TJobResources& resourceLimits,
-    bool restarted,
-    TJobSpecBuilder specBuilder)
+void TSchedulingContextBase::StartJob(TOperationPtr operation, TJobStartRequestPtr jobStartRequest)
 {
     auto startTime = GetNow();
-    auto id = MakeRandomId(EObjectType::SchedulerJob, CellTag_);
     auto job = New<TJob>(
-        id,
-        type,
+        jobStartRequest->id,
+        jobStartRequest->type,
         operation,
         Node_,
         startTime,
-        resourceLimits,
-        restarted,
-        specBuilder);
+        jobStartRequest->resourceLimits,
+        jobStartRequest->restarted,
+        jobStartRequest->specBuilder);
     StartedJobs_.push_back(job);
-    return id;
 }
 
 void TSchedulingContextBase::PreemptJob(TJobPtr job)
 {
     YCHECK(job->GetNode() == Node_);
     PreemptedJobs_.push_back(job);
+}
+
+TJobId TSchedulingContextBase::GenerateJobId()
+{
+    return MakeRandomId(EObjectType::SchedulerJob, CellTag_);
 }
 
 ////////////////////////////////////////////////////////////////////

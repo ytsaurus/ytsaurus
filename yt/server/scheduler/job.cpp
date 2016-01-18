@@ -106,5 +106,20 @@ TAbortedJobSummary::TAbortedJobSummary(TJobPtr job)
 
 ////////////////////////////////////////////////////////////////////
 
+TJobStartRequest::TJobStartRequest(
+    TJobId id,
+    EJobType type,
+    const TJobResources& resourceLimits,
+    bool restarted,
+    const TJobSpecBuilder& specBuilder)
+    : id(id)
+    , type(type)
+    , resourceLimits(resourceLimits)
+    , restarted(restarted)
+    , specBuilder(specBuilder)
+{ }
+
+////////////////////////////////////////////////////////////////////
+
 } // namespace NScheduler
 } // namespace NYT

@@ -365,12 +365,12 @@ void TOperationControllerBase::TTask::CheckCompleted()
     }
 }
 
-TJobId TOperationControllerBase::TTask::ScheduleJob(
+TJobStartRequestPtr TOperationControllerBase::TTask::ScheduleJob(
     ISchedulingContext* context,
     const TJobResources& jobLimits)
 {
     if (!CanScheduleJob(context, jobLimits)) {
-        return NullJobId;
+        return nullptr;
     }
 
     bool intermediateOutput = IsIntermediateOutput();
@@ -386,7 +386,7 @@ TJobId TOperationControllerBase::TTask::ScheduleJob(
     joblet->OutputCookie = chunkPoolOutput->Extract(localityNodeId);
     if (joblet->OutputCookie == IChunkPoolOutput::NullCookie) {
         LOG_DEBUG("Job input is empty");
-        return NullJobId;
+        return nullptr;
     }
 
     joblet->InputStripeList = chunkPoolOutput->GetStripeList(joblet->OutputCookie);
@@ -403,7 +403,7 @@ TJobId TOperationControllerBase::TTask::ScheduleJob(
         chunkPoolOutput->Aborted(joblet->OutputCookie);
         // Seems like cached min needed resources are too optimistic.
         ResetCachedMinNeededResources();
-        return NullJobId;
+        return nullptr;
     }
 
     auto jobType = GetJobType();
@@ -436,9 +436,10 @@ TJobId TOperationControllerBase::TTask::ScheduleJob(
         }
     });
 
+    joblet->JobId = context->GenerateJobId();
     auto restarted = LostJobCookieMap.find(joblet->OutputCookie) != LostJobCookieMap.end();
-    joblet->JobId = context->StartJob(
-        Controller->Operation,
+    auto jobStartRequest = New<TJobStartRequest>(
+        joblet->JobId,
         jobType,
         neededResources,
         restarted,
@@ -481,7 +482,7 @@ TJobId TOperationControllerBase::TTask::ScheduleJob(
 
     OnJobStarted(joblet);
 
-    return joblet->JobId;
+    return jobStartRequest;
 }
 
 bool TOperationControllerBase::TTask::IsPending() const
@@ -1769,31 +1770,29 @@ void TOperationControllerBase::CheckTimeLimit()
     }
 }
 
-TJobId TOperationControllerBase::ScheduleJob(
+TJobStartRequestPtr TOperationControllerBase::ScheduleJob(
     ISchedulingContext* context,
     const TJobResources& jobLimits)
 {
     VERIFY_INVOKER_AFFINITY(CancelableInvoker);
 
-    if (Spec->TestingOperationOptions) {
-        Sleep(Spec->TestingOperationOptions->SchedulingDelay);
+    auto jobStartRequestOrError = WaitFor(
+        BIND(&TOperationControllerBase::DoScheduleJob, MakeStrong(this))
+            .AsyncVia(CancelableInvoker)
+            .Run(context, jobLimits)
+            .WithTimeout(Config->ControllerScheduleJobTimeLimit));
+
+    if (jobStartRequestOrError.GetCode() == NYT::EErrorCode::Timeout) {
+        OnOperationFailed(TError("Controller is scheduling for too long, aborted")
+            << TErrorAttribute("time_limit", Config->ControllerScheduleJobTimeLimit));
+        return nullptr;
     }
 
-    if (!IsRunning()) {
-        LOG_TRACE("Operation is not running, scheduling request ignored");
-        return NullJobId;
+    auto jobStartRequest = jobStartRequestOrError.ValueOrThrow();
+    if (jobStartRequest) {
+        OnJobStarted(jobStartRequest->id);
     }
-
-    if (GetPendingJobCount() == 0) {
-        LOG_TRACE("No pending jobs left, scheduling request ignored");
-        return NullJobId;
-    }
-
-    auto jobId = DoScheduleJob(context, jobLimits);
-    if (jobId) {
-        OnJobStarted(jobId);
-    }
-    return jobId;
+    return jobStartRequest;
 }
 
 void TOperationControllerBase::UpdateConfig(TSchedulerConfigPtr config)
@@ -1942,26 +1941,40 @@ bool TOperationControllerBase::CheckJobLimits(
     return false;
 }
 
-TJobId TOperationControllerBase::DoScheduleJob(
+TJobStartRequestPtr TOperationControllerBase::DoScheduleJob(
     ISchedulingContext* context,
     const TJobResources& jobLimits)
 {
     VERIFY_INVOKER_AFFINITY(CancelableInvoker);
 
-    auto localJobId = DoScheduleLocalJob(context, jobLimits);
-    if (localJobId) {
-        return localJobId;
+    if (Spec->TestingOperationOptions) {
+        Sleep(Spec->TestingOperationOptions->SchedulingDelay);
     }
 
-    auto nonLocalJobId = DoScheduleNonLocalJob(context, jobLimits);
-    if (nonLocalJobId) {
-        return nonLocalJobId;
+    if (!IsRunning()) {
+        LOG_TRACE("Operation is not running, scheduling request ignored");
+        return nullptr;
     }
 
-    return NullJobId;
+    if (GetPendingJobCount() == 0) {
+        LOG_TRACE("No pending jobs left, scheduling request ignored");
+        return nullptr;
+    }
+
+    auto localJobStartRequest = DoScheduleLocalJob(context, jobLimits);
+    if (localJobStartRequest) {
+        return localJobStartRequest;
+    }
+
+    auto nonLocalJobStartRequest = DoScheduleNonLocalJob(context, jobLimits);
+    if (nonLocalJobStartRequest) {
+        return nonLocalJobStartRequest;
+    }
+
+    return nullptr;
 }
 
-TJobId TOperationControllerBase::DoScheduleLocalJob(
+TJobStartRequestPtr TOperationControllerBase::DoScheduleLocalJob(
     ISchedulingContext* context,
     const TJobResources& jobLimits)
 {
@@ -2017,7 +2030,7 @@ TJobId TOperationControllerBase::DoScheduleLocalJob(
         }
 
         if (!IsRunning()) {
-            return NullJobId;
+            return nullptr;
         }
 
         if (bestTask) {
@@ -2033,20 +2046,20 @@ TJobId TOperationControllerBase::DoScheduleLocalJob(
 
             if (!HasEnoughChunkLists(bestTask->IsIntermediateOutput())) {
                 LOG_DEBUG("Job chunk list demand is not met");
-                return NullJobId;
+                return nullptr;
             }
 
-            auto jobId = bestTask->ScheduleJob(context, jobLimits);
-            if (jobId) {
+            auto jobStartRequest = bestTask->ScheduleJob(context, jobLimits);
+            if (jobStartRequest) {
                 UpdateTask(bestTask);
-                return jobId;
+                return jobStartRequest;
             }
         }
     }
-    return NullJobId;
+    return nullptr;
 }
 
-TJobId TOperationControllerBase::DoScheduleNonLocalJob(
+TJobStartRequestPtr TOperationControllerBase::DoScheduleNonLocalJob(
     ISchedulingContext* context,
     const TJobResources& jobLimits)
 {
@@ -2126,7 +2139,7 @@ TJobId TOperationControllerBase::DoScheduleNonLocalJob(
                 }
 
                 if (!IsRunning()) {
-                    return NullJobId;
+                    return nullptr;
                 }
 
                 LOG_DEBUG(
@@ -2140,14 +2153,14 @@ TJobId TOperationControllerBase::DoScheduleNonLocalJob(
 
                 if (!HasEnoughChunkLists(task->IsIntermediateOutput())) {
                     LOG_DEBUG("Job chunk list demand is not met");
-                    return NullJobId;
+                    return nullptr;
                 }
 
-                auto jobId = task->ScheduleJob(context, jobLimits);
-                if (jobId) {
+                auto jobStartRequest = task->ScheduleJob(context, jobLimits);
+                if (jobStartRequest) {
                     UpdateTask(task);
                     LOG_DEBUG("Processed %v tasks", processedTaskCount);
-                    return jobId;
+                    return jobStartRequest;
                 }
 
                 // If task failed to schedule job, its min resources might have been updated.
@@ -2163,7 +2176,7 @@ TJobId TOperationControllerBase::DoScheduleNonLocalJob(
             LOG_DEBUG("Processed %v tasks", processedTaskCount);
         }
     }
-    return NullJobId;
+    return nullptr;
 }
 
 TCancelableContextPtr TOperationControllerBase::GetCancelableContext() const

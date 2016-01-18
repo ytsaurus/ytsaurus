@@ -235,7 +235,7 @@ struct IOperationController
      *  \note Invoker affinity: Cancellable controller invoker
      */
     //! Called during heartbeat processing to request actions the node must perform.
-    virtual TJobId ScheduleJob(
+    virtual TJobStartRequestPtr ScheduleJob(
         ISchedulingContext* context,
         const TJobResources& jobLimits) = 0;
 

@@ -44,16 +44,17 @@ struct ISchedulingContext
     //! Returns |true| if the node can handle jobs demanding a certain #tag.
     virtual bool CanSchedule(const TNullable<Stroka>& tag) const = 0;
 
-    virtual TJobId StartJob(
-        TOperationPtr operation,
-        EJobType type,
-        const TJobResources& resourceLimits,
-        bool restarted,
-        TJobSpecBuilder specBuilder) = 0;
+    virtual void StartJob(TOperationPtr operation, TJobStartRequestPtr jobStartRequest) = 0;
 
     virtual void PreemptJob(TJobPtr job) = 0;
 
     virtual TInstant GetNow() const = 0;
+
+    //! Called by a controller to generate id for new job.
+    /*!
+     *  \note Thread affinity: any
+     */
+    virtual TJobId GenerateJobId() = 0;
 };
 
 std::unique_ptr<ISchedulingContext> CreateSchedulingContext(

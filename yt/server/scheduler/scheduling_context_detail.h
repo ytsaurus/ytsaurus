@@ -34,14 +34,11 @@ public:
     virtual bool CanStartMoreJobs() const override;
     virtual bool CanSchedule(const TNullable<Stroka>& tag) const override;
 
-    virtual TJobId StartJob(
-        TOperationPtr operation,
-        EJobType type,
-        const TJobResources& resourceLimits,
-        bool restarted,
-        TJobSpecBuilder specBuilder) override;
+    virtual void StartJob(TOperationPtr operation, TJobStartRequestPtr jobStartRequest) override;
 
     virtual void PreemptJob(TJobPtr job) override;
+
+    virtual TJobId GenerateJobId() override;
 
 private:
     const TSchedulerConfigPtr Config_;
