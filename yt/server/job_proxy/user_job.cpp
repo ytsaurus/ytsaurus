@@ -908,8 +908,8 @@ private:
             auto statistics = Memory_.GetStatistics();
 
             i64 uidRss = rss;
-            rss = statistics.Rss + 
-                UserJobSpec_.include_memory_mapped_files() ? statistics.MappedFile : 0;
+            rss = UserJobSpec_.include_memory_mapped_files() ? statistics.MappedFile : 0;
+            rss += statistics.Rss;
 
             if (rss > 1.05 * uidRss && uidRss > 0) {
                 LOG_ERROR("Memory usage measured by cgroup is much greater than via procfs: %v > %v",
