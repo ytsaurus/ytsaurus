@@ -242,6 +242,78 @@ def run_javascript_tests(options):
     except ChildHasNonZeroExitCode as err:
         raise StepFailedWithNonCriticalError(str(err))
 
+def get_sandbox_dirs(options, suite_name):
+    sandbox_current = os.path.join(options.sandbox_directory, suite_name)
+    sandbox_storage = os.path.join(os.path.expanduser("~/sandbox_storage"), suite_name)
+    return sandbox_current, sandbox_storage
+
+def save_failed_test(options, suite_name, suite_path):
+    sandbox_current, sandbox_storage = get_sandbox_dirs(options, suite_name)
+    sandbox_archive = os.path.join(options.failed_tests_path,
+        "__".join([options.btid, options.build_number, suite_name]))
+
+
+    # Copy sandboxes to archive.
+    for dir_ in [sandbox_storage, sandbox_current]:
+        if not os.path.exists(dir_):
+            continue
+        failed_tests_sandbox_path = os.path.join(sandbox_archive, "sandbox")
+        teamcity_message("Copying failed tests from '{0}' to {1}'...".format(
+            dir_,
+            failed_tests_sandbox_path),
+            status="WARNING")
+        copytree(dir_, failed_tests_sandbox_path,
+                 ignore=shutil.ignore_patterns("chunk_cache", "chunk_store"))
+
+    artifact_path = os.path.join(sandbox_archive, "artifacts")
+    core_dumps_path = os.path.join(sandbox_archive, "core_dumps")
+    mkdirp(artifact_path)
+    mkdirp(core_dumps_path)
+
+    # Copy artifacts.
+    working_files_to_archive = ["bin/yt", "bin/ytserver", "lib/*.so"]
+    artifacts = set()
+    for fileglob in working_files_to_archive:
+        for file in glob.glob(os.path.join(options.working_directory, fileglob)):
+            artifacts.add(os.path.basename(file))
+            shutil.copy(file, artifact_path)
+
+    # Put cores to special dir and output stderr of ytserver daemons.
+    for dir, _, files in os.walk(sandbox_archive):
+        for file in files:
+            if file.startswith("core."):
+                shutil.move(os.path.join(dir, file), core_dumps_path)
+            if file.startswith("stderr."):
+                fullpath = os.path.join(dir, file)
+                content = open(fullpath).read()
+                if content:
+                    teamcity_message("Detected non-empty daemon stderr {0}:\n{1}"
+                                     .format(fullpath, content), status="WARNING")
+
+    # Look for cores and pytest logs in suitepath.
+    for dir, _, files in os.walk(suite_path):
+        for file in files:
+            if file.startswith("core."):
+                shutil.copy(os.path.join(dir, file), core_dumps_path)
+            if file == "pytestdebug.log":
+                shutil.copy(os.path.join(dir, file), sandbox_archive)
+
+
+    # Write gdb commands for cores.
+    for core_dump in os.listdir(core_dumps_path):
+        core_path = os.path.join(core_dumps_path, core_dump)
+
+        command = get_command_from_core_file(core_path)
+        if command:
+            binary = os.path.basename(command)
+            if binary in artifacts:
+                binary = os.path.join(artifact_path, binary)
+
+            gdb_command = "gdb {0} {1}".format(binary, core_path)
+            teamcity_message("Detected core file {0}. Gdb command:\n{1}"
+                             .format(core_path, gdb_command), status="WARNING")
+        else:
+            teamcity_message("Detected core file {0}".format(core_path), status="WARNING")
 
 def run_pytest(options, suite_name, suite_path, pytest_args=None):
     if options.build_enable_python != "YES":
@@ -250,13 +322,8 @@ def run_pytest(options, suite_name, suite_path, pytest_args=None):
     if pytest_args is None:
         pytest_args = []
 
-    sandbox_current = os.path.join(options.sandbox_directory, suite_name)
-    sandbox_archive = os.path.join(options.failed_tests_path,
-        "__".join([options.btid, options.build_number, suite_name]))
-    sandbox_storage = os.path.join(os.path.expanduser("~/sandbox_storage"), suite_name)
+    sandbox_current, sandbox_storage = get_sandbox_dirs(options, suite_name)
     mkdirp(sandbox_current)
-
-    working_files_to_archive = ["bin/yt", "bin/ytserver", "lib/*.so"]
 
     failed = False
 
@@ -309,62 +376,12 @@ def run_pytest(options, suite_name, suite_path, pytest_args=None):
 
     try:
         if failed:
-            for dir_ in [sandbox_storage, sandbox_current]:
-                if not os.path.exists(dir_):
-                    continue
-                failed_tests_sandbox_path = os.path.join(sandbox_archive, "sandbox")
-                teamcity_message("Copying failed tests from '{0}' to {1}'...".format(
-                    dir_,
-                    failed_tests_sandbox_path),
-                    status="WARNING")
-                copytree(dir_, failed_tests_sandbox_path,
-                         ignore=shutil.ignore_patterns("chunk_cache", "chunk_store"))
-
-            artifact_path = os.path.join(sandbox_archive, "artifacts")
-            core_dumps_path = os.path.join(sandbox_archive, "core_dumps")
-            mkdirp(artifact_path)
-            mkdirp(core_dumps_path)
-
-            artifacts = set()
-            for fileglob in working_files_to_archive:
-                for file in glob.glob(os.path.join(options.working_directory, fileglob)):
-                    artifacts.add(os.path.basename(file))
-                    shutil.copy(file, artifact_path)
-
-            for dir, _, files in os.walk(sandbox_archive):
-                for file in files:
-                    if file.startswith("core."):
-                        shutil.copy(os.path.join(dir, file), core_dumps_path)
-                    if file.startswith("stderr."):
-                        fullpath = os.path.join(dir, file)
-                        content = open(fullpath).read()
-                        if content:
-                            teamcity_message("Detected non-empty daemon stderr {0}:\n{1}"
-                                             .format(fullpath, content), status="WARNING")
-
-            for dir_, _, files in os.walk(suite_path):
-                for file_ in files:
-                    if file_.startswith("core."):
-                        shutil.copy(os.path.join(dir_, file_), core_dumps_path)
-
-            for core_dump in os.listdir(core_dumps_path):
-                core_path = os.path.join(core_dumps_path, core_dump)
-
-                command = get_command_from_core_file(core_path)
-                if command:
-                    binary = os.path.basename(command)
-                    if binary in artifacts:
-                        binary = os.path.join(artifact_path, binary)
-
-                    gdb_command = "gdb {0} {1}".format(binary, core_path)
-                    teamcity_message("Detected core file {0}. Gdb command:\n{1}"
-                                     .format(core_path, gdb_command), status="WARNING")
-                else:
-                    teamcity_message("Detected core file {0}".format(core_path), status="WARNING")
-
+            save_failed_test(options, suite_name, suite_path)
             raise StepFailedWithNonCriticalError("Tests '{0}' failed".format(suite_name))
     finally:
         shutil.rmtree(sandbox_current)
+        if os.path.exists(sandbox_storage):
+            shutil.rmtree(sandbox_storage)
 
 
 def kill_by_name(name):
@@ -493,6 +510,8 @@ def clean_failed_tests(options, max_allowed_size=None):
             teamcity_message("Removing {0}...".format(path), status="WARNING")
             if os.path.isdir(path):
                 shutil.rmtree(path, onerror=rmtree_onerror)
+                if os.path.exists(path + ".size"):
+                    shutil.rmtree(path + ".size")
             else:
                 os.unlink(path)
         else:
