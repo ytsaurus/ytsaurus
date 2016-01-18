@@ -626,7 +626,10 @@ def ls(path, reverse=True, select=None, start=0, stop=None):
 
 def get_size(path, enable_cache=False):
     if enable_cache and os.path.isdir(path) and os.path.exists(path + ".size"):
-        return int(open(path + ".size").read())
+        try:
+            return int(open(path + ".size").read())
+        except ValueError:
+            pass
 
     size = 0
     for dirpath, dirnames, filenames in os.walk(path):
