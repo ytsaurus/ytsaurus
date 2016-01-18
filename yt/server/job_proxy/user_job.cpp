@@ -121,7 +121,7 @@ public:
         , PipeIOQueue_(New<TActionQueue>("PipeIO"))
         , PeriodicQueue_(New<TActionQueue>("UserJobPeriodic"))
         , JobProberQueue_(New<TActionQueue>("JobProber"))
-        , Process_(GetExecPath(), false)
+        , Process_(New<TProcess>(GetExecPath(), false))
         , CpuAccounting_(CGroupPrefix + ToString(jobId))
         , BlockIO_(CGroupPrefix + ToString(jobId))
         , Memory_(CGroupPrefix + ToString(jobId))
@@ -149,7 +149,7 @@ public:
 
         bool expected = false;
         if (Prepared_.compare_exchange_strong(expected, true)) {
-            Process_.Spawn();
+            ProcessFinished_ = Process_->Spawn();
             LOG_INFO("Job process started");
 
             MemoryWatchdogExecutor_->Start();
@@ -265,7 +265,8 @@ private:
 
     TActionQueuePtr JobProberQueue_;
 
-    TProcess Process_;
+    TProcessPtr Process_;
+    TFuture<void> ProcessFinished_;
 
     TCpuAccounting CpuAccounting_;
     TBlockIO BlockIO_;
@@ -287,17 +288,17 @@ private:
 
         PreparePipes();
 
-        Process_.AddArgument("--executor");
-        Process_.AddArguments({"--command", UserJobSpec_.shell_command()});
-        Process_.AddArguments({"--config", NFS::CombinePaths(GetCwd(), NExecAgent::ProxyConfigFileName)});
-        Process_.AddArguments({"--working-dir", SandboxDirectoryNames[ESandboxKind::User]});
+        Process_->AddArgument("--executor");
+        Process_->AddArguments({"--command", UserJobSpec_.shell_command()});
+        Process_->AddArguments({"--config", NFS::CombinePaths(GetCwd(), NExecAgent::ProxyConfigFileName)});
+        Process_->AddArguments({"--working-dir", SandboxDirectoryNames[ESandboxKind::User]});
 
         if (UserJobSpec_.enable_core_dump()) {
-            Process_.AddArgument("--enable-core-dump");
+            Process_->AddArgument("--enable-core-dump");
         }
 
         if (Config_->UserId) {
-            Process_.AddArguments({"--uid", ::ToString(*Config_->UserId)});
+            Process_->AddArguments({"--uid", ::ToString(*Config_->UserId)});
         }
 
         // Init environment variables.
@@ -305,7 +306,7 @@ private:
         formatter.AddProperty("SandboxPath", NFS::CombinePaths(GetCwd(), SandboxDirectoryNames[ESandboxKind::User]));
 
         for (int i = 0; i < UserJobSpec_.environment_size(); ++i) {
-            Process_.AddArguments({"--env", formatter.Format(UserJobSpec_.environment(i))});
+            Process_->AddArguments({"--env", formatter.Format(UserJobSpec_.environment(i))});
         }
     }
 
@@ -506,7 +507,7 @@ private:
             arg.Pids = Freezer_.GetTasks();
         }
 
-        arg.Pids.erase(std::find(arg.Pids.begin(), arg.Pids.end(), Process_.GetProcessId()));
+        arg.Pids.erase(std::find(arg.Pids.begin(), arg.Pids.end(), Process_->GetProcessId()));
         arg.SignalName = signalName;
         LOG_INFO("Sending signal %v to pids [%v]", arg.SignalName, JoinToString(arg.Pids.begin(), arg.Pids.end()));
 
@@ -578,9 +579,9 @@ private:
 
     TAsyncReaderPtr PrepareOutputPipe(TPipe&& pipe, int jobDescriptor, TOutputStream* output)
     {
-        Process_.AddDup2FileAction(pipe.GetWriteFD(), jobDescriptor);
+        Process_->AddDup2FileAction(pipe.GetWriteFD(), jobDescriptor);
 
-        Process_.AddArguments({ "--prepare-pipe", ::ToString(jobDescriptor) });
+        Process_->AddArguments({ "--prepare-pipe", ::ToString(jobDescriptor) });
 
         auto asyncInput = pipe.CreateAsyncReader();
 
@@ -692,8 +693,8 @@ private:
         auto pipe = pipeFactory->Create();
         int jobDescriptor = 0;
 
-        Process_.AddDup2FileAction(pipe.GetReadFD(), jobDescriptor);
-        Process_.AddArguments({ "--prepare-pipe", ::ToString(jobDescriptor) });
+        Process_->AddDup2FileAction(pipe.GetReadFD(), jobDescriptor);
+        Process_->AddArguments({ "--prepare-pipe", ::ToString(jobDescriptor) });
 
         auto format = ConvertTo<TFormat>(TYsonString(UserJobSpec_.input_format()));
         auto asyncOutput = pipe.CreateAsyncWriter();
@@ -765,7 +766,7 @@ private:
         if (UserJobSpec_.use_yamr_descriptors()) {
             // This hack is to work around the fact that usual output pipe accepts a
             // single job descriptor, whilst yamr convention requires fds 1 and 3 to be the same.
-            Process_.AddDup2FileAction(3, 1);
+            Process_->AddDup2FileAction(3, 1);
         } else {
             // Configure statistics output pipe.
             PrepareOutputPipe(pipeFactory.Create(), JobStatisticsFD, CreateStatisticsOutput());
@@ -790,13 +791,13 @@ private:
             {
                 TGuard<TSpinLock> guard(FreezerLock_);
                 Freezer_.Create();
-                Process_.AddArguments({ "--cgroup", Freezer_.GetFullPath() });
+                Process_->AddArguments({ "--cgroup", Freezer_.GetFullPath() });
             }
 
             if (Config_->IsCGroupSupported(TCpuAccounting::Name)) {
                 CpuAccounting_.Create();
-                Process_.AddArguments({ "--cgroup", CpuAccounting_.GetFullPath() });
-                Process_.AddArguments({ "--env", Format("YT_CGROUP_CPUACCT=%v", CpuAccounting_.GetFullPath()) });
+                Process_->AddArguments({ "--cgroup", CpuAccounting_.GetFullPath() });
+                Process_->AddArguments({ "--env", Format("YT_CGROUP_CPUACCT=%v", CpuAccounting_.GetFullPath()) });
             }
 
             if (Config_->IsCGroupSupported(TBlockIO::Name)) {
@@ -804,14 +805,14 @@ private:
                 if (UserJobSpec_.has_blkio_weight()) {
                     BlockIO_.SetWeight(UserJobSpec_.blkio_weight());
                 }
-                Process_.AddArguments({ "--cgroup", BlockIO_.GetFullPath() });
-                Process_.AddArguments({ "--env", Format("YT_CGROUP_BLKIO=%v", BlockIO_.GetFullPath()) });
+                Process_->AddArguments({ "--cgroup", BlockIO_.GetFullPath() });
+                Process_->AddArguments({ "--env", Format("YT_CGROUP_BLKIO=%v", BlockIO_.GetFullPath()) });
             }
 
             if (Config_->IsCGroupSupported(TMemory::Name)) {
                 Memory_.Create();
-                Process_.AddArguments({ "--cgroup", Memory_.GetFullPath() });
-                Process_.AddArguments({ "--env", Format("YT_CGROUP_MEMORY=%v", Memory_.GetFullPath()) });
+                Process_->AddArguments({ "--cgroup", Memory_.GetFullPath() });
+                Process_->AddArguments({ "--env", Format("YT_CGROUP_MEMORY=%v", Memory_.GetFullPath()) });
             }
         } catch (const std::exception& ex) {
             LOG_FATAL(ex, "Failed to create required cgroups");
@@ -941,7 +942,7 @@ private:
         // Then, wait for job process to finish.
         // Theoretically, process may have explicitely closed its output pipes,
         // but still be doing some computations.
-        auto jobExitError = Process_.Wait();
+        auto jobExitError = WaitFor(ProcessFinished_);
         LOG_INFO(jobExitError, "Job process completed");
         onIOError.Run(jobExitError);
 
