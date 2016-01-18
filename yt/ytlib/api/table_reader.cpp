@@ -147,19 +147,20 @@ void TSchemalessTableReader::DoOpen()
         userObject,
         Transaction_ ? Transaction_->GetId() : NullTransactionId,
         Logger,
-        EPermission::Read);
+        EPermission::Read,
+        Config_->SuppressAccessTracking);
+
     const auto& objectId = userObject.ObjectId;
     const auto tableCellTag = userObject.CellTag;
 
+    auto objectIdPath = FromObjectId(objectId);
+    
     if (userObject.Type != EObjectType::Table) {
         THROW_ERROR_EXCEPTION("Invalid type of %v: expected %Qlv, actual %Qlv",
             path,
             EObjectType::Table,
             userObject.Type);
     }
-
-    const auto& objectId = userObject.ObjectId;
-    const auto tableCellTag = userObject.CellTag;
 
     bool dynamic;
     TTableSchema schema;

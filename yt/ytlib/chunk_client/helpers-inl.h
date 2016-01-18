@@ -21,7 +21,7 @@ namespace NYT {
 namespace NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
-    
+
 template <class T>
 void GetUserObjectBasicAttributes(
     NApi::IClientPtr client, 

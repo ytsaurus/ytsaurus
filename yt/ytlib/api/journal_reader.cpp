@@ -2,6 +2,7 @@
 #include "private.h"
 #include "config.h"
 #include "connection.h"
+#include "transaction.h"
 
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/ytlib/chunk_client/chunk_reader.h>
@@ -104,44 +105,27 @@ private:
     {
         LOG_INFO("Opening journal reader");
 
-        auto cellTag = InvalidCellTag;
-        TObjectId objectId;
+        TUserObject userObject;
+        userObject.Path = Path_;
 
-        {
-            LOG_INFO("Requesting basic attributes");
+        GetUserObjectBasicAttributes<TUserObject>(
+            Client_,
+            userObject,
+            Transaction_ ? Transaction_->GetId() : NullTransactionId,
+            Logger,
+            EPermission::Read);
 
-            auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::LeaderOrFollower);
-            TObjectServiceProxy proxy(channel);
-
-            auto req = TJournalYPathProxy::GetBasicAttributes(Path_);
-            req->set_permissions(static_cast<ui32>(EPermission::Read));
-            SetTransactionId(req, Transaction_);
-
-            auto rspOrError = WaitFor(proxy.Execute(req));
-            THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error getting basic attributes for journal %v",
-                Path_);
-
-            const auto& rsp = rspOrError.Value();
-
-            objectId = FromProto<TObjectId>(rsp->object_id());
-            cellTag = rsp->cell_tag();
-
-            LOG_INFO("Basic attributes received (ObjectId: %v, CellTag: %v)",
-                objectId,
-                cellTag);
-        }
-
-        {
-            auto type = TypeFromId(objectId);
-            if (type != EObjectType::Journal) {
-                THROW_ERROR_EXCEPTION("Invalid type of %v: expected %Qlv, actual %Qlv",
-                    Path_,
-                    EObjectType::Journal,
-                    type);
-            }
-        }
+        const auto cellTag = userObject.CellTag;
+        const auto& objectId = userObject.ObjectId;
 
         auto objectIdPath = FromObjectId(objectId);
+
+        if (userObject.Type != EObjectType::Journal) {
+            THROW_ERROR_EXCEPTION("Invalid type of %v: expected %Qlv, actual %Qlv",
+                Path_,
+                EObjectType::Journal,
+                userObject.Type);
+        }
 
         {
             LOG_INFO("Fetching journal chunks");

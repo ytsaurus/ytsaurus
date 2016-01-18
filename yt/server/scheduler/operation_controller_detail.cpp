@@ -990,6 +990,7 @@ void TOperationControllerBase::Prepare()
         InputTransactionId,
         Logger,
         EPermission::Read);
+
     for (const auto& table : InputTables) {
         if (table.Type != EObjectType::Table) {
             THROW_ERROR_EXCEPTION("Object %v has invalid type: expected %Qlv, actual %Qlv",
@@ -1005,6 +1006,7 @@ void TOperationControllerBase::Prepare()
         OutputTransactionId,
         Logger,
         EPermission::Write);
+
     for (const auto& table : OutputTables) {
         if (table.Type != EObjectType::Table) {
             THROW_ERROR_EXCEPTION("Object %v has invalid type: expected %Qlv, actual %Qlv",
@@ -3002,7 +3004,6 @@ void TOperationControllerBase::InitQuerySpec(
             InputTransactionId,
             Logger,
             EPermission::Read);
-
 
         LockUserFiles(
             &udfFiles,
