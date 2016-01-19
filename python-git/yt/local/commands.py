@@ -287,7 +287,7 @@ def list_instances(path=None):
     result = []
     for dir_ in os.listdir(path):
         full_path = os.path.join(path, dir_)
-        if not os.path.isdir(dir_):
+        if not os.path.isdir(full_path):
             logger.info("Found unknown object in instances root: %s", full_path)
             continue
 
