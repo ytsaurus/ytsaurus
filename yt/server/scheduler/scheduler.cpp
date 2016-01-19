@@ -436,16 +436,6 @@ public:
             .Run();
     }
 
-    TJobProberServiceProxy CreateJobProberProxy(const TJobPtr& job)
-    {
-        const auto& address = job->GetNode()->GetInterconnectAddress();
-        auto channel = NChunkClient::LightNodeChannelFactory->CreateChannel(address);
-
-        TJobProberServiceProxy proxy(channel);
-        proxy.SetDefaultTimeout(Bootstrap_->GetConfig()->Scheduler->JobProberRpcTimeout);
-        return proxy;
-    }
-
     void ProcessHeartbeatJobs(
         TExecNodePtr node,
         NJobTrackerClient::NProto::TReqHeartbeat* request,
@@ -1986,6 +1976,16 @@ private:
             default:
                 YUNREACHABLE();
         }
+    }
+
+    TJobProberServiceProxy CreateJobProberProxy(const TJobPtr& job)
+    {
+        const auto& address = job->GetNode()->GetInterconnectAddress();
+        auto channel = NChunkClient::LightNodeChannelFactory->CreateChannel(address);
+
+        TJobProberServiceProxy proxy(channel);
+        proxy.SetDefaultTimeout(Bootstrap_->GetConfig()->Scheduler->JobProberRpcTimeout);
+        return proxy;
     }
 
     TYsonString DoStrace(const TJobId& jobId)
