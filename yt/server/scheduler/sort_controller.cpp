@@ -1838,12 +1838,13 @@ private:
         WaitFor(asyncSamplesResult)
             .ThrowOnError();
 
+        InitJobIOConfigs();
+        
         PROFILE_TIMING ("/samples_processing_time") {
             auto sortedSamples = SortSamples(samplesFetcher->GetSamples());
             BuildPartitions(sortedSamples);
         }
 
-        InitJobIOConfigs();
         InitJobSpecTemplates();
     }
 
