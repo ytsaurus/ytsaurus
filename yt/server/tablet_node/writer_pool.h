@@ -22,7 +22,7 @@ class TChunkWriterPool
 public:
     TChunkWriterPool(
         TInMemoryManagerPtr inMemoryManager,
-        TTablet* tablet,
+        TTabletSnapshotPtr tabletSnapshot,
         int poolSize,
         NTableClient::TTableWriterConfigPtr writerConfig,
         TTabletWriterOptionsPtr writerOptions,
@@ -41,7 +41,7 @@ private:
     class TFinalizingWriter;
 
     const TInMemoryManagerPtr InMemoryManager_;
-    const TTablet* const Tablet_;
+    const TTabletSnapshotPtr TabletSnapshot_;
     const int PoolSize_;
     const NTableClient::TTableWriterConfigPtr WriterConfig_;
     const TTabletWriterOptionsPtr WriterOptions_;

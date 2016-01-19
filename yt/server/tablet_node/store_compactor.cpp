@@ -363,6 +363,7 @@ private:
         auto nextTabletPivotKey = tablet->GetNextPivotKey();
         auto schema = tablet->Schema();
         auto tabletConfig = tablet->GetConfig();
+        auto tabletSnapshot = tablet->GetSnapshot();
 
         YCHECK(tabletPivotKey == pivotKeys[0]);
 
@@ -392,7 +393,7 @@ private:
 
             auto reader = CreateVersionedTabletReader(
                 Bootstrap_->GetQueryPoolInvoker(),
-                tablet->GetSnapshot(),
+                tabletSnapshot,
                 std::vector<IStorePtr>(stores.begin(), stores.end()),
                 tabletPivotKey,
                 nextTabletPivotKey,
@@ -427,7 +428,7 @@ private:
                 Config_->StoreCompactor->PartitioningWriterPoolSize);
             TChunkWriterPool writerPool(
                 Bootstrap_->GetInMemoryManager(),
-                tablet,
+                tabletSnapshot,
                 writerPoolSize,
                 Config_->ChunkWriter,
                 writerOptions,
@@ -557,7 +558,6 @@ private:
 
             YCHECK(readRowCount == writeRowCount);
 
-            auto inMemoryManager = Bootstrap_->GetInMemoryManager();
             TReqCommitTabletStoresUpdate hydraRequest;
             ToProto(hydraRequest.mutable_tablet_id(), tabletId);
             hydraRequest.set_mount_revision(mountRevision);
@@ -621,6 +621,7 @@ private:
         auto nextTabletPivotKey = tablet->GetNextPivotKey();
         auto schema = tablet->Schema();
         auto tabletConfig = tablet->GetConfig();
+        auto tabletSnapshot = tablet->GetSnapshot();
         writerOptions->ChunksEden = partition->IsEden();
 
         NLogging::TLogger Logger(TabletNodeLogger);
@@ -653,7 +654,7 @@ private:
 
             auto reader = CreateVersionedTabletReader(
                 Bootstrap_->GetQueryPoolInvoker(),
-                tablet->GetSnapshot(),
+                tabletSnapshot,
                 std::vector<IStorePtr>(stores.begin(), stores.end()),
                 tabletPivotKey,
                 nextTabletPivotKey,
@@ -683,19 +684,17 @@ private:
                     transaction->GetId());
             }
 
-            auto inMemoryManager = Bootstrap_->GetInMemoryManager();
-            auto blockCache = inMemoryManager->CreateInterceptingBlockCache(tabletConfig->InMemoryMode);
-
-            auto writer = CreateVersionedMultiChunkWriter(
+            TChunkWriterPool writerPool(
+                Bootstrap_->GetInMemoryManager(),
+                tabletSnapshot,
+                1,
                 Config_->ChunkWriter,
                 writerOptions,
+                tabletConfig,
                 schema,
                 Bootstrap_->GetMasterClient(),
-                Bootstrap_->GetMasterClient()->GetConnection()->GetPrimaryMasterCellTag(),
-                transaction->GetId(),
-                NullChunkListId,
-                GetUnlimitedThrottler(),
-                blockCache);
+                transaction->GetId());
+            auto writer = writerPool.AllocateWriter();
 
             WaitFor(reader->Open())
                 .ThrowOnError();
@@ -746,12 +745,6 @@ private:
                 auto* descriptor = hydraRequest.add_stores_to_add();
                 descriptor->mutable_store_id()->CopyFrom(chunkSpec.chunk_id());
                 descriptor->mutable_chunk_meta()->CopyFrom(chunkSpec.chunk_meta());
-            }
-            for (const auto& chunkSpec : writer->GetWrittenChunksFullMeta()) {
-                inMemoryManager->FinalizeChunk(
-                    FromProto<TChunkId>(chunkSpec.chunk_id()),
-                    chunkSpec.chunk_meta(),
-                    tablet);
             }
 
             // NB: No exceptions must be thrown beyond this point!
