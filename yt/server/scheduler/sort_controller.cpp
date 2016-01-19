@@ -2445,11 +2445,12 @@ private:
             }
         }
 
+        InitJobIOConfigs();
+
         PROFILE_TIMING ("/input_processing_time") {
             BuildPartitions();
         }
 
-        InitJobIOConfigs();
         InitJobSpecTemplates();
     }
 
