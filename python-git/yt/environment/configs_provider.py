@@ -1,7 +1,7 @@
 import default_configs
 from helpers import versions_cmp
 
-from yt.common import YtError, unlist
+from yt.common import YtError, unlist, update
 from yt.yson import YsonString
 
 import os
@@ -150,11 +150,31 @@ class ConfigsProvider_17(ConfigsProvider):
 
         return [configs]
 
-    def _get_cache_addresses(self):
-        if self._node_addresses:
-            return self._node_addresses
+    def _get_cluster_connection_config(self, enable_master_cache=False,
+                                       timestamp_provider_from_cache=False):
+        cluster_connection = {}
+
+        cluster_connection["master"] = {
+            "addresses": self._master_addresses["primary"],
+            "cell_id": "ffffffff-ffffffff-ffffffff-ffffffff",
+            "cell_tag": self._master_cell_tag,
+            "rpc_timeout": 5000
+        }
+        if enable_master_cache:
+            cluster_connection["master_cache"] = {
+                "addresses": self._master_addresses["primary"],
+                "cell_id": "ffffffff-ffffffff-ffffffff-ffffffff",
+                "cell_tag": self._master_cell_tag
+            }
+
+        if timestamp_provider_from_cache and self._node_addresses:
+            cluster_connection["timestamp_provider"] = {"addresses": self._node_addresses}
         else:
-            return self._master_addresses["primary"]
+            cluster_connection["timestamp_provider"] = {"addresses": self._master_addresses["primary"]}
+
+        cluster_connection["transaction_manager"] = {"ping_period": 500}
+
+        return cluster_connection
 
     def get_scheduler_configs(self, scheduler_count, scheduler_dirs):
         configs = []
@@ -163,15 +183,7 @@ class ConfigsProvider_17(ConfigsProvider):
             config = default_configs.get_scheduler_config()
 
             config["address_resolver"]["localhost_fqdn"] = self.fqdn
-
-            config["cluster_connection"]["master"] = {
-                "addresses": self._master_addresses["primary"],
-                "cell_id": "ffffffff-ffffffff-ffffffff-ffffffff",
-                "cell_tag": self._master_cell_tag,
-                "rpc_timeout": 5000
-            }
-            config["cluster_connection"]["timestamp_provider"]["addresses"] = self._master_addresses["primary"]
-            config["cluster_connection"]["transaction_manager"]["ping_period"] = 500
+            config["cluster_connection"] = self._get_cluster_connection_config()
 
             config["rpc_port"] = self.ports["scheduler"][2 * i]
             config["monitoring_port"] = self.ports["scheduler"][2 * i + 1]
@@ -206,19 +218,8 @@ class ConfigsProvider_17(ConfigsProvider):
             config["rpc_port"] = self.ports["node"][2 * i]
             config["monitoring_port"] = self.ports["node"][2 * i + 1]
 
-            config["cluster_connection"]["master"] = {
-                "addresses": self._master_addresses["primary"],
-                "cell_id": "ffffffff-ffffffff-ffffffff-ffffffff",
-                "cell_tag": self._master_cell_tag,
-                "rpc_timeout": 5000
-            }
-            config["cluster_connection"]["master_cache"] = {
-                "addresses": self._master_addresses["primary"],
-                "cell_id": "ffffffff-ffffffff-ffffffff-ffffffff",
-                "cell_tag": self._master_cell_tag
-            }
-            config["cluster_connection"]["timestamp_provider"]["addresses"] = self._master_addresses["primary"]
-            config["cluster_connection"]["transaction_manager"]["ping_period"] = 500
+            config["cluster_connection"]["master"] = \
+                self._get_cluster_connection_config(enable_master_cache=True)
 
             config["data_node"]["multiplexed_changelog"] = {}
             config["data_node"]["multiplexed_changelog"]["path"] = os.path.join(node_dirs[i], "multiplexed")
@@ -247,12 +248,7 @@ class ConfigsProvider_17(ConfigsProvider):
 
     def get_proxy_config(self, proxy_dir):
         driver_config = default_configs.get_driver_config()
-        driver_config["master"] = {
-            "addresses": self._master_addresses["primary"],
-            "cell_id": "ffffffff-ffffffff-ffffffff-ffffffff",
-            "cell_tag": self._master_cell_tag
-        }
-        driver_config["timestamp_provider"]["addresses"] = self._master_addresses["primary"]
+        update(driver_config, self._get_cluster_connection_config())
 
         proxy_config = _generate_common_proxy_config(proxy_dir, self.ports["proxy"],
                                                      self.enable_debug_logging, self.fqdn)
@@ -261,16 +257,8 @@ class ConfigsProvider_17(ConfigsProvider):
         return proxy_config
 
     def get_driver_configs(self):
-        config = default_configs.get_driver_config()
-        config["master"] = {
-            "addresses": self._master_addresses["primary"],
-            "cell_id": "ffffffff-ffffffff-ffffffff-ffffffff",
-            "cell_tag": self._master_cell_tag
-        }
-        config["timestamp_provider"]["addresses"] = self._get_cache_addresses()
-        config["transaction_manager"]["ping_period"] = 500
-
-        return [config]
+        return [update(default_configs.get_driver_config(),
+                       self._get_cluster_connection_config(timestamp_provider_from_cache=True))]
 
 class ConfigsProvider_17_3(ConfigsProvider_17):
     def get_node_configs(self, node_count, node_dirs):
@@ -403,6 +391,38 @@ class ConfigsProvider_18(ConfigsProvider):
 
         return cell_configs
 
+    def _get_cluster_connection_config(self, enable_master_cache=False, timestamp_provider_from_cache=False):
+        cluster_connection = {}
+
+        cluster_connection["primary_master"] = {
+            "addresses": self._master_addresses["primary"],
+            "cell_id": self._primary_master_cell_id,
+            "rpc_timeout": 5000
+        }
+
+        if enable_master_cache:
+            cluster_connection["master_cache"] = {
+                "cell_id": self._primary_master_cell_id,
+                "addresses": self._master_addresses["primary"]
+            }
+
+        secondary_masters_info = zip(self._master_addresses["secondary"], self._secondary_masters_cell_ids)
+        cluster_connection["secondary_masters"] = []
+        for addresses, cell_id in secondary_masters_info:
+            cluster_connection["secondary_masters"].append({
+                "addresses": addresses,
+                "cell_id": cell_id
+            })
+
+        if timestamp_provider_from_cache and self._node_addresses:
+            cluster_connection["timestamp_provider"] = {"addresses": self._node_addresses}
+        else:
+            cluster_connection["timestamp_provider"] = {"addresses": self._master_addresses["primary"]}
+
+        cluster_connection["transaction_manager"] = {"default_ping_period": 500}
+
+        return cluster_connection
+
     def get_scheduler_configs(self, scheduler_count, scheduler_dirs):
         configs = []
 
@@ -410,18 +430,7 @@ class ConfigsProvider_18(ConfigsProvider):
             config = default_configs.get_scheduler_config()
 
             config["address_resolver"]["localhost_fqdn"] = self.fqdn
-
-            config["cluster_connection"]["primary_master"] = {
-                "addresses": self._master_addresses["primary"],
-                "cell_id": self._primary_master_cell_id,
-                "rpc_timeout": 5000
-            }
-
-            secondary_masters_info = zip(self._master_addresses["secondary"], self._secondary_masters_cell_ids)
-            config["cluster_connection"]["secondary_masters"] = [{"addresses": addresses, "cell_id": cell_id}
-                    for addresses, cell_id in secondary_masters_info]
-            config["cluster_connection"]["timestamp_provider"]["addresses"] = self._master_addresses["primary"]
-            config["cluster_connection"]["transaction_manager"]["default_ping_period"] = 500
+            config["cluster_connection"] = self._get_cluster_connection_config()
 
             config["rpc_port"] = self.ports["scheduler"][2 * i]
             config["monitoring_port"] = self.ports["scheduler"][2 * i + 1]
@@ -438,13 +447,7 @@ class ConfigsProvider_18(ConfigsProvider):
 
     def get_proxy_config(self, proxy_dir):
         driver_config = default_configs.get_driver_config()
-        driver_config["primary_master"] = {}
-        driver_config["primary_master"]["addresses"] = self._master_addresses["primary"]
-        driver_config["primary_master"]["cell_id"] = self._primary_master_cell_id
-        secondary_masters_info = zip(self._master_addresses["secondary"], self._secondary_masters_cell_ids)
-        driver_config["secondary_masters"] = [{"addresses": addresses, "cell_id": cell_id}
-                for addresses, cell_id in secondary_masters_info]
-        driver_config["timestamp_provider"]["addresses"] = self._master_addresses["primary"]
+        update(driver_config, self._get_cluster_connection_config())
 
         proxy_config = _generate_common_proxy_config(proxy_dir, self.ports["proxy"],
                                                      self.enable_debug_logging, self.fqdn)
@@ -476,23 +479,7 @@ class ConfigsProvider_18(ConfigsProvider):
             config["cell_directory_synchronizer"] = {
                 "sync_period": 1000
             }
-
-            config["cluster_connection"]["primary_master"] = {
-                "cell_id": self._primary_master_cell_id,
-                "addresses": self._master_addresses["primary"],
-                "rpc_timeout": 5000
-            }
-
-            config["cluster_connection"]["master_cache"] = {
-                "cell_id": self._primary_master_cell_id,
-                "addresses": self._master_addresses["primary"]
-            }
-
-            secondary_masters_info = zip(self._master_addresses["secondary"], self._secondary_masters_cell_ids)
-            config["cluster_connection"]["secondary_masters"] = [{"addresses": addresses_, "cell_id": cell_id}
-                    for addresses_, cell_id in secondary_masters_info]
-            config["cluster_connection"]["timestamp_provider"]["addresses"] = self._master_addresses["primary"]
-            config["cluster_connection"]["transaction_manager"]["default_ping_period"] = 500
+            config["cluster_connection"] = self._get_cluster_connection_config(enable_master_cache=True)
 
             config["data_node"]["cache_locations"] = []
             config["data_node"]["cache_locations"].append({"path": os.path.join(node_dirs[i], "chunk_cache")})
@@ -524,33 +511,16 @@ class ConfigsProvider_18(ConfigsProvider):
 
         return configs
 
-    def _get_cache_addresses(self):
-        if self._node_addresses:
-            return self._node_addresses
-        else:
-            return self._master_addresses["primary"]
-
     def get_driver_configs(self):
         configs = []
 
         for cell_index in xrange(self._secondary_master_cells_count + 1):
             config = default_configs.get_driver_config()
+            update(config, self._get_cluster_connection_config(timestamp_provider_from_cache=True))
 
-            config["primary_master"] = {
-                "addresses": self._master_addresses["primary"],
-                "cell_id": self._primary_master_cell_id,
-                "rpc_timeout": 5000
-            }
-
-            # Main driver config requires secondary masters
-            if cell_index == 0:
-                secondary_masters_info = zip(self._master_addresses["secondary"], self._secondary_masters_cell_ids)
-
-                config["secondary_masters"] = [{"addresses": addresses_, "cell_id": cell_id}
-                    for addresses_, cell_id in secondary_masters_info]
-
-            config["timestamp_provider"]["addresses"] = self._get_cache_addresses()
-            config["transaction_manager"]["default_ping_period"] = 500
+            # Only main driver config requires secondary masters
+            if cell_index != 0 and "secondary_masters" in config:
+                del config["secondary_masters"]
 
             configs.append(config)
 

@@ -3,8 +3,8 @@ import yt.yson as yson
 
 import socket
 import os
-import errno
 import fcntl
+import subprocess
 
 GEN_PORT_ATTEMPTS = 10
 
@@ -175,3 +175,14 @@ def is_dead_or_zombie(pid):
         pass
 
     return True
+
+def get_lsof_diagnostic(port):
+    command = "sudo lsof -i :{0} | sed 1d".format(port)
+    try:
+        lsof_output = subprocess.check_output(command, shell=True).strip()
+        return "Failed to bind port {0}, lsof output: {1}" \
+               .format(port, lsof_output)
+    except subprocess.CalledProcessError:
+        pass
+
+    return "Failed to bind port {0}, lsof found nothing."

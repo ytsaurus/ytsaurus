@@ -1,6 +1,6 @@
 from configs_provider import ConfigsProviderFactory, init_logging
 from helpers import versions_cmp, is_binary_found, read_config, write_config, collect_events_from_logs, \
-                    is_dead_or_zombie, get_open_port
+                    is_dead_or_zombie, get_open_port, get_lsof_diagnostic
 
 from yt.common import update, YtError, get_value, remove_file, makedirp, set_pdeathsig
 import yt.yson as yson
@@ -49,38 +49,23 @@ def _get_proxy_version(proxy_binary_path):
 
     return version
 
-def get_busy_port_diagnostic(stderrs_path):
+def get_busy_port_diagnostic(log_paths):
     patterns = [
         re.compile(r".*Failed to start HTTP server on port (\d+).*"),
         re.compile(r".*Failed to bind a server socket to port (\d+).*")
     ]
 
-    busy_port = None
-    for name in os.listdir(stderrs_path):
-        stderr_file = os.path.join(stderrs_path, name)
-        lines = reversed(open(stderr_file).readlines())
-        for line in lines:
-            if busy_port is not None:
-                break
-
+    for log_path in log_paths:
+        for line in reversed(open(log_path).readlines()):
             for pattern in patterns:
                 match = pattern.match(line)
                 if match:
-                    busy_port = match.group(1)
-                    break
+                    return get_lsof_diagnostic(match.group(1))
 
-    if busy_port is None:
-        return ""
-
-    command = "sudo lsof -i :{0} | sed 1d".format(busy_port)
-    try:
-        lsof_output = subprocess.check_output(command, shell=True).strip()
-        return "failed to bind port {0}, lsof output: {1}" \
-               .format(busy_port, lsof_output)
-    except subprocess.CalledProcessError:
-        pass
-
-    return "Failed to bind port {0}, lsof found nothing."
+def add_busy_port_diagnostic(error, log_paths):
+    diagnostic = get_busy_port_diagnostic(log_paths)
+    if diagnostic is not None:
+        error.attributes["details"] = diagnostic
 
 def _config_safe_get(config, config_path, key):
     d = config
@@ -169,7 +154,6 @@ class YTEnv(object):
 
         ytserver_version_long = _get_ytserver_version()
         logger.info("Logging started (ytserver version: %s)", ytserver_version_long)
-        logger.info("Path to run: %s", self.path_to_run)
 
         self._ytserver_version = ytserver_version_long.split("-", 1)[0].strip()
 
@@ -261,6 +245,7 @@ class YTEnv(object):
             shutil.rmtree(self.path_to_run, ignore_errors=True)
             return
 
+        self._started = False
         try:
             self._prepare_masters(master_count, master_name, nonvoting_master_count, secondary_master_cell_count, cell_tag)
             self._prepare_schedulers(scheduler_count, scheduler_name)
@@ -276,13 +261,10 @@ class YTEnv(object):
             self.start_proxy(proxy_name, use_proxy_from_package=use_proxy_from_package)
 
             self._write_environment_info_to_file(has_proxy)
+            self._started = True
         except (YtError, KeyboardInterrupt) as err:
-            error = YtError("Failed to start environment", inner_errors=[err])
-            busy_port_diagnostic = get_busy_port_diagnostic(self.stderrs_path)
-            if busy_port_diagnostic:
-                error.attributes["details"] = busy_port_diagnostic
             self.clear_environment()
-            raise error
+            raise YtError("Failed to start environment", inner_errors=[err])
 
     def _get_ports(self, ports_range_start, master_count, secondary_master_cell_count,
                    scheduler_count, node_count, has_proxy, proxy_port):
@@ -327,8 +309,9 @@ class YTEnv(object):
     def _kill_process(self, proc, name):
         proc.poll()
         if proc.returncode is not None:
-            logger.warning("%s (pid: %d, working directory: %s) is already terminated with exit code %d\n",
-                           name, proc.pid, os.path.join(self.path_to_run, name), proc.returncode)
+            if self._started:
+                logger.warning("%s (pid: %d, working directory: %s) is already terminated with exit code %d",
+                               name, proc.pid, os.path.join(self.path_to_run, name), proc.returncode)
             return
 
         os.killpg(proc.pid, signal.SIGKILL)
@@ -358,9 +341,11 @@ class YTEnv(object):
 
             time.sleep(timeout)
             if p.poll():
-                raise YtError("Process {0}-{1} unexpectedly terminated with error code {2}. "
-                              "If the problem is reproducible please report to yt@yandex-team.ru mailing list."
-                              .format(name, number, p.returncode))
+                error = YtError("Process {0}-{1} unexpectedly terminated with error code {2}. "
+                                "If the problem is reproducible please report to yt@yandex-team.ru mailing list."
+                                .format(name, number, p.returncode))
+                add_busy_port_diagnostic(error, self.log_paths[name])
+                raise error
 
             self._process_to_kill[name].append(p)
             self._all_processes[p.pid] = (p, args)
@@ -888,7 +873,7 @@ class YTEnv(object):
             finally:
                 sock.close()
 
-        self._wait_for(started, name="proxy", max_wait_time=20)
+        self._wait_for(started, name=proxy_name, max_wait_time=20)
 
     def _wait_for(self, condition, max_wait_time=40, sleep_quantum=0.1, name=""):
         current_wait_time = 0
@@ -899,6 +884,8 @@ class YTEnv(object):
                 return
             time.sleep(sleep_quantum)
             current_wait_time += sleep_quantum
-        raise YtError("{0} still not ready after {1} seconds. See logs in {2} for details."
-                      .format(name.capitalize(), max_wait_time, os.path.join(self.path_to_run, name)))
 
+        error =  YtError("{0} still not ready after {1} seconds. See logs in working dir for details."
+                         .format(name.capitalize(), max_wait_time))
+        add_busy_port_diagnostic(error, self.log_paths[name])
+        raise error
