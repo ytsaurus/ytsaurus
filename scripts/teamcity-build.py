@@ -211,7 +211,7 @@ def run_unit_tests(options):
             os.path.join(options.working_directory, "bin", "unittester"),
             "--gtest_color=no",
             "--gtest_death_test_style=threadsafe",
-            "--gtest_output=xml:gtest_unittester.xml"],
+            "--gtest_output=xml:" + os.path.join(options.working_directory, "gtest_unittester.xml")],
             cwd=sandbox_current)
     except ChildHasNonZeroExitCode as err:
         teamcity_message('Copying unit tests sandbox from "{0}" to "{1}"'.format(
@@ -507,7 +507,7 @@ def clean_failed_tests(options, max_allowed_size=None):
             if os.path.isdir(path):
                 shutil.rmtree(path, onerror=rmtree_onerror)
                 if os.path.exists(path + ".size"):
-                    shutil.rmtree(path + ".size")
+                    os.remove(path + ".size")
             else:
                 os.unlink(path)
         else:
