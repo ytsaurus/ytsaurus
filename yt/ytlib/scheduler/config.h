@@ -216,6 +216,8 @@ public:
     i64 MemoryLimit;
     double MemoryReserveFactor;
 
+    bool IncludeMemoryMappedFiles;
+
     int IopsThreshold;
 
     bool UseYamrDescriptors;
@@ -250,6 +252,8 @@ public:
             .Default(0.5)
             .GreaterThan(0.)
             .LessThanOrEqual(1.);
+        RegisterParameter("include_memory_mapped_files", IncludeMemoryMappedFiles)
+            .Default(true);
         RegisterParameter("iops_threshold", IopsThreshold)
             .Default(3)
             .GreaterThan(0)

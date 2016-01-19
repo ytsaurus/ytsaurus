@@ -51,7 +51,7 @@ public:
     void FinalizeChunk(
         const NChunkClient::TChunkId& chunkId,
         const NChunkClient::NProto::TChunkMeta& chunkMeta,
-        const TTablet* tablet);
+        const TTabletSnapshotPtr& tablet);
 
 private:
     class TImpl;

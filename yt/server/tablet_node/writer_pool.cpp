@@ -31,10 +31,10 @@ class TChunkWriterPool::TFinalizingWriter
 public:
     TFinalizingWriter(
         TInMemoryManagerPtr inMemoryManager,
-        const TTablet* tablet,
+        TTabletSnapshotPtr tabletSnapshot,
         IVersionedMultiChunkWriterPtr underlyingWriter)
         : InMemoryManager_(std::move(inMemoryManager))
-        , Tablet_(tablet)
+        , TabletSnapshot_(std::move(tabletSnapshot))
         , UnderlyingWriter_(std::move(underlyingWriter))
     { }
 
@@ -66,7 +66,7 @@ public:
                 InMemoryManager_->FinalizeChunk(
                     FromProto<TChunkId>(chunkSpec.chunk_id()),
                     chunkSpec.chunk_meta(),
-                    Tablet_);
+                    TabletSnapshot_);
             }
         }));
 
@@ -100,7 +100,7 @@ public:
 
 private:
     const TInMemoryManagerPtr InMemoryManager_;
-    const TTablet* const Tablet_;
+    const TTabletSnapshotPtr TabletSnapshot_;
     const IVersionedMultiChunkWriterPtr UnderlyingWriter_;
 };
 
@@ -108,7 +108,7 @@ private:
 
 TChunkWriterPool::TChunkWriterPool(
     TInMemoryManagerPtr inMemoryManager,
-    TTablet* tablet,
+    TTabletSnapshotPtr tabletSnapshot,
     int poolSize,
     TTableWriterConfigPtr writerConfig,
     TTabletWriterOptionsPtr writerOptions,
@@ -117,7 +117,7 @@ TChunkWriterPool::TChunkWriterPool(
     IClientPtr client,
     const TTransactionId& transactionId)
     : InMemoryManager_(std::move(inMemoryManager))
-    , Tablet_(tablet)
+    , TabletSnapshot_(std::move(tabletSnapshot))
     , PoolSize_(poolSize)
     , WriterConfig_(std::move(writerConfig))
     , WriterOptions_(std::move(writerOptions))
@@ -143,7 +143,7 @@ IVersionedMultiChunkWriterPtr TChunkWriterPool::AllocateWriter()
                 NullChunkListId,
                 GetUnlimitedThrottler(),
                 blockCache);
-            auto writer = New<TFinalizingWriter>(InMemoryManager_, Tablet_, std::move(underlyingWriter));
+            auto writer = New<TFinalizingWriter>(InMemoryManager_, TabletSnapshot_, std::move(underlyingWriter));
             FreshWriters_.push_back(writer);
             asyncResults.push_back(writer->Open());
         }

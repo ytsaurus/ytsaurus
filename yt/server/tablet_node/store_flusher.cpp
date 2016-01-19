@@ -272,6 +272,7 @@ private:
         auto schema = tablet->Schema();
         auto tabletConfig = tablet->GetConfig();
         auto writerOptions = CloneYsonSerializable(tablet->GetWriterOptions());
+        auto tabletSnapshot = tablet->GetSnapshot();
         writerOptions->ChunksEden = true;
 
         NLogging::TLogger Logger(TabletNodeLogger);
@@ -319,7 +320,7 @@ private:
 
             TChunkWriterPool writerPool(
                 Bootstrap_->GetInMemoryManager(),
-                tablet,
+                tabletSnapshot,
                 1,
                 Config_->ChunkWriter,
                 writerOptions,
