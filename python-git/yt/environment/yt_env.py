@@ -488,6 +488,7 @@ class YTEnv(object):
         is_leader_ready_marker = lambda line: "Leader active" in line or "Initial changelog rotated" in line
         is_restart_occured_marker = lambda line: "Logging started" in line or "Stopped leading" in line
         is_world_init_completed_marker = lambda line: "World initialization completed" in line
+        is_follower_recovery_complete_marker = lambda line: "Follower recovery complete" in line
 
         # First version is less precise and will be used for quick filtering.
         is_secondary_master_registered_marker = lambda line: "Secondary master registered" in line
@@ -495,41 +496,34 @@ class YTEnv(object):
 
         def is_quorum_ready(starting_master_events):
             is_world_initialization_done = False
-            is_leader_ready = False
-
-            master_id = 0
-
-            ok = False
+            ready_replica_count = 0
 
             for replica_index, lines in enumerate(starting_master_events):
-                if ok:
-                    break
-
                 restart_occured_and_not_ready = False
 
                 for line in lines:
-                    if is_restart_occured_marker(line) and not is_leader_ready:
+                    if is_restart_occured_marker(line):
                         restart_occured_and_not_ready = True
+                        continue
 
                     if is_world_init_completed_marker(line):
                         is_world_initialization_done = True
+                        continue
 
                     if is_leader_ready_marker(line) and not restart_occured_and_not_ready:
-                        is_leader_ready = True
+                        ready_replica_count += 1
                         if not secondary:
                             self.leader_log = self.log_paths[master_name][replica_index]
-                            self.leader_id = master_id
+                            self.leader_id = replica_index
 
-                    if is_leader_ready and is_world_initialization_done:
-                        ok = True
-                        break
+                    if is_follower_recovery_complete_marker(line) and not restart_occured_and_not_ready:
+                        ready_replica_count += 1
 
-                master_id += 1
-
-            return ok
+            return ready_replica_count == masters_count and is_world_initialization_done
 
         def masters_ready():
-            event_filters = [is_leader_ready_marker, is_world_init_completed_marker, is_restart_occured_marker]
+            event_filters = [is_leader_ready_marker, is_world_init_completed_marker, is_restart_occured_marker,
+                             is_follower_recovery_complete_marker]
             if secondary:
                 event_filters.append(is_secondary_master_registered_marker)
             # Each element is a list with log lines of each replica of the cell.
