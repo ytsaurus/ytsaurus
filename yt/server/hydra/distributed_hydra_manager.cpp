@@ -634,13 +634,14 @@ private:
                     BIND(&TDecoratedAutomaton::CommitMutations, DecoratedAutomaton_, committedVersion, true));
                 break;
 
-            case EPeerState::FollowerRecovery:
+            case EPeerState::FollowerRecovery: {
                 CheckForInitialPing(loggedVersion);
                 auto followerRecovery = epochContext->FollowerRecovery;
                 if (followerRecovery) {
                     followerRecovery->SetCommittedVersion(committedVersion);
                 }
                 break;
+            }
 
             default:
                 YUNREACHABLE();
