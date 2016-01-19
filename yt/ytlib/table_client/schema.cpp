@@ -9,6 +9,8 @@
 
 #include <yt/ytlib/table_client/chunk_meta.pb.h>
 
+#include <yt/ytlib/chunk_client/schema.h>
+
 // TODO(sandello): Refine this dependencies.
 // TODO(lukyan): Remove this dependencies.
 #include <yt/ytlib/query_client/plan_fragment.h>
@@ -23,6 +25,7 @@ namespace NTableClient {
 using namespace NYTree;
 using namespace NYson;
 using namespace NQueryClient;
+using namespace NChunkClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -314,6 +317,34 @@ TTableSchema TTableSchema::FromKeyColumns(const TKeyColumns& keyColumns)
     tableSchema.KeyColumnCount_ = keyColumns.size();
     tableSchema.Validate();
     return tableSchema;
+}
+
+TTableSchema TTableSchema::ExtendByNonKeyAnyColumns(
+    const std::vector<Stroka>& columnNames) const
+{
+    TTableSchema tableSchema = *this;
+    yhash_set<Stroka> uniqueColumnNames;
+    for (const auto& column : tableSchema.Columns()) {
+        uniqueColumnNames.insert(column.Name);
+    }
+    for (const auto& columnName : columnNames) {
+        if (uniqueColumnNames.insert(columnName).second) {
+            tableSchema.Columns_.push_back(
+                TColumnSchema(columnName, EValueType::Any));
+        }
+    }
+    return tableSchema;
+}
+
+TTableSchema TTableSchema::ExtendByChannels(
+    const TChannels& channels) const
+{
+    std::vector<Stroka> columnNames;
+    for (const auto& channel : channels) {
+        const auto& channelColumns = channel.GetColumns();
+        columnNames.insert(columnNames.end(), channelColumns.begin(), channelColumns.end());
+    }
+    return ExtendByNonKeyAnyColumns(columnNames);
 }
 
 void TTableSchema::Save(TStreamSaveContext& context) const

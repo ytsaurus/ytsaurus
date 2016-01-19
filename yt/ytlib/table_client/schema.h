@@ -87,7 +87,11 @@ public:
 
     TKeyColumns GetKeyColumns() const;
     int GetKeyColumnCount() const;
+    
     static TTableSchema FromKeyColumns(const TKeyColumns& keyColumns);
+
+    TTableSchema ExtendByNonKeyAnyColumns(const std::vector<Stroka>& columnNames);
+    TTableSchema ExtendByChannels(const NChunkClient::TChannels& channels);
 
     void Save(TStreamSaveContext& context) const;
     void Load(TStreamLoadContext& context);
