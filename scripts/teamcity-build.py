@@ -54,13 +54,8 @@ def prepare(options):
     os.environ["LANG"] = "en_US.UTF-8"
     os.environ["LC_ALL"] = "en_US.UTF-8"
 
-    script_directory = os.path.dirname(os.path.realpath(__file__))
-
     options.build_number = os.environ["BUILD_NUMBER"]
     options.build_vcs_number = os.environ["BUILD_VCS_NUMBER"]
-    options.build_git_depth = run_captured(
-        [os.path.join(script_directory, "git-depth.py")],
-        cwd=options.checkout_directory)
 
     def checked_yes_no(s):
         s = s.upper()
@@ -130,7 +125,6 @@ def configure(options):
         "-DYT_BUILD_BRANCH={0}".format(options.branch),
         "-DYT_BUILD_NUMBER={0}".format(options.build_number),
         "-DYT_BUILD_VCS_NUMBER={0}".format(options.build_vcs_number[0:7]),
-        "-DYT_BUILD_GIT_DEPTH={0}".format(options.build_git_depth),
         "-DYT_BUILD_ENABLE_NODEJS={0}".format(options.build_enable_nodejs),
         "-DYT_BUILD_ENABLE_PYTHON={0}".format(options.build_enable_python),
         "-DYT_BUILD_ENABLE_PERL={0}".format(options.build_enable_perl),
@@ -217,7 +211,7 @@ def run_unit_tests(options):
             os.path.join(options.working_directory, "bin", "unittester"),
             "--gtest_color=no",
             "--gtest_death_test_style=threadsafe",
-            "--gtest_output=xml:gtest_unittester.xml"],
+            "--gtest_output=xml:" + os.path.join(options.working_directory, "gtest_unittester.xml")],
             cwd=sandbox_current)
     except ChildHasNonZeroExitCode as err:
         teamcity_message('Copying unit tests sandbox from "{0}" to "{1}"'.format(
@@ -344,7 +338,8 @@ def run_pytest(options, suite_name, suite_path, pytest_args=None):
                     "PATH": "{0}/bin:{0}/yt/nodejs:{1}".format(options.working_directory, os.environ.get("PATH", "")),
                     "PYTHONPATH": "{0}/python:{1}".format(options.checkout_directory, os.environ.get("PYTHONPATH", "")),
                     "TESTS_SANDBOX": sandbox_current,
-                    "TESTS_SANDBOX_STORAGE": sandbox_storage
+                    "TESTS_SANDBOX_STORAGE": sandbox_storage,
+                    "YT_CAPTURE_STDERR_TO_FILE": "1"
                 })
         except ChildHasNonZeroExitCode:
             teamcity_message("(ignoring child failure since we are reading test results from XML)")
@@ -379,9 +374,10 @@ def run_pytest(options, suite_name, suite_path, pytest_args=None):
             save_failed_test(options, suite_name, suite_path)
             raise StepFailedWithNonCriticalError("Tests '{0}' failed".format(suite_name))
     finally:
-        shutil.rmtree(sandbox_current)
+        # Note: ytserver tests may create files with that cannot be deleted by teamcity user.
+        sudo_rmtree(sandbox_current)
         if os.path.exists(sandbox_storage):
-            shutil.rmtree(sandbox_storage)
+            sudo_rmtree(sandbox_storage)
 
 
 def kill_by_name(name):
@@ -511,7 +507,7 @@ def clean_failed_tests(options, max_allowed_size=None):
             if os.path.isdir(path):
                 shutil.rmtree(path, onerror=rmtree_onerror)
                 if os.path.exists(path + ".size"):
-                    shutil.rmtree(path + ".size")
+                    os.remove(path + ".size")
             else:
                 os.unlink(path)
         else:
@@ -632,7 +628,10 @@ def ls(path, reverse=True, select=None, start=0, stop=None):
 
 def get_size(path, enable_cache=False):
     if enable_cache and os.path.isdir(path) and os.path.exists(path + ".size"):
-        return int(open(path + ".size").read())
+        try:
+            return int(open(path + ".size").read())
+        except ValueError:
+            pass
 
     size = 0
     for dirpath, dirnames, filenames in os.walk(path):
@@ -676,6 +675,14 @@ def copytree(src, dst, symlinks=False, ignore=None):
             os.symlink(os.readlink(src_path), dst_path)
         else:
             shutil.copy2(src_path, dst_path)
+
+def shellquote(str):
+    return "'" + str.replace("'", "'\\''") + "'"
+
+def sudo_rmtree(path):
+    abspath = os.path.abspath(path)
+    assert abspath.startswith("/home/teamcity")
+    run("sudo rm -rf " + shellquote(abspath), shell=True)
 
 def get_command_from_core_file(core_path):
     # Example output:
