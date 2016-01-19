@@ -636,7 +636,10 @@ private:
 
             case EPeerState::FollowerRecovery:
                 CheckForInitialPing(loggedVersion);
-                epochContext->FollowerRecovery->SetCommittedVersion(committedVersion);
+                auto followerRecovery = epochContext->FollowerRecovery;
+                if (followerRecovery) {
+                    followerRecovery->SetCommittedVersion(committedVersion);
+                }
                 break;
 
             default:
