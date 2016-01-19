@@ -1,6 +1,7 @@
 import executor
 import scheduling
 
+import sys
 import time
 import execnet
 from functools import partial
@@ -110,9 +111,11 @@ class YtParallelTestsRunnerPlugin(object):
                 self._log_to_terminal("Executor {0} was successfully restarted".format(process_index))
                 self.failures_count += 1
             else:
-                pytest.exit("Executor failures count limit exceeded ({0} > {1}). "
-                            "Test session was terminated."
-                            .format(self.failures_count, PROCESS_FAILURES_LIMIT))
+                print >>sys.stderr, "Executor failures count limit exceeded ({0} > {1}). " \
+                                    "Test session was terminated." \
+                                    .format(self.failures_count, PROCESS_FAILURES_LIMIT)
+                sys.exit(1)
+
         else:
             self.finished_processes.append(process_index)
 
