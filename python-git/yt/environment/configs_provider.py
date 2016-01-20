@@ -183,7 +183,7 @@ class ConfigsProvider_17(ConfigsProvider):
             config = default_configs.get_scheduler_config()
 
             config["address_resolver"]["localhost_fqdn"] = self.fqdn
-            config["cluster_connection"] = self._get_cluster_connection_config()
+            update(config["cluster_connection"], self._get_cluster_connection_config())
 
             config["rpc_port"] = self.ports["scheduler"][2 * i]
             config["monitoring_port"] = self.ports["scheduler"][2 * i + 1]
@@ -218,8 +218,8 @@ class ConfigsProvider_17(ConfigsProvider):
             config["rpc_port"] = self.ports["node"][2 * i]
             config["monitoring_port"] = self.ports["node"][2 * i + 1]
 
-            config["cluster_connection"]["master"] = \
-                self._get_cluster_connection_config(enable_master_cache=True)
+            update(config["cluster_connection"],
+                   self._get_cluster_connection_config(enable_master_cache=True))
 
             config["data_node"]["multiplexed_changelog"] = {}
             config["data_node"]["multiplexed_changelog"]["path"] = os.path.join(node_dirs[i], "multiplexed")
@@ -430,7 +430,8 @@ class ConfigsProvider_18(ConfigsProvider):
             config = default_configs.get_scheduler_config()
 
             config["address_resolver"]["localhost_fqdn"] = self.fqdn
-            config["cluster_connection"] = self._get_cluster_connection_config()
+            update(config["cluster_connection"],
+                   self._get_cluster_connection_config())
 
             config["rpc_port"] = self.ports["scheduler"][2 * i]
             config["monitoring_port"] = self.ports["scheduler"][2 * i + 1]
@@ -479,7 +480,8 @@ class ConfigsProvider_18(ConfigsProvider):
             config["cell_directory_synchronizer"] = {
                 "sync_period": 1000
             }
-            config["cluster_connection"] = self._get_cluster_connection_config(enable_master_cache=True)
+            update(config["cluster_connection"],
+                   self._get_cluster_connection_config(enable_master_cache=True))
 
             config["data_node"]["cache_locations"] = []
             config["data_node"]["cache_locations"].append({"path": os.path.join(node_dirs[i], "chunk_cache")})
