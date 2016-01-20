@@ -185,4 +185,4 @@ def get_lsof_diagnostic(port):
     except subprocess.CalledProcessError:
         pass
 
-    return "Failed to bind port {0}, lsof found nothing."
+    return "Failed to bind port {0}, lsof found nothing.".format(port)
