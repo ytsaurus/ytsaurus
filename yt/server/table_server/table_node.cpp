@@ -111,14 +111,13 @@ void TTableNode::Load(TLoadContext& context)
         auto tableSchemaAttribute = attributesMap["schema"];
         attributesMap.erase("schema");
         if (IsDynamic()) {
-            TableSchema_ = ConvertTo<TTableSchema>(tableSchemaAttribute);
-            auto columns = TableSchema_.Columns();
+            auto columns = ConvertTo<std::vector<TColumnSchema>>(tableSchemaAttribute);
             for (int index = 0; index < keyColumns.size(); ++index) {
                 const auto& columnName = keyColumns[index];
                 YCHECK(columns[index].Name == columnName);
                 columns[index].SetSortOrder(ESortOrder::Ascending);
-                TableSchema_ = TTableSchema(columns, true /* strict */);
             }
+            TableSchema_ = TTableSchema(columns, true /* strict */);
         } else {
             TableSchema_ = TTableSchema::FromKeyColumns(keyColumns);
         }
