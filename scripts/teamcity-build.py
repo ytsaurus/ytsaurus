@@ -682,13 +682,10 @@ def copytree(src, dst, symlinks=False, ignore=None):
         else:
             shutil.copy2(src_path, dst_path)
 
-def shellquote(str):
-    return "'" + str.replace("'", "'\\''") + "'"
-
 def sudo_rmtree(path):
     abspath = os.path.abspath(path)
     assert abspath.startswith("/home/teamcity")
-    run("sudo rm -rf " + shellquote(abspath), shell=True)
+    run(["sudo", "rm", "-rf ", abspath])
 
 def get_command_from_core_file(core_path):
     # Example output:
