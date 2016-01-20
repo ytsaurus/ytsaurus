@@ -12,6 +12,8 @@ import sys
 import logging
 import uuid
 import shutil
+import contextlib
+import tempfile
 from time import sleep
 from threading import Thread
 
@@ -228,6 +230,21 @@ class YTEnvSetup(YTEnv):
     def _reenable_chunk_replicator(self):
         if yt_commands.exists("//sys/@disable_chunk_replicator"):
             yt_commands.remove("//sys/@disable_chunk_replicator")
+
+    @contextlib.contextmanager
+    def tempfolder(self, prefix):
+        basedir = os.path.join(self.Env.path_to_run, "tmp")
+        try:
+            os.mkdir(basedir)
+        except:
+            pass
+        tmpdir = tempfile.mkdtemp(prefix="{0}_{1}_".format(prefix, os.getpid()), dir=basedir)
+        yield tmpdir
+        try:
+            os.rmdir(tmpdir)
+        except:
+            sys.excepthook(*sys.exc_info())
+            pass
 
     def _remove_accounts(self):
         accounts = yt_commands.ls('//sys/accounts', attributes=['builtin'])
