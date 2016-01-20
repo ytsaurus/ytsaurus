@@ -67,7 +67,8 @@ class YTEnvSetup(YTEnv):
 
         cls.path_to_test = path_to_test
         cls.Env = cls()
-        cls.Env.start(path_to_run, pids_filename, kill_child_processes=True)
+        cls.Env.start(path_to_run, pids_filename, kill_child_processes=True,
+                      port_locks_path=os.path.join(SANDBOX_ROOTDIR, "ports"), fqdn="localhost")
 
         if cls.Env.configs['driver']:
             yt_commands.init_driver(cls.Env.configs['driver'])
