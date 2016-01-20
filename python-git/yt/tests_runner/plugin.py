@@ -1,6 +1,7 @@
 import executor
 import scheduling
 
+import os
 import sys
 import time
 import execnet
@@ -114,7 +115,7 @@ class YtParallelTestsRunnerPlugin(object):
                 print >>sys.stderr, "Executor failures count limit exceeded ({0} > {1}). " \
                                     "Test session was terminated." \
                                     .format(self.failures_count, PROCESS_FAILURES_LIMIT)
-                sys.exit(1)
+                os._exit(66)
 
         else:
             self.finished_processes.append(process_index)
