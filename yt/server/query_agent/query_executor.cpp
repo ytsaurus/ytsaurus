@@ -189,7 +189,7 @@ private:
 
                     return remoteExecutor->Execute(
                         subquery,
-                        dataSource,
+                        std::move(dataSource),
                         writer,
                         subqueryOptions);
                 };
@@ -254,7 +254,7 @@ private:
                 auto lowerBound = range.first;
                 auto upperBound = range.second;
 
-                if (keySize == lowerBound.GetCount()  &&
+                if (keySize == lowerBound.GetCount() &&
                     keySize + 1 == upperBound.GetCount() &&
                     upperBound[keySize].Type == EValueType::Max &&
                     CompareRows(lowerBound.Begin(), lowerBound.End(), upperBound.Begin(), upperBound.Begin() + keySize) == 0)
@@ -264,7 +264,6 @@ private:
                     rowRanges.push_back(range);
                 }
             }
-
 
             if (!rowRanges.empty()) {
                 rangesByTablePart.emplace_back(source.Id, std::move(rowRanges));
@@ -277,7 +276,7 @@ private:
         LOG_DEBUG("Splitting sources");
 
         auto rowBuffer = New<TRowBuffer>();
-        auto splits = Split(std::move(rangesByTablePart), rowBuffer, true, Logger, options.VerboseLogging);
+        auto splits = Split(std::move(rangesByTablePart), rowBuffer, Logger, options.VerboseLogging);
         int splitCount = splits.size();
         int splitOffset = 0;
         std::vector<std::vector<TDataRange>> groupedSplits;
@@ -457,7 +456,7 @@ private:
         }
 
         auto rowBuffer = New<TRowBuffer>();
-        auto splits = Split(std::move(rangesByTablePart), rowBuffer, true, Logger, options.VerboseLogging);
+        auto splits = Split(std::move(rangesByTablePart), rowBuffer, Logger, options.VerboseLogging);
 
         LOG_DEBUG("Sorting %v splits", splits.size());
 
@@ -501,7 +500,6 @@ private:
     std::vector<TDataRange> Split(
         std::vector<std::pair<TGuid, TRowRanges>> rangesByTablePart,
         TRowBufferPtr rowBuffer,
-        bool mergeRanges,
         const NLogging::TLogger& Logger,
         bool verboseLogging)
     {
@@ -532,35 +530,31 @@ private:
             securityManager->ValidatePermission(tabletSnapshot, NYTree::EPermission::Read);
 
             std::vector<TRowRange> resultRanges;
-            if (mergeRanges) {
-                int lastIndex = 0;
+            int lastIndex = 0;
 
-                auto addRange = [&] (int count, TUnversionedRow lowerBound, TUnversionedRow upperBound) {
-                    LOG_DEBUG_IF(verboseLogging, "Merging %v ranges into [%v .. %v]",
-                        count,
-                        lowerBound,
-                        upperBound);
-                    resultRanges.emplace_back(lowerBound, upperBound);
-                };
+            auto addRange = [&] (int count, TUnversionedRow lowerBound, TUnversionedRow upperBound) {
+                LOG_DEBUG_IF(verboseLogging, "Merging %v ranges into [%v .. %v]",
+                    count,
+                    lowerBound,
+                    upperBound);
+                resultRanges.emplace_back(lowerBound, upperBound);
+            };
 
-                for (int index = 1; index < keyRanges.size(); ++index) {
-                    auto lowerBound = keyRanges[index].first;
-                    auto upperBound = keyRanges[index - 1].second;
+            for (int index = 1; index < keyRanges.size(); ++index) {
+                auto lowerBound = keyRanges[index].first;
+                auto upperBound = keyRanges[index - 1].second;
 
-                    int totalSampleCount, partitionCount;
-                    std::tie(totalSampleCount, partitionCount) = GetBoundSampleKeys(tabletSnapshot, upperBound, lowerBound);
-                    YCHECK(partitionCount > 0);
+                int totalSampleCount, partitionCount;
+                std::tie(totalSampleCount, partitionCount) = GetBoundSampleKeys(tabletSnapshot, upperBound, lowerBound);
+                YCHECK(partitionCount > 0);
 
-                    if (totalSampleCount != 0 || partitionCount != 1) {
-                        addRange(index - lastIndex, keyRanges[lastIndex].first, upperBound);
-                        lastIndex = index;
-                    }
+                if (totalSampleCount != 0 || partitionCount != 1) {
+                    addRange(index - lastIndex, keyRanges[lastIndex].first, upperBound);
+                    lastIndex = index;
                 }
-
-                addRange(keyRanges.size() - lastIndex, keyRanges[lastIndex].first, keyRanges.back().second);
-            } else {
-                resultRanges = keyRanges;
             }
+
+            addRange(keyRanges.size() - lastIndex, keyRanges[lastIndex].first, keyRanges.back().second);
 
             int totalSampleCount = 0;
             int totalPartitionCount = 0;

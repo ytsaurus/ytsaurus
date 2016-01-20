@@ -611,7 +611,7 @@ TQueryOptions FromProto(const NProto::TQueryOptions& serialized)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ToProto(NProto::TDataRanges* proto, const TDataRanges & dataSource)
+void ToProto(NProto::TDataRanges* proto, const TDataRanges& dataSource)
 {
     ToProto(proto->mutable_id(), dataSource.Id);
 

@@ -397,13 +397,13 @@ TSharedRange<T> DoMakeSharedRange(TContainer&& elements, THolders&&... holders)
     struct THolder
         : public TIntrinsicRefCounted
     {
-        TContainer Elements;
+        typename std::decay<TContainer>::type Elements;
         std::tuple<typename std::decay<THolders>::type...> Holders;
     };
 
     auto holder = New<THolder>();
     holder->Holders = std::tuple<THolders...>(std::forward<THolders>(holders)...);
-    holder->Elements = std::move(elements);
+    holder->Elements = std::forward<TContainer>(elements);
 
     auto range = MakeRange<T>(holder->Elements);
 
@@ -428,8 +428,7 @@ TSharedRange<T> MakeSharedRange(SmallVector<T, N>&& elements, THolders&&... hold
 template <class T, class... THolders>
 TSharedRange<T> MakeSharedRange(const std::vector<T>& elements, THolders&&... holders)
 {
-    auto elementsCopy = elements;
-    return DoMakeSharedRange<T>(std::move(elementsCopy), std::forward<THolders>(holders)...);
+    return DoMakeSharedRange<T>(std::move(elements), std::forward<THolders>(holders)...);
 }
 
 template <class T, class... THolders>

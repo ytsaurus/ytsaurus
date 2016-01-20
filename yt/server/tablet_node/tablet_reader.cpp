@@ -481,7 +481,7 @@ public:
     { }
 
     static void TakePartition(
-        std::vector<IStorePtr> &stores,
+        std::vector<IStorePtr>& stores,
         const TPartitionSnapshotPtr& partitionSnapshot,
         TKey minKey,
         TKey maxKey)
@@ -495,7 +495,7 @@ public:
 
     static ISchemafulReaderPtr Create(
         TTabletSnapshotPtr tabletSnapshot,
-        const TTableSchema &schema,
+        const TTableSchema& schema,
         TSharedRange <TKey> keys,
         TTimestamp timestamp,
         std::vector<IStorePtr> stores)
