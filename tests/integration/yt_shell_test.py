@@ -1,18 +1,10 @@
 import os
 import subprocess
 
-from contextlib import contextmanager
-
 from yt.environment import YTEnv
 from yt_env_setup import resolve_test_paths
 
 import pytest
-
-
-def sh(command):
-    return subprocess.Popen(command,
-                            stdout=subprocess.PIPE,
-                            stderr=subprocess.PIPE).communicate()[0]
 
 
 class ExecutableItem(pytest.Item):
@@ -61,64 +53,6 @@ class ExecutableItem(pytest.Item):
     def reportinfo(self):
         return self.fspath, 0, '%s: %s (%s)' % \
             (self.__class__.__name__, self.name, self.fspath)
-
-
-class ShellItem(ExecutableItem):
-    EXTS = ['.stdout', '.stderr']
-
-    def on_runtest(self, env):
-        stdout_actual, stderr_actual = \
-            [os.path.join(self.sandbox_path, self.name) + e for e in self.EXTS]
-        stdout_expected, stderr_expected = \
-            [str(self.fspath)[:-3] + e for e in self.EXTS]
-
-        os.system("touch {stdout_expected}".format(**vars()))
-        os.system("touch {stderr_expected}".format(**vars()))
-
-        the_sandbox = self.sandbox_path
-        str(the_sandbox)  # Shut flake8.
-        the_script = str(self.fspath)
-        str(the_script)  # Shut flake8.
-        exit_code = os.system("cd {the_sandbox} && {the_script} >{stdout_actual} 2> {stderr_actual}".format(**vars()))
-
-        stdout_diff = sh(["diff", "-ui", stdout_actual, stdout_expected])
-        stderr_diff = sh(["diff", "-ui", stderr_actual, stderr_expected])
-
-        if stdout_diff or stderr_diff or exit_code != 0:
-            raise ShellException(
-                "{script_path} finished with errors".format(**vars()),
-                exit_code,
-                stdout_diff,
-                stderr_diff)
-
-    def repr_failure(self, excinfo):
-        exc = excinfo.value
-        if isinstance(exc, ShellException):
-            return "\n".join([
-                'shell test execution failed (exit code %s)' % exc.exit_code,
-                '-' * 80,
-                'stdout diff:',
-                exc.stdout_diff,
-                '-' * 80,
-                'stderr diff:',
-                exc.stderr_diff,
-                '-' * 80
-            ])
-        else:
-            return super(ShellItem, self).repr_failure(excinfo)
-
-
-class ShellException(Exception):
-    def __init__(self, message, exit_code, stdout_diff, stderr_diff):
-        Exception.__init__(self, message)
-        self.exit_code = exit_code
-        self.stdout_diff = stdout_diff
-        self.stderr_diff = stderr_diff
-
-
-class ShellFile(pytest.File):
-    def collect(self):
-        yield ShellItem(self)
 
 
 class PerlItem(ExecutableItem):
