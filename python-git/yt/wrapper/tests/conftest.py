@@ -73,7 +73,7 @@ class YtTestEnvironment(object):
         }
 
         self.env.start(dir, os.path.join(dir, "pids.txt"),
-                       port_locks_path=os.path.join(TESTS_SANDBOX, "ports"))
+                       port_locks_path=os.path.join(TESTS_SANDBOX, "ports"), fqdn="localhost")
         self.version = self.env._ytserver_version
 
         reload(yt)
