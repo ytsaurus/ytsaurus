@@ -178,7 +178,7 @@ def _prepare_formats(format, input_format, output_format, binary, client):
     if format is None:
         format = get_config(client)["tabular_data_format"]
     if format is None and _is_python_function(binary):
-        format = YsonFormat()
+        format = YsonFormat(boolean_as_string=(get_api_version(client=client) == "v2"))
     if isinstance(format, str):
         format = create_format(format)
     if isinstance(input_format, str):
