@@ -3417,7 +3417,7 @@ void TOperationControllerBase::RegisterOutput(
     int tableIndex,
     TOutputTable& table)
 {
-    if (chunkTreeId == NullChunkTreeId) {
+    if (!chunkTreeId) {
         return;
     }
 

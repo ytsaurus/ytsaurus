@@ -79,7 +79,7 @@ TChunkId CreateChunk(
     reqExt->set_movable(options->ChunksMovable);
     reqExt->set_vital(options->ChunksVital);
     reqExt->set_erasure_codec(static_cast<int>(options->ErasureCodec));
-    if (chunkListId != NullChunkListId) {
+    if (chunkListId) {
         ToProto(reqExt->mutable_chunk_list_id(), chunkListId);
     }
 

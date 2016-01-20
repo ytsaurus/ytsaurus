@@ -1771,7 +1771,7 @@ TObjectBase* TChunkManager::TChunkTypeHandlerBase::CreateObject(
     // NB: Once the chunk is created, no exceptions could be thrown.
     auto chunkListId = requestExt.has_chunk_list_id() ? FromProto<TChunkListId>(requestExt.chunk_list_id()) : NullChunkListId;
     TChunkList* chunkList = nullptr;
-    if (chunkListId != NullChunkId) {
+    if (chunkListId) {
         chunkList = Owner_->GetChunkListOrThrow(chunkListId);
         chunkList->ValidateSealed();
     }
