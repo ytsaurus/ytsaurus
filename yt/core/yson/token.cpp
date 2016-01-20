@@ -165,8 +165,8 @@ void TToken::ExpectTypes(const std::vector<ETokenType>& expectedTypes) const
     if (expectedTypes.size() == 1) {
         ExpectType(expectedTypes.front());
     } else if (std::find(expectedTypes.begin(), expectedTypes.end(), Type_) == expectedTypes.end()) {
-        auto typeStrings = ConvertToStrings(expectedTypes, [] (ETokenType type) {
-            return Format("Qlv", type);
+        auto typeStrings = ConvertToStrings(expectedTypes, [] (TStringBuilder* builder, ETokenType type) {
+            builder->AppendFormat("Qlv", type);
         });
         auto typesString = JoinToString(expectedTypes.begin(), expectedTypes.end(), Stroka(" or "));
         if (Type_ == ETokenType::EndOfStream) {
