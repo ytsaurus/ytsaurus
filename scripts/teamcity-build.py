@@ -254,10 +254,10 @@ def save_failed_test(options, suite_name, suite_path):
 
 
     # Copy sandboxes to archive.
+    failed_tests_sandbox_path = os.path.join(sandbox_archive, "sandbox")
     for dir_ in [sandbox_storage, sandbox_current]:
         if not os.path.exists(dir_):
             continue
-        failed_tests_sandbox_path = os.path.join(sandbox_archive, "sandbox")
         teamcity_message("Copying failed tests from '{0}' to {1}'...".format(
             dir_,
             failed_tests_sandbox_path),
@@ -279,7 +279,7 @@ def save_failed_test(options, suite_name, suite_path):
             shutil.copy(file, artifact_path)
 
     # Put cores to special dir and output stderr of ytserver daemons.
-    for dir, _, files in os.walk(sandbox_archive):
+    for dir, _, files in os.walk(failed_tests_sandbox_path):
         for file in files:
             if file.startswith("core."):
                 shutil.move(os.path.join(dir, file), core_dumps_path)
