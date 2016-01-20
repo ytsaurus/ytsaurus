@@ -82,7 +82,7 @@ NODE_CONFIG_PATCH = {
         "scheduler": None
     },
     "data_node": {
-        "split_changelog": None,
+        "multiplexed_changelog": None,
         "block_cache": {
             "compressed_data": {
                 "capacity": 0
