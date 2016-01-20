@@ -345,8 +345,7 @@ def run_integration_tests(options):
 def run_python_libraries_tests(options):
     kill_by_name("ytserver")
     kill_by_name("node")
-    run_pytest(options, "python_libraries", "{0}/python".format(options.checkout_directory),
-               pytest_args=["--ignore=pyinstaller"])
+    run_pytest(options, "python_libraries", "{0}/python".format(options.checkout_directory))
 
 
 @yt_register_build_step
