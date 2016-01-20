@@ -132,8 +132,8 @@ private:
     //! Per-cell chunks delta.
     yhash_map<NObjectClient::TCellTag, TChunksDelta> ChunksDeltaMap_;
 
-    //! All master cell tags (including primary).
-    std::vector<NObjectClient::TCellTag> MasterCellTags_;
+    //! All master cell tags (including the primary).
+    NObjectClient::TCellTagList MasterCellTags_;
 
     //! Index in MasterCellTags_ indicating the current target for job heartbeat round-robin.
     int JobHeartbeatCellIndex_ = 0;

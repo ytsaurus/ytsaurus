@@ -45,6 +45,7 @@ void TTransaction::Save(NCellMaster::TSaveContext& context) const
     Save(context, Timeout_);
     Save(context, AccountingEnabled_);
     Save(context, Title_);
+    Save(context, SecondaryCellTags_);
     Save(context, NestedTransactions_);
     Save(context, Parent_);
     Save(context, StartTime_);
@@ -71,6 +72,9 @@ void TTransaction::Load(NCellMaster::TLoadContext& context)
     Load(context, Timeout_);
     Load(context, AccountingEnabled_);
     Load(context, Title_);
+    if (context.GetVersion() >= 209) {
+        Load(context, SecondaryCellTags_);
+    }
     Load(context, NestedTransactions_);
     Load(context, Parent_);
     Load(context, StartTime_);

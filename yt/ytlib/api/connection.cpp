@@ -143,7 +143,7 @@ public:
         return PrimaryMasterCellTag_;
     }
 
-    virtual const std::vector<TCellTag>& GetSecondaryMasterCellTags() const override
+    virtual const TCellTagList& GetSecondaryMasterCellTags() const override
     {
         return SecondaryMasterCellTags_;
     }
@@ -228,7 +228,7 @@ private:
 
     TCellId PrimaryMasterCellId_;
     TCellTag PrimaryMasterCellTag_;
-    std::vector<TCellTag> SecondaryMasterCellTags_;
+    TCellTagList SecondaryMasterCellTags_;
 
     TEnumIndexedVector<yhash_map<TCellTag, IChannelPtr>, EMasterChannelKind> MasterChannels_;
     IChannelPtr SchedulerChannel_;

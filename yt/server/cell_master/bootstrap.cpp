@@ -175,7 +175,7 @@ TCellTag TBootstrap::GetPrimaryCellTag() const
     return PrimaryCellTag_;
 }
 
-const std::vector<TCellTag>& TBootstrap::GetSecondaryCellTags() const
+const TCellTagList& TBootstrap::GetSecondaryCellTags() const
 {
     return SecondaryCellTags_;
 }

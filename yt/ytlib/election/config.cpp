@@ -23,7 +23,7 @@ TCellConfig::TCellConfig()
         }
 
         auto cellTag = CellTagFromId(CellId);
-        if (cellTag < MinimumValidCellTag || cellTag > MaximumValidCellTag) {
+        if (cellTag < MinValidCellTag || cellTag > MaxValidCellTag) {
             THROW_ERROR_EXCEPTION("Cell id %v has invalid cell tag",
                 CellId);
         }

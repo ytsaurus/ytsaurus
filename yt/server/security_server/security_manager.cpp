@@ -93,11 +93,6 @@ public:
             EObjectReplicationFlags::ReplicateAttributes;
     }
 
-    virtual TCellTag GetReplicationCellTag(const TObjectBase* /*object*/) override
-    {
-        return AllSecondaryMastersCellTag;
-    }
-
     virtual EObjectType GetType() const override
     {
         return EObjectType::Account;
@@ -125,7 +120,12 @@ public:
 private:
     TImpl* const Owner_;
 
-    virtual Stroka DoGetName(TAccount* object) override
+    virtual TCellTagList DoGetReplicationCellTags(const TAccount* /*object*/) override
+    {
+        return AllSecondaryCellTags();
+    }
+
+    virtual Stroka DoGetName(const TAccount* object) override
     {
         return Format("account %Qv", object->GetName());
     }
@@ -157,9 +157,9 @@ public:
             EObjectReplicationFlags::ReplicateAttributes;
     }
 
-    virtual TCellTag GetReplicationCellTag(const TObjectBase* /*object*/) override
+    virtual TCellTagList GetReplicationCellTags(const TObjectBase* /*object*/) override
     {
-        return AllSecondaryMastersCellTag;
+        return AllSecondaryCellTags();
     }
 
     virtual EObjectType GetType() const override
@@ -184,7 +184,7 @@ public:
 private:
     TImpl* const Owner_;
 
-    virtual Stroka DoGetName(TUser* user) override
+    virtual Stroka DoGetName(const TUser* user) override
     {
         return Format("user %Qv", user->GetName());
     }
@@ -211,11 +211,6 @@ public:
             EObjectReplicationFlags::ReplicateAttributes;
     }
 
-    virtual TCellTag GetReplicationCellTag(const TObjectBase* /*object*/) override
-    {
-        return AllSecondaryMastersCellTag;
-    }
-
     virtual EObjectType GetType() const override
     {
         return EObjectType::Group;
@@ -238,7 +233,12 @@ public:
 private:
     TImpl* const Owner_;
 
-    virtual Stroka DoGetName(TGroup* group) override
+    virtual TCellTagList DoGetReplicationCellTags(const TGroup* /*group*/) override
+    {
+        return AllSecondaryCellTags();
+    }
+
+    virtual Stroka DoGetName(const TGroup* group) override
     {
         return Format("group %Qv", group->GetName());
     }
