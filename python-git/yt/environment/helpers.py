@@ -179,7 +179,7 @@ def is_dead_or_zombie(pid):
 def get_lsof_diagnostic(port):
     command = "set -o pipefail; sudo lsof -i :{0} | sed 1d".format(port)
     try:
-        lsof_output = subprocess.check_output(command, shell=True).strip()
+        lsof_output = subprocess.check_output(command, shell=True, executable="/bin/bash").strip()
         return "Failed to bind port {0}, lsof output: {1}" \
                .format(port, lsof_output)
     except subprocess.CalledProcessError:
