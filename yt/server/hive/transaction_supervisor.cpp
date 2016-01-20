@@ -609,7 +609,7 @@ private:
             // All exceptions thrown here are caught below.
             TransactionManager_->AbortTransaction(transactionId, force);
         } catch (const std::exception& ex) {
-            LOG_ERROR_UNLESS(IsRecovery(), ex, "Error aborting transaction, ignored (TransactionId: %v)",
+            LOG_DEBUG_UNLESS(IsRecovery(), ex, "Error aborting transaction, ignored (TransactionId: %v)",
                 transactionId);
         }
 
