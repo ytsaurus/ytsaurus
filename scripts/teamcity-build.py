@@ -427,8 +427,7 @@ def run_python_libraries_tests(options):
     if options.enable_parallel_testing:
         pytest_args.extend(["--process-count", "4"])
 
-    run_pytest(options, "python_libraries", "{0}/python".format(options.checkout_directory),
-               pytest_args=["--ignore=pyinstaller"] + pytest_args)
+    run_pytest(options, "python_libraries", "{0}/python".format(options.checkout_directory), pytest_args=pytest_args)
 
 
 @yt_register_build_step
