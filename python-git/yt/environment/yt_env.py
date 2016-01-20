@@ -55,12 +55,18 @@ def get_busy_port_diagnostic(log_paths):
         re.compile(r".*Failed to bind a server socket to port (\d+).*")
     ]
 
-    for log_path in log_paths:
-        for line in reversed(open(log_path).readlines()):
-            for pattern in patterns:
-                match = pattern.match(line)
-                if match:
-                    return get_lsof_diagnostic(match.group(1))
+    try:
+        for log_path in log_paths:
+            if not os.path.exists(log_path):
+                continue
+            for line in reversed(open(log_path).readlines()):
+                for pattern in patterns:
+                    match = pattern.match(line)
+                    if match:
+                        return get_lsof_diagnostic(match.group(1))
+    except:
+        logger.exception("Failed to get busy port diagnostics")
+    return None
 
 def add_busy_port_diagnostic(error, log_paths):
     diagnostic = get_busy_port_diagnostic(log_paths)
