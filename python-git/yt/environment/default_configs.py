@@ -199,7 +199,7 @@ def get_node_config(enable_debug_logging=True):
 
     data_node = {
         store_locations = [];
-        split_changelog = {
+        multiplexed_changelog = {
             flush_period = 10;
         };
 
