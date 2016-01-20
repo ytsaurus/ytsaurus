@@ -1,7 +1,5 @@
 import pytest
 import os
-import tempfile
-import contextlib
 
 from yt_env_setup import YTEnvSetup
 from yt_commands import *
@@ -14,16 +12,6 @@ def get_statistics(statistics, complex_key):
         if part:
             result = result[part]
     return result
-
-
-@contextlib.contextmanager
-def tempfolder(prefix):
-    tmpdir = tempfile.mkdtemp(prefix=prefix)
-    yield tmpdir
-    try:
-        os.unlink(tmpdir)
-    except:
-        pass
 
 ##################################################################
 
@@ -104,7 +92,7 @@ class TestSchedulerUserStatistics(YTEnvSetup):
         create("table", "//tmp/t2")
         write_table("//tmp/t1", [{"a": "b"} for i in xrange(2)])
 
-        with tempfolder("job_statistics_progress") as tmpdir:
+        with self.tempfolder("job_statistics_progress") as tmpdir:
             to_delete = []
 
             keeper_filename = os.path.join(tmpdir, "keep")
