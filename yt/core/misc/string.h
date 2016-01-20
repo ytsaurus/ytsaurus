@@ -113,6 +113,8 @@ struct TDefaultFormatter
     }
 };
 
+extern const Stroka DefaultJoinToStringDelimiter;
+
 //! Joins a range of items into a string intermixing them with the delimiter.
 /*!
  *  The function calls the global #::ToString for conversion.
@@ -126,7 +128,7 @@ Stroka JoinToString(
     const TIterator& begin,
     const TIterator& end,
     const TFormatter& formatter,
-    const Stroka& delimiter = ", ")
+    const Stroka& delimiter = DefaultJoinToStringDelimiter)
 {
     Stroka result;
     for (auto current = begin; current != end; ++current) {
@@ -143,7 +145,7 @@ template <class TIterator>
 Stroka JoinToString(
     const TIterator& begin,
     const TIterator& end,
-    const Stroka& delimiter = ", ")
+    const Stroka& delimiter = DefaultJoinToStringDelimiter)
 {
     return JoinToString(begin, end, TDefaultFormatter(), delimiter);
 }
@@ -158,7 +160,7 @@ template <class TCollection, class TFormatter>
 Stroka JoinToString(
     const TCollection& items,
     const TFormatter& formatter,
-    const Stroka& delimiter = ", ")
+    const Stroka& delimiter = DefaultJoinToStringDelimiter)
 {
     using std::begin;
     using std::end;
@@ -169,7 +171,7 @@ Stroka JoinToString(
 template <class TCollection>
 Stroka JoinToString(
     const TCollection& items,
-    const Stroka& delimiter = ", ")
+    const Stroka& delimiter = DefaultJoinToStringDelimiter)
 {
     return JoinToString(items, TDefaultFormatter(), delimiter);
 }
@@ -243,7 +245,7 @@ Stroka DecodeEnumValue(const Stroka& value);
 Stroka EncodeEnumValue(const Stroka& value);
 
 template <class T>
-inline T ParseEnum(const Stroka& value, typename TEnumTraits<T>::TType* = 0)
+T ParseEnum(const Stroka& value, typename TEnumTraits<T>::TType* = 0)
 {
     return TEnumTraits<T>::FromString(DecodeEnumValue(value));
 }
