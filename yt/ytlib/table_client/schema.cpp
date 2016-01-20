@@ -81,10 +81,6 @@ struct TSerializableColumnSchema
             .Default();
         RegisterParameter("sort_order", SortOrder)
             .Default();
-
-        RegisterValidator([&] () {
-            ValidateColumnSchema(*this);
-        });
     }
 };
 
@@ -99,8 +95,6 @@ void Deserialize(TColumnSchema& schema, INodePtr node)
 {
     TSerializableColumnSchema wrapper;
     Deserialize(static_cast<TYsonSerializableLite&>(wrapper), node);
-    // TODO(babenko): we shouldn't be concerned with manual validation here
-    wrapper.Validate();
     schema = static_cast<TColumnSchema&>(wrapper);
 }
 

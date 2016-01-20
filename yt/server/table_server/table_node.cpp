@@ -112,17 +112,16 @@ void TTableNode::Load(TLoadContext& context)
     if (context.GetVersion() < 205) {
         // We erase schema from attributes map since it is now a built-in attribute.
         auto& attributesMap = GetMutableAttributes()->Attributes();
-        const auto& tableSchemaAttribute = attributesMap["schema"];
+        auto tableSchemaAttribute = attributesMap["schema"];
         attributesMap.erase("schema");
         if (IsDynamic()) {
-            TableSchema_ = ConvertTo<TTableSchema>(tableSchemaAttribute);
-            auto columns = TableSchema_.Columns();
+            auto columns = ConvertTo<std::vector<TColumnSchema>>(tableSchemaAttribute);
             for (int index = 0; index < keyColumns.size(); ++index) {
                 const auto& columnName = keyColumns[index];
                 YCHECK(columns[index].Name == columnName);
                 columns[index].SetSortOrder(ESortOrder::Ascending);
-                TableSchema_ = TTableSchema(columns, true /* strict */);
             }
+            TableSchema_ = TTableSchema(columns, true /* strict */);
         } else {
             TableSchema_ = TTableSchema::FromKeyColumns(keyColumns);
         }

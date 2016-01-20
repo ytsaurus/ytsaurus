@@ -90,8 +90,8 @@ public:
     
     static TTableSchema FromKeyColumns(const TKeyColumns& keyColumns);
 
-    TTableSchema ExtendByNonKeyAnyColumns(const std::vector<Stroka>& columnNames);
-    TTableSchema ExtendByChannels(const NChunkClient::TChannels& channels);
+    TTableSchema ExtendByNonKeyAnyColumns(const std::vector<Stroka>& columnNames) const;
+    TTableSchema ExtendByChannels(const NChunkClient::TChannels& channels) const;
 
     void Save(TStreamSaveContext& context) const;
     void Load(TStreamLoadContext& context);
