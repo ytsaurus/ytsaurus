@@ -274,7 +274,7 @@ private:
                     attributes->Set("compression_codec", Store_->Options_->SnapshotCompressionCodec);
                     attributes->Set("prev_record_count", Meta_.prev_record_count());
                     options.Attributes = std::move(attributes);
-                    if (Store_->PrerequisiteTransactionId_ != NullTransactionId) {
+                    if (Store_->PrerequisiteTransactionId_) {
                         options.PrerequisiteTransactionIds.push_back(Store_->PrerequisiteTransactionId_);
                     }
 
@@ -291,7 +291,7 @@ private:
                 {
                     TFileWriterOptions options;
                     options.TransactionId = Transaction_->GetId();
-                    if (Store_->PrerequisiteTransactionId_ != NullTransactionId) {
+                    if (Store_->PrerequisiteTransactionId_) {
                         options.PrerequisiteTransactionIds.push_back(Store_->PrerequisiteTransactionId_);
                     }
 
