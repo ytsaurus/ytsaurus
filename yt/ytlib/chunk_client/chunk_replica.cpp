@@ -48,10 +48,10 @@ TChunkReplicaAddressFormatter::TChunkReplicaAddressFormatter(TNodeDirectoryPtr n
     : NodeDirectory_(nodeDirectory)
 { }
 
-Stroka TChunkReplicaAddressFormatter::operator () (TChunkReplica replica) const
+void TChunkReplicaAddressFormatter::operator()(TStringBuilder* builder, TChunkReplica replica) const
 {
     const auto& descriptor = NodeDirectory_->GetDescriptor(replica.GetNodeId());
-    return Format("%v/%v", descriptor.GetDefaultAddress(), replica.GetIndex());
+    builder->AppendFormat("%v/%v", descriptor.GetDefaultAddress(), replica.GetIndex());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

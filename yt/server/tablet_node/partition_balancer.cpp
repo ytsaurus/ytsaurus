@@ -230,8 +230,8 @@ private:
             JoinToString(ConvertToStrings(
                 tablet->Partitions().begin() + firstPartitionIndex,
                 tablet->Partitions().begin() + lastPartitionIndex + 1,
-                [] (const std::unique_ptr<TPartition>& partition) {
-                     return ToString(partition->GetId());
+                [] (TStringBuilder* builder, const std::unique_ptr<TPartition>& partition) {
+                     FormatValue(builder, partition->GetId());
                 })));
 
         LOG_INFO("Partition is eligible for merge");

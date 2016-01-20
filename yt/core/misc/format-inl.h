@@ -204,7 +204,7 @@ void FormatValue(TStringBuilder* builder, T* value, const TStringBuf& format)
 }
 
 // TGuid (specialize for performance reasons)
-inline void FormatValue(TStringBuilder* builder, const TGuid& value, const TStringBuf& /*format*/)
+inline void FormatValue(TStringBuilder* builder, const TGuid& value, const TStringBuf& /*format*/ = TStringBuf())
 {
     char* buf = builder->Preallocate(4 + 4 * 8);
     int count = sprintf(buf, "%x-%x-%x-%x",
