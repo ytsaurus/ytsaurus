@@ -685,7 +685,7 @@ def copytree(src, dst, symlinks=False, ignore=None):
 def sudo_rmtree(path):
     abspath = os.path.abspath(path)
     assert abspath.startswith("/home/teamcity")
-    run(["sudo", "rm", "-rf ", abspath])
+    run(["sudo", "rm", "-rf", abspath])
 
 def get_command_from_core_file(core_path):
     # Example output:
