@@ -59,7 +59,7 @@ public:
     const NObjectClient::TCellId& GetPrimaryCellId() const;
     NObjectClient::TCellTag GetPrimaryCellTag() const;
 
-    const std::vector<NObjectClient::TCellTag>& GetSecondaryCellTags() const;
+    const NObjectClient::TCellTagList& GetSecondaryCellTags() const;
 
     TMulticellManagerPtr GetMulticellManager() const;
     NRpc::IServerPtr GetRpcServer() const;
@@ -97,7 +97,7 @@ private:
     NObjectClient::TCellTag CellTag_;
     NObjectClient::TCellId PrimaryCellId_;
     NObjectClient::TCellTag PrimaryCellTag_;
-    std::vector<NObjectClient::TCellTag> SecondaryCellTags_;
+    NObjectClient::TCellTagList SecondaryCellTags_;
 
     TMulticellManagerPtr MulticellManager_;
     NRpc::IServerPtr RpcServer_;

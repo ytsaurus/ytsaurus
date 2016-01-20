@@ -243,7 +243,7 @@ public:
     }
 
 private:
-    virtual Stroka DoGetName(TChunk* chunk) override
+    virtual Stroka DoGetName(const TChunk* chunk) override
     {
         return Format("chunk %v", chunk->GetId());
     }
@@ -280,7 +280,7 @@ public:
 private:
     const EObjectType Type_;
 
-    virtual Stroka DoGetName(TChunk* chunk) override
+    virtual Stroka DoGetName(const TChunk* chunk) override
     {
         return Format("erasure chunk %v", chunk->GetId());
     }
@@ -310,7 +310,7 @@ public:
     }
 
 private:
-    virtual Stroka DoGetName(TChunk* chunk) override
+    virtual Stroka DoGetName(const TChunk* chunk) override
     {
         return Format("journal chunk %v", chunk->GetId());
     }
@@ -348,7 +348,7 @@ private:
     TImpl* const Owner_;
 
 
-    virtual Stroka DoGetName(TChunkList* chunkList) override
+    virtual Stroka DoGetName(const TChunkList* chunkList) override
     {
         return Format("chunk list %v", chunkList->GetId());
     }

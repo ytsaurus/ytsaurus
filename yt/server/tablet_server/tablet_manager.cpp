@@ -129,7 +129,7 @@ public:
 private:
     TImpl* const Owner_;
 
-    virtual Stroka DoGetName(TTabletCellBundle* bundle) override
+    virtual Stroka DoGetName(const TTabletCellBundle* bundle) override
     {
         return Format("tablet cell bundle %Qv", bundle->GetName());
     }
@@ -159,11 +159,6 @@ public:
             EObjectReplicationFlags::ReplicateAttributes;
     }
 
-    virtual TCellTag GetReplicationCellTag(const TObjectBase* /*object*/) override
-    {
-        return AllSecondaryMastersCellTag;
-    }
-
     virtual EObjectType GetType() const override
     {
         return EObjectType::TabletCell;
@@ -186,9 +181,14 @@ public:
 private:
     TImpl* const Owner_;
 
-    virtual Stroka DoGetName(TTabletCell* object) override
+    virtual TCellTagList DoGetReplicationCellTags(const TTabletCell* /*cell*/) override
     {
-        return Format("tablet cell %v", object->GetId());
+        return AllSecondaryCellTags();
+    }
+
+    virtual Stroka DoGetName(const TTabletCell* cell) override
+    {
+        return Format("tablet cell %v", cell->GetId());
     }
 
     virtual IObjectProxyPtr DoGetProxy(TTabletCell* cell, TTransaction* /*transaction*/) override
@@ -216,7 +216,7 @@ public:
 private:
     TImpl* const Owner_;
 
-    virtual Stroka DoGetName(TTablet* object) override
+    virtual Stroka DoGetName(const TTablet* object) override
     {
         return Format("tablet %v", object->GetId());
     }
@@ -1714,9 +1714,13 @@ private:
 
     void StartPrerequisiteTransaction(TTabletCell* cell)
     {
+        auto multicellManager = Bootstrap_->GetMulticellManager();
+        const auto& secondaryCellTags = multicellManager->GetRegisteredMasterCellTags();
+
         auto transactionManager = Bootstrap_->GetTransactionManager();
         auto* transaction = transactionManager->StartTransaction(
             nullptr,
+            secondaryCellTags,
             Null,
             Format("Prerequisite for cell %v", cell->GetId()));
 

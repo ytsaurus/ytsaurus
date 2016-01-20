@@ -15,6 +15,7 @@
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/ytlib/chunk_client/chunk_replica.h>
 #include <yt/ytlib/chunk_client/read_limit.h>
+#include <yt/ytlib/chunk_client/chunk_teleporter.h>
 
 #include <yt/ytlib/cypress_client/cypress_ypath_proxy.h>
 #include <yt/ytlib/cypress_client/rpc_helpers.h>
@@ -729,9 +730,6 @@ public:
 
         NodeChannelFactory_ = wrapChannelFactory(Connection_->GetNodeChannelFactory());
 
-        for (auto kind : TEnumTraits<EMasterChannelKind>::GetDomainValues()) {
-            ObjectProxies_[kind].reset(new TObjectServiceProxy(GetMasterChannelOrThrow(kind)));
-        }
         SchedulerProxy_.reset(new TSchedulerServiceProxy(GetSchedulerChannel()));
         JobProberProxy_.reset(new TJobProberServiceProxy(GetSchedulerChannel()));
 
@@ -1051,7 +1049,6 @@ private:
     IChannelFactoryPtr NodeChannelFactory_;
     TTransactionManagerPtr TransactionManager_;
     TQueryHelperPtr QueryHelper_;
-    TEnumIndexedVector<std::unique_ptr<TObjectServiceProxy>, EMasterChannelKind> ObjectProxies_;
     std::unique_ptr<TSchedulerServiceProxy> SchedulerProxy_;
     std::unique_ptr<TJobProberServiceProxy> JobProberProxy_;
 
@@ -1216,14 +1213,19 @@ private:
     }
 
 
-    TObjectServiceProxy* GetReadProxy(const TReadOptions& options)
+    std::unique_ptr<TObjectServiceProxy> CreateReadProxy(
+        const TReadOptions& options,
+        TCellTag cellTag = PrimaryMasterCellTag)
     {
-        return ObjectProxies_[options.ReadFrom].get();
+        auto channel = GetMasterChannelOrThrow(options.ReadFrom, cellTag);
+        return std::make_unique<TObjectServiceProxy>(channel);
     }
 
-    TObjectServiceProxy* GetWriteProxy()
+    std::unique_ptr<TObjectServiceProxy> CreateWriteProxy(
+        TCellTag cellTag = PrimaryMasterCellTag)
     {
-        return ObjectProxies_[EMasterChannelKind::Leader].get();
+        auto channel = GetMasterChannelOrThrow(EMasterChannelKind::Leader, cellTag);
+        return std::make_unique<TObjectServiceProxy>(channel);
     }
 
 
@@ -1528,7 +1530,7 @@ private:
             ToProto(req->mutable_cell_id(), options.CellId);
         }
 
-        auto* proxy = GetWriteProxy();
+        auto proxy = CreateWriteProxy();
         WaitFor(proxy->Execute(req))
             .ThrowOnError();
     }
@@ -1546,7 +1548,7 @@ private:
         }
         req->set_force(options.Force);
 
-        auto* proxy = GetWriteProxy();
+        auto proxy = CreateWriteProxy();
         WaitFor(proxy->Execute(req))
             .ThrowOnError();
     }
@@ -1563,7 +1565,7 @@ private:
             req->set_first_tablet_index(*options.LastTabletIndex);
         }
 
-        auto* proxy = GetWriteProxy();
+        auto proxy = CreateWriteProxy();
         WaitFor(proxy->Execute(req))
             .ThrowOnError();
     }
@@ -1582,7 +1584,7 @@ private:
         }
         ToProto(req->mutable_pivot_keys(), pivotKeys);
 
-        auto* proxy = GetWriteProxy();
+        auto proxy = CreateWriteProxy();
         WaitFor(proxy->Execute(req))
             .ThrowOnError();
     }
@@ -1596,7 +1598,7 @@ private:
             ToProto(req->mutable_schema(), *options.Schema);
         }
 
-        auto* proxy = GetWriteProxy();
+        auto proxy = CreateWriteProxy();
         WaitFor(proxy->Execute(req))
             .ThrowOnError();
     }
@@ -1618,7 +1620,7 @@ private:
             ToProto(req->mutable_options(), *options.Options);
         }
 
-        auto* proxy = GetReadProxy(options);
+        auto proxy = CreateReadProxy(options);
         auto rsp = WaitFor(proxy->Execute(req))
             .ValueOrThrow();
 
@@ -1630,7 +1632,7 @@ private:
         const TYsonString& value,
         TSetNodeOptions options)
     {
-        auto* proxy = GetWriteProxy();
+        auto proxy = CreateWriteProxy();
         auto batchReq = proxy->ExecuteBatch();
         SetPrerequisites(batchReq, options);
 
@@ -1650,7 +1652,7 @@ private:
         const TYPath& path,
         TRemoveNodeOptions options)
     {
-        auto* proxy = GetWriteProxy();
+        auto proxy = CreateWriteProxy();
         auto batchReq = proxy->ExecuteBatch();
         SetPrerequisites(batchReq, options);
 
@@ -1680,7 +1682,7 @@ private:
             req->set_limit(*options.MaxSize);
         }
 
-        auto* proxy = GetReadProxy(options);
+        auto proxy = CreateReadProxy(options);
         auto rsp = WaitFor(proxy->Execute(req))
             .ValueOrThrow();
         return TYsonString(rsp->value());
@@ -1691,7 +1693,7 @@ private:
         EObjectType type,
         TCreateNodeOptions options)
     {
-        auto* proxy = GetWriteProxy();
+        auto proxy = CreateWriteProxy();
         auto batchReq = proxy->ExecuteBatch();
         SetPrerequisites(batchReq, options);
 
@@ -1718,7 +1720,7 @@ private:
         NCypressClient::ELockMode mode,
         TLockNodeOptions options)
     {
-        auto* proxy = GetWriteProxy();
+        auto proxy = CreateWriteProxy();
         auto batchReq = proxy->ExecuteBatch();
         SetPrerequisites(batchReq, options);
 
@@ -1747,7 +1749,7 @@ private:
         const TYPath& dstPath,
         TCopyNodeOptions options)
     {
-        auto* proxy = GetWriteProxy();
+        auto proxy = CreateWriteProxy();
         auto batchReq = proxy->ExecuteBatch();
         SetPrerequisites(batchReq, options);
 
@@ -1772,7 +1774,7 @@ private:
         const TYPath& dstPath,
         TMoveNodeOptions options)
     {
-        auto* proxy = GetWriteProxy();
+        auto proxy = CreateWriteProxy();
         auto batchReq = proxy->ExecuteBatch();
         SetPrerequisites(batchReq, options);
 
@@ -1798,7 +1800,7 @@ private:
         const TYPath& dstPath,
         TLinkNodeOptions options)
     {
-        auto* proxy = GetWriteProxy();
+        auto proxy = CreateWriteProxy();
         auto batchReq = proxy->ExecuteBatch();
         SetPrerequisites(batchReq, options);
 
@@ -1828,24 +1830,26 @@ private:
         try {
             // Get objects ids.
             std::vector<TObjectId> srcIds;
+            TCellTagList srcCellTags;
             TObjectId dstId;
+            TCellTag dstCellTag;
             {
-                auto* proxy = GetReadProxy(options);
-
+                auto proxy = CreateReadProxy(options);
                 auto batchReq = proxy->ExecuteBatch();
-                auto requestAttributes = [&] (const Stroka& key, const TYPath& path) {
-                    auto req = TObjectYPathProxy::GetBasicAttributes(path);
-                    SetTransactionId(req, options, true);
-                    batchReq->AddRequest(req, key);
-                };
 
                 for (const auto& path : srcPaths) {
-                    requestAttributes("get_src_attributes", path);
+                    auto req = TObjectYPathProxy::GetBasicAttributes(path);
+                    SetTransactionId(req, options, true);
+                    batchReq->AddRequest(req, "get_src_attributes");
                 }
-                requestAttributes("get_dst_attributes", dstPath);
+                {
+                    auto req = TObjectYPathProxy::GetBasicAttributes(dstPath);
+                    SetTransactionId(req, options, true);
+                    batchReq->AddRequest(req, "get_dst_attributes");
+                }
 
                 auto batchRspOrError = WaitFor(batchReq->Invoke());
-                THROW_ERROR_EXCEPTION_IF_FAILED(batchRspOrError, "Error getting paths attributes");
+                THROW_ERROR_EXCEPTION_IF_FAILED(batchRspOrError, "Error getting basic attributes of inputs and outputs");
                 const auto& batchRsp = batchRspOrError.Value();
 
                 TNullable<EObjectType> commonType;
@@ -1870,13 +1874,15 @@ private:
 
                 {
                     auto rspsOrError = batchRsp->GetResponses<TObjectYPathProxy::TRspGetBasicAttributes>("get_src_attributes");
-                    for (int index = 0; index < srcPaths.size(); ++index) {
-                        THROW_ERROR_EXCEPTION_IF_FAILED(rspsOrError[index], "Error getting attributes of %v", srcPaths[index]);
-                        const auto& rsp = rspsOrError[index].Value();
-                        const auto& path = srcPaths[index];
+                    for (int srcIndex = 0; srcIndex < srcPaths.size(); ++srcIndex) {
+                        const auto& srcPath = srcPaths[srcIndex];
+                        THROW_ERROR_EXCEPTION_IF_FAILED(rspsOrError[srcIndex], "Error getting attributes of %v", srcPath);
+                        const auto& rsp = rspsOrError[srcIndex].Value();
+
                         auto id = FromProto<TObjectId>(rsp->object_id());
                         srcIds.push_back(id);
-                        checkType(TypeFromId(id), path);
+                        srcCellTags.push_back(rsp->cell_tag());
+                        checkType(TypeFromId(id), srcPath);
                     }
                 }
 
@@ -1884,7 +1890,9 @@ private:
                     auto rspsOrError = batchRsp->GetResponses<TObjectYPathProxy::TRspGetBasicAttributes>("get_dst_attributes");
                     THROW_ERROR_EXCEPTION_IF_FAILED(rspsOrError[0], "Error getting attributes of %v", dstPath);
                     const auto& rsp = rspsOrError[0].Value();
+
                     dstId = FromProto<TObjectId>(rsp->object_id());
+                    dstCellTag = rsp->cell_tag();
                     checkType(TypeFromId(dstId), dstPath);
                 }
             }
@@ -1892,31 +1900,44 @@ private:
             auto dstIdPath = FromObjectId(dstId);
 
             // Get source chunk ids.
-            std::vector<TChunkId> chunkIds;
+            // Maps src index -> list of chunk ids for this src.
+            std::vector<std::vector<TChunkId>> groupedChunkIds(srcPaths.size());
             {
-                auto* proxy = GetReadProxy(options);
-
-                auto batchReq = proxy->ExecuteBatch();
-                for (const auto& srcId : srcIds) {
-                    auto req = TChunkOwnerYPathProxy::Fetch(FromObjectId(srcId));
-                    SetTransactionId(req, options, true);
-                    ToProto(req->mutable_ranges(), std::vector<TReadRange>{TReadRange()});
-                    batchReq->AddRequest(req, "get_ids");
+                yhash_map<TCellTag, std::vector<int>> cellTagToIndexes;
+                for (int srcIndex = 0; srcIndex < srcCellTags.size(); ++srcIndex) {
+                    cellTagToIndexes[srcCellTags[srcIndex]].push_back(srcIndex);
                 }
 
-                auto batchRspOrError = WaitFor(batchReq->Invoke());
-                THROW_ERROR_EXCEPTION_IF_FAILED(batchRspOrError, "Error getting source chunk ids");
-                const auto& batchRsp = batchRspOrError.Value();
+                for (const auto& pair : cellTagToIndexes) {
+                    auto srcCellTag = pair.first;
+                    const auto& srcIndexes = pair.second;
 
-                auto rspsOrError = batchRsp->GetResponses<TChunkOwnerYPathProxy::TRspFetch>("get_ids");
-                for (int index = 0; index < srcPaths.size(); ++index) {
-                    auto rspOrError = rspsOrError[index];
-                    const auto& path = srcPaths[index];
-                    THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error getting chunk ids of %v", path);
-                    const auto& rsp = rspOrError.Value();
+                    auto proxy = CreateReadProxy(options, srcCellTag);
+                    auto batchReq = proxy->ExecuteBatch();
 
-                    for (const auto& chunk : rsp->chunks()) {
-                        chunkIds.push_back(FromProto<TChunkId>(chunk.chunk_id()));
+                    for (int localIndex = 0; localIndex < srcIndexes.size(); ++localIndex) {
+                        int srcIndex = srcIndexes[localIndex];
+                        auto req = TChunkOwnerYPathProxy::Fetch(FromObjectId(srcIds[srcIndex]));
+                        SetTransactionId(req, options, true);
+                        ToProto(req->mutable_ranges(), std::vector<TReadRange>{TReadRange()});
+                        batchReq->AddRequest(req, "fetch");
+                    }
+
+                    auto batchRspOrError = WaitFor(batchReq->Invoke());
+                    THROW_ERROR_EXCEPTION_IF_FAILED(batchRspOrError, "Error fetching inputs");
+
+                    const auto& batchRsp = batchRspOrError.Value();
+                    auto rspsOrError = batchRsp->GetResponses<TChunkOwnerYPathProxy::TRspFetch>("fetch");
+                    for (int localIndex = 0; localIndex < srcIndexes.size(); ++localIndex) {
+                        int srcIndex = srcIndexes[localIndex];
+                        const auto& rspOrError = rspsOrError[localIndex];
+                        const auto& path = srcPaths[srcIndex];
+                        THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error fetching %v", path);
+                        const auto& rsp = rspOrError.Value();
+
+                        for (const auto& chunk : rsp->chunks()) {
+                            groupedChunkIds[srcIndex].push_back(FromProto<TChunkId>(chunk.chunk_id()));
+                        }
                     }
                 }
             }
@@ -1924,7 +1945,7 @@ private:
             // Begin upload.
             TTransactionId uploadTransactionId;
             {
-                auto* proxy = GetWriteProxy();
+                auto proxy = CreateWriteProxy();
 
                 auto req = TChunkOwnerYPathProxy::BeginUpload(dstIdPath);
                 req->set_update_mode(static_cast<int>(options.Append ? EUpdateMode::Append : EUpdateMode::Overwrite));
@@ -1932,6 +1953,7 @@ private:
                 req->set_upload_transaction_title(Format("Concatenating [%v] to %v",
                     JoinToString(srcPaths),
                     dstPath));
+                ToProto(req->mutable_upload_transaction_secondary_cell_tags(), srcCellTags);
                 req->set_upload_transaction_timeout(ToProto(Connection_->GetConfig()->TransactionManager->DefaultTransactionTimeout));
                 GenerateMutationId(req, options);
                 SetTransactionId(req, options, true);
@@ -1943,10 +1965,33 @@ private:
                 uploadTransactionId = FromProto<TTransactionId>(rsp->upload_transaction_id());
             }
 
+            // Flatten chunk ids.
+            std::vector<TChunkId> flatChunkIds;
+            for (const auto& ids : groupedChunkIds) {
+                flatChunkIds.insert(flatChunkIds.end(), ids.begin(), ids.end());
+            }
+
+            // Teleport chunks.
+            {
+                auto teleporter = New<TChunkTeleporter>(
+                    Connection_->GetConfig(),
+                    this,
+                    Invoker_,
+                    uploadTransactionId,
+                    Logger);
+
+                for (const auto& chunkId : flatChunkIds) {
+                    teleporter->RegisterChunk(chunkId, dstCellTag);
+                }
+
+                WaitFor(teleporter->Run())
+                    .ThrowOnError();
+            }
+
             // Get upload params.
             TChunkListId chunkListId;
             {
-                auto* proxy = GetReadProxy(options);
+                auto proxy = CreateReadProxy(options, dstCellTag);
 
                 auto req = TChunkOwnerYPathProxy::GetUploadParams(dstIdPath);
                 NCypressClient::SetTransactionId(req, uploadTransactionId);
@@ -1961,10 +2006,10 @@ private:
             // Attach chunks to chunk list.
             TDataStatistics dataStatistics;
             {
-                auto* proxy = GetWriteProxy();
+                auto proxy = CreateWriteProxy(dstCellTag);
                 
                 auto req = TChunkListYPathProxy::Attach(FromObjectId(chunkListId));
-                ToProto(req->mutable_children_ids(), chunkIds);
+                ToProto(req->mutable_children_ids(), flatChunkIds);
                 req->set_request_statistics(true);
                 GenerateMutationId(req, options);
             
@@ -1977,7 +2022,7 @@ private:
 
             // End upload.
             {
-                auto* proxy = GetWriteProxy();
+                auto proxy = CreateWriteProxy();
 
                 auto req = TChunkOwnerYPathProxy::EndUpload(dstIdPath);
                 *req->mutable_statistics() = dataStatistics;
@@ -1988,7 +2033,7 @@ private:
                 THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error finishing upload to %v", dstPath);
             }
         } catch (const std::exception& ex) {
-            THROW_ERROR_EXCEPTION("Failed to concatenate [%v] to %v",
+            THROW_ERROR_EXCEPTION("Error concatenating [%v] to %v",
                 JoinToString(srcPaths),
                 dstPath)
                 << ex;
@@ -2002,7 +2047,7 @@ private:
         auto req = TYPathProxy::Exists(path);
         SetTransactionId(req, options, true);
 
-        auto* proxy = GetReadProxy(options);
+        auto proxy = CreateReadProxy(options);
         auto rsp = WaitFor(proxy->Execute(req))
             .ValueOrThrow();
         return rsp->value();
@@ -2013,7 +2058,7 @@ private:
         EObjectType type,
         TCreateObjectOptions options)
     {
-        auto* proxy = GetWriteProxy();
+        auto proxy = CreateWriteProxy();
         auto batchReq = proxy->ExecuteBatch();
         SetPrerequisites(batchReq, options);
 
@@ -2045,7 +2090,7 @@ private:
         req->set_name(member);
         GenerateMutationId(req, options);
 
-        auto* proxy = GetWriteProxy();
+        auto proxy = CreateWriteProxy();
         WaitFor(proxy->Execute(req))
             .ThrowOnError();
     }
@@ -2059,7 +2104,7 @@ private:
         req->set_name(member);
         GenerateMutationId(req, options);
 
-        auto* proxy = GetWriteProxy();
+        auto proxy = CreateWriteProxy();
         WaitFor(proxy->Execute(req))
             .ThrowOnError();
     }
@@ -2075,7 +2120,7 @@ private:
         req->set_permission(static_cast<int>(permission));
         SetTransactionId(req, options, true);
 
-        auto* proxy = GetReadProxy(options);
+        auto proxy = CreateReadProxy(options);
         auto rsp = WaitFor(proxy->Execute(req))
             .ValueOrThrow();
 

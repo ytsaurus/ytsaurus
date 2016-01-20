@@ -612,14 +612,13 @@ int TObjectManager::UnrefObject(TObjectBase* object, int count)
 
         if (Bootstrap_->IsPrimaryMaster()) {
             auto replicationFlags = handler->GetReplicationFlags();
-            auto replicationCellTag = handler->GetReplicationCellTag(object);
-            if (Any(replicationFlags & EObjectReplicationFlags::ReplicateDestroy) &&
-                replicationCellTag != NotReplicatedCellTag)
-            {
+            if (Any(replicationFlags & EObjectReplicationFlags::ReplicateDestroy)) {
                 NProto::TReqRemoveForeignObject request;
                 ToProto(request.mutable_object_id(), object->GetId());
+
                 auto multicellManager = Bootstrap_->GetMulticellManager();
-                multicellManager->PostToMaster(request, replicationCellTag);
+                auto replicationCellTags = handler->GetReplicationCellTags(object);
+                multicellManager->PostToMasters(request, replicationCellTags);
             }
         }
     }
@@ -1036,8 +1035,6 @@ TObjectBase* TObjectManager::CreateObject(
     }
 
     if (replicate) {
-        YASSERT(handler->GetReplicationCellTag(object) == AllSecondaryMastersCellTag);
-
         NProto::TReqCreateForeignObject replicationRequest;
         ToProto(replicationRequest.mutable_object_id(), object->GetId());
         if (transaction) {
@@ -1050,7 +1047,8 @@ TObjectBase* TObjectManager::CreateObject(
         }
 
         auto multicellManager = Bootstrap_->GetMulticellManager();
-        multicellManager->PostToSecondaryMasters(replicationRequest);
+        auto replicationCellTags = handler->GetReplicationCellTags(object);
+        multicellManager->PostToMasters(replicationRequest, replicationCellTags);
     }
 
     return object;

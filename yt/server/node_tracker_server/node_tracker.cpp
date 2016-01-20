@@ -81,11 +81,6 @@ public:
             EObjectReplicationFlags::ReplicateAttributes;
     }
 
-    virtual TCellTag GetReplicationCellTag(const TObjectBase* /*object*/) override
-    {
-        return AllSecondaryMastersCellTag;
-    }
-
     virtual EObjectType GetType() const override
     {
         return EObjectType::ClusterNode;
@@ -99,7 +94,12 @@ public:
 private:
     TImpl* const Owner_;
 
-    virtual Stroka DoGetName(TNode* node) override
+    virtual TCellTagList DoGetReplicationCellTags(const TNode* node) override
+    {
+        return AllSecondaryCellTags();
+    }
+
+    virtual Stroka DoGetName(const TNode* node) override
     {
         return Format("node %v", node->GetDefaultAddress());
     }
@@ -132,11 +132,6 @@ public:
             EObjectReplicationFlags::ReplicateAttributes;
     }
 
-    virtual TCellTag GetReplicationCellTag(const TObjectBase* /*object*/) override
-    {
-        return AllSecondaryMastersCellTag;
-    }
-
     virtual EObjectType GetType() const override
     {
         return EObjectType::Rack;
@@ -159,7 +154,12 @@ public:
 private:
     TImpl* const Owner_;
 
-    virtual Stroka DoGetName(TRack* rack) override
+    virtual TCellTagList DoGetReplicationCellTags(const TRack* /*rack*/) override
+    {
+        return AllSecondaryCellTags();
+    }
+
+    virtual Stroka DoGetName(const TRack* rack) override
     {
         return Format("rack %Qv", rack->GetName());
     }

@@ -48,7 +48,7 @@ DEFINE_REFCOUNTED_TYPE(TMasterConnectionConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TConnectionConfig
-    : public virtual NYTree::TYsonSerializable
+    : public NChunkClient::TChunkTeleporterConfig
 {
 public:
     Stroka NetworkName;

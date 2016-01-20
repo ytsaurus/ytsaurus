@@ -2,6 +2,7 @@
 
 #include <yt/core/misc/guid.h>
 #include <yt/core/misc/string.h>
+#include <yt/core/misc/small_vector.h>
 
 #include <yt/ytlib/election/public.h>
 
@@ -35,7 +36,7 @@ DEFINE_ENUM(EErrorCode,
  *  Part 2: the lower  part of 64-bit sequential counter
  *  Part 3: the higher part of 64-bit sequential counter
  */
-typedef TGuid TObjectId;
+using TObjectId = TGuid;
 
 //! The all-zero id used to denote a non-existing object.
 extern TObjectId NullObjectId;
@@ -46,21 +47,18 @@ const ui64 WellKnownCounterMask = 0x1000000000000000;
 using NElection::TCellId;
 using NElection::NullCellId;
 
-//! Identifies a particular installation of YT.
-//! Must be unique to prevent object ids from colliding.
-typedef ui16 TCellTag;
+//! Identifies a particular cell of YT cluster.
+//! Must be globally unique to prevent object ids from colliding.
+using TCellTag = ui16;
 
 //! The minimum valid cell tag.
-const TCellTag MinimumValidCellTag = 0x0000;
+const TCellTag MinValidCellTag = 0x0000;
 
 //! The maximum valid cell tag.
-const TCellTag MaximumValidCellTag = 0xf000;
+const TCellTag MaxValidCellTag = 0xf000;
 
 //! A sentinel cell tag indicating that the request does not need replication.
 const TCellTag NotReplicatedCellTag = 0xf001;
-
-//! A sentinel cell tag representing all secondary masters.
-const TCellTag AllSecondaryMastersCellTag = 0xf002;
 
 //! A sentinel cell tag representing the primary master.
 const TCellTag PrimaryMasterCellTag = 0xf003;
@@ -70,6 +68,8 @@ const TCellTag InvalidCellTag = 0xf004;
 
 //! A static limit for the number of secondary master cells.
 const int MaxSecondaryMasterCells = 8;
+
+using TCellTagList = SmallVector<TCellTag, MaxSecondaryMasterCells + 1>;
 
 //! Describes the runtime type of an object.
 DEFINE_ENUM(EObjectType,
@@ -198,7 +198,7 @@ const EObjectType MaxErasureChunkPartType = EObjectType::ErasureChunkPart_15;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-typedef TObjectId TTransactionId;
+using TTransactionId = TObjectId;
 extern TTransactionId NullTransactionId;
 
 ////////////////////////////////////////////////////////////////////////////////

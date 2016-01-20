@@ -144,6 +144,9 @@ protected:
     //! Posts the request to all secondary masters.
     void PostToSecondaryMasters(NRpc::IServiceContextPtr context);
 
+    //! Posts the request to given masters.
+    void PostToMasters(NRpc::IServiceContextPtr context, const TCellTagList& cellTags);
+
     //! Posts the request to a given master, either primary or secondary.
     void PostToMaster(NRpc::IServiceContextPtr context, TCellTag cellTag);
 
