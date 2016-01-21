@@ -174,6 +174,7 @@ TChunkStore::TChunkStore(
     , Bootstrap_(boostrap)
     , ChunkMeta_(New<TRefCountedChunkMeta>())
     , KeyComparer_(tablet->GetRowKeyComparer())
+    , RequireChunkPreload_(tablet->GetConfig()->RequireChunkPreload)
 {
     YCHECK(
         TypeFromId(StoreId_) == EObjectType::Chunk ||
@@ -401,13 +402,11 @@ IVersionedReaderPtr TChunkStore::CreateCacheBasedReader(
 
     TReaderGuard guard(SpinLock_);
 
-    if (!PreloadedBlockCache_ || !PreloadedBlockCache_->IsPreloaded()) {
+    if (!ValidateBlockCachePreloaded()) {
         return nullptr;
     }
 
-    if (!CachedVersionedChunkMeta_) {
-        return nullptr;
-    }
+    YCHECK(CachedVersionedChunkMeta_);
 
     return CreateCacheBasedVersionedChunkReader(
         PreloadedBlockCache_,
@@ -469,13 +468,11 @@ IVersionedReaderPtr TChunkStore::CreateCacheBasedReader(
 
     TReaderGuard guard(SpinLock_);
 
-    if (!PreloadedBlockCache_ || !PreloadedBlockCache_->IsPreloaded()) {
+    if (!ValidateBlockCachePreloaded()) {
         return nullptr;
     }
 
-    if (!CachedVersionedChunkMeta_) {
-        return nullptr;
-    }
+    YCHECK(CachedVersionedChunkMeta_);
 
     return CreateCacheBasedVersionedChunkReader(
         PreloadedBlockCache_,
@@ -699,6 +696,19 @@ void TChunkStore::OnChunkReaderExpired()
 
     TWriterGuard guard(SpinLock_);
     ChunkReader_.Reset();
+}
+
+bool TChunkStore::ValidateBlockCachePreloaded()
+{
+    if (!PreloadedBlockCache_ || !PreloadedBlockCache_->IsPreloaded()) {
+        if (RequireChunkPreload_) {
+            THROW_ERROR_EXCEPTION("Chunk data is not preloaded yet")
+                << TErrorAttribute("tablet_id", TabletId_)
+                << TErrorAttribute("store_id", StoreId_);
+        }
+        return false;
+    }
+    return true;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

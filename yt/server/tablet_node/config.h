@@ -89,6 +89,7 @@ public:
     TNullable<TDuration> AutoCompactionPeriod;
 
     bool EnableLookupHashTable;
+    bool RequireChunkPreload;
 
     TTableMountConfig()
     {
@@ -179,6 +180,8 @@ public:
 
         RegisterParameter("enable_lookup_hash_table", EnableLookupHashTable)
             .Default(false);
+        RegisterParameter("require_chunk_preload", RequireChunkPreload)
+            .Default(false);
 
         RegisterValidator([&] () {
             if (SoftMemoryStoreKeyCountLimit > HardMemoryStoreKeyCountLimit) {
@@ -200,7 +203,10 @@ public:
                 THROW_ERROR_EXCEPTION("\"max_compaction_store_count\" must be greater than or equal to \"min_compaction_chunk_count\"");
             }
             if (EnableLookupHashTable && InMemoryMode != EInMemoryMode::Uncompressed) {
-                THROW_ERROR_EXCEPTION("\"enable_lookup_hash_table\"can be used only if \"in_memory_mode\" is \"uncompressed\"");
+                THROW_ERROR_EXCEPTION("\"enable_lookup_hash_table\" can only be true if \"in_memory_mode\" is \"uncompressed\"");
+            }
+            if (RequireChunkPreload && InMemoryMode == EInMemoryMode::None) {
+                THROW_ERROR_EXCEPTION("\"require_chunk_preload\" can only be true for in-memory tables");
             }
         });
     }
