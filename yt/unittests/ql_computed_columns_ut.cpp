@@ -36,7 +36,7 @@ protected:
     std::vector<TKeyRange> Coordinate(const Stroka& source, int rangeExpansionLimit = 1000)
     {
         TQueryPtr query;
-        TDataSource2 dataSource;
+        TDataRanges dataSource;
         std::tie(query, dataSource) = PreparePlanFragment(
             &PrepareMock_,
             source,
@@ -59,7 +59,7 @@ protected:
     std::vector<TKeyRange> CoordinateForeign(const Stroka& source)
     {
         TQueryPtr query;
-        TDataSource2 dataSource;
+        TDataRanges dataSource;
         std::tie(query, dataSource) = PreparePlanFragment(
             &PrepareMock_,
             source,

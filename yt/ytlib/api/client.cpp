@@ -301,7 +301,7 @@ public:
 
     virtual TFuture<TQueryStatistics> Execute(
         TConstQueryPtr query,
-        TDataSource2 dataSource,
+        TDataRanges dataSource,
         TQueryOptions options,
         ISchemafulWriterPtr writer) override
     {
@@ -342,7 +342,7 @@ private:
 
     typedef TIntrusivePtr<TIntrinsicRefCounted> THolderPtr;
 
-    std::vector<std::pair<TDataSource2, Stroka>> SplitTable(
+    std::vector<std::pair<TDataRanges, Stroka>> SplitTable(
         TGuid tableId,
         const TRowRanges& ranges,
         TRowBufferPtr rowBuffer,
@@ -371,7 +371,7 @@ private:
         return result;
     }
 
-    std::vector<std::pair<TDataSource2, Stroka>> SplitStaticTable(
+    std::vector<std::pair<TDataRanges, Stroka>> SplitStaticTable(
         TGuid tableId,
         const TRowRanges& ranges,
         TRowBufferPtr rowBuffer,
@@ -434,7 +434,7 @@ private:
             }
         }
 
-        std::vector<std::pair<TDataSource2, Stroka>> subsources;
+        std::vector<std::pair<TDataRanges, Stroka>> subsources;
         for (const auto& range : ranges) {
             auto lowerBound = range.first;
             auto upperBound = range.second;
@@ -471,7 +471,7 @@ private:
                 subrange.first = rowBuffer->Capture(std::max(lowerBound, keyRange.first.Get()));
                 subrange.second = rowBuffer->Capture(std::min(upperBound, keyRange.second.Get()));
 
-                TDataSource2 dataSource{
+                TDataRanges dataSource{
                     GetObjectIdFromDataSplit(chunkSpec),
                     MakeSharedRange(SmallVector<TRowRange, 1>{subrange}, rowBuffer, parentHolder)};
 
@@ -482,7 +482,7 @@ private:
         return subsources;
     }
 
-    std::vector<std::pair<TDataSource2, Stroka>> SplitDynamicTable(
+    std::vector<std::pair<TDataRanges, Stroka>> SplitDynamicTable(
         TGuid tableId,
         const TRowRanges& ranges,
         TRowBufferPtr rowBuffer,
@@ -518,7 +518,7 @@ private:
             return replicasIt.first->second;
         };
 
-        std::vector<std::pair<TDataSource2, Stroka>> subsources;
+        std::vector<std::pair<TDataRanges, Stroka>> subsources;
         for (auto rangesIt = ranges.begin(); rangesIt != ranges.end();) {
             auto lowerBound = rangesIt->first;
             auto upperBound = rangesIt->second;
@@ -547,7 +547,7 @@ private:
                 const auto& addresses = getAddresses(tabletInfo);
                 const auto& address = addresses[RandomNumber(addresses.size())];
 
-                TDataSource2 dataSource{
+                TDataRanges dataSource{
                     tabletInfo->TabletId,
                     MakeSharedRange(std::vector<TRowRange>(rangesIt, rangesItEnd), rowBuffer, parentHolder)};
 
@@ -570,7 +570,7 @@ private:
                     subrange.first = it == startIt ? lowerBound : rowBuffer->Capture(pivotKey.Get());
                     subrange.second = isLast ? upperBound : rowBuffer->Capture(nextPivotKey.Get());
 
-                    TDataSource2 dataSource{
+                    TDataRanges dataSource{
                         tabletInfo->TabletId,
                         MakeSharedRange(SmallVector<TRowRange, 1>{subrange}, rowBuffer, parentHolder)};
 
@@ -587,9 +587,9 @@ private:
         return subsources;
     }
 
-    std::vector<std::pair<TDataSource2, Stroka>> InferRanges(
+    std::vector<std::pair<TDataRanges, Stroka>> InferRanges(
         TConstQueryPtr query,
-        TDataSource2 dataSource,
+        TDataRanges dataSource,
         ui64 rangeExpansionLimit,
         bool verboseLogging,
         TRowBufferPtr rowBuffer,
@@ -626,7 +626,7 @@ private:
         ISchemafulWriterPtr writer,
         int subrangesCount,
         bool isOrdered,
-        std::function<std::pair<std::vector<TDataSource2>, Stroka>(int)> getSubsources)
+        std::function<std::pair<std::vector<TDataRanges>, Stroka>(int)> getSubsources)
     {
         auto Logger = BuildLogger(query);
 
@@ -643,7 +643,7 @@ private:
             refiners,
             isOrdered,
             [&] (TConstQueryPtr subquery, int index) {
-                std::vector<TDataSource2> dataSources;
+                std::vector<TDataRanges> dataSources;
                 Stroka address;
                 std::tie(dataSources, address) = getSubsources(index);
 
@@ -669,7 +669,7 @@ private:
 
     TQueryStatistics DoExecute(
         TConstQueryPtr query,
-        TDataSource2 dataSource,
+        TDataRanges dataSource,
         TQueryOptions options,
         ISchemafulWriterPtr writer)
     {
@@ -688,13 +688,13 @@ private:
         LOG_DEBUG("Regrouping %v splits into groups",
             allSplits.size());
 
-        yhash_map<Stroka, std::vector<TDataSource2>> groupsByAddress;
+        yhash_map<Stroka, std::vector<TDataRanges>> groupsByAddress;
         for (const auto& split : allSplits) {
             const auto& address = split.second;
             groupsByAddress[address].push_back(split.first);
         }
 
-        std::vector<std::pair<std::vector<TDataSource2>, Stroka>> groupedSplits;
+        std::vector<std::pair<std::vector<TDataRanges>, Stroka>> groupedSplits;
         for (const auto& group : groupsByAddress) {
             groupedSplits.emplace_back(group.second, group.first);
         }
@@ -710,7 +710,7 @@ private:
 
     TQueryStatistics DoExecuteOrdered(
         TConstQueryPtr query,
-        TDataSource2 dataSource,
+        TDataRanges dataSource,
         TQueryOptions options,
         ISchemafulWriterPtr writer)
     {
@@ -732,7 +732,7 @@ private:
         std::sort(
             allSplits.begin(),
             allSplits.end(),
-            [] (const std::pair<TDataSource2, Stroka>& lhs, const std::pair<TDataSource2, Stroka>& rhs) {
+            [] (const std::pair<TDataRanges, Stroka>& lhs, const std::pair<TDataRanges, Stroka>& rhs) {
                 return lhs.first.Ranges.Begin()->first < rhs.first.Ranges.Begin()->first;
             });
 
@@ -743,14 +743,14 @@ private:
                 split.first.Id,
                 split.second);
 
-            return std::make_pair(std::vector<TDataSource2>(1, split.first), split.second);
+            return std::make_pair(std::vector<TDataRanges>(1, split.first), split.second);
         });
     }
 
    std::pair<ISchemafulReaderPtr, TFuture<TQueryStatistics>> Delegate(
         TConstQueryPtr query,
         TQueryOptions options,
-        std::vector<TDataSource2> dataSources,
+        std::vector<TDataRanges> dataSources,
         const Stroka& address)
     {
         auto Logger = BuildLogger(query);
@@ -1555,7 +1555,7 @@ private:
         auto outputRowLimit = options.OutputRowLimit.Get(Connection_->GetConfig()->DefaultOutputRowLimit);
 
         TQueryPtr query;
-        TDataSource2 dataSource;
+        TDataRanges dataSource;
         std::tie(query, dataSource) = PreparePlanFragment(
             QueryHelper_.Get(),
             queryString,

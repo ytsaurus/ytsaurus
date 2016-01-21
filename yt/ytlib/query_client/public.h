@@ -25,7 +25,7 @@ class TProjectClause;
 class TJoinClause;
 class TQuery;
 class TQueryOptions;
-class TDataSource2;
+class TDataRanges;
 class TQueryStatistics;
 
 } // namespace NProto

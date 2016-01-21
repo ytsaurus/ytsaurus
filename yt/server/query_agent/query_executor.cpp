@@ -87,7 +87,7 @@ Stroka RowRangeFormatter(const NQueryClient::TRowRange& range)
     return Format("[%v .. %v]", range.first, range.second);
 }
 
-Stroka DataSourceFormatter(const NQueryClient::TDataSource& source)
+Stroka DataSourceFormatter(const NQueryClient::TDataRange & source)
 {
     return Format("[%v .. %v]", source.Range.first, source.Range.second);
 }
@@ -113,7 +113,7 @@ public:
     // IExecutor implementation.
     virtual TFuture<TQueryStatistics> Execute(
         TConstQueryPtr query,
-        std::vector<TDataSource2> dataSources,
+        std::vector<TDataRanges> dataSources,
         TQueryOptions options,
         ISchemafulWriterPtr writer) override
     {
@@ -184,7 +184,7 @@ private:
                     subqueryOptions.Timestamp = options.Timestamp;
                     subqueryOptions.VerboseLogging = options.VerboseLogging;
 
-                    TDataSource2 dataSource;
+                    TDataRanges dataSource;
                     dataSource.Id = dataId;
                     dataSource.Ranges = MakeSharedRange(std::move(ranges), std::move(buffer));
 
@@ -226,7 +226,7 @@ private:
 
     TQueryStatistics DoExecute(
         TConstQueryPtr query,
-        std::vector<TDataSource2> dataSources,
+        std::vector<TDataRanges> dataSources,
         TQueryOptions options,
         ISchemafulWriterPtr writer,
         const TNullable<Stroka>& maybeUser)
@@ -277,7 +277,7 @@ private:
         auto splits = Split(std::move(rangesByTablePart), rowBuffer, true, Logger, options.VerboseLogging);
         int splitCount = splits.size();
         int splitOffset = 0;
-        std::vector<std::vector<TDataSource>> groupedSplits;
+        std::vector<std::vector<TDataRange>> groupedSplits;
 
         LOG_DEBUG("Grouping %v splits", splitCount);
 
@@ -420,7 +420,7 @@ private:
 
     TQueryStatistics DoExecuteOrdered(
         TConstQueryPtr query,
-        std::vector<TDataSource2> dataSources,
+        std::vector<TDataRanges> dataSources,
         TQueryOptions options,
         ISchemafulWriterPtr writer,
         const TNullable<Stroka>& maybeUser)
@@ -440,7 +440,7 @@ private:
 
         LOG_DEBUG("Sorting %v splits", splits.size());
 
-        std::sort(splits.begin(), splits.end(), [] (const TDataSource& lhs, const TDataSource& rhs) {
+        std::sort(splits.begin(), splits.end(), [] (const TDataRange & lhs, const TDataRange & rhs) {
             return lhs.Range.first < rhs.Range.first;
         });
 
@@ -478,14 +478,14 @@ private:
             subreaderCreators);
     }
 
-    std::vector<TDataSource> Split(
+    std::vector<TDataRange> Split(
         std::vector<std::pair<TGuid, TRowRanges>> rangesByTablePart,
         TRowBufferPtr rowBuffer,
         bool mergeRanges,
         const NLogging::TLogger& Logger,
         bool verboseLogging)
     {
-        std::vector<TDataSource> allSplits;
+        std::vector<TDataRange> allSplits;
 
         auto securityManager = Bootstrap_->GetSecurityManager();
 
@@ -495,7 +495,7 @@ private:
 
             if (TypeFromId(tablePartId) != EObjectType::Tablet) {
                 for (const auto& range : keyRanges) {
-                    allSplits.push_back(TDataSource{tablePartId, range});
+                    allSplits.push_back(TDataRange{tablePartId, range});
                 }
                 continue;
             }

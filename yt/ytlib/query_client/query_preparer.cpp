@@ -1377,7 +1377,7 @@ void ParseYqlString(
     }
 }
 
-std::pair<TQueryPtr, TDataSource2> PreparePlanFragment(
+std::pair<TQueryPtr, TDataRanges> PreparePlanFragment(
     IPrepareCallbacks* callbacks,
     const Stroka& source,
     IFunctionRegistryPtr functionRegistry,
@@ -1609,7 +1609,7 @@ std::pair<TQueryPtr, TDataSource2> PreparePlanFragment(
         buffer->Capture(range.first.Get()),
         buffer->Capture(range.second.Get())});
 
-    TDataSource2 dataSource;
+    TDataRanges dataSource;
     dataSource.Id = GetObjectIdFromDataSplit(selfDataSplit);
     dataSource.Ranges = MakeSharedRange(std::move(rowRanges), std::move(buffer));
 
