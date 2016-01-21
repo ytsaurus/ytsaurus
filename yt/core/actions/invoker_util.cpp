@@ -5,6 +5,7 @@
 
 #include <yt/core/concurrency/action_queue.h>
 #include <yt/core/concurrency/fls.h>
+#include <yt/core/concurrency/finalizer_thread.h>
 
 #include <yt/core/misc/lazy_ptr.h>
 #include <yt/core/misc/singleton.h>
@@ -73,42 +74,14 @@ IInvokerPtr GetNullInvoker()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static std::atomic<bool> FinalizerThreadShutdownStarted = {false};
-static std::atomic<bool> FinalizerThreadShutdownFinished = {false};
-static const int FinalizerThreadShutdownSpinCount = 100;
-
-static TActionQueuePtr GetFinalizerThread()
-{
-    static auto queue = New<TActionQueue>("Finalizer", false, false);
-    return queue;
-}
-
 IInvokerPtr GetFinalizerInvoker()
 {
-    if (FinalizerThreadShutdownFinished) {
-        return GetNullInvoker();
-    }
-
-    return GetFinalizerThread()->GetInvoker();
+    return NConcurrency::GetFinalizerInvoker();
 }
 
 void ShutdownFinalizerThread()
 {
-    bool expected = false;
-    if (!FinalizerThreadShutdownStarted.compare_exchange_strong(expected, true)) {
-        return;
-    }
-
-    auto thread = GetFinalizerThread();
-    auto invoker = thread->GetInvoker();
-    // Spin for a while to give pending actions a chance to complete.
-    for (int i = 0; i < FinalizerThreadShutdownSpinCount; ++i) {
-        BIND([] () { }).AsyncVia(invoker).Run().Get();
-    }
-
-    // Now shutdown the finalizer thread.
-    FinalizerThreadShutdownFinished = true;
-    thread->Shutdown();
+    return NConcurrency::ShutdownFinalizerThread();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

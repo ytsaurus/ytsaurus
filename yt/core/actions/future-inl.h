@@ -106,19 +106,12 @@ private:
             // Just kill the fake weak reference.
             UnrefFuture();
         } else {
-            auto finalizerInvoker = GetFinalizerInvoker();
-            if (finalizerInvoker == GetNullInvoker()) {
-                // We cannot notify the subscribers about the failure but
-                // let's try to avoid leaking memory at least.
+            GetFinalizerInvoker()->Invoke(BIND([=] () {
+                // Set the promise if the value is still missing.
+                TrySet(TError(NYT::EErrorCode::Canceled, "Promise abandoned"));
+                // Kill the fake weak reference.
                 UnrefFuture();
-            } else {
-                finalizerInvoker->Invoke(BIND([=] () {
-                    // Set the promise if the value is still missing.
-                    TrySet(TError(NYT::EErrorCode::Canceled, "Promise abandoned"));
-                    // Kill the fake weak reference.
-                    UnrefFuture();
-                }));    
-            }
+            }));
         }
     }
 
