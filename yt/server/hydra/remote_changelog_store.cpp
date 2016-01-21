@@ -126,6 +126,7 @@ private:
                 TJournalWriterOptions options;
                 options.PrerequisiteTransactionIds.push_back(PrerequisiteTransaction_->GetId());
                 options.Config = Config_->Writer;
+                options.EnableMultiplexing = Options_->EnableChangelogMultiplexing;
                 writer = MasterClient_->CreateJournalWriter(path, options);
                 WaitFor(writer->Open())
                     .ThrowOnError();
