@@ -964,15 +964,6 @@ TCodegenSource MakeCodegenJoinOp(
                 builder.getInt32(lookupKeySize),
                 keyPtr);
 
-            Value* rowWithKeyPtr = builder.CreateAlloca(TypeBuilder<TRow, false>::get(builder.getContext()));
-            builder.CreateCall3(
-                builder.Module->GetRoutine("AllocatePermanentRow"),
-                builder.GetExecutionContextPtr(),
-                builder.getInt32(joinKeySize + sourceSchema.Columns().size()),
-                rowWithKeyPtr);
-
-            Value* rowWithKey = builder.CreateLoad(rowWithKeyPtr);
-
             codegenSource(
                 builder,
                 [&] (TCGContext& builder, Value* row) {
@@ -982,7 +973,6 @@ TCodegenSource MakeCodegenJoinOp(
                     Value* joinLookupRef = builder.ViaClosure(joinLookup);
                     Value* keyPtrRef = builder.ViaClosure(keyPtr);
                     Value* keyRef = builder.CreateLoad(keyPtrRef);
-                    Value* rowWithKeyRef = builder.ViaClosure(rowWithKey);
 
                     for (int column = 0; column < lookupKeySize; ++column) {
                         int index = equationByIndex[column];
@@ -992,9 +982,13 @@ TCodegenSource MakeCodegenJoinOp(
                             lookupKeyTypes[column] = joinKeyValue.GetStaticType();
 
                             joinKeyValue.StoreToRow(builder, keyRef, column, column);
-                        } else {
+                        }
+                    }
+
+                    for (int column = 0; column < lookupKeySize; ++column) {
+                        if (equationByIndex[column] < 0) {
                             YCHECK(evaluatedColumns[column]);
-                            auto evaluatedColumn = evaluatedColumns[column](builder, rowWithKeyRef);
+                            auto evaluatedColumn = evaluatedColumns[column](builder, keyRef);
                             lookupKeyTypes[column] = evaluatedColumn.GetStaticType();
 
                             evaluatedColumn.StoreToRow(builder, keyRef, column, column);
