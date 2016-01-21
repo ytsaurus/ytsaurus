@@ -181,7 +181,7 @@ private:
                     planFragment->Timestamp = fragment->Timestamp;
                     planFragment->TableId = dataId;
                     planFragment->KeyRangesRowBuffer = buffer;
-                    planFragment->Ranges = ranges;
+                    planFragment->Ranges = std::move(ranges);
                     planFragment->Query = subquery;
                     planFragment->Options.VerboseLogging = fragment->Options.VerboseLogging;
 
