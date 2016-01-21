@@ -127,6 +127,8 @@ private:
 
     const NTableClient::TKeyComparer KeyComparer_;
 
+    const bool RequireChunkPreload_;
+
     NTableClient::IVersionedReaderPtr CreateCacheBasedReader(
         const TSharedRange<TKey>& keys,
         TTimestamp timestamp,
@@ -151,6 +153,7 @@ private:
     void OnChunkExpired();
     void OnChunkReaderExpired();
 
+    bool ValidateBlockCachePreloaded();
 };
 
 DEFINE_REFCOUNTED_TYPE(TChunkStore)
