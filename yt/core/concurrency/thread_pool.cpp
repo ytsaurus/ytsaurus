@@ -82,6 +82,10 @@ public:
 
     void Shutdown()
     {
+        if (!Queue_->IsRunning()) {
+            return;
+        }
+
         Queue_->Shutdown();
 
         decltype(Threads_) threads;

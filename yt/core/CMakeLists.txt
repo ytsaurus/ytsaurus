@@ -46,6 +46,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/concurrency/fair_share_invoker_queue.cpp
   ${CMAKE_CURRENT_LIST_DIR}/concurrency/fair_share_queue_scheduler_thread.cpp
   ${CMAKE_CURRENT_LIST_DIR}/concurrency/fiber.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/concurrency/finalizer_thread.cpp
   ${CMAKE_CURRENT_LIST_DIR}/concurrency/fls.cpp
   ${CMAKE_CURRENT_LIST_DIR}/concurrency/fork_aware_spinlock.cpp
   ${CMAKE_CURRENT_LIST_DIR}/concurrency/invoker_queue.cpp

@@ -54,6 +54,10 @@ public:
 
     void Shutdown()
     {
+        if (!Queue_->IsRunning()) {
+            return;
+        }
+
         Queue_->Shutdown();
 
         GetFinalizerInvoker()->Invoke(BIND([thread = Thread_] {
