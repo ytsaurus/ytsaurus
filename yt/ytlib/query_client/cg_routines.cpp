@@ -61,6 +61,18 @@ static const auto& Logger = QueryClientLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TRow* GetRowsData(std::vector<TRow>* rows)
+{
+    return rows->data();
+}
+
+int GetRowsSize(std::vector<TRow>* rows)
+{
+    return rows->size();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void WriteRow(TRow row, TExecutionContext* context)
 {
     CHECK_STACK();
@@ -315,15 +327,7 @@ void AllocateRow(TExpressionContext* context, int valueCount, TRow* row)
     *row = TRow::Allocate(context->IntermediateBuffer->GetPool(), valueCount);
 }
 
-TRow* GetRowsData(std::vector<TRow>* groupedRows)
-{
-    return groupedRows->data();
-}
 
-int GetRowsSize(std::vector<TRow>* groupedRows)
-{
-    return groupedRows->size();
-}
 
 void AddRow(TTopCollector* topN, TRow row)
 {
