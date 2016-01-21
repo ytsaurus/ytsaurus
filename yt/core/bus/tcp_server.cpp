@@ -207,7 +207,7 @@ protected:
                     clientAddress.GetSockAddr(),
                     &clientAddressLen);
 #endif
-            
+
                 if (clientSocket == INVALID_SOCKET) {
                     auto error = LastSystemError();
                     if (IsSocketError(error)) {
@@ -273,6 +273,26 @@ protected:
         YCHECK(result != EINTR);
         return result != EINPROGRESS && result != EWOULDBLOCK;
 #endif
+    }
+
+    void BindSocket(sockaddr* address, int size, const Stroka& errorMessage)
+    {
+        for (int attempt = 1; attempt <= Config_->BindRetryCount; ++attempt) {
+            if (bind(ServerSocket_, address, size) == 0) {
+                // Success.
+                break;
+            }
+
+            if (attempt == Config_->BindRetryCount) {
+                int errorCode = LastSystemError();
+                CloseServerSocket();
+                THROW_ERROR_EXCEPTION(NRpc::EErrorCode::TransportError, errorMessage)
+                    << TError::FromSystem(errorCode);
+            } else {
+                LOG_WARNING(TError::FromSystem(), "%v, starting %v retry", errorMessage, attempt + 1);
+                Sleep(Config_->BindRetryBackoff);
+            }
+        }
     }
 
 };
@@ -351,11 +371,10 @@ private:
             serverAddress.sin6_family = AF_INET6;
             serverAddress.sin6_addr = in6addr_any;
             serverAddress.sin6_port = htons(Config_->Port.Get());
-            if (bind(ServerSocket_, (sockaddr*)&serverAddress, sizeof(serverAddress)) != 0) {
-                CloseServerSocket();
-                THROW_ERROR_EXCEPTION("Failed to bind a server socket to port %v", Config_->Port)
-                    << TError::FromSystem();
-            }
+            BindSocket(
+                (sockaddr*)&serverAddress,
+                sizeof(serverAddress),
+                Format("Failed to bind a server socket to port %v", Config_->Port));
         }
     }
 
@@ -427,11 +446,10 @@ private:
             } else {
                 netAddress = GetLocalBusAddress(Config_->Port.Get());
             }
-            if (bind(ServerSocket_, netAddress.GetSockAddr(), netAddress.GetLength()) != 0) {
-                CloseServerSocket();
-                THROW_ERROR_EXCEPTION("Failed to bind a local server socket")
-                    << TError::FromSystem();
-            }
+            BindSocket(
+                netAddress.GetSockAddr(),
+                netAddress.GetLength(),
+                "Failed to bind a local server socket");
         }
     }
 };

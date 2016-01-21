@@ -17,6 +17,9 @@ public:
     bool EnableNoDelay;
     bool EnableQuickAck;
 
+    int BindRetryCount;
+    TDuration BindRetryBackoff;
+
     TTcpBusConfig()
     {
         RegisterParameter("priority", Priority)
@@ -26,6 +29,10 @@ public:
             .Default(true);
         RegisterParameter("enable_quick_ack", EnableQuickAck)
             .Default(true);
+        RegisterParameter("bind_retry_count", BindRetryCount)
+            .Default(1);
+        RegisterParameter("bind_retry_backoff", BindRetryBackoff)
+            .Default(TDuration::Seconds(3));
     }
 };
 

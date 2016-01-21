@@ -115,6 +115,9 @@ config = {
     show_ports        : false,
     agent             : opts.argv.agent,
 
+    bind_retry_count  : 1,
+    bind_retry_backoff: 1000,
+
     proxy             : {
         logging: { rules: [], writers: {} },
         tracing: { },
@@ -255,6 +258,29 @@ function createProfiler() {
     });
 }
 
+function checkConnection(master, attempt) {
+    attempt = typeof attempt !== "undefined" ? attempt : 0;
+
+    var fake_server = net.createServer();
+    fake_server.listen(config.port, config.address);
+    fake_server.on("error", function(err) {
+        if (err.code === "EADDRINUSE") {
+            attempt++;
+            if (attempt == config.bind_retry_count) {
+                throw new Error("Failed to bind socket on port " + config.port);
+            } else {
+                console.log("Failed to bind socket on port %s, starting new attempt", config.port);
+                setTimeout(checkConnection, config.bind_retry_backoff, master, attempt);
+            }
+        }
+    });
+    fake_server.on("listening", function() {
+        fake_server.close(function() {
+            master.kickstart();
+        });
+    });
+}
+
 function runProxy(logger, profiler) {
     process.env.YT_PROXY_CONFIGURATION = JSON.stringify(config);
     process.env.YT_PROXY_VERSION = JSON.stringify(version);
@@ -268,12 +294,7 @@ function runProxy(logger, profiler) {
 
     logger.info("Logging started");
 
-    var fake_server = net.createServer();
-    fake_server.listen(config.port, config.address, function() {
-        fake_server.close(function() {
-            master.kickstart();
-        });
-    });
+    checkConnection(master);
 
     if (config.monitoring_port) {
         var profiler_server = http.createServer(function(req, rsp) {
