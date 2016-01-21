@@ -97,12 +97,10 @@ bool TStoreManager::HasUnflushedStores() const
 {
     for (const auto& pair : Tablet_->Stores()) {
         const auto& store = pair.second;
-        // COMPAT(sandello): Temporary treat "remove_committing" chunk stores as flushed.
         if (store->GetType() != EStoreType::Chunk) {
             return true;
         }
-        if (store->GetStoreState() != EStoreState::Persistent &&
-            store->GetStoreState() != EStoreState::RemoveCommitting) {
+        if (store->GetStoreState() != EStoreState::Persistent) {
             return true;
         }
     }
