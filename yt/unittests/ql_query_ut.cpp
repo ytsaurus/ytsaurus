@@ -239,7 +239,7 @@ protected:
     void Coordinate(const Stroka& source, const TDataSplits& dataSplits, size_t subqueriesCount)
     {
         TQueryPtr query;
-        TDataSource2 dataSource;
+        TDataRanges dataSource;
         std::tie(query, dataSource) = PreparePlanFragment(
             &PrepareMock_,
             source,
@@ -638,7 +638,7 @@ protected:
 
         auto prepareAndExecute = [&] () {
             TQueryPtr primaryQuery;
-            TDataSource2 primaryDataSource;
+            TDataRanges primaryDataSource;
             std::tie(primaryQuery, primaryDataSource) = PreparePlanFragment(
                 &PrepareMock_, query, functionRegistry, ColumnEvaluatorCache_, inputRowLimit, outputRowLimit);
 

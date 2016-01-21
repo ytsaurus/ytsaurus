@@ -72,7 +72,7 @@ private:
         auto query = FromProto(request->query());
         auto options = FromProto(request->options());
 
-        std::vector<TDataSource2> dataSources;
+        std::vector<TDataRanges> dataSources;
         dataSources.reserve(request->data_sources_size());
         for (int i = 0; i < request->data_sources_size(); ++i) {
             dataSources.push_back(FromProto(request->data_sources(i)));

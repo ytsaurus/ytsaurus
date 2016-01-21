@@ -9,7 +9,7 @@ message TReqExecute
 {
     required TQuery query = 1;
     required TQueryOptions options = 2;
-    repeated TDataSource2 data_sources = 3;
+    repeated TDataRanges data_sources = 3;
     optional int32 response_codec = 4;
 }
 

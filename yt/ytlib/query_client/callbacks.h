@@ -26,7 +26,7 @@ struct IExecutor
 {
     virtual TFuture <TQueryStatistics> Execute(
         TConstQueryPtr query,
-        TDataSource2 dataSource,
+        TDataRanges dataSource,
         TQueryOptions options,
         ISchemafulWriterPtr writer) = 0;
 
@@ -39,7 +39,7 @@ struct ISubExecutor
 {
     virtual TFuture<TQueryStatistics> Execute(
         TConstQueryPtr query,
-        std::vector<TDataSource2> dataSources,
+        std::vector<TDataRanges> dataSources,
         TQueryOptions options,
         ISchemafulWriterPtr writer) = 0;
 

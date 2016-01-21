@@ -611,7 +611,7 @@ TQueryOptions FromProto(const NProto::TQueryOptions& serialized)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ToProto(NProto::TDataSource2* proto, const TDataSource2& dataSource)
+void ToProto(NProto::TDataRanges* proto, const TDataRanges & dataSource)
 {
     ToProto(proto->mutable_id(), dataSource.Id);
 
@@ -624,9 +624,9 @@ void ToProto(NProto::TDataSource2* proto, const TDataSource2& dataSource)
     ToProto(proto->mutable_ranges(), ToString(MergeRefs(writer.Flush())));
 }
 
-TDataSource2 FromProto(const NProto::TDataSource2& serialized)
+TDataRanges FromProto(const NProto::TDataRanges& serialized)
 {
-    TDataSource2 result;
+    TDataRanges result;
     FromProto(&result.Id, serialized.id());
 
     auto rowBuffer = New<TRowBuffer>();

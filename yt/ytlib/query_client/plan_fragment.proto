@@ -171,7 +171,7 @@ message TQueryOptions
     required bool enable_code_cache = 4;
 }
 
-message TDataSource2
+message TDataRanges
 {
     required NYT.NProto.TGuid id = 1;
     required bytes ranges = 2;

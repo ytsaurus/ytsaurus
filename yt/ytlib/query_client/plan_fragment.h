@@ -417,14 +417,14 @@ struct TQueryOptions
     bool EnableCodeCache = true;
 };
 
-struct TDataSource
+struct TDataRange
 {
     //! Either a chunk id or tablet id.
     NObjectClient::TObjectId Id;
     TRowRange Range;
 };
 
-struct TDataSource2
+struct TDataRanges
 {
     //! Either a chunk id or tablet id.
     NObjectClient::TObjectId Id;
@@ -434,8 +434,8 @@ struct TDataSource2
 void ToProto(NProto::TQueryOptions* proto, const TQueryOptions& options);
 TQueryOptions FromProto(const NProto::TQueryOptions& serialized);
 
-void ToProto(NProto::TDataSource2* proto, const TDataSource2& dataSource);
-TDataSource2 FromProto(const NProto::TDataSource2& serialized);
+void ToProto(NProto::TDataRanges* proto, const TDataRanges & dataSource);
+TDataRanges FromProto(const NProto::TDataRanges& serialized);
 
 Stroka InferName(TConstExpressionPtr expr, bool omitValues = false);
 Stroka InferName(TConstQueryPtr query, bool omitValues = false);

@@ -8,7 +8,7 @@ namespace NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::pair<TQueryPtr, TDataSource2> PreparePlanFragment(
+std::pair<TQueryPtr, TDataRanges> PreparePlanFragment(
     IPrepareCallbacks* callbacks,
     const Stroka& source,
     IFunctionRegistryPtr functionRegistry,

@@ -241,10 +241,10 @@ TRowRanges GetPrunedRanges(
         Logger);
 }
 
-TRowRange GetRange(const std::vector<TDataSource>& sources)
+TRowRange GetRange(const std::vector<TDataRange>& sources)
 {
     YCHECK(!sources.empty());
-    return std::accumulate(sources.begin() + 1, sources.end(), sources.front().Range, [] (TRowRange keyRange, const TDataSource& source) -> TRowRange {
+    return std::accumulate(sources.begin() + 1, sources.end(), sources.front().Range, [] (TRowRange keyRange, const TDataRange & source) -> TRowRange {
         return Unite(keyRange, source.Range);
     });
 }
