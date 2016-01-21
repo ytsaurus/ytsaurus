@@ -67,7 +67,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NQueryClient::NProto, Execute)
     {
-        LOG_DEBUG("Subfragemnt deserialization started");
+        LOG_DEBUG("Deserializing subfragment");
 
         auto query = FromProto(request->query());
         auto options = FromProto(request->options());
@@ -78,7 +78,7 @@ private:
             dataSources.push_back(FromProto(request->data_sources(i)));
         }
 
-        LOG_DEBUG("Subfragemnt deserialization finished");
+        LOG_DEBUG("Deserialized subfragment");
 
         context->SetRequestInfo("FragmentId: %v", query->Id);
 
@@ -95,7 +95,7 @@ private:
                     query->GetTableSchema());
 
                 auto executor = Bootstrap_->GetQueryExecutor();
-                auto result = WaitFor(executor->Execute(query, dataSources, options, rowsetWriter))
+                auto result = WaitFor(executor->Execute(query, dataSources, rowsetWriter, options))
                     .ValueOrThrow();
 
                 auto responseCodec = request->has_response_codec()

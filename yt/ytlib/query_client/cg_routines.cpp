@@ -159,11 +159,9 @@ void ScanOpHelper(
         }
 
         if (shouldWait) {
-            LOG_DEBUG("Started waiting for more rows");
             NProfiling::TAggregatingTimingGuard timingGuard(&context->Statistics->AsyncTime);
             WaitFor(reader->GetReadyEvent())
                 .ThrowOnError();
-            LOG_DEBUG("Finished waiting for more rows");
         }
     }
 }

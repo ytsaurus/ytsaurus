@@ -30,9 +30,9 @@ using THasherFunction = ui64(TRow);
 using TComparerFunction = char(TRow, TRow);
 
 namespace NDetail {
-struct TGroupHasher
+class TGroupHasher
 {
-    THasherFunction* Ptr_;
+public:
     TGroupHasher(THasherFunction* ptr)
         : Ptr_(ptr)
     { }
@@ -41,9 +41,12 @@ struct TGroupHasher
     {
         return Ptr_(row);
     }
+
+private:
+    THasherFunction* Ptr_;
 };
 
-struct TRowComparer
+class TRowComparer
 {
 public:
     TRowComparer(TComparerFunction* ptr)

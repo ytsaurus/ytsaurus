@@ -272,10 +272,10 @@ TQueryStatistics TEvaluator::RunWithExecutor(
     bool enableCodeCache)
 {
     return Impl_->Run(
-        query,
+        std::move(query),
         std::move(reader),
         std::move(writer),
-        executeCallback,
+        std::move(executeCallback),
         functionRegistry,
         enableCodeCache);
 }
@@ -288,7 +288,7 @@ TQueryStatistics TEvaluator::Run(
     bool enableCodeCache)
 {
     return RunWithExecutor(
-        query,
+        std::move(query),
         std::move(reader),
         std::move(writer),
         nullptr,

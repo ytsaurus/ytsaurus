@@ -302,8 +302,8 @@ public:
     virtual TFuture<TQueryStatistics> Execute(
         TConstQueryPtr query,
         TDataRanges dataSource,
-        TQueryOptions options,
-        ISchemafulWriterPtr writer) override
+        ISchemafulWriterPtr writer,
+        TQueryOptions options) override
     {
         TRACE_CHILD("QueryClient", "Execute") {
 
@@ -340,13 +340,10 @@ private:
         return result;
     }
 
-    typedef TIntrusivePtr<TIntrinsicRefCounted> THolderPtr;
-
     std::vector<std::pair<TDataRanges, Stroka>> SplitTable(
         TGuid tableId,
-        const TRowRanges& ranges,
+        TSharedRange<TRowRange> ranges,
         TRowBufferPtr rowBuffer,
-        THolderPtr parentHolder,
         const NLogging::TLogger& Logger,
         bool verboseLogging)
     {
@@ -361,8 +358,8 @@ private:
         }
 
         auto result = tableInfo->Dynamic
-            ? SplitDynamicTable(tableId, ranges, std::move(rowBuffer), std::move(parentHolder), std::move(tableInfo))
-            : SplitStaticTable(tableId, ranges, std::move(rowBuffer), std::move(parentHolder));
+            ? SplitDynamicTable(tableId, std::move(ranges), std::move(rowBuffer), std::move(tableInfo))
+            : SplitStaticTable(tableId, std::move(ranges), std::move(rowBuffer));
 
         LOG_DEBUG_IF(verboseLogging, "Got %v sources for input %v",
             result.size(),
@@ -373,9 +370,8 @@ private:
 
     std::vector<std::pair<TDataRanges, Stroka>> SplitStaticTable(
         TGuid tableId,
-        const TRowRanges& ranges,
-        TRowBufferPtr rowBuffer,
-        THolderPtr parentHolder)
+        TSharedRange<TRowRange> ranges,
+        TRowBufferPtr rowBuffer)
     {
         std::vector<TReadRange> readRanges;
         for (const auto& range : ranges) {
@@ -473,7 +469,7 @@ private:
 
                 TDataRanges dataSource{
                     GetObjectIdFromDataSplit(chunkSpec),
-                    MakeSharedRange(SmallVector<TRowRange, 1>{subrange}, rowBuffer, parentHolder)};
+                    MakeSharedRange(SmallVector<TRowRange, 1>{subrange}, rowBuffer, ranges.GetHolder())};
 
                 subsources.emplace_back(dataSource, address);
             }
@@ -484,9 +480,8 @@ private:
 
     std::vector<std::pair<TDataRanges, Stroka>> SplitDynamicTable(
         TGuid tableId,
-        const TRowRanges& ranges,
+        TSharedRange<TRowRange> ranges,
         TRowBufferPtr rowBuffer,
-        THolderPtr parentHolder,
         TTableMountInfoPtr tableInfo)
     {
         if (tableInfo->Tablets.empty()) {
@@ -519,7 +514,7 @@ private:
         };
 
         std::vector<std::pair<TDataRanges, Stroka>> subsources;
-        for (auto rangesIt = ranges.begin(); rangesIt != ranges.end();) {
+        for (auto rangesIt = begin(ranges); rangesIt != end(ranges);) {
             auto lowerBound = rangesIt->first;
             auto upperBound = rangesIt->second;
 
@@ -538,7 +533,7 @@ private:
             if (upperBound < nextPivotKey) {
                 auto rangesItEnd = std::upper_bound(
                     rangesIt,
-                    ranges.end(),
+                    end(ranges),
                     nextPivotKey.Get(),
                     [] (const TRow& key, const TRowRange& rowRange) {
                         return key < rowRange.second;
@@ -549,7 +544,10 @@ private:
 
                 TDataRanges dataSource{
                     tabletInfo->TabletId,
-                    MakeSharedRange(std::vector<TRowRange>(rangesIt, rangesItEnd), rowBuffer, parentHolder)};
+                    MakeSharedRange(
+                        MakeRange<TRowRange>(rangesIt, rangesItEnd),
+                        rowBuffer,
+                        ranges.GetHolder())};
 
                 subsources.emplace_back(dataSource, address);
                 rangesIt = rangesItEnd;
@@ -572,7 +570,7 @@ private:
 
                     TDataRanges dataSource{
                         tabletInfo->TabletId,
-                        MakeSharedRange(SmallVector<TRowRange, 1>{subrange}, rowBuffer, parentHolder)};
+                        MakeSharedRange(SmallVector<TRowRange, 1>{subrange}, rowBuffer, ranges.GetHolder())};
 
                     subsources.emplace_back(dataSource, address);
 
@@ -593,7 +591,6 @@ private:
         ui64 rangeExpansionLimit,
         bool verboseLogging,
         TRowBufferPtr rowBuffer,
-        THolderPtr parentHolder,
         const NLogging::TLogger& Logger)
     {
         const auto& tableId = dataSource.Id;
@@ -613,9 +610,8 @@ private:
 
         return SplitTable(
             tableId,
-            prunedRanges,
+            MakeSharedRange(std::move(prunedRanges), rowBuffer),
             std::move(rowBuffer),
-            std::move(parentHolder),
             Logger,
             verboseLogging);
     }
@@ -625,7 +621,6 @@ private:
         TQueryOptions options,
         ISchemafulWriterPtr writer,
         int subrangesCount,
-        bool isOrdered,
         std::function<std::pair<std::vector<TDataRanges>, Stroka>(int)> getSubsources)
     {
         auto Logger = BuildLogger(query);
@@ -641,7 +636,6 @@ private:
             query,
             writer,
             refiners,
-            isOrdered,
             [&] (TConstQueryPtr subquery, int index) {
                 std::vector<TDataRanges> dataSources;
                 Stroka address;
@@ -652,13 +646,13 @@ private:
                     address,
                     options.MaxSubqueries);
 
-                return Delegate(subquery, options, dataSources, address);
+                return Delegate(std::move(subquery), options, std::move(dataSources), address);
             },
             [&] (TConstQueryPtr topQuery, ISchemafulReaderPtr reader, ISchemafulWriterPtr writer) {
                 LOG_DEBUG("Evaluating top query (TopQueryId: %v)", topQuery->Id);
                 auto evaluator = Connection_->GetQueryEvaluator();
                 return evaluator->Run(
-                    topQuery,
+                    std::move(topQuery),
                     std::move(reader),
                     std::move(writer),
                     FunctionRegistry_,
@@ -682,7 +676,6 @@ private:
             options.RangeExpansionLimit,
             options.VerboseLogging,
             rowBuffer,
-            dataSource.Ranges.GetHolder(),
             Logger);
 
         LOG_DEBUG("Regrouping %v splits into groups",
@@ -703,7 +696,7 @@ private:
             allSplits.size(),
             groupsByAddress.size());
 
-        return DoCoordinateAndExecute(query, options, writer, groupedSplits.size(), false, [&] (int index) {
+        return DoCoordinateAndExecute(query, options, writer, groupedSplits.size(), [&] (int index) {
             return groupedSplits[index];
         });
     }
@@ -723,7 +716,6 @@ private:
             options.RangeExpansionLimit,
             options.VerboseLogging,
             rowBuffer,
-            dataSource.Ranges.GetHolder(),
             Logger);
 
         // Should be already sorted
@@ -736,7 +728,7 @@ private:
                 return lhs.first.Ranges.Begin()->first < rhs.first.Ranges.Begin()->first;
             });
 
-        return DoCoordinateAndExecute(query, options, writer, allSplits.size(), true, [&] (int index) {
+        return DoCoordinateAndExecute(query, options, writer, allSplits.size(), [&] (int index) {
             const auto& split = allSplits[index];
 
             LOG_DEBUG("Delegating to tablet %v at %v",
@@ -1577,7 +1569,7 @@ private:
         TFuture<IRowsetPtr> asyncRowset;
         std::tie(writer, asyncRowset) = CreateSchemafulRowsetWriter(query->GetTableSchema());
 
-        auto statistics = WaitFor(QueryHelper_->Execute(query, dataSource, queryOptions, writer))
+        auto statistics = WaitFor(QueryHelper_->Execute(query, dataSource, writer, queryOptions))
             .ValueOrThrow();
 
         auto rowset = WaitFor(asyncRowset)

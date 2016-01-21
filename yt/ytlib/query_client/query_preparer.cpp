@@ -1509,7 +1509,7 @@ std::pair<TQueryPtr, TDataRanges> PreparePlanFragment(
         // If can use ranges, rearrange equations according to key columns and enrich with evaluated columns
         const auto& renamedTableSchema = joinClause->RenamedTableSchema;
 
-        bool canUseSourceRanges = true;
+
         std::vector<int> equationByIndex(foreignKeyColumnsCount, -1);
         for (size_t equationIndex = 0; equationIndex < equations.size(); ++equationIndex) {
             const auto& column = equations[equationIndex];
@@ -1526,7 +1526,6 @@ std::pair<TQueryPtr, TDataRanges> PreparePlanFragment(
         }
 
         std::vector<bool> usedJoinKeyEquations(equations.size(), false);
-        //std::vector<int> equationToPosMapping(equations.size(), -1);
 
         auto evaluator = evaluatorCache->Find(foreignTableSchema, foreignKeyColumnsCount);
         size_t keyPrefix = 0;
@@ -1551,6 +1550,7 @@ std::pair<TQueryPtr, TDataRanges> PreparePlanFragment(
             break;
         }
 
+        bool canUseSourceRanges = true;
         for (auto flag : usedJoinKeyEquations) {
             if (!flag) {
                 canUseSourceRanges = false;
