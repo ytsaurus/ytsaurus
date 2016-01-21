@@ -1535,12 +1535,12 @@ private:
         const TSelectRowsOptions& options)
     {
         return CallAndRetryIfMetadataCacheIsInconsistent([&] () {
-            return DoSelectRowsOnce(query, options);
+            return DoSelectRowsOnce(queryString, options);
         });
     }
 
     std::pair<IRowsetPtr, TQueryStatistics> DoSelectRowsOnce(
-        const Stroka& query,
+        const Stroka& queryString,
         const TSelectRowsOptions& options)
     {
         auto inputRowLimit = options.InputRowLimit.Get(Connection_->GetConfig()->DefaultInputRowLimit);
