@@ -235,7 +235,7 @@ void JoinOpHelper(
 
     LOG_DEBUG("Joined into %v rows",
         joinedRows.size());
-
+    
     // Consume joined rows.
     context->StopFlag = false;
     consumeRows(consumeRowsClosure, &joinedRows, &context->StopFlag);
@@ -259,6 +259,9 @@ void GroupOpHelper(
     lookupRows.set_empty_key(TRow());
 
     collectRows(collectRowsClosure, &groupedRows, &lookupRows);
+
+    LOG_DEBUG("Collected %v group rows",
+        groupedRows.size());
 
     context->StopFlag = false;
     consumeRows(consumeRowsClosure, &groupedRows, &context->StopFlag);
