@@ -888,8 +888,9 @@ public:
         const TChunkId& chunkId,
         bool enableMultiplexing)
     {
-        auto creator = Location_->DisableOnError(BIND(&TImpl::DoCreateChangelog, MakeStrong(this), chunkId))
-            .AsyncVia(SplitChangelogDispatcher_->GetInvoker());
+        auto creator = Location_->DisableOnError(
+            BIND(&TImpl::DoCreateChangelog, MakeStrong(this), chunkId, enableMultiplexing))
+                .AsyncVia(SplitChangelogDispatcher_->GetInvoker());
         if (enableMultiplexing) {
             auto barrier = MultiplexedWriter_->RegisterBarrier();
             return MultiplexedWriter_->WriteCreateRecord(chunkId)
@@ -963,7 +964,7 @@ private:
     NLogging::TLogger Logger;
 
 
-    IChangelogPtr DoCreateChangelog(const TChunkId& chunkId)
+    IChangelogPtr DoCreateChangelog(const TChunkId& chunkId, bool enableMultiplexing)
     {
         IChangelogPtr changelog;
 
@@ -976,7 +977,7 @@ private:
             changelog = SplitChangelogDispatcher_->CreateChangelog(
                 fileName,
                 TChangelogMeta(),
-                Config_->SplitChangelog);
+                enableMultiplexing ? Config_->HighLatencySplitChangelog : Config_->LowLatencySplitChangelog);
         }
 
         LOG_DEBUG("Finished creating journal chunk (ChunkId: %v)",
@@ -997,7 +998,7 @@ private:
             auto fileName = Location_->GetChunkPath(chunkId);
             changelog = SplitChangelogDispatcher_->OpenChangelog(
                 fileName,
-                Config_->SplitChangelog);
+                Config_->HighLatencySplitChangelog);
         }
 
         LOG_TRACE("Finished opening journal chunk (ChunkId: %v)",

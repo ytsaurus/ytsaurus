@@ -127,13 +127,13 @@ private:
         TSessionOptions options;
         options.WorkloadDescriptor = FromProto<TWorkloadDescriptor>(request->workload_descriptor());
         options.SyncOnClose = request->sync_on_close();
-        options.OptimizeForLatency = request->sync_on_close();
+        options.EnableMultiplexing = request->enable_multiplexing();
 
-        context->SetRequestInfo("ChunkId: %v, Workload: %v, SyncOnClose: %v, OptimizeForLatency: %v",
+        context->SetRequestInfo("ChunkId: %v, Workload: %v, SyncOnClose: %v, EnableMultiplexing: %v",
             chunkId,
             options.WorkloadDescriptor,
             options.SyncOnClose,
-            options.OptimizeForLatency);
+            options.EnableMultiplexing);
 
         ValidateConnected();
         ValidateNoSession(chunkId);

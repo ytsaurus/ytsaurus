@@ -246,8 +246,11 @@ public:
     //! Multiplexed changelog configuration.
     TMultiplexedChangelogConfigPtr MultiplexedChangelog;
 
-    //! Split (per chunk) changelog configuration.
-    NHydra::TFileChangelogConfigPtr SplitChangelog;
+    //! Configuration of per-chunk changelog that backs the multiplexed changelog.
+    NHydra::TFileChangelogConfigPtr HighLatencySplitChangelog;
+
+    //! Configuration of per-chunk changelog that is being written directly (w/o multiplexing).
+    NHydra::TFileChangelogConfigPtr LowLatencySplitChangelog;
 
     //! Upload session timeout.
     /*!
@@ -257,7 +260,7 @@ public:
      */
     TDuration SessionTimeout;
 
-    //! Timeout for "PutBlock" requests to other data nodes.
+    //! Timeout for "PutBlocks" requests to other data nodes.
     TDuration NodeRpcTimeout;
 
     //! Period between peer updates (see TPeerBlockUpdater).
@@ -362,7 +365,9 @@ public:
 
         RegisterParameter("multiplexed_changelog", MultiplexedChangelog)
             .DefaultNew();
-        RegisterParameter("split_changelog", SplitChangelog)
+        RegisterParameter("high_latency_split_changelog", HighLatencySplitChangelog)
+            .DefaultNew();
+        RegisterParameter("low_latency_split_changelog", LowLatencySplitChangelog)
             .DefaultNew();
 
         RegisterParameter("session_timeout", SessionTimeout)
@@ -449,8 +454,7 @@ public:
             ChangelogReaderCache->Capacity = 256;
 
             // Expect many splits -- adjust configuration.
-            SplitChangelog->FlushBufferSize = (i64) 16 * 1024 * 1024;
-            SplitChangelog->FlushPeriod = TDuration::Seconds(15);
+            HighLatencySplitChangelog->FlushPeriod = TDuration::Seconds(15);
 
             // Disable target allocation from master.
             ReplicationWriter->UploadReplicationFactor = 1;
