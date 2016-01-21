@@ -10,4 +10,4 @@ def pytest_runtest_makereport(item, call, __multicall__):
     rep = __multicall__.execute()
     if hasattr(item, "cls") and hasattr(item.cls, "Env"):
         rep.environment_path = item.cls.Env.path_to_run
-        return rep
+    return rep
