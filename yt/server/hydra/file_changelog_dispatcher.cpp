@@ -124,7 +124,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(SyncThread);
 
-        return !AppendQueue_.empty() || FlushQueue_.empty();
+        return !AppendQueue_.empty() || !FlushQueue_.empty();
     }
 
     void RunPendingFlushes()
