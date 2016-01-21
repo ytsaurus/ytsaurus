@@ -1632,12 +1632,11 @@ private:
         for (const auto& pair : tablet->Stores()) {
             const auto& store = pair.second;
             if (store->GetType() == EStoreType::DynamicMemory) {
-                store->AsDynamicMemory()->SetRowBlockedHandler(BIND(
-                    &TImpl::OnRowBlocked,
-                    MakeWeak(this),
-                    Unretained(store.Get()),
-                    tablet->GetTabletId(),
-                    Slot_->GetEpochAutomatonInvoker(EAutomatonThreadQueue::Read)));
+                auto dynamicStore = store->AsDynamicMemory();
+                auto rowBlockedHandler = CreateRowBlockedHandler(
+                    dynamicStore.Get(),
+                    tablet);
+                dynamicStore->SetRowBlockedHandler(rowBlockedHandler);
             }
         }
     }
@@ -1961,6 +1960,7 @@ private:
         return store;
     }
 
+
     TDynamicMemoryStorePtr CreateDynamicMemoryStore(
         const TStoreId& storeId,
         TTablet* tablet)
@@ -1969,8 +1969,22 @@ private:
             Config_,
             storeId,
             tablet);
+        store->SetRowBlockedHandler(CreateRowBlockedHandler(store.Get(), tablet));
         StartMemoryUsageTracking(store);
         return store;
+    }
+
+
+    TDynamicMemoryStore::TRowBlockedHandler CreateRowBlockedHandler(
+        TDynamicMemoryStore* store,
+        TTablet* tablet)
+    {
+        return BIND(
+            &TImpl::OnRowBlocked,
+            MakeWeak(this),
+            store,
+            tablet->GetTabletId(),
+            Slot_->GetEpochAutomatonInvoker(EAutomatonThreadQueue::Read));
     }
 
 };
