@@ -239,8 +239,7 @@ struct TJoinClause
     size_t KeyPrefix;
     std::vector<int> EquationByIndex;
 
-
-    //std::vector<int> equationToPosMapping; // reverse to EquationByIndex
+    // TODO(lukyan): Keep reverse to EquationByIndex mapping (std::vector<int> equationToPosMapping)?
 
     std::vector<TConstExpressionPtr> EvaluatedColumns;
 
@@ -250,7 +249,7 @@ struct TJoinClause
 
     TGuid ForeignDataId;
 
-    // TODO: Use ITableSchemaInterface
+    // TODO: Use ITableSchema interface
     TTableSchema JoinedTableSchema;
 
     TTableSchema GetTableSchema() const
@@ -306,7 +305,7 @@ struct TProjectClause
 {
     TNamedItemList Projections;
 
-    // TODO: Use ITableSchemaInterface
+    // TODO: Use ITableSchema interface
     TTableSchema ProjectTableSchema;
 
     void AddProjection(const TNamedItem& namedItem)
@@ -431,10 +430,17 @@ struct TDataRanges
     TSharedRange<TRowRange> Ranges;
 };
 
+struct TDataKeys
+{
+    //! Either a chunk id or tablet id.
+    NObjectClient::TObjectId Id;
+    TSharedRange<TRow> Keys;
+};
+
 void ToProto(NProto::TQueryOptions* proto, const TQueryOptions& options);
 TQueryOptions FromProto(const NProto::TQueryOptions& serialized);
 
-void ToProto(NProto::TDataRanges* proto, const TDataRanges & dataSource);
+void ToProto(NProto::TDataRanges* proto, const TDataRanges& dataSource);
 TDataRanges FromProto(const NProto::TDataRanges& serialized);
 
 Stroka InferName(TConstExpressionPtr expr, bool omitValues = false);

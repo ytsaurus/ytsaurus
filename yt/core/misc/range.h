@@ -432,6 +432,12 @@ TSharedRange<T> MakeSharedRange(const std::vector<T>& elements, THolders&&... ho
     return DoMakeSharedRange<T>(std::move(elementsCopy), std::forward<THolders>(holders)...);
 }
 
+template <class T, class... THolders>
+TSharedRange<T> MakeSharedRange(const TRange<T>& range, THolders&&... holders)
+{
+    return TSharedRange<T>(range, MakeHolder(std::forward<THolders>(holders)...));
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 //! TMutableRange with ownership semantics.

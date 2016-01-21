@@ -87,7 +87,7 @@ Stroka RowRangeFormatter(const NQueryClient::TRowRange& range)
     return Format("[%v .. %v]", range.first, range.second);
 }
 
-Stroka DataSourceFormatter(const NQueryClient::TDataRange & source)
+Stroka DataSourceFormatter(const NQueryClient::TDataRange& source)
 {
     return Format("[%v .. %v]", source.Range.first, source.Range.second);
 }
@@ -114,8 +114,8 @@ public:
     virtual TFuture<TQueryStatistics> Execute(
         TConstQueryPtr query,
         std::vector<TDataRanges> dataSources,
-        TQueryOptions options,
-        ISchemafulWriterPtr writer) override
+        ISchemafulWriterPtr writer,
+        TQueryOptions options) override
     {
         auto securityManager = Bootstrap_->GetSecurityManager();
         auto maybeUser = securityManager->GetAuthenticatedUser();
@@ -142,7 +142,6 @@ private:
         TConstQueryPtr query,
         TQueryOptions options,
         ISchemafulWriterPtr writer,
-        bool isOrdered,
         const std::vector<TRefiner>& refiners,
         const std::vector<TSubreaderCreator>& subreaderCreators)
     {
@@ -163,7 +162,6 @@ private:
             query,
             writer,
             refiners,
-            isOrdered,
             [&] (TConstQueryPtr subquery, int index) {
                 auto mergingReader = subreaderCreators[index]();
 
@@ -184,15 +182,16 @@ private:
                     subqueryOptions.Timestamp = options.Timestamp;
                     subqueryOptions.VerboseLogging = options.VerboseLogging;
 
-                    TDataRanges dataSource;
-                    dataSource.Id = dataId;
-                    dataSource.Ranges = MakeSharedRange(std::move(ranges), std::move(buffer));
+                    TDataRanges dataSource{
+                        dataId,
+                        MakeSharedRange(std::move(ranges), std::move(buffer))
+                    };
 
                     return remoteExecutor->Execute(
                         subquery,
                         dataSource,
-                        subqueryOptions,
-                        writer);
+                        writer,
+                        subqueryOptions);
                 };
 
                 auto asyncStatistics = BIND(&TEvaluator::RunWithExecutor, Evaluator_)
@@ -216,8 +215,12 @@ private:
             },
             [&] (TConstQueryPtr topQuery, ISchemafulReaderPtr reader, ISchemafulWriterPtr writer) {
                 LOG_DEBUG("Evaluating top query (TopQueryId: %v)", topQuery->Id);
-                auto result = Evaluator_->Run(topQuery, std::move(reader), std::move(writer), FunctionRegistry_,
-                                              options.EnableCodeCache);
+                auto result = Evaluator_->Run(
+                    topQuery,
+                    std::move(reader),
+                    std::move(writer),
+                    FunctionRegistry_,
+                    options.EnableCodeCache);
                 LOG_DEBUG("Finished evaluating top query (TopQueryId: %v)", topQuery->Id);
                 return result;
             },
@@ -302,22 +305,23 @@ private:
         std::vector<TRefiner> refiners;
         std::vector<TSubreaderCreator> subreaderCreators;
 
-        for (const auto& groupedSplit : groupedSplits) {
-            refiners.push_back([&] (TConstExpressionPtr expr, const TTableSchema& schema, const TKeyColumns& keyColumns) {
-                return RefinePredicate(GetRange(groupedSplit), expr, schema, keyColumns, columnEvaluator);
+        for (auto& groupedSplit : groupedSplits) {
+            refiners.push_back([&, range = GetRange(groupedSplit)] (TConstExpressionPtr expr, const TTableSchema& schema, const
+            TKeyColumns& keyColumns) {
+                return RefinePredicate(range, expr, schema, keyColumns, columnEvaluator);
             });
-            subreaderCreators.push_back([&] () {
+            subreaderCreators.push_back([&, MOVE(groupedSplit)] () {
                 if (options.VerboseLogging) {
-                    LOG_DEBUG("Creating reader for ranges %v",
+                    LOG_DEBUG("Generating reader for ranges %v",
                         JoinToString(groupedSplit, DataSourceFormatter));
                 } else {
-                    LOG_DEBUG("Creating reader for %v ranges", groupedSplit.size());
+                    LOG_DEBUG("Generating reader for %v ranges", groupedSplit.size());
                 }
 
                 auto bottomSplitReaderGenerator = [
                     Logger,
                     query,
-                    groupedSplit,
+                    MOVE(groupedSplit),
                     timestamp,
                     index = 0,
                     this_ = MakeStrong(this)
@@ -325,9 +329,8 @@ private:
                     if (index == groupedSplit.size()) {
                         return nullptr;
                     } else {
-                        LOG_DEBUG("Started creating reader for range");
 
-                        auto group = groupedSplit[index++];
+                        const auto& group = groupedSplit[index++];
 
                         auto result =  this_->GetReader(
                             query->TableSchema,
@@ -335,14 +338,12 @@ private:
                             group.Range,
                       	    timestamp);
 
-                        LOG_DEBUG("Finished creating reader for range");
-
                         return result;
                     }
                 };
 
                 return CreateUnorderedSchemafulReader(
-                    bottomSplitReaderGenerator,
+                    std::move(bottomSplitReaderGenerator),
                     Config_->MaxBottomReaderConcurrency);
             });
         }
@@ -361,10 +362,10 @@ private:
 
                 for (const auto& keys : groupedKeys) {
                     if (options.VerboseLogging) {
-                        LOG_DEBUG("Creating lookup reader for keys %v",
+                        LOG_DEBUG("Generating lookup reader for keys %v",
                             JoinToString(keys.second));
                     } else {
-                        LOG_DEBUG("Creating lookup reader for %v keys",
+                        LOG_DEBUG("Generating lookup reader for %v keys",
                             keys.second.Size());
                     }
                 }
@@ -376,7 +377,7 @@ private:
                     Logger,
                     MOVE(tabletSnapshot),
                     query,
-                    groupedKeys,
+                    MOVE(groupedKeys),
                     tablePartId,
                     timestamp,
                     index = 0,
@@ -385,9 +386,7 @@ private:
                     if (index == groupedKeys.size()) {
                         return nullptr;
                     } else {
-                        auto group = groupedKeys[index++];
-
-                        LOG_DEBUG("Started creating reader for keys");
+                        const auto& group = groupedKeys[index++];
 
                         // TODO(lukyan): Validate timestamp and read permission
                         auto result = CreateSchemafulTabletReader(
@@ -397,14 +396,12 @@ private:
                             group.second,
                             timestamp);
 
-                        LOG_DEBUG("Finished creating reader for keys");
-
                         return result;
                     }
                 };
 
                 return CreateUnorderedSchemafulReader(
-                    bottomSplitReaderGenerator,
+                    std::move(bottomSplitReaderGenerator),
                     Config_->MaxBottomReaderConcurrency);
             });
         }
@@ -413,7 +410,6 @@ private:
             query,
             options,
             std::move(writer),
-            false,
             refiners,
             subreaderCreators);
     }
@@ -473,7 +469,6 @@ private:
             query,
             options,
             std::move(writer),
-            true,
             refiners,
             subreaderCreators);
     }

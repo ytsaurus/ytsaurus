@@ -253,7 +253,6 @@ TQueryStatistics CoordinateAndExecute(
     TConstQueryPtr query,
     ISchemafulWriterPtr writer,
     const std::vector<TRefiner>& refiners,
-    bool isOrdered,
     std::function<TEvaluateResult(TConstQueryPtr, int)> evaluateSubquery,
     std::function<TQueryStatistics(TConstQueryPtr, ISchemafulReaderPtr, ISchemafulWriterPtr)> evaluateTop,
     IFunctionRegistryPtr functionRegistry)
@@ -291,7 +290,7 @@ TQueryStatistics CoordinateAndExecute(
         return reader;
     };
 
-    int topReaderConcurrency = isOrdered ? 1 : subqueries.size();
+    int topReaderConcurrency = query->IsOrdered() ? 1 : subqueries.size();
     auto topReader = CreateUnorderedSchemafulReader(std::move(subqueryReaderCreator), topReaderConcurrency);
     auto queryStatistics = evaluateTop(topQuery, std::move(topReader), std::move(writer));
 

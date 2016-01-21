@@ -27,8 +27,8 @@ struct IExecutor
     virtual TFuture <TQueryStatistics> Execute(
         TConstQueryPtr query,
         TDataRanges dataSource,
-        TQueryOptions options,
-        ISchemafulWriterPtr writer) = 0;
+        ISchemafulWriterPtr writer,
+        TQueryOptions options) = 0;
 
 };
 
@@ -40,8 +40,8 @@ struct ISubExecutor
     virtual TFuture<TQueryStatistics> Execute(
         TConstQueryPtr query,
         std::vector<TDataRanges> dataSources,
-        TQueryOptions options,
-        ISchemafulWriterPtr writer) = 0;
+        ISchemafulWriterPtr writer,
+        TQueryOptions options) = 0;
 
 };
 

@@ -225,9 +225,9 @@ TJoinEvaluator GetJoinEvaluator(
         if (canUseSourceRanges) {
             LOG_DEBUG("Using join via source ranges");
             for (auto key : keys) {
-                TRow lowerBound = key;
+                auto lowerBound = key;
 
-                TRow upperBound = TRow::Allocate(rowBuffer->GetPool(), keyPrefix + 1);
+                auto upperBound = TRow::Allocate(rowBuffer->GetPool(), keyPrefix + 1);
                 for (int column = 0; column < keyPrefix; ++column) {
                     upperBound[column] = lowerBound[column];
                 }
@@ -320,10 +320,9 @@ TJoinEvaluator GetJoinEvaluator(
             }
 
             if (shouldWait) {
-                LOG_DEBUG("Started waiting for more foreign rows");
+                NProfiling::TAggregatingTimingGuard timingGuard(&context->Statistics->AsyncTime);
                 WaitFor(reader->GetReadyEvent())
                     .ThrowOnError();
-                LOG_DEBUG("Finished waiting for more foreign rows");
             }
         }
 
