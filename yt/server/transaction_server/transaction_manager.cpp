@@ -509,10 +509,10 @@ public:
         TransactionStarted_.Fire(transaction);
 
         LOG_DEBUG_UNLESS(IsRecovery(), "Transaction started (TransactionId: %v, ParentId: %v, "
-            "SecondaryCellTags: [%v], Timeout: %v, Title: %v)",
+            "SecondaryCellTags: %v, Timeout: %v, Title: %v)",
             transactionId,
             GetObjectId(parent),
-            JoinToString(transaction->SecondaryCellTags()),
+            transaction->SecondaryCellTags(),
             transaction->GetTimeout(),
             title);
 

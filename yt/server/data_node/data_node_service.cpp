@@ -308,9 +308,9 @@ private:
         bool populateCache = request->populate_cache();
         auto workloadDescriptor = FromProto<TWorkloadDescriptor>(request->workload_descriptor());
 
-        context->SetRequestInfo("BlockIds: %v:[%v], PopulateCache: %v, Workload: %v",
+        context->SetRequestInfo("BlockIds: %v:%v, PopulateCache: %v, Workload: %v",
             chunkId,
-            JoinToString(blockIndexes),
+            blockIndexes,
             populateCache,
             workloadDescriptor);
 
@@ -462,7 +462,7 @@ private:
 
         context->SetRequestInfo("ChunkId: %v, ExtensionTags: %v, PartitionTag: %v, Workload: %v",
             chunkId,
-            extensionTags ? "[" + JoinToString(*extensionTags) + "]" : "<Null>",
+            extensionTags,
             partitionTag,
             workloadDescriptor);
 
@@ -493,9 +493,9 @@ private:
         auto workloadDescriptor = FromProto<TWorkloadDescriptor>(request->workload_descriptor());
 
         context->SetRequestInfo(
-            "KeyColumns: [%v], ChunkCount: %v, "
+            "KeyColumns: %v, ChunkCount: %v, "
             "SliceDataSize: %v, SliceByKeys: %v, Workload: %v",
-            JoinToString(keyColumns),
+            keyColumns,
             request->chunk_specs_size(),
             request->slice_data_size(),
             request->slice_by_keys(),
@@ -590,8 +590,8 @@ private:
         auto keyColumns = FromProto<Stroka>(request->key_columns());
         auto workloadDescriptor = FromProto<TWorkloadDescriptor>(request->workload_descriptor());
 
-        context->SetRequestInfo("KeyColumns: [%v], ChunkCount: %v, Workload: %v",
-            JoinToString(keyColumns),
+        context->SetRequestInfo("KeyColumns: %v, ChunkCount: %v, Workload: %v",
+            keyColumns,
             request->sample_requests_size(),
             workloadDescriptor);
 
@@ -783,10 +783,10 @@ private:
 
         // Requested key can be wider than stored.
         if (!isCompatibleKeyColumns || chunkKeyColumns.size() > prefixLength) {
-            auto error = TError("Incompatible key columns in chunk %v: requested key columns [%v], chunk key columns [%v]",
+            auto error = TError("Incompatible key columns in chunk %v: requested key columns %v, chunk key columns %v",
                 chunkId,
-                JoinToString(keyColumns),
-                JoinToString(chunkKeyColumns));
+                keyColumns,
+                chunkKeyColumns);
             LOG_WARNING(error);
             ToProto(chunkSamples->mutable_error(), error);
             return;

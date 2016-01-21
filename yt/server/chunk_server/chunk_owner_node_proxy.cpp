@@ -822,12 +822,12 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
 
     context->SetRequestInfo(
         "UpdateMode: %v, LockMode: %v, "
-        "Title: %v, Timeout: %v, SecondaryCellTags: [%v]",
+        "Title: %v, Timeout: %v, SecondaryCellTags: %v",
         updateMode,
         lockMode,
         uploadTransactionTitle,
         uploadTransactionTimeout,
-        JoinToString(uploadTransactionSecondaryCellTags));
+        uploadTransactionSecondaryCellTags);
 
     // NB: No need for a permission check;
     // the client must have invoked GetBasicAttributes.
@@ -1002,8 +1002,8 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, EndUpload)
     bool deriveStatistics = request->derive_statistics();
     bool chunkPropertiesUpdateNeeded = request->chunk_properties_update_needed();
 
-    context->SetRequestInfo("KeyColumns: [%v], ChunkPropertiesUpdateNeeded: %v",
-        JoinToString(keyColumns),
+    context->SetRequestInfo("KeyColumns: %v, ChunkPropertiesUpdateNeeded: %v",
+        keyColumns,
         chunkPropertiesUpdateNeeded);
 
     auto* node = GetThisTypedImpl<TChunkOwnerBase>();

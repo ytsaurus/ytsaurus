@@ -37,9 +37,11 @@ static const auto& Logger = TabletNodeLogger;
 
 namespace {
 
-Stroka StoreRangeFormatter(const IStorePtr& store)
+void StoreRangeFormatter(TStringBuilder* builder, const IStorePtr& store)
 {
-    return Format("<%v:%v>", store->GetMinKey(), store->GetMaxKey());
+    builder->AppendFormat("<%v:%v>",
+        store->GetMinKey(),
+        store->GetMaxKey());
 }
 
 } // namespace

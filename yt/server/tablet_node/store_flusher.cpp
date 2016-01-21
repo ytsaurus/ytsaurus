@@ -375,8 +375,8 @@ private:
             CreateMutation(slot->GetHydraManager(), hydraRequest)
                 ->CommitAndLog(Logger);
 
-            LOG_INFO("Store flush completed (ChunkIds: [%v])",
-                JoinToString(chunkIds));
+            LOG_INFO("Store flush completed (ChunkIds: %v)",
+                chunkIds);
 
             // Just abandon the transaction, hopefully it won't expire before the chunk is attached.
         } catch (const std::exception& ex) {

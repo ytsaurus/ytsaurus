@@ -2377,14 +2377,14 @@ private:
         ValidateUserFileCount(Spec->ReduceCombiner, "reduce combiner");
 
         if (!CheckKeyColumnsCompatible(Spec->SortBy, Spec->ReduceBy)) {
-            THROW_ERROR_EXCEPTION("Reduce columns [%v] are not compatible with sort columns [%v]",
-                JoinToString(Spec->ReduceBy),
-                JoinToString(Spec->SortBy));
+            THROW_ERROR_EXCEPTION("Reduce columns %v are not compatible with sort columns %v",
+                Spec->ReduceBy,
+                Spec->SortBy);
         }
 
-        LOG_DEBUG("Reduce columns: [%v]; sort columns: [%v]",
-            JoinToString(Spec->ReduceBy),
-            JoinToString(Spec->SortBy));
+        LOG_DEBUG("ReduceCcolumns: %v, SortColumns: %v",
+            Spec->ReduceBy,
+            Spec->SortBy);
     }
 
     virtual std::vector<TRichYPath> GetInputTablePaths() const override

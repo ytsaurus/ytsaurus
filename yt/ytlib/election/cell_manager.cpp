@@ -41,9 +41,9 @@ TCellManager::TCellManager(
 
     Logger.AddTag("CellId: %v", Config->CellId);
 
-    LOG_INFO("Cell initialized (SelfId: %v, PeerAddresses: [%v])",
+    LOG_INFO("Cell initialized (SelfId: %v, PeerAddresses: %v)",
         SelfId,
-        JoinToString(Config->Addresses));
+        Config->Addresses);
 }
 
 void TCellManager::BuildTags()

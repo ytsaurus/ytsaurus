@@ -899,10 +899,11 @@ private:
             store->SetStoreState(EStoreState::RemoveCommitting);
         }
 
-        LOG_INFO_UNLESS(IsRecovery(), "Committing tablet stores update (TabletId: %v, StoreIdsToAdd: [%v], StoreIdsToRemove: [%v])",
+        LOG_INFO_UNLESS(IsRecovery(), "Committing tablet stores update "
+            "(TabletId: %v, StoreIdsToAdd: %v, StoreIdsToRemove: %v)",
             tabletId,
-            JoinToString(storeIdsToAdd),
-            JoinToString(storeIdsToRemove));
+            storeIdsToAdd,
+            storeIdsToRemove);
 
         auto slot = tablet->GetSlot();
         auto hiveManager = slot->GetHiveManager();
@@ -1020,10 +1021,11 @@ private:
                 storeId);
         }
 
-        LOG_INFO_UNLESS(IsRecovery(), "Tablet stores updated successfully (TabletId: %v, AddedStoreIds: [%v], RemovedStoreIds: [%v])",
+        LOG_INFO_UNLESS(IsRecovery(), "Tablet stores updated successfully "
+            "(TabletId: %v, AddedStoreIds: %v, RemovedStoreIds: %v)",
             tabletId,
-            JoinToString(addedStoreIds),
-            JoinToString(removedStoreIds));
+            addedStoreIds,
+            removedStoreIds);
 
         UpdateTabletSnapshot(tablet);
         if (IsLeader()) {
@@ -1060,19 +1062,20 @@ private:
 
         SplitTabletPartition(tablet, partitionIndex, pivotKeys);
 
-        auto resultingPartitionIds = JoinToString(ConvertToStrings(
+        auto resultingPartitionIds = JoinToString(
             tablet->Partitions().begin() + partitionIndex,
             tablet->Partitions().begin() + partitionIndex + pivotKeys.size(),
             [] (TStringBuilder* builder, const std::unique_ptr<TPartition>& partition) {
                 FormatValue(builder, partition->GetId());
-            }));
+            });
 
-        LOG_INFO_UNLESS(IsRecovery(), "Splitting partition (TabletId: %v, OriginalPartitionId: %v, ResultingPartitionIds: [%v], DataSize: %v, Keys: %v)",
+        LOG_INFO_UNLESS(IsRecovery(), "Splitting partition (TabletId: %v, OriginalPartitionId: %v, "
+            "ResultingPartitionIds: %v, DataSize: %v, Keys: %v)",
             tablet->GetId(),
             partitionId,
             resultingPartitionIds,
             partitionDataSize,
-            JoinToString(pivotKeys, Stroka(" .. ")));
+            JoinToString(pivotKeys, STRINGBUF(" .. ")));
 
         // NB: Initial partition is split into new ones with indexes |[partitionIndex, partitionIndex + pivotKeys.size())|.
         SchedulePartitionsSampling(tablet, partitionIndex, partitionIndex + pivotKeys.size());
@@ -1108,16 +1111,17 @@ private:
             partition->SetState(EPartitionState::Normal);
         }
 
-        auto originalPartitionIds = JoinToString(ConvertToStrings(
+        auto originalPartitionIds = JoinToString(
             tablet->Partitions().begin() + firstPartitionIndex,
             tablet->Partitions().begin() + lastPartitionIndex + 1,
             [] (TStringBuilder* builder, const std::unique_ptr<TPartition>& partition) {
                 FormatValue(builder, partition->GetId());
-            }));
+            });
 
         MergeTabletPartitions(tablet, firstPartitionIndex, lastPartitionIndex);
 
-        LOG_INFO_UNLESS(IsRecovery(), "Merging partitions (TabletId: %v, OriginalPartitionIds: [%v], ResultingPartitionId: %v, DataSize: %v)",
+        LOG_INFO_UNLESS(IsRecovery(), "Merging partitions (TabletId: %v, OriginalPartitionIds: %v, "
+            "ResultingPartitionId: %v, DataSize: %v)",
             tablet->GetId(),
             originalPartitionIds,
             tablet->Partitions()[firstPartitionIndex]->GetId(),

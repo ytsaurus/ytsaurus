@@ -776,12 +776,12 @@ bool TChunkReplicator::CreateRepairJob(
         erasedIndexes,
         Config_->RepairJobMemoryUsage);
 
-    LOG_INFO("Repair job scheduled (JobId: %v, Address: %v, ChunkId: %v, TargetAddresses: [%v], ErasedIndexes: [%v])",
+    LOG_INFO("Repair job scheduled (JobId: %v, Address: %v, ChunkId: %v, TargetAddresses: [%v], ErasedIndexes: %v)",
         (*job)->GetJobId(),
         node->GetDefaultAddress(),
         chunk->GetId(),
         JoinToString(targetNodes, TNodePtrAddressFormatter()),
-        JoinToString(erasedIndexes));
+        erasedIndexes);
 
     return true;
 }

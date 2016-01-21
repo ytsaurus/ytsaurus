@@ -579,8 +579,8 @@ private:
                 }
             }
 
-            LOG_INFO("Write targets allocated (Targets: [%v])",
-                JoinToString(targets));
+            LOG_INFO("Write targets allocated (Targets: %v)",
+                targets);
 
             const auto& networkName = Client_->GetConnection()->GetConfig()->NetworkName;
             for (const auto& target : targets) {

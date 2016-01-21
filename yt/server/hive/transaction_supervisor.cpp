@@ -154,9 +154,9 @@ private:
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
         auto participantCellIds = FromProto<TCellId>(request->participant_cell_ids());
 
-        context->SetRequestInfo("TransactionId: %v, ParticipantCellIds: [%v]",
+        context->SetRequestInfo("TransactionId: %v, ParticipantCellIds: %v",
             transactionId,
-            JoinToString(participantCellIds));
+            participantCellIds);
 
         if (ResponseKeeper_->TryReplyFrom(context))
             return;
@@ -411,9 +411,9 @@ private:
 
         LOG_DEBUG_UNLESS(IsRecovery(),
             "Distributed commit phase one started "
-            "(TransactionId: %v, ParticipantCellIds: [%v], PrepareTimestamp: %v, CoordinatorCellId: %v)",
+            "(TransactionId: %v, ParticipantCellIds: %v, PrepareTimestamp: %v, CoordinatorCellId: %v)",
             transactionId,
-            JoinToString(participantCellIds),
+            participantCellIds,
             prepareTimestamp,
             coordinatorCellId);
 

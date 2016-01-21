@@ -1046,10 +1046,10 @@ protected:
         // NB: Base member is not called intentionally.
 
         auto specKeyColumns = GetSpecKeyColumns();
-        LOG_INFO("Spec key columns are [%v]", JoinToString(specKeyColumns));
+        LOG_INFO("Spec key columns are %v", specKeyColumns);
 
         KeyColumns = CheckInputTablesSorted(specKeyColumns);
-        LOG_INFO("Adjusted key columns are [%v]", JoinToString(KeyColumns));
+        LOG_INFO("Adjusted key columns are %v", KeyColumns);
 
         CalculateSizes();
 
@@ -1955,10 +1955,10 @@ private:
         // NB: Base member is not called intentionally.
 
         auto specKeyColumns = Spec->JoinBy;
-        LOG_INFO("Spec key columns are [%v]", JoinToString(specKeyColumns));
+        LOG_INFO("Spec key columns are %v", specKeyColumns);
 
         KeyColumns = CheckInputTablesSorted(specKeyColumns);
-        LOG_INFO("Adjusted key columns are [%v]", JoinToString(KeyColumns));
+        LOG_INFO("Adjusted key columns are %v", KeyColumns);
 
         CalculateSizes();
 

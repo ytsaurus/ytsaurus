@@ -470,10 +470,10 @@ private:
             THROW_ERROR_EXCEPTION("Codec is unable to repair the chunk");
         }
 
-        LOG_INFO("Preparing to repair (ErasedIndexes: [%v], RepairIndexes: [%v], Targets: [%v])",
-            JoinToString(erasedIndexes),
-            JoinToString(*repairIndexes),
-            JoinToString(targets));
+        LOG_INFO("Preparing to repair (ErasedIndexes: %v, RepairIndexes: %v, Targets: %v)",
+            erasedIndexes,
+            *repairIndexes,
+            targets);
 
         auto nodeDirectory = New<NNodeTrackerClient::TNodeDirectory>();
         nodeDirectory->MergeFrom(RepairChunkJobSpecExt_.node_directory());

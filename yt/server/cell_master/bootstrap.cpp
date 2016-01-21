@@ -375,10 +375,10 @@ void TBootstrap::DoInitialize()
     }
 
     if (PrimaryMaster_) {
-        LOG_INFO("Running as primary master (CellId: %v, CellTag: %v, SecondaryCellTags: [%v], PeerId: %v)",
+        LOG_INFO("Running as primary master (CellId: %v, CellTag: %v, SecondaryCellTags: %v, PeerId: %v)",
             CellId_,
             CellTag_,
-            JoinToString(SecondaryCellTags_),
+            SecondaryCellTags_,
             localPeerId);
     } else if (SecondaryMaster_) {
         LOG_INFO("Running as secondary master (CellId: %v, CellTag: %v, PrimaryCellTag: %v, PeerId: %v)",
