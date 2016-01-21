@@ -123,7 +123,11 @@ class YTEnv(object):
         logger.propagate = False
         if not logger.handlers:
             logger.addHandler(logging.StreamHandler())
-        logger.handlers[0].setFormatter(logging.Formatter("%(message)s"))
+
+        if os.environ.get("YT_ENABLE_VERBOSE_LOGGING"):
+            logger.handlers[0].setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(message)s"))
+        else:
+            logger.handlers[0].setFormatter(logging.Formatter("%(message)s"))
 
         self.path_to_run = os.path.abspath(path_to_run)
         self.stderrs_path = os.path.join(self.path_to_run, "stderrs")
