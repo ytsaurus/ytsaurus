@@ -356,7 +356,8 @@ def run_pytest(options, suite_name, suite_path, pytest_args=None):
                     "PYTHONPATH": "{0}/python:{1}".format(options.checkout_directory, os.environ.get("PYTHONPATH", "")),
                     "TESTS_SANDBOX": sandbox_current,
                     "TESTS_SANDBOX_STORAGE": sandbox_storage,
-                    "YT_CAPTURE_STDERR_TO_FILE": "1"
+                    "YT_CAPTURE_STDERR_TO_FILE": "1",
+                    "YT_ENABLE_VERBOSE_LOGGING": "1"
                 })
         except ChildHasNonZeroExitCode:
             teamcity_message("(ignoring child failure since we are reading test results from XML)")
