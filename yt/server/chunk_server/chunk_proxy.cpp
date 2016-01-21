@@ -528,7 +528,7 @@ private:
 
         auto replicas = FromProto<NChunkClient::TChunkReplica>(request->replicas());
 
-        context->SetRequestInfo("Targets: [%v]", JoinToString(replicas));
+        context->SetRequestInfo("Targets: %v", replicas);
 
         auto* chunk = GetThisTypedImpl();
 

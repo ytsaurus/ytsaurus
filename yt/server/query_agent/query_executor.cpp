@@ -100,14 +100,18 @@ TColumnFilter GetColumnFilter(const TTableSchema& desiredSchema, const TTableSch
     return columnFilter;
 }
 
-Stroka RowRangeFormatter(const NQueryClient::TRowRange& range)
+void RowRangeFormatter(TStringBuilder* builder, const NQueryClient::TRowRange& range)
 {
-    return Format("[%v .. %v]", range.first, range.second);
+    builder->AppendFormat("[%v .. %v]",
+        range.first,
+        range.second);
 }
 
-Stroka DataSourceFormatter(const NQueryClient::TDataSource& source)
+void DataSourceFormatter(TStringBuilder* builder, const NQueryClient::TDataSource& source)
 {
-    return Format("[%v .. %v]", source.Range.first, source.Range.second);
+    builder->AppendFormat("[%v .. %v]",
+        source.Range.first,
+        source.Range.second);
 }
 
 } // namespace NYT
@@ -351,7 +355,7 @@ private:
                 &Logger
             ] () {
                 LOG_DEBUG_IF(fragment->VerboseLogging, "Creating lookup reader for keys %v",
-                    JoinToString(keys));
+                    keys);
                 return this_->GetReader(
                     fragment->Query->TableSchema,
                     object,

@@ -132,9 +132,9 @@ void TCachedVersionedChunkMeta::ValidateSchema(const TTableSchema& readerSchema)
 
     auto throwIncompatibleKeyColumns = [&] () {
         THROW_ERROR_EXCEPTION(
-            "Reader key columns [%v] are incompatible with chunk key columns [%v]",
-            JoinToString(readerSchema.GetKeyColumns()),
-            JoinToString(ChunkSchema_.GetKeyColumns()));
+            "Reader key columns %v are incompatible with chunk key columns %v",
+            readerSchema.GetKeyColumns(),
+            ChunkSchema_.GetKeyColumns());
     };
 
     if (readerSchema.GetKeyColumnCount() < ChunkSchema_.GetKeyColumnCount()) {

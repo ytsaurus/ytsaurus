@@ -175,7 +175,7 @@ TFuture<void> TMultiReaderBase::CombineCompletionError(TFuture<void> future)
 void TMultiReaderBase::RegisterFailedReader(IReaderBasePtr reader)
 {   
     auto chunkIds = reader->GetFailedChunkIds();
-    LOG_WARNING("Chunk reader failed (ChunkIds: [%v])", JoinToString(chunkIds));
+    LOG_WARNING("Chunk reader failed (ChunkIds: %v)", chunkIds);
 
     OnError();
 

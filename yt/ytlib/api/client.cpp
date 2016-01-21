@@ -1950,8 +1950,8 @@ private:
                 auto req = TChunkOwnerYPathProxy::BeginUpload(dstIdPath);
                 req->set_update_mode(static_cast<int>(options.Append ? EUpdateMode::Append : EUpdateMode::Overwrite));
                 req->set_lock_mode(static_cast<int>(options.Append ? ELockMode::Shared : ELockMode::Exclusive));
-                req->set_upload_transaction_title(Format("Concatenating [%v] to %v",
-                    JoinToString(srcPaths),
+                req->set_upload_transaction_title(Format("Concatenating %v to %v",
+                    srcPaths,
                     dstPath));
                 ToProto(req->mutable_upload_transaction_secondary_cell_tags(), srcCellTags);
                 req->set_upload_transaction_timeout(ToProto(Connection_->GetConfig()->TransactionManager->DefaultTransactionTimeout));
@@ -2033,8 +2033,8 @@ private:
                 THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error finishing upload to %v", dstPath);
             }
         } catch (const std::exception& ex) {
-            THROW_ERROR_EXCEPTION("Error concatenating [%v] to %v",
-                JoinToString(srcPaths),
+            THROW_ERROR_EXCEPTION("Error concatenating %v to %v",
+                srcPaths,
                 dstPath)
                 << ex;
         }

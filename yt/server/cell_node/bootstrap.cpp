@@ -166,9 +166,9 @@ void TBootstrap::DoRun()
 
     auto localAddresses = GetLocalAddresses();
 
-    LOG_INFO("Starting node (LocalAddresses: [%v], PrimaryMasterAddresses: [%v])",
-        JoinToString(GetValues(localAddresses)),
-        JoinToString(Config->ClusterConnection->PrimaryMaster->Addresses));
+    LOG_INFO("Starting node (LocalAddresses: %v, PrimaryMasterAddresses: %v)",
+        GetValues(localAddresses),
+        Config->ClusterConnection->PrimaryMaster->Addresses);
 
     MemoryUsageTracker = std::make_unique<TNodeMemoryTracker>(
         Config->ResourceLimits->Memory,

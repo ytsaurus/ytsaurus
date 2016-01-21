@@ -93,7 +93,7 @@ private:
     char* Current_ = nullptr;
     char* End_ = nullptr;
 
-    static constexpr size_t MinBufferLength = 1024;
+    static const size_t MinBufferLength;
 
 };
 
@@ -111,7 +111,7 @@ struct TDefaultFormatter
     template <class T>
     void operator()(TStringBuilder* builder, const T& obj) const
     {
-        FormatValue(builder, obj, TStringBuf());
+        FormatValue(builder, obj, STRINGBUF("v"));
     }
 };
 
@@ -138,7 +138,7 @@ void JoinToString(
         if (current != begin) {
             builder->AppendString(delimiter);
         }
-        FormatValue(builder, *current, TStringBuf());
+        formatter(builder, *current);
     }
 }
 

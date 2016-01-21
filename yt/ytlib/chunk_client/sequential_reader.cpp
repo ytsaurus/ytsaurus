@@ -51,8 +51,8 @@ TSequentialReader::TSequentialReader(
         blockIndexes.push_back(info.Index);
     }
 
-    LOG_TRACE("Creating sequential reader (Blocks: [%v])",
-        JoinToString(blockIndexes));
+    LOG_TRACE("Creating sequential reader (Blocks: %v)",
+        blockIndexes);
 
     FetchNextGroup();
 }
@@ -97,8 +97,8 @@ void TSequentialReader::OnGotBlocks(
         return;
     }
 
-    LOG_DEBUG("Got block group (Blocks: [%v])",
-        JoinToString(blockIndexes));
+    LOG_DEBUG("Got block group (Blocks: %v)",
+        blockIndexes);
 
     CompressionInvoker_->Invoke(BIND(
         &TSequentialReader::DecompressBlocks,
@@ -197,8 +197,8 @@ void TSequentialReader::RequestBlocks(
         return;
     }
 
-    LOG_DEBUG("Requesting block group (Blocks: [%v], UncompressedSize: %v)",
-        JoinToString(blockIndexes),
+    LOG_DEBUG("Requesting block group (Blocks: %v, UncompressedSize: %v)",
+        blockIndexes,
         uncompressedSize);
 
     AsyncSemaphore_.Acquire(uncompressedSize);

@@ -1513,12 +1513,13 @@ private:
             }
             securityManager->UpdateAccountNodeUsage(table);
 
-            LOG_DEBUG_UNLESS(IsRecovery(), "Tablet stores updated (TableId: %v, TabletId: %v, AttachedChunkIds: [%v], DetachedChunkIds: [%v], "
+            LOG_DEBUG_UNLESS(IsRecovery(), "Tablet stores updated (TableId: %v, TabletId: %v, "
+                "AttachedChunkIds: %v, DetachedChunkIds: %v, "
                 "AttachedRowCount: %v, DetachedRowCount: %v)",
                 table->GetId(),
                 tabletId,
-                JoinToString(ToObjectIds(chunksToAttach)),
-                JoinToString(ToObjectIds(chunksToDetach)),
+                ToObjectIds(chunksToAttach),
+                ToObjectIds(chunksToDetach),
                 attachedRowCount,
                 detachedRowCount);
         } catch (const std::exception& ex) {

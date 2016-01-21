@@ -1465,9 +1465,9 @@ void TOperationControllerBase::EndUploadOutputTables()
         auto objectIdPath = FromObjectId(table.ObjectId);
         const auto& path = table.Path.GetPath();
 
-        LOG_INFO("Finishing upload to output to table (Path: %v, KeyColumns: [%v])",
+        LOG_INFO("Finishing upload to output to table (Path: %v, KeyColumns: %v)",
             path,
-            JoinToString(table.KeyColumns));
+            table.KeyColumns);
 
         {
             auto req = TTableYPathProxy::EndUpload(objectIdPath);
@@ -2740,9 +2740,9 @@ void TOperationControllerBase::LockInputTables()
 
                 table.ChunkCount = attributes.Get<int>("chunk_count");
             }
-            LOG_INFO("Input table locked (Path: %v, KeyColumns: [%v], ChunkCount: %v)",
+            LOG_INFO("Input table locked (Path: %v, KeyColumns: %v, ChunkCount: %v)",
                 path,
-                JoinToString(table.KeyColumns),
+                table.KeyColumns,
                 table.ChunkCount);
         }
     }
@@ -3317,10 +3317,11 @@ TKeyColumns TOperationControllerBase::CheckInputTablesSorted(const TKeyColumns& 
     if (!keyColumns.empty()) {
         for (const auto& table : InputTables) {
             if (!CheckKeyColumnsCompatible(table.KeyColumns, keyColumns)) {
-                THROW_ERROR_EXCEPTION("Input table %v is sorted by columns [%v] that are not compatible with the requested columns [%v]",
+                THROW_ERROR_EXCEPTION("Input table %v is sorted by columns %v that are not compatible "
+                    "with the requested columns %v",
                     table.Path.GetPath(),
-                    JoinToString(table.KeyColumns),
-                    JoinToString(keyColumns));
+                    table.KeyColumns,
+                    keyColumns);
             }
         }
         return keyColumns;
@@ -3328,11 +3329,12 @@ TKeyColumns TOperationControllerBase::CheckInputTablesSorted(const TKeyColumns& 
         const auto& referenceTable = InputTables[0];
         for (const auto& table : InputTables) {
             if (table.KeyColumns != referenceTable.KeyColumns) {
-                THROW_ERROR_EXCEPTION("Key columns do not match: input table %v is sorted by columns [%v] while input table %v is sorted by columns [%v]",
+                THROW_ERROR_EXCEPTION("Key columns do not match: input table %v is sorted by columns %v "
+                    "while input table %v is sorted by columns %v",
                     table.Path.GetPath(),
-                    JoinToString(table.KeyColumns),
+                    table.KeyColumns,
                     referenceTable.Path.GetPath(),
-                    JoinToString(referenceTable.KeyColumns));
+                    referenceTable.KeyColumns);
             }
         }
         return referenceTable.KeyColumns;

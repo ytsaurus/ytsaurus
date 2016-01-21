@@ -169,10 +169,8 @@ TFuture<void> TBlobSession::DoPutBlocks(
         ++blockIndex;
     }
 
-    LOG_DEBUG_UNLESS(
-        receivedBlockIndexes.empty(),
-        "Blocks received (Blocks: [%v])",
-        JoinToString(receivedBlockIndexes));
+    LOG_DEBUG_UNLESS(receivedBlockIndexes.empty(), "Blocks received (Blocks: %v)",
+        receivedBlockIndexes);
 
     auto sessionManager = Bootstrap_->GetSessionManager();
     while (WindowIndex_ < Window_.size()) {

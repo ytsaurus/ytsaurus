@@ -22,18 +22,16 @@ const NProfiling::TProfiler TableReaderProfiler("/table_reader");
 void ValidateKeyColumns(const TKeyColumns& keyColumns, const TKeyColumns& chunkKeyColumns)
 {
     if (chunkKeyColumns.size() < keyColumns.size()) {
-        THROW_ERROR_EXCEPTION(
-            "Chunk has less key columns than requested (Actual: [%s], Expected: [%s])",
-            JoinToString(chunkKeyColumns),
-            JoinToString(keyColumns));
+        THROW_ERROR_EXCEPTION("Chunk has less key columns than requested: actual %v, expected %v",
+            chunkKeyColumns,
+            keyColumns);
     }
 
     for (int i = 0; i < keyColumns.size(); ++i) {
         if (chunkKeyColumns[i] != keyColumns[i]) {
-            THROW_ERROR_EXCEPTION(
-                "Incompatible key columns (Actual: [%s], Expected: [%s])",
-                JoinToString(chunkKeyColumns),
-                JoinToString(keyColumns));
+            THROW_ERROR_EXCEPTION("Incompatible key columns: actual %v, expected %v",
+                chunkKeyColumns,
+                keyColumns);
         }
     }
 }
