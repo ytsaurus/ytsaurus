@@ -32,6 +32,7 @@ extern const Stroka ChangelogExtension;
 extern const Stroka ChangelogIndexExtension;
 
 IInvokerPtr GetHydraIOInvoker();
+void ShutdownHydraIOInvoker();
 
 ////////////////////////////////////////////////////////////////////////////////
 
