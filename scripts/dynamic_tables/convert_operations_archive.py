@@ -45,15 +45,15 @@ def yson_format():
 
 # Mapper - get tablet partition pivot keys.
 def collect_pivot_keys_mapper(tablet):
-        yield {"pivot_key":tablet["pivot_key"]}
-        tablet_id = tablet["tablet_id"]
-        cell_id = tablet["cell_id"]
-        node = yson.loads(make_driver_request("get", {"output_format": "yson", "path": "#" + cell_id + "/@peers/0/address"}, None))
-        partitions_path = "//sys/nodes/%s/orchid/tablet_cells/%s/tablets/%s/partitions" % (node, cell_id, tablet_id)
-        partitions = make_driver_request("get", {"output_format": "yson", "path": partitions_path}, None)
-        if partitions != None:
-            for partition in yson.loads(partitions):
-                yield {"pivot_key": partition["pivot_key"]}
+    yield {"pivot_key":tablet["pivot_key"]}
+    tablet_id = tablet["tablet_id"]
+    cell_id = tablet["cell_id"]
+    node = yson.loads(make_driver_request("get", {"output_format": "yson", "path": "#" + cell_id + "/@peers/0/address"}, None))
+    partitions_path = "//sys/nodes/%s/orchid/tablet_cells/%s/tablets/%s/partitions" % (node, cell_id, tablet_id)
+    partitions = make_driver_request("get", {"output_format": "yson", "path": partitions_path}, None)
+    if partitions != None:
+        for partition in yson.loads(partitions):
+            yield {"pivot_key": partition["pivot_key"]}
 
 def wait_for_state(table, state):
     while not all(tablet["state"] == state for tablet in yt.get(table + "/@tablets")):
