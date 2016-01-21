@@ -1594,6 +1594,13 @@ std::pair<TQueryPtr, TDataSource2> PreparePlanFragment(
         THROW_ERROR_EXCEPTION("ORDER BY used without LIMIT");
     }
 
+    auto queryFingerprint = InferName(query, true);
+    LOG_DEBUG("Prepared query (Fingerprint: %v, InputSchema: %v, RenamedSchema: %v, ResultSchema: %v)",
+        queryFingerprint,
+        NYTree::ConvertToYsonString(query->TableSchema, NYson::EYsonFormat::Text).Data(),
+        NYTree::ConvertToYsonString(query->RenamedTableSchema, NYson::EYsonFormat::Text).Data(),
+        NYTree::ConvertToYsonString(query->GetTableSchema(), NYson::EYsonFormat::Text).Data());
+
     auto range = GetBothBoundsFromDataSplit(selfDataSplit);
 
     SmallVector<TRowRange, 1> rowRanges;
