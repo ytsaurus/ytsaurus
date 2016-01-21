@@ -225,7 +225,7 @@ YtDriver.prototype.executeSimple = function(name, parameters, data)
     var pause = utils.Pause(input_stream);
 
     parameters.input_format = "json";
-    parameters.output_format = "json";
+    parameters.output_format = parameters.output_format || "json";
 
     var descriptor = this.find_command_descriptor(name);
 
