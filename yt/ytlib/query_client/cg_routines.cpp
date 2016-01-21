@@ -171,24 +171,28 @@ void ScanOpHelper(
 void InsertJoinRow(
     TExecutionContext* context,
     TJoinLookup* lookup,
+    std::vector<TRow>* keys,
     std::vector<std::pair<TRow, int>>* chainedRows,
-    TRow* rowPtr,
-    int valueCount)
+    TRow* keyPtr,
+    TRow row,
+    int keySize)
 {
     CHECK_STACK();
 
-    TRow row = *rowPtr;
-    int pointer = chainedRows->size();
-    chainedRows->emplace_back(row, -1);
-    for (int index = 0; index < valueCount; ++index) {
-        context->PermanentBuffer->Capture(&row[index]);
-    }
-    *rowPtr = TRow::Allocate(context->PermanentBuffer->GetPool(), valueCount);
+    int chainIndex = chainedRows->size();
+    chainedRows->emplace_back(context->PermanentBuffer->Capture(row), -1);
 
-    auto inserted = lookup->insert(std::make_pair(row, pointer));
-    if (!inserted.second) {
+    TRow key = *keyPtr;
+    auto inserted = lookup->insert(std::make_pair(key, chainIndex));
+    if (inserted.second) {
+        keys->push_back(key);
+        for (int index = 0; index < keySize; ++index) {
+            context->PermanentBuffer->Capture(&key[index]);
+        }
+        *keyPtr = TRow::Allocate(context->PermanentBuffer->GetPool(), keySize);
+    } else {
         chainedRows->back().second = inserted.first->second;
-        inserted.first->second = pointer;
+        inserted.first->second = chainIndex;
     }
 }
 

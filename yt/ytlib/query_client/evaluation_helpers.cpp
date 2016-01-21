@@ -170,7 +170,7 @@ TJoinEvaluator GetJoinEvaluator(
                 const auto& equation = equations[index];
                 projectClause->AddProjection(equation.second, InferName(equation.second));
             } else {
-                const auto& evaluatedColumn = foreignTableSchema.Columns()[column];
+                const auto& evaluatedColumn = renamedTableSchema.Columns()[column];
                 auto referenceExpr = New<TReferenceExpression>(evaluatedColumn.Type, evaluatedColumn.Name);
                 projectClause->AddProjection(referenceExpr, InferName(referenceExpr));
             }
@@ -193,7 +193,6 @@ TJoinEvaluator GetJoinEvaluator(
     subquery->ProjectClause = projectClause;
 
     auto subqueryTableSchema = subquery->GetTableSchema();
-    auto joinKeySize = equations.size();
 
     std::vector<std::pair<bool, int>> columnMapping;
     for (const auto& column : joinedTableSchema.Columns()) {
@@ -300,7 +299,7 @@ TJoinEvaluator GetJoinEvaluator(
         for (auto key : joinLookup) {
             auto equalRange = foreignLookup.equal_range(key.first);
             int chainedRowIndex = key.second;
-            while (chainedRowIndex > 0) {
+            while (chainedRowIndex >= 0) {
 
                 auto row = chainedRows[chainedRowIndex].first;
                 for (auto it = equalRange.first; it != equalRange.second; ++it) {
@@ -308,7 +307,7 @@ TJoinEvaluator GetJoinEvaluator(
                     auto foreignRow = *it;
                     for (auto columnIndex : columnMapping) {
                         rowBuilder.AddValue(columnIndex.first
-                            ? row[joinKeySize + columnIndex.second]
+                            ? row[columnIndex.second]
                             : foreignRow[columnIndex.second]);
                     }
 
@@ -321,7 +320,7 @@ TJoinEvaluator GetJoinEvaluator(
                     rowBuilder.Reset();
                     for (auto columnIndex : columnMapping) {
                         rowBuilder.AddValue(columnIndex.first
-                            ? row[joinKeySize + columnIndex.second]
+                            ? row[columnIndex.second]
                             : MakeUnversionedSentinelValue(EValueType::Null));
                     }
 

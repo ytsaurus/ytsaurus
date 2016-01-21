@@ -1630,7 +1630,7 @@ TEST_F(TQueryEvaluateTest, TestJoinSimple2)
         "x=2"
     }, resultSplit);
 
-    Evaluate("a as x FROM [//left] join [//right] using a", splits, sources, result);
+    Evaluate("a as x FROM [//left] join [//right] using a order by x limit 100", splits, sources, result);
 
     SUCCEED();
 }
@@ -1784,9 +1784,9 @@ TEST_F(TQueryEvaluateTest, TestJoinNonPrefixColumns)
     });
 
     auto resultSplit = MakeSplit({
-        {"x", EValueType::Int64},
-        {"y", EValueType::String},
-        {"a", EValueType::Int64}
+        {"x", EValueType::String},
+        {"a", EValueType::Int64},
+        {"y", EValueType::String}
     });
 
     auto result = BuildRows({
@@ -1795,7 +1795,7 @@ TEST_F(TQueryEvaluateTest, TestJoinNonPrefixColumns)
         "a=3;x=c"
     }, resultSplit);
 
-    Evaluate("* FROM [//left] join [//right] using x", splits, sources, result);
+    Evaluate("* FROM [//left] join [//right] using x order by a limit 100", splits, sources, result);
 
     SUCCEED();
 }
@@ -2083,7 +2083,8 @@ TEST_F(TQueryEvaluateTest, TestJoinMany)
         "x=20;y=200;z=0",
     }, resultSplit);
 
-    Evaluate("sum(a) as x, sum(d) as y, z FROM [//primary] join [//secondary] using b join [//tertiary] using c group by c % 2 as z", splits, sources, result);
+    Evaluate("sum(a) as x, sum(d) as y, z FROM [//primary] join [//secondary] using b join [//tertiary] using c "
+                 "group by c % 2 as z order by x desc limit 100", splits, sources, result);
 
     SUCCEED();
 }
