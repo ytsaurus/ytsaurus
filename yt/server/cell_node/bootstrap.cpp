@@ -192,7 +192,7 @@ void TBootstrap::DoRun()
         Config->QueryAgent->MaxConcurrentReads,
         "Reads");
 
-    BusServer = CreateTcpBusServer(TTcpBusServerConfig::CreateTcp(Config->RpcPort));
+    BusServer = CreateTcpBusServer(Config->BusServer);
 
     RpcServer = CreateBusServer(BusServer);
 

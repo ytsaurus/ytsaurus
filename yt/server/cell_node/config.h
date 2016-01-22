@@ -45,12 +45,6 @@ public:
     //! Orchid cache expiration timeout.
     TDuration OrchidCacheExpirationTime;
 
-    //! RPC interface port number.
-    int RpcPort;
-
-    //! HTTP monitoring interface port number.
-    int MonitoringPort;
-
     //! Node-to-master connection.
     NApi::TConnectionConfigPtr ClusterConnection;
 
@@ -82,10 +76,6 @@ public:
     {
         RegisterParameter("orchid_cache_expiration_time", OrchidCacheExpirationTime)
             .Default(TDuration::Seconds(5));
-        RegisterParameter("rpc_port", RpcPort)
-            .Default(9000);
-        RegisterParameter("monitoring_port", MonitoringPort)
-            .Default(10000);
         RegisterParameter("cluster_connection", ClusterConnection);
         RegisterParameter("data_node", DataNode)
             .DefaultNew();
