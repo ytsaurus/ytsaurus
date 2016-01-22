@@ -45,13 +45,6 @@ public:
         RegisterInitializer([&] () {
             BusServer->Port = RpcPort;
         });
-
-        RegisterValidator([&] () {
-            if (BusServer->Port || BusServer->UnixDomainName) {
-                THROW_ERROR_EXCEPTION("Explicit configuration of port and Unix domain names is prohibited");
-            }
-        });
-
     }
 };
 
