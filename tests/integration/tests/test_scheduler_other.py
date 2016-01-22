@@ -438,22 +438,23 @@ class TestSchedulerRunningOperationsLimitJob(YTEnvSetup):
         create("table", "//tmp/out3")
         write_table("//tmp/in", [{"foo": i} for i in xrange(5)])
 
-        op1 = map(dont_track=True, command="sleep 2.0; cat >/dev/null", in_=["//tmp/in"], out="//tmp/out1")
+        op1 = map(dont_track=True, waiting_jobs=True, command="cat >/dev/null", in_=["//tmp/in"], out="//tmp/out1")
         op2 = map(dont_track=True, command="cat >/dev/null", in_=["//tmp/in"], out="//tmp/out2")
         op3 = map(dont_track=True, command="cat >/dev/null", in_=["//tmp/in"], out="//tmp/out3")
 
         time.sleep(1.5)
-        assert get("//sys/operations/{0}/@state".format(op1.id)) == "running"
-        assert get("//sys/operations/{0}/@state".format(op2.id)) == "pending"
-        assert get("//sys/operations/{0}/@state".format(op3.id)) == "pending"
+        assert op1.get_state() == "running"
+        assert op2.get_state() == "pending"
+        assert op3.get_state() == "pending"
 
         op2.abort()
+        op1.resume_jobs()
         op1.track()
         op3.track()
 
-        assert get("//sys/operations/{0}/@state".format(op1.id)) == "completed"
-        assert get("//sys/operations/{0}/@state".format(op2.id)) == "aborted"
-        assert get("//sys/operations/{0}/@state".format(op3.id)) == "completed"
+        assert op1.get_state() == "completed"
+        assert op2.get_state() == "aborted"
+        assert op3.get_state() == "completed"
 
     def test_reconfigured_pools_operations_limit(self):
         create("table", "//tmp/in")
