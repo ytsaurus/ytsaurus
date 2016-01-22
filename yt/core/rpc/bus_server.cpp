@@ -173,8 +173,8 @@ private:
         }
 
         LOG_DEBUG("Request cancelation received (Method: %v:%v, RealmId: %v, RequestId: %v)",
-            methodName,
             serviceName,
+            methodName,
             realmId,
             requestId);
 
