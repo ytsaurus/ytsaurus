@@ -81,6 +81,11 @@ def get_master_config():
 
     cypress_manager = {
         statistics_flush_period = 10;
+        default_table_replication_factor = 1;
+        default_file_replication_factor = 1;
+        default_journal_replication_factor = 1;
+        default_journal_read_quorum = 1;
+        default_journal_write_quorum = 1;
     };
 
     security_manager = {
