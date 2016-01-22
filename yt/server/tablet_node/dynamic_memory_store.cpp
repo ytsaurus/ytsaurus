@@ -536,7 +536,7 @@ public:
 
     virtual TFuture<void> Open() override
     {
-        Iterator_ = Store_->Rows_->FindGreaterThanOrEqualTo(TKeyWrapper{LowerKey_.Get()});
+        Iterator_ = Store_->Rows_->FindGreaterThanOrEqualTo(TKeyWrapper{LowerKey_});
         return VoidFuture;
     }
 
@@ -553,7 +553,7 @@ public:
         const auto& keyComparer = Store_->GetRowKeyComparer();
 
         while (Iterator_.IsValid() && rows->size() < rows->capacity()) {
-            if (keyComparer(Iterator_.GetCurrent(), TKeyWrapper{UpperKey_.Get()}) >= 0)
+            if (keyComparer(Iterator_.GetCurrent(), TKeyWrapper{UpperKey_}) >= 0)
                 break;
 
             auto row = ProduceRow();
@@ -1292,7 +1292,7 @@ TDynamicRow TDynamicMemoryStore::FindRow(TKey key)
 std::vector<TDynamicRow> TDynamicMemoryStore::GetAllRows()
 {
     std::vector<TDynamicRow> rows;
-    for (auto it = Rows_->FindGreaterThanOrEqualTo(TKeyWrapper{MinKey().Get()});
+    for (auto it = Rows_->FindGreaterThanOrEqualTo(TKeyWrapper{MinKey()});
          it.IsValid();
          it.MoveNext())
     {

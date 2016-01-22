@@ -97,7 +97,7 @@ int TChunkReaderBase::GetBlockIndexByKey(const TKey& pivotKey, const std::vector
     YCHECK(!blockIndexKeys.empty());
     YCHECK(beginBlockIndex < blockIndexKeys.size());
     const auto& maxKey = blockIndexKeys.back();
-    if (pivotKey > maxKey.Get()) {
+    if (pivotKey > maxKey) {
         return blockIndexKeys.size();
     }
 
@@ -109,7 +109,7 @@ int TChunkReaderBase::GetBlockIndexByKey(const TKey& pivotKey, const std::vector
         rend,
         pivotKey,
         [] (const TKey& pivot, const TOwningKey& key) {
-            return pivot > key.Get();
+            return pivot > key;
         });
 
     return beginBlockIndex + ((it != rend) ? std::distance(it, rend) : 0);
@@ -128,7 +128,7 @@ void TChunkReaderBase::CheckBlockUpperLimits(
         const auto key = FromProto<TOwningKey>(blockMeta.last_key());
         auto wideKey = WidenKey(key, keyColumnCount ? keyColumnCount.Get() : key.GetCount());
 
-        auto upperKey = upperLimit.GetKey().Get();
+        auto upperKey = upperLimit.GetKey();
         CheckKeyLimit_ = CompareRows(
             upperKey.Begin(),
             upperKey.End(),
@@ -177,7 +177,7 @@ int TChunkReaderBase::ApplyLowerKeyLimit(const std::vector<TOwningKey>& blockInd
         return 0;
     }
 
-    int blockIndex = GetBlockIndexByKey(lowerLimit.GetKey().Get(), blockIndexKeys);
+    int blockIndex = GetBlockIndexByKey(lowerLimit.GetKey(), blockIndexKeys);
     if (blockIndex == blockIndexKeys.size()) {
         LOG_DEBUG("Lower limit oversteps chunk boundaries (LowerLimit: {%v}, MaxKey: {%v})",
             lowerLimit,

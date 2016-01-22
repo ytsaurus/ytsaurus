@@ -202,8 +202,8 @@ private:
                     planFragment->DataSources.push_back({
                         dataId,
                         {
-                            planFragment->KeyRangesRowBuffer->Capture(MinKey().Get()),
-                            planFragment->KeyRangesRowBuffer->Capture(MaxKey().Get())
+                            planFragment->KeyRangesRowBuffer->Capture(MinKey()),
+                            planFragment->KeyRangesRowBuffer->Capture(MaxKey())
                         }});
 
                     planFragment->Query = subquery;
@@ -555,7 +555,7 @@ private:
                     partitions.end(),
                     *currentIt,
                     [] (TRow lhs, const TPartitionSnapshotPtr& rhs) {
-                        return lhs < rhs->PivotKey.Get();
+                        return lhs < rhs->PivotKey;
                     });
 
                 if (nextPartition == partitions.end()) {
@@ -563,7 +563,7 @@ private:
                     break;
                 }
 
-                auto nextIt = std::lower_bound(currentIt, keys.end(), (*nextPartition)->PivotKey.Get());
+                auto nextIt = std::lower_bound(currentIt, keys.end(), (*nextPartition)->PivotKey);
                 addRange(currentIt, nextIt);
                 currentIt = nextIt;
             }
@@ -603,14 +603,14 @@ private:
             partitions.end(),
             lowerBound,
             [] (TRow lhs, const TPartitionSnapshotPtr& rhs) {
-                return lhs < rhs->PivotKey.Get();
+                return lhs < rhs->PivotKey;
             }) - 1;
         auto endPartitionIt = std::lower_bound(
             startPartitionIt,
             partitions.end(),
             upperBound,
             [] (const TPartitionSnapshotPtr& lhs, TRow rhs) {
-                return lhs->PivotKey.Get() < rhs;
+                return lhs->PivotKey < rhs;
             });
         int partitionCount = std::distance(startPartitionIt, endPartitionIt);
 
@@ -661,14 +661,14 @@ private:
             partitions.end(),
             lowerBound,
             [] (TRow lhs, const TPartitionSnapshotPtr& rhs) {
-                return lhs < rhs->PivotKey.Get();
+                return lhs < rhs->PivotKey;
             }) - 1;
         auto endPartitionIt = std::lower_bound(
             startPartitionIt,
             partitions.end(),
             upperBound,
             [] (const TPartitionSnapshotPtr& lhs, TRow rhs) {
-                return lhs->PivotKey.Get() < rhs;
+                return lhs->PivotKey < rhs;
             });
         int partitionCount = std::distance(startPartitionIt, endPartitionIt);
 

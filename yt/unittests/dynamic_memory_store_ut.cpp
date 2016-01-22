@@ -54,7 +54,7 @@ protected:
         bool prelock,
         ui32 lockMask = TDynamicRow::PrimaryLockMask)
     {
-        return Store_->WriteRowAtomic(transaction, row.Get(), prelock, lockMask);
+        return Store_->WriteRowAtomic(transaction, row, prelock, lockMask);
     }
 
     TTimestamp WriteRow(
@@ -72,7 +72,7 @@ protected:
 
     TDynamicRow WriteRowNonAtomic(const TUnversionedOwningRow& row, TTimestamp timestamp)
     {
-        return Store_->WriteRowNonAtomic(row.Get(), timestamp);
+        return Store_->WriteRowNonAtomic(row, timestamp);
     }
 
     TDynamicRow DeleteRow(
@@ -80,7 +80,7 @@ protected:
         const TOwningKey& key,
         bool prelock)
     {
-        return Store_->DeleteRowAtomic(transaction, key.Get(), prelock);
+        return Store_->DeleteRowAtomic(transaction, key, prelock);
     }
 
     TTimestamp DeleteRow(const TOwningKey& key)
@@ -96,7 +96,7 @@ protected:
 
     TDynamicRow DeleteRowNonAtomic(const TOwningKey& key, TTimestamp timestamp)
     {
-        return Store_->DeleteRowNonAtomic(key.Get(), timestamp);
+        return Store_->DeleteRowNonAtomic(key, timestamp);
     }
 
     TUnversionedOwningRow LookupRow(const TOwningKey& key, TTimestamp timestamp)
@@ -106,7 +106,7 @@ protected:
 
     TDynamicRow LookupDynamicRow(const TOwningKey& key)
     {
-        return Store_->FindRow(key.Get());
+        return Store_->FindRow(key);
     }
 
     TTimestamp GetLastCommitTimestamp(TDynamicRow row, int lockIndex = TDynamicRow::PrimaryLockIndex)
@@ -543,8 +543,8 @@ TEST_P(TDynamicRowKeyComparerTest, Test)
     if (urow1.GetCount() == keyColumnCount) {
         auto drow1 = BuildDynamicRow(urow1);
         EXPECT_EQ(
-            StaticComparer_(drow1, TKeyWrapper{urow2.Get()}),
-            LlvmComparer_(drow1, TKeyWrapper{urow2.Get()}));
+            StaticComparer_(drow1, TKeyWrapper{urow2}),
+            LlvmComparer_(drow1, TKeyWrapper{urow2}));
 
         if (urow2.GetCount() == keyColumnCount) {
             auto drow2 = BuildDynamicRow(urow2);

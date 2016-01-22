@@ -748,7 +748,7 @@ TRangeInferrer CreateHeavyRangeInferrer(
         rangeExpansionLimit);
 
     auto ranges = GetRangesFromTrieWithinRange(
-        TRowRange(buffer->Capture(MinKey().Get()), buffer->Capture(MaxKey().Get())),
+        TRowRange(buffer->Capture(MinKey()), buffer->Capture(MaxKey())),
         keyTrie,
         buffer,
         true,

@@ -130,7 +130,7 @@ TTabletInfoPtr TTableMountInfo::GetTablet(TUnversionedRow row) const
         Tablets.end(),
         row,
         [&] (TUnversionedRow lhs, const TTabletInfoPtr& rhs) {
-            return CompareRows(lhs, rhs->PivotKey.Get(), KeyColumns.size()) < 0;
+            return CompareRows(lhs, rhs->PivotKey, KeyColumns.size()) < 0;
         });
     return *(it - 1);
 }

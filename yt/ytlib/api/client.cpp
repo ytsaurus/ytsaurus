@@ -397,7 +397,7 @@ private:
 
             TOwningKey chunkLowerBound, chunkUpperBound;
             if (TryGetBoundaryKeys(chunkSpec.chunk_meta(), &chunkLowerBound, &chunkUpperBound)) {
-                chunkUpperBound = GetKeySuccessor(chunkUpperBound.Get());
+                chunkUpperBound = GetKeySuccessor(chunkUpperBound);
                 SetLowerBound(&chunkSpec, chunkLowerBound);
                 SetUpperBound(&chunkSpec, chunkUpperBound);
             }
@@ -432,7 +432,7 @@ private:
                         objectId);
                 }
 
-                const TChunkReplica& selectedReplica = replicas[RandomNumber(replicas.size())];
+                auto selectedReplica = replicas[RandomNumber(replicas.size())];
 
                 TDataSource dataSource;
                 dataSource.Id = GetObjectIdFromDataSplit(chunkSpec);
@@ -476,7 +476,7 @@ private:
                 tableInfo->Tablets.end(),
                 lowerBound,
                 [] (TRow key, const TTabletInfoPtr& tabletInfo) {
-                    return key < tabletInfo->PivotKey.Get();
+                    return key < tabletInfo->PivotKey;
                 }) - 1;
 
             for (auto it = startIt; it != tableInfo->Tablets.end(); ++it) {

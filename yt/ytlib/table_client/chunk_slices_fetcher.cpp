@@ -106,8 +106,8 @@ void TChunkSlicesFetcher::DoFetchFromNode(TNodeId nodeId, const std::vector<int>
         {
             auto slice = CreateChunkSlice(
                 chunk,
-                GetKeyPrefix(minKey.Get(), keyColumnCount),
-                GetKeyPrefixSuccessor(maxKey.Get(), keyColumnCount));
+                GetKeyPrefix(minKey, keyColumnCount),
+                GetKeyPrefixSuccessor(maxKey, keyColumnCount));
             if (SlicesByChunkIndex_.size() <= index) {
                 SlicesByChunkIndex_.resize(index + 1, std::vector<NChunkClient::TChunkSlicePtr>());
             }

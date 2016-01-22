@@ -1540,8 +1540,8 @@ TPlanFragmentPtr PreparePlanFragment(
     auto range = GetBothBoundsFromDataSplit(selfDataSplit);
 
     TRowRange rowRange(
-        planFragment->KeyRangesRowBuffer->Capture(range.first.Get()),
-        planFragment->KeyRangesRowBuffer->Capture(range.second.Get()));
+        planFragment->KeyRangesRowBuffer->Capture(range.first),
+        planFragment->KeyRangesRowBuffer->Capture(range.second));
 
     planFragment->DataSources.push_back({
         GetObjectIdFromDataSplit(selfDataSplit),

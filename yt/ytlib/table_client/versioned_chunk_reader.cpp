@@ -234,7 +234,7 @@ bool TVersionedRangeChunkReader::Read(std::vector<TVersionedRow>* rows)
             return !rows->empty();
         }
 
-        if (CheckKeyLimit_ && KeyComparer_(BlockReader_->GetKey(), UpperLimit_.GetKey().Get()) >= 0) {
+        if (CheckKeyLimit_ && KeyComparer_(BlockReader_->GetKey(), UpperLimit_.GetKey()) >= 0) {
             PerformanceCounters_->StaticChunkRowReadCount += rows->size();
             return !rows->empty();
         }
@@ -317,7 +317,7 @@ void TVersionedRangeChunkReader::InitFirstBlock()
 
     if (LowerLimit_.HasKey()) {
         auto blockRowIndex = BlockReader_->GetRowIndex();
-        YCHECK(BlockReader_->SkipToKey(LowerLimit_.GetKey().Get()));
+        YCHECK(BlockReader_->SkipToKey(LowerLimit_.GetKey()));
         CurrentRowIndex_ += BlockReader_->GetRowIndex() - blockRowIndex;
     }
 }
@@ -798,7 +798,7 @@ protected:
             rend,
             key,
             [this] (TKey pivot, const TOwningKey& indexKey) {
-                return KeyComparer_(pivot, indexKey.Get()) > 0;
+                return KeyComparer_(pivot, indexKey) > 0;
             });
 
         return it == rend ? 0 : std::distance(it, rend);
@@ -936,7 +936,7 @@ private:
             return TVersionedRow();
         }
 
-        if (KeyComparer_(key, ChunkMeta_->MinKey().Get()) < 0 || KeyComparer_(key, ChunkMeta_->MaxKey().Get()) > 0) {
+        if (KeyComparer_(key, ChunkMeta_->MinKey()) < 0 || KeyComparer_(key, ChunkMeta_->MaxKey()) > 0) {
             return TVersionedRow();
         }
 
@@ -1021,19 +1021,19 @@ private:
     {
         if (BlockIndex_ < 0) {
             // First read, not initialized yet.
-            if (LowerBound_ > ChunkMeta_->MaxKey().Get()) {
+            if (LowerBound_ > ChunkMeta_->MaxKey()) {
                 return false;
             }
 
-            BlockIndex_ = GetBlockIndex(LowerBound_.Get());
+            BlockIndex_ = GetBlockIndex(LowerBound_);
             CreateBlockReader();
 
-            if (!BlockReader_->SkipToKey(LowerBound_.Get())) {
+            if (!BlockReader_->SkipToKey(LowerBound_)) {
                 return false;
             }
         }
 
-        while ((!UpperBoundCheckNeeded_ || BlockReader_->GetKey() < UpperBound_.Get()) &&
+        while ((!UpperBoundCheckNeeded_ || BlockReader_->GetKey() < UpperBound_) &&
                rows->size() < rows->capacity())
         {
             auto row = CaptureRow(BlockReader_.get());
@@ -1068,7 +1068,7 @@ private:
             SchemaIdMapping_,
             KeyComparer_,
             Timestamp_);
-        UpperBoundCheckNeeded_ = (UpperBound_.Get() <= ChunkMeta_->BlockLastKeys()[BlockIndex_]);
+        UpperBoundCheckNeeded_ = (UpperBound_ <= ChunkMeta_->BlockLastKeys()[BlockIndex_]);
     }
 };
 

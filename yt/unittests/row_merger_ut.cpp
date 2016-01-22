@@ -1389,7 +1389,7 @@ public:
 
             for (const auto& row : partial) {
                 Result_.push_back(TVersionedOwningRow(row));
-                result->push_back(Result_.back().Get());
+                result->push_back(Result_.back());
             }
 
         } while (wait || partial.size() > 0);

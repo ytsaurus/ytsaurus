@@ -509,8 +509,8 @@ bool TReorderingSchemalessMultiChunkWriter::CheckSortOrder(TUnversionedRow lhs, 
         Error_ = TError(
             EErrorCode::SortOrderViolation,
             "Sort order violation: %v > %v",
-            leftBuilder.FinishRow().Get(),
-            rightBuilder.FinishRow().Get());
+            leftBuilder.FinishRow(),
+            rightBuilder.FinishRow());
     } catch (const std::exception& ex) {
         // NB: e.g. incomparable type.
         Error_ = TError(ex);
@@ -528,7 +528,7 @@ bool TReorderingSchemalessMultiChunkWriter::Write(const std::vector<TUnversioned
     }
 
     if (IsSorted() && !reorderedRows.empty()) {
-        if (!CheckSortOrder(LastKey_.Get(), reorderedRows.front())) {
+        if (!CheckSortOrder(LastKey_, reorderedRows.front())) {
             return false;
         }
 

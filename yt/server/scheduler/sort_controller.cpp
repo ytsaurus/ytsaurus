@@ -1857,7 +1857,7 @@ private:
         sortedSamples.reserve(sampleCount);
         try {
             for (const auto& sample : samples) {
-                ValidateClientKey(sample.Key.Get());
+                ValidateClientKey(sample.Key);
                 sortedSamples.push_back(&sample);
             }
         } catch (const std::exception& ex) {
@@ -2007,7 +2007,7 @@ private:
 
                     // NB: in partitioner we compare keys with the whole rows,
                     // so key prefix successor in required here.
-                    auto successorKey = GetKeyPrefixSuccessor(sample->Key.Get(), Spec->SortBy.size());
+                    auto successorKey = GetKeyPrefixSuccessor(sample->Key, Spec->SortBy.size());
                     AddPartition(successorKey);
                 } else {
                     // If sample keys are incomplete, we cannot use UnorderedMerge,

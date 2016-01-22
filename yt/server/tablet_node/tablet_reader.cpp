@@ -195,12 +195,12 @@ ISchemafulReaderPtr CreateSchemafulTabletReader(
             tabletSnapshot->Partitions.end(),
             *currentIt,
             [] (TKey lhs, const TPartitionSnapshotPtr& rhs) {
-                return lhs < rhs->PivotKey.Get();
+                return lhs < rhs->PivotKey;
             });
         YCHECK(nextPartitionIt != tabletSnapshot->Partitions.begin());
         auto nextIt = nextPartitionIt == tabletSnapshot->Partitions.end()
             ? keys.End()
-            : std::lower_bound(currentIt, keys.End(), (*nextPartitionIt)->PivotKey.Get());
+            : std::lower_bound(currentIt, keys.End(), (*nextPartitionIt)->PivotKey);
         partitions.push_back(*(nextPartitionIt - 1));
         partitionedKeys.push_back(keys.Slice(currentIt, nextIt));
         currentIt = nextIt;
