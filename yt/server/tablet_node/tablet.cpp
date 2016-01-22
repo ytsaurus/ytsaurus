@@ -66,7 +66,7 @@ TPartitionSnapshotPtr TTabletSnapshot::FindContainingPartition(TKey key)
         Partitions.end(),
         key,
         [] (TKey key, const TPartitionSnapshotPtr& partition) {
-            return key < partition->PivotKey.Get();
+            return key < partition->PivotKey;
         });
 
     return it == Partitions.begin() ? nullptr : *(--it);

@@ -409,11 +409,11 @@ public:
     {
         // Leave only key prefix.
         const auto& lowerKey = BeginIndex_ > 0 ? IndexKeys_[BeginIndex_ - 1].Key : MinKey_;
-        auto lowerKeyPrefix = GetKeyPrefix(lowerKey.Get(), keyColumnCount);
+        auto lowerKeyPrefix = GetKeyPrefix(lowerKey, keyColumnCount);
 
         if (EndIndex_ - BeginIndex_ < 2) {
             // Too small distance between given read limits.
-            const auto upperKeyPrefix = GetKeyPrefixSuccessor(MaxKey_.Get(), keyColumnCount);
+            const auto upperKeyPrefix = GetKeyPrefixSuccessor(MaxKey_, keyColumnCount);
             return { New<TChunkSlice>(ChunkSpec_, lowerKeyPrefix, upperKeyPrefix) };
         }
 
@@ -459,7 +459,7 @@ public:
             if (dataSize > sliceDataSize || currentIndex == EndIndex_ - 1) {
                 YCHECK(CompareRows(lowerKeyPrefix, key) <= 0);
 
-                auto upperKeyPrefix = GetKeyPrefixSuccessor(key.Get(), keyColumnCount);
+                auto upperKeyPrefix = GetKeyPrefixSuccessor(key, keyColumnCount);
                 auto slice = New<TChunkSlice>(ChunkSpec_, lowerKeyPrefix, upperKeyPrefix);
                 slice->SetRowCount(sliceRowCount);
                 slice->SetDataSize(dataSize);
@@ -479,11 +479,11 @@ public:
     {
         // Leave only key prefix.
         const auto& lowerKey = BeginIndex_ > 0 ? IndexKeys_[BeginIndex_ - 1].Key : MinKey_;
-        auto lowerKeyPrefix = GetKeyPrefix(lowerKey.Get(), keyColumnCount);
+        auto lowerKeyPrefix = GetKeyPrefix(lowerKey, keyColumnCount);
 
         if (EndIndex_ - BeginIndex_ < 2) {
             // Too small distance between given read limits.
-            const auto upperKeyPrefix = GetKeyPrefixSuccessor(MaxKey_.Get(), keyColumnCount);
+            const auto upperKeyPrefix = GetKeyPrefixSuccessor(MaxKey_, keyColumnCount);
             return { New<TChunkSlice>(ChunkSpec_, lowerKeyPrefix, upperKeyPrefix) };
         }
 
@@ -521,7 +521,7 @@ public:
             if (dataSize > sliceDataSize || currentIndex == EndIndex_ - 1) {
                 YCHECK(CompareRows(lowerKeyPrefix, key) <= 0);
 
-                auto upperKeyPrefix = GetKeyPrefixSuccessor(key.Get(), keyColumnCount);
+                auto upperKeyPrefix = GetKeyPrefixSuccessor(key, keyColumnCount);
                 auto slice = New<TChunkSlice>(ChunkSpec_, DefaultPartIndex, startRowIndex, startRowIndex + sliceRowCount, dataSize);
                 slice->SetKeys(lowerKeyPrefix, upperKeyPrefix);
                 if (dataSize >= 2 * sliceDataSize) {
@@ -530,7 +530,7 @@ public:
                 } else {
                     slices.emplace_back(std::move(slice));
                 }
-                lowerKeyPrefix = GetKeyPrefix(key.Get(), keyColumnCount);
+                lowerKeyPrefix = GetKeyPrefix(key, keyColumnCount);
                 startRowIndex = IndexKeys_[currentIndex].ChunkRowCount;
                 dataSize = 0;
                 sliceRowCount = 0;

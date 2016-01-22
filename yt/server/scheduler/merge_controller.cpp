@@ -1114,8 +1114,8 @@ protected:
             leftEndpoint.MaxBoundaryKey = slice->UpperLimit().GetKey();
 
             try {
-                ValidateClientKey(leftEndpoint.MinBoundaryKey.Get());
-                ValidateClientKey(leftEndpoint.MaxBoundaryKey.Get());
+                ValidateClientKey(leftEndpoint.MinBoundaryKey);
+                ValidateClientKey(leftEndpoint.MaxBoundaryKey);
             } catch (const std::exception& ex) {
                 THROW_ERROR_EXCEPTION(
                     "Error validating sample key in input table %v",
@@ -1343,7 +1343,7 @@ private:
                     return;
                 }
 
-                auto nextBreakpoint = GetKeyPrefixSuccessor(key.Get(), prefixLength);
+                auto nextBreakpoint = GetKeyPrefixSuccessor(key, prefixLength);
                 LOG_TRACE("Finish current task, flushing %v chunks at key %v",
                     globalOpenedSlices.size(),
                     nextBreakpoint);
@@ -1732,7 +1732,7 @@ private:
             if (HasLargeActiveTask()) {
                 YCHECK(!lastBreakpoint || CompareRows(key, *lastBreakpoint, prefixLength) != 0);
 
-                auto nextBreakpoint = GetKeyPrefixSuccessor(key.Get(), prefixLength);
+                auto nextBreakpoint = GetKeyPrefixSuccessor(key, prefixLength);
                 LOG_TRACE("Finish current task, flushing %v chunks at key %v",
                     openedSlices.size(),
                     nextBreakpoint);
@@ -2047,8 +2047,8 @@ private:
             const auto& primaryMaxKey = slice->UpperLimit().GetKey();
 
             try {
-                ValidateClientKey(primaryMinKey.Get());
-                ValidateClientKey(primaryMaxKey.Get());
+                ValidateClientKey(primaryMinKey);
+                ValidateClientKey(primaryMaxKey);
             } catch (const std::exception& ex) {
                 THROW_ERROR_EXCEPTION(
                     "Error validating sample key in input table %v",

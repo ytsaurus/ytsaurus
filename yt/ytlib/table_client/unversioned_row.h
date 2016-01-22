@@ -223,34 +223,6 @@ bool operator <  (TUnversionedRow lhs, TUnversionedRow rhs);
 bool operator >= (TUnversionedRow lhs, TUnversionedRow rhs);
 bool operator >  (TUnversionedRow lhs, TUnversionedRow rhs);
 
-bool operator == (TUnversionedRow lhs, const TUnversionedOwningRow& rhs);
-bool operator != (TUnversionedRow lhs, const TUnversionedOwningRow& rhs);
-bool operator <= (TUnversionedRow lhs, const TUnversionedOwningRow& rhs);
-bool operator <  (TUnversionedRow lhs, const TUnversionedOwningRow& rhs);
-bool operator >= (TUnversionedRow lhs, const TUnversionedOwningRow& rhs);
-bool operator >  (TUnversionedRow lhs, const TUnversionedOwningRow& rhs);
-
-bool operator == (const TUnversionedOwningRow& lhs, TUnversionedRow rhs);
-bool operator != (const TUnversionedOwningRow& lhs, TUnversionedRow rhs);
-bool operator <= (const TUnversionedOwningRow& lhs, TUnversionedRow rhs);
-bool operator <  (const TUnversionedOwningRow& lhs, TUnversionedRow rhs);
-bool operator >= (const TUnversionedOwningRow& lhs, TUnversionedRow rhs);
-bool operator >  (const TUnversionedOwningRow& lhs, TUnversionedRow rhs);
-
-//! Ternary comparison predicate for TUnversionedOwningRow-s stripped to a given number of
-//! (leading) values.
-int CompareRows(
-    const TUnversionedOwningRow& lhs,
-    const TUnversionedOwningRow& rhs,
-    int prefixLength = std::numeric_limits<int>::max());
-
-bool operator == (const TUnversionedOwningRow& lhs, const TUnversionedOwningRow& rhs);
-bool operator != (const TUnversionedOwningRow& lhs, const TUnversionedOwningRow& rhs);
-bool operator <= (const TUnversionedOwningRow& lhs, const TUnversionedOwningRow& rhs);
-bool operator <  (const TUnversionedOwningRow& lhs, const TUnversionedOwningRow& rhs);
-bool operator >= (const TUnversionedOwningRow& lhs, const TUnversionedOwningRow& rhs);
-bool operator >  (const TUnversionedOwningRow& lhs, const TUnversionedOwningRow& rhs);
-
 //! Sets all value types of |row| to |EValueType::Null|. Ids are not changed.
 void ResetRowValues(TMutableUnversionedRow* row);
 
@@ -554,6 +526,11 @@ public:
     explicit operator bool() const
     {
         return static_cast<bool>(RowData_);
+    }
+
+    operator TUnversionedRow() const
+    {
+        return Get();
     }
 
     TUnversionedRow Get() const

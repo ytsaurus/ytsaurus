@@ -151,7 +151,7 @@ bool TSchemalessFormatWriterBase::CheckKeySwitch(TUnversionedRow row, bool isLas
     if (isLastRow && CurrentKey_) {
         // After processing last row we create a copy of CurrentKey.
         LastKey_ = GetKeyPrefix(CurrentKey_, KeyColumnCount_);
-        CurrentKey_ = LastKey_.Get();
+        CurrentKey_ = LastKey_;
     }
 
     return needKeySwitch;
