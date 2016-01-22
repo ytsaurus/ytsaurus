@@ -89,6 +89,10 @@ class ConfigsProvider(object):
                             "'{0}'".format(address) for address in self._master_addresses["primary"]
                         ])))
 
+def _set_bind_retry_options(config):
+    config["bind_retry_count"] = 10
+    config["bind_retry_backoff"] = 3000
+
 def _generate_common_proxy_config(proxy_dir, proxy_port, enable_debug_logging, fqdn):
     proxy_config = default_configs.get_proxy_config()
     proxy_config["proxy"]["logging"] = init_logging(proxy_config["proxy"]["logging"], proxy_dir, "http_proxy",
@@ -97,6 +101,8 @@ def _generate_common_proxy_config(proxy_dir, proxy_port, enable_debug_logging, f
     proxy_config["fqdn"] = "{0}:{1}".format(fqdn, proxy_port)
     proxy_config["static"].append(["/ui", os.path.join(proxy_dir, "ui")])
     proxy_config["logging"]["filename"] = os.path.join(proxy_dir, "http_application.log")
+
+    _set_bind_retry_options(proxy_config)
 
     return proxy_config
 
@@ -142,6 +148,7 @@ class ConfigsProvider_17(ConfigsProvider):
                                              self.enable_debug_logging)
 
             config["node_tracker"]["online_node_timeout"] = 1000
+            _set_bind_retry_options(config)
 
             configs.append(config)
 
@@ -193,6 +200,7 @@ class ConfigsProvider_17(ConfigsProvider):
 
             config["logging"] = init_logging(config["logging"], scheduler_dirs[i], "scheduler-" + str(i),
                                              self.enable_debug_logging)
+            _set_bind_retry_options(config)
 
             configs.append(config)
 
@@ -239,6 +247,7 @@ class ConfigsProvider_17(ConfigsProvider):
             config["exec_agent"]["job_proxy_logging"] = init_logging(config["exec_agent"]["job_proxy_logging"],
                                                                      node_dirs[i], "job_proxy-{0}".format(i),
                                                                      self.enable_debug_logging)
+            _set_bind_retry_options(config)
 
             configs.append(config)
 
@@ -380,6 +389,8 @@ class ConfigsProvider_18(ConfigsProvider):
                     "cell_statistics_gossip_period": 80
                 }
 
+                _set_bind_retry_options(config)
+
                 configs.append(config)
 
             cell_configs.append(configs)
@@ -441,6 +452,7 @@ class ConfigsProvider_18(ConfigsProvider):
 
             config["logging"] = init_logging(config["logging"], scheduler_dirs[i], "scheduler-" + str(i),
                                              self.enable_debug_logging)
+            _set_bind_retry_options(config)
 
             configs.append(config)
 
@@ -506,6 +518,7 @@ class ConfigsProvider_18(ConfigsProvider):
                 "leader_lease_timeout": 500,
                 "disable_leader_lease_grace_delay": True
             }
+            _set_bind_retry_options(config)
 
             configs.append(config)
 
