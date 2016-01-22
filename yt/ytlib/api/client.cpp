@@ -1153,33 +1153,37 @@ private:
     {
         int retryCount = 0;
         while (true) {
+            TError error;
+
             try {
                 return callback();
             } catch (const NYT::TErrorException& ex) {
-                auto config = Connection_->GetConfig();
-                if (++retryCount <= config->TableMountInfoUpdateRetryCount) {
-                    const auto& error = ex.Error();
-                    if (error.FindMatching(NTabletClient::EErrorCode::NoSuchTablet) ||
-                        error.FindMatching(NTabletClient::EErrorCode::TabletNotMounted))
-                    {
-                        LOG_DEBUG(error, "Got error, will clear table mount cache and retry");
-                        auto tabletId = error.Attributes().Get<TTabletId>("tablet_id");
-                        auto tableMountCache = Connection_->GetTableMountCache();
-                        auto tabletInfo = tableMountCache->FindTablet(tabletId);
-                        if (tabletInfo) {
-                            tableMountCache->InvalidateTablet(tabletInfo);
-                            auto now = Now();
-                            auto retryTime = tabletInfo->UpdateTime + config->TableMountInfoUpdateRetryPeriod;
-                            if (retryTime > now) {
-                                WaitFor(TDelayedExecutor::MakeDelayed(retryTime - now))
-                                    .ThrowOnError();
-                            }
-                        }
-                        continue;
-                    }
-                }
-                throw;
+                error = ex.Error();
             }
+
+            auto config = Connection_->GetConfig();
+            if (++retryCount <= config->TableMountInfoUpdateRetryCount) {
+                if (error.FindMatching(NTabletClient::EErrorCode::NoSuchTablet) ||
+                    error.FindMatching(NTabletClient::EErrorCode::TabletNotMounted))
+                {
+                    LOG_DEBUG(error, "Got error, will clear table mount cache and retry");
+                    auto tabletId = error.Attributes().Get<TTabletId>("tablet_id");
+                    auto tableMountCache = Connection_->GetTableMountCache();
+                    auto tabletInfo = tableMountCache->FindTablet(tabletId);
+                    if (tabletInfo) {
+                        tableMountCache->InvalidateTablet(tabletInfo);
+                        auto now = Now();
+                        auto retryTime = tabletInfo->UpdateTime + config->TableMountInfoUpdateRetryPeriod;
+                        if (retryTime > now) {
+                            WaitFor(TDelayedExecutor::MakeDelayed(retryTime - now))
+                                .ThrowOnError();
+                        }
+                    }
+                    continue;
+                }
+            }
+
+            THROW_ERROR error;
         }
     }
 
