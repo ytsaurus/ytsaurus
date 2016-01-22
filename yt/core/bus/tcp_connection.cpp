@@ -653,7 +653,7 @@ bool TTcpConnection::AdvanceDecoder(size_t size)
     return true;
 }
 
-bool TTcpConnection::OnPacketReceived()
+bool TTcpConnection::OnPacketReceived() throw()
 {
     Profiler.Increment(ProfilingData_->InPacketCounter);
     switch (Decoder_.GetPacketType()) {
