@@ -158,7 +158,6 @@ add_subdirectory(cmake/deps-yt-contrib-quicklz)
 add_subdirectory(cmake/deps-yt-contrib-zstd)
 add_subdirectory(cmake/deps-yajl)
 add_subdirectory(cmake/deps-contrib-benchmark)
-add_subdirectory(library/json)
 add_subdirectory(python)
 add_subdirectory(yt)
 
