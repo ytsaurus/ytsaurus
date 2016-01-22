@@ -1,55 +1,30 @@
 #!/usr/bin/env python
 
-import argparse
-import contextlib
-import errno
-import fcntl
-import glob
-import itertools
 import os
+import sys
+# TODO(asaitgalin): Maybe replace it with PYTHONPATH=... in teamcity command?
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "teamcity-build", "python"))
+
+from teamcity import build_step, cleanup_step, teamcity_main, \
+                     teamcity_message, teamcity_interact, \
+                     StepFailedWithNonCriticalError
+
+from helpers import mkdirp, run, run_captured, cwd, copytree, \
+                    kill_by_name, sudo_rmtree, ls, get_size, \
+                    rmtree, parse_yes_no_bool, ChildHasNonZeroExitCode
+
+from pytest_helpers import get_sandbox_dirs, save_failed_test
+
+import argparse
+import glob
 import os.path
 import pprint
 import re
-import resource
-import select
 import socket
-import shutil
-import signal
-import subprocess
-import sys
 import tempfile
-import time
-import traceback
 import xml.etree.ElementTree as etree
 
-################################################################################
-# These methods are used to mark actual steps to be executed.
-# See the rest of the file for an example of usage.
-
-_build_steps = []
-_cleanup_steps = []
-
-
-def yt_register_build_step(func):
-    """Registers a build step to perform."""
-    _build_steps.append(func)
-
-
-def yt_register_cleanup_step(func):
-    """Registers a clean-up steps to perform."""
-    _cleanup_steps.append(func)
-
-
-def rmtree_onerror(fn, path, excinfo):
-    teamcity_message(
-        "Error occured while executing {0} on '{1}': {2}".format(fn, path, excinfo),
-        status="WARNING")
-
-
-################################################################################
-# Here are actual steps. All the meaty guts are way below.
-
-@yt_register_build_step
+@build_step
 def prepare(options):
     os.environ["LANG"] = "en_US.UTF-8"
     os.environ["LC_ALL"] = "en_US.UTF-8"
@@ -57,15 +32,9 @@ def prepare(options):
     options.build_number = os.environ["BUILD_NUMBER"]
     options.build_vcs_number = os.environ["BUILD_VCS_NUMBER"]
 
-    def checked_yes_no(s):
-        s = s.upper()
-        if s != "YES" and s != "NO":
-            raise RuntimeError("'{0}' must be either 'YES' or 'NO'".format(s))
-        return s
-
-    options.build_enable_nodejs = checked_yes_no(os.environ.get("BUILD_ENABLE_NODEJS", "YES"))
-    options.build_enable_python = checked_yes_no(os.environ.get("BUILD_ENABLE_PYTHON", "YES"))
-    options.build_enable_perl = checked_yes_no(os.environ.get("BUILD_ENABLE_PERL", "YES"))
+    options.build_enable_nodejs = parse_yes_no_bool(os.environ.get("BUILD_ENABLE_NODEJS", "YES"))
+    options.build_enable_python = parse_yes_no_bool(os.environ.get("BUILD_ENABLE_PYTHON", "YES"))
+    options.build_enable_perl = parse_yes_no_bool(os.environ.get("BUILD_ENABLE_PERL", "YES"))
 
     options.branch = re.sub(r"^refs/heads/", "", options.branch)
     options.branch = options.branch.split("/")[0]
@@ -95,16 +64,16 @@ def prepare(options):
 
     if os.path.exists(options.working_directory) and options.clean_working_directory:
         teamcity_message("Cleaning working directory...", status="WARNING")
-        shutil.rmtree(options.working_directory, onerror=rmtree_onerror)
+        rmtree(options.working_directory)
     mkdirp(options.working_directory)
 
     if os.path.exists(options.sandbox_directory) and options.clean_sandbox_directory:
         teamcity_message("Cleaning sandbox directory...", status="WARNING")
-        shutil.rmtree(options.sandbox_directory, onerror=rmtree_onerror)
+        rmtree(options.sandbox_directory)
 
         sandbox_storage = os.path.expanduser("~/sandbox_storage/")
         if os.path.exists(sandbox_storage):
-            shutil.rmtree(sandbox_storage, onerror=rmtree_onerror)
+            rmtree(sandbox_storage)
 
     teamcity_message("Creating cgroups...", status="WARNING")
     cgroup_names = ("blkio", "cpu", "cpuacct", "freezer", "memory")
@@ -130,7 +99,7 @@ def prepare(options):
     teamcity_message(pprint.pformat(options.__dict__))
 
 
-@yt_register_build_step
+@build_step
 def configure(options):
     run([
         "cmake",
@@ -152,7 +121,7 @@ def configure(options):
         cwd=options.working_directory)
 
 
-@yt_register_build_step
+@build_step
 def fast_build(options):
     cpus = int(os.sysconf("SC_NPROCESSORS_ONLN"))
     try:
@@ -161,19 +130,19 @@ def fast_build(options):
         teamcity_message("(ignoring child failure to provide meaningful diagnostics in `slow_build`)")
 
 
-@yt_register_build_step
+@build_step
 def slow_build(options):
     run(["make"], cwd=options.working_directory)
 
 
-@yt_register_build_step
+@build_step
 def set_suid_bit(options):
     path = "{0}/bin/ytserver".format(options.working_directory)
     run(["sudo", "chown", "root", path])
     run(["sudo", "chmod", "4755", path])
 
 
-@yt_register_build_step
+@build_step
 def package(options):
     if not options.package:
         return
@@ -199,7 +168,7 @@ def package(options):
                 teamcity_interact("setParameter", name="yt.package_uploaded." + repository, value=1)
 
 
-@yt_register_build_step
+@build_step
 def run_prepare(options):
     with cwd(options.checkout_directory):
         run(["make", "-C", "./python/yt/wrapper"])
@@ -207,11 +176,11 @@ def run_prepare(options):
 
     with cwd(options.working_directory, "yt/nodejs"):
         if os.path.exists("node_modules"):
-            shutil.rmtree("node_modules")
+            rmtree("node_modules")
         run(["npm", "install"])
 
 
-@yt_register_build_step
+@build_step
 def run_unit_tests(options):
     sandbox_current = os.path.join(options.sandbox_directory, "unit_tests")
     sandbox_archive = os.path.join(options.failed_tests_path,
@@ -223,7 +192,7 @@ def run_unit_tests(options):
             "gdb",
             "--batch",
             "--return-child-result",
-            "--command={0}/scripts/teamcity-gdb-script".format(options.checkout_directory),
+            "--command={0}/scripts/teamcity-build/teamcity-gdb-script".format(options.checkout_directory),
             "--args",
             os.path.join(options.working_directory, "bin", "unittester"),
             "--gtest_color=no",
@@ -237,12 +206,12 @@ def run_unit_tests(options):
 
         raise StepFailedWithNonCriticalError(str(err))
     finally:
-        shutil.rmtree(sandbox_current)
+        rmtree(sandbox_current)
 
 
-@yt_register_build_step
+@build_step
 def run_javascript_tests(options):
-    if options.build_enable_nodejs != "YES":
+    if not options.build_enable_nodejs:
         return
 
     try:
@@ -253,81 +222,9 @@ def run_javascript_tests(options):
     except ChildHasNonZeroExitCode as err:
         raise StepFailedWithNonCriticalError(str(err))
 
-def get_sandbox_dirs(options, suite_name):
-    sandbox_current = os.path.join(options.sandbox_directory, suite_name)
-    sandbox_storage = os.path.join(os.path.expanduser("~/sandbox_storage"), suite_name)
-    return sandbox_current, sandbox_storage
-
-def save_failed_test(options, suite_name, suite_path):
-    sandbox_current, sandbox_storage = get_sandbox_dirs(options, suite_name)
-    sandbox_archive = os.path.join(options.failed_tests_path,
-        "__".join([options.btid, options.build_number, suite_name]))
-
-
-    # Copy sandboxes to archive.
-    failed_tests_sandbox_path = os.path.join(sandbox_archive, "sandbox")
-    for dir_ in [sandbox_storage, sandbox_current]:
-        if not os.path.exists(dir_):
-            continue
-        teamcity_message("Copying failed tests from '{0}' to {1}'...".format(
-            dir_,
-            failed_tests_sandbox_path),
-            status="WARNING")
-        copytree(dir_, failed_tests_sandbox_path,
-                 ignore=shutil.ignore_patterns("chunk_cache", "chunk_store"))
-
-    artifact_path = os.path.join(sandbox_archive, "artifacts")
-    core_dumps_path = os.path.join(sandbox_archive, "core_dumps")
-    mkdirp(artifact_path)
-    mkdirp(core_dumps_path)
-
-    # Copy artifacts.
-    working_files_to_archive = ["bin/yt", "bin/ytserver", "lib/*.so"]
-    artifacts = set()
-    for fileglob in working_files_to_archive:
-        for file in glob.glob(os.path.join(options.working_directory, fileglob)):
-            artifacts.add(os.path.basename(file))
-            shutil.copy(file, artifact_path)
-
-    # Put cores to special dir and output stderr of ytserver daemons.
-    for dir, _, files in os.walk(failed_tests_sandbox_path):
-        for file in files:
-            if file.startswith("core."):
-                shutil.move(os.path.join(dir, file), core_dumps_path)
-            if file.startswith("stderr."):
-                fullpath = os.path.join(dir, file)
-                content = open(fullpath).read()
-                if content:
-                    teamcity_message("Detected non-empty daemon stderr {0}:\n{1}"
-                                     .format(fullpath, content), status="WARNING")
-
-    # Look for cores and pytest logs in suitepath.
-    for dir, _, files in os.walk(suite_path):
-        for file in files:
-            if file.startswith("core."):
-                shutil.copy(os.path.join(dir, file), core_dumps_path)
-            if file == "pytestdebug.log":
-                shutil.copy(os.path.join(dir, file), sandbox_archive)
-
-
-    # Write gdb commands for cores.
-    for core_dump in os.listdir(core_dumps_path):
-        core_path = os.path.join(core_dumps_path, core_dump)
-
-        command = get_command_from_core_file(core_path)
-        if command:
-            binary = os.path.basename(command)
-            if binary in artifacts:
-                binary = os.path.join(artifact_path, binary)
-
-            gdb_command = "gdb {0} {1}".format(binary, core_path)
-            teamcity_message("Detected core file {0}. Gdb command:\n{1}"
-                             .format(core_path, gdb_command), status="WARNING")
-        else:
-            teamcity_message("Detected core file {0}".format(core_path), status="WARNING")
 
 def run_pytest(options, suite_name, suite_path, pytest_args=None):
-    if options.build_enable_python != "YES":
+    if not options.build_enable_python:
         return
 
     if pytest_args is None:
@@ -398,16 +295,7 @@ def run_pytest(options, suite_name, suite_path, pytest_args=None):
             sudo_rmtree(sandbox_storage)
 
 
-def kill_by_name(name):
-    # Cannot use check_output because of python2.6 on Lucid
-    pids = run_captured(["pgrep", "-f", name, "-u", "teamcity"], ignore_return_code=True)
-    for pid in pids.split("\n"):
-        if not pid:
-            continue
-        os.kill(int(pid), signal.SIGKILL)
-
-
-@yt_register_build_step
+@build_step
 def run_integration_tests(options):
     kill_by_name("^ytserver")
 
@@ -419,7 +307,7 @@ def run_integration_tests(options):
                pytest_args=pytest_args)
 
 
-@yt_register_build_step
+@build_step
 def run_python_libraries_tests(options):
     kill_by_name("^ytserver")
     kill_by_name("^node")
@@ -428,10 +316,11 @@ def run_python_libraries_tests(options):
     if options.enable_parallel_testing:
         pytest_args.extend(["--process-count", "4"])
 
-    run_pytest(options, "python_libraries", "{0}/python".format(options.checkout_directory), pytest_args=pytest_args)
+    run_pytest(options, "python_libraries", "{0}/python".format(options.checkout_directory),
+               pytest_args=pytest_args)
 
 
-@yt_register_build_step
+@build_step
 def build_python_packages(options):
     def versions_cmp(version1, version2):
         def normalize(v):
@@ -485,15 +374,15 @@ def build_python_packages(options):
             run(["./deploy.sh", package], cwd=os.path.join(options.checkout_directory, "python"))
 
 
-@yt_register_build_step
+@build_step
 def run_perl_tests(options):
-    if options.build_enable_perl != "YES":
+    if not options.build_enable_perl:
         return
     kill_by_name("^ytserver")
     run_pytest(options, "perl", "{0}/perl/tests".format(options.checkout_directory))
 
 
-@yt_register_cleanup_step
+@cleanup_step
 def clean_artifacts(options, n=10):
     for path in ls("{0}/ARTIFACTS".format(options.working_directory),
                    reverse=True,
@@ -502,12 +391,12 @@ def clean_artifacts(options, n=10):
                    stop=sys.maxint):
         teamcity_message("Removing {0}...".format(path), status="WARNING")
         if os.path.isdir(path):
-            shutil.rmtree(path, onerror=rmtree_onerror)
+            rmtree(path)
         else:
             os.unlink(path)
 
 
-@yt_register_cleanup_step
+@cleanup_step
 def clean_failed_tests(options, max_allowed_size=None):
     if options.is_bare_metal:
         max_allowed_size = 200 * 1024 * 1024 * 1024
@@ -522,367 +411,13 @@ def clean_failed_tests(options, max_allowed_size=None):
         if total_size + size > max_allowed_size:
             teamcity_message("Removing {0}...".format(path), status="WARNING")
             if os.path.isdir(path):
-                shutil.rmtree(path, onerror=rmtree_onerror)
+                rmtree(path)
                 if os.path.exists(path + ".size"):
                     os.remove(path + ".size")
             else:
                 os.unlink(path)
         else:
             total_size += size
-
-
-################################################################################
-# Below are meaty guts. Be warned.
-
-################################################################################
-################################################################################
-#     *                             )                         (      ____
-#   (  `          (       *   )  ( /(   (               *   ) )\ )  |   /
-#   )\))(   (     )\    ` )  /(  )\())  )\ )       (  ` )  /((()/(  |  /
-#  ((_)()\  )\ ((((_)(   ( )(_))((_)\  (()/(       )\  ( )(_))/(_)) | /
-#  (_()((_)((_) )\ _ )\ (_(_())__ ((_)  /(_))_  _ ((_)(_(_())(_))   |/
-#  |  \/  || __|(_)_\(_)|_   _|\ \ / / (_)) __|| | | ||_   _|/ __| (
-#  | |\/| || _|  / _ \    | |   \ V /    | (_ || |_| |  | |  \__ \ )\
-#  |_|  |_||___|/_/ \_\   |_|    |_|      \___| \___/   |_|  |___/((_)
-#
-################################################################################
-################################################################################
-
-################################################################################
-# These methods are used to interact with TeamCity.
-# See http://confluence.jetbrains.com/display/TCD8/Build+Script+Interaction+with+TeamCity
-
-def teamcity_escape(s):
-    s = re.sub("(['\\[\\]|])", "|\\1", s)
-    s = s.replace("\n", "|n").replace("\r", "|r")
-    s = "'" + s + "'"
-    return s
-
-
-def teamcity_interact(message, *args, **kwargs):
-
-    r = " ".join(itertools.chain(
-        [message],
-        (
-            teamcity_escape(str(x))
-            for x in args
-        ),
-        (
-            "{0}={1}".format(str(k), teamcity_escape(str(v)))
-            for k, v in kwargs.iteritems())
-        ))
-    r = "##teamcity[" + r + "]\n"
-    sys.stdout.flush()
-    sys.stderr.write(r)
-    sys.stderr.flush()
-
-
-def teamcity_message(text, status="NORMAL"):
-    if status not in ["NORMAL", "WARNING", "FAILURE", "ERROR"]:
-        raise ValueError("Invalid |status|: {0}".format(status))
-
-    if status == "NORMAL":
-        teamcity_interact("message", text=text)
-    else:
-        teamcity_interact("message", text=text, status=status)
-
-
-@contextlib.contextmanager
-def teamcity_block(name):
-    try:
-        teamcity_interact("blockOpened", name=name)
-        yield
-    finally:
-        teamcity_interact("blockClosed", name=name)
-
-
-@contextlib.contextmanager
-def teamcity_step(name, funcname):
-    now = time.time()
-
-    try:
-        teamcity_message("Executing: {0}".format(name))
-        with teamcity_block(name):
-            yield
-        teamcity_message("Completed: {0}".format(name))
-    except:
-        teamcity_interact(
-            "message",
-            text="Caught exception; failing...".format(name),
-            errorDetails=traceback.format_exc(),
-            status="ERROR")
-        teamcity_message("Failed: {0}".format(name), status="FAILURE")
-        raise
-    finally:
-        teamcity_interact("buildStatisticValue", key=funcname, value=int(1000.0 * (time.time() - now)))
-
-
-@contextlib.contextmanager
-def cwd(*args):
-    old_path = os.getcwd()
-    new_path = os.path.join(*args)
-    try:
-        teamcity_message("Changing current directory to {0}".format(new_path))
-        os.chdir(new_path)
-        yield
-    finally:
-        if os.path.exists(old_path):
-            teamcity_message("Changing current directory to {0}".format(old_path))
-            os.chdir(old_path)
-        else:
-            teamcity_message("Previous directory {0} has vanished!".format(old_path), status="WARNING")
-
-
-def ls(path, reverse=True, select=None, start=0, stop=None):
-    if not os.path.isdir(path):
-        return []
-    iterable = os.listdir(path)
-    iterable = map(lambda x: os.path.realpath(os.path.join(path, x)), iterable)
-    iterable = sorted(iterable, key=lambda x: os.stat(x).st_mtime, reverse=reverse)
-    iterable = itertools.ifilter(select, iterable)
-    iterable = itertools.islice(iterable, start, stop)
-    return iterable
-
-def get_size(path, enable_cache=False):
-    if enable_cache and os.path.isdir(path) and os.path.exists(path + ".size"):
-        try:
-            return int(open(path + ".size").read())
-        except ValueError:
-            pass
-
-    size = 0
-    for dirpath, dirnames, filenames in os.walk(path):
-        for filename in filenames:
-            size += os.stat(os.path.join(dirpath, filename)).st_size
-
-    if enable_cache:
-        with open(path + ".size", "w") as fout:
-            fout.write(str(size))
-
-    return size
-
-def mkdirp(path):
-    try:
-        os.makedirs(path)
-    except OSError as ex:
-        if ex.errno != errno.EEXIST:
-            raise
-
-def copytree(src, dst, symlinks=False, ignore=None):
-    if not os.path.exists(dst):
-        os.makedirs(dst)
-        shutil.copystat(src, dst)
-
-    names = os.listdir(src)
-    if ignore is not None:
-        ignored_names = ignore(src, names)
-    else:
-        ignored_names = set()
-
-    for name in names:
-        if name in ignored_names:
-            continue
-        src_path = os.path.join(src, name)
-        dst_path = os.path.join(dst, name)
-        if os.path.isdir(src_path):
-            copytree(src_path, dst_path, symlinks=symlinks, ignore=ignore)
-        elif os.path.islink(src) and symlinks:
-            if os.path.lexists(dst_path):
-                os.remove(dst_path)
-            os.symlink(os.readlink(src_path), dst_path)
-        else:
-            shutil.copy2(src_path, dst_path)
-
-def shellquote(str):
-    return "'" + str.replace("'", "'\\''") + "'"
-
-def sudo_rmtree(path):
-    abspath = os.path.abspath(path)
-    assert abspath.startswith("/home/teamcity")
-    run("sudo rm -rf " + shellquote(abspath), shell=True)
-
-def get_command_from_core_file(core_path):
-    # Example output:
-    # core: ELF 64-bit LSB core file x86-64, version 1 (SYSV), SVR4-style, from 'ytserver <args>'
-    output = subprocess.check_output(["file", core_path]).split(" from ")
-    try:
-        command = output[1][1:-1]  # strip quotes
-        return command.split(None, 1)[0].strip()  # extract binary name
-    except IndexError:
-        return None
-
-
-_signals = dict((k, v) for v, k in signal.__dict__.iteritems() if v.startswith("SIG"))
-
-
-class ChildKeepsRunningInIsolation(Exception):
-    pass
-
-
-class ChildHasNonZeroExitCode(Exception):
-    pass
-
-
-class StepFailedWithNonCriticalError(Exception):
-    pass
-
-
-def run_captured(*args, **kwargs):
-    ignore_return_code = kwargs.get("ignore_return_code", False)
-    if "ignore_return_code" in kwargs:
-        del kwargs["ignore_return_code"]
-
-    process = subprocess.Popen(*args, bufsize=1, stdout=subprocess.PIPE, **kwargs)
-
-    output, unused_err = process.communicate()
-    return_code = process.poll()
-    if return_code and not ignore_return_code:
-        cmd = kwargs.get("args")
-        if cmd is None:
-            cmd = args[0]
-        error = subprocess.CalledProcessError(return_code, cmd)
-        error.output = output
-        raise error
-
-    return output.strip()
-
-
-def run_preexec():
-    resource.setrlimit(resource.RLIMIT_CORE, (resource.RLIM_INFINITY, resource.RLIM_INFINITY))
-
-
-def run(args, cwd=None, env=None, silent_stdout=False, silent_stderr=False, shell=False):
-    POLL_TIMEOUT = 1.0
-    POLL_ITERATIONS = 5
-    READ_SIZE = 4096
-
-    with teamcity_block("({0})".format(args[0])):
-        saved_env = env
-        if saved_env:
-            tmp = os.environ.copy()
-            tmp.update(saved_env)
-            env = tmp
-
-        child = subprocess.Popen(
-            args,
-            bufsize=0,
-            stdin=None,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            preexec_fn=run_preexec,
-            close_fds=True,
-            cwd=cwd,
-            env=env,
-            shell=shell)
-
-        teamcity_message("run({0}) => {1}".format(
-            pprint.pformat({"args": args, "cwd": cwd, "env": saved_env}),
-            child.pid))
-
-        # Since we are doing non-blocking read, we have to deal with splitting
-        # by ourselves. See http://bugs.python.org/issue1175#msg56041.
-        evmask_read = select.POLLIN | select.POLLPRI
-        evmask_error = select.POLLHUP | select.POLLERR | select.POLLNVAL
-
-        poller = select.poll()
-        poller.register(child.stdout, evmask_read | evmask_error)
-        poller.register(child.stderr, evmask_read | evmask_error)
-
-        # Determines whether to silent any stream.
-        silent_for = {
-            child.stdout.fileno(): silent_stdout,
-            child.stderr.fileno(): silent_stderr
-        }
-
-        # Holds the data from incomplete read()s.
-        data_for = {
-            child.stdout.fileno(): "",
-            child.stderr.fileno(): ""
-        }
-
-        # Holds the message status.
-        status_for = {
-            child.stdout.fileno(): "NORMAL",
-            child.stderr.fileno(): "WARNING"
-        }
-
-        # Switch FDs to non-blocking mode.
-        for fd in [child.stdout.fileno(), child.stderr.fileno()]:
-            fl = fcntl.fcntl(fd, fcntl.F_GETFL)
-            fcntl.fcntl(fd, fcntl.F_SETFL, fl | os.O_NONBLOCK)
-
-        def consume(fd, eof):
-            # Try to read as much as possible from the FD.
-            result = ""
-            try:
-                while True:
-                    delta = os.read(fd, READ_SIZE)
-                    if len(delta) > 0:
-                        result += delta
-                    else:
-                        eof = True
-                        break
-            except OSError as e:
-                if e.errno not in [errno.EAGAIN, errno.EWOULDBLOCK]:
-                    raise
-
-            # Emit complete lines from the buffer.
-            data = data_for[fd] + result
-            i = 0
-            j = -1
-            while True:
-                j = data.find("\n", i)
-                if j < 0:
-                    break
-                if not silent_for[fd]:
-                    teamcity_message(data[i:j], status_for[fd])
-                i = j + 1
-            data_for[fd] = data[i:]
-
-            # Emit incomplete lines from the buffer when there is no more data.
-            if eof and len(data_for[fd]) > 0:
-                if not silent_for[fd]:
-                    teamcity_message(data_for[fd], status_for[fd])
-                data_for[fd] = ""
-
-        # Poll while we have alive FDs.
-        while len(data_for) > 0:
-            for fd, event in poller.poll(POLL_TIMEOUT):
-                if event & evmask_read:
-                    consume(fd, False)
-                if event & evmask_error:
-                    consume(fd, True)
-                    poller.unregister(fd)
-                    del data_for[fd]
-                    del status_for[fd]
-
-        # Await for the child to terminate.
-        for i in xrange(POLL_ITERATIONS):
-            if child.poll() is None:
-                teamcity_message("Child is still running.", "WARNING")
-                time.sleep(POLL_TIMEOUT)
-            else:
-                break
-
-        if child.returncode is None:
-            teamcity_message("Child is still running; killing it.", "WARNING")
-            child.kill()
-            raise ChildKeepsRunningInIsolation()
-
-        if child.returncode < 0:
-            teamcity_message(
-                "Child was terminated by signal {0}".format(_signals[-child.returncode]),
-                "FAILURE")
-
-        if child.returncode > 0:
-            teamcity_message(
-                "Child has exited with return code {0}".format(child.returncode),
-                "FAILURE")
-
-        if child.returncode == 0:
-            teamcity_message("Child has exited successfully")
-        else:
-            raise ChildHasNonZeroExitCode(str(child.returncode))
 
 
 ################################################################################
@@ -938,32 +473,7 @@ def main():
     options.is_bare_metal = socket.getfqdn().endswith("tc.yt.yandex.net")
     # NB: parallel testing is enabled by default only for bare metal machines.
     options.enable_parallel_testing = options.is_bare_metal
-
-    status = 0
-    try:
-        for step in _build_steps:
-            try:
-                with teamcity_step("Build Step '{0}'".format(step.func_name), step.func_name):
-                    step(options)
-            except StepFailedWithNonCriticalError as err:
-                teamcity_message(err)
-                status = 42
-    except:
-        teamcity_message("Terminating...", status="FAILURE")
-        status = 43
-    finally:
-        for step in _cleanup_steps:
-            try:
-                with teamcity_step("Clean-up Step '{0}'".format(step.func_name), step.func_name):
-                    step(options)
-            except:
-                teamcity_interact(
-                    "message",
-                    text="Caught exception during cleanup phase; ignoring...",
-                    errorDetails=traceback.format_exc(),
-                    status="ERROR")
-        teamcity_message("Done!")
-        sys.exit(status)
+    teamcity_main(options)
 
 
 if __name__ == "__main__":
