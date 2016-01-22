@@ -12,8 +12,6 @@
 #include <yt/core/ytree/ypath_detail.h>
 #include <yt/core/ytree/ypath_proxy.h>
 
-#include <library/json/json_writer.h>
-
 #include <util/string/vector.h>
 
 namespace NYT {

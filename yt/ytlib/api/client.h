@@ -362,6 +362,7 @@ struct TJournalWriterOptions
     , public TPrerequisiteOptions
 {
     TJournalWriterConfigPtr Config;
+    bool EnableMultiplexing = true;
 };
 
 struct TTableReaderOptions
