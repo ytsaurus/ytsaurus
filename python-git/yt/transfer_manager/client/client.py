@@ -24,7 +24,7 @@ def _raise_for_status(response):
     if response.status_code == 200:
         return
 
-    if str(response.status_code).startswith("5"):
+    if response.status_code == 500:
         if response.content:
             message = "Transfer Manager is not available: {0}".format(response.content)
         else:
