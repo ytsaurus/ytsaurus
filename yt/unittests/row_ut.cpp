@@ -15,12 +15,7 @@ void CheckSerialize(TUnversionedRow original)
     auto serialized = NYT::ToProto<Stroka>(original);
     auto deserialized =  NYT::FromProto<TUnversionedOwningRow>(serialized);
 
-    ASSERT_EQ(original, deserialized.Get());
-}
-
-void CheckSerialize(const TUnversionedOwningRow& original)
-{
-    CheckSerialize(original.Get());
+    ASSERT_EQ(original, deserialized);
 }
 
 TEST(TUnversionedRowTest, Serialize1)

@@ -117,9 +117,9 @@ void TBootstrap::DoRun()
         TAddressResolver::Get()->GetLocalHostName(),
         Config_->RpcPort);
 
-    LOG_INFO("Starting scheduler (LocalAddress: %v, MasterAddresses: [%v])",
+    LOG_INFO("Starting scheduler (LocalAddress: %v, MasterAddresses: %v)",
         LocalAddress_,
-        JoinToString(Config_->ClusterConnection->PrimaryMaster->Addresses));
+        Config_->ClusterConnection->PrimaryMaster->Addresses);
 
     TConnectionOptions connectionOptions;
     connectionOptions.RetryRequestRateLimitExceeded = true;
@@ -176,7 +176,7 @@ void TBootstrap::DoRun()
             Scheduler_
             ->GetOrchidService()
             ->Via(GetControlInvoker())
-            ->Cached(Config_->OrchidCacheExpirationTime)));
+            ->Cached(Config_->OrchidCacheUpdatePeriod)));
 
     SetBuildAttributes(orchidRoot, "scheduler");
 

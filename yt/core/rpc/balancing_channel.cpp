@@ -207,9 +207,9 @@ private:
                 auto suggestedAddresses = FromProto<Stroka>(rsp->suggested_addresses());
 
                 if (!suggestedAddresses.empty()) {
-                    LOG_DEBUG("Peers suggested (SuggestorAddress: %v, SuggestedAddresses: [%v])",
+                    LOG_DEBUG("Peers suggested (SuggestorAddress: %v, SuggestedAddresses: %v)",
                         address,
-                        JoinToString(suggestedAddresses));
+                        suggestedAddresses);
                     Owner_->AddPeers(suggestedAddresses);
                 }
 
@@ -477,9 +477,9 @@ public:
         : Config_(config)
         , ChannelFactory_(CreateCachingChannelFactory(channelFactory))
         , DiscoverRequestHook_(discoverRequestHook)
-        , EndpointDescription_(Format("%v[%v]",
+        , EndpointDescription_(Format("%v%v",
             endpointDescription,
-            JoinToString(Config_->Addresses)))
+            Config_->Addresses))
         , EndpointAttributes_(ConvertToAttributes(BuildYsonStringFluently()
             .BeginMap()
                 .Item("addresses").Value(Config_->Addresses)

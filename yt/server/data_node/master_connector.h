@@ -132,8 +132,8 @@ private:
     //! Per-cell chunks delta.
     yhash_map<NObjectClient::TCellTag, TChunksDelta> ChunksDeltaMap_;
 
-    //! All master cell tags (including primary).
-    std::vector<NObjectClient::TCellTag> MasterCellTags_;
+    //! All master cell tags (including the primary).
+    NObjectClient::TCellTagList MasterCellTags_;
 
     //! Index in MasterCellTags_ indicating the current target for job heartbeat round-robin.
     int JobHeartbeatCellIndex_ = 0;
@@ -175,6 +175,15 @@ private:
 
     //! Computes the current node statistics.
     NNodeTrackerClient::NProto::TNodeStatistics ComputeStatistics();
+
+    //! Returns |true| if the node is allowed to send a full heartbeat to Node Tracker
+    //! of a given #cellTag.
+    /*!
+     *  To facilitate registration throttling, the node is only allowed to send
+     *  a full heartbeat to the primary cell after
+     *  it has become online at all secondary cells.
+     */
+    bool CanSendFullNodeHeartbeat(NObjectClient::TCellTag cellTag);
 
     //! Sends out a full heartbeat to Node Tracker.
     void SendFullNodeHeartbeat(NObjectClient::TCellTag cellTag);

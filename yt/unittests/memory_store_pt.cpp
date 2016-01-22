@@ -34,7 +34,7 @@ public:
             builder.AddValue(MakeUnversionedInt64Value(RandomNumber<ui64>(1000000000), 0));
 
             auto key = builder.FinishRow();
-            auto keySuccessor = GetKeySuccessor(key.Get());
+            auto keySuccessor = GetKeySuccessor(key);
 
             auto reader = Store_->CreateReader(
                 std::move(key),
@@ -58,7 +58,7 @@ public:
 
             auto dynamicRow = Store_->WriteRowAtomic(
                 transaction.get(),
-                row.Get(),
+                row,
                 false,
                 TDynamicRow::PrimaryLockMask);
 

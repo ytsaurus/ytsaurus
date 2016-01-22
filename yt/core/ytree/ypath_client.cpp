@@ -149,11 +149,6 @@ void TYPathResponse::DeserializeBody(const TRef& data)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const TYPath& GetRequestYPath(IServiceContextPtr context)
-{
-    return GetRequestYPath(context->RequestHeader());
-}
-
 const TYPath& GetRequestYPath(const NRpc::NProto::TRequestHeader& header)
 {
     const auto& ext = header.GetExtension(NProto::TYPathHeaderExt::ypath_header_ext);
@@ -190,7 +185,7 @@ void ResolveYPath(
 
     auto currentService = rootService;
 
-    const auto& path = GetRequestYPath(context);
+    const auto& path = GetRequestYPath(context->RequestHeader());
     auto currentPath = path;
 
     while (true) {

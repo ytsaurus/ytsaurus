@@ -36,6 +36,7 @@ public:
 
     virtual NChunkClient::NProto::TChunkMeta GetMasterMeta() const override;
     virtual NChunkClient::NProto::TChunkMeta GetSchedulerMeta() const override;
+    virtual NChunkClient::NProto::TChunkMeta GetNodeMeta() const override;
 
     virtual NChunkClient::NProto::TDataStatistics GetDataStatistics() const override;
 
@@ -55,6 +56,7 @@ protected:
     NProto::TBlockMetaExt BlockMetaExt_;
     i64 BlockMetaExtSize_ = 0;
 
+    void ValidateRowWeight(i64 weight);
 
     void FillCommonMeta(NChunkClient::NProto::TChunkMeta* meta) const;
 
@@ -108,7 +110,6 @@ private:
 
     NProto::TSamplesExt SamplesExt_;
     i64 SamplesExtSize_ = 0;
-    double AverageSampleSize_ = 0.0;
 
     void DoClose();
 

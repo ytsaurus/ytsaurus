@@ -8,7 +8,6 @@ import pytest
 import time
 import __builtin__
 import os
-import tempfile
 
 
 ##################################################################
@@ -41,7 +40,8 @@ class TestCGroups(YTEnvSetup):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
         write_table("//tmp/t1", [{"foo": "bar"} for i in xrange(200)])
-        op_id = map(
+
+        op = map(
             dont_track=True,
             in_="//tmp/t1",
             out="//tmp/t2",
@@ -49,9 +49,9 @@ class TestCGroups(YTEnvSetup):
             spec={"max_failed_job_count": 1, "job_count": 200})
 
         with pytest.raises(YtError):
-            track_op(op_id)
+            op.track()
 
-        for job_desc in ls("//sys/operations/{0}/jobs".format(op_id), attributes=["error"]):
+        for job_desc in ls("//sys/operations/{0}/jobs".format(op.id), attributes=["error"]):
             print >>sys.stderr, job_desc.attributes
             print >>sys.stderr, job_desc.attributes["error"]["inner_errors"][0]["message"]
             assert "Process exited with code " in job_desc.attributes["error"]["inner_errors"][0]["message"]
@@ -84,9 +84,12 @@ class TestEventLog(YTEnvSetup):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
         write_table("//tmp/t1", [{"a": "b"}])
-        op_id = map(in_="//tmp/t1", out="//tmp/t2", command='cat; bash -c "for (( I=0 ; I<=100*1000 ; I++ )) ; do echo $(( I+I*I )); done; sleep 2" >/dev/null')
+        op = map(
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            command='cat; bash -c "for (( I=0 ; I<=100*1000 ; I++ )) ; do echo $(( I+I*I )); done; sleep 2" >/dev/null')
 
-        statistics = get("//sys/operations/{0}/@progress/job_statistics".format(op_id))
+        statistics = get("//sys/operations/{0}/@progress/job_statistics".format(op.id))
         assert get_statistics(statistics, "user_job.cpu.user.$.completed.map.sum") > 0
         assert get_statistics(statistics, "user_job.block_io.bytes_read.$.completed.map.sum") is not None
         assert get_statistics(statistics, "user_job.current_memory.rss.$.completed.map.count") > 0
@@ -127,74 +130,39 @@ class TestJobProber(YTEnvSetup):
         create("table", "//tmp/t2")
         write_table("//tmp/t1", {"foo": "bar"})
 
-        tmpdir = tempfile.mkdtemp(prefix="strace_job")
-
-        command = "touch {0}/started || exit 1; cat; until rmdir {0} 2>/dev/null; do sleep 1; done".format(tmpdir)
-
-        op_id = map(
+        op = map(
             dont_track=True,
+            waiting_jobs=True,
+            label="strace_job",
             in_="//tmp/t1",
             out="//tmp/t2",
-            command=command,
-            spec={
-                "mapper": {
-                    "format": "json"
-                }
-            })
+            command="cat")
 
-        try:
-            pin_filename = os.path.join(tmpdir, "started")
-            while not os.access(pin_filename, os.F_OK):
-                time.sleep(0.2)
-
-            jobs_path = "//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(op_id)
-            jobs = ls(jobs_path)
-            assert jobs
-
-            result = strace_job(jobs[0])
-        finally:
-            try:
-                os.unlink(pin_filename)
-            except OSError:
-                pass
-            try:
-                os.unlink(tmpdir)
-            except OSError:
-                pass
+        result = strace_job(op.jobs[0])
 
         for pid, trace in result['traces'].iteritems():
             if "No such process" not in trace['trace']:
                 assert trace['trace'].startswith("Process {0} attached".format(pid))
-        track_op(op_id)
+
+        op.resume_jobs()
+        op.track()
 
     def test_signal_job_with_no_job_restart(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
         write_table("//tmp/t1", {"foo": "bar"})
 
-        tmpdir = tempfile.mkdtemp(prefix="signal_job")
-        mapper = \
-"""
-#!/bin/bash
-trap "echo got=SIGUSR1" USR1
-trap "echo got=SIGUSR2" USR2
-cat
-touch {0}/started || exit 1
-until rmdir {0} 2>/dev/null
-    do sleep 1
-done
-""".format(tmpdir)
+        command = ('trap "echo got=SIGUSR1" USR1\n'
+                   'trap "echo got=SIGUSR2" USR2\n'
+                   "cat\n")
 
-        create("file", "//tmp/mapper.sh")
-        write_file("//tmp/mapper.sh", mapper)
-        set("//tmp/mapper.sh/@executable", True)
-
-        op_id = map(
+        op = map(
             dont_track=True,
+            waiting_jobs=True,
+            label="signal_job_with_no_job_restart",
             in_="//tmp/t1",
             out="//tmp/t2",
-            command="./mapper.sh",
-            file="//tmp/mapper.sh",
+            command=command,
             spec={
                 "mapper": {
                     "format": "dsv"
@@ -202,31 +170,14 @@ done
                 "max_failed_job_count": 1
             })
 
-        try:
-            pin_filename = os.path.join(tmpdir, "started")
-            while not os.access(pin_filename, os.F_OK):
-                time.sleep(0.5)
+        signal_job(op.jobs[0], "SIGUSR1")
+        signal_job(op.jobs[0], "SIGUSR2")
 
-            jobs_path = "//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(op_id)
-            jobs = ls(jobs_path)
-            assert jobs
+        op.resume_jobs()
+        op.track()
 
-            signal_job(jobs[0], "SIGUSR1")
-            signal_job(jobs[0], "SIGUSR2")
-
-        finally:
-            try:
-                os.unlink(pin_filename)
-            except OSError:
-                pass
-
-        track_op(op_id)
-        try:
-            os.unlink(tmpdir)
-        except OSError:
-            pass
-        assert get("//sys/operations/{0}/@progress/jobs/aborted/total".format(op_id)) == 0
-        assert get("//sys/operations/{0}/@progress/jobs/failed".format(op_id)) == 0
+        assert get("//sys/operations/{0}/@progress/jobs/aborted/total".format(op.id)) == 0
+        assert get("//sys/operations/{0}/@progress/jobs/failed".format(op.id)) == 0
         assert read_table("//tmp/t2") == [{"foo": "bar"}, {"got": "SIGUSR1"}, {"got": "SIGUSR2"}]
 
     def test_signal_job_with_job_restart(self):
@@ -234,28 +185,13 @@ done
         create("table", "//tmp/t2")
         write_table("//tmp/t1", {"foo": "bar"})
 
-        tmpdir = tempfile.mkdtemp(prefix="signal_job")
-        mapper = \
-"""
-#!/bin/bash
-trap "echo got=SIGUSR1; rm -f {0}/started; exit 1" USR1
-cat
-touch {0}/started || exit 1
-until rmdir {0} 2>/dev/null
-    do sleep 1
-done
-""".format(tmpdir)
-
-        create("file", "//tmp/mapper.sh")
-        write_file("//tmp/mapper.sh", mapper)
-        set("//tmp/mapper.sh/@executable", True)
-
-        op_id = map(
+        op = map(
             dont_track=True,
+            waiting_jobs=True,
+            label="signal_job_with_job_restart",
             in_="//tmp/t1",
             out="//tmp/t2",
-            command="./mapper.sh",
-            file="//tmp/mapper.sh",
+            command='trap "echo got=SIGUSR1; exit 1" USR1\ncat\n',
             spec={
                 "mapper": {
                     "format": "dsv"
@@ -263,39 +199,18 @@ done
                 "max_failed_job_count": 1
             })
 
-        try:
-            pin_filename = os.path.join(tmpdir, "started")
-            while not os.access(pin_filename, os.F_OK):
-                time.sleep(0.5)
+        # Send signal and wait for a new job
+        signal_job(op.jobs[0], "SIGUSR1")
+        op.resume_job(op.jobs[0])
+        op.ensure_jobs_running()
 
-            jobs_path = "//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(op_id)
-            jobs = ls(jobs_path)
-            assert jobs
-            initial_job = jobs[0]
+        op.resume_jobs()
+        op.track()
 
-            # Send signal and wait for a new job
-            signal_job(jobs[0], "SIGUSR1")
-            while not exists("//sys/operations/{0}/@progress/jobs".format(op_id)) or get("//sys/operations/{0}/@progress/jobs/aborted/total".format(op_id)) == 0:
-                time.sleep(0.5)
-            while not os.access(pin_filename, os.F_OK):
-                time.sleep(0.5)
-
-        finally:
-            try:
-                os.unlink(pin_filename)
-            except OSError:
-                pass
-
-        track_op(op_id)
-        try:
-            os.unlink(tmpdir)
-        except OSError:
-            pass
-        assert get("//sys/operations/{0}/@progress/jobs/aborted/total".format(op_id)) == 1
-        assert get("//sys/operations/{0}/@progress/jobs/aborted/other".format(op_id)) == 1
-        assert get("//sys/operations/{0}/@progress/jobs/failed".format(op_id)) == 0
+        assert get("//sys/operations/{0}/@progress/jobs/aborted/total".format(op.id)) == 1
+        assert get("//sys/operations/{0}/@progress/jobs/aborted/other".format(op.id)) == 1
+        assert get("//sys/operations/{0}/@progress/jobs/failed".format(op.id)) == 0
         assert read_table("//tmp/t2") == [{"foo": "bar"}]
-
 
     def test_abandon_job(self):
         create("table", "//tmp/t1")
@@ -303,47 +218,22 @@ done
         for i in xrange(5):
             write_table("<append=true>//tmp/t1", {"key": str(i), "value": "foo"})
 
-        tmpdir = tempfile.mkdtemp(prefix="abandon_job")
-
-        command = 'cat; if [ "$YT_JOB_INDEX" = 3 ]; then echo -n "$YT_JOB_ID" >{0}/started || exit 1; sleep 300; fi'.format(tmpdir)
-
-        op_id = map(
+        op = map(
             dont_track=True,
+            waiting_jobs=True,
+            label="abandon_job",
             in_="//tmp/t1",
             out="//tmp/t2",
-            command=command,
+            command="cat",
             spec={
-                "mapper": {
-                    "format": "dsv"
-                },
                 "data_size_per_job": 1
             })
 
-        try:
-            pin_filename = os.path.join(tmpdir, "started")
-            while not os.access(pin_filename, os.F_OK):
-                time.sleep(0.2)
+        result = abandon_job(op.jobs[3])
 
-            jobs_path = "//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(op_id)
-            jobs = ls(jobs_path)
-            assert jobs
-
-            job_id = open(pin_filename).read()
-            assert job_id
-
-            result = abandon_job(job_id)
-        finally:
-            try:
-                os.unlink(pin_filename)
-            except OSError:
-                pass
-            try:
-                os.unlink(tmpdir)
-            except OSError:
-                pass
-
-        track_op(op_id)
-        assert(2, len(read_table("//tmp/t2")))
+        op.resume_jobs()
+        op.track()
+        assert len(read_table("//tmp/t2")) == 4
 
 ##################################################################
 
@@ -370,13 +260,16 @@ class TestSchedulerMapCommands(YTEnvSetup):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
         write_table("//tmp/t1", {"a": "b"})
-        op_id = map(dont_track=True,
-            in_="//tmp/t1", out="//tmp/t2", command=r'cat; echo "{v1=\"$V1\"};{v2=\"$TMPDIR\"}"',
+        op = map(
+            dont_track=True,
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            command=r'cat; echo "{v1=\"$V1\"};{v2=\"$TMPDIR\"}"',
             spec={"mapper": {"environment": {"V1": "Some data", "TMPDIR": "$(SandboxPath)/mytmp"}},
                   "title": "MyTitle"})
 
-        get("//sys/operations/%s/@spec" % op_id)
-        track_op(op_id)
+        get("//sys/operations/%s/@spec" % op.id)
+        op.track()
 
         res = read_table("//tmp/t2")
         assert len(res) == 3
@@ -436,15 +329,12 @@ class TestSchedulerMapCommands(YTEnvSetup):
         create("file", file1)
         write_file(file1, "}}}}};\n")
 
-        command = 'cat some_file.txt >&4; cat >&4; echo "{value=42}"'
-        op_id = map(dont_track=True,
-                    in_="//tmp/t_input",
-                    out=["//tmp/t_output1", "//tmp/t_output2"],
-                    command=command,
-                    file=[file1],
-                    verbose=True)
         with pytest.raises(YtError):
-            track_op(op_id)
+            map(in_="//tmp/t_input",
+                out=["//tmp/t_output1", "//tmp/t_output2"],
+                command='cat some_file.txt >&4; cat >&4; echo "{value=42}"',
+                file=[file1],
+                verbose=True)
 
     @unix_only
     def test_in_equal_to_out(self):
@@ -456,8 +346,8 @@ class TestSchedulerMapCommands(YTEnvSetup):
         assert read_table("//tmp/t1") == [{"foo": "bar"}, {"foo": "bar"}]
 
     #TODO(panin): refactor
-    def _check_all_stderrs(self, op_id, expected_content, expected_count):
-        jobs_path = "//sys/operations/" + op_id + "/jobs"
+    def _check_all_stderrs(self, op, expected_content, expected_count):
+        jobs_path = "//sys/operations/" + op.id + "/jobs"
         assert get(jobs_path + "/@count") == expected_count
         for job_id in ls(jobs_path):
             stderr_path = jobs_path + "/" + job_id + "/stderr"
@@ -473,11 +363,10 @@ class TestSchedulerMapCommands(YTEnvSetup):
 
         command = """cat > /dev/null; echo stderr 1>&2; echo {operation='"'$YT_OPERATION_ID'"'}';'; echo {job_index=$YT_JOB_INDEX};"""
 
-        op_id = map(dont_track=True, in_="//tmp/t1", out="//tmp/t2", command=command)
-        track_op(op_id)
+        op = map(in_="//tmp/t1", out="//tmp/t2", command=command)
 
-        assert read_table("//tmp/t2") == [{"operation" : op_id}, {"job_index" : 0}]
-        self._check_all_stderrs(op_id, "stderr\n", 1)
+        assert read_table("//tmp/t2") == [{"operation" : op.id}, {"job_index" : 0}]
+        self._check_all_stderrs(op, "stderr\n", 1)
 
     # check that stderr is captured for failed jobs
     @unix_only
@@ -488,12 +377,13 @@ class TestSchedulerMapCommands(YTEnvSetup):
 
         command = """echo "{x=y}{v=};{a=b}"; while echo xxx 2>/dev/null; do false; done; echo stderr 1>&2; cat > /dev/null;"""
 
-        op_id = map(dont_track=True, in_="//tmp/t1", out="//tmp/t2", command=command)
-        # if all jobs failed then operation is also failed
-        with pytest.raises(YtError):
-            track_op(op_id)
+        op = map(dont_track=True, in_="//tmp/t1", out="//tmp/t2", command=command)
 
-        self._check_all_stderrs(op_id, "stderr\n", 10)
+        # If all jobs failed then operation is also failed
+        with pytest.raises(YtError):
+            op.track()
+
+        self._check_all_stderrs(op, "stderr\n", 10)
 
     # check max_stderr_count
     @unix_only
@@ -502,94 +392,71 @@ class TestSchedulerMapCommands(YTEnvSetup):
         create("table", "//tmp/t2")
         write_table("//tmp/t1", {"foo": "bar"})
 
-        command = "cat > /dev/null; echo stderr 1>&2; exit 125"
+        op = map(
+            dont_track=True,
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            command="cat > /dev/null; echo stderr 1>&2; exit 125",
+            spec={"max_failed_job_count": 5})
 
-        op_id = map(dont_track=True, in_="//tmp/t1", out="//tmp/t2", command=command, spec={"max_failed_job_count": 5})
-        # if all jobs failed then operation is also failed
+        # If all jobs failed then operation is also failed
         with pytest.raises(YtError):
-            track_op(op_id)
+            op.track()
 
-        self._check_all_stderrs(op_id, "stderr\n", 5)
+        self._check_all_stderrs(op, "stderr\n", 5)
 
-    @pytest.mark.skipif("not sys.platform.startswith(\"linux\")")
+    @unix_only
     def test_stderr_of_failed_jobs(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
         write_table("//tmp/t1", [{"foo": "bar"} for i in xrange(110)])
 
-        tmpdir = tempfile.mkdtemp(prefix="stderr_of_failed_jobs_semaphore")
-        try:
-            os.chmod(tmpdir, 0777)
-            for i in xrange(109):
-                with open(os.path.join(tmpdir, str(i)), "w") as f:
-                    f.close()
+        # All jobs with index < 109 will successfuly finish on "exit 0;"
+        # The job with index 109 will be waiting because of waiting_jobs=True
+        # until it is manualy resumed.
+        command = """cat > /dev/null;
+            echo stderr 1>&2;
+            if [ "$YT_START_ROW_INDEX" = "109" ]; then
+                trap "exit 125" EXIT
+            else
+                exit 0;
+            fi;"""
 
-            command = """cat > /dev/null;
-                SEMAPHORE_DIR={0}
-                echo stderr 1>&2;
-                if [ "$YT_START_ROW_INDEX" = "109" ]; then
-                    until rmdir $SEMAPHORE_DIR 2>/dev/null; do sleep 1; done
-                    exit 125;
-                else
-                    rm $SEMAPHORE_DIR/$YT_START_ROW_INDEX
-                    exit 0;
-                fi;""".format(tmpdir)
+        op = map(
+            dont_track=True,
+            waiting_jobs=True,
+            label="stderr_of_failed_jobs",
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            command=command,
+            spec={"max_failed_job_count": 1, "job_count": 110})
 
-            op_id = map(dont_track=True, in_="//tmp/t1", out="//tmp/t2", command=command,
-                        spec={"max_failed_job_count": 1, "job_count": 110})
-            with pytest.raises(YtError):
-                track_op(op_id)
+        with pytest.raises(YtError):
+            op.resume_jobs()
+            op.track()
 
-            # The default number of stderr is 100. We check that we have 101-st stderr of failed job,
-            # that is last one.
-            self._check_all_stderrs(op_id, "stderr\n", 101)
-        finally:
-            try:
-                os.rmdir(tmpdir)
-            except:
-                pass
+        # The default number of stderr is 100. We check that we have 101-st stderr of failed job,
+        # that is last one.
+        self._check_all_stderrs(op, "stderr\n", 101)
 
     def test_job_progress(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
         write_table("//tmp/t1", [{"foo": "bar"} for i in xrange(10)])
 
-        tmpdir = tempfile.mkdtemp(prefix="job_progress")
-        keeper_filename = os.path.join(tmpdir, "keep")
+        op = map(
+            dont_track=True,
+            waiting_jobs=True,
+            label="job_progress",
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            command="cat")
 
-        try:
-            with open(keeper_filename, "w") as f:
-                f.close()
+        progress = get("//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs/{1}/progress".format(op.id, op.jobs[0]))
+        assert progress >= 0
 
-            op_id = map(dont_track=True, in_="//tmp/t1", out="//tmp/t2", command="""
-                DIR={0}
-                until rmdir $DIR 2>/dev/null; do sleep 1; done;
-                cat
-                """.format(tmpdir))
-
-            while True:
-                try:
-                    job_id, _1 = get("//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(op_id)).popitem()
-                    time.sleep(0.1)
-                except KeyError:
-                    pass
-                else:
-                    break
-
-            progress = get("//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs/{1}/progress".format(op_id, job_id))
-            assert progress >= 0
-            os.unlink(keeper_filename)
-
-            track_op(op_id)
-        finally:
-            try:
-                os.unlink(keeper_filename)
-            except OSError:
-                pass
-            try:
-                os.unlink(tmpdir)
-            except OSError:
-                pass
+        op.resume_jobs()
+        op.track()
 
     def test_estimated_statistics(self):
         create("table", "//tmp/t1")
@@ -597,9 +464,9 @@ class TestSchedulerMapCommands(YTEnvSetup):
         write_table("//tmp/t1", [{"key" : i} for i in xrange(5)])
 
         sort(in_="//tmp/t1", out="//tmp/t1", sort_by="key")
-        op_id = map(command="cat", in_="//tmp/t1[:1]", out="//tmp/t2")
+        op = map(command="cat", in_="//tmp/t1[:1]", out="//tmp/t2")
 
-        statistics = get("//sys/operations/{0}/@progress/estimated_input_statistics".format(op_id))
+        statistics = get("//sys/operations/{0}/@progress/estimated_input_statistics".format(op.id))
         for key in ["chunk_count", "uncompressed_data_size", "compressed_data_size", "row_count", "unavailable_chunk_count"]:
             assert key in statistics
         assert statistics["chunk_count"] == 1
@@ -610,11 +477,11 @@ class TestSchedulerMapCommands(YTEnvSetup):
         write_table("//tmp/t1", [{"key" : i} for i in xrange(5)])
 
         sort(in_="//tmp/t1", out="//tmp/t1", sort_by="key")
-        op_id = map(command="cat", in_="//tmp/t1[:1]", out="//tmp/t2")
+        op = map(command="cat", in_="//tmp/t1[:1]", out="//tmp/t2")
 
         assert get("//tmp/t2/@row_count") == 1
 
-        row_count = get("//sys/operations/{0}/@progress/job_statistics/data/input/row_count/$/completed/map/sum".format(op_id))
+        row_count = get("//sys/operations/{0}/@progress/job_statistics/data/input/row_count/$/completed/map/sum".format(op.id))
         assert row_count == 1
 
     def test_multiple_output_row_count(self):
@@ -623,11 +490,11 @@ class TestSchedulerMapCommands(YTEnvSetup):
         create("table", "//tmp/t3")
         write_table("//tmp/t1", [{"key" : i} for i in xrange(5)])
 
-        op_id = map(command="cat; echo {hello=world} >&4", in_="//tmp/t1", out=["//tmp/t2", "//tmp/t3"])
+        op = map(command="cat; echo {hello=world} >&4", in_="//tmp/t1", out=["//tmp/t2", "//tmp/t3"])
         assert get("//tmp/t2/@row_count") == 5
-        row_count = get("//sys/operations/{0}/@progress/job_statistics/data/output/0/row_count/$/completed/map/sum".format(op_id))
+        row_count = get("//sys/operations/{0}/@progress/job_statistics/data/output/0/row_count/$/completed/map/sum".format(op.id))
         assert row_count == 5
-        row_count = get("//sys/operations/{0}/@progress/job_statistics/data/output/1/row_count/$/completed/map/sum".format(op_id))
+        row_count = get("//sys/operations/{0}/@progress/job_statistics/data/output/1/row_count/$/completed/map/sum".format(op.id))
         assert row_count == 1
 
 
@@ -639,9 +506,9 @@ class TestSchedulerMapCommands(YTEnvSetup):
         command = """awk '($1=="foo"){print "bar"}'"""
 
         with pytest.raises(YtError):
-            map(command=command,
-                in_="//tmp/t1",
+            map(in_="//tmp/t1",
                 out="//tmp/t2",
+                command=command,
                 spec={"mapper": {"format": "yamr"}})
 
     @unix_only
@@ -650,14 +517,18 @@ class TestSchedulerMapCommands(YTEnvSetup):
         create("table", "//tmp/t2")
         write_table("//tmp/t1", {"foo": "bar"})
 
-        command = 'python -c "import os; os.read(0, 1);"'
+        op = map(
+            dont_track=True,
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            command='python -c "import os; os.read(0, 1);"',
+            spec={ "mapper": { "input_format" : "dsv", "check_input_fully_consumed": True}})
 
-        op_id = map(dont_track=True, in_="//tmp/t1", out="//tmp/t2", command=command,
-                spec={ "mapper": { "input_format" : "dsv", "check_input_fully_consumed": True}})
-        # if all jobs failed then operation is also failed
-        with pytest.raises(YtError): track_op(op_id)
+        # If all jobs failed then operation is also failed
+        with pytest.raises(YtError):
+            op.track()
 
-        jobs_path = "//sys/operations/" + op_id + "/jobs"
+        jobs_path = "//sys/operations/" + op.id + "/jobs"
         for job_id in ls(jobs_path):
             assert len(read_file(jobs_path + "/" + job_id + "/fail_context")) > 0
 
@@ -666,15 +537,13 @@ class TestSchedulerMapCommands(YTEnvSetup):
         create("table", "//tmp/t2")
         write_table("//tmp/t1", {"foo": "bar"})
 
-        tmpdir = tempfile.mkdtemp(prefix="dump_job_context_semaphore")
-
-        command="touch {0}/started; cat; until rmdir {0} 2>/dev/null; do sleep 1; done".format(tmpdir)
-
-        op_id = map(
+        op = map(
             dont_track=True,
+            waiting_jobs=True,
+            label="dump_job_context",
             in_="//tmp/t1",
             out="//tmp/t2",
-            command=command,
+            command="cat",
             spec={
                 "mapper": {
                     "input_format": "json",
@@ -682,21 +551,10 @@ class TestSchedulerMapCommands(YTEnvSetup):
                 }
             })
 
-        pin_filename = os.path.join(tmpdir, "started")
-        while not os.access(pin_filename, os.F_OK):
-            time.sleep(0.2)
+        dump_job_context(op.jobs[0], "//tmp/input_context")
 
-        try:
-            jobs_path = "//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(op_id)
-            jobs = ls(jobs_path)
-            assert jobs
-            for job_id in jobs:
-                dump_job_context(job_id, "//tmp/input_context")
-
-        finally:
-            os.unlink(pin_filename)
-
-        track_op(op_id)
+        op.resume_jobs()
+        op.track()
 
         context = read_file("//tmp/input_context")
         assert get("//tmp/input_context/@description/type") == "input_context"
@@ -736,12 +594,10 @@ class TestSchedulerMapCommands(YTEnvSetup):
         command = 'cat >/dev/null; echo "{key=1; value=one}; {key=2; value=two}"'
 
         with pytest.raises(YtError):
-            map(
-                in_="//tmp/t1",
+            map(in_="//tmp/t1",
                 out="<sorted_by=[key]>//tmp/t2",
                 command=command,
                 spec={"job_count": 2})
-            print read_table("//tmp/t2")
 
     def test_sorted_output_job_failure(self):
         create("table", "//tmp/t1")
@@ -752,8 +608,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
         command = "cat >/dev/null; echo {key=2; value=one}; {key=1; value=two}"
 
         with pytest.raises(YtError):
-            map(
-                in_="//tmp/t1",
+            map(in_="//tmp/t1",
                 out="<sorted_by=[key]>//tmp/t2",
                 command=command,
                 spec={"job_count": 2})
@@ -1078,14 +933,14 @@ cat > /dev/null; echo {hello=world}
         create("table", "//tmp/t")
         write_table("//tmp/t", {"foo": "bar"})
 
-        op_id = map(dont_track=True,
+        op = map(dont_track=True,
             in_="//tmp/t",
             out="//tmp/t",
             command="sleep 1")
 
-        path = "//sys/operations/%s/@state" % op_id
+        path = "//sys/operations/%s/@state" % op.id
         # check running
-        abort_op(op_id)
+        op.abort()
         assert get(path) == "aborted"
 
 
@@ -1140,10 +995,12 @@ print row + table_index
 
         command = 'python -c "import os; os.read(0, 5);"'
 
-        op_id = map(dont_track=True, in_="//tmp/t1", out="//tmp/t2", command=command,
+        # If all jobs failed then operation is also failed
+        with pytest.raises(YtError):
+            map(in_="//tmp/t1",
+                out="//tmp/t2",
+                command=command,
                 spec={ "mapper": { "input_format" : "dsv", "check_input_fully_consumed": True}})
-        # if all jobs failed then operation is also failed
-        with pytest.raises(YtError): track_op(op_id)
 
         assert read_table("//tmp/t2") == []
 
@@ -1154,7 +1011,10 @@ print row + table_index
         data = [{"foo": "bar"} for i in xrange(10000)]
         write_table("//tmp/t1", data)
 
-        map(in_="//tmp/t1", out="//tmp/t2", command="head -1",
+        map(
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            command="head -1",
             spec={"mapper": {"input_format" : "dsv", "output_format" : "dsv"}})
 
         assert read_table("//tmp/t2") == [{"foo": "bar"}]
@@ -1169,13 +1029,13 @@ print row + table_index
         set("//tmp/t2/@acl", [{"action": "allow", "subjects": ["u"], "permissions": ["write"]}])
         effective_acl = get("//tmp/t2/@effective_acl")
 
-        op_id = map(dont_track=True, command="cat; sleep 2", in_="//tmp/t1", out="//tmp/t2")
+        op = map(dont_track=True, waiting_jobs=True, command="cat", in_="//tmp/t1", out="//tmp/t2")
 
-        time.sleep(1)
-        assert exists("//sys/operations/{0}/output_0".format(op_id))
-        assert effective_acl == get("//sys/operations/{0}/output_0/@acl".format(op_id))
+        assert exists("//sys/operations/{0}/output_0".format(op.id))
+        assert effective_acl == get("//sys/operations/{0}/output_0/@acl".format(op.id))
 
-        track_op(op_id)
+        op.resume_jobs()
+        op.track()
         assert read_table("//tmp/t2") == [{"foo": "bar"}]
 
     def test_row_sampling(self):
@@ -1213,14 +1073,11 @@ print row + table_index
         write_table("//tmp/input", original_data)
 
         create("table", "//tmp/output")
-        op_id = map(command="sleep 0.250; exit 1",
-            in_="//tmp/input",
-            out="//tmp/output",
-            spec={"data_size_per_job": 1, "max_failed_job_count": 10, "testing": testing_options},
-            dont_track=True)
-
         with pytest.raises(YtError):
-            track_op(op_id)
+            map(in_="//tmp/input",
+                out="//tmp/output",
+                command="sleep 0.250; exit 1",
+                spec={"data_size_per_job": 1, "max_failed_job_count": 10, "testing": testing_options})
 
     def test_many_parallel_operations(self):
         create("table", "//tmp/input")
@@ -1232,36 +1089,36 @@ print row + table_index
         write_table("//tmp/input", original_data)
 
         operation_count = 5
-        op_ids = []
+        ops = []
         for index in range(operation_count):
             output = "//tmp/output" + str(index)
             create("table", output)
-            op_ids.append(
-                map(command="sleep 0.1; cat",
-                    in_="//tmp/input",
+            ops.append(
+                map(in_="//tmp/input",
                     out=[output],
+                    command="sleep 0.1; cat",
                     spec={"data_size_per_job": 1, "testing": testing_options},
                     dont_track=True))
 
-        failed_op_ids = []
+        failed_ops = []
         for index in range(operation_count):
             output = "//tmp/failed_output" + str(index)
             create("table", output)
-            failed_op_ids.append(
-                map(command="sleep 0.1; exit 1",
-                    in_="//tmp/input",
+            failed_ops.append(
+                map(in_="//tmp/input",
                     out=[output],
+                    command="sleep 0.1; exit 1",
                     spec={"data_size_per_job": 1, "max_failed_job_count": 1, "testing": testing_options},
                     dont_track=True))
 
-        for index, id in enumerate(failed_op_ids):
+        for index, op in enumerate(failed_ops):
             output = "//tmp/failed_output" + str(index)
             with pytest.raises(YtError):
-                track_op(id)
+                op.track()
 
-        for index, id in enumerate(op_ids):
+        for index, op in enumerate(ops):
             output = "//tmp/output" + str(index)
-            track_op(id)
+            op.track()
             assert sorted(read_table(output)) == original_data
 
 
@@ -1375,17 +1232,14 @@ class TestJobQuery(YTEnvSetup):
         for row in original_data:
             write_table("<append=true>//tmp/t_input", row)
 
-        op_id = map(
-                dont_track=True,
-                in_="//tmp/t_input",
-                out="//tmp/t_output",
-                command="cat; echo stderr 1>&2",
-                ordered=True,
-                spec={"data_size_per_job": 1})
+        op = map(
+            in_="//tmp/t_input",
+            out="//tmp/t_output",
+            command="cat; echo stderr 1>&2",
+            ordered=True,
+            spec={"data_size_per_job": 1})
 
-        track_op(op_id)
-
-        assert get("//sys/operations/" + op_id + "/jobs/@count") == 10
+        assert get("//sys/operations/" + op.id + "/jobs/@count") == 10
         assert read_table("//tmp/t_output") == original_data
 
     def test_ordered_map_remains_sorted(self):
@@ -1395,21 +1249,50 @@ class TestJobQuery(YTEnvSetup):
         for i in xrange(10):
             write_table("<append=true>//tmp/t_input", original_data[100*i:100*(i+1)])
 
-        op_id = map(
-            dont_track=True,
+        op = map(
             in_="//tmp/t_input",
             out="<sorted_by=[key]>//tmp/t_output",
             command="cat; echo stderr 1>&2",
             ordered=True,
             spec={"job_count": 5})
 
-        track_op(op_id)
-        jobs = get("//sys/operations/" + op_id + "/jobs/@count")
+        jobs = get("//sys/operations/" + op.id + "/jobs/@count")
 
         assert jobs == 5
         assert get("//tmp/t_output/@sorted")
         assert get("//tmp/t_output/@sorted_by") == ["key"]
         assert read_table("//tmp/t_output") == original_data
+
+    def test_job_with_exit_immediately_flag(self):
+        create("table", "//tmp/t_input")
+        create("table", "//tmp/t_output")
+        write_table("//tmp/t_input", {"foo": "bar"})
+
+        op = map(
+            dont_track=True,
+            in_="//tmp/t_input",
+            out="//tmp/t_output",
+            command='set -e; /non_existed_command; echo stderr >&2;',
+            spec={
+                "max_failed_job_count": 1
+            })
+
+        with pytest.raises(YtError):
+            op.track()
+
+        jobs_path = "//sys/operations/" + op.id + "/jobs"
+        assert get(jobs_path + "/@count") == 1
+        for job_id in ls(jobs_path):
+            assert read_file(jobs_path + "/" + job_id + "/stderr") == \
+                "/bin/bash: /non_existed_command: No such file or directory\n"
+
+
+    def test_large_spec(self):
+        create("table", "//tmp/t1")
+        write_table("//tmp/t1", [{"a": "b"}])
+
+        with pytest.raises(YtError):
+            map(in_="//tmp/t1", out="//tmp/t2", command="cat", spec={"attribute": "really_large" * (2 * 10 ** 6)}, verbose=False)
 
 ##################################################################
 
@@ -1426,7 +1309,7 @@ class TestSchedulerMapCommandsMulticell(TestSchedulerMapCommands):
         merge(mode="ordered",
               in_=["//tmp/t1", "//tmp/t2"],
               out="//tmp/t_in")
-        
+
         create("table", "//tmp/t_out")
         map(in_="//tmp/t_in",
             out="//tmp/t_out",

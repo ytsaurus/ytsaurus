@@ -24,7 +24,7 @@ public:
 
         // Slow path.
         size_t committedLength = GetLength();
-        size = std::max(size, static_cast<size_t>(1024));
+        size = std::max(size, MinBufferLength);
         Str_.ReserveAndResize(committedLength + size);
         Begin_ = Current_ = &*Str_.begin() + committedLength;
         End_ = Begin_ + size;
@@ -93,6 +93,8 @@ private:
     char* Current_ = nullptr;
     char* End_ = nullptr;
 
+    static const size_t MinBufferLength;
+
 };
 
 inline void FormatValue(TStringBuilder* builder, const TStringBuilder& value, const TStringBuf& /*format*/)
@@ -103,39 +105,53 @@ inline void FormatValue(TStringBuilder* builder, const TStringBuilder& value, co
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Formatters enable customizable way to turn an object into a string.
-//! This default implementation calls |ToString|.
+//! This default implementation uses |FormatValue|.
 struct TDefaultFormatter
 {
     template <class T>
-    Stroka operator () (const T& obj) const
+    void operator()(TStringBuilder* builder, const T& obj) const
     {
-        return ToString(obj);
+        FormatValue(builder, obj, STRINGBUF("v"));
     }
 };
 
+extern const TStringBuf DefaultJoinToStringDelimiter;
+
 //! Joins a range of items into a string intermixing them with the delimiter.
 /*!
- *  The function calls the global #::ToString for conversion.
+ *  \param builder String builder where the output goes.
  *  \param begin Iterator pointing to the first item (inclusive).
  *  \param end Iterator pointing to the last item (not inclusive).
- *  \param delimiter A delimiter to be inserted between items. By default equals ", ".
+ *  \param formatter Formatter to apply to the items.
+ *  \param delimiter A delimiter to be inserted between items: ", " by default.
  *  \return The resulting combined string.
  */
+template <class TIterator, class TFormatter>
+void JoinToString(
+    TStringBuilder* builder,
+    const TIterator& begin,
+    const TIterator& end,
+    const TFormatter& formatter,
+    const TStringBuf& delimiter = DefaultJoinToStringDelimiter)
+{
+    for (auto current = begin; current != end; ++current) {
+        if (current != begin) {
+            builder->AppendString(delimiter);
+        }
+        formatter(builder, *current);
+    }
+}
+
 template <class TIterator, class TFormatter>
 Stroka JoinToString(
     const TIterator& begin,
     const TIterator& end,
     const TFormatter& formatter,
-    const Stroka& delimiter = ", ")
+    const TStringBuf& delimiter = DefaultJoinToStringDelimiter)
 {
-    Stroka result;
-    for (auto current = begin; current != end; ++current) {
-        if (current != begin) {
-            result.append(delimiter);
-        }
-        result.append(formatter(*current));
-    }
-    return result;
+    TStringBuilder builder;
+    JoinToString(&builder, begin, end, formatter, delimiter);
+    return builder.Flush();
 }
 
 //! A handy shortcut with default formatter.
@@ -143,7 +159,7 @@ template <class TIterator>
 Stroka JoinToString(
     const TIterator& begin,
     const TIterator& end,
-    const Stroka& delimiter = ", ")
+    const TStringBuf& delimiter = DefaultJoinToStringDelimiter)
 {
     return JoinToString(begin, end, TDefaultFormatter(), delimiter);
 }
@@ -151,27 +167,27 @@ Stroka JoinToString(
 //! Joins a collection of given items into a string intermixing them with the delimiter.
 /*!
  *  \param collection A collection containing the items to be joined.
- *  \param delimiter A delimiter to be inserted between items. By default equals ", ".
- *  \return The resulting combined string.
+ *  \param formatter Formatter to apply to the items.
+ *  \param delimiter A delimiter to be inserted between items; ", " by default.
  */
 template <class TCollection, class TFormatter>
 Stroka JoinToString(
-    const TCollection& items,
+    const TCollection& collection,
     const TFormatter& formatter,
-    const Stroka& delimiter = ", ")
+    const TStringBuf& delimiter = DefaultJoinToStringDelimiter)
 {
     using std::begin;
     using std::end;
-    return JoinToString(begin(items), end(items), formatter, delimiter);
+    return JoinToString(begin(collection), end(collection), formatter, delimiter);
 }
 
-//! A handy shortcut with default formatter.
+//! A handy shortcut with the default formatter.
 template <class TCollection>
 Stroka JoinToString(
-    const TCollection& items,
-    const Stroka& delimiter = ", ")
+    const TCollection& collection,
+    const TStringBuf& delimiter = DefaultJoinToStringDelimiter)
 {
-    return JoinToString(items, TDefaultFormatter(), delimiter);
+    return JoinToString(collection, TDefaultFormatter(), delimiter);
 }
 
 //! Converts a range of items into strings.
@@ -184,7 +200,9 @@ std::vector<Stroka> ConvertToStrings(
 {
     std::vector<Stroka> result;
     for (auto it = begin; it != end; ++it) {
-        result.push_back(formatter(*it));
+        TStringBuilder builder;
+        formatter(&builder, *it);
+        result.push_back(builder.Flush());
         if (result.size() == maxSize) {
             break;
         }
@@ -192,7 +210,7 @@ std::vector<Stroka> ConvertToStrings(
     return result;
 }
 
-//! A handy shortcut with default formatter.
+//! A handy shortcut with the default formatter.
 template <class TIter>
 std::vector<Stroka> ConvertToStrings(
     const TIter& begin,
@@ -202,7 +220,12 @@ std::vector<Stroka> ConvertToStrings(
     return ConvertToStrings(begin, end, TDefaultFormatter(), maxSize);
 }
 
-//! Converts a collection of given items into strings.
+//! Converts a given collection of items into strings.
+/*!
+ *  \param collection A collection containing the items to be converted.
+ *  \param formatter Formatter to apply to the items.
+ *  \param maxSize Size limit for the resulting vector.
+ */
 template <class TCollection, class TFormatter>
 std::vector<Stroka> ConvertToStrings(
     const TCollection& collection,
@@ -243,7 +266,7 @@ Stroka DecodeEnumValue(const Stroka& value);
 Stroka EncodeEnumValue(const Stroka& value);
 
 template <class T>
-inline T ParseEnum(const Stroka& value, typename TEnumTraits<T>::TType* = 0)
+T ParseEnum(const Stroka& value, typename TEnumTraits<T>::TType* = 0)
 {
     return TEnumTraits<T>::FromString(DecodeEnumValue(value));
 }

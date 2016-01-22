@@ -3,6 +3,7 @@
 #endif
 
 #include "helpers.h"
+#include "chunk_manager.h"
 
 #include <yt/server/cypress_server/node_detail.h>
 
@@ -104,11 +105,14 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoDestroy(TChunkOwner* node)
 {
     TBase::DoDestroy(node);
 
-    auto objectManager = TBase::Bootstrap_->GetObjectManager();
-
     auto* chunkList = node->GetChunkList();
     if (chunkList) {
+        auto chunkManager = TBase::Bootstrap_->GetChunkManager();
+        chunkManager->ScheduleChunkPropertiesUpdate(chunkList);
+
         YCHECK(chunkList->OwningNodes().erase(node) == 1);
+
+        auto objectManager = TBase::Bootstrap_->GetObjectManager();
         objectManager->UnrefObject(chunkList);
     }
 }
@@ -161,7 +165,6 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoMerge(
 
     bool isExternal = originatingNode->IsExternal();
 
-    auto hydraManager = TBase::Bootstrap_->GetHydraFacade()->GetHydraManager();
     auto chunkManager = TBase::Bootstrap_->GetChunkManager();
     auto objectManager = TBase::Bootstrap_->GetObjectManager();
 
@@ -189,8 +192,7 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoMerge(
         originatingNode->GetVital() != branchedNode->GetVital();
     bool propertiesUpdateNeeded =
         topmostCommit &&
-        (propertiesMismatch || branchedNode->GetChunkPropertiesUpdateNeeded()) &&
-        hydraManager->IsLeader();
+        (propertiesMismatch || branchedNode->GetChunkPropertiesUpdateNeeded());
     auto newOriginatingMode = topmostCommit || originatingNode->GetType() == NObjectClient::EObjectType::Journal
         ? NChunkClient::EUpdateMode::None
         : originatingMode == NChunkClient::EUpdateMode::Overwrite || branchedMode == NChunkClient::EUpdateMode::Overwrite

@@ -29,9 +29,11 @@ set( SRCS
   ${CMAKE_CURRENT_LIST_DIR}/heap_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/hyperloglog_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/intrusive_ptr_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/job_signaler_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/json_parser_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/json_writer_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/lexer_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/lfalloc_helpers_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/lifecycle_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/logging_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/main.cpp
@@ -41,6 +43,7 @@ set( SRCS
   ${CMAKE_CURRENT_LIST_DIR}/nonblocking_queue_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/nullable_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/pattern_formatter_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/periodic_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/persistent_queue_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/phoenix_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/pipes_ut.cpp
@@ -51,6 +54,7 @@ set( SRCS
   ${CMAKE_CURRENT_LIST_DIR}/ql_helpers.cpp
   ${CMAKE_CURRENT_LIST_DIR}/ql_query_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/ql_range_inference_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/ring_queue_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/random_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/read_limit_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/ref_counted_tracker_ut.cpp

@@ -12,6 +12,8 @@ import sys
 import logging
 import uuid
 import shutil
+import contextlib
+import tempfile
 from time import sleep
 from threading import Thread
 
@@ -34,7 +36,7 @@ def resolve_test_paths(name):
     path_to_environment = os.path.join(path_to_sandbox, 'run')
     return path_to_sandbox, path_to_environment
 
-def _wait(predicate):
+def wait(predicate):
     for _ in xrange(100):
         if predicate():
             return
@@ -89,6 +91,8 @@ class YTEnvSetup(YTEnv):
         cls.Env = cls()
         cls.Env.start(cls.path_to_run, pids_filename, kill_child_processes=True,
                       port_locks_path=os.path.join(SANDBOX_ROOTDIR, "ports"), fqdn="localhost")
+
+        yt_commands.path_to_run_tests = cls.path_to_run
 
         if cls.Env.configs["driver"]:
             yt_commands.init_driver(cls.Env.configs["driver"])
@@ -164,15 +168,15 @@ class YTEnvSetup(YTEnv):
 
     def wait_for_nodes(self):
         print "Waiting for nodes to become online..."
-        _wait(lambda: all(n.attributes["state"] == "online" for n in yt_commands.ls("//sys/nodes", attributes=["state"])))
+        wait(lambda: all(n.attributes["state"] == "online" for n in yt_commands.ls("//sys/nodes", attributes=["state"])))
 
     def wait_for_chunk_replicator(self):
         print "Waiting for chunk replicator to become enabled..."
-        _wait(lambda: yt_commands.get("//sys/@chunk_replicator_enabled"))
+        wait(lambda: yt_commands.get("//sys/@chunk_replicator_enabled"))
 
     def wait_for_cells(self):
         print "Waiting for tablet cells to become healthy..."
-        _wait(lambda: all(c.attributes["health"] == "good" for c in yt_commands.ls("//sys/tablet_cells", attributes=["health"])))
+        wait(lambda: all(c.attributes["health"] == "good" for c in yt_commands.ls("//sys/tablet_cells", attributes=["health"])))
 
     def sync_create_cells(self, size, count):
         for _ in xrange(count):
@@ -181,16 +185,16 @@ class YTEnvSetup(YTEnv):
 
     def wait_for_tablet_state(self, path, states):
         print "Waiting for tablets to become %s..." % ", ".join(str(state) for state in states)
-        _wait(lambda: all(any(x["state"] == state for state in states) for x in yt_commands.get(path + "/@tablets")))
+        wait(lambda: all(any(x["state"] == state for state in states) for x in yt_commands.get(path + "/@tablets")))
 
     def wait_until_sealed(self, path):
-        _wait(lambda: yt_commands.get(path + "/@sealed"))
+        wait(lambda: yt_commands.get(path + "/@sealed"))
 
     def _wait_for_tablets(self, path, state, **kwargs):
         tablet_count = yt_commands.get(path + '/@tablet_count')
         first_tablet_index = kwargs.get("first_tablet_index", 0)
         last_tablet_index = kwargs.get("last_tablet_index", tablet_count - 1)
-        _wait(lambda: all(x["state"] == state for x in yt_commands.get(path + "/@tablets")[first_tablet_index:last_tablet_index + 1]))
+        wait(lambda: all(x["state"] == state for x in yt_commands.get(path + "/@tablets")[first_tablet_index:last_tablet_index + 1]))
 
     def sync_mount_table(self, path, **kwargs):
         yt_commands.mount_table(path, **kwargs)
@@ -210,7 +214,7 @@ class YTEnvSetup(YTEnv):
         self.sync_mount_table(path)
 
         print "Waiting for tablets to become compacted..."
-        _wait(lambda: all(x["statistics"]["chunk_count"] == 1 for x in yt_commands.get(path + "/@tablets")))
+        wait(lambda: all(x["statistics"]["chunk_count"] == 1 for x in yt_commands.get(path + "/@tablets")))
 
     def _abort_transactions(self, txs):
         for tx in txs:

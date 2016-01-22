@@ -22,6 +22,7 @@
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
+#include <type_traits>
 
 namespace std {
 
@@ -29,7 +30,7 @@ namespace std {
 template <> struct hash<Stroka> : public ::hash<Stroka> { };
 template <> struct hash<TStringBuf> : public ::hash<TStringBuf> { };
 
-#if defined(__GLIBCXX__) && !defined(__cpp_lib_make_unique)
+#if defined(__GLIBCXX__) && __GLIBCXX__ > 20140716 && !defined(__cpp_lib_make_unique)
 template <typename TResult, typename ...TArgs>
 std::unique_ptr<TResult> make_unique(TArgs&& ...args)
 {
@@ -40,7 +41,7 @@ std::unique_ptr<TResult> make_unique(TArgs&& ...args)
 // std::aligned_union is not available in early versions of libstdc++.
 #if defined(__GLIBCXX__) && __GLIBCXX__ <= 20151129
 
-// As of now, GCC does not have std::aligned_union.
+// GCC 4.x does not have std::aligned_union.
 template <typename... _Types>
   struct __strictest_alignment
   {
@@ -78,12 +79,21 @@ template <size_t _Len, typename... _Types>
 template <size_t _Len, typename... _Types>
   const size_t aligned_union<_Len, _Types...>::alignment_value;
 
+// Older versions of libstdc++ lack these useful type traits.
+// Here we provide some pessimistic approximations.
+template <typename T>
+using is_trivially_copy_constructible = is_trivial<T>;
+template <typename T>
+using is_trivially_move_constructible = is_trivial<T>;
+
 #endif
 
-#if defined(__GNUC__) && __GNUC__ == 4 && __GNUC_MINOR__ == 7
-// GCC 4.7 defines has_trivial_destructor instead of is_trivially_destructible.
+#if defined(__GLIBCXX__) && __GLIBCXX__ < 20120415
+
+// GCC 4.7 defines has_trivial_XXX instead of is_trivially_XXX.
 template <typename T>
-using is_trivially_destructible = std::has_trivial_destructor<T>;
+using is_trivially_destructible = has_trivial_destructor<T>;
+
 #endif
 
 } // namespace std

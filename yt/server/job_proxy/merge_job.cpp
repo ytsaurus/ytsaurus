@@ -43,9 +43,13 @@ public:
     virtual void Initialize() override
     {
         TKeyColumns keyColumns;
+        TNullable<int> partitionTag;
         if (JobSpec_.HasExtension(TMergeJobSpecExt::merge_job_spec_ext)) {
             const auto& mergeJobSpec = JobSpec_.GetExtension(TMergeJobSpecExt::merge_job_spec_ext);
             keyColumns = FromProto<Stroka>(mergeJobSpec.key_columns());
+            if (mergeJobSpec.has_partition_tag()) {
+                partitionTag = mergeJobSpec.partition_tag();
+            }
             LOG_INFO("Ordered merge produces sorted output");
         }
 
@@ -56,7 +60,7 @@ public:
             }
         }
 
-        TotalRowCount_ = GetCumulativeRowCount(chunkSpecs);
+        TotalRowCount_ = SchedulerJobSpecExt_.input_row_count();
 
         NameTable_ = TNameTable::FromKeyColumns(keyColumns);
 
@@ -78,6 +82,7 @@ public:
                 nameTable,
                 columnFilter,
                 TKeyColumns(),
+                partitionTag,
                 NConcurrency::GetUnlimitedThrottler());
             return Reader_;
         };

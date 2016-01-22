@@ -257,6 +257,7 @@ void TSchemalessTableReader::DoOpen()
             New<TNameTable>(),
             TColumnFilter(),
             TKeyColumns(),
+            Null,
             NConcurrency::GetUnlimitedThrottler());
     }
 

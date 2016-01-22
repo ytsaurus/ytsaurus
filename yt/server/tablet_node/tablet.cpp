@@ -66,7 +66,7 @@ TPartitionSnapshotPtr TTabletSnapshot::FindContainingPartition(TKey key)
         Partitions.end(),
         key,
         [] (TKey key, const TPartitionSnapshotPtr& partition) {
-            return key < partition->PivotKey.Get();
+            return key < partition->PivotKey;
         });
 
     return it == Partitions.begin() ? nullptr : *(--it);
@@ -89,7 +89,7 @@ void TTabletSnapshot::ValiateMountRevision(i64 mountRevision)
 TTablet::TTablet(
     const TTabletId& tabletId,
     TTabletSlotPtr slot)
-    : TabletId_(tabletId)
+    : TObjectBase(tabletId)
     , MountRevision_(0)
     , Slot_(slot)
     , Config_(New<TTableMountConfig>())
@@ -110,7 +110,7 @@ TTablet::TTablet(
     TOwningKey pivotKey,
     TOwningKey nextPivotKey,
     EAtomicity atomicity)
-    : TabletId_(tabletId)
+    : TObjectBase(tabletId)
     , MountRevision_(mountRevision)
     , TableId_(tableId)
     , Slot_(slot)
@@ -120,6 +120,7 @@ TTablet::TTablet(
     , NextPivotKey_(std::move(nextPivotKey))
     , State_(ETabletState::Mounted)
     , Atomicity_(atomicity)
+    , EnableLookupHashTable_(config->EnableLookupHashTable)
     , Config_(config)
     , WriterOptions_(writerOptions)
     , Eden_(std::make_unique<TPartition>(
@@ -195,6 +196,7 @@ void TTablet::Save(TSaveContext& context) const
     Save(context, Schema_);
     Save(context, KeyColumns_);
     Save(context, Atomicity_);
+    Save(context, EnableLookupHashTable_);
 
     TSizeSerializer::Save(context, Stores_.size());
     // NB: This is not stable.
@@ -235,6 +237,10 @@ void TTablet::Load(TLoadContext& context)
     Load(context, Schema_);
     Load(context, KeyColumns_);
     Load(context, Atomicity_);
+    // COMPAT(savrus)
+    if (context.GetVersion() >= 11) {
+        Load(context, EnableLookupHashTable_);
+    }
 
     // NB: Call Initialize here since stores that we're about to create
     // may request some tablet properties (e.g. column lock count) during construction.
@@ -645,7 +651,7 @@ IInvokerPtr TTablet::GetEpochAutomatonInvoker(EAutomatonThreadQueue queue)
 TTabletSnapshotPtr TTablet::RebuildSnapshot()
 {
     Snapshot_ = New<TTabletSnapshot>();
-    Snapshot_->TabletId = TabletId_;
+    Snapshot_->TabletId = Id_;
     Snapshot_->MountRevision = MountRevision_;
     Snapshot_->TableId = TableId_;
     Snapshot_->Slot = Slot_;
@@ -657,6 +663,7 @@ TTabletSnapshotPtr TTablet::RebuildSnapshot()
     Snapshot_->KeyColumns = KeyColumns_;
     Snapshot_->Eden = Eden_->RebuildSnapshot();
     Snapshot_->Atomicity = Atomicity_;
+    Snapshot_->EnableLookupHashTable = EnableLookupHashTable_;
     Snapshot_->Partitions.reserve(PartitionList_.size());
     for (const auto& partition : PartitionList_) {
         auto partitionSnapshot = partition->RebuildSnapshot();
@@ -760,7 +767,7 @@ void TTablet::ValidateMountRevision(i64 mountRevision)
         THROW_ERROR_EXCEPTION(
             NRpc::EErrorCode::Unavailable,
             "Invalid mount revision of tablet %v: expected %x, received %x",
-            TabletId_,
+            Id_,
             MountRevision_,
             mountRevision);
     }

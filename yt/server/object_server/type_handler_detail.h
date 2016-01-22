@@ -5,6 +5,7 @@
 #include "type_handler.h"
 
 #include <yt/server/cell_master/bootstrap.h>
+#include <yt/server/cell_master/multicell_manager.h>
 
 #include <yt/server/hydra/entity_map.h>
 
@@ -31,14 +32,14 @@ public:
         return EObjectReplicationFlags::None;
     }
 
-    virtual TCellTag GetReplicationCellTag(const TObjectBase* object) override
+    virtual TCellTagList GetReplicationCellTags(const TObjectBase* object) override
     {
-        return NObjectClient::NotReplicatedCellTag;
+        return DoGetReplicationCellTags(static_cast<const TObject*>(object));
     }
 
-    virtual Stroka GetName(TObjectBase* object) override
+    virtual Stroka GetName(const TObjectBase* object) override
     {
-        return DoGetName(static_cast<TObject*>(object));
+        return DoGetName(static_cast<const TObject*>(object));
     }
 
     virtual IObjectProxyPtr GetProxy(
@@ -123,7 +124,13 @@ public:
 protected:
     NCellMaster::TBootstrap* const Bootstrap_;
 
-    virtual Stroka DoGetName(TObject* object) = 0;
+
+    virtual TCellTagList DoGetReplicationCellTags(const TObject* /*object*/)
+    {
+        return EmptyCellTags();
+    }
+
+    virtual Stroka DoGetName(const TObject* object) = 0;
 
     virtual IObjectProxyPtr DoGetProxy(
         TObject* object,
@@ -173,6 +180,17 @@ protected:
         int /*importRefCounter*/)
     {
         YUNREACHABLE();
+    }
+
+
+    TCellTagList EmptyCellTags()
+    {
+        return TCellTagList();
+    }
+
+    TCellTagList AllSecondaryCellTags()
+    {
+        return Bootstrap_->GetMulticellManager()->GetRegisteredMasterCellTags();
     }
 };
 
@@ -228,7 +246,6 @@ protected:
     {
         object->ResetWeakRefCounter();
     }
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////

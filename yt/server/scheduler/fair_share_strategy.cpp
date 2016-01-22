@@ -127,24 +127,11 @@ struct ISchedulerElement
 
 ////////////////////////////////////////////////////////////////////
 
-} // namespace NScheduler
-} // namespace NYT
-
-template <>
-struct THash<NYT::NScheduler::ISchedulerElementPtr> {
-    inline size_t operator()(const NYT::NScheduler::ISchedulerElementPtr& a) const {
-        return THash<Stroka>()(a->GetId());
-    }
-};
-
-namespace NYT {
-namespace NScheduler {
-
-////////////////////////////////////////////////////////////////////
-
 struct TFairShareContext
 {
-    TFairShareContext(ISchedulingContext* schedulingContext, int attributesIndex)
+    TFairShareContext(
+        ISchedulingContext* schedulingContext,
+        int attributesIndex)
         : SchedulingContext(schedulingContext)
         , AttributesIndex(attributesIndex)
     { }
@@ -377,7 +364,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(TNullable<TInstant>, BelowFairShareSince);
 
 protected:
-    ISchedulerStrategyHost* Host;
+    ISchedulerStrategyHost* const Host;
 
     TDynamicAttributesList DynamicAttributesList_;
 
@@ -521,11 +508,10 @@ public:
     {
         DynamicAttributesList_.Initialize(context.AttributesIndex);
         auto& attributes = DynamicAttributes(context.AttributesIndex);
-        const auto& node = context.SchedulingContext->GetNode();
 
         attributes.Active = true;
 
-        if (!node->CanSchedule(GetSchedulingTag())) {
+        if (!context.SchedulingContext->CanSchedule(GetSchedulingTag())) {
             attributes.Active = false;
             return;
         }
@@ -947,12 +933,12 @@ public:
     }
 
 private:
-    Stroka Id;
+    const Stroka Id;
+    const TFairShareStrategyConfigPtr StrategyConfig_;
 
     TPoolConfigPtr Config_;
     bool DefaultConfigured;
 
-    TFairShareStrategyConfigPtr StrategyConfig_;
 
     void DoSetConfig(TPoolConfigPtr newConfig)
     {
@@ -1029,11 +1015,10 @@ public:
         DynamicAttributesList_.Initialize(context.AttributesIndex);
         auto& attributes = DynamicAttributes(context.AttributesIndex);
         attributes = DynamicAttributes(GlobalAttributesIndex);
-        const auto& node = context.SchedulingContext->GetNode();
 
         attributes.Active = true;
 
-        if (!node->CanSchedule(GetSchedulingTag())) {
+        if (!context.SchedulingContext->CanSchedule(GetSchedulingTag())) {
             attributes.Active = false;
             return;
         }
@@ -1104,8 +1089,8 @@ public:
             return false;
         }
 
-        const auto& job = context.SchedulingContext->FindStartedJob(jobId);
-        context.SchedulingContext->GetNode()->ResourceUsage() += job->ResourceUsage();
+        const auto& job = context.SchedulingContext->GetStartedJob(jobId);
+        context.SchedulingContext->ResourceUsage() += job->ResourceUsage();
         OnJobStarted(jobId, job->ResourceUsage());
         UpdateDynamicAttributes(context.AttributesIndex);
         updateAncestorsAttributes();
@@ -1243,7 +1228,7 @@ public:
     {
         auto& properties = JobPropertiesMap_.at(jobId);
         properties.ResourceUsage += resourcesDelta;
-        if (!properties.IsPreemptable) {
+        if (!properties.Preemptable) {
             NonpreemptableResourceUsage_ += resourcesDelta;
         }
         IncreaseUsage(resourcesDelta);
@@ -1270,14 +1255,14 @@ public:
 
             auto jobId = NonpreemptableJobs_.back();
             auto& jobProperties = JobPropertiesMap_.at(jobId);
-            YCHECK(!jobProperties.IsPreemptable);
+            YCHECK(!jobProperties.Preemptable);
 
             NonpreemptableJobs_.pop_back();
             NonpreemptableResourceUsage_ -= jobProperties.ResourceUsage;
 
             PreemptableJobs_.push_front(jobId);
 
-            jobProperties.IsPreemptable = true;
+            jobProperties.Preemptable = true;
             jobProperties.JobIdListIterator = PreemptableJobs_.begin();
         }
 
@@ -1285,7 +1270,7 @@ public:
         while (!PreemptableJobs_.empty()) {
             auto jobId = PreemptableJobs_.front();
             auto& jobProperties = JobPropertiesMap_.at(jobId);
-            YCHECK(jobProperties.IsPreemptable);
+            YCHECK(jobProperties.Preemptable);
 
             if (getNonpreemptableUsageRatio(jobProperties.ResourceUsage) > Attributes_.FairShareRatio) {
                 break;
@@ -1296,7 +1281,7 @@ public:
             NonpreemptableJobs_.push_back(jobId);
             NonpreemptableResourceUsage_ += jobProperties.ResourceUsage;
 
-            jobProperties.IsPreemptable = false;
+            jobProperties.Preemptable = false;
             jobProperties.JobIdListIterator = --NonpreemptableJobs_.end();
         }
     }
@@ -1308,7 +1293,7 @@ public:
 
     bool IsJobPreemptable(const TJobId& jobId) const
     {
-        return JobPropertiesMap_.at(jobId).IsPreemptable;
+        return JobPropertiesMap_.at(jobId).Preemptable;
     }
 
     void OnJobStarted(const TJobId& jobId, const TJobResources& resourceUsage)
@@ -1330,7 +1315,7 @@ public:
 
         auto& properties = it->second;
 
-        if (properties.IsPreemptable) {
+        if (properties.Preemptable) {
             PreemptableJobs_.erase(properties.JobIdListIterator);
         } else {
             NonpreemptableJobs_.erase(properties.JobIdListIterator);
@@ -1358,19 +1343,18 @@ private:
     mutable TJobResources ResourceLimits_;
     mutable TJobResources MaxPossibleResourceUsage_;
 
-    TFairShareStrategyConfigPtr Config;
-
-    TOperationId OperationId_;
+    const TFairShareStrategyConfigPtr Config;
+    const TOperationId OperationId_;
 
     TJobResources GetHierarchicalResourceLimits(const TFairShareContext& context) const
     {
-        const auto& node = context.SchedulingContext->GetNode();
+        auto* schedulingContext = context.SchedulingContext;
 
         // Bound limits with node free resources.
         auto limits =
-            node->ResourceLimits()
-            - node->ResourceUsage()
-            + context.SchedulingContext->ResourceUsageDiscount();
+            schedulingContext->ResourceLimits()
+            - schedulingContext->ResourceUsage()
+            + schedulingContext->ResourceUsageDiscount();
 
         // Bound limits with pool free resources.
         TCompositeSchedulerElement* pool = Pool_;
@@ -1393,15 +1377,18 @@ private:
     // Fair share strategy stuff.
     struct TJobProperties
     {
-        TJobProperties(bool isPreemptable, TJobIdList::iterator jobIdListIterator, const TJobResources& resourceUsage)
-            : IsPreemptable(isPreemptable)
+        TJobProperties(
+            bool preemptable,
+            TJobIdList::iterator jobIdListIterator,
+            const TJobResources& resourceUsage)
+            : Preemptable(preemptable)
             , JobIdListIterator(jobIdListIterator)
             , ResourceUsage(resourceUsage)
         { }
 
         //! Determines the per-operation list (either preemptable or non-preemptable) this
         //! job belongs to.
-        bool IsPreemptable;
+        bool Preemptable;
 
         //! Iterator in the per-operation list pointing to this particular job.
         TJobIdList::iterator JobIdListIterator;
@@ -1409,8 +1396,7 @@ private:
         TJobResources ResourceUsage;
     };
 
-    typedef yhash_map<TJobId, TJobProperties> TJobPropertiesMap;
-    TJobPropertiesMap JobPropertiesMap_;
+    yhash_map<TJobId, TJobProperties> JobPropertiesMap_;
 };
 
 ////////////////////////////////////////////////////////////////////
@@ -1467,7 +1453,7 @@ public:
     }
 
 private:
-    TFairShareStrategyConfigPtr StrategyConfig_;
+    const TFairShareStrategyConfigPtr StrategyConfig_;
 };
 
 ////////////////////////////////////////////////////////////////////
@@ -1498,10 +1484,10 @@ public:
 
     virtual void ScheduleJobs(ISchedulingContext* schedulingContext) override
     {
-        auto guard = WaitFor(TAsyncLockReaderGuard::Acquire(&ScheduleJobsLock)).Value();
+        auto guard = WaitFor(TAsyncLockReaderGuard::Acquire(&ScheduleJobsLock))
+            .Value();
 
         auto now = schedulingContext->GetNow();
-        auto node = schedulingContext->GetNode();
         int attributesIndex = AllocateAttributesIndex();
         TFairShareContext context(schedulingContext, attributesIndex);
 
@@ -1510,7 +1496,7 @@ public:
         // Run periodic update.
         if (Config->FairShareUpdatePeriod && (!LastUpdateTime || now > LastUpdateTime.Get() + *Config->FairShareUpdatePeriod)) {
             PROFILE_TIMING ("/fair_share_update_time") {
-                // The root element get the whole cluster.
+                // The root element gets the whole cluster.
                 RootElement->Update();
             }
             LastUpdateTime = now;
@@ -1576,17 +1562,17 @@ public:
                 TCompositeSchedulerElement* pool = operationElement->GetPool();
                 while (pool) {
                     discountedPools.insert(pool);
-                    pool->DynamicAttributes(context.AttributesIndex).ResourceUsageDiscount += job->ResourceUsage();
+                    pool->DynamicAttributes(attributesIndex).ResourceUsageDiscount += job->ResourceUsage();
                     pool = pool->GetParent();
                 }
-                context.SchedulingContext->ResourceUsageDiscount() += job->ResourceUsage();
+                schedulingContext->ResourceUsageDiscount() += job->ResourceUsage();
                 preemptableJobs.push_back(job);
                 LOG_DEBUG("Job is preemptable (JobId: %v)",
                     job->GetId());
             }
         }
 
-        auto resourceDiscount = context.SchedulingContext->ResourceUsageDiscount();
+        auto resourceDiscount = schedulingContext->ResourceUsageDiscount();
         int startedBeforePreemption = schedulingContext->StartedJobs().size();
 
         // Second-chance scheduling.
@@ -1606,9 +1592,9 @@ public:
         int scheduledDuringPreemption = startedAfterPreemption - startedBeforePreemption;
 
         // Reset discounts.
-        context.SchedulingContext->ResourceUsageDiscount() = ZeroJobResources();
+        schedulingContext->ResourceUsageDiscount() = ZeroJobResources();
         for (const auto& pool : discountedPools) {
-            pool->DynamicAttributes(context.AttributesIndex).ResourceUsageDiscount = ZeroJobResources();
+            pool->DynamicAttributes(attributesIndex).ResourceUsageDiscount = ZeroJobResources();
         }
 
         // Preempt jobs if needed.
@@ -1658,7 +1644,7 @@ public:
 
             // Update flags only if violation is not resolved yet to avoid costly computations.
             if (nodeLimitsViolated) {
-                nodeLimitsViolated = !Dominates(node->ResourceLimits(), node->ResourceUsage());
+                nodeLimitsViolated = !Dominates(schedulingContext->ResourceLimits(), schedulingContext->ResourceUsage());
             }
             if (!nodeLimitsViolated && poolsLimitsViolated) {
                 poolsLimitsViolated = anyPoolLimitsViolated();
@@ -1786,8 +1772,8 @@ public:
     }
 
 private:
-    TFairShareStrategyConfigPtr Config;
-    ISchedulerStrategyHost* Host;
+    const TFairShareStrategyConfigPtr Config;
+    ISchedulerStrategyHost* const Host;
 
     typedef yhash_map<Stroka, TPoolPtr> TPoolMap;
     TPoolMap Pools;
@@ -1832,7 +1818,7 @@ private:
     {
         auto operationElement = GetOperationElement(job->GetOperationId());
 
-        context.SchedulingContext->GetNode()->ResourceUsage() -= job->ResourceUsage();
+        context.SchedulingContext->ResourceUsage() -= job->ResourceUsage();
         operationElement->IncreaseJobResourceUsage(job->GetId(), -job->ResourceUsage());
         job->ResourceUsage() = ZeroJobResources();
 

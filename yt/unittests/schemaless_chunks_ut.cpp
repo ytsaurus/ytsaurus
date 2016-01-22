@@ -452,7 +452,7 @@ TEST_F(TSchemalessChunksTest, MultiPartSampledRead)
             auto actual = ReadRows(lowerBound, samplingRate);
 
             for (auto actualRow : actual) {
-                ExpectRowsEqual(expectedIt->Get(), actualRow.Get());
+                ExpectRowsEqual(*expectedIt, actualRow);
                 ++expectedIt;
             }
         }

@@ -143,15 +143,8 @@ public:
     //! Returns the total cluster statistics, aggregated over all nodes.
     NNodeTrackerClient::TTotalNodeStatistics GetTotalNodeStatistics();
 
-    //! Returns the number of nodes in |Registered| state.
-    int GetRegisteredNodeCount();
-
-    //! Returns the number of nodes in |Online| state.
+    //! Returns the number of nodes with ENodeState::Online aggregated state.
     int GetOnlineNodeCount();
-
-
-    //! Returns the list of all known cell descriptors.
-    std::vector<NHive::TCellDescriptor> GetCellDescriptors();
 
 private:
     class TImpl;

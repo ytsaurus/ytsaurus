@@ -404,14 +404,37 @@ void TMasterConnector::SendNodeHeartbeat(TCellTag cellTag)
     auto* delta = GetChunksDelta(cellTag);
     switch (delta->State) {
         case EState::Registered:
-            SendFullNodeHeartbeat(cellTag);
+            if (CanSendFullNodeHeartbeat(cellTag)) {
+                SendFullNodeHeartbeat(cellTag);
+            } else {
+                ScheduleNodeHeartbeat(cellTag);
+            }
             break;
+
         case EState::Online:
             SendIncrementalNodeHeartbeat(cellTag);
             break;
+
         default:
             YUNREACHABLE();
     }
+}
+
+bool TMasterConnector::CanSendFullNodeHeartbeat(TCellTag cellTag)
+{
+    auto connection = Bootstrap_->GetMasterClient()->GetConnection();
+    if (cellTag != connection->GetPrimaryMasterCellTag()) {
+        return true;
+    }
+
+    for (const auto& pair : ChunksDeltaMap_) {
+        auto cellTag = pair.first;
+        const auto& delta = pair.second;
+        if (cellTag != connection->GetPrimaryMasterCellTag() && delta.State != EMasterConnectorState::Online) {
+            return false;
+        }
+    }
+    return true;
 }
 
 void TMasterConnector::SendFullNodeHeartbeat(TCellTag cellTag)
@@ -781,7 +804,7 @@ void TMasterConnector::OnChunkAdded(IChunkPtr chunk)
     if (IsArtifactChunkId(chunk->GetId()))
         return;
 
-	auto* delta = GetChunksDelta(chunk->GetId());
+    auto* delta = GetChunksDelta(chunk->GetId());
     if (delta->State != EState::Online)
         return;
 

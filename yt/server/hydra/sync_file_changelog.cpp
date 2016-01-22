@@ -380,7 +380,7 @@ public:
 
         Error_.ThrowOnError();
 
-        LOG_DEBUG("Appending to changelog (RecordIds: %v-%v)",
+        LOG_DEBUG("Started appending to changelog (RecordIds: %v-%v)",
             firstRecordId,
             firstRecordId + records.size() - 1);
 
@@ -417,6 +417,8 @@ public:
             Error_ = ex;
             throw;
         }
+
+        LOG_DEBUG("Finished appending to changelog");
     }
 
     void Flush()
@@ -429,7 +431,7 @@ public:
 
         Error_.ThrowOnError();
 
-        LOG_DEBUG("Flushing changelog");
+        LOG_DEBUG("Started flushing changelog");
 
         try {
             DataFile_->FlushData();
@@ -441,6 +443,8 @@ public:
             Error_ = ex;
             throw;
         }
+
+        LOG_DEBUG("Finished flushing changelog");
     }
 
     std::vector<TSharedRef> Read(
@@ -458,7 +462,7 @@ public:
 
         Error_.ThrowOnError();
 
-        LOG_DEBUG("Reading changelog (FirstRecordId: %v, MaxRecords: %v, MaxBytes: %v)",
+        LOG_DEBUG("Started reading changelog (FirstRecordId: %v, MaxRecords: %v, MaxBytes: %v)",
             firstRecordId,
             maxRecords,
             maxBytes);
@@ -508,6 +512,8 @@ public:
             Error_ = ex;
             throw;
         }
+
+        LOG_DEBUG("Finished reading changelog");
     }
 
     void Truncate(int recordCount)
@@ -522,7 +528,7 @@ public:
 
         Error_.ThrowOnError();
 
-        LOG_DEBUG("Truncating changelog (RecordCount: %v)",
+        LOG_DEBUG("Started truncating changelog (RecordCount: %v)",
             recordCount);
 
         try {
@@ -534,6 +540,8 @@ public:
             Error_ = ex;
             throw;
         }
+
+        LOG_DEBUG("Finished truncating changelog");
     }
 
 private:

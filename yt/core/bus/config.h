@@ -17,6 +17,9 @@ public:
     bool EnableNoDelay;
     bool EnableQuickAck;
 
+    int BindRetryCount;
+    TDuration BindRetryBackoff;
+
     TTcpBusConfig()
     {
         RegisterParameter("priority", Priority)
@@ -26,6 +29,10 @@ public:
             .Default(true);
         RegisterParameter("enable_quick_ack", EnableQuickAck)
             .Default(true);
+        RegisterParameter("bind_retry_count", BindRetryCount)
+            .Default(1);
+        RegisterParameter("bind_retry_backoff", BindRetryBackoff)
+            .Default(TDuration::Seconds(3));
     }
 };
 
@@ -38,6 +45,7 @@ public:
     TNullable<int> Port;
     TNullable<Stroka> UnixDomainName;
     int MaxBacklogSize;
+    int MaxSimultaneousConnections;
 
     TTcpBusServerConfig()
     {
@@ -45,9 +53,10 @@ public:
             .Default();
         RegisterParameter("unix_domain_name", UnixDomainName)
             .Default();
-
         RegisterParameter("max_backlog_size", MaxBacklogSize)
             .Default(8192);
+        RegisterParameter("max_simultaneous_connections", MaxSimultaneousConnections)
+            .Default(50000);
     }
 
     static TTcpBusServerConfigPtr CreateTcp(int port);

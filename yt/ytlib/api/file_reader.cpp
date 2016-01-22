@@ -57,6 +57,7 @@ public:
             Transaction_ = Client_->AttachTransaction(Options_.TransactionId);
         }
 
+
         Logger.AddTag("Path: %v, TransactionId: %v",
             Path_,
             Options_.TransactionId);
@@ -74,7 +75,7 @@ public:
         ValidateAborted();
 
         TSharedRef block;
-        if (!Reader_->ReadBlock(&block)) {
+        if (!Reader_ || !Reader_->ReadBlock(&block)) {
             return MakeFuture(TSharedRef());
         }
 
@@ -129,7 +130,8 @@ private:
         auto nodeDirectory = New<TNodeDirectory>();
         std::vector<NChunkClient::NProto::TChunkSpec> chunkSpecs;
 
-        {
+        bool isEmptyRead = Options_.Length && *Options_.Length == 0;
+        if (!isEmptyRead) {
             LOG_INFO("Fetching file chunks");
 
             auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::LeaderOrFollower, cellTag);
@@ -143,6 +145,9 @@ private:
                 lowerLimit.SetOffset(offset);
             }
             if (Options_.Length) {
+                if (*Options_.Length < 0) {
+                    THROW_ERROR_EXCEPTION("Invalid length to read from file: %v < 0", *Options_.Length);
+                }
                 upperLimit.SetOffset(offset + *Options_.Length);
             }
 

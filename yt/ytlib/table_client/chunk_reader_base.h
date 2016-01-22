@@ -21,7 +21,6 @@ public:
     TChunkReaderBase(
         NChunkClient::TSequentialReaderConfigPtr config,
         NChunkClient::IChunkReaderPtr underlyingReader,
-        const NChunkClient::NProto::TMiscExt& misc,
         NChunkClient::IBlockCachePtr blockCache);
 
     virtual TFuture<void> GetReadyEvent() override;
@@ -38,8 +37,6 @@ protected:
     const NChunkClient::IChunkReaderPtr UnderlyingReader_;
 
     NChunkClient::TSequentialReaderPtr SequentialReader_;
-
-    NChunkClient::NProto::TMiscExt Misc_;
     TFuture<void> ReadyEvent_ = VoidFuture;
 
     bool BlockEnded_ = false;
@@ -57,7 +54,9 @@ protected:
     bool BeginRead();
     bool OnBlockEnded();
 
-    TFuture<void> DoOpen(std::vector<NChunkClient::TSequentialReader::TBlockInfo> blockSequence);
+    TFuture<void> DoOpen(
+        std::vector<NChunkClient::TSequentialReader::TBlockInfo> blockSequence,
+        const NChunkClient::NProto::TMiscExt& miscExt);
 
     static int GetBlockIndexByKey(
         const TKey& key,

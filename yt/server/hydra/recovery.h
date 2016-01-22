@@ -30,7 +30,8 @@ protected:
         IChangelogStorePtr changelogStore,
         ISnapshotStorePtr snapshotStore,
         NRpc::TResponseKeeperPtr responseKeeper,
-        TEpochContext* epochContext);
+        TEpochContext* epochContext,
+        TVersion syncVersion);
 
     //! Must be derived by the inheritors to control the recovery behavior.
     virtual bool IsLeader() const = 0;
@@ -47,8 +48,7 @@ protected:
     const ISnapshotStorePtr SnapshotStore_;
     const NRpc::TResponseKeeperPtr ResponseKeeper_;
     TEpochContext* const EpochContext_;
-
-    TVersion SyncVersion_;
+    const TVersion SyncVersion_;
 
     NLogging::TLogger Logger;
 
@@ -88,11 +88,11 @@ public:
         NRpc::TResponseKeeperPtr responseKeeper,
         TEpochContext* epochContext);
 
-    //! Performs leader recovery up to a given version.
-    TFuture<void> Run(TVersion targetVersion);
+    //! Performs leader recovery up to #TEpochContext::ReachableVersion.
+    TFuture<void> Run();
 
 private:
-    void DoRun(TVersion targetVersion);
+    void DoRun();
 
     virtual bool IsLeader() const;
 

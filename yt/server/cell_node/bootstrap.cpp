@@ -166,9 +166,9 @@ void TBootstrap::DoRun()
 
     auto localAddresses = GetLocalAddresses();
 
-    LOG_INFO("Starting node (LocalAddresses: [%v], PrimaryMasterAddresses: [%v])",
-        JoinToString(GetValues(localAddresses)),
-        JoinToString(Config->ClusterConnection->PrimaryMaster->Addresses));
+    LOG_INFO("Starting node (LocalAddresses: %v, PrimaryMasterAddresses: %v)",
+        GetValues(localAddresses),
+        Config->ClusterConnection->PrimaryMaster->Addresses);
 
     MemoryUsageTracker = std::make_unique<TNodeMemoryTracker>(
         Config->ResourceLimits->Memory,
@@ -430,10 +430,9 @@ void TBootstrap::DoRun()
     SetNodeByYPath(
         OrchidRoot,
         "/tablet_cells",
-        CreateVirtualNode(
-            TabletSlotManager->GetOrchidService()
-            ->Via(GetControlInvoker())
-            ->Cached(Config->OrchidCacheExpirationTime)));
+        CreateVirtualNode(TabletSlotManager
+            ->GetOrchidService()
+            ->Cached(Config->OrchidCacheUpdatePeriod)));
     SetBuildAttributes(OrchidRoot, "node");
 
     HttpServer->Register(

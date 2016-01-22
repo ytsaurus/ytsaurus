@@ -2,6 +2,17 @@
 
 #include <yt/core/misc/farm_hash.h>
 
+
+#ifndef YT_COMPILING_UDF
+
+#include "unversioned_row.h"
+
+#include <yt/core/misc/error.h>
+
+#include <yt/core/ytree/convert.h>
+
+#endif
+
 namespace NYT {
 namespace NTableClient {
 
@@ -16,7 +27,8 @@ ui64 GetHash(const TUnversionedValue& value)
 // Forever-fixed Google FarmHash fingerprint.
 TFingerprint GetFarmFingerprint(const TUnversionedValue& value)
 {
-    switch (value.Type) {
+    auto type = value.Type;
+    switch (type) {
         case EValueType::String:
             return FarmFingerprint(value.Data.String, value.Length);
 
@@ -33,8 +45,17 @@ TFingerprint GetFarmFingerprint(const TUnversionedValue& value)
             return FarmFingerprint(0);
 
         default:
-            // No idea how to hash other types.
+
+#ifdef YT_COMPILING_UDF
             YUNREACHABLE();
+#else
+            THROW_ERROR_EXCEPTION(
+                EErrorCode::UnhashableType,
+                "Cannot hash values of type %Qlv; only scalar types are allowed for key columns",
+                type)
+                << TErrorAttribute("value", value);
+#endif
+
     }
 }
 

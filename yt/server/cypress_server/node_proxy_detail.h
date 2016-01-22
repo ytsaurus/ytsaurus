@@ -335,7 +335,9 @@ BEGIN_DEFINE_SCALAR_TYPE(String, Stroka)
             auto length = value.length();
             auto limit = Bootstrap_->GetConfig()->CypressManager->MaxStringNodeLength;
             if (length > limit) {
-                THROW_ERROR_EXCEPTION("String node length limit exceeded: %v > %v",
+                THROW_ERROR_EXCEPTION(
+                    NYTree::EErrorCode::MaxStringLengthViolation,
+                    "String node length limit exceeded: %v > %v",
                     length,
                     limit);
             }

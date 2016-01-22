@@ -58,7 +58,8 @@ public:
         TClosure onNetworkReleased,
         std::vector<TChunkSpec> chunks,
         int estimatedRowCount,
-        bool isApproximate)
+        bool isApproximate,
+        int partitionTag)
         : KeyColumns_(keyColumns)
         , KeyColumnCount_(static_cast<int>(KeyColumns_.size()))
         , OnNetworkReleased_(onNetworkReleased)
@@ -89,7 +90,8 @@ public:
             nodeDirectory,
             std::move(chunks),
             nameTable,
-            KeyColumns_);
+            KeyColumns_,
+            partitionTag);
 
         SortQueue_ = New<TActionQueue>("Sort");
         ReadyEvent_ = BIND(
@@ -534,7 +536,8 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessPartitionSortReader(
     TClosure onNetworkReleased,
     const std::vector<TChunkSpec>& chunks,
     i64 estimatedRowCount,
-    bool isApproximate)
+    bool isApproximate,
+    int partitionTag)
 {
     return New<TSchemalessPartitionSortReader>(
         config,
@@ -546,7 +549,8 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessPartitionSortReader(
         onNetworkReleased,
         chunks,
         estimatedRowCount,
-        isApproximate);
+        isApproximate,
+        partitionTag);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

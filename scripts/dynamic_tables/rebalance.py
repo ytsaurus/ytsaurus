@@ -485,7 +485,7 @@ def rebalance_spans(tablets, spans, number_of_key_columns, desired_size,
         spans, i, j = [], 0, 0
         while i < len(updated_spans):
             j = i + 1
-            while j < len(updated_spans) and (updated_spans[j].first_index - updated_spans[i].last_index) <= 1:
+            while j < len(updated_spans) and (updated_spans[j].first_index - updated_spans[j - 1].last_index) <= 1:
                 j += 1
             if (j - i) == 1:
                 spans.append(updated_spans[i])
@@ -592,8 +592,11 @@ def make_table_list(args):
 
     if len(args.include) + len(args.exclude) > 0:
         all_tables = []
-        for table in yt.search("/", node_type="table", attributes=["tablets"]):
+        for table in yt.search("/", node_type="table", attributes=["tablets", "locks"]):
             tablets = table.attributes.get("tablets", [])
+            locks = table.attributes.get("locks", [])
+            if len(locks) > 0:
+                continue
             sizes = [tablet["statistics"]["uncompressed_data_size"] for tablet in tablets]
             if sum(sizes) < args.desired_size_gbs * GB / 2:
                 continue

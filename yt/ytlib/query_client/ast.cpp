@@ -43,17 +43,25 @@ TStringBuf GetSource(TSourceLocation sourceLocation, const TStringBuf& source)
 
 Stroka InferName(const TExpressionList& exprs, bool omitValues)
 {
-    auto canOmitParenthesis = [] (const TExpression* expr) {
+    auto canOmitParenthesis = [] (const TExpressionPtr& expr) {
         return
             expr->As<TLiteralExpression>() ||
             expr->As<TReferenceExpression>() ||
             expr->As<TFunctionExpression>();
     };
 
-    return JoinToString(exprs, [&] (const TExpressionPtr& expr) {
+    return JoinToString(
+        exprs,
+        [&] (TStringBuilder* builder, const TExpressionPtr& expr) {
             auto name = InferName(expr.Get(), omitValues);
-            return canOmitParenthesis(expr.Get()) ? name : "(" + name + ")";
-        }, ", ");
+            if (canOmitParenthesis(expr)) {
+                builder->AppendString(name);
+            } else {
+                builder->AppendChar('(');
+                builder->AppendString(name);
+                builder->AppendChar(')');
+            }
+        });
 }
 
 Stroka FormatColumn(const TStringBuf& name, const TStringBuf& tableName)

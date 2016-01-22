@@ -9,6 +9,7 @@
 #include "tablet.h"
 #include "tablet_manager.h"
 #include "tablet_slot.h"
+#include "writer_pool.h"
 
 #include <yt/server/cell_node/bootstrap.h>
 #include <yt/server/cell_node/config.h>
@@ -192,13 +193,13 @@ private:
 
         if (storeManager->IsPeriodicRotationNeeded()) {
             LOG_INFO("Scheduling periodic store rotation (TabletId: %v)",
-                tablet->GetTabletId());
+                tablet->GetId());
             tabletManager->ScheduleStoreRotation(tablet);
         }
 
         if (storeManager->IsOverflowRotationNeeded()) {
             LOG_INFO("Scheduling store rotation due to overflow (TabletId: %v)",
-                tablet->GetTabletId());
+                tablet->GetId());
             tabletManager->ScheduleStoreRotation(tablet);
         }
 
@@ -222,7 +223,7 @@ private:
                     PassiveMemoryUsage_ += memoryUsage;
                 } else if (store->GetUncompressedDataSize() >= Config_->StoreFlusher->MinForcedFlushDataSize) {
                     TForcedRotationCandidate candidate;
-                    candidate.TabletId = tablet->GetTabletId();
+                    candidate.TabletId = tablet->GetId();
                     candidate.MemoryUsage = memoryUsage;
                     ForcedRotationCandidates_.push_back(candidate);
                 }
@@ -265,12 +266,13 @@ private:
         auto hydraManager = slot->GetHydraManager();
         auto tabletManager = slot->GetTabletManager();
         auto storeManager = tablet->GetStoreManager();
-        auto tabletId = tablet->GetTabletId();
+        auto tabletId = tablet->GetId();
         auto mountRevision = tablet->GetMountRevision();
         auto keyColumns = tablet->KeyColumns();
         auto schema = tablet->Schema();
         auto tabletConfig = tablet->GetConfig();
         auto writerOptions = CloneYsonSerializable(tablet->GetWriterOptions());
+        auto tabletSnapshot = tablet->GetSnapshot();
         writerOptions->ChunksEden = true;
 
         NLogging::TLogger Logger(TabletNodeLogger);
@@ -280,9 +282,6 @@ private:
 
         auto automatonInvoker = tablet->GetEpochAutomatonInvoker();
         auto poolInvoker = ThreadPool_->GetInvoker();
-
-        auto channel = Bootstrap_->GetMasterClient()->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
-        TObjectServiceProxy proxy(channel);
 
         try {
             LOG_INFO("Store flush started");
@@ -319,16 +318,17 @@ private:
             auto inMemoryManager = Bootstrap_->GetInMemoryManager();
             auto blockCache = inMemoryManager->CreateInterceptingBlockCache(tabletConfig->InMemoryMode);
 
-            auto writer = CreateVersionedMultiChunkWriter(
+            TChunkWriterPool writerPool(
+                Bootstrap_->GetInMemoryManager(),
+                tabletSnapshot,
+                1,
                 Config_->ChunkWriter,
                 writerOptions,
+                tabletConfig,
                 schema,
                 Bootstrap_->GetMasterClient(),
-                Bootstrap_->GetMasterClient()->GetConnection()->GetPrimaryMasterCellTag(),
-                transaction->GetId(),
-                NullChunkListId,
-                GetUnlimitedThrottler(),
-                blockCache);
+                transaction->GetId());
+            auto writer = writerPool.AllocateWriter();
 
             WaitFor(writer->Open())
                 .ThrowOnError();
@@ -364,7 +364,7 @@ private:
             }
 
             std::vector<TChunkId> chunkIds;
-            for (const auto& chunkSpec : writer->GetWrittenChunks()) {
+            for (const auto& chunkSpec : writer->GetWrittenChunksMasterMeta()) {
                 chunkIds.push_back(FromProto<TChunkId>(chunkSpec.chunk_id()));
                 auto* descriptor = hydraRequest.add_stores_to_add();
                 descriptor->mutable_store_id()->CopyFrom(chunkSpec.chunk_id());
@@ -375,8 +375,8 @@ private:
             CreateMutation(slot->GetHydraManager(), hydraRequest)
                 ->CommitAndLog(Logger);
 
-            LOG_INFO("Store flush completed (ChunkIds: [%v])",
-                JoinToString(chunkIds));
+            LOG_INFO("Store flush completed (ChunkIds: %v)",
+                chunkIds);
 
             // Just abandon the transaction, hopefully it won't expire before the chunk is attached.
         } catch (const std::exception& ex) {
