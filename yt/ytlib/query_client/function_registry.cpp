@@ -54,14 +54,18 @@ static const auto& Logger = QueryClientLogger;
 IFunctionDescriptorPtr IFunctionRegistry::GetFunction(const Stroka& functionName)
 {
     auto function = FindFunction(functionName);
-    YCHECK(function);
+    if (!function) {
+        THROW_ERROR_EXCEPTION("Function %v not found", functionName);
+    }
     return function;
 }
 
 IAggregateFunctionDescriptorPtr IFunctionRegistry::GetAggregateFunction(const Stroka& functionName)
 {
     auto function = FindAggregateFunction(functionName);
-    YCHECK(function);
+    if (!function) {
+        THROW_ERROR_EXCEPTION("Aggregate function %v not found", functionName);
+    }
     return function;
 }
 
