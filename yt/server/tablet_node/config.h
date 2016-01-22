@@ -77,6 +77,8 @@ public:
 
     int MaxReadFanIn;
 
+    int MaxOverlappingStoreCount;
+
     EInMemoryMode InMemoryMode;
 
     bool ReadOnly;
@@ -157,6 +159,10 @@ public:
             .Default(TDuration::Seconds(60));
 
         RegisterParameter("max_read_fan_in", MaxReadFanIn)
+            .GreaterThan(0)
+            .Default(30);
+
+        RegisterParameter("max_overlapping_store_count", MaxOverlappingStoreCount)
             .GreaterThan(0)
             .Default(30);
 

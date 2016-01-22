@@ -344,6 +344,10 @@ bool TStoreManager::IsRotationPossible() const
         return false;
     }
 
+    if (Tablet_->OverlappingStoreCount() >= Tablet_->GetConfig()->MaxOverlappingStoreCount) {
+        return false;
+    }
+
     return true;
 }
 
