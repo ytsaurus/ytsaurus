@@ -190,6 +190,9 @@ public:
         EPermission permission);
 
     //! Similar to #CheckPermission but throws a human-readable exception on failure.
+    /*!
+     *  If NHive::IsHiveMutation returns |true| then this check is suppressed.
+     */
     void ValidatePermission(
         NObjectServer::TObjectBase* object,
         TUser* user,
@@ -226,7 +229,7 @@ private:
     class TUserTypeHandler;
     class TGroupTypeHandler;
     
-    TIntrusivePtr<TImpl> Impl_;
+    const TIntrusivePtr<TImpl> Impl_;
 
 };
 

@@ -38,8 +38,7 @@ public:
             false))
         , Thread_(New<TThread>(this))
         , Config_(New<TTraceManagerConfig>())
-    {
-    }
+    { }
 
     void Start()
     {
@@ -145,7 +144,7 @@ private:
         { }
 
     private:
-        TImpl* Owner_;
+        TImpl* const Owner_;
 
         virtual EBeginExecuteResult BeginExecute() override
         {
@@ -158,9 +157,9 @@ private:
         }
     };
 
-    std::shared_ptr<TEventCount> EventCount_ = std::make_shared<TEventCount>();
-    TInvokerQueuePtr InvokerQueue_;
-    TIntrusivePtr<TThread> Thread_;
+    const std::shared_ptr<TEventCount> EventCount_ = std::make_shared<TEventCount>();
+    const TInvokerQueuePtr InvokerQueue_;
+    const TIntrusivePtr<TThread> Thread_;
     TEnqueuedAction CurrentAction_;
 
     TMultipleProducerSingleConsumerLockFreeStack<NProto::TTraceEvent> EventQueue_;
@@ -306,8 +305,7 @@ TTraceManager::TTraceManager()
     : Impl_(new TImpl())
 { }
 
-TTraceManager::~TTraceManager()
-{ }
+TTraceManager::~TTraceManager() = default;
 
 TTraceManager* TTraceManager::Get()
 {

@@ -3,8 +3,7 @@
 #include "public.h"
 #include "dynamic_memory_store_comparer.h"
 #include "partition.h"
-
-#include <yt/server/hydra/entity_map.h>
+#include "object_detail.h"
 
 #include <yt/ytlib/chunk_client/public.h>
 
@@ -42,6 +41,7 @@ struct TTabletSnapshot
     NTableClient::TTableSchema Schema;
     NTableClient::TKeyColumns KeyColumns;
     NTransactionClient::EAtomicity Atomicity;
+    bool EnableLookupHashTable = false;
 
     TPartitionSnapshotPtr Eden;
 
@@ -92,11 +92,10 @@ DEFINE_REFCOUNTED_TYPE(TTabletPerformanceCounters)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTablet
-    : public NHydra::TEntityBase
+    : public TObjectBase
     , public TRefTracked<TTablet>
 {
 public:
-    DEFINE_BYVAL_RO_PROPERTY(TTabletId, TabletId);
     DEFINE_BYVAL_RO_PROPERTY(i64, MountRevision);
     DEFINE_BYVAL_RO_PROPERTY(NObjectClient::TObjectId, TableId);
     DEFINE_BYVAL_RO_PROPERTY(TTabletSlotPtr, Slot);
@@ -120,6 +119,8 @@ public:
     DEFINE_BYREF_RW_PROPERTY(std::deque<TStoreId>, PreloadStoreIds);
 
     DEFINE_BYVAL_RO_PROPERTY(NTransactionClient::EAtomicity, Atomicity);
+
+    DEFINE_BYVAL_RO_PROPERTY(bool, EnableLookupHashTable);
 
 public:
     TTablet(

@@ -37,9 +37,11 @@ static const auto& Logger = TabletNodeLogger;
 
 namespace {
 
-Stroka StoreRangeFormatter(const IStorePtr& store)
+void StoreRangeFormatter(TStringBuilder* builder, const IStorePtr& store)
 {
-    return Format("<%v:%v>", store->GetMinKey(), store->GetMaxKey());
+    builder->AppendFormat("<%v:%v>",
+        store->GetMinKey(),
+        store->GetMaxKey());
 }
 
 } // namespace
@@ -193,12 +195,12 @@ ISchemafulReaderPtr CreateSchemafulTabletReader(
             tabletSnapshot->Partitions.end(),
             *currentIt,
             [] (TKey lhs, const TPartitionSnapshotPtr& rhs) {
-                return lhs < rhs->PivotKey.Get();
+                return lhs < rhs->PivotKey;
             });
         YCHECK(nextPartitionIt != tabletSnapshot->Partitions.begin());
         auto nextIt = nextPartitionIt == tabletSnapshot->Partitions.end()
             ? keys.End()
-            : std::lower_bound(currentIt, keys.End(), (*nextPartitionIt)->PivotKey.Get());
+            : std::lower_bound(currentIt, keys.End(), (*nextPartitionIt)->PivotKey);
         partitions.push_back(*(nextPartitionIt - 1));
         partitionedKeys.push_back(keys.Slice(currentIt, nextIt));
         currentIt = nextIt;

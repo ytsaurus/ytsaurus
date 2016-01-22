@@ -82,6 +82,10 @@ public:
 
     void Shutdown()
     {
+        if (!Queue_->IsRunning()) {
+            return;
+        }
+
         Queue_->Shutdown();
 
         decltype(Threads_) threads;
@@ -115,7 +119,7 @@ private:
     std::atomic<bool> Started_ = {false};
     TSpinLock SpinLock_;
 
-    std::shared_ptr<TEventCount> CallbackEventCount_ = std::make_shared<TEventCount>();
+    const std::shared_ptr<TEventCount> CallbackEventCount_ = std::make_shared<TEventCount>();
     const TInvokerQueuePtr Queue_;
     std::vector<TSchedulerThreadPtr> Threads_;
 

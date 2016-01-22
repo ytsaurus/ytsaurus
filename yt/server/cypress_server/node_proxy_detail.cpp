@@ -850,7 +850,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Create)
     auto type = EObjectType(request->type());
     auto ignoreExisting = request->ignore_existing();
     auto recursive = request->recursive();
-    const auto& path = GetRequestYPath(context);
+    const auto& path = GetRequestYPath(context->RequestHeader());
 
     context->SetRequestInfo("Type: %v, IgnoreExisting: %v, Recursive: %v",
         type,
@@ -923,7 +923,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Copy)
     bool removeSource = request->remove_source();
     auto recursive = request->recursive();
     auto force = request->force();
-    auto targetPath = GetRequestYPath(context);
+    auto targetPath = GetRequestYPath(context->RequestHeader());
 
     context->SetRequestInfo("SourcePath: %v, PreserveAccount: %v, RemoveSource: %v, Recursive: %v, Force: %v",
         sourcePath,

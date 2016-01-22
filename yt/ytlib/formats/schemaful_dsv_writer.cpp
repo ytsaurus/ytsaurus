@@ -47,9 +47,9 @@ protected:
     std::vector<const TUnversionedValue*> CurrentRowValues_;
 
     TSchemafulDsvWriterBase(TSchemafulDsvFormatConfigPtr config, std::vector<int> idToIndexInRow)
-    : Config_(config)
-    , IdToIndexInRow_(idToIndexInRow)
-    , Table_(config)
+        : Config_(config)
+        , IdToIndexInRow_(idToIndexInRow)
+        , Table_(config)
     { 
         CurrentRowValues_.resize(
             *std::max_element(IdToIndexInRow_.begin(), IdToIndexInRow_.end()) + 1);

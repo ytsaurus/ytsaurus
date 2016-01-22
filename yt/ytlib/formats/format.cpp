@@ -21,6 +21,8 @@
 
 #include <yt/core/yson/forwarding_consumer.h>
 
+#include <yt/ytlib/table_client/name_table.h>
+
 namespace NYT {
 namespace NFormats {
 

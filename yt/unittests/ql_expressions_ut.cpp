@@ -117,7 +117,7 @@ protected:
         keys.reserve(lookupKeys.size());
 
         for (const auto& lookupKey : lookupKeys) {
-            keys.push_back(lookupKey.Get());
+            keys.push_back(lookupKey);
         }
 
         return RefinePredicate(
@@ -243,7 +243,7 @@ protected:
         const TKeyColumns& keyColumns)
     {
         return RefinePredicate(
-            TRowRange(keyRange.first.Get(), keyRange.second.Get()),
+            TRowRange(keyRange.first, keyRange.second),
             expr,
             tableSchema,
             keyColumns,
@@ -699,7 +699,7 @@ TEST_P(TArithmeticTest, Evaluate)
         functionContexts.push_back(&functionContext);
     }
 
-    callback(&result, row.Get(), variables.ConstantsRowBuilder.GetRow(), &executionContext, &functionContexts[0]);
+    callback(&result, row, variables.ConstantsRowBuilder.GetRow(), &executionContext, &functionContexts[0]);
 
     EXPECT_EQ(result, expected)
         << "row: " << ::testing::PrintToString(row);
@@ -798,7 +798,7 @@ TEST_P(TCompareWithNullTest, Simple)
         functionContexts.push_back(&functionContext);
     }
 
-    callback(&result, row.Get(), variables.ConstantsRowBuilder.GetRow(), &executionContext, &functionContexts[0]);
+    callback(&result, row, variables.ConstantsRowBuilder.GetRow(), &executionContext, &functionContexts[0]);
 
     EXPECT_EQ(result, expected)
         << "row: " << ::testing::PrintToString(rowString) << std::endl
@@ -969,7 +969,7 @@ void EvaluateExpression(
         functionContexts.push_back(&functionContext);
     }
 
-    callback(result, row.Get(), variables.ConstantsRowBuilder.GetRow(), &executionContext, &functionContexts[0]);
+    callback(result, row, variables.ConstantsRowBuilder.GetRow(), &executionContext, &functionContexts[0]);
 }
 
 class TEvaluateExpressionTest

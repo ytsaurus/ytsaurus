@@ -22,7 +22,8 @@ TSimpleVersionedBlockReader::TSimpleVersionedBlockReader(
     int keyColumnCount,
     const std::vector<TColumnIdMapping>& schemaIdMapping,
     const TKeyComparer& keyComparer,
-    TTimestamp timestamp)
+    TTimestamp timestamp,
+    bool initialize)
     : Block_(block)
     , Timestamp_(timestamp)
     , ChunkKeyColumnCount_(chunkKeyColumnCount)
@@ -82,7 +83,11 @@ TSimpleVersionedBlockReader::TSimpleVersionedBlockReader(
 
     StringData_ = TRef(const_cast<char*>(ptr), const_cast<char*>(Block_.End()));
 
-    JumpToRowIndex(0);
+    if (initialize) {
+        JumpToRowIndex(0);
+    } else {
+        RowIndex_ = -1;
+    }
 }
 
 bool TSimpleVersionedBlockReader::NextRow()
@@ -336,7 +341,7 @@ void TSimpleVersionedBlockReader::ReadKeyValue(TUnversionedValue* value, int id)
     KeyDataPtr_ += 8;
 
     bool isNull = KeyNullFlags_[RowIndex_ * ChunkKeyColumnCount_ + id];
-    if (isNull) {
+    if (Y_UNLIKELY(isNull)) {
         value->Type = EValueType::Null;
         return;
     }
@@ -346,19 +351,10 @@ void TSimpleVersionedBlockReader::ReadKeyValue(TUnversionedValue* value, int id)
 
     switch (type) {
         case EValueType::Int64:
-            ReadInt64(value, ptr);
-            break;
-
         case EValueType::Uint64:
-            ReadUint64(value, ptr);
-            break;
-
         case EValueType::Double:
-            ReadDouble(value, ptr);
-            break;
-
         case EValueType::Boolean:
-            ReadBoolean(value, ptr);
+            value->Data.Int64 = *reinterpret_cast<const i64*>(ptr);
             break;
 
         case EValueType::String:
@@ -382,7 +378,7 @@ void TSimpleVersionedBlockReader::ReadValue(TVersionedValue* value, int valueInd
     value->Aggregate = ValueAggregateFlags_.HasValue() ? ValueAggregateFlags_->operator[](valueIndex) : false;
 
     bool isNull = ValueNullFlags_[valueIndex];
-    if (isNull) {
+    if (Y_UNLIKELY(isNull)) {
         value->Type = EValueType::Null;
         return;
     }
@@ -392,19 +388,10 @@ void TSimpleVersionedBlockReader::ReadValue(TVersionedValue* value, int valueInd
 
     switch (type) {
         case EValueType::Int64:
-            ReadInt64(value, ptr);
-            break;
-
         case EValueType::Uint64:
-            ReadUint64(value, ptr);
-            break;
-
         case EValueType::Double:
-            ReadDouble(value, ptr);
-            break;
-
         case EValueType::Boolean:
-            ReadBoolean(value, ptr);
+            value->Data.Int64 = *reinterpret_cast<const i64*>(ptr);
             break;
 
         case EValueType::String:
@@ -415,26 +402,6 @@ void TSimpleVersionedBlockReader::ReadValue(TVersionedValue* value, int valueInd
         default:
             YUNREACHABLE();
     }
-}
-
-void TSimpleVersionedBlockReader::ReadInt64(TUnversionedValue* value, const char* ptr)
-{
-    value->Data.Int64 = *reinterpret_cast<const i64*>(ptr);
-}
-
-void TSimpleVersionedBlockReader::ReadUint64(TUnversionedValue* value, const char* ptr)
-{
-    value->Data.Uint64 = *reinterpret_cast<const ui64*>(ptr);
-}
-
-void TSimpleVersionedBlockReader::ReadDouble(TUnversionedValue* value, const char* ptr)
-{
-    value->Data.Double = *reinterpret_cast<const double*>(ptr);
-}
-
-void TSimpleVersionedBlockReader::ReadBoolean(TUnversionedValue* value, const char* ptr)
-{
-    value->Data.Boolean = static_cast<bool>(*reinterpret_cast<const ui64*>(ptr));
 }
 
 void TSimpleVersionedBlockReader::ReadStringLike(TUnversionedValue* value, const char* ptr)

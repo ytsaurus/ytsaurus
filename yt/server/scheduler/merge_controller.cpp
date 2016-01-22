@@ -5,7 +5,6 @@
 #include "helpers.h"
 #include "job_memory.h"
 #include "map_controller.h"
-#include "operation_controller.h"
 #include "operation_controller_detail.h"
 
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
@@ -117,6 +116,9 @@ protected:
 
     //! The template for starting new jobs.
     TJobSpec JobSpecTemplate;
+
+    //! Table reader options for merge jobs.
+    TTableReaderOptionsPtr TableReaderOptions;
 
 
     //! Overrides the spec limit to satisfy global job count limit.
@@ -254,13 +256,7 @@ protected:
 
         virtual TTableReaderOptionsPtr GetTableReaderOptions() const override
         {
-            // ToDo(psushin): eliminate allocations.
-            auto options = New<TTableReaderOptions>();
-            options->EnableRowIndex = Controller->Spec->JobIO->ControlAttributes->EnableRowIndex;
-            options->EnableTableIndex = Controller->Spec->JobIO->ControlAttributes->EnableTableIndex;
-            options->EnableRangeIndex = Controller->Spec->JobIO->ControlAttributes->EnableRangeIndex;
-
-            return options;
+            return Controller->TableReaderOptions;
         }
 
         virtual EJobType GetJobType() const override
@@ -521,11 +517,13 @@ protected:
             : IsCompleteChunk(chunkSpec);
     }
 
-    //! Initializes #JobIOConfig.
+    //! Initializes #obIOConfig and #TableReaderOptions.
     void InitJobIOConfig()
     {
         JobIOConfig = CloneYsonSerializable(Spec->JobIO);
         InitFinalOutputConfig(JobIOConfig);
+
+        TableReaderOptions = CreateTableReaderOptions(Spec->JobIO);
     }
 
     //! Initializes #JobSpecTemplate.
@@ -1048,10 +1046,10 @@ protected:
         // NB: Base member is not called intentionally.
 
         auto specKeyColumns = GetSpecKeyColumns();
-        LOG_INFO("Spec key columns are [%v]", JoinToString(specKeyColumns));
+        LOG_INFO("Spec key columns are %v", specKeyColumns);
 
         KeyColumns = CheckInputTablesSorted(specKeyColumns);
-        LOG_INFO("Adjusted key columns are [%v]", JoinToString(KeyColumns));
+        LOG_INFO("Adjusted key columns are %v", KeyColumns);
 
         CalculateSizes();
 
@@ -1116,8 +1114,8 @@ protected:
             leftEndpoint.MaxBoundaryKey = slice->UpperLimit().GetKey();
 
             try {
-                ValidateKey(leftEndpoint.MinBoundaryKey);
-                ValidateKey(leftEndpoint.MaxBoundaryKey);
+                ValidateClientKey(leftEndpoint.MinBoundaryKey);
+                ValidateClientKey(leftEndpoint.MaxBoundaryKey);
             } catch (const std::exception& ex) {
                 THROW_ERROR_EXCEPTION(
                     "Error validating sample key in input table %v",
@@ -1345,7 +1343,7 @@ private:
                     return;
                 }
 
-                auto nextBreakpoint = GetKeyPrefixSuccessor(key.Get(), prefixLength);
+                auto nextBreakpoint = GetKeyPrefixSuccessor(key, prefixLength);
                 LOG_TRACE("Finish current task, flushing %v chunks at key %v",
                     globalOpenedSlices.size(),
                     nextBreakpoint);
@@ -1734,7 +1732,7 @@ private:
             if (HasLargeActiveTask()) {
                 YCHECK(!lastBreakpoint || CompareRows(key, *lastBreakpoint, prefixLength) != 0);
 
-                auto nextBreakpoint = GetKeyPrefixSuccessor(key.Get(), prefixLength);
+                auto nextBreakpoint = GetKeyPrefixSuccessor(key, prefixLength);
                 LOG_TRACE("Finish current task, flushing %v chunks at key %v",
                     openedSlices.size(),
                     nextBreakpoint);
@@ -1957,10 +1955,10 @@ private:
         // NB: Base member is not called intentionally.
 
         auto specKeyColumns = Spec->JoinBy;
-        LOG_INFO("Spec key columns are [%v]", JoinToString(specKeyColumns));
+        LOG_INFO("Spec key columns are %v", specKeyColumns);
 
         KeyColumns = CheckInputTablesSorted(specKeyColumns);
-        LOG_INFO("Adjusted key columns are [%v]", JoinToString(KeyColumns));
+        LOG_INFO("Adjusted key columns are %v", KeyColumns);
 
         CalculateSizes();
 
@@ -2049,8 +2047,8 @@ private:
             const auto& primaryMaxKey = slice->UpperLimit().GetKey();
 
             try {
-                ValidateKey(primaryMinKey);
-                ValidateKey(primaryMaxKey);
+                ValidateClientKey(primaryMinKey);
+                ValidateClientKey(primaryMaxKey);
             } catch (const std::exception& ex) {
                 THROW_ERROR_EXCEPTION(
                     "Error validating sample key in input table %v",

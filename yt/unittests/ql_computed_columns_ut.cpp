@@ -53,10 +53,13 @@ protected:
 
         const auto& query = planFragment->Query;
 
-        TDataSources foreignSplits{{query->JoinClauses[0]->ForeignDataId, {
-                planFragment->KeyRangesRowBuffer->Capture(MinKey().Get()),
-                planFragment->KeyRangesRowBuffer->Capture(MaxKey().Get())}
-            }};
+        TDataSources foreignSplits{{
+            query->JoinClauses[0]->ForeignDataId,
+            {
+                planFragment->KeyRangesRowBuffer->Capture(MinKey()),
+                planFragment->KeyRangesRowBuffer->Capture(MaxKey())
+            }
+        }};
 
         auto rowBuffer = New<TRowBuffer>();
         auto prunedSplits = GetPrunedRanges(

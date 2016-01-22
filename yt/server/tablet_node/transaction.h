@@ -1,9 +1,10 @@
 #pragma once
 
 #include "public.h"
+#include "object_detail.h"
 #include "dynamic_memory_store_bits.h"
 
-#include <yt/server/hydra/entity_map.h>
+#include <yt/server/hive/transaction_detail.h>
 
 #include <yt/ytlib/transaction_client/public.h>
 
@@ -37,16 +38,13 @@ using TTransactionWriteLogSnapshot = TPersistentQueueSnapshot<TTransactionWriteR
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTransaction
-    : public NHydra::TEntityBase
+    : public NHive::TTransactionBase<TObjectBase>
     , public TRefTracked<TTransaction>
 {
 public:
-    DEFINE_BYVAL_RO_PROPERTY(TTransactionId, Id);
-    DEFINE_BYVAL_RW_PROPERTY(TLease, Lease);
     DEFINE_BYVAL_RW_PROPERTY(NConcurrency::TDelayedExecutorCookie, TimeoutCookie);
     DEFINE_BYVAL_RW_PROPERTY(TDuration, Timeout);
     DEFINE_BYVAL_RW_PROPERTY(TInstant, RegisterTime);
-    DEFINE_BYVAL_RW_PROPERTY(ETransactionState, State);
     DEFINE_BYVAL_RW_PROPERTY(TTimestamp, StartTimestamp);
     DEFINE_BYVAL_RW_PROPERTY(TTimestamp, PrepareTimestamp);
     DEFINE_BYVAL_RW_PROPERTY(TTimestamp, CommitTimestamp);
@@ -67,10 +65,7 @@ public:
     void SetFinished();
     void ResetFinished();
 
-    ETransactionState GetPersistentState() const;
     TTimestamp GetPersistentPrepareTimestamp() const;
-
-    void ThrowInvalidState() const;
 
     TInstant GetStartTime() const;
 

@@ -35,7 +35,7 @@ DEFINE_ENUM(EObjectAccountMode,
 DEFINE_BIT_ENUM(EObjectReplicationFlags,
     ((None)                 (0x0000))
     ((ReplicateCreate)      (0x0001)) // replicate object creation
-    ((ReplicateDestroy)     (0x0002)) // replicate object destructionT
+    ((ReplicateDestroy)     (0x0002)) // replicate object destruction
     ((ReplicateAttributes)  (0x0004)) // replicate object attribute changes
 );
 
@@ -61,16 +61,15 @@ struct IObjectTypeHandler
     //! Returns a bunch of flags that control object replication.
     virtual EObjectReplicationFlags GetReplicationFlags() const = 0;
 
-    //! Returns the tag of the cell where the object was replicated to.
-    //! For objects that are not replicated this is #NotReplicatedCellTag.
-    //! For objects that are replicated througout the cluster this is #AllSecondaryMastersCellTag.
-    virtual TCellTag GetReplicationCellTag(const TObjectBase* object) = 0;
+    //! Returns the list of tag of secondary cells where the object was replicated to.
+    //! For non-replicated objects this is just the empty list.
+    virtual TCellTagList GetReplicationCellTags(const TObjectBase* object) = 0;
 
     //! Returns the object type managed by the handler.
     virtual EObjectType GetType() const = 0;
 
     //! Returns a human-readable object name.
-    virtual Stroka GetName(TObjectBase* object) = 0;
+    virtual Stroka GetName(const TObjectBase* object) = 0;
 
     //! Finds object by id, returns |nullptr| if nothing is found.
     virtual TObjectBase* FindObject(const TObjectId& id) = 0;

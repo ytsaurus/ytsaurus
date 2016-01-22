@@ -128,10 +128,9 @@ private:
         if (!service) {
             auto error = TError(
                 EErrorCode::NoSuchService,
-                "Service is not registered (Service: %v, RealmId: %v, RequestId: %v)",
-                serviceName,
-                realmId,
-                requestId);
+                "Service is not registered")
+                 << TErrorAttribute("service", serviceName)
+                 << TErrorAttribute("realm_id", realmId);
 
             LOG_WARNING(error);
 

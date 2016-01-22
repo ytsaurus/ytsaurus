@@ -402,6 +402,11 @@ public:
         return TVersionedRow(GetHeader());
     }
 
+    operator TVersionedRow() const
+    {
+        return Get();
+    }
+
     const TTimestamp* BeginWriteTimestamps() const
     {
         return reinterpret_cast<const TTimestamp*>(GetHeader() + 1);

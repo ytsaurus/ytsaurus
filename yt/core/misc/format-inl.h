@@ -8,6 +8,7 @@
 #include "enum.h"
 #include "guid.h"
 #include "assert.h"
+#include "range.h"
 
 #include <cctype>
 
@@ -196,6 +197,55 @@ struct TValueFormatter<TEnum, typename std::enable_if<TEnumTraits<TEnum>::IsEnum
     }
 };
 
+// TRange
+template <class T>
+struct TValueFormatter<TRange<T>>
+{
+    static void Do(TStringBuilder* builder, const TRange<T>& range, const TStringBuf& format)
+    {
+        builder->AppendChar('[');
+        bool firstItem = true;
+        for (const auto& item : range) {
+            if (!firstItem) {
+                builder->AppendString(DefaultJoinToStringDelimiter);
+            }
+            FormatValue(builder, item, format);
+            firstItem = false;
+        }
+        builder->AppendChar(']');
+    }
+};
+
+// TSharedRange
+template <class T>
+struct TValueFormatter<TSharedRange<T>>
+{
+    static void Do(TStringBuilder* builder, const TSharedRange<T>& range, const TStringBuf& format)
+    {
+        FormatValue(builder, TRange<T>(range), format);
+    }
+};
+
+// std::vector
+template <class T>
+struct TValueFormatter<std::vector<T>>
+{
+    static void Do(TStringBuilder* builder, const std::vector<T>& collection, const TStringBuf& format)
+    {
+        FormatValue(builder, MakeRange(collection), format);
+    }
+};
+
+// SmallVector
+template <class T, unsigned N>
+struct TValueFormatter<SmallVector<T, N>>
+{
+    static void Do(TStringBuilder* builder, const SmallVector<T, N>& collection, const TStringBuf& format)
+    {
+        FormatValue(builder, MakeRange(collection), format);
+    }
+};
+
 // Pointers
 template <class T>
 void FormatValue(TStringBuilder* builder, T* value, const TStringBuf& format)
@@ -204,7 +254,7 @@ void FormatValue(TStringBuilder* builder, T* value, const TStringBuf& format)
 }
 
 // TGuid (specialize for performance reasons)
-inline void FormatValue(TStringBuilder* builder, const TGuid& value, const TStringBuf& /*format*/)
+inline void FormatValue(TStringBuilder* builder, const TGuid& value, const TStringBuf& /*format*/ = TStringBuf())
 {
     char* buf = builder->Preallocate(4 + 4 * 8);
     int count = sprintf(buf, "%x-%x-%x-%x",

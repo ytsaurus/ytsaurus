@@ -78,7 +78,7 @@ void TFileReader::Open()
             checksum);
     }
 
-    if (ChunkId_ != NullChunkId && metaHeader.ChunkId != ChunkId_) {
+    if (ChunkId_ && metaHeader.ChunkId != ChunkId_) {
         THROW_ERROR_EXCEPTION("Invalid chunk id in meta file %v: expected %v, actual %v",
             metaFileName,
             ChunkId_,

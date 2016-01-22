@@ -129,7 +129,6 @@ TVersionedChunkReaderBase::TVersionedChunkReaderBase(
     : TChunkReaderBase(
         std::move(config),
         std::move(underlyingReader),
-        chunkMeta->Misc(),
         std::move(blockCache))
     , ChunkMeta_(std::move(chunkMeta))
     , Timestamp_(timestamp)
@@ -204,7 +203,7 @@ TVersionedRangeChunkReader::TVersionedRangeChunkReader(
     , LowerLimit_(std::move(lowerLimit))
     , UpperLimit_(std::move(upperLimit))
 {
-    ReadyEvent_ = DoOpen(GetBlockSequence());
+    ReadyEvent_ = DoOpen(GetBlockSequence(), ChunkMeta_->Misc());
 }
 
 bool TVersionedRangeChunkReader::Read(std::vector<TVersionedRow>* rows)
@@ -235,7 +234,7 @@ bool TVersionedRangeChunkReader::Read(std::vector<TVersionedRow>* rows)
             return !rows->empty();
         }
 
-        if (CheckKeyLimit_ && KeyComparer_(BlockReader_->GetKey(), UpperLimit_.GetKey().Get()) >= 0) {
+        if (CheckKeyLimit_ && KeyComparer_(BlockReader_->GetKey(), UpperLimit_.GetKey()) >= 0) {
             PerformanceCounters_->StaticChunkRowReadCount += rows->size();
             return !rows->empty();
         }
@@ -318,7 +317,7 @@ void TVersionedRangeChunkReader::InitFirstBlock()
 
     if (LowerLimit_.HasKey()) {
         auto blockRowIndex = BlockReader_->GetRowIndex();
-        YCHECK(BlockReader_->SkipToKey(LowerLimit_.GetKey().Get()));
+        YCHECK(BlockReader_->SkipToKey(LowerLimit_.GetKey()));
         CurrentRowIndex_ += BlockReader_->GetRowIndex() - blockRowIndex;
     }
 }
@@ -428,7 +427,7 @@ TVersionedLookupChunkReader::TVersionedLookupChunkReader(
     , Keys_(keys)
     , KeyFilterTest_(Keys_.Size(), true)
 { 
-    ReadyEvent_ = DoOpen(GetBlockSequence());
+    ReadyEvent_ = DoOpen(GetBlockSequence(), ChunkMeta_->Misc());
 }
 
 std::vector<TSequentialReader::TBlockInfo> TVersionedLookupChunkReader::GetBlockSequence()
@@ -586,6 +585,129 @@ IVersionedReaderPtr CreateVersionedChunkReader(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// We put 16-bit block index and 32-bit row index into 48-bit value entry in LinearProbeHashTable.
+
+static constexpr i64 MaxBlockIndex = std::numeric_limits<ui16>::max();
+
+TVersionedChunkLookupHashTable::TVersionedChunkLookupHashTable(size_t size)
+    : HashTable_(size)
+{ }
+
+void TVersionedChunkLookupHashTable::Insert(TKey key, std::pair<ui16, ui32> index)
+{
+    YCHECK(HashTable_.Insert(GetFarmFingerprint(key), (static_cast<ui64>(index.first) << 32) | index.second));
+}
+
+SmallVector<std::pair<ui16, ui32>, 1> TVersionedChunkLookupHashTable::Find(TKey key) const
+{
+    SmallVector<std::pair<ui16, ui32>, 1> result;
+    SmallVector<ui64, 1> items;
+    HashTable_.Find(GetFarmFingerprint(key), &items);
+    for (const auto& value : items) {
+        result.emplace_back(value >> 32, static_cast<ui32>(value));
+    }
+    return result;
+}
+
+size_t TVersionedChunkLookupHashTable::GetByteSize() const
+{
+    return HashTable_.GetByteSize();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TSimpleBlockCache
+    : public IBlockCache
+{
+public:
+    explicit TSimpleBlockCache(const std::vector<TSharedRef>& blocks)
+        : Blocks_(blocks)
+    { }
+
+    virtual void Put(
+        const TBlockId& /*id*/,
+        EBlockType /*type*/,
+        const TSharedRef& /*block*/,
+        const TNullable<NNodeTrackerClient::TNodeDescriptor>& /*source*/) override
+    {
+        YUNREACHABLE();
+    }
+
+    virtual TSharedRef Find(
+        const TBlockId& id,
+        EBlockType type) override
+    {
+        YASSERT(type == EBlockType::UncompressedData);
+        YASSERT(id.BlockIndex >= 0 && id.BlockIndex < Blocks_.size());
+        return Blocks_[id.BlockIndex];
+    }
+
+    virtual EBlockType GetSupportedBlockTypes() const override
+    {
+        return EBlockType::UncompressedData;
+    }
+
+private:
+    const std::vector<TSharedRef>& Blocks_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+TVersionedChunkLookupHashTablePtr CreateChunkLookupHashTable(
+    const std::vector<TSharedRef>& blocks,
+    TCachedVersionedChunkMetaPtr chunkMeta,
+    TKeyComparer keyComparer)
+{
+    auto blockCache = New<TSimpleBlockCache>(blocks);
+
+    if (chunkMeta->BlockMeta().blocks_size() > MaxBlockIndex) {
+        LOG_INFO("Cannot create lookup hash table because chunk has too many blocks (ChunkId: %v, BlockCount: %v)",
+            chunkMeta->GetChunkId(),
+            chunkMeta->BlockMeta().blocks_size());
+        return nullptr;
+    }
+
+    auto chunkSize = chunkMeta->BlockMeta().blocks(chunkMeta->BlockMeta().blocks_size() - 1).chunk_row_count();
+
+    auto hashTable = New<TVersionedChunkLookupHashTable>(chunkSize);
+
+    for (int blockIndex = 0; blockIndex < chunkMeta->BlockMeta().blocks_size(); ++blockIndex) {
+        const auto& blockMeta = chunkMeta->BlockMeta().blocks(blockIndex);
+
+        auto blockId = TBlockId(chunkMeta->GetChunkId(), blockIndex);
+        auto uncompressedBlock = blockCache->Find(blockId, EBlockType::UncompressedData);
+        if (!uncompressedBlock) {
+            LOG_INFO("Cannot create lookup hash table because chunk data is missing in the cache (ChunkId: %v, BlockIndex: %v)",
+                chunkMeta->GetChunkId(),
+                blockIndex);
+            return nullptr;
+        }
+
+        TSimpleVersionedBlockReader blockReader(
+            uncompressedBlock,
+            blockMeta,
+            chunkMeta->ChunkSchema(),
+            chunkMeta->GetChunkKeyColumnCount(),
+            chunkMeta->GetKeyColumnCount(),
+            BuildSchemaIdMapping(TColumnFilter(), chunkMeta),
+            keyComparer,
+            AllCommittedTimestamp);
+
+        // Verify that row index fits into 32 bits.
+        YCHECK(sizeof(blockMeta.row_count()) <= sizeof(ui32));
+
+        for (int index = 0; index < blockMeta.row_count(); ++index) {
+            auto key = blockReader.GetKey();
+            hashTable->Insert(key, std::make_pair<ui16, ui32>(blockIndex, index));
+            blockReader.NextRow();
+        }
+    }
+
+    return hashTable;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TCacheBasedVersionedChunkReaderPoolTag
 { };
 
@@ -676,7 +798,7 @@ protected:
             rend,
             key,
             [this] (TKey pivot, const TOwningKey& indexKey) {
-                return KeyComparer_(pivot, indexKey.Get()) > 0;
+                return KeyComparer_(pivot, indexKey) > 0;
             });
 
         return it == rend ? 0 : std::distance(it, rend);
@@ -685,13 +807,11 @@ protected:
     TSharedRef CaptureUncompressedBlock(int blockIndex)
     {
         // NB: requested block indexes are ascending, even in lookups.
-        if (LastUncompressedBlockIndex_ == blockIndex) {
-            return UncompressedBlocks_.back();
+        if (LastUncompressedBlockIndex_ != blockIndex) {
+            LastUncompressedBlock_ = GetUncompressedBlock(blockIndex);
         }
 
-        auto uncompressedBlock = GetUncompressedBlock(blockIndex);
-        UncompressedBlocks_.push_back(uncompressedBlock);
-        return uncompressedBlock;
+        return LastUncompressedBlock_;
     }
 
     template <class TBlockReader>
@@ -703,10 +823,12 @@ protected:
 private:
     bool Finished_ = false;
 
+    TSharedRef LastUncompressedBlock_;
+    int LastUncompressedBlockIndex_ = -1;
+
     //! Holds uncompressed blocks for the returned rows (for string references).
     //! In compressed mode, also serves as a per-request cache of uncompressed blocks.
     std::vector<TSharedRef> UncompressedBlocks_;
-    int LastUncompressedBlockIndex_ = -1;
 
     //! Holds row values for the returned rows.
     TChunkedMemoryPool MemoryPool_;
@@ -725,7 +847,9 @@ private:
         if (compressedBlock) {
             auto codecId = NCompression::ECodec(ChunkMeta_->Misc().compression_codec());
             auto* codec = NCompression::GetCodec(codecId);
-            return codec->Decompress(compressedBlock);
+            auto block = codec->Decompress(compressedBlock);
+            UncompressedBlocks_.push_back(block);
+            return block;
         }
 
         LOG_FATAL("Cached block is missing (BlockId: %v)", blockId);
@@ -743,6 +867,7 @@ public:
     TCacheBasedVersionedLookupChunkReader(
         TCachedVersionedChunkMetaPtr chunkMeta,
         IBlockCachePtr blockCache,
+        TVersionedChunkLookupHashTablePtr lookupHashTable,
         const TSharedRange<TKey>& keys,
         const TColumnFilter& columnFilter,
         TChunkReaderPerformanceCountersPtr performanceCounters,
@@ -755,10 +880,12 @@ public:
             std::move(performanceCounters),
             timestamp,
             std::move(keyComparer))
+        , LookupHashTable_(std::move(lookupHashTable))
         , Keys_(keys)
     { }
 
 private:
+    const TVersionedChunkLookupHashTablePtr LookupHashTable_;
     const TSharedRange<TKey> Keys_;
 
     int KeyIndex_ = 0;
@@ -766,10 +893,15 @@ private:
 
     virtual bool DoRead(std::vector<TVersionedRow>* rows) override
     {
-        // NB: Honor the capacity of rows.
+        int lookupCount = 0;
+
         while (KeyIndex_ < Keys_.Size() && rows->size() < rows->capacity()) {
+            ++lookupCount;
             rows->push_back(Lookup(Keys_[KeyIndex_++]));
         }
+
+        PerformanceCounters_->StaticChunkRowLookupCount += lookupCount;
+
         return KeyIndex_ < Keys_.Size();
     }
 
@@ -777,17 +909,42 @@ private:
     {
         //FIXME(savrus): use bloom filter here.
 
-        ++PerformanceCounters_->StaticChunkRowLookupCount;
+        if (LookupHashTable_) {
+            auto indices = LookupHashTable_->Find(key);
+            for (auto index : indices) {
+                const auto& uncompressedBlock = CaptureUncompressedBlock(index.first);
+                const auto& blockMeta = ChunkMeta_->BlockMeta().blocks(index.first);
 
-        if (KeyComparer_(key, ChunkMeta_->MinKey().Get()) < 0 || KeyComparer_(key, ChunkMeta_->MaxKey().Get()) > 0) {
+                TBlockReader blockReader(
+                    uncompressedBlock,
+                    blockMeta,
+                    ChunkMeta_->ChunkSchema(),
+                    ChunkMeta_->GetChunkKeyColumnCount(),
+                    ChunkMeta_->GetKeyColumnCount(),
+                    SchemaIdMapping_,
+                    KeyComparer_,
+                    Timestamp_,
+                    false);
+
+                YCHECK(blockReader.SkipToRowIndex(index.second));
+
+                if (KeyComparer_(blockReader.GetKey(), key) == 0) {
+                    return CaptureRow(&blockReader);
+                }
+            }
+
+            return TVersionedRow();
+        }
+
+        if (KeyComparer_(key, ChunkMeta_->MinKey()) < 0 || KeyComparer_(key, ChunkMeta_->MaxKey()) > 0) {
             return TVersionedRow();
         }
 
         int blockIndex = GetBlockIndex(key);
-        auto uncompressedBlock = CaptureUncompressedBlock(blockIndex);
+        const auto& uncompressedBlock = CaptureUncompressedBlock(blockIndex);
 
         TBlockReader blockReader(
-            std::move(uncompressedBlock),
+            uncompressedBlock,
             ChunkMeta_->BlockMeta().blocks(blockIndex),
             ChunkMeta_->ChunkSchema(),
             ChunkMeta_->GetChunkKeyColumnCount(),
@@ -808,6 +965,7 @@ private:
 IVersionedReaderPtr CreateCacheBasedVersionedChunkReader(
     IBlockCachePtr blockCache,
     TCachedVersionedChunkMetaPtr chunkMeta,
+    TVersionedChunkLookupHashTablePtr lookupHashTable,
     const TSharedRange<TKey>& keys,
     const TColumnFilter& columnFilter,
     TChunkReaderPerformanceCountersPtr performanceCounters,
@@ -818,6 +976,7 @@ IVersionedReaderPtr CreateCacheBasedVersionedChunkReader(
         ETableChunkFormat(chunkMeta->ChunkMeta().version()),
         std::move(chunkMeta),
         std::move(blockCache),
+        std::move(lookupHashTable),
         keys,
         columnFilter,
         std::move(performanceCounters),
@@ -858,24 +1017,23 @@ private:
     std::unique_ptr<TBlockReader> BlockReader_;
     bool UpperBoundCheckNeeded_ = false;
 
-
     virtual bool DoRead(std::vector<TVersionedRow>* rows) override
     {
         if (BlockIndex_ < 0) {
             // First read, not initialized yet.
-            if (LowerBound_ > ChunkMeta_->MaxKey().Get()) {
+            if (LowerBound_ > ChunkMeta_->MaxKey()) {
                 return false;
             }
 
-            BlockIndex_ = GetBlockIndex(LowerBound_.Get());
+            BlockIndex_ = GetBlockIndex(LowerBound_);
             CreateBlockReader();
 
-            if (!BlockReader_->SkipToKey(LowerBound_.Get())) {
+            if (!BlockReader_->SkipToKey(LowerBound_)) {
                 return false;
             }
         }
 
-        while ((!UpperBoundCheckNeeded_ || BlockReader_->GetKey() < UpperBound_.Get()) &&
+        while ((!UpperBoundCheckNeeded_ || BlockReader_->GetKey() < UpperBound_) &&
                rows->size() < rows->capacity())
         {
             auto row = CaptureRow(BlockReader_.get());
@@ -910,7 +1068,7 @@ private:
             SchemaIdMapping_,
             KeyComparer_,
             Timestamp_);
-        UpperBoundCheckNeeded_ = (UpperBound_.Get() <= ChunkMeta_->BlockLastKeys()[BlockIndex_]);
+        UpperBoundCheckNeeded_ = (UpperBound_ <= ChunkMeta_->BlockLastKeys()[BlockIndex_]);
     }
 };
 

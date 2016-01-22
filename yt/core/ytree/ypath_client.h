@@ -146,10 +146,7 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const TYPath& GetRequestYPath(NRpc::IServiceContextPtr context);
-
 const TYPath& GetRequestYPath(const NRpc::NProto::TRequestHeader& header);
-
 void SetRequestYPath(NRpc::NProto::TRequestHeader* header, const TYPath& path);
 
 TYPath ComputeResolvedYPath(

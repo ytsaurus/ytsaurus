@@ -67,11 +67,6 @@ echo $CONTENT >&2
 echo $CONTENT | grep ' 3' 1>/dev/null
 """
 
-    def _get_stderr(self, op_id):
-        jobs_path = "//sys/operations/" + op_id + "/jobs"
-        for job_id in ls(jobs_path):
-            return read_file(jobs_path + "/" + job_id + "/stderr")
-
     @block_io_mark
     def test_hitlimit(self):
         create("table", "//tmp/t1")
@@ -81,9 +76,7 @@ echo $CONTENT | grep ' 3' 1>/dev/null
 sudo -n dd if=/dev/sda of=/dev/null bs=16K count=100 iflag=direct 1>/dev/null
 """
         command += self.FAIL_IF_NOT_HIT_LIMIT
-        op_id = map(dont_track=True, in_="//tmp/t1", out="//tmp/t2", command=command, spec={"max_failed_job_count": 1})
-
-        track_op(op_id)
+        map(in_="//tmp/t1", out="//tmp/t2", command=command, spec={"max_failed_job_count": 1})
 
     @block_io_mark
     def test_do_not_hitlimit(self):
@@ -95,22 +88,24 @@ cat
 sudo -n dd if=/dev/sda of=/dev/null bs=1600K count=1 iflag=direct 1>/dev/null
 """
         command += self.FAIL_IF_NOT_HIT_LIMIT
-        op_id = map(dont_track=True, in_="//tmp/t1", out="//tmp/t2", command=command, spec={"max_failed_job_count": 1})
 
         with pytest.raises(YtError):
-            track_op(op_id)
+            map(in_="//tmp/t1",
+                out="//tmp/t2",
+                command=command,
+                spec={"max_failed_job_count": 1})
 
     @block_io_mark
     def test_block_io_accounting(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
         write_table("//tmp/t1", [{"a": "b"}])
-        op_id = map(
+        op = map(
             in_="//tmp/t1",
             out="//tmp/t2",
             command="cat; sudo -n dd if=/dev/sda of=/dev/null bs=160K count=50 iflag=direct 1>/dev/null;")
 
-        stats = get("//sys/operations/{0}/@progress/job_statistics".format(op_id))
+        stats = get("//sys/operations/{0}/@progress/job_statistics".format(op.id))
         bytes_read = get_statistics(stats, "user_job.block_io.bytes_read.$.completed.map.sum")
         io_read = get_statistics(stats, "user_job.block_io.io_read.$.completed.map.sum")
         assert bytes_read >= 160*1024*50

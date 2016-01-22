@@ -41,9 +41,8 @@ void TTransactionWriteRecord::Load(TLoadContext& context)
 ////////////////////////////////////////////////////////////////////////////////
 
 TTransaction::TTransaction(const TTransactionId& id)
-    : Id_(id)
+    : TTransactionBase(id)
     , RegisterTime_(TInstant::Zero())
-    , State_(ETransactionState::Active)
     , StartTimestamp_(NullTimestamp)
     , PrepareTimestamp_(NullTimestamp)
     , CommitTimestamp_(NullTimestamp)
@@ -115,17 +114,6 @@ void TTransaction::ResetFinished()
     Finished_ = NewPromise<void>();
 }
 
-ETransactionState TTransaction::GetPersistentState() const
-{
-    switch (State_) {
-        case ETransactionState::TransientCommitPrepared:
-        case ETransactionState::TransientAbortPrepared:
-            return ETransactionState::Active;
-        default:
-            return State_;
-    }
-}
-
 TTimestamp TTransaction::GetPersistentPrepareTimestamp() const
 {
     switch (State_) {
@@ -134,13 +122,6 @@ TTimestamp TTransaction::GetPersistentPrepareTimestamp() const
         default:
             return PrepareTimestamp_;
     }
-}
-
-void TTransaction::ThrowInvalidState() const
-{
-    THROW_ERROR_EXCEPTION("Transaction %v is in %Qlv state",
-        Id_,
-        State_);
 }
 
 TInstant TTransaction::GetStartTime() const

@@ -329,10 +329,8 @@ protected:
                     "Waiting for the trailing journal chunk to become sealed (NodeId: %v, ChunkId: %v)",
                     trunkNode->GetId(),
                     trailingChunk->GetId());
-                if (IsLeader()) {
-                    auto chunkManager = Bootstrap_->GetChunkManager();
-                    chunkManager->MaybeScheduleChunkSeal(trailingChunk);
-                }
+                auto chunkManager = Bootstrap_->GetChunkManager();
+                chunkManager->ScheduleChunkSeal(trailingChunk);
             } else {
                 auto journalManager = Bootstrap_->GetJournalManager();
                 journalManager->SealJournal(trunkNode, nullptr);

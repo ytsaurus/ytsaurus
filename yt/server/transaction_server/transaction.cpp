@@ -29,7 +29,7 @@ void TTransaction::TExportEntry::Persist(NCellMaster::TPersistenceContext& conte
 ////////////////////////////////////////////////////////////////////////////////
 
 TTransaction::TTransaction(const TTransactionId& id)
-    : TNonversionedObjectBase(id)
+    : TTransactionBase(id)
     , AccountingEnabled_(true)
     , Parent_(nullptr)
     , StartTime_(TInstant::Zero())
@@ -45,6 +45,7 @@ void TTransaction::Save(NCellMaster::TSaveContext& context) const
     Save(context, Timeout_);
     Save(context, AccountingEnabled_);
     Save(context, Title_);
+    Save(context, SecondaryCellTags_);
     Save(context, NestedTransactions_);
     Save(context, Parent_);
     Save(context, StartTime_);
@@ -71,6 +72,9 @@ void TTransaction::Load(NCellMaster::TLoadContext& context)
     Load(context, Timeout_);
     Load(context, AccountingEnabled_);
     Load(context, Title_);
+    if (context.GetVersion() >= 209) {
+        Load(context, SecondaryCellTags_);
+    }
     Load(context, NestedTransactions_);
     Load(context, Parent_);
     Load(context, StartTime_);
@@ -83,24 +87,6 @@ void TTransaction::Load(NCellMaster::TLoadContext& context)
     Load(context, StagedNodes_);
     Load(context, AccountResourceUsage_);
     Load(context, Acd_);
-}
-
-ETransactionState TTransaction::GetPersistentState() const
-{
-    switch (State_) {
-        case ETransactionState::TransientCommitPrepared:
-        case ETransactionState::TransientAbortPrepared:
-            return ETransactionState::Active;
-        default:
-            return State_;
-    }
-}
-
-void TTransaction::ThrowInvalidState() const
-{
-    THROW_ERROR_EXCEPTION("Transaction %v is in %Qlv state",
-        Id_,
-        State_);
 }
 
 TYsonString TTransaction::GetDescription() const

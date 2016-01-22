@@ -22,6 +22,7 @@ set( SRCS
   ${CMAKE_CURRENT_LIST_DIR}/remote_copy_controller.cpp
   ${CMAKE_CURRENT_LIST_DIR}/scheduler.cpp
   ${CMAKE_CURRENT_LIST_DIR}/scheduling_context.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/scheduling_context_detail.cpp
   ${CMAKE_CURRENT_LIST_DIR}/scheduler_service.cpp
   ${CMAKE_CURRENT_LIST_DIR}/serialize.cpp
   ${CMAKE_CURRENT_LIST_DIR}/snapshot_builder.cpp

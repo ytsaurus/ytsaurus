@@ -33,7 +33,8 @@ TRecoveryBase::TRecoveryBase(
     IChangelogStorePtr changelogStore,
     ISnapshotStorePtr snapshotStore,
     TResponseKeeperPtr responseKeeper,
-    TEpochContext* epochContext)
+    TEpochContext* epochContext,
+    TVersion syncVersion)
     : Config_(config)
     , CellManager_(cellManager)
     , DecoratedAutomaton_(decoratedAutomaton)
@@ -41,6 +42,7 @@ TRecoveryBase::TRecoveryBase(
     , SnapshotStore_(snapshotStore)
     , ResponseKeeper_(responseKeeper)
     , EpochContext_(epochContext)
+    , SyncVersion_(syncVersion)
     , Logger(HydraLogger)
 {
     YCHECK(Config_);
@@ -58,11 +60,13 @@ void TRecoveryBase::RecoverToVersion(TVersion targetVersion)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
+    YCHECK(EpochContext_->ReachableVersion <= targetVersion);
+
     auto currentVersion = DecoratedAutomaton_->GetAutomatonVersion();
     YCHECK(currentVersion <= targetVersion);
 
     auto reachableVersion = EpochContext_->ReachableVersion;
-    YCHECK(reachableVersion.SegmentId <= targetVersion.SegmentId || reachableVersion == targetVersion.Rotate());
+    YCHECK(reachableVersion <= targetVersion);
 
     int snapshotId = InvalidSegmentId;
     if (targetVersion.SegmentId > currentVersion.SegmentId) {
@@ -111,10 +115,11 @@ void TRecoveryBase::RecoverToVersion(TVersion targetVersion)
         targetVersion.SegmentId,
         targetVersion);
 
+    IChangelogPtr targetChangelog;
     for (int changelogId = initialChangelogId; changelogId <= targetVersion.SegmentId; ++changelogId) {
-        bool isLastChangelog = (changelogId == targetVersion.SegmentId);
         auto changelog = WaitFor(ChangelogStore_->TryOpenChangelog(changelogId))
             .ValueOrThrow();
+
         if (!changelog) {
             auto currentVersion = DecoratedAutomaton_->GetAutomatonVersion();
 
@@ -127,13 +132,7 @@ void TRecoveryBase::RecoverToVersion(TVersion targetVersion)
             
             changelog = WaitFor(ChangelogStore_->CreateChangelog(changelogId, meta))
                 .ValueOrThrow();
-
-            DecoratedAutomaton_->SetLoggedVersion(std::max(
-                DecoratedAutomaton_->GetLoggedVersion(),
-                TVersion(changelogId, 0)));
         }
-
-        DecoratedAutomaton_->SetChangelog(changelog);
 
         if (!IsLeader()) {
             SyncChangelog(changelog, changelogId);
@@ -142,9 +141,20 @@ void TRecoveryBase::RecoverToVersion(TVersion targetVersion)
         WaitFor(changelog->Flush())
             .ThrowOnError();
 
-        int targetRecordId = isLastChangelog ? targetVersion.RecordId : changelog->GetRecordCount();
+        int targetRecordId = changelogId == targetVersion.SegmentId
+            ? targetVersion.RecordId
+            : changelog->GetRecordCount();
         ReplayChangelog(changelog, changelogId, targetRecordId);
+
+        if (changelogId == targetVersion.SegmentId) {
+            targetChangelog = changelog;
+        }
     }
+
+    YCHECK(targetChangelog);
+    DecoratedAutomaton_->SetChangelog(targetVersion.SegmentId, targetChangelog);
+
+    YCHECK(DecoratedAutomaton_->GetLoggedVersion() == targetVersion);
 }
 
 void TRecoveryBase::SyncChangelog(IChangelogPtr changelog, int changelogId)
@@ -182,11 +192,6 @@ void TRecoveryBase::SyncChangelog(IChangelogPtr changelog, int changelogId)
         YCHECK(syncRecordCount == remoteRecordCount);
         WaitFor(changelog->Truncate(remoteRecordCount))
             .ThrowOnError();
-
-        if (DecoratedAutomaton_->GetLoggedVersion().SegmentId == changelogId) {
-            YCHECK(DecoratedAutomaton_->GetLoggedVersion().RecordId >= remoteRecordCount);
-            DecoratedAutomaton_->SetLoggedVersion(TVersion(changelogId, remoteRecordCount));
-        }
     } else if (localRecordCount < syncRecordCount) {
         auto asyncResult = DownloadChangelog(
             Config_,
@@ -195,11 +200,6 @@ void TRecoveryBase::SyncChangelog(IChangelogPtr changelog, int changelogId)
             changelogId,
             syncRecordCount);
         auto result = WaitFor(asyncResult);
-
-        DecoratedAutomaton_->SetLoggedVersion(std::max(
-            DecoratedAutomaton_->GetLoggedVersion(),
-            TVersion(changelogId, syncRecordCount)));
-
         THROW_ERROR_EXCEPTION_IF_FAILED(result, "Error downloading changelog records");
     }
 }
@@ -284,25 +284,25 @@ TLeaderRecovery::TLeaderRecovery(
         changelogStore,
         snapshotStore,
         responseKeeper,
-        epochContext)
+        epochContext,
+        epochContext->ReachableVersion)
 { }
 
-TFuture<void> TLeaderRecovery::Run(TVersion targetVersion)
+TFuture<void> TLeaderRecovery::Run()
 {
     VERIFY_THREAD_AFFINITY_ANY();
     
-    SyncVersion_ = targetVersion;
     return BIND(&TLeaderRecovery::DoRun, MakeStrong(this))
         .AsyncVia(EpochContext_->EpochSystemAutomatonInvoker)
-        .Run(targetVersion);
+        .Run();
 }
 
-void TLeaderRecovery::DoRun(TVersion targetVersion)
+void TLeaderRecovery::DoRun()
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
     NProfiling::TScopedTimer timer;
-    RecoverToVersion(targetVersion);
+    RecoverToVersion(EpochContext_->ReachableVersion);
     auto elapsedTime = timer.GetElapsed();
 
     if (Config_->DisableLeaderLeaseGraceDelay) {
@@ -340,10 +340,11 @@ TFollowerRecovery::TFollowerRecovery(
         changelogStore,
         snapshotStore,
         responseKeeper,
-        epochContext)
-{
-    SyncVersion_ = PostponedVersion_ = CommittedVersion_ = syncVersion;
-}
+        epochContext,
+        syncVersion)
+    , PostponedVersion_(syncVersion)
+    , CommittedVersion_(syncVersion)
+{ }
 
 TFuture<void> TFollowerRecovery::Run()
 {

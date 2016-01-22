@@ -28,15 +28,13 @@ public:
             invoker,
             TOrchidServiceProxy::GetServiceName(),
             OrchidLogger)
+        , RootService_(CreateRootService(root))
     {
-        YCHECK(root);
-
-        RootService_ = CreateRootService(root);
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Execute));
     }
 
 private:
-    IYPathServicePtr RootService_;
+    const IYPathServicePtr RootService_;
 
     DECLARE_RPC_SERVICE_METHOD(NProto, Execute)
     {
@@ -50,7 +48,7 @@ private:
         context->SetRequestInfo("%v:%v %v",
             requestHeader.service(),
             requestHeader.method(),
-            GetRequestYPath(context));
+            GetRequestYPath(requestHeader));
 
         ExecuteVerb(RootService_, requestMessage)
             .Subscribe(BIND([=] (const TErrorOr<TSharedRefArray>& responseMessageOrError) {

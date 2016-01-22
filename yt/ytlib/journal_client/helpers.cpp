@@ -63,9 +63,9 @@ private:
 
     void DoRun()
     {
-        LOG_INFO("Aborting journal chunk session quroum (Addresses: [%v])",
+        LOG_INFO("Aborting journal chunk session quroum (Addresses: %v)",
             ChunkId_,
-            JoinToString(Replicas_));
+            Replicas_);
 
         if (Replicas_.size() < Quorum_) {
             auto error = TError("Unable to abort sessions quorum for journal chunk %v: too few replicas known, %v given, %v needed",
@@ -186,8 +186,8 @@ private:
             return;
         }
 
-        LOG_INFO("Computing quorum info for journal chunk (Addresses: [%v])",
-            JoinToString(Replicas_));
+        LOG_INFO("Computing quorum info for journal chunk (Addresses: %v)",
+            Replicas_);
 
         std::vector<TFuture<void>> asyncResults;
         for (const auto& descriptor : Replicas_) {

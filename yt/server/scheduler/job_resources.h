@@ -12,7 +12,12 @@ namespace NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// Implementation detail.
+class TEmptyJobResourcesBase
+{ };
+
 class TJobResources
+    : public TEmptyJobResourcesBase
 {
 public:
     DEFINE_BYVAL_RW_PROPERTY(int, UserSlots);

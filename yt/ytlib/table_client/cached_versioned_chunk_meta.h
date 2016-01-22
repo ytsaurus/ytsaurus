@@ -28,6 +28,7 @@ public:
     DEFINE_BYREF_RO_PROPERTY(TOwningKey, MinKey);
     DEFINE_BYREF_RO_PROPERTY(TOwningKey, MaxKey);
     DEFINE_BYREF_RO_PROPERTY(std::vector<TOwningKey>, BlockLastKeys);
+    DEFINE_BYREF_RO_PROPERTY(std::vector<int>, BlockRowCounts);
     DEFINE_BYREF_RO_PROPERTY(NProto::TBlockMetaExt, BlockMeta);
     DEFINE_BYREF_RO_PROPERTY(NChunkClient::NProto::TChunkMeta, ChunkMeta);
     DEFINE_BYREF_RO_PROPERTY(TTableSchema, ChunkSchema);
@@ -36,17 +37,31 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(int, ChunkKeyColumnCount);
     DEFINE_BYVAL_RO_PROPERTY(int, KeyColumnCount);
 
+    static TCachedVersionedChunkMetaPtr Create(
+        const NChunkClient::TChunkId& chunkId,
+        const NChunkClient::NProto::TChunkMeta& chunkMeta,
+        const TTableSchema& schema);
+
     static TFuture<TCachedVersionedChunkMetaPtr> Load(
         NChunkClient::IChunkReaderPtr chunkReader,
         const TTableSchema& schema);
 
 private:
+    TCachedVersionedChunkMeta();
+
     TCachedVersionedChunkMetaPtr DoLoad(
         NChunkClient::IChunkReaderPtr chunkReader,
-        const TTableSchema& readerSchema);
+        const TTableSchema& schema);
+
+    void Init(
+        const NChunkClient::TChunkId& chunkId,
+        const NChunkClient::NProto::TChunkMeta& chunkMeta,
+        const TTableSchema& schema);
 
     void ValidateChunkMeta();
     void ValidateSchema(const TTableSchema& readerSchema);
+
+    DECLARE_NEW_FRIEND();
 };
 
 DEFINE_REFCOUNTED_TYPE(TCachedVersionedChunkMeta)

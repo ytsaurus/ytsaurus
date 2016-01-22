@@ -19,6 +19,7 @@ namespace NYT {
 
 // invoker_util.h.
 IInvokerPtr GetFinalizerInvoker();
+IInvokerPtr GetNullInvoker();
 
 namespace NConcurrency {
 
@@ -583,7 +584,8 @@ TFuture<T> TFutureBase<T>::WithTimeout(TDuration timeout)
     NConcurrency::TDelayedExecutor::Submit(
         BIND([=] () mutable {
             this_.Cancel();
-            promise.TrySet(TError(NYT::EErrorCode::Timeout, "Operation timed out"));
+            promise.TrySet(TError(NYT::EErrorCode::Timeout, "Operation timed out")
+                << TErrorAttribute("timeout", timeout));
         }),
         timeout);
 

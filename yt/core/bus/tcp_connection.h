@@ -195,6 +195,8 @@ private:
     void InitFD();
     void InitSocketWatcher();
 
+    int GetSocketPort();
+
     void ConnectSocket(const TNetworkAddress& netAddress);
     void CloseSocket();
 
@@ -214,7 +216,7 @@ private:
     bool OnAckPacketReceived();
     bool OnMessagePacketReceived();
 
-    void EnqueuePacket(
+    TPacket* EnqueuePacket(
         EPacketType type,
         EPacketFlags flags,
         const TPacketId& packetId,

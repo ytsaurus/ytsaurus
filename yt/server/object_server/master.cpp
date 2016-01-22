@@ -200,7 +200,7 @@ public:
     { }
 
 private:
-    virtual Stroka DoGetName(TMasterObject* /*object*/) override
+    virtual Stroka DoGetName(const TMasterObject* /*object*/) override
     {
         return "master";
     }

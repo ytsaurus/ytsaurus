@@ -21,17 +21,17 @@ static const i64 LowWatermarkMemorySize = (i64) 256 * 1024 * 1024;
 ////////////////////////////////////////////////////////////////////
 
 TJobResources::TJobResources()
-    : UserSlots_(0)
-    , Cpu_(0)
-    , Memory_(0)
-    , Network_(0)
+    : TEmptyJobResourcesBase()
+#define XX(name, Name) , Name##_(0)
+ITERATE_JOB_RESOURCES(XX)
+#undef XX
 { }
 
 TJobResources::TJobResources(const TNodeResources& resources)
-    : UserSlots_(resources.user_slots())
-    , Cpu_(resources.cpu())
-    , Memory_(resources.memory())
-    , Network_(resources.network())
+    : TEmptyJobResourcesBase()
+#define XX(name, Name) , Name##_(resources.name())
+ITERATE_JOB_RESOURCES(XX)
+#undef XX
 { }
 
 TNodeResources TJobResources::ToNodeResources() const

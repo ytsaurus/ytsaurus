@@ -10,6 +10,7 @@
 #include <yt/core/logging/log.h>
 
 #include <yt/core/misc/address.h>
+#include <yt/core/misc/string.h>
 
 #include <yt/core/rpc/public.h>
 
@@ -46,14 +47,24 @@ public:
     TTcpBusServerBase(
         TTcpBusServerConfigPtr config,
         TTcpDispatcherThreadPtr dispatcherThread,
-        IMessageHandlerPtr handler)
+        IMessageHandlerPtr handler,
+        ETcpInterfaceType interfaceType)
         : Config_(std::move(config))
         , DispatcherThread_(std::move(dispatcherThread))
         , Handler_(std::move(handler))
+        , InterfaceType_(interfaceType)
     {
         VERIFY_THREAD_AFFINITY_ANY();
         YCHECK(Handler_);
-    }
+ 
+        if (Config_->Port) {
+            Logger.AddTag("ServerPort: %v", *Config_->Port);
+        }
+        if (Config_->UnixDomainName) {
+            Logger.AddTag("UnixDomainName: %v", *Config_->UnixDomainName);
+        }
+        Logger.AddTag("InterfaceType: %v", InterfaceType_);
+   }
 
     // IEventLoopObject implementation.
 
@@ -90,14 +101,14 @@ public:
     virtual Stroka GetLoggingId() const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
-
-        return Format("Port: %v", Config_->Port);
+        return Logger.GetContext();
     }
 
 protected:
     const TTcpBusServerConfigPtr Config_;
     const TTcpDispatcherThreadPtr DispatcherThread_;
     const IMessageHandlerPtr Handler_;
+    const ETcpInterfaceType InterfaceType_;
 
     std::unique_ptr<ev::io> AcceptWatcher_;
 
@@ -115,8 +126,6 @@ protected:
 
 
     virtual void CreateServerSocket() = 0;
-
-    virtual ETcpInterfaceType GetInterfaceType() = 0;
 
     virtual void InitClientSocket(SOCKET clientSocket)
     {
@@ -222,14 +231,14 @@ protected:
                     clientAddress.GetSockAddr(),
                     &clientAddressLen);
 #endif
-            
+
                 if (clientSocket == INVALID_SOCKET) {
                     auto error = LastSystemError();
                     if (IsSocketError(error)) {
                         auto wrappedError = TError(
                             NRpc::EErrorCode::TransportError,
                             "Error accepting connection")
-                            << TErrorAttribute("address", ToString(clientAddress, false))
+                            << TErrorAttribute("address", ToString(clientAddress))
                             << TError::FromSystem(error);
                         LOG_WARNING(wrappedError);
                     }
@@ -237,14 +246,29 @@ protected:
                 }
             }
 
-            LOG_DEBUG("Connection accepted");
+            auto connectionCount = DispatcherThread_
+                ->GetStatistics(InterfaceType_)
+                ->ServerConnections;
+            if (connectionCount >= Config_->MaxSimultaneousConnections) {
+                LOG_DEBUG("Connection dropped (Address: %v, ConnectionCount: %v, ConnectionLimit: %v)",
+                    ToString(clientAddress, false),
+                    connectionCount,
+                    Config_->MaxSimultaneousConnections);
+                close(clientSocket);
+                continue;
+            } else {
+                LOG_DEBUG("Connection accepted (Address: %v, ConnectionCount: %v, ConnectionLimit: %v)",
+                    ToString(clientAddress, false),
+                    connectionCount,
+                    Config_->MaxSimultaneousConnections);
+            }
 
             InitClientSocket(clientSocket);
             InitSocket(clientSocket);
 
             auto dispatcherThread = TTcpDispatcher::TImpl::Get()->GetClientThread();
 
-            auto address = ToString(clientAddress, false);
+            auto address = ToString(clientAddress);
             auto endpointDescription = address;
             auto endpointAttributes = ConvertToAttributes(BuildYsonStringFluently()
                 .BeginMap()
@@ -255,7 +279,7 @@ protected:
                 Config_,
                 dispatcherThread,
                 EConnectionType::Server,
-                GetInterfaceType(),
+                InterfaceType_,
                 TConnectionId::Create(),
                 clientSocket,
                 endpointDescription,
@@ -292,6 +316,26 @@ protected:
 #endif
     }
 
+    void BindSocket(sockaddr* address, int size, const Stroka& errorMessage)
+    {
+        for (int attempt = 1; attempt <= Config_->BindRetryCount; ++attempt) {
+            if (bind(ServerSocket_, address, size) == 0) {
+                // Success.
+                break;
+            }
+
+            if (attempt == Config_->BindRetryCount) {
+                int errorCode = LastSystemError();
+                CloseServerSocket();
+                THROW_ERROR_EXCEPTION(NRpc::EErrorCode::TransportError, errorMessage)
+                    << TError::FromSystem(errorCode);
+            } else {
+                LOG_WARNING(TError::FromSystem(), "%v, starting %v retry", errorMessage, attempt + 1);
+                Sleep(Config_->BindRetryBackoff);
+            }
+        }
+    }
+
 };
 
 class TRemoteTcpBusServer
@@ -305,27 +349,11 @@ public:
         : TTcpBusServerBase(
             std::move(config),
             std::move(dispatcherThread),
-            std::move(handler))
-    {
-        Logger.AddTag("Port: %v", Config_->Port);
-    }
-
-
-    // IEventLoopObject implementation.
-
-    virtual Stroka GetLoggingId() const override
-    {
-        VERIFY_THREAD_AFFINITY_ANY();
-
-        return Format("Port: %v", Config_->Port);
-    }
+            std::move(handler),
+            ETcpInterfaceType::Remote)
+    { }
 
 private:
-    virtual ETcpInterfaceType GetInterfaceType() override
-    {
-        return ETcpInterfaceType::Remote;
-    }
-
     virtual void CreateServerSocket() override
     {
         int type = SOCK_STREAM;
@@ -374,13 +402,10 @@ private:
             serverAddress.sin6_family = AF_INET6;
             serverAddress.sin6_addr = in6addr_any;
             serverAddress.sin6_port = htons(Config_->Port.Get());
-            if (bind(ServerSocket_, (sockaddr*)&serverAddress, sizeof(serverAddress)) != 0) {
-                CloseServerSocket();
-                THROW_ERROR_EXCEPTION(
-                    NRpc::EErrorCode::TransportError,
-                    "Failed to bind a server socket to port %v", Config_->Port)
-                    << TError::FromSystem();
-            }
+            BindSocket(
+                (sockaddr*)&serverAddress,
+                sizeof(serverAddress),
+                Format("Failed to bind a server socket to port %v", Config_->Port));
         }
     }
 
@@ -408,27 +433,11 @@ public:
         : TTcpBusServerBase(
             std::move(config),
             std::move(dispatcherThread),
-            std::move(handler))
-    {
-        Logger.AddTag("LocalPort: %v", Config_->Port);
-    }
-
-
-    // IEventLoopObject implementation.
-
-    virtual Stroka GetLoggingId() const override
-    {
-        VERIFY_THREAD_AFFINITY_ANY();
-
-        return Format("LocalPort: %v", Config_->Port);
-    }
+            std::move(handler),
+            ETcpInterfaceType::Local)
+    { }
 
 private:
-    virtual ETcpInterfaceType GetInterfaceType() override
-    {
-        return ETcpInterfaceType::Local;
-    }
-
     virtual void CreateServerSocket() override
     {
         int type = SOCK_STREAM;
@@ -454,13 +463,10 @@ private:
             } else {
                 netAddress = GetLocalBusAddress(Config_->Port.Get());
             }
-            if (bind(ServerSocket_, netAddress.GetSockAddr(), netAddress.GetLength()) != 0) {
-                CloseServerSocket();
-                THROW_ERROR_EXCEPTION(
-                    NRpc::EErrorCode::TransportError,
-                    "Failed to bind a local server socket")
-                    << TError::FromSystem();
-            }
+            BindSocket(
+                netAddress.GetSockAddr(),
+                netAddress.GetLength(),
+                "Failed to bind a local server socket");
         }
     }
 };

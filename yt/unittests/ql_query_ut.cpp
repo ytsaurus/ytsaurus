@@ -240,8 +240,8 @@ protected:
             auto range = GetBothBoundsFromDataSplit(split);
     
             TRowRange rowRange(
-                planFragment->KeyRangesRowBuffer->Capture(range.first.Get()),
-                planFragment->KeyRangesRowBuffer->Capture(range.second.Get()));
+                planFragment->KeyRangesRowBuffer->Capture(range.first),
+                planFragment->KeyRangesRowBuffer->Capture(range.second));
 
             sources.push_back(TDataSource{
                 GetObjectIdFromDataSplit(split),
@@ -637,8 +637,8 @@ protected:
                 planFragment->DataSources.push_back({
                     foreignDataId,
                     {
-                        planFragment->KeyRangesRowBuffer->Capture(MinKey().Get()),
-                        planFragment->KeyRangesRowBuffer->Capture(MaxKey().Get())
+                        planFragment->KeyRangesRowBuffer->Capture(MinKey()),
+                        planFragment->KeyRangesRowBuffer->Capture(MaxKey())
                     }});
                 planFragment->Query = subquery;
 

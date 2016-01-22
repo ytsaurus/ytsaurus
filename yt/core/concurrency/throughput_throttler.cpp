@@ -92,7 +92,8 @@ private:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        std::vector<TPromise<void>> releaseList;
+        std::vector<TPromise<void>> readyList;
+        std::vector<TPromise<void>> canceledList;
 
         {
             TGuard<TSpinLock> guard(SpinLock_);
@@ -103,14 +104,22 @@ private:
             while (!Requests_.empty() && Available_ > 0) {
                 auto& request = Requests_.front();
                 LOG_DEBUG("Finished waiting for throttler (Count: %v)", request.Count);
-                Available_ -= request.Count;
-                releaseList.push_back(std::move(request.Promise));
+                if (request.Promise.IsCanceled()) {
+                    canceledList.push_back(std::move(request.Promise));
+                } else {
+                    Available_ -= request.Count;
+                    readyList.push_back(std::move(request.Promise));
+                }
                 Requests_.pop();
             }
         }
 
-        for (auto promise : releaseList) {
+        for (auto& promise : readyList) {
             promise.Set();
+        }
+
+        for (auto& promise : canceledList) {
+            promise.Set(TError(NYT::EErrorCode::Canceled, "Throttled request canceled"));
         }
     }
 };

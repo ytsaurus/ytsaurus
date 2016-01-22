@@ -125,7 +125,7 @@ TJobResult TSimpleJobBase::Run()
             // ToDo(psushin): return written chunks only if required.
             auto* schedulerResultExt = result.MutableExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
             Writer_->GetNodeDirectory()->DumpTo(schedulerResultExt->mutable_output_node_directory());
-            ToProto(schedulerResultExt->mutable_output_chunks(), Writer_->GetWrittenChunks());
+            ToProto(schedulerResultExt->mutable_output_chunks(), Writer_->GetWrittenChunksMasterMeta());
 
             return result;
         }

@@ -60,9 +60,9 @@ struct IConnection
 
     virtual const NObjectClient::TCellId& GetPrimaryMasterCellId() const = 0;
     virtual NObjectClient::TCellTag GetPrimaryMasterCellTag() const = 0;
-    virtual const std::vector<NObjectClient::TCellTag>& GetSecondaryMasterCellTags() const = 0;
+    virtual const NObjectClient::TCellTagList& GetSecondaryMasterCellTags() const = 0;
 
-    virtual NRpc::IChannelPtr GetMasterChannel(
+    virtual NRpc::IChannelPtr GetMasterChannelOrThrow(
         EMasterChannelKind kind,
         NObjectClient::TCellTag cellTag = NObjectClient::PrimaryMasterCellTag) = 0;
     virtual NRpc::IChannelPtr GetSchedulerChannel() = 0;

@@ -162,7 +162,7 @@ void TReshardTableCommand::Execute(ICommandContextPtr context)
 {
     std::vector<TUnversionedRow> pivotKeys;
     for (const auto& key : PivotKeys) {
-        pivotKeys.push_back(key.Get());
+        pivotKeys.push_back(key);
     }
 
     auto asyncResult = context->GetClient()->ReshardTable(

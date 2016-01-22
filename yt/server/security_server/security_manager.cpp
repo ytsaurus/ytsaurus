@@ -25,6 +25,8 @@
 
 #include <yt/server/transaction_server/transaction.h>
 
+#include <yt/server/hive/hive_manager.h>
+
 #include <yt/ytlib/object_client/helpers.h>
 
 #include <yt/ytlib/security_client/group_ypath_proxy.h>
@@ -47,6 +49,7 @@ using namespace NYPath;
 using namespace NCypressServer;
 using namespace NSecurityClient;
 using namespace NObjectServer;
+using namespace NHive;
 
 using NYT::FromProto;
 using NYT::ToProto;
@@ -90,11 +93,6 @@ public:
             EObjectReplicationFlags::ReplicateAttributes;
     }
 
-    virtual TCellTag GetReplicationCellTag(const TObjectBase* /*object*/) override
-    {
-        return AllSecondaryMastersCellTag;
-    }
-
     virtual EObjectType GetType() const override
     {
         return EObjectType::Account;
@@ -122,7 +120,12 @@ public:
 private:
     TImpl* const Owner_;
 
-    virtual Stroka DoGetName(TAccount* object) override
+    virtual TCellTagList DoGetReplicationCellTags(const TAccount* /*object*/) override
+    {
+        return AllSecondaryCellTags();
+    }
+
+    virtual Stroka DoGetName(const TAccount* object) override
     {
         return Format("account %Qv", object->GetName());
     }
@@ -154,9 +157,9 @@ public:
             EObjectReplicationFlags::ReplicateAttributes;
     }
 
-    virtual TCellTag GetReplicationCellTag(const TObjectBase* /*object*/) override
+    virtual TCellTagList GetReplicationCellTags(const TObjectBase* /*object*/) override
     {
-        return AllSecondaryMastersCellTag;
+        return AllSecondaryCellTags();
     }
 
     virtual EObjectType GetType() const override
@@ -181,7 +184,7 @@ public:
 private:
     TImpl* const Owner_;
 
-    virtual Stroka DoGetName(TUser* user) override
+    virtual Stroka DoGetName(const TUser* user) override
     {
         return Format("user %Qv", user->GetName());
     }
@@ -208,11 +211,6 @@ public:
             EObjectReplicationFlags::ReplicateAttributes;
     }
 
-    virtual TCellTag GetReplicationCellTag(const TObjectBase* /*object*/) override
-    {
-        return AllSecondaryMastersCellTag;
-    }
-
     virtual EObjectType GetType() const override
     {
         return EObjectType::Group;
@@ -235,7 +233,12 @@ public:
 private:
     TImpl* const Owner_;
 
-    virtual Stroka DoGetName(TGroup* group) override
+    virtual TCellTagList DoGetReplicationCellTags(const TGroup* /*group*/) override
+    {
+        return AllSecondaryCellTags();
+    }
+
+    virtual Stroka DoGetName(const TGroup* group) override
     {
         return Format("group %Qv", group->GetName());
     }
@@ -812,7 +815,7 @@ public:
                                 result.Subject = subject;
                                 // At least one denying ACE is found, deny the request.
                                 if (result.Action == ESecurityAction::Deny) {
-                                    LOG_INFO_UNLESS(IsRecovery(), "Permission check failed: explicit denying ACE found (CheckObjectId: %v, Permission: %v, User: %v, AclObjectId: %v, AclSubject: %v)",
+                                    LOG_DEBUG_UNLESS(IsRecovery(), "Permission check failed: explicit denying ACE found (CheckObjectId: %v, Permission: %v, User: %v, AclObjectId: %v, AclSubject: %v)",
                                         object->GetId(),
                                         permission,
                                         user->GetName(),
@@ -836,7 +839,7 @@ public:
 
         // No allowing ACE, deny the request.
         if (result.Action == ESecurityAction::Undefined) {
-            LOG_INFO_UNLESS(IsRecovery(), "Permission check failed: no matching ACE found (CheckObjectId: %v, Permission: %v, User: %v)",
+            LOG_DEBUG_UNLESS(IsRecovery(), "Permission check failed: no matching ACE found (CheckObjectId: %v, Permission: %v, User: %v)",
                 object->GetId(),
                 permission,
                 user->GetName());
@@ -859,6 +862,10 @@ public:
         TUser* user,
         EPermission permission)
     {
+        if (IsHiveMutation()) {
+            return;
+        }
+
         auto result = CheckPermission(object, user, permission);
         if (result.Action == ESecurityAction::Deny) {
             auto objectManager = Bootstrap_->GetObjectManager();

@@ -70,6 +70,7 @@ public:
     int ChangelogReplicationFactor;
     int ChangelogReadQuorum;
     int ChangelogWriteQuorum;
+    bool EnableChangelogMultiplexing;
 
     TRemoteChangelogStoreOptions()
     {
@@ -85,6 +86,8 @@ public:
             .GreaterThan(0)
             .InRange(1, NChunkClient::MaxReplicationFactor)
             .Default(2);
+        RegisterParameter("enable_changelog_multiplexing", EnableChangelogMultiplexing)
+            .Default(true);
 
         RegisterValidator([&] () {
             if (ChangelogReadQuorum + ChangelogWriteQuorum < ChangelogReplicationFactor + 1) {

@@ -303,8 +303,7 @@ protected:
         TJobId JobId;
         EJobType JobType;
 
-        Stroka Address;
-        NNodeTrackerClient::TNodeId NodeId;
+        TExecNodeDescriptor NodeDescriptor;
 
         TJobResources ResourceLimits;
 
@@ -328,7 +327,7 @@ protected:
     {
         //! For persistence only.
         TCompletedJob()
-            : IsLost(false)
+            : Lost(false)
             , DestinationPool(nullptr)
         { }
 
@@ -336,32 +335,32 @@ protected:
             const TJobId& jobId,
             TTaskPtr sourceTask,
             IChunkPoolOutput::TCookie outputCookie,
+            i64 dataSize,
             IChunkPoolInput* destinationPool,
             IChunkPoolInput::TCookie inputCookie,
-            const Stroka& address,
-            NNodeTrackerClient::TNodeId nodeId)
-            : IsLost(false)
+            const TExecNodeDescriptor& nodeDescriptor)
+            : Lost(false)
             , JobId(jobId)
             , SourceTask(std::move(sourceTask))
             , OutputCookie(outputCookie)
+            , DataSize(dataSize)
             , DestinationPool(destinationPool)
             , InputCookie(inputCookie)
-            , Address(address)
-            , NodeId(nodeId)
+            , NodeDescriptor(nodeDescriptor)
         { }
 
-        bool IsLost;
+        bool Lost;
 
         TJobId JobId;
 
         TTaskPtr SourceTask;
         IChunkPoolOutput::TCookie OutputCookie;
+        i64 DataSize;
 
         IChunkPoolInput* DestinationPool;
         IChunkPoolInput::TCookie InputCookie;
 
-        Stroka Address;
-        NNodeTrackerClient::TNodeId NodeId;
+        TExecNodeDescriptor NodeDescriptor;
 
         void Persist(TPersistenceContext& context);
 
@@ -461,6 +460,10 @@ protected:
     protected:
         NLogging::TLogger Logger;
 
+        virtual bool CanScheduleJob(
+            ISchedulingContext* context,
+            const TJobResources& jobLimits);
+
         virtual TJobResources GetMinNeededResourcesHeavy() const = 0;
 
         virtual void OnTaskCompleted();
@@ -488,8 +491,7 @@ protected:
         static void AddChunksToInputSpec(
             NNodeTrackerClient::TNodeDirectoryBuilder* directoryBuilder,
             NScheduler::NProto::TTableInputSpec* inputSpec,
-            TChunkStripePtr stripe,
-            TNullable<int> partitionTag);
+            TChunkStripePtr stripe);
 
         void AddFinalOutputSpecs(NJobTrackerClient::NProto::TJobSpec* jobSpec, TJobletPtr joblet);
         void AddIntermediateOutputSpec(
@@ -622,8 +624,6 @@ protected:
     void PickIntermediateDataCell();
     void InitChunkListPool();
 
-    void ValidateKey(const NTableClient::TOwningKey& key);
-
     // Initialize transactions
     void StartAsyncSchedulerTransaction();
     void StartSyncSchedulerTransaction();
@@ -631,7 +631,6 @@ protected:
     virtual void StartOutputTransaction(const NObjectClient::TTransactionId& parentTransactionId);
 
     // Completion.
-    void DoCommit();
     void TeleportOutputChunks();
     void AttachOutputChunks();
     void EndUploadOutputTables();
@@ -841,8 +840,7 @@ protected:
     static void InitIntermediateOutputConfig(TJobIOConfigPtr config);
     void InitFinalOutputConfig(TJobIOConfigPtr config);
 
-    TFluentLogEvent LogEventFluently(ELogEventType eventType);
-    TFluentLogEvent LogFinishedJobFluently(ELogEventType eventType, TJobPtr job);
+    static NTableClient::TTableReaderOptionsPtr CreateTableReaderOptions(TJobIOConfigPtr ioConfig);
 
     void ValidateUserFileCount(TUserJobSpecPtr spec, const Stroka& operation);
 
@@ -893,9 +891,6 @@ private:
     NApi::IClientPtr CreateClient();
 
     static const NProto::TUserJobResult* FindUserJobResult(const TRefCountedJobResultPtr& result);
-
-    NTransactionClient::TTransactionManagerPtr GetTransactionManagerForTransaction(
-        const NObjectClient::TTransactionId& transactionId);
 
     void IncreaseNeededResources(const TJobResources& resourcesDelta);
 };

@@ -54,6 +54,10 @@ public:
 
     void Shutdown()
     {
+        if (!Queue_->IsRunning()) {
+            return;
+        }
+
         Queue_->Shutdown();
 
         GetFinalizerInvoker()->Invoke(BIND([thread = Thread_] {
@@ -75,7 +79,7 @@ public:
     }
 
 private:
-    std::shared_ptr<TEventCount> CallbackEventCount_ = std::make_shared<TEventCount>();
+    const std::shared_ptr<TEventCount> CallbackEventCount_ = std::make_shared<TEventCount>();
     const TFairShareInvokerQueuePtr Queue_;
     const TFairShareQueueSchedulerThreadPtr Thread_;
 };
