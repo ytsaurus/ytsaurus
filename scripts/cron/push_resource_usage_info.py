@@ -3,6 +3,7 @@
 from yt.common import YtError
 from yt.wrapper.client import Yt
 from yt.wrapper.common import get_backoff
+from yt.wrapper.http import get_retriable_errors
 
 import simplejson as json
 import logging
@@ -88,13 +89,15 @@ def main():
         "StatRobotPassword": args.robot_password
     }
 
+    exceptions = tuple(list(get_retriable_errors()) + [YtError])
+
     for cluster in args.cluster:
         logging.info("Fetch account info from %s", cluster)
         try:
             accounts_data = collect_accounts_data_for_cluster(cluster)
             push_cluster_data(accounts_data, headers)
-        except YtError:
-            logging.warning("Failed to fetch account info from %s", cluster)
+        except exceptions:
+            logging.exception("Failed to fetch account info from %s", cluster)
 
 
 if __name__ == '__main__':
