@@ -53,7 +53,7 @@ private:
         BusServer_.Reset();
     }
 
-    virtual void HandleMessage(TSharedRefArray message, IBusPtr replyBus) override
+    virtual void HandleMessage(TSharedRefArray message, IBusPtr replyBus) throw() override
     {
         auto messageType = GetMessageType(message);
         switch (messageType) {
