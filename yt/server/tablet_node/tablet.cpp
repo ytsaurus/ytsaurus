@@ -92,6 +92,7 @@ TTablet::TTablet(
     , Slot_(slot)
     , Config_(New<TTableMountConfig>())
     , WriterOptions_(New<TTabletWriterOptions>())
+    , OverlappingStoreCount_(0)
 { }
 
 TTablet::TTablet(
@@ -117,6 +118,7 @@ TTablet::TTablet(
     , State_(ETabletState::Mounted)
     , Atomicity_(atomicity)
     , EnableLookupHashTable_(config->EnableLookupHashTable)
+    , OverlappingStoreCount_(0)
     , Config_(config)
     , WriterOptions_(writerOptions)
     , Eden_(std::make_unique<TPartition>(
@@ -460,6 +462,8 @@ void TTablet::MergePartitions(int firstIndex, int lastIndex)
     YCHECK(PartitionMap_.insert(std::make_pair(mergedPartition->GetId(), mergedPartition.get())).second);
     PartitionList_.erase(firstPartitionIt, lastPartitionIt + 1);
     PartitionList_.insert(firstPartitionIt, std::move(mergedPartition));
+
+    UpdateOverlappingStoreCount();
 }
 
 void TTablet::SplitPartition(int index, const std::vector<TOwningKey>& pivotKeys)
@@ -516,6 +520,8 @@ void TTablet::SplitPartition(int index, const std::vector<TOwningKey>& pivotKeys
         store->SetPartition(newPartition);
         YCHECK(newPartition->Stores().insert(store).second);
     }
+
+    UpdateOverlappingStoreCount();
 }
 
 TPartition* TTablet::GetContainingPartition(
@@ -556,6 +562,7 @@ void TTablet::AddStore(IStorePtr store)
     store->SetPartition(partition);
     YCHECK(Stores_.insert(std::make_pair(store->GetId(), store)).second);
     YCHECK(partition->Stores().insert(store).second);
+    UpdateOverlappingStoreCount();
 }
 
 void TTablet::RemoveStore(IStorePtr store)
@@ -563,6 +570,7 @@ void TTablet::RemoveStore(IStorePtr store)
     YCHECK(Stores_.erase(store->GetId()) == 1);
     auto* partition = store->GetPartition();
     YCHECK(partition->Stores().erase(store) == 1);
+    UpdateOverlappingStoreCount();
 }
 
 IStorePtr TTablet::FindStore(const TStoreId& id)
@@ -773,6 +781,17 @@ TObjectId TTablet::GenerateId(EObjectType type)
     } else {
         return TObjectId::Create();
     }
+}
+
+void TTablet::UpdateOverlappingStoreCount()
+{
+    OverlappingStoreCount_ = 0;
+    for (const auto& partition : PartitionList_) {
+        OverlappingStoreCount_ = std::max(
+            OverlappingStoreCount_,
+            static_cast<int>(partition->Stores().size()));
+    }
+    OverlappingStoreCount_ += Eden_->Stores().size();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
