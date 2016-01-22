@@ -41,21 +41,33 @@ def _remove_none_fields(node):
 
 # Local mode config patches (for all versions)
 # None values mean config subtree removal (see _remove_none_fields function)
-MASTER_CONFIG_PATCH = {
-    "node_tracker": {
-        "online_node_timeout": 20000,
-        "registered_node_timeout": 20000,
-        "max_concurrent_node_registrations": None,
-        "max_concurrent_node_unregistrations": None
+MASTER_CONFIG_PATCHES = [
+    {
+        "node_tracker": {
+            "online_node_timeout": 20000,
+            "registered_node_timeout": 20000,
+            "max_concurrent_node_registrations": None,
+            "max_concurrent_node_unregistrations": None
+        },
+        "cell_directory": None,
+        "transaction_manager": None,
+        "chunk_manager": None,
+        "cypress_manager": None,
+        "security_manager": None,
+        "object_manager": None,
+        "hive_manager": None,
     },
-    "cell_directory": None,
-    "transaction_manager": None,
-    "chunk_manager": None,
-    "cypress_manager": None,
-    "security_manager": None,
-    "object_manager": None,
-    "hive_manager": None,
-}
+    {
+        "cypress_manager": {
+            "default_table_replication_factor": 1,
+            "default_file_replication_factor": 1,
+            "default_journal_replication_factor": 1,
+            "default_journal_read_quorum": 1,
+            "default_journal_write_quorum": 1,
+        }
+    },
+]
+
 
 SCHEDULER_CONFIG_PATCH = {
     "cluster_connection": {
@@ -121,7 +133,8 @@ class LocalModeConfigsProvider_17_3(ConfigsProvider_17_3):
         # In patches None values mean config subtree deletion (see _remove_none_fields function)
         for cell_index in xrange(secondary_master_cell_count + 1):
             for config in configs[cell_index]:
-                update(config, MASTER_CONFIG_PATCH)
+                for patch in MASTER_CONFIG_PATCHES:
+                    update(config, patch)
                 _remove_none_fields(config)
 
         return configs
@@ -172,7 +185,8 @@ class LocalModeConfigsProvider_17_4(ConfigsProvider_17_4):
                     }
                 }
 
-                update(config, MASTER_CONFIG_PATCH)
+                for patch in MASTER_CONFIG_PATCHES:
+                    update(config, patch)
                 _remove_none_fields(config)
 
         return configs
@@ -221,7 +235,8 @@ class LocalModeConfigsProvider_18(ConfigsProvider_18):
 
         for cell_index in xrange(secondary_master_cell_count + 1):
             for config in configs[cell_index]:
-                update(config, MASTER_CONFIG_PATCH)
+                for patch in MASTER_CONFIG_PATCHES:
+                    update(config, patch)
                 update(config, local_patch)
                 _remove_none_fields(config)
 
