@@ -241,8 +241,8 @@ private:
 
         LOG_DEBUG("Classifying data sources into ranges and lookup keys");
 
-        std::vector<std::pair<TGuid, TRowRanges>> rangesByTablePart;
-        std::vector<std::pair<TGuid, std::vector<TRow>>> keysByTablePart;
+        std::vector<std::pair<TGuid, TSharedRange<TRowRange>>> rangesByTablePart;
+        std::vector<std::pair<TGuid, TSharedRange<TRow>>> keysByTablePart;
 
         auto keySize = query->KeyColumnsCount;
 
@@ -266,10 +266,14 @@ private:
             }
 
             if (!rowRanges.empty()) {
-                rangesByTablePart.emplace_back(source.Id, std::move(rowRanges));
+                rangesByTablePart.emplace_back(
+                    source.Id,
+                    MakeSharedRange(std::move(rowRanges), source.Ranges.GetHolder()));
             }
             if (!keys.empty()) {
-                keysByTablePart.emplace_back(source.Id, std::move(keys));
+                keysByTablePart.emplace_back(
+                    source.Id,
+                    MakeSharedRange(std::move(keys), source.Ranges.GetHolder()));
             }
         }
 
@@ -335,7 +339,7 @@ private:
                             query->TableSchema,
                             group.Id,
                             group.Range,
-                      	    timestamp);
+                            timestamp);
 
                         return result;
                     }
@@ -356,8 +360,6 @@ private:
             });
             subreaderCreators.push_back([&] () {
 
-                auto sharedKeys = MakeSharedRange<TRow>(std::move(keys));
-
                 // TODO(lukyan): Validate timestamp and read permission
                 ValidateReadTimestamp(timestamp);
 
@@ -369,13 +371,13 @@ private:
                         return GetChunkReader(
                             query->TableSchema,
                             tablePartId,
-                            sharedKeys,
+                            keys,
                             timestamp);
                     }
 
                     case EObjectType::Tablet: {
-                        LOG_DEBUG("Grouping %v lookup keys by parition", keys.size());
-                        auto groupedKeys = GroupKeysByPartition(tablePartId, std::move(sharedKeys));
+                        LOG_DEBUG("Grouping %v lookup keys by parition", keys.Size());
+                        auto groupedKeys = GroupKeysByPartition(tablePartId, std::move(keys));
                         LOG_DEBUG("Grouped lookup keys into %v paritions", groupedKeys.size());
 
                         for (const auto& keys : groupedKeys) {
@@ -450,9 +452,9 @@ private:
 
         auto Logger = BuildLogger(query);
 
-        std::vector<std::pair<TGuid, TRowRanges>> rangesByTablePart;
+        std::vector<std::pair<TGuid, TSharedRange<TRowRange>>> rangesByTablePart;
         for (const auto& source : dataSources) {
-            rangesByTablePart.emplace_back(source.Id, source.Ranges.ToVector());
+            rangesByTablePart.emplace_back(source.Id, source.Ranges);
         }
 
         auto rowBuffer = New<TRowBuffer>();
@@ -498,7 +500,7 @@ private:
     }
 
     std::vector<TDataRange> Split(
-        std::vector<std::pair<TGuid, TRowRanges>> rangesByTablePart,
+        std::vector<std::pair<TGuid, TSharedRange<TRowRange>>> rangesByTablePart,
         TRowBufferPtr rowBuffer,
         const NLogging::TLogger& Logger,
         bool verboseLogging)
@@ -518,11 +520,14 @@ private:
                 continue;
             }
 
-            YCHECK(!keyRanges.empty());
+            YCHECK(!keyRanges.Empty());
 
-            std::sort(keyRanges.begin(), keyRanges.end(), [] (const TRowRange& lhs, const TRowRange& rhs) {
-                return lhs.first < rhs.first;
-            });
+            YCHECK(std::is_sorted(
+                keyRanges.Begin(),
+                keyRanges.End(),
+                [] (const TRowRange& lhs, const TRowRange& rhs) {
+                    return lhs.first < rhs.first;
+                }));
 
             auto slotManager = Bootstrap_->GetTabletSlotManager();
             auto tabletSnapshot = slotManager->GetTabletSnapshotOrThrow(tablePartId);
@@ -540,7 +545,7 @@ private:
                 resultRanges.emplace_back(lowerBound, upperBound);
             };
 
-            for (int index = 1; index < keyRanges.size(); ++index) {
+            for (int index = 1; index < keyRanges.Size(); ++index) {
                 auto lowerBound = keyRanges[index].first;
                 auto upperBound = keyRanges[index - 1].second;
 
@@ -554,7 +559,10 @@ private:
                 }
             }
 
-            addRange(keyRanges.size() - lastIndex, keyRanges[lastIndex].first, keyRanges.back().second);
+            addRange(
+                keyRanges.Size() - lastIndex,
+                keyRanges[lastIndex].first,
+                keyRanges[keyRanges.Size() - 1].second);
 
             int totalSampleCount = 0;
             int totalPartitionCount = 0;
