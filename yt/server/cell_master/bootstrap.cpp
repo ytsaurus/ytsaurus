@@ -285,8 +285,7 @@ void TBootstrap::DoInitialize()
 
     HttpServer_.reset(new NHttp::TServer(Config_->MonitoringPort));
 
-    auto busServerConfig = TTcpBusServerConfig::CreateTcp(Config_->RpcPort);
-    auto busServer = CreateTcpBusServer(busServerConfig);
+    auto busServer = CreateTcpBusServer(Config_->BusServer);
 
     RpcServer_ = CreateBusServer(busServer);
 
