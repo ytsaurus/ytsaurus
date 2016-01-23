@@ -38,11 +38,8 @@ extern const TChunkListId NullChunkListId;
 typedef NObjectClient::TObjectId TChunkTreeId;
 extern const TChunkTreeId NullChunkTreeId;
 
-const int DefaultReplicationFactor = 3;
 const int MinReplicationFactor = 1;
 const int MaxReplicationFactor = 10;
-const int DefaultReadQuorum = 2;
-const int DefaultWriteQuorum = 2;
 
 //! Used as an expected upper bound in SmallVector.
 /*
