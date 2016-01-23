@@ -387,12 +387,12 @@ protected:
                 return true;
             }
 
-            if (NodeIdToDataSize.empty()) {
-                return true;
-            }
-
             if (context->GetNodeDescriptor().IOWeight == 0) {
                 return false;
+            }
+
+            if (NodeIdToDataSize.empty()) {
+                return true;
             }
 
             auto nodeId = context->GetNodeDescriptor().Id;
