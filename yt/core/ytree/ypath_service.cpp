@@ -53,7 +53,7 @@ void FromProto(TAttributeFilter* filter, const NProto::TAttributeFilter& protoFi
 {
     *filter = TAttributeFilter(
         EAttributeFilterMode(protoFilter.mode()),
-        NYT::FromProto<Stroka>(protoFilter.keys()));
+        NYT::FromProto<std::vector<Stroka>>(protoFilter.keys()));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

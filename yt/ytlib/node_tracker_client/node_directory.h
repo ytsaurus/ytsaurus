@@ -87,7 +87,7 @@ public:
     const TNodeDescriptor* FindDescriptor(TNodeId id) const;
     const TNodeDescriptor& GetDescriptor(TNodeId id) const;
     const TNodeDescriptor& GetDescriptor(NChunkClient::TChunkReplica replica) const;
-    std::vector<TNodeDescriptor> GetDescriptors(const std::vector<NChunkClient::TChunkReplica>& replicas) const;
+    std::vector<TNodeDescriptor> GetDescriptors(const NChunkClient::TChunkReplicaList& replicas) const;
 
     const TNodeDescriptor* FindDescriptor(const Stroka& address);
     const TNodeDescriptor& GetDescriptor(const Stroka& address);

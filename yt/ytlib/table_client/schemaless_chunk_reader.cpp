@@ -995,7 +995,7 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
     ] (int index) -> IVersionedReaderPtr {
         const auto& chunkSpec = chunkSpecs[index];
         auto chunkId = NYT::FromProto<TChunkId>(chunkSpec.chunk_id());
-        auto replicas = NYT::FromProto<TChunkReplica, TChunkReplicaList>(chunkSpec.replicas());
+        auto replicas = NYT::FromProto<TChunkReplicaList>(chunkSpec.replicas());
 
         TReadLimit lowerLimit;
         TReadLimit upperLimit;

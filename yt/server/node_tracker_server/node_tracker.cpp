@@ -785,7 +785,7 @@ private:
                 statistics);
 
             node->Statistics() = statistics;
-            node->Alerts() = FromProto<TError>(request.alerts());
+            node->Alerts() = FromProto<std::vector<TError>>(request.alerts());
 
             UpdateLastSeenTime(node);
 

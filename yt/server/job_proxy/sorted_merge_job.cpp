@@ -41,7 +41,7 @@ public:
         YCHECK(SchedulerJobSpecExt_.output_specs_size() == 1);
         const auto& outputSpec = SchedulerJobSpecExt_.output_specs(0);
 
-        auto keyColumns = FromProto<Stroka>(MergeJobSpecExt_.key_columns());
+        auto keyColumns = FromProto<TKeyColumns>(MergeJobSpecExt_.key_columns());
 
         auto nameTable = TNameTable::FromKeyColumns(keyColumns);
         std::vector<ISchemalessMultiChunkReaderPtr> readers;

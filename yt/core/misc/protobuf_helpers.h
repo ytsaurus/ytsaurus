@@ -113,6 +113,98 @@ typename std::enable_if<TEnumTraits<T>::IsEnum, void>::type FromProto(
     *original = T(serialized);
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
+template <class TSerializedArray, class TOriginalArray>
+void ToProtoArrayImpl(
+    TSerializedArray* serializedArray,
+    const TOriginalArray& originalArray)
+{
+    serializedArray->Clear();
+    serializedArray->Reserve(serializedArray->size());
+    for (const auto& item : originalArray) {
+        ToProto(serializedArray->Add(), item);
+    }
+}
+
+template <class TSerialized, class TOriginal>
+void ToProto(
+    ::google::protobuf::RepeatedPtrField<TSerialized>* serializedArray,
+    const std::vector<TOriginal>& originalArray)
+{
+    ToProtoArrayImpl(serializedArray, originalArray);
+}
+
+template <class TSerialized, class TOriginal>
+void ToProto(
+    ::google::protobuf::RepeatedField<TSerialized>* serializedArray,
+    const std::vector<TOriginal>& originalArray)
+{
+    ToProtoArrayImpl(serializedArray, originalArray);
+}
+
+template <class TSerialized, class TOriginal>
+void ToProto(
+    ::google::protobuf::RepeatedPtrField<TSerialized>* serializedArray,
+    const SmallVectorImpl<TOriginal>& originalArray)
+{
+    ToProtoArrayImpl(serializedArray, originalArray);
+}
+
+template <class TSerialized, class TOriginal>
+void ToProto(
+    ::google::protobuf::RepeatedField<TSerialized>* serializedArray,
+    const SmallVectorImpl<TOriginal>& originalArray)
+{
+    ToProtoArrayImpl(serializedArray, originalArray);
+}
+
+template <class TSerialized, class TOriginal>
+void ToProto(
+    ::google::protobuf::RepeatedPtrField<TSerialized>* serializedArray,
+    const TRange<TOriginal>& originalArray)
+{
+    ToProtoArrayImpl(serializedArray, originalArray);
+}
+
+template <class TSerialized, class TOriginal>
+void ToProto(
+    ::google::protobuf::RepeatedField<TSerialized>* serializedArray,
+    const TRange<TOriginal>& originalArray)
+{
+    ToProtoArrayImpl(serializedArray, originalArray);
+}
+
+template <class TOriginalArray, class TSerializedArray>
+void FromProtoArrayImpl(
+    TOriginalArray* originalArray,
+    const TSerializedArray& serializedArray)
+{
+    originalArray->clear();
+    originalArray->resize(serializedArray.size());
+    for (int i = 0; i < serializedArray.size(); ++i) {
+        FromProto(&(*originalArray)[i], serializedArray.Get(i));
+    }
+}
+
+template <class TOriginalArray, class TSerialized>
+void FromProto(
+    TOriginalArray* originalArray,
+    const ::google::protobuf::RepeatedPtrField<TSerialized>& serializedArray)
+{
+    FromProtoArrayImpl(originalArray, serializedArray);
+}
+
+template <class TOriginalArray, class TSerialized>
+void FromProto(
+    TOriginalArray* originalArray,
+    const ::google::protobuf::RepeatedField<TSerialized>& serializedArray)
+{
+    FromProtoArrayImpl(originalArray, serializedArray);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 template <class TSerialized, class TOriginal>
 TSerialized ToProto(const TOriginal& original)
 {
@@ -127,113 +219,6 @@ TOriginal FromProto(const TSerialized& serialized)
     TOriginal original;
     FromProto(&original, serialized);
     return original;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-template <class TSerializedArray, class TOriginalArray>
-inline void ToProtoArrayImpl(
-    TSerializedArray* serializedArray,
-    const TOriginalArray& originalArray,
-    bool clear = true)
-{
-    if (clear) {
-        serializedArray->Clear();
-    }
-    serializedArray->Reserve(serializedArray->size() + originalArray.size());
-    for (const auto& item : originalArray) {
-        ToProto(serializedArray->Add(), item);
-    }
-}
-
-template <class TSerialized, class TOriginal>
-inline void ToProto(
-    ::google::protobuf::RepeatedPtrField<TSerialized>* serializedArray,
-    const std::vector<TOriginal>& originalArray,
-    bool clear = true)
-{
-    ToProtoArrayImpl(serializedArray, originalArray);
-}
-
-template <class TSerialized, class TOriginal>
-inline void ToProto(
-    ::google::protobuf::RepeatedField<TSerialized>* serializedArray,
-    const std::vector<TOriginal>& originalArray,
-    bool clear = true)
-{
-    ToProtoArrayImpl(serializedArray, originalArray);
-}
-
-template <class TSerialized, class TOriginal>
-inline void ToProto(
-    ::google::protobuf::RepeatedPtrField<TSerialized>* serializedArray,
-    const SmallVectorImpl<TOriginal>& originalArray,
-    bool clear = true)
-{
-    ToProtoArrayImpl(serializedArray, originalArray);
-}
-
-template <class TSerialized, class TOriginal>
-inline void ToProto(
-    ::google::protobuf::RepeatedField<TSerialized>* serializedArray,
-    const SmallVectorImpl<TOriginal>& originalArray,
-    bool clear = true)
-{
-    ToProtoArrayImpl(serializedArray, originalArray);
-}
-
-template <class TSerialized, class TOriginal>
-inline void ToProto(
-    ::google::protobuf::RepeatedPtrField<TSerialized>* serializedArray,
-    const TRange<TOriginal>& originalArray,
-    bool clear = true)
-{
-    ToProtoArrayImpl(serializedArray, originalArray);
-}
-
-template <class TSerialized, class TOriginal>
-inline void ToProto(
-    ::google::protobuf::RepeatedField<TSerialized>* serializedArray,
-    const TRange<TOriginal>& originalArray,
-    bool clear = true)
-{
-    ToProtoArrayImpl(serializedArray, originalArray);
-}
-
-template <class TOriginal, class TOriginalArray, class TSerialized>
-inline TOriginalArray FromProto(
-    const ::google::protobuf::RepeatedPtrField<TSerialized>& serializedArray)
-{
-    TOriginalArray originalArray(serializedArray.size());
-    for (int i = 0; i < serializedArray.size(); ++i) {
-        FromProto(&originalArray[i], serializedArray.Get(i));
-    }
-    return originalArray;
-}
-
-template <class TOriginal, class TSerialized>
-inline std::vector<TOriginal> FromProto(
-    const ::google::protobuf::RepeatedPtrField<TSerialized>& serializedArray)
-{
-    return FromProto<TOriginal, std::vector<TOriginal>, TSerialized>(serializedArray);
-}
-
-template <class TOriginal, class TOriginalArray, class TSerialized>
-inline TOriginalArray FromProto(
-    const ::google::protobuf::RepeatedField<TSerialized>& serializedArray)
-{
-    TOriginalArray originalArray(serializedArray.size());
-    for (int i = 0; i < serializedArray.size(); ++i) {
-        FromProto(&originalArray[i], serializedArray.Get(i));
-    }
-    return originalArray;
-}
-
-template <class TOriginal, class TSerialized>
-inline std::vector<TOriginal> FromProto(
-    const ::google::protobuf::RepeatedField<TSerialized>& serializedArray)
-{
-    return FromProto<TOriginal, std::vector<TOriginal>, TSerialized>(serializedArray);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

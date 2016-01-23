@@ -204,7 +204,7 @@ private:
             if (rspOrError.IsOK()) {
                 const auto& rsp = rspOrError.Value();
                 bool up = rsp->up();
-                auto suggestedAddresses = FromProto<Stroka>(rsp->suggested_addresses());
+                auto suggestedAddresses = FromProto<std::vector<Stroka>>(rsp->suggested_addresses());
 
                 if (!suggestedAddresses.empty()) {
                     LOG_DEBUG("Peers suggested (SuggestorAddress: %v, SuggestedAddresses: %v)",

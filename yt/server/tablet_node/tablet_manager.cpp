@@ -1048,7 +1048,7 @@ private:
 
         auto partitionId = FromProto<TPartitionId>(request.partition_id());
         auto* partition = tablet->GetPartitionById(partitionId);
-        auto pivotKeys = FromProto<TOwningKey>(request.pivot_keys());
+        auto pivotKeys = FromProto<std::vector<TOwningKey>>(request.pivot_keys());
 
         // NB: Set the state back to normal; otherwise if some of the below checks fail, we might get
         // a partition stuck in splitting state forever.
@@ -1152,7 +1152,7 @@ private:
         }
 
         auto sampleKeys = New<TKeyList>();
-        sampleKeys->Keys = FromProto<TOwningKey>(request.sample_keys());
+        sampleKeys->Keys = FromProto<std::vector<TOwningKey>>(request.sample_keys());
         partition->SetSampleKeys(sampleKeys);
         YCHECK(sampleKeys->Keys.empty() || sampleKeys->Keys[0] > partition->GetPivotKey());
         UpdateTabletSnapshot(tablet);

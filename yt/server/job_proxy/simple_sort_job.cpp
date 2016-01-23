@@ -39,7 +39,7 @@ public:
     {
         auto config = Host_->GetConfig();
 
-        auto keyColumns = FromProto<Stroka>(SortJobSpecExt_.key_columns());
+        auto keyColumns = FromProto<TKeyColumns>(SortJobSpecExt_.key_columns());
         auto nameTable = TNameTable::FromKeyColumns(keyColumns);
 
         YCHECK(SchedulerJobSpecExt_.input_specs_size() == 1);

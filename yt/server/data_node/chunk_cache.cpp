@@ -533,7 +533,7 @@ private:
         TInsertCookie cookie)
     {
         const auto& chunkSpec = key.chunks(0);
-        auto seedReplicas = FromProto<TChunkReplica, TChunkReplicaList>(chunkSpec.replicas());
+        auto seedReplicas = FromProto<TChunkReplicaList>(chunkSpec.replicas());
 
         auto Logger = DataNodeLogger;
         Logger.AddTag("ChunkId: %v", chunkId);

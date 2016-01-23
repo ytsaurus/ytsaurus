@@ -112,7 +112,7 @@ private:
     {
         if (PartitionJobSpecExt_.partition_keys_size() > 0) {
             YCHECK(PartitionJobSpecExt_.partition_keys_size() + 1 == PartitionJobSpecExt_.partition_count());
-            PartitionKeys_ = FromProto<TOwningKey>(PartitionJobSpecExt_.partition_keys());
+            PartitionKeys_ = FromProto<std::vector<TOwningKey>>(PartitionJobSpecExt_.partition_keys());
             return CreateOrderedPartitioner(&PartitionKeys_);
         } else {
             return CreateHashPartitioner(

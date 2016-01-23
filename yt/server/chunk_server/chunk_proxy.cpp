@@ -526,7 +526,7 @@ private:
 
         DeclareMutating();
 
-        auto replicas = FromProto<NChunkClient::TChunkReplica>(request->replicas());
+        auto replicas = FromProto<TChunkReplicaList>(request->replicas());
 
         context->SetRequestInfo("Targets: %v", replicas);
 

@@ -2023,7 +2023,7 @@ private:
 
         auto& res = rspOrError.Value();
 
-        return TYsonString(FromProto<Stroka>(res->trace()));
+        return TYsonString(res->trace());
     }
 
     void DoDumpInputContext(const TJobId& jobId, const TYPath& path)
@@ -2043,8 +2043,8 @@ private:
             jobId,
             path);
 
-        const auto& res = rspOrError.Value();
-        auto chunkIds = FromProto<TGuid>(res->chunk_id());
+        const auto& rsp = rspOrError.Value();
+        auto chunkIds = FromProto<std::vector<TChunkId>>(rsp->chunk_ids());
         YCHECK(chunkIds.size() == 1);
 
         MasterConnector_->AttachJobContext(path, chunkIds.front(), job);

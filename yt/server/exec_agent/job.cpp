@@ -220,7 +220,7 @@ public:
         }
     }
 
-    NJobProberClient::TJobProberServiceProxy CreateJobProber() const
+    NJobProberClient::TJobProberServiceProxy CreateJobProberProxy() const
     {
         auto jobProberClient = CreateTcpBusClient(Slot->GetRpcClientConfig());
         auto jobProberChannel = CreateBusChannel(jobProberClient);
@@ -240,36 +240,37 @@ public:
 
     std::vector<TChunkId> DumpInputContexts() const override
     {
-        auto jobProberProxy = CreateJobProber();
+        auto jobProberProxy = CreateJobProberProxy();
         auto req = jobProberProxy.DumpInputContext();
 
         ToProto(req->mutable_job_id(), JobId);
         auto rsp = WaitFor(req->Invoke())
             .ValueOrThrow();
 
-        return FromProto<TGuid>(rsp->chunk_id());
+        return FromProto<std::vector<TChunkId>>(rsp->chunk_ids());
     }
 
     virtual TYsonString Strace() const override
     {
-        auto jobProberProxy = CreateJobProber();
+        auto jobProberProxy = CreateJobProberProxy();
         auto req = jobProberProxy.Strace();
 
         ToProto(req->mutable_job_id(), JobId);
-        auto res = WaitFor(req->Invoke())
+        auto rsp = WaitFor(req->Invoke())
             .ValueOrThrow();
 
-        return TYsonString(FromProto<Stroka>(res->trace()));
+        return TYsonString(rsp->trace());
     }
 
     virtual void SignalJob(const Stroka& signalName) override
     {
-        auto jobProberProxy = CreateJobProber();
+        Signaled = true;
+
+        auto jobProberProxy = CreateJobProberProxy();
         auto req = jobProberProxy.SignalJob();
 
         ToProto(req->mutable_job_id(), JobId);
         ToProto(req->mutable_signal_name(), signalName);
-        Signaled = true;
         WaitFor(req->Invoke())
             .ThrowOnError();
     }

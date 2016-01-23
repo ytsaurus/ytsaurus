@@ -552,7 +552,7 @@ private:
             LOG_INFO("Chunk created (ChunkId: %v)",
                 session->ChunkId);
 
-            std::vector<TChunkReplica> replicas;
+            TChunkReplicaList replicas;
             std::vector<TNodeDescriptor> targets;
             {
                 TChunkServiceProxy proxy(UploadMasterChannel_);
@@ -572,7 +572,7 @@ private:
 
                 NodeDirectory_->MergeFrom(rsp->node_directory());
 
-                replicas = NYT::FromProto<TChunkReplica>(rsp->replicas());
+                replicas = FromProto<TChunkReplicaList>(rsp->replicas());
                 for (auto replica : replicas) {
                     const auto& descriptor = NodeDirectory_->GetDescriptor(replica);
                     targets.push_back(descriptor);

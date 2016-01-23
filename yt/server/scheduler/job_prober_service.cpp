@@ -44,7 +44,7 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NProto, DumpInputContext)
     {
         auto jobId = FromProto<TJobId>(request->job_id());
-        auto path = FromProto<Stroka>(request->path());
+        const auto& path = request->path();
         context->SetRequestInfo("JobId: %v, Path: %v",
             jobId,
             path);
@@ -72,7 +72,7 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NProto, SignalJob)
     {
         auto jobId = FromProto<TJobId>(request->job_id());
-        auto signalName = FromProto<Stroka>(request->signal_name());
+        const auto& signalName = request->signal_name();
 
         ValidateSignalName(request->signal_name());
 

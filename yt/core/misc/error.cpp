@@ -392,7 +392,7 @@ void FromProto(TError* error, const NYT::NProto::TError& protoError)
     } else {
         error->Attributes_.reset();
     }
-    error->InnerErrors_ = FromProto<TError>(protoError.inner_errors());
+    error->InnerErrors_ = FromProto<std::vector<TError>>(protoError.inner_errors());
 }
 
 void Serialize(

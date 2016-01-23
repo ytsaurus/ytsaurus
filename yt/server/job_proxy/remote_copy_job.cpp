@@ -171,7 +171,7 @@ private:
         auto erasureCodecId = NErasure::ECodec(inputChunkSpec.erasure_codec());
         writerOptions->ErasureCodec = erasureCodecId;
 
-        auto inputReplicas = NYT::FromProto<TChunkReplica, TChunkReplicaList>(inputChunkSpec.replicas());
+        auto inputReplicas = NYT::FromProto<TChunkReplicaList>(inputChunkSpec.replicas());
         auto transactionId = FromProto<TTransactionId>(SchedulerJobSpecExt_.output_transaction_id());
         LOG_INFO("Creating output chunk");
 

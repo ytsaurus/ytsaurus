@@ -760,7 +760,7 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, Fetch)
         : TChannel::Universal();
     bool fetchParityReplicas = request->fetch_parity_replicas();
 
-    auto ranges = FromProto<TReadRange>(request->ranges());
+    auto ranges = FromProto<std::vector<TReadRange>>(request->ranges());
     ValidateFetchParameters(channel, ranges);
 
     const auto* node = GetThisTypedImpl<TChunkOwnerBase>();
@@ -803,7 +803,7 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
         : NullTransactionId;
 
     auto uploadTransactionSecondaryCellTags =
-        FromProto<TCellTag, TCellTagList>(request->upload_transaction_secondary_cell_tags());
+        FromProto<TCellTagList>(request->upload_transaction_secondary_cell_tags());
 
     auto* node = GetThisTypedImpl<TChunkOwnerBase>();
     auto externalCellTag = node->GetExternalCellTag();
@@ -997,7 +997,7 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, EndUpload)
     ValidateTransaction();
     ValidateInUpdate();
 
-    auto keyColumns = FromProto<Stroka>(request->key_columns());
+    auto keyColumns = FromProto<TKeyColumns>(request->key_columns());
     const auto* statistics = request->has_statistics() ? &request->statistics() : nullptr;
     bool deriveStatistics = request->derive_statistics();
     bool chunkPropertiesUpdateNeeded = request->chunk_properties_update_needed();

@@ -46,7 +46,7 @@ private:
         auto chunkIds = JobProxy_->DumpInputContext(jobId);
         context->SetResponseInfo("ChunkIds: %v", chunkIds);
 
-        ToProto(response->mutable_chunk_id(), chunkIds);
+        ToProto(response->mutable_chunk_ids(), chunkIds);
         context->Reply();
     }
 
@@ -64,7 +64,7 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NJobProberClient::NProto, SignalJob)
     {
         auto jobId = FromProto<TJobId>(request->job_id());
-        auto signalName = FromProto<Stroka>(request->signal_name());
+        const auto& signalName = request->signal_name();
 
         context->SetRequestInfo("JobId: %v, SignalName: %v",
             jobId,

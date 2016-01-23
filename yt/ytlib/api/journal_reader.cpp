@@ -209,7 +209,7 @@ private:
                 const auto& chunkSpec = ChunkSpecs_[CurrentChunkIndex_];
 
                 auto chunkId = FromProto<TChunkId>(chunkSpec.chunk_id());
-                auto replicas = FromProto<TChunkReplica, TChunkReplicaList>(chunkSpec.replicas());
+                auto replicas = FromProto<TChunkReplicaList>(chunkSpec.replicas());
                 auto options = New<TRemoteReaderOptions>();
                 CurrentChunkReader_ = CreateReplicationReader(
                     Config_,

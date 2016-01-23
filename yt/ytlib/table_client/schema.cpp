@@ -24,6 +24,9 @@ using namespace NYTree;
 using namespace NYson;
 using namespace NQueryClient;
 
+using NYT::ToProto;
+using NYT::FromProto;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TColumnSchema::TColumnSchema()
@@ -497,8 +500,8 @@ void ToProto(NProto::TTableSchemaExt* protoSchema, const TTableSchema& schema)
 void FromProto(TTableSchema* schema, const NProto::TTableSchemaExt& protoSchema)
 {
     *schema = TTableSchema(
-        NYT::FromProto<TColumnSchema>(protoSchema.columns()), 
-        protoSchema.has_strict() ? protoSchema.strict() : true);
+        FromProto<std::vector<TColumnSchema>>(protoSchema.columns()),
+        protoSchema.strict());
 }
 
 void FromProto(
@@ -506,7 +509,7 @@ void FromProto(
     const NProto::TTableSchemaExt& protoSchema,
     const NProto::TKeyColumnsExt& protoKeyColumns)
 {
-    std::vector<TColumnSchema> columns = NYT::FromProto<TColumnSchema>(protoSchema.columns());
+    auto columns = FromProto<std::vector<TColumnSchema>>(protoSchema.columns());
     for (int columnIndex = 0; columnIndex < protoKeyColumns.names_size(); ++columnIndex) {
         auto& columnSchema = columns[columnIndex];
         YCHECK(columnSchema.Name == protoKeyColumns.names(columnIndex));
@@ -514,8 +517,8 @@ void FromProto(
         columnSchema.SortOrder = ESortOrder::Ascending;
     }
     *schema = TTableSchema(
-        NYT::FromProto<TColumnSchema>(protoSchema.columns()), 
-        protoSchema.has_strict() ? protoSchema.strict() : true);
+        FromProto<std::vector<TColumnSchema>>(protoSchema.columns()),
+        protoSchema.strict());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -827,7 +830,7 @@ void ToProto(TKeyColumnsExt* protoKeyColumns, const TKeyColumns& keyColumns)
 
 void FromProto(TKeyColumns* keyColumns, const TKeyColumnsExt& protoKeyColumns)
 {
-    *keyColumns = NYT::FromProto<Stroka>(protoKeyColumns.names());
+    *keyColumns = NYT::FromProto<TKeyColumns>(protoKeyColumns.names());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

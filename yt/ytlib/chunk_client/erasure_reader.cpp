@@ -30,6 +30,8 @@ using namespace NErasure;
 using namespace NConcurrency;
 using namespace NChunkClient::NProto;
 
+using NYT::FromProto;
+
 ///////////////////////////////////////////////////////////////////////////////
 
 namespace {
@@ -187,7 +189,7 @@ private:
     void OnGotPlacementMeta(const TChunkMeta& meta)
     {
         auto extension = GetProtoExtension<TErasurePlacementExt>(meta.extensions());
-        PartInfos_ = NYT::FromProto<TPartInfo>(extension.part_infos());
+        PartInfos_ = FromProto<std::vector<TPartInfo>>(extension.part_infos());
 
         // Check that part infos are correct.
         YCHECK(PartInfos_.front().first_block_index() == 0);

@@ -80,7 +80,7 @@ void FromProto(TCellDescriptor* descriptor, const NProto::TCellDescriptor& proto
 {
     descriptor->CellId = FromProto<TCellId>(protoDescriptor.cell_id());
     descriptor->ConfigVersion = protoDescriptor.config_version();
-    descriptor->Peers = FromProto<TNodeDescriptor>(protoDescriptor.peers());
+    descriptor->Peers = FromProto<std::vector<TNodeDescriptor>>(protoDescriptor.peers());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
