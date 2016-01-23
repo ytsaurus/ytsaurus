@@ -107,9 +107,9 @@ private:
         TUserObject userObject;
         userObject.Path = Path_;
 
-        GetUserObjectBasicAttributes<TUserObject>(
+        GetUserObjectBasicAttributes(
             Client_,
-            userObject,
+            TMutableRange<TUserObject>(&userObject, 1),
             Transaction_ ? Transaction_->GetId() : NullTransactionId,
             Logger,
             EPermission::Read,

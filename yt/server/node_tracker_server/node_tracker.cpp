@@ -689,8 +689,6 @@ private:
         return response;
     }
 
-<<<<<<< HEAD
-=======
     void HydraUnregisterNode(const TReqUnregisterNode& request)
     {
         auto nodeId = request.node_id();
@@ -706,7 +704,6 @@ private:
         UnregisterNode(node, true);
     }
 
->>>>>>> prestable/18
     void HydraDisposeNode(const TReqDisposeNode& request)
     {
         if (IsLeader()) {
