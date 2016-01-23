@@ -362,6 +362,10 @@ protected:
 
         void UpdateNodeDataSize(const TExecNodeDescriptor& descriptor, i64 delta)
         {
+            if (!Controller->Spec->EnablePartitionedDataBalancing) {
+                return;
+            }
+
             auto ioWeight = descriptor.IOWeight;
             YASSERT(ioWeight > 0);
             auto adjustedDelta = static_cast<i64>(delta / ioWeight);
