@@ -495,6 +495,7 @@ class YTEnv(object):
 
             for replica_index, lines in enumerate(starting_master_events):
                 restart_occured_and_not_ready = False
+                is_ready = False
 
                 for line in lines:
                     if is_restart_occured_marker(line):
@@ -506,13 +507,16 @@ class YTEnv(object):
                         continue
 
                     if is_leader_ready_marker(line) and not restart_occured_and_not_ready:
-                        ready_replica_count += 1
+                        is_ready = True
                         if not secondary:
                             self.leader_log = self.log_paths[master_name][replica_index]
                             self.leader_id = replica_index
 
                     if is_follower_recovery_complete_marker(line) and not restart_occured_and_not_ready:
-                        ready_replica_count += 1
+                        is_ready = True
+
+                if is_ready and not restart_occured_and_not_ready:
+                    ready_replica_count += 1
 
             return ready_replica_count == masters_count and is_world_initialization_done
 
