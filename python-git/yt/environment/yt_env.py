@@ -497,25 +497,26 @@ class YTEnv(object):
                 restart_occured_and_not_ready = False
                 is_ready = False
 
+                # NB: lines are presented in time-reversed order.
                 for line in lines:
-                    if is_restart_occured_marker(line):
-                        restart_occured_and_not_ready = True
-                        continue
-
                     if is_world_init_completed_marker(line):
                         is_world_initialization_done = True
                         continue
 
-                    if is_leader_ready_marker(line) and not restart_occured_and_not_ready:
+                    if is_restart_occured_marker(line) or restart_occured_and_not_ready:
+                        restart_occured_and_not_ready = True
+                        continue
+
+                    if is_leader_ready_marker(line):
                         is_ready = True
                         if not secondary:
                             self.leader_log = self.log_paths[master_name][replica_index]
                             self.leader_id = replica_index
 
-                    if is_follower_recovery_complete_marker(line) and not restart_occured_and_not_ready:
+                    if is_follower_recovery_complete_marker(line):
                         is_ready = True
 
-                if is_ready and not restart_occured_and_not_ready:
+                if is_ready:
                     ready_replica_count += 1
 
             return ready_replica_count == masters_count and is_world_initialization_done
@@ -889,7 +890,7 @@ class YTEnv(object):
 
         self._wait_for(started, name=proxy_name, max_wait_time=20)
 
-    def _wait_for(self, condition, max_wait_time=40, sleep_quantum=0.1, name=""):
+    def _wait_for(self, condition, max_wait_time=40, sleep_quantum=1.0, name=""):
         current_wait_time = 0
         logger.info("Waiting for %s...", name)
         while current_wait_time < max_wait_time:
