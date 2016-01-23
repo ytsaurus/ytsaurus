@@ -10,6 +10,7 @@ from yt.yson import to_yson_type
 
 class TestRff(YTEnvSetup):
     NUM_MASTERS = 5
+    NUM_NONVOTING_MASTERS = 2
     NUM_NODES = 3
     DELTA_MASTER_CONFIG = {
         "hydra" : {
