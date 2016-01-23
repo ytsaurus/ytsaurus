@@ -46,7 +46,7 @@ public:
         TNullable<int> partitionTag;
         if (JobSpec_.HasExtension(TMergeJobSpecExt::merge_job_spec_ext)) {
             const auto& mergeJobSpec = JobSpec_.GetExtension(TMergeJobSpecExt::merge_job_spec_ext);
-            keyColumns = FromProto<Stroka>(mergeJobSpec.key_columns());
+            keyColumns = FromProto<TKeyColumns>(mergeJobSpec.key_columns());
             if (mergeJobSpec.has_partition_tag()) {
                 partitionTag = mergeJobSpec.partition_tag();
             }

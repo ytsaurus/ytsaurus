@@ -12,6 +12,8 @@ namespace NChunkClient {
 using namespace NYTree;
 using namespace NYson;
 
+using NYT::FromProto;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TColumnRange::TColumnRange(const Stroka& begin, const Stroka& end)
@@ -316,8 +318,8 @@ void ToProto(NProto::TChannel* protoChannel, const TChannel& channel)
 void FromProto(TChannel* channel, const NProto::TChannel& protoChannel)
 {
     *channel = TChannel(
-        NYT::FromProto<Stroka>(protoChannel.columns()),
-        NYT::FromProto<TColumnRange>(protoChannel.ranges()));
+        FromProto<std::vector<Stroka>>(protoChannel.columns()),
+        FromProto<std::vector<TColumnRange>>(protoChannel.ranges()));
 }
 
 void Deserialize(TChannel& channel, INodePtr node)
@@ -369,7 +371,7 @@ void Deserialize(TChannel& channel, INodePtr node)
             }
 
             default:
-                THROW_ERROR_EXCEPTION("Channel description cannot contain %Qv items",
+                THROW_ERROR_EXCEPTION("Channel description cannot contain %Qlv items",
                     child->GetType());
         }
     }

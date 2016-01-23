@@ -511,7 +511,7 @@ std::vector<IChunkWriterPtr> CreateErasurePartWriters(
     auto rsp = rspOrError.Value();
 
     nodeDirectory->MergeFrom(rsp->node_directory());
-    auto replicas = NYT::FromProto<TChunkReplica, TChunkReplicaList>(rsp->replicas());
+    auto replicas = NYT::FromProto<TChunkReplicaList>(rsp->replicas());
 
     YCHECK(replicas.size() == codec->GetTotalPartCount());
 

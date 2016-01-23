@@ -196,7 +196,7 @@ IChunkReaderPtr CreateRemoteReader(
     NConcurrency::IThroughputThrottlerPtr throttler)
 {
     auto chunkId = NYT::FromProto<TChunkId>(chunkSpec.chunk_id());
-    auto replicas = NYT::FromProto<TChunkReplica, TChunkReplicaList>(chunkSpec.replicas());
+    auto replicas = NYT::FromProto<TChunkReplicaList>(chunkSpec.replicas());
 
     LOG_DEBUG("Creating remote reader (ChunkId: %v)", chunkId);
 

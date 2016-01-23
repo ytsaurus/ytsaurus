@@ -180,7 +180,7 @@ void TFetcherBase::StartFetchingRound()
         const auto& chunk = Chunks_[chunkIndex];
         auto chunkId = NYT::FromProto<TChunkId>(chunk->chunk_id());
         bool chunkAvailable = false;
-        auto replicas = NYT::FromProto<TChunkReplica, TChunkReplicaList>(chunk->replicas());
+        auto replicas = NYT::FromProto<TChunkReplicaList>(chunk->replicas());
         for (auto replica : replicas) {
             auto nodeId = replica.GetNodeId();
             if (DeadNodes_.find(nodeId) == DeadNodes_.end() &&

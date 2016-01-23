@@ -90,7 +90,7 @@ TJobResult TSimpleJobBase::Run()
             auto writer = CreateSchemafulWriterAdapter(schemalessWriter);
 
             std::vector<TUdfDescriptorPtr> descriptors;
-            for (const auto& descriptor : FromProto<Stroka>(querySpec.udf_descriptors())) {
+            for (const auto& descriptor : querySpec.udf_descriptors()) {
                 descriptors.push_back(ConvertTo<TUdfDescriptorPtr>(TYsonString(descriptor)));
             }
             auto registry = CreateJobFunctionRegistry(descriptors, SandboxDirectoryNames[ESandboxKind::Udf]);

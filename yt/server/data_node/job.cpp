@@ -343,7 +343,7 @@ private:
         auto nodeDirectory = New<NNodeTrackerClient::TNodeDirectory>();
         nodeDirectory->MergeFrom(ReplicateChunkJobSpecExt_.node_directory());
 
-        auto targets = FromProto<TChunkReplica, TChunkReplicaList>(ReplicateChunkJobSpecExt_.targets());
+        auto targets = FromProto<TChunkReplicaList>(ReplicateChunkJobSpecExt_.targets());
 
         auto options = New<TRemoteWriterOptions>();
         options->AllowAllocatingNewTargetNodes = false;
@@ -459,9 +459,9 @@ private:
         auto codecId = NErasure::ECodec(RepairChunkJobSpecExt_.erasure_codec());
         auto* codec = NErasure::GetCodec(codecId);
 
-        auto replicas = FromProto<TChunkReplica>(RepairChunkJobSpecExt_.replicas());
-        auto targets = FromProto<TChunkReplica>(RepairChunkJobSpecExt_.targets());
-        auto erasedIndexes = FromProto<int, NErasure::TPartIndexList>(RepairChunkJobSpecExt_.erased_indexes());
+        auto replicas = FromProto<TChunkReplicaList>(RepairChunkJobSpecExt_.replicas());
+        auto targets = FromProto<TChunkReplicaList>(RepairChunkJobSpecExt_.targets());
+        auto erasedIndexes = FromProto<NErasure::TPartIndexList>(RepairChunkJobSpecExt_.erased_indexes());
         YCHECK(targets.size() == erasedIndexes.size());
 
         // Compute repair plan.
@@ -613,7 +613,7 @@ private:
             auto nodeDirectory = New<NNodeTrackerClient::TNodeDirectory>();
             nodeDirectory->MergeFrom(SealJobSpecExt_.node_directory());
 
-            auto replicas = FromProto<TChunkReplica, TChunkReplicaList>(SealJobSpecExt_.replicas());
+            auto replicas = FromProto<TChunkReplicaList>(SealJobSpecExt_.replicas());
 
             auto options = New<TRemoteReaderOptions>();
             auto reader = CreateReplicationReader(

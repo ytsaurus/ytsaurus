@@ -145,7 +145,7 @@ private:
 
         for (const auto& chunkInfo : rsp->chunks()) {
             auto chunkId = FromProto<TChunkId>(chunkInfo.chunk_id());
-            auto replicas = FromProto<TChunkReplica, TChunkReplicaList>(chunkInfo.replicas());
+            auto replicas = FromProto<TChunkReplicaList>(chunkInfo.replicas());
             OnChunkLocated_.Run(std::move(chunkId), std::move(replicas));
         }
     }

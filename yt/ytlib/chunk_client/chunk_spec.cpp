@@ -32,7 +32,7 @@ bool IsUnavailable(const TChunkReplicaList& replicas, NErasure::ECodec codecId, 
 bool IsUnavailable(const NProto::TChunkSpec& chunkSpec, bool checkParityParts)
 {
     auto codecId = NErasure::ECodec(chunkSpec.erasure_codec());
-    auto replicas = NYT::FromProto<TChunkReplica, TChunkReplicaList>(chunkSpec.replicas());
+    auto replicas = NYT::FromProto<TChunkReplicaList>(chunkSpec.replicas());
     return IsUnavailable(replicas, codecId, checkParityParts);
 }
 
@@ -98,7 +98,7 @@ TChunkId EncodeChunkId(
     const TChunkSpec& chunkSpec,
     NNodeTrackerClient::TNodeId nodeId)
 {
-    auto replicas = NYT::FromProto<TChunkReplica, TChunkReplicaList>(chunkSpec.replicas());
+    auto replicas = NYT::FromProto<TChunkReplicaList>(chunkSpec.replicas());
     auto replicaIt = std::find_if(
         replicas.begin(),
         replicas.end(),

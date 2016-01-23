@@ -651,7 +651,7 @@ private:
                 auto writer = CreateSchemafulWriterAdapter(schemalessWriter);
 
                 std::vector<TUdfDescriptorPtr> descriptors;
-                for (const auto& descriptor : FromProto<Stroka>(spec.udf_descriptors())) {
+                for (const auto& descriptor : spec.udf_descriptors()) {
                     descriptors.push_back(ConvertTo<TUdfDescriptorPtr>(TYsonString(descriptor)));
                 }
                 auto registry = CreateJobFunctionRegistry(descriptors, SandboxDirectoryNames[ESandboxKind::Udf]);

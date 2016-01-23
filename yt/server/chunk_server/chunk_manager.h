@@ -105,7 +105,7 @@ public:
 
     void ConfirmChunk(
         TChunk* chunk,
-        const std::vector<NChunkClient::TChunkReplica>& replicas,
+        const NChunkClient::TChunkReplicaList& replicas,
         NChunkClient::NProto::TChunkInfo* chunkInfo,
         NChunkClient::NProto::TChunkMeta* chunkMeta);
     

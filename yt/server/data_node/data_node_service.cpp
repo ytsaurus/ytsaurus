@@ -58,6 +58,8 @@ using namespace NConcurrency;
 using namespace NTableClient;
 using namespace NTableClient::NProto;
 
+using NYT::FromProto;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TDataNodeService
@@ -304,7 +306,7 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, GetBlockSet)
     {
         auto chunkId = FromProto<TChunkId>(request->chunk_id());
-        auto blockIndexes = NYT::FromProto<int>(request->block_indexes());
+        auto blockIndexes = FromProto<std::vector<int>>(request->block_indexes());
         bool populateCache = request->populate_cache();
         auto workloadDescriptor = FromProto<TWorkloadDescriptor>(request->workload_descriptor());
 
@@ -457,7 +459,7 @@ private:
             : Null;
         auto extensionTags = request->all_extension_tags()
             ? Null
-            : MakeNullable(FromProto<int>(request->extension_tags()));
+            : MakeNullable(FromProto<std::vector<int>>(request->extension_tags()));
         auto workloadDescriptor = FromProto<TWorkloadDescriptor>(request->workload_descriptor());
 
         context->SetRequestInfo("ChunkId: %v, ExtensionTags: %v, PartitionTag: %v, Workload: %v",
@@ -489,7 +491,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, GetChunkSlices)
     {
-        auto keyColumns = NYT::FromProto<Stroka>(request->key_columns());
+        auto keyColumns = FromProto<TKeyColumns>(request->key_columns());
         auto workloadDescriptor = FromProto<TWorkloadDescriptor>(request->workload_descriptor());
 
         context->SetRequestInfo(
@@ -587,7 +589,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, GetTableSamples)
     {
-        auto keyColumns = FromProto<Stroka>(request->key_columns());
+        auto keyColumns = FromProto<TKeyColumns>(request->key_columns());
         auto workloadDescriptor = FromProto<TWorkloadDescriptor>(request->workload_descriptor());
 
         context->SetRequestInfo("KeyColumns: %v, ChunkCount: %v, Workload: %v",
@@ -793,7 +795,7 @@ private:
         }
 
         auto samplesExt = GetProtoExtension<TSamplesExt>(chunkMeta.extensions());
-        auto samples = FromProto<TOwningKey>(samplesExt.entries());
+        auto samples = FromProto<std::vector<TOwningKey>>(samplesExt.entries());
 
         auto lowerKey = sampleRequest->has_lower_key()
             ? FromProto<TOwningKey>(sampleRequest->lower_key())

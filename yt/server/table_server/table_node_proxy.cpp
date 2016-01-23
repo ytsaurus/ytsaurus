@@ -383,7 +383,7 @@ private:
 
         int firstTabletIndex = request->first_tablet_index();
         int lastTabletIndex = request->last_tablet_index();
-        auto pivotKeys = FromProto< NTableClient::TOwningKey>(request->pivot_keys());
+        auto pivotKeys = FromProto<std::vector<TOwningKey>>(request->pivot_keys());
         context->SetRequestInfo("FirstTabletIndex: %v, LastTabletIndex: %v, PivotKeyCount: %v",
             firstTabletIndex,
             lastTabletIndex,

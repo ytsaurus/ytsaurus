@@ -46,7 +46,7 @@ public:
 
         const auto& jobSpec = Host_->GetJobSpec();
         const auto& jobSpecExt = jobSpec.GetExtension(TReduceJobSpecExt::reduce_job_spec_ext);
-        auto keyColumns = FromProto<Stroka>(jobSpecExt.key_columns());
+        auto keyColumns = FromProto<TKeyColumns>(jobSpecExt.key_columns());
 
         std::vector<ISchemalessMultiChunkReaderPtr> readers;
         nameTable = TNameTable::FromKeyColumns(keyColumns);

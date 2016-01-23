@@ -228,7 +228,7 @@ private:
         const auto& chunkInfo = rsp->chunks(0);
 
         NodeDirectory_->MergeFrom(rsp->node_directory());
-        auto seedReplicas = FromProto<TChunkReplica, TChunkReplicaList>(chunkInfo.replicas());
+        auto seedReplicas = FromProto<TChunkReplicaList>(chunkInfo.replicas());
 
         LOG_DEBUG("Chunk seeds received (SeedReplicas: [%v])",
             JoinToString(seedReplicas, TChunkReplicaAddressFormatter(NodeDirectory_)));

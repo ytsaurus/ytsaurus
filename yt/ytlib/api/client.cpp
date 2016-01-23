@@ -364,7 +364,7 @@ private:
         auto nodeDirectory = New<NNodeTrackerClient::TNodeDirectory>();
         nodeDirectory->MergeFrom(rsp->node_directory());
 
-        auto chunkSpecs = FromProto<NChunkClient::NProto::TChunkSpec>(rsp->chunks());
+        auto chunkSpecs = FromProto<std::vector<NChunkClient::NProto::TChunkSpec>>(rsp->chunks());
 
         // Remove duplicate chunks.
         std::sort(chunkSpecs.begin(), chunkSpecs.end(), [] (const TDataSplit& lhs, const TDataSplit& rhs) {
@@ -425,7 +425,7 @@ private:
                     break;
                 }
 
-                auto replicas = FromProto<TChunkReplica, TChunkReplicaList>(chunkSpec.replicas());
+                auto replicas = FromProto<TChunkReplicaList>(chunkSpec.replicas());
                 if (replicas.empty()) {
                     auto objectId = GetObjectIdFromDataSplit(chunkSpec);
                     THROW_ERROR_EXCEPTION("No alive replicas for chunk %v",
@@ -2208,7 +2208,7 @@ private:
         auto rsp = WaitFor(req->Invoke())
             .ValueOrThrow();
 
-        return TYsonString(FromProto<Stroka>(rsp->trace()));
+        return TYsonString(rsp->trace());
     }
 
     void DoSignalJob(

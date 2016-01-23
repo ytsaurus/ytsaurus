@@ -140,7 +140,7 @@ private:
     {
         DeclareMutating();
 
-        auto childrenIds = FromProto<TChunkTreeId>(request->children_ids());
+        auto childrenIds = FromProto<std::vector<TChunkTreeId>>(request->children_ids());
         bool requestStatistics = request->request_statistics();
 
         context->SetRequestInfo("Children: %v", childrenIds);

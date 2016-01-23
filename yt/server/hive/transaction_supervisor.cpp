@@ -152,7 +152,7 @@ private:
         ValidatePeer(EPeerKind::Leader);
 
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
-        auto participantCellIds = FromProto<TCellId>(request->participant_cell_ids());
+        auto participantCellIds = FromProto<std::vector<TCellId>>(request->participant_cell_ids());
 
         context->SetRequestInfo("TransactionId: %v, ParticipantCellIds: %v",
             transactionId,
@@ -388,7 +388,7 @@ private:
     {
         auto mutationId = FromProto<TMutationId>(request.mutation_id());
         auto transactionId = FromProto<TTransactionId>(request.transaction_id());
-        auto participantCellIds = FromProto<TCellId>(request.participant_cell_ids());
+        auto participantCellIds = FromProto<std::vector<TCellId>>(request.participant_cell_ids());
         auto prepareTimestamp = TTimestamp(request.prepare_timestamp());
 
         // Ensure commit existence (possibly moving it from transient to persistent).

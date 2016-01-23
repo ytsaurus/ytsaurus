@@ -251,7 +251,7 @@ const TNodeDescriptor& TNodeDirectory::GetDescriptor(TChunkReplica replica) cons
     return GetDescriptor(replica.GetNodeId());
 }
 
-std::vector<TNodeDescriptor> TNodeDirectory::GetDescriptors(const std::vector<TChunkReplica>& replicas) const
+std::vector<TNodeDescriptor> TNodeDirectory::GetDescriptors(const TChunkReplicaList& replicas) const
 {
     std::vector<TNodeDescriptor> result;
     for (auto replica : replicas) {

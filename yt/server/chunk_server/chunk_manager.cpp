@@ -589,7 +589,7 @@ public:
 
     void ConfirmChunk(
         TChunk* chunk,
-        const std::vector<NChunkClient::TChunkReplica>& replicas,
+        const NChunkClient::TChunkReplicaList& replicas,
         TChunkInfo* chunkInfo,
         TChunkMeta* chunkMeta)
     {
@@ -1951,7 +1951,7 @@ TChunkList* TChunkManager::CreateChunkList()
 
 void TChunkManager::ConfirmChunk(
     TChunk* chunk,
-    const std::vector<NChunkClient::TChunkReplica>& replicas,
+    const NChunkClient::TChunkReplicaList& replicas,
     TChunkInfo* chunkInfo,
     TChunkMeta* chunkMeta)
 {

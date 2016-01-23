@@ -60,7 +60,7 @@ public:
         TColumnFilter columnFilter;
         if (req.has_column_filter()) {
             columnFilter.All = false;
-            columnFilter.Indexes = FromProto<int, SmallVector<int, TypicalColumnCount>>(req.column_filter().indexes());
+            columnFilter.Indexes = FromProto<SmallVector<int, TypicalColumnCount>>(req.column_filter().indexes());
         }
 
         ValidateColumnFilter(columnFilter, TabletSnapshot_->Schema.Columns().size());

@@ -524,7 +524,7 @@ TChunkReplicaList TReplicationWriter::AllocateTargets()
 
     NodeDirectory_->MergeFrom(rsp->node_directory());
 
-    auto replicas = NYT::FromProto<TChunkReplica, TChunkReplicaList>(rsp->replicas());
+    auto replicas = NYT::FromProto<TChunkReplicaList>(rsp->replicas());
     return replicas;
 }
 

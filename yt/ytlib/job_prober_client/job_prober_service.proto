@@ -11,7 +11,7 @@ message TReqDumpInputContext
 
 message TRspDumpInputContext
 {
-    repeated NYT.NProto.TGuid chunk_id = 1;
+    repeated NYT.NProto.TGuid chunk_ids = 1;
 }
 
 message TReqStrace

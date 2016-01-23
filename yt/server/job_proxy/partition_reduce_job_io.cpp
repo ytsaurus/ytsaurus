@@ -48,7 +48,7 @@ public:
             inputSpec.chunks().end());
 
         const auto& reduceJobSpecExt = Host_->GetJobSpec().GetExtension(TReduceJobSpecExt::reduce_job_spec_ext);
-        auto keyColumns = FromProto<Stroka>(reduceJobSpecExt.key_columns());
+        auto keyColumns = FromProto<TKeyColumns>(reduceJobSpecExt.key_columns());
         nameTable = TNameTable::FromKeyColumns(keyColumns);
 
         YCHECK(reduceJobSpecExt.has_partition_tag());
