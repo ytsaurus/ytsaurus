@@ -30,8 +30,6 @@
 
 #include <util/datetime/base.h>
 
-////////////////////////////////////////////////////////////////////////////////
-
 namespace NYT {
 namespace NTabletClient {
 
@@ -154,8 +152,8 @@ public:
         TCellDirectoryPtr cellDirectory)
         : TExpiringCache(config)
         , Config_(config)
-        , ObjectProxy_(masterChannel)
         , CellDirectory_(cellDirectory)
+        , ObjectProxy_(masterChannel)
     { }
 
     TFuture<TTableMountInfoPtr> GetTableInfo(const TYPath& path)
@@ -185,8 +183,9 @@ public:
 
 private:
     const TTableMountCacheConfigPtr Config_;
-    TObjectServiceProxy ObjectProxy_;
     const TCellDirectoryPtr CellDirectory_;
+
+    TObjectServiceProxy ObjectProxy_;
     TTabletCache TabletCache_;
 
     virtual TFuture<TTableMountInfoPtr> DoGet(const TYPath& path) override
@@ -256,7 +255,6 @@ private:
                 return tableInfo;
             }));
     }
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
