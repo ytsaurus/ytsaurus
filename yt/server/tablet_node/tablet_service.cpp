@@ -30,6 +30,7 @@
 namespace NYT {
 namespace NTabletNode {
 
+using namespace NYTree;
 using namespace NRpc;
 using namespace NCompression;
 using namespace NChunkClient;
@@ -117,11 +118,15 @@ private:
             Logger,
             [&] () {
                 auto tabletSnapshot = slotManager->GetTabletSnapshotOrThrow(tabletId);
+                slotManager->ValidateTabletAccess(
+                    tabletSnapshot,
+                    EPermission::Read,
+                    timestamp);
 
                 TWireProtocolReader reader(requestData);
                 TWireProtocolWriter writer;
 
-                auto tabletManager = tabletSnapshot->Slot->GetTabletManager();
+                const auto& tabletManager = tabletSnapshot->TabletManager;
                 tabletManager->Read(
                     tabletSnapshot,
                     timestamp,
@@ -139,8 +144,6 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NTabletClient::NProto, Write)
     {
-        ValidatePeer(EPeerKind::Leader);
-
         auto tabletId = FromProto<TTabletId>(request->tablet_id());
         auto mountRevision = request->mount_revision();
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
@@ -162,11 +165,15 @@ private:
 
         auto slotManager = Bootstrap_->GetTabletSlotManager();
         auto tabletSnapshot = slotManager->GetTabletSnapshotOrThrow(tabletId);
+        slotManager->ValidateTabletAccess(
+            tabletSnapshot,
+            EPermission::Write,
+            SyncLastCommittedTimestamp);
 
-        if (tabletSnapshot->Slot != Slot_) {
-            THROW_ERROR_EXCEPTION("Wrong tablet slot: expected %v, got %v",
+        if (tabletSnapshot->CellId != Slot_->GetCellId()) {
+            THROW_ERROR_EXCEPTION("Wrong cell id: expected %v, got %v",
                 Slot_->GetCellId(),
-                tabletSnapshot->Slot->GetCellId());
+                tabletSnapshot->CellId);
         }
 
         if (tabletSnapshot->Atomicity != atomicity) {

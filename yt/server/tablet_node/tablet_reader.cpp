@@ -74,7 +74,7 @@ ISchemafulReaderPtr CreateSchemafulTabletReader(
     LOG_DEBUG("Creating schemaful tablet reader (TabletId: %v, CellId: %v, Timestamp: %v, "
         "LowerBound: {%v}, UpperBound: {%v}, StoreIds: [%v], StoreRanges: {%v})",
         tabletSnapshot->TabletId,
-        tabletSnapshot->Slot->GetCellId(),
+        tabletSnapshot->CellId,
         timestamp,
         lowerBound,
         upperBound,
@@ -160,7 +160,7 @@ ISchemafulReaderPtr CreateSchemafulTabletReader(
 
         LOG_DEBUG("Creating schemaful tablet reader (TabletId: %v, CellId: %v, Timestamp: %v, StoreIds: [%v])",
             tabletSnapshot->TabletId,
-            tabletSnapshot->Slot->GetCellId(),
+            tabletSnapshot->CellId,
             timestamp,
             JoinToString(stores, TStoreIdFormatter()));
 
@@ -239,7 +239,7 @@ IVersionedReaderPtr CreateVersionedTabletReader(
         "Creating versioned tablet reader (TabletId: %v, CellId: %v, LowerBound: {%v}, UpperBound: {%v}, "
         "CurrentTimestamp: %v, MajorTimestamp: %v, StoreIds: [%v], StoreRanges: {%v})",
         tabletSnapshot->TabletId,
-        tabletSnapshot->Slot->GetCellId(),
+        tabletSnapshot->CellId,
         lowerBound,
         upperBound,
         currentTimestamp,

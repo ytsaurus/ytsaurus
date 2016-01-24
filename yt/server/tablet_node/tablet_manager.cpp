@@ -169,9 +169,6 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        auto securityManager = Bootstrap_->GetSecurityManager();
-        securityManager->ValidatePermission(tabletSnapshot, EPermission::Read);
-
         ValidateReadTimestamp(timestamp);
 
         while (!reader->IsFinished()) {
@@ -190,9 +187,6 @@ public:
         TFuture<void>* commitResult)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
-
-        auto securityManager = Bootstrap_->GetSecurityManager();
-        securityManager->ValidatePermission(tabletSnapshot, EPermission::Write);
 
         // NB: No yielding beyond this point.
         // May access tablet and transaction.

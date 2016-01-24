@@ -651,10 +651,16 @@ IInvokerPtr TTablet::GetEpochAutomatonInvoker(EAutomatonThreadQueue queue)
 TTabletSnapshotPtr TTablet::RebuildSnapshot()
 {
     Snapshot_ = New<TTabletSnapshot>();
+    Snapshot_->Slot = Slot_;
+    // NB: Slot_ could be null in tests.
+    if (Slot_) {
+        Snapshot_->CellId = Slot_->GetCellId();
+        Snapshot_->HydraManager = Slot_->GetHydraManager();
+        Snapshot_->TabletManager = Slot_->GetTabletManager();
+    }
     Snapshot_->TabletId = Id_;
     Snapshot_->MountRevision = MountRevision_;
     Snapshot_->TableId = TableId_;
-    Snapshot_->Slot = Slot_;
     Snapshot_->Config = Config_;
     Snapshot_->WriterOptions = WriterOptions_;
     Snapshot_->PivotKey = PivotKey_;

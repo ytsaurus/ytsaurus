@@ -456,8 +456,6 @@ private:
             auto slotManager = Bootstrap_->GetTabletSlotManager();
             auto tabletSnapshot = slotManager->GetTabletSnapshotOrThrow(tabletId);
 
-            securityManager->ValidatePermission(tabletSnapshot, NYTree::EPermission::Read);
-
             std::vector<TRowRange> resultRanges;
             if (mergeRanges) {
                 int lastIndex = 0;
@@ -855,9 +853,10 @@ private:
 
         auto slotManager = Bootstrap_->GetTabletSlotManager();
         auto tabletSnapshot = slotManager->GetTabletSnapshotOrThrow(tabletId);
-
-        auto securityManager = Bootstrap_->GetSecurityManager();
-        securityManager->ValidatePermission(tabletSnapshot, NYTree::EPermission::Read);
+        slotManager->ValidateTabletAccess(
+            tabletSnapshot,
+            NYTree::EPermission::Read,
+            timestamp);
 
         TOwningKey lowerBound(source.Range.first);
         TOwningKey upperBound(source.Range.second);
@@ -880,9 +879,10 @@ private:
     {
         auto slotManager = Bootstrap_->GetTabletSlotManager();
         auto tabletSnapshot = slotManager->GetTabletSnapshotOrThrow(tabletId);
-
-        auto securityManager = Bootstrap_->GetSecurityManager();
-        securityManager->ValidatePermission(tabletSnapshot, NYTree::EPermission::Read);
+        slotManager->ValidateTabletAccess(
+            tabletSnapshot,
+            NYTree::EPermission::Read,
+            timestamp);
 
         auto columnFilter = GetColumnFilter(schema, tabletSnapshot->Schema);
 
