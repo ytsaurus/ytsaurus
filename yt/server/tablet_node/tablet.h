@@ -30,10 +30,13 @@ namespace NTabletNode {
 struct TTabletSnapshot
     : public TIntrinsicRefCounted
 {
+    TTabletSlotPtr Slot;
+    NHydra::TCellId CellId;
+    NHydra::IHydraManagerPtr HydraManager;
+    TTabletManagerPtr TabletManager;
     TTabletId TabletId;
     i64 MountRevision = 0;
     NObjectClient::TObjectId TableId;
-    TTabletSlotPtr Slot;
     TTableMountConfigPtr Config;
     TTabletWriterOptionsPtr WriterOptions;
     TOwningKey PivotKey;
@@ -58,6 +61,8 @@ struct TTabletSnapshot
 
     TTabletPerformanceCountersPtr PerformanceCounters;
 
+    NQueryClient::TColumnEvaluatorPtr ColumnEvaluator;
+
     //! Returns a range of partitions intersecting with the range |[lowerBound, upperBound)|.
     std::pair<TPartitionListIterator, TPartitionListIterator> GetIntersectingPartitions(
         const TOwningKey& lowerBound,
@@ -66,8 +71,6 @@ struct TTabletSnapshot
     //! Returns a partition possibly containing a given #key or
     //! |nullptr| is there's none.
     TPartitionSnapshotPtr FindContainingPartition(TKey key);
-
-    NQueryClient::TColumnEvaluatorPtr ColumnEvaluator;
 
     void ValiateMountRevision(i64 mountRevision);
 };

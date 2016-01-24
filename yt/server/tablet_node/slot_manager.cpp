@@ -4,6 +4,7 @@
 #include "tablet.h"
 #include "tablet_manager.h"
 #include "tablet_slot.h"
+#include "security_manager.h"
 
 #include <yt/server/cell_node/bootstrap.h>
 #include <yt/server/cell_node/config.h>
@@ -27,7 +28,6 @@
 namespace NYT {
 namespace NTabletNode {
 
-using namespace NFS;
 using namespace NConcurrency;
 using namespace NYTree;
 using namespace NYson;
@@ -188,6 +188,24 @@ public:
         return snapshot;
     }
 
+    void ValidateTabletAccess(
+        const TTabletSnapshotPtr& tabletSnapshot,
+        EPermission permission,
+        TTimestamp timestamp)
+    {
+        auto securityManager = Bootstrap_->GetSecurityManager();
+        securityManager->ValidatePermission(tabletSnapshot, permission);
+
+        if (timestamp != AsyncLastCommittedTimestamp) {
+            const auto& hydraManager = tabletSnapshot->HydraManager;
+            if (!hydraManager->IsActiveLeader()) {
+                THROW_ERROR_EXCEPTION(
+                    NRpc::EErrorCode::Unavailable,
+                    "Not an active leader");
+            }
+        }
+    }
+
     void RegisterTabletSnapshot(TTablet* tablet)
     {
         VERIFY_THREAD_AFFINITY_ANY();
@@ -248,7 +266,7 @@ public:
         auto it = TabletIdToSnapshot_.begin();
         while (it != TabletIdToSnapshot_.end()) {
             auto jt = it++;
-            if (jt->second->Slot == slot) {
+            if (jt->second->CellId == slot->GetCellId()) {
                 LOG_INFO("Tablet snapshot removed (TabletId: %v, CellId: %v)",
                     jt->first,
                     slot->GetCellId());
@@ -425,6 +443,14 @@ TTabletSnapshotPtr TSlotManager::FindTabletSnapshot(const TTabletId& tabletId)
 TTabletSnapshotPtr TSlotManager::GetTabletSnapshotOrThrow(const TTabletId& tabletId)
 {
     return Impl_->GetTabletSnapshotOrThrow(tabletId);
+}
+
+void TSlotManager::ValidateTabletAccess(
+    const TTabletSnapshotPtr& tabletSnapshot,
+    EPermission permission,
+    TTimestamp timestamp)
+{
+    Impl_->ValidateTabletAccess(tabletSnapshot, permission, timestamp);
 }
 
 void TSlotManager::RegisterTabletSnapshot(TTablet* tablet)
