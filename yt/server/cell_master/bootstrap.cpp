@@ -283,7 +283,10 @@ void TBootstrap::DoInitialize()
 
     Config_->Master->ValidateAllPeersPresent();
 
-    HttpServer_.reset(new NHttp::TServer(Config_->MonitoringPort));
+    HttpServer_.reset(new NHttp::TServer(
+        Config_->MonitoringPort,
+        Config_->BusServer->BindRetryCount,
+        Config_->BusServer->BindRetryBackoff));
 
     auto busServer = CreateTcpBusServer(Config_->BusServer);
 

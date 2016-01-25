@@ -129,6 +129,15 @@ public:
             THttpServerOptions(static_cast<ui16>(port))));
     }
 
+    TImpl(int port, int bindRetryCount, TDuration bindRetryBackoff)
+    {
+        Callback.reset(new TCallback(*this));
+        auto options = THttpServerOptions(static_cast<ui16>(port));
+        options.BindRetryCount = bindRetryCount;
+        options.BindRetryBackoff = bindRetryBackoff;
+        Server.reset(new THttpServer(Callback.get(), options));
+    }
+
     void Start()
     {
         if (!Server->Start()) {
@@ -288,6 +297,10 @@ Stroka FormatOKResponse(const Stroka& body, const Stroka& type)
 
 TServer::TServer(int port)
     : Impl(new TImpl(port))
+{ }
+
+TServer::TServer(int port, int bindRetryCount, TDuration bindRetryBackoff)
+    : Impl(new TImpl(port, bindRetryCount, bindRetryBackoff))
 { }
 
 TServer::~TServer()

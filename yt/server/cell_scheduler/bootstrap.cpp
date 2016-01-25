@@ -138,7 +138,10 @@ void TBootstrap::DoRun()
 
     RpcServer_ = CreateBusServer(BusServer_);
 
-    HttpServer_.reset(new NHttp::TServer(Config_->MonitoringPort));
+    HttpServer_.reset(new NHttp::TServer(
+        Config_->MonitoringPort,
+        Config_->BusServer->BindRetryCount,
+        Config_->BusServer->BindRetryBackoff));
 
     ClusterDirectory_ = New<TClusterDirectory>(MasterClient_->GetConnection());
 
