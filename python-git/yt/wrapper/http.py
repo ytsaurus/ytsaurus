@@ -141,7 +141,7 @@ def make_request_with_retries(method, url, make_retries=True, retry_unavailable_
     for attempt in xrange(get_config(client)["proxy"]["request_retry_count"]):
         current_time = datetime.now()
         _process_request_backoff(current_time, client=client)
-        headers = kwargs.get("headers", {})
+        headers = get_value(kwargs.get("headers", {}), {})
         request_info = {"headers": headers, "url": url, "params": params}
         try:
             try:
@@ -173,7 +173,7 @@ def make_request_with_retries(method, url, make_retries=True, retry_unavailable_
             return response
         except tuple(retriable_errors) as error:
             logger.warning("HTTP %s request %s has failed with error %s, message: '%s', headers: %s",
-                           method, url, str(type(error)), error.message, hide_token(dict(headers)))
+                           method, url, str(type(error)), error.message, str(hide_token(dict(headers))))
             if isinstance(error, YtError):
                 logger.info("Full error message:\n%s", str(error))
             if make_retries and attempt + 1 < get_config(client)["proxy"]["request_retry_count"]:
