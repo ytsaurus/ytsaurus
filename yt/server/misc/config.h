@@ -43,11 +43,13 @@ public:
             .DefaultNew();
 
         RegisterParameter("rpc_port", RpcPort)
-            .GreaterThan(0)
+            .Default(0)
+            .GreaterThanOrEqual(0)
             .LessThan(65536);
 
         RegisterParameter("monitoring_port", MonitoringPort)
-            .GreaterThan(0)
+            .Default(0)
+            .GreaterThanOrEqual(0)
             .LessThan(65536);
     }
 
@@ -56,7 +58,9 @@ public:
         if (BusServer->Port || BusServer->UnixDomainName) {
             THROW_ERROR_EXCEPTION("Explicit socket configuration for bus server is forbidden");
         }
-        BusServer->Port = RpcPort;
+        if (RpcPort > 0) {
+            BusServer->Port = RpcPort;
+        }
     }
 };
 
