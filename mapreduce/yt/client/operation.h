@@ -34,8 +34,11 @@ TOperationId ExecuteMapReduce(
     const TTransactionId& transactionId,
     const TMapReduceOperationSpec& spec,
     IJob* mapper,
+    IJob* reduceCombiner,
     IJob* reducer,
     const TMultiFormatDesc& outputMapperDesc,
+    const TMultiFormatDesc& inputReduceCombinerDesc,
+    const TMultiFormatDesc& outputReduceCombinerDesc,
     const TMultiFormatDesc& inputReducerDesc,
     const TOperationOptions& options);
 

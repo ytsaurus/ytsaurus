@@ -289,8 +289,11 @@ public:
     virtual TOperationId DoMapReduce(
         const TMapReduceOperationSpec& spec,
         IJob* mapper,
+        IJob* reduceCombiner,
         IJob* reducer,
         const TMultiFormatDesc& outputMapperDesc,
+        const TMultiFormatDesc& inputReduceCombinerDesc,
+        const TMultiFormatDesc& outputReduceCombinerDesc,
         const TMultiFormatDesc& inputReducerDesc,
         const TOperationOptions& options)
     {
@@ -299,8 +302,11 @@ public:
             TransactionId_,
             spec,
             mapper,
+            reduceCombiner,
             reducer,
             outputMapperDesc,
+            inputReduceCombinerDesc,
+            outputReduceCombinerDesc,
             inputReducerDesc,
             options);
     }

@@ -89,7 +89,7 @@ struct TMapReduceOperationSpec
 
     FLUENT_FIELD(TUserJobSpec, MapperSpec);
     FLUENT_FIELD(TUserJobSpec, ReducerSpec);
-    //TODO: reduce combiners
+    FLUENT_FIELD(TUserJobSpec, ReduceCombinerSpec);
     FLUENT_FIELD(TKeyColumns, SortBy);
     FLUENT_FIELD(TKeyColumns, ReduceBy);
 };
@@ -244,6 +244,7 @@ struct IOperationClient
         TReducer* reducer,
         const TOperationOptions& options = TOperationOptions());
 
+    // mapper, reducer
     template <class TMapper, class TReducer>
     TOperationId MapReduce(
         const TMapReduceOperationSpec& spec,
@@ -251,11 +252,29 @@ struct IOperationClient
         TReducer* reducer,
         const TOperationOptions& options = TOperationOptions());
 
-    // identity mapper overload
+    // identity mapper, reducer
     template <class TReducer>
     TOperationId MapReduce(
         const TMapReduceOperationSpec& spec,
         nullptr_t,
+        TReducer* reducer,
+        const TOperationOptions& options = TOperationOptions());
+
+    // mapper, reduce combiner, reducer
+    template <class TMapper, class TReduceCombiner, class TReducer>
+    TOperationId MapReduce(
+        const TMapReduceOperationSpec& spec,
+        TMapper* mapper,
+        TReduceCombiner* reduceCombiner,
+        TReducer* reducer,
+        const TOperationOptions& options = TOperationOptions());
+
+    // identity mapper, reduce combiner, reducer
+    template <class TReduceCombiner, class TReducer>
+    TOperationId MapReduce(
+        const TMapReduceOperationSpec& spec,
+        nullptr_t,
+        TReduceCombiner* reduceCombiner,
         TReducer* reducer,
         const TOperationOptions& options = TOperationOptions());
 
@@ -301,8 +320,11 @@ private:
     virtual TOperationId DoMapReduce(
         const TMapReduceOperationSpec& spec,
         IJob* mapper,
+        IJob* reduceCombiner,
         IJob* reducer,
         const TMultiFormatDesc& outputMapperDesc,
+        const TMultiFormatDesc& inputReduceCombinerDesc,
+        const TMultiFormatDesc& outputReduceCombinerDesc,
         const TMultiFormatDesc& inputReducerDesc,
         const TOperationOptions& options) = 0;
 };
