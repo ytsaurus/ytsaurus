@@ -42,9 +42,21 @@ public:
         RegisterParameter("chunk_client_dispatcher", ChunkClientDispatcher)
             .DefaultNew();
 
-        RegisterInitializer([&] () {
-            BusServer->Port = RpcPort;
-        });
+        RegisterParameter("rpc_port", RpcPort)
+            .GreaterThan(0)
+            .LessThan(65536);
+
+        RegisterParameter("monitoring_port", MonitoringPort)
+            .GreaterThan(0)
+            .LessThan(65536);
+    }
+
+    virtual void OnLoaded() final
+    {
+        if (BusServer->Port || BusServer->UnixDomainName) {
+            THROW_ERROR_EXCEPTION("Explicit socket configuration for bus server is forbidden");
+        }
+        BusServer->Port = RpcPort;
     }
 };
 
