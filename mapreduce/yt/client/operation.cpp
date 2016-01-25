@@ -385,7 +385,7 @@ void BuildUserJobFluently(
     const TMultiFormatDesc& outputDesc,
     TFluentMap fluent)
 {
-    // TODO: tables as files, check exec flag on local files
+    // TODO: tables as files
     fluent
     .Item("file_paths").DoListFor(files,
         [&] (TFluentList fluent, const TFileUploader::TFile& file) {
@@ -400,7 +400,9 @@ void BuildUserJobFluently(
                 .EndAttributes()
             .Value(file.CypressPath);
         })
-    .DoIf(inputDesc.Format == TMultiFormatDesc::F_YSON, [] (TFluentMap fluent) {
+    .DoIf(inputDesc.Format == TMultiFormatDesc::F_YSON
+        || inputDesc.Format == TMultiFormatDesc::F_PROTO, [] (TFluentMap fluent)
+    {
         fluent
         .Item("input_format").BeginAttributes()
             .Item("format").Value("binary")
@@ -420,7 +422,9 @@ void BuildUserJobFluently(
             fluent.Item("input_format").Value(format.GetRef());
         }
     })
-    .DoIf(outputDesc.Format == TMultiFormatDesc::F_YSON, [] (TFluentMap fluent) {
+    .DoIf(outputDesc.Format == TMultiFormatDesc::F_YSON
+        || outputDesc.Format == TMultiFormatDesc::F_PROTO, [] (TFluentMap fluent)
+    {
         fluent
         .Item("output_format").BeginAttributes()
             .Item("format").Value("binary")
@@ -495,7 +499,6 @@ TOperationId ExecuteMap(
         ~TJobFactory::Get()->GetJobName(mapper),
         spec.Outputs_.size(),
         uploader.HasState());
-
     command = options.JobCommandPrefix_ + command + options.JobCommandSuffix_;
 
     TNode specNode = BuildYsonNodeFluently()
@@ -558,7 +561,6 @@ TOperationId ExecuteReduce(
         ~TJobFactory::Get()->GetJobName(reducer),
         spec.Outputs_.size(),
         uploader.HasState());
-
     command = options.JobCommandPrefix_ + command + options.JobCommandSuffix_;
 
     TNode specNode = BuildYsonNodeFluently()
@@ -619,7 +621,6 @@ TOperationId ExecuteJoinReduce(
         ~TJobFactory::Get()->GetJobName(reducer),
         spec.Outputs_.size(),
         uploader.HasState());
-
     command = options.JobCommandPrefix_ + command + options.JobCommandSuffix_;
 
     TNode specNode = BuildYsonNodeFluently()
@@ -657,8 +658,11 @@ TOperationId ExecuteMapReduce(
     const TTransactionId& transactionId,
     const TMapReduceOperationSpec& spec,
     IJob* mapper,
+    IJob* reduceCombiner,
     IJob* reducer,
     const TMultiFormatDesc& outputMapperDesc,
+    const TMultiFormatDesc& inputReduceCombinerDesc,
+    const TMultiFormatDesc& outputReduceCombinerDesc,
     const TMultiFormatDesc& inputReducerDesc,
     const TOperationOptions& options)
 {
@@ -702,6 +706,11 @@ TOperationId ExecuteMapReduce(
         mapUploader.UploadFiles(spec.MapperSpec_, mapper);
     }
 
+    TFileUploader reduceCombinerUploader(auth);
+    if (reduceCombiner) {
+        reduceCombinerUploader.UploadFiles(spec.ReduceCombinerSpec_, reduceCombiner);
+    }
+
     TFileUploader reduceUploader(auth);
     reduceUploader.UploadFiles(spec.ReducerSpec_, reducer);
 
@@ -713,11 +722,18 @@ TOperationId ExecuteMapReduce(
         mapCommand = options.JobCommandPrefix_ + mapCommand + options.JobCommandSuffix_;
     }
 
+    Stroka reduceCombinerCommand;
+    if (reduceCombiner) {
+        reduceCombinerCommand = Sprintf("./cppbinary --yt-reduce \"%s\" 1 %d",
+            ~TJobFactory::Get()->GetJobName(reduceCombiner),
+            reduceCombinerUploader.HasState());
+        reduceCombinerCommand = options.JobCommandPrefix_ + reduceCombinerCommand + options.JobCommandSuffix_;
+    }
+
     Stroka reduceCommand = Sprintf("./cppbinary --yt-reduce \"%s\" %" PRISZT " %d",
         ~TJobFactory::Get()->GetJobName(reducer),
         spec.Outputs_.size(),
         reduceUploader.HasState());
-
     reduceCommand = options.JobCommandPrefix_ + reduceCommand + options.JobCommandSuffix_;
 
     TNode specNode = BuildYsonNodeFluently()
@@ -732,11 +748,21 @@ TOperationId ExecuteMapReduce(
                 outputMapperDesc,
                 std::placeholders::_1));
         })
+        .DoIf(reduceCombiner, [&] (TFluentMap fluent) {
+            fluent.Item("reduce_combiner").DoMap(std::bind(
+                BuildUserJobFluently,
+                reduceCombinerCommand,
+                reduceCombinerUploader.GetFiles(),
+                mapper ? TMaybe<TNode>() : format,
+                inputReduceCombinerDesc,
+                outputReduceCombinerDesc,
+                std::placeholders::_1));
+        })
         .Item("reducer").DoMap(std::bind(
             BuildUserJobFluently,
             reduceCommand,
             reduceUploader.GetFiles(),
-            mapper ? TMaybe<TNode>() : format,
+            (mapper || reduceCombiner) ? TMaybe<TNode>() : format,
             inputReducerDesc,
             spec.OutputDesc_,
             std::placeholders::_1))

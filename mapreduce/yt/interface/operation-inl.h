@@ -374,21 +374,26 @@ GENERATE_UNIQUE_ID(TJobRegistrator)(name);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <class TRow>
+void CheckFormats(const char *jobName, const char* direction, const TMultiFormatDesc& desc)
+{
+    if (TFormatDescTraits<TRow>::Format != desc.Format) {
+        ythrow yexception() <<
+            Sprintf("cannot match %s type and %s descriptor", jobName, direction);
+    }
+}
+
 template <class TMapper>
 TOperationId IOperationClient::Map(
     const TMapOperationSpec& spec,
     TMapper* mapper,
     const TOperationOptions& options)
 {
-    using TInputRow = typename TMapper::TReader::TRowType;
-    using TOutputRow = typename TMapper::TWriter::TRowType;
+    using TMapInputRow = typename TMapper::TReader::TRowType;
+    using TMapOutputRow = typename TMapper::TWriter::TRowType;
 
-    if (TFormatDescTraits<TInputRow>::Format != spec.InputDesc_.Format) {
-        ythrow yexception() << "cannot match mapper type and input descriptor";
-    }
-    if (TFormatDescTraits<TOutputRow>::Format != spec.OutputDesc_.Format) {
-        ythrow yexception() << "cannot match mapper type and output descriptor";
-    }
+    CheckFormats<TMapInputRow>("mapper", "input", spec.InputDesc_);
+    CheckFormats<TMapOutputRow>("mapper", "output", spec.OutputDesc_);
 
     TIntrusivePtr<TMapper> mapperPtr(mapper);
 
@@ -404,15 +409,11 @@ TOperationId IOperationClient::Reduce(
     TReducer* reducer,
     const TOperationOptions& options)
 {
-    using TInputRow = typename TReducer::TReader::TRowType;
-    using TOutputRow = typename TReducer::TWriter::TRowType;
+    using TReduceInputRow = typename TReducer::TReader::TRowType;
+    using TReduceOutputRow = typename TReducer::TWriter::TRowType;
 
-    if (TFormatDescTraits<TInputRow>::Format != spec.InputDesc_.Format) {
-        ythrow yexception() << "cannot match reducer type and input descriptor";
-    }
-    if (TFormatDescTraits<TOutputRow>::Format != spec.OutputDesc_.Format) {
-        ythrow yexception() << "cannot match reducer type and output descriptor";
-    }
+    CheckFormats<TReduceInputRow>("reducer", "input", spec.InputDesc_);
+    CheckFormats<TReduceOutputRow>("reducer", "output", spec.OutputDesc_);
 
     TIntrusivePtr<TReducer> reducerPtr(reducer);
 
@@ -428,15 +429,11 @@ TOperationId IOperationClient::JoinReduce(
     TReducer* reducer,
     const TOperationOptions& options)
 {
-    using TInputRow = typename TReducer::TReader::TRowType;
-    using TOutputRow = typename TReducer::TWriter::TRowType;
+    using TReduceInputRow = typename TReducer::TReader::TRowType;
+    using TReduceOutputRow = typename TReducer::TWriter::TRowType;
 
-    if (TFormatDescTraits<TInputRow>::Format != spec.InputDesc_.Format) {
-        ythrow yexception() << "cannot match reducer type and input descriptor";
-    }
-    if (TFormatDescTraits<TOutputRow>::Format != spec.OutputDesc_.Format) {
-        ythrow yexception() << "cannot match reducer type and output descriptor";
-    }
+    CheckFormats<TReduceInputRow>("reducer", "input", spec.InputDesc_);
+    CheckFormats<TReduceOutputRow>("reducer", "output", spec.OutputDesc_);
 
     TIntrusivePtr<TReducer> reducerPtr(reducer);
 
@@ -458,14 +455,10 @@ TOperationId IOperationClient::MapReduce(
     using TReduceInputRow = typename TReducer::TReader::TRowType;
     using TReduceOutputRow = typename TReducer::TWriter::TRowType;
 
-    if (TFormatDescTraits<TMapInputRow>::Format != spec.InputDesc_.Format) {
-        ythrow yexception() << "cannot match mapper type and input descriptor";
-    }
-    if (TFormatDescTraits<TReduceOutputRow>::Format != spec.OutputDesc_.Format) {
-        ythrow yexception() << "cannot match reducer type and output descriptor";
-    }
+    CheckFormats<TMapInputRow>("mapper", "input", spec.InputDesc_);
+    CheckFormats<TReduceOutputRow>("reducer", "output", spec.OutputDesc_);
 
-    TMultiFormatDesc outputMapperDesc, inputReducerDesc;
+    TMultiFormatDesc dummy, outputMapperDesc, inputReducerDesc;
     outputMapperDesc.Format = TFormatDescTraits<TMapOutputRow>::Format;
     inputReducerDesc.Format = TFormatDescTraits<TReduceInputRow>::Format;
 
@@ -475,8 +468,11 @@ TOperationId IOperationClient::MapReduce(
     return DoMapReduce(
         spec,
         mapper,
+        nullptr,
         reducer,
         outputMapperDesc,
+        dummy,
+        dummy,
         inputReducerDesc,
         options);
 }
@@ -488,27 +484,103 @@ TOperationId IOperationClient::MapReduce(
     TReducer* reducer,
     const TOperationOptions& options)
 {
-    using TInputRow = typename TReducer::TReader::TRowType;
-    using TOutputRow = typename TReducer::TWriter::TRowType;
+    using TReduceInputRow = typename TReducer::TReader::TRowType;
+    using TReduceOutputRow = typename TReducer::TWriter::TRowType;
 
-    if (TFormatDescTraits<TInputRow>::Format != spec.InputDesc_.Format) {
-        ythrow yexception() << "cannot match reducer type and input descriptor";
-    }
-
-    if (TFormatDescTraits<TOutputRow>::Format != spec.OutputDesc_.Format) {
-        ythrow yexception() << "cannot match reducer type and output descriptor";
-    }
+    CheckFormats<TReduceInputRow>("reducer", "input", spec.InputDesc_);
+    CheckFormats<TReduceOutputRow>("reducer", "output", spec.OutputDesc_);
 
     TMultiFormatDesc dummy, inputReducerDesc;
-    inputReducerDesc.Format = TFormatDescTraits<TInputRow>::Format;
+    inputReducerDesc.Format = TFormatDescTraits<TReduceInputRow>::Format;
 
     TIntrusivePtr<TReducer> reducerPtr(reducer);
 
     return DoMapReduce(
         spec,
         nullptr,
+        nullptr,
         reducer,
         dummy,
+        dummy,
+        dummy,
+        inputReducerDesc,
+        options);
+}
+
+template <class TMapper, class TReduceCombiner, class TReducer>
+TOperationId IOperationClient::MapReduce(
+    const TMapReduceOperationSpec& spec,
+    TMapper* mapper,
+    TReduceCombiner* reduceCombiner,
+    TReducer* reducer,
+    const TOperationOptions& options)
+{
+    using TMapInputRow = typename TMapper::TReader::TRowType;
+    using TMapOutputRow = typename TMapper::TWriter::TRowType;
+    using TReduceCombinerInputRow = typename TReduceCombiner::TReader::TRowType;
+    using TReduceCombinerOutputRow = typename TReduceCombiner::TWriter::TRowType;
+    using TReduceInputRow = typename TReducer::TReader::TRowType;
+    using TReduceOutputRow = typename TReducer::TWriter::TRowType;
+
+    CheckFormats<TMapInputRow>("mapper", "input", spec.InputDesc_);
+    CheckFormats<TReduceOutputRow>("reducer", "output", spec.OutputDesc_);
+
+    TMultiFormatDesc outputMapperDesc, inputReducerDesc,
+        inputReduceCombinerDesc, outputReduceCombinerDesc;
+    outputMapperDesc.Format = TFormatDescTraits<TMapOutputRow>::Format;
+    inputReducerDesc.Format = TFormatDescTraits<TReduceInputRow>::Format;
+    inputReduceCombinerDesc.Format = TFormatDescTraits<TReduceCombinerInputRow>::Format;
+    outputReduceCombinerDesc.Format = TFormatDescTraits<TReduceCombinerOutputRow>::Format;
+
+    TIntrusivePtr<TMapper> mapperPtr(mapper);
+    TIntrusivePtr<TReduceCombiner> reduceCombinerPtr(reduceCombiner);
+    TIntrusivePtr<TReducer> reducerPtr(reducer);
+
+    return DoMapReduce(
+        spec,
+        mapper,
+        reduceCombiner,
+        reducer,
+        outputMapperDesc,
+        inputReduceCombinerDesc,
+        outputReduceCombinerDesc,
+        inputReducerDesc,
+        options);
+}
+
+template <class TReduceCombiner, class TReducer>
+TOperationId IOperationClient::MapReduce(
+    const TMapReduceOperationSpec& spec,
+    nullptr_t,
+    TReduceCombiner* reduceCombiner,
+    TReducer* reducer,
+    const TOperationOptions& options)
+{
+    using TReduceCombinerInputRow = typename TReduceCombiner::TReader::TRowType;
+    using TReduceCombinerOutputRow = typename TReduceCombiner::TWriter::TRowType;
+    using TReduceInputRow = typename TReducer::TReader::TRowType;
+    using TReduceOutputRow = typename TReducer::TWriter::TRowType;
+
+    CheckFormats<TReduceInputRow>("reducer", "input", spec.InputDesc_);
+    CheckFormats<TReduceOutputRow>("reducer", "output", spec.OutputDesc_);
+
+    TMultiFormatDesc dummy, inputReducerDesc,
+        inputReduceCombinerDesc, outputReduceCombinerDesc;
+    inputReducerDesc.Format = TFormatDescTraits<TReduceInputRow>::Format;
+    inputReduceCombinerDesc.Format = TFormatDescTraits<TReduceCombinerInputRow>::Format;
+    outputReduceCombinerDesc.Format = TFormatDescTraits<TReduceCombinerOutputRow>::Format;
+
+    TIntrusivePtr<TReduceCombiner> reduceCombinerPtr(reduceCombiner);
+    TIntrusivePtr<TReducer> reducerPtr(reducer);
+
+    return DoMapReduce(
+        spec,
+        nullptr,
+        reduceCombiner,
+        reducer,
+        dummy,
+        inputReduceCombinerDesc,
+        outputReduceCombinerDesc,
         inputReducerDesc,
         options);
 }
