@@ -1,4 +1,4 @@
-from common import flatten, require, bool_to_string, parse_bool
+from common import flatten, require, bool_to_string, parse_bool, update
 from errors import YtError
 from etc_commands import parse_ypath
 from config import get_config
@@ -20,13 +20,15 @@ class TablePath(object):
 
     Attributes:
 
+    * name -- path to the table. It can contain YPath-style attributes.
+
     * append -- append to table or overwrite
 
     * columns -- list of string (column) or string pairs (column range).
 
-    * lower_key, upper_key -- tuple of strings to identify range of rows
+    * exact_key, lower_key, upper_key -- tuple of strings to identify range of rows
 
-    * start_index, end_index -- tuple of indexes to identify range of rows
+    * exact_index, start_index, end_index -- tuple of indexes to identify range of rows
 
     * simplify -- request proxy to parse YPATH
 
@@ -37,19 +39,30 @@ class TablePath(object):
                  append=None,
                  sorted_by=None,
                  columns=None,
-                 lower_key=None, upper_key=None,
-                 start_index=None, end_index=None,
+                 exact_key=None,
+                 lower_key=None,
+                 upper_key=None,
+                 exact_index=None,
+                 start_index=None,
+                 end_index=None,
+                 ranges=None,
                  simplify=True,
+                 attributes=None,
                  client=None):
         """
         :param name: (Yson string) path with attribute
         :param append: (bool) append to table or overwrite
         :param sorted_by: (list of string) list of sort keys
         :param columns: list of string (column) or string pairs (column range)
+        :param exact_key: (string or string tuple) exact key of row
         :param lower_key: (string or string tuple) lower key bound of rows
         :param upper_key: (string or string tuple) upper bound of rows
+        :param exact_index: (int) exact index of row
         :param start_index: (int) lower bound of rows
         :param end_index: (int) upper bound of rows
+        :param ranges: (list) list of ranges of rows. It overwrites all other row limits.
+        :param attributes: (dict) attributes, it updates attributes specified in name.
+
 
         .. note:: 'upper_key' and 'lower_key' are special YT terms. \
         `See usage example. <https://wiki.yandex-team.ru/yt/Design/YPath#modifikatorydiapazonovtablicy>`_
@@ -79,6 +92,9 @@ class TablePath(object):
             self.name = YsonString(prefix + self.name if self.name else prefix[:-1])
             self.name.attributes = attributes
 
+        if attributes is not None:
+            self.name.attributes = update(self.name.attributes, attributes)
+
         attributes = self.name.attributes
         if "channel" in attributes:
             attributes["columns"] = attributes["channel"]
@@ -97,21 +113,29 @@ class TablePath(object):
         if end_index is not None and upper_key is not None:
             raise YtError("You could not specify upper key bound and end index simultaneously")
 
-        # NB(ignat): for bakcward compatibility with 0.16
-        if "columns" in attributes:
-            attributes["channel"] = attributes["columns"]
-            del attributes["columns"]
-
+        if exact_key is not None:
+            attributes["exact_limit"] = {"key": flatten(exact_key)}
         if lower_key is not None:
             attributes["lower_limit"] = {"key": flatten(lower_key)}
         if upper_key is not None:
             if get_config(client)["yamr_mode"]["use_non_strict_upper_key"]:
                 upper_key = upper_key + "\0"
             attributes["upper_limit"] = {"key": flatten(upper_key)}
+        if exact_index is not None:
+            attributes["exact_limit"] = {"row_index": flatten(exact_index)}
         if start_index is not None:
             attributes["lower_limit"] = {"row_index": start_index}
         if end_index is not None:
             attributes["upper_limit"] = {"row_index": end_index}
+
+        if ranges is not None:
+            attributes["ranges"] = ranges
+            if "exact_limit" in attributes:
+                del attributes["exact_limit"]
+            if "lower_limit" in attributes:
+                del attributes["lower_limit"]
+            if "upper_limit" in attributes:
+                del attributes["upper_limit"]
 
     @property
     def attributes(self):
