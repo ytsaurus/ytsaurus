@@ -119,12 +119,12 @@ class TDecoratedAutomaton
 public:
     TDecoratedAutomaton(
         TDistributedHydraManagerConfigPtr config,
+        const TDistributedHydraManagerOptions& options,
         NElection::TCellManagerPtr cellManager,
         IAutomatonPtr automaton,
         IInvokerPtr automatonInvoker,
         IInvokerPtr controlInvoker,
-        ISnapshotStorePtr snapshotStore,
-        const TDistributedHydraManagerOptions& options);
+        ISnapshotStorePtr snapshotStore);
 
     void Initialize();
     void OnStartLeading(TEpochContextPtr epochContext);
@@ -139,9 +139,11 @@ public:
     IInvokerPtr GetSystemInvoker();
 
     EPeerState GetState() const;
-    TVersion GetLoggedVersion() const;
 
-    void SetChangelog(int changelogId, IChangelogPtr changelog);
+    TVersion GetLoggedVersion() const;
+    void SetLoggedVersion(TVersion version);
+
+    void SetChangelog(IChangelogPtr changelog);
 
     i64 GetLoggedDataSize() const;
     TInstant GetLastSnapshotTime() const;
@@ -185,6 +187,7 @@ private:
     class TNoForkSnapshotBuilder;
 
     const TDistributedHydraManagerConfigPtr Config_;
+    const TDistributedHydraManagerOptions Options_;
     const NElection::TCellManagerPtr CellManager_;
     const IAutomatonPtr Automaton_;
     const IInvokerPtr AutomatonInvoker_;
@@ -192,7 +195,6 @@ private:
     const IInvokerPtr ControlInvoker_;
     const IInvokerPtr SystemInvoker_;
     const ISnapshotStorePtr SnapshotStore_;
-    const TDistributedHydraManagerOptions Options_;
 
     std::atomic<int> UserLock_ = {0};
     std::atomic<int> SystemLock_ = {0};

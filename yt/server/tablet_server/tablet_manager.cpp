@@ -263,6 +263,7 @@ public:
 
         RegisterMethod(BIND(&TImpl::HydraAssignPeers, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraRevokePeers, Unretained(this)));
+        RegisterMethod(BIND(&TImpl::HydraSetLeadingPeer, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraOnTabletMounted, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraOnTabletUnmounted, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraUpdateTabletStores, Unretained(this)));
@@ -325,24 +326,30 @@ public:
         YCHECK(NameToTabletCellBundleMap_.erase(bundle->GetName()) == 1);
     }
 
-    TTabletCell* CreateCell(int size, IAttributeDictionary* attributes, const TObjectId& hintId)
+    TTabletCell* CreateCell(int peerCount, IAttributeDictionary* attributes, const TObjectId& hintId)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        if (peerCount < 1 || peerCount > MaxPeerCount) {
+            THROW_ERROR_EXCEPTION("Peer count must be in range [%v, %v]",
+                1,
+                MaxPeerCount);
+        }
 
         auto objectManager = Bootstrap_->GetObjectManager();
         auto id = objectManager->GenerateId(EObjectType::TabletCell, hintId);
         auto cellHolder = std::make_unique<TTabletCell>(id);
 
-        cellHolder->SetSize(size);
+        cellHolder->SetPeerCount(peerCount);
         cellHolder->SetOptions(ConvertTo<TTabletCellOptionsPtr>(attributes)); // may throw
-        cellHolder->Peers().resize(size);
+        cellHolder->Peers().resize(peerCount);
 
         ReconfigureCell(cellHolder.get());
 
         auto* cell = TabletCellMap_.Insert(id, std::move(cellHolder));
 
         // Make the fake reference.
-        YCHECK(cell->RefObject() == 1);   
+        YCHECK(cell->RefObject() == 1);
 
         auto hiveManager = Bootstrap_->GetHiveManager();
         hiveManager->CreateMailbox(id);
@@ -402,7 +409,7 @@ public:
         }
 
         AbortPrerequisiteTransaction(cell);
-    
+
         auto cellMapNodeProxy = GetCellMapNode();
         auto cellNodeProxy = cellMapNodeProxy->FindChild(ToString(cell->GetId()));
         if (cellNodeProxy) {
@@ -919,7 +926,7 @@ private:
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
-    
+
     void SaveKeys(NCellMaster::TSaveContext& context) const
     {
         TabletCellBundleMap_.SaveKeys(context);
@@ -1027,25 +1034,34 @@ private:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         // Various request helpers.
-        auto requestCreateSlot = [&] (TTabletCell* cell) {
+        auto requestCreateSlot = [&] (const TTabletCell* cell) {
             if (!response)
+                return;
+
+            if (!cell->GetPrerequisiteTransaction())
                 return;
 
             auto* protoInfo = response->add_tablet_slots_to_create();
 
             const auto& cellId = cell->GetId();
-            ToProto(protoInfo->mutable_cell_id(), cell->GetId());
-            protoInfo->set_options(ConvertToYsonString(cell->GetOptions()).Data());
-            ToProto(protoInfo->mutable_prerequisite_transaction_id(), cell->GetPrerequisiteTransaction()->GetId());
+            auto peerId = cell->GetPeerId(node->GetDefaultAddress());
 
-            LOG_INFO_UNLESS(IsRecovery(), "Tablet slot creation requested (Address: %v, CellId: %v, PrerequisiteTransactionId: %v)",
+            ToProto(protoInfo->mutable_cell_id(), cell->GetId());
+            protoInfo->set_peer_id(peerId);
+            protoInfo->set_options(ConvertToYsonString(cell->GetOptions()).Data());
+
+            LOG_INFO_UNLESS(IsRecovery(), "Tablet slot creation requested (Address: %v, CellId: %v, PeerId: %v)",
                 node->GetDefaultAddress(),
                 cellId,
-                cell->GetPrerequisiteTransaction()->GetId());
+                peerId);
         };
 
-        auto requestConfigureSlot = [&] (TTabletCell* cell) {
+        auto requestConfigureSlot = [&] (const TNode::TTabletSlot* slot) {
             if (!response)
+                return;
+
+            const auto* cell = slot->Cell;
+            if (!cell->GetPrerequisiteTransaction())
                 return;
 
             auto* protoInfo = response->add_tablet_slots_configure();
@@ -1053,13 +1069,17 @@ private:
             const auto& cellId = cell->GetId();
             auto cellDescriptor = cell->GetDescriptor();
 
+            const auto& prerequisiteTransactionId = cell->GetPrerequisiteTransaction()->GetId();
+
             ToProto(protoInfo->mutable_cell_descriptor(), cellDescriptor);
-            protoInfo->set_peer_id(cell->GetPeerId(node));
-            
-            LOG_INFO_UNLESS(IsRecovery(), "Tablet slot configuration update requested (Address: %v, CellId: %v, Version: %v)",
+            ToProto(protoInfo->mutable_prerequisite_transaction_id(), prerequisiteTransactionId);
+
+            LOG_INFO_UNLESS(IsRecovery(), "Tablet slot configuration update requested "
+                "(Address: %v, CellId: %v, Version: %v, PrerequisiteTransactionId: %v)",
                 node->GetDefaultAddress(),
                 cellId,
-                cellDescriptor.ConfigVersion);
+                cellDescriptor.ConfigVersion,
+                prerequisiteTransactionId);
         };
 
         auto requestRemoveSlot = [&] (const TTabletCellId& cellId) {
@@ -1131,17 +1151,6 @@ private:
                 continue;
             }
 
-            auto prerequisiteTransactionId = FromProto<TTransactionId>(slotInfo.prerequisite_transaction_id());
-            if (cell->GetPrerequisiteTransaction() && prerequisiteTransactionId != cell->GetPrerequisiteTransaction()->GetId())  {
-                LOG_INFO_UNLESS(IsRecovery(), "Invalid prerequisite transaction id for tablet cell: %v instead of %v (Address: %v, CellId: %v)",
-                    prerequisiteTransactionId,
-                    cell->GetPrerequisiteTransaction()->GetId(),
-                    address,
-                    cellId);
-                requestRemoveSlot(cellId);
-                continue;
-            }
-
             auto expectedIt = expectedCells.find(cell);
             if (expectedIt == expectedCells.end()) {
                 cell->AttachPeer(node, peerId);
@@ -1166,9 +1175,8 @@ private:
                 slot.PeerState,
                 cellInfo.ConfigVersion);
 
-            // Request slot reconfiguration if states are appropriate and versions differ.
             if (cellInfo.ConfigVersion != slot.Cell->GetConfigVersion()) {
-                requestConfigureSlot(slot.Cell);
+                requestConfigureSlot(&slot);
             }
         }
 
@@ -1238,7 +1246,7 @@ private:
                 AddressToCell_.erase(it);
                 break;
             }
-        }  
+        }
     }
 
 
@@ -1254,9 +1262,7 @@ private:
         const auto* mutationContext = GetCurrentMutationContext();
         auto mutationTimestamp = mutationContext->GetTimestamp();
 
-        AbortPrerequisiteTransaction(cell);
-
-        YCHECK(request.peer_infos_size() == cell->Peers().size());
+        bool leadingPeerAssigned = false;
         for (const auto& peerInfo : request.peer_infos()) {
             auto peerId = peerInfo.peer_id();
             auto descriptor = FromProto<TNodeDescriptor>(peerInfo.node_descriptor());
@@ -1264,6 +1270,10 @@ private:
             auto& peer = cell->Peers()[peerId];
             if (!peer.Descriptor.IsNull())
                 continue;
+
+            if (peerId == cell->GetLeadingPeerId()) {
+                leadingPeerAssigned = true;
+            }
 
             AddToAddressToCellMap(descriptor, cell);
             cell->AssignPeer(descriptor, peerId);
@@ -1275,7 +1285,11 @@ private:
                 peerId);
         }
 
-        StartPrerequisiteTransaction(cell);
+        // Once a peer is assigned, we must ensure that the cell has a valid prerequisite transaction.
+        if (leadingPeerAssigned || !cell->GetPrerequisiteTransaction()) {
+            RestartPrerequisiteTransaction(cell);
+        }
+
         ReconfigureCell(cell);
     }
 
@@ -1288,11 +1302,39 @@ private:
         if (!IsObjectAlive(cell))
             return;
 
+        bool leadingPeerRevoked = false;
         for (auto peerId : request.peer_ids()) {
+            if (peerId == cell->GetLeadingPeerId()) {
+                leadingPeerRevoked = true;
+            }
             DoRevokePeer(cell, peerId);
         }
 
-        AbortPrerequisiteTransaction(cell);
+        if (leadingPeerRevoked) {
+            AbortPrerequisiteTransaction(cell);
+        }
+        ReconfigureCell(cell);
+    }
+
+    void HydraSetLeadingPeer(const TReqSetLeadingPeer& request)
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        auto cellId = FromProto<TTabletCellId>(request.cell_id());
+        auto* cell = FindTabletCell(cellId);
+        if (!IsObjectAlive(cell))
+            return;
+
+        auto peerId = request.peer_id();
+        cell->SetLeadingPeerId(peerId);
+
+        const auto& descriptor = cell->Peers()[peerId].Descriptor;
+        LOG_INFO_UNLESS(IsRecovery(), "Tablet cell leading peer updated (CellId: %v, Address: %v, PeerId: %v)",
+            cellId,
+            descriptor.GetDefaultAddress(),
+            peerId);
+
+        RestartPrerequisiteTransaction(cell);
         ReconfigureCell(cell);
     }
 
@@ -1309,7 +1351,7 @@ private:
                 tabletId);
             return;
         }
-        
+
         auto* table = tablet->GetTable();
         auto* cell = tablet->GetCell();
 
@@ -1330,7 +1372,7 @@ private:
         auto* tablet = FindTablet(tabletId);
         if (!IsObjectAlive(tablet))
             return;
-        
+
         if (tablet->GetState() != ETabletState::Unmounting) {
             LOG_INFO_UNLESS(IsRecovery(), "Unmounted notification received for a tablet in %Qlv state, ignored (TabletId: %v)",
                 tablet->GetState(),
@@ -1573,7 +1615,7 @@ private:
     void ReconfigureCell(TTabletCell* cell)
     {
         cell->SetConfigVersion(cell->GetConfigVersion() + 1);
-        
+
         auto config = cell->GetConfig();
         config->Addresses.clear();
         for (const auto& peer : cell->Peers()) {
@@ -1713,6 +1755,12 @@ private:
     }
 
 
+    void RestartPrerequisiteTransaction(TTabletCell* cell)
+    {
+        AbortPrerequisiteTransaction(cell);
+        StartPrerequisiteTransaction(cell);
+    }
+
     void StartPrerequisiteTransaction(TTabletCell* cell)
     {
         auto multicellManager = Bootstrap_->GetMulticellManager();
@@ -1740,16 +1788,23 @@ private:
         if (!transaction)
             return;
 
+        // Suppress calling OnTransactionFinished.
+        YCHECK(TransactionToCellMap_.erase(transaction) == 1);
+        cell->SetPrerequisiteTransaction(nullptr);
+
         // NB: Make a copy, transaction will die soon.
+        auto transactionId = transaction->GetId();
+
         auto transactionManager = Bootstrap_->GetTransactionManager();
         transactionManager->AbortTransaction(transaction, true);
-
-        // NB: Cell-to-transaction link is broken in OnTransactionFinished from AbortTransaction.
-        YCHECK(!cell->GetPrerequisiteTransaction());
 
         auto cypressManager = Bootstrap_->GetCypressManager();
         auto cellNodeProxy = GetCellNode(cell->GetId());
         cypressManager->AbortSubtreeTransactions(cellNodeProxy);
+
+        LOG_INFO_UNLESS(IsRecovery(), "Tablet cell prerequisite aborted (CellId: %v, TransactionId: %v)",
+            cell->GetId(),
+            transactionId);
     }
 
     void OnTransactionFinished(TTransaction* transaction)
@@ -2072,8 +2127,10 @@ TObjectBase* TTabletManager::TTabletCellTypeHandler::CreateObject(
     IAttributeDictionary* attributes,
     const TObjectCreationExtensions& /*extensions*/)
 {
-    // TODO(babenko): support arbitrary size
-    return Owner_->CreateCell(1, attributes, hintId);
+    int peerCount = attributes->Get<int>("peer_count", 1);
+    attributes->Remove("peer_count");
+
+    return Owner_->CreateCell(peerCount, attributes, hintId);
 }
 
 void TTabletManager::TTabletCellTypeHandler::DoZombifyObject(TTabletCell* cell)

@@ -33,7 +33,8 @@ void TTabletCell::TPeer::Persist(NCellMaster::TPersistenceContext& context)
 
 TTabletCell::TTabletCell(const TTabletCellId& id)
     : TNonversionedObjectBase(id)
-    , Size_(-1)
+    , PeerCount_(0)
+    , LeadingPeerId_(0)
     , ConfigVersion_(0)
     , Config_(New<TTabletCellConfig>())
     , Options_(New<TTabletCellOptions>())
@@ -45,7 +46,8 @@ void TTabletCell::Save(TSaveContext& context) const
     TNonversionedObjectBase::Save(context);
 
     using NYT::Save;
-    Save(context, Size_);
+    Save(context, PeerCount_);
+    Save(context, LeadingPeerId_);
     Save(context, Peers_);
     Save(context, ConfigVersion_);
     Save(context, *Config_);
@@ -60,7 +62,11 @@ void TTabletCell::Load(TLoadContext& context)
     TNonversionedObjectBase::Load(context);
 
     using NYT::Load;
-    Load(context, Size_);
+    Load(context, PeerCount_);
+    // COMPAT(babenko)
+    if (context.GetVersion() >= 206) {
+        Load(context, LeadingPeerId_);
+    }
     Load(context, Peers_);
     Load(context, ConfigVersion_);
     Load(context, *Config_);
@@ -72,7 +78,7 @@ void TTabletCell::Load(TLoadContext& context)
 
 TPeerId TTabletCell::FindPeerId(const Stroka& address) const
 {
-    for (TPeerId peerId = 0; peerId < Peers_.size(); ++peerId) {
+    for (auto peerId = 0; peerId < Peers_.size(); ++peerId) {
         const auto& peer = Peers_[peerId];
         if (peer.Descriptor.GetDefaultAddress() == address) {
             return peerId;
@@ -105,7 +111,7 @@ TPeerId TTabletCell::GetPeerId(TNode* node) const
     return peerId;
 }
 
-void TTabletCell::AssignPeer(const TNodeDescriptor& descriptor, TPeerId peerId)
+void TTabletCell::AssignPeer(const TCellPeerDescriptor& descriptor, TPeerId peerId)
 {
     auto& peer = Peers_[peerId];
     YCHECK(peer.Descriptor.IsNull());
@@ -117,7 +123,7 @@ void TTabletCell::RevokePeer(TPeerId peerId)
 {
     auto& peer = Peers_[peerId];
     YCHECK(!peer.Descriptor.IsNull());
-    peer.Descriptor = TNodeDescriptor();
+    peer.Descriptor = TCellPeerDescriptor();
     peer.Node = nullptr;
 }
 
@@ -146,38 +152,36 @@ void TTabletCell::UpdatePeerSeenTime(TPeerId peerId, TInstant when)
 
 ETabletCellHealth TTabletCell::GetHealth() const
 {
-    int leaderCount = 0;
-    int followerCount = 0;
-    for (const auto& peer : Peers_) {
-        auto* node = peer.Node;
-        if (!IsObjectAlive(node))
+    if (PeerCount_ == 0) {
+        return ETabletCellHealth::Failed;
+    }
+
+    const auto& leaderPeer = Peers_[LeadingPeerId_];
+    auto* leaderNode = leaderPeer.Node;
+    if (!IsObjectAlive(leaderNode)) {
+        return Tablets_.empty() ? ETabletCellHealth::Initializing : ETabletCellHealth::Failed;
+    }
+
+    const auto* leaderSlot = leaderNode->GetTabletSlot(this);
+    if (leaderSlot->PeerState != EPeerState::Leading) {
+        return Tablets_.empty() ? ETabletCellHealth::Initializing : ETabletCellHealth::Failed;
+    }
+
+    for (auto peerId = 0; peerId < PeerCount_; ++peerId) {
+        if (peerId == LeadingPeerId_)
             continue;
+        const auto& peer = Peers_[peerId];
+        auto* node = peer.Node;
+        if (!IsObjectAlive(node)) {
+            return ETabletCellHealth::Degraded;
+        }
         const auto* slot = node->GetTabletSlot(this);
-        switch (slot->PeerState) {
-            case EPeerState::Leading:
-                ++leaderCount;
-                break;
-            case EPeerState::Following:
-                ++followerCount;
-                break;
-            default:
-                break;
+        if (slot->PeerState != EPeerState::Following) {
+            return ETabletCellHealth::Degraded;
         }
     }
 
-    if (leaderCount == 1 && followerCount == Size_ - 1) {
-        return ETabletCellHealth::Good;
-    }
-
-    if (Tablets_.empty()) {
-        return ETabletCellHealth::Initializing;
-    }
-
-    if (leaderCount == 1 && followerCount >= Size_ / 2) {
-        return ETabletCellHealth::Degraded;
-    }
-
-    return ETabletCellHealth::Failed;
+    return ETabletCellHealth::Good;
 }
 
 TCellDescriptor TTabletCell::GetDescriptor() const
@@ -185,8 +189,10 @@ TCellDescriptor TTabletCell::GetDescriptor() const
     TCellDescriptor descriptor;
     descriptor.CellId = Id_;
     descriptor.ConfigVersion = ConfigVersion_;
-    for (const auto& peer : Peers_) {
-        descriptor.Peers.push_back(peer.Descriptor);
+    for (auto peerId = 0; peerId < PeerCount_; ++peerId) {
+        descriptor.Peers.push_back(TCellPeerDescriptor(
+            Peers_[peerId].Descriptor,
+            peerId == LeadingPeerId_));
     }
     return descriptor;
 }

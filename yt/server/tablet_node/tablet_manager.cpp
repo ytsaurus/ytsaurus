@@ -419,10 +419,7 @@ private:
 
         TTabletAutomatonPart::OnLeaderRecoveryComplete();
 
-        for (const auto& pair : TabletMap_) {
-            auto* tablet = pair.second;
-            StartTabletEpoch(tablet);
-        }
+        StartEpoch();
     }
 
     virtual void OnLeaderActive() override
@@ -456,20 +453,17 @@ private:
             }
         }
 
-        for (const auto& pair : TabletMap_) {
-            auto* tablet = pair.second;
-            StopTabletEpoch(tablet);
-        }
+        StopEpoch();
     }
 
 
-    virtual void OnStartFollowing() override
+    virtual void OnFollowerRecoveryComplete() override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        TTabletAutomatonPart::OnStartFollowing();
+        TTabletAutomatonPart::OnFollowerRecoveryComplete();
 
-        YUNREACHABLE();
+        StartEpoch();
     }
 
     virtual void OnStopFollowing() override
@@ -478,7 +472,24 @@ private:
 
         TTabletAutomatonPart::OnStopFollowing();
 
-        YUNREACHABLE();
+        StopEpoch();
+    }
+
+
+    void StartEpoch()
+    {
+        for (const auto& pair : TabletMap_) {
+            auto* tablet = pair.second;
+            StartTabletEpoch(tablet);
+        }
+    }
+
+    void StopEpoch()
+    {
+        for (const auto& pair : TabletMap_) {
+            auto* tablet = pair.second;
+            StopTabletEpoch(tablet);
+        }
     }
 
 

@@ -102,6 +102,10 @@ private:
             LOG_DEBUG("Creating remote changelog (ChangelogId: %v)",
                 id);
 
+            if (!PrerequisiteTransaction_) {
+                THROW_ERROR_EXCEPTION("Changelog store is read-only");
+            }
+
             {
                 TCreateNodeOptions options;
                 auto attributes = CreateEphemeralAttributes();
@@ -161,9 +165,9 @@ private:
             {
                 TGetNodeOptions options;
                 options.AttributeFilter.Mode = EAttributeFilterMode::MatchingOnly;
-                options.AttributeFilter.Keys.push_back("sealed");
                 options.AttributeFilter.Keys.push_back("prev_record_count");
                 options.AttributeFilter.Keys.push_back("uncompressed_data_size");
+                options.AttributeFilter.Keys.push_back("quorum_row_count");
                 auto result = WaitFor(Client_->GetNode(path, options));
                 if (result.FindMatching(NYTree::EErrorCode::ResolveError)) {
                     THROW_ERROR_EXCEPTION(
@@ -176,29 +180,12 @@ private:
                 auto node = ConvertToNode(result.ValueOrThrow());
                 const auto& attributes = node->Attributes();
 
-                if (!attributes.Get<bool>("sealed")) {
-                    THROW_ERROR_EXCEPTION("Changelog %v is not sealed",
-                        path);
-                }
-
                 meta.set_prev_record_count(attributes.Get<int>("prev_record_count"));
                 dataSize = attributes.Get<i64>("uncompressed_data_size");
+                recordCount = attributes.Get<int>("quorum_row_count");
             }
             LOG_DEBUG("Remote changelog attributes received (ChangelogId: %v)",
                 id);
-
-            // TODO(babenko): consolidate with the above after merging into 18.0
-            LOG_DEBUG("Getting remote changelog quorum record count (ChangelogId: %v)",
-                id);
-            {
-                auto asyncResult = Client_->GetNode(path + "/@quorum_row_count");
-                auto result = WaitFor(asyncResult)
-                    .ValueOrThrow();
-                recordCount = ConvertTo<int>(result);
-            }
-            LOG_DEBUG("Remote changelog quorum record count received (ChangelogId: %v, RecordCount: %v)",
-                id,
-                recordCount);
 
             return CreateRemoteChangelog(
                 id,
@@ -268,7 +255,10 @@ private:
 
         virtual TFuture<void> Append(const TSharedRef& data) override
         {
-            YCHECK(Writer_);
+            if (!Writer_) {
+                return MakeFuture<void>(TError("Changelog is read-only"));
+            }
+
             DataSize_ += data.Size();
             RecordCount_ += 1;
             FlushResult_ = Writer_->Write(std::vector<TSharedRef>(1, data));
@@ -290,17 +280,14 @@ private:
                 .Run(firstRecordId, maxRecords);
         }
 
-        virtual TFuture<void> Truncate(int recordCount) override
+        virtual TFuture<void> Truncate(int /*recordCount*/) override
         {
-            // TODO(babenko): implement
-            YCHECK(recordCount == RecordCount_);
-            return VoidFuture;
+            YUNREACHABLE();
         }
 
         virtual TFuture<void> Close() override
         {
-            YCHECK(Writer_);
-            return Writer_->Close();
+            return Writer_ ? Writer_->Close() : VoidFuture;
         }
 
     private:
@@ -380,11 +367,13 @@ private:
     IChangelogStorePtr DoLock()
     {
         try {
-            auto prerequisiteTransaction = CreatePrerequisiteTransaction();
-
-            TakeLock(prerequisiteTransaction);
-
-            auto reachableVersion = ComputeReachableVersion();
+            ITransactionPtr prerequisiteTransaction;
+            TVersion reachableVersion;
+            if (PrerequisiteTransactionId_) {
+                prerequisiteTransaction = CreatePrerequisiteTransaction();
+                TakeLock(prerequisiteTransaction);
+                reachableVersion = ComputeReachableVersion();
+            }
 
             return New<TRemoteChangelogStore>(
                 Config_,
@@ -455,12 +444,14 @@ private:
 
         auto path = GetChangelogPath(Path_, latestId);
 
+        int recordCount;
         LOG_DEBUG("Getting remote changelog attributes (ChangelogId: %v)",
             latestId);
         {
             TGetNodeOptions options;
             options.AttributeFilter.Mode = EAttributeFilterMode::MatchingOnly;
             options.AttributeFilter.Keys.push_back("sealed");
+            options.AttributeFilter.Keys.push_back("quorum_row_count");
             auto result = WaitFor(MasterClient_->GetNode(path, options));
             auto node = ConvertToNode(result.ValueOrThrow());
 
@@ -469,23 +460,10 @@ private:
                 THROW_ERROR_EXCEPTION("Changelog %v is not sealed",
                     path);
             }
+            recordCount = attributes.Get<int>("quorum_row_count");
         }
         LOG_DEBUG("Remote changelog attributes received (ChangelogId: %v)",
             latestId);
-
-        // TODO(babenko): consolidate with the above after mering into 18.0
-        LOG_DEBUG("Getting remote changelog quorum record count (ChangelogId: %v)",
-            latestId);
-        int recordCount;
-        {
-            auto asyncResult = MasterClient_->GetNode(path + "/@quorum_row_count");
-            auto result = WaitFor(asyncResult)
-                .ValueOrThrow();
-            recordCount = ConvertTo<int>(result);
-        }
-        LOG_DEBUG("Remote changelog quorum record count received (ChangelogId: %v, RecordCount: %v)",
-            latestId,
-            recordCount);
 
         return TVersion(latestId, recordCount);
     }

@@ -46,7 +46,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(Owner_->ControlThread);
 
-        for (TPeerId id = 0; id < Owner_->CellManager_->GetPeerCount(); ++id) {
+        for (TPeerId id = 0; id < Owner_->CellManager_->GetTotalPeerCount(); ++id) {
             if (id == Owner_->CellManager_->GetSelfPeerId()) {
                 OnSuccess();
             } else {
@@ -113,18 +113,18 @@ private:
 
         if (!rspOrError.IsOK()) {
             PingErrors_.push_back(rspOrError);
-            LOG_WARNING(rspOrError, "Error pinging follower (FollowerId: %v)",
+            LOG_WARNING(rspOrError, "Error pinging follower (PeerId: %v)",
                 followerId);
             return;
         }
 
         const auto& rsp = rspOrError.Value();
         auto state = EPeerState(rsp->state());
-        LOG_DEBUG("Follower ping succeded (FollowerId: %v, State: %v)",
+        LOG_DEBUG("Follower ping succeded (PeerId: %v, State: %v)",
             followerId,
             state);
 
-        if (state == EPeerState::Following) {
+        if (state == EPeerState::Following && Owner_->CellManager_->GetPeerConfig(followerId).Voting) {
             OnSuccess();
         }
     }
@@ -134,7 +134,7 @@ private:
         VERIFY_THREAD_AFFINITY(Owner_->ControlThread);
 
         if (!Promise_.IsSet()) {
-            auto error = TError("Could not acquire a quorum")
+            auto error = TError("Could not acquire quorum")
                 << PingErrors_;
             Promise_.Set(error);
         }
@@ -143,7 +143,7 @@ private:
     void OnSuccess()
     {
         ++ActiveCount_;
-        if (ActiveCount_ == Owner_->CellManager_->GetQuorumCount()) {
+        if (ActiveCount_ == Owner_->CellManager_->GetQuorumPeerCount()) {
             Promise_.Set();
         }
     }

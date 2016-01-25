@@ -1,6 +1,7 @@
 #pragma once
 
 #include "public.h"
+#include "config.h"
 
 #include <yt/core/actions/signal.h>
 
@@ -28,12 +29,13 @@ public:
 
     const TCellId& GetCellId() const;
     TPeerId GetSelfPeerId() const;
-    const Stroka& GetSelfAddress() const;
+    const TCellPeerConfig& GetSelfConfig() const;
 
-    int GetQuorumCount() const;
-    int GetPeerCount() const;
+    int GetVotingPeerCount() const;
+    int GetQuorumPeerCount() const;
+    int GetTotalPeerCount() const;
 
-    const TNullable<Stroka>& GetPeerAddress(TPeerId id) const;
+    const TCellPeerConfig& GetPeerConfig(TPeerId id) const;
     NRpc::IChannelPtr GetPeerChannel(TPeerId id) const;
 
     const NProfiling::TTagIdList& GetPeerTags(TPeerId id) const;
@@ -45,15 +47,19 @@ public:
     DEFINE_SIGNAL(void(TPeerId peerId), PeerReconfigured);
 
 private:
-    TCellConfigPtr Config;
-    NRpc::IChannelFactoryPtr ChannelFactory;
-    TPeerId SelfId;
+    TCellConfigPtr Config_;
+    NRpc::IChannelFactoryPtr ChannelFactory_;
+    TPeerId SelfId_;
 
-    std::vector<NRpc::IChannelPtr> PeerChannels;
+    int VotingPeerCount_;
+    int QuorumPeerCount_;
+    int TotalPeerCount_;
 
-    std::vector<NProfiling::TTagIdList> PeerTags;
-    NProfiling::TTagIdList AllPeersTags;
-    NProfiling::TTagIdList PeerQuorumTags;
+    std::vector<NRpc::IChannelPtr> PeerChannels_;
+
+    std::vector<NProfiling::TTagIdList> PeerTags_;
+    NProfiling::TTagIdList AllPeersTags_;
+    NProfiling::TTagIdList PeerQuorumTags_;
 
     NLogging::TLogger Logger;
          

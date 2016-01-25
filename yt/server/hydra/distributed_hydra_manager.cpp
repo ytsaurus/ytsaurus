@@ -126,7 +126,8 @@ public:
         : THydraServiceBase(
             controlInvoker,
             NRpc::TServiceId(THydraServiceProxy::GetServiceName(), cellManager->GetCellId()),
-            HydraLogger)
+            HydraLogger,
+            THydraServiceProxy::GetProtocolVersion())
         , Config_(config)
         , RpcServer_(rpcServer)
         , ElectionManager_(electionManager)
@@ -146,17 +147,17 @@ public:
 
         DecoratedAutomaton_ = New<TDecoratedAutomaton>(
             Config_,
+            Options_,
             CellManager_,
             automaton,
             AutomatonInvoker_,
             ControlInvoker_,
-            SnapshotStore_,
-            Options_);
+            SnapshotStore_);
 
         RegisterMethod(RPC_SERVICE_METHOD_DESC(LookupChangelog));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ReadChangeLog)
             .SetCancelable(true));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(LogMutations));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(AcceptMutations));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(BuildSnapshot));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ForceBuildSnapshot)
             .SetInvoker(DecoratedAutomaton_->GetDefaultGuardedUserInvoker()));
@@ -179,7 +180,7 @@ public:
         RpcServer_->RegisterService(this);
 
         LOG_INFO("Hydra instance initialized (SelfAddress: %v, SelfId: %v)",
-            CellManager_->GetSelfAddress(),
+            CellManager_->GetSelfConfig(),
             CellManager_->GetSelfPeerId());
 
         ControlState_ = EPeerState::Elections;
@@ -336,6 +337,7 @@ public:
             BuildYsonFluently(consumer)
                 .BeginMap()
                     .Item("state").Value(ControlState_)
+                    .Item("voting").Value(CellManager_->GetSelfConfig().Voting)
                     .Item("committed_version").Value(ToString(DecoratedAutomaton_->GetCommittedVersion()))
                     .Item("automaton_version").Value(ToString(DecoratedAutomaton_->GetAutomatonVersion()))
                     .Item("logged_version").Value(ToString(DecoratedAutomaton_->GetLoggedVersion()))
@@ -524,18 +526,18 @@ private:
         context->Reply();
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NProto, LogMutations)
+    DECLARE_RPC_SERVICE_METHOD(NProto, AcceptMutations)
     {
-        // LogMutations and RotateChangelog handling must start in Control Thread
+        // AcceptMutations and RotateChangelog handling must start in Control Thread
         // since during recovery Automaton Thread may be busy for prolonged periods of time
         // and we must still be able to capture and postpone the relevant mutations.
         //
-        // Additionally, it is vital for LogMutations, BuildSnapshot, and RotateChangelog handlers
+        // Additionally, it is vital for AcceptMutations, BuildSnapshot, and RotateChangelog handlers
         // to follow the same thread transition pattern (start in ControlThread, then switch to
         // Automaton Thread) to ensure consistent callbacks ordering.
         //
         // E.g. BulidSnapshot and RotateChangelog calls rely on the fact than all mutations
-        // that were previously sent via LogMutations are accepted (and the logged version is
+        // that were previously sent via AcceptMutations are accepted (and the logged version is
         // propagated appropriately).
 
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -568,12 +570,12 @@ private:
                 CommitMutationsAtFollower(epochContext, committedVersion);
 
                 try {
-                    auto asyncResult = epochContext->FollowerCommitter->LogMutations(
+                    auto asyncResult = epochContext->FollowerCommitter->AcceptMutations(
                         startVersion,
                         request->Attachments());
                     WaitFor(asyncResult)
                         .ThrowOnError();
-                    response->set_logged(true);
+                    response->set_logged(Options_.WriteChangelogsAtFollowers);
                 } catch (const std::exception& ex) {
                     auto error = TError("Error logging mutations")
                         << ex;
@@ -672,6 +674,10 @@ private:
                 ControlState_);
         }
 
+        if (Options_.WriteSnapshotsAtFollowers) {
+            THROW_ERROR_EXCEPTION("Cannot build snapshot at follower");
+        }
+
         auto epochContext = GetEpochContext(epochId);
 
         SwitchTo(epochContext->EpochUserAutomatonInvoker);
@@ -720,7 +726,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NProto, RotateChangelog)
     {
-        // See LogMutations.
+        // See AcceptMutations.
         VERIFY_THREAD_AFFINITY(ControlThread);
         UNUSED(response);
 
@@ -854,7 +860,7 @@ private:
     }
 
 
-    i64 GetElectionPriority() const
+    i64 GetElectionPriority()
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -930,7 +936,7 @@ private:
                 auto changelogVersion = ChangelogStore_->GetReachableVersion();
                 LOG_INFO("The latest changelog version is %v", changelogVersion);
 
-                ReachableVersion_ =  changelogVersion.SegmentId < maxSnapshotId
+                ReachableVersion_ = changelogVersion.SegmentId < maxSnapshotId
                     ? TVersion(maxSnapshotId, 0)
                     : changelogVersion;
 
@@ -941,7 +947,7 @@ private:
             }
         }
 
-        LOG_INFO("Reachable version is %v", *ReachableVersion_);
+        LOG_INFO("Reachable version is %v", ReachableVersion_);
 
         ElectionManager_->Participate();
     }
@@ -1107,6 +1113,7 @@ private:
 
         epochContext->Checkpointer = New<TCheckpointer>(
             Config_,
+            Options_,
             CellManager_,
             DecoratedAutomaton_,
             epochContext->LeaderCommitter,
@@ -1136,6 +1143,7 @@ private:
         try {
             epochContext->LeaderRecovery = New<TLeaderRecovery>(
                 Config_,
+                Options_,
                 CellManager_,
                 DecoratedAutomaton_,
                 ChangelogStore_,
@@ -1339,6 +1347,7 @@ private:
 
         epochContext->FollowerRecovery = New<TFollowerRecovery>(
             Config_,
+            Options_,
             CellManager_,
             DecoratedAutomaton_,
             ChangelogStore_,

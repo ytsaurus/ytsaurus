@@ -33,8 +33,9 @@ class TTabletCell
     , public TRefTracked<TTablet>
 {
 public:
-    DEFINE_BYVAL_RW_PROPERTY(int, Size);
+    DEFINE_BYVAL_RW_PROPERTY(int, PeerCount);
 
+public:
     struct TPeer
     {
         NNodeTrackerClient::TNodeDescriptor Descriptor;
@@ -47,6 +48,7 @@ public:
 
     typedef SmallVector<TPeer, TypicalCellSize> TPeerList;
     DEFINE_BYREF_RW_PROPERTY(TPeerList, Peers);
+    DEFINE_BYVAL_RW_PROPERTY(int, LeadingPeerId);
 
     DEFINE_BYVAL_RW_PROPERTY(int, ConfigVersion);
     DEFINE_BYVAL_RW_PROPERTY(TTabletCellConfigPtr, Config);
@@ -70,7 +72,7 @@ public:
     TPeerId FindPeerId(NNodeTrackerServer::TNode* node) const;
     TPeerId GetPeerId(NNodeTrackerServer::TNode* node) const;
 
-    void AssignPeer(const NNodeTrackerClient::TNodeDescriptor& descriptor, TPeerId peerId);
+    void AssignPeer(const NHive::TCellPeerDescriptor& descriptor, TPeerId peerId);
     void RevokePeer(TPeerId peerId);
 
     void AttachPeer(NNodeTrackerServer::TNode* node, TPeerId peerId);

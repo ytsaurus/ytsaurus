@@ -311,8 +311,9 @@ private:
                 EObjectType::RackMap);
 
             auto createMasters = [&] (const TYPath& rootPath, NElection::TCellConfigPtr cellConfig) {
-                for (const auto& address : cellConfig->Addresses) {
-                    auto addressPath = "/" + ToYPathLiteral(*address);
+                for (const auto& peer : cellConfig->Peers) {
+                    const auto& address = *peer.Address;
+                    auto addressPath = "/" + ToYPathLiteral(address);
 
                     CreateNode(
                         rootPath + addressPath,
@@ -325,7 +326,7 @@ private:
                         EObjectType::Orchid,
                         BuildYsonStringFluently()
                             .BeginMap()
-                                .Item("remote_address").Value(*address)
+                                .Item("remote_address").Value(address)
                             .EndMap());
                 }
             };

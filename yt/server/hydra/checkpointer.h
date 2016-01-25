@@ -1,6 +1,7 @@
 #pragma once
 
 #include "private.h"
+#include "distributed_hydra_manager.h"
 
 #include <yt/ytlib/election/public.h>
 
@@ -26,6 +27,7 @@ class TCheckpointer
 public:
     TCheckpointer(
         TDistributedHydraManagerConfigPtr config,
+        const TDistributedHydraManagerOptions& options,
         NElection::TCellManagerPtr cellManager,
         TDecoratedAutomatonPtr decoratedAutomaton,
         TLeaderCommitterPtr leaderCommitter,
@@ -69,6 +71,7 @@ public:
 
 private:
     const TDistributedHydraManagerConfigPtr Config_;
+    const TDistributedHydraManagerOptions Options_;
     const NElection::TCellManagerPtr CellManager_;
     const TDecoratedAutomatonPtr DecoratedAutomaton_;
     TEpochContext* const EpochContext_;

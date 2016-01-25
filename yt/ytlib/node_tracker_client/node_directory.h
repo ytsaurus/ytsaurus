@@ -25,6 +25,7 @@ public:
 public:
     TNodeDescriptor() = default;
     explicit TNodeDescriptor(const Stroka& defaultAddress);
+    explicit TNodeDescriptor(const TNullable<Stroka>& defaultAddress);
     explicit TNodeDescriptor(
         const TAddressMap& addresses,
         const TNullable<Stroka>& rack = Null);

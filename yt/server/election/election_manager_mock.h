@@ -15,6 +15,7 @@ class TElectionCallbacksMock
 public:
     MOCK_METHOD1(OnStartLeading, void(TEpochContextPtr epochContext));
     MOCK_METHOD0(OnStopLeading, void());
+
     MOCK_METHOD1(OnStartFollowing, void(TEpochContextPtr epochContext));
     MOCK_METHOD0(OnStopFollowing, void());
 

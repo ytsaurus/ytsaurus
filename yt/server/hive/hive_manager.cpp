@@ -298,7 +298,7 @@ private:
         }
 
         auto requestReconfigure = [&] (const NHive::TCellDescriptor& cellDescriptor, int oldVersion) {
-            LOG_DEBUG("Requesting cell reconfiguration (CellId: %v, ConfigVersion: %v->%v)",
+            LOG_DEBUG("Requesting cell reconfiguration (CellId: %v, ConfigVersion: %v -> %v)",
                 cellDescriptor.CellId,
                 oldVersion,
                 cellDescriptor.ConfigVersion);

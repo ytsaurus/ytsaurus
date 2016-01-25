@@ -113,6 +113,9 @@ void DoDownloadChangelog(
             }
         }
 
+        WaitFor(changelog->Flush())
+            .ThrowOnError();
+
         LOG_INFO("Changelog downloaded successfully");
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Error downloading changelog %v", changelogId)

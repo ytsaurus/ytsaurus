@@ -449,6 +449,23 @@ private:
         return subsources;
     }
 
+    static const TCellPeerDescriptor& GetLeadingTabletPeerDescriptor(const TCellDescriptor& cellDescriptor)
+    {
+        if (cellDescriptor.Peers.empty()) {
+            THROW_ERROR_EXCEPTION("No alive replicas for tablet cell %v",
+                cellDescriptor.CellId);
+        }
+
+        for (const auto& peerDescriptor : cellDescriptor.Peers) {
+            if (peerDescriptor.GetVoting()) {
+                return peerDescriptor;
+            }
+        }
+
+        THROW_ERROR_EXCEPTION("No leading peer is known for tablet cell %v",
+            cellDescriptor.CellId);
+    }
+
     std::vector<std::pair<TDataSource, Stroka>> SplitDynamicTableFurther(
         const TObjectId& tableId,
         const std::vector<TRowRange>& ranges,
@@ -504,14 +521,10 @@ private:
 
                 if (insertResult.second) {
                     descriptor = cellDirectory->GetDescriptorOrThrow(tabletInfo->CellId);
-                    if (descriptor.Peers.empty()) {
-                        THROW_ERROR_EXCEPTION("No alive replicas for tablet %v",
-                            tabletInfo->TabletId);
-                    }
                 }
 
-                const auto& peer = descriptor.Peers[RandomNumber(descriptor.Peers.size())];
-                auto address = peer.GetAddress(networkName);
+                const auto& peerDescriptor = GetLeadingTabletPeerDescriptor(descriptor);
+                auto address = peerDescriptor.GetAddress(networkName);
                 subsources.emplace_back(std::move(subsource), std::move(address));
             }
         }

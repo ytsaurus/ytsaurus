@@ -117,7 +117,7 @@ public:
                 BIND(&TBatch::OnLocalFlush, MakeStrong(this))
                     .AsyncVia(Owner_->EpochContext_->EpochControlInvoker)));
 
-            for (auto followerId = 0; followerId < Owner_->CellManager_->GetPeerCount(); ++followerId) {
+            for (auto followerId = 0; followerId < Owner_->CellManager_->GetTotalPeerCount(); ++followerId) {
                 if (followerId == Owner_->CellManager_->GetSelfPeerId())
                     continue;
 
@@ -125,14 +125,14 @@ public:
                 if (!channel)
                     continue;
 
-                LOG_DEBUG("Sending mutations to follower (FollowerId: %v)", followerId);
+                LOG_DEBUG("Sending mutations to follower (PeerId: %v)", followerId);
 
                 THydraServiceProxy proxy(channel);
                 proxy.SetDefaultTimeout(Owner_->Config_->CommitFlushRpcTimeout);
 
                 auto committedVersion = Owner_->DecoratedAutomaton_->GetCommittedVersion();
 
-                auto request = proxy.LogMutations();
+                auto request = proxy.AcceptMutations();
                 ToProto(request->mutable_epoch_id(), Owner_->EpochContext_->EpochId);
                 request->set_start_revision(StartVersion_.ToRevision());
                 request->set_committed_revision(committedVersion.ToRevision());
@@ -160,7 +160,7 @@ public:
     }
 
 private:
-    void OnRemoteFlush(TPeerId followerId, const THydraServiceProxy::TErrorOrRspLogMutationsPtr& rspOrError)
+    void OnRemoteFlush(TPeerId followerId, const THydraServiceProxy::TErrorOrRspAcceptMutationsPtr& rspOrError)
     {
         VERIFY_THREAD_AFFINITY(Owner_->ControlThread);
 
@@ -169,17 +169,17 @@ private:
             Owner_->CellManager_->GetPeerTags(followerId));
 
         if (!rspOrError.IsOK()) {
-            LOG_WARNING(rspOrError, "Error logging mutations at follower (FollowerId: %v)",
+            LOG_WARNING(rspOrError, "Error logging mutations at follower (PeerId: %v)",
                 followerId);
             return;
         }
 
         const auto& rsp = rspOrError.Value();
         if (rsp->logged()) {
-        	LOG_DEBUG("Mutations are flushed by follower (FollowerId: %v)", followerId);
+            LOG_DEBUG("Mutations are logged by follower (PeerId: %v)", followerId);
             OnSuccessfulFlush();
         } else {
-            LOG_DEBUG("Mutations are acknowledged by follower (FollowerId: %v)", followerId);
+            LOG_DEBUG("Mutations are acknowledged by follower (PeerId: %v)", followerId);
         }
     }
 
@@ -211,7 +211,7 @@ private:
             NHydra::EErrorCode::MaybeCommitted,
             "Mutations are uncertain: %v out of %v commits were successful",
             FlushCount_,
-            Owner_->CellManager_->GetPeerCount()));
+            Owner_->CellManager_->GetTotalPeerCount()));
     }
 
 
@@ -220,7 +220,7 @@ private:
         VERIFY_THREAD_AFFINITY(Owner_->ControlThread);
 
         ++FlushCount_;
-        if (FlushCount_ == Owner_->CellManager_->GetQuorumCount()) {
+        if (FlushCount_ == Owner_->CellManager_->GetQuorumPeerCount()) {
             SetSucceded();
         }
     }
@@ -515,7 +515,7 @@ TFollowerCommitter::TFollowerCommitter(
 TFollowerCommitter::~TFollowerCommitter()
 { }
 
-TFuture<void> TFollowerCommitter::LogMutations(
+TFuture<void> TFollowerCommitter::AcceptMutations(
     TVersion expectedVersion,
     const std::vector<TSharedRef>& recordsData)
 {
@@ -530,10 +530,10 @@ TFuture<void> TFollowerCommitter::LogMutations(
         return pendingMutation.Promise;
     }
 
-    return DoLogMutations(expectedVersion, recordsData);
+    return DoAcceptMutations(expectedVersion, recordsData);
 }
 
-TFuture<void> TFollowerCommitter::DoLogMutations(
+TFuture<void> TFollowerCommitter::DoAcceptMutations(
     TVersion expectedVersion,
     const std::vector<TSharedRef>& recordsData)
 {
@@ -588,7 +588,7 @@ void TFollowerCommitter::ResumeLogging()
     LOG_DEBUG("Mutations logging resumed");
 
     for (auto& pendingMutation : PendingMutations_) {
-        auto result = DoLogMutations(pendingMutation.ExpectedVersion, pendingMutation.RecordsData);
+        auto result = DoAcceptMutations(pendingMutation.ExpectedVersion, pendingMutation.RecordsData);
         pendingMutation.Promise.SetFrom(std::move(result));
     }
 

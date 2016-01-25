@@ -48,7 +48,7 @@ public:
         }
 
         std::vector<TFuture<void>> asyncResults;
-        for (auto peerId = 0; peerId < CellManager_->GetPeerCount(); ++peerId) {
+        for (auto peerId = 0; peerId < CellManager_->GetTotalPeerCount(); ++peerId) {
             auto channel = CellManager_->GetPeerChannel(peerId);
             if (!channel)
                 continue;

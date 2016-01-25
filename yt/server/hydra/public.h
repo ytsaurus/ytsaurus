@@ -26,6 +26,9 @@ DECLARE_REFCOUNTED_STRUCT(ISnapshotStore)
 DECLARE_REFCOUNTED_CLASS(TFileSnapshotStore)
 DECLARE_REFCOUNTED_CLASS(TFileChangelog)
 
+DECLARE_REFCOUNTED_CLASS(TSnapshotStoreThunk)
+DECLARE_REFCOUNTED_CLASS(TChangelogStoreFactoryThunk)
+
 struct TMutationRequest;
 struct TMutationResponse;
 class TMutationContext; 

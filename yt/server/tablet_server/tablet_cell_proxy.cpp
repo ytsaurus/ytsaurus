@@ -68,6 +68,8 @@ private:
 
         const auto* cell = GetThisTypedImpl();
 
+        descriptors->push_back("peer_count");
+        descriptors->push_back("leading_peer_id");
         descriptors->push_back("health");
         descriptors->push_back("peers");
         descriptors->push_back(TAttributeDescriptor("tablet_ids")
@@ -82,6 +84,18 @@ private:
     virtual bool GetBuiltinAttribute(const Stroka& key, NYson::IYsonConsumer* consumer) override
     {
         const auto* cell = GetThisTypedImpl();
+
+        if (key == "peer_count") {
+            BuildYsonFluently(consumer)
+                .Value(cell->GetPeerCount());
+            return true;
+        }
+
+        if (key == "leading_peer_id") {
+            BuildYsonFluently(consumer)
+                .Value(cell->GetLeadingPeerId());
+            return true;
+        }
 
         if (key == "health") {
             BuildYsonFluently(consumer)

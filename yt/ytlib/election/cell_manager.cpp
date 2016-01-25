@@ -25,127 +25,151 @@ TCellManager::TCellManager(
     TCellConfigPtr config,
     IChannelFactoryPtr channelFactory,
     TPeerId selfId)
-    : Config(config)
-    , ChannelFactory(channelFactory)
-    , SelfId(selfId)
+    : Config_(config)
+    , ChannelFactory_(channelFactory)
+    , SelfId_(selfId)
     , Logger(ElectionLogger)
 {
+    TotalPeerCount_ = config->Peers.size();
+    VotingPeerCount_ = 0;
+    for (const auto& peer : Config_->Peers) {
+        if (peer.Voting) {
+            ++VotingPeerCount_;
+        }
+    }
+    QuorumPeerCount_ = VotingPeerCount_ / 2 + 1;
+
     BuildTags();
 
-    PeerChannels.resize(GetPeerCount());
-    for (TPeerId id = 0; id < GetPeerCount(); ++id) {
+    PeerChannels_.resize(TotalPeerCount_);
+    for (TPeerId id = 0; id < TotalPeerCount_; ++id) {
         if (id != selfId) {
-            PeerChannels[id] = CreatePeerChannel(id);
+            PeerChannels_[id] = CreatePeerChannel(id);
         }
     }
 
-    Logger.AddTag("CellId: %v", Config->CellId);
+    Logger.AddTag("CellId: %v", Config_->CellId);
 
-    LOG_INFO("Cell initialized (SelfId: %v, PeerAddresses: %v)",
-        SelfId,
-        Config->Addresses);
+    LOG_INFO("Cell initialized (SelfId: %v, Peers: %v)",
+        SelfId_,
+        Config_->Peers);
 }
 
 void TCellManager::BuildTags()
 {
-    PeerTags.clear();
+    PeerTags_.clear();
     auto* profilingManager = NProfiling::TProfileManager::Get();
-    for (TPeerId id = 0; id < GetPeerCount(); ++id) {
-        NProfiling::TTagIdList tags;
-        tags.push_back(profilingManager->RegisterTag("address", GetPeerAddress(id)));
-        PeerTags.push_back(tags);
+    for (TPeerId id = 0; id < GetTotalPeerCount(); ++id) {
+        const auto& config = GetPeerConfig(id);
+        if (config.Address) {
+            NProfiling::TTagIdList tags;
+            tags.push_back(profilingManager->RegisterTag("address", *config.Address));
+            PeerTags_.push_back(tags);
+        }
     }
 
-    AllPeersTags.clear();
-    AllPeersTags.push_back(profilingManager->RegisterTag("address", "all"));
+    AllPeersTags_.clear();
+    AllPeersTags_.push_back(profilingManager->RegisterTag("address", "all"));
     
-    PeerQuorumTags.clear();
-    PeerQuorumTags.push_back(profilingManager->RegisterTag("address", "quorum"));
+    PeerQuorumTags_.clear();
+    PeerQuorumTags_.push_back(profilingManager->RegisterTag("address", "quorum"));
 }
 
 const TCellId& TCellManager::GetCellId() const
 {
-    return Config->CellId;
+    return Config_->CellId;
 }
 
 TPeerId TCellManager::GetSelfPeerId() const
 {
-    return SelfId;
+    return SelfId_;
 }
 
-const Stroka& TCellManager::GetSelfAddress() const
+const TCellPeerConfig& TCellManager::GetSelfConfig() const
 {
-    return *GetPeerAddress(GetSelfPeerId());
+    return GetPeerConfig(GetSelfPeerId());
 }
 
-int TCellManager::GetQuorumCount() const
+int TCellManager::GetVotingPeerCount() const
 {
-    return GetPeerCount() / 2 + 1;
+    return VotingPeerCount_;
 }
 
-int TCellManager::GetPeerCount() const
+int TCellManager::GetQuorumPeerCount() const
 {
-    return Config->Addresses.size();
+    return QuorumPeerCount_;
 }
 
-const TNullable<Stroka>& TCellManager::GetPeerAddress(TPeerId id) const
+int TCellManager::GetTotalPeerCount() const
 {
-    return Config->Addresses[id];
+    return TotalPeerCount_;
+}
+
+const TCellPeerConfig& TCellManager::GetPeerConfig(TPeerId id) const
+{
+    return Config_->Peers[id];
 }
 
 IChannelPtr TCellManager::GetPeerChannel(TPeerId id) const
 {
-    return PeerChannels[id];
+    return PeerChannels_[id];
 }
 
 const NProfiling::TTagIdList& TCellManager::GetPeerTags(TPeerId id) const
 {
-    return PeerTags[id];
+    return PeerTags_[id];
 }
 
 const NProfiling::TTagIdList& TCellManager::GetAllPeersTags() const
 {
-    return AllPeersTags;
+    return AllPeersTags_;
 }
 
 const NProfiling::TTagIdList& TCellManager::GetPeerQuorumTags() const
 {
-    return PeerQuorumTags;
+    return PeerQuorumTags_;
 }
 
 void TCellManager::Reconfigure(TCellConfigPtr newConfig)
 {
-    if (Config->CellId != newConfig->CellId) {
+    if (Config_->CellId != newConfig->CellId) {
         THROW_ERROR_EXCEPTION("Cannot change cell id from %v to %v",
-            Config->CellId,
+            Config_->CellId,
             newConfig->CellId);
     }
 
-    auto addresses = Config->Addresses;
-    auto newAddresses = newConfig->Addresses;
-
-    if (addresses.size() != newAddresses.size()) {
+    if (Config_->Peers.size() != newConfig->Peers.size()) {
         THROW_ERROR_EXCEPTION("Cannot change cell size from %v to %v",
-            addresses.size(),
-            newAddresses.size());
+            Config_->Peers.size(),
+            newConfig->Peers.size());
     }
 
-    if (addresses[SelfId] != newAddresses[SelfId]) {
+    const auto& newSelfPeer = newConfig->Peers[SelfId_];
+    const auto& oldSelfPeer = Config_->Peers[SelfId_];
+    if (newSelfPeer.Address != oldSelfPeer.Address) {
         THROW_ERROR_EXCEPTION("Cannot change self address from %Qv to %Qv",
-            addresses[SelfId],
-            newAddresses[SelfId]);
+            oldSelfPeer.Address,
+            newSelfPeer.Address);
     }
+
+    auto oldConfig = Config_;
+    Config_ = newConfig;
 
     BuildTags();
-    Config = newConfig;
 
-    for (TPeerId id = 0; id < GetPeerCount(); ++id) {
-        if (addresses[id] != newAddresses[id]) {
-            LOG_INFO("Peer %v reconfigured: %v -> %v",
+    const auto& newPeers = Config_->Peers;
+    const auto& oldPeers = oldConfig->Peers;
+    for (TPeerId id = 0; id < GetTotalPeerCount(); ++id) {
+        const auto& newPeer = newPeers[id];
+        const auto& oldPeer = oldPeers[id];
+        if (newPeer.Address != oldPeer.Address || newPeer.Voting != oldPeer.Voting) {
+            LOG_INFO("Peer reconfigured (PeerId: %v, Address: %v -> %v, Voting: %v -> %v)",
                 id,
-                addresses[id],
-                newAddresses[id]);
-            PeerChannels[id] = CreatePeerChannel(id);
+                oldPeer.Address,
+                newPeer.Address,
+                oldPeer.Voting,
+                newPeer.Voting);
+            PeerChannels_[id] = CreatePeerChannel(id);
             PeerReconfigured_.Fire(id);
         }
     }
@@ -153,13 +177,13 @@ void TCellManager::Reconfigure(TCellConfigPtr newConfig)
 
 IChannelPtr TCellManager::CreatePeerChannel(TPeerId id)
 {
-    auto maybeAddress = GetPeerAddress(id);
-    if (!maybeAddress) {
+    const auto& config = GetPeerConfig(id);
+    if (!config.Address) {
         return nullptr;
     }
     return CreateRealmChannel(
-        ChannelFactory->CreateChannel(*maybeAddress),
-        Config->CellId);
+        ChannelFactory_->CreateChannel(*config.Address),
+        Config_->CellId);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

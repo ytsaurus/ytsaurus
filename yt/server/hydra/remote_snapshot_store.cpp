@@ -68,6 +68,9 @@ public:
 
     virtual ISnapshotWriterPtr CreateWriter(int snapshotId, const TSnapshotMeta& meta) override
     {
+        if (!PrerequisiteTransactionId_) {
+            THROW_ERROR_EXCEPTION("Snapshot store is read-only");
+        }
         return New<TWriter>(this, snapshotId, meta);
     }
 

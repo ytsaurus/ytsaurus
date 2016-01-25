@@ -157,7 +157,7 @@ public:
     ~TFollowerCommitter();
 
     //! Logs a batch of mutations at the follower.
-    TFuture<void> LogMutations(
+    TFuture<void> AcceptMutations(
         TVersion expectedVersion,
         const std::vector<TSharedRef>& recordsData);
 
@@ -174,7 +174,7 @@ public:
     TFuture<TMutationResponse> Forward(const TMutationRequest& request);
 
 private:
-    TFuture<void> DoLogMutations(
+    TFuture<void> DoAcceptMutations(
         TVersion expectedVersion,
         const std::vector<TSharedRef>& recordsData);
 

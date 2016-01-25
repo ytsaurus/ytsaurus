@@ -17,6 +17,13 @@ class TestTablets(YTEnvSetup):
     NUM_NODES = 5
     NUM_SCHEDULERS = 0
 
+    DELTA_MASTER_CONFIG = {
+        "tablet_manager": {
+            "leader_reassignment_timeout" : 1000,
+            "peer_revocation_timeout" : 3000
+        }
+    }
+
     def _create_table(self, path, atomicity="full"):
         create("table", path,
             attributes = {
@@ -114,15 +121,15 @@ class TestTablets(YTEnvSetup):
         rows = [{"key": 1, "value": "2"}]
         keys = [{"key": 1}]
         insert_rows("//tmp/t", rows)
-        actual = lookup_rows("//tmp/t", keys);
-        assert_items_equal(actual, rows);
+        actual = lookup_rows("//tmp/t", keys)
+        assert_items_equal(actual, rows)
 
         self.sync_unmount_table("//tmp/t")
         with pytest.raises(YtError): lookup_rows("//tmp/t", keys)
 
         self.sync_mount_table("//tmp/t")
-        actual = lookup_rows("//tmp/t", keys);
-        assert_items_equal(actual, rows);
+        actual = lookup_rows("//tmp/t", keys)
+        assert_items_equal(actual, rows)
 
     def test_reshard_unmounted(self):
         self.sync_create_cells(1, 1)
@@ -932,8 +939,8 @@ class TestTablets(YTEnvSetup):
         time.sleep(3.0)
 
         keys = [{"key": i} for i in xrange(100)]
-        actual = lookup_rows("//tmp/t", keys);
-        assert_items_equal(actual, rows);
+        actual = lookup_rows("//tmp/t", keys)
+        assert_items_equal(actual, rows)
 
     def test_atomic_snapshots(self):
         self._test_snapshots("full")
@@ -1016,3 +1023,95 @@ class TestTablets(YTEnvSetup):
         set("//tmp/t/@read_only", True)
         remount_table("//tmp/t")
 
+    def test_follower_start(self):
+        self.sync_create_cells(2, 1)
+        self._create_table("//tmp/t")
+        self.sync_mount_table("//tmp/t")
+
+        for i in xrange(0, 10):
+            rows = [{"key": i, "value": "test"}]
+            keys = [{"key": i}]
+            insert_rows("//tmp/t", rows)
+            assert lookup_rows("//tmp/t", keys) == rows
+            
+    def test_follower_catchup(self):
+        self.sync_create_cells(2, 1)
+        self._create_table("//tmp/t")
+        self.sync_mount_table("//tmp/t")
+
+        cell_id = ls("//sys/tablet_cells")[0]
+        peers = get("#" + cell_id + "/@peers")
+        follower_address = list(x["address"] for x in peers if x["state"] == "following")[0]
+        self.set_node_banned(follower_address, True)
+        
+        for i in xrange(0, 100):
+            rows = [{"key": i, "value": "test"}]
+            keys = [{"key": i}]
+            insert_rows("//tmp/t", rows)
+            assert lookup_rows("//tmp/t", keys) == rows
+
+        assert get("#" + cell_id + "/@health") == "good"
+                    
+    def test_run_reassign_leader(self):
+        self.sync_create_cells(2, 1)
+        self._create_table("//tmp/t")
+        self.sync_mount_table("//tmp/t")
+        
+        rows = [{"key": 1, "value": "2"}]
+        keys = [{"key": 1}]
+        insert_rows("//tmp/t", rows)
+
+        cell_id = ls("//sys/tablet_cells")[0]
+        peers = get("#" + cell_id + "/@peers")
+        leader_address = list(x["address"] for x in peers if x["state"] == "leading")[0]
+        follower_address = list(x["address"] for x in peers if x["state"] == "following")[0]
+
+        self.set_node_banned(leader_address, True)
+        sleep(3.0)
+        clear_metadata_caches()
+
+        assert get("#" + cell_id + "/@health") == "good"
+        peers = get("#" + cell_id + "/@peers")
+        assert list(x["address"] for x in peers if x["state"] == "leading")[0] == follower_address
+
+        assert lookup_rows("//tmp/t", keys) == rows
+
+    def _ban_all_peers(self, cell_id):
+        peers = get("#" + cell_id + "/@peers")
+        for x in peers:
+            self.set_node_banned(x["address"], True)
+        clear_metadata_caches()
+
+    def test_run_reassign_all_peers(self):
+        self.sync_create_cells(2, 1)
+        self._create_table("//tmp/t")
+        self.sync_mount_table("//tmp/t")
+        
+        rows = [{"key": 1, "value": "2"}]
+        keys = [{"key": 1}]
+        insert_rows("//tmp/t", rows)
+
+        cell_id = ls("//sys/tablet_cells")[0]
+        self._ban_all_peers(cell_id)
+        sleep(3.0)
+        
+        assert get("#" + cell_id + "/@health") == "good"
+        assert lookup_rows("//tmp/t", keys) == rows
+
+    def test_recover_from_snapshot(self):
+        self.sync_create_cells(2, 1)
+        self._create_table("//tmp/t")
+        self.sync_mount_table("//tmp/t")
+        
+        rows = [{"key": 1, "value": "2"}]
+        keys = [{"key": 1}]
+        insert_rows("//tmp/t", rows)
+
+        cell_id = ls("//sys/tablet_cells")[0]
+        build_snapshot(cell_id=cell_id)
+        assert get("//sys/tablet_cells/" + cell_id + "/snapshots/@count") == 1
+        self._ban_all_peers(cell_id)
+        sleep(3.0)
+        
+        assert get("#" + cell_id + "/@health") == "good"
+        assert lookup_rows("//tmp/t", keys) == rows

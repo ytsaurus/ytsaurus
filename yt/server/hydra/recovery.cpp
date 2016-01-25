@@ -28,6 +28,7 @@ using namespace NHydra::NProto;
 
 TRecoveryBase::TRecoveryBase(
     TDistributedHydraManagerConfigPtr config,
+    const TDistributedHydraManagerOptions& options,
     TCellManagerPtr cellManager,
     TDecoratedAutomatonPtr decoratedAutomaton,
     IChangelogStorePtr changelogStore,
@@ -36,6 +37,7 @@ TRecoveryBase::TRecoveryBase(
     TEpochContext* epochContext,
     TVersion syncVersion)
     : Config_(config)
+    , Options_(options)
     , CellManager_(cellManager)
     , DecoratedAutomaton_(decoratedAutomaton)
     , ChangelogStore_(changelogStore)
@@ -110,6 +112,10 @@ void TRecoveryBase::RecoverToVersion(TVersion targetVersion)
         initialChangelogId = currentVersion.SegmentId;
     }
 
+    // Shortcut for observer startup.
+    if (targetVersion == TVersion() && !IsLeader() && !Options_.WriteChangelogsAtFollowers)
+        return;
+
     LOG_INFO("Replaying changelogs %v-%v to reach version %v",
         initialChangelogId,
         targetVersion.SegmentId,
@@ -121,6 +127,10 @@ void TRecoveryBase::RecoverToVersion(TVersion targetVersion)
             .ValueOrThrow();
 
         if (!changelog) {
+            if (!IsLeader() && !Options_.WriteChangelogsAtFollowers) {
+                THROW_ERROR_EXCEPTION("Changelog %v is missing", changelogId);
+            }
+
             auto currentVersion = DecoratedAutomaton_->GetAutomatonVersion();
 
             LOG_INFO("Changelog %v is missing and will be created at version %v",
@@ -134,12 +144,9 @@ void TRecoveryBase::RecoverToVersion(TVersion targetVersion)
                 .ValueOrThrow();
         }
 
-        if (!IsLeader()) {
+        if (!IsLeader() && Options_.WriteChangelogsAtFollowers) {
             SyncChangelog(changelog, changelogId);
         }
-
-        WaitFor(changelog->Flush())
-            .ThrowOnError();
 
         int targetRecordId = changelogId == targetVersion.SegmentId
             ? targetVersion.RecordId
@@ -152,9 +159,13 @@ void TRecoveryBase::RecoverToVersion(TVersion targetVersion)
     }
 
     YCHECK(targetChangelog);
-    DecoratedAutomaton_->SetChangelog(targetVersion.SegmentId, targetChangelog);
 
-    YCHECK(DecoratedAutomaton_->GetLoggedVersion() == targetVersion);
+    if (IsLeader() || Options_.WriteChangelogsAtFollowers) {
+        YCHECK(targetChangelog->GetRecordCount() == targetVersion.RecordId);
+        DecoratedAutomaton_->SetChangelog(targetChangelog);
+    }
+
+    DecoratedAutomaton_->SetLoggedVersion(targetVersion);
 }
 
 void TRecoveryBase::SyncChangelog(IChangelogPtr changelog, int changelogId)
@@ -190,8 +201,8 @@ void TRecoveryBase::SyncChangelog(IChangelogPtr changelog, int changelogId)
 
     if (localRecordCount > remoteRecordCount) {
         YCHECK(syncRecordCount == remoteRecordCount);
-        WaitFor(changelog->Truncate(remoteRecordCount))
-            .ThrowOnError();
+        auto result = WaitFor(changelog->Truncate(remoteRecordCount));
+        THROW_ERROR_EXCEPTION_IF_FAILED(result, "Error truncating changelog");
     } else if (localRecordCount < syncRecordCount) {
         auto asyncResult = DownloadChangelog(
             Config_,
@@ -225,7 +236,7 @@ void TRecoveryBase::ReplayChangelog(IChangelogPtr changelog, int changelogId, in
     }
 
     if (changelog->GetRecordCount() < targetRecordId) {
-        LOG_FATAL("Not enough records in changelog %v: needed %v, actual %v",
+        THROW_ERROR_EXCEPTION("Not enough records in changelog %v: needed %v, actual %v",
             changelogId,
             targetRecordId,
             changelog->GetRecordCount());
@@ -271,6 +282,7 @@ void TRecoveryBase::ReplayChangelog(IChangelogPtr changelog, int changelogId, in
 
 TLeaderRecovery::TLeaderRecovery(
     TDistributedHydraManagerConfigPtr config,
+    const TDistributedHydraManagerOptions& options,
     TCellManagerPtr cellManager,
     TDecoratedAutomatonPtr decoratedAutomaton,
     IChangelogStorePtr changelogStore,
@@ -279,6 +291,7 @@ TLeaderRecovery::TLeaderRecovery(
     TEpochContext* epochContext)
     : TRecoveryBase(
         config,
+        options,
         cellManager,
         decoratedAutomaton,
         changelogStore,
@@ -326,6 +339,7 @@ bool TLeaderRecovery::IsLeader() const
 
 TFollowerRecovery::TFollowerRecovery(
     TDistributedHydraManagerConfigPtr config,
+    const TDistributedHydraManagerOptions& options,
     TCellManagerPtr cellManager,
     TDecoratedAutomatonPtr decoratedAutomaton,
     IChangelogStorePtr changelogStore,
@@ -335,6 +349,7 @@ TFollowerRecovery::TFollowerRecovery(
     TVersion syncVersion)
     : TRecoveryBase(
         config,
+        options,
         cellManager,
         decoratedAutomaton,
         changelogStore,

@@ -32,6 +32,8 @@
 #include <yt/server/hydra/remote_snapshot_store.h>
 #include <yt/server/hydra/hydra_manager.h>
 #include <yt/server/hydra/distributed_hydra_manager.h>
+#include <yt/server/hydra/changelog_store_factory_thunk.h>
+#include <yt/server/hydra/snapshot_store_thunk.h>
 
 #include <yt/server/hive/hive_manager.h>
 #include <yt/server/hive/mailbox.h>
@@ -86,9 +88,18 @@ class TTabletSlot::TElectionManager
     : public IElectionManager
 {
 public:
-    explicit TElectionManager(IElectionCallbacksPtr callbacks)
-        : Callbacks_(std::move(callbacks))
-    { }
+    TElectionManager(
+        IInvokerPtr controlInvoker,
+        IElectionCallbacksPtr callbacks,
+        TCellManagerPtr cellManager)
+        : ControlInvoker_(std::move(controlInvoker))
+        , Callbacks_(std::move(callbacks))
+        , CellManager_(std::move(cellManager))
+    {
+        CellManager_->SubscribePeerReconfigured(
+            BIND(&TElectionManager::OnPeerReconfigured, MakeWeak(this))
+                .Via(ControlInvoker_));
+    }
 
     virtual void Initialize() override
     { }
@@ -100,33 +111,12 @@ public:
 
     virtual void Participate() override
     {
-        TGuard<TSpinLock> guard(SpinLock_);
-
-        if (Leading_)
-            return;
-
-        Leading_ = true;
-
-        EpochContext_ = New<TEpochContext>();
-        EpochContext_->LeaderId = 0;
-        EpochContext_->StartTime = TInstant::Now();
-
-        Callbacks_->OnStartLeading(EpochContext_);
+        ControlInvoker_->Invoke(BIND(&TElectionManager::DoParticipate, MakeStrong(this)));
     }
 
     virtual void Abandon() override
     {
-        TGuard<TSpinLock> guard(SpinLock_);
-
-        if (!Leading_)
-            return;
-
-        Leading_ = false;
-
-        EpochContext_->CancelableContext->Cancel();
-        EpochContext_.Reset();
-
-        Callbacks_->OnStopLeading();
+        ControlInvoker_->Invoke(BIND(&TElectionManager::DoAbandon, MakeStrong(this)));
     }
 
     virtual TYsonProducer GetMonitoringProducer() override
@@ -134,12 +124,78 @@ public:
         YUNREACHABLE();
     }
 
-private:
-    const IElectionCallbacksPtr Callbacks_;
+    void SetEpochId(const TEpochId& epochId)
+    {
+        YCHECK(epochId);
+        EpochId_ = epochId;
+    }
 
-    TSpinLock SpinLock_;
-    bool Leading_ = false;
+private:
+    const IInvokerPtr ControlInvoker_;
+    const IElectionCallbacksPtr Callbacks_;
+    const TCellManagerPtr CellManager_;
+
+    TEpochId EpochId_;
     TEpochContextPtr EpochContext_;
+
+
+    void DoParticipate()
+    {
+        DoAbandon();
+
+        EpochContext_ = New<TEpochContext>();
+        EpochContext_->LeaderId = GetLeaderId();
+        EpochContext_->EpochId = EpochId_;
+        EpochContext_->StartTime = TInstant::Now();
+
+        if (IsLeader()) {
+            Callbacks_->OnStartLeading(EpochContext_);
+        } else {
+            Callbacks_->OnStartFollowing(EpochContext_);
+        }
+    }
+
+    void DoAbandon()
+    {
+        if (!EpochContext_)
+            return;
+
+        EpochContext_->CancelableContext->Cancel();
+
+        if (IsLeader()) {
+            Callbacks_->OnStopLeading();
+        } else {
+            Callbacks_->OnStopFollowing();
+        }
+
+        EpochContext_.Reset();
+    }
+
+    void OnPeerReconfigured(TPeerId peerId)
+    {
+        if (!EpochContext_)
+            return;
+
+        if (peerId == CellManager_->GetSelfPeerId() || EpochContext_->LeaderId == peerId) {
+            DoAbandon();
+        }
+    }
+
+    TPeerId GetLeaderId()
+    {
+        for (auto peerId = 0; peerId < CellManager_->GetTotalPeerCount(); ++peerId) {
+            const auto& peerConfig = CellManager_->GetPeerConfig(peerId);
+            if (peerConfig.Voting) {
+                return peerId;
+            }
+        }
+        YUNREACHABLE();
+    }
+
+    bool IsLeader()
+    {
+        return EpochContext_ && EpochContext_->LeaderId == CellManager_->GetSelfPeerId();
+    }
 
 };
 
@@ -222,13 +278,6 @@ public:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         return CellDescriptor_;
-    }
-
-    TTransactionId GetPrerequisiteTransactionId() const
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        return PrerequisiteTransaction_->GetId();
     }
 
     IHydraManagerPtr GetHydraManager() const
@@ -325,20 +374,16 @@ public:
         YCHECK(!Initialized_);
 
         CellDescriptor_.CellId = FromProto<TCellId>(createInfo.cell_id());
-
-        Logger.AddTag("CellId: %v", CellDescriptor_.CellId);
-
+        PeerId_ = createInfo.peer_id();
         Options_ = ConvertTo<TTabletCellOptionsPtr>(TYsonString(createInfo.options()));
-
-        auto prerequisiteTransactionId = FromProto<TTransactionId>(createInfo.prerequisite_transaction_id());
-        TTransactionAttachOptions attachOptions;
-        attachOptions.Ping = false;
-        PrerequisiteTransaction_ = Bootstrap_->GetMasterClient()->AttachTransaction(prerequisiteTransactionId, attachOptions);
 
         Initialized_ = true;
 
-        LOG_INFO("Slot initialized (PrerequisiteTransactionId: %v)",
-            prerequisiteTransactionId);
+        Logger.AddTag("CellId: %v, PeerId: %v",
+            CellDescriptor_.CellId,
+            PeerId_);
+
+        LOG_INFO("Slot initialized");
     }
 
 
@@ -354,40 +399,61 @@ public:
         VERIFY_THREAD_AFFINITY(ControlThread);
         YCHECK(CanConfigure());
 
+        auto client = Bootstrap_->GetMasterClient();
+
         CellDescriptor_ = FromProto<TCellDescriptor>(configureInfo.cell_descriptor());
+
+        auto newPrerequisiteTransactionId = FromProto<TTransactionId>(configureInfo.prerequisite_transaction_id());
+        if (newPrerequisiteTransactionId != PrerequisiteTransactionId_) {
+            LOG_INFO("Prerequisite transaction updated (TransactionId: %v -> %v)",
+                PrerequisiteTransactionId_,
+                newPrerequisiteTransactionId);
+            PrerequisiteTransactionId_ = newPrerequisiteTransactionId;
+        }
+
+        PrerequisiteTransaction_.Reset();
+        // NB: Prerequisite transaction is only attached by leaders.
+        if (PrerequisiteTransactionId_ && CellDescriptor_.Peers[PeerId_].GetVoting()) {
+            TTransactionAttachOptions attachOptions;
+            attachOptions.Ping = false;
+            PrerequisiteTransaction_ = client->AttachTransaction(PrerequisiteTransactionId_, attachOptions);
+            LOG_INFO("Prerequisite transaction attached (TransactionId: %v)",
+                PrerequisiteTransactionId_);
+        }
+
+        auto snapshotStore = CreateRemoteSnapshotStore(
+            Config_->Snapshots,
+            Options_,
+            Format("//sys/tablet_cells/%v/snapshots", GetCellId()),
+            Bootstrap_->GetMasterClient(),
+            PrerequisiteTransaction_ ? PrerequisiteTransaction_->GetId() : NullTransactionId);
+        SnapshotStoreThunk_->SetUnderlying(snapshotStore);
+
+        auto changelogStoreFactory = CreateRemoteChangelogStoreFactory(
+            Config_->Changelogs,
+            Options_,
+            Format("//sys/tablet_cells/%v/changelogs", GetCellId()),
+            Bootstrap_->GetMasterClient(),
+            PrerequisiteTransaction_ ? PrerequisiteTransaction_->GetId() : NullTransactionId);
+        ChangelogStoreFactoryThunk_->SetUnderlying(changelogStoreFactory);
+
         auto cellConfig = CellDescriptor_.ToConfig(NNodeTrackerClient::InterconnectNetworkName);
 
         if (HydraManager_) {
+            ElectionManager_->SetEpochId(PrerequisiteTransactionId_);
             CellManager_->Reconfigure(cellConfig);
+
             LOG_INFO("Slot reconfigured (ConfigVersion: %v)",
                 CellDescriptor_.ConfigVersion);
         } else {
-            PeerId_ = configureInfo.peer_id();
-
             CellManager_ = New<TCellManager>(
                 cellConfig,
                 Bootstrap_->GetTabletChannelFactory(),
-                configureInfo.peer_id());
+                PeerId_);
 
             Automaton_ = New<TTabletAutomaton>(
                 Owner_,
                 GetSnapshotInvoker());
-
-            auto cellId = GetCellId();
-
-            auto snapshotStore = CreateRemoteSnapshotStore(
-                Config_->Snapshots,
-                Options_,
-                Format("//sys/tablet_cells/%v/snapshots", cellId),
-                Bootstrap_->GetMasterClient(),
-                GetPrerequisiteTransactionId());
-
-            auto changelogStoreFactory = CreateRemoteChangelogStoreFactory(
-                Config_->Changelogs,
-                Options_,
-                Format("//sys/tablet_cells/%v/changelogs", cellId),
-                Bootstrap_->GetMasterClient(),
-                GetPrerequisiteTransactionId());
 
             auto rpcServer = Bootstrap_->GetRpcServer();
 
@@ -396,21 +462,21 @@ public:
                 Logger,
                 TabletNodeProfiler);
 
-            auto electionManagerThunk = New<TElectionManagerThunk>();
-
             TDistributedHydraManagerOptions hydraManagerOptions;
             hydraManagerOptions.ResponseKeeper = ResponseKeeper_;
             hydraManagerOptions.UseFork = false;
+            hydraManagerOptions.WriteChangelogsAtFollowers = false;
+            hydraManagerOptions.WriteSnapshotsAtFollowers = false;
             HydraManager_ = CreateDistributedHydraManager(
                 Config_->HydraManager,
                 Bootstrap_->GetControlInvoker(),
                 GetAutomatonInvoker(EAutomatonThreadQueue::Mutation),
                 Automaton_,
                 rpcServer,
-                electionManagerThunk,
+                ElectionManagerThunk_,
                 CellManager_,
-                changelogStoreFactory,
-                snapshotStore,
+                ChangelogStoreFactoryThunk_,
+                SnapshotStoreThunk_,
                 hydraManagerOptions);
 
             HydraManager_->SubscribeStartLeading(BIND(&TImpl::OnStartEpoch, MakeWeak(this)));
@@ -419,7 +485,9 @@ public:
             HydraManager_->SubscribeStopLeading(BIND(&TImpl::OnStopEpoch, MakeWeak(this)));
             HydraManager_->SubscribeStopFollowing(BIND(&TImpl::OnStopEpoch, MakeWeak(this)));
 
-            HydraManager_->SubscribeLeaderLeaseCheck(BIND(&TImpl::OnLeaderLeaseCheckThunk, MakeWeak(this)));
+            HydraManager_->SubscribeLeaderLeaseCheck(
+                BIND(&TImpl::OnLeaderLeaseCheckThunk, MakeWeak(this))
+                    .AsyncVia(Bootstrap_->GetControlInvoker()));
 
             {
                 TGuard<TSpinLock> guard(InvokersSpinLock_);
@@ -429,16 +497,20 @@ public:
                 }
             }
 
-            ElectionManager_ = New<TElectionManager>(HydraManager_->GetElectionCallbacks());
+            ElectionManager_ = New<TElectionManager>(
+                Bootstrap_->GetControlInvoker(),
+                HydraManager_->GetElectionCallbacks(),
+                CellManager_);
+            ElectionManager_->SetEpochId(PrerequisiteTransactionId_);
             ElectionManager_->Initialize();
 
-            electionManagerThunk->SetUnderlying(ElectionManager_);
+            ElectionManagerThunk_->SetUnderlying(ElectionManager_);
 
             auto masterConnection = Bootstrap_->GetMasterClient()->GetConnection();
             HiveManager_ = New<THiveManager>(
                 Config_->HiveManager,
                 masterConnection->GetCellDirectory(),
-                cellId,
+                GetCellId(),
                 GetAutomatonInvoker(),
                 HydraManager_,
                 Automaton_);
@@ -528,14 +600,19 @@ private:
     const TFairShareActionQueuePtr AutomatonQueue_;
     const TActionQueuePtr SnapshotQueue_;
 
+    const TElectionManagerThunkPtr ElectionManagerThunk_ = New<TElectionManagerThunk>();
+    const TSnapshotStoreThunkPtr SnapshotStoreThunk_ = New<TSnapshotStoreThunk>();
+    const TChangelogStoreFactoryThunkPtr ChangelogStoreFactoryThunk_ = New<TChangelogStoreFactoryThunk>();
+
     TPeerId PeerId_ = InvalidPeerId;
     TCellDescriptor CellDescriptor_;
     TTabletCellOptionsPtr Options_;
-    ITransactionPtr PrerequisiteTransaction_;
+    TTransactionId PrerequisiteTransactionId_;
+    ITransactionPtr PrerequisiteTransaction_;  // only created for leaders
 
     TCellManagerPtr CellManager_;
 
-    IElectionManagerPtr ElectionManager_;
+    TElectionManagerPtr ElectionManager_;
 
     IHydraManagerPtr HydraManager_;
 
@@ -565,12 +642,16 @@ private:
 
     void ResetEpochInvokers()
     {
+        VERIFY_THREAD_AFFINITY_ANY();
+
         TGuard<TSpinLock> guard(InvokersSpinLock_);
         std::fill(EpochAutomatonInvokers_.begin(), EpochAutomatonInvokers_.end(), GetNullInvoker());
     }
 
     void ResetGuardedInvokers()
     {
+        VERIFY_THREAD_AFFINITY_ANY();
+
         TGuard<TSpinLock> guard(InvokersSpinLock_);
         std::fill(GuardedAutomatonInvokers_.begin(), GuardedAutomatonInvokers_.end(), GetNullInvoker());
     }
@@ -578,6 +659,8 @@ private:
 
     void OnStartEpoch()
     {
+        VERIFY_THREAD_AFFINITY_ANY();
+
         TGuard<TSpinLock> guard(InvokersSpinLock_);
         for (auto queue : TEnumTraits<EAutomatonThreadQueue>::GetDomainValues()) {
             EpochAutomatonInvokers_[queue] = HydraManager_
@@ -588,6 +671,8 @@ private:
 
     void OnStopEpoch()
     {
+        VERIFY_THREAD_AFFINITY_ANY();
+
         ResetEpochInvokers();
     }
 
@@ -600,9 +685,14 @@ private:
 
     TFuture<void> OnLeaderLeaseCheck()
     {
-        LOG_DEBUG("Checking prerequisite transaction");
+        VERIFY_THREAD_AFFINITY(ControlThread);
 
-        return PrerequisiteTransaction_->Ping();
+        if (PrerequisiteTransaction_) {
+            LOG_DEBUG("Checking prerequisite transaction");
+            return PrerequisiteTransaction_->Ping();
+        } else {
+            return MakeFuture<void>(TError("No prerequisite transaction is attached"));
+        }
     }
 
 
@@ -659,7 +749,7 @@ private:
 
         BuildYsonMapFluently(consumer)
             .Item("state").Value(GetControlState())
-            .Item("prerequisite_transaction_id").Value(GetPrerequisiteTransactionId())
+            .Item("prerequisite_transaction_id").Value(PrerequisiteTransactionId_)
             .Item("options").Value(*Options_);
     }
 
@@ -744,11 +834,6 @@ TPeerId TTabletSlot::GetPeerId() const
 const TCellDescriptor& TTabletSlot::GetCellDescriptor() const
 {
     return Impl_->GetCellDescriptor();
-}
-
-TTransactionId TTabletSlot::GetPrerequisiteTransactionId() const
-{
-    return Impl_->GetPrerequisiteTransactionId();
 }
 
 IHydraManagerPtr TTabletSlot::GetHydraManager() const

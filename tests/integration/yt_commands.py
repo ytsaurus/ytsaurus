@@ -599,11 +599,11 @@ def create_tablet_cell_bundle(name, **kwargs):
     kwargs["attributes"]["name"] = name
     return yson.loads(execute_command("create", kwargs))
 
-def create_tablet_cell(size, **kwargs):
+def create_tablet_cell(peer_count, **kwargs):
     kwargs["type"] = "tablet_cell"
     if "attributes" not in kwargs:
         kwargs["attributes"] = dict()
-    kwargs["attributes"]["size"] = size
+    kwargs["attributes"]["peer_count"] = peer_count
     return yson.loads(execute_command("create", kwargs))
 
 def remove_tablet_cell_bundle(name):

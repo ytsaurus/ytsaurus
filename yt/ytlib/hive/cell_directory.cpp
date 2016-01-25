@@ -34,15 +34,36 @@ const auto& Logger = HiveLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TCellPeerDescriptor::TCellPeerDescriptor()
+    : Voting_(true)
+{ }
+
+TCellPeerDescriptor::TCellPeerDescriptor(const TNodeDescriptor& other, bool voting)
+    : TNodeDescriptor(other)
+    , Voting_(voting)
+{ }
+
+TCellPeerDescriptor::TCellPeerDescriptor(const TCellPeerConfig& config)
+    : TNodeDescriptor(config.Address)
+    , Voting_(config.Voting)
+{ }
+
+TCellPeerConfig TCellPeerDescriptor::ToConfig(const Stroka& networkName) const
+{
+    TCellPeerConfig config;
+    config.Voting = Voting_;
+    config.Address = IsNull() ? Null : MakeNullable(GetAddressOrThrow(networkName));
+    return config;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TCellConfigPtr TCellDescriptor::ToConfig(const Stroka& networkName) const
 {
     auto config = New<TCellConfig>();
     config->CellId = CellId;
     for (const auto& peer : Peers) {
-        config->Addresses.push_back(
-            peer.IsNull()
-            ? Null
-            : MakeNullable(peer.GetAddressOrThrow(networkName)));
+        config->Peers.push_back(peer.ToConfig(networkName));
     }
     return config;
 }
@@ -53,6 +74,18 @@ TCellInfo TCellDescriptor::ToInfo() const
     info.CellId = CellId;
     info.ConfigVersion = ConfigVersion;
     return info;
+}
+
+void ToProto(NProto::TCellPeerDescriptor* protoDescriptor, const TCellPeerDescriptor& descriptor)
+{
+    ToProto(protoDescriptor->mutable_node_descriptor(), descriptor);
+    protoDescriptor->set_voting(descriptor.GetVoting());
+}
+
+void FromProto(TCellPeerDescriptor* descriptor, const NProto::TCellPeerDescriptor& protoDescriptor)
+{
+    FromProto(descriptor, protoDescriptor.node_descriptor());
+    descriptor->SetVoting(protoDescriptor.voting());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -80,7 +113,7 @@ void FromProto(TCellDescriptor* descriptor, const NProto::TCellDescriptor& proto
 {
     descriptor->CellId = FromProto<TCellId>(protoDescriptor.cell_id());
     descriptor->ConfigVersion = protoDescriptor.config_version();
-    descriptor->Peers = FromProto<std::vector<TNodeDescriptor>>(protoDescriptor.peers());
+    descriptor->Peers = FromProto<std::vector<TCellPeerDescriptor>>(protoDescriptor.peers());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -177,8 +210,8 @@ public:
         TCellDescriptor descriptor;
         descriptor.CellId = config->CellId;
         descriptor.ConfigVersion = configVersion;
-        for (const auto& maybeAddress : config->Addresses) {
-            descriptor.Peers.push_back(maybeAddress ? TNodeDescriptor(*maybeAddress) : TNodeDescriptor());
+        for (const auto& peer : config->Peers) {
+            descriptor.Peers.push_back(TCellPeerDescriptor(peer));
         }
         return ReconfigureCell(descriptor);
     }
@@ -188,7 +221,7 @@ public:
         auto cellConfig = New<TCellConfig>();
         cellConfig->CellId = config->CellId;
         for (const auto& address : config->Addresses) {
-            cellConfig->Addresses.push_back(address);
+            cellConfig->Peers.emplace_back(address);
         }
         return ReconfigureCell(cellConfig, configVersion);
     }

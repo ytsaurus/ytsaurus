@@ -86,7 +86,6 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/election/cell_manager.cpp
   ${CMAKE_CURRENT_LIST_DIR}/election/config.cpp
   ${CMAKE_CURRENT_LIST_DIR}/election/election_service.proto
-  ${CMAKE_CURRENT_LIST_DIR}/election/election_service_proxy.cpp
   ${CMAKE_CURRENT_LIST_DIR}/election/private.cpp
   ${CMAKE_CURRENT_LIST_DIR}/election/public.cpp
 

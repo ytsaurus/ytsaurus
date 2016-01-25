@@ -1,6 +1,7 @@
 #pragma once
 
 #include "private.h"
+#include "distributed_hydra_manager.h"
 
 #include <yt/ytlib/election/public.h>
 
@@ -25,6 +26,7 @@ class TRecoveryBase
 protected:
     TRecoveryBase(
         TDistributedHydraManagerConfigPtr config,
+        const TDistributedHydraManagerOptions& options,
         NElection::TCellManagerPtr cellManager,
         TDecoratedAutomatonPtr decoratedAutomaton,
         IChangelogStorePtr changelogStore,
@@ -42,6 +44,7 @@ protected:
 
 
     const TDistributedHydraManagerConfigPtr Config_;
+    const TDistributedHydraManagerOptions Options_;
     const NElection::TCellManagerPtr CellManager_;
     const TDecoratedAutomatonPtr DecoratedAutomaton_;
     const IChangelogStorePtr ChangelogStore_;
@@ -81,6 +84,7 @@ class TLeaderRecovery
 public:
     TLeaderRecovery(
         TDistributedHydraManagerConfigPtr config,
+        const TDistributedHydraManagerOptions& options,
         NElection::TCellManagerPtr cellManager,
         TDecoratedAutomatonPtr decoratedAutomaton,
         IChangelogStorePtr changelogStore,
@@ -118,6 +122,7 @@ class TFollowerRecovery
 public:
     TFollowerRecovery(
         TDistributedHydraManagerConfigPtr config,
+        const TDistributedHydraManagerOptions& options,
         NElection::TCellManagerPtr cellManager,
         TDecoratedAutomatonPtr decoratedAutomaton,
         IChangelogStorePtr changelogStore,
