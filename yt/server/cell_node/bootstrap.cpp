@@ -196,7 +196,10 @@ void TBootstrap::DoRun()
 
     RpcServer = CreateBusServer(BusServer);
 
-    HttpServer.reset(new NHttp::TServer(Config->MonitoringPort));
+    HttpServer.reset(new NHttp::TServer(
+        Config->MonitoringPort,
+        Config->BusServer->BindRetryCount,
+        Config->BusServer->BindRetryBackoff));
 
     TabletChannelFactory = CreateCachingChannelFactory(GetBusChannelFactory());
 
