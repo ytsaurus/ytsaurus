@@ -118,7 +118,7 @@ public:
             Config_ = New<TJsonFormatConfig>();
         }
         if (Config_->Format == EJsonFormat::Pretty && Type_ == EYsonType::ListFragment) {
-            THROW_ERROR_EXCEPTION("Pretty json format is not supported for list fragments");
+            THROW_ERROR_EXCEPTION("Pretty JSON format is not supported for list fragments");
         }
         Callbacks_ = TJsonCallbacks(TUtf8Transcoder(Config_->EncodeUtf8), Config_->MemoryLimit);
 
@@ -166,7 +166,7 @@ void TJsonParser::TImpl::ConsumeNodes()
         ConsumeNode(Callbacks_.ExtractFinishedNode());
     }
     if (Config_->Format == EJsonFormat::Pretty && Type_ == EYsonType::ListFragment) {
-        THROW_ERROR_EXCEPTION("Pretty json format isn't supported for list fragments");
+        THROW_ERROR_EXCEPTION("Pretty JSON format isn't supported for list fragments");
     }
 }
 
@@ -277,7 +277,87 @@ void TJsonParser::TImpl::ConsumeNode(IMapNodePtr map)
             ConsumeMapFragment(attributes->AsMap());
             Consumer_->OnEndAttributes();
         }
-        ConsumeNode(node);
+
+        auto type = map->FindChild("$type");
+
+        if (type) {
+            if (type->GetType() != ENodeType::String) {
+                THROW_ERROR_EXCEPTION("Value of $type must be string");
+            }
+            auto typeString = type->AsString()->GetValue();
+            ENodeType expectedType;
+            if (typeString == "string") {
+                expectedType = ENodeType::String;
+            } else if (typeString == "int64") {
+                expectedType = ENodeType::Int64;
+            } else if (typeString == "uint64") {
+                expectedType = ENodeType::Uint64;
+            } else if (typeString == "double") {
+                expectedType = ENodeType::Double;
+            } else if (typeString == "boolean") {
+                expectedType = ENodeType::Boolean;
+            } else {
+                THROW_ERROR_EXCEPTION("Unexpected $type value %Qv", typeString);
+            }
+
+            if (node->GetType() == expectedType) {
+                ConsumeNode(node);
+            } else if (node->GetType() == ENodeType::String) {
+                auto nodeAsString = node->AsString()->GetValue();
+                switch (expectedType) {
+                    case ENodeType::Int64:
+                        Consumer_->OnInt64Scalar(FromString<i64>(nodeAsString));
+                        break;
+                    case ENodeType::Uint64:
+                        Consumer_->OnUint64Scalar(FromString<ui64>(nodeAsString));
+                        break;
+                    case ENodeType::Double:
+                        Consumer_->OnDoubleScalar(FromString<double>(nodeAsString));
+                        break;
+                    case ENodeType::Boolean: {
+                        if (nodeAsString == "true") {
+                            Consumer_->OnBooleanScalar(true);
+                        } else if (nodeAsString == "false") {
+                            Consumer_->OnBooleanScalar(false);
+                        } else {
+                            THROW_ERROR_EXCEPTION("Incorrect boolean string %Qv", nodeAsString);
+                        }
+                        break;
+                    }
+                    default:
+                        YUNREACHABLE();
+                        break;
+                }
+            } else if (node->GetType() == ENodeType::Int64) {
+                auto nodeAsInt = node->AsInt64()->GetValue();
+                switch (expectedType) {
+                    case ENodeType::Int64:
+                        Consumer_->OnInt64Scalar(nodeAsInt);
+                        break;
+                    case ENodeType::Uint64:
+                        Consumer_->OnUint64Scalar(nodeAsInt);
+                        break;
+                    case ENodeType::Double:
+                        Consumer_->OnDoubleScalar(nodeAsInt);
+                        break;
+                    case ENodeType::Boolean:
+                    case ENodeType::String:
+                        THROW_ERROR_EXCEPTION("Type mismatch in JSON")
+                            << TErrorAttribute("expected_type", expectedType)
+                            << TErrorAttribute("actual_type", node->GetType());
+                        break;
+                    default:
+                        YUNREACHABLE();
+                        break;
+                }
+            } else {
+                THROW_ERROR_EXCEPTION("Type mismatch in JSON")
+                    << TErrorAttribute("expected_type", expectedType)
+                    << TErrorAttribute("actual_type", node->GetType());
+            }
+        } else {
+            ConsumeNode(node);
+        }
     } else {
         if (map->FindChild("$attributes")) {
             THROW_ERROR_EXCEPTION("Found key `$attributes` without key `$value`");
