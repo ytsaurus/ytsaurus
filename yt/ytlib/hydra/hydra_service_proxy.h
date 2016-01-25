@@ -20,13 +20,18 @@ public:
         return "HydraService";
     }
 
+    static int GetProtocolVersion()
+    {
+        return 1;
+    }
+
     explicit THydraServiceProxy(NRpc::IChannelPtr channel)
-        : TProxyBase(channel, GetServiceName())
+        : TProxyBase(channel, GetServiceName(), GetProtocolVersion())
     { }
 
     DEFINE_RPC_PROXY_METHOD(NProto, ReadChangeLog);
     DEFINE_RPC_PROXY_METHOD(NProto, LookupChangelog);
-    DEFINE_RPC_PROXY_METHOD(NProto, LogMutations);
+    DEFINE_RPC_PROXY_METHOD(NProto, AcceptMutations);
     DEFINE_RPC_PROXY_METHOD(NProto, BuildSnapshot);
     DEFINE_RPC_PROXY_METHOD(NProto, ForceBuildSnapshot);
     DEFINE_RPC_PROXY_METHOD(NProto, RotateChangelog);

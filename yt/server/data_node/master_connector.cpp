@@ -561,7 +561,6 @@ void TMasterConnector::SendIncrementalNodeHeartbeat(TCellTag cellTag)
                 ToProto(protoSlotInfo->mutable_cell_info(), slot->GetCellDescriptor().ToInfo());
                 protoSlotInfo->set_peer_state(static_cast<int>(slot->GetControlState()));
                 protoSlotInfo->set_peer_id(slot->GetPeerId());
-                ToProto(protoSlotInfo->mutable_prerequisite_transaction_id(), slot->GetPrerequisiteTransactionId());
             } else {
                 protoSlotInfo->set_peer_state(static_cast<int>(NHydra::EPeerState::None));
             }

@@ -31,6 +31,8 @@ set( SRCS
   ${CMAKE_CURRENT_LIST_DIR}/snapshot_discovery.cpp
   ${CMAKE_CURRENT_LIST_DIR}/snapshot_download.cpp
   ${CMAKE_CURRENT_LIST_DIR}/sync_file_changelog.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/changelog_store_factory_thunk.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/snapshot_store_thunk.cpp
 )
 set( HDRS
   ${CMAKE_CURRENT_LIST_DIR}/automaton.h
@@ -72,6 +74,8 @@ set( HDRS
   ${CMAKE_CURRENT_LIST_DIR}/snapshot_download.h
   ${CMAKE_CURRENT_LIST_DIR}/snapshot_service_proxy.h
   ${CMAKE_CURRENT_LIST_DIR}/sync_file_changelog.h
+  ${CMAKE_CURRENT_LIST_DIR}/changelog_store_factory_thunk.h
+  ${CMAKE_CURRENT_LIST_DIR}/snapshot_store_thunk.h
 )
 
 list(APPEND YT_SOURCE_FILES

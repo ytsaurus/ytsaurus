@@ -13,6 +13,7 @@ namespace NHive {
 
 namespace NProto {
 
+class TCellPeerDescriptor;
 class TCellDescriptor;
 class TCellInfo;
 class TEncapsulatedMessage;
@@ -23,6 +24,7 @@ class TEncapsulatedMessage;
 
 using TMessageId = i64;
 
+class TCellPeerDescriptor;
 struct TCellDescriptor;
 struct TCellInfo;
 

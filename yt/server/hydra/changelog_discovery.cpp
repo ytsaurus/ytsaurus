@@ -45,14 +45,14 @@ public:
             ChangelogId_);
 
         std::vector<TFuture<void>> asyncResults;
-        for (auto peerId = 0; peerId < CellManager_->GetPeerCount(); ++peerId) {
+        for (auto peerId = 0; peerId < CellManager_->GetTotalPeerCount(); ++peerId) {
             auto channel = CellManager_->GetPeerChannel(peerId);
             if (!channel)
                 continue;
 
             LOG_INFO("Requesting changelog info (PeerId: %v, ChangelogId: %v)",
-                ChangelogId_,
-                peerId);
+                peerId,
+                ChangelogId_);
 
             THydraServiceProxy proxy(channel);
             proxy.SetDefaultTimeout(Config_->ControlRpcTimeout);

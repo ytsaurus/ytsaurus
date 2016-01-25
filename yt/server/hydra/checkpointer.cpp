@@ -96,31 +96,32 @@ private:
     {
         LOG_INFO("Sending snapshot creation requests");
 
-        SnapshotChecksums_.resize(Owner_->CellManager_->GetPeerCount());
+        SnapshotChecksums_.resize(Owner_->CellManager_->GetTotalPeerCount());
 
         std::vector<TFuture<void>> asyncResults;
-        for (auto peerId = 0; peerId < Owner_->CellManager_->GetPeerCount(); ++peerId) {
-            if (peerId == Owner_->CellManager_->GetSelfPeerId())
-                continue;
+        if (Owner_->Options_.WriteSnapshotsAtFollowers) {
+            for (auto peerId = 0; peerId < Owner_->CellManager_->GetTotalPeerCount(); ++peerId) {
+                if (peerId == Owner_->CellManager_->GetSelfPeerId())
+                    continue;
 
-            auto channel = Owner_->CellManager_->GetPeerChannel(peerId);
-            if (!channel)
-                continue;
+                auto channel = Owner_->CellManager_->GetPeerChannel(peerId);
+                if (!channel)
+                    continue;
 
-            LOG_DEBUG("Requesting follower %v to build a snapshot", peerId);
+                LOG_DEBUG("Requesting follower to build a snapshot (PeerId: %v)", peerId);
 
-            THydraServiceProxy proxy(channel);
-            proxy.SetDefaultTimeout(Owner_->Config_->SnapshotBuildTimeout);
+                THydraServiceProxy proxy(channel);
+                proxy.SetDefaultTimeout(Owner_->Config_->SnapshotBuildTimeout);
 
-            auto req = proxy.BuildSnapshot();
-            ToProto(req->mutable_epoch_id(), Owner_->EpochContext_->EpochId);
-            req->set_revision(Version_.ToRevision());
+                auto req = proxy.BuildSnapshot();
+                ToProto(req->mutable_epoch_id(), Owner_->EpochContext_->EpochId);
+                req->set_revision(Version_.ToRevision());
 
-            asyncResults.push_back(req->Invoke().Apply(
-                BIND(&TSession::OnRemoteSnapshotBuilt, MakeStrong(this), peerId)
-                    .AsyncVia(Owner_->EpochContext_->EpochControlInvoker)));
+                asyncResults.push_back(req->Invoke().Apply(
+                    BIND(&TSession::OnRemoteSnapshotBuilt, MakeStrong(this), peerId)
+                        .AsyncVia(Owner_->EpochContext_->EpochControlInvoker)));
+            }
         }
-
         asyncResults.push_back(
             Owner_->DecoratedAutomaton_->BuildSnapshot().Apply(
                 BIND(&TSession::OnLocalSnapshotBuilt, MakeStrong(this))
@@ -136,13 +137,11 @@ private:
         VERIFY_THREAD_AFFINITY(Owner_->ControlThread);
 
         if (!rspOrError.IsOK()) {
-            LOG_WARNING(rspOrError, "Error building snapshot at follower %v",
-                id);
+            LOG_WARNING(rspOrError, "Error building snapshot at follower (PeerId: %v)", id);
             return;
         }
 
-        LOG_INFO("Remote snapshot built by follower %v",
-            id);
+        LOG_INFO("Remote snapshot built by follower (PeerId: %v)", id);
 
         const auto& rsp = rspOrError.Value();
         SnapshotChecksums_[id] = rsp->checksum();
@@ -184,7 +183,7 @@ private:
             }
         }
 
-        LOG_INFO("Distributed snapshot creation finished, %v peers succeeded",
+        LOG_INFO("Distributed snapshot creation finished (SuccessCount: %v)",
             successCount);
 
         auto owner = Owner_;
@@ -197,7 +196,7 @@ private:
     void RequestChangelogRotation()
     {
         std::vector<TFuture<void>> asyncResults;
-        for (auto peerId = 0; peerId < Owner_->CellManager_->GetPeerCount(); ++peerId) {
+        for (auto peerId = 0; peerId < Owner_->CellManager_->GetTotalPeerCount(); ++peerId) {
             if (peerId == Owner_->CellManager_->GetSelfPeerId())
                 continue;
 
@@ -205,7 +204,7 @@ private:
             if (!channel)
                 continue;
 
-            LOG_DEBUG("Requesting follower %v to rotate the changelog", peerId);
+            LOG_DEBUG("Requesting follower to rotate the changelog (PeerId: %v)", peerId);
 
             THydraServiceProxy proxy(channel);
             proxy.SetDefaultTimeout(Owner_->Config_->ControlRpcTimeout);
@@ -234,13 +233,11 @@ private:
         VERIFY_THREAD_AFFINITY(Owner_->ControlThread);
 
         if (!rspOrError.IsOK()) {
-            LOG_WARNING(rspOrError, "Error rotating changelog at follower %v",
-                id);
+            LOG_WARNING(rspOrError, "Error rotating changelog at follower (PeerId: %v)", id);
             return;
         }
 
-        LOG_INFO("Remote changelog rotated by follower %v",
-            id);
+        LOG_INFO("Remote changelog rotated by follower (PeerId: %v)", id);
 
         ++RemoteRotationSuccessCount_;
         CheckRotationQuorum();
@@ -274,7 +271,7 @@ private:
 
         // NB: It is vital to wait for the local rotation to complete.
         // Otherwise we risk assigning out-of-order versions.
-        if (!LocalRotationSuccessFlag_ || RemoteRotationSuccessCount_ < Owner_->CellManager_->GetQuorumCount() - 1)
+        if (!LocalRotationSuccessFlag_ || RemoteRotationSuccessCount_ < Owner_->CellManager_->GetQuorumPeerCount() - 1)
             return;
 
         Owner_->EpochContext_->EpochUserAutomatonInvoker->Invoke(
@@ -300,7 +297,7 @@ private:
 
         ChangelogPromise_.Set(TError("Not enough successful changelog rotation replies: %v out of %v",
             RemoteRotationSuccessCount_ + 1,
-            Owner_->CellManager_->GetPeerCount()));
+            Owner_->CellManager_->GetTotalPeerCount()));
     }
 };
 
@@ -308,12 +305,14 @@ private:
 
 TCheckpointer::TCheckpointer(
     TDistributedHydraManagerConfigPtr config,
+    const TDistributedHydraManagerOptions& options,
     TCellManagerPtr cellManager,
     TDecoratedAutomatonPtr decoratedAutomaton,
     TLeaderCommitterPtr leaderCommitter,
     ISnapshotStorePtr snapshotStore,
     TEpochContext* epochContext)
     : Config_(config)
+    , Options_(options)
     , CellManager_(cellManager)
     , DecoratedAutomaton_(decoratedAutomaton)
     , EpochContext_(epochContext)

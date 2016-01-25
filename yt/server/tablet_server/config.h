@@ -15,7 +15,10 @@ class TTabletManagerConfig
 public:
     //! Time to wait for a node to be back online before revoking it from all
     //! tablet cells.
-    TDuration PeerFailoverTimeout;
+    TDuration PeerRevocationTimeout;
+
+    //! Time to wait before resetting leader to another peer.
+    TDuration LeaderReassignmentTimeout;
 
     //! Maximum number of snapshots to keep for a tablet cell.
     int MaxSnapshotsToKeep;
@@ -34,8 +37,10 @@ public:
 
     TTabletManagerConfig()
     {
-        RegisterParameter("peer_failover_timeout", PeerFailoverTimeout)
+        RegisterParameter("peer_revocation_timeout", PeerRevocationTimeout)
             .Default(TDuration::Minutes(1));
+        RegisterParameter("leader_reassignment_timeout", LeaderReassignmentTimeout)
+            .Default(TDuration::Seconds(15));
         RegisterParameter("max_snapshots_to_keep", MaxSnapshotsToKeep)
             .GreaterThanOrEqual(0)
             .Default(3);

@@ -106,6 +106,13 @@ struct IChangelogStore
     virtual TFuture<IChangelogPtr> CreateChangelog(int id, const NProto::TChangelogMeta& meta) = 0;
 
     //! Opens an existing changelog.
+    /*!
+     *  The resulting changelog cannot be appended but can be truncated.
+     *
+     *  It is also possible that some writers are concurrently appending to this changelog.
+     *  Note that IChangelog::GetRecordCount may return, in this case, the number of records
+     *  that were present at the moment when the changelog was opened.
+     */
     virtual TFuture<IChangelogPtr> OpenChangelog(int id) = 0;
 
     // Extension methods.

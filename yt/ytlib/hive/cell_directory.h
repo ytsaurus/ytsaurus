@@ -33,11 +33,32 @@ void FromProto(TCellInfo* info, const NProto::TCellInfo& protoInfo);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TCellPeerDescriptor
+    : public NNodeTrackerClient::TNodeDescriptor
+{
+public:
+    DEFINE_BYVAL_RW_PROPERTY(bool, Voting);
+
+public:
+    TCellPeerDescriptor();
+    TCellPeerDescriptor(const NNodeTrackerClient::TNodeDescriptor& other, bool voting = true);
+    TCellPeerDescriptor(const TCellPeerDescriptor& other) = default;
+    explicit TCellPeerDescriptor(const NElection::TCellPeerConfig& config);
+
+    NElection::TCellPeerConfig ToConfig(const Stroka& networkName) const;
+
+};
+
+void ToProto(NProto::TCellPeerDescriptor* protoDescriptor, const TCellPeerDescriptor& descriptor);
+void FromProto(TCellPeerDescriptor* descriptor, const NProto::TCellPeerDescriptor& protoDescriptor);
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TCellDescriptor
 {
     TCellId CellId;
     int ConfigVersion = -1;
-    std::vector<NNodeTrackerClient::TNodeDescriptor> Peers;
+    std::vector<TCellPeerDescriptor> Peers;
 
     NElection::TCellConfigPtr ToConfig(const Stroka& networkName) const;
     TCellInfo ToInfo() const;

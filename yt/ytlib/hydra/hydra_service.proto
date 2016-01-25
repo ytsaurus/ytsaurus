@@ -57,7 +57,7 @@ message TRspPingFollower
                                                                               
 ////////////////////////////////////////////////////////////////////////////////
 
-message TReqLogMutations
+message TReqAcceptMutations
 {
     required NYT.NProto.TGuid epoch_id = 1;
     required int64 start_revision = 2;
@@ -65,7 +65,7 @@ message TReqLogMutations
     // Records data is passed via attachments.
 }
 
-message TRspLogMutations
+message TRspAcceptMutations
 {
     required bool logged = 1;
 }

@@ -32,7 +32,7 @@ struct IElectionCallbacks
     //! Called when the current peer has stopped leading.
     virtual void OnStopLeading() = 0;
 
-    //! Called when the current peer has started leading.
+    //! Called when the current peer has started following.
     virtual void OnStartFollowing(TEpochContextPtr epochContext) = 0;
 
     //! Called when the current peer has stopped following.
@@ -64,9 +64,11 @@ struct IElectionManager
 
     //! Initiates elections.
     /*!
-     * Upon success, IElectionCallbacks::OnStartLeading or
-     * IElectionCallbacks::OnStartFollowing
-     * is called.
+     *  The current epoch, if any, is abandoned.
+     *
+     *  Upon success, IElectionCallbacks::OnStartLeading or
+     *  IElectionCallbacks::OnStartFollowing
+     *  is called.
      */
     virtual void Participate() = 0;
 

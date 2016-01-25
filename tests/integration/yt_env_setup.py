@@ -178,9 +178,9 @@ class YTEnvSetup(YTEnv):
         print "Waiting for tablet cells to become healthy..."
         wait(lambda: all(c.attributes["health"] == "good" for c in yt_commands.ls("//sys/tablet_cells", attributes=["health"])))
 
-    def sync_create_cells(self, size, count):
-        for _ in xrange(count):
-            yt_commands.create_tablet_cell(size)
+    def sync_create_cells(self, peer_count, cell_count):
+        for _ in xrange(cell_count):
+            yt_commands.create_tablet_cell(peer_count)
         self.wait_for_cells()
 
     def wait_for_tablet_state(self, path, states):

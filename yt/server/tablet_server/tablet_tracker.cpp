@@ -23,6 +23,7 @@ using namespace NObjectServer;
 using namespace NTabletServer::NProto;
 using namespace NNodeTrackerServer;
 using namespace NHydra;
+using namespace NHive;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -40,6 +41,9 @@ public:
         auto tabletManager = Bootstrap_->GetTabletManager();
         for (const auto& pair : nodeTracker->Nodes()) {
             auto* node = pair.second;
+            if (!IsGood(node)) {
+                continue;
+            }
             int total = node->GetTotalTabletSlots();
             int used = tabletManager->GetAssignedTabletCellCount(node->GetDefaultAddress());
             int spare = total - used;
@@ -145,6 +149,9 @@ void TTabletTracker::ScanCells()
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
+    if (!IsEnabled())
+        return;
+
     TCandidatePool pool(Bootstrap_);
 
     auto tabletManger = Bootstrap_->GetTabletManager();
@@ -153,20 +160,62 @@ void TTabletTracker::ScanCells()
         if (!IsObjectAlive(cell))
             continue;
 
-        SchedulePeerStart(cell, &pool);
-        SchedulePeerFailover(cell);
+        ScheduleLeaderReassignment(cell, &pool);
+        SchedulePeerAssignment(cell, &pool);
+        SchedulePeerRevocation(cell);
     }
 }
 
-void TTabletTracker::SchedulePeerStart(TTabletCell* cell, TCandidatePool* pool)
+void TTabletTracker::ScheduleLeaderReassignment(TTabletCell* cell, TCandidatePool* pool)
 {
-    if (!IsEnabled())
+    // Try to move the leader to a good peer.
+    if (!IsFailed(cell, cell->GetLeadingPeerId(), Config_->LeaderReassignmentTimeout))
         return;
 
+    auto goodPeerId = FindGoodPeer(cell);
+    if (goodPeerId == InvalidPeerId)
+        return;
+
+    TReqSetLeadingPeer request;
+    ToProto(request.mutable_cell_id(), cell->GetId());
+    request.set_peer_id(goodPeerId);
+
+    auto hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
+    CreateMutation(hydraManager, request)
+        ->CommitAndLog(Logger);
+}
+
+void TTabletTracker::SchedulePeerAssignment(TTabletCell* cell, TCandidatePool* pool)
+{
+    const auto& peers = cell->Peers();
+
+    // Don't assign new peers if there's a follower but no leader.
+    // Try to promote the follower first.
+    bool hasFollower = false;
+    bool hasLeader = false;
+    for (const auto& peer : peers) {
+        auto* node = peer.Node;
+        if (!node)
+            continue;
+        auto* slot = node->FindTabletSlot(cell);
+        if (!slot)
+            continue;
+
+        auto state = slot->PeerState;
+        if (state == EPeerState::Leading || state == EPeerState::LeaderRecovery) {
+            hasLeader = true;
+        }
+        if (state == EPeerState::Following || state == EPeerState::FollowerRecovery) {
+            hasFollower = true;
+        }
+    }
+
+    if (hasFollower && !hasLeader)
+        return;
+
+    // Try to assign missing peers.
     TReqAssignPeers request;
     ToProto(request.mutable_cell_id(), cell->GetId());
-
-    const auto& peers = cell->Peers();
 
     SmallSet<Stroka, TypicalCellSize> forbiddenAddresses;
     for (const auto& peer : peers) {
@@ -175,17 +224,18 @@ void TTabletTracker::SchedulePeerStart(TTabletCell* cell, TCandidatePool* pool)
         }
     }
 
-    for (TPeerId peerId = 0; peerId < static_cast<int>(peers.size()); ++peerId) {
-        if (!peers[peerId].Descriptor.IsNull())
+    for (TPeerId id = 0; id < cell->GetPeerCount(); ++id) {
+        if (!peers[id].Descriptor.IsNull())
             continue;
 
         auto* node = pool->TryAllocate(cell, forbiddenAddresses);
-        if (!IsObjectAlive(node))
+        if (!node)
             break;
 
         auto* peerInfo = request.add_peer_infos();
-        peerInfo->set_peer_id(peerId);
+        peerInfo->set_peer_id(id);
         ToProto(peerInfo->mutable_node_descriptor(), node->GetDescriptor());
+
         forbiddenAddresses.insert(node->GetDefaultAddress());
     }
 
@@ -197,10 +247,10 @@ void TTabletTracker::SchedulePeerStart(TTabletCell* cell, TCandidatePool* pool)
         ->CommitAndLog(Logger);
 }
 
-void TTabletTracker::SchedulePeerFailover(TTabletCell* cell)
+void TTabletTracker::SchedulePeerRevocation(TTabletCell* cell)
 {
     // Don't perform failover until enough time has passed since the start.
-    if (TInstant::Now() < StartTime_ + Config_->PeerFailoverTimeout)
+    if (TInstant::Now() < StartTime_ + Config_->PeerRevocationTimeout)
         return;
 
     const auto& cellId = cell->GetId();
@@ -209,7 +259,7 @@ void TTabletTracker::SchedulePeerFailover(TTabletCell* cell)
     TReqRevokePeers request;
     ToProto(request.mutable_cell_id(), cellId);
     for (TPeerId peerId = 0; peerId < cell->Peers().size(); ++peerId) {
-        if (IsFailoverNeeded(cell, peerId)) {
+        if (IsFailed(cell, peerId, Config_->PeerRevocationTimeout)) {
             request.add_peer_ids(peerId);
         }
     }
@@ -222,7 +272,7 @@ void TTabletTracker::SchedulePeerFailover(TTabletCell* cell)
         ->CommitAndLog(Logger);
 }
 
-bool TTabletTracker::IsFailoverNeeded(TTabletCell* cell, TPeerId peerId)
+bool TTabletTracker::IsFailed(const TTabletCell* cell, TPeerId peerId, TDuration timeout)
 {
     const auto& peer = cell->Peers()[peerId];
     if (peer.Descriptor.IsNull()) {
@@ -235,15 +285,47 @@ bool TTabletTracker::IsFailoverNeeded(TTabletCell* cell, TPeerId peerId)
 
     auto nodeTracker = Bootstrap_->GetNodeTracker();
     const auto* node = nodeTracker->FindNodeByAddress(peer.Descriptor.GetDefaultAddress());
-    if (node && (node->GetBanned()|| node->GetDecommissioned())) {
+    if (node && (node->GetBanned() || node->GetDecommissioned())) {
         return true;
     }
 
-    if (peer.LastSeenTime > TInstant::Now() - Config_->PeerFailoverTimeout) {
+    if (peer.LastSeenTime > TInstant::Now() - timeout) {
         return false;
     }
 
     return true;
+}
+
+bool TTabletTracker::IsGood(const TNode* node)
+{
+    if (!IsObjectAlive(node)) {
+        return false;
+    }
+
+    if (node->GetAggregatedState() != ENodeState::Online) {
+        return false;
+    }
+
+    if (node->GetBanned()) {
+        return false;
+    }
+
+    if (node->GetDecommissioned()) {
+        return false;
+    }
+
+    return true;
+}
+
+int TTabletTracker::FindGoodPeer(const TTabletCell* cell)
+{
+    for (TPeerId id = 0; id < cell->GetPeerCount(); ++id) {
+        const auto& peer = cell->Peers()[id];
+        if (IsGood(peer.Node)) {
+            return id;
+        }
+    }
+    return InvalidPeerId;
 }
 
 ///////////////////////////////////////////////////////////////////////////////

@@ -40,7 +40,7 @@ class TCachedLocalChangelog
     , public IChangelog
 {
 public:
-    explicit TCachedLocalChangelog(
+    TCachedLocalChangelog(
         int id,
         IChangelogPtr underlyingChangelog)
         : TAsyncCacheValueBase(id)

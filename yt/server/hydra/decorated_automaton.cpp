@@ -591,13 +591,14 @@ private:
 
 TDecoratedAutomaton::TDecoratedAutomaton(
     TDistributedHydraManagerConfigPtr config,
+    const TDistributedHydraManagerOptions& options,
     TCellManagerPtr cellManager,
     IAutomatonPtr automaton,
     IInvokerPtr automatonInvoker,
     IInvokerPtr controlInvoker,
-    ISnapshotStorePtr snapshotStore,
-    const TDistributedHydraManagerOptions& options)
+    ISnapshotStorePtr snapshotStore)
     : Config_(config)
+    , Options_(options)
     , CellManager_(cellManager)
     , Automaton_(automaton)
     , AutomatonInvoker_(automatonInvoker)
@@ -605,7 +606,6 @@ TDecoratedAutomaton::TDecoratedAutomaton(
     , ControlInvoker_(controlInvoker)
     , SystemInvoker_(New<TSystemInvoker>(this))
     , SnapshotStore_(snapshotStore)
-    , Options_(options)
     , BatchCommitTimeCounter_("/batch_commit_time")
     , Logger(HydraLogger)
 {
@@ -803,9 +803,11 @@ void TDecoratedAutomaton::LogFollowerMutation(
     pendingMutation.RandomSeed  = MutationHeader_.random_seed();
     PendingMutations_.push(pendingMutation);
 
-    auto actualLogResult = Changelog_->Append(recordData);
-    if (logResult) {
-        *logResult = std::move(actualLogResult);
+    if (Changelog_) {
+        auto actualLogResult = Changelog_->Append(recordData);
+        if (logResult) {
+            *logResult = std::move(actualLogResult);
+        }
     }
 
     LoggedVersion_ = pendingMutation.Version.Advance();
@@ -852,22 +854,24 @@ void TDecoratedAutomaton::DoRotateChangelog()
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    WaitFor(Changelog_->Flush())
-        .ThrowOnError();
-
     auto loggedVersion = GetLoggedVersion();
-    YCHECK(loggedVersion.RecordId == Changelog_->GetRecordCount());
-
     auto rotatedVersion = loggedVersion.Rotate();
 
-    TChangelogMeta meta;
-    meta.set_prev_record_count(loggedVersion.RecordId);
+    if (Changelog_) {
+        WaitFor(Changelog_->Flush())
+            .ThrowOnError();
 
-    auto asyncNewChangelog = EpochContext_->ChangelogStore->CreateChangelog(
-        rotatedVersion.SegmentId,
-        meta);
-    Changelog_ = WaitFor(asyncNewChangelog)
-        .ValueOrThrow();
+        YCHECK(loggedVersion.RecordId == Changelog_->GetRecordCount());
+
+        TChangelogMeta meta;
+        meta.set_prev_record_count(loggedVersion.RecordId);
+
+        auto asyncNewChangelog = EpochContext_->ChangelogStore->CreateChangelog(
+            rotatedVersion.SegmentId,
+            meta);
+        Changelog_ = WaitFor(asyncNewChangelog)
+            .ValueOrThrow();
+    }
 
     LoggedVersion_ = rotatedVersion;
     YCHECK(EpochContext_->ReachableVersion < LoggedVersion_);
@@ -989,12 +993,18 @@ TVersion TDecoratedAutomaton::GetLoggedVersion() const
     return LoggedVersion_;
 }
 
-void TDecoratedAutomaton::SetChangelog(int changelogId, IChangelogPtr changelog)
+void TDecoratedAutomaton::SetLoggedVersion(TVersion version)
+{
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+    LoggedVersion_ = version;
+}
+
+void TDecoratedAutomaton::SetChangelog(IChangelogPtr changelog)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
     Changelog_ = changelog;
-    LoggedVersion_ = TVersion(changelogId, changelog->GetRecordCount());
 }
 
 i64 TDecoratedAutomaton::GetLoggedDataSize() const

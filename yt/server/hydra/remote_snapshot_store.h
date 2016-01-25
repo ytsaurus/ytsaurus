@@ -15,6 +15,10 @@ namespace NHydra {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Creates a changelog store factory on top of DFS.
+/*!
+ *  If #prerequisiteTransactionId then the constructed stores are read-only.
+ */
 ISnapshotStorePtr CreateRemoteSnapshotStore(
     TRemoteSnapshotStoreConfigPtr config,
     TRemoteSnapshotStoreOptionsPtr options,

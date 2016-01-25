@@ -310,8 +310,8 @@ void TBootstrap::TryLoadSnapshot(const Stroka& fileName, bool dump)
 
 TPeerId TBootstrap::ComputePeerId(TCellConfigPtr config, const Stroka& localAddress)
 {
-    for (TPeerId id = 0; id < config->Addresses.size(); ++id) {
-        const auto& peerAddress = config->Addresses[id];
+    for (TPeerId id = 0; id < config->Peers.size(); ++id) {
+        const auto& peerAddress = config->Peers[id].Address;
         if (peerAddress && to_lower(*peerAddress) == to_lower(localAddress)) {
             return id;
         }

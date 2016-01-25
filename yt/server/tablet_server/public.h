@@ -13,10 +13,10 @@ namespace NTabletServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_ENUM(ETabletCellHealth,
-    ((Initializing)(0))
-    ((Good)        (1))
-    ((Degraded)    (2))
-    ((Failed)      (3))
+    (Initializing)
+    (Good)
+    (Degraded)
+    (Failed)
 );
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -32,6 +32,8 @@ class TTablet;
 struct TTabletStatistics;
 struct TTabletPerformanceCounter;
 struct TTabletPerformanceCounters;
+
+const int MaxPeerCount = 5;
 
 ////////////////////////////////////////////////////////////////////////////////
 

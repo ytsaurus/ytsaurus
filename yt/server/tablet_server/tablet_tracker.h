@@ -42,10 +42,13 @@ private:
     bool IsEnabled();
     void ScanCells();
 
-    void SchedulePeerStart(TTabletCell* cell, TCandidatePool* pool);
-    void SchedulePeerFailover(TTabletCell* cell);
+    void ScheduleLeaderReassignment(TTabletCell* cell, TCandidatePool* pool);
+    void SchedulePeerAssignment(TTabletCell* cell, TCandidatePool* pool);
+    void SchedulePeerRevocation(TTabletCell* cell);
 
-    bool IsFailoverNeeded(TTabletCell* cell, TPeerId peerId);
+    bool IsFailed(const TTabletCell* cell, TPeerId peerId, TDuration timeout);
+    static bool IsGood(const NNodeTrackerServer::TNode* node);
+    static int FindGoodPeer(const TTabletCell* cell);
 
 };
 
