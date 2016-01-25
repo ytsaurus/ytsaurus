@@ -20,6 +20,18 @@ class TestCypressCommands(object):
         assert not path.append
         assert path.attributes == {"append": "false", "sort_by": ["key"]}
 
+        path = yt.TablePath("<append=false;sort-by=[key]>//my/table", append=True, attributes={"sort_by": ["subkey"]})
+        assert str(path) == "//my/table"
+        assert repr(path) == "//my/table"
+        assert path.append
+        assert path.attributes == {"append": "true", "sort_by": ["subkey"]}
+
+        path = yt.TablePath("#123", exact_key=10, ranges=[])
+        assert str(path) == "#123"
+        assert repr(path) == "#123"
+        assert not path.append
+        assert path.attributes == {"append": "false", "ranges": []}
+
     def test_get_set_exists(self):
         assert yt.get("/")
         assert len(yt.list("/")) > 1
