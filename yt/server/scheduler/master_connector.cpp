@@ -406,6 +406,7 @@ private:
         std::vector<TJobRequest> JobRequests;
         std::vector<TLivePreviewRequest> LivePreviewRequests;
         TObjectServiceProxy Proxy;
+        TFuture<void> LastUpdateFuture = VoidFuture;
     };
 
     yhash_map<TOperationId, TUpdateList> UpdateLists;
@@ -1656,14 +1657,17 @@ private:
     {
         auto operation = list->Operation;
 
-        return BIND(
-            &TImpl::DoUpdateOperationNode,
-            MakeStrong(this),
-            operation,
-            Passed(std::move(list->JobRequests)),
-            Passed(std::move(list->LivePreviewRequests)))
-        .AsyncVia(CancelableControlInvoker)
-        .Run();
+        auto lastUpdateFuture = list->LastUpdateFuture.Apply(
+            BIND(
+                &TImpl::DoUpdateOperationNode,
+                MakeStrong(this),
+                operation,
+                Passed(std::move(list->JobRequests)),
+                Passed(std::move(list->LivePreviewRequests)))
+            .AsyncVia(CancelableControlInvoker));
+
+        list->LastUpdateFuture = lastUpdateFuture;
+        return lastUpdateFuture;
     }
 
     void OnOperationNodeCreated(
