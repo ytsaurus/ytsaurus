@@ -193,7 +193,8 @@ void TBlobChunkBase::DoReadBlockSet(
             pendingDataSize += blockDataSize;
             ++pendingBlockCount;
             if (pendingDataSize >= config->MaxBytesPerRead ||
-                pendingBlockCount >= config->MaxBlocksPerRead) {
+                pendingBlockCount >= config->MaxBlocksPerRead)
+            {
                 break;
             }
         }
