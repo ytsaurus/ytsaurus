@@ -26,6 +26,8 @@
 
 #include <yt/core/misc/config.h>
 
+#include <yt/core/rpc/config.h>
+
 #include <yt/core/ytree/yson_serializable.h>
 
 namespace NYT {
@@ -35,6 +37,7 @@ namespace NApi {
 
 class TMasterConnectionConfig
     : public NHydra::TPeerConnectionConfig
+    , public NRpc::TRetryingChannelConfig
 {
 public:
     //! Timeout for RPC requests to masters.

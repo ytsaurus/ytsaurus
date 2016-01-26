@@ -16,8 +16,7 @@ namespace NHydra {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TPeerConnectionConfig
-    : public NRpc::TRetryingChannelConfig
-    , public NRpc::TBalancingChannelConfig
+    : public NRpc::TBalancingChannelConfig
 {
 public:
     TCellId CellId;
