@@ -41,6 +41,7 @@ struct TTabletSnapshot
     NTableClient::TKeyColumns KeyColumns;
     NTransactionClient::EAtomicity Atomicity;
     bool EnableLookupHashTable = false;
+    int OverlappingStoreCount = 0;
 
     TPartitionSnapshotPtr Eden;
 

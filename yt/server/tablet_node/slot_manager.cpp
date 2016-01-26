@@ -259,6 +259,23 @@ public:
     }
 
 
+    void PopulateAlerts(std::vector<TError>* alerts)
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        TReaderGuard guard(TabletSnapshotsSpinLock_);
+
+        for (const auto& it : TabletIdToSnapshot_) {
+            if (it.second->OverlappingStoreCount >= it.second->Config->MaxOverlappingStoreCount) {
+                auto alert = TError("Too many overlapping stores in tablet %v, rotation disabled", it.first)
+                    << TErrorAttribute("overlapping_store_count", it.second->OverlappingStoreCount)
+                    << TErrorAttribute("max_overlapping_store_count", it.second->Config->MaxOverlappingStoreCount);
+                alerts->push_back(std::move(alert));
+            }
+        }
+    }
+
+
     IYPathServicePtr GetOrchidService()
     {
         VERIFY_THREAD_AFFINITY_ANY();
@@ -445,6 +462,11 @@ void TSlotManager::UpdateTabletSnapshot(TTablet* tablet)
 void TSlotManager::UnregisterTabletSnapshots(TTabletSlotPtr slot)
 {
     Impl_->UnregisterTabletSnapshots(std::move(slot));
+}
+
+void TSlotManager::PopulateAlerts(std::vector<TError>* alerts)
+{
+    Impl_->PopulateAlerts(alerts);
 }
 
 IYPathServicePtr TSlotManager::GetOrchidService()

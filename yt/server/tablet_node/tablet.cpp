@@ -32,6 +32,10 @@ using namespace NTransactionClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static const auto& Logger = TabletNodeLogger;
+
+////////////////////////////////////////////////////////////////////////////////
+
 std::pair<TTabletSnapshot::TPartitionListIterator, TTabletSnapshot::TPartitionListIterator>
 TTabletSnapshot::GetIntersectingPartitions(
     const TOwningKey& lowerBound,
@@ -90,9 +94,9 @@ TTablet::TTablet(
     : TabletId_(tabletId)
     , MountRevision_(0)
     , Slot_(slot)
+    , OverlappingStoreCount_(0)
     , Config_(New<TTableMountConfig>())
     , WriterOptions_(New<TTabletWriterOptions>())
-    , OverlappingStoreCount_(0)
 { }
 
 TTablet::TTablet(
@@ -667,6 +671,7 @@ TTabletSnapshotPtr TTablet::RebuildSnapshot()
     Snapshot_->Eden = Eden_->RebuildSnapshot();
     Snapshot_->Atomicity = Atomicity_;
     Snapshot_->EnableLookupHashTable = EnableLookupHashTable_;
+    Snapshot_->OverlappingStoreCount = OverlappingStoreCount_;
     Snapshot_->Partitions.reserve(PartitionList_.size());
     for (const auto& partition : PartitionList_) {
         auto partitionSnapshot = partition->RebuildSnapshot();
@@ -792,6 +797,12 @@ void TTablet::UpdateOverlappingStoreCount()
             static_cast<int>(partition->Stores().size()));
     }
     OverlappingStoreCount_ += Eden_->Stores().size();
+
+    if (OverlappingStoreCount_ >= Config_->MaxOverlappingStoreCount) {
+        LOG_DEBUG("Too many overlapping stores, store rotation disabled (OverlappingStoreCount: %v, MaxOverlappingStoreCount: %v)",
+            OverlappingStoreCount_,
+            Config_->MaxOverlappingStoreCount);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
