@@ -59,7 +59,7 @@ class TestEventLog(YTEnvSetup):
     DELTA_SCHEDULER_CONFIG = {
         "scheduler" : {
             "event_log" : {
-                "flush_period" : 5000
+                "flush_period" : 1000
             }
         }
     }
@@ -90,7 +90,7 @@ class TestEventLog(YTEnvSetup):
         assert get_statistics(statistics, "job_proxy.cpu.user.$.completed.map.count") == 1
 
         # wait for scheduler to dump the event log
-        time.sleep(6)
+        time.sleep(2)
         res = read_table("//sys/scheduler/event_log")
         event_types = __builtin__.set()
         for item in res:
@@ -102,6 +102,32 @@ class TestEventLog(YTEnvSetup):
                 assert user_time > 0
         assert "operation_started" in event_types
 
+    def test_scheduler_event_log_buffering(self):
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+        write_table("//tmp/t1", [{"a": "b"}])
+
+        for node in ls("//sys/nodes"):
+            set("//sys/nodes/{0}/@banned".format(node), True)
+
+        time.sleep(2)
+        op_id = map(
+            dont_track=True,
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            command="cat")
+        time.sleep(2)
+
+        for node in ls("//sys/nodes"):
+            set("//sys/nodes/{0}/@banned".format(node), False)
+
+        track_op(op_id)
+
+        time.sleep(2)
+        res = read_table("//sys/scheduler/event_log")
+        event_types = __builtin__.set([item["event_type"] for item in res])
+        for event in ["scheduler_started", "operation_started", "operation_completed"]:
+            assert event in event_types
 
 
 class TestJobProber(YTEnvSetup):
