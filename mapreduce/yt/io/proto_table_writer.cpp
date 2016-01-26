@@ -23,15 +23,12 @@ TNode MakeNodeFromMessage(const Message& row)
     int count = descriptor->field_count();
     for (int i = 0; i < count; ++i) {
         auto* fieldDesc = descriptor->field(i);
-        if (!reflection->HasField(row, fieldDesc)) {
-            continue;
-        }
 
         Stroka columnName = fieldDesc->options().GetExtension(column_name);
         if (columnName.empty()) {
             const auto& keyColumnName = fieldDesc->options().GetExtension(key_column_name);
-            if(keyColumnName.empty()) {
-                ythrow yexception() << "column_name or key_column_name extension must be set for field";
+            if (keyColumnName.empty()) {
+                ythrow yexception() << "column_name or key_column_name extension must be set for field " << fieldDesc->name();
             }
             columnName = keyColumnName;
         }

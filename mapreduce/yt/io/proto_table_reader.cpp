@@ -23,7 +23,7 @@ void ReadMessageFromNode(const TNode& node, Message* row)
         Stroka columnName = fieldDesc->options().GetExtension(column_name);
         if (columnName.empty()) {
             const auto& keyColumnName = fieldDesc->options().GetExtension(key_column_name);
-            if(keyColumnName.empty()) {
+            if (keyColumnName.empty()) {
                 continue; // cannot be read from table
             }
             columnName = keyColumnName;
