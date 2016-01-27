@@ -23,6 +23,9 @@ TNode MakeNodeFromMessage(const Message& row)
     int count = descriptor->field_count();
     for (int i = 0; i < count; ++i) {
         auto* fieldDesc = descriptor->field(i);
+        if (!reflection->HasField(row, fieldDesc)) {
+            continue;
+        }
 
         Stroka columnName = fieldDesc->options().GetExtension(column_name);
         if (columnName.empty()) {
