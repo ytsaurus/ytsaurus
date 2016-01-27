@@ -46,11 +46,16 @@ public:
 
     TTransaction* StartTransaction(
         TTransaction* parent,
+        const NObjectClient::TCellTagList& secondaryCellTags,
         TNullable<TDuration> timeout,
         const TNullable<Stroka>& title,
         const TTransactionId& hintId = NullTransactionId);
-    void CommitTransaction(TTransaction* transaction, TTimestamp commitTimestamp);
-    void AbortTransaction(TTransaction* transaction, bool force);
+    void CommitTransaction(
+        TTransaction* transaction,
+        TTimestamp commitTimestamp);
+    void AbortTransaction(
+        TTransaction* transaction,
+        bool force);
     void PingTransaction(TTransaction* transaction, bool pingAncestors = false);
 
     DECLARE_ENTITY_MAP_ACCESSORS(Transaction, TTransaction, TTransactionId);

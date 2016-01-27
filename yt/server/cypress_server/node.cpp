@@ -84,7 +84,7 @@ TVersionedNodeId TCypressNodeBase::GetVersionedId() const
 
 bool TCypressNodeBase::IsExternal() const
 {
-    return ExternalCellTag_ >= MinimumValidCellTag && ExternalCellTag_ <= MaximumValidCellTag;
+    return ExternalCellTag_ >= MinValidCellTag && ExternalCellTag_ <= MaxValidCellTag;
 }
 
 void TCypressNodeBase::Save(TSaveContext& context) const

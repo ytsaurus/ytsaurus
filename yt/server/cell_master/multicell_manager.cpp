@@ -8,8 +8,6 @@
 #include "world_initializer.h"
 #include "helpers.h"
 
-#include <yt/core/misc/collection_helpers.h>
-
 #include <yt/core/ytree/ypath_client.h>
 
 #include <yt/core/concurrency/periodic_executor.h>
@@ -20,6 +18,8 @@
 
 #include <yt/server/hive/hive_manager.h>
 #include <yt/server/hive/mailbox.h>
+#include <yt/server/hive/helpers.h>
+#include <yt/server/hive/hive_manager.pb.h>
 
 #include <yt/server/hydra/mutation.h>
 
@@ -38,7 +38,9 @@ using namespace NRpc;
 using namespace NYTree;
 using namespace NConcurrency;
 using namespace NObjectClient;
+using namespace NObjectServer;
 using namespace NHive;
+using namespace NHive::NProto;
 using namespace NHydra;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -84,81 +86,30 @@ public:
 
 
     void PostToMaster(
-        IClientRequestPtr request,
+        const TCrossCellMessage& message,
         TCellTag cellTag,
         bool reliable)
     {
-        PostToMaster(request->Serialize(), cellTag, reliable);
+        DoPostMessage(BuildHiveMessage(message), TCellTagList{cellTag}, reliable);
     }
 
-    void PostToMaster(
-        const TObjectId& objectId,
-        IServiceContextPtr context,
-        TCellTag cellTag,
+    void PostToMasters(
+        const TCrossCellMessage& message,
+        const TCellTagList& cellTags,
         bool reliable)
     {
-        PostToMaster(ReplicateTarget(objectId, context), cellTag, reliable);
-    }
-
-    void PostToMaster(
-        const ::google::protobuf::MessageLite& requestMessage,
-        TCellTag cellTag,
-        bool reliable)
-    {
-        DoPostMessage(requestMessage, cellTag, reliable);
-    }
-
-    void PostToMaster(
-        TSharedRefArray requestMessage,
-        TCellTag cellTag,
-        bool reliable)
-    {
-        NObjectServer::NProto::TReqExecute wrappedRequest;
-        WrapRequest(&wrappedRequest, requestMessage);
-        DoPostMessage(wrappedRequest, cellTag, reliable);
-    }
-
-
-    void PostToSecondaryMasters(
-        IClientRequestPtr request,
-        bool reliable)
-    {
-        YCHECK(Bootstrap_->IsPrimaryMaster());
-        if (Bootstrap_->IsMulticell()) {
-            PostToSecondaryMasters(request->Serialize(), reliable);
+        if (!cellTags.empty()) {
+            DoPostMessage(BuildHiveMessage(message), cellTags, reliable);
         }
     }
 
     void PostToSecondaryMasters(
-        const TObjectId& objectId,
-        IServiceContextPtr context,
+        const TCrossCellMessage& message,
         bool reliable)
     {
         YCHECK(Bootstrap_->IsPrimaryMaster());
         if (Bootstrap_->IsMulticell()) {
-            PostToSecondaryMasters(ReplicateTarget(objectId, context), reliable);
-        }
-    }
-
-    void PostToSecondaryMasters(
-        const ::google::protobuf::MessageLite& requestMessage,
-        bool reliable)
-    {
-        YCHECK(Bootstrap_->IsPrimaryMaster());
-        if (Bootstrap_->IsMulticell()) {
-            DoPostMessage(requestMessage, AllSecondaryMastersCellTag, reliable);
-        }
-    }
-
-    void PostToSecondaryMasters(
-        TSharedRefArray requestMessage,
-        bool reliable)
-    {
-        YCHECK(Bootstrap_->IsPrimaryMaster());
-        if (Bootstrap_->IsMulticell()) {
-            NObjectServer::NProto::TReqExecute hydraReq;
-            WrapRequest(&hydraReq, requestMessage);
-            DoPostMessage(hydraReq, AllSecondaryMastersCellTag, reliable);
+            PostToMasters(message, GetRegisteredMasterCellTags(), reliable);
         }
     }
 
@@ -168,9 +119,9 @@ public:
         return FindMasterEntry(cellTag) != nullptr;
     }
 
-    std::vector<NObjectClient::TCellTag> GetRegisteredMasterCellTags()
+    const TCellTagList& GetRegisteredMasterCellTags()
     {
-        return GetKeys(RegisteredMasterMap_);
+        return RegisteredMasterCellTags_;
     }
 
     int GetRegisteredMasterCellIndex(TCellTag cellTag)
@@ -196,23 +147,22 @@ public:
 
         int avgChunkCount = chunkCountSum / RegisteredMasterMap_.size();
 
-        // Construct PickCellList_ by putting each secondary cell
+        // Construct candidates by putting each secondary cell
         // * once if the number of chunks there is at least the average
         // * twice otherwise
-        PickCellList_.reserve(RegisteredMasterMap_.size() * 2);
-        PickCellList_.clear();
+        SmallVector<TCellTag, 2 * MaxSecondaryMasterCells> candidates;
         for (const auto& pair : RegisteredMasterMap_) {
             auto cellTag = pair.first;
             const auto& entry = pair.second;
-            PickCellList_.push_back(cellTag);
+            candidates.push_back(cellTag);
             if (entry.Statistics.chunk_count() < avgChunkCount) {
-                PickCellList_.push_back(cellTag);
+                candidates.push_back(cellTag);
             }
         }
 
-        // Sample PickCellList_ uniformly.
+        // Sample candidates uniformly.
         auto* mutationContext = GetCurrentMutationContext();
-        return PickCellList_[mutationContext->RandomGenerator().Generate<size_t>() % PickCellList_.size()];
+        return candidates[mutationContext->RandomGenerator().Generate<size_t>() % candidates.size()];
     }
 
     NProto::TCellStatistics ComputeClusterStatistics()
@@ -280,15 +230,13 @@ private:
 
     // NB: Must ensure stable order.
     std::map<TCellTag, TMasterEntry> RegisteredMasterMap_;
+    TCellTagList RegisteredMasterCellTags_;
     EPrimaryRegisterState RegisterState_;
 
     TMailbox* PrimaryMasterMailbox_ = nullptr;
 
     TPeriodicExecutorPtr RegisterAtPrimaryMasterExecutor_;
     TPeriodicExecutorPtr CellStatiticsGossipExecutor_;
-
-    //! A temporary buffer used in PickSecondaryMasterCell.
-    std::vector<TCellTag> PickCellList_;
 
     //! Caches master channels returned by FindMasterChannel and GetMasterChannelOrThrow.
     std::map<std::tuple<TCellTag, EPeerKind>, IChannelPtr> MasterChannelCache_;
@@ -318,6 +266,8 @@ private:
         TMasterAutomatonPart::Clear();
 
         RegisteredMasterMap_.clear();
+        RegisteredMasterCellTags_.clear();
+
         if (Bootstrap_->IsSecondaryMaster()) {
             RegisterMasterEntry(Bootstrap_->GetPrimaryCellTag());
         }
@@ -332,6 +282,12 @@ private:
         using NYT::Load;
 
         Load(context, RegisteredMasterMap_);
+
+        RegisteredMasterCellTags_.clear();
+        for (const auto& pair : RegisteredMasterMap_) {
+            RegisteredMasterCellTags_.push_back(pair.first);
+        }
+
         // COMPAT(babenko)
         if (context.GetVersion() >= 207) {
             Load(context, RegisterState_);
@@ -549,6 +505,8 @@ private:
         YCHECK(pair.second);
         auto& entry = pair.first->second;
         entry.Index = index;
+        RegisteredMasterCellTags_.push_back(cellTag);
+        std::sort(RegisteredMasterCellTags_.begin(), RegisteredMasterCellTags_.end());
     }
 
     TMasterEntry* FindMasterEntry(TCellTag cellTag)
@@ -609,60 +567,60 @@ private:
     }
 
 
-    void WrapRequest(
-        NObjectServer::NProto::TReqExecute* hydraRequest,
-        const TSharedRefArray& requestMessage)
+    TEncapsulatedMessage BuildHiveMessage(const TCrossCellMessage& crossCellMessage)
     {
+        if (const auto* protoPtr = crossCellMessage.Payload.TryAs<TCrossCellMessage::TProtoMessage>()) {
+            return NHive::SerializeMessage(*protoPtr->Message);
+        }
+
+        NObjectServer::NProto::TReqExecute hydraRequest;
+        TSharedRefArray parts;
+        if (const auto* clientPtr = crossCellMessage.Payload.TryAs<TCrossCellMessage::TClientMessage>()) {
+            parts = clientPtr->Request->Serialize();
+        } else if (const auto* servicePtr = crossCellMessage.Payload.TryAs<TCrossCellMessage::TServiceMessage>()) {
+            auto requestMessage = servicePtr->Context->GetRequestMessage();
+            auto requestHeader = servicePtr->Context->RequestHeader();
+            auto updatedYPath = FromObjectId(servicePtr->ObjectId) + GetRequestYPath(requestHeader);
+            SetRequestYPath(&requestHeader, updatedYPath);
+            parts = SetRequestHeader(requestMessage, requestHeader);
+        } else {
+            YUNREACHABLE();
+        }
+
+        for (const auto& part : parts) {
+            hydraRequest.add_request_parts(part.Begin(), part.Size());
+        }
+
         auto securityManager = Bootstrap_->GetSecurityManager();
         auto* user = securityManager->GetAuthenticatedUser();
-        ToProto(hydraRequest->mutable_user_id(), user->GetId());
+        ToProto(hydraRequest.mutable_user_id(), user->GetId());
 
-        for (const auto& part : requestMessage) {
-            hydraRequest->add_request_parts(part.Begin(), part.Size());
-        }
-    }
-
-    TSharedRefArray ReplicateTarget(
-        const TObjectId& objectId,
-        IServiceContextPtr context)
-    {
-        auto requestMessage = context->GetRequestMessage();
-        NRpc::NProto::TRequestHeader requestHeader;
-        ParseRequestHeader(requestMessage, &requestHeader);
-
-        auto updatedYPath = FromObjectId(objectId) + GetRequestYPath(context);
-        SetRequestYPath(&requestHeader, updatedYPath);
-        return SetRequestHeader(requestMessage, requestHeader);
+        return NHive::SerializeMessage(hydraRequest);
     }
 
     void DoPostMessage(
-        const ::google::protobuf::MessageLite& requestMessage,
-        TCellTag cellTag,
+        const TEncapsulatedMessage& message,
+        const TCellTagList& cellTags,
         bool reliable)
     {
         auto hiveManager = Bootstrap_->GetHiveManager();
-        if (cellTag >= MinimumValidCellTag && cellTag <= MaximumValidCellTag) {
-            auto cellId = Bootstrap_->GetCellId(cellTag);
-            auto* mailbox = hiveManager->GetOrCreateMailbox(cellId);
-            hiveManager->PostMessage(mailbox, requestMessage, reliable);
-        } else if (cellTag == PrimaryMasterCellTag) {
-            if (!reliable && !PrimaryMasterMailbox_)
-                return;
+        for (auto cellTag : cellTags) {
+            if (cellTag >= MinValidCellTag && cellTag <= MaxValidCellTag) {
+                auto cellId = Bootstrap_->GetCellId(cellTag);
+                auto* mailbox = hiveManager->GetOrCreateMailbox(cellId);
+                hiveManager->PostMessage(mailbox, message, reliable);
+            } else if (cellTag == PrimaryMasterCellTag) {
+                if (!reliable && !PrimaryMasterMailbox_)
+                    return;
 
-            // Failure here indicates an attempt to send a reliable message to the primary master
-            // before registering.
-            YCHECK(PrimaryMasterMailbox_);
+                // Failure here indicates an attempt to send a reliable message to the primary master
+                // before registering.
+                YCHECK(PrimaryMasterMailbox_);
 
-            hiveManager->PostMessage(PrimaryMasterMailbox_, requestMessage, reliable);
-        } else if (cellTag == AllSecondaryMastersCellTag) {
-            YCHECK(Bootstrap_->IsPrimaryMaster());
-            for (const auto& pair : RegisteredMasterMap_) {
-                auto currentCellId = Bootstrap_->GetCellId(pair.first);
-                auto* currentMailbox = hiveManager->GetOrCreateMailbox(currentCellId);
-                hiveManager->PostMessage(currentMailbox, requestMessage, reliable);
+                hiveManager->PostMessage(PrimaryMasterMailbox_, message, reliable);
+            } else {
+                YUNREACHABLE();
             }
-        } else {
-            YUNREACHABLE();
         }
     }
 };
@@ -675,69 +633,29 @@ TMulticellManager::TMulticellManager(
     : Impl_(New<TImpl>(config, bootstrap))
 { }
 
-TMulticellManager::~TMulticellManager()
-{ }
+TMulticellManager::~TMulticellManager() = default;
 
 void TMulticellManager::PostToMaster(
-    IClientRequestPtr request,
+    const TCrossCellMessage& message,
     TCellTag cellTag,
     bool reliable)
 {
-    Impl_->PostToMaster(std::move(request), cellTag, reliable);
+    Impl_->PostToMaster(message, cellTag, reliable);
 }
 
-void TMulticellManager::PostToMaster(
-    const TObjectId& objectId,
-    IServiceContextPtr context,
-    TCellTag cellTag,
+void TMulticellManager::PostToMasters(
+    const TCrossCellMessage& message,
+    const NObjectClient::TCellTagList& cellTags,
     bool reliable)
 {
-    Impl_->PostToMaster(objectId, std::move(context), cellTag, reliable);
-}
-
-void TMulticellManager::PostToMaster(
-    const ::google::protobuf::MessageLite& requestMessage,
-    TCellTag cellTag,
-    bool reliable)
-{
-    Impl_->PostToMaster(requestMessage, cellTag, reliable);
-}
-
-void TMulticellManager::PostToMaster(
-    TSharedRefArray requestMessage,
-    TCellTag cellTag,
-    bool reliable)
-{
-    Impl_->PostToMaster(std::move(requestMessage), cellTag, reliable);
+    Impl_->PostToMasters(message, cellTags, reliable);
 }
 
 void TMulticellManager::PostToSecondaryMasters(
-    IClientRequestPtr request,
+    const TCrossCellMessage& message,
     bool reliable)
 {
-    Impl_->PostToSecondaryMasters(std::move(request), reliable);
-}
-
-void TMulticellManager::PostToSecondaryMasters(
-    const TObjectId& objectId,
-    IServiceContextPtr context,
-    bool reliable)
-{
-    Impl_->PostToSecondaryMasters(objectId, std::move(context), reliable);
-}
-
-void TMulticellManager::PostToSecondaryMasters(
-    const ::google::protobuf::MessageLite& requestMessage,
-    bool reliable)
-{
-    Impl_->PostToSecondaryMasters(requestMessage, reliable);
-}
-
-void TMulticellManager::PostToSecondaryMasters(
-    TSharedRefArray requestMessage,
-    bool reliable)
-{
-    Impl_->PostToSecondaryMasters(std::move(requestMessage), reliable);
+    Impl_->PostToSecondaryMasters(message, reliable);
 }
 
 bool TMulticellManager::IsRegisteredMasterCell(TCellTag cellTag)
@@ -745,7 +663,7 @@ bool TMulticellManager::IsRegisteredMasterCell(TCellTag cellTag)
     return Impl_->IsRegisteredSecondaryMaster(cellTag);
 }
 
-std::vector<NObjectClient::TCellTag> TMulticellManager::GetRegisteredMasterCellTags()
+const TCellTagList& TMulticellManager::GetRegisteredMasterCellTags()
 {
     return Impl_->GetRegisteredMasterCellTags();
 }

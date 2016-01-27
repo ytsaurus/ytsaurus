@@ -51,6 +51,8 @@ public:
         auto keyColumns = FromProto<Stroka>(reduceJobSpecExt.key_columns());
         nameTable = TNameTable::FromKeyColumns(keyColumns);
 
+        YCHECK(reduceJobSpecExt.has_partition_tag());
+
         return CreateSchemalessPartitionSortReader(
             JobIOConfig_->TableReader,
             Host_->GetClient(),
@@ -61,7 +63,8 @@ public:
             BIND(&IJobHost::ReleaseNetwork, Host_),
             chunks,
             SchedulerJobSpec_.input_row_count(),
-            SchedulerJobSpec_.is_approximate());
+            SchedulerJobSpec_.is_approximate(),
+            reduceJobSpecExt.partition_tag());
     }
 
     virtual ISchemalessMultiChunkWriterPtr DoCreateWriter(
@@ -82,7 +85,7 @@ public:
         // Partition reduce may come as intermediate job (reduce-combiner),
         // so we return written chunks to scheduler.
         writer->GetNodeDirectory()->DumpTo(schedulerJobResult->mutable_output_node_directory());
-        ToProto(schedulerJobResult->mutable_output_chunks(), writer->GetWrittenChunks());
+        ToProto(schedulerJobResult->mutable_output_chunks(), writer->GetWrittenChunksMasterMeta());
     }
 
 private:

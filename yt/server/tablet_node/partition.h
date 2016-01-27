@@ -1,11 +1,12 @@
 #pragma once
 
 #include "public.h"
-#include "automaton.h"
+#include "object_detail.h"
 
 #include <yt/ytlib/table_client/unversioned_row.h>
 
 #include <yt/core/misc/property.h>
+#include <yt/core/misc/ref_tracked.h>
 
 namespace NYT {
 namespace NTabletNode {
@@ -41,7 +42,8 @@ DEFINE_REFCOUNTED_TYPE(TPartitionSnapshot)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TPartition
-    : private TNonCopyable
+    : public TObjectBase
+    , public TRefTracked<TTablet>
 {
 public:
     static const int EdenIndex = -1;
@@ -49,7 +51,6 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(TPartitionSnapshotPtr, Snapshot);
 
     DEFINE_BYVAL_RO_PROPERTY(TTablet*, Tablet);
-    DEFINE_BYVAL_RO_PROPERTY(TPartitionId, Id);
     DEFINE_BYVAL_RW_PROPERTY(int, Index);
 
     DEFINE_BYVAL_RO_PROPERTY(TOwningKey, PivotKey);

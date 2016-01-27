@@ -2,7 +2,7 @@
 
 #include <yt/ytlib/object_client/public.h>
 
-#include <yt/core/misc/public.h>
+#include <yt/core/misc/small_vector.h>
 
 namespace NYT {
 namespace NObjectServer {
@@ -25,6 +25,7 @@ using NObjectClient::EObjectType;
 using NObjectClient::MinObjectType;
 using NObjectClient::MaxObjectType;
 using NObjectClient::TCellTag;
+using NObjectClient::TCellTagList;
 using NObjectClient::NullObjectId;
 using NObjectClient::NullTransactionId;
 

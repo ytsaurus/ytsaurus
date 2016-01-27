@@ -592,7 +592,7 @@ TEST_F(TVersionedChunksTest, ReadManyRows)
 
         std::vector<TKey> keys;
         for (const auto& owningKey : owningKeys) {
-            keys.push_back(owningKey.Get());
+            keys.push_back(owningKey);
         }
 
         auto sharedKeys = MakeSharedRange(std::move(keys), std::move(owningKeys));

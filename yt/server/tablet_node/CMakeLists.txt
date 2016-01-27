@@ -1,5 +1,6 @@
 #:yt-updatable
 set( SRCS
+  ${CMAKE_CURRENT_LIST_DIR}/object_detail.cpp
   ${CMAKE_CURRENT_LIST_DIR}/automaton.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_store.cpp
   ${CMAKE_CURRENT_LIST_DIR}/dynamic_memory_store.cpp
@@ -26,12 +27,15 @@ set( SRCS
   ${CMAKE_CURRENT_LIST_DIR}/transaction.cpp
   ${CMAKE_CURRENT_LIST_DIR}/transaction_manager.cpp
   ${CMAKE_CURRENT_LIST_DIR}/in_memory_manager.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/writer_pool.cpp
 )
 set( HDRS
+  ${CMAKE_CURRENT_LIST_DIR}/object_detail.h
   ${CMAKE_CURRENT_LIST_DIR}/automaton.h
   ${CMAKE_CURRENT_LIST_DIR}/chunk_store.h
   ${CMAKE_CURRENT_LIST_DIR}/config.h
   ${CMAKE_CURRENT_LIST_DIR}/dynamic_memory_store.h
+  ${CMAKE_CURRENT_LIST_DIR}/dynamic_memory_store-inl.h
   ${CMAKE_CURRENT_LIST_DIR}/dynamic_memory_store_bits.h
   ${CMAKE_CURRENT_LIST_DIR}/dynamic_memory_store_comparer.h
   ${CMAKE_CURRENT_LIST_DIR}/llvm_types.h
@@ -57,6 +61,7 @@ set( HDRS
   ${CMAKE_CURRENT_LIST_DIR}/transaction.h
   ${CMAKE_CURRENT_LIST_DIR}/transaction_manager.h
   ${CMAKE_CURRENT_LIST_DIR}/in_memory_manager.h
+  ${CMAKE_CURRENT_LIST_DIR}/writer_pool.h
 )
 
 list(APPEND YT_SOURCE_FILES

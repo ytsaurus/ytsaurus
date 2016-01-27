@@ -80,7 +80,7 @@ public:
         TOrchidServiceProxy proxy(channel);
         proxy.SetDefaultTimeout(manifest->Timeout);
 
-        auto path = GetRedirectPath(manifest, GetRequestYPath(context));
+        auto path = GetRedirectPath(manifest, GetRequestYPath(context->RequestHeader()));
         const auto& method = context->GetMethod();
 
         auto requestMessage = context->GetRequestMessage();

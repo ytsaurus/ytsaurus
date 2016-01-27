@@ -29,36 +29,6 @@ static const size_t SnapshotPrefetchWindowSize = 64 * 1024 * 1024;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSaveContext::TSaveContext()
-{
-    Reset();
-}
-
-void TSaveContext::Reset()
-{
-    SerializationKeyIndex_ = 0;
-    CheckpointableOutput_ = nullptr;
-    Output_ = nullptr;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TLoadContext::TLoadContext()
-{
-    Reset();
-}
-
-void TLoadContext::Reset()
-{
-    Version_ = -1;
-    CheckpointableInput_ = nullptr;
-    Input_ = nullptr;
-    Entities_.clear();
-    Dumper_.SetEnabled(false);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 TCompositeAutomatonPart::TCompositeAutomatonPart(
     IHydraManagerPtr hydraManager,
     TCompositeAutomatonPtr automaton,
@@ -89,7 +59,7 @@ TCompositeAutomatonPart::TCompositeAutomatonPart(
 void TCompositeAutomatonPart::RegisterSaver(
     ESyncSerializationPriority priority,
     const Stroka& name,
-    TCallback<void()> callback)
+    TCallback<void(TSaveContext&)> callback)
 {
     // Check for duplicate part names.
     YCHECK(Automaton_->SaverPartNames_.insert(name).second);
@@ -105,7 +75,7 @@ void TCompositeAutomatonPart::RegisterSaver(
 void TCompositeAutomatonPart::RegisterSaver(
     EAsyncSerializationPriority priority,
     const Stroka& name,
-    TCallback<TCallback<void()>()> callback)
+    TCallback<TCallback<void(TSaveContext&)>()> callback)
 {
     // Check for duplicate part names.
     YCHECK(Automaton_->SaverPartNames_.insert(name).second);
@@ -118,66 +88,22 @@ void TCompositeAutomatonPart::RegisterSaver(
     Automaton_->AsyncSavers_.push_back(descriptor);
 }
 
-void TCompositeAutomatonPart::RegisterSaver(
-    ESyncSerializationPriority priority,
-    const Stroka& name,
-    TCallback<void(TSaveContext&)> saver)
-{
-    RegisterSaver(
-        priority,
-        name,
-        BIND([=] () {
-            auto& context = Automaton_->SaveContext();
-            saver.Run(context);
-        }));
-}
-
-void TCompositeAutomatonPart::RegisterSaver(
-    EAsyncSerializationPriority priority,
-    const Stroka& name,
-    TCallback<TCallback<void(TSaveContext&)>()> callback)
-{
-    RegisterSaver(
-        priority,
-        name,
-        BIND([=] () {
-            auto continuation = callback.Run();
-            return BIND([=] () {
-                auto& context = Automaton_->SaveContext();
-                return continuation.Run(context);
-            });
-        }));
-}
-
 void TCompositeAutomatonPart::RegisterLoader(
     const Stroka& name,
-    TCallback<void()> callback)
+    TCallback<void(TLoadContext&)> callback)
 {
     TCompositeAutomaton::TLoaderDescriptor descriptor;
     descriptor.Name = name;
-    descriptor.Callback = BIND([=] () {
-        const auto& context = Automaton_->LoadContext();
+    descriptor.Callback = BIND([=] (TLoadContext& context) {
         if (!ValidateSnapshotVersion(context.GetVersion())) {
             THROW_ERROR_EXCEPTION("Unsupported snapshot version %v in part %v",
                 context.GetVersion(),
                 name);
         }
-        callback.Run();
+        callback.Run(context);
     });
     descriptor.Part = this;
     YCHECK(Automaton_->PartNameToLoaderDescriptor_.insert(std::make_pair(name, descriptor)).second);
-}
-
-void TCompositeAutomatonPart::RegisterLoader(
-    const Stroka& name,
-    TCallback<void(TLoadContext&)> loader)
-{
-    TCompositeAutomatonPart::RegisterLoader(
-        name,
-        BIND([=] () {
-            auto& context = Automaton_->LoadContext();
-            loader.Run(context);
-        }));
 }
 
 void TCompositeAutomatonPart::RegisterMethod(
@@ -280,6 +206,11 @@ TCompositeAutomaton::TCompositeAutomaton(IInvokerPtr asyncSnapshotInvoker)
     , AsyncSnapshotInvoker_(asyncSnapshotInvoker)
 { }
 
+void TCompositeAutomaton::SetSerializationDumpEnabled(bool value)
+{
+    SerializationDumpEnabled_ = value;
+}
+
 void TCompositeAutomaton::RegisterPart(TCompositeAutomatonPart* part)
 {
     YCHECK(part);
@@ -297,9 +228,21 @@ void TCompositeAutomaton::RegisterPart(TCompositeAutomatonPart* part)
     }
 }
 
-void TCompositeAutomaton::SetSerializationDumpEnabled(bool value)
+void TCompositeAutomaton::InitSaveContext(
+    TSaveContext& context,
+    ICheckpointableOutputStream* output)
 {
-    SerializationDumpEnabled_ = value;
+    context.SetOutput(output);
+    context.SetCheckpointableOutput(output);
+}
+
+void TCompositeAutomaton::InitLoadContext(
+    TLoadContext& context,
+    ICheckpointableInputStream* input)
+{
+    context.SetInput(input);
+    context.SetCheckpointableInput(input);
+    context.Dumper().SetEnabled(SerializationDumpEnabled_);
 }
 
 TFuture<void> TCompositeAutomaton::SaveSnapshot(IAsyncOutputStreamPtr writer)
@@ -308,10 +251,8 @@ TFuture<void> TCompositeAutomaton::SaveSnapshot(IAsyncOutputStreamPtr writer)
         writer,
         // NB: Do not yield in sync part.
         ESyncStreamAdapterStrategy::Get,
-        [&] () {
+        [&] (TSaveContext& context) {
             using NYT::Save;
-
-            auto& context = SaveContext();
 
             int partCount = SyncSavers_.size() + AsyncSavers_.size();
             Save<i32>(context, partCount);
@@ -321,15 +262,15 @@ TFuture<void> TCompositeAutomaton::SaveSnapshot(IAsyncOutputStreamPtr writer)
             std::sort(
                 syncSavers.begin(),
                 syncSavers.end(),
-                [ ](const TSyncSaverDescriptor& lhs, const TSyncSaverDescriptor& rhs) {
+                [] (const TSyncSaverDescriptor& lhs, const TSyncSaverDescriptor& rhs) {
                     return
                         lhs.Priority < rhs.Priority ||
                         lhs.Priority == rhs.Priority && lhs.Name < rhs.Name;
                 });
 
             for (const auto& descriptor : syncSavers) {
-                WritePartHeader(descriptor);
-                descriptor.Callback.Run();
+                WritePartHeader(context, descriptor);
+                descriptor.Callback.Run(context);
             }
         });
 
@@ -339,14 +280,14 @@ TFuture<void> TCompositeAutomaton::SaveSnapshot(IAsyncOutputStreamPtr writer)
 
     YCHECK(AsyncSnapshotInvoker_);
 
-    std::vector<TCallback<void()>> asyncCallbacks;
+    std::vector<TCallback<void(TSaveContext&)>> asyncCallbacks;
 
     // Sort by (priority, name).
     auto asyncSavers = AsyncSavers_;
     std::sort(
         asyncSavers.begin(),
         asyncSavers.end(),
-        [ ](const TAsyncSaverDescriptor& lhs, const TAsyncSaverDescriptor& rhs) {
+        [] (const TAsyncSaverDescriptor& lhs, const TAsyncSaverDescriptor& rhs) {
             return
                 lhs.Priority < rhs.Priority ||
                 lhs.Priority == rhs.Priority && lhs.Name < rhs.Name;
@@ -364,10 +305,10 @@ TFuture<void> TCompositeAutomaton::SaveSnapshot(IAsyncOutputStreamPtr writer)
                 writer,
                 // NB: Can yield in async part.
                 ESyncStreamAdapterStrategy::WaitFor,
-                [&] () {
+                [&] (TSaveContext& context) {
                     for (int index = 0; index < asyncSavers.size(); ++index) {
-                        WritePartHeader(asyncSavers[index]);
-                        asyncCallbacks[index].Run();
+                        WritePartHeader(context, asyncSavers[index]);
+                        asyncCallbacks[index].Run(context);
                     }
                 });
         })
@@ -379,10 +320,8 @@ void TCompositeAutomaton::LoadSnapshot(IAsyncZeroCopyInputStreamPtr reader)
 {
     DoLoadSnapshot(
         reader,
-        [&]() {
+        [&] (TLoadContext& context) {
             using NYT::Load;
-
-            auto& context = LoadContext();
 
             for (auto part : Parts_) {
                 part->OnBeforeSnapshotLoaded();
@@ -409,7 +348,7 @@ void TCompositeAutomaton::LoadSnapshot(IAsyncZeroCopyInputStreamPtr reader)
                                 version);
                             context.SetVersion(version);
                             const auto& descriptor = it->second;
-                            descriptor.Callback.Run();
+                            descriptor.Callback.Run(context);
                         }
                     }
 
@@ -435,8 +374,7 @@ void TCompositeAutomaton::ApplyMutation(TMutationContext* context)
     YCHECK(it != MethodNameToDescriptor_.end());
     const auto& descriptor = it->second;
 
-    NProfiling::TTagIdList tagIds;
-    tagIds.push_back(descriptor.TagId);
+    NProfiling::TTagIdList tagIds{descriptor.TagId};
     static const auto profilingPath = NYTree::TYPath("/mutation_execute_time");
     PROFILE_TIMING (profilingPath, tagIds) {
         descriptor.Callback.Run(context);
@@ -453,48 +391,32 @@ void TCompositeAutomaton::Clear()
 void TCompositeAutomaton::DoSaveSnapshot(
     NConcurrency::IAsyncOutputStreamPtr writer,
     ESyncStreamAdapterStrategy strategy,
-    const std::function<void()>& callback)
+    const std::function<void(TSaveContext&)>& callback)
 {
     auto syncWriter = CreateSyncAdapter(writer, strategy);
     auto checkpointableOutput = CreateCheckpointableOutputStream(syncWriter.get());
     auto bufferedCheckpointableOutput = CreateBufferedCheckpointableOutputStream(
         checkpointableOutput.get(),
         SnapshotSaveBufferSize);
-
-    auto& context = SaveContext();
-    context.SetOutput(bufferedCheckpointableOutput.get());
-    context.SetCheckpointableOutput(bufferedCheckpointableOutput.get());
-    TFinallyGuard finallyGuard([&] () {
-        context.Reset();
-    });
-
-    callback();
+    auto context = CreateSaveContext(bufferedCheckpointableOutput.get());
+    callback(*context);
 }
 
 void TCompositeAutomaton::DoLoadSnapshot(
     IAsyncZeroCopyInputStreamPtr reader,
-    const std::function<void()>& callback)
+    const std::function<void(TLoadContext&)>& callback)
 {
     auto prefetchingReader = CreatePrefetchingAdapter(reader, SnapshotPrefetchWindowSize);
     auto copyingReader = CreateCopyingAdapter(prefetchingReader);
     auto syncReader = CreateSyncAdapter(copyingReader, ESyncStreamAdapterStrategy::Get);
     TBufferedInput bufferedInput(syncReader.get(), SnapshotLoadBufferSize);
     auto checkpointableInput = CreateCheckpointableInputStream(&bufferedInput);
-
-    auto& context = LoadContext();
-    context.SetInput(checkpointableInput.get());
-    context.SetCheckpointableInput(checkpointableInput.get());
-    context.Dumper().SetEnabled(SerializationDumpEnabled_);
-    TFinallyGuard finallyGuard([&] () {
-        context.Reset();
-    });
-
-    callback();
+    auto context = CreateLoadContext(checkpointableInput.get());
+    callback(*context);
 }
 
-void TCompositeAutomaton::WritePartHeader(const TSaverDescriptorBase& descriptor)
+void TCompositeAutomaton::WritePartHeader(TSaveContext& context, const TSaverDescriptorBase& descriptor)
 {
-    auto& context = SaveContext();
     context.GetCheckpointableOutput()->MakeCheckpoint();
 
     int version = descriptor.Part->GetCurrentSnapshotVersion();

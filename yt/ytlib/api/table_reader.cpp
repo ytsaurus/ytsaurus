@@ -142,9 +142,9 @@ void TSchemalessTableReader::DoOpen()
     TUserObject userObject;
     userObject.Path = path;
 
-    GetUserObjectBasicAttributes<TUserObject>(
+    GetUserObjectBasicAttributes(
         Client_, 
-        userObject,
+        TMutableRange<TUserObject>(&userObject, 1),
         Transaction_ ? Transaction_->GetId() : NullTransactionId,
         Logger,
         EPermission::Read,
@@ -257,6 +257,7 @@ void TSchemalessTableReader::DoOpen()
             New<TNameTable>(),
             TColumnFilter(),
             TKeyColumns(),
+            Null,
             NConcurrency::GetUnlimitedThrottler());
     }
 

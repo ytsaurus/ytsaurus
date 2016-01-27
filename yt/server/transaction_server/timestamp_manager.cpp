@@ -179,7 +179,7 @@ private:
         auto result = CurrentTimestamp_;
         CurrentTimestamp_ += count;
 
-        context->SetRequestInfo("Timestamp: %v", result);
+        context->SetResponseInfo("Timestamp: %v", result);
 
         context->Response().set_timestamp(result);
         context->Reply();

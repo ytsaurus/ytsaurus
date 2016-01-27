@@ -48,7 +48,7 @@ DEFINE_REFCOUNTED_TYPE(TMasterConnectionConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TConnectionConfig
-    : public virtual NYTree::TYsonSerializable
+    : public NChunkClient::TChunkTeleporterConfig
 {
 public:
     Stroka NetworkName;
@@ -83,6 +83,9 @@ public:
 
     bool EnableUdf;
     NYPath::TYPath UdfRegistryPath;
+
+    int TableMountInfoUpdateRetryCount;
+    TDuration TableMountInfoUpdateRetryPeriod;
 
     TConnectionConfig();
 
@@ -137,6 +140,7 @@ public:
     int MaxChunkOpenAttempts;
     int MaxChunkRowCount;
     i64 MaxChunkDataSize;
+    TDuration MaxChunkSessionDuration;
 
     TJournalWriterConfig()
     {
@@ -171,6 +175,8 @@ public:
         RegisterParameter("max_chunk_data_size", MaxChunkDataSize)
             .GreaterThan(0)
             .Default((i64) 256 * 1024 * 1024);
+        RegisterParameter("max_chunk_session_duration", MaxChunkSessionDuration)
+            .Default(TDuration::Minutes(15));
     }
 };
 

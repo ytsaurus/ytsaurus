@@ -3,6 +3,7 @@
 #include "public.h"
 
 #include <yt/core/misc/ref.h>
+#include <yt/core/misc/variant.h>
 
 #include <yt/core/actions/signal.h>
 
@@ -19,6 +20,48 @@ namespace NCellMaster {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Provides a convenient helper for constructing cross-cell messages of various
+//! kinds. Note that ctors are intentionally implicit.
+struct TCrossCellMessage
+{
+    template <class TRequest, class TResponse>
+    TCrossCellMessage(TIntrusivePtr<NYTree::TTypedYPathRequest<TRequest, TResponse>> request)
+        : Payload(TClientMessage{std::move(request)})
+    { }
+
+    TCrossCellMessage(const ::google::protobuf::MessageLite& message)
+        : Payload(TProtoMessage{&message})
+    { }
+
+    TCrossCellMessage(const NObjectClient::TObjectId& objectId, NRpc::IServiceContextPtr context)
+        : Payload(TServiceMessage{objectId, std::move(context)})
+    { }
+
+    struct TClientMessage
+    {
+        NRpc::IClientRequestPtr Request;
+    };
+
+    struct TProtoMessage
+    {
+        const ::google::protobuf::MessageLite* Message;
+    };
+
+    struct TServiceMessage
+    {
+        NObjectClient::TObjectId ObjectId;
+        NRpc::IServiceContextPtr Context;
+    };
+
+    TVariant<
+        TClientMessage,
+        TProtoMessage,
+        TServiceMessage
+    > Payload;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TMulticellManager
     : public TRefCounted
 {
@@ -29,35 +72,15 @@ public:
     ~TMulticellManager();
 
     void PostToMaster(
-        NRpc::IClientRequestPtr request,
+        const TCrossCellMessage& message,
         NObjectClient::TCellTag cellTag,
         bool reliable = true);
-    void PostToMaster(
-        const NObjectClient::TObjectId& objectId,
-        NRpc::IServiceContextPtr context,
-        NObjectClient::TCellTag cellTag,
-        bool reliable = true);
-    void PostToMaster(
-        const ::google::protobuf::MessageLite& requestMessage,
-        NObjectClient::TCellTag cellTag,
-        bool reliable = true);
-    void PostToMaster(
-        TSharedRefArray requestMessage,
-        NObjectClient::TCellTag cellTag,
-        bool reliable = true);
-
-    void PostToSecondaryMasters(
-        NRpc::IClientRequestPtr request,
+    void PostToMasters(
+        const TCrossCellMessage& message,
+        const NObjectClient::TCellTagList& cellTags,
         bool reliable = true);
     void PostToSecondaryMasters(
-        const NObjectClient::TObjectId& objectId,
-        NRpc::IServiceContextPtr context,
-        bool reliable = true);
-    void PostToSecondaryMasters(
-        const ::google::protobuf::MessageLite& requestMessage,
-        bool reliable = true);
-    void PostToSecondaryMasters(
-        TSharedRefArray requestMessage,
+        const TCrossCellMessage& message,
         bool reliable = true);
 
     //! Returns |true| if there is a registered master cell with a given cell tag.
@@ -68,7 +91,7 @@ public:
     /*!
      *  For secondary masters, the primary master is always the first element.
      */
-    std::vector<NObjectClient::TCellTag> GetRegisteredMasterCellTags();
+    const NObjectClient::TCellTagList& GetRegisteredMasterCellTags();
 
     //! Returns a stable index of a given (registered) master cell (other than the local one).
     int GetRegisteredMasterCellIndex(NObjectClient::TCellTag cellTag);

@@ -196,11 +196,9 @@ DEFINE_YPATH_SERVICE_METHOD(TObjectProxyBase, GetBasicAttributes)
 
     auto objectManager = Bootstrap_->GetObjectManager();
     auto handler = objectManager->GetHandler(Object_);
-    auto cellTag = handler->GetReplicationCellTag(Object_);
-    response->set_cell_tag(
-        cellTag == NotReplicatedCellTag || cellTag == AllSecondaryMastersCellTag
-        ? Bootstrap_->GetCellTag()
-        : cellTag);
+    auto replicationCellTags = handler->GetReplicationCellTags(Object_);
+    // TODO(babenko): this only works properly for chunk owners
+    response->set_cell_tag(replicationCellTags.empty() ? Bootstrap_->GetCellTag() : replicationCellTags[0]);
 
     context->SetResponseInfo();
     context->Reply();
@@ -264,16 +262,17 @@ void TObjectProxyBase::Invoke(IServiceContextPtr context)
         objectManager->ValidatePrerequisites(prerequiesitesExt);
     }
 
-    LOG_DEBUG_IF(IsFollower(), "Invoke: %v:%v %v (ObjectId: %v, User: %v)",
+    LOG_DEBUG_UNLESS(IsRecovery(), "Invoke: %v:%v %v (ObjectId: %v, User: %v)",
         context->GetService(),
         context->GetMethod(),
         ypathExt.path(),
         GetVersionedId(),
         user->GetName());
 
-    NProfiling::TTagIdList tagIds;
-    tagIds.push_back(objectManager->GetTypeTagId(Object_->GetType()));
-    tagIds.push_back(objectManager->GetMethodTagId(context->GetMethod()));
+    NProfiling::TTagIdList tagIds{
+        objectManager->GetTypeTagId(Object_->GetType()),
+        objectManager->GetMethodTagId(context->GetMethod())
+    };
     const auto& Profiler = objectManager->GetProfiler();
     static const auto profilingPath = TYPath("/verb_execute_time");
     PROFILE_TIMING (profilingPath, tagIds) {
@@ -414,11 +413,8 @@ void TObjectProxyBase::ReplicateAttributeUpdate(IServiceContextPtr context)
     if (None(flags & EObjectReplicationFlags::ReplicateAttributes))
         return;
 
-    auto replicationCellTag = handler->GetReplicationCellTag(Object_);
-    if (replicationCellTag == NotReplicatedCellTag)
-        return;
-    
-    PostToMaster(context, replicationCellTag);
+    auto replicationCellTags = handler->GetReplicationCellTags(Object_);
+    PostToMasters(context, replicationCellTags);
 }
 
 IAttributeDictionary* TObjectProxyBase::GetCustomAttributes()
@@ -654,7 +650,9 @@ void TObjectProxyBase::ValidateCustomAttributeLength(const NYson::TYsonString& v
     auto size = value.Data().length();
     auto limit = Bootstrap_->GetConfig()->CypressManager->MaxAttributeSize;
     if (size > limit) {
-        THROW_ERROR_EXCEPTION("Attribute size exceeded: %v > %v",
+        THROW_ERROR_EXCEPTION(
+            NYTree::EErrorCode::MaxAttributeSizeViolation,
+            "Attribute size exceeded: %v > %v",
             size,
             limit);
     }
@@ -730,16 +728,22 @@ void TObjectProxyBase::PostToSecondaryMasters(IServiceContextPtr context)
 {
     auto multicellManager = Bootstrap_->GetMulticellManager();
     multicellManager->PostToSecondaryMasters(
-        Object_->GetId(),
-        std::move(context));
+        TCrossCellMessage(Object_->GetId(), std::move(context)));
+}
+
+void TObjectProxyBase::PostToMasters(IServiceContextPtr context, const TCellTagList& cellTags)
+{
+    auto multicellManager = Bootstrap_->GetMulticellManager();
+    multicellManager->PostToMasters(
+        TCrossCellMessage(Object_->GetId(), std::move(context)),
+        cellTags);
 }
 
 void TObjectProxyBase::PostToMaster(IServiceContextPtr context, TCellTag cellTag)
 {
     auto multicellManager = Bootstrap_->GetMulticellManager();
     multicellManager->PostToMaster(
-        Object_->GetId(),
-        std::move(context),
+        TCrossCellMessage(Object_->GetId(), std::move(context)),
         cellTag);
 }
 

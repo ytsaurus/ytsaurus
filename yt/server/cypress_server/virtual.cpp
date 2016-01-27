@@ -111,7 +111,7 @@ IYPathService::TResolveResult TVirtualMulticellMapBase::ResolveRecursive(
 
 void TVirtualMulticellMapBase::GetSelf(TReqGet* request, TRspGet* response, TCtxGetPtr context)
 {
-    YASSERT(!NYson::TTokenizer(GetRequestYPath(context)).ParseNext());
+    YASSERT(!NYson::TTokenizer(GetRequestYPath(context->RequestHeader())).ParseNext());
 
     auto attributeFilter = request->has_attribute_filter()
         ? FromProto<TAttributeFilter>(request->attribute_filter())
@@ -303,7 +303,7 @@ TFuture<std::vector<std::pair<TCellTag, i64>>> TVirtualMulticellMapBase::FetchSi
     if (Bootstrap_->IsPrimaryMaster()) {
         auto multicellManager = Bootstrap_->GetMulticellManager();
         for (auto cellTag : multicellManager->GetRegisteredMasterCellTags()) {
-            auto channel = multicellManager->FindMasterChannel(cellTag, NHydra::EPeerKind::LeaderOrFollower);
+            auto channel = multicellManager->FindMasterChannel(cellTag, NHydra::EPeerKind::Leader);
             if (!channel)
                 continue;
 
@@ -427,7 +427,7 @@ void TVirtualMulticellMapBase::FetchItemsFromRemote(
 {
     auto cellTag = session->CellTags[session->CellTagIndex++];
     auto multicellManager = Bootstrap_->GetMulticellManager();
-    auto channel = multicellManager->FindMasterChannel(cellTag, NHydra::EPeerKind::LeaderOrFollower);
+    auto channel = multicellManager->FindMasterChannel(cellTag, NHydra::EPeerKind::Leader);
     if (!channel) {
         FetchItemsFromAnywhere(session, promise);
         return;
@@ -485,12 +485,6 @@ TFuture<TYsonString> TVirtualMulticellMapBase::GetOwningNodeAttributes(const TAt
 
 DEFINE_YPATH_SERVICE_METHOD(TVirtualMulticellMapBase, Enumerate)
 {
-    // XXX(babenko): remove this after updating multicell cluster
-    if (NHydra::HasMutationContext()) {
-        context->Reply();
-        return;
-    }
-
     auto attributeFilter = request->has_attribute_filter()
         ? FromProto<TAttributeFilter>(request->attribute_filter())
         : TAttributeFilter::None;

@@ -30,9 +30,7 @@ void UnwindFiber(TFiberPtr fiber)
 {
     fiber->GetCanceler().Run();
 
-    BIND(&ResumeFiber, Passed(std::move(fiber)))
-        .Via(GetFinalizerInvoker())
-        .Run();
+    GetFinalizerInvoker()->Invoke(BIND(&ResumeFiber, Passed(std::move(fiber))));
 }
 
 void CheckForCanceledFiber(TFiber* fiber)
@@ -275,7 +273,7 @@ bool TSchedulerThread::FiberMainStep(ui64 spawnedEpoch)
         return false;
     }
 
-    // Protocal is that BeginExecute() returns `Success` or `Terminated`
+    // The protocol is that BeginExecute() returns `Success` or `Terminated`
     // if CancelWait was called. Otherwise, it returns `QueueEmpty` requesting
     // to block until a notification.
     auto result = BeginExecute();
@@ -328,7 +326,7 @@ void TSchedulerThread::Reschedule(TFiberPtr fiber, TFuture<void> future, IInvoke
     fiber->GetCanceler(); // Initialize canceler; who knows what might happen to this fiber?
 
     // When rescheduling fiber via sync invoker, one cannot use |ResumeFiber|
-    // as it requires a currenly executing fiber, which is missing in this case.
+    // as it requires a currently executing fiber, which is missing in this case.
     if (invoker == GetSyncInvoker()) {
         if (future) {
             future.Subscribe(BIND([=, this_ = MakeStrong(this)] (const TError&) mutable {

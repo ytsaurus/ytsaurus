@@ -7,7 +7,7 @@ namespace NTableClient {
 
 void PrintTo(const TOwningKey& key, ::std::ostream* os)
 {
-    *os << KeyToYson(key.Get());
+    *os << KeyToYson(key);
 }
 
 void PrintTo(const TUnversionedValue& value, ::std::ostream* os)

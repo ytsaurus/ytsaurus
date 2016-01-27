@@ -55,7 +55,7 @@ TReadLimit TReadLimit::GetSuccessor() const
     TReadLimit result;
     if (HasKey()) {
         auto key = GetKey();
-        result.SetKey(GetKeyPrefixSuccessor(key.Get(), key.GetCount()));
+        result.SetKey(GetKeyPrefixSuccessor(key, key.GetCount()));
     }
     if (HasRowIndex()) {
         result.SetRowIndex(GetRowIndex() + 1);

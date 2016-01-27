@@ -33,7 +33,7 @@ std::vector<TUnversionedRow> TBuildingValueConsumer::GetRows() const
     std::vector<TUnversionedRow> result;
     result.reserve(Rows_.size());
     for (const auto& row : Rows_) {
-        result.push_back(row.Get());
+        result.push_back(row);
     }
     return result;
 }
@@ -161,7 +161,7 @@ void TWritingValueConsumer::OnEndRow()
     const auto& row = OwningRows_.back();
 
     CurrentBufferSize_ += row.GetByteSize();
-    Rows_.emplace_back(row.Get());
+    Rows_.emplace_back(row);
 
     if (CurrentBufferSize_ > MaxBufferSize || FlushImmediately_) {
         Flush();

@@ -38,6 +38,15 @@ TMultiReaderBase::TMultiReaderBase(
     }
 }
 
+void TMultiReaderBase::Open()
+{
+    ReadyEvent_ = CombineCompletionError(BIND(
+            &TMultiReaderBase::DoOpen, 
+            MakeStrong(this))
+        .AsyncVia(TDispatcher::Get()->GetReaderInvoker())
+        .Run());
+}
+
 TFuture<void> TMultiReaderBase::GetReadyEvent()
 {
     return ReadyEvent_;
@@ -166,7 +175,7 @@ TFuture<void> TMultiReaderBase::CombineCompletionError(TFuture<void> future)
 void TMultiReaderBase::RegisterFailedReader(IReaderBasePtr reader)
 {   
     auto chunkIds = reader->GetFailedChunkIds();
-    LOG_WARNING("Chunk reader failed (ChunkIds: [%v])", JoinToString(chunkIds));
+    LOG_WARNING("Chunk reader failed (ChunkIds: %v)", chunkIds);
 
     OnError();
 
@@ -192,12 +201,6 @@ TSequentialMultiReaderBase::TSequentialMultiReaderBase(
     for (int i = 0; i < ReaderFactories_.size(); ++i) {
         NextReaders_.push_back(NewPromise<IReaderBasePtr>());
     }
-
-    ReadyEvent_ = CombineCompletionError(BIND(
-            &TSequentialMultiReaderBase::DoOpen, 
-            MakeStrong(this))
-        .AsyncVia(TDispatcher::Get()->GetReaderInvoker())
-        .Run());
 }
 
 void TSequentialMultiReaderBase::DoOpen()
@@ -290,12 +293,6 @@ TParallelMultiReaderBase::TParallelMultiReaderBase(
         readerFactories)
 {
     LOG_DEBUG("Multi chunk reader is parallel");
-
-    ReadyEvent_ = CombineCompletionError(BIND(
-            &TParallelMultiReaderBase::DoOpen, 
-            MakeStrong(this))
-        .AsyncVia(TDispatcher::Get()->GetReaderInvoker())
-        .Run());
 }
 
 void TParallelMultiReaderBase::DoOpen()

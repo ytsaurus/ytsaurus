@@ -19,6 +19,7 @@
 #include <yt/ytlib/hydra/peer_channel.h>
 
 #include <yt/core/concurrency/delayed_executor.h>
+#include <yt/core/concurrency/fls.h>
 
 #include <yt/core/misc/address.h>
 
@@ -50,6 +51,31 @@ using NYT::FromProto;
 
 static const auto HiveTracingService = Stroka("HiveManager");
 static const auto ClientHostAnnotation = Stroka("client_host");
+
+////////////////////////////////////////////////////////////////////////////////
+
+static NConcurrency::TFls<bool> HiveMutation;
+
+bool IsHiveMutation()
+{
+    return *HiveMutation;
+}
+
+class THiveMutationGuard
+    : private TNonCopyable
+{
+public:
+    THiveMutationGuard()
+    {
+        YASSERT(!*HiveMutation);
+        *HiveMutation = true;
+    }
+
+    ~THiveMutationGuard()
+    {
+        *HiveMutation = false;
+    }
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -765,13 +791,22 @@ private:
             return;
 
         auto firstMessageId = mailbox->GetFirstOutcomingMessageId();
-        int messageCount = mailbox->OutcomingMessages().size();
+        const auto& outcomingMessages = mailbox->OutcomingMessages();
 
         auto req = proxy->PostMessages();
         ToProto(req->mutable_src_cell_id(), SelfCellId_);
         req->set_first_message_id(firstMessageId);
-        for (const auto& message : mailbox->OutcomingMessages()) {
+
+        int messagesToPost = 0;
+        i64 bytesToPost = 0;
+        while (messagesToPost < outcomingMessages.size() &&
+               messagesToPost < Config_->MaxMessagesPerPost &&
+               bytesToPost < Config_->MaxBytesPerPost)
+        {
+            const auto& message = outcomingMessages[messagesToPost];
             *req->add_messages() = message;
+            messagesToPost += 1;
+            bytesToPost += message.ByteSize();
         }
 
         mailbox->SetPostMessagesInFlight(true);
@@ -780,7 +815,7 @@ private:
             SelfCellId_,
             mailbox->GetCellId(),
             firstMessageId,
-            firstMessageId + messageCount - 1);
+            firstMessageId + messagesToPost - 1);
 
         req->Invoke().Subscribe(
             BIND(&TImpl::OnPostMessagesResponse, MakeStrong(this), mailbox->GetCellId())
@@ -966,9 +1001,12 @@ private:
             ServerReceiveAnnotation);
 
         {
-            TMutationContext context(GetCurrentMutationContext(), request);
-            TMutationContextGuard contextGuard(&context);
-            static_cast<IAutomaton*>(Automaton_)->ApplyMutation(&context);
+            TMutationContext mutationContext(GetCurrentMutationContext(), request);
+            TMutationContextGuard mutationContextGuard(&mutationContext);
+
+            THiveMutationGuard hiveMutationGuard;
+
+            static_cast<IAutomaton*>(Automaton_)->ApplyMutation(&mutationContext);
         }
 
         TRACE_ANNOTATION(

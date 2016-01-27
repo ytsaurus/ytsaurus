@@ -15,10 +15,20 @@ const Stroka SnapshotExtension("snapshot");
 const Stroka ChangelogExtension("log");
 const Stroka ChangelogIndexExtension("index");
 
-IInvokerPtr GetHydraIOInvoker()
+static TActionQueuePtr GetHydraIOActionQueue()
 {
     static auto queue = New<TActionQueue>("HydraIO");
-    return queue->GetInvoker();
+    return queue;
+}
+
+IInvokerPtr GetHydraIOInvoker()
+{
+    return GetHydraIOActionQueue()->GetInvoker();
+}
+
+void ShutdownHydraIOInvoker()
+{
+    GetHydraIOActionQueue()->Shutdown();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

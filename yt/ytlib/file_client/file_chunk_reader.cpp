@@ -363,10 +363,12 @@ IFileReaderPtr CreateFileMultiChunkReader(
         factories.emplace_back(CreateReaderFactory(createReader, memoryEstimate));
     }
 
-    return New<TFileMultiChunkReader>(
+    auto reader = New<TFileMultiChunkReader>(
         config, 
         options,  
         factories);
+    reader->Open();
+    return reader;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

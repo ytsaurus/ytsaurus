@@ -120,6 +120,7 @@ TSimpleCounter::TSimpleCounter(
 { }
 
 TSimpleCounter::TSimpleCounter(const TSimpleCounter& other)
+    : TCounterBase(other)
 {
     *this = other;
 }

@@ -27,6 +27,11 @@ public:
     //! Internal between tablet cell examinations.
     TDuration CellScanPeriod;
 
+    //! Additional number of bytes per tablet to charge each cell
+    //! for balancing pursposes.
+    //! NB: Changing this value will invalidate all changelogs!
+    i64 TabletDataSizeFootprint;
+
     TTabletManagerConfig()
     {
         RegisterParameter("peer_failover_timeout", PeerFailoverTimeout)
@@ -39,6 +44,9 @@ public:
             .Default(0);
         RegisterParameter("cell_scan_period", CellScanPeriod)
             .Default(TDuration::Seconds(1));
+        RegisterParameter("tablet_data_size_footprint", TabletDataSizeFootprint)
+            .GreaterThanOrEqual(0)
+            .Default((i64) 64 * 1024 * 1024);
     }
 };
 

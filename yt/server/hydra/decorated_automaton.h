@@ -139,11 +139,9 @@ public:
     IInvokerPtr GetSystemInvoker();
 
     EPeerState GetState() const;
-
     TVersion GetLoggedVersion() const;
-    void SetLoggedVersion(TVersion version);
 
-    void SetChangelog(IChangelogPtr changelog);
+    void SetChangelog(int changelogId, IChangelogPtr changelog);
 
     i64 GetLoggedDataSize() const;
     TInstant GetLastSnapshotTime() const;
@@ -205,6 +203,7 @@ private:
     std::atomic<EPeerState> State_ = {EPeerState::Stopped};
 
     // AutomatonVersion_ <= CommittedVersion_ <= LoggedVersion_
+    // LoggedVersion_ is only maintained when the peer is active, e.g. not during recovery.
     std::atomic<TVersion> LoggedVersion_;
     std::atomic<TVersion> AutomatonVersion_;
     std::atomic<TVersion> CommittedVersion_;

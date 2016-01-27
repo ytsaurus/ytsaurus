@@ -634,10 +634,14 @@ private:
                     BIND(&TDecoratedAutomaton::CommitMutations, DecoratedAutomaton_, committedVersion, true));
                 break;
 
-            case EPeerState::FollowerRecovery:
+            case EPeerState::FollowerRecovery: {
                 CheckForInitialPing(loggedVersion);
-                epochContext->FollowerRecovery->SetCommittedVersion(committedVersion);
+                auto followerRecovery = epochContext->FollowerRecovery;
+                if (followerRecovery) {
+                    followerRecovery->SetCommittedVersion(committedVersion);
+                }
                 break;
+            }
 
             default:
                 YUNREACHABLE();
@@ -1142,7 +1146,7 @@ private:
             SwitchTo(epochContext->EpochSystemAutomatonInvoker);
             VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-            auto asyncRecoveryResult = epochContext->LeaderRecovery->Run(epochContext->ReachableVersion);
+            auto asyncRecoveryResult = epochContext->LeaderRecovery->Run();
             WaitFor(asyncRecoveryResult)
                 .ThrowOnError();
 
@@ -1155,7 +1159,7 @@ private:
             YCHECK(ControlState_ == EPeerState::LeaderRecovery);
             ControlState_ = EPeerState::Leading;
 
-            LOG_INFO("Leader recovery complete");
+            LOG_INFO("Leader recovery completed");
 
             LOG_INFO("Waiting for leader lease");
 
@@ -1259,7 +1263,7 @@ private:
             SwitchTo(epochContext->EpochSystemAutomatonInvoker);
             VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-            LOG_INFO("Follower recovery complete");
+            LOG_INFO("Follower recovery completed");
 
             DecoratedAutomaton_->OnFollowerRecoveryComplete();
             FollowerRecoveryComplete_.Fire();
@@ -1311,10 +1315,26 @@ private:
         auto epochContext = ControlEpochContext_;
 
         // Check if initial ping is already received.
-        if (epochContext->FollowerRecovery)
+        if (epochContext->FollowerRecovery) {
             return;
+        }
 
-        LOG_INFO("Received initial ping from leader (Version: %v)",
+        // Check if the logged version at leader is lower than our reachable (logged) version.
+        // This is a rare case but could happen at least in the following two scenarios:
+        // 1) When a follower restarts rapid enough and appears
+        // (for some limited time frame) ahead of the leader w.r.t. the current changelog.
+        // 2) When the quorum gets broken during changelog rotation
+        // and some follower joins the a newly established (and still recovering!) quorum
+        // with an empty changelog that nobody else has.
+        auto reachableVersion = epochContext->ReachableVersion;
+        if (version < reachableVersion) {
+            LOG_DEBUG("Received initial ping from leader with a stale version; ignored (LeaderVersion: %v, ReachableVersion: %v)",
+                version,
+                epochContext->ReachableVersion);
+            return;
+        }
+
+        LOG_INFO("Received initial ping from leader (LeaderVersion: %v)",
             version);
 
         epochContext->FollowerRecovery = New<TFollowerRecovery>(

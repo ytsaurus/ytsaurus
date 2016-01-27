@@ -35,33 +35,30 @@ TPartitionChunkReader::TPartitionChunkReader(
     : TChunkReaderBase(
         config,
         underlyingReader,
-        GetProtoExtension<TMiscExt>(masterMeta.extensions()),
         blockCache)
     , NameTable_(nameTable)
     , KeyColumns_(keyColumns)
     , ChunkMeta_(masterMeta)
     , PartitionTag_(partitionTag)
 {
-    ReadyEvent_ = BIND(&TPartitionChunkReader::GetBlockSequence, MakeStrong(this))
+    ReadyEvent_ = BIND(&TPartitionChunkReader::InitializeBlockSequence, MakeStrong(this))
         .AsyncVia(TDispatcher::Get()->GetReaderInvoker())
-        .Run()
-        .Apply(BIND(&TPartitionChunkReader::DoOpen, MakeStrong(this)));
+        .Run();
 }
 
-std::vector<TSequentialReader::TBlockInfo> TPartitionChunkReader::GetBlockSequence()
+TFuture<void> TPartitionChunkReader::InitializeBlockSequence()
 {
     YCHECK(ChunkMeta_.version() == static_cast<int>(ETableChunkFormat::SchemalessHorizontal));
 
     std::vector<int> extensionTags = {
+        TProtoExtensionTag<TMiscExt>::Value,
         TProtoExtensionTag<TBlockMetaExt>::Value,
         TProtoExtensionTag<TNameTableExt>::Value,
         TProtoExtensionTag<TKeyColumnsExt>::Value
     };
 
-    auto errorOrMeta = WaitFor(UnderlyingReader_->GetMeta(PartitionTag_, extensionTags));
-    THROW_ERROR_EXCEPTION_IF_FAILED(errorOrMeta);
-
-    ChunkMeta_ = errorOrMeta.Value();
+    ChunkMeta_ = WaitFor(UnderlyingReader_->GetMeta(PartitionTag_, extensionTags))
+        .ValueOrThrow();
 
     TNameTablePtr chunkNameTable;
     auto nameTableExt = GetProtoExtension<TNameTableExt>(ChunkMeta_.extensions());
@@ -82,7 +79,7 @@ std::vector<TSequentialReader::TBlockInfo> TPartitionChunkReader::GetBlockSequen
         blocks.push_back(blockInfo);
     }
 
-    return blocks;
+    return DoOpen(blocks, GetProtoExtension<TMiscExt>(ChunkMeta_.extensions()));
 }
 
 TDataStatistics TPartitionChunkReader::GetDataStatistics() const
@@ -136,7 +133,8 @@ TPartitionMultiChunkReaderPtr CreatePartitionMultiChunkReader(
     TNodeDirectoryPtr nodeDirectory,
     const std::vector<TChunkSpec>& chunkSpecs,
     TNameTablePtr nameTable,
-    const TKeyColumns& keyColumns)
+    const TKeyColumns& keyColumns,
+    int partitionTag)
 {
     std::vector<IReaderFactoryPtr> factories;
     for (const auto& chunkSpec : chunkSpecs) {
@@ -154,7 +152,6 @@ TPartitionMultiChunkReaderPtr CreatePartitionMultiChunkReader(
             YCHECK(!chunkSpec.has_channel());
             YCHECK(!chunkSpec.has_lower_limit());
             YCHECK(!chunkSpec.has_upper_limit());
-            YCHECK(chunkSpec.has_partition_tag());
 
             TSequentialReaderConfigPtr sequentialReaderConfig = config;
 
@@ -165,7 +162,7 @@ TPartitionMultiChunkReaderPtr CreatePartitionMultiChunkReader(
                 blockCache,
                 keyColumns,
                 chunkSpec.chunk_meta(),
-                chunkSpec.partition_tag());
+                partitionTag);
         };
 
         factories.emplace_back(CreateReaderFactory(
@@ -173,10 +170,13 @@ TPartitionMultiChunkReaderPtr CreatePartitionMultiChunkReader(
             memoryEstimate));
     }
 
-    return New<TPartitionMultiChunkReader>(
+    auto reader = New<TPartitionMultiChunkReader>(
         config, 
         options, 
         factories);
+
+    reader->Open();
+    return reader;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

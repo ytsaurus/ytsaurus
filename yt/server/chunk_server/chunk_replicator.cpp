@@ -776,12 +776,12 @@ bool TChunkReplicator::CreateRepairJob(
         erasedIndexes,
         Config_->RepairJobMemoryUsage);
 
-    LOG_INFO("Repair job scheduled (JobId: %v, Address: %v, ChunkId: %v, TargetAddresses: [%v], ErasedIndexes: [%v])",
+    LOG_INFO("Repair job scheduled (JobId: %v, Address: %v, ChunkId: %v, TargetAddresses: [%v], ErasedIndexes: %v)",
         (*job)->GetJobId(),
         node->GetDefaultAddress(),
         chunk->GetId(),
         JoinToString(targetNodes, TNodePtrAddressFormatter()),
-        JoinToString(erasedIndexes));
+        erasedIndexes);
 
     return true;
 }
@@ -1377,10 +1377,8 @@ void TChunkReplicator::SchedulePropertiesUpdate(TChunkList* chunkList)
             return true;
         }
 
-        virtual void OnError(const TError& error) override
-        {
-            LOG_ERROR(error, "Error traversing chunk tree for properties update");
-        }
+        virtual void OnError(const TError& /*error*/) override
+        { }
 
         virtual void OnFinish() override
         { }
@@ -1430,22 +1428,18 @@ void TChunkReplicator::OnPropertiesUpdate()
             PropertiesUpdateList_.pop_front();
             ++totalCount;
 
-            if (!IsObjectAlive(chunk)) {
-                continue;
+            if (IsObjectAlive(chunk)) {
+                ++aliveCount;
+                chunk->SetPropertiesUpdateScheduled(false);
+                auto newProperties = ComputeChunkProperties(chunk);
+                auto oldProperties = chunk->GetLocalProperties();
+                if (newProperties != oldProperties) {
+                    auto* update = request.add_updates();
+                    ToProto(update->mutable_chunk_id(), chunk->GetId());
+                    update->set_replication_factor(newProperties.ReplicationFactor);
+                    update->set_vital(newProperties.Vital);
+                }
             }
-
-            ++aliveCount;
-            chunk->SetPropertiesUpdateScheduled(false);
-            auto newProperties = ComputeChunkProperties(chunk);
-            auto oldProperties = chunk->GetLocalProperties();
-            if (newProperties == oldProperties) {
-                continue;
-            }
-
-            auto* update = request.add_updates();
-            ToProto(update->mutable_chunk_id(), chunk->GetId());
-            update->set_replication_factor(newProperties.ReplicationFactor);
-            update->set_vital(newProperties.Vital);
 
             objectManager->WeakUnrefObject(chunk);
         }

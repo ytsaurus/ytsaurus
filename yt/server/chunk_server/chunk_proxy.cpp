@@ -307,7 +307,7 @@ private:
 
         if (key == "exports") {
             auto multicellManager = Bootstrap_->GetMulticellManager();
-            auto cellTags = multicellManager->GetRegisteredMasterCellTags();
+            const auto& cellTags = multicellManager->GetRegisteredMasterCellTags();
             BuildYsonFluently(consumer)
                 .DoMapFor(0, static_cast<int>(cellTags.size()) - 1, [&] (TFluentMap fluent, int index) {
                     auto cellTag = cellTags[index];
@@ -316,6 +316,8 @@ private:
                         fluent
                             .Item(ToString(cellTag)).BeginMap()
                                 .Item("ref_counter").Value(exportData.RefCounter)
+                                .Item("vital").Value(exportData.Vital)
+                                .Item("replication_factor").Value(exportData.ReplicationFactor)
                             .EndMap();
                     }
                 });
@@ -526,7 +528,7 @@ private:
 
         auto replicas = FromProto<NChunkClient::TChunkReplica>(request->replicas());
 
-        context->SetRequestInfo("Targets: [%v]", JoinToString(replicas));
+        context->SetRequestInfo("Targets: %v", replicas);
 
         auto* chunk = GetThisTypedImpl();
 

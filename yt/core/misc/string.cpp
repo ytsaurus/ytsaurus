@@ -5,6 +5,11 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+const TStringBuf DefaultJoinToStringDelimiter = STRINGBUF(", ");
+const size_t TStringBuilder::MinBufferLength = 1024;
+
+////////////////////////////////////////////////////////////////////////////////
+
 void UnderscoreCaseToCamelCase(TStringBuilder* builder, const TStringBuf& str)
 {
     bool first = true;

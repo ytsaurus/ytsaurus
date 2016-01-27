@@ -23,7 +23,7 @@ TStoreBase::TStoreBase(
     : StoreId_(id)
     , Tablet_(tablet)
     , PerformanceCounters_(Tablet_->GetPerformanceCounters())
-    , TabletId_(Tablet_->GetTabletId())
+    , TabletId_(Tablet_->GetId())
     , Schema_(Tablet_->Schema())
     , KeyColumns_(Tablet_->KeyColumns())
     , KeyColumnCount_(Tablet_->GetKeyColumnCount())

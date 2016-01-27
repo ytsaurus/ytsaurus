@@ -100,14 +100,18 @@ TColumnFilter GetColumnFilter(const TTableSchema& desiredSchema, const TTableSch
     return columnFilter;
 }
 
-Stroka RowRangeFormatter(const NQueryClient::TRowRange& range)
+void RowRangeFormatter(TStringBuilder* builder, const NQueryClient::TRowRange& range)
 {
-    return Format("[%v .. %v]", range.first, range.second);
+    builder->AppendFormat("[%v .. %v]",
+        range.first,
+        range.second);
 }
 
-Stroka DataSourceFormatter(const NQueryClient::TDataSource& source)
+void DataSourceFormatter(TStringBuilder* builder, const NQueryClient::TDataSource& source)
 {
-    return Format("[%v .. %v]", source.Range.first, source.Range.second);
+    builder->AppendFormat("[%v .. %v]",
+        source.Range.first,
+        source.Range.second);
 }
 
 } // namespace NYT
@@ -198,8 +202,8 @@ private:
                     planFragment->DataSources.push_back({
                         dataId,
                         {
-                            planFragment->KeyRangesRowBuffer->Capture(MinKey().Get()),
-                            planFragment->KeyRangesRowBuffer->Capture(MaxKey().Get())
+                            planFragment->KeyRangesRowBuffer->Capture(MinKey()),
+                            planFragment->KeyRangesRowBuffer->Capture(MaxKey())
                         }});
 
                     planFragment->Query = subquery;
@@ -351,7 +355,7 @@ private:
                 &Logger
             ] () {
                 LOG_DEBUG_IF(fragment->VerboseLogging, "Creating lookup reader for keys %v",
-                    JoinToString(keys));
+                    keys);
                 return this_->GetReader(
                     fragment->Query->TableSchema,
                     object,
@@ -551,7 +555,7 @@ private:
                     partitions.end(),
                     *currentIt,
                     [] (TRow lhs, const TPartitionSnapshotPtr& rhs) {
-                        return lhs < rhs->PivotKey.Get();
+                        return lhs < rhs->PivotKey;
                     });
 
                 if (nextPartition == partitions.end()) {
@@ -559,7 +563,7 @@ private:
                     break;
                 }
 
-                auto nextIt = std::lower_bound(currentIt, keys.end(), (*nextPartition)->PivotKey.Get());
+                auto nextIt = std::lower_bound(currentIt, keys.end(), (*nextPartition)->PivotKey);
                 addRange(currentIt, nextIt);
                 currentIt = nextIt;
             }
@@ -599,14 +603,14 @@ private:
             partitions.end(),
             lowerBound,
             [] (TRow lhs, const TPartitionSnapshotPtr& rhs) {
-                return lhs < rhs->PivotKey.Get();
+                return lhs < rhs->PivotKey;
             }) - 1;
         auto endPartitionIt = std::lower_bound(
             startPartitionIt,
             partitions.end(),
             upperBound,
             [] (const TPartitionSnapshotPtr& lhs, TRow rhs) {
-                return lhs->PivotKey.Get() < rhs;
+                return lhs->PivotKey < rhs;
             });
         int partitionCount = std::distance(startPartitionIt, endPartitionIt);
 
@@ -657,14 +661,14 @@ private:
             partitions.end(),
             lowerBound,
             [] (TRow lhs, const TPartitionSnapshotPtr& rhs) {
-                return lhs < rhs->PivotKey.Get();
+                return lhs < rhs->PivotKey;
             }) - 1;
         auto endPartitionIt = std::lower_bound(
             startPartitionIt,
             partitions.end(),
             upperBound,
             [] (const TPartitionSnapshotPtr& lhs, TRow rhs) {
-                return lhs->PivotKey.Get() < rhs;
+                return lhs->PivotKey < rhs;
             });
         int partitionCount = std::distance(startPartitionIt, endPartitionIt);
 

@@ -340,8 +340,7 @@ void TNonOwningCGroup::DoKill() const
         if (pids.empty())
             break;
 
-        LOG_DEBUG("Killing processes (PIDs: [%v])",
-            JoinToString(pids));
+        LOG_DEBUG("Killing processes (PIDs: %v)", pids);
 
         for (int pid : pids) {
             auto result = kill(pid, SIGKILL);

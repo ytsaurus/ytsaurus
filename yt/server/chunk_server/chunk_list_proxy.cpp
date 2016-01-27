@@ -143,7 +143,7 @@ private:
         auto childrenIds = FromProto<TChunkTreeId>(request->children_ids());
         bool requestStatistics = request->request_statistics();
 
-        context->SetRequestInfo("Children: [%v]", JoinToString(childrenIds));
+        context->SetRequestInfo("Children: %v", childrenIds);
 
         auto objectManager = Bootstrap_->GetObjectManager();
         auto chunkManager = Bootstrap_->GetChunkManager();

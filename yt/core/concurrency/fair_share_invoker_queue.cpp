@@ -50,6 +50,16 @@ void TFairShareInvokerQueue::Shutdown()
     }
 }
 
+bool TFairShareInvokerQueue::IsRunning() const
+{
+    for (const auto& bucket : Buckets_) {
+        if (!bucket.Queue->IsRunning()) {
+            return false;
+        }
+    }
+    return true;
+}
+
 EBeginExecuteResult TFairShareInvokerQueue::BeginExecute(TEnqueuedAction* action)
 {
     YCHECK(!CurrentBucket_);

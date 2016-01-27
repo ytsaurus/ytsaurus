@@ -13,11 +13,17 @@ class THiveManagerConfig
     : public NYTree::TYsonSerializable
 {
 public:
-    //! Interval between consequent Ping requests to remote Hive Manager.
+    //! Interval between consequent |Ping| requests to remote Hive Manager.
     TDuration PingPeriod;
 
     //! Timeout for all RPC requests exchanged by Hive Managers.
     TDuration RpcTimeout;
+
+    //! Maximum number of messages to send via a single |PostMessages| request.
+    int MaxMessagesPerPost;
+
+    //! Maximum number of bytes to send via a single |PostMessages| request.
+    i64 MaxBytesPerPost;
 
     THiveManagerConfig()
     {
@@ -25,6 +31,10 @@ public:
             .Default(TDuration::Seconds(15));
         RegisterParameter("rpc_timeout", RpcTimeout)
             .Default(TDuration::Seconds(15));
+        RegisterParameter("max_messages_per_post", MaxMessagesPerPost)
+            .Default(16384);
+        RegisterParameter("max_bytes_per_post", MaxBytesPerPost)
+            .Default((i64) 16 * 1024 * 1024);
     }
 };
 

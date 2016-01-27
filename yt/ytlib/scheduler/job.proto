@@ -65,6 +65,8 @@ message TUserJobSpec
     optional int32 iops_threshold = 19 [default = 1000];
 
     optional int32 blkio_weight = 20;
+
+    optional bool include_memory_mapped_files = 21 [default = true];
 }
 
 // User code result.
@@ -221,6 +223,8 @@ message TMergeJobSpecExt
 
     // For EJobType::SortedMerge, contains columns used for comparison.
     repeated string key_columns = 1;
+
+    optional int32 partition_tag = 2;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -281,6 +285,9 @@ message TSortJobSpecExt
     }
 
     repeated string key_columns = 5;
+
+    // Optional, because simple sort jobs don't require partition tag.
+    optional int32 partition_tag = 6;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -305,6 +312,8 @@ message TReduceJobSpecExt
 
     // Reduce by prefix length of key columns.
     required int32 reduce_key_column_count = 2;
+
+    optional int32 partition_tag = 3;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -63,10 +63,11 @@ TLocation::TLocation(
     Logger = DataNodeLogger;
     Logger.AddTag("LocationId: %v", Id_);
 
-    NProfiling::TTagIdList tagIds;
-    auto* profilingManager = NProfiling::TProfileManager::Get();
-    tagIds.push_back(profilingManager->RegisterTag("location_id", Id_));
-    tagIds.push_back(profilingManager->RegisterTag("location_type", Type_));
+    auto* profileManager = NProfiling::TProfileManager::Get();
+    NProfiling::TTagIdList tagIds{
+        profileManager->RegisterTag("location_id", Id_),
+        profileManager->RegisterTag("location_type", Type_)
+    };
     Profiler_ = NProfiling::TProfiler(DataNodeProfiler.GetPathPrefix(), tagIds);
 
     HealthChecker_ = New<TDiskHealthChecker>(
@@ -84,8 +85,8 @@ TLocation::TLocation(
             counter = NProfiling::TSimpleCounter(
                 "/pending_data_size",
                 {
-                    profilingManager->RegisterTag("direction", direction),
-                    profilingManager->RegisterTag("category", category)
+                    profileManager->RegisterTag("direction", direction),
+                    profileManager->RegisterTag("category", category)
                 });
         }
     }

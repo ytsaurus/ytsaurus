@@ -28,6 +28,10 @@
 
 #include <yt/core/ytree/ypath.pb.h>
 
+#include <util/datetime/base.h>
+
+////////////////////////////////////////////////////////////////////////////////
+
 namespace NYT {
 namespace NTabletClient {
 
@@ -50,6 +54,71 @@ static const auto& Logger = TabletClientLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TTabletCache
+{
+public:
+    TTabletInfoPtr Find(const TTabletId& tabletId)
+    {
+        TReaderGuard guard(SpinLock_);
+        RemoveExpiredEntries();
+        auto it = Map_.find(tabletId);
+        return it != Map_.end() ? it->second.Lock() : nullptr;
+    }
+
+    TTabletInfoPtr Insert(TTabletInfoPtr tabletInfo)
+    {
+        TWriterGuard guard(SpinLock_);
+        auto it = Map_.find(tabletInfo->TabletId);
+        if (it != Map_.end()) {
+            if (auto existingTabletInfo = it->second.Lock()) {
+                if (tabletInfo->MountRevision < existingTabletInfo->MountRevision) {
+                    tabletInfo.Swap(existingTabletInfo);
+                }
+                it->second = MakeWeak(tabletInfo);
+                tabletInfo->Owners.insert(
+                    tabletInfo->Owners.end(),
+                    existingTabletInfo->Owners.begin(),
+                    existingTabletInfo->Owners.end());
+            } else {
+                it->second = MakeWeak(tabletInfo);
+            }
+        } else {
+            YCHECK(Map_.insert({tabletInfo->TabletId, tabletInfo}).second);
+        }
+        tabletInfo->UpdateTime = Now();
+        return tabletInfo;
+    }
+
+private:
+    yhash_map<TTabletId, TWeakPtr<TTabletInfo>> Map_;
+    TReaderWriterSpinLock SpinLock_;
+    TInstant LastExpiredRemovalTime_;
+    static const TDuration ExpiringTimeout_;
+
+    void RemoveExpiredEntries()
+    {
+        if (LastExpiredRemovalTime_ + ExpiringTimeout_ < Now()) {
+            return;
+        }
+
+        std::vector<TTabletId> removeIds;
+        for (auto it = Map_.begin(); it != Map_.end(); ++it) {
+            if (it->second.IsExpired()) {
+                removeIds.push_back(it->first);
+            }
+        }
+        for (const auto& tabletId : removeIds) {
+            Map_.erase(tabletId);
+        }
+
+        LastExpiredRemovalTime_ = Now();
+    }
+};
+
+const TDuration TTabletCache::ExpiringTimeout_ = TDuration::Seconds(1);
+
+////////////////////////////////////////////////////////////////////////////////
+
 TTabletInfoPtr TTableMountInfo::GetTablet(TUnversionedRow row) const
 {
     if (Tablets.empty()) {
@@ -61,7 +130,7 @@ TTabletInfoPtr TTableMountInfo::GetTablet(TUnversionedRow row) const
         Tablets.end(),
         row,
         [&] (TUnversionedRow lhs, const TTabletInfoPtr& rhs) {
-            return CompareRows(lhs, rhs->PivotKey.Get(), Schema.GetKeyColumnCount()) < 0;
+            return CompareRows(lhs, rhs->PivotKey, Schema.GetKeyColumnCount()) < 0;
         });
     return *(it - 1);
 }
@@ -94,6 +163,20 @@ public:
         return TExpiringCache::Get(path);
     }
 
+    TTabletInfoPtr FindTablet(const TTabletId& tabletId)
+    {
+        return TabletCache_.Find(tabletId);
+    }
+
+    void InvalidateTablet(TTabletInfoPtr tabletInfo)
+    {
+        for (const auto& weakOwner : tabletInfo->Owners) {
+            if (auto owner = weakOwner.Lock()) {
+                TryRemove(owner->Path);
+            }
+        }
+    }
+
     void Clear()
     {
         TExpiringCache::Clear();
@@ -104,7 +187,7 @@ private:
     const TTableMountCacheConfigPtr Config_;
     TObjectServiceProxy ObjectProxy_;
     const TCellDirectoryPtr CellDirectory_;
-
+    TTabletCache TabletCache_;
 
     virtual TFuture<TTableMountInfoPtr> DoGet(const TYPath& path) override
     {
@@ -146,6 +229,9 @@ private:
                         tabletInfo->CellId = FromProto<TCellId>(protoTabletInfo.cell_id());
                     }
 
+                    tabletInfo->Owners.push_back(MakeWeak(tableInfo));
+
+                    tabletInfo = TabletCache_.Insert(std::move(tabletInfo));
                     tableInfo->Tablets.push_back(tabletInfo);
                 }
 
@@ -188,6 +274,16 @@ TTableMountCache::~TTableMountCache()
 TFuture<TTableMountInfoPtr> TTableMountCache::GetTableInfo(const TYPath& path)
 {
     return Impl_->GetTableInfo(path);
+}
+
+TTabletInfoPtr TTableMountCache::FindTablet(const TTabletId& tabletId)
+{
+    return Impl_->FindTablet(tabletId);
+}
+
+void TTableMountCache::InvalidateTablet(TTabletInfoPtr tabletInfo)
+{
+    Impl_->InvalidateTablet(std::move(tabletInfo));
 }
 
 void TTableMountCache::Clear()

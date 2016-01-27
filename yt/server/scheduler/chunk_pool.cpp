@@ -3,6 +3,8 @@
 
 #include <yt/ytlib/chunk_client/chunk_slice.h>
 
+#include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
+
 #include <yt/ytlib/node_tracker_client/node_directory.h>
 
 #include <yt/ytlib/table_client/chunk_meta_extensions.h>
@@ -18,6 +20,7 @@ using namespace NChunkClient;
 using namespace NChunkClient::NProto;
 
 using NTableClient::NProto::TPartitionsExt;
+using NChunkClient::NProto::TMiscExt;
 
 ////////////////////////////////////////////////////////////////////
 
@@ -1171,6 +1174,10 @@ public:
             }
 
             RemoveProtoExtension<TPartitionsExt>(
+                chunkSlice->GetChunkSpec()->mutable_chunk_meta()->mutable_extensions());
+
+            // This makes job specs for partition sort jobs thinner.
+            RemoveProtoExtension<TMiscExt>(
                 chunkSlice->GetChunkSpec()->mutable_chunk_meta()->mutable_extensions());
         }
 

@@ -134,10 +134,14 @@ class TestTables(YTEnvSetup):
         with pytest.raises(YtError): write_table("<append=true>//tmp/table", yson.loads("100"))
         with pytest.raises(YtError): write_table("<append=true>//tmp/table", yson.loads("3.14"))
 
+        # check max_row_weight limit
+        with pytest.raises(YtError):
+            write_table("//tmp/table", {"a" : "long_string"}, table_writer = {"max_row_weight" : 2})
+
         content = "some_data"
         create("file", "//tmp/file")
         write_file("//tmp/file", content)
-        with pytest.raises(YtError): read_table("//tmp/file")
+        with pytest.raises(YtError): read_table("//tmp/file") 
 
     def test_row_index_selector(self):
         create("table", "//tmp/table")
@@ -519,7 +523,7 @@ class TestTables(YTEnvSetup):
     def test_invalid_channels_in_create(self):
         with pytest.raises(YtError): create("table", "//tmp/t", attributes={"channels": "123"})
 
-    def test_replication_factor_attr(self):
+    def test_replication_factor_updates(self):
         create("table", "//tmp/t")
         assert get("//tmp/t/@replication_factor") == 3
 
@@ -530,7 +534,7 @@ class TestTables(YTEnvSetup):
         tx = start_transaction()
         with pytest.raises(YtError): set("//tmp/t/@replication_factor", 2, tx=tx)
 
-    def test_replication_factor_static(self):
+    def test_replication_factor_propagates_to_chunks(self):
         create("table", "//tmp/t")
         set("//tmp/t/@replication_factor", 2)
 
@@ -541,6 +545,27 @@ class TestTables(YTEnvSetup):
 
         chunk_id = chunk_ids[0]
         assert get("#" + chunk_id + "/@replication_factor") == 2
+
+    def test_replication_factor_recalculated_on_remove(self):
+        create("table", "//tmp/t1", attributes={"replication_factor": 1})
+        write_table("//tmp/t1", {"foo" : "bar"})
+
+        chunk_ids = get("//tmp/t1/@chunk_ids")
+        assert len(chunk_ids) == 1
+        chunk_id = chunk_ids[0]
+        
+        assert get("#" + chunk_id + "/@replication_factor") == 1
+
+        copy("//tmp/t1", "//tmp/t2")
+        set("//tmp/t2/@replication_factor", 2)
+
+        sleep(0.2)
+        assert get("#" + chunk_id + "/@replication_factor") == 2
+        
+        remove("//tmp/t2")
+        
+        sleep(0.2)
+        assert get("#" + chunk_id + "/@replication_factor") == 1
 
     def test_recursive_resource_usage(self):
         create("table", "//tmp/t1")
@@ -598,8 +623,11 @@ class TestTables(YTEnvSetup):
         for id in chunk_ids:
             assert get("#" + id + "/@replication_factor") == expected_rf
 
+    # In tests below we intentionally issue vital/replication_factor updates
+    # using a temporary user "u"; cf. YT-3579.
     def test_vital_update(self):
         create("table", "//tmp/t")
+        create_user("u")
         for i in xrange(0, 5):
             write_table("<append=true>//tmp/t", {"a" : "b"})
 
@@ -611,7 +639,7 @@ class TestTables(YTEnvSetup):
         assert get("//tmp/t/@vital")
         check_vital_chunks(True)
 
-        set("//tmp/t/@vital", False)
+        set("//tmp/t/@vital", False, user="u")
         assert not get("//tmp/t/@vital")
         sleep(2)
 
@@ -619,28 +647,31 @@ class TestTables(YTEnvSetup):
 
     def test_replication_factor_update1(self):
         create("table", "//tmp/t")
+        create_user("u")
         for i in xrange(0, 5):
             write_table("<append=true>//tmp/t", {"a" : "b"})
-        set("//tmp/t/@replication_factor", 4)
+        set("//tmp/t/@replication_factor", 4, user="u")
         sleep(2)
         self._check_replication_factor("//tmp/t", 4)
 
     def test_replication_factor_update2(self):
         create("table", "//tmp/t")
+        create_user("u")
         tx = start_transaction()
         for i in xrange(0, 5):
             write_table("<append=true>//tmp/t", {"a" : "b"}, tx=tx)
-        set("//tmp/t/@replication_factor", 4)
+        set("//tmp/t/@replication_factor", 4, user="u")
         commit_transaction(tx)
         sleep(2)
         self._check_replication_factor("//tmp/t", 4)
 
     def test_replication_factor_update3(self):
         create("table", "//tmp/t")
+        create_user("u")
         tx = start_transaction()
         for i in xrange(0, 5):
             write_table("<append=true>//tmp/t", {"a" : "b"}, tx=tx)
-        set("//tmp/t/@replication_factor", 2)
+        set("//tmp/t/@replication_factor", 2, user="u")
         commit_transaction(tx)
         sleep(2)
         self._check_replication_factor("//tmp/t", 2)
@@ -702,7 +733,6 @@ class TestTables(YTEnvSetup):
         write_table("//tmp/t", "{x=1u};{x=4u};{x=9u};", input_format=format, is_raw=True)
         assert '{"x"=1u;};\n{"x"=4u;};\n{"x"=9u;};\n' == read_table("//tmp/t", output_format=format)
 
-    @skip_if_multicell
     def test_concatenate(self):
         create("table", "//tmp/t1")
         write_table("//tmp/t1", {"key": "x"})
@@ -720,7 +750,6 @@ class TestTables(YTEnvSetup):
         concatenate(["//tmp/t1", "//tmp/t2"], "<append=true>//tmp/union")
         assert read_table("//tmp/union") == [{"key": "x"}, {"key": "y"}] * 2
 
-    @skip_if_multicell
     def test_concatenate_sorted(self):
         create("table", "//tmp/t1")
         write_table("//tmp/t1", {"key": "x"})
@@ -742,49 +771,6 @@ class TestTables(YTEnvSetup):
         assert read_table("//tmp/union") == [{"key": "y"}, {"key": "x"}]
         assert get("//tmp/union/@sorted", "false")
 
-##################################################################
-
-#class TestTablesMulticell(TestTables):
-#    NUM_SECONDARY_MASTER_CELLS = 2
-#
-#    def test_concatenate(self):
-#        create("table", "//tmp/t1")
-#        write_table("//tmp/t1", {"key": "x"})
-#        assert read_table("//tmp/t1") == [{"key": "x"}]
-#
-#        create("table", "//tmp/t2")
-#        write_table("//tmp/t2", {"key": "y"})
-#        assert read_table("//tmp/t2") == [{"key": "y"}]
-#
-#        create("table", "//tmp/union")
-#
-#        concatenate(["//tmp/t1", "//tmp/t2"], "//tmp/union")
-#        assert read_table("//tmp/union") == [{"key": "x"}, {"key": "y"}]
-#
-#        concatenate(["//tmp/t1", "//tmp/t2"], "<append=true>//tmp/union")
-#        assert read_table("//tmp/union") == [{"key": "x"}, {"key": "y"}] * 2
-#
-#    def test_concatenate_sorted(self):
-#        create("table", "//tmp/t1")
-#        write_table("//tmp/t1", {"key": "x"})
-#        sort(in_="//tmp/t1", out="//tmp/t1", sort_by="key")
-#        assert read_table("//tmp/t1") == [{"key": "x"}]
-#        assert get("//tmp/t1/@sorted", "true")
-#
-#        create("table", "//tmp/t2")
-#        write_table("//tmp/t2", {"key": "y"})
-#        sort(in_="//tmp/t2", out="//tmp/t2", sort_by="key")
-#        assert read_table("//tmp/t2") == [{"key": "y"}]
-#        assert get("//tmp/t2/@sorted", "true")
-#
-#        create("table", "//tmp/union")
-#        sort(in_="//tmp/union", out="//tmp/union", sort_by="key")
-#        assert get("//tmp/union/@sorted", "true")
-#
-#        concatenate(["//tmp/t2", "//tmp/t1"], "<append=true>//tmp/union")
-#        assert read_table("//tmp/union") == [{"key": "y"}, {"key": "x"}]
-#        assert get("//tmp/union/@sorted", "false")
-
     def test_extracting_table_columns_in_schemaful_dsv_from_complex_table(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -799,3 +785,45 @@ class TestTables(YTEnvSetup):
         tabular_data = read_table("//tmp/t1", output_format=yson.loads("<columns=[column2;column3]>schemaful_dsv"))
         assert tabular_data == "value12\tvalue13\nvalue22\tvalue23\n"
 
+##################################################################
+
+class TestTablesMulticell(TestTables):
+    NUM_SECONDARY_MASTER_CELLS = 2
+
+    def test_concatenate_teleport(self):
+        create("table", "//tmp/t1", attributes={"external_cell_tag": 1})
+        write_table("//tmp/t1", {"key": "x"})
+        assert read_table("//tmp/t1") == [{"key": "x"}]
+
+        create("table", "//tmp/t2", attributes={"external_cell_tag": 2})
+        write_table("//tmp/t2", {"key": "y"})
+        assert read_table("//tmp/t2") == [{"key": "y"}]
+
+        create("table", "//tmp/union", attributes={"external": False})
+
+        concatenate(["//tmp/t1", "//tmp/t2"], "//tmp/union")
+        assert read_table("//tmp/union") == [{"key": "x"}, {"key": "y"}]
+
+        concatenate(["//tmp/t1", "//tmp/t2"], "<append=true>//tmp/union")
+        assert read_table("//tmp/union") == [{"key": "x"}, {"key": "y"}] * 2
+
+    def test_concatenate_sorted_teleport(self):
+        create("table", "//tmp/t1", attributes={"external_cell_tag": 1})
+        write_table("//tmp/t1", {"key": "x"})
+        sort(in_="//tmp/t1", out="//tmp/t1", sort_by="key")
+        assert read_table("//tmp/t1") == [{"key": "x"}]
+        assert get("//tmp/t1/@sorted", "true")
+
+        create("table", "//tmp/t2", attributes={"external_cell_tag": 2})
+        write_table("//tmp/t2", {"key": "y"})
+        sort(in_="//tmp/t2", out="//tmp/t2", sort_by="key")
+        assert read_table("//tmp/t2") == [{"key": "y"}]
+        assert get("//tmp/t2/@sorted", "true")
+
+        create("table", "//tmp/union", attributes={"external": False})
+        sort(in_="//tmp/union", out="//tmp/union", sort_by="key")
+        assert get("//tmp/union/@sorted", "true")
+
+        concatenate(["//tmp/t2", "//tmp/t1"], "<append=true>//tmp/union")
+        assert read_table("//tmp/union") == [{"key": "y"}, {"key": "x"}]
+        assert get("//tmp/union/@sorted", "false")

@@ -3,9 +3,9 @@ from yt_commands import *
 
 ##################################################################
 
-def check_attributes(op_id, options):
-    spec_path = "//sys/operations/" + op_id + "/@spec"
-    brief_spec_path = "//sys/operations/" + op_id + "/@brief_spec"
+def check_attributes(op, options):
+    spec_path = "//sys/operations/" + op.id + "/@spec"
+    brief_spec_path = "//sys/operations/" + op.id + "/@brief_spec"
 
     if "pool" in options:
         assert get(spec_path + "/pool") == get(brief_spec_path + "/pool")
@@ -37,19 +37,19 @@ class TestSchedulerBriefSpec(YTEnvSetup):
     def test_map(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
-        op_id = map(in_="//tmp/t1", out="//tmp/t2", command="cat")
+        op = map(in_="//tmp/t1", out="//tmp/t2", command="cat")
 
-        check_attributes(op_id, ["mapper", "input_table_path", "output_table_path"])
+        check_attributes(op, ["mapper", "input_table_path", "output_table_path"])
 
     def test_sort(self):
         create("table", "//tmp/t1")
 
-        op_id = sort(
+        op = sort(
             in_="//tmp/t1",
             out="//tmp/t1",
             sort_by="key")
 
-        check_attributes(op_id, ["input_table_path", "output_table_path_1"])
+        check_attributes(op, ["input_table_path", "output_table_path_1"])
 
     def test_reduce(self):
         create("table", "//tmp/t1")
@@ -59,13 +59,13 @@ class TestSchedulerBriefSpec(YTEnvSetup):
             sorted_by=["key", "value"])
 
         create("table", "//tmp/t2")
-        op_id = reduce(
+        op = reduce(
             in_="//tmp/t1",
             out="//tmp/t2",
             command="cat",
             reduce_by="key")
 
-        check_attributes(op_id, ["reducer", "input_table_path", "output_table_path"])
+        check_attributes(op, ["reducer", "input_table_path", "output_table_path"])
 
     def test_join_reduce(self):
         create("table", "//tmp/t1")
@@ -81,19 +81,19 @@ class TestSchedulerBriefSpec(YTEnvSetup):
             sorted_by=["key", "value"])
 
         create("table", "//tmp/t3")
-        op_id = join_reduce(
+        op = join_reduce(
             in_=["<primary=true>//tmp/t1", "//tmp/t2"],
             out="//tmp/t3",
             command="cat",
             join_by="key",
             spec={"reducer": {"format": "dsv"}})
 
-        check_attributes(op_id, ["reducer", "input_table_path", "output_table_path"])
+        check_attributes(op, ["reducer", "input_table_path", "output_table_path"])
 
     def test_map_reduce(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
-        op_id = map_reduce(
+        op = map_reduce(
             in_="//tmp/t1",
             out="//tmp/t2",
             sort_by="a",
@@ -101,25 +101,25 @@ class TestSchedulerBriefSpec(YTEnvSetup):
             reduce_combiner_command="cat",
             reducer_command="cat")
 
-        check_attributes(op_id, ["mapper", "reducer", "input_table_path", "output_table_path"])
+        check_attributes(op, ["mapper", "reducer", "input_table_path", "output_table_path"])
 
     def test_merge(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
         create("table", "//tmp/t3")
 
-        op_id = merge(
+        op = merge(
             mode="unordered",
             in_=["//tmp/t1", "//tmp/t2"],
             out="//tmp/t3")
 
-        check_attributes(op_id, ["input_table_path", "output_table_path_1"])
+        check_attributes(op, ["input_table_path", "output_table_path_1"])
 
     def test_erase(self):
         create("table", "//tmp/t1")
 
-        op_id = erase("//tmp/t1")
+        op = erase("//tmp/t1")
 
-        check_attributes(op_id, ["table_path"])
+        check_attributes(op, ["table_path"])
 
 

@@ -185,8 +185,10 @@ TTcpDispatcherThreadPtr TTcpDispatcher::TImpl::GetClientThread()
 void TTcpDispatcher::TImpl::OnProfiling()
 {
     for (auto interfaceType : TEnumTraits<ETcpInterfaceType>::GetDomainValues()) {
-        auto tagId = NProfiling::TProfileManager::Get()->RegisterTag("interface", interfaceType);
-        NProfiling::TTagIdList tagIds{tagId};
+        auto* profileManager = NProfiling::TProfileManager::Get();
+        NProfiling::TTagIdList tagIds{
+            profileManager->RegisterTag("interface", interfaceType)
+        };
 
         auto statistics = GetStatistics(interfaceType);
 

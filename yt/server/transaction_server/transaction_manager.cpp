@@ -82,10 +82,11 @@ private:
         const auto* transaction = GetThisTypedImpl();
 
         descriptors->push_back("state");
+        descriptors->push_back("secondary_cell_tags");
         descriptors->push_back(TAttributeDescriptor("timeout")
             .SetPresent(transaction->GetTimeout().HasValue()));
         descriptors->push_back(TAttributeDescriptor("title")
-        	.SetPresent(transaction->GetTitle().HasValue()));
+            .SetPresent(transaction->GetTitle().HasValue()));
         descriptors->push_back("accounting_enabled");
         descriptors->push_back("parent_id");
         descriptors->push_back("start_time");
@@ -108,6 +109,12 @@ private:
         if (key == "state") {
             BuildYsonFluently(consumer)
                 .Value(transaction->GetState());
+            return true;
+        }
+
+        if (key == "secondary_cell_tags") {
+            BuildYsonFluently(consumer)
+                .Value(transaction->SecondaryCellTags());
             return true;
         }
 
@@ -333,11 +340,6 @@ public:
             EObjectReplicationFlags::ReplicateAttributes;
     }
 
-    virtual TCellTag GetReplicationCellTag(const TObjectBase* /*object*/) override
-    {
-        return AllSecondaryMastersCellTag;
-    }
-
     virtual EObjectType GetType() const override
     {
         return EObjectType::Transaction;
@@ -361,7 +363,12 @@ private:
     TImpl* const Owner_;
 
 
-    virtual Stroka DoGetName(TTransaction* transaction) override
+    virtual TCellTagList DoGetReplicationCellTags(const TTransaction* transaction) override
+    {
+        return transaction->SecondaryCellTags();
+    }
+
+    virtual Stroka DoGetName(const TTransaction* transaction) override
     {
         return Format("transaction %v", transaction->GetId());
     }
@@ -449,6 +456,7 @@ public:
 
     TTransaction* StartTransaction(
         TTransaction* parent,
+        const TCellTagList& secondaryCellTags,
         TNullable<TDuration> timeout,
         const TNullable<Stroka>& title,
         const TTransactionId& hintId)
@@ -478,6 +486,8 @@ public:
 
         transaction->SetState(ETransactionState::Active);
 
+        transaction->SecondaryCellTags() = secondaryCellTags;
+
         if (Bootstrap_->IsPrimaryMaster()) {
             if (timeout) {
                 transaction->SetTimeout(std::min(*timeout, Config_->MaxTransactionTimeout));
@@ -498,9 +508,11 @@ public:
 
         TransactionStarted_.Fire(transaction);
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Transaction started (TransactionId: %v, ParentId: %v, Timeout: %v, Title: %v)",
+        LOG_DEBUG_UNLESS(IsRecovery(), "Transaction started (TransactionId: %v, ParentId: %v, "
+            "SecondaryCellTags: %v, Timeout: %v, Title: %v)",
             transactionId,
             GetObjectId(parent),
+            transaction->SecondaryCellTags(),
             transaction->GetTimeout(),
             title);
 
@@ -514,8 +526,9 @@ public:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         auto state = transaction->GetPersistentState();
-        if (state == ETransactionState::Committed)
+        if (state == ETransactionState::Committed) {
             return;
+        }
 
         if (state != ETransactionState::Active &&
             state != ETransactionState::PersistentCommitPrepared)
@@ -523,8 +536,16 @@ public:
             transaction->ThrowInvalidState();
         }
 
-        // NB: Save it for logging.
         auto transactionId = transaction->GetId();
+
+        if (Bootstrap_->IsPrimaryMaster()) {
+            NProto::TReqCommitTransaction request;
+            ToProto(request.mutable_transaction_id(), transactionId);
+            request.set_commit_timestamp(commitTimestamp);
+
+            auto multicellManager = Bootstrap_->GetMulticellManager();
+            multicellManager->PostToMasters(request, transaction->SecondaryCellTags());
+        }
 
         auto nestedTransactions = transaction->NestedTransactions();
         for (auto* nestedTransaction : nestedTransactions) {
@@ -543,6 +564,25 @@ public:
 
         TransactionCommitted_.Fire(transaction);
 
+        auto* parent = transaction->GetParent();
+        if (parent) {
+            parent->ExportedObjects().insert(
+                parent->ExportedObjects().end(),
+                transaction->ExportedObjects().begin(),
+                transaction->ExportedObjects().end());
+            parent->ImportedObjects().insert(
+                parent->ImportedObjects().end(),
+                transaction->ImportedObjects().begin(),
+                transaction->ImportedObjects().end());
+        } else {
+            auto objectManager = Bootstrap_->GetObjectManager();
+            for (auto* object : transaction->ImportedObjects()) {
+                objectManager->UnrefObject(object);
+            }
+        }
+        transaction->ExportedObjects().clear();
+        transaction->ImportedObjects().clear();
+
         FinishTransaction(transaction);
 
         LOG_DEBUG_UNLESS(IsRecovery(), "Transaction committed (TransactionId: %v, CommitTimestamp: %v)",
@@ -550,13 +590,16 @@ public:
             commitTimestamp);
     }
 
-    void AbortTransaction(TTransaction* transaction, bool force)
+    void AbortTransaction(
+        TTransaction* transaction,
+        bool force)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         auto state = transaction->GetPersistentState();
-        if (state == ETransactionState::Aborted)
+        if (state == ETransactionState::Aborted) {
             return;
+        }
 
         if (state == ETransactionState::PersistentCommitPrepared && !force ||
             state == ETransactionState::Committed)
@@ -568,6 +611,15 @@ public:
         securityManager->ValidatePermission(transaction, EPermission::Write);
 
         auto transactionId = transaction->GetId();
+
+        if (Bootstrap_->IsPrimaryMaster()) {
+            NProto::TReqAbortTransaction request;
+            ToProto(request.mutable_transaction_id(), transactionId);
+            request.set_force(force);
+
+            auto multicellManager = Bootstrap_->GetMulticellManager();
+            multicellManager->PostToMasters(request, transaction->SecondaryCellTags());
+        }
 
         auto nestedTransactions = transaction->NestedTransactions();
         for (auto* nestedTransaction : nestedTransactions) {
@@ -582,6 +634,20 @@ public:
         transaction->SetState(ETransactionState::Aborted);
 
         TransactionAborted_.Fire(transaction);
+
+        auto objectManager = Bootstrap_->GetObjectManager();
+        for (const auto& entry : transaction->ExportedObjects()) {
+            auto* object = entry.Object;
+            objectManager->UnrefObject(object);
+            const auto& handler = objectManager->GetHandler(object);
+            handler->UnexportObject(object, entry.DestinationCellTag, 1);
+        }
+        for (auto* object : transaction->ImportedObjects()) {
+            objectManager->UnrefObject(object);
+            object->ImportUnrefObject();
+        }
+        transaction->ExportedObjects().clear();
+        transaction->ImportedObjects().clear();
 
         FinishTransaction(transaction);
 
@@ -720,8 +786,9 @@ public:
             NProto::TReqPrepareTransactionCommit request;
             ToProto(request.mutable_transaction_id(), transactionId);
             request.set_prepare_timestamp(prepareTimestamp);
+
             auto multicellManager = Bootstrap_->GetMulticellManager();
-            multicellManager->PostToSecondaryMasters(request);
+            multicellManager->PostToMasters(request, transaction->SecondaryCellTags());
         }
     }
 
@@ -749,14 +816,6 @@ public:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        if (Bootstrap_->IsPrimaryMaster()) {
-            NProto::TReqCommitTransaction request;
-            ToProto(request.mutable_transaction_id(), transactionId);
-            request.set_commit_timestamp(commitTimestamp);
-            auto multicellManager = Bootstrap_->GetMulticellManager();
-            multicellManager->PostToSecondaryMasters(request);
-        }
-
         auto* transaction = GetTransactionOrThrow(transactionId);
         CommitTransaction(transaction, commitTimestamp);
     }
@@ -766,14 +825,6 @@ public:
         bool force)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
-
-        if (Bootstrap_->IsPrimaryMaster()) {
-            NProto::TReqAbortTransaction request;
-            ToProto(request.mutable_transaction_id(), transactionId);
-            request.set_force(force);
-            auto multicellManager = Bootstrap_->GetMulticellManager();
-            multicellManager->PostToSecondaryMasters(request);
-        }
 
         auto* transaction = GetTransactionOrThrow(transactionId);
         AbortTransaction(transaction, force);
@@ -840,24 +891,6 @@ private:
             objectManager->UnrefObject(node);
         }
         transaction->StagedNodes().clear();
-
-        for (const auto& entry : transaction->ExportedObjects()) {
-            if (transaction->GetState() == ETransactionState::Aborted) {
-                auto* object = entry.Object;
-                objectManager->UnrefObject(object);
-                const auto& handler = objectManager->GetHandler(object);
-                handler->UnexportObject(object, entry.DestinationCellTag, 1);
-            }
-        }
-        transaction->ExportedObjects().clear();
-
-        for (auto* object : transaction->ImportedObjects()) {
-            objectManager->UnrefObject(object);
-            if (transaction->GetState() == ETransactionState::Aborted) {
-                object->ImportUnrefObject();
-            }
-        }
-        transaction->ImportedObjects().clear();
 
         auto* parent = transaction->GetParent();
         if (parent) {
@@ -1061,13 +1094,24 @@ TNonversionedObjectBase* TTransactionManager::TTransactionTypeHandler::CreateObj
     IAttributeDictionary* attributes,
     const TObjectCreationExtensions& extensions)
 {
+    TCellTagList secondaryCellTags;
+    if (Bootstrap_->IsPrimaryMaster()) {
+        auto multicellManager = Bootstrap_->GetMulticellManager();
+        secondaryCellTags = multicellManager->GetRegisteredMasterCellTags();
+    }
+
     const auto& requestExt = extensions.GetExtension(TTransactionCreationExt::transaction_creation_ext);
     auto timeout = FromProto<TDuration>(requestExt.timeout());
 
     auto title = attributes->Find<Stroka>("title");
     attributes->Remove("title");
 
-    return Owner_->StartTransaction(parent, timeout, title, hintId);
+    return Owner_->StartTransaction(
+        parent,
+        secondaryCellTags,
+        timeout,
+        title,
+        hintId);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1085,11 +1129,12 @@ void TTransactionManager::Initialize()
 
 TTransaction* TTransactionManager::StartTransaction(
     TTransaction* parent,
+    const TCellTagList& secondaryCellTags,
     TNullable<TDuration> timeout,
     const TNullable<Stroka>& title,
     const TTransactionId& hintId)
 {
-    return Impl_->StartTransaction(parent, timeout, title, hintId);
+    return Impl_->StartTransaction(parent, secondaryCellTags, timeout, title, hintId);
 }
 
 void TTransactionManager::CommitTransaction(

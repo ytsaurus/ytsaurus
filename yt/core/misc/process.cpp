@@ -229,11 +229,11 @@ void TProcess::Spawn()
     Pipe_ = pipeFactory.Create();
     pipeFactory.Clear();
 
-    LOG_DEBUG("Spawning child process (Path: %v, ErrorPipe: {%v},  Arguments: [%v], Environment: [%v])",
+    LOG_DEBUG("Spawning child process (Path: %v, ErrorPipe: {%v},  Arguments: %v, Environment: %v)",
         Path_,
         Pipe_,
-        JoinToString(Args_), 
-        JoinToString(Env_));
+        Args_,
+        Env_);
 
     Env_.push_back(nullptr);
     Args_.push_back(nullptr);
