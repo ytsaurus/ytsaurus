@@ -196,6 +196,7 @@ IChunkReaderPtr CreateRemoteReader(
     TRemoteReaderOptionsPtr options,
     NApi::IClientPtr client,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
+    const TNullable<NNodeTrackerClient::TNodeDescriptor>& localDescriptor,
     IBlockCachePtr blockCache,
     NConcurrency::IThroughputThrottlerPtr throttler)
 {
@@ -233,7 +234,7 @@ IChunkReaderPtr CreateRemoteReader(
                 options,
                 client,
                 nodeDirectory,
-                Null,
+                localDescriptor,
                 partId,
                 partReplicas,
                 blockCache,
@@ -251,12 +252,50 @@ IChunkReaderPtr CreateRemoteReader(
             options,
             client,
             nodeDirectory,
-            Null,
+            localDescriptor,
             chunkId,
             replicas,
             blockCache,
             throttler);
     }
+}
+
+IChunkReaderPtr CreateRemoteReader(
+    TChunkId chunkId,
+    TReplicationReaderConfigPtr config,
+    TRemoteReaderOptionsPtr options,
+    NApi::IClientPtr client,
+    const TNullable<NNodeTrackerClient::TNodeDescriptor>& localDescriptor,
+    IBlockCachePtr blockCache,
+    NConcurrency::IThroughputThrottlerPtr throttler)
+{
+    auto channel = client->GetMasterChannelOrThrow(NApi::EMasterChannelKind::LeaderOrFollower);
+    TChunkServiceProxy proxy(channel);
+
+    auto req = proxy.LocateChunks();
+    ToProto(req->add_chunk_ids(), chunkId);
+   
+    auto rsp = WaitFor(req->Invoke())
+        .ValueOrThrow(); 
+    
+    const auto& chunkInfo = rsp->chunks(0);
+    TChunkSpec chunkSpec;
+    chunkSpec.mutable_chunk_id()->CopyFrom(chunkInfo.chunk_id());
+    chunkSpec.mutable_replicas()->MergeFrom(chunkInfo.replicas());
+    chunkSpec.set_erasure_codec(chunkInfo.erasure_codec());
+    
+    auto nodeDirectory = New<TNodeDirectory>();
+    nodeDirectory->MergeFrom(rsp->node_directory());
+
+    return CreateRemoteReader(
+        chunkSpec,
+        config,
+        options,
+        client,
+        nodeDirectory,
+        localDescriptor,
+        blockCache,
+        throttler);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

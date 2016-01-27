@@ -335,6 +335,7 @@ IFileReaderPtr CreateFileMultiChunkReader(
                 options,
                 client,
                 nodeDirectory,
+                Null /* localDescriptor */,
                 blockCache,
                 throttler);
 

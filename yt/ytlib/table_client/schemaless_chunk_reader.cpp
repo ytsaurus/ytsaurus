@@ -653,6 +653,7 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
                 options,
                 client,
                 nodeDirectory,
+                Null /* localDescriptor */,
                 blockCache,
                 throttler);
 
