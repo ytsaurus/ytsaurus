@@ -4,9 +4,11 @@ import yt.yson as yson
 import socket
 import os
 import fcntl
+import random
 import subprocess
 
 GEN_PORT_ATTEMPTS = 10
+START_PORT = 10000
 
 try:
     from unittest.util import unorderable_list_difference
@@ -76,14 +78,32 @@ def assert_items_equal(actual_seq, expected_seq):
     assert not unexpected, "Unexpected, but present:\n    %s" % repr(unexpected)
 
 def get_open_port(port_locks_path=None):
+    local_ports_range = map(int, open("/proc/sys/net/ipv4/ip_local_port_range").read().split())
+
     for _ in xrange(GEN_PORT_ATTEMPTS):
-        try:
-            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            sock.bind(("", 0))
-            sock.listen(1)
-            port = sock.getsockname()[1]
-        finally:
-            sock.close()
+        port = None
+        if local_ports_range[0] - START_PORT > 1000:
+            # Generate random port manually and check that it is free.
+            port_value = random.randint(START_PORT, local_ports_range[0] - 1)
+            try:
+                sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                sock.bind(("", port_value))
+                sock.listen(1)
+                port = port_value
+            finally:
+                sock.close()
+        else:
+            # Generate random local port by bind to 0 port.
+            try:
+                sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                sock.bind(("", 0))
+                sock.listen(1)
+                port = sock.getsockname()[1]
+            finally:
+                sock.close()
+
+        if port is None:
+            continue
 
         if port in get_open_port.busy_ports:
             continue
