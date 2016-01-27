@@ -210,7 +210,9 @@ def get_node_config(enable_debug_logging=True):
     };
 
     exec_agent = {
-        slot_manager = { };
+        slot_manager = {
+            slot_initialization_failure_is_fatal = %true;
+        };
 
         scheduler_connector = {
             heartbeat_period = 200;
