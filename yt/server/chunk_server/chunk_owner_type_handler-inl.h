@@ -52,12 +52,18 @@ NSecurityServer::TClusterResources TChunkOwnerTypeHandler<TChunkOwner>::GetAccou
     const NCypressServer::TCypressNodeBase* node)
 {
     const auto* chunkOwnerNode = static_cast<const TChunkOwner*>(node);
-    auto result = TBase::GetAccountingResourceUsage(node);
-    auto statistics = chunkOwnerNode->GetUpdateMode() == NChunkClient::EUpdateMode::Append
-        ? chunkOwnerNode->DeltaStatistics()
-        : chunkOwnerNode->SnapshotStatistics();
-    result += GetDiskUsage(statistics, chunkOwnerNode->GetReplicationFactor());
-    return result;
+    NChunkClient::NProto::TDataStatistics statistics;
+    if (chunkOwnerNode->GetUpdateMode() == NChunkClient::EUpdateMode::Append) {
+        statistics = chunkOwnerNode->DeltaStatistics();
+    } else if (
+        chunkOwnerNode->GetUpdateMode() == NChunkClient::EUpdateMode::Overwrite ||
+        chunkOwnerNode->IsTrunk())
+    {
+        statistics = chunkOwnerNode->SnapshotStatistics();
+    }
+    return
+        TBase::GetAccountingResourceUsage(node) +
+        GetDiskUsage(statistics, chunkOwnerNode->GetReplicationFactor());
 }
 
 template <class TChunkOwner>
