@@ -322,6 +322,10 @@ private:
             Slot->InitSandbox();
 
             YCHECK(JobPhase == EJobPhase::PreparingSandbox);
+            JobPhase = EJobPhase::PreparingTmpfs;
+            PrepareTmpfs();
+
+            YCHECK(JobPhase == EJobPhase::PreparingTmpfs);
             JobPhase = EJobPhase::PreparingFiles;
             PrepareUserFiles();
 
@@ -423,6 +427,7 @@ private:
         auto proxyConfig = CloneYsonSerializable(Bootstrap->GetJobProxyConfig());
         proxyConfig->JobIO = ioConfig;
         proxyConfig->UserId = Slot->GetUserId();
+        proxyConfig->TmpfsPath = Slot->GetTmpfsPath(ESandboxKind::User);
 
         proxyConfig->RpcServer = Slot->GetRpcServerConfig();
 
@@ -460,6 +465,17 @@ private:
             THROW_ERROR_EXCEPTION("Failed to create proxy controller for environment %Qv",
                 environmentType)
                 << ex;
+        }
+    }
+
+    void PrepareTmpfs()
+    {
+        const auto& schedulerJobSpecExt = JobSpec.GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
+        if (schedulerJobSpecExt.has_user_job_spec()) {
+            const auto& userJobSpec = schedulerJobSpecExt.user_job_spec();
+            if (userJobSpec.has_tmpfs_size()) {
+                Slot->PrepareTmpfs(ESandboxKind::User, userJobSpec.tmpfs_size());
+            }
         }
     }
 
@@ -606,11 +622,11 @@ private:
 
         if (resultError.FindMatching(NExecAgent::EErrorCode::ResourceOverdraft)) {
             return MakeNullable(EAbortReason::ResourceOverdraft);
-        } 
+        }
 
         if (resultError.FindMatching(NExecAgent::EErrorCode::AbortByScheduler)) {
             return MakeNullable(EAbortReason::Scheduler);
-        } 
+        }
 
         if (resultError.FindMatching(NChunkClient::EErrorCode::AllTargetNodesFailed) ||
             resultError.FindMatching(NChunkClient::EErrorCode::MasterCommunicationFailed) ||

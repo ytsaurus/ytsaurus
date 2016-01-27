@@ -66,6 +66,7 @@ DEFINE_ENUM(EJobPhase,
     ((PreparingConfig) (  1))
     ((PreparingProxy)  (  2))
     ((PreparingSandbox)( 10))
+    ((PreparingTmpfs)  ( 15))
     ((PreparingFiles)  ( 20))
     ((Running)         ( 50))
     ((Cleanup)         ( 80))
