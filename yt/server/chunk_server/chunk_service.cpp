@@ -71,8 +71,9 @@ private:
             auto chunkIdWithIndex = DecodeChunkId(chunkId);
 
             auto* chunk = chunkManager->FindChunk(chunkIdWithIndex.Id);
-            if (!IsObjectAlive(chunk))
-                continue;
+            if (!IsObjectAlive(chunk)) {
+                THROW_ERROR_EXCEPTION("Chunk %v doesn't exist", chunkId); 
+            }
 
             TChunkPtrWithIndex chunkWithIndex(chunk, chunkIdWithIndex.Index);
             auto replicas = chunkManager->LocateChunk(chunkWithIndex);
@@ -80,6 +81,7 @@ private:
             auto* info = response->add_chunks();
             ToProto(info->mutable_chunk_id(), chunkId);
             ToProto(info->mutable_replicas(), replicas);
+            info->set_erasure_codec(static_cast<int>(chunk->GetErasureCodec()));
 
             for (auto replica : replicas) {
                 nodeDirectoryBuilder.Add(replica);
