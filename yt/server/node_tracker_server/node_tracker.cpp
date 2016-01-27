@@ -183,6 +183,7 @@ public:
         , Config_(config)
     {
         RegisterMethod(BIND(&TImpl::HydraRegisterNode, Unretained(this)));
+        RegisterMethod(BIND(&TImpl::HydraUnregisterNode, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraDisposeNode, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraFullHeartbeat, Unretained(this), nullptr));
         RegisterMethod(BIND(&TImpl::HydraIncrementalHeartbeat, Unretained(this), nullptr, nullptr));
