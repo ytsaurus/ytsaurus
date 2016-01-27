@@ -55,6 +55,9 @@ class TestAccounts(YTEnvSetup):
     def _get_tx_disk_space(self, tx, account):
         return get("#{0}/@resource_usage/{1}/disk_space".format(tx, account))
 
+    def _get_tx_chunk_count(self, tx, account):
+        return get("#{0}/@resource_usage/{1}/chunk_count".format(tx, account))
+
     def _get_node_disk_space(self, path, *args, **kwargs):
         return get("{0}/@resource_usage/disk_space".format(path), *args, **kwargs)
 
@@ -536,6 +539,43 @@ class TestAccounts(YTEnvSetup):
         multicell_sleep()
         assert self._get_account_committed_disk_space("tmp") == space * 2
 
+    def test_nested_tx_uncommitted_usage(self):
+        create("table", "//tmp/t")
+        write_table("<append=true>//tmp/t", {"a" : "b"})
+        write_table("<append=true>//tmp/t", {"a" : "b"})
+
+        multicell_sleep()
+        assert self._get_account_chunk_count("tmp") == 2
+
+        tx1 = start_transaction()
+        tx2 = start_transaction(tx=tx1)
+
+        write_table("<append=true>//tmp/t", {"a" : "b"}, tx=tx2)
+
+        multicell_sleep()
+        assert self._get_account_chunk_count("tmp") == 3
+        
+        assert get("//tmp/t/@update_mode") == "none"
+        assert get("//tmp/t/@update_mode", tx=tx1) == "none"
+        assert get("//tmp/t/@update_mode", tx=tx2) == "append"
+        
+        assert self._get_tx_chunk_count(tx1, "tmp") == 0
+        assert self._get_tx_chunk_count(tx2, "tmp") == 1
+        
+        commit_transaction(tx2)
+
+        multicell_sleep()
+        assert get("//tmp/t/@update_mode") == "none"
+        assert get("//tmp/t/@update_mode", tx=tx1) == "append"
+        assert self._get_account_chunk_count("tmp") == 3
+        assert self._get_tx_chunk_count(tx1, "tmp") == 1
+
+        commit_transaction(tx1)
+
+        multicell_sleep()
+        assert get("//tmp/t/@update_mode") == "none"
+        assert self._get_account_chunk_count("tmp") == 3
+        
     def test_copy(self):
         create_account("a1")
         create_account("a2")
