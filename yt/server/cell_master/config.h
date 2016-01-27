@@ -103,12 +103,6 @@ public:
 
     NHive::TTransactionSupervisorConfigPtr TransactionSupervisor;
 
-    //! RPC interface port number.
-    int RpcPort;
-
-    //! HTTP monitoring interface port number.
-    int MonitoringPort;
-
     //! If |true| then |//sys/@provision_lock| is set during cluster initialization.
     bool EnableProvisionLock;
 
@@ -142,10 +136,6 @@ public:
         RegisterParameter("timestamp_provider", TimestampProvider);
         RegisterParameter("transaction_supervisor", TransactionSupervisor)
             .DefaultNew();
-        RegisterParameter("rpc_port", RpcPort)
-            .Default(9000);
-        RegisterParameter("monitoring_port", MonitoringPort)
-            .Default(10000);
         RegisterParameter("enable_provision_lock", EnableProvisionLock)
             .Default(true);
     }
