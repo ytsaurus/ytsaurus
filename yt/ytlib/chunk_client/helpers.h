@@ -6,6 +6,7 @@
 #include <yt/ytlib/api/public.h>
 
 #include <yt/ytlib/node_tracker_client/public.h>
+#include <yt/ytlib/node_tracker_client/node_directory.h>
 
 #include <yt/ytlib/object_client/master_ypath_proxy.h>
 
@@ -58,6 +59,16 @@ IChunkReaderPtr CreateRemoteReader(
     TRemoteReaderOptionsPtr options,
     NApi::IClientPtr client,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
+    const TNullable<NNodeTrackerClient::TNodeDescriptor>& localDescriptor,
+    IBlockCachePtr blockCache,
+    NConcurrency::IThroughputThrottlerPtr throttler);
+
+IChunkReaderPtr CreateRemoteReader(
+    TChunkId chunkId, 
+    TReplicationReaderConfigPtr config,
+    TRemoteReaderOptionsPtr options,
+    NApi::IClientPtr client,
+    const TNullable<NNodeTrackerClient::TNodeDescriptor>& localDescriptor,
     IBlockCachePtr blockCache,
     NConcurrency::IThroughputThrottlerPtr throttler);
 

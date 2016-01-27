@@ -146,6 +146,7 @@ TPartitionMultiChunkReaderPtr CreatePartitionMultiChunkReader(
                 options,
                 client,
                 nodeDirectory,
+                Null /* localDescriptor */, 
                 blockCache,
                 GetUnlimitedThrottler());
 
