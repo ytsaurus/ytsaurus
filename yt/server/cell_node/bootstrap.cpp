@@ -186,11 +186,14 @@ void TBootstrap::DoRun()
         Config->QueryAgent->ThreadPoolSize,
         "Query");
 
-    BusServer = CreateTcpBusServer(TTcpBusServerConfig::CreateTcp(Config->RpcPort));
+    BusServer = CreateTcpBusServer(Config->BusServer);
 
     RpcServer = CreateBusServer(BusServer);
 
-    HttpServer.reset(new NHttp::TServer(Config->MonitoringPort));
+    HttpServer.reset(new NHttp::TServer(
+        Config->MonitoringPort,
+        Config->BusServer->BindRetryCount,
+        Config->BusServer->BindRetryBackoff));
 
     TabletChannelFactory = CreateCachingChannelFactory(GetBusChannelFactory());
 
