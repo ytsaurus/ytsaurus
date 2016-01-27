@@ -18,6 +18,7 @@ message TRspLocateChunks
     {
         required NYT.NProto.TGuid chunk_id = 1;
         repeated fixed32 replicas = 2;
+        required int32 erasure_codec = 3;
     }
 
     required NNodeTrackerClient.NProto.TNodeDirectory node_directory = 1;
