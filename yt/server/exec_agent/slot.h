@@ -58,6 +58,12 @@ public:
         const Stroka& linkName,
         bool isExecutable) noexcept;
 
+    void PrepareTmpfs(
+        ESandboxKind sandboxKind,
+        i64 size);
+
+    Stroka GetTmpfsPath(ESandboxKind sandboxKind) const;
+
     const Stroka& GetWorkingDirectory() const;
 
 private:
