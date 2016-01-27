@@ -7,6 +7,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/api/client.cpp
   ${CMAKE_CURRENT_LIST_DIR}/api/config.cpp
   ${CMAKE_CURRENT_LIST_DIR}/api/connection.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/api/dispatcher.cpp
   ${CMAKE_CURRENT_LIST_DIR}/api/file_reader.cpp
   ${CMAKE_CURRENT_LIST_DIR}/api/file_writer.cpp
   ${CMAKE_CURRENT_LIST_DIR}/api/journal_reader.cpp
@@ -70,7 +71,6 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/cypress_client/rpc.proto
 
   ${CMAKE_CURRENT_LIST_DIR}/driver/cypress_commands.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/driver/dispatcher.cpp
   ${CMAKE_CURRENT_LIST_DIR}/driver/driver.cpp
   ${CMAKE_CURRENT_LIST_DIR}/driver/etc_commands.cpp
   ${CMAKE_CURRENT_LIST_DIR}/driver/file_commands.cpp

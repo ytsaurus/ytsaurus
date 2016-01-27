@@ -94,7 +94,7 @@ public:
         , NameTable_(nameTable)
         , Path_(path)
         , FlushExecutor_(New<TPeriodicExecutor>(
-            TDispatcher::Get()->GetWriterInvoker(),
+            NChunkClient::TDispatcher::Get()->GetWriterInvoker(),
             BIND(&TBufferedTableWriter::OnPeriodicFlush, Unretained(this)), Config_->FlushPeriod))
     {
         EmptyBuffers_.push(Buffers_);
@@ -210,7 +210,7 @@ private:
         LOG_DEBUG("Scheduling table chunk flush (BufferIndex: %v)",
             buffer->GetIndex());
 
-        TDispatcher::Get()->GetWriterInvoker()->Invoke(BIND(
+        NChunkClient::TDispatcher::Get()->GetWriterInvoker()->Invoke(BIND(
             &TBufferedTableWriter::FlushBuffer,
             MakeWeak(this),
             buffer));
