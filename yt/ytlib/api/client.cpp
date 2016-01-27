@@ -3,6 +3,7 @@
 #include "box.h"
 #include "config.h"
 #include "connection.h"
+#include "dispatcher.h"
 #include "file_reader.h"
 #include "file_writer.h"
 #include "journal_reader.h"
@@ -18,8 +19,6 @@
 
 #include <yt/ytlib/cypress_client/cypress_ypath_proxy.h>
 #include <yt/ytlib/cypress_client/rpc_helpers.h>
-
-#include <yt/ytlib/driver/dispatcher.h>
 
 #include <yt/ytlib/hive/cell_directory.h>
 #include <yt/ytlib/hive/config.h>
@@ -295,7 +294,7 @@ public:
         TTimestamp timestamp) override
     {
         return BIND(&TQueryHelper::DoGetInitialSplit, MakeStrong(this))
-            .AsyncVia(NDriver::TDispatcher::Get()->GetLightInvoker())
+            .AsyncVia(Connection_->GetDispatcher()->GetLightInvoker())
             .Run(path, timestamp);
     }
 
@@ -312,7 +311,7 @@ public:
                 : &TQueryHelper::DoExecute;
 
             return BIND(execute, MakeStrong(this))
-                .AsyncVia(NDriver::TDispatcher::Get()->GetHeavyInvoker())
+                .AsyncVia(Connection_->GetDispatcher()->GetHeavyInvoker())
                 .Run(std::move(query), std::move(dataSource), std::move(options), std::move(writer));
         }
     }
@@ -796,7 +795,7 @@ public:
         const TClientOptions& options)
         : Connection_(std::move(connection))
         , Options_(options)
-        , Invoker_(NDriver::TDispatcher::Get()->GetLightInvoker())
+        , Invoker_(Connection_->GetDispatcher()->GetLightInvoker())
         , FunctionRegistry_(Connection_->GetFunctionRegistry())
     {
         for (auto kind : TEnumTraits<EMasterChannelKind>::GetDomainValues()) {
@@ -2244,6 +2243,8 @@ DEFINE_REFCOUNTED_TYPE(TClient)
 
 IClientPtr CreateClient(IConnectionPtr connection, const TClientOptions& options)
 {
+    YCHECK(connection);
+
     return New<TClient>(std::move(connection), options);
 }
 

@@ -1,7 +1,8 @@
-#include "connection.h"
-#include "private.h"
 #include "admin.h"
 #include "config.h"
+#include "connection.h"
+#include "dispatcher.h"
+#include "private.h"
 
 #include <yt/ytlib/chunk_client/client_block_cache.h>
 
@@ -19,7 +20,10 @@
 #include <yt/ytlib/transaction_client/config.h>
 #include <yt/ytlib/transaction_client/remote_timestamp_provider.h>
 
+#include <yt/core/concurrency/action_queue.h>
+
 #include <yt/core/misc/common.h>
+#include <yt/core/misc/lazy_ptr.h>
 
 #include <yt/core/rpc/bus_channel.h>
 #include <yt/core/rpc/caching_channel_factory.h>
@@ -61,61 +65,6 @@ public:
         : Config_(config)
         , Options_(options)
     { }
-
-    void Initialize()
-    {
-        auto initMasterChannel = [&] (EMasterChannelKind channelKind, TMasterConnectionConfigPtr config, EPeerKind peerKind) {
-            MasterChannels_[channelKind] = CreatePeerChannel(config, peerKind);
-        };
-
-        auto masterConfig = Config_->Master;
-        auto masterCacheConfig = Config_->MasterCache ? Config_->MasterCache : Config_->Master;
-        initMasterChannel(EMasterChannelKind::Leader, masterConfig, EPeerKind::Leader);
-        initMasterChannel(EMasterChannelKind::Follower, masterConfig, Config_->EnableReadFromFollowers ? EPeerKind::Follower : EPeerKind::Leader);
-        initMasterChannel(EMasterChannelKind::LeaderOrFollower, masterConfig, Config_->EnableReadFromFollowers ? EPeerKind::LeaderOrFollower : EPeerKind::Leader);
-        initMasterChannel(EMasterChannelKind::Cache, masterCacheConfig, Config_->EnableReadFromFollowers ? EPeerKind::LeaderOrFollower : EPeerKind::Leader);
-
-        auto timestampProviderConfig = Config_->TimestampProvider;
-        if (!timestampProviderConfig) {
-            // Use masters for timestamp generation.
-            timestampProviderConfig = New<TRemoteTimestampProviderConfig>();
-            timestampProviderConfig->Addresses = Config_->Master->Addresses;
-            timestampProviderConfig->RpcTimeout = Config_->Master->RpcTimeout;
-        }
-        TimestampProvider_ = CreateRemoteTimestampProvider(
-            timestampProviderConfig,
-            GetBusChannelFactory());
-
-        SchedulerChannel_ = CreateSchedulerChannel(
-            Config_->Scheduler,
-            GetBusChannelFactory(),
-            GetMasterChannel(EMasterChannelKind::Leader));
-
-        NodeChannelFactory_ = CreateCachingChannelFactory(GetBusChannelFactory());
-
-        CellDirectory_ = New<TCellDirectory>(
-            Config_->CellDirectory,
-            GetBusChannelFactory(),
-            Config_->NetworkName);
-        CellDirectory_->ReconfigureCell(Config_->Master);
-
-        BlockCache_ = CreateClientBlockCache(
-            Config_->BlockCache,
-            EBlockType::CompressedData|EBlockType::UncompressedData);
-
-        TableMountCache_ = New<TTableMountCache>(
-            Config_->TableMountCache,
-            GetMasterChannel(EMasterChannelKind::Cache),
-            CellDirectory_);
-
-        FunctionRegistry_ = CreateClientFunctionRegistry(
-            CreateClient(TClientOptions()));
-
-        QueryEvaluator_ = New<TEvaluator>(Config_->QueryEvaluator);
-        ColumnEvaluatorCache_ = New<TColumnEvaluatorCache>(
-            Config_->ColumnEvaluatorCache,
-            FunctionRegistry_);
-    }
 
     // IConnection implementation.
 
@@ -169,6 +118,11 @@ public:
         return QueryEvaluator_;
     }
 
+    virtual TDispatcherPtr GetDispatcher() override
+    {
+        return Dispatcher_;
+    }
+
     virtual TColumnEvaluatorCachePtr GetColumnEvaluatorCache() override
     {
         return ColumnEvaluatorCache_;
@@ -184,11 +138,11 @@ public:
         return NApi::CreateClient(this, options);
     }
 
+
     virtual void ClearMetadataCaches() override
     {
         TableMountCache_->Clear();
     }
-
 
 private:
     const TConnectionConfigPtr Config_;
@@ -204,6 +158,7 @@ private:
     IFunctionRegistryPtr FunctionRegistry_;
     TEvaluatorPtr QueryEvaluator_;
     TColumnEvaluatorCachePtr ColumnEvaluatorCache_;
+    TDispatcherPtr Dispatcher_;
 
 
     IChannelPtr CreatePeerChannel(TMasterConnectionConfigPtr config, EPeerKind kind)
@@ -228,6 +183,66 @@ private:
         return retryingChannel;
     }
 
+    void Initialize()
+    {
+        Dispatcher_ = New<TDispatcher>(Config_->LightInvokerPoolSize, Config_->HeavyInvokerPoolSize);
+
+        auto initMasterChannel = [&] (EMasterChannelKind channelKind, TMasterConnectionConfigPtr config, EPeerKind peerKind) {
+            MasterChannels_[channelKind] = CreatePeerChannel(config, peerKind);
+        };
+
+        auto masterConfig = Config_->Master;
+        auto masterCacheConfig = Config_->MasterCache ? Config_->MasterCache : Config_->Master;
+        initMasterChannel(EMasterChannelKind::Leader, masterConfig, EPeerKind::Leader);
+        initMasterChannel(EMasterChannelKind::Follower, masterConfig, Config_->EnableReadFromFollowers ? EPeerKind::Follower : EPeerKind::Leader);
+        initMasterChannel(EMasterChannelKind::LeaderOrFollower, masterConfig, Config_->EnableReadFromFollowers ? EPeerKind::LeaderOrFollower : EPeerKind::Leader);
+        initMasterChannel(EMasterChannelKind::Cache, masterCacheConfig, Config_->EnableReadFromFollowers ? EPeerKind::LeaderOrFollower : EPeerKind::Leader);
+
+        auto timestampProviderConfig = Config_->TimestampProvider;
+        if (!timestampProviderConfig) {
+            // Use masters for timestamp generation.
+            timestampProviderConfig = New<TRemoteTimestampProviderConfig>();
+            timestampProviderConfig->Addresses = Config_->Master->Addresses;
+            timestampProviderConfig->RpcTimeout = Config_->Master->RpcTimeout;
+        }
+        TimestampProvider_ = CreateRemoteTimestampProvider(
+            timestampProviderConfig,
+            GetBusChannelFactory());
+
+        SchedulerChannel_ = CreateSchedulerChannel(
+            Config_->Scheduler,
+            GetBusChannelFactory(),
+            GetMasterChannel(EMasterChannelKind::Leader));
+
+        NodeChannelFactory_ = CreateCachingChannelFactory(GetBusChannelFactory());
+
+        CellDirectory_ = New<TCellDirectory>(
+            Config_->CellDirectory,
+            GetBusChannelFactory(),
+            Config_->NetworkName);
+        CellDirectory_->ReconfigureCell(Config_->Master);
+
+        BlockCache_ = CreateClientBlockCache(
+            Config_->BlockCache,
+            EBlockType::CompressedData|EBlockType::UncompressedData);
+
+        TableMountCache_ = New<TTableMountCache>(
+            Config_->TableMountCache,
+            GetMasterChannel(EMasterChannelKind::Cache),
+            CellDirectory_);
+
+        FunctionRegistry_ = CreateClientFunctionRegistry(
+            CreateClient(TClientOptions()));
+
+        QueryEvaluator_ = New<TEvaluator>(Config_->QueryEvaluator);
+        ColumnEvaluatorCache_ = New<TColumnEvaluatorCache>(
+            Config_->ColumnEvaluatorCache,
+            FunctionRegistry_);
+    }
+
+    friend IConnectionPtr CreateConnection(
+        TConnectionConfigPtr config,
+        const TConnectionOptions& options);
 };
 
 IConnectionPtr CreateConnection(
