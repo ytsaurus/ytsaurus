@@ -88,7 +88,10 @@ TCodegenSource MakeCodegenJoinOp(
     int index,
     std::vector<TCodegenExpression> equations,
     TTableSchema sourceSchema,
-    TCodegenSource codegenSource);
+    TCodegenSource codegenSource,
+    size_t keyPrefix,
+    std::vector<int> equationByIndex,
+    std::vector<TCodegenExpression> evaluatedColumns);
 
 std::function<void(TCGContext&, Value*, Value*)> MakeCodegenEvaluateGroups(
     std::vector<TCodegenExpression> codegenGroupExprs);

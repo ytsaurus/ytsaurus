@@ -123,6 +123,7 @@ public:
 
     NHive::TTransactionSupervisorConfigPtr TransactionSupervisor;
 
+<<<<<<< HEAD
     TMulticellManagerConfigPtr MulticellManager;
 
     //! RPC interface port number.
@@ -135,6 +136,44 @@ public:
     bool EnableProvisionLock;
 
     TCellMasterConfig();
+=======
+    //! If |true| then |//sys/@provision_lock| is set during cluster initialization.
+    bool EnableProvisionLock;
+
+    TCellMasterConfig()
+    {
+        RegisterParameter("master", Master);
+        RegisterParameter("changelogs", Changelogs);
+        RegisterParameter("snapshots", Snapshots);
+        RegisterParameter("hydra_manager", HydraManager)
+            .DefaultNew();
+        RegisterParameter("cell_directory", CellDirectory)
+            .DefaultNew();
+        RegisterParameter("hive_manager", HiveManager)
+            .DefaultNew();
+        RegisterParameter("node_tracker", NodeTracker)
+            .DefaultNew();
+        RegisterParameter("transaction_manager", TransactionManager)
+            .DefaultNew();
+        RegisterParameter("chunk_manager", ChunkManager)
+            .DefaultNew();
+        RegisterParameter("object_manager", ObjectManager)
+            .DefaultNew();
+        RegisterParameter("cypress_manager", CypressManager)
+            .DefaultNew();
+        RegisterParameter("security_manager", SecurityManager)
+            .DefaultNew();
+        RegisterParameter("tablet_manager", TabletManager)
+            .DefaultNew();
+        RegisterParameter("timestamp_manager", TimestampManager)
+            .DefaultNew();
+        RegisterParameter("timestamp_provider", TimestampProvider);
+        RegisterParameter("transaction_supervisor", TransactionSupervisor)
+            .DefaultNew();
+        RegisterParameter("enable_provision_lock", EnableProvisionLock)
+            .Default(true);
+    }
+>>>>>>> prestable/0.17.4
 };
 
 DEFINE_REFCOUNTED_TYPE(TCellMasterConfig)

@@ -3,6 +3,7 @@
 #include "table_node_proxy.h"
 
 #include <yt/server/cell_master/bootstrap.h>
+#include <yt/server/cell_master/config.h>
 
 #include <yt/server/chunk_server/chunk.h>
 #include <yt/server/chunk_server/chunk_list.h>
@@ -294,6 +295,10 @@ protected:
         }
     }
 
+    virtual int GetDefaultReplicationFactor() const override
+    {
+        return Bootstrap_->GetConfig()->CypressManager->DefaultTableReplicationFactor;
+    }
 };
 
 INodeTypeHandlerPtr CreateTableTypeHandler(TBootstrap* bootstrap)

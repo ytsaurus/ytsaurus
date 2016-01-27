@@ -122,6 +122,10 @@ function(UDF udf output type)
     MAIN_DEPENDENCY
       ${_realpath}
     DEPENDS
+      ${CLANGPP_EXECUTABLE}
+      ${CLANG_EXECUTABLE}
+      ${LLVM_OPT_EXECUTABLE}
+      ${LLVM_LINK_EXECUTABLE}
       ${_depends}
       ${_extrafiles}
     IMPLICIT_DEPENDS

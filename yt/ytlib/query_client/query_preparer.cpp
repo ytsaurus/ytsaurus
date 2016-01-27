@@ -1,6 +1,7 @@
 #include "query_preparer.h"
 #include "callbacks.h"
 #include "function_registry.h"
+#include "column_evaluator.h"
 #include "functions.h"
 #include "helpers.h"
 #include "lexer.h"
@@ -264,16 +265,15 @@ public:
         const NAst::TExpression* expr,
         const Stroka& source,
         IFunctionRegistry* functionRegistry,
-        const NAst::TAliasMap& aliasMap)
+        const NAst::TAliasMap& aliasMap,
+        yhash_set<Stroka>* references = nullptr)
     {
         std::set<Stroka> usedAliases;
         return PropagateNotExpression(
-            DoBuildTypedExpression(expr, source, functionRegistry, aliasMap, usedAliases));
+            DoBuildTypedExpression(expr, source, functionRegistry, aliasMap, usedAliases, references));
     }
 
     DEFINE_BYVAL_RO_PROPERTY(TTableSchema*, TableSchema);
-
-
 
 protected:
     TConstExpressionPtr DoBuildTypedExpression(
@@ -281,7 +281,8 @@ protected:
         const Stroka& source,
         IFunctionRegistry* functionRegistry,
         const NAst::TAliasMap& aliasMap,
-        std::set<Stroka>& usedAliases)
+        std::set<Stroka>& usedAliases,
+        yhash_set<Stroka>* references)
     {
         if (auto literalExpr = expr->As<NAst::TLiteralExpression>()) {
             const auto& literalValue = literalExpr->Value;
@@ -307,7 +308,8 @@ protected:
                             source,
                             functionRegistry,
                             aliasMap,
-                            usedAliases);
+                            usedAliases,
+                            references);
 
                         usedAliases.erase(columnName);
                         return aliasExpr;
@@ -316,6 +318,10 @@ protected:
 
                 THROW_ERROR_EXCEPTION("Undefined reference %Qv",
                     NAst::FormatColumn(referenceExpr->ColumnName, referenceExpr->TableName));
+            }
+
+            if (references) {
+                references->insert(column->Name);
             }
 
             return New<TReferenceExpression>(column->Type, column->Name);
@@ -359,7 +365,8 @@ protected:
                         source,
                         functionRegistry,
                         aliasMap,
-                        usedAliases);
+                        usedAliases,
+                        references);
                     types.push_back(typedArgument->Type);
                     typedOperands.push_back(typedArgument);
                 }
@@ -381,7 +388,8 @@ protected:
                 source,
                 functionRegistry,
                 aliasMap,
-                usedAliases);
+                usedAliases,
+                references);
 
             if (auto foldedExpr = FoldConstants(unaryExpr, typedOperand)) {
                 return foldedExpr;
@@ -416,13 +424,15 @@ protected:
                     source,
                     functionRegistry,
                     aliasMap,
-                    usedAliases);
+                    usedAliases,
+                    references);
                 auto typedRhs = DoBuildTypedExpression(
                     binaryExpr->Rhs[offset].Get(),
                     source,
                     functionRegistry,
                     aliasMap,
-                    usedAliases);
+                    usedAliases,
+                    references);
 
                 if (offset + 1 < keySize) {
                     auto next = gen(offset + 1, keySize, op);
@@ -476,19 +486,21 @@ protected:
                     source,
                     functionRegistry,
                     aliasMap,
-                    usedAliases);
+                    usedAliases,
+                    references);
                 auto typedRhs = DoBuildTypedExpression(
                     binaryExpr->Rhs.front().Get(),
                     source,
                     functionRegistry,
                     aliasMap,
-                    usedAliases);
+                    usedAliases,
+                    references);
 
                 return makeBinaryExpr(binaryExpr->Opcode, typedLhs, typedRhs);
             }
         } else if (auto inExpr = expr->As<NAst::TInExpression>()) {
             std::vector<TConstExpressionPtr> typedArguments;
-            std::unordered_set<Stroka> references;
+            std::unordered_set<Stroka> columnNames;
             std::vector<EValueType> argTypes;
 
             for (const auto& argument : inExpr->Expr) {
@@ -497,16 +509,17 @@ protected:
                     source,
                     functionRegistry,
                     aliasMap,
-                    usedAliases);
+                    usedAliases,
+                    references);
 
                 typedArguments.push_back(typedArgument);
                 argTypes.push_back(typedArgument->Type);
                 if (auto reference = typedArgument->As<TReferenceExpression>()) {
-                    if (references.find(reference->ColumnName) != references.end()) {
+                    if (columnNames.find(reference->ColumnName) != columnNames.end()) {
                         THROW_ERROR_EXCEPTION("IN operator has multiple references to column %Qv", reference->ColumnName)
                             << TErrorAttribute("source", source);
                     } else {
-                        references.insert(reference->ColumnName);
+                        columnNames.insert(reference->ColumnName);
                     }
                 }
             }
@@ -1379,7 +1392,7 @@ void ParseYqlString(
     }
 }
 
-TPlanFragmentPtr PreparePlanFragment(
+std::pair<TQueryPtr, TDataRanges> PreparePlanFragment(
     IPrepareCallbacks* callbacks,
     const Stroka& source,
     IFunctionRegistryPtr functionRegistry,
@@ -1426,11 +1439,11 @@ TPlanFragmentPtr PreparePlanFragment(
             .ValueOrThrow();
 
         auto foreignTableSchema = GetTableSchemaFromDataSplit(foreignDataSplit);
-        auto foreignKeyColumns = GetKeyColumnsFromDataSplit(foreignDataSplit);
+        auto foreignKeyColumnsCount = GetKeyColumnsFromDataSplit(foreignDataSplit).size();
 
         auto joinClause = New<TJoinClause>();
 
-        joinClause->ForeignKeyColumnsCount = foreignKeyColumns.size();
+        joinClause->ForeignKeyColumnsCount = foreignKeyColumnsCount;
         joinClause->ForeignDataId = GetObjectIdFromDataSplit(foreignDataSplit);
         joinClause->IsLeft = join.IsLeft;
 
@@ -1443,8 +1456,10 @@ TPlanFragmentPtr PreparePlanFragment(
             &joinClause->RenamedTableSchema,
             &joinClause->ForeignTableSchema,
             foreignTableSchema,
-            foreignKeyColumns.size(),
+            foreignKeyColumnsCount,
             join.Table.Alias);
+
+        std::vector<std::pair<TConstExpressionPtr, TConstExpressionPtr>> equations;
 
         // Merge columns.
         for (const auto& reference : join.Fields) {
@@ -1467,7 +1482,7 @@ TPlanFragmentPtr PreparePlanFragment(
                     << TErrorAttribute("foreign_type", foreignColumn->Type);
             }
 
-            joinClause->Equations.emplace_back(
+            equations.emplace_back(
                 New<TReferenceExpression>(selfColumn->Type, selfColumn->Name),
                 New<TReferenceExpression>(foreignColumn->Type, foreignColumn->Name));
 
@@ -1510,8 +1525,100 @@ TPlanFragmentPtr PreparePlanFragment(
                     << TErrorAttribute("foreign_type", rightEquations[index]->Type);
             }
 
-            joinClause->Equations.emplace_back(leftEquations[index], rightEquations[index]);
+            equations.emplace_back(leftEquations[index], rightEquations[index]);
         }
+
+        // If can use ranges, rearrange equations according to key columns and enrich with evaluated columns
+        const auto& renamedTableSchema = joinClause->RenamedTableSchema;
+
+
+        std::vector<int> equationByIndex(foreignKeyColumnsCount, -1);
+        for (size_t equationIndex = 0; equationIndex < equations.size(); ++equationIndex) {
+            const auto& column = equations[equationIndex];
+            const auto& expr = column.second;
+
+            if (const auto* refExpr = expr->As<TReferenceExpression>()) {
+                auto index = renamedTableSchema.GetColumnIndexOrThrow(refExpr->ColumnName);
+                if (index < foreignKeyColumnsCount) {
+                    equationByIndex[index] = equationIndex;
+                    continue;
+                }
+            }
+            break;
+        }
+
+        std::vector<bool> usedJoinKeyEquations(equations.size(), false);
+
+        std::vector<std::vector<int>> referenceIds(foreignKeyColumnsCount);
+        std::vector<TConstExpressionPtr> evaluatedColumnExprs(foreignKeyColumnsCount);
+
+        for (size_t index = 0; index < foreignKeyColumnsCount; ++index) {
+            if (!foreignTableSchema.Columns()[index].Expression) {
+                continue;
+            }
+
+            yhash_set<Stroka> references;
+            evaluatedColumnExprs[index] = PrepareExpression(
+                foreignTableSchema.Columns()[index].Expression.Get(),
+                foreignTableSchema,
+                functionRegistry,
+                &references);
+
+            for (const auto& reference : references) {
+                referenceIds[index].push_back(foreignTableSchema.GetColumnIndexOrThrow(reference));
+            }
+            std::sort(referenceIds[index].begin(), referenceIds[index].end());
+        }
+
+        size_t keyPrefix = 0;
+        for (; keyPrefix < foreignKeyColumnsCount; ++keyPrefix) {
+            if (equationByIndex[keyPrefix] >= 0) {
+                usedJoinKeyEquations[equationByIndex[keyPrefix]] = true;
+                continue;
+            }
+
+            if (foreignTableSchema.Columns()[keyPrefix].Expression) {
+                const auto& references = referenceIds[keyPrefix];
+                auto canEvaluate = true;
+                for (int referenceIndex : references) {
+                    if (equationByIndex[referenceIndex] < 0) {
+                        canEvaluate = false;
+                    }
+                }
+                if (canEvaluate) {
+                    continue;
+                }
+            }
+            break;
+        }
+
+        bool canUseSourceRanges = true;
+        for (auto flag : usedJoinKeyEquations) {
+            if (!flag) {
+                canUseSourceRanges = false;
+            }
+        }
+
+        joinClause->CanUseSourceRanges = canUseSourceRanges;
+        if (canUseSourceRanges) {
+            equationByIndex.resize(keyPrefix);
+            joinClause->EvaluatedColumns.resize(keyPrefix);
+
+            for (int column = 0; column < keyPrefix; ++column) {
+                joinClause->EvaluatedColumns[column] = evaluatedColumnExprs[column];
+            }
+        } else {
+            keyPrefix = equations.size();
+            equationByIndex.resize(keyPrefix);
+            joinClause->EvaluatedColumns.resize(keyPrefix);
+            for (size_t index = 0; index < keyPrefix; ++index) {
+                equationByIndex[index] = index;
+            }
+        }
+
+        joinClause->EquationByIndex = equationByIndex;
+        joinClause->KeyPrefix = keyPrefix;
+        joinClause->Equations = std::move(equations);
 
         schemaProxy = New<TJoinSchemaProxy>(
             &joinClause->JoinedTableSchema,
@@ -1523,31 +1630,38 @@ TPlanFragmentPtr PreparePlanFragment(
 
     PrepareQuery(query, ast, source, schemaProxy, functionRegistry.Get(), astHead.second);
 
-    auto planFragment = New<TPlanFragment>(source);
-
     if (ast.Limit) {
         query->Limit = ast.Limit;
-        if (!query->OrderClause) {
-            planFragment->Ordered = true;
-        }
     } else if (query->OrderClause) {
         THROW_ERROR_EXCEPTION("ORDER BY used without LIMIT");
     }
 
-    planFragment->Query = query;
-    planFragment->Timestamp = timestamp;
+    auto queryFingerprint = InferName(query, true);
+    LOG_DEBUG("Prepared query (Fingerprint: %v, InputSchema: %v, RenamedSchema: %v, ResultSchema: %v)",
+        queryFingerprint,
+        NYTree::ConvertToYsonString(query->TableSchema, NYson::EYsonFormat::Text).Data(),
+        NYTree::ConvertToYsonString(query->RenamedTableSchema, NYson::EYsonFormat::Text).Data(),
+        NYTree::ConvertToYsonString(query->GetTableSchema(), NYson::EYsonFormat::Text).Data());
 
     auto range = GetBothBoundsFromDataSplit(selfDataSplit);
 
+<<<<<<< HEAD
     TRowRange rowRange(
         planFragment->KeyRangesRowBuffer->Capture(range.first),
         planFragment->KeyRangesRowBuffer->Capture(range.second));
+=======
+    SmallVector<TRowRange, 1> rowRanges;
+    TRowBufferPtr buffer = New<TRowBuffer>();
+    rowRanges.push_back({
+        buffer->Capture(range.first.Get()),
+        buffer->Capture(range.second.Get())});
+>>>>>>> prestable/0.17.4
 
-    planFragment->DataSources.push_back({
-        GetObjectIdFromDataSplit(selfDataSplit),
-        rowRange});
+    TDataRanges dataSource;
+    dataSource.Id = GetObjectIdFromDataSplit(selfDataSplit);
+    dataSource.Ranges = MakeSharedRange(std::move(rowRanges), std::move(buffer));
 
-    return planFragment;
+    return std::make_pair(query, dataSource);
 }
 
 TParsedQueryInfo PrepareJobQueryAst(const Stroka& source)
@@ -1645,7 +1759,6 @@ TQueryPtr PrepareJobQuery(
     const TTableSchema& tableSchema,
     IFunctionRegistryPtr functionRegistry)
 {
-    auto planFragment = New<TPlanFragment>(source);
     auto unlimited = std::numeric_limits<i64>::max();
 
     auto query = New<TQuery>(unlimited, unlimited, TGuid::Create());
@@ -1668,7 +1781,8 @@ TQueryPtr PrepareJobQuery(
 TConstExpressionPtr PrepareExpression(
     const Stroka& source,
     TTableSchema tableSchema,
-    IFunctionRegistryPtr functionRegistry)
+    IFunctionRegistryPtr functionRegistry,
+    yhash_set<Stroka>* references)
 {
     NAst::TAstHead astHead{TVariantTypeTag<NAst::TExpressionPtr>(), NAst::TAliasMap()};
     ParseYqlString(
@@ -1684,7 +1798,8 @@ TConstExpressionPtr PrepareExpression(
         expr.Get(),
         source,
         functionRegistry.Get(),
-        astHead.second);
+        astHead.second,
+        references);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

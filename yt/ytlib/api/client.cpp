@@ -184,8 +184,10 @@ class TQueryResponseReader
 public:
     TQueryResponseReader(
         TFuture<TQueryServiceProxy::TRspExecutePtr> asyncResponse,
-        const TTableSchema& schema)
+        const TTableSchema& schema,
+        const NLogging::TLogger& logger)
         : Schema_(schema)
+        , Logger(logger)
     {
         QueryResult_ = asyncResponse.Apply(BIND(
             &TQueryResponseReader::OnResponse,
@@ -212,14 +214,27 @@ public:
     }
 
 private:
+
     TTableSchema Schema_;
     ISchemafulReaderPtr RowsetReader_;
 
     TFuture<TQueryStatistics> QueryResult_;
 
+    NLogging::TLogger Logger;
+
     TQueryStatistics OnResponse(const TQueryServiceProxy::TRspExecutePtr& response)
     {
-        auto data  = NCompression::DecompressWithEnvelope(response->Attachments());
+        TSharedRef data;
+
+        TDuration deserializationTime;
+        {
+            NProfiling::TAggregatingTimingGuard timingGuard(&deserializationTime);
+            data = NCompression::DecompressWithEnvelope(response->Attachments());
+        }
+
+        LOG_DEBUG("Received subquery result (DeserializationTime: %v, DataSize: %v)",
+            deserializationTime,
+            data.Size());
 
         YCHECK(!RowsetReader_);
         RowsetReader_ = TWireProtocolReader(data).CreateSchemafulRowsetReader(Schema_);
@@ -259,21 +274,21 @@ public:
             .Run(path, timestamp);
     }
 
-    // IExecutor implementation.
-
     virtual TFuture<TQueryStatistics> Execute(
-        TPlanFragmentPtr fragment,
-        ISchemafulWriterPtr writer) override
+        TConstQueryPtr query,
+        TDataRanges dataSource,
+        ISchemafulWriterPtr writer,
+        TQueryOptions options) override
     {
         TRACE_CHILD("QueryClient", "Execute") {
 
-            auto execute = fragment->Ordered
+            auto execute = query->IsOrdered()
                 ? &TQueryHelper::DoExecuteOrdered
                 : &TQueryHelper::DoExecute;
 
             return BIND(execute, MakeStrong(this))
                 .AsyncVia(NDriver::TDispatcher::Get()->GetHeavyInvoker())
-                .Run(fragment, std::move(writer));
+                .Run(std::move(query), std::move(dataSource), std::move(options), std::move(writer));
         }
     }
 
@@ -303,15 +318,16 @@ private:
         return result;
     }
 
-    std::vector<std::pair<TDataSource, Stroka>> Split(
-        TGuid objectId,
-        const std::vector<TRowRange>& ranges,
+    std::vector<std::pair<TDataRanges, Stroka>> SplitTable(
+        TGuid tableId,
+        TSharedRange<TRowRange> ranges,
         TRowBufferPtr rowBuffer,
         const NLogging::TLogger& Logger,
         bool verboseLogging)
     {
-        std::vector<std::pair<TDataSource, Stroka>> result;
+        YCHECK(TypeFromId(tableId) == EObjectType::Table);
 
+<<<<<<< HEAD
         if (TypeFromId(objectId) == EObjectType::Table) {
             result = SplitTableFurther(objectId, ranges, std::move(rowBuffer));
             LOG_DEBUG_IF(verboseLogging, "Got %v sources for input %v",
@@ -327,6 +343,8 @@ private:
         const std::vector<TRowRange>& ranges,
         TRowBufferPtr rowBuffer)
     {
+=======
+>>>>>>> prestable/0.17.4
         auto tableMountCache = Connection_->GetTableMountCache();
         auto tableInfo = WaitFor(tableMountCache->GetTableInfo(FromObjectId(tableId)))
             .ValueOrThrow();
@@ -335,14 +353,26 @@ private:
             THROW_ERROR_EXCEPTION("Expected a sorted table, but got unsorted");
         }
 
-        return tableInfo->Dynamic
-            ? SplitDynamicTableFurther(tableId, ranges, std::move(rowBuffer), std::move(tableInfo))
-            : SplitStaticTableFurther(tableId, ranges, std::move(rowBuffer));
+        auto result = tableInfo->Dynamic
+            ? SplitDynamicTable(tableId, std::move(ranges), std::move(rowBuffer), std::move(tableInfo))
+            : SplitStaticTable(tableId, std::move(ranges), std::move(rowBuffer));
+
+        LOG_DEBUG_IF(verboseLogging, "Got %v sources for input %v",
+            result.size(),
+            tableId);
+
+        return result;
     }
 
+<<<<<<< HEAD
     std::vector<std::pair<TDataSource, Stroka>> SplitStaticTableFurther(
         const TObjectId& tableId,
         const std::vector<TRowRange>& ranges,
+=======
+    std::vector<std::pair<TDataRanges, Stroka>> SplitStaticTable(
+        TGuid tableId,
+        TSharedRange<TRowRange> ranges,
+>>>>>>> prestable/0.17.4
         TRowBufferPtr rowBuffer)
     {
         std::vector<TReadRange> readRanges;
@@ -403,7 +433,7 @@ private:
             }
         }
 
-        std::vector<std::pair<TDataSource, Stroka>> subsources;
+        std::vector<std::pair<TDataRanges, Stroka>> subsources;
         for (const auto& range : ranges) {
             auto lowerBound = range.first;
             auto upperBound = range.second;
@@ -432,16 +462,22 @@ private:
                         objectId);
                 }
 
+<<<<<<< HEAD
                 auto selectedReplica = replicas[RandomNumber(replicas.size())];
-
-                TDataSource dataSource;
-                dataSource.Id = GetObjectIdFromDataSplit(chunkSpec);
-
-                dataSource.Range.first = rowBuffer->Capture(std::max(lowerBound, keyRange.first.Get()));
-                dataSource.Range.second = rowBuffer->Capture(std::min(upperBound, keyRange.second.Get()));
-
+=======
+                const TChunkReplica& selectedReplica = replicas[RandomNumber(replicas.size())];
                 const auto& descriptor = nodeDirectory->GetDescriptor(selectedReplica);
                 const auto& address = descriptor.GetAddressOrThrow(networkName);
+>>>>>>> prestable/0.17.4
+
+                TRowRange subrange;
+                subrange.first = rowBuffer->Capture(std::max(lowerBound, keyRange.first.Get()));
+                subrange.second = rowBuffer->Capture(std::min(upperBound, keyRange.second.Get()));
+
+                TDataRanges dataSource{
+                    GetObjectIdFromDataSplit(chunkSpec),
+                    MakeSharedRange(SmallVector<TRowRange, 1>{subrange}, rowBuffer, ranges.GetHolder())};
+
                 subsources.emplace_back(dataSource, address);
             }
         }
@@ -449,6 +485,7 @@ private:
         return subsources;
     }
 
+<<<<<<< HEAD
     static const TCellPeerDescriptor& GetLeadingTabletPeerDescriptor(const TCellDescriptor& cellDescriptor)
     {
         if (cellDescriptor.Peers.empty()) {
@@ -469,6 +506,11 @@ private:
     std::vector<std::pair<TDataSource, Stroka>> SplitDynamicTableFurther(
         const TObjectId& tableId,
         const std::vector<TRowRange>& ranges,
+=======
+    std::vector<std::pair<TDataRanges, Stroka>> SplitDynamicTable(
+        TGuid tableId,
+        TSharedRange<TRowRange> ranges,
+>>>>>>> prestable/0.17.4
         TRowBufferPtr rowBuffer,
         TTableMountInfoPtr tableInfo)
     {
@@ -480,12 +522,37 @@ private:
         const auto& cellDirectory = Connection_->GetCellDirectory();
         const auto& networkName = Connection_->GetConfig()->NetworkName;
 
+<<<<<<< HEAD
         std::vector<std::pair<TDataSource, Stroka>> subsources;
         yhash_map<NTabletClient::TTabletCellId, TCellDescriptor> tabletCellReplicas;
+=======
+        yhash_map<NTabletClient::TTabletCellId, std::vector<Stroka>> tabletCellReplicas;
+>>>>>>> prestable/0.17.4
 
-        for (const auto& range : ranges) {
-            auto lowerBound = range.first;
-            auto upperBound = range.second;
+        auto getAddresses = [&] (const TTabletInfoPtr& tabletInfo) mutable -> const std::vector<Stroka> & {
+            if (tabletInfo->State != ETabletState::Mounted) {
+                // TODO(babenko): learn to work with unmounted tablets
+                THROW_ERROR_EXCEPTION("Tablet %v is not mounted",
+                    tabletInfo->TabletId);
+            }
+
+            auto replicasIt = tabletCellReplicas.insert(std::make_pair(tabletInfo->CellId, std::vector<Stroka>()));
+            if (replicasIt.second) {
+                replicasIt.first->second = cellDirectory->GetAddressesOrThrow(tabletInfo->CellId);
+
+                if (replicasIt.first->second.empty()) {
+                    THROW_ERROR_EXCEPTION("No alive replicas for tablet %v",
+                        tabletInfo->TabletId);
+                }
+            }
+
+            return replicasIt.first->second;
+        };
+
+        std::vector<std::pair<TDataRanges, Stroka>> subsources;
+        for (auto rangesIt = begin(ranges); rangesIt != end(ranges);) {
+            auto lowerBound = rangesIt->first;
+            auto upperBound = rangesIt->second;
 
             // Run binary search to find the relevant tablets.
             auto startIt = std::upper_bound(
@@ -496,26 +563,59 @@ private:
                     return key < tabletInfo->PivotKey;
                 }) - 1;
 
+<<<<<<< HEAD
             for (auto it = startIt; it != tableInfo->Tablets.end(); ++it) {
                 const auto& tabletInfo = *it;
                 if (upperBound <= tabletInfo->PivotKey)
                     break;
+=======
+            auto tabletInfo = *startIt;
+            auto nextPivotKey = (startIt + 1 == tableInfo->Tablets.end()) ? MaxKey() : (*(startIt + 1))->PivotKey;
 
-                if (tabletInfo->State != ETabletState::Mounted) {
-                    // TODO(babenko): learn to work with unmounted tablets
-                    THROW_ERROR_EXCEPTION("Tablet %v is not mounted",
-                        tabletInfo->TabletId);
-                }
+            if (upperBound < nextPivotKey) {
+                auto rangesItEnd = std::upper_bound(
+                    rangesIt,
+                    end(ranges),
+                    nextPivotKey.Get(),
+                    [] (const TRow& key, const TRowRange& rowRange) {
+                        return key < rowRange.second;
+                    });
+>>>>>>> prestable/0.17.4
 
-                TDataSource subsource;
-                subsource.Id = tabletInfo->TabletId;
+                const auto& addresses = getAddresses(tabletInfo);
+                const auto& address = addresses[RandomNumber(addresses.size())];
 
-                auto pivotKey = tabletInfo->PivotKey;
-                auto nextPivotKey = (it + 1 == tableInfo->Tablets.end()) ? MaxKey() : (*(it + 1))->PivotKey;
+                TDataRanges dataSource{
+                    tabletInfo->TabletId,
+                    MakeSharedRange(
+                        MakeRange<TRowRange>(rangesIt, rangesItEnd),
+                        rowBuffer,
+                        ranges.GetHolder())};
 
-                subsource.Range.first = rowBuffer->Capture(std::max(lowerBound, pivotKey.Get()));
-                subsource.Range.second = rowBuffer->Capture(std::min(upperBound, nextPivotKey.Get()));
+                subsources.emplace_back(dataSource, address);
+                rangesIt = rangesItEnd;
+            } else {
+                for (auto it = startIt; it != tableInfo->Tablets.end(); ++it) {
+                    const auto& tabletInfo = *it;
+                    YASSERT(upperBound > tabletInfo->PivotKey);
 
+                    const auto& addresses = getAddresses(tabletInfo);
+                    const auto& address = addresses[RandomNumber(addresses.size())];
+
+                    auto pivotKey = tabletInfo->PivotKey;
+                    auto nextPivotKey = (it + 1 == tableInfo->Tablets.end()) ? MaxKey() : (*(it + 1))->PivotKey;
+
+                    bool isLast = upperBound <= nextPivotKey;
+
+                    TRowRange subrange;
+                    subrange.first = it == startIt ? lowerBound : rowBuffer->Capture(pivotKey.Get());
+                    subrange.second = isLast ? upperBound : rowBuffer->Capture(nextPivotKey.Get());
+
+                    TDataRanges dataSource{
+                        tabletInfo->TabletId,
+                        MakeSharedRange(SmallVector<TRowRange, 1>{subrange}, rowBuffer, ranges.GetHolder())};
+
+<<<<<<< HEAD
                 auto insertResult = tabletCellReplicas.insert(std::make_pair(tabletInfo->CellId, TCellDescriptor()));
                 auto& descriptor = insertResult.first->second;
 
@@ -526,20 +626,60 @@ private:
                 const auto& peerDescriptor = GetLeadingTabletPeerDescriptor(descriptor);
                 auto address = peerDescriptor.GetAddress(networkName);
                 subsources.emplace_back(std::move(subsource), std::move(address));
+=======
+                    subsources.emplace_back(dataSource, address);
+
+                    if (isLast) {
+                        break;
+                    }
+                }
+                ++rangesIt;
+>>>>>>> prestable/0.17.4
             }
         }
 
         return subsources;
     }
 
+    std::vector<std::pair<TDataRanges, Stroka>> InferRanges(
+        TConstQueryPtr query,
+        TDataRanges dataSource,
+        ui64 rangeExpansionLimit,
+        bool verboseLogging,
+        TRowBufferPtr rowBuffer,
+        const NLogging::TLogger& Logger)
+    {
+        const auto& tableId = dataSource.Id;
+        auto ranges = dataSource.Ranges;
+
+        auto prunedRanges = GetPrunedRanges(
+            query,
+            tableId,
+            ranges,
+            rowBuffer,
+            Connection_->GetColumnEvaluatorCache(),
+            FunctionRegistry_,
+            rangeExpansionLimit,
+            verboseLogging);
+
+        LOG_DEBUG("Splitting %v pruned splits", prunedRanges.size());
+
+        return SplitTable(
+            tableId,
+            MakeSharedRange(std::move(prunedRanges), rowBuffer),
+            std::move(rowBuffer),
+            Logger,
+            verboseLogging);
+    }
+
     TQueryStatistics DoCoordinateAndExecute(
-        TPlanFragmentPtr fragment,
+        TConstQueryPtr query,
+        TQueryOptions options,
         ISchemafulWriterPtr writer,
         int subrangesCount,
-        bool isOrdered,
-        std::function<std::pair<TDataSources, Stroka>(int)> getSubsources)
+        std::function<std::pair<std::vector<TDataRanges>, Stroka>(int)> getSubsources)
     {
-        auto Logger = BuildLogger(fragment->Query);
+        auto Logger = BuildLogger(query);
 
         std::vector<TRefiner> refiners(subrangesCount, [] (
             TConstExpressionPtr expr,
@@ -549,85 +689,62 @@ private:
             });
 
         return CoordinateAndExecute(
-            fragment->Query,
+            query,
             writer,
             refiners,
-            isOrdered,
             [&] (TConstQueryPtr subquery, int index) {
-                auto subfragment = New<TPlanFragment>(fragment->Source);
-                subfragment->Timestamp = fragment->Timestamp;
-                subfragment->Query = subquery;
-                subfragment->RangeExpansionLimit = fragment->RangeExpansionLimit,
-                subfragment->VerboseLogging = fragment->VerboseLogging;
-                subfragment->EnableCodeCache = fragment->EnableCodeCache;
-                subfragment->Ordered = fragment->Ordered;
-
+                std::vector<TDataRanges> dataSources;
                 Stroka address;
-                std::tie(subfragment->DataSources, address) = getSubsources(index);
+                std::tie(dataSources, address) = getSubsources(index);
 
-                LOG_DEBUG("Delegating subquery (SubqueryId: %v, Address: %v)",
+                LOG_DEBUG("Delegating subquery (SubqueryId: %v, Address: %v, MaxSubqueries %v)",
                     subquery->Id,
-                    address);
+                    address,
+                    options.MaxSubqueries);
 
-                return Delegate(subfragment, address);
+                return Delegate(std::move(subquery), options, std::move(dataSources), address);
             },
             [&] (TConstQueryPtr topQuery, ISchemafulReaderPtr reader, ISchemafulWriterPtr writer) {
                 LOG_DEBUG("Evaluating top query (TopQueryId: %v)", topQuery->Id);
                 auto evaluator = Connection_->GetQueryEvaluator();
-                return evaluator->Run(topQuery, std::move(reader), std::move(writer), FunctionRegistry_, fragment->EnableCodeCache);
+                return evaluator->Run(
+                    std::move(topQuery),
+                    std::move(reader),
+                    std::move(writer),
+                    FunctionRegistry_,
+                    options.EnableCodeCache);
             },
             FunctionRegistry_);
     }
 
-    std::vector<std::pair<TDataSource, Stroka>> InferRanges(
-        TPlanFragmentPtr fragment,
-        TRowBufferPtr rowBuffer,
-        const NLogging::TLogger& Logger)
-    {
-        const auto& dataSources = fragment->DataSources;
-
-        auto prunedRanges = GetPrunedRanges(
-            fragment->Query,
-            dataSources,
-            rowBuffer,
-            Connection_->GetColumnEvaluatorCache(),
-            FunctionRegistry_,
-            fragment->RangeExpansionLimit,
-            fragment->VerboseLogging);
-
-        LOG_DEBUG("Splitting %v pruned splits", prunedRanges.size());
-
-        std::vector<std::pair<TDataSource, Stroka>> allSplits;
-        for (int index = 0; index < dataSources.size(); ++index) {
-            const auto& id = dataSources[index].Id;
-            const auto& ranges = prunedRanges[index];
-            auto splits = Split(id, ranges, rowBuffer, Logger, fragment->VerboseLogging);
-            std::move(splits.begin(), splits.end(), std::back_inserter(allSplits));
-        }
-
-        return allSplits;
-    }
-
     TQueryStatistics DoExecute(
-        TPlanFragmentPtr fragment,
+        TConstQueryPtr query,
+        TDataRanges dataSource,
+        TQueryOptions options,
         ISchemafulWriterPtr writer)
     {
-        auto Logger = BuildLogger(fragment->Query);
+        auto Logger = BuildLogger(query);
 
         auto rowBuffer = New<TRowBuffer>();
-        auto allSplits = InferRanges(fragment, rowBuffer, Logger);
+        auto allSplits = InferRanges(
+            query,
+            dataSource,
+            options.RangeExpansionLimit,
+            options.VerboseLogging,
+            rowBuffer,
+            Logger);
 
-        yhash_map<Stroka, TDataSources> groupsByAddress;
+        LOG_DEBUG("Regrouping %v splits into groups",
+            allSplits.size());
+
+        yhash_map<Stroka, std::vector<TDataRanges>> groupsByAddress;
         for (const auto& split : allSplits) {
             const auto& address = split.second;
             groupsByAddress[address].push_back(split.first);
         }
 
-        std::vector<std::pair<TDataSources, Stroka>> groupedSplits;
+        std::vector<std::pair<std::vector<TDataRanges>, Stroka>> groupedSplits;
         for (const auto& group : groupsByAddress) {
-            if (group.second.empty()) {
-                continue;
-            }
             groupedSplits.emplace_back(group.second, group.first);
         }
 
@@ -635,44 +752,56 @@ private:
             allSplits.size(),
             groupsByAddress.size());
 
-        return DoCoordinateAndExecute(fragment, writer, groupedSplits.size(), false, [&] (int index) {
+        return DoCoordinateAndExecute(query, options, writer, groupedSplits.size(), [&] (int index) {
             return groupedSplits[index];
         });
     }
 
     TQueryStatistics DoExecuteOrdered(
-        TPlanFragmentPtr fragment,
+        TConstQueryPtr query,
+        TDataRanges dataSource,
+        TQueryOptions options,
         ISchemafulWriterPtr writer)
     {
-        auto Logger = BuildLogger(fragment->Query);
+        auto Logger = BuildLogger(query);
 
         auto rowBuffer = New<TRowBuffer>();
-        auto allSplits = InferRanges(fragment, rowBuffer, Logger);
+        auto allSplits = InferRanges(
+            query,
+            dataSource,
+            options.RangeExpansionLimit,
+            options.VerboseLogging,
+            rowBuffer,
+            Logger);
 
+        // Should be already sorted
         LOG_DEBUG("Sorting %v splits", allSplits.size());
 
         std::sort(
             allSplits.begin(),
             allSplits.end(),
-            [] (const std::pair<TDataSource, Stroka>& lhs, const std::pair<TDataSource, Stroka>& rhs) {
-                return lhs.first.Range.first < rhs.first.Range.first;
+            [] (const std::pair<TDataRanges, Stroka>& lhs, const std::pair<TDataRanges, Stroka>& rhs) {
+                return lhs.first.Ranges.Begin()->first < rhs.first.Ranges.Begin()->first;
             });
 
-        return DoCoordinateAndExecute(fragment, writer, allSplits.size(), true, [&] (int index) {
+        return DoCoordinateAndExecute(query, options, writer, allSplits.size(), [&] (int index) {
             const auto& split = allSplits[index];
-            const auto& address = split.second;
+
             LOG_DEBUG("Delegating to tablet %v at %v",
                 split.first.Id,
-                address);
-            return std::make_pair(TDataSources(1, split.first), address);
+                split.second);
+
+            return std::make_pair(std::vector<TDataRanges>(1, split.first), split.second);
         });
     }
 
    std::pair<ISchemafulReaderPtr, TFuture<TQueryStatistics>> Delegate(
-        TPlanFragmentPtr fragment,
+        TConstQueryPtr query,
+        TQueryOptions options,
+        std::vector<TDataRanges> dataSources,
         const Stroka& address)
     {
-        auto Logger = BuildLogger(fragment->Query);
+        auto Logger = BuildLogger(query);
 
         TRACE_CHILD("QueryClient", "Delegate") {
             auto channel = NodeChannelFactory_->CreateChannel(address);
@@ -686,14 +815,24 @@ private:
             TDuration serializationTime;
             {
                 NProfiling::TAggregatingTimingGuard timingGuard(&serializationTime);
-                ToProto(req->mutable_plan_fragment(), fragment);
+                ToProto(req->mutable_query(), query);
+                ToProto(req->mutable_options(), options);
+                ToProto(req->mutable_data_sources(), dataSources);
+
                 req->set_response_codec(static_cast<int>(config->QueryResponseCodec));
             }
+
+            LOG_DEBUG("Sending subquery (SerializationTime: %v, RequestSize: %v)",
+                serializationTime,
+                req->ByteSize());
 
             TRACE_ANNOTATION("serialization_time", serializationTime);
             TRACE_ANNOTATION("request_size", req->ByteSize());
 
-            auto resultReader = New<TQueryResponseReader>(req->Invoke(), fragment->Query->GetTableSchema());
+            auto resultReader = New<TQueryResponseReader>(
+                req->Invoke(),
+                query->GetTableSchema(),
+                Logger);
             return std::make_pair(resultReader, resultReader->GetQueryResult());
         }
     }
@@ -1096,33 +1235,37 @@ private:
     {
         int retryCount = 0;
         while (true) {
+            TError error;
+
             try {
                 return callback();
             } catch (const NYT::TErrorException& ex) {
-                auto config = Connection_->GetConfig();
-                if (++retryCount <= config->TableMountInfoUpdateRetryCount) {
-                    const auto& error = ex.Error();
-                    if (error.FindMatching(NTabletClient::EErrorCode::NoSuchTablet) ||
-                        error.FindMatching(NTabletClient::EErrorCode::TabletNotMounted))
-                    {
-                        LOG_DEBUG(error, "Got error, will clear table mount cache and retry");
-                        auto tabletId = error.Attributes().Get<TTabletId>("tablet_id");
-                        auto tableMountCache = Connection_->GetTableMountCache();
-                        auto tabletInfo = tableMountCache->FindTablet(tabletId);
-                        if (tabletInfo) {
-                            tableMountCache->InvalidateTablet(tabletInfo);
-                            auto now = Now();
-                            auto retryTime = tabletInfo->UpdateTime + config->TableMountInfoUpdateRetryPeriod;
-                            if (retryTime > now) {
-                                WaitFor(TDelayedExecutor::MakeDelayed(retryTime - now))
-                                    .ThrowOnError();
-                            }
-                        }
-                        continue;
-                    }
-                }
-                throw;
+                error = ex.Error();
             }
+
+            auto config = Connection_->GetConfig();
+            if (++retryCount <= config->TableMountInfoUpdateRetryCount) {
+                if (error.FindMatching(NTabletClient::EErrorCode::NoSuchTablet) ||
+                    error.FindMatching(NTabletClient::EErrorCode::TabletNotMounted))
+                {
+                    LOG_DEBUG(error, "Got error, will clear table mount cache and retry");
+                    auto tabletId = error.Attributes().Get<TTabletId>("tablet_id");
+                    auto tableMountCache = Connection_->GetTableMountCache();
+                    auto tabletInfo = tableMountCache->FindTablet(tabletId);
+                    if (tabletInfo) {
+                        tableMountCache->InvalidateTablet(tabletInfo);
+                        auto now = Now();
+                        auto retryTime = tabletInfo->UpdateTime + config->TableMountInfoUpdateRetryPeriod;
+                        if (retryTime > now) {
+                            WaitFor(TDelayedExecutor::MakeDelayed(retryTime - now))
+                                .ThrowOnError();
+                        }
+                    }
+                    continue;
+                }
+            }
+
+            THROW_ERROR error;
         }
     }
 
@@ -1480,37 +1623,44 @@ private:
     }
 
     std::pair<IRowsetPtr, TQueryStatistics> DoSelectRows(
-        const Stroka& query,
+        const Stroka& queryString,
         const TSelectRowsOptions& options)
     {
         return CallAndRetryIfMetadataCacheIsInconsistent([&] () {
-            return DoSelectRowsOnce(query, options);
+            return DoSelectRowsOnce(queryString, options);
         });
     }
 
     std::pair<IRowsetPtr, TQueryStatistics> DoSelectRowsOnce(
-        const Stroka& query,
+        const Stroka& queryString,
         const TSelectRowsOptions& options)
     {
         auto inputRowLimit = options.InputRowLimit.Get(Connection_->GetConfig()->DefaultInputRowLimit);
         auto outputRowLimit = options.OutputRowLimit.Get(Connection_->GetConfig()->DefaultOutputRowLimit);
-        auto fragment = PreparePlanFragment(
+
+        TQueryPtr query;
+        TDataRanges dataSource;
+        std::tie(query, dataSource) = PreparePlanFragment(
             QueryHelper_.Get(),
-            query,
+            queryString,
             FunctionRegistry_,
             inputRowLimit,
             outputRowLimit,
             options.Timestamp);
-        fragment->RangeExpansionLimit = options.RangeExpansionLimit;
-        fragment->VerboseLogging = options.VerboseLogging;
-        fragment->EnableCodeCache = options.EnableCodeCache;
-        fragment->MaxSubqueries = options.MaxSubqueries;
+
+        TQueryOptions queryOptions;
+
+        queryOptions.Timestamp = options.Timestamp;
+        queryOptions.RangeExpansionLimit = options.RangeExpansionLimit;
+        queryOptions.VerboseLogging = options.VerboseLogging;
+        queryOptions.EnableCodeCache = options.EnableCodeCache;
+        queryOptions.MaxSubqueries = options.MaxSubqueries;
 
         ISchemafulWriterPtr writer;
         TFuture<IRowsetPtr> asyncRowset;
-        std::tie(writer, asyncRowset) = CreateSchemafulRowsetWriter(fragment->Query->GetTableSchema());
+        std::tie(writer, asyncRowset) = CreateSchemafulRowsetWriter(query->GetTableSchema());
 
-        auto statistics = WaitFor(QueryHelper_->Execute(fragment, writer))
+        auto statistics = WaitFor(QueryHelper_->Execute(query, dataSource, writer, queryOptions))
             .ValueOrThrow();
 
         auto rowset = WaitFor(asyncRowset)

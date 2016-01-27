@@ -131,6 +131,7 @@ ISchemafulReaderPtr CreateSchemafulTabletReader(
     int concurrency,
     TRowBufferPtr rowBuffer)
 {
+<<<<<<< HEAD
     YCHECK(!rowBuffer || concurrency == 1);
 
     auto takePartition = [&] (
@@ -157,7 +158,36 @@ ISchemafulReaderPtr CreateSchemafulTabletReader(
         std::vector<IStorePtr> stores;
         takePartition(tabletSnapshot->Eden, minKey, maxKey, &stores);
         takePartition(partition, minKey, maxKey, &stores);
+=======
+public:
+    TTabletKeysReader(
+        TTabletPerformanceCountersPtr performanceCounters,
+        const TDynamicRowKeyComparer& keyComparer)
+        : TBase(performanceCounters, keyComparer)
+        , Pool_(TTabletReaderPoolTag())
+    { }
 
+    static void TakePartition(
+        std::vector<IStorePtr>& stores,
+        const TPartitionSnapshotPtr& partitionSnapshot,
+        TKey minKey,
+        TKey maxKey)
+    {
+        for (const auto& store : partitionSnapshot->Stores) {
+            if (store->GetMinKey() <= maxKey && store->GetMaxKey() >= minKey) {
+                stores.push_back(store);
+            }
+        }
+    }
+>>>>>>> prestable/0.17.4
+
+    static ISchemafulReaderPtr Create(
+        TTabletSnapshotPtr tabletSnapshot,
+        const TTableSchema& schema,
+        TSharedRange <TKey> keys,
+        TTimestamp timestamp,
+        std::vector<IStorePtr> stores)
+    {
         LOG_DEBUG("Creating schemaful tablet reader (TabletId: %v, CellId: %v, Timestamp: %v, StoreIds: [%v])",
             tabletSnapshot->TabletId,
             tabletSnapshot->CellId,
@@ -221,7 +251,73 @@ ISchemafulReaderPtr CreateSchemafulTabletReader(
         }
     };
 
+<<<<<<< HEAD
     return CreateUnorderedSchemafulReader(std::move(readerFactory), concurrency);
+=======
+ISchemafulReaderPtr CreateSchemafulTabletReader(
+    TTabletSnapshotPtr tabletSnapshot,
+    const TTableSchema& schema,
+    const TSharedRange<TKey>& keys,
+    TTimestamp timestamp)
+{
+    TKey minKey;
+    TKey maxKey;
+
+    for (const auto& key : keys) {
+        minKey = !minKey || key < minKey ? key : minKey;
+        maxKey = !maxKey || key > maxKey ? key : maxKey;
+    }
+
+    // Select stores.
+    std::vector<IStorePtr> stores;
+
+    TTabletKeysReader::TakePartition(stores, tabletSnapshot->Eden, minKey, maxKey);
+
+    std::vector<TPartitionSnapshotPtr> snapshots;
+    for (auto key : keys) {
+        snapshots.push_back(tabletSnapshot->FindContainingPartition(key));
+    }
+
+    std::sort(snapshots.begin(), snapshots.end());
+    snapshots.erase(std::unique(snapshots.begin(), snapshots.end()), snapshots.end());
+
+    for (const auto& snapshot : snapshots) {
+        TTabletKeysReader::TakePartition(stores, snapshot, minKey, maxKey);
+    }
+
+    return TTabletKeysReader::Create(
+        std::move(tabletSnapshot),
+        schema,
+        std::move(keys),
+        timestamp,
+        std::move(stores));
+}
+
+ISchemafulReaderPtr CreateSchemafulTabletReader(
+    TTabletSnapshotPtr tabletSnapshot,
+    const TTableSchema& schema,
+    TPartitionSnapshotPtr paritionSnapshot,
+    const TSharedRange<TKey>& keys,
+    TTimestamp timestamp)
+{
+    YCHECK(keys.Size() > 0);
+
+    TKey minKey = keys[0];
+    TKey maxKey = keys[keys.Size() - 1];
+
+    // Select stores.
+    std::vector<IStorePtr> stores;
+
+    TTabletKeysReader::TakePartition(stores, tabletSnapshot->Eden, minKey, maxKey);
+    TTabletKeysReader::TakePartition(stores, paritionSnapshot, minKey, maxKey);
+
+    return TTabletKeysReader::Create(
+        std::move(tabletSnapshot),
+        schema,
+        std::move(keys),
+        timestamp,
+        std::move(stores));
+>>>>>>> prestable/0.17.4
 }
 
 ////////////////////////////////////////////////////////////////////////////////

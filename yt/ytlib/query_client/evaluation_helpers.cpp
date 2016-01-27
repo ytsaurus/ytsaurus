@@ -1,9 +1,13 @@
 #include "evaluation_helpers.h"
+#include "column_evaluator.h"
 #include "private.h"
 #include "helpers.h"
 #include "plan_fragment.h"
 #include "plan_helpers.h"
 #include "query_statistics.h"
+
+#include <yt/ytlib/table_client/pipe.h>
+#include <yt/ytlib/table_client/schemaful_reader.h>
 
 #include <yt/core/concurrency/scheduler.h>
 
@@ -151,6 +155,9 @@ TJoinEvaluator GetJoinEvaluator(
 {
     const auto& equations = joinClause.Equations;
     auto isLeft = joinClause.IsLeft;
+    auto canUseSourceRanges = joinClause.CanUseSourceRanges;
+    auto keyPrefix = joinClause.KeyPrefix;
+    const auto& equationByIndex = joinClause.EquationByIndex;
     auto& foreignTableSchema = joinClause.ForeignTableSchema;
     auto& foreignKeyColumnsCount = joinClause.ForeignKeyColumnsCount;
     auto& renamedTableSchema = joinClause.RenamedTableSchema;
@@ -164,13 +171,31 @@ TJoinEvaluator GetJoinEvaluator(
     subquery->TableSchema = foreignTableSchema;
     subquery->KeyColumnsCount = foreignKeyColumnsCount;
     subquery->RenamedTableSchema = renamedTableSchema;
+    subquery->WhereClause = foreignPredicate;
 
     // (join key... , other columns...)
     auto projectClause = New<TProjectClause>();
     std::vector<TConstExpressionPtr> joinKeyExprs;
-    for (const auto& column : equations) {
-        projectClause->AddProjection(column.second, InferName(column.second));
-        joinKeyExprs.push_back(column.second);
+
+    if (canUseSourceRanges) {
+        int lookupKeySize = keyPrefix;
+        for (int column = 0; column < lookupKeySize; ++column) {
+            int index = equationByIndex[column];
+            if (index >= 0) {
+                const auto& equation = equations[index];
+                projectClause->AddProjection(equation.second, InferName(equation.second));
+            } else {
+                const auto& evaluatedColumn = renamedTableSchema.Columns()[column];
+                auto referenceExpr = New<TReferenceExpression>(evaluatedColumn.Type, evaluatedColumn.Name);
+                projectClause->AddProjection(referenceExpr, InferName(referenceExpr));
+            }
+        }
+
+    } else {
+        for (const auto& column : equations) {
+            projectClause->AddProjection(column.second, InferName(column.second));
+            joinKeyExprs.push_back(column.second);
+        }
     }
 
     for (const auto& column : renamedTableSchema.Columns()) {
@@ -187,8 +212,6 @@ TJoinEvaluator GetJoinEvaluator(
 
     auto subqueryTableSchema = subquery->GetTableSchema();
 
-    auto joinKeySize = equations.size();
-
     std::vector<std::pair<bool, int>> columnMapping;
     for (const auto& column : joinedTableSchema.Columns()) {
         if (auto self = selfTableSchema.FindColumn(column.Name)) {
@@ -204,50 +227,51 @@ TJoinEvaluator GetJoinEvaluator(
         TExecutionContext* context,
         THasherFunction* groupHasher,
         TComparerFunction* groupComparer,
-        TSharedRange<TRow> keys,
-        TSharedRange<TRow> allRows,
+        TJoinLookup& joinLookup,
+        std::vector<TRow> keys,
+        std::vector<std::pair<TRow, int>> chainedRows,
+        TRowBufferPtr permanentBuffer,
         std::vector<TRow>* joinedRows)
     {
         // TODO: keys should be joined with allRows: [(key, sourceRow)]
+        auto rowBuffer = permanentBuffer;
+        TRowRanges ranges;
 
-        subquery->WhereClause = New<TInOpExpression>(
-            joinKeyExprs,
-            keys);
+        if (canUseSourceRanges) {
+            LOG_DEBUG("Using join via source ranges");
+            for (auto key : keys) {
+                auto lowerBound = key;
 
-        if (foreignPredicate) {
-            subquery->WhereClause = MakeAndExpression(
-                subquery->WhereClause,
-                foreignPredicate);
+                auto upperBound = TRow::Allocate(rowBuffer->GetPool(), keyPrefix + 1);
+                for (int column = 0; column < keyPrefix; ++column) {
+                    upperBound[column] = lowerBound[column];
+                }
+
+                upperBound[keyPrefix] = MakeUnversionedSentinelValue(EValueType::Max);
+                ranges.emplace_back(lowerBound, upperBound);
+            }
+        } else {
+            LOG_DEBUG("Using join via IN clause");
+            ranges.emplace_back(
+                rowBuffer->Capture(NTableClient::MinKey().Get()),
+                rowBuffer->Capture(NTableClient::MaxKey().Get()));
+
+            auto inClause = New<TInOpExpression>(joinKeyExprs, MakeSharedRange(std::move(keys), permanentBuffer));
+
+            subquery->WhereClause = subquery->WhereClause
+                ? MakeAndExpression(inClause, subquery->WhereClause)
+                : inClause;
         }
 
-        // Execute subquery.
-        NApi::IRowsetPtr rowset;
+        LOG_DEBUG("Executing subquery");
 
-        {
-            ISchemafulWriterPtr writer;
-            TFuture<NApi::IRowsetPtr> rowsetFuture;
-            std::tie(writer, rowsetFuture) = NApi::CreateSchemafulRowsetWriter(subquery->GetTableSchema());
-            NProfiling::TAggregatingTimingGuard timingGuard(&context->Statistics->AsyncTime);
-
-            auto statistics = context->ExecuteCallback(subquery, foreignDataId,  writer);
-            LOG_DEBUG("Remote subquery statistics %v", statistics);
-            *context->Statistics += statistics;
-
-            rowset = WaitFor(rowsetFuture).ValueOrThrow();
-        }
-
-        const auto& foreignRows = rowset->GetRows();
-
-        LOG_DEBUG("Got %v foreign rows", foreignRows.size());
-
-        TJoinLookupRows foreignLookup(
-            InitialGroupOpHashtableCapacity,
-            groupHasher,
-            groupComparer);
-
-        for (auto row : foreignRows) {
-            foreignLookup.insert(row);
-        }
+        auto pipe = New<NTableClient::TSchemafulPipe>();
+        auto subqueryResult = context->ExecuteCallback(
+            subquery,
+            foreignDataId,
+            std::move(rowBuffer),
+            std::move(ranges),
+            pipe->GetWriter());
 
         // Join rowsets.
         TRowBuilder rowBuilder;
@@ -263,33 +287,97 @@ TJoinEvaluator GetJoinEvaluator(
             return false;
         };
 
-        for (auto row : allRows.ToVector()) {
-            auto equalRange = foreignLookup.equal_range(row);
-            for (auto it = equalRange.first; it != equalRange.second; ++it) {
-                rowBuilder.Reset();
-                auto foreignRow = *it;
-                for (auto columnIndex : columnMapping) {
-                    rowBuilder.AddValue(columnIndex.first ? row[joinKeySize + columnIndex.second] : foreignRow[columnIndex.second]);
+        LOG_DEBUG("Joining started");
+
+        std::vector<TRow> foreignRows;
+        foreignRows.reserve(MaxRowsPerRead);
+
+        auto reader = pipe->GetReader();
+
+        while (true) {
+            bool hasMoreData = reader->Read(&foreignRows);
+            bool shouldWait = foreignRows.empty();
+
+            for (auto foreignRow : foreignRows) {
+                auto it = joinLookup.find(foreignRow);
+
+                if (it == joinLookup.end()) {
+                    continue;
                 }
 
-                if (addRow(rowBuilder.GetRow())) {
-                    return;
+                int startIndex = it->second.first;
+                bool& isJoined = it->second.second;
+                isJoined = true;
+
+                for (
+                    int chainedRowIndex = startIndex;
+                    chainedRowIndex >= 0;
+                    chainedRowIndex = chainedRows[chainedRowIndex].second)
+                {
+                    auto row = chainedRows[chainedRowIndex].first;
+                    rowBuilder.Reset();
+                    for (auto columnIndex : columnMapping) {
+                        rowBuilder.AddValue(columnIndex.first
+                            ? row[columnIndex.second]
+                            : foreignRow[columnIndex.second]);
+                    }
+
+                    if (addRow(rowBuilder.GetRow())) {
+                        return;
+                    }
                 }
             }
 
-            if (isLeft && equalRange.first == equalRange.second) {
-                rowBuilder.Reset();
-                for (auto columnIndex : columnMapping) {
-                    rowBuilder.AddValue(columnIndex.first
-                        ? row[joinKeySize + columnIndex.second]
-                        : MakeUnversionedSentinelValue(EValueType::Null));
+            foreignRows.clear();
+
+            if (!hasMoreData) {
+                break;
+            }
+
+            if (shouldWait) {
+                NProfiling::TAggregatingTimingGuard timingGuard(&context->Statistics->AsyncTime);
+                WaitFor(reader->GetReadyEvent())
+                    .ThrowOnError();
+            }
+        }
+
+        if (isLeft) {
+            for (auto lookup : joinLookup) {
+                int startIndex = lookup.second.first;
+                bool isJoined = lookup.second.second;
+
+                if (isJoined) {
+                    continue;
                 }
 
-                if (addRow(rowBuilder.GetRow())) {
-                    return;
+                for (
+                    int chainedRowIndex = startIndex;
+                    chainedRowIndex >= 0;
+                    chainedRowIndex = chainedRows[chainedRowIndex].second)
+                {
+                    auto row = chainedRows[chainedRowIndex].first;
+                    rowBuilder.Reset();
+                    for (auto columnIndex : columnMapping) {
+                        rowBuilder.AddValue(columnIndex.first
+                            ? row[columnIndex.second]
+                            : MakeUnversionedSentinelValue(EValueType::Null));
+                    }
+
+                    if (addRow(rowBuilder.GetRow())) {
+                        return;
+                    }
                 }
             }
         }
+
+        LOG_DEBUG("Joining finished");
+
+        auto statistics = WaitFor(subqueryResult)
+            .ValueOrThrow();
+
+        LOG_DEBUG("Remote subquery statistics %v", statistics);
+        *context->Statistics += statistics;
+
     };
 }
 

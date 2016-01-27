@@ -3,6 +3,7 @@
 #include "file_node_proxy.h"
 
 #include <yt/server/cell_master/bootstrap.h>
+#include <yt/server/cell_master/config.h>
 
 #include <yt/server/chunk_server/chunk_owner_type_handler.h>
 
@@ -59,6 +60,7 @@ protected:
             trunkNode);
     }
 
+<<<<<<< HEAD
     virtual std::unique_ptr<TFileNode> DoCreate(
         const TVersionedNodeId& id,
         TCellTag cellTag,
@@ -78,6 +80,12 @@ protected:
             attributes);
     }
 
+=======
+    virtual int GetDefaultReplicationFactor() const override
+    {
+        return Bootstrap_->GetConfig()->CypressManager->DefaultFileReplicationFactor;
+    }
+>>>>>>> prestable/0.17.4
 };
 
 INodeTypeHandlerPtr CreateFileTypeHandler(TBootstrap* bootstrap)

@@ -678,7 +678,7 @@ bool TTcpConnection::AdvanceDecoder(size_t size)
     return true;
 }
 
-bool TTcpConnection::OnPacketReceived()
+bool TTcpConnection::OnPacketReceived() throw()
 {
     ++Statistics_->InPackets;
     switch (Decoder_.GetPacketType()) {

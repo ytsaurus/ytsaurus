@@ -67,6 +67,8 @@ message TUserJobSpec
     optional int32 blkio_weight = 20;
 
     optional bool include_memory_mapped_files = 21 [default = true];
+
+    optional int64 tmpfs_size = 22;
 }
 
 // User code result.

@@ -141,6 +141,7 @@ TDescriptor LookupDescriptor(
 
     TDescriptor cypressDescriptor;
     try {
+        // TODO(lukyan): save revision
         cypressDescriptor = ConvertToNode(cypressFunctionOrError.Value())
             ->Attributes()
             .Find<TDescriptor>(descriptorAttribute);

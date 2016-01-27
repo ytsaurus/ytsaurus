@@ -403,7 +403,7 @@ TConstExpressionPtr RefinePredicate(
             } else {
                 return New<TInOpExpression>(
                     inExpr->Arguments,
-                    MakeSharedRange(std::move(filteredValues), MakeHolder(inExpr->Values)));
+                    MakeSharedRange(std::move(filteredValues), inExpr->Values));
             }
         }
 

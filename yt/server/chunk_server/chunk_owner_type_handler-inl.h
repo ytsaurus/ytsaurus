@@ -70,7 +70,7 @@ template <class TChunkOwner>
 void TChunkOwnerTypeHandler<TChunkOwner>::InitializeAttributes(NYTree::IAttributeDictionary* attributes)
 {
     if (!attributes->Contains("replication_factor")) {
-        attributes->Set("replication_factor", NChunkClient::DefaultReplicationFactor);
+        attributes->Set("replication_factor", GetDefaultReplicationFactor());
     }
 
     if (!attributes->Contains("erasure_codec")) {

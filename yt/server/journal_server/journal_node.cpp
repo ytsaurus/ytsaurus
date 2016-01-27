@@ -4,7 +4,7 @@
 #include "journal_manager.h"
 
 #include <yt/server/cell_master/bootstrap.h>
-#include <yt/server/cell_master/serialize.h>
+#include <yt/server/cell_master/config.h>
 
 #include <yt/server/chunk_server/chunk_manager.h>
 #include <yt/server/chunk_server/chunk_owner_type_handler.h>
@@ -126,12 +126,30 @@ public:
 
     virtual TClusterResources GetTotalResourceUsage(const TCypressNodeBase* node) override
     {
+<<<<<<< HEAD
         return TBase::GetTotalResourceUsage(node->GetTrunkNode());
     }
 
     virtual TClusterResources GetAccountingResourceUsage(const TCypressNodeBase* node) override
     {
         return TBase::GetAccountingResourceUsage(node->GetTrunkNode());
+=======
+        TBase::SetDefaultAttributes(attributes, transaction);
+
+        const auto& config = Bootstrap_->GetConfig()->CypressManager;
+
+        if (!attributes->Contains("replication_factor")) {
+            attributes->Set("replication_factor", config->DefaultJournalReplicationFactor);
+        }
+
+        if (!attributes->Contains("read_quorum")) {
+            attributes->Set("read_quorum", config->DefaultJournalReadQuorum);
+        }
+
+        if (!attributes->Contains("write_quorum")) {
+            attributes->Set("write_quorum", config->DefaultJournalWriteQuorum);
+        }
+>>>>>>> prestable/0.17.4
     }
 
 protected:
