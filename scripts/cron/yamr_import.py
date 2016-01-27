@@ -201,7 +201,7 @@ def remove(table, yt_client, remove_link):
             except YtResponseError as err:
                 if not err.is_concurrent_transaction_lock_conflict():
                     raise
-    
+
     do_remove(table)
     if remove_link:
         do_remove(get_dash_date_table(table))
@@ -223,6 +223,10 @@ def set_ydf_attribute(table, value, yt_client):
     if value is not None:
         yt_client.set(table + "/@_yql_read_udf", value)
 
+def set_format_attribute(table, value, yt_client):
+    if value is not None:
+        yt_client.set(table + "/@_format", value)
+
 def notify_rem(rem_connection, dst, cluster_name):
     prefix = "//userdata/"
     if dst.startswith(prefix):
@@ -237,7 +241,7 @@ class Importer(object):
         self.task_runner = create_task_runner(self.cluster_name)
         self.rem_connection = rem.Connector("http://veles02:8104/")
 
-    def process_log(self, type, source_pattern, destination_pattern, period, ydf_attribute=None, link=None):
+    def process_log(self, type, source_pattern, destination_pattern, period, ydf_attribute=None, format_attribute=None, link=None):
         def postprocess(dst, link):
             if is_processed(dst, self.yt_client):
                 return
@@ -246,6 +250,7 @@ class Importer(object):
                 make_link(dst, self.yt_client)
             notify_rem(self.rem_connection, dst, self.proxy)
             set_ydf_attribute(dst, ydf_attribute, self.yt_client)
+            set_format_attribute(dst, format_attribute, self.yt_client)
             set_processed(dst, self.yt_client)
 
         if destination_pattern is None:
