@@ -1,10 +1,3 @@
-# Set the build version
-set(YT_VERSION_MAJOR 0)
-set(YT_VERSION_MINOR 18)
-set(YT_VERSION_PATCH 1)
-
-set(YT_ABI_VERSION "${YT_VERSION_MINOR}.${YT_VERSION_PATCH}")
-
 if (NOT YT_BUILD_BRANCH)
   set(YT_BUILD_BRANCH "local")
 endif()
