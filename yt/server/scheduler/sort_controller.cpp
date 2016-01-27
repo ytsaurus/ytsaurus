@@ -269,6 +269,9 @@ protected:
     TJobIOConfigPtr SortedMergeJobIOConfig;
     TJobIOConfigPtr UnorderedMergeJobIOConfig;
 
+    //! Table reader options for various job types.
+    TTableReaderOptionsPtr PartitionTableReaderOptions;
+
     std::unique_ptr<IShuffleChunkPool> ShufflePool;
     std::unique_ptr<IChunkPool> SimpleSortPool;
 
@@ -336,6 +339,9 @@ protected:
             using NYT::Persist;
             Persist(context, Controller);
             Persist(context, ChunkPool);
+            Persist(context, NodeIdToDataSize);
+            Persist(context, ScheduledDataSize);
+            Persist(context, DataSizePerJob);
         }
 
     private:
@@ -344,6 +350,60 @@ protected:
         TSortControllerBase* Controller;
         std::unique_ptr<IChunkPool> ChunkPool;
 
+        //! The total data size of jobs assigned to a particular node
+        //! All data sizes are IO weight-adjusted.
+        //! No zero values are allowed.
+        yhash_map<TNodeId, i64> NodeIdToDataSize;
+        //! The sum of all sizes appearing in #NodeIdToDataSize;
+        i64 ScheduledDataSize = 0;
+        //! Max-aggregated each time a new job is scheduled.
+        i64 DataSizePerJob = 0;
+
+
+        void UpdateNodeDataSize(const TExecNodeDescriptor& descriptor, i64 delta)
+        {
+            auto ioWeight = descriptor.IOWeight;
+            YASSERT(ioWeight > 0);
+            auto adjustedDelta = static_cast<i64>(delta / ioWeight);
+
+            auto nodeId = descriptor.Id;
+            auto updatedNodeDataSize = (NodeIdToDataSize[nodeId] += adjustedDelta);
+            YCHECK(updatedNodeDataSize >= 0);
+
+            if (updatedNodeDataSize == 0) {
+                YCHECK(NodeIdToDataSize.erase(nodeId) == 1);
+            }
+
+            auto updatedScheduledDataSize = (ScheduledDataSize += adjustedDelta);
+            YCHECK(updatedScheduledDataSize >= 0);
+        }
+
+
+        virtual bool CanScheduleJob(
+            ISchedulingContext* context,
+            const TJobResources& /*jobLimits*/) override
+        {
+            if (!Controller->Spec->EnablePartitionedDataBalancing) {
+                return true;
+            }
+
+            if (NodeIdToDataSize.empty()) {
+                return true;
+            }
+
+            if (context->GetNodeDescriptor().IOWeight == 0) {
+                return false;
+            }
+
+            auto nodeId = context->GetNodeDescriptor().Id;
+            auto updatedScheduledDataSize = ScheduledDataSize + DataSizePerJob;
+            auto updatedAvgDataSize = updatedScheduledDataSize / NodeIdToDataSize.size();
+            auto updatedNodeDataSize = NodeIdToDataSize[nodeId] + DataSizePerJob;
+            return
+                updatedNodeDataSize <=
+                updatedAvgDataSize + Controller->Spec->PartitionedDataBalancingTolerance * DataSizePerJob;
+        }
+
         virtual bool IsMemoryReserveEnabled() const override
         {
             return Controller->IsMemoryReserveEnabled(Controller->PartitionJobCounter);
@@ -351,13 +411,8 @@ protected:
 
         virtual TTableReaderOptionsPtr GetTableReaderOptions() const override
         {
-            // ToDo(psushin): eliminate allocations.
-            // Distinguish between map and partition.
-            auto options = New<TTableReaderOptions>();
-            options->EnableRowIndex = Controller->PartitionJobIOConfig->ControlAttributes->EnableRowIndex;
-            options->EnableTableIndex = Controller->PartitionJobIOConfig->ControlAttributes->EnableTableIndex;
-            options->EnableRangeIndex = Controller->PartitionJobIOConfig->ControlAttributes->EnableRangeIndex;
-            return options;
+            // TODO(psushin): Distinguish between map and partition.
+            return Controller->PartitionTableReaderOptions;
         }
 
         virtual TJobResources GetMinNeededResourcesHeavy() const override
@@ -388,6 +443,10 @@ protected:
         virtual void OnJobStarted(TJobletPtr joblet) override
         {
             Controller->PartitionJobCounter.Start(1);
+
+            auto dataSize = joblet->InputStripeList->TotalDataSize;
+            DataSizePerJob = std::max(DataSizePerJob, dataSize);
+            UpdateNodeDataSize(joblet->NodeDescriptor, +dataSize);
 
             TTask::OnJobStarted(joblet);
         }
@@ -435,6 +494,7 @@ protected:
         {
             TTask::OnJobLost(completedJob);
 
+            UpdateNodeDataSize(completedJob->NodeDescriptor, -completedJob->DataSize);
             Controller->PartitionJobCounter.Lost(1);
         }
 
@@ -442,6 +502,7 @@ protected:
         {
             TTask::OnJobFailed(joblet, jobSummary);
 
+            UpdateNodeDataSize(joblet->NodeDescriptor, -joblet->InputStripeList->TotalDataSize);
             Controller->PartitionJobCounter.Failed(1);
         }
 
@@ -449,8 +510,8 @@ protected:
         {
             TTask::OnJobAborted(joblet, jobSummary);
 
+            UpdateNodeDataSize(joblet->NodeDescriptor, -joblet->InputStripeList->TotalDataSize);
             Controller->PartitionJobCounter.Aborted(1, jobSummary.AbortReason);
-
             Controller->UpdateAllTasksIfNeeded(Controller->PartitionJobCounter);
         }
 
@@ -476,6 +537,24 @@ protected:
                 } else {
                     LOG_DEBUG("Partition[%v] = %v",
                         partition->Index,
+                        dataSize);
+                }
+            }
+
+            if (Controller->Spec->EnablePartitionedDataBalancing) {
+                auto execNodes = Controller->Host->GetExecNodes();
+                yhash_map<TNodeId, TExecNodePtr> idToNode;
+                for (const auto& node : execNodes) {
+                    YCHECK(idToNode.insert(std::make_pair(node->GetId(), node)).second);
+                }
+
+                LOG_DEBUG("Per-node partitioned sizes collected");
+                for (const auto& pair : NodeIdToDataSize) {
+                    auto nodeId = pair.first;
+                    auto dataSize = pair.second;
+                    auto nodeIt = idToNode.find(nodeId);
+                    LOG_DEBUG("Node[%v] = %v",
+                        nodeIt == idToNode.end() ? ToString(nodeId) : nodeIt->second->GetDefaultAddress(),
                         dataSize);
                 }
             }
@@ -644,6 +723,18 @@ protected:
             schedulerJobSpecExt->set_is_approximate(joblet->InputStripeList->IsApproximate);
 
             AddSequentialInputSpec(jobSpec, joblet);
+
+            const auto& list = joblet->InputStripeList;
+            if (list->PartitionTag) {
+                auto jobType = GetJobType();
+                if (jobType == EJobType::PartitionReduce || jobType == EJobType::ReduceCombiner) {
+                    auto* reduceJobSpecExt = jobSpec->MutableExtension(TReduceJobSpecExt::reduce_job_spec_ext);
+                    reduceJobSpecExt->set_partition_tag(*list->PartitionTag);
+                } else {
+                    auto* sortJobSpecExt = jobSpec->MutableExtension(TSortJobSpecExt::sort_job_spec_ext);
+                    sortJobSpecExt->set_partition_tag(*list->PartitionTag);
+                }
+            }
         }
 
         virtual void OnJobStarted(TJobletPtr joblet) override
@@ -728,7 +819,7 @@ protected:
             auto stripeList = completedJob->SourceTask->GetChunkPoolOutput()->GetStripeList(completedJob->OutputCookie);
             Controller->SortDataSizeCounter.Lost(stripeList->TotalDataSize);
 
-            auto nodeId = completedJob->NodeId;
+            auto nodeId = completedJob->NodeDescriptor.Id;
             YCHECK((Partition->NodeIdToLocality[nodeId] -= stripeList->TotalDataSize) >= 0);
 
             Controller->ResetTaskLocalityDelays();
@@ -802,15 +893,17 @@ protected:
 
         virtual void OnJobStarted(TJobletPtr joblet) override
         {
+            auto nodeId = joblet->NodeDescriptor.Id;
+
             // Increase data size for this address to ensure subsequent sort jobs
             // to be scheduled to this very node.
-            Partition->NodeIdToLocality[joblet->NodeId] += joblet->InputStripeList->TotalDataSize;
+            Partition->NodeIdToLocality[nodeId] += joblet->InputStripeList->TotalDataSize;
 
             // Don't rely on static assignment anymore.
             Partition->AssignedNodeId = InvalidNodeId;
 
             // Also add a hint to ensure that subsequent jobs are also scheduled here.
-            AddLocalityHint(joblet->NodeId);
+            AddLocalityHint(nodeId);
 
             TSortTask::OnJobStarted(joblet);
         }
@@ -1081,12 +1174,10 @@ protected:
             AddSequentialInputSpec(jobSpec, joblet);
             AddFinalOutputSpecs(jobSpec, joblet);
 
-            if (!Controller->SimpleSort) {
-                auto* schedulerJobSpecExt = jobSpec->MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
-                auto* inputSpec = schedulerJobSpecExt->mutable_input_specs(0);
-                for (auto& chunk : *inputSpec->mutable_chunks()) {
-                    chunk.set_partition_tag(Partition->Index);
-                }
+            const auto& list = joblet->InputStripeList;
+            if (list->PartitionTag) {
+                auto* mergeJobSpecExt = jobSpec->MutableExtension(TMergeJobSpecExt::merge_job_spec_ext);
+                mergeJobSpecExt->set_partition_tag(*list->PartitionTag);
             }
         }
 
@@ -1634,6 +1725,13 @@ protected:
         TOperationControllerBase::RegisterOutput(std::move(joblet), key, jobSummary);
     }
 
+    void InitJobIOConfigs()
+    {
+        PartitionJobIOConfig = CloneYsonSerializable(Spec->PartitionJobIO);
+        InitIntermediateOutputConfig(PartitionJobIOConfig);
+
+        PartitionTableReaderOptions = CreateTableReaderOptions(Spec->PartitionJobIO);
+    }
 };
 
 DEFINE_DYNAMIC_PHOENIX_TYPE(TSortControllerBase::TPartitionTask);
@@ -1740,6 +1838,8 @@ private:
         WaitFor(asyncSamplesResult)
             .ThrowOnError();
 
+        InitJobIOConfigs();
+        
         PROFILE_TIMING ("/samples_processing_time") {
             auto sortedSamples = SortSamples(samplesFetcher->GetSamples());
             BuildPartitions(sortedSamples);
@@ -1757,7 +1857,7 @@ private:
         sortedSamples.reserve(sampleCount);
         try {
             for (const auto& sample : samples) {
-                ValidateKey(sample.Key);
+                ValidateClientKey(sample.Key);
                 sortedSamples.push_back(&sample);
             }
         } catch (const std::exception& ex) {
@@ -1786,8 +1886,6 @@ private:
         YCHECK(partitionCount > 0);
 
         SimpleSort = (partitionCount == 1);
-
-        InitJobIOConfigs();
 
         CheckPartitionWriterBuffer(partitionCount, PartitionJobIOConfig->TableWriter);
 
@@ -1909,7 +2007,7 @@ private:
 
                     // NB: in partitioner we compare keys with the whole rows,
                     // so key prefix successor in required here.
-                    auto successorKey = GetKeyPrefixSuccessor(sample->Key.Get(), Spec->SortBy.size());
+                    auto successorKey = GetKeyPrefixSuccessor(sample->Key, Spec->SortBy.size());
                     AddPartition(successorKey);
                 } else {
                     // If sample keys are incomplete, we cannot use UnorderedMerge,
@@ -1943,8 +2041,7 @@ private:
 
     void InitJobIOConfigs()
     {
-        PartitionJobIOConfig = CloneYsonSerializable(Spec->PartitionJobIO);
-        InitIntermediateOutputConfig(PartitionJobIOConfig);
+        TSortControllerBase::InitJobIOConfigs();
 
         IntermediateSortJobIOConfig = CloneYsonSerializable(Spec->SortJobIO);
         if (!SimpleSort) {
@@ -2280,14 +2377,14 @@ private:
         ValidateUserFileCount(Spec->ReduceCombiner, "reduce combiner");
 
         if (!CheckKeyColumnsCompatible(Spec->SortBy, Spec->ReduceBy)) {
-            THROW_ERROR_EXCEPTION("Reduce columns [%v] are not compatible with sort columns [%v]",
-                JoinToString(Spec->ReduceBy),
-                JoinToString(Spec->SortBy));
+            THROW_ERROR_EXCEPTION("Reduce columns %v are not compatible with sort columns %v",
+                Spec->ReduceBy,
+                Spec->SortBy);
         }
 
-        LOG_DEBUG("Reduce columns: [%v]; sort columns: [%v]",
-            JoinToString(Spec->ReduceBy),
-            JoinToString(Spec->SortBy));
+        LOG_DEBUG("ReduceCcolumns: %v, SortColumns: %v",
+            Spec->ReduceBy,
+            Spec->SortBy);
     }
 
     virtual std::vector<TRichYPath> GetInputTablePaths() const override
@@ -2348,6 +2445,8 @@ private:
             }
         }
 
+        InitJobIOConfigs();
+
         PROFILE_TIMING ("/input_processing_time") {
             BuildPartitions();
         }
@@ -2360,8 +2459,6 @@ private:
         // Use partition count provided by user, if given.
         // Otherwise use size estimates.
         int partitionCount = SuggestPartitionCount();
-
-        InitJobIOConfigs();
 
         CheckPartitionWriterBuffer(partitionCount, PartitionJobIOConfig->TableWriter);
 
@@ -2396,32 +2493,26 @@ private:
 
     void InitJobIOConfigs()
     {
-        {
-            // This is not a typo!
-            PartitionJobIOConfig = CloneYsonSerializable(Spec->PartitionJobIO);
-            InitIntermediateOutputConfig(PartitionJobIOConfig);
-        }
+        TSortControllerBase::InitJobIOConfigs();
 
-        {
-            IntermediateSortJobIOConfig = CloneYsonSerializable(Spec->SortJobIO);
-            InitIntermediateInputConfig(IntermediateSortJobIOConfig);
-            InitIntermediateOutputConfig(IntermediateSortJobIOConfig);
-        }
+        // This is not a typo!
+        PartitionJobIOConfig = CloneYsonSerializable(Spec->PartitionJobIO);
+        InitIntermediateOutputConfig(PartitionJobIOConfig);
 
-        {
-            // Partition reduce: writer like in merge and reader like in sort.
-            FinalSortJobIOConfig = CloneYsonSerializable(Spec->MergeJobIO);
-            FinalSortJobIOConfig->TableReader = CloneYsonSerializable(Spec->SortJobIO->TableReader);
-            InitIntermediateInputConfig(FinalSortJobIOConfig);
-            InitFinalOutputConfig(FinalSortJobIOConfig);
-        }
+        IntermediateSortJobIOConfig = CloneYsonSerializable(Spec->SortJobIO);
+        InitIntermediateInputConfig(IntermediateSortJobIOConfig);
+        InitIntermediateOutputConfig(IntermediateSortJobIOConfig);
 
-        {
-            // Sorted reduce.
-            SortedMergeJobIOConfig = CloneYsonSerializable(Spec->MergeJobIO);
-            InitIntermediateInputConfig(SortedMergeJobIOConfig);
-            InitFinalOutputConfig(SortedMergeJobIOConfig);
-        }
+        // Partition reduce: writer like in merge and reader like in sort.
+        FinalSortJobIOConfig = CloneYsonSerializable(Spec->MergeJobIO);
+        FinalSortJobIOConfig->TableReader = CloneYsonSerializable(Spec->SortJobIO->TableReader);
+        InitIntermediateInputConfig(FinalSortJobIOConfig);
+        InitFinalOutputConfig(FinalSortJobIOConfig);
+
+        // Sorted reduce.
+        SortedMergeJobIOConfig = CloneYsonSerializable(Spec->MergeJobIO);
+        InitIntermediateInputConfig(SortedMergeJobIOConfig);
+        InitFinalOutputConfig(SortedMergeJobIOConfig);
     }
 
     void InitJobSpecTemplates()

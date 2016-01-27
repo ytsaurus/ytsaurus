@@ -95,6 +95,13 @@ TConnectionConfig::TConnectionConfig()
     RegisterParameter("udf_registry_path", UdfRegistryPath)
         .Default("//tmp/udfs");
 
+    RegisterParameter("table_mount_info_update_retry_count", TableMountInfoUpdateRetryCount)
+        .GreaterThan(0)
+        .Default(5);
+    RegisterParameter("table_mount_info_update_retry_time", TableMountInfoUpdateRetryPeriod)
+        .GreaterThan(TDuration::MicroSeconds(0))
+        .Default(TDuration::Seconds(1));
+
     RegisterValidator([&] () {
         const auto& cellId = PrimaryMaster->CellId;
         auto primaryCellTag = CellTagFromId(PrimaryMaster->CellId);

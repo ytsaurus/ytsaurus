@@ -161,7 +161,7 @@ class TestSchedulerRemoteCopyCommands(YTEnvSetup):
         time.sleep(1)
 
         create("table", "//tmp/t2")
-        op_id = remote_copy(dont_track=True, in_="//tmp/t1", out="//tmp/t2",
+        op = remote_copy(dont_track=True, in_="//tmp/t1", out="//tmp/t2",
                             spec={"cluster_name": "remote",
                                   "unavailable_chunk_strategy": "wait",
                                   "network_name": "interconnect"})
@@ -169,7 +169,7 @@ class TestSchedulerRemoteCopyCommands(YTEnvSetup):
         time.sleep(1)
         set_banned_flag(False)
 
-        track_op(op_id)
+        op.track()
 
         assert read_table("//tmp/t2") == [{"a": "b"}]
 
@@ -179,14 +179,14 @@ class TestSchedulerRemoteCopyCommands(YTEnvSetup):
 
         create("table", "//tmp/t2")
 
-        op_id = remote_copy(dont_track=True, in_="//tmp/t1", out="//tmp/t2",
+        op = remote_copy(dont_track=True, in_="//tmp/t1", out="//tmp/t2",
                             spec={"cluster_name": "remote"})
 
         self.Env.kill_service("scheduler")
         time.sleep(1)
         self.Env.start_schedulers("scheduler")
 
-        track_op(op_id)
+        op.track()
 
         assert read_table("//tmp/t2") == [{"a" : "b"}]
 

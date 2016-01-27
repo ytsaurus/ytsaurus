@@ -66,6 +66,7 @@ using namespace NQueryClient;
 
 using NNodeTrackerClient::TNodeId;
 using NTableClient::NProto::TBoundaryKeysExt;
+using NTableClient::TTableReaderOptions;
 
 ////////////////////////////////////////////////////////////////////
 
@@ -154,13 +155,13 @@ void TOperationControllerBase::TUserFile::Persist(TPersistenceContext& context)
 void TOperationControllerBase::TCompletedJob::Persist(TPersistenceContext& context)
 {
     using NYT::Persist;
-    Persist(context, IsLost);
+    Persist(context, Lost);
     Persist(context, JobId);
     Persist(context, SourceTask);
     Persist(context, OutputCookie);
     Persist(context, DestinationPool);
     Persist(context, InputCookie);
-    Persist(context, NodeId);
+    Persist(context, NodeDescriptor);
 }
 
 ////////////////////////////////////////////////////////////////////
@@ -358,18 +359,17 @@ TJobId TOperationControllerBase::TTask::ScheduleJob(
     ISchedulingContext* context,
     const TJobResources& jobLimits)
 {
-    bool intermediateOutput = IsIntermediateOutput();
-    if (!Controller->HasEnoughChunkLists(intermediateOutput)) {
-        LOG_DEBUG("Job chunk list demand is not met");
+    if (!CanScheduleJob(context, jobLimits)) {
         return NullJobId;
     }
 
+    bool intermediateOutput = IsIntermediateOutput();
     int jobIndex = Controller->JobIndexGenerator.Next();
     auto joblet = New<TJoblet>(this, jobIndex);
 
     const auto& nodeResourceLimits = context->ResourceLimits();
-    auto nodeId = context->GetNode()->GetId();
-    const auto& address = context->GetAddress();
+    auto nodeId = context->GetNodeDescriptor().Id;
+    const auto& address = context->GetNodeDescriptor().Address;
 
     auto* chunkPoolOutput = GetChunkPoolOutput();
     auto localityNodeId = HasInputLocality() ? nodeId : InvalidNodeId;
@@ -435,10 +435,9 @@ TJobId TOperationControllerBase::TTask::ScheduleJob(
         jobSpecBuilder);
 
     joblet->JobType = jobType;
-    joblet->Address = address;
-    joblet->NodeId = nodeId;
+    joblet->NodeDescriptor = context->GetNodeDescriptor();
 
-    LOG_INFO(
+    LOG_DEBUG(
         "Job scheduled (JobId: %v, OperationId: %v, JobType: %v, Address: %v, JobIndex: %v, ChunkCount: %v (%v local), "
         "Approximate: %v, DataSize: %v (%v local), RowCount: %v, Restarted: %v, ResourceLimits: {%v})",
         joblet->JobId,
@@ -618,6 +617,13 @@ void TOperationControllerBase::TTask::OnTaskCompleted()
     LOG_DEBUG("Task completed");
 }
 
+bool TOperationControllerBase::TTask::CanScheduleJob(
+    ISchedulingContext* /*context*/,
+    const TJobResources& /*jobLimits*/)
+{
+    return true;
+}
+
 void TOperationControllerBase::TTask::DoCheckResourceDemandSanity(
     const TJobResources& neededResources)
 {
@@ -695,7 +701,7 @@ void TOperationControllerBase::TTask::AddSequentialInputSpec(
     inputSpec->set_table_reader_options(ConvertToYsonString(GetTableReaderOptions()).Data());
     const auto& list = joblet->InputStripeList;
     for (const auto& stripe : list->Stripes) {
-        AddChunksToInputSpec(&directoryBuilder, inputSpec, stripe, list->PartitionTag);
+        AddChunksToInputSpec(&directoryBuilder, inputSpec, stripe);
     }
     UpdateInputSpecTotals(jobSpec, joblet);
 }
@@ -712,7 +718,7 @@ void TOperationControllerBase::TTask::AddParallelInputSpec(
     for (const auto& stripe : list->Stripes) {
         auto* inputSpec = schedulerJobSpecExt->add_input_specs();
         inputSpec->set_table_reader_options(ConvertToYsonString(GetTableReaderOptions()).Data());
-        AddChunksToInputSpec(&directoryBuilder, inputSpec, stripe, list->PartitionTag);
+        AddChunksToInputSpec(&directoryBuilder, inputSpec, stripe);
     }
     UpdateInputSpecTotals(jobSpec, joblet);
 }
@@ -720,8 +726,7 @@ void TOperationControllerBase::TTask::AddParallelInputSpec(
 void TOperationControllerBase::TTask::AddChunksToInputSpec(
     TNodeDirectoryBuilder* directoryBuilder,
     TTableInputSpec* inputSpec,
-    TChunkStripePtr stripe,
-    TNullable<int> partitionTag)
+    TChunkStripePtr stripe)
 {
     for (const auto& chunkSlice : stripe->ChunkSlices) {
         auto* chunkSpec = inputSpec->add_chunks();
@@ -729,9 +734,6 @@ void TOperationControllerBase::TTask::AddChunksToInputSpec(
         for (ui32 protoReplica : chunkSlice->GetChunkSpec()->replicas()) {
             auto replica = FromProto<TChunkReplica>(protoReplica);
             directoryBuilder->Add(replica);
-        }
-        if (partitionTag) {
-            chunkSpec->set_partition_tag(*partitionTag);
         }
     }
 }
@@ -842,10 +844,10 @@ void TOperationControllerBase::TTask::RegisterIntermediate(
         joblet->JobId,
         this,
         joblet->OutputCookie,
+        joblet->InputStripeList->TotalDataSize,
         destinationPool,
         inputCookie,
-        joblet->Address,
-        joblet->NodeId);
+        joblet->NodeDescriptor);
 
     Controller->RegisterIntermediate(
         joblet,
@@ -1253,7 +1255,7 @@ void TOperationControllerBase::InitInputChunkScraper()
         InputNodeDirectory,
         std::move(chunkIds),
         BIND(&TThis::OnInputChunkLocated, MakeWeak(this))
-            .Via(CancelableControlInvoker),
+            .Via(CancelableInvoker),
         Logger
     );
 
@@ -1304,7 +1306,7 @@ void TOperationControllerBase::ReinstallLivePreview()
         std::vector<TChunkTreeId> childrenIds;
         childrenIds.reserve(ChunkOriginMap.size());
         for (const auto& pair : ChunkOriginMap) {
-            if (!pair.second->IsLost) {
+            if (!pair.second->Lost) {
                 childrenIds.push_back(pair.first);
             }
         }
@@ -1488,9 +1490,9 @@ void TOperationControllerBase::EndUploadOutputTables()
         auto objectIdPath = FromObjectId(table.ObjectId);
         const auto& path = table.Path.GetPath();
 
-        LOG_INFO("Finishing upload to output to table (Path: %v, KeyColumns: [%v])",
+        LOG_INFO("Finishing upload to output to table (Path: %v, KeyColumns: %v)",
             path,
-            JoinToString(table.KeyColumns));
+            table.KeyColumns);
 
         {
             auto req = TTableYPathProxy::EndUpload(objectIdPath);
@@ -1634,6 +1636,8 @@ void TOperationControllerBase::OnInputChunkLocated(const TChunkId& chunkId, cons
 
 void TOperationControllerBase::OnInputChunkAvailable(const TChunkId& chunkId, TInputChunkDescriptor& descriptor, const TChunkReplicaList& replicas)
 {
+    VERIFY_INVOKER_AFFINITY(CancelableInvoker);
+
     if (descriptor.State != EInputChunkState::Waiting)
         return;
 
@@ -1670,6 +1674,8 @@ void TOperationControllerBase::OnInputChunkAvailable(const TChunkId& chunkId, TI
 
 void TOperationControllerBase::OnInputChunkUnavailable(const TChunkId& chunkId, TInputChunkDescriptor& descriptor)
 {
+    VERIFY_INVOKER_AFFINITY(CancelableInvoker);
+
     if (descriptor.State != EInputChunkState::Active)
         return;
 
@@ -1730,18 +1736,18 @@ void TOperationControllerBase::OnIntermediateChunkUnavailable(const TChunkId& ch
     auto it = ChunkOriginMap.find(chunkId);
     YCHECK(it != ChunkOriginMap.end());
     auto completedJob = it->second;
-    if (completedJob->IsLost)
+    if (completedJob->Lost)
         return;
 
     LOG_DEBUG("Job is lost (Address: %v, JobId: %v, SourceTask: %v, OutputCookie: %v, InputCookie: %v)",
-        completedJob->Address,
+        completedJob->NodeDescriptor.Address,
         completedJob->JobId,
         completedJob->SourceTask->GetId(),
         completedJob->OutputCookie,
         completedJob->InputCookie);
 
     JobCounter.Lost(1);
-    completedJob->IsLost = true;
+    completedJob->Lost = true;
     completedJob->DestinationPool->Suspend(completedJob->InputCookie);
     completedJob->SourceTask->GetChunkPoolOutput()->Lost(completedJob->OutputCookie);
     completedJob->SourceTask->OnJobLost(completedJob);
@@ -1978,8 +1984,8 @@ TJobId TOperationControllerBase::DoScheduleLocalJob(
     const TJobResources& jobLimits)
 {
     const auto& nodeResourceLimits = context->ResourceLimits();
-    const auto& address = context->GetAddress();
-    auto nodeId = context->GetNode()->GetId();
+    const auto& address = context->GetNodeDescriptor().Address;
+    auto nodeId = context->GetNodeDescriptor().Id;
 
     for (const auto& group : TaskGroups) {
         if (!Dominates(jobLimits, group->MinNeededResources)) {
@@ -2042,6 +2048,12 @@ TJobId TOperationControllerBase::DoScheduleLocalJob(
                 FormatResources(jobLimits),
                 bestTask->GetPendingDataSize(),
                 bestTask->GetPendingJobCount());
+
+            if (!HasEnoughChunkLists(bestTask->IsIntermediateOutput())) {
+                LOG_DEBUG("Job chunk list demand is not met");
+                return NullJobId;
+            }
+
             auto jobId = bestTask->ScheduleJob(context, jobLimits);
             if (jobId) {
                 UpdateTask(bestTask);
@@ -2058,7 +2070,7 @@ TJobId TOperationControllerBase::DoScheduleNonLocalJob(
 {
     auto now = context->GetNow();
     const auto& nodeResourceLimits = context->ResourceLimits();
-    const auto& address = context->GetAddress();
+    const auto& address = context->GetNodeDescriptor().Address;
 
     for (const auto& group : TaskGroups) {
         if (!Dominates(jobLimits, group->MinNeededResources)) {
@@ -2143,6 +2155,11 @@ TJobId TOperationControllerBase::DoScheduleNonLocalJob(
                     FormatResources(jobLimits),
                     task->GetPendingDataSize(),
                     task->GetPendingJobCount());
+
+                if (!HasEnoughChunkLists(task->IsIntermediateOutput())) {
+                    LOG_DEBUG("Job chunk list demand is not met");
+                    return NullJobId;
+                }
 
                 auto jobId = task->ScheduleJob(context, jobLimits);
                 if (jobId) {
@@ -2399,7 +2416,7 @@ void TOperationControllerBase::PrepareLivePreviewTablesForUpdate()
 {
     // XXX(babenko): fixme
     //// NB: use root credentials.
-    //auto channel = Host->GetMasterClient()->GetMasterChannel(EMasterChannelKind::Leader);
+    //auto channel = Host->GetMasterClient()->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
     //TObjectServiceProxy proxy(channel);
     //
     //auto batchReq = proxy.ExecuteBatch();
@@ -2606,9 +2623,9 @@ void TOperationControllerBase::LockInputTables()
 
                 table.ChunkCount = attributes.Get<int>("chunk_count");
             }
-            LOG_INFO("Input table locked (Path: %v, KeyColumns: [%v], ChunkCount: %v)",
+            LOG_INFO("Input table locked (Path: %v, KeyColumns: %v, ChunkCount: %v)",
                 path,
-                JoinToString(table.KeyColumns),
+                table.KeyColumns,
                 table.ChunkCount);
         }
     }
@@ -3188,10 +3205,11 @@ TKeyColumns TOperationControllerBase::CheckInputTablesSorted(const TKeyColumns& 
     if (!keyColumns.empty()) {
         for (const auto& table : InputTables) {
             if (!CheckKeyColumnsCompatible(table.KeyColumns, keyColumns)) {
-                THROW_ERROR_EXCEPTION("Input table %v is sorted by columns [%v] that are not compatible with the requested columns [%v]",
+                THROW_ERROR_EXCEPTION("Input table %v is sorted by columns %v that are not compatible "
+                    "with the requested columns %v",
                     table.Path.GetPath(),
-                    JoinToString(table.KeyColumns),
-                    JoinToString(keyColumns));
+                    table.KeyColumns,
+                    keyColumns);
             }
         }
         return keyColumns;
@@ -3199,11 +3217,12 @@ TKeyColumns TOperationControllerBase::CheckInputTablesSorted(const TKeyColumns& 
         const auto& referenceTable = InputTables[0];
         for (const auto& table : InputTables) {
             if (table.KeyColumns != referenceTable.KeyColumns) {
-                THROW_ERROR_EXCEPTION("Key columns do not match: input table %v is sorted by columns [%v] while input table %v is sorted by columns [%v]",
+                THROW_ERROR_EXCEPTION("Key columns do not match: input table %v is sorted by columns %v "
+                    "while input table %v is sorted by columns %v",
                     table.Path.GetPath(),
-                    JoinToString(table.KeyColumns),
+                    table.KeyColumns,
                     referenceTable.Path.GetPath(),
-                    JoinToString(referenceTable.KeyColumns));
+                    referenceTable.KeyColumns);
             }
         }
         return referenceTable.KeyColumns;
@@ -3288,7 +3307,7 @@ void TOperationControllerBase::RegisterOutput(
     int tableIndex,
     TOutputTable& table)
 {
-    if (chunkTreeId == NullChunkTreeId) {
+    if (!chunkTreeId) {
         return;
     }
 
@@ -3538,6 +3557,7 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
 {
     jobSpec->set_shell_command(config->Command);
     jobSpec->set_memory_limit(config->MemoryLimit);
+    jobSpec->set_include_memory_mapped_files(config->IncludeMemoryMappedFiles);
     jobSpec->set_iops_threshold(config->IopsThreshold);
     jobSpec->set_use_yamr_descriptors(config->UseYamrDescriptors);
     jobSpec->set_check_input_fully_consumed(config->CheckInputFullyConsumed);
@@ -3667,15 +3687,17 @@ void TOperationControllerBase::InitIntermediateOutputConfig(TJobIOConfigPtr conf
     config->TableWriter->SyncOnClose = false;
 }
 
-void TOperationControllerBase::ValidateKey(const TOwningKey& key)
-{
-    for (int i = 0; i < key.GetCount(); ++i) {
-        ValidateKeyValue(key[i]);
-    }
-}
-
 void TOperationControllerBase::InitFinalOutputConfig(TJobIOConfigPtr /* config */)
 { }
+
+NTableClient::TTableReaderOptionsPtr TOperationControllerBase::CreateTableReaderOptions(TJobIOConfigPtr ioConfig)
+{
+    auto options = New<TTableReaderOptions>();
+    options->EnableRowIndex = ioConfig->ControlAttributes->EnableRowIndex;
+    options->EnableTableIndex = ioConfig->ControlAttributes->EnableTableIndex;
+    options->EnableRangeIndex = ioConfig->ControlAttributes->EnableRangeIndex;
+    return options;
+}
 
 IClientPtr TOperationControllerBase::CreateClient()
 {

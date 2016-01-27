@@ -81,11 +81,6 @@ public:
             EObjectReplicationFlags::ReplicateAttributes;
     }
 
-    virtual TCellTag GetReplicationCellTag(const TObjectBase* /*object*/) override
-    {
-        return AllSecondaryMastersCellTag;
-    }
-
     virtual EObjectType GetType() const override
     {
         return EObjectType::ClusterNode;
@@ -99,7 +94,12 @@ public:
 private:
     TImpl* const Owner_;
 
-    virtual Stroka DoGetName(TNode* node) override
+    virtual TCellTagList DoGetReplicationCellTags(const TNode* node) override
+    {
+        return AllSecondaryCellTags();
+    }
+
+    virtual Stroka DoGetName(const TNode* node) override
     {
         return Format("node %v", node->GetDefaultAddress());
     }
@@ -132,11 +132,6 @@ public:
             EObjectReplicationFlags::ReplicateAttributes;
     }
 
-    virtual TCellTag GetReplicationCellTag(const TObjectBase* /*object*/) override
-    {
-        return AllSecondaryMastersCellTag;
-    }
-
     virtual EObjectType GetType() const override
     {
         return EObjectType::Rack;
@@ -159,7 +154,12 @@ public:
 private:
     TImpl* const Owner_;
 
-    virtual Stroka DoGetName(TRack* rack) override
+    virtual TCellTagList DoGetReplicationCellTags(const TRack* /*rack*/) override
+    {
+        return AllSecondaryCellTags();
+    }
+
+    virtual Stroka DoGetName(const TRack* rack) override
     {
         return Format("rack %Qv", rack->GetName());
     }
@@ -226,7 +226,7 @@ public:
 
     bool TryAcquireNodeRegistrationSemaphore()
     {
-        if (PendingRegisterNodeMutationCount_ + RegisteredNodeCount_ >= Config_->MaxConcurrentNodeRegistrations) {
+        if (PendingRegisterNodeMutationCount_ + LocalRegisteredNodeCount_ >= Config_->MaxConcurrentNodeRegistrations) {
             return false;
         }
         ++PendingRegisterNodeMutationCount_;
@@ -379,9 +379,11 @@ public:
                 LOG_INFO_UNLESS(IsRecovery(), "Node banned (NodeId: %v, Address: %v)",
                     node->GetId(),
                     node->GetDefaultAddress());
-                auto state = node->GetLocalState();
-                if (state == ENodeState::Online || state == ENodeState::Registered) {
-                    UnregisterNode(node, true);
+                if (Bootstrap_->IsPrimaryMaster()) {
+                    auto state = node->GetLocalState();
+                    if (state == ENodeState::Online || state == ENodeState::Registered) {
+                        UnregisterNode(node, true);
+                    }
                 }
             } else {
                 LOG_INFO_UNLESS(IsRecovery(), "Node is no longer banned (NodeId: %v, Address: %v)",
@@ -524,14 +526,9 @@ public:
         return result;
     }
 
-    int GetRegisteredNodeCount()
-    {
-        return RegisteredNodeCount_;
-    }
-
     int GetOnlineNodeCount()
     {
-        return OnlineNodeCount_;
+        return AggregatedOnlineNodeCount_;
     }
 
 private:
@@ -546,8 +543,8 @@ private:
     NHydra::TEntityMap<TObjectId, TNode> NodeMap_;
     NHydra::TEntityMap<TRackId, TRack> RackMap_;
 
-    int OnlineNodeCount_ = 0;
-    int RegisteredNodeCount_ = 0;
+    int AggregatedOnlineNodeCount_ = 0;
+    int LocalRegisteredNodeCount_ = 0;
 
     TRackSet UsedRackIndexes_ = 0;
 
@@ -624,6 +621,7 @@ private:
         // Check lease transaction.
         TTransaction* leaseTransaction = nullptr;
         if (leaseTransactionId) {
+            YCHECK(Bootstrap_->IsPrimaryMaster());
             auto transactionManager = Bootstrap_->GetTransactionManager();
             leaseTransaction = transactionManager->GetTransactionOrThrow(leaseTransactionId);
             if (leaseTransaction->GetPersistentState() != ETransactionState::Active) {
@@ -638,18 +636,24 @@ private:
                 THROW_ERROR_EXCEPTION("Node %v is banned", address);
             }
 
-            if (node->GetLocalState() != ENodeState::Offline) {
-                LOG_INFO_UNLESS(IsRecovery(), "Node kicked out due to address conflict (NodeId: %v, Address: %v, ExistingState: %v)",
-                    node->GetId(),
-                    address,
-                    node->GetLocalState());
-
-                EnsureNodeDisposed(node);
-
-                // NB: Recheck lease transaction state since EnsureNodeDisposed could have just aborted it.
-                if (leaseTransaction->GetPersistentState() != ETransactionState::Active) {
-                    leaseTransaction->ThrowInvalidState();
+            if (Bootstrap_->IsPrimaryMaster()) {
+                auto localState = node->GetLocalState();
+                if (localState == ENodeState::Registered || localState == ENodeState::Online) {
+                    LOG_INFO_UNLESS(IsRecovery(), "Kicking node out due to address conflict (NodeId: %v, Address: %v, State: %v)",
+                        node->GetId(),
+                        address,
+                        localState);
+                    UnregisterNode(node, true);
                 }
+
+                auto aggregatedState = node->GetAggregatedState();
+                if (aggregatedState != ENodeState::Offline) {
+                    THROW_ERROR_EXCEPTION("Node %v is still in %Qlv state; must wait for it to become fully offline",
+                        node->GetDefaultAddress(),
+                        aggregatedState);
+                }
+            } else {
+                EnsureNodeDisposed(node);
             }
 
             UpdateNode(node, addresses);
@@ -677,11 +681,7 @@ private:
         NodeRegistered_.Fire(node);
 
         if (Bootstrap_->IsPrimaryMaster()) {
-            auto replicatedRequest = request;
-            replicatedRequest.set_node_id(node->GetId());
-
-            auto multicellManager = Bootstrap_->GetMulticellManager();
-            multicellManager->PostToSecondaryMasters(replicatedRequest);
+            PostRegisterNodeMutation(node);
         }
 
         TRspRegisterNode response;
@@ -689,14 +689,29 @@ private:
         return response;
     }
 
+    void HydraUnregisterNode(const TReqUnregisterNode& request)
+    {
+        auto nodeId = request.node_id();
+
+        auto* node = FindNode(nodeId);
+        if (!IsObjectAlive(node))
+            return;
+
+        auto state = node->GetLocalState();
+        if (state != ENodeState::Registered && state != ENodeState::Online)
+            return;
+
+        UnregisterNode(node, true);
+    }
+
     void HydraDisposeNode(const TReqDisposeNode& request)
     {
         if (IsLeader()) {
             YCHECK(--PendingDisposeNodeMutationCount_ >= 0);
+            MaybePostDisposeNodeMutations();
         }
 
         auto nodeId = request.node_id();
-
         auto* node = FindNode(nodeId);
         if (!IsObjectAlive(node))
             return;
@@ -842,8 +857,8 @@ private:
 
         NameToRackMap_.clear();
 
-        OnlineNodeCount_ = 0;
-        RegisteredNodeCount_ = 0;
+        AggregatedOnlineNodeCount_ = 0;
+        LocalRegisteredNodeCount_ = 0;
     }
 
     virtual void OnAfterSnapshotLoaded() override
@@ -854,8 +869,8 @@ private:
         HostNameToNodeMap_.clear();
         TransactionToNodeMap_.clear();
 
-        OnlineNodeCount_ = 0;
-        RegisteredNodeCount_ = 0;
+        AggregatedOnlineNodeCount_ = 0;
+        LocalRegisteredNodeCount_ = 0;
 
         for (const auto& pair : NodeMap_) {
             auto* node = pair.second;
@@ -955,15 +970,11 @@ private:
 
     void UpdateNodeCounters(TNode* node, int delta)
     {
-        switch (node->GetAggregatedState()) {
-            case ENodeState::Registered:
-                RegisteredNodeCount_ += delta;
-                break;
-            case ENodeState::Online:
-                OnlineNodeCount_ += delta;
-                break;
-            default:
-                break;
+        if (node->GetLocalState() == ENodeState::Registered) {
+            LocalRegisteredNodeCount_ += delta;
+        }
+        if (node->GetAggregatedState() == ENodeState::Online) {
+            AggregatedOnlineNodeCount_ += delta;
         }
     }
 
@@ -1081,7 +1092,7 @@ private:
         }
     }
 
-    void UnregisterNode(TNode* node, bool scheduleDisposal)
+    void UnregisterNode(TNode* node, bool propagate)
     {
         PROFILE_TIMING ("/node_unregister_time") {
             auto* transaction = UnregisterLeaseTransaction(node);
@@ -1096,9 +1107,14 @@ private:
             node->SetLocalState(ENodeState::Unregistered);
             NodeUnregistered_.Fire(node);
 
-            if (scheduleDisposal && IsLeader()) {
-                NodeDisposalQueue_.push_back(node);
-                MaybePostDisposeNodeMutations();
+            if (propagate) {
+                if (IsLeader()) {
+                    NodeDisposalQueue_.push_back(node);
+                    MaybePostDisposeNodeMutations();
+                }
+                if (Bootstrap_->IsPrimaryMaster()) {
+                    PostUnregisterNodeMutation(node);
+                }
             }
 
             LOG_INFO_UNLESS(IsRecovery(), "Node unregistered (NodeId: %v, Address: %v)",
@@ -1116,10 +1132,6 @@ private:
             LOG_INFO_UNLESS(IsRecovery(), "Node offline (NodeId: %v, Address: %v)",
                 node->GetId(),
                 node->GetDefaultAddress());
-
-            if (IsLeader()) {
-                MaybePostDisposeNodeMutations();
-            }
         }
     }
 
@@ -1130,7 +1142,7 @@ private:
         {
             UnregisterNode(node, false);
         }
-        
+
         if (node->GetLocalState() == ENodeState::Unregistered) {
             DisposeNode(node);
         }
@@ -1200,6 +1212,26 @@ private:
             Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker()->Invoke(
                 BIND(IgnoreResult(&TMutation::CommitAndLog), mutation, Logger));
         }
+    }
+
+    void PostRegisterNodeMutation(TNode* node)
+    {
+        TReqRegisterNode request;
+        request.set_node_id(node->GetId());
+        ToProto(request.mutable_addresses(), node->GetAddresses());
+        *request.mutable_statistics() = node->Statistics();
+
+        auto multicellManager = Bootstrap_->GetMulticellManager();
+        multicellManager->PostToSecondaryMasters(request);
+    }
+
+    void PostUnregisterNodeMutation(TNode* node)
+    {
+        TReqUnregisterNode request;
+        request.set_node_id(node->GetId());
+
+        auto multicellManager = Bootstrap_->GetMulticellManager();
+        multicellManager->PostToSecondaryMasters(request);
     }
 
 
@@ -1377,11 +1409,6 @@ TMutationPtr TNodeTracker::CreateIncrementalHeartbeatMutation(
 TTotalNodeStatistics TNodeTracker::GetTotalNodeStatistics()
 {
     return Impl_->GetTotalNodeStatistics();
-}
-
-int TNodeTracker::GetRegisteredNodeCount()
-{
-    return Impl_->GetRegisteredNodeCount();
 }
 
 int TNodeTracker::GetOnlineNodeCount()

@@ -34,7 +34,9 @@ public:
     explicit TPartitionSortJob(IJobHostPtr host)
         : TSimpleJobBase(host)
         , SortJobSpecExt_(JobSpec_.GetExtension(TSortJobSpecExt::sort_job_spec_ext))
-    { }
+    {
+        YCHECK(SortJobSpecExt_.has_partition_tag());
+    }
 
     virtual void Initialize() override
     {
@@ -59,7 +61,8 @@ public:
             BIND(&IJobHost::ReleaseNetwork, Host_),
             chunkSpecs,
             TotalRowCount_,
-            SchedulerJobSpecExt_.is_approximate());
+            SchedulerJobSpecExt_.is_approximate(),
+            SortJobSpecExt_.partition_tag());
 
         YCHECK(SchedulerJobSpecExt_.output_specs_size() == 1);
         const auto& outputSpec = SchedulerJobSpecExt_.output_specs(0);

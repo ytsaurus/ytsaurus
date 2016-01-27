@@ -167,7 +167,7 @@ public:
             SelectChannels(tableChunkReader);
             YCHECK(SelectedChannels_.size() > 0);
 
-            LOG_DEBUG("Selected channels [%v]", JoinToString(SelectedChannels_));
+            LOG_DEBUG("Selected channels %v", SelectedChannels_);
 
             auto blockSequence = GetBlockReadSequence(tableChunkReader);
             LOG_DEBUG("Reading %v blocks", blockSequence.size());

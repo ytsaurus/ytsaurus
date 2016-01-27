@@ -358,11 +358,15 @@ public:
             return;
         }
 
-		int backlogSize = Profiler.Increment(BacklogEventCounter_);
+        int backlogSize = Profiler.Increment(BacklogEventCounter_);
         Profiler.Increment(EnqueuedEventCounter_);
         PushLogEvent(std::move(event));
-        EventCount_->NotifyOne();
 
+        bool expected = false;
+        if (Notified_.compare_exchange_strong(expected, true)) {
+            EventCount_->NotifyOne();
+        }
+        
         if (!Suspended_ && backlogSize == Config_->HighBacklogWatermark) {
             LOG_WARNING("Backlog size has exceeded high watermark %v, logging suspended",
                 Config_->HighBacklogWatermark);
@@ -393,7 +397,7 @@ private:
         { }
 
     private:
-        TImpl* Owner_;
+        TImpl* const Owner_;
 
         virtual void OnThreadStart() override
         {
@@ -439,6 +443,7 @@ private:
         int eventsWritten = 0;
         bool empty = true;
 
+        Notified_ = false;
         while (LoggerQueue_.DequeueAll(true, [&] (TLoggerQueueItem& eventOrConfig) {
                 if (empty) {
                     EventCount_->CancelWait();
@@ -697,8 +702,9 @@ private:
         LoggerQueue_.Enqueue(std::move(event));
     }
 
-    std::shared_ptr<TEventCount> EventCount_ = std::make_shared<TEventCount>();
-    TInvokerQueuePtr EventQueue_;
+    const std::shared_ptr<TEventCount> EventCount_ = std::make_shared<TEventCount>();
+    std::atomic<bool> Notified_ = {false};
+    const TInvokerQueuePtr EventQueue_;
 
     TIntrusivePtr<TThread> LoggingThread_;
     DECLARE_THREAD_AFFINITY_SLOT(LoggingThread);

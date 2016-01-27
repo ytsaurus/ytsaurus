@@ -131,7 +131,7 @@ public:
     void ScheduleChunkRefresh(TChunk* chunk);
     void ScheduleNodeRefresh(TNode* node);
     void ScheduleChunkPropertiesUpdate(TChunkTree* chunkTree);
-    void MaybeScheduleChunkSeal(TChunk* chunk);
+    void ScheduleChunkSeal(TChunk* chunk);
 
     const yhash_set<TChunk*>& LostVitalChunks() const;
     const yhash_set<TChunk*>& LostChunks() const;

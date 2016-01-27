@@ -243,7 +243,7 @@ public:
     }
 
 private:
-    virtual Stroka DoGetName(TChunk* chunk) override
+    virtual Stroka DoGetName(const TChunk* chunk) override
     {
         return Format("chunk %v", chunk->GetId());
     }
@@ -280,7 +280,7 @@ public:
 private:
     const EObjectType Type_;
 
-    virtual Stroka DoGetName(TChunk* chunk) override
+    virtual Stroka DoGetName(const TChunk* chunk) override
     {
         return Format("erasure chunk %v", chunk->GetId());
     }
@@ -310,7 +310,7 @@ public:
     }
 
 private:
-    virtual Stroka DoGetName(TChunk* chunk) override
+    virtual Stroka DoGetName(const TChunk* chunk) override
     {
         return Format("journal chunk %v", chunk->GetId());
     }
@@ -348,7 +348,7 @@ private:
     TImpl* const Owner_;
 
 
-    virtual Stroka DoGetName(TChunkList* chunkList) override
+    virtual Stroka DoGetName(const TChunkList* chunkList) override
     {
         return Format("chunk list %v", chunkList->GetId());
     }
@@ -649,9 +649,7 @@ public:
             securityManager->UpdateAccountStagingUsage(stagingTransaction, stagingAccount, delta);
         }
 
-        if (ChunkReplicator_) {
-            ChunkReplicator_->ScheduleChunkRefresh(chunk);
-        }
+        ScheduleChunkRefresh(chunk);
 
         LOG_DEBUG_UNLESS(IsRecovery(), "Chunk confirmed (ChunkId: %v)", id);
     }
@@ -794,28 +792,36 @@ public:
 
     bool IsReplicatorEnabled()
     {
-        return ChunkReplicator_->IsEnabled();
+        return ChunkReplicator_ && ChunkReplicator_->IsEnabled();
     }
 
 
     void ScheduleChunkRefresh(TChunk* chunk)
     {
-        ChunkReplicator_->ScheduleChunkRefresh(chunk);
+        if (ChunkReplicator_) {
+            ChunkReplicator_->ScheduleChunkRefresh(chunk);
+        }
     }
 
     void ScheduleNodeRefresh(TNode* node)
     {
-        ChunkReplicator_->ScheduleNodeRefresh(node);
+        if (ChunkReplicator_) {
+            ChunkReplicator_->ScheduleNodeRefresh(node);
+        }
     }
 
     void ScheduleChunkPropertiesUpdate(TChunkTree* chunkTree)
     {
-        ChunkReplicator_->SchedulePropertiesUpdate(chunkTree);
+        if (ChunkReplicator_) {
+            ChunkReplicator_->SchedulePropertiesUpdate(chunkTree);
+        }
     }
 
     void ScheduleChunkSeal(TChunk* chunk)
     {
-        ChunkSealer_->ScheduleSeal(chunk);
+        if (ChunkSealer_) {
+            ChunkSealer_->ScheduleSeal(chunk);
+        }
     }
 
 
@@ -921,9 +927,7 @@ public:
         chunk->Seal(info);
         OnChunkSealed(chunk);
 
-        if (ChunkReplicator_) {
-            ChunkReplicator_->ScheduleChunkRefresh(chunk);
-        }
+        ScheduleChunkRefresh(chunk);
 
         LOG_DEBUG_UNLESS(IsRecovery(), "Chunk sealed (ChunkId: %v, RowCount: %v, UncompressedDataSize: %v, CompressedDataSize: %v)",
             chunk->GetId(),
@@ -1021,8 +1025,9 @@ private:
 
         if (ChunkReplicator_) {
             ChunkReplicator_->OnNodeRegistered(node);
-            ChunkReplicator_->ScheduleNodeRefresh(node);
         }
+
+        ScheduleNodeRefresh(node);
     }
 
     void OnNodeUnregistered(TNode* node)
@@ -1059,8 +1064,8 @@ private:
 
     void OnNodeChanged(TNode* node)
     {
-        if (ChunkReplicator_ && node->GetLocalState() == ENodeState::Online) {
-            ChunkReplicator_->ScheduleNodeRefresh(node);
+        if (node->GetLocalState() == ENodeState::Online) {
+            ScheduleNodeRefresh(node);
         }
     }
 
@@ -1163,8 +1168,8 @@ private:
                 YASSERT(local);
                 auto& crossCellRequest = getCrossCellRequest(chunk);
                 *crossCellRequest.add_updates() = update;
-            } else if (ChunkReplicator_) {
-                ChunkReplicator_->ScheduleChunkRefresh(chunk);
+            } else {
+                ScheduleChunkRefresh(chunk);
             }
         }
 
@@ -1494,8 +1499,8 @@ private:
                 node->GetDefaultAddress());
         }
 
-        if (ChunkReplicator_ && !cached) {
-            ChunkReplicator_->ScheduleChunkRefresh(chunk);
+        if (!cached) {
+            ScheduleChunkRefresh(chunk);
         }
 
         if (ChunkSealer_ && !cached && chunk->IsJournal()) {
@@ -1556,8 +1561,8 @@ private:
                 node->GetDefaultAddress());
         }
 
-        if (ChunkReplicator_ && !cached) {
-            ChunkReplicator_->ScheduleChunkRefresh(chunk);
+        if (!cached) {
+            ScheduleChunkRefresh(chunk);
         }
 
         Profiler.Increment(RemovedChunkReplicaCounter_);
@@ -1766,7 +1771,7 @@ TObjectBase* TChunkManager::TChunkTypeHandlerBase::CreateObject(
     // NB: Once the chunk is created, no exceptions could be thrown.
     auto chunkListId = requestExt.has_chunk_list_id() ? FromProto<TChunkListId>(requestExt.chunk_list_id()) : NullChunkListId;
     TChunkList* chunkList = nullptr;
-    if (chunkListId != NullChunkId) {
+    if (chunkListId) {
         chunkList = Owner_->GetChunkListOrThrow(chunkListId);
         chunkList->ValidateSealed();
     }
@@ -2071,7 +2076,7 @@ void TChunkManager::ScheduleChunkPropertiesUpdate(TChunkTree* chunkTree)
     Impl_->ScheduleChunkPropertiesUpdate(chunkTree);
 }
 
-void TChunkManager::MaybeScheduleChunkSeal(TChunk* chunk)
+void TChunkManager::ScheduleChunkSeal(TChunk* chunk)
 {
     Impl_->ScheduleChunkSeal(chunk);
 }

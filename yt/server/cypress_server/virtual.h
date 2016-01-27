@@ -75,7 +75,7 @@ private:
     {
         i64 Limit = -1;
         NYTree::TAttributeFilter AttributeFilter;
-        std::vector<NObjectClient::TCellTag> CellTags;
+        NObjectClient::TCellTagList CellTags;
         int CellTagIndex = -1; // -1 means local
         bool Incomplete = false;
         std::vector<TFetchItem> Items;

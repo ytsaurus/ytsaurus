@@ -161,7 +161,7 @@ public:
             .GreaterThan(0)
             .Default(1);
         RegisterParameter("rediscover_period", RediscoverPeriod)
-            .Default(TDuration::Seconds(30));
+            .Default(TDuration::Minutes(5));
     }
 };
 

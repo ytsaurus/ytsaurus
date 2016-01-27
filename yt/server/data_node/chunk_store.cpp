@@ -187,14 +187,16 @@ void TChunkStore::DoRegisterChunk(const TChunkEntry& entry)
     switch (TypeFromId(DecodeChunkId(chunk->GetId()).Id)) {
         case EObjectType::Chunk:
         case EObjectType::ErasureChunk:
-            LOG_DEBUG("Blob chunk registered (ChunkId: %v, DiskSpace: %v)",
+            LOG_DEBUG("Blob chunk registered (ChunkId: %v, LocationId: %v, DiskSpace: %v)",
                 chunk->GetId(),
+                location->GetId(),
                 entry.DiskSpace);
             break;
 
         case EObjectType::JournalChunk:
-            LOG_DEBUG("Journal chunk registered (ChunkId: %v, Version: %v, Sealed: %v, Active: %v)",
+            LOG_DEBUG("Journal chunk registered (ChunkId: %v, LocationId: %v, Version: %v, Sealed: %v, Active: %v)",
                 chunk->GetId(),
+                location->GetId(),
                 chunk->GetVersion(),
                 chunk->GetInfo().sealed(),
                 chunk->IsActive());

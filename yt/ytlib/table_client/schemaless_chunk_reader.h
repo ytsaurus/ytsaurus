@@ -41,7 +41,8 @@ ISchemalessChunkReaderPtr CreateSchemalessChunkReader(
     NChunkClient::IBlockCachePtr blockCache,
     const TKeyColumns& keyColumns,
     const TColumnFilter& columnFilter,
-    std::vector<NChunkClient::TReadRange> readRanges);
+    std::vector<NChunkClient::TReadRange> readRanges,
+    TNullable<int> partitionTag = Null);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -71,6 +72,7 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessSequentialMultiChunkReader(
     TNameTablePtr nameTable,
     TColumnFilter columnFilter = TColumnFilter(),
     const TKeyColumns& keyColumns = TKeyColumns(),
+    TNullable<int> partitionTag = Null,
     NConcurrency::IThroughputThrottlerPtr throttler = NConcurrency::GetUnlimitedThrottler());
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -85,6 +87,7 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessParallelMultiChunkReader(
     TNameTablePtr nameTable,
     TColumnFilter columnFilter = TColumnFilter(),
     const TKeyColumns& keyColumns = TKeyColumns(),
+    TNullable<int> partitionTag = Null,
     NConcurrency::IThroughputThrottlerPtr throttler = NConcurrency::GetUnlimitedThrottler());
 
 ////////////////////////////////////////////////////////////////////////////////

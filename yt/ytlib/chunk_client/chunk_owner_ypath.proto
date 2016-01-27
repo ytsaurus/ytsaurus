@@ -19,6 +19,11 @@ message TReqBeginUpload
     optional NYT.NProto.TGuid upload_transaction_id = 3;
     optional string upload_transaction_title = 4;
     optional int64 upload_transaction_timeout = 5;
+    // If the node is external, the upload transaction will automatically
+    // be replicated to the corresponding secondary cell. This list
+    // may provide additional cells to replicate the transaction to.
+    // This is useful, e.g., in implementing "concat" command.
+    repeated int32 upload_transaction_secondary_cell_tags = 6;
 }
 
 message TRspBeginUpload

@@ -49,6 +49,16 @@ class TestFiles(YTEnvSetup):
         assert read_file("//tmp/file", offset=offset) == content[offset:]
         assert read_file("//tmp/file", length=length) == content[:length]
         assert read_file("//tmp/file", offset=offset, length=length) == content[offset:offset + length]
+
+        with pytest.raises(YtError):
+            assert read_file("//tmp/file", length=-1)
+
+        with pytest.raises(YtError):
+            assert read_file("//tmp", length=0)
+
+        with pytest.raises(YtError):
+            assert read_file("//tmp", length=1)
+
         assert get("//tmp/file/@uncompressed_data_size") == len(content)
 
     def test_read_all_intervals(self):
@@ -57,7 +67,7 @@ class TestFiles(YTEnvSetup):
         write_file("//tmp/file", content, file_writer={"block_size": 3})
 
         for offset in range(len(content)):
-            for length in range(1, len(content) - offset):
+            for length in range(0, len(content) - offset):
                 assert read_file("//tmp/file", offset=offset, length=length) == content[offset:offset + length]
 
     def test_copy(self):

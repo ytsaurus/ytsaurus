@@ -97,11 +97,10 @@ public:
         LOG_INFO("Creating operation node (OperationId: %v)",
             operationId);
 
-        auto* list = CreateUpdateList(operation);
         auto strategy = Bootstrap->GetScheduler()->GetStrategy();
 
         auto path = GetOperationPath(operationId);
-        auto batchReq = StartBatchRequest(list);
+        auto batchReq = StartBatchRequest();
         {
             auto req = TYPathProxy::Set(path);
             req->set_value(BuildYsonStringFluently()
@@ -1023,7 +1022,7 @@ private:
             auto cellTag = CellTagFromId(id);
             if (batchReqs.find(cellTag) == batchReqs.end()) {
                 auto connection = ClusterDirectory->GetConnection(cellTag);
-                auto channel = connection->GetMasterChannel(EMasterChannelKind::Leader);
+                auto channel = connection->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
                 TObjectServiceProxy proxy(channel);
                 batchReqs[cellTag] = proxy.ExecuteBatch();
             }
@@ -1271,12 +1270,7 @@ private:
         auto operationPath = GetOperationPath(operation->GetId());
         auto controller = operation->GetController();
 
-        // Set state.
-        {
-            auto req = TYPathProxy::Set(operationPath + "/@state");
-            req->set_value(ConvertToYsonString(operation->GetState()).Data());
-            batchReq->AddRequest(req, "update_op_node");
-        }
+        GenerateMutationId(batchReq);
 
         // Set suspended flag.
         {
@@ -1330,6 +1324,13 @@ private:
         if (operation->GetFinishTime()) {
             auto req = TYPathProxy::Set(operationPath + "/@finish_time");
             req->set_value(ConvertToYsonString(operation->GetFinishTime().Get()).Data());
+            batchReq->AddRequest(req, "update_op_node");
+        }
+
+        // Set state.
+        {
+            auto req = TYPathProxy::Set(operationPath + "/@state");
+            req->set_value(ConvertToYsonString(operation->GetState()).Data());
             batchReq->AddRequest(req, "update_op_node");
         }
 
@@ -1568,6 +1569,8 @@ private:
         auto error = GetCumulativeError(batchRspOrError);
         THROW_ERROR_EXCEPTION_IF_FAILED(error, "Error creating operation node %v",
             operationId);
+
+        CreateUpdateList(operation);
 
         LOG_INFO("Operation node created (OperationId: %v)",
             operationId);

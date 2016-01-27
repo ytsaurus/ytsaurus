@@ -59,7 +59,7 @@ TStoreManager::TStoreManager(
     YCHECK(Tablet_);
     YCHECK(DynamicMemoryStoreFactory_);
 
-    Logger.AddTag("TabletId: %v", Tablet_->GetTabletId());
+    Logger.AddTag("TabletId: %v", Tablet_->GetId());
     if (Tablet_->GetSlot()) {
         Logger.AddTag("CellId: %v", Tablet_->GetSlot()->GetCellId());
     }
@@ -97,12 +97,10 @@ bool TStoreManager::HasUnflushedStores() const
 {
     for (const auto& pair : Tablet_->Stores()) {
         const auto& store = pair.second;
-        // COMPAT(sandello): Temporary treat "remove_committing" chunk stores as flushed.
         if (store->GetType() != EStoreType::Chunk) {
             return true;
         }
-        if (store->GetStoreState() != EStoreState::Persistent &&
-            store->GetStoreState() != EStoreState::RemoveCommitting) {
+        if (store->GetStoreState() != EStoreState::Persistent) {
             return true;
         }
     }
@@ -151,7 +149,7 @@ TDynamicRowRef TStoreManager::WriteRowAtomic(
     if (row.GetCount() == KeyColumnCount_) {
         THROW_ERROR_EXCEPTION("Empty writes are not allowed")
             << TErrorAttribute("transaction_id", transaction->GetId())
-            << TErrorAttribute("tablet_id", Tablet_->GetTabletId())
+            << TErrorAttribute("tablet_id", Tablet_->GetId())
             << TErrorAttribute("key", row);
     }
 
@@ -184,7 +182,7 @@ void TStoreManager::WriteRowNonAtomic(
     if (row.GetCount() == KeyColumnCount_) {
         THROW_ERROR_EXCEPTION("Empty writes are not allowed")
             << TErrorAttribute("transaction_id", transactionId)
-            << TErrorAttribute("tablet_id", Tablet_->GetTabletId())
+            << TErrorAttribute("tablet_id", Tablet_->GetId())
             << TErrorAttribute("key", row);
     }
 
@@ -314,7 +312,7 @@ bool TStoreManager::IsOverflowRotationNeeded() const
     const auto& store = Tablet_->GetActiveStore();
     const auto& config = Tablet_->GetConfig();
     return
-        store->GetKeyCount() >= config->MaxMemoryStoreKeyCount ||
+        store->GetKeyCount() >= config->SoftMemoryStoreKeyCountLimit ||
         store->GetValueCount() >= config->MaxMemoryStoreValueCount ||
         store->GetPoolCapacity() >= config->MaxMemoryStorePoolSize;
 }

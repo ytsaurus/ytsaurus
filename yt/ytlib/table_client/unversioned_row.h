@@ -184,12 +184,8 @@ int GetDataWeight(const TUnversionedValue& value);
 int WriteValue(char* output, const TUnversionedValue& value);
 int ReadValue(const char* input, TUnversionedValue* value);
 
-////////////////////////////////////////////////////////////////////////////////
-
 void Save(TStreamSaveContext& context, const TUnversionedValue& value);
 void Load(TStreamLoadContext& context, TUnversionedValue& value, TChunkedMemoryPool* pool);
-
-////////////////////////////////////////////////////////////////////////////////
 
 Stroka ToString(const TUnversionedValue& value);
 
@@ -203,6 +199,8 @@ bool operator <= (const TUnversionedValue& lhs, const TUnversionedValue& rhs);
 bool operator <  (const TUnversionedValue& lhs, const TUnversionedValue& rhs);
 bool operator >= (const TUnversionedValue& lhs, const TUnversionedValue& rhs);
 bool operator >  (const TUnversionedValue& lhs, const TUnversionedValue& rhs);
+
+////////////////////////////////////////////////////////////////////////////////
 
 //! Ternary comparison predicate for ranges of TUnversionedValue-s.
 int CompareRows(
@@ -224,34 +222,6 @@ bool operator <= (TUnversionedRow lhs, TUnversionedRow rhs);
 bool operator <  (TUnversionedRow lhs, TUnversionedRow rhs);
 bool operator >= (TUnversionedRow lhs, TUnversionedRow rhs);
 bool operator >  (TUnversionedRow lhs, TUnversionedRow rhs);
-
-bool operator == (TUnversionedRow lhs, const TUnversionedOwningRow& rhs);
-bool operator != (TUnversionedRow lhs, const TUnversionedOwningRow& rhs);
-bool operator <= (TUnversionedRow lhs, const TUnversionedOwningRow& rhs);
-bool operator <  (TUnversionedRow lhs, const TUnversionedOwningRow& rhs);
-bool operator >= (TUnversionedRow lhs, const TUnversionedOwningRow& rhs);
-bool operator >  (TUnversionedRow lhs, const TUnversionedOwningRow& rhs);
-
-bool operator == (const TUnversionedOwningRow& lhs, TUnversionedRow rhs);
-bool operator != (const TUnversionedOwningRow& lhs, TUnversionedRow rhs);
-bool operator <= (const TUnversionedOwningRow& lhs, TUnversionedRow rhs);
-bool operator <  (const TUnversionedOwningRow& lhs, TUnversionedRow rhs);
-bool operator >= (const TUnversionedOwningRow& lhs, TUnversionedRow rhs);
-bool operator >  (const TUnversionedOwningRow& lhs, TUnversionedRow rhs);
-
-//! Ternary comparison predicate for TUnversionedOwningRow-s stripped to a given number of
-//! (leading) values.
-int CompareRows(
-    const TUnversionedOwningRow& lhs,
-    const TUnversionedOwningRow& rhs,
-    int prefixLength = std::numeric_limits<int>::max());
-
-bool operator == (const TUnversionedOwningRow& lhs, const TUnversionedOwningRow& rhs);
-bool operator != (const TUnversionedOwningRow& lhs, const TUnversionedOwningRow& rhs);
-bool operator <= (const TUnversionedOwningRow& lhs, const TUnversionedOwningRow& rhs);
-bool operator <  (const TUnversionedOwningRow& lhs, const TUnversionedOwningRow& rhs);
-bool operator >= (const TUnversionedOwningRow& lhs, const TUnversionedOwningRow& rhs);
-bool operator >  (const TUnversionedOwningRow& lhs, const TUnversionedOwningRow& rhs);
 
 //! Sets all value types of |row| to |EValueType::Null|. Ids are not changed.
 void ResetRowValues(TMutableUnversionedRow* row);
@@ -387,6 +357,10 @@ void ValidateServerDataRow(
     const TTableSchema& schema);
 
 //! Checks that #key is a valid client-side key. Throws on failure.
+/*! The components must pass #ValidateKeyValue check. */
+void ValidateClientKey(TKey key);
+
+//! Checks that #key is a valid client-side key. Throws on failure.
 /*! The key must obey the following properties:
  *  1. It cannot be null.
  *  2. It must contain exactly #schema.GetKeyColumnCount() components.
@@ -452,7 +426,8 @@ void FromProto(TUnversionedOwningRow* row, const TProtoStringType& protoRow);
 void FromProto(TUnversionedOwningRow* row, const NChunkClient::NProto::TKey& protoKey);
 void FromProto(TUnversionedRow* row, const TProtoStringType& protoRow, const TRowBufferPtr& rowBuffer);
 
-void Serialize(const TKey& key, NYson::IYsonConsumer* consumer);
+void Serialize(const TUnversionedValue& value, NYson::IYsonConsumer* consumer);
+void Serialize(TKey key, NYson::IYsonConsumer* consumer);
 void Serialize(const TOwningKey& key, NYson::IYsonConsumer* consumer);
 
 void Deserialize(TOwningKey& key, NYTree::INodePtr node);
@@ -547,6 +522,11 @@ public:
     explicit operator bool() const
     {
         return static_cast<bool>(RowData_);
+    }
+
+    operator TUnversionedRow() const
+    {
+        return Get();
     }
 
     TUnversionedRow Get() const

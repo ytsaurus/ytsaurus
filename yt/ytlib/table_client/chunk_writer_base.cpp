@@ -87,6 +87,23 @@ TChunkMeta TChunkWriterBase::GetSchedulerMeta() const
     return GetMasterMeta();
 }
 
+TChunkMeta TChunkWriterBase::GetNodeMeta() const
+{
+    return GetMasterMeta();
+}
+
+void TChunkWriterBase::ValidateRowWeight(i64 weight)
+{
+    if (weight < Config_->MaxRowWeight) {
+        return;
+    }
+
+    THROW_ERROR_EXCEPTION("Row weight is too large")
+        << TErrorAttribute("row_weight", weight)
+        << TErrorAttribute("row_weight_limit", Config_->MaxRowWeight);
+
+}
+
 TDataStatistics TChunkWriterBase::GetDataStatistics() const
 {
     auto dataStatistics = EncodingChunkWriter_->GetDataStatistics();
@@ -167,22 +184,23 @@ i64 TSequentialChunkWriterBase::GetDataSize() const
 
 void TSequentialChunkWriterBase::OnRow(TVersionedRow row)
 {
-    DataWeight_ += GetDataWeight(row);
+    i64 weight = GetDataWeight(row);
+    ValidateRowWeight(weight);
+    DataWeight_ += weight;
     OnRow(row.BeginKeys(), row.EndKeys());
 }
 
 void TSequentialChunkWriterBase::OnRow(TUnversionedRow row)
 {
-    DataWeight_ += GetDataWeight(row);
+    i64 weight = GetDataWeight(row);
+    ValidateRowWeight(weight);
+    DataWeight_ += weight;
     OnRow(row.Begin(), row.End());
 }
 
 void TSequentialChunkWriterBase::OnRow(const TUnversionedValue* begin, const TUnversionedValue* end)
 {
-    double avgRowSize = EncodingChunkWriter_->GetCompressionRatio() * GetUncompressedSize() / RowCount_;
-    double sampleProbability = Config_->SampleRate * avgRowSize / AverageSampleSize_;
-
-    if (RandomNumber<double>() < sampleProbability || RowCount_ == 0) {
+    if (RandomNumber<double>() < Config_->SampleRate || RowCount_ == 0) {
         EmitSample(begin, end);
     }
 
@@ -202,7 +220,6 @@ void TSequentialChunkWriterBase::EmitSample(const TUnversionedValue* begin, cons
     auto entry = SerializeToString(begin, end);
     SamplesExt_.add_entries(entry);
     SamplesExtSize_ += entry.length();
-    AverageSampleSize_ = static_cast<double>(SamplesExtSize_) / SamplesExt_.entries_size();
 }
 
 void TSequentialChunkWriterBase::FinishBlock()

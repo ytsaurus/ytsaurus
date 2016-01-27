@@ -16,7 +16,7 @@ namespace NHydra {
 //! Represents a changelog, that is an ordered sequence of records.
 /*!
  *  Except when speficially noted otherwise, all methods are assumed to
- *  to invoked from a single thread.
+ *  be invoked from a single thread.
  */
 struct IChangelog
     : public virtual TRefCounted
@@ -29,12 +29,16 @@ struct IChangelog
 
     //! Returns the number of records in the changelog.
     /*!
+     *  This includes appended but not yet flushed records as well.
+     *
      *  Thread affinity: any
      */
     virtual int GetRecordCount() const = 0;
 
     //! Returns an approximate byte size in a changelog.
     /*!
+     *  This includes appended but not yet flushed records as well.
+     *
      *  Thread affinity: any
      */
     virtual i64 GetDataSize() const = 0;
@@ -51,7 +55,7 @@ struct IChangelog
     //! Asynchronously flushes all previously appended records.
     /*!
      *  \returns an asynchronous flag either indicating an error or
-     *  a successful flush of the just appended record.
+     *  a successful flush of all the appended records.
      */
     virtual TFuture<void> Flush() = 0;
 

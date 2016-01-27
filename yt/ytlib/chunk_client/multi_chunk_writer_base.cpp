@@ -103,9 +103,14 @@ void TNontemplateMultiChunkWriterBase::SetProgress(double progress)
     Progress_ = progress;
 }
 
-const std::vector<TChunkSpec>& TNontemplateMultiChunkWriterBase::GetWrittenChunks() const
+const std::vector<TChunkSpec>& TNontemplateMultiChunkWriterBase::GetWrittenChunksMasterMeta() const
 {
     return WrittenChunks_;
+}
+
+const std::vector<TChunkSpec>& TNontemplateMultiChunkWriterBase::GetWrittenChunksFullMeta() const
+{
+    return WrittenChunksFullMeta_;
 }
 
 TNodeDirectoryPtr TNontemplateMultiChunkWriterBase::GetNodeDirectory() const
@@ -154,6 +159,9 @@ void TNontemplateMultiChunkWriterBase::FinishSession()
     NYT::ToProto(chunkSpec.mutable_replicas(), CurrentSession_.UnderlyingWriter->GetWrittenChunkReplicas());
 
     WrittenChunks_.push_back(chunkSpec);
+
+    *chunkSpec.mutable_chunk_meta() = CurrentSession_.TemplateWriter->GetNodeMeta();
+    WrittenChunksFullMeta_.push_back(chunkSpec);
 
     TGuard<TSpinLock> guard(SpinLock_);
     DataStatistics_ += CurrentSession_.TemplateWriter->GetDataStatistics();

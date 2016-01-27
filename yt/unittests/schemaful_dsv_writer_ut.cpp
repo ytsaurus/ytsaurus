@@ -2,6 +2,7 @@
 #include "format_writer_ut.h"
 
 #include <yt/ytlib/formats/schemaful_dsv_writer.h>
+#include <yt/ytlib/formats/format.h>
 
 #include <yt/ytlib/table_client/name_table.h>
 

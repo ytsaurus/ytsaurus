@@ -79,7 +79,7 @@ public:
             return;
         }
         LOG_DEBUG("Stopping scraper task (ChunkCount: %v)",
-        	ChunkIds_.size());
+            ChunkIds_.size());
 
         Started_ = false;
         PeriodicExecutor_->Stop();
@@ -139,7 +139,7 @@ private:
 
         const auto& rsp = rspOrError.Value();
 
-        LOG_DEBUG("Located %v chunks", rsp->chunks_size());
+        LOG_DEBUG("Chunks located (Count: %v)", rsp->chunks_size());
 
         NodeDirectory_->MergeFrom(rsp->node_directory());
 

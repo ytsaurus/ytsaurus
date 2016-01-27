@@ -14,6 +14,8 @@
 #include <yt/server/security_server/cluster_resources.h>
 #include <yt/server/security_server/public.h>
 
+#include <yt/server/hive/transaction_detail.h>
+
 #include <yt/ytlib/cypress_client/public.h>
 
 #include <yt/core/misc/nullable.h>
@@ -26,15 +28,14 @@ namespace NTransactionServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTransaction
-    : public NObjectServer::TNonversionedObjectBase
+    : public NHive::TTransactionBase<NObjectServer::TNonversionedObjectBase>
     , public TRefTracked<TTransaction>
 {
 public:
-    DEFINE_BYVAL_RW_PROPERTY(TLease, Lease);
-    DEFINE_BYVAL_RW_PROPERTY(ETransactionState, State);
     DEFINE_BYVAL_RW_PROPERTY(TNullable<TDuration>, Timeout);
     DEFINE_BYVAL_RW_PROPERTY(bool, AccountingEnabled);
     DEFINE_BYVAL_RW_PROPERTY(TNullable<Stroka>, Title);
+    DEFINE_BYREF_RW_PROPERTY(NObjectClient::TCellTagList, SecondaryCellTags);
     DEFINE_BYREF_RW_PROPERTY(yhash_set<TTransaction*>, NestedTransactions);
     DEFINE_BYVAL_RW_PROPERTY(TTransaction*, Parent);
     DEFINE_BYVAL_RW_PROPERTY(TInstant, StartTime);
@@ -71,10 +72,6 @@ public:
 
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);
-
-    ETransactionState GetPersistentState() const;
-
-    void ThrowInvalidState() const;
 
     NYson::TYsonString GetDescription() const;
 

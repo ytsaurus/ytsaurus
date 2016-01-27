@@ -648,7 +648,7 @@ public:
         , Promise_(NewPromise<std::vector<TSharedRef>>())
         , BlockIndexes_(blockIndexes)
     {
-        Logger.AddTag("Blocks: [%v]", JoinToString(blockIndexes));
+        Logger.AddTag("Blocks: [%v]", blockIndexes);
     }
 
     ~TReadBlockSetSession()
@@ -776,9 +776,9 @@ private:
             auto blockIndexes = GetRequestBlockIndexes(currentAddress, unfetchedBlockIndexes);
 
             if (!IsPeerBanned(currentAddress) && !blockIndexes.empty()) {
-                LOG_DEBUG("Requesting blocks from peer (Address: %v, Blocks: [%v])",
+                LOG_DEBUG("Requesting blocks from peer (Address: %v, Blocks: %v)",
                     currentAddress,
-                    JoinToString(unfetchedBlockIndexes));
+                    unfetchedBlockIndexes);
 
                 IChannelPtr channel;
                 try {
@@ -916,9 +916,9 @@ private:
             BanPeer(address, false);
         }
 
-        LOG_DEBUG("Finished processing block response (Address: %v, BlocksReceived: [%v], BytesReceived: %v, PeersSuggested: %v)",
+        LOG_DEBUG("Finished processing block response (Address: %v, BlocksReceived: %v, BytesReceived: %v, PeersSuggested: %v)",
             address,
-            JoinToString(receivedBlockIndexes),
+            receivedBlockIndexes,
             bytesReceived,
             rsp->peer_descriptors_size());
 

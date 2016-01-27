@@ -96,11 +96,6 @@ public:
         return EObjectReplicationFlags::ReplicateAttributes;
     }
 
-    virtual TCellTag GetReplicationCellTag(const TObjectBase* /*object*/) override
-    {
-        return AllSecondaryMastersCellTag;
-    }
-
     virtual EObjectType GetType() const override
     {
         return SchemaTypeFromType(Type_);
@@ -145,7 +140,12 @@ private:
 
     const EObjectType Type_;
 
-    virtual Stroka DoGetName(TSchemaObject* /*object*/) override
+    virtual TCellTagList DoGetReplicationCellTags(const TSchemaObject* /*object*/) override
+    {
+        return AllSecondaryCellTags();
+    }
+
+    virtual Stroka DoGetName(const TSchemaObject* /*object*/) override
     {
         return Format("%Qlv schema", Type_);
     }

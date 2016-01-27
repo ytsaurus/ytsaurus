@@ -66,7 +66,8 @@ private:
     THorizontalSchemalessBlockReader* BlockReader_ = nullptr;
 
 
-    std::vector<NChunkClient::TSequentialReader::TBlockInfo> GetBlockSequence();
+    TFuture<void> InitializeBlockSequence();
+
     virtual void InitFirstBlock() override;
     virtual void InitNextBlock() override;
 
@@ -109,7 +110,8 @@ TPartitionMultiChunkReaderPtr CreatePartitionMultiChunkReader(
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
     const std::vector<NChunkClient::NProto::TChunkSpec>& chunkSpecs,
     TNameTablePtr nameTable,
-    const TKeyColumns& keyColumns);
+    const TKeyColumns& keyColumns,
+    int partitionTag);
 
 ////////////////////////////////////////////////////////////////////////////////
 

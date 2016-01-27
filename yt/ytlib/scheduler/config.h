@@ -216,6 +216,8 @@ public:
     i64 MemoryLimit;
     double MemoryReserveFactor;
 
+    bool IncludeMemoryMappedFiles;
+
     int IopsThreshold;
 
     bool UseYamrDescriptors;
@@ -250,6 +252,8 @@ public:
             .Default(0.5)
             .GreaterThan(0.)
             .LessThanOrEqual(1.);
+        RegisterParameter("include_memory_mapped_files", IncludeMemoryMappedFiles)
+            .Default(true);
         RegisterParameter("iops_threshold", IopsThreshold)
             .Default(3)
             .GreaterThan(0)
@@ -609,8 +613,8 @@ public:
     //! Data size per sort job.
     i64 DataSizePerSortJob;
 
-    //! Ratio of data size after partition to data size before partition.
-    //! It always equals 1.0 for sort operation.
+    //! The expected ratio of data size after partitioning to data size before partitioning.
+    //! For sort operations, this is always 1.0.
     double MapSelectivityFactor;
 
     double ShuffleStartThreshold;
@@ -632,6 +636,16 @@ public:
     int ShuffleNetworkLimit;
 
     std::vector<Stroka> SortBy;
+
+    //! If |true| then the scheduler attempts to distribute partition jobs evenly
+    //! (w.r.t. the uncompressed input data size) across the cluster to balance IO
+    //! load during the subsequent shuffle stage.
+    bool EnablePartitionedDataBalancing;
+
+    //! When #EnablePartitionedDataBalancing is |true| the scheduler tries to maintain the following
+    //! invariant regarding (uncompressed) |DataSize(i)| assigned to each node |i|:
+    //! |max_i DataSize(i) <= avg_i DataSize(i) + DataSizePerJob * PartitionedDataBalancingTolerance|
+    double PartitionedDataBalancingTolerance;
 
     TSortOperationSpecBase()
     {
@@ -658,9 +672,12 @@ public:
             .Default(TDuration::Seconds(5));
         RegisterParameter("shuffle_network_limit", ShuffleNetworkLimit)
             .Default(0);
-
         RegisterParameter("sort_by", SortBy)
             .NonEmpty();
+        RegisterParameter("enable_partitioned_data_balancing", EnablePartitionedDataBalancing)
+            .Default(true);
+        RegisterParameter("partitioned_data_balancing_tolerance", PartitionedDataBalancingTolerance)
+            .Default(3.0);
 
         RegisterValidator([&] () {
             NTableClient::ValidateKeyColumns(SortBy);

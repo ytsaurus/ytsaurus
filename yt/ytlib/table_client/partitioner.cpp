@@ -27,7 +27,7 @@ public:
             Keys_->end(),
             row,
             [] (TUnversionedRow row, const TOwningKey& element) {
-                return row < element.Get();
+                return row < element;
             });
         return std::distance(Keys_->begin(), it);
     }

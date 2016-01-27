@@ -24,6 +24,24 @@ using NYT::FromProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TCachedVersionedChunkMeta::TCachedVersionedChunkMeta() = default;
+
+TCachedVersionedChunkMetaPtr TCachedVersionedChunkMeta::Create(
+    const TChunkId& chunkId,
+    const NChunkClient::NProto::TChunkMeta& chunkMeta,
+    const TTableSchema& schema)
+{
+    auto cachedMeta = New<TCachedVersionedChunkMeta>();
+    try {
+        cachedMeta->Init(chunkId, chunkMeta, schema);
+    } catch (const std::exception& ex) {
+        THROW_ERROR_EXCEPTION("Error caching meta of chunk %v",
+            chunkId)
+            << ex;
+    }
+    return cachedMeta;
+}
+
 TFuture<TCachedVersionedChunkMetaPtr> TCachedVersionedChunkMeta::Load(
     IChunkReaderPtr chunkReader,
     const TTableSchema& schema)
@@ -36,42 +54,50 @@ TFuture<TCachedVersionedChunkMetaPtr> TCachedVersionedChunkMeta::Load(
 
 TCachedVersionedChunkMetaPtr TCachedVersionedChunkMeta::DoLoad(
     IChunkReaderPtr chunkReader,
-    const TTableSchema& readerSchema)
+    const TTableSchema& schema)
 {
-    ChunkId_ = chunkReader->GetChunkId();
-
-    auto keyColumns = readerSchema.GetKeyColumns();
-    KeyColumnCount_ = keyColumns.size();
-
     try {
-        //ValidateTableSchemaAndKeyColumns(readerSchema, keyColumns);
-
         auto asyncChunkMeta = chunkReader->GetMeta();
-        ChunkMeta_ = WaitFor(asyncChunkMeta)
+        auto chunkMeta = WaitFor(asyncChunkMeta)
             .ValueOrThrow();
 
-        ValidateChunkMeta();
-        ValidateSchema(readerSchema);
-
-        auto boundaryKeysExt = GetProtoExtension<TBoundaryKeysExt>(ChunkMeta_.extensions());
-        MinKey_ = WidenKey(FromProto<TOwningKey>(boundaryKeysExt.min()), GetKeyColumnCount());
-        MaxKey_ = WidenKey(FromProto<TOwningKey>(boundaryKeysExt.max()), GetKeyColumnCount());
-
-        Misc_ = GetProtoExtension<TMiscExt>(ChunkMeta_.extensions());
-        BlockMeta_ = GetProtoExtension<TBlockMetaExt>(ChunkMeta_.extensions());
-
-        BlockLastKeys_.reserve(BlockMeta_.blocks_size());
-        for (const auto& block : BlockMeta_.blocks()) {
-            YCHECK(block.has_last_key());
-            auto key = FromProto<TOwningKey>(block.last_key());
-            BlockLastKeys_.push_back(WidenKey(key, GetKeyColumnCount()));
-        }
-
+        Init(chunkReader->GetChunkId(), chunkMeta, schema);
         return this;
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Error caching meta of chunk %v",
-            ChunkId_)
+            chunkReader->GetChunkId())
             << ex;
+    }
+}
+
+void TCachedVersionedChunkMeta::Init(
+    const TChunkId& chunkId,
+    const NChunkClient::NProto::TChunkMeta& chunkMeta,
+    const TTableSchema& schema)
+{
+    ChunkId_ = chunkId;
+    ChunkMeta_ = chunkMeta;
+
+    auto keyColumns = schema.GetKeyColumns();
+    KeyColumnCount_ = keyColumns.size();
+
+    ValidateChunkMeta();
+    ValidateSchema(schema);
+
+    auto boundaryKeysExt = GetProtoExtension<TBoundaryKeysExt>(ChunkMeta_.extensions());
+    MinKey_ = WidenKey(FromProto<TOwningKey>(boundaryKeysExt.min()), GetKeyColumnCount());
+    MaxKey_ = WidenKey(FromProto<TOwningKey>(boundaryKeysExt.max()), GetKeyColumnCount());
+
+    Misc_ = GetProtoExtension<TMiscExt>(ChunkMeta_.extensions());
+    BlockMeta_ = GetProtoExtension<TBlockMetaExt>(ChunkMeta_.extensions());
+
+    BlockLastKeys_.reserve(BlockMeta_.blocks_size());
+    BlockRowCounts_.reserve(BlockMeta_.blocks_size());
+    for (const auto& block : BlockMeta_.blocks()) {
+        YCHECK(block.has_last_key());
+        auto key = FromProto<TOwningKey>(block.last_key());
+        BlockLastKeys_.push_back(WidenKey(key, GetKeyColumnCount()));
+        BlockRowCounts_.push_back(block.chunk_row_count());
     }
 }
 
@@ -106,9 +132,9 @@ void TCachedVersionedChunkMeta::ValidateSchema(const TTableSchema& readerSchema)
 
     auto throwIncompatibleKeyColumns = [&] () {
         THROW_ERROR_EXCEPTION(
-            "Reader key columns [%v] are incompatible with chunk key columns [%v]",
-            JoinToString(readerSchema.GetKeyColumns()),
-            JoinToString(ChunkSchema_.GetKeyColumns()));
+            "Reader key columns %v are incompatible with chunk key columns %v",
+            readerSchema.GetKeyColumns(),
+            ChunkSchema_.GetKeyColumns());
     };
 
     if (readerSchema.GetKeyColumnCount() < ChunkSchema_.GetKeyColumnCount()) {

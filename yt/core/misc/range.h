@@ -36,12 +36,6 @@ public:
         , Length_(0)
     { }
 
-    //! Constructs a TRange from a single element.
-    TRange(const T& element)
-        : Data_(&element)
-        , Length_(1)
-    { }
-
     //! Constructs a TRange from a pointer and length.
     TRange(const T* data, size_t length)
         : Data_(data)
@@ -145,13 +139,6 @@ typename TRange<T>::const_iterator end(const TRange<T>& ref)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Constructs a TRange from a single element.
-template <class T>
-TRange<T> MakeRange(const T& element)
-{
-    return element;
-}
-
 //! Constructs a TRange from a pointer and length.
 template <class T>
 TRange<T> MakeRange(const T* data, size_t length)
@@ -212,11 +199,6 @@ public:
 
     //! Constructs a null TMutableRange.
     TMutableRange()
-    { }
-
-    //! Constructs a TMutableRange from a single element.
-    TMutableRange(T& element)
-        : TRange<T>(element)
     { }
 
     //! Constructs a TMutableRange from a pointer and length.
@@ -302,12 +284,6 @@ public:
     //! Constructs a TSharedRange from TRange.
     TSharedRange(const TRange<T>& range, THolderPtr holder)
         : TRange<T>(range)
-        , Holder_(std::move(holder))
-    { }
-
-    //! Constructs a TSharedRange from a single element.
-    TSharedRange(const T& element, THolderPtr holder)
-        : TRange<T>(element)
         , Holder_(std::move(holder))
     { }
 
@@ -420,12 +396,6 @@ public:
     //! Constructs a TSharedMutableRange from TMutableRange.
     TSharedMutableRange(const TMutableRange<T>& range, THolderPtr holder)
         : TMutableRange<T>(range)
-        , Holder_(std::move(holder))
-    { }
-
-    //! Constructs a TSharedMutableRange from a single element.
-    TSharedMutableRange(T& element, THolderPtr holder)
-        : TMutableRange<T>(element)
         , Holder_(std::move(holder))
     { }
 

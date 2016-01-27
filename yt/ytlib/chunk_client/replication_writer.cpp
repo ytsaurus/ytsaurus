@@ -604,8 +604,8 @@ void TReplicationWriter::DoOpen()
             StartSessions(AllocateTargets());
         }
 
-        LOG_INFO("Writer opened (Addresses: [%v], PopulateCache: %v, Workload: %v, Network: %v)",
-            JoinToString(Nodes_),
+        LOG_INFO("Writer opened (Addresses: %v, PopulateCache: %v, Workload: %v, Network: %v)",
+            Nodes_,
             Config_->PopulateCache,
             Config_->WorkloadDescriptor,
             NetworkName_);

@@ -1,3 +1,5 @@
+#pragma once
+
 #include "row_base.h"
 
 #include <yt/core/misc/farm_hash.h>
@@ -50,6 +52,8 @@ static_assert(
     std::is_pod<TUnversionedValue>::value,
     "TUnversionedValue must be a POD type.");
 
+////////////////////////////////////////////////////////////////////////////////
+
 //! Computes hash for a given TUnversionedValue.
 ui64 GetHash(const TUnversionedValue& value);
 
@@ -63,4 +67,3 @@ TFingerprint GetFarmFingerprint(const TUnversionedValue* begin, const TUnversion
 
 } // namespace NTableClient
 } // namespace NYT
-

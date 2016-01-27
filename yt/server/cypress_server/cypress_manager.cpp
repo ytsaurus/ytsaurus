@@ -344,11 +344,6 @@ public:
             EObjectReplicationFlags::ReplicateDestroy;
     }
 
-    virtual TCellTag GetReplicationCellTag(const TObjectBase* object) override
-    {
-        return static_cast<const TCypressNodeBase*>(object)->GetExternalCellTag();
-    }
-
     virtual EObjectType GetType() const override
     {
         return Type_;
@@ -382,7 +377,13 @@ private:
     const EObjectType Type_;
 
 
-    virtual Stroka DoGetName(TCypressNodeBase* node);
+    virtual TCellTagList DoGetReplicationCellTags(const TCypressNodeBase* node) override
+    {
+        auto externalCellTag = node->GetExternalCellTag();
+        return externalCellTag == NotReplicatedCellTag ? TCellTagList() : TCellTagList{externalCellTag};
+    }
+
+    virtual Stroka DoGetName(const TCypressNodeBase* node);
 
     virtual IObjectProxyPtr DoGetProxy(
         TCypressNodeBase* node,
@@ -423,7 +424,7 @@ public:
     }
 
 private:
-    virtual Stroka DoGetName(TLock* lock) override
+    virtual Stroka DoGetName(const TLock* lock) override
     {
         return Format("lock %v", lock->GetId());
     }
@@ -2033,15 +2034,19 @@ private:
         auto mode = ENodeCloneMode(request.mode());
         auto accountId = FromProto<TAccountId>(request.account_id());
 
-        auto* sourceNode = GetNode(TVersionedObjectId(sourceNodeId, sourceTransactionId));
-
-        auto securityManager = Bootstrap_->GetSecurityManager();
-        auto* account = securityManager->GetAccount(accountId);
-
         auto transactionManager = Bootstrap_->GetTransactionManager();
+        auto* sourceTransaction = sourceTransactionId
+            ? transactionManager->GetTransaction(sourceTransactionId)
+            : nullptr;
         auto* clonedTransaction = clonedTransactionId
             ? transactionManager->GetTransaction(clonedTransactionId)
             : nullptr;
+
+        auto* sourceTrunkNode = GetNode(TVersionedObjectId(sourceNodeId));
+        auto* sourceNode = GetVersionedNode(sourceTrunkNode, sourceTransaction);
+
+        auto securityManager = Bootstrap_->GetSecurityManager();
+        auto* account = securityManager->GetAccount(accountId);
 
         auto factory = CreateNodeFactory(clonedTransaction, account, false);
 
@@ -2097,7 +2102,7 @@ void TCypressManager::TNodeTypeHandler::DestroyObject(TObjectBase* object) throw
     Owner_->DestroyNode(static_cast<TCypressNodeBase*>(object));
 }
 
-Stroka TCypressManager::TNodeTypeHandler::DoGetName(TCypressNodeBase* node)
+Stroka TCypressManager::TNodeTypeHandler::DoGetName(const TCypressNodeBase* node)
 {
     auto path = Owner_->GetNodePath(node->GetTrunkNode(), node->GetTransaction());
     return Format("node %v", path);

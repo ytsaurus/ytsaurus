@@ -98,7 +98,7 @@ public:
         SchedulerChannel_ = CreateSchedulerChannel(
             Config_->Scheduler,
             GetBusChannelFactory(),
-            GetMasterChannel(EMasterChannelKind::Leader));
+            GetMasterChannelOrThrow(EMasterChannelKind::Leader));
 
         NodeChannelFactory_ = CreateCachingChannelFactory(GetBusChannelFactory());
 
@@ -114,7 +114,7 @@ public:
 
         TableMountCache_ = New<TTableMountCache>(
             Config_->TableMountCache,
-            GetMasterChannel(EMasterChannelKind::Cache),
+            GetMasterChannelOrThrow(EMasterChannelKind::Cache),
             CellDirectory_);
 
         FunctionRegistry_ = CreateClientFunctionRegistry(
@@ -143,12 +143,12 @@ public:
         return PrimaryMasterCellTag_;
     }
 
-    virtual const std::vector<TCellTag>& GetSecondaryMasterCellTags() const override
+    virtual const TCellTagList& GetSecondaryMasterCellTags() const override
     {
         return SecondaryMasterCellTags_;
     }
 
-    virtual IChannelPtr GetMasterChannel(
+    virtual IChannelPtr GetMasterChannelOrThrow(
         EMasterChannelKind kind,
         TCellTag cellTag = PrimaryMasterCellTag) override
     {
@@ -228,7 +228,7 @@ private:
 
     TCellId PrimaryMasterCellId_;
     TCellTag PrimaryMasterCellTag_;
-    std::vector<TCellTag> SecondaryMasterCellTags_;
+    TCellTagList SecondaryMasterCellTags_;
 
     TEnumIndexedVector<yhash_map<TCellTag, IChannelPtr>, EMasterChannelKind> MasterChannels_;
     IChannelPtr SchedulerChannel_;

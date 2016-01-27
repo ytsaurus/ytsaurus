@@ -88,7 +88,7 @@ TKeyRange RefineKeyRange(
         CreateBuiltinFunctionRegistry());
 
     auto result = GetRangesFromTrieWithinRange(
-        TRowRange(keyRange.first.Get(), keyRange.second.Get()),
+        TRowRange(keyRange.first, keyRange.second),
         keyTrie,
         rowBuffer);
 
@@ -712,7 +712,10 @@ TMutableRowRanges GetRangesFromTrieWithinRange(
     TKeyTriePtr trie,
     TRowBufferPtr rowBuffer)
 {
-    return GetRangesFromTrieWithinRange(TRowRange(keyRange.first.Get(), keyRange.second.Get()), trie, rowBuffer);
+    return GetRangesFromTrieWithinRange(
+        TRowRange(keyRange.first, keyRange.second),
+        trie,
+        rowBuffer);
 }
 
 TEST_F(TRefineKeyRangeTest, EmptyKeyTrie)

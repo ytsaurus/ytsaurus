@@ -205,10 +205,12 @@ class TDecoratedAutomaton::TSnapshotBuilderBase
 public:
     TSnapshotBuilderBase(
         TDecoratedAutomatonPtr owner,
-        TVersion snapshotVersion)
+        TVersion snapshotVersion,
+        NLogging::TLogger& logger)
         : Owner_(owner)
-          , SnapshotVersion_(snapshotVersion)
-          , SnapshotId_(SnapshotVersion_.SegmentId + 1)
+        , SnapshotVersion_(snapshotVersion)
+        , SnapshotId_(SnapshotVersion_.SegmentId + 1)
+        , Logger(logger)
     { }
 
     ~TSnapshotBuilderBase()
@@ -220,9 +222,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(Owner_->AutomatonThread);
 
-        auto* logger = GetLogger();
-        *logger = Owner_->Logger;
-        logger->AddTag("SnapshotId: %v", SnapshotId_);
+        Logger.AddTag("SnapshotId: %v", SnapshotId_);
 
         try {
             TryAcquireLock();
@@ -245,12 +245,12 @@ protected:
     const TDecoratedAutomatonPtr Owner_;
     const TVersion SnapshotVersion_;
     const int SnapshotId_;
+    NLogging::TLogger& Logger;
 
     ISnapshotWriterPtr SnapshotWriter_;
 
 
     virtual TFuture<void> DoRun() = 0;
-    virtual NLogging::TLogger* GetLogger() = 0;
 
     void TryAcquireLock()
     {
@@ -259,6 +259,8 @@ protected:
                 SnapshotId_);
         }
         LockAcquired_ = true;
+
+        LOG_INFO("Snapshot builder lock acquired");
     }
 
     void ReleaseLock()
@@ -266,6 +268,8 @@ protected:
         if (LockAcquired_) {
             Owner_->BuildingSnapshot_.clear();
             LockAcquired_ = false;
+
+            LOG_INFO("Snapshot builder lock released");
         }
     }
 
@@ -300,7 +304,9 @@ public:
     TForkSnapshotBuilder(
         TDecoratedAutomatonPtr owner,
         TVersion snapshotVersion)
-        : TDecoratedAutomaton::TSnapshotBuilderBase(owner, snapshotVersion)
+        : TDecoratedAutomaton::TSnapshotBuilderBase(owner, snapshotVersion, Logger)
+        , TForkSnapshotBuilderBase(Logger)
+        , Logger(owner->Logger)
     { }
 
 private:
@@ -308,6 +314,8 @@ private:
     std::unique_ptr<TFile> OutputFile_;
 
     TFuture<void> AsyncTransferResult_;
+
+    NLogging::TLogger Logger;
 
 
     virtual TFuture<void> DoRun() override
@@ -328,11 +336,6 @@ private:
         return Fork().Apply(
             BIND(&TForkSnapshotBuilder::OnFinished, MakeStrong(this))
                 .AsyncVia(GetHydraIOInvoker()));
-    }
-
-    virtual NLogging::TLogger* GetLogger() override
-    {
-        return &Logger;
     }
 
     virtual TDuration GetTimeout() const override
@@ -520,16 +523,17 @@ public:
     TNoForkSnapshotBuilder(
         TDecoratedAutomatonPtr owner,
         TVersion snapshotVersion)
-        : TDecoratedAutomaton::TSnapshotBuilderBase(owner, snapshotVersion)
+        : TDecoratedAutomaton::TSnapshotBuilderBase(owner, snapshotVersion, Logger)
+        , Logger(owner->Logger)
     { }
 
 private:
-    NLogging::TLogger Logger;
-
     TIntrusivePtr<TSwitchableSnapshotWriter> SwitchableSnapshotWriter_;
 
     TFuture<void> AsyncOpenWriterResult_;
     TFuture<void> AsyncSaveSnapshotResult_;
+
+    NLogging::TLogger Logger;
 
 
     virtual TFuture<void> DoRun() override
@@ -551,11 +555,6 @@ private:
         return BIND(&TNoForkSnapshotBuilder::DoRunAsync, MakeStrong(this))
             .AsyncVia(GetHydraIOInvoker())
             .Run();
-    }
-
-    virtual NLogging::TLogger* GetLogger() override
-    {
-        return &Logger;
     }
 
     void DoRunAsync()
@@ -714,8 +713,6 @@ void TDecoratedAutomaton::LoadSnapshot(TVersion version, IAsyncZeroCopyInputStre
         version.SegmentId + 1,
         version);
 
-    Changelog_.Reset();
-
     PROFILE_TIMING ("/snapshot_load_time") {
         Automaton_->Clear();
         try {
@@ -786,6 +783,7 @@ void TDecoratedAutomaton::LogLeaderMutation(
     *commitResult = pendingMutation.CommitPromise;
 
     LoggedVersion_ = pendingMutation.Version.Advance();
+    YCHECK(EpochContext_->ReachableVersion < LoggedVersion_);
 }
 
 void TDecoratedAutomaton::LogFollowerMutation(
@@ -811,6 +809,7 @@ void TDecoratedAutomaton::LogFollowerMutation(
     }
 
     LoggedVersion_ = pendingMutation.Version.Advance();
+    YCHECK(EpochContext_->ReachableVersion < LoggedVersion_);
 }
 
 TFuture<TRemoteSnapshotParams> TDecoratedAutomaton::BuildSnapshot()
@@ -856,16 +855,22 @@ void TDecoratedAutomaton::DoRotateChangelog()
     WaitFor(Changelog_->Flush())
         .ThrowOnError();
 
-    TChangelogMeta meta;
-    meta.set_prev_record_count(Changelog_->GetRecordCount());
-
     auto loggedVersion = GetLoggedVersion();
+    YCHECK(loggedVersion.RecordId == Changelog_->GetRecordCount());
+
+    auto rotatedVersion = loggedVersion.Rotate();
+
+    TChangelogMeta meta;
+    meta.set_prev_record_count(loggedVersion.RecordId);
+
     auto asyncNewChangelog = EpochContext_->ChangelogStore->CreateChangelog(
-        loggedVersion.SegmentId + 1,
+        rotatedVersion.SegmentId,
         meta);
     Changelog_ = WaitFor(asyncNewChangelog)
         .ValueOrThrow();
-    LoggedVersion_ = loggedVersion.Rotate();
+
+    LoggedVersion_ = rotatedVersion;
+    YCHECK(EpochContext_->ReachableVersion < LoggedVersion_);
 
     LOG_INFO("Changelog rotated");
 }
@@ -984,18 +989,12 @@ TVersion TDecoratedAutomaton::GetLoggedVersion() const
     return LoggedVersion_;
 }
 
-void TDecoratedAutomaton::SetChangelog(IChangelogPtr changelog)
+void TDecoratedAutomaton::SetChangelog(int changelogId, IChangelogPtr changelog)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
     Changelog_ = changelog;
-}
-
-void TDecoratedAutomaton::SetLoggedVersion(TVersion version)
-{
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
-
-    LoggedVersion_ = version;
+    LoggedVersion_ = TVersion(changelogId, changelog->GetRecordCount());
 }
 
 i64 TDecoratedAutomaton::GetLoggedDataSize() const
@@ -1080,7 +1079,6 @@ void TDecoratedAutomaton::StartEpoch(TEpochContextPtr epochContext)
 {
     YCHECK(!EpochContext_);
     EpochContext_ = epochContext;
-    LoggedVersion_ = epochContext->ChangelogStore->GetReachableVersion();
 }
 
 void TDecoratedAutomaton::StopEpoch()

@@ -41,10 +41,10 @@ public:
         : Connection_(std::move(connection))
         , Options_(options)
         , Invoker_(NDriver::TDispatcher::Get()->GetLightInvoker())
-        , LeaderChannel_(Connection_->GetMasterChannel(EMasterChannelKind::Leader))
+        , LeaderChannel_(Connection_->GetMasterChannelOrThrow(EMasterChannelKind::Leader))
     {
         Logger.AddTag("Admin: %p", this);
-        Options_; // Mark variable as used.
+        UNUSED(Options_);
     }
 
 #define DROP_BRACES(...) __VA_ARGS__
@@ -123,7 +123,7 @@ private:
         std::vector<TFuture<void>> asyncResults;
 
         auto collectAtCell = [&] (TCellTag cellTag) {
-            auto channel = Connection_->GetMasterChannel(EMasterChannelKind::Leader, cellTag);
+            auto channel = Connection_->GetMasterChannelOrThrow(EMasterChannelKind::Leader, cellTag);
             TObjectServiceProxy proxy(LeaderChannel_);
             proxy.SetDefaultTimeout(Null); // infinity
             auto req = proxy.GCCollect();

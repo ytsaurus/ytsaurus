@@ -118,7 +118,7 @@ void TYPathServiceBase::WriteAttributesFragment(
 #define IMPLEMENT_SUPPORTS_VERB_RESOLVE(method, onPathError) \
     DEFINE_RPC_SERVICE_METHOD(TSupports##method, method) \
     { \
-        NYPath::TTokenizer tokenizer(GetRequestYPath(context)); \
+        NYPath::TTokenizer tokenizer(GetRequestYPath(context->RequestHeader())); \
         switch (tokenizer.Advance()) { \
             case NYPath::ETokenType::EndOfStream: \
                 method##Self(request, response, context); \
@@ -1125,7 +1125,7 @@ protected:
         LOG_DEBUG("%v:%v %v <- %v",
             GetService(),
             GetMethod(),
-            GetRequestYPath(this),
+            GetRequestYPath(*RequestHeader_),
             builder.Flush());
     }
 
@@ -1146,7 +1146,7 @@ protected:
         LOG_DEBUG("%v:%v %v -> %v",
             GetService(),
             GetMethod(),
-            GetRequestYPath(this),
+            GetRequestYPath(*RequestHeader_),
             builder.Flush());
     }
 

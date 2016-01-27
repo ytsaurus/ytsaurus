@@ -83,8 +83,11 @@ DEFINE_ENUM(ENodeType,
 );
 
 DEFINE_ENUM(EErrorCode,
-    ((ResolveError)    (500))
-    ((AlreadyExists)   (501))
+    ((ResolveError)                        (500))
+    ((AlreadyExists)                       (501))
+    ((MaxChildCountViolation)              (502))
+    ((MaxStringLengthViolation)            (503))
+    ((MaxAttributeSizeViolation)           (504))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

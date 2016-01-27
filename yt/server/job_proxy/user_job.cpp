@@ -494,7 +494,9 @@ private:
 
         arg.Pids.erase(std::find(arg.Pids.begin(), arg.Pids.end(), Process_.GetProcessId()));
         arg.SignalName = signalName;
-        LOG_INFO("Sending signal %v to pids [%v]", arg.SignalName, JoinToString(arg.Pids.begin(), arg.Pids.end()));
+        LOG_INFO("Sending signal %v to pids %v",
+            arg.SignalName,
+            arg.Pids);
 
         WaitFor(BIND([&] () {
             return RunTool<TJobSignalerTool>(arg);
@@ -993,7 +995,8 @@ private:
             auto statistics = Memory_.GetStatistics();
 
             i64 uidRss = rss;
-            rss = statistics.Rss + statistics.MappedFile;
+            rss = UserJobSpec_.include_memory_mapped_files() ? statistics.MappedFile : 0;
+            rss += statistics.Rss;
 
             if (rss > 1.05 * uidRss && uidRss > 0) {
                 LOG_ERROR("Memory usage measured by cgroup is much greater than via procfs: %v > %v",
@@ -1009,10 +1012,6 @@ private:
             rss,
             memoryLimit);
 
-        if (rss > MemoryUsage_) {
-            UpdateMemoryUsage(rss);
-        }
-
         if (rss > memoryLimit) {
             JobErrorPromise_.TrySet(TError(EErrorCode::MemoryLimitExceeded, "Memory limit exceeded")
                 << TErrorAttribute("rss", rss)
@@ -1021,7 +1020,7 @@ private:
             if (!Config_->EnableCGroups) {
                 // TODO(psushin): If someone wanted to use
                 // YT without cgroups in production than one need to
-                // implement kill by uid here
+                // implement kill by uid here.
                 return;
             }
 
@@ -1038,6 +1037,8 @@ private:
             } catch (const std::exception& ex) {
                 LOG_FATAL(ex, "Failed to clean up user processes");
             }
+        } else if (rss > MemoryUsage_) {
+            UpdateMemoryUsage(rss);
         }
     }
 

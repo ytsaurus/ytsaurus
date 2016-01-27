@@ -62,7 +62,7 @@ public:
             Rows_.begin(),
             Rows_.end(),
             [&] (const TUnversionedOwningRow& lhs, const TUnversionedOwningRow& rhs) {
-                return CompareRows(lhs.Get(), rhs.Get(), KeyColumns_.size()) < 0;
+                return CompareRows(lhs, rhs, KeyColumns_.size()) < 0;
             });
     }
 
@@ -81,7 +81,7 @@ public:
 
         i64 dataWeight = 0;
         while (ReadRowCount_ < Rows_.size() && rows->size() < rows->capacity() && dataWeight < MaxDataSizePerRead) {
-            rows->push_back(Rows_[ReadRowCount_].Get());
+            rows->push_back(Rows_[ReadRowCount_]);
             dataWeight += GetDataWeight(rows->back());
             ++ReadRowCount_;
         }

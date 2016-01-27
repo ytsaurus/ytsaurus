@@ -50,6 +50,11 @@ void TLogger::AddRawTag(const Stroka& tag)
     Context_ += tag;
 }
 
+const Stroka& TLogger::GetContext() const
+{
+    return Context_;
+}
+
 void TLogger::Update()
 {
     MinLevel_ = GetLogManager()->GetMinLevel(Category_);

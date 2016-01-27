@@ -6,6 +6,9 @@
 #include <yt/core/yson/string.h>
 
 namespace NYT {
+
+struct TGuid;
+
 namespace NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -30,6 +33,16 @@ INodePtr ConvertToNode(
 
 template <class T>
 std::unique_ptr<IAttributeDictionary> ConvertToAttributes(const T& value);
+
+// Provide shared instantiations for different TUs for commonly-used types.
+extern template NYson::TYsonString ConvertToYsonString<int>(const int&);
+extern template NYson::TYsonString ConvertToYsonString<long>(const long&);
+extern template NYson::TYsonString ConvertToYsonString<unsigned int>(const unsigned int&);
+extern template NYson::TYsonString ConvertToYsonString<unsigned long>(const unsigned long&);
+extern template NYson::TYsonString ConvertToYsonString<Stroka>(const Stroka&);
+extern template NYson::TYsonString ConvertToYsonString<TInstant>(const TInstant&);
+extern template NYson::TYsonString ConvertToYsonString<TDuration>(const TDuration&);
+extern template NYson::TYsonString ConvertToYsonString<TGuid>(const TGuid&);
 
 ////////////////////////////////////////////////////////////////////////////////
 

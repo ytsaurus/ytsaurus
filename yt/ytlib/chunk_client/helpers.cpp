@@ -1,6 +1,7 @@
 #include "helpers.h"
 #include "private.h"
 #include "config.h"
+#include "chunk_slice.h"
 #include "erasure_reader.h"
 #include "replication_reader.h"
 
@@ -82,7 +83,7 @@ TChunkId CreateChunk(
     reqExt->set_movable(options->ChunksMovable);
     reqExt->set_vital(options->ChunksVital);
     reqExt->set_erasure_codec(static_cast<int>(options->ErasureCodec));
-    if (chunkListId != NullChunkListId) {
+    if (chunkListId) {
         ToProto(reqExt->mutable_chunk_list_id(), chunkListId);
     }
 
@@ -168,18 +169,25 @@ void ProcessFetchResponse(
 
 i64 GetChunkReaderMemoryEstimate(const TChunkSpec& chunkSpec, TMultiChunkReaderConfigPtr config)
 {
-    i64 currentSize;
-    GetStatistics(chunkSpec, &currentSize);
-    auto miscExt = GetProtoExtension<TMiscExt>(chunkSpec.chunk_meta().extensions());
+    // Misc may be cleared out by the scheduler (e.g. for partition chunks).
+    auto miscExt = FindProtoExtension<TMiscExt>(chunkSpec.chunk_meta().extensions());
+    if (miscExt) {
+        i64 currentSize;
+        GetStatistics(chunkSpec, &currentSize);
 
-    // Block used by upper level chunk reader.
-    i64 chunkBufferSize = ChunkReaderMemorySize + miscExt.max_block_size();
+        // Block used by upper level chunk reader.
+        i64 chunkBufferSize = ChunkReaderMemorySize + miscExt->max_block_size();
 
-    if (currentSize > miscExt.max_block_size()) {
-        chunkBufferSize += config->WindowSize + config->GroupSize;
+        if (currentSize > miscExt->max_block_size()) {
+            chunkBufferSize += config->WindowSize + config->GroupSize;
+        }
+        return chunkBufferSize;
+    } else {
+        return ChunkReaderMemorySize + 
+            config->WindowSize + 
+            config->GroupSize + 
+            DefaultMaxBlockSize;
     }
-
-    return chunkBufferSize;
 }
 
 IChunkReaderPtr CreateRemoteReader(

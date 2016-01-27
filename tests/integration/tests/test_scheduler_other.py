@@ -54,13 +54,13 @@ class TestSchedulerOther(YTEnvSetup):
     def test_revive(self):
         self._prepare_tables()
 
-        op_id = map(dont_track=True, in_="//tmp/t_in", out="//tmp/t_out", command="cat; sleep 3")
+        op = map(dont_track=True, in_="//tmp/t_in", out="//tmp/t_out", command="cat; sleep 3")
 
         time.sleep(2)
         self.Env.kill_service("scheduler")
         self.Env.start_schedulers("scheduler")
 
-        track_op(op_id)
+        op.track()
 
         assert read_table("//tmp/t_out") == [ {"foo" : "bar"} ]
 
@@ -71,24 +71,24 @@ class TestSchedulerOther(YTEnvSetup):
 
         self._prepare_tables()
 
-        op_id = map(dont_track=True, in_='//tmp/t_in', out='//tmp/t_out', command='cat; sleep 3')
+        op = map(dont_track=True, in_='//tmp/t_in', out='//tmp/t_out', command='cat; sleep 3')
 
         time.sleep(2)
-        assert "running" == get("//sys/operations/" + op_id + "/@state")
+        assert "running" == get("//sys/operations/" + op.id + "/@state")
 
         try:
-            abort_op(op_id)
+            op.abort()
             # Here you must kill scheduler manually
         except:
             pass
 
-        assert "aborting" == get("//sys/operations/" + op_id + "/@state")
+        assert "aborting" == get("//sys/operations/" + op.id + "/@state")
 
         self.Env.start_schedulers("scheduler")
 
         time.sleep(1)
 
-        assert "aborted" == get("//sys/operations/" + op_id + "/@state")
+        assert "aborted" == get("//sys/operations/" + op.id + "/@state")
 
     def test_operation_time_limit(self):
         self._create_table("//tmp/in")
@@ -112,10 +112,12 @@ class TestSchedulerOther(YTEnvSetup):
 
         # we should wait as least time_limit + heartbeat_period
         time.sleep(1.2)
-        assert get("//sys/operations/{0}/@state".format(op1)) not in ["failing", "failed"]
-        assert get("//sys/operations/{0}/@state".format(op2)) in ["failing", "failed"]
+        assert get("//sys/operations/{0}/@state".format(op1.id)) not in ["failing", "failed"]
+        assert get("//sys/operations/{0}/@state".format(op2.id)) in ["failing", "failed"]
 
-        track_op(op1)
+        op1.track()
+        with pytest.raises(YtError):
+            op2.track()
 
     def test_pool_resource_limits(self):
         resource_limits = {"cpu": 1, "memory": 100, "network": 10}
@@ -155,9 +157,9 @@ class TestSchedulerOther(YTEnvSetup):
                     spec={"pool": "fifo_pool"}))
 
         for op in ops:
-            track_op(op)
+            op.track()
 
-        finish_times = [get("//sys/operations/{0}/@finish_time".format(op)) for op in ops]
+        finish_times = [get("//sys/operations/{0}/@finish_time".format(op.id)) for op in ops]
         for cur, next in zip(finish_times, finish_times[1:]):
             assert cur < next
 
@@ -184,9 +186,9 @@ class TestSchedulerOther(YTEnvSetup):
                     spec={"pool": "fifo_pool", "data_size_per_job": 1}))
 
         for op in ops:
-            track_op(op)
+            op.track()
 
-        finish_times = [get("//sys/operations/{0}/@finish_time".format(op)) for op in ops]
+        finish_times = [get("//sys/operations/{0}/@finish_time".format(op.id)) for op in ops]
         for cur, next in zip(finish_times, finish_times[1:]):
             assert cur > next
 
@@ -220,18 +222,17 @@ class TestStrategies(YTEnvSetup):
 
         print >>sys.stderr,  "Fail strategy"
         with pytest.raises(YtError):
-            op_id = map(dont_track=True, in_="//tmp/t_in", out="//tmp/t_out", command="cat", spec={"unavailable_chunk_strategy": "fail"})
-            track_op(op_id)
+            op = map(in_="//tmp/t_in", out="//tmp/t_out", command="cat", spec={"unavailable_chunk_strategy": "fail"})
 
         print >>sys.stderr,  "Skip strategy"
         map(in_="//tmp/t_in", out="//tmp/t_out", command="cat", spec={"unavailable_chunk_strategy": "skip"})
         assert read_table("//tmp/t_out") == []
 
         print >>sys.stderr,  "Wait strategy"
-        op_id = map(dont_track=True, in_="//tmp/t_in", out="//tmp/t_out", command="cat",  spec={"unavailable_chunk_strategy": "wait"})
+        op = map(dont_track=True, in_="//tmp/t_in", out="//tmp/t_out", command="cat",  spec={"unavailable_chunk_strategy": "wait"})
 
         set_banned_flag(False, [ node ])
-        track_op(op_id)
+        op.track()
 
         assert read_table("//tmp/t_out") == [ {"foo" : "bar"} ]
 
@@ -253,20 +254,19 @@ class TestStrategies(YTEnvSetup):
 
         print >>sys.stderr, "Fail strategy"
         with pytest.raises(YtError):
-            op_id = sort(dont_track=True, in_="//tmp/t_in", out="//tmp/t_out", sort_by="key", spec={"unavailable_chunk_strategy": "fail"})
-            track_op(op_id)
+            op = sort(in_="//tmp/t_in", out="//tmp/t_out", sort_by="key", spec={"unavailable_chunk_strategy": "fail"})
 
         print >>sys.stderr, "Skip strategy"
         sort(in_="//tmp/t_in", out="//tmp/t_out", sort_by="key", spec={"unavailable_chunk_strategy": "skip"})
         assert read_table("//tmp/t_out") == []
 
         print >>sys.stderr, "Wait strategy"
-        op_id = sort(dont_track=True, in_="//tmp/t_in", out="//tmp/t_out", sort_by="key", spec={"unavailable_chunk_strategy": "wait"})
+        op = sort(dont_track=True, in_="//tmp/t_in", out="//tmp/t_out", sort_by="key", spec={"unavailable_chunk_strategy": "wait"})
 
         # Give a chance to scraper to work
         time.sleep(1.0)
         set_banned_flag(False)
-        track_op(op_id)
+        op.track()
 
         assert read_table("//tmp/t_out") == [v1, v2, v3, v4, v5]
         assert get("//tmp/t_out/@sorted") == True
@@ -290,20 +290,19 @@ class TestStrategies(YTEnvSetup):
 
         print >>sys.stderr, "Fail strategy"
         with pytest.raises(YtError):
-            op_id = merge(dont_track=True, mode="sorted", in_=["//tmp/t1", "//tmp/t2"], out="//tmp/t_out", spec={"unavailable_chunk_strategy": "fail"})
-            track_op(op_id)
+            op = merge(mode="sorted", in_=["//tmp/t1", "//tmp/t2"], out="//tmp/t_out", spec={"unavailable_chunk_strategy": "fail"})
 
         print >>sys.stderr, "Skip strategy"
         merge(mode="sorted", in_=["//tmp/t1", "//tmp/t2"], out="//tmp/t_out", spec={"unavailable_chunk_strategy": "skip"})
         assert read_table("//tmp/t_out") == []
 
         print >>sys.stderr, "Wait strategy"
-        op_id = merge(dont_track=True, mode="sorted", in_=["//tmp/t1", "//tmp/t2"], out="//tmp/t_out", spec={"unavailable_chunk_strategy": "wait"})
+        op = merge(dont_track=True, mode="sorted", in_=["//tmp/t1", "//tmp/t2"], out="//tmp/t_out", spec={"unavailable_chunk_strategy": "wait"})
 
         # Give a chance for scraper to work
         time.sleep(1.0)
         set_banned_flag(False)
-        track_op(op_id)
+        op.track()
 
         assert read_table("//tmp/t_out") == [{"a": i} for i in range(8)]
         assert get("//tmp/t_out/@sorted") == True
@@ -362,7 +361,8 @@ class TestSchedulerRunningOperationsLimitJob(YTEnvSetup):
 
         op1 = map(
             dont_track=True,
-            command="sleep 2.0; cat >/dev/null",
+            waiting_jobs=True,
+            command="cat >/dev/null",
             in_=["//tmp/in"],
             out="//tmp/out1",
             spec={"pool": "test_pool_1"})
@@ -376,19 +376,23 @@ class TestSchedulerRunningOperationsLimitJob(YTEnvSetup):
 
         op3 = map(
             dont_track=True,
-            command="sleep 2.0; cat >/dev/null",
+            waiting_jobs=True,
+            command="cat >/dev/null",
             in_=["//tmp/in"],
             out="//tmp/out3",
             spec={"pool": "test_pool_2"})
 
-        time.sleep(1.5)
-        assert get("//sys/operations/{0}/@state".format(op1)) == "running"
-        assert get("//sys/operations/{0}/@state".format(op2)) == "pending"
-        assert get("//sys/operations/{0}/@state".format(op3)) == "running"
+        op1.ensure_running()
+        with pytest.raises(TimeoutError):
+            op2.ensure_running(timeout=1.0)
+        op3.ensure_running()
 
-        track_op(op1)
-        track_op(op2)
-        track_op(op3)
+        op1.resume_jobs()
+        op3.resume_jobs()
+
+        op1.track()
+        op2.track()
+        op3.track()
 
         assert read_table("//tmp/out1") == []
         assert read_table("//tmp/out2") == []
@@ -421,8 +425,8 @@ class TestSchedulerRunningOperationsLimitJob(YTEnvSetup):
         self.Env.kill_service("scheduler")
         self.Env.start_schedulers("scheduler")
 
-        track_op(op1)
-        track_op(op2)
+        op1.track()
+        op2.track()
 
         assert sorted(read_table("//tmp/out1")) == sorted(data)
         assert sorted(read_table("//tmp/out2")) == sorted(data)
@@ -434,22 +438,23 @@ class TestSchedulerRunningOperationsLimitJob(YTEnvSetup):
         create("table", "//tmp/out3")
         write_table("//tmp/in", [{"foo": i} for i in xrange(5)])
 
-        op1 = map(dont_track=True, command="sleep 2.0; cat >/dev/null", in_=["//tmp/in"], out="//tmp/out1")
+        op1 = map(dont_track=True, waiting_jobs=True, command="cat >/dev/null", in_=["//tmp/in"], out="//tmp/out1")
         op2 = map(dont_track=True, command="cat >/dev/null", in_=["//tmp/in"], out="//tmp/out2")
         op3 = map(dont_track=True, command="cat >/dev/null", in_=["//tmp/in"], out="//tmp/out3")
 
         time.sleep(1.5)
-        assert get("//sys/operations/{0}/@state".format(op1)) == "running"
-        assert get("//sys/operations/{0}/@state".format(op2)) == "pending"
-        assert get("//sys/operations/{0}/@state".format(op3)) == "pending"
+        assert op1.get_state() == "running"
+        assert op2.get_state() == "pending"
+        assert op3.get_state() == "pending"
 
-        abort_op(op2)
-        track_op(op1)
-        track_op(op3)
+        op2.abort()
+        op1.resume_jobs()
+        op1.track()
+        op3.track()
 
-        assert get("//sys/operations/{0}/@state".format(op1)) == "completed"
-        assert get("//sys/operations/{0}/@state".format(op2)) == "aborted"
-        assert get("//sys/operations/{0}/@state".format(op3)) == "completed"
+        assert op1.get_state() == "completed"
+        assert op2.get_state() == "aborted"
+        assert op3.get_state() == "completed"
 
     def test_reconfigured_pools_operations_limit(self):
         create("table", "//tmp/in")
@@ -480,11 +485,11 @@ class TestSchedulerRunningOperationsLimitJob(YTEnvSetup):
             spec={"pool": "test_pool_2"})
         time.sleep(1.5)
 
-        assert get("//sys/operations/{0}/@state".format(op1)) == "running"
-        assert get("//sys/operations/{0}/@state".format(op2)) == "pending"
+        assert get("//sys/operations/{0}/@state".format(op1.id)) == "running"
+        assert get("//sys/operations/{0}/@state".format(op2.id)) == "pending"
 
-        track_op(op1)
-        track_op(op2)
+        op1.track()
+        op2.track()
 
 
 class TestSchedulingTags(YTEnvSetup):
@@ -543,10 +548,10 @@ class TestSchedulingTags(YTEnvSetup):
         assert read_table("//tmp/t_out") == [ {"foo" : "bar"} ]
 
     def test_tag_correctness(self):
-        def get_job_nodes(op_id):
+        def get_job_nodes(op):
             nodes = __builtin__.set()
             for row in read_table("//sys/scheduler/event_log"):
-                if row.get("event_type") == "job_started" and row.get("operation_id") == op_id:
+                if row.get("event_type") == "job_started" and row.get("operation_id") == op.id:
                     nodes.add(row["node_address"])
             return nodes
 
@@ -555,16 +560,14 @@ class TestSchedulingTags(YTEnvSetup):
 
         set("//sys/nodes/{0}/@scheduling_tags".format(self.node), ["tagB"])
         time.sleep(1.2)
-        op_id = map(dont_track=True, command="cat", in_="//tmp/t_in", out="//tmp/t_out", spec={"scheduling_tag": "tagB", "job_count": 20})
-        track_op(op_id)
+        op = map(command="cat", in_="//tmp/t_in", out="//tmp/t_out", spec={"scheduling_tag": "tagB", "job_count": 20})
         time.sleep(0.8)
-        assert get_job_nodes(op_id) == __builtin__.set([self.node])
+        assert get_job_nodes(op) == __builtin__.set([self.node])
 
 
-        op_id = map(dont_track=True, command="cat", in_="//tmp/t_in", out="//tmp/t_out", spec={"job_count": 20})
-        track_op(op_id)
+        op = map(command="cat", in_="//tmp/t_in", out="//tmp/t_out", spec={"job_count": 20})
         time.sleep(0.8)
-        assert len(get_job_nodes(op_id)) <= 2
+        assert len(get_job_nodes(op)) <= 2
 
 ##################################################################
 
@@ -628,7 +631,7 @@ class TestSchedulerPools(YTEnvSetup):
         create("map_node", "//sys/pools/test_pool_2")
         time.sleep(0.2)
 
-        op_id = map(
+        op = map(
             dont_track=True,
             command="cat",
             in_="//tmp/t_in",
@@ -639,7 +642,7 @@ class TestSchedulerPools(YTEnvSetup):
         remove("//sys/pools/test_pool_1")
         create("map_node", "//sys/pools/test_pool_2/test_pool_1")
 
-        track_op(op_id)
+        op.track()
 
 class TestSchedulerSnapshots(YTEnvSetup):
     NUM_MASTERS = 3
@@ -659,7 +662,7 @@ class TestSchedulerSnapshots(YTEnvSetup):
 
         testing_options = {"scheduling_delay": 500}
 
-        op_id = map(
+        op = map(
             dont_track=True,
             command="cat; sleep 1",
             in_="//tmp/in",
@@ -667,4 +670,4 @@ class TestSchedulerSnapshots(YTEnvSetup):
             spec={"data_size_per_job": 1, "testing": testing_options})
         time.sleep(1)
 
-        track_op(op_id)
+        op.track()
