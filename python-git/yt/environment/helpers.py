@@ -90,6 +90,8 @@ def get_open_port(port_locks_path=None):
                 sock.bind(("", port_value))
                 sock.listen(1)
                 port = port_value
+            except Exception:
+                pass
             finally:
                 sock.close()
         else:
