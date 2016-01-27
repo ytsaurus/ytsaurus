@@ -76,7 +76,7 @@ public:
             .Default(TDuration::Seconds(30));
 
         RegisterParameter("cell_statistics_gossip_period", CellStatisticsGossipPeriod)
-            .Default(TDuration::Seconds(10));
+            .Default(TDuration::Seconds(1));
     }
 };
 

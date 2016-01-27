@@ -25,9 +25,9 @@ public:
         RegisterParameter("user_statistics_flush_period", UserStatisticsFlushPeriod)
             .Default(TDuration::Seconds(1));
         RegisterParameter("account_statistics_gossip_period", AccountStatisticsGossipPeriod)
-            .Default(TDuration::Seconds(10));
+            .Default(TDuration::Seconds(1));
         RegisterParameter("request_rate_smoothing_period", RequestRateSmoothingPeriod)
-            .Default(TDuration::Seconds(10));
+            .Default(TDuration::Seconds(1));
     }
 };
 

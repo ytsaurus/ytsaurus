@@ -26,7 +26,7 @@ public:
             .Default(5)
             .GreaterThan(0);
         RegisterParameter("node_states_gossip_period", NodeStatesGossipPeriod)
-            .Default(TDuration::Seconds(10));
+            .Default(TDuration::Seconds(1));
     }
 };
 
