@@ -114,7 +114,9 @@ private:
 
     void InitializeIfNeeded()
     {
-        if (!CheckInitialized()) {
+        if (CheckInitialized()) {
+            LOG_INFO("World is already initialized");
+        } else {
             Initialize();
         }
     }

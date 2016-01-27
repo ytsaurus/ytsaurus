@@ -60,6 +60,18 @@ static const auto& Logger = QueryClientLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TRow* GetRowsData(std::vector<TRow>* rows)
+{
+    return rows->data();
+}
+
+int GetRowsSize(std::vector<TRow>* rows)
+{
+    return rows->size();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void WriteRow(TRow row, TExecutionContext* context)
 {
     CHECK_STACK();
@@ -146,17 +158,16 @@ void ScanOpHelper(
         }
 
         if (shouldWait) {
-            LOG_DEBUG("Started waiting for more rows");
             NProfiling::TAggregatingTimingGuard timingGuard(&context->Statistics->AsyncTime);
             WaitFor(reader->GetReadyEvent())
                 .ThrowOnError();
-            LOG_DEBUG("Finished waiting for more rows");
         }
     }
 }
 
 void InsertJoinRow(
     TExecutionContext* context,
+<<<<<<< HEAD
     TLookupRows* lookupRows,
     std::vector<TRow>* rows,
     TMutableRow* rowPtr,
@@ -166,13 +177,36 @@ void InsertJoinRow(
 
     auto row = *rowPtr;
     auto inserted = lookupRows->insert(row);
+=======
+    TJoinLookup* lookup,
+    std::vector<TRow>* keys,
+    std::vector<std::pair<TRow, int>>* chainedRows,
+    TRow* keyPtr,
+    TRow row,
+    int keySize)
+{
+    CHECK_STACK();
 
+    int chainIndex = chainedRows->size();
+    chainedRows->emplace_back(context->PermanentBuffer->Capture(row), -1);
+>>>>>>> prestable/0.17.4
+
+    TRow key = *keyPtr;
+    auto inserted = lookup->insert(std::make_pair(key, std::make_pair(chainIndex, false)));
     if (inserted.second) {
-        rows->push_back(row);
-        for (int index = 0; index < valueCount; ++index) {
-            context->PermanentBuffer->Capture(&row[index]);
+        keys->push_back(key);
+        for (int index = 0; index < keySize; ++index) {
+            context->PermanentBuffer->Capture(&key[index]);
         }
+<<<<<<< HEAD
         *rowPtr = TMutableRow::Allocate(context->PermanentBuffer->GetPool(), valueCount);
+=======
+        *keyPtr = TRow::Allocate(context->PermanentBuffer->GetPool(), keySize);
+    } else {
+        auto& startIndex = inserted.first->second.first;
+        chainedRows->back().second = startIndex;
+        startIndex = chainIndex;
+>>>>>>> prestable/0.17.4
     }
 }
 
@@ -189,40 +223,49 @@ void SaveJoinRow(
 void JoinOpHelper(
     TExecutionContext* context,
     int index,
-    THasherFunction* groupHasher,
-    TComparerFunction* groupComparer,
+    THasherFunction* lookupHasher,
+    TComparerFunction* lookupEqComparer,
+    TComparerFunction* lookupLessComparer,
     void** collectRowsClosure,
-    void (*collectRows)(void** closure, std::vector<TRow>* rows, TLookupRows* lookupRows, std::vector<TRow>* allRows),
+    void (*collectRows)(
+        void** closure,
+        TJoinLookup* joinLookup,
+        std::vector<TRow>* keys,
+        std::vector<std::pair<TRow, int>>* chainedRows),
     void** consumeRowsClosure,
     void (*consumeRows)(void** closure, std::vector<TRow>* rows, char* stopFlag))
 {
-    std::vector<TRow> keys;
-    
-    TLookupRows keysLookup(
+    TJoinLookup joinLookup(
         InitialGroupOpHashtableCapacity,
-        groupHasher,
-        groupComparer);
+        lookupHasher,
+        lookupEqComparer);
 
-    std::vector<TRow> allRows;
+    std::vector<TRow> keys;
+    std::vector<std::pair<TRow, int>> chainedRows;
 
-    keysLookup.set_empty_key(TRow());
+    joinLookup.set_empty_key(TRow());
 
     // Collect join ids.
-    collectRows(collectRowsClosure, &keys, &keysLookup, &allRows);
+    collectRows(collectRowsClosure, &joinLookup, &keys, &chainedRows);
 
-    std::sort(keys.begin(), keys.end());
+    LOG_DEBUG("Sorting %v join keys",
+        keys.size());
+
+    std::sort(keys.begin(), keys.end(), lookupLessComparer);
 
     LOG_DEBUG("Collected %v join keys from %v rows",
         keys.size(),
-        allRows.size());
+        chainedRows.size());
 
     std::vector<TRow> joinedRows;
     context->JoinEvaluators[index](
         context,
-        groupHasher,
-        groupComparer,
-        TSharedRange<TRow>(MakeRange(keys), context->PermanentBuffer),
-        TSharedRange<TRow>(MakeRange(allRows), context->PermanentBuffer),
+        lookupHasher,
+        lookupEqComparer,
+        joinLookup,
+        std::move(keys),
+        std::move(chainedRows),
+        context->PermanentBuffer,
         &joinedRows);
 
     LOG_DEBUG("Joined into %v rows",
@@ -251,6 +294,9 @@ void GroupOpHelper(
     lookupRows.set_empty_key(TRow());
 
     collectRows(collectRowsClosure, &groupedRows, &lookupRows);
+
+    LOG_DEBUG("Collected %v group rows",
+        groupedRows.size());
 
     context->StopFlag = false;
     consumeRows(consumeRowsClosure, &groupedRows, &context->StopFlag);
@@ -304,15 +350,7 @@ void AllocateRow(TExpressionContext* context, int valueCount, TMutableRow* row)
     *row = TMutableRow::Allocate(context->IntermediateBuffer->GetPool(), valueCount);
 }
 
-TRow* GetRowsData(std::vector<TRow>* groupedRows)
-{
-    return groupedRows->data();
-}
 
-int GetRowsSize(std::vector<TRow>* groupedRows)
-{
-    return groupedRows->size();
-}
 
 void AddRow(TTopCollector* topCollector, TRow row)
 {

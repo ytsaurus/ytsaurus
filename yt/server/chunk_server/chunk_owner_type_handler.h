@@ -70,6 +70,16 @@ protected:
         NCypressServer::ICypressNodeFactoryPtr factory,
         NCypressServer::ENodeCloneMode mode) override;
 
+<<<<<<< HEAD
+=======
+    virtual int GetDefaultReplicationFactor() const = 0;
+
+private:
+    void MergeChunkLists(
+        TChunkOwner* originatingNode,
+        TChunkOwner* branchedNode);
+
+>>>>>>> prestable/0.17.4
 };
 
 ////////////////////////////////////////////////////////////////////////////////

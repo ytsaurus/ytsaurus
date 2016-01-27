@@ -36,7 +36,8 @@ class TFoldingProfiler
     : private TNonCopyable
 {
 public:
-    TFoldingProfiler(const IFunctionRegistryPtr functionRegistry);
+    TFoldingProfiler(
+        const IFunctionRegistryPtr functionRegistry);
 
     TCodegenSource Profile(TConstQueryPtr query);
     TCodegenExpression Profile(TConstExpressionPtr expr, const TTableSchema& tableSchema);
@@ -44,7 +45,6 @@ public:
 
     void Set(llvm::FoldingSetNodeID* id);
     void Set(TCGVariables* variables);
-    void Set(yhash_set<Stroka>* references);
     void Set(std::vector<std::vector<bool>>* literalArgs);
 
 private:
@@ -56,11 +56,9 @@ private:
 
     void Fold(int numeric);
     void Fold(const char* str);
-    void Refer(const TReferenceExpression* referenceExpr);
 
     llvm::FoldingSetNodeID* Id_ = nullptr;
     TCGVariables* Variables_ = nullptr;
-    yhash_set<Stroka>* References_ = nullptr;
     std::vector<std::vector<bool>>* LiteralArgs_ = nullptr;
 
     const IFunctionRegistryPtr FunctionRegistry_;
@@ -81,11 +79,6 @@ void TFoldingProfiler::Set(llvm::FoldingSetNodeID* id)
 void TFoldingProfiler::Set(TCGVariables* variables)
 {
     Variables_ = variables;
-}
-
-void TFoldingProfiler::Set(yhash_set<Stroka>* references)
-{
-    References_ = references;
 }
 
 void TFoldingProfiler::Set(std::vector<std::vector<bool>>* literalArgs)
@@ -117,12 +110,23 @@ TCodegenSource TFoldingProfiler::Profile(TConstQueryPtr query)
             codegenSource = MakeCodegenFilterOp(Profile(selfFilter, schema), std::move(codegenSource));
         }
 
+        std::vector<TCodegenExpression> evaluatedColumns;
+        for (const auto& column : joinClause->EvaluatedColumns) {
+            if (column) {
+                evaluatedColumns.push_back(Profile(column, joinClause->ForeignTableSchema));
+            } else {
+                evaluatedColumns.emplace_back();
+            }
+        }
+
         codegenSource = MakeCodegenJoinOp(
             Variables_->JoinEvaluators.size(),
             selfKeys,
             schema,
-            std::move(codegenSource));
-
+            std::move(codegenSource),
+            joinClause->KeyPrefix,
+            joinClause->EquationByIndex,
+            evaluatedColumns);
 
         Variables_->JoinEvaluators.push_back(GetJoinEvaluator(
             *joinClause,
@@ -245,7 +249,6 @@ TCodegenExpression TFoldingProfiler::Profile(TConstExpressionPtr expr, const TTa
     } else if (auto referenceExpr = expr->As<TReferenceExpression>()) {
         Fold(static_cast<int>(EFoldingObjectType::ReferenceExpr));
         Fold(referenceExpr->ColumnName.c_str());
-        Refer(referenceExpr);
 
         return MakeCodegenReferenceExpr(
             schema.GetColumnIndexOrThrow(referenceExpr->ColumnName),
@@ -385,27 +388,18 @@ void TFoldingProfiler::Fold(const char* str)
     }
 }
 
-void TFoldingProfiler::Refer(const TReferenceExpression* referenceExpr)
-{
-    if (References_) {
-        References_->insert(referenceExpr->ColumnName);
-    }
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 TCGQueryCallbackGenerator Profile(
     TConstQueryPtr query,
     llvm::FoldingSetNodeID* id,
     TCGVariables* variables,
-    yhash_set<Stroka>* references,
     std::vector<std::vector<bool>>* literalArgs,
     const IFunctionRegistryPtr functionRegistry)
 {
     TFoldingProfiler profiler(functionRegistry);
     profiler.Set(id);
     profiler.Set(variables);
-    profiler.Set(references);
     profiler.Set(literalArgs);
 
     return [
@@ -420,13 +414,11 @@ TCGExpressionCallbackGenerator Profile(
     const TTableSchema& schema,
     llvm::FoldingSetNodeID* id,
     TCGVariables* variables,
-    yhash_set<Stroka>* references,
     std::vector<std::vector<bool>>* literalArgs,
     const IFunctionRegistryPtr functionRegistry)
 {
     TFoldingProfiler profiler(functionRegistry);
     profiler.Set(variables);
-    profiler.Set(references);
     profiler.Set(literalArgs);
 
     return [

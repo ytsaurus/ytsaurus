@@ -228,6 +228,8 @@ public:
 
     i64 CustomStatisticsCountLimit;
 
+    TNullable<i64> TmpfsSize;
+
     TUserJobSpec()
     {
         RegisterParameter("command", Command)
@@ -272,6 +274,9 @@ public:
             .Default(128)
             .GreaterThan(0)
             .LessThanOrEqual(1024);
+        RegisterParameter("tmpfs_size", TmpfsSize)
+            .Default()
+            .GreaterThan(0);
     }
 
     void InitEnableInputTableIndex(int inputTableCount, TJobIOConfigPtr jobIOConfig)

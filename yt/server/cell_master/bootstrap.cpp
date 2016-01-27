@@ -364,11 +364,20 @@ void TBootstrap::DoInitialize()
 
     Multicell_ = !Config_->SecondaryMasters.empty();
 
+<<<<<<< HEAD
     CellId_ = localCellConfig->CellId;
     CellTag_ = CellTagFromId(CellId_);
 
     PrimaryCellId_ = Config_->PrimaryMaster->CellId;
     PrimaryCellTag_ = CellTagFromId(PrimaryCellId_);
+=======
+    HttpServer_.reset(new NHttp::TServer(
+        Config_->MonitoringPort,
+        Config_->BusServer->BindRetryCount,
+        Config_->BusServer->BindRetryBackoff));
+
+    auto busServer = CreateTcpBusServer(Config_->BusServer);
+>>>>>>> prestable/0.17.4
 
     for (const auto& cellConfig : Config_->SecondaryMasters) {
         SecondaryCellTags_.push_back(CellTagFromId(cellConfig->CellId));

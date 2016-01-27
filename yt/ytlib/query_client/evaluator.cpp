@@ -83,7 +83,13 @@ public:
 
                 TCGVariables fragmentParams;
                 std::vector<std::vector<bool>> allLiteralArgs;
-                auto cgQuery = Codegen(query, fragmentParams, functionRegistry, allLiteralArgs, statistics, enableCodeCache);
+                auto cgQuery = Codegen(
+                    query,
+                    fragmentParams,
+                    functionRegistry,
+                    allLiteralArgs,
+                    statistics,
+                    enableCodeCache);
 
                 LOG_DEBUG("Evaluating plan fragment");
 
@@ -196,7 +202,7 @@ private:
     {
         llvm::FoldingSetNodeID id;
 
-        auto makeCodegenQuery = Profile(query, &id, &variables, nullptr, &literalArgs, functionRegistry);
+        auto makeCodegenQuery = Profile(query, &id, &variables, &literalArgs, functionRegistry);
 
         auto Logger = BuildLogger(query);
 
@@ -264,7 +270,13 @@ TQueryStatistics TEvaluator::RunWithExecutor(
     const IFunctionRegistryPtr functionRegistry,
     bool enableCodeCache)
 {
-    return Impl_->Run(query, std::move(reader), std::move(writer), executeCallback, functionRegistry, enableCodeCache);
+    return Impl_->Run(
+        std::move(query),
+        std::move(reader),
+        std::move(writer),
+        std::move(executeCallback),
+        functionRegistry,
+        enableCodeCache);
 }
 
 TQueryStatistics TEvaluator::Run(
@@ -274,7 +286,13 @@ TQueryStatistics TEvaluator::Run(
     const IFunctionRegistryPtr functionRegistry,
     bool enableCodeCache)
 {
-    return RunWithExecutor(query, std::move(reader), std::move(writer), nullptr, functionRegistry, enableCodeCache);
+    return RunWithExecutor(
+        std::move(query),
+        std::move(reader),
+        std::move(writer),
+        nullptr,
+        functionRegistry,
+        enableCodeCache);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

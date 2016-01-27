@@ -698,6 +698,7 @@ void ValidateDynamicTableConstraints(const TTableSchema& schema)
     }
 }
 
+<<<<<<< HEAD
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Validates that all columns from the old schema are present in the new schema.
@@ -709,6 +710,38 @@ void ValidateColumnsNotRemoved(const TTableSchema& oldSchema, const TTableSchema
         if (!newSchema.FindColumn(oldColumn.Name)) {
             THROW_ERROR_EXCEPTION("Cannot remove column %Qv from a strict schema",
                 oldColumn.Name);
+=======
+    // Validate computed columns.
+    for (int index = 0; index < schema.Columns().size(); ++index) {
+        const auto& columnSchema = schema.Columns()[index];
+        if (columnSchema.Expression) {
+            if (index < keyColumns.size()) {
+                auto functionRegistry = CreateBuiltinFunctionRegistry();
+                yhash_set<Stroka> references;
+                auto expr = PrepareExpression(columnSchema.Expression.Get(), schema, functionRegistry, &references);
+                if (expr->Type != columnSchema.Type) {
+                    THROW_ERROR_EXCEPTION("Computed column %Qv type mismatch: declared type is %Qlv but expression type is %Qlv",
+                        columnSchema.Name,
+                        columnSchema.Type,
+                        expr->Type);
+                }
+
+                for (const auto& ref : references) {
+                    if (schema.GetColumnIndexOrThrow(ref) >= keyColumns.size()) {
+                        THROW_ERROR_EXCEPTION("Computed column %Qv depends on a non-key column %Qv",
+                            columnSchema.Name,
+                            ref);
+                    }
+                    if (schema.GetColumnOrThrow(ref).Expression) {
+                        THROW_ERROR_EXCEPTION("Computed column %Qv depends on computed column %Qv",
+                            columnSchema.Name,
+                            ref);
+                    }
+                }
+            } else {
+                THROW_ERROR_EXCEPTION("Computed column %Qv is not a key column", columnSchema.Name);
+            }
+>>>>>>> prestable/0.17.4
         }
     }
 }
