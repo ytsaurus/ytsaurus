@@ -253,8 +253,9 @@ public:
     TTabletManagerConfig()
     {
         RegisterParameter("pool_chunk_size", PoolChunkSize)
-            .GreaterThan(0)
-            .Default(64 * 1024);
+            .GreaterThan(64 * 1024)
+            .Default(1024 * 1024);
+
         RegisterParameter("max_pool_small_block_ratio", MaxPoolSmallBlockRatio)
             .InRange(0.0, 1.0)
             .Default(0.25);
