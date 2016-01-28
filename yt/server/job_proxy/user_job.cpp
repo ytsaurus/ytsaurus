@@ -399,7 +399,14 @@ private:
         auto contexts = WaitFor(asyncContexts)
             .ValueOrThrow();
 
-        return DoDumpInputContexts(contexts);
+        auto chunks = DoDumpInputContexts(contexts);
+        YCHECK(chunks.size() == 1);
+
+        if (chunks.front() == NullChunkId) {
+            THROW_ERROR_EXCEPTION("Cannot dump job context: reading has not started yet");
+        }
+
+        return chunks;
     }
 
     std::vector<TChunkId> DoDumpInputContexts(const std::vector<TBlob>& contexts)
