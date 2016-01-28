@@ -90,8 +90,10 @@ class ConfigsProvider(object):
                         ])))
 
 def _set_bind_retry_options(config):
-    config["bind_retry_count"] = 10
-    config["bind_retry_backoff"] = 3000
+    if "bus_server" not in config:
+        config["bus_server"] = {}
+    config["bus_server"]["bind_retry_count"] = 10
+    config["bus_server"]["bind_retry_backoff"] = 3000
 
 def _generate_common_proxy_config(proxy_dir, proxy_port, enable_debug_logging, fqdn):
     proxy_config = default_configs.get_proxy_config()
