@@ -538,6 +538,7 @@ TCodegenExpression MakeCodegenUnaryOpExpr(
                                 builder.getTrue(),
                                 TDataTypeBuilder::TBoolean::get(builder.getContext())),
                             operandData);
+			break;
 
                     default:
                         YUNREACHABLE();
