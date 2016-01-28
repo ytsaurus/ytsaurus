@@ -250,7 +250,7 @@ public:
     virtual TOperationId DoMap(
         const TMapOperationSpec& spec,
         IJob* mapper,
-        const TOperationOptions& options)
+        const TOperationOptions& options) override
     {
         return ExecuteMap(
             Auth_,
@@ -263,7 +263,7 @@ public:
     virtual TOperationId DoReduce(
         const TReduceOperationSpec& spec,
         IJob* reducer,
-        const TOperationOptions& options)
+        const TOperationOptions& options) override
     {
         return ExecuteReduce(
             Auth_,
@@ -276,7 +276,7 @@ public:
     virtual TOperationId DoJoinReduce(
         const TJoinReduceOperationSpec& spec,
         IJob* reducer,
-        const TOperationOptions& options)
+        const TOperationOptions& options) override
     {
         return ExecuteJoinReduce(
             Auth_,
@@ -295,7 +295,7 @@ public:
         const TMultiFormatDesc& inputReduceCombinerDesc,
         const TMultiFormatDesc& outputReduceCombinerDesc,
         const TMultiFormatDesc& inputReducerDesc,
-        const TOperationOptions& options)
+        const TOperationOptions& options) override
     {
         return ExecuteMapReduce(
             Auth_,
@@ -313,7 +313,7 @@ public:
 
     virtual TOperationId Sort(
         const TSortOperationSpec& spec,
-        const TOperationOptions& options)
+        const TOperationOptions& options) override
     {
         return ExecuteSort(
             Auth_,
@@ -324,7 +324,7 @@ public:
 
     virtual TOperationId Merge(
         const TMergeOperationSpec& spec,
-        const TOperationOptions& options)
+        const TOperationOptions& options) override
     {
         return ExecuteMerge(
             Auth_,
@@ -335,7 +335,7 @@ public:
 
     virtual TOperationId Erase(
         const TEraseOperationSpec& spec,
-        const TOperationOptions& options)
+        const TOperationOptions& options) override
     {
         return ExecuteErase(
             Auth_,
@@ -344,17 +344,17 @@ public:
             options);
     }
 
-    virtual EOperationStatus CheckOperation(const TOperationId& operationId)
+    virtual EOperationStatus CheckOperation(const TOperationId& operationId) override
     {
         return NYT::CheckOperation(Auth_, TransactionId_, operationId);
     }
 
-    virtual void AbortOperation(const TOperationId& operationId)
+    virtual void AbortOperation(const TOperationId& operationId) override
     {
         NYT::AbortOperation(Auth_, TransactionId_, operationId);
     }
 
-    virtual void WaitForOperation(const TOperationId& operationId)
+    virtual void WaitForOperation(const TOperationId& operationId) override
     {
         NYT::WaitForOperation(Auth_, TransactionId_, operationId);
     }
