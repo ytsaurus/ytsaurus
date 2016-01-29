@@ -196,7 +196,10 @@ default_config = {
     "argcomplete_verbose": False
 }
 
-def transform_value(value):
+def transform_value(value, original_value):
+    if original_value is False or original_value is True:
+        if isinstance(value, str):
+            raise TypeError("Value must be boolean instead of string")
     if isinstance(value, YsonEntity):
         return None
     return value
