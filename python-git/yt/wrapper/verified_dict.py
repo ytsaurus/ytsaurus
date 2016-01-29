@@ -24,7 +24,7 @@ class VerifiedDict(collections.MutableMapping):
         if self._transform_func is None:
             self.store[key] = value
         else:
-            self.store[key] = self._transform_func(value)
+            self.store[key] = self._transform_func(value, self.store.get(key))
     
     def __delitem__(self, key):
         del self.store[key]
