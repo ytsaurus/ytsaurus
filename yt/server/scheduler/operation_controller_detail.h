@@ -104,6 +104,8 @@ public:
         ISchedulingContext* context,
         const TJobResources& jobLimits) override;
 
+    virtual void UpdateConfig(TSchedulerConfigPtr config) override;
+
     virtual TCancelableContextPtr GetCancelableContext() const override;
     virtual IInvokerPtr GetCancelableControlInvoker() const override;
     virtual IInvokerPtr GetCancelableInvoker() const override;

@@ -299,7 +299,7 @@ public:
         // Merge operation spec with template
         auto specTemplate = GetSpecTemplate(type, spec);
         if (specTemplate) {
-            spec = NYTree::UpdateNode(specTemplate, spec)->AsMap();
+            spec = UpdateNode(specTemplate, spec)->AsMap();
         }
 
         // Create operation object.
@@ -1145,8 +1145,15 @@ private:
 
         auto newConfig = ConvertToNode(Config_);
 
-        if (!NYTree::AreNodesEqual(oldConfig, newConfig)) {
+        if (!AreNodesEqual(oldConfig, newConfig)) {
             LOG_INFO("Scheduler configuration updated");
+            auto config = CloneYsonSerializable(Config_);
+            for (const auto& operation : GetOperations()) {
+                auto controller = operation->GetController();
+                BIND(&IOperationController::UpdateConfig, controller, config)
+                    .AsyncVia(controller->GetCancelableInvoker())
+                    .Run();
+            }
         }
     }
 
@@ -1939,23 +1946,25 @@ private:
 
     IOperationControllerPtr CreateController(TOperation* operation)
     {
+        auto config = CloneYsonSerializable(Config_);
+
         switch (operation->GetType()) {
             case EOperationType::Map:
-                return CreateMapController(Config_, this, operation);
+                return CreateMapController(config, this, operation);
             case EOperationType::Merge:
-                return CreateMergeController(Config_, this, operation);
+                return CreateMergeController(config, this, operation);
             case EOperationType::Erase:
-                return CreateEraseController(Config_, this, operation);
+                return CreateEraseController(config, this, operation);
             case EOperationType::Sort:
-                return CreateSortController(Config_, this, operation);
+                return CreateSortController(config, this, operation);
             case EOperationType::Reduce:
-                return CreateReduceController(Config_, this, operation);
+                return CreateReduceController(config, this, operation);
             case EOperationType::JoinReduce:
-                return CreateJoinReduceController(Config_, this, operation);
+                return CreateJoinReduceController(config, this, operation);
             case EOperationType::MapReduce:
-                return CreateMapReduceController(Config_, this, operation);
+                return CreateMapReduceController(config, this, operation);
             case EOperationType::RemoteCopy:
-                return CreateRemoteCopyController(Config_, this, operation);
+                return CreateRemoteCopyController(config, this, operation);
             default:
                 YUNREACHABLE();
         }
