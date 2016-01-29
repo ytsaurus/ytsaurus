@@ -383,10 +383,10 @@ class Application(object):
                 return func(*args, **kwargs)
             except RequestFailed as error:
                 log_yt_exception(logger)
-                return json.dumps(error.simplify()), 400
+                return json.dumps(error.simplify()), 404
             except Exception as error:
                 logger.exception("Unknown error:")
-                return json.dumps({"code": 1, "message": "Unknown error: " + str(error)}), 502
+                return json.dumps({"code": 1, "message": "Unknown error: " + str(error)}), 404
 
         return decorator
 
