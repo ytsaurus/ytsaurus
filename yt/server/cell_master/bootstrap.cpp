@@ -364,20 +364,13 @@ void TBootstrap::DoInitialize()
 
     Multicell_ = !Config_->SecondaryMasters.empty();
 
-<<<<<<< HEAD
     CellId_ = localCellConfig->CellId;
     CellTag_ = CellTagFromId(CellId_);
 
     PrimaryCellId_ = Config_->PrimaryMaster->CellId;
     PrimaryCellTag_ = CellTagFromId(PrimaryCellId_);
-=======
-    HttpServer_.reset(new NHttp::TServer(
-        Config_->MonitoringPort,
-        Config_->BusServer->BindRetryCount,
-        Config_->BusServer->BindRetryBackoff));
 
     auto busServer = CreateTcpBusServer(Config_->BusServer);
->>>>>>> prestable/0.17.4
 
     for (const auto& cellConfig : Config_->SecondaryMasters) {
         SecondaryCellTags_.push_back(CellTagFromId(cellConfig->CellId));
@@ -407,7 +400,14 @@ void TBootstrap::DoInitialize()
         YCHECK(CellDirectory_->ReconfigureCell(cellConfig));
     }
 
-    HttpServer_.reset(new NHttp::TServer(Config_->MonitoringPort));
+    HttpServer_ = std::make_unique<NHttp::TServer>(
+        Config_->MonitoringPort,
+        Config_->BusServer->BindRetryCount,
+        Config_->BusServer->BindRetryBackoff);
+
+    HttpServer_->Register(
+        "/orchid",
+        NMonitoring::GetYPathHttpHandler(orchidRoot->Via(GetControlInvoker())));
 
     auto busServerConfig = TTcpBusServerConfig::CreateTcp(Config_->RpcPort);
     auto busServer = CreateTcpBusServer(busServerConfig);
@@ -567,10 +567,6 @@ void TBootstrap::DoInitialize()
     CypressManager_->RegisterHandler(CreateTabletCellNodeTypeHandler(this));
     CypressManager_->RegisterHandler(CreateTabletMapTypeHandler(this));
     CypressManager_->RegisterHandler(CreateTabletCellBundleMapTypeHandler(this));
-
-    HttpServer_->Register(
-        "/orchid",
-        NMonitoring::GetYPathHttpHandler(orchidRoot->Via(GetControlInvoker())));
 
     RpcServer_->Configure(Config_->RpcServer);
 }

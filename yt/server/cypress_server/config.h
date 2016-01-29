@@ -46,14 +46,12 @@ public:
         RegisterParameter("max_node_child_count", MaxNodeChildCount)
             .GreaterThan(20)
             .Default(50000);
-<<<<<<< HEAD
         RegisterParameter("max_string_node_length", MaxStringNodeLength)
             .GreaterThan(256)
             .Default(65536);
         RegisterParameter("max_attribute_size", MaxAttributeSize)
             .GreaterThan(256)
             .Default(16 * 1024 * 1024);
-=======
 
         RegisterParameter("default_file_replication_factor", DefaultFileReplicationFactor)
             .Default(3)
@@ -77,7 +75,6 @@ public:
                     "default_journal_read_quorum + default_journal_write_quorum < default_journal_replication_factor + 1");
             }
         });
->>>>>>> prestable/0.17.4
     }
 };
 
