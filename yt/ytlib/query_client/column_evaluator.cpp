@@ -45,16 +45,11 @@ void TColumnEvaluator::Prepare()
         if (TableSchema_.Columns()[index].Expression) {
             yhash_set<Stroka> references;
             Expressions_[index] = PrepareExpression(
-<<<<<<< HEAD
                 TableSchema_.Columns()[index].Expression.Get(),
                 TableSchema_,
-                FunctionRegistry_);
-=======
-                Schema_.Columns()[index].Expression.Get(),
-                Schema_,
                 FunctionRegistry_,
                 &references);
->>>>>>> prestable/0.17.4
+
             Evaluators_[index] = Profile(
                 Expressions_[index],
                 TableSchema_,

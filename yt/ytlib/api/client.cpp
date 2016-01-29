@@ -327,24 +327,6 @@ private:
     {
         YCHECK(TypeFromId(tableId) == EObjectType::Table);
 
-<<<<<<< HEAD
-        if (TypeFromId(objectId) == EObjectType::Table) {
-            result = SplitTableFurther(objectId, ranges, std::move(rowBuffer));
-            LOG_DEBUG_IF(verboseLogging, "Got %v sources for input %v",
-                result.size(),
-                objectId);
-        }
-
-        return result;
-    }
-
-    std::vector<std::pair<TDataSource, Stroka>> SplitTableFurther(
-        const TObjectId& tableId,
-        const std::vector<TRowRange>& ranges,
-        TRowBufferPtr rowBuffer)
-    {
-=======
->>>>>>> prestable/0.17.4
         auto tableMountCache = Connection_->GetTableMountCache();
         auto tableInfo = WaitFor(tableMountCache->GetTableInfo(FromObjectId(tableId)))
             .ValueOrThrow();
@@ -364,15 +346,9 @@ private:
         return result;
     }
 
-<<<<<<< HEAD
-    std::vector<std::pair<TDataSource, Stroka>> SplitStaticTableFurther(
-        const TObjectId& tableId,
-        const std::vector<TRowRange>& ranges,
-=======
     std::vector<std::pair<TDataRanges, Stroka>> SplitStaticTable(
         TGuid tableId,
         TSharedRange<TRowRange> ranges,
->>>>>>> prestable/0.17.4
         TRowBufferPtr rowBuffer)
     {
         std::vector<TReadRange> readRanges;
@@ -462,13 +438,9 @@ private:
                         objectId);
                 }
 
-<<<<<<< HEAD
-                auto selectedReplica = replicas[RandomNumber(replicas.size())];
-=======
                 const TChunkReplica& selectedReplica = replicas[RandomNumber(replicas.size())];
                 const auto& descriptor = nodeDirectory->GetDescriptor(selectedReplica);
                 const auto& address = descriptor.GetAddressOrThrow(networkName);
->>>>>>> prestable/0.17.4
 
                 TRowRange subrange;
                 subrange.first = rowBuffer->Capture(std::max(lowerBound, keyRange.first.Get()));
@@ -485,7 +457,6 @@ private:
         return subsources;
     }
 
-<<<<<<< HEAD
     static const TCellPeerDescriptor& GetLeadingTabletPeerDescriptor(const TCellDescriptor& cellDescriptor)
     {
         if (cellDescriptor.Peers.empty()) {
@@ -503,14 +474,9 @@ private:
             cellDescriptor.CellId);
     }
 
-    std::vector<std::pair<TDataSource, Stroka>> SplitDynamicTableFurther(
-        const TObjectId& tableId,
-        const std::vector<TRowRange>& ranges,
-=======
     std::vector<std::pair<TDataRanges, Stroka>> SplitDynamicTable(
         TGuid tableId,
         TSharedRange<TRowRange> ranges,
->>>>>>> prestable/0.17.4
         TRowBufferPtr rowBuffer,
         TTableMountInfoPtr tableInfo)
     {
@@ -522,31 +488,18 @@ private:
         const auto& cellDirectory = Connection_->GetCellDirectory();
         const auto& networkName = Connection_->GetConfig()->NetworkName;
 
-<<<<<<< HEAD
-        std::vector<std::pair<TDataSource, Stroka>> subsources;
         yhash_map<NTabletClient::TTabletCellId, TCellDescriptor> tabletCellReplicas;
-=======
-        yhash_map<NTabletClient::TTabletCellId, std::vector<Stroka>> tabletCellReplicas;
->>>>>>> prestable/0.17.4
 
-        auto getAddresses = [&] (const TTabletInfoPtr& tabletInfo) mutable -> const std::vector<Stroka> & {
-            if (tabletInfo->State != ETabletState::Mounted) {
-                // TODO(babenko): learn to work with unmounted tablets
-                THROW_ERROR_EXCEPTION("Tablet %v is not mounted",
-                    tabletInfo->TabletId);
+        auto getAddress = [&] (const TTabletInfoPtr& tabletInfo) mutable {
+            auto insertResult = tabletCellReplicas.insert(std::make_pair(tabletInfo->CellId, TCellDescriptor()));
+            auto& descriptor = insertResult.first->second;
+
+            if (insertResult.second) {
+                descriptor = cellDirectory->GetDescriptorOrThrow(tabletInfo->CellId);
             }
 
-            auto replicasIt = tabletCellReplicas.insert(std::make_pair(tabletInfo->CellId, std::vector<Stroka>()));
-            if (replicasIt.second) {
-                replicasIt.first->second = cellDirectory->GetAddressesOrThrow(tabletInfo->CellId);
-
-                if (replicasIt.first->second.empty()) {
-                    THROW_ERROR_EXCEPTION("No alive replicas for tablet %v",
-                        tabletInfo->TabletId);
-                }
-            }
-
-            return replicasIt.first->second;
+            const auto& peerDescriptor = GetLeadingTabletPeerDescriptor(descriptor);
+            return peerDescriptor.GetAddress(networkName);
         };
 
         std::vector<std::pair<TDataRanges, Stroka>> subsources;
@@ -563,12 +516,6 @@ private:
                     return key < tabletInfo->PivotKey;
                 }) - 1;
 
-<<<<<<< HEAD
-            for (auto it = startIt; it != tableInfo->Tablets.end(); ++it) {
-                const auto& tabletInfo = *it;
-                if (upperBound <= tabletInfo->PivotKey)
-                    break;
-=======
             auto tabletInfo = *startIt;
             auto nextPivotKey = (startIt + 1 == tableInfo->Tablets.end()) ? MaxKey() : (*(startIt + 1))->PivotKey;
 
@@ -580,10 +527,8 @@ private:
                     [] (const TRow& key, const TRowRange& rowRange) {
                         return key < rowRange.second;
                     });
->>>>>>> prestable/0.17.4
 
-                const auto& addresses = getAddresses(tabletInfo);
-                const auto& address = addresses[RandomNumber(addresses.size())];
+                const auto& address = getAddress(tabletInfo);
 
                 TDataRanges dataSource{
                     tabletInfo->TabletId,
@@ -599,8 +544,7 @@ private:
                     const auto& tabletInfo = *it;
                     YASSERT(upperBound > tabletInfo->PivotKey);
 
-                    const auto& addresses = getAddresses(tabletInfo);
-                    const auto& address = addresses[RandomNumber(addresses.size())];
+                    const auto& address = getAddress(tabletInfo);
 
                     auto pivotKey = tabletInfo->PivotKey;
                     auto nextPivotKey = (it + 1 == tableInfo->Tablets.end()) ? MaxKey() : (*(it + 1))->PivotKey;
@@ -615,18 +559,6 @@ private:
                         tabletInfo->TabletId,
                         MakeSharedRange(SmallVector<TRowRange, 1>{subrange}, rowBuffer, ranges.GetHolder())};
 
-<<<<<<< HEAD
-                auto insertResult = tabletCellReplicas.insert(std::make_pair(tabletInfo->CellId, TCellDescriptor()));
-                auto& descriptor = insertResult.first->second;
-
-                if (insertResult.second) {
-                    descriptor = cellDirectory->GetDescriptorOrThrow(tabletInfo->CellId);
-                }
-
-                const auto& peerDescriptor = GetLeadingTabletPeerDescriptor(descriptor);
-                auto address = peerDescriptor.GetAddress(networkName);
-                subsources.emplace_back(std::move(subsource), std::move(address));
-=======
                     subsources.emplace_back(dataSource, address);
 
                     if (isLast) {
@@ -634,7 +566,6 @@ private:
                     }
                 }
                 ++rangesIt;
->>>>>>> prestable/0.17.4
             }
         }
 

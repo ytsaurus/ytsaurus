@@ -1447,11 +1447,6 @@ std::pair<TQueryPtr, TDataRanges> PreparePlanFragment(
         joinClause->ForeignDataId = GetObjectIdFromDataSplit(foreignDataSplit);
         joinClause->IsLeft = join.IsLeft;
 
-        const auto& columns = foreignTableSchema.Columns();
-        joinClause->ForeignTableSchema = TTableSchema(std::vector<TColumnSchema>(
-            columns.begin(),
-            columns.begin() + std::min(foreignKeyColumns.size(), columns.size())));
-
         auto foreignSourceProxy = New<TScanSchemaProxy>(
             &joinClause->RenamedTableSchema,
             &joinClause->ForeignTableSchema,
@@ -1645,17 +1640,11 @@ std::pair<TQueryPtr, TDataRanges> PreparePlanFragment(
 
     auto range = GetBothBoundsFromDataSplit(selfDataSplit);
 
-<<<<<<< HEAD
-    TRowRange rowRange(
-        planFragment->KeyRangesRowBuffer->Capture(range.first),
-        planFragment->KeyRangesRowBuffer->Capture(range.second));
-=======
     SmallVector<TRowRange, 1> rowRanges;
     TRowBufferPtr buffer = New<TRowBuffer>();
     rowRanges.push_back({
         buffer->Capture(range.first.Get()),
         buffer->Capture(range.second.Get())});
->>>>>>> prestable/0.17.4
 
     TDataRanges dataSource;
     dataSource.Id = GetObjectIdFromDataSplit(selfDataSplit);
