@@ -5,6 +5,7 @@ from yt.json import loads_as_bytes
 
 import os
 import json
+import time
 from subprocess import check_output
 
 class HiveError(Exception):
@@ -71,11 +72,16 @@ class Airflow(object):
             pattern = "{cluster}{path}"
         elif task_type == "hivecp":
             pattern = "{cluster}.{path}"
+        elif task_type == "hbasecp":
+            pattern = "{cluster}/{path}"
         else:
             raise AirflowError("Unsupported airflow task type: {0}".format(task_type))
 
         src = pattern.format(cluster=source_cluster, path=source_path)
-        dst = pattern.format(cluster=destination_cluster, path=destination_path)
+        if task_type == "hbasecp":
+            dst = destination_cluster
+        else:
+            dst = pattern.format(cluster=destination_cluster, path=destination_path)
 
         task_id = generate_uuid()
         data = {
@@ -90,6 +96,9 @@ class Airflow(object):
         # XXX(asaitgalin): Retries will be added when HDPDEV-279 is done.
         response = requests.post(submit_url, data=json.dumps(data), headers=self._headers)
         response.raise_for_status()
+
+        # Special sleep to ensure that dag is registered at airflow.
+        time.sleep(3)
 
         return task_id
 
@@ -140,5 +149,9 @@ class Airflow(object):
         return run_with_retries(make_request, exceptions=get_retriable_errors())
 
 class Hdfs(object):
+    def __init__(self, airflow_name):
+        self.airflow_name = airflow_name
+
+class HBase(object):
     def __init__(self, airflow_name):
         self.airflow_name = airflow_name
