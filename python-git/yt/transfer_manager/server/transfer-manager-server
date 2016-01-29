@@ -10,7 +10,7 @@ from yt.transfer_manager.server.lock import CountedRLock
 
 from yt.tools.logging_server import LogRecordSocketReceiver
 from yt.tools.yamr import Yamr, YamrError
-from yt.tools.hadoop import Hive, Airflow, Hdfs
+from yt.tools.hadoop import Airflow, Hdfs, Hive, HBase
 from yt.tools.remote_copy_tools import Kiwi
 from yt.tools.remote_copy_tools import \
     copy_yamr_to_yt_pull, \
@@ -480,6 +480,8 @@ class Application(object):
                 clusters[name] = Hive(**options)
             elif type == "hdfs":
                 clusters[name] = Hdfs(**options)
+            elif type == "hbase":
+                clusters[name] = HBase(**options)
             else:
                 raise yt.YtError("Incorrect cluster type " + options["type"])
 
@@ -677,7 +679,7 @@ class Application(object):
             return destination_client, source_client
         elif destination_client._type == "kiwi":
             return clusters_configuration.kiwi_transmitter, source_client
-        elif destination_client._type in ["hive", "hdfs"]:
+        elif destination_client._type in ["hive", "hdfs", "hbase"]:
             return source_client, destination_client
         else:
             raise yt.YtError("Unknown destination client type: %r", destination_client._type)
@@ -819,7 +821,7 @@ class Application(object):
             if source_client._type == "hive" and "." not in task.source_table:
                 raise yt.YtError("Incorrect source table for hive, it must have format {database_name}.{table_name}")
 
-            if (source_client._type == "hive" or source_client._type == "hdfs") and clusters_configuration.airflow_client is None:
+            if (source_client._type in ["hive", "hdfs", "hbase"]) and clusters_configuration.airflow_client is None:
                 raise yt.YtError("Airflow client should be configured for transfer from {0} to {1}"
                                  .format(source_client._type, destination_client._type))
 
@@ -1195,8 +1197,9 @@ class Application(object):
                     task.destination_table,
                     copy_spec_template=copy_spec)
             elif (source_client._type == "hdfs" and destination_client._type == "hdfs") \
-                    or (source_client._type == "hive" and destination_client._type == "hive"):
-                type_to_task_type = {"hdfs": "distcp", "hive": "hivecp"}
+                    or (source_client._type == "hive" and destination_client._type == "hive") \
+                    or (source_client._type == "hbase" and destination_client._type == "hbase"):
+                type_to_task_type = {"hdfs": "distcp", "hive": "hivecp", "hbase": "hbasecp"}
                 copy_hadoop_to_hadoop_with_airflow(
                     type_to_task_type[source_client._type],
                     clusters_configuration.airflow_client,
