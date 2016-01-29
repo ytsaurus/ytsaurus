@@ -26,18 +26,12 @@ typedef std::function<TFuture<TQueryStatistics>(
 struct IExecutor
     : public virtual TRefCounted
 {
-<<<<<<< HEAD
-    virtual TFuture<TQueryStatistics> Execute(
-        TPlanFragmentPtr fragment,
-        ISchemafulWriterPtr writer) = 0;
-=======
     virtual TFuture <TQueryStatistics> Execute(
         TConstQueryPtr query,
         TDataRanges dataSource,
         ISchemafulWriterPtr writer,
         TQueryOptions options) = 0;
 
->>>>>>> prestable/0.17.4
 };
 
 DEFINE_REFCOUNTED_TYPE(IExecutor)

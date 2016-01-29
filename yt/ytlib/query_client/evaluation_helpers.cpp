@@ -242,7 +242,7 @@ TJoinEvaluator GetJoinEvaluator(
             for (auto key : keys) {
                 auto lowerBound = key;
 
-                auto upperBound = TRow::Allocate(rowBuffer->GetPool(), keyPrefix + 1);
+                auto upperBound = TMutableRow::Allocate(rowBuffer->GetPool(), keyPrefix + 1);
                 for (int column = 0; column < keyPrefix; ++column) {
                     upperBound[column] = lowerBound[column];
                 }

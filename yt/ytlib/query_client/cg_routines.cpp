@@ -167,21 +167,10 @@ void ScanOpHelper(
 
 void InsertJoinRow(
     TExecutionContext* context,
-<<<<<<< HEAD
-    TLookupRows* lookupRows,
-    std::vector<TRow>* rows,
-    TMutableRow* rowPtr,
-    int valueCount)
-{
-    CHECK_STACK();
-
-    auto row = *rowPtr;
-    auto inserted = lookupRows->insert(row);
-=======
     TJoinLookup* lookup,
     std::vector<TRow>* keys,
     std::vector<std::pair<TRow, int>>* chainedRows,
-    TRow* keyPtr,
+    TMutableRow* keyPtr,
     TRow row,
     int keySize)
 {
@@ -189,24 +178,19 @@ void InsertJoinRow(
 
     int chainIndex = chainedRows->size();
     chainedRows->emplace_back(context->PermanentBuffer->Capture(row), -1);
->>>>>>> prestable/0.17.4
 
-    TRow key = *keyPtr;
+    TMutableRow key = *keyPtr;
     auto inserted = lookup->insert(std::make_pair(key, std::make_pair(chainIndex, false)));
     if (inserted.second) {
         keys->push_back(key);
         for (int index = 0; index < keySize; ++index) {
             context->PermanentBuffer->Capture(&key[index]);
         }
-<<<<<<< HEAD
-        *rowPtr = TMutableRow::Allocate(context->PermanentBuffer->GetPool(), valueCount);
-=======
-        *keyPtr = TRow::Allocate(context->PermanentBuffer->GetPool(), keySize);
+        *keyPtr = TMutableRow::Allocate(context->PermanentBuffer->GetPool(), keySize);
     } else {
         auto& startIndex = inserted.first->second.first;
         chainedRows->back().second = startIndex;
         startIndex = chainIndex;
->>>>>>> prestable/0.17.4
     }
 }
 
