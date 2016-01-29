@@ -160,7 +160,6 @@ struct IOperationController
     virtual void Abort() = 0;
 
 
-
     //! Returns the context that gets invalidated by #Abort.
     virtual TCancelableContextPtr GetCancelableContext() const = 0;
 
@@ -239,6 +238,12 @@ struct IOperationController
     virtual TJobId ScheduleJob(
         ISchedulingContext* context,
         const TJobResources& jobLimits) = 0;
+
+    /*!
+     *  \note Invoker affinity: Controller invoker
+     */
+    //! Updates internal copy of scheduler config used by controller.
+    virtual void UpdateConfig(TSchedulerConfigPtr config) = 0;
 
     /*!
      *  \note Invoker affinity: Controller invoker

@@ -1796,6 +1796,13 @@ TJobId TOperationControllerBase::ScheduleJob(
     return jobId;
 }
 
+void TOperationControllerBase::UpdateConfig(TSchedulerConfigPtr config)
+{
+    VERIFY_INVOKER_AFFINITY(CancelableInvoker);
+
+    Config = config;
+}
+
 void TOperationControllerBase::CustomizeJoblet(TJobletPtr /* joblet */)
 { }
 
