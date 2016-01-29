@@ -227,7 +227,15 @@ def run_erasure_merge(source_client, destination_client, source_table, destinati
     convert_to_erasure(destination_table, yt_client=destination_client, erasure_codec=erasure_codec,
                        compression_codec=compression_codec, spec=spec)
 
-def copy_yt_to_yt(source_client, destination_client, src, dst, network_name, copy_spec_template=None, postprocess_spec_template=None):
+def apply_compression_codec(yt_client, dst, compression_codec):
+    if compression_codec is not None:
+        if not yt_client.exists(dst):
+            yt_client.create_table(dst, attributes={"compression_codec": compression_codec})
+        yt_client.set(dst + "/@compression_codec", compression_codec)
+
+def copy_yt_to_yt(source_client, destination_client, src, dst, network_name,
+                  copy_spec_template=None, postprocess_spec_template=None,
+                  compression_codec=None, erasure_codec=None):
     copy_spec_template = get_value(copy_spec_template, {})
 
     compressed_data_size = source_client.get_attribute(src, "compressed_data_size")
@@ -249,6 +257,7 @@ def copy_yt_to_yt(source_client, destination_client, src, dst, network_name, cop
 
     destination_client.create("map_node", os.path.dirname(dst), recursive=True, ignore_existing=True)
     with destination_client.Transaction():
+        apply_compression_codec(destination_client, dst, compression_codec)
         destination_client.run_remote_copy(
             src,
             dst,
@@ -256,15 +265,23 @@ def copy_yt_to_yt(source_client, destination_client, src, dst, network_name, cop
             network_name=network_name,
             spec=copy_spec_template)
 
-        copy_codec_attributes(source_client, destination_client, src, dst)
+        if erasure_codec is None:
+            copy_codec_attributes(source_client, destination_client, src, dst)
+        else:
+            convert_to_erasure(dst, erasure_codec=erasure_codec, yt_client=destination_client, spec=postprocess_spec_template)
+
         copy_user_attributes(source_client, destination_client, src, dst)
 
-def copy_yt_to_yt_through_proxy(source_client, destination_client, src, dst, fastbone, copy_spec_template=None, postprocess_spec_template=None, default_tmp_dir=None):
+def copy_yt_to_yt_through_proxy(source_client, destination_client, src, dst, fastbone,
+                                copy_spec_template=None, postprocess_spec_template=None, default_tmp_dir=None,
+                                compression_codec=None, erasure_codec=None):
     tmp_dir = tempfile.mkdtemp(dir=default_tmp_dir)
 
     destination_client.create("map_node", os.path.dirname(dst), recursive=True, ignore_existing=True)
     try:
         with source_client.Transaction(), destination_client.Transaction():
+            apply_compression_codec(destination_client, dst, compression_codec)
+
             # NB: for reliable access to table under snapshot lock we should use id.
             src = yt.TablePath(src, client=source_client)
             src.name = yson.to_yson_type("#" + source_client.get(src.name + "/@id"), attributes=src.attributes)
@@ -309,7 +326,10 @@ def copy_yt_to_yt_through_proxy(source_client, destination_client, src, dst, fas
             if sorted_by is not None and not use_sorted_by_on_dst:
                 destination_client.run_sort(dst, sort_by=sorted_by, spec=postprocess_spec_template)
 
-            run_erasure_merge(source_client, destination_client, src.name, dst, spec=postprocess_spec_template)
+            if erasure_codec is None:
+                run_erasure_merge(source_client, destination_client, src.name, dst, spec=postprocess_spec_template)
+            else:
+                convert_to_erasure(dst, erasure_codec=erasure_codec, yt_client=destination_client, spec=postprocess_spec_template)
             copy_user_attributes(source_client, destination_client, src.name, dst)
 
     finally:
@@ -320,12 +340,6 @@ def copy_yamr_to_yt_pull(yamr_client, yt_client, src, dst, fastbone, copy_spec_t
     proxies = yamr_client.proxies
     if not proxies:
         proxies = [yamr_client.server]
-
-    yt_client.mkdir(os.path.dirname(dst), recursive=True)
-    if compression_codec is not None:
-        if not yt_client.exists(dst):
-            yt_client.create_table(dst, attributes={"compression_codec": compression_codec})
-        yt_client.set(dst + "/@compression_codec", compression_codec)
 
     transaction_id = None
     if yamr_client.supports_read_snapshots:
@@ -369,11 +383,14 @@ while true; do
     set +e;
 done"""
 
+    # We need to create it outside of transaction to avoid races.
     yt_client.create("map_node", os.path.dirname(dst), recursive=True, ignore_existing=True)
 
     logger.info("Pull import: run map '%s' with spec '%s'", command, repr(spec))
     try:
         with yt_client.Transaction():
+            apply_compression_codec(yt_client, dst, compression_codec)
+
             if sorted:
                 dst_path = yt.TablePath(dst, client=yt_client)
                 dst_path.attributes["sorted_by"] = ["key", "subkey"]
