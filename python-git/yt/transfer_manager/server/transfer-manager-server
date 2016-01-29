@@ -1118,6 +1118,8 @@ class Application(object):
                         fastbone=fastbone,
                         copy_spec_template=copy_spec,
                         postprocess_spec_template=postprocess_spec,
+                        compression_codec=task.destination_compression_codec,
+                        erasure_codec=task.destination_erasure_codec,
                         default_tmp_dir=self._config.get("default_tmp_dir"))
                 else:  # native
                     network_name = "fastbone" if fastbone else "default"
@@ -1129,7 +1131,9 @@ class Application(object):
                         task.destination_table,
                         network_name=network_name,
                         copy_spec_template=copy_spec,
-                        postprocess_spec_template=postprocess_spec)
+                        postprocess_spec_template=postprocess_spec,
+                        compression_codec=task.destination_compression_codec,
+                        erasure_codec=task.destination_erasure_codec)
             elif source_client._type == "yt" and destination_client._type == "yamr":
                 logger.info("Running YT -> YAMR remote copy")
                 if task.copy_method == "push":
