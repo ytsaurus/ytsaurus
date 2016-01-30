@@ -323,7 +323,7 @@ private:
         VERIFY_THREAD_AFFINITY(Owner_->AutomatonThread);
 
         auto pipe = TPipeFactory().Create();
-        LOG_INFO("Snapshot transfer pipe opened (Pipe: {%v})",
+        LOG_INFO("Snapshot transfer pipe opened (Pipe: %v)",
             pipe);
 
         InputStream_ = pipe.CreateAsyncReader();

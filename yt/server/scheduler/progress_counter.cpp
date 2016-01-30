@@ -167,7 +167,7 @@ void TProgressCounter::Persist(TStreamPersistenceContext& context)
 Stroka ToString(const TProgressCounter& counter)
 {
     return counter.IsTotalEnabled()
-        ? Format("T: %v, R: %v, C: %v, P: %v, F: %v, A: %v, L: %v",
+        ? Format("{T: %v, R: %v, C: %v, P: %v, F: %v, A: %v, L: %v}",
             counter.GetTotal(),
             counter.GetRunning(),
             counter.GetCompleted(),
@@ -175,7 +175,7 @@ Stroka ToString(const TProgressCounter& counter)
             counter.GetFailed(),
             counter.GetAborted(),
             counter.GetLost())
-        : Format("R: %v, C: %v, F: %v, A: %v, L: %v",
+        : Format("{R: %v, C: %v, F: %v, A: %v, L: %v}",
             counter.GetRunning(),
             counter.GetCompleted(),
             counter.GetFailed(),

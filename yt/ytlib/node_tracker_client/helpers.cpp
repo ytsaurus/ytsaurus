@@ -21,11 +21,13 @@ Stroka FormatResourceUsage(
     const TNodeResources& limits)
 {
     return Format(
+        "{"
         "UserSlots: %v/%v, Cpu: %v/%v, Memory: %v/%v, Network: %v/%v, "
         "ReplicationSlots: %v/%v, ReplicationDataSize: %v/%v, "
         "RemovalSlots: %v/%v, "
         "RepairSlots: %v/%v, RepairDataSize: %v/%v, "
-        "SealSlots: %v/%v",
+        "SealSlots: %v/%v"
+        "}",
         // User slots
         usage.user_slots(),
         limits.user_slots(),
@@ -61,11 +63,13 @@ Stroka FormatResourceUsage(
 Stroka FormatResources(const TNodeResources& resources)
 {
     return Format(
+        "{"
         "UserSlots: %v, Cpu: %v, Memory: %v, Network: %v, "
         "ReplicationSlots: %v, ReplicationDataSize: %v, "
         "RemovalSlots: %v, "
         "RepairSlots: %v, RepairDataSize: %v, "
-        "SealSlots: %v",
+        "SealSlots: %v"
+        "}",
         resources.user_slots(),
         resources.cpu(),
         resources.memory() / (1024 * 1024),

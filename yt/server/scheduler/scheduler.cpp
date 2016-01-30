@@ -325,7 +325,7 @@ public:
             transactionId,
             user);
 
-        LOG_INFO("Total resource limits (OperationId: %v, ResourceLimits: {%v})",
+        LOG_INFO("Total resource limits (OperationId: %v, ResourceLimits: %v)",
             operationId,
             FormatResources(GetTotalResourceLimits()));
 

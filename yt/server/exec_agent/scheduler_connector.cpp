@@ -79,7 +79,7 @@ void TSchedulerConnector::SendHeartbeat()
         EObjectType::SchedulerJob,
         req.Get());
 
-    LOG_INFO("Scheduler heartbeat sent (ResourceUsage: {%v})",
+    LOG_INFO("Scheduler heartbeat sent (ResourceUsage: %v)",
         FormatResourceUsage(req->resource_usage(), req->resource_limits()));
 
     auto rspOrError = WaitFor(req->Invoke());

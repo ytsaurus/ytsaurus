@@ -250,10 +250,14 @@ Stroka ToString(const TReadLimit& limit)
     using ::ToString;
 
     TStringBuilder builder;
+    builder.AppendChar('{');
+
+    bool firstToken = true;
     auto append = [&] (const char* label, const TStringBuf& value) {
-        if (builder.GetLength() > 0) {
+        if (!firstToken) {
             builder.AppendString(", ");
         }
+        firstToken = false;
         builder.AppendString(label);
         builder.AppendString(": ");
         builder.AppendString(value);
@@ -275,6 +279,7 @@ Stroka ToString(const TReadLimit& limit)
         append("ChunkIndex", ToString(limit.GetOffset()));
     }
 
+    builder.AppendChar('}');
     return builder.Flush();
 }
 

@@ -112,7 +112,7 @@ void TPipe::CloseWriteFD()
 
 Stroka ToString(const TPipe& pipe)
 {
-    return Format("ReadFD: %v, WriteFD: %v",
+    return Format("{ReadFD: %v, WriteFD: %v}",
         pipe.GetReadFD(),
         pipe.GetWriteFD());
 }

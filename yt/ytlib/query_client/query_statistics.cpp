@@ -62,9 +62,11 @@ TQueryStatistics FromProto(const NProto::TQueryStatistics& serialized)
 Stroka ToString(const TQueryStatistics& stats)
 {
     return Format(
+        "{"
         "RowsRead: %v, RowsWritten: %v, "
         "SyncTime: %v, AsyncTime: %v, ExecuteTime: %v, ReadTime: %v, WriteTime: %v, "
-        "IncompleteInput: %v, IncompleteOutput: %v", 
+        "IncompleteInput: %v, IncompleteOutput: %v"
+        "}",
         stats.RowsRead,
         stats.RowsWritten,
         stats.SyncTime,

@@ -396,7 +396,7 @@ TJobId TOperationControllerBase::TTask::ScheduleJob(
 
     // Check the usage against the limits. This is the last chance to give up.
     if (!Dominates(jobLimits, neededResources)) {
-        LOG_DEBUG("Job actual resource demand is not met (Limits: {%v}, Demand: {%v})",
+        LOG_DEBUG("Job actual resource demand is not met (Limits: %v, Demand: %v)",
             FormatResources(jobLimits),
             FormatResources(neededResources));
         CheckResourceDemandSanity(nodeResourceLimits, neededResources);
@@ -449,7 +449,7 @@ TJobId TOperationControllerBase::TTask::ScheduleJob(
 
     LOG_DEBUG(
         "Job scheduled (JobId: %v, OperationId: %v, JobType: %v, Address: %v, JobIndex: %v, ChunkCount: %v (%v local), "
-        "Approximate: %v, DataSize: %v (%v local), RowCount: %v, Restarted: %v, ResourceLimits: {%v})",
+        "Approximate: %v, DataSize: %v (%v local), RowCount: %v, Restarted: %v, ResourceLimits: %v)",
         joblet->JobId,
         Controller->OperationId,
         jobType,
@@ -1826,7 +1826,7 @@ void TOperationControllerBase::UpdateTask(TTaskPtr task)
 
     LOG_DEBUG_IF(
         newPendingJobCount != oldPendingJobCount || newTotalJobCount != oldTotalJobCount,
-        "Task updated (Task: %v, PendingJobCount: %v -> %v, TotalJobCount: %v -> %v, NeededResources: {%v})",
+        "Task updated (Task: %v, PendingJobCount: %v -> %v, TotalJobCount: %v -> %v, NeededResources: %v)",
         task->GetId(),
         oldPendingJobCount,
         newPendingJobCount,
@@ -2015,7 +2015,7 @@ TJobId TOperationControllerBase::DoScheduleLocalJob(
 
         if (bestTask) {
             LOG_DEBUG(
-                "Attempting to schedule a local job (Task: %v, Address: %v, Locality: %v, JobLimits: {%v}, "
+                "Attempting to schedule a local job (Task: %v, Address: %v, Locality: %v, JobLimits: %v, "
                 "PendingDataSize: %v, PendingJobCount: %v)",
                 bestTask->GetId(),
                 address,
@@ -2123,7 +2123,7 @@ TJobId TOperationControllerBase::DoScheduleNonLocalJob(
                 }
 
                 LOG_DEBUG(
-                    "Attempting to schedule a non-local job (Task: %v, Address: %v, JobLimits: {%v}, "
+                    "Attempting to schedule a non-local job (Task: %v, Address: %v, JobLimits: %v, "
                     "PendingDataSize: %v, PendingJobCount: %v)",
                     task->GetId(),
                     address,
@@ -3616,7 +3616,7 @@ void TOperationControllerBase::BuildResult(IYsonConsumer* consumer) const
 void TOperationControllerBase::UpdateJobStatistics(const TJobSummary& jobSummary)
 {
     auto statistics = jobSummary.Statistics;
-    LOG_DEBUG("Job data statistics (JobId: %v, Input: {%v}, Output: {%v})",
+    LOG_DEBUG("Job data statistics (JobId: %v, Input: %v, Output: %v)",
         jobSummary.Id,
         GetTotalInputDataStatistics(statistics),
         GetTotalOutputDataStatistics(statistics));

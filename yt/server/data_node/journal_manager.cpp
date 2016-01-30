@@ -303,7 +303,7 @@ private:
     {
         auto dumpChunkIds = [&] (const yhash_set<TChunkId>& chunkIds, const Stroka& action) {
             for (const auto& chunkId : chunkIds) {
-                LOG_INFO("Replay may %v journal chunk (ChunkId: %v, FirstRelevantVersion: {%v})",
+                LOG_INFO("Replay may %v journal chunk (ChunkId: %v, FirstRelevantVersion: %v)",
                     action,
                     chunkId,
                     GetFirstRelevantVersion(chunkId));

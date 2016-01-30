@@ -62,7 +62,7 @@ private:
         auto nodeTracker = Bootstrap_->GetNodeTracker();
         auto* node = nodeTracker->GetNodeOrThrow(nodeId);
 
-        context->SetRequestInfo("NodeId: %v, Address: %v, ResourceUsage: {%v}",
+        context->SetRequestInfo("NodeId: %v, Address: %v, ResourceUsage: %v",
             nodeId,
             node->GetDefaultAddress(),
             FormatResourceUsage(resourceUsage, resourceLimits));

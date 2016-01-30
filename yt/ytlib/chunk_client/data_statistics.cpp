@@ -92,8 +92,10 @@ void Deserialize(TDataStatistics& value, INodePtr node)
 Stroka ToString(const TDataStatistics& statistics)
 {
     return Format(
+        "{"
         "UncompressedDataSize: %v, CompressedDataSize: %v, RowCount: %v, ChunkCount: %v, "
-        "RegularDiskSpace: %v, ErasureDiskSpace: %v",
+        "RegularDiskSpace: %v, ErasureDiskSpace: %v"
+        "}",
         statistics.uncompressed_data_size(),
         statistics.compressed_data_size(),
         statistics.row_count(),

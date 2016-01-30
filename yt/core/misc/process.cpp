@@ -229,7 +229,7 @@ void TProcess::Spawn()
     Pipe_ = pipeFactory.Create();
     pipeFactory.Clear();
 
-    LOG_DEBUG("Spawning child process (Path: %v, ErrorPipe: {%v},  Arguments: %v, Environment: %v)",
+    LOG_DEBUG("Spawning child process (Path: %v, ErrorPipe: %v,  Arguments: %v, Environment: %v)",
         Path_,
         Pipe_,
         Args_,
