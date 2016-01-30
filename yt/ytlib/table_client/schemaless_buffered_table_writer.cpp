@@ -223,7 +223,7 @@ private:
 
         try {
             TRichYPath richPath(Path_);
-            richPath.Attributes().Set("append", true);
+            richPath.SetAppend(true);
 
             auto writer = CreateSchemalessTableWriter(
                 Config_,

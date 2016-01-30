@@ -94,7 +94,7 @@ void TWriteTableCommand::Execute(ICommandContextPtr context)
         config,
         GetOptions());
 
-    auto keyColumns = Path.Attributes().Get<TKeyColumns>("sorted_by", TKeyColumns());
+    auto keyColumns = Path.GetSortedBy();
     auto nameTable = TNameTable::FromKeyColumns(keyColumns);
 
     auto writer = CreateSchemalessTableWriter(
