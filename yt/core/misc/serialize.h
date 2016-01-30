@@ -694,14 +694,15 @@ template <class T, class Q>
 class TCollectionSorter
 {
 public:
-    typedef typename T::const_iterator TIterator;
+    using TIterator = typename T::const_iterator;
+    using TIterators = SmallVector<TIterator, 16>;
 
     class TIteratorWrapper
     {
     public:
-        TIteratorWrapper(const std::vector<TIterator>* iterators, size_t index)
+        TIteratorWrapper(const TIterators* iterators, size_t index)
             : Iterators_(iterators)
-              , Index_(index)
+            , Index_(index)
         { }
 
         const typename T::value_type& operator * ()
@@ -726,7 +727,7 @@ public:
         }
 
     private:
-        const std::vector<TIterator>* Iterators_;
+        const TIterators* const Iterators_;
         size_t Index_;
 
     };
@@ -757,7 +758,7 @@ public:
     }
 
 private:
-    std::vector<TIterator> Iterators_;
+    TIterators Iterators_;
 
 };
 
