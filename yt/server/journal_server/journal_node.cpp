@@ -193,7 +193,7 @@ protected:
             // Create an empty chunk list and reference it from the node.
             auto* chunkList = chunkManager->CreateChunkList();
             node->SetChunkList(chunkList);
-            YCHECK(chunkList->OwningNodes().insert(node).second);
+            chunkList->AddOwningNode(node);
             objectManager->RefObject(chunkList);
         }
 
@@ -216,7 +216,7 @@ protected:
             auto* chunkList = originatingNode->GetChunkList();
             branchedNode->SetChunkList(chunkList);
 
-            YCHECK(chunkList->OwningNodes().insert(branchedNode).second);
+            chunkList->AddOwningNode(branchedNode);
 
             auto objectManager = Bootstrap_->GetObjectManager();
             objectManager->RefObject(chunkList);
@@ -251,7 +251,7 @@ protected:
         auto* chunkList = originatingNode->GetChunkList();
 
         if (!originatingNode->IsExternal()) {
-            YCHECK(chunkList->OwningNodes().erase(branchedNode) == 1);
+            chunkList->RemoveOwningNode(branchedNode);
 
             auto objectManager = Bootstrap_->GetObjectManager();
             objectManager->UnrefObject(chunkList);

@@ -868,9 +868,9 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
                 auto* snapshotChunkList = lockedNode->GetChunkList();
 
                 auto* newChunkList = chunkManager->CreateChunkList();
-                YCHECK(newChunkList->OwningNodes().insert(lockedNode).second);
+                newChunkList->AddOwningNode(lockedNode);
 
-                YCHECK(snapshotChunkList->OwningNodes().erase(lockedNode) == 1);
+                snapshotChunkList->RemoveOwningNode(lockedNode);
                 lockedNode->SetChunkList(newChunkList);
                 objectManager->RefObject(newChunkList);
 
@@ -901,11 +901,11 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
                     node->GetId());
             } else {
                 auto* oldChunkList = lockedNode->GetChunkList();
-                YCHECK(oldChunkList->OwningNodes().erase(lockedNode) == 1);
+                oldChunkList->RemoveOwningNode(lockedNode);
                 objectManager->UnrefObject(oldChunkList);
 
                 auto* newChunkList = chunkManager->CreateChunkList();
-                YCHECK(newChunkList->OwningNodes().insert(lockedNode).second);
+                newChunkList->AddOwningNode(lockedNode);
                 lockedNode->SetChunkList(newChunkList);
                 objectManager->RefObject(newChunkList);
 
