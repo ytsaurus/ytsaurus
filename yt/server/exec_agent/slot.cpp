@@ -53,7 +53,7 @@ void TSlot::Initialize()
         try {
             ProcessGroup_.EnsureExistance();
         } catch (const std::exception& ex) {
-            LOG_FATAL(ex, "Failed to create process group %Qv",
+            LOG_FATAL(ex, "Failed to create process group %v",
                 ProcessGroup_.GetFullPath());
         }
 
@@ -159,7 +159,7 @@ void TSlot::DoCleanSandbox(int pathIndex)
         try {
             if (NFS::Exists(sandboxPath)) {
                 if (UserId_) {
-                    LOG_DEBUG("Clean sandbox %v", sandboxPath);
+                    LOG_DEBUG("Cleaning sandbox directory (Path: %v)", sandboxPath);
                     RunTool<TRemoveDirAsRootTool>(sandboxPath);
                 } else {
                     NFS::RemoveRecursive(sandboxPath);
@@ -189,7 +189,8 @@ void TSlot::DoCleanProcessGroups()
         ProcessGroup_.EnsureExistance();
     } catch (const std::exception& ex) {
         auto wrappedError = TError("Failed to clean slot subcgroups for slot %v",
-            SlotIndex_) << ex;
+            SlotIndex_)
+            << ex;
         LOG_ERROR(wrappedError);
         THROW_ERROR wrappedError;
     }
@@ -204,7 +205,7 @@ void TSlot::Clean()
         DoCleanSandbox(PathIndex_);
         IsClean_ = true;
     } catch (const std::exception& ex) {
-        LOG_FATAL("%v", ex.what());
+        LOG_FATAL(TError(ex));
     }
 }
 
@@ -229,11 +230,11 @@ void TSlot::InitSandbox()
         try {
             NFS::ForcePath(sandboxPath, 0777);
         } catch (const std::exception& ex) {
-            LogErrorAndExit(TError("Failed to create sandbox directory %Qv",
+            LogErrorAndExit(TError("Failed to create sandbox directory %v",
                 sandboxPath)
                 << ex);
         }
-        LOG_INFO("Created slot sandbox directory %Qv", sandboxPath);
+        LOG_INFO("Created sandbox directory (Path: %v)", sandboxPath);
     }
 
     IsClean_ = false;
