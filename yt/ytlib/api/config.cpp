@@ -39,7 +39,7 @@ TConnectionConfig::TConnectionConfig()
     RegisterParameter("master_cache", MasterCache)
         .Default();
     RegisterParameter("enable_read_from_followers", EnableReadFromFollowers)
-        .Default(false);
+        .Default(true);
     RegisterParameter("timestamp_provider", TimestampProvider)
         .Default();
     RegisterParameter("cell_directory", CellDirectory)
