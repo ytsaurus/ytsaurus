@@ -403,6 +403,21 @@ bool TRichYPath::GetAppend() const
     return Attributes().Get("append", false);
 }
 
+void TRichYPath::SetAppend(bool value)
+{
+    Attributes().Set("append", value);
+}
+
+bool TRichYPath::GetTeleport() const
+{
+    return Attributes().Get("teleport", false);
+}
+
+bool TRichYPath::GetPrimary() const
+{
+    return Attributes().Get("primary", false);
+}
+
 TChannel TRichYPath::GetChannel() const
 {
     if (Attributes().Contains("channel")) {
@@ -422,38 +437,61 @@ std::vector<NChunkClient::TReadRange> TRichYPath::GetRanges() const
     auto upperLimitAttribute = Attributes().Find<TReadLimit>("upper_limit");
     auto rangesAttribute = Attributes().Find<std::vector<TReadLimit>>("ranges");
     if ((lowerLimitAttribute || upperLimitAttribute) && rangesAttribute) {
-        THROW_ERROR_EXCEPTION("Path contains both multiple (\"ranges\" attribute) and single ranges (\"lower_limit\" or \"upper_limit\" attributes), which is forbidden");
+        THROW_ERROR_EXCEPTION("YPath attributes contain both multiple (\"ranges\") and "
+            "single (\"lower_limit\" or \"upper_limit\") range specifications, which is forbidden");
     }
 
     if (lowerLimitAttribute || upperLimitAttribute) {
-        return std::vector<TReadRange>({
+        return std::vector<TReadRange>{
             TReadRange(
                 Attributes().Get("lower_limit", TReadLimit()),
                 Attributes().Get("upper_limit", TReadLimit())
-            )});
+            )};
     } else {
-        return Attributes().Get("ranges", std::vector<TReadRange>({TReadRange()}));
+        return Attributes().Get("ranges", std::vector<TReadRange>{TReadRange()});
     }
 }
 
-TNullable<Stroka> TRichYPath::FindFileName() const
+void TRichYPath::SetRanges(const std::vector<NChunkClient::TReadRange>& value)
+{
+    Attributes().Set("ranges", value);
+    // COMPAT(ignat)
+    Attributes().Remove("lower_limit");
+    Attributes().Remove("upper_limit");
+}
+
+TNullable<Stroka> TRichYPath::GetFileName() const
 {
     return Attributes().Find<Stroka>("file_name");
 }
 
-TNullable<bool> TRichYPath::FindExecutable() const
+TNullable<bool> TRichYPath::GetExecutable() const
 {
     return Attributes().Find<bool>("executable");
 }
 
-TNullable<TYsonString> TRichYPath::FindFormat() const
+TNullable<TYsonString> TRichYPath::GetFormat() const
 {
     return Attributes().FindYson("format");
 }
 
-TNullable<TTableSchema> TRichYPath::FindTableSchema() const
+TNullable<TTableSchema> TRichYPath::GetSchema() const
 {
     return Attributes().Find<TTableSchema>("schema");   
+}
+
+TKeyColumns TRichYPath::GetSortedBy() const
+{
+    return Attributes().Get<TKeyColumns>("sorted_by", TKeyColumns());
+}
+
+void TRichYPath::SetSortedBy(const TKeyColumns& value)
+{
+    if (value.empty()) {
+        Attributes().Remove("sorted_by");
+    } else {
+        Attributes().Set("sorted_by", value);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

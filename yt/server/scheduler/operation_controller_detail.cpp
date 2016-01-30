@@ -941,7 +941,7 @@ void TOperationControllerBase::Initialize()
             table.LockMode = ELockMode::Shared;
         }
 
-        table.KeyColumns = path.Attributes().Get<TKeyColumns>("sorted_by", TKeyColumns());
+        table.KeyColumns = path.GetSortedBy();
         if (!table.KeyColumns.empty()) {
             if (!IsSortedOutputSupported()) {
                 THROW_ERROR_EXCEPTION("Sorted outputs are not supported");
@@ -3058,17 +3058,17 @@ void TOperationControllerBase::LockUserFiles(
 
                 file.FileName = attributes.Get<Stroka>("key");
                 file.FileName = attributes.Find<Stroka>("file_name").Get(file.FileName);
-                file.FileName = file.Path.FindFileName().Get(file.FileName);
+                file.FileName = file.Path.GetFileName().Get(file.FileName);
 
                 switch (file.Type) {
                     case EObjectType::File:
                         file.Executable = attributes.Find<bool>("executable").Get(file.Executable);
-                        file.Executable = file.Path.FindExecutable().Get(file.Executable);
+                        file.Executable = file.Path.GetExecutable().Get(file.Executable);
                         break;
 
                     case EObjectType::Table:
                         file.Format = attributes.FindYson("format").Get(TYsonString());
-                        file.Format = file.Path.FindFormat().Get(file.Format);
+                        file.Format = file.Path.GetFormat().Get(file.Format);
                         break;
 
                     default:

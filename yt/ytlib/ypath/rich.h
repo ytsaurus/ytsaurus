@@ -40,13 +40,39 @@ public:
     void Load(TStreamLoadContext& context);
 
     // Attribute accessors.
+    // "append"
     bool GetAppend() const;
+    void SetAppend(bool value);
+
+    // "teleport"
+    bool GetTeleport() const;
+
+    // "primary"
+    bool GetPrimary() const;
+
+    // "channel"
     NChunkClient::TChannel GetChannel() const;
+
+    // "ranges"
+    // COMPAT(ignat): also "lower_limit" and "upper_limit"
     std::vector<NChunkClient::TReadRange> GetRanges() const;
-    TNullable<Stroka> FindFileName() const;
-    TNullable<bool> FindExecutable() const;
-    TNullable<NYson::TYsonString> FindFormat() const;
-    TNullable<NTableClient::TTableSchema> FindTableSchema() const;
+    void SetRanges(const std::vector<NChunkClient::TReadRange>& value);
+
+    // "file_name"
+    TNullable<Stroka> GetFileName() const;
+
+    // "executable"
+    TNullable<bool> GetExecutable() const;
+
+    // "format"
+    TNullable<NYson::TYsonString> GetFormat() const;
+
+    // "schema"
+    TNullable<NTableClient::TTableSchema> GetSchema() const;
+
+    // "sorted_by"
+    NTableClient::TKeyColumns GetSortedBy() const;
+    void SetSortedBy(const NTableClient::TKeyColumns& value);
 
 private:
     TYPath Path_;

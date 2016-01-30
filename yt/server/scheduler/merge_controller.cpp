@@ -853,7 +853,9 @@ private:
             auto ranges = path.GetRanges();
             if (ranges.size() > 1) {
                 THROW_ERROR_EXCEPTION("Erase operation does not support tables with multiple ranges");
-            } else if (ranges.size() == 1) {
+            }
+
+            if (ranges.size() == 1) {
                 std::vector<TReadRange> complementaryRanges;
                 const auto& range = ranges[0];
                 if (!range.LowerLimit().IsTrivial()) {
@@ -862,11 +864,9 @@ private:
                 if (!range.UpperLimit().IsTrivial()) {
                     complementaryRanges.push_back(TReadRange(range.UpperLimit(), TReadLimit()));
                 }
-                path.Attributes().Set("ranges", complementaryRanges);
-                path.Attributes().Remove("lower_limit");
-                path.Attributes().Remove("upper_limit");
+                path.SetRanges(complementaryRanges);
             } else {
-                path.Attributes().Set("ranges", std::vector<TReadRange>());
+                path.SetRanges(std::vector<TReadRange>());
             }
         }
 
@@ -1551,9 +1551,9 @@ private:
 
     virtual bool IsTeleportCandidate(TRefCountedChunkSpecPtr chunkSpec) const override
     {
-        auto tableIndex = chunkSpec->table_index();
-        return TSortedMergeControllerBase::IsTeleportCandidate(chunkSpec) &&
-            InputTables[tableIndex].Path.Attributes().Get<bool>("teleport", false);;
+        return
+            TSortedMergeControllerBase::IsTeleportCandidate(chunkSpec) &&
+            InputTables[chunkSpec->table_index()].Path.GetTeleport();
     }
 
     virtual void SortEndpoints() override
@@ -1592,14 +1592,15 @@ private:
         {
             int teleportOutputCount = 0;
             for (int i = 0; i < static_cast<int>(OutputTables.size()); ++i) {
-                if (OutputTables[i].Path.Attributes().Get<bool>("teleport", false)) {
+                if (OutputTables[i].Path.GetTeleport()) {
                     ++teleportOutputCount;
                     TeleportOutputTable = i;
                 }
             }
 
             if (teleportOutputCount > 1) {
-                THROW_ERROR_EXCEPTION("Too many teleport output tables: maximum allowed 1, actual %v", teleportOutputCount);
+                THROW_ERROR_EXCEPTION("Too many teleport output tables: maximum allowed 1, actual %v",
+                    teleportOutputCount);
             }
         }
 
@@ -1842,7 +1843,7 @@ private:
     virtual bool IsOutputLivePreviewSupported() const override
     {
         for (const auto& inputTable : InputTables) {
-            if (inputTable.Path.Attributes().Get<bool>("teleport", false)) {
+            if (inputTable.Path.GetTeleport()) {
                 return false;
             }
         }
@@ -1919,11 +1920,11 @@ private:
         {
             int primaryInputCount = 0;
             for (int i = 0; i < static_cast<int>(InputTables.size()); ++i) {
-                if (InputTables[i].Path.Attributes().Get<bool>("primary", false)) {
+                if (InputTables[i].Path.GetPrimary()) {
                     ++primaryInputCount;
                     PrimaryTableIndex = i;
                 }
-                if (InputTables[i].Path.Attributes().Get<bool>("teleport", false)) {
+                if (InputTables[i].Path.GetTeleport()) {
                     THROW_ERROR_EXCEPTION("Teleport tables are not supported in join-reduce");
                 }
             }

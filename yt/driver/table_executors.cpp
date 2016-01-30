@@ -51,7 +51,7 @@ TWriteTableExecutor::TWriteTableExecutor()
 void TWriteTableExecutor::BuildParameters(IYsonConsumer* consumer)
 {
     auto path = PreprocessYPath(PathArg.getValue());
-    auto sortedBy = ConvertTo< std::vector<Stroka> >(TYsonString(SortedByArg.getValue(), EYsonType::ListFragment));
+    auto sortedBy = ConvertTo<TKeyColumns>(TYsonString(SortedByArg.getValue(), EYsonType::ListFragment));
 
     const auto& value = ValueArg.getValue();
     if (!value.empty()) {
@@ -60,7 +60,7 @@ void TWriteTableExecutor::BuildParameters(IYsonConsumer* consumer)
     }
 
     if (!sortedBy.empty()) {
-        path.Attributes().Set("sorted_by", sortedBy);
+        path.SetSortedBy(sortedBy);
     }
 
     BuildYsonMapFluently(consumer)

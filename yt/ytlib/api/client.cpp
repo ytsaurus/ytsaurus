@@ -292,7 +292,7 @@ private:
         auto info = WaitFor(tableMountCache->GetTableInfo(path.GetPath()))
             .ValueOrThrow();
 
-        auto tableSchema = path.FindTableSchema();
+        auto tableSchema = path.GetSchema();
 
         TDataSplit result;
         SetObjectId(&result, info->TableId);
