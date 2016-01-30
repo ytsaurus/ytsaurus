@@ -58,7 +58,6 @@ public:
     TMasterConnectionConfigPtr PrimaryMaster;
     std::vector<TMasterConnectionConfigPtr> SecondaryMasters;
     TMasterConnectionConfigPtr MasterCache;
-    // TODO(babenko): remove once RFF is stable
     bool EnableReadFromFollowers;
     NTransactionClient::TRemoteTimestampProviderConfigPtr TimestampProvider;
     NHive::TCellDirectoryConfigPtr CellDirectory;
