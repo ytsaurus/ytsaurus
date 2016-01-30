@@ -334,12 +334,12 @@ TQueryStatistics CoordinateAndExecute(
         auto subQueryStatisticsOrError = WaitFor(subqueryHolders[index].Get());
         if (subQueryStatisticsOrError.IsOK()) {
             const auto& subQueryStatistics = subQueryStatisticsOrError.ValueOrThrow();
-            LOG_DEBUG("Subquery has finished (SubQueryId: %v, Statistics: {%v})",
+            LOG_DEBUG("Subquery finished (SubqueryId: %v, Statistics: %v)",
                 subqueries[index]->Id,
                 subQueryStatistics);
             queryStatistics += subQueryStatistics;
         } else {
-            LOG_DEBUG(subQueryStatisticsOrError, "Subquery has failed (SubQueryId: %v)",
+            LOG_DEBUG(subQueryStatisticsOrError, "Subquery failed (SubqueryId: %v)",
                 subqueries[index]->Id);
         }
     }

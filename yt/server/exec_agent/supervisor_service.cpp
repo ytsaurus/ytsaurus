@@ -91,7 +91,7 @@ DEFINE_ONE_WAY_RPC_SERVICE_METHOD(TSupervisorService, UpdateResourceUsage)
     auto jobId = FromProto<TJobId>(request->job_id());
     const auto& resourceUsage = request->resource_usage();
 
-    context->SetRequestInfo("JobId: %v, ResourceUsage: {%v}",
+    context->SetRequestInfo("JobId: %v, ResourceUsage: %v",
         jobId,
         FormatResources(resourceUsage));
 

@@ -1663,7 +1663,7 @@ public:
         FreeAttributesIndex(attributesIndex);
 
         LOG_DEBUG("Heartbeat info (StartedJobs: %v, PreemptedJobs: %v, "
-            "JobsScheduledDuringPreemption: %v, PreemptableJobs: %v, PreemptableResources: {%v})",
+            "JobsScheduledDuringPreemption: %v, PreemptableJobs: %v, PreemptableResources: %v)",
             schedulingContext->StartedJobs().size(),
             schedulingContext->PreemptedJobs().size(),
             scheduledDuringPreemption,

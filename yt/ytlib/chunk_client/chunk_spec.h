@@ -21,7 +21,7 @@ namespace NChunkClient {
 
 DEFINE_REFCOUNTED_TYPE(TRefCountedChunkSpec)
 
-Stroka ToString(TRefCountedChunkSpecPtr spec);
+Stroka ToString(const TRefCountedChunkSpecPtr& spec);
 
 ////////////////////////////////////////////////////////////////////////////////
 

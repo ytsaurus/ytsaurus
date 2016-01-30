@@ -2257,11 +2257,11 @@ private:
         return Format(
             "Jobs = {T: %v, R: %v, C: %v, P: %v, F: %v, A: %v, L: %v}, "
             "Partitions = {T: %v, C: %v}, "
-            "PartitionJobs = {%v}, "
-            "IntermediateSortJobs = {%v}, "
-            "FinalSortJobs = {%v}, "
-            "SortedMergeJobs = {%v}, "
-            "UnorderedMergeJobs = {%v}, "
+            "PartitionJobs = %v, "
+            "IntermediateSortJobs = %v, "
+            "FinalSortJobs = %v, "
+            "SortedMergeJobs = %v, "
+            "UnorderedMergeJobs = %v, "
             "UnavailableInputChunks: %v",
             // Jobs
             JobCounter.GetTotal(),
@@ -2790,10 +2790,10 @@ private:
         return Format(
             "Jobs = {T: %v, R: %v, C: %v, P: %v, F: %v, A: %v, L: %v}, "
             "Partitions = {T: %v, C: %v}, "
-            "MapJobs = {%v}, "
-            "SortJobs = {%v}, "
-            "PartitionReduceJobs = {%v}, "
-            "SortedReduceJobs = {%v}, "
+            "MapJobs = %v, "
+            "SortJobs = %v, "
+            "PartitionReduceJobs = %v, "
+            "SortedReduceJobs = %v, "
             "UnavailableInputChunks: %v",
             // Jobs
             JobCounter.GetTotal(),

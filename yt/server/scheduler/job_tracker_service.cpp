@@ -50,7 +50,7 @@ private:
         const auto& resourceLimits = request->resource_limits();
         const auto& resourceUsage = request->resource_usage();
 
-        context->SetRequestInfo("NodeId: %v, Address: %v, ResourceUsage: {%v}",
+        context->SetRequestInfo("NodeId: %v, Address: %v, ResourceUsage: %v",
             nodeId,
             descriptor.GetDefaultAddress(),
             NNodeTrackerClient::FormatResourceUsage(resourceUsage, resourceLimits));

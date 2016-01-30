@@ -136,7 +136,7 @@ void TJobController::StartWaitingJobs()
         auto jobResources = job->GetResourceUsage();
         auto usedResources = GetResourceUsage(false);
         if (!HasEnoughResources(jobResources, usedResources)) {
-            LOG_DEBUG("Not enough resources to start waiting job (JobId: %v, JobResources: {%v}, UsedResources: {%v})",
+            LOG_DEBUG("Not enough resources to start waiting job (JobId: %v, JobResources: %v, UsedResources: %v)",
                 job->GetId(),
                 FormatResources(jobResources),
                 FormatResources(usedResources));
@@ -228,7 +228,7 @@ void TJobController::OnResourcesUpdated(TWeakPtr<IJob> job, const TNodeResources
         if (job_) {
             job_->Abort(TError(
                 NExecAgent::EErrorCode::ResourceOverdraft,
-                "Failed to increase resource usage (ResourceDelta: {%v})",
+                "Failed to increase resource usage (ResourceDelta: %v)",
                 FormatResources(resourceDelta)));
         }
         return;

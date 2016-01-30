@@ -92,7 +92,7 @@ private:
         // Formatter.
         friend Stroka ToString(const TKey& key)
         {
-            return Format("%v %v:%v %v",
+            return Format("{%v %v:%v %v}",
                 key.User,
                 key.Service,
                 key.Method,
@@ -144,7 +144,7 @@ private:
             auto entry = Find(key);
             if (entry) {
                 if (!IsExpired(entry, successExpirationTime, failureExpirationTime)) {
-                    LOG_DEBUG("Cache hit (Key: {%v}, Success: %v, SuccessExpirationTime: %v, FailureExpirationTime: %v)",
+                    LOG_DEBUG("Cache hit (Key: %v, Success: %v, SuccessExpirationTime: %v, FailureExpirationTime: %v)",
                         key,
                         entry->GetSuccess(),
                         successExpirationTime,
@@ -152,7 +152,7 @@ private:
                     return MakeFuture(TErrorOr<TSharedRefArray>(entry->GetResponseMessage()));
                 }
 
-                LOG_DEBUG("Cache entry expired (Key: {%v}, Success: %v, SuccessExpirationTime: %v, FailureExpirationTime: %v)",
+                LOG_DEBUG("Cache entry expired (Key: %v, Success: %v, SuccessExpirationTime: %v, FailureExpirationTime: %v)",
                     key,
                     entry->GetSuccess(),
                     successExpirationTime,
@@ -164,7 +164,7 @@ private:
             auto cookie = BeginInsert(key);
             auto result = cookie.GetValue();
             if (cookie.IsActive()) {
-                LOG_DEBUG("Populating cache (Key: {%v})",
+                LOG_DEBUG("Populating cache (Key: %v)",
                     key);
 
                 TObjectServiceProxy proxy(Owner_->MasterChannel_);
@@ -199,7 +199,7 @@ private:
             TAsyncSlruCacheBase::OnAdded(entry);
 
             const auto& key = entry->GetKey();
-            LOG_DEBUG("Cache entry added (Key: {%v}, Success: %v, TotalSpace: %v)",
+            LOG_DEBUG("Cache entry added (Key: %v, Success: %v, TotalSpace: %v)",
                 key,
                 entry->GetSuccess(),
                 entry->GetTotalSpace());
@@ -259,7 +259,7 @@ private:
             YCHECK(ParseResponseHeader(responseMessage, &responseHeader));
             auto responseError = FromProto<TError>(responseHeader.error());
 
-            LOG_DEBUG("Cache population request succeded (Key: {%v}, Error: %v)",
+            LOG_DEBUG("Cache population request succeded (Key: %v, Error: %v)",
                 key,
                 responseError);
 
@@ -395,7 +395,7 @@ DEFINE_RPC_SERVICE_METHOD(TMasterCacheService, Execute)
                 THROW_ERROR_EXCEPTION("Cannot cache responses for mutating requests");
             }
 
-            LOG_DEBUG("Serving subrequest from cache (RequestId: %v, SubrequestIndex: %v, Key: {%v})",
+            LOG_DEBUG("Serving subrequest from cache (RequestId: %v, SubrequestIndex: %v, Key: %v)",
                 requestId,
                 subrequestIndex,
                 key);
@@ -406,7 +406,7 @@ DEFINE_RPC_SERVICE_METHOD(TMasterCacheService, Execute)
                 FromProto<TDuration>(cachingRequestHeaderExt.success_expiration_time()),
                 FromProto<TDuration>(cachingRequestHeaderExt.failure_expiration_time())));
         } else {
-            LOG_DEBUG("Subrequest does not support caching, bypassing cache (RequestId: %v, SubrequestIndex: %v, Key: {%v})",
+            LOG_DEBUG("Subrequest does not support caching, bypassing cache (RequestId: %v, SubrequestIndex: %v, Key: %v)",
                 requestId,
                 subrequestIndex,
                 key);

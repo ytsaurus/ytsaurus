@@ -743,7 +743,7 @@ void TMasterConnector::SendJobHeartbeat()
             EObjectType::MasterJob,
             req.Get());
 
-        LOG_INFO("Job heartbeat sent to master (ResourceUsage: {%v})",
+        LOG_INFO("Job heartbeat sent to master (ResourceUsage: %v)",
             FormatResourceUsage(req->resource_usage(), req->resource_limits()));
 
         auto rspOrError = WaitFor(req->Invoke());

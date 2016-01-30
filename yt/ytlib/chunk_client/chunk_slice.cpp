@@ -230,10 +230,9 @@ size_t SpaceUsed(const TChunkSlicePtr& slice)
 
 Stroka ToString(const TChunkSlicePtr& slice)
 {
-    return Format(
-        "LowerLimit: {%v}, UpperLimit: {%v}, RowCount: %v, DataSize: %v, PartIndex: %v",
-        ToString(slice->LowerLimit()),
-        ToString(slice->UpperLimit()),
+    return Format("LowerLimit: %v, UpperLimit: %v, RowCount: %v, DataSize: %v, PartIndex: %v",
+        slice->LowerLimit(),
+        slice->UpperLimit(),
         slice->GetRowCount(),
         slice->GetDataSize(),
         slice->GetPartIndex());
