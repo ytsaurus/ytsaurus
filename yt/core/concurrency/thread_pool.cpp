@@ -94,10 +94,11 @@ public:
             std::swap(threads, Threads_);
         }
 
-        GetFinalizerInvoker()->Invoke(BIND([threads = std::move(threads)] () {
+        GetFinalizerInvoker()->Invoke(BIND([threads = std::move(threads), queue = Queue_] () {
             for (auto& thread : threads) {
                 thread->Shutdown();
             }
+            queue->Drain();
         }));
     }
 

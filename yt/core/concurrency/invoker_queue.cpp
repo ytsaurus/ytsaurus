@@ -82,6 +82,22 @@ void TInvokerQueue::Shutdown()
     Running.store(false, std::memory_order_relaxed);
 }
 
+void TInvokerQueue::Drain()
+{
+    YCHECK(!Running.load(std::memory_order_relaxed));
+
+    int dequeued = 0;
+
+    TEnqueuedAction action;
+    while (Queue.Dequeue(&action)) {
+        ++dequeued;
+        action.Callback.Reset();
+    }
+
+    QueueSize.fetch_sub(dequeued, std::memory_order_relaxed);
+    YCHECK(QueueSize.load(std::memory_order_relaxed) == 0);
+}
+
 EBeginExecuteResult TInvokerQueue::BeginExecute(TEnqueuedAction* action)
 {
     YASSERT(action && action->Finished);

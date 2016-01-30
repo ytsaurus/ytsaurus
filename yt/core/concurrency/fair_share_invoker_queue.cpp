@@ -50,6 +50,13 @@ void TFairShareInvokerQueue::Shutdown()
     }
 }
 
+void TFairShareInvokerQueue::Drain()
+{
+    for (auto& bucket : Buckets_) {
+        bucket.Queue->Drain();
+    }
+}
+
 bool TFairShareInvokerQueue::IsRunning() const
 {
     for (const auto& bucket : Buckets_) {
