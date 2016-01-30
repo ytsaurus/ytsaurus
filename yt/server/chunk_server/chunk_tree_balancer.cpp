@@ -53,7 +53,7 @@ void TChunkTreeBalancer::Rebalance(TChunkList* root)
 {
     auto oldStatistics = root->Statistics();
 
-    // Special case: no chunk in the chunk tree.
+    // Special case: no chunks in the chunk tree.
     if (oldStatistics.ChunkCount == 0) {
         Bootstrap_->ClearChunkList(root);
         return;
