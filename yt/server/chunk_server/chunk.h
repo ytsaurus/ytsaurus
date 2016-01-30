@@ -72,8 +72,11 @@ public:
     DEFINE_BYREF_RW_PROPERTY(NChunkClient::NProto::TChunkInfo, ChunkInfo);
     DEFINE_BYREF_RW_PROPERTY(NChunkClient::NProto::TMiscExt, MiscExt);
 
+    // This list is typically small, e.g. has the length of 1.
+    // It may contain duplicates, i.e. when a chunk is added into the same
+    // table multiple times during merge.
     typedef SmallVector<TChunkList*, TypicalChunkParentCount> TParents;
-    DEFINE_BYREF_RW_PROPERTY(TParents, Parents);
+    DEFINE_BYREF_RO_PROPERTY(TParents, Parents);
 
     // This is usually small, e.g. has the length of 3.
     typedef TNodePtrWithIndexList TStoredReplicas;
@@ -94,6 +97,9 @@ public:
 
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);
+
+    void AddParent(TChunkList* parent);
+    void RemoveParent(TChunkList* parent);
 
     void AddReplica(TNodePtrWithIndex replica, bool cached);
     void RemoveReplica(TNodePtrWithIndex replica, bool cached);

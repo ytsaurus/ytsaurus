@@ -46,10 +46,10 @@ void SetChunkTreeParent(TChunkList* parent, TChunkTree* child)
         case EObjectType::Chunk:
         case EObjectType::ErasureChunk:
         case EObjectType::JournalChunk:
-            child->AsChunk()->Parents().push_back(parent);
+            child->AsChunk()->AddParent(parent);
             break;
         case EObjectType::ChunkList:
-            child->AsChunkList()->Parents().insert(parent);
+            child->AsChunkList()->AddParent(parent);
             break;
         default:
             YUNREACHABLE();
@@ -61,20 +61,12 @@ void ResetChunkTreeParent(TChunkList* parent, TChunkTree* child)
     switch (child->GetType()) {
         case EObjectType::Chunk:
         case EObjectType::ErasureChunk:
-        case EObjectType::JournalChunk: {
-            auto& parents = child->AsChunk()->Parents();
-            auto it = std::find(parents.begin(), parents.end(), parent);
-            YASSERT(it != parents.end());
-            parents.erase(it);
+        case EObjectType::JournalChunk:
+            child->AsChunk()->RemoveParent(parent);
             break;
-        }
-        case EObjectType::ChunkList: {
-            auto& parents = child->AsChunkList()->Parents();
-            auto it = parents.find(parent);
-            YASSERT(it != parents.end());
-            parents.erase(it);
+        case EObjectType::ChunkList:
+            child->AsChunkList()->RemoveParent(parent);
             break;
-        }
         default:
             YUNREACHABLE();
     }

@@ -554,9 +554,9 @@ public:
             auto chunks = EnumerateChunksInChunkTree(oldRootChunkList);
             auto* newRootChunkList = chunkManager->CreateChunkList();
             table->SetChunkList(newRootChunkList);
-            YCHECK(newRootChunkList->OwningNodes().insert(table).second);
+            newRootChunkList->AddOwningNode(table);
             objectManager->RefObject(newRootChunkList);
-            YCHECK(oldRootChunkList->OwningNodes().erase(table) == 1);
+            oldRootChunkList->RemoveOwningNode(table);
             auto* tabletChunkList = chunkManager->CreateChunkList();
             chunkManager->AttachToChunkList(newRootChunkList, tabletChunkList);
             for (auto* chunk : chunks) {
@@ -877,9 +877,9 @@ public:
 
         // Replace root chunk list.
         table->SetChunkList(newRootChunkList);
-        YCHECK(newRootChunkList->OwningNodes().insert(table).second);
+        newRootChunkList->AddOwningNode(table);
         objectManager->RefObject(newRootChunkList);
-        YCHECK(oldRootChunkList->OwningNodes().erase(table) == 1);
+        oldRootChunkList->RemoveOwningNode(table);
         objectManager->UnrefObject(oldRootChunkList);
 
         table->SnapshotStatistics() = table->GetChunkList()->Statistics().ToDataStatistics();
@@ -1439,9 +1439,9 @@ private:
 
             // Replace root chunk list.
             table->SetChunkList(newRootChunkList);
-            YCHECK(newRootChunkList->OwningNodes().insert(table).second);
+            newRootChunkList->AddOwningNode(table);
             objectManager->RefObject(newRootChunkList);
-            YCHECK(oldRootChunkList->OwningNodes().erase(table) == 1);
+            oldRootChunkList->RemoveOwningNode(table);
             objectManager->UnrefObject(oldRootChunkList);
             YCHECK(newRootChunkList->Statistics() == statistics);
         } else {
@@ -1455,9 +1455,9 @@ private:
                     chunkLists[index] = newTabletChunkList;
 
                     // TODO(savrus): make a helper to replace a tablet chunk list.
-                    newTabletChunkList->Parents().insert(oldRootChunkList);
+                    newTabletChunkList->AddParent(oldRootChunkList);
                     objectManager->RefObject(newTabletChunkList);
-                    YCHECK(tabletChunkList->Parents().erase(oldRootChunkList) == 1);
+                    tabletChunkList->RemoveParent(oldRootChunkList);
                     objectManager->UnrefObject(tabletChunkList);
                 }
             }

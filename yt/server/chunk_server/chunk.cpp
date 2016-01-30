@@ -137,6 +137,18 @@ void TChunk::Load(NCellMaster::TLoadContext& context)
     }
 }
 
+void TChunk::AddParent(TChunkList* parent)
+{
+    Parents_.push_back(parent);
+}
+
+void TChunk::RemoveParent(TChunkList* parent)
+{
+    auto it = std::find(Parents_.begin(), Parents_.end(), parent);
+    YASSERT(it != Parents_.end());
+    Parents_.erase(it);
+}
+
 void TChunk::AddReplica(TNodePtrWithIndex replica, bool cached)
 {
     if (cached) {

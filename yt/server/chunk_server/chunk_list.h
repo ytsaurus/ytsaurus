@@ -41,9 +41,13 @@ public:
     // Same as above but for data size sums.
     DEFINE_BYREF_RW_PROPERTY(std::vector<i64>, DataSizeSums);
 
-    DEFINE_BYREF_RW_PROPERTY(yhash_multiset<TChunkList*>, Parents);
     DEFINE_BYREF_RW_PROPERTY(TChunkTreeStatistics, Statistics);
-    DEFINE_BYREF_RW_PROPERTY(yhash_set<TChunkOwnerBase*>, OwningNodes);
+
+    // These lists is typically small, e.g. has the length of 1.
+    // However it may become pretty large in some real-world scenarios.
+    // Hence we maintain a separate item-to-index maps to speedup deletions.
+    DEFINE_BYREF_RO_PROPERTY(std::vector<TChunkList*>, Parents);
+    DEFINE_BYREF_RO_PROPERTY(std::vector<TChunkOwnerBase*>, OwningNodes);
 
     // Increases each time the list changes.
     // Enables optimistic locking during chunk tree traversing.
@@ -57,6 +61,12 @@ public:
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);
 
+    void AddParent(TChunkList* parent);
+    void RemoveParent(TChunkList* parent);
+
+    void AddOwningNode(TChunkOwnerBase* node);
+    void RemoveOwningNode(TChunkOwnerBase* node);
+
     void IncrementVersion();
 
     void ValidateSealed();
@@ -66,6 +76,10 @@ public:
     static ui64 GenerateVisitMark();
 
     virtual int GetGCWeight() const override;
+
+private:
+    yhash_map<TChunkList*, int> ParentToIndex_;
+    yhash_map<TChunkOwnerBase*, int> OwningNodeToIndex_;
 
 };
 

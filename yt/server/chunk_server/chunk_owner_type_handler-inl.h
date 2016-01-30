@@ -99,7 +99,7 @@ std::unique_ptr<TChunkOwner> TChunkOwnerTypeHandler<TChunkOwner>::DoCreate(
         // Create an empty chunk list and reference it from the node.
         auto* chunkList = chunkManager->CreateChunkList();
         node->SetChunkList(chunkList);
-        YCHECK(chunkList->OwningNodes().insert(node).second);
+        chunkList->AddOwningNode(node);
         objectManager->RefObject(chunkList);
     }
 
@@ -116,7 +116,7 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoDestroy(TChunkOwner* node)
         auto chunkManager = TBase::Bootstrap_->GetChunkManager();
         chunkManager->ScheduleChunkPropertiesUpdate(chunkList);
 
-        YCHECK(chunkList->OwningNodes().erase(node) == 1);
+        chunkList->RemoveOwningNode(node);
 
         auto objectManager = TBase::Bootstrap_->GetObjectManager();
         objectManager->UnrefObject(chunkList);
@@ -135,7 +135,7 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoBranch(
         auto* chunkList = originatingNode->GetChunkList();
         branchedNode->SetChunkList(chunkList);
 
-        YCHECK(branchedNode->GetChunkList()->OwningNodes().insert(branchedNode).second);
+        branchedNode->GetChunkList()->AddOwningNode(branchedNode);
 
         auto objectManager = TBase::Bootstrap_->GetObjectManager();
         objectManager->RefObject(chunkList);
@@ -181,7 +181,7 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoMerge(
     auto branchedMode = branchedNode->GetUpdateMode();
 
     if (!isExternal) {
-        YCHECK(branchedChunkList->OwningNodes().erase(branchedNode) == 1);
+        branchedChunkList->RemoveOwningNode(branchedNode);
     }
 
     // Check if we have anything to do at all.
@@ -207,8 +207,8 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoMerge(
 
     if (branchedMode == NChunkClient::EUpdateMode::Overwrite) {
         if (!isExternal) {
-            YCHECK(originatingChunkList->OwningNodes().erase(originatingNode) == 1);
-            YCHECK(branchedChunkList->OwningNodes().insert(originatingNode).second);
+            originatingChunkList->RemoveOwningNode(originatingNode);
+            branchedChunkList->AddOwningNode(originatingNode);
             originatingNode->SetChunkList(branchedChunkList);
 
             if (propertiesUpdateNeeded) {
@@ -230,8 +230,8 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoMerge(
             deltaTree = branchedChunkList->Children()[1];
             newOriginatingChunkList = chunkManager->CreateChunkList();
 
-            YCHECK(originatingChunkList->OwningNodes().erase(originatingNode) == 1);
-            YCHECK(newOriginatingChunkList->OwningNodes().insert(originatingNode).second);
+            originatingChunkList->RemoveOwningNode(originatingNode);
+            newOriginatingChunkList->AddOwningNode(originatingNode);
             originatingNode->SetChunkList(newOriginatingChunkList);
             objectManager->RefObject(newOriginatingChunkList);
         }
@@ -319,7 +319,7 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoClone(
         YCHECK(!clonedNode->GetChunkList());
         clonedNode->SetChunkList(chunkList);
         objectManager->RefObject(chunkList);
-        YCHECK(chunkList->OwningNodes().insert(clonedNode).second);
+        chunkList->AddOwningNode(clonedNode);
     }
 
     clonedNode->SetReplicationFactor(sourceNode->GetReplicationFactor());
