@@ -31,6 +31,8 @@ public:
 
     virtual void Shutdown() override;
 
+    void Drain();
+
     bool IsRunning() const;
 
     EBeginExecuteResult BeginExecute(TEnqueuedAction* action);

@@ -61,8 +61,9 @@ public:
 
         Queue_->Shutdown();
 
-        GetFinalizerInvoker()->Invoke(BIND([thread = Thread_] {
+        GetFinalizerInvoker()->Invoke(BIND([thread = Thread_, queue = Queue_] {
             thread->Shutdown();
+            queue->Drain();
         }));
     }
 

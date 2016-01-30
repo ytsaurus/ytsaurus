@@ -40,6 +40,8 @@ public:
 
     virtual void Shutdown() override;
 
+    void Drain();
+
     EBeginExecuteResult BeginExecute(TEnqueuedAction* action);
     void EndExecute(TEnqueuedAction* action);
 
