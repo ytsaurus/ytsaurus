@@ -193,7 +193,9 @@ default_config = {
         "max_chunk_size": 32 * common.MB
     },
 
-    "argcomplete_verbose": False
+    "argcomplete_verbose": False,
+
+    "enable_native_parse_ypath": True
 }
 
 def transform_value(value, original_value):
