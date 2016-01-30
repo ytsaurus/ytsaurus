@@ -75,6 +75,12 @@ public:
 private:
     typedef TNonversionedObjectProxyBase<TTransaction> TBase;
 
+    virtual bool IsLeaderReadRequired() const override
+    {
+        // Needed due to "last_ping_time" attribute.
+        return true;
+    }
+
     virtual void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override
     {
         TBase::ListSystemAttributes(descriptors);
@@ -84,6 +90,8 @@ private:
         descriptors->push_back("state");
         descriptors->push_back("secondary_cell_tags");
         descriptors->push_back(TAttributeDescriptor("timeout")
+            .SetPresent(transaction->GetTimeout().HasValue()));
+        descriptors->push_back(TAttributeDescriptor("last_ping_time")
             .SetPresent(transaction->GetTimeout().HasValue()));
         descriptors->push_back(TAttributeDescriptor("title")
             .SetPresent(transaction->GetTitle().HasValue()));
@@ -121,6 +129,12 @@ private:
         if (key == "timeout" && transaction->GetTimeout()) {
             BuildYsonFluently(consumer)
                 .Value(*transaction->GetTimeout());
+            return true;
+        }
+
+        if (key == "last_ping_time" && transaction->GetTimeout()) {
+            BuildYsonFluently(consumer)
+                .Value(transaction->GetLastPingTime());
             return true;
         }
 
@@ -322,7 +336,6 @@ private:
                 ConvertTo<TAccountResourcesMap>(TYsonString(rsp->value())));
         }));
     }
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -920,14 +933,11 @@ private:
             transaction->ThrowInvalidState();
         }
 
-        auto timeout = transaction->GetTimeout();
-        if (timeout) {
-            TLeaseManager::RenewLease(transaction->GetLease(), *timeout);
-        }
+        RenewLease(transaction);
 
         LOG_DEBUG("Transaction pinged (TransactionId: %v, Timeout: %v)",
             transaction->GetId(),
-            timeout);
+            transaction->GetTimeout());
     }
 
 
@@ -1014,21 +1024,33 @@ private:
 
     void CreateLease(TTransaction* transaction)
     {
-        if (!transaction->GetTimeout())
+        auto timeout = transaction->GetTimeout();
+        if (!timeout)
             return;
 
         auto hydraFacade = Bootstrap_->GetHydraFacade();
         auto lease = TLeaseManager::CreateLease(
-            *transaction->GetTimeout(),
+            *timeout,
             BIND(&TImpl::OnTransactionExpired, MakeStrong(this), transaction->GetId())
                 .Via(hydraFacade->GetEpochAutomatonInvoker()));
         transaction->SetLease(lease);
+        transaction->SetLastPingTime(TInstant::Now());
     }
 
     void CloseLease(TTransaction* transaction)
     {
         TLeaseManager::CloseLease(transaction->GetLease());
         transaction->SetLease(NullLease);
+    }
+
+    void RenewLease(TTransaction* transaction)
+    {
+        auto timeout = transaction->GetTimeout();
+        if (!timeout)
+            return;
+
+        TLeaseManager::RenewLease(transaction->GetLease(), *timeout);
+        transaction->SetLastPingTime(TInstant::Now());
     }
 
     void OnTransactionExpired(const TTransactionId& transactionId)
