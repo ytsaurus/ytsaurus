@@ -94,6 +94,29 @@ EAtomicity AtomicityFromTransactionId(const TTransactionId& id)
     }
 }
 
+void ValidateTabletTransactionId(const TTransactionId& id)
+{
+    auto type = TypeFromId(id);
+    if (type != EObjectType::Transaction &&
+        type != EObjectType::AtomicTabletTransaction &&
+        type != EObjectType::NonAtomicTabletTransaction)
+    {
+        THROW_ERROR_EXCEPTION("Transaction %v cannot be accepted by tablets since is has invalid type",
+            id);
+    }
+}
+
+void ValidateMasterTransactionId(const TTransactionId& id)
+{
+    auto type = TypeFromId(id);
+    if (type != EObjectType::Transaction &&
+        type != EObjectType::NestedTransaction)
+    {
+        THROW_ERROR_EXCEPTION("Transaction %v cannot be accepted by masters since is has invalid type",
+            id);
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NTransactionClient

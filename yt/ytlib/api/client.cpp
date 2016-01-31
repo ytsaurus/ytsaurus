@@ -1345,10 +1345,6 @@ private:
             return nullptr;
         }
 
-        if (TypeFromId(options.TransactionId) != EObjectType::Transaction) {
-            THROW_ERROR_EXCEPTION("A valid master transaction is required");
-        }
-
         TTransactionAttachOptions attachOptions;
         attachOptions.Ping = pingTransaction;
         attachOptions.PingAncestors = options.PingAncestors;

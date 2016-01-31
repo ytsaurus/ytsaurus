@@ -81,10 +81,11 @@ DEFINE_ENUM(EObjectType,
 
     // Transaction Manager stuff
     ((Transaction)                (  1))
-    ((TransactionMap)             (407))
-    ((TopmostTransactionMap)      (418))
     ((AtomicTabletTransaction)    (  2))
     ((NonAtomicTabletTransaction) (  3))
+    ((NestedTransaction)          (  4))
+    ((TransactionMap)             (407))
+    ((TopmostTransactionMap)      (418))
     ((LockMap)                    (422))
         
     // Chunk Manager stuff
