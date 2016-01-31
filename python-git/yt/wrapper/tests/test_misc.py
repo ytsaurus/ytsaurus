@@ -352,7 +352,7 @@ def test_verified_dict():
         vdict["d"]["other"] = "value"
     vdict["a"]["other"] = "value"
 
-    def transform(value):
+    def transform(value, origin_value):
         if isinstance(value, str):
             return value.lower()
         return value
