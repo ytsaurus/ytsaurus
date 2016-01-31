@@ -16,8 +16,8 @@ DEFINE_ENUM(ETransactionType,
 );
 
 DEFINE_ENUM(EAtomicity,
-    ((Full)            (0)) // P2C enabled, Percolator mode :)
-    ((None)            (1)) // P2C disabled, HBase mode
+    ((Full)            (0)) // 2PC enabled, Percolator mode :)
+    ((None)            (1)) // 2PC disabled, HBase mode
 );
 
 DEFINE_ENUM(EDurability,
