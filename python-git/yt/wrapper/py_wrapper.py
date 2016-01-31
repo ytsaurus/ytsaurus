@@ -12,8 +12,11 @@ import inspect
 import os
 import sys
 import shutil
+import pickle as standard_pickle
+import time
 
 LOCATION = os.path.dirname(os.path.abspath(__file__))
+TMPFS_SIZE_MULTIPLIER = 1.05
 
 # Modules below are imported to force their addition to modules archive
 OPERATION_REQUIRED_MODULES = ['_py_runner_helpers']
@@ -74,38 +77,65 @@ def create_modules_archive_default(tempfiles_manager, client):
         module_info = imp.find_module(module_name, [LOCATION])
         imp.load_module(module_name, *module_info)
 
-    compressed_files = set()
-    zip_filename = tempfiles_manager.create_tempfile(dir=get_config(client)["local_temp_directory"],
-                                                     prefix=".modules.zip")
+    files_to_compress = {}
     module_filter = get_config(client)["pickling"]["module_filter"]
-    with ZipFile(zip_filename, "w") as zip:
-        for module in sys.modules.values():
-            if module_filter is not None and \
-                    not module_filter(module):
+    for module in sys.modules.values():
+        if module_filter is not None and \
+                not module_filter(module):
+            continue
+        if hasattr(module, "__file__"):
+            file = find_file(module.__file__)
+            if file is None or not os.path.isfile(file):
+                logger.warning("Cannot find file of module %s", module.__file__)
                 continue
-            if hasattr(module, "__file__"):
-                file = find_file(module.__file__)
-                if file is None or not os.path.isfile(file):
-                    logger.warning("Cannot find file of module %s", module.__file__)
-                    continue
 
-                file = os.path.abspath(file)
+            file = os.path.abspath(file)
 
-                if get_config(client)["pickling"]["force_using_py_instead_of_pyc"] and file.endswith(".pyc"):
-                    file = file[:-1]
+            if get_config(client)["pickling"]["force_using_py_instead_of_pyc"] and file.endswith(".pyc"):
+                file = file[:-1]
 
-                relpath = module_relpath(module.__name__, file, client)
-                if relpath is None:
-                    logger.warning("Cannot determine relative path of module " + str(module))
-                    continue
+            relpath = module_relpath(module.__name__, file, client)
+            if relpath is None:
+                logger.warning("Cannot determine relative path of module " + str(module))
+                continue
 
-                if relpath in compressed_files:
-                    continue
-                compressed_files.add(relpath)
+            if relpath in files_to_compress:
+                continue
 
-                zip.write(file, relpath)
+            files_to_compress[relpath] = file
 
-    return zip_filename
+    zip_filename = tempfiles_manager.create_tempfile(dir=get_config(client)["local_temp_directory"],
+                                                     prefix=".modules", suffix=".zip")
+
+    fresh_zip_filename = tempfiles_manager.create_tempfile(dir=get_config(client)["local_temp_directory"],
+                                                           prefix=".fresh.modules", suffix=".zip")
+
+    total_size = 0
+    fresh_total_size = 0
+    now = time.time()
+    with ZipFile(zip_filename, "w") as zip:
+        with ZipFile(fresh_zip_filename, "w") as fresh_zip:
+            for relpath, filepath in sorted(files_to_compress.items()):
+                age = now - os.path.getmtime(filepath)
+                if age > get_config(client)["pickling"]["fresh_files_threshold"]:
+                    zip.write(filepath, relpath)
+                    total_size += os.path.getsize(filepath)
+                else:
+                    fresh_zip.write(filepath, relpath)
+                    fresh_total_size += os.path.getsize(filepath)
+
+    result = [{
+        "filename": zip_filename,
+        "tmpfs": get_config(client)["pickling"]["enable_tmpfs_archive"],
+        "size": total_size}]
+
+    if fresh_total_size > 0:
+        result.append({
+            "filename": fresh_zip_filename,
+            "tmpfs": get_config(client)["pickling"]["enable_tmpfs_archive"],
+            "size": fresh_total_size})
+
+    return result
 
 
 def create_modules_archive(tempfiles_manager, client):
@@ -160,7 +190,21 @@ def wrap(function, operation_type, tempfiles_manager, input_format=None, output_
                     os.path.basename(config_filename)]),
                 os.path.join(LOCATION, "_py_runner.py"), files)
 
-    zip_filename = create_modules_archive(tempfiles_manager, client)
+    modules_info = create_modules_archive(tempfiles_manager, client)
+    # COMPAT: previous version of create_modules_archive returns string.
+    if isinstance(modules_info, str):
+        modules_info = [{"filename": modules_info, "tmpfs": False}]
+    modules_filenames = [info["filename"] for info in modules_info]
+    tmpfs_size = int(TMPFS_SIZE_MULTIPLIER * sum([info["size"] for info in modules_info if info["tmpfs"]]))
+
+    for info in modules_info:
+        info["filename"] = os.path.basename(info["filename"])
+
+    modules_info_filename = tempfiles_manager.create_tempfile(dir=local_temp_directory,
+                                                              prefix="_modules")
+    with open(modules_info_filename, "w") as fout:
+        standard_pickle.dump(modules_info, fout)
+
     main_filename = tempfiles_manager.create_tempfile(dir=local_temp_directory,
                                                       prefix="_main_module", suffix=".py")
     main_module_type = "PY_SOURCE"
@@ -192,12 +236,13 @@ def wrap(function, operation_type, tempfiles_manager, input_format=None, output_
                       # NB: Function filename may contain special symbols.
                       pipes.quote(os.path.basename(function_filename)),
                       os.path.basename(config_filename),
-                      os.path.basename(zip_filename),
+                      os.path.basename(modules_info_filename),
                       os.path.basename(main_filename),
                       "_main_module",
                       main_module_type]),
             os.path.join(LOCATION, "_py_runner.py"),
-            [function_filename, config_filename, zip_filename, main_filename])
+            [function_filename, config_filename, modules_info_filename, main_filename] + modules_filenames,
+            tmpfs_size)
 
 def _set_attribute(func, key, value):
     if not hasattr(func, "attributes"):

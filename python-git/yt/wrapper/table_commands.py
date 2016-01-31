@@ -237,12 +237,13 @@ def _prepare_binary(binary, operation_type, input_format=None, output_format=Non
         if isinstance(input_format, YamrFormat) and reduce_by is not None and set(reduce_by) != set(["key"]):
             raise YtError("Yamr format does not support reduce by %r", reduce_by)
         with TempfilesManager(client) as tempfiles_manager:
-            binary, binary_file, files = py_wrapper.wrap(binary, operation_type, tempfiles_manager,
-                                                         input_format, output_format, reduce_by, client=client)
+            binary, binary_file, files, tmpfs_size = \
+                py_wrapper.wrap(binary, operation_type, tempfiles_manager,
+                                input_format, output_format, reduce_by, client=client)
             uploaded_files = _reliably_upload_files([binary_file] + files, client=client)
-            return binary, uploaded_files
+            return binary, uploaded_files, tmpfs_size
     else:
-        return binary, []
+        return binary, [], 0
 
 def _prepare_destination_tables(tables, replication_factor, compression_codec, client=None):
     if tables is None:
@@ -297,8 +298,9 @@ def _add_user_command_spec(op_type, binary, format, input_format, output_format,
 
     files = _reliably_upload_files(files, client=client)
     input_format, output_format = _prepare_formats(format, input_format, output_format, binary=binary, client=client)
-    binary, additional_files = _prepare_binary(binary, op_type, input_format, output_format,
-                                               reduce_by, client=client)
+    binary, additional_files, tmpfs_size = \
+        _prepare_binary(binary, op_type, input_format, output_format,
+                        reduce_by, client=client)
     spec = update(
         {
             op_type: {
@@ -308,10 +310,13 @@ def _add_user_command_spec(op_type, binary, format, input_format, output_format,
                 "file_paths":
                     flatten(files + additional_files + map(lambda path: prepare_path(path, client=client), get_value(file_paths, []))),
                 "use_yamr_descriptors": bool_to_string(get_config(client)["yamr_mode"]["use_yamr_style_destination_fds"]),
-                "check_input_fully_consumed": bool_to_string(get_config(client)["yamr_mode"]["check_input_fully_consumed"])
+                "check_input_fully_consumed": bool_to_string(get_config(client)["yamr_mode"]["check_input_fully_consumed"]),
             }
         },
         spec)
+
+    if tmpfs_size > 0:
+        spec = update({op_type: {"tmpfs_size": tmpfs_size}}, spec)
 
     # NB: Configured by common rule now.
     memory_limit = get_value(memory_limit, get_config(client)["memory_limit"])
