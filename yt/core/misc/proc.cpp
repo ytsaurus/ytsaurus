@@ -5,6 +5,7 @@
 #include <yt/core/logging/log.h>
 
 #include <yt/core/misc/common.h>
+#include <yt/core/misc/fs.h>
 #include <yt/core/misc/string.h>
 
 #include <yt/core/tools/registry.h>
@@ -138,6 +139,18 @@ void RemoveDirAsRoot(const Stroka& path)
 
     THROW_ERROR_EXCEPTION("Failed to remove directory %Qv: execl failed",
         path) << TError::FromSystem();
+}
+
+void MountTmpfsAsRoot(TMountTmpfsConfigPtr config)
+{
+    SafeSetUid(0);
+    NFS::MountTmpfs(config->Path, config->UserId, config->Size);
+}
+
+void UmountAsRoot(const Stroka& path)
+{
+    SafeSetUid(0);
+    NFS::Umount(path);
 }
 
 TError StatusToError(int status)
@@ -354,6 +367,16 @@ void RemoveDirAsRoot(const Stroka& /* path */)
     YUNIMPLEMENTED();
 }
 
+void MountTmpfsAsRoot(TMountTmpfsConfigPtr /* config */)
+{
+    YUNIMPLEMENTED();
+}
+
+void UmountAsRoot(const Stroka& /* path */)
+{
+    YUNIMPLEMENTED();
+}
+
 void CloseAllDescriptors()
 {
     YUNIMPLEMENTED();
@@ -428,6 +451,24 @@ void TRemoveDirAsRootTool::operator()(const Stroka& arg) const
 }
 
 REGISTER_TOOL(TRemoveDirAsRootTool);
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TMountTmpfsAsRootTool::operator()(TMountTmpfsConfigPtr arg) const
+{
+    MountTmpfsAsRoot(arg);
+}
+
+REGISTER_TOOL(TMountTmpfsAsRootTool);
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TUmountAsRootTool::operator()(const Stroka& arg) const
+{
+    UmountAsRoot(arg);
+}
+
+REGISTER_TOOL(TUmountAsRootTool);
 
 ////////////////////////////////////////////////////////////////////////////////
 

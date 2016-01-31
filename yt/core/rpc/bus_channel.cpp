@@ -198,7 +198,7 @@ private:
             : Session_(session)
         { }
 
-        virtual void HandleMessage(TSharedRefArray message, IBusPtr replyBus) override
+        virtual void HandleMessage(TSharedRefArray message, IBusPtr replyBus) throw() override
         {
             auto session_ = Session_.Lock();
             if (session_) {
@@ -425,7 +425,7 @@ private:
                 TError(NYT::EErrorCode::Timeout, "Request timed out"));
         }
 
-        void HandleMessage(TSharedRefArray message, IBusPtr /*replyBus*/)
+        virtual void HandleMessage(TSharedRefArray message, IBusPtr /*replyBus*/) throw() override
         {
             VERIFY_THREAD_AFFINITY_ANY();
 

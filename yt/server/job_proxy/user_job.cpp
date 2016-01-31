@@ -399,7 +399,14 @@ private:
         auto contexts = WaitFor(asyncContexts)
             .ValueOrThrow();
 
-        return DoDumpInputContexts(contexts);
+        auto chunks = DoDumpInputContexts(contexts);
+        YCHECK(chunks.size() == 1);
+
+        if (chunks.front() == NullChunkId) {
+            THROW_ERROR_EXCEPTION("Cannot dump job context: reading has not started yet");
+        }
+
+        return chunks;
     }
 
     std::vector<TChunkId> DoDumpInputContexts(const std::vector<TBlob>& contexts)
@@ -1022,16 +1029,26 @@ private:
             }
         }
 
-        CumulativeMemoryUsageMbSec_ += (rss / (1024 * 1024)) * Config_->MemoryWatchdogPeriod.Seconds();
+        i64 tmpfsSize = 0;
+        if (UserJobSpec_.has_tmpfs_size()) {
+            auto diskSpaceStatistics = NFS::GetDiskSpaceStatistics(Config_->TmpfsPath);
+            tmpfsSize = diskSpaceStatistics.TotalSpace - diskSpaceStatistics.AvailableSpace;
+        }
 
         i64 memoryLimit = UserJobSpec_.memory_limit();
-        LOG_DEBUG("Check memory usage (Rss: %v, MemoryLimit: %v)",
+        i64 currentMemoryUsage = rss + tmpfsSize;
+
+        CumulativeMemoryUsageMbSec_ += (currentMemoryUsage / (1024 * 1024)) * Config_->MemoryWatchdogPeriod.Seconds();
+
+        LOG_DEBUG("Checking memory usage (Tmpfs: %v, Rss: %v, MemoryLimit: %v)",
+            tmpfsSize,
             rss,
             memoryLimit);
 
-        if (rss > memoryLimit) {
+        if (currentMemoryUsage > memoryLimit) {
             JobErrorPromise_.TrySet(TError(EErrorCode::MemoryLimitExceeded, "Memory limit exceeded")
                 << TErrorAttribute("rss", rss)
+                << TErrorAttribute("tmpfs", tmpfsSize)
                 << TErrorAttribute("limit", memoryLimit));
 
             if (!Config_->EnableCGroups) {
@@ -1054,8 +1071,8 @@ private:
             } catch (const std::exception& ex) {
                 LOG_FATAL(ex, "Failed to clean up user processes");
             }
-        } else if (rss > MemoryUsage_) {
-            UpdateMemoryUsage(rss);
+        } else if (currentMemoryUsage > MemoryUsage_) {
+            UpdateMemoryUsage(currentMemoryUsage);
         }
     }
 
@@ -1094,7 +1111,7 @@ private:
                 IsWoodpecker_ = true;
                 if (Config_->EnableIopsThrottling) {
                     BlockIO_.ThrottleOperations(item.DeviceId, UserJobSpec_.iops_threshold());
-                } 
+                }
             }
         }
 

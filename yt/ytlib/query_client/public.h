@@ -24,7 +24,8 @@ class TGroupClause;
 class TProjectClause;
 class TJoinClause;
 class TQuery;
-class TPlanFragment;
+class TQueryOptions;
+class TDataRanges;
 class TQueryStatistics;
 
 } // namespace NProto
@@ -52,9 +53,6 @@ typedef TIntrusivePtr<const TProjectClause> TConstProjectClausePtr;
 DECLARE_REFCOUNTED_STRUCT(TQuery);
 typedef TIntrusivePtr<const TQuery> TConstQueryPtr;
 
-DECLARE_REFCOUNTED_STRUCT(TPlanFragment);
-typedef TIntrusivePtr<const TPlanFragment> TConstPlanFragmentPtr;
-
 struct IPrepareCallbacks;
 
 struct TQueryStatistics;
@@ -66,6 +64,8 @@ DECLARE_REFCOUNTED_STRUCT(IAggregateFunctionDescriptor)
 DECLARE_REFCOUNTED_STRUCT(ICallingConvention)
 
 DECLARE_REFCOUNTED_STRUCT(IExecutor)
+
+DECLARE_REFCOUNTED_STRUCT(ISubExecutor)
 
 DECLARE_REFCOUNTED_CLASS(TEvaluator)
 

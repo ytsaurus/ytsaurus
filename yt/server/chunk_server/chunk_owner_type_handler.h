@@ -55,6 +55,8 @@ protected:
         NCypressServer::ICypressNodeFactoryPtr factory,
         NCypressServer::ENodeCloneMode mode) override;
 
+    virtual int GetDefaultReplicationFactor() const = 0;
+
 private:
     void MergeChunkLists(
         TChunkOwner* originatingNode,

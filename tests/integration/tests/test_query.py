@@ -232,7 +232,7 @@ class TestQuery(YTEnvSetup):
             {"a": 3, "b": 1, "c": 17, "d": 3, "e": 1}]
 
         actual = select_rows("* from [//tmp/jl] join [//tmp/jr] using c where a < 4")
-        assert expected == actual
+        assert sorted(expected) == sorted(actual)
 
         expected = [
             {"a": 2, "b": 1, "c": 53, "d": 2, "e": 1}]
