@@ -4,6 +4,8 @@
 #include "chunk_spec.h"
 #include "config.h"
 
+#include <yt/ytlib/api/client.h>
+
 #include <yt/ytlib/chunk_client/chunk_scraper.h>
 
 #include <yt/ytlib/node_tracker_client/node_directory.h>
@@ -142,12 +144,14 @@ TFetcherBase::TFetcherBase(
     TNodeDirectoryPtr nodeDirectory,
     IInvokerPtr invoker,
     TScrapeChunksCallback scraperCallback,
+    NApi::IClientPtr client,
     const NLogging::TLogger& logger)
     : Config_(config)
     , NodeDirectory_(nodeDirectory)
     , Invoker_(invoker)
     , ScraperCallback_(scraperCallback)
     , Logger(logger)
+    , Client_(std::move(client))
 { }
 
 void TFetcherBase::AddChunk(TRefCountedChunkSpecPtr chunk)
@@ -256,7 +260,7 @@ void TFetcherBase::StartFetchingRound()
 IChannelPtr TFetcherBase::GetNodeChannel(TNodeId nodeId)
 {
     const auto& descriptor = NodeDirectory_->GetDescriptor(nodeId);
-    auto channel = LightNodeChannelFactory->CreateChannel(descriptor.GetInterconnectAddress());
+    auto channel = Client_->GetLightNodeChannelFactory()->CreateChannel(descriptor.GetInterconnectAddress());
     return CreateRetryingChannel(Config_->NodeChannel, channel);
 }
 

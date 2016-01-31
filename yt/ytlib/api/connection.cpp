@@ -70,11 +70,22 @@ public:
             auto cellTag = CellTagFromId(config->CellId);
             MasterChannels_[channelKind][cellTag] = CreatePeerChannel(config, peerKind);
         };
+
         auto initMasterChannels = [&] (const TMasterConnectionConfigPtr& config) {
-            initMasterChannel(EMasterChannelKind::Leader, config, EPeerKind::Leader);
-            initMasterChannel(EMasterChannelKind::Follower, config, Config_->EnableReadFromFollowers ? EPeerKind::Follower : EPeerKind::Leader);
-            initMasterChannel(EMasterChannelKind::LeaderOrFollower, config, Config_->EnableReadFromFollowers ? EPeerKind::LeaderOrFollower : EPeerKind::Leader);
+            initMasterChannel(
+                EMasterChannelKind::Leader,
+                config,
+                EPeerKind::Leader);
+            initMasterChannel(
+                EMasterChannelKind::Follower,
+                config,
+                Config_->EnableReadFromFollowers ? EPeerKind::Follower : EPeerKind::Leader);
+            initMasterChannel(
+                EMasterChannelKind::LeaderOrFollower,
+                config,
+                Config_->EnableReadFromFollowers ? EPeerKind::LeaderOrFollower : EPeerKind::Leader);
         };
+
         initMasterChannels(Config_->PrimaryMaster);
         for (const auto& masterConfig : Config_->SecondaryMasters) {
             initMasterChannels(masterConfig);
@@ -82,7 +93,10 @@ public:
 
         // NB: Caching is only possible for the primary master.
         auto masterCacheConfig = Config_->MasterCache ? Config_->MasterCache : Config_->PrimaryMaster;
-        initMasterChannel(EMasterChannelKind::Cache, masterCacheConfig, Config_->EnableReadFromFollowers ? EPeerKind::LeaderOrFollower : EPeerKind::Leader);
+        initMasterChannel(
+            EMasterChannelKind::Cache,
+            masterCacheConfig,
+            Config_->EnableReadFromFollowers ? EPeerKind::LeaderOrFollower : EPeerKind::Leader);
 
         auto timestampProviderConfig = Config_->TimestampProvider;
         if (!timestampProviderConfig) {
@@ -100,7 +114,8 @@ public:
             GetBusChannelFactory(),
             GetMasterChannelOrThrow(EMasterChannelKind::Leader));
 
-        NodeChannelFactory_ = CreateCachingChannelFactory(GetBusChannelFactory());
+        LightNodeChannelFactory_ = CreateCachingChannelFactory(GetBusChannelFactory());
+        HeavyNodeChannelFactory_ = CreateCachingChannelFactory(GetBusChannelFactory());
 
         CellDirectory_ = New<TCellDirectory>(
             Config_->CellDirectory,
@@ -166,9 +181,14 @@ public:
         return SchedulerChannel_;
     }
 
-    virtual IChannelFactoryPtr GetNodeChannelFactory() override
+    virtual IChannelFactoryPtr GetLightNodeChannelFactory() override
     {
-        return NodeChannelFactory_;
+        return LightNodeChannelFactory_;
+    }
+
+    virtual IChannelFactoryPtr GetHeavyNodeChannelFactory() override
+    {
+        return HeavyNodeChannelFactory_;
     }
 
     virtual IBlockCachePtr GetBlockCache() override
@@ -232,7 +252,8 @@ private:
 
     TEnumIndexedVector<yhash_map<TCellTag, IChannelPtr>, EMasterChannelKind> MasterChannels_;
     IChannelPtr SchedulerChannel_;
-    IChannelFactoryPtr NodeChannelFactory_;
+    IChannelFactoryPtr LightNodeChannelFactory_;
+    IChannelFactoryPtr HeavyNodeChannelFactory_;
     IBlockCachePtr BlockCache_;
     TTableMountCachePtr TableMountCache_;
     ITimestampProviderPtr TimestampProvider_;

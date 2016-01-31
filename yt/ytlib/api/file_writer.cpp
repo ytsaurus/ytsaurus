@@ -5,7 +5,6 @@
 
 #include <yt/ytlib/chunk_client/chunk_spec.h>
 #include <yt/ytlib/chunk_client/dispatcher.h>
-#include <yt/ytlib/chunk_client/private.h>
 
 #include <yt/ytlib/cypress_client/cypress_ypath_proxy.h>
 

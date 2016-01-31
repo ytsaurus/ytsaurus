@@ -50,6 +50,9 @@ const int MaxReplicationFactor = 10;
 const int DefaultReadQuorum = 2;
 const int DefaultWriteQuorum = 2;
 
+//! Estimated memory overhead per chunk reader.
+const i64 ChunkReaderMemorySize = (i64) 16 * 1024;
+
 //! Used as an expected upper bound in SmallVector.
 /*
  *  Maximum regular number of replicas is 16 (for LRC codec).

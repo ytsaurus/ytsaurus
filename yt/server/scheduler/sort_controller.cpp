@@ -1830,6 +1830,7 @@ private:
                 InputNodeDirectory,
                 GetCancelableInvoker(),
                 scraperCallback,
+                Host->GetMasterClient(),
                 Logger);
 
             for (const auto& chunk : chunks) {

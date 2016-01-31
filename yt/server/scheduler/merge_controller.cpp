@@ -1074,6 +1074,7 @@ protected:
             InputNodeDirectory,
             GetCancelableInvoker(),
             scraperCallback,
+            Host->GetMasterClient(),
             Logger);
 
         ProcessInputs();
@@ -1984,6 +1985,7 @@ private:
             InputNodeDirectory,
             GetCancelableInvoker(),
             scraperCallback,
+            Host->GetMasterClient(),
             Logger);
 
         ProcessInputs();

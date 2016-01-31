@@ -4,7 +4,6 @@
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/ytlib/chunk_client/data_node_service_proxy.h>
 #include <yt/ytlib/chunk_client/dispatcher.h>
-#include <yt/ytlib/chunk_client/private.h>
 
 #include <yt/ytlib/misc/workload.h>
 
@@ -20,22 +19,49 @@ using namespace NNodeTrackerClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TAbortSessionsQuorumSession
+class TQuorumSessionBase
     : public TRefCounted
+{
+public:
+    TQuorumSessionBase(
+        const TChunkId& chunkId,
+        const std::vector<TNodeDescriptor> replicas,
+        TDuration timeout,
+        int quorum,
+        NRpc::IChannelFactoryPtr channelFactory)
+        : ChunkId_(chunkId)
+        , Replicas_(replicas)
+        , Timeout_(timeout)
+        , Quorum_(quorum)
+        , ChannelFactory_(std::move(channelFactory))
+    {
+        Logger.AddTag("ChunkId: %v", ChunkId_);
+    }
+
+protected:
+    const TChunkId ChunkId_;
+    const std::vector<TNodeDescriptor> Replicas_;
+    const TDuration Timeout_;
+    const int Quorum_;
+    const NRpc::IChannelFactoryPtr ChannelFactory_;
+
+    NLogging::TLogger Logger = JournalClientLogger;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TAbortSessionsQuorumSession
+    : public TQuorumSessionBase
 {
 public:
     TAbortSessionsQuorumSession(
         const TChunkId& chunkId,
         const std::vector<TNodeDescriptor>& replicas,
         TDuration timeout,
-        int quorum)
-        : ChunkId_(chunkId)
-        , Replicas_(replicas)
-        , Timeout_(timeout)
-        , Quorum_(quorum)
-    {
-        Logger.AddTag("ChunkId: %v", ChunkId_);
-    }
+        int quorum,
+        NRpc::IChannelFactoryPtr channelFactory)
+        : TQuorumSessionBase(chunkId, replicas, timeout, quorum, std::move(channelFactory))
+    { }
 
     TFuture<void> Run()
     {
@@ -46,19 +72,12 @@ public:
     }
 
 private:
-    const TChunkId ChunkId_;
-    const std::vector<TNodeDescriptor> Replicas_;
-    const TDuration Timeout_;
-    const int Quorum_;
-
     int SuccessCounter_ = 0;
     int ResponseCounter_ = 0;
 
     std::vector<TError> InnerErrors_;
 
     TPromise<void> Promise_ = NewPromise<void>();
-
-    NLogging::TLogger Logger = JournalClientLogger;
 
 
     void DoRun()
@@ -77,9 +96,10 @@ private:
         }
 
         for (const auto& descriptor : Replicas_) {
-            auto channel = LightNodeChannelFactory->CreateChannel(descriptor.GetInterconnectAddress());
+            auto channel = ChannelFactory_->CreateChannel(descriptor.GetInterconnectAddress());
             TDataNodeServiceProxy proxy(channel);
             proxy.SetDefaultTimeout(Timeout_);
+
             auto req = proxy.FinishChunk();
             ToProto(req->mutable_chunk_id(), ChunkId_);
             req->Invoke().Subscribe(BIND(&TAbortSessionsQuorumSession::OnResponse, MakeStrong(this), descriptor)
@@ -92,6 +112,7 @@ private:
         const TDataNodeServiceProxy::TErrorOrRspFinishChunkPtr& rspOrError)
     {
         ++ResponseCounter_;
+
         // NB: Missing session is also OK.
         if (rspOrError.IsOK() || rspOrError.GetCode() == NChunkClient::EErrorCode::NoSuchSession) {
             ++SuccessCounter_;
@@ -111,7 +132,7 @@ private:
                 ChunkId_);
             Promise_.TrySet();
         }
-        
+
         if (ResponseCounter_ == Replicas_.size()) {
             auto combinedError = TError("Unable to abort sessions quorum for journal chunk %v",
                 ChunkId_)
@@ -126,31 +147,27 @@ TFuture<void> AbortSessionsQuorum(
     const TChunkId& chunkId,
     const std::vector<TNodeDescriptor>& replicas,
     TDuration timeout,
-    int quorum)
+    int quorum,
+    NRpc::IChannelFactoryPtr channelFactory)
 {
-    return New<TAbortSessionsQuorumSession>(chunkId, replicas, timeout, quorum)
+    return New<TAbortSessionsQuorumSession>(chunkId, replicas, timeout, quorum, std::move(channelFactory))
         ->Run();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TComputeQuorumRowCountSession
-    : public TRefCounted
+    : public TQuorumSessionBase
 {
 public:
     TComputeQuorumRowCountSession(
         const TChunkId& chunkId,
         const std::vector<TNodeDescriptor>& replicas,
         TDuration timeout,
-        int quorum)
-        : ChunkId_(chunkId)
-        , Replicas_(replicas)
-        , Timeout_(timeout)
-        , Quorum_(quorum)
-    {
-        Logger = JournalClientLogger;
-        Logger.AddTag("ChunkId: %v", ChunkId_);
-    }
+        int quorum,
+        NRpc::IChannelFactoryPtr channelFactory)
+        : TQuorumSessionBase(chunkId, replicas, timeout, quorum, std::move(channelFactory))
+    { }
 
     TFuture<TMiscExt> Run()
     {
@@ -161,18 +178,11 @@ public:
     }
 
 private:
-    const TChunkId ChunkId_;
-    const std::vector<TNodeDescriptor> Replicas_;
-    const TDuration Timeout_;
-    const int Quorum_;
-
     TSpinLock SpinLock_;
     std::vector<TMiscExt> Infos_;
     std::vector<TError> InnerErrors_;
 
     TPromise<TMiscExt> Promise_ = NewPromise<TMiscExt>();
-
-    NLogging::TLogger Logger;
 
 
     void DoRun()
@@ -191,9 +201,10 @@ private:
 
         std::vector<TFuture<void>> asyncResults;
         for (const auto& descriptor : Replicas_) {
-            auto channel = LightNodeChannelFactory->CreateChannel(descriptor.GetInterconnectAddress());
+            auto channel = ChannelFactory_->CreateChannel(descriptor.GetInterconnectAddress());
             TDataNodeServiceProxy proxy(channel);
             proxy.SetDefaultTimeout(Timeout_);
+
             auto req = proxy.GetChunkMeta();
             ToProto(req->mutable_chunk_id(), ChunkId_);
             req->add_extension_tags(TProtoExtensionTag<TMiscExt>::Value);
@@ -271,9 +282,10 @@ TFuture<TMiscExt> ComputeQuorumInfo(
     const TChunkId& chunkId,
     const std::vector<TNodeDescriptor>& replicas,
     TDuration timeout,
-    int quorum)
+    int quorum,
+    NRpc::IChannelFactoryPtr channelFactory)
 {
-    return New<TComputeQuorumRowCountSession>(chunkId, replicas, timeout, quorum)
+    return New<TComputeQuorumRowCountSession>(chunkId, replicas, timeout, quorum, std::move(channelFactory))
         ->Run();
 }
 

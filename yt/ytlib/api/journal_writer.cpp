@@ -9,7 +9,6 @@
 #include <yt/ytlib/chunk_client/chunk_ypath_proxy.h>
 #include <yt/ytlib/chunk_client/data_node_service_proxy.h>
 #include <yt/ytlib/chunk_client/dispatcher.h>
-#include <yt/ytlib/chunk_client/private.h>
 
 #include <yt/ytlib/cypress_client/cypress_ypath_proxy.h>
 #include <yt/ytlib/cypress_client/rpc_helpers.h>
@@ -585,12 +584,12 @@ private:
             const auto& networkName = Client_->GetConnection()->GetConfig()->NetworkName;
             for (const auto& target : targets) {
                 auto address = target.GetAddressOrThrow(networkName);
-                auto lightChannel = LightNodeChannelFactory->CreateChannel(address);
-                auto heavyChannel = HeavyNodeChannelFactory->CreateChannel(address);
+                auto lightChannel = Client_->GetLightNodeChannelFactory()->CreateChannel(address);
+                auto heavyChannel = Client_->GetHeavyNodeChannelFactory()->CreateChannel(address);
                 auto node = New<TNode>(
                     target,
-                    lightChannel,
-                    heavyChannel,
+                    std::move(lightChannel),
+                    std::move(heavyChannel),
                     Config_->NodeRpcTimeout);
                 session->Nodes.push_back(node);
             }

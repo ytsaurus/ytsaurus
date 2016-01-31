@@ -552,7 +552,10 @@ void TReplicationWriter::StartChunk(TChunkReplica target)
     auto address = nodeDescriptor.GetAddressOrThrow(NetworkName_);
     LOG_DEBUG("Starting write session (Address: %v)", address);
 
-    TDataNodeServiceProxy proxy(LightNodeChannelFactory->CreateChannel(nodeDescriptor.GetInterconnectAddress()));
+    auto lightChannel = Client_->GetLightNodeChannelFactory()->CreateChannel(address);
+    auto heavyChannel = Client_->GetHeavyNodeChannelFactory()->CreateChannel(address);
+
+    TDataNodeServiceProxy proxy(lightChannel);
     proxy.SetDefaultTimeout(Config_->NodeRpcTimeout);
 
     auto req = proxy.StartChunk();
@@ -568,8 +571,6 @@ void TReplicationWriter::StartChunk(TChunkReplica target)
 
     LOG_DEBUG("Write session started (Address: %v)", address);
 
-    auto lightChannel = LightNodeChannelFactory->CreateChannel(address);
-    auto heavyChannel = HeavyNodeChannelFactory->CreateChannel(address);
     auto node = New<TNode>(
         Nodes_.size(),
         nodeDescriptor,
