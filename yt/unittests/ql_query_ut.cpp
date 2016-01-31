@@ -252,20 +252,9 @@ protected:
         TRowRanges sources;
         for (const auto& split : dataSplits) {
             auto range = GetBothBoundsFromDataSplit(split);
-    
-<<<<<<< HEAD
-            TRowRange rowRange(
-                planFragment->KeyRangesRowBuffer->Capture(range.first),
-                planFragment->KeyRangesRowBuffer->Capture(range.second));
-
-            sources.push_back(TDataSource{
-                GetObjectIdFromDataSplit(split),
-                rowRange});
-=======
             sources.emplace_back(
                 buffer->Capture(range.first.Get()),
                 buffer->Capture(range.second.Get()));
->>>>>>> prestable/0.17.4
         }
 
         auto rowBuffer = New<TRowBuffer>();
@@ -671,22 +660,7 @@ protected:
                 TRowRanges ranges,
                 ISchemafulWriterPtr writer) mutable -> TFuture<TQueryStatistics>
             {
-<<<<<<< HEAD
-                auto planFragment = New<TPlanFragment>();
-
-                planFragment->Timestamp = primaryFragment->Timestamp;
-                planFragment->DataSources.push_back({
-                    foreignDataId,
-                    {
-                        planFragment->KeyRangesRowBuffer->Capture(MinKey()),
-                        planFragment->KeyRangesRowBuffer->Capture(MaxKey())
-                    }});
-                planFragment->Query = subquery;
-
-                auto subqueryResult = DoExecuteQuery(
-=======
                 return MakeFuture(DoExecuteQuery(
->>>>>>> prestable/0.17.4
                     owningSources[foreignSplitIndex++],
                     functionRegistry,
                     failureLocation,

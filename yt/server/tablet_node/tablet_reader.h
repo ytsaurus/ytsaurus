@@ -24,18 +24,18 @@ NTableClient::ISchemafulReaderPtr CreateSchemafulTabletReader(
 
 NTableClient::ISchemafulReaderPtr CreateSchemafulTabletReader(
     TTabletSnapshotPtr tabletSnapshot,
+    const TColumnFilter& columnFilter,    
+    TPartitionSnapshotPtr paritionSnapshot,
+    const TSharedRange<TKey>& keys,
+    TTimestamp timestamp)
+
+NTableClient::ISchemafulReaderPtr CreateSchemafulTabletReader(
+    TTabletSnapshotPtr tabletSnapshot,
     const TColumnFilter& columnFilter,
     const TSharedRange<TKey>& keys,
     TTimestamp timestamp,
     int concurrency,
     NTableClient::TRowBufferPtr rowBuffer = nullptr);
-
-NTableClient::ISchemafulReaderPtr CreateSchemafulTabletReader(
-    TTabletSnapshotPtr tabletSnapshot,
-    const TTableSchema& schema,
-    TPartitionSnapshotPtr paritionSnapshot,
-    const TSharedRange<TKey>& keys,
-    TTimestamp timestamp);
 
 //! Creates a reader that merges data from all given #stores and
 //! returns all versions of each value.

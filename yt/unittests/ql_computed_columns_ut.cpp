@@ -55,19 +55,6 @@ protected:
 
     std::vector<TKeyRange> CoordinateForeign(const Stroka& source)
     {
-<<<<<<< HEAD
-        auto planFragment = PreparePlanFragment(&PrepareMock_, source, CreateBuiltinFunctionRegistry());
-
-        const auto& query = planFragment->Query;
-
-        TDataSources foreignSplits{{
-            query->JoinClauses[0]->ForeignDataId,
-            {
-                planFragment->KeyRangesRowBuffer->Capture(MinKey()),
-                planFragment->KeyRangesRowBuffer->Capture(MaxKey())
-            }
-        }};
-=======
         TQueryPtr query;
         TDataRanges dataSource;
         std::tie(query, dataSource) = PreparePlanFragment(
@@ -80,7 +67,6 @@ protected:
                 buffer->Capture(MinKey().Get()),
                 buffer->Capture(MaxKey().Get())
             }};
->>>>>>> prestable/0.17.4
 
         auto rowBuffer = New<TRowBuffer>();
         auto prunedSplits = GetPrunedRanges(

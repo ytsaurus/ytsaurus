@@ -107,11 +107,7 @@ void RowRangeFormatter(TStringBuilder* builder, const NQueryClient::TRowRange& r
         range.second);
 }
 
-<<<<<<< HEAD
-void DataSourceFormatter(TStringBuilder* builder, const NQueryClient::TDataSource& source)
-=======
-Stroka DataSourceFormatter(const NQueryClient::TDataRange& source)
->>>>>>> prestable/0.17.4
+void DataSourceFormatter(TStringBuilder* builder, const NQueryClient::TDataRange& source)
 {
     builder->AppendFormat("[%v .. %v]",
         source.Range.first,
@@ -204,23 +200,9 @@ private:
                 {
                     LOG_DEBUG("Evaluating remote subquery (SubqueryId: %v)", subquery->Id);
 
-<<<<<<< HEAD
-                    auto planFragment = New<TPlanFragment>();
-                    planFragment->Timestamp = fragment->Timestamp;
-                    planFragment->DataSources.push_back({
-                        dataId,
-                        {
-                            planFragment->KeyRangesRowBuffer->Capture(MinKey()),
-                            planFragment->KeyRangesRowBuffer->Capture(MaxKey())
-                        }});
-
-                    planFragment->Query = subquery;
-                    planFragment->VerboseLogging = fragment->VerboseLogging;
-=======
                     TQueryOptions subqueryOptions;
                     subqueryOptions.Timestamp = options.Timestamp;
                     subqueryOptions.VerboseLogging = options.VerboseLogging;
->>>>>>> prestable/0.17.4
 
                     TDataRanges dataSource{
                         dataId,
@@ -398,27 +380,8 @@ private:
             refiners.push_back([&] (TConstExpressionPtr expr, const TTableSchema& schema, const TKeyColumns& keyColumns) {
                 return RefinePredicate(keys, expr, keyColumns);
             });
-<<<<<<< HEAD
 
-            subreaderCreators.push_back([
-                fragment,
-                keys = MakeSharedRange(std::move(keySource.second)),
-                object = keySource.first,
-                timestamp,
-                this_ = MakeStrong(this),
-                &Logger
-            ] () {
-                LOG_DEBUG_IF(fragment->VerboseLogging, "Creating lookup reader for keys %v",
-                    keys);
-                return this_->GetReader(
-                    fragment->Query->TableSchema,
-                    object,
-                    keys,
-                    timestamp);
-=======
             subreaderCreators.push_back([&] () {
-
-                // TODO(lukyan): Validate timestamp and read permission
                 ValidateReadTimestamp(timestamp);
 
                 std::function<ISchemafulReaderPtr()> bottomSplitReaderGenerator;
@@ -441,7 +404,7 @@ private:
                         for (const auto& keys : groupedKeys) {
                             if (options.VerboseLogging) {
                                 LOG_DEBUG("Generating lookup reader for keys %v",
-                                    JoinToString(keys.second));
+                                    keys.second);
                             } else {
                                 LOG_DEBUG("Generating lookup reader for %v keys",
                                     keys.second.Size());
@@ -450,6 +413,11 @@ private:
 
                         auto slotManager = Bootstrap_->GetTabletSlotManager();
                         auto tabletSnapshot = slotManager->GetTabletSnapshotOrThrow(tablePartId);
+
+                        slotManager->ValidateTabletAccess(
+                            tabletSnapshot,
+                            NYTree::EPermission::Read,
+                            timestamp);
 
                         bottomSplitReaderGenerator = [
                             Logger,
@@ -466,10 +434,10 @@ private:
                             } else {
                                 const auto& group = groupedKeys[index++];
 
-                                // TODO(lukyan): Validate timestamp and read permission
+                                auto columnFilter = GetColumnFilter(query->TableSchema, tabletSnapshot->Schema);
                                 auto result = CreateSchemafulTabletReader(
                                     std::move(tabletSnapshot),
-                                    query->TableSchema,
+                                    columnFilter,
                                     group.first,
                                     group.second,
                                     timestamp);
@@ -487,7 +455,6 @@ private:
                         THROW_ERROR_EXCEPTION("Unsupported data split type %Qlv",
                             TypeFromId(tablePartId));
                 }
->>>>>>> prestable/0.17.4
             });
         }
 
@@ -670,29 +637,6 @@ private:
 
         YCHECK(TypeFromId(objectId) == EObjectType::Tablet);
 
-<<<<<<< HEAD
-            auto currentIt = keys.begin();
-            while (currentIt != keys.end()) {
-                auto nextPartition = std::upper_bound(
-                    partitions.begin(),
-                    partitions.end(),
-                    *currentIt,
-                    [] (TRow lhs, const TPartitionSnapshotPtr& rhs) {
-                        return lhs < rhs->PivotKey;
-                    });
-
-                if (nextPartition == partitions.end()) {
-                    addRange(currentIt, keys.end());
-                    break;
-                }
-
-                auto nextIt = std::lower_bound(currentIt, keys.end(), (*nextPartition)->PivotKey);
-                addRange(currentIt, nextIt);
-                currentIt = nextIt;
-            }
-        } else {
-            result.emplace_back(MakeSharedRange(std::move(keys)));
-=======
         auto slotManager = Bootstrap_->GetTabletSlotManager();
         auto tabletSnapshot = slotManager->GetTabletSnapshotOrThrow(objectId);
         const auto& partitions = tabletSnapshot->Partitions;
@@ -705,11 +649,11 @@ private:
                 partitions.end(),
                 *currentIt,
                 [] (TRow lhs, const TPartitionSnapshotPtr& rhs) {
-                    return lhs < rhs->PivotKey.Get();
+                    return lhs < rhs->PivotKey;
                 });
 
             auto nextIt = nextPartition != partitions.end()
-                ? std::lower_bound(currentIt, end(keys), (*nextPartition)->PivotKey.Get())
+                ? std::lower_bound(currentIt, end(keys), (*nextPartition)->PivotKey)
                 : end(keys);
 
             // TODO(babenko): fixme, data ownership?
@@ -720,7 +664,6 @@ private:
 
             currentIt = nextIt;
             currentPartition = nextPartition;
->>>>>>> prestable/0.17.4
         }
 
         return result;
