@@ -1,4 +1,5 @@
 #include "fs.h"
+#include "finally.h"
 
 #include <yt/core/logging/log.h>
 
@@ -11,9 +12,11 @@
 
 #include <array>
 
-// For GetAvaibaleSpace().
+// For GetAvaibaleSpace(), Mount() and Umount().
 #ifdef _unix_
+    #include <sys/mount.h>
     #include <sys/stat.h>
+    #include <mntent.h>
     #include <fcntl.h>
 #endif
 
@@ -74,7 +77,7 @@ void Remove(const Stroka& path)
         THROW_ERROR_EXCEPTION("Cannot remove %v",
             path)
             << TError::FromSystem();
-    }   
+    }
 }
 
 void Replace(const Stroka& source, const Stroka& destination)
@@ -432,6 +435,48 @@ void FlushDirectory(const Stroka& path)
 #else
     // No-op.
 #endif
+}
+
+std::vector<TMountPoint> GetMountPoints(const Stroka& mountsFile)
+{
+    std::unique_ptr<FILE, decltype(&endmntent)> file(::setmntent(~mountsFile, "r"), endmntent);
+
+    if (!file.get()) {
+        THROW_ERROR_EXCEPTION("Failed to open mounts file %v", mountsFile);
+    }
+
+    std::vector<TMountPoint> mountPoints;
+
+    ::mntent* entry;
+    while (entry = getmntent(file.get())) {
+        TMountPoint point;
+        point.Name = entry->mnt_fsname;
+        point.Path = entry->mnt_dir;
+        mountPoints.push_back(point);
+    }
+
+    return mountPoints;
+}
+
+void MountTmpfs(const Stroka& path, int userId, i64 size)
+{
+    auto opts = Format("mode=0700,uid=%v,size=%v", userId, size);
+    int result = ::mount("none", ~path, "tmpfs", 0, ~opts);
+    if (result < 0) {
+        THROW_ERROR_EXCEPTION("Failed to mount tmpfs at %v", path)
+            << TErrorAttribute("user_id", userId)
+            << TErrorAttribute("size", size)
+            << TError::FromSystem();
+    }
+}
+
+void Umount(const Stroka& path)
+{
+    int result = ::umount(~path);
+    if (result < 0) {
+        THROW_ERROR_EXCEPTION("Failed to umount %v", path)
+            << TError::FromSystem();
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

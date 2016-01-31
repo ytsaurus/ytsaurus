@@ -9,6 +9,8 @@
 namespace NYT {
 namespace NQueryClient {
 
+extern const NLogging::TLogger QueryClientLogger;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 typedef std::function<TConstExpressionPtr(
@@ -16,31 +18,30 @@ typedef std::function<TConstExpressionPtr(
     const TTableSchema& tableSchema,
     const TKeyColumns& keyColumns)> TRefiner;
 
-typedef std::vector<std::vector<TRowRange>> TGroupedRanges;
-
-TGroupedRanges GetPrunedRanges(
+TRowRanges GetPrunedRanges(
     TConstExpressionPtr predicate,
     const TTableSchema& tableSchema,
     const TKeyColumns& keyColumns,
-    const TDataSources& sources,
+    NObjectClient::TObjectId tableId,
+    TSharedRange<TRowRange> ranges,
     const TRowBufferPtr& rowBuffer,
     const TColumnEvaluatorCachePtr& evaluatorCache,
     const IFunctionRegistryPtr functionRegistry,
     ui64 rangeExpansionLimit,
-    bool verboseLogging);
+    bool verboseLogging,
+    const NLogging::TLogger& Logger = QueryClientLogger);
 
-TGroupedRanges GetPrunedRanges(
+TRowRanges GetPrunedRanges(
     TConstQueryPtr query,
-    const TDataSources& sources,
+    NObjectClient::TObjectId tableId,
+    TSharedRange<TRowRange> ranges,
     const TRowBufferPtr& rowBuffer,
     const TColumnEvaluatorCachePtr& evaluatorCache,
     const IFunctionRegistryPtr functionRegistry,
     ui64 rangeExpansionLimit,
     bool verboseLogging);
 
-TRowRange GetRange(const TDataSources& sources);
-
-TRowRanges GetRanges(const std::vector<TDataSources>& groupedSplits);
+TRowRange GetRange(const std::vector<TDataRange>& sources);
 
 typedef std::pair<ISchemafulReaderPtr, TFuture<TQueryStatistics>> TEvaluateResult;
 
@@ -48,7 +49,6 @@ TQueryStatistics CoordinateAndExecute(
     TConstQueryPtr query,
     ISchemafulWriterPtr writer,
     const std::vector<TRefiner>& ranges,
-    bool isOrdered,
     std::function<TEvaluateResult(TConstQueryPtr, int)> evaluateSubquery,
     std::function<TQueryStatistics(TConstQueryPtr, ISchemafulReaderPtr, ISchemafulWriterPtr)> evaluateTop,
     IFunctionRegistryPtr functionRegistry);

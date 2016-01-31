@@ -669,7 +669,7 @@ TEST_P(TArithmeticTest, Evaluate)
     schema.Columns()[1].Type = type;
 
     auto expr = PrepareExpression(Stroka("k") + op + "l", schema);
-    auto callback = Profile(expr, schema, nullptr, &variables, nullptr, &allLiteralArgs, CreateBuiltinFunctionRegistry())();
+    auto callback = Profile(expr, schema, nullptr, &variables, &allLiteralArgs, CreateBuiltinFunctionRegistry())();
     auto row = NTableClient::BuildRow(Stroka("k=") + lhs + ";l=" + rhs, keyColumns, schema, true);
 
     TQueryStatistics statistics;
@@ -769,7 +769,7 @@ TEST_P(TCompareWithNullTest, Simple)
 
     auto row = NTableClient::BuildRow(rowString, keyColumns, schema, true);
     auto expr = PrepareExpression(exprString, schema);
-    auto callback = Profile(expr, schema, nullptr, &variables, nullptr, &allLiteralArgs, CreateBuiltinFunctionRegistry())();
+    auto callback = Profile(expr, schema, nullptr, &variables, &allLiteralArgs, CreateBuiltinFunctionRegistry())();
 
     TQueryStatistics statistics;
     auto permanentBuffer = New<TRowBuffer>();
@@ -944,7 +944,7 @@ void EvaluateExpression(
     TCGVariables variables;
     std::vector<std::vector<bool>> allLiteralArgs;
 
-    auto callback = Profile(expr, schema, nullptr, &variables, nullptr, &allLiteralArgs, CreateBuiltinFunctionRegistry())();
+    auto callback = Profile(expr, schema, nullptr, &variables, &allLiteralArgs, CreateBuiltinFunctionRegistry())();
 
     auto row = NTableClient::BuildRow(rowString, keyColumns, schema, true);
 

@@ -146,7 +146,7 @@ TTabletInfoPtr TTableMountInfo::GetTablet(TUnversionedRow row) const
         [&] (TUnversionedRow lhs, const TTabletInfoPtr& rhs) {
             return CompareRows(lhs, rhs->PivotKey.Get(), KeyColumns.size()) < 0;
         });
-    return *(it - 1);
+    return it == Tablets.begin() ? nullptr : *(--it);
 }
 
 void TTableMountInfo::ValidateDynamic() const
