@@ -96,6 +96,13 @@ default_config = {
         "python_binary": "python",
         # Enable wrapping of stdin and stdout streams to avoid their unintentional usage.
         "safe_stream_mode": True,
+        # Age (in seconds) to distinguish currently modified modules and old modules.
+        # These two types of modules would be uploaded separatly.
+        # It is invented to descrease data uploaded to cluster
+        # in case of consequence runs of the script with small modifications.
+        "fresh_files_threshold": 3600,
+        # Enables using tmpfs for modules archive.
+        "enable_tmpfs_archive": False
     },
 
     "yamr_mode": {

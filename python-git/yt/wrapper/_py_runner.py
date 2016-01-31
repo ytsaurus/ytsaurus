@@ -1,31 +1,44 @@
 def main():
-    # We should use local imports because of replacing __main__ module cause cleaning globals
+    # We should use local imports because of replacing __main__ module cause cleaning globals.
+    import os
     import sys
     import itertools
     import imp
     import zipfile
+    import pickle as standard_pickle
 
-    # Variable names start with "__" to avoid accidental intersection with scope of user function
+
+    # Variable names start with "__" to avoid accidental intersection with scope of user function.
     __operation_dump = sys.argv[1]
     __config_dump_filename = sys.argv[2]
 
     if len(sys.argv) > 3:
-        __modules_archive = sys.argv[3]
+        __modules_info_filename = sys.argv[3]
         __main_filename = sys.argv[4]
         __main_module_name = sys.argv[5]
         __main_module_type = sys.argv[6]
 
-        # Unfortunately we cannot use fixes version of ZipFile
-        __zip = zipfile.ZipFile(__modules_archive)
-        __zip.extractall("modules")
-        __zip.close()
+        with open(__modules_info_filename) as fin:
+            modules_info = standard_pickle.load(fin)
 
-        sys.path = ["./modules"] + sys.path
+        for info in modules_info:
+            destination = "modules"
+            if info.get("tmpfs") and os.path.exists("tmpfs"):
+                destination = "tmpfs/modules"
+            # Unfortunately we cannot use fixed version of ZipFile.
+            __zip = zipfile.ZipFile(info["filename"])
+            __zip.extractall(destination)
+            __zip.close()
+
+        sys.path = ["./modules", "./tmpfs/modules"] + sys.path
         # Python with pre-3.3 version does not support namespace packages,
         # so we scan modules directory and manually create them in sys.modules.
         # See https://www.python.org/dev/peps/pep-0420/ and YT-3337 for more details.
         from _py_runner_helpers import _create_namespace_packages
-        _create_namespace_packages("./modules")
+        if os.path.exists("modules"):
+            _create_namespace_packages("./modules")
+        if os.path.exists("tmpfs"):
+            _create_namespace_packages("./tmpfs/modules")
 
         sys.modules['__main__'] = imp.load_module(__main_module_name,
                                                   open(__main_filename, 'rU'),
