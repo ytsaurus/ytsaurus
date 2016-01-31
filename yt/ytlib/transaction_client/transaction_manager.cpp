@@ -374,6 +374,10 @@ public:
             return VoidFuture;
         }
 
+        if (TypeFromId(Id_) == EObjectType::NestedTransaction) {
+            return MakeFuture(TError("Nested master transactions cannot be used at tablets"));
+        }
+
         TPromise<void> promise;
         {
             TGuard<TSpinLock> guard(SpinLock_);
@@ -506,9 +510,7 @@ private:
         const TTransactionId& id,
         const TTransactionAttachOptions& /*options*/)
     {
-        if (TypeFromId(id) != EObjectType::Transaction) {
-            THROW_ERROR_EXCEPTION("Invalid transaction id %v", id);
-        }
+        ValidateMasterTransactionId(id);
         // No option checks for now.
     }
 

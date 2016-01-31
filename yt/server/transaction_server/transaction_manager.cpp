@@ -340,7 +340,9 @@ class TTransactionManager::TTransactionTypeHandler
     : public TObjectTypeHandlerWithMapBase<TTransaction>
 {
 public:
-    explicit TTransactionTypeHandler(TImpl* owner);
+    TTransactionTypeHandler(
+        TImpl* owner,
+        EObjectType objectType);
 
     virtual EObjectReplicationFlags GetReplicationFlags() const override
     {
@@ -351,7 +353,7 @@ public:
 
     virtual EObjectType GetType() const override
     {
-        return EObjectType::Transaction;
+        return ObjectType_;
     }
 
     virtual TNullable<TTypeCreationOptions> GetCreationOptions() const override
@@ -370,6 +372,7 @@ public:
 
 private:
     TImpl* const Owner_;
+    const EObjectType ObjectType_;
 
 
     virtual TCellTagList DoGetReplicationCellTags(const TTransaction* transaction) override
@@ -454,7 +457,8 @@ public:
     void Initialize()
     {
         auto objectManager = Bootstrap_->GetObjectManager();
-        objectManager->RegisterHandler(New<TTransactionTypeHandler>(this));
+        objectManager->RegisterHandler(New<TTransactionTypeHandler>(this, EObjectType::Transaction));
+        objectManager->RegisterHandler(New<TTransactionTypeHandler>(this, EObjectType::NestedTransaction));
 
         if (Bootstrap_->IsPrimaryMaster()) {
             auto multicellManager = Bootstrap_->GetMulticellManager();
@@ -477,7 +481,9 @@ public:
         }
 
         auto objectManager = Bootstrap_->GetObjectManager();
-        auto transactionId = objectManager->GenerateId(EObjectType::Transaction, hintId);
+        auto transactionId = objectManager->GenerateId(
+            parent ? EObjectType::NestedTransaction : EObjectType::Transaction,
+            hintId);
 
         auto transactionHolder = std::make_unique<TTransaction>(transactionId);
         auto* transaction = TransactionMap_.Insert(transactionId, std::move(transactionHolder));
@@ -1100,9 +1106,12 @@ DEFINE_ENTITY_MAP_ACCESSORS(TTransactionManager::TImpl, Transaction, TTransactio
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTransactionManager::TTransactionTypeHandler::TTransactionTypeHandler(TImpl* owner)
+TTransactionManager::TTransactionTypeHandler::TTransactionTypeHandler(
+    TImpl* owner,
+    EObjectType objectType)
     : TObjectTypeHandlerWithMapBase(owner->Bootstrap_, &owner->TransactionMap_)
     , Owner_(owner)
+    , ObjectType_(objectType)
 { }
 
 TNonversionedObjectBase* TTransactionManager::TTransactionTypeHandler::CreateObject(
