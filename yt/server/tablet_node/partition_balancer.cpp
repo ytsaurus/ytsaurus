@@ -330,6 +330,7 @@ private:
             nodeDirectory,
             GetCurrentInvoker(),
             TScrapeChunksCallback(),
+            Bootstrap_->GetMasterClient(),
             Logger);
 
         {

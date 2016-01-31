@@ -255,7 +255,8 @@ private:
                 chunk->GetId(),
                 replicas,
                 Config_->JournalRpcTimeout,
-                chunk->GetReadQuorum());
+                chunk->GetReadQuorum(),
+                Bootstrap_->GetLightNodeChannelFactory());
             WaitFor(asyncResult)
                 .ThrowOnError();
         }
@@ -266,7 +267,8 @@ private:
                 chunk->GetId(),
                 replicas,
                 Config_->JournalRpcTimeout,
-                chunk->GetReadQuorum());
+                chunk->GetReadQuorum(),
+                Bootstrap_->GetLightNodeChannelFactory());
             auto miscExt = WaitFor(asyncMiscExt)
                 .ValueOrThrow();
             auto* info = req->mutable_info();

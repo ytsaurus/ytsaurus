@@ -1,8 +1,6 @@
 #include "job_memory.h"
 #include "config.h"
 
-#include <yt/ytlib/chunk_client/private.h>
-
 namespace NYT {
 namespace NScheduler {
 

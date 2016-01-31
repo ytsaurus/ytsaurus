@@ -741,7 +741,8 @@ public:
 
         SchedulerChannel_ = wrapChannel(Connection_->GetSchedulerChannel());
 
-        NodeChannelFactory_ = wrapChannelFactory(Connection_->GetNodeChannelFactory());
+        LightNodeChannelFactory_ = wrapChannelFactory(Connection_->GetLightNodeChannelFactory());
+        HeavyNodeChannelFactory_ = wrapChannelFactory(Connection_->GetHeavyNodeChannelFactory());
 
         SchedulerProxy_.reset(new TSchedulerServiceProxy(GetSchedulerChannel()));
         JobProberProxy_.reset(new TJobProberServiceProxy(GetSchedulerChannel()));
@@ -756,7 +757,7 @@ public:
         QueryHelper_ = New<TQueryHelper>(
             Connection_,
             GetMasterChannelOrThrow(EMasterChannelKind::LeaderOrFollower),
-            NodeChannelFactory_,
+            HeavyNodeChannelFactory_,
             FunctionRegistry_);
 
         Logger.AddTag("Client: %p", this);
@@ -786,9 +787,14 @@ public:
         return SchedulerChannel_;
     }
 
-    virtual IChannelFactoryPtr GetNodeChannelFactory() override
+    virtual IChannelFactoryPtr GetLightNodeChannelFactory() override
     {
-        return NodeChannelFactory_;
+        return LightNodeChannelFactory_;
+    }
+
+    virtual IChannelFactoryPtr GetHeavyNodeChannelFactory() override
+    {
+        return HeavyNodeChannelFactory_;
     }
 
     virtual TTransactionManagerPtr GetTransactionManager() override
@@ -1059,7 +1065,8 @@ private:
 
     TEnumIndexedVector<yhash_map<TCellTag, IChannelPtr>, EMasterChannelKind> MasterChannels_;
     IChannelPtr SchedulerChannel_;
-    IChannelFactoryPtr NodeChannelFactory_;
+    IChannelFactoryPtr LightNodeChannelFactory_;
+    IChannelFactoryPtr HeavyNodeChannelFactory_;
     TTransactionManagerPtr TransactionManager_;
     TQueryHelperPtr QueryHelper_;
     std::unique_ptr<TSchedulerServiceProxy> SchedulerProxy_;

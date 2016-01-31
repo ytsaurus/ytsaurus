@@ -24,7 +24,7 @@ TScrapeChunksCallback CreateScrapeChunksSessionCallback(
     const TChunkScraperConfigPtr config,
     const IInvokerPtr invoker,
     TThrottlerManagerPtr throttlerManager,
-    NApi::IClientPtr client,
+    NApi::IClientPtr client, // TODO(sandello): This is redundant; IConnection is sufficient.
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
     const NLogging::TLogger& logger);
 
@@ -39,6 +39,7 @@ public:
         NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
         IInvokerPtr invoker,
         TScrapeChunksCallback scraperCallback,
+        NApi::IClientPtr client, // TODO(sandello): This is redundant; IConnection is sufficient.
         const NLogging::TLogger& logger);
 
     virtual void AddChunk(TRefCountedChunkSpecPtr chunk);
@@ -72,6 +73,8 @@ protected:
         const std::vector<int>& chunkIndexes);
 
 private:
+    NApi::IClientPtr Client_;
+
     //! Indexes of chunks for which no info is fetched yet.
     yhash_set<int> UnfetchedChunkIndexes_;
 

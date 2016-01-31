@@ -78,6 +78,7 @@
 
 #include <yt/core/profiling/profile_manager.h>
 
+#include <yt/core/rpc/caching_channel_factory.h>
 #include <yt/core/rpc/bus_channel.h>
 #include <yt/core/rpc/bus_server.h>
 #include <yt/core/rpc/server.h>
@@ -273,6 +274,16 @@ TCellDirectoryPtr TBootstrap::GetCellDirectory() const
 IInvokerPtr TBootstrap::GetControlInvoker() const
 {
     return ControlQueue_->GetInvoker();
+}
+
+IChannelFactoryPtr TBootstrap::GetLightNodeChannelFactory() const
+{
+    return LightNodeChannelFactory_;
+}
+
+IChannelFactoryPtr TBootstrap::GetHeavyNodeChannelFactory() const
+{
+    return HeavyNodeChannelFactory_;
 }
 
 void TBootstrap::Initialize()
@@ -564,6 +575,9 @@ void TBootstrap::DoInitialize()
         NMonitoring::GetYPathHttpHandler(orchidRoot->Via(GetControlInvoker())));
 
     RpcServer_->Configure(Config_->RpcServer);
+
+    LightNodeChannelFactory_ = CreateCachingChannelFactory(GetBusChannelFactory());
+    HeavyNodeChannelFactory_ = CreateCachingChannelFactory(GetBusChannelFactory());
 }
 
 void TBootstrap::DoRun()

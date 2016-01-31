@@ -4,7 +4,6 @@
 #include <yt/ytlib/chunk_client/config.h>
 #include <yt/ytlib/chunk_client/data_node_service_proxy.h>
 #include <yt/ytlib/chunk_client/dispatcher.h>
-#include <yt/ytlib/chunk_client/private.h>
 
 #include <yt/ytlib/node_tracker_client/node_directory.h>
 
@@ -56,8 +55,9 @@ TSamplesFetcher::TSamplesFetcher(
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
     IInvokerPtr invoker,
     TScrapeChunksCallback scraperCallback,
+    NApi::IClientPtr client,
     const NLogging::TLogger& logger)
-    : TFetcherBase(config, nodeDirectory, invoker, scraperCallback, logger)
+    : TFetcherBase(config, nodeDirectory, invoker, scraperCallback, client, logger)
     , KeyColumns_(keyColumns)
     , DesiredSampleCount_(desiredSampleCount)
     , MaxSampleSize_(maxSampleSize)

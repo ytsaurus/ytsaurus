@@ -26,6 +26,7 @@ public:
         NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
         IInvokerPtr invoker,
         NChunkClient::TScrapeChunksCallback scraperCallback,
+        NApi::IClientPtr client,
         const NLogging::TLogger& logger);
 
 

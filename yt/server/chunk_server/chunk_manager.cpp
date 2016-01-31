@@ -907,7 +907,8 @@ public:
             chunk->GetId(),
             replicas,
             Config_->JournalRpcTimeout,
-            chunk->GetReadQuorum());
+            chunk->GetReadQuorum(),
+            Bootstrap_->GetLightNodeChannelFactory());
     }
 
     void SealChunk(TChunk* chunk, const TMiscExt& info)

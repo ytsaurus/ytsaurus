@@ -16,8 +16,6 @@
 #include <yt/server/cell_scheduler/bootstrap.h>
 #include <yt/server/cell_scheduler/config.h>
 
-#include <yt/ytlib/chunk_client/private.h>
-
 #include <yt/ytlib/job_prober_client/job_prober_service_proxy.h>
 
 #include <yt/ytlib/object_client/master_ypath_proxy.h>
@@ -438,7 +436,7 @@ public:
     TJobProberServiceProxy CreateJobProberProxy(const TJobPtr& job)
     {
         const auto& address = job->GetNode()->GetInterconnectAddress();
-        auto channel = NChunkClient::LightNodeChannelFactory->CreateChannel(address);
+        auto channel = GetMasterClient()->GetLightNodeChannelFactory()->CreateChannel(address);
 
         TJobProberServiceProxy proxy(channel);
         proxy.SetDefaultTimeout(Bootstrap_->GetConfig()->Scheduler->JobProberRpcTimeout);

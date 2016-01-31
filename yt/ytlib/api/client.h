@@ -556,7 +556,8 @@ struct IClient
         EMasterChannelKind kind,
         NObjectClient::TCellTag cellTag = NObjectClient::PrimaryMasterCellTag) = 0;
     virtual NRpc::IChannelPtr GetSchedulerChannel() = 0;
-    virtual NRpc::IChannelFactoryPtr GetNodeChannelFactory() = 0;
+    virtual NRpc::IChannelFactoryPtr GetLightNodeChannelFactory() = 0;
+    virtual NRpc::IChannelFactoryPtr GetHeavyNodeChannelFactory() = 0;
     virtual NTransactionClient::TTransactionManagerPtr GetTransactionManager() = 0;
     virtual NQueryClient::IExecutorPtr GetQueryExecutor() = 0;
 
