@@ -135,14 +135,15 @@ ISchemafulReaderPtr CreateSchemafulTabletReader(
     const TColumnFilter& columnFilter,    
     TPartitionSnapshotPtr paritionSnapshot,
     const TSharedRange<TKey>& keys,
-    TTimestamp timestamp)
+    TTimestamp timestamp,
+    TRowBufferPtr rowBuffer)
 {
     TKey minKey = *keys.Begin();
     TKey maxKey = *(keys.End() - 1);
 
     std::vector<IStorePtr> stores;
     TakePartition(&stores, tabletSnapshot->Eden, minKey, maxKey);
-    TakePartition(&stores, partition, minKey, maxKey);
+    TakePartition(&stores, paritionSnapshot, minKey, maxKey);
 
     LOG_DEBUG("Creating schemaful tablet reader (TabletId: %v, CellId: %v, Timestamp: %v, StoreIds: [%v])",
         tabletSnapshot->TabletId,
@@ -205,12 +206,22 @@ ISchemafulReaderPtr CreateSchemafulTabletReader(
     }
 
     auto readerFactory = [
+        tabletSnapshot = std::move(tabletSnapshot),
+        columnFilter = std::move(columnFilter),
         partitions = std::move(partitions),
         partitionedKeys = std::move(partitionedKeys),
+        timestamp,
+        rowBuffer = std::move(rowBuffer),
         index = 0
     ] () mutable -> ISchemafulReaderPtr {
         if (index < partitionedKeys.size()) {
-            auto reader = createPartitionReader(tabletSnapshot, columnFilter, partitions[index], partitionedKeys[index], timestamp);
+            auto reader = CreateSchemafulTabletReader(
+                tabletSnapshot,
+                columnFilter,
+                partitions[index],
+                partitionedKeys[index],
+                timestamp,
+                rowBuffer);
             ++index;
             return reader;
         } else {
