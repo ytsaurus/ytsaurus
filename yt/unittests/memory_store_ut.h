@@ -214,7 +214,7 @@ protected:
     {
         std::vector<TKey> lookupKeys(1, key.Get());
         auto sharedLookupKeys = MakeSharedRange(std::move(lookupKeys), key);
-        auto lookupReader = store->CreateReader(sharedLookupKeys, timestamp, TColumnFilter());
+        auto lookupReader = store->CreateReader(sharedLookupKeys, timestamp, TColumnFilter(), TWorkloadDescriptor());
 
         lookupReader->Open()
             .Get()

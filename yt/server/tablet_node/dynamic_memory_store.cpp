@@ -1678,7 +1678,8 @@ IVersionedReaderPtr TDynamicMemoryStore::CreateReader(
     TOwningKey lowerKey,
     TOwningKey upperKey,
     TTimestamp timestamp,
-    const TColumnFilter& columnFilter)
+    const TColumnFilter& columnFilter,
+    const TWorkloadDescriptor& /* workloadDescriptor */)
 {
     YCHECK(timestamp != AllCommittedTimestamp);
     return New<TRangeReader>(
@@ -1693,7 +1694,8 @@ IVersionedReaderPtr TDynamicMemoryStore::CreateReader(
 IVersionedReaderPtr TDynamicMemoryStore::CreateReader(
     const TSharedRange<TKey>& keys,
     TTimestamp timestamp,
-    const TColumnFilter& columnFilter)
+    const TColumnFilter& columnFilter,
+    const TWorkloadDescriptor& /* workloadDescriptor */)
 {
     YCHECK(timestamp != AllCommittedTimestamp);
     return New<TLookupReader>(

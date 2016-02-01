@@ -1567,6 +1567,16 @@ private:
         queryOptions.EnableCodeCache = options.EnableCodeCache;
         queryOptions.MaxSubqueries = options.MaxSubqueries;
 
+        switch (options.WorkloadDescriptor.Category) {
+            case EUserWorkloadCategory::Realtime:
+                queryOptions.WorkloadDescriptor.Category = EWorkloadCategory::UserRealtime;
+                break;
+            case EUserWorkloadCategory::Batch:
+                queryOptions.WorkloadDescriptor.Category = EWorkloadCategory::UserBatch;
+                break;
+        }
+        queryOptions.WorkloadDescriptor.Band = options.WorkloadDescriptor.Band;
+
         ISchemafulWriterPtr writer;
         TFuture<IRowsetPtr> asyncRowset;
         std::tie(writer, asyncRowset) = CreateSchemafulRowsetWriter(query->GetTableSchema());
@@ -1576,6 +1586,7 @@ private:
 
         auto rowset = WaitFor(asyncRowset)
             .ValueOrThrow();
+
         if (options.FailOnIncompleteResult) {
             if (statistics.IncompleteInput) {
                 THROW_ERROR_EXCEPTION("Query terminated prematurely due to excessive input; consider rewriting your query or changing input limit")
@@ -1586,6 +1597,7 @@ private:
                     << TErrorAttribute("output_row_limit", outputRowLimit);
             }
         }
+
         return std::make_pair(rowset, statistics);
     }
 

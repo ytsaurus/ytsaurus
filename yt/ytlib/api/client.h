@@ -42,6 +42,17 @@ namespace NApi {
 
 ///////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(EUserWorkloadCategory,
+    (Batch)
+    (Realtime)
+);
+
+struct TUserWorkloadDescriptor
+{
+    EUserWorkloadCategory Category = EUserWorkloadCategory::Realtime;
+    int Band = 0;
+};
+
 struct TTimeoutOptions
 {
     TNullable<TDuration> Timeout;
@@ -193,6 +204,8 @@ struct TSelectRowsOptions
     int MaxSubqueries = std::numeric_limits<int>::max();
     //! Enables generated code caching.
     bool EnableCodeCache = true;
+    //! Used to prioritize requests.
+    TUserWorkloadDescriptor WorkloadDescriptor;
 };
 
 struct TGetNodeOptions

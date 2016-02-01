@@ -269,6 +269,9 @@ EIOCategory TLocation::ToIOCategory(const TWorkloadDescriptor& workloadDescripto
         case EWorkloadCategory::Idle:
         case EWorkloadCategory::SystemReplication:
         case EWorkloadCategory::SystemRepair:
+        case EWorkloadCategory::SystemTabletCompaction:
+        case EWorkloadCategory::SystemTabletPartitioning:
+        case EWorkloadCategory::SystemTabletPreload:
         case EWorkloadCategory::UserBatch:
             return EIOCategory::Batch;
 

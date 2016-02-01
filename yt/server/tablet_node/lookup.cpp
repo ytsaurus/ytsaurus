@@ -41,6 +41,7 @@ public:
     TLookupSession(
         TTabletSnapshotPtr tabletSnapshot,
         TTimestamp timestamp,
+        const TWorkloadDescriptor& workloadDescriptor,
         TWireProtocolReader* reader,
         TWireProtocolWriter* writer)
         : TabletSnapshot_(std::move(tabletSnapshot))
@@ -50,6 +51,7 @@ public:
         , KeyColumnCount_ (TabletSnapshot_->KeyColumns.size())
         , SchemaColumnCount_(TabletSnapshot_->Schema.Columns().size())
         , MemoryPool_(TLookupPoolTag())
+        , WorkloadDescriptor_(workloadDescriptor)
     { }
 
     void Run()
@@ -161,6 +163,7 @@ private:
     TReadSessionList PartitionSessions_;
 
     TColumnFilter ColumnFilter_;
+    const TWorkloadDescriptor& WorkloadDescriptor_;
 
     TNullable<TSchemafulRowMerger> Merger_;
 
@@ -178,7 +181,7 @@ private:
         // NB: Will remain empty for in-memory tables.
         std::vector<TFuture<void>> asyncFutures;
         for (const auto& store : partitionSnapshot->Stores) {
-            auto reader = store->CreateReader(keys, Timestamp_, ColumnFilter_);
+            auto reader = store->CreateReader(keys, Timestamp_, ColumnFilter_, WorkloadDescriptor_);
             auto future = reader->Open();
             auto maybeError = future.TryGet();
             if (maybeError) {
@@ -224,15 +227,16 @@ private:
 void LookupRows(
     TTabletSnapshotPtr tabletSnapshot,
     TTimestamp timestamp,
+    const TWorkloadDescriptor& workloadDescriptor,
     TWireProtocolReader* reader,
     TWireProtocolWriter* writer)
 {
     TLookupSession session(
         tabletSnapshot,
         timestamp,
+        workloadDescriptor,
         reader,
         writer);
-
     session.Run();
 }
 

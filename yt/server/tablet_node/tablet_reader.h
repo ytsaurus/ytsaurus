@@ -20,20 +20,23 @@ NTableClient::ISchemafulReaderPtr CreateSchemafulTabletReader(
     const TTableSchema& schema,
     TOwningKey lowerBound,
     TOwningKey upperBound,
-    TTimestamp timestamp);
+    TTimestamp timestamp,
+    const TWorkloadDescriptor& workloadDescriptor);
 
 NTableClient::ISchemafulReaderPtr CreateSchemafulTabletReader(
     TTabletSnapshotPtr tabletSnapshot,
     const TTableSchema& schema,
     const TSharedRange<TKey>& keys,
-    TTimestamp timestamp);
+    TTimestamp timestamp,
+    const TWorkloadDescriptor& workloadDescriptor);
 
 NTableClient::ISchemafulReaderPtr CreateSchemafulTabletReader(
     TTabletSnapshotPtr tabletSnapshot,
     const TTableSchema& schema,
     TPartitionSnapshotPtr paritionSnapshot,
     const TSharedRange<TKey>& keys,
-    TTimestamp timestamp);
+    TTimestamp timestamp,
+    const TWorkloadDescriptor& workloadDescriptor);
 
 //! Creates a reader that merges data from all given #stores and
 //! returns all versions of each value.
@@ -44,7 +47,8 @@ NTableClient::IVersionedReaderPtr CreateVersionedTabletReader(
     TOwningKey lowerBound,
     TOwningKey upperBound,
     TTimestamp currentTimestamp,
-    TTimestamp majorTimestamp);
+    TTimestamp majorTimestamp,
+    const TWorkloadDescriptor& workloadDescriptor);
 
 ////////////////////////////////////////////////////////////////////////////////
 
