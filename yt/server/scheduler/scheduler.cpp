@@ -1463,6 +1463,7 @@ private:
             }
         };
 
+        operation->SetHasActiveTransactions(false);
         commitTransaction(operation->GetInputTransaction());
         commitTransaction(operation->GetOutputTransaction());
         commitTransaction(operation->GetSyncSchedulerTransaction());
@@ -1483,6 +1484,7 @@ private:
             }
         };
 
+        operation->SetHasActiveTransactions(false);
         abortTransaction(operation->GetInputTransaction());
         abortTransaction(operation->GetOutputTransaction());
         abortTransaction(operation->GetSyncSchedulerTransaction());

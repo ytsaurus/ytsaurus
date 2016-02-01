@@ -31,6 +31,7 @@ TOperation::TOperation(
     , Suspended_(suspended)
     , Queued_(false)
     , UserTransaction_(userTransaction)
+    , HasActiveTransactions_(false)
     , Spec_(spec)
     , AuthenticatedUser_(authenticatedUser)
     , StartTime_(startTime)
