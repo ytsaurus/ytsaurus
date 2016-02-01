@@ -191,6 +191,19 @@ public:
         return GuardedInvokers_[queue];
     }
 
+
+    void RequireLeader() const
+    {
+        if (!HydraManager_->IsLeader()) {
+            if (HasMutationContext()) {
+                // Just a precaution, not really expected to happen.
+                THROW_ERROR_EXCEPTION("Request can only be served at leaders");
+            } else {
+                throw TLeaderFallbackException();
+            }
+        }
+    }
+
 private:
     const TCellMasterConfigPtr Config_;
     TBootstrap* const Bootstrap_;
@@ -366,6 +379,11 @@ IInvokerPtr THydraFacade::GetEpochAutomatonInvoker(EAutomatonThreadQueue queue) 
 IInvokerPtr THydraFacade::GetGuardedAutomatonInvoker(EAutomatonThreadQueue queue) const
 {
     return Impl_->GetGuardedAutomatonInvoker(queue);
+}
+
+void THydraFacade::RequireLeader() const
+{
+    Impl_->RequireLeader();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

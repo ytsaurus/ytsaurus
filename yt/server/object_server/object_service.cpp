@@ -254,6 +254,8 @@ private:
                         requestInfo,
                         responseInfo);
                 } catch (const TLeaderFallbackException&) {
+                    LOG_DEBUG("Performing leader fallback (RequestId: %v)",
+                        Context->GetRequestId());
                     asyncResponseMessage = objectManager->ForwardToLeader(
                         Owner->Bootstrap_->GetCellTag(),
                         updatedRequestMessage,

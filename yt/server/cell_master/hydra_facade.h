@@ -39,6 +39,9 @@ public:
     IInvokerPtr GetEpochAutomatonInvoker(EAutomatonThreadQueue queue = EAutomatonThreadQueue::Default) const;
     IInvokerPtr GetGuardedAutomatonInvoker(EAutomatonThreadQueue queue = EAutomatonThreadQueue::Default) const;
 
+    //! Throws TLeaderFallbackException at followers.
+    void RequireLeader() const;
+
 private:
     class TImpl;
     const TIntrusivePtr<TImpl> Impl_;

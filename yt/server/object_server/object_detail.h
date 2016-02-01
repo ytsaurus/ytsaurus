@@ -41,7 +41,6 @@ public:
     virtual const TObjectId& GetId() const override;
     virtual const NYTree::IAttributeDictionary& Attributes() const override;
     virtual NYTree::IAttributeDictionary* MutableAttributes() override;
-    virtual TResolveResult Resolve(const NYPath::TYPath& path, NRpc::IServiceContextPtr context) override;
     virtual void Invoke(NRpc::IServiceContextPtr context) override;
     virtual void WriteAttributesFragment(
         NYson::IAsyncYsonConsumer* consumer,
@@ -132,17 +131,10 @@ protected:
     bool IsMutating() const;
     bool IsLeader() const;
     bool IsFollower() const;
+    void RequireLeader() const;
 
     bool IsPrimaryMaster() const;
     bool IsSecondaryMaster() const;
-
-    //! Returns |true| if reads for this node can only be served at leaders.
-    /*!
-     *  This flag is checked during YPath resolution so the fallback happens
-     *  not only for this particular node but also for all services reachable through
-     *  this node.
-     */
-    virtual bool IsLeaderReadRequired() const;
 
     //! Posts the request to all secondary masters.
     void PostToSecondaryMasters(NRpc::IServiceContextPtr context);

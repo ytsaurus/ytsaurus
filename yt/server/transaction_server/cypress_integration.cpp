@@ -36,7 +36,7 @@ INodeTypeHandlerPtr CreateTransactionMapTypeHandler(TBootstrap* bootstrap)
                 bootstrap->GetTransactionManager()->Transactions(),
                 owningNode);
         }),
-        EVirtualNodeOptions::RequireLeader | EVirtualNodeOptions::RedirectSelf);
+        EVirtualNodeOptions::RedirectSelf);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -96,7 +96,7 @@ INodeTypeHandlerPtr CreateTopmostTransactionMapTypeHandler(TBootstrap* bootstrap
         BIND([=] (INodePtr owningNode) -> IYPathServicePtr {
             return New<TVirtualTopmostTransactionMap>(bootstrap, owningNode);
         }),
-        EVirtualNodeOptions::RequireLeader | EVirtualNodeOptions::RedirectSelf);
+        EVirtualNodeOptions::RedirectSelf);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
