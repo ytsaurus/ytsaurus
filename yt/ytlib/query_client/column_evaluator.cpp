@@ -105,7 +105,8 @@ void TColumnEvaluator::EvaluateKeys(TRow fullRow, const TRowBufferPtr& buffer) c
 TRow TColumnEvaluator::EvaluateKeys(
     TRow partialRow,
     const TRowBufferPtr& buffer,
-    const TNameTableToSchemaIdMapping& idMapping) const
+    const TNameTableToSchemaIdMapping& idMapping,
+    const TTableSchema& schema) const
 {
     bool keyColumnSeen[MaxKeyColumnCount] {};
     int columnCount = 0;
@@ -120,8 +121,8 @@ TRow TColumnEvaluator::EvaluateKeys(
         }
 
         int schemaId = idMapping[id];
-        YCHECK(schemaId < Schema_.Columns().size());
-        const auto& column = Schema_.Columns()[schemaId];
+        YCHECK(schemaId < schema.Columns().size());
+        const auto& column = schema.Columns()[schemaId];
 
         if (column.Expression) {
             THROW_ERROR_EXCEPTION(
