@@ -157,7 +157,7 @@ protected:
         auto chunkManager = Bootstrap_->GetChunkManager();
         auto objectManager = Bootstrap_->GetObjectManager();
         const auto& config = Bootstrap_->GetConfig()->CypressManager;
-        
+
         // NB: Don't call TBase::InitializeAttributes; take care of all attributes here.
 
         int replicationFactor = attributes->Get<int>("replication_factor", config->DefaultJournalReplicationFactor);
@@ -339,6 +339,10 @@ protected:
         }
     }
 
+    virtual int GetDefaultReplicationFactor() const override
+    {
+        return Bootstrap_->GetConfig()->CypressManager->DefaultJournalReplicationFactor;
+    }
 };
 
 INodeTypeHandlerPtr CreateJournalTypeHandler(TBootstrap* bootstrap)
