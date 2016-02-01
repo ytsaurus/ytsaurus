@@ -397,58 +397,11 @@ private:
                     }
 
                     case EObjectType::Tablet: {
-                        LOG_DEBUG("Grouping %v lookup keys by parition", keys.Size());
-                        auto groupedKeys = GroupKeysByPartition(tablePartId, std::move(keys));
-                        LOG_DEBUG("Grouped lookup keys into %v paritions", groupedKeys.size());
-
-                        for (const auto& keys : groupedKeys) {
-                            if (options.VerboseLogging) {
-                                LOG_DEBUG("Generating lookup reader for keys %v",
-                                    keys.second);
-                            } else {
-                                LOG_DEBUG("Generating lookup reader for %v keys",
-                                    keys.second.Size());
-                            }
-                        }
-
-                        auto slotManager = Bootstrap_->GetTabletSlotManager();
-                        auto tabletSnapshot = slotManager->GetTabletSnapshotOrThrow(tablePartId);
-
-                        slotManager->ValidateTabletAccess(
-                            tabletSnapshot,
-                            NYTree::EPermission::Read,
-                            timestamp);
-
-                        bottomSplitReaderGenerator = [
-                            Logger,
-                            MOVE(tabletSnapshot),
-                            query,
-                            MOVE(groupedKeys),
+                        return GetTabletReader(
+                            query->TableSchema,
                             tablePartId,
-                            timestamp,
-                            index = 0,
-                            this_ = MakeStrong(this)
-                        ] () mutable -> ISchemafulReaderPtr {
-                            if (index == groupedKeys.size()) {
-                                return nullptr;
-                            } else {
-                                const auto& group = groupedKeys[index++];
-
-                                auto columnFilter = GetColumnFilter(query->TableSchema, tabletSnapshot->Schema);
-                                auto result = CreateSchemafulTabletReader(
-                                    std::move(tabletSnapshot),
-                                    columnFilter,
-                                    group.first,
-                                    group.second,
-                                    timestamp);
-
-                                return result;
-                            }
-                        };
-
-                        return CreateUnorderedSchemafulReader(
-                            std::move(bottomSplitReaderGenerator),
-                            Config_->MaxBottomReaderConcurrency);
+                            keys,
+                            timestamp);
                     }
 
                     default:
@@ -626,47 +579,6 @@ private:
         }
 
         return allSplits;
-    }
-
-    std::vector<std::pair<TPartitionSnapshotPtr, TSharedRange<TRow>>> GroupKeysByPartition(
-        const NObjectClient::TObjectId& objectId,
-        TSharedRange<TRow> keys)
-    {
-        std::vector<std::pair<TPartitionSnapshotPtr, TSharedRange<TRow>>> result;
-        // TODO(lukyan): YCHECK(sorted)
-
-        YCHECK(TypeFromId(objectId) == EObjectType::Tablet);
-
-        auto slotManager = Bootstrap_->GetTabletSlotManager();
-        auto tabletSnapshot = slotManager->GetTabletSnapshotOrThrow(objectId);
-        const auto& partitions = tabletSnapshot->Partitions;
-
-        auto currentPartition = partitions.begin();
-        auto currentIt = begin(keys);
-        while (currentIt != end(keys)) {
-            auto nextPartition = std::upper_bound(
-                currentPartition,
-                partitions.end(),
-                *currentIt,
-                [] (TRow lhs, const TPartitionSnapshotPtr& rhs) {
-                    return lhs < rhs->PivotKey;
-                });
-
-            auto nextIt = nextPartition != partitions.end()
-                ? std::lower_bound(currentIt, end(keys), (*nextPartition)->PivotKey)
-                : end(keys);
-
-            // TODO(babenko): fixme, data ownership?
-            TPartitionSnapshotPtr ptr = *currentPartition;
-            result.emplace_back(
-                ptr,
-                MakeSharedRange(MakeRange<TRow>(currentIt, nextIt), keys.GetHolder()));
-
-            currentIt = nextIt;
-            currentPartition = nextPartition;
-        }
-
-        return result;
     }
 
     std::pair<int, int> GetBoundSampleKeys(

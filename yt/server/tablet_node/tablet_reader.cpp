@@ -140,7 +140,9 @@ ISchemafulReaderPtr CreateSchemafulTabletReader(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-ISchemafulReaderPtr CreateSchemafulTabletReader(
+namespace {
+
+ISchemafulReaderPtr CreateSchemafulPartitionReader(
     TTabletSnapshotPtr tabletSnapshot,
     const TColumnFilter& columnFilter,
     TPartitionSnapshotPtr paritionSnapshot,
@@ -165,11 +167,12 @@ ISchemafulReaderPtr CreateSchemafulTabletReader(
     takePartition(tabletSnapshot->Eden);
     takePartition(paritionSnapshot);
 
-    LOG_DEBUG("Creating schemaful tablet reader (TabletId: %v, CellId: %v, Timestamp: %v, StoreIds: [%v])",
+    LOG_DEBUG("Creating schemaful tablet reader (TabletId: %v, CellId: %v, Timestamp: %v, StoreIds: [%v], StoreRanges: {%v})",
         tabletSnapshot->TabletId,
         tabletSnapshot->CellId,
         timestamp,
-        JoinToString(stores, TStoreIdFormatter()));
+        JoinToString(stores, TStoreIdFormatter()),
+        JoinToString(stores, StoreRangeFormatter));
 
     auto rowMerger = New<TSchemafulRowMerger>(
         rowBuffer
@@ -192,6 +195,8 @@ ISchemafulReaderPtr CreateSchemafulTabletReader(
             }
         });
 }
+
+} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -235,7 +240,7 @@ ISchemafulReaderPtr CreateSchemafulTabletReader(
         index = 0
     ] () mutable -> ISchemafulReaderPtr {
         if (index < partitionedKeys.size()) {
-            auto reader = CreateSchemafulTabletReader(
+            auto reader = CreateSchemafulPartitionReader(
                 tabletSnapshot,
                 columnFilter,
                 partitions[index],
