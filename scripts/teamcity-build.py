@@ -15,12 +15,19 @@ import select
 import socket
 import shutil
 import signal
-import subprocess
 import sys
 import tempfile
 import time
 import traceback
 import xml.etree.ElementTree as etree
+
+try:
+    import subprocess32 as subprocess
+except ImportError:
+    if sys.version_info[:2] <= (2, 6):
+        print >>sys.stderr, "Script may not work properly on python of version <= 2.6 " \
+                            "because subprocess32 library is not installed."
+    import subprocess
 
 ################################################################################
 # These methods are used to mark actual steps to be executed.
