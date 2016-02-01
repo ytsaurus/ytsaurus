@@ -57,11 +57,6 @@ public:
 private:
     typedef TNonversionedObjectProxyBase<TChunk> TBase;
 
-    virtual bool IsLeaderReadRequired() const override
-    {
-        // Needed due to TChunkManager::ComputeChunkStatus call below.
-        return true;
-    }
 
     virtual void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override
     {
@@ -155,6 +150,8 @@ private:
 
     virtual bool GetBuiltinAttribute(const Stroka& key, IYsonConsumer* consumer) override
     {
+        RequireLeader();
+
         auto chunkManager = Bootstrap_->GetChunkManager();
         auto cypressManager = Bootstrap_->GetCypressManager();
 

@@ -236,14 +236,6 @@ DEFINE_YPATH_SERVICE_METHOD(TObjectProxyBase, CheckPermission)
     context->Reply();
 }
 
-IYPathService::TResolveResult TObjectProxyBase::Resolve(const TYPath& path, IServiceContextPtr context)
-{
-    if (IsFollower() && IsLeaderReadRequired() && !NHydra::HasMutationContext()) {
-        throw TLeaderFallbackException();
-    }
-    return TYPathServiceBase::Resolve(path, context);
-}
-
 void TObjectProxyBase::Invoke(IServiceContextPtr context)
 {
     const auto& requestHeader = context->RequestHeader();
@@ -714,9 +706,9 @@ bool TObjectProxyBase::IsSecondaryMaster() const
     return Bootstrap_->IsSecondaryMaster();
 }
 
-bool TObjectProxyBase::IsLeaderReadRequired() const
+void TObjectProxyBase::RequireLeader() const
 {
-    return false;
+    Bootstrap_->GetHydraFacade()->RequireLeader();
 }
 
 void TObjectProxyBase::PostToSecondaryMasters(IServiceContextPtr context)

@@ -682,11 +682,6 @@ private:
         return TBase::SetBuiltinAttributeAsync(key, value);
     }
 
-    virtual bool IsLeaderReadRequired() const override
-    {
-        return Any(Options_ & EVirtualNodeOptions::RequireLeader);
-    }
-
 
     static ISystemAttributeProvider* GetTargetBuiltinAttributeProvider(IYPathServicePtr service)
     {

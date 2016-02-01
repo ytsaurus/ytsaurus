@@ -4,6 +4,7 @@
 #include "chunk_list.h"
 
 #include <yt/server/cell_master/bootstrap.h>
+#include <yt/server/cell_master/hydra_facade.h>
 
 #include <yt/server/chunk_server/chunk_manager.h>
 
@@ -38,6 +39,7 @@ private:
 
     const yhash_set<TChunk*>& GetFilteredChunks() const
     {
+        Bootstrap_->GetHydraFacade()->RequireLeader();
         auto chunkManager = Bootstrap_->GetChunkManager();
         switch (Type_) {
             case EObjectType::LostChunkMap:
@@ -138,7 +140,7 @@ INodeTypeHandlerPtr CreateChunkMapTypeHandler(
         BIND([=] (INodePtr owningNode) -> IYPathServicePtr {
             return New<TVirtualChunkMap>(bootstrap, owningNode, type);
         }),
-        EVirtualNodeOptions::RequireLeader | EVirtualNodeOptions::RedirectSelf);
+        EVirtualNodeOptions::RedirectSelf);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -186,7 +188,7 @@ INodeTypeHandlerPtr CreateChunkListMapTypeHandler(TBootstrap* bootstrap)
         BIND([=] (INodePtr owningNode) -> IYPathServicePtr {
             return New<TVirtualChunkListMap>(bootstrap, owningNode);
         }),
-        EVirtualNodeOptions::RequireLeader | EVirtualNodeOptions::RedirectSelf);
+        EVirtualNodeOptions::RedirectSelf);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

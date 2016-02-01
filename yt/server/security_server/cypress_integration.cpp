@@ -75,7 +75,7 @@ INodeTypeHandlerPtr CreateAccountMapTypeHandler(TBootstrap* bootstrap)
         BIND([=] (INodePtr owningNode) -> IYPathServicePtr {
             return New<TVirtualAccountMap>(bootstrap, owningNode);
         }),
-        EVirtualNodeOptions::RequireLeader | EVirtualNodeOptions::RedirectSelf);
+        EVirtualNodeOptions::RedirectSelf);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -127,7 +127,7 @@ INodeTypeHandlerPtr CreateUserMapTypeHandler(TBootstrap* bootstrap)
         BIND([=] (INodePtr owningNode) -> IYPathServicePtr {
             return New<TVirtualUserMap>(bootstrap, owningNode);
         }),
-        EVirtualNodeOptions::RequireLeader | EVirtualNodeOptions::RedirectSelf);
+        EVirtualNodeOptions::RedirectSelf);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -179,7 +179,7 @@ INodeTypeHandlerPtr CreateGroupMapTypeHandler(TBootstrap* bootstrap)
         BIND([=] (INodePtr owningNode) -> IYPathServicePtr {
             return New<TVirtualGroupMap>(bootstrap, owningNode);
         }),
-        EVirtualNodeOptions::RequireLeader | EVirtualNodeOptions::RedirectSelf);
+        EVirtualNodeOptions::RedirectSelf);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

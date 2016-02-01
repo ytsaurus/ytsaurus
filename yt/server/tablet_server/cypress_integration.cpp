@@ -166,7 +166,7 @@ INodeTypeHandlerPtr CreateTabletMapTypeHandler(TBootstrap* bootstrap)
         BIND([=] (INodePtr owningNode) -> IYPathServicePtr {
             return New<TVirtualTabletMap>(bootstrap, owningNode);
         }),
-        EVirtualNodeOptions::RequireLeader | EVirtualNodeOptions::RedirectSelf);
+        EVirtualNodeOptions::RedirectSelf);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

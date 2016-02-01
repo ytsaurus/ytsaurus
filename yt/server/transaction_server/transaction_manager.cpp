@@ -75,12 +75,6 @@ public:
 private:
     typedef TNonversionedObjectProxyBase<TTransaction> TBase;
 
-    virtual bool IsLeaderReadRequired() const override
-    {
-        // Needed due to "last_ping_time" attribute.
-        return true;
-    }
-
     virtual void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override
     {
         TBase::ListSystemAttributes(descriptors);
@@ -112,6 +106,8 @@ private:
 
     virtual bool GetBuiltinAttribute(const Stroka& key, IYsonConsumer* consumer) override
     {
+        RequireLeader();
+
         const auto* transaction = GetThisTypedImpl();
 
         if (key == "state") {

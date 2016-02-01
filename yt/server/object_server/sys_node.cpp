@@ -43,13 +43,7 @@ public:
 private:
     typedef TMapNodeProxy TBase;
 
-    virtual bool IsLeaderReadRequired() const override
-    {
-        // Needed due to "chunk_replicator_enabled" attribute.
-        return true;
-    }
-
-    void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors)
+    virtual void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override
     {
         TBase::ListSystemAttributes(descriptors);
 
@@ -61,8 +55,10 @@ private:
         descriptors->push_back("chunk_replicator_enabled");
     }
 
-    bool GetBuiltinAttribute(const Stroka& key, IYsonConsumer* consumer)
+    virtual bool GetBuiltinAttribute(const Stroka& key, IYsonConsumer* consumer) override
     {
+        RequireLeader();
+
         auto hydraFacade = Bootstrap_->GetHydraFacade();
 
         if (key == "cell_tag") {
@@ -106,10 +102,10 @@ private:
         return TBase::GetBuiltinAttribute(key, consumer);
     }
 
-    void ValidateCustomAttributeUpdate(
+    virtual void ValidateCustomAttributeUpdate(
         const Stroka& key,
         const TNullable<TYsonString>& /*oldValue*/,
-        const TNullable<TYsonString>& newValue)
+        const TNullable<TYsonString>& newValue) override
     {
         if (key == "disable_chunk_replicator" && newValue) {
             ConvertTo<bool>(*newValue);

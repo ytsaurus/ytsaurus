@@ -150,12 +150,6 @@ public:
     { }
 
 private:
-    virtual bool IsLeaderReadRequired() const override
-    {
-        // Needed due to "chunk_replicator_enabled" attribute.
-        return true;
-    }
-
     virtual void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override
     {
         TMapNodeProxy::ListSystemAttributes(descriptors);
@@ -173,6 +167,8 @@ private:
 
     virtual bool GetBuiltinAttribute(const Stroka& key, IYsonConsumer* consumer) override
     {
+        RequireLeader();
+
         auto nodeTracker = Bootstrap_->GetNodeTracker();
         auto chunkManager = Bootstrap_->GetChunkManager();
 
@@ -321,7 +317,7 @@ INodeTypeHandlerPtr CreateRackMapTypeHandler(TBootstrap* bootstrap)
         BIND([=] (INodePtr owningNode) -> IYPathServicePtr {
             return New<TVirtualRackMap>(bootstrap, owningNode);
         }),
-        EVirtualNodeOptions::RequireLeader | EVirtualNodeOptions::RedirectSelf);
+        EVirtualNodeOptions::RedirectSelf);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

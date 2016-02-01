@@ -109,8 +109,7 @@ private:
 
 DEFINE_BIT_ENUM(EVirtualNodeOptions,
     ((None)            (0x0000))
-    ((RequireLeader)   (0x0001))
-    ((RedirectSelf)    (0x0002))
+    ((RedirectSelf)    (0x0001))
 );
 
 using TYPathServiceProducer = TCallback<NYTree::IYPathServicePtr(NYTree::INodePtr owningNode)>;
