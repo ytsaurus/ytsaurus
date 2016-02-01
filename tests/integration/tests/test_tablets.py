@@ -822,7 +822,7 @@ class TestTablets(YTEnvSetup):
 
         assert lookup_rows("//tmp/t", keys) == rows
 
-        self._sync_unmount_table("//tmp/t")
+        self.sync_unmount_table("//tmp/t")
 
         set("//tmp/t/@schema", [
             {"name": "key", "type": "int64"},
@@ -830,7 +830,7 @@ class TestTablets(YTEnvSetup):
             {"name": "value", "type": "string"}]);
         set("//tmp/t/@key_columns", ["key", "key2"])
 
-        self._sync_mount_table("//tmp/t")
+        self.sync_mount_table("//tmp/t")
 
         assert lookup_rows("//tmp/t", keys, column_names=["key", "value"]) == rows
 
