@@ -633,7 +633,7 @@ private:
                 : end(keys);
 
             // TODO(babenko): fixme, data ownership?
-            TPartitionSnapshotPtr ptr = *currentPartition;
+            TPartitionSnapshotPtr ptr = *(nextPartition - 1);
             result.emplace_back(
                 ptr,
                 MakeSharedRange(MakeRange<TRow>(currentIt, nextIt), keys.GetHolder()));
