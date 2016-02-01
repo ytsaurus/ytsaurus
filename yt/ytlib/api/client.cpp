@@ -1279,6 +1279,11 @@ public:
         const TJobId& jobId,
         const TAbandonJobOptions& options),
         (jobId, options))
+    IMPLEMENT_METHOD(TYsonString, PollJobShell, (
+        const TJobId& jobId,
+        const TYsonString& parameters,
+        const TPollJobShellOptions& options),
+        (jobId, parameters, options))
 
 #undef DROP_BRACES
 #undef IMPLEMENT_METHOD
@@ -2595,6 +2600,21 @@ private:
 
         WaitFor(req->Invoke())
             .ThrowOnError();
+    }
+
+    TYsonString DoPollJobShell(
+        const TJobId& jobId,
+        const TYsonString& parameters,
+        const TPollJobShellOptions& options)
+    {
+        auto req = JobProberProxy_->PollJobShell();
+        ToProto(req->mutable_job_id(), jobId);
+        ToProto(req->mutable_parameters(), parameters.Data());
+
+        auto rsp = WaitFor(req->Invoke())
+            .ValueOrThrow();
+
+        return TYsonString(rsp->result());
     }
 };
 

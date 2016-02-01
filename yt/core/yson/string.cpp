@@ -68,6 +68,11 @@ bool operator != (const TYsonString& lhs, const TYsonString& rhs)
     return !(lhs == rhs);
 }
 
+Stroka ToString(const TYsonString& yson)
+{
+    return yson.Data();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYson

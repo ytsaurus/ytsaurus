@@ -92,6 +92,7 @@ function YtDriverFacadeV2(logger, driver)
     delete descriptors.strace_job;
     delete descriptors.signal_job;
     delete descriptors.abandon_job;
+    delete descriptors.poll_job_shell;
 
     delete descriptors.join_reduce;
 

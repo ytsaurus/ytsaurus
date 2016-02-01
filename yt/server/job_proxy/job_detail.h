@@ -35,6 +35,7 @@ public:
     virtual std::vector<NChunkClient::TChunkId> DumpInputContext() override;
     virtual NYson::TYsonString StraceJob() override;
     virtual void SignalJob(const Stroka& signalName) override;
+    virtual NYson::TYsonString PollJobShell(const NYson::TYsonString& parameters) override;
 
 
 

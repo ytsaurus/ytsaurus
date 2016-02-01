@@ -57,6 +57,7 @@ using namespace NCellNode;
 using namespace NNodeTrackerClient::NProto;
 using namespace NJobTrackerClient::NProto;
 using namespace NConcurrency;
+using namespace NYson;
 
 using NNodeTrackerClient::TNodeDescriptor;
 
@@ -185,7 +186,7 @@ public:
         THROW_ERROR_EXCEPTION("Input context dumping is not supported");
     }
 
-    virtual NYson::TYsonString Strace() const override
+    virtual TYsonString Strace() const override
     {
         THROW_ERROR_EXCEPTION("Stracing is not supported");
     }
@@ -193,6 +194,11 @@ public:
     virtual void SignalJob(const Stroka& /*signalName*/) override
     {
         THROW_ERROR_EXCEPTION("Signaling is not supported");
+    }
+
+    virtual TYsonString PollJobShell(const TYsonString& /*parameters*/) override
+    {
+        THROW_ERROR_EXCEPTION("Job shell is not supported");
     }
 
 protected:

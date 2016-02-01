@@ -63,6 +63,7 @@ using namespace NJobTrackerClient::NProto;
 using namespace NConcurrency;
 using namespace NCGroup;
 using namespace NYTree;
+using namespace NYson;
 
 using NJobTrackerClient::TStatistics;
 
@@ -90,7 +91,7 @@ std::vector<NChunkClient::TChunkId> TJobProxy::DumpInputContext(const TJobId& jo
     return Job_->DumpInputContext();
 }
 
-NYson::TYsonString TJobProxy::Strace(const TJobId& jobId)
+TYsonString TJobProxy::Strace(const TJobId& jobId)
 {
     ValidateJobId(jobId);
     return Job_->StraceJob();
@@ -100,6 +101,12 @@ void TJobProxy::SignalJob(const TJobId& jobId, const Stroka& signalName)
 {
     ValidateJobId(jobId);
     Job_->SignalJob(signalName);
+}
+
+TYsonString TJobProxy::PollJobShell(const TJobId& jobId, const TYsonString& parameters)
+{
+    ValidateJobId(jobId);
+    return Job_->PollJobShell(parameters);
 }
 
 void TJobProxy::ValidateJobId(const TJobId& jobId)

@@ -39,6 +39,7 @@ public:
     std::vector<NChunkClient::TChunkId> DumpInputContext(const NJobTrackerClient::TJobId& jobId);
     NYson::TYsonString Strace(const NJobTrackerClient::TJobId& jobId);
     void SignalJob(const NJobTrackerClient::TJobId& jobId, const Stroka& signalName);
+    NYson::TYsonString PollJobShell(const NJobTrackerClient::TJobId& jobId, const NYson::TYsonString& parameters);
 
 private:
     const NYTree::INodePtr ConfigNode_;

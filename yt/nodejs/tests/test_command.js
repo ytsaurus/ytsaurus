@@ -351,6 +351,7 @@ describe("YtCommand - command descriptors", function() {
             'start_tx',
             'strace_job',
             'signal_job',
+            'poll_job_shell',
             'suspend_op',
             'unmount_table',
             'write_file',
