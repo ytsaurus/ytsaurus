@@ -545,5 +545,299 @@ IAsyncZeroCopyInputStreamPtr CreatePrefetchingAdapter(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TBufferingInputStreamAdapterBufferTag { };
+
+class TBufferingInputStreamAdapter
+    : public IAsyncZeroCopyInputStream
+{
+public:
+    TBufferingInputStreamAdapter(
+        IAsyncInputStreamPtr underlyingStream,
+        size_t windowSize)
+        : UnderlyingStream_(underlyingStream)
+        , WindowSize_(windowSize)
+    {
+        YCHECK(UnderlyingStream_);
+        YCHECK(WindowSize_ > 0);
+
+        Buffer_ = TSharedMutableRef::Allocate<TBufferingInputStreamAdapterBufferTag>(WindowSize_, false);
+    }
+
+    virtual TFuture<TSharedRef> Read() override
+    {
+        TGuard<TSpinLock> guard(SpinLock_);
+        if (!Error_.IsOK()) {
+            return MakeFuture<TSharedRef>(Error_);
+        }
+        if (PrefetchedSize_ == 0) {
+            return Prefetch(&guard).Apply(
+                BIND(&TBufferingInputStreamAdapter::OnPrefetched, MakeStrong(this)));
+        }
+        return MakeFuture<TSharedRef>(CopyPrefetched(&guard));
+    }
+
+private:
+    const IAsyncInputStreamPtr UnderlyingStream_;
+    const size_t WindowSize_;
+
+    TSpinLock SpinLock_;
+    TError Error_;
+    TSharedMutableRef Prefetched_;
+    TSharedMutableRef Buffer_;
+    size_t PrefetchedSize_ = 0;
+    TFuture<void> OutstandingResult_;
+
+    TFuture<void> Prefetch(TGuard<TSpinLock>* guard)
+    {
+        if (OutstandingResult_) {
+            guard->Release();
+            return OutstandingResult_;
+        }
+        auto promise = NewPromise<void>();
+        OutstandingResult_ = promise;
+        guard->Release();
+        UnderlyingStream_->Read(Buffer_.Slice(0, WindowSize_ - PrefetchedSize_)).Subscribe(BIND(
+            &TBufferingInputStreamAdapter::OnRead,
+            MakeStrong(this),
+            promise));
+        return promise;
+    }
+
+    void OnRead(TPromise<void> promise, const TErrorOr<size_t>& result)
+    {
+        {
+            TGuard<TSpinLock> guard(SpinLock_);
+            AppendPrefetched(&guard, result);
+        }
+        YASSERT(!result.IsOK() || PrefetchedSize_ != 0);
+        promise.Set(result);
+    }
+
+    TSharedRef OnPrefetched()
+    {
+        TGuard<TSpinLock> guard(SpinLock_);
+        YASSERT(PrefetchedSize_ != 0);
+        return CopyPrefetched(&guard);
+    }
+
+    void AppendPrefetched(TGuard<TSpinLock>* guard, const TErrorOr<size_t>& result)
+    {
+        YASSERT(OutstandingResult_);
+        OutstandingResult_.Reset();
+        if (!result.IsOK()) {
+            Error_ = TError(result);
+            return;
+        }
+        size_t bytes = result.Value();
+        if (bytes != 0) {
+            if (PrefetchedSize_ == 0) {
+                Prefetched_ = Buffer_;
+                Buffer_ = TSharedMutableRef::Allocate<TBufferingInputStreamAdapterBufferTag>(WindowSize_, false);
+            } else {
+                ::memcpy(Prefetched_.Begin() + PrefetchedSize_, Buffer_.Begin(), bytes);
+            }
+        }
+        PrefetchedSize_ += bytes;
+        // Stop reading on the end of stream or full buffer.
+        if (bytes != 0 && PrefetchedSize_ < WindowSize_) {
+            Prefetch(guard);
+        }
+    }
+
+    TSharedRef CopyPrefetched(TGuard<TSpinLock>* guard)
+    {
+        YASSERT(PrefetchedSize_ != 0);
+        auto block = Prefetched_.Slice(0, PrefetchedSize_);
+        Prefetched_ = TSharedMutableRef();
+        PrefetchedSize_ = 0;
+        if (!OutstandingResult_) {
+            Prefetch(guard);
+        }
+        return block;
+    }
+
+};
+
+IAsyncZeroCopyInputStreamPtr CreateBufferingAdapter(
+    IAsyncInputStreamPtr underlyingStream,
+    size_t windowSize)
+{
+    return New<TBufferingInputStreamAdapter>(underlyingStream, windowSize);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TExpiringInputStreamAdapter
+    : public IAsyncZeroCopyInputStream
+{
+public:
+    TExpiringInputStreamAdapter(
+        IAsyncZeroCopyInputStreamPtr underlyingStream,
+        TDuration timeout)
+        : UnderlyingStream_(underlyingStream)
+        , Timeout_(timeout)
+    {
+        YCHECK(UnderlyingStream_);
+        YCHECK(Timeout_ > TDuration::Zero());
+    }
+
+    virtual TFuture<TSharedRef> Read() override
+    {
+        TGuard<TSpinLock> guard(SpinLock_);
+
+        if (PendingBlock_) {
+            auto block = std::move(PendingBlock_);
+            PendingBlock_ = TNullable<TErrorOr<TSharedRef>>();
+
+            return MakeFuture<TSharedRef>(*block);
+        }
+
+        auto promise = NewPromise<TSharedRef>();
+        Cookie_ = TDelayedExecutor::Submit(
+            BIND(&TExpiringInputStreamAdapter::OnTimeout, MakeWeak(this), promise), Timeout_);
+
+        YASSERT(!Promise_);
+        Promise_ = promise;
+
+        if (!Fetching_) {
+            Fetching_ = true;
+            guard.Release();
+
+            UnderlyingStream_->Read().Subscribe(
+                BIND(&TExpiringInputStreamAdapter::OnRead, MakeWeak(this)));
+        }
+        return promise;
+    }
+
+private:
+    const IAsyncZeroCopyInputStreamPtr UnderlyingStream_;
+    const TDuration Timeout_;
+
+    TSpinLock SpinLock_;
+
+    bool Fetching_ = false;
+    TNullable<TErrorOr<TSharedRef>> PendingBlock_;
+    TPromise<TSharedRef> Promise_;
+    TDelayedExecutorCookie Cookie_;
+
+    void OnRead(const TErrorOr<TSharedRef>& value)
+    {
+        TPromise<TSharedRef> promise;
+        TGuard<TSpinLock> guard(SpinLock_);
+        Fetching_ = false;
+        if (Promise_) {
+            swap(Promise_, promise);
+            TDelayedExecutor::CancelAndClear(Cookie_);
+            guard.Release();
+            promise.Set(value);
+        } else {
+            PendingBlock_ = value;
+        }
+
+    }
+
+    void OnTimeout(TPromise<TSharedRef> promise)
+    {
+        bool timedOut = false;
+        {
+            TGuard<TSpinLock> guard(SpinLock_);
+            if (promise == Promise_) {
+                Promise_ = TPromise<TSharedRef>();
+                timedOut = true;
+            }
+        }
+
+        if (timedOut) {
+            promise.Set(TError(NYT::EErrorCode::Timeout, "Operation timed out")
+                << TErrorAttribute("timeout", Timeout_));
+        }
+    }
+};
+
+IAsyncZeroCopyInputStreamPtr CreateExpiringAdapter(
+    IAsyncZeroCopyInputStreamPtr underlyingStream,
+    TDuration timeout)
+{
+    return New<TExpiringInputStreamAdapter>(underlyingStream, timeout);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TConcurrentInputStreamAdapter
+    : public IAsyncZeroCopyInputStream
+{
+public:
+    TConcurrentInputStreamAdapter(
+        IAsyncZeroCopyInputStreamPtr underlyingStream)
+        : UnderlyingStream_(underlyingStream)
+    {
+        YCHECK(UnderlyingStream_);
+    }
+
+    virtual TFuture<TSharedRef> Read() override
+    {
+        TGuard<TSpinLock> guard(SpinLock_);
+
+        if (PendingBlock_) {
+            auto block = std::move(PendingBlock_);
+            PendingBlock_ = TNullable<TErrorOr<TSharedRef>>();
+
+            return MakeFuture<TSharedRef>(*block);
+        }
+
+        auto newPromise = NewPromise<TSharedRef>();
+        auto oldPromise = newPromise;
+        swap(oldPromise, Promise_);
+
+        if (!Fetching_) {
+            Fetching_ = true;
+            guard.Release();
+
+            UnderlyingStream_->Read().Subscribe(
+                BIND(&TConcurrentInputStreamAdapter::OnRead, MakeWeak(this)));
+        }
+        // Always set the pending promise from previous Read.
+        if (oldPromise) {
+            guard.Release();
+            oldPromise.TrySet(TError(NYT::EErrorCode::Canceled, "Read canceled"));
+        }
+        return newPromise;
+    }
+
+private:
+    const IAsyncZeroCopyInputStreamPtr UnderlyingStream_;
+
+    TSpinLock SpinLock_;
+
+    bool Fetching_ = false;
+    TNullable<TErrorOr<TSharedRef>> PendingBlock_;
+    TPromise<TSharedRef> Promise_;
+
+    void OnRead(const TErrorOr<TSharedRef>& value)
+    {
+        TPromise<TSharedRef> promise;
+        {
+            TGuard<TSpinLock> guard(SpinLock_);
+            Fetching_ = false;
+            YASSERT(Promise_);
+            swap(promise, Promise_);
+            if (promise.IsSet()) {
+                YASSERT(!PendingBlock_);
+                PendingBlock_ = value;
+                return;
+            }
+        }
+        promise.Set(value);
+    }
+};
+
+IAsyncZeroCopyInputStreamPtr CreateConcurrentAdapter(
+    IAsyncZeroCopyInputStreamPtr underlyingStream)
+{
+    return New<TConcurrentInputStreamAdapter>(underlyingStream);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NConcurrency
 } // namespace NYT

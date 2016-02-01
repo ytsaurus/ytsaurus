@@ -287,6 +287,23 @@ public:
         THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error sending signal to job proxy");
     }
 
+    virtual TYsonString PollJobShell(const TYsonString& parameters) override
+    {
+        ValidateJobRunning();
+
+        auto jobProberProxy = CreateJobProber();
+        auto req = jobProberProxy.PollJobShell();
+
+        ToProto(req->mutable_job_id(), Id_);
+        ToProto(req->mutable_parameters(), parameters.Data());
+        auto rspOrError = WaitFor(req->Invoke());
+        THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error polling job shell");
+        const auto& rsp = rspOrError.Value();
+
+        return TYsonString(rsp->result());
+    }
+
+
 private:
     const TJobId Id_;
     const TOperationId OperationId_;

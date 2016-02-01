@@ -358,7 +358,7 @@ void SafeLoginTty(int slaveFD)
     }
 }
 
-void SafeSetTtyWindowSize(int fd, i32 height, i32 width)
+void SafeSetTtyWindowSize(int fd, int height, int width)
 {
     if (height > 0 && width > 0) {
         struct winsize ws;
@@ -511,7 +511,7 @@ void SafeLoginTty(int /* slaveFD */)
     YUNIMPLEMENTED();
 }
 
-void SafeSetTtyWindowSize(int /* slaveFD */, i32 /* height */, i32 /* width */)
+void SafeSetTtyWindowSize(int /* slaveFD */, int /* height */, int /* width */)
 {
     YUNIMPLEMENTED();
 }

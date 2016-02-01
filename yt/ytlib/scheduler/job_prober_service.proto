@@ -40,4 +40,17 @@ message TReqAbandonJob
 message TRspAbandonJob
 { }
 
+message TReqPollJobShell
+{
+    required NYT.NProto.TGuid job_id = 1;
+    // Parameters in YSON format.
+    required string parameters = 2;
+}
+
+message TRspPollJobShell
+{
+    // Result in YSON format.
+    required string result = 1;
+}
+
 ////////////////////////////////////////////////////////////////////////////////

@@ -156,6 +156,7 @@ public:
         REGISTER(TStraceJobCommand,            "strace_job",              Null,       Structured, false, false);
         REGISTER(TSignalJobCommand,            "signal_job",              Null,       Null,       false, false);
         REGISTER(TAbandonJobCommand,           "abandon_job",             Null,       Null,       false, false);
+        REGISTER(TPollJobShellCommand,         "poll_job_shell",          Null,       Structured, true,  false);
 
         REGISTER(TGetVersionCommand,           "get_version",             Null,       Structured, false, false);
 

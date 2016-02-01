@@ -68,6 +68,7 @@ public:
     TFuture<void> DumpInputContext(const TJobId& jobId, const NYPath::TYPath& path);
     TFuture<void> SignalJob(const TJobId& jobId, const Stroka& signalName);
     TFuture<void> AbandonJob(const TJobId& jobId);
+    TFuture<NYson::TYsonString> PollJobShell(const TJobId& jobId, const NYson::TYsonString& parameters);
 
     using TCtxHeartbeat = NRpc::TTypedServiceContext<
         NJobTrackerClient::NProto::TReqHeartbeat,
