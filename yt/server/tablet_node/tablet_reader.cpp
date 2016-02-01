@@ -49,7 +49,7 @@ void StoreRangeFormatter(TStringBuilder* builder, const IStorePtr& store)
 ////////////////////////////////////////////////////////////////////////////////
 
 void TakePartition(
-    std::vector<IStorePtr*& stores,
+    std::vector<IStorePtr>* stores,
     const TPartitionSnapshotPtr& partitionSnapshot,
     TKey minKey,
     TKey maxKey)

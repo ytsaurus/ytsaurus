@@ -370,8 +370,6 @@ void TBootstrap::DoInitialize()
     PrimaryCellId_ = Config_->PrimaryMaster->CellId;
     PrimaryCellTag_ = CellTagFromId(PrimaryCellId_);
 
-    auto busServer = CreateTcpBusServer(Config_->BusServer);
-
     for (const auto& cellConfig : Config_->SecondaryMasters) {
         SecondaryCellTags_.push_back(CellTagFromId(cellConfig->CellId));
     }
@@ -409,8 +407,10 @@ void TBootstrap::DoInitialize()
         "/orchid",
         NMonitoring::GetYPathHttpHandler(orchidRoot->Via(GetControlInvoker())));
 
-    auto busServerConfig = TTcpBusServerConfig::CreateTcp(Config_->RpcPort);
-    auto busServer = CreateTcpBusServer(busServerConfig);
+    auto busServer = CreateTcpBusServer(Config_->BusServer);
+    // TODO(ignat): remove?
+    //auto busServerConfig = TTcpBusServerConfig::CreateTcp(Config_->RpcPort);
+    //auto busServer = CreateTcpBusServer(busServerConfig);
 
     RpcServer_ = CreateBusServer(busServer);
 
