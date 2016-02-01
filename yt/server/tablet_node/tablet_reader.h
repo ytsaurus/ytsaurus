@@ -27,7 +27,8 @@ NTableClient::ISchemafulReaderPtr CreateSchemafulTabletReader(
     const TColumnFilter& columnFilter,    
     TPartitionSnapshotPtr paritionSnapshot,
     const TSharedRange<TKey>& keys,
-    TTimestamp timestamp);
+    TTimestamp timestamp,
+    NTableClient::TRowBufferPtr rowBuffer = nullptr);
 
 NTableClient::ISchemafulReaderPtr CreateSchemafulTabletReader(
     TTabletSnapshotPtr tabletSnapshot,
