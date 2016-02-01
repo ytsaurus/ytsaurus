@@ -327,7 +327,7 @@ void TBootstrap::DoInitialize()
         THROW_ERROR_EXCEPTION("Error parsing cell master configuration")
             << ex;
     }
-    
+
     Config_->PrimaryMaster->ValidateAllPeersPresent();
     for (auto cellConfig : Config_->SecondaryMasters) {
         cellConfig->ValidateAllPeersPresent();
@@ -402,10 +402,6 @@ void TBootstrap::DoInitialize()
         Config_->MonitoringPort,
         Config_->BusServer->BindRetryCount,
         Config_->BusServer->BindRetryBackoff);
-
-    HttpServer_->Register(
-        "/orchid",
-        NMonitoring::GetYPathHttpHandler(orchidRoot->Via(GetControlInvoker())));
 
     auto busServer = CreateTcpBusServer(Config_->BusServer);
     // TODO(ignat): remove?
@@ -527,6 +523,11 @@ void TBootstrap::DoInitialize()
         orchidRoot,
         "/config",
         ConfigNode_);
+
+    // TODO(ignat): does this registration still necessary?
+    HttpServer_->Register(
+        "/orchid",
+        NMonitoring::GetYPathHttpHandler(orchidRoot->Via(GetControlInvoker())));
 
     SetBuildAttributes(orchidRoot, "master");
 
