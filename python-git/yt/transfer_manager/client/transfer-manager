@@ -59,7 +59,7 @@ def add_tasks_func(**kwargs):
 def _add_new_task_parameters(parser):
     parser.add_argument("--src-cluster", required=True, help="source cluster name, e.g. plato")
     parser.add_argument("--dst-cluster", required=True, help="destination cluster name, e.g. redwood")
-    parser.add_argument("--params", help="task parameters")
+    parser.add_argument("--params", help="task parameters (in JSON format)")
     parser.add_argument("--token", help="YT token")
 
     parser.add_argument("--sync", action="store_true", default=False,
