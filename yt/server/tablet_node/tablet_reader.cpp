@@ -71,11 +71,21 @@ ISchemafulReaderPtr CreateSchemafulTabletReader(
     TTimestamp timestamp)
 {
     std::vector<IStorePtr> stores;
-    TakePartition(&stores, tabletSnapshot->Eden, lowerBound, upperBound);
+
+    // Pick stores which intersect [lowerBound, upperBound) (excluding upperBound).
+    auto takePartition = [&] (const TPartitionSnapshotPtr& partitionSnapshot) {
+        for (const auto& store : partitionSnapshot->Stores) {
+            if (store->GetMinKey() < upperBound && store->GetMaxKey() >= lowerBound) {
+                stores.push_back(store);
+            }
+        }
+    };
+
+    takePartition(tabletSnapshot->Eden);
 
     auto range = tabletSnapshot->GetIntersectingPartitions(lowerBound, upperBound);
     for (auto it = range.first; it != range.second; ++it) {
-        TakePartition(&stores, *it, lowerBound, upperBound);
+        takePartition(*it);
     }
 
     LOG_DEBUG("Creating schemaful tablet reader (TabletId: %v, CellId: %v, Timestamp: %v, "
@@ -132,7 +142,7 @@ ISchemafulReaderPtr CreateSchemafulTabletReader(
 
 ISchemafulReaderPtr CreateSchemafulTabletReader(
     TTabletSnapshotPtr tabletSnapshot,
-    const TColumnFilter& columnFilter,    
+    const TColumnFilter& columnFilter,
     TPartitionSnapshotPtr paritionSnapshot,
     const TSharedRange<TKey>& keys,
     TTimestamp timestamp,
@@ -140,10 +150,20 @@ ISchemafulReaderPtr CreateSchemafulTabletReader(
 {
     TKey minKey = *keys.Begin();
     TKey maxKey = *(keys.End() - 1);
-
     std::vector<IStorePtr> stores;
-    TakePartition(&stores, tabletSnapshot->Eden, minKey, maxKey);
-    TakePartition(&stores, paritionSnapshot, minKey, maxKey);
+
+    // Pick stores which intersect [minKey, maxKey] (including maxKey).
+    auto takePartition = [&] (const TPartitionSnapshotPtr& partitionSnapshot) {
+        YASSERT(partitionSnapshot);
+        for (const auto& store : partitionSnapshot->Stores) {
+            if (store->GetMinKey() <= maxKey && store->GetMaxKey() >= minKey) {
+                stores.push_back(store);
+            }
+        }
+    };
+
+    takePartition(tabletSnapshot->Eden);
+    takePartition(paritionSnapshot);
 
     LOG_DEBUG("Creating schemaful tablet reader (TabletId: %v, CellId: %v, Timestamp: %v, StoreIds: [%v])",
         tabletSnapshot->TabletId,
