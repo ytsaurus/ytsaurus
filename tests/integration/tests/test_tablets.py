@@ -825,10 +825,9 @@ class TestTablets(YTEnvSetup):
         self.sync_unmount_table("//tmp/t")
 
         set("//tmp/t/@schema", [
-            {"name": "key", "type": "int64"},
-            {"name": "key2", "type": "int64"},
-            {"name": "value", "type": "string"}]);
-        set("//tmp/t/@key_columns", ["key", "key2"])
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "key2", "type": "int64", "sort_order": "ascending"},
+            {"name": "value", "type": "string"}])
 
         self.sync_mount_table("//tmp/t")
 
