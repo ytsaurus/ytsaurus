@@ -1466,7 +1466,7 @@ private:
 
             for (int index = 0; index < keys.size(); ++index) {
                 ValidateClientKey(keys[index], keyColumnCount, tableInfo->Schema, idMapping);
-                auto capturedKey = evaluator->EvaluateKeys(keys[index], rowBuffer, idMapping);
+                auto capturedKey = evaluator->EvaluateKeys(keys[index], rowBuffer, idMapping, tableInfo->Schema);
                 sortedKeys.push_back(std::make_pair(capturedKey, index));
             }
 
@@ -2598,7 +2598,7 @@ private:
 
                 for (auto row : rows) {
                     validateRow(row, keyColumnCount, TableInfo_->Schema, idMapping);
-                    auto capturedRow = evaluator->EvaluateKeys(row, rowBuffer, idMapping);
+                    auto capturedRow = evaluator->EvaluateKeys(row, rowBuffer, idMapping, TableInfo_->Schema);
                     writeRequest(capturedRow);
                 }
             } else {
