@@ -73,7 +73,7 @@ template <class TMerger>
 class TTabletReaderBase
     : public virtual TRefCounted
 {
-public:
+protected:
     TTabletReaderBase(
         TTabletPerformanceCountersPtr performanceCounters,
         const TDynamicRowKeyComparer& keyComparer)
@@ -392,7 +392,8 @@ public:
         const TTableSchema& schema,
         TOwningKey lowerBound,
         TOwningKey upperBound,
-        TTimestamp timestamp)
+        TTimestamp timestamp,
+        const TWorkloadDescriptor& workloadDescriptor)
     {
         // Select stores.
         std::vector<IStorePtr> stores;
@@ -411,11 +412,12 @@ public:
             takePartition(*it);
         }
 
-        LOG_DEBUG("Creating schemaful tablet reader (TabletId: %v, CellId: %v, Timestamp: %v, StoreIds: [%v])",
+        LOG_DEBUG("Creating schemaful tablet reader (TabletId: %v, CellId: %v, Timestamp: %v, StoreIds: [%v], WorkloadDescriptor: %v)",
             tabletSnapshot->TabletId,
             tabletSnapshot->Slot->GetCellId(),
             timestamp,
-            JoinToString(stores, TStoreIdFormatter()));
+            JoinToString(stores, TStoreIdFormatter()),
+            workloadDescriptor);
 
         if (stores.size() > tabletSnapshot->Config->MaxReadFanIn) {
             THROW_ERROR_EXCEPTION("Read fan-in limit exceeded; please wait until your data is merged")
@@ -436,7 +438,8 @@ public:
                 lowerBound,
                 upperBound,
                 timestamp,
-                columnFilter));
+                columnFilter,
+                workloadDescriptor));
         }
 
         result->RowMerger_ = std::make_unique<TSchemafulRowMerger>(
@@ -470,7 +473,7 @@ private:
 
 class TTabletKeysReader
     : public ISchemafulReader
-    , public TTabletReaderBase<TSimpleMerger>
+    , protected TTabletReaderBase<TSimpleMerger>
 {
 public:
     TTabletKeysReader(
@@ -498,13 +501,15 @@ public:
         const TTableSchema& schema,
         TSharedRange <TKey> keys,
         TTimestamp timestamp,
-        std::vector<IStorePtr> stores)
+        std::vector<IStorePtr> stores,
+        const TWorkloadDescriptor& workloadDescriptor)
     {
-        LOG_DEBUG("Creating schemaful tablet reader (TabletId: %v, CellId: %v, Timestamp: %v, StoreIds: [%v])",
+        LOG_DEBUG("Creating schemaful tablet reader (TabletId: %v, CellId: %v, Timestamp: %v, StoreIds: [%v], WorkloadDescriptor: %v)",
             tabletSnapshot->TabletId,
             tabletSnapshot->Slot->GetCellId(),
             timestamp,
-            JoinToString(stores, TStoreIdFormatter()));
+            JoinToString(stores, TStoreIdFormatter()),
+            workloadDescriptor);
 
         if (stores.size() > tabletSnapshot->Config->MaxReadFanIn) {
             THROW_ERROR_EXCEPTION("Read fan-in limit exceeded; please wait until your data is merged")
@@ -524,7 +529,8 @@ public:
             result->AddReader(store->CreateReader(
                 keys,
                 timestamp,
-                columnFilter));
+                columnFilter,
+                workloadDescriptor));
         }
 
         result->RowMerger_ = std::make_unique<TSchemafulRowMerger>(
@@ -562,14 +568,16 @@ ISchemafulReaderPtr CreateSchemafulTabletReader(
     const TTableSchema& schema,
     TOwningKey lowerBound,
     TOwningKey upperBound,
-    TTimestamp timestamp)
+    TTimestamp timestamp,
+    const TWorkloadDescriptor& workloadDescriptor)
 {
     return TTabletRangeReader::Create(
         std::move(tabletSnapshot),
         schema,
         std::move(lowerBound),
         std::move(upperBound),
-        timestamp);
+        timestamp,
+        workloadDescriptor);
 }
 
 
@@ -577,7 +585,8 @@ ISchemafulReaderPtr CreateSchemafulTabletReader(
     TTabletSnapshotPtr tabletSnapshot,
     const TTableSchema& schema,
     const TSharedRange<TKey>& keys,
-    TTimestamp timestamp)
+    TTimestamp timestamp,
+    const TWorkloadDescriptor& workloadDescriptor)
 {
     TKey minKey;
     TKey maxKey;
@@ -609,7 +618,8 @@ ISchemafulReaderPtr CreateSchemafulTabletReader(
         schema,
         std::move(keys),
         timestamp,
-        std::move(stores));
+        std::move(stores),
+        workloadDescriptor);
 }
 
 ISchemafulReaderPtr CreateSchemafulTabletReader(
@@ -617,7 +627,8 @@ ISchemafulReaderPtr CreateSchemafulTabletReader(
     const TTableSchema& schema,
     TPartitionSnapshotPtr paritionSnapshot,
     const TSharedRange<TKey>& keys,
-    TTimestamp timestamp)
+    TTimestamp timestamp,
+    const TWorkloadDescriptor& workloadDescriptor)
 {
     YCHECK(keys.Size() > 0);
 
@@ -635,7 +646,8 @@ ISchemafulReaderPtr CreateSchemafulTabletReader(
         schema,
         std::move(keys),
         timestamp,
-        std::move(stores));
+        std::move(stores),
+        workloadDescriptor);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -652,7 +664,8 @@ public:
         TOwningKey lowerBound,
         TOwningKey upperBound,
         TTimestamp currentTimestamp,
-        TTimestamp majorTimestamp)
+        TTimestamp majorTimestamp,
+        const TWorkloadDescriptor& workloadDescriptor)
          : TTabletReaderBase(
             tabletSnapshot->PerformanceCounters,
             tabletSnapshot->RowKeyComparer)
@@ -667,6 +680,7 @@ public:
             majorTimestamp)
         , LowerBound_(std::move(lowerBound))
         , UpperBound_(std::move(upperBound))
+        , WorkloadDescriptor_(workloadDescriptor)
     { }
 
     virtual TFuture<void> Open() override
@@ -707,6 +721,8 @@ private:
     TVersionedRowMerger RowMerger_;
     const TOwningKey LowerBound_;
     const TOwningKey UpperBound_;
+    const TColumnFilter ColumnFilter_;
+    const TWorkloadDescriptor WorkloadDescriptor_;
     
 
     void DoOpen()
@@ -727,7 +743,8 @@ private:
                 LowerBound_,
                 UpperBound_,
                 AllCommittedTimestamp,
-                TColumnFilter()));
+                ColumnFilter_,
+                WorkloadDescriptor_));
         }
 
         TBase::DoOpen();
@@ -742,7 +759,8 @@ IVersionedReaderPtr CreateVersionedTabletReader(
     TOwningKey lowerBound,
     TOwningKey upperBound,
     TTimestamp currentTimestamp,
-    TTimestamp majorTimestamp)
+    TTimestamp majorTimestamp,
+    const TWorkloadDescriptor& workloadDescriptor)
 {
     return New<TVersionedTabletReader>(
         std::move(poolInvoker),
@@ -751,7 +769,8 @@ IVersionedReaderPtr CreateVersionedTabletReader(
         std::move(lowerBound),
         std::move(upperBound),
         currentTimestamp,
-        majorTimestamp);
+        majorTimestamp,
+        workloadDescriptor);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

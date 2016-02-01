@@ -6,6 +6,8 @@
 
 #include <yt/ytlib/node_tracker_client/node_directory.h>
 
+#include <yt/ytlib/misc/workload.h>
+
 #include <yt/ytlib/table_client/row_buffer.h>
 #include <yt/ytlib/table_client/schema.h>
 #include <yt/ytlib/table_client/unversioned_row.h>
@@ -414,6 +416,7 @@ struct TQueryOptions
     int MaxSubqueries = std::numeric_limits<int>::max();
     ui64 RangeExpansionLimit = 0;
     bool EnableCodeCache = true;
+    TWorkloadDescriptor WorkloadDescriptor;
 };
 
 struct TDataRange

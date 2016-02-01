@@ -64,7 +64,8 @@ struct IStore
         TOwningKey lowerKey,
         TOwningKey upperKey,
         TTimestamp timestamp,
-        const TColumnFilter& columnFilter) = 0;
+        const TColumnFilter& columnFilter,
+        const TWorkloadDescriptor& workloadDescriptor) = 0;
 
     //! Creates a reader for the set of |keys|.
     /*!
@@ -80,7 +81,8 @@ struct IStore
     virtual NTableClient::IVersionedReaderPtr CreateReader(
         const TSharedRange<TKey>& keys,
         TTimestamp timestamp,
-        const TColumnFilter& columnFilter) = 0;
+        const TColumnFilter& columnFilter,
+        const TWorkloadDescriptor& workloadDescriptor) = 0;
 
     //! Checks that #transaction attempting to take locks indicated by #lockMask
     //! has no conflicts within the store. Throws on failure.

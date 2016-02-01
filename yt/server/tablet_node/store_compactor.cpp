@@ -402,7 +402,8 @@ private:
                 tabletPivotKey,
                 nextTabletPivotKey,
                 currentTimestamp,
-                MinTimestamp); // NB: No major compaction during Eden partitioning.
+                MinTimestamp,
+                TWorkloadDescriptor(EWorkloadCategory::SystemTabletPartitioning)); // NB: No major compaction during Eden partitioning.
 
             SwitchTo(poolInvoker);
 
@@ -670,7 +671,8 @@ private:
                 tabletPivotKey,
                 nextTabletPivotKey,
                 currentTimestamp,
-                majorTimestamp);
+                majorTimestamp,
+                TWorkloadDescriptor(EWorkloadCategory::SystemTabletCompaction));
 
             SwitchTo(poolInvoker);
         

@@ -163,6 +163,7 @@ public:
     void Read(
         TTabletSnapshotPtr tabletSnapshot,
         TTimestamp timestamp,
+        const TWorkloadDescriptor& workloadDescriptor,
         TWireProtocolReader* reader,
         TWireProtocolWriter* writer)
     {
@@ -177,6 +178,7 @@ public:
             ExecuteSingleRead(
                 tabletSnapshot,
                 timestamp,
+                workloadDescriptor,
                 reader,
                 writer);
         }
@@ -1315,6 +1317,7 @@ private:
     void ExecuteSingleRead(
         TTabletSnapshotPtr tabletSnapshot,
         TTimestamp timestamp,
+        const TWorkloadDescriptor& workloadDescriptor,
         TWireProtocolReader* reader,
         TWireProtocolWriter* writer)
     {
@@ -1324,6 +1327,7 @@ private:
                 LookupRows(
                     std::move(tabletSnapshot),
                     timestamp,
+                    workloadDescriptor,
                     reader,
                     writer);
                 break;
@@ -2019,12 +2023,14 @@ TTablet* TTabletManager::GetTabletOrThrow(const TTabletId& id)
 void TTabletManager::Read(
     TTabletSnapshotPtr tabletSnapshot,
     TTimestamp timestamp,
+    const TWorkloadDescriptor& workloadDescriptor,
     TWireProtocolReader* reader,
     TWireProtocolWriter* writer)
  {
     Impl_->Read(
         std::move(tabletSnapshot),
         timestamp,
+        workloadDescriptor,
         reader,
         writer);
 }

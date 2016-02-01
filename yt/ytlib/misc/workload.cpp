@@ -46,6 +46,9 @@ i64 GetBasicPriority(EWorkloadCategory category)
 
         case EWorkloadCategory::SystemReplication:
         case EWorkloadCategory::SystemRepair:
+        case EWorkloadCategory::SystemTabletCompaction:
+        case EWorkloadCategory::SystemTabletPartitioning:
+        case EWorkloadCategory::SystemTabletPreload:
         case EWorkloadCategory::UserBatch:
             return -CategoryPriorityFactor * 1;
 
@@ -53,7 +56,7 @@ i64 GetBasicPriority(EWorkloadCategory category)
             return -CategoryPriorityFactor * 2;
 
         case EWorkloadCategory::SystemRealtime:
-            return -CategoryPriorityFactor * 2;
+            return -CategoryPriorityFactor * 3;
 
         default:
             YUNREACHABLE();
