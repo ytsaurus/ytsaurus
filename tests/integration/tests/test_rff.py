@@ -1,5 +1,6 @@
 import pytest
 import time
+import datetime
 
 from yt_env_setup import YTEnvSetup
 from yt_commands import *
@@ -28,17 +29,6 @@ class TestRff(YTEnvSetup):
             set('//tmp/x', i)
             assert get("//tmp/x", read_from="follower") == i
 
-    def test_leader_forwarding1(self):
-        assert get("//sys/nodes/@chunk_replicator_enabled", read_from="follower")
-
-    def test_leader_forwarding2(self):
-        create("table", "//tmp/t")
-        write_table("//tmp/t", {"a": "b"})
-        chunk_ids = get("//tmp/t/@chunk_ids", read_from="follower")
-        assert len(chunk_ids) == 1
-        chunk_id = chunk_ids[0]
-        assert get("#" + chunk_id + "/@available", read_from="follower")
-
     def test_access_stat(self):
         time.sleep(1.0)
         c1 = get("//tmp/@access_counter")
@@ -55,6 +45,22 @@ class TestRff(YTEnvSetup):
             ls("//tmp", user="u", read_from="follower")
         time.sleep(1.0)
         assert get("//sys/users/u/@request_counter") == 100
+
+    def test_leader_fallback(self):
+        create("table", "//tmp/t")
+        write_table("//tmp/t", {"a": "b"})
+        assert ls("//sys/lost_vital_chunks", read_from="follower") == []
+        assert all(not c.attributes["overreplicated"] for c in ls("//sys/chunks", attributes=["overreplicated"], read_from="follower"))
+        
+        assert all(n.attributes["state"] == "online" for n in ls("//sys/nodes", attributes=["state"], read_from="follower"))
+
+        assert get("//sys/@chunk_replicator_enabled", read_from="follower")
+
+        tx = start_transaction()
+        last_ping_time = datetime.strptime(get("#" + tx + "/@last_ping_time", read_from="follower"), "%Y-%m-%dT%H:%M:%S.%fZ")
+        now = datetime.utcnow()
+        assert last_ping_time < now
+        assert (now - last_ping_time).total_seconds() < 3
 
 ##################################################################
 
