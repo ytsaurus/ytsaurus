@@ -48,7 +48,7 @@ import subprocess
 import pwd
 from copy import deepcopy
 from datetime import datetime, timedelta
-from collections import defaultdict
+from collections import defaultdict, deque
 from subprocess32 import TimeoutExpired
 from threading import RLock, Thread, current_thread
 from multiprocessing import Process
@@ -264,6 +264,9 @@ class Application(object):
         self._cypress_mutexes = defaultdict(CountedRLock)
         self._yt = Yt(**self._config["yt_backend_options"])
 
+        self._profiling_mutex = RLock()
+        self._profiling = {"execution_time": defaultdict(deque)}
+
         self._configure_logging(self._config.get("logging", {}))
 
         self._clusters_config_mutex = RLock()
@@ -304,7 +307,7 @@ class Application(object):
 
         # Run execution thread
         self._task_processes = {}
-        self._execution_thread = SafeThread(target=self._execute_tasks, name="SchedulingThread")
+        self._execution_thread = SafeThread(target=self._schedule_tasks, name="SchedulingThread")
         self._execution_thread.daemon = True
         self._execution_thread.start()
 
@@ -332,6 +335,7 @@ class Application(object):
         self._add_rule("/config/", 'config', methods=["GET"])
         self._add_rule("/ping/", 'ping', methods=["GET"])
         self._add_rule("/match/", 'match', methods=["POST"])
+        self._add_rule("/profiling/", 'profiling', methods=["GET"])
 
     def terminate(self):
         self._terminating = True
@@ -341,7 +345,8 @@ class Application(object):
     def _add_rule(self, rule, endpoint, methods, depends_on_lock=True, is_mutating=False):
         methods.append("OPTIONS")
 
-        middlewares = [(self._process_lock, (depends_on_lock, )),
+        middlewares = [(self._profile_time, (endpoint, )),
+                       (self._process_lock, (depends_on_lock, )),
                        (process_gzip, ()),
                        (self._process_cors, (methods, )),
                        (self._process_exception, ())]
@@ -387,6 +392,21 @@ class Application(object):
             except Exception as error:
                 logger.exception("Unknown error:")
                 return json.dumps({"code": 1, "message": "Unknown error: " + str(error)}), 404
+
+        return decorator
+
+    def _profile_time(self, func, method_name):
+        def decorator(*args, **kwargs):
+            now = time.time()
+            result = func(*args, **kwargs)
+            elapsed = time.time() - now
+
+            with self._profiling_mutex:
+                self._profiling["execution_time"][method_name].append((datetime.now().isoformat(), elapsed))
+                if len(self._profiling["execution_time"][method_name]) > self._config["profiling"]["queue_limit"]:
+                    self._profiling["execution_time"][method_name].popleft()
+
+            return result
 
         return decorator
 
@@ -946,7 +966,7 @@ class Application(object):
 
         return wait()
 
-    def _execute_tasks(self):
+    def _schedule_tasks(self):
         while True:
             if self._terminating:
                 return
@@ -955,7 +975,7 @@ class Application(object):
                 time.sleep(self._lock_timeout)
                 continue
 
-            logger.info("Processing tasks")
+            logger.info("Starting new scheduling round")
 
             with self._mutex:
                 logger.info("Progress: %d running, %d pending tasks found", len(self._task_processes), len(self._pending_tasks))
@@ -1063,6 +1083,8 @@ class Application(object):
 
                 self._pending_tasks = filter(lambda id: self._tasks[id].state == "pending", self._pending_tasks)
                 self._runned_during_heartbeat.clear()
+
+            logger.info("Scheduling round takes %.2lf seconds")
 
             time.sleep(self._sleep_step)
 
@@ -1482,7 +1504,7 @@ class Application(object):
 
             tasks_descriptions.append(description)
 
-        return Response(json.dumps(tasks_descriptions), mimetype='application/json')
+        return Response(json.dumps(tasks_descriptions), mimetype="application/json")
 
     def config(self):
         return jsonify(self._get_config())
@@ -1503,7 +1525,16 @@ class Application(object):
         client = clusters_configuration.clusters[source_cluster]
 
         matchings = match_copy_pattern(client, source_pattern, destination_pattern)
-        return Response(json.dumps(matchings), mimetype='application/json')
+        return Response(json.dumps(matchings), mimetype="application/json")
+
+    def profiling(self):
+        with self._profiling_mutex:
+            profiling = deepcopy(self._profiling)
+
+        for key in profiling["execution_time"]:
+            profiling["execution_time"][key] = list(profiling["execution_time"][key])
+
+        return Response(json.dumps(profiling), mimetype="application/json")
 
 
 def main():
