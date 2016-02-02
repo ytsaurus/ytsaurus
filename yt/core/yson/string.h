@@ -17,12 +17,15 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(EYsonType, Type);
 
 public:
+    //! Constructs a EYsonType::None instance.
     TYsonString();
 
+    //! Constructs an instance with given type and content.
     explicit TYsonString(
         const Stroka& data,
         EYsonType type = EYsonType::Node);
 
+    //! For types other than EYsonType::None, invokes the parser (which may throw).
     void Validate() const;
 
     void Save(TStreamSaveContext& context) const;

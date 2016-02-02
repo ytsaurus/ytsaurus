@@ -22,8 +22,10 @@ TYsonString::TYsonString(const Stroka& data, EYsonType type)
 
 void TYsonString::Validate() const
 {
-    TStringInput input(Data());
-    ParseYson(TYsonInput(&input, GetType()), GetNullYsonConsumer());
+    if (Type_ != EYsonType::None) {
+        TStringInput input(Data_);
+        ParseYson(TYsonInput(&input, Type_), GetNullYsonConsumer());
+    }
 }
 
 void TYsonString::Save(TStreamSaveContext& context) const
