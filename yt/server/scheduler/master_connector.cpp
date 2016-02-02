@@ -587,7 +587,7 @@ private:
                 LOG_INFO("Fetching attributes for %v unfinished operations",
                     OperationIds.size());
                 for (const auto& operationId : OperationIds) {
-                    auto req = TYPathProxy::Get(GetOperationPath(operationId));
+                    auto req = TYPathProxy::Get(GetOperationPath(operationId) + "/@");
                     // Keep in sync with CreateOperationFromAttributes.
                     std::vector<Stroka> attributeKeys{
                         "operation_type",
@@ -618,8 +618,8 @@ private:
                 for (int index = 0; index < static_cast<int>(rsps.size()); ++index) {
                     const auto& operationId = OperationIds[index];
                     auto rsp = rsps[index].Value();
-                    auto operationNode = ConvertToNode(TYsonString(rsp->value()));
-                    auto operation = Owner->CreateOperationFromAttributes(operationId, operationNode->Attributes());
+                    auto attributesNode = ConvertToAttributes(TYsonString(rsp->value()));
+                    auto operation = Owner->CreateOperationFromAttributes(operationId, *attributesNode);
 
                     Result.Operations.push_back(operation);
                     if (operation->GetState() == EOperationState::Aborting) {

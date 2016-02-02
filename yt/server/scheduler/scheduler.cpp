@@ -1084,7 +1084,7 @@ private:
         TObjectServiceProxy::TReqExecuteBatchPtr batchReq)
     {
         static auto runtimeParamsTemplate = New<TOperationRuntimeParams>();
-        auto req = TYPathProxy::Get(GetOperationPath(operation->GetId()));
+        auto req = TYPathProxy::Get(GetOperationPath(operation->GetId()) + "/@");
         ToProto(req->mutable_attributes(), runtimeParamsTemplate->GetRegisteredKeys());
         batchReq->AddRequest(req, "get_runtime_params");
     }
@@ -1100,8 +1100,7 @@ private:
         }
 
         const auto& rsp = rspOrError.Value();
-        auto operationNode = ConvertToNode(TYsonString(rsp->value()));
-        auto attributesNode = ConvertToNode(operationNode->Attributes());
+        auto attributesNode = ConvertToNode(TYsonString(rsp->value()));
 
         OperationRuntimeParamsUpdated_.Fire(operation, attributesNode);
     }
