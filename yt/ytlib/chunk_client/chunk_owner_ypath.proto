@@ -29,6 +29,7 @@ message TReqBeginUpload
 message TRspBeginUpload
 {
     required NYT.NProto.TGuid upload_transaction_id = 1;
+    required int32 cell_tag = 2;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -96,6 +96,9 @@ void TNontemplateCypressNodeTypeHandlerBase::BranchCore(
     branchedNode->SetOriginator(originatingNode);
     branchedNode->SetExternalCellTag(originatingNode->GetExternalCellTag());
 
+    auto securityManager = Bootstrap_->GetSecurityManager();
+    securityManager->SetNodeResourceAccounting(branchedNode, originatingNode->GetAccountingEnabled());
+
     // Branch user attributes.
     objectManager->BranchAttributes(originatingNode, branchedNode);
 }

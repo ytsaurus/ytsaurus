@@ -6,6 +6,7 @@
 #include "serialize.h"
 #include "snapshot_builder.h"
 #include "snapshot_downloader.h"
+#include "config.h"
 
 #include <yt/server/cell_scheduler/bootstrap.h>
 #include <yt/server/cell_scheduler/config.h>
@@ -16,6 +17,8 @@
 #include <yt/ytlib/cypress_client/rpc_helpers.h>
 
 #include <yt/ytlib/file_client/file_ypath_proxy.h>
+
+#include <yt/ytlib/table_client/table_ypath_proxy.h>
 
 #include <yt/ytlib/hive/cluster_directory.h>
 
@@ -31,8 +34,6 @@
 
 #include <yt/core/concurrency/thread_affinity.h>
 
-#include <yt/core/rpc/serialized_channel.h>
-
 namespace NYT {
 namespace NScheduler {
 
@@ -40,6 +41,7 @@ using namespace NYTree;
 using namespace NYson;
 using namespace NYPath;
 using namespace NCypressClient;
+using namespace NTableClient;
 using namespace NObjectClient;
 using namespace NObjectClient::NProto;
 using namespace NObjectServer;
@@ -67,7 +69,6 @@ public:
         NCellScheduler::TBootstrap* bootstrap)
         : Config(config)
         , Bootstrap(bootstrap)
-        , Proxy(Bootstrap->GetMasterClient()->GetMasterChannelOrThrow(EMasterChannelKind::Leader))
         , ClusterDirectory(Bootstrap->GetClusterDirectory())
     { }
 
@@ -162,8 +163,7 @@ public:
         LOG_INFO("Resetting reviving operation node (OperationId: %v)",
             operationId);
 
-        auto* list = GetUpdateList(operationId);
-        auto batchReq = StartBatchRequest(list);
+        auto batchReq = StartBatchRequest();
 
         auto attributes = ConvertToAttributes(BuildYsonStringFluently()
             .BeginMap()
@@ -233,12 +233,12 @@ public:
 
     TFuture<void> AttachToLivePreview(
         TOperationPtr operation,
-        const TChunkListId& chunkListId,
+        const TNodeId& tableId,
         const std::vector<TChunkTreeId>& childrenIds)
     {
         return BIND(&TImpl::DoAttachToLivePreview, MakeStrong(this))
             .AsyncVia(CancelableControlInvoker)
-            .Run(operation, chunkListId, childrenIds);
+            .Run(operation, tableId, childrenIds);
     }
 
     void AddGlobalWatcherRequester(TWatcherRequester requester)
@@ -300,7 +300,6 @@ private:
     const TSchedulerConfigPtr Config;
     NCellScheduler::TBootstrap* const Bootstrap;
 
-    TObjectServiceProxy Proxy;
     NHive::TClusterDirectoryPtr ClusterDirectory;
 
     TCancelableContextPtr CancelableContext;
@@ -328,21 +327,19 @@ private:
 
     struct TLivePreviewRequest
     {
-        TChunkListId ChunkListId;
+        TChunkListId TableId;
         TChunkTreeId ChildId;
     };
 
     struct TUpdateList
     {
-        TUpdateList(IChannelPtr masterChannel, TOperationPtr operation)
+        explicit TUpdateList(TOperationPtr operation)
             : Operation(operation)
-            , Proxy(CreateSerializedChannel(masterChannel))
         { }
 
         TOperationPtr Operation;
         std::vector<TJobRequest> JobRequests;
         std::vector<TLivePreviewRequest> LivePreviewRequests;
-        TObjectServiceProxy Proxy;
         TFuture<void> LastUpdateFuture = VoidFuture;
     };
 
@@ -457,7 +454,8 @@ private:
         }
 
     private:
-        TIntrusivePtr<TImpl> Owner;
+        const TIntrusivePtr<TImpl> Owner;
+
         Stroka ServiceAddress;
         std::vector<TOperationId> OperationIds;
         std::vector<TOperationId> AbortingOperationIds;
@@ -466,7 +464,11 @@ private:
         // - Register scheduler instance.
         void RegisterInstance()
         {
-            auto batchReq = Owner->StartBatchRequest(false);
+            TObjectServiceProxy proxy(Owner
+                ->Bootstrap
+                ->GetMasterClient()
+                ->GetMasterChannelOrThrow(EMasterChannelKind::Leader));
+            auto batchReq = proxy.ExecuteBatch();
             auto path = "//sys/scheduler/instances/" + ToYPathLiteral(ServiceAddress);
             {
                 auto req = TCypressYPathProxy::Create(path);
@@ -819,25 +821,16 @@ private:
     };
 
 
-    TObjectServiceProxy::TReqExecuteBatchPtr StartBatchRequest(bool requireTransaction = true)
+    TObjectServiceProxy::TReqExecuteBatchPtr StartBatchRequest(TCellTag cellTag = PrimaryMasterCellTag)
     {
-        return DoStartBatchRequest(&Proxy, requireTransaction);
-    }
-
-    TObjectServiceProxy::TReqExecuteBatchPtr StartBatchRequest(TUpdateList* list, bool requireTransaction = true)
-    {
-        return DoStartBatchRequest(&list->Proxy, requireTransaction);
-    }
-
-    TObjectServiceProxy::TReqExecuteBatchPtr DoStartBatchRequest(TObjectServiceProxy* proxy, bool requireTransaction = true)
-    {
-        auto batchReq = proxy->ExecuteBatch();
-        if (requireTransaction) {
-            YCHECK(LockTransaction);
-            auto* prerequisitesExt = batchReq->Header().MutableExtension(TPrerequisitesExt::prerequisites_ext);
-            auto* prerequisiteTransaction = prerequisitesExt->add_transactions();
-            ToProto(prerequisiteTransaction->mutable_transaction_id(), LockTransaction->GetId());
-        }
+        TObjectServiceProxy proxy(Bootstrap
+            ->GetMasterClient()
+            ->GetMasterChannelOrThrow(EMasterChannelKind::Leader, cellTag));
+        auto batchReq = proxy.ExecuteBatch();
+        YCHECK(LockTransaction);
+        auto* prerequisitesExt = batchReq->Header().MutableExtension(TPrerequisitesExt::prerequisites_ext);
+        auto* prerequisiteTransaction = prerequisitesExt->add_transactions();
+        ToProto(prerequisiteTransaction->mutable_transaction_id(), LockTransaction->GetId());
         return batchReq;
     }
 
@@ -1122,9 +1115,9 @@ private:
     {
         LOG_DEBUG("Operation update list registered (OperationId: %v)",
             operation->GetId());
-        auto channel = Bootstrap->GetMasterClient()->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
-        TUpdateList list(channel, operation);
-        auto pair = UpdateLists.insert(std::make_pair(operation->GetId(), list));
+        auto pair = UpdateLists.insert(std::make_pair(
+            operation->GetId(),
+            TUpdateList(operation)));
         YCHECK(pair.second);
         return &pair.first->second;
     }
@@ -1228,40 +1221,6 @@ private:
     }
 
 
-
-    //void AddUpdateLivePreview(
-    //    TObjectServiceProxy::TReqExecuteBatchPtr batchReq,
-    //    std::vector<TLivePreviewRequest> livePreviewRequests)
-    //{
-    //    // Sort by chunk list.
-    //    std::sort(
-    //        livePreviewRequests.begin(),
-    //        livePreviewRequests.end(),
-    //        [] (const TLivePreviewRequest& lhs, const TLivePreviewRequest& rhs) {
-    //            return lhs.ChunkListId < rhs.ChunkListId;
-    //        });
-    //
-    //    // Group by chunk list.
-    //    int rangeBegin = 0;
-    //    while (rangeBegin < static_cast<int>(livePreviewRequests.size())) {
-    //        int rangeEnd = rangeBegin; // non-inclusive
-    //        while (rangeEnd < static_cast<int>(livePreviewRequests.size()) &&
-    //               livePreviewRequests[rangeBegin].ChunkListId == livePreviewRequests[rangeEnd].ChunkListId)
-    //        {
-    //            ++rangeEnd;
-    //        }
-    //
-    //        auto req = TChunkListYPathProxy::Attach(FromObjectId(livePreviewRequests[rangeBegin].ChunkListId));
-    //        GenerateMutationId(req);
-    //        for (int index = rangeBegin; index < rangeEnd; ++index) {
-    //            ToProto(req->add_children_ids(), livePreviewRequests[index].ChildId);
-    //        }
-    //        batchReq->AddRequest(req, "update_live_preview");
-    //
-    //        rangeBegin = rangeEnd;
-    //    }
-    //}
-
     void UpdateOperationNodeAttributes(TOperationPtr operation)
     {
         auto batchReq = StartBatchRequest();
@@ -1337,6 +1296,31 @@ private:
         THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError));
     }
 
+    void CreateJobNodes(
+        TOperationPtr operation,
+        const std::vector<TJobRequest>& jobRequests)
+    {
+        auto batchReq = StartBatchRequest();
+
+        for (const auto& request : jobRequests) {
+            auto job = request.Job;
+            auto jobPath = GetJobPath(operation->GetId(), job->GetId());
+            auto req = TYPathProxy::Set(jobPath);
+            req->set_value(
+                BuildYsonStringFluently()
+                    .BeginAttributes()
+                        .Do(BIND(&BuildJobAttributes, job))
+                    .EndAttributes()
+                    .BeginMap()
+                    .EndMap()
+                    .Data());
+            batchReq->AddRequest(req, "create");
+        }
+
+        auto batchRspOrError = WaitFor(batchReq->Invoke());
+        THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError));
+    }
+
     struct TJobFile
     {
         TJobId JobId;
@@ -1356,7 +1340,7 @@ private:
             NApi::TTransactionStartOptions options;
             options.PrerequisiteTransactionIds = {LockTransaction->GetId()};
             auto attributes = CreateEphemeralAttributes();
-            attributes->Set("title", Format("Saving job files for operation %v", operation->GetId()));
+            attributes->Set("title", Format("Saving job files of operation %v", operation->GetId()));
             options.Attributes = std::move(attributes);
 
             transaction = WaitFor(client->StartTransaction(ETransactionType::Master, options))
@@ -1482,35 +1466,161 @@ private:
             .ThrowOnError();
     }
 
-    void CreateJobNodes(
+    void AttachLivePreviewChunks(
         TOperationPtr operation,
-        std::vector<TJobRequest>& jobRequests)
+        const std::vector<TLivePreviewRequest>& livePreviewRequests)
     {
-        auto batchReq = StartBatchRequest();
+        struct TTableInfo
+        {
+            TNodeId TableId;
+            TCellTag CellTag;
+            std::vector<TChunkId> ChildrenIds;
+            TTransactionId UploadTransactionId;
+            TChunkListId UploadChunkListId;
+            NChunkClient::NProto::TDataStatistics Statistics;
+        };
 
-        for (const auto& request : jobRequests) {
-            auto job = request.Job;
-            auto jobPath = GetJobPath(operation->GetId(), job->GetId());
-            auto req = TYPathProxy::Set(jobPath);
-            req->set_value(
-                BuildYsonStringFluently()
-                    .BeginAttributes()
-                        .Do(BIND(&BuildJobAttributes, job))
-                    .EndAttributes()
-                    .BeginMap()
-                    .EndMap()
-                    .Data());
-            batchReq->AddRequest(req, "create");
+        yhash_map<TNodeId, TTableInfo> tableIdToInfo;
+        for (const auto& request : livePreviewRequests) {
+            auto& tableInfo = tableIdToInfo[request.TableId];
+            tableInfo.TableId = request.TableId;
+            tableInfo.ChildrenIds.push_back(request.ChildId);
         }
 
-        auto batchRspOrError = WaitFor(batchReq->Invoke());
-        THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError));
+        if (tableIdToInfo.empty()) {
+            return;
+        }
+
+        for (const auto& pair : tableIdToInfo) {
+            const auto& tableInfo = pair.second;
+            LOG_DEBUG("Appending live preview chunk trees (OperationId: %v, TableId: %v, ChildCount: %v)",
+                operation->GetId(),
+                tableInfo.TableId,
+                tableInfo.ChildrenIds.size());
+        }
+
+        // BeginUpload
+        {
+            auto batchReq = StartBatchRequest();
+
+            for (const auto& pair : tableIdToInfo) {
+                const auto& tableId = pair.first;
+                {
+                    auto req = TTableYPathProxy::BeginUpload(FromObjectId(tableId));
+                    req->set_update_mode(static_cast<int>(EUpdateMode::Append));
+                    req->set_lock_mode(static_cast<int>(ELockMode::Shared));
+                    req->set_upload_transaction_title(Format("Attaching live preview chunks of operation %v",
+                        operation->GetId()));
+                    SetTransactionId(req, operation->GetAsyncSchedulerTransaction()->GetId());
+                    GenerateMutationId(req);
+                    batchReq->AddRequest(req, "begin_upload");
+                }
+            }
+
+            auto batchRspOrError = WaitFor(batchReq->Invoke());
+            THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError));
+            const auto& batchRsp = batchRspOrError.Value();
+
+            auto rsps = batchRsp->GetResponses<TChunkOwnerYPathProxy::TRspBeginUpload>("begin_upload");
+            int rspIndex = 0;
+            for (auto& pair : tableIdToInfo) {
+                auto& tableInfo = pair.second;
+                const auto& rsp = rsps[rspIndex++].Value();
+                tableInfo.CellTag = rsp->cell_tag();
+                tableInfo.UploadTransactionId = FromProto<TTransactionId>(rsp->upload_transaction_id());
+            }
+        }
+
+        yhash_map<TCellTag, std::vector<TTableInfo*>> cellTagToInfos;
+        for (auto& pair : tableIdToInfo) {
+            auto& tableInfo  = pair.second;
+            cellTagToInfos[tableInfo.CellTag].push_back(&tableInfo);
+        }
+
+        // GetUploadParams
+        for (auto& pair : cellTagToInfos) {
+            auto cellTag = pair.first;
+            auto& tableInfos = pair.second;
+
+            auto batchReq = StartBatchRequest(cellTag);
+            for (const auto* tableInfo : tableInfos) {
+                auto req = TTableYPathProxy::GetUploadParams(FromObjectId(tableInfo->TableId));
+                SetTransactionId(req, tableInfo->UploadTransactionId);
+                batchReq->AddRequest(req, "get_upload_params");
+            }
+
+            auto batchRspOrError = WaitFor(batchReq->Invoke());
+            THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError));
+            const auto& batchRsp = batchRspOrError.Value();
+
+            auto rsps = batchRsp->GetResponses<TTableYPathProxy::TRspGetUploadParams>("get_upload_params");
+            int rspIndex = 0;
+            for (auto* tableInfo : tableInfos) {
+                const auto& rsp = rsps[rspIndex++].Value();
+                tableInfo->UploadChunkListId = FromProto<TChunkListId>(rsp->chunk_list_id());
+            }
+        }
+
+        // Attach
+        for (auto& pair : cellTagToInfos) {
+            auto cellTag = pair.first;
+            auto& tableInfos = pair.second;
+
+            auto batchReq = StartBatchRequest(cellTag);
+            for (const auto* tableInfo : tableInfos) {
+                size_t beginIndex = 0;
+                const auto& childrenIds = tableInfo->ChildrenIds;
+                while (beginIndex < childrenIds.size()) {
+                    auto lastIndex = std::min(beginIndex + Config->MaxChildrenPerAttachRequest, childrenIds.size());
+                    bool isFinal = (lastIndex == childrenIds.size());
+                    auto req = TChunkListYPathProxy::Attach(FromObjectId(tableInfo->UploadChunkListId));
+                    req->set_request_statistics(isFinal);
+                    for (auto index = beginIndex; index < lastIndex; ++index) {
+                        ToProto(req->add_children_ids(), childrenIds[index]);
+                    }
+                    GenerateMutationId(req);
+                    batchReq->AddRequest(req, isFinal ? "final_attach" : "intermediate_attach");
+                    beginIndex = lastIndex;
+                }
+            }
+
+            auto batchRspOrError = WaitFor(batchReq->Invoke());
+            THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError));
+            const auto& batchRsp = batchRspOrError.Value();
+
+            auto rsps = batchRsp->GetResponses<TChunkListYPathProxy::TRspAttach>("final_attach");
+            int rspIndex = 0;
+            for (auto* tableInfo : tableInfos) {
+                const auto& rsp = rsps[rspIndex++].Value();
+                tableInfo->Statistics = rsp->statistics();
+            }
+        }
+
+        // EndUpload
+        {
+            auto batchReq = StartBatchRequest();
+
+            for (const auto& pair : tableIdToInfo) {
+                const auto& tableId = pair.first;
+                const auto& tableInfo = pair.second;
+                {
+                    auto req = TTableYPathProxy::EndUpload(FromObjectId(tableId));
+                    *req->mutable_statistics() = tableInfo.Statistics;
+                    SetTransactionId(req, tableInfo.UploadTransactionId);
+                    GenerateMutationId(req);
+                    batchReq->AddRequest(req, "end_upload");
+                }
+            }
+
+            auto batchRspOrError = WaitFor(batchReq->Invoke());
+            THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError));
+        }
     }
 
     void DoUpdateOperationNode(
         TOperationPtr operation,
-        std::vector<TJobRequest> jobRequests,
-        std::vector<TLivePreviewRequest> livePreviewRequests)
+        const std::vector<TJobRequest>& jobRequests,
+        const std::vector<TLivePreviewRequest>& livePreviewRequests)
     {
         try {
             CreateJobNodes(operation, jobRequests);
@@ -1533,6 +1643,9 @@ private:
                 }
             }
             SaveJobFiles(operation, files);
+
+            AttachLivePreviewChunks(operation, livePreviewRequests);
+
             // NB: Update operation attributes after updating all job nodes.
             // Tests assume, that all job files are present, when operation 
             // is in one of the terminal states.
@@ -1553,8 +1666,8 @@ private:
                 &TImpl::DoUpdateOperationNode,
                 MakeStrong(this),
                 operation,
-                Passed(std::move(list->JobRequests)),
-                Passed(std::move(list->LivePreviewRequests)))
+                std::move(list->JobRequests),
+                std::move(list->LivePreviewRequests))
             .AsyncVia(CancelableControlInvoker));
 
         list->LastUpdateFuture = lastUpdateFuture;
@@ -1732,19 +1845,23 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        auto asyncRspOrError = Proxy.Execute(TYPathProxy::Get("//sys/clusters"));
-        auto rspOrError = WaitFor(asyncRspOrError);
+        auto batchReq = StartBatchRequest();
+        auto req = TYPathProxy::Get("//sys/clusters");
+        batchReq->AddRequest(req, "get_cluster");
 
-        if (!rspOrError.IsOK()) {
-            LOG_WARNING(rspOrError, "Error requesting cluster directory");
+        auto batchRspOrError = WaitFor(batchReq->Invoke());
+        auto error = GetCumulativeError(batchRspOrError);
+        if (!error.IsOK()) {
+            LOG_WARNING(error, "Error requesting cluster directory");
             return;
         }
 
         try {
-            const auto& rsp = rspOrError.Value();
+            const auto& batchRsp = batchRspOrError.Value();
+            auto rsp = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_cluster").Value();
             auto clustersNode = ConvertToNode(TYsonString(rsp->value()))->AsMap();
 
-            for (auto name : ClusterDirectory->GetClusterNames()) {
+            for (const auto& name : ClusterDirectory->GetClusterNames()) {
                 if (!clustersNode->FindChild(name)) {
                     ClusterDirectory->RemoveCluster(name);
                 }
@@ -1764,23 +1881,20 @@ private:
 
     void DoAttachToLivePreview(
         TOperationPtr operation,
-        const TChunkListId& chunkListId,
+        const TNodeId& tableId,
         const std::vector<TChunkTreeId>& childrenIds)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
         YCHECK(Connected);
 
-        LOG_DEBUG("Attaching live preview chunk trees (OperationId: %v, ChunkListId: %v, ChildrenCount: %v)",
-                  operation->GetId(),
-                  chunkListId,
-                  childrenIds.size());
+        LOG_DEBUG("Attaching live preview chunk trees (OperationId: %v, TableId: %v, ChildCount: %v)",
+              operation->GetId(),
+              tableId,
+              childrenIds.size());
 
         auto* list = GetUpdateList(operation->GetId());
         for (const auto& childId : childrenIds) {
-            TLivePreviewRequest request;
-            request.ChunkListId = chunkListId;
-            request.ChildId = childId;
-            list->LivePreviewRequests.push_back(request);
+            list->LivePreviewRequests.push_back(TLivePreviewRequest{tableId, childId});
         }
     }
 };
@@ -1844,10 +1958,10 @@ void TMasterConnector::AttachJobContext(
 
 TFuture<void> TMasterConnector::AttachToLivePreview(
     TOperationPtr operation,
-    const TChunkListId& chunkListId,
+    const TNodeId& tableId,
     const std::vector<TChunkTreeId>& childrenIds)
 {
-    return Impl->AttachToLivePreview(operation, chunkListId, childrenIds);
+    return Impl->AttachToLivePreview(operation, tableId, childrenIds);
 }
 
 void TMasterConnector::AddGlobalWatcherRequester(TWatcherRequester requester)
