@@ -120,7 +120,7 @@ class TestEventLog(YTEnvSetup):
             set("//sys/nodes/{0}/@banned".format(node), True)
 
         time.sleep(2)
-        op_id = map(
+        op = map(
             dont_track=True,
             in_="//tmp/t1",
             out="//tmp/t2",
@@ -130,7 +130,7 @@ class TestEventLog(YTEnvSetup):
         for node in ls("//sys/nodes"):
             set("//sys/nodes/{0}/@banned".format(node), False)
 
-        track_op(op_id)
+        op.track()
 
         time.sleep(2)
         res = read_table("//sys/scheduler/event_log")
@@ -1360,7 +1360,7 @@ class TestSandboxTmpfs(YTEnvSetup):
         create("table", "//tmp/t_output")
         write_table("//tmp/t_input", {"foo": "bar"})
 
-        op_id = map(
+        op = map(
             command="cat; echo 'content' > tmpfs/file; ls tmpfs/ >&2; cat tmpfs/file >&2;",
             in_="//tmp/t_input",
             out="//tmp/t_output",
@@ -1370,7 +1370,7 @@ class TestSandboxTmpfs(YTEnvSetup):
                 }
             })
 
-        jobs_path = "//sys/operations/" + op_id + "/jobs"
+        jobs_path = "//sys/operations/" + op.id + "/jobs"
         assert get(jobs_path + "/@count") == 1
         words = read_file(jobs_path + "/" + ls(jobs_path)[0] + "/stderr").strip().split()
         assert ["file", "content"] == words
