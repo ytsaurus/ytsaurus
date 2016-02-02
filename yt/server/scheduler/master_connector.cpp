@@ -1624,7 +1624,13 @@ private:
     {
         try {
             CreateJobNodes(operation, jobRequests);
+        } catch (const std::exception& ex) {
+            THROW_ERROR_EXCEPTION("Error creating job nodes for operation %v",
+                operation->GetId())
+                << ex;
+        }
 
+        try {
             std::vector<TJobFile> files;
             for (const auto& request : jobRequests) {
                 if (request.StderrChunkId) {
@@ -1632,22 +1638,38 @@ private:
                         request.Job->GetId(),
                         GetStderrPath(operation->GetId(), request.Job->GetId()),
                         request.StderrChunkId,
-                        "stderr"});
+                        "stderr"
+                    });
                 }
                 if (request.FailContextChunkId) {
                     files.push_back({
                         request.Job->GetId(),
                         GetFailContextPath(operation->GetId(), request.Job->GetId()),
                         request.FailContextChunkId,
-                        "fail_context"});
+                        "fail_context"
+                    });
                 }
             }
             SaveJobFiles(operation, files);
+        } catch (const std::exception& ex) {
+            // NB: Don' treat this as a critical error.
+            // Some of these chunks could go missing for a number of reasons.
+            LOG_WARNING(ex, "Error saving job files (OperationId: %v)",
+                operation->GetId());
+        }
 
+        try {
             AttachLivePreviewChunks(operation, livePreviewRequests);
+        } catch (const std::exception& ex) {
+            // NB: Don' treat this as a critical error.
+            // Some of these chunks could go missing for a number of reasons.
+            LOG_WARNING(ex, "Error attaching live preview chunks (OperationId: %v)",
+                operation->GetId());
+        }
 
+        try {
             // NB: Update operation attributes after updating all job nodes.
-            // Tests assume, that all job files are present, when operation 
+            // Tests assume, that all job files are present, when operation
             // is in one of the terminal states.
             UpdateOperationNodeAttributes(operation);
         } catch (const std::exception& ex) {
