@@ -408,7 +408,7 @@ class Application(object):
 
             return result
 
-        return decorator
+        return self._process_exception(decorator)
 
     def _process_mutating_request(self, func):
         def decorator(*args, **kwargs):
