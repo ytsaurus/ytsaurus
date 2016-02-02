@@ -104,21 +104,21 @@ test_copy_from_smith_to_sakura() {
     wait_task $id
 }
 
-test_copy_from_smith_to_redwood() {
+test_copy_from_smith_to_cedar() {
     echo "Importing from Smith to Sakura"
-    id=$(run_task '{"source_table": "//tmp/test_table", "source_cluster": "smith", "destination_table": "tmp/yt/test_table", "destination_cluster": "redwood", "mr_user": "userdata"}')
+    id=$(run_task '{"source_table": "//tmp/test_table", "source_cluster": "smith", "destination_table": "tmp/yt/test_table", "destination_cluster": "cedar", "mr_user": "userdata"}')
     wait_task $id
 }
 
-test_copy_from_sakura_to_redwood() {
+test_copy_from_sakura_to_cedar() {
     echo "Importing from Sakura to Redwood"
-    id=$(run_task '{"source_table": "tmp/yt/test_table", "source_cluster": "sakura", "destination_table": "tmp/yt/test_table", "destination_cluster": "redwood", "mr_user": "userdata"}')
+    id=$(run_task '{"source_table": "tmp/yt/test_table", "source_cluster": "sakura", "destination_table": "tmp/yt/test_table", "destination_cluster": "cedar", "mr_user": "userdata"}')
     wait_task $id
 }
 
-test_copy_from_redwood_to_plato() {
+test_copy_from_cedar_to_plato() {
     echo "Importing from Redwood to Plato"
-    id=$(run_task '{"source_table": "tmp/yt/test_table", "source_cluster": "redwood", "destination_table": "//tmp/test_table", "destination_cluster": "plato", "mr_user": "userdata", "pool": "ignat"}')
+    id=$(run_task '{"source_table": "tmp/yt/test_table", "source_cluster": "cedar", "destination_table": "//tmp/test_table", "destination_cluster": "plato", "mr_user": "userdata", "pool": "ignat"}')
     wait_task $id
     check "true" "$(yt2 exists //tmp/test_table/@sorted --proxy plato.yt.yandex.net)"
 }
@@ -156,6 +156,18 @@ test_copy_from_sakura_to_plato() {
     check \
         "$(yt2 read //tmp/test_table_from_sakura --proxy plato.yt.yandex.net --format yamr)" \
         "$(yt2 read //tmp/test_table --proxy smith.yt.yandex.net --format yamr)"
+}
+
+test_various_transfers() {
+    echo -e "a\tb\nc\td\ne\tf" | yt2 write //tmp/test_table --format yamr --proxy smith.yt.yandex.net
+    yt2 sort --src //tmp/test_table --dst //tmp/test_table --sort-by key --sort-by subkey --proxy smith.yt.yandex.net
+
+    test_copy_from_smith_to_sakura
+    test_copy_from_sakura_to_cedar
+    test_copy_from_cedar_to_plato
+    test_copy_from_plato_to_smith
+    test_copy_from_plato_to_quine
+    test_copy_from_sakura_to_plato
 }
 
 test_abort_restart_task() {
@@ -274,10 +286,10 @@ test_clusters_configuration_reloading() {
     local config=$(cat $TM_CONFIG)
     local config_reload_timeout=$(echo $config | jq ".clusters_config_reload_timeout")
     local sleeping_time=$(($config_reload_timeout + 3))
-    echo $config | jq ".availability_graph.redwood = []" > $TM_CONFIG
+    echo $config | jq ".availability_graph.cedar = []" > $TM_CONFIG
     echo "Sleeping for $sleeping_time seconds to ensure that config is reloaded" && sleep $sleeping_time
 
-    local task_descr='{"source_table": "tmp/yt/test_table", "source_cluster": "redwood", "destination_table": "//tmp/test_table", "destination_cluster": "plato", "mr_user": "userdata", "pool": "ignat"}'
+    local task_descr='{"source_table": "tmp/yt/test_table", "source_cluster": "cedar", "destination_table": "//tmp/test_table", "destination_cluster": "plato", "mr_user": "userdata", "pool": "ignat"}'
     local content=$(request "POST" "tasks/" -d "$task_descr")
     check_result=$(echo $content | jq ".inner_errors[0].message" | grep "not available")
     check "$?" "0"
@@ -334,17 +346,19 @@ test_mutating_requests_retries() {
     echo "Ok"
 }
 
-# Different transfers
-echo -e "a\tb\nc\td\ne\tf" | yt2 write //tmp/test_table --format yamr --proxy smith.yt.yandex.net
-yt2 sort --src //tmp/test_table --dst //tmp/test_table --sort-by key --sort-by subkey --proxy smith.yt.yandex.net
+test_destination_codecs() {
+    echo 'a=b' | yt2 write //tmp/test_table --proxy quine --format dsv
 
+    id=$(run_task '{"source_table": "//tmp/test_table", "source_cluster": "quine", "destination_table": "//tmp/test_table", "destination_cluster": "plato", "destination_compression_codec": "zlib6"}')
+    wait_task $id
+
+    check "a=b" "$(yt2 read //tmp/test_table --proxy plato --format dsv)"
+    check '"zlib6"' "$(yt2 get //tmp/test_table/@compression_codec --proxy plato)"
+}
+
+# Different transfers
 test_copy_empty_table
-test_copy_from_smith_to_sakura
-test_copy_from_sakura_to_redwood
-test_copy_from_redwood_to_plato
-test_copy_from_plato_to_smith
-test_copy_from_plato_to_quine
-test_copy_from_sakura_to_plato
+test_various_transfers
 test_lease
 test_abort_restart_task
 test_copy_table_range
@@ -356,3 +370,4 @@ test_clusters_configuration_reloading
 test_types_preserving_during_copy
 test_skip_if_destination_exists
 test_mutating_requests_retries
+test_destination_codecs

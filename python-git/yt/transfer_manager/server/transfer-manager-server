@@ -976,6 +976,7 @@ class Application(object):
                 continue
 
             logger.info("Starting new scheduling round")
+            start_time = time.time()
 
             with self._mutex:
                 logger.info("Progress: %d running, %d pending tasks found", len(self._task_processes), len(self._pending_tasks))
@@ -1084,7 +1085,7 @@ class Application(object):
                 self._pending_tasks = filter(lambda id: self._tasks[id].state == "pending", self._pending_tasks)
                 self._runned_during_heartbeat.clear()
 
-            logger.info("Scheduling round takes %.2lf seconds")
+            logger.info("Scheduling round takes %.2lf seconds (%.2lf for waiting mutex)", time.time() - start_time, time.time() - now)
 
             time.sleep(self._sleep_step)
 
