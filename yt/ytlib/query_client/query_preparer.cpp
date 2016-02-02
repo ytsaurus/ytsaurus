@@ -1037,22 +1037,20 @@ class TScanSchemaProxy
     : public TSchemaProxy
 {
 public:
-    TScanSchemaProxy(
+    static TSchemaProxyPtr Create(
         TTableSchema* tableSchema,
         TTableSchema* refinedTableSchema,
         const TTableSchema& sourceTableSchema,
         int keyColumnCount = 0,
         const TStringBuf& tableName = TStringBuf())
-        : TSchemaProxy(tableSchema, tableName)
-        , SourceTableSchema_(sourceTableSchema)
-        , RefinedTableSchema_(refinedTableSchema)
-        , TableName_(tableName)
     {
-        const auto& columns = sourceTableSchema.Columns();
-        int count = std::min(keyColumnCount, static_cast<int>(columns.size()));
-        for (int i = 0; i < count; ++i) {
-            GetColumnPtr(columns[i].Name, TableName_);
-        }
+        auto schemaProxy = New<TScanSchemaProxy>(
+            tableSchema,
+            refinedTableSchema,
+            sourceTableSchema,
+            tableName);
+        schemaProxy->Init(keyColumnCount);
+        return schemaProxy;
     }
 
     virtual const TColumnSchema* AddColumnPtr(const TStringBuf& name, const TStringBuf& tableName) override
@@ -1085,6 +1083,27 @@ private:
     TTableSchema* RefinedTableSchema_;
     TStringBuf TableName_;
 
+    TScanSchemaProxy(
+        TTableSchema* tableSchema,
+        TTableSchema* refinedTableSchema,
+        const TTableSchema& sourceTableSchema,
+        const TStringBuf& tableName)
+        : TSchemaProxy(tableSchema, tableName)
+        , SourceTableSchema_(sourceTableSchema)
+        , RefinedTableSchema_(refinedTableSchema)
+        , TableName_(tableName)
+    { }
+
+    void Init(int keyColumnCount)
+    {
+        const auto& columns = SourceTableSchema_.Columns();
+        int count = std::min(keyColumnCount, static_cast<int>(columns.size()));
+        for (int i = 0; i < count; ++i) {
+            GetColumnPtr(columns[i].Name, TableName_);
+        }
+    }
+
+    DECLARE_NEW_FRIEND();
 };
 
 class TJoinSchemaProxy
@@ -1427,7 +1446,7 @@ std::pair<TQueryPtr, TDataRanges> PreparePlanFragment(
 
     query->TableSchema = tableSchema.GetPrefix(keyColumns.size());
 
-    schemaProxy = New<TScanSchemaProxy>(
+    schemaProxy = TScanSchemaProxy::Create(
         &query->RenamedTableSchema,
         &query->TableSchema,
         tableSchema,
@@ -1447,7 +1466,7 @@ std::pair<TQueryPtr, TDataRanges> PreparePlanFragment(
         joinClause->ForeignDataId = GetObjectIdFromDataSplit(foreignDataSplit);
         joinClause->IsLeft = join.IsLeft;
 
-        auto foreignSourceProxy = New<TScanSchemaProxy>(
+        auto foreignSourceProxy = TScanSchemaProxy::Create(
             &joinClause->RenamedTableSchema,
             &joinClause->ForeignTableSchema,
             foreignTableSchema,
@@ -1751,7 +1770,7 @@ TQueryPtr PrepareJobQuery(
     auto unlimited = std::numeric_limits<i64>::max();
 
     auto query = New<TQuery>(unlimited, unlimited, TGuid::Create());
-    TSchemaProxyPtr schemaProxy = New<TScanSchemaProxy>(
+    TSchemaProxyPtr schemaProxy = TScanSchemaProxy::Create(
         &query->RenamedTableSchema,
         &query->TableSchema,
         tableSchema);
