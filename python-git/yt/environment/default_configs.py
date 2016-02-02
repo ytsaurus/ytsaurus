@@ -201,11 +201,9 @@ def get_node_config(enable_debug_logging=True):
         store_locations = [];
         multiplexed_changelog = {
             flush_period = 10;
-        };
-
-        multiplexed_changelog = {
             path = "";
         };
+
         incremental_heartbeat_period = 100;
     };
 
