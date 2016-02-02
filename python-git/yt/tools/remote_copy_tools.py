@@ -134,7 +134,8 @@ def _get_read_from_yt_command(yt_client, src, format, fastbone):
             "enable": True,
             "create_transaction_and_take_snapshot_lock": False
         },
-        "api_version": None
+        # To use latest version of API.
+        "default_api_version_for_http": None
     }
     command = """export  PYTHONPATH=.\n"""\
               """TABLE_PATH="$(YT_PROXY={2} python merge_limits.py '{0}' ${{start}} ${{end}})"\n"""\
