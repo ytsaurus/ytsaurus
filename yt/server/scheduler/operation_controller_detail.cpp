@@ -84,7 +84,6 @@ void TOperationControllerBase::TLivePreviewTableBase::Persist(TPersistenceContex
 {
     using NYT::Persist;
     Persist(context, LivePreviewTableId);
-    Persist(context, LivePreviewChunkListId);
 }
 
 ////////////////////////////////////////////////////////////////////
@@ -1021,7 +1020,7 @@ void TOperationControllerBase::Materialize()
 
         CreateLivePreviewTables();
 
-        PrepareLivePreviewTablesForUpdate();
+        LockLivePreviewTables();
 
         CollectTotals();
 
@@ -1079,7 +1078,7 @@ void TOperationControllerBase::Revive()
 
     DoLoadSnapshot();
 
-    PrepareLivePreviewTablesForUpdate();
+    LockLivePreviewTables();
 
     AbortAllJoblets();
 
@@ -1274,7 +1273,7 @@ void TOperationControllerBase::ReinstallLivePreview()
             }
             masterConnector->AttachToLivePreview(
                 Operation,
-                table.LivePreviewChunkListId,
+                table.LivePreviewTableId,
                 childrenIds);
         }
     }
@@ -1289,7 +1288,7 @@ void TOperationControllerBase::ReinstallLivePreview()
         }
         masterConnector->AttachToLivePreview(
             Operation,
-            IntermediateTable.LivePreviewChunkListId,
+            IntermediateTable.LivePreviewTableId,
             childrenIds);
     }
 }
@@ -1373,7 +1372,7 @@ void TOperationControllerBase::AttachOutputChunks()
         {
             TChunkListYPathProxy::TReqAttachPtr req;
             int reqSize = 0;
-            auto flushReq = [ & ]() {
+            auto flushReq = [&] () {
                 if (req) {
                     batchReq->AddRequest(req, "attach");
                     reqSize = 0;
@@ -1381,7 +1380,7 @@ void TOperationControllerBase::AttachOutputChunks()
                 }
             };
 
-            auto addChunkTree = [ & ](const TChunkTreeId& chunkTreeId) {
+            auto addChunkTree = [&] (const TChunkTreeId& chunkTreeId) {
                 if (!req) {
                     req = TChunkListYPathProxy::Attach(FromObjectId(table.OutputChunkListId));
                     req->set_request_statistics(false);
@@ -2324,32 +2323,41 @@ bool TOperationControllerBase::IsFinished() const
 
 void TOperationControllerBase::CreateLivePreviewTables()
 {
+    auto client = Host->GetMasterClient();
+    auto connection = client->GetConnection();
+
     // NB: use root credentials.
-    auto channel = Host->GetMasterClient()->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
+    auto channel = client->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
     TObjectServiceProxy proxy(channel);
 
     auto batchReq = proxy.ExecuteBatch();
 
     auto addRequest = [&] (
-            const Stroka& path,
-            int replicationFactor,
-            const Stroka& key,
-            const TYsonString& acl)
+        const Stroka& path,
+        TCellTag cellTag,
+        int replicationFactor,
+        const Stroka& key,
+        const TYsonString& acl)
     {
         {
             auto req = TCypressYPathProxy::Create(path);
-
             req->set_type(static_cast<int>(EObjectType::Table));
             req->set_ignore_existing(true);
+            req->set_enable_accounting(false);
 
             auto attributes = CreateEphemeralAttributes();
             attributes->Set("replication_factor", replicationFactor);
-
+            if (cellTag == connection->GetPrimaryMasterCellTag()) {
+                attributes->Set("external", false);
+            } else {
+                attributes->Set("external_cell_tag", cellTag);
+            }
             ToProto(req->mutable_node_attributes(), *attributes);
 
             batchReq->AddRequest(req, key);
         }
 
+        // TODO(babenko): consolidate with the above when setting acl at creation time becomes possible
         {
             auto req = TYPathProxy::Set(path + "/@acl");
             req->set_value(acl.Data());
@@ -2371,7 +2379,12 @@ void TOperationControllerBase::CreateLivePreviewTables()
         for (int index = 0; index < OutputTables.size(); ++index) {
             const auto& table = OutputTables[index];
             auto path = GetLivePreviewOutputPath(OperationId, index);
-            addRequest(path, table.Options->ReplicationFactor, "create_output", OutputTables[index].EffectiveAcl);
+            addRequest(
+                path,
+                table.CellTag,
+                table.Options->ReplicationFactor,
+                "create_output",
+                OutputTables[index].EffectiveAcl);
         }
     }
 
@@ -2379,7 +2392,12 @@ void TOperationControllerBase::CreateLivePreviewTables()
         LOG_INFO("Creating intermediate table for live preview");
 
         auto path = GetLivePreviewIntermediatePath(OperationId);
-        addRequest(path, 1, "create_intermediate", ConvertToYsonString(Spec->IntermediateDataAcl));
+        addRequest(
+            path,
+            IntermediateOutputCellTag,
+            1,
+            "create_intermediate",
+            ConvertToYsonString(Spec->IntermediateDataAcl));
     }
 
     auto batchRspOrError = WaitFor(batchReq->Invoke());
@@ -2408,62 +2426,40 @@ void TOperationControllerBase::CreateLivePreviewTables()
     }
 }
 
-void TOperationControllerBase::PrepareLivePreviewTablesForUpdate()
+void TOperationControllerBase::LockLivePreviewTables()
 {
-    // XXX(babenko): fixme
-    //// NB: use root credentials.
-    //auto channel = Host->GetMasterClient()->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
-    //TObjectServiceProxy proxy(channel);
-    //
-    //auto batchReq = proxy.ExecuteBatch();
-    //
-    //// XXX(babenko): multicell
-    //auto addRequest = [&] (const TLivePreviewTableBase& table, const Stroka& key) {
-    //    auto req = TTableYPathProxy::PrepareForUpdate(FromObjectId(table.LivePreviewTableId));
-    //    req->set_update_mode(static_cast<int>(EUpdateMode::Overwrite));
-    //    req->set_lock_mode(static_cast<int>(ELockMode::Exclusive));
-    //    SetTransactionId(req, AsyncSchedulerTransactionId);
-    //    batchReq->AddRequest(req, key);
-    //};
-    //
-    //if (IsOutputLivePreviewSupported()) {
-    //    LOG_INFO("Preparing live preview output tables for update");
-    //
-    //    for (const auto& table : OutputTables) {
-    //        addRequest(table, "prepare_output");
-    //    }
-    //}
-    //
-    //if (IsIntermediateLivePreviewSupported()) {
-    //    LOG_INFO("Preparing live preview intermediate table for update");
-    //
-    //    addRequest(IntermediateTable, "prepare_intermediate");
-    //}
-    //
-    //auto batchRspOrError = WaitFor(batchReq->Invoke());
-    //THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError), "Error preparing live preview tables for update");
-    //const auto& batchRsp = batchRspOrError.Value();
-    //
-    //auto handleResponse = [&] (TLivePreviewTableBase& table, TTableYPathProxy::TRspPrepareForUpdatePtr rsp) {
-    //    table.LivePreviewChunkListId = FromProto<NCypressClient::TNodeId>(rsp->chunk_list_id());
-    //};
-    //
-    //if (IsOutputLivePreviewSupported()) {
-    //    auto rspsOrError = batchRsp->GetResponses<TTableYPathProxy::TRspPrepareForUpdate>("prepare_output");
-    //    YCHECK(rspsOrError.size() == OutputTables.size());
-    //    for (int index = 0; index < OutputTables.size(); ++index) {
-    //        handleResponse(OutputTables[index], rspsOrError[index].Value());
-    //    }
-    //
-    //    LOG_INFO("Output live preview tables prepared for update");
-    //}
-    //
-    //if (IsIntermediateLivePreviewSupported()) {
-    //    auto rspOrError = batchRsp->GetResponse<TTableYPathProxy::TRspPrepareForUpdate>("prepare_intermediate");
-    //    handleResponse(IntermediateTable, rspOrError.Value());
-    //
-    //    LOG_INFO("Intermediate live preview table prepared for update");
-    //}
+    auto channel = Host->GetMasterClient()->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
+    TObjectServiceProxy proxy(channel);
+
+    auto batchReq = proxy.ExecuteBatch();
+
+    auto addRequest = [&] (const TLivePreviewTableBase& table, const Stroka& key) {
+        auto req = TCypressYPathProxy::Lock(FromObjectId(table.LivePreviewTableId));
+        req->set_mode(static_cast<int>(ELockMode::Exclusive));
+        SetTransactionId(req, AsyncSchedulerTransactionId);
+        batchReq->AddRequest(req, key);
+    };
+
+    if (IsOutputLivePreviewSupported()) {
+        LOG_INFO("Locking live preview output tables");
+        for (const auto& table : OutputTables) {
+            addRequest(table, "lock_output");
+        }
+    }
+
+    if (IsIntermediateLivePreviewSupported()) {
+        LOG_INFO("Locking live preview intermediate table");
+        addRequest(IntermediateTable, "lock_intermediate");
+    }
+
+    if (batchReq->GetSize() == 0) {
+        return;
+    }
+
+    auto batchRspOrError = WaitFor(batchReq->Invoke());
+    THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError), "Error locking live preview tables");
+
+    LOG_INFO("Live preview tables locked");
 }
 
 void TOperationControllerBase::GetInputTablesBasicAttributes()
@@ -3453,7 +3449,7 @@ void TOperationControllerBase::RegisterOutput(
         auto masterConnector = Host->GetMasterConnector();
         masterConnector->AttachToLivePreview(
             Operation,
-            table.LivePreviewChunkListId,
+            table.LivePreviewTableId,
             {chunkTreeId});
     }
 
@@ -3552,7 +3548,7 @@ void TOperationControllerBase::RegisterIntermediate(
             auto masterConnector = Host->GetMasterConnector();
             masterConnector->AttachToLivePreview(
                 Operation,
-                IntermediateTable.LivePreviewChunkListId,
+                IntermediateTable.LivePreviewTableId,
                 {chunkId});
         }
     }

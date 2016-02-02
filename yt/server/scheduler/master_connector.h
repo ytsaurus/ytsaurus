@@ -8,6 +8,8 @@
 
 #include <yt/ytlib/object_client/object_service_proxy.h>
 
+#include <yt/ytlib/cypress_client/public.h>
+
 #include <yt/core/actions/signal.h>
 
 #include <yt/core/ytree/public.h>
@@ -59,7 +61,7 @@ public:
 
     TFuture<void> AttachToLivePreview(
         TOperationPtr operation,
-        const NChunkClient::TChunkListId& chunkListId,
+        const NCypressClient::TNodeId& tableId,
         const std::vector<NChunkClient::TChunkTreeId>& childrenIds);
 
     void AddGlobalWatcherRequester(TWatcherRequester requester);

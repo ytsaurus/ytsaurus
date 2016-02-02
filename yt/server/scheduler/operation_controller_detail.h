@@ -200,9 +200,6 @@ protected:
         // Live preview table id.
         NCypressClient::TNodeId LivePreviewTableId;
 
-        // Chunk list for appending live preview results.
-        NChunkClient::TChunkListId LivePreviewChunkListId;
-
         void Persist(TPersistenceContext& context);
     };
 
@@ -625,7 +622,7 @@ protected:
     void FetchUserFiles(std::vector<TUserFile>* files);
     void LockUserFiles(std::vector<TUserFile>* files, const std::vector<Stroka>& attributeKeys);
     void CreateLivePreviewTables();
-    void PrepareLivePreviewTablesForUpdate();
+    void LockLivePreviewTables();
     void CollectTotals();
     virtual void CustomPrepare();
     void AddAllTaskPendingHints();
