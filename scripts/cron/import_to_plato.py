@@ -5,11 +5,11 @@ from yamr_import import Importer
 
 def main():
     user_session_args = {
-        "format_attribute": yson.loads("<key_column_names=[key];escape_carriage_return=true;has_subkey=true;subkey_column_names=[subkey]>yamred_dsv"),
+        #"format_attribute": yson.loads("<key_column_names=[key];escape_carriage_return=true;has_subkey=true;subkey_column_names=[subkey]>yamred_dsv"),
         "ydf_attribute": "UserSessions.ReadRecord"}
 
     importer = Importer("plato")
-    importer.process_log("day", "user_sessions/{}", None, period=270, **user_session_args)
+    importer.process_log("day", "user_sessions/{}", None, period=250, **user_session_args)
     importer.process_log("day", "user_sessions/{}/frauds", "user_sessions_frauds/{}", period=270, **user_session_args) 
     importer.process_log("day", "user_sessions/{}/spy_log", "user_sessions_spy_log/{}", period=180, **user_session_args)
     importer.process_log("day", "user_intents/{}", None, period=None)
