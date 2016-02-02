@@ -1272,15 +1272,22 @@ private:
 
     void OnReplicateKeysToSecondaryMaster(TCellTag cellTag)
     {
+        auto multicellManager = Bootstrap_->GetMulticellManager();
         auto nodes = GetValuesSortedByKey(NodeMap_);
         for (const auto* node : nodes) {
-            TReqRegisterNode request;
-            request.set_node_id(node->GetId());
-            ToProto(request.mutable_addresses(), node->GetAddresses());
-            *request.mutable_statistics() = node->Statistics();
-
-            auto multicellManager = Bootstrap_->GetMulticellManager();
-            multicellManager->PostToMaster(request, cellTag);
+            // NB: TReqRegisterNode+TReqUnregisterNode create an offline node at the secondary master.
+            {
+                TReqRegisterNode request;
+                request.set_node_id(node->GetId());
+                ToProto(request.mutable_addresses(), node->GetAddresses());
+                *request.mutable_statistics() = node->Statistics();
+                multicellManager->PostToMaster(request, cellTag);
+            }
+            {
+                TReqUnregisterNode request;
+                request.set_node_id(node->GetId());
+                multicellManager->PostToMaster(request, cellTag);
+            }
         }
     }
 };
