@@ -718,12 +718,6 @@ protected:
             auto stripeList = completedJob->SourceTask->GetChunkPoolOutput()->GetStripeList(completedJob->OutputCookie);
             Controller->SortDataSizeCounter.Lost(stripeList->TotalDataSize);
 
-            const auto& address = completedJob->Address;
-            Partition->AddressToLocality[address] -= stripeList->TotalDataSize;
-            YCHECK(Partition->AddressToLocality[address] >= 0);
-
-            Controller->ResetTaskLocalityDelays();
-
             TTask::OnJobLost(completedJob);
         }
 
@@ -808,6 +802,17 @@ protected:
             TSortTask::OnJobStarted(joblet);
         }
 
+        virtual void OnJobLost(TCompletedJobPtr completedJob) override
+        {
+            auto stripeList = completedJob->SourceTask->GetChunkPoolOutput()->GetStripeList(completedJob->OutputCookie);
+            const auto& address = completedJob->Address;
+            Partition->AddressToLocality[address] -= stripeList->TotalDataSize;
+            YCHECK(Partition->AddressToLocality[address] >= 0);
+
+            Controller->ResetTaskLocalityDelays();
+
+            TSortTask::OnJobLost(completedJob);
+        }
     };
 
     //! Implements simple sort phase for sort operations.
