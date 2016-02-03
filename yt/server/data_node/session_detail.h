@@ -60,12 +60,12 @@ public:
     DEFINE_SIGNAL(void(const TError& error), Finished);
 
 protected:
-    TDataNodeConfigPtr Config_;
-    NCellNode::TBootstrap* Bootstrap_;
-    TChunkId ChunkId_;
-    TSessionOptions Options_;
-    TStoreLocationPtr Location_;
-    TLease Lease_;
+    const TDataNodeConfigPtr Config_;
+    NCellNode::TBootstrap* const Bootstrap_;
+    const TChunkId ChunkId_;
+    const TSessionOptions Options_;
+    const TStoreLocationPtr Location_;
+    const TLease Lease_;
 
     IInvokerPtr WriteInvoker_;
 
