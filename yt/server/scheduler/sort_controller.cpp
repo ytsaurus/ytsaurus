@@ -467,7 +467,8 @@ protected:
             RegisterIntermediate(
                 joblet,
                 stripe,
-                Controller->ShufflePool->GetInput());
+                Controller->ShufflePool->GetInput(),
+                true);
 
             // Kick-start sort and unordered merge tasks.
             // Compute sort data size delta.
@@ -763,7 +764,6 @@ protected:
             Controller->SortDataSizeCounter.Completed(joblet->InputStripeList->TotalDataSize);
 
             if (Controller->IsSortedMergeNeeded(Partition)) {
-
                 Controller->IntermediateSortJobCounter.Completed(1);
 
                 // Sort outputs in large partitions are queued for further merge.
@@ -774,7 +774,8 @@ protected:
                 RegisterIntermediate(
                     joblet,
                     stripe,
-                    Partition->SortedMergeTask);
+                    Partition->SortedMergeTask,
+                    false);
             } else {
                 Controller->FinalSortJobCounter.Completed(1);
 

@@ -512,13 +512,24 @@ protected:
             NJobTrackerClient::NProto::TJobSpec* jobSpec,
             TJobletPtr joblet);
 
-        void RegisterIntermediate(TJobletPtr joblet, TChunkStripePtr stripe, TTaskPtr destinationTask);
-        void RegisterIntermediate(TJobletPtr joblet, TChunkStripePtr stripe, IChunkPoolInput* destinationPool);
+        void RegisterIntermediate(
+            TJobletPtr joblet,
+            TChunkStripePtr stripe,
+            TTaskPtr destinationTask,
+            bool attachToLivePreview);
+        void RegisterIntermediate(
+            TJobletPtr joblet,
+            TChunkStripePtr stripe,
+            IChunkPoolInput* destinationPool,
+            bool attachToLivePreview);
 
         static TChunkStripePtr BuildIntermediateChunkStripe(
             google::protobuf::RepeatedPtrField<NChunkClient::NProto::TChunkSpec>* chunkSpecs);
 
-        void RegisterOutput(TJobletPtr joblet, int key, const TCompletedJobSummary& jobSummary);
+        void RegisterOutput(
+            TJobletPtr joblet,
+            int key,
+            const TCompletedJobSummary& jobSummary);
 
     };
 
@@ -799,7 +810,8 @@ protected:
     void RegisterIntermediate(
         TJobletPtr joblet,
         TCompletedJobPtr completedJob,
-        TChunkStripePtr stripe);
+        TChunkStripePtr stripe,
+        bool attachToLivePreview);
 
     bool HasEnoughChunkLists(bool intermediate);
     NChunkClient::TChunkListId ExtractChunkList(NObjectClient::TCellTag cellTag);
