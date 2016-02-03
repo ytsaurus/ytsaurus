@@ -44,6 +44,8 @@ TDispatcher::TDispatcher(int lightPoolSize, int heavyPoolSize)
     : Impl_(new TImpl(lightPoolSize, heavyPoolSize))
 { }
 
+TDispatcher::~TDispatcher() = default;
+
 IInvokerPtr TDispatcher::GetLightInvoker()
 {
     return Impl_->GetLightInvoker();
