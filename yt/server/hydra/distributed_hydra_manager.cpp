@@ -1421,11 +1421,13 @@ private:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        if (!rspOrError.IsOK()) {
+        if (rspOrError.IsOK()) {
             epochContext->ActiveLeaderSyncPromise.Set(TError(
                 NRpc::EErrorCode::Unavailable,
                 "Failed to synchronize with leader")
                 << rspOrError);
+            epochContext->ActiveLeaderSyncPromise.Reset();
+            CheckForLeaderSyncDeadline(epochContext);
             return;
         }
 
@@ -1460,7 +1462,11 @@ private:
         epochContext->ActiveLeaderSyncPromise.Set();
         epochContext->ActiveLeaderSyncPromise.Reset();
         epochContext->ActiveLeaderSyncVersion.Reset();
+        CheckForLeaderSyncDeadline(epochContext);
+    }
 
+    void CheckForLeaderSyncDeadline(TEpochContextPtr epochContext)
+    {
         if (epochContext->LeaderSyncDeadlineReached) {
             DoSyncWithLeader(epochContext);
         }
