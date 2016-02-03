@@ -68,6 +68,7 @@
 #include <yt/core/rpc/scoped_channel.h>
 
 #include <yt/core/ytree/attribute_helpers.h>
+#include <yt/core/ytree/fluent.h>
 #include <yt/core/ytree/ypath_proxy.h>
 
 // TODO(babenko): refactor this
@@ -103,6 +104,28 @@ using namespace NScheduler;
 DECLARE_REFCOUNTED_CLASS(TQueryHelper)
 DECLARE_REFCOUNTED_CLASS(TClient)
 DECLARE_REFCOUNTED_CLASS(TTransaction)
+
+////////////////////////////////////////////////////////////////////////////////
+
+void Serialize(const TUserWorkloadDescriptor& workloadDescriptor, NYson::IYsonConsumer* consumer)
+{
+    BuildYsonMapFluently(consumer)
+        .Item("category").Value(workloadDescriptor.Category)
+        .Item("band").Value(workloadDescriptor.Band);
+}
+
+void Deserialize(TUserWorkloadDescriptor& workloadDescriptor, INodePtr node)
+{
+    auto mapNode = node->AsMap();
+    auto categoryNode = mapNode->FindChild("category");
+    if (categoryNode) {
+        workloadDescriptor.Category = ConvertTo<EUserWorkloadCategory>(categoryNode);
+    }
+    auto bandNode = mapNode->FindChild("band");
+    if (bandNode) {
+        workloadDescriptor.Band = ConvertTo<int>(bandNode);
+    }
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
