@@ -9,6 +9,8 @@ namespace NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TAsyncSemaphoreGuard;
+
 //! Custom semaphore class with async acquire operation.
 class TAsyncSemaphore
     : private TNonCopyable
@@ -26,6 +28,14 @@ public:
     //! Tries to acquire a given number of slots.
     //! Returns |true| on success (the number of remaining slots is non-negative).
     bool TryAcquire(i64 slots = 1);
+
+    //! Runs #handler when a given number of slots becomes available.
+    //! These slots are immediately captured by TAsyncSemaphoreGuard instance passed to #handler.
+    // XXX(babenko): passing invoker is a temporary workaround until YT-3801 is fixed
+    void AsyncAcquire(
+        const TCallback<void(TAsyncSemaphoreGuard)>& handler,
+        IInvokerPtr invoker,
+        i64 slots = 1);
 
     //! Returns |true| iff at least one slot is free.
     bool IsReady() const;
@@ -46,13 +56,23 @@ public:
     TFuture<void> GetFreeEvent();
 
 private:
+    const i64 TotalSlots_;
+
     TSpinLock SpinLock_;
 
-    const i64 TotalSlots_;
     volatile i64 FreeSlots_;
 
     TPromise<void> ReadyEvent_;
     TPromise<void> FreeEvent_;
+
+    struct TWaiter
+    {
+        TCallback<void(TAsyncSemaphoreGuard)> Handler;
+        IInvokerPtr Invoker;
+        i64 Slots;
+    };
+
+    std::queue<TWaiter> Waiters_;
 
 };
 
@@ -77,10 +97,13 @@ public:
     explicit operator bool() const;
 
 private:
+    friend class TAsyncSemaphore;
+
     TAsyncSemaphore* Semaphore_;
     i64 Slots_;
 
     TAsyncSemaphoreGuard();
+    TAsyncSemaphoreGuard(TAsyncSemaphore* semaphore, i64 slots);
 
     void MoveFrom(TAsyncSemaphoreGuard&& other);
 
