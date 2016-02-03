@@ -102,7 +102,9 @@ default_config = {
         # in case of consequence runs of the script with small modifications.
         "fresh_files_threshold": 3600,
         # Enables using tmpfs for modules archive.
-        "enable_tmpfs_archive": False
+        "enable_tmpfs_archive": True,
+        # Enable collecting different statistics of job.
+        "enable_job_statistics": True
     },
 
     "yamr_mode": {

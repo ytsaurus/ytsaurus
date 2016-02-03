@@ -4,9 +4,11 @@ def main():
     import sys
     import itertools
     import imp
+    import time
     import zipfile
     import pickle as standard_pickle
 
+    start_time = time.time()
 
     # Variable names start with "__" to avoid accidental intersection with scope of user function.
     __operation_dump = sys.argv[1]
@@ -60,6 +62,13 @@ def main():
 
     __operation, __attributes, __operation_type, __input_format, __output_format, __keys, __python_version = \
         unpickler.load(open(__operation_dump))
+
+    if yt.wrapper.config["pickling"]["enable_job_statistics"]:
+        try:
+            import yt.wrapper.user_statistics
+            yt.wrapper.user_statistics.write_statistics({"python_job_preparation_time": int((time.time() - start_time) * 1000)})
+        except ImportError:
+            pass
 
     if yt.wrapper.config["pickling"]["check_python_version"] and yt.wrapper.common.get_python_version() != __python_version:
         sys.stderr.write("Python version on cluster differs from local python version")
