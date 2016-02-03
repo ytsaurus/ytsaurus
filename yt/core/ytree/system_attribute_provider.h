@@ -137,9 +137,9 @@ struct ISystemAttributeProvider
     //! builtin attribute is known.
     TNullable<TAttributeDescriptor> FindBuiltinAttributeDescriptor(const Stroka& key);
 
-    //! A wrapper around interface method that returns the YSON string instead
+    //! Wraps #GetBuiltinAttribute and returns the YSON string instead
     //! of writing it into a consumer.
-    TNullable<NYson::TYsonString> GetBuiltinAttribute(const Stroka& key);
+    TNullable<NYson::TYsonString> FindBuiltinAttribute(const Stroka& key);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
