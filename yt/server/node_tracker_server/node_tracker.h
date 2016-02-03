@@ -32,25 +32,23 @@ public:
 
     void Initialize();
 
-    bool TryAcquireNodeRegistrationSemaphore();
+    using TCtxRegisterNode = NRpc::TTypedServiceContext<
+        NNodeTrackerClient::NProto::TReqRegisterNode,
+        NNodeTrackerClient::NProto::TRspRegisterNode>;
+    using TCtxRegisterNodePtr = TIntrusivePtr<TCtxRegisterNode>;
+    void ProcessRegisterNode(TCtxRegisterNodePtr context);
 
-    NHydra::TMutationPtr CreateRegisterNodeMutation(
-        const NProto::TReqRegisterNode& request);
-
-    // Pass RPC service context to full heartbeat handler to avoid copying request message.
     typedef NRpc::TTypedServiceContext<
         NNodeTrackerClient::NProto::TReqFullHeartbeat,
         NNodeTrackerClient::NProto::TRspFullHeartbeat> TCtxFullHeartbeat;
-    typedef TIntrusivePtr<TCtxFullHeartbeat> TCtxFullHeartbeatPtr;
-    NHydra::TMutationPtr CreateFullHeartbeatMutation(
-        TCtxFullHeartbeatPtr context);
+    using TCtxFullHeartbeatPtr = TIntrusivePtr<TCtxFullHeartbeat>;
+    void ProcessFullHeartbeat(TCtxFullHeartbeatPtr context);
 
-    typedef NRpc::TTypedServiceContext<
+    using TCtxIncrementalHeartbeat = NRpc::TTypedServiceContext<
         NNodeTrackerClient::NProto::TReqIncrementalHeartbeat,
-        NNodeTrackerClient::NProto::TRspIncrementalHeartbeat> TCtxIncrementalHeartbeat;
-    typedef TIntrusivePtr<TCtxIncrementalHeartbeat> TCtxIncrementalHeartbeatPtr;
-    NHydra::TMutationPtr CreateIncrementalHeartbeatMutation(
-        TCtxIncrementalHeartbeatPtr context);
+        NNodeTrackerClient::NProto::TRspIncrementalHeartbeat>;
+    using TCtxIncrementalHeartbeatPtr = TIntrusivePtr<TCtxIncrementalHeartbeat>;
+    void ProcessIncrementalHeartbeat(TCtxIncrementalHeartbeatPtr context);
 
 
     DECLARE_ENTITY_MAP_ACCESSORS(Node, TNode, NObjectClient::TObjectId);

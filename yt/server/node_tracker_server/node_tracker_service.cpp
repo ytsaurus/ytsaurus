@@ -86,16 +86,7 @@ private:
             statistics);
 
         auto nodeTracker = Bootstrap_->GetNodeTracker();
-        if (!nodeTracker->TryAcquireNodeRegistrationSemaphore()) {
-            context->Reply(TError(
-                NRpc::EErrorCode::Unavailable,
-                "Node registration throttling is active"));
-            return;
-        }
-
-        nodeTracker
-            ->CreateRegisterNodeMutation(*request)
-            ->CommitAndReply(context);
+        nodeTracker->ProcessRegisterNode(context);
     }
 
     DECLARE_RPC_SERVICE_METHOD(NNodeTrackerClient::NProto, FullHeartbeat)
@@ -114,9 +105,7 @@ private:
             node->GetDefaultAddress(),
             statistics);
 
-        nodeTracker
-            ->CreateFullHeartbeatMutation(context)
-            ->CommitAndReply(context);
+        nodeTracker->ProcessFullHeartbeat(context);
     }
 
     DECLARE_RPC_SERVICE_METHOD(NNodeTrackerClient::NProto, IncrementalHeartbeat)
@@ -135,9 +124,7 @@ private:
             node->GetDefaultAddress(),
             statistics);
 
-        nodeTracker
-            ->CreateIncrementalHeartbeatMutation(context)
-            ->CommitAndReply(context);
+        nodeTracker->ProcessIncrementalHeartbeat(context);
     }
 
 };
