@@ -907,12 +907,13 @@ private:
             return;
         }
 
-        std::vector<TStoreId> storeIdsToAdd;
+        SmallVector<TStoreId, TypicalStoreIdCount> storeIdsToAdd;
         for (const auto& descriptor : commitRequest.stores_to_add()) {
-            storeIdsToAdd.push_back(FromProto<TStoreId>(descriptor.store_id()));
+            auto storeId = FromProto<TStoreId>(descriptor.store_id());
+            storeIdsToAdd.push_back(storeId);
         }
 
-        std::vector<TStoreId> storeIdsToRemove;
+        SmallVector<TStoreId, TypicalStoreIdCount> storeIdsToRemove;
         for (const auto& descriptor : commitRequest.stores_to_remove()) {
             auto storeId = FromProto<TStoreId>(descriptor.store_id());
             storeIdsToRemove.push_back(storeId);
