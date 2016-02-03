@@ -487,11 +487,11 @@ void TStoreManager::BackoffStoreFlush(TDynamicMemoryStorePtr store)
 {
     YCHECK(store->GetFlushState() == EStoreFlushState::Running);
     store->SetFlushState(EStoreFlushState::Failed);
+
     NConcurrency::TDelayedExecutor::Submit(
-        BIND([=] () {
-            if (store->GetFlushState() == EStoreFlushState::Failed) {
-                store->SetFlushState(EStoreFlushState::None);
-            }
+        BIND([store] () {
+            YCHECK(store->GetFlushState() == EStoreFlushState::Failed);
+            store->SetFlushState(EStoreFlushState::None);
         }).Via(Tablet_->GetEpochAutomatonInvoker()),
         Config_->ErrorBackoffTime);
 }
@@ -532,11 +532,11 @@ void TStoreManager::BackoffStoreCompaction(TChunkStorePtr store)
 {
     YCHECK(store->GetCompactionState() == EStoreCompactionState::Running);
     store->SetCompactionState(EStoreCompactionState::Failed);
+
     NConcurrency::TDelayedExecutor::Submit(
-        BIND([=] () {
-            if (store->GetCompactionState() == EStoreCompactionState::Failed) {
-                store->SetCompactionState(EStoreCompactionState::None);
-            }
+        BIND([store] () {
+            YCHECK(store->GetCompactionState() == EStoreCompactionState::Failed);
+            store->SetCompactionState(EStoreCompactionState::None);
         }).Via(Tablet_->GetEpochAutomatonInvoker()),
         Config_->ErrorBackoffTime);
 }
@@ -630,6 +630,7 @@ void TStoreManager::BackoffStorePreload(TChunkStorePtr store)
 
     store->SetPreloadState(EStorePreloadState::Failed);
     store->SetPreloadFuture(TFuture<void>());
+
     NConcurrency::TDelayedExecutor::Submit(
         BIND([=] () {
             if (store->GetPreloadState() == EStorePreloadState::Failed) {
@@ -641,25 +642,33 @@ void TStoreManager::BackoffStorePreload(TChunkStorePtr store)
 
 void TStoreManager::BackoffStoreRemoval(IStorePtr store)
 {
-    NConcurrency::TDelayedExecutor::Submit(
-        BIND([=] () {
-            switch (store->GetType()) {
-                case EStoreType::DynamicMemory: {
-                    auto dynamicMemoryStore = store->AsDynamicMemory();
-                    if (dynamicMemoryStore->GetFlushState() == EStoreFlushState::Complete) {
-                        dynamicMemoryStore->SetFlushState(EStoreFlushState::None);
-                    }
-                    break;
-                }
-                case EStoreType::Chunk: {
-                    auto chunkStore = store->AsChunk();
-                    if (chunkStore->GetCompactionState() == EStoreCompactionState::Complete) {
-                        chunkStore->SetCompactionState(EStoreCompactionState::None);
-                    }
-                    break;
-                }
+    TClosure callback;
+    switch (store->GetType()) {
+        case EStoreType::DynamicMemory: {
+            auto dynamicMemoryStore = store->AsDynamicMemory();
+            if (dynamicMemoryStore->GetFlushState() == EStoreFlushState::Complete) {
+                callback = BIND([dynamicMemoryStore] () {
+                    YCHECK(dynamicMemoryStore->GetFlushState() == EStoreFlushState::Complete);
+                    dynamicMemoryStore->SetFlushState(EStoreFlushState::None);
+                });
             }
-        }).Via(Tablet_->GetEpochAutomatonInvoker()),
+            break;
+        }
+        case EStoreType::Chunk: {
+            auto chunkStore = store->AsChunk();
+            if (chunkStore->GetCompactionState() == EStoreCompactionState::Complete) {
+                callback = BIND([chunkStore] () {
+                    YCHECK(chunkStore->GetCompactionState() == EStoreCompactionState::None);
+                    chunkStore->SetCompactionState(EStoreCompactionState::None);
+                });
+            }
+            break;
+        }
+    }
+
+    YCHECK(callback);
+    NConcurrency::TDelayedExecutor::Submit(
+        callback.Via(Tablet_->GetEpochAutomatonInvoker()),
         Config_->ErrorBackoffTime);
 }
 
