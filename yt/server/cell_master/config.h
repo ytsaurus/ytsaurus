@@ -125,12 +125,6 @@ public:
 
     TMulticellManagerConfigPtr MulticellManager;
 
-    //! RPC interface port number.
-    int RpcPort;
-
-    //! HTTP monitoring interface port number.
-    int MonitoringPort;
-
     //! If |true| then |//sys/@provision_lock| is set during cluster initialization.
     bool EnableProvisionLock;
 

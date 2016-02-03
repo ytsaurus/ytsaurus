@@ -61,6 +61,7 @@ public:
 
 public:
     explicit TServer(int port);
+    explicit TServer(int port, int bindRetryCount, TDuration bindRetryBackoff);
     ~TServer();
 
     void Register(const Stroka& prefix, TSyncHandler handler);

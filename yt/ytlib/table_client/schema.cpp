@@ -13,7 +13,6 @@
 // TODO(lukyan): Remove this dependencies.
 #include <yt/ytlib/query_client/plan_fragment.h>
 #include <yt/ytlib/query_client/query_preparer.h>
-#include <yt/ytlib/query_client/folding_profiler.h>
 #include <yt/ytlib/query_client/function_registry.h>
 #include <yt/ytlib/query_client/functions.h>
 
@@ -400,7 +399,8 @@ void TTableSchema::ValidateComputedColumns()
                 THROW_ERROR_EXCEPTION("Non-key column %Qv can't be computed", columnSchema.Name);
             }
             auto functionRegistry = CreateBuiltinFunctionRegistry();
-            auto expr = PrepareExpression(columnSchema.Expression.Get(), *this, functionRegistry);
+            yhash_set<Stroka> references;
+            auto expr = PrepareExpression(columnSchema.Expression.Get(), *this, functionRegistry, &references);
             if (expr->Type != columnSchema.Type) {
                 THROW_ERROR_EXCEPTION("Computed column %Qv type mismatch: declared type is %Qlv but expression type is %Qlv",
                     columnSchema.Name,
@@ -408,8 +408,6 @@ void TTableSchema::ValidateComputedColumns()
                     expr->Type);
             }
 
-            yhash_set<Stroka> references;
-            Profile(expr, *this, nullptr, nullptr, &references, nullptr, functionRegistry);
             for (const auto& ref : references) {
                 const auto& refColumn = GetColumnOrThrow(ref);
                 if (!refColumn.SortOrder) {

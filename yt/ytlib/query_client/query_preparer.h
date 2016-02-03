@@ -1,13 +1,14 @@
 #pragma once
 
 #include "plan_fragment.h"
+#include "function_registry.h"
 
 namespace NYT {
 namespace NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TPlanFragmentPtr PreparePlanFragment(
+std::pair<TQueryPtr, TDataRanges> PreparePlanFragment(
     IPrepareCallbacks* callbacks,
     const Stroka& source,
     IFunctionRegistryPtr functionRegistry,
@@ -33,7 +34,8 @@ TQueryPtr PrepareJobQuery(
 TConstExpressionPtr PrepareExpression(
     const Stroka& source,
     TTableSchema initialTableSchema,
-    IFunctionRegistryPtr functionRegistry = CreateBuiltinFunctionRegistry());
+    IFunctionRegistryPtr functionRegistry = CreateBuiltinFunctionRegistry(),
+    yhash_set<Stroka>* references = nullptr);
 
 ////////////////////////////////////////////////////////////////////////////////
 

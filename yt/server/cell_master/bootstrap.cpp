@@ -338,7 +338,7 @@ void TBootstrap::DoInitialize()
         THROW_ERROR_EXCEPTION("Error parsing cell master configuration")
             << ex;
     }
-    
+
     Config_->PrimaryMaster->ValidateAllPeersPresent();
     for (auto cellConfig : Config_->SecondaryMasters) {
         cellConfig->ValidateAllPeersPresent();
@@ -409,10 +409,15 @@ void TBootstrap::DoInitialize()
         YCHECK(CellDirectory_->ReconfigureCell(cellConfig));
     }
 
-    HttpServer_.reset(new NHttp::TServer(Config_->MonitoringPort));
+    HttpServer_ = std::make_unique<NHttp::TServer>(
+        Config_->MonitoringPort,
+        Config_->BusServer->BindRetryCount,
+        Config_->BusServer->BindRetryBackoff);
 
-    auto busServerConfig = TTcpBusServerConfig::CreateTcp(Config_->RpcPort);
-    auto busServer = CreateTcpBusServer(busServerConfig);
+    auto busServer = CreateTcpBusServer(Config_->BusServer);
+    // TODO(ignat): remove?
+    //auto busServerConfig = TTcpBusServerConfig::CreateTcp(Config_->RpcPort);
+    //auto busServer = CreateTcpBusServer(busServerConfig);
 
     RpcServer_ = CreateBusServer(busServer);
 
@@ -530,6 +535,11 @@ void TBootstrap::DoInitialize()
         "/config",
         ConfigNode_);
 
+    // TODO(ignat): does this registration still necessary?
+    HttpServer_->Register(
+        "/orchid",
+        NMonitoring::GetYPathHttpHandler(orchidRoot->Via(GetControlInvoker())));
+
     SetBuildAttributes(orchidRoot, "master");
 
     RpcServer_->RegisterService(CreateOrchidService(orchidRoot, GetControlInvoker())); // null realm
@@ -569,10 +579,6 @@ void TBootstrap::DoInitialize()
     CypressManager_->RegisterHandler(CreateTabletCellNodeTypeHandler(this));
     CypressManager_->RegisterHandler(CreateTabletMapTypeHandler(this));
     CypressManager_->RegisterHandler(CreateTabletCellBundleMapTypeHandler(this));
-
-    HttpServer_->Register(
-        "/orchid",
-        NMonitoring::GetYPathHttpHandler(orchidRoot->Via(GetControlInvoker())));
 
     RpcServer_->Configure(Config_->RpcServer);
 

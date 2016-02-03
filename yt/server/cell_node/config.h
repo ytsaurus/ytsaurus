@@ -47,12 +47,6 @@ public:
     //! Interval between Orchid cache rebuilds.
     TDuration OrchidCacheUpdatePeriod;
 
-    //! RPC interface port number.
-    int RpcPort;
-
-    //! HTTP monitoring interface port number.
-    int MonitoringPort;
-
     //! Node-to-master connection.
     NApi::TConnectionConfigPtr ClusterConnection;
 
@@ -87,10 +81,6 @@ public:
     {
         RegisterParameter("orchid_cache_update_period", OrchidCacheUpdatePeriod)
             .Default(TDuration::Seconds(5));
-        RegisterParameter("rpc_port", RpcPort)
-            .Default(9000);
-        RegisterParameter("monitoring_port", MonitoringPort)
-            .Default(10000);
         RegisterParameter("cluster_connection", ClusterConnection);
         RegisterParameter("cell_directory_synchronizer", CellDirectorySynchronizer)
             .DefaultNew();

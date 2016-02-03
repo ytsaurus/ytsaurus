@@ -19,6 +19,7 @@ using NYT::NQueryClient::TRowHeader;
 using NYT::NQueryClient::TValue;
 using NYT::NQueryClient::TValueData;
 using NYT::NQueryClient::TLookupRows;
+using NYT::NQueryClient::TJoinLookup;
 using NYT::NQueryClient::TJoinLookupRows;
 using NYT::NQueryClient::TTopCollector;
 
@@ -68,6 +69,16 @@ template <bool Cross>
 class TypeBuilder<TJoinLookupRows*, Cross>
     : public TypeBuilder<void*, Cross>
 { };
+
+template <bool Cross>
+class TypeBuilder<TJoinLookup*, Cross>
+    : public TypeBuilder<void*, Cross>
+{ };
+
+template <bool Cross>
+class TypeBuilder<std::vector<std::pair<TRow, int>>*, Cross>
+    : public TypeBuilder<void*, Cross>
+{ };;
 
 template <bool Cross>
 class TypeBuilder<TTopCollector*, Cross>

@@ -4,7 +4,7 @@
 #include "journal_manager.h"
 
 #include <yt/server/cell_master/bootstrap.h>
-#include <yt/server/cell_master/serialize.h>
+#include <yt/server/cell_master/config.h>
 
 #include <yt/server/chunk_server/chunk_manager.h>
 #include <yt/server/chunk_server/chunk_owner_type_handler.h>
@@ -156,16 +156,17 @@ protected:
     {
         auto chunkManager = Bootstrap_->GetChunkManager();
         auto objectManager = Bootstrap_->GetObjectManager();
+        const auto& config = Bootstrap_->GetConfig()->CypressManager;
 
         // NB: Don't call TBase::InitializeAttributes; take care of all attributes here.
 
-        int replicationFactor = attributes->Get<int>("replication_factor", DefaultReplicationFactor);
+        int replicationFactor = attributes->Get<int>("replication_factor", config->DefaultJournalReplicationFactor);
         attributes->Remove("replication_factor");
 
-        int readQuorum = attributes->Get<int>("read_quorum", DefaultReadQuorum);
+        int readQuorum = attributes->Get<int>("read_quorum", config->DefaultJournalReadQuorum);
         attributes->Remove("read_quorum");
 
-        int writeQuorum = attributes->Get<int>("write_quorum", DefaultWriteQuorum);
+        int writeQuorum = attributes->Get<int>("write_quorum", config->DefaultJournalWriteQuorum);
         attributes->Remove("write_quorum");
 
         if (readQuorum > replicationFactor) {
@@ -338,6 +339,10 @@ protected:
         }
     }
 
+    virtual int GetDefaultReplicationFactor() const override
+    {
+        return Bootstrap_->GetConfig()->CypressManager->DefaultJournalReplicationFactor;
+    }
 };
 
 INodeTypeHandlerPtr CreateJournalTypeHandler(TBootstrap* bootstrap)

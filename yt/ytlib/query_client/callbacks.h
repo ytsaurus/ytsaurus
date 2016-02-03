@@ -1,6 +1,7 @@
 #pragma once
 
 #include "public.h"
+#include "plan_fragment.h"
 
 #include <yt/ytlib/ypath/public.h>
 
@@ -13,9 +14,11 @@ namespace NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-typedef std::function<TQueryStatistics(
+typedef std::function<TFuture<TQueryStatistics>(
     const TQueryPtr& query,
     TGuid dataId,
+    TRowBufferPtr buffer,
+    TRowRanges ranges,
     ISchemafulWriterPtr writer)> TExecuteQuery;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -23,12 +26,28 @@ typedef std::function<TQueryStatistics(
 struct IExecutor
     : public virtual TRefCounted
 {
-    virtual TFuture<TQueryStatistics> Execute(
-        TPlanFragmentPtr fragment,
-        ISchemafulWriterPtr writer) = 0;
+    virtual TFuture <TQueryStatistics> Execute(
+        TConstQueryPtr query,
+        TDataRanges dataSource,
+        ISchemafulWriterPtr writer,
+        TQueryOptions options) = 0;
+
 };
 
 DEFINE_REFCOUNTED_TYPE(IExecutor)
+
+struct ISubExecutor
+    : public virtual TRefCounted
+{
+    virtual TFuture<TQueryStatistics> Execute(
+        TConstQueryPtr query,
+        std::vector<TDataRanges> dataSources,
+        ISchemafulWriterPtr writer,
+        TQueryOptions options) = 0;
+
+};
+
+DEFINE_REFCOUNTED_TYPE(ISubExecutor)
 
 ////////////////////////////////////////////////////////////////////////////////
 
