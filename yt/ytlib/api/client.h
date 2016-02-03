@@ -53,6 +53,9 @@ struct TUserWorkloadDescriptor
     int Band = 0;
 };
 
+void Serialize(const TUserWorkloadDescriptor& workloadDescriptor, NYson::IYsonConsumer* consumer);
+void Deserialize(TUserWorkloadDescriptor& workloadDescriptor, NYTree::INodePtr node);
+
 struct TTimeoutOptions
 {
     TNullable<TDuration> Timeout;
