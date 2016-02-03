@@ -1421,7 +1421,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        if (rspOrError.IsOK()) {
+        if (!rspOrError.IsOK()) {
             epochContext->ActiveLeaderSyncPromise.Set(TError(
                 NRpc::EErrorCode::Unavailable,
                 "Failed to synchronize with leader")
