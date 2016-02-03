@@ -225,33 +225,21 @@ public:
         }
     }
 
-    bool TryAcquireNodeRegistrationSemaphore()
+    void ProcessRegisterNode(TCtxRegisterNodePtr context)
     {
         if (PendingRegisterNodeMutationCount_ + LocalRegisteredNodeCount_ >= Config_->MaxConcurrentNodeRegistrations) {
-            return false;
+            context->Reply(TError(
+                NRpc::EErrorCode::Unavailable,
+                "Node registration throttling is active"));
+            return;
         }
+
         ++PendingRegisterNodeMutationCount_;
-        return true;
+        CreateMutation(Bootstrap_->GetHydraFacade()->GetHydraManager(), context->Request())
+            ->CommitAndReply(context);
     }
 
-    TMutationPtr CreateRegisterNodeMutation(
-        const TReqRegisterNode& request)
-    {
-        return CreateMutation(
-            Bootstrap_->GetHydraFacade()->GetHydraManager(),
-            request);
-    }
-
-    TMutationPtr CreateDisposeNodeMutation(
-        const TReqDisposeNode& request)
-    {
-        return CreateMutation(
-            Bootstrap_->GetHydraFacade()->GetHydraManager(),
-            request);
-    }
-
-    TMutationPtr CreateFullHeartbeatMutation(
-        TCtxFullHeartbeatPtr context)
+    void ProcessFullHeartbeat(TCtxFullHeartbeatPtr context)
     {
         return CreateMutation(Bootstrap_->GetHydraFacade()->GetHydraManager())
             ->SetRequestData(context->GetRequestBody(), context->Request().GetTypeName())
@@ -259,20 +247,21 @@ public:
                 &TImpl::HydraFullHeartbeat,
                 MakeStrong(this),
                 context,
-                ConstRef(context->Request())));
+                ConstRef(context->Request())))
+            ->CommitAndReply(context);
    }
 
-    TMutationPtr CreateIncrementalHeartbeatMutation(
-        TCtxIncrementalHeartbeatPtr context)
+    void ProcessIncrementalHeartbeat(TCtxIncrementalHeartbeatPtr context)
     {
-        return CreateMutation(Bootstrap_->GetHydraFacade()->GetHydraManager())
+        CreateMutation(Bootstrap_->GetHydraFacade()->GetHydraManager())
             ->SetRequestData(context->GetRequestBody(), context->Request().GetTypeName())
             ->SetAction(BIND(
                 &TImpl::HydraIncrementalHeartbeat,
                 MakeStrong(this),
                 context,
                 &context->Response(),
-                ConstRef(context->Request())));
+                ConstRef(context->Request())))
+            ->CommitAndReply(context);
     }
 
 
@@ -1209,7 +1198,9 @@ private:
 
             ++PendingDisposeNodeMutationCount_;
 
-            auto mutation = CreateDisposeNodeMutation(request);
+            auto mutation = CreateMutation(
+                Bootstrap_->GetHydraFacade()->GetHydraManager(),
+                request);
             Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker()->Invoke(
                 BIND(IgnoreResult(&TMutation::CommitAndLog), mutation, Logger));
         }
@@ -1308,8 +1299,7 @@ void TNodeTracker::Initialize()
     Impl_->Initialize();
 }
 
-TNodeTracker::~TNodeTracker()
-{ }
+TNodeTracker::~TNodeTracker() = default;
 
 TNode* TNodeTracker::FindNode(TNodeId id)
 {
@@ -1391,27 +1381,19 @@ TRack* TNodeTracker::GetRackByNameOrThrow(const Stroka& name)
     return Impl_->GetRackByNameOrThrow(name);
 }
 
-bool TNodeTracker::TryAcquireNodeRegistrationSemaphore()
+void TNodeTracker::ProcessRegisterNode(TCtxRegisterNodePtr context)
 {
-    return Impl_->TryAcquireNodeRegistrationSemaphore();
+    Impl_->ProcessRegisterNode(context);
 }
 
-TMutationPtr TNodeTracker::CreateRegisterNodeMutation(
-    const TReqRegisterNode& request)
+void TNodeTracker::ProcessFullHeartbeat(TCtxFullHeartbeatPtr context)
 {
-    return Impl_->CreateRegisterNodeMutation(request);
+    Impl_->ProcessFullHeartbeat(context);
 }
 
-TMutationPtr TNodeTracker::CreateFullHeartbeatMutation(
-    TCtxFullHeartbeatPtr context)
+void TNodeTracker::ProcessIncrementalHeartbeat(TCtxIncrementalHeartbeatPtr context)
 {
-    return Impl_->CreateFullHeartbeatMutation(context);
-}
-
-TMutationPtr TNodeTracker::CreateIncrementalHeartbeatMutation(
-    TCtxIncrementalHeartbeatPtr context)
-{
-    return Impl_->CreateIncrementalHeartbeatMutation(context);
+    Impl_->ProcessIncrementalHeartbeat(context);
 }
 
 TTotalNodeStatistics TNodeTracker::GetTotalNodeStatistics()
