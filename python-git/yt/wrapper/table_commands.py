@@ -68,6 +68,7 @@ import yt.json as json
 
 import os
 import sys
+import time
 import types
 import tempfile
 import socket
@@ -234,6 +235,7 @@ class TempfilesManager(object):
 def _prepare_binary(binary, operation_type, input_format=None, output_format=None,
                     reduce_by=None, client=None):
     if _is_python_function(binary):
+        start_time = time.time()
         if isinstance(input_format, YamrFormat) and reduce_by is not None and set(reduce_by) != set(["key"]):
             raise YtError("Yamr format does not support reduce by %r", reduce_by)
         with TempfilesManager(client) as tempfiles_manager:
@@ -242,6 +244,7 @@ def _prepare_binary(binary, operation_type, input_format=None, output_format=Non
                                 input_format, output_format, reduce_by, client=client)
             uploaded_files = _reliably_upload_files([binary_file] + files, client=client)
             return binary, uploaded_files, tmpfs_size
+        logger.debug("Collecting python modules and uploading to cypress takes %.2lf seconds", time.time() - start_time)
     else:
         return binary, [], 0
 
