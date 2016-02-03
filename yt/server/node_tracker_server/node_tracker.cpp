@@ -32,6 +32,7 @@
 #include <yt/ytlib/node_tracker_client/helpers.h>
 
 #include <yt/core/concurrency/scheduler.h>
+#include <yt/core/concurrency/async_semaphore.h>
 
 #include <yt/core/misc/address.h>
 #include <yt/core/misc/id_generator.h>
@@ -181,6 +182,9 @@ public:
         TBootstrap* bootstrap)
         : TMasterAutomatonPart(bootstrap)
         , Config_(config)
+        , FullHeartbeatSemaphore_(Config_->MaxConcurrentFullHeartbeats)
+        , IncrementalHeartbeatSemaphore_(Config_->MaxConcurrentIncrementalHeartbeats)
+        , DisposeNodeSemaphore_(Config_->MaxConcurrentNodeUnregistrations)
     {
         RegisterMethod(BIND(&TImpl::HydraRegisterNode, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraUnregisterNode, Unretained(this)));
@@ -241,27 +245,28 @@ public:
 
     void ProcessFullHeartbeat(TCtxFullHeartbeatPtr context)
     {
-        return CreateMutation(Bootstrap_->GetHydraFacade()->GetHydraManager())
+        auto mutation = CreateMutation(Bootstrap_->GetHydraFacade()->GetHydraManager())
             ->SetRequestData(context->GetRequestBody(), context->Request().GetTypeName())
             ->SetAction(BIND(
                 &TImpl::HydraFullHeartbeat,
                 MakeStrong(this),
                 context,
-                ConstRef(context->Request())))
-            ->CommitAndReply(context);
+                ConstRef(context->Request())));
+        CommitMutationWithSemaphore(mutation, context, &FullHeartbeatSemaphore_);
+
    }
 
     void ProcessIncrementalHeartbeat(TCtxIncrementalHeartbeatPtr context)
     {
-        CreateMutation(Bootstrap_->GetHydraFacade()->GetHydraManager())
+        auto mutation = CreateMutation(Bootstrap_->GetHydraFacade()->GetHydraManager())
             ->SetRequestData(context->GetRequestBody(), context->Request().GetTypeName())
             ->SetAction(BIND(
                 &TImpl::HydraIncrementalHeartbeat,
                 MakeStrong(this),
                 context,
                 &context->Response(),
-                ConstRef(context->Request())))
-            ->CommitAndReply(context);
+                ConstRef(context->Request())));
+        CommitMutationWithSemaphore(mutation, context, &IncrementalHeartbeatSemaphore_);
     }
 
 
@@ -547,8 +552,9 @@ private:
 
     int PendingRegisterNodeMutationCount_ = 0;
 
-    std::deque<TNode*> NodeDisposalQueue_;
-    int PendingDisposeNodeMutationCount_ = 0;
+    TAsyncSemaphore FullHeartbeatSemaphore_;
+    TAsyncSemaphore IncrementalHeartbeatSemaphore_;
+    TAsyncSemaphore DisposeNodeSemaphore_;
 
 
     TNodeId GenerateNodeId()
@@ -696,11 +702,6 @@ private:
 
     void HydraDisposeNode(const TReqDisposeNode& request)
     {
-        if (IsLeader()) {
-            YCHECK(--PendingDisposeNodeMutationCount_ >= 0);
-            MaybePostDisposeNodeMutations();
-        }
-
         auto nodeId = request.node_id();
         auto* node = FindNode(nodeId);
         if (!IsObjectAlive(node))
@@ -915,17 +916,12 @@ private:
 
         PendingRegisterNodeMutationCount_ = 0;
 
-        NodeDisposalQueue_.clear();
-        PendingDisposeNodeMutationCount_ = 0;
-
         for (const auto& pair : NodeMap_) {
             auto* node = pair.second;
             if (node->GetLocalState() == ENodeState::Unregistered) {
-                NodeDisposalQueue_.push_back(node);
+                CommitDisposeNodeWithSemaphore(node);
             }
         }
-
-        MaybePostDisposeNodeMutations();
     }
 
     virtual void OnStopLeading() override
@@ -1099,8 +1095,7 @@ private:
 
             if (propagate) {
                 if (IsLeader()) {
-                    NodeDisposalQueue_.push_back(node);
-                    MaybePostDisposeNodeMutations();
+                    CommitDisposeNodeWithSemaphore(node);
                 }
                 if (Bootstrap_->IsPrimaryMaster()) {
                     PostUnregisterNodeMutation(node);
@@ -1184,27 +1179,35 @@ private:
     }
 
 
-    void MaybePostDisposeNodeMutations()
+    void CommitMutationWithSemaphore(TMutationPtr mutation, NRpc::IServiceContextPtr context, TAsyncSemaphore* semaphore)
     {
-        while (
-            !NodeDisposalQueue_.empty() &&
-            PendingDisposeNodeMutationCount_ < Config_->MaxConcurrentNodeUnregistrations)
-        {
-            const auto* node = NodeDisposalQueue_.front();
-            NodeDisposalQueue_.pop_front();
+        auto handler = BIND([=] (TAsyncSemaphoreGuard) {
+            WaitFor(mutation->CommitAndReply(context));
+        });
 
-            TReqDisposeNode request;
-            request.set_node_id(node->GetId());
+        auto invoker = Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker();
 
-            ++PendingDisposeNodeMutationCount_;
-
-            auto mutation = CreateMutation(
-                Bootstrap_->GetHydraFacade()->GetHydraManager(),
-                request);
-            Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker()->Invoke(
-                BIND(IgnoreResult(&TMutation::CommitAndLog), mutation, Logger));
-        }
+        semaphore->AsyncAcquire(handler, invoker);
     }
+
+    void CommitDisposeNodeWithSemaphore(TNode* node)
+    {
+        TReqDisposeNode request;
+        request.set_node_id(node->GetId());
+
+        auto mutation = CreateMutation(
+            Bootstrap_->GetHydraFacade()->GetHydraManager(),
+            request);
+
+        auto handler = BIND([=] (TAsyncSemaphoreGuard) {
+            WaitFor(mutation->CommitAndLog(NodeTrackerServerLogger));
+        });
+
+        auto invoker = Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker();
+
+        DisposeNodeSemaphore_.AsyncAcquire(handler, invoker);
+    }
+
 
     void PostRegisterNodeMutation(TNode* node)
     {
