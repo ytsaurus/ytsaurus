@@ -44,11 +44,8 @@ extern const TChunkListId NullChunkListId;
 typedef NObjectClient::TObjectId TChunkTreeId;
 extern const TChunkTreeId NullChunkTreeId;
 
-const int DefaultReplicationFactor = 3;
 const int MinReplicationFactor = 1;
 const int MaxReplicationFactor = 10;
-const int DefaultReadQuorum = 2;
-const int DefaultWriteQuorum = 2;
 
 //! Estimated memory overhead per chunk reader.
 const i64 ChunkReaderMemorySize = (i64) 16 * 1024;

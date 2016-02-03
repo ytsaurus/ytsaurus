@@ -3423,11 +3423,17 @@ bool TOperationControllerBase::IsMemoryReserveEnabled(const TProgressCounter& jo
 
 i64 TOperationControllerBase::GetMemoryReserve(bool memoryReserveEnabled, TUserJobSpecPtr userJobSpec) const
 {
+    i64 size = 0;
     if (memoryReserveEnabled) {
-        return static_cast<i64>(userJobSpec->MemoryLimit * userJobSpec->MemoryReserveFactor);
+        size += static_cast<i64>(userJobSpec->MemoryLimit * userJobSpec->MemoryReserveFactor);
     } else {
-        return userJobSpec->MemoryLimit;
+        size += userJobSpec->MemoryLimit;
     }
+
+    if (userJobSpec->TmpfsSize) {
+        size += *userJobSpec->TmpfsSize;
+    }
+    return size;
 }
 
 void TOperationControllerBase::RegisterOutput(
@@ -3693,7 +3699,11 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
     jobSpec->set_max_stderr_size(config->MaxStderrSize);
     jobSpec->set_enable_core_dump(config->EnableCoreDump);
     jobSpec->set_custom_statistics_count_limit(config->CustomStatisticsCountLimit);
-    
+
+    if (config->TmpfsSize) {
+        jobSpec->set_tmpfs_size(*config->TmpfsSize);
+    }
+
     if (Config->UserJobBlkioWeight) {
         jobSpec->set_blkio_weight(*Config->UserJobBlkioWeight);
     }

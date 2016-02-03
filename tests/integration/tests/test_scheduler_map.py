@@ -27,11 +27,11 @@ class TestCGroups(YTEnvSetup):
     NUM_SCHEDULERS = 1
 
     DELTA_NODE_CONFIG = {
-        "exec_agent" : {
-            "enable_cgroups" : True,
-            "supported_cgroups" : [ "cpuacct", "blkio", "memory", "cpu"],
-            "slot_manager" : {
-                "enforce_job_control" : True,
+        "exec_agent": {
+            "enable_cgroups": True,
+            "supported_cgroups": ["cpuacct", "blkio", "memory", "cpu"],
+            "slot_manager": {
+                "enforce_job_control": True,
             }
         }
     }
@@ -63,18 +63,18 @@ class TestEventLog(YTEnvSetup):
     NUM_SCHEDULERS = 1
 
     DELTA_SCHEDULER_CONFIG = {
-        "scheduler" : {
-            "event_log" : {
-                "flush_period" : 5000
+        "scheduler": {
+            "event_log": {
+                "flush_period": 1000
             }
         }
     }
 
     DELTA_NODE_CONFIG = {
-        "exec_agent" : {
-            "enable_cgroups" : True,
-            "supported_cgroups" : [ "cpuacct", "blkio", "memory", "cpu"],
-            "slot_manager" : {
+        "exec_agent": {
+            "enable_cgroups": True,
+            "supported_cgroups": ["cpuacct", "blkio", "memory", "cpu"],
+            "slot_manager": {
                 "enforce_job_control" : True
             }
         }
@@ -99,7 +99,7 @@ class TestEventLog(YTEnvSetup):
         assert get_statistics(statistics, "job_proxy.cpu.user.$.completed.map.count") == 1
 
         # wait for scheduler to dump the event log
-        time.sleep(6)
+        time.sleep(2)
         res = read_table("//sys/scheduler/event_log")
         event_types = __builtin__.set()
         for item in res:
@@ -111,6 +111,32 @@ class TestEventLog(YTEnvSetup):
                 assert user_time > 0
         assert "operation_started" in event_types
 
+    def test_scheduler_event_log_buffering(self):
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+        write_table("//tmp/t1", [{"a": "b"}])
+
+        for node in ls("//sys/nodes"):
+            set("//sys/nodes/{0}/@banned".format(node), True)
+
+        time.sleep(2)
+        op = map(
+            dont_track=True,
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            command="cat")
+        time.sleep(2)
+
+        for node in ls("//sys/nodes"):
+            set("//sys/nodes/{0}/@banned".format(node), False)
+
+        op.track()
+
+        time.sleep(2)
+        res = read_table("//sys/scheduler/event_log")
+        event_types = __builtin__.set([item["event_type"] for item in res])
+        for event in ["scheduler_started", "operation_started", "operation_completed"]:
+            assert event in event_types
 
 
 class TestJobProber(YTEnvSetup):
@@ -119,9 +145,9 @@ class TestJobProber(YTEnvSetup):
     NUM_SCHEDULERS = 1
 
     DELTA_NODE_CONFIG = {
-        "exec_agent" : {
-            'enable_cgroups' : True,
-            "supported_cgroups" : [ "cpuacct", "blkio", "memory", "cpu"]
+        "exec_agent": {
+            "enable_cgroups": True,
+            "supported_cgroups": [ "cpuacct", "blkio", "memory", "cpu"]
         }
     }
 
@@ -243,8 +269,8 @@ class TestSchedulerMapCommands(YTEnvSetup):
     NUM_SCHEDULERS = 1
 
     DELTA_SCHEDULER_CONFIG = {
-        "scheduler" : {
-            "watchers_update_period" : 100
+        "scheduler": {
+            "watchers_update_period": 100
         }
     }
 
@@ -1129,8 +1155,8 @@ class TestJobQuery(YTEnvSetup):
     NUM_SCHEDULERS = 1
 
     DELTA_SCHEDULER_CONFIG = {
-        "scheduler" : {
-            "udf_registry_path" : "//tmp/udfs"
+        "scheduler": {
+            "udf_registry_path": "//tmp/udfs"
         }
     }
 
@@ -1286,7 +1312,6 @@ class TestJobQuery(YTEnvSetup):
             assert read_file(jobs_path + "/" + job_id + "/stderr") == \
                 "/bin/bash: /non_existed_command: No such file or directory\n"
 
-
     def test_large_spec(self):
         create("table", "//tmp/t1")
         write_table("//tmp/t1", [{"a": "b"}])
@@ -1316,3 +1341,68 @@ class TestSchedulerMapCommandsMulticell(TestSchedulerMapCommands):
             command="cat")
 
         assert_items_equal(read_table("//tmp/t_out"), [{"a": 1}, {"a": 2}])
+
+class TestSandboxTmpfs(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 3
+    NUM_SCHEDULERS = 1
+
+    DELTA_NODE_CONFIG = {
+        "exec_agent": {
+            "slot_manager": {
+                "enforce_job_control": True,
+            }
+        }
+    }
+
+    def test_simple(self):
+        create("table", "//tmp/t_input")
+        create("table", "//tmp/t_output")
+        write_table("//tmp/t_input", {"foo": "bar"})
+
+        op = map(
+            command="cat; echo 'content' > tmpfs/file; ls tmpfs/ >&2; cat tmpfs/file >&2;",
+            in_="//tmp/t_input",
+            out="//tmp/t_output",
+            spec={
+                "mapper": {
+                    "tmpfs_size": 1024 * 1024
+                }
+            })
+
+        jobs_path = "//sys/operations/" + op.id + "/jobs"
+        assert get(jobs_path + "/@count") == 1
+        words = read_file(jobs_path + "/" + ls(jobs_path)[0] + "/stderr").strip().split()
+        assert ["file", "content"] == words
+
+    def test_remove_failed(self):
+        create("table", "//tmp/t_input")
+        create("table", "//tmp/t_output")
+        write_table("//tmp/t_input", {"foo": "bar"})
+
+        with pytest.raises(YtError):
+            map(command="cat; rm -rf tmpfs",
+                in_="//tmp/t_input",
+                out="//tmp/t_output",
+                spec={
+                    "mapper": {
+                        "tmpfs_size": 1024 * 1024
+                    },
+                    "max_failed_job_count": 1
+                })
+
+    def test_tmpfs_size_limit(self):
+        create("table", "//tmp/t_input")
+        create("table", "//tmp/t_output")
+        write_table("//tmp/t_input", {"foo": "bar"})
+
+        with pytest.raises(YtError):
+            map(command="set -e; cat; dd if=/dev/zero of=tmpfs/file bs=1100000 count=1",
+                in_="//tmp/t_input",
+                out="//tmp/t_output",
+                spec={
+                    "mapper": {
+                        "tmpfs_size": 1024 * 1024
+                    },
+                    "max_failed_job_count": 1
+                })

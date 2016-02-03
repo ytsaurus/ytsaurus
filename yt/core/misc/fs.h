@@ -101,8 +101,22 @@ bool AreInodesIdentical(const Stroka& lhsPath, const Stroka& rhsPath);
 //! Interestingly, implemented for both Windows and *nix.
 Stroka GetHomePath();
 
-//! Flushes the directory's metadata. Useful for, e.g., committing renames happen in #path.
+//! Flushes the directory's metadata. Useful for, e.g., committing renames happened in #path.
 void FlushDirectory(const Stroka& path);
+
+struct TMountPoint
+{
+    Stroka Name;
+    Stroka Path;
+};
+
+std::vector<TMountPoint> GetMountPoints(const Stroka& mountsFile = "/proc/mounts");
+
+//! Mount tmpfs at given path.
+void MountTmpfs(const Stroka& path, int userId, i64 size);
+
+//! Unmount given path.
+void Umount(const Stroka& path);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -46,7 +46,6 @@ protected:
     mutable TNameTablePtr NameTable_; // create on demand
     std::vector<TUnversionedRow> Rows_;
 
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////

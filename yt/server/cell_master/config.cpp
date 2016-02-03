@@ -50,10 +50,6 @@ TCellMasterConfig::TCellMasterConfig()
         .DefaultNew();
     RegisterParameter("multicell_manager", MulticellManager)
         .DefaultNew();
-    RegisterParameter("rpc_port", RpcPort)
-        .Default(9000);
-    RegisterParameter("monitoring_port", MonitoringPort)
-        .Default(10000);
     RegisterParameter("enable_provision_lock", EnableProvisionLock)
         .Default(true);
 

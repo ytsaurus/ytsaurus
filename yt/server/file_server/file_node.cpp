@@ -3,6 +3,7 @@
 #include "file_node_proxy.h"
 
 #include <yt/server/cell_master/bootstrap.h>
+#include <yt/server/cell_master/config.h>
 
 #include <yt/server/chunk_server/chunk_owner_type_handler.h>
 
@@ -78,6 +79,10 @@ protected:
             attributes);
     }
 
+    virtual int GetDefaultReplicationFactor() const override
+    {
+        return Bootstrap_->GetConfig()->CypressManager->DefaultFileReplicationFactor;
+    }
 };
 
 INodeTypeHandlerPtr CreateFileTypeHandler(TBootstrap* bootstrap)

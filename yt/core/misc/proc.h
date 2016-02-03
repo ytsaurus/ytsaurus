@@ -4,6 +4,8 @@
 
 #include <yt/core/misc/error.h>
 
+#include <yt/core/ytree/yson_serializable.h>
+
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -56,6 +58,42 @@ DEFINE_ENUM(EExitStatus,
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TRemoveDirAsRootTool
+{
+    void operator()(const Stroka& arg) const;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TMountTmpfsConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    Stroka Path;
+    int UserId;
+    i64 Size;
+
+    TMountTmpfsConfig()
+    {
+        RegisterParameter("path", Path);
+        RegisterParameter("user_id", UserId)
+            .GreaterThanOrEqual(0);
+        RegisterParameter("size", Size)
+            .GreaterThanOrEqual(0);
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TMountTmpfsConfig);
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TMountTmpfsAsRootTool
+{
+    void operator()(TMountTmpfsConfigPtr config) const;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TUmountAsRootTool
 {
     void operator()(const Stroka& arg) const;
 };

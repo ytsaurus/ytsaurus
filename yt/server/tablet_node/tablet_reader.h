@@ -22,6 +22,8 @@ NTableClient::ISchemafulReaderPtr CreateSchemafulTabletReader(
     TOwningKey upperBound,
     TTimestamp timestamp);
 
+//! Creates a reader that merges data from the relevant stores and
+//! returns a single version of each value.
 NTableClient::ISchemafulReaderPtr CreateSchemafulTabletReader(
     TTabletSnapshotPtr tabletSnapshot,
     const TColumnFilter& columnFilter,

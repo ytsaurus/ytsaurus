@@ -340,6 +340,11 @@ public:
         return TSharedRange<T>(begin, end, Holder_);
     }
 
+    THolderPtr GetHolder() const
+    {
+        return Holder_;
+    }
+
 protected:
     THolderPtr Holder_;
 
@@ -362,20 +367,50 @@ TIntrusivePtr<TIntrinsicRefCounted> MakeHolder(THolders&&... holders)
     return holder;
 }
 
+template <class T, class TContainer, class... THolders>
+TSharedRange<T> DoMakeSharedRange(TContainer&& elements, THolders&&... holders)
+{
+    struct THolder
+        : public TIntrinsicRefCounted
+    {
+        typename std::decay<TContainer>::type Elements;
+        std::tuple<typename std::decay<THolders>::type...> Holders;
+    };
+
+    auto holder = New<THolder>();
+    holder->Holders = std::tuple<THolders...>(std::forward<THolders>(holders)...);
+    holder->Elements = std::forward<TContainer>(elements);
+
+    auto range = MakeRange<T>(holder->Elements);
+
+    return TSharedRange<T>(range, holder);
+}
+
 //! Constructs a TSharedRange by taking ownership of an std::vector.
 template <class T, class... THolders>
 TSharedRange<T> MakeSharedRange(std::vector<T>&& elements, THolders&&... holders)
 {
-    auto range = MakeRange(elements);
-    return TSharedRange<T>(range, MakeHolder(std::move(elements), std::forward<THolders>(holders)...));
+    return DoMakeSharedRange<T>(std::move(elements), std::forward<THolders>(holders)...);
+}
+
+//! Constructs a TSharedRange by taking ownership of an SmallVector.
+template <class T, unsigned N, class... THolders>
+TSharedRange<T> MakeSharedRange(SmallVector<T, N>&& elements, THolders&&... holders)
+{
+    return DoMakeSharedRange<T>(std::move(elements), std::forward<THolders>(holders)...);
 }
 
 //! Constructs a TSharedRange by copying an std::vector.
 template <class T, class... THolders>
 TSharedRange<T> MakeSharedRange(const std::vector<T>& elements, THolders&&... holders)
 {
-    auto elementsCopy = elements;
-    return MakeSharedRange(std::move(elementsCopy), std::forward<THolders>(holders)...);
+    return DoMakeSharedRange<T>(std::move(elements), std::forward<THolders>(holders)...);
+}
+
+template <class T, class... THolders>
+TSharedRange<T> MakeSharedRange(const TRange<T>& range, THolders&&... holders)
+{
+    return TSharedRange<T>(range, MakeHolder(std::forward<THolders>(holders)...));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

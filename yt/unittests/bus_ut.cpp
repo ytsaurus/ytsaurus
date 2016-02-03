@@ -55,7 +55,7 @@ class TEmptyBusHandler
 public:
     virtual void HandleMessage(
         TSharedRefArray message,
-        IBusPtr replyBus)
+        IBusPtr replyBus) throw() override
     {
         UNUSED(message);
         UNUSED(replyBus);
@@ -72,7 +72,7 @@ public:
 
     virtual void HandleMessage(
         TSharedRefArray message,
-        IBusPtr replyBus)
+        IBusPtr replyBus) throw() override
     {
         EXPECT_EQ(NumPartsExpecting, message.Size());
         auto replyMessage = Serialize("42");
@@ -100,7 +100,9 @@ private:
     NConcurrency::TEvent Event_;
 
 
-    virtual void HandleMessage(TSharedRefArray message, IBusPtr /*replyBus*/)
+    virtual void HandleMessage(
+        TSharedRefArray message,
+        IBusPtr /*replyBus*/) throw() override
     {
         auto value = Deserialize(message);
         EXPECT_EQ("42", value);

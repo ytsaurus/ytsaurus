@@ -822,6 +822,17 @@ class TestTablets(YTEnvSetup):
 
         assert lookup_rows("//tmp/t", keys) == rows
 
+        self.sync_unmount_table("//tmp/t")
+
+        set("//tmp/t/@schema", [
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "key2", "type": "int64", "sort_order": "ascending"},
+            {"name": "value", "type": "string"}])
+
+        self.sync_mount_table("//tmp/t")
+
+        assert lookup_rows("//tmp/t", keys, column_names=["key", "value"]) == rows
+
     def test_update_key_columns_fail1(self):
         self.sync_create_cells(1, 1)
         self._create_table("//tmp/t")
