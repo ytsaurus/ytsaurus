@@ -823,9 +823,14 @@ TJobResources TOperationControllerBase::TTask::GetNeededResources(TJobletPtr /* 
 void TOperationControllerBase::TTask::RegisterIntermediate(
     TJobletPtr joblet,
     TChunkStripePtr stripe,
-    TTaskPtr destinationTask)
+    TTaskPtr destinationTask,
+    bool attachToLivePreview)
 {
-    RegisterIntermediate(joblet, stripe, destinationTask->GetChunkPoolInput());
+    RegisterIntermediate(
+        joblet,
+        stripe,
+        destinationTask->GetChunkPoolInput(),
+        attachToLivePreview);
 
     if (destinationTask->HasInputLocality()) {
         Controller->AddTaskLocalityHint(destinationTask, stripe);
@@ -836,7 +841,8 @@ void TOperationControllerBase::TTask::RegisterIntermediate(
 void TOperationControllerBase::TTask::RegisterIntermediate(
     TJobletPtr joblet,
     TChunkStripePtr stripe,
-    IChunkPoolInput* destinationPool)
+    IChunkPoolInput* destinationPool,
+    bool attachToLivePreview)
 {
     IChunkPoolInput::TCookie inputCookie;
 
@@ -862,7 +868,8 @@ void TOperationControllerBase::TTask::RegisterIntermediate(
     Controller->RegisterIntermediate(
         joblet,
         completedJob,
-        stripe);
+        stripe,
+        attachToLivePreview);
 }
 
 TChunkStripePtr TOperationControllerBase::TTask::BuildIntermediateChunkStripe(
@@ -3538,13 +3545,14 @@ void TOperationControllerBase::RegisterInputStripe(TChunkStripePtr stripe, TTask
 void TOperationControllerBase::RegisterIntermediate(
     TJobletPtr joblet,
     TCompletedJobPtr completedJob,
-    TChunkStripePtr stripe)
+    TChunkStripePtr stripe,
+    bool attachToLivePreview)
 {
     for (const auto& chunkSlice : stripe->ChunkSlices) {
         auto chunkId = FromProto<TChunkId>(chunkSlice->GetChunkSpec()->chunk_id());
         YCHECK(ChunkOriginMap.insert(std::make_pair(chunkId, completedJob)).second);
 
-        if (IsIntermediateLivePreviewSupported()) {
+        if (attachToLivePreview && IsIntermediateLivePreviewSupported()) {
             auto masterConnector = Host->GetMasterConnector();
             masterConnector->AttachToLivePreview(
                 Operation,

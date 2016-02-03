@@ -486,7 +486,7 @@ protected:
 
 
     // Unsorted helpers.
-    virtual i32 GetCpuLimit() const
+    virtual int GetCpuLimit() const
     {
         return 1;
     }
@@ -661,7 +661,7 @@ private:
 
 
     // Unsorted helpers.
-    virtual i32 GetCpuLimit() const override
+    virtual int GetCpuLimit() const override
     {
         return Spec->Mapper->CpuLimit;
     }
@@ -1786,7 +1786,7 @@ private:
         return true;
     }
 
-    virtual i32 GetCpuLimit() const override
+    virtual int GetCpuLimit() const override
     {
         return Spec->Reducer->CpuLimit;
     }
@@ -2093,7 +2093,7 @@ private:
     }
 
     // Unsorted helpers.
-    virtual i32 GetCpuLimit() const override
+    virtual int GetCpuLimit() const override
     {
         return Spec->Reducer->CpuLimit;
     }

@@ -308,7 +308,7 @@ protected:
     // Unsorted helpers.
     virtual EJobType GetJobType() const = 0;
 
-    virtual i32 GetCpuLimit() const
+    virtual int GetCpuLimit() const
     {
         return 1;
     }
@@ -425,7 +425,7 @@ private:
     }
 
     // Unsorted helpers.
-    virtual i32 GetCpuLimit() const override
+    virtual int GetCpuLimit() const override
     {
         return Spec->Mapper->CpuLimit;
     }
