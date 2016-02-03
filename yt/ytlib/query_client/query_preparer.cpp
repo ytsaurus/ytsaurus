@@ -1466,6 +1466,11 @@ std::pair<TQueryPtr, TDataRanges> PreparePlanFragment(
         joinClause->ForeignDataId = GetObjectIdFromDataSplit(foreignDataSplit);
         joinClause->IsLeft = join.IsLeft;
 
+        const auto& columns = foreignTableSchema.Columns();
+        joinClause->ForeignTableSchema = TTableSchema(std::vector<TColumnSchema>(
+            columns.begin(),
+            columns.begin() + std::min(foreignKeyColumnsCount, columns.size())));
+
         auto foreignSourceProxy = TScanSchemaProxy::Create(
             &joinClause->RenamedTableSchema,
             &joinClause->ForeignTableSchema,
