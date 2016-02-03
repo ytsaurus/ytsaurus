@@ -14,20 +14,17 @@ class TDispatcher
 {
 public:
     TDispatcher(int lightPoolSize, int heavyPoolSize);
+    ~TDispatcher();
 
-    /*!
-     * This invoker is used by client for light commands.
-     */
+    //! Returns the invoker used by client for light commands.
     IInvokerPtr GetLightInvoker();
 
-    /*!
-     * This invoker is used by client for heavy commands.
-     */
+    //! Returns the invoker used by client for heavy commands.
     IInvokerPtr GetHeavyInvoker();
 
 private:
     class TImpl;
-    std::unique_ptr<TImpl> Impl_;
+    const std::unique_ptr<TImpl> Impl_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TDispatcher)
