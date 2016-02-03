@@ -16,8 +16,9 @@ void TAsyncSemaphore::Release(i64 slots /* = 1 */)
 {
     YCHECK(slots >= 0);
 
-    TPromise<void> ready;
-    TPromise<void> free;
+    TPromise<void> readyEventToSet;
+    TPromise<void> freeEventToSet;
+    std::vector<TWaiter> waitersToRelease;
 
     {
         TGuard<TSpinLock> guard(SpinLock_);
@@ -25,21 +26,32 @@ void TAsyncSemaphore::Release(i64 slots /* = 1 */)
         FreeSlots_ += slots;
         YASSERT(FreeSlots_ <= TotalSlots_);
 
+        while (!Waiters_.empty() && FreeSlots_ >= Waiters_.front().Slots) {
+            auto& waiter = Waiters_.front();
+            FreeSlots_ -= waiter.Slots;
+            waitersToRelease.push_back(std::move(waiter));
+            Waiters_.pop();
+        }
+
         if (ReadyEvent_ && FreeSlots_ > 0) {
-            swap(ready, ReadyEvent_);
+            swap(readyEventToSet, ReadyEvent_);
         }
 
         if (FreeEvent_ && FreeSlots_ == TotalSlots_) {
-            swap(free, FreeEvent_);
+            swap(freeEventToSet, FreeEvent_);
         }
     }
 
-    if (ready) {
-        ready.Set();
+    for (const auto& waiter : waitersToRelease) {
+        waiter.Invoker->Invoke(BIND(waiter.Handler, Passed(TAsyncSemaphoreGuard(this, waiter.Slots))));
     }
 
-    if (free) {
-        free.Set();
+    if (readyEventToSet) {
+        readyEventToSet.Set();
+    }
+
+    if (freeEventToSet) {
+        freeEventToSet.Set();
     }
 }
 
@@ -61,6 +73,23 @@ bool TAsyncSemaphore::TryAcquire(i64 slots /*= 1*/)
     }
     FreeSlots_ -= slots;
     return true;
+}
+
+void TAsyncSemaphore::AsyncAcquire(
+    const TCallback<void(TAsyncSemaphoreGuard)>& handler,
+    IInvokerPtr invoker,
+    i64 slots)
+{
+    YCHECK(slots >= 0);
+
+    TGuard<TSpinLock> guard(SpinLock_);
+    if (FreeSlots_ >= slots) {
+        FreeSlots_ -= slots;
+        guard.Release();
+        invoker->Invoke(BIND(handler, Passed(TAsyncSemaphoreGuard(this, slots))));
+    } else {
+        Waiters_.push(TWaiter{handler, std::move(invoker), slots});
+    }
 }
 
 bool TAsyncSemaphore::IsReady() const
@@ -156,23 +185,24 @@ TAsyncSemaphoreGuard::TAsyncSemaphoreGuard()
     , Slots_(0)
 { }
 
+TAsyncSemaphoreGuard::TAsyncSemaphoreGuard(TAsyncSemaphore* semaphore, i64 slots)
+    : Semaphore_(semaphore)
+    , Slots_(slots)
+{ }
+
 TAsyncSemaphoreGuard TAsyncSemaphoreGuard::Acquire(TAsyncSemaphore* semaphore, i64 slots /*= 1*/)
 {
-    TAsyncSemaphoreGuard guard;
     semaphore->Acquire(slots);
-    guard.Semaphore_ = semaphore;
-    guard.Slots_ = slots;
-    return guard;
+    return TAsyncSemaphoreGuard(semaphore, slots);
 }
 
 TAsyncSemaphoreGuard TAsyncSemaphoreGuard::TryAcquire(TAsyncSemaphore* semaphore, i64 slots /*= 1*/)
 {
-    TAsyncSemaphoreGuard guard;
     if (semaphore->TryAcquire(slots)) {
-        guard.Semaphore_ = semaphore;
-        guard.Slots_ = slots;
+        return TAsyncSemaphoreGuard(semaphore, slots);
+    } else {
+        return TAsyncSemaphoreGuard();
     }
-    return guard;
 }
 
 void TAsyncSemaphoreGuard::Release()
