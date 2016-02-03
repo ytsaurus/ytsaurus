@@ -23,7 +23,7 @@ public:
 
     TFuture<TMutationResponse> Commit();
     TFuture<TMutationResponse> CommitAndLog(const NLogging::TLogger& logger);
-    void CommitAndReply(NRpc::IServiceContextPtr context);
+    TFuture<TMutationResponse> CommitAndReply(NRpc::IServiceContextPtr context);
 
     TMutationPtr SetRequestData(TSharedRef data, Stroka type);
     template <class TRequest>

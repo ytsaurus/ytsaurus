@@ -31,20 +31,24 @@ TFuture<TMutationResponse> TMutation::CommitAndLog(const NLogging::TLogger& logg
     }));
 }
 
-void TMutation::CommitAndReply(NRpc::IServiceContextPtr context)
+TFuture<TMutationResponse> TMutation::CommitAndReply(NRpc::IServiceContextPtr context)
 {
-    Commit().Subscribe(BIND([=] (const TErrorOr<TMutationResponse>& result) {
-        if (context->IsReplied())
-            return;
+    return Commit().Apply(BIND([=] (const TErrorOr<TMutationResponse>& result) {
         if (result.IsOK()) {
-            const auto& response = result.Value();
-            if (response.Data) {
-                context->Reply(response.Data);
-            } else {
-                context->Reply(TError());
+            if (!context->IsReplied()) {
+                const auto& response = result.Value();
+                if (response.Data) {
+                    context->Reply(response.Data);
+                } else {
+                    context->Reply(TError());
+                }
             }
+            return result.Value();
         } else {
-            context->Reply(result);
+            if (!context->IsReplied()) {
+                context->Reply(result);
+            }
+            THROW_ERROR result;
         }
     }));
 }
