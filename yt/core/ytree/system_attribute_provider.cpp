@@ -44,7 +44,7 @@ TNullable<ISystemAttributeProvider::TAttributeDescriptor> ISystemAttributeProvid
     return it == builtinAttributes.end() ? Null : MakeNullable(*it);
 }
 
-TNullable<TYsonString> ISystemAttributeProvider::GetBuiltinAttribute(const Stroka& key)
+TNullable<TYsonString> ISystemAttributeProvider::FindBuiltinAttribute(const Stroka& key)
 {
     TStringStream stream;
     TYsonWriter writer(&stream, EYsonFormat::Binary, EYsonType::Node, true);

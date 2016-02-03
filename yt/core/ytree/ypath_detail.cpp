@@ -282,7 +282,7 @@ TFuture<TYsonString> TSupportsAttributes::DoFindAttribute(const Stroka& key)
     }
 
     if (builtinAttributeProvider) {
-        auto maybeBuiltinYson = builtinAttributeProvider->GetBuiltinAttribute(key);
+        auto maybeBuiltinYson = builtinAttributeProvider->FindBuiltinAttribute(key);
         if (maybeBuiltinYson) {
             return MakeFuture(*maybeBuiltinYson);
         }
@@ -689,7 +689,7 @@ TFuture<void> TSupportsAttributes::DoSetAttribute(const TYPath& path, const TYso
 
                         asyncResults.emplace_back(std::move(asyncResult));
                     } else {
-                        auto maybeOldWholeYson = builtinAttributeProvider->GetBuiltinAttribute(key);
+                        auto maybeOldWholeYson = builtinAttributeProvider->FindBuiltinAttribute(key);
                         if (!maybeOldWholeYson) {
                             ThrowNoSuchBuiltinAttribute(key);
                         }
@@ -855,7 +855,7 @@ TFuture<void> TSupportsAttributes::DoRemoveAttribute(const TYPath& path)
                         permissionValidator.Validate(descriptor->WritePermission);
 
                         // TODO(babenko): async getter?
-                        auto maybeBuiltinYson = builtinAttributeProvider->GetBuiltinAttribute(key);
+                        auto maybeBuiltinYson = builtinAttributeProvider->FindBuiltinAttribute(key);
                         if (!maybeBuiltinYson) {
                             ThrowNoSuchAttribute(key);
                         }
