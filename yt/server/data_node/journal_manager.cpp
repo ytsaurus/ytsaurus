@@ -294,6 +294,7 @@ private:
                     AppendChunkIds_.erase(chunkId);
                     ChunkIdToFirstRelevantVersion_[chunkId] = version;
                     break;
+
                 default:
                     YUNREACHABLE();
             }
