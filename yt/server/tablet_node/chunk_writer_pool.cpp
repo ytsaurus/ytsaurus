@@ -2,7 +2,7 @@
 #include "config.h"
 #include "in_memory_manager.h"
 #include "tablet.h"
-#include "writer_pool.h"
+#include "chunk_writer_pool.h"
 
 #include <yt/ytlib/chunk_client/chunk_spec.h>
 #include <yt/ytlib/chunk_client/config.h>

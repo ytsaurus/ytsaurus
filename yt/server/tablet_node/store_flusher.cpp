@@ -9,7 +9,7 @@
 #include "tablet.h"
 #include "tablet_manager.h"
 #include "tablet_slot.h"
-#include "writer_pool.h"
+#include "chunk_writer_pool.h"
 
 #include <yt/server/cell_node/bootstrap.h>
 #include <yt/server/cell_node/config.h>
