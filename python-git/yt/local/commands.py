@@ -188,6 +188,9 @@ def start(masters_count=1, nodes_count=3, schedulers_count=1, start_proxy=True,
     environment.START_SECONDARY_MASTER_CELLS = False
     environment.CONFIGS_PROVIDER_FACTORY = ConfigsProviderFactory
 
+    # Enable capturing stderrs to file
+    os.environ["YT_CAPTURE_STDERR_TO_FILE"] = "1"
+
     use_proxy_from_yt_source = use_proxy_from_yt_source or \
             _get_bool_from_env("YT_LOCAL_USE_PROXY_FROM_SOURCE")
     environment.USE_PROXY_FROM_PACKAGE = not use_proxy_from_yt_source
