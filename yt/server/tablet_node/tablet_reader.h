@@ -20,7 +20,8 @@ NTableClient::ISchemafulReaderPtr CreateSchemafulTabletReader(
     const TColumnFilter& columnFilter,
     TOwningKey lowerBound,
     TOwningKey upperBound,
-    TTimestamp timestamp);
+    TTimestamp timestamp,
+    const TWorkloadDescriptor& workloadDescriptor);
 
 //! Creates a reader that merges data from the relevant stores and
 //! returns a single version of each value.
@@ -29,6 +30,7 @@ NTableClient::ISchemafulReaderPtr CreateSchemafulTabletReader(
     const TColumnFilter& columnFilter,
     const TSharedRange<TKey>& keys,
     TTimestamp timestamp,
+    const TWorkloadDescriptor& workloadDescriptor,
     int concurrency,
     NTableClient::TRowBufferPtr rowBuffer = nullptr);
 
@@ -41,7 +43,8 @@ NTableClient::IVersionedReaderPtr CreateVersionedTabletReader(
     TOwningKey lowerBound,
     TOwningKey upperBound,
     TTimestamp currentTimestamp,
-    TTimestamp majorTimestamp);
+    TTimestamp majorTimestamp,
+    const TWorkloadDescriptor& workloadDescriptor);
 
 ////////////////////////////////////////////////////////////////////////////////
 

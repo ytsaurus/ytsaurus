@@ -56,7 +56,8 @@ public:
     void SetInMemoryMode(EInMemoryMode mode);
     void Preload(TInMemoryChunkDataPtr chunkData);
 
-    NChunkClient::IChunkReaderPtr GetChunkReader();
+    NChunkClient::IChunkReaderPtr GetChunkReader(
+        const TWorkloadDescriptor& workloadDescriptor);
 
     // IStore implementation.
     virtual EStoreType GetType() const override;
@@ -74,12 +75,14 @@ public:
         TOwningKey lowerKey,
         TOwningKey upperKey,
         TTimestamp timestamp,
-        const TColumnFilter& columnFilter) override;
+        const TColumnFilter& columnFilter,
+        const TWorkloadDescriptor& workloadDescriptor) override;
 
     virtual NTableClient::IVersionedReaderPtr CreateReader(
         const TSharedRange<TKey>& keys,
         TTimestamp timestamp,
-        const TColumnFilter& columnFilter) override;
+        const TColumnFilter& columnFilter,
+        const TWorkloadDescriptor& workloadDescriptor) override;
 
     virtual void CheckRowLocks(
         TUnversionedRow row,
@@ -115,7 +118,8 @@ private:
     bool ChunkInitialized_ = false;
     NDataNode::IChunkPtr Chunk_;
 
-    NChunkClient::IChunkReaderPtr ChunkReader_;
+    NChunkClient::IChunkReaderPtr RealtimeChunkReader_;
+    NChunkClient::IChunkReaderPtr BatchChunkReader_;
 
     NTableClient::TCachedVersionedChunkMetaPtr CachedVersionedChunkMeta_;
 
@@ -126,6 +130,8 @@ private:
     EInMemoryMode InMemoryMode_ = EInMemoryMode::None;
 
     const NTableClient::TKeyComparer KeyComparer_;
+
+    const bool RequireChunkPreload_;
 
     NTableClient::IVersionedReaderPtr CreateCacheBasedReader(
         const TSharedRange<TKey>& keys,
@@ -139,7 +145,8 @@ private:
 
     NDataNode::IChunkPtr PrepareChunk();
     NChunkClient::IChunkReaderPtr PrepareChunkReader(
-        NDataNode::IChunkPtr chunk);
+        NDataNode::IChunkPtr chunk,
+        const TWorkloadDescriptor& workloadDescriptor);
     NTableClient::TCachedVersionedChunkMetaPtr PrepareCachedVersionedChunkMeta(
         NChunkClient::IChunkReaderPtr chunkReader);
     IStorePtr GetBackingStore();
@@ -151,6 +158,7 @@ private:
     void OnChunkExpired();
     void OnChunkReaderExpired();
 
+    bool ValidateBlockCachePreloaded();
 };
 
 DEFINE_REFCOUNTED_TYPE(TChunkStore)

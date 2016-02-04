@@ -22,6 +22,7 @@
 namespace NYT {
 
 using namespace NPipes;
+using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -38,10 +39,15 @@ namespace {
 bool TryKill(int pid, int signal)
 {
     YCHECK(pid > 0);
-    return ::kill(pid, signal) >= 0;
+    int result = ::kill(pid, signal);
+    // Ignore ESRCH because process may have died just before TryKill.
+    if (result < 0 && errno != ESRCH) {
+        return false;
+    }
+    return true;
 }
 
-bool TryWaitid(idtype_t idtype, id_t id, siginfo_t* infop, int options)
+bool TryWaitid(idtype_t idtype, id_t id, siginfo_t *infop, int options)
 {
     while (true) {
         if (infop != nullptr) {
@@ -75,7 +81,7 @@ bool TryWaitid(idtype_t idtype, id_t id, siginfo_t* infop, int options)
     }
 }
 
-void WaitidOrDie(idtype_t idtype, id_t id, siginfo_t* infop, int options)
+void WaitidOrDie(idtype_t idtype, id_t id, siginfo_t *infop, int options)
 {
     YCHECK(infop != nullptr);
 
@@ -122,11 +128,15 @@ bool TryResetSignals()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TProcess::TProcess(const Stroka& path, bool copyEnv)
+DEFINE_REFCOUNTED_TYPE(TProcess)
+
+TProcess::TProcess(const Stroka& path, bool copyEnv, TDuration pollPeriod)
     : ProcessId_(InvalidProcessId)
     // Stroka is guaranteed to be zero-terminated.
     // https://wiki.yandex-team.ru/Development/Poisk/arcadia/util/StrokaAndTStringBuf#sobstvennosimvoly
     , Path_(path)
+    , PollPeriod_(pollPeriod)
+    , FinishedPromise_(NewPromise<void>())
 {
     AddArgument(NFS::GetFileName(path));
 
@@ -137,50 +147,16 @@ TProcess::TProcess(const Stroka& path, bool copyEnv)
     }
 }
 
-TProcess::~TProcess()
-{
-    YCHECK(ProcessId_ == InvalidProcessId || Finished_);
-}
-
-TProcess::TProcess(TProcess&& other)
-    : ProcessId_(InvalidProcessId)
-{
-    Swap(other);
-}
-
-void TProcess::Swap(TProcess& other)
-{
-    std::swap(Started_, other.Started_);
-    std::swap(Finished_, other.Finished_);
-    std::swap(ProcessId_, other.ProcessId_);
-    std::swap(Path_, other.Path_);
-    std::swap(MaxSpawnActionFD_, other.MaxSpawnActionFD_);
-    // All iterators, pointers and references referring to elements
-    // in both containers remain valid, and are now referring to
-    // the same elements they referred to before
-    // the call, but in the other container, where they now iterate.
-    // Note that the end iterators do not refer to elements and may be invalidated.
-    StringHolder_.swap(other.StringHolder_);
-    Args_.swap(other.Args_);
-    Env_.swap(other.Env_);
-    SpawnActions_.swap(other.SpawnActions_);
-}
-
-TProcess TProcess::CreateCurrentProcessSpawner()
-{
-    return TProcess(GetExecPath(), true);
-}
-
 void TProcess::AddArgument(TStringBuf arg)
 {
-    YCHECK(ProcessId_ == InvalidProcessId && !Finished_);
+    YCHECK(ProcessId_ == InvalidProcessId && !IsFinished_);
 
     Args_.push_back(Capture(arg));
 }
 
 void TProcess::AddEnvVar(TStringBuf var)
 {
-    YCHECK(ProcessId_ == InvalidProcessId && !Finished_);
+    YCHECK(ProcessId_ == InvalidProcessId && !IsFinished_);
 
     Env_.push_back(Capture(var));
 }
@@ -192,11 +168,18 @@ void TProcess::AddArguments(std::initializer_list<TStringBuf> args)
     }
 }
 
+void TProcess::AddArguments(const std::vector<Stroka>& args)
+{
+    for (const auto& arg : args) {
+        AddArgument(arg);
+    }
+}
+
 void TProcess::AddCloseFileAction(int fd)
 {
-    TSpawnAction action = {
+    TSpawnAction action{
         std::bind(TryClose, fd, true),
-        Format("Error closing %v file descriptor in the child", fd)
+        Format("Error closing %v file descriptor in child process", fd)
     };
 
     MaxSpawnActionFD_ = std::max(MaxSpawnActionFD_, fd);
@@ -205,31 +188,36 @@ void TProcess::AddCloseFileAction(int fd)
 
 void TProcess::AddDup2FileAction(int oldFD, int newFD)
 {
-    TSpawnAction action = {
+    TSpawnAction action{
         std::bind(TryDup2, oldFD, newFD),
-        Format("Error duplicating %v file descriptor to %v in the child", oldFD, newFD)
+        Format("Error duplicating %v file descriptor to %v in child process", oldFD, newFD)
     };
 
     MaxSpawnActionFD_ = std::max(MaxSpawnActionFD_, newFD);
     SpawnActions_.push_back(action);
 }
 
-Stroka TProcess::GetPath() const
+TFuture<void> TProcess::Spawn()
 {
-    return Path_;
+    try {
+        DoSpawn();
+    } catch (const std::exception& ex) {
+        FinishedPromise_.TrySet(ex);
+    }
+    return FinishedPromise_;
 }
 
-void TProcess::Spawn()
+void TProcess::DoSpawn()
 {
 #ifdef _unix_
-    YCHECK(ProcessId_ == InvalidProcessId && !Finished_);
+    YCHECK(ProcessId_ == InvalidProcessId && !IsFinished_);
 
     // Make sure no spawn action closes Pipe_.WriteFD
     TPipeFactory pipeFactory(MaxSpawnActionFD_ + 1);
     Pipe_ = pipeFactory.Create();
     pipeFactory.Clear();
 
-    LOG_DEBUG("Spawning child process (Path: %v, ErrorPipe: %v,  Arguments: %v, Environment: %v)",
+    LOG_DEBUG("Spawning new process (Path: %v, ErrorPipe: %v,  Arguments: %v, Environment: %v)",
         Path_,
         Pipe_,
         Args_,
@@ -259,17 +247,17 @@ void TProcess::Spawn()
             << TError::FromSystem();
     }
 
-    SpawnActions_.push_back(TSpawnAction {
+    SpawnActions_.push_back(TSpawnAction{
         TryResetSignals,
         "Error resetting signals to default disposition in child process: signal failed"
     });
 
-    SpawnActions_.push_back(TSpawnAction {
+    SpawnActions_.push_back(TSpawnAction{
         std::bind(TrySetSignalMask, &oldSignals, nullptr),
         "Error unblocking signals in child process: pthread_sigmask failed"
     });
 
-    SpawnActions_.push_back(TSpawnAction {
+    SpawnActions_.push_back(TSpawnAction{
         std::bind(TryExecve, Path_.c_str(), Args_.data(), Env_.data()),
         "Error starting child process: execve failed"
     });
@@ -280,8 +268,14 @@ void TProcess::Spawn()
     YCHECK(TrySetSignalMask(&oldSignals, nullptr));
 
     Pipe_.CloseWriteFD();
-
     ValidateSpawnResult();
+
+    AsyncWaitExecutor_ = New<TPeriodicExecutor>(
+        GetSyncInvoker(),
+        BIND(&TProcess::AsyncPeriodicTryWait, MakeStrong(this)),
+        PollPeriod_);
+
+    AsyncWaitExecutor_->Start();
 #else
     THROW_ERROR_EXCEPTION("Unsupported platform");
 #endif
@@ -299,15 +293,15 @@ void TProcess::SpawnChild()
     }
 
     if (pid == 0) {
-        Child();
+        try {
+            Child();
+        } catch (...) {
+            YUNREACHABLE();
+        }
     }
 
     ProcessId_ = pid;
-
-    {
-        TGuard<TSpinLock> guard(LifecycleChangeLock_);
-        Started_ = true;
-    }
+    IsStarted_ = true;
 #else
     THROW_ERROR_EXCEPTION("Unsupported platform");
 #endif
@@ -331,11 +325,7 @@ void TProcess::ValidateSpawnResult()
     }
 
     YCHECK(res == sizeof(data));
-
-    {
-        TGuard<TSpinLock> guard(LifecycleChangeLock_);
-        Finished_ = true;
-    }
+    IsFinished_ = true;
 
     Cleanup(ProcessId_);
     ProcessId_ = InvalidProcessId;
@@ -353,7 +343,7 @@ void TProcess::ValidateSpawnResult()
 }
 
 #ifdef _unix_
-TError ProcessInfoToError(const siginfo_t& processInfo)
+static TError ProcessInfoToError(const siginfo_t& processInfo)
 {
     int signalBase = static_cast<int>(EExitStatus::SignalBase);
     if (processInfo.si_code == CLD_EXITED) {
@@ -376,30 +366,32 @@ TError ProcessInfoToError(const siginfo_t& processInfo)
 }
 #endif
 
-TError TProcess::Wait()
-{
 #ifdef _unix_
-    YCHECK(ProcessId_ != InvalidProcessId);
-    LOG_DEBUG("Waiting for child process to finish (Pid: %v)", ProcessId_);
-
+void TProcess::AsyncPeriodicTryWait()
+{
     siginfo_t processInfo;
+    memset(&processInfo, 0, sizeof(siginfo_t));
 
     // Note WNOWAIT flag.
     // This call just waits for a process to be finished but does not clear zombie flag.
-    WaitidOrDie(P_PID, ProcessId_, &processInfo, WEXITED | WNOWAIT);
 
+    if (!TryWaitid(P_PID, ProcessId_, &processInfo, WEXITED | WNOWAIT | WNOHANG) ||
+        processInfo.si_pid != ProcessId_)
     {
-        TGuard<TSpinLock> guard(LifecycleChangeLock_);
-
-        // This call just should return immediately
-        // because we have already waited for this process with WNOHANG.
-        WaitidOrDie(P_PID, ProcessId_, &processInfo, WEXITED | WNOHANG);
-
-        Finished_ = true;
+        return;
     }
-    LOG_DEBUG("Child process finished (Pid: %v)", ProcessId_);
 
-    return ProcessInfoToError(processInfo);
+    AsyncWaitExecutor_->Stop();
+    AsyncWaitExecutor_ = nullptr;
+
+    // This call just should return immediately
+    // because we have already waited for this process with WNOHANG
+    WaitidOrDie(P_PID, ProcessId_, &processInfo, WEXITED | WNOHANG);
+
+    IsFinished_ = true;
+    LOG_DEBUG("Process finished (Pid: %v)", ProcessId_);
+
+    FinishedPromise_.Set(ProcessInfoToError(processInfo));
 #else
     THROW_ERROR_EXCEPTION("Unsupported platform");
 #endif
@@ -408,37 +400,30 @@ TError TProcess::Wait()
 void TProcess::Kill(int signal)
 {
 #ifdef _unix_
-    LOG_DEBUG("Killing child process (Pid: %v)", ProcessId_);
-
-    TGuard<TSpinLock> guard(LifecycleChangeLock_);
-
-    if (!Started_) {
+    if (!IsStarted_) {
         THROW_ERROR_EXCEPTION("Process is not started yet");
     }
 
-    if (Finished_) {
+    if (IsFinished_) {
         return;
     }
 
+    LOG_DEBUG("Killing child process (Pid: %v)", ProcessId_);
+
     auto result = TryKill(ProcessId_, signal);
     if (!result) {
-        THROW_ERROR_EXCEPTION("Error killing child process: kill failed")
+        THROW_ERROR_EXCEPTION("Failed to kill child process %v", ProcessId_)
             << TError::FromSystem();
     }
+    return;
 #else
     THROW_ERROR_EXCEPTION("Unsupported platform");
 #endif
 }
 
-void TProcess::KillAndWait() noexcept
+Stroka TProcess::GetPath() const
 {
-    try {
-        Kill(9);
-    } catch (...) { 
-    }
-    if (!Finished()) {
-        Wait();
-    }
+    return Path_;
 }
 
 int TProcess::GetProcessId() const
@@ -446,14 +431,14 @@ int TProcess::GetProcessId() const
     return ProcessId_;
 }
 
-bool TProcess::Started() const
+bool TProcess::IsStarted() const
 {
-    return Started_;
+    return IsStarted_;
 }
 
-bool TProcess::Finished() const
+bool TProcess::IsFinished() const
 {
-    return Finished_;
+    return IsFinished_;
 }
 
 Stroka TProcess::GetCommandLine() const

@@ -1,7 +1,8 @@
-#include "connection.h"
-#include "private.h"
 #include "admin.h"
 #include "config.h"
+#include "connection.h"
+#include "dispatcher.h"
+#include "private.h"
 
 #include <yt/ytlib/chunk_client/client_block_cache.h>
 
@@ -20,6 +21,8 @@
 #include <yt/ytlib/transaction_client/remote_timestamp_provider.h>
 
 #include <yt/ytlib/object_client/helpers.h>
+
+#include <yt/core/concurrency/action_queue.h>
 
 #include <yt/core/rpc/bus_channel.h>
 #include <yt/core/rpc/caching_channel_factory.h>
@@ -54,8 +57,161 @@ public:
         , Options_(options)
     { }
 
+    // IConnection implementation.
+
+    virtual TConnectionConfigPtr GetConfig() override
+    {
+        return Config_;
+    }
+
+    virtual const TCellId& GetPrimaryMasterCellId() const override
+    {
+        return PrimaryMasterCellId_;
+    }
+
+    virtual TCellTag GetPrimaryMasterCellTag() const override
+    {
+        return PrimaryMasterCellTag_;
+    }
+
+    virtual const TCellTagList& GetSecondaryMasterCellTags() const override
+    {
+        return SecondaryMasterCellTags_;
+    }
+
+    virtual IChannelPtr GetMasterChannelOrThrow(
+        EMasterChannelKind kind,
+        TCellTag cellTag = PrimaryMasterCellTag) override
+    {
+        const auto& channels = MasterChannels_[kind];
+        auto it = channels.find(cellTag == PrimaryMasterCellTag ? PrimaryMasterCellTag_ : cellTag);
+        if (it == channels.end()) {
+            THROW_ERROR_EXCEPTION("Unknown master cell tag %v",
+                cellTag);
+        }
+        return it->second;
+    }
+
+    virtual IChannelPtr GetSchedulerChannel() override
+    {
+        return SchedulerChannel_;
+    }
+
+    virtual IChannelFactoryPtr GetLightNodeChannelFactory() override
+    {
+        return LightNodeChannelFactory_;
+    }
+
+    virtual IChannelFactoryPtr GetHeavyNodeChannelFactory() override
+    {
+        return HeavyNodeChannelFactory_;
+    }
+
+    virtual IBlockCachePtr GetBlockCache() override
+    {
+        return BlockCache_;
+    }
+
+    virtual TTableMountCachePtr GetTableMountCache() override
+    {
+        return TableMountCache_;
+    }
+
+    virtual ITimestampProviderPtr GetTimestampProvider() override
+    {
+        return TimestampProvider_;
+    }
+
+    virtual TCellDirectoryPtr GetCellDirectory() override
+    {
+        return CellDirectory_;
+    }
+
+    virtual IFunctionRegistryPtr GetFunctionRegistry() override
+    {
+        return FunctionRegistry_;
+    }
+
+    virtual TEvaluatorPtr GetQueryEvaluator() override
+    {
+        return QueryEvaluator_;
+    }
+
+    virtual TDispatcherPtr GetDispatcher() override
+    {
+        return Dispatcher_;
+    }
+
+    virtual TColumnEvaluatorCachePtr GetColumnEvaluatorCache() override
+    {
+        return ColumnEvaluatorCache_;
+    }
+
+    virtual IAdminPtr CreateAdmin(const TAdminOptions& options) override
+    {
+        return NApi::CreateAdmin(this, options);
+    }
+
+    virtual IClientPtr CreateClient(const TClientOptions& options) override
+    {
+        return NApi::CreateClient(this, options);
+    }
+
+
+    virtual void ClearMetadataCaches() override
+    {
+        TableMountCache_->Clear();
+    }
+
+private:
+    const TConnectionConfigPtr Config_;
+    const TConnectionOptions Options_;
+
+    TCellId PrimaryMasterCellId_;
+    TCellTag PrimaryMasterCellTag_;
+    TCellTagList SecondaryMasterCellTags_;
+
+    TEnumIndexedVector<yhash_map<TCellTag, IChannelPtr>, EMasterChannelKind> MasterChannels_;
+    IChannelPtr SchedulerChannel_;
+    IChannelFactoryPtr LightNodeChannelFactory_;
+    IChannelFactoryPtr HeavyNodeChannelFactory_;
+    IBlockCachePtr BlockCache_;
+    TTableMountCachePtr TableMountCache_;
+    ITimestampProviderPtr TimestampProvider_;
+    TCellDirectoryPtr CellDirectory_;
+    IFunctionRegistryPtr FunctionRegistry_;
+    TEvaluatorPtr QueryEvaluator_;
+    TColumnEvaluatorCachePtr ColumnEvaluatorCache_;
+    TDispatcherPtr Dispatcher_;
+
+
+    IChannelPtr CreatePeerChannel(TMasterConnectionConfigPtr config, EPeerKind kind)
+    {
+        auto channel = NHydra::CreatePeerChannel(
+            config,
+            GetBusChannelFactory(),
+            kind);
+
+        auto isRetryableError = BIND([options = Options_] (const TError& error) {
+            if (options.RetryRequestRateLimitExceeded &&
+                error.GetCode() == NSecurityClient::EErrorCode::RequestRateLimitExceeded)
+            {
+                return true;
+            }
+
+            return IsRetriableError(error);
+        });
+        channel = CreateRetryingChannel(config, channel, isRetryableError);
+
+        channel = CreateDefaultTimeoutChannel(channel, config->RpcTimeout);
+
+        return channel;
+    }
+
     void Initialize()
     {
+        Dispatcher_ = New<TDispatcher>(Config_->LightInvokerPoolSize, Config_->HeavyInvokerPoolSize);
+
         PrimaryMasterCellId_ = Config_->PrimaryMaster->CellId;
         PrimaryMasterCellTag_ = CellTagFromId(PrimaryMasterCellId_);
         for (const auto& masterConfig : Config_->SecondaryMasters) {
@@ -141,151 +297,9 @@ public:
             FunctionRegistry_);
     }
 
-    // IConnection implementation.
-
-    virtual TConnectionConfigPtr GetConfig() override
-    {
-        return Config_;
-    }
-
-    virtual const TCellId& GetPrimaryMasterCellId() const override
-    {
-        return PrimaryMasterCellId_;
-    }
-
-    virtual TCellTag GetPrimaryMasterCellTag() const override
-    {
-        return PrimaryMasterCellTag_;
-    }
-
-    virtual const TCellTagList& GetSecondaryMasterCellTags() const override
-    {
-        return SecondaryMasterCellTags_;
-    }
-
-    virtual IChannelPtr GetMasterChannelOrThrow(
-        EMasterChannelKind kind,
-        TCellTag cellTag = PrimaryMasterCellTag) override
-    {
-        const auto& channels = MasterChannels_[kind];
-        auto it = channels.find(cellTag == PrimaryMasterCellTag ? PrimaryMasterCellTag_ : cellTag);
-        if (it == channels.end()) {
-            THROW_ERROR_EXCEPTION("Unknown master cell tag %v",
-                cellTag);
-        }
-        return it->second;
-    }
-
-    virtual IChannelPtr GetSchedulerChannel() override
-    {
-        return SchedulerChannel_;
-    }
-
-    virtual IChannelFactoryPtr GetLightNodeChannelFactory() override
-    {
-        return LightNodeChannelFactory_;
-    }
-
-    virtual IChannelFactoryPtr GetHeavyNodeChannelFactory() override
-    {
-        return HeavyNodeChannelFactory_;
-    }
-
-    virtual IBlockCachePtr GetBlockCache() override
-    {
-        return BlockCache_;
-    }
-
-    virtual TTableMountCachePtr GetTableMountCache() override
-    {
-        return TableMountCache_;
-    }
-
-    virtual ITimestampProviderPtr GetTimestampProvider() override
-    {
-        return TimestampProvider_;
-    }
-
-    virtual TCellDirectoryPtr GetCellDirectory() override
-    {
-        return CellDirectory_;
-    }
-
-    virtual IFunctionRegistryPtr GetFunctionRegistry() override
-    {
-        return FunctionRegistry_;
-    }
-
-    virtual TEvaluatorPtr GetQueryEvaluator() override
-    {
-        return QueryEvaluator_;
-    }
-
-    virtual TColumnEvaluatorCachePtr GetColumnEvaluatorCache() override
-    {
-        return ColumnEvaluatorCache_;
-    }
-
-    virtual IAdminPtr CreateAdmin(const TAdminOptions& options) override
-    {
-        return NApi::CreateAdmin(this, options);
-    }
-
-    virtual IClientPtr CreateClient(const TClientOptions& options) override
-    {
-        return NApi::CreateClient(this, options);
-    }
-
-    virtual void ClearMetadataCaches() override
-    {
-        TableMountCache_->Clear();
-    }
-
-
-private:
-    const TConnectionConfigPtr Config_;
-    const TConnectionOptions Options_;
-
-    TCellId PrimaryMasterCellId_;
-    TCellTag PrimaryMasterCellTag_;
-    TCellTagList SecondaryMasterCellTags_;
-
-    TEnumIndexedVector<yhash_map<TCellTag, IChannelPtr>, EMasterChannelKind> MasterChannels_;
-    IChannelPtr SchedulerChannel_;
-    IChannelFactoryPtr LightNodeChannelFactory_;
-    IChannelFactoryPtr HeavyNodeChannelFactory_;
-    IBlockCachePtr BlockCache_;
-    TTableMountCachePtr TableMountCache_;
-    ITimestampProviderPtr TimestampProvider_;
-    TCellDirectoryPtr CellDirectory_;
-    IFunctionRegistryPtr FunctionRegistry_;
-    TEvaluatorPtr QueryEvaluator_;
-    TColumnEvaluatorCachePtr ColumnEvaluatorCache_;
-
-
-    IChannelPtr CreatePeerChannel(TMasterConnectionConfigPtr config, EPeerKind kind)
-    {
-        auto channel = NHydra::CreatePeerChannel(
-            config,
-            GetBusChannelFactory(),
-            kind);
-
-        auto isRetryableError = BIND([options = Options_] (const TError& error) {
-            if (options.RetryRequestRateLimitExceeded &&
-                error.GetCode() == NSecurityClient::EErrorCode::RequestRateLimitExceeded)
-            {
-                return true;
-            }
-
-            return IsRetriableError(error);
-        });
-        channel = CreateRetryingChannel(config, channel, isRetryableError);
-
-        channel = CreateDefaultTimeoutChannel(channel, config->RpcTimeout);
-
-        return channel;
-    }
-
+    friend IConnectionPtr CreateConnection(
+        TConnectionConfigPtr config,
+        const TConnectionOptions& options);
 };
 
 IConnectionPtr CreateConnection(

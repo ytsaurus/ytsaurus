@@ -471,6 +471,22 @@ TEST_F(TYsonParserTest, MemoryLimitExceeded)
     EXPECT_THROW(Run("{key=" + Stroka(10000, 'a') + "}", EYsonType::Node, 1024), std::exception);
 }
 
+TEST_F(TYsonParserTest, DepthLimitExceeded)
+{
+
+    EXPECT_CALL(Mock, OnBeginList()).Times(254);
+    EXPECT_CALL(Mock, OnListItem()).Times(255);
+    EXPECT_CALL(Mock, OnEndList()).Times(126);
+    EXPECT_CALL(Mock, OnInt64Scalar(1));
+
+    auto yson = "[" +
+        Stroka(126, '[') + "1" + Stroka(126, ']') + ";" +
+        Stroka(127, '[') + "1" + Stroka(127, ']') +
+        "]";
+
+    EXPECT_THROW(Run(yson, EYsonType::Node, 1024), std::exception);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace

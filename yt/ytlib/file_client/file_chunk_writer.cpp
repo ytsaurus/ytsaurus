@@ -156,7 +156,7 @@ TFuture<void> TFileChunkWriter::Close()
     SetProtoExtension(meta.mutable_extensions(), BlocksExt_);
 
     return BIND(&TEncodingChunkWriter::Close, EncodingChunkWriter_)
-        .AsyncVia(TDispatcher::Get()->GetWriterInvoker())
+        .AsyncVia(NChunkClient::TDispatcher::Get()->GetWriterInvoker())
         .Run();
 }
 

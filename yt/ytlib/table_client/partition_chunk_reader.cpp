@@ -42,7 +42,7 @@ TPartitionChunkReader::TPartitionChunkReader(
     , PartitionTag_(partitionTag)
 {
     ReadyEvent_ = BIND(&TPartitionChunkReader::InitializeBlockSequence, MakeStrong(this))
-        .AsyncVia(TDispatcher::Get()->GetReaderInvoker())
+        .AsyncVia(NChunkClient::TDispatcher::Get()->GetReaderInvoker())
         .Run();
 }
 

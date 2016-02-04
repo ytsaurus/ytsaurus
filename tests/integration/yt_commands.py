@@ -441,6 +441,12 @@ def create_tmpdir(prefix):
         prefix="{0}_{1}_".format(prefix, os.getpid()),
         dir=basedir)
 
+def check_all_stderrs(op, expected_content, expected_count):
+    jobs_path = "//sys/operations/{0}/jobs".format(op.id)
+    assert get(jobs_path + "/@count") == expected_count
+    for job_id in ls(jobs_path):
+        assert read_file("{0}/{1}/stderr".format(jobs_path, job_id)) == expected_content
+
 def start_op(op_type, **kwargs):
     op_name = None
     if op_type == "map":

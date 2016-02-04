@@ -2,12 +2,17 @@
 
 #include <yt/core/actions/bind.h>
 
+#include <yt/core/concurrency/action_queue.h>
 #include <yt/core/concurrency/delayed_executor.h>
+#include <yt/core/concurrency/scheduler.h>
 
 #include <yt/core/misc/process.h>
+#include <yt/core/misc/proc.h>
 
 namespace NYT {
 namespace {
+
+using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -15,104 +20,131 @@ namespace {
 
 TEST(TProcessTest, Basic)
 {
-    TProcess p("/bin/ls");
-    ASSERT_NO_THROW(p.Spawn());
-    auto error = p.Wait();
-    ASSERT_TRUE(error.IsOK()) << ToString(error);
+    auto p = New<TProcess>("/bin/ls");
+    TFuture<void> finished;
+
+    ASSERT_NO_THROW(finished = p->Spawn());
+    ASSERT_TRUE(p->IsStarted());
+    auto error = WaitFor(finished);
+    EXPECT_TRUE(error.IsOK()) << ToString(error);
+    EXPECT_TRUE(p->IsFinished());
 }
 
 TEST(TProcessTest, InvalidPath)
 {
-    TProcess p("/some/bad/path/binary");
-    ASSERT_THROW(p.Spawn(), std::exception);
+    auto p = New<TProcess>("/some/bad/path/binary");
+
+    TFuture<void> finished;
+    ASSERT_NO_THROW(finished = p->Spawn());
+    ASSERT_TRUE(p->IsStarted());
+    auto error = WaitFor(finished);
+    EXPECT_TRUE(p->IsFinished());
+    EXPECT_FALSE(error.IsOK());
+    EXPECT_EQ("Error starting child process: execve failed", error.GetMessage());
 }
 
 TEST(TProcessTest, BadDup)
 {
-    TProcess p("/bin/date");
-    p.AddDup2FileAction(1000, 1);
-    ASSERT_THROW(p.Spawn(), std::exception);
+    auto p = New<TProcess>("/bin/date");
+    p->AddDup2FileAction(1000, 1);
+
+    TFuture<void> finished;
+    ASSERT_NO_THROW(finished = p->Spawn());
+    ASSERT_TRUE(p->IsStarted());
+    auto error = WaitFor(finished);
+    EXPECT_TRUE(p->IsFinished());
+    EXPECT_FALSE(error.IsOK());
+    EXPECT_EQ("Error duplicating 1000 file descriptor to 1 in child process", error.GetMessage());
 }
 
 TEST(TProcessTest, GoodDup)
 {
-    TProcess p("/bin/date");
-    p.AddDup2FileAction(2, 3);
-    ASSERT_NO_THROW(p.Spawn());
+    auto p = New<TProcess>("/bin/date");
+    p->AddDup2FileAction(2, 3);
 
-    auto error = p.Wait();
-    ASSERT_TRUE(error.IsOK()) << ToString(error);
+    TFuture<void> finished;
+    ASSERT_NO_THROW(finished = p->Spawn());
+    ASSERT_TRUE(p->IsStarted());
+    auto error = WaitFor(finished);
+    EXPECT_TRUE(error.IsOK()) << ToString(error);
+    EXPECT_TRUE(p->IsFinished());
 }
 
 TEST(TProcess, GetCommandLine)
 {
-    TProcess p("/bin/bash");
-    p.AddArgument("-c");
-    p.AddArgument("exit 0");
-
-    ASSERT_NO_THROW(p.Spawn());
-    ASSERT_TRUE(p.GetCommandLine() == "/bin/bash -c \"exit 0\"") << p.GetCommandLine();
-
-    ASSERT_NO_THROW(p.Wait());
+    auto p = New<TProcess>("/bin/bash");
+    EXPECT_EQ("/bin/bash", p->GetCommandLine());
+    p->AddArgument("-c");
+    EXPECT_EQ("/bin/bash -c", p->GetCommandLine());
+    p->AddArgument("exit 0");
+    EXPECT_EQ("/bin/bash -c \"exit 0\"", p->GetCommandLine());
 }
 
 TEST(TProcess, IgnoreCloseInvalidFD)
 {
-    TProcess p("/bin/bash");
-    p.AddArgument("-c");
-    p.AddArgument("exit 0");
-    p.AddCloseFileAction(74);
+    auto p = New<TProcess>("/bin/bash");
+    p->AddArgument("-c");
+    p->AddArgument("exit 0");
+    p->AddCloseFileAction(74);
 
-    ASSERT_NO_THROW(p.Spawn());
-    ASSERT_NO_THROW(p.Wait());
+    TFuture<void> finished;
+    ASSERT_NO_THROW(finished = p->Spawn());
+    ASSERT_TRUE(p->IsStarted());
+    auto error = WaitFor(finished);
+    EXPECT_TRUE(error.IsOK()) << ToString(error);
+    EXPECT_TRUE(p->IsFinished());
 }
 
 TEST(TProcessTest, ProcessReturnCode0)
 {
-    TProcess p("/bin/bash");
-    p.AddArgument("-c");
-    p.AddArgument("exit 0");
+    auto p = New<TProcess>("/bin/bash");
+    p->AddArgument("-c");
+    p->AddArgument("exit 0");
 
-    ASSERT_NO_THROW(p.Spawn());
-
-    auto error = p.Wait();
-    ASSERT_TRUE(error.IsOK()) << ToString(error);
+    TFuture<void> finished;
+    ASSERT_NO_THROW(finished = p->Spawn());
+    ASSERT_TRUE(p->IsStarted());
+    auto error = WaitFor(finished);
+    EXPECT_TRUE(error.IsOK()) << ToString(error);
+    EXPECT_TRUE(p->IsFinished());
 }
 
-TEST(TProcessTest, ProcessReturnCode1)
+TEST(TProcessTest, ProcessReturnCode123)
 {
-    TProcess p("/bin/bash");
-    p.AddArgument("-c");
-    p.AddArgument("exit 1");
+    auto p = New<TProcess>("/bin/bash");
+    p->AddArgument("-c");
+    p->AddArgument("exit 123");
 
-    ASSERT_NO_THROW(p.Spawn());
-
-    auto error = p.Wait();
-    ASSERT_FALSE(error.IsOK()) << ToString(error);
+    TFuture<void> finished;
+    ASSERT_NO_THROW(finished = p->Spawn());
+    ASSERT_TRUE(p->IsStarted());
+    auto error = WaitFor(finished);
+    EXPECT_FALSE(error.IsOK());
+    EXPECT_EQ("Process exited with code 123", error.GetMessage());
+    EXPECT_EQ(TErrorCode(static_cast<int>(EExitStatus::SignalBase) + 123), error.GetCode());
+    EXPECT_TRUE(p->IsFinished());
 }
 
 TEST(TProcessTest, Params1)
 {
-    TProcess p("/bin/bash");
-    p.AddArgument("-c");
-    p.AddArgument("if test 3 -gt 1; then exit 7; fi");
+    auto p = New<TProcess>("/bin/bash");
+    p->AddArgument("-c");
+    p->AddArgument("if test 3 -gt 1; then exit 7; fi");
 
-    ASSERT_NO_THROW(p.Spawn());
-
-    auto error = p.Wait();
+    auto error = WaitFor(p->Spawn());
     EXPECT_FALSE(error.IsOK());
+    EXPECT_TRUE(p->IsFinished());
 }
 
 TEST(TProcessTest, Params2)
 {
-    TProcess p("/bin/bash");
-    p.AddArgument("-c");
-    p.AddArgument("if test 1 -gt 3; then exit 7; fi");
+    auto p = New<TProcess>("/bin/bash");
+    p->AddArgument("-c");
+    p->AddArgument("if test 1 -gt 3; then exit 7; fi");
 
-    ASSERT_NO_THROW(p.Spawn());
-
-    auto error = p.Wait();
+    auto error = WaitFor(p->Spawn());
     EXPECT_TRUE(error.IsOK()) << ToString(error);
+    EXPECT_TRUE(p->IsFinished());
 }
 
 TEST(TProcessTest, InheritEnvironment)
@@ -121,65 +153,75 @@ TEST(TProcessTest, InheritEnvironment)
     const char* value = "42";
     setenv(name, value, 1);
 
-    TProcess p("/bin/bash");
-    p.AddArgument("-c");
-    p.AddArgument("if test $SPAWN_TEST_ENV_VAR = 42; then exit 7; fi");
+    auto p = New<TProcess>("/bin/bash");
+    p->AddArgument("-c");
+    p->AddArgument("if test $SPAWN_TEST_ENV_VAR = 42; then exit 7; fi");
 
-    ASSERT_NO_THROW(p.Spawn());
-
-    auto error = p.Wait();
+    auto error = WaitFor(p->Spawn());
     EXPECT_FALSE(error.IsOK());
+    EXPECT_TRUE(p->IsFinished());
 
     unsetenv(name);
 }
 
 TEST(TProcessTest, Kill)
 {
-    TProcess p("/bin/sleep");
-    p.AddArgument("1");
+    auto p = New<TProcess>("/bin/sleep");
+    p->AddArgument("1");
 
-    ASSERT_NO_THROW(p.Spawn());
+    auto finished = p->Spawn();
 
     NConcurrency::TDelayedExecutor::Submit(
         BIND([&] () {
-            p.Kill(SIGKILL);
+            p->Kill(SIGKILL);
         }),
         TDuration::MilliSeconds(100));
 
-    auto error = p.Wait();
+    auto error = WaitFor(finished);
     EXPECT_FALSE(error.IsOK());
+    EXPECT_TRUE(p->IsFinished());
 }
 
 TEST(TProcessTest, KillFinished)
 {
-    TProcess p("/bin/bash");
-    p.AddArgument("-c");
-    p.AddArgument("true");
+    auto p = New<TProcess>("/bin/bash");
+    p->AddArgument("-c");
+    p->AddArgument("true");
 
-    ASSERT_NO_THROW(p.Spawn());
+    auto finished = p->Spawn();
 
-    auto error = p.Wait();
+    auto error = WaitFor(finished);
     EXPECT_TRUE(error.IsOK());
 
-    p.Kill(SIGKILL);
+    p->Kill(SIGKILL);
 }
 
 TEST(TProcessTest, KillZombie)
 {
-    TProcess p("/bin/bash");
-    p.AddArgument("-c");
-    p.AddArgument("true");
+    auto p = New<TProcess>("/bin/bash");
+    p->AddArgument("-c");
+    p->AddArgument("true");
 
-    ASSERT_NO_THROW(p.Spawn());
+    auto finished = p->Spawn();
 
     siginfo_t infop;
-    auto res = ::waitid(P_PID, p.GetProcessId(), &infop, WEXITED | WNOWAIT);
+    auto res = ::waitid(P_PID, p->GetProcessId(), &infop, WEXITED | WNOWAIT);
     EXPECT_TRUE(res == 0);
-    EXPECT_EQ(p.GetProcessId(), infop.si_pid);
+    EXPECT_EQ(p->GetProcessId(), infop.si_pid);
 
-    p.Kill(SIGKILL);
-    auto error = p.Wait();
+    p->Kill(SIGKILL);
+    auto error = WaitFor(finished);
     EXPECT_TRUE(error.IsOK());
+}
+
+TEST(TProcessTest, PollDuration)
+{
+    auto p = New<TProcess>("/bin/sleep", true, TDuration::MilliSeconds(1));
+    p->AddArgument("0.1");
+
+    auto error = WaitFor(p->Spawn());
+    EXPECT_TRUE(error.IsOK()) << ToString(error);
+    EXPECT_TRUE(p->IsFinished());
 }
 
 #endif

@@ -326,6 +326,7 @@ private:
             query->KeyColumnsCount);
 
         auto timestamp = options.Timestamp;
+        const auto& workloadDescriptor = options.WorkloadDescriptor;
 
         std::vector<TRefiner> refiners;
         std::vector<TSubreaderCreator> subreaderCreators;
@@ -348,23 +349,21 @@ private:
                     query,
                     MOVE(groupedSplit),
                     timestamp,
+                    &workloadDescriptor,
                     index = 0,
                     this_ = MakeStrong(this)
                 ] () mutable -> ISchemafulReaderPtr {
                     if (index == groupedSplit.size()) {
                         return nullptr;
-                    } else {
-
-                        const auto& group = groupedSplit[index++];
-
-                        auto result =  this_->GetReader(
-                            query->TableSchema,
-                            group.Id,
-                            group.Range,
-                            timestamp);
-
-                        return result;
                     }
+
+                    const auto& group = groupedSplit[index++];
+                    return this_->GetReader(
+                        query->TableSchema,
+                        group.Id,
+                        group.Range,
+                        timestamp,
+                        workloadDescriptor);
                 };
 
                 return CreateUnorderedSchemafulReader(
@@ -401,7 +400,8 @@ private:
                             query->TableSchema,
                             tablePartId,
                             keys,
-                            timestamp);
+                            timestamp,
+                            workloadDescriptor);
                     }
 
                     default:
@@ -457,6 +457,7 @@ private:
             query->KeyColumnsCount);
 
         auto timestamp = options.Timestamp;
+        const auto& workloadDescriptor = options.WorkloadDescriptor;
 
         std::vector<TRefiner> refiners;
         std::vector<TSubreaderCreator> subreaderCreators;
@@ -466,7 +467,7 @@ private:
                 return RefinePredicate(dataSplit.Range, expr, schema, keyColumns, columnEvaluator);
             });
             subreaderCreators.push_back([&] () {
-                return GetReader(query->TableSchema, dataSplit.Id, dataSplit.Range, timestamp);
+                return GetReader(query->TableSchema, dataSplit.Id, dataSplit.Range, timestamp, workloadDescriptor);
             });
         }
 
@@ -485,8 +486,6 @@ private:
         bool verboseLogging)
     {
         std::vector<TDataRange> allSplits;
-
-        auto securityManager = Bootstrap_->GetSecurityManager();
 
         for (auto& tablePartIdRange : rangesByTablePart) {
             auto tablePartId = tablePartIdRange.first;
@@ -722,7 +721,8 @@ private:
         const TTableSchema& schema,
         const NObjectClient::TObjectId& objectId,
         const TRowRange& range,
-        TTimestamp timestamp)
+        TTimestamp timestamp,
+        const TWorkloadDescriptor& workloadDescriptor)
     {
         ValidateReadTimestamp(timestamp);
 
@@ -732,7 +732,7 @@ private:
                 return GetChunkReader(schema, objectId, range, timestamp);
 
             case EObjectType::Tablet:
-                return GetTabletReader(schema, objectId, range, timestamp);
+                return GetTabletReader(schema, objectId, range, timestamp, workloadDescriptor);
 
             default:
                 THROW_ERROR_EXCEPTION("Unsupported data split type %Qlv",
@@ -744,7 +744,8 @@ private:
         const TTableSchema& schema,
         const NObjectClient::TObjectId& objectId,
         const TSharedRange<TRow>& keys,
-        TTimestamp timestamp)
+        TTimestamp timestamp,
+        const TWorkloadDescriptor& workloadDescriptor)
     {
         ValidateReadTimestamp(timestamp);
 
@@ -754,7 +755,7 @@ private:
                 return GetChunkReader(schema,  objectId, keys, timestamp);
 
             case EObjectType::Tablet:
-                return GetTabletReader(schema, objectId, keys, timestamp);
+                return GetTabletReader(schema, objectId, keys, timestamp, workloadDescriptor);
 
             default:
                 THROW_ERROR_EXCEPTION("Unsupported data split type %Qlv",
@@ -768,6 +769,7 @@ private:
         const TRowRange& range,
         TTimestamp timestamp)
     {
+        // TODO(sandello): Use options for passing workload descriptor.
         std::vector<TReadRange> readRanges;
         TReadLimit lowerReadLimit;
         TReadLimit upperReadLimit;
@@ -783,6 +785,8 @@ private:
         const TSharedRange<TRow>& keys,
         TTimestamp timestamp)
     {
+        // TODO(sandello): Use options for passing workload descriptor.
+
         std::vector<TReadRange> readRanges;
         TUnversionedOwningRowBuilder builder;
         for (const auto& key : keys) {
@@ -811,6 +815,8 @@ private:
         auto blockCache = Bootstrap_->GetBlockCache();
         auto chunkRegistry = Bootstrap_->GetChunkRegistry();
         auto chunk = chunkRegistry->FindChunk(chunkId);
+
+        // TODO(sandello): Use options for passing workload descriptor.
 
         NChunkClient::IChunkReaderPtr chunkReader;
         if (chunk && !chunk->IsRemoveScheduled()) {
@@ -858,7 +864,8 @@ private:
         const TTableSchema& schema,
         const NObjectClient::TObjectId& tabletId,
         const TRowRange& range,
-        TTimestamp timestamp)
+        TTimestamp timestamp,
+        const TWorkloadDescriptor& workloadDescriptor)
     {
         auto slotManager = Bootstrap_->GetTabletSlotManager();
         auto tabletSnapshot = slotManager->GetTabletSnapshotOrThrow(tabletId);
@@ -877,14 +884,16 @@ private:
             columnFilter,
             std::move(lowerBound),
             std::move(upperBound),
-            timestamp);
+            timestamp,
+            workloadDescriptor);
     }
 
     ISchemafulReaderPtr GetTabletReader(
         const TTableSchema& schema,
         const TTabletId& tabletId,
         const TSharedRange<TRow>& keys,
-        TTimestamp timestamp)
+        TTimestamp timestamp,
+        const TWorkloadDescriptor& workloadDescriptor)
     {
         auto slotManager = Bootstrap_->GetTabletSlotManager();
         auto tabletSnapshot = slotManager->GetTabletSnapshotOrThrow(tabletId);
@@ -900,9 +909,9 @@ private:
             columnFilter,
             keys,
             timestamp,
+            workloadDescriptor,
             Config_->MaxBottomReaderConcurrency);
     }
-
 };
 
 ISubExecutorPtr CreateQueryExecutor(

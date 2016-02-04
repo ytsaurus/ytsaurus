@@ -4,37 +4,22 @@
 
 #include <yt/core/actions/public.h>
 
-#include <yt/core/misc/shutdownable.h>
-
 namespace NYT {
-namespace NDriver {
+namespace NApi {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TDispatcher
-    : public IShutdownable
+    : public TIntrinsicRefCounted
 {
 public:
-    TDispatcher();
-
+    TDispatcher(int lightPoolSize, int heavyPoolSize);
     ~TDispatcher();
 
-    static TDispatcher* Get();
-
-    static void StaticShutdown();
-
-    void Configure(int lightPoolSize, int heavyPoolSize);
-
-    virtual void Shutdown() override;
-
-    /*!
-     * This invoker is used by TDriver for light commands.
-     */
+    //! Returns the invoker used by client for light commands.
     IInvokerPtr GetLightInvoker();
 
-    /*!
-     * This invoker is used by TDriver for light commands.
-     */
+    //! Returns the invoker used by client for heavy commands.
     IInvokerPtr GetHeavyInvoker();
 
 private:
@@ -42,8 +27,10 @@ private:
     const std::unique_ptr<TImpl> Impl_;
 };
 
+DEFINE_REFCOUNTED_TYPE(TDispatcher)
+
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NDriver
+} // namespace NApi
 } // namespace NYT
 

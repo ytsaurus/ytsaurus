@@ -192,6 +192,27 @@ class TestSchedulerOther(YTEnvSetup):
         for cur, next in zip(finish_times, finish_times[1:]):
             assert cur > next
 
+    def test_preparing_operation_transactions(self):
+        self._prepare_tables()
+
+        set_banned_flag(True)
+        op = sort(
+            dont_track=True,
+            in_="//tmp/t_in",
+            out="//tmp/t_in",
+            command="cat",
+            sort_by=["foo"])
+        time.sleep(2)
+
+        for tx in ls("//sys/transactions", attributes=["operation_id"]):
+            if tx.attributes.get("operation_id", "") == op.id:
+                abort_transaction(tx)
+
+        with pytest.raises(YtError):
+            op.track()
+
+        set_banned_flag(False)
+
 
 class TestStrategies(YTEnvSetup):
     NUM_MASTERS = 1

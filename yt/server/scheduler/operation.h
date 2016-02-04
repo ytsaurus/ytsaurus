@@ -71,6 +71,9 @@ public:
      */
     DEFINE_BYVAL_RW_PROPERTY(NApi::ITransactionPtr, OutputTransaction);
 
+    //! |true| if transactions are initialized and should be refreshed.
+    DEFINE_BYVAL_RW_PROPERTY(bool, HasActiveTransactions);
+
     DEFINE_BYVAL_RO_PROPERTY(NYTree::IMapNodePtr, Spec);
 
     DEFINE_BYVAL_RO_PROPERTY(Stroka, AuthenticatedUser);

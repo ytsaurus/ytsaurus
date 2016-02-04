@@ -128,7 +128,7 @@ TSchemalessTableReader::TSchemalessTableReader(
         TransactionId_);
 
     ReadyEvent_ = BIND(&TSchemalessTableReader::DoOpen, MakeStrong(this))
-        .AsyncVia(TDispatcher::Get()->GetReaderInvoker())
+        .AsyncVia(NChunkClient::TDispatcher::Get()->GetReaderInvoker())
         .Run();
 }
 

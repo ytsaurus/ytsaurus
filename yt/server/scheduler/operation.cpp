@@ -32,6 +32,7 @@ TOperation::TOperation(
     , Activated_(false)
     , Prepared_(false)
     , UserTransaction_(userTransaction)
+    , HasActiveTransactions_(false)
     , Spec_(spec)
     , AuthenticatedUser_(authenticatedUser)
     , StartTime_(startTime)
