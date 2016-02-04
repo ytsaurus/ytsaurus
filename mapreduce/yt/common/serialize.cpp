@@ -128,7 +128,7 @@ void Serialize(const TRichYPath& path, IYsonConsumer* consumer)
             */
         })
         .DoIf(!path.Columns_.Parts_.empty(), [&] (TFluentAttributes fluent) {
-            fluent.Item("channel").Value(path.Columns_);
+            fluent.Item("columns").Value(path.Columns_);
         })
         .DoIf(path.Append_.Defined(), [&] (TFluentAttributes fluent) {
             fluent.Item("append").Value(path.Append_.GetRef());
