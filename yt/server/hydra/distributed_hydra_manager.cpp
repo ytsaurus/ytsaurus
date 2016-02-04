@@ -674,7 +674,7 @@ private:
                 ControlState_);
         }
 
-        if (Options_.WriteSnapshotsAtFollowers) {
+        if (!Options_.WriteSnapshotsAtFollowers) {
             THROW_ERROR_EXCEPTION("Cannot build snapshot at follower");
         }
 
