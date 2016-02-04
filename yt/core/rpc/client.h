@@ -212,7 +212,7 @@ private:
 
 //! Handles the outcome of a single RPC request.
 struct IClientResponseHandler
-    : public virtual TRefCounted
+    : public virtual TIntrinsicRefCounted
 {
     //! Called when request delivery is acknowledged.
     virtual void HandleAcknowledgement() = 0;
