@@ -80,7 +80,11 @@ public:
 
     TDelayedExecutorCookie Submit(TClosure callback, TDuration delay)
     {
-        return Submit(std::move(callback), delay.ToDeadLine());
+        if (delay == TDuration()) {
+            callback.Run();
+        } else {
+            return Submit(std::move(callback), delay.ToDeadLine());
+        }
     }
 
     TDelayedExecutorCookie Submit(TClosure callback, TInstant deadline)
