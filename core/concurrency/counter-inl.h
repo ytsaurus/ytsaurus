@@ -1,3 +1,5 @@
+#pragma once
+
 #ifndef COUNTER_INL_H_
 #error "Direct inclusion of this file is not allowed, include counter.h"
 #endif
@@ -31,12 +33,12 @@ inline i64 TCounter::Get() const
     return result;
 }
 
-FORCED_INLINE void TCounter::Increment(i64 delta)
+Y_FORCE_INLINE void TCounter::Increment(i64 delta)
 {
     Buckets_[GetCurrentThreadId() % Factor].Value += delta;
 }
 
-FORCED_INLINE void TCounter::Decrement(i64 delta)
+Y_FORCE_INLINE void TCounter::Decrement(i64 delta)
 {
     Increment(-delta);
 }
