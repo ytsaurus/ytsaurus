@@ -257,7 +257,7 @@ EExitCode GuardedMain(int argc, const char* argv[])
 
         // Configure singletons.
 
-        if (!isMasterSnapshotDump && !isMasterSnapshotValidate) {
+        if (!isMasterSnapshotDump && !isMasterSnapshotValidate && !isExecutor) {
             NLogging::TLogManager::Get()->Configure(configFileName, "/logging");
         } else {
             NLogging::TLogManager::Get()->Configure(NLogging::TLogConfig::CreateQuiet());

@@ -75,6 +75,8 @@ class TRefCountedProto;
 
 const i64 DefaultEnvelopePartSize = 1LL << 28;
 
+DECLARE_REFCOUNTED_CLASS(TProcess)
+
 ///////////////////////////////////////////////////////////////////////////////
 
 DEFINE_ENUM(EErrorCode,

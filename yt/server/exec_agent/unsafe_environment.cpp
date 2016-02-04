@@ -19,6 +19,7 @@ namespace NExecAgent {
 
 using namespace NJobProxy;
 using namespace NCGroup;
+using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -61,7 +62,7 @@ public:
         , JobId(jobId)
         , Slot(slot)
         , Logger(ExecAgentLogger)
-        , Process(proxyPath)
+        , Process(New<TProcess>(proxyPath))
         , EnvironmentBuilder(envBuilder)
         , OnExit(NewPromise<void>())
         , WaitingThread(ThreadFunc, this)
@@ -74,7 +75,7 @@ public:
         LOG_INFO("Starting job proxy in unsafe environment (WorkDir: %v)",
             WorkingDirectory);
 
-        Process.AddArguments({
+        Process->AddArguments({
             "--job-proxy",
             "--config",
             ProxyConfigFileName,
@@ -86,7 +87,7 @@ public:
 
 #ifdef _linux_
         for (const auto& path : Slot.GetCGroupPaths()) {
-            Process.AddArguments({
+            Process->AddArguments({
                 "--cgroup",
                 path
             });
@@ -96,13 +97,13 @@ public:
         LOG_INFO("Spawning a job proxy (Path: %v)", ProxyPath);
 
         try {
-            Process.Spawn();
+            ProcessFinished = Process->Spawn();
         } catch (const std::exception& ex) {
             return MakeFuture(TError("Failed to spawn job pxoxy") << ex);
         }
 
         LOG_INFO("Job proxy started (ProcessId: %v)",
-            Process.GetProcessId());
+            Process->GetProcessId());
 
         // Unref is called in the thread.
         Ref();
@@ -118,11 +119,11 @@ public:
     {
         LOG_INFO("Killing job in unsafe environment (ProcessGroup: %v)", group.GetFullPath());
 
-        // One certaily can say that Process.Spawn exited
+        // One certaily can say that Process->Spawn exited
         // before this line due to thread affinity
-        if (Process.Started()) {
+        if (Process->IsStarted() && !Process->IsFinished()) {
             try {
-                Process.Kill(SIGKILL);
+                Process->Kill(SIGKILL);
             } catch (const std::exception& ex) {
                 LOG_FATAL(ex, "Failed to kill job proxy: kill failed");
             }
@@ -153,7 +154,7 @@ private:
     {
         LOG_INFO("Waiting for job proxy to finish");
 
-        auto error = Process.Wait();
+        auto error = WaitFor(ProcessFinished);
         LOG_INFO(error, "Job proxy finished");
 
         if (!error.IsOK()) {
@@ -170,7 +171,8 @@ private:
 
     NLogging::TLogger Logger;
 
-    TProcess Process;
+    TProcessPtr Process;
+    TFuture<void> ProcessFinished;
     TIntrusivePtr<TUnsafeEnvironmentBuilder> EnvironmentBuilder;
 
     TSpinLock SpinLock;

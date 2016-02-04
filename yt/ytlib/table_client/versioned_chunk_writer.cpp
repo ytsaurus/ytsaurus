@@ -169,7 +169,7 @@ TFuture<void> TVersionedChunkWriter::Close()
     YCHECK(RowCount_ > 0);
 
     return BIND(&TVersionedChunkWriter::DoClose, MakeStrong(this))
-        .AsyncVia(TDispatcher::Get()->GetWriterInvoker())
+        .AsyncVia(NChunkClient::TDispatcher::Get()->GetWriterInvoker())
         .Run();
 }
 

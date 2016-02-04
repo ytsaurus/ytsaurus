@@ -2,8 +2,6 @@
 
 #include <yt/ytlib/chunk_client/dispatcher.h>
 
-#include <yt/ytlib/driver/dispatcher.h>
-
 #include <yt/core/actions/invoker_util.h>
 
 #include <yt/core/bus/tcp_dispatcher.h>
@@ -28,7 +26,6 @@ namespace NYT {
 
 void Shutdown()
 {
-    NDriver::TDispatcher::StaticShutdown();
     NPipes::TIODispatcher::StaticShutdown();
     NChunkClient::TDispatcher::StaticShutdown();
     NTracing::TTraceManager::StaticShutdown();

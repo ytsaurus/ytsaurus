@@ -82,6 +82,8 @@ public:
     //! Returns a thread pool invoker used for building tablet snapshots.
     IInvokerPtr GetSnapshotPoolInvoker();
 
+    void PopulateAlerts(std::vector<TError>* alerts);
+
     NYTree::IYPathServicePtr GetOrchidService();
 
     DECLARE_SIGNAL(void(), BeginSlotScan);

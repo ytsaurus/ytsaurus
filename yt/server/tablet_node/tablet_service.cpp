@@ -100,6 +100,8 @@ private:
     {
         auto tabletId = FromProto<TTabletId>(request->tablet_id());
         auto timestamp = TTimestamp(request->timestamp());
+        // TODO(sandello): Extract this out of RPC request.
+        auto workloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::UserRealtime);
         auto requestData = DecompressWithEnvelope(request->Attachments());
 
         context->SetRequestInfo("TabletId: %v, Timestamp: %v",
@@ -130,6 +132,7 @@ private:
                 tabletManager->Read(
                     tabletSnapshot,
                     timestamp,
+                    workloadDescriptor,
                     &reader,
                     &writer);
 

@@ -356,6 +356,15 @@ TNodeStatistics TMasterConnector::ComputeStatistics()
         }
     }
 
+    // Do not treat node without locations as empty; motivating case is the following:
+    // when extending cluster with cloud-nodes for more computational resources,
+    // we do not want to replicate data on those cloud-nodes (thus to enable locations
+    // on those nodes) because they can go offline all at once. Hence we are
+    // not counting these cloud-nodes as full.
+    if (chunkStore->Locations().empty()) {
+        full = false;
+    }
+
     auto chunkCache = Bootstrap_->GetChunkCache();
     int totalCachedChunkCount = chunkCache->GetChunkCount();
 

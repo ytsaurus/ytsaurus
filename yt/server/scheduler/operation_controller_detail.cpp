@@ -1106,6 +1106,7 @@ void TOperationControllerBase::InitializeTransactions()
         InputTransactionId = Operation->GetInputTransaction()->GetId();
         OutputTransactionId = Operation->GetOutputTransaction()->GetId();
     }
+    Operation->SetHasActiveTransactions(true);
 }
 
 ITransactionPtr TOperationControllerBase::StartTransaction(

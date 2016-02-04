@@ -1097,7 +1097,8 @@ TEST_F(TSingleLockDynamicMemoryStoreTest, ArbitraryKeyLength)
         BuildKey("1"),
         BuildKey("1;<type=max>#"),
         AsyncLastCommittedTimestamp,
-        TColumnFilter());
+        TColumnFilter(),
+        TWorkloadDescriptor());
 
     EXPECT_TRUE(reader->Open().Get().IsOK());
 

@@ -37,8 +37,6 @@ public:
     i64 ReadBufferSize;
 
     i64 WriteBufferSize;
-    int LightPoolSize;
-    int HeavyPoolSize;
 
     TDriverConfig()
     {
@@ -61,12 +59,6 @@ public:
             .Default((i64) 1 * 1024 * 1024);
         RegisterParameter("write_buffer_size", WriteBufferSize)
             .Default((i64) 1 * 1024 * 1024);
-        RegisterParameter("light_pool_size", LightPoolSize)
-            .Describe("Number of threads handling light requests")
-            .Default(1);
-        RegisterParameter("heavy_pool_size", HeavyPoolSize)
-            .Describe("Number of threads handling heavy requests")
-            .Default(4);
     }
 };
 

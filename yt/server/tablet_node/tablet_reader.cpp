@@ -48,27 +48,13 @@ void StoreRangeFormatter(TStringBuilder* builder, const IStorePtr& store)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TakePartition(
-    std::vector<IStorePtr>* stores,
-    const TPartitionSnapshotPtr& partitionSnapshot,
-    TKey minKey,
-    TKey maxKey)
-{
-    for (const auto& store : partitionSnapshot->Stores) {
-        if (store->GetMinKey() <= maxKey && store->GetMaxKey() >= minKey) {
-            stores->push_back(store);
-        }
-    }
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 ISchemafulReaderPtr CreateSchemafulTabletReader(
     TTabletSnapshotPtr tabletSnapshot,
     const TColumnFilter& columnFilter,
     TOwningKey lowerBound,
     TOwningKey upperBound,
-    TTimestamp timestamp)
+    TTimestamp timestamp,
+    const TWorkloadDescriptor& workloadDescriptor)
 {
     std::vector<IStorePtr> stores;
 
@@ -89,12 +75,13 @@ ISchemafulReaderPtr CreateSchemafulTabletReader(
     }
 
     LOG_DEBUG("Creating schemaful tablet reader (TabletId: %v, CellId: %v, Timestamp: %v, "
-        "LowerBound: %v, UpperBound: %v, StoreIds: [%v], StoreRanges: [%v])",
+        "LowerBound: %v, UpperBound: %v, WorkloadDescriptor: %v, StoreIds: [%v], StoreRanges: [%v])",
         tabletSnapshot->TabletId,
         tabletSnapshot->CellId,
         timestamp,
         lowerBound,
         upperBound,
+        workloadDescriptor,
         JoinToString(stores, TStoreIdFormatter()),
         JoinToString(stores, StoreRangeFormatter));
 
@@ -126,7 +113,8 @@ ISchemafulReaderPtr CreateSchemafulTabletReader(
                 lowerBound,
                 upperBound,
                 timestamp,
-                columnFilter);
+                columnFilter,
+                workloadDescriptor);
         },
         [keyComparer = tabletSnapshot->RowKeyComparer] (
             const TUnversionedValue* lhsBegin,
@@ -148,6 +136,7 @@ ISchemafulReaderPtr CreateSchemafulPartitionReader(
     TPartitionSnapshotPtr paritionSnapshot,
     const TSharedRange<TKey>& keys,
     TTimestamp timestamp,
+    const TWorkloadDescriptor& workloadDescriptor,
     TRowBufferPtr rowBuffer)
 {
     TKey minKey = *keys.Begin();
@@ -167,10 +156,11 @@ ISchemafulReaderPtr CreateSchemafulPartitionReader(
     takePartition(tabletSnapshot->Eden);
     takePartition(paritionSnapshot);
 
-    LOG_DEBUG("Creating schemaful tablet reader (TabletId: %v, CellId: %v, Timestamp: %v, StoreIds: [%v], StoreRanges: {%v})",
+    LOG_DEBUG("Creating schemaful tablet reader (TabletId: %v, CellId: %v, Timestamp: %v, WorkloadDescriptor: %v, StoreIds: [%v], StoreRanges: {%v})",
         tabletSnapshot->TabletId,
         tabletSnapshot->CellId,
         timestamp,
+        workloadDescriptor,
         JoinToString(stores, TStoreIdFormatter()),
         JoinToString(stores, StoreRangeFormatter));
 
@@ -189,7 +179,8 @@ ISchemafulReaderPtr CreateSchemafulPartitionReader(
                 return stores[index++]->CreateReader(
                     keys,
                     timestamp,
-                    columnFilter);
+                    columnFilter,
+                    workloadDescriptor);
             } else {
                 return nullptr;
             }
@@ -205,6 +196,7 @@ ISchemafulReaderPtr CreateSchemafulTabletReader(
     const TColumnFilter& columnFilter,
     const TSharedRange<TKey>& keys,
     TTimestamp timestamp,
+    const TWorkloadDescriptor& workloadDescriptor,
     int concurrency,
     TRowBufferPtr rowBuffer)
 {
@@ -231,11 +223,11 @@ ISchemafulReaderPtr CreateSchemafulTabletReader(
     }
 
     auto readerFactory = [
+        =,
         tabletSnapshot = std::move(tabletSnapshot),
         columnFilter = std::move(columnFilter),
         partitions = std::move(partitions),
         partitionedKeys = std::move(partitionedKeys),
-        timestamp,
         rowBuffer = std::move(rowBuffer),
         index = 0
     ] () mutable -> ISchemafulReaderPtr {
@@ -246,6 +238,7 @@ ISchemafulReaderPtr CreateSchemafulTabletReader(
                 partitions[index],
                 partitionedKeys[index],
                 timestamp,
+                workloadDescriptor,
                 rowBuffer);
             ++index;
             return reader;
@@ -266,17 +259,19 @@ IVersionedReaderPtr CreateVersionedTabletReader(
     TOwningKey lowerBound,
     TOwningKey upperBound,
     TTimestamp currentTimestamp,
-    TTimestamp majorTimestamp)
+    TTimestamp majorTimestamp,
+    const TWorkloadDescriptor& workloadDescriptor)
 {
     LOG_DEBUG(
         "Creating versioned tablet reader (TabletId: %v, CellId: %v, LowerBound: %v, UpperBound: %v, "
-        "CurrentTimestamp: %v, MajorTimestamp: %v, StoreIds: [%v], StoreRanges: [%v])",
+        "CurrentTimestamp: %v, MajorTimestamp: %v, WorkloadDescriptor: %v, StoreIds: [%v], StoreRanges: [%v])",
         tabletSnapshot->TabletId,
         tabletSnapshot->CellId,
         lowerBound,
         upperBound,
         currentTimestamp,
         majorTimestamp,
+        workloadDescriptor,
         JoinToString(stores, TStoreIdFormatter()),
         JoinToString(stores, StoreRangeFormatter));
 
@@ -297,13 +292,14 @@ IVersionedReaderPtr CreateVersionedTabletReader(
     return CreateVersionedOverlappingRangeChunkReader(
         std::move(boundaries),
         std::move(rowMerger),
-        [stores = std::move(stores), lowerBound, upperBound] (int index) {
+        [=, stores = std::move(stores)] (int index) {
             YASSERT(index < stores.size());
             return stores[index]->CreateReader(
                 lowerBound,
                 upperBound,
                 AllCommittedTimestamp,
-                TColumnFilter());
+                TColumnFilter(),
+                workloadDescriptor);
         },
         [keyComparer = tabletSnapshot->RowKeyComparer] (
             const TUnversionedValue* lhsBegin,

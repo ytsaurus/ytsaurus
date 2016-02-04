@@ -40,7 +40,8 @@ public:
                 std::move(key),
                 std::move(keySuccessor),
                 SyncLastCommittedTimestamp,
-                TColumnFilter());
+                TColumnFilter(),
+                TWorkloadDescriptor());
 
             reader->Open().Get();
             reader->Read(&rows);

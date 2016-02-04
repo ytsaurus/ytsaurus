@@ -2,13 +2,14 @@
 #include "command.h"
 #include "config.h"
 #include "cypress_commands.h"
-#include "dispatcher.h"
 #include "etc_commands.h"
 #include "file_commands.h"
 #include "journal_commands.h"
 #include "scheduler_commands.h"
 #include "table_commands.h"
 #include "transaction_commands.h"
+
+#include <yt/ytlib/api/dispatcher.h>
 
 #include <yt/core/yson/null_consumer.h>
 
@@ -153,9 +154,10 @@ public:
             entry.Descriptor,
             request);
 
+        auto dispatcher = Connection_->GetDispatcher();
         auto invoker = entry.Descriptor.IsHeavy
-            ? TDispatcher::Get()->GetHeavyInvoker()
-            : TDispatcher::Get()->GetLightInvoker();
+            ? dispatcher->GetHeavyInvoker()
+            : dispatcher->GetLightInvoker();
 
         return BIND(&TDriver::DoExecute, entry.Execute, context)
             .AsyncVia(invoker)
