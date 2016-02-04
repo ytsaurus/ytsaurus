@@ -30,17 +30,17 @@ public:
         TRefCountedTypeKey typeKey,
         const TSourceLocation& location = TSourceLocation());
 
-    FORCED_INLINE void Allocate(TRefCountedTypeCookie cookie, size_t size)
+    Y_FORCE_INLINE void Allocate(TRefCountedTypeCookie cookie, size_t size)
     {
         GetPerThreadSlot(cookie)->Allocate(size);
     }
 
-    FORCED_INLINE void Reallocate(TRefCountedTypeCookie cookie, size_t sizeFreed, size_t sizeAllocated)
+    Y_FORCE_INLINE void Reallocate(TRefCountedTypeCookie cookie, size_t sizeFreed, size_t sizeAllocated)
     {
         GetPerThreadSlot(cookie)->Reallocate(sizeFreed, sizeAllocated);
     }
 
-    FORCED_INLINE void Free(TRefCountedTypeCookie cookie, size_t size)
+    Y_FORCE_INLINE void Free(TRefCountedTypeCookie cookie, size_t size)
     {
         GetPerThreadSlot(cookie)->Free(size);
     }
@@ -73,19 +73,19 @@ private:
     class TAnonymousSlot
     {
     public:
-        FORCED_INLINE void Allocate(i64 size)
+        Y_FORCE_INLINE void Allocate(i64 size)
         {
             ++ObjectsAllocated_;
             BytesAllocated_ += size;
         }
 
-        FORCED_INLINE void Reallocate(i64 sizeFreed, i64 sizeAllocated)
+        Y_FORCE_INLINE void Reallocate(i64 sizeFreed, i64 sizeAllocated)
         {
             BytesFreed_ += sizeFreed;
             BytesAllocated_ += sizeAllocated;
         }
 
-        FORCED_INLINE void Free(i64 size)
+        Y_FORCE_INLINE void Free(i64 size)
         {
             ++ObjectsFreed_;
             BytesFreed_ += size;
@@ -113,7 +113,7 @@ private:
     {
     public:
         explicit TNamedSlot(const TKey& key);
-        
+
         TRefCountedTypeKey GetTypeKey() const;
         const TSourceLocation& GetLocation() const;
 
@@ -144,7 +144,7 @@ private:
 
     TNamedSlot GetSlot(TRefCountedTypeKey typeKey);
 
-    FORCED_INLINE TAnonymousSlot* GetPerThreadSlot(TRefCountedTypeCookie cookie)
+    Y_FORCE_INLINE TAnonymousSlot* GetPerThreadSlot(TRefCountedTypeCookie cookie)
     {
         if (cookie >= CurrentThreadStatisticsSize) {
             PreparePerThreadSlot(cookie);
@@ -169,7 +169,7 @@ public:
 // Never destroyed.
 extern TRefCountedTracker* RefCountedTrackerInstance;
 
-FORCED_INLINE TRefCountedTracker* TRefCountedTracker::Get()
+Y_FORCE_INLINE TRefCountedTracker* TRefCountedTracker::Get()
 {
     return RefCountedTrackerInstance;
 }

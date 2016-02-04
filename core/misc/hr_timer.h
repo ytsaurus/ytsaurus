@@ -10,7 +10,7 @@ namespace NHRTimer {
 // Returns CPU internal cycle counter.
 // On modern systems, cycle counters are consistent across cores and cycle rate
 // can be considered constant for practical purposes.
-FORCED_INLINE ui64 GetRdtsc()
+Y_FORCE_INLINE ui64 GetRdtsc()
 {
 #ifdef _win_
     return __rdtsc();
