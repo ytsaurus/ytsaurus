@@ -102,6 +102,13 @@ TConnectionConfig::TConnectionConfig()
         .GreaterThan(TDuration::MicroSeconds(0))
         .Default(TDuration::Seconds(1));
 
+    RegisterParameter("light_pool_size", LightInvokerPoolSize)
+        .Describe("Number of threads handling light requests")
+        .Default(1);
+    RegisterParameter("heavy_pool_size", HeavyInvokerPoolSize)
+        .Describe("Number of threads handling heavy requests")
+        .Default(4);
+
     RegisterValidator([&] () {
         const auto& cellId = PrimaryMaster->CellId;
         auto primaryCellTag = CellTagFromId(PrimaryMaster->CellId);

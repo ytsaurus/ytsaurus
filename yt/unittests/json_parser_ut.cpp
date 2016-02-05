@@ -359,6 +359,68 @@ TEST(TJsonParserTest, DoubleAttributes)
     ParseJson(&stream, &Mock);
 }
 
+TEST(TJsonParserTest, AnnotateWithTypes)
+{
+    StrictMock<TMockYsonConsumer> Mock;
+    InSequence dummy;
+
+    EXPECT_CALL(Mock, OnBeginList());
+        EXPECT_CALL(Mock, OnListItem());
+        EXPECT_CALL(Mock, OnInt64Scalar(42));
+        EXPECT_CALL(Mock, OnListItem());
+        EXPECT_CALL(Mock, OnUint64Scalar(123));
+        EXPECT_CALL(Mock, OnListItem());
+        EXPECT_CALL(Mock, OnDoubleScalar(::testing::DoubleEq(71.6)));
+        EXPECT_CALL(Mock, OnListItem());
+        EXPECT_CALL(Mock, OnBooleanScalar(true));
+        EXPECT_CALL(Mock, OnListItem());
+        EXPECT_CALL(Mock, OnBooleanScalar(false));
+        EXPECT_CALL(Mock, OnListItem());
+        EXPECT_CALL(Mock, OnStringScalar("aaa"));
+
+        EXPECT_CALL(Mock, OnListItem());
+        EXPECT_CALL(Mock, OnInt64Scalar(42));
+        EXPECT_CALL(Mock, OnListItem());
+        EXPECT_CALL(Mock, OnUint64Scalar(123));
+        EXPECT_CALL(Mock, OnListItem());
+        EXPECT_CALL(Mock, OnDoubleScalar(::testing::DoubleEq(71.6)));
+        EXPECT_CALL(Mock, OnListItem());
+        EXPECT_CALL(Mock, OnBooleanScalar(true));
+        EXPECT_CALL(Mock, OnListItem());
+        EXPECT_CALL(Mock, OnBooleanScalar(false));
+
+        EXPECT_CALL(Mock, OnListItem());
+        EXPECT_CALL(Mock, OnInt64Scalar(89));
+        EXPECT_CALL(Mock, OnListItem());
+        EXPECT_CALL(Mock, OnUint64Scalar(89));
+        EXPECT_CALL(Mock, OnListItem());
+        EXPECT_CALL(Mock, OnDoubleScalar(::testing::DoubleEq(89)));
+    EXPECT_CALL(Mock, OnEndList());
+
+    Stroka input =
+        "["
+            "{\"$value\":\"42\",\"$type\":\"int64\"},"
+            "{\"$value\":\"123\",\"$type\":\"uint64\"},"
+            "{\"$value\":\"71.6\",\"$type\":\"double\"},"
+            "{\"$value\":\"true\",\"$type\":\"boolean\"},"
+            "{\"$value\":\"false\",\"$type\":\"boolean\"},"
+            "{\"$value\":\"aaa\",\"$type\":\"string\"},"
+
+            "{\"$value\":42,\"$type\":\"int64\"},"
+            "{\"$value\":123,\"$type\":\"uint64\"},"
+            "{\"$value\":71.6,\"$type\":\"double\"},"
+            "{\"$value\":true,\"$type\":\"boolean\"},"
+            "{\"$value\":false,\"$type\":\"boolean\"},"
+
+            "{\"$value\":89,\"$type\":\"int64\"},"
+            "{\"$value\":89,\"$type\":\"uint64\"},"
+            "{\"$value\":89,\"$type\":\"double\"}"
+        "]";
+
+    TStringInput stream(input);
+    ParseJson(&stream, &Mock);
+}
+
 TEST(TJsonParserTest, SomeHackyTest)
 {
     Stroka input = "{\"$value\": \"yamr\", \"$attributes\": {\"lenval\": \"false\", \"has_subkey\": \"false\"}}";

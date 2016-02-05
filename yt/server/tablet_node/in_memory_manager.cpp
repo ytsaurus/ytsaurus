@@ -261,7 +261,7 @@ private:
         if (mode == EInMemoryMode::None)
             return;
 
-        auto reader = store->GetChunkReader();
+        auto reader = store->GetChunkReader(TWorkloadDescriptor(EWorkloadCategory::SystemTabletPreload));
 
         LOG_INFO("Store preload started");
 

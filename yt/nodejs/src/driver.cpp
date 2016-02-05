@@ -9,7 +9,6 @@
 #include "output_stream.h"
 
 #include <yt/ytlib/driver/config.h>
-#include <yt/ytlib/driver/dispatcher.h>
 #include <yt/ytlib/driver/driver.h>
 
 #include <yt/ytlib/formats/format.h>
@@ -421,7 +420,6 @@ TDriverWrap::TDriverWrap(bool echo, Handle<Object> configObject)
     }
 
     try {
-        NDriver::TDispatcher::Get()->Configure(config->Driver->LightPoolSize, config->Driver->HeavyPoolSize);
         Driver = CreateDriver(config->Driver);
     } catch (const std::exception& ex) {
         Message = Format("Error initializing driver instance\n%v", ex.what());

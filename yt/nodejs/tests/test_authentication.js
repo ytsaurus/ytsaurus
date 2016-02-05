@@ -38,8 +38,8 @@ function stubRegistry()
         },
         authentication: {
             enable: true,
-            cache_max_size: 3000,
-            cache_max_token_age: 60 * 1000,
+            cache_max_size: 1000,
+            cache_max_token_age: 86400,
             cache_max_exist_age: 86400 * 1000,
             create_users_on_demand: true,
             guest_login: "ytguest",
@@ -150,6 +150,35 @@ describe("YtAuthentication", function() {
             mock.done();
         }, done).end();
     });
+    });
+
+    it("should be optimistic in case of Blackbox failures", function(done) {
+        var mock = nock("http://localhost:9000")
+            .get("/blackbox?method=oauth&format=json&userip=127.0.0.1&oauth_token=lucky-token")
+            .reply(200, {
+                error: "OK",
+                login: "jeeves",
+                oauth: { client_id: "ytrealm-id", scope: "ytgrant" }
+            })
+            .get("/blackbox?method=oauth&format=json&userip=127.0.0.1&oauth_token=lucky-token")
+            .reply(500, {})
+            .get("/blackbox?method=oauth&format=json&userip=127.0.0.1&oauth_token=lucky-token")
+            .reply(500, {});
+        ask("GET", "/", { "Authorization": "OAuth lucky-token" },
+        function(rsp) {
+            rsp.should.be.http2xx;
+            rsp.body.should.eql("jeeves");
+        },
+        function() {
+            YtRegistry.get("authority").dropCache();
+            ask("GET", "/", { "Authorization": "OAuth lucky-token" },
+            function(rsp) {
+                rsp.should.be.http2xx;
+                rsp.body.should.eql("jeeves");
+                mock.done();
+            },
+            done).end();
+        }).end();
     });
 
     it("should fail on Blackbox soft failure", function(done) {

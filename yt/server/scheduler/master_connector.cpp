@@ -343,6 +343,7 @@ private:
         std::vector<TJobRequest> JobRequests;
         std::vector<TLivePreviewRequest> LivePreviewRequests;
         TObjectServiceProxy Proxy;
+        TFuture<void> LastUpdateFuture = VoidFuture;
     };
 
     yhash_map<TOperationId, TUpdateList> UpdateLists;
@@ -756,6 +757,8 @@ private:
                     LOG_INFO("Aborting operation transactions (OperationId: %v)",
                         operation->GetId());
 
+                    operation->SetHasActiveTransactions(false);
+
                     // NB: Don't touch user transaction.
                     scheduleAbort(operation->GetSyncSchedulerTransaction());
                     operation->SetSyncSchedulerTransaction(nullptr);
@@ -915,6 +918,7 @@ private:
         operation->SetAsyncSchedulerTransaction(asyncTransaction);
         operation->SetInputTransaction(inputTransaction);
         operation->SetOutputTransaction(outputTransaction);
+        operation->SetHasActiveTransactions(true);
 
         return operation;
     }
@@ -1002,9 +1006,7 @@ private:
 
         auto operations = Bootstrap->GetScheduler()->GetOperations();
         for (auto operation : operations) {
-            if (operation->GetState() != EOperationState::Preparing &&
-                operation->GetState() != EOperationState::Running)
-            {
+            if (!operation->GetHasActiveTransactions()) {
                 continue;
             }
 
@@ -1098,9 +1100,7 @@ private:
 
         // Check every operation's transactions and raise appropriate notifications.
         for (auto operation : operations) {
-            if (operation->GetState() != EOperationState::Preparing &&
-                operation->GetState() != EOperationState::Running)
-            {
+            if (!operation->GetHasActiveTransactions()) {
                 continue;
             }
 
@@ -1548,14 +1548,17 @@ private:
     {
         auto operation = list->Operation;
 
-        return BIND(
-            &TImpl::DoUpdateOperationNode,
-            MakeStrong(this),
-            operation,
-            Passed(std::move(list->JobRequests)),
-            Passed(std::move(list->LivePreviewRequests)))
-        .AsyncVia(CancelableControlInvoker)
-        .Run();
+        auto lastUpdateFuture = list->LastUpdateFuture.Apply(
+            BIND(
+                &TImpl::DoUpdateOperationNode,
+                MakeStrong(this),
+                operation,
+                Passed(std::move(list->JobRequests)),
+                Passed(std::move(list->LivePreviewRequests)))
+            .AsyncVia(CancelableControlInvoker));
+
+        list->LastUpdateFuture = lastUpdateFuture;
+        return lastUpdateFuture;
     }
 
     void OnOperationNodeCreated(

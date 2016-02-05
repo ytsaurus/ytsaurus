@@ -371,15 +371,6 @@ class TestSchedulerMapCommands(YTEnvSetup):
 
         assert read_table("//tmp/t1") == [{"foo": "bar"}, {"foo": "bar"}]
 
-    #TODO(panin): refactor
-    def _check_all_stderrs(self, op, expected_content, expected_count):
-        jobs_path = "//sys/operations/" + op.id + "/jobs"
-        assert get(jobs_path + "/@count") == expected_count
-        for job_id in ls(jobs_path):
-            stderr_path = jobs_path + "/" + job_id + "/stderr"
-            assert get(stderr_path + "/@uncompressed_data_size") == len(expected_content)
-            assert read_file(stderr_path) == expected_content
-
     # check that stderr is captured for successfull job
     @unix_only
     def test_stderr_ok(self):
@@ -392,7 +383,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
         op = map(in_="//tmp/t1", out="//tmp/t2", command=command)
 
         assert read_table("//tmp/t2") == [{"operation" : op.id}, {"job_index" : 0}]
-        self._check_all_stderrs(op, "stderr\n", 1)
+        check_all_stderrs(op, "stderr\n", 1)
 
     # check that stderr is captured for failed jobs
     @unix_only
@@ -409,7 +400,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
         with pytest.raises(YtError):
             op.track()
 
-        self._check_all_stderrs(op, "stderr\n", 10)
+        check_all_stderrs(op, "stderr\n", 10)
 
     # check max_stderr_count
     @unix_only
@@ -429,7 +420,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
         with pytest.raises(YtError):
             op.track()
 
-        self._check_all_stderrs(op, "stderr\n", 5)
+        check_all_stderrs(op, "stderr\n", 5)
 
     @unix_only
     def test_stderr_of_failed_jobs(self):
@@ -463,7 +454,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
 
         # The default number of stderr is 100. We check that we have 101-st stderr of failed job,
         # that is last one.
-        self._check_all_stderrs(op, "stderr\n", 101)
+        check_all_stderrs(op, "stderr\n", 101)
 
     def test_job_progress(self):
         create("table", "//tmp/t1")
@@ -1146,6 +1137,42 @@ print row + table_index
             output = "//tmp/output" + str(index)
             op.track()
             assert sorted(read_table(output)) == original_data
+
+
+
+class TestSchedulerOperationNodeFlush(YTEnvSetup):
+    NUM_MASTERS = 3
+    NUM_NODES = 5
+    NUM_SCHEDULERS = 1
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler" : {
+            "watchers_update_period" : 100,
+            "operations_update_period" : 10
+        }
+    }
+
+    @unix_only
+    def test_stderr_flush(self):
+        create("table", "//tmp/in")
+        write_table("//tmp/in", {"foo": "bar"})
+
+        ops = []
+        for i in range(20):
+            create("table", "//tmp/out" + str(i))
+            op = map(
+                dont_track=True,
+                in_="//tmp/in",
+                out="//tmp/out" + str(i),
+                command="cat > /dev/null; echo stderr 1>&2; exit 125",
+                spec={"max_failed_job_count": 1})
+            ops += [op]
+
+        for op in ops:
+            # if all jobs failed then operation is also failed
+            with pytest.raises(YtError):
+                op.track()
+            check_all_stderrs(op, "stderr\n", 1)
 
 
 @unix_only

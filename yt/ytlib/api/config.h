@@ -89,6 +89,9 @@ public:
     int TableMountInfoUpdateRetryCount;
     TDuration TableMountInfoUpdateRetryPeriod;
 
+    int LightInvokerPoolSize;
+    int HeavyInvokerPoolSize;
+
     TConnectionConfig();
 
 };

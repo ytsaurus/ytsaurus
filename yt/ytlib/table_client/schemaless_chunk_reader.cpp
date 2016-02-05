@@ -258,7 +258,7 @@ TSchemalessChunkReader::TSchemalessChunkReader(
     }
 
     ReadyEvent_ = BIND(&TSchemalessChunkReader::InitializeBlockSequence, MakeStrong(this))
-        .AsyncVia(TDispatcher::Get()->GetReaderInvoker())
+        .AsyncVia(NChunkClient::TDispatcher::Get()->GetReaderInvoker())
         .Run();
 }
 

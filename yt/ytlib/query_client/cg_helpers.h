@@ -480,11 +480,14 @@ struct TClosureFunctionDeclarer<TResult(TArgs...)>
 
     static Function* Do(llvm::Module* module, llvm::Twine name)
     {
-        return Function::Create(
+        Function* function = Function::Create(
             TypeBuilder<TResult(void**, TArgs...), false>::get(module->getContext()),
             Function::ExternalLinkage,
             name,
             module);
+
+        function->addFnAttr(llvm::Attribute::AttrKind::UWTable);
+        return function;
     }
 };
 
@@ -534,11 +537,14 @@ struct TFunctionDeclarer<TResult(TArgs...)>
 
     static Function* Do(llvm::Module* module, llvm::Twine name)
     {
-        return Function::Create(
+        Function* function =  Function::Create(
             TypeBuilder<TResult(TArgs...), false>::get(module->getContext()),
             Function::ExternalLinkage,
             name,
             module);
+
+        function->addFnAttr(llvm::Attribute::AttrKind::UWTable);
+        return function;
     }
 };
 
@@ -570,8 +576,6 @@ Function* MakeFunction(llvm::Module* module, llvm::Twine name, TBody&& body)
     typedef TFunctionDeclarer<TSignature> TFunctionBuilder;
 
     auto function = TFunctionBuilder::Do(module, name);
-
-    function->addFnAttr(llvm::Attribute::AttrKind::UWTable);
 
     TFunctionDefiner<typename TFunctionBuilder::TIndexesPack>::Do(
         module,
