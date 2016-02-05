@@ -47,6 +47,9 @@ struct ISchedulerStrategy
 
     virtual void ScheduleJobs(ISchedulingContext* schedulingContext) = 0;
 
+    //! Resets memoized state.
+    virtual void ResetState() = 0;
+
     //! Builds a YSON structure containing a set of attributes to be assigned to operation's node
     //! in Cypress during creation.
     virtual void BuildOperationAttributes(

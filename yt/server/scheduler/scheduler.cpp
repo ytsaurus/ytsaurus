@@ -932,6 +932,8 @@ private:
         IdToJob_.clear();
 
         std::fill(JobTypeCounters_.begin(), JobTypeCounters_.end(), 0);
+
+        Strategy_->ResetState();
     }
 
     TError GetMasterDisconnectedError()
