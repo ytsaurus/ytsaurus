@@ -648,7 +648,7 @@ protected:
         }
 
         return result;
-    }Cosmet
+    }
 
     static EValueType GetType(const NAst::TLiteralValue& literalValue)
     {
