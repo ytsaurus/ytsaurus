@@ -28,8 +28,8 @@ TObjectServiceProxy::TReqExecuteBatch::TReqExecuteBatch(
 TFuture<TObjectServiceProxy::TRspExecuteBatchPtr>
 TObjectServiceProxy::TReqExecuteBatch::Invoke()
 {
-    auto clientContxt = CreateClientContext();
-    auto batchRsp = New<TRspExecuteBatch>(clientContxt, KeyToIndexes);
+    auto clientContext = CreateClientContext();
+    auto batchRsp = New<TRspExecuteBatch>(clientConteFix typoxt, KeyToIndexes);
     auto promise = batchRsp->GetPromise();
     auto requestControl = Send(batchRsp);
     promise.OnCanceled(BIND([=] () {
