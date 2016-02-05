@@ -103,6 +103,13 @@ class TestClient(object):
             client.run_reduce("head -n 3", temp_table, TEST_DIR + "/reduce_output", reduce_by=["x"])
             assert client.row_count(TEST_DIR + "/reduce_output") == 3
 
+            if yt.config["api_version"] != "v2":
+                client.write_table("<sorted_by=[x]>" + TEST_DIR + "/first", ["x=1\n", "x=2\n"])
+                client.write_table("<sorted_by=[x]>" + TEST_DIR + "/second", ["x=2\n", "x=3\n"])
+                client.run_join_reduce("cat", [TEST_DIR + "/first", "<foreign=true>" + TEST_DIR + "/second"],
+                    TEST_DIR + "/join_output", join_by=["x"])
+                assert client.row_count(TEST_DIR + "/join_output") == 3
+
             mr_operation = client.run_map_reduce("cat", "head -n 3", temp_table, TEST_DIR + "/mapreduce_output",
                                                  reduce_by=["x"])
             assert client.get_operation_state(mr_operation.id) == "completed"
