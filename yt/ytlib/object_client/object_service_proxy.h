@@ -73,12 +73,12 @@ public:
          */
         TReqExecuteBatchPtr AddRequest(
             NYTree::TYPathRequestPtr innerRequest,
-            const Stroka& key = "");
+            const Stroka& key = Stroka());
 
         //! Similar to #AddRequest, but works for already serialized messages representing requests.
         TReqExecuteBatchPtr AddRequestMessage(
             TSharedRefArray innerRequestMessage,
-            const Stroka& key = "");
+            const Stroka& key = Stroka());
 
         //! Returns the current number of individual requests in the batch.
         int GetSize() const;
@@ -156,10 +156,10 @@ public:
 
         //! Returns all responses with a given key (all if no key is specified).
         template <class TTypedResponse>
-        std::vector<TErrorOr<TIntrusivePtr<TTypedResponse>>> GetResponses(const Stroka& key = "") const;
+        std::vector<TErrorOr<TIntrusivePtr<TTypedResponse>>> GetResponses(const Stroka& key = Stroka()) const;
 
         //! Returns all responses with a given key (all if no key is specified).
-        std::vector<TErrorOr<NYTree::TYPathResponsePtr>> GetResponses(const Stroka& key = "") const;
+        std::vector<TErrorOr<NYTree::TYPathResponsePtr>> GetResponses(const Stroka& key = Stroka()) const;
 
         //! Similar to #GetResponse, but returns the response message without deserializing it.
         TSharedRefArray GetResponseMessage(int index) const;
