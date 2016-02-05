@@ -19,6 +19,9 @@ public:
     virtual void ScheduleJobs(ISchedulingContext* /*context*/) override
     { }
 
+    virtual void ResetState() override
+    { }
+
     virtual void BuildOperationAttributes(const TOperationId& /*operationId*/, IYsonConsumer* /*consumer*/) override
     { }
 
