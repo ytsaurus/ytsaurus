@@ -7,6 +7,7 @@ TEST_DIR = "//home/wrapper_tests"
 
 TESTS_LOCATION = os.path.dirname(os.path.abspath(__file__))
 TESTS_SANDBOX = os.environ.get("TESTS_SANDBOX", TESTS_LOCATION + ".sandbox")
+ENABLE_JOB_CONTROL = bool(int(os.environ.get("TESTS_JOB_CONTROL", False)))
 
 def get_test_file_path(name):
     return os.path.join(TESTS_LOCATION, "files", name)
