@@ -658,7 +658,7 @@ void TStoreManager::BackoffStoreRemoval(IStorePtr store)
             auto chunkStore = store->AsChunk();
             if (chunkStore->GetCompactionState() == EStoreCompactionState::Complete) {
                 callback = BIND([chunkStore] () {
-                    YCHECK(chunkStore->GetCompactionState() == EStoreCompactionState::None);
+                    YCHECK(chunkStore->GetCompactionState() == EStoreCompactionState::Complete);
                     chunkStore->SetCompactionState(EStoreCompactionState::None);
                 });
             }
