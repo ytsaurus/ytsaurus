@@ -5,7 +5,7 @@ import yt.logger as logger
 import yt.wrapper as yt
 import yt.tests_runner as tests_runner
 
-from helpers import TESTS_LOCATION, TEST_DIR, TESTS_SANDBOX
+from helpers import TESTS_LOCATION, TEST_DIR, TESTS_SANDBOX, ENABLE_JOB_CONTROL
 
 import os
 import re
@@ -61,7 +61,10 @@ class YtTestEnvironment(object):
 
         self.env.DELTA_NODE_CONFIG = {
             "exec_agent" : {
-                "enable_cgroups" : "false"
+                "enable_cgroups" : ENABLE_JOB_CONTROL,
+                "slot_manager" : {
+                    "enforce_job_control" : ENABLE_JOB_CONTROL
+                }
             },
             "data_node": {
                 "store_locations": [
@@ -90,6 +93,7 @@ class YtTestEnvironment(object):
         self.config["proxy"]["request_retry_count"] = 10
         self.config["enable_token"] = False
         self.config["clear_local_temp_files"] = True
+        self.config["pickling"]["enable_tmpfs_archive"] = ENABLE_JOB_CONTROL
         self.config["pickling"]["module_filter"] = lambda module: hasattr(module, "__file__") and not "driver_lib" in module.__file__
         self.config["driver_config"] = self.env.configs["console_driver"][0]["driver"]
         self.config["driver_config_path"] = self.env.config_paths["console_driver"][0]

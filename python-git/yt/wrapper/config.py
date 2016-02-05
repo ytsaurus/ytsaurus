@@ -176,15 +176,22 @@ class Config(types.ModuleType, client_state.ClientState):
 
         config_path = self.config["config_path"]
         if config_path is None:
-            home_config_path = os.path.join(os.path.expanduser("~"), ".yt/config")
-            if os.path.isfile(home_config_path):
-                config_path = home_config_path
-            else:
-                config_path = "/etc/ytclient.conf"
-                try:
-                    open(config_path)
-                except IOError:
-                    config_path = None
+            home = None
+            try:
+                home = os.path.expanduser("~")
+            except KeyError:
+                pass
+
+            config_path = "/etc/ytclient.conf"
+            if home:
+                home_config_path = os.path.join(os.path.expanduser("~"), ".yt/config")
+                if os.path.isfile(home_config_path):
+                    config_path = home_config_path
+
+            try:
+                open(config_path)
+            except IOError:
+                config_path = None
         if config_path and os.path.isfile(config_path):
             load_func = None
             format = self.config["config_format"]
