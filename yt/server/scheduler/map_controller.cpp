@@ -203,6 +203,7 @@ protected:
         TOperationControllerBase::DoInitialize();
 
         UnorderedTaskGroup = New<TTaskGroup>();
+        UnorderedTaskGroup->MinNeededResources.SetCpu(GetCpuLimit());
         RegisterTaskGroup(UnorderedTaskGroup);
     }
 

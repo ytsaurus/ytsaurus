@@ -409,6 +409,7 @@ protected:
         TOperationControllerBase::DoInitialize();
 
         MergeTaskGroup = New<TTaskGroup>();
+        MergeTaskGroup->MinNeededResources.SetCpu(GetCpuLimit());
         RegisterTaskGroup(MergeTaskGroup);
     }
 
