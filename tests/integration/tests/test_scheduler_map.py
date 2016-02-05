@@ -1048,42 +1048,21 @@ print row + table_index
     def test_live_preview(self):
         create_user("u")
 
-        data = [{"foo": i} for i in range(5)]
-
         create("table", "//tmp/t1")
-        write_table("//tmp/t1", data)
+        write_table("//tmp/t1", {"foo": "bar"})
 
         create("table", "//tmp/t2")
         set("//tmp/t2/@acl", [{"action": "allow", "subjects": ["u"], "permissions": ["write"]}])
         effective_acl = get("//tmp/t2/@effective_acl")
 
-        op = map(
-            waiting_jobs=True,
-            dont_track=True,
-            command="cat",
-            in_="//tmp/t1",
-            out="//tmp/t2",
-            spec={"data_size_per_job": 1})
+        op = map(dont_track=True, waiting_jobs=True, command="cat", in_="//tmp/t1", out="//tmp/t2")
 
         assert exists("//sys/operations/{0}/output_0".format(op.id))
         assert effective_acl == get("//sys/operations/{0}/output_0/@acl".format(op.id))
-        async_transactions = filter(
-            lambda tx: "operation_id" in tx.attributes and "async" in tx.attributes["title"],
-            ls("//sys/transactions", attributes=["title", "operation_id"]))
-
-        assert len(async_transactions) == 1
-        transaction_id = str(async_transactions[0])
-
-        op.resume_job(op.jobs[0])
-        op.resume_job(op.jobs[1])
-        time.sleep(2)
-        live_preview_data = read_table("//sys/operations/{0}/output_0".format(op.id), tx=transaction_id)
-        assert len(live_preview_data) == 2
-        assert all(record in data for record in live_preview_data)
 
         op.resume_jobs()
         op.track()
-        assert read_table("//tmp/t2") == data
+        assert read_table("//tmp/t2") == [{"foo": "bar"}]
 
     def test_row_sampling(self):
         create("table", "//tmp/t1")
