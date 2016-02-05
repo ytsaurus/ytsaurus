@@ -322,7 +322,7 @@ def save_failed_test(options, suite_name, suite_path):
         else:
             teamcity_message("Detected core file {0}".format(core_path), status="WARNING")
 
-def run_pytest(options, suite_name, suite_path, pytest_args=None):
+def run_pytest(options, suite_name, suite_path, pytest_args=None, env=None):
     if options.build_enable_python != "YES":
         return
 
@@ -333,6 +333,16 @@ def run_pytest(options, suite_name, suite_path, pytest_args=None):
     mkdirp(sandbox_current)
 
     failed = False
+
+    if env is None:
+        env = {}
+
+    env["PATH"] = "{0}/bin:{0}/yt/nodejs:{1}".format(options.working_directory, os.environ.get("PATH", ""))
+    env["PYTHONPATH"] = "{0}/python:{1}".format(options.checkout_directory, os.environ.get("PYTHONPATH", ""))
+    env["TESTS_SANDBOX"] = sandbox_current
+    env["TESTS_SANDBOX_STORAGE"] = sandbox_storage
+    env["YT_CAPTURE_STDERR_TO_FILE"] = "1"
+    env["YT_ENABLE_VERBOSE_LOGGING"] = "1"
 
     with tempfile.NamedTemporaryFile() as handle:
         try:
@@ -347,13 +357,7 @@ def run_pytest(options, suite_name, suite_path, pytest_args=None):
                 "--junitxml={0}".format(handle.name)]
                 + pytest_args,
                 cwd=suite_path,
-                env={
-                    "PATH": "{0}/bin:{0}/yt/nodejs:{1}".format(options.working_directory, os.environ.get("PATH", "")),
-                    "PYTHONPATH": "{0}/python:{1}".format(options.checkout_directory, os.environ.get("PYTHONPATH", "")),
-                    "TESTS_SANDBOX": sandbox_current,
-                    "TESTS_SANDBOX_STORAGE": sandbox_storage,
-                    "YT_CAPTURE_STDERR_TO_FILE": "1"
-                })
+                env=env)
         except ChildHasNonZeroExitCode:
             teamcity_message("(ignoring child failure since we are reading test results from XML)")
             failed = True
@@ -424,7 +428,8 @@ def run_python_libraries_tests(options):
         pytest_args.extend(["--process-count", "4"])
 
     run_pytest(options, "python_libraries", "{0}/python".format(options.checkout_directory),
-               pytest_args=["--ignore=pyinstaller"] + pytest_args)
+               pytest_args=["--ignore=pyinstaller"] + pytest_args,
+               env={"TESTS_JOB_CONTROL": "1"})
 
 
 @yt_register_build_step
