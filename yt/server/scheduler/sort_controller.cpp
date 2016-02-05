@@ -1226,13 +1226,16 @@ protected:
 
         // NB: Register groups in the order of _descending_ priority.
         MergeTaskGroup = New<TTaskGroup>();
+        MergeTaskGroup->MinNeededResources.SetCpu(1);
         RegisterTaskGroup(MergeTaskGroup);
 
         SortTaskGroup = New<TTaskGroup>();
+        SortTaskGroup->MinNeededResources.SetCpu(1);
         SortTaskGroup->MinNeededResources.SetNetwork(Spec->ShuffleNetworkLimit);
         RegisterTaskGroup(SortTaskGroup);
 
         PartitionTaskGroup = New<TTaskGroup>();
+        PartitionTaskGroup->MinNeededResources.SetCpu(1);
         RegisterTaskGroup(PartitionTaskGroup);
     }
 
