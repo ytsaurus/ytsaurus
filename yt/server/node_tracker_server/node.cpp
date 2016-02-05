@@ -44,11 +44,8 @@ void TNode::TTabletSlot::Persist(NCellMaster::TPersistenceContext& context)
 
 TNode::TNode(
     const TObjectId& objectId,
-    const TAddressMap& addresses,
-    TInstant registerTime)
+    const TAddressMap& addresses)
     : TObjectBase(objectId)
-    , RegisterTime_(registerTime)
-    , LastSeenTime_(registerTime)
     , Addresses_(addresses)
 {
     Init();
