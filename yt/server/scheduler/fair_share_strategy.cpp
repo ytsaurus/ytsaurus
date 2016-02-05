@@ -1671,6 +1671,13 @@ public:
             FormatResources(resourceDiscount));
     }
 
+    virtual void ResetState() override
+    {
+        LastPoolsNodeUpdate.Reset();
+        LastUpdateTime.Reset();
+        LastLogTime.Reset();
+    }
+
     virtual void BuildOperationAttributes(const TOperationId& operationId, IYsonConsumer* consumer) override
     {
         auto element = GetOperationElement(operationId);
@@ -1775,6 +1782,7 @@ private:
     const TFairShareStrategyConfigPtr Config;
     ISchedulerStrategyHost* const Host;
 
+    INodePtr LastPoolsNodeUpdate;
     typedef yhash_map<Stroka, TPoolPtr> TPoolMap;
     TPoolMap Pools;
 
@@ -2088,6 +2096,11 @@ private:
 
     void OnPoolsUpdated(INodePtr poolsNode)
     {
+        if (LastPoolsNodeUpdate && NYTree::AreNodesEqual(LastPoolsNodeUpdate, poolsNode)) {
+            return;
+        }
+        LastPoolsNodeUpdate = poolsNode;
+
         auto guard = WaitFor(TAsyncLockWriterGuard::Acquire(&ScheduleJobsLock)).Value();
 
         try {
