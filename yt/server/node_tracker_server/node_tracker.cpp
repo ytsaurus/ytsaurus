@@ -661,6 +661,8 @@ private:
         node->SetLocalState(ENodeState::Registered);
         node->Statistics() = statistics;
 
+        UpdateLastSeenTime(node);
+        UpdateRegisterTime(node);
         UpdateNodeCounters(node, +1);
 
         if (leaseTransaction) {
@@ -983,6 +985,12 @@ private:
         return transaction;
     }
 
+    void UpdateRegisterTime(TNode* node)
+    {
+        const auto* mutationContext = GetCurrentMutationContext();
+        node->SetRegisterTime(mutationContext->GetTimestamp());
+    }
+
     void UpdateLastSeenTime(TNode* node)
     {
         const auto* mutationContext = GetCurrentMutationContext();
@@ -1009,13 +1017,9 @@ private:
     {
         auto objectId = ObjectIdFromNodeId(nodeId);
 
-        const auto* mutationContext = GetCurrentMutationContext();
-        auto registerTime = mutationContext->GetTimestamp();
-
         auto nodeHolder = std::make_unique<TNode>(
             objectId,
-            addresses,
-            registerTime);
+            addresses);
 
         auto* node = NodeMap_.Insert(objectId, std::move(nodeHolder));
 

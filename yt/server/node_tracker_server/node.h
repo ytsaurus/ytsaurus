@@ -60,7 +60,7 @@ public:
     DEFINE_BYREF_RW_PROPERTY(TMulticellStates, MulticellStates);
     DEFINE_BYVAL_RW_PROPERTY(ENodeState*, LocalStatePtr);
 
-    DEFINE_BYVAL_RO_PROPERTY(TInstant, RegisterTime);
+    DEFINE_BYVAL_RW_PROPERTY(TInstant, RegisterTime);
     DEFINE_BYVAL_RW_PROPERTY(TInstant, LastSeenTime);
 
     DEFINE_BYREF_RW_PROPERTY(NNodeTrackerClient::NProto::TNodeStatistics, Statistics);
@@ -116,8 +116,7 @@ public:
 public:
     TNode(
         const NObjectServer::TObjectId& objectId,
-        const TAddressMap& addresses,
-        TInstant registerTime);
+        const TAddressMap& addresses);
     explicit TNode(const NObjectServer::TObjectId& objectId);
 
     TNodeId GetId() const;
