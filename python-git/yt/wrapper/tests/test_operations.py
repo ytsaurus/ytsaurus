@@ -237,6 +237,40 @@ class TestOperations(object):
             yt.run_map("cat", table, table, yt_files=get_test_file_path("capitalize_b.py"),
                                             file_paths=get_test_file_path("capitalize_b.py"))
 
+    def test_run_join_operation(self):
+        if yt.config["api_version"] == "v2":
+            pytest.skip()
+
+        table1 = TEST_DIR + "/first"
+        yt.write_table("<sorted_by=[x]>" + table1, ["x=1\n"])
+        table2 = TEST_DIR + "/second"
+        yt.write_table("<sorted_by=[x]>" + table2, ["x=2\n"])
+        unsorted_table = TEST_DIR + "/unsorted_table"
+        yt.write_table(unsorted_table, ["x=3\n"])
+        table = TEST_DIR + "/table"
+
+        yt.run_join_reduce("cat", [table1, "<foreign=true>" + table2], table, join_by=["x"])
+        check(["x=1\n"], yt.read_table(table))
+
+        # Run join-reduce without join_by
+        with pytest.raises(yt.YtError):
+            yt.run_join_reduce("cat", [table1, "<foreign=true>" + table2], table)
+
+        # Run join-reduce on unsorted table
+        with pytest.raises(yt.YtError):
+            yt.run_join_reduce("cat", [unsorted_table, "<foreign=true>" + table2], table, join_by=["x"])
+
+        yt.write_table("<sorted_by=[x;y]>" + table1, ["x=1\ty=1\n"])
+        yt.write_table("<sorted_by=[x]>" + table2, ["x=1\n"])
+
+        yt.run_reduce("cat", [table1, "<foreign=true>" + table2], table, reduce_by=["x","y"],
+            join_by=["x"])
+        check(["x=1\ty=1\n", "x=1\n"], yt.read_table(table))
+
+        # Reduce with join_by, but without foreign tables
+        with pytest.raises(yt.YtError):
+            yt.run_reduce("cat", [table1, table2], table, join_by=["x"])
+
     @add_failed_operation_stderrs_to_error_message
     def test_python_operations(self):
         def change_x(rec):

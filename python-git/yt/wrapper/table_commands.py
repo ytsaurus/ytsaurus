@@ -149,11 +149,13 @@ def _prepare_reduce_by(reduce_by, client):
     _check_columns(reduce_by, "reduce")
     return reduce_by
 
-def _prepare_join_by(join_by):
+def _prepare_join_by(join_by, required=True):
     if join_by is None:
-        raise YtError("join_by option is required")
-    join_by = flatten(join_by)
-    _check_columns(join_by, "join_reduce")
+        if required:
+            raise YtError("join_by option is required")
+    else:
+        join_by = flatten(join_by)
+        _check_columns(join_by, "join_reduce")
     return join_by
 
 def _prepare_sort_by(sort_by, client):
@@ -1261,7 +1263,7 @@ def run_map_reduce(mapper, reducer, source_table, destination_table,
                    reduce_files=None, reduce_file_paths=None,
                    reduce_local_files=None, reduce_yt_files=None,
                    mapper_memory_limit=None, reducer_memory_limit=None,
-                   sort_by=None, reduce_by=None,
+                   sort_by=None, reduce_by=None, join_by=None,
                    reduce_combiner=None,
                    reduce_combiner_input_format=None, reduce_combiner_output_format=None,
                    reduce_combiner_files=None, reduce_combiner_file_paths=None,
@@ -1299,6 +1301,7 @@ def run_map_reduce(mapper, reducer, source_table, destination_table,
     :param sort_by: (list of strings, string) list of columns for sorting by, \
                     equals to `reduce_by` by default
     :param reduce_by: (list of strings, string) list of columns for grouping by
+    :param join_by: (list of strings, string) list of columns for join by
     :param reduce_combiner: (python generator, callable object-generator or string \
                             (with bash commands)).
     :param reduce_combiner_input_format: (string or descendant of `yt.wrapper.format.Format`)
@@ -1416,6 +1419,8 @@ def _run_operation(binary, source_table, destination_table,
         else:
             sort_by = _prepare_sort_by(sort_by, client)
         reduce_by = _prepare_reduce_by(reduce_by, client)
+        join_by = _prepare_join_by(join_by, required=False)
+
 
         if get_config(client)["yamr_mode"]["run_map_reduce_if_source_is_not_sorted"]:
             are_input_tables_not_properly_sorted = False
@@ -1443,6 +1448,7 @@ def _run_operation(binary, source_table, destination_table,
                     job_io=job_io,
                     table_writer=table_writer,
                     reduce_by=reduce_by,
+                    join_by=join_by,
                     sort_by=sort_by,
                     replication_factor=replication_factor,
                     compression_codec=compression_codec,
@@ -1480,6 +1486,7 @@ def _run_operation(binary, source_table, destination_table,
             lambda _: _add_input_output_spec(source_table, destination_table, _),
             lambda _: update({"reduce_by": reduce_by}, _) if op_name == "reduce" else _,
             lambda _: update({"join_by": join_by}, _) if op_name == "join_reduce" else _,
+            lambda _: update({"join_by": join_by}, _) if join_by is not None and op_name == "reduce" else _,
             lambda _: update({"ordered": bool_to_string(ordered)}, _) \
                 if op_name == "map" and ordered is not None else _,
             lambda _: update({"job_count": job_count}, _) if job_count is not None else _,
@@ -1510,6 +1517,7 @@ def run_map(binary, source_table, destination_table, **kwargs):
 
 def run_reduce(binary, source_table, destination_table, **kwargs):
     """Run reduce operation.
+
     .. seealso::  :ref:`operation_parameters` and :py:func:`yt.wrapper.table_commands.run_map_reduce`.
     """
     kwargs["op_name"] = "reduce"
@@ -1518,10 +1526,8 @@ def run_reduce(binary, source_table, destination_table, **kwargs):
 def run_join_reduce(binary, source_table, destination_table, **kwargs):
     """Run join-reduce operation.
 
-    :param join_by: (list of strings, string) list of columns for join by
-
-    .. note:: You should specity at least two input table and exactly one \
-    should have set primary attibute
+    .. note:: You should specity at least two input table and all except one \
+    should have set foreign attibute. You should also specify join_by columns.
 
     .. seealso::  :ref:`operation_parameters` and :py:func:`yt.wrapper.table_commands.run_map_reduce`.
     """
