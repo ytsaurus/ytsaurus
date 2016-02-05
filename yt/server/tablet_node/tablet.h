@@ -45,6 +45,7 @@ struct TTabletSnapshot
     NTableClient::TKeyColumns KeyColumns;
     NTransactionClient::EAtomicity Atomicity;
     bool EnableLookupHashTable = false;
+    int OverlappingStoreCount = 0;
 
     TPartitionSnapshotPtr Eden;
 
@@ -124,6 +125,8 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(NTransactionClient::EAtomicity, Atomicity);
 
     DEFINE_BYVAL_RO_PROPERTY(bool, EnableLookupHashTable);
+
+    DEFINE_BYREF_RO_PROPERTY(int, OverlappingStoreCount);
 
 public:
     TTablet(
@@ -234,6 +237,7 @@ private:
 
     TPartition* GetContainingPartition(IStorePtr store);
     NObjectClient::TObjectId GenerateId(NObjectClient::EObjectType type);
+    void UpdateOverlappingStoreCount();
 };
 
 ////////////////////////////////////////////////////////////////////////////////

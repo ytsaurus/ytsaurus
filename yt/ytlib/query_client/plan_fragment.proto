@@ -1,6 +1,7 @@
 package NYT.NQueryClient.NProto;
 
 import "yt/core/misc/guid.proto";
+import "yt/ytlib/misc/workload.proto";
 import "yt/ytlib/table_client/chunk_meta.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -169,6 +170,7 @@ message TQueryOptions
     required bool verbose_logging = 2;
     required int64 max_subqueries = 3;
     required bool enable_code_cache = 4;
+    optional NYT.NProto.TWorkloadDescriptor workload_descriptor = 5;
 }
 
 message TDataRanges

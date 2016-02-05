@@ -593,17 +593,19 @@ void ToProto(NProto::TQueryOptions* proto, const TQueryOptions& options)
     proto->set_verbose_logging(options.VerboseLogging);
     proto->set_max_subqueries(options.MaxSubqueries);
     proto->set_enable_code_cache(options.EnableCodeCache);
+    ToProto(proto->mutable_workload_descriptor(), options.WorkloadDescriptor);
 }
 
 TQueryOptions FromProto(const NProto::TQueryOptions& serialized)
 {
     TQueryOptions result;
-
     result.Timestamp = serialized.timestamp();
     result.VerboseLogging = serialized.verbose_logging();
     result.MaxSubqueries = serialized.max_subqueries();
     result.EnableCodeCache = serialized.enable_code_cache();
-
+    if (serialized.has_workload_descriptor()) {
+        FromProto(&result.WorkloadDescriptor, serialized.workload_descriptor());
+    }
     return result;
 }
 

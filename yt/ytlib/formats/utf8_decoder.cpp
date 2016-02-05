@@ -66,7 +66,9 @@ TStringBuf TUtf8Transcoder::Decode(const TStringBuf& str)
             Buffer_.push_back(((str[i] & '\x03') << 6) | (str[i + 1] & '\x3F'));
             i += 1;
         } else {
-            THROW_ERROR_EXCEPTION("Unicode symbols with codes greater than 255 are not supported");
+            THROW_ERROR_EXCEPTION("Unicode symbols with codes greater than 255 are not supported. "
+                 "Please refer to https://wiki.yandex-team.ru/yt/userdoc/formats/#json and "
+                 "consider using encode_utf8=false in format options");
         }
     }
 

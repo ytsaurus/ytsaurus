@@ -10,8 +10,8 @@ from yt_commands import *
 This test only works when suid bit is set.
 """
 
-def check_memory_limit(op_id):
-    jobs_path = "//sys/operations/" + op_id + "/jobs"
+def check_memory_limit(op):
+    jobs_path = "//sys/operations/" + op.id + "/jobs"
     for job_id in ls(jobs_path):
         inner_errors = get(jobs_path + "/" + job_id + "/@error/inner_errors")
         assert "Memory limit exceeded" in inner_errors[0]["message"]
@@ -61,7 +61,7 @@ while True:
         with pytest.raises(YtError):
             op.track()
         # ToDo: check job error messages.
-        check_memory_limit(op.id)
+        check_memory_limit(op)
 
     @unix_only
     def test_dirty_sandbox(self):

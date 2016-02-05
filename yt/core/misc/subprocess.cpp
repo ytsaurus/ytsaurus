@@ -23,7 +23,7 @@ static NLogging::TLogger Logger("Subprocess");
 ////////////////////////////////////////////////////////////////////////////////
 
 TSubprocess::TSubprocess(const Stroka& path)
-    : Process_(path)
+    : Process_(New<TProcess>(path))
 { }
 
 TSubprocess TSubprocess::CreateCurrentProcessSpawner()
@@ -33,17 +33,18 @@ TSubprocess TSubprocess::CreateCurrentProcessSpawner()
 
 void TSubprocess::AddArgument(TStringBuf arg)
 {
-    Process_.AddArgument(arg);
+    Process_->AddArgument(arg);
 }
 
 void TSubprocess::AddArguments(std::initializer_list<TStringBuf> args)
 {
-    Process_.AddArguments(args);
+    Process_->AddArguments(args);
 }
 
 TSubprocessResult TSubprocess::Execute()
 {
-#ifndef _win_
+#ifdef _unix_
+    TFuture<void> finished;
     TAsyncReaderPtr outputStream, errorStream;
     {
         std::array<TPipe, 3> pipes;
@@ -60,10 +61,10 @@ TSubprocessResult TSubprocess::Execute()
             const auto& pipe = pipes[index];
 
             auto fd = index == 0 ? pipe.GetReadFD() : pipe.GetWriteFD();
-            Process_.AddDup2FileAction(fd, index);
+            Process_->AddDup2FileAction(fd, index);
         }
 
-        Process_.Spawn();
+        finished = Process_->Spawn();
 
         outputStream = pipes[1].CreateAsyncReader();
         errorStream = pipes[2].CreateAsyncReader();
@@ -98,10 +99,13 @@ TSubprocessResult TSubprocess::Execute()
         YCHECK(outputs.size() == 2);
 
         // This can block indefinitely.
-        auto exitCode = Process_.Wait();
+        auto exitCode = WaitFor(finished);
         return TSubprocessResult{outputs[0], outputs[1], exitCode};
     } catch (...) {
-        Process_.KillAndWait();
+        try {
+            Process_->Kill(SIGKILL);
+        } catch (...) { }
+        WaitFor(finished);
         throw;
     }
 #else
@@ -111,12 +115,12 @@ TSubprocessResult TSubprocess::Execute()
 
 void TSubprocess::Kill(int signal)
 {
-    Process_.Kill(signal);
+    Process_->Kill(signal);
 }
 
 Stroka TSubprocess::GetCommandLine() const
 {
-    return Process_.GetCommandLine();
+    return Process_->GetCommandLine();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

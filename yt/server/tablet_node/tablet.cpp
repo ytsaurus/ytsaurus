@@ -34,6 +34,10 @@ using namespace NQueryClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static const auto& Logger = TabletNodeLogger;
+
+////////////////////////////////////////////////////////////////////////////////
+
 std::pair<TTabletSnapshot::TPartitionListIterator, TTabletSnapshot::TPartitionListIterator>
 TTabletSnapshot::GetIntersectingPartitions(
     const TOwningKey& lowerBound,
@@ -92,6 +96,7 @@ TTablet::TTablet(
     : TObjectBase(tabletId)
     , MountRevision_(0)
     , Slot_(slot)
+    , OverlappingStoreCount_(0)
     , Config_(New<TTableMountConfig>())
     , WriterOptions_(New<TTabletWriterOptions>())
     , ColumnEvaluatorCache_(Slot_->GetColumnEvaluatorCache())
@@ -121,6 +126,7 @@ TTablet::TTablet(
     , State_(ETabletState::Mounted)
     , Atomicity_(atomicity)
     , EnableLookupHashTable_(config->EnableLookupHashTable)
+    , OverlappingStoreCount_(0)
     , Config_(config)
     , WriterOptions_(writerOptions)
     , Eden_(std::make_unique<TPartition>(
@@ -465,6 +471,8 @@ void TTablet::MergePartitions(int firstIndex, int lastIndex)
     YCHECK(PartitionMap_.insert(std::make_pair(mergedPartition->GetId(), mergedPartition.get())).second);
     PartitionList_.erase(firstPartitionIt, lastPartitionIt + 1);
     PartitionList_.insert(firstPartitionIt, std::move(mergedPartition));
+
+    UpdateOverlappingStoreCount();
 }
 
 void TTablet::SplitPartition(int index, const std::vector<TOwningKey>& pivotKeys)
@@ -521,6 +529,8 @@ void TTablet::SplitPartition(int index, const std::vector<TOwningKey>& pivotKeys
         store->SetPartition(newPartition);
         YCHECK(newPartition->Stores().insert(store).second);
     }
+
+    UpdateOverlappingStoreCount();
 }
 
 TPartition* TTablet::GetContainingPartition(
@@ -561,6 +571,7 @@ void TTablet::AddStore(IStorePtr store)
     store->SetPartition(partition);
     YCHECK(Stores_.insert(std::make_pair(store->GetId(), store)).second);
     YCHECK(partition->Stores().insert(store).second);
+    UpdateOverlappingStoreCount();
 }
 
 void TTablet::RemoveStore(IStorePtr store)
@@ -568,6 +579,7 @@ void TTablet::RemoveStore(IStorePtr store)
     YCHECK(Stores_.erase(store->GetId()) == 1);
     auto* partition = store->GetPartition();
     YCHECK(partition->Stores().erase(store) == 1);
+    UpdateOverlappingStoreCount();
 }
 
 IStorePtr TTablet::FindStore(const TStoreId& id)
@@ -670,6 +682,7 @@ TTabletSnapshotPtr TTablet::RebuildSnapshot()
     Snapshot_->Eden = Eden_->RebuildSnapshot();
     Snapshot_->Atomicity = Atomicity_;
     Snapshot_->EnableLookupHashTable = EnableLookupHashTable_;
+    Snapshot_->OverlappingStoreCount = OverlappingStoreCount_;
     Snapshot_->Partitions.reserve(PartitionList_.size());
     for (const auto& partition : PartitionList_) {
         auto partitionSnapshot = partition->RebuildSnapshot();
@@ -786,6 +799,23 @@ TObjectId TTablet::GenerateId(EObjectType type)
         return Slot_->GenerateId(type);
     } else {
         return TObjectId::Create();
+    }
+}
+
+void TTablet::UpdateOverlappingStoreCount()
+{
+    OverlappingStoreCount_ = 0;
+    for (const auto& partition : PartitionList_) {
+        OverlappingStoreCount_ = std::max(
+            OverlappingStoreCount_,
+            static_cast<int>(partition->Stores().size()));
+    }
+    OverlappingStoreCount_ += Eden_->Stores().size();
+
+    if (OverlappingStoreCount_ >= Config_->MaxOverlappingStoreCount) {
+        LOG_DEBUG("Too many overlapping stores, store rotation disabled (OverlappingStoreCount: %v, MaxOverlappingStoreCount: %v)",
+            OverlappingStoreCount_,
+            Config_->MaxOverlappingStoreCount);
     }
 }
 

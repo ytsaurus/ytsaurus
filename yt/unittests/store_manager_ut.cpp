@@ -133,6 +133,7 @@ protected:
             LookupRows(
                 Tablet_->RebuildSnapshot(),
                 timestamp,
+                TWorkloadDescriptor(),
                 &reader,
                 &writer);
             response = MergeRefs(writer.Flush());

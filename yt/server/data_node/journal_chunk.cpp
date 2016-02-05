@@ -38,12 +38,14 @@ static NProfiling::TSimpleCounter DiskJournalReadByteCounter("/disk_journal_read
 
 TJournalChunk::TJournalChunk(
     TBootstrap* bootstrap,
+    bool enableMultiplexing,
     TStoreLocationPtr location,
     const TChunkDescriptor& descriptor)
     : TChunkBase(
         bootstrap,
         location,
         descriptor.Id)
+    , EnableMultiplexing_(enableMultiplexing)
     , StoreLocation_(location)
     , Meta_(New<TRefCountedChunkMeta>())
 {
@@ -248,7 +250,7 @@ void TJournalChunk::SyncRemove(bool force)
 TFuture<void> TJournalChunk::AsyncRemove()
 {
     auto dispatcher = Bootstrap_->GetJournalDispatcher();
-    return dispatcher->RemoveChangelog(this, true);
+    return dispatcher->RemoveChangelog(this, EnableMultiplexing_);
 }
 
 void TJournalChunk::AttachChangelog(IChangelogPtr changelog)
