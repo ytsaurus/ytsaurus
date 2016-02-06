@@ -63,15 +63,15 @@ private:
     int MaxSpawnActionFD_ = - 1;
 
     NPipes::TPipe Pipe_;
-    std::vector<Stroka> StringHolder_;
-    std::vector<char*> Args_;
-    std::vector<char*> Env_;
+    std::vector<Stroka> StringHolders_;
+    std::vector<const char*> Args_;
+    std::vector<const char*> Env_;
     std::vector<TSpawnAction> SpawnActions_;
 
     NConcurrency::TPeriodicExecutorPtr AsyncWaitExecutor_;
     TPromise<void> FinishedPromise_;
 
-    char* Capture(TStringBuf arg);
+    const char* Capture(const TStringBuf& arg);
 
     void DoSpawn();
     void SpawnChild();

@@ -467,10 +467,10 @@ Stroka TProcess::GetCommandLine() const
     return builder.Flush();
 }
 
-char* TProcess::Capture(TStringBuf arg)
+const char* TProcess::Capture(const TStringBuf& arg)
 {
-    StringHolder_.push_back(Stroka(arg));
-    return const_cast<char*>(StringHolder_.back().c_str());
+    StringHolders_.push_back(Stroka(arg));
+    return StringHolders_.back().c_str();
 }
 
 void TProcess::Child()
