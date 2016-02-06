@@ -53,7 +53,7 @@ std::vector<NChunkClient::TChunkId> TJob::DumpInputContext()
     THROW_ERROR_EXCEPTION("Dumping input context is not supported for built-in jobs");
 }
 
-TYsonString TJob::Strace()
+TYsonString TJob::StraceJob()
 {
     THROW_ERROR_EXCEPTION("Stracing is not supported for built-in jobs");
 }

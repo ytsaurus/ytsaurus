@@ -184,6 +184,12 @@ public:
             JobIO_->PopulateResult(schedulerResultExt);
         }
 
+        // Gracefully shutdown the job prober queue.
+        WaitFor(BIND([] () { })
+            .AsyncVia(JobProberQueue_->GetInvoker())
+            .Run());
+        JobProberQueue_->Shutdown();
+
         return result;
     }
 
@@ -386,15 +392,13 @@ private:
 
     virtual std::vector<TChunkId> DumpInputContext() override
     {
-        if (!Prepared_) {
-            THROW_ERROR_EXCEPTION("Cannot dump job context: job pipes haven't been prepared yet");
-        }
+        ValidatePrepared();
 
-        auto asyncContexts = BIND(&TUserJob::DoGetInputContexts, MakeStrong(this))
-                .AsyncVia(PipeIOQueue_->GetInvoker())
-                .Run();
-        auto contexts = WaitFor(asyncContexts)
-            .ValueOrThrow();
+        auto result = WaitFor(BIND(&TUserJob::DoGetInputContexts, MakeStrong(this))
+            .AsyncVia(PipeIOQueue_->GetInvoker())
+            .Run());
+        THROW_ERROR_EXCEPTION_IF_FAILED(result, "Error collecting job input context");
+        const auto& contexts = result.Value();
 
         auto chunks = DoDumpInputContexts(contexts);
         YCHECK(chunks.size() == 1);
@@ -444,22 +448,9 @@ private:
         return result;
     }
 
-    virtual TYsonString Strace() override
+    virtual TYsonString StraceJob() override
     {
-        if (!Prepared_) {
-            THROW_ERROR_EXCEPTION("Job has not started yet");
-        }
-
-        std::vector<int> pids;
-
-        {
-            TGuard<TSpinLock> guard(FreezerLock_);
-            if (!Freezer_.IsCreated()) {
-                THROW_ERROR_EXCEPTION("Cannot determine user job processes: freezer cgroup is not created");
-            }
-
-            pids = Freezer_.GetTasks();
-        }
+        ValidatePrepared();
 
         if (Stracing_.test_and_set()) {
             THROW_ERROR_EXCEPTION("Another strace session is in progress");
@@ -469,48 +460,47 @@ private:
             Stracing_.clear();
         });
 
-        auto result = WaitFor(BIND([&] () {
-            return RunTool<TStraceTool>(pids);
-        })
+        auto pids = GetPidsFromFreezer();
+        auto result = WaitFor(BIND([=] () { return RunTool<TStraceTool>(pids); })
             .AsyncVia(JobProberQueue_->GetInvoker())
             .Run());
-
-        if (!result.IsOK()) {
-            THROW_ERROR_EXCEPTION("Failed to strace")
-                << result;
-        }
+        THROW_ERROR_EXCEPTION_IF_FAILED(result, "Error running job strace tool");
 
         return ConvertToYsonString(result.Value());
     }
 
     virtual void SignalJob(const Stroka& signalName) override
     {
-        if (!Prepared_) {
-            THROW_ERROR_EXCEPTION("Job has not started yet");
-        }
+        ValidatePrepared();
 
         TJobSignalerArg arg;
-
-        {
-            TGuard<TSpinLock> guard(FreezerLock_);
-            if (!Freezer_.IsCreated()) {
-                THROW_ERROR_EXCEPTION("Cannot determine user job processes: freezer cgroup is not created");
-            }
-
-            arg.Pids = Freezer_.GetTasks();
-        }
-
+        arg.Pids = GetPidsFromFreezer();
         arg.Pids.erase(std::find(arg.Pids.begin(), arg.Pids.end(), Process_->GetProcessId()));
         arg.SignalName = signalName;
         LOG_INFO("Sending signal %v to pids %v",
             arg.SignalName,
             arg.Pids);
 
-        WaitFor(BIND([&] () {
-            return RunTool<TJobSignalerTool>(arg);
-        })
+        auto result = WaitFor(BIND([=] () { return RunTool<TJobSignalerTool>(arg); })
             .AsyncVia(JobProberQueue_->GetInvoker())
             .Run());
+        THROW_ERROR_EXCEPTION_IF_FAILED(result, "Error running job signaler tool");
+    }
+
+    void ValidatePrepared()
+    {
+        if (!Prepared_) {
+            THROW_ERROR_EXCEPTION("Cannot dump job context: job pipes haven't been prepared yet");
+        }
+    }
+
+    std::vector<int> GetPidsFromFreezer()
+    {
+        TGuard<TSpinLock> guard(FreezerLock_);
+        if (!Freezer_.IsCreated()) {
+            THROW_ERROR_EXCEPTION("Cannot determine pids of user job processes: freezer cgroup is not created yet");
+        }
+        return Freezer_.GetTasks();
     }
 
     int GetMaxReservedDescriptor() const
