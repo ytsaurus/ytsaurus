@@ -19,6 +19,10 @@ driver = None
 is_multicell = None
 path_to_run_tests = None
 
+# See transaction_client/public.h
+SyncLastCommittedTimestamp   = 0x3fffffffffffff01
+AsyncLastCommittedTimestamp  = 0x3fffffffffffff04
+
 def get_driver():
     return driver
 
