@@ -75,9 +75,25 @@ public:
     //! Checks if the node can handle jobs demanding a certain #tag.
     bool CanSchedule(const TNullable<Stroka>& tag) const;
 
+    //! Constructs a descriptor containing the current snapshot of node's state.
+    TExecNodeDescriptor BuildDescriptor() const;
+
 };
 
 DEFINE_REFCOUNTED_TYPE(TExecNode)
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! An immutable snapshot of TExecNode.
+struct TExecNodeDescriptor
+{
+    NNodeTrackerClient::TNodeId Id;
+    Stroka Address;
+    double IOWeight;
+    TJobResources ResourceLimits;
+
+    void Persist(TStreamPersistenceContext& context);
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 

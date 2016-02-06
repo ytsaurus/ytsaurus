@@ -546,19 +546,19 @@ protected:
             }
 
             if (Controller->Spec->EnablePartitionedDataBalancing) {
-                auto execNodes = Controller->Host->GetExecNodes();
-                yhash_map<TNodeId, TExecNodePtr> idToNode;
-                for (const auto& node : execNodes) {
-                    YCHECK(idToNode.insert(std::make_pair(node->GetId(), node)).second);
+                auto nodeDescriptors = Controller->Host->GetExecNodeDescriptors(Controller->Operation->GetSchedulingTag());
+                yhash_map<TNodeId, TExecNodeDescriptor> idToNodeDescriptor;
+                for (const auto& descriptor : nodeDescriptors) {
+                    YCHECK(idToNodeDescriptor.insert(std::make_pair(descriptor.Id, descriptor)).second);
                 }
 
                 LOG_DEBUG("Per-node partitioned sizes collected");
                 for (const auto& pair : NodeIdToDataSize) {
                     auto nodeId = pair.first;
                     auto dataSize = pair.second;
-                    auto nodeIt = idToNode.find(nodeId);
+                    auto nodeIt = idToNodeDescriptor.find(nodeId);
                     LOG_DEBUG("Node[%v] = %v",
-                        nodeIt == idToNode.end() ? ToString(nodeId) : nodeIt->second->GetDefaultAddress(),
+                        nodeIt == idToNodeDescriptor.end() ? ToString(nodeId) : nodeIt->second.Address,
                         dataSize);
                 }
             }
@@ -1247,12 +1247,12 @@ protected:
         struct TAssignedNode
             : public TIntrinsicRefCounted
         {
-            TAssignedNode(TExecNodePtr node, double weight)
-                : Node(node)
+            TAssignedNode(const TExecNodeDescriptor& descriptor, double weight)
+                : Descriptor(descriptor)
                 , Weight(weight)
             { }
 
-            TExecNodePtr Node;
+            TExecNodeDescriptor Descriptor;
             double Weight;
             i64 AssignedDataSize = 0;
         };
@@ -1269,19 +1269,19 @@ protected:
 
         LOG_DEBUG("Examining online nodes");
 
-        auto nodes = Host->GetExecNodes();
+        auto nodeDescriptors = Host->GetExecNodeDescriptors(Operation->GetSchedulingTag());
         auto maxResourceLimits = ZeroJobResources();
         double maxIOWeight = 0;
-        for (auto node : nodes) {
-            maxResourceLimits = Max(maxResourceLimits, node->ResourceLimits());
-            maxIOWeight = std::max(maxIOWeight, node->GetIOWeight());
+        for (const auto& descriptor : nodeDescriptors) {
+            maxResourceLimits = Max(maxResourceLimits, descriptor.ResourceLimits);
+            maxIOWeight = std::max(maxIOWeight, descriptor.IOWeight);
         }
 
         std::vector<TAssignedNodePtr> nodeHeap;
-        for (const auto& node : nodes) {
+        for (const auto& node : nodeDescriptors) {
             double weight = 1.0;
-            weight = std::min(weight, GetMinResourceRatio(node->ResourceLimits(), maxResourceLimits));
-            weight = std::min(weight, node->GetIOWeight() > 0 ? node->GetIOWeight() / maxIOWeight : 0);
+            weight = std::min(weight, GetMinResourceRatio(node.ResourceLimits, maxResourceLimits));
+            weight = std::min(weight, node.IOWeight > 0 ? node.IOWeight / maxIOWeight : 0);
             if (weight > 0) {
                 auto assignedNode = New<TAssignedNode>(node, weight);
                 nodeHeap.push_back(assignedNode);
@@ -1304,7 +1304,7 @@ protected:
 
         for (const auto& partition : partitionsToAssign) {
             auto node = nodeHeap.front();
-            auto nodeId = node->Node->GetId();
+            auto nodeId = node->Descriptor.Id;
 
             partition->AssignedNodeId = nodeId;
             auto task = partition->Maniac
@@ -1320,13 +1320,13 @@ protected:
             LOG_DEBUG("Partition assigned (Index: %v, DataSize: %v, Address: %v)",
                 partition->Index,
                 partition->ChunkPoolOutput->GetTotalDataSize(),
-                node->Node->GetDefaultAddress());
+                node->Descriptor.Address);
         }
 
         for (const auto& node : nodeHeap) {
             if (node->AssignedDataSize > 0) {
                 LOG_DEBUG("Node used (Address: %v, Weight: %.4lf, AssignedDataSize: %v, AdjustedDataSize: %v)",
-                    node->Node->GetDefaultAddress(),
+                    node->Descriptor.Address,
                     node->Weight,
                     node->AssignedDataSize,
                     static_cast<i64>(node->AssignedDataSize / node->Weight));

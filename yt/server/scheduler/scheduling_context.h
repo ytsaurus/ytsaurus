@@ -11,17 +11,6 @@ namespace NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TExecNodeDescriptor
-{
-    NNodeTrackerClient::TNodeId Id;
-    Stroka Address;
-    double IOWeight;
-
-    void Persist(TStreamPersistenceContext& context);
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 struct ISchedulingContext
 {
     virtual ~ISchedulingContext() = default;
