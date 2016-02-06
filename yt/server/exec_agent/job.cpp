@@ -244,8 +244,9 @@ public:
         auto req = jobProberProxy.DumpInputContext();
 
         ToProto(req->mutable_job_id(), JobId);
-        auto rsp = WaitFor(req->Invoke())
-            .ValueOrThrow();
+        auto rspOrError = WaitFor(req->Invoke());
+        THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error requesting input contexts dump from job proxy");
+        const auto& rsp = rspOrError.Value();
 
         return FromProto<std::vector<TChunkId>>(rsp->chunk_ids());
     }
@@ -256,8 +257,9 @@ public:
         auto req = jobProberProxy.Strace();
 
         ToProto(req->mutable_job_id(), JobId);
-        auto rsp = WaitFor(req->Invoke())
-            .ValueOrThrow();
+        auto rspOrError = WaitFor(req->Invoke());
+        THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error requesting strace dump from job proxy");
+        const auto& rsp = rspOrError.Value();
 
         return TYsonString(rsp->trace());
     }
@@ -271,8 +273,8 @@ public:
 
         ToProto(req->mutable_job_id(), JobId);
         ToProto(req->mutable_signal_name(), signalName);
-        WaitFor(req->Invoke())
-            .ThrowOnError();
+        auto rspOrError = WaitFor(req->Invoke());
+        THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error sending signal to job proxy");
     }
 
 private:

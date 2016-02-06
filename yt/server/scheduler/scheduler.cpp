@@ -2019,16 +2019,22 @@ private:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         auto job = GetJobOrThrow(jobId);
-        auto proxy = CreateJobProberProxy(job);
 
+        LOG_INFO("Getting strace dump (JobId: %v)",
+            jobId);
+
+        auto proxy = CreateJobProberProxy(job);
         auto req = proxy.Strace();
         ToProto(req->mutable_job_id(), jobId);
 
         auto rspOrError = WaitFor(req->Invoke());
-        THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error stracing processes of job %v",
+        THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error getting strace dump of job %v",
             jobId);
 
         auto& res = rspOrError.Value();
+
+        LOG_INFO("Strace dump received (JobId: %v)",
+            jobId);
 
         return TYsonString(res->trace());
     }
@@ -2038,15 +2044,19 @@ private:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         auto job = GetJobOrThrow(jobId);
-        auto proxy = CreateJobProberProxy(job);
 
+        LOG_INFO("Saving input contexts (JobId: %v, Path: %v)",
+            jobId,
+            path);
+
+        auto proxy = CreateJobProberProxy(job);
         auto req = proxy.DumpInputContext();
         ToProto(req->mutable_job_id(), jobId);
 
         auto rspOrError = WaitFor(req->Invoke());
         THROW_ERROR_EXCEPTION_IF_FAILED(
             rspOrError,
-            "Error saving input context for job %v into %v",
+            "Error saving input context of job %v into %v",
             jobId,
             path);
 
@@ -2056,9 +2066,8 @@ private:
 
         MasterConnector_->AttachJobContext(path, chunkIds.front(), job);
 
-        LOG_INFO("Input context saved (JobId: %v, Path: %v)",
-            jobId,
-            path);
+        LOG_INFO("Input contexts saved (JobId: %v)",
+            jobId);
     }
 
     void DoSignalJob(const TJobId& jobId, const Stroka& signalName)
@@ -2066,14 +2075,23 @@ private:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         auto job = GetJobOrThrow(jobId);
-        auto proxy = CreateJobProberProxy(job);
 
+        LOG_INFO("Sending job signal (JobId: %v, Signal: %v)",
+            jobId,
+            signalName);
+
+        auto proxy = CreateJobProberProxy(job);
         auto req = proxy.SignalJob();
         ToProto(req->mutable_job_id(), jobId);
         ToProto(req->mutable_signal_name(), signalName);
 
-        WaitFor(req->Invoke())
-            .ThrowOnError();
+        auto rspOrError = WaitFor(req->Invoke());
+        THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error sending signal %v to job %v",
+            signalName,
+            jobId);
+
+        LOG_INFO("Job signal sent (JobId: %v)",
+            jobId);
     }
 
     void DoAbandonJob(const TJobId& jobId)
@@ -2090,7 +2108,7 @@ private:
             case EJobType::PartitionReduce:
                 break;
             default:
-                THROW_ERROR_EXCEPTION("Cannot abandon job %v of type %Qv",
+                THROW_ERROR_EXCEPTION("Cannot abandon job %v of type %Qlv",
                     jobId,
                     job->GetType());
         }
