@@ -1,7 +1,5 @@
 #include "exec_node.h"
-#include "job.h"
-#include "operation.h"
-#include "operation_controller.h"
+#include "job_resources.h"
 
 #include <yt/ytlib/node_tracker_client/helpers.h>
 
@@ -50,6 +48,28 @@ const Stroka& TExecNode::GetInterconnectAddress() const
 bool TExecNode::CanSchedule(const TNullable<Stroka>& tag) const
 {
     return !tag || SchedulingTags_.find(*tag) != SchedulingTags_.end();
+}
+
+TExecNodeDescriptor TExecNode::BuildDescriptor() const
+{
+    return TExecNodeDescriptor{
+        Id_,
+        GetDefaultAddress(),
+        IOWeight_,
+        ResourceLimits_
+    };
+}
+
+////////////////////////////////////////////////////////////////////
+
+void TExecNodeDescriptor::Persist(TStreamPersistenceContext& context)
+{
+    using NYT::Persist;
+
+    Persist(context, Id);
+    Persist(context, Address);
+    Persist(context, IOWeight);
+    Persist(context, ResourceLimits);
 }
 
 ////////////////////////////////////////////////////////////////////

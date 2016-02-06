@@ -38,7 +38,6 @@ public:
     NYTree::IYPathServicePtr GetOrchidService();
 
     std::vector<TOperationPtr> GetOperations();
-    std::vector<TExecNodePtr> GetExecNodes();
 
     IInvokerPtr GetSnapshotIOInvoker();
 

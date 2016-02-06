@@ -257,17 +257,20 @@ public:
         return OnlineNodeCount_;
     }
 
-    virtual std::vector<TExecNodePtr> GetExecNodes() const override
+    virtual std::vector<TExecNodeDescriptor> GetExecNodeDescriptors(const TNullable<Stroka>& schedulingTag) const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         TReaderGuard guard(AddressToNodeLock_);
 
-        std::vector<TExecNodePtr> result;
+        std::vector<TExecNodeDescriptor> result;
+        result.reserve(AddressToNode_.size());
         for (const auto& pair : AddressToNode_) {
             const auto& node = pair.second;
-            if (node->GetMasterState() == ENodeState::Online) {
-                result.push_back(node);
+            if (node->GetMasterState() == ENodeState::Online &&
+                node->CanSchedule(schedulingTag))
+            {
+                result.push_back(node->BuildDescriptor());
             }
         }
         return result;
@@ -2272,8 +2275,8 @@ private:
                         BuildOperationYson(operation, fluent);
                     }
                 })
-                .Item("nodes").DoMapFor(GetExecNodes(), [=] (TFluentMap fluent, const TExecNodePtr& node) {
-                    BuildNodeYson(node, fluent);
+                .Item("nodes").DoMapFor(AddressToNode_, [=] (TFluentMap fluent, const TExecNodeMap::value_type& pair) {
+                    BuildNodeYson(pair.second, fluent);
                 })
                 .Item("clusters").DoMapFor(GetClusterDirectory()->GetClusterNames(), [=] (TFluentMap fluent, const Stroka& clusterName) {
                     BuildClusterYson(clusterName, fluent);
@@ -2523,11 +2526,6 @@ IYPathServicePtr TScheduler::GetOrchidService()
 std::vector<TOperationPtr> TScheduler::GetOperations()
 {
     return Impl_->GetOperations();
-}
-
-std::vector<TExecNodePtr> TScheduler::GetExecNodes()
-{
-    return Impl_->GetExecNodes();
 }
 
 IInvokerPtr TScheduler::GetSnapshotIOInvoker()

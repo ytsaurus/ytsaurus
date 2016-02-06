@@ -1,6 +1,7 @@
 #pragma once
 
 #include "scheduling_context.h"
+#include "exec_node.h"
 #include "job_resources.h"
 
 namespace NYT {
