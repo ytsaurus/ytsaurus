@@ -158,7 +158,7 @@ private:
 };
 
 class TSelectRowsCommand
-    : public TTypedCommandBase<NApi::TSelectRowsOptions>
+    : public TTypedCommand<NApi::TSelectRowsOptions>
 {
 private:
     Stroka Query;
@@ -192,7 +192,7 @@ public:
 };
 
 class TInsertRowsCommand
-    : public TTypedCommandBase<NApi::TTransactionStartOptions>
+    : public TTypedCommand<NApi::TTransactionStartOptions>
 {
 private:
     NYTree::INodePtr TableWriter;
@@ -221,7 +221,7 @@ public:
 };
 
 class TLookupRowsCommand
-    : public TTypedCommandBase<NApi::TLookupRowsOptions>
+    : public TTypedCommand<NApi::TLookupRowsOptions>
 {
 private:
     NYTree::INodePtr TableWriter;
@@ -245,7 +245,7 @@ public:
 };
 
 class TDeleteRowsCommand
-    : public TTypedCommandBase<NApi::TTransactionStartOptions>
+    : public TTypedCommand<NApi::TTransactionStartOptions>
 {
 private:
     NYTree::INodePtr TableWriter;

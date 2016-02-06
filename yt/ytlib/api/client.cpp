@@ -100,6 +100,7 @@ using namespace NChunkClient;
 using namespace NChunkClient::NProto;
 using namespace NScheduler;
 using namespace NHive;
+using namespace NHydra;
 
 using NChunkClient::TReadLimit;
 using NChunkClient::TReadRange;
@@ -157,22 +158,53 @@ TNameTableToSchemaIdMapping BuildColumnIdMapping(
     return mapping;
 }
 
-const TCellPeerDescriptor& GetLeadingTabletPeerDescriptorOrThrow(
-    const TCellDescriptor& cellDescriptor)
+const TCellPeerDescriptor& GetTabletPeerDescriptorOrThrow(
+    const TCellDescriptor& cellDescriptor,
+    const TTabletReadOptions& options)
 {
     if (cellDescriptor.Peers.empty()) {
         THROW_ERROR_EXCEPTION("No alive replicas for tablet cell %v",
             cellDescriptor.CellId);
     }
 
-    for (const auto& peerDescriptor : cellDescriptor.Peers) {
-        if (peerDescriptor.GetVoting()) {
-            return peerDescriptor;
+    const auto& peers = cellDescriptor.Peers;
+    int leadingPeerIndex = -1;
+    for (int index = 0; index < peers.size(); ++index) {
+        if (peers[index].GetVoting()) {
+            leadingPeerIndex = index;
+            break;
         }
     }
 
-    THROW_ERROR_EXCEPTION("No leading peer is known for tablet cell %v",
-        cellDescriptor.CellId);
+    switch (options.ReadFrom) {
+        case EPeerKind::Leader: {
+            if (leadingPeerIndex < 0) {
+                THROW_ERROR_EXCEPTION("No leading peer is known for tablet cell %v",
+                    cellDescriptor.CellId);
+            }
+            return peers[leadingPeerIndex];
+        }
+
+        case EPeerKind::LeaderOrFollower: {
+            int index = RandomNumber(peers.size());
+            return peers[index];
+        }
+
+        case EPeerKind::Follower: {
+            if (leadingPeerIndex < 0 || peers.size() == 1) {
+                return peers[RandomNumber(peers.size())];
+            }
+
+            int index = RandomNumber(peers.size() - 1);
+            if (index >= leadingPeerIndex) {
+                ++index;
+            }
+            return peers[index];
+        }
+
+        default:
+            YUNREACHABLE();
+    }
 }
 
 TTabletInfoPtr GetTabletForKey(
@@ -538,7 +570,8 @@ private:
                 descriptor = cellDirectory->GetDescriptorOrThrow(tabletInfo->CellId);
             }
 
-            const auto& peerDescriptor = GetLeadingTabletPeerDescriptorOrThrow(descriptor);
+            // TODO(babenko): pass proper read options
+            const auto& peerDescriptor = GetTabletPeerDescriptorOrThrow(descriptor, TTabletReadOptions());
             return peerDescriptor.GetAddress(networkName);
         };
 
@@ -1324,7 +1357,7 @@ private:
 
 
     std::unique_ptr<TObjectServiceProxy> CreateReadProxy(
-        const TReadOptions& options,
+        const TMasterReadOptions& options,
         TCellTag cellTag = PrimaryMasterCellTag)
     {
         auto channel = GetMasterChannelOrThrow(options.ReadFrom, cellTag);
@@ -1393,7 +1426,7 @@ private:
 
             const auto& cellDirectory = Client_->Connection_->GetCellDirectory();
             const auto& cellDescriptor = cellDirectory->GetDescriptorOrThrow(CellId_);
-            const auto& peerDescriptor = GetLeadingTabletPeerDescriptorOrThrow(cellDescriptor);
+            const auto& peerDescriptor = GetTabletPeerDescriptorOrThrow(cellDescriptor, Options_);
 
             const auto& channelFactory = Client_->GetHeavyChannelFactory();
             auto channel = channelFactory->CreateChannel(peerDescriptor.GetAddress(Config_->NetworkName));

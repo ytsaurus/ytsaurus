@@ -108,7 +108,7 @@ class TMutatingCommandBase
 { };
 
 template <class TOptions>
-class TMutatingCommandBase <
+class TMutatingCommandBase<
     TOptions,
     typename NMpl::TEnableIf<NMpl::TIsConvertible<TOptions&, NApi::TMutatingOptions&>>::TType
 >
@@ -128,18 +128,39 @@ protected:
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TOptions, class = void>
-class TReadOnlyCommandBase
+class TReadOnlyMasterCommandBase
 { };
 
 template <class TOptions>
-class TReadOnlyCommandBase <
+class TReadOnlyMasterCommandBase<
     TOptions,
-    typename NMpl::TEnableIf<NMpl::TIsConvertible<TOptions&, NApi::TReadOptions&>>::TType
+    typename NMpl::TEnableIf<NMpl::TIsConvertible<TOptions&, NApi::TMasterReadOptions&>>::TType
 >
     : public virtual TTypedCommandBase<TOptions>
 {
 protected:
-    TReadOnlyCommandBase()
+    TReadOnlyMasterCommandBase()
+    {
+        this->RegisterParameter("read_from", this->Options.ReadFrom)
+            .Optional();
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class TOptions, class = void>
+class TReadOnlyTabletCommandBase
+{ };
+
+template <class TOptions>
+class TReadOnlyTabletCommandBase<
+    TOptions,
+    typename NMpl::TEnableIf<NMpl::TIsConvertible<TOptions&, NApi::TTabletReadOptions&>>::TType
+>
+    : public virtual TTypedCommandBase<TOptions>
+{
+protected:
+    TReadOnlyTabletCommandBase()
     {
         this->RegisterParameter("read_from", this->Options.ReadFrom)
             .Optional();
@@ -153,7 +174,7 @@ class TSuppressableAccessTrackingCommmandBase
 { };
 
 template <class TOptions>
-class TSuppressableAccessTrackingCommmandBase <
+class TSuppressableAccessTrackingCommmandBase<
     TOptions,
     typename NMpl::TEnableIf<NMpl::TIsConvertible<TOptions&, NApi::TSuppressableAccessTrackingOptions&>>::TType
 >
@@ -176,7 +197,7 @@ class TPrerequisiteCommandBase
 { };
 
 template <class TOptions>
-class TPrerequisiteCommandBase <
+class TPrerequisiteCommandBase<
     TOptions,
     typename NMpl::TEnableIf<NMpl::TIsConvertible<TOptions&, NApi::TPrerequisiteOptions&>>::TType
 >
@@ -197,7 +218,7 @@ class TTimeoutCommandBase
 { };
 
 template <class TOptions>
-class TTimeoutCommandBase <
+class TTimeoutCommandBase<
     TOptions,
     typename NMpl::TEnableIf<NMpl::TIsConvertible<TOptions&, NApi::TTimeoutOptions&>>::TType
 >
@@ -218,11 +239,14 @@ class TTypedCommand
     : public virtual TTypedCommandBase<TOptions>
     , public TTransactionalCommandBase<TOptions>
     , public TMutatingCommandBase<TOptions>
-    , public TReadOnlyCommandBase<TOptions>
+    , public TReadOnlyMasterCommandBase<TOptions>
+    , public TReadOnlyTabletCommandBase<TOptions>
     , public TSuppressableAccessTrackingCommmandBase<TOptions>
     , public TPrerequisiteCommandBase<TOptions>
     , public TTimeoutCommandBase<TOptions>
 { };
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NDriver
 } // namespace NYT
