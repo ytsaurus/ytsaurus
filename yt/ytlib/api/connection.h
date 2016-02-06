@@ -67,8 +67,8 @@ struct IConnection
         NObjectClient::TCellTag cellTag = NObjectClient::PrimaryMasterCellTag) = 0;
     virtual NRpc::IChannelPtr GetSchedulerChannel() = 0;
     // TODO(sandello): Consider joining these two in favor of a partitioned channel.
-    virtual NRpc::IChannelFactoryPtr GetLightNodeChannelFactory() = 0;
-    virtual NRpc::IChannelFactoryPtr GetHeavyNodeChannelFactory() = 0;
+    virtual NRpc::IChannelFactoryPtr GetLightChannelFactory() = 0;
+    virtual NRpc::IChannelFactoryPtr GetHeavyChannelFactory() = 0;
 
     virtual NChunkClient::IBlockCachePtr GetBlockCache() = 0;
     virtual NTabletClient::TTableMountCachePtr GetTableMountCache() = 0;
@@ -80,11 +80,9 @@ struct IConnection
     virtual NQueryClient::TColumnEvaluatorCachePtr GetColumnEvaluatorCache() = 0;
 
     virtual IAdminPtr CreateAdmin(const TAdminOptions& options = TAdminOptions()) = 0;
-
     virtual IClientPtr CreateClient(const TClientOptions& options = TClientOptions()) = 0;
 
     virtual void ClearMetadataCaches() = 0;
-
 };
 
 DEFINE_REFCOUNTED_TYPE(IConnection)

@@ -97,14 +97,14 @@ public:
         return SchedulerChannel_;
     }
 
-    virtual IChannelFactoryPtr GetLightNodeChannelFactory() override
+    virtual IChannelFactoryPtr GetLightChannelFactory() override
     {
-        return LightNodeChannelFactory_;
+        return LightChannelFactory_;
     }
 
-    virtual IChannelFactoryPtr GetHeavyNodeChannelFactory() override
+    virtual IChannelFactoryPtr GetHeavyChannelFactory() override
     {
-        return HeavyNodeChannelFactory_;
+        return HeavyChannelFactory_;
     }
 
     virtual IBlockCachePtr GetBlockCache() override
@@ -157,7 +157,6 @@ public:
         return NApi::CreateClient(this, options);
     }
 
-
     virtual void ClearMetadataCaches() override
     {
         TableMountCache_->Clear();
@@ -173,8 +172,8 @@ private:
 
     TEnumIndexedVector<yhash_map<TCellTag, IChannelPtr>, EMasterChannelKind> MasterChannels_;
     IChannelPtr SchedulerChannel_;
-    IChannelFactoryPtr LightNodeChannelFactory_;
-    IChannelFactoryPtr HeavyNodeChannelFactory_;
+    IChannelFactoryPtr LightChannelFactory_;
+    IChannelFactoryPtr HeavyChannelFactory_;
     IBlockCachePtr BlockCache_;
     TTableMountCachePtr TableMountCache_;
     ITimestampProviderPtr TimestampProvider_;
@@ -270,12 +269,12 @@ private:
             GetBusChannelFactory(),
             GetMasterChannelOrThrow(EMasterChannelKind::Leader));
 
-        LightNodeChannelFactory_ = CreateCachingChannelFactory(GetBusChannelFactory());
-        HeavyNodeChannelFactory_ = CreateCachingChannelFactory(GetBusChannelFactory());
+        LightChannelFactory_ = CreateCachingChannelFactory(GetBusChannelFactory());
+        HeavyChannelFactory_ = CreateCachingChannelFactory(GetBusChannelFactory());
 
         CellDirectory_ = New<TCellDirectory>(
             Config_->CellDirectory,
-            GetBusChannelFactory(),
+            LightChannelFactory_,
             Config_->NetworkName);
         CellDirectory_->ReconfigureCell(Config_->PrimaryMaster);
 
