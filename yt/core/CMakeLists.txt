@@ -159,6 +159,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/rpc/service_detail.cpp
   ${CMAKE_CURRENT_LIST_DIR}/rpc/static_channel_factory.cpp
   ${CMAKE_CURRENT_LIST_DIR}/rpc/throttling_channel.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/rpc/latency_taming_channel.cpp
 
   ${CMAKE_CURRENT_LIST_DIR}/tools/registry.cpp
   ${CMAKE_CURRENT_LIST_DIR}/tools/tools.cpp
