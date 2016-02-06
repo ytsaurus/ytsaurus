@@ -199,6 +199,7 @@ struct TTransactionAbortOptions
 struct TTabletReadOptions
 {
     NHydra::EPeerKind ReadFrom = NHydra::EPeerKind::Leader;
+    TNullable<TDuration> BackupRequestDelay;
 };
 
 struct TLookupRowsOptions

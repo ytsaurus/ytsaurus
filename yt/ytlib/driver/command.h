@@ -164,6 +164,8 @@ protected:
     {
         this->RegisterParameter("read_from", this->Options.ReadFrom)
             .Optional();
+        this->RegisterParameter("backup_request_delay", this->Options.BackupRequestDelay)
+            .Optional();
     }
 };
 

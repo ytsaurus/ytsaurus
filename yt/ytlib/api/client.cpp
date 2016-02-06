@@ -65,6 +65,7 @@
 
 #include <yt/core/rpc/helpers.h>
 #include <yt/core/rpc/scoped_channel.h>
+#include <yt/core/rpc/latency_taming_channel.h>
 
 #include <yt/core/ytree/attribute_helpers.h>
 #include <yt/core/ytree/fluent.h>
@@ -158,9 +159,9 @@ TNameTableToSchemaIdMapping BuildColumnIdMapping(
     return mapping;
 }
 
-const TCellPeerDescriptor& GetTabletPeerDescriptorOrThrow(
+const TCellPeerDescriptor& GetPrimaryTabletPeerDescriptor(
     const TCellDescriptor& cellDescriptor,
-    const TTabletReadOptions& options)
+    EPeerKind peerKind = EPeerKind::Leader)
 {
     if (cellDescriptor.Peers.empty()) {
         THROW_ERROR_EXCEPTION("No alive replicas for tablet cell %v",
@@ -176,7 +177,7 @@ const TCellPeerDescriptor& GetTabletPeerDescriptorOrThrow(
         }
     }
 
-    switch (options.ReadFrom) {
+    switch (peerKind) {
         case EPeerKind::Leader: {
             if (leadingPeerIndex < 0) {
                 THROW_ERROR_EXCEPTION("No leading peer is known for tablet cell %v",
@@ -186,8 +187,8 @@ const TCellPeerDescriptor& GetTabletPeerDescriptorOrThrow(
         }
 
         case EPeerKind::LeaderOrFollower: {
-            int index = RandomNumber(peers.size());
-            return peers[index];
+            int randomIndex = RandomNumber(peers.size());
+            return peers[randomIndex];
         }
 
         case EPeerKind::Follower: {
@@ -195,16 +196,51 @@ const TCellPeerDescriptor& GetTabletPeerDescriptorOrThrow(
                 return peers[RandomNumber(peers.size())];
             }
 
-            int index = RandomNumber(peers.size() - 1);
-            if (index >= leadingPeerIndex) {
-                ++index;
+            int randomIndex = RandomNumber(peers.size() - 1);
+            if (randomIndex >= leadingPeerIndex) {
+                ++randomIndex;
             }
-            return peers[index];
+            return peers[randomIndex];
         }
 
         default:
             YUNREACHABLE();
     }
+}
+
+const TCellPeerDescriptor& GetBackupTabletPeerDescriptor(
+    const TCellDescriptor& cellDescriptor,
+    const TCellPeerDescriptor& primaryPeerDescriptor)
+{
+    YASSERT(cellDescriptor.Peers.size() > 1);
+    const auto& peers = cellDescriptor.Peers;
+    int primaryIndex = &primaryPeerDescriptor - cellDescriptor.Peers.data();
+    int randomIndex = RandomNumber(peers.size() - 1);
+    if (randomIndex >= primaryIndex) {
+        ++randomIndex;
+    }
+    return peers[randomIndex];
+}
+
+IChannelPtr CreateTabletReadChannel(
+    const IChannelFactoryPtr& channelFactory,
+    const TCellDescriptor& cellDescriptor,
+    const TConnectionConfigPtr& config,
+    const TTabletReadOptions& options)
+{
+    const auto& primaryPeerDescriptor = GetPrimaryTabletPeerDescriptor(cellDescriptor, options.ReadFrom);
+    auto primaryChannel = channelFactory->CreateChannel(primaryPeerDescriptor.GetAddress(config->NetworkName));
+    if (cellDescriptor.Peers.size() == 1 || !options.BackupRequestDelay) {
+        return primaryChannel;
+    }
+
+    const auto& backupPeerDescriptor = GetBackupTabletPeerDescriptor(cellDescriptor, primaryPeerDescriptor);
+    auto backupChannel = channelFactory->CreateChannel(backupPeerDescriptor.GetAddress(config->NetworkName));
+
+    return CreateLatencyTamingChannel(
+        std::move(primaryChannel),
+        std::move(backupChannel),
+        *options.BackupRequestDelay);
 }
 
 TTabletInfoPtr GetTabletForKey(
@@ -571,7 +607,7 @@ private:
             }
 
             // TODO(babenko): pass proper read options
-            const auto& peerDescriptor = GetTabletPeerDescriptorOrThrow(descriptor, TTabletReadOptions());
+            const auto& peerDescriptor = GetPrimaryTabletPeerDescriptor(descriptor);
             return peerDescriptor.GetAddress(networkName);
         };
 
@@ -1426,10 +1462,11 @@ private:
 
             const auto& cellDirectory = Client_->Connection_->GetCellDirectory();
             const auto& cellDescriptor = cellDirectory->GetDescriptorOrThrow(CellId_);
-            const auto& peerDescriptor = GetTabletPeerDescriptorOrThrow(cellDescriptor, Options_);
-
-            const auto& channelFactory = Client_->GetHeavyChannelFactory();
-            auto channel = channelFactory->CreateChannel(peerDescriptor.GetAddress(Config_->NetworkName));
+            auto channel = CreateTabletReadChannel(
+                Client_->GetHeavyChannelFactory(),
+                cellDescriptor,
+                Config_,
+                Options_);
 
             InvokeProxy_ = std::make_unique<TQueryServiceProxy>(std::move(channel));
             InvokeProxy_->SetDefaultTimeout(Config_->LookupTimeout);
