@@ -88,7 +88,7 @@ struct TMutatingOptions
     bool Retry = false;
 };
 
-struct TReadOptions
+struct TMasterReadOptions
 {
     EMasterChannelKind ReadFrom = EMasterChannelKind::LeaderOrFollower;
 };
@@ -141,7 +141,7 @@ struct TRemoveMemberOptions
 
 struct TCheckPermissionOptions
     : public TTimeoutOptions
-    , public TReadOptions
+    , public TMasterReadOptions
     , public TTransactionalOptions
     , public TPrerequisiteOptions
 { };
@@ -196,8 +196,14 @@ struct TTransactionAbortOptions
     bool Force = false;
 };
 
+struct TTabletReadOptions
+{
+    NHydra::EPeerKind ReadFrom = NHydra::EPeerKind::Leader;
+};
+
 struct TLookupRowsOptions
     : public TTimeoutOptions
+    , public TTabletReadOptions
 {
     NTableClient::TColumnFilter ColumnFilter;
     //! Ignored when queried via transaction.
@@ -207,6 +213,7 @@ struct TLookupRowsOptions
 
 struct TSelectRowsOptions
     : public TTimeoutOptions
+    , public TTabletReadOptions
 {
     //! Ignored when queried via transaction.
     NTransactionClient::TTimestamp Timestamp = NTransactionClient::SyncLastCommittedTimestamp;
@@ -231,7 +238,7 @@ struct TSelectRowsOptions
 struct TGetNodeOptions
     : public TTimeoutOptions
     , public TTransactionalOptions
-    , public TReadOptions
+    , public TMasterReadOptions
     , public TSuppressableAccessTrackingOptions
     , public TPrerequisiteOptions
 {
@@ -262,7 +269,7 @@ struct TRemoveNodeOptions
 struct TListNodeOptions
     : public TTimeoutOptions
     , public TTransactionalOptions
-    , public TReadOptions
+    , public TMasterReadOptions
     , public TSuppressableAccessTrackingOptions
     , public TPrerequisiteOptions
 {
@@ -334,7 +341,7 @@ struct TLinkNodeOptions
 struct TConcatenateNodesOptions
     : public TTimeoutOptions
     , public TTransactionalOptions
-    , public TReadOptions
+    , public TMasterReadOptions
     , public TMutatingOptions
 {
     bool Append = false;
@@ -342,7 +349,7 @@ struct TConcatenateNodesOptions
 
 struct TNodeExistsOptions
     : public TTimeoutOptions
-    , public TReadOptions
+    , public TMasterReadOptions
     , public TTransactionalOptions
     , public TPrerequisiteOptions
 { };
