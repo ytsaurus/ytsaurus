@@ -109,14 +109,12 @@ def get_master_config():
 """)
 
 
-# TODO(babenko): drop orchid_cache_expiration_time once 17.4 is merged
 def get_scheduler_config():
     return yson.loads(
 """
 {
     address_resolver = { };
 
-    orchid_cache_expiration_time = 0;
     orchid_cache_update_period = 0;
 
     cluster_connection = {
@@ -162,14 +160,12 @@ def get_scheduler_config():
 }
 """)
 
-# TODO(babenko): drop orchid_cache_expiration_time once 17.4 is merged
 def get_node_config(enable_debug_logging=True):
     config = yson.loads(
 """
 {
     address_resolver = { };
 
-    orchid_cache_expiration_time = 0;
     orchid_cache_update_period = 0;
 
     cluster_connection = {
