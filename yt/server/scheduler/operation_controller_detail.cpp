@@ -637,14 +637,14 @@ bool TOperationControllerBase::TTask::CanScheduleJob(
 void TOperationControllerBase::TTask::DoCheckResourceDemandSanity(
     const TJobResources& neededResources)
 {
-    auto nodes = Controller->Host->GetExecNodes();
-    if (nodes.size() < Controller->Config->SafeOnlineNodeCount)
+    int nodeCount = Controller->Host->GetExecNodeCount();
+    if (nodeCount < Controller->Config->SafeOnlineNodeCount) {
         return;
+    }
 
-    for (const auto& node : nodes) {
-        if (node->CanSchedule(Controller->Operation->GetSchedulingTag()) &&
-            Dominates(node->ResourceLimits(), neededResources))
-        {
+    auto nodeDescriptors = Controller->Host->GetExecNodeDescriptors(Controller->Operation->GetSchedulingTag());
+    for (const auto& descriptor : nodeDescriptors) {
+        if (Dominates(descriptor.ResourceLimits, neededResources)) {
             return;
         }
     }
