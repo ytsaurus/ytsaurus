@@ -24,11 +24,7 @@ TSchedulingContextBase::TSchedulingContextBase(
     , Config_(config)
     , CellTag_(cellTag)
     , Node_(node)
-    , NodeDescriptor_{
-        node->GetId(),
-        node->GetDefaultAddress(),
-        node->GetIOWeight()
-    }
+    , NodeDescriptor_(Node_->BuildDescriptor())
 { }
 
 const TExecNodeDescriptor& TSchedulingContextBase::GetNodeDescriptor() const

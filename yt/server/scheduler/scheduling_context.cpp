@@ -8,17 +8,6 @@ using namespace NObjectClient;
 
 ////////////////////////////////////////////////////////////////////
 
-void TExecNodeDescriptor::Persist(TStreamPersistenceContext& context)
-{
-    using NYT::Persist;
-
-    Persist(context, Id);
-    Persist(context, Address);
-    Persist(context, IOWeight);
-}
-
-////////////////////////////////////////////////////////////////////
-
 class TSchedulingContext
     : public TSchedulingContextBase
 {

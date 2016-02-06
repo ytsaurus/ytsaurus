@@ -36,7 +36,7 @@ struct ISchedulerStrategyHost
 
     virtual void ActivateOperation(const TOperationId& operationId) = 0;
 
-    virtual std::vector<TExecNodePtr> GetExecNodes() const = 0;
+    virtual std::vector<TExecNodeDescriptor> GetExecNodeDescriptors(const TNullable<Stroka>& schedulingTag) const = 0;
     virtual int GetExecNodeCount() const = 0;
 };
 
