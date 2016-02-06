@@ -851,8 +851,8 @@ public:
 
         SchedulerChannel_ = wrapChannel(Connection_->GetSchedulerChannel());
 
-        LightNodeChannelFactory_ = wrapChannelFactory(Connection_->GetLightNodeChannelFactory());
-        HeavyNodeChannelFactory_ = wrapChannelFactory(Connection_->GetHeavyNodeChannelFactory());
+        LightChannelFactory_ = wrapChannelFactory(Connection_->GetLightChannelFactory());
+        HeavyChannelFactory_ = wrapChannelFactory(Connection_->GetHeavyChannelFactory());
 
         SchedulerProxy_.reset(new TSchedulerServiceProxy(GetSchedulerChannel()));
         JobProberProxy_.reset(new TJobProberServiceProxy(GetSchedulerChannel()));
@@ -867,7 +867,7 @@ public:
         QueryHelper_ = New<TQueryHelper>(
             Connection_,
             GetMasterChannelOrThrow(EMasterChannelKind::LeaderOrFollower),
-            HeavyNodeChannelFactory_,
+            HeavyChannelFactory_,
             FunctionRegistry_);
 
         Logger.AddTag("Client: %p", this);
@@ -899,12 +899,12 @@ public:
 
     virtual IChannelFactoryPtr GetLightNodeChannelFactory() override
     {
-        return LightNodeChannelFactory_;
+        return LightChannelFactory_;
     }
 
     virtual IChannelFactoryPtr GetHeavyNodeChannelFactory() override
     {
-        return HeavyNodeChannelFactory_;
+        return HeavyChannelFactory_;
     }
 
     virtual TTransactionManagerPtr GetTransactionManager() override
@@ -1168,8 +1168,8 @@ private:
 
     TEnumIndexedVector<yhash_map<TCellTag, IChannelPtr>, EMasterChannelKind> MasterChannels_;
     IChannelPtr SchedulerChannel_;
-    IChannelFactoryPtr LightNodeChannelFactory_;
-    IChannelFactoryPtr HeavyNodeChannelFactory_;
+    IChannelFactoryPtr LightChannelFactory_;
+    IChannelFactoryPtr HeavyChannelFactory_;
     TTransactionManagerPtr TransactionManager_;
     TQueryHelperPtr QueryHelper_;
     std::unique_ptr<TSchedulerServiceProxy> SchedulerProxy_;
@@ -1396,7 +1396,7 @@ private:
             const auto& cellDescriptor = cellDirectory->GetDescriptorOrThrow(CellId_);
             const auto& peerDescriptor = GetLeadingTabletPeerDescriptorOrThrow(cellDescriptor);
 
-            const auto& channelFactory = Connection_->GetLightNodeChannelFactory();
+            const auto& channelFactory = Connection_->GetLightChannelFactory();
             auto channel = channelFactory->CreateChannel(peerDescriptor.GetAddress(Config_->NetworkName));
             channel = CreateAuthenticatedChannel(std::move(channel), ClientOptions_.User);
 
