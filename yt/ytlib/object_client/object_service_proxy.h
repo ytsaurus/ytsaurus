@@ -165,10 +165,13 @@ public:
         TSharedRefArray GetResponseMessage(int index) const;
 
     private:
+        friend class TReqExecuteBatch;
+
         TKeyToIndexMultimap KeyToIndexes;
-        TPromise<TRspExecuteBatchPtr> Promise;
-        NProto::TRspExecute Body;
-        std::vector<int> BeginPartIndexes;
+        TPromise<TRspExecuteBatchPtr> Promise = NewPromise<TRspExecuteBatchPtr>();
+        std::vector<std::pair<int, int>> PartRanges;
+
+        void SetEmpty();
 
         virtual void SetPromise(const TError& error) override;
         virtual void DeserializeBody(const TRef& data) override;
