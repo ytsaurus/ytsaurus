@@ -53,8 +53,8 @@ private:
         Stroka ErrorMessage;
     };
 
-    std::atomic<bool> IsStarted_ = {false};
-    std::atomic<bool> IsFinished_ = {false};
+    std::atomic<bool> Started_ = { false};
+    std::atomic<bool> Finished_ = { false};
 
     int ProcessId_;
     Stroka Path_;
