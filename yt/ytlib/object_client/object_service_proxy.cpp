@@ -31,10 +31,14 @@ TObjectServiceProxy::TReqExecuteBatch::Invoke()
     auto clientContext = CreateClientContext();
     auto batchRsp = New<TRspExecuteBatch>(clientContext, KeyToIndexes);
     auto promise = batchRsp->GetPromise();
-    auto requestControl = Send(batchRsp);
-    promise.OnCanceled(BIND([=] () {
-        requestControl->Cancel();
-    }));
+    if (GetSize() == 0) {
+        batchRsp->SetEmpty();
+    } else {
+        auto requestControl = Send(batchRsp);
+        promise.OnCanceled(BIND([=] () {
+            requestControl->Cancel();
+        }));
+    }
     return promise;
 }
 
@@ -119,13 +123,19 @@ TObjectServiceProxy::TRspExecuteBatch::TRspExecuteBatch(
     const std::multimap<Stroka, int>& keyToIndexes)
     : TClientResponse(std::move(clientContext))
     , KeyToIndexes(keyToIndexes)
-    , Promise(NewPromise<TRspExecuteBatchPtr>())
 { }
 
 TPromise<TObjectServiceProxy::TRspExecuteBatchPtr>
 TObjectServiceProxy::TRspExecuteBatch::GetPromise()
 {
     return Promise;
+}
+
+void TObjectServiceProxy::TRspExecuteBatch::SetEmpty()
+{
+    NProto::TRspExecute body;
+    auto message = CreateResponseMessage(body);
+    static_cast<IClientResponseHandler*>(this)->HandleResponse(std::move(message));
 }
 
 void TObjectServiceProxy::TRspExecuteBatch::SetPromise(const TError& error)
@@ -140,20 +150,20 @@ void TObjectServiceProxy::TRspExecuteBatch::SetPromise(const TError& error)
 
 void TObjectServiceProxy::TRspExecuteBatch::DeserializeBody(const TRef& data)
 {
-    DeserializeFromProtoWithEnvelope(&Body, data);
+    NProto::TRspExecute body;
+    DeserializeFromProtoWithEnvelope(&body, data);
 
     int currentIndex = 0;
-    BeginPartIndexes.clear();
-    BeginPartIndexes.reserve(Body.part_counts_size());
-    for (int partCount : Body.part_counts()) {
-        BeginPartIndexes.push_back(currentIndex);
+    PartRanges.reserve(body.part_counts_size());
+    for (int partCount : body.part_counts()) {
+        PartRanges.push_back(std::make_pair(currentIndex, currentIndex + partCount));
         currentIndex += partCount;
     }
 }
 
 int TObjectServiceProxy::TRspExecuteBatch::GetSize() const
 {
-    return Body.part_counts_size();
+    return PartRanges.size();
 }
 
 TErrorOr<TYPathResponsePtr> TObjectServiceProxy::TRspExecuteBatch::GetResponse(int index) const
@@ -179,17 +189,15 @@ std::vector<TErrorOr<NYTree::TYPathResponsePtr>> TObjectServiceProxy::TRspExecut
 TSharedRefArray TObjectServiceProxy::TRspExecuteBatch::GetResponseMessage(int index) const
 {
     YCHECK(index >= 0 && index < GetSize());
-    int beginIndex = BeginPartIndexes[index];
-    int endIndex = beginIndex + Body.part_counts(index);
+    int beginIndex = PartRanges[index].first;
+    int endIndex = PartRanges[index].second;
     if (beginIndex == endIndex) {
         // This is an empty response.
         return TSharedRefArray();
     }
-
-    std::vector<TSharedRef> innerParts(
+    return TSharedRefArray(std::vector<TSharedRef>(
         Attachments_.begin() + beginIndex,
-        Attachments_.begin() + endIndex);
-    return TSharedRefArray(std::move(innerParts));
+        Attachments_.begin() + endIndex));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
