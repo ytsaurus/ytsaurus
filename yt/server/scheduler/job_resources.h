@@ -2,8 +2,6 @@
 
 #include "public.h"
 
-#include <yt/core/misc/phoenix.h>
-
 #include <yt/ytlib/node_tracker_client/helpers.h>
 #include <yt/ytlib/node_tracker_client/node.pb.h>
 
@@ -31,7 +29,7 @@ public:
 
     NNodeTrackerClient::NProto::TNodeResources ToNodeResources() const;
 
-    void Persist(NPhoenix::TPersistenceContext& context);
+    void Persist(TStreamPersistenceContext& context);
 };
 
 #define ITERATE_JOB_RESOURCES(XX) \
