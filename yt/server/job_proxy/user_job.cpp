@@ -930,7 +930,7 @@ private:
         // Theoretically, process may have explicitely closed its output pipes,
         // but still be doing some computations.
         auto jobExitError = WaitFor(ProcessFinished_);
-        LOG_INFO(jobExitError, "Job process completed");
+        LOG_INFO(jobExitError, "Job process finished");
         onIOError.Run(jobExitError);
 
         // Abort input pipes unconditionally.
