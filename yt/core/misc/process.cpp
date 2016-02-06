@@ -320,7 +320,7 @@ void TProcess::ValidateSpawnResult()
         // * child killed by signal before exec
         // * child killed by signal after exec
         // So we treat kill-before-exec the same way as kill-after-exec.
-        LOG_DEBUG("Child process spawn successfully (Pid: %v)", ProcessId_);
+        LOG_DEBUG("Child process spawned successfully (Pid: %v)", ProcessId_);
         return;
     }
 
