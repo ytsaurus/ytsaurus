@@ -940,13 +940,13 @@ class TestTablets(YTEnvSetup):
         assert len(snapshots) == 1
 
         self.Env.kill_service("node")
-        # Wait for make sure all leases have expired
+        # Wait to make sure all leases have expired
         time.sleep(3.0)
         self.Env.start_nodes("node")
 
         self.wait_for_cells()
 
-        # Wait for make all tablets are up
+        # Wait to make all tablets are up
         time.sleep(3.0)
 
         keys = [{"key": i} for i in xrange(100)]
