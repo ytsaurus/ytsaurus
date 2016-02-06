@@ -149,14 +149,14 @@ TProcess::TProcess(const Stroka& path, bool copyEnv, TDuration pollPeriod)
 
 void TProcess::AddArgument(TStringBuf arg)
 {
-    YCHECK(ProcessId_ == InvalidProcessId && !IsFinished_);
+    YCHECK(ProcessId_ == InvalidProcessId && !Finished_);
 
     Args_.push_back(Capture(arg));
 }
 
 void TProcess::AddEnvVar(TStringBuf var)
 {
-    YCHECK(ProcessId_ == InvalidProcessId && !IsFinished_);
+    YCHECK(ProcessId_ == InvalidProcessId && !Finished_);
 
     Env_.push_back(Capture(var));
 }
@@ -210,7 +210,7 @@ TFuture<void> TProcess::Spawn()
 void TProcess::DoSpawn()
 {
 #ifdef _unix_
-    YCHECK(ProcessId_ == InvalidProcessId && !IsFinished_);
+    YCHECK(ProcessId_ == InvalidProcessId && !Finished_);
 
     // Make sure no spawn action closes Pipe_.WriteFD
     TPipeFactory pipeFactory(MaxSpawnActionFD_ + 1);
@@ -301,7 +301,7 @@ void TProcess::SpawnChild()
     }
 
     ProcessId_ = pid;
-    IsStarted_ = true;
+    Started_ = true;
 #else
     THROW_ERROR_EXCEPTION("Unsupported platform");
 #endif
@@ -325,7 +325,7 @@ void TProcess::ValidateSpawnResult()
     }
 
     YCHECK(res == sizeof(data));
-    IsFinished_ = true;
+    Finished_ = true;
 
     Cleanup(ProcessId_);
     ProcessId_ = InvalidProcessId;
@@ -388,7 +388,7 @@ void TProcess::AsyncPeriodicTryWait()
     // because we have already waited for this process with WNOHANG
     WaitidOrDie(P_PID, ProcessId_, &processInfo, WEXITED | WNOHANG);
 
-    IsFinished_ = true;
+    Finished_ = true;
     LOG_DEBUG("Process finished (Pid: %v)", ProcessId_);
 
     FinishedPromise_.Set(ProcessInfoToError(processInfo));
@@ -400,11 +400,11 @@ void TProcess::AsyncPeriodicTryWait()
 void TProcess::Kill(int signal)
 {
 #ifdef _unix_
-    if (!IsStarted_) {
+    if (!Started_) {
         THROW_ERROR_EXCEPTION("Process is not started yet");
     }
 
-    if (IsFinished_) {
+    if (Finished_) {
         return;
     }
 
@@ -433,12 +433,12 @@ int TProcess::GetProcessId() const
 
 bool TProcess::IsStarted() const
 {
-    return IsStarted_;
+    return Started_;
 }
 
 bool TProcess::IsFinished() const
 {
-    return IsFinished_;
+    return Finished_;
 }
 
 Stroka TProcess::GetCommandLine() const
