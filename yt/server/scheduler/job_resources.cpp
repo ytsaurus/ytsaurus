@@ -43,7 +43,7 @@ TNodeResources TJobResources::ToNodeResources() const
     return result;
 }
 
-void TJobResources::Persist(NPhoenix::TPersistenceContext& context)
+void TJobResources::Persist(TStreamPersistenceContext& context)
 {
     using NYT::Persist;
 
