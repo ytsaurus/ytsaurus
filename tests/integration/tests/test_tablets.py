@@ -1126,3 +1126,34 @@ class TestTablets(YTEnvSetup):
         
         assert get("#" + cell_id + "/@health") == "good"
         assert lookup_rows("//tmp/t", keys) == rows
+
+    def test_rff_requires_async_last_committed(self):
+        self.sync_create_cells(3, 1)
+        self._create_table("//tmp/t")
+        self.sync_mount_table("//tmp/t")
+        
+        keys = [{"key": 1}]
+        with pytest.raises(YtError): lookup_rows("//tmp/t", keys, read_from="follower")
+    
+    def test_rff_when_only_leader_exists(self):
+        self.sync_create_cells(1, 1)
+        self._create_table("//tmp/t")
+        self.sync_mount_table("//tmp/t")
+
+        rows = [{"key": 1, "value": "2"}]
+        keys = [{"key": 1}]
+        insert_rows("//tmp/t", rows)
+
+        assert lookup_rows("//tmp/t", keys, read_from="follower") == rows
+
+    def test_rff_lookup(self):
+        self.sync_create_cells(1, 1)
+        self._create_table("//tmp/t")
+        self.sync_mount_table("//tmp/t")
+
+        rows = [{"key": 1, "value": "2"}]
+        keys = [{"key": 1}]
+        insert_rows("//tmp/t", rows)
+
+        sleep(1.0)
+        assert lookup_rows("//tmp/t", keys, read_from="follower", timestamp=AsyncLastCommittedTimestamp) == rows
