@@ -8,6 +8,9 @@
 #include <yt/server/query_agent/helpers.h>
 
 #include <yt/server/tablet_node/security_manager.h>
+#include <yt/server/tablet_node/slot_manager.h>
+#include <yt/server/tablet_node/tablet.h>
+#include <yt/server/tablet_node/tablet_manager.h>
 
 #include <yt/ytlib/node_tracker_client/node_directory.h>
 
@@ -30,6 +33,7 @@
 namespace NYT {
 namespace NQueryAgent {
 
+using namespace NYTree;
 using namespace NConcurrency;
 using namespace NRpc;
 using namespace NCompression;
@@ -58,6 +62,7 @@ public:
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Execute)
             .SetCancelable(true));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(Read));
     }
 
 private:
@@ -103,6 +108,54 @@ private:
                     : ECodec::None;
                 response->Attachments() = CompressWithEnvelope(protocolWriter.Flush(), responseCodec);
                 ToProto(response->mutable_query_statistics(), result);
+                context->Reply();
+            });
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NQueryClient::NProto, Read)
+    {
+        auto tabletId = FromProto<TTabletId>(request->tablet_id());
+        auto timestamp = TTimestamp(request->timestamp());
+        // TODO(sandello): Extract this out of RPC request.
+        auto workloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::UserRealtime);
+        auto requestData = DecompressWithEnvelope(request->Attachments());
+
+        context->SetRequestInfo("TabletId: %v, Timestamp: %v",
+            tabletId,
+            timestamp);
+
+        auto slotManager = Bootstrap_->GetTabletSlotManager();
+
+        const auto& user = context->GetUser();
+        auto securityManager = Bootstrap_->GetSecurityManager();
+        TAuthenticatedUserGuard userGuard(securityManager, user);
+
+        ExecuteRequestWithRetries(
+            Config_->MaxQueryRetries,
+            Logger,
+            [&] () {
+                auto tabletSnapshot = slotManager->GetTabletSnapshotOrThrow(tabletId);
+                slotManager->ValidateTabletAccess(
+                    tabletSnapshot,
+                    EPermission::Read,
+                    timestamp);
+
+                TWireProtocolReader reader(requestData);
+                TWireProtocolWriter writer;
+
+                const auto& tabletManager = tabletSnapshot->TabletManager;
+                tabletManager->Read(
+                    tabletSnapshot,
+                    timestamp,
+                    workloadDescriptor,
+                    &reader,
+                    &writer);
+
+                auto responseData = writer.Flush();
+                auto responseCodec = request->has_response_codec()
+                    ? ECodec(request->response_codec())
+                    : ECodec(ECodec::None);
+                response->Attachments() = CompressWithEnvelope(responseData,  responseCodec);
                 context->Reply();
             });
     }

@@ -157,6 +157,41 @@ TNameTableToSchemaIdMapping BuildColumnIdMapping(
     return mapping;
 }
 
+const TCellPeerDescriptor& GetLeadingTabletPeerDescriptorOrThrow(
+    const TCellDescriptor& cellDescriptor)
+{
+    if (cellDescriptor.Peers.empty()) {
+        THROW_ERROR_EXCEPTION("No alive replicas for tablet cell %v",
+            cellDescriptor.CellId);
+    }
+
+    for (const auto& peerDescriptor : cellDescriptor.Peers) {
+        if (peerDescriptor.GetVoting()) {
+            return peerDescriptor;
+        }
+    }
+
+    THROW_ERROR_EXCEPTION("No leading peer is known for tablet cell %v",
+        cellDescriptor.CellId);
+}
+
+TTabletInfoPtr GetTabletForKey(
+    const TTableMountInfoPtr& tableInfo,
+    NTableClient::TKey key)
+{
+    auto tabletInfo = tableInfo->GetTablet(key);
+    if (tabletInfo->State != ETabletState::Mounted) {
+        THROW_ERROR_EXCEPTION(
+            NTabletClient::EErrorCode::TabletNotMounted,
+            "Tablet %v of table %v is in %Qlv state",
+            tabletInfo->TabletId,
+            tableInfo->Path,
+            tabletInfo->State)
+            << TErrorAttribute("tablet_id", tabletInfo->TabletId);
+    }
+    return tabletInfo;
+}
+
 } // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -479,23 +514,6 @@ private:
         return subsources;
     }
 
-    static const TCellPeerDescriptor& GetLeadingTabletPeerDescriptor(const TCellDescriptor& cellDescriptor)
-    {
-        if (cellDescriptor.Peers.empty()) {
-            THROW_ERROR_EXCEPTION("No alive replicas for tablet cell %v",
-                cellDescriptor.CellId);
-        }
-
-        for (const auto& peerDescriptor : cellDescriptor.Peers) {
-            if (peerDescriptor.GetVoting()) {
-                return peerDescriptor;
-            }
-        }
-
-        THROW_ERROR_EXCEPTION("No leading peer is known for tablet cell %v",
-            cellDescriptor.CellId);
-    }
-
     std::vector<std::pair<TDataRanges, Stroka>> SplitDynamicTable(
         TGuid tableId,
         TSharedRange<TRowRange> ranges,
@@ -520,7 +538,7 @@ private:
                 descriptor = cellDirectory->GetDescriptorOrThrow(tabletInfo->CellId);
             }
 
-            const auto& peerDescriptor = GetLeadingTabletPeerDescriptor(descriptor);
+            const auto& peerDescriptor = GetLeadingTabletPeerDescriptorOrThrow(descriptor);
             return peerDescriptor.GetAddress(networkName);
         };
 
@@ -1138,13 +1156,6 @@ public:
 #undef DROP_BRACES
 #undef IMPLEMENT_METHOD
 
-    IChannelPtr GetTabletChannelOrThrow(const TTabletCellId& cellId)
-    {
-        const auto& cellDirectory = Connection_->GetCellDirectory();
-        auto channel = cellDirectory->GetChannelOrThrow(cellId);
-        return CreateAuthenticatedChannel(std::move(channel), Options_.User);
-    }
-
 private:
     friend class TTransaction;
 
@@ -1234,23 +1245,6 @@ private:
         const auto& tableMountCache = Connection_->GetTableMountCache();
         return WaitFor(tableMountCache->GetTableInfo(path))
             .ValueOrThrow();
-    }
-
-    static TTabletInfoPtr SyncGetTabletInfo(
-        TTableMountInfoPtr tableInfo,
-        NTableClient::TKey key)
-    {
-        auto tabletInfo = tableInfo->GetTablet(key);
-        if (tabletInfo->State != ETabletState::Mounted) {
-            THROW_ERROR_EXCEPTION(
-                NTabletClient::EErrorCode::TabletNotMounted,
-                "Tablet %v of table %v is in %Qlv state",
-                tabletInfo->TabletId,
-                tableInfo->Path,
-                tabletInfo->State)
-                << TErrorAttribute("tablet_id", tabletInfo->TabletId);
-        }
-        return tabletInfo;
     }
 
 
@@ -1346,27 +1340,32 @@ private:
 
 
 
-    class TTabletLookupSession
+    class TTabletCellLookupSession
         : public TIntrinsicRefCounted
     {
     public:
-        TTabletLookupSession(
+        TTabletCellLookupSession(
             TClient* owner,
-            TTabletInfoPtr tabletInfo,
+            const TCellId& cellId,
             const TLookupRowsOptions& options,
             const TNameTableToSchemaIdMapping& idMapping,
-            const TTableSchema& schema)
-            : Config_(owner->Connection_->GetConfig())
-            , TabletId_(tabletInfo->TabletId)
-            , Options_(options)
+            TTableMountInfoPtr tableInfo)
+            : CellId_(cellId)
+            , Connection_(owner->Connection_)
+            , Config_(Connection_->GetConfig())
+            , LookupOptions_(options)
+            , ClientOptions_(owner->Options_)
             , IdMapping_(idMapping)
-            , Schema_(schema)
+            , TableInfo_(std::move(tableInfo))
         { }
 
-        void AddKey(int index, NTableClient::TKey key)
+        void AddKey(int index, TTabletInfoPtr tabletInfo, NTableClient::TKey key)
         {
-            if (Batches_.empty() || Batches_.back()->Indexes.size() >= Config_->MaxRowsPerReadRequest) {
-                Batches_.emplace_back(new TBatch());
+            if (Batches_.empty() ||
+                Batches_.back()->TabletInfo->TabletId != tabletInfo->TabletId ||
+                Batches_.back()->Indexes.size() >= Config_->MaxRowsPerReadRequest)
+            {
+                Batches_.emplace_back(new TBatch(std::move(tabletInfo)));
             }
 
             auto& batch = Batches_.back();
@@ -1374,13 +1373,13 @@ private:
             batch->Keys.push_back(key);
         }
 
-        TFuture<void> Invoke(IChannelPtr channel)
+        TFuture<void> Invoke()
         {
             // Do all the heavy lifting here.
             for (auto& batch : Batches_) {
                 TReqLookupRows req;
-                if (!Options_.ColumnFilter.All) {
-                    ToProto(req.mutable_column_filter()->mutable_indexes(), Options_.ColumnFilter.Indexes);
+                if (!LookupOptions_.ColumnFilter.All) {
+                    ToProto(req.mutable_column_filter()->mutable_indexes(), LookupOptions_.ColumnFilter.Indexes);
                 }
 
                 TWireProtocolWriter writer;
@@ -1393,7 +1392,18 @@ private:
                     Config_->LookupRequestCodec);
             }
 
-            InvokeChannel_ = channel;
+            const auto& cellDirectory = Connection_->GetCellDirectory();
+            const auto& cellDescriptor = cellDirectory->GetDescriptorOrThrow(CellId_);
+            const auto& peerDescriptor = GetLeadingTabletPeerDescriptorOrThrow(cellDescriptor);
+
+            const auto& channelFactory = Connection_->GetLightNodeChannelFactory();
+            auto channel = channelFactory->CreateChannel(peerDescriptor.GetAddress(Config_->NetworkName));
+            channel = CreateAuthenticatedChannel(std::move(channel), ClientOptions_.User);
+
+            InvokeProxy_ = std::make_unique<TQueryServiceProxy>(std::move(channel));
+            InvokeProxy_->SetDefaultTimeout(Config_->LookupTimeout);
+            InvokeProxy_->SetDefaultRequestAck(false);
+
             InvokeNextBatch();
             return InvokePromise_;
         }
@@ -1402,7 +1412,7 @@ private:
             std::vector<TUnversionedRow>* resultRows,
             std::vector<std::unique_ptr<TWireProtocolReader>>* readers)
         {
-            auto schemaData = TWireProtocolReader::GetSchemaData(Schema_, Options_.ColumnFilter);
+            auto schemaData = TWireProtocolReader::GetSchemaData(TableInfo_->Schema, LookupOptions_.ColumnFilter);
             for (const auto& batch : Batches_) {
                 auto data = NCompression::DecompressWithEnvelope(batch->Response->Attachments());
                 auto reader = std::make_unique<TWireProtocolReader>(data);
@@ -1415,23 +1425,29 @@ private:
         }
 
     private:
-        TConnectionConfigPtr Config_;
-        TTabletId TabletId_;
-        TLookupRowsOptions Options_;
-        TNameTableToSchemaIdMapping IdMapping_;
-        const TTableSchema& Schema_;
+        const TCellId CellId_;
+        const IConnectionPtr Connection_;
+        const TConnectionConfigPtr Config_;
+        const TLookupRowsOptions LookupOptions_;
+        const TClientOptions ClientOptions_;
+        const TNameTableToSchemaIdMapping IdMapping_;
+        const TTableMountInfoPtr TableInfo_;
 
         struct TBatch
         {
+            explicit TBatch(TTabletInfoPtr tabletInfo)
+                : TabletInfo(std::move(tabletInfo))
+            { }
+
+            TTabletInfoPtr TabletInfo;
             std::vector<int> Indexes;
             std::vector<NTableClient::TKey> Keys;
             std::vector<TSharedRef> RequestData;
-            TTabletServiceProxy::TRspReadPtr Response;
+            TQueryServiceProxy::TRspReadPtr Response;
         };
 
         std::vector<std::unique_ptr<TBatch>> Batches_;
-
-        IChannelPtr InvokeChannel_;
+        std::unique_ptr<TQueryServiceProxy> InvokeProxy_;
         int InvokeBatchIndex_ = 0;
         TPromise<void> InvokePromise_ = NewPromise<void>();
 
@@ -1445,21 +1461,17 @@ private:
 
             const auto& batch = Batches_[InvokeBatchIndex_];
 
-            TTabletServiceProxy proxy(InvokeChannel_);
-            proxy.SetDefaultTimeout(Config_->LookupTimeout);
-            proxy.SetDefaultRequestAck(false);
-
-            auto req = proxy.Read();
-            ToProto(req->mutable_tablet_id(), TabletId_);
-            req->set_timestamp(Options_.Timestamp);
+            auto req = InvokeProxy_->Read();
+            ToProto(req->mutable_tablet_id(), batch->TabletInfo->TabletId);
+            req->set_timestamp(LookupOptions_.Timestamp);
             req->set_response_codec(static_cast<int>(Config_->LookupResponseCodec));
             req->Attachments() = std::move(batch->RequestData);
 
             req->Invoke().Subscribe(
-                BIND(&TTabletLookupSession::OnResponse, MakeStrong(this)));
+                BIND(&TTabletCellLookupSession::OnResponse, MakeStrong(this)));
         }
 
-        void OnResponse(const TTabletServiceProxy::TErrorOrRspReadPtr& rspOrError)
+        void OnResponse(const TQueryServiceProxy::TErrorOrRspReadPtr& rspOrError)
         {
             if (rspOrError.IsOK()) {
                 Batches_[InvokeBatchIndex_]->Response = rspOrError.Value();
@@ -1472,7 +1484,7 @@ private:
 
     };
 
-    typedef TIntrusivePtr<TTabletLookupSession> TLookupTabletSessionPtr;
+    typedef TIntrusivePtr<TTabletCellLookupSession> TTabletCellLookupTabletPtr;
 
     IRowsetPtr DoLookupRows(
         const TYPath& path,
@@ -1501,15 +1513,14 @@ private:
         auto resultSchema = tableInfo->Schema.Filter(options.ColumnFilter);
         auto idMapping = BuildColumnIdMapping(tableInfo, nameTable);
 
-        // Server-side is specifically optimized for handling long runs of keys
-        // from the same partition. Let's sort the keys to facilitate this.
+        // NB: The server-side requires the keys to be sorted.
         std::vector<std::pair<NTableClient::TKey, int>> sortedKeys;
         sortedKeys.reserve(keys.size());
 
         auto rowBuffer = New<TRowBuffer>();
 
         if (tableInfo->NeedKeyEvaluation) {
-            auto evaluatorCache = Connection_->GetColumnEvaluatorCache();
+            const auto& evaluatorCache = Connection_->GetColumnEvaluatorCache();
             auto evaluator = evaluatorCache->Find(tableInfo->Schema, keyColumnCount);
 
             for (int index = 0; index < keys.size(); ++index) {
@@ -1528,28 +1539,27 @@ private:
         }
         std::sort(sortedKeys.begin(), sortedKeys.end());
 
-        yhash_map<TTabletInfoPtr, TLookupTabletSessionPtr> tabletToSession;
+        yhash_map<TCellId, TTabletCellLookupTabletPtr> cellIdToSession;
 
         for (const auto& pair : sortedKeys) {
             int index = pair.second;
             auto key = pair.first;
-            auto tabletInfo = SyncGetTabletInfo(tableInfo, key);
-            auto it = tabletToSession.find(tabletInfo);
-            if (it == tabletToSession.end()) {
-                it = tabletToSession.insert(std::make_pair(
-                    tabletInfo,
-                    New<TTabletLookupSession>(this, tabletInfo, options, idMapping, tableInfo->Schema))).first;
+            auto tabletInfo = GetTabletForKey(tableInfo, key);
+            const auto& cellId = tabletInfo->CellId;
+            auto it = cellIdToSession.find(cellId);
+            if (it == cellIdToSession.end()) {
+                it = cellIdToSession.insert(std::make_pair(
+                    cellId,
+                    New<TTabletCellLookupSession>(this, cellId, options, idMapping, tableInfo))).first;
             }
             const auto& session = it->second;
-            session->AddKey(index, key);
+            session->AddKey(index, std::move(tabletInfo), key);
         }
 
         std::vector<TFuture<void>> asyncResults;
-        for (const auto& pair : tabletToSession) {
-            const auto& tabletInfo = pair.first;
+        for (const auto& pair : cellIdToSession) {
             const auto& session = pair.second;
-            auto channel = GetTabletChannelOrThrow(tabletInfo->CellId);
-            asyncResults.push_back(session->Invoke(std::move(channel)));
+            asyncResults.push_back(session->Invoke());
         }
 
         WaitFor(Combine(asyncResults))
@@ -1560,7 +1570,7 @@ private:
 
         std::vector<std::unique_ptr<TWireProtocolReader>> readers;
 
-        for (const auto& pair : tabletToSession) {
+        for (const auto& pair : cellIdToSession) {
             const auto& session = pair.second;
             session->ParseResponse(&resultRows, &readers);
         }
@@ -2764,7 +2774,7 @@ private:
                     evaluator->EvaluateKeys(capturedRow, rowBuffer);
                 }
 
-                auto tabletInfo = Transaction_->Client_->SyncGetTabletInfo(TableInfo_, capturedRow);
+                auto tabletInfo = GetTabletForKey(TableInfo_, capturedRow);
                 auto* session = Transaction_->GetTabletSession(tabletInfo, TableInfo_);
                 session->SubmitRow(command, capturedRow);
             }
@@ -3112,7 +3122,7 @@ private:
             for (const auto& pair : TabletToSession_) {
                 const auto& tabletInfo = pair.first;
                 const auto& session = pair.second;
-                auto channel = Client_->GetTabletChannelOrThrow(tabletInfo->CellId);
+                auto channel = GetTabletChannelOrThrow(tabletInfo->CellId);
                 asyncResults.push_back(session->Invoke(std::move(channel)));
             }
 
@@ -3126,6 +3136,13 @@ private:
 
         WaitFor(Transaction_->Commit(options))
             .ThrowOnError();
+    }
+
+    IChannelPtr GetTabletChannelOrThrow(const TTabletCellId& cellId) const
+    {
+        const auto& cellDirectory = Client_->Connection_->GetCellDirectory();
+        auto channel = cellDirectory->GetChannelOrThrow(cellId);
+        return CreateAuthenticatedChannel(std::move(channel), Client_->Options_.User);
     }
 
     TTimestamp GetReadTimestamp() const

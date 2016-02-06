@@ -2,6 +2,7 @@ package NYT.NQueryClient.NProto;
 
 import "yt/ytlib/query_client/query_statistics.proto";
 import "yt/ytlib/query_client/plan_fragment.proto";
+import "yt/core/misc/guid.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -21,3 +22,16 @@ message TRspExecute
 
 ////////////////////////////////////////////////////////////////////////////////
 
+message TReqRead
+{
+    required NYT.NProto.TGuid tablet_id = 1;
+    required int64 timestamp = 2;
+    optional int32 response_codec = 4;
+}
+
+message TRspRead
+{
+    // Wire-encoded response is passed via attachments.
+}
+
+////////////////////////////////////////////////////////////////////////////////

@@ -16,8 +16,6 @@
 #include <yt/server/hydra/hydra_service.h>
 #include <yt/server/hydra/mutation.h>
 
-#include <yt/server/query_agent/helpers.h>
-
 #include <yt/ytlib/tablet_client/tablet_service_proxy.h>
 #include <yt/ytlib/tablet_client/wire_protocol.h>
 
@@ -62,8 +60,6 @@ public:
 
         RegisterMethod(RPC_SERVICE_METHOD_DESC(StartTransaction)
             .SetInvoker(Slot_->GetGuardedAutomatonInvoker(EAutomatonThreadQueue::Write)));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(Read)
-            .SetInvoker(Bootstrap_->GetQueryPoolInvoker()));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Write)
             .SetInvoker(Slot_->GetGuardedAutomatonInvoker(EAutomatonThreadQueue::Write)));
     }
@@ -94,55 +90,6 @@ private:
         transactionManager
             ->CreateStartTransactionMutation(*request)
             ->CommitAndReply(context);
-    }
-
-    DECLARE_RPC_SERVICE_METHOD(NTabletClient::NProto, Read)
-    {
-        auto tabletId = FromProto<TTabletId>(request->tablet_id());
-        auto timestamp = TTimestamp(request->timestamp());
-        // TODO(sandello): Extract this out of RPC request.
-        auto workloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::UserRealtime);
-        auto requestData = DecompressWithEnvelope(request->Attachments());
-
-        context->SetRequestInfo("TabletId: %v, Timestamp: %v",
-            tabletId,
-            timestamp);
-
-        const auto& user = context->GetUser();
-        auto securityManager = Bootstrap_->GetSecurityManager();
-        TAuthenticatedUserGuard userGuard(securityManager, user);
-
-        auto slotManager = Bootstrap_->GetTabletSlotManager();
-        auto config = Bootstrap_->GetConfig()->QueryAgent;
-
-        NQueryAgent::ExecuteRequestWithRetries(
-            config->MaxQueryRetries,
-            Logger,
-            [&] () {
-                auto tabletSnapshot = slotManager->GetTabletSnapshotOrThrow(tabletId);
-                slotManager->ValidateTabletAccess(
-                    tabletSnapshot,
-                    EPermission::Read,
-                    timestamp);
-
-                TWireProtocolReader reader(requestData);
-                TWireProtocolWriter writer;
-
-                const auto& tabletManager = tabletSnapshot->TabletManager;
-                tabletManager->Read(
-                    tabletSnapshot,
-                    timestamp,
-                    workloadDescriptor,
-                    &reader,
-                    &writer);
-
-                auto responseData = writer.Flush();
-                auto responseCodec = request->has_response_codec()
-                    ? ECodec(request->response_codec())
-                    : ECodec(ECodec::None);
-                response->Attachments() = CompressWithEnvelope(responseData,  responseCodec);
-                context->Reply();
-            });
     }
 
     DECLARE_RPC_SERVICE_METHOD(NTabletClient::NProto, Write)
