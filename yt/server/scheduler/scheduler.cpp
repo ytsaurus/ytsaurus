@@ -439,7 +439,7 @@ public:
     TJobProberServiceProxy CreateJobProberProxy(const TJobPtr& job)
     {
         const auto& address = job->GetNode()->GetInterconnectAddress();
-        auto channel = GetMasterClient()->GetLightNodeChannelFactory()->CreateChannel(address);
+        auto channel = GetMasterClient()->GetNodeChannelFactory()->CreateChannel(address);
 
         TJobProberServiceProxy proxy(channel);
         proxy.SetDefaultTimeout(Bootstrap_->GetConfig()->Scheduler->JobProberRpcTimeout);
