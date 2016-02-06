@@ -169,7 +169,7 @@ private:
             Owner_->CellManager_->GetPeerTags(followerId));
 
         if (!rspOrError.IsOK()) {
-            LOG_WARNING(rspOrError, "Error logging mutations at follower (PeerId: %v)",
+            LOG_DEBUG(rspOrError, "Error logging mutations at follower (PeerId: %v)",
                 followerId);
             return;
         }
