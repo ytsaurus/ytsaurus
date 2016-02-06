@@ -20,18 +20,6 @@ message TRspStartTransaction
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message TReqRead
-{
-    required NYT.NProto.TGuid tablet_id = 1;
-    required int64 timestamp = 2;
-    optional int32 response_codec = 4;
-}
-
-message TRspRead
-{ }
-
-////////////////////////////////////////////////////////////////////////////////
-
 message TReqWrite
 {
     required NYT.NProto.TGuid transaction_id = 1;
@@ -42,9 +30,7 @@ message TReqWrite
 }
 
 message TRspWrite
-{
-    // Wire-encoded response is passed via attachments.
-}
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 
