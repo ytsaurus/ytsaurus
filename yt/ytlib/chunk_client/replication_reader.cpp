@@ -782,7 +782,7 @@ private:
 
                 IChannelPtr channel;
                 try {
-                    auto channelFactory = reader->Client_->GetHeavyNodeChannelFactory();
+                    auto channelFactory = reader->Client_->GetHeavyChannelFactory();
                     channel = channelFactory->CreateChannel(currentAddress);
                 } catch (const std::exception& ex) {
                     RegisterError(ex);
@@ -1056,7 +1056,7 @@ private:
 
                 IChannelPtr channel;
                 try {
-                    auto channelFactory = reader->Client_->GetHeavyNodeChannelFactory();
+                    auto channelFactory = reader->Client_->GetHeavyChannelFactory();
                     channel = channelFactory->CreateChannel(currentAddress);
                 } catch (const std::exception& ex) {
                     RegisterError(ex);
@@ -1270,7 +1270,7 @@ private:
 
         IChannelPtr channel;
         try {
-            auto channelFactory = reader->Client_->GetLightNodeChannelFactory();
+            auto channelFactory = reader->Client_->GetNodeChannelFactory();
             channel = channelFactory->CreateChannel(address);
         } catch (const std::exception& ex) {
             OnGetChunkMetaFailed(address, ex);

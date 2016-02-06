@@ -614,7 +614,7 @@ private:
 
     std::vector<std::pair<TDataRanges, Stroka>> InferRanges(
         TConstQueryPtr query,
-        TDataRanges dataSource,
+        const TDataRanges& dataSource,
         ui64 rangeExpansionLimit,
         bool verboseLogging,
         TRowBufferPtr rowBuffer,
@@ -897,12 +897,12 @@ public:
         return SchedulerChannel_;
     }
 
-    virtual IChannelFactoryPtr GetLightNodeChannelFactory() override
+    virtual IChannelFactoryPtr GetNodeChannelFactory() override
     {
         return LightChannelFactory_;
     }
 
-    virtual IChannelFactoryPtr GetHeavyNodeChannelFactory() override
+    virtual IChannelFactoryPtr GetHeavyChannelFactory() override
     {
         return HeavyChannelFactory_;
     }
@@ -1345,16 +1345,15 @@ private:
     {
     public:
         TTabletCellLookupSession(
-            TClient* owner,
+            TClientPtr client,
             const TCellId& cellId,
             const TLookupRowsOptions& options,
             const TNameTableToSchemaIdMapping& idMapping,
             TTableMountInfoPtr tableInfo)
             : CellId_(cellId)
-            , Connection_(owner->Connection_)
-            , Config_(Connection_->GetConfig())
-            , LookupOptions_(options)
-            , ClientOptions_(owner->Options_)
+            , Client_(std::move(client))
+            , Config_(Client_->Connection_->GetConfig())
+            , Options_(options)
             , IdMapping_(idMapping)
             , TableInfo_(std::move(tableInfo))
         { }
@@ -1378,8 +1377,8 @@ private:
             // Do all the heavy lifting here.
             for (auto& batch : Batches_) {
                 TReqLookupRows req;
-                if (!LookupOptions_.ColumnFilter.All) {
-                    ToProto(req.mutable_column_filter()->mutable_indexes(), LookupOptions_.ColumnFilter.Indexes);
+                if (!Options_.ColumnFilter.All) {
+                    ToProto(req.mutable_column_filter()->mutable_indexes(), Options_.ColumnFilter.Indexes);
                 }
 
                 TWireProtocolWriter writer;
@@ -1392,13 +1391,12 @@ private:
                     Config_->LookupRequestCodec);
             }
 
-            const auto& cellDirectory = Connection_->GetCellDirectory();
+            const auto& cellDirectory = Client_->Connection_->GetCellDirectory();
             const auto& cellDescriptor = cellDirectory->GetDescriptorOrThrow(CellId_);
             const auto& peerDescriptor = GetLeadingTabletPeerDescriptorOrThrow(cellDescriptor);
 
-            const auto& channelFactory = Connection_->GetLightChannelFactory();
+            const auto& channelFactory = Client_->GetHeavyChannelFactory();
             auto channel = channelFactory->CreateChannel(peerDescriptor.GetAddress(Config_->NetworkName));
-            channel = CreateAuthenticatedChannel(std::move(channel), ClientOptions_.User);
 
             InvokeProxy_ = std::make_unique<TQueryServiceProxy>(std::move(channel));
             InvokeProxy_->SetDefaultTimeout(Config_->LookupTimeout);
@@ -1412,7 +1410,7 @@ private:
             std::vector<TUnversionedRow>* resultRows,
             std::vector<std::unique_ptr<TWireProtocolReader>>* readers)
         {
-            auto schemaData = TWireProtocolReader::GetSchemaData(TableInfo_->Schema, LookupOptions_.ColumnFilter);
+            auto schemaData = TWireProtocolReader::GetSchemaData(TableInfo_->Schema, Options_.ColumnFilter);
             for (const auto& batch : Batches_) {
                 auto data = NCompression::DecompressWithEnvelope(batch->Response->Attachments());
                 auto reader = std::make_unique<TWireProtocolReader>(data);
@@ -1426,10 +1424,9 @@ private:
 
     private:
         const TCellId CellId_;
-        const IConnectionPtr Connection_;
+        const TClientPtr Client_;
         const TConnectionConfigPtr Config_;
-        const TLookupRowsOptions LookupOptions_;
-        const TClientOptions ClientOptions_;
+        const TLookupRowsOptions Options_;
         const TNameTableToSchemaIdMapping IdMapping_;
         const TTableMountInfoPtr TableInfo_;
 
@@ -1463,7 +1460,7 @@ private:
 
             auto req = InvokeProxy_->Read();
             ToProto(req->mutable_tablet_id(), batch->TabletInfo->TabletId);
-            req->set_timestamp(LookupOptions_.Timestamp);
+            req->set_timestamp(Options_.Timestamp);
             req->set_response_codec(static_cast<int>(Config_->LookupResponseCodec));
             req->Attachments() = std::move(batch->RequestData);
 

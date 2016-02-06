@@ -584,8 +584,8 @@ private:
             const auto& networkName = Client_->GetConnection()->GetConfig()->NetworkName;
             for (const auto& target : targets) {
                 auto address = target.GetAddressOrThrow(networkName);
-                auto lightChannel = Client_->GetLightNodeChannelFactory()->CreateChannel(address);
-                auto heavyChannel = Client_->GetHeavyNodeChannelFactory()->CreateChannel(address);
+                auto lightChannel = Client_->GetNodeChannelFactory()->CreateChannel(address);
+                auto heavyChannel = Client_->GetHeavyChannelFactory()->CreateChannel(address);
                 auto node = New<TNode>(
                     target,
                     std::move(lightChannel),

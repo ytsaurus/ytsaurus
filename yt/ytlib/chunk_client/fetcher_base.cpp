@@ -260,7 +260,7 @@ void TFetcherBase::StartFetchingRound()
 IChannelPtr TFetcherBase::GetNodeChannel(TNodeId nodeId)
 {
     const auto& descriptor = NodeDirectory_->GetDescriptor(nodeId);
-    auto channel = Client_->GetLightNodeChannelFactory()->CreateChannel(descriptor.GetInterconnectAddress());
+    auto channel = Client_->GetNodeChannelFactory()->CreateChannel(descriptor.GetInterconnectAddress());
     return CreateRetryingChannel(Config_->NodeChannel, channel);
 }
 
