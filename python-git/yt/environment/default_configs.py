@@ -312,6 +312,12 @@ def get_driver_config():
 
     transaction_manager = { };
 
+    table_mount_cache = {
+        success_expiration_time = 1000;
+        success_probation_time = 500;
+        failure_expiration_time = 1000;
+    };
+
     format_defaults = {
         structured = <
             format = text;
