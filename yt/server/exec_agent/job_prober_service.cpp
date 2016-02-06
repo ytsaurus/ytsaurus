@@ -60,8 +60,6 @@ private:
         auto job = Bootstrap_->GetJobController()->GetJobOrThrow(jobId);
         auto trace = job->Strace();
 
-        context->SetResponseInfo("Trace: %Qv", trace.Data());
-
         ToProto(response->mutable_trace(), trace.Data());
         context->Reply();
     }
@@ -70,7 +68,6 @@ private:
     {
         auto jobId = FromProto<TJobId>(request->job_id());
         const auto& signalName = request->signal_name();
-
         context->SetRequestInfo("JobId: %v, SignalName: %v",
             jobId,
             signalName);
