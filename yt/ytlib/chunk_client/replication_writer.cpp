@@ -22,7 +22,7 @@
 #include <yt/core/concurrency/scheduler.h>
 #include <yt/core/concurrency/thread_affinity.h>
 
-#include <yt/core/logging/log.h>
+#include <yt/core/rpc/retrying_channel.h>
 
 #include <yt/core/misc/address.h>
 #include <yt/core/misc/async_stream_state.h>
@@ -43,8 +43,11 @@ using namespace NObjectClient;
 
 ///////////////////////////////////////////////////////////////////////////////
 
-class TReplicationWriter;
-typedef TIntrusivePtr<TReplicationWriter> TReplicationWriterPtr;
+DECLARE_REFCOUNTED_CLASS(TReplicationWriter);
+DECLARE_REFCOUNTED_STRUCT(TNode);
+DECLARE_REFCOUNTED_CLASS(TGroup);
+
+///////////////////////////////////////////////////////////////////////////////
 
 struct TNode
     : public TRefCounted
@@ -52,30 +55,25 @@ struct TNode
     const int Index;
     const TNodeDescriptor Descriptor;
     const TChunkReplica ChunkReplica;
+    const IChannelPtr LightChannel;
+    const IChannelPtr HeavyChannel;
 
     TError Error;
-    TDataNodeServiceProxy LightProxy;
-    TDataNodeServiceProxy HeavyProxy;
     TPeriodicExecutorPtr PingExecutor;
-    std::atomic_flag Canceled;
+    std::atomic_flag Canceled = ATOMIC_FLAG_INIT;
 
     TNode(
         int index,
         const TNodeDescriptor& descriptor,
         TChunkReplica chunkReplica,
         IChannelPtr lightChannel,
-        IChannelPtr heavyChannel,
-        TDuration rpcTimeout)
+        IChannelPtr heavyChannel)
         : Index(index)
         , Descriptor(descriptor)
         , ChunkReplica(chunkReplica)
-        , LightProxy(lightChannel)
-        , HeavyProxy(heavyChannel)
-    {
-        LightProxy.SetDefaultTimeout(rpcTimeout);
-        HeavyProxy.SetDefaultTimeout(rpcTimeout);
-        Canceled.clear();
-    }
+        , LightChannel(std::move(lightChannel))
+        , HeavyChannel(std::move(heavyChannel))
+    { }
 
     bool IsAlive() const
     {
@@ -84,13 +82,12 @@ struct TNode
 
 };
 
-typedef TIntrusivePtr<TNode> TNodePtr;
-typedef TWeakPtr<TNode> TNodeWeakPtr;
-
-Stroka ToString(TNodePtr node)
+Stroka ToString(const TNodePtr& node)
 {
     return node->Descriptor.GetDefaultAddress();
 }
+
+DEFINE_REFCOUNTED_TYPE(TNode);
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -103,14 +100,19 @@ public:
         int startBlockIndex);
 
     void AddBlock(const TSharedRef& block);
+
     void ScheduleProcess();
+
     void SetFlushing();
 
     bool IsWritten() const;
+
     bool IsFlushing() const;
 
     i64 GetSize() const;
+
     int GetStartBlockIndex() const;
+
     int GetEndBlockIndex() const;
 
 private:
@@ -126,13 +128,14 @@ private:
     NLogging::TLogger Logger;
 
     void PutGroup(TReplicationWriterPtr writer);
+
     void SendGroup(TReplicationWriterPtr writer, TNodePtr srcNode);
+
     void Process();
 
 };
 
-typedef TIntrusivePtr<TGroup> TGroupPtr;
-typedef std::deque<TGroupPtr> TWindow;
+DEFINE_REFCOUNTED_TYPE(TGroup);
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -191,7 +194,7 @@ private:
     bool IsCloseRequested_ = false;
     TChunkMeta ChunkMeta_;
 
-    TWindow Window_;
+    std::deque<TGroupPtr> Window_;
     TAsyncSemaphore WindowSlots_;
 
     std::vector<TNodePtr> Nodes_;
@@ -237,15 +240,21 @@ private:
 
     void FinishChunk(TNodePtr node);
 
-    void SendPing(TNodeWeakPtr node);
+    void SendPing(const TWeakPtr<TNode>& node);
 
     void CancelWriter(bool abort);
     void CancelNode(TNodePtr node, bool abort);
 
     void AddBlocks(const std::vector<TSharedRef>& blocks);
 
+    IChannelPtr CreateRetryingNodeChannel(
+        IChannelFactoryPtr channelFactory,
+        const Stroka& address);
+
     DECLARE_THREAD_AFFINITY_SLOT(WriterThread);
 };
+
+DEFINE_REFCOUNTED_TYPE(TReplicationWriter);
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -306,7 +315,9 @@ void TGroup::PutGroup(TReplicationWriterPtr writer)
 
     auto node = writer->Nodes_[nodeIndex];
 
-    auto req = node->HeavyProxy.PutBlocks();
+    TDataNodeServiceProxy proxy(node->HeavyChannel);
+    auto req = proxy.PutBlocks();
+    req->SetTimeout(writer->Config_->NodeRpcTimeout);
     ToProto(req->mutable_chunk_id(), writer->ChunkId_);
     req->set_first_block_index(FirstBlockIndex_);
     req->set_populate_cache(writer->Config_->PopulateCache);
@@ -326,7 +337,6 @@ void TGroup::PutGroup(TReplicationWriterPtr writer)
         node->Descriptor.GetDefaultAddress());
 
     auto rspOrError = WaitFor(req->Invoke());
-
     if (rspOrError.IsOK()) {
         SentTo_[node->Index] = true;
 
@@ -345,41 +355,41 @@ void TGroup::SendGroup(TReplicationWriterPtr writer, TNodePtr srcNode)
 {
     VERIFY_THREAD_AFFINITY(writer->WriterThread);
 
-    for (int dstNodeIndex = 0; dstNodeIndex < SentTo_.size(); ++dstNodeIndex) {
-        auto dstNode = writer->Nodes_[dstNodeIndex];
-        if (dstNode->IsAlive() && !SentTo_[dstNodeIndex]) {
-            LOG_DEBUG("Sending blocks (Blocks: %v-%v, SrcAddress: %v, DstAddress: %v)",
-                GetStartBlockIndex(),
+    TNodePtr dstNode;
+    for (int index = 0; index < SentTo_.size(); ++index) {
+        auto node = writer->Nodes_[index];
+        if (node->IsAlive() && !SentTo_[index]) {
+            dstNode = node;
+        }
+    }
+
+    if (dstNode) {
+        LOG_DEBUG("Sending blocks (Blocks: %v-%v, SrcAddress: %v, DstAddress: %v)",
+            GetStartBlockIndex(),
+            GetEndBlockIndex(),
+            srcNode->Descriptor.GetDefaultAddress(),
+            dstNode->Descriptor.GetDefaultAddress());
+
+        TDataNodeServiceProxy proxy(srcNode->LightChannel);
+        auto req = proxy.SendBlocks();
+        // Set double timeout for SendBlocks since executing it implies another (src->dst) RPC call.
+        req->SetTimeout(writer->Config_->NodeRpcTimeout * 2);
+        ToProto(req->mutable_chunk_id(), writer->ChunkId_);
+        req->set_first_block_index(FirstBlockIndex_);
+        req->set_block_count(Blocks_.size());
+        ToProto(req->mutable_target_descriptor(), dstNode->Descriptor);
+
+        auto rspOrError = WaitFor(req->Invoke());
+        if (rspOrError.IsOK()) {
+            LOG_DEBUG("Blocks are sent (Blocks: %v-%v, SrcAddress: %v, DstAddress: %v)",
+                FirstBlockIndex_,
                 GetEndBlockIndex(),
                 srcNode->Descriptor.GetDefaultAddress(),
                 dstNode->Descriptor.GetDefaultAddress());
-
-            auto req = srcNode->LightProxy.SendBlocks();
-
-            // Set double timeout for SendBlocks since executing it implies another (src->dst) RPC call.
-            req->SetTimeout(writer->Config_->NodeRpcTimeout + writer->Config_->NodeRpcTimeout);
-            ToProto(req->mutable_chunk_id(), writer->ChunkId_);
-            req->set_first_block_index(FirstBlockIndex_);
-            req->set_block_count(Blocks_.size());
-            ToProto(req->mutable_target_descriptor(), dstNode->Descriptor);
-
-            auto rspOrError = WaitFor(req->Invoke());
-
-            if (rspOrError.IsOK()) {
-                LOG_DEBUG("Blocks are sent (Blocks: %v-%v, SrcAddress: %v, DstAddress: %v)",
-                    FirstBlockIndex_,
-                    GetEndBlockIndex(),
-                    srcNode->Descriptor.GetDefaultAddress(),
-                    dstNode->Descriptor.GetDefaultAddress());
-
-                SentTo_[dstNode->Index] = true;
-            } else {
-                writer->OnNodeFailed(
-                    rspOrError.GetCode() == EErrorCode::PipelineFailed ? dstNode : srcNode,
-                    rspOrError);
-            }
-
-            break;
+            SentTo_[dstNode->Index] = true;
+        } else {
+            auto failedNode = (rspOrError.GetCode() == EErrorCode::SendBlocksFailed) ? dstNode : srcNode;
+            writer->OnNodeFailed(failedNode, rspOrError);
         }
     }
 
@@ -415,8 +425,9 @@ void TGroup::ScheduleProcess()
 void TGroup::Process()
 {
     auto writer = Writer_.Lock();
-    if (!writer || !writer->State_.IsActive())
+    if (!writer || !writer->State_.IsActive()) {
         return;
+    }
 
     VERIFY_THREAD_AFFINITY(writer->WriterThread);
     YCHECK(writer->IsOpen_);
@@ -479,8 +490,9 @@ TReplicationWriter::~TReplicationWriter()
     VERIFY_THREAD_AFFINITY_ANY();
 
     // Just a quick check.
-    if (State_.IsClosed())
+    if (State_.IsClosed()) {
         return;
+    }
 
     LOG_INFO("Writer canceled");
     State_.Fail(TError("Writer canceled"));
@@ -552,13 +564,16 @@ void TReplicationWriter::StartChunk(TChunkReplica target)
     auto address = nodeDescriptor.GetAddressOrThrow(NetworkName_);
     LOG_DEBUG("Starting write session (Address: %v)", address);
 
-    auto lightChannel = Client_->GetNodeChannelFactory()->CreateChannel(address);
-    auto heavyChannel = Client_->GetHeavyChannelFactory()->CreateChannel(address);
+    auto lightChannel = CreateRetryingNodeChannel(
+        Client_->GetNodeChannelFactory(),
+        address);
+    auto heavyChannel = CreateRetryingNodeChannel(
+        Client_->GetHeavyChannelFactory(),
+        address);
 
     TDataNodeServiceProxy proxy(lightChannel);
-    proxy.SetDefaultTimeout(Config_->NodeRpcTimeout);
-
     auto req = proxy.StartChunk();
+    req->SetTimeout(Config_->NodeRpcTimeout);
     ToProto(req->mutable_chunk_id(), ChunkId_);
     ToProto(req->mutable_workload_descriptor(), Config_->WorkloadDescriptor);
     req->set_sync_on_close(Config_->SyncOnClose);
@@ -576,8 +591,7 @@ void TReplicationWriter::StartChunk(TChunkReplica target)
         nodeDescriptor,
         target,
         lightChannel,
-        heavyChannel,
-        Config_->NodeRpcTimeout);
+        heavyChannel);
 
     node->PingExecutor = New<TPeriodicExecutor>(
         TDispatcher::Get()->GetWriterInvoker(),
@@ -643,8 +657,9 @@ void TReplicationWriter::ShiftWindow()
         }
     }
 
-    if (lastFlushableBlock < 0)
+    if (lastFlushableBlock < 0) {
         return;
+    }
 
     std::vector<TFuture<void>> asyncResults;
     for (auto node : Nodes_) {
@@ -681,8 +696,9 @@ void TReplicationWriter::OnWindowShifted(int lastFlushedBlock, const TError& err
 
     while (!Window_.empty()) {
         auto group = Window_.front();
-        if (group->GetEndBlockIndex() > lastFlushedBlock)
+        if (group->GetEndBlockIndex() > lastFlushedBlock) {
             return;
+        }
 
         LOG_DEBUG("Window shifted (Blocks: %v-%v, Size: %v)",
             group->GetStartBlockIndex(),
@@ -702,19 +718,21 @@ void TReplicationWriter::FlushBlocks(TNodePtr node, int blockIndex)
 {
     VERIFY_THREAD_AFFINITY(WriterThread);
 
-    if (!node->IsAlive())
+    if (!node->IsAlive()) {
         return;
+    }
 
     LOG_DEBUG("Flushing block (Block: %v, Address: %v)",
         blockIndex,
         node->Descriptor.GetDefaultAddress());
 
-    auto req = node->LightProxy.FlushBlocks();
+    TDataNodeServiceProxy proxy(node->LightChannel);
+    auto req = proxy.FlushBlocks();
+    req->SetTimeout(Config_->NodeRpcTimeout);
     ToProto(req->mutable_chunk_id(), ChunkId_);
     req->set_block_index(blockIndex);
 
     auto rspOrError = WaitFor(req->Invoke());
-
     if (rspOrError.IsOK()) {
         LOG_DEBUG("Block flushed (Block: %v, Address: %v)",
             blockIndex,
@@ -736,8 +754,9 @@ void TReplicationWriter::FlushCurrentGroup()
     VERIFY_THREAD_AFFINITY(WriterThread);
     YCHECK(!IsCloseRequested_);
 
-    if (!State_.IsActive())
+    if (!State_.IsActive()) {
         return;
+    }
 
     LOG_DEBUG("Block group added (Blocks: %v-%v, Group: %p)",
         CurrentGroup_->GetStartBlockIndex(),
@@ -753,8 +772,9 @@ void TReplicationWriter::OnNodeFailed(TNodePtr node, const TError& error)
 {
     VERIFY_THREAD_AFFINITY(WriterThread);
 
-    if (!node->IsAlive())
+    if (!node->IsAlive()) {
         return;
+    }
 
     auto wrappedError = TError("Node %v failed",
         node->Descriptor.GetDefaultAddress())
@@ -814,19 +834,21 @@ void TReplicationWriter::FinishChunk(TNodePtr node)
 {
     VERIFY_THREAD_AFFINITY(WriterThread);
 
-    if (!node->IsAlive())
+    if (!node->IsAlive()) {
         return;
+    }
 
     LOG_DEBUG("Finishing chunk (Address: %v)",
         node->Descriptor.GetDefaultAddress());
 
-    auto req = node->LightProxy.FinishChunk();
+    TDataNodeServiceProxy proxy(node->LightChannel);
+    auto req = proxy.FinishChunk();
+    req->SetTimeout(Config_->NodeRpcTimeout);
     ToProto(req->mutable_chunk_id(), ChunkId_);
     *req->mutable_chunk_meta() = ChunkMeta_;
     req->set_block_count(BlockCount_);
 
     auto rspOrError = WaitFor(req->Invoke());
-
     if (!rspOrError.IsOK()) {
         OnNodeFailed(node, rspOrError);
         return;
@@ -841,19 +863,21 @@ void TReplicationWriter::FinishChunk(TNodePtr node)
     ChunkInfo_ = chunkInfo;
 }
 
-void TReplicationWriter::SendPing(TNodeWeakPtr node)
+void TReplicationWriter::SendPing(const TWeakPtr<TNode>& node_)
 {
     VERIFY_THREAD_AFFINITY(WriterThread);
 
-    auto node_ = node.Lock();
-    if (!node_) {
+    auto node = node_.Lock();
+    if (!node) {
         return;
     }
 
     LOG_DEBUG("Sending ping (Address: %v)",
-        node_->Descriptor.GetDefaultAddress());
+        node->Descriptor.GetDefaultAddress());
 
-    auto req = node_->LightProxy.PingSession();
+    TDataNodeServiceProxy proxy(node->LightChannel);
+    auto req = proxy.PingSession();
+    req->SetTimeout(Config_->NodeRpcTimeout);
     ToProto(req->mutable_chunk_id(), ChunkId_);
     req->Invoke();
 }
@@ -869,13 +893,15 @@ void TReplicationWriter::CancelWriter(bool abort)
 
 void TReplicationWriter::CancelNode(TNodePtr node, bool abort)
 {
-    if (node->Canceled.test_and_set())
+    if (node->Canceled.test_and_set()) {
         return;
+    }
 
     node->PingExecutor->Stop();
 
     if (abort) {
-        auto req = node->LightProxy.CancelChunk();
+        TDataNodeServiceProxy proxy(node->LightChannel);
+        auto req = proxy.CancelChunk();
         ToProto(req->mutable_chunk_id(), ChunkId_);
         req->Invoke();
     }
@@ -931,8 +957,9 @@ void TReplicationWriter::AddBlocks(const std::vector<TSharedRef>& blocks)
     VERIFY_THREAD_AFFINITY(WriterThread);
     YCHECK(!IsCloseRequested_);
 
-    if (!State_.IsActive())
+    if (!State_.IsActive()) {
         return;
+    }
 
     int firstBlockIndex = BlockCount_;
     int currentBlockIndex = firstBlockIndex;
@@ -1043,6 +1070,18 @@ NErasure::ECodec TReplicationWriter::GetErasureCodecId() const
     VERIFY_THREAD_AFFINITY_ANY();
 
     return NErasure::ECodec::None;
+}
+
+IChannelPtr TReplicationWriter::CreateRetryingNodeChannel(
+    IChannelFactoryPtr channelFactory,
+    const Stroka& address)
+{
+    return CreateRetryingChannel(
+        Config_->NodeChannel,
+        channelFactory->CreateChannel(address),
+        BIND([] (const TError& error) {
+            return error.FindMatching(NChunkClient::EErrorCode::WriteThrottlingActive).HasValue();
+        }));
 }
 
 ///////////////////////////////////////////////////////////////////////////////
