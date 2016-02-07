@@ -35,7 +35,7 @@ const ui8 SerializationPadding[SerializationAlignment] = {};
 
 //! Returns the minimum number whose addition to #size makes
 //! the result divisible by #SerializationAlignment.
-FORCED_INLINE size_t GetPaddingSize(size_t size)
+Y_FORCE_INLINE size_t GetPaddingSize(size_t size)
 {
     return
         (SerializationAlignment - (size & (SerializationAlignment - 1))) &
@@ -43,12 +43,12 @@ FORCED_INLINE size_t GetPaddingSize(size_t size)
 }
 
 //! Rounds up #size to the nearest factor of #SerializationAlignment.
-FORCED_INLINE size_t AlignUp(size_t size, size_t align = SerializationAlignment)
+Y_FORCE_INLINE size_t AlignUp(size_t size, size_t align = SerializationAlignment)
 {
     return (size + align - 1) & ~(align - 1);
 }
 
-FORCED_INLINE char* AlignUp(char* ptr, size_t align = SerializationAlignment)
+Y_FORCE_INLINE char* AlignUp(char* ptr, size_t align = SerializationAlignment)
 {
     return reinterpret_cast<char*>((reinterpret_cast<uintptr_t>(ptr) + align - 1) & ~(align - 1));
 }
