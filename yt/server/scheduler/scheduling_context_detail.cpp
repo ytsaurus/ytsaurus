@@ -18,13 +18,13 @@ TSchedulingContextBase::TSchedulingContextBase(
     const std::vector<TJobPtr>& runningJobs,
     TCellTag cellTag)
     : ResourceUsageDiscount_(ZeroJobResources())
-    , ResourceUsage_(node->ResourceUsage())
-    , ResourceLimits_(node->ResourceLimits())
+    , ResourceUsage_(node->GetResourceUsage())
+    , ResourceLimits_(node->GetResourceLimits())
     , RunningJobs_(runningJobs)
     , Config_(config)
     , CellTag_(cellTag)
     , Node_(node)
-    , NodeDescriptor_(Node_->BuildDescriptor())
+    , NodeDescriptor_(Node_->BuildExecDescriptor())
 { }
 
 const TExecNodeDescriptor& TSchedulingContextBase::GetNodeDescriptor() const
