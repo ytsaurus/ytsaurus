@@ -51,8 +51,20 @@ function YtAuthority(config, driver)
         maxAge: this.config.cache_max_exist_age,
     });
 
+    // Well, see YT-3772 and related issues.
+    this.optimistic_cache = {};
+
     this.__DBG("New");
 }
+
+YtAuthority.prototype.dropCache = Q.method(
+function YtAuthority$dropCache()
+{
+    this.__DBG("dropCache");
+
+    this.authentication_cache.reset();
+    this.exist_cache.reset();
+});
 
 YtAuthority.prototype.authenticateByToken = Q.method(
 function YtAuthority$authenticateByToken(logger, profiler, party, token)
@@ -244,8 +256,19 @@ YtAuthority.prototype._asyncQueryBlackboxToken = function(context, result)
 
         context.logger.debug("Blackbox has approved the token");
 
+        self.optimistic_cache[context.token] = data.login;
+
         result.login = data.login;
         result.realm = "blackbox-" + realm;
+    })
+    .catch(function(err) {
+        var optimistic_login = self.optimistic_cache[context.token];
+        if (typeof(optimistic_login) === "string") {
+            result.login = optimistic_login;
+            result.realm = "optimistic_cache";
+        } else {
+            return Q.reject(err);
+        }
     });
 };
 

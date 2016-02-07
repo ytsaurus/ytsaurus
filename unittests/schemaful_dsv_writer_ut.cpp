@@ -1,6 +1,7 @@
 #include "framework.h"
 
 #include <yt/ytlib/formats/schemaful_dsv_writer.h>
+#include <yt/ytlib/formats/format.h>
 
 #include <yt/ytlib/table_client/name_table.h>
 
@@ -32,7 +33,7 @@ protected:
     int KeyDId_;
     TSchemafulDsvFormatConfigPtr Config_;
 
-    TSchemalessWriterForSchemafulDsvPtr Writer_;
+    ISchemalessFormatWriterPtr Writer_;
 
     TStringStream OutputStream_;
 
@@ -46,11 +47,13 @@ protected:
     }
 
     void CreateStandardWriter() {
-        Writer_ = New<TSchemalessWriterForSchemafulDsv>(
+        Writer_ = CreateSchemalessWriterForSchemafulDsv(
+            *ConvertToAttributes(Config_),
             NameTable_, 
             CreateAsyncAdapter(static_cast<TOutputStream*>(&OutputStream_)),
-            false, // enableContextSaving  
-            Config_);
+            false, // enableContextSaving 
+            false, // enableKeySwitch 
+            0 /* keyColumnCount */);
     }
 };
 
@@ -81,23 +84,6 @@ TEST_F(TSchemalessWriterForSchemafulDsvTest, Simple)
         "-42\ttrue\tvalue_a\n"
         "false\tvalue_c\t23\n";
     EXPECT_EQ(expectedOutput, OutputStream_.Str()); 
-}
-
-TEST_F(TSchemalessWriterForSchemafulDsvTest, ThrowOnMissingColumn)
-{
-    Config_->Columns = {"column_b", "column_c", "column_a"};
-    CreateStandardWriter();
-    TUnversionedRowBuilder row1;
-    row1.AddValue(MakeUnversionedStringValue("value_a", KeyAId_));
-    row1.AddValue(MakeUnversionedBooleanValue(true, KeyCId_));
-    row1.AddValue(MakeUnversionedStringValue("garbage", KeyDId_));
-
-    std::vector<TUnversionedRow> rows = {row1.GetRow()};
-
-    EXPECT_EQ(false, Writer_->Write(rows));
-    EXPECT_THROW(Writer_->Close()
-        .Get()
-        .ThrowOnError(), std::exception);
 }
 
 // This test shows the actual behavior of writer. It is OK to change it in the future. :)
@@ -163,6 +149,68 @@ TEST_F(TSchemalessWriterForSchemafulDsvTest, IntegralTypeRepresentations)
         "0\t98\t987\t9876\n"
         "9223372036854775807\t-9223372036854775808\t-9223372036854775807\t18446744073709551615\n";
     EXPECT_EQ(expectedOutput, OutputStream_.Str());
+}
+
+TEST_F(TSchemalessWriterForSchemafulDsvTest, MissingValueMode)
+{
+    Config_->Columns = {"column_a", "column_b", "column_c"};
+
+    TUnversionedRowBuilder row1;
+    row1.AddValue(MakeUnversionedStringValue("Value1A", KeyAId_));
+    row1.AddValue(MakeUnversionedStringValue("Value1B", KeyBId_));
+    row1.AddValue(MakeUnversionedStringValue("Value1C", KeyCId_));
+    
+    TUnversionedRowBuilder row2;
+    row2.AddValue(MakeUnversionedStringValue("Value2A", KeyAId_));
+    row2.AddValue(MakeUnversionedStringValue("Value2C", KeyCId_));
+
+    TUnversionedRowBuilder row3;
+    row3.AddValue(MakeUnversionedStringValue("Value3A", KeyAId_));
+    row3.AddValue(MakeUnversionedStringValue("Value3B", KeyBId_));
+    row3.AddValue(MakeUnversionedStringValue("Value3C", KeyCId_));
+    
+    std::vector<TUnversionedRow> rows = 
+        {row1.GetRow(), row2.GetRow(), row3.GetRow()};
+    
+    {
+        // By default missing_value_mode is EMissingSchemafulDsvValueMode::SkipRow. 
+        CreateStandardWriter();
+        EXPECT_EQ(true, Writer_->Write(rows));
+        Writer_->Close()
+            .Get()
+            .ThrowOnError();
+        Stroka expectedOutput = 
+            "Value1A\tValue1B\tValue1C\n"
+            "Value3A\tValue3B\tValue3C\n";
+        EXPECT_EQ(expectedOutput, OutputStream_.Str());
+        OutputStream_.Clear();
+    }
+
+    {
+        Config_->MissingValueMode = EMissingSchemafulDsvValueMode::Fail;
+        CreateStandardWriter();
+        EXPECT_EQ(false, Writer_->Write(rows));
+        EXPECT_THROW(Writer_->Close()
+            .Get()
+            .ThrowOnError(), std::exception);
+        OutputStream_.Clear();
+    } 
+
+    {
+        Config_->MissingValueMode = EMissingSchemafulDsvValueMode::PrintSentinel;
+        Config_->MissingValueSentinel = "~";
+        CreateStandardWriter();
+        EXPECT_EQ(true, Writer_->Write(rows));
+        Writer_->Close()
+            .Get()
+            .ThrowOnError();
+        Stroka expectedOutput = 
+            "Value1A\tValue1B\tValue1C\n"
+            "Value2A\t~\tValue2C\n"
+            "Value3A\tValue3B\tValue3C\n";
+        EXPECT_EQ(expectedOutput, OutputStream_.Str());
+        OutputStream_.Clear();
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

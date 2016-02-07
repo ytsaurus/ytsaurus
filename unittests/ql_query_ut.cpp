@@ -50,6 +50,13 @@ class TQueryPrepareTest
     : public ::testing::Test
 {
 protected:
+
+    virtual void SetUp() override
+    {
+        auto config = New<TColumnEvaluatorCacheConfig>();
+        ColumnEvaluatorCache_ = New<TColumnEvaluatorCache>(config, CreateBuiltinFunctionRegistry());
+    }
+
     template <class TMatcher>
     void ExpectPrepareThrowsWithDiagnostics(
         const Stroka& query,
@@ -60,6 +67,7 @@ protected:
             matcher);
     }
 
+    TColumnEvaluatorCachePtr ColumnEvaluatorCache_;
     StrictMock<TPrepareCallbacksMock> PrepareMock_;
 
 };
@@ -230,36 +238,35 @@ protected:
 
     void Coordinate(const Stroka& source, const TDataSplits& dataSplits, size_t subqueriesCount)
     {
-        auto planFragment = PreparePlanFragment(&PrepareMock_, source, CreateBuiltinFunctionRegistry());
+        TQueryPtr query;
+        TDataRanges dataSource;
+        std::tie(query, dataSource) = PreparePlanFragment(
+            &PrepareMock_,
+            source,
+            CreateBuiltinFunctionRegistry());
 
-        TDataSources sources;
+        auto buffer = New<TRowBuffer>();
+        TRowRanges sources;
         for (const auto& split : dataSplits) {
             auto range = GetBothBoundsFromDataSplit(split);
     
-            TRowRange rowRange(
-                planFragment->KeyRangesRowBuffer->Capture(range.first.Get()),
-                planFragment->KeyRangesRowBuffer->Capture(range.second.Get()));
-
-            sources.push_back(TDataSource{
-                GetObjectIdFromDataSplit(split),
-                rowRange});
+            sources.emplace_back(
+                buffer->Capture(range.first.Get()),
+                buffer->Capture(range.second.Get()));
         }
 
         auto rowBuffer = New<TRowBuffer>();
-        auto groupedRanges = GetPrunedRanges(
-            planFragment->Query,
-            sources,
+        auto prunedRanges = GetPrunedRanges(
+            query,
+            MakeId(EObjectType::Table, 0x42, 0, 0xdeadbabe),
+            MakeSharedRange(std::move(sources), buffer),
             rowBuffer,
             ColumnEvaluatorCache_,
             CreateBuiltinFunctionRegistry(),
             1000,
             true);
-        int count = 0;
-        for (const auto& group : groupedRanges) {
-            count += group.size();
-        }
 
-        EXPECT_EQ(count, subqueriesCount);
+        EXPECT_EQ(prunedRanges.size(), subqueriesCount);
     }
 
     StrictMock<TPrepareCallbacksMock> PrepareMock_;
@@ -381,11 +388,11 @@ TOwningRow BuildRow(
             yson, keyColumns, tableSchema, treatMissingAsNull);
 }
 
-TFuture<TQueryStatistics> DoExecuteQuery(
+TQueryStatistics DoExecuteQuery(
     const std::vector<Stroka>& source,
     IFunctionRegistryPtr functionRegistry,
     EFailureLocation failureLocation,
-    TPlanFragmentPtr fragment,
+    TConstQueryPtr query,
     ISchemafulWriterPtr writer,
     TExecuteQuery executeCallback = nullptr)
 {
@@ -396,7 +403,7 @@ TFuture<TQueryStatistics> DoExecuteQuery(
 
     TKeyColumns emptyKeyColumns;
     for (const auto& row : source) {
-        owningSource.push_back(NTableClient::BuildRow(row, emptyKeyColumns, fragment->Query->TableSchema));
+        owningSource.push_back(NTableClient::BuildRow(row, emptyKeyColumns, query->TableSchema));
     }
 
     sourceRows.resize(owningSource.size());
@@ -417,15 +424,62 @@ TFuture<TQueryStatistics> DoExecuteQuery(
     std::vector<TExecuteQuery> executeCallbacks;
 
     auto evaluator = New<TEvaluator>(New<TExecutorConfig>());
-    return MakeFuture(evaluator->RunWithExecutor(
-        fragment->Query,
+
+    return evaluator->RunWithExecutor(
+        query,
         readerMock,
         writer,
         executeCallback,
         functionRegistry,
-        true));
+        true);
 }
 
+void OrderRowsBy(std::vector<TRow>* rows, const std::vector<Stroka>& columns, const TTableSchema& tableSchema)
+{
+    std::vector<int> indexes;
+    for (const auto& column : columns) {
+        indexes.push_back(tableSchema.GetColumnIndexOrThrow(column));
+    }
+
+    std::sort(rows->begin(), rows->end(), [&] (TRow lhs, TRow rhs) {
+        for (auto index : indexes) {
+            if (lhs[index] == rhs[index]) {
+                continue;
+            } else {
+                return lhs[index] < rhs[index];
+            }
+        }
+        return false;
+    });
+}
+
+typedef std::function<void(std::vector<TRow>, const TTableSchema&)> TResultMatcher;
+
+TResultMatcher ResultMatcher(std::vector<TOwningRow> expectedResult)
+{
+    return [MOVE(expectedResult)] (std::vector<TRow> result, const TTableSchema& tableSchema) {
+        EXPECT_EQ(expectedResult.size(), result.size());
+
+        for (int i = 0; i < expectedResult.size(); ++i) {
+            EXPECT_EQ(expectedResult[i], result[i]);
+        }
+    };
+}
+
+TResultMatcher OrderedResultMatcher(
+    std::vector<TOwningRow> expectedResult,
+    std::vector<Stroka> columns)
+{
+    return [MOVE(expectedResult), MOVE(columns)] (std::vector<TRow> result, const TTableSchema& tableSchema) {
+        EXPECT_EQ(expectedResult.size(), result.size());
+
+        OrderRowsBy(&result, columns, tableSchema);
+
+        for (int i = 0; i < expectedResult.size(); ++i) {
+            EXPECT_EQ(result[i], expectedResult[i]);
+        }
+    };
+}
 
 class TQueryEvaluateTest
     : public ::testing::Test
@@ -433,6 +487,9 @@ class TQueryEvaluateTest
 protected:
     virtual void SetUp() override
     {
+        auto config = New<TColumnEvaluatorCacheConfig>();
+        ColumnEvaluatorCache_ = New<TColumnEvaluatorCache>(config, CreateBuiltinFunctionRegistry());
+
         WriterMock_ = New<StrictMock<TWriterMock>>();
 
         ActionQueue_ = New<TActionQueue>("Test");
@@ -496,7 +553,7 @@ protected:
         const Stroka& query,
         const TDataSplit& dataSplit,
         const std::vector<Stroka>& owningSource,
-        const std::vector<TOwningRow>& owningResult,
+        const TResultMatcher& resultMatcher,
         i64 inputRowLimit = std::numeric_limits<i64>::max(),
         i64 outputRowLimit = std::numeric_limits<i64>::max(),
         IFunctionRegistryPtr functionRegistry = CreateBuiltinFunctionRegistry())
@@ -511,7 +568,7 @@ protected:
                 query,
                 dataSplits,
                 owningSources,
-                owningResult,
+                resultMatcher,
                 inputRowLimit,
                 outputRowLimit,
                 EFailureLocation::Nowhere,
@@ -524,7 +581,7 @@ protected:
         const Stroka& query,
         const std::map<Stroka, TDataSplit>& dataSplits,
         const std::vector<std::vector<Stroka>>& owningSources,
-        const std::vector<TOwningRow>& owningResult,
+        const TResultMatcher& resultMatcher,
         i64 inputRowLimit = std::numeric_limits<i64>::max(),
         i64 outputRowLimit = std::numeric_limits<i64>::max(),
         IFunctionRegistryPtr functionRegistry = CreateBuiltinFunctionRegistry())
@@ -535,7 +592,7 @@ protected:
                 query,
                 dataSplits,
                 owningSources,
-                owningResult,
+                resultMatcher,
                 inputRowLimit,
                 outputRowLimit,
                 EFailureLocation::Nowhere,
@@ -563,7 +620,7 @@ protected:
                 query,
                 dataSplits,
                 owningSources,
-                std::vector<TOwningRow>(),
+                [] (std::vector<TRow>, const TTableSchema&) { },
                 inputRowLimit,
                 outputRowLimit,
                 failureLocation,
@@ -576,88 +633,55 @@ protected:
         const Stroka& query,
         const std::map<Stroka, TDataSplit>& dataSplits,
         const std::vector<std::vector<Stroka>>& owningSources,
-        const std::vector<TOwningRow>& owningResult,
+        const TResultMatcher& resultMatcher,
         i64 inputRowLimit,
         i64 outputRowLimit,
         EFailureLocation failureLocation,
         IFunctionRegistryPtr functionRegistry)
     {
-        std::vector<std::vector<TRow>> results;
-        typedef const TRow(TOwningRow::*TGetFunction)() const;
-
-        for (auto iter = owningResult.begin(), end = owningResult.end(); iter != end;) {
-            size_t writeSize = std::min(static_cast<int>(end - iter), NQueryClient::MaxRowsPerWrite);
-            std::vector<TRow> result(writeSize);
-
-            std::transform(
-                iter,
-                iter + writeSize,
-                result.begin(),
-                std::mem_fn(TGetFunction(&TOwningRow::Get)));
-
-            results.push_back(result);
-
-            iter += writeSize;
-        }
-
         for (const auto& dataSplit : dataSplits) {
             EXPECT_CALL(PrepareMock_, GetInitialSplit(dataSplit.first, _))
                 .WillOnce(Return(WrapInFuture(dataSplit.second)));
         }
 
-        {
-            testing::InSequence s;
-
-            for (auto& result : results) {
-                EXPECT_CALL(*WriterMock_, Write(result))
-                    .WillOnce(Return(true));
-            }
-
-            ON_CALL(*WriterMock_, Close())
-                .WillByDefault(Return(WrapVoidInFuture()));
-            if (failureLocation == EFailureLocation::Nowhere) {
-                EXPECT_CALL(*WriterMock_, Close());
-            }
-        }
-
         auto prepareAndExecute = [&] () {
-            auto primaryFragment = PreparePlanFragment(&PrepareMock_, query, functionRegistry, inputRowLimit, outputRowLimit);
+            TQueryPtr primaryQuery;
+            TDataRanges primaryDataSource;
+            std::tie(primaryQuery, primaryDataSource) = PreparePlanFragment(
+                &PrepareMock_, query, functionRegistry, inputRowLimit, outputRowLimit);
 
             size_t foreignSplitIndex = 1;
             auto executeCallback = [&] (
                 const TQueryPtr& subquery,
                 TGuid foreignDataId,
-                ISchemafulWriterPtr writer) mutable -> TQueryStatistics
+                TRowBufferPtr buffer,
+                TRowRanges ranges,
+                ISchemafulWriterPtr writer) mutable -> TFuture<TQueryStatistics>
             {
-                auto planFragment = New<TPlanFragment>();
-
-                planFragment->Timestamp = primaryFragment->Timestamp;
-                planFragment->DataSources.push_back({
-                    foreignDataId,
-                    {
-                        planFragment->KeyRangesRowBuffer->Capture(MinKey().Get()),
-                        planFragment->KeyRangesRowBuffer->Capture(MaxKey().Get())
-                    }});
-                planFragment->Query = subquery;
-
-                auto subqueryResult = DoExecuteQuery(
+                return MakeFuture(DoExecuteQuery(
                     owningSources[foreignSplitIndex++],
                     functionRegistry,
                     failureLocation,
-                    planFragment,
-                    writer);
-
-                return WaitFor(subqueryResult)
-                    .ValueOrThrow();
+                    subquery,
+                    writer));
             };
 
-            return DoExecuteQuery(
+            ISchemafulWriterPtr writer;
+            TFuture<IRowsetPtr> asyncResultRowset;
+
+            std::tie(writer, asyncResultRowset) = CreateSchemafulRowsetWriter(primaryQuery->GetTableSchema());
+
+            DoExecuteQuery(
                 owningSources.front(),
                 functionRegistry,
                 failureLocation,
-                primaryFragment,
-                WriterMock_,
+                primaryQuery,
+                writer,
                 executeCallback);
+
+            auto resultRowset = WaitFor(asyncResultRowset).ValueOrThrow();
+
+            resultMatcher(resultRowset->GetRows(), primaryQuery->GetTableSchema());
         };
 
         if (failureLocation != EFailureLocation::Nowhere) {
@@ -670,6 +694,7 @@ protected:
     StrictMock<TPrepareCallbacksMock> PrepareMock_;
     TIntrusivePtr<StrictMock<TWriterMock>> WriterMock_;
     TActionQueuePtr ActionQueue_;
+    TColumnEvaluatorCachePtr ColumnEvaluatorCache_;
 
     IFunctionDescriptorPtr AbsUdf_;
     IFunctionDescriptorPtr ExpUdf_;
@@ -708,7 +733,7 @@ TEST_F(TQueryEvaluateTest, Simple)
         "a=10;b=11"
     }, split);
 
-    Evaluate("a, b FROM [//t]", split, source, result);
+    Evaluate("a, b FROM [//t]", split, source, ResultMatcher(result));
 }
 
 TEST_F(TQueryEvaluateTest, SelectAll)
@@ -728,7 +753,7 @@ TEST_F(TQueryEvaluateTest, SelectAll)
         "a=10;b=11"
     }, split);
 
-    Evaluate("* FROM [//t]", split, source, result);
+    Evaluate("* FROM [//t]", split, source, ResultMatcher(result));
 }
 
 TEST_F(TQueryEvaluateTest, SimpleCmpInt)
@@ -756,7 +781,7 @@ TEST_F(TQueryEvaluateTest, SimpleCmpInt)
         "r1=%false;r2=%false;r3=%true;r4=%true;r5=%true"
     }, resultSplit);
 
-    Evaluate("a < b as r1, a > b as r2, a <= b as r3, a >= b as r4, a = b as r5 FROM [//t]", split, source, result);
+    Evaluate("a < b as r1, a > b as r2, a <= b as r3, a >= b as r4, a = b as r5 FROM [//t]", split, source, ResultMatcher(result));
 }
 
 TEST_F(TQueryEvaluateTest, SimpleCmpString)
@@ -784,7 +809,7 @@ TEST_F(TQueryEvaluateTest, SimpleCmpString)
         "r1=%false;r2=%false;r3=%true;r4=%true;r5=%true"
     }, resultSplit);
 
-    Evaluate("a < b as r1, a > b as r2, a <= b as r3, a >= b as r4, a = b as r5 FROM [//t]", split, source, result);
+    Evaluate("a < b as r1, a > b as r2, a <= b as r3, a >= b as r4, a = b as r5 FROM [//t]", split, source, ResultMatcher(result));
 }
 
 TEST_F(TQueryEvaluateTest, SimpleBetweenAnd)
@@ -804,7 +829,7 @@ TEST_F(TQueryEvaluateTest, SimpleBetweenAnd)
         "a=10;b=11"
     }, split);
 
-    Evaluate("a, b FROM [//t] where a between 9 and 11", split, source, result);
+    Evaluate("a, b FROM [//t] where a between 9 and 11", split, source, ResultMatcher(result));
 }
 
 TEST_F(TQueryEvaluateTest, SimpleIn)
@@ -825,7 +850,7 @@ TEST_F(TQueryEvaluateTest, SimpleIn)
         "a=-10;b=11"
     }, split);
 
-    Evaluate("a, b FROM [//t] where a in (4, -10)", split, source, result);
+    Evaluate("a, b FROM [//t] where a in (4, -10)", split, source, ResultMatcher(result));
 }
 
 TEST_F(TQueryEvaluateTest, SimpleWithNull)
@@ -848,7 +873,7 @@ TEST_F(TQueryEvaluateTest, SimpleWithNull)
         "a=16"
     }, split);
 
-    Evaluate("a, b, c FROM [//t] where a > 3", split, source, result);
+    Evaluate("a, b, c FROM [//t] where a > 3", split, source, ResultMatcher(result));
 }
 
 TEST_F(TQueryEvaluateTest, SimpleWithNull2)
@@ -880,7 +905,7 @@ TEST_F(TQueryEvaluateTest, SimpleWithNull2)
         "a=7;"
     }, resultSplit);
 
-    Evaluate("a, b + c as x FROM [//t] where a < 10", split, source, result);
+    Evaluate("a, b + c as x FROM [//t] where a < 10", split, source, ResultMatcher(result));
 }
 
 TEST_F(TQueryEvaluateTest, SimpleStrings)
@@ -901,7 +926,7 @@ TEST_F(TQueryEvaluateTest, SimpleStrings)
         "s=baz"
     }, split);
 
-    Evaluate("s FROM [//t]", split, source, result);
+    Evaluate("s FROM [//t]", split, source, ResultMatcher(result));
 }
 
 TEST_F(TQueryEvaluateTest, SimpleStrings2)
@@ -923,7 +948,7 @@ TEST_F(TQueryEvaluateTest, SimpleStrings2)
         "s=baz; u=x"
     }, split);
 
-    Evaluate("s, u FROM [//t] where u = \"x\"", split, source, result);
+    Evaluate("s, u FROM [//t] where u = \"x\"", split, source, ResultMatcher(result));
 }
 
 TEST_F(TQueryEvaluateTest, IsPrefixStrings)
@@ -942,7 +967,7 @@ TEST_F(TQueryEvaluateTest, IsPrefixStrings)
         "s=foobar"
     }, split);
 
-    Evaluate("s FROM [//t] where is_prefix(\"foo\", s)", split, source, result);
+    Evaluate("s FROM [//t] where is_prefix(\"foo\", s)", split, source, ResultMatcher(result));
 }
 
 TEST_F(TQueryEvaluateTest, IsSubstrStrings)
@@ -968,7 +993,7 @@ TEST_F(TQueryEvaluateTest, IsSubstrStrings)
         "s=baz"
     }, split);
 
-    Evaluate("s FROM [//t] where is_substr(\"foo\", s) or is_substr(s, \"XX baz YY\")", split, source, result);
+    Evaluate("s FROM [//t] where is_substr(\"foo\", s) or is_substr(s, \"XX baz YY\")", split, source, ResultMatcher(result));
 }
 
 TEST_F(TQueryEvaluateTest, GroupByBool)
@@ -1000,7 +1025,7 @@ TEST_F(TQueryEvaluateTest, GroupByBool)
         "x=%true;t=240"
     }, resultSplit);
 
-    Evaluate("x, sum(b) as t FROM [//t] where a > 1 group by a % 2 = 1 as x", split, source, result);
+    Evaluate("x, sum(b) as t FROM [//t] where a > 1 group by a % 2 = 1 as x", split, source, ResultMatcher(result));
 
     SUCCEED();
 }
@@ -1034,7 +1059,7 @@ TEST_F(TQueryEvaluateTest, ComplexWithAliases)
         "x=1;t=241"
     }, resultSplit);
 
-    Evaluate("a % 2 as x, sum(b) + x as t FROM [//t] where a > 1 group by x", split, source, result);
+    Evaluate("a % 2 as x, sum(b) + x as t FROM [//t] where a > 1 group by x", split, source, ResultMatcher(result));
 
     SUCCEED();
 }
@@ -1068,7 +1093,7 @@ TEST_F(TQueryEvaluateTest, Complex)
         "x=1;t=241"
     }, resultSplit);
 
-    Evaluate("x, sum(b) + x as t FROM [//t] where a > 1 group by a % 2 as x", split, source, result);
+    Evaluate("x, sum(b) + x as t FROM [//t] where a > 1 group by a % 2 as x", split, source, ResultMatcher(result));
 
     SUCCEED();
 }
@@ -1103,7 +1128,7 @@ TEST_F(TQueryEvaluateTest, Complex2)
         "x=1;q=0;t=241"
     }, resultSplit);
 
-    Evaluate("x, q, sum(b) + x as t FROM [//t] where a > 1 group by a % 2 as x, 0 as q", split, source, result);
+    Evaluate("x, q, sum(b) + x as t FROM [//t] where a > 1 group by a % 2 as x, 0 as q", split, source, ResultMatcher(result));
 
     SUCCEED();
 }
@@ -1131,7 +1156,7 @@ TEST_F(TQueryEvaluateTest, ComplexBigResult)
         result.push_back(BuildRow(Stroka() + "x=" + ToString(i) + ";t=" + ToString(i * 10 + i), resultSplit, false));
     }
 
-    Evaluate("x, sum(b) + x as t FROM [//t] where a > 1 group by a as x", split, source, result);
+    Evaluate("x, sum(b) + x as t FROM [//t] where a > 1 group by a as x", split, source, ResultMatcher(result));
 }
 
 TEST_F(TQueryEvaluateTest, ComplexWithNull)
@@ -1169,7 +1194,7 @@ TEST_F(TQueryEvaluateTest, ComplexWithNull)
         "y=6"
     }, resultSplit);
 
-    Evaluate("x, sum(b) + x as t, sum(b) as y FROM [//t] group by a % 2 as x", split, source, result);
+    Evaluate("x, sum(b) + x as t, sum(b) as y FROM [//t] group by a % 2 as x", split, source, ResultMatcher(result));
 
     SUCCEED();
 }
@@ -1197,7 +1222,7 @@ TEST_F(TQueryEvaluateTest, HavingClause1)
         "x=1;t=20",
     }, resultSplit);
 
-    Evaluate("a as x, sum(b) as t FROM [//t] group by a having a = 1", split, source, result);
+    Evaluate("a as x, sum(b) as t FROM [//t] group by a having a = 1", split, source, ResultMatcher(result));
 
     SUCCEED();
 }
@@ -1225,7 +1250,7 @@ TEST_F(TQueryEvaluateTest, HavingClause2)
         "x=1;t=20",
     }, resultSplit);
 
-    Evaluate("a as x, sum(b) as t FROM [//t] group by a having sum(b) = 20", split, source, result);
+    Evaluate("a as x, sum(b) as t FROM [//t] group by a having sum(b) = 20", split, source, ResultMatcher(result));
 
     SUCCEED();
 }
@@ -1252,7 +1277,7 @@ TEST_F(TQueryEvaluateTest, HavingClause3)
         "x=1",
     }, resultSplit);
 
-    Evaluate("a as x FROM [//t] group by a having sum(b) = 20", split, source, result);
+    Evaluate("a as x FROM [//t] group by a having sum(b) = 20", split, source, ResultMatcher(result));
 
     SUCCEED();
 }
@@ -1284,7 +1309,7 @@ TEST_F(TQueryEvaluateTest, IsNull)
         "b=3"
     }, resultSplit);
 
-    Evaluate("b FROM [//t] where is_null(a)", split, source, result);
+    Evaluate("b FROM [//t] where is_null(a)", split, source, ResultMatcher(result));
 
     SUCCEED();
 }
@@ -1310,7 +1335,7 @@ TEST_F(TQueryEvaluateTest, DoubleSum)
         "x=2.;t=3"
     }, resultSplit);
 
-    Evaluate("sum(a) as x, sum(1) as t FROM [//t] group by 1", split, source, result);
+    Evaluate("sum(a) as x, sum(1) as t FROM [//t] group by 1", split, source, ResultMatcher(result));
 }
 
 TEST_F(TQueryEvaluateTest, ComplexStrings)
@@ -1347,7 +1372,7 @@ TEST_F(TQueryEvaluateTest, ComplexStrings)
         "x=z;t=160"
     }, resultSplit);
 
-    Evaluate("x, sum(a) as t FROM [//t] where a > 10 group by s as x", split, source, result);
+    Evaluate("x, sum(a) as t FROM [//t] where a > 10 group by s as x", split, source, ResultMatcher(result));
 
     SUCCEED();
 }
@@ -1379,7 +1404,7 @@ TEST_F(TQueryEvaluateTest, ComplexStringsLower)
         "s=five"
     }, resultSplit);
 
-    Evaluate("s FROM [//t] where lower(a) in (\"xyz\",\"ab1c\",\"hds\",\"kiu\")", split, source, result);
+    Evaluate("s FROM [//t] where lower(a) in (\"xyz\",\"ab1c\",\"hds\",\"kiu\")", split, source, ResultMatcher(result));
 
     SUCCEED();
 }
@@ -1414,7 +1439,7 @@ TEST_F(TQueryEvaluateTest, TestIf)
     }, resultSplit);
     
     Evaluate("if(q = 4, \"a\", \"b\") as x, double(sum(b)) + 1.0 as t FROM [//t] group by if(a % 2 = 0, 4, 5) as"
-                 " q", split, source, result);
+                 " q", split, source, ResultMatcher(result));
 
     SUCCEED();
 }
@@ -1443,7 +1468,7 @@ TEST_F(TQueryEvaluateTest, TestInputRowLimit)
         "a=3;b=30"
     }, split);
 
-    Evaluate("a, b FROM [//t] where uint64(a) > 1u and uint64(a) < 9u", split, source, result, 3);
+    Evaluate("a, b FROM [//t] where uint64(a) > 1u and uint64(a) < 9u", split, source, ResultMatcher(result), 3);
 
     SUCCEED();
 }
@@ -1473,7 +1498,7 @@ TEST_F(TQueryEvaluateTest, TestOutputRowLimit)
         "a=4;b=40"
     }, split);
 
-    Evaluate("a, b FROM [//t] where a > 1 and a < 9", split, source, result, std::numeric_limits<i64>::max(), 3);
+    Evaluate("a, b FROM [//t] where a > 1 and a < 9", split, source, ResultMatcher(result), std::numeric_limits<i64>::max(), 3);
 
     SUCCEED();
 }
@@ -1497,7 +1522,7 @@ TEST_F(TQueryEvaluateTest, TestOutputRowLimit2)
     std::vector<TOwningRow> result;
     result.push_back(BuildRow(Stroka() + "x=" + ToString(10000), resultSplit, false));
 
-    Evaluate("sum(1) as x FROM [//t] group by 0 as q", split, source, result, std::numeric_limits<i64>::max(),
+    Evaluate("sum(1) as x FROM [//t] group by 0 as q", split, source, ResultMatcher(result), std::numeric_limits<i64>::max(),
              100);
 
     SUCCEED();
@@ -1533,7 +1558,7 @@ TEST_F(TQueryEvaluateTest, TestTypeInference)
     }, resultSplit);
     
     Evaluate("if(int64(q) = 4, \"a\", \"b\") as x, double(sum(uint64(b) * 1u)) + 1.0 as t FROM [//t] group by if"
-                 "(a % 2 = 0, double(4u), 5.0) as q", split, source, result);
+                 "(a % 2 = 0, double(4u), 5.0) as q", split, source, ResultMatcher(result));
 
     SUCCEED();
 }
@@ -1578,7 +1603,7 @@ TEST_F(TQueryEvaluateTest, TestJoinEmpty)
 
     auto result = BuildRows({ }, resultSplit);
 
-    Evaluate("sum(a) as x, sum(b) as y, z FROM [//left] join [//right] using b group by c % 2 as z", splits, sources, result);
+    Evaluate("sum(a) as x, sum(b) as y, z FROM [//left] join [//right] using b group by c % 2 as z", splits, sources, ResultMatcher(result));
 
     SUCCEED();
 }
@@ -1617,7 +1642,8 @@ TEST_F(TQueryEvaluateTest, TestJoinSimple2)
         "x=2"
     }, resultSplit);
 
-    Evaluate("a as x FROM [//left] join [//right] using a", splits, sources, result);
+    Evaluate("a as x FROM [//left] join [//right] using a", splits, sources,
+             OrderedResultMatcher(result, {"x"}));
 
     SUCCEED();
 }
@@ -1656,7 +1682,7 @@ TEST_F(TQueryEvaluateTest, TestJoinSimple3)
         "x=1"
     }, resultSplit);
 
-    Evaluate("a as x FROM [//left] join [//right] using a", splits, sources, result);
+    Evaluate("a as x FROM [//left] join [//right] using a", splits, sources, ResultMatcher(result));
 
     SUCCEED();
 }
@@ -1695,7 +1721,7 @@ TEST_F(TQueryEvaluateTest, TestJoinSimple4)
         "x=1"
     }, resultSplit);
 
-    Evaluate("a as x FROM [//left] join [//right] using a", splits, sources, result);
+    Evaluate("a as x FROM [//left] join [//right] using a", splits, sources, ResultMatcher(result));
 
     SUCCEED();
 }
@@ -1736,7 +1762,7 @@ TEST_F(TQueryEvaluateTest, TestJoinSimple5)
         "x=1"
     }, resultSplit);
 
-    Evaluate("a as x FROM [//left] join [//right] using a", splits, sources, result);
+    Evaluate("a as x FROM [//left] join [//right] using a", splits, sources, ResultMatcher(result));
 
     SUCCEED();
 }
@@ -1771,9 +1797,9 @@ TEST_F(TQueryEvaluateTest, TestJoinNonPrefixColumns)
     });
 
     auto resultSplit = MakeSplit({
-        {"x", EValueType::Int64},
-        {"y", EValueType::String},
-        {"a", EValueType::Int64}
+        {"x", EValueType::String},
+        {"a", EValueType::Int64},
+        {"y", EValueType::String}
     });
 
     auto result = BuildRows({
@@ -1782,7 +1808,8 @@ TEST_F(TQueryEvaluateTest, TestJoinNonPrefixColumns)
         "a=3;x=c"
     }, resultSplit);
 
-    Evaluate("* FROM [//left] join [//right] using x", splits, sources, result);
+    Evaluate("x, a, y FROM [//left] join [//right] using x", splits, sources,
+             OrderedResultMatcher(result, {"a"}));
 
     SUCCEED();
 }
@@ -1843,7 +1870,11 @@ TEST_F(TQueryEvaluateTest, TestJoinManySimple)
          "a=4;c=a;b=400;d=Y;e=5678"
     }, resultSplit);
 
-    Evaluate("a, c, b, d, e from [//a] join [//b] using c join [//c] using d order by a, b limit 100", splits, sources, result);
+    Evaluate(
+        "a, c, b, d, e from [//a] join [//b] using c join [//c] using d",
+        splits,
+        sources,
+        OrderedResultMatcher(result, {"a", "b"}));
 
     SUCCEED();
 }
@@ -1899,9 +1930,9 @@ TEST_F(TQueryEvaluateTest, TestJoin)
         "x=20;z=0",
     }, resultSplit);
 
-    Evaluate("sum(a) as x, z FROM [//left] join [//right] using b group by c % 2 as z", splits, sources, result);
-    Evaluate("sum(a) as x, z FROM [//left] join [//right] on b = b group by c % 2 as z", splits, sources, result);
-    Evaluate("sum(l.a) as x, z FROM [//left] as l join [//right] as r on l.b = r.b group by r.c % 2 as z", splits, sources, result);
+    Evaluate("sum(a) as x, z FROM [//left] join [//right] using b group by c % 2 as z", splits, sources, ResultMatcher(result));
+    Evaluate("sum(a) as x, z FROM [//left] join [//right] on b = b group by c % 2 as z", splits, sources, ResultMatcher(result));
+    Evaluate("sum(l.a) as x, z FROM [//left] as l join [//right] as r on l.b = r.b group by r.c % 2 as z", splits, sources, ResultMatcher(result));
 
     SUCCEED();
 }
@@ -1961,7 +1992,11 @@ TEST_F(TQueryEvaluateTest, TestLeftJoin)
         "a=9;b=90;c=9"
     }, resultSplit);
 
-    Evaluate("a, b, c FROM [//left] left join [//right] using b", splits, sources, result);
+    Evaluate(
+        "a, b, c FROM [//left] left join [//right] using b",
+        splits,
+        sources,
+        OrderedResultMatcher(result, {"a"}));
 
     SUCCEED();
 }
@@ -2000,7 +2035,7 @@ TEST_F(TQueryEvaluateTest, ComplexAlias)
         "x=z;t=160"
     }, resultSplit);
 
-    Evaluate("x, sum(p.a) as t FROM [//t] as p where p.a > 10 group by p.s as x", split, source, result);
+    Evaluate("x, sum(p.a) as t FROM [//t] as p where p.a > 10 group by p.s as x", split, source, ResultMatcher(result));
 
     SUCCEED();
 }
@@ -2066,11 +2101,15 @@ TEST_F(TQueryEvaluateTest, TestJoinMany)
     });
 
     auto result = BuildRows({
-        "x=25;y=250;z=1",
         "x=20;y=200;z=0",
+        "x=25;y=250;z=1"
     }, resultSplit);
 
-    Evaluate("sum(a) as x, sum(d) as y, z FROM [//primary] join [//secondary] using b join [//tertiary] using c group by c % 2 as z", splits, sources, result);
+    Evaluate(
+        "sum(a) as x, sum(d) as y, z FROM [//primary] join [//secondary] using b join [//tertiary] using c group by c % 2 as z",
+        splits,
+        sources,
+        OrderedResultMatcher(result, {"x"}));
 
     SUCCEED();
 }
@@ -2104,11 +2143,11 @@ TEST_F(TQueryEvaluateTest, TestOrderBy)
 
     std::sort(result.begin(), result.end());
     limitedResult.assign(result.begin(), result.begin() + 100);
-    Evaluate("* FROM [//t] order by a * a limit 100", split, source, limitedResult);
+    Evaluate("* FROM [//t] order by a * a limit 100", split, source, ResultMatcher(limitedResult));
 
     std::reverse(result.begin(), result.end());
     limitedResult.assign(result.begin(), result.begin() + 100);
-    Evaluate("* FROM [//t] order by a * 3 - 1 desc limit 100", split, source, limitedResult);
+    Evaluate("* FROM [//t] order by a * 3 - 1 desc limit 100", split, source, ResultMatcher(limitedResult));
 
     SUCCEED();
 }
@@ -2141,7 +2180,7 @@ TEST_F(TQueryEvaluateTest, TestUdf)
     auto registry = New<StrictMock<TFunctionRegistryMock>>();
     registry->WithFunction(AbsUdf_);
 
-    Evaluate("abs_udf(a) as x FROM [//t]", split, source, result, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max(), registry);
+    Evaluate("abs_udf(a) as x FROM [//t]", split, source, ResultMatcher(result), std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max(), registry);
 
     SUCCEED();
 }
@@ -2173,7 +2212,7 @@ TEST_F(TQueryEvaluateTest, TestZeroArgumentUdf)
     auto registry = New<StrictMock<TFunctionRegistryMock>>();
     registry->WithFunction(SeventyFiveUdf_);
 
-    Evaluate("a FROM [//t] where a = seventyfive()", split, source, result, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max(), registry);
+    Evaluate("a FROM [//t] where a = seventyfive()", split, source, ResultMatcher(result), std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max(), registry);
 
     SUCCEED();
 }
@@ -2293,7 +2332,7 @@ TEST_F(TQueryEvaluateTest, TestUdfNullPropagation)
     auto registry = New<StrictMock<TFunctionRegistryMock>>();
     registry->WithFunction(AbsUdf_);
 
-    Evaluate("abs_udf(b) as x FROM [//t]", split, source, result, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max(), registry);
+    Evaluate("abs_udf(b) as x FROM [//t]", split, source, ResultMatcher(result), std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max(), registry);
 
     SUCCEED();
 }
@@ -2326,7 +2365,7 @@ TEST_F(TQueryEvaluateTest, TestUdfNullPropagation2)
     auto registry = New<StrictMock<TFunctionRegistryMock>>();
     registry->WithFunction(ExpUdf_);
 
-    Evaluate("exp_udf(a, b) as x FROM [//t]", split, source, result, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max(), registry);
+    Evaluate("exp_udf(a, b) as x FROM [//t]", split, source, ResultMatcher(result), std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max(), registry);
 
     SUCCEED();
 }
@@ -2358,7 +2397,7 @@ TEST_F(TQueryEvaluateTest, TestUdfStringArgument)
     auto registry = New<StrictMock<TFunctionRegistryMock>>();
     registry->WithFunction(StrtolUdf_);
 
-    Evaluate("strtol_udf(a) as x FROM [//t]", split, source, result, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max(), registry);
+    Evaluate("strtol_udf(a) as x FROM [//t]", split, source, ResultMatcher(result), std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max(), registry);
 
     SUCCEED();
 }
@@ -2390,7 +2429,7 @@ TEST_F(TQueryEvaluateTest, TestUdfStringResult)
     auto registry = New<StrictMock<TFunctionRegistryMock>>();
     registry->WithFunction(TolowerUdf_);
 
-    Evaluate("tolower_udf(a) as x FROM [//t]", split, source, result, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max(), registry);
+    Evaluate("tolower_udf(a) as x FROM [//t]", split, source, ResultMatcher(result), std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max(), registry);
 
     SUCCEED();
 }
@@ -2420,7 +2459,7 @@ TEST_F(TQueryEvaluateTest, TestUnversionedValueUdf)
     auto registry = New<StrictMock<TFunctionRegistryMock>>();
     registry->WithFunction(IsNullUdf_);
 
-    Evaluate("is_null_udf(a) as x FROM [//t]", split, source, result, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max(), registry);
+    Evaluate("is_null_udf(a) as x FROM [//t]", split, source, ResultMatcher(result), std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max(), registry);
 
     SUCCEED();
 }
@@ -2448,7 +2487,7 @@ TEST_F(TQueryEvaluateTest, TestVarargUdf)
     auto registry = New<StrictMock<TFunctionRegistryMock>>();
     registry->WithFunction(SumUdf_);
 
-    Evaluate("a as x FROM [//t] where sum_udf(7, 3, a) in (11, 12)", split, source, result, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max(), registry);
+    Evaluate("a as x FROM [//t] where sum_udf(7, 3, a) in (11, 12)", split, source, ResultMatcher(result), std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max(), registry);
 
     SUCCEED();
 }
@@ -2494,7 +2533,7 @@ TEST_F(TQueryEvaluateTest, TestObjectUdf)
         ECallingConvention::Simple);
     registry->WithFunction(expUdf);
 
-    Evaluate("exp_udf(b, a) as x FROM [//t]", split, source, result, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max(), registry);
+    Evaluate("exp_udf(b, a) as x FROM [//t]", split, source, ResultMatcher(result), std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max(), registry);
 
     SUCCEED();
 }
@@ -2521,7 +2560,7 @@ TEST_F(TQueryEvaluateTest, TestFarmHash)
         "x=1607147011416532415u"
     }, resultSplit);
 
-    Evaluate("farm_hash(a, b, c) as x FROM [//t]", split, source, result, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max());
+    Evaluate("farm_hash(a, b, c) as x FROM [//t]", split, source, ResultMatcher(result), std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max());
 
     SUCCEED();
 }
@@ -2548,7 +2587,7 @@ TEST_F(TQueryEvaluateTest, TestRegexFullMatch)
         "x=%false",
     }, resultSplit);
 
-    Evaluate("regex_full_match(\"hel[a-z]\", a) as x FROM [//t]", split, source, result, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max());
+    Evaluate("regex_full_match(\"hel[a-z]\", a) as x FROM [//t]", split, source, ResultMatcher(result), std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max());
 
     SUCCEED();
 }
@@ -2575,7 +2614,7 @@ TEST_F(TQueryEvaluateTest, TestRegexPartialMatch)
         "x=%false",
     }, resultSplit);
 
-    Evaluate("regex_partial_match(\"[0-9]+\", a) as x FROM [//t]", split, source, result, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max());
+    Evaluate("regex_partial_match(\"[0-9]+\", a) as x FROM [//t]", split, source, ResultMatcher(result), std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max());
 
     SUCCEED();
 }
@@ -2600,7 +2639,7 @@ TEST_F(TQueryEvaluateTest, TestRegexReplaceFirst)
         "",
     }, resultSplit);
 
-    Evaluate("regex_replace_first(\"[0-9]+\", a, \"_\") as x FROM [//t]", split, source, result, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max());
+    Evaluate("regex_replace_first(\"[0-9]+\", a, \"_\") as x FROM [//t]", split, source, ResultMatcher(result), std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max());
 
     SUCCEED();
 }
@@ -2625,7 +2664,7 @@ TEST_F(TQueryEvaluateTest, TestRegexReplaceAll)
         "",
     }, resultSplit);
 
-    Evaluate("regex_replace_all(\"[0-9]+\", a, \"_\") as x FROM [//t]", split, source, result, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max());
+    Evaluate("regex_replace_all(\"[0-9]+\", a, \"_\") as x FROM [//t]", split, source, ResultMatcher(result), std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max());
 
     SUCCEED();
 }
@@ -2650,7 +2689,7 @@ TEST_F(TQueryEvaluateTest, TestRegexExtract)
         "",
     }, resultSplit);
 
-    Evaluate("regex_extract(\"([a-z]*)@(.*).com\", a, \"\\\\1 at \\\\2\") as x FROM [//t]", split, source, result, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max());
+    Evaluate("regex_extract(\"([a-z]*)@(.*).com\", a, \"\\\\1 at \\\\2\") as x FROM [//t]", split, source, ResultMatcher(result), std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max());
 
     SUCCEED();
 }
@@ -2675,7 +2714,7 @@ TEST_F(TQueryEvaluateTest, TestRegexEscape)
         "",
     }, resultSplit);
 
-    Evaluate("regex_escape(a) as x FROM [//t]", split, source, result, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max());
+    Evaluate("regex_escape(a) as x FROM [//t]", split, source, ResultMatcher(result), std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max());
 
     SUCCEED();
 }
@@ -2703,7 +2742,7 @@ TEST_F(TQueryEvaluateTest, TestAverageAgg)
         "x=24.2",
     }, resultSplit);
 
-    Evaluate("avg(a) as x from [//t] group by 1", split, source, result);
+    Evaluate("avg(a) as x from [//t] group by 1", split, source, ResultMatcher(result));
 }
 
 TEST_F(TQueryEvaluateTest, TestAverageAgg2)
@@ -2738,7 +2777,7 @@ TEST_F(TQueryEvaluateTest, TestAverageAgg2)
         "r1=35.5;x=0;r2=9;r3=3.5;r4=23"
     }, resultSplit);
 
-    Evaluate("avg(a) as r1, x, max(c) as r2, avg(c) as r3, min(a) as r4 from [//t] group by b % 2 as x", split, source, result);
+    Evaluate("avg(a) as r1, x, max(c) as r2, avg(c) as r3, min(a) as r4 from [//t] group by b % 2 as x", split, source, ResultMatcher(result));
 }
 
 TEST_F(TQueryEvaluateTest, TestAverageAgg3)
@@ -2765,7 +2804,7 @@ TEST_F(TQueryEvaluateTest, TestAverageAgg3)
         "b=0"
     }, resultSplit);
 
-    Evaluate("b, avg(a) as x from [//t] group by b", split, source, result);
+    Evaluate("b, avg(a) as x from [//t] group by b", split, source, ResultMatcher(result));
 }
 
 TEST_F(TQueryEvaluateTest, TestStringAgg)
@@ -2790,7 +2829,7 @@ TEST_F(TQueryEvaluateTest, TestStringAgg)
         "b=\"fo\";c=\"two\"",
     }, resultSplit);
 
-    Evaluate("min(a) as b, max(a) as c from [//t] group by 1", split, source, result);
+    Evaluate("min(a) as b, max(a) as c from [//t] group by 1", split, source, ResultMatcher(result));
 }
 
 TEST_F(TQueryEvaluateTest, WronglyTypedAggregate)
@@ -2828,7 +2867,7 @@ TEST_F(TQueryEvaluateTest, CardinalityAggregate)
         "upper=%true;lower=%true"
     }, resultSplit);
 
-    Evaluate("cardinality(a) < 2020u as upper, cardinality(a) > 1980u as lower from [//t] group by 1", split, source, result);
+    Evaluate("cardinality(a) < 2020u as upper, cardinality(a) > 1980u as lower from [//t] group by 1", split, source, ResultMatcher(result));
 }
 
 TEST_F(TQueryEvaluateTest, TestObjectUdaf)
@@ -2871,7 +2910,7 @@ TEST_F(TQueryEvaluateTest, TestObjectUdaf)
         testUdfObjectImpl,
         ECallingConvention::Simple));
 
-    Evaluate("max_udaf(a) as r from [//t] group by 1", split, source, result, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max(), registry);
+    Evaluate("max_udaf(a) as r from [//t] group by 1", split, source, ResultMatcher(result), std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max(), registry);
 }
 
 TEST_F(TQueryEvaluateTest, TestLinkingError1)
@@ -2986,7 +3025,7 @@ TEST_F(TQueryEvaluateTest, TestCasts)
         "r1=5",
     }, resultSplit);
 
-    Evaluate("int64(a) as r1, double(b) as r2, uint64(c) as r3 from [//t]", split, source, result);
+    Evaluate("int64(a) as r1, double(b) as r2, uint64(c) as r3 from [//t]", split, source, ResultMatcher(result));
 }
 
 TEST_F(TQueryEvaluateTest, TestUdfException)

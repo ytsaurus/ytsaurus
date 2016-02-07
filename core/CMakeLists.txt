@@ -94,6 +94,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/misc/lease_manager.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/lfalloc_helpers.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/lifecycle.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/misc/linear_probe.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/new.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/pattern_formatter.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/phoenix.cpp
@@ -260,7 +261,6 @@ target_link_libraries(ytcore
   yt-contrib-jerasure
   yt-contrib-libev
   deps-yt-contrib-farmhash
-  ytext-json
   ytext-arcadia-library-http
   ytext-yajl
   protobuf

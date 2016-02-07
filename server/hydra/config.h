@@ -24,10 +24,10 @@ public:
     //! Minimum total index records size between consecutive index records.
     i64 IndexBlockSize;
 
-    //! Bytes to keep in memory before doing flush.
+    //! When the number of unflushed bytes exceeds this value, an automatic flush is performed.
     i64 FlushBufferSize;
 
-    //! Interval between consequent forced flushes.
+    //! Interval between consequent automatic flushes.
     TDuration FlushPeriod;
 
     TFileChangelogConfig()
@@ -37,7 +37,7 @@ public:
             .Default((i64) 1024 * 1024);
         RegisterParameter("flush_buffer_size", FlushBufferSize)
             .GreaterThanOrEqual(0)
-            .Default((i64) 10 * 1024 * 1024);
+            .Default((i64) 16 * 1024 * 1024);
         RegisterParameter("flush_period", FlushPeriod)
             .Default(TDuration::MilliSeconds(10));
     }

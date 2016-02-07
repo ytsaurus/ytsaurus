@@ -1,4 +1,5 @@
 #include "fs.h"
+#include "finally.h"
 
 #include <yt/core/logging/log.h>
 
@@ -11,13 +12,14 @@
 
 #include <array>
 
-// For GetAvaibaleSpace().
-#ifdef _unix_
+#if defined(_unix_)
+    #include <sys/mount.h>
     #include <sys/stat.h>
     #include <fcntl.h>
 #endif
 
 #if defined(_linux_)
+    #include <mntent.h>
     #include <sys/vfs.h>
 #elif defined(_freebsd_) || defined(_darwin_)
     #include <sys/param.h>
@@ -25,15 +27,6 @@
 #elif defined (_win_)
     #include <comutil.h>
     #include <shlobj.h>
-#endif
-
-// For JoinPaths
-#ifdef _win_
-    static const char PATH_DELIM = '\\';
-    static const char PATH_DELIM2 = '/';
-#else
-    static const char PATH_DELIM = '/';
-    static const char PATH_DELIM2 = 0;
 #endif
 
 namespace NYT {
@@ -44,6 +37,15 @@ namespace NFS {
 static const NLogging::TLogger Logger("FS");
 
 //////////////////////////////////////////////////////////////////////////////
+
+namespace {
+
+void ThrowNotSupported()
+{
+    THROW_ERROR_EXCEPTION("Unsupported platform");
+}
+
+} // namespace
 
 bool Exists(const Stroka& path)
 {
@@ -74,7 +76,7 @@ void Remove(const Stroka& path)
         THROW_ERROR_EXCEPTION("Cannot remove %v",
             path)
             << TError::FromSystem();
-    }   
+    }
 }
 
 void Replace(const Stroka& source, const Stroka& destination)
@@ -264,11 +266,21 @@ void Touch(const Stroka& path)
             << TError::FromSystem();
     }
 #else
-    // TODO(babenko): implement when first needed
+    ThrowNotSupported();
 #endif
 }
 
-static bool IsAbsolutePath(const Stroka& path)
+namespace {
+
+#ifdef _win_
+    const char PATH_DELIM = '\\';
+    const char PATH_DELIM2 = '/';
+#else
+    const char PATH_DELIM = '/';
+    const char PATH_DELIM2 = 0;
+#endif
+
+bool IsAbsolutePath(const Stroka& path)
 {
     if (path.empty())
         return false;
@@ -279,11 +291,11 @@ static bool IsAbsolutePath(const Stroka& path)
         return true;
     if (path[0] > 0 && isalpha(path[0]) && path[1] == ':')
         return true;
-#endif // _win_
+#endif
     return false;
 }
 
-static Stroka JoinPaths(const Stroka& path1, const Stroka& path2)
+Stroka JoinPaths(const Stroka& path1, const Stroka& path2)
 {
     if (path1.empty())
         return path2;
@@ -301,6 +313,8 @@ static Stroka JoinPaths(const Stroka& path1, const Stroka& path2)
     path.append(path2, delim == 2 ? 1 : 0, Stroka::npos);
     return path;
 }
+
+} // namespace
 
 Stroka CombinePaths(const Stroka& path1, const Stroka& path2)
 {
@@ -431,6 +445,60 @@ void FlushDirectory(const Stroka& path)
     SafeClose(fd, false);
 #else
     // No-op.
+#endif
+}
+
+std::vector<TMountPoint> GetMountPoints(const Stroka& mountsFile)
+{
+#ifdef _linux_
+    std::unique_ptr<FILE, decltype(&endmntent)> file(::setmntent(~mountsFile, "r"), endmntent);
+
+    if (!file.get()) {
+        THROW_ERROR_EXCEPTION("Failed to open mounts file %v", mountsFile);
+    }
+
+    std::vector<TMountPoint> mountPoints;
+
+    ::mntent* entry;
+    while ((entry = getmntent(file.get()))) {
+        TMountPoint point;
+        point.Name = entry->mnt_fsname;
+        point.Path = entry->mnt_dir;
+        mountPoints.push_back(point);
+    }
+
+    return mountPoints;
+#else
+    ThrowNotSupported();
+#endif
+}
+
+void MountTmpfs(const Stroka& path, int userId, i64 size)
+{
+#ifdef _linux_
+    auto opts = Format("mode=0700,uid=%v,size=%v", userId, size);
+    int result = ::mount("none", ~path, "tmpfs", 0, ~opts);
+    if (result < 0) {
+        THROW_ERROR_EXCEPTION("Failed to mount tmpfs at %v", path)
+            << TErrorAttribute("user_id", userId)
+            << TErrorAttribute("size", size)
+            << TError::FromSystem();
+    }
+#else
+    ThrowNotSupported();
+#endif
+}
+
+void Umount(const Stroka& path)
+{
+#ifdef _linux_
+    int result = ::umount(~path);
+    if (result < 0) {
+        THROW_ERROR_EXCEPTION("Failed to umount %v", path)
+            << TError::FromSystem();
+    }
+#else
+    ThrowNotSupported();
 #endif
 }
 

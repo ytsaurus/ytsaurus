@@ -13,6 +13,8 @@
 
 #include <yt/server/misc/memory_usage_tracker.h>
 
+#include <yt/ytlib/tablet_client/public.h>
+
 #include <yt/core/concurrency/periodic_executor.h>
 #include <yt/core/concurrency/rw_spinlock.h>
 #include <yt/core/concurrency/thread_affinity.h>
@@ -178,8 +180,11 @@ public:
 
         auto snapshot = FindTabletSnapshot(tabletId);
         if (!snapshot) {
-            THROW_ERROR_EXCEPTION("Tablet %v is not known",
-                tabletId);
+            THROW_ERROR_EXCEPTION(
+                NTabletClient::EErrorCode::NoSuchTablet,
+                "Tablet %v is not known",
+                tabletId)
+                << TErrorAttribute("tablet_id", tabletId);
         }
         return snapshot;
     }
@@ -249,6 +254,23 @@ public:
                     jt->first,
                     slot->GetCellId());
                 TabletIdToSnapshot_.erase(jt);
+            }
+        }
+    }
+
+
+    void PopulateAlerts(std::vector<TError>* alerts)
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        TReaderGuard guard(TabletSnapshotsSpinLock_);
+
+        for (const auto& it : TabletIdToSnapshot_) {
+            if (it.second->OverlappingStoreCount >= it.second->Config->MaxOverlappingStoreCount) {
+                auto alert = TError("Too many overlapping stores in tablet %v, rotation disabled", it.first)
+                    << TErrorAttribute("overlapping_store_count", it.second->OverlappingStoreCount)
+                    << TErrorAttribute("max_overlapping_store_count", it.second->Config->MaxOverlappingStoreCount);
+                alerts->push_back(std::move(alert));
             }
         }
     }
@@ -440,6 +462,11 @@ void TSlotManager::UpdateTabletSnapshot(TTablet* tablet)
 void TSlotManager::UnregisterTabletSnapshots(TTabletSlotPtr slot)
 {
     Impl_->UnregisterTabletSnapshots(std::move(slot));
+}
+
+void TSlotManager::PopulateAlerts(std::vector<TError>* alerts)
+{
+    Impl_->PopulateAlerts(alerts);
 }
 
 IYPathServicePtr TSlotManager::GetOrchidService()

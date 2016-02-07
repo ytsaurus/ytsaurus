@@ -375,7 +375,7 @@ public:
         }
 
         auto epochContext = AutomatonEpochContext_;
-        if (epochContext->Restarting) {
+        if (epochContext && epochContext->Restarting) {
             return MakeFuture<TMutationResponse>(TError(
                 NRpc::EErrorCode::Unavailable,
                 "Peer is restarting"));
@@ -1145,7 +1145,7 @@ private:
             YCHECK(ControlState_ == EPeerState::LeaderRecovery);
             ControlState_ = EPeerState::Leading;
 
-            LOG_INFO("Leader recovery complete");
+            LOG_INFO("Leader recovery completed");
 
             LOG_INFO("Waiting for leader lease");
 
@@ -1250,7 +1250,7 @@ private:
             SwitchTo(epochContext->EpochSystemAutomatonInvoker);
             VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-            LOG_INFO("Follower recovery complete");
+            LOG_INFO("Follower recovery completed");
 
             DecoratedAutomaton_->OnFollowerRecoveryComplete();
             FollowerRecoveryComplete_.Fire();
@@ -1426,6 +1426,8 @@ private:
                 NRpc::EErrorCode::Unavailable,
                 "Failed to synchronize with leader")
                 << rspOrError);
+            epochContext->ActiveLeaderSyncPromise.Reset();
+            CheckForLeaderSyncDeadline(epochContext);
             return;
         }
 
@@ -1460,7 +1462,11 @@ private:
         epochContext->ActiveLeaderSyncPromise.Set();
         epochContext->ActiveLeaderSyncPromise.Reset();
         epochContext->ActiveLeaderSyncVersion.Reset();
+        CheckForLeaderSyncDeadline(epochContext);
+    }
 
+    void CheckForLeaderSyncDeadline(TEpochContextPtr epochContext)
+    {
         if (epochContext->LeaderSyncDeadlineReached) {
             DoSyncWithLeader(epochContext);
         }

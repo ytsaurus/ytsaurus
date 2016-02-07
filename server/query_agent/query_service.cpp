@@ -67,9 +67,20 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NQueryClient::NProto, Execute)
     {
-        auto planFragment = FromProto(request->plan_fragment());
+        LOG_DEBUG("Deserializing subfragment");
 
-        context->SetRequestInfo("FragmentId: %v", planFragment->Query->Id);
+        auto query = FromProto(request->query());
+        auto options = FromProto(request->options());
+
+        std::vector<TDataRanges> dataSources;
+        dataSources.reserve(request->data_sources_size());
+        for (int i = 0; i < request->data_sources_size(); ++i) {
+            dataSources.push_back(FromProto(request->data_sources(i)));
+        }
+
+        LOG_DEBUG("Deserialized subfragment");
+
+        context->SetRequestInfo("FragmentId: %v", query->Id);
 
         const auto& user = context->GetUser();
         auto securityManager = Bootstrap_->GetSecurityManager();
@@ -81,10 +92,10 @@ private:
             [&] () {
                 TWireProtocolWriter protocolWriter;
                 auto rowsetWriter = protocolWriter.CreateSchemafulRowsetWriter(
-                    planFragment->Query->GetTableSchema());
+                    query->GetTableSchema());
 
                 auto executor = Bootstrap_->GetQueryExecutor();
-                auto result = WaitFor(executor->Execute(planFragment, rowsetWriter))
+                auto result = WaitFor(executor->Execute(query, dataSources, rowsetWriter, options))
                     .ValueOrThrow();
 
                 auto responseCodec = request->has_response_codec()

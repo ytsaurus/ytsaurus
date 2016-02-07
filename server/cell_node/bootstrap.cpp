@@ -186,11 +186,14 @@ void TBootstrap::DoRun()
         Config->QueryAgent->ThreadPoolSize,
         "Query");
 
-    BusServer = CreateTcpBusServer(TTcpBusServerConfig::CreateTcp(Config->RpcPort));
+    BusServer = CreateTcpBusServer(Config->BusServer);
 
     RpcServer = CreateBusServer(BusServer);
 
-    HttpServer.reset(new NHttp::TServer(Config->MonitoringPort));
+    HttpServer.reset(new NHttp::TServer(
+        Config->MonitoringPort,
+        Config->BusServer->BindRetryCount,
+        Config->BusServer->BindRetryBackoff));
 
     TabletChannelFactory = CreateCachingChannelFactory(GetBusChannelFactory());
 
@@ -347,6 +350,7 @@ void TBootstrap::DoRun()
     SchedulerConnector = New<TSchedulerConnector>(Config->ExecAgent->SchedulerConnector, this);
 
     TabletSlotManager = New<NTabletNode::TSlotManager>(Config->TabletNode, this);
+    MasterConnector->SubscribePopulateAlerts(BIND(&NTabletNode::TSlotManager::PopulateAlerts, TabletSlotManager));
 
     SecurityManager = New<TSecurityManager>(Config->TabletNode->SecurityManager, this);
 
@@ -556,7 +560,7 @@ NDataNode::TMasterConnectorPtr TBootstrap::GetMasterConnector() const
     return MasterConnector;
 }
 
-NQueryClient::IExecutorPtr TBootstrap::GetQueryExecutor() const
+NQueryClient::ISubExecutorPtr TBootstrap::GetQueryExecutor() const
 {
     return QueryExecutor;
 }

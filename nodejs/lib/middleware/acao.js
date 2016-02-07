@@ -8,7 +8,8 @@ exports.that = function Middleware__YtAcao()
         var origin = req.headers["origin"] || "*";
 
         if (req.method === "GET" || req.method === "POST" || req.method === "PUT") {
-            rsp.setHeader("Access-Control-Allow-Origin", "*");
+            rsp.setHeader("Access-Control-Allow-Credentials", "true");
+            rsp.setHeader("Access-Control-Allow-Origin", origin);
         }
 
         if (req.method === "OPTIONS") {

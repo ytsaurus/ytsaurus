@@ -2,12 +2,11 @@
 
 #include "public.h"
 #include "ast.h"
-#include "function_registry.h"
 #include "plan_fragment_common.h"
 
 #include <yt/ytlib/node_tracker_client/node_directory.h>
 
-#include <yt/ytlib/query_client/plan_fragment.pb.h>
+#include <yt/ytlib/misc/workload.h>
 
 #include <yt/ytlib/table_client/row_buffer.h>
 #include <yt/ytlib/table_client/schema.h>
@@ -23,19 +22,13 @@ namespace NQueryClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_ENUM(EExpressionKind,
+    (None)
     (Literal)
     (Reference)
     (Function)
     (UnaryOp)
     (BinaryOp)
     (InOp)
-);
-
-DEFINE_ENUM(EOperatorKind,
-    (Scan)
-    (Filter)
-    (Group)
-    (Project)
 );
 
 struct TExpression
@@ -244,13 +237,21 @@ struct TJoinClause
 
     TTableSchema RenamedTableSchema;
 
+    bool CanUseSourceRanges;
+    size_t KeyPrefix;
+    std::vector<int> EquationByIndex;
+
+    // TODO(lukyan): Keep reverse to EquationByIndex mapping (std::vector<int> equationToPosMapping)?
+
+    std::vector<TConstExpressionPtr> EvaluatedColumns;
+
     std::vector<std::pair<TConstExpressionPtr, TConstExpressionPtr>> Equations;
 
     bool IsLeft = false;
 
     TGuid ForeignDataId;
 
-    // TODO: Use ITableSchemaInterface
+    // TODO: Use ITableSchema interface
     TTableSchema JoinedTableSchema;
 
     TTableSchema GetTableSchema() const
@@ -306,7 +307,7 @@ struct TProjectClause
 {
     TNamedItemList Projections;
 
-    // TODO: Use ITableSchemaInterface
+    // TODO: Use ITableSchema interface
     TTableSchema ProjectTableSchema;
 
     void AddProjection(const TNamedItem& namedItem)
@@ -374,6 +375,17 @@ struct TQuery
 
     i64 Limit = std::numeric_limits<i64>::max();
 
+    bool IsOrdered() const
+    {
+        if (Limit < std::numeric_limits<i64>::max() ) {
+            return !OrderClause && !GroupClause;
+        } else {
+            YCHECK(!OrderClause);
+        }
+
+        return false;
+    }
+
     TTableSchema GetTableSchema() const
     {
         if (ProjectClause) {
@@ -397,41 +409,42 @@ DEFINE_REFCOUNTED_TYPE(TQuery)
 void ToProto(NProto::TQuery* proto, TConstQueryPtr original);
 TQueryPtr FromProto(const NProto::TQuery& serialized);
 
-struct TDataSource
+struct TQueryOptions
 {
-    //! Either a chunk id, a table id or a tablet id.
-    NObjectClient::TObjectId Id;
-    TRowRange Range;
-};
-
-typedef std::vector<TDataSource> TDataSources;
-
-struct TPlanFragment
-    : public TIntrinsicRefCounted
-{
-    explicit TPlanFragment(const Stroka& source = Stroka())
-        : Source(source)
-    { }
-
-    Stroka Source;
-
-    TTimestamp Timestamp;
-
-    const TRowBufferPtr KeyRangesRowBuffer = New<TRowBuffer>();
-    TDataSources DataSources;
-
-    TConstQueryPtr Query;
-    bool Ordered = false;
+    NTransactionClient::TTimestamp Timestamp = NTransactionClient::SyncLastCommittedTimestamp;
     bool VerboseLogging = false;
     int MaxSubqueries = std::numeric_limits<int>::max();
     ui64 RangeExpansionLimit = 0;
     bool EnableCodeCache = true;
+    TWorkloadDescriptor WorkloadDescriptor;
 };
 
-DEFINE_REFCOUNTED_TYPE(TPlanFragment)
+struct TDataRange
+{
+    //! Either a chunk id or tablet id.
+    NObjectClient::TObjectId Id;
+    TRowRange Range;
+};
 
-void ToProto(NProto::TPlanFragment* serialized, TConstPlanFragmentPtr fragment);
-TPlanFragmentPtr FromProto(const NProto::TPlanFragment& serialized);
+struct TDataRanges
+{
+    //! Either a chunk id or tablet id.
+    NObjectClient::TObjectId Id;
+    TSharedRange<TRowRange> Ranges;
+};
+
+struct TDataKeys
+{
+    //! Either a chunk id or tablet id.
+    NObjectClient::TObjectId Id;
+    TSharedRange<TRow> Keys;
+};
+
+void ToProto(NProto::TQueryOptions* proto, const TQueryOptions& options);
+TQueryOptions FromProto(const NProto::TQueryOptions& serialized);
+
+void ToProto(NProto::TDataRanges* proto, const TDataRanges& dataSource);
+TDataRanges FromProto(const NProto::TDataRanges& serialized);
 
 Stroka InferName(TConstExpressionPtr expr, bool omitValues = false);
 Stroka InferName(TConstQueryPtr query, bool omitValues = false);

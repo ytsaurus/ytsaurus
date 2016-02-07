@@ -2,8 +2,13 @@
 
 #include "error.h"
 
+#include <yt/core/actions/future.h>
+
+#include <yt/core/concurrency/periodic_executor.h>
+
 #include <yt/core/pipes/pipe.h>
 
+#include <atomic>
 #include <vector>
 
 namespace NYT {
@@ -15,35 +20,28 @@ namespace NYT {
 // before modification
 
 class TProcess
+    : public TRefCounted
+    , private TNonCopyable
 {
 public:
-    explicit TProcess(const Stroka& path, bool copyEnv = true);
-    ~TProcess();
-
-    TProcess(const TProcess& other) = delete;
-    TProcess(TProcess&& other);
-
-    Stroka GetPath() const;
-
-    static TProcess CreateCurrentProcessSpawner();
+    explicit TProcess(const Stroka& path, bool copyEnv = true, TDuration pollPeriod = TDuration::MilliSeconds(100));
 
     void AddArgument(TStringBuf arg);
     void AddEnvVar(TStringBuf var);
 
     void AddArguments(std::initializer_list<TStringBuf> args);
+    void AddArguments(const std::vector<Stroka>& args);
 
     void AddCloseFileAction(int fd);
     void AddDup2FileAction(int oldFD, int newFD);
 
-    void Spawn();
-    TError Wait();
+    TFuture<void> Spawn();
     void Kill(int signal);
 
-    void KillAndWait() noexcept;
-
+    Stroka GetPath() const;
     int GetProcessId() const;
-    bool Started() const;
-    bool Finished() const;
+    bool IsStarted() const;
+    bool IsFinished() const;
 
     Stroka GetCommandLine() const;
 
@@ -54,12 +52,12 @@ private:
         Stroka ErrorMessage;
     };
 
-    TSpinLock LifecycleChangeLock_;
-    bool Started_ = false;
-    bool Finished_ = false;
+    std::atomic<bool> IsStarted_ = {false};
+    std::atomic<bool> IsFinished_ = {false};
 
     int ProcessId_;
     Stroka Path_;
+    TDuration PollPeriod_;
 
     int MaxSpawnActionFD_ = - 1;
 
@@ -69,13 +67,16 @@ private:
     std::vector<char*> Env_;
     std::vector<TSpawnAction> SpawnActions_;
 
+    NConcurrency::TPeriodicExecutorPtr AsyncWaitExecutor_;
+    TPromise<void> FinishedPromise_;
+
     char* Capture(TStringBuf arg);
 
+    void DoSpawn();
     void SpawnChild();
     void ThrowOnChildError();
     void Child();
-
-    void Swap(TProcess& other);
+    void AsyncPeriodicTryWait();
 };
 
 ////////////////////////////////////////////////////////////////////////////////

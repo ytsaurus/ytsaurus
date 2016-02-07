@@ -13,6 +13,8 @@
 
 #include <yt/core/tools/tools.h>
 
+#include <util/folder/dirut.h>
+
 namespace NYT {
 namespace NExecAgent {
 
@@ -157,6 +159,17 @@ void TSlot::DoCleanSandbox(int pathIndex)
 {
     for (auto sandboxKind : TEnumTraits<ESandboxKind>::GetDomainValues()) {
         const auto& sandboxPath = SandboxPaths_[pathIndex][sandboxKind];
+        auto sandboxFullPath = NFS::CombinePaths(GetCwd(), sandboxPath);
+
+        auto mountPoints = NFS::GetMountPoints();
+        for (const auto& mountPoint : mountPoints) {
+            if (sandboxFullPath.is_prefix(mountPoint.Path)) {
+                // '/*' added since we need to remove only content.
+                RunTool<TRemoveDirAsRootTool>(mountPoint.Path + "/*");
+                RunTool<TUmountAsRootTool>(mountPoint.Path);
+            }
+        }
+
         try {
             if (NFS::Exists(sandboxPath)) {
                 if (UserId_) {
@@ -217,8 +230,8 @@ void TSlot::Release()
         ProcessGroup_.Unlock();
     }
 
-    IsFree_.store(true);
     PathIndex_ = -1;
+    IsFree_.store(true);
 }
 
 void TSlot::InitSandbox()
@@ -238,6 +251,33 @@ void TSlot::InitSandbox()
     }
 
     IsClean_ = false;
+}
+
+void TSlot::PrepareTmpfs(
+    ESandboxKind sandboxKind,
+    i64 size)
+{
+    if (!UserId_) {
+        THROW_ERROR_EXCEPTION("Cannot mount tmpfs since job control is disabled");
+    }
+
+    auto config = New<TMountTmpfsConfig>();
+    config->Path = GetTmpfsPath(sandboxKind);
+    config->Size = size;
+    config->UserId = *UserId_;
+
+    LOG_DEBUG("Preparing tmpfs (Path: %v, Size: %v, UserId: %v)",
+        config->Path,
+        config->Size,
+        config->UserId);
+
+    NFS::ForcePath(config->Path);
+    RunTool<TMountTmpfsAsRootTool>(config);
+}
+
+Stroka TSlot::GetTmpfsPath(ESandboxKind sandboxKind) const
+{
+    return NFS::CombinePaths(SandboxPaths_[PathIndex_][sandboxKind], TmpfsDirName);
 }
 
 void TSlot::MakeLink(

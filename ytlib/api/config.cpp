@@ -91,6 +91,20 @@ TConnectionConfig::TConnectionConfig()
         .Default(false);
     RegisterParameter("udf_registry_path", UdfRegistryPath)
         .Default("//tmp/udfs");
+
+    RegisterParameter("table_mount_info_update_retry_count", TableMountInfoUpdateRetryCount)
+        .GreaterThan(0)
+        .Default(5);
+    RegisterParameter("table_mount_info_update_retry_time", TableMountInfoUpdateRetryPeriod)
+        .GreaterThan(TDuration::MicroSeconds(0))
+        .Default(TDuration::Seconds(1));
+
+    RegisterParameter("light_pool_size", LightInvokerPoolSize)
+        .Describe("Number of threads handling light requests")
+        .Default(1);
+    RegisterParameter("heavy_pool_size", HeavyInvokerPoolSize)
+        .Describe("Number of threads handling heavy requests")
+        .Default(4);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

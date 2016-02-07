@@ -9,12 +9,16 @@
 
 #include <util/string/vector.h>
 
+#include <util/system/user.h>
+
 #ifdef _linux_
     #include <sys/eventfd.h>
     #include <sys/stat.h>
     #include <sys/wait.h>
     #include <unistd.h>
     #include <fcntl.h>
+    #include <sys/utsname.h>
+    #include <linux/version.h>
 #endif
 
 #include <array>
@@ -25,10 +29,14 @@ namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static Stroka CGroupPrefix = GetUsername() + "/yt/unittests/";
+
+////////////////////////////////////////////////////////////////////////////////
+
 template <typename T>
 T CreateCGroup(const Stroka& name)
 {
-    T group(name);
+    T group(CGroupPrefix + name);
     group.Create();
     return group;
 }
@@ -46,15 +54,30 @@ TEST(TCGroup, CreateDestroy)
 
 #ifdef _linux_
 
+int GetLinuxVersion()
+{
+    utsname sysInfo;
+
+    VERIFY(!uname(&sysInfo), "Error while call uname: %s", LastSystemErrorText());
+
+    TStringBuf release(sysInfo.release);
+    release = release.substr(0, release.find_first_not_of(".0123456789"));
+
+    int v1 = FromString<int>(release.NextTok('.'));
+    int v2 = FromString<int>(release.NextTok('.'));
+    int v3 = FromString<int>(release.NextTok('.'));
+    return KERNEL_VERSION(v1, v2, v3);
+}
+
 TEST(TCGroup, NotExistingGroupGetTasks)
 {
-    TBlockIO group("not_existing_group_get_tasks" + ToString(TGuid::Create()));
+    TBlockIO group(CGroupPrefix + "not_existing_group_get_tasks" + ToString(TGuid::Create()));
     EXPECT_THROW(group.GetTasks(), std::exception);
 }
 
 TEST(TCGroup, NotExistingRemoveAllSubcgroup)
 {
-    TBlockIO group("not_existing_remove_all_subcgroup" + ToString(TGuid::Create()));
+    TBlockIO group(CGroupPrefix + "not_existing_remove_all_subcgroup" + ToString(TGuid::Create()));
     group.RemoveAllSubcgroups();
 }
 
@@ -62,7 +85,7 @@ TEST(TCGroup, NotExistingRemoveAllSubcgroup)
 
 TEST(TCGroup, DoubleCreate)
 {
-    TBlockIO group("double_create_" + ToString(TGuid::Create()));
+    TBlockIO group(CGroupPrefix + "double_create_" + ToString(TGuid::Create()));
     group.Create();
     group.Create();
     group.Destroy();
@@ -258,8 +281,13 @@ TEST(TCGroup, Bug)
     EXPECT_TRUE(::read(initBarier, &num, sizeof(num)) == sizeof(num));
 
     reallyRead = ::read(fd, buffer, 1024);
-    // reallyRead SHOULD BE equal to 0
-    ASSERT_TRUE(reallyRead > 0);
+    // XXX(ignat): I failed to determine exact version where this problem was fixed.
+    // It is certanly between 3.10 and 3.18, but there are too many changes about cgroups in these versions.
+    if (GetLinuxVersion() >= KERNEL_VERSION(3, 18, 0)) {
+        ASSERT_TRUE(reallyRead == 0);
+    } else {
+        ASSERT_TRUE(reallyRead > 0);
+    }
 
     num = 1;
     EXPECT_TRUE(::write(exitBarier, &num, sizeof(num)) == sizeof(num));

@@ -3,7 +3,7 @@
 #include "journal_node_proxy.h"
 
 #include <yt/server/cell_master/bootstrap.h>
-#include <yt/server/cell_master/serialize.h>
+#include <yt/server/cell_master/config.h>
 
 #include <yt/server/chunk_server/chunk_manager.h>
 #include <yt/server/chunk_server/chunk_owner_type_handler.h>
@@ -103,16 +103,18 @@ public:
     {
         TBase::SetDefaultAttributes(attributes, transaction);
 
+        const auto& config = Bootstrap_->GetConfig()->CypressManager;
+
         if (!attributes->Contains("replication_factor")) {
-            attributes->Set("replication_factor", DefaultReplicationFactor);
+            attributes->Set("replication_factor", config->DefaultJournalReplicationFactor);
         }
 
         if (!attributes->Contains("read_quorum")) {
-            attributes->Set("read_quorum", DefaultReadQuorum);
+            attributes->Set("read_quorum", config->DefaultJournalReadQuorum);
         }
 
         if (!attributes->Contains("write_quorum")) {
-            attributes->Set("write_quorum", DefaultWriteQuorum);
+            attributes->Set("write_quorum", config->DefaultJournalWriteQuorum);
         }
     }
 

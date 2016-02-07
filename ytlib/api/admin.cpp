@@ -1,10 +1,9 @@
 #include "admin.h"
-#include "private.h"
 #include "box.h"
 #include "config.h"
 #include "connection.h"
-
-#include <yt/ytlib/driver/dispatcher.h>
+#include "dispatcher.h"
+#include "private.h"
 
 #include <yt/ytlib/hive/cell_directory.h>
 
@@ -42,7 +41,6 @@ public:
     TAdmin(IConnectionPtr connection, const TAdminOptions& options)
         : Connection_(std::move(connection))
         , Options_(options)
-        , Invoker_(NDriver::TDispatcher::Get()->GetLightInvoker())
         , LeaderChannel_(Connection_->GetMasterChannel(EMasterChannelKind::Leader))
     {
         Logger.AddTag("Admin: %p", this);
@@ -72,8 +70,6 @@ private:
     const IConnectionPtr Connection_;
     const TAdminOptions Options_;
 
-    const IInvokerPtr Invoker_;
-
     const IChannelPtr LeaderChannel_;
 
     NLogging::TLogger Logger = ApiLogger;
@@ -93,7 +89,7 @@ private:
                     throw;
                 }
             })
-            .AsyncVia(Invoker_)
+            .AsyncVia(Connection_->GetDispatcher()->GetLightInvoker())
             .Run();
     }
 

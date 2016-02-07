@@ -52,6 +52,7 @@ public:
 
     virtual TChunkMeta GetMasterMeta() const override;
     virtual TChunkMeta GetSchedulerMeta() const override;
+    virtual TChunkMeta GetNodeMeta() const override;
 
     virtual TDataStatistics GetDataStatistics() const override;
 
@@ -156,7 +157,7 @@ TFuture<void> TFileChunkWriter::Close()
     SetProtoExtension(meta.mutable_extensions(), BlocksExt_);
 
     return BIND(&TEncodingChunkWriter::Close, EncodingChunkWriter_)
-        .AsyncVia(TDispatcher::Get()->GetWriterInvoker())
+        .AsyncVia(NChunkClient::TDispatcher::Get()->GetWriterInvoker())
         .Run();
 }
 
@@ -180,6 +181,11 @@ TChunkMeta TFileChunkWriter::GetMasterMeta() const
 }
 
 TChunkMeta TFileChunkWriter::GetSchedulerMeta() const
+{
+    return GetMasterMeta();
+}
+
+TChunkMeta TFileChunkWriter::GetNodeMeta() const
 {
     return GetMasterMeta();
 }

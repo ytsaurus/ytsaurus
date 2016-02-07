@@ -4,7 +4,6 @@
 #include <yt/server/job_proxy/config.h>
 
 #include <yt/ytlib/driver/command.h>
-#include <yt/ytlib/driver/dispatcher.h>
 #include <yt/ytlib/driver/driver.h>
 
 #include <yt/build/build.h>
@@ -145,7 +144,6 @@ void TExecutor::Execute(const std::vector<std::string>& args)
     }
     TAddressResolver::Get()->Configure(Config->AddressResolver);
 
-    TDispatcher::Get()->Configure(Config->Driver->LightPoolSize, Config->Driver->HeavyPoolSize);
     Driver = CreateDriver(Config->Driver);
 
     DoExecute();
