@@ -177,6 +177,7 @@ private:
     const IFunctionRegistryPtr BuiltinRegistry_;
     const TIntrusivePtr<TFunctionRegistry> UdfRegistry_;
     std::unordered_set<Stroka> NotFoundFunctions_;
+    std::unordered_set<Stroka> NotFoundAggregateFunctions_;
 
     IFunctionDescriptorPtr LookupFunction(const Stroka& functionName);
     IAggregateFunctionDescriptorPtr LookupAggregate(const Stroka& aggregateName);
@@ -273,7 +274,7 @@ IAggregateFunctionDescriptorPtr TCypressFunctionRegistry::FindAggregateFunction(
 
 IAggregateFunctionDescriptorPtr TCypressFunctionRegistry::LookupAggregate(const Stroka& aggregateName)
 {
-    if (NotFoundFunctions_.count(aggregateName)) {
+    if (NotFoundAggregateFunctions_.count(aggregateName)) {
         return nullptr;
     }
 
@@ -286,7 +287,7 @@ IAggregateFunctionDescriptorPtr TCypressFunctionRegistry::LookupAggregate(const 
         Client_);
 
     if (!cypressDescriptor) {
-        NotFoundFunctions_.insert(aggregateName);
+        NotFoundAggregateFunctions_.insert(aggregateName);
         return nullptr;
     }
 
