@@ -669,8 +669,8 @@ private:
 
                 default:
                     THROW_ERROR_EXCEPTION("Invalid version %v of chunk %v",
-                            meta.version(),
-                            chunkId);
+                        meta.version(),
+                        chunkId);
             }
         } catch (const std::exception& ex) {
             auto error = TError(ex);
