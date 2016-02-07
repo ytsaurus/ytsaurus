@@ -81,7 +81,7 @@ DEFINE_ENUM(EChunkType,
 
 DEFINE_ENUM(EErrorCode,
     ((AllTargetNodesFailed)     (700))
-    ((PipelineFailed)           (701))
+    ((SendBlocksFailed)         (701))
     ((NoSuchSession)            (702))
     ((SessionAlreadyExists)     (703))
     ((ChunkAlreadyExists)       (704))
@@ -97,6 +97,7 @@ DEFINE_ENUM(EErrorCode,
     ((MasterNotConnected)       (714))
     ((ChunkCreationFailed)      (715))
     ((ChunkUnavailable)         (716))
+    ((WriteThrottlingActive)    (718))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

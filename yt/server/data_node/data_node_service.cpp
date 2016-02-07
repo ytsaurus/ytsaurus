@@ -230,7 +230,7 @@ private:
 
         auto location = session->GetStoreLocation();
         if (IsDiskWriteThrottling(location, session->GetWorkloadDescriptor())) {
-            THROW_ERROR_EXCEPTION(NRpc::EErrorCode::Unavailable, "Disk write throttling is active");
+            THROW_ERROR_EXCEPTION(NChunkClient::EErrorCode::WriteThrottlingActive, "Disk write throttling is active");
         }
 
         // Put blocks.
@@ -275,7 +275,7 @@ private:
                     context->Reply();
                 } else {
                     context->Reply(TError(
-                        NChunkClient::EErrorCode::PipelineFailed,
+                        NChunkClient::EErrorCode::SendBlocksFailed,
                         "Error putting blocks to %v",
                         targetDescriptor.GetDefaultAddress())
                         << error);
