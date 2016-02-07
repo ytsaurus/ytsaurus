@@ -44,13 +44,10 @@ using namespace NObjectClient;
 ///////////////////////////////////////////////////////////////////////////////
 
 DECLARE_REFCOUNTED_CLASS(TReplicationWriter);
-
-///////////////////////////////////////////////////////////////////////////////
-
-namespace {
-
 DECLARE_REFCOUNTED_STRUCT(TNode);
 DECLARE_REFCOUNTED_CLASS(TGroup);
+
+///////////////////////////////////////////////////////////////////////////////
 
 struct TNode
     : public TRefCounted
@@ -139,8 +136,6 @@ private:
 };
 
 DEFINE_REFCOUNTED_TYPE(TGroup);
-
-} // namespace
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -570,10 +565,10 @@ void TReplicationWriter::StartChunk(TChunkReplica target)
     LOG_DEBUG("Starting write session (Address: %v)", address);
 
     auto lightChannel = CreateRetryingNodeChannel(
-        Client_->GetNodeChannelFactory(),
+        LightNodeChannelFactory,
         address);
     auto heavyChannel = CreateRetryingNodeChannel(
-        Client_->GetHeavyChannelFactory(),
+        HeavyNodeChannelFactory,
         address);
 
     TDataNodeServiceProxy proxy(lightChannel);
@@ -591,8 +586,6 @@ void TReplicationWriter::StartChunk(TChunkReplica target)
 
     LOG_DEBUG("Write session started (Address: %v)", address);
 
-    auto lightChannel = LightNodeChannelFactory->CreateChannel(address);
-    auto heavyChannel = HeavyNodeChannelFactory->CreateChannel(address);
     auto node = New<TNode>(
         Nodes_.size(),
         nodeDescriptor,
