@@ -437,7 +437,8 @@ class Operation(object):
 def create_tmpdir(prefix):
     basedir = os.path.join(path_to_run_tests, "tmp")
     try:
-        os.mkdir(basedir)
+        if not os.path.exists(basedir):
+            os.mkdir(basedir)
     except OSError:
         sys.excepthook(*sys.exc_info())
 
