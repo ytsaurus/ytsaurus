@@ -13,15 +13,14 @@ using namespace NNodeTrackerServer;
 
 TExecNode::TExecNode(
     TNodeId id,
-    const TNodeDescriptor& descriptor)
+    const TNodeDescriptor& nodeDescriptor)
     : Id_(id)
-    , Descriptor_(descriptor)
-    , ResourceLimits_(ZeroJobResources())
-    , ResourceUsage_(ZeroJobResources())
     , MasterState_(ENodeState::Offline)
     , HasOngoingHeartbeat_(false)
-    , IOWeight_(0)
-{ }
+    , DefaultAddress_(nodeDescriptor.GetDefaultAddress())
+{
+    UpdateNodeDescriptor(nodeDescriptor);
+}
 
 bool TExecNode::HasEnoughResources(const TJobResources& neededResources) const
 {
@@ -37,12 +36,12 @@ bool TExecNode::HasSpareResources(const TJobResources& resourceDiscount) const
 
 const Stroka& TExecNode::GetDefaultAddress() const
 {
-    return Descriptor_.GetDefaultAddress();
+    return DefaultAddress_;
 }
 
 const Stroka& TExecNode::GetInterconnectAddress() const
 {
-    return Descriptor_.GetInterconnectAddress();
+    return InterconnectAddress_;
 }
 
 bool TExecNode::CanSchedule(const TNullable<Stroka>& tag) const
@@ -50,14 +49,54 @@ bool TExecNode::CanSchedule(const TNullable<Stroka>& tag) const
     return !tag || SchedulingTags_.find(*tag) != SchedulingTags_.end();
 }
 
-TExecNodeDescriptor TExecNode::BuildDescriptor() const
+TExecNodeDescriptor TExecNode::BuildExecDescriptor() const
 {
+    TGuard<TSpinLock> guard(SpinLock_);
     return TExecNodeDescriptor{
         Id_,
-        GetDefaultAddress(),
+        DefaultAddress_,
         IOWeight_,
         ResourceLimits_
     };
+}
+
+double TExecNode::GetIOWeight() const
+{
+    return IOWeight_;
+}
+
+void TExecNode::SetIOWeight(double value)
+{
+    TGuard<TSpinLock> guard(SpinLock_);
+    IOWeight_ = value;
+}
+
+const TJobResources& TExecNode::GetResourceLimits() const
+{
+    return ResourceLimits_;
+}
+
+void TExecNode::SetResourceLimits(const TJobResources& value)
+{
+    TGuard<TSpinLock> guard(SpinLock_);
+    ResourceLimits_ = value;
+}
+
+const TJobResources& TExecNode::GetResourceUsage() const
+{
+    return ResourceUsage_;
+}
+
+void TExecNode::SetResourceUsage(const TJobResources& value)
+{
+    // NB: No locking is needed since ResourceUsage_ is not used
+    // in BuildExecDescriptor.
+    ResourceUsage_ = value;
+}
+
+void TExecNode::UpdateNodeDescriptor(const NNodeTrackerClient::TNodeDescriptor& nodeDescriptor)
+{
+    InterconnectAddress_ = nodeDescriptor.GetInterconnectAddress();
 }
 
 ////////////////////////////////////////////////////////////////////
