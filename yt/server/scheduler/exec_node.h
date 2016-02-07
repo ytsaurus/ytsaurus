@@ -18,30 +18,20 @@ namespace NScheduler {
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Scheduler-side representation of an execution node.
+/*!
+ *  Thread affinity: ControlThread (unless noted otherwise)
+ */
 class TExecNode
     : public TRefCounted
 {
 public:
     DEFINE_BYVAL_RO_PROPERTY(NNodeTrackerClient::TNodeId, Id);
-    DEFINE_BYREF_RW_PROPERTY(NNodeTrackerClient::TNodeDescriptor, Descriptor);
 
     //! Jobs that are currently running on this node.
     DEFINE_BYREF_RW_PROPERTY(yhash_set<TJobPtr>, Jobs);
 
-    //! Resource limits, as reported by the node.
-    DEFINE_BYREF_RW_PROPERTY(TJobResources, ResourceLimits);
-
     //! A set of scheduling tags assigned to this node.
     DEFINE_BYREF_RW_PROPERTY(yhash_set<Stroka>, SchedulingTags);
-
-    //! The most recent resource usage, as reported by the node.
-    /*!
-     *  Some fields are also updated by the scheduler strategy to
-     *  reflect recent job set changes.
-     *  E.g. when the scheduler decides to
-     *  start a new job it decrements the appropriate counters.
-     */
-    DEFINE_BYREF_RW_PROPERTY(TJobResources, ResourceUsage);
 
     //! Last time when logging of jobs on node took place.
     DEFINE_BYVAL_RW_PROPERTY(TNullable<TInstant>, LastJobsLogTime);
@@ -58,13 +48,10 @@ public:
     //! Is |true| iff heartbeat from this node is being processed at the moment.
     DEFINE_BYVAL_RW_PROPERTY(bool, HasOngoingHeartbeat);
 
-    //! Node IO weight, as reported by node to master.
-    DEFINE_BYVAL_RW_PROPERTY(double, IOWeight);
-
 public:
     TExecNode(
         NNodeTrackerClient::TNodeId id,
-        const NNodeTrackerClient::TNodeDescriptor& descriptor);
+        const NNodeTrackerClient::TNodeDescriptor& nodeDescriptor);
 
     bool HasEnoughResources(const TJobResources& neededResources) const;
     bool HasSpareResources(const TJobResources& resourceDiscount) const;
@@ -76,8 +63,46 @@ public:
     bool CanSchedule(const TNullable<Stroka>& tag) const;
 
     //! Constructs a descriptor containing the current snapshot of node's state.
-    TExecNodeDescriptor BuildDescriptor() const;
+    /*!
+     *  Thread affinity: any
+     */
+    TExecNodeDescriptor BuildExecDescriptor() const;
 
+    //! Returns the node's IO weight, as reported by node to master.
+    double GetIOWeight() const;
+    
+    //! Set the node's IO weight.
+    void SetIOWeight(double value);
+
+    //! Returns the node's resource limits, as reported by the node.
+    const TJobResources& GetResourceLimits() const;
+    
+    //! Sets the node's resource limits.
+    void SetResourceLimits(const TJobResources& value);
+
+    //! Returns the most recent resource usage, as reported by the node.
+    /*!
+     *  Some fields are also updated by the scheduler strategy to
+     *  reflect recent job set changes.
+     *  E.g. when the scheduler decides to
+     *  start a new job it decrements the appropriate counters.
+     */
+    const TJobResources& GetResourceUsage() const;
+
+    //! Sets the node's resource usage.
+    void SetResourceUsage(const TJobResources& value);
+
+    //! Updates the node's descriptor on heartbeat.
+    void UpdateNodeDescriptor(const NNodeTrackerClient::TNodeDescriptor& nodeDescriptor);
+
+private:
+    const Stroka DefaultAddress_;
+    Stroka InterconnectAddress_;
+    TJobResources ResourceUsage_;
+    
+    mutable TSpinLock SpinLock_;
+    TJobResources ResourceLimits_;
+    double IOWeight_ = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(TExecNode)
