@@ -151,6 +151,8 @@ public:
      */
     TDuration NodeRpcTimeout;
 
+    NRpc::TRetryingChannelConfigPtr NodeChannel;
+
     int UploadReplicationFactor;
 
     int MinUploadReplicationFactor;
@@ -173,6 +175,8 @@ public:
         RegisterParameter("group_size", GroupSize)
             .Default((i64) 10 * 1024 * 1024)
             .GreaterThan(0);
+        RegisterParameter("node_channel", NodeChannel)
+            .DefaultNew();
         RegisterParameter("node_rpc_timeout", NodeRpcTimeout)
             .Default(TDuration::Seconds(120));
         RegisterParameter("upload_replication_factor", UploadReplicationFactor)
@@ -189,6 +193,11 @@ public:
             .Default(false);
         RegisterParameter("sync_on_close", SyncOnClose)
             .Default(true);
+
+        RegisterInitializer([&] () {
+            NodeChannel->RetryBackoffTime = TDuration::Seconds(10);
+            NodeChannel->RetryAttempts = 100;
+        });
 
         RegisterValidator([&] () {
             if (SendWindowSize < GroupSize) {
