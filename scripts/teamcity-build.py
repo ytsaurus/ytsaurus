@@ -696,7 +696,12 @@ def copytree(src, dst, symlinks=False, ignore=None):
 
 def sudo_rmtree(path):
     abspath = os.path.abspath(path)
+    path = path.rstrip("/") + "/"
     assert abspath.startswith("/home/teamcity")
+    for line in open("/proc/mounts"):
+        _, mount_path, type, _ = line.split(" ", 3)
+        if type == "tmpfs" and mount_path.startswith(path):
+            subprocess.check_call(["sudo", "umount", mount_path])
     run(["sudo", "rm", "-rf", abspath])
 
 def get_command_from_core_file(core_path):
