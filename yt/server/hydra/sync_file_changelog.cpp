@@ -467,9 +467,9 @@ public:
             maxRecords,
             maxBytes);
 
-        try {
-            std::vector<TSharedRef> records;
+        std::vector<TSharedRef> records;
 
+        try {
             // Prevent search in empty index.
             if (Index_.empty()) {
                 return records;
@@ -506,7 +506,6 @@ public:
                 }
             }
 
-            return records;
         } catch (const std::exception& ex) {
             LOG_ERROR(ex, "Error reading changelog");
             Error_ = ex;
@@ -514,6 +513,7 @@ public:
         }
 
         LOG_DEBUG("Finished reading changelog");
+        return records;
     }
 
     void Truncate(int recordCount)
