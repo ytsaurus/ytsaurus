@@ -11,7 +11,6 @@
 #include <yt/ytlib/api/connection.h>
 
 #include <yt/ytlib/driver/config.h>
-#include <yt/ytlib/driver/dispatcher.h>
 #include <yt/ytlib/driver/driver.h>
 
 #include <yt/ytlib/formats/format.h>
@@ -217,18 +216,6 @@ public:
         }
     }
     PYCXX_KEYWORDS_METHOD_DECL(TDriver, GetCommandDescriptors)
-
-    Py::Object ConfigureDispatcher(Py::Tuple& args, Py::Dict& kwargs)
-    {
-        auto lightPoolSize = Py::Int(ExtractArgument(args, kwargs, "light_pool_size"));
-        auto heavyPoolSize = Py::Int(ExtractArgument(args, kwargs, "heavy_pool_size"));
-        ValidateArgumentsEmpty(args, kwargs);
-
-        NDriver::TDispatcher::Get()->Configure(lightPoolSize, heavyPoolSize);
-
-        return Py::None();
-    }
-    PYCXX_KEYWORDS_METHOD_DECL(TDriver, ConfigureDispatcher)
 
     Py::Object GCCollect(Py::Tuple& args, Py::Dict& kwargs)
     {

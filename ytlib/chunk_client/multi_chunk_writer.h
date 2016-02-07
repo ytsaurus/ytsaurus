@@ -17,7 +17,9 @@ struct IMultiChunkWriter
 {
     virtual void SetProgress(double progress) = 0;
 
-    virtual const std::vector<NProto::TChunkSpec>& GetWrittenChunks() const = 0;
+    virtual const std::vector<NProto::TChunkSpec>& GetWrittenChunksMasterMeta() const = 0;
+
+    virtual const std::vector<NProto::TChunkSpec>& GetWrittenChunksFullMeta() const = 0;
 
     virtual NNodeTrackerClient::TNodeDirectoryPtr GetNodeDirectory() const = 0;
 

@@ -45,6 +45,8 @@ public:
 
     TNullable<int> UserId;
 
+    Stroka TmpfsPath;
+
     bool EnableIopsThrottling;
 
     NScheduler::TJobIOConfigPtr JobIO;
@@ -75,6 +77,9 @@ public:
             .Default(2.0);
 
         RegisterParameter("user_id", UserId)
+            .Default();
+
+        RegisterParameter("tmpfs_path", TmpfsPath)
             .Default();
 
         RegisterParameter("enable_iops_throttling", EnableIopsThrottling)

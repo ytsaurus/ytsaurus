@@ -94,7 +94,7 @@ public:
         , NameTable_(nameTable)
         , Path_(path)
         , FlushExecutor_(New<TPeriodicExecutor>(
-            TDispatcher::Get()->GetWriterInvoker(),
+            NChunkClient::TDispatcher::Get()->GetWriterInvoker(),
             BIND(&TBufferedTableWriter::OnPeriodicFlush, Unretained(this)), Config_->FlushPeriod))
     {
         EmptyBuffers_.push(Buffers_);
@@ -177,12 +177,19 @@ private:
     // Only accessed in writer thread.
     int FlushedBufferCount_ = 0;
 
+    // Accessed under spinlock.
+    int PendingFlushes_ = 0;
+
     NLogging::TLogger Logger = TableClientLogger;
 
 
     void OnPeriodicFlush()
     {
         TGuard<TSpinLock> guard(SpinLock_);
+
+        if (PendingFlushes_ > 0) {
+            return;
+        }
 
         if (CurrentBuffer_ && !CurrentBuffer_->IsEmpty()) {
             RotateBuffers();
@@ -192,6 +199,7 @@ private:
     void RotateBuffers()
     {
         if (CurrentBuffer_) {
+            ++PendingFlushes_;
             ScheduleBufferFlush(CurrentBuffer_);
             CurrentBuffer_ = nullptr;
         }
@@ -202,7 +210,7 @@ private:
         LOG_DEBUG("Scheduling table chunk flush (BufferIndex: %v)",
             buffer->GetIndex());
 
-        TDispatcher::Get()->GetWriterInvoker()->Invoke(BIND(
+        NChunkClient::TDispatcher::Get()->GetWriterInvoker()->Invoke(BIND(
             &TBufferedTableWriter::FlushBuffer,
             MakeWeak(this),
             buffer));
@@ -251,6 +259,7 @@ private:
             {
                 TGuard<TSpinLock> guard(SpinLock_);
                 EmptyBuffers_.push(buffer);
+                --PendingFlushes_;
             }
         } catch (const std::exception& ex) {
             LOG_WARNING(ex, "Buffered table chunk write failed, will retry later (BufferIndex: %v)",

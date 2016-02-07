@@ -49,6 +49,7 @@ TFuture<void> TJournalSession::DoStart()
 {
     Chunk_ = New<TJournalChunk>(
         Bootstrap_,
+        Options_.EnableMultiplexing,
         Location_,
         TChunkDescriptor(ChunkId_));
     Chunk_->SetActive(true);
@@ -57,7 +58,7 @@ TFuture<void> TJournalSession::DoStart()
     chunkStore->RegisterNewChunk(Chunk_);
 
     auto dispatcher = Bootstrap_->GetJournalDispatcher();
-    auto asyncChangelog = dispatcher->CreateChangelog(Location_, ChunkId_, Options_.OptimizeForLatency);
+    auto asyncChangelog = dispatcher->CreateChangelog(Location_, ChunkId_, Options_.EnableMultiplexing);
     return asyncChangelog.Apply(BIND([=, this_ = MakeStrong(this)] (IChangelogPtr changelog) {
         if (Chunk_->IsRemoveScheduled())
             return;

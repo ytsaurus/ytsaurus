@@ -507,7 +507,7 @@ private:
                     auto req = node->LightProxy.StartChunk();
                     ToProto(req->mutable_chunk_id(), CurrentSession_->ChunkId);
                     ToProto(req->mutable_workload_descriptor(), Config_->WorkloadDescriptor);
-                    req->set_optimize_for_latency(true);
+                    req->set_enable_multiplexing(Options_.EnableMultiplexing);
                     auto asyncRsp = req->Invoke().Apply(
                         BIND(&TImpl::OnChunkStarted, MakeStrong(this), node)
                             .AsyncVia(Invoker_));

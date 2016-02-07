@@ -68,18 +68,13 @@ public:
     }
 
 
-    TFuture<void> Append(TSharedRef data)
+    TFuture<void> AsyncAppend(TSharedRef data)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         TFuture<void> result;
         {
             TGuard<TSpinLock> guard(SpinLock_);
-            YCHECK(
-                !SealRequested_ &&
-                !Sealed_ &&
-                !CloseRequested_ &&
-                !Closed_);
             AppendQueue_.push_back(std::move(data));
             ByteSize_ += data.Size();
             YCHECK(FlushPromise_);
@@ -88,7 +83,6 @@ public:
 
         return result;
     }
-
 
     TFuture<void> AsyncFlush()
     {
@@ -104,39 +98,8 @@ public:
         return FlushPromise_;
     }
 
-    TFuture<void> AsyncSeal(int recordCount)
-    {
-        VERIFY_THREAD_AFFINITY_ANY();
 
-        TFuture<void> result;
-        {
-            TGuard<TSpinLock> guard(SpinLock_);
-            YCHECK(!SealRequested_);
-            SealRequested_ = true;
-            SealRecordCount_ = recordCount;
-            result = SealPromise_ = NewPromise<void>();
-        }
-
-        return result;
-    }
-
-    TFuture<void> AsyncClose()
-    {
-        VERIFY_THREAD_AFFINITY_ANY();
-
-        TFuture<void> result;
-        {
-            TGuard<TSpinLock> guard(SpinLock_);
-            YCHECK(!CloseRequested_);
-            CloseRequested_ = true;
-            result = ClosePromise_ = NewPromise<void>();
-        }
-
-        return result;
-    }
-
-
-    bool HasPendingActions()
+    bool HasPendingFlushes()
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -154,24 +117,21 @@ public:
             return true;
         }
 
-        if (SealRequested_) {
-            return true;
-        }
-
-        if (CloseRequested_) {
-            return true;
-        }
-
         return false;
     }
 
-    void RunPendingActions()
+    bool HasUnflushedRecords()
+    {
+        VERIFY_THREAD_AFFINITY(SyncThread);
+
+        return !AppendQueue_.empty() || !FlushQueue_.empty();
+    }
+
+    void RunPendingFlushes()
     {
         VERIFY_THREAD_AFFINITY(SyncThread);
 
         SyncFlush();
-        MaybeSyncSeal();
-        MaybeSyncClose();
     }
 
     TPromise<void> TrySweep()
@@ -183,14 +143,6 @@ public:
             TGuard<TSpinLock> guard(SpinLock_);
 
             if (!AppendQueue_.empty() || !FlushQueue_.empty()) {
-                return TPromise<void>();
-            }
-
-            if (SealRequested_ && !SealPromise_.IsSet()) {
-                return TPromise<void>();
-            }
-
-            if (CloseRequested_ && !ClosePromise_.IsSet()) {
                 return TPromise<void>();
             }
 
@@ -285,17 +237,6 @@ private:
     TPromise<void> FlushPromise_ = NewPromise<void>();
     bool FlushForced_ = false;
 
-    TPromise<void> SealPromise_;
-    bool SealRequested_ = false;
-    int SealRecordCount_ = -1;
-
-    TPromise<void> ClosePromise_;
-    bool CloseRequested_ = false;
-
-    bool Sealed_ = false;
-    bool Closed_ = false;
-
-
     DECLARE_THREAD_AFFINITY_SLOT(SyncThread);
 
 
@@ -334,73 +275,6 @@ private:
         }
 
         flushPromise.Set(error);
-    }
-
-    void SyncFlushAll()
-    {
-        while (true) {
-            {
-                TGuard<TSpinLock> guard(SpinLock_);
-                if (AppendQueue_.empty())
-                    break;
-            }
-            SyncFlush();
-        }
-    }
-
-
-    void MaybeSyncSeal()
-    {
-        TPromise<void> promise;
-        {
-            TGuard<TSpinLock> guard(SpinLock_);
-            if (!SealRequested_)
-                return;
-            promise = SealPromise_;
-            SealPromise_.Reset();
-            SealRequested_ = false;
-            Sealed_ = true;
-        }
-
-        SyncFlushAll();
-
-        TError error;
-        PROFILE_TIMING("/changelog_truncate_io_time") {
-            try {
-                Changelog_->Truncate(SealRecordCount_);
-            } catch (const std::exception& ex) {
-                error = ex;
-            }
-        }
-
-        promise.Set(error);
-    }
-
-    void MaybeSyncClose()
-    {
-        TPromise<void> promise;
-        {
-            TGuard<TSpinLock> guard(SpinLock_);
-            if (!CloseRequested_)
-                return;
-            promise = ClosePromise_;
-            ClosePromise_.Reset();
-            CloseRequested_ = false;
-            Closed_ = true;
-        }
-
-        SyncFlushAll();
-
-        TError error;
-        PROFILE_TIMING("/changelog_close_io_time") {
-            try {
-                Changelog_->Close();
-            } catch (const std::exception& ex) {
-                error = ex;
-            }
-        }
-
-        promise.Set(error);
     }
 };
 
@@ -460,12 +334,12 @@ public:
         TSyncFileChangelogPtr changelog,
         const TSharedRef& record)
     {
-        auto queue = GetQueueAndLock(changelog);
+        auto queue = GetAndLockQueue(changelog);
         TFinallyGuard guard([&] () {
             queue->Unlock();
         });
 
-        auto result = queue->Append(record);
+        auto result = queue->AsyncAppend(record);
 
         Wakeup();
 
@@ -477,40 +351,45 @@ public:
 
     TFuture<std::vector<TSharedRef>> Read(
         TSyncFileChangelogPtr changelog,
-        int recordId,
+        int firstRecordId,
         int maxRecords,
         i64 maxBytes)
     {
-        YCHECK(recordId >= 0);
-        YCHECK(maxRecords >= 0);
-
         return BIND(&TImpl::DoRead, MakeStrong(this))
             .AsyncVia(GetInvoker())
-            .Run(changelog, recordId, maxRecords, maxBytes);
+            .Run(changelog, firstRecordId, maxRecords, maxBytes);
     }
 
     TFuture<void> Flush(TSyncFileChangelogPtr changelog)
     {
-        auto queue = FindQueue(changelog);
-        return queue ? queue->AsyncFlush() : VoidFuture;
+        auto queue = FindAndLockQueue(changelog);
+        if (!queue) {
+            return VoidFuture;
+        }
+
+        TFinallyGuard guard([&] () {
+            queue->Unlock();
+        });
+
+        auto result = queue->AsyncFlush();
+
+        Wakeup();
+
+        return result;
     }
 
-    TFuture<void> Seal(TSyncFileChangelogPtr changelog, int recordCount)
+    TFuture<void> Truncate(TSyncFileChangelogPtr changelog, int recordCount)
     {
-        auto queue = GetQueueAndLock(changelog);
-        auto result = queue->AsyncSeal(recordCount);
-        queue->Unlock();
-        Wakeup();
-        return result;
+        return BIND(&TImpl::DoTruncate, MakeStrong(this))
+            .AsyncVia(GetInvoker())
+            .Run(changelog, recordCount);
     }
 
     TFuture<void> Close(TSyncFileChangelogPtr changelog)
     {
-        auto queue = GetQueueAndLock(changelog);
-        auto result = queue->AsyncClose();
-        queue->Unlock();
-        Wakeup();
-        return result;
+        return BIND(&TImpl::DoClose, MakeStrong(this))
+            .AsyncVia(GetInvoker())
+            .Run(changelog);
     }
 
     TFuture<void> FlushAll()
@@ -527,10 +406,10 @@ private:
     const TFileChangelogDispatcherConfigPtr Config_;
     const TClosure ProcessQueuesCallback_;
 
-    std::atomic<bool> ProcessQueuesCallbackPending_ = {false};
-
     const TActionQueuePtr ActionQueue_;
     const TPeriodicExecutorPtr PeriodicExecutor_;
+
+    std::atomic<bool> ProcessQueuesCallbackPending_ = {false};
 
     TSpinLock SpinLock_;
     yhash_map<TSyncFileChangelogPtr, TFileChangelogQueuePtr> QueueMap_;
@@ -539,20 +418,24 @@ private:
     NProfiling::TSimpleCounter ByteCounter_;
 
 
-    TFileChangelogQueuePtr FindQueue(TSyncFileChangelogPtr changelog) const
-    {
-        TGuard<TSpinLock> guard(SpinLock_);
-        auto it = QueueMap_.find(changelog);
-        return it == QueueMap_.end() ? nullptr : it->second;
-    }
-
     std::vector<TFileChangelogQueuePtr> ListQueues()
     {
         TGuard<TSpinLock> guard(SpinLock_);
         return GetValues(QueueMap_);
     }
 
-    TFileChangelogQueuePtr FindQueueAndLock(TSyncFileChangelogPtr changelog) const
+    bool HasUnflushedRecords(TSyncFileChangelogPtr changelog)
+    {
+        TGuard<TSpinLock> guard(SpinLock_);
+        auto it = QueueMap_.find(changelog);
+        if (it == QueueMap_.end()) {
+            return false;
+        }
+        const auto& queue = it->second;
+        return queue->HasUnflushedRecords();
+    }
+
+    TFileChangelogQueuePtr FindAndLockQueue(TSyncFileChangelogPtr changelog)
     {
         TGuard<TSpinLock> guard(SpinLock_);
         auto it = QueueMap_.find(changelog);
@@ -565,7 +448,7 @@ private:
         return queue;
     }
 
-    TFileChangelogQueuePtr GetQueueAndLock(TSyncFileChangelogPtr changelog)
+    TFileChangelogQueuePtr GetAndLockQueue(TSyncFileChangelogPtr changelog)
     {
         TGuard<TSpinLock> guard(SpinLock_);
         TFileChangelogQueuePtr queue;
@@ -584,7 +467,8 @@ private:
         return queue;
     }
 
-    void RunPendingActions()
+
+    void RunPendingFlushes()
     {
         // Take a snapshot.
         std::vector<TFileChangelogQueuePtr> queues;
@@ -592,15 +476,15 @@ private:
             TGuard<TSpinLock> guard(SpinLock_);
             for (const auto& pair : QueueMap_) {
                 const auto& queue = pair.second;
-                if (queue->HasPendingActions()) {
+                if (queue->HasPendingFlushes()) {
                     queues.push_back(queue);
                 }
             }
         }
 
-        // Run pending actions for the queues in the snapshot.
-        for (auto queue : queues) {
-            queue->RunPendingActions();
+        // Run pending flushes for the queues in the snapshot.
+        for (const auto& queue : queues) {
+            queue->RunPendingFlushes();
         }
     }
 
@@ -624,33 +508,34 @@ private:
             }
         }
 
-        for (auto promise : promises) {
+        for (auto& promise : promises) {
             promise.Set(TError());
         }
     }
 
-
     void Wakeup()
     {
-        if (!ProcessQueuesCallbackPending_.load(std::memory_order_relaxed)) {
-            bool expected = false;
-            if (ProcessQueuesCallbackPending_.compare_exchange_strong(expected, true)) {
-                ActionQueue_->GetInvoker()->Invoke(ProcessQueuesCallback_);
-            }
+        if (ProcessQueuesCallbackPending_.load(std::memory_order_relaxed)) {
+            return;
+        }
+
+        bool expected = false;
+        if (ProcessQueuesCallbackPending_.compare_exchange_strong(expected, true)) {
+            ActionQueue_->GetInvoker()->Invoke(ProcessQueuesCallback_);
         }
     }
 
     void ProcessQueues()
     {
         ProcessQueuesCallbackPending_ = false;
-        RunPendingActions();
+        RunPendingFlushes();
         SweepQueues();
     }
 
 
     std::vector<TSharedRef> DoRead(
         TSyncFileChangelogPtr changelog,
-        int recordId,
+        int firstRecordId,
         int maxRecords,
         i64 maxBytes)
     {
@@ -659,15 +544,15 @@ private:
         }
 
         std::vector<TSharedRef> records;
-        auto queue = FindQueueAndLock(changelog);
+        auto queue = FindAndLockQueue(changelog);
         if (queue) {
             TFinallyGuard guard([&] () {
                 queue->Unlock();
             });
-            records = queue->Read(recordId, maxRecords, maxBytes);
+            records = queue->Read(firstRecordId, maxRecords, maxBytes);
         } else {
             PROFILE_TIMING ("/changelog_read_io_time") {
-                records = changelog->Read(recordId, maxRecords, maxBytes);
+                records = changelog->Read(firstRecordId, maxRecords, maxBytes);
             }
         }
 
@@ -677,6 +562,23 @@ private:
         return records;
     }
 
+    void DoTruncate(
+        TSyncFileChangelogPtr changelog,
+        int recordCount)
+    {
+        YCHECK(!HasUnflushedRecords(changelog));
+        PROFILE_TIMING("/changelog_truncate_io_time") {
+            changelog->Truncate(recordCount);
+        }
+    }
+
+    void DoClose(TSyncFileChangelogPtr changelog)
+    {
+        YCHECK(!HasUnflushedRecords(changelog));
+        PROFILE_TIMING("/changelog_close_io_time") {
+            changelog->Close();
+        }
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -718,6 +620,7 @@ public:
 
     virtual TFuture<void> Append(const TSharedRef& data) override
     {
+        YCHECK(!Closed_ && !Truncated_);
         RecordCount_ += 1;
         DataSize_ += data.Size();
         return DispatcherImpl_->Append(SyncChangelog_, data);
@@ -733,6 +636,9 @@ public:
         int maxRecords,
         i64 maxBytes) const override
     {
+        YCHECK(firstRecordId >= 0);
+        YCHECK(maxRecords >= 0);
+        YCHECK(maxBytes >= 0);
         return DispatcherImpl_->Read(
             SyncChangelog_,
             firstRecordId,
@@ -743,13 +649,19 @@ public:
     virtual TFuture<void> Truncate(int recordCount) override
     {
         YCHECK(recordCount <= RecordCount_);
-        RecordCount_.store(recordCount);
-
-        return DispatcherImpl_->Seal(SyncChangelog_, recordCount);
+        RecordCount_ = recordCount;
+        Truncated_ = true;
+        // NB: Ignoring the result seems fine since TSyncFileChangelog
+        // will propagate any possible error as the result of all further calls.
+        Flush();
+        return DispatcherImpl_->Truncate(SyncChangelog_, recordCount);
     }
 
     virtual TFuture<void> Close() override
     {
+        Closed_ = true;
+        // NB: See #Truncate above.
+        Flush();
         return DispatcherImpl_->Close(SyncChangelog_);
     }
 
@@ -757,6 +669,9 @@ private:
     const TFileChangelogDispatcher::TImplPtr DispatcherImpl_;
     const TFileChangelogConfigPtr Config_;
     const TSyncFileChangelogPtr SyncChangelog_;
+
+    bool Closed_ = false;
+    bool Truncated_ = false;
 
     std::atomic<int> RecordCount_;
     std::atomic<i64> DataSize_;

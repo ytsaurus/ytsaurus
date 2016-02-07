@@ -147,6 +147,11 @@ Stroka InferName(TConstQueryPtr query, bool omitValues)
 
 void ToProto(NProto::TExpression* serialized, TConstExpressionPtr original)
 {
+    if (!original) {
+        serialized->set_kind(static_cast<int>(EExpressionKind::None));
+        return;
+    }
+
     serialized->set_type(static_cast<int>(original->Type));
 
     if (auto literalExpr = original->As<TLiteralExpression>()) {
@@ -213,14 +218,17 @@ void ToProto(NProto::TExpression* serialized, TConstExpressionPtr original)
         NTabletClient::TWireProtocolWriter writer;
         writer.WriteUnversionedRowset(inOpExpr->Values);
         ToProto(proto->mutable_values(), ToString(MergeRefs(writer.Flush())));
-    } else {
-        YUNREACHABLE();
     }
 }
 
 TExpressionPtr FromProto(const NProto::TExpression& serialized)
 {
     auto kind = EExpressionKind(serialized.kind());
+
+    if (kind == EExpressionKind::None) {
+        return nullptr;
+    }
+
     auto type = EValueType(serialized.type());
 
     switch (kind) {
@@ -308,7 +316,7 @@ TExpressionPtr FromProto(const NProto::TExpression& serialized)
             typedResult->Values = reader.ReadUnversionedRowset();
 
             return typedResult;
-        } 
+        }
     }
 
     YUNREACHABLE();
@@ -346,6 +354,11 @@ void ToProto(NProto::TJoinClause* proto, TConstJoinClausePtr original)
     proto->set_foreign_key_columns_count(original->ForeignKeyColumnsCount);
     ToProto(proto->mutable_foreign_data_id(), original->ForeignDataId);
     proto->set_is_left(original->IsLeft);
+
+    proto->set_can_use_source_ranges(original->CanUseSourceRanges);
+    proto->set_key_prefix(original->KeyPrefix);
+    ToProto(proto->mutable_equation_by_index(), original->EquationByIndex);
+    ToProto(proto->mutable_evaluated_columns(), original->EvaluatedColumns);
 }
 
 void ToProto(NProto::TGroupClause* proto, TConstGroupClausePtr original)
@@ -466,6 +479,20 @@ TJoinClausePtr FromProto(const NProto::TJoinClause& serialized)
     FromProto(&result->ForeignDataId, serialized.foreign_data_id());
     FromProto(&result->IsLeft, serialized.is_left());
 
+    FromProto(&result->CanUseSourceRanges, serialized.can_use_source_ranges());
+    FromProto(&result->KeyPrefix, serialized.key_prefix());
+
+    result->EquationByIndex.reserve(serialized.equation_by_index_size());
+    for (int i = 0; i < serialized.equation_by_index_size(); ++i) {
+        result->EquationByIndex.push_back(serialized.equation_by_index(i));
+    }
+
+    result->EvaluatedColumns.reserve(serialized.evaluated_columns_size());
+    for (int i = 0; i < serialized.evaluated_columns_size(); ++i) {
+        result->EvaluatedColumns.push_back(
+            FromProto(serialized.evaluated_columns(i)));
+    }
+
     return result;
 }
 
@@ -562,54 +589,60 @@ TQueryPtr FromProto(const NProto::TQuery& serialized)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ToProto(NProto::TPlanFragment* proto, TConstPlanFragmentPtr fragment)
+void ToProto(NProto::TQueryOptions* proto, const TQueryOptions& options)
 {
-    ToProto(proto->mutable_query(), fragment->Query);
+    proto->set_timestamp(options.Timestamp);
+    proto->set_verbose_logging(options.VerboseLogging);
+    proto->set_max_subqueries(options.MaxSubqueries);
+    proto->set_enable_code_cache(options.EnableCodeCache);
+    ToProto(proto->mutable_workload_descriptor(), options.WorkloadDescriptor);
+}
+
+TQueryOptions FromProto(const NProto::TQueryOptions& serialized)
+{
+    TQueryOptions result;
+    result.Timestamp = serialized.timestamp();
+    result.VerboseLogging = serialized.verbose_logging();
+    result.MaxSubqueries = serialized.max_subqueries();
+    result.EnableCodeCache = serialized.enable_code_cache();
+    if (serialized.has_workload_descriptor()) {
+        FromProto(&result.WorkloadDescriptor, serialized.workload_descriptor());
+    }
+    return result;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void ToProto(NProto::TDataRanges* proto, const TDataRanges& dataSource)
+{
+    ToProto(proto->mutable_id(), dataSource.Id);
 
     NTabletClient::TWireProtocolWriter writer;
-    for (const auto& dataSource : fragment->DataSources) {
-        ToProto(proto->add_data_id(), dataSource.Id);
-        const auto& range = dataSource.Range;
+    for (const auto& range : dataSource.Ranges) {
         writer.WriteUnversionedRow(range.first);
         writer.WriteUnversionedRow(range.second);
     }
 
-    ToProto(proto->mutable_data_bounds(), ToString(MergeRefs(writer.Flush())));
-
-    proto->set_ordered(fragment->Ordered);
-    proto->set_verbose_logging(fragment->VerboseLogging);
-    proto->set_max_subqueries(fragment->MaxSubqueries);
-    proto->set_enable_code_cache(fragment->EnableCodeCache);
-    
-    proto->set_source(fragment->Source);
-    proto->set_timestamp(fragment->Timestamp);
+    ToProto(proto->mutable_ranges(), ToString(MergeRefs(writer.Flush())));
 }
 
-TPlanFragmentPtr FromProto(const NProto::TPlanFragment& serialized)
+TDataRanges FromProto(const NProto::TDataRanges& serialized)
 {
-    auto result = New<TPlanFragment>(serialized.source());
+    TDataRanges result;
+    FromProto(&result.Id, serialized.id());
 
-    result->Query = FromProto(serialized.query());
-    result->Ordered = serialized.ordered();
-    result->VerboseLogging = serialized.verbose_logging();
-    result->MaxSubqueries = serialized.max_subqueries();
-    result->EnableCodeCache = serialized.enable_code_cache();
-    result->Timestamp = serialized.timestamp();
+    auto rowBuffer = New<TRowBuffer>();
+    TRowRanges ranges;
 
-    NTabletClient::TWireProtocolReader reader(TSharedRef::FromString(serialized.data_bounds()));
-
-    const auto& rowBuffer = result->KeyRangesRowBuffer;
-    for (int i = 0; i < serialized.data_id_size(); ++i) {
-        TDataSource dataSource;
-        FromProto(&dataSource.Id, serialized.data_id(i));
-
+    NTabletClient::TWireProtocolReader reader(TSharedRef::FromString(serialized.ranges()));
+    while (!reader.IsFinished()) {
         auto lowerBound = rowBuffer->Capture(reader.ReadUnversionedRow());
         auto upperBound = rowBuffer->Capture(reader.ReadUnversionedRow());
 
-        dataSource.Range = TRowRange(lowerBound, upperBound);
-        result->DataSources.push_back(dataSource);
+        ranges.emplace_back(lowerBound, upperBound);
     }
 
+    result.Ranges = MakeSharedRange(std::move(ranges), rowBuffer);
     return result;
 }
 

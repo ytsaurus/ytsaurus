@@ -196,6 +196,8 @@ public:
     i64 MemoryLimit;
     double MemoryReserveFactor;
 
+    bool IncludeMemoryMappedFiles;
+
     int IopsThreshold;
 
     bool UseYamrDescriptors;
@@ -205,6 +207,8 @@ public:
     i64 MaxStderrSize;
 
     i64 CustomStatisticsCountLimit;
+
+    TNullable<i64> TmpfsSize;
 
     TUserJobSpec()
     {
@@ -230,6 +234,8 @@ public:
             .Default(0.5)
             .GreaterThan(0.)
             .LessThanOrEqual(1.);
+        RegisterParameter("include_memory_mapped_files", IncludeMemoryMappedFiles)
+            .Default(true);
         RegisterParameter("iops_threshold", IopsThreshold)
             .Default(3)
             .GreaterThan(0)
@@ -248,6 +254,9 @@ public:
             .Default(128)
             .GreaterThan(0)
             .LessThanOrEqual(1024);
+        RegisterParameter("tmpfs_size", TmpfsSize)
+            .Default()
+            .GreaterThan(0);
     }
 
     void InitEnableInputTableIndex(int inputTableCount, TJobIOConfigPtr jobIOConfig)

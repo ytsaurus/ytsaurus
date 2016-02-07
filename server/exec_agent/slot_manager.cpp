@@ -97,6 +97,9 @@ void TSlotManager::Initialize(int slotCount)
             cpuCGroup.SetShare(Config_->CGroupCpuShare);
         }
     } catch (const std::exception& ex) {
+        if (Config_->SlotInitializationFailureIsFatal) {
+            throw;
+        }
         auto error = TError("Failed to initialize slots") << ex;
         LOG_WARNING(error);
         Bootstrap_->GetMasterConnector()->RegisterAlert(error);

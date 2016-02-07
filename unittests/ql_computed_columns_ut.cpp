@@ -35,11 +35,17 @@ protected:
 
     std::vector<TKeyRange> Coordinate(const Stroka& source, int rangeExpansionLimit = 1000)
     {
-        auto planFragment = PreparePlanFragment(&PrepareMock_, source, CreateBuiltinFunctionRegistry());
+        TQueryPtr query;
+        TDataRanges dataSource;
+        std::tie(query, dataSource) = PreparePlanFragment(
+            &PrepareMock_,
+            source,
+            CreateBuiltinFunctionRegistry());
         auto rowBuffer = New<TRowBuffer>();
         auto prunedSplits = GetPrunedRanges(
-            planFragment->Query,
-            planFragment->DataSources,
+            query,
+            dataSource.Id,
+            dataSource.Ranges,
             rowBuffer,
             ColumnEvaluatorCache_,
             CreateBuiltinFunctionRegistry(),
@@ -51,13 +57,17 @@ protected:
 
     std::vector<TKeyRange> CoordinateForeign(const Stroka& source)
     {
-        auto planFragment = PreparePlanFragment(&PrepareMock_, source, CreateBuiltinFunctionRegistry());
+        TQueryPtr query;
+        TDataRanges dataSource;
+        std::tie(query, dataSource) = PreparePlanFragment(
+            &PrepareMock_,
+            source,
+            CreateBuiltinFunctionRegistry());
 
-        const auto& query = planFragment->Query;
-
-        TDataSources foreignSplits{{query->JoinClauses[0]->ForeignDataId, {
-                planFragment->KeyRangesRowBuffer->Capture(MinKey().Get()),
-                planFragment->KeyRangesRowBuffer->Capture(MaxKey().Get())}
+        auto buffer = New<TRowBuffer>();
+        TRowRanges foreignSplits{{
+                buffer->Capture(MinKey().Get()),
+                buffer->Capture(MaxKey().Get())
             }};
 
         auto rowBuffer = New<TRowBuffer>();
@@ -67,7 +77,8 @@ protected:
             TableSchemaToKeyColumns(
                 query->JoinClauses[0]->RenamedTableSchema,
                 query->JoinClauses[0]->ForeignKeyColumnsCount),
-            foreignSplits,
+            query->JoinClauses[0]->ForeignDataId,
+            MakeSharedRange(foreignSplits),
             rowBuffer,
             ColumnEvaluatorCache_,
             CreateBuiltinFunctionRegistry(),
@@ -122,14 +133,12 @@ private:
         return WrapInFuture(dataSplit);
     }
 
-    std::vector<TKeyRange> GetRangesFromSources(const TGroupedRanges& groupedRanges)
+    std::vector<TKeyRange> GetRangesFromSources(const TRowRanges& rowRanges)
     {
         std::vector<TKeyRange> ranges;
 
-        for (const auto& group : groupedRanges) {
-            for (const auto& range : group) {
-                ranges.push_back(TKeyRange(TOwningKey(range.first), TOwningKey(range.second)));
-            }
+        for (const auto& range : rowRanges) {
+            ranges.push_back(TKeyRange(TOwningKey(range.first), TOwningKey(range.second)));
         }
 
         std::sort(ranges.begin(), ranges.end());

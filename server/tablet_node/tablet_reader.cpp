@@ -73,7 +73,7 @@ template <class TMerger>
 class TTabletReaderBase
     : public virtual TRefCounted
 {
-public:
+protected:
     TTabletReaderBase(
         TTabletPerformanceCountersPtr performanceCounters,
         const TDynamicRowKeyComparer& keyComparer)
@@ -392,7 +392,8 @@ public:
         const TTableSchema& schema,
         TOwningKey lowerBound,
         TOwningKey upperBound,
-        TTimestamp timestamp)
+        TTimestamp timestamp,
+        const TWorkloadDescriptor& workloadDescriptor)
     {
         // Select stores.
         std::vector<IStorePtr> stores;
@@ -411,11 +412,12 @@ public:
             takePartition(*it);
         }
 
-        LOG_DEBUG("Creating schemaful tablet reader (TabletId: %v, CellId: %v, Timestamp: %v, StoreIds: [%v])",
+        LOG_DEBUG("Creating schemaful tablet reader (TabletId: %v, CellId: %v, Timestamp: %v, StoreIds: [%v], WorkloadDescriptor: %v)",
             tabletSnapshot->TabletId,
             tabletSnapshot->Slot->GetCellId(),
             timestamp,
-            JoinToString(stores, TStoreIdFormatter()));
+            JoinToString(stores, TStoreIdFormatter()),
+            workloadDescriptor);
 
         if (stores.size() > tabletSnapshot->Config->MaxReadFanIn) {
             THROW_ERROR_EXCEPTION("Read fan-in limit exceeded; please wait until your data is merged")
@@ -436,7 +438,8 @@ public:
                 lowerBound,
                 upperBound,
                 timestamp,
-                columnFilter));
+                columnFilter,
+                workloadDescriptor));
         }
 
         result->RowMerger_ = std::make_unique<TSchemafulRowMerger>(
@@ -470,7 +473,7 @@ private:
 
 class TTabletKeysReader
     : public ISchemafulReader
-    , public TTabletReaderBase<TSimpleMerger>
+    , protected TTabletReaderBase<TSimpleMerger>
 {
 public:
     TTabletKeysReader(
@@ -480,50 +483,33 @@ public:
         , Pool_(TTabletReaderPoolTag())
     { }
 
+    static void TakePartition(
+        std::vector<IStorePtr>& stores,
+        const TPartitionSnapshotPtr& partitionSnapshot,
+        TKey minKey,
+        TKey maxKey)
+    {
+        for (const auto& store : partitionSnapshot->Stores) {
+            if (store->GetMinKey() <= maxKey && store->GetMaxKey() >= minKey) {
+                stores.push_back(store);
+            }
+        }
+    }
+
     static ISchemafulReaderPtr Create(
         TTabletSnapshotPtr tabletSnapshot,
         const TTableSchema& schema,
-        const TSharedRange<TKey>& keys,
-        TTimestamp timestamp)
+        TSharedRange <TKey> keys,
+        TTimestamp timestamp,
+        std::vector<IStorePtr> stores,
+        const TWorkloadDescriptor& workloadDescriptor)
     {
-        TKey minKey;
-        TKey maxKey;
-
-        for (const auto& key : keys) {
-            minKey = !minKey || key < minKey ? key : minKey;
-            maxKey = !maxKey || key > maxKey ? key : maxKey;
-        }
-
-        // Select stores.
-        std::vector<IStorePtr> stores;
-        auto takePartition = [&] (const TPartitionSnapshotPtr& partitionSnapshot) {
-            for (const auto& store : partitionSnapshot->Stores) {
-                if (store->GetMinKey() <= maxKey && store->GetMaxKey() >= minKey) {
-                    stores.push_back(store);
-                }
-            }
-        };
-
-        takePartition(tabletSnapshot->Eden);
-
-        std::vector<TPartitionSnapshotPtr> snapshots;
-
-        for (auto key : keys) {
-            snapshots.push_back(tabletSnapshot->FindContainingPartition(key));
-        }
-
-        std::sort(snapshots.begin(), snapshots.end());
-        snapshots.erase(std::unique(snapshots.begin(), snapshots.end()), snapshots.end());
-
-        for (const auto& snapshot : snapshots) {
-            takePartition(snapshot);
-        }
-
-        LOG_DEBUG("Creating schemaful tablet reader (TabletId: %v, CellId: %v, Timestamp: %v, StoreIds: [%v])",
+        LOG_DEBUG("Creating schemaful tablet reader (TabletId: %v, CellId: %v, Timestamp: %v, StoreIds: [%v], WorkloadDescriptor: %v)",
             tabletSnapshot->TabletId,
             tabletSnapshot->Slot->GetCellId(),
             timestamp,
-            JoinToString(stores, TStoreIdFormatter()));
+            JoinToString(stores, TStoreIdFormatter()),
+            workloadDescriptor);
 
         if (stores.size() > tabletSnapshot->Config->MaxReadFanIn) {
             THROW_ERROR_EXCEPTION("Read fan-in limit exceeded; please wait until your data is merged")
@@ -543,7 +529,8 @@ public:
             result->AddReader(store->CreateReader(
                 keys,
                 timestamp,
-                columnFilter));
+                columnFilter,
+                workloadDescriptor));
         }
 
         result->RowMerger_ = std::make_unique<TSchemafulRowMerger>(
@@ -581,14 +568,16 @@ ISchemafulReaderPtr CreateSchemafulTabletReader(
     const TTableSchema& schema,
     TOwningKey lowerBound,
     TOwningKey upperBound,
-    TTimestamp timestamp)
+    TTimestamp timestamp,
+    const TWorkloadDescriptor& workloadDescriptor)
 {
     return TTabletRangeReader::Create(
         std::move(tabletSnapshot),
         schema,
         std::move(lowerBound),
         std::move(upperBound),
-        timestamp);
+        timestamp,
+        workloadDescriptor);
 }
 
 
@@ -596,13 +585,69 @@ ISchemafulReaderPtr CreateSchemafulTabletReader(
     TTabletSnapshotPtr tabletSnapshot,
     const TTableSchema& schema,
     const TSharedRange<TKey>& keys,
-    TTimestamp timestamp)
+    TTimestamp timestamp,
+    const TWorkloadDescriptor& workloadDescriptor)
 {
+    TKey minKey;
+    TKey maxKey;
+
+    for (const auto& key : keys) {
+        minKey = !minKey || key < minKey ? key : minKey;
+        maxKey = !maxKey || key > maxKey ? key : maxKey;
+    }
+
+    // Select stores.
+    std::vector<IStorePtr> stores;
+
+    TTabletKeysReader::TakePartition(stores, tabletSnapshot->Eden, minKey, maxKey);
+
+    std::vector<TPartitionSnapshotPtr> snapshots;
+    for (auto key : keys) {
+        snapshots.push_back(tabletSnapshot->FindContainingPartition(key));
+    }
+
+    std::sort(snapshots.begin(), snapshots.end());
+    snapshots.erase(std::unique(snapshots.begin(), snapshots.end()), snapshots.end());
+
+    for (const auto& snapshot : snapshots) {
+        TTabletKeysReader::TakePartition(stores, snapshot, minKey, maxKey);
+    }
+
     return TTabletKeysReader::Create(
         std::move(tabletSnapshot),
         schema,
         std::move(keys),
-        timestamp);
+        timestamp,
+        std::move(stores),
+        workloadDescriptor);
+}
+
+ISchemafulReaderPtr CreateSchemafulTabletReader(
+    TTabletSnapshotPtr tabletSnapshot,
+    const TTableSchema& schema,
+    TPartitionSnapshotPtr paritionSnapshot,
+    const TSharedRange<TKey>& keys,
+    TTimestamp timestamp,
+    const TWorkloadDescriptor& workloadDescriptor)
+{
+    YCHECK(keys.Size() > 0);
+
+    TKey minKey = keys[0];
+    TKey maxKey = keys[keys.Size() - 1];
+
+    // Select stores.
+    std::vector<IStorePtr> stores;
+
+    TTabletKeysReader::TakePartition(stores, tabletSnapshot->Eden, minKey, maxKey);
+    TTabletKeysReader::TakePartition(stores, paritionSnapshot, minKey, maxKey);
+
+    return TTabletKeysReader::Create(
+        std::move(tabletSnapshot),
+        schema,
+        std::move(keys),
+        timestamp,
+        std::move(stores),
+        workloadDescriptor);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -619,7 +664,8 @@ public:
         TOwningKey lowerBound,
         TOwningKey upperBound,
         TTimestamp currentTimestamp,
-        TTimestamp majorTimestamp)
+        TTimestamp majorTimestamp,
+        const TWorkloadDescriptor& workloadDescriptor)
          : TTabletReaderBase(
             tabletSnapshot->PerformanceCounters,
             tabletSnapshot->RowKeyComparer)
@@ -634,6 +680,7 @@ public:
             majorTimestamp)
         , LowerBound_(std::move(lowerBound))
         , UpperBound_(std::move(upperBound))
+        , WorkloadDescriptor_(workloadDescriptor)
     { }
 
     virtual TFuture<void> Open() override
@@ -674,6 +721,8 @@ private:
     TVersionedRowMerger RowMerger_;
     const TOwningKey LowerBound_;
     const TOwningKey UpperBound_;
+    const TColumnFilter ColumnFilter_;
+    const TWorkloadDescriptor WorkloadDescriptor_;
     
 
     void DoOpen()
@@ -694,7 +743,8 @@ private:
                 LowerBound_,
                 UpperBound_,
                 AllCommittedTimestamp,
-                TColumnFilter()));
+                ColumnFilter_,
+                WorkloadDescriptor_));
         }
 
         TBase::DoOpen();
@@ -709,7 +759,8 @@ IVersionedReaderPtr CreateVersionedTabletReader(
     TOwningKey lowerBound,
     TOwningKey upperBound,
     TTimestamp currentTimestamp,
-    TTimestamp majorTimestamp)
+    TTimestamp majorTimestamp,
+    const TWorkloadDescriptor& workloadDescriptor)
 {
     return New<TVersionedTabletReader>(
         std::move(poolInvoker),
@@ -718,7 +769,8 @@ IVersionedReaderPtr CreateVersionedTabletReader(
         std::move(lowerBound),
         std::move(upperBound),
         currentTimestamp,
-        majorTimestamp);
+        majorTimestamp,
+        workloadDescriptor);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

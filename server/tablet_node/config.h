@@ -50,7 +50,8 @@ class TTableMountConfig
     : public NTableClient::TRetentionConfig
 {
 public:
-    int MaxMemoryStoreKeyCount;
+    int SoftMemoryStoreKeyCountLimit;
+    int HardMemoryStoreKeyCountLimit;
     int MaxMemoryStoreValueCount;
     i64 MaxMemoryStorePoolSize;
 
@@ -76,6 +77,8 @@ public:
 
     int MaxReadFanIn;
 
+    int MaxOverlappingStoreCount;
+
     EInMemoryMode InMemoryMode;
 
     bool ReadOnly;
@@ -87,11 +90,17 @@ public:
     TDuration MemoryStoreAutoFlushPeriod;
     TNullable<TDuration> AutoCompactionPeriod;
 
+    bool EnableLookupHashTable;
+    bool RequireChunkPreload;
+
     TTableMountConfig()
     {
-        RegisterParameter("max_memory_store_key_count", MaxMemoryStoreKeyCount)
+        RegisterParameter("soft_memory_store_key_count_limit", SoftMemoryStoreKeyCountLimit)
             .GreaterThan(0)
             .Default(1000000);
+        RegisterParameter("hard_memory_store_key_count_limit", HardMemoryStoreKeyCountLimit)
+            .GreaterThan(0)
+            .Default(1100000);
         RegisterParameter("max_memory_store_value_count", MaxMemoryStoreValueCount)
             .GreaterThan(0)
             .Default(10000000)
@@ -153,6 +162,10 @@ public:
             .GreaterThan(0)
             .Default(30);
 
+        RegisterParameter("max_overlapping_store_count", MaxOverlappingStoreCount)
+            .GreaterThan(0)
+            .Default(30);
+
         RegisterParameter("in_memory_mode", InMemoryMode)
             .Default(EInMemoryMode::None);
 
@@ -171,7 +184,15 @@ public:
         RegisterParameter("auto_compaction_period", AutoCompactionPeriod)
             .Default(Null);
 
+        RegisterParameter("enable_lookup_hash_table", EnableLookupHashTable)
+            .Default(false);
+        RegisterParameter("require_chunk_preload", RequireChunkPreload)
+            .Default(false);
+
         RegisterValidator([&] () {
+            if (SoftMemoryStoreKeyCountLimit > HardMemoryStoreKeyCountLimit) {
+                THROW_ERROR_EXCEPTION("\"hard_memory_store_key_count_limit\" must be greater than or equal to \"soft_memory_store_key_count_limit\"");
+            }
             if (MinPartitionDataSize >= DesiredPartitionDataSize) {
                 THROW_ERROR_EXCEPTION("\"min_partition_data_size\" must be less than \"desired_partition_data_size\"");
             }
@@ -186,6 +207,12 @@ public:
             }
             if (MaxCompactionStoreCount < MinCompactionStoreCount) {
                 THROW_ERROR_EXCEPTION("\"max_compaction_store_count\" must be greater than or equal to \"min_compaction_chunk_count\"");
+            }
+            if (EnableLookupHashTable && InMemoryMode != EInMemoryMode::Uncompressed) {
+                THROW_ERROR_EXCEPTION("\"enable_lookup_hash_table\" can only be true if \"in_memory_mode\" is \"uncompressed\"");
+            }
+            if (RequireChunkPreload && InMemoryMode == EInMemoryMode::None) {
+                THROW_ERROR_EXCEPTION("\"require_chunk_preload\" can only be true for in-memory tables");
             }
         });
     }
@@ -238,8 +265,9 @@ public:
     TTabletManagerConfig()
     {
         RegisterParameter("pool_chunk_size", PoolChunkSize)
-            .GreaterThan(0)
-            .Default(64 * 1024);
+            .GreaterThan(64 * 1024)
+            .Default(1024 * 1024);
+
         RegisterParameter("max_pool_small_block_ratio", MaxPoolSmallBlockRatio)
             .InRange(0.0, 1.0)
             .Default(0.25);

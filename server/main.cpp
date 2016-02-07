@@ -258,7 +258,7 @@ EExitCode GuardedMain(int argc, const char* argv[])
 
         // Configure singletons.
 
-        if (!isMasterSnapshotDump && !isMasterSnapshotValidate) {
+        if (!isMasterSnapshotDump && !isMasterSnapshotValidate && !isExecutor) {
             NLogging::TLogManager::Get()->Configure(configFileName, "/logging");
         } else {
             NLogging::TLogManager::Get()->Configure(NLogging::TLogConfig::CreateQuiet());
@@ -337,7 +337,8 @@ EExitCode GuardedMain(int argc, const char* argv[])
         }
         env.push_back(nullptr);
 
-        Stroka command = "( " + parser.Command.getValue() + " )&&:";
+        // :; is added avoid fork/exec (oneshot) optimization
+        Stroka command = ":; " + parser.Command.getValue();
         std::vector<const char*> args {
             "/bin/bash",
             "-c",

@@ -23,7 +23,7 @@ struct TSessionOptions
 {
     TWorkloadDescriptor WorkloadDescriptor;
     bool SyncOnClose = false;
-    bool OptimizeForLatency = false;
+    bool EnableMultiplexing = false;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

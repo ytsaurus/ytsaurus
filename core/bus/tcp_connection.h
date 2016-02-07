@@ -210,7 +210,7 @@ private:
     bool ReadSocket(char* buffer, size_t size, size_t* bytesRead);
     bool CheckReadError(ssize_t result);
     bool AdvanceDecoder(size_t size);
-    bool OnPacketReceived();
+    bool OnPacketReceived() throw();
     bool OnAckPacketReceived();
     bool OnMessagePacketReceived();
 

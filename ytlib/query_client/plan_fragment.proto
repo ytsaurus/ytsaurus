@@ -1,6 +1,7 @@
 package NYT.NQueryClient.NProto;
 
 import "yt/core/misc/guid.proto";
+import "yt/ytlib/misc/workload.proto";
 import "yt/ytlib/table_client/chunk_meta.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -8,7 +9,7 @@ import "yt/ytlib/table_client/chunk_meta.proto";
 message TExpression
 {
     required int32 kind = 1;
-    required uint32 type = 2;
+    optional uint32 type = 2;
 
     // required int32 location_begin = 3; (deprecated)
     // required int32 location_end = 4; (deprecated)
@@ -111,6 +112,11 @@ message TJoinClause
     required int64 foreign_key_columns_count = 4;
     required NYT.NProto.TGuid foreign_data_id = 5;
     required bool is_left = 7;
+
+    required bool can_use_source_ranges = 8;
+    required uint64 key_prefix = 9;
+    repeated int64 equation_by_index = 10;
+    repeated TExpression evaluated_columns = 11;
 }
 
 message TGroupClause
@@ -158,19 +164,19 @@ message TQuery
     optional TProjectClause project_clause = 10;
 }
 
-message TPlanFragment
+message TQueryOptions
 {
-    required string source = 1;
-    required uint64 timestamp = 2;
+    required uint64 timestamp = 1;
+    required bool verbose_logging = 2;
+    required int64 max_subqueries = 3;
+    required bool enable_code_cache = 4;
+    optional NYT.NProto.TWorkloadDescriptor workload_descriptor = 5;
+}
 
-    repeated NYT.NProto.TGuid data_id = 3;
-    required bytes data_bounds = 8;
-
-    required TQuery query = 5;
-    required bool ordered = 6;
-    optional bool verbose_logging = 7 [default = false];
-    optional int64 max_subqueries = 9 [default = 16];
-    optional bool enable_code_cache = 10 [default = true];
+message TDataRanges
+{
+    required NYT.NProto.TGuid id = 1;
+    required bytes ranges = 2;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

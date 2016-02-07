@@ -42,6 +42,20 @@ namespace NApi {
 
 ///////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(EUserWorkloadCategory,
+    (Batch)
+    (Realtime)
+);
+
+struct TUserWorkloadDescriptor
+{
+    EUserWorkloadCategory Category = EUserWorkloadCategory::Realtime;
+    int Band = 0;
+};
+
+void Serialize(const TUserWorkloadDescriptor& workloadDescriptor, NYson::IYsonConsumer* consumer);
+void Deserialize(TUserWorkloadDescriptor& workloadDescriptor, NYTree::INodePtr node);
+
 struct TTimeoutOptions
 {
     TNullable<TDuration> Timeout;
@@ -88,13 +102,6 @@ struct TMountTableOptions
     , public TTabletRangeOptions
 {
     NTabletClient::TTabletCellId CellId = NTabletClient::NullTabletCellId;
-    //! A lower estimate for the table's uncompressed size.
-    //! Used for balancing tablets across tablet cells.
-    //! Default is 1 Tb.
-    i64 EstimatedUncompressedSize = (i64) 1 * 1024 * 1024 * 1024 * 1024;
-    //! Same as above but for compressed size.
-    //! Default is 100 Gb.
-    i64 EstimatedCompressedSize = (i64) 100 * 1024 * 1024 * 1024;
 };
 
 struct TUnmountTableOptions
@@ -200,6 +207,8 @@ struct TSelectRowsOptions
     int MaxSubqueries = std::numeric_limits<int>::max();
     //! Enables generated code caching.
     bool EnableCodeCache = true;
+    //! Used to prioritize requests.
+    TUserWorkloadDescriptor WorkloadDescriptor;
 };
 
 struct TGetNodeOptions
@@ -351,6 +360,7 @@ struct TJournalWriterOptions
     , public TPrerequisiteOptions
 {
     TJournalWriterConfigPtr Config;
+    bool EnableMultiplexing = true;
 };
 
 struct TTableReaderOptions

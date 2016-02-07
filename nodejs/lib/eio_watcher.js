@@ -11,21 +11,27 @@ function YtEioWatcher(logger, profiler, config) {
     this.profiler = profiler;
     this.thread_limit = config.thread_limit;
     this.spare_threads = config.spare_threads;
-    this.semaphore_limit = config.concurrency_limit || config.thread_limit;
-    this.semaphore = 1; // Preallocate a thread for internal needs.
 
-    binding.SetEioConcurrency(this.thread_limit);
+    this.semaphore = 1 + config.spare_threads; // Preallocate a thread for internal needs.
+    this.semaphore_limit = config.concurrency_limit || config.thread_limit;
+    this.semaphore_limit = 2 * this.semaphore_limit + this.semaphore;
+
+    binding.SetEioConcurrency(this.semaphore_limit);
 }
 
 YtEioWatcher.prototype.isChoking = function() {
     var info = binding.GetEioInformation();
 
+    return false;
+
+    /*
     if (this.thread_limit - this.spare_threads <= info.nreqs - info.npending) {
         __DBG("We are choking!");
         return true;
     } else {
         return false;
     }
+    */
 };
 
 YtEioWatcher.prototype.acquireThread = function(tags) {

@@ -78,6 +78,9 @@ public:
     //! CPU share in cpu cgroup dedicated for slots.
     double CGroupCpuShare;
 
+    //! Fail node if some error occured during slot cleanup.
+    bool SlotInitializationFailureIsFatal;
+
     TSlotManagerConfig()
     {
         RegisterParameter("paths", Paths)
@@ -95,6 +98,9 @@ public:
         RegisterParameter("cgroup_cpu_share", CGroupCpuShare)
             .GreaterThanOrEqual(0.0)
             .Default(2.0 / 1024.0);
+
+        RegisterParameter("slot_initialization_failure_is_fatal", SlotInitializationFailureIsFatal)
+            .Default(false);
     }
 };
 

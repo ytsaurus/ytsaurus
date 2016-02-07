@@ -74,7 +74,7 @@ Value* TCGIRBuilder::ViaClosure(Value* value, Twine name)
         return it->second.first;
     } else {
         int indexInClosure = Mapping_.size();
-        CHECK(indexInClosure < MaxClosureSize);
+        YCHECK(indexInClosure < MaxClosureSize);
 
         InsertPoint currentIP = saveIP();
         SetInsertPoint(EntryBlock_, EntryBlock_->begin());

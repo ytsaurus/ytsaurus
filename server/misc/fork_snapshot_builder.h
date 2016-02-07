@@ -22,10 +22,8 @@ public:
     TFuture<void> Fork();
 
 protected:
+    explicit TForkSnapshotBuilderBase(NLogging::TLogger& logger);
     ~TForkSnapshotBuilderBase();
-
-    //! Must be initialized in the deriving class.
-    NLogging::TLogger Logger;
 
     //! Returns the timeout for building a snapshot.
     virtual TDuration GetTimeout() const = 0;
@@ -47,6 +45,8 @@ private:
     TPromise<void> Result_ = NewPromise<void>();
     TInstant StartTime_;
     NConcurrency::TPeriodicExecutorPtr WatchdogExecutor_;
+
+    NLogging::TLogger& Logger;
 
 
     void DoRunParent();

@@ -163,6 +163,7 @@ public:
     void Read(
         TTabletSnapshotPtr tabletSnapshot,
         TTimestamp timestamp,
+        const TWorkloadDescriptor& workloadDescriptor,
         TWireProtocolReader* reader,
         TWireProtocolWriter* writer)
     {
@@ -177,6 +178,7 @@ public:
             ExecuteSingleRead(
                 tabletSnapshot,
                 timestamp,
+                workloadDescriptor,
                 reader,
                 writer);
         }
@@ -905,12 +907,13 @@ private:
             return;
         }
 
-        std::vector<TStoreId> storeIdsToAdd;
+        SmallVector<TStoreId, TypicalStoreIdCount> storeIdsToAdd;
         for (const auto& descriptor : commitRequest.stores_to_add()) {
-            storeIdsToAdd.push_back(FromProto<TStoreId>(descriptor.store_id()));
+            auto storeId = FromProto<TStoreId>(descriptor.store_id());
+            storeIdsToAdd.push_back(storeId);
         }
 
-        std::vector<TStoreId> storeIdsToRemove;
+        SmallVector<TStoreId, TypicalStoreIdCount> storeIdsToRemove;
         for (const auto& descriptor : commitRequest.stores_to_remove()) {
             auto storeId = FromProto<TStoreId>(descriptor.store_id());
             storeIdsToRemove.push_back(storeId);
@@ -1315,6 +1318,7 @@ private:
     void ExecuteSingleRead(
         TTabletSnapshotPtr tabletSnapshot,
         TTimestamp timestamp,
+        const TWorkloadDescriptor& workloadDescriptor,
         TWireProtocolReader* reader,
         TWireProtocolWriter* writer)
     {
@@ -1324,6 +1328,7 @@ private:
                 LookupRows(
                     std::move(tabletSnapshot),
                     timestamp,
+                    workloadDescriptor,
                     reader,
                     writer);
                 break;
@@ -1632,12 +1637,11 @@ private:
         for (const auto& pair : tablet->Stores()) {
             const auto& store = pair.second;
             if (store->GetType() == EStoreType::DynamicMemory) {
-                store->AsDynamicMemory()->SetRowBlockedHandler(BIND(
-                    &TImpl::OnRowBlocked,
-                    MakeWeak(this),
-                    Unretained(store.Get()),
-                    tablet->GetTabletId(),
-                    Slot_->GetEpochAutomatonInvoker(EAutomatonThreadQueue::Read)));
+                auto dynamicStore = store->AsDynamicMemory();
+                auto rowBlockedHandler = CreateRowBlockedHandler(
+                    dynamicStore.Get(),
+                    tablet);
+                dynamicStore->SetRowBlockedHandler(rowBlockedHandler);
             }
         }
     }
@@ -1961,6 +1965,7 @@ private:
         return store;
     }
 
+
     TDynamicMemoryStorePtr CreateDynamicMemoryStore(
         const TStoreId& storeId,
         TTablet* tablet)
@@ -1969,8 +1974,22 @@ private:
             Config_,
             storeId,
             tablet);
+        store->SetRowBlockedHandler(CreateRowBlockedHandler(store.Get(), tablet));
         StartMemoryUsageTracking(store);
         return store;
+    }
+
+
+    TDynamicMemoryStore::TRowBlockedHandler CreateRowBlockedHandler(
+        TDynamicMemoryStore* store,
+        TTablet* tablet)
+    {
+        return BIND(
+            &TImpl::OnRowBlocked,
+            MakeWeak(this),
+            store,
+            tablet->GetTabletId(),
+            Slot_->GetEpochAutomatonInvoker(EAutomatonThreadQueue::Read));
     }
 
 };
@@ -2005,12 +2024,14 @@ TTablet* TTabletManager::GetTabletOrThrow(const TTabletId& id)
 void TTabletManager::Read(
     TTabletSnapshotPtr tabletSnapshot,
     TTimestamp timestamp,
+    const TWorkloadDescriptor& workloadDescriptor,
     TWireProtocolReader* reader,
     TWireProtocolWriter* writer)
  {
     Impl_->Read(
         std::move(tabletSnapshot),
         timestamp,
+        workloadDescriptor,
         reader,
         writer);
 }

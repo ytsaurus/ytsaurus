@@ -25,6 +25,8 @@
 #include <yt/ytlib/chunk_client/replication_reader.h>
 #include <yt/ytlib/chunk_client/ref_counted_proto.h>
 
+#include <yt/ytlib/misc/workload.h>
+
 #include <yt/ytlib/object_client/helpers.h>
 
 #include <yt/ytlib/table_client/cached_versioned_chunk_meta.h>
@@ -85,6 +87,8 @@ public:
         , UnderlyingCache_(std::move(underlyingCache))
     { }
 
+    DEFINE_BYVAL_RO_PROPERTY(TVersionedChunkLookupHashTablePtr, LookupHashTable);
+
     ~TPreloadedBlockCache()
     {
         auto owner = Owner_.Lock();
@@ -129,9 +133,14 @@ public:
             return;
 
         Blocks_ = std::move(chunkData->Blocks);
-        DataSize_ = GetByteSize(Blocks_);
+        LookupHashTable_ = chunkData->LookupHashTable;
 
-        owner->SetMemoryUsage(DataSize_);
+        i64 dataSize = GetByteSize(Blocks_);
+        if (LookupHashTable_) {
+            dataSize += LookupHashTable_->GetByteSize();
+        }
+
+        owner->SetMemoryUsage(dataSize);
 
         Preloaded_ = true;
     }
@@ -148,8 +157,6 @@ private:
     const IBlockCachePtr UnderlyingCache_;
 
     std::vector<TSharedRef> Blocks_;
-    i64 DataSize_ = 0;
-
     std::atomic<bool> Preloaded_ = {false};
 
 };
@@ -169,6 +176,7 @@ TChunkStore::TChunkStore(
     , Bootstrap_(boostrap)
     , ChunkMeta_(New<TRefCountedChunkMeta>())
     , KeyComparer_(tablet->GetRowKeyComparer())
+    , RequireChunkPreload_(tablet->GetConfig()->RequireChunkPreload)
 {
     YCHECK(
         TypeFromId(StoreId_) == EObjectType::Chunk ||
@@ -271,7 +279,8 @@ void TChunkStore::SetInMemoryMode(EInMemoryMode mode)
         }
     }
 
-    ChunkReader_.Reset();
+    RealtimeChunkReader_.Reset();
+    BatchChunkReader_.Reset();
 
     InMemoryMode_ = mode;
 }
@@ -286,14 +295,17 @@ void TChunkStore::Preload(TInMemoryChunkDataPtr chunkData)
         return;
 
     PreloadedBlockCache_->Preload(chunkData);
+    CachedVersionedChunkMeta_ = chunkData->ChunkMeta;
 }
 
-IChunkReaderPtr TChunkStore::GetChunkReader()
+IChunkReaderPtr TChunkStore::GetChunkReader(const TWorkloadDescriptor& workloadDescriptor)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
     auto chunk = PrepareChunk();
-    return PrepareChunkReader(chunk);
+    auto chunkReader = PrepareChunkReader(std::move(chunk), workloadDescriptor);
+
+    return chunkReader;
 }
 
 EStoreType TChunkStore::GetType() const
@@ -335,7 +347,8 @@ IVersionedReaderPtr TChunkStore::CreateReader(
     TOwningKey lowerKey,
     TOwningKey upperKey,
     TTimestamp timestamp,
-    const TColumnFilter& columnFilter)
+    const TColumnFilter& columnFilter,
+    const TWorkloadDescriptor& workloadDescriptor)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -353,18 +366,19 @@ IVersionedReaderPtr TChunkStore::CreateReader(
         return reader;
     }
 
+    // Another fast lane: check for backing store.
     auto backingStore = GetBackingStore();
     if (backingStore) {
         return backingStore->CreateReader(
             std::move(lowerKey),
             std::move(upperKey),
             timestamp,
-            columnFilter);
+            columnFilter,
+            workloadDescriptor);
     }
 
     auto blockCache = GetBlockCache();
-    auto chunk = PrepareChunk();
-    auto chunkReader = PrepareChunkReader(chunk);
+    auto chunkReader = GetChunkReader(workloadDescriptor);
     auto cachedVersionedChunkMeta = PrepareCachedVersionedChunkMeta(chunkReader);
 
     TReadLimit lowerLimit;
@@ -395,13 +409,11 @@ IVersionedReaderPtr TChunkStore::CreateCacheBasedReader(
 
     TReaderGuard guard(SpinLock_);
 
-    if (!PreloadedBlockCache_ || !PreloadedBlockCache_->IsPreloaded()) {
+    if (!ValidateBlockCachePreloaded()) {
         return nullptr;
     }
 
-    if (!CachedVersionedChunkMeta_) {
-        return nullptr;
-    }
+    YCHECK(CachedVersionedChunkMeta_);
 
     return CreateCacheBasedVersionedChunkReader(
         PreloadedBlockCache_,
@@ -416,7 +428,8 @@ IVersionedReaderPtr TChunkStore::CreateCacheBasedReader(
 IVersionedReaderPtr TChunkStore::CreateReader(
     const TSharedRange<TKey>& keys,
     TTimestamp timestamp,
-    const TColumnFilter& columnFilter)
+    const TColumnFilter& columnFilter,
+    const TWorkloadDescriptor& workloadDescriptor)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -429,17 +442,18 @@ IVersionedReaderPtr TChunkStore::CreateReader(
         return reader;
     }
 
+    // Another fast lane: check for backing store.
     auto backingStore = GetBackingStore();
     if (backingStore) {
         return backingStore->CreateReader(
             keys,
             timestamp,
-            columnFilter);
+            columnFilter,
+            workloadDescriptor);
     }
 
     auto blockCache = GetBlockCache();
-    auto chunk = PrepareChunk();
-    auto chunkReader = PrepareChunkReader(chunk);
+    auto chunkReader = GetChunkReader(workloadDescriptor);
     auto cachedVersionedChunkMeta = PrepareCachedVersionedChunkMeta(chunkReader);
 
     return CreateVersionedChunkReader(
@@ -463,17 +477,16 @@ IVersionedReaderPtr TChunkStore::CreateCacheBasedReader(
 
     TReaderGuard guard(SpinLock_);
 
-    if (!PreloadedBlockCache_ || !PreloadedBlockCache_->IsPreloaded()) {
+    if (!ValidateBlockCachePreloaded()) {
         return nullptr;
     }
 
-    if (!CachedVersionedChunkMeta_) {
-        return nullptr;
-    }
+    YCHECK(CachedVersionedChunkMeta_);
 
     return CreateCacheBasedVersionedChunkReader(
         PreloadedBlockCache_,
         CachedVersionedChunkMeta_,
+        PreloadedBlockCache_->GetLookupHashTable(),
         keys,
         columnFilter,
         PerformanceCounters_,
@@ -574,22 +587,46 @@ IChunkPtr TChunkStore::PrepareChunk()
     return chunk;
 }
 
-IChunkReaderPtr TChunkStore::PrepareChunkReader(IChunkPtr chunk)
+IChunkReaderPtr TChunkStore::PrepareChunkReader(
+    IChunkPtr chunk,
+    const TWorkloadDescriptor& workloadDescriptor)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
+    bool isRT = false;
+    switch (workloadDescriptor.Category) {
+        case EWorkloadCategory::SystemRealtime:
+        case EWorkloadCategory::UserRealtime:
+            isRT = true;
+            break;
+        default:
+            break;
+    }
+
     {
         TReaderGuard guard(SpinLock_);
-        if (ChunkReader_) {
-            return ChunkReader_;
+        if (isRT) {
+            if (RealtimeChunkReader_) {
+                return RealtimeChunkReader_;
+            }
+        } else {
+            if (BatchChunkReader_) {
+                return BatchChunkReader_;
+            }
         }
     }
 
+    auto readerConfig = Bootstrap_->GetConfig()->TabletNode->ChunkReader;
+    auto readerConfigCopy = CloneYsonSerializable(readerConfig);
+
+    readerConfigCopy->WorkloadDescriptor = workloadDescriptor;
+    readerConfigCopy->PopulateCache = isRT;
+
     IChunkReaderPtr chunkReader;
-    if (chunk &&  !chunk->IsRemoveScheduled()) {
+    if (chunk && !chunk->IsRemoveScheduled()) {
         chunkReader = CreateLocalChunkReader(
             Bootstrap_,
-            Bootstrap_->GetConfig()->TabletNode->ChunkReader,
+            readerConfigCopy,
             chunk,
             GetBlockCache(),
             BIND(&TChunkStore::OnLocalReaderFailed, MakeWeak(this)));
@@ -597,7 +634,7 @@ IChunkReaderPtr TChunkStore::PrepareChunkReader(IChunkPtr chunk)
         // TODO(babenko): provide seed replicas
         auto options = New<TRemoteReaderOptions>();
         chunkReader = CreateReplicationReader(
-            Bootstrap_->GetConfig()->TabletNode->ChunkReader,
+            readerConfigCopy,
             options,
             Bootstrap_->GetMasterClient(),
             New<TNodeDirectory>(),
@@ -609,7 +646,11 @@ IChunkReaderPtr TChunkStore::PrepareChunkReader(IChunkPtr chunk)
 
     {
         TWriterGuard guard(SpinLock_);
-        ChunkReader_ = chunkReader;
+        if (isRT) {
+            RealtimeChunkReader_ = chunkReader;
+        } else {
+            BatchChunkReader_ = chunkReader;
+        }
     }
 
     TDelayedExecutor::Submit(
@@ -630,12 +671,8 @@ TCachedVersionedChunkMetaPtr TChunkStore::PrepareCachedVersionedChunkMeta(IChunk
         }
     }
 
-    auto cachedMetaOrError = WaitFor(TCachedVersionedChunkMeta::Load(
-        chunkReader,
-        Schema_,
-        KeyColumns_));
-    THROW_ERROR_EXCEPTION_IF_FAILED(cachedMetaOrError);
-    auto cachedMeta = cachedMetaOrError.Value();
+    auto cachedMeta = WaitFor(TCachedVersionedChunkMeta::Load(chunkReader, Schema_, KeyColumns_))
+        .ValueOrThrow();
 
     {
         TWriterGuard guard(SpinLock_);
@@ -691,7 +728,21 @@ void TChunkStore::OnChunkReaderExpired()
     VERIFY_THREAD_AFFINITY_ANY();
 
     TWriterGuard guard(SpinLock_);
-    ChunkReader_.Reset();
+    RealtimeChunkReader_.Reset();
+    BatchChunkReader_.Reset();
+}
+
+bool TChunkStore::ValidateBlockCachePreloaded()
+{
+    if (!PreloadedBlockCache_ || !PreloadedBlockCache_->IsPreloaded()) {
+        if (RequireChunkPreload_) {
+            THROW_ERROR_EXCEPTION("Chunk data is not preloaded yet")
+                << TErrorAttribute("tablet_id", TabletId_)
+                << TErrorAttribute("store_id", StoreId_);
+        }
+        return false;
+    }
+    return true;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

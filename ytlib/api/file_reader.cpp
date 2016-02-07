@@ -58,6 +58,7 @@ public:
             Transaction_ = transactionManager->Attach(Options_.TransactionId);
         }
 
+
         Logger.AddTag("Path: %v, TransactionId: %v",
             Path_,
             Options_.TransactionId);
@@ -75,7 +76,7 @@ public:
         ValidateAborted();
 
         TSharedRef block;
-        if (!Reader_->ReadBlock(&block)) {
+        if (!Reader_ || !Reader_->ReadBlock(&block)) {
             return MakeFuture(TSharedRef());
         }
 
@@ -106,6 +107,8 @@ private:
 
         LOG_INFO("Fetching file info");
 
+        bool isEmptyRead = Options_.Length && *Options_.Length == 0;
+
         auto masterChannel = Client_->GetMasterChannel(EMasterChannelKind::LeaderOrFollower);
         TObjectServiceProxy proxy(masterChannel);
         auto batchReq = proxy.ExecuteBatch();
@@ -117,7 +120,7 @@ private:
             batchReq->AddRequest(req, "get_basic_attrs");
         }
 
-        {
+        if (!isEmptyRead) {
             auto req = TFileYPathProxy::Fetch(Path_);
 
             TReadLimit lowerLimit, upperLimit;
@@ -126,6 +129,9 @@ private:
                 lowerLimit.SetOffset(offset);
             }
             if (Options_.Length) {
+                if (*Options_.Length < 0) {
+                    THROW_ERROR_EXCEPTION("Invalid length to read from file: %v < 0", *Options_.Length);
+                }
                 upperLimit.SetOffset(offset + *Options_.Length);
             }
 
@@ -155,8 +161,8 @@ private:
             }
         }
 
-        auto nodeDirectory = New<TNodeDirectory>();
-        {
+        if (!isEmptyRead) {
+            auto nodeDirectory = New<TNodeDirectory>();
             auto rspOrError = batchRsp->GetResponse<TFileYPathProxy::TRspFetch>("fetch");
             THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error fetching file chunks");
             const auto& rsp = rspOrError.Value();
@@ -171,9 +177,6 @@ private:
                 Client_->GetConnection()->GetBlockCache(),
                 nodeDirectory,
                 std::move(chunks));
-        }
-
-        {
             WaitFor(Reader_->Open())
                 .ThrowOnError();
         }

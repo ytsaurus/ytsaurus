@@ -469,10 +469,10 @@ void EnrichKeyRange(
         }
 
         const auto& references = evaluator.GetReferenceIds(shrinkSize);
-        auto isEvaluatable = true;
+        auto canEvaluate = true;
         for (int referenceIndex : references) {
             if (referenceIndex >= (canEnumerate ? prefixSize + 1 : prefixSize)) {
-                isEvaluatable = false;
+                canEvaluate = false;
             }
         }
 
@@ -480,7 +480,7 @@ void EnrichKeyRange(
         TDivisors partial;
         ui64 estimation = moduloGenerator ? moduloGenerator->Count() : std::numeric_limits<ui64>::max();
 
-        if (isEvaluatable) {
+        if (canEvaluate) {
             if (canEnumerate) {
                 partial = GetDivisors(columns, prefixSize, evaluator.GetExpression(shrinkSize));
                 partial.erase(

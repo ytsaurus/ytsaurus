@@ -353,11 +353,6 @@ TJobId TOperationControllerBase::TTask::ScheduleJob(
     const TNodeResources& jobLimits)
 {
     int chunkListCount = GetChunkListCountPerJob();
-    if (!Controller->HasEnoughChunkLists(chunkListCount)) {
-        LOG_DEBUG("Job chunk list demand is not met");
-        return NullJobId;
-    }
-
     int jobIndex = Controller->JobIndexGenerator.Next();
     auto joblet = New<TJoblet>(this, jobIndex);
 
@@ -1067,6 +1062,7 @@ void TOperationControllerBase::InitializeTransactions()
         InputTransactionId = Operation->GetInputTransaction()->GetId();
         OutputTransactionId = Operation->GetOutputTransaction()->GetId();
     }
+    Operation->SetHasActiveTransactions(true);
 }
 
 TTransactionId TOperationControllerBase::StartTransaction(
@@ -1940,6 +1936,12 @@ TJobId TOperationControllerBase::DoScheduleLocalJob(
                 FormatResources(jobLimits),
                 bestTask->GetPendingDataSize(),
                 bestTask->GetPendingJobCount());
+
+            if (!HasEnoughChunkLists(bestTask->GetChunkListCountPerJob())) {
+                LOG_DEBUG("Job chunk list demand is not met");
+                return NullJobId;
+            }
+
             auto jobId = bestTask->ScheduleJob(context, jobLimits);
             if (jobId) {
                 UpdateTask(bestTask);
@@ -2041,6 +2043,11 @@ TJobId TOperationControllerBase::DoScheduleNonLocalJob(
                     FormatResources(jobLimits),
                     task->GetPendingDataSize(),
                     task->GetPendingJobCount());
+
+                if (!HasEnoughChunkLists(task->GetChunkListCountPerJob())) {
+                    LOG_DEBUG("Job chunk list demand is not met");
+                    return NullJobId;
+                }
 
                 auto jobId = task->ScheduleJob(context, jobLimits);
                 if (jobId) {
@@ -3198,11 +3205,17 @@ bool TOperationControllerBase::IsMemoryReserveEnabled(const TProgressCounter& jo
 
 i64 TOperationControllerBase::GetMemoryReserve(bool memoryReserveEnabled, TUserJobSpecPtr userJobSpec) const
 {
+    i64 size = 0;
     if (memoryReserveEnabled) {
-        return static_cast<i64>(userJobSpec->MemoryLimit * userJobSpec->MemoryReserveFactor);
+        size += static_cast<i64>(userJobSpec->MemoryLimit * userJobSpec->MemoryReserveFactor);
     } else {
-        return userJobSpec->MemoryLimit;
+        size += userJobSpec->MemoryLimit;
     }
+
+    if (userJobSpec->TmpfsSize) {
+        size += *userJobSpec->TmpfsSize;
+    }
+    return size;
 }
 
 void TOperationControllerBase::RegisterOutput(
@@ -3449,13 +3462,18 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
 {
     jobSpec->set_shell_command(config->Command);
     jobSpec->set_memory_limit(config->MemoryLimit);
+    jobSpec->set_include_memory_mapped_files(config->IncludeMemoryMappedFiles);
     jobSpec->set_iops_threshold(config->IopsThreshold);
     jobSpec->set_use_yamr_descriptors(config->UseYamrDescriptors);
     jobSpec->set_check_input_fully_consumed(config->CheckInputFullyConsumed);
     jobSpec->set_max_stderr_size(config->MaxStderrSize);
     jobSpec->set_enable_core_dump(config->EnableCoreDump);
     jobSpec->set_custom_statistics_count_limit(config->CustomStatisticsCountLimit);
-    
+
+    if (config->TmpfsSize) {
+        jobSpec->set_tmpfs_size(*config->TmpfsSize);
+    }
+
     if (Config->UserJobBlkioWeight) {
         jobSpec->set_blkio_weight(*Config->UserJobBlkioWeight);
     }
