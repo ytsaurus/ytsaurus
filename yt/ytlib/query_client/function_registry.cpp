@@ -102,9 +102,7 @@ TSharedRef ReadFile(const Stroka& fileName, NApi::IClientPtr client)
 
     i64 size = GetByteSize(blocks);
     auto file = TSharedMutableRef::Allocate(size);
-    auto memoryOutput = TMemoryOutput(
-        file.Begin(),
-        size);
+    auto memoryOutput = TMemoryOutput(file.Begin(), size);
 
     for (const auto& block : blocks) {
         memoryOutput.Write(block.Begin(), block.Size());
@@ -178,6 +176,7 @@ private:
     const NYPath::TYPath RegistryPath_;
     const IFunctionRegistryPtr BuiltinRegistry_;
     const TIntrusivePtr<TFunctionRegistry> UdfRegistry_;
+    std::unordered_set<Stroka> NotFoundFunctions_;
 
     IFunctionDescriptorPtr LookupFunction(const Stroka& functionName);
     IAggregateFunctionDescriptorPtr LookupAggregate(const Stroka& aggregateName);
@@ -213,6 +212,10 @@ IFunctionDescriptorPtr TCypressFunctionRegistry::FindFunction(const Stroka& func
 
 IFunctionDescriptorPtr TCypressFunctionRegistry::LookupFunction(const Stroka& functionName)
 {
+    if (NotFoundFunctions_.count(functionName)) {
+        return nullptr;
+    }
+
     auto functionPath = GetUdfDescriptorPath(RegistryPath_, functionName);
 
     auto cypressDescriptor = LookupDescriptor<TCypressFunctionDescriptorPtr>(
@@ -222,6 +225,7 @@ IFunctionDescriptorPtr TCypressFunctionRegistry::LookupFunction(const Stroka& fu
         Client_);
 
     if (!cypressDescriptor) {
+        NotFoundFunctions_.insert(functionName);
         return nullptr;
     }
 
@@ -269,6 +273,10 @@ IAggregateFunctionDescriptorPtr TCypressFunctionRegistry::FindAggregateFunction(
 
 IAggregateFunctionDescriptorPtr TCypressFunctionRegistry::LookupAggregate(const Stroka& aggregateName)
 {
+    if (NotFoundFunctions_.count(aggregateName)) {
+        return nullptr;
+    }
+
     auto aggregatePath = GetUdfDescriptorPath(RegistryPath_, aggregateName);
 
     auto cypressDescriptor = LookupDescriptor<TCypressAggregateDescriptorPtr>(
@@ -278,6 +286,7 @@ IAggregateFunctionDescriptorPtr TCypressFunctionRegistry::LookupAggregate(const 
         Client_);
 
     if (!cypressDescriptor) {
+        NotFoundFunctions_.insert(aggregateName);
         return nullptr;
     }
 
