@@ -1083,7 +1083,9 @@ class TestTablets(YTEnvSetup):
 
         assert get("#" + cell_id + "/@health") == "good"
         peers = get("#" + cell_id + "/@peers")
-        assert list(x["address"] for x in peers if x["state"] == "leading")[0] == follower_address
+        leaders = list(x["address"] for x in peers if x["state"] == "leading")
+        assert len(leaders) == 1
+        assert leaders[0] == follower_address
 
         assert lookup_rows("//tmp/t", keys) == rows
 
