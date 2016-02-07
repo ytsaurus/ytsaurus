@@ -272,7 +272,7 @@ public:
             if (node->GetMasterState() == ENodeState::Online &&
                 node->CanSchedule(schedulingTag))
             {
-                result.push_back(node->BuildDescriptor());
+                result.push_back(node->BuildExecDescriptor());
             }
         }
         return result;
@@ -578,7 +578,7 @@ public:
             // NB: Resource limits should be updated even if node is offline
             // to avoid getting incorrect total limits when node becomes online.
             // XXX(ignat): Should we consider resource usage here?
-            node->ResourceLimits() = context->Request().resource_limits();
+            node->SetResourceLimits(context->Request().resource_limits());
             THROW_ERROR_EXCEPTION("Node is not online");
         }
 
@@ -612,26 +612,26 @@ public:
 
             ConcurrentHeartbeatCount_ += 1;
 
-            auto oldResourceLimits = node->ResourceLimits();
-            auto oldResourceUsage = node->ResourceUsage();
+            auto oldResourceLimits = node->GetResourceLimits();
+            auto oldResourceUsage = node->GetResourceUsage();
 
             if (request->resource_limits().user_slots() != 0) {
-                node->ResourceLimits() = request->resource_limits();
-                node->ResourceUsage() = request->resource_usage();
+                node->SetResourceLimits(request->resource_limits());
+                node->SetResourceUsage(request->resource_usage());
             } else {
-                node->ResourceLimits() = ZeroNodeResources();
-                node->ResourceUsage() = ZeroNodeResources();
+                node->SetResourceLimits(ZeroNodeResources());
+                node->SetResourceUsage(ZeroNodeResources());
             }
 
             // Update total resource limits _before_ processing the heartbeat to
             // maintain exact values of total resource limits.
             TotalResourceLimits_ -= oldResourceLimits;
-            TotalResourceLimits_ += node->ResourceLimits();
+            TotalResourceLimits_ += node->GetResourceLimits();
 
             for (const auto& tag : node->SchedulingTags()) {
                 auto& resources = SchedulingTagResources_[tag];
                 resources -= oldResourceLimits;
-                resources += node->ResourceLimits();
+                resources += node->GetResourceLimits();
             }
 
             // NB: No exception must leave this try/catch block.
@@ -661,7 +661,7 @@ public:
                         Strategy_->ScheduleJobs(schedulingContext.get());
                     }
 
-                    node->ResourceUsage() = schedulingContext->ResourceUsage();
+                    node->SetResourceUsage(schedulingContext->ResourceUsage());
 
                     scheduleJobsAsyncResult = ProcessScheduledJobs(
                         schedulingContext.get(),
@@ -675,7 +675,7 @@ public:
             // Update total resource usage _after_ processing the heartbeat to avoid
             // "unsaturated CPU" phenomenon.
             TotalResourceUsage_ -= oldResourceUsage;
-            TotalResourceUsage_ += node->ResourceUsage();
+            TotalResourceUsage_ += node->GetResourceUsage();
 
             ConcurrentHeartbeatCount_ -= 1;
             node->SetLastSeenTime(TInstant::Now());
@@ -1399,14 +1399,14 @@ private:
         TReaderGuard guard(AddressToNodeLock_);
         auto it = AddressToNode_.find(descriptor.GetDefaultAddress());
         if (it == AddressToNode_.end()) {
-            // NB: RegisterNode takes exclusive access on AddressToNodeLock_.
+            // NB: RegisterNode will acquire the write lock.
             guard.Release();
             return RegisterNode(nodeId, descriptor);
         }
 
-        // Update the current descriptor, just in case.
         auto node = it->second;
-        node->Descriptor() = descriptor;
+        // Update the current descriptor, just in case.
+        node->UpdateNodeDescriptor(descriptor);
         return node;
     }
 
@@ -1463,13 +1463,13 @@ private:
             auto oldTags = node->SchedulingTags();
             for (const auto& oldTag : oldTags) {
                 if (tags.find(oldTag) == tags.end()) {
-                    SchedulingTagResources_[oldTag] -= node->ResourceLimits();
+                    SchedulingTagResources_[oldTag] -= node->GetResourceLimits();
                 }
             }
 
             for (const auto& tag : tags) {
                 if (oldTags.find(tag) == oldTags.end()) {
-                    SchedulingTagResources_[tag] += node->ResourceLimits();
+                    SchedulingTagResources_[tag] += node->GetResourceLimits();
                 }
             }
         }
@@ -1479,23 +1479,23 @@ private:
 
     void SubtractNodeResources(TExecNodePtr node)
     {
-        TotalResourceLimits_ -= node->ResourceLimits();
-        TotalResourceUsage_ -= node->ResourceUsage();
+        TotalResourceLimits_ -= node->GetResourceLimits();
+        TotalResourceUsage_ -= node->GetResourceUsage();
         OnlineNodeCount_ -= 1;
 
         for (const auto& tag : node->SchedulingTags()) {
-            SchedulingTagResources_[tag] -= node->ResourceLimits();
+            SchedulingTagResources_[tag] -= node->GetResourceLimits();
         }
     }
 
     void AddNodeResources(TExecNodePtr node)
     {
-        TotalResourceLimits_ += node->ResourceLimits();
-        TotalResourceUsage_ += node->ResourceUsage();
+        TotalResourceLimits_ += node->GetResourceLimits();
+        TotalResourceUsage_ += node->GetResourceUsage();
         OnlineNodeCount_ += 1;
 
         for (const auto& tag : node->SchedulingTags()) {
-            SchedulingTagResources_[tag] += node->ResourceLimits();
+            SchedulingTagResources_[tag] += node->GetResourceLimits();
         }
     }
 
