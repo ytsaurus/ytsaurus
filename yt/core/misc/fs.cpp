@@ -469,6 +469,7 @@ std::vector<TMountPoint> GetMountPoints(const Stroka& mountsFile)
     return mountPoints;
 #else
     ThrowNotSupported();
+    YUNREACHABLE();
 #endif
 }
 
