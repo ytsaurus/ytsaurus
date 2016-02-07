@@ -664,11 +664,9 @@ void TStoreManager::BackoffStoreRemoval(IStorePtr store)
             }
             break;
         }
-
-        default:
-            YUNREACHABLE();
     }
 
+    YCHECK(callback);
     NConcurrency::TDelayedExecutor::Submit(
         callback.Via(Tablet_->GetEpochAutomatonInvoker()),
         Config_->ErrorBackoffTime);
