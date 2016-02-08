@@ -652,7 +652,7 @@ def read_table(table, format=None, table_reader=None, control_attributes=None, u
                     row = format.load_rows(StringIO(row)).next()
 
                     # NB: row with range index must go before row with row index.
-                    if "range_index" in row.attributes:
+                    if hasattr(row, "attributes") and "range_index" in row.attributes:
                         self.range_started = False
                         ranges_to_skip = row.attributes["range_index"] - range_index
                         table.name.attributes["ranges"] = table.name.attributes["ranges"][ranges_to_skip:]
@@ -668,7 +668,7 @@ def read_table(table, format=None, table_reader=None, control_attributes=None, u
                             row.attributes["range_index"] = self.current_range_index
                             self.range_index_row_yielded = True
 
-                    if "row_index" in row.attributes:
+                    if hasattr(row, "attributes") and "row_index" in row.attributes:
                         self.next_row_index = row.attributes["row_index"]
                         if not self.is_row_index_initially_enabled:
                             del row.attributes["row_index"]
