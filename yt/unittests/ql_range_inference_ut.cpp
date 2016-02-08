@@ -965,6 +965,33 @@ TEST_F(TRefineKeyRangeTest, MultipleRangeDisjuncts)
     EXPECT_EQ(BuildKey("54;" _MAX_), result[1].second);
 }
 
+TEST_F(TRefineKeyRangeTest, SecondDimensionRange)
+{
+    auto expr = PrepareExpression(
+        "(k, l) >= (1, 2) and (k, l) < (1, 4)",
+        GetSampleTableSchema());
+
+    auto rowBuffer = New<TRowBuffer>();
+
+    auto keyColumns = GetSampleKeyColumns();
+
+    auto keyTrie = ExtractMultipleConstraints(
+        expr,
+        keyColumns,
+        rowBuffer,
+        CreateBuiltinFunctionRegistry());
+
+    auto result = GetRangesFromTrieWithinRange(
+        std::make_pair(BuildKey("1;1;1"), BuildKey("100;100;100")),
+        keyTrie,
+        rowBuffer);
+
+    EXPECT_EQ(1, result.size());
+
+    EXPECT_EQ(BuildKey("1;2"), result[0].first);
+    EXPECT_EQ(BuildKey("1;4;"), result[0].second);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
