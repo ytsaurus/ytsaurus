@@ -9,6 +9,8 @@
 
 #include <util/string/vector.h>
 
+#include <util/system/user.h>
+
 #ifdef _linux_
     #include <sys/eventfd.h>
     #include <sys/stat.h>
@@ -27,10 +29,14 @@ namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static Stroka CGroupPrefix = GetUsername() + "/yt/unittests/";
+
+////////////////////////////////////////////////////////////////////////////////
+
 template <typename T>
 T CreateCGroup(const Stroka& name)
 {
-    T group(name);
+    T group(CGroupPrefix + name);
     group.Create();
     return group;
 }
@@ -65,13 +71,13 @@ int GetLinuxVersion()
 
 TEST(TCGroup, NotExistingGroupGetTasks)
 {
-    TBlockIO group("not_existing_group_get_tasks" + ToString(TGuid::Create()));
+    TBlockIO group(CGroupPrefix + "not_existing_group_get_tasks" + ToString(TGuid::Create()));
     EXPECT_THROW(group.GetTasks(), std::exception);
 }
 
 TEST(TCGroup, NotExistingRemoveAllSubcgroup)
 {
-    TBlockIO group("not_existing_remove_all_subcgroup" + ToString(TGuid::Create()));
+    TBlockIO group(CGroupPrefix + "not_existing_remove_all_subcgroup" + ToString(TGuid::Create()));
     group.RemoveAllSubcgroups();
 }
 
@@ -79,7 +85,7 @@ TEST(TCGroup, NotExistingRemoveAllSubcgroup)
 
 TEST(TCGroup, DoubleCreate)
 {
-    TBlockIO group("double_create_" + ToString(TGuid::Create()));
+    TBlockIO group(CGroupPrefix + "double_create_" + ToString(TGuid::Create()));
     group.Create();
     group.Create();
     group.Destroy();

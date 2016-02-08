@@ -23,6 +23,7 @@
 namespace NYT {
 
 using namespace NPipes;
+using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -34,17 +35,18 @@ static const pid_t InvalidProcessId = -1;
 
 #ifdef _unix_
 
-bool TryKill(int pid, int signal)
+static bool TryKill(int pid, int signal)
 {
     YCHECK(pid > 0);
     int result = ::kill(pid, signal);
-    if (result < 0) {
+    // Ignore ESRCH because process may have died just before TryKill.
+    if (result < 0 && errno != ESRCH) {
         return false;
     }
     return true;
 }
 
-bool TryWaitid(idtype_t idtype, id_t id, siginfo_t *infop, int options)
+static bool TryWaitid(idtype_t idtype, id_t id, siginfo_t *infop, int options)
 {
     while (true) {
         if (infop != nullptr) {
@@ -78,7 +80,7 @@ bool TryWaitid(idtype_t idtype, id_t id, siginfo_t *infop, int options)
     }
 }
 
-void WaitidOrDie(idtype_t idtype, id_t id, siginfo_t *infop, int options)
+static void WaitidOrDie(idtype_t idtype, id_t id, siginfo_t *infop, int options)
 {
     YCHECK(infop != nullptr);
 
@@ -93,7 +95,7 @@ void WaitidOrDie(idtype_t idtype, id_t id, siginfo_t *infop, int options)
     YCHECK(infop->si_pid == id);
 }
 
-void Cleanup(int pid)
+static void Cleanup(int pid)
 {
     YCHECK(pid > 0);
 
@@ -101,7 +103,7 @@ void Cleanup(int pid)
     YCHECK(TryWaitid(P_PID, pid, nullptr, WEXITED));
 }
 
-bool TrySetSignalMask(const sigset_t* sigmask, sigset_t* oldSigmask)
+static bool TrySetSignalMask(const sigset_t* sigmask, sigset_t* oldSigmask)
 {
     int error = pthread_sigmask(SIG_SETMASK, sigmask, oldSigmask);
     if (error != 0) {
@@ -110,7 +112,7 @@ bool TrySetSignalMask(const sigset_t* sigmask, sigset_t* oldSigmask)
     return true;
 }
 
-bool TryResetSignals()
+static bool TryResetSignals()
 {
     for (int sig = 1; sig < NSIG; ++sig) {
         // Ignore invalid signal errors.
@@ -123,11 +125,15 @@ bool TryResetSignals()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TProcess::TProcess(const Stroka& path, bool copyEnv)
+DEFINE_REFCOUNTED_TYPE(TProcess)
+
+TProcess::TProcess(const Stroka& path, bool copyEnv, TDuration pollPeriod)
     : ProcessId_(InvalidProcessId)
     // Stroka is guaranteed to be zero-terminated.
     // https://wiki.yandex-team.ru/Development/Poisk/arcadia/util/StrokaAndTStringBuf#sobstvennosimvoly
     , Path_(path)
+    , PollPeriod_(pollPeriod)
+    , FinishedPromise_(NewPromise<void>())
 {
     AddArgument(NFS::GetFileName(path));
 
@@ -138,51 +144,16 @@ TProcess::TProcess(const Stroka& path, bool copyEnv)
     }
 }
 
-TProcess::~TProcess()
-{
-    YCHECK(ProcessId_ == InvalidProcessId || Finished_);
-}
-
-TProcess::TProcess(TProcess&& other)
-    : ProcessId_(InvalidProcessId)
-{
-    Swap(other);
-}
-
-void TProcess::Swap(TProcess& other)
-{
-    std::swap(Started_, other.Started_);
-    std::swap(Finished_, other.Finished_);
-    std::swap(ProcessId_, other.ProcessId_);
-    std::swap(Path_, other.Path_);
-    std::swap(MaxSpawnActionFD_, other.MaxSpawnActionFD_);
-    // All iterators, pointers and references referring to elements
-    // in both containers remain valid, and are now referring to
-    // the same elements they referred to before
-    // the call, but in the other container, where they now iterate.
-    // Note that the end iterators do not refer to elements and may be invalidated.
-    StringHolder_.swap(other.StringHolder_);
-    Args_.swap(other.Args_);
-    Env_.swap(other.Env_);
-    SpawnActions_.swap(other.SpawnActions_);
-}
-
-
-TProcess TProcess::CreateCurrentProcessSpawner()
-{
-    return TProcess(GetExecPath(), true);
-}
-
 void TProcess::AddArgument(TStringBuf arg)
 {
-    YCHECK(ProcessId_ == InvalidProcessId && !Finished_);
+    YCHECK(ProcessId_ == InvalidProcessId && !IsFinished_);
 
     Args_.push_back(Capture(arg));
 }
 
 void TProcess::AddEnvVar(TStringBuf var)
 {
-    YCHECK(ProcessId_ == InvalidProcessId && !Finished_);
+    YCHECK(ProcessId_ == InvalidProcessId && !IsFinished_);
 
     Env_.push_back(Capture(var));
 }
@@ -190,6 +161,13 @@ void TProcess::AddEnvVar(TStringBuf var)
 void TProcess::AddArguments(std::initializer_list<TStringBuf> args)
 {
     for (auto arg : args) {
+        AddArgument(arg);
+    }
+}
+
+void TProcess::AddArguments(const std::vector<Stroka>& args)
+{
+    for (const auto& arg : args) {
         AddArgument(arg);
     }
 }
@@ -216,25 +194,30 @@ void TProcess::AddDup2FileAction(int oldFD, int newFD)
     SpawnActions_.push_back(action);
 }
 
-Stroka TProcess::GetPath() const
+TFuture<void> TProcess::Spawn()
 {
-    return Path_;
+    try {
+        DoSpawn();
+    } catch (const std::exception& ex) {
+        FinishedPromise_.TrySet(ex);
+    }
+    return FinishedPromise_;
 }
 
-void TProcess::Spawn()
+void TProcess::DoSpawn()
 {
 #ifdef _unix_
-    YCHECK(ProcessId_ == InvalidProcessId && !Finished_);
+    YCHECK(ProcessId_ == InvalidProcessId && !IsFinished_);
 
     // Make sure no spawn action closes Pipe_.WriteFD
     TPipeFactory pipeFactory(MaxSpawnActionFD_ + 1);
     Pipe_ = pipeFactory.Create();
     pipeFactory.Clear();
 
-    LOG_DEBUG("Spawning new process (Path: %v, ErrorPipe: [%v],  Arguments: [%v], Environment: [%v]", 
+    LOG_DEBUG("Spawning new process (Path: %v, ErrorPipe: [%v],  Arguments: [%v], Environment: [%v])",
         Path_,
         Pipe_,
-        JoinToString(Args_), 
+        JoinToString(Args_),
         JoinToString(Env_));
 
     Env_.push_back(nullptr);
@@ -285,6 +268,13 @@ void TProcess::Spawn()
 
     Pipe_.CloseWriteFD();
     ThrowOnChildError();
+
+    AsyncWaitExecutor_ = New<TPeriodicExecutor>(
+        GetSyncInvoker(),
+        BIND(&TProcess::AsyncPeriodicTryWait, MakeStrong(this)),
+        PollPeriod_);
+
+    AsyncWaitExecutor_->Start();
 #else
     THROW_ERROR_EXCEPTION("Unsupported platform");
 #endif
@@ -302,15 +292,15 @@ void TProcess::SpawnChild()
     }
 
     if (pid == 0) {
-        Child();
+        try {
+            Child();
+        } catch (...) {
+            YUNREACHABLE();
+        }
     }
 
     ProcessId_ = pid;
-
-    {
-        TGuard<TSpinLock> guard(LifecycleChangeLock_);
-        Started_ = true;
-    }
+    IsStarted_ = true;
 #else
     THROW_ERROR_EXCEPTION("Unsupported platform");
 #endif
@@ -334,15 +324,9 @@ void TProcess::ThrowOnChildError()
     }
 
     YCHECK(res == sizeof(data));
+    IsFinished_ = true;
 
-    {
-        TGuard<TSpinLock> guard(LifecycleChangeLock_);
-        Finished_ = true;
-    }
-
-#ifdef _linux_
     Cleanup(ProcessId_);
-#endif
     ProcessId_ = InvalidProcessId;
 
     int actionIndex = data[0];
@@ -358,7 +342,7 @@ void TProcess::ThrowOnChildError()
 }
 
 #ifdef _unix_
-TError ProcessInfoToError(const siginfo_t& processInfo)
+static TError ProcessInfoToError(const siginfo_t& processInfo)
 {
     int signalBase = static_cast<int>(EExitStatus::SignalBase);
     if (processInfo.si_code == CLD_EXITED) {
@@ -381,30 +365,32 @@ TError ProcessInfoToError(const siginfo_t& processInfo)
 }
 #endif
 
-TError TProcess::Wait()
-{
 #ifdef _unix_
-    YCHECK(ProcessId_ != InvalidProcessId);
-    LOG_DEBUG("Start to wait for %v to finish", ProcessId_);
-
+void TProcess::AsyncPeriodicTryWait()
+{
     siginfo_t processInfo;
+    memset(&processInfo, 0, sizeof(siginfo_t));
 
     // Note WNOWAIT flag.
     // This call just waits for a process to be finished but does not clear zombie flag.
-    WaitidOrDie(P_PID, ProcessId_, &processInfo, WEXITED | WNOWAIT);
 
+    if (!TryWaitid(P_PID, ProcessId_, &processInfo, WEXITED | WNOWAIT | WNOHANG) ||
+        processInfo.si_pid != ProcessId_)
     {
-        TGuard<TSpinLock> guard(LifecycleChangeLock_);
-
-        // This call just should return immediately
-        // because we have already waited for this process with WNOHANG
-        WaitidOrDie(P_PID, ProcessId_, &processInfo, WEXITED | WNOHANG);
-
-        Finished_ = true;
+        return;
     }
-    LOG_DEBUG("Finish to wait for %v to finish", ProcessId_);
 
-    return ProcessInfoToError(processInfo);
+    AsyncWaitExecutor_->Stop();
+    AsyncWaitExecutor_ = nullptr;
+
+    // This call just should return immediately
+    // because we have already waited for this process with WNOHANG
+    WaitidOrDie(P_PID, ProcessId_, &processInfo, WEXITED | WNOHANG);
+
+    IsFinished_ = true;
+    LOG_DEBUG("Process %v finished", ProcessId_);
+
+    FinishedPromise_.Set(ProcessInfoToError(processInfo));
 #else
     THROW_ERROR_EXCEPTION("Unsupported platform");
 #endif
@@ -415,35 +401,28 @@ void TProcess::Kill(int signal)
 #ifdef _unix_
     LOG_DEBUG("Kill %v process", ProcessId_);
 
-    TGuard<TSpinLock> guard(LifecycleChangeLock_);
-
-    if (!Started_) {
+    if (!IsStarted_) {
         THROW_ERROR_EXCEPTION("Process is not started yet");
     }
 
-    if (Finished_) {
+    if (IsFinished_) {
         return;
     }
 
     auto result = TryKill(ProcessId_, signal);
     if (!result) {
-        THROW_ERROR_EXCEPTION("kill failed")
+        THROW_ERROR_EXCEPTION("Failed to kill the process %v", ProcessId_)
             << TError::FromSystem();
     }
+    return;
 #else
     THROW_ERROR_EXCEPTION("Unsupported platform");
 #endif
 }
 
-void TProcess::KillAndWait() noexcept
+Stroka TProcess::GetPath() const
 {
-    try {
-        Kill(9);
-    } catch (...) { 
-    }
-    if (!Finished()) {
-        Wait();
-    }
+    return Path_;
 }
 
 int TProcess::GetProcessId() const
@@ -451,14 +430,14 @@ int TProcess::GetProcessId() const
     return ProcessId_;
 }
 
-bool TProcess::Started() const
+bool TProcess::IsStarted() const
 {
-    return Started_;
+    return IsStarted_;
 }
 
-bool TProcess::Finished() const
+bool TProcess::IsFinished() const
 {
-    return Finished_;
+    return IsFinished_;
 }
 
 Stroka TProcess::GetCommandLine() const

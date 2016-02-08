@@ -350,6 +350,7 @@ void TBootstrap::DoRun()
     SchedulerConnector = New<TSchedulerConnector>(Config->ExecAgent->SchedulerConnector, this);
 
     TabletSlotManager = New<NTabletNode::TSlotManager>(Config->TabletNode, this);
+    MasterConnector->SubscribePopulateAlerts(BIND(&NTabletNode::TSlotManager::PopulateAlerts, TabletSlotManager));
 
     SecurityManager = New<TSecurityManager>(Config->TabletNode->SecurityManager, this);
 

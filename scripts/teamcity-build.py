@@ -106,6 +106,23 @@ def prepare(options):
         if os.path.exists(sandbox_storage):
             shutil.rmtree(sandbox_storage, onerror=rmtree_onerror)
 
+    teamcity_message("Creating cgroups...", status="WARNING")
+    cgroup_names = ("blkio", "cpu", "cpuacct", "freezer", "memory")
+    teamcity_cgpaths = [os.path.join("/sys/fs/cgroup", name, "teamcity") for name in cgroup_names]
+    yt_cgpaths = [os.path.join(path, "yt") for path in teamcity_cgpaths]
+    run(["sudo", "mkdir", "-p"] + yt_cgpaths)
+    run(["sudo", "chown", "-R", str(os.getuid())+":"+str(os.getgid())] + teamcity_cgpaths)
+    run(["sudo", "chmod", "-R", "u+rw"] + teamcity_cgpaths)
+
+    teamcity_message("Cleaning cgroups...", status="WARNING")
+    for cgpath in yt_cgpaths:
+        for root, subFolders, files in os.walk(cgpath, topdown=False):
+            if root != cgpath:
+                try:
+                    os.rmdir(root)
+                except:
+                    pass
+
     mkdirp(options.sandbox_directory)
 
     os.chdir(options.sandbox_directory)
@@ -681,7 +698,14 @@ def shellquote(str):
 
 def sudo_rmtree(path):
     abspath = os.path.abspath(path)
+    path = path.rstrip("/") + "/"
     assert abspath.startswith("/home/teamcity")
+
+    for line in open("/proc/mounts"):
+        _, mount_path, type, _ = line.split(" ", 3)
+        if type == "tmpfs" and mount_path.startswith(path):
+            subprocess.check_call(["sudo", "umount", mount_path])
+
     run("sudo rm -rf " + shellquote(abspath), shell=True)
 
 def get_command_from_core_file(core_path):

@@ -34,7 +34,7 @@ public:
     Stroka GetCommandLine() const;
 
 private:
-    TProcess Process_;
+    TProcessPtr Process_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

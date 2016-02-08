@@ -27,4 +27,31 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <class TCallback>
+class TStaticFinallyGuard
+{
+public:
+    template <class T>
+    explicit TStaticFinallyGuard(T&& finally)
+        : Finally_(std::forward<T>(finally))
+    { }
+
+    ~TStaticFinallyGuard()
+    {
+        Finally_();
+    }
+
+private:
+    TCallback Finally_;
+
+};
+
+template <class TCallback>
+TStaticFinallyGuard<typename std::decay<TCallback>::type> Finally(TCallback&& callback)
+{
+    return TStaticFinallyGuard<typename std::decay<TCallback>::type>(std::forward<TCallback>(callback));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT

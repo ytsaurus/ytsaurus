@@ -33,7 +33,8 @@ public:
     TRow EvaluateKeys(
         TRow partialRow,
         const TRowBufferPtr& buffer,
-        const NTableClient::TNameTableToSchemaIdMapping& idMapping) const;
+        const NTableClient::TNameTableToSchemaIdMapping& idMapping,
+        const TTableSchema& schema) const;
 
     const std::vector<int>& GetReferenceIds(int index) const;
     TConstExpressionPtr GetExpression(int index) const;
