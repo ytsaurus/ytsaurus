@@ -184,6 +184,7 @@ void TOperationControllerBase::TJoblet::Persist(TPersistenceContext& context)
     Persist(context, Task);
     Persist(context, InputStripeList);
     Persist(context, OutputCookie);
+    Persist(context, NodeDescriptor);
 }
 
 ////////////////////////////////////////////////////////////////////
