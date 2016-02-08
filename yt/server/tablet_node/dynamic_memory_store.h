@@ -176,12 +176,14 @@ public:
         TOwningKey lowerKey,
         TOwningKey upperKey,
         TTimestamp timestamp,
-        const TColumnFilter& columnFilter) override;
+        const TColumnFilter& columnFilter,
+        const TWorkloadDescriptor& workloadDescriptor) override;
 
     virtual NTableClient::IVersionedReaderPtr CreateReader(
         const TSharedRange<TKey>& keys,
         TTimestamp timestamp,
-        const TColumnFilter& columnFilter) override;
+        const TColumnFilter& columnFilter,
+        const TWorkloadDescriptor& workloadDescriptor) override;
 
     virtual void CheckRowLocks(
         TUnversionedRow row,
@@ -196,7 +198,7 @@ public:
 
     virtual void BuildOrchidYson(NYson::IYsonConsumer* consumer) override;
 
-    FORCED_INLINE TTimestamp TimestampFromRevision(ui32 revision) const;
+    Y_FORCE_INLINE TTimestamp TimestampFromRevision(ui32 revision) const;
 
 private:
     class TReaderBase;

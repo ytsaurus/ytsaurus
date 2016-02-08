@@ -294,6 +294,7 @@ private:
                     AppendChunkIds_.erase(chunkId);
                     ChunkIdToFirstRelevantVersion_[chunkId] = version;
                     break;
+
                 default:
                     YUNREACHABLE();
             }
@@ -1064,6 +1065,7 @@ private:
 
             auto chunk = New<TJournalChunk>(
                 Impl_->Bootstrap_,
+                false,
                 Impl_->Location_,
                 TChunkDescriptor(chunkId));
             chunkStore->RegisterNewChunk(chunk);

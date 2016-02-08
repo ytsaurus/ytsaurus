@@ -75,7 +75,7 @@ void TRecoveryBase::RecoverToVersion(TVersion targetVersion)
         YCHECK(snapshotId <= targetVersion.SegmentId);
     }
 
-    LOG_INFO("Recoverying from version %v to version %v",
+    LOG_INFO("Recovering from version %v to version %v",
         currentVersion,
         targetVersion);
 

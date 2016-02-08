@@ -166,6 +166,8 @@ public:
             .Optional();
         RegisterParameter("max_subqueries", Options.MaxSubqueries)
             .Optional();
+        RegisterParameter("workload_descriptor", Options.WorkloadDescriptor)
+            .Optional();
     }
 
     void Execute(ICommandContextPtr context);

@@ -849,7 +849,7 @@ TFuture<void> TSchemalessTableWriter::Open()
     LOG_INFO("Opening table writer");
 
     return BIND(&TSchemalessTableWriter::DoOpen, MakeStrong(this))
-        .AsyncVia(TDispatcher::Get()->GetWriterInvoker())
+        .AsyncVia(NChunkClient::TDispatcher::Get()->GetWriterInvoker())
         .Run();
 }
 
@@ -876,7 +876,7 @@ TFuture<void> TSchemalessTableWriter::GetReadyEvent()
 TFuture<void> TSchemalessTableWriter::Close()
 {
     return BIND(&TSchemalessTableWriter::DoClose, MakeStrong(this))
-        .AsyncVia(TDispatcher::Get()->GetWriterInvoker())
+        .AsyncVia(NChunkClient::TDispatcher::Get()->GetWriterInvoker())
         .Run();
 }
 

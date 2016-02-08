@@ -318,7 +318,7 @@ public:
                 // Waiting no more than 1 second to prevent hanging.
                 auto now = TInstant::Now();
                 auto enqueuedEvents = EnqueuedLogEvents_.load();
-                while (enqueuedEvents > DequeuedLogEvents_.load() ||
+                while (enqueuedEvents > DequeuedLogEvents_.load() &&
                     TInstant::Now() - now < Config_->ShutdownGraceTimeout)
                 {
                     EventCount_.NotifyOne();

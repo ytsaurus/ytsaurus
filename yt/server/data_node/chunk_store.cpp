@@ -438,6 +438,7 @@ IChunkPtr TChunkStore::CreateFromDescriptor(
         case EObjectType::JournalChunk:
             return New<TJournalChunk>(
                 Bootstrap_,
+                false,
                 location,
                 descriptor);
 

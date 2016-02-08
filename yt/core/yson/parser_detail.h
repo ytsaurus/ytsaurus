@@ -2,6 +2,8 @@
 
 #include "detail.h"
 
+#include <yt/core/misc/finally.h>
+
 namespace NYT {
 namespace NYson {
 
@@ -18,6 +20,8 @@ class TParser
 private:
     typedef TLexerBase<TBlockStream, EnableLinePositionInfo> TBase;
     TConsumer* Consumer;
+    int NestingLevel = 0;
+    static const int NestingLevelLimit = 128;
 
 public:
     TParser(const TBlockStream& blockStream, TConsumer* consumer, TNullable<i64> memoryLimit)
@@ -83,12 +87,24 @@ public:
     template <bool AllowFinish>
     void ParseNode()
     {
-        return ParseNode<AllowFinish>(TBase::SkipSpaceAndGetChar());
+        ParseNode<AllowFinish>(TBase::SkipSpaceAndGetChar());
     }
 
     template <bool AllowFinish>
     void ParseNode(char ch)
     {
+        if (NestingLevel >= NestingLevelLimit) {
+            auto nestingLevelLimit = NestingLevelLimit;
+            THROW_ERROR_EXCEPTION("Depth limit exceeded while parsing YSON")
+                << TErrorAttribute("limit", nestingLevelLimit);
+        }
+
+        ++NestingLevel;
+
+        auto guard = Finally([this] {
+            --NestingLevel;
+        });
+
         if (ch == BeginAttributesSymbol) {
             TBase::Advance(1);
             ParseAttributes();
@@ -167,10 +183,10 @@ public:
                     TBase::Advance(1);
                     Consumer->OnBooleanScalar(TBase::template ReadBoolean<AllowFinish>());
                 } else {
-                    THROW_ERROR_EXCEPTION("Unexpected %Qv while parsing node",
-                        ch)
+                    THROW_ERROR_EXCEPTION("Unexpected %Qv while parsing node", ch)
                         << *this;
                 }
+                break;
             }
         }
     }

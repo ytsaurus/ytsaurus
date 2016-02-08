@@ -402,7 +402,8 @@ private:
                 tabletPivotKey,
                 nextTabletPivotKey,
                 currentTimestamp,
-                MinTimestamp); // NB: No major compaction during Eden partitioning.
+                MinTimestamp,
+                TWorkloadDescriptor(EWorkloadCategory::SystemTabletPartitioning)); // NB: No major compaction during Eden partitioning.
 
             SwitchTo(poolInvoker);
 
@@ -425,6 +426,8 @@ private:
 
                 LOG_INFO("Eden partitioning transaction created (TransactionId: %v)",
                     transaction->GetId());
+
+                Logger.AddTag("TransactionId: %v", transaction->GetId());
             }
 
             int writerPoolSize = std::min(
@@ -568,22 +571,31 @@ private:
             hydraRequest.set_mount_revision(mountRevision);
             ToProto(hydraRequest.mutable_transaction_id(), transaction->GetId());
 
+            SmallVector<TStoreId, TypicalStoreIdCount> storeIdsToAdd;
             for (const auto& store : stores) {
                 auto* descriptor = hydraRequest.add_stores_to_remove();
-                ToProto(descriptor->mutable_store_id(), store->GetId());
+                auto storeId = store->GetId();
+                ToProto(descriptor->mutable_store_id(), storeId);
+                storeIdsToAdd.push_back(storeId);
             }
 
+            // TODO(sandello): Move specs?
+            SmallVector<TStoreId, TypicalStoreIdCount> storeIdsToRemove;
             for (const auto& writer : writerPool.GetAllWriters()) {
                 for (const auto& chunkSpec : writer->GetWrittenChunksMasterMeta()) {
                     auto* descriptor = hydraRequest.add_stores_to_add();
                     descriptor->mutable_store_id()->CopyFrom(chunkSpec.chunk_id());
                     descriptor->mutable_chunk_meta()->CopyFrom(chunkSpec.chunk_meta());
+                    storeIdsToRemove.push_back(FromProto<TStoreId>(chunkSpec.chunk_id()));
                 }
             }
 
             // NB: No exceptions must be thrown beyond this point!
 
-            LOG_INFO("Eden partitioning completed (RowCount: %v)", readRowCount);
+            LOG_INFO("Eden partitioning completed (RowCount: %v, StoreIdsToAdd: [%v], StoreIdsToRemove: [%v])",
+                readRowCount,
+                JoinToString(storeIdsToAdd),
+                JoinToString(storeIdsToRemove));
 
             for (const auto& store : stores) {
                 storeManager->EndStoreCompaction(store);
@@ -670,10 +682,11 @@ private:
                 tabletPivotKey,
                 nextTabletPivotKey,
                 currentTimestamp,
-                majorTimestamp);
+                majorTimestamp,
+                TWorkloadDescriptor(EWorkloadCategory::SystemTabletCompaction));
 
             SwitchTo(poolInvoker);
-        
+
             ITransactionPtr transaction;
             {
                 LOG_INFO("Creating partition compaction transaction");
@@ -693,6 +706,8 @@ private:
 
                 LOG_INFO("Partition compaction transaction created (TransactionId: %v)",
                     transaction->GetId());
+
+                Logger.AddTag("TransactionId: %v", transaction->GetId());
             }
 
             TChunkWriterPool writerPool(
@@ -747,20 +762,29 @@ private:
             hydraRequest.set_mount_revision(mountRevision);
             ToProto(hydraRequest.mutable_transaction_id(), transaction->GetId());
 
+            SmallVector<TStoreId, TypicalStoreIdCount> storeIdsToAdd;
             for (const auto& store : stores) {
                 auto* descriptor = hydraRequest.add_stores_to_remove();
-                ToProto(descriptor->mutable_store_id(), store->GetId());
+                auto storeId = store->GetId();
+                ToProto(descriptor->mutable_store_id(), storeId);
+                storeIdsToAdd.push_back(storeId);
             }
 
+            // TODO(sandello): Move specs?
+            SmallVector<TStoreId, TypicalStoreIdCount> storeIdsToRemove;
             for (const auto& chunkSpec : writer->GetWrittenChunksMasterMeta()) {
                 auto* descriptor = hydraRequest.add_stores_to_add();
                 descriptor->mutable_store_id()->CopyFrom(chunkSpec.chunk_id());
                 descriptor->mutable_chunk_meta()->CopyFrom(chunkSpec.chunk_meta());
+                storeIdsToRemove.push_back(FromProto<TStoreId>(chunkSpec.chunk_id()));
             }
 
             // NB: No exceptions must be thrown beyond this point!
 
-            LOG_INFO("Partition compaction completed (RowCount: %v)", readRowCount);
+            LOG_INFO("Partition compaction completed (RowCount: %v, StoreIdsToAdd: [%v], StoreIdsToRemove: [%v])",
+                readRowCount,
+                JoinToString(storeIdsToAdd),
+                JoinToString(storeIdsToRemove));
 
             for (const auto& store : stores) {
                 storeManager->EndStoreCompaction(store);

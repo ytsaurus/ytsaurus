@@ -49,6 +49,7 @@ TFuture<void> TJournalSession::DoStart()
 {
     Chunk_ = New<TJournalChunk>(
         Bootstrap_,
+        Options_.EnableMultiplexing,
         Location_,
         TChunkDescriptor(ChunkId_));
     Chunk_->SetActive(true);

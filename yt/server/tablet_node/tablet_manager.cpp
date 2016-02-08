@@ -163,6 +163,7 @@ public:
     void Read(
         TTabletSnapshotPtr tabletSnapshot,
         TTimestamp timestamp,
+        const TWorkloadDescriptor& workloadDescriptor,
         TWireProtocolReader* reader,
         TWireProtocolWriter* writer)
     {
@@ -177,6 +178,7 @@ public:
             ExecuteSingleRead(
                 tabletSnapshot,
                 timestamp,
+                workloadDescriptor,
                 reader,
                 writer);
         }
@@ -905,12 +907,13 @@ private:
             return;
         }
 
-        std::vector<TStoreId> storeIdsToAdd;
+        SmallVector<TStoreId, TypicalStoreIdCount> storeIdsToAdd;
         for (const auto& descriptor : commitRequest.stores_to_add()) {
-            storeIdsToAdd.push_back(FromProto<TStoreId>(descriptor.store_id()));
+            auto storeId = FromProto<TStoreId>(descriptor.store_id());
+            storeIdsToAdd.push_back(storeId);
         }
 
-        std::vector<TStoreId> storeIdsToRemove;
+        SmallVector<TStoreId, TypicalStoreIdCount> storeIdsToRemove;
         for (const auto& descriptor : commitRequest.stores_to_remove()) {
             auto storeId = FromProto<TStoreId>(descriptor.store_id());
             storeIdsToRemove.push_back(storeId);
@@ -1315,6 +1318,7 @@ private:
     void ExecuteSingleRead(
         TTabletSnapshotPtr tabletSnapshot,
         TTimestamp timestamp,
+        const TWorkloadDescriptor& workloadDescriptor,
         TWireProtocolReader* reader,
         TWireProtocolWriter* writer)
     {
@@ -1324,6 +1328,7 @@ private:
                 LookupRows(
                     std::move(tabletSnapshot),
                     timestamp,
+                    workloadDescriptor,
                     reader,
                     writer);
                 break;
@@ -2019,12 +2024,14 @@ TTablet* TTabletManager::GetTabletOrThrow(const TTabletId& id)
 void TTabletManager::Read(
     TTabletSnapshotPtr tabletSnapshot,
     TTimestamp timestamp,
+    const TWorkloadDescriptor& workloadDescriptor,
     TWireProtocolReader* reader,
     TWireProtocolWriter* writer)
  {
     Impl_->Read(
         std::move(tabletSnapshot),
         timestamp,
+        workloadDescriptor,
         reader,
         writer);
 }

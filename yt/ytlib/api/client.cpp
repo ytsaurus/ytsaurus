@@ -3,6 +3,7 @@
 #include "box.h"
 #include "config.h"
 #include "connection.h"
+#include "dispatcher.h"
 #include "file_reader.h"
 #include "file_writer.h"
 #include "journal_reader.h"
@@ -18,8 +19,6 @@
 
 #include <yt/ytlib/cypress_client/cypress_ypath_proxy.h>
 #include <yt/ytlib/cypress_client/rpc_helpers.h>
-
-#include <yt/ytlib/driver/dispatcher.h>
 
 #include <yt/ytlib/hive/cell_directory.h>
 #include <yt/ytlib/hive/config.h>
@@ -69,6 +68,7 @@
 #include <yt/core/rpc/scoped_channel.h>
 
 #include <yt/core/ytree/attribute_helpers.h>
+#include <yt/core/ytree/fluent.h>
 #include <yt/core/ytree/ypath_proxy.h>
 
 // TODO(babenko): refactor this
@@ -104,6 +104,28 @@ using namespace NScheduler;
 DECLARE_REFCOUNTED_CLASS(TQueryHelper)
 DECLARE_REFCOUNTED_CLASS(TClient)
 DECLARE_REFCOUNTED_CLASS(TTransaction)
+
+////////////////////////////////////////////////////////////////////////////////
+
+void Serialize(const TUserWorkloadDescriptor& workloadDescriptor, NYson::IYsonConsumer* consumer)
+{
+    BuildYsonMapFluently(consumer)
+        .Item("category").Value(workloadDescriptor.Category)
+        .Item("band").Value(workloadDescriptor.Band);
+}
+
+void Deserialize(TUserWorkloadDescriptor& workloadDescriptor, INodePtr node)
+{
+    auto mapNode = node->AsMap();
+    auto categoryNode = mapNode->FindChild("category");
+    if (categoryNode) {
+        workloadDescriptor.Category = ConvertTo<EUserWorkloadCategory>(categoryNode);
+    }
+    auto bandNode = mapNode->FindChild("band");
+    if (bandNode) {
+        workloadDescriptor.Band = ConvertTo<int>(bandNode);
+    }
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -295,7 +317,7 @@ public:
         TTimestamp timestamp) override
     {
         return BIND(&TQueryHelper::DoGetInitialSplit, MakeStrong(this))
-            .AsyncVia(NDriver::TDispatcher::Get()->GetLightInvoker())
+            .AsyncVia(Connection_->GetDispatcher()->GetLightInvoker())
             .Run(path, timestamp);
     }
 
@@ -312,7 +334,7 @@ public:
                 : &TQueryHelper::DoExecute;
 
             return BIND(execute, MakeStrong(this))
-                .AsyncVia(NDriver::TDispatcher::Get()->GetHeavyInvoker())
+                .AsyncVia(Connection_->GetDispatcher()->GetHeavyInvoker())
                 .Run(std::move(query), std::move(dataSource), std::move(options), std::move(writer));
         }
     }
@@ -796,7 +818,7 @@ public:
         const TClientOptions& options)
         : Connection_(std::move(connection))
         , Options_(options)
-        , Invoker_(NDriver::TDispatcher::Get()->GetLightInvoker())
+        , Invoker_(Connection_->GetDispatcher()->GetLightInvoker())
         , FunctionRegistry_(Connection_->GetFunctionRegistry())
     {
         for (auto kind : TEnumTraits<EMasterChannelKind>::GetDomainValues()) {
@@ -1467,7 +1489,7 @@ private:
 
             for (int index = 0; index < keys.size(); ++index) {
                 ValidateClientKey(keys[index], keyColumnCount, tableInfo->Schema, idMapping);
-                auto capturedKey = evaluator->EvaluateKeys(keys[index], rowBuffer, idMapping);
+                auto capturedKey = evaluator->EvaluateKeys(keys[index], rowBuffer, idMapping, tableInfo->Schema);
                 sortedKeys.push_back(std::make_pair(capturedKey, index));
             }
 
@@ -1568,6 +1590,16 @@ private:
         queryOptions.EnableCodeCache = options.EnableCodeCache;
         queryOptions.MaxSubqueries = options.MaxSubqueries;
 
+        switch (options.WorkloadDescriptor.Category) {
+            case EUserWorkloadCategory::Realtime:
+                queryOptions.WorkloadDescriptor.Category = EWorkloadCategory::UserRealtime;
+                break;
+            case EUserWorkloadCategory::Batch:
+                queryOptions.WorkloadDescriptor.Category = EWorkloadCategory::UserBatch;
+                break;
+        }
+        queryOptions.WorkloadDescriptor.Band = options.WorkloadDescriptor.Band;
+
         ISchemafulWriterPtr writer;
         TFuture<IRowsetPtr> asyncRowset;
         std::tie(writer, asyncRowset) = CreateSchemafulRowsetWriter(query->GetTableSchema());
@@ -1577,6 +1609,7 @@ private:
 
         auto rowset = WaitFor(asyncRowset)
             .ValueOrThrow();
+
         if (options.FailOnIncompleteResult) {
             if (statistics.IncompleteInput) {
                 THROW_ERROR_EXCEPTION("Query terminated prematurely due to excessive input; consider rewriting your query or changing input limit")
@@ -1587,6 +1620,7 @@ private:
                     << TErrorAttribute("output_row_limit", outputRowLimit);
             }
         }
+
         return std::make_pair(rowset, statistics);
     }
 
@@ -2244,6 +2278,8 @@ DEFINE_REFCOUNTED_TYPE(TClient)
 
 IClientPtr CreateClient(IConnectionPtr connection, const TClientOptions& options)
 {
+    YCHECK(connection);
+
     return New<TClient>(std::move(connection), options);
 }
 
@@ -2597,7 +2633,7 @@ private:
 
                 for (auto row : rows) {
                     validateRow(row, keyColumnCount, TableInfo_->Schema, idMapping);
-                    auto capturedRow = evaluator->EvaluateKeys(row, rowBuffer, idMapping);
+                    auto capturedRow = evaluator->EvaluateKeys(row, rowBuffer, idMapping, TableInfo_->Schema);
                     writeRequest(capturedRow);
                 }
             } else {
