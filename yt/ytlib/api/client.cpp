@@ -413,7 +413,7 @@ private:
         auto nodeDirectory = New<NNodeTrackerClient::TNodeDirectory>();
         nodeDirectory->MergeFrom(rsp->node_directory());
 
-        auto chunkSpecs = FromProto<NChunkClient::NProto::TChunkSpec>(std::move(*rsp->mutable_chunks()));
+        auto chunkSpecs = FromProto<NChunkClient::NProto::TChunkSpec>(rsp->chunks());
 
         // Remove duplicate chunks.
         std::sort(chunkSpecs.begin(), chunkSpecs.end(), [] (const TDataSplit& lhs, const TDataSplit& rhs) {

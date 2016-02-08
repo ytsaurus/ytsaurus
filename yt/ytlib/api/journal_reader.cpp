@@ -164,7 +164,7 @@ private:
 
             NodeDirectory_->MergeFrom(rsp->node_directory());
 
-            ChunkSpecs_ = FromProto<NChunkClient::NProto::TChunkSpec>(std::move(*rsp->mutable_chunks()));
+            ChunkSpecs_ = FromProto<NChunkClient::NProto::TChunkSpec>(rsp->chunks());
         }
 
         if (Transaction_) {
