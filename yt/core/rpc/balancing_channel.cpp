@@ -333,15 +333,6 @@ private:
     }
 
 
-    std::vector<Stroka> GetAllAddresses() const
-    {
-        std::vector<Stroka> result;
-        TReaderGuard guard(SpinLock_);
-        result.insert(result.end(), ActiveAddresses_.begin(), ActiveAddresses_.end());
-        result.insert(result.end(), BannedAddresses_.begin(), BannedAddresses_.end());
-        return result;
-    }
-
     void AddPeers(const std::vector<Stroka>& addresses)
     {
         TWriterGuard guard(SpinLock_);
