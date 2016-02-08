@@ -42,25 +42,28 @@ public:
 
 private:
     const NYTree::INodePtr ConfigNode_;
+    const NJobAgent::TJobId JobId_;
 
-    TJobProxyConfigPtr Config_ = New<TJobProxyConfig>();
-    NJobAgent::TJobId JobId_;
+    i64 JobProxyMemoryLimit_;
+    const NConcurrency::TActionQueuePtr JobThread_;
+    const NConcurrency::TActionQueuePtr ControlThread_;
 
     NLogging::TLogger Logger;
 
-    NRpc::IServerPtr RpcServer;
+    const TJobProxyConfigPtr Config_ = New<TJobProxyConfig>();
+
+    NRpc::IServerPtr RpcServer_;
 
     std::unique_ptr<NExecAgent::TSupervisorServiceProxy> SupervisorProxy_;
     
     NApi::IClientPtr Client_;
 
-    std::atomic<bool> EnableJobProxyMemoryControl_ = { false };
+    std::atomic<bool> EnableJobProxyMemoryControl_ = {false};
 
     NNodeTrackerClient::TNodeDirectoryPtr InputNodeDirectory_;
     NNodeTrackerClient::TNodeDirectoryPtr AuxNodeDirectory_;
 
-    i64 JobProxyMemoryLimit_;
-    std::atomic<i64> MaxMemoryUsage_ = { 0 };
+    std::atomic<i64> MaxMemoryUsage_ = {0};
 
     int CpuLimit_;
 
@@ -68,8 +71,6 @@ private:
     NConcurrency::TPeriodicExecutorPtr MemoryWatchdogExecutor_;
 
     IJobPtr Job_;
-    NConcurrency::TActionQueuePtr JobThread_;
-    NConcurrency::TActionQueuePtr ControlThread_;
 
     NJobTrackerClient::NProto::TJobSpec JobSpec_;
     NNodeTrackerClient::NProto::TNodeResources ResourceUsage_;

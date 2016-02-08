@@ -68,6 +68,7 @@ using NJobTrackerClient::TStatistics;
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto InitialJobProxyMemoryLimit = (i64) 100 * 1024 * 1024;
+static const auto RpcServerShutdownTimeout = TDuration::Seconds(15);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -76,10 +77,10 @@ TJobProxy::TJobProxy(
     const TJobId& jobId)
     : ConfigNode_(configNode)
     , JobId_(jobId)
-    , Logger(JobProxyLogger)
     , JobProxyMemoryLimit_(InitialJobProxyMemoryLimit)
     , JobThread_(New<TActionQueue>("JobMain"))
     , ControlThread_(New<TActionQueue>("Control"))
+    , Logger(JobProxyLogger)
 {
     Logger.AddTag("JobId: %v", JobId_);
 }
@@ -190,6 +191,10 @@ void TJobProxy::Run()
         MemoryWatchdogExecutor_->Stop();
     }
 
+    RpcServer_->Stop()
+        .WithTimeout(RpcServerShutdownTimeout)
+        .Get();
+
     if (Job_) {
         auto failedChunkIds = Job_->GetFailedChunkIds();
         LOG_INFO("Found %v failed chunks", static_cast<int>(failedChunkIds.size()));
@@ -278,9 +283,9 @@ TJobResult TJobProxy::DoRun()
             << ex;
     }
 
-    RpcServer = CreateBusServer(CreateTcpBusServer(Config_->RpcServer));
-    RpcServer->RegisterService(CreateJobProberService(this));
-    RpcServer->Start();
+    RpcServer_ = CreateBusServer(CreateTcpBusServer(Config_->RpcServer));
+    RpcServer_->RegisterService(CreateJobProberService(this));
+    RpcServer_->Start();
 
     auto supervisorClient = CreateTcpBusClient(Config_->SupervisorConnection);
     auto supervisorChannel = CreateBusChannel(supervisorClient);
