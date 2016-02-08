@@ -169,7 +169,8 @@ private:
 
             nodeDirectory->MergeFrom(rsp->node_directory());
 
-            auto chunks = FromProto<NChunkClient::NProto::TChunkSpec>(rsp->chunks());
+            auto chunks = FromProto<NChunkClient::NProto::TChunkSpec>(std::move(*rsp->mutable_chunks()));
+
             Reader_ = CreateFileMultiChunkReader(
                 Config_,
                 New<TMultiChunkReaderOptions>(),
