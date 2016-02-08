@@ -311,6 +311,11 @@ class Application(object):
         self._execution_thread.daemon = True
         self._execution_thread.start()
 
+        # Tasks cache
+        self._cache_tasks_mutex = RLock()
+        self._cache_tasks_response = None
+        self._cache_tasks_time = 0
+
         # Run config reloading thread.
         self._clusters_config_reloading_thread = SafeThread(target=self._reload_clusters_config,
                                                             args=(self._config["clusters_config_reload_timeout"],),
@@ -985,6 +990,7 @@ class Application(object):
                 for id in chain(self._pending_tasks, self._task_processes):
                     task = self._tasks[id]
                     if task.lease_timeout is not None and (now - task._last_ping_time > task.lease_timeout):
+                        logger.info("Lease of task %s has expired", id)
                         self._abort_task(id)
 
                 for id, (process, message_queue) in self._task_processes.items():
@@ -1464,13 +1470,23 @@ class Application(object):
             self._check_permission(id, request.headers, "Deleting")
             if self._tasks[id].state not in ["completed", "aborted", "failed"]:
                 raise RequestFailed("Cannot delete running task " + self._tasks[id].state)
-            self._yt.remove(os.path.join(self._tasks_path, id), recursive=True)
+
+        self._yt.remove(os.path.join(self._tasks_path, id), recursive=True)
+        with self._mutex:
             del self._tasks[id]
 
         return ""
 
     def get_tasks(self):
+        start = time.time()
+
         with self._mutex:
+            with self._cache_tasks_mutex:
+                if self._cache_tasks_time > start:
+                    return Response(self._cache_tasks_response, mimetype="application/json")
+
+            cache_time = time.time()
+
             # NB: deepcopy is too slow, then we use two-level shallow copy.
             tasks = dict([(id, task.copy()) for id, task in self._tasks.iteritems()])
             # NB: Number of pending tasks is rather small, so we can use deepcopy here.
@@ -1505,7 +1521,12 @@ class Application(object):
 
             tasks_descriptions.append(description)
 
-        return Response(json.dumps(tasks_descriptions), mimetype="application/json")
+        data = json.dumps(tasks_descriptions)
+        with self._cache_tasks_mutex:
+            if cache_time > self._cache_tasks_time:
+                self._cache_tasks_response = data
+
+        return Response(data, mimetype="application/json")
 
     def config(self):
         return jsonify(self._get_config())
