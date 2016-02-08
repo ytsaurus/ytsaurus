@@ -347,7 +347,6 @@ TKeyTriePtr IntersectKeyTrie(TKeyTriePtr lhs, TKeyTriePtr rhs)
         bool isClose = (found - bounds.begin()) & 1;
         if (found != bounds.end()) {
             return ((found->Value > point) && isClose) ||
-                ((found->Value < point) && !isClose) ||
                 (found->Value == point && found->Included);
         } else {
             return false;
