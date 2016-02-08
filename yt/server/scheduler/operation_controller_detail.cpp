@@ -2506,7 +2506,7 @@ void TOperationControllerBase::FetchInputTables()
             THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error fetching input table %v", table.Path.GetPath());
             const auto& rsp = rspOrError.Value();
             NodeDirectory->MergeFrom(rsp->node_directory());
-            for (const auto& chunk : rsp->chunks()) {
+            for (auto& chunk : *rsp->mutable_chunks()) {
                 auto chunkSpec = New<TRefCountedChunkSpec>(std::move(chunk));
                 chunkSpec->set_table_index(tableIndex);
                 table.Chunks.push_back(chunkSpec);
@@ -3058,7 +3058,7 @@ std::vector<TChunkStripePtr> TOperationControllerBase::SliceChunks(
     int* jobCount)
 {
     std::vector<TChunkStripePtr> result;
-    auto appendStripes = [&] (std::vector<TChunkSlicePtr> slices) {
+    auto appendStripes = [&] (const std::vector<TChunkSlicePtr>& slices) {
         for (const auto& slice : slices) {
             result.push_back(New<TChunkStripe>(slice));
         }
@@ -3303,8 +3303,8 @@ void TOperationControllerBase::RegisterInputStripe(TChunkStripePtr stripe, TTask
         auto chunkSpec = slice->GetChunkSpec();
         auto chunkId = FromProto<TChunkId>(chunkSpec->chunk_id());
 
-        auto pair = InputChunkMap.insert(std::make_pair(chunkId, TInputChunkDescriptor()));
-        auto& chunkDescriptor = pair.first->second;
+        // Insert an empty TInputChunkDescriptor(), if new chunkId encounted.
+        auto& chunkDescriptor = InputChunkMap[chunkId];
 
         if (InputChunkSpecs.insert(chunkSpec).second) {
             chunkDescriptor.ChunkSpecs.push_back(chunkSpec);
