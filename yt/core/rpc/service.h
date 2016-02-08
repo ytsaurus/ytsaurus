@@ -195,6 +195,11 @@ struct IService
     //! Applies a new configuration.
     virtual void Configure(NYTree::INodePtr config) = 0;
 
+    //! Stops the service forbidding new requests to be served
+    //! and returns the future that is set when all currently
+    //! executing requests are finished.
+    virtual TFuture<void> Stop() = 0;
+
     //! Returns the service id.
     virtual TServiceId GetServiceId() const = 0;
 

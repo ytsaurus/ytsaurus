@@ -343,6 +343,19 @@ public:
 class TServiceBase
     : public IService
 {
+public:
+    virtual void Configure(NYTree::INodePtr configNode) override;
+    virtual TFuture<void> Stop() override;
+
+    virtual TServiceId GetServiceId() const override;
+
+    virtual void HandleRequest(
+        std::unique_ptr<NProto::TRequestHeader> header,
+        TSharedRefArray message,
+        NBus::IBusPtr replyBus) override;
+
+    virtual void HandleRequestCancelation(const TRequestId& requestId) override;
+
 protected:
     typedef TCallback<void(const IServiceContextPtr&, const THandlerInvocationOptions&)> TLiteHandler;
     typedef TCallback<TLiteHandler(const IServiceContextPtr&, const THandlerInvocationOptions&)> THeavyHandler;
@@ -529,9 +542,6 @@ protected:
     //! Registers a method.
     TRuntimeMethodInfoPtr RegisterMethod(const TMethodDescriptor& descriptor);
 
-    //! Configures the service.
-    virtual void Configure(NYTree::INodePtr configNode) override;
-
     //! Returns a reference to TRuntimeMethodInfo for a given method's name
     //! or |nullptr| if no such method is registered.
     TRuntimeMethodInfoPtr FindMethodInfo(const Stroka& method);
@@ -578,15 +588,10 @@ private:
     yhash_map<TRequestId, TServiceContext*> IdToContext_;
     yhash_map<NBus::IBusPtr, yhash_set<TServiceContext*>> ReplyBusToContexts_;
 
+    std::atomic<bool> Stopped_ = {false};
+    TPromise<void> StopResult_ = NewPromise<void>();
+    std::atomic<int> ActiveRequestCount_ = {0};
 
-    virtual TServiceId GetServiceId() const override;
-
-    virtual void HandleRequest(
-        std::unique_ptr<NProto::TRequestHeader> header,
-        TSharedRefArray message,
-        NBus::IBusPtr replyBus) override;
-
-    virtual void HandleRequestCancelation(const TRequestId& requestId) override;
 
     void OnRequestTimeout(const TRequestId& requestId);
     void OnReplyBusTerminated(NBus::IBusPtr bus, const TError& error);

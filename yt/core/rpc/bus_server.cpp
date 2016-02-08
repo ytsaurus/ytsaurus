@@ -44,12 +44,12 @@ private:
         BusServer_->Start(this);
     }
 
-    virtual void DoStop() override
+    virtual TFuture<void> DoStop() override
     {
-        TServerBase::DoStop();
-
         BusServer_->Stop();
         BusServer_.Reset();
+
+        return TServerBase::DoStop();
     }
 
     virtual void HandleMessage(TSharedRefArray message, IBusPtr replyBus) throw() override
