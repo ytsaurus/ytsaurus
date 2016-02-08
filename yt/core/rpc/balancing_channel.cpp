@@ -95,6 +95,7 @@ private:
     mutable TReaderWriterSpinLock SpinLock_;
     bool Terminated_ = false;
     TFuture<IChannelPtr> CurrentDiscoverySessionResult_;
+    TDelayedExecutorCookie RediscoveryCookie_;
     TError TerminationError_;
     yhash_set<Stroka> ActiveAddresses_;
     yhash_set<Stroka> BannedAddresses_;
@@ -327,7 +328,8 @@ private:
         YCHECK(CurrentDiscoverySessionResult_);
         CurrentDiscoverySessionResult_.Reset();
 
-        TDelayedExecutor::Submit(
+        TDelayedExecutor::CancelAndClear(RediscoveryCookie_);
+        RediscoveryCookie_ = TDelayedExecutor::Submit(
             BIND(IgnoreResult(&TBalancingChannelSubprovider::RunDiscoverySession), MakeWeak(this)),
             Config_->RediscoverPeriod);
     }
