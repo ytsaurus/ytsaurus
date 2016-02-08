@@ -666,10 +666,11 @@ void TStoreManager::BackoffStoreRemoval(IStorePtr store)
         }
     }
 
-    YCHECK(callback);
-    NConcurrency::TDelayedExecutor::Submit(
-        callback.Via(Tablet_->GetEpochAutomatonInvoker()),
-        Config_->ErrorBackoffTime);
+    if (callback) {
+        NConcurrency::TDelayedExecutor::Submit(
+            callback.Via(Tablet_->GetEpochAutomatonInvoker()),
+            Config_->ErrorBackoffTime);
+    }
 }
 
 void TStoreManager::Remount(TTableMountConfigPtr mountConfig, TTabletWriterOptionsPtr writerOptions)
