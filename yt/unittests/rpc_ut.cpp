@@ -489,6 +489,34 @@ TEST_F(TRpcTest, ProtocolVersionMismatch)
     EXPECT_EQ(NRpc::EErrorCode::ProtocolError, rspOrError.GetCode());
 }
 
+TEST_F(TRpcTest, StopWithoutActiveRequests)
+{
+    auto stopResult = Service_->Stop();
+    EXPECT_TRUE(stopResult.IsSet());
+}
+
+TEST_F(TRpcTest, StopWithActiveRequests)
+{
+    TMyProxy proxy(CreateChannel());
+    auto req = proxy.SlowCall();
+    auto reqResult = req->Invoke();
+    Sleep(TDuration::Seconds(0.5));
+    auto stopResult = Service_->Stop();
+    EXPECT_FALSE(stopResult.IsSet());
+    EXPECT_TRUE(reqResult.Get().IsOK());
+    EXPECT_TRUE(stopResult.IsSet());
+}
+
+TEST_F(TRpcTest, NoMoreRequestsAfterStop)
+{
+    auto stopResult = Service_->Stop();
+    EXPECT_TRUE(stopResult.IsSet());
+    TMyProxy proxy(CreateChannel());
+    auto req = proxy.SlowCall();
+    auto reqResult = req->Invoke();
+    EXPECT_FALSE(reqResult.Get().IsOK());
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 #ifdef _linux_
