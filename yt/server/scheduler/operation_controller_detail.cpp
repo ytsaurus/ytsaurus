@@ -3513,7 +3513,7 @@ std::vector<TChunkStripePtr> TOperationControllerBase::SliceChunks(
     int* jobCount)
 {
     std::vector<TChunkStripePtr> result;
-    auto appendStripes = [&] (std::vector<TInputSlicePtr> slices) {
+    auto appendStripes = [&] (const std::vector<TInputSlicePtr>& slices) {
         for (const auto& slice : slices) {
             result.push_back(New<TChunkStripe>(slice));
         }
@@ -3763,8 +3763,8 @@ void TOperationControllerBase::RegisterInputStripe(TChunkStripePtr stripe, TTask
         auto chunkSpec = slice->GetInputChunk();
         const auto& chunkId = chunkSpec->ChunkId();
 
-        auto pair = InputChunkMap.insert(std::make_pair(chunkId, TInputChunkDescriptor()));
-        auto& chunkDescriptor = pair.first->second;
+        // Insert an empty TInputChunkDescriptor(), if new chunkId encounted.
+        auto& chunkDescriptor = InputChunkMap[chunkId];
 
         if (InputChunkSpecs.insert(chunkSpec).second) {
             chunkDescriptor.InputChunks.push_back(chunkSpec);

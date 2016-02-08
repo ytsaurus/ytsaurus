@@ -39,6 +39,7 @@
 
 #include <yt/core/misc/id_generator.h>
 #include <yt/core/misc/nullable.h>
+#include <yt/core/misc/ref_tracked.h>
 
 #include <yt/core/ytree/ypath_client.h>
 
@@ -723,6 +724,7 @@ protected:
     };
 
     struct TInputChunkDescriptor
+        : public TRefTracked<TInputChunkDescriptor>
     {
         SmallVector<TStripeDescriptor, 1> InputStripes;
         SmallVector<NChunkClient::TInputChunkPtr, 1> InputChunks;
