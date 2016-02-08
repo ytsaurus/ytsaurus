@@ -138,6 +138,8 @@ DECLARE_REFCOUNTED_CLASS(TFileWriter)
 
 DECLARE_REFCOUNTED_CLASS(TMemoryWriter)
 
+using TRefCountedChunkSpec = TRefCountedProto<NProto::TChunkSpec>;
+DECLARE_REFCOUNTED_TYPE(TRefCountedChunkSpec)
 DECLARE_REFCOUNTED_CLASS(TChunkSlice)
 
 DECLARE_REFCOUNTED_CLASS(TChunkScraper)

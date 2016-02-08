@@ -26,22 +26,6 @@ public:
 #endif
     }
 
-    TRefTracked(const TRefTracked& other)
-    {
-#ifdef YT_ENABLE_REF_COUNTED_TRACKING
-        auto cookie = GetRefCountedTypeCookie<T>();
-        TRefCountedTracker::Get()->Allocate(cookie, sizeof(T));
-#endif
-    }
-
-    TRefTracked(TRefTracked&& other)
-    {
-#ifdef YT_ENABLE_REF_COUNTED_TRACKING
-        auto cookie = GetRefCountedTypeCookie<T>();
-        TRefCountedTracker::Get()->Allocate(cookie, sizeof(T));
-#endif
-    }
-
     ~TRefTracked()
     {
 #ifdef YT_ENABLE_REF_COUNTED_TRACKING
