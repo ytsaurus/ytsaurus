@@ -185,8 +185,8 @@ private:
     {
         TBufferOutput output(1 << 20);
         job->Save(output);
-        if (output.GetBuffer().Size()) {
-            Stroka cachePath = UploadToCache(output.GetBuffer());
+        if (output.Buffer().Size()) {
+            Stroka cachePath = UploadToCache(output.Buffer());
             Files_.push_back(TFile{"jobstate", cachePath, false});
             HasState_ = true;
         }
