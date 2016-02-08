@@ -4,6 +4,8 @@
 
 #include <yt/core/bus/public.h>
 
+#include <yt/core/actions/future.h>
+
 namespace NYT {
 namespace NRpc {
 
@@ -20,7 +22,7 @@ struct IServer
     virtual void Configure(TServerConfigPtr config) = 0;
 
     virtual void Start() = 0;
-    virtual void Stop() = 0;
+    virtual TFuture<void> Stop() = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IServer)

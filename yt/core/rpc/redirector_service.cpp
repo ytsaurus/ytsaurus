@@ -269,6 +269,12 @@ public:
     virtual void Configure(NYTree::INodePtr /*config*/) override
     { }
 
+    virtual TFuture<void> Stop() override
+    {
+        // TODO(babenko): should we be really tracking all outstanding request?
+        return VoidFuture;
+    }
+
 private:
     const TServiceId ServiceId_;
     const IChannelPtr SinkChannel_;

@@ -529,14 +529,15 @@ void TServerBase::Start()
     LOG_INFO("RPC server started");
 }
 
-void TServerBase::Stop()
+TFuture<void> TServerBase::Stop()
 {
-    if (!Started_)
-        return;
-
-    DoStop();
+    if (!Started_) {
+        return VoidFuture;
+    }
 
     LOG_INFO("RPC server stopped");
+
+    return DoStop();
 }
 
 void TServerBase::DoStart()
@@ -544,9 +545,23 @@ void TServerBase::DoStart()
     Started_ = true;
 }
 
-void TServerBase::DoStop()
+TFuture<void> TServerBase::DoStop()
 {
     Started_ = false;
+
+    std::vector<IServicePtr> services;
+    {
+        TReaderGuard guard(ServicesLock_);
+        for (const auto& pair : ServiceMap_) {
+            services.push_back(pair.second);
+        }
+    }
+
+    std::vector<TFuture<void>> asyncResults;
+    for (const auto& service : services) {
+        asyncResults.push_back(service->Stop());
+    }
+    return Combine(asyncResults);
 }
 
 std::vector<IServicePtr> TServerBase::DoFindServices(const Stroka& serviceName)

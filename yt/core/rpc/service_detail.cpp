@@ -31,6 +31,7 @@ using namespace NConcurrency;
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Profiler = RpcServerProfiler;
+static const auto StopSpinPeriod = TDuration::MilliSeconds(10);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -163,7 +164,6 @@ public:
 private:
     const TServiceBasePtr Service_;
     const TRequestId RequestId_;
-    const TMutationId MutationId_;
     const IBusPtr ReplyBus_;
     const TRuntimeMethodInfoPtr RuntimeInfo_;
     TMethodPerformanceCounters* const PerformanceCounters_;
@@ -202,6 +202,7 @@ private:
             }
 
             Profiler.Increment(RuntimeInfo_->QueueSizeCounter, +1);
+            ++Service_->ActiveRequestCount_;
         }
     }
 
@@ -378,6 +379,9 @@ private:
         // NB: This counter is also used to track queue size limit so
         // it must be maintained even if the profiler is OFF.
         Profiler.Increment(RuntimeInfo_->QueueSizeCounter, -1);
+        if (--Service_->ActiveRequestCount_ == 0 && Service_->Stopped_.load()) {
+            Service_->StopResult_.TrySet();
+        }
 
         TServiceBase::ReleaseRequestSemaphore(RuntimeInfo_);
         TServiceBase::ScheduleRequests(RuntimeInfo_);
@@ -485,6 +489,12 @@ void TServiceBase::HandleRequest(
 
     TRuntimeMethodInfoPtr runtimeInfo;
     try {
+        if (Stopped_) {
+            THROW_ERROR_EXCEPTION(
+                EErrorCode::Abandoned,
+                "Service is stopped");
+        }
+
         if (requestProtocolVersion != TProxyBase::GenericProtocolVersion &&
             requestProtocolVersion != ProtocolVersion_)
         {
@@ -844,6 +854,17 @@ void TServiceBase::Configure(INodePtr configNode)
             ServiceId_.ServiceName)
             << ex;
     }
+}
+
+TFuture<void> TServiceBase::Stop()
+{
+    bool expected = false;
+    if (Stopped_.compare_exchange_strong(expected, true)) {
+        if (ActiveRequestCount_.load() == 0) {
+            StopResult_.TrySet();
+        }
+    }
+    return StopResult_.ToFuture();
 }
 
 TServiceBase::TRuntimeMethodInfoPtr TServiceBase::FindMethodInfo(const Stroka& method)
