@@ -1523,7 +1523,10 @@ class Application(object):
         clusters_configuration = self._get_clusters_configuration()
         if source_cluster not in clusters_configuration.clusters:
             raise yt.YtError("Unknown cluster " + source_cluster)
-        client = clusters_configuration.clusters[source_cluster]
+        client = deepcopy(clusters_configuration.clusters[source_cluster])
+        if client._type == "yt":
+            token, _ = self._get_token_and_user(request.headers)
+            client.config["token"] = token
 
         matchings = match_copy_pattern(client, source_pattern, destination_pattern)
         return Response(json.dumps(matchings), mimetype="application/json")
