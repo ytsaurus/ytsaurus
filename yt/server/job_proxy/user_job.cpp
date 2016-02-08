@@ -184,10 +184,6 @@ public:
             JobIO_->PopulateResult(schedulerResultExt);
         }
 
-        // Gracefully shutdown the job prober queue.
-        WaitFor(BIND([] () { })
-            .AsyncVia(JobProberQueue_->GetInvoker())
-            .Run());
         JobProberQueue_->Shutdown();
 
         return result;
