@@ -668,8 +668,8 @@ class Application(object):
             path = os.path.join(self._tasks_path, id)
             value = remove_unsigned(self._tasks[id].dict())
             os.path.join(self._tasks_path, id)
+            client = Yt(**self._config["yt_backend_options"])
             with self._mutex.discharge():
-                client = Yt(**self._config["yt_backend_options"])
                 with self._cypress_mutexes[path]:
                     client.set(path, value)
             if not self._cypress_mutexes[path].is_acquired():
@@ -752,7 +752,8 @@ class Application(object):
             user = "guest"
             token = ""
         else:
-            user = self._yt.get_user_name(token, headers=headers)
+            client = Yt(**self._config["yt_backend_options"])
+            user = client.get_user_name(token, headers=headers)
             if not user:
                 raise IncorrectTokenError("Authorization token is incorrect: " + token)
         return token, user
@@ -771,9 +772,11 @@ class Application(object):
 
     def _check_permission(self, id, headers, action_name):
         _, user = self._get_token_and_user(headers)
-        if self._tasks[id].user != user and \
-           self._yt.check_permission(user, "administer", self._auth_path)["action"] != "allow":
-            raise RequestFailed("{0} task is not permitted.".format(action_name))
+        if self._tasks[id].user != user:
+            client = Yt(**self._config["yt_backend_options"])
+            with self._mutex.discharge():
+                if client.check_permission(user, "administer", self._auth_path)["action"] != "allow":
+                    raise RequestFailed("{0} task is not permitted.".format(action_name))
 
     def _set_defaults(self, task, clusters_configuration):
         source_client = task.get_source_client(clusters_configuration.clusters)
@@ -1355,7 +1358,10 @@ class Application(object):
 
         if not dry_run:
             self._initialize_pool(task, clusters_configuration)
-            self._yt.set(os.path.join(self._tasks_path, task.id), task.dict())
+
+            client = Yt(**self._config["yt_backend_options"])
+            client.set(os.path.join(self._tasks_path, task.id), task.dict())
+
             if task.lease_timeout is not None:
                 task._last_ping_time = time.time()
             with self._mutex:
@@ -1471,7 +1477,9 @@ class Application(object):
             if self._tasks[id].state not in ["completed", "aborted", "failed"]:
                 raise RequestFailed("Cannot delete running task " + self._tasks[id].state)
 
-        self._yt.remove(os.path.join(self._tasks_path, id), recursive=True)
+        client = Yt(**self._config["yt_backend_options"])
+        client.remove(os.path.join(self._tasks_path, id), recursive=True)
+
         with self._mutex:
             del self._tasks[id]
 
