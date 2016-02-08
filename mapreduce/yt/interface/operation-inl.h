@@ -192,15 +192,15 @@ int RunMapJob(size_t outputTableCount, bool hasState)
     using TInputRow = typename TMapper::TReader::TRowType;
     using TOutputRow = typename TMapper::TWriter::TRowType;
 
-    auto reader = CreateJobReader<TInputRow>();
-    auto writer = CreateJobWriter<TOutputRow>(outputTableCount);
-
-    auto mapper = MakeIntrusive<TMapper>();
-    if (hasState) {
-        LoadJobState(mapper.Get());
-    }
-
     try {
+        auto reader = CreateJobReader<TInputRow>();
+        auto writer = CreateJobWriter<TOutputRow>(outputTableCount);
+
+        auto mapper = MakeIntrusive<TMapper>();
+        if (hasState) {
+            LoadJobState(mapper.Get());
+        }
+
         mapper->Start(writer.Get());
         mapper->Do(reader.Get(), writer.Get());
         mapper->Finish(writer.Get());
@@ -225,16 +225,16 @@ int RunReduceJob(size_t outputTableCount, bool hasState)
     using TInputRow = typename TReducer::TReader::TRowType;
     using TOutputRow = typename TReducer::TWriter::TRowType;
 
-    auto readerImpl = CreateJobReaderImpl<TInputRow>();
-    auto reader = MakeIntrusive<TTableReader<TInputRow>>(readerImpl);
-    auto writer = CreateJobWriter<TOutputRow>(outputTableCount);
-
-    auto reducer = MakeIntrusive<TReducer>();
-    if (hasState) {
-        LoadJobState(reducer.Get());
-    }
-
     try {
+        auto readerImpl = CreateJobReaderImpl<TInputRow>();
+        auto reader = MakeIntrusive<TTableReader<TInputRow>>(readerImpl);
+        auto writer = CreateJobWriter<TOutputRow>(outputTableCount);
+
+        auto reducer = MakeIntrusive<TReducer>();
+        if (hasState) {
+            LoadJobState(reducer.Get());
+        }
+
         reducer->Start(writer.Get());
         while (reader->IsValid()) {
             reducer->Do(reader.Get(), writer.Get());
