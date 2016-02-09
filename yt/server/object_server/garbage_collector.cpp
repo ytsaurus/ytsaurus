@@ -96,7 +96,7 @@ void TGarbageCollector::RegisterZombie(TObjectBase* object)
         CollectPromise_ = NewPromise<void>();
     }
 
-    LOG_DEBUG("Object has become zombie (ObjectId: %v)",
+    LOG_DEBUG_UNLESS(IsRecovery(), "Object has become zombie (ObjectId: %v)",
         object->GetId());
     YCHECK(Zombies_.insert(object).second);
 }
