@@ -23,9 +23,6 @@ struct TJobSignalerArg
     }
 };
 
-void Serialize(const TJobSignalerArg& stracerArg, NYson::IYsonConsumer* consumer);
-void Deserialize(TJobSignalerArg& stracerArg, NYTree::INodePtr node);
-
 ////////////////////////////////////////////////////////////////////////////////
 
 void SendSignal(const std::vector<int>& pids, const Stroka& signalName);
