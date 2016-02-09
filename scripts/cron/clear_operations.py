@@ -12,7 +12,8 @@ import yt.yson as yson
 
 from dateutil.parser import parse
 from collections import namedtuple, Counter
-import _strptime #http://bugs.python.org/issue7980
+# Import is necessary due to: http://bugs.python.org/issue7980
+import _strptime
 from datetime import datetime, timedelta
 from threading import Thread
 from logging import Formatter
@@ -47,13 +48,17 @@ class Try(object):
         return Try(True, value)
 
 
-def parallel_map_impl(fn, kwargs, result, items):
+def parallel_map_impl(fn, kwargs, result, items, failure_limit=1):
+    failures_count = 0
     for item in items:
         try:
             local_result = Try.success(fn(item, **kwargs))
         except:
             logger.exception("Handled exception")
             local_result = Try.failure(sys.exc_info())
+            failures_count += 1
+            if failures_count == failure_limit:
+                return
 
         result.append(local_result)
 
