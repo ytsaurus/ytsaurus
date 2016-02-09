@@ -143,12 +143,12 @@ private:
                     .Item("locations").DoListFor(statistics.locations(), [] (TFluentList fluent, const TLocationStatistics& locationStatistics) {
                         fluent
                             .Item().BeginMap()
-                            .Item("available_space").Value(locationStatistics.available_space())
-                            .Item("used_space").Value(locationStatistics.used_space())
-                            .Item("chunk_count").Value(locationStatistics.chunk_count())
-                            .Item("session_count").Value(locationStatistics.session_count())
-                            .Item("full").Value(locationStatistics.full())
-                            .Item("enabled").Value(locationStatistics.enabled())
+                                .Item("available_space").Value(locationStatistics.available_space())
+                                .Item("used_space").Value(locationStatistics.used_space())
+                                .Item("chunk_count").Value(locationStatistics.chunk_count())
+                                .Item("session_count").Value(locationStatistics.session_count())
+                                .Item("full").Value(locationStatistics.full())
+                                .Item("enabled").Value(locationStatistics.enabled())
                             .EndMap();
                     })
                     .Item("memory").BeginMap()
