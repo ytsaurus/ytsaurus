@@ -507,7 +507,7 @@ void FromProto(
         YCHECK(!columnSchema.SortOrder);
         columnSchema.SortOrder = ESortOrder::Ascending;
     }
-    *schema = TTableSchema(columns, protoSchema.strict());
+    *schema = TTableSchema(columns, !protoSchema.has_strict() || protoSchema.strict());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
