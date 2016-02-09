@@ -1,0 +1,228 @@
+#!/usr/bin/env python
+
+from yt.wrapper.cli_helpers import run_main
+from yt.wrapper.client import Yt
+from yt.wrapper.http import get_token
+from yt.common import YtError, flatten, get_value, remove_file
+from yt.tools.yamr import Yamr
+from yt.transfer_manager.client import TransferManager
+import yt.wrapper as yt
+
+import os
+import stat
+import random
+import atexit
+import string
+import tempfile
+import argparse
+import subprocess
+import logging
+
+logger = logging.getLogger("TMChecker")
+
+_tm_client = None
+
+def init_tm_client(url, token):
+    global _tm_client
+    _tm_client = TransferManager(url=url, token=token)
+
+def get_tm_client():
+    return _tm_client
+
+def configure_logger():
+    logger.propagate = False
+    if not logger.handlers:
+        logger.addHandler(logging.StreamHandler())
+    logger.handlers[0].setFormatter(logging.Formatter("%(asctime)s %(levelname)s\t%(message)s"))
+    logger.setLevel(logging.INFO)
+
+def do_check(**check_args):
+    try:
+        get_tm_client().add_task(sync=True, **check_args)
+    except Exception as err:
+        src_cluster, dst_cluster = \
+                check_args["source_cluster"], check_args["destination_cluster"]
+
+        raise YtError("Direction check (from: {0}, to: {1}) failed".format(src_cluster, dst_cluster),
+                      inner_errors=[err])
+
+def get_src_dst_table(src_client, dst_client):
+    CHARSET = string.ascii_letters + string.digits
+
+    if src_client._type == "yt":
+        src_path = src_client.create_temp_table()
+        src_client.write_table(src_path, ["k\tv\n"], format=yt.YamrFormat(), raw=True)
+    elif src_client._type == "yamr":
+        src_path = "tmp/yt_" + "".join(random.sample(CHARSET, 7))
+        src_client.write(src_path, "k\tv\n")
+    else:
+        raise YtError("Unsupported source client type: {0}".format(src_client._type))
+
+    if dst_client._type == "yt":
+        dst_path = dst_client.create_temp_table()
+    elif dst_client._type == "yamr":
+        dst_path = "tmp/yt_" + "".join(random.sample(CHARSET, 7))
+    else:
+        raise YtError("Unsupported destination client type: {0}".format(dst_client._type))
+
+    return src_path, dst_path
+
+def check_directions(src_clusters, dst_clusters, clusters_clients, availability_graph):
+    logger.info("Starting checks. Source clusters: %s, destination clusters: %s",
+                ", ".join(src_clusters), ", ".join(dst_clusters))
+
+    for src_cluster in src_clusters:
+        for dst_cluster in dst_clusters:
+            available_clusters = availability_graph[src_cluster]
+            if src_cluster == dst_cluster or dst_cluster not in available_clusters:
+                continue
+
+            logger.info("Starting direction check (from: %s, to: %s)", src_cluster, dst_cluster)
+
+            src_client, dst_client = \
+                    clusters_clients.get(src_cluster), clusters_clients.get(dst_cluster)
+
+            if src_cluster is None or dst_client is None:
+                continue
+
+            try:
+                src_path, dst_path = get_src_dst_table(src_client, dst_client)
+            except Exception as err:
+                raise YtError("Direction check (from: {0}, to: {1}) failed during prepare step"
+                              .format(src_cluster, dst_cluster), inner_errors=[err])
+
+            check_args = {}
+            if src_client._type == "yamr" or dst_client._type == "yamr":
+                # XXX(asaitgalin): Usually userdata user has big enough quota on YAMR clusters.
+                check_args["params"] = {"mr_user": "userdata"}
+            check_args["source_table"] = src_path
+            check_args["destination_table"] = dst_path
+            check_args["source_cluster"] = src_cluster
+            check_args["destination_cluster"] = dst_cluster
+
+            do_check(**check_args)
+
+    logger.info("All checks successfully finished")
+
+def get_active_transfer_manager_server_address(backend_config):
+    client = Yt(**backend_config["yt_backend_options"])
+    return client.get(backend_config["path"] + "/@address")
+
+def run_process(*args, **kwargs):
+    kwargs.pop("stdout", None)
+    kwargs.pop("stderr", None)
+
+    p = subprocess.Popen(*args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, **kwargs)
+    out, err = p.communicate()
+    if p.returncode != 0:
+        raise YtError("Failed to run {0}: {1}".format(" ".join(*args), err))
+    return out, err
+
+class FilesCache(dict):
+    def __init__(self, *args, **kwargs):
+        super(FilesCache, self).__init__(*args, **kwargs)
+        atexit.register(self.cleanup)
+
+    def cleanup(self):
+        for path in self.itervalues():
+            remove_file(path, force=True)
+
+def get_yamr_binary(options, active_tm_server_address):
+    # YAMR binary is heavy. No need to download the same client for each cluster.
+    if not hasattr(get_yamr_binary, "_cache"):
+        get_yamr_binary._cache = FilesCache()
+
+    binary_path = options["binary"]
+
+    local_binary_path = get_yamr_binary._cache.get(binary_path)
+    if local_binary_path is not None:
+        return local_binary_path
+
+    fd, filepath = tempfile.mkstemp(prefix="mapreduce")
+    os.close(fd)
+    logger.info("Copying mapreduce binary from %s:%s to %s", active_tm_server_address, binary_path, filepath)
+    run_process(["scp", "{0}:{1}".format(active_tm_server_address, binary_path), filepath])
+    os.chmod(filepath, stat.S_IXUSR | stat.S_IRUSR | stat.S_IWUSR)
+
+    get_yamr_binary._cache[binary_path] = filepath
+    return filepath
+
+def create_clusters_clients(backend_config, token):
+    clusters = backend_config.get("clusters")
+    if clusters is None:
+        raise YtError("Failed to get clusters configuration from backend config")
+
+    active_tm_server_address = get_active_transfer_manager_server_address(backend_config)
+
+    result = {}
+    for name, configuration in clusters.iteritems():
+        logger.info("Preparing client for cluster %s", name)
+        type_ = configuration["type"]
+        options = configuration.get("options", {})
+
+        if type_ == "yt":
+            options.pop("token", None)  # Do not use token from TM backend config if present.
+            result[name] = Yt(token=token, **options)
+        elif type_ == "yamr":
+            # Copy remote YAMR binary if necessary and use it for checks.
+            options["binary"] = get_yamr_binary(options, active_tm_server_address)
+            result[name] = Yamr(**options)
+        else:
+            logger.warning("Check is now available only for YT and YAMR clusters. "
+                           "Skipping %s cluster %s", type_, name)
+            continue
+
+        result[name]._type = type_
+
+    return result
+
+def get_availability_graph(backend_config):
+    availability_graph = backend_config.get("availability_graph")
+    if availability_graph is None:
+        raise YtError("Failed to get availability graph from backend config")
+
+    return availability_graph
+
+def prepare_cluster_list(lst, clusters_clients):
+    if lst is None:
+        return clusters_clients.keys()
+
+    lst = flatten(lst)
+    for cluster in lst:
+        if cluster not in clusters_clients:
+            raise YtError("Failed to start check: undefined cluster {0}".format(cluster))
+    return lst
+
+def parse_arguments():
+    parser = argparse.ArgumentParser(
+        description="Tool for checking Transfer Manager copy directions")
+
+    parser.add_argument("--url", help="Transfer Manager url")
+    cluster_arg_help_suffix = "Can be specified multiple times. " \
+                              "If not specified all clusters from TM config are checked."
+    parser.add_argument("--src-cluster", action="append",
+                        help="Cluster name to check directions from. " + cluster_arg_help_suffix)
+    parser.add_argument("--dst-cluster", action="append",
+                        help="Cluster name to check directions to. " + cluster_arg_help_suffix)
+    parser.add_argument("--token", help="YT token. Detected by general rules if not specified.")
+
+    return parser.parse_args()
+
+def main():
+    configure_logger()
+    args = parse_arguments()
+
+    token = get_value(args.token, get_token())
+
+    init_tm_client(args.url, token)
+
+    backend_config = get_tm_client().get_backend_config()
+    clusters_clients = create_clusters_clients(backend_config, token)
+    availability_graph = get_availability_graph(backend_config)
+
+    src_clusters = prepare_cluster_list(args.src_cluster, clusters_clients)
+    dst_clusters = prepare_cluster_list(args.dst_cluster, clusters_clients)
+    check_directions(src_clusters, dst_clusters, clusters_clients, availability_graph)
+
+if __name__ == "__main__":
+    run_main(main)
