@@ -331,7 +331,7 @@ private:
         TDelayedExecutor::CancelAndClear(RediscoveryCookie_);
         RediscoveryCookie_ = TDelayedExecutor::Submit(
             BIND(IgnoreResult(&TBalancingChannelSubprovider::RunDiscoverySession), MakeWeak(this)),
-            Config_->RediscoverPeriod);
+            Config_->RediscoverPeriod + RandomDuration(Config_->RediscoverSplay));
     }
 
 
