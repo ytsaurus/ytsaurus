@@ -112,9 +112,9 @@ DEFINE_REFCOUNTED_TYPE(TExecNode)
 //! An immutable snapshot of TExecNode.
 struct TExecNodeDescriptor
 {
-    NNodeTrackerClient::TNodeId Id;
+    NNodeTrackerClient::TNodeId Id = NNodeTrackerClient::InvalidNodeId;
     Stroka Address;
-    double IOWeight;
+    double IOWeight = 0.0;
     TJobResources ResourceLimits;
 
     void Persist(TStreamPersistenceContext& context);
