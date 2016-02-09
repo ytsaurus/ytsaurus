@@ -67,6 +67,10 @@ void TSchedulerConnector::SendHeartbeat()
         return;
     }
 
+    if (TInstant::Now() < LastFailedHeartbeatTime_ + Config_->FailedHeartbeatBackoffTime) {
+        LOG_INFO("Skipping heartbeat");
+    }
+
     auto client = Bootstrap_->GetMasterClient();
 
     TJobTrackerServiceProxy proxy(client->GetSchedulerChannel());
@@ -85,6 +89,7 @@ void TSchedulerConnector::SendHeartbeat()
     auto rspOrError = WaitFor(req->Invoke());
 
     if (!rspOrError.IsOK()) {
+        LastFailedHeartbeatTime_ = TInstant::Now();
         LOG_ERROR(rspOrError, "Error reporting heartbeat to scheduler");
         return;
     }

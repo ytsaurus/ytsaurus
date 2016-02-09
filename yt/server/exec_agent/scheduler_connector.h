@@ -27,6 +27,7 @@ private:
     const TSchedulerConnectorConfigPtr Config_;
     NCellNode::TBootstrap* const Bootstrap_;
     const IInvokerPtr ControlInvoker_;
+    TInstant LastFailedHeartbeatTime_;
 
     NConcurrency::TPeriodicExecutorPtr HeartbeatExecutor_;
 
