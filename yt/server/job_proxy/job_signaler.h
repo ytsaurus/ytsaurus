@@ -20,8 +20,7 @@ struct TJobSignalerArg
             .Default();
         RegisterParameter("signal_name", SignalName)
             .NonEmpty();
-    };
-
+    }
 };
 
 void Serialize(const TJobSignalerArg& stracerArg, NYson::IYsonConsumer* consumer);
