@@ -103,6 +103,22 @@ def create_modules_archive_default(tempfiles_manager, client):
                 continue
 
             files_to_compress[relpath] = file
+        else:
+            # Module can be a package without __init__.py, for example,
+            # if module is added from *.pth file or manually added in client code.
+            # Such module is package if it has __path__ attribute. See st/YT-3337 for more details.
+            if hasattr(module, "__path__") and \
+                    get_config(client)["pickling"]["create_init_file_for_package_modules"]:
+                init_file = tempfiles_manager.create_tempfile(
+                    dir=get_config(client)["local_temp_directory"],
+                    prefix="__init__.py")
+
+                with open(init_file, "w") as f:
+                    f.write("#")  # Should not be empty. Empty comment is ok.
+
+                module_name_parts = module.__name__.split(".") + ["__init__.py"]
+                destination_name = os.path.join(*module_name_parts)
+                files_to_compress[destination_name] = init_file
 
     zip_filename = tempfiles_manager.create_tempfile(dir=get_config(client)["local_temp_directory"],
                                                      prefix=".modules", suffix=".zip")

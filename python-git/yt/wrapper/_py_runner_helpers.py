@@ -3,7 +3,6 @@ from yt.wrapper.common import EMPTY_GENERATOR
 import inspect
 import sys
 import types
-import os
 
 class YtStandardStreamAccessError(YtError):
     pass
@@ -68,24 +67,3 @@ def _extract_operation_methods(operation):
         finish = lambda: EMPTY_GENERATOR
 
     return start, _convert_callable_to_generator(operation), finish
-
-def _create_namespace_packages(search_path):
-    def visit(root, package_name_parts):
-        if package_name_parts:
-            init_path = os.path.join(root, "__init__.py")
-            package_module_name = ".".join(package_name_parts)
-
-            if not os.path.isfile(init_path) and not os.path.isfile(init_path + "c") and \
-                    package_module_name not in sys.modules:
-                package_module = types.ModuleType(package_module_name)
-                # XXX(asaitgalin): If the module is a package (either regular or namespace),
-                # the module __path__ attribute must be set.
-                package_module.__dict__["__path__"] = [root]
-                sys.modules[package_module_name] = package_module
-
-        for entry in os.listdir(root):
-            entry_path = os.path.join(root, entry)
-            if os.path.isdir(entry_path):
-                visit(entry_path, package_name_parts + [entry])
-
-    visit(os.path.abspath(search_path), [])

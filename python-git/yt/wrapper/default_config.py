@@ -104,7 +104,13 @@ default_config = {
         # Enables using tmpfs for modules archive.
         "enable_tmpfs_archive": True,
         # Enable collecting different statistics of job.
-        "enable_job_statistics": True
+        "enable_job_statistics": True,
+        # Some package modules are created in .pth files or manually in hooks during import.
+        # For example, .pth file could be used to emulate namespace packages (see PEP-420).
+        # Such packages can lack of __init__.py and sometimes can not be imported on nodes
+        # (e.g. because .pth files can not be taken to nodes)
+        # In this case artificial __init__.py is added when modules achive is created.
+        "create_init_file_for_package_modules": True
     },
 
     "yamr_mode": {
