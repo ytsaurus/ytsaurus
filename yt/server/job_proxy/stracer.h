@@ -2,7 +2,7 @@
 
 #include <yt/core/yson/public.h>
 
-#include <yt/core/ytree/public.h>
+#include <yt/core/ytree/yson_serializable.h>
 
 namespace NYT {
 namespace NJobProxy {
@@ -10,24 +10,32 @@ namespace NJobProxy {
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TStrace
+    : public NYTree::TYsonSerializableLite
 {
     Stroka Trace;
     Stroka ProcessName;
     std::vector<Stroka> ProcessCommandLine;
-};
 
-void Serialize(const TStrace& trace, NYson::IYsonConsumer* consumer);
-void Deserialize(TStrace& value, NYTree::INodePtr node);
+    TStrace()
+    {
+        RegisterParameter("trace", Trace);
+        RegisterParameter("process_name", ProcessName);
+        RegisterParameter("process_command_lint", ProcessCommandLine);
+    }
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TStracerResult
+    : public NYTree::TYsonSerializableLite
 {
     yhash_map<int, TStrace> Traces;
-};
 
-void Serialize(const TStracerResult& stracerResult, NYson::IYsonConsumer* consumer);
-void Deserialize(TStracerResult& value, NYTree::INodePtr node);
+    TStracerResult()
+    {
+        RegisterParameter("traces", Traces);
+    }
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
