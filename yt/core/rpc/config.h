@@ -150,9 +150,13 @@ public:
      *  In some cases, however, this is not enough.
      *  E.g. a follower may become active and thus eligible for load balancing.
      *  This setting controls the period of time after which the channel
-     *  starts rediscoverying peers even if an active one is known.
+     *  starts rediscovering peers even if an active one is known.
      */
     TDuration RediscoverPeriod;
+
+    //! A random duration from 0 to #RediscoverSplay is added to #RediscoverPeriod on each
+    //! rediscovery attempt.
+    TDuration RediscoverSplay;
 
     TBalancingChannelConfig()
     {
@@ -162,6 +166,8 @@ public:
             .Default(1);
         RegisterParameter("rediscover_period", RediscoverPeriod)
             .Default(TDuration::Minutes(5));
+        RegisterParameter("rediscover_splay", RediscoverSplay)
+            .Default(TDuration::Minutes(1));
     }
 };
 
