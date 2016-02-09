@@ -97,6 +97,8 @@ static const int BufferSize = 1024 * 1024;
 
 static const size_t MaxCustomStatisticsPathLength = 512;
 
+static const auto JobProberQueueShutdownTimeout = TDuration::Seconds(15);
+
 static TNullOutput NullOutput;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -184,6 +186,12 @@ public:
             JobIO_->PopulateResult(schedulerResultExt);
         }
 
+        // Try to shutdown the queue gracefully.
+        BIND([] () {})
+            .AsyncVia(JobProberQueue_->GetInvoker())
+            .Run()
+            .WithTimeout(JobProberQueueShutdownTimeout)
+            .Get();
         JobProberQueue_->Shutdown();
 
         return result;
