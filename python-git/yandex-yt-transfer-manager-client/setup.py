@@ -21,7 +21,8 @@ def main():
     if sys.version_info[:2] <= (2, 6):
         requires.append("argparse")
 
-    scripts, data_files = prepare_files(["yt/transfer_manager/client/transfer-manager"])
+    scripts, data_files = prepare_files(["yt/transfer_manager/client/transfer-manager",
+                                         "yt/transfer_manager/client/transfer-manager-check"])
 
     setup(
         name = "yandex-yt-transfer-manager-client",
