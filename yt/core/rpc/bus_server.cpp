@@ -16,8 +16,6 @@ namespace NRpc {
 using namespace NConcurrency;
 using namespace NBus;
 
-using ::ToString;
-
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = RpcServerLogger;
@@ -39,17 +37,17 @@ private:
 
     virtual void DoStart() override
     {
-        TServerBase::DoStart();
-
         BusServer_->Start(this);
+        TServerBase::DoStart();
     }
 
     virtual TFuture<void> DoStop() override
     {
-        BusServer_->Stop();
-        BusServer_.Reset();
-
-        return TServerBase::DoStop();
+        return TServerBase::DoStop().Apply(BIND([=, this_ = MakeStrong(this)] (const TError& error) {
+            BusServer_->Stop();
+            BusServer_.Reset();
+            error.ThrowOnError();
+        }));
     }
 
     virtual void HandleMessage(TSharedRefArray message, IBusPtr replyBus) throw() override
@@ -67,7 +65,8 @@ private:
             default:
                 // Unable to reply, no request id is known.
                 // Let's just drop the message.
-                LOG_ERROR("Invalid incoming message type %x, ignored", static_cast<ui32>(messageType));
+                LOG_ERROR("Incoming message has invalid type, ignored (Type: %x)",
+                    static_cast<ui32>(messageType));
                 break;
         }
     }
