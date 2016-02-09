@@ -535,7 +535,7 @@ TFuture<void> TServerBase::Stop()
         return VoidFuture;
     }
 
-    LOG_INFO("RPC server stopped");
+    LOG_INFO("Stopping RPC server");
 
     return DoStop();
 }
@@ -561,7 +561,10 @@ TFuture<void> TServerBase::DoStop()
     for (const auto& service : services) {
         asyncResults.push_back(service->Stop());
     }
-    return Combine(asyncResults);
+
+    return Combine(asyncResults).Apply(BIND([=, this_ = MakeStrong(this)] () {
+        LOG_INFO("RPC server stopped");
+    }));
 }
 
 std::vector<IServicePtr> TServerBase::DoFindServices(const Stroka& serviceName)
