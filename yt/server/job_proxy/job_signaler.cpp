@@ -33,18 +33,6 @@ REGISTER_TOOL(TJobSignalerTool);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void Serialize(const TJobSignalerArg& signalerArg, NYson::IYsonConsumer* consumer)
-{
-    Serialize(static_cast<const TYsonSerializableLite&>(signalerArg), consumer);
-}
-
-void Deserialize(TJobSignalerArg& signalerArg, NYTree::INodePtr node)
-{
-    Deserialize(static_cast<TYsonSerializableLite&>(signalerArg), node);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 void SendSignal(const std::vector<int>& pids, const Stroka& signalName)
 {
     ValidateSignalName(signalName);
