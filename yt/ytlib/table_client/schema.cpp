@@ -808,6 +808,93 @@ void ValidatePivotKey(const TOwningKey& pivotKey, const TTableSchema& schema, in
 
 ////////////////////////////////////////////////////////////////////////////////
 
+EValueType GetCommonValueType(EValueType lhs, EValueType rhs) {
+    if (lhs == EValueType::Null) {
+        return rhs;
+    } else if (rhs == EValueType::Null) {
+        return lhs;
+    } else if (lhs == rhs) {
+        return lhs;
+    } else {
+        return EValueType::Any;
+    }
+}
+
+TTableSchema InferInputSchema(const std::vector<TTableSchema>& schemas, bool discardKeyColumns)
+{
+    YCHECK(!schemas.empty());
+
+    int commonKeyColumnPrefix = 0;
+    if (!discardKeyColumns) {
+        while (true) {
+            if (commonKeyColumnPrefix >= schemas.front().GetKeyColumnCount()) {
+                break;
+            }
+            const auto& keyColumnName = schemas.front().Columns()[commonKeyColumnPrefix].Name;
+            bool mismatch = false;
+            for (const auto& schema : schemas) {
+                if (commonKeyColumnPrefix >= schema.GetKeyColumnCount() ||
+                    schema.Columns()[commonKeyColumnPrefix].Name != keyColumnName) 
+                {
+                    mismatch = true;
+                    break;
+                }
+            }
+            if (mismatch) {
+                break;
+            }
+            ++commonKeyColumnPrefix;
+        }
+    }
+
+    yhash_map<Stroka, TColumnSchema> nameToColumnSchema;    
+    std::vector<Stroka> columnNames;
+
+    for (const auto& schema : schemas) {
+        for (int columnIndex = 0; columnIndex < schema.Columns().size(); ++columnIndex) {
+            auto column = schema.Columns()[columnIndex];
+            if (columnIndex >= commonKeyColumnPrefix) {
+                column = column.SetSortOrder(Null);
+            }
+            column = column
+                .SetExpression(Null)
+                .SetLock(Null);
+
+            auto it = nameToColumnSchema.find(column.Name);
+            if (it == nameToColumnSchema.end()) {
+                nameToColumnSchema[column.Name] = column;
+                columnNames.push_back(column.Name);
+            } else {
+                auto commonType = GetCommonValueType(it->second.Type, column.Type);
+                column.Type = it->second.Type = commonType;
+                if (it->second != column) {
+                    THROW_ERROR_EXCEPTION(
+                        "Conflict while merging schemas, column %Qs has two conflicting declarations",
+                        column.Name)
+                        << TErrorAttribute("first_column_schema", it->second)
+                        << TErrorAttribute("second_column_schema", column);
+                }
+            }
+        }
+    }
+   
+    std::vector<TColumnSchema> columns;
+    for (auto columnName : columnNames) {
+        columns.push_back(nameToColumnSchema[columnName]);
+    }
+
+    bool strict = true;
+    for (const auto& schema : schemas) {
+        if (!schema.GetStrict()) {
+            strict = false;
+        }
+    }
+
+    return TTableSchema(columns, strict);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 namespace NProto {
 
 ////////////////////////////////////////////////////////////////////////////////

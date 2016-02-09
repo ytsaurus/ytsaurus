@@ -656,5 +656,168 @@ TEST_F(TTableSchemaTest, TableSchemaUpdateValidationTest)
         }), false /* isDynamicTable */, true /* isEmptyTable */);
 }
 
+TEST_F(TTableSchemaTest, InferInputSchema)
+{
+    TTableSchema schema1({
+            TColumnSchema("Key1", EValueType::String)
+                .SetSortOrder(ESortOrder::Ascending),
+            TColumnSchema("Value1", EValueType::String)
+        });
+    TTableSchema schema1k({
+            TColumnSchema("Key1", EValueType::String),
+            TColumnSchema("Value1", EValueType::String)
+        });
+    TTableSchema schema2({
+            TColumnSchema("Key2", EValueType::Int64)
+                .SetSortOrder(ESortOrder::Ascending),
+            TColumnSchema("Value2", EValueType::Int64)
+        });
+    TTableSchema schema3({
+            TColumnSchema("Key1", EValueType::String)
+                .SetSortOrder(ESortOrder::Ascending),
+            TColumnSchema("Value2", EValueType::Int64)
+        });
+    TTableSchema schema12({
+            TColumnSchema("Key1", EValueType::String),
+            TColumnSchema("Value1", EValueType::String),
+            TColumnSchema("Key2", EValueType::Int64),
+            TColumnSchema("Value2", EValueType::Int64)
+        });
+    TTableSchema schema123 = schema12;
+    TTableSchema schema13({
+            TColumnSchema("Key1", EValueType::String)
+                .SetSortOrder(ESortOrder::Ascending),
+            TColumnSchema("Value1", EValueType::String),
+            TColumnSchema("Value2", EValueType::Int64)
+        });
+    TTableSchema schema13k({
+            TColumnSchema("Key1", EValueType::String),
+            TColumnSchema("Value1", EValueType::String),
+            TColumnSchema("Value2", EValueType::Int64)
+        });
+    TTableSchema schema1x({
+            TColumnSchema("Key1", EValueType::Int64)
+                .SetSortOrder(ESortOrder::Ascending),
+            TColumnSchema("Value1", EValueType::String)
+        });
+    TTableSchema schema31x({
+            TColumnSchema("Key1", EValueType::Any)
+                .SetSortOrder(ESortOrder::Ascending),
+            TColumnSchema("Value2", EValueType::Int64),
+            TColumnSchema("Value1", EValueType::String)
+        });
+    TTableSchema schema4({
+            TColumnSchema("ColumnA", EValueType::String)
+                .SetSortOrder(ESortOrder::Ascending),
+            TColumnSchema("ColumnB", EValueType::String)
+        }, false /* strict */);
+    TTableSchema schema5({
+            TColumnSchema("ColumnB", EValueType::String)
+                .SetSortOrder(ESortOrder::Ascending),
+            TColumnSchema("ColumnC", EValueType::String)
+                .SetSortOrder(ESortOrder::Ascending)
+                .SetExpression(Stroka("ColumnB"))
+        });
+    TTableSchema schema45({
+            TColumnSchema("ColumnA", EValueType::String),
+            TColumnSchema("ColumnB", EValueType::String),
+            TColumnSchema("ColumnC", EValueType::String)
+        });
+        // TODO(max42): uncomment this when Null becomes
+        // an allowed column value type.
+    TTableSchema schema6({
+            TColumnSchema("ColumnA", EValueType::String),
+            TColumnSchema("ColumnB", EValueType::Int64),
+            //TColumnSchema("ColumnC", EValueType::Null),
+            TColumnSchema("ColumnD", EValueType::Any),
+            TColumnSchema("ColumnE", EValueType::String),
+            TColumnSchema("ColumnF", EValueType::Int64),
+            //TColumnSchema("ColumnG", EValueType::Null),
+            TColumnSchema("ColumnH", EValueType::Any),
+            //TColumnSchema("ColumnI", EValueType::String),
+            //TColumnSchema("ColumnJ", EValueType::Int64),
+            //TColumnSchema("ColumnK", EValueType::Null),
+            //TColumnSchema("ColumnL", EValueType::Any),
+            TColumnSchema("ColumnM", EValueType::String),
+            TColumnSchema("ColumnN", EValueType::Int64),
+            //TColumnSchema("ColumnO", EValueType::Null),
+            TColumnSchema("ColumnP", EValueType::Any),
+        });
+    TTableSchema schema7({
+            TColumnSchema("ColumnA", EValueType::String),
+            TColumnSchema("ColumnB", EValueType::String),
+            //TColumnSchema("ColumnC", EValueType::String),
+            TColumnSchema("ColumnD", EValueType::String),
+            TColumnSchema("ColumnE", EValueType::Int64),
+            TColumnSchema("ColumnF", EValueType::Int64),
+            //TColumnSchema("ColumnG", EValueType::Int64),
+            TColumnSchema("ColumnH", EValueType::Int64),
+            //TColumnSchema("ColumnI", EValueType::Null),
+            //TColumnSchema("ColumnJ", EValueType::Null),
+            //TColumnSchema("ColumnK", EValueType::Null),
+            //TColumnSchema("ColumnL", EValueType::Null),
+            TColumnSchema("ColumnM", EValueType::Any),
+            TColumnSchema("ColumnN", EValueType::Any),
+            //TColumnSchema("ColumnO", EValueType::Any),
+            TColumnSchema("ColumnP", EValueType::Any),
+        });
+    TTableSchema schema67({
+            TColumnSchema("ColumnA", EValueType::String),
+            TColumnSchema("ColumnB", EValueType::Any),
+            //TColumnSchema("ColumnC", EValueType::String),
+            TColumnSchema("ColumnD", EValueType::Any),
+            TColumnSchema("ColumnE", EValueType::Any),
+            TColumnSchema("ColumnF", EValueType::Int64),
+            //TColumnSchema("ColumnG", EValueType::Int64),
+            TColumnSchema("ColumnH", EValueType::Any),
+            //TColumnSchema("ColumnI", EValueType::String),
+            //TColumnSchema("ColumnJ", EValueType::Int64),
+            //TColumnSchema("ColumnK", EValueType::Null),
+            //TColumnSchema("ColumnL", EValueType::Any),
+            TColumnSchema("ColumnM", EValueType::Any),
+            TColumnSchema("ColumnN", EValueType::Any),
+            //TColumnSchema("ColumnO", EValueType::Any),
+            TColumnSchema("ColumnP", EValueType::Any),
+        });
+    TTableSchema schema8({
+            TColumnSchema("Value1", EValueType::Any),
+    }, true /* strict */);
+    TTableSchema schema8ns({
+            TColumnSchema("Value1", EValueType::Any),
+    }, false /* strict */);
+    TTableSchema schema9({
+            TColumnSchema("Value2", EValueType::Any),
+    }, true /* strict */);
+    TTableSchema schema9ns({
+            TColumnSchema("Value2", EValueType::Any),
+    }, false /* strict */);
+    TTableSchema schema89({
+            TColumnSchema("Value1", EValueType::Any),
+            TColumnSchema("Value2", EValueType::Any),
+    }, true /* strict */);
+    TTableSchema schema89ns({
+            TColumnSchema("Value1", EValueType::Any),
+            TColumnSchema("Value2", EValueType::Any),
+    }, false /* strict */);
+
+    EXPECT_EQ(schema1, InferInputSchema({schema1}, false /* discardKeyColumns */));
+    EXPECT_EQ(schema1k, InferInputSchema({schema1}, true /* discardKeyColumns */));
+
+    EXPECT_EQ(schema13, InferInputSchema({schema1, schema3}, false /* discardKeyColumns */));
+    EXPECT_EQ(schema13k, InferInputSchema({schema1, schema3}, true /* discardKeyColumns */));
+
+    EXPECT_EQ(schema12, InferInputSchema({schema1, schema2}, false /* discardKeyColumns */));
+    EXPECT_EQ(schema123, InferInputSchema({schema1, schema2, schema3}, false /* discardKeyColumns */));
+
+    EXPECT_EQ(schema31x, InferInputSchema({schema3, schema1x}, false /* discardKeyColumns */));
+    EXPECT_EQ(schema45, InferInputSchema({schema4, schema5}, false /* discardKeyColumns */));
+
+    EXPECT_EQ(schema67, InferInputSchema({schema6, schema7}, false /* discardKeyColumns */));
+
+    EXPECT_EQ(schema89, InferInputSchema({schema8, schema9}, false /* discardKeyColumns */));
+    EXPECT_EQ(schema89ns, InferInputSchema({schema8, schema9ns}, false /* discardKeyColumns */));
+    EXPECT_EQ(schema89ns, InferInputSchema({schema8ns, schema9ns}, false /* discardKeyColumns */));
+}
+
 } // namespace NTableClient
 } // namespace NYT
