@@ -154,6 +154,10 @@ void ValidatePivotKey(const TOwningKey& pivotKey, const TTableSchema& schema, in
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TTableSchema InferInputSchema(const std::vector<TTableSchema>& schemas, bool discardKeyColumns);
+
+////////////////////////////////////////////////////////////////////////////////
+
 // NB: Need to place this into NProto for ADL to work properly since TKeyColumns is std::vector.
 namespace NProto {
 
