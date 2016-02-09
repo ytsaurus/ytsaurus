@@ -101,6 +101,20 @@ void TExecNode::UpdateNodeDescriptor(const NNodeTrackerClient::TNodeDescriptor& 
 
 ////////////////////////////////////////////////////////////////////
 
+TExecNodeDescriptor::TExecNodeDescriptor()
+{ }
+
+TExecNodeDescriptor::TExecNodeDescriptor(
+    NNodeTrackerClient::TNodeId id,
+    Stroka address,
+    double ioWeight,
+    TJobResources resourceLimits)
+    : Id(id)
+    , Address(address)
+    , IOWeight(ioWeight)
+    , ResourceLimits(resourceLimits)
+{ }
+
 void TExecNodeDescriptor::Persist(TStreamPersistenceContext& context)
 {
     using NYT::Persist;

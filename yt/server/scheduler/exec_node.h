@@ -70,13 +70,13 @@ public:
 
     //! Returns the node's IO weight, as reported by node to master.
     double GetIOWeight() const;
-    
+
     //! Set the node's IO weight.
     void SetIOWeight(double value);
 
     //! Returns the node's resource limits, as reported by the node.
     const TJobResources& GetResourceLimits() const;
-    
+
     //! Sets the node's resource limits.
     void SetResourceLimits(const TJobResources& value);
 
@@ -99,7 +99,7 @@ private:
     const Stroka DefaultAddress_;
     Stroka InterconnectAddress_;
     TJobResources ResourceUsage_;
-    
+
     mutable TSpinLock SpinLock_;
     TJobResources ResourceLimits_;
     double IOWeight_ = 0;
@@ -112,6 +112,14 @@ DEFINE_REFCOUNTED_TYPE(TExecNode)
 //! An immutable snapshot of TExecNode.
 struct TExecNodeDescriptor
 {
+    TExecNodeDescriptor();
+
+    TExecNodeDescriptor(
+        NNodeTrackerClient::TNodeId id,
+        Stroka address,
+        double ioWeight,
+        TJobResources resourceLimits);
+
     NNodeTrackerClient::TNodeId Id = NNodeTrackerClient::InvalidNodeId;
     Stroka Address;
     double IOWeight = 0.0;
