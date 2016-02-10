@@ -17,6 +17,7 @@ namespace NYTree {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TYsonSerializableLite
+    : private TNonCopyable
 {
 public:
     typedef std::function<void()> TValidator;

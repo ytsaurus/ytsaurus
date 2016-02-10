@@ -474,7 +474,7 @@ public:
 
 TEST(TYsonSerializableTest, SaveLite)
 {
-    auto config = TTestConfigLite();
+    TTestConfigLite config;
 
     config.MyString = "hello!";
     config.NullableInt = 42;
