@@ -42,6 +42,7 @@
 #include <yt/core/rpc/bus_channel.h>
 #include <yt/core/rpc/helpers.h>
 #include <yt/core/rpc/server.h>
+#include <yt/core/rpc/bus_server.h>
 
 #include <yt/core/ytree/public.h>
 
