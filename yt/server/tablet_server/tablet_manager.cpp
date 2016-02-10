@@ -1968,9 +1968,12 @@ private:
                     continue;
 
                 auto snapshotsPath = Format("//sys/tablet_cells/%v/snapshots", cellId);
-                auto snapshotsMap = resolver->ResolvePath(snapshotsPath)->AsMap();
-                if (!snapshotsMap)
+                IMapNodePtr snapshotsMap;
+                try {
+                    snapshotsMap = resolver->ResolvePath(snapshotsPath)->AsMap();
+                } catch (const std::exception&) {
                     continue;
+                }
 
                 std::vector<int> snapshotIds;
                 auto snapshotKeys = SyncYPathList(snapshotsMap, "");
@@ -2022,9 +2025,12 @@ private:
                 }
 
                 auto changelogsPath = Format("//sys/tablet_cells/%v/changelogs", cellId);
-                auto changelogsMap = resolver->ResolvePath(changelogsPath)->AsMap();
-                if (!changelogsMap)
+                IMapNodePtr changelogsMap;
+                try {
+                    changelogsMap = resolver->ResolvePath(changelogsPath)->AsMap();
+                } catch (const std::exception&) {
                     continue;
+                }
 
                 auto changelogKeys = SyncYPathList(changelogsMap, "");
                 for (const auto& key : changelogKeys) {
