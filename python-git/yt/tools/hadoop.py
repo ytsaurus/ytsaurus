@@ -104,7 +104,8 @@ class Airflow(object):
             self.message_queue.put({"type": "operation_started", "operation": {"_id": task_id, "cluster_name": self._name}})
 
         # Special sleep to ensure that dag is registered at airflow.
-        time.sleep(5)
+        # The time choosen by the advise of zstan@.
+        time.sleep(10)
 
         return task_id
 
