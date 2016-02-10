@@ -45,7 +45,7 @@ TStracerResult::TStracerResult()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TStracerResult TStraceTool::operator()(const std::vector<int>& pids) const
+TStracerResultPtr TStraceTool::operator()(const std::vector<int>& pids) const
 {
     SafeSetUid(0);
     return Strace(pids);;
@@ -55,25 +55,29 @@ REGISTER_TOOL(TStraceTool);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TStrace DoStrace(int pid)
+namespace {
+
+TStracePtr DoStrace(int pid)
 {
-    TStrace trace;
+    auto trace = New<TStrace>();
 
     try {
-        trace.ProcessName = GetProcessName(pid);
-        trace.ProcessCommandLine = GetProcessCommandLine(pid);
+        trace->ProcessName = GetProcessName(pid);
+        trace->ProcessCommandLine = GetProcessCommandLine(pid);
     } catch (const std::exception& ex) {
         LOG_ERROR(ex, "Failed to get information for process %v", pid);
     }
 
     TSubprocess tracer("/usr/bin/strace");
-    tracer.AddArguments({
-        "-tt",
-        "-p",
-        ToString(pid)
-    });
+    tracer.AddArguments(
+        {
+            "-tt",
+            "-p",
+            ToString(pid)
+        });
 
-    auto intCookie = TDelayedExecutor::Submit(BIND([&] () {
+    auto intCookie = TDelayedExecutor::Submit(
+        BIND([&] () {
             try {
                 tracer.Kill(SIGINT);
             } catch (const std::exception& ex) {
@@ -82,7 +86,8 @@ TStrace DoStrace(int pid)
         }),
         TraceInterval);
 
-    auto killCookie = TDelayedExecutor::Submit(BIND([&] () {
+    auto killCookie = TDelayedExecutor::Submit(
+        BIND([&] () {
             try {
                 tracer.Kill(SIGKILL);
             } catch (const std::exception& ex) {
@@ -91,30 +96,32 @@ TStrace DoStrace(int pid)
         }),
         TraceTimeout);
 
-    TFinallyGuard cookieGuard([&] () {
-        TDelayedExecutor::Cancel(intCookie);
-        TDelayedExecutor::Cancel(killCookie);
-    });
+    TFinallyGuard cookieGuard(
+        [&] () {
+            TDelayedExecutor::Cancel(intCookie);
+            TDelayedExecutor::Cancel(killCookie);
+        });
 
     auto tracerResult = tracer.Execute();
     if (!tracerResult.Status.IsOK()) {
         THROW_ERROR_EXCEPTION("Failed to strace process %v", pid)
-            << TErrorAttribute("stderr", ToString(tracerResult.Error))
-            << tracerResult.Status;
+                << TErrorAttribute("stderr", ToString(tracerResult.Error))
+                << tracerResult.Status;
     }
 
-    trace.Trace = Stroka(tracerResult.Error.Begin(), tracerResult.Error.End());
+    trace->Trace = Stroka(tracerResult.Error.Begin(), tracerResult.Error.End());
     return trace;
 }
 
-TStracerResult Strace(const std::vector<int>& pids)
+} // namespace
+
+TStracerResultPtr Strace(const std::vector<int>& pids)
 {
-    TStracerResult result;
+    auto result = New<TStracerResult>();
 
     auto pool = New<TThreadPool>(StraceConcurrencyFactor, "StracePool");
 
-    std::map<int, TFuture<TStrace>> traceFutures;
-
+    yhash_map<int, TFuture<TStracePtr>> traceFutures;
     for (const auto& pid : pids) {
         traceFutures[pid] =
             BIND([=] () {
@@ -125,7 +132,9 @@ TStracerResult Strace(const std::vector<int>& pids)
     }
 
     for (const auto& pid : pids) {
-        result.Traces[pid] = traceFutures[pid].Get().ValueOrThrow();;
+        result->Traces[pid] = traceFutures[pid]
+            .Get()
+            .ValueOrThrow();;
     }
     return result;
 }
