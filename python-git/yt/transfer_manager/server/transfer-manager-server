@@ -1128,6 +1128,7 @@ class Application(object):
             destination_client.message_queue = message_queue
 
             clusters_configuration.kiwi_transmitter.message_queue = message_queue
+            clusters_configuration.airflow_client.message_queue = message_queue
 
             parameters = clusters_configuration.availability_graph[task.source_cluster][task.destination_cluster]
 
