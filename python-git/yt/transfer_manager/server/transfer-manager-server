@@ -316,6 +316,10 @@ class Application(object):
         self._cache_tasks_response = None
         self._cache_tasks_time = 0
 
+        # Incoming requests counter
+        self._incoming_requests_counter_mutex = RLock()
+        self._incoming_requests_count = 0
+
         # Run config reloading thread.
         self._clusters_config_reloading_thread = SafeThread(target=self._reload_clusters_config,
                                                             args=(self._config["clusters_config_reload_timeout"],),
@@ -350,7 +354,8 @@ class Application(object):
     def _add_rule(self, rule, endpoint, methods, depends_on_lock=True, is_mutating=False):
         methods.append("OPTIONS")
 
-        middlewares = [(self._profile_time, (endpoint, )),
+        middlewares = [(self._check_requests_limit, ()),
+                       (self._profile_time, (endpoint, )),
                        (self._process_lock, (depends_on_lock, )),
                        (process_gzip, ()),
                        (self._process_cors, (methods, )),
@@ -414,6 +419,22 @@ class Application(object):
             return result
 
         return self._process_exception(decorator)
+
+    def _check_requests_limit(self, func):
+        def decorator(*args, **kwargs):
+            with self._incoming_requests_counter_mutex:
+                if self._incoming_requests_count > self._config["incoming_requests_limit"]:
+                    return "Incoming requests limit exceeded, try again later", 500
+                self._incoming_requests_count += 1
+
+            result = func(*args, **kwargs)
+
+            with self._incoming_requests_counter_mutex:
+                self._incoming_requests_count -= 1
+
+            return result
+
+        return decorator
 
     def _process_mutating_request(self, func):
         def decorator(*args, **kwargs):
