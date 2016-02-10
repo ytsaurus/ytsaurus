@@ -463,9 +463,7 @@ void TBootstrap::DoRun()
     SetNodeByYPath(
         OrchidRoot,
         "/tablet_cells",
-        CreateVirtualNode(TabletSlotManager
-            ->GetOrchidService()
-            ->Cached(Config->OrchidCacheUpdatePeriod)));
+        CreateVirtualNode(TabletSlotManager->GetOrchidService()));
     SetBuildAttributes(OrchidRoot, "node");
 
     HttpServer->Register(

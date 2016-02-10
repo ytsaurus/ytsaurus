@@ -18,7 +18,7 @@
 
 #include <yt/core/misc/small_vector.h>
 
-#include <yt/core/yson/public.h>
+#include <yt/core/ytree/public.h>
 
 namespace NYT {
 namespace NTabletNode {
@@ -56,7 +56,7 @@ public:
 
     void ScheduleStoreRotation(TTablet* tablet);
 
-    void BuildOrchidYson(NYson::IYsonConsumer* consumer);
+    NYTree::IYPathServicePtr GetOrchidService();
 
 
     DECLARE_ENTITY_MAP_ACCESSORS(Tablet, TTablet, TTabletId);

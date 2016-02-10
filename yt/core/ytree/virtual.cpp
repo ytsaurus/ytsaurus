@@ -12,6 +12,8 @@
 #include <yt/core/ypath/tokenizer.h>
 #include <yt/core/yson/writer.h>
 
+#include <util/generic/hash.h>
+
 namespace NYT {
 namespace NYTree {
 
@@ -191,6 +193,119 @@ TFuture<void> TVirtualMapBase::SetBuiltinAttributeAsync(const Stroka& /*key*/, c
 bool TVirtualMapBase::RemoveBuiltinAttribute(const Stroka& /*key*/)
 {
     return false;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TCompositeMapService::TImpl
+    : public TIntrinsicRefCounted
+{
+public:
+    std::vector<Stroka> GetKeys(i64 limit) const
+    {
+        std::vector<Stroka> keys;
+        int index = 0;
+        auto it = Services_.begin();
+        while (it != Services_.end() && index < limit) {
+            keys.push_back(it->first);
+            ++it;
+            ++index;
+        }
+        return keys;
+    }
+
+    i64 GetSize() const
+    {
+        return Services_.size();
+    }
+
+    IYPathServicePtr FindItemService(const TStringBuf& key) const
+    {
+        auto it = Services_.find(key);
+        return it != Services_.end() ? it->second : nullptr;
+    }
+
+    void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) const
+    {
+        for (const auto& it : Attributes_) {
+            descriptors->push_back(TAttributeDescriptor(it.first.c_str()));
+        }
+    }
+
+    bool GetBuiltinAttribute(const Stroka& key, NYson::IYsonConsumer* consumer) const
+    {
+        auto it = Attributes_.find(key);
+        if (it != Attributes_.end()) {
+            it->second.Run(consumer);
+            return true;
+        }
+
+        return false;
+    }
+
+    void AddChild(const Stroka& key, IYPathServicePtr service)
+    {
+        YCHECK(Services_.insert(std::make_pair(key, service)).second);
+    }
+
+    void AddAttribute(const Stroka& key, TYsonCallback producer)
+    {
+        YCHECK(Attributes_.insert(std::make_pair(key, producer)).second);
+    }
+
+private:
+    yhash_map<Stroka, IYPathServicePtr> Services_;
+    yhash_map<Stroka, TYsonCallback> Attributes_;
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+TCompositeMapService::TCompositeMapService()
+    : Impl_(New<TImpl>())
+{ }
+
+std::vector<Stroka> TCompositeMapService::GetKeys(i64 limit) const
+{
+    return Impl_->GetKeys(limit);
+}
+
+i64 TCompositeMapService::GetSize() const
+{
+    return Impl_->GetSize();
+}
+
+IYPathServicePtr TCompositeMapService::FindItemService(const TStringBuf& key) const
+{
+   return Impl_->FindItemService(key);
+}
+
+void TCompositeMapService::ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors)
+{
+    Impl_->ListSystemAttributes(descriptors);
+
+    TVirtualMapBase::ListSystemAttributes(descriptors);
+}
+
+bool TCompositeMapService::GetBuiltinAttribute(const Stroka& key, NYson::IYsonConsumer* consumer)
+{
+    if (Impl_->GetBuiltinAttribute(key, consumer)) {
+        return true;
+    }
+
+    return TVirtualMapBase::GetBuiltinAttribute(key, consumer);
+}
+
+TIntrusivePtr<TCompositeMapService> TCompositeMapService::AddChild(const Stroka& key, IYPathServicePtr service)
+{
+    Impl_->AddChild(key, std::move(service));
+    return this;
+}
+
+TIntrusivePtr<TCompositeMapService> TCompositeMapService::AddAttribute(const Stroka& key, TYsonCallback producer)
+{
+    Impl_->AddAttribute(key, producer);
+    return this;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
