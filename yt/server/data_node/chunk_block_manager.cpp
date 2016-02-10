@@ -16,7 +16,6 @@
 
 #include <yt/ytlib/object_client/helpers.h>
 
-#include <yt/core/concurrency/parallel_awaiter.h>
 #include <yt/core/concurrency/thread_affinity.h>
 
 namespace NYT {

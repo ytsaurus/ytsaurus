@@ -7,9 +7,9 @@
 #include <yt/core/concurrency/scheduler.h>
 #include <yt/core/concurrency/fiber.h>
 #include <yt/core/concurrency/action_queue.h>
-#include <yt/core/concurrency/parallel_awaiter.h>
 #include <yt/core/concurrency/thread_pool.h>
 #include <yt/core/concurrency/delayed_executor.h>
+#include <yt/core/concurrency/thread_affinity.h>
 
 #include <yt/core/actions/cancelable_context.h>
 #include <yt/core/actions/invoker_util.h>
