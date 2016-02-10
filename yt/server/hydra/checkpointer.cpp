@@ -72,7 +72,6 @@ private:
     TVersion Version_;
     TPromise<TRemoteSnapshotParams> SnapshotPromise_ = NewPromise<TRemoteSnapshotParams>();
     TPromise<void> ChangelogPromise_ = NewPromise<void>();
-    TParallelAwaiterPtr ChangelogAwaiter_;
     std::vector<TNullable<TChecksum>> SnapshotChecksums_;
 
 
