@@ -1283,7 +1283,7 @@ class Application(object):
         # NB: Build the config, that actually used by transfer manager.
         config = deepcopy(self._config)
         with self._clusters_config_mutex:
-            for name in ["clusters", "availability_graph", "kiwi_transmitter"]:
+            for name in ["clusters", "availability_graph", "kiwi_transmitter", "hadoop_transmitter"]:
                 config[name] = self._last_successfully_loaded_config[name]
         return config
 
