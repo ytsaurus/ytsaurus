@@ -244,11 +244,11 @@ class Task(object):
         return Task(**dict((key, value) for key, value in self.__dict__.iteritems() if not key.startswith("_")))
 
 class ClustersConfiguration(object):
-    def __init__(self, clusters, availability_graph, kiwi_transmitter, airflow_client):
+    def __init__(self, clusters, availability_graph, kiwi_transmitter, hadoop_transmitter):
         self.clusters = clusters
         self.availability_graph = availability_graph
         self.kiwi_transmitter = kiwi_transmitter
-        self.airflow_client = airflow_client
+        self.hadoop_transmitter = hadoop_transmitter
 
 class Application(object):
     ERROR_BUFFER_SIZE = 2 ** 16
@@ -541,15 +541,15 @@ class Application(object):
             if kiwi_transmitter._type != "yt":
                 raise yt.YtError("Kiwi transmitter must be YT cluster")
 
-        airflow_client = None
+        hadoop_transmitter = None
         if "hadoop_transmitter" in config:
-            hadoop_transmitter = config["hadoop_transmitter"]
-            if hadoop_transmitter["type"] != "airflow":
+            hadoop_transmitter_config = config["hadoop_transmitter"]
+            if hadoop_transmitter_config["type"] != "airflow":
                 raise yt.YtError("Hadoop transmitter must be airflow client")
-            airflow_client = Airflow(**hadoop_transmitter["options"])
-            airflow_client._name = hadoop_transmitter["name"]
+            hadoop_transmitter = Airflow(**hadoop_transmitter_config["options"])
+            hadoop_transmitter._name = hadoop_transmitter_config["name"]
 
-        return ClustersConfiguration(clusters, availability_graph, kiwi_transmitter, airflow_client)
+        return ClustersConfiguration(clusters, availability_graph, kiwi_transmitter, hadoop_transmitter)
 
     def _reload_clusters_config(self, reload_timeout):
         while True:
@@ -849,8 +849,8 @@ class Application(object):
             if source_client._type == "hive" and "." not in task.source_table:
                 raise yt.YtError("Incorrect source table for hive, it must have format {database_name}.{table_name}")
 
-            if (source_client._type in ["hive", "hdfs", "hbase"]) and clusters_configuration.airflow_client is None:
-                raise yt.YtError("Airflow client should be configured for transfer from {0} to {1}"
+            if (source_client._type in ["hive", "hdfs", "hbase"]) and clusters_configuration.hadoop_transmitter is None:
+                raise yt.YtError("Hadoop transmitter (airflow client) should be configured for transfer from {0} to {1}"
                                  .format(source_client._type, destination_client._type))
 
         except TimeoutExpired:
@@ -1128,7 +1128,7 @@ class Application(object):
             destination_client.message_queue = message_queue
 
             clusters_configuration.kiwi_transmitter.message_queue = message_queue
-            clusters_configuration.airflow_client.message_queue = message_queue
+            clusters_configuration.hadoop_transmitter.message_queue = message_queue
 
             parameters = clusters_configuration.availability_graph[task.source_cluster][task.destination_cluster]
 
@@ -1235,7 +1235,7 @@ class Application(object):
                 type_to_task_type = {"hdfs": "distcp", "hive": "hivecp", "hbase": "hbasecp"}
                 copy_hadoop_to_hadoop_with_airflow(
                     type_to_task_type[source_client._type],
-                    clusters_configuration.airflow_client,
+                    clusters_configuration.hadoop_transmitter,
                     task.source_table,
                     source_client.airflow_name,
                     task.destination_table,
@@ -1284,8 +1284,9 @@ class Application(object):
         # NB: Build the config, that actually used by transfer manager.
         config = deepcopy(self._config)
         with self._clusters_config_mutex:
-            for name in ["clusters", "availability_graph", "kiwi_transmitter", "hadoop_transmitter"]:
-                config[name] = self._last_successfully_loaded_config[name]
+            # Clusters configuration is reloadable. Apply available changes to config.
+            for key in self._clusters_configuration.__dict__:
+                config[key] = self._last_successfully_loaded_config[key]
         return config
 
     def _get_task_description(self, task):
