@@ -1407,7 +1407,8 @@ def _run_operation(binary, source_table, destination_table,
                     reducer_memory_limit=memory_limit,
                     sync=sync,
                     strategy=strategy,
-                    spec=spec)
+                    spec=spec,
+                    client=client)
                 return
 
             if are_input_tables_not_properly_sorted and are_sorted_output:
