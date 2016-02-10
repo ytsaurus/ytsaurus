@@ -26,20 +26,60 @@
 
 namespace std {
 
-// Make global hash functions from util/ visible for STL.
-template <> struct hash<Stroka> : public ::hash<Stroka> { };
-template <> struct hash<TStringBuf> : public ::hash<TStringBuf> { };
+// Assume sane platform by default.
+#define YT_PLATFORM_HAS_MAKE_UNIQUE
+#define YT_PLATFORM_HAS_ALIGNED_UNION
+#define YT_PLATFORM_HAS_IS_TRIVIALLY_CONSTRUCTIBLE
+
+/*
+ * Ubuntu Precise Feature Compatibility.
+ *
+ * GCC                  |  4.8.1-2ubuntu1  |  4.9.2-0ubuntu1
+ * __GLIBCXX__          |  20130604        |  20141104
+ * ---------------------+------------------+-----------------
+ * make_unique          |                  |  ok
+ * aligned_union        |                  |
+ * is_trivially_*_ctor  |                  |
+ *
+ */
+
+/*
+ * Ubuntu Trusty Feature Compatibility.
+ *
+ * GCC                  |  4.8.4-2ubuntu1  |  4.9.3-8ubuntu2  |  5.3.0-3ubuntu1
+ * __GLIBCXX__          |  20150426        |  20151129        |  20151204
+ * ---------------------+------------------+------------------+-----------------
+ * make_unique          |                  |  ok              |  ok
+ * aligned_union        |                  |                  |  ok
+ * is_trivially_*_ctor  |                  |                  |  ok
+ *
+ */
 
 #if defined(__GLIBCXX__) && __GLIBCXX__ > 20140716 && !defined(__cpp_lib_make_unique)
+#undef YT_PLATFORM_HAS_MAKE_UNIQUE
+#endif
+
+#if defined(__GLIBCXX__) && __GLIBCXX__ <= 20151015
+#undef YT_PLATFORM_HAS_ALIGNED_UNION
+#endif
+
+#if defined(__GLIBCXX__) && __GLIBCXX__ < 20151204
+#undef YT_PLATFORM_HAS_IS_TRIVIALLY_CONSTRUCTIBLE
+#endif
+
+////////////////////////////////////////////////////////////////////////////////
+#ifndef YT_PLATFORM_HAS_MAKE_UNIQUE
+
 template <typename TResult, typename ...TArgs>
 std::unique_ptr<TResult> make_unique(TArgs&& ...args)
 {
     return std::unique_ptr<TResult>(new TResult(std::forward<TArgs>(args)...));
 }
+
 #endif
 
-// std::aligned_union is not available in early versions of libstdc++.
-#if defined(__GLIBCXX__) && __GLIBCXX__ <= 20151015
+////////////////////////////////////////////////////////////////////////////////
+#ifndef YT_PLATFORM_HAS_ALIGNED_UNION
 
 // GCC 4.x does not have std::aligned_union.
 template <typename... _Types>
@@ -79,8 +119,11 @@ template <size_t _Len, typename... _Types>
 template <size_t _Len, typename... _Types>
   const size_t aligned_union<_Len, _Types...>::alignment_value;
 
-// Older versions of libstdc++ lack these useful type traits.
-// Here we provide some pessimistic approximations.
+#endif
+
+////////////////////////////////////////////////////////////////////////////////
+#ifndef YT_PLATFORM_HAS_IS_TRIVIALLY_CONSTRUCTIBLE
+
 template <typename T>
 using is_trivially_copy_constructible = is_trivial<T>;
 template <typename T>
@@ -88,13 +131,11 @@ using is_trivially_move_constructible = is_trivial<T>;
 
 #endif
 
-#if defined(__GLIBCXX__) && __GLIBCXX__ < 20120415
+////////////////////////////////////////////////////////////////////////////////
 
-// GCC 4.7 defines has_trivial_XXX instead of is_trivially_XXX.
-template <typename T>
-using is_trivially_destructible = has_trivial_destructor<T>;
-
-#endif
+// Make global hash functions from util/ visible for STL.
+template <> struct hash<Stroka> : public ::hash<Stroka> { };
+template <> struct hash<TStringBuf> : public ::hash<TStringBuf> { };
 
 } // namespace std
 
