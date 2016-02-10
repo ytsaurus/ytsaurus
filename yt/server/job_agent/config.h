@@ -44,7 +44,7 @@ public:
             .GreaterThanOrEqual(0)
             .Default(16);
         RegisterParameter("replication_data_size", ReplicationDataSize)
-            .Default((i64) 1024 * 1024 * 1024)
+            .Default((i64) 10 * 1024 * 1024 * 1024)
             .GreaterThanOrEqual(0);
         RegisterParameter("removal_slots", RemovalSlots)
             .GreaterThanOrEqual(0)
