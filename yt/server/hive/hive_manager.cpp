@@ -104,6 +104,7 @@ public:
         , Config_(config)
         , CellDirectory_(cellDirectory)
         , HydraManager_(hydraManager)
+        , OrchidService_(CreateOrchidService(automatonInvoker))
     {
         TServiceBase::RegisterMethod(RPC_SERVICE_METHOD_DESC(Ping));
         TServiceBase::RegisterMethod(RPC_SERVICE_METHOD_DESC(SyncCells));
@@ -224,28 +225,9 @@ public:
                 .AsyncVia(EpochAutomatonInvoker_));
     }
 
-
-    void BuildOrchidYson(IYsonConsumer* consumer)
+    IYPathServicePtr GetOrchidService()
     {
-        BuildYsonFluently(consumer)
-            .BeginMap()
-                .Item("mailboxes").DoMapFor(MailboxMap_, [&] (TFluentMap fluent, const std::pair<TCellId, TMailbox*>& pair) {
-                    auto* mailbox = pair.second;
-                    fluent
-                        .Item(ToString(mailbox->GetCellId())).BeginMap()
-                            .Item("outcoming_message_count").Value(mailbox->OutcomingMessages().size())
-                            .Item("first_outcoming_message_id").Value(mailbox->GetFirstOutcomingMessageId())
-                            .Item("last_incoming_message_id").Value(mailbox->GetLastIncomingMessageId())
-                            .Item("incoming_message_ids").BeginList()
-                                .DoFor(mailbox->IncomingMessages(), [&] (TFluentList fluent, const TMailbox::TIncomingMessageMap::value_type& pair) {
-                                    fluent
-                                        .Item().Value(pair.first);
-                                })
-                            .EndList()
-                            .Item("post_messages_in_flight").Value(mailbox->GetPostMessagesInFlight())
-                        .EndMap();
-                })
-            .EndMap();
+        return OrchidService_;
     }
 
 
@@ -256,6 +238,7 @@ private:
     const THiveManagerConfigPtr Config_;
     const TCellDirectoryPtr CellDirectory_;
     const IHydraManagerPtr HydraManager_;
+    const IYPathServicePtr OrchidService_;
 
     TEntityMap<TCellId, TMailbox> MailboxMap_;
     
@@ -1128,6 +1111,38 @@ private:
         return HydraManager_;
     }
 
+
+    IYPathServicePtr CreateOrchidService(IInvokerPtr automatonInvoker)
+    {
+        auto producer = BIND(&TImpl::BuildOrchidYson, MakeStrong(this));
+        return IYPathService::FromProducer(producer)
+            ->Via(automatonInvoker)
+            ->Cached(TDuration::Seconds(1));
+    }
+
+    void BuildOrchidYson(IYsonConsumer* consumer)
+    {
+        BuildYsonFluently(consumer)
+            .BeginMap()
+                .Item("mailboxes").DoMapFor(MailboxMap_, [&] (TFluentMap fluent, const std::pair<TCellId, TMailbox*>& pair) {
+                    auto* mailbox = pair.second;
+                    fluent
+                        .Item(ToString(mailbox->GetCellId())).BeginMap()
+                            .Item("outcoming_message_count").Value(mailbox->OutcomingMessages().size())
+                            .Item("first_outcoming_message_id").Value(mailbox->GetFirstOutcomingMessageId())
+                            .Item("last_incoming_message_id").Value(mailbox->GetLastIncomingMessageId())
+                            .Item("incoming_message_ids").BeginList()
+                                .DoFor(mailbox->IncomingMessages(), [&] (TFluentList fluent, const TMailbox::TIncomingMessageMap::value_type& pair) {
+                                    fluent
+                                        .Item().Value(pair.first);
+                                })
+                            .EndList()
+                            .Item("post_messages_in_flight").Value(mailbox->GetPostMessagesInFlight())
+                        .EndMap();
+                })
+            .EndMap();
+    }
+
 };
 
 DEFINE_ENTITY_MAP_ACCESSORS(THiveManager::TImpl, Mailbox, TMailbox, TCellId, MailboxMap_)
@@ -1198,9 +1213,9 @@ TFuture<void> THiveManager::SyncWith(const TCellId& cellId)
     return Impl_->SyncWith(cellId);
 }
 
-void THiveManager::BuildOrchidYson(IYsonConsumer* consumer)
+IYPathServicePtr THiveManager::GetOrchidService()
 {
-    Impl_->BuildOrchidYson(consumer);
+    return Impl_->GetOrchidService();
 }
 
 DELEGATE_ENTITY_MAP_ACCESSORS(THiveManager, Mailbox, TMailbox, TCellId, *Impl_)
