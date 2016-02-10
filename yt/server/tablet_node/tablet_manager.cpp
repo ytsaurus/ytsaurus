@@ -58,6 +58,7 @@
 #include <yt/core/misc/string.h>
 
 #include <yt/core/ytree/fluent.h>
+#include <yt/core/ytree/virtual.h>
 
 namespace NYT {
 namespace NTabletNode {
@@ -103,6 +104,7 @@ public:
         , ChangelogCodec_(GetCodec(Config_->ChangelogCodec))
         , TabletContext_(this)
         , TabletMap_(TTabletMapTraits(this))
+        , OrchidService_(TOrchidService::Create(MakeWeak(this), Slot_->GetAutomatonInvoker()))
     {
         VERIFY_INVOKER_THREAD_AFFINITY(Slot_->GetAutomatonInvoker(), AutomatonThread);
 
@@ -236,24 +238,68 @@ public:
         CommitTabletMutation(request);
     }
 
-
-    void BuildOrchidYson(IYsonConsumer* consumer)
+    IYPathServicePtr GetOrchidService()
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
-
-        BuildYsonFluently(consumer)
-            .DoMapFor(TabletMap_, [&] (TFluentMap fluent, const std::pair<TTabletId, TTablet*>& pair) {
-                auto* tablet = pair.second;
-                fluent
-                    .Item(ToString(tablet->GetId()))
-                    .Do(BIND(&TImpl::BuildTabletOrchidYson, Unretained(this), tablet));
-            });
+        return OrchidService_;
     }
 
 
     DECLARE_ENTITY_MAP_ACCESSORS(Tablet, TTablet, TTabletId);
 
 private:
+    class TOrchidService
+        : public TVirtualMapBase
+    {
+    public:
+        static IYPathServicePtr Create(TWeakPtr<TImpl> impl, IInvokerPtr invoker)
+        {
+            return New<TOrchidService>(std::move(impl))
+                ->Via(invoker);
+        }
+
+        virtual std::vector<Stroka> GetKeys(i64 limit) const override
+        {
+            std::vector<Stroka> keys;
+            if (auto owner = Owner_.Lock()) {
+                for (const auto& tablet : owner->Tablets()) {
+                    keys.push_back(ToString(tablet.first));
+                    if (keys.size() >= limit) {
+                        break;
+                    }
+                }
+            }
+            return keys;
+        }
+
+        virtual i64 GetSize() const override
+        {
+            if (auto owner = Owner_.Lock()) {
+                return owner->Tablets().size();
+            }
+            return 0;
+        }
+
+        virtual IYPathServicePtr FindItemService(const TStringBuf& key) const override
+        {
+            if (auto owner = Owner_.Lock()) {
+                if (auto tablet = owner->FindTablet(TTabletId::FromString(key))) {
+                    auto producer = BIND(&TImpl::BuildTabletOrchidYson, owner, tablet);
+                    return IYPathService::FromProducer(producer);
+                }
+            }
+            return nullptr;
+        }
+
+    private:
+        const TWeakPtr<TImpl> Owner_;
+
+        explicit TOrchidService(TWeakPtr<TImpl> impl)
+            : Owner_(std::move(impl))
+        { }
+
+        DECLARE_NEW_FRIEND();
+    };
+
     const TTabletManagerConfigPtr Config_;
 
     ICodec* const ChangelogCodec_;
@@ -320,8 +366,9 @@ private:
 
     yhash_set<TSortedDynamicStorePtr> OrphanedStores_;
 
-    DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
+    const IYPathServicePtr OrchidService_;
 
+    DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
     void SaveKeys(TSaveContext& context) const
     {
@@ -1998,9 +2045,9 @@ void TTabletManager::ScheduleStoreRotation(TTablet* tablet)
     Impl_->ScheduleStoreRotation(tablet);
 }
 
-void TTabletManager::BuildOrchidYson(IYsonConsumer* consumer)
+IYPathServicePtr TTabletManager::GetOrchidService()
 {
-    Impl_->BuildOrchidYson(consumer);
+    return Impl_->GetOrchidService();
 }
 
 DELEGATE_ENTITY_MAP_ACCESSORS(TTabletManager, Tablet, TTablet, TTabletId, *Impl_)
