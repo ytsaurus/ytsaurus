@@ -41,9 +41,10 @@ private:
         TServerBase::DoStart();
     }
 
-    virtual TFuture<void> DoStop() override
+    virtual TFuture<void> DoStop(bool graceful) override
     {
-        return TServerBase::DoStop().Apply(BIND([=, this_ = MakeStrong(this)] (const TError& error) {
+        return TServerBase::DoStop(graceful).Apply(BIND([=, this_ = MakeStrong(this)] (const TError& error) {
+        	// NB: Stop the bus server anyway.
             BusServer_->Stop();
             BusServer_.Reset();
             error.ThrowOnError();

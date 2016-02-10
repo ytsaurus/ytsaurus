@@ -529,15 +529,16 @@ void TServerBase::Start()
     LOG_INFO("RPC server started");
 }
 
-TFuture<void> TServerBase::Stop()
+TFuture<void> TServerBase::Stop(bool graceful)
 {
     if (!Started_) {
         return VoidFuture;
     }
 
-    LOG_INFO("Stopping RPC server");
+    LOG_INFO("Stopping RPC server (Graceful: %v)",
+        graceful);
 
-    return DoStop();
+    return DoStop(graceful);
 }
 
 void TServerBase::DoStart()
@@ -545,21 +546,24 @@ void TServerBase::DoStart()
     Started_ = true;
 }
 
-TFuture<void> TServerBase::DoStop()
+TFuture<void> TServerBase::DoStop(bool graceful)
 {
     Started_ = false;
 
-    std::vector<IServicePtr> services;
-    {
-        TReaderGuard guard(ServicesLock_);
-        for (const auto& pair : ServiceMap_) {
-            services.push_back(pair.second);
-        }
-    }
-
     std::vector<TFuture<void>> asyncResults;
-    for (const auto& service : services) {
-        asyncResults.push_back(service->Stop());
+
+    if (graceful) {
+        std::vector<IServicePtr> services;
+        {
+            TReaderGuard guard(ServicesLock_);
+            for (const auto& pair : ServiceMap_) {
+                services.push_back(pair.second);
+            }
+        }
+
+        for (const auto& service : services) {
+            asyncResults.push_back(service->Stop());
+        }
     }
 
     return Combine(asyncResults).Apply(BIND([=, this_ = MakeStrong(this)] () {

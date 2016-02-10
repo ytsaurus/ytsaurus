@@ -209,7 +209,7 @@ public:
     virtual void Configure(TServerConfigPtr config) override;
 
     virtual void Start() override;
-    virtual TFuture<void> Stop() override;
+    virtual TFuture<void> Stop(bool graceful) override;
 
 protected:
     std::atomic<bool> Started_ = {false};
@@ -219,7 +219,7 @@ protected:
     yhash_map<TServiceId, IServicePtr> ServiceMap_;
 
     virtual void DoStart();
-    virtual TFuture<void> DoStop();
+    virtual TFuture<void> DoStop(bool graceful);
 
     std::vector<IServicePtr> DoFindServices(const Stroka& serviceName);
 

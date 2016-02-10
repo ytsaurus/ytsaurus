@@ -470,7 +470,7 @@ TEST_F(TRpcTest, ConnectionLost)
     Sleep(TDuration::Seconds(0.5));
 
     EXPECT_FALSE(asyncRspOrError.IsSet());
-    Server_->Stop();
+    Server_->Stop(false);
 
     Sleep(TDuration::Seconds(0.5));
 
