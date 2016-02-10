@@ -23,6 +23,18 @@ using namespace NJobProberClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// NB: Moving this into the header will break tool registration as the linker
+// will optimize it out.
+TJobSignalerArg::TJobSignalerArg()
+{
+    RegisterParameter("pids", Pids)
+        .Default();
+    RegisterParameter("signal_name", SignalName)
+        .NonEmpty();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TJobSignalerTool::operator()(const TJobSignalerArg& arg) const
 {
     SafeSetUid(0);

@@ -29,6 +29,22 @@ static const int StraceConcurrencyFactor = 4;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// NB: Moving these into the header will break tool registration as the linker
+// will optimize it out.
+TStrace::TStrace()
+{
+    RegisterParameter("trace", Trace);
+    RegisterParameter("process_name", ProcessName);
+    RegisterParameter("process_command_lint", ProcessCommandLine);
+}
+
+TStracerResult::TStracerResult()
+{
+    RegisterParameter("traces", Traces);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TStracerResult TStraceTool::operator()(const std::vector<int>& pids) const
 {
     SafeSetUid(0);

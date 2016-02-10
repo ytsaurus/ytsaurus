@@ -14,13 +14,7 @@ struct TJobSignalerArg
     std::vector<int> Pids;
     Stroka SignalName;
 
-    TJobSignalerArg()
-    {
-        RegisterParameter("pids", Pids)
-            .Default();
-        RegisterParameter("signal_name", SignalName)
-            .NonEmpty();
-    }
+    TJobSignalerArg();
 };
 
 ////////////////////////////////////////////////////////////////////////////////
