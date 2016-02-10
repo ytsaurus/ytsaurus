@@ -11,8 +11,6 @@
 
 #include <yt/ytlib/transaction_client/public.h>
 
-#include <yt/core/concurrency/parallel_awaiter.h>
-
 #include <yt/core/logging/log.h>
 
 #include <yt/core/rpc/public.h>

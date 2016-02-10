@@ -17,7 +17,6 @@
 #include <yt/ytlib/hydra/hydra_manager.pb.h>
 #include <yt/ytlib/hydra/version.h>
 
-#include <yt/core/concurrency/parallel_awaiter.h>
 #include <yt/core/concurrency/periodic_executor.h>
 #include <yt/core/concurrency/thread_affinity.h>
 
