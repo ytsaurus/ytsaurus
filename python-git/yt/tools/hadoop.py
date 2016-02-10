@@ -66,6 +66,7 @@ class Airflow(object):
         self._headers = {
             "Content-Type": "application/json"
         }
+        self.message_queue = None
 
     def add_task(self, task_type, source_cluster, source_path, destination_cluster, destination_path, owner):
         if task_type == "distcp":
@@ -97,8 +98,13 @@ class Airflow(object):
         response = requests.post(submit_url, data=json.dumps(data), headers=self._headers)
         response.raise_for_status()
 
+        # XXX(asaitgalin): not using "id" instead of "_id" here because this requires
+        # web interface improvements. See YT-3415 for details.
+        if self.message_queue is not None:
+            self.message_queue.put({"type": "operation_started", "operation": {"_id": task_id, "cluster_name": self._name}})
+
         # Special sleep to ensure that dag is registered at airflow.
-        time.sleep(3)
+        time.sleep(5)
 
         return task_id
 
