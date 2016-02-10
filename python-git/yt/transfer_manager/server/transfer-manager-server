@@ -1261,8 +1261,7 @@ class Application(object):
                     source_client.airflow_name,
                     task.destination_table,
                     destination_client.airflow_name,
-                    task.user,
-                    message_queue)
+                    task.user)
             else:
                 raise Exception("Incorrect cluster types: {} source and {} destination".format(
                                 source_client._type,
