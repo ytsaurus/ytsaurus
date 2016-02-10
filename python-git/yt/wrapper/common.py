@@ -146,3 +146,7 @@ def run_with_retries(action, retry_count=6, backoff=20.0, exceptions=(YtError,),
 def date_string_to_timestamp(date):
     # It is standard time representation in YT.
     return int(time.mktime(datetime.strptime(date, "%Y-%m-%dT%H:%M:%S.%fZ").timetuple()))
+
+def is_inside_job():
+    import _py_runner_helpers
+    return _py_runner_helpers.IS_INSIDE_JOB

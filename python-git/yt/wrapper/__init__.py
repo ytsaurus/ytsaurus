@@ -33,7 +33,7 @@ from string_iter_io import StringIterIO
 from http import _cleanup_http_session
 from user_statistics import write_statistics, get_blkio_cgroup_statistics, get_memory_cgroup_statistics
 
-from common import get_version
+from common import get_version, is_inside_job
 VERSION = get_version()
 
 # For PyCharm checks

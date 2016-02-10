@@ -2,7 +2,10 @@ from yt.common import YtError
 from yt.wrapper.common import EMPTY_GENERATOR
 import inspect
 import sys
+import os
 import types
+
+IS_INSIDE_JOB = False
 
 class YtStandardStreamAccessError(YtError):
     pass
@@ -67,3 +70,9 @@ def _extract_operation_methods(operation):
         finish = lambda: EMPTY_GENERATOR
 
     return start, _convert_callable_to_generator(operation), finish
+
+def check_job_environment_variables():
+    for name in ["YT_OPERATION_ID", "YT_JOB_ID", "YT_JOB_INDEX", "YT_START_ROW_INDEX"]:
+        if name not in os.environ:
+            sys.stderr.write("Warning! {0} is not set. If this job is not run "
+                             "manually for testing purposes then this is a bug.".format(name))
