@@ -61,11 +61,13 @@ class AirflowError(Exception):
     pass
 
 class Airflow(object):
-    def __init__(self, address):
+    def __init__(self, address, dag_registered_wait_time):
         self._address = address
         self._headers = {
             "Content-Type": "application/json"
         }
+        # Special sleep to ensure that dag is registered at airflow.
+        self._dag_registered_wait_time = dag_registered_wait_time
         self.message_queue = None
 
     def add_task(self, task_type, source_cluster, source_path, destination_cluster, destination_path, owner):
@@ -103,9 +105,7 @@ class Airflow(object):
         if self.message_queue is not None:
             self.message_queue.put({"type": "operation_started", "operation": {"_id": task_id, "cluster_name": self._name}})
 
-        # Special sleep to ensure that dag is registered at airflow.
-        # The time choosen by the advise of zstan@.
-        time.sleep(10)
+        time.sleep(self._dag_registered_wait_time)
 
         return task_id
 
