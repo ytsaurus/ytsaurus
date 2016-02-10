@@ -217,7 +217,7 @@ public:
 
     virtual void TearDown()
     {
-        Server_->Stop();
+        Server_->Stop().Get();
         Server_.Reset();
     }
 
