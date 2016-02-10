@@ -43,6 +43,9 @@ def main():
             globals()[name] = sys.modules['__main__'].__dict__[name]
 
     import _py_runner_helpers
+    _py_runner_helpers.IS_INSIDE_JOB = True
+    _py_runner_helpers.check_job_environment_variables()
+
     import yt.yson
     import yt.wrapper.config
     from yt.wrapper.format import YsonFormat, extract_key
