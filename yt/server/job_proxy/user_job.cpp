@@ -477,13 +477,13 @@ private:
     {
         ValidatePrepared();
 
-        TJobSignalerArg arg;
-        arg.Pids = GetPidsFromFreezer();
-        arg.Pids.erase(std::find(arg.Pids.begin(), arg.Pids.end(), Process_->GetProcessId()));
-        arg.SignalName = signalName;
+        auto arg = New<TJobSignalerArg>();
+        arg->Pids = GetPidsFromFreezer();
+        arg->Pids.erase(std::find(arg->Pids.begin(), arg->Pids.end(), Process_->GetProcessId()));
+        arg->SignalName = signalName;
         LOG_INFO("Sending signal %v to pids %v",
-            arg.SignalName,
-            arg.Pids);
+            arg->SignalName,
+            arg->Pids);
 
         auto result = WaitFor(BIND([=] () { return RunTool<TJobSignalerTool>(arg); })
             .AsyncVia(JobProberQueue_->GetInvoker())

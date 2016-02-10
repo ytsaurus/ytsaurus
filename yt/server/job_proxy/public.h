@@ -18,6 +18,10 @@ DECLARE_REFCOUNTED_STRUCT(IJobHost)
 
 DECLARE_REFCOUNTED_CLASS(TJobProxy)
 
+DECLARE_REFCOUNTED_STRUCT(TJobSignalerArg)
+DECLARE_REFCOUNTED_STRUCT(TStrace)
+DECLARE_REFCOUNTED_STRUCT(TStracerResult)
+
 DEFINE_ENUM(EJobProxyExitCode,
     ((HeartbeatFailed)        (20))
     ((ResultReportFailed)     (21))

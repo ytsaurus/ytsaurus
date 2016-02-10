@@ -35,10 +35,10 @@ TJobSignalerArg::TJobSignalerArg()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TJobSignalerTool::operator()(const TJobSignalerArg& arg) const
+void TJobSignalerTool::operator()(const TJobSignalerArgPtr& arg) const
 {
     SafeSetUid(0);
-    return SendSignal(arg.Pids, arg.SignalName);
+    return SendSignal(arg->Pids, arg->SignalName);
 }
 
 REGISTER_TOOL(TJobSignalerTool);

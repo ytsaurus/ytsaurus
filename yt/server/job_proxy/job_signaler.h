@@ -1,6 +1,7 @@
 #pragma once
 
-#include <yt/core/ytree/public.h>
+#include "public.h"
+
 #include <yt/core/ytree/serialize.h>
 
 namespace NYT {
@@ -9,13 +10,15 @@ namespace NJobProxy {
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TJobSignalerArg
-    : public NYTree::TYsonSerializableLite
+    : public NYTree::TYsonSerializable
 {
     std::vector<int> Pids;
     Stroka SignalName;
 
     TJobSignalerArg();
 };
+
+DEFINE_REFCOUNTED_TYPE(TJobSignalerArg)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -25,10 +28,10 @@ void SendSignal(const std::vector<int>& pids, const Stroka& signalName);
 
 struct TJobSignalerTool
 {
-    void operator()(const TJobSignalerArg& arg) const;
+    void operator()(const TJobSignalerArgPtr& arg) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NJobProxy
-} // NYT
+} // namespace NYT

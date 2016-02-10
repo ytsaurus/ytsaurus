@@ -1,6 +1,6 @@
 #pragma once
 
-#include <yt/core/yson/public.h>
+#include "public.h"
 
 #include <yt/core/ytree/yson_serializable.h>
 
@@ -10,7 +10,7 @@ namespace NJobProxy {
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TStrace
-    : public NYTree::TYsonSerializableLite
+    : public NYTree::TYsonSerializable
 {
     Stroka Trace;
     Stroka ProcessName;
@@ -19,25 +19,29 @@ struct TStrace
     TStrace();
 };
 
+DEFINE_REFCOUNTED_TYPE(TStrace)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TStracerResult
-    : public NYTree::TYsonSerializableLite
+    : public NYTree::TYsonSerializable
 {
-    yhash_map<int, TStrace> Traces;
+    yhash_map<int, TStracePtr> Traces;
 
     TStracerResult();
 };
 
+DEFINE_REFCOUNTED_TYPE(TStracerResult)
+
 ////////////////////////////////////////////////////////////////////////////////
 
-TStracerResult Strace(const std::vector<int>& pids);
+TStracerResultPtr Strace(const std::vector<int>& pids);
 
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TStraceTool
 {
-    TStracerResult operator()(const std::vector<int>& pids) const;
+    TStracerResultPtr operator()(const std::vector<int>& pids) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -13,7 +13,7 @@ namespace {
 TEST(TStracer, EmptyPidsList)
 {
     auto result = Strace(std::vector<int>());
-    EXPECT_TRUE(result.Traces.empty());
+    EXPECT_TRUE(result->Traces.empty());
 }
 
 #ifdef _linux_
@@ -41,10 +41,10 @@ TEST(TStracer, Basic)
     ASSERT_EQ(0, kill(pid, SIGKILL));
     ASSERT_EQ(pid, waitpid(pid, NULL, 0));
 
-    EXPECT_TRUE(result.Traces[pid].ProcessName == "SomeCoolProcess")
-        << result.Traces[pid].ProcessName;
-    EXPECT_TRUE(result.Traces[pid].Trace.find("write(42, \"hello\\n\", 6) = -1 EBADF") != Stroka::npos)
-        << result.Traces[pid].Trace;
+    EXPECT_TRUE(result->Traces[pid]->ProcessName == "SomeCoolProcess")
+        << result->Traces[pid]->ProcessName;
+    EXPECT_TRUE(result->Traces[pid]->Trace.find("write(42, \"hello\\n\", 6) = -1 EBADF") != Stroka::npos)
+        << result->Traces[pid]->Trace;
 }
 #endif
 
