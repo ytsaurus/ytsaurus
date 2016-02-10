@@ -16,12 +16,7 @@ struct TStrace
     Stroka ProcessName;
     std::vector<Stroka> ProcessCommandLine;
 
-    TStrace()
-    {
-        RegisterParameter("trace", Trace);
-        RegisterParameter("process_name", ProcessName);
-        RegisterParameter("process_command_lint", ProcessCommandLine);
-    }
+    TStrace();
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -31,10 +26,7 @@ struct TStracerResult
 {
     yhash_map<int, TStrace> Traces;
 
-    TStracerResult()
-    {
-        RegisterParameter("traces", Traces);
-    }
+    TStracerResult();
 };
 
 ////////////////////////////////////////////////////////////////////////////////
