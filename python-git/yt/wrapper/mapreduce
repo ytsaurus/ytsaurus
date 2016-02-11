@@ -25,7 +25,7 @@ from yt.wrapper.cli_helpers import write_silently, run_main, die
 from yt.wrapper.table_commands import copy_table, move_table, _remove_locks, _get_format_from_tables
 from yt.wrapper.cypress_commands import remove_with_empty_dirs
 
-from yt.wrapper.common import flatten, first_not_none, bool_to_string, get_value, get_version, MB, chunk_iter_stream
+from yt.wrapper.common import flatten, first_not_none, bool_to_string, get_value, get_version, MB, chunk_iter_stream, date_string_to_timestamp
 import yt.wrapper.config as config
 import yt.yson as yson
 import yt.json as json
@@ -121,9 +121,9 @@ def list_entities(type, prefix, exact, jsonoutput):
                 "disk_size": attrs["resource_usage"]["disk_space"],
                 "sorted": bool(attrs.get("sorted_by")),
                 "write_locked": None,
-                "mod_time": attrs["modification_time"],
-                "atime": attrs["access_time"],
-                "creat_time": attrs["creation_time"],
+                "mod_time": date_string_to_timestamp(attrs["modification_time"]),
+                "atime": date_string_to_timestamp(attrs["access_time"]),
+                "creat_time": date_string_to_timestamp(attrs["creation_time"]),
                 "creat_transaction": None,
                 "replicas": attrs["replication_factor"],
                 "compression_algo": attrs["compression_codec"],

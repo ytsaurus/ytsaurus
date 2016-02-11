@@ -142,3 +142,7 @@ def run_with_retries(action, retry_count=6, backoff=20.0, exceptions=(YtError,),
             sleep_backoff = backoff * iter - total_seconds(datetime.now() - start_time)
             if sleep_backoff > 0.0:
                 time.sleep(sleep_backoff)
+
+def date_string_to_timestamp(date):
+    # It is standard time representation in YT.
+    return int(time.mktime(datetime.strptime(date, "%Y-%m-%dT%H:%M:%S.%fZ").timetuple()))
