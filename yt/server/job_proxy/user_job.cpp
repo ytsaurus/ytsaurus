@@ -117,7 +117,7 @@ public:
         , JobErrorPromise_(NewPromise<void>())
         , MemoryUsage_(UserJobSpec_.memory_reserve())
         , PipeIOQueue_(New<TActionQueue>("PipeIO"))
-        , PeriodicQueue_(New<TActionQueue>("UserJobPeriodic"))
+        , JobPeriodicQueue_(New<TActionQueue>("JobPeriodic"))
         , JobProberQueue_(New<TActionQueue>("JobProber"))
         , Process_(New<TProcess>(GetExecPath(), false))
         , CpuAccounting_(CGroupPrefix + ToString(jobId))
@@ -125,11 +125,11 @@ public:
         , Memory_(CGroupPrefix + ToString(jobId))
         , Freezer_(CGroupPrefix + ToString(jobId))
         , MemoryWatchdogExecutor_(New<TPeriodicExecutor>(
-            PeriodicQueue_->GetInvoker(),
+            JobPeriodicQueue_->GetInvoker(),
             BIND(&TUserJob::CheckMemoryUsage, MakeWeak(this)),
             Config_->MemoryWatchdogPeriod))
         , BlockIOWatchdogExecutor_ (New<TPeriodicExecutor>(
-            PeriodicQueue_->GetInvoker(),
+            JobPeriodicQueue_->GetInvoker(),
             BIND(&TUserJob::CheckBlockIOUsage, MakeWeak(this)),
             Config_->BlockIOWatchdogPeriod))
         , Logger(Host_->GetLogger())
@@ -242,7 +242,7 @@ private:
     i64 CumulativeMemoryUsageMbSec_ = 0;
 
     const TActionQueuePtr PipeIOQueue_;
-    const TActionQueuePtr PeriodicQueue_;
+    const TActionQueuePtr JobPeriodicQueue_;
 
     std::vector<std::unique_ptr<TOutputStream>> TableOutputs_;
     std::vector<TWritingValueConsumerPtr> WritingValueConsumers_;
