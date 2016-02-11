@@ -981,7 +981,7 @@ private:
                 options.PingAncestors = false;
                 return transactionManager->Attach(transactionId, options);
             } catch (const std::exception& ex) {
-                LOG_ERROR("Error attaching operation transction (OperationId: %v, TransactionId: %v)",
+                LOG_ERROR("Error attaching operation transaction (OperationId: %v, TransactionId: %v)",
                     operationId,
                     transactionId);
                 return nullptr;
