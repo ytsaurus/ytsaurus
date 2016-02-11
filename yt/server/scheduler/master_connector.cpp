@@ -1017,7 +1017,8 @@ private:
             if (batchReqs.find(cellTag) == batchReqs.end()) {
                 auto connection = ClusterDirectory->GetConnection(cellTag);
                 auto channel = connection->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
-                TObjectServiceProxy proxy(channel);
+                auto authenticatedChannel = CreateAuthenticatedChannel(channel, SchedulerUserName);
+                TObjectServiceProxy proxy(authenticatedChannel);
                 batchReqs[cellTag] = proxy.ExecuteBatch();
             }
 
