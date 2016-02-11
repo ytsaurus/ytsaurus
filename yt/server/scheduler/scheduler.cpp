@@ -1398,6 +1398,8 @@ private:
         auto it = AddressToNode_.find(descriptor.GetDefaultAddress());
         if (it == AddressToNode_.end()) {
             // NB: RegisterNode will acquire the write lock.
+            // This may seem racy but in fact it is not since nodes only get registered
+            // in Control Thread.
             guard.Release();
             return RegisterNode(nodeId, descriptor);
         }
