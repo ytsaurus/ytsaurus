@@ -710,14 +710,20 @@ private:
                 for (int index = 0; index < static_cast<int>(rsps.size()); ++index) {
                     const auto& operationId = OperationIds[index];
                     auto rsp = rsps[index].Value();
-                    auto operationNode = ConvertToNode(TYsonString(rsp->value()));
-                    auto operation = Owner->CreateOperationFromAttributes(operationId, operationNode->Attributes());
+                    try {
+                        auto operationNode = ConvertToNode(TYsonString(rsp->value()));
+                        auto operation = Owner->CreateOperationFromAttributes(operationId, operationNode->Attributes());
 
-                    Result.Operations.push_back(operation);
-                    if (operation->GetState() == EOperationState::Aborting) {
-                        Result.AbortingOperations.push_back(operation);
-                    } else {
-                        Result.RevivingOperations.push_back(operation);
+                        Result.Operations.push_back(operation);
+                        if (operation->GetState() == EOperationState::Aborting) {
+                            Result.AbortingOperations.push_back(operation);
+                        } else {
+                            Result.RevivingOperations.push_back(operation);
+                        }
+                    } catch (const std::exception& ex) {
+                        // TODO(babenko): must improve this; YT-3902
+                        LOG_ERROR("Error creating operation from attributes, skipped (OperationId: %v)",
+                            operationId);
                     }
                 }
             }
@@ -966,7 +972,7 @@ private:
                 return nullptr;
             }
             auto clusterDirectory = Bootstrap->GetClusterDirectory();
-            auto connection = clusterDirectory->GetConnection(CellTagFromId(id));
+            auto connection = clusterDirectory->GetConnectionOrThrow(CellTagFromId(id));
             auto client = connection->CreateClient(GetRootClientOptions());
             auto transactionManager = client->GetTransactionManager();
             TTransactionAttachOptions options;
