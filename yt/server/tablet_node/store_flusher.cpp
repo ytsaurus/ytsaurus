@@ -396,7 +396,9 @@ void StartStoreFlusher(
     TTabletNodeConfigPtr config,
     NCellNode::TBootstrap* bootstrap)
 {
-    New<TStoreFlusher>(config, bootstrap);
+    if (config->EnableStoreFlusher) {
+        New<TStoreFlusher>(config, bootstrap);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
