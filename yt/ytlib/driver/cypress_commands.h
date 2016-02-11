@@ -83,6 +83,8 @@ public:
         RegisterParameter("path", Path);
         RegisterParameter("attributes", Attributes)
             .Optional();
+        RegisterParameter("max_size", Options.MaxSize)
+            .Optional();
     }
 
     void Execute(ICommandContextPtr context);
