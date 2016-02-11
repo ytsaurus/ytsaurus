@@ -7,7 +7,6 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/api/client.cpp
   ${CMAKE_CURRENT_LIST_DIR}/api/config.cpp
   ${CMAKE_CURRENT_LIST_DIR}/api/connection.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/api/dispatcher.cpp
   ${CMAKE_CURRENT_LIST_DIR}/api/file_reader.cpp
   ${CMAKE_CURRENT_LIST_DIR}/api/file_writer.cpp
   ${CMAKE_CURRENT_LIST_DIR}/api/journal_reader.cpp

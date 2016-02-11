@@ -2,7 +2,6 @@
 #include "box.h"
 #include "config.h"
 #include "connection.h"
-#include "dispatcher.h"
 #include "private.h"
 
 #include <yt/ytlib/hive/cell_directory.h>
@@ -88,7 +87,7 @@ private:
                     throw;
                 }
             })
-            .AsyncVia(Connection_->GetDispatcher()->GetLightInvoker())
+            .AsyncVia(Connection_->GetLightInvoker())
             .Run();
     }
 

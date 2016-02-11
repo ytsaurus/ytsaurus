@@ -9,8 +9,6 @@
 #include "table_commands.h"
 #include "transaction_commands.h"
 
-#include <yt/ytlib/api/dispatcher.h>
-
 #include <yt/core/yson/null_consumer.h>
 
 namespace NYT {
@@ -154,10 +152,9 @@ public:
             entry.Descriptor,
             request);
 
-        auto dispatcher = Connection_->GetDispatcher();
         auto invoker = entry.Descriptor.IsHeavy
-            ? dispatcher->GetHeavyInvoker()
-            : dispatcher->GetLightInvoker();
+            ? Connection_->GetLightInvoker()
+            : Connection_->GetHeavyInvoker();
 
         return BIND(&TDriver::DoExecute, entry.Execute, context)
             .AsyncVia(invoker)
