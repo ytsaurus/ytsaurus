@@ -363,7 +363,6 @@ class TestTablets(YTEnvSetup):
         actual = lookup_rows("//tmp/t", [{"key2" : 1}])
         assert_items_equal(actual, expected)
 
-    @pytest.mark.skipif('os.environ.get("BUILD_ENABLE_LLVM", None) == "NO"')
     def test_aggregate_columns(self):
         self.sync_create_cells(1, 1)
         self._create_table_with_aggregate_column("//tmp/t")
@@ -438,7 +437,6 @@ class TestTablets(YTEnvSetup):
 
         verify_after_flush({"key": 1, "time": 21, "value": 10})
 
-    @pytest.mark.skipif('os.environ.get("BUILD_ENABLE_LLVM", None) == "NO"')
     def test_aggregate_min_max(self):
         self.sync_create_cells(1, 1)
         self._create_table_with_aggregate_column("//tmp/t", "min")
@@ -454,7 +452,6 @@ class TestTablets(YTEnvSetup):
             {"key": 3, "time": 2}], aggregate=True)
         assert_items_equal(select_rows("max(value) as max from [//tmp/t] group by 1"), [{"max": 20}])
 
-    @pytest.mark.skipif('os.environ.get("BUILD_ENABLE_LLVM", None) == "NO"')
     def test_aggregate_alter(self):
         self.sync_create_cells(1, 1)
         schema = [
