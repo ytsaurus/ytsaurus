@@ -17,6 +17,7 @@ public:
     static TNameTablePtr FromKeyColumns(const TKeyColumns& keyColumns);
 
     int GetSize() const;
+    i64 GetByteSize() const;
 
     TNullable<int> FindId(const TStringBuf& name) const;
 
@@ -31,6 +32,7 @@ private:
 
     std::vector<Stroka> IdToName_;
     yhash_map<TStringBuf, int> NameToId_; // String values are owned by IdToName.
+    i64 ByteSize_ = 0;
 
     int DoRegisterName(const TStringBuf& name);
 
