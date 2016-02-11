@@ -101,7 +101,7 @@ def get_filter_factors(op, attributes):
         str(brief_spec.get('input_table_paths', [''])[0])
     ]).lower()
 
-def clean_operation(op_id, archive=False):
+def clean_operation(op_id, scheme_type, archive=False):
     if archive:
         if not yt.exists(prepare_operation_tablets.BY_ID_ARCHIVE) or not yt.exists(prepare_operation_tablets.BY_START_TIME_ARCHIVE):
             prepare_operation_tablets.prepare_tables(yt.config["proxy"]["url"])
@@ -117,23 +117,34 @@ def clean_operation(op_id, archive=False):
         def datestr_to_int(time_str):
             return int(time.mktime(datetime.strptime(time_str, "%Y-%m-%dT%H:%M:%S.%fZ").timetuple()))
 
-        id_parts = op_id.split("-")
+        if scheme_type == "new":
+            id_parts = op_id.split("-")
 
-        id_hi = long(id_parts[3], 16) << 32 | int(id_parts[2], 16)
-        id_lo = long(id_parts[1], 16) << 32 | int(id_parts[0], 16)
+            id_hi = long(id_parts[3], 16) << 32 | int(id_parts[2], 16)
+            id_lo = long(id_parts[1], 16) << 32 | int(id_parts[0], 16)
 
-        by_id_row["id_hi"] = yson.YsonUint64(id_hi)
-        by_id_row["id_lo"] = yson.YsonUint64(id_lo)
-        by_id_row["start_time"] = datestr_to_int(data["start_time"])
-        by_id_row["finish_time"] = datestr_to_int(data["finish_time"])
-        by_id_row["filter_factors"] = get_filter_factors(op_id, data)
+            by_id_row["id_hi"] = yson.YsonUint64(id_hi)
+            by_id_row["id_lo"] = yson.YsonUint64(id_lo)
+            by_id_row["start_time"] = datestr_to_int(data["start_time"])
+            by_id_row["finish_time"] = datestr_to_int(data["finish_time"])
+            by_id_row["filter_factors"] = get_filter_factors(op_id, data)
 
-        by_start_time_row = {
-            "id_hi": by_id_row["id_hi"],
-            "id_lo": by_id_row["id_lo"],
-            "start_time": by_id_row["start_time"],
-            "dummy": 0
-        }
+            by_start_time_row = {
+                "id_hi": by_id_row["id_hi"],
+                "id_lo": by_id_row["id_lo"],
+                "start_time": by_id_row["start_time"],
+                "dummy": 0
+            }
+        else:
+            for key in ["start_time", "finish_time", "result"]:
+                by_id_row[key] = data[key]
+            by_id_row["id"] = op_id
+            by_id_row["filter_factors"] = get_filter_factors(op_id, data)
+            by_start_time_row = {
+                "id": by_id_row["id"],
+                "start_time": by_id_row["start_time"],
+                "dummy": "null"
+            }
 
         run_with_retries(lambda: yt.insert_rows(prepare_operation_tablets.BY_ID_ARCHIVE, [by_id_row], raw=False))
         run_with_retries(lambda: yt.insert_rows(prepare_operation_tablets.BY_START_TIME_ARCHIVE, [by_start_time_row], raw=False))
@@ -148,7 +159,10 @@ def clean_operation(op_id, archive=False):
 
 
 def clean_operations(soft_limit, hard_limit, grace_timeout, archive_timeout,
-                     max_operations_per_user, robots, log, archive, thread_count):
+                     max_operations_per_user, robots, log, archive, scheme_type, thread_count):
+    if scheme_type not in ["old", "new"]:
+        raise Exception("Incorrect scheme type (%s not in ['old', 'new'])")
+
     #
     # Step 1: Fetch data from Cypress.
     #
@@ -236,7 +250,7 @@ def clean_operations(soft_limit, hard_limit, grace_timeout, archive_timeout,
 
     now_before_clean = datetime.utcnow()
 
-    parallel_map(clean_operation, {"archive": archive}, operations_to_archive, thread_count)
+    parallel_map(clean_operation, {"scheme_type": scheme_type, "archive": archive}, operations_to_archive, thread_count)
 
     now_after_clean = datetime.utcnow()
 
@@ -274,6 +288,8 @@ def main():
     parser.add_argument("--log", help="file to save operation specs")
     parser.add_argument("--archive", action="store_true", default=False,
                         help="whether save cleared operations to tablets")
+    parser.add_argument("--scheme-type", default="old",
+                        help="scheme type of operations archive, possible values: 'old', 'new'")
     parser.add_argument("--thread-count", metavar="N", type=int, default=24,
                         help="parallelism level for operation cleansing")
 
@@ -288,6 +304,7 @@ def main():
         args.robot if args.robot is not None else [],
         args.log,
         args.archive,
+        args.scheme_type,
         args.thread_count)
 
 if __name__ == "__main__":
