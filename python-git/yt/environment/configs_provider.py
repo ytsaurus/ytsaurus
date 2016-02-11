@@ -305,7 +305,7 @@ class ConfigsProvider_17_4(ConfigsProvider_17):
             config["data_node"]["cache_locations"] = [{
                 "path": os.path.join(node_dirs[i], "chunk_cache")
             }]
-            config["exec_agent"]["slot_manager"]["paths"] = [os.path.join(node_dirs[i]), "slots"]
+            config["exec_agent"]["slot_manager"]["paths"] = [os.path.join(node_dirs[i], "slots")]
 
         return configs
 
