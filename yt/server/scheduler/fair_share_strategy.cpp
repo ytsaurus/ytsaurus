@@ -143,7 +143,7 @@ class TDynamicAttributesMap
 public:
     void Initialize(const ISchedulerElement* element, TDynamicAttributes value = TDynamicAttributes())
     {
-        Impl_[element->GetId()] = value;
+        Impl_[element] = value;
     }
 
     void Initialize(const ISchedulerElementPtr& element, TDynamicAttributes value = TDynamicAttributes())
@@ -153,7 +153,7 @@ public:
 
     void Erase(const ISchedulerElement* element)
     {
-        YCHECK(Impl_.erase(element->GetId()));
+        YCHECK(Impl_.erase(element));
     }
 
     void Erase(const ISchedulerElementPtr& element)
@@ -163,7 +163,7 @@ public:
 
     TDynamicAttributes& At(const ISchedulerElement* element)
     {
-        return Impl_.at(element->GetId());
+        return Impl_.at(element);
     }
 
     TDynamicAttributes& At(const ISchedulerElementPtr& element)
@@ -173,7 +173,7 @@ public:
 
     const TDynamicAttributes& At(const ISchedulerElement* element) const
     {
-        return Impl_.at(element->GetId());
+        return Impl_.at(element);
     }
 
     const TDynamicAttributes& At(const ISchedulerElementPtr& element) const
@@ -183,7 +183,7 @@ public:
 
     bool GetActive(const ISchedulerElement* element) const
     {
-        auto it = Impl_.find(element->GetId());
+        auto it = Impl_.find(element);
         if (it == Impl_.end()) {
             return false;
         }
@@ -196,7 +196,7 @@ public:
     }
 
 private:
-    yhash_map<Stroka, TDynamicAttributes> Impl_;
+    std::unordered_map<const ISchedulerElement*, TDynamicAttributes> Impl_;
 
 };
 
