@@ -138,7 +138,10 @@ def get_compiler_args(compile_command):
 def extract_perl_api_mapping(tus):
     matcher = RecordDeclMatcher(AllOfMatcher(
         IsDefinitionMatcher(),
-        TypeMatcher(NameMatcher(r"NYT::NApi::T.*Options"))
+        TypeMatcher(AnyOfMatcher(
+            NameMatcher(r"NYT::NApi::T.*Options"),
+            NameMatcher(r"NYT::NApi::TUserWorkloadDescriptor")
+        ))
     ))
 
     options = defaultdict(lambda: {"rank": 0})
@@ -316,7 +319,7 @@ class AllOfMatcher(AstMatcher):
 
 
 class AnyOfMatcher(AstMatcher):
-    def __init__(self, args):
+    def __init__(self, *args):
         self.args = args
 
     def matches(self, cursor):
