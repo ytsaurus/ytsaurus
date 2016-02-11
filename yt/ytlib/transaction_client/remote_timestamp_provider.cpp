@@ -10,6 +10,7 @@
 #include <yt/core/misc/common.h>
 
 #include <yt/core/rpc/balancing_channel.h>
+#include <yt/core/rpc/retrying_channel.h>
 
 #include <yt/core/ytree/convert.h>
 #include <yt/core/ytree/fluent.h>
@@ -46,6 +47,9 @@ public:
             channelFactory,
             endpointDescription,
             *endpointAttributes);
+        channel = CreateRetryingChannel(
+            config,
+            channel);
 
         Proxy_ = std::make_unique<TTimestampServiceProxy>(channel);
         Proxy_->SetDefaultTimeout(Config_->RpcTimeout);
