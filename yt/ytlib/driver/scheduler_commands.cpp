@@ -30,7 +30,8 @@ void TStraceJobCommand::Execute(ICommandContextPtr context)
     auto result = WaitFor(asyncResult)
         .ValueOrThrow();
 
-    context->ProduceOutputValue(ConvertToYsonString(result));
+    context->ProduceOutputValue(BuildYsonStringFluently()
+        .Value(result));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
