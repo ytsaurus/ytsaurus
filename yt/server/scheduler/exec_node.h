@@ -48,6 +48,11 @@ public:
     //! Is |true| iff heartbeat from this node is being processed at the moment.
     DEFINE_BYVAL_RW_PROPERTY(bool, HasOngoingHeartbeat);
 
+    //! Is |true| iff the node must be unregistered but it also has an ongoing
+    //! heartbeat so the unregistration has to be postponed until the heartbeat processing
+    //! is complete.
+    DEFINE_BYVAL_RW_PROPERTY(bool, HasPendingUnregistration);
+
 public:
     TExecNode(
         NNodeTrackerClient::TNodeId id,
