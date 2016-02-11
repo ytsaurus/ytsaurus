@@ -84,6 +84,7 @@ private:
 
     virtual void PrepareChunkMeta() override;
 
+    virtual i64 GetMetaSize() const override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -153,6 +154,12 @@ template <class TBase>
 bool TSchemalessChunkWriter<TBase>::IsSorted() const
 {
     return TBase::IsSorted();
+}
+
+template <class TBase>
+i64 TSchemalessChunkWriter<TBase>::GetMetaSize() const
+{
+    return NameTable_->GetByteSize() + TBase::GetMetaSize();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
