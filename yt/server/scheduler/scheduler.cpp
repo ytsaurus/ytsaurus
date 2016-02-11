@@ -605,9 +605,9 @@ public:
         TFuture<void> scheduleJobsAsyncResult = VoidFuture;
 
         {
-            node->SetHasOngoingHeartbeat(true);
+            BeginNodeHeartbeatProcessing(node);
             TFinallyGuard heartbeatGuard([&] {
-                node->SetHasOngoingHeartbeat(false);
+                EndNodeHeartbeatProcessing(node);
             });
 
             ConcurrentHeartbeatCount_ += 1;
@@ -1503,6 +1503,19 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
+        if (node->GetHasOngoingHeartbeat()) {
+            LOG_INFO("Node unregistration postponed until heartbeat is finished (Address: %v)",
+                node->GetDefaultAddress());
+            node->SetHasPendingUnregistration(true);
+        } else {
+            DoUnregisterNode(node);
+        }
+    }
+
+    void DoUnregisterNode(TExecNodePtr node)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
         LOG_INFO("Node unregistered (Address: %v)", node->GetDefaultAddress());
 
         if (node->GetMasterState() == ENodeState::Online) {
@@ -1514,6 +1527,25 @@ private:
         {
             TWriterGuard guard(AddressToNodeLock_);
             YCHECK(AddressToNode_.erase(node->GetDefaultAddress()) == 1);
+        }
+    }
+
+
+    void BeginNodeHeartbeatProcessing(TExecNodePtr node)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        node->SetHasOngoingHeartbeat(true);
+    }
+
+    void EndNodeHeartbeatProcessing(TExecNodePtr node)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        YCHECK(node->GetHasOngoingHeartbeat());
+        node->SetHasOngoingHeartbeat(false);
+        if (node->GetHasPendingUnregistration()) {
+            DoUnregisterNode(node);
         }
     }
 
