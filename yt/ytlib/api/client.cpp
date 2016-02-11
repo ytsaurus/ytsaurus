@@ -386,12 +386,10 @@ public:
     TQueryHelper(
         IConnectionPtr connection,
         IChannelPtr masterChannel,
-        IChannelFactoryPtr nodeChannelFactory,
-        IFunctionRegistryPtr functionRegistry)
+        IChannelFactoryPtr nodeChannelFactory)
         : Connection_(std::move(connection))
         , MasterChannel_(std::move(masterChannel))
         , NodeChannelFactory_(std::move(nodeChannelFactory))
-        , FunctionRegistry_(std::move(functionRegistry))
     { }
 
     // IPrepareCallbacks implementation.
@@ -427,7 +425,6 @@ private:
     const IConnectionPtr Connection_;
     const IChannelPtr MasterChannel_;
     const IChannelFactoryPtr NodeChannelFactory_;
-    const IFunctionRegistryPtr FunctionRegistry_;
 
 
     TDataSplit DoGetInitialSplit(
@@ -704,7 +701,7 @@ private:
             ranges,
             rowBuffer,
             Connection_->GetColumnEvaluatorCache(),
-            FunctionRegistry_,
+            Connection_->GetFunctionRegistry(),
             rangeExpansionLimit,
             verboseLogging);
 
@@ -753,14 +750,15 @@ private:
             [&] (TConstQueryPtr topQuery, ISchemafulReaderPtr reader, ISchemafulWriterPtr writer) {
                 LOG_DEBUG("Evaluating top query (TopQueryId: %v)", topQuery->Id);
                 auto evaluator = Connection_->GetQueryEvaluator();
+                auto functionRegistry = Connection_->GetFunctionRegistry();
                 return evaluator->Run(
                     std::move(topQuery),
                     std::move(reader),
                     std::move(writer),
-                    FunctionRegistry_,
+                    std::move(functionRegistry),
                     options.EnableCodeCache);
             },
-            FunctionRegistry_);
+            Connection_->GetFunctionRegistry());
     }
 
     TQueryStatistics DoExecute(
@@ -898,7 +896,6 @@ public:
         const TClientOptions& options)
         : Connection_(std::move(connection))
         , Options_(options)
-        , FunctionRegistry_(Connection_->GetFunctionRegistry())
     {
         auto wrapChannel = [&] (IChannelPtr channel) {
             channel = CreateAuthenticatedChannel(channel, options.User);
@@ -912,8 +909,9 @@ public:
 
         auto initMasterChannel = [&] (EMasterChannelKind kind, TCellTag cellTag) {
             // NB: Caching is only possible for the primary master.
-            if (kind == EMasterChannelKind::Cache && cellTag != Connection_->GetPrimaryMasterCellTag())
+            if (kind == EMasterChannelKind::Cache && cellTag != Connection_->GetPrimaryMasterCellTag()) {
                 return;
+            }
             MasterChannels_[kind][cellTag] = wrapChannel(Connection_->GetMasterChannelOrThrow(kind, cellTag));
         };
         for (auto kind : TEnumTraits<EMasterChannelKind>::GetDomainValues()) {
@@ -941,8 +939,7 @@ public:
         QueryHelper_ = New<TQueryHelper>(
             Connection_,
             GetMasterChannelOrThrow(EMasterChannelKind::LeaderOrFollower),
-            HeavyChannelFactory_,
-            FunctionRegistry_);
+            HeavyChannelFactory_);
 
         Logger.AddTag("Client: %p", this);
     }
@@ -1235,8 +1232,6 @@ private:
 
     const IConnectionPtr Connection_;
     const TClientOptions Options_;
-
-    const IFunctionRegistryPtr FunctionRegistry_;
 
     TEnumIndexedVector<yhash_map<TCellTag, IChannelPtr>, EMasterChannelKind> MasterChannels_;
     IChannelPtr SchedulerChannel_;
@@ -1679,7 +1674,7 @@ private:
         std::tie(query, dataSource) = PreparePlanFragment(
             QueryHelper_.Get(),
             queryString,
-            FunctionRegistry_,
+            Connection_->GetFunctionRegistry(),
             inputRowLimit,
             outputRowLimit,
             options.Timestamp);
