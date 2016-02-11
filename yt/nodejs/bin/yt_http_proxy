@@ -168,8 +168,8 @@ config = {
     coordination: {
         enable: true,
         announce: true,
-        heartbeat_interval: 5000,
-        heartbeat_drift: 500,
+        heartbeat_interval: 15000,
+        heartbeat_drift: 1500,
         fitness_la_coefficient: 1,
         fitness_net_coefficient: 0.05,
         fitness_phi_coefficient: 6,
