@@ -172,7 +172,6 @@ class TestTableCommands(object):
             time.sleep(0.1)
 
     @pytest.mark.xfail(run = False, reason = "In progress")
-    @pytest.mark.skipif('os.environ.get("BUILD_ENABLE_LLVM", None) == "NO"')
     def test_select(self):
         if yt.config["api_version"] == "v2":
             pytest.skip()
