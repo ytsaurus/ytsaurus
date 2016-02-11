@@ -10,8 +10,14 @@ BY_START_TIME_ARCHIVE = "//sys/operations_archive/ordered_by_start_time"
 SHARD_COUNT = 100
 
 def get_cluster_version():
-    master_name = yt.list("//sys/masters")[0]
-    version = yt.get("//sys/masters/{0}/orchid/service/version".format(master_name)).split(".")[:2]
+    sys_keys = yt.list("//sys")
+    if "primary_masters" in sys_keys:
+        masters_key = "primary_masters"
+    else:
+        masters_key = "masters"
+
+    master_name = yt.list("//sys/" + masters_key)[0]
+    version = yt.get("//sys/{0}/{1}/orchid/service/version".format(masters_key, master_name)).split(".")[:2]
     return version
 
 def create_ordered_by_id_table(path, scheme_type):
@@ -19,6 +25,7 @@ def create_ordered_by_id_table(path, scheme_type):
     yt.create("table", path, ignore_existing=True, recursive=True)
 
     if get_cluster_version()[0] == "18":
+        yt.set(path + "/@external", False)
         yt.set(path + "/@schema", [
             {"name": "id_hash",  "type": "uint64", "expression": "farm_hash(id_hi, id_lo)", "sort_order": "ascending"},
             {"name": "id_hi",  "type": "uint64", "sort_order": "ascending"},
@@ -62,12 +69,21 @@ def create_ordered_by_start_time_table(path, scheme_type):
     yt.remove(path, force=True)
     yt.create("table", path, ignore_existing=True, recursive=True)
 
-    yt.set(path + "/@schema", [
-        {"name": "start_time", "type": "int64"},
-        {"name": "id_hi",  "type": "uint64"},
-        {"name": "id_lo",  "type": "uint64"},
-        {"name": "dummy", "type": "int64"}])
-    yt.set(path + "/@key_columns", ["start_time", "id_hi", "id_lo"])
+    if get_cluster_version()[0] == "18":
+        yt.set(path + "/@external", False)
+        yt.set(path + "/@schema", [
+            {"name": "start_time", "type": "int64", },
+            {"name": "id_hi",  "type": "uint64"},
+            {"name": "id_lo",  "type": "uint64"},
+            {"name": "dummy", "type": "int64"}])
+    else:
+        yt.set(path + "/@schema", [
+            {"name": "start_time", "type": "int64", "sort_order": "ascending"},
+            {"name": "id_hi",  "type": "uint64", "sort_order": "ascending"},
+            {"name": "id_lo",  "type": "uint64", "sort_order": "ascending"},
+            {"name": "dummy", "type": "int64"}])
+        yt.set(path + "/@key_columns", ["start_time", "id_hi", "id_lo"])
+
     yt.mount_table(path)
 
 def prepare_tables(proxy, scheme_type):
