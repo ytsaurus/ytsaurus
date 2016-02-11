@@ -430,7 +430,9 @@ void StartPartitionBalancer(
     TPartitionBalancerConfigPtr config,
     NCellNode::TBootstrap* bootstrap)
 {
-    New<TPartitionBalancer>(config, bootstrap);
+    if (config->EnablePartitionBalancer) {
+        New<TPartitionBalancer>(config, bootstrap);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

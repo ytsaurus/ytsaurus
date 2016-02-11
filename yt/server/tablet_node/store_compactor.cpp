@@ -834,7 +834,9 @@ void StartStoreCompactor(
     TTabletNodeConfigPtr config,
     NCellNode::TBootstrap* bootstrap)
 {
-    New<TStoreCompactor>(config, bootstrap)->Start();
+    if (config->EnableStoreCompactor) {
+        New<TStoreCompactor>(config, bootstrap)->Start();
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

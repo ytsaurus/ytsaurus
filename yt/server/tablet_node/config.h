@@ -513,6 +513,14 @@ public:
     //! Interval between slots examination.
     TDuration SlotScanPeriod;
 
+    //! Toggles background tablet compaction and partitioning (useful for debugging purposes).
+    bool EnableStoreCompactor;
+
+    //! Toggles background eden flushing (useful for debugging purposes).
+    bool EnableStoreFlusher;
+
+    //! Toggles background partition balancing (useful for debugging purposes).
+    bool EnablePartitionBalancer;
 
     TTabletNodeConfig()
     {
@@ -563,6 +571,13 @@ public:
 
         RegisterParameter("slot_scan_period", SlotScanPeriod)
             .Default(TDuration::Seconds(1));
+
+        RegisterParameter("enable_store_compactor", EnableStoreCompactor)
+            .Default(true);
+        RegisterParameter("enable_store_flusher", EnableStoreFlusher)
+            .Default(true);
+        RegisterParameter("enable_partition_balancer", EnablePartitionBalancer)
+            .Default(true);
 
         RegisterInitializer([&] () {
             // Override default workload descriptors.
