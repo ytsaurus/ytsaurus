@@ -17,6 +17,7 @@ TExecNode::TExecNode(
     : Id_(id)
     , MasterState_(ENodeState::Offline)
     , HasOngoingHeartbeat_(false)
+    , HasPendingUnregistration_(false)
     , DefaultAddress_(nodeDescriptor.GetDefaultAddress())
 {
     UpdateNodeDescriptor(nodeDescriptor);
