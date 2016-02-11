@@ -40,7 +40,6 @@ TEST(TProcessTest, InvalidPath)
     auto error = WaitFor(finished);
     EXPECT_TRUE(p->IsFinished());
     EXPECT_FALSE(error.IsOK());
-    EXPECT_EQ("Error starting child process: execve failed", error.GetMessage());
 }
 
 TEST(TProcessTest, BadDup)
@@ -54,7 +53,6 @@ TEST(TProcessTest, BadDup)
     auto error = WaitFor(finished);
     EXPECT_TRUE(p->IsFinished());
     EXPECT_FALSE(error.IsOK());
-    EXPECT_EQ("Error duplicating 1000 file descriptor to 1 in child process", error.GetMessage());
 }
 
 TEST(TProcessTest, GoodDup)
