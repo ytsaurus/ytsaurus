@@ -17,7 +17,6 @@
 #include <yt/ytlib/table_client/public.h>
 #include <yt/ytlib/table_client/schema.h>
 #include <yt/ytlib/table_client/schemaful_chunk_reader.h>
-#include <yt/ytlib/table_client/schemaful_chunk_writer.h>
 #include <yt/ytlib/table_client/unversioned_row.h>
 #include <yt/ytlib/table_client/versioned_reader.h>
 #include <yt/ytlib/table_client/versioned_row.h>
