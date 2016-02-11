@@ -1016,6 +1016,9 @@ private:
             auto cellTag = CellTagFromId(id);
             if (batchReqs.find(cellTag) == batchReqs.end()) {
                 auto connection = ClusterDirectory->GetConnection(cellTag);
+                if (!connection) {
+                    continue;
+                }
                 auto channel = connection->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
                 auto authenticatedChannel = CreateAuthenticatedChannel(channel, SchedulerUserName);
                 TObjectServiceProxy proxy(authenticatedChannel);
