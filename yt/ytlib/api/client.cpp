@@ -114,24 +114,31 @@ DECLARE_REFCOUNTED_CLASS(TTransaction)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TSerializableUserWorkloadDescriptor
+    : public TYsonSerializable
+{
+    TUserWorkloadDescriptor Underlying;
+
+    TSerializableUserWorkloadDescriptor()
+    {
+        RegisterParameter("category", Underlying.Category);
+        RegisterParameter("band", Underlying.Band)
+            .Optional();
+    }
+};
+
 void Serialize(const TUserWorkloadDescriptor& workloadDescriptor, NYson::IYsonConsumer* consumer)
 {
-    BuildYsonMapFluently(consumer)
-        .Item("category").Value(workloadDescriptor.Category)
-        .Item("band").Value(workloadDescriptor.Band);
+    TSerializableUserWorkloadDescriptor serializableWorkloadDescriptor;
+    serializableWorkloadDescriptor.Underlying = workloadDescriptor;
+    Serialize(serializableWorkloadDescriptor, consumer);
 }
 
 void Deserialize(TUserWorkloadDescriptor& workloadDescriptor, INodePtr node)
 {
-    auto mapNode = node->AsMap();
-    auto categoryNode = mapNode->FindChild("category");
-    if (categoryNode) {
-        workloadDescriptor.Category = ConvertTo<EUserWorkloadCategory>(categoryNode);
-    }
-    auto bandNode = mapNode->FindChild("band");
-    if (bandNode) {
-        workloadDescriptor.Band = ConvertTo<int>(bandNode);
-    }
+    TSerializableUserWorkloadDescriptor serializableWorkloadDescriptor;
+    Deserialize(serializableWorkloadDescriptor, node);
+    workloadDescriptor = serializableWorkloadDescriptor.Underlying;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
