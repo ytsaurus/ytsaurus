@@ -1,7 +1,6 @@
 #include "admin.h"
 #include "config.h"
 #include "connection.h"
-#include "dispatcher.h"
 #include "private.h"
 
 #include <yt/ytlib/chunk_client/client_block_cache.h>
@@ -23,6 +22,7 @@
 #include <yt/ytlib/object_client/helpers.h>
 
 #include <yt/core/concurrency/action_queue.h>
+#include <yt/core/concurrency/thread_pool.h>
 
 #include <yt/core/rpc/bus_channel.h>
 #include <yt/core/rpc/caching_channel_factory.h>
@@ -137,14 +137,19 @@ public:
         return QueryEvaluator_;
     }
 
-    virtual TDispatcherPtr GetDispatcher() override
-    {
-        return Dispatcher_;
-    }
-
     virtual TColumnEvaluatorCachePtr GetColumnEvaluatorCache() override
     {
         return ColumnEvaluatorCache_;
+    }
+
+    virtual IInvokerPtr GetLightInvoker() override
+    {
+        return LightPool_->GetInvoker();
+    }
+
+    virtual IInvokerPtr GetHeavyInvoker() override
+    {
+        return HeavyPool_->GetInvoker();
     }
 
     virtual IAdminPtr CreateAdmin(const TAdminOptions& options) override
@@ -181,7 +186,8 @@ private:
     IFunctionRegistryPtr FunctionRegistry_;
     TEvaluatorPtr QueryEvaluator_;
     TColumnEvaluatorCachePtr ColumnEvaluatorCache_;
-    TDispatcherPtr Dispatcher_;
+    TThreadPoolPtr LightPool_;
+    TThreadPoolPtr HeavyPool_;
 
 
     IChannelPtr CreatePeerChannel(TMasterConnectionConfigPtr config, EPeerKind kind)
@@ -209,7 +215,8 @@ private:
 
     void Initialize()
     {
-        Dispatcher_ = New<TDispatcher>(Config_->LightInvokerPoolSize, Config_->HeavyInvokerPoolSize);
+        LightPool_ = New<TThreadPool>(Config_->LightPoolSize, "ClientLight");
+        HeavyPool_ = New<TThreadPool>(Config_->HeavyPoolSize, "ClientHeavy");
 
         PrimaryMasterCellId_ = Config_->PrimaryMaster->CellId;
         PrimaryMasterCellTag_ = CellTagFromId(PrimaryMasterCellId_);

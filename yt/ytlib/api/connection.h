@@ -76,8 +76,9 @@ struct IConnection
     virtual NHive::TCellDirectoryPtr GetCellDirectory() = 0;
     virtual NQueryClient::IFunctionRegistryPtr GetFunctionRegistry() = 0;
     virtual NQueryClient::TEvaluatorPtr GetQueryEvaluator() = 0;
-    virtual TDispatcherPtr GetDispatcher() = 0;
     virtual NQueryClient::TColumnEvaluatorCachePtr GetColumnEvaluatorCache() = 0;
+    virtual IInvokerPtr GetLightInvoker() = 0;
+    virtual IInvokerPtr GetHeavyInvoker() = 0;
 
     virtual IAdminPtr CreateAdmin(const TAdminOptions& options = TAdminOptions()) = 0;
     virtual IClientPtr CreateClient(const TClientOptions& options = TClientOptions()) = 0;

@@ -3,7 +3,6 @@
 #include "box.h"
 #include "config.h"
 #include "connection.h"
-#include "dispatcher.h"
 #include "file_reader.h"
 #include "file_writer.h"
 #include "journal_reader.h"
@@ -402,7 +401,7 @@ public:
         TTimestamp timestamp) override
     {
         return BIND(&TQueryHelper::DoGetInitialSplit, MakeStrong(this))
-            .AsyncVia(Connection_->GetDispatcher()->GetLightInvoker())
+            .AsyncVia(Connection_->GetLightInvoker())
             .Run(path, timestamp);
     }
 
@@ -419,7 +418,7 @@ public:
                 : &TQueryHelper::DoExecute;
 
             return BIND(execute, MakeStrong(this))
-                .AsyncVia(Connection_->GetDispatcher()->GetHeavyInvoker())
+                .AsyncVia(Connection_->GetHeavyInvoker())
                 .Run(std::move(query), std::move(dataSource), std::move(options), std::move(writer));
         }
     }
@@ -899,7 +898,6 @@ public:
         const TClientOptions& options)
         : Connection_(std::move(connection))
         , Options_(options)
-        , Invoker_(Connection_->GetDispatcher()->GetLightInvoker())
         , FunctionRegistry_(Connection_->GetFunctionRegistry())
     {
         auto wrapChannel = [&] (IChannelPtr channel) {
@@ -1238,8 +1236,6 @@ private:
     const IConnectionPtr Connection_;
     const TClientOptions Options_;
 
-    const IInvokerPtr Invoker_;
-
     const IFunctionRegistryPtr FunctionRegistry_;
 
     TEnumIndexedVector<yhash_map<TCellTag, IChannelPtr>, EMasterChannelKind> MasterChannels_;
@@ -1272,7 +1268,7 @@ private:
                     throw;
                 }
             })
-            .AsyncVia(Invoker_)
+            .AsyncVia(Connection_->GetLightInvoker())
             .Run()
             .WithTimeout(options.Timeout);
     }
@@ -2195,7 +2191,7 @@ private:
                 auto teleporter = New<TChunkTeleporter>(
                     Connection_->GetConfig(),
                     this,
-                    Invoker_,
+                    Connection_->GetLightInvoker(),
                     uploadTransactionId,
                     Logger);
 
@@ -2525,7 +2521,7 @@ public:
     virtual TFuture<void> Commit(const TTransactionCommitOptions& options) override
     {
         return BIND(&TTransaction::DoCommit, MakeStrong(this))
-            .AsyncVia(Client_->Invoker_)
+            .AsyncVia(Client_->GetConnection()->GetLightInvoker())
             .Run(options);
     }
 
