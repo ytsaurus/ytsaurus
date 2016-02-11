@@ -427,11 +427,11 @@ private:
 };
 
 void StartPartitionBalancer(
-    TPartitionBalancerConfigPtr config,
+    TTabletNodeConfigPtr config,
     NCellNode::TBootstrap* bootstrap)
 {
     if (config->EnablePartitionBalancer) {
-        New<TPartitionBalancer>(config, bootstrap);
+        New<TPartitionBalancer>(config->PartitionBalancer, bootstrap);
     }
 }
 

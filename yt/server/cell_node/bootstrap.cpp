@@ -463,7 +463,7 @@ void TBootstrap::DoRun()
     SchedulerConnector->Start();
     StartStoreFlusher(Config->TabletNode, this);
     StartStoreCompactor(Config->TabletNode, this);
-    StartPartitionBalancer(Config->TabletNode->PartitionBalancer, this);
+    StartPartitionBalancer(Config->TabletNode, this);
 
     RpcServer->Start();
     HttpServer->Start();
