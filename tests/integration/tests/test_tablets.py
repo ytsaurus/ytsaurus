@@ -548,7 +548,7 @@ class TestTablets(YTEnvSetup):
         self._create_table("//tmp/t")
 
         set("//tmp/t/@in_memory_mode", mode)
-        set("//tmp/t/@soft_memory_store_key_count_limit", 10)
+        set("//tmp/t/@max_memory_store_key_count", 10)
         self._sync_mount_table("//tmp/t")
 
         tablet_id = get("//tmp/t/@tablets/0/tablet_id")
@@ -605,8 +605,7 @@ class TestTablets(YTEnvSetup):
 
         set("//tmp/t/@in_memory_mode", "uncompressed")
         set("//tmp/t/@enable_lookup_hash_table", True)
-        set("//tmp/t/@soft_memory_store_key_count_limit", 10)
-        set("//tmp/t/@hard_memory_store_key_count_limit", 10)
+        set("//tmp/t/@max_memory_store_key_count", 10)
         self._sync_mount_table("//tmp/t")
 
         rows = [{"key": i, "value": str(i)} for i in xrange(10)]
