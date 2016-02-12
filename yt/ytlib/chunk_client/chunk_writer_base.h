@@ -16,6 +16,10 @@ struct IChunkWriterBase
     virtual i64 GetMetaSize() const = 0;
     virtual i64 GetDataSize() const = 0;
 
+    // Exposes writer internal wish to be closed; e.g. partition chunk writer may
+    // want to be closed if some partition row count is close to i32 limit.
+    virtual bool IsCloseDemanded() const = 0;
+
     virtual NProto::TChunkMeta GetMasterMeta() const = 0;
     virtual NProto::TChunkMeta GetSchedulerMeta() const = 0;
     virtual NProto::TChunkMeta GetNodeMeta() const = 0;

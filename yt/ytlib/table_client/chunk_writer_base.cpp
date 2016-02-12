@@ -87,6 +87,11 @@ TChunkMeta TChunkWriterBase::GetSchedulerMeta() const
     return GetMasterMeta();
 }
 
+bool TChunkWriterBase::IsCloseDemanded() const
+{
+    return false;
+}
+
 TChunkMeta TChunkWriterBase::GetNodeMeta() const
 {
     return GetMasterMeta();

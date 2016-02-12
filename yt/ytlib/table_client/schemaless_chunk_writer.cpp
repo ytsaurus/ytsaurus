@@ -56,6 +56,10 @@ using namespace NApi;
 using NYT::ToProto;
 using NYT::FromProto;
 
+
+static const i64 PartitionRowCountThreshold = (i64)100 * 1000;
+static const i64 PartitionRowCountLimit = std::numeric_limits<i32>::max() - PartitionRowCountThreshold;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TBase>
@@ -211,6 +215,8 @@ public:
 
     virtual TChunkMeta GetSchedulerMeta() const override;
 
+    virtual bool IsCloseDemanded() const override;
+
     virtual i64 GetMetaSize() const override;
 
     virtual bool IsSorted() const override;
@@ -229,6 +235,8 @@ private:
 
     int LargestPartitionIndex_ = 0;
     i64 LargestPartitionSize_ = 0;
+
+    i64 LargestPartitionRowCount_ = 0;
 
     i64 BlockReserveSize_;
 
@@ -313,6 +321,10 @@ void TPartitionChunkWriter::WriteRow(TUnversionedRow row)
     partitionAttributes->set_row_count(partitionAttributes->row_count() + 1);
     partitionAttributes->set_uncompressed_data_size(partitionAttributes->uncompressed_data_size() + newSize - oldSize);
 
+    LargestPartitionRowCount_ = std::max(
+        partitionAttributes->row_count(), 
+        LargestPartitionRowCount_);
+
     if (newSize > LargestPartitionSize_) {
         LargestPartitionIndex_ = partitionIndex;
         LargestPartitionSize_ = newSize;
@@ -327,6 +339,11 @@ void TPartitionChunkWriter::WriteRow(TUnversionedRow row)
 
         InitLargestPartition();
     }
+}
+
+bool TPartitionChunkWriter::IsCloseDemanded() const
+{
+    return LargestPartitionRowCount_ > PartitionRowCountLimit;
 }
 
 void TPartitionChunkWriter::FlushBlock(int partitionIndex)

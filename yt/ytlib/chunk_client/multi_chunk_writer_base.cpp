@@ -190,6 +190,13 @@ void TNontemplateMultiChunkWriterBase::InitSession()
 
 bool TNontemplateMultiChunkWriterBase::TrySwitchSession()
 {
+    if (CurrentSession_.TemplateWriter->IsCloseDemanded()) {
+        LOG_DEBUG("Switching to next chunk due to chunk writer demand");
+
+        SwitchSession();
+        return true;
+    }
+
     if (CurrentSession_.TemplateWriter->GetMetaSize() > Config_->MaxMetaSize) {
         LOG_DEBUG("Switching to next chunk: meta is too large (ChunkMetaSize: %v)",
             CurrentSession_.TemplateWriter->GetMetaSize());
