@@ -556,7 +556,7 @@ class TestTablets(YTEnvSetup):
 
         def _check_preload_state(state):
             tablet_data = self._find_tablet_orchid(address, tablet_id)
-            assert len(tablet_data["eden"]["stores"]) == 1
+            assert len(tablet_data["eden"]["stores"]) == 2
             assert len(tablet_data["partitions"]) == 1
             assert len(tablet_data["partitions"][0]["stores"]) >= 1
             assert all(s["preload_state"] == state for _, s in tablet_data["partitions"][0]["stores"].iteritems())
