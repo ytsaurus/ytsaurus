@@ -373,7 +373,7 @@ protected:
         // XXX(babenko): hotfix for YT-3915
         auto localHostName = TAddressResolver::Get()->GetLocalHostName();
         for (const auto& pair : descriptor.Addresses()) {
-            if (pair.second == localHostName) {
+            if (GetServiceHostName(pair.second) == localHostName) {
                 return EAddressLocality::SameHost;
             }
         }
