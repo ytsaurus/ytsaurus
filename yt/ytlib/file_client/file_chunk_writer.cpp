@@ -49,6 +49,7 @@ public:
     virtual i64 GetMetaSize() const override;
     virtual i64 GetDataSize() const override;
 
+    virtual bool IsCloseDemanded() const override;
     virtual TChunkMeta GetMasterMeta() const override;
     virtual TChunkMeta GetSchedulerMeta() const override;
     virtual TChunkMeta GetNodeMeta() const override;
@@ -168,6 +169,11 @@ i64 TFileChunkWriter::GetDataSize() const
 i64 TFileChunkWriter::GetMetaSize() const
 {
     return BlocksExtSize_;
+}
+
+bool TFileChunkWriter::IsCloseDemanded() const
+{
+    return false;
 }
 
 TChunkMeta TFileChunkWriter::GetMasterMeta() const

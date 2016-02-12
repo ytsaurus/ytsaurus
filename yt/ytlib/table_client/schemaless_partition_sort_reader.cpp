@@ -319,12 +319,12 @@ private:
 
     bool IsApproximate_;
 
-    int EstimatedRowCount_;
+    i64 EstimatedRowCount_;
     int EstimatedBucketCount_;
 
-    int TotalRowCount_;
+    i64 TotalRowCount_;
     TAtomic SortedRowCount_;
-    int ReadRowCount_;
+    i64 ReadRowCount_;
 
     TSafeVector<TUnversionedValue> KeyBuffer_;
     TSafeVector<TRowDescriptor> RowDescriptorBuffer_;
