@@ -237,7 +237,6 @@ public:
         }
     }
 
-
     void ScheduleStoreRotation(TTablet* tablet)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);

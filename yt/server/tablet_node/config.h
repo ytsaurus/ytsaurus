@@ -53,6 +53,7 @@ public:
     int MaxMemoryStoreKeyCount;
     int MaxMemoryStoreValueCount;
     i64 MaxMemoryStorePoolSize;
+    double MemoryStorePressureThreshold;
 
     i64 MaxPartitionDataSize;
     i64 DesiredPartitionDataSize;
@@ -106,6 +107,11 @@ public:
         RegisterParameter("max_memory_store_pool_size", MaxMemoryStorePoolSize)
             .GreaterThan(0)
             .Default((i64) 1024 * 1024 * 1024);
+
+        RegisterParameter("memory_store_pressure_threshold", MemoryStorePressureThreshold)
+            .GreaterThanOrEqual(0.5)
+            .LessThan(1.0)
+            .Default(0.9);
 
         RegisterParameter("max_partition_data_size", MaxPartitionDataSize)
             .Default((i64) 320 * 1024 * 1024)

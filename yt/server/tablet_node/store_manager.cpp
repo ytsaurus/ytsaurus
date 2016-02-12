@@ -87,7 +87,7 @@ bool TStoreManager::HasActiveLocks() const
     if (Tablet_->GetActiveStore()->GetLockCount() > 0) {
         return true;
     }
-   
+
     if (!LockedStores_.empty()) {
         return true;
     }
@@ -142,20 +142,88 @@ void TStoreManager::StopEpoch()
     }
 }
 
+void TStoreManager::ValidateActiveStoreOverflow()
+{
+    const auto& store = Tablet_->GetActiveStore();
+    const auto& config = Tablet_->GetConfig();
+
+    {
+        auto keyCount = store->GetKeyCount();
+        auto keyLimit = config->MaxMemoryStoreKeyCount;
+        // When we are not using hash table, we can skip this check.
+        // See YT-3920.
+        if (config->EnableLookupHashTable && keyCount >= keyLimit) {
+            THROW_ERROR_EXCEPTION("Active store is over key capacity")
+                << TErrorAttribute("tablet_id", Tablet_->GetTabletId())
+                << TErrorAttribute("key_count", keyCount)
+                << TErrorAttribute("key_limit", keyLimit);
+        }
+    }
+
+    {
+        auto valueCount = store->GetValueCount();
+        auto valueLimit = config->MaxMemoryStoreValueCount;
+        if (valueCount >= valueLimit) {
+            THROW_ERROR_EXCEPTION("Active store is over value capacity")
+                << TErrorAttribute("tablet_id", Tablet_->GetTabletId())
+                << TErrorAttribute("value_count", valueCount)
+                << TErrorAttribute("value_limit", valueLimit);
+        }
+    }
+
+    {
+        auto poolCapacity = store->GetPoolCapacity();
+        auto poolCapacityLimit = config->MaxMemoryStorePoolSize;
+        if (poolCapacity >= poolCapacityLimit) {
+            THROW_ERROR_EXCEPTION("Active store is over its memory pool capacity")
+                << TErrorAttribute("tablet_id", Tablet_->GetTabletId())
+                << TErrorAttribute("pool_capacity", poolCapacity)
+                << TErrorAttribute("pool_capacity_limit", poolCapacityLimit);
+        }
+    }
+}
+
+void TStoreManager::ValidateOnWrite(
+    const TTransactionId& transactionId,
+    TUnversionedRow row)
+{
+    ValidateActiveStoreOverflow();
+    try {
+        ValidateServerDataRow(row, KeyColumnCount_, Tablet_->Schema());
+        if (row.GetCount() == KeyColumnCount_) {
+            THROW_ERROR_EXCEPTION("Empty writes are not allowed");
+        }
+    } catch (TErrorException& ex) {
+        auto& errorAttributes = ex.Error().Attributes();
+        errorAttributes.SetYson("transaction_id", NYTree::ConvertToYsonString(transactionId));
+        errorAttributes.SetYson("tablet_id", NYTree::ConvertToYsonString(Tablet_->GetTabletId()));
+        errorAttributes.SetYson("row", NYTree::ConvertToYsonString(row));
+        throw ex;
+    }
+}
+
+void TStoreManager::ValidateOnDelete(
+    const TTransactionId& transactionId,
+    TKey key)
+{
+    ValidateActiveStoreOverflow();
+    try {
+        ValidateServerKey(key, KeyColumnCount_, Tablet_->Schema());
+    } catch (TErrorException& ex) {
+        auto& errorAttributes = ex.Error().Attributes();
+        errorAttributes.SetYson("transaction_id", NYTree::ConvertToYsonString(transactionId));
+        errorAttributes.SetYson("tablet_id", NYTree::ConvertToYsonString(Tablet_->GetTabletId()));
+        errorAttributes.SetYson("key", NYTree::ConvertToYsonString(key));
+        throw ex;
+    }
+}
+
 TDynamicRowRef TStoreManager::WriteRowAtomic(
     TTransaction* transaction,
     TUnversionedRow row,
     bool prelock)
 {
-    ValidateServerDataRow(row, KeyColumnCount_, Tablet_->Schema());
-
-    YASSERT(row.GetCount() >= KeyColumnCount_);
-    if (row.GetCount() == KeyColumnCount_) {
-        THROW_ERROR_EXCEPTION("Empty writes are not allowed")
-            << TErrorAttribute("transaction_id", transaction->GetId())
-            << TErrorAttribute("tablet_id", Tablet_->GetTabletId())
-            << TErrorAttribute("key", row);
-    }
+    ValidateOnWrite(transaction->GetId(), row);
 
     ui32 lockMask = ComputeLockMask(row);
 
@@ -180,15 +248,7 @@ void TStoreManager::WriteRowNonAtomic(
     TTimestamp commitTimestamp,
     TUnversionedRow row)
 {
-    ValidateServerDataRow(row, KeyColumnCount_, Tablet_->Schema());
-
-    YASSERT(row.GetCount() >= KeyColumnCount_);
-    if (row.GetCount() == KeyColumnCount_) {
-        THROW_ERROR_EXCEPTION("Empty writes are not allowed")
-            << TErrorAttribute("transaction_id", transactionId)
-            << TErrorAttribute("tablet_id", Tablet_->GetTabletId())
-            << TErrorAttribute("key", row);
-    }
+    ValidateOnWrite(transactionId, row);
 
     const auto& store = Tablet_->GetActiveStore();
     store->WriteRowNonAtomic(row, commitTimestamp);
@@ -196,10 +256,10 @@ void TStoreManager::WriteRowNonAtomic(
 
 TDynamicRowRef TStoreManager::DeleteRowAtomic(
     TTransaction* transaction,
-    NTableClient::TKey key,
+    TKey key,
     bool prelock)
 {
-    ValidateServerKey(key, KeyColumnCount_, Tablet_->Schema());
+    ValidateOnDelete(transaction->GetId(), key);
 
     if (prelock) {
         CheckInactiveStoresLocks(
@@ -219,9 +279,9 @@ TDynamicRowRef TStoreManager::DeleteRowAtomic(
 void TStoreManager::DeleteRowNonAtomic(
     const TTransactionId& transactionId,
     TTimestamp commitTimestamp,
-    NTableClient::TKey key)
+    TKey key)
 {
-    ValidateServerKey(key, KeyColumnCount_, Tablet_->Schema());
+    ValidateOnDelete(transactionId, key);
 
     const auto& store = Tablet_->GetActiveStore();
     store->DeleteRowNonAtomic(key, commitTimestamp);
@@ -297,7 +357,8 @@ void TStoreManager::CheckInactiveStoresLocks(
     }
 }
 
-void TStoreManager::CheckForUnlockedStore(TDynamicMemoryStore* store)
+void TStoreManager::CheckForUnlockedStore(
+    TDynamicMemoryStore* store)
 {
     if (store == Tablet_->GetActiveStore() || store->GetLockCount() > 0)
         return;
@@ -307,7 +368,7 @@ void TStoreManager::CheckForUnlockedStore(TDynamicMemoryStore* store)
     YCHECK(LockedStores_.erase(store) == 1);
 }
 
-bool TStoreManager::IsOverflowRotationNeeded() const
+bool TStoreManager::IsNearActiveStoreOverflow() const
 {
     if (!IsRotationPossible()) {
         return false;
@@ -316,10 +377,25 @@ bool TStoreManager::IsOverflowRotationNeeded() const
     const auto& store = Tablet_->GetActiveStore();
     const auto& config = Tablet_->GetConfig();
 
+    auto keyLoadRatio = static_cast<double>(store->GetKeyCount()) /
+        static_cast<double>(config->MaxMemoryStoreKeyCount);
+    auto valueLoadRatio = static_cast<double>(store->GetValueCount()) /
+        static_cast<double>(config->MaxMemoryStoreValueCount);
+    auto poolCapacityLoadRatio = static_cast<double>(store->GetPoolCapacity()) /
+        static_cast<double>(config->MaxMemoryStorePoolSize);
+
+    auto threshold = config->MemoryStorePressureThreshold;
+
+    // When we are not using hash table, we can skip this check.
+    // See YT-3920.
+    if (!config->EnableLookupHashTable) {
+        keyLoadRatio = 1.0 + threshold;
+    }
+
     return
-        store->GetKeyCount() >= config->MaxMemoryStoreKeyCount ||
-        store->GetValueCount() >= config->MaxMemoryStoreValueCount ||
-        store->GetPoolCapacity() >= config->MaxMemoryStorePoolSize;
+        keyLoadRatio > threshold ||
+        valueLoadRatio > threshold ||
+        poolCapacityLoadRatio > threshold;
 }
 
 bool TStoreManager::IsPeriodicRotationNeeded() const
@@ -357,7 +433,7 @@ bool TStoreManager::IsForcedRotationPossible() const
 
     const auto& store = Tablet_->GetActiveStore();
     // Check for "almost" initial size.
-    if (store->GetPoolCapacity() <=  2 * Config_->PoolChunkSize) {
+    if (store->GetPoolCapacity() <= 2 * Config_->PoolChunkSize) {
         return false;
     }
 

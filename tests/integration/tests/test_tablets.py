@@ -527,7 +527,7 @@ class TestTablets(YTEnvSetup):
         self._sync_create_cells(1, 1)
         self._create_table("//tmp/t")
 
-        set("//tmp/t/@soft_memory_store_key_count_limit", 10)
+        set("//tmp/t/@max_memory_store_key_count", 10)
         self._sync_mount_table("//tmp/t")
 
         tablet_id = get("//tmp/t/@tablets/0/tablet_id")
@@ -539,7 +539,7 @@ class TestTablets(YTEnvSetup):
         sleep(3.0)
 
         tablet_data = self._find_tablet_orchid(address, tablet_id)
-        assert len(tablet_data["eden"]["stores"]) == 1
+        assert len(tablet_data["eden"]["stores"]) == 2
         assert len(tablet_data["partitions"]) == 1
         assert len(tablet_data["partitions"][0]["stores"]) == 1
 
@@ -608,30 +608,59 @@ class TestTablets(YTEnvSetup):
         set("//tmp/t/@max_memory_store_key_count", 10)
         self._sync_mount_table("//tmp/t")
 
-        rows = [{"key": i, "value": str(i)} for i in xrange(10)]
-        keys = [{"key" : row["key"]} for row in rows]
-        insert_rows("//tmp/t", rows)
-        assert lookup_rows("//tmp/t", keys) == rows
+        def _rows(i, j):
+            return [{"key": k, "value": str(k)} for k in xrange(i, j)]
 
-        insert_rows("//tmp/t", rows)
-        with pytest.raises(YtError): insert_rows("//tmp/t", [{"key": i, "value": str(i)} for i in xrange(10, 30)])
+        def _keys(i, j):
+            return [{"key": k} for k in xrange(i, j)]
+
+        # check that we can insert rows
+        insert_rows("//tmp/t", _rows(0, 5))
+        assert lookup_rows("//tmp/t", _keys(0, 5)) == _rows(0, 5)
+
+        # check that we can insert rows till capacity
+        insert_rows("//tmp/t", _rows(5, 10))
+        assert lookup_rows("//tmp/t", _keys(0, 10)) == _rows(0, 10)
 
         self._sync_unmount_table("//tmp/t")
+        set("//tmp/t/@memory_store_pressure_threshold", 0.6)
         self._sync_mount_table("//tmp/t")
 
-        assert lookup_rows("//tmp/t", keys) == rows
+        # check that stores are rotated on-demand
+        insert_rows("//tmp/t", _rows(10, 16))
+        insert_rows("//tmp/t", _rows(16, 18))
+        # ensure slot gets scanned
+        sleep(3)
+        insert_rows("//tmp/t", _rows(18, 28))
+        assert lookup_rows("//tmp/t", _keys(10, 28)) == _rows(10, 28)
 
         self._sync_unmount_table("//tmp/t")
+        remove("//tmp/t/@memory_store_pressure_threshold")
+        self._sync_mount_table("//tmp/t")
 
+        # check that we can delete rows
+        delete_rows("//tmp/t", _keys(0, 10))
+        assert lookup_rows("//tmp/t", _keys(0, 10)) == []
+
+        # check that limits are checked for write & delete
+        with pytest.raises(YtError): insert_rows("//tmp/t", _rows(0, 10))
+        with pytest.raises(YtError): delete_rows("//tmp/t", _keys(0, 10))
+
+        # check that everything survives after recovery
+        self._sync_unmount_table("//tmp/t")
+        self._sync_mount_table("//tmp/t")
+        assert lookup_rows("//tmp/t", _keys(0, 50)) == _rows(10, 28)
+        self._sync_unmount_table("//tmp/t")
+
+        # check that we can extend key
+        self._sync_unmount_table("//tmp/t")
         set("//tmp/t/@schema", [
             {"name": "key", "type": "int64"},
             {"name": "key2", "type": "int64"},
             {"name": "value", "type": "string"}]);
         set("//tmp/t/@key_columns", ["key", "key2"])
-
         self._sync_mount_table("//tmp/t")
-
-        assert lookup_rows("//tmp/t", keys, column_names=["key", "value"]) == rows
+        assert lookup_rows("//tmp/t", _keys(0, 50), column_names=["key", "value"]) == _rows(10, 28)
 
     def test_update_key_columns_fail1(self):
         self._sync_create_cells(1, 1)
