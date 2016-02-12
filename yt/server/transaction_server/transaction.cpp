@@ -79,8 +79,8 @@ void TTransaction::Load(NCellMaster::TLoadContext& context)
     Load(context, Parent_);
     Load(context, StartTime_);
     Load(context, StagedObjects_);
-    Load(context, ImportedObjects_);
     Load(context, ExportedObjects_);
+    Load(context, ImportedObjects_);
     Load(context, LockedNodes_);
     Load(context, Locks_);
     Load(context, BranchedNodes_);
