@@ -59,7 +59,7 @@ namespace std {
 #undef YT_PLATFORM_HAS_MAKE_UNIQUE
 #endif
 
-#if defined(__GLIBCXX__) && __GLIBCXX__ <= 20151015
+#if defined(__GLIBCXX__) && __GLIBCXX__ < 20151204
 #undef YT_PLATFORM_HAS_ALIGNED_UNION
 #endif
 
