@@ -29,6 +29,8 @@
 #include <yt/core/misc/common.h>
 #include <yt/core/misc/protobuf_helpers.h>
 #include <yt/core/misc/string.h>
+// XXX(babenko): hotfix for YT-3915
+#include <yt/core/misc/address.h>
 
 #include <util/generic/ymath.h>
 
@@ -367,6 +369,14 @@ protected:
     {
         auto reader = Reader_.Lock();
         auto locality = EAddressLocality::None;
+
+        // XXX(babenko): hotfix for YT-3915
+        auto localHostName = TAddressResolver::Get()->GetLocalHostName();
+        for (const auto& pair : descriptor.Addresses()) {
+            if (pair.second == localHostName) {
+                return EAddressLocality::SameHost;
+            }
+        }
 
         if (reader && reader->LocalDescriptor_) {
             const auto& localDescriptor = *reader->LocalDescriptor_;
