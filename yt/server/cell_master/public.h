@@ -42,6 +42,7 @@ DEFINE_ENUM(EAutomatonThreadQueue,
     (FullHeartbeat)
     (IncrementalHeartbeat)
     (RpcService)
+    (TransactionSupervisor)
 );
 
 ////////////////////////////////////////////////////////////////////////////////
