@@ -124,7 +124,7 @@ public:
     TDynamicRow Find(TKey key) const
     {
         auto fingerprint = GetFarmFingerprint(key);
-        SmallVector<ui64,1> items;
+        SmallVector<ui64, 1> items;
         HashTable_.Find(fingerprint, &items);
         for (auto item : items) {
             auto dynamicRow = TDynamicRow(reinterpret_cast<TDynamicRowHeader*>(item));
@@ -631,9 +631,9 @@ TDynamicMemoryStore::TDynamicMemoryStore(
     RevisionToTimestamp_.PushBack(UncommittedTimestamp);
     YCHECK(TimestampFromRevision(UncommittedRevision) == UncommittedTimestamp);
 
-    if (tablet->GetEnableLookupHashTable()) {
+    if (Tablet_->GetHashTableSize() > 0) {
         LookupHashTable_ = std::make_unique<TDynamicStoreLookupHashTable>(
-            Tablet_->GetConfig()->MaxMemoryStoreKeyCount,
+            Tablet_->GetHashTableSize(),
             RowKeyComparer_,
             Tablet_->GetKeyColumnCount());
     }
