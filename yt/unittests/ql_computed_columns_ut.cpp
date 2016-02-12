@@ -314,6 +314,27 @@ TEST_F(TComputedColumnTest, Complex3)
     EXPECT_EQ(BuildKey("10;" _MAX_), result[0].second);
 }
 
+TEST_F(TComputedColumnTest, Far0)
+{
+    TTableSchema tableSchema;
+    tableSchema.Columns().emplace_back("k", EValueType::Int64, Null, Stroka("l + 1"));
+    tableSchema.Columns().emplace_back("l", EValueType::Int64);
+    tableSchema.Columns().emplace_back("m", EValueType::Int64);
+    tableSchema.Columns().emplace_back("a", EValueType::Int64);
+
+    TKeyColumns keyColumns{"k", "l", "m"};
+
+    SetSchema(tableSchema, keyColumns);
+
+    auto query = Stroka("a from [//t] where m = 10");
+    auto result = Coordinate(query);
+
+    EXPECT_EQ(1, result.size());
+
+    EXPECT_EQ(BuildKey(_MIN_), result[0].first);
+    EXPECT_EQ(BuildKey(_MAX_), result[0].second);
+}
+
 TEST_F(TComputedColumnTest, Far1)
 {
     TTableSchema tableSchema;
