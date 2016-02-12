@@ -150,9 +150,7 @@ void TStoreManager::ValidateActiveStoreOverflow()
     {
         auto keyCount = store->GetKeyCount();
         auto keyLimit = config->MaxMemoryStoreKeyCount;
-        // When we are not using hash table, we can skip this check.
-        // See YT-3920.
-        if (config->EnableLookupHashTable && keyCount >= keyLimit) {
+        if (keyCount >= keyLimit) {
             THROW_ERROR_EXCEPTION("Active store is over key capacity")
                 << TErrorAttribute("tablet_id", Tablet_->GetTabletId())
                 << TErrorAttribute("key_count", keyCount)
@@ -385,12 +383,6 @@ bool TStoreManager::IsNearActiveStoreOverflow() const
         static_cast<double>(config->MaxMemoryStorePoolSize);
 
     auto threshold = config->MemoryStorePressureThreshold;
-
-    // When we are not using hash table, we can skip this check.
-    // See YT-3920.
-    if (!config->EnableLookupHashTable) {
-        keyLoadRatio = 1.0 + threshold;
-    }
 
     return
         keyLoadRatio > threshold ||
