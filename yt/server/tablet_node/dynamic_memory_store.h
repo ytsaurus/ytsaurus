@@ -284,8 +284,6 @@ private:
     void UpdateTimestampRange(TTimestamp commitTimestamp);
 
     void OnMemoryUsageUpdated();
-
-    void ValidateKeyCountLimit() const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TDynamicMemoryStore)

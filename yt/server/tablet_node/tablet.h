@@ -121,7 +121,7 @@ public:
 
     DEFINE_BYVAL_RO_PROPERTY(bool, EnableLookupHashTable);
 
-    DEFINE_BYREF_RO_PROPERTY(int, OverlappingStoreCount);
+    DEFINE_BYVAL_RO_PROPERTY(int, OverlappingStoreCount);
 
 public:
     TTablet(

@@ -265,14 +265,17 @@ public:
 
         TReaderGuard guard(TabletSnapshotsSpinLock_);
 
+        // TODO(sandello): Make this one symmetrical to checks in tablet_manager.cpp
+        /*
         for (const auto& it : TabletIdToSnapshot_) {
             if (it.second->OverlappingStoreCount >= it.second->Config->MaxOverlappingStoreCount) {
                 auto alert = TError("Too many overlapping stores in tablet %v, rotation disabled", it.first)
                     << TErrorAttribute("overlapping_store_count", it.second->OverlappingStoreCount)
-                    << TErrorAttribute("max_overlapping_store_count", it.second->Config->MaxOverlappingStoreCount);
+                    << TErrorAttribute("overlapping_store_limit", it.second->Config->MaxOverlappingStoreCount);
                 alerts->push_back(std::move(alert));
             }
         }
+        */
     }
 
 
@@ -284,7 +287,7 @@ public:
         return IYPathService::FromProducer(producer);
     }
 
-    
+
     DEFINE_SIGNAL(void(), BeginSlotScan);
     DEFINE_SIGNAL(void(TTabletSlotPtr), ScanSlot);
     DEFINE_SIGNAL(void(), EndSlotScan);

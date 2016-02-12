@@ -797,12 +797,6 @@ void TTablet::UpdateOverlappingStoreCount()
             static_cast<int>(partition->Stores().size()));
     }
     OverlappingStoreCount_ += Eden_->Stores().size();
-
-    if (OverlappingStoreCount_ >= Config_->MaxOverlappingStoreCount) {
-        LOG_DEBUG("Too many overlapping stores, store rotation disabled (OverlappingStoreCount: %v, MaxOverlappingStoreCount: %v)",
-            OverlappingStoreCount_,
-            Config_->MaxOverlappingStoreCount);
-    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

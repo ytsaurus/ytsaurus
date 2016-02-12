@@ -315,8 +315,9 @@ bool TStoreManager::IsOverflowRotationNeeded() const
 
     const auto& store = Tablet_->GetActiveStore();
     const auto& config = Tablet_->GetConfig();
+
     return
-        store->GetKeyCount() >= config->SoftMemoryStoreKeyCountLimit ||
+        store->GetKeyCount() >= config->MaxMemoryStoreKeyCount ||
         store->GetValueCount() >= config->MaxMemoryStoreValueCount ||
         store->GetPoolCapacity() >= config->MaxMemoryStorePoolSize;
 }
@@ -329,6 +330,7 @@ bool TStoreManager::IsPeriodicRotationNeeded() const
 
     const auto& config = Tablet_->GetConfig();
     const auto& store = Tablet_->GetActiveStore();
+
     return
         TInstant::Now() > LastRotated_ + config->MemoryStoreAutoFlushPeriod &&
         store->GetKeyCount() > 0;
@@ -341,10 +343,6 @@ bool TStoreManager::IsRotationPossible() const
     }
 
     if (!Tablet_->GetActiveStore()) {
-        return false;
-    }
-
-    if (Tablet_->OverlappingStoreCount() >= Tablet_->GetConfig()->MaxOverlappingStoreCount) {
         return false;
     }
 
