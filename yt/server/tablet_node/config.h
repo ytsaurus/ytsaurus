@@ -186,8 +186,8 @@ public:
             .Default(false);
 
         RegisterValidator([&] () {
-            if (MaxMemoryStoreKeyCount < MaxMemoryStoreValueCount) {
-                THROW_ERROR_EXCEPTION("\"max_memory_store_key_count\" must be greater than or equal to \"max_memory_store_value_count\"");
+            if (MaxMemoryStoreKeyCount > MaxMemoryStoreValueCount) {
+                THROW_ERROR_EXCEPTION("\"max_memory_store_key_count\" must be less than or equal to \"max_memory_store_value_count\"");
             }
             if (MinPartitionDataSize >= DesiredPartitionDataSize) {
                 THROW_ERROR_EXCEPTION("\"min_partition_data_size\" must be less than \"desired_partition_data_size\"");
