@@ -44,10 +44,10 @@ Stroka ToString(ENodeType type)
 {
     switch (type) {
         case NT_STRING: return "string_node";
-        case NT_INT64: return "integer_node";
-        case NT_UINT64: return "";
+        case NT_INT64: return "int64_node";
+        case NT_UINT64: return "uint64_node";
         case NT_DOUBLE: return "double_node";
-        case NT_BOOLEAN: return "";
+        case NT_BOOLEAN: return "boolean_node";
         case NT_MAP: return "map_node";
         case NT_LIST: return "list_node";
         case NT_FILE: return "file";
