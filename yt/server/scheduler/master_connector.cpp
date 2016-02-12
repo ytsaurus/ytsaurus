@@ -730,9 +730,15 @@ private:
             for (auto operation : Result.RevivingOperations) {
                 operation->SetState(EOperationState::Reviving);
 
-                auto checkTransaction = [&] (TOperationPtr operation, TTransactionPtr transaction) {
-                    if (!transaction)
+                auto checkTransaction = [&] (TTransactionPtr transaction, bool required) {
+                    if (!transaction) {
+                        if (required && !operation->GetCleanStart()) {
+                            operation->SetCleanStart(true);
+                            LOG_INFO("Operation is missing required transaction, will use clean start (OperationId: %v)",
+                                operation->GetId());
+                        }
                         return;
+                    }
 
                     asyncResults.push_back(transaction->Ping().Apply(
                         BIND([=] (const TError& error) {
@@ -746,10 +752,10 @@ private:
                 };
 
                 // NB: Async transaction is not checked.
-                checkTransaction(operation, operation->GetUserTransaction());
-                checkTransaction(operation, operation->GetSyncSchedulerTransaction());
-                checkTransaction(operation, operation->GetInputTransaction());
-                checkTransaction(operation, operation->GetOutputTransaction());
+                checkTransaction(operation->GetUserTransaction(), false);
+                checkTransaction(operation->GetSyncSchedulerTransaction(), true);
+                checkTransaction(operation->GetInputTransaction(), true);
+                checkTransaction(operation->GetOutputTransaction(), true);
             }
 
             WaitFor(Combine(asyncResults))
@@ -961,18 +967,25 @@ private:
 
     TOperationPtr CreateOperationFromAttributes(const TOperationId& operationId, const IAttributeDictionary& attributes)
     {
-        auto getTransaction = [&] (const TTransactionId& id, bool ping) -> TTransactionPtr {
-            if (!id) {
+        auto getTransaction = [&] (const TTransactionId& transactionId, bool ping) -> TTransactionPtr {
+            if (!transactionId) {
                 return nullptr;
             }
-            auto clusterDirectory = Bootstrap->GetClusterDirectory();
-            auto connection = clusterDirectory->GetConnection(CellTagFromId(id));
-            auto client = connection->CreateClient(GetRootClientOptions());
-            auto transactionManager = client->GetTransactionManager();
-            TTransactionAttachOptions options;
-            options.Ping = ping;
-            options.PingAncestors = false;
-            return transactionManager->Attach(id, options);
+            try {
+                auto clusterDirectory = Bootstrap->GetClusterDirectory();
+                auto connection = clusterDirectory->GetConnectionOrThrow(CellTagFromId(transactionId));
+                auto client = connection->CreateClient(GetRootClientOptions());
+                auto transactionManager = client->GetTransactionManager();
+                TTransactionAttachOptions options;
+                options.Ping = ping;
+                options.PingAncestors = false;
+                return transactionManager->Attach(transactionId, options);
+            } catch (const std::exception& ex) {
+                LOG_ERROR("Error attaching operation transaction (OperationId: %v, TransactionId: %v)",
+                    operationId,
+                    transactionId);
+                return nullptr;
+            }
         };
 
         auto userTransaction = getTransaction(

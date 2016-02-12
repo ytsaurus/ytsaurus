@@ -1258,7 +1258,7 @@ void TOperationControllerBase::AbortAllJoblets()
 {
     for (const auto& pair : JobletMap) {
         auto joblet = pair.second;
-        JobCounter.Aborted(1);
+        JobCounter.Aborted(1, EAbortReason::Scheduler);
         joblet->Task->OnJobAborted(joblet, TAbortedJobSummary(pair.first, EAbortReason::Scheduler));
     }
     JobletMap.clear();
