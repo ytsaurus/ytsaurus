@@ -753,12 +753,19 @@ private:
 
     void RunPeriodicPings()
     {
-        if (!IsPingableState())
+        if (!IsPingableState()) {
             return;
+        }
 
-        SendPing().Subscribe(BIND([=, this_ = MakeStrong(this)] (const TError&) {
-            if (!IsPingableState())
+        SendPing().Subscribe(BIND([=, this_ = MakeStrong(this)] (const TError& error) {
+            if (!IsPingableState()) {
                 return;
+            }
+
+            if (error.FindMatching(NYT::EErrorCode::Timeout)) {
+                RunPeriodicPings();
+                return;
+            }
 
             TDelayedExecutor::Submit(
                 BIND(IgnoreResult(&TImpl::RunPeriodicPings), MakeWeak(this)),
