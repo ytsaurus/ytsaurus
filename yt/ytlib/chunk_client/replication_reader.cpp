@@ -337,7 +337,7 @@ protected:
     yhash_set<Stroka> BannedPeers_;
 
     //! List of candidates addresses to try, prioritized by:
-    //! type (seeds before peers), ban counter, locality and response type.
+    //! type (seeds before peers), ban counter, locality, response time, random number.
     typedef std::priority_queue<TPeer> TPeerQueue;
     TPeerQueue PeerQueue_;
 
@@ -373,7 +373,7 @@ protected:
         // XXX(babenko): hotfix for YT-3915
         auto localHostName = TAddressResolver::Get()->GetLocalHostName();
         for (const auto& pair : descriptor.Addresses()) {
-            if (pair.second == localHostName) {
+            if (GetServiceHostName(pair.second) == localHostName) {
                 return EAddressLocality::SameHost;
             }
         }
