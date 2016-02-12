@@ -817,6 +817,10 @@ private:
 
         auto uncompressedBlock = BlockCache_->Find(blockId, EBlockType::UncompressedData);
         if (uncompressedBlock) {
+            // In compressed in-memory mode we could still happen to find block in
+            // uncompressed cache, but to guarantee proper block lifetime, we have to 
+            // explicitly capture it.
+            UncompressedBlocks_.push_back(uncompressedBlock);
             return uncompressedBlock;
         }
 
