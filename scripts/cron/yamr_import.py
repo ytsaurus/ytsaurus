@@ -222,6 +222,9 @@ def make_link(table, yt_client):
 def set_ydf_attribute(table, value, yt_client):
     if value is not None:
         yt_client.set(table + "/@_yql_read_udf", value)
+        for item in ["key", "subkey", "value"]:
+            yt_client.set(table + "/@_yql_{0}_meta".format(item),
+                          {"Type": ["DataType", "String"], "Name": item})
 
 def set_format_attribute(table, value, yt_client):
     if value is not None:
