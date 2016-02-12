@@ -471,20 +471,20 @@ class Application(object):
 
     def _take_lock(self):
         yt_client = deepcopy(self._yt)
-        with yt_client.Transaction():
+        with yt_client.Transaction() as tx:
             while True:
                 try:
                     yt_client.lock(self._lock_path)
                     break
                 except yt.YtError as err:
                     if err.is_concurrent_transaction_lock_conflict():
-                        logger.info("Failed to take lock")
+                        logger.info("Failed to take lock under transaction %s", tx.transaction_id)
                         time.sleep(self._lock_timeout)
                         continue
                     log_yt_exception(logger)
                     return
 
-            logger.info("Lock acquired")
+            logger.info("Lock acquired under transaction %s", tx.transaction_id)
 
             # Loading tasks from cypress
             self._load_tasks(os.path.join(self._path, "tasks"))
