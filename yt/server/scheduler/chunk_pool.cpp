@@ -1167,6 +1167,7 @@ public:
 
             for (int index = 0; index < static_cast<int>(Outputs.size()); ++index) {
                 const auto& partitionAttributes = partitionsExt.partitions(index);
+                YCHECK(partitionAttributes.row_count() <= RowCountThreshold);
                 Outputs[index]->AddStripe(
                     elementaryIndex,
                     partitionAttributes.uncompressed_data_size(),
@@ -1277,6 +1278,9 @@ private:
 
     i64 DataSizeThreshold;
 
+    // NB: sort job cannot handle more than numeric_limits<i32>::max() rows.
+    static const i64 RowCountThreshold = std::numeric_limits<i32>::max();
+
     class TOutput
         : public TChunkPoolOutputBase
         , public NPhoenix::TFactoryTag<NPhoenix::TSimpleFactory>
@@ -1300,10 +1304,14 @@ private:
         void AddStripe(int elementaryIndex, i64 dataSize, i64 rowCount)
         {
             auto* run = &Runs.back();
-            if (run->TotalDataSize > 0  && run->TotalDataSize + dataSize > Owner->DataSizeThreshold) {
-                SealLastRun();
-                AddNewRun();
-                run = &Runs.back();
+            if (run->TotalDataSize > 0) {
+                if (run->TotalDataSize + dataSize > Owner->DataSizeThreshold || 
+                    run->TotalRowCount + rowCount > Owner->RowCountThreshold) 
+                {
+                    SealLastRun();
+                    AddNewRun();
+                    run = &Runs.back();
+                }
             }
 
             YCHECK(elementaryIndex == run->ElementaryIndexEnd);
