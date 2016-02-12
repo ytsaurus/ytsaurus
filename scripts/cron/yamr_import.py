@@ -176,7 +176,7 @@ def create_task_runner(destination_cluster_name, tm_url="transfer-manager.yt.yan
             return True
         except Exception:
             return False
-    yamr_cluster_names = ["redwood", "sakura"]
+    yamr_cluster_names = ["cedar", "sakura"]
     yamr_clusters = [Yamr(binary="/Berkanavt/bin/mapreduce-dev",
                           name=name,
                           server=name + "00.search.yandex.net",
