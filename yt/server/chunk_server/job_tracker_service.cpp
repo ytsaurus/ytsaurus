@@ -47,7 +47,9 @@ public:
             TJobTrackerServiceProxy::GetProtocolVersion())
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Heartbeat)
-            .SetInvoker(GetGuardedAutomatonInvoker(EAutomatonThreadQueue::IncrementalHeartbeat)));
+            .SetInvoker(GetGuardedAutomatonInvoker(EAutomatonThreadQueue::IncrementalHeartbeat))
+            .SetRequestHeavy(true)
+            .SetResponseHeavy(true));
     }
 
 private:
