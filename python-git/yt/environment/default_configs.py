@@ -201,6 +201,7 @@ def get_node_config(enable_debug_logging=True):
         };
 
         incremental_heartbeat_period = 100;
+        register_retry_period = 100;
     };
 
     exec_agent = {
