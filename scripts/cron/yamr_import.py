@@ -260,8 +260,8 @@ class Importer(object):
             destination_pattern = source_pattern
         destination_pattern = os.path.join("//userdata", destination_pattern)
 
-        logger.info("Processing import from %s to %s of type '%s' by period %d",
-                    source_pattern, destination_pattern, type, period)
+        logger.info("Processing import from %s to %s of type '%s' by period %s",
+                    source_pattern, destination_pattern, type, str(period) if period else "inf")
 
         if type == "day":
             if link is None:
