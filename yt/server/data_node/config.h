@@ -356,7 +356,7 @@ public:
         RegisterParameter("lease_transaction_ping_period", LeaseTransactionPingPeriod)
             .Default(TDuration::Seconds(15));
         RegisterParameter("incremental_heartbeat_period", IncrementalHeartbeatPeriod)
-            .Default(TDuration::Seconds(5));
+            .Default(TDuration::Seconds(15));
         RegisterParameter("full_heartbeat_period", FullHeartbeatPeriod)
             .Default();
         RegisterParameter("incremental_heartbeat_timeout", IncrementalHeartbeatTimeout)
