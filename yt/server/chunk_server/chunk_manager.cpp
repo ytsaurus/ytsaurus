@@ -1218,7 +1218,7 @@ private:
             }
         }
 
-        LOG_INFO("Chunks exported (TransactionId: %v, ChunkCount: %v)",
+        LOG_DEBUG_UNLESS(IsRecovery(), "Chunks exported (TransactionId: %v, ChunkCount: %v)",
             transactionId,
             request.chunks_size());
     }
@@ -1249,7 +1249,7 @@ private:
             transactionManager->ImportObject(transaction, chunk);
         }
 
-        LOG_INFO("Chunks imported (TransactionId: %v, ChunkCount: %v)",
+        LOG_DEBUG_UNLESS(IsRecovery(), "Chunks imported (TransactionId: %v, ChunkCount: %v)",
             transactionId,
             request.chunks_size());
     }
