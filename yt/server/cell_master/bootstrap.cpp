@@ -489,7 +489,7 @@ void TBootstrap::DoInitialize()
 
     TransactionSupervisor_ = New<TTransactionSupervisor>(
         Config_->TransactionSupervisor,
-        HydraFacade_->GetAutomatonInvoker(EAutomatonThreadQueue::RpcService),
+        HydraFacade_->GetAutomatonInvoker(EAutomatonThreadQueue::TransactionSupervisor),
         HydraFacade_->GetHydraManager(),
         HydraFacade_->GetAutomaton(),
         HydraFacade_->GetResponseKeeper(),
