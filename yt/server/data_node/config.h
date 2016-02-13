@@ -222,6 +222,9 @@ public:
     //! Period between consequent full heartbeats.
     TNullable<TDuration> FullHeartbeatPeriod;
 
+    //! Period between consequent registration attempts.
+    TDuration RegisterRetryPeriod;
+
     //! Random delay before first heartbeat
     TDuration HeartbeatSplay;
 
@@ -359,6 +362,8 @@ public:
             .Default(TDuration::Seconds(15));
         RegisterParameter("full_heartbeat_period", FullHeartbeatPeriod)
             .Default();
+        RegisterParameter("register_retry_period", RegisterRetryPeriod)
+            .Default(TDuration::Seconds(3));
         RegisterParameter("incremental_heartbeat_timeout", IncrementalHeartbeatTimeout)
             .Default(TDuration::Seconds(15));
         RegisterParameter("full_heartbeat_timeout", FullHeartbeatTimeout)
