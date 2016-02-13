@@ -145,7 +145,7 @@ std::pair<TConstQueryPtr, std::vector<TConstQueryPtr>> CoordinateQuery(
 
     topQuery->TableSchema = subqueryPattern->GetTableSchema();
     topQuery->RenamedTableSchema = topQuery->TableSchema;
-    
+
     std::vector<TConstQueryPtr> subqueries;
 
     for (const auto& refiner : refiners) {
@@ -241,10 +241,12 @@ TRowRanges GetPrunedRanges(
         Logger);
 }
 
-TRowRange GetRange(const std::vector<TDataRange>& sources)
+TRowRange GetRange(const TSharedRange<TDataRange>& sources)
 {
-    YCHECK(!sources.empty());
-    return std::accumulate(sources.begin() + 1, sources.end(), sources.front().Range, [] (TRowRange keyRange, const TDataRange & source) -> TRowRange {
+    YCHECK(!sources.Empty());
+    return std::accumulate(sources.Begin() + 1, sources.End(), sources.Begin()->Range, [] (
+        TRowRange keyRange, const TDataRange & source) -> TRowRange
+    {
         return Unite(keyRange, source.Range);
     });
 }

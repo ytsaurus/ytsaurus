@@ -473,6 +473,13 @@ void EnrichKeyRange(
         for (int referenceIndex : references) {
             if (referenceIndex >= (canEnumerate ? prefixSize + 1 : prefixSize)) {
                 canEvaluate = false;
+                break;
+            } else if (
+                lower[referenceIndex].Type == EValueType::TheBottom ||
+                upper[referenceIndex].Type == EValueType::TheBottom)
+            {
+                canEvaluate = false;
+                break;
             }
         }
 

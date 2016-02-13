@@ -46,7 +46,8 @@ public:
             TJobTrackerServiceProxy::GetServiceName(),
             ChunkServerLogger)
     {
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(Heartbeat));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(Heartbeat)
+            .SetInvoker(GetGuardedAutomatonInvoker(EAutomatonThreadQueue::IncrementalHeartbeat)));
     }
 
 private:
