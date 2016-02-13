@@ -42,6 +42,8 @@ private:
     const TOperationId OperationId_;
     const NTransactionClient::TTransactionId TransactionId_;
 
+    NConcurrency::TPeriodicExecutorPtr ChunkListReleaseExecutor_;
+
     NLogging::TLogger Logger;
 
     struct TCellData
@@ -53,6 +55,8 @@ private:
 
     yhash_map<NObjectClient::TCellTag, TCellData> CellMap_;
 
+    yhash_map<NObjectClient::TCellTag, std::vector<NChunkClient::TChunkListId>> ChunksToRelease_;
+    TInstant LastReleaseTime_;
 
     void AllocateMore(NObjectClient::TCellTag cellTag);
 
@@ -62,7 +66,7 @@ private:
 
     void OnChunkListsReleased(
         NObjectClient::TCellTag cellTag,
-        const NObjectClient::TObjectServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError);
+        const NObjectClient::TMasterYPathProxy::TErrorOrRspUnstageObjectsPtr& rspOrError);
 };
 
 DEFINE_REFCOUNTED_TYPE(TChunkListPool)

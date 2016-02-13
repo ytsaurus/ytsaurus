@@ -353,6 +353,14 @@ public:
     //! more chunk lists than previously.
     double ChunkListAllocationMultiplier;
 
+    //! Minimum time between two consecutive chunk list release requests
+    //! until number of chunk lists to release less that desired chunk lists to release.
+    //! This option necessary to prevent chunk list release storm.
+    TDuration ChunkListReleaseBatchDelay;
+    
+    //! Desired number of chunks to release in one batch.
+    int DesiredChunkListsPerRelease;
+
     //! Maximum number of chunks per single fetch.
     int MaxChunksPerFetch;
 
@@ -505,6 +513,10 @@ public:
         RegisterParameter("chunk_list_allocation_multiplier", ChunkListAllocationMultiplier)
             .Default(2.0)
             .GreaterThan(1.0);
+        RegisterParameter("chunk_list_release_batch_delay", ChunkListReleaseBatchDelay)
+            .Default(TDuration::Seconds(30));
+        RegisterParameter("desired_chunk_lists_per_release", DesiredChunkListsPerRelease)
+            .Default(1000);
 
         RegisterParameter("max_chunks_per_fetch", MaxChunksPerFetch)
             .Default(100000)
