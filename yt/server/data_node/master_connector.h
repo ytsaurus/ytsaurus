@@ -220,6 +220,13 @@ private:
      */
     void OnChunkRemoved(IChunkPtr chunk);
 
+    //! Returns the channel used for registering at and reporting heartbeats
+    //! to the leader of a given cell.
+    /*!
+     *  This channel is neither authenticated nor retrying.
+     */
+    NRpc::IChannelPtr GetMasterChannel(NObjectClient::TCellTag cellTag);
+
     TChunksDelta* GetChunksDelta(NObjectClient::TCellTag cellTag);
     TChunksDelta* GetChunksDelta(const NObjectClient::TObjectId& id);
 
