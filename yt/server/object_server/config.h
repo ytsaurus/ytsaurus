@@ -29,7 +29,7 @@ public:
     TObjectManagerConfig()
     {
         RegisterParameter("max_weight_per_gc_sweep", MaxWeightPerGCSweep)
-            .Default(10000);
+            .Default(100000);
         RegisterParameter("gc_sweep_period", GCSweepPeriod)
             .Default(TDuration::MilliSeconds(1000));
         RegisterParameter("yield_timeout", YieldTimeout)
