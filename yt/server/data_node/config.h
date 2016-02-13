@@ -359,7 +359,7 @@ public:
         RegisterParameter("lease_transaction_ping_period", LeaseTransactionPingPeriod)
             .Default(TDuration::Seconds(15));
         RegisterParameter("incremental_heartbeat_period", IncrementalHeartbeatPeriod)
-            .Default(TDuration::Seconds(15));
+            .Default(TDuration::Seconds(5));
         RegisterParameter("full_heartbeat_period", FullHeartbeatPeriod)
             .Default();
         RegisterParameter("register_retry_period", RegisterRetryPeriod)
