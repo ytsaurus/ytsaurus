@@ -30,8 +30,6 @@
 
 #include <yt/ytlib/hive/cell_directory.h>
 
-#include <yt/ytlib/hydra/peer_channel.h>
-
 #include <yt/ytlib/node_tracker_client/helpers.h>
 #include <yt/ytlib/node_tracker_client/node_statistics.h>
 
@@ -270,7 +268,7 @@ void TMasterConnector::RegisterAtMaster()
         BIND(&TMasterConnector::OnLeaseTransactionAborted, MakeWeak(this))
             .Via(HeartbeatInvoker_));
 
-    auto masterChannel = Bootstrap_->GetMasterClient()->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
+    auto masterChannel = GetMasterChannel(PrimaryMasterCellTag);
     TNodeTrackerServiceProxy proxy(masterChannel);
 
     auto req = proxy.RegisterNode();
@@ -451,7 +449,7 @@ void TMasterConnector::SendFullNodeHeartbeat(TCellTag cellTag)
     auto Logger = DataNodeLogger;
     Logger.AddTag("CellTag: %v", cellTag);
 
-    auto channel = Bootstrap_->GetMasterClient()->GetMasterChannelOrThrow(EMasterChannelKind::Leader, cellTag);
+    auto channel = GetMasterChannel(cellTag);
     TNodeTrackerServiceProxy proxy(channel);
 
     auto request = proxy.FullHeartbeat()
@@ -531,10 +529,9 @@ void TMasterConnector::SendIncrementalNodeHeartbeat(TCellTag cellTag)
     auto Logger = DataNodeLogger;
     Logger.AddTag("CellTag: %v", cellTag);
 
-    auto client = Bootstrap_->GetMasterClient();
-    auto connection = client->GetConnection();
+    auto primaryCellTag = CellTagFromId(Bootstrap_->GetCellId());
 
-    auto channel = client->GetMasterChannelOrThrow(EMasterChannelKind::Leader, cellTag);
+    auto channel = GetMasterChannel(cellTag);
     TNodeTrackerServiceProxy proxy(channel);
 
     auto request = proxy.IncrementalHeartbeat()
@@ -562,7 +559,7 @@ void TMasterConnector::SendIncrementalNodeHeartbeat(TCellTag cellTag)
         *request->add_removed_chunks() = BuildRemoveChunkInfo(chunk);
     }
 
-    if (cellTag == connection->GetPrimaryMasterCellTag()) {
+    if (cellTag == primaryCellTag) {
         auto slotManager = Bootstrap_->GetTabletSlotManager();
         for (auto slot : slotManager->Slots()) {
             auto* protoSlotInfo = request->add_tablet_slots();
@@ -659,7 +656,7 @@ void TMasterConnector::SendIncrementalNodeHeartbeat(TCellTag cellTag)
         delta->ReportedRemoved.clear();
     }
 
-    if (cellTag == connection->GetPrimaryMasterCellTag()) {
+    if (cellTag == primaryCellTag) {
         auto slotManager = Bootstrap_->GetTabletSlotManager();
 
         for (const auto& info : rsp->tablet_slots_to_remove()) {
@@ -740,8 +737,7 @@ void TMasterConnector::SendJobHeartbeat()
 
     auto* delta = GetChunksDelta(cellTag);
     if (delta->State == EState::Online) {
-        auto client = Bootstrap_->GetMasterClient();
-        auto channel = client->GetMasterChannelOrThrow(EMasterChannelKind::Leader, cellTag);
+        auto channel = GetMasterChannel(cellTag);
         TJobTrackerServiceProxy proxy(channel);
 
         auto req = proxy.Heartbeat();
@@ -841,6 +837,15 @@ void TMasterConnector::OnChunkRemoved(IChunkPtr chunk)
     LOG_DEBUG("Chunk removal registered (ChunkId: %v, LocationId: %v)",
         chunk->GetId(),
         chunk->GetLocation()->GetId());
+}
+
+IChannelPtr TMasterConnector::GetMasterChannel(TCellTag cellTag)
+{
+    auto cellId = Bootstrap_->GetCellId(cellTag);
+    auto client = Bootstrap_->GetMasterClient();
+    auto connection = client->GetConnection();
+    auto cellDirectory = connection->GetCellDirectory();
+    return cellDirectory->GetChannelOrThrow(cellId, EPeerKind::Leader);
 }
 
 TMasterConnector::TChunksDelta* TMasterConnector::GetChunksDelta(TCellTag cellTag)
