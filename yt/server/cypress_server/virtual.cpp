@@ -308,8 +308,9 @@ TFuture<std::vector<std::pair<TCellTag, i64>>> TVirtualMulticellMapBase::FetchSi
         auto multicellManager = Bootstrap_->GetMulticellManager();
         for (auto cellTag : multicellManager->GetRegisteredMasterCellTags()) {
             auto channel = multicellManager->FindMasterChannel(cellTag, NHydra::EPeerKind::Leader);
-            if (!channel)
+            if (!channel) {
                 continue;
+            }
 
             TObjectServiceProxy proxy(channel);
             auto batchReq = proxy.ExecuteBatch();
@@ -364,8 +365,9 @@ void TVirtualMulticellMapBase::FetchItemsFromAnywhere(
     TVirtualMulticellMapBase::TFetchItemsSessionPtr session,
     TPromise<TFetchItemsSessionPtr> promise)
 {
-    if (promise.IsSet())
+    if (promise.IsSet()) {
         return;
+    }
 
     if (session->CellTagIndex >= (int) session->CellTags.size() ||
         session->Items.size() >= session->Limit)
@@ -431,7 +433,7 @@ void TVirtualMulticellMapBase::FetchItemsFromRemote(
 {
     auto cellTag = session->CellTags[session->CellTagIndex++];
     auto multicellManager = Bootstrap_->GetMulticellManager();
-    auto channel = multicellManager->FindMasterChannel(cellTag, NHydra::EPeerKind::Leader);
+    auto channel = multicellManager->FindMasterChannel(cellTag, NHydra::EPeerKind::Follower);
     if (!channel) {
         FetchItemsFromAnywhere(session, promise);
         return;
