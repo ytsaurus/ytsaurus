@@ -1330,12 +1330,14 @@ private:
             TTabletInfoPtr tabletInfo,
             const TLookupRowsOptions& options,
             const TNameTableToSchemaIdMapping& idMapping,
-            const TTableSchema& schema)
+            const TTableSchema& schema,
+            int keyColumnCount)
             : Config_(owner->Connection_->GetConfig())
             , TabletId_(tabletInfo->TabletId)
             , Options_(options)
             , IdMapping_(idMapping)
             , Schema_(schema)
+            , KeyColumnCount_(keyColumnCount)
         { }
 
         void AddKey(int index, NTableClient::TKey key)
@@ -1363,9 +1365,38 @@ private:
                 writer.WriteMessage(req);
                 writer.WriteSchemafulRowset(batch->Keys, IdMapping_.empty() ? nullptr : &IdMapping_);
 
+                auto chunkedData = writer.Flush();
+
                 batch->RequestData = NCompression::CompressWithEnvelope(
-                    writer.Flush(),
+                    chunkedData,
                     Config_->LookupRequestCodec);
+
+                //TODO(savrus) remove later if no problems are detected.
+                {
+                    size_t size = 0;
+                    for (const auto& ref : chunkedData) {
+                        size += ref.Size();
+                    }
+                    auto blob = TBlob(TDefaultBlobTag());
+                    blob.Reserve(size);
+                    for (const auto& ref : chunkedData) {
+                        blob.Append(ref);
+                    }
+                    auto ref = TSharedRef::FromBlob(std::move(blob));
+                    TWireProtocolReader reader{ref};
+
+                    auto command = reader.ReadCommand();
+                    YCHECK(command == EWireProtocolCommand::LookupRows);
+
+                    TReqLookupRows writtenReq;
+                    reader.ReadMessage(&writtenReq);
+
+                    auto schemaData = TWireProtocolReader::GetSchemaData(Schema_, KeyColumnCount_);
+                    auto rowset = reader.ReadSchemafulRowset(schemaData);
+
+                    YCHECK(rowset.Size() == batch->Keys.size());
+                    YCHECK(reader.IsFinished());
+                }
             }
 
             InvokeChannel_ = channel;
@@ -1390,11 +1421,12 @@ private:
         }
 
     private:
-        TConnectionConfigPtr Config_;
-        TTabletId TabletId_;
-        TLookupRowsOptions Options_;
-        TNameTableToSchemaIdMapping IdMapping_;
+        const TConnectionConfigPtr Config_;
+        const TTabletId TabletId_;
+        const TLookupRowsOptions Options_;
+        const TNameTableToSchemaIdMapping IdMapping_;
         const TTableSchema& Schema_;
+        const int KeyColumnCount_;
 
         struct TBatch
         {
@@ -1512,7 +1544,14 @@ private:
             if (it == tabletToSession.end()) {
                 it = tabletToSession.insert(std::make_pair(
                     tabletInfo,
-                    New<TTabletLookupSession>(this, tabletInfo, options, idMapping, tableInfo->Schema))).first;
+                    New<TTabletLookupSession>(
+                        this,
+                        tabletInfo,
+                        options,
+                        idMapping,
+                        tableInfo->Schema,
+                        tableInfo->KeyColumns.size())))
+                    .first;
             }
             const auto& session = it->second;
             session->AddKey(index, key);

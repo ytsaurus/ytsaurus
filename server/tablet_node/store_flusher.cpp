@@ -194,14 +194,14 @@ private:
         auto tabletManager = slot->GetTabletManager();
         auto storeManager = tablet->GetStoreManager();
 
-        if (storeManager->IsPeriodicRotationNeeded()) {
-            LOG_INFO("Scheduling periodic store rotation (TabletId: %v)",
+        if (storeManager->IsNearActiveStoreOverflow()) {
+            LOG_DEBUG("Scheduling store rotation due to overflow (TabletId: %v)",
                 tablet->GetTabletId());
             tabletManager->ScheduleStoreRotation(tablet);
         }
 
-        if (storeManager->IsOverflowRotationNeeded()) {
-            LOG_INFO("Scheduling store rotation due to overflow (TabletId: %v)",
+        if (storeManager->IsPeriodicRotationNeeded()) {
+            LOG_INFO("Scheduling periodic store rotation (TabletId: %v)",
                 tablet->GetTabletId());
             tabletManager->ScheduleStoreRotation(tablet);
         }

@@ -1670,27 +1670,20 @@ TParsedQueryInfo PrepareJobQueryAst(const Stroka& source)
 
 void GetExternalFunctions(
     const NAst::TNullableExpressionList& exprs,
-    IFunctionRegistryPtr builtinRegistry,
-    std::vector<Stroka>* externalFunctions);
+    std::vector<Stroka>* functions);
 
 void GetExternalFunctions(
     const NAst::TExpressionPtr& expr,
-    IFunctionRegistryPtr builtinRegistry,
-    std::vector<Stroka>* externalFunctions)
+    std::vector<Stroka>* functions)
 {
     if (auto functionExpr = expr->As<NAst::TFunctionExpression>()) {
-        const auto& name = functionExpr->FunctionName;
-        if (!builtinRegistry->FindFunction(name) &&
-            !builtinRegistry->FindAggregateFunction(name))
-        {
-            externalFunctions->push_back(name);
-        }
-        GetExternalFunctions(functionExpr->Arguments, builtinRegistry, externalFunctions);
+        functions->push_back(functionExpr->FunctionName);
+        GetExternalFunctions(functionExpr->Arguments, functions);
     } else if (auto unaryExpr = expr->As<NAst::TUnaryOpExpression>()) {
-        GetExternalFunctions(unaryExpr->Operand, builtinRegistry, externalFunctions);
+        GetExternalFunctions(unaryExpr->Operand, functions);
     } else if (auto binaryExpr = expr->As<NAst::TBinaryOpExpression>()) {
-        GetExternalFunctions(binaryExpr->Lhs, builtinRegistry, externalFunctions);
-        GetExternalFunctions(binaryExpr->Rhs, builtinRegistry, externalFunctions);
+        GetExternalFunctions(binaryExpr->Lhs, functions);
+        GetExternalFunctions(binaryExpr->Rhs, functions);
     } else if (expr->As<NAst::TInExpression>()) {
     } else if (expr->As<NAst::TLiteralExpression>()) {
     } else if (expr->As<NAst::TReferenceExpression>()) {
@@ -1701,15 +1694,14 @@ void GetExternalFunctions(
 
 void GetExternalFunctions(
     const NAst::TNullableExpressionList& exprs,
-    IFunctionRegistryPtr builtinRegistry,
-    std::vector<Stroka>* externalFunctions)
+    std::vector<Stroka>* functions)
 {
     if (!exprs) {
         return;
     }
 
     for (const auto& expr : exprs.Get()) {
-        GetExternalFunctions(expr, builtinRegistry, externalFunctions);
+        GetExternalFunctions(expr, functions);
     }
 }
 
@@ -1719,18 +1711,35 @@ std::vector<Stroka> GetExternalFunctions(
 {
     std::vector<Stroka> externalFunctions;
 
-    GetExternalFunctions(parsedQueryInfo.first.WherePredicate, builtinRegistry, &externalFunctions);
-    GetExternalFunctions(parsedQueryInfo.first.HavingPredicate, builtinRegistry, &externalFunctions);
-    GetExternalFunctions(parsedQueryInfo.first.SelectExprs, builtinRegistry, &externalFunctions);
-    GetExternalFunctions(parsedQueryInfo.first.GroupExprs, builtinRegistry, &externalFunctions);
+    GetExternalFunctions(parsedQueryInfo.first.WherePredicate, &externalFunctions);
+    GetExternalFunctions(parsedQueryInfo.first.HavingPredicate, &externalFunctions);
+    GetExternalFunctions(parsedQueryInfo.first.SelectExprs, &externalFunctions);
+    GetExternalFunctions(parsedQueryInfo.first.GroupExprs, &externalFunctions);
+
+    for (const auto& join : parsedQueryInfo.first.Joins) {
+        GetExternalFunctions(join.Left, &externalFunctions);
+        GetExternalFunctions(join.Right, &externalFunctions);
+    }
+
+    for (const auto& orderExpression : parsedQueryInfo.first.OrderExpressions) {
+        for (const auto& expr : orderExpression.first) {
+            GetExternalFunctions(expr, &externalFunctions);
+        }
+    }
 
     for (const auto& aliasedExpression : parsedQueryInfo.second) {
-        GetExternalFunctions(aliasedExpression.second.Get(), builtinRegistry, &externalFunctions);
+        GetExternalFunctions(aliasedExpression.second.Get(), &externalFunctions);
     }
 
     std::sort(externalFunctions.begin(), externalFunctions.end());
     externalFunctions.erase(
         std::unique(externalFunctions.begin(), externalFunctions.end()),
+        externalFunctions.end());
+
+    externalFunctions.erase(
+        std::remove_if(externalFunctions.begin(), externalFunctions.end(), [&] (const Stroka& name) {
+            return builtinRegistry->FindFunction(name) || builtinRegistry->FindAggregateFunction(name);
+        }),
         externalFunctions.end());
 
     return externalFunctions;
