@@ -46,7 +46,7 @@ private:
     {
         DISPATCH_YPATH_SERVICE_METHOD(CreateObjects);
         DISPATCH_YPATH_SERVICE_METHOD(CreateObject);
-        DISPATCH_YPATH_SERVICE_METHOD(UnstageObject);
+        DISPATCH_YPATH_SERVICE_METHOD(UnstageObjects);
         return TBase::DoInvoke(context);
     }
 
@@ -88,7 +88,7 @@ private:
             const auto& objectId = object->GetId();
             ToProto(response->add_object_ids(), objectId);
         }
-        
+
         context->Reply();
     }
 
@@ -136,23 +136,25 @@ private:
         context->Reply();
     }
 
-    DECLARE_YPATH_SERVICE_METHOD(NObjectClient::NProto, UnstageObject)
+    DECLARE_YPATH_SERVICE_METHOD(NObjectClient::NProto, UnstageObjects)
     {
         UNUSED(response);
 
         DeclareMutating();
 
-        auto objectId = FromProto<TObjectId>(request->object_id());
-        bool recursive = request->recursive();
-        context->SetRequestInfo("ObjectId: %v, Recursive: %v",
-            objectId,
-            recursive);
-
         auto objectManager = Bootstrap_->GetObjectManager();
-        auto* object = objectManager->GetObjectOrThrow(objectId);
-
         auto transactionManager = Bootstrap_->GetTransactionManager();
-        transactionManager->UnstageObject(object, recursive);
+
+        for (const auto& protoId : request->object_ids()) {
+            auto objectId = FromProto<TObjectId>(protoId);
+            bool recursive = request->recursive();
+            context->SetRequestInfo("ObjectId: %v, Recursive: %v",
+                objectId,
+                recursive);
+
+            auto* object = objectManager->GetObjectOrThrow(objectId);
+            transactionManager->UnstageObject(object, recursive);
+        }
 
         context->Reply();
     }

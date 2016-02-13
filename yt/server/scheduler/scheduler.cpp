@@ -1963,8 +1963,8 @@ private:
         auto channel = GetMasterClient()->GetMasterChannelOrThrow(NApi::EMasterChannelKind::Leader);
         TObjectServiceProxy proxy(channel);
 
-        auto req = TMasterYPathProxy::UnstageObject();
-        ToProto(req->mutable_object_id(), chunkId);
+        auto req = TMasterYPathProxy::UnstageObjects();
+        ToProto(req->add_object_ids(), chunkId);
         req->set_recursive(false);
 
         // Fire-and-forget.
@@ -1973,7 +1973,7 @@ private:
             BIND(&TImpl::OnStderrChunkReleased, MakeStrong(this)));
     }
 
-    void OnStderrChunkReleased(const TMasterYPathProxy::TErrorOrRspUnstageObjectPtr& rspOrError)
+    void OnStderrChunkReleased(const TMasterYPathProxy::TErrorOrRspUnstageObjectsPtr& rspOrError)
     {
         if (!rspOrError.IsOK()) {
             LOG_WARNING(rspOrError, "Error releasing stderr chunk");

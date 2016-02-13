@@ -7,6 +7,7 @@
 
 #include <yt/ytlib/api/client.h>
 
+#include <yt/core/concurrency/periodic_executor.h>
 #include <yt/core/concurrency/thread_affinity.h>
 
 namespace NYT {
@@ -16,6 +17,7 @@ using namespace NCypressClient;
 using namespace NObjectClient;
 using namespace NTransactionClient;
 using namespace NChunkClient;
+using namespace NConcurrency;
 using namespace NApi;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -31,6 +33,10 @@ TChunkListPool::TChunkListPool(
     , ControllerInvoker_(controllerInvoker)
     , OperationId_(operationId)
     , TransactionId_(transactionId)
+    , ChunkListReleaseExecutor_(New<TPeriodicExecutor>(
+        controllerInvoker,
+        BIND(&TChunkListPool::Release, MakeWeak(this), std::vector<TChunkListId>()),
+        Config_->ChunkListReleaseBatchDelay))
     , Logger(OperationLogger)
 {
     YCHECK(config);
@@ -89,32 +95,53 @@ void TChunkListPool::Release(const std::vector<TChunkListId>& ids)
 {
     VERIFY_INVOKER_AFFINITY(ControllerInvoker_);
 
-    yhash<TCellTag, std::vector<TChunkListId>> cellTagToIds;
     for (const auto& id : ids) {
-        cellTagToIds[CellTagFromId(id)].push_back(id);
+        ChunksToRelease_[CellTagFromId(id)].push_back(id);
     }
 
-    for (const auto& pair : cellTagToIds) {
+    if (ChunksToRelease_.empty()) {
+        return;
+    }
+
+    auto now = TInstant::Now();
+    bool delayElapsed = LastReleaseTime_ + Config_->ChunkListReleaseBatchDelay > now;
+
+    int count = 0;
+    for (const auto& pair : ChunksToRelease_) {
+        count += pair.second.size();
+    }
+    bool sizeExceeded = count >= Config_->DesiredChunkListsPerRelease;
+
+    if (!delayElapsed && !sizeExceeded) {
+        return;
+    }
+
+    LastReleaseTime_ = now;
+    for (const auto& pair : ChunksToRelease_) {
         auto cellTag = pair.first;
         const auto& ids = pair.second;
 
         auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Leader, cellTag);
         TObjectServiceProxy objectProxy(channel);
 
-        auto batchReq = objectProxy.ExecuteBatch();
-        for (const auto& id : ids) {
-            auto req = TMasterYPathProxy::UnstageObject();
-            ToProto(req->mutable_object_id(), id);
+        int index = 0;
+        while (index < ids.size()) {
+            auto req = TMasterYPathProxy::UnstageObjects();
             req->set_recursive(true);
-            batchReq->AddRequest(req);
-        }
+            for (int i = 0; i < Config_->DesiredChunkListsPerRelease && index < ids.size(); ++i) {
+                ToProto(req->add_object_ids(), ids[index]);
+                ++index;
+            }
 
-        // Fire-and-forget.
-        // The subscriber is only needed to log the outcome.
-        batchReq->Invoke().Subscribe(
-            BIND(&TChunkListPool::OnChunkListsReleased, MakeStrong(this), cellTag)
-                .Via(ControllerInvoker_));
+            // Fire-and-forget.
+            // The subscriber is only needed to log the outcome.
+            objectProxy.Execute(req).Subscribe(
+                BIND(&TChunkListPool::OnChunkListsReleased, MakeStrong(this), cellTag)
+                    .Via(ControllerInvoker_));
+        }
     }
+
+    ChunksToRelease_.clear();
 }
 
 void TChunkListPool::AllocateMore(TCellTag cellTag)
@@ -181,11 +208,10 @@ void TChunkListPool::OnChunkListsCreated(
 
 void TChunkListPool::OnChunkListsReleased(
     TCellTag cellTag,
-    const TObjectServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError)
+    const TMasterYPathProxy::TErrorOrRspUnstageObjectsPtr& rspOrError)
 {
-    auto error = GetCumulativeError(batchRspOrError);
-    if (!error.IsOK()) {
-        LOG_WARNING(error, "Error releasing chunk lists from pool (CellTag: %v)",
+    if (!rspOrError.IsOK()) {
+        LOG_WARNING(rspOrError, "Error releasing chunk lists from pool (CellTag: %v)",
             cellTag);
     }
 }
