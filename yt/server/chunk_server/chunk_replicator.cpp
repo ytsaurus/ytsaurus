@@ -514,13 +514,13 @@ void TChunkReplicator::ProcessExistingJobs(
 
                 switch (job->GetState()) {
                     case EJobState::Running:
-                        LOG_INFO("Job is running (JobId: %v, Address: %v)",
+                        LOG_DEBUG("Job is running (JobId: %v, Address: %v)",
                             jobId,
                             address);
                         break;
 
                     case EJobState::Waiting:
-                        LOG_INFO("Job is waiting (JobId: %v, Address: %v)",
+                        LOG_DEBUG("Job is waiting (JobId: %v, Address: %v)",
                             jobId,
                             address);
                         break;
@@ -537,7 +537,7 @@ void TChunkReplicator::ProcessExistingJobs(
                 jobsToRemove->push_back(job);
                 switch (job->GetState()) {
                     case EJobState::Completed:
-                        LOG_INFO("Job completed (JobId: %v, Address: %v)",
+                        LOG_DEBUG("Job completed (JobId: %v, Address: %v)",
                             jobId,
                             address);
                         break;
@@ -651,7 +651,7 @@ bool TChunkReplicator::CreateReplicationJob(
         sourceNode,
         targetNodes);
 
-    LOG_INFO("Replication job scheduled (JobId: %v, Address: %v, ChunkId: %v, TargetAddresses: [%v])",
+    LOG_DEBUG("Replication job scheduled (JobId: %v, Address: %v, ChunkId: %v, TargetAddresses: [%v])",
         (*job)->GetJobId(),
         sourceNode->GetDefaultAddress(),
         chunkWithIndex,
@@ -682,7 +682,7 @@ bool TChunkReplicator::CreateBalancingJob(
         sourceNode,
         TNodeList(1, targetNode));
 
-    LOG_INFO("Balancing job scheduled (JobId: %v, Address: %v, ChunkId: %v, TargetAddress: %v)",
+    LOG_DEBUG("Balancing job scheduled (JobId: %v, Address: %v, ChunkId: %v, TargetAddress: %v)",
         (*job)->GetJobId(),
         sourceNode->GetDefaultAddress(),
         chunkWithIndex,
@@ -713,7 +713,7 @@ bool TChunkReplicator::CreateRemovalJob(
         chunkIdWithIndex,
         node);
 
-    LOG_INFO("Removal job scheduled (JobId: %v, Address: %v, ChunkId: %v)",
+    LOG_DEBUG("Removal job scheduled (JobId: %v, Address: %v, ChunkId: %v)",
         (*job)->GetJobId(),
         node->GetDefaultAddress(),
         chunkIdWithIndex);
@@ -776,7 +776,7 @@ bool TChunkReplicator::CreateRepairJob(
         erasedIndexes,
         Config_->RepairJobMemoryUsage);
 
-    LOG_INFO("Repair job scheduled (JobId: %v, Address: %v, ChunkId: %v, TargetAddresses: [%v], ErasedIndexes: %v)",
+    LOG_DEBUG("Repair job scheduled (JobId: %v, Address: %v, ChunkId: %v, TargetAddresses: [%v], ErasedIndexes: %v)",
         (*job)->GetJobId(),
         node->GetDefaultAddress(),
         chunk->GetId(),
@@ -809,7 +809,7 @@ bool TChunkReplicator::CreateSealJob(
         chunk,
         node);
 
-    LOG_INFO("Seal job scheduled (JobId: %v, Address: %v, ChunkId: %v)",
+    LOG_DEBUG("Seal job scheduled (JobId: %v, Address: %v, ChunkId: %v)",
         (*job)->GetJobId(),
         node->GetDefaultAddress(),
         chunk->GetId());
@@ -1555,7 +1555,7 @@ void TChunkReplicator::RegisterJob(TJobPtr job)
         YCHECK(jobList->Jobs().insert(job).second);
     }
 
-    LOG_INFO("Job registered (JobId: %v, JobType: %v, Address: %v)",
+    LOG_DEBUG("Job registered (JobId: %v, JobType: %v, Address: %v)",
         job->GetJobId(),
         job->GetType(),
         job->GetNode()->GetDefaultAddress());
@@ -1588,7 +1588,7 @@ void TChunkReplicator::UnregisterJob(TJobPtr job, EJobUnregisterFlags flags)
         }
     }
 
-    LOG_INFO("Job unregistered (JobId: %v, Address: %v)",
+    LOG_DEBUG("Job unregistered (JobId: %v, Address: %v)",
         job->GetJobId(),
         job->GetNode()->GetDefaultAddress());
 }
