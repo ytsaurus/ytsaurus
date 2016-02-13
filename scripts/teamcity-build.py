@@ -332,6 +332,9 @@ def run_python_libraries_tests(options):
 
 @build_step
 def build_python_packages(options):
+    if not options.package:
+        return
+
     def versions_cmp(version1, version2):
         def normalize(v):
             return map(int, v.replace("-", ".").split("."))
