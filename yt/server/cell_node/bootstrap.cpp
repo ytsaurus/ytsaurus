@@ -609,6 +609,13 @@ const TCellId& TBootstrap::GetCellId() const
     return Config->ClusterConnection->PrimaryMaster->CellId;
 }
 
+TCellId TBootstrap::GetCellId(TCellTag cellTag) const
+{
+    return cellTag == PrimaryMasterCellTag
+        ? GetCellId()
+        : ReplaceCellTagInId(GetCellId(), cellTag);
+}
+
 NQueryClient::TColumnEvaluatorCachePtr TBootstrap::GetColumnEvaluatorCache() const
 {
     return ColumnEvaluatorCache;
