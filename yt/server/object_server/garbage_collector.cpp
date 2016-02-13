@@ -10,6 +10,7 @@
 #include <yt/server/object_server/object_manager.pb.h>
 
 #include <yt/core/misc/common.h>
+#include <yt/core/misc/collection_helpers.h>
 
 namespace NYT {
 namespace NObjectServer {
@@ -166,6 +167,9 @@ void TGarbageCollector::OnSweep()
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
+    ShrinkHashTable(&Zombies_);
+    ShrinkHashTable(&Ghosts_);
+    
     auto hydraFacade = Bootstrap_->GetHydraFacade();
     auto hydraManager = hydraFacade->GetHydraManager();
     if (Zombies_.empty() || !hydraManager->IsActiveLeader()) {
