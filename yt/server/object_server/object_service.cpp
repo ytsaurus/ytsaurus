@@ -62,7 +62,9 @@ public:
             ObjectServerLogger,
             NObjectClient::TObjectServiceProxy::GetProtocolVersion())
     {
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(Execute));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(Execute)
+            .SetMaxQueueSize(10000)
+            .SetMaxConcurrency(10000));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GCCollect));
     }
 
