@@ -523,8 +523,8 @@ void TServiceBase::HandleRequest(
         // Not actually atomic but should work fine as long as some small error is OK.
         if (runtimeInfo->QueueSizeCounter.Current > runtimeInfo->Descriptor.MaxQueueSize) {
             THROW_ERROR_EXCEPTION(
-                EErrorCode::Unavailable,
-                "Request queue limit reached")
+                NRpc::EErrorCode::RequestQueueLimitExceeded,
+                "Request queue limit exceeded")
                 << TErrorAttribute("limit", runtimeInfo->Descriptor.MaxQueueSize);
         }
     } catch (const std::exception& ex) {

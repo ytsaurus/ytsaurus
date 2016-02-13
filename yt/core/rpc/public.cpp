@@ -16,6 +16,7 @@ bool IsRetriableError(const TError& error)
     return code == NRpc::EErrorCode::TransportError ||
            code == NRpc::EErrorCode::Unavailable ||
            code == NRpc::EErrorCode::Abandoned ||
+           code == NRpc::EErrorCode::RequestQueueLimitExceeded ||
            code == NYT::EErrorCode::Timeout;
 }
 
