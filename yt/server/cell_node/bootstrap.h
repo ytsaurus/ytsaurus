@@ -86,6 +86,7 @@ public:
     NConcurrency::IThroughputThrottlerPtr GetOutThrottler(const TWorkloadDescriptor& descriptor) const;
 
     const NObjectClient::TCellId& GetCellId() const;
+    NObjectClient::TCellId GetCellId(NObjectClient::TCellTag cellTag) const;
 
     void Run();
 
