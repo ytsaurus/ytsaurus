@@ -142,6 +142,7 @@ def get_scheduler_config():
         operations_update_period = 500;
         fair_share_update_period = 500;
         watchers_update_period = 100;
+        chunk_list_release_batch_delay = 100;
         connect_grace_delay = 0;
         environment = {
              PYTHONUSERBASE = "/tmp"
