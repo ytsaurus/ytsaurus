@@ -23,7 +23,7 @@
 #include <yt/ytlib/object_client/master_ypath_proxy.h>
 #include <yt/ytlib/object_client/object_service_proxy.h>
 
-#include <yt/ytlib/transaction_client/transaction_ypath_proxy.h>
+#include <yt/ytlib/transaction_client/transaction_ypath.pb.h>
 
 #include <yt/core/concurrency/scheduler.h>
 

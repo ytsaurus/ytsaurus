@@ -274,7 +274,6 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/transaction_client/transaction_listener.cpp
   ${CMAKE_CURRENT_LIST_DIR}/transaction_client/transaction_manager.cpp
   ${CMAKE_CURRENT_LIST_DIR}/transaction_client/transaction_ypath.proto
-  ${CMAKE_CURRENT_LIST_DIR}/transaction_client/transaction_ypath_proxy.cpp
 
   ${CMAKE_CURRENT_LIST_DIR}/ypath/rich.cpp
 
