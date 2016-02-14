@@ -65,6 +65,7 @@ public:
         NObjectClient::TCellTag externalCellTag,
         INodeTypeHandlerPtr handler,
         NSecurityServer::TAccount* account,
+        bool enableAccounting,
         NTransactionServer::TTransaction* transaction,
         NYTree::IAttributeDictionary* attributes);
 
