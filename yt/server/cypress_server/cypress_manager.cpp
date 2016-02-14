@@ -142,6 +142,7 @@ public:
 
     virtual ICypressNodeProxyPtr CreateNode(
         EObjectType type,
+        bool enableAccounting = true,
         IAttributeDictionary* attributes = nullptr) override
     {
         ValidateCreatedNodeType(type);
@@ -210,6 +211,7 @@ public:
             cellTag,
             handler,
             account,
+            enableAccounting,
             Transaction_,
             attributes);
 
@@ -229,6 +231,7 @@ public:
             replicationRequest.set_type(static_cast<int>(type));
             ToProto(replicationRequest.mutable_node_attributes(), *replicationAttributes);
             ToProto(replicationRequest.mutable_account_id(), Account_->GetId());
+            replicationRequest.set_enable_accounting(enableAccounting);
             multicellManager->PostToMaster(replicationRequest, cellTag);
         }
 
@@ -614,6 +617,7 @@ public:
         TCellTag externalCellTag,
         INodeTypeHandlerPtr handler,
         TAccount* account,
+        bool enableAccounting,
         TTransaction* transaction,
         IAttributeDictionary* attributes)
     {
@@ -631,6 +635,7 @@ public:
         // Set account.
         auto securityManager = Bootstrap_->GetSecurityManager();
         securityManager->SetAccount(node, account);
+        securityManager->SetNodeResourceAccounting(node, enableAccounting);
 
         // Set owner.
         auto* user = securityManager->GetAuthenticatedUser();
@@ -1995,12 +2000,15 @@ private:
             ? FromProto(request.node_attributes())
             : std::unique_ptr<IAttributeDictionary>();
 
+        auto enableAccounting = request.enable_accounting();
+
         auto versionedNodeId = TVersionedNodeId(nodeId, transactionId);
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Creating foreign node (NodeId: %v, Type: %v, Account: %v)",
+        LOG_DEBUG_UNLESS(IsRecovery(), "Creating foreign node (NodeId: %v, Type: %v, Account: %v, EnableAccounting: %v)",
             versionedNodeId,
             type,
-            account ? MakeNullable(account->GetName()) : Null);
+            account ? MakeNullable(account->GetName()) : Null,
+            enableAccounting);
 
         auto handler = GetHandler(type);
 
@@ -2009,6 +2017,7 @@ private:
             NotReplicatedCellTag,
             handler,
             account,
+            enableAccounting,
             transaction,
             attributes.get());
 
@@ -2163,6 +2172,7 @@ TCypressNodeBase* TCypressManager::CreateNode(
     TCellTag externalCellTag,
     INodeTypeHandlerPtr handler,
     TAccount* account,
+    bool enableAccounting,
     TTransaction* transaction,
     IAttributeDictionary* attributes)
 {
@@ -2171,6 +2181,7 @@ TCypressNodeBase* TCypressManager::CreateNode(
         externalCellTag,
         std::move(handler),
         account,
+        enableAccounting,
         transaction,
         attributes);
 }

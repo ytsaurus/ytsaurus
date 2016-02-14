@@ -888,17 +888,18 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Create)
 
     auto newProxy = factory->CreateNode(
         type,
+        request->enable_accounting(),
         attributes.get());
 
-    SetChildNode(factory, path, newProxy, request->recursive());
+    SetChildNode(
+        factory,
+        path,
+        newProxy,
+        request->recursive());
 
     factory->Commit();
 
     auto* newNode = newProxy->GetTrunkNode();
-
-    auto securityManager = Bootstrap_->GetSecurityManager();
-    securityManager->SetNodeResourceAccounting(newNode, request->enable_accounting());
-
     const auto& newNodeId = newNode->GetId();
     auto newNodeCellTag = newNode->GetExternalCellTag() == NotReplicatedCellTag
         ? Bootstrap_->GetCellTag()
