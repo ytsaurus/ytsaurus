@@ -3,7 +3,6 @@
 #include "config.h"
 #include "helpers.h"
 #include "timestamp_provider.h"
-#include "transaction_ypath_proxy.h"
 
 #include <yt/ytlib/hive/cell_directory.h>
 #include <yt/ytlib/hive/transaction_supervisor_service_proxy.h>
@@ -13,6 +12,8 @@
 #include <yt/ytlib/object_client/object_service_proxy.h>
 
 #include <yt/ytlib/tablet_client/tablet_service_proxy.h>
+
+#include <yt/ytlib/transaction_client/transaction_ypath.pb.h>
 
 #include <yt/core/concurrency/delayed_executor.h>
 #include <yt/core/concurrency/thread_affinity.h>

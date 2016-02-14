@@ -28,7 +28,7 @@
 #include <yt/ytlib/scheduler/helpers.h>
 
 #include <yt/ytlib/transaction_client/helpers.h>
-#include <yt/ytlib/transaction_client/transaction_ypath_proxy.h>
+#include <yt/ytlib/transaction_client/transaction_ypath.pb.h>
 
 #include <yt/ytlib/api/transaction.h>
 
