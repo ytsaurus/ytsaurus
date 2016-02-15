@@ -109,6 +109,9 @@ typedef TIntrusivePtr<TSortedMergeOperationSpec> TSortedMergeOperationSpecPtr;
 class TEraseOperationSpec;
 typedef TIntrusivePtr<TEraseOperationSpec> TEraseOperationSpecPtr;
 
+class TReduceOperationSpecBase;
+typedef TIntrusivePtr<TReduceOperationSpecBase> TReduceOperationSpecBasePtr;
+
 class TReduceOperationSpec;
 typedef TIntrusivePtr<TReduceOperationSpec> TReduceOperationSpecPtr;
 

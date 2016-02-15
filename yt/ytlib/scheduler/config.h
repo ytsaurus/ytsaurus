@@ -511,7 +511,7 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TReduceOperationSpec
+class TReduceOperationSpecBase
     : public TSimpleOperationSpecBase
 {
 public:
@@ -519,8 +519,9 @@ public:
     std::vector<NYPath::TRichYPath> InputTablePaths;
     std::vector<NYPath::TRichYPath> OutputTablePaths;
     NTableClient::TKeyColumns ReduceBy;
+    NTableClient::TKeyColumns JoinBy;
 
-    TReduceOperationSpec()
+    TReduceOperationSpecBase()
     {
         RegisterParameter("reducer", Reducer)
             .DefaultNew();
@@ -530,15 +531,11 @@ public:
             .NonEmpty();
         RegisterParameter("reduce_by", ReduceBy)
             .Default();
+        RegisterParameter("join_by", JoinBy)
+            .Default();
 
         RegisterInitializer([&] () {
             DataSizePerJob = (i64) 128 * 1024 * 1024;
-        });
-
-        RegisterValidator([&] () {
-            if (!ReduceBy.empty()) {
-                NTableClient::ValidateKeyColumns(ReduceBy);
-            }
         });
     }
 
@@ -555,30 +552,28 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TJoinReduceOperationSpec
-    : public TSimpleOperationSpecBase
+class TReduceOperationSpec
+    : public TReduceOperationSpecBase
 {
 public:
-    TUserJobSpecPtr Reducer;
-    std::vector<NYPath::TRichYPath> InputTablePaths;
-    std::vector<NYPath::TRichYPath> OutputTablePaths;
-    NTableClient::TKeyColumns JoinBy;
+    TReduceOperationSpec()
+    {
+        RegisterValidator([&] () {
+            if (!ReduceBy.empty()) {
+                NTableClient::ValidateKeyColumns(ReduceBy);
+            }
+        });
+    }
+};
 
+////////////////////////////////////////////////////////////////////////////////
+
+class TJoinReduceOperationSpec
+    : public TReduceOperationSpecBase
+{
+public:
     TJoinReduceOperationSpec()
     {
-        RegisterParameter("reducer", Reducer)
-            .DefaultNew();
-        RegisterParameter("input_table_paths", InputTablePaths)
-            .NonEmpty();
-        RegisterParameter("output_table_paths", OutputTablePaths)
-            .NonEmpty();
-        RegisterParameter("join_by", JoinBy)
-            .Default();
-
-        RegisterInitializer([&] () {
-            DataSizePerJob = (i64) 128 * 1024 * 1024;
-        });
-
         RegisterValidator([&] () {
             if (!JoinBy.empty()) {
                 NTableClient::ValidateKeyColumns(JoinBy);
@@ -588,12 +583,17 @@ public:
 
     virtual void OnLoaded() override
     {
-        TSimpleOperationSpecBase::OnLoaded();
-
-        InputTablePaths = NYT::NYPath::Normalize(InputTablePaths);
-        OutputTablePaths = NYT::NYPath::Normalize(OutputTablePaths);
-
-        Reducer->InitEnableInputTableIndex(InputTablePaths.size(), JobIO);
+        TReduceOperationSpecBase::OnLoaded();
+        bool hasPrimary = false;
+        for (const auto& path: InputTablePaths) {
+            hasPrimary |= path.GetPrimary();
+        }
+        if (hasPrimary) {
+            for (auto& path: InputTablePaths) {
+                path.Attributes().Set("foreign", !path.GetPrimary());
+                path.Attributes().Remove("primary");
+            }
+        }
     }
 };
 

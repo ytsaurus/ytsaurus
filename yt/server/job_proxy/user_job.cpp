@@ -585,7 +585,7 @@ private:
             asyncOutput,
             true,
             Config_->JobIO->ControlAttributes,
-            JobIO_->GetReduceKeyColumnCount());
+            JobIO_->GetKeySwitchColumnCount());
 
         FormatWriters_.push_back(writer);
 

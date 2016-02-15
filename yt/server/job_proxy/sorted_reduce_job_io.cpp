@@ -31,11 +31,12 @@ public:
     {
         const auto& reduceJobSpecExt = Host_->GetJobSpec().GetExtension(TReduceJobSpecExt::reduce_job_spec_ext);
         ReduceKeyColumnCount_ = reduceJobSpecExt.reduce_key_column_count();
+        ForeignKeyColumnCount_ = reduceJobSpecExt.join_key_column_count();
     }
 
-    virtual int GetReduceKeyColumnCount() const override
+    virtual int GetKeySwitchColumnCount() const override
     {
-        return ReduceKeyColumnCount_;
+        return ForeignKeyColumnCount_ != 0 ? ForeignKeyColumnCount_ : ReduceKeyColumnCount_;
     }
 
     virtual ISchemalessMultiChunkReaderPtr DoCreateReader(
@@ -71,7 +72,33 @@ public:
             readers.push_back(reader);
         }
 
-        return CreateSchemalessSortedMergingReader(readers, keyColumns.size());
+        auto reduceReader = CreateSchemalessSortedMergingReader(readers, keyColumns.size());
+        if (ForeignKeyColumnCount_ == 0) {
+            return reduceReader;
+        }
+
+        std::vector<ISchemalessMultiChunkReaderPtr> joinReaders;
+        keyColumns.resize(ForeignKeyColumnCount_);
+
+        for (const auto& inputSpec : SchedulerJobSpec_.foreign_input_specs()) {
+            std::vector<TChunkSpec> chunks(inputSpec.chunks().begin(), inputSpec.chunks().end());
+
+            auto reader = CreateSchemalessSequentialMultiChunkReader(
+                JobIOConfig_->TableReader,
+                options,
+                Host_->GetClient(),
+                Host_->GetBlockCache(),
+                Host_->GetInputNodeDirectory(),
+                chunks,
+                nameTable,
+                columnFilter,
+                keyColumns);
+
+            joinReaders.push_back(reader);
+        }
+        joinReaders.push_back(reduceReader);
+
+        return CreateSchemalessSortedMergingReader(joinReaders, ForeignKeyColumnCount_);
     }
 
     virtual ISchemalessMultiChunkWriterPtr DoCreateWriter(
@@ -85,6 +112,7 @@ public:
 
 private:
     int ReduceKeyColumnCount_;
+    int ForeignKeyColumnCount_;
 };
 
 std::unique_ptr<IUserJobIO> CreateSortedReduceJobIO(IJobHostPtr host)

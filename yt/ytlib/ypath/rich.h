@@ -50,6 +50,9 @@ public:
     // "primary"
     bool GetPrimary() const;
 
+    // "foreign"
+    bool GetForeign() const;
+
     // "channel"
     NChunkClient::TChannel GetChannel() const;
 

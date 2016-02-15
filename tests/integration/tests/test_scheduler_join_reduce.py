@@ -35,7 +35,7 @@ class TestSchedulerJoinReduceCommands(YTEnvSetup):
         create("table", "//tmp/out")
 
         join_reduce(
-            in_ = ["<primary=true>//tmp/in1{key}", "//tmp/in2{key}"],
+            in_ = ["//tmp/in1{key}", "<foreign=true>//tmp/in2{key}"],
             out = ["<sorted_by=[key]>//tmp/out"],
             command = "cat",
             join_by = "key",
@@ -82,7 +82,7 @@ class TestSchedulerJoinReduceCommands(YTEnvSetup):
         create("table", "//tmp/out")
 
         join_reduce(
-            in_ = ["//tmp/in1", "<primary=true>//tmp/in2"],
+            in_ = ["<foreign=true>//tmp/in1", "//tmp/in2"],
             out = "<sorted_by=[key]>//tmp/out",
             command = "cat",
             spec = {
@@ -127,7 +127,7 @@ class TestSchedulerJoinReduceCommands(YTEnvSetup):
         create("table", "//tmp/out")
 
         op = join_reduce(
-            in_ = ["<primary=true>//tmp/in1", "//tmp/in2"],
+            in_ = ["//tmp/in1", "<foreign=true>//tmp/in2"],
             out = "<sorted_by=[key]>//tmp/out",
             command = "cat 1>&2",
             spec = {
@@ -192,7 +192,7 @@ class TestSchedulerJoinReduceCommands(YTEnvSetup):
         create("table", "//tmp/out2")
 
         join_reduce(
-            in_ = ["<primary=true>//tmp/in1", "//tmp/in2", "//tmp/in3", "//tmp/in4"],
+            in_ = ["//tmp/in1", "<foreign=true>//tmp/in2", "<foreign=true>//tmp/in3", "<foreign=true>//tmp/in4"],
             out = ["<sorted_by=[key]>//tmp/out1", "<sorted_by=[key]>//tmp/out2"],
             command = "cat | tee /dev/fd/4 | grep @table_index=0",
             join_by = "key",
@@ -211,9 +211,9 @@ class TestSchedulerJoinReduceCommands(YTEnvSetup):
         assert read_table("//tmp/out2") == \
             [
                 {"key": "0", "value": "1", "@table_index": "0"},
-                {"key": "2", "value": "1", "@table_index": "2"},
                 {"key": "2", "value": "2", "@table_index": "0"},
                 {"key": "2", "value": "5", "@table_index": "1"},
+                {"key": "2", "value": "1", "@table_index": "2"},
                 {"key": "3", "value": "6", "@table_index": "1"},
                 {"key": "3", "value": "7", "@table_index": "3"},
                 {"key": "4", "value": "3", "@table_index": "0"},
@@ -230,7 +230,8 @@ class TestSchedulerJoinReduceCommands(YTEnvSetup):
         create("table", "//tmp/out")
 
         join_reduce(
-            in_ = ["<primary=true>//tmp/in1", "//tmp/in2"],
+            in_ = ["//tmp/in1", "<foreign=true>//tmp/in2"],
+
             out = "//tmp/out",
             command = "cat")
 
@@ -264,7 +265,7 @@ class TestSchedulerJoinReduceCommands(YTEnvSetup):
         # expected error: Input table //tmp/in1 is not sorted
         with pytest.raises(YtError):
             join_reduce(
-                in_ = ["<primary=true>//tmp/in1", "//tmp/in2"],
+                in_ = ["//tmp/in1", "<foreign=true>//tmp/in2"],
                 out = "//tmp/out",
                 command = "cat")
 
@@ -278,7 +279,7 @@ class TestSchedulerJoinReduceCommands(YTEnvSetup):
         # expected error: Key columns do not match
         with pytest.raises(YtError):
             join_reduce(
-                in_ = ["<primary=true>//tmp/in1", "//tmp/in2"],
+                in_ = ["//tmp/in1", "<foreign=true>//tmp/in2"],
                 out = "//tmp/out",
                 command = "cat")
 
@@ -291,7 +292,7 @@ class TestSchedulerJoinReduceCommands(YTEnvSetup):
         # expected error: Input table is sorted by columns that are not compatible with the requested columns"
         with pytest.raises(YtError):
             join_reduce(
-                in_ = ["<primary=true>//tmp/in", "//tmp/in"],
+                in_ = ["//tmp/in", "<foreign=true>//tmp/in"],
                 out = "//tmp/out",
                 command = "cat",
                 join_by = "subkey")
@@ -305,7 +306,7 @@ class TestSchedulerJoinReduceCommands(YTEnvSetup):
         write_table("//tmp/in2", [{"key": "1", "subkey": "3"}, {"key": "2"}], sorted_by=["key", "subkey"])
 
         join_reduce(
-            in_ = ['<primary=true>//tmp/in1["1":"3"]', "//tmp/in2"],
+            in_ = ['//tmp/in1["1":"3"]', "<foreign=true>//tmp/in2"],
             out = "<sorted_by=[key; subkey]>//tmp/out",
             command = "cat",
             join_by = ["key", "subkey"],
@@ -342,7 +343,7 @@ echo {v = 2} >&7
         write_file("//tmp/reducer.sh", reducer)
 
         join_reduce(
-            in_ = ["<primary=true>//tmp/t_in", "//tmp/t_in"],
+            in_ = ["//tmp/t_in", "<foreign=true>//tmp/t_in"],
             out = output_tables,
             command = "bash reducer.sh",
             file = "//tmp/reducer.sh")
@@ -374,7 +375,7 @@ echo {v = 2} >&7
                 sorted_by = ["key"])
 
         join_reduce(
-            in_ = ["<primary=true>//tmp/in1", "//tmp/in2"],
+            in_ = ["//tmp/in1", "<foreign=true>//tmp/in2"],
             out = "//tmp/out",
             command = 'echo "key=`wc -l`"',
             join_by = ["key"],
@@ -405,7 +406,7 @@ echo {v = 2} >&7
             sorted_by = ["key"])
 
         op = join_reduce(
-            in_ = ["<primary=true>//tmp/in", "//tmp/in"],
+            in_ = ["//tmp/in", "<foreign=true>//tmp/in"],
             out = "//tmp/out",
             command = "cat 1>&2",
             join_by = ["key"],
@@ -467,7 +468,7 @@ echo {v = 2} >&7
             table_writer = {"block_size": 1024})
 
         join_reduce(
-            in_ = [ '<ranges=[{lower_limit={row_index=100;key=["10010"]};upper_limit={row_index=540;key=["10280"]}}];primary=true>//tmp/in1', "//tmp/in2" ],
+            in_ = [ '<ranges=[{lower_limit={row_index=100;key=["10010"]};upper_limit={row_index=540;key=["10280"]}}];primary=true>//tmp/in1', "<foreign=true>//tmp/in2" ],
             out = "//tmp/out",
             command = """awk '{print $0"\tji="ENVIRON["YT_JOB_INDEX"]"\tsi="ENVIRON["YT_START_ROW_INDEX"]}' """,
             join_by = ["key"],
@@ -505,7 +506,7 @@ echo {v = 2} >&7
             sorted_by = ["key"])
 
         join_reduce(
-            in_ = ["<primary=true>//tmp/in1", "//tmp/in2"],
+            in_ = ["//tmp/in1", "<foreign=true>//tmp/in2"],
             out = ["//tmp/out"],
             command = "uniq",
             join_by = "key",
@@ -523,3 +524,44 @@ echo {v = 2} >&7
                 {"key": "a", "@table_index": "1"},
                 {"key": "b", "@table_index": "1"},
             ])
+
+    # Check compatibility with deprecated <primary=true> attribute
+    @unix_only
+    def test_join_reduce_compatibility(self):
+        create("table", "//tmp/in1")
+        write_table(
+            "//tmp/in1",
+            [
+                {"key": 0, "value": 1},
+                {"key": 2, "value": 2},
+            ],
+            sorted_by = "key")
+
+        create("table", "//tmp/in2")
+        write_table(
+            "//tmp/in2",
+            [
+                {"key": -1, "value": 5},
+                {"key": 1, "value": 6},
+            ],
+            sorted_by = "key")
+
+        create("table", "//tmp/out")
+
+        join_reduce(
+            in_ = ["//tmp/in1", "//tmp/in1", "<primary=true>//tmp/in2"],
+            out = "<sorted_by=[key]>//tmp/out",
+            command = "cat",
+            spec = {
+                "reducer": {
+                    "format": "dsv"}})
+
+        assert read_table("//tmp/out") == \
+            [
+                {"key": "-1", "value": "5"},
+                {"key": "0", "value": "1"},
+                {"key": "0", "value": "1"},
+                {"key": "1", "value": "6"},
+            ]
+
+        assert get("//tmp/out/@sorted")

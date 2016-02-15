@@ -214,6 +214,16 @@ protected:
         std::vector<NChunkClient::TRefCountedChunkSpecPtr> Chunks;
         NTableClient::TKeyColumns KeyColumns;
 
+        bool IsForeign() const
+        {
+            return Path.GetForeign();
+        }
+
+        bool IsPrimary() const
+        {
+            return !IsForeign();
+        }
+
         void Persist(TPersistenceContext& context);
     };
 
@@ -777,13 +787,18 @@ protected:
     //! Should a violation be discovered, the operation fails.
     virtual bool IsRowCountPreserved() const;
 
+    typedef std::function<bool(const TInputTable& table)> TInputTableFilter;
+
     NTableClient::TKeyColumns CheckInputTablesSorted(
-        const NTableClient::TKeyColumns& keyColumns);
+        const NTableClient::TKeyColumns& keyColumns,
+        TInputTableFilter inputTableFilter = [](const TInputTable&) { return true; });
+
     static bool CheckKeyColumnsCompatible(
         const NTableClient::TKeyColumns& fullColumns,
         const NTableClient::TKeyColumns& prefixColumns);
     //! Returns the longest common prefix of input table keys.
-    NTableClient::TKeyColumns GetCommonInputKeyPrefix();
+    NTableClient::TKeyColumns GetCommonInputKeyPrefix(
+        TInputTableFilter inputTableFilter = [] (const TInputTable&) { return true; });
 
     void UpdateAllTasksIfNeeded(const TProgressCounter& jobCounter);
     bool IsMemoryReserveEnabled(const TProgressCounter& jobCounter) const;
@@ -820,8 +835,11 @@ protected:
     NChunkClient::TChunkListId ExtractChunkList(NObjectClient::TCellTag cellTag);
     void ReleaseChunkLists(const std::vector<NChunkClient::TChunkListId>& ids);
 
-    //! Returns the list of all input chunks collected from all input tables.
-    std::vector<NChunkClient::TRefCountedChunkSpecPtr> CollectInputChunks() const;
+    //! Returns the list of all input chunks collected from all primary input tables.
+    std::vector<NChunkClient::TRefCountedChunkSpecPtr> CollectPrimaryInputChunks() const;
+
+    //! Returns the list of lists of all input chunks collected from all foreign input tables.
+    std::vector<std::deque<NChunkClient::TRefCountedChunkSpecPtr>> CollectForeignInputChunks() const;
 
     //! Converts a list of input chunks into a list of chunk stripes for further
     //! processing. Each stripe receives exactly one chunk (as suitable for most
