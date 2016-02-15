@@ -3,6 +3,7 @@ from config import get_config
 from pickling import Pickler
 from common import get_python_version, YtError
 
+from yt.packages.importlib import import_module
 from yt.zip import ZipFile
 import yt.logger as logger
 
@@ -18,8 +19,8 @@ import time
 LOCATION = os.path.dirname(os.path.abspath(__file__))
 TMPFS_SIZE_MULTIPLIER = 1.05
 
-# Modules below are imported to force their addition to modules archive
-OPERATION_REQUIRED_MODULES = ['_py_runner_helpers']
+# Modules below are imported to force their addition to modules archive.
+OPERATION_REQUIRED_MODULES = ["yt.wrapper.py_runner_helpers"]
 
 def is_running_interactively():
     # Does not work in bpython
@@ -74,8 +75,7 @@ def find_file(path):
 
 def create_modules_archive_default(tempfiles_manager, client):
     for module_name in OPERATION_REQUIRED_MODULES:
-        module_info = imp.find_module(module_name, [LOCATION])
-        imp.load_module(module_name, *module_info)
+        import_module(module_name)
 
     files_to_compress = {}
     module_filter = get_config(client)["pickling"]["module_filter"]

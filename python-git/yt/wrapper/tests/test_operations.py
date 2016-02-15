@@ -565,6 +565,18 @@ class TestOperations(object):
         finally:
             yt.config["pickling"]["create_modules_archive_function"] = None
 
+    @add_failed_operation_stderrs_to_error_message
+    def test_is_inside_job(self):
+        table = TEST_DIR + "/table"
+        yt.write_table(table, ["x=1\n"])
+
+        def mapper(rec):
+            yield {"flag": str(yt.is_inside_job()).lower()}
+
+        yt.run_map(mapper, table, table)
+        assert not yt.is_inside_job()
+        assert list(yt.read_table(table)) == ["flag=true\n"]
+
     # TODO(ignat): replace timeout with scheduler-side option
     #def test_wait_strategy_timeout(self):
     #    records = ["x=1\n", "y=2\n", "z=3\n"]

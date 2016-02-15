@@ -3,6 +3,7 @@
 from yt.common import require, flatten, update, which, YtError, update_from_env, unlist, get_value, filter_dict
 import yt.yson as yson
 
+import os
 import sys
 import random
 import time
@@ -149,5 +150,4 @@ def date_string_to_timestamp(date):
 
 def is_inside_job():
     """Returns True if the code is currently being run in the context of a YT job."""
-    import _py_runner_helpers
-    return _py_runner_helpers.IS_INSIDE_JOB
+    return bool(int(os.environ.get("YT_WRAPPER_IS_INSIDE_JOB", "0")))

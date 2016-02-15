@@ -314,6 +314,7 @@ def _add_user_command_spec(op_type, binary, format, input_format, output_format,
                     flatten(files + additional_files + map(lambda path: prepare_path(path, client=client), get_value(file_paths, []))),
                 "use_yamr_descriptors": bool_to_string(get_config(client)["yamr_mode"]["use_yamr_style_destination_fds"]),
                 "check_input_fully_consumed": bool_to_string(get_config(client)["yamr_mode"]["check_input_fully_consumed"]),
+                "environment": {"YT_WRAPPER_IS_INSIDE_JOB": "1"}
             }
         },
         spec)

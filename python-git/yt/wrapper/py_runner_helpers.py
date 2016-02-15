@@ -1,11 +1,9 @@
-from yt.common import YtError
-from yt.wrapper.common import EMPTY_GENERATOR
+from common import EMPTY_GENERATOR, YtError
+
 import inspect
 import sys
 import os
 import types
-
-IS_INSIDE_JOB = False
 
 class YtStandardStreamAccessError(YtError):
     pass
@@ -46,7 +44,7 @@ class WrappedStreams(object):
     def get_original_stdout(self):
         return self.stdout
 
-def _convert_callable_to_generator(func):
+def convert_callable_to_generator(func):
     def generator(*args):
         result = func(*args)
         if isinstance(result, types.GeneratorType):
@@ -58,18 +56,18 @@ def _convert_callable_to_generator(func):
 
     return generator
 
-def _extract_operation_methods(operation):
+def extract_operation_methods(operation):
     if hasattr(operation, "start") and inspect.ismethod(operation.start):
-        start = _convert_callable_to_generator(operation.start)
+        start = convert_callable_to_generator(operation.start)
     else:
         start = lambda: EMPTY_GENERATOR
 
     if hasattr(operation, "finish") and inspect.ismethod(operation.finish):
-        finish = _convert_callable_to_generator(operation.finish)
+        finish = convert_callable_to_generator(operation.finish)
     else:
         finish = lambda: EMPTY_GENERATOR
 
-    return start, _convert_callable_to_generator(operation), finish
+    return start, convert_callable_to_generator(operation), finish
 
 def check_job_environment_variables():
     for name in ["YT_OPERATION_ID", "YT_JOB_ID", "YT_JOB_INDEX", "YT_START_ROW_INDEX"]:
