@@ -177,7 +177,7 @@ default_config = {
 
     # Always write files as one chunks.
     # It forces disabling of write retries for large files.
-    "write_file_as_one_chunk": True,
+    "write_file_as_one_chunk": False,
 
     # Default value of raw option in read, write, select, insert, lookup, delete.
     "default_value_of_raw_option": True,
