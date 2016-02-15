@@ -349,9 +349,12 @@ TEST_F(TComputedColumnTest, Far0)
 {
     TTableSchema tableSchema({
         TColumnSchema("k", EValueType::Int64)
+            .SetSortOrder(ESortOrder::Ascending)
             .SetExpression(Stroka("l + 1")),
-        TColumnSchema("l", EValueType::Int64),
-        TColumnSchema("m", EValueType::Int64),
+        TColumnSchema("l", EValueType::Int64)
+            .SetSortOrder(ESortOrder::Ascending),
+        TColumnSchema("m", EValueType::Int64)
+            .SetSortOrder(ESortOrder::Ascending),
         TColumnSchema("a", EValueType::Int64)
     });
 
