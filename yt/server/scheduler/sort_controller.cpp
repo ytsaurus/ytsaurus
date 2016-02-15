@@ -911,7 +911,7 @@ protected:
         virtual void OnJobLost(TCompletedJobPtr completedJob) override
         {
             auto nodeId = completedJob->NodeDescriptor.Id;
-            YCHECK((Partition->NodeIdToLocality[nodeId] -= stripeList->TotalDataSize) >= 0);
+            YCHECK((Partition->NodeIdToLocality[nodeId] -= completedJob->DataSize) >= 0);
 
             Controller->ResetTaskLocalityDelays();
 

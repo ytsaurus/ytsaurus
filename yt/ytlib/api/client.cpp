@@ -1402,7 +1402,6 @@ private:
     }
 
 
-
     class TTabletCellLookupSession
         : public TIntrinsicRefCounted
     {
@@ -1414,8 +1413,8 @@ private:
             const TNameTableToSchemaIdMapping& idMapping,
             const TTableSchema& schema,
             int keyColumnCount)
-            : Config_(owner->Connection_->GetConfig())
-            , TabletId_(tabletInfo->TabletId)
+            : Client_(std::move(client))
+            , Config_(Client_->Connection_->GetConfig())
             , Options_(options)
             , IdMapping_(idMapping)
             , Schema_(schema)
@@ -1504,7 +1503,7 @@ private:
             std::vector<TUnversionedRow>* resultRows,
             std::vector<std::unique_ptr<TWireProtocolReader>>* readers)
         {
-            auto schemaData = TWireProtocolReader::GetSchemaData(TableInfo_->Schema, Options_.ColumnFilter);
+            auto schemaData = TWireProtocolReader::GetSchemaData(Schema_, Options_.ColumnFilter);
             for (const auto& batch : Batches_) {
                 auto data = NCompression::DecompressWithEnvelope(batch->Response->Attachments());
                 auto reader = std::make_unique<TWireProtocolReader>(data);
@@ -1517,8 +1516,9 @@ private:
         }
 
     private:
+        const TClientPtr Client_;
         const TConnectionConfigPtr Config_;
-        const TTabletId TabletId_;
+        const TCellId CellId_;
         const TLookupRowsOptions Options_;
         const TNameTableToSchemaIdMapping IdMapping_;
         const TTableSchema& Schema_;
@@ -1575,7 +1575,7 @@ private:
 
     };
 
-    typedef TIntrusivePtr<TTabletCellLookupSession> TTabletCellLookupTabletPtr;
+    typedef TIntrusivePtr<TTabletCellLookupSession> TTabletCellLookupSessionPtr;
 
     IRowsetPtr DoLookupRows(
         const TYPath& path,
@@ -1630,19 +1630,20 @@ private:
         }
         std::sort(sortedKeys.begin(), sortedKeys.end());
 
-        yhash_map<TCellId, TTabletCellLookupTabletPtr> cellIdToSession;
+        yhash_map<TCellId, TTabletCellLookupSessionPtr> cellIdToSession;
 
         for (const auto& pair : sortedKeys) {
             int index = pair.second;
             auto key = pair.first;
             auto tabletInfo = GetTabletForKey(tableInfo, key);
-            auto it = tabletToSession.find(tabletInfo);
-            if (it == tabletToSession.end()) {
-                it = tabletToSession.insert(std::make_pair(
-                    tabletInfo,
-                    New<TTabletLookupSession>(
+            const auto& cellId = tabletInfo->CellId;
+            auto it = cellIdToSession.find(cellId);
+            if (it == cellIdToSession.end()) {
+                it = cellIdToSession.insert(std::make_pair(
+                    cellId,
+                    New<TTabletCellLookupSession>(
                         this,
-                        tabletInfo,
+                        cellId,
                         options,
                         idMapping,
                         tableInfo->Schema,

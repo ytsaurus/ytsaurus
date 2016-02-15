@@ -869,7 +869,7 @@ private:
 
     TOperationPtr CreateOperationFromAttributes(const TOperationId& operationId, const IAttributeDictionary& attributes)
     {
-        auto getTransaction = [&] (const TTransactionId& transactionId, bool ping) -> TTransactionPtr {
+        auto getTransaction = [&] (const TTransactionId& transactionId, bool ping) -> ITransactionPtr {
             if (!transactionId) {
                 return nullptr;
             }
