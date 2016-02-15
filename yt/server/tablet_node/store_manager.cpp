@@ -148,7 +148,7 @@ void TStoreManager::ValidateActiveStoreOverflow()
         auto keyLimit = config->MaxMemoryStoreKeyCount;
         if (keyCount >= keyLimit) {
             THROW_ERROR_EXCEPTION("Active store is over key capacity")
-                << TErrorAttribute("tablet_id", Tablet_->GetTabletId())
+                << TErrorAttribute("tablet_id", Tablet_->GetId())
                 << TErrorAttribute("key_count", keyCount)
                 << TErrorAttribute("key_limit", keyLimit);
         }
@@ -159,7 +159,7 @@ void TStoreManager::ValidateActiveStoreOverflow()
         auto valueLimit = config->MaxMemoryStoreValueCount;
         if (valueCount >= valueLimit) {
             THROW_ERROR_EXCEPTION("Active store is over value capacity")
-                << TErrorAttribute("tablet_id", Tablet_->GetTabletId())
+                << TErrorAttribute("tablet_id", Tablet_->GetId())
                 << TErrorAttribute("value_count", valueCount)
                 << TErrorAttribute("value_limit", valueLimit);
         }
@@ -170,7 +170,7 @@ void TStoreManager::ValidateActiveStoreOverflow()
         auto poolCapacityLimit = config->MaxMemoryStorePoolSize;
         if (poolCapacity >= poolCapacityLimit) {
             THROW_ERROR_EXCEPTION("Active store is over its memory pool capacity")
-                << TErrorAttribute("tablet_id", Tablet_->GetTabletId())
+                << TErrorAttribute("tablet_id", Tablet_->GetId())
                 << TErrorAttribute("pool_capacity", poolCapacity)
                 << TErrorAttribute("pool_capacity_limit", poolCapacityLimit);
         }
@@ -189,9 +189,9 @@ void TStoreManager::ValidateOnWrite(
         }
     } catch (TErrorException& ex) {
         auto& errorAttributes = ex.Error().Attributes();
-        errorAttributes.SetYson("transaction_id", transactionId);
-        errorAttributes.SetYson("tablet_id", Tablet_->GetId());
-        errorAttributes.SetYson("row", row);
+        errorAttributes.Set("transaction_id", transactionId);
+        errorAttributes.Set("tablet_id", Tablet_->GetId());
+        errorAttributes.Set("row", row);
         throw ex;
     }
 }
@@ -205,9 +205,9 @@ void TStoreManager::ValidateOnDelete(
         ValidateServerKey(key, KeyColumnCount_, Tablet_->Schema());
     } catch (TErrorException& ex) {
         auto& errorAttributes = ex.Error().Attributes();
-        errorAttributes.SetYson("transaction_id", transactionId);
-        errorAttributes.SetYson("tablet_id", Tablet_->GetId());
-        errorAttributes.SetYson("key", key);
+        errorAttributes.Set("transaction_id", transactionId);
+        errorAttributes.Set("tablet_id", Tablet_->GetId());
+        errorAttributes.Set("key", key);
         throw ex;
     }
 }
