@@ -508,9 +508,7 @@ void FromProto(
         YCHECK(!columnSchema.SortOrder);
         columnSchema.SortOrder = ESortOrder::Ascending;
     }
-    *schema = TTableSchema(
-        FromProto<std::vector<TColumnSchema>>(protoSchema.columns()),
-        protoSchema.strict());
+    *schema = TTableSchema(columns, protoSchema.strict());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
