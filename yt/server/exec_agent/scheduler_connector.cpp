@@ -69,6 +69,7 @@ void TSchedulerConnector::SendHeartbeat()
 
     if (TInstant::Now() < LastFailedHeartbeatTime_ + Config_->FailedHeartbeatBackoffTime) {
         LOG_INFO("Skipping heartbeat");
+        return;
     }
 
     auto client = Bootstrap_->GetMasterClient();
