@@ -91,6 +91,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/misc/demangle.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/error.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/error.proto
+  ${CMAKE_CURRENT_LIST_DIR}/misc/format.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/fs.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/guid.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/guid.proto

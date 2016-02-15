@@ -254,21 +254,12 @@ void FormatValue(TStringBuilder* builder, T* value, const TStringBuf& format)
 }
 
 // TGuid (specialize for performance reasons)
-inline void FormatValue(TStringBuilder* builder, const TGuid& value, const TStringBuf& /*format*/ = TStringBuf())
-{
-    char* buf = builder->Preallocate(4 + 4 * 8);
-    int count = sprintf(buf, "%x-%x-%x-%x",
-        value.Parts32[3],
-        value.Parts32[2],
-        value.Parts32[1],
-        value.Parts32[0]);
-    builder->Advance(count);
-}
+void FormatValue(TStringBuilder* builder, const TGuid& value, const TStringBuf& format);
 
 // TNullable
 inline void FormatValue(TStringBuilder* builder, TNull, const TStringBuf& /*format*/)
 {
-    builder->AppendString("<null>");
+    builder->AppendString(STRINGBUF("<null>"));
 }
 
 template <class T>

@@ -673,7 +673,7 @@ protected:
 
             std::tie(writer, asyncResultRowset) = CreateSchemafulRowsetWriter(primaryQuery->GetTableSchema());
 
-            auto queryStatistics = DoExecuteQuery(
+            DoExecuteQuery(
                 owningSources.front(),
                 functionRegistry,
                 failureLocation,

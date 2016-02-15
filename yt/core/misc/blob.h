@@ -77,67 +77,67 @@ public:
     void Resize(size_t newSize, bool initializeStorage = true);
 
     //! Returns the start pointer.
-    FORCED_INLINE const char* Begin() const
+    Y_FORCE_INLINE const char* Begin() const
     {
         return Begin_;
     }
 
     //! Returns the start pointer.
-    FORCED_INLINE char* Begin()
+    Y_FORCE_INLINE char* Begin()
     {
         return Begin_;
     }
 
     //! Returns the end pointer.
-    FORCED_INLINE const char* End() const
+    Y_FORCE_INLINE const char* End() const
     {
         return Begin_ + Size_;
     }
 
     //! Returns the end pointer.
-    FORCED_INLINE char* End()
+    Y_FORCE_INLINE char* End()
     {
         return Begin_ + Size_;
     }
 
     //! Returns the size.
-    FORCED_INLINE size_t Size() const
+    Y_FORCE_INLINE size_t Size() const
     {
         return Size_;
     }
 
     //! Returns the capacity.
-    FORCED_INLINE size_t Capacity() const
+    Y_FORCE_INLINE size_t Capacity() const
     {
         return Capacity_;
     }
 
     //! Returns the TStringBuf instance for the occupied part of the blob.
-    FORCED_INLINE TStringBuf ToStringBuf() const
+    Y_FORCE_INLINE TStringBuf ToStringBuf() const
     {
         return TStringBuf(Begin_, Size_);
     }
 
     //! Provides by-value access to the underlying storage.
-    FORCED_INLINE char operator [] (size_t index) const
+    Y_FORCE_INLINE char operator [] (size_t index) const
     {
         return Begin_[index];
     }
 
     //! Provides by-ref access to the underlying storage.
-    FORCED_INLINE char& operator [] (size_t index)
+    Y_FORCE_INLINE char& operator [] (size_t index)
     {
         return Begin_[index];
     }
 
     //! Clears the instance but does not reclaim the memory.
-    FORCED_INLINE void Clear()
+    Y_FORCE_INLINE void Clear()
     {
         Size_ = 0;
     }
 
     //! Returns |true| if size is zero.
-    FORCED_INLINE bool IsEmpty() const
+    Y_FORCE_INLINE bool IsEmpty() const
     {
         return Size_ == 0;
     }

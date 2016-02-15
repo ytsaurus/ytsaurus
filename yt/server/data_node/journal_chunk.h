@@ -16,7 +16,6 @@ class TJournalChunk
 public:
     TJournalChunk(
         NCellNode::TBootstrap* bootstrap,
-        bool enableMultiplexing,
         TStoreLocationPtr location,
         const TChunkDescriptor& descriptor);
 
@@ -58,7 +57,6 @@ public:
     bool IsSealed() const;
 
 private:
-    const bool EnableMultiplexing_;
     const TStoreLocationPtr StoreLocation_;
 
     const NChunkClient::TRefCountedChunkMetaPtr Meta_;
