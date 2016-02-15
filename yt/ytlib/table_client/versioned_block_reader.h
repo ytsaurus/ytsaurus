@@ -91,8 +91,8 @@ private:
     void ReadValue(TVersionedValue* value, int valueIndex, int id, int chunkSchemaId);
     void ReadKeyValue(TUnversionedValue* value, int id);
 
-    FORCED_INLINE TTimestamp ReadValueTimestamp(int valueIndex, int id);
-    FORCED_INLINE void ReadStringLike(TUnversionedValue* value, const char* ptr);
+    Y_FORCE_INLINE TTimestamp ReadValueTimestamp(int valueIndex, int id);
+    Y_FORCE_INLINE void ReadStringLike(TUnversionedValue* value, const char* ptr);
 
     ui32 GetColumnValueCount(int schemaColumnId) const;
 

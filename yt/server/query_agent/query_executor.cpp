@@ -263,8 +263,8 @@ private:
 
         LOG_DEBUG("Classifying data sources into ranges and lookup keys");
 
-        std::vector<std::pair<TGuid, TSharedRange<TRowRange>>> rangesByTablePart;
-        std::vector<std::pair<TGuid, TSharedRange<TRow>>> keysByTablePart;
+        std::vector<TDataRanges> rangesByTablePart;
+        std::vector<TDataKeys> keysByTablePart;
 
         auto keySize = query->KeyColumnsCount;
 
@@ -288,14 +288,14 @@ private:
             }
 
             if (!rowRanges.empty()) {
-                rangesByTablePart.emplace_back(
+                rangesByTablePart.push_back({
                     source.Id,
-                    MakeSharedRange(std::move(rowRanges), source.Ranges.GetHolder()));
+                    MakeSharedRange(std::move(rowRanges), source.Ranges.GetHolder())});
             }
             if (!keys.empty()) {
-                keysByTablePart.emplace_back(
+                keysByTablePart.push_back({
                     source.Id,
-                    MakeSharedRange(std::move(keys), source.Ranges.GetHolder()));
+                    MakeSharedRange(std::move(keys), source.Ranges.GetHolder())});
             }
         }
 
@@ -305,7 +305,7 @@ private:
         auto splits = Split(std::move(rangesByTablePart), rowBuffer, Logger, options.VerboseLogging);
         int splitCount = splits.size();
         int splitOffset = 0;
-        std::vector<std::vector<TDataRange>> groupedSplits;
+        std::vector<TSharedRange<TDataRange>> groupedSplits;
 
         LOG_DEBUG("Grouping %v splits", splitCount);
 
@@ -314,7 +314,8 @@ private:
         for (int queryIndex = 1; queryIndex <= maxSubqueries; ++queryIndex) {
             int nextSplitOffset = queryIndex * splitCount / maxSubqueries;
             if (splitOffset != nextSplitOffset) {
-                groupedSplits.emplace_back(splits.begin() + splitOffset, splits.begin() + nextSplitOffset);
+                std::vector<TDataRange> subsplit(splits.begin() + splitOffset, splits.begin() + nextSplitOffset);
+                groupedSplits.emplace_back(MakeSharedRange(std::move(subsplit), rowBuffer));
                 splitOffset = nextSplitOffset;
             }
         }
@@ -332,8 +333,11 @@ private:
         std::vector<TSubreaderCreator> subreaderCreators;
 
         for (auto& groupedSplit : groupedSplits) {
-            refiners.push_back([&, range = GetRange(groupedSplit)] (TConstExpressionPtr expr, const TTableSchema& schema, const
-            TKeyColumns& keyColumns) {
+            refiners.push_back([&, range = GetRange(groupedSplit)] (
+                TConstExpressionPtr expr,
+                const TTableSchema& schema,
+                const TKeyColumns& keyColumns)
+            {
                 return RefinePredicate(range, expr, schema, keyColumns, columnEvaluator);
             });
             subreaderCreators.push_back([&, MOVE(groupedSplit)] () {
@@ -341,7 +345,7 @@ private:
                     LOG_DEBUG("Generating reader for ranges %v",
                         JoinToString(groupedSplit, DataSourceFormatter));
                 } else {
-                    LOG_DEBUG("Generating reader for %v ranges", groupedSplit.size());
+                    LOG_DEBUG("Generating reader for %v ranges", groupedSplit.Size());
                 }
 
                 auto bottomSplitReaderGenerator = [
@@ -353,7 +357,7 @@ private:
                     index = 0,
                     this_ = MakeStrong(this)
                 ] () mutable -> ISchemafulReaderPtr {
-                    if (index == groupedSplit.size()) {
+                    if (index == groupedSplit.Size()) {
                         return nullptr;
                     }
 
@@ -373,14 +377,13 @@ private:
         }
 
         for (auto& keySource : keysByTablePart) {
-            const auto& tablePartId = keySource.first;
-            auto& keys = keySource.second;
+            const auto& tablePartId = keySource.Id;
+            auto& keys = keySource.Keys;
 
             refiners.push_back([&] (TConstExpressionPtr expr, const TTableSchema& schema, const TKeyColumns& keyColumns) {
                 return RefinePredicate(keys, expr, keyColumns);
             });
-
-            subreaderCreators.push_back([&] () {
+            subreaderCreators.push_back([&, MOVE(keys)] () {
                 ValidateReadTimestamp(timestamp);
 
                 std::function<ISchemafulReaderPtr()> bottomSplitReaderGenerator;
@@ -431,13 +434,8 @@ private:
 
         auto Logger = BuildLogger(query);
 
-        std::vector<std::pair<TGuid, TSharedRange<TRowRange>>> rangesByTablePart;
-        for (const auto& source : dataSources) {
-            rangesByTablePart.emplace_back(source.Id, source.Ranges);
-        }
-
         auto rowBuffer = New<TRowBuffer>();
-        auto splits = Split(std::move(rangesByTablePart), rowBuffer, Logger, options.VerboseLogging);
+        auto splits = Split(dataSources, rowBuffer, Logger, options.VerboseLogging);
 
         LOG_DEBUG("Sorting %v splits", splits.size());
 
@@ -479,8 +477,9 @@ private:
             subreaderCreators);
     }
 
+    // TODO(lukyan): Use mutable shared range
     std::vector<TDataRange> Split(
-        std::vector<std::pair<TGuid, TSharedRange<TRowRange>>> rangesByTablePart,
+        std::vector<TDataRanges> rangesByTablePart,
         TRowBufferPtr rowBuffer,
         const NLogging::TLogger& Logger,
         bool verboseLogging)
@@ -488,12 +487,15 @@ private:
         std::vector<TDataRange> allSplits;
 
         for (auto& tablePartIdRange : rangesByTablePart) {
-            auto tablePartId = tablePartIdRange.first;
-            auto& keyRanges = tablePartIdRange.second;
+            auto tablePartId = tablePartIdRange.Id;
+            auto& keyRanges = tablePartIdRange.Ranges;
 
             if (TypeFromId(tablePartId) != EObjectType::Tablet) {
                 for (const auto& range : keyRanges) {
-                    allSplits.push_back(TDataRange{tablePartId, range});
+                    allSplits.push_back(TDataRange{tablePartId, TRowRange(
+                        rowBuffer->Capture(range.first),
+                        rowBuffer->Capture(range.second)
+                    )});
                 }
                 continue;
             }

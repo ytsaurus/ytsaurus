@@ -459,7 +459,7 @@ std::vector<TMountPoint> GetMountPoints(const Stroka& mountsFile)
     std::vector<TMountPoint> mountPoints;
 
     ::mntent* entry;
-    while (entry = getmntent(file.get())) {
+    while ((entry = getmntent(file.get()))) {
         TMountPoint point;
         point.Name = entry->mnt_fsname;
         point.Path = entry->mnt_dir;
