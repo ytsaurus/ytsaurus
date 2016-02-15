@@ -1415,6 +1415,7 @@ private:
             int keyColumnCount)
             : Client_(std::move(client))
             , Config_(Client_->Connection_->GetConfig())
+            , CellId_(cellId)
             , Options_(options)
             , IdMapping_(idMapping)
             , Schema_(schema)
