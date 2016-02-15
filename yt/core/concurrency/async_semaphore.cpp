@@ -199,13 +199,13 @@ void swap(TAsyncSemaphoreGuard& lhs, TAsyncSemaphoreGuard& rhs)
 }
 
 TAsyncSemaphoreGuard::TAsyncSemaphoreGuard()
-    : Semaphore_(nullptr)
-    , Slots_(0)
+    : Slots_(0)
+    , Semaphore_(nullptr)
 { }
 
 TAsyncSemaphoreGuard::TAsyncSemaphoreGuard(TAsyncSemaphore* semaphore, i64 slots)
-    : Semaphore_(semaphore)
-    , Slots_(slots)
+    : Slots_(slots)
+    , Semaphore_(semaphore)
 { }
 
 TAsyncSemaphoreGuard TAsyncSemaphoreGuard::Acquire(TAsyncSemaphore* semaphore, i64 slots /*= 1*/)
@@ -222,6 +222,16 @@ TAsyncSemaphoreGuard TAsyncSemaphoreGuard::TryAcquire(TAsyncSemaphore* semaphore
         return TAsyncSemaphoreGuard();
     }
 }
+
+TAsyncSemaphoreGuard TAsyncSemaphoreGuard::TransferSlots(i64 transferSlots)
+{
+    YCHECK(transferSlots >= 0 && transferSlots <= Slots_);
+    Slots_ -= transferSlots;
+    TAsyncSemaphoreGuard spawnedGuard;
+    spawnedGuard.Semaphore_ = Semaphore_;
+    spawnedGuard.Slots_ = transferSlots;
+    return spawnedGuard;
+} 
 
 void TAsyncSemaphoreGuard::Release()
 {

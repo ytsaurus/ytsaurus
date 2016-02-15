@@ -84,6 +84,9 @@ class TAsyncSemaphoreGuard
     : private TNonCopyable
 {
 public:
+    DEFINE_BYVAL_RO_PROPERTY(i64, Slots);
+
+public:
     TAsyncSemaphoreGuard(TAsyncSemaphoreGuard&& other);
     ~TAsyncSemaphoreGuard();
 
@@ -94,6 +97,8 @@ public:
 
     friend void swap(TAsyncSemaphoreGuard& lhs, TAsyncSemaphoreGuard& rhs);
 
+    TAsyncSemaphoreGuard TransferSlots(i64 transferSlots);
+
     void Release();
 
     explicit operator bool() const;
@@ -102,7 +107,6 @@ private:
     friend class TAsyncSemaphore;
 
     TAsyncSemaphore* Semaphore_;
-    i64 Slots_;
 
     TAsyncSemaphoreGuard();
     TAsyncSemaphoreGuard(TAsyncSemaphore* semaphore, i64 slots);
