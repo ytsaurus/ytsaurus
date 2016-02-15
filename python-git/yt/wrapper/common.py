@@ -148,6 +148,6 @@ def date_string_to_timestamp(date):
     return int(time.mktime(datetime.strptime(date, "%Y-%m-%dT%H:%M:%S.%fZ").timetuple()))
 
 def is_inside_job():
-    """ Returns true if the code in currently being run in the context of a YT job """
+    """Returns True if the code is currently being run in the context of a YT job."""
     import _py_runner_helpers
     return _py_runner_helpers.IS_INSIDE_JOB
