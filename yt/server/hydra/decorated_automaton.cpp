@@ -705,13 +705,15 @@ TFuture<void> TDecoratedAutomaton::SaveSnapshot(IAsyncOutputStreamPtr writer)
     return Automaton_->SaveSnapshot(writer);
 }
 
-void TDecoratedAutomaton::LoadSnapshot(TVersion version, IAsyncZeroCopyInputStreamPtr reader)
+void TDecoratedAutomaton::LoadSnapshot(
+    int snapshotId,
+    TVersion version,
+    IAsyncZeroCopyInputStreamPtr reader)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    LOG_INFO("Started loading snapshot %v to reach version %v",
-        version.SegmentId + 1,
-        version);
+    LOG_INFO("Started loading snapshot (SnapshotId: %v, Version: %v)",
+        snapshotId);
 
     PROFILE_TIMING ("/snapshot_load_time") {
         Automaton_->Clear();
@@ -726,8 +728,8 @@ void TDecoratedAutomaton::LoadSnapshot(TVersion version, IAsyncZeroCopyInputStre
 
     LOG_INFO("Finished loading snapshot");
 
-    AutomatonVersion_ = version;
-    CommittedVersion_ = version;
+    // YT-3926
+    AutomatonVersion_ = CommittedVersion_ = TVersion(snapshotId, 0);
 }
 
 void TDecoratedAutomaton::ApplyMutationDuringRecovery(const TSharedRef& recordData)
@@ -820,7 +822,7 @@ TFuture<TRemoteSnapshotParams> TDecoratedAutomaton::BuildSnapshot()
 
     auto loggedVersion = GetLoggedVersion();
 
-    LOG_INFO("Scheduled snapshot at version %v",
+    LOG_INFO("Snapshot scheduled (Version: %v)",
         loggedVersion);
 
     LastSnapshotTime_ = TInstant::Now();
@@ -842,7 +844,7 @@ TFuture<void> TDecoratedAutomaton::RotateChangelog()
 
     auto loggedVersion = GetLoggedVersion();
 
-    LOG_INFO("Rotating changelog at version %v",
+    LOG_INFO("Rotating changelog (Version: %v)",
         loggedVersion);
 
     return BIND(&TDecoratedAutomaton::DoRotateChangelog, MakeStrong(this))
@@ -888,7 +890,7 @@ void TDecoratedAutomaton::CommitMutations(TVersion version, bool mayYield)
 
     CommittedVersion_ = version;
 
-    LOG_DEBUG("Committed version promoted to %v",
+    LOG_DEBUG("Committed version promoted (Version: %v)",
         version);
 
     ApplyPendingMutations(mayYield);
@@ -1039,7 +1041,7 @@ void TDecoratedAutomaton::RotateAutomatonVersion(int segmentId)
         CommittedVersion_ = automatonVersion;
     }
 
-    LOG_INFO("Automaton version is rotated to %v",
+    LOG_INFO("Automaton version rotated (Version: %v)",
         automatonVersion);
 }
 
