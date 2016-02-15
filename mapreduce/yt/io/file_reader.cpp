@@ -26,7 +26,7 @@ TFileReader::TFileReader(
         header.SetToken(auth.Token);
         header.AddTransactionId(TransactionId_);
         header.SetDataStreamFormat(DSF_BYTES);
-        header.SetParameters(YPathToJsonString(Path_));
+        header.SetParameters(YPathToYsonString(Path_));
 
         Request_.Reset(new THttpRequest(proxyName));
         requestId = Request_->GetRequestId();

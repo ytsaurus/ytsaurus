@@ -138,7 +138,7 @@ private:
             header.SetToken(Auth_.Token);
             header.AddPath(uniquePath);
             header.SetChunkedEncoding();
-            header.SetParameters("{\"file_writer\": {\"desired_chunk_size\": 1099511627776}}");
+            header.SetParameters("{file_writer={desired_chunk_size=1099511627776}}");
             auto streamMaker = [&source] () {
                 return CreateStream(source);
             };
@@ -213,7 +213,7 @@ void DumpOperationStderrs(
 
     THttpHeader header("GET", "list");
     header.AddPath(jobsPath);
-    header.SetParameters(AttributeFilterToJsonString(
+    header.SetParameters(AttributeFilterToYsonString(
         TAttributeFilter()
             .AddAttribute("state")
             .AddAttribute("error")

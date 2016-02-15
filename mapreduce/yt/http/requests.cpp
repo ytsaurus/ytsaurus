@@ -61,7 +61,7 @@ TTransactionId StartTransaction(
         header.AddParam("ping_ancestor_transactions", "true");
     }
     if (attributes) {
-        header.SetParameters(AttributesToJsonString(*attributes));
+        header.SetParameters(AttributesToYsonString(*attributes));
     }
 
     auto txId = ParseGuid(RetryRequest(auth, header));

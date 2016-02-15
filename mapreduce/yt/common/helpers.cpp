@@ -32,32 +32,12 @@ TNode NodeFromYsonString(const Stroka& input, EYsonType type)
     return result;
 }
 
-TNode NodeFromJsonString(const Stroka& input) {
-    TStringInput stream(input);
-    TNode result;
-    TNodeBuilder builder(&result);
-    TYson2JsonCallbacksAdapter adapter(&builder);
-    NJson::ReadJson(&stream, &adapter);
-    return result;
-}
-
 Stroka NodeToYsonString(const TNode& node)
 {
     TStringStream stream;
     TYsonWriter writer(&stream, YF_TEXT);
     TNodeVisitor visitor(&writer);
     visitor.Visit(node);
-    return stream.Str();
-}
-
-Stroka NodeToJsonString(const TNode& node)
-{
-    TStringStream stream;
-    {
-        TJsonWriter writer(&stream);
-        TNodeVisitor visitor(&writer);
-        visitor.Visit(node);
-    }
     return stream.Str();
 }
 
@@ -72,23 +52,23 @@ Stroka NodeListToYsonString(const TNode::TList& nodes)
     return stream.Str();
 }
 
-Stroka YPathToJsonString(const TRichYPath& path)
+Stroka YPathToYsonString(const TRichYPath& path)
 {
-    return BuildJsonStringFluently().BeginMap()
+    return BuildYsonStringFluently().BeginMap()
         .Item("path").Value(path)
     .EndMap();
 }
 
-Stroka AttributesToJsonString(const TNode& node)
+Stroka AttributesToYsonString(const TNode& node)
 {
-    return BuildJsonStringFluently().BeginMap()
+    return BuildYsonStringFluently().BeginMap()
         .Item("attributes").Value(node)
     .EndMap();
 }
 
-Stroka AttributeFilterToJsonString(const TAttributeFilter& filter)
+Stroka AttributeFilterToYsonString(const TAttributeFilter& filter)
 {
-    return BuildJsonStringFluently().BeginMap()
+    return BuildYsonStringFluently().BeginMap()
         .Item("attributes").Value(filter)
     .EndMap();
 }

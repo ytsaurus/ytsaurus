@@ -83,7 +83,7 @@ void TBlockWriter::Send(const TBuffer& buffer)
     }
 
     THttpHeader header("PUT", Command_);
-    header.SetParameters(YPathToJsonString(Path_));
+    header.SetParameters(YPathToYsonString(Path_));
     header.SetChunkedEncoding();
     header.SetDataStreamFormat(Format_);
 

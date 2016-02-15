@@ -101,7 +101,7 @@ public:
         header.AddParam("recursive", options.Recursive_);
         header.AddParam("ignore_existing", options.IgnoreExisting_);
         if (options.Attributes_) {
-            header.SetParameters(AttributesToJsonString(*options.Attributes_));
+            header.SetParameters(AttributesToYsonString(*options.Attributes_));
         }
 
         return ParseGuid(RetryRequest(Auth_, header));
@@ -139,7 +139,7 @@ public:
         header.AddTransactionId(TransactionId_);
 
         if (options.AttributeFilter_) {
-            header.SetParameters(AttributeFilterToJsonString(*options.AttributeFilter_));
+            header.SetParameters(AttributeFilterToYsonString(*options.AttributeFilter_));
         }
         if (options.MaxSize_) {
             header.AddParam("max_size", *options.MaxSize_);
@@ -174,7 +174,7 @@ public:
         header.AddTransactionId(TransactionId_);
 
         if (options.AttributeFilter_) {
-            header.SetParameters(AttributeFilterToJsonString(*options.AttributeFilter_));
+            header.SetParameters(AttributeFilterToYsonString(*options.AttributeFilter_));
         }
         if (options.MaxSize_) {
             header.AddParam("max_size", *options.MaxSize_);
@@ -228,7 +228,7 @@ public:
         header.AddParam("recursive", options.Recursive_);
         header.AddParam("ignore_existing", options.IgnoreExisting_);
         if (options.Attributes_) {
-            header.SetParameters(AttributesToJsonString(*options.Attributes_));
+            header.SetParameters(AttributesToYsonString(*options.Attributes_));
         }
         return ParseGuid(RetryRequest(Auth_, header));
     }
@@ -525,7 +525,7 @@ public:
         header.AddPath(path);
         header.SetDataStreamFormat(DSF_YSON_BINARY);
 
-        header.SetParameters(BuildJsonStringFluently().BeginMap()
+        header.SetParameters(BuildYsonStringFluently().BeginMap()
             .DoIf(options.Timeout_.Defined(), [&] (TFluentMap fluent) {
                 fluent.Item("timeout").Value(options.Timeout_->MilliSeconds());
             })
@@ -544,7 +544,7 @@ public:
         THttpHeader header("GET", "select_rows");
         header.SetDataStreamFormat(DSF_YSON_BINARY);
 
-        header.SetParameters(BuildJsonStringFluently().BeginMap()
+        header.SetParameters(BuildYsonStringFluently().BeginMap()
             .Item("query").Value(query)
             .DoIf(options.Timeout_.Defined(), [&] (TFluentMap fluent) {
                 fluent.Item("timeout").Value(options.Timeout_->MilliSeconds());
