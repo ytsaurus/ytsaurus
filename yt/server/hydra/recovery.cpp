@@ -104,7 +104,7 @@ void TRecoveryBase::RecoverToVersion(TVersion targetVersion)
             ResponseKeeper_->Stop();
         }
 
-        DecoratedAutomaton_->LoadSnapshot(snapshotVersion, snapshotReader);
+        DecoratedAutomaton_->LoadSnapshot(snapshotId, snapshotVersion, snapshotReader);
         initialChangelogId = snapshotId;
     } else {
         // Recover using changelogs only.
