@@ -1819,7 +1819,7 @@ private:
 
         TFuture<void> asyncSamplesResult;
         PROFILE_TIMING ("/input_processing_time") {
-            auto chunks = CollectInputChunks();
+            auto chunks = CollectPrimaryInputChunks();
             int sampleCount = SuggestPartitionCount() * Spec->SamplesPerPartition;
 
             TScrapeChunksCallback scraperCallback;

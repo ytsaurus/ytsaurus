@@ -468,6 +468,266 @@ echo {v = 2} >&7
         # Expected the same number of rows in output table
         assert get("//tmp/out/@row_count") == 440
 
+    @unix_only
+    def test_reduce_with_foreign_join_one_job(self):
+        create("table", "//tmp/hosts")
+        write_table(
+            "//tmp/hosts",
+            [
+                {"host": "1", "value":21},
+                {"host": "2", "value":22},
+                {"host": "3", "value":23},
+                {"host": "4", "value":24},
+            ],
+            sorted_by = ["host"])
+
+        create("table", "//tmp/fresh_hosts")
+        write_table(
+            "//tmp/fresh_hosts",
+            [
+                {"host": "2", "value":62},
+                {"host": "4", "value":64},
+            ],
+            sorted_by = ["host"])
+
+        create("table", "//tmp/urls")
+        write_table(
+            "//tmp/urls",
+            [
+                {"host":"1", "url":"1/1", "value":11},
+                {"host":"1", "url":"1/2", "value":12},
+                {"host":"2", "url":"2/1", "value":13},
+                {"host":"2", "url":"2/2", "value":14},
+                {"host":"3", "url":"3/1", "value":15},
+                {"host":"3", "url":"3/2", "value":16},
+                {"host":"4", "url":"4/1", "value":17},
+                {"host":"4", "url":"4/2", "value":18},
+            ],
+            sorted_by = ["host", "url"])
+
+        create("table", "//tmp/fresh_urls")
+        write_table(
+            "//tmp/fresh_urls",
+            [
+                {"host":"1", "url":"1/2", "value":42},
+                {"host":"2", "url":"2/1", "value":43},
+                {"host":"3", "url":"3/1", "value":45},
+                {"host":"4", "url":"4/2", "value":48},
+            ],
+            sorted_by = ["host", "url"])
+
+        create("table", "//tmp/output")
+
+        reduce(
+            in_ = ["<foreign=true>//tmp/hosts", "<foreign=true>//tmp/fresh_hosts", "//tmp/urls", "//tmp/fresh_urls"],
+            out = ["<sorted_by=[host;url]>//tmp/output"],
+            command = "cat",
+            reduce_by = ["host", "url"],
+            join_by = "host",
+            spec = {
+                "reducer": {
+                    "format": yson.loads("<enable_table_index=true>dsv")
+                },
+                "job_count": 1,
+            })
+
+        assert read_table("//tmp/output") == \
+            [
+                {"host":"1", "url":None,  "value":"21", "@table_index":"0"},
+                {"host":"1", "url":"1/1", "value":"11", "@table_index":"2"},
+                {"host":"1", "url":"1/2", "value":"12", "@table_index":"2"},
+                {"host":"1", "url":"1/2", "value":"42", "@table_index":"3"},
+                {"host":"2", "url":None,  "value":"22", "@table_index":"0"},
+                {"host":"2", "url":None,  "value":"62", "@table_index":"1"},
+                {"host":"2", "url":"2/1", "value":"13", "@table_index":"2"},
+                {"host":"2", "url":"2/1", "value":"43", "@table_index":"3"},
+                {"host":"2", "url":"2/2", "value":"14", "@table_index":"2"},
+                {"host":"3", "url":None,  "value":"23", "@table_index":"0"},
+                {"host":"3", "url":"3/1", "value":"15", "@table_index":"2"},
+                {"host":"3", "url":"3/1", "value":"45", "@table_index":"3"},
+                {"host":"3", "url":"3/2", "value":"16", "@table_index":"2"},
+                {"host":"4", "url":None,  "value":"24", "@table_index":"0"},
+                {"host":"4", "url":None,  "value":"64", "@table_index":"1"},
+                {"host":"4", "url":"4/1", "value":"17", "@table_index":"2"},
+                {"host":"4", "url":"4/2", "value":"18", "@table_index":"2"},
+                {"host":"4", "url":"4/2", "value":"48", "@table_index":"3"},
+            ]
+
+    def _prepare_join_tables(self):
+        create("table", "//tmp/hosts")
+        for i in range(9):
+            write_table(
+                "<append=true>//tmp/hosts",
+                [
+                    {"host": str(i), "value":20+2*i},
+                    {"host": str(i+1), "value":20+2*i+1},
+                ],
+                sorted_by = ["host"])
+
+        create("table", "//tmp/fresh_hosts")
+        for i in range(0,7,2):
+            write_table(
+                "<append=true>//tmp/fresh_hosts",
+                [
+                    {"host": str(i), "value":60+2*i},
+                    {"host": str(i+2), "value":60+2*i+1},
+                ],
+                sorted_by = ["host"])
+
+        create("table", "//tmp/urls")
+        for i in range(9):
+            for j in range(2):
+                    write_table(
+                        "<append=true>//tmp/urls",
+                        [
+                            {"host":str(i), "url":str(i)+"/"+str(j), "value":10+i*2+j},
+                        ],
+                        sorted_by = ["host", "url"])
+
+        create("table", "//tmp/fresh_urls")
+        for i in range(9):
+            write_table(
+                "<append=true>//tmp/fresh_urls",
+                [
+                    {"host":str(i), "url":str(i)+"/"+str(i%2), "value":40+i},
+                ],
+                sorted_by = ["host", "url"])
+
+        create("table", "//tmp/output")
+
+
+    @unix_only
+    def test_reduce_with_foreign_join_with_ranges(self):
+        self._prepare_join_tables()
+
+        reduce(
+            in_ = ["<foreign=true>//tmp/hosts", "<foreign=true>//tmp/fresh_hosts", '//tmp/urls[("3","3/0"):("5")]', '//tmp/fresh_urls[("3","3/0"):("5")]'],
+            out = ["<sorted_by=[host;url]>//tmp/output"],
+            command = "cat",
+            reduce_by = ["host", "url"],
+            join_by = "host",
+            spec = {
+                "reducer": {
+                    "format": yson.loads("<enable_table_index=true>dsv")
+                },
+                "job_count": 1,
+            })
+
+        assert read_table("//tmp/output") == \
+            [
+                {"host":"3", "url":None,  "value":"25", "@table_index":"0"},
+                {"host":"3", "url":None,  "value":"26", "@table_index":"0"},
+                {"host":"3", "url":"3/0", "value":"16", "@table_index":"2"},
+                {"host":"3", "url":"3/1", "value":"17", "@table_index":"2"},
+                {"host":"3", "url":"3/1", "value":"43", "@table_index":"3"},
+                {"host":"4", "url":None,  "value":"27", "@table_index":"0"},
+                {"host":"4", "url":None,  "value":"28", "@table_index":"0"},
+                {"host":"4", "url":None,  "value":"65", "@table_index":"1"},
+                {"host":"4", "url":None,  "value":"68", "@table_index":"1"},
+                {"host":"4", "url":"4/0", "value":"18", "@table_index":"2"},
+                {"host":"4", "url":"4/0", "value":"44", "@table_index":"3"},
+                {"host":"4", "url":"4/1", "value":"19", "@table_index":"2"},
+            ]
+
+    @unix_only
+    def test_reduce_with_foreign_join_multiple_jobs(self):
+        self._prepare_join_tables()
+
+        reduce(
+            in_ = ["<foreign=true>//tmp/hosts", "<foreign=true>//tmp/fresh_hosts", '//tmp/urls[("3","3/0"):("5")]', '//tmp/fresh_urls[("3","3/0"):("5")]'],
+            out = ["//tmp/output"],
+            command = "cat",
+            reduce_by = ["host", "url"],
+            join_by = "host",
+            spec = {
+                "reducer": {
+                    "format": yson.loads("<enable_table_index=true>dsv")
+                },
+                "data_size_per_job": 1,
+            })
+
+        assert len(read_table("//tmp/output")) == 18
+
+    @unix_only
+    def test_reduce_with_foreign_join_key_switch_yson(self):
+        create("table", "//tmp/hosts")
+        write_table(
+            "//tmp/hosts",
+            [
+                {"key": "1", "value":"21"},
+                {"key": "2", "value":"22"},
+                {"key": "3", "value":"23"},
+                {"key": "4", "value":"24"},
+            ],
+            sorted_by = ["key"])
+
+        create("table", "//tmp/urls")
+        write_table(
+            "//tmp/urls",
+            [
+                {"key":"1", "subkey":"1/1", "value":"11"},
+                {"key":"1", "subkey":"1/2", "value":"12"},
+                {"key":"2", "subkey":"2/1", "value":"13"},
+                {"key":"2", "subkey":"2/2", "value":"14"},
+                {"key":"3", "subkey":"3/1", "value":"15"},
+                {"key":"3", "subkey":"3/2", "value":"16"},
+                {"key":"4", "subkey":"4/1", "value":"17"},
+                {"key":"4", "subkey":"4/2", "value":"18"},
+            ],
+            sorted_by = ["key", "subkey"])
+
+        create("table", "//tmp/output")
+
+        op = reduce(
+            in_ = ["<foreign=true>//tmp/hosts", "//tmp/urls"],
+            out = "//tmp/output",
+            command = "cat 1>&2",
+            reduce_by = ["key", "subkey"],
+            join_by = ["key"],
+            spec = {
+                "job_io": {
+                    "control_attributes": {
+                        "enable_key_switch": "true"
+                    }
+                },
+                "reducer": {
+                    "format": yson.loads("<format=text>yson"),
+                    "enable_input_table_index": True
+                },
+                "job_count": 1
+            })
+
+        jobs_path = "//sys/operations/{0}/jobs".format(op.id)
+        job_ids = ls(jobs_path)
+        assert len(job_ids) == 1
+        stderr_bytes = read_file("{0}/{1}/stderr".format(jobs_path, job_ids[0]))
+
+        assert stderr_bytes == \
+"""<"table_index"=0;>#;
+{"key"="1";"value"="21";};
+<"table_index"=1;>#;
+{"key"="1";"subkey"="1/1";"value"="11";};
+{"key"="1";"subkey"="1/2";"value"="12";};
+<"key_switch"=%true;>#;
+<"table_index"=0;>#;
+{"key"="2";"value"="22";};
+<"table_index"=1;>#;
+{"key"="2";"subkey"="2/1";"value"="13";};
+{"key"="2";"subkey"="2/2";"value"="14";};
+<"key_switch"=%true;>#;
+<"table_index"=0;>#;
+{"key"="3";"value"="23";};
+<"table_index"=1;>#;
+{"key"="3";"subkey"="3/1";"value"="15";};
+{"key"="3";"subkey"="3/2";"value"="16";};
+<"key_switch"=%true;>#;
+<"table_index"=0;>#;
+{"key"="4";"value"="24";};
+<"table_index"=1;>#;
+{"key"="4";"subkey"="4/1";"value"="17";};
+{"key"="4";"subkey"="4/2";"value"="18";};
+"""
+
 ##################################################################
 
 class TestSchedulerReduceCommandsMulticell(TestSchedulerReduceCommands):

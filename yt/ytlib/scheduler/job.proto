@@ -129,6 +129,7 @@ message TSchedulerJobSpecExt
 
     // Job input.
     repeated TTableInputSpec input_specs = 3;
+    repeated TTableInputSpec foreign_input_specs = 15;
 
     // Job output.
     repeated TTableOutputSpec output_specs = 4;
@@ -266,7 +267,7 @@ message TPartitionJobSpecExt
     required NTableClient.NProto.TKeyColumnsExt sort_key_columns = 6;
 
     // Size of key prefix used for bucket decision.
-    required int32 reduce_key_column_count = 7;
+    optional int32 reduce_key_column_count = 7;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -316,6 +317,9 @@ message TReduceJobSpecExt
     required int32 reduce_key_column_count = 2;
 
     optional int32 partition_tag = 3;
+
+    // Join by prefix length of secondary key columns.
+    optional int32 join_key_column_count = 4 [default = 0];
 }
 
 ////////////////////////////////////////////////////////////////////////////////

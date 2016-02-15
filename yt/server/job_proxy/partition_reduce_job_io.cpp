@@ -30,7 +30,7 @@ public:
         , ReduceJobSpecExt_(Host_->GetJobSpec().GetExtension(TReduceJobSpecExt::reduce_job_spec_ext))
     { }
 
-    virtual int GetReduceKeyColumnCount() const override
+    virtual int GetKeySwitchColumnCount() const override
     {
         return ReduceJobSpecExt_.reduce_key_column_count();
     }

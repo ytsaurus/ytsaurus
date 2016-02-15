@@ -100,7 +100,7 @@ TSchemalessReaderFactory TUserJobIOBase::GetReaderFactory()
     };
 }
 
-int TUserJobIOBase::GetReduceKeyColumnCount() const
+int TUserJobIOBase::GetKeySwitchColumnCount() const
 {
     return 0;
 }

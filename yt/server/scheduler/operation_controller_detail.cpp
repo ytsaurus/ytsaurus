@@ -727,7 +727,8 @@ void TOperationControllerBase::TTask::AddParallelInputSpec(
         schedulerJobSpecExt->mutable_input_node_directory());
     const auto& list = joblet->InputStripeList;
     for (const auto& stripe : list->Stripes) {
-        auto* inputSpec = schedulerJobSpecExt->add_input_specs();
+        auto* inputSpec = stripe->Foreign ? schedulerJobSpecExt->add_foreign_input_specs() :
+            schedulerJobSpecExt->add_input_specs();
         inputSpec->set_table_reader_options(ConvertToYsonString(GetTableReaderOptions()).Data());
         AddChunksToInputSpec(&directoryBuilder, inputSpec, stripe);
     }
@@ -3265,25 +3266,54 @@ void TOperationControllerBase::CustomPrepare()
 { }
 
 // NB: must preserve order of chunks in the input tables, no shuffling.
-std::vector<TRefCountedChunkSpecPtr> TOperationControllerBase::CollectInputChunks() const
+std::vector<TRefCountedChunkSpecPtr> TOperationControllerBase::CollectPrimaryInputChunks() const
 {
     std::vector<TRefCountedChunkSpecPtr> result;
     for (const auto& table : InputTables) {
-        for (const auto& chunkSpec : table.Chunks) {
-            if (IsUnavailable(*chunkSpec, IsParityReplicasFetchEnabled())) {
-                switch (Spec->UnavailableChunkStrategy) {
-                    case EUnavailableChunkAction::Skip:
-                        continue;
+        if (!table.IsForeign()) {
+            for (const auto& chunkSpec : table.Chunks) {
+                if (IsUnavailable(*chunkSpec, IsParityReplicasFetchEnabled())) {
+                    switch (Spec->UnavailableChunkStrategy) {
+                        case EUnavailableChunkAction::Skip:
+                            continue;
 
-                    case EUnavailableChunkAction::Wait:
-                        // Do nothing.
-                        break;
+                        case EUnavailableChunkAction::Wait:
+                            // Do nothing.
+                            break;
 
-                    default:
-                        YUNREACHABLE();
+                        default:
+                            YUNREACHABLE();
+                    }
                 }
+                result.push_back(chunkSpec);
             }
-            result.push_back(chunkSpec);
+        }
+    }
+    return result;
+}
+
+std::vector<std::deque<TRefCountedChunkSpecPtr>> TOperationControllerBase::CollectForeignInputChunks() const
+{
+    std::vector<std::deque<TRefCountedChunkSpecPtr>> result;
+    for (const auto& table : InputTables) {
+        if (table.IsForeign()) {
+            result.push_back(std::deque<TRefCountedChunkSpecPtr>());
+            for (const auto& chunkSpec : table.Chunks) {
+                if (IsUnavailable(*chunkSpec, IsParityReplicasFetchEnabled())) {
+                    switch (Spec->UnavailableChunkStrategy) {
+                        case EUnavailableChunkAction::Skip:
+                            continue;
+
+                        case EUnavailableChunkAction::Wait:
+                            // Do nothing.
+                            break;
+
+                        default:
+                            YUNREACHABLE();
+                    }
+                }
+                result.back().push_back(chunkSpec);
+            }
         }
     }
     return result;
@@ -3339,15 +3369,17 @@ std::vector<TChunkStripePtr> TOperationControllerBase::SliceInputChunks(
     i64 maxSliceDataSize,
     int* jobCount)
 {
-    return SliceChunks(CollectInputChunks(), maxSliceDataSize, jobCount);
+    return SliceChunks(CollectPrimaryInputChunks(), maxSliceDataSize, jobCount);
 }
 
-TKeyColumns TOperationControllerBase::CheckInputTablesSorted(const TKeyColumns& keyColumns)
+TKeyColumns TOperationControllerBase::CheckInputTablesSorted(
+    const TKeyColumns& keyColumns,
+    std::function<bool(const TInputTable& table)> inputTableFilter)
 {
     YCHECK(!InputTables.empty());
 
     for (const auto& table : InputTables) {
-        if (table.KeyColumns.empty()) {
+        if (inputTableFilter(table) && table.KeyColumns.empty()) {
             THROW_ERROR_EXCEPTION("Input table %v is not sorted",
                 table.Path.GetPath());
         }
@@ -3355,7 +3387,7 @@ TKeyColumns TOperationControllerBase::CheckInputTablesSorted(const TKeyColumns& 
 
     if (!keyColumns.empty()) {
         for (const auto& table : InputTables) {
-            if (!CheckKeyColumnsCompatible(table.KeyColumns, keyColumns)) {
+            if (inputTableFilter(table) && !CheckKeyColumnsCompatible(table.KeyColumns, keyColumns)) {
                 THROW_ERROR_EXCEPTION("Input table %v is sorted by columns %v that are not compatible "
                     "with the requested columns %v",
                     table.Path.GetPath(),
@@ -3365,19 +3397,23 @@ TKeyColumns TOperationControllerBase::CheckInputTablesSorted(const TKeyColumns& 
         }
         return keyColumns;
     } else {
-        const auto& referenceTable = InputTables[0];
-        for (const auto& table : InputTables) {
-            if (table.KeyColumns != referenceTable.KeyColumns) {
-                THROW_ERROR_EXCEPTION("Key columns do not match: input table %v is sorted by columns %v "
-                    "while input table %v is sorted by columns %v",
-                    table.Path.GetPath(),
-                    table.KeyColumns,
-                    referenceTable.Path.GetPath(),
-                    referenceTable.KeyColumns);
+        for (const auto& referenceTable : InputTables) {
+            if (inputTableFilter(referenceTable)) {
+                for (const auto& table : InputTables) {
+                    if (inputTableFilter(table) && table.KeyColumns != referenceTable.KeyColumns) {
+                        THROW_ERROR_EXCEPTION("Key columns do not match: input table %v is sorted by columns %v "
+                            "while input table %v is sorted by columns %v",
+                            table.Path.GetPath(),
+                            table.KeyColumns,
+                            referenceTable.Path.GetPath(),
+                            referenceTable.KeyColumns);
+                    }
+                }
+                return referenceTable.KeyColumns;
             }
         }
-        return referenceTable.KeyColumns;
     }
+    YUNREACHABLE();
 }
 
 bool TOperationControllerBase::CheckKeyColumnsCompatible(
@@ -3397,21 +3433,30 @@ bool TOperationControllerBase::CheckKeyColumnsCompatible(
     return true;
 }
 
-TKeyColumns TOperationControllerBase::GetCommonInputKeyPrefix()
+TKeyColumns TOperationControllerBase::GetCommonInputKeyPrefix(
+    std::function<bool(const TInputTable& table)> inputTableFilter)
 {
-    auto commonKey = InputTables[0].KeyColumns;
-    for (const auto& table : InputTables) {
-        if (table.KeyColumns.size() < commonKey.size()) {
-            commonKey.erase(commonKey.begin() + table.KeyColumns.size(), commonKey.end());
-        }
+    TKeyColumns commonKey;
+    for (const auto& referenceTable : InputTables) {
+        if (inputTableFilter(referenceTable)) {
+            commonKey = referenceTable.KeyColumns;
+            for (const auto& table : InputTables) {
+                if (inputTableFilter(table)) {
+                    if (table.KeyColumns.size() < commonKey.size()) {
+                        commonKey.resize(table.KeyColumns.size());
+                    }
 
-        int i = 0;
-        for (; i < static_cast<int>(commonKey.size()); ++i) {
-            if (commonKey[i] != table.KeyColumns[i]) {
-                break;
+                    int i = 0;
+                    while (i < static_cast<int>(commonKey.size())) {
+                        if (commonKey[i] != table.KeyColumns[i]) {
+                            break;
+                        }
+                        ++i;
+                    }
+                    commonKey.resize(i);
+                }
             }
         }
-        commonKey.erase(commonKey.begin() + i, commonKey.end());
     }
     return commonKey;
 }
