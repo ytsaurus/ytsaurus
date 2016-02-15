@@ -44,14 +44,12 @@ class TFileChunkReader
 public:
     TFileChunkReader(
         TSequentialReaderConfigPtr config,
-        TMultiChunkReaderOptionsPtr options,
         IChunkReaderPtr chunkReader,
         IBlockCachePtr blockCache,
         NCompression::ECodec codecId,
         i64 startOffset,
         i64 endOffset)
         : Config_(std::move(config))
-        , Options_(std::move(options))
         , ChunkReader_(std::move(chunkReader))
         , BlockCache_(std::move(blockCache))
         , CodecId_(codecId)
@@ -129,7 +127,6 @@ public:
 
 private:
     const TSequentialReaderConfigPtr Config_;
-    const TMultiChunkReaderOptionsPtr Options_;
     const IChunkReaderPtr ChunkReader_;
     const IBlockCachePtr BlockCache_;
     const NCompression::ECodec CodecId_;
@@ -255,7 +252,6 @@ private:
 
 IFileReaderPtr CreateFileChunkReader(
     TSequentialReaderConfigPtr config,
-    TMultiChunkReaderOptionsPtr options,
     IChunkReaderPtr chunkReader,
     IBlockCachePtr blockCache,
     NCompression::ECodec codecId,
@@ -264,7 +260,6 @@ IFileReaderPtr CreateFileChunkReader(
 {
     return New<TFileChunkReader>(
         config,
-        options,
         chunkReader,
         blockCache,
         codecId, 
@@ -354,7 +349,6 @@ IFileReaderPtr CreateFileMultiChunkReader(
 
             return CreateFileChunkReader(
                 config,
-                options,
                 std::move(remoteReader),
                 blockCache,
                 NCompression::ECodec(miscExt.compression_codec()),
