@@ -106,13 +106,13 @@ void TClientReader::CreateRequest(bool initial)
             if (Format_ == DSF_YAMR_LENVAL) {
                 auto format = GetTableFormat(Auth_, TransactionId_, Path_);
                 if (format) {
-                    header.SetFormat(NodeToJsonString(format.GetRef()));
+                    header.SetFormat(NodeToYsonString(format.GetRef()));
                 }
             }
 
             // for now assume we always use only the first range
             if (initial) {
-                header.SetParameters(YPathToJsonString(Path_));
+                header.SetParameters(YPathToYsonString(Path_));
             } else {
                 TRichYPath path = Path_;
                 TReadRange range;
@@ -122,7 +122,7 @@ void TClientReader::CreateRequest(bool initial)
                 }
                 range.LowerLimit(TReadLimit().RowIndex(RowIndex_));
                 path.Ranges_.push_back(range);
-                header.SetParameters(YPathToJsonString(path));
+                header.SetParameters(YPathToYsonString(path));
             }
 
             Request_.Reset(new THttpRequest(proxyName));

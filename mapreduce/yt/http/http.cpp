@@ -167,6 +167,7 @@ Stroka THttpHeader::GetHeader(const Stroka& hostName, const Stroka& requestId) c
     }
 
     header << "X-YT-Correlation-Id: " << requestId << "\r\n";
+    header << "X-YT-Header-Format: yson\r\n";
 
     header << "Content-Encoding: " << RequestCompression << "\r\n";
     header << "Accept-Encoding: " << ResponseCompression << "\r\n";

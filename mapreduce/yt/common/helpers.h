@@ -13,19 +13,15 @@ namespace NYT {
 
 TNode NodeFromYsonString(const Stroka& input, EYsonType type = YT_NODE);
 
-TNode NodeFromJsonString(const Stroka& input);
-
 Stroka NodeToYsonString(const TNode& node);
-
-Stroka NodeToJsonString(const TNode& node);
 
 Stroka NodeListToYsonString(const TNode::TList& nodes);
 
-Stroka YPathToJsonString(const TRichYPath& path);
+Stroka YPathToYsonString(const TRichYPath& path);
 
-Stroka AttributesToJsonString(const TNode& attributes);
+Stroka AttributesToYsonString(const TNode& attributes);
 
-Stroka AttributeFilterToJsonString(const TAttributeFilter& filter);
+Stroka AttributeFilterToYsonString(const TAttributeFilter& filter);
 
 void MergeNodes(TNode& dst, const TNode& src);
 
