@@ -347,11 +347,13 @@ TEST_F(TComputedColumnTest, Complex3)
 
 TEST_F(TComputedColumnTest, Far0)
 {
-    TTableSchema tableSchema;
-    tableSchema.Columns().emplace_back("k", EValueType::Int64, Null, Stroka("l + 1"));
-    tableSchema.Columns().emplace_back("l", EValueType::Int64);
-    tableSchema.Columns().emplace_back("m", EValueType::Int64);
-    tableSchema.Columns().emplace_back("a", EValueType::Int64);
+    TTableSchema tableSchema({
+        TColumnSchema("k", EValueType::Int64)
+            .SetExpression(Stroka("l + 1")),
+        TColumnSchema("l", EValueType::Int64),
+        TColumnSchema("m", EValueType::Int64),
+        TColumnSchema("a", EValueType::Int64)
+    });
 
     TKeyColumns keyColumns{"k", "l", "m"};
 
