@@ -85,8 +85,6 @@ public:
         // TODO(babenko): rename to "limit"
         RegisterParameter("max_size", Options.MaxSize)
             .Optional();
-        RegisterParameter("max_size", Options.MaxSize)
-            .Optional();
     }
 
     void Execute(ICommandContextPtr context);
