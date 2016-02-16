@@ -72,6 +72,7 @@ public:
         Persist(context, TotalDataSize);
         Persist(context, JobIOConfig);
         Persist(context, JobSpecTemplate);
+        Persist(context, TableReaderOptions);
         Persist(context, MaxDataSizePerJob);
         Persist(context, ChunkSliceSize);
         Persist(context, MergeTaskGroup);

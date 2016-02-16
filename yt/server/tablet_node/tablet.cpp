@@ -34,10 +34,6 @@ using namespace NQueryClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = TabletNodeLogger;
-
-////////////////////////////////////////////////////////////////////////////////
-
 std::pair<TTabletSnapshot::TPartitionListIterator, TTabletSnapshot::TPartitionListIterator>
 TTabletSnapshot::GetIntersectingPartitions(
     const TOwningKey& lowerBound,
@@ -125,7 +121,7 @@ TTablet::TTablet(
     , NextPivotKey_(std::move(nextPivotKey))
     , State_(ETabletState::Mounted)
     , Atomicity_(atomicity)
-    , EnableLookupHashTable_(config->EnableLookupHashTable)
+    , HashTableSize_(config->EnableLookupHashTable ? config->MaxMemoryStoreKeyCount : 0)
     , OverlappingStoreCount_(0)
     , Config_(config)
     , WriterOptions_(writerOptions)
@@ -202,7 +198,7 @@ void TTablet::Save(TSaveContext& context) const
     Save(context, Schema_);
     Save(context, KeyColumns_);
     Save(context, Atomicity_);
-    Save(context, EnableLookupHashTable_);
+    Save(context, HashTableSize_);
 
     TSizeSerializer::Save(context, Stores_.size());
     // NB: This is not stable.
@@ -244,8 +240,12 @@ void TTablet::Load(TLoadContext& context)
     Load(context, KeyColumns_);
     Load(context, Atomicity_);
     // COMPAT(savrus)
-    if (context.GetVersion() >= 11) {
-        Load(context, EnableLookupHashTable_);
+    if (context.GetVersion() >= 11 && context.GetVersion() < 12) {
+        bool dummy;
+        Load(context, dummy);
+    }
+    if (context.GetVersion() >= 12) {
+        Load(context, HashTableSize_);
     }
 
     // NB: Call Initialize here since stores that we're about to create
@@ -366,7 +366,7 @@ void TTablet::AsyncLoad(TLoadContext& context)
     SERIALIZATION_DUMP_WRITE(context, "stores[%v]", Stores_.size());
     SERIALIZATION_DUMP_INDENT(context) {
         for (int index = 0; index < Stores_.size(); ++index) {
-            auto storeId = Load<TStoreId> (context);
+            auto storeId = Load<TStoreId>(context);
             SERIALIZATION_DUMP_WRITE(context, "%v =>", storeId);
             SERIALIZATION_DUMP_INDENT(context) {
                 auto store = GetStore(storeId);
@@ -681,7 +681,7 @@ TTabletSnapshotPtr TTablet::RebuildSnapshot()
     Snapshot_->KeyColumns = KeyColumns_;
     Snapshot_->Eden = Eden_->RebuildSnapshot();
     Snapshot_->Atomicity = Atomicity_;
-    Snapshot_->EnableLookupHashTable = EnableLookupHashTable_;
+    Snapshot_->HashTableSize = HashTableSize_;
     Snapshot_->OverlappingStoreCount = OverlappingStoreCount_;
     Snapshot_->Partitions.reserve(PartitionList_.size());
     for (const auto& partition : PartitionList_) {
@@ -811,12 +811,6 @@ void TTablet::UpdateOverlappingStoreCount()
             static_cast<int>(partition->Stores().size()));
     }
     OverlappingStoreCount_ += Eden_->Stores().size();
-
-    if (OverlappingStoreCount_ >= Config_->MaxOverlappingStoreCount) {
-        LOG_DEBUG("Too many overlapping stores, store rotation disabled (OverlappingStoreCount: %v, MaxOverlappingStoreCount: %v)",
-            OverlappingStoreCount_,
-            Config_->MaxOverlappingStoreCount);
-    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

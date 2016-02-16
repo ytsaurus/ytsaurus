@@ -29,6 +29,8 @@
 
 #include <yt/core/misc/protobuf_helpers.h>
 #include <yt/core/misc/string.h>
+// XXX(babenko): hotfix for YT-3915
+#include <yt/core/misc/address.h>
 
 #include <util/generic/ymath.h>
 
@@ -335,7 +337,7 @@ protected:
     yhash_set<Stroka> BannedPeers_;
 
     //! List of candidates addresses to try, prioritized by:
-    //! type (seeds before peers), ban counter, locality and response type.
+    //! type (seeds before peers), ban counter, locality, response time, random number.
     typedef std::priority_queue<TPeer> TPeerQueue;
     TPeerQueue PeerQueue_;
 
@@ -367,6 +369,14 @@ protected:
     {
         auto reader = Reader_.Lock();
         auto locality = EAddressLocality::None;
+
+        // XXX(babenko): hotfix for YT-3915
+        auto localHostName = TAddressResolver::Get()->GetLocalHostName();
+        for (const auto& pair : descriptor.Addresses()) {
+            if (GetServiceHostName(pair.second) == localHostName) {
+                return EAddressLocality::SameHost;
+            }
+        }
 
         if (reader && reader->LocalDescriptor_) {
             const auto& localDescriptor = *reader->LocalDescriptor_;

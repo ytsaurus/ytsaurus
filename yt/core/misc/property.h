@@ -14,12 +14,12 @@ protected: \
     type name##_; \
     \
 public: \
-    FORCED_INLINE type& name() \
+    Y_FORCE_INLINE type& name() \
     { \
         return name##_; \
     } \
     \
-    FORCED_INLINE const type& name() const \
+    Y_FORCE_INLINE const type& name() const \
     { \
         return name##_; \
     }
@@ -49,7 +49,7 @@ protected: \
     type name##_; \
     \
 public: \
-    FORCED_INLINE const type& name() const \
+    Y_FORCE_INLINE const type& name() const \
     { \
         return name##_; \
     }
@@ -75,12 +75,12 @@ protected: \
     type name##_; \
     \
 public: \
-    FORCED_INLINE type Get##name() const \
+    Y_FORCE_INLINE type Get##name() const \
     { \
         return name##_; \
     } \
     \
-    FORCED_INLINE void Set##name(type value) \
+    Y_FORCE_INLINE void Set##name(type value) \
     { \
         name##_ = value; \
     } \
@@ -110,7 +110,7 @@ protected: \
     type name##_; \
     \
 public: \
-    FORCED_INLINE type Get##name() const \
+    Y_FORCE_INLINE type Get##name() const \
     { \
         return name##_; \
     }

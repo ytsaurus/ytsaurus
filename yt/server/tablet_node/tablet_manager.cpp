@@ -197,7 +197,7 @@ public:
 
         tablet->ValidateMountRevision(tabletSnapshot->MountRevision);
         ValidateTabletMounted(tablet);
-        ValidateStoreLimit(tablet);
+        ValidateTabletStoreLimit(tablet);
         ValidateMemoryLimit();
 
         auto atomicity = AtomicityFromTransactionId(transactionId);
@@ -231,7 +231,6 @@ public:
                 YUNREACHABLE();
         }
     }
-
 
     void ScheduleStoreRotation(TTablet* tablet)
     {
@@ -1073,9 +1072,7 @@ private:
         auto resultingPartitionIds = JoinToString(
             tablet->Partitions().begin() + partitionIndex,
             tablet->Partitions().begin() + partitionIndex + pivotKeys.size(),
-            [] (TStringBuilder* builder, const std::unique_ptr<TPartition>& partition) {
-                FormatValue(builder, partition->GetId());
-            });
+            TPartitionIdFormatter());
 
         LOG_INFO_UNLESS(IsRecovery(), "Splitting partition (TabletId: %v, OriginalPartitionId: %v, "
             "ResultingPartitionIds: %v, DataSize: %v, Keys: %v)",
@@ -1122,9 +1119,7 @@ private:
         auto originalPartitionIds = JoinToString(
             tablet->Partitions().begin() + firstPartitionIndex,
             tablet->Partitions().begin() + lastPartitionIndex + 1,
-            [] (TStringBuilder* builder, const std::unique_ptr<TPartition>& partition) {
-                FormatValue(builder, partition->GetId());
-            });
+            TPartitionIdFormatter());
 
         MergeTabletPartitions(tablet, firstPartitionIndex, lastPartitionIndex);
 
@@ -1779,18 +1774,30 @@ private:
         if (clientInstant > serverInstant + Config_->ClientTimestampThreshold ||
             clientInstant < serverInstant - Config_->ClientTimestampThreshold)
         {
-            THROW_ERROR_EXCEPTION("Transaction timestamp is off limits; check the local clock readings")
+            THROW_ERROR_EXCEPTION("Transaction timestamp is off limits, check the local clock readings")
                 << TErrorAttribute("client_timestamp", clientTimestamp)
                 << TErrorAttribute("server_timestamp", serverTimestamp);
         }
     }
 
-    void ValidateStoreLimit(TTablet* tablet)
+    void ValidateTabletStoreLimit(TTablet* tablet)
     {
-        if (tablet->Stores().size() >= tablet->GetConfig()->MaxStoresPerTablet) {
+        auto storeCount = tablet->Stores().size();
+        auto storeLimit = tablet->GetConfig()->MaxStoresPerTablet;
+        if (storeCount >= storeLimit) {
             THROW_ERROR_EXCEPTION("Too many stores in tablet, all writes disabled")
                 << TErrorAttribute("tablet_id", tablet->GetTableId())
-                << TErrorAttribute("store_limit", tablet->GetConfig()->MaxStoresPerTablet);
+                << TErrorAttribute("store_count", storeCount)
+                << TErrorAttribute("store_limit", storeLimit);
+        }
+
+        auto overlappingStoreCount = tablet->GetOverlappingStoreCount();
+        auto overlappingStoreLimit = tablet->GetConfig()->MaxOverlappingStoreCount;
+        if (overlappingStoreCount >= overlappingStoreLimit) {
+            THROW_ERROR_EXCEPTION("Too many overlapping stores in tablet, all writes disabled")
+                << TErrorAttribute("tablet_id", tablet->GetTableId())
+                << TErrorAttribute("overlapping_store_count", overlappingStoreCount)
+                << TErrorAttribute("overlapping_store_limit", overlappingStoreLimit);
         }
     }
 
