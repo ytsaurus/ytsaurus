@@ -28,7 +28,7 @@ function YtApplicationVersions(driver)
     {
         return executeWithTimeout("get", { path: "//sys/" + entity + "/" + name + "/orchid/service"})
         .then(function(result) {
-            return utils.pick(result, ["start_time", "version"]);
+            return utils.pick(utils.getYsonValue(result), ["start_time", "version"]);
         });
     }
 
