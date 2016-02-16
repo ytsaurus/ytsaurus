@@ -164,7 +164,7 @@ private:
 
 #ifdef YT_ENABLE_REF_COUNTED_TRACKING
 
-FORCED_INLINE void InitializeTracking(TRefCountedBase* object, TRefCountedTypeCookie typeCookie, size_t instanceSize)
+Y_FORCE_INLINE void InitializeTracking(TRefCountedBase* object, TRefCountedTypeCookie typeCookie, size_t instanceSize)
 {
     object->InitializeTracking(typeCookie, instanceSize);
 }

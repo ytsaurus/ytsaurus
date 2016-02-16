@@ -1,6 +1,8 @@
 #include "guid.h"
 
 #include <yt/core/misc/error.h>
+#include <yt/core/misc/format.h>
+#include <yt/core/misc/string.h>
 
 #include <util/datetime/cputimer.h>
 
@@ -243,13 +245,9 @@ bool TGuid::FromString(const TStringBuf &str, TGuid* guid)
 
 Stroka ToString(const TGuid& guid)
 {
-    char buf[4 + 4 * 8];
-    sprintf(buf, "%x-%x-%x-%x",
-        guid.Parts32[3],
-        guid.Parts32[2],
-        guid.Parts32[1],
-        guid.Parts32[0]);
-    return buf;
+    TStringBuilder builder;
+    FormatValue(&builder, guid, STRINGBUF("v"));
+    return builder.Flush();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

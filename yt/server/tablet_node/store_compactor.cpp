@@ -249,7 +249,8 @@ private:
 
     std::vector<TChunkStorePtr> PickStoresForCompaction(TPartition* partition)
     {
-        auto config = partition->GetTablet()->GetConfig();
+        const auto* tablet = partition->GetTablet();
+        const auto& config = tablet->GetConfig();
 
         // Don't compact partitions (excluding Eden) whose data size exceeds the limit.
         // Let Partition Balancer do its job.
@@ -292,6 +293,10 @@ private:
                 return lhs->GetUncompressedDataSize() < rhs->GetUncompressedDataSize();
             });
 
+        const auto* eden = tablet->GetEden();
+        int overlappingStoreCount = partition->Stores().size() + eden->Stores().size();
+        bool tooManyOverlappingStores = overlappingStoreCount >= config->MaxOverlappingStoreCount;
+
         for (int i = 0; i < candidates.size(); ++i) {
             i64 dataSizeSum = 0;
             int j = i;
@@ -301,7 +306,8 @@ private:
                    break;
                 }
                 i64 dataSize = candidates[j]->GetUncompressedDataSize();
-                if (dataSize > config->CompactionDataSizeBase &&
+                if (!tooManyOverlappingStores &&
+                    dataSize > config->CompactionDataSizeBase &&
                     dataSizeSum > 0 && dataSize > dataSizeSum * config->CompactionDataSizeRatio) {
                     break;
                 }

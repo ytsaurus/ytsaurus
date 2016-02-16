@@ -25,7 +25,7 @@ TChunkStorePtr IStore::AsChunk()
 
 void TStoreIdFormatter::operator()(TStringBuilder* builder, const IStorePtr& store) const
 {
-    FormatValue(builder, store->GetId());
+    builder->AppendFormat("%v", store->GetId());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -109,6 +109,8 @@ public:
         Persist(context, SortedMergeJobIOConfig);
         Persist(context, UnorderedMergeJobIOConfig);
 
+        Persist(context, PartitionTableReaderOptions);
+
         Persist(context, ShufflePool);
         Persist(context, SimpleSortPool);
 
@@ -618,7 +620,8 @@ protected:
 
         virtual TTableReaderOptionsPtr GetTableReaderOptions() const override
         {
-            return New<TTableReaderOptions>();
+            static const auto options = New<TTableReaderOptions>();
+            return options;
         }
 
     };
@@ -824,11 +827,6 @@ protected:
             auto stripeList = completedJob->SourceTask->GetChunkPoolOutput()->GetStripeList(completedJob->OutputCookie);
             Controller->SortDataSizeCounter.Lost(stripeList->TotalDataSize);
 
-            auto nodeId = completedJob->NodeDescriptor.Id;
-            YCHECK((Partition->NodeIdToLocality[nodeId] -= stripeList->TotalDataSize) >= 0);
-
-            Controller->ResetTaskLocalityDelays();
-
             TTask::OnJobLost(completedJob);
         }
 
@@ -913,6 +911,15 @@ protected:
             TSortTask::OnJobStarted(joblet);
         }
 
+        virtual void OnJobLost(TCompletedJobPtr completedJob) override
+        {
+            auto nodeId = completedJob->NodeDescriptor.Id;
+            YCHECK((Partition->NodeIdToLocality[nodeId] -= completedJob->DataSize) >= 0);
+
+            Controller->ResetTaskLocalityDelays();
+
+            TSortTask::OnJobLost(completedJob);
+        }
     };
 
     //! Implements simple sort phase for sort operations.

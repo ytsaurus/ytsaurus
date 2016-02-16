@@ -1402,7 +1402,6 @@ private:
     }
 
 
-
     class TTabletCellLookupSession
         : public TIntrinsicRefCounted
     {
@@ -1412,13 +1411,15 @@ private:
             const TCellId& cellId,
             const TLookupRowsOptions& options,
             const TNameTableToSchemaIdMapping& idMapping,
-            TTableMountInfoPtr tableInfo)
-            : CellId_(cellId)
-            , Client_(std::move(client))
+            const TTableSchema& schema,
+            int keyColumnCount)
+            : Client_(std::move(client))
             , Config_(Client_->Connection_->GetConfig())
+            , CellId_(cellId)
             , Options_(options)
             , IdMapping_(idMapping)
-            , TableInfo_(std::move(tableInfo))
+            , Schema_(schema)
+            , KeyColumnCount_(keyColumnCount)
         { }
 
         void AddKey(int index, TTabletInfoPtr tabletInfo, NTableClient::TKey key)
@@ -1449,9 +1450,38 @@ private:
                 writer.WriteMessage(req);
                 writer.WriteSchemafulRowset(batch->Keys, IdMapping_.empty() ? nullptr : &IdMapping_);
 
+                auto chunkedData = writer.Flush();
+
                 batch->RequestData = NCompression::CompressWithEnvelope(
-                    writer.Flush(),
+                    chunkedData,
                     Config_->LookupRequestCodec);
+
+                //TODO(savrus) remove later if no problems are detected.
+                {
+                    size_t size = 0;
+                    for (const auto& ref : chunkedData) {
+                        size += ref.Size();
+                    }
+                    auto blob = TBlob(TDefaultBlobTag());
+                    blob.Reserve(size);
+                    for (const auto& ref : chunkedData) {
+                        blob.Append(ref);
+                    }
+                    auto ref = TSharedRef::FromBlob(std::move(blob));
+                    TWireProtocolReader reader{ref};
+
+                    auto command = reader.ReadCommand();
+                    YCHECK(command == EWireProtocolCommand::LookupRows);
+
+                    TReqLookupRows writtenReq;
+                    reader.ReadMessage(&writtenReq);
+
+                    auto schemaData = TWireProtocolReader::GetSchemaData(Schema_, KeyColumnCount_);
+                    auto rowset = reader.ReadSchemafulRowset(schemaData);
+
+                    YCHECK(rowset.Size() == batch->Keys.size());
+                    YCHECK(reader.IsFinished());
+                }
             }
 
             const auto& cellDirectory = Client_->Connection_->GetCellDirectory();
@@ -1474,7 +1504,7 @@ private:
             std::vector<TUnversionedRow>* resultRows,
             std::vector<std::unique_ptr<TWireProtocolReader>>* readers)
         {
-            auto schemaData = TWireProtocolReader::GetSchemaData(TableInfo_->Schema, Options_.ColumnFilter);
+            auto schemaData = TWireProtocolReader::GetSchemaData(Schema_, Options_.ColumnFilter);
             for (const auto& batch : Batches_) {
                 auto data = NCompression::DecompressWithEnvelope(batch->Response->Attachments());
                 auto reader = std::make_unique<TWireProtocolReader>(data);
@@ -1487,12 +1517,13 @@ private:
         }
 
     private:
-        const TCellId CellId_;
         const TClientPtr Client_;
         const TConnectionConfigPtr Config_;
+        const TCellId CellId_;
         const TLookupRowsOptions Options_;
         const TNameTableToSchemaIdMapping IdMapping_;
-        const TTableMountInfoPtr TableInfo_;
+        const TTableSchema& Schema_;
+        const int KeyColumnCount_;
 
         struct TBatch
         {
@@ -1545,7 +1576,7 @@ private:
 
     };
 
-    typedef TIntrusivePtr<TTabletCellLookupSession> TTabletCellLookupTabletPtr;
+    typedef TIntrusivePtr<TTabletCellLookupSession> TTabletCellLookupSessionPtr;
 
     IRowsetPtr DoLookupRows(
         const TYPath& path,
@@ -1600,7 +1631,7 @@ private:
         }
         std::sort(sortedKeys.begin(), sortedKeys.end());
 
-        yhash_map<TCellId, TTabletCellLookupTabletPtr> cellIdToSession;
+        yhash_map<TCellId, TTabletCellLookupSessionPtr> cellIdToSession;
 
         for (const auto& pair : sortedKeys) {
             int index = pair.second;
@@ -1611,7 +1642,14 @@ private:
             if (it == cellIdToSession.end()) {
                 it = cellIdToSession.insert(std::make_pair(
                     cellId,
-                    New<TTabletCellLookupSession>(this, cellId, options, idMapping, tableInfo))).first;
+                    New<TTabletCellLookupSession>(
+                        this,
+                        cellId,
+                        options,
+                        idMapping,
+                        tableInfo->Schema,
+                        tableInfo->KeyColumns.size())))
+                    .first;
             }
             const auto& session = it->second;
             session->AddKey(index, std::move(tabletInfo), key);
