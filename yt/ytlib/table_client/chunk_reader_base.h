@@ -36,8 +36,10 @@ protected:
     const NChunkClient::IBlockCachePtr BlockCache_;
     const NChunkClient::IChunkReaderPtr UnderlyingReader_;
 
-    NChunkClient::TSequentialReaderPtr SequentialReader_;
+    NChunkClient::TSequentialBlockFetcherPtr SequentialBlockFetcher_;
+    NConcurrency::TAsyncSemaphore AsyncSemaphore_;
     TFuture<void> ReadyEvent_ = VoidFuture;
+    TFuture<TSharedRef> CurrentBlock_; 
 
     bool BlockEnded_ = false;
     bool InitFirstBlockNeeded_ = false;
@@ -55,7 +57,7 @@ protected:
     bool OnBlockEnded();
 
     TFuture<void> DoOpen(
-        std::vector<NChunkClient::TSequentialReader::TBlockInfo> blockSequence,
+        std::vector<NChunkClient::TBlockFetcher::TBlockInfo> blockSequence,
         const NChunkClient::NProto::TMiscExt& miscExt);
 
     static int GetBlockIndexByKey(

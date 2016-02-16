@@ -568,32 +568,33 @@ private:
             // Download all blocks.
             auto blocksExt = GetProtoExtension<TBlocksExt>(chunkMeta.extensions());
             int blockCount = blocksExt.blocks_size();
-            std::vector<TSequentialReader::TBlockInfo> blocks;
+            std::vector<TBlockFetcher::TBlockInfo> blocks;
+            TAsyncSemaphore asyncSemaphore(Config_->CacheSequentialReader->WindowSize);
             blocks.reserve(blockCount);
             for (int index = 0; index < blockCount; ++index) {
-                blocks.push_back(TSequentialReader::TBlockInfo(
+                blocks.push_back(TBlockFetcher::TBlockInfo(
                     index,
-                    blocksExt.blocks(index).size()));
+                    blocksExt.blocks(index).size(),
+                    index /* priority */));
             }
 
-            auto sequentialReader = New<TSequentialReader>(
+            auto blockFetcher = New<TBlockFetcher>(
                 Config_->ArtifactCacheReader,
                 std::move(blocks),
+                &asyncSemaphore,
                 chunkReader,
                 GetNullBlockCache(),
                 NCompression::ECodec::None);
 
-            for (int blockIndex = 0; blockIndex < blockCount; ++blockIndex) {
+            for (int index = 0; index < blockCount; ++index) {
                 LOG_DEBUG("Downloading block (BlockIndex: %v)",
-                    blockIndex);
+                    index);
 
-                WaitFor(sequentialReader->FetchNextBlock())
-                    .ThrowOnError();
+                auto block = WaitFor(blockFetcher->FetchBlock(index))
+                    .ValueOrThrow();
 
                 LOG_DEBUG("Writing block (BlockIndex: %v)",
-                    blockIndex);
-
-                auto block = sequentialReader->GetCurrentBlock();
+                    index);
 
                 if (!checkedChunkWriter->WriteBlock(block)) {
                     WaitFor(chunkWriter->GetReadyEvent())
