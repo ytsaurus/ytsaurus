@@ -198,7 +198,7 @@ public:
 
     virtual void BuildOrchidYson(NYson::IYsonConsumer* consumer) override;
 
-    FORCED_INLINE TTimestamp TimestampFromRevision(ui32 revision) const;
+    Y_FORCE_INLINE TTimestamp TimestampFromRevision(ui32 revision) const;
 
 private:
     class TReaderBase;
@@ -284,8 +284,6 @@ private:
     void UpdateTimestampRange(TTimestamp commitTimestamp);
 
     void OnMemoryUsageUpdated();
-
-    void ValidateKeyCountLimit() const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TDynamicMemoryStore)

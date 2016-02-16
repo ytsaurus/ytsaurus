@@ -26,6 +26,9 @@ struct TData
         RegexDestroy(Re2);
     }
 
+    TData(const TData& other) = delete;
+    TData& operator= (const TData& other) = delete;
+
     google::re2::RE2* Re2;
 };
 
@@ -35,7 +38,7 @@ void regex_work(
     std::function<void(TData*)> doWork)
 {
     if (!functonContext->IsArgLiteral(0)) {
-        auto data = TData(regexp);
+        TData data{regexp};
         doWork(&data);
     } else {
         void* data = functonContext->GetPrivateData();

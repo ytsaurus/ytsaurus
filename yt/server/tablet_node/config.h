@@ -50,10 +50,10 @@ class TTableMountConfig
     : public NTableClient::TRetentionConfig
 {
 public:
-    int SoftMemoryStoreKeyCountLimit;
-    int HardMemoryStoreKeyCountLimit;
+    int MaxMemoryStoreKeyCount;
     int MaxMemoryStoreValueCount;
     i64 MaxMemoryStorePoolSize;
+    double MemoryStorePressureThreshold;
 
     i64 MaxPartitionDataSize;
     i64 DesiredPartitionDataSize;
@@ -95,12 +95,9 @@ public:
 
     TTableMountConfig()
     {
-        RegisterParameter("soft_memory_store_key_count_limit", SoftMemoryStoreKeyCountLimit)
+        RegisterParameter("max_memory_store_key_count", MaxMemoryStoreKeyCount)
             .GreaterThan(0)
             .Default(1000000);
-        RegisterParameter("hard_memory_store_key_count_limit", HardMemoryStoreKeyCountLimit)
-            .GreaterThan(0)
-            .Default(1100000);
         RegisterParameter("max_memory_store_value_count", MaxMemoryStoreValueCount)
             .GreaterThan(0)
             .Default(10000000)
@@ -110,6 +107,11 @@ public:
         RegisterParameter("max_memory_store_pool_size", MaxMemoryStorePoolSize)
             .GreaterThan(0)
             .Default((i64) 1024 * 1024 * 1024);
+
+        RegisterParameter("memory_store_pressure_threshold", MemoryStorePressureThreshold)
+            .GreaterThanOrEqual(0.5)
+            .LessThan(1.0)
+            .Default(0.9);
 
         RegisterParameter("max_partition_data_size", MaxPartitionDataSize)
             .Default((i64) 320 * 1024 * 1024)
@@ -190,8 +192,8 @@ public:
             .Default(false);
 
         RegisterValidator([&] () {
-            if (SoftMemoryStoreKeyCountLimit > HardMemoryStoreKeyCountLimit) {
-                THROW_ERROR_EXCEPTION("\"hard_memory_store_key_count_limit\" must be greater than or equal to \"soft_memory_store_key_count_limit\"");
+            if (MaxMemoryStoreKeyCount > MaxMemoryStoreValueCount) {
+                THROW_ERROR_EXCEPTION("\"max_memory_store_key_count\" must be less than or equal to \"max_memory_store_value_count\"");
             }
             if (MinPartitionDataSize >= DesiredPartitionDataSize) {
                 THROW_ERROR_EXCEPTION("\"min_partition_data_size\" must be less than \"desired_partition_data_size\"");

@@ -177,7 +177,7 @@ void TBlockWriter::WriteVariable(const TUnversionedValue& value, int nameTableIn
                 writer.OnDoubleScalar(value.Data.Double);
                 break;
             case EValueType::Boolean:
-                writer.OnDoubleScalar(value.Data.Boolean);
+                writer.OnBooleanScalar(value.Data.Boolean);
                 break;
             case EValueType::String:
                 writer.OnStringScalar(TStringBuf(value.Data.String, value.Length));

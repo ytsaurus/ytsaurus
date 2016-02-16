@@ -1,3 +1,5 @@
+#pragma once
+
 #ifndef GUID_INL_H_
 #error "Direct inclusion of this file is not allowed, include guid.h"
 #endif
@@ -6,13 +8,13 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-FORCED_INLINE TGuid::TGuid()
+Y_FORCE_INLINE TGuid::TGuid()
 {
     Parts64[0] = 0;
     Parts64[1] = 0;
 }
 
-FORCED_INLINE TGuid::TGuid(ui32 part0, ui32 part1, ui32 part2, ui32 part3)
+Y_FORCE_INLINE TGuid::TGuid(ui32 part0, ui32 part1, ui32 part2, ui32 part3)
 {
     Parts32[0] = part0;
     Parts32[1] = part1;
@@ -20,31 +22,31 @@ FORCED_INLINE TGuid::TGuid(ui32 part0, ui32 part1, ui32 part2, ui32 part3)
     Parts32[3] = part3;
 }
 
-FORCED_INLINE TGuid::TGuid(ui64 part0, ui64 part1)
+Y_FORCE_INLINE TGuid::TGuid(ui64 part0, ui64 part1)
 {
     Parts64[0] = part0;
     Parts64[1] = part1;
 }
 
-FORCED_INLINE bool TGuid::IsEmpty() const
+Y_FORCE_INLINE bool TGuid::IsEmpty() const
 {
     return Parts64[0] == 0 && Parts64[1] == 0;
 }
 
-FORCED_INLINE TGuid::operator bool() const
+Y_FORCE_INLINE TGuid::operator bool() const
 {
     return !IsEmpty();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-FORCED_INLINE void ToProto(NProto::TGuid* protoGuid, const TGuid& guid)
+Y_FORCE_INLINE void ToProto(NProto::TGuid* protoGuid, const TGuid& guid)
 {
     protoGuid->set_first(guid.Parts64[0]);
     protoGuid->set_second(guid.Parts64[1]);
 }
 
-FORCED_INLINE void FromProto(TGuid* guid, const NYT::NProto::TGuid& protoGuid)
+Y_FORCE_INLINE void FromProto(TGuid* guid, const NYT::NProto::TGuid& protoGuid)
 {
     guid->Parts64[0] = protoGuid.first();
     guid->Parts64[1] = protoGuid.second();
@@ -52,18 +54,18 @@ FORCED_INLINE void FromProto(TGuid* guid, const NYT::NProto::TGuid& protoGuid)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-FORCED_INLINE bool operator == (const TGuid& lhs, const TGuid& rhs)
+Y_FORCE_INLINE bool operator == (const TGuid& lhs, const TGuid& rhs)
 {
     return lhs.Parts64[0] == rhs.Parts64[0] &&
            lhs.Parts64[1] == rhs.Parts64[1];
 }
 
-FORCED_INLINE bool operator != (const TGuid& lhs, const TGuid& rhs)
+Y_FORCE_INLINE bool operator != (const TGuid& lhs, const TGuid& rhs)
 {
     return !(lhs == rhs);
 }
 
-FORCED_INLINE bool operator < (const TGuid& lhs, const TGuid& rhs)
+Y_FORCE_INLINE bool operator < (const TGuid& lhs, const TGuid& rhs)
 {
 #ifdef __GNUC__
     ui64 lhs0 = __builtin_bswap64(lhs.Parts64[0]);

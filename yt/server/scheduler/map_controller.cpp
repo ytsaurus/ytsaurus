@@ -54,6 +54,7 @@ public:
         using NYT::Persist;
         Persist(context, JobIOConfig);
         Persist(context, JobSpecTemplate);
+        Persist(context, TableReaderOptions);
         Persist(context, UnorderedTask);
         Persist(context, UnorderedTaskGroup);
     }
