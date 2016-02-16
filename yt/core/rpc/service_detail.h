@@ -86,11 +86,9 @@ private:
 //! Describes request handling options.
 struct THandlerInvocationOptions
 {
-    //! Should we be deserializing the request in a separate thread?
-    bool HeavyRequest = false;
-
-    //! Should we be serializing the response in a separate thread?
-    bool HeavyResponse = false;
+    //! Should we be deserializing the request and serializing the request
+    //! in a separate thread?
+    bool Heavy = false;
 
     //! The codec to compress response body.
     NCompression::ECodec ResponseCodec = NCompression::ECodec::None;
@@ -106,7 +104,7 @@ class TTypedServiceContextBase
 public:
     typedef TTypedServiceRequest<TRequestMessage> TTypedRequest;
 
-    explicit TTypedServiceContextBase(
+    TTypedServiceContextBase(
         IServiceContextPtr context,
         const THandlerInvocationOptions& options)
         : TServiceContextWrapper(std::move(context))
@@ -160,7 +158,7 @@ public:
     typedef TTypedServiceContextBase<TRequestMessage> TBase;
     typedef TTypedServiceResponse<TResponseMessage> TTypedResponse;
 
-    explicit TTypedServiceContext(
+    TTypedServiceContext(
         IServiceContextPtr context,
         const THandlerInvocationOptions& options)
         : TBase(std::move(context), options)
@@ -193,7 +191,7 @@ public:
             return;
         }
 
-        if (this->Options_.HeavyResponse) {
+        if (this->Options_.Heavy) {
             TDispatcher::Get()->GetInvoker()->Invoke(BIND(
                 &TThis::SerializeResponseAndReply,
                 MakeStrong(this)));
@@ -208,6 +206,8 @@ private:
         auto data = SerializeToProtoWithEnvelope(*Response_, this->Options_.ResponseCodec, false);
         this->UnderlyingContext_->SetResponseBody(std::move(data));
         this->UnderlyingContext_->Reply(TError());
+        this->Request_.reset();
+        this->Response_.reset();
     }
 
     typename TObjectPool<TTypedResponse>::TObjectPtr Response_;
@@ -421,15 +421,9 @@ protected:
             return *this;
         }
 
-        TMethodDescriptor& SetRequestHeavy(bool value)
+        TMethodDescriptor& SetHeavy(bool value)
         {
-            Options.HeavyRequest = value;
-            return *this;
-        }
-
-        TMethodDescriptor& SetResponseHeavy(bool value)
-        {
-            Options.HeavyResponse = value;
+            Options.Heavy = value;
             return *this;
         }
 

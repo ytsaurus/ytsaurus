@@ -105,11 +105,11 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetTableSamples)
             .SetCancelable(true)
             .SetResponseCodec(NCompression::ECodec::Lz4)
-            .SetResponseHeavy(true));
+            .SetHeavy(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetChunkSlices)
             .SetCancelable(true)
             .SetResponseCodec(NCompression::ECodec::Lz4)
-            .SetResponseHeavy(true));
+            .SetHeavy(true));
     }
 
 private:
