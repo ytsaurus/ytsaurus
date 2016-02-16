@@ -292,6 +292,9 @@ public:
     //! Number of threads for running controllers invokers.
     int ControllerThreadCount;
 
+    //! Number of threads for building job specs.
+    int JobSpecBuilderThreadCount;
+
     TDuration ConnectRetryBackoffTime;
 
     //! Timeout for node expiration.
@@ -440,6 +443,9 @@ public:
     {
         RegisterParameter("controller_thread_count", ControllerThreadCount)
             .Default(4)
+            .GreaterThan(0);
+        RegisterParameter("job_spec_builder_thread_count", JobSpecBuilderThreadCount)
+            .Default(8)
             .GreaterThan(0);
         RegisterParameter("connect_retry_backoff_time", ConnectRetryBackoffTime)
             .Default(TDuration::Seconds(15));
