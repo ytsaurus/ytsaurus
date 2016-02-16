@@ -4,6 +4,8 @@
 #include "operation.h"
 #include "operation_controller.h"
 
+#include <yt/core/misc/enum.h>
+
 namespace NYT {
 namespace NScheduler {
 
@@ -11,6 +13,30 @@ using namespace NNodeTrackerClient::NProto;
 using namespace NYTree;
 using namespace NJobTrackerClient;
 using namespace NChunkClient::NProto;
+
+////////////////////////////////////////////////////////////////////
+
+static class TJobHelper
+{
+public:
+    TJobHelper()
+    {
+        for (auto state : TEnumTraits<EJobState>::GetDomainValues()) {
+            for (auto type : TEnumTraits<EJobType>::GetDomainValues()) {
+                StatisticsSuffixes_[state][type] = Format("/$/%lv/%lv", state, type);
+            }
+        }
+    }
+
+    const Stroka& GetStatisticsSuffix(EJobState state, EJobType type) const
+    {
+        return StatisticsSuffixes_[state][type];
+    }
+
+private:
+    TEnumIndexedVector<TEnumIndexedVector<Stroka, EJobType>, EJobState> StatisticsSuffixes_;
+
+} JobHelper;
 
 ////////////////////////////////////////////////////////////////////
 
@@ -60,13 +86,11 @@ void TJob::SetResult(NJobTrackerClient::NProto::TJobResult&& result)
     Statistics_ = FromProto<TStatistics>(Result()->statistics());
 }
 
-Stroka TJob::GetStatisticsSuffix() const
+const Stroka& TJob::GetStatisticsSuffix() const
 {
-    if (GetRestarted() && GetState() == EJobState::Completed) {
-        return Format("/$/lost/%lv", GetType());
-    } else {
-        return Format("/$/%lv/%lv", GetState(), GetType());
-    }
+    auto state = (GetRestarted() && GetState() == EJobState::Completed) ? EJobState::Lost : GetState();
+    auto type = GetType();
+    return JobHelper.GetStatisticsSuffix(state, type);
 }
 
 ////////////////////////////////////////////////////////////////////

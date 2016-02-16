@@ -25,6 +25,8 @@ extern const TJobId NullJobId;
 
 ///////////////////////////////////////////////////////////////////////////////
 
+// NB: Please keep the range of values small as this type
+// is used as a key of TEnumIndexedVector.
 DEFINE_ENUM(EJobType,
     // Scheduler jobs
     ((SchedulerFirst)    (  0)) // sentinel
@@ -51,6 +53,8 @@ DEFINE_ENUM(EJobType,
     ((SealChunk)         (103))
 );
 
+// NB: Please keep the range of values small as this type
+// is used as a key of TEnumIndexedVector.
 DEFINE_ENUM(EJobState,
     ((Waiting)    (0))
     ((Running)    (1))
@@ -59,6 +63,8 @@ DEFINE_ENUM(EJobState,
     ((Failed)     (4))
     ((Aborted)    (5))
     ((Abandoning) (6))
+    // This sentinel is only used in TJob::GetStatisticsSuffix.
+    ((Lost)       (7))
 );
 
 DEFINE_ENUM(EJobPhase,

@@ -59,7 +59,7 @@ public:
 
     // Custom and builtin job statistics.
     DEFINE_BYREF_RO_PROPERTY(NJobTrackerClient::TStatistics, Statistics);
-    Stroka GetStatisticsSuffix() const;
+    const Stroka& GetStatisticsSuffix() const;
 
     //! Some rough approximation that is updated with every heartbeat.
     DEFINE_BYVAL_RW_PROPERTY(EJobState, State);
