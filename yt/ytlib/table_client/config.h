@@ -125,7 +125,7 @@ DEFINE_REFCOUNTED_TYPE(TBufferedTableWriterConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TChunkReaderConfig
-    : public virtual NChunkClient::TSequentialReaderConfig
+    : public virtual NChunkClient::TBlockFetcherConfig
 {
 public:
     i64 MaxDataSizePerRead;

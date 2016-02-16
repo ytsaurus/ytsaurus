@@ -21,7 +21,7 @@
 #include <yt/ytlib/chunk_client/client_block_cache.h>
 #include <yt/ytlib/chunk_client/file_writer.h>
 #include <yt/ytlib/chunk_client/replication_reader.h>
-#include <yt/ytlib/chunk_client/sequential_reader.h>
+#include <yt/ytlib/chunk_client/block_fetcher.h>
 
 #include <yt/ytlib/file_client/file_chunk_reader.h>
 
@@ -569,7 +569,7 @@ private:
             auto blocksExt = GetProtoExtension<TBlocksExt>(chunkMeta.extensions());
             int blockCount = blocksExt.blocks_size();
             std::vector<TBlockFetcher::TBlockInfo> blocks;
-            TAsyncSemaphore asyncSemaphore(Config_->CacheSequentialReader->WindowSize);
+            TAsyncSemaphore asyncSemaphore(Config_->CacheBlockFetcher->WindowSize);
             blocks.reserve(blockCount);
             for (int index = 0; index < blockCount; ++index) {
                 blocks.push_back(TBlockFetcher::TBlockInfo(
