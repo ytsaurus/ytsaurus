@@ -796,7 +796,6 @@ class TestTablets(YTEnvSetup):
     def test_in_memory_uncompressed(self):
         self._test_in_memory("uncompressed")
 
-    @pytest.mark.skipif("True")
     def test_lookup_hash_table(self):
         self.sync_create_cells(1, 1)
         self._create_table("//tmp/t")
@@ -825,8 +824,7 @@ class TestTablets(YTEnvSetup):
         self.sync_mount_table("//tmp/t")
 
         # check that stores are rotated on-demand
-        insert_rows("//tmp/t", _rows(10, 16))
-        insert_rows("//tmp/t", _rows(16, 18))
+        insert_rows("//tmp/t", _rows(10, 18))
         # ensure slot gets scanned
         sleep(3)
         insert_rows("//tmp/t", _rows(18, 28))
@@ -840,9 +838,8 @@ class TestTablets(YTEnvSetup):
         delete_rows("//tmp/t", _keys(0, 10))
         assert lookup_rows("//tmp/t", _keys(0, 10)) == []
 
-        # check that limits are checked for write & delete
-        with pytest.raises(YtError): insert_rows("//tmp/t", _rows(0, 10))
-        with pytest.raises(YtError): delete_rows("//tmp/t", _keys(0, 10))
+        # check that limits are checked for delete
+        with pytest.raises(YtError): delete_rows("//tmp/t", _keys(0, 11))
 
         # check that everything survives after recovery
         self.sync_unmount_table("//tmp/t")
@@ -853,10 +850,9 @@ class TestTablets(YTEnvSetup):
         # check that we can extend key
         self.sync_unmount_table("//tmp/t")
         set("//tmp/t/@schema", [
-            {"name": "key", "type": "int64"},
-            {"name": "key2", "type": "int64"},
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "key2", "type": "int64", "sort_order": "ascending"},
             {"name": "value", "type": "string"}]);
-        set("//tmp/t/@key_columns", ["key", "key2"])
         self.sync_mount_table("//tmp/t")
         assert lookup_rows("//tmp/t", _keys(0, 50), column_names=["key", "value"]) == _rows(10, 28)
 
