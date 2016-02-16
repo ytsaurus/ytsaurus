@@ -208,7 +208,7 @@ void TLeaseTracker::OnLeaseCheck()
 
     if (result.IsOK()) {
         Lease_->SetDeadline(startTime + NProfiling::DurationToCpuDuration(Config_->LeaderLeaseTimeout));
-        LOG_DEBUG("Leader lease check succceded");
+        LOG_DEBUG("Leader lease check succeded");
         if (!LeaseAcquired_.IsSet()) {
             LeaseAcquired_.Set();
         }
