@@ -55,6 +55,7 @@ public:
         , CodecId_(codecId)
         , StartOffset_(startOffset)
         , EndOffset_(endOffset)
+        , AsyncSemaphore_(Config_->WindowSize)
     {
         Logger.AddTag("ChunkId: %v", ChunkReader_->GetChunkId());
 
@@ -78,14 +79,15 @@ public:
             return true;
         }
 
-        block->Reset();
-        if (BlockFetched_ && !SequentialReader_->HasMoreBlocks()) {
+        if (BlockFetched_ && !SequentialBlockFetcher_->HasMoreBlocks()) {
             return false;
         }
-
+        
+        block->Reset();
         if (BlockFetched_) {
             BlockFetched_ = false;
-            ReadyEvent_ = SequentialReader_->FetchNextBlock();
+            CurrentBlock_ = SequentialBlockFetcher_->FetchNextBlock();
+            ReadyEvent_ = CurrentBlock_.As<void>();
             if (!ReadyEvent_.IsSet()) {
                 return true;
             }
@@ -103,17 +105,17 @@ public:
 
     virtual TDataStatistics GetDataStatistics() const override
     {
-        YCHECK(SequentialReader_);
+        YCHECK(SequentialBlockFetcher_);
         TDataStatistics dataStatistics;
-        dataStatistics.set_uncompressed_data_size(SequentialReader_->GetUncompressedDataSize());
-        dataStatistics.set_compressed_data_size(SequentialReader_->GetCompressedDataSize());
+        dataStatistics.set_uncompressed_data_size(SequentialBlockFetcher_->GetUncompressedDataSize());
+        dataStatistics.set_compressed_data_size(SequentialBlockFetcher_->GetCompressedDataSize());
         return dataStatistics;
     }
 
     virtual bool IsFetchingCompleted() const override
     {
-        YCHECK(SequentialReader_);
-        return SequentialReader_->GetFetchingCompletedEvent().IsSet();
+        YCHECK(SequentialBlockFetcher_);
+        return SequentialBlockFetcher_->IsFetchingCompleted();
     }
 
     virtual std::vector<TChunkId> GetFailedChunkIds() const override
@@ -134,11 +136,15 @@ private:
     i64 StartOffset_;
     i64 EndOffset_;
 
-    TSequentialReaderPtr SequentialReader_;
+    TAsyncSemaphore AsyncSemaphore_;
+
+    TSequentialBlockFetcherPtr SequentialBlockFetcher_;
     TFuture<void> ReadyEvent_;
     bool BlockFetched_ = true;
 
     NLogging::TLogger Logger = FileClientLogger;
+
+    TFuture<TSharedRef> CurrentBlock_;
 
     void DoOpen()
     {
@@ -163,7 +169,7 @@ private:
                 meta.version());
         }
 
-        std::vector<TSequentialReader::TBlockInfo> blockSequence;
+        std::vector<TBlockFetcher::TBlockInfo> blockSequence;
 
         // COMPAT(psushin): new file chunk meta!
         auto fileBlocksExt = FindProtoExtension<NFileClient::NProto::TBlocksExt>(meta.extensions());
@@ -178,7 +184,7 @@ private:
                 return true;
             } else if (selectedSize < EndOffset_) {
                 selectedSize += size;
-                blockSequence.push_back(TSequentialReader::TBlockInfo(index, size));
+                blockSequence.push_back(TBlockFetcher::TBlockInfo(index, size, index /* priority */));
                 return true;
             }
             return false;
@@ -215,9 +221,10 @@ private:
             blockIndex,
             selectedSize);
 
-        SequentialReader_ = New<TSequentialReader>(
+        SequentialBlockFetcher_ = New<TSequentialBlockFetcher>(
             Config_,
             std::move(blockSequence),
+            &AsyncSemaphore_,
             ChunkReader_,
             BlockCache_,
             CodecId_);
@@ -227,7 +234,7 @@ private:
 
     TSharedRef GetBlock()
     {
-        auto block = SequentialReader_->GetCurrentBlock();
+        auto block = CurrentBlock_.Get().ValueOrThrow();
 
         auto* begin = block.Begin();
         auto* end = block.End();
