@@ -279,7 +279,9 @@ public:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         if (static_cast<int>(IdToOperation_.size()) >= Config_->MaxOperationCount) {
-            THROW_ERROR_EXCEPTION("Limit for the number of concurrent operations %v has been reached",
+            THROW_ERROR_EXCEPTION(
+                EErrorCode::TooManyOperations,
+                "Limit for the number of concurrent operations %v has been reached",
                 Config_->MaxOperationCount);
         }
 
