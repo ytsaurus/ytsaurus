@@ -92,7 +92,7 @@ public:
         , Bootstrap_(bootstrap)
         , SnapshotIOQueue_(New<TActionQueue>("SnapshotIO"))
         , ControllerThreadPool_(New<TThreadPool>(Config_->ControllerThreadCount, "Controller"))
-        , JobSpecBuilderThreadPool_(New<TThreadPool>(Config_->JobSpecBuilderThreadCount, "JobSpecBuilder"))
+        , JobSpecBuilderThreadPool_(New<TThreadPool>(Config_->JobSpecBuilderThreadCount, "SpecBuilder"))
         , MasterConnector_(new TMasterConnector(Config_, Bootstrap_))
         , TotalResourceLimitsProfiler_(Profiler.GetPathPrefix() + "/total_resource_limits")
         , TotalResourceUsageProfiler_(Profiler.GetPathPrefix() + "/total_resource_usage")
