@@ -43,6 +43,7 @@ void TJournalNode::Save(NCellMaster::TSaveContext& context) const
     using NYT::Save;
     Save(context, ReadQuorum_);
     Save(context, WriteQuorum_);
+    Save(context, Sealed_);
 }
 
 void TJournalNode::Load(NCellMaster::TLoadContext& context)
