@@ -66,7 +66,7 @@ namespace NYTree {
 #define DISPATCH_YPATH_HEAVY_SERVICE_METHOD(method) \
     if (context->GetMethod() == #method) { \
         ::NYT::NRpc::THandlerInvocationOptions options; \
-        options.HeavyResponse = true; \
+        options.Heavy = true; \
         options.ResponseCodec = NCompression::ECodec::Lz4; \
         method##Thunk(context, options); \
         return true; \

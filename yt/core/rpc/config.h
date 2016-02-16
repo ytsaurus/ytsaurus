@@ -49,8 +49,7 @@ class TMethodConfig
     : public NYTree::TYsonSerializable
 {
 public:
-    TNullable<bool> RequestHeavy;
-    TNullable<bool> ResponseHeavy;
+    TNullable<bool> Heavy;
     TNullable<NCompression::ECodec> ResponseCodec;
     TNullable<int> MaxQueueSize;
     TNullable<int> MaxConcurrency;
@@ -58,9 +57,7 @@ public:
 
     TMethodConfig()
     {
-        RegisterParameter("request_heavy", RequestHeavy)
-            .Default();
-        RegisterParameter("response_heavy", ResponseHeavy)
+        RegisterParameter("heavy", Heavy)
             .Default();
         RegisterParameter("response_codec", ResponseCodec)
             .Default();

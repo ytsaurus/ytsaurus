@@ -680,7 +680,7 @@ void TServiceBase::RunRequest(const TServiceContextPtr& context)
 {
     const auto& runtimeInfo = context->GetRuntimeInfo();
     const auto& options = runtimeInfo->Descriptor.Options;
-    if (options.HeavyRequest) {
+    if (options.Heavy) {
         runtimeInfo->Descriptor.HeavyHandler
             .AsyncVia(TDispatcher::Get()->GetInvoker())
             .Run(context, options)
@@ -830,11 +830,8 @@ void TServiceBase::Configure(INodePtr configNode)
             }
 
             auto& descriptor = runtimeInfo->Descriptor;
-            if (methodConfig->RequestHeavy) {
-                descriptor.SetRequestHeavy(*methodConfig->RequestHeavy);
-            }
-            if (methodConfig->ResponseHeavy) {
-                descriptor.SetResponseHeavy(*methodConfig->ResponseHeavy);
+            if (methodConfig->Heavy) {
+                descriptor.SetHeavy(*methodConfig->Heavy);
             }
             if (methodConfig->ResponseCodec) {
                 descriptor.SetResponseCodec(*methodConfig->ResponseCodec);

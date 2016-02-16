@@ -48,8 +48,7 @@ public:
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Heartbeat)
             .SetInvoker(GetGuardedAutomatonInvoker(EAutomatonThreadQueue::IncrementalHeartbeat))
-            .SetRequestHeavy(true)
-            .SetResponseHeavy(true));
+            .SetHeavy(true));
     }
 
 private:
