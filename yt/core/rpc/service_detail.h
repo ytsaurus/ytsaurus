@@ -186,26 +186,24 @@ public:
 
     virtual void Reply(const TError& error) override
     {
-        if (!error.IsOK()) {
-            this->UnderlyingContext_->Reply(error);
-            return;
-        }
-
         if (this->Options_.Heavy) {
             TDispatcher::Get()->GetInvoker()->Invoke(BIND(
-                &TThis::SerializeResponseAndReply,
-                MakeStrong(this)));
+                &TThis::DoReply,
+                MakeStrong(this),
+                error));
         } else {
-            this->SerializeResponseAndReply();
+            this->DoReply(error);
         }
     }
 
 private:
-    void SerializeResponseAndReply()
+    void DoReply(const TError& error)
     {
-        auto data = SerializeToProtoWithEnvelope(*Response_, this->Options_.ResponseCodec, false);
-        this->UnderlyingContext_->SetResponseBody(std::move(data));
-        this->UnderlyingContext_->Reply(TError());
+        if (error.IsOK()) {
+            auto data = SerializeToProtoWithEnvelope(*Response_, this->Options_.ResponseCodec, false);
+            this->UnderlyingContext_->SetResponseBody(std::move(data));
+        }
+        this->UnderlyingContext_->Reply(error);
     }
 
     typename TObjectPool<TTypedResponse>::TObjectPtr Response_;
