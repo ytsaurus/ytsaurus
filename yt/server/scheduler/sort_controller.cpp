@@ -109,6 +109,8 @@ public:
         Persist(context, SortedMergeJobIOConfig);
         Persist(context, UnorderedMergeJobIOConfig);
 
+        Persist(context, PartitionTableReaderOptions);
+
         Persist(context, ShufflePool);
         Persist(context, SimpleSortPool);
 
@@ -618,7 +620,8 @@ protected:
 
         virtual TTableReaderOptionsPtr GetTableReaderOptions() const override
         {
-            return New<TTableReaderOptions>();
+            static const auto options = New<TTableReaderOptions>();
+            return options;
         }
 
     };
