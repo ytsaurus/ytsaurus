@@ -796,7 +796,7 @@ class TestTablets(YTEnvSetup):
     def test_in_memory_uncompressed(self):
         self._test_in_memory("uncompressed")
 
-    @pytest.mark.skip(reason="savrus@ will fix this")
+    @pytest.mark.skipif("True")
     def test_lookup_hash_table(self):
         self.sync_create_cells(1, 1)
         self._create_table("//tmp/t")
