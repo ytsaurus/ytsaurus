@@ -103,7 +103,7 @@ DEFINE_REFCOUNTED_TYPE(TRemoteReaderOptions)
 
 ///////////////////////////////////////////////////////////////////////////////
 
-class TSequentialReaderConfig
+class TBlockFetcherConfig
     : public virtual TWorkloadConfig
 {
 public:
@@ -113,7 +113,7 @@ public:
     //! Maximum amount of data to be transfered via a single RPC request.
     i64 GroupSize;
 
-    TSequentialReaderConfig()
+    TBlockFetcherConfig()
     {
         RegisterParameter("window_size", WindowSize)
             .Default((i64) 20 * 1024 * 1024)
@@ -130,7 +130,7 @@ public:
     }
 };
 
-DEFINE_REFCOUNTED_TYPE(TSequentialReaderConfig)
+DEFINE_REFCOUNTED_TYPE(TBlockFetcherConfig)
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -372,7 +372,7 @@ DEFINE_REFCOUNTED_TYPE(TMultiChunkWriterOptions)
 
 class TMultiChunkReaderConfig
     : public virtual TReplicationReaderConfig
-    , public virtual TSequentialReaderConfig
+    , public virtual TBlockFetcherConfig
 {
 public:
     i64 MaxBufferSize;

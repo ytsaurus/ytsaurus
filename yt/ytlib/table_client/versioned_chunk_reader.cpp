@@ -14,7 +14,7 @@
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/ytlib/chunk_client/chunk_reader.h>
 #include <yt/ytlib/chunk_client/dispatcher.h>
-#include <yt/ytlib/chunk_client/sequential_reader.h>
+#include <yt/ytlib/chunk_client/block_fetcher.h>
 #include <yt/ytlib/chunk_client/data_statistics.pb.h>
 
 #include <yt/core/compression/codec.h>

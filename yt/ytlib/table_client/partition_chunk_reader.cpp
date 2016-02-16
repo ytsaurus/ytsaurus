@@ -27,7 +27,7 @@ using namespace NTableClient::NProto;
 ////////////////////////////////////////////////////////////////////////////////
 
 TPartitionChunkReader::TPartitionChunkReader(
-    TSequentialReaderConfigPtr config,
+    TBlockFetcherConfigPtr config,
     IChunkReaderPtr underlyingReader,
     TNameTablePtr nameTable,
     IBlockCachePtr blockCache,
@@ -159,7 +159,7 @@ TPartitionMultiChunkReaderPtr CreatePartitionMultiChunkReader(
             YCHECK(!chunkSpec.has_lower_limit());
             YCHECK(!chunkSpec.has_upper_limit());
 
-            TSequentialReaderConfigPtr sequentialReaderConfig = config;
+            TBlockFetcherConfigPtr sequentialReaderConfig = config;
 
             return New<TPartitionChunkReader>(
                 sequentialReaderConfig,

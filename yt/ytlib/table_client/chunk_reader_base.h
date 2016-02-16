@@ -7,7 +7,7 @@
 #include <yt/ytlib/chunk_client/reader_base.h>
 #include <yt/ytlib/chunk_client/public.h>
 #include <yt/ytlib/chunk_client/read_limit.h>
-#include <yt/ytlib/chunk_client/sequential_reader.h>
+#include <yt/ytlib/chunk_client/block_fetcher.h>
 
 namespace NYT {
 namespace NTableClient {
@@ -19,7 +19,7 @@ class TChunkReaderBase
 {
 public:
     TChunkReaderBase(
-        NChunkClient::TSequentialReaderConfigPtr config,
+        NChunkClient::TBlockFetcherConfigPtr config,
         NChunkClient::IChunkReaderPtr underlyingReader,
         NChunkClient::IBlockCachePtr blockCache);
 
@@ -32,7 +32,7 @@ public:
     virtual std::vector<NChunkClient::TChunkId> GetFailedChunkIds() const override;
 
 protected:
-    const NChunkClient::TSequentialReaderConfigPtr Config_;
+    const NChunkClient::TBlockFetcherConfigPtr Config_;
     const NChunkClient::IBlockCachePtr BlockCache_;
     const NChunkClient::IChunkReaderPtr UnderlyingReader_;
 

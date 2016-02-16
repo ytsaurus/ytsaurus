@@ -8,7 +8,7 @@
 
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/ytlib/chunk_client/dispatcher.h>
-#include <yt/ytlib/chunk_client/sequential_reader.h>
+#include <yt/ytlib/chunk_client/block_fetcher.h>
 
 #include <yt/core/misc/finally.h>
 
@@ -77,7 +77,7 @@ class TLegacyTableChunkReader::TInitializer
 
 public:
     TInitializer(
-        TSequentialReaderConfigPtr config,
+        TBlockFetcherConfigPtr config,
         TLegacyTableChunkReader* tableChunkReader,
         IChunkReaderPtr chunkReader,
         IBlockCachePtr blockCache,
@@ -426,7 +426,7 @@ private:
         tableChunkReader->MakeAndValidateRow();
     }
 
-    TSequentialReaderConfigPtr SequentialConfig_;
+    TBlockFetcherConfigPtr SequentialConfig_;
     IChunkReaderPtr UnderlyingReader_;
     IBlockCachePtr BlockCache_;
     TWeakPtr<TLegacyTableChunkReader> TableChunkReader_;

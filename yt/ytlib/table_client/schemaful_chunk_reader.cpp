@@ -15,7 +15,7 @@
 #include <yt/ytlib/chunk_client/chunk_spec.h>
 #include <yt/ytlib/chunk_client/dispatcher.h>
 #include <yt/ytlib/chunk_client/read_limit.h>
-#include <yt/ytlib/chunk_client/sequential_reader.h>
+#include <yt/ytlib/chunk_client/block_fetcher.h>
 
 #include <yt/ytlib/node_tracker_client/node_directory.h>
 

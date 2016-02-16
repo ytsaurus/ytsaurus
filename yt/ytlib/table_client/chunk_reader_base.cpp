@@ -20,7 +20,7 @@ using NYT::FromProto;
 ////////////////////////////////////////////////////////////////////////////////
 
 TChunkReaderBase::TChunkReaderBase(
-    TSequentialReaderConfigPtr config,
+    TBlockFetcherConfigPtr config,
     NChunkClient::IChunkReaderPtr underlyingReader,
     IBlockCachePtr blockCache)
     : Config_(std::move(config))

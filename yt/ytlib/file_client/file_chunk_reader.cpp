@@ -10,7 +10,7 @@
 #include <yt/ytlib/chunk_client/chunk_spec.h>
 #include <yt/ytlib/chunk_client/dispatcher.h>
 #include <yt/ytlib/chunk_client/replication_reader.h>
-#include <yt/ytlib/chunk_client/sequential_reader.h>
+#include <yt/ytlib/chunk_client/block_fetcher.h>
 #include <yt/ytlib/chunk_client/config.h>
 #include <yt/ytlib/chunk_client/data_statistics.pb.h>
 #include <yt/ytlib/chunk_client/multi_reader_base.h>
@@ -43,7 +43,7 @@ class TFileChunkReader
 {
 public:
     TFileChunkReader(
-        TSequentialReaderConfigPtr config,
+        TBlockFetcherConfigPtr config,
         IChunkReaderPtr chunkReader,
         IBlockCachePtr blockCache,
         NCompression::ECodec codecId,
@@ -128,7 +128,7 @@ public:
     }
 
 private:
-    const TSequentialReaderConfigPtr Config_;
+    const TBlockFetcherConfigPtr Config_;
     const IChunkReaderPtr ChunkReader_;
     const IBlockCachePtr BlockCache_;
     const NCompression::ECodec CodecId_;
@@ -258,7 +258,7 @@ private:
 };
 
 IFileReaderPtr CreateFileChunkReader(
-    TSequentialReaderConfigPtr config,
+    TBlockFetcherConfigPtr config,
     IChunkReaderPtr chunkReader,
     IBlockCachePtr blockCache,
     NCompression::ECodec codecId,
