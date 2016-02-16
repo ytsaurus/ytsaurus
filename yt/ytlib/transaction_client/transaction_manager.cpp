@@ -19,6 +19,7 @@
 #include <yt/core/concurrency/thread_affinity.h>
 
 #include <yt/core/rpc/helpers.h>
+#include <yt/core/rpc/retrying_channel.h>
 
 #include <yt/core/ytree/public.h>
 
@@ -76,16 +77,24 @@ private:
     yhash_set<TTransaction::TImpl*> AliveTransactions_;
 
 
-    std::unique_ptr<TTransactionSupervisorServiceProxy> MakeSupervisorProxy(IChannelPtr channel)
+    std::unique_ptr<TTransactionSupervisorServiceProxy> MakeSupervisorProxy(const TCellId& cellId, bool required = true)
     {
-        auto proxy = std::make_unique<TTransactionSupervisorServiceProxy>(channel);
+        auto cellChannel = required
+            ? CellDirectory_->GetChannelOrThrow(cellId)
+            : CellDirectory_->FindChannel(cellId);
+        if (!cellChannel) {
+            return nullptr;
+        }
+        auto retryingChannel = CreateRetryingChannel(Config_, cellChannel);
+        auto proxy = std::make_unique<TTransactionSupervisorServiceProxy>(retryingChannel);
         proxy->SetDefaultTimeout(Config_->RpcTimeout);
         return proxy;
     }
 
-    std::unique_ptr<TTabletServiceProxy> MakeTabletProxy(IChannelPtr channel)
+    std::unique_ptr<TTabletServiceProxy> MakeTabletProxy(const TCellId& cellId)
     {
-        auto proxy = std::make_unique<TTabletServiceProxy>(channel);
+        auto cellChannel = CellDirectory_->GetChannelOrThrow(cellId);
+        auto proxy = std::make_unique<TTabletServiceProxy>(cellChannel);
         proxy->SetDefaultTimeout(Config_->RpcTimeout);
         return proxy;
     }
@@ -239,8 +248,7 @@ public:
                     Id_,
                     coordinatorCellId);
 
-                auto channel = Owner_->CellDirectory_->GetChannelOrThrow(coordinatorCellId);
-                auto proxy = Owner_->MakeSupervisorProxy(channel);
+                auto proxy = Owner_->MakeSupervisorProxy(coordinatorCellId);
 
                 auto req = proxy->CommitTransaction();
                 ToProto(req->mutable_transaction_id(), Id_);
@@ -404,8 +412,7 @@ public:
             Id_,
             cellId);
 
-        auto channel = Owner_->CellDirectory_->GetChannelOrThrow(cellId);
-        auto proxy = Owner_->MakeTabletProxy(channel);
+        auto proxy = Owner_->MakeTabletProxy(cellId);
 
         auto req = proxy->StartTransaction();
         ToProto(req->mutable_transaction_id(), Id_);
@@ -720,8 +727,7 @@ private:
                 Id_,
                 cellId);
 
-            auto channel = Owner_->CellDirectory_->GetChannelOrThrow(cellId);
-            auto proxy = Owner_->MakeSupervisorProxy(channel);
+            auto proxy = Owner_->MakeSupervisorProxy(cellId);
 
             auto req = proxy->PingTransaction();
             ToProto(req->mutable_transaction_id(), Id_);
@@ -803,10 +809,10 @@ private:
                 Id_,
                 cellId);
 
-            auto channel = Owner_->CellDirectory_->FindChannel(cellId);
-            if (!channel)
-                continue; // better skip
-            auto proxy = Owner_->MakeSupervisorProxy(channel);
+            auto proxy = Owner_->MakeSupervisorProxy(cellId, false);
+            if (!proxy) {
+                continue;
+            }
 
             auto req = proxy->AbortTransaction();
             ToProto(req->mutable_transaction_id(), Id_);

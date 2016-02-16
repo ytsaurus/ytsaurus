@@ -12,7 +12,7 @@ namespace NTransactionClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTransactionManagerConfig
-    : public NYTree::TYsonSerializable
+    : public NRpc::TRetryingChannelConfig
 {
 public:
     //! Timeout for all RPC requests to participants.
@@ -28,7 +28,7 @@ public:
     TTransactionManagerConfig()
     {
         RegisterParameter("rpc_timeout", RpcTimeout)
-            .Default(TDuration::Seconds(5));
+            .Default(TDuration::Seconds(15));
         RegisterParameter("default_ping_period", DefaultPingPeriod)
             .Default(TDuration::Seconds(5));
         RegisterParameter("default_transaction_timeout", DefaultTransactionTimeout)
