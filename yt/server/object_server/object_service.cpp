@@ -94,7 +94,10 @@ public:
         , Context(std::move(context))
         , RequestCount(Context->Request().part_counts_size())
         , EpochAutomatonInvoker(Owner->Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker())
-    { }
+    {
+        Request.Swap(&Context->Request());
+        RequestAttachments.swap(Context->RequestAttachments());
+    }
 
     void Run()
     {
@@ -109,7 +112,7 @@ public:
         RequestHeaders.resize(RequestCount);
         UserName = Context->GetUser();
 
-        if (Context->Request().suppress_upstream_sync()) {
+        if (Request.suppress_upstream_sync()) {
             Continue();
             return;
         }
@@ -130,6 +133,9 @@ private:
 
     const int RequestCount;
     const IInvokerPtr EpochAutomatonInvoker;
+
+    NObjectClient::NProto::TReqExecute Request;
+    std::vector<TSharedRef> RequestAttachments;
 
     TFuture<void> LastMutationCommitted = VoidFuture;
     std::atomic<bool> Replied = {false};
@@ -161,9 +167,6 @@ private:
 
             auto batchStartInstant = NProfiling::GetCpuInstant();
 
-            auto& request = Context->Request();
-            const auto& attachments = request.Attachments();
-
             auto securityManager = Owner->Bootstrap_->GetSecurityManager();
             auto* user = GetAuthenticatedUser();
 
@@ -173,7 +176,7 @@ private:
 
             TAuthenticatedUserGuard userGuard(securityManager, user);
 
-            while (CurrentRequestIndex < request.part_counts_size()) {
+            while (CurrentRequestIndex < Request.part_counts_size()) {
                 // Don't allow the thread to be blocked for too long by a single batch.
                 if (objectManager->AdviceYield(batchStartInstant)) {
                     EpochAutomatonInvoker->Invoke(
@@ -183,7 +186,7 @@ private:
 
                 NProfiling::TScopedTimer timer;
 
-                int partCount = request.part_counts(CurrentRequestIndex);
+                int partCount = Request.part_counts(CurrentRequestIndex);
                 if (partCount == 0) {
                     // Skip empty requests.
                     OnResponse(
@@ -197,8 +200,8 @@ private:
                 }
 
                 std::vector<TSharedRef> requestParts(
-                    attachments.begin() + CurrentRequestPartIndex,
-                    attachments.begin() + CurrentRequestPartIndex + partCount);
+                    RequestAttachments.begin() + CurrentRequestPartIndex,
+                    RequestAttachments.begin() + CurrentRequestPartIndex + partCount);
 
                 auto requestMessage = TSharedRefArray(std::move(requestParts));
 
@@ -325,8 +328,7 @@ private:
 
     void NextRequest()
     {
-        const auto& request = Context->Request();
-        CurrentRequestPartIndex += request.part_counts(CurrentRequestIndex);
+        CurrentRequestPartIndex += Request.part_counts(CurrentRequestIndex);
         CurrentRequestIndex += 1;
     }
 
