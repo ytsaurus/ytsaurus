@@ -43,6 +43,7 @@ using namespace NApi;
 using namespace NConcurrency;
 using namespace NTableClient;
 
+using NTableClient::TTableReaderOptions;
 
 ////////////////////////////////////////////////////////////////////
 
@@ -168,7 +169,8 @@ private:
 
         virtual TTableReaderOptionsPtr GetTableReaderOptions() const override
         {
-            return New<NTableClient::TTableReaderOptions>();
+            static const auto options = New<TTableReaderOptions>();
+            return options;
         }
 
         virtual TJobResources GetMinNeededResourcesHeavy() const override
