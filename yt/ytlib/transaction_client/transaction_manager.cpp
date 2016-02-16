@@ -20,6 +20,7 @@
 #include <yt/core/misc/common.h>
 
 #include <yt/core/rpc/helpers.h>
+#include <yt/core/rpc/retrying_channel.h>
 
 #include <yt/core/ytree/public.h>
 
@@ -225,8 +226,9 @@ public:
                     Id_,
                     coordinatorCellId);
 
-                auto channel = Owner_->CellDirectory_->GetChannelOrThrow(coordinatorCellId);
-                TTransactionSupervisorServiceProxy proxy(channel);
+                auto cellChannel = Owner_->CellDirectory_->GetChannelOrThrow(coordinatorCellId);
+                auto retryingChannel = CreateRetryingChannel(Owner_->Config_, cellChannel);
+                TTransactionSupervisorServiceProxy proxy(retryingChannel);
 
                 auto req = proxy.CommitTransaction();
                 ToProto(req->mutable_transaction_id(), Id_);
