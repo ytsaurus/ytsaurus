@@ -92,6 +92,7 @@ public:
         , Bootstrap_(bootstrap)
         , SnapshotIOQueue_(New<TActionQueue>("SnapshotIO"))
         , ControllerThreadPool_(New<TThreadPool>(Config_->ControllerThreadCount, "Controller"))
+        , JobSpecBuilderThreadPool_(New<TThreadPool>(Config_->JobSpecBuilderThreadCount, "JobSpecBuilder"))
         , MasterConnector_(new TMasterConnector(Config_, Bootstrap_))
         , TotalResourceLimitsProfiler_(Profiler.GetPathPrefix() + "/total_resource_limits")
         , TotalResourceUsageProfiler_(Profiler.GetPathPrefix() + "/total_resource_usage")
@@ -516,7 +517,6 @@ public:
     {
         std::vector<TFuture<void>> asyncResults;
 
-        auto specBuilderInvoker = NRpc::TDispatcher::Get()->GetInvoker();
         for (const auto& job : schedulingContext->StartedJobs()) {
             auto operation = FindOperation(job->GetOperationId());
             if (!operation || operation->GetState() != EOperationState::Running) {
@@ -542,7 +542,7 @@ public:
             // Build spec asynchronously.
             asyncResults.push_back(
                 BIND(job->GetSpecBuilder(), startInfo->mutable_spec())
-                    .AsyncVia(specBuilderInvoker)
+                    .AsyncVia(JobSpecBuilderThreadPool_->GetInvoker())
                     .Run());
 
             // Release to avoid circular references.
@@ -809,6 +809,7 @@ private:
 
     TActionQueuePtr SnapshotIOQueue_;
     TThreadPoolPtr ControllerThreadPool_;
+    TThreadPoolPtr JobSpecBuilderThreadPool_;
 
     std::unique_ptr<TMasterConnector> MasterConnector_;
 
