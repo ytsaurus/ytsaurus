@@ -368,8 +368,8 @@ public:
     //! Maximum size of file allowed to be passed to jobs.
     i64 MaxFileSize;
 
-    //! Maximum number of output tables an operation can have.
-    int MaxOutputTableCount;
+    //! Maximum number of output tables times job count an operation can have.
+    int MaxOutputTablesTimesJobsCount;
 
     //! Maximum number of input tables an operation can have.
     int MaxInputTableCount;
@@ -530,10 +530,9 @@ public:
         RegisterParameter("user_job_blkio_weight", UserJobBlkioWeight)
             .Default(Null);
 
-        RegisterParameter("max_output_table_count", MaxOutputTableCount)
-            .Default(20)
-            .GreaterThan(1)
-            .LessThan(1000);
+        RegisterParameter("max_output_tables_times_jobs_count", MaxOutputTablesTimesJobsCount)
+            .Default(20 * 100000)
+            .GreaterThanOrEqual(100000);
 
         RegisterParameter("max_started_jobs_per_heartbeat", MaxStartedJobsPerHeartbeat)
             .Default()

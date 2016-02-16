@@ -975,13 +975,6 @@ void TOperationControllerBase::Initialize()
             InputTables.size());
     }
 
-    if (OutputTables.size() > Config->MaxOutputTableCount) {
-        THROW_ERROR_EXCEPTION(
-            "Too many output tables: maximum allowed %v, actual %v",
-            Config->MaxOutputTableCount,
-            OutputTables.size());
-    }
-
     DoInitialize();
 
     LOG_INFO("Operation initialized");
@@ -1847,6 +1840,16 @@ void TOperationControllerBase::UpdateTask(TTaskPtr task)
         oldTotalJobCount,
         newTotalJobCount,
         FormatResources(CachedNeededResources));
+
+    i64 outputTablesTimesJobsCount = OutputTables.size() * newTotalJobCount;
+    if (outputTablesTimesJobsCount > Config->MaxOutputTablesTimesJobsCount) {
+        OnOperationFailed(TError(
+                "Maximum allowed number of output tables times job count violated: %v > %v",
+                outputTablesTimesJobsCount,
+                Config->MaxOutputTablesTimesJobsCount)
+            << TErrorAttribute("output_table_count", OutputTables.size())
+            << TErrorAttribute("job_count", newTotalJobCount));
+    }
 
     task->CheckCompleted();
 }
