@@ -169,7 +169,7 @@ private:
             tabletSnapshot->Schema,
             tabletSnapshot->KeyColumns);
 
-        if (tabletSnapshot->EnableLookupHashTable) {
+        if (tabletSnapshot->HashTableSize > 0) {
             data->LookupHashTable = CreateChunkLookupHashTable(
                 data->Blocks,
                 data->ChunkMeta,

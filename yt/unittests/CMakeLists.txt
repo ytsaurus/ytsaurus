@@ -101,6 +101,7 @@ set(SRCS
   ${BASE}/hyperloglog_ut.cpp
   ${BASE}/udf/invalid_ir.h
   ${BASE}/lfalloc_helpers_ut.cpp
+  ${BASE}/guid_ut.cpp
 )
 
 protoc(${BASE}/rpc_ut.proto SRCS)

@@ -72,7 +72,8 @@ public:
     void CommitRow(TTransaction* transaction, const TDynamicRowRef& rowRef);
     void AbortRow(TTransaction* transaction, const TDynamicRowRef& rowRef);
 
-    bool IsOverflowRotationNeeded() const;
+    bool IsNearActiveStoreOverflow() const;
+
     bool IsPeriodicRotationNeeded() const;
     bool IsRotationPossible() const;
     bool IsForcedRotationPossible() const;
@@ -125,7 +126,7 @@ private:
 
     NLogging::TLogger Logger;
 
-
+private:
     ui32 ComputeLockMask(TUnversionedRow row);
 
     void CheckInactiveStoresLocks(
@@ -134,6 +135,10 @@ private:
         ui32 lockMask);
 
     void CheckForUnlockedStore(TDynamicMemoryStore* store);
+
+    void ValidateActiveStoreOverflow();
+    void ValidateOnWrite(const TTransactionId& transactionId, TUnversionedRow row);
+    void ValidateOnDelete(const TTransactionId& transactionId, TKey key);
 
     bool IsRecovery() const;
 

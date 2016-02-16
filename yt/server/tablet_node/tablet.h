@@ -40,7 +40,7 @@ struct TTabletSnapshot
     NTableClient::TTableSchema Schema;
     NTableClient::TKeyColumns KeyColumns;
     NTransactionClient::EAtomicity Atomicity;
-    bool EnableLookupHashTable = false;
+    int HashTableSize = 0;
     int OverlappingStoreCount = 0;
 
     TPartitionSnapshotPtr Eden;
@@ -119,7 +119,7 @@ public:
 
     DEFINE_BYVAL_RO_PROPERTY(NTransactionClient::EAtomicity, Atomicity);
 
-    DEFINE_BYVAL_RO_PROPERTY(bool, EnableLookupHashTable);
+    DEFINE_BYVAL_RO_PROPERTY(int, HashTableSize);
 
     DEFINE_BYVAL_RO_PROPERTY(int, OverlappingStoreCount);
 
