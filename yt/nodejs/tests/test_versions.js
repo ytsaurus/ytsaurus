@@ -57,7 +57,7 @@ describe("YtApplicationVersions - discover versions", function() {
                     }));
 
                 if (!version_data.hasOwnProperty("error")) {
-                    request_mock.returns(Q.resolve(version_data));
+                    request_mock.returns(Q.resolve({ "$value": version_data }));
                 } else {
                     request_mock.returns(Q.reject("Some error from orchid"));
                 }
