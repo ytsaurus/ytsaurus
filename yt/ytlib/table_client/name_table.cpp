@@ -32,6 +32,12 @@ int TNameTable::GetSize() const
     return IdToName_.size();
 }
 
+i64 TNameTable::GetByteSize() const
+{
+    TGuard<TSpinLock> guard(SpinLock_);
+    return ByteSize_;
+}
+
 TNullable<int> TNameTable::FindId(const TStringBuf& name) const
 {
     TGuard<TSpinLock> guard(SpinLock_);
@@ -80,6 +86,7 @@ int TNameTable::DoRegisterName(const TStringBuf& name)
     IdToName_.emplace_back(name);
     const auto& savedName = IdToName_.back();
     YCHECK(NameToId_.insert(std::make_pair(savedName, id)).second);
+    ByteSize_ += savedName.length();
     return id;
 }
 

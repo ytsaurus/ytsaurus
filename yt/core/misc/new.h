@@ -30,7 +30,7 @@ namespace NYT {
  *     public:
  *         TFoo();
  *     };
- *     
+ *
  *     typedef TIntrusivePtr<TFoo> TFooPtr;
  *
  *     void RegisterObject(TFooPtr foo)
@@ -82,7 +82,7 @@ TRefCountedTypeCookie GetRefCountedTypeCookie(
     const TSourceLocation& location);
 
 template <class T>
-FORCED_INLINE TRefCountedTypeCookie GetRefCountedTypeCookie()
+Y_FORCE_INLINE TRefCountedTypeCookie GetRefCountedTypeCookie()
 {
     static auto cookie = NullRefCountedTypeCookie;
     if (Y_UNLIKELY(cookie == NullRefCountedTypeCookie)) {
@@ -94,7 +94,7 @@ FORCED_INLINE TRefCountedTypeCookie GetRefCountedTypeCookie()
 }
 
 template <class T, class TTag, int Counter>
-FORCED_INLINE TRefCountedTypeCookie GetRefCountedTypeCookieWithLocation(const TSourceLocation& location)
+Y_FORCE_INLINE TRefCountedTypeCookie GetRefCountedTypeCookieWithLocation(const TSourceLocation& location)
 {
     static auto cookie = NullRefCountedTypeCookie;
     if (Y_UNLIKELY(cookie == NullRefCountedTypeCookie)) {
@@ -156,7 +156,7 @@ inline TIntrusivePtr<T> NewWithLocation(
 #endif
     TIntrusivePtr<T> result(new T(std::forward<As>(args)...), false);
     REF_COUNTED_NEW_EPILOGUE();
-    return result;    
+    return result;
 }
 
 #undef REF_COUNTED_NEW_EPILOGUE

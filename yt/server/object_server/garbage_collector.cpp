@@ -98,7 +98,7 @@ void TGarbageCollector::RegisterZombie(TObjectBase* object)
         CollectPromise_ = NewPromise<void>();
     }
 
-    LOG_DEBUG_UNLESS(IsRecovery(), "Object has become zombie (ObjectId: %v)",
+    LOG_TRACE_UNLESS(IsRecovery(), "Object has become zombie (ObjectId: %v)",
         object->GetId());
     YCHECK(Zombies_.insert(object).second);
 }
@@ -126,13 +126,13 @@ void TGarbageCollector::DestroyZombie(TObjectBase* object)
     handler->DestroyObject(object);
 
     if (object->GetObjectWeakRefCounter() > 0) {
-        LOG_DEBUG_UNLESS(IsRecovery(), "Zombie has become ghost (ObjectId: %v, WeakRefCounter: %v)",
+        LOG_TRACE_UNLESS(IsRecovery(), "Zombie has become ghost (ObjectId: %v, WeakRefCounter: %v)",
             object->GetId(),
             object->GetObjectWeakRefCounter());
         YCHECK(Ghosts_.insert(object).second);
         object->SetDestroyed();
     } else {
-        LOG_DEBUG_UNLESS(IsRecovery(), "Zombie disposed (ObjectId: %v)",
+        LOG_TRACE_UNLESS(IsRecovery(), "Zombie disposed (ObjectId: %v)",
             object->GetId(),
             object->GetObjectWeakRefCounter());
         delete object;
@@ -146,7 +146,7 @@ void TGarbageCollector::DisposeGhost(TObjectBase* object)
     YASSERT(!object->IsLocked());
 
     if (object->IsDestroyed()) {
-        LOG_DEBUG("Ghost disposed (ObjectId: %v)",
+        LOG_TRACE("Ghost disposed (ObjectId: %v)",
             object->GetId());
         YCHECK(Ghosts_.erase(object) == 1);
         delete object;

@@ -286,7 +286,9 @@ private:
                     break;
 
                 case EMultiplexedRecordType::Remove:
-                    YCHECK(RemoveChunkIds_.find(chunkId) == RemoveChunkIds_.end());
+                    // NB: RemoveChunkIds_ may already contain chunkId.
+                    // Indeed, for non-multiplexed chunks we still insert a removal record into
+                    // the multiplexed changelog. These records are not interleaved with create records.
                     RemoveChunkIds_.insert(chunkId);
                     CreateChunkIds_.erase(chunkId);
                     AppendChunkIds_.erase(chunkId);
@@ -1063,7 +1065,6 @@ private:
 
             auto chunk = New<TJournalChunk>(
                 Impl_->Bootstrap_,
-                false,
                 Impl_->Location_,
                 TChunkDescriptor(chunkId));
             chunkStore->RegisterNewChunk(chunk);

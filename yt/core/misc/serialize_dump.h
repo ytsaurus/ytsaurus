@@ -9,45 +9,45 @@ namespace NYT {
 class TSerializationDumper
 {
 public:
-    FORCED_INLINE bool IsEnabled() const
+    Y_FORCE_INLINE bool IsEnabled() const
     {
         return Enabled_;
     }
 
-    FORCED_INLINE void SetEnabled(bool value)
+    Y_FORCE_INLINE void SetEnabled(bool value)
     {
         Enabled_ = value;
     }
 
 
-    FORCED_INLINE void Indent()
+    Y_FORCE_INLINE void Indent()
     {
         ++IndentCount_;
     }
 
-    FORCED_INLINE void Unindent()
+    Y_FORCE_INLINE void Unindent()
     {
         --IndentCount_;
     }
 
 
-    FORCED_INLINE void Suspend()
+    Y_FORCE_INLINE void Suspend()
     {
         ++SuspendCount_;
     }
 
-    FORCED_INLINE void Resume()
+    Y_FORCE_INLINE void Resume()
     {
         --SuspendCount_;
     }
 
-    FORCED_INLINE bool IsSuspended() const
+    Y_FORCE_INLINE bool IsSuspended() const
     {
         return SuspendCount_ > 0;
     }
 
 
-    FORCED_INLINE bool IsActive() const
+    Y_FORCE_INLINE bool IsActive() const
     {
         return IsEnabled() && !IsSuspended();
     }
