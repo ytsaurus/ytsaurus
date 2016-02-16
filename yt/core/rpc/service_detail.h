@@ -204,6 +204,8 @@ private:
             this->UnderlyingContext_->SetResponseBody(std::move(data));
         }
         this->UnderlyingContext_->Reply(error);
+        this->Request_.reset();
+        this->Response_.reset();
     }
 
     typename TObjectPool<TTypedResponse>::TObjectPtr Response_;
