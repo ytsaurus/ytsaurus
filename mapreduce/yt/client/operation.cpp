@@ -138,7 +138,6 @@ private:
             header.SetToken(Auth_.Token);
             header.AddPath(uniquePath);
             header.SetChunkedEncoding();
-            header.SetParameters("{file_writer={desired_chunk_size=1099511627776}}");
             auto streamMaker = [&source] () {
                 return CreateStream(source);
             };
