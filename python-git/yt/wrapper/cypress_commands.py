@@ -64,31 +64,44 @@ def set(path, value, format=None, client=None):
         data=value,
         client=client)
 
-def copy(source_path, destination_path, preserve_account=None, force=None, client=None):
+def copy(source_path, destination_path, recursive=None, preserve_account=None, force=None, client=None):
     """Copy Cypress node.
 
     :param source_path: (string or `yt.wrapper.table.TablePath`)
     :param destination_path: (string or `yt.wrapper.table.TablePath`)
+    :param recursive: (bool) `config["yamr_mode"]["create_recursive"]` by default
     :param preserve_account: (bool)
+    :param force: (bool)
     .. seealso:: `copy on wiki <https://wiki.yandex-team.ru/yt/Design/ClientInterface/Core#copy>`_
     """
     params = {"source_path": prepare_path(source_path, client=client),
               "destination_path": prepare_path(destination_path, client=client)}
+
+    recursive = get_value(recursive, get_config(client)["yamr_mode"]["create_recursive"])
+    params["recursive"] = bool_to_string(recursive)
+
     if preserve_account is not None:
         params["preserve_account"] = bool_to_string(preserve_account)
     if force is not None:
         params["force"] = bool_to_string(force)
     return _make_transactional_request("copy", params, client=client)
 
-def move(source_path, destination_path, preserve_account=None, force=None, client=None):
+def move(source_path, destination_path, recursive=None, preserve_account=None, force=None, client=None):
     """Move (rename) Cypress node.
 
     :param source_path: (string or `yt.wrapper.table.TablePath`)
     :param destination_path: (string or `yt.wrapper.table.TablePath`)
+    :param recursive: (bool) `config["yamr_mode"]["create_recursive"]` by default
+    :param preserve_account: (bool)
+    :param force: (bool)
     .. seealso:: `move on wiki <https://wiki.yandex-team.ru/yt/Design/ClientInterface/Core#move>`_
     """
     params = {"source_path": prepare_path(source_path, client=client),
               "destination_path": prepare_path(destination_path, client=client)}
+
+    recursive = get_value(recursive, get_config(client)["yamr_mode"]["create_recursive"])
+    params["recursive"] = bool_to_string(recursive)
+
     if preserve_account is not None:
         params["preserve_account"] = bool_to_string(preserve_account)
     if force is not None:

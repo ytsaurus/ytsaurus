@@ -261,6 +261,14 @@ class TestCypressCommands(object):
         yt.move(TEST_DIR + "/tmp1", TEST_DIR + "/tmp2", preserve_account=True)
         assert yt.exists(TEST_DIR + "/tmp2")
 
+        yt.copy(other_table, TEST_DIR + "/d1/d2/table", recursive=True)
+        assert yt.exists(other_table)
+        assert yt.exists(TEST_DIR + "/d1/d2/table")
+
+        yt.move(TEST_DIR + "/d1/d2/table", TEST_DIR + "/d3/d4/table", recursive=True)
+        assert not yt.exists(TEST_DIR + "/d1/d2/table")
+        assert yt.exists(TEST_DIR + "/d3/d4/table")
+
     def test_transactions(self):
         table = TEST_DIR + "/transaction_test_table"
 
