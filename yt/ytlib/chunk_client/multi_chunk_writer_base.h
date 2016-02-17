@@ -146,7 +146,7 @@ public:
 
     virtual bool Write(TWriteArgs... args) override
     {
-        YCHECK(GetReadyEvent().IsSet());
+        YCHECK(!SwitchingSession_);
 
         // Return true if current writer is ready for more data and
         // we didn't switch to the next chunk.
