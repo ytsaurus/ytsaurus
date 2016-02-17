@@ -414,7 +414,7 @@ private:
 
                                 // TODO(lukyan): Validate timestamp and read permission
                                 return CreateSchemafulTabletReader(
-                                    std::move(tabletSnapshot),
+                                    tabletSnapshot,
                                     query->TableSchema,
                                     group.first,
                                     group.second,
