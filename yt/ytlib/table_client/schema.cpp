@@ -123,7 +123,6 @@ void FromProto(TColumnSchema* schema, const NProto::TColumnSchema& protoSchema)
     schema->Expression = protoSchema.has_expression() ? MakeNullable(protoSchema.expression()) : Null;
     schema->Aggregate = protoSchema.has_aggregate() ? MakeNullable(protoSchema.aggregate()) : Null;
     schema->SortOrder = protoSchema.has_sort_order() ? MakeNullable(ESortOrder(protoSchema.sort_order())) : Null;
-    ValidateColumnSchema(*schema);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
