@@ -26,6 +26,7 @@ TInvokerQueue::TInvokerQueue(
     , WaitTimeCounter("/time/wait", tagIds)
     , ExecTimeCounter("/time/exec", tagIds)
     , TotalTimeCounter("/time/total", tagIds)
+    , CumulativeTimeCounter("/time/cumulative", tagIds)
 {
     Profiler.SetEnabled(enableProfiling);
 }
@@ -139,12 +140,11 @@ void TInvokerQueue::EndExecute(TEnqueuedAction* action)
     Profiler.Update(SizeCounter, queueSize);
 
     auto finishedAt = GetCpuInstant();
-    Profiler.Update(
-        ExecTimeCounter,
-        CpuDurationToValue(finishedAt - action->StartedAt));
-    Profiler.Update(
-        TotalTimeCounter,
-        CpuDurationToValue(finishedAt - action->EnqueuedAt));
+    auto timeFromStart = CpuDurationToValue(finishedAt - action->StartedAt);
+    auto timeFromEnqueue = CpuDurationToValue(finishedAt - action->EnqueuedAt);
+    Profiler.Update(ExecTimeCounter, timeFromStart);
+    Profiler.Increment(CumulativeTimeCounter, timeFromStart);
+    Profiler.Update(TotalTimeCounter, timeFromEnqueue);
 
     action->Finished = true;
 }
