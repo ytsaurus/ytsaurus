@@ -627,8 +627,7 @@ class TestTablets(YTEnvSetup):
         self._sync_mount_table("//tmp/t")
 
         # check that stores are rotated on-demand
-        insert_rows("//tmp/t", _rows(10, 16))
-        insert_rows("//tmp/t", _rows(16, 18))
+        insert_rows("//tmp/t", _rows(10, 18))
         # ensure slot gets scanned
         sleep(3)
         insert_rows("//tmp/t", _rows(18, 28))
@@ -642,9 +641,8 @@ class TestTablets(YTEnvSetup):
         delete_rows("//tmp/t", _keys(0, 10))
         assert lookup_rows("//tmp/t", _keys(0, 10)) == []
 
-        # check that limits are checked for write & delete
-        with pytest.raises(YtError): insert_rows("//tmp/t", _rows(0, 10))
-        with pytest.raises(YtError): delete_rows("//tmp/t", _keys(0, 10))
+        # check that limits are checked for delete
+        with pytest.raises(YtError): delete_rows("//tmp/t", _keys(0, 11))
 
         # check that everything survives after recovery
         self._sync_unmount_table("//tmp/t")
