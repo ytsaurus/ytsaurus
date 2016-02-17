@@ -17,6 +17,7 @@ from http import get_user_name
 from transaction import Transaction, PingableTransaction, PingTransaction
 from lock import lock
 from table import TempTable
+from job_commands import run_job_shell
 
 import functools
 
@@ -288,3 +289,7 @@ class Yt(ClientState):
     @functools.wraps(TempTable)
     def TempTable(self, *args, **kwargs):
         return TempTable(*args, client=self, **kwargs)
+
+    @functools.wraps(run_job_shell)
+    def JobShell(self, *args, **kwargs):
+        return run_job_shell(*args, client=self, **kwargs)

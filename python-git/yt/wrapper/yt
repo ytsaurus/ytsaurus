@@ -31,7 +31,9 @@ Operation commands:
     map-reduce, map, sort, reduce, join-reduce, merge, erase,
     remote-copy, abort-op, suspend-op, resume-op, track-op
 Transaction commands:
-    lock, start-tx, abort-tx, commit-tx, ping-tx'''
+    lock, start-tx, abort-tx, commit-tx, ping-tx
+Job commands:
+    run-job-shell'''
 
 EPILOG = '''Examples:
 
@@ -697,6 +699,10 @@ def add_execute_parser(add_parser):
     add_spec_help(parser, "params")
     parser.set_defaults(func=execute)
 
+def add_run_job_shell_parser(add_parser):
+    parser = add_parser("run-job-shell", yt.run_job_shell)
+    parser.add_argument("job_id", type=str, help="job id, for example: 5c51-24e204-384-9f3f6437")
+
 def main():
     config_parser = ArgumentParser(add_help=False)
     config_parser.add_argument("--proxy", help="specify cluster to run command, "
@@ -802,6 +808,8 @@ def main():
     add_remove_member_parser(add_parser)
     add_check_permission_parser(add_parser)
     add_execute_parser(add_parser)
+
+    add_run_job_shell_parser(add_parser)
 
     if "_ARGCOMPLETE" in os.environ:
         completers.autocomplete(parser, enable_bash_fallback=False,
