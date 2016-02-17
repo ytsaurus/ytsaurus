@@ -51,7 +51,7 @@ public:
         auto* stream = GetOutputStream();
         
         UpdateEscapedColumnNames();
-        RowValues_.resize(GetNameTable()->GetSize());
+        RowValues_.resize(NameTableSize_);
         // Invariant: at the beginning of each loop iteration RowValues contains
         // empty TNullable<TStringBuf> in each element.
         for (int i = 0; i < static_cast<int>(rows.size()); i++) {
@@ -70,7 +70,7 @@ public:
                 } else if (item->Type != EValueType::String) {
                     THROW_ERROR_EXCEPTION("YAMRed DSV doesn't support any value type except String and Null");
                 }
-                YCHECK(item->Id < GetNameTable()->GetSize());
+                YCHECK(item->Id < NameTableSize_);
                 RowValues_[item->Id] = TStringBuf(item->Data.String, item->Length);
             }
 
@@ -96,6 +96,10 @@ private:
     std::vector<int> KeyColumnIds_;
     std::vector<int> SubkeyColumnIds_;
     std::vector<Stroka> EscapedColumnNames_;
+
+    // We capture size of name table at the beginnig of #WriteRows
+    // and refer to the captured value, since name table may change asynchronously.
+    int NameTableSize_ = 0;
 
     TDsvTable Table_;
 
@@ -157,7 +161,7 @@ private:
         }
 
         bool firstColumn = true;
-        for (int id = 0; id < GetNameTable()->GetSize(); id++) {
+        for (int id = 0; id < NameTableSize_; ++id) {
             if (RowValues_[id]) {
                 if (!firstColumn) {
                     stream->Write(Config_->FieldSeparator);
@@ -180,7 +184,7 @@ private:
     {
         ui32 sum = 0;
         bool firstColumn = true;
-        for (int id = 0; id < GetNameTable()->GetSize(); id++) {
+        for (int id = 0; id < NameTableSize_; ++id) {
             if (RowValues_[id]) {
                 if (!firstColumn) {
                     sum += 1; // The yamr_keys_separator.
@@ -210,8 +214,9 @@ private:
     {
         // We store escaped column names in order to not re-escape them each time we write a column name.
         auto nameTable = GetNameTable();
-        EscapedColumnNames_.reserve(nameTable->GetSize());
-        for (int columnIndex = EscapedColumnNames_.size(); columnIndex < GetNameTable()->GetSize(); ++columnIndex) {
+        NameTableSize_ = nameTable->GetSize();
+        EscapedColumnNames_.reserve(NameTableSize_);
+        for (int columnIndex = EscapedColumnNames_.size(); columnIndex < NameTableSize_; ++columnIndex) {
             EscapedColumnNames_.emplace_back(Escape(
                 nameTable->GetName(columnIndex),
                 Table_.KeyStops,
