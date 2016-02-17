@@ -25,8 +25,8 @@ TInvokerQueue::TInvokerQueue(
     , SizeCounter("/size", tagIds)
     , WaitTimeCounter("/time/wait", tagIds)
     , ExecTimeCounter("/time/exec", tagIds)
-    , TotalTimeCounter("/time/total", tagIds)
     , CumulativeTimeCounter("/time/cumulative", tagIds)
+    , TotalTimeCounter("/time/total", tagIds)
 {
     Profiler.SetEnabled(enableProfiling);
 }
