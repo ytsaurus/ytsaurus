@@ -53,6 +53,7 @@ public:
     virtual NProto::TDataStatistics GetDataStatistics() const override;
 
 protected:
+    std::atomic<bool> SwitchingSession_ = { true };
     NLogging::TLogger Logger;
 
     bool VerifyActive();
@@ -93,7 +94,6 @@ private:
     TSession CurrentSession_;
 
     bool Closing_ = false;
-    std::atomic<bool> SwitchingSession_ = { true };
 
     TFuture<void> ReadyEvent_ = VoidFuture;
 
