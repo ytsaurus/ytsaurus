@@ -66,6 +66,7 @@ private:
     NProfiling::TAggregateCounter SizeCounter;
     NProfiling::TAggregateCounter WaitTimeCounter;
     NProfiling::TAggregateCounter ExecTimeCounter;
+    NProfiling::TSimpleCounter CumulativeTimeCounter;
     NProfiling::TAggregateCounter TotalTimeCounter;
 };
 
