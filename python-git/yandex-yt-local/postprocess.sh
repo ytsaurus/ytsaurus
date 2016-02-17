@@ -13,7 +13,10 @@ YANDEX_YT_YSON_BINDINGS_VERSION="0.2.23-0"
 NODEJS_VERSION="0.8.26"
 
 UBUNTU_CODENAME=$(lsb_release -c -s)
-ARCHIVE_NAME="yt_local_${YANDEX_YT_LOCAL_VERSION}_${UBUNTU_CODENAME}_archive.tgz"
+
+VERSIONS="${YANDEX_YT_LOCAL_VERSION}${YANDEX_YT_PYTHON_VERSION}${YANDEX_YT_VERSION}${YANDEX_YT_YSON_BINDINGS_VERSION}"
+HASH=$(echo -ne $VERSIONS | md5sum | head -c 8)
+ARCHIVE_NAME="yt_local_${HASH}_${UBUNTU_CODENAME}_archive.tgz"
 
 download_and_extract() {
     local package="$1"
@@ -65,5 +68,10 @@ cp -r nodejs/usr/* archive/node
 
 tar cvfz $ARCHIVE_NAME archive/
 cat $ARCHIVE_NAME | $YT upload //home/files/${ARCHIVE_NAME} --proxy locke
+$YT set //home/files/${ARCHIVE_NAME}/@packages_versions "{\
+      yandex-yt=\"$YANDEX_YT_VERSION\"; \
+      yandex-yt-local=\"$YANDEX_YT_LOCAL_VERSION\";\
+      yandex-yt-python=\"$YANDEX_YT_PYTHON_VERSION\";\
+      yandex-yt-python-yson=\"$YANDEX_YT_YSON_BINDINGS_VERSION\"}" --proxy locke
 
 rm -rf "$TMP_DIR"

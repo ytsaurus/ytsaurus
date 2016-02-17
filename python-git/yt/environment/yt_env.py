@@ -1,8 +1,9 @@
 from configs_provider import ConfigsProviderFactory, init_logging
-from helpers import versions_cmp, is_binary_found, read_config, write_config, collect_events_from_logs, \
+from helpers import versions_cmp, read_config, write_config, collect_events_from_logs, \
                     is_dead_or_zombie, get_open_port, get_lsof_diagnostic
 
-from yt.common import update, YtError, get_value, remove_file, makedirp, set_pdeathsig
+from yt.common import update, YtError, get_value, remove_file, makedirp, set_pdeathsig, \
+                      which
 import yt.yson as yson
 
 import logging
@@ -30,7 +31,7 @@ except ImportError:
 logger = logging.getLogger("Yt.local")
 
 def _get_ytserver_version():
-    if not is_binary_found("ytserver"):
+    if not which("ytserver"):
         raise YtError("Failed to start ytserver. Make sure that ytserver binary is installed")
     # Output example: "\nytserver  version: 0.17.3-unknown~debug~0+local\n\n"
     output = subprocess.check_output(["ytserver", "--version"])
@@ -68,8 +69,11 @@ def get_busy_port_diagnostic(log_paths):
         logger.exception("Failed to get busy port diagnostics")
     return None
 
-def add_busy_port_diagnostic(error, log_paths):
-    diagnostic = get_busy_port_diagnostic(log_paths)
+def add_busy_port_diagnostic(error, log_paths, name):
+    if name == "proxy":  # Port diagnostic is not supported for proxy.
+        return
+
+    diagnostic = get_busy_port_diagnostic(log_paths[name])
     if diagnostic is not None:
         error.attributes["details"] = diagnostic
 
@@ -158,6 +162,7 @@ class YTEnv(object):
             self._hostname = fqdn
 
         self._process_to_kill = defaultdict(list)
+        self._stderr_paths = defaultdict(list)
         self._all_processes = {}
         self._kill_previously_run_services()
         self._kill_child_processes = kill_child_processes
@@ -238,6 +243,7 @@ class YTEnv(object):
                 .create_for_version(self._ytserver_version, ports, enable_debug_logging, self._hostname)
         self._enable_debug_logging = enable_debug_logging
         self._load_existing_environment = load_existing_environment
+        self._capture_stderr_to_file = bool(int(os.environ.get("YT_CAPTURE_STDERR_TO_FILE", "0")))
 
         logger.info("Starting up cluster instance as follows:")
         logger.info("  masters          %d (%d nonvoting)", master_count, nonvoting_master_count)
@@ -334,12 +340,36 @@ class YTEnv(object):
         self.pids_file.write(str(pid) + "\n")
         self.pids_file.flush()
 
-    def _run(self, args, name, number=1, timeout=0.1):
+    def _print_stderrs(self, name, number=None):
+        if not self._capture_stderr_to_file:
+            return
+
+        def print_stderr(path, num=None):
+            number_suffix = ""
+            if num is not None:
+                number_suffix = "-" + str(num)
+
+            process_stderr = open(path).read()
+            if process_stderr:
+                sys.stderr.write("{0}{1} stderr:\n{2}"
+                                 .format(name.capitalize(), number_suffix, process_stderr))
+
+        if number is not None:
+            print_stderr(self._stderr_paths[name][number], number)
+        else:
+            for i, stderr_path in enumerate(self._stderr_paths[name]):
+                print_stderr(stderr_path, i)
+
+    def _run(self, args, name, number=None, timeout=0.1):
         with self._lock:
+            number_suffix = "-" + str(number) if number is not None else ""
+            stderr_path = os.path.join(self.stderrs_path, "stderr.{0}{1}".format(name, number_suffix))
+            self._stderr_paths[name].append(stderr_path)
+
             stdout = open(os.devnull, "w")
             stderr = None
-            if os.environ.get("YT_CAPTURE_STDERR_TO_FILE"):
-                stderr = open(os.path.join(self.stderrs_path, "stderr.{0}-{1}".format(name, number)), "w")
+            if self._capture_stderr_to_file:
+                stderr = open(stderr_path, "w")
 
             def preexec():
                 os.setsid()
@@ -351,10 +381,12 @@ class YTEnv(object):
 
             time.sleep(timeout)
             if p.poll():
-                error = YtError("Process {0}-{1} unexpectedly terminated with error code {2}. "
+                self._print_stderrs(name, number)
+
+                error = YtError("Process {0}{1} unexpectedly terminated with error code {2}. "
                                 "If the problem is reproducible please report to yt@yandex-team.ru mailing list."
-                                .format(name, number, p.returncode))
-                add_busy_port_diagnostic(error, self.log_paths[name])
+                                .format(name, number_suffix, p.returncode))
+                add_busy_port_diagnostic(error, self.log_paths, name)
                 raise error
 
             self._process_to_kill[name].append(p)
@@ -364,7 +396,7 @@ class YTEnv(object):
     def _run_ytserver(self, service_name, name):
         logger.info("Starting %s", name)
 
-        if not is_binary_found("ytserver"):
+        if not which("ytserver"):
             raise YtError("Failed to start ytserver. Make sure that ytserver binary is installed")
 
         for i in xrange(len(self.configs[name])):
@@ -828,6 +860,24 @@ class YTEnv(object):
             if not self._load_existing_environment:
                 write_config(ui_config, config_path, format=None)
 
+    def _find_nodejs(self):
+        nodejs_binary = None
+        for name in ["node", "nodejs"]:
+            if which(name):
+                nodejs_binary = name
+                break
+
+        if nodejs_binary is None:
+            raise YtError("Failed to find nodejs binary. "
+                          "Make sure you added nodejs directory to PATH variable")
+
+        version = subprocess.check_output([nodejs_binary, "-v"])
+
+        if not version.startswith("v0.8"):
+            raise YtError("Failed to find appropriate nodejs version (should start with 0.8)")
+
+        return nodejs_binary
+
     def _start_proxy_from_package(self, proxy_name):
         node_path = filter(lambda x: x != "", os.environ.get("NODE_PATH", "").split(":"))
         for path in node_path + ["/usr/lib/node_modules"]:
@@ -838,22 +888,13 @@ class YTEnv(object):
             raise YtError("Failed to find YT http proxy binary. "
                           "Make sure you installed yandex-yt-http-proxy package")
 
-        try:
-            version = subprocess.check_output(["node", "-v"])
-        except subprocess.CalledProcessError:
-            raise YtError("Failed to find nodejs binary to start proxy. "
-                          "Make sure you added nodejs directory to PATH variable")
-
-        if not version.startswith("v0.8"):
-            raise YtError("Failed to find appropriate nodejs version (should start with 0.8)")
-
         proxy_version = _get_proxy_version(proxy_binary_path)[:2]  # major, minor
         ytserver_version = map(int, self._ytserver_version.split("."))[:2]
         if proxy_version and proxy_version != ytserver_version:
             raise YtError("Proxy version does not match ytserver version. "
                           "Expected: {0}.{1}, actual: {2}.{3}".format(*(ytserver_version + proxy_version)))
 
-        self._run(["node",
+        self._run([self._find_nodejs(),
                    proxy_binary_path,
                    "-c", self.config_paths[proxy_name],
                    "-l", self.log_paths[proxy_name]],
@@ -868,7 +909,7 @@ class YTEnv(object):
         if use_proxy_from_package:
             self._start_proxy_from_package(proxy_name)
         else:
-            if not is_binary_found("run_proxy.sh"):
+            if not which("run_proxy.sh"):
                 raise YtError("Failed to start proxy from source tree. "
                               "Make sure you added directory with run_proxy.sh to PATH")
             self._run(["run_proxy.sh",
@@ -900,7 +941,8 @@ class YTEnv(object):
             time.sleep(sleep_quantum)
             current_wait_time += sleep_quantum
 
+        self._print_stderrs(name)
         error =  YtError("{0} still not ready after {1} seconds. See logs in working dir for details."
                          .format(name.capitalize(), max_wait_time))
-        add_busy_port_diagnostic(error, self.log_paths[name])
+        add_busy_port_diagnostic(error, self.log_paths, name)
         raise error

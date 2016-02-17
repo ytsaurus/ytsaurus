@@ -133,12 +133,6 @@ def versions_cmp(version1, version2):
         return map(int, v.split("."))
     return cmp(normalize(version1), normalize(version2))
 
-def is_binary_found(binary_name):
-    for path in os.environ["PATH"].split(os.pathsep):
-        if os.access(os.path.join(path, binary_name), os.X_OK):
-            return True
-    return False
-
 def collect_events_from_logs(log_files, event_filters):
     all_events = []
 
