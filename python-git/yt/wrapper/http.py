@@ -84,17 +84,6 @@ def create_response(response, request_info, client):
 
     def get_error():
         if not str(response.status_code).startswith("2"):
-            # 401 is case of incorrect token
-            if response.status_code == 401:
-                url_base = "/".join(response.url.split("/")[:3])
-                raise YtTokenError(
-                    "Your authentication token was rejected by the server (X-YT-Request-ID: {0}).\n"
-                    "Please refer to {1}/auth/ for obtaining a valid token if it will not fix error: "
-                    "please kindly submit a request to https://st.yandex-team.ru/createTicket?queue=YTADMIN"\
-                        .format(
-                            response.headers.get("X-YT-Request-ID", "missing"),
-                            url_base))
-
             try:
                 response.json()
             except json.JSONDecodeError:
@@ -127,6 +116,27 @@ def _process_request_backoff(current_time, client):
             time.sleep(float(backoff) / 1000.0 - diff)
         get_session().last_request_time = now_seconds
 
+def raise_for_status(response, request_info, force_raise_error=False):
+    if response.status_code == 503:
+        raise YtProxyUnavailable(response)
+    if response.status_code == 401:
+        url_base = "/".join(response.url.split("/")[:3])
+        raise YtTokenError(
+            "Your authentication token was rejected by the server (X-YT-Request-ID: {0}).\n"
+            "Please refer to {1}/auth/ for obtaining a valid token if it will not fix error: "
+            "please kindly submit a request to https://st.yandex-team.ru/createTicket?queue=YTADMIN"\
+                .format(response.headers.get("X-YT-Request-ID", "missing"), url_base))
+
+    if force_raise_error and response.is_ok():
+        url, params, headers = \
+                request_info["url"], request_info["headers"], get_value(request_info["params"], {})
+        logger.warning("Error occured but response does not contain error information. "
+                       "Url: %s, params: %s, headers: %s",
+                       url, str(params), str(hide_token(dict(headers))))
+
+    if not response.is_ok() or force_raise_error:
+        raise YtHttpResponseError(error=response.error(), **request_info)
+
 def make_request_with_retries(method, url, make_retries=True, retry_unavailable_proxy=True, response_should_be_json=False,
                               params=None, timeout=None, retry_action=None, client=None, **kwargs):
     configure_ip(client)
@@ -152,10 +162,10 @@ def make_request_with_retries(method, url, make_retries=True, retry_unavailable_
                 exc_info = sys.exc_info()
                 if hasattr(error, "response") and error.response is not None:
                     try:
-                        response_error = YtHttpResponseError(error=create_response(error.response, None, client).error(), **request_info)
+                        rsp = create_response(error.response, request_info, client)
                     except:
                         raise exc_info[0], exc_info[1], exc_info[2]
-                    raise response_error
+                    raise_for_status(rsp, request_info, force_raise_error=True)
                 raise
 
             # Sometimes (quite often) we obtain incomplete response with body expected to be JSON.
@@ -165,11 +175,7 @@ def make_request_with_retries(method, url, make_retries=True, retry_unavailable_
                     response.json()
                 except json.JSONDecodeError:
                     raise YtIncorrectResponse("Response body can not be decoded from JSON (bug in proxy)", response)
-            if response.status_code == 503:
-                raise YtProxyUnavailable(response)
-            if not response.is_ok():
-                raise YtHttpResponseError(error=response.error(), **request_info)
-
+            raise_for_status(response, request_info)
             return response
         except tuple(retriable_errors) as error:
             logger.warning("HTTP %s request %s has failed with error %s, message: '%s', headers: %s",
