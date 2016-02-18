@@ -74,6 +74,12 @@ class YtTestEnvironment(object):
                 ]
             }
         }
+        self.env.DELTA_SCHEDULER_CONFIG = {
+            "scheduler" : {
+                "max_operation_count": 5
+            }
+        }
+
 
         self.env.start(dir, os.path.join(dir, "pids.txt"),
                        port_locks_path=os.path.join(TESTS_SANDBOX, "ports"), fqdn="localhost")

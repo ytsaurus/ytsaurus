@@ -577,6 +577,30 @@ class TestOperations(object):
         assert not yt.is_inside_job()
         assert list(yt.read_table(table)) == ["flag=true\n"]
 
+    def test_retrying_operation_count_limit_exceeded(self):
+        # TODO(ignat): Rewrite test without sleeps.
+        old_value = yt.config["proxy"]["request_retry_timeout"]
+        yt.config["proxy"]["request_retry_timeout"] = 2000
+
+        try:
+            table = TEST_DIR + "/table"
+            yt.write_table(table, ["x=1\nx=2\n"])
+
+            start_time = time.time()
+            ops = []
+            for i in xrange(5):
+                ops.append(yt.run_map("cat; sleep 1", table, TEST_DIR + "/output_" + str(i), sync=False))
+
+            assert time.time() - start_time < 1.0
+            ops.append(yt.run_map("cat; sleep 2", table, TEST_DIR + "/output", sync=False))
+            assert time.time() - start_time > 2.0
+
+            for op in ops:
+                op.wait()
+
+        finally:
+            yt.config["proxy"]["request_retry_timeout"] = old_value
+
     # TODO(ignat): replace timeout with scheduler-side option
     #def test_wait_strategy_timeout(self):
     #    records = ["x=1\n", "y=2\n", "z=3\n"]

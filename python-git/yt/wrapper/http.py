@@ -2,7 +2,7 @@ import yt.logger as logger
 from config import get_config, get_option, set_option, get_backend_type
 from common import require, get_backoff, get_value, total_seconds
 from errors import YtError, YtTokenError, YtProxyUnavailable, YtIncorrectResponse, YtHttpResponseError, \
-                   YtRequestRateLimitExceeded, YtRetriableError, hide_token
+                   YtRequestRateLimitExceeded, YtRetriableError, YtConcurrentOperationsLimitExceeded, hide_token
 from command import parse_commands
 
 import yt.yson as yson
@@ -23,7 +23,8 @@ from httplib import BadStatusLine, IncompleteRead
 def get_retriable_errors():
     from yt.packages.requests import HTTPError, ConnectionError, Timeout
     return (HTTPError, ConnectionError, Timeout, IncompleteRead, BadStatusLine, SocketError,
-            YtIncorrectResponse, YtProxyUnavailable, YtRequestRateLimitExceeded, YtRetriableError)
+            YtIncorrectResponse, YtProxyUnavailable, YtRequestRateLimitExceeded, YtRetriableError,
+            YtConcurrentOperationsLimitExceeded)
 
 requests = None
 def lazy_import_requests():
@@ -184,7 +185,7 @@ def make_request_with_retries(method, url, make_retries=True, retry_unavailable_
                 logger.info("Full error message:\n%s", str(error))
             if make_retries and attempt + 1 < get_config(client)["proxy"]["request_retry_count"]:
                 if retry_action is not None:
-                    retry_action(kwargs)
+                    retry_action(error, kwargs)
                 backoff = get_backoff(get_config(client)["proxy"]["request_retry_timeout"], current_time)
                 if backoff:
                     logger.warning("Sleep for %.2lf seconds before next retry", backoff)
