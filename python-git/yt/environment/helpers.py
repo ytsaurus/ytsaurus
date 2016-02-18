@@ -78,13 +78,13 @@ def assert_items_equal(actual_seq, expected_seq):
     assert not unexpected, "Unexpected, but present:\n    %s" % repr(unexpected)
 
 def get_open_port(port_locks_path=None):
-    local_ports_range = map(int, open("/proc/sys/net/ipv4/ip_local_port_range").read().split())
+    local_port_range = map(int, open("/proc/sys/net/ipv4/ip_local_port_range").read().split())
 
     for _ in xrange(GEN_PORT_ATTEMPTS):
         port = None
-        if local_ports_range[0] - START_PORT > 1000:
+        if local_port_range[0] - START_PORT > 1000:
             # Generate random port manually and check that it is free.
-            port_value = random.randint(START_PORT, local_ports_range[0] - 1)
+            port_value = random.randint(START_PORT, local_port_range[0] - 1)
             try:
                 sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                 sock.bind(("", port_value))
@@ -167,8 +167,10 @@ def write_config(config, filename, format="yson"):
     with open(filename, "wt") as f:
         if format == "yson":
             yson.dump(config, f, yson_format="pretty", boolean_as_string=False)
+            f.write("\n")
         elif format == "json":
             json.dump(_fix_yson_booleans(config), f, indent=4)
+            f.write("\n")
         else:
             f.write(config)
 

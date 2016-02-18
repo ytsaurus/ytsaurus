@@ -4,6 +4,7 @@ from helpers import versions_cmp, read_config, write_config, collect_events_from
 
 from yt.common import update, YtError, get_value, remove_file, makedirp, set_pdeathsig, \
                       which
+from yt.wrapper.client import Yt
 import yt.yson as yson
 
 import logging
@@ -120,8 +121,8 @@ class YTEnv(object):
         pass
 
     def start(self, path_to_run, pids_filename, proxy_port=None, enable_debug_logging=True, preserve_working_dir=False,
-              kill_child_processes=False, tmpfs_path=None, enable_ui=False, port_locks_path=None, ports_range_start=None,
-              fqdn=None):
+              kill_child_processes=False, tmpfs_path=None, enable_ui=False, port_locks_path=None, port_range_start=None,
+              fqdn=None, prepare_only=False):
         self._lock = RLock()
 
         logger.propagate = False
@@ -184,7 +185,8 @@ class YTEnv(object):
                       enable_debug_logging=enable_debug_logging,
                       load_existing_environment=load_existing_environment,
                       enable_ui=enable_ui,
-                      ports_range_start=ports_range_start)
+                      port_range_start=port_range_start,
+                      prepare_only=prepare_only)
 
     def get_proxy_address(self):
         if not self.START_PROXY:
@@ -225,7 +227,7 @@ class YTEnv(object):
 
     def _run_all(self, master_count, nonvoting_master_count, secondary_master_cell_count, node_count, scheduler_count, has_proxy, enable_ui=False,
                  use_proxy_from_package=False, start_secondary_master_cells=True, instance_id="", cell_tag=0,
-                 proxy_port=None, enable_debug_logging=True, load_existing_environment=False, ports_range_start=None):
+                 proxy_port=None, enable_debug_logging=True, load_existing_environment=False, port_range_start=None, prepare_only=False):
 
         master_name = "master" + instance_id
         scheduler_name = "scheduler" + instance_id
@@ -237,7 +239,7 @@ class YTEnv(object):
         if secondary_master_cell_count > 0 and versions_cmp(self._ytserver_version, "0.18") < 0:
             raise YtError("Multicell is not supported for ytserver version < 0.18")
 
-        ports = self._get_ports(ports_range_start, master_count, secondary_master_cell_count,
+        ports = self._get_ports(port_range_start, master_count, secondary_master_cell_count,
                                 scheduler_count, node_count, has_proxy, proxy_port)
         self._configs_provider = self.CONFIGS_PROVIDER_FACTORY \
                 .create_for_version(self._ytserver_version, ports, enable_debug_logging, self._hostname)
@@ -245,7 +247,10 @@ class YTEnv(object):
         self._load_existing_environment = load_existing_environment
         self._capture_stderr_to_file = bool(int(os.environ.get("YT_CAPTURE_STDERR_TO_FILE", "0")))
 
-        logger.info("Starting up cluster instance as follows:")
+        if prepare_only:
+            logger.info("Preparing cluster instance as follows:")
+        else:
+            logger.info("Starting up cluster instance as follows:")
         logger.info("  masters          %d (%d nonvoting)", master_count, nonvoting_master_count)
         logger.info("  nodes            %d", node_count)
         logger.info("  schedulers       %d", scheduler_count)
@@ -264,25 +269,26 @@ class YTEnv(object):
         self._started = False
         try:
             self._prepare_masters(master_count, master_name, nonvoting_master_count, secondary_master_cell_count, cell_tag)
-            self._prepare_schedulers(scheduler_count, scheduler_name)
             self._prepare_nodes(node_count, node_name)
+            self._prepare_schedulers(scheduler_count, scheduler_name)
             self._prepare_proxy(has_proxy, proxy_name, enable_ui=enable_ui)
             self._prepare_driver(driver_name, secondary_master_cell_count)
             self._prepare_console_driver(console_driver_name, self.configs[driver_name])
 
-            self.start_all_masters(master_name, secondary_master_cell_count,
-                                   start_secondary_master_cells=start_secondary_master_cells)
-            self.start_schedulers(scheduler_name)
-            self.start_nodes(node_name)
-            self.start_proxy(proxy_name, use_proxy_from_package=use_proxy_from_package)
+            if not prepare_only:
+                self.start_all_masters(master_name, secondary_master_cell_count,
+                                       start_secondary_master_cells=start_secondary_master_cells)
+                self.start_nodes(node_name)
+                self.start_schedulers(scheduler_name)
+                self.start_proxy(proxy_name, use_proxy_from_package=use_proxy_from_package)
+                self._started = True
 
             self._write_environment_info_to_file(has_proxy)
-            self._started = True
         except (YtError, KeyboardInterrupt) as err:
             self.clear_environment()
             raise YtError("Failed to start environment", inner_errors=[err])
 
-    def _get_ports(self, ports_range_start, master_count, secondary_master_cell_count,
+    def _get_ports(self, port_range_start, master_count, secondary_master_cell_count,
                    scheduler_count, node_count, has_proxy, proxy_port):
         ports = defaultdict(list)
 
@@ -293,8 +299,8 @@ class YTEnv(object):
         get_open_port.busy_ports = set()
         get_open_port.lock_fds = set()
 
-        if ports_range_start and isinstance(ports_range_start, int):
-            generator = count(ports_range_start)
+        if port_range_start and isinstance(port_range_start, int):
+            generator = count(port_range_start)
         else:
             generator = random_port_generator()
 
@@ -504,10 +510,10 @@ class YTEnv(object):
 
         if secondary:
             # e.g. master_remote_secondary_0 -> master_remote
-            primary_master_name = master_name[:master_name.find("secondary")-1]
+            primary_master_name = master_name[:master_name.find("secondary") - 1]
 
-        masters_count = len(self.log_paths[master_name])
-        if masters_count == 0:
+        master_count = len(self.log_paths[master_name])
+        if master_count == 0:
             return
 
         self._run_ytserver("master", master_name)
@@ -551,7 +557,7 @@ class YTEnv(object):
                 if is_ready:
                     ready_replica_count += 1
 
-            return ready_replica_count == masters_count and is_world_initialization_done
+            return ready_replica_count == master_count and is_world_initialization_done
 
         def masters_ready():
             event_filters = [is_leader_ready_marker, is_world_init_completed_marker, is_restart_occured_marker,
@@ -595,7 +601,7 @@ class YTEnv(object):
         if secondary:
             logger.info("Secondary master %s registered", master_name.rsplit("_", 1)[1])
         else:
-            if masters_count > 1:
+            if master_count > 1:
                 logger.info("Leader master index: %d", self.leader_id)
 
     def start_all_masters(self, master_name, secondary_master_cell_count, start_secondary_master_cells):
@@ -646,18 +652,13 @@ class YTEnv(object):
             self.log_paths[node_name].append(_config_safe_get(config, config_path, "logging/writers/info/file_name"))
 
     def start_nodes(self, node_name):
-        nodes_count = len(self.log_paths[node_name])
-        if nodes_count == 0:
+        node_count = len(self.log_paths[node_name])
+        if node_count == 0:
             return
 
         self._run_ytserver("node", node_name)
 
-        scheduler_logs = self.log_paths[node_name.replace("node", "scheduler", 1)]
-
         def all_nodes_ready():
-            is_scheduler_bad_marker = lambda line: "Logging started" in line
-            is_scheduler_good_marker = lambda line: "Node online" in line
-
             node_good_marker = re.compile(r".*Node online .*Address: ([a-zA-z0-9:_\-.]+).*")
             node_bad_marker = re.compile(r".*Node unregistered .*Address: ([a-zA-z0-9:_\-.]+).*")
 
@@ -674,17 +675,9 @@ class YTEnv(object):
                 update_node_status(node_good_marker, line, True)
                 update_node_status(node_bad_marker, line, False)
 
-            if scheduler_logs:
-                for events in collect_events_from_logs(scheduler_logs, [is_scheduler_bad_marker, is_scheduler_good_marker]):
-                    filtered_events = takewhile(lambda line: not is_scheduler_bad_marker(line), events)
-                    if len(list(filtered_events)) >= nodes_count:
-                        break
-                else:
-                    return False
+            return len(node_statuses) == node_count and all(node_statuses.values())
 
-            return len(node_statuses) == nodes_count and all(node_statuses.values())
-
-        self._wait_for(all_nodes_ready, name=node_name, max_wait_time=max(nodes_count * 6.0, 20))
+        self._wait_for(all_nodes_ready, name=node_name, max_wait_time=max(node_count * 6.0, 20))
 
     def _get_scheduler_configs(self, scheduler_count, scheduler_name, scheduler_dirs):
         if self._load_existing_environment:
@@ -725,9 +718,12 @@ class YTEnv(object):
             self.log_paths[scheduler_name].append(_config_safe_get(config, config_path, "logging/writers/info/file_name"))
 
     def start_schedulers(self, scheduler_name):
-        schedulers_count = len(self.log_paths[scheduler_name])
-        if schedulers_count == 0:
+        scheduler_count = len(self.log_paths[scheduler_name])
+        if scheduler_count == 0:
             return
+
+        node_count = len(self.log_paths[scheduler_name.replace("scheduler", "node", 1)])
+        self._remove_scheduler_lock(scheduler_name)
 
         self._run_ytserver("scheduler", scheduler_name)
 
@@ -736,26 +732,60 @@ class YTEnv(object):
             is_primary_scheduler_good_marker = lambda line: "Master connected" in line
             secondary_scheduler_good_marker_regex = re.compile(r"Cannot.*lock.*//sys/scheduler/lock")
             is_secondary_scheduler_good_marker = lambda line: secondary_scheduler_good_marker_regex.search(line)
+            is_scheduler_node_online_marker = lambda line: "Node online" in line
 
             is_primary_scheduler_exists = False
-            ready_schedulers_count = 0
+            ready_scheduler_count = 0
+            node_online_count = 0
 
             events = collect_events_from_logs(self.log_paths[scheduler_name], [
-                is_primary_scheduler_good_marker, is_secondary_scheduler_good_marker, is_scheduler_bad_marker
+                is_primary_scheduler_good_marker, is_secondary_scheduler_good_marker, is_scheduler_bad_marker,
+                is_scheduler_node_online_marker
             ])
 
             for lines in events:
                 filtered_lines = list(takewhile(lambda line: not is_scheduler_bad_marker(line), lines))
                 if filter(is_primary_scheduler_good_marker, filtered_lines):
-                    ready_schedulers_count += 1
+                    ready_scheduler_count += 1
                     is_primary_scheduler_exists = True
+                    node_online_count = len(filter(is_scheduler_node_online_marker, filtered_lines))
                     continue
                 if filter(is_secondary_scheduler_good_marker, filtered_lines):
-                    ready_schedulers_count += 1
+                    ready_scheduler_count += 1
 
-            return ready_schedulers_count == schedulers_count and is_primary_scheduler_exists
+            return ready_scheduler_count == scheduler_count and is_primary_scheduler_exists and \
+                node_online_count == node_count
 
         self._wait_for(scheduler_ready, name=scheduler_name)
+
+    def create_native_client(self, driver_name):
+        current_driver_name = self._get_driver_name(driver_name, 0)
+        driver_config_path = self.config_paths[current_driver_name]
+
+        with open(driver_config_path) as f:
+            driver_config = yson.load(f)
+
+        config = {
+            "backend": "native",
+            "driver_config": driver_config
+        }
+
+        import yt_driver_bindings
+        yt_driver_bindings.configure_logging(self.driver_logging_config)
+
+        return Yt(config=config)
+
+    def _remove_scheduler_lock(self, scheduler_name):
+        driver_name = scheduler_name.replace("scheduler", "driver", 1)
+        client = self.create_native_client(driver_name)
+        try:
+            tx_id = client.get("//sys/scheduler/lock/@locks/0/transaction_id")
+            if tx_id:
+                client.abort_transaction(tx_id)
+                logger.info("Previous scheduler transaction was aborted")
+        except YtError as err:
+            if not err.is_resolve_error():
+                raise
 
     def _get_driver_name(self, driver_name, cell_index):
         if cell_index == 0:

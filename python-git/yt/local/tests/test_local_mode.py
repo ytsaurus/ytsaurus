@@ -54,14 +54,14 @@ class TestLocalMode(object):
 
     def test_start(self):
         with pytest.raises(yt.YtError):
-            start(masters_count=0)
+            start(master_count=0)
 
-        environment = start(masters_count=3, nodes_count=0, schedulers_count=0)
+        environment = start(master_count=3, node_count=0, scheduler_count=0)
         assert len(_read_pids_file(environment)) == 4  # + proxy
         assert len(environment.configs["master"]) == 3
         stop(environment.id, remove_working_dir=True)
 
-        environment = start(nodes_count=5, schedulers_count=2, start_proxy=False)
+        environment = start(node_count=5, scheduler_count=2, start_proxy=False)
         assert len(environment.configs["node"]) == 5
         assert len(environment.configs["scheduler"]) == 2
         assert len(environment.configs["master"]) == 1
@@ -70,11 +70,11 @@ class TestLocalMode(object):
             environment.get_proxy_address()
         stop(environment.id, remove_working_dir=True)
 
-        environment = start(nodes_count=1)
+        environment = start(node_count=1)
         assert len(_read_pids_file(environment)) == 4  # + proxy
         stop(environment.id, remove_working_dir=True)
 
-        environment = start(nodes_count=0, schedulers_count=0, start_proxy=False)
+        environment = start(node_count=0, scheduler_count=0, start_proxy=False)
         assert len(_read_pids_file(environment)) == 1
         stop(environment.id, remove_working_dir=True)
 

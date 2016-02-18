@@ -56,6 +56,17 @@ def start_func(**kwargs):
     else:
         logger.setLevel(logging.INFO)
 
+    # Compatibility options
+    if kwargs["masters_count"] is not None:
+        kwargs["master_count"] = kwargs["masters_count"]
+    if kwargs["nodes_count"] is not None:
+        kwargs["node_count"] = kwargs["nodes_count"]
+    if kwargs["schedulers_count"] is not None:
+        kwargs["scheduler_count"] = kwargs["schedulers_count"]
+    if kwargs["ports_range_start"] is not None:
+        kwargs["port_range_start"] = kwargs["ports_range_start"]
+    for opt in ("masters_count", "nodes_count", "schedulers_count", "ports_range_start"):
+        del kwargs[opt]
     environment = start(**kwargs)
 
     if sync:
@@ -79,9 +90,9 @@ def start_func(**kwargs):
 def add_start_subparser(subparsers):
     parser = subparsers.add_parser("start", help="Start local YT environment with specified options",
                                    func=start_func)
-    parser.add_argument("--masters-count", type=int, default=1, help="masters count")
-    parser.add_argument("--nodes-count", type=int, default=3, help="nodes count")
-    parser.add_argument("--schedulers-count", type=int, default=1, help="schedulers count")
+    parser.add_argument("--master-count", type=int, default=1, help="number of masters")
+    parser.add_argument("--node-count", type=int, default=3, help="number of nodes")
+    parser.add_argument("--scheduler-count", type=int, default=1, help="number of schedulers")
 
     for service in ["master", "node", "scheduler", "proxy"]:
         parser.add_argument("--{0}-config".format(service), help="{0} config path".format(service))
@@ -104,9 +115,16 @@ def add_start_subparser(subparsers):
                         help="set logging level threshold to DEBUG")
     parser.add_argument("--tmpfs-path", help="path to mounted tmpfs. "
                                              "Will be used to store performance critical parts.")
-    parser.add_argument("--ports-range-start", type=int,
+    parser.add_argument("--port-range-start", type=int,
                         help="assign ports from continuous range starting from this port number.")
     parser.add_argument("--fqdn", help="FQDN to use in all addresses. Detected automatically if not specified.")
+    parser.add_argument("--prepare-only", action="store_true", default=False,
+                        help="Only prepare environment, but don't start.")
+    # Compatibility options
+    parser.add_argument("--masters-count", type=int, help=argparse.SUPPRESS)
+    parser.add_argument("--nodes-count", type=int, help=argparse.SUPPRESS)
+    parser.add_argument("--schedulers-count", type=int, help=argparse.SUPPRESS)
+    parser.add_argument("--ports-range-start", type=int, help=argparse.SUPPRESS)
 
 def add_stop_subparser(subparsers):
     parser = subparsers.add_parser("stop", help="Stop local YT with given id", func=stop)

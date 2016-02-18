@@ -3,7 +3,6 @@ from configs_provider import ConfigsProviderFactory
 from yt.environment import YTEnv
 from yt.environment.init_cluster import initialize_world
 from yt.wrapper.common import generate_uuid
-from yt.wrapper.client import Yt
 from yt.common import YtError, require, update
 import yt.yson as yson
 import yt.json as json
@@ -149,8 +148,10 @@ def _read_pids_file(pids_file_path):
     with open(pids_file_path) as f:
         return map(int, f)
 
-def log_started_instance_info(environment, start_proxy):
-    logger.info("Local YT started, id: {0}".format(environment.id))
+def log_started_instance_info(environment, start_proxy, prepare_only):
+    logger.info("Local YT {0}, id: {1}".format(
+        "prepared" if prepare_only else "started",
+        environment.id))
     if start_proxy:
         logger.info("Proxy address: {0}".format(environment.get_proxy_address()))
 
@@ -167,22 +168,6 @@ def _safe_kill(pid):
             # (EINVAL, EPERM, ESRCH)
             raise
 
-def _create_native_client(environment):
-    driver_config_path = os.path.join(environment.path_to_run, "driver.yson")
-
-    with open(driver_config_path) as f:
-        driver_config = yson.load(f)
-
-    config = {
-        "backend": "native",
-        "driver_config": driver_config
-    }
-
-    import yt_driver_bindings
-    yt_driver_bindings.configure_logging(environment.driver_logging_config)
-
-    return Yt(config=config)
-
 def _initialize_world(client):
     initialize_world(client)
     # Create tablet cell
@@ -193,12 +178,13 @@ def _initialize_world(client):
     }
     client.create("tablet_cell", attributes=attributes)
 
-def start(masters_count=1, nodes_count=3, schedulers_count=1, start_proxy=True,
+def start(master_count=1, node_count=3, scheduler_count=1, start_proxy=True,
           master_config=None, node_config=None, scheduler_config=None, proxy_config=None,
           proxy_port=None, id=None, local_cypress_dir=None, use_proxy_from_yt_source=False,
-          enable_debug_logging=False, tmpfs_path=None, ports_range_start=None, fqdn=None, path=None):
+          enable_debug_logging=False, tmpfs_path=None, port_range_start=None, fqdn=None, path=None,
+          prepare_only=False):
 
-    require(masters_count >= 1, yt.YtError("Cannot start local YT instance without masters"))
+    require(master_count >= 1, yt.YtError("Cannot start local YT instance without masters"))
 
     path = get_root_path(path)
     sandbox_id = id if id is not None else generate_uuid()
@@ -206,10 +192,10 @@ def start(masters_count=1, nodes_count=3, schedulers_count=1, start_proxy=True,
 
     environment = YTEnvironment(master_config, scheduler_config, node_config, proxy_config)
 
-    environment.NUM_MASTERS = masters_count
+    environment.NUM_MASTERS = master_count
     environment.NUM_NONVOTING_MASTERS = 0
-    environment.NUM_NODES = nodes_count
-    environment.NUM_SCHEDULERS = schedulers_count
+    environment.NUM_NODES = node_count
+    environment.NUM_SCHEDULERS = scheduler_count
     environment.START_PROXY = start_proxy
     environment.START_SECONDARY_MASTER_CELLS = False
     environment.CONFIGS_PROVIDER_FACTORY = ConfigsProviderFactory
@@ -223,12 +209,13 @@ def start(masters_count=1, nodes_count=3, schedulers_count=1, start_proxy=True,
 
     sandbox_path = os.path.join(path, sandbox_id)
 
+    # XXX(klyachin): fcntl.flock should be used to avoid concurrent start
     pids_file_path = os.path.join(sandbox_path, "pids.txt")
     # Consider instance running if "pids.txt" file exists
     if os.path.isfile(pids_file_path):
         pids = _read_pids_file(pids_file_path)
         alive_pids = filter(_is_pid_exists, pids)
-        if len(pids) > len(alive_pids):
+        if len(pids) == 0 or len(pids) > len(alive_pids):
             for pid in alive_pids:
                 logger.warning("Killing alive process (pid: {0}) from previously run instance".format(pid))
                 _safe_kill(pid)
@@ -243,19 +230,21 @@ def start(masters_count=1, nodes_count=3, schedulers_count=1, start_proxy=True,
                       preserve_working_dir=True,
                       tmpfs_path=sandbox_tmpfs_path,
                       enable_ui=True,
-                      ports_range_start=ports_range_start,
+                      port_range_start=port_range_start,
                       # XXX(asaitgalin): For parallel testing purposes.
                       port_locks_path=os.environ.get("YT_LOCAL_PORT_LOCKS_PATH"),
-                      fqdn=fqdn)
+                      fqdn=fqdn,
+                      prepare_only=prepare_only)
 
     environment.id = sandbox_id
 
-    native_client = _create_native_client(environment)
-    _initialize_world(native_client)
-    if local_cypress_dir is not None:
-        _synchronize_cypress_with_local_dir(local_cypress_dir, native_client)
+    if not prepare_only:
+        native_client = environment.create_native_client("driver")
+        _initialize_world(native_client)
+        if local_cypress_dir is not None:
+            _synchronize_cypress_with_local_dir(local_cypress_dir, native_client)
 
-    log_started_instance_info(environment, start_proxy)
+    log_started_instance_info(environment, start_proxy, prepare_only)
 
     return environment
 
