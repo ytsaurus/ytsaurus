@@ -191,14 +191,6 @@ protected:
         node->SetReadQuorum(readQuorum);
         node->SetWriteQuorum(writeQuorum);
 
-        if (!node->IsExternal()) {
-            // Create an empty chunk list and reference it from the node.
-            auto* chunkList = chunkManager->CreateChunkList();
-            node->SetChunkList(chunkList);
-            chunkList->AddOwningNode(node);
-            objectManager->RefObject(chunkList);
-        }
-
         return nodeHolder;
     }
 
