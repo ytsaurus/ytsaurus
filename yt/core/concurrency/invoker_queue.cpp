@@ -27,6 +27,7 @@ TInvokerQueue::TInvokerQueue(
     , ExecTimeCounter("/time/exec", tagIds)
     , CumulativeTimeCounter("/time/cumulative", tagIds)
     , TotalTimeCounter("/time/total", tagIds)
+    , CumulativeTimeCounter("/time/cumulative", tagIds)
 {
     Profiler.SetEnabled(enableProfiling);
 }
