@@ -84,40 +84,56 @@ SCHEDULER_CONFIG_PATCH = {
     "snapshot_timeout": 300000
 }
 
-NODE_CONFIG_PATCH = {
-    "cluster_connection": {
-        "transaction_manager": None,
-        "master_cache": {
-            "soft_backoff_time": None,
-            "hard_backoff_time": None
-        },
-        "scheduler": None
-    },
-    "data_node": {
-        "multiplexed_changelog": None,
-        "block_cache": {
-            "compressed_data": {
-                "capacity": 0
+NODE_CONFIG_PATCHES = [
+    {
+        "cluster_connection": {
+            "transaction_manager": None,
+            "master_cache": {
+                "soft_backoff_time": None,
+                "hard_backoff_time": None
             },
-            "uncompressed_data": {
-                "capacity": 0
+            "scheduler": None
+        },
+        "data_node": {
+            "multiplexed_changelog": None,
+            "block_cache": {
+                "compressed_data": {
+                    "capacity": 209715200  # 200 MB
+                },
+                "uncompressed_data": {
+                    "capacity": 524288000  # 500 MB
+                }
+            },
+            "incremental_heartbeat_period": None,
+            "store_locations": [
+                {
+                    "enable_journals": True
+                }
+            ]
+        },
+        "exec_agent": {
+            "scheduler_connector": None,
+            "job_controller": {
+                "resource_limits": {
+                    "memory": 1073741824  # 1 GB
+                }
             }
         },
-        "incremental_heartbeat_period": None
-    },
-    "exec_agent": {
-        "scheduler_connector": None,
-        "job_controller": {
-            "resource_limits": {
-                "memory": 1073741824
-            }
+        "tablet_node": None,
+        "resource_limits": {
+            "memory": 3430940672  # 3.2 GB
         }
     },
-    "tablet_node": None,
-    "resource_limits": {
-        "memory": 2357198848  # 2.2 GB
+    {
+        "tablet_node": {
+            "resource_limits": {
+                "slots": 1,
+                "tablet_dynamic_memory": 524288000,  # 500 MB
+                "tablet_static_memory": 0
+            }
+        }
     }
-}
+]
 
 DRIVER_CONFIG_PATCH = {
     "transaction_manager": None
@@ -152,7 +168,8 @@ class LocalModeConfigsProvider_17_3(ConfigsProvider_17_3):
         configs = super(LocalModeConfigsProvider_17_3, self).get_node_configs(node_count, node_dirs)
 
         for config in configs:
-            update(config, NODE_CONFIG_PATCH)
+            for patch in NODE_CONFIG_PATCHES:
+                update(config, patch)
             _remove_none_fields(config)
 
         return configs
@@ -195,7 +212,8 @@ class LocalModeConfigsProvider_17_4(ConfigsProvider_17_4):
         configs = super(LocalModeConfigsProvider_17_4, self).get_node_configs(node_count, node_dirs)
 
         for config in configs:
-            update(config, NODE_CONFIG_PATCH)
+            for patch in NODE_CONFIG_PATCHES:
+                update(config, patch)
             _remove_none_fields(config)
 
         return configs
@@ -259,7 +277,8 @@ class LocalModeConfigsProvider_18(ConfigsProvider_18):
         }
 
         for config in configs:
-            update(config, NODE_CONFIG_PATCH)
+            for patch in NODE_CONFIG_PATCHES:
+                update(config, patch)
             update(config, local_patch)
             _remove_none_fields(config)
 
