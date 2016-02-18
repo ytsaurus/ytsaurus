@@ -144,7 +144,6 @@ void TNontemplateCypressNodeTypeHandlerBase::CloneCoreEpilogue(
     ICypressNodeFactoryPtr factory)
 {
     // Copy attributes directly to suppress validation.
-    auto objectManager = Bootstrap_->GetObjectManager();
     auto keyToAttribute = GetNodeAttributes(Bootstrap_, sourceNode->GetTrunkNode(), factory->GetTransaction());
     if (!keyToAttribute.empty()) {
         auto* clonedAttributes = clonedNode->GetMutableAttributes();
