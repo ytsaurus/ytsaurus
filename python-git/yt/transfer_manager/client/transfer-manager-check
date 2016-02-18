@@ -10,6 +10,7 @@ import yt.wrapper as yt
 
 import os
 import stat
+import socket
 import random
 import atexit
 import string
@@ -131,8 +132,14 @@ def get_yamr_binary(options, active_tm_server_address):
     # YAMR binary is heavy. No need to download the same client for each cluster.
     if not hasattr(get_yamr_binary, "_cache"):
         get_yamr_binary._cache = FilesCache()
+    if not hasattr(get_yamr_binary, "_fqdn"):
+        get_yamr_binary._fqdn = socket.getfqdn()
 
     binary_path = options["binary"]
+    if get_yamr_binary._fqdn == active_tm_server_address:
+        logger.info("Running on the same host as active Transfer Manager. "
+                    "Local mapreduce binaries will be used.")
+        return binary_path
 
     local_binary_path = get_yamr_binary._cache.get(binary_path)
     if local_binary_path is not None:
