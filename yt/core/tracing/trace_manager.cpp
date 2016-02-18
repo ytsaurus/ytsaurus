@@ -69,7 +69,7 @@ public:
             auto node = NYTree::GetNodeByYPath(root, path);
             Configure(node, path);
         } catch (const std::exception& ex) {
-            LOG_ERROR(ex, "Error while configuring tracing");
+            LOG_WARNING(ex, "Error while configuring tracing");
         }
    }
 
