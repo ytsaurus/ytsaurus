@@ -178,7 +178,6 @@ class TestRetries(object):
         finally:
             yt.config._ENABLE_READ_TABLE_CHAOS_MONKEY = False
             yt.config["read_retries"]["enable"] = old_value
-            
 
     def test_read_ranges_with_retries(self, yt_env):
         if yt_env.version < "0.17.4":
@@ -197,7 +196,7 @@ class TestRetries(object):
             yt.write_table("<sorted_by=[x]>" + table, ["x=1\n", "x=2\n", "x=3\n"])
             assert [{"x": "1"}, {"x": "3"}, {"x": "2"}, {"x": "1"}, {"x": "2"}] == \
                 list(yt.read_table(table + '[#0,"2":"1",#2,#1,"1":"3"]', raw=False, format=yt.YsonFormat(process_table_index=False)))
-            
+
             assert [to_yson_type(None, attributes={"range_index": 0}),
                     to_yson_type(None, attributes={"row_index": 0L}),
                     {"x": "1"},
@@ -209,7 +208,7 @@ class TestRetries(object):
 
             with pytest.raises(yt.YtError):
                 list(yt.read_table(table + '[#0,"2"]', raw=False, format=yt.JsonFormat()))
-            
+
             with pytest.raises(yt.YtError):
                 list(yt.read_table(table + '[#0,"2"]', raw=False, format=yt.YsonFormat(process_table_index=False), unordered=True))
 
@@ -288,7 +287,7 @@ class TestRetries(object):
 
 
 def test_wrapped_streams():
-    import yt.wrapper._py_runner_helpers as runner_helpers
+    import yt.wrapper.py_runner_helpers as runner_helpers
     with pytest.raises(yt.YtError):
         with runner_helpers.WrappedStreams():
             print "test"
