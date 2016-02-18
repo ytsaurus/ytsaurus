@@ -78,16 +78,9 @@ class ConfigsProvider(object):
     def get_driver_configs(self):
         pass
 
-    # XXX(ignat): will it work properly for 0.18 with multiple cells?
+    @abc.abstractmethod
     def get_ui_config(self, proxy_address):
-        return default_configs.get_ui_config()\
-            .replace("%%proxy_address%%", "'{0}'".format(proxy_address))\
-            .replace("%%master_addresses%%",
-                "[{0}]".format(
-                    ", ".join(
-                        [
-                            "'{0}'".format(address) for address in self._master_addresses["primary"]
-                        ])))
+        pass
 
 def _set_bind_retry_options(config):
     if "bus_server" not in config:
@@ -271,6 +264,13 @@ class ConfigsProvider_17(ConfigsProvider):
         return [update(default_configs.get_driver_config(),
                        self._get_cluster_connection_config(timestamp_provider_from_cache=True))]
 
+    def get_ui_config(self, proxy_address):
+        return default_configs.get_ui_config()\
+            .replace("%%proxy_address%%", "'{0}'".format(proxy_address))\
+            .replace("%%masters%%",
+                "masters: [ {0} ]".format(
+                    ", ".join(["'{0}'".format(address) for address in self._master_addresses["primary"]])))
+
 class ConfigsProvider_17_3(ConfigsProvider_17):
     def get_node_configs(self, node_count, node_dirs):
         configs = super(ConfigsProvider_17_3, self).get_node_configs(node_count, node_dirs)
@@ -319,10 +319,13 @@ class ConfigsProvider_18(ConfigsProvider):
                            tmpfs_master_dirs=None, secondary_master_cell_count=0, cell_tag=0):
         addresses = []
 
-        self._secondary_master_cells_count = secondary_master_cell_count
+        self._secondary_master_cell_count = secondary_master_cell_count
+        self._primary_master_cell_tag = cell_tag
         self._primary_master_cell_id = "ffffffff-ffffffff-%x0259-ffffffff" % cell_tag
-        self._secondary_masters_cell_ids = ["ffffffff-ffffffff-%x0259-ffffffff" % (cell_tag + index + 1)
-                                            for index in xrange(secondary_master_cell_count)]
+        self._secondary_masters_cell_tags = [cell_tag + index + 1
+                                             for index in xrange(secondary_master_cell_count)]
+        self._secondary_masters_cell_ids = ["ffffffff-ffffffff-%x0259-ffffffff" % tag
+                                            for tag in self._secondary_masters_cell_tags]
 
         # Primary masters cell index is 0
         for cell_index in xrange(secondary_master_cell_count + 1):
@@ -529,7 +532,7 @@ class ConfigsProvider_18(ConfigsProvider):
     def get_driver_configs(self):
         configs = []
 
-        for cell_index in xrange(self._secondary_master_cells_count + 1):
+        for cell_index in xrange(self._secondary_master_cell_count + 1):
             config = default_configs.get_driver_config()
             update(config, self._get_cluster_connection_config(timestamp_provider_from_cache=True))
 
@@ -540,3 +543,23 @@ class ConfigsProvider_18(ConfigsProvider):
             configs.append(config)
 
         return configs
+
+    def get_ui_config(self, proxy_address):
+        address_blocks = []
+        # Primary masters cell index is 0
+        for cell_index in xrange(self._secondary_master_cell_count + 1):
+            if cell_index == 0:
+                cell_addresses = self._master_addresses["primary"]
+                cell_tag = self._primary_master_cell_tag
+            else:
+                cell_addresses = self._master_addresses["secondary"][cell_index - 1]
+                cell_tag = self._secondary_masters_cell_tags[cell_index - 1]
+            block = "{{ addresses: [ '{0}' ], cellTag: {1} }}"\
+                .format("', '".join(cell_addresses), cell_tag)
+            address_blocks.append(block)
+        masters = "primaryMaster: {0}".format(address_blocks[0])
+        if self._secondary_master_cell_count:
+            masters += ", secondaryMasters: [ '{0}' ]".format("', '".join(address_blocks[1:]))
+        return default_configs.get_ui_config()\
+            .replace("%%proxy_address%%", "'{0}'".format(proxy_address))\
+            .replace("%%masters%%", masters)

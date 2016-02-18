@@ -401,7 +401,7 @@ YT.clusters = {
         type: 'infrastructural',
         theme: 'grapefruit',
         description: 'Local',
-        masters: %%master_addresses%%
+        %%masters%%
     }
 };
 """

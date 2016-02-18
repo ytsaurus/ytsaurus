@@ -66,6 +66,11 @@ MASTER_CONFIG_PATCHES = [
             "default_journal_write_quorum": 1,
         }
     },
+    {
+        "timestamp_manager": {
+            "commit_advance": 3000,
+        }
+    },
 ]
 
 
