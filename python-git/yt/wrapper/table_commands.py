@@ -990,6 +990,9 @@ def insert_rows(table, input_stream, format=None, raw=None, client=None):
     :param input_stream: python file-like object, string, list of strings, `StringIterIO`.
     :param format: (string or subclass of `Format`) format of input data, \
                     `yt.wrapper.config["tabular_data_format"]` by default.
+    :param raw: (bool) if `raw` is specified stream with unparsed records (strings) \
+                       in specified `format` is expected. Otherwise dicts or \
+                       :class:`yt.wrapper.yamr_record.Record` are expected.
 
     """
     if raw is None:
@@ -1012,13 +1015,15 @@ def insert_rows(table, input_stream, format=None, raw=None, client=None):
         client=client)
 
 def delete_rows(table, input_stream, format=None, raw=None, client=None):
-    """Write rows from input_stream to table.
+    """Delete rows with keys from input_stream from table.
 
-    :param table: (string or :py:class:`yt.wrapper.table.TablePath`) output table. Specify \
-                `TablePath` attributes for append mode or something like this. Table can not exist.
+    :param table: (string or :py:class:`yt.wrapper.table.TablePath`) table to remove rows from.
     :param input_stream: python file-like object, string, list of strings, `StringIterIO`.
     :param format: (string or subclass of `Format`) format of input data, \
                     `yt.wrapper.config["tabular_data_format"]` by default.
+    :param raw: (bool) if `raw` is specified stream with unparsed records (strings) \
+                       in specified `format` is expected. Otherwise dicts or \
+                       :class:`yt.wrapper.yamr_record.Record` are expected.
 
     """
     if raw is None:
