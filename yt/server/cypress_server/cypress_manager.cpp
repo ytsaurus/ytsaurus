@@ -1162,19 +1162,18 @@ private:
                 YCHECK(parent->ImmediateDescendants().insert(node).second);
             }
 
-            // Compute originators.
-            if (!node->IsTrunk()) {
-                auto* parentTransaction = node->GetTransaction()->GetParent();
-                auto* originator = GetVersionedNode(node->GetTrunkNode(), parentTransaction);
-                node->SetOriginator(originator);
-            }
-
-
             // Reconstruct TrunkNode and Transaction.
             auto transactionId = node->GetVersionedId().TransactionId;
             if (transactionId) {
                 node->SetTrunkNode(GetNode(TVersionedNodeId(node->GetId())));
                 node->SetTransaction(transactionManager->GetTransaction(transactionId));
+            }
+
+            // Compute originators.
+            if (!node->IsTrunk()) {
+                auto* parentTransaction = node->GetTransaction()->GetParent();
+                auto* originator = GetVersionedNode(node->GetTrunkNode(), parentTransaction);
+                node->SetOriginator(originator);
             }
 
             // Reconstruct iterators from locks to their positions in the lock list.
