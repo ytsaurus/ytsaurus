@@ -2,7 +2,7 @@ import yson
 from config import get_config, get_option
 from compression_wrapper import create_zlib_generator
 from common import require, generate_uuid, bool_to_string, get_version, total_seconds
-from errors import YtError, YtHttpResponseError, YtProxyUnavailable
+from errors import YtError, YtHttpResponseError, YtProxyUnavailable, YtConcurrentOperationsLimitExceeded
 from http import make_get_request_with_retries, make_request_with_retries, get_token, get_api_version, get_api_commands, get_proxy_url, parse_error_from_headers, get_header_format
 from response_stream import ResponseStream
 
@@ -107,15 +107,21 @@ def make_request(command_name, params,
             params["retry"] = bool_to_string(False)
 
     if command.is_volatile and allow_retries:
-        def set_retry(command, params, arguments):
+        def set_retry(error, command, params, arguments):
             if command.is_volatile:
-                params["retry"] = bool_to_string(True)
+                if isinstance(error, YtConcurrentOperationsLimitExceeded):
+                    # NB: initially specified mutation id is ignored.
+                    # Wihtput new mutation id, scheduler always reply with this error.
+                    params["retry"] = bool_to_string(False)
+                    params["mutation_id"] = generate_uuid()
+                else:
+                    params["retry"] = bool_to_string(True)
                 if command.input_type is None:
                     arguments["data"] = dumps(params)
                 else:
                     arguments["headers"].update({"X-YT-Parameters": dumps(params)})
         copy_params = deepcopy(params)
-        retry_action = lambda arguments: set_retry(command, copy_params, arguments)
+        retry_action = lambda error, arguments: set_retry(error, command, copy_params, arguments)
     else:
         retry_action = None
 

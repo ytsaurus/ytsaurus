@@ -58,6 +58,10 @@ class YtResponseError(YtError):
         """Chunk unavailable."""
         return self.contains_code(716)
 
+    def is_concurrent_operations_limit_reached(self):
+        """Too many concurrent operations"""
+        return self.contains_code(202) or self.contains_text("Limit for the number of concurrent operations")
+
     def contains_code(self, code):
         """Check if HTTP response has specified status code."""
         def contains_code_recursive(error, http_code):
@@ -69,6 +73,23 @@ class YtResponseError(YtError):
             return False
 
         return contains_code_recursive(self.error, code)
+
+    def contains_text(self, text):
+        """Check if HTTP response has specified status code."""
+        def contains_text_recursive(error, text):
+            message = ""
+            if "message" in error:
+                message = error["message"]
+
+            if text in message:
+                return True
+
+            for inner_error in error["inner_errors"]:
+                if contains_text_recursive(inner_error, text):
+                    return True
+            return False
+
+        return contains_text_recursive(self.error, text)
 
 def _pretty_format(error, attribute_length_limit=None, indent=0):
     def format_attribute(name, value):

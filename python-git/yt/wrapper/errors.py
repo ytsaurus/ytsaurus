@@ -47,9 +47,16 @@ class YtHttpResponseError(YtResponseError):
             .format(url, dumps(self.headers), dumps(self.params))
         if self.is_request_rate_limit_exceeded():
             self.__class__ = YtRequestRateLimitExceeded
+        if self.is_concurrent_operations_limit_reached():
+            self.__class__ = YtConcurrentOperationsLimitExceeded
 
 class YtRequestRateLimitExceeded(YtHttpResponseError):
     """ Request rate limit exceeded error. """
+    """ It is used in retries. """
+    pass
+
+class YtConcurrentOperationsLimitExceeded(YtHttpResponseError):
+    """ Concurrent operations limit exceeded. """
     """ It is used in retries. """
     pass
 
