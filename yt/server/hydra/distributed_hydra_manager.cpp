@@ -589,8 +589,10 @@ private:
                 try {
                     CheckForInitialPing(startVersion);
                     auto followerRecovery = epochContext->FollowerRecovery;
-                    followerRecovery->PostponeMutations(startVersion, request->Attachments());
-                    followerRecovery->SetCommittedVersion(committedVersion);
+                    if (followerRecovery) {
+                        followerRecovery->PostponeMutations(startVersion, request->Attachments());
+                        followerRecovery->SetCommittedVersion(committedVersion);
+                    }
                     response->set_logged(false);
                 } catch (const std::exception& ex) {
                     auto error = TError("Error postponing mutations during recovery")
