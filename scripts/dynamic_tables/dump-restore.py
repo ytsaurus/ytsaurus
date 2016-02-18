@@ -68,7 +68,7 @@ def mounted(path):
 
 # Get nice yson format
 def yson_format():
-    return yt.YsonFormat(format="text", boolean_as_string=False, process_table_index=False)
+    return yt.YsonFormat(format="binary", boolean_as_string=False, process_table_index=False)
 
 ####################################################################################################
 
