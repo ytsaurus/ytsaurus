@@ -1,12 +1,13 @@
 from configs_provider import ConfigsProviderFactory
 
 from yt.environment import YTEnv
+from yt.environment.init_cluster import initialize_world
 from yt.wrapper.common import generate_uuid
 from yt.wrapper.client import Yt
 from yt.common import YtError, require, update
 import yt.yson as yson
-import yt.wrapper as yt
 import yt.json as json
+import yt.wrapper as yt
 
 import os
 import signal
@@ -167,6 +168,18 @@ def _safe_kill(pid):
             # (EINVAL, EPERM, ESRCH)
             raise
 
+def _initialize_world(proxy_address):
+    client = Yt(proxy=proxy_address)
+
+    initialize_world(client)
+    # Create tablet cell
+    attributes = {
+        "changelog_replication_factor": 1,
+        "changelog_read_quorum": 1,
+        "changelog_write_quorum": 1
+    }
+    client.create("tablet_cell", attributes=attributes)
+
 def start(masters_count=1, nodes_count=3, schedulers_count=1, start_proxy=True,
           master_config=None, node_config=None, scheduler_config=None, proxy_config=None,
           proxy_port=None, id=None, local_cypress_dir=None, use_proxy_from_yt_source=False,
@@ -224,6 +237,7 @@ def start(masters_count=1, nodes_count=3, schedulers_count=1, start_proxy=True,
 
     environment.id = sandbox_id
 
+    _initialize_world(environment.get_proxy_address())
     if local_cypress_dir is not None:
         _synchronize_cypress_with_local_dir(local_cypress_dir, environment.get_proxy_address())
 
