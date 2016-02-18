@@ -313,6 +313,11 @@ public:
         operation->SetCleanStart(true);
         operation->SetState(EOperationState::Initializing);
 
+        auto error = Strategy_->CanAddOperation(operation);
+        if (!error.IsOK()) {
+            THROW_ERROR error;
+        }
+
         LOG_INFO("Starting operation (OperationType: %v, OperationId: %v, TransactionId: %v, User: %v)",
             type,
             operationId,
