@@ -6,6 +6,8 @@ import ctypes
 import types
 import signal
 import errno
+import socket
+from datetime import datetime
 
 class YtError(Exception):
     """Base of all YT errors"""
@@ -14,6 +16,10 @@ class YtError(Exception):
         self.code = code
         self.inner_errors = inner_errors if inner_errors is not None else []
         self.attributes = attributes if attributes else {}
+        if "host" not in self.attributes:
+            self.attributes["host"] = socket.getfqdn()
+        if "datetime" not in self.attributes:
+            self.attributes["datetime"] = datetime.now()
 
     def simplify(self):
         """ Transform error (with inner errors) to standard python dict """
@@ -113,24 +119,23 @@ def _pretty_format(error, attribute_length_limit=None, indent=0):
 
     attributes = error.get("attributes", {})
 
-    origin_keys = ["host", "datetime", "pid", "tid", "fid"]
+    origin_keys = ["host", "datetime"]
+    origin_cpp_keys = ["pid", "tid", "fid"]
     if all(key in attributes for key in origin_keys):
-        lines.append(
-            format_attribute(
-                "origin",
-                "%s in %s (pid %d, tid %x, fid %x)" % (
-                    attributes["host"],
-                    attributes["datetime"],
-                    attributes["pid"],
-                    attributes["tid"],
-                    attributes["fid"])))
+        date = attributes["datetime"]
+        if isinstance(date, datetime):
+            date = date.strftime("%y-%m-%dT%H:%M:%S.%fZ")
+        value = "{0} in {1}".format(attributes["host"], date)
+        if all(key in attributes for key in origin_cpp_keys):
+            value += "(pid %d, tid %x, fid %x)" % (attributes["pid"],attributes["tid"], attributes["fid"])
+        lines.append(format_attribute("origin", value))
 
     location_keys = ["file", "line"]
     if all(key in attributes for key in location_keys):
         lines.append(format_attribute("location", "%s:%d" % (attributes["file"], attributes["line"])))
 
     for key, value in attributes.items():
-        if key in origin_keys or key in location_keys:
+        if key in origin_keys or key in location_keys or key in origin_cpp_keys:
             continue
         lines.append(format_attribute(key, value))
 
