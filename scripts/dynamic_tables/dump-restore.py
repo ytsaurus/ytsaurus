@@ -265,7 +265,7 @@ def get_partition_bounds(tablets, partition_bounds_table):
         yt.remove(tablets_table)
         yt.remove(partitions_table)
 
-    partition_keys = [list(it.takewhile(lambda x : x is not None, key)) for key in partition_keys]
+    partition_keys = [list(it.takewhile(lambda x : x != None, key)) for key in partition_keys]
     partition_keys = [key for key in partition_keys if len(key) > 0]
     partition_keys = sorted(partition_keys)
     print "Total %s partitions" % (len(partition_keys) + 1)
