@@ -33,6 +33,7 @@ class YtTimeoutError(YtError):
     pass
 
 class YtResponseError(yt.common.YtResponseError):
+    """ Another incarnation of YtResponseError """
     def __init__(self, *args, **kwargs):
         super(YtResponseError, self).__init__(*args, **kwargs)
         if self.is_request_rate_limit_exceeded():
