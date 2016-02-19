@@ -589,11 +589,11 @@ class TestOperations(object):
             start_time = time.time()
             ops = []
             for i in xrange(5):
-                ops.append(yt.run_map("cat; sleep 1", table, TEST_DIR + "/output_" + str(i), sync=False))
+                ops.append(yt.run_map("cat; sleep 2", table, TEST_DIR + "/output_" + str(i), sync=False))
 
-            assert time.time() - start_time < 1.0
+            assert time.time() - start_time < 2.0
             ops.append(yt.run_map("cat; sleep 2", table, TEST_DIR + "/output", sync=False))
-            assert time.time() - start_time > 2.0
+            assert time.time() - start_time > 3.0
 
             for op in ops:
                 op.wait()
