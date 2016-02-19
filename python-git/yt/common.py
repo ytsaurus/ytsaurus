@@ -69,12 +69,12 @@ class YtResponseError(YtError):
         return self.contains_code(202) or self.contains_text("Limit for the number of concurrent operations")
 
     def contains_code(self, code):
-        """Check if HTTP response has specified status code."""
-        def contains_code_recursive(error, http_code):
-            if int(error["code"]) == http_code:
+        """Check if HTTP response has specified error code."""
+        def contains_code_recursive(error, error_code):
+            if int(error.get("code", 0)) == error_code:
                 return True
-            for inner_error in error["inner_errors"]:
-                if contains_code_recursive(inner_error, http_code):
+            for inner_error in error.get("inner_errors", []):
+                if contains_code_recursive(inner_error, error_code):
                     return True
             return False
 

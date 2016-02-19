@@ -579,8 +579,8 @@ class TestOperations(object):
 
     def test_retrying_operation_count_limit_exceeded(self):
         # TODO(ignat): Rewrite test without sleeps.
-        old_value = yt.config["proxy"]["request_retry_timeout"]
-        yt.config["proxy"]["request_retry_timeout"] = 2000
+        old_value = yt.config["start_operation_retries"]["retry_timeout"]
+        yt.config["start_operation_retries"]["retry_timeout"] = 2000
 
         try:
             table = TEST_DIR + "/table"
@@ -599,7 +599,7 @@ class TestOperations(object):
                 op.wait()
 
         finally:
-            yt.config["proxy"]["request_retry_timeout"] = old_value
+            yt.config["start_operation_retries"]["retry_timeout"] = old_value
 
     # TODO(ignat): replace timeout with scheduler-side option
     #def test_wait_strategy_timeout(self):

@@ -48,8 +48,8 @@ Operation run under self-pinged transaction, if `yt.wrapper.get_config(client)["
 from config import get_config, get_option
 import py_wrapper
 from common import flatten, require, unlist, update, parse_bool, is_prefix, get_value, \
-                   compose, bool_to_string, chunk_iter_stream, get_version, MB, EMPTY_GENERATOR
-from errors import YtIncorrectResponse, YtError, YtOperationFailedError
+                   compose, bool_to_string, chunk_iter_stream, get_version, MB, EMPTY_GENERATOR, run_with_retries
+from errors import YtIncorrectResponse, YtError, YtOperationFailedError, YtConcurrentOperationsLimitExceeded
 from driver import make_request, get_backend_type
 from keyboard_interrupts_catcher import KeyboardInterruptsCatcher
 from table import TablePath, to_table, to_name, prepare_path
@@ -364,8 +364,14 @@ def _add_table_writer_spec(job_types, table_writer, spec):
 def _make_operation_request(command_name, spec, strategy, sync,
                             finalizer=None, verbose=False, client=None):
     def _manage_operation(finalizer):
-        operation_id = _make_formatted_transactional_request(command_name, {"spec": spec}, format=None,
-                                                             verbose=verbose, client=client)
+        operation_id = run_with_retries(
+            action=lambda: _make_formatted_transactional_request(command_name, {"spec": spec}, format=None,
+                                                             verbose=verbose, client=client),
+            retry_count=get_config(client)["start_operation_retries"]["retry_count"],
+            backoff=get_config(client)["start_operation_retries"]["retry_timeout"] / 1000.0,
+            exceptions=(YtConcurrentOperationsLimitExceeded,))
+
+
         if strategy is not None:
             get_value(strategy, WaitStrategy()).process_operation(command_name, operation_id,
                                                                            finalizer, client=client)
