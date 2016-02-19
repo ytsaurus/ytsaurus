@@ -19,6 +19,15 @@ public:
     //! Timeout for all RPC requests exchanged by Hive Managers.
     TDuration RpcTimeout;
 
+    //! Timeout for Ping RPC requests.
+    TDuration PingRpcTimeout;
+
+    //! Timeout for Send RPC requests.
+    TDuration SendRpcTimeout;
+
+    //! Timeout for Send RPC requests.
+    TDuration PostRpcTimeout;
+
     //! Maximum number of messages to send via a single |PostMessages| request.
     int MaxMessagesPerPost;
 
@@ -29,7 +38,11 @@ public:
     {
         RegisterParameter("ping_period", PingPeriod)
             .Default(TDuration::Seconds(15));
-        RegisterParameter("rpc_timeout", RpcTimeout)
+        RegisterParameter("ping_rpc_timeout", PingRpcTimeout)
+            .Default(TDuration::Seconds(15));
+        RegisterParameter("send_rpc_timeout", SendRpcTimeout)
+            .Default(TDuration::Seconds(15));
+        RegisterParameter("post_rpc_timeout", PostRpcTimeout)
             .Default(TDuration::Seconds(15));
         RegisterParameter("max_messages_per_post", MaxMessagesPerPost)
             .Default(16384);

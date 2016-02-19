@@ -216,6 +216,7 @@ public:
             cellId);
 
         auto req = proxy->Ping();
+        req->SetTimeout(Config_->PingRpcTimeout);
         ToProto(req->mutable_src_cell_id(), SelfCellId_);
 
         return req->Invoke().Apply(
@@ -499,9 +500,7 @@ private:
             return nullptr;
         }
 
-        auto proxy = std::make_unique<THiveServiceProxy>(channel);
-        proxy->SetDefaultTimeout(Config_->RpcTimeout);
-        return proxy;
+        return std::make_unique<THiveServiceProxy>(channel);
     }
 
 
@@ -546,6 +545,7 @@ private:
         AnnotateWithTraceContext(&message);
 
         auto req = proxy->SendMessages();
+        req->SetTimeout(Config_->SendRpcTimeout);
         ToProto(req->mutable_src_cell_id(), SelfCellId_);
         *req->add_messages() = message;
 
@@ -659,6 +659,7 @@ private:
             mailbox->GetCellId());
 
         auto req = proxy->Ping();
+        req->SetTimeout(Config_->PingRpcTimeout);
         ToProto(req->mutable_src_cell_id(), SelfCellId_);
 
         req->Invoke().Subscribe(
@@ -794,6 +795,7 @@ private:
         const auto& outcomingMessages = mailbox->OutcomingMessages();
 
         auto req = proxy->PostMessages();
+        req->SetTimeout(Config_->PostRpcTimeout);
         ToProto(req->mutable_src_cell_id(), SelfCellId_);
         req->set_first_message_id(firstMessageId);
 
