@@ -799,6 +799,8 @@ void TMasterConnector::Reset()
         delta->AddedSinceLastSuccess.clear();
         delta->RemovedSinceLastSuccess.clear();
     }
+
+    LOG_INFO("Master disconnected");
 }
 
 void TMasterConnector::OnChunkAdded(IChunkPtr chunk)
