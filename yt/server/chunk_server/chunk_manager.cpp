@@ -1198,6 +1198,7 @@ private:
 
         auto multicellManager = Bootstrap_->GetMulticellManager();
 
+        std::vector<TChunkId> chunkIds;
         for (const auto& exportData : request.chunks()) {
             auto chunkId = FromProto<TChunkId>(exportData.id());
             auto* chunk = GetChunkOrThrow(chunkId);
@@ -1216,11 +1217,13 @@ private:
                 importData->mutable_meta()->CopyFrom(chunk->ChunkMeta());
                 importData->set_erasure_codec(static_cast<int>(chunk->GetErasureCodec()));
             }
+
+            chunkIds.push_back(chunk->GetId());
         }
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Chunks exported (TransactionId: %v, ChunkCount: %v)",
+        LOG_DEBUG_UNLESS(IsRecovery(), "Chunks exported (TransactionId: %v, ChunkIds: %v)",
             transactionId,
-            request.chunks_size());
+            chunkIds);
     }
 
     void HydraImportChunks(
@@ -1235,6 +1238,7 @@ private:
             transaction->ThrowInvalidState();
         }
 
+        std::vector<TChunkId> chunkIds;
         for (auto& importData : *request.mutable_chunks()) {
             auto chunkId = FromProto<TChunkId>(importData.id());
             auto* chunk = ChunkMap_.Find(chunkId);
@@ -1247,11 +1251,13 @@ private:
             }
 
             transactionManager->ImportObject(transaction, chunk);
+
+            chunkIds.push_back(chunk->GetId());
         }
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Chunks imported (TransactionId: %v, ChunkCount: %v)",
+        LOG_DEBUG_UNLESS(IsRecovery(), "Chunks imported (TransactionId: %v, ChunkIds: %v)",
             transactionId,
-            request.chunks_size());
+            chunkIds);
     }
 
 

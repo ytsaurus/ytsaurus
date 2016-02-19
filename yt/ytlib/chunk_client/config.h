@@ -501,7 +501,7 @@ public:
     {
         RegisterParameter("max_teleport_chunks_per_request", MaxTeleportChunksPerRequest)
             .GreaterThan(0)
-            .Default(10000);
+            .Default(1000);
     }
 };
 
