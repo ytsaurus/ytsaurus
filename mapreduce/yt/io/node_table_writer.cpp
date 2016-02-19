@@ -34,14 +34,20 @@ void TNodeTableWriter::AddRow(const TNode& row, size_t tableIndex)
         ythrow TIOException() << "Row cannot have attributes";
     }
 
-    if (!row.IsMap()) {
-        ythrow TIOException() << "Row should be a map node";
+    static const TNode emptyMap = TNode::CreateMap();
+    const TNode* outRow = &emptyMap;
+    if (row.GetType() != TNode::UNDEFINED) {
+        if (!row.IsMap()) {
+            ythrow TIOException() << "Row should be a map node";
+        } else {
+            outRow = &row;
+        }
     }
 
     auto* writer = Writers_[tableIndex].Get();
     writer->OnListItem();
     TNodeVisitor visitor(writer);
-    visitor.Visit(row);
+    visitor.Visit(*outRow);
     Output_->OnRowFinished(tableIndex);
 }
 
