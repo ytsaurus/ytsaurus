@@ -536,7 +536,7 @@ private:
         // to follow the same thread transition pattern (start in ControlThread, then switch to
         // Automaton Thread) to ensure consistent callbacks ordering.
         //
-        // E.g. BulidSnapshot and RotateChangelog calls rely on the fact than all mutations
+        // E.g. BuildSnapshot and RotateChangelog calls rely on the fact than all mutations
         // that were previously sent via AcceptMutations are accepted (and the logged version is
         // propagated appropriately).
 
