@@ -69,9 +69,13 @@ default_config = {
     # For native driver version "v3" by default.
     "default_api_version_for_http": "v2",
 
-    # Native driver config usually read from file.
-    "driver_config_path": None,
+    # Driver configuration.
     "driver_config": None,
+
+    # Path to driver config.
+    # NB: it should be in YSON format and contain driver, logging and tracing parts.
+    # It is comptatible with native yt binary written in C++.
+    "driver_config_path": None,
 
     # Path to file with additional configuration.
     "config_path": None,
