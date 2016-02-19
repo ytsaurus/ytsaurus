@@ -59,7 +59,7 @@ function(UDF udf output type)
   )
   set(_include_dir ${CMAKE_SOURCE_DIR}/yt/ytlib/query_client/udf)
   set(_dirs ${_include_dirs} ${_dirs} ${_include_dir})
-  set(_include_dirs)
+  set(_include_dirs -I/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.11.sdk/usr/include)
 
   foreach(_dir ${_dirs})
     set(_include_dirs ${_include_dirs} -I${_dir})
