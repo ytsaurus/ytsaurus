@@ -90,7 +90,7 @@ class YtResponseError(YtError):
             if text in message:
                 return True
 
-            for inner_error in error["inner_errors"]:
+            for inner_error in error.get("inner_errors", []):
                 if contains_text_recursive(inner_error, text):
                     return True
             return False
