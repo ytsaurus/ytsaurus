@@ -69,7 +69,9 @@ private:
         ++ChunkLocatedCallCount_;
         if (ChunkLocatedCallCount_ >= Config_->MaxChunksPerScratch) {
             ChunkLocatedCallCount_ = 0;
-            LOG_DEBUG("Located another %v chunks, number of unavailable chunks is %v");
+            LOG_DEBUG("Located another batch of chunks (Count: %v, UnavailableFetcherChunkCount: %v)",
+                Config_->MaxChunksPerScratch,
+                UnavailableFetcherChunkCount_);
         }
 
         LOG_TRACE("Fetcher chunk is located (ChunkId: %v, Replicas: %v)", chunkId, replicas.size());
