@@ -227,6 +227,10 @@ private:
      */
     NRpc::IChannelPtr GetMasterChannel(NObjectClient::TCellTag cellTag);
 
+    //! Returns |true| if a given heartbeat RPC #error
+    //! (either received from the scheduler or from a master) should be retried.
+    static bool IsRetriableHearbeatError(const TError& error);
+
     TChunksDelta* GetChunksDelta(NObjectClient::TCellTag cellTag);
     TChunksDelta* GetChunksDelta(const NObjectClient::TObjectId& id);
 

@@ -498,7 +498,7 @@ void TMasterConnector::SendFullNodeHeartbeat(TCellTag cellTag)
     if (!rspOrError.IsOK()) {
         LOG_WARNING(rspOrError, "Error reporting full node heartbeat to master",
             cellTag);
-        if (IsRetriableError(rspOrError)) {
+        if (IsRetriableHearbeatError(rspOrError)) {
             ScheduleNodeHeartbeat(cellTag);
         } else {
             ResetAndScheduleRegisterAtMaster();
@@ -609,7 +609,7 @@ void TMasterConnector::SendIncrementalNodeHeartbeat(TCellTag cellTag)
 
     if (!rspOrError.IsOK()) {
         LOG_WARNING(rspOrError, "Error reporting incremental node heartbeat to master");
-        if (IsRetriableError(rspOrError)) {
+        if (IsRetriableHearbeatError(rspOrError)) {
             ScheduleNodeHeartbeat(cellTag);
         } else {
             ResetAndScheduleRegisterAtMaster();
@@ -755,7 +755,7 @@ void TMasterConnector::SendJobHeartbeat()
 
         if (!rspOrError.IsOK()) {
             LOG_WARNING(rspOrError, "Error reporting job heartbeat to master");
-            if (IsRetriableError(rspOrError)) {
+            if (IsRetriableHearbeatError(rspOrError)) {
                 ScheduleJobHeartbeat();
             } else {
                 ResetAndScheduleRegisterAtMaster();
@@ -848,6 +848,13 @@ IChannelPtr TMasterConnector::GetMasterChannel(TCellTag cellTag)
     auto connection = client->GetConnection();
     auto cellDirectory = connection->GetCellDirectory();
     return cellDirectory->GetChannelOrThrow(cellId, EPeerKind::Leader);
+}
+
+bool TMasterConnector::IsRetriableHearbeatError(const TError& error)
+{
+    return
+        NRpc::IsRetriableError(error) ||
+        error.FindMatching(NHydra::EErrorCode::MaybeCommitted);
 }
 
 TMasterConnector::TChunksDelta* TMasterConnector::GetChunksDelta(TCellTag cellTag)
