@@ -299,10 +299,10 @@ void TMasterConnector::RegisterAtMaster()
         NodeId_);
 
     for (auto cellTag : MasterCellTags_) {
-        ScheduleNodeHeartbeat(cellTag);
+        SendNodeHeartbeat(cellTag);
     }
 
-    ScheduleJobHeartbeat();
+    SendJobHeartbeat();
 }
 
 void TMasterConnector::OnLeaseTransactionAborted()
