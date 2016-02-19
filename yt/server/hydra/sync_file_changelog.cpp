@@ -261,7 +261,7 @@ public:
             ReadIndex(header);
             ReadChangelogUntilEnd(header);
         } catch (const std::exception& ex) {
-            LOG_ERROR(ex, "Error opening changelog");
+            LOG_WARNING(ex, "Error opening changelog");
             Error_ = ex;
             throw;
         }
@@ -291,7 +291,7 @@ public:
             IndexFile_->FlushData() ;
             IndexFile_->Close();
         } catch (const std::exception& ex) {
-            LOG_ERROR(ex, "Error closing changelog");
+            LOG_WARNING(ex, "Error closing changelog");
             Error_ = ex;
             throw;
         }
@@ -322,7 +322,7 @@ public:
             CurrentFilePosition_ = DataFile_->GetPosition();
             CurrentBlockSize_ = 0;
         } catch (const std::exception& ex) {
-            LOG_ERROR(ex, "Error creating changelog");
+            LOG_WARNING(ex, "Error creating changelog");
             Error_ = ex;
             throw;
         }
@@ -439,7 +439,7 @@ public:
 
             LastFlushed_ = TInstant::Now();
         } catch (const std::exception& ex) {
-            LOG_ERROR(ex, "Error flushing changelog");
+            LOG_WARNING(ex, "Error flushing changelog");
             Error_ = ex;
             throw;
         }
@@ -507,7 +507,7 @@ public:
             }
 
         } catch (const std::exception& ex) {
-            LOG_ERROR(ex, "Error reading changelog");
+            LOG_WARNING(ex, "Error reading changelog");
             Error_ = ex;
             throw;
         }
@@ -536,7 +536,7 @@ public:
             TruncatedRecordCount_ = recordCount;
             UpdateLogHeader();
         } catch (const std::exception& ex) {
-            LOG_ERROR(ex, "Error truncating changelog");
+            LOG_WARNING(ex, "Error truncating changelog");
             Error_ = ex;
             throw;
         }
@@ -728,7 +728,7 @@ private:
         // Compute the maximum correct prefix and truncate the index.
         {
             auto correctPrefixSize = ComputeValidIndexPrefix(Index_, header, &*DataFile_);
-            LOG_ERROR_IF(correctPrefixSize < Index_.size(), "Changelog index contains invalid records, truncated");
+            LOG_WARNING_IF(correctPrefixSize < Index_.size(), "Changelog index contains invalid records, truncated");
             Index_.resize(correctPrefixSize);
 
             IndexFile_.reset(new TFile(IndexFileName_, RdWr | Seq | OpenAlways | CloseOnExec));

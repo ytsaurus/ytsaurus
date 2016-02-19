@@ -364,7 +364,7 @@ private:
                 SetCommitSucceeded(commit, commitTimestamp);
                 TransientCommitMap_.Remove(transactionId);
             }
-            LOG_ERROR_UNLESS(IsRecovery(), ex, "Error committing simple transaction (TransactionId: %v)",
+            LOG_DEBUG_UNLESS(IsRecovery(), ex, "Error committing simple transaction (TransactionId: %v)",
                 transactionId);
             return;
         }
@@ -515,7 +515,7 @@ private:
             try {
                 TransactionManager_->AbortTransaction(transactionId, true);
             } catch (const std::exception& ex) {
-                LOG_ERROR_UNLESS(IsRecovery(), ex, "Error aborting transaction at coordinator, ignored (TransactionId: %v)",
+                LOG_DEBUG_UNLESS(IsRecovery(), ex, "Error aborting transaction at coordinator, ignored (TransactionId: %v)",
                     transactionId);
             }
 
@@ -547,7 +547,7 @@ private:
 
         auto* commit = FindCommit(transactionId);
         if (!commit) {
-            LOG_ERROR_UNLESS(IsRecovery(), "Requested to start phase two for an invalid or expired transaction, ignored (TransactionId: %v)",
+            LOG_ERROR_UNLESS(IsRecovery(), "Requested to start phase two for an unknown transaction, ignored (TransactionId: %v)",
                 transactionId);
             return;
         }
@@ -734,7 +734,7 @@ private:
         if (!timestampOrError.IsOK()) {
             // If this is a distributed transaction then it's already prepared at coordinator and
             // at all participants. We _must_ forcefully abort it.
-            LOG_ERROR(timestampOrError, "Error generating commit timestamp (TransactionId: %v)",
+            LOG_DEBUG(timestampOrError, "Error generating commit timestamp (TransactionId: %v)",
                 transactionId);
             AbortTransaction(transactionId, true);
             return;
