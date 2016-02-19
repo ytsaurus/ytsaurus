@@ -204,7 +204,7 @@ def remove(table, yt_client, remove_link):
 
     do_remove(table)
     if remove_link:
-        do_remove(get_dash_date_table(table))
+        do_remove(get_dash_date_table(table) + "&")
 
 def is_processed(table, yt_client):
     return yt_client.exists(table + "/@processed") and yt_client.get(table + "/@processed")
