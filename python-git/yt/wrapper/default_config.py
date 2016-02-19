@@ -198,6 +198,11 @@ default_config = {
         "chunk_size": 512 * common.MB
     },
 
+    "start_operation_retries": {
+        "retry_count": 30,
+        "retry_timeout": 60000
+    },
+
     "auto_merge_output": {
         # Action can be:
         # "none" - do nothing

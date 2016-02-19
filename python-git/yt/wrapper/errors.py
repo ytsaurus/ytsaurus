@@ -1,6 +1,7 @@
 """YT usage errors"""
 
-from yt.common import YtError, YtResponseError
+import yt.common
+from yt.common import YtError
 import yt.json as json
 
 from copy import deepcopy
@@ -31,6 +32,14 @@ class YtTimeoutError(YtError):
     """WaitStrategy timeout expired."""
     pass
 
+class YtResponseError(yt.common.YtResponseError):
+    def __init__(self, *args, **kwargs):
+        super(YtResponseError, self).__init__(*args, **kwargs)
+        if self.is_request_rate_limit_exceeded():
+            self.__class__ = YtRequestRateLimitExceeded
+        if self.is_concurrent_operations_limit_reached():
+            self.__class__ = YtConcurrentOperationsLimitExceeded
+
 class YtHttpResponseError(YtResponseError):
     def __init__(self, error, url, headers, params):
         def dumps(obj):
@@ -45,10 +54,6 @@ class YtHttpResponseError(YtResponseError):
                        "Headers: {1}\n"\
                        "Params: {2}"\
             .format(url, dumps(self.headers), dumps(self.params))
-        if self.is_request_rate_limit_exceeded():
-            self.__class__ = YtRequestRateLimitExceeded
-        if self.is_concurrent_operations_limit_reached():
-            self.__class__ = YtConcurrentOperationsLimitExceeded
 
 class YtRequestRateLimitExceeded(YtHttpResponseError):
     """ Request rate limit exceeded error. """
