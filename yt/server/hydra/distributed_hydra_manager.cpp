@@ -895,7 +895,7 @@ private:
             return;
         }
 
-        LOG_ERROR(error, "Restarting Hydra instance");
+        LOG_WARNING(error, "Restarting Hydra instance");
 
         CancelableControlInvoker_->Invoke(BIND(
             &TDistributedHydraManager::DoRestart,
@@ -944,7 +944,7 @@ private:
 
                 break;
             } catch (const std::exception& ex) {
-                LOG_ERROR(ex, "Error initializing persistent stores, backing off and retrying");
+                LOG_WARNING(ex, "Error initializing persistent stores, backing off and retrying");
                 WaitFor(TDelayedExecutor::MakeDelayed(Config_->RestartBackoffTime));
             }
         }
@@ -1197,7 +1197,7 @@ private:
 
             SystemLockGuard_.Release();
         } catch (const std::exception& ex) {
-            LOG_ERROR(ex, "Leader recovery failed, backing off");
+            LOG_WARNING(ex, "Leader recovery failed, backing off");
             WaitFor(TDelayedExecutor::MakeDelayed(Config_->RestartBackoffTime));
             Restart(epochContext, ex);
         }
@@ -1288,7 +1288,7 @@ private:
 
             SystemLockGuard_.Release();
         } catch (const std::exception& ex) {
-            LOG_ERROR(ex, "Follower recovery failed, backing off");
+            LOG_WARNING(ex, "Follower recovery failed, backing off");
             WaitFor(TDelayedExecutor::MakeDelayed(Config_->RestartBackoffTime));
             Restart(epochContext, ex);
         }

@@ -22,10 +22,10 @@ TFuture<TMutationResponse> TMutation::CommitAndLog(const NLogging::TLogger& logg
     return Commit().Apply(BIND([=] (const TErrorOr<TMutationResponse>& result) {
         const auto& Logger = logger;
         if (result.IsOK()) {
-            LOG_INFO("Mutation commit succeeded (MutationType: %v)", type);
+            LOG_DEBUG("Mutation commit succeeded (MutationType: %v)", type);
             return result.Value();
         } else {
-            LOG_ERROR(result, "Mutation commit failed (MutationType: %v)", type);
+            LOG_DEBUG(result, "Mutation commit failed (MutationType: %v)", type);
             THROW_ERROR result;
         }
     }));
