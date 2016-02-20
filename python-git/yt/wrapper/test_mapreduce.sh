@@ -533,7 +533,7 @@ test_force_drop()
 
     check "" "`./mapreduce -read ignat/some_table`"
 
-    kill $bg_pid
+    kill $bg_pid || true
 }
 
 test_parallel_dstappend()
