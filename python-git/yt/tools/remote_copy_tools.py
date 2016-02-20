@@ -353,11 +353,13 @@ def copy_yamr_to_yt_pull(yamr_client, yt_client, src, dst, fastbone, copy_spec_t
     # NB: Yamr does not support -list under transaction.
     # It means that record count may be inconsistent with locked version of table.
     record_count = yamr_client.records_count(src, allow_cache=True)
-    sorted = yamr_client.is_sorted(src, allow_cache=True)
+    is_sorted = yamr_client.is_sorted(src, allow_cache=True)
 
-    logger.info("Importing table '%s' (row count: %d, sorted: %d)", src, record_count, sorted)
+    logger.info("Importing table '%s' (row count: %d, sorted: %d)", src, record_count, is_sorted)
 
     ranges = _split_rows(record_count, 1024 * yt.common.MB, yamr_client.data_size(src))
+    use_sorted_by_on_dst = len(ranges) < DEFAULT_MAXIMUM_YT_JOB_COUNT
+
     read_commands = yamr_client.create_read_range_commands(ranges, src, fastbone=fastbone, transaction_id=transaction_id, enable_logging=True, timeout=job_timeout)
     temp_table = yt_client.create_temp_table(prefix=os.path.basename(src))
     yt_client.write_table(temp_table, read_commands, format=yt.SchemafulDsvFormat(columns=["command"]))
@@ -392,7 +394,7 @@ done"""
         with yt_client.Transaction():
             apply_compression_codec(yt_client, dst, compression_codec)
 
-            if sorted:
+            if is_sorted and use_sorted_by_on_dst:
                 dst_path = yt.TablePath(dst, client=yt_client)
                 dst_path.attributes["sorted_by"] = ["key", "subkey"]
             else:
@@ -413,6 +415,9 @@ done"""
                 error = "Incorrect record count (expected: %d, actual: %d)" % (record_count, result_record_count)
                 logger.error(error)
                 raise IncorrectRowCount(error)
+
+            if (is_sorted and not use_sorted_by_on_dst) or force_sort:
+                yt_client.run_sort(dst, sort_by=["key", "subkey"], spec=postprocess_spec)
 
             convert_to_erasure(dst, erasure_codec=erasure_codec, yt_client=yt_client, spec=postprocess_spec)
 
