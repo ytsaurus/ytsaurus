@@ -58,6 +58,9 @@ void TSchemalessWriterForYamrBase::WriteInLenvalMode(const TStringBuf& value)
 
 void TSchemalessWriterForYamrBase::WriteTableIndex(i32 tableIndex)
 {
+    TableIndexWasWritten_ = true;
+    CurrentTableIndex_ = tableIndex;
+
     auto* stream = GetOutputStream();
     
     if (!Config_->EnableTableIndex) {
@@ -89,11 +92,17 @@ void TSchemalessWriterForYamrBase::WriteRowIndex(i64 rowIndex)
 {
     auto* stream = GetOutputStream();
 
-    if (!Config_->Lenval) {
-         THROW_ERROR_EXCEPTION("Row indices are not supported in text YAMR format");
+    if (Config_->Lenval) {
+        WritePod(*stream, static_cast<ui32>(-4));
+        WritePod(*stream, static_cast<ui64>(rowIndex));
+    } else {
+        if (!TableIndexWasWritten_) {
+            stream->Write(ToString(CurrentTableIndex_));
+            stream->Write(Config_->RecordSeparator);
+        }
+        stream->Write(ToString(rowIndex));
+        stream->Write(Config_->RecordSeparator);
     }
-    WritePod(*stream, static_cast<ui32>(-4));
-    WritePod(*stream, static_cast<ui64>(rowIndex));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
