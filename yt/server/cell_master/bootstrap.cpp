@@ -128,8 +128,7 @@ TBootstrap::TBootstrap(INodePtr configNode)
 { }
 
 // Neither remove it nor move it to the header.
-TBootstrap::~TBootstrap()
-{ }
+TBootstrap::~TBootstrap() = default;
 
 TCellMasterConfigPtr TBootstrap::GetConfig() const
 {
@@ -492,6 +491,7 @@ void TBootstrap::DoInitialize()
     TransactionSupervisor_ = New<TTransactionSupervisor>(
         Config_->TransactionSupervisor,
         HydraFacade_->GetAutomatonInvoker(EAutomatonThreadQueue::TransactionSupervisor),
+        HydraFacade_->GetTransactionTrackerInvoker(),
         HydraFacade_->GetHydraManager(),
         HydraFacade_->GetAutomaton(),
         HydraFacade_->GetResponseKeeper(),

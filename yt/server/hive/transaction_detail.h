@@ -13,7 +13,6 @@ class TTransactionBase
 {
 public:
     DEFINE_BYVAL_RW_PROPERTY(ETransactionState, State);
-    DEFINE_BYVAL_RW_PROPERTY(TLease, Lease);
 
 public:
     explicit TTransactionBase(const TTransactionId& id);

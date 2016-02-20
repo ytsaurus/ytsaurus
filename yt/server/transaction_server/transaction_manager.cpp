@@ -13,6 +13,7 @@
 #include <yt/server/cypress_server/node.h>
 
 #include <yt/server/hive/transaction_supervisor.h>
+#include <yt/server/hive/transaction_lease_tracker.h>
 
 #include <yt/server/hydra/composite_automaton.h>
 #include <yt/server/hydra/mutation.h>
@@ -35,7 +36,6 @@
 #include <yt/core/concurrency/thread_affinity.h>
 
 #include <yt/core/misc/id_generator.h>
-#include <yt/core/misc/lease_manager.h>
 #include <yt/core/misc/string.h>
 
 #include <yt/core/ytree/attributes.h>
@@ -51,6 +51,7 @@ using namespace NObjectClient::NProto;
 using namespace NObjectServer;
 using namespace NCypressServer;
 using namespace NHydra;
+using namespace NHive;
 using namespace NYTree;
 using namespace NYson;
 using namespace NCypressServer;
@@ -125,12 +126,6 @@ private:
         if (key == "timeout" && transaction->GetTimeout()) {
             BuildYsonFluently(consumer)
                 .Value(*transaction->GetTimeout());
-            return true;
-        }
-
-        if (key == "last_ping_time" && transaction->GetTimeout()) {
-            BuildYsonFluently(consumer)
-                .Value(transaction->GetLastPingTime());
             return true;
         }
 
@@ -231,6 +226,19 @@ private:
 
     virtual TFuture<TYsonString> GetBuiltinAttributeAsync(const Stroka& key) override
     {
+        RequireLeader();
+
+        const auto* transaction = GetThisTypedImpl();
+
+        if (key == "last_ping_time") {
+            return Bootstrap_
+                ->GetTransactionManager()
+                ->GetLastPingTime(transaction)
+                 .Apply(BIND([] (TInstant value) {
+                     return ConvertToYsonString(value);
+                 }));
+        }
+
         if (key == "resource_usage") {
             return GetAggregatedResourceUsageMap().Apply(BIND([] (const TAccountResourcesMap& usageMap) {
                 return BuildYsonStringFluently()
@@ -430,8 +438,12 @@ public:
         TBootstrap* bootstrap)
         : TMasterAutomatonPart(bootstrap)
         , Config_(config)
+        , LeaseTracker_(New<TTransactionLeaseTracker>(
+            Bootstrap_->GetHydraFacade()->GetTransactionTrackerInvoker(),
+            TransactionServerLogger))
     {
         VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(), AutomatonThread);
+        VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetHydraFacade()->GetTransactionTrackerInvoker(), TrackerThread);
 
         TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::HydraPrepareTransactionCommit, Unretained(this)));
         TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::HydraCommitTransaction, Unretained(this)));
@@ -503,13 +515,13 @@ public:
 
         transaction->SecondaryCellTags() = secondaryCellTags;
 
-        if (Bootstrap_->IsPrimaryMaster()) {
-            if (timeout) {
-                transaction->SetTimeout(std::min(*timeout, Config_->MaxTransactionTimeout));
-            }
-            if (IsLeader()) {
-                CreateLease(transaction);
-            }
+        // NB: For transactions replicated from the primary cell the timeout is null.
+        if (CellTagFromId(transactionId) == Bootstrap_->GetCellTag() && timeout) {
+            transaction->SetTimeout(std::min(*timeout, Config_->MaxTransactionTimeout));
+        }
+
+        if (IsLeader()) {
+            CreateLease(transaction);
         }
 
         transaction->SetTitle(title);
@@ -671,21 +683,6 @@ public:
             force);
     }
 
-    void PingTransaction(TTransaction* transaction, bool pingAncestors)
-    {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
-
-        auto* currentTransaction = transaction;
-        while (currentTransaction) {
-            DoPingTransaction(currentTransaction);
-
-            if (!pingAncestors)
-                break;
-
-            currentTransaction = currentTransaction->GetParent();
-        }
-    }
-
     TTransaction* GetTransactionOrThrow(const TTransactionId& transactionId)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
@@ -698,6 +695,13 @@ public:
                 transactionId);
         }
         return transaction;
+    }
+
+    TFuture<TInstant> GetLastPingTime(const TTransaction* transaction)
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        return LeaseTracker_->GetLastPingTime(transaction->GetId());
     }
 
     void StageObject(TTransaction* transaction, TObjectBase* object)
@@ -849,22 +853,22 @@ public:
         const TTransactionId& transactionId,
         const NHive::NProto::TReqPingTransaction& request)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        VERIFY_THREAD_AFFINITY(TrackerThread);
 
         const auto& requestExt = request.GetExtension(TReqPingTransactionExt::ping_transaction_ext);
-        auto* transaction = GetTransactionOrThrow(transactionId);
-
-        PingTransaction(transaction, requestExt.ping_ancestors());
+        LeaseTracker_->PingTransaction(transactionId, requestExt.ping_ancestors());
     }
 
 private:
     friend class TTransactionTypeHandler;
 
     const TTransactionManagerConfigPtr Config_;
+    const TTransactionLeaseTrackerPtr LeaseTracker_;
 
     NHydra::TEntityMap<TTransactionId, TTransaction> TransactionMap_;
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
+    DECLARE_THREAD_AFFINITY_SLOT(TrackerThread);
 
     // Primary-secondary replication only.
     void HydraPrepareTransactionCommit(const NProto::TReqPrepareTransactionCommit& request)
@@ -919,29 +923,6 @@ private:
         // Kill the fake reference thus destroying the object.
         objectManager->UnrefObject(transaction);
     }
-
-    void DoPingTransaction(TTransaction* transaction)
-    {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
-
-        auto persistentState = transaction->GetPersistentState();
-
-        if (persistentState == ETransactionState::PersistentCommitPrepared) {
-            // Just ignore; clients may ping transactions during commit.
-            return;
-        }
-
-        if (persistentState != ETransactionState::Active) {
-            transaction->ThrowInvalidState();
-        }
-
-        RenewLease(transaction);
-
-        LOG_DEBUG("Transaction pinged (TransactionId: %v, Timeout: %v)",
-            transaction->GetId(),
-            transaction->GetTimeout());
-    }
-
 
     void SaveKeys(NCellMaster::TSaveContext& context)
     {
@@ -1019,40 +1000,26 @@ private:
         for (const auto& pair : TransactionMap_) {
             auto* transaction = pair.second;
             transaction->SetState(transaction->GetPersistentState());
-            CloseLease(transaction);
         }
+
+        LeaseTracker_->Reset();
     }
 
 
     void CreateLease(TTransaction* transaction)
     {
-        auto timeout = transaction->GetTimeout();
-        if (!timeout)
-            return;
-
         auto hydraFacade = Bootstrap_->GetHydraFacade();
-        auto lease = TLeaseManager::CreateLease(
-            *timeout,
-            BIND(&TImpl::OnTransactionExpired, MakeStrong(this), transaction->GetId())
-                .Via(hydraFacade->GetEpochAutomatonInvoker()));
-        transaction->SetLease(lease);
-        transaction->SetLastPingTime(TInstant::Now());
+        LeaseTracker_->RegisterTransaction(
+            transaction->GetId(),
+            GetObjectId(transaction->GetParent()),
+            transaction->GetTimeout(),
+                BIND(&TImpl::OnTransactionExpired, MakeStrong(this))
+                    .Via(hydraFacade->GetEpochAutomatonInvoker()));
     }
 
     void CloseLease(TTransaction* transaction)
     {
-        TLeaseManager::CloseLease(transaction->GetLease());
-        transaction->SetLease(NullLease);
-    }
-
-    void RenewLease(TTransaction* transaction)
-    {
-        auto timeout = transaction->GetTimeout();
-        if (!timeout)
-            return;
-
-        TLeaseManager::RenewLease(transaction->GetLease(), *timeout);
-        transaction->SetLastPingTime(TInstant::Now());
+        LeaseTracker_->UnregisterTransaction(transaction->GetId());
     }
 
     void OnTransactionExpired(const TTransactionId& transactionId)
@@ -1064,8 +1031,6 @@ private:
             return;
         if (transaction->GetState() != ETransactionState::Active)
             return;
-
-        LOG_DEBUG("Transaction lease expired (TransactionId: %v)", transactionId);
 
         auto transactionSupervisor = Bootstrap_->GetTransactionSupervisor();
         transactionSupervisor->AbortTransaction(transactionId).Subscribe(BIND([=] (const TError& error) {
@@ -1178,16 +1143,14 @@ void TTransactionManager::AbortTransaction(
     Impl_->AbortTransaction(transaction, force);
 }
 
-void TTransactionManager::PingTransaction(
-    TTransaction* transaction,
-    bool pingAncestors)
-{
-    Impl_->PingTransaction(transaction, pingAncestors);
-}
-
 TTransaction* TTransactionManager::GetTransactionOrThrow(const TTransactionId& transactionId)
 {
     return Impl_->GetTransactionOrThrow(transactionId);
+}
+
+TFuture<TInstant> TTransactionManager::GetLastPingTime(const TTransaction* transaction)
+{
+    return Impl_->GetLastPingTime(transaction);
 }
 
 void TTransactionManager::StageObject(

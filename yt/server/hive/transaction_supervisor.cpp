@@ -50,6 +50,7 @@ public:
     TImpl(
         TTransactionSupervisorConfigPtr config,
         IInvokerPtr automatonInvoker,
+        IInvokerPtr trackerInvoker,
         IHydraManagerPtr hydraManager,
         TCompositeAutomatonPtr automaton,
         TResponseKeeperPtr responseKeeper,
@@ -65,6 +66,7 @@ public:
             automaton,
             automatonInvoker)
         , Config_(config)
+        , TrackerInvoker_(trackerInvoker)
         , HydraManager_(hydraManager)
         , ResponseKeeper_(responseKeeper)
         , HiveManager_(hiveManager)
@@ -72,6 +74,7 @@ public:
         , TimestampProvider_(timestampProvider)
     {
         YCHECK(Config_);
+        YCHECK(TrackerInvoker_);
         YCHECK(ResponseKeeper_);
         YCHECK(HiveManager_);
         YCHECK(TransactionManager_);
@@ -81,7 +84,8 @@ public:
 
         TServiceBase::RegisterMethod(RPC_SERVICE_METHOD_DESC(CommitTransaction));
         TServiceBase::RegisterMethod(RPC_SERVICE_METHOD_DESC(AbortTransaction));
-        TServiceBase::RegisterMethod(RPC_SERVICE_METHOD_DESC(PingTransaction));
+        TServiceBase::RegisterMethod(RPC_SERVICE_METHOD_DESC(PingTransaction)
+            .SetInvoker(TrackerInvoker_));
 
         TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::HydraCommitSimpleTransaction, Unretained(this)));
         TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::HydraCommitDistributedTransactionPhaseOne, Unretained(this)));
@@ -135,6 +139,7 @@ public:
 
 private:
     const TTransactionSupervisorConfigPtr Config_;
+    const IInvokerPtr TrackerInvoker_;
     const IHydraManagerPtr HydraManager_;
     const TResponseKeeperPtr ResponseKeeper_;
     const THiveManagerPtr HiveManager_;
@@ -191,8 +196,6 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NProto, PingTransaction)
     {
-        ValidatePeer(EPeerKind::Leader);
-
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
 
         context->SetRequestInfo("TransactionId: %v",
@@ -847,6 +850,7 @@ private:
 TTransactionSupervisor::TTransactionSupervisor(
     TTransactionSupervisorConfigPtr config,
     IInvokerPtr automatonInvoker,
+    IInvokerPtr trackerInvoker,
     IHydraManagerPtr hydraManager,
     TCompositeAutomatonPtr automaton,
     TResponseKeeperPtr responseKeeper,
@@ -856,6 +860,7 @@ TTransactionSupervisor::TTransactionSupervisor(
     : Impl_(New<TImpl>(
         config,
         automatonInvoker,
+        trackerInvoker,
         hydraManager,
         automaton,
         responseKeeper,

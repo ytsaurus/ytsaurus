@@ -84,6 +84,8 @@ public:
         AutomatonQueue_ = New<TFairShareActionQueue>("Automaton", TEnumTraits<EAutomatonThreadQueue>::GetDomainNames());
         Automaton_ = New<TMasterAutomaton>(Bootstrap_);
 
+        TransactionTrackerQueue_ = New<TActionQueue>("TxTracker");
+
         ResponseKeeper_ = New<TResponseKeeper>(
             Config_->HydraManager->ResponseKeeper,
             NObjectServer::ObjectServerLogger,
@@ -192,6 +194,12 @@ public:
     }
 
 
+    IInvokerPtr GetTransactionTrackerInvoker() const
+    {
+        return TransactionTrackerQueue_->GetInvoker();
+    }
+
+
     void RequireLeader() const
     {
         if (!HydraManager_->IsLeader()) {
@@ -213,6 +221,8 @@ private:
     TFairShareActionQueuePtr AutomatonQueue_;
     TMasterAutomatonPtr Automaton_;
     IHydraManagerPtr HydraManager_;
+
+    TActionQueuePtr TransactionTrackerQueue_;
 
     TResponseKeeperPtr ResponseKeeper_;
 
@@ -379,6 +389,11 @@ IInvokerPtr THydraFacade::GetEpochAutomatonInvoker(EAutomatonThreadQueue queue) 
 IInvokerPtr THydraFacade::GetGuardedAutomatonInvoker(EAutomatonThreadQueue queue) const
 {
     return Impl_->GetGuardedAutomatonInvoker(queue);
+}
+
+IInvokerPtr THydraFacade::GetTransactionTrackerInvoker() const
+{
+    return Impl_->GetTransactionTrackerInvoker();
 }
 
 void THydraFacade::RequireLeader() const
