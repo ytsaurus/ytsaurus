@@ -110,8 +110,7 @@ def clean_operation(op_id, scheme_type, archive=False):
         data = yt.get("//sys/operations/{}/@".format(op_id))
 
         keys = ["state", "authenticated_user", "operation_type",
-            "progress", "brief_progress", "spec", "brief_spec",
-            "result"]
+                "progress", "brief_progress", "spec", "brief_spec", "result"]
         by_id_row = {}
         for key in keys:
             if key in data:
