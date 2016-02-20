@@ -108,14 +108,18 @@ def clean_operation(op_id, scheme_type, archive=False):
 
         logger.info("Archiving operation %s", op_id)
         data = yt.get("//sys/operations/{}/@".format(op_id))
-        by_id_row = dict(
-            (key, data[key])
-            for key in ["state", "authenticated_user", "operation_type",
-                        "progress", "brief_progress", "spec", "brief_spec",
-                        "result"])
 
-        def datestr_to_int(time_str):
-            return int(time.mktime(datetime.strptime(time_str, "%Y-%m-%dT%H:%M:%S.%fZ").timetuple()))
+        keys = ["state", "authenticated_user", "operation_type",
+            "progress", "brief_progress", "spec", "brief_spec",
+            "result"]
+        by_id_row = {}
+        for key in keys:
+            if key in data:
+                by_id_row[key] = data[key]
+
+        def datestr_to_timestamp(time_str):
+            dt = datetime.strptime(time_str, "%Y-%m-%dT%H:%M:%S.%fZ")
+            return int(time.mktime(dt.timetuple()) * 1000000 + dt.microsecond)
 
         if scheme_type == "new":
             id_parts = op_id.split("-")
@@ -125,8 +129,8 @@ def clean_operation(op_id, scheme_type, archive=False):
 
             by_id_row["id_hi"] = yson.YsonUint64(id_hi)
             by_id_row["id_lo"] = yson.YsonUint64(id_lo)
-            by_id_row["start_time"] = datestr_to_int(data["start_time"])
-            by_id_row["finish_time"] = datestr_to_int(data["finish_time"])
+            by_id_row["start_time"] = datestr_to_timestamp(data["start_time"])
+            by_id_row["finish_time"] = datestr_to_timestamp(data["finish_time"])
             by_id_row["filter_factors"] = get_filter_factors(op_id, data)
 
             by_start_time_row = {
