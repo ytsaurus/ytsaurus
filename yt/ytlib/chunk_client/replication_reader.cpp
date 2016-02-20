@@ -658,7 +658,7 @@ public:
         , Promise_(NewPromise<std::vector<TSharedRef>>())
         , BlockIndexes_(blockIndexes)
     {
-        Logger.AddTag("Blocks: [%v]", blockIndexes);
+        Logger.AddTag("Blocks: %v", blockIndexes);
     }
 
     ~TReadBlockSetSession()
