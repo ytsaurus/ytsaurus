@@ -70,7 +70,7 @@ Stroka ToString(const TQueryStatistics& stats)
         stats.ReadTime,
         stats.WriteTime,
         stats.IncompleteInput,
-        stats.IncompleteInput);
+        stats.IncompleteOutput);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
