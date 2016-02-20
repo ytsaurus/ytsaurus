@@ -1276,8 +1276,6 @@ class Application(object):
 
             # NB: hack to avoid process died silently.
             time.sleep(0.5)
-        except KeyboardInterrupt:
-            pass
         except yt.YtError as error:
             try:
                 truncate_stderrs_attributes(error, self._config["error_details_length_limit"])
