@@ -25,8 +25,12 @@ void TGetExecutor::BuildParameters(IYsonConsumer* consumer)
     auto path = PreprocessYPath(PathArg.getValue());
 
     BuildYsonMapFluently(consumer)
-        .Item("path").Value(path)
-        .Item("attributes").List(AttributeArg);
+        .Item("path").Value(path);
+
+    if (AttributeArg.isSet()) {
+        BuildYsonMapFluently(consumer)
+            .Item("attributes").List(AttributeArg);
+    }
 
     TTransactedExecutor::BuildParameters(consumer);
 }
@@ -122,8 +126,12 @@ void TListExecutor::BuildParameters(IYsonConsumer* consumer)
     auto path = PreprocessYPath(PathArg.getValue());
 
     BuildYsonMapFluently(consumer)
-        .Item("path").Value(path)
-        .Item("attributes").List(AttributeArg);
+        .Item("path").Value(path);
+
+    if (AttributeArg.isSet()) {
+        BuildYsonMapFluently(consumer)
+            .Item("attributes").List(AttributeArg);
+    }
 
     TTransactedExecutor::BuildParameters(consumer);
 }
