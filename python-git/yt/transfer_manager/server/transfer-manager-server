@@ -1053,7 +1053,7 @@ class Application(object):
                             continue
 
                     if not process_is_alive and not (process.aborting or process.aborted or error is not None or completed):
-                        message = "Task process (task id: {0}) died silently".format(id)
+                        message = "Process of task {0} died silently".format(id)
                         logger.warning(message)
                         error = {"message": message, "code": 1}
 
