@@ -90,16 +90,28 @@ def _pack_string(name, script, output_dir):
         fout.write(script)
     return filename
 
-
 def _split_rows(row_count, split_size, total_size):
     if row_count == 0:
         return []
     split_row_count = max(1, (row_count * split_size) / total_size)
     return [(i * split_row_count, min((i + 1) * split_row_count, row_count)) for i in xrange(1 + ((row_count - 1) / split_row_count))]
 
-def _split_rows_yt(yt_client, table, split_size):
+def _estimate_split_size(total_size):
+    # XXX(asaitgalin): if table is bigger than 100 TiB and sorted it is not ok to
+    # use default 1 GB split_size because job count will be greater than
+    # DEFAULT_MAXIMUM_YT_JOB_COUNT and two ranges will be processed by the same job
+    # which may violate destination table sort order.
+    split_size = 1024 * yt.common.MB
+    ranges_count = total_size / split_size
+    if ranges_count > DEFAULT_MAXIMUM_YT_JOB_COUNT:
+        scale_factor = 1.01 * ranges_count / DEFAULT_MAXIMUM_YT_JOB_COUNT
+        return int(scale_factor * split_size)
+    return split_size
+
+def _split_rows_yt(yt_client, table, split_size=None):
     row_count = yt_client.get(table + "/@row_count")
     data_size = yt_client.get(table + "/@uncompressed_data_size")
+    split_size = get_value(split_size, _estimate_split_size(data_size))
     return _split_rows(row_count, split_size, data_size)
 
 def _set_mapper_settings_for_read_from_yt(spec):
@@ -289,16 +301,14 @@ def copy_yt_to_yt_through_proxy(source_client, destination_client, src, dst, fas
             source_client.lock(src, mode="snapshot")
             files = _prepare_read_from_yt_command(source_client, src.to_yson_string(), "json", tmp_dir, fastbone, pack=True)
 
-            ranges = _split_rows_yt(source_client, src.name, 1024 * yt.common.MB)
-            use_sorted_by_on_dst = len(ranges) <= DEFAULT_MAXIMUM_YT_JOB_COUNT
+            ranges = _split_rows_yt(source_client, src.name)
 
             sorted_by = None
             dst_table = dst
             if source_client.exists(src.name + "/@sorted_by"):
                 sorted_by = source_client.get(src.name + "/@sorted_by")
                 dst_table = yt.TablePath(dst, client=source_client)
-                if use_sorted_by_on_dst:
-                    dst_table.attributes["sorted_by"] = sorted_by
+                dst_table.attributes["sorted_by"] = sorted_by
             row_count = source_client.get(src.name + "/@row_count")
 
             temp_table = destination_client.create_temp_table(prefix=os.path.basename(src.name))
@@ -323,9 +333,6 @@ def copy_yt_to_yt_through_proxy(source_client, destination_client, src, dst, fas
                 error = "Incorrect record count (expected: %d, actual: %d)" % (row_count, result_row_count)
                 logger.error(error)
                 raise IncorrectRowCount(error)
-
-            if sorted_by is not None and not use_sorted_by_on_dst:
-                destination_client.run_sort(dst, sort_by=sorted_by, spec=postprocess_spec_template)
 
             if erasure_codec is None:
                 run_erasure_merge(source_client, destination_client, src.name, dst, spec=postprocess_spec_template)
@@ -357,8 +364,8 @@ def copy_yamr_to_yt_pull(yamr_client, yt_client, src, dst, fastbone, copy_spec_t
 
     logger.info("Importing table '%s' (row count: %d, sorted: %d)", src, record_count, is_sorted)
 
-    ranges = _split_rows(record_count, 1024 * yt.common.MB, yamr_client.data_size(src))
-    use_sorted_by_on_dst = len(ranges) < DEFAULT_MAXIMUM_YT_JOB_COUNT
+    data_size = yamr_client.data_size(src)
+    ranges = _split_rows(record_count, _estimate_split_size(data_size), data_size)
 
     read_commands = yamr_client.create_read_range_commands(ranges, src, fastbone=fastbone, transaction_id=transaction_id, enable_logging=True, timeout=job_timeout)
     temp_table = yt_client.create_temp_table(prefix=os.path.basename(src))
@@ -394,7 +401,7 @@ done"""
         with yt_client.Transaction():
             apply_compression_codec(yt_client, dst, compression_codec)
 
-            if is_sorted and use_sorted_by_on_dst:
+            if is_sorted:
                 dst_path = yt.TablePath(dst, client=yt_client)
                 dst_path.attributes["sorted_by"] = ["key", "subkey"]
             else:
@@ -416,7 +423,7 @@ done"""
                 logger.error(error)
                 raise IncorrectRowCount(error)
 
-            if (is_sorted and not use_sorted_by_on_dst) or force_sort:
+            if force_sort and not is_sorted:
                 yt_client.run_sort(dst, sort_by=["key", "subkey"], spec=postprocess_spec)
 
             convert_to_erasure(dst, erasure_codec=erasure_codec, yt_client=yt_client, spec=postprocess_spec)
