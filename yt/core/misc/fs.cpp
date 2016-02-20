@@ -150,6 +150,7 @@ void CleanTempFiles(const Stroka& path)
 {
     LOG_INFO("Cleaning temp files in %v", path);
 
+    // TODO(ignat): specify suffix in EnumerateFiles.
     auto entries = EnumerateFiles(path, std::numeric_limits<int>::max());
     for (const auto& entry : entries) {
         if (entry.has_suffix(TempFileSuffix)) {
