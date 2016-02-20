@@ -530,6 +530,7 @@ public:
             TransactionSupervisor_ = New<TTransactionSupervisor>(
                 Config_->TransactionSupervisor,
                 GetAutomatonInvoker(),
+                GetAutomatonInvoker(),
                 HydraManager_,
                 Automaton_,
                 GetResponseKeeper(),

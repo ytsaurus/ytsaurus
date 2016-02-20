@@ -56,12 +56,15 @@ public:
     void AbortTransaction(
         TTransaction* transaction,
         bool force);
-    void PingTransaction(TTransaction* transaction, bool pingAncestors = false);
 
     DECLARE_ENTITY_MAP_ACCESSORS(Transaction, TTransaction, TTransactionId);
 
     //! Finds transaction by id, throws if nothing is found.
     TTransaction* GetTransactionOrThrow(const TTransactionId& transactionId);
+
+    //! Asynchronously returns the (approximate) moment when transaction with
+    //! a given #transactionId was last pinged.
+    TFuture<TInstant> GetLastPingTime(const TTransaction* transaction);
 
     //! Registers and references the object with the transaction.
     //! The same object can only be staged once.

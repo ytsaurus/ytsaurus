@@ -6,6 +6,7 @@ set( SRCS
   ${CMAKE_CURRENT_LIST_DIR}/public.cpp
   ${CMAKE_CURRENT_LIST_DIR}/helpers.cpp
   ${CMAKE_CURRENT_LIST_DIR}/transaction_supervisor.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/transaction_lease_tracker.cpp
   ${CMAKE_CURRENT_LIST_DIR}/cell_directory_synchronizer.cpp
 )
 set( HDRS

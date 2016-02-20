@@ -20,6 +20,7 @@ public:
     TTransactionSupervisor(
         TTransactionSupervisorConfigPtr config,
         IInvokerPtr automatonInvoker,
+        IInvokerPtr trackerInvoker,
         NHydra::IHydraManagerPtr hydraManager,
         NHydra::TCompositeAutomatonPtr automaton,
         NRpc::TResponseKeeperPtr responseKeeper,

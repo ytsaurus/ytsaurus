@@ -6,6 +6,7 @@
 #include "transaction.h"
 
 #include <yt/server/hive/transaction_supervisor.h>
+#include <yt/server/hive/transaction_lease_tracker.h>
 
 #include <yt/server/hydra/hydra_manager.h>
 #include <yt/server/hydra/mutation.h>
@@ -15,8 +16,6 @@
 #include <yt/core/concurrency/thread_affinity.h>
 
 #include <yt/core/logging/log.h>
-
-#include <yt/core/misc/lease_manager.h>
 
 #include <yt/core/ytree/fluent.h>
 
@@ -28,9 +27,10 @@ using namespace NYTree;
 using namespace NYson;
 using namespace NTransactionClient;
 using namespace NHydra;
+using namespace NHive;
+using namespace NHive::NProto;
 using namespace NCellNode;
 using namespace NTabletClient::NProto;
-using namespace NHive::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -52,6 +52,9 @@ public:
             slot,
             bootstrap)
         , Config_(config)
+        , LeaseTracker_(New<TTransactionLeaseTracker>(
+            Slot_->GetAutomatonInvoker(),
+            Logger))
     {
         VERIFY_INVOKER_THREAD_AFFINITY(Slot_->GetAutomatonInvoker(), AutomatonThread);
 
@@ -239,25 +242,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        auto* transaction = GetTransactionOrThrow(transactionId);
-
-        auto persistentState = transaction->GetPersistentState();
-
-        if (persistentState == ETransactionState::PersistentCommitPrepared) {
-            // Just ignore; clients may ping transactions during commit.
-            return;
-        }
-
-        if (persistentState != ETransactionState::Active) {
-            transaction->ThrowInvalidState();
-        }
-
-        auto timeout = transaction->GetTimeout();
-        TLeaseManager::RenewLease(transaction->GetLease(), timeout);
-
-        LOG_DEBUG("Transaction pinged (TransactionId: %v, Timeout: %v)",
-            transaction->GetId(),
-            timeout);
+        LeaseTracker_->PingTransaction(transactionId, false);
     }
 
 
@@ -265,21 +250,23 @@ public:
 
 private:
     const TTransactionManagerConfigPtr Config_;
+    const TTransactionLeaseTrackerPtr LeaseTracker_;
 
     TEntityMap<TTransactionId, TTransaction> TransactionMap_;
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
-    
+
     void CreateLeases(TTransaction* transaction)
     {
         auto invoker = Slot_->GetEpochAutomatonInvoker();
 
-        auto lease = TLeaseManager::CreateLease(
+        LeaseTracker_->RegisterTransaction(
+            transaction->GetId(),
+            NullTransactionId,
             transaction->GetTimeout(),
-            BIND(&TImpl::OnTransactionExpired, MakeStrong(this), transaction->GetId())
+            BIND(&TImpl::OnTransactionExpired, MakeStrong(this))
                 .Via(invoker));
-        transaction->SetLease(lease);
 
         auto startInstants = TimestampToInstant(transaction->GetStartTimestamp());
         auto deadline = startInstants.first + Config_->MaxTransactionDuration;
@@ -292,8 +279,7 @@ private:
 
     void CloseLeases(TTransaction* transaction)
     {
-        TLeaseManager::CloseLease(transaction->GetLease());
-        transaction->SetLease(NullLease);
+        LeaseTracker_->UnregisterTransaction(transaction->GetId());
 
         TDelayedExecutor::Cancel(transaction->GetTimeoutCookie());
         transaction->SetTimeoutCookie(NullDelayedExecutorCookie);
@@ -417,8 +403,9 @@ private:
             auto* transaction = pair.second;
             transaction->SetState(transaction->GetPersistentState());
             transaction->ResetFinished();
-            CloseLeases(transaction);
         }
+
+        LeaseTracker_->Reset();
     }
 
 

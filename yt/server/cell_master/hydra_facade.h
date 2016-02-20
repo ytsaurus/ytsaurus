@@ -39,6 +39,8 @@ public:
     IInvokerPtr GetEpochAutomatonInvoker(EAutomatonThreadQueue queue = EAutomatonThreadQueue::Default) const;
     IInvokerPtr GetGuardedAutomatonInvoker(EAutomatonThreadQueue queue = EAutomatonThreadQueue::Default) const;
 
+    IInvokerPtr GetTransactionTrackerInvoker() const;
+
     //! Throws TLeaderFallbackException at followers.
     void RequireLeader() const;
 
