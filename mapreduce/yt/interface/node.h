@@ -304,10 +304,18 @@ public:
         return List_->back();
     }
 
-    void Add(TNode node)
+    TNode& Add(const TNode& node)
     {
         AssureList();
         List_->push_back(node);
+        return *this;
+    }
+
+    TNode& Add(TNode&& node)
+    {
+        AssureList();
+        List_->push_back(std::move(node));
+        return *this;
     }
 
     // map
