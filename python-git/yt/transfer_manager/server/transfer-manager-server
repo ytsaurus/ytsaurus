@@ -162,7 +162,7 @@ class Task(object):
     # NB: destination table is missing if we copy to kiwi
     def __init__(self, source_cluster, source_table, destination_cluster, creation_time, id, state, user,
                  destination_table=None, source_cluster_token=None, token=None, destination_cluster_token=None, mr_user=None, error=None,
-                 start_time=None, finish_time=None, copy_method=None, skip_if_destination_exists=None, progress=None, backend_tag=None, kiwi_user=None, kwworm_options=None, pool=None, meta=None,
+                 start_time=None, restart_time=None, finish_time=None, copy_method=None, skip_if_destination_exists=None, progress=None, history=None, backend_tag=None, kiwi_user=None, kwworm_options=None, pool=None, meta=None,
                  destination_compression_codec=None, destination_erasure_codec=None, destination_force_sort=None, copy_spec=None, postprocess_spec=None,
                  job_timeout=None, lease_timeout=None, queue_name=None):
         self.source_cluster = source_cluster
@@ -174,6 +174,7 @@ class Task(object):
 
         self.creation_time = creation_time
         self.start_time = start_time
+        self.restart_time = restart_time
         self.finish_time = finish_time
         self.state = state
         self.id = id
@@ -184,6 +185,7 @@ class Task(object):
         self.copy_method = copy_method
         self.skip_if_destination_exists = skip_if_destination_exists
         self.progress = progress
+        self.history = history
 
         self.backend_tag = backend_tag
         self.pool = pool
@@ -1446,11 +1448,21 @@ class Application(object):
                 raise RequestFailed("Cannot restart task in state " + self._tasks[id].state)
 
             self._tasks[id].state = "pending"
-            self._tasks[id].creation_time = now_str()
+            self._tasks[id].restart_time = now_str()
             self._tasks[id]._last_ping_time = time.time()
             self._tasks[id].finish_time = None
+
+            if self._tasks[id].history is None:
+                self._tasks[id].history = []
+            self._tasks[id].history.append(
+                {
+                    "progress": self._tasks[id].progress,
+                    "error": self._tasks[id].error
+                })
+
             self._tasks[id].progress = None
             self._tasks[id].error = None
+
             self._dump_task(id)
             self._pending_tasks.append(id)
 
