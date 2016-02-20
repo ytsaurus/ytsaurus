@@ -53,6 +53,8 @@ void TSchemalessWriterForYamr::ValidateColumnType(const TUnversionedValue* value
 
 void TSchemalessWriterForYamr::DoWrite(const std::vector<TUnversionedRow>& rows)
 {
+    TableIndexWasWritten_ = false;
+
     auto* stream = GetOutputStream();
     // This nasty line is needed to use Config as TYamrFormatConfigPtr
     // without extra serializing/deserializing.

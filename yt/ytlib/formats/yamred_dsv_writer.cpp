@@ -57,6 +57,8 @@ int TSchemalessWriterForYamredDsv::GetColumnCount() const
 
 void TSchemalessWriterForYamredDsv::DoWrite(const std::vector<NTableClient::TUnversionedRow>& rows) 
 {
+    TableIndexWasWritten_ = false;
+
     auto* stream = GetOutputStream();
     
     UpdateEscapedColumnNames();
