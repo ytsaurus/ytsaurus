@@ -144,21 +144,22 @@ private:
 
         auto objectManager = Bootstrap_->GetObjectManager();
         auto transactionManager = Bootstrap_->GetTransactionManager();
+        bool recursive = request->recursive();
 
-        for (const auto& protoId : request->object_ids()) {
-            auto objectId = FromProto<TObjectId>(protoId);
-            bool recursive = request->recursive();
-            context->SetRequestInfo("ObjectId: %v, Recursive: %v",
-                objectId,
-                recursive);
+        auto objectIds = FromProto<std::vector<TObjectId>>(request->object_ids());
+        context->SetRequestInfo("ObjectIds: %v, Recursive: %v",
+            objectIds,
+            recursive);
 
-            auto* object = objectManager->GetObjectOrThrow(objectId);
-            transactionManager->UnstageObject(object, recursive);
+        for (const auto& objectId : objectIds) {
+            auto object = objectManager->FindObject(objectId);
+            if (IsObjectAlive(object)) {
+                transactionManager->UnstageObject(object, recursive);
+            }
         }
 
         context->Reply();
     }
-
 };
 
 IObjectProxyPtr CreateMasterProxy(TBootstrap* bootstrap, TMasterObject* object)
