@@ -75,7 +75,7 @@ private:
         bool force) override;
     virtual void PingTransaction(
         const TTransactionId& transactionId,
-        const NHive::NProto::TReqPingTransaction& request) override;
+        bool pingAncestors) override;
 
 };
 

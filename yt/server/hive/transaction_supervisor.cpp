@@ -60,7 +60,8 @@ public:
         : THydraServiceBase(
             hydraManager->CreateGuardedAutomatonInvoker(automatonInvoker),
             TServiceId(TTransactionSupervisorServiceProxy::GetServiceName(), hiveManager->GetSelfCellId()),
-            HiveLogger)
+            HiveLogger,
+            TTransactionSupervisorServiceProxy::GetProtocolVersion())
         , TCompositeAutomatonPart(
             hydraManager,
             automaton,
@@ -197,12 +198,14 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NProto, PingTransaction)
     {
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
+        bool pingAncestors = request->ping_ancestors();
 
-        context->SetRequestInfo("TransactionId: %v",
-            transactionId);
+        context->SetRequestInfo("TransactionId: %v, PingAncestors: %v",
+            transactionId,
+            pingAncestors);
 
         // Any exception thrown here is replied to the client.
-        TransactionManager_->PingTransaction(transactionId, *request);
+        TransactionManager_->PingTransaction(transactionId, pingAncestors);
 
         context->Reply();
     }
