@@ -3,6 +3,25 @@
 #include "common.h"
 #include "enum.h"
 
+// Google Protobuf forward declarations.
+namespace google {
+namespace protobuf {
+
+///////////////////////////////////////////////////////////////////////////////
+
+class MessageLite;
+class Message;
+
+template <class Element>
+class RepeatedField;
+template <class Element>
+class RepeatedPtrField;
+
+///////////////////////////////////////////////////////////////////////////////
+
+} // namespace protobuf
+} // namespace google
+
 namespace NYT {
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -13,9 +32,7 @@ class TError;
 class TBloomFilter;
 class TDataStatistics;
 
-}  // namespace NProto
-
-///////////////////////////////////////////////////////////////////////////////
+} // namespace NProto
 
 struct TGuid;
 
@@ -38,7 +55,8 @@ class TCustomPersistenceContext;
 
 using TStreamPersistenceContext = TCustomPersistenceContext<
     TStreamSaveContext,
-    TStreamLoadContext>;
+    TStreamLoadContext
+>;
 
 struct TValueBoundComparer;
 struct TValueBoundSerializer;
