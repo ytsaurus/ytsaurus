@@ -186,6 +186,7 @@ struct IHydraManager
     bool IsLeader() const;
     bool IsFollower() const;
     bool IsRecovery() const;
+    void ValidatePeer(EPeerKind kind);
 
 };
 

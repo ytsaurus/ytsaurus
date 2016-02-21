@@ -157,9 +157,18 @@ public:
      */
     IObjectProxyPtr GetSchemaProxy(EObjectType type);
 
+    //! Creates a mutation that executes a request represented by #context.
+    /*!
+     *  Thread affinity: any
+     */
     NHydra::TMutationPtr CreateExecuteMutation(
-        const NProto::TReqExecute& request);
+        const Stroka& userName,
+        const NRpc::IServiceContextPtr& context);
 
+    //! Creates a mutation that destroys given objects.
+    /*!
+     *  Thread affinity: any
+     */
     NHydra::TMutationPtr CreateDestroyObjectsMutation(
         const NProto::TReqDestroyObjects& request);
 
@@ -175,9 +184,6 @@ public:
         const NObjectClient::NProto::TObjectCreationExtensions& extensions);
 
     IObjectResolver* GetObjectResolver();
-
-    //! Advices a client to yield if it spent a lot of time already.
-    bool AdviceYield(NProfiling::TCpuInstant startInstant) const;
 
     //! Validates prerequisites, throws on failure.
     void ValidatePrerequisites(const NObjectClient::NProto::TPrerequisitesExt& prerequisites);
@@ -263,9 +269,8 @@ private:
     virtual void OnStopLeading() override;
 
     void HydraExecuteLeader(
-        const NSecurityServer::TUserId& userId,
-        const NRpc::TMutationId& mutationId,
-        NRpc::IServiceContextPtr context);
+        const Stroka& userName,
+        const NRpc::IServiceContextPtr& context);
     void HydraExecuteFollower(const NProto::TReqExecute& request);
     void HydraDestroyObjects(const NProto::TReqDestroyObjects& request);
     void HydraCreateForeignObject(const NProto::TReqCreateForeignObject& request) noexcept;

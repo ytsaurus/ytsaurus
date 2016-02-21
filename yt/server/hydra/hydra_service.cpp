@@ -30,34 +30,7 @@ THydraServiceBase::THydraServiceBase(
 void THydraServiceBase::ValidatePeer(EPeerKind kind)
 {
     auto hydraManager = GetHydraManager();
-    switch (kind) {
-        case EPeerKind::Leader:
-            if (!hydraManager->IsActiveLeader()) {
-                THROW_ERROR_EXCEPTION(
-                    NRpc::EErrorCode::Unavailable,
-                    "Not an active leader");
-            }
-            break;
-
-        case EPeerKind::Follower:
-            if (!hydraManager->IsActiveFollower()) {
-                THROW_ERROR_EXCEPTION(
-                    NRpc::EErrorCode::Unavailable,
-                    "Not an active follower");
-            }
-            break;
-
-        case EPeerKind::LeaderOrFollower:
-            if (!hydraManager->IsActiveLeader() && !hydraManager->IsActiveFollower()) {
-                THROW_ERROR_EXCEPTION(
-                    NRpc::EErrorCode::Unavailable,
-                    "Not an active peer");
-            }
-            break;
-
-        default:
-            YUNREACHABLE();
-    }
+    hydraManager->ValidatePeer(kind);
 
     auto cancelableInvoker = hydraManager
         ->GetAutomatonCancelableContext()

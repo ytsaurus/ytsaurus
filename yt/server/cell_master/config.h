@@ -111,6 +111,8 @@ public:
 
     NObjectServer::TObjectManagerConfigPtr ObjectManager;
 
+    NObjectServer::TObjectServiceConfigPtr ObjectService;
+
     NCypressServer::TCypressManagerConfigPtr CypressManager;
 
     NSecurityServer::TSecurityManagerConfigPtr SecurityManager;

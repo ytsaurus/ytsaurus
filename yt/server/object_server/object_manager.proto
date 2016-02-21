@@ -8,7 +8,7 @@ import "yt/ytlib/object_client/master_ypath.proto";
 
 message TReqExecute
 {
-    required NYT.NProto.TGuid user_id = 1;
+    required string user_name = 1;
     repeated bytes request_parts = 2;
 }
 

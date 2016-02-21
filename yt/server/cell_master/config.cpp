@@ -37,6 +37,8 @@ TCellMasterConfig::TCellMasterConfig()
         .DefaultNew();
     RegisterParameter("object_manager", ObjectManager)
         .DefaultNew();
+    RegisterParameter("object_service", ObjectService)
+        .DefaultNew();
     RegisterParameter("cypress_manager", CypressManager)
         .DefaultNew();
     RegisterParameter("security_manager", SecurityManager)

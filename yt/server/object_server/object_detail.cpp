@@ -254,11 +254,12 @@ void TObjectProxyBase::Invoke(IServiceContextPtr context)
         objectManager->ValidatePrerequisites(prerequiesitesExt);
     }
 
-    LOG_DEBUG_UNLESS(IsRecovery(), "Invoke: %v:%v %v (ObjectId: %v, User: %v)",
+    LOG_DEBUG_UNLESS(IsRecovery(), "Invoke: %v:%v %v (ObjectId: %v, RequestId: %v, User: %v)",
         context->GetService(),
         context->GetMethod(),
         ypathExt.path(),
         GetVersionedId(),
+        context->GetRequestId(),
         user->GetName());
 
     NProfiling::TTagIdList tagIds{

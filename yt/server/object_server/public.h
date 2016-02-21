@@ -37,6 +37,7 @@ DECLARE_REFCOUNTED_CLASS(TObjectManager)
 DECLARE_REFCOUNTED_CLASS(TGarbageCollector)
 
 DECLARE_REFCOUNTED_CLASS(TObjectManagerConfig)
+DECLARE_REFCOUNTED_CLASS(TObjectServiceConfig)
 DECLARE_REFCOUNTED_CLASS(TMasterCacheServiceConfig)
 
 class TObjectBase;

@@ -134,15 +134,8 @@ public:
     virtual TResolveResult Resolve(const TYPath& path, IServiceContextPtr context) override
     {
         const auto& ypathExt = context->RequestHeader().GetExtension(NYTree::NProto::TYPathHeaderExt::ypath_header_ext);
-        if (ypathExt.mutating()) {
-            // Mutating request.
-
-            if (HasMutationContext()) {
-                // Nested call or recovery.
-                return DoResolveThere(path, std::move(context));
-            }
-
-            // Commit mutation.
+        if (ypathExt.mutating() && !HasMutationContext()) {
+            // Nested call or recovery.
             return DoResolveHere(path);
         } else {
             // Read-only request.
@@ -158,38 +151,12 @@ public:
             return;
         }
 
-        auto mutationId = GetMutationId(context);
-        if (mutationId) {
-            auto responseKeeper = Bootstrap_->GetHydraFacade()->GetResponseKeeper();
-            auto asyncResponseMessage = responseKeeper->TryBeginRequest(mutationId, context->IsRetry());
-            if (asyncResponseMessage) {
-                context->ReplyFrom(std::move(asyncResponseMessage));
-                return;
-            }
-        }
-
         auto securityManager = Bootstrap_->GetSecurityManager();
         auto* user = securityManager->GetAuthenticatedUser();
-        auto userId = user->GetId();
-
-        NProto::TReqExecute request;
-        ToProto(request.mutable_user_id(), userId);
-        // TODO(babenko): optimize, use multipart records
-        auto requestMessage = context->GetRequestMessage();
-        for (const auto& part : requestMessage) {
-            request.add_request_parts(part.Begin(), part.Size());
-        }
 
         auto objectManager = Bootstrap_->GetObjectManager();
         objectManager
-            ->CreateExecuteMutation(request)
-            ->SetAction(
-                BIND(
-                    &TObjectManager::HydraExecuteLeader,
-                    objectManager,
-                    userId,
-                    mutationId,
-                    context))
+            ->CreateExecuteMutation(user->GetName(), context)
             ->Commit()
             .Subscribe(BIND([=] (const TErrorOr<TMutationResponse>& result) {
                 if (!result.IsOK()) {
@@ -891,13 +858,28 @@ void TObjectManager::FillAttributes(
     }
 }
 
-TMutationPtr TObjectManager::CreateExecuteMutation(const NProto::TReqExecute& request)
+TMutationPtr TObjectManager::CreateExecuteMutation(
+    const Stroka& userName,
+    const IServiceContextPtr& context)
 {
-    return CreateMutation(
-        Bootstrap_->GetHydraFacade()->GetHydraManager(),
-        request,
-        this,
-        &TObjectManager::HydraExecuteFollower);
+    NProto::TReqExecute request;
+    request.set_user_name(userName);
+    auto requestMessage = context->GetRequestMessage();
+    for (const auto& part : requestMessage) {
+        request.add_request_parts(part.Begin(), part.Size());
+    }
+
+    return
+        CreateMutation(
+            Bootstrap_->GetHydraFacade()->GetHydraManager(),
+            request,
+            this,
+            &TObjectManager::HydraExecuteFollower)
+        ->SetAction(BIND(
+            &TObjectManager::HydraExecuteLeader,
+            MakeStrong(this),
+            userName,
+            context));
 }
 
 TMutationPtr TObjectManager::CreateDestroyObjectsMutation(const NProto::TReqDestroyObjects& request)
@@ -1059,11 +1041,6 @@ IObjectResolver* TObjectManager::GetObjectResolver()
     return ObjectResolver_.get();
 }
 
-bool TObjectManager::AdviceYield(NProfiling::TCpuInstant startInstant) const
-{
-    return NProfiling::GetCpuInstant() > startInstant + NProfiling::DurationToCpuDuration(Config_->YieldTimeout);
-}
-
 void TObjectManager::ValidatePrerequisites(const NObjectClient::NProto::TPrerequisitesExt& prerequisites)
 {
     auto transactionManager = Bootstrap_->GetTransactionManager();
@@ -1201,33 +1178,30 @@ void TObjectManager::ReplicateObjectAttributesToSecondaryMaster(
 }
 
 void TObjectManager::HydraExecuteLeader(
-    const TUserId& userId,
-    const TMutationId& mutationId,
-    IServiceContextPtr context)
+    const Stroka& userName,
+    const IServiceContextPtr& context)
 {
     NProfiling::TScopedTimer timer;
 
     auto securityManager = Bootstrap_->GetSecurityManager();
 
+    TUser* user = nullptr;
     try {
-        auto* user = securityManager->GetUserOrThrow(userId);
+        user = securityManager->GetUserByNameOrThrow(userName);
         TAuthenticatedUserGuard userGuard(securityManager, user);
         ExecuteVerb(RootService_, context);
     } catch (const std::exception& ex) {
         context->Reply(ex);
     }
 
-    if (IsLeader()) {
-        auto* user = securityManager->FindUser(userId);
-        if (IsObjectAlive(user)) {
-            // NB: Charge for zero requests here since we've already charged the user for one request
-            // in TObjectService.
-            securityManager->ChargeUser(user, 0, TDuration(), timer.GetElapsed());
-        }
+    if (IsLeader() && IsObjectAlive(user)) {
+        securityManager->ChargeUser(user, 1, TDuration(), timer.GetElapsed());
     }
 
+    auto mutationId = GetMutationId(context);
     if (mutationId) {
-        auto responseKeeper = Bootstrap_->GetHydraFacade()->GetResponseKeeper();
+        auto hydraFacade = Bootstrap_->GetHydraFacade();
+        auto responseKeeper = hydraFacade->GetResponseKeeper();
         // NB: Context must already be replied by now.
         responseKeeper->EndRequest(mutationId, context->GetResponseMessage());
     }
@@ -1237,7 +1211,7 @@ void TObjectManager::HydraExecuteFollower(const NProto::TReqExecute& request)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    auto userId = FromProto<TUserId>(request.user_id());
+    const auto& userName = request.user_name();
 
     std::vector<TSharedRef> parts(request.request_parts_size());
     for (int partIndex = 0; partIndex < request.request_parts_size(); ++partIndex) {
@@ -1245,15 +1219,9 @@ void TObjectManager::HydraExecuteFollower(const NProto::TReqExecute& request)
     }
 
     auto requestMessage = TSharedRefArray(std::move(parts));
-
     auto context = CreateYPathContext(std::move(requestMessage));
 
-    auto mutationId = GetMutationId(context);
-
-    HydraExecuteLeader(
-        userId,
-        mutationId,
-        std::move(context));
+    HydraExecuteLeader(userName, std::move(context));
 }
 
 void TObjectManager::HydraDestroyObjects(const NProto::TReqDestroyObjects& request)

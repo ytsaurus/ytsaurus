@@ -9,7 +9,7 @@ namespace NYTree {
 
 template <class TTypedRequest>
 TFuture<TIntrusivePtr<typename TTypedRequest::TTypedResponse>>
-ExecuteVerb(IYPathServicePtr service, TIntrusivePtr<TTypedRequest> request)
+ExecuteVerb(const IYPathServicePtr& service, const TIntrusivePtr<TTypedRequest>& request)
 {
     typedef typename TTypedRequest::TTypedResponse TTypedResponse;
 
@@ -24,7 +24,7 @@ ExecuteVerb(IYPathServicePtr service, TIntrusivePtr<TTypedRequest> request)
 
 template <class TTypedRequest>
 TIntrusivePtr<typename TTypedRequest::TTypedResponse>
-SyncExecuteVerb(IYPathServicePtr service, TIntrusivePtr<TTypedRequest> request)
+SyncExecuteVerb(const IYPathServicePtr& service, const TIntrusivePtr<TTypedRequest>& request)
 {
     return ExecuteVerb(service, request)
         .Get()

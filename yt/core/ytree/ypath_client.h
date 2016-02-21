@@ -156,86 +156,82 @@ TYPath ComputeResolvedYPath(
 //! Runs a sequence of IYPathService::Resolve calls aimed to discover the
 //! ultimate endpoint responsible for serving a given request.
 void ResolveYPath(
-    IYPathServicePtr rootService,
-    NRpc::IServiceContextPtr context,
+    const IYPathServicePtr& rootService,
+    const NRpc::IServiceContextPtr& context,
     IYPathServicePtr* suffixService,
     TYPath* suffixPath);
 
 //! Asynchronously executes an untyped request against a given service.
 TFuture<TSharedRefArray>
 ExecuteVerb(
-    IYPathServicePtr service,
-    TSharedRefArray requestMessage,
-    const NLogging::TLogger& logger = NLogging::TLogger(),
-    NLogging::ELogLevel logLevel = NLogging::ELogLevel::Debug,
-    const Stroka& requestInfo = Stroka(),
-    const Stroka& responseInfo = Stroka());
+    const IYPathServicePtr& service,
+    const TSharedRefArray& requestMessage);
 
 //! Asynchronously executes a request against a given service.
 void ExecuteVerb(
-    IYPathServicePtr service,
-    NRpc::IServiceContextPtr context);
+    const IYPathServicePtr& service,
+    const NRpc::IServiceContextPtr& context);
 
 //! Asynchronously executes a typed YPath request against a given service.
 template <class TTypedRequest>
-TFuture< TIntrusivePtr<typename TTypedRequest::TTypedResponse> >
+TFuture<TIntrusivePtr<typename TTypedRequest::TTypedResponse>>
 ExecuteVerb(
-    IYPathServicePtr service,
-    TIntrusivePtr<TTypedRequest> request);
+    const IYPathServicePtr& service,
+    const TIntrusivePtr<TTypedRequest>& request);
 
 //! Synchronously executes a typed YPath request against a given service.
 //! Throws if an error has occurred.
 template <class TTypedRequest>
 TIntrusivePtr<typename TTypedRequest::TTypedResponse>
 SyncExecuteVerb(
-    IYPathServicePtr service,
-    TIntrusivePtr<TTypedRequest> request);
+    const IYPathServicePtr& service,
+    const TIntrusivePtr<TTypedRequest>& request);
 
 //! Synchronously executes |GetKey| verb. Throws if an error has occurred.
 Stroka SyncYPathGetKey(
-    IYPathServicePtr service,
+    const IYPathServicePtr& service,
     const TYPath& path);
 
 //! Asynchronously executes |Get| verb.
 TFuture<NYson::TYsonString> AsyncYPathGet(
-    IYPathServicePtr service,
+    const IYPathServicePtr& service,
     const TYPath& path,
     const TNullable<std::vector<Stroka>>& attributeKeys = Null,
     bool ignoreOpaque = false);
 
 //! Synchronously executes |Get| verb. Throws if an error has occurred.
 NYson::TYsonString SyncYPathGet(
-    IYPathServicePtr service,
+    const IYPathServicePtr& service,
     const TYPath& path,
     const TNullable<std::vector<Stroka>>& attributeKeys = Null,
     bool ignoreOpaque = false);
 
 //! Asynchronously executes |Exists| verb.
 TFuture<bool> AsyncYPathExists(
-    IYPathServicePtr service,
+    const IYPathServicePtr& service,
     const TYPath& path);
 
 //! Synchronously executes |Exists| verb. Throws if an error has occurred.
 bool SyncYPathExists(
-    IYPathServicePtr service,
+    const IYPathServicePtr& service,
     const TYPath& path);
 
 //! Synchronously executes |Set| verb. Throws if an error has occurred.
 void SyncYPathSet(
-    IYPathServicePtr service,
+    const IYPathServicePtr& service,
     const TYPath& path,
     const NYson::TYsonString& value);
 
 //! Synchronously executes |Remove| verb. Throws if an error has occurred.
 void SyncYPathRemove(
-    IYPathServicePtr service,
+    const IYPathServicePtr& service,
     const TYPath& path,
     bool recursive = true,
     bool force = false);
 
 //! Synchronously executes |List| verb. Throws if an error has occurred.
 std::vector<Stroka> SyncYPathList(
-    IYPathServicePtr service,
+    const IYPathServicePtr& service,
     const TYPath& path);
 
 //! Overrides a part of #root tree.
@@ -244,15 +240,20 @@ std::vector<Stroka> SyncYPathList(
  *  The method updates #root by setting |value| (forcing those parts of |path| that are missing).
  */
 void ApplyYPathOverride(
-    INodePtr root,
+    const INodePtr& root,
     const TStringBuf& overrideString);
 
 /*!
  *  Throws exception if the specified node does not exist.
  */
-INodePtr GetNodeByYPath(INodePtr root, const TYPath& path);
+INodePtr GetNodeByYPath(
+    const INodePtr& root,
+    const TYPath& path);
 
-void SetNodeByYPath(INodePtr root, const TYPath& path, INodePtr value);
+void SetNodeByYPath(
+    const INodePtr& root,
+    const TYPath& path,
+    const INodePtr& value);
 
 //! Creates missing maps along #path.
 /*!
@@ -260,20 +261,20 @@ void SetNodeByYPath(INodePtr root, const TYPath& path, INodePtr value);
  *  nested maps |a| and |b| get created. Note that the final key (i.e. |c|)
  *  is not forced (since we have no idea of its type anyway).
  */
-void ForceYPath(INodePtr root, const TYPath& path);
+void ForceYPath(const INodePtr& root, const TYPath& path);
 
 //! Computes a full YPath for a given #node and (optionally) returns the root.
-TYPath GetNodeYPath(INodePtr node, INodePtr* root = nullptr);
+TYPath GetNodeYPath(const INodePtr& node, INodePtr* root = nullptr);
 
 //! Constructs an ephemeral deep copy of #node.
-INodePtr CloneNode(INodePtr node);
+INodePtr CloneNode(const INodePtr& node);
 
 //! Applies changes given by #patch to #base.
 //! Returns the resulting tree.
-INodePtr UpdateNode(INodePtr base, INodePtr patch);
+INodePtr UpdateNode(const INodePtr& base, const INodePtr& patch);
 
 //! Checks given nodes for deep equality.
-bool AreNodesEqual(INodePtr lhs, INodePtr rhs);
+bool AreNodesEqual(const INodePtr& lhs, const INodePtr& rhs);
 
 ////////////////////////////////////////////////////////////////////////////////
 
