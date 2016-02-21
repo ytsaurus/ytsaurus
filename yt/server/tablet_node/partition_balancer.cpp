@@ -225,11 +225,12 @@ private:
         }
 
         auto Logger = TabletNodeLogger;
-        Logger.AddTag("TabletId: %v, PartitionIds: [%v]",
+        Logger.AddTag("TabletId: %v, PartitionIds: %v",
             partition->GetTablet()->GetId(),
-            JoinToString(
-                tablet->Partitions().begin() + firstPartitionIndex,
-                tablet->Partitions().begin() + lastPartitionIndex + 1,
+            MakeFormattableRange(
+                MakeRange(
+                    tablet->Partitions().data() + firstPartitionIndex,
+                    tablet->Partitions().data() + lastPartitionIndex + 1),
                 TPartitionIdFormatter()));
 
         LOG_INFO("Partition is eligible for merge");

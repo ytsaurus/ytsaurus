@@ -1069,16 +1069,15 @@ private:
 
         SplitTabletPartition(tablet, partitionIndex, pivotKeys);
 
-        auto resultingPartitionIds = JoinToString(
-            tablet->Partitions().begin() + partitionIndex,
-            tablet->Partitions().begin() + partitionIndex + pivotKeys.size(),
-            TPartitionIdFormatter());
-
         LOG_INFO_UNLESS(IsRecovery(), "Splitting partition (TabletId: %v, OriginalPartitionId: %v, "
             "ResultingPartitionIds: %v, DataSize: %v, Keys: %v)",
             tablet->GetId(),
             partitionId,
-            resultingPartitionIds,
+            MakeFormattableRange(
+                MakeRange(
+                    tablet->Partitions().data() + partitionIndex,
+                    tablet->Partitions().data() + partitionIndex + pivotKeys.size()),
+                TPartitionIdFormatter()),
             partitionDataSize,
             JoinToString(pivotKeys, STRINGBUF(" .. ")));
 
@@ -1116,10 +1115,12 @@ private:
             partition->SetState(EPartitionState::Normal);
         }
 
-        auto originalPartitionIds = JoinToString(
-            tablet->Partitions().begin() + firstPartitionIndex,
-            tablet->Partitions().begin() + lastPartitionIndex + 1,
-            TPartitionIdFormatter());
+        auto originalPartitionIds = Format("%v",
+            MakeFormattableRange(
+                MakeRange(
+                    tablet->Partitions().data() + firstPartitionIndex,
+                    tablet->Partitions().data() + lastPartitionIndex + 1),
+            TPartitionIdFormatter()));
 
         MergeTabletPartitions(tablet, firstPartitionIndex, lastPartitionIndex);
 

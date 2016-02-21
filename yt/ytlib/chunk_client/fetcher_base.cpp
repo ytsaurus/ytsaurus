@@ -199,9 +199,9 @@ void TFetcherBase::StartFetchingRound()
                 unavailableChunks.insert(chunk);
             } else {
                 Promise_.Set(TError(
-                    "Unable to fetch info for chunk %v from any of nodes [%v]",
+                    "Unable to fetch info for chunk %v from any of nodes %v",
                     chunkId,
-                    JoinToString(replicas, TChunkReplicaAddressFormatter(NodeDirectory_))));
+                    MakeFormattableRange(replicas, TChunkReplicaAddressFormatter(NodeDirectory_))));
                 return;
             }
         }

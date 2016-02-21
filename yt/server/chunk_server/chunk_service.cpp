@@ -109,13 +109,13 @@ private:
 
         context->SetRequestInfo(
             "ChunkId: %v, DesiredTargetCount: %v, MinTargetCount: %v, ReplicationFactorOverride: %v, "
-            "PeferredHostName: %v, ForbiddenAddresses: [%v]",
+            "PeferredHostName: %v, ForbiddenAddresses: %v",
             chunkId,
             desiredTargetCount,
             minTargetCount,
             replicationFactorOverride,
             preferredHostName,
-            JoinToString(forbiddenAddresses));
+            forbiddenAddresses);
         
         auto chunkManager = Bootstrap_->GetChunkManager();
         auto nodeTracker = Bootstrap_->GetNodeTracker();
@@ -151,8 +151,8 @@ private:
             response->add_replicas(NYT::ToProto<ui32>(replica));
         }
 
-        context->SetResponseInfo("Targets: [%v]",
-            JoinToString(targets, TNodePtrAddressFormatter()));
+        context->SetResponseInfo("Targets: %v",
+            MakeFormattableRange(targets, TNodePtrAddressFormatter()));
         context->Reply();
     }
 
