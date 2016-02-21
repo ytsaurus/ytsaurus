@@ -99,9 +99,9 @@ public:
         }
 
         auto maybeLocalAddress = LocalDescriptor_ ? MakeNullable(LocalDescriptor_->GetAddressOrThrow(NetworkName_)) : Null;
-        LOG_DEBUG("Reader initialized (InitialSeedReplicas: [%v], FetchPromPeers: %v, LocalAddress: %v, PopulateCache: %v, "
+        LOG_DEBUG("Reader initialized (InitialSeedReplicas: %v, FetchPromPeers: %v, LocalAddress: %v, PopulateCache: %v, "
             "AllowFetchingSeedsFromMaster: %v, Network: %v)",
-            JoinToString(InitialSeedReplicas_, TChunkReplicaAddressFormatter(NodeDirectory_)),
+            MakeFormattableRange(InitialSeedReplicas_, TChunkReplicaAddressFormatter(NodeDirectory_)),
             Config_->FetchFromPeers,
             maybeLocalAddress,
             Config_->PopulateCache,
@@ -232,8 +232,8 @@ private:
         NodeDirectory_->MergeFrom(rsp->node_directory());
         auto seedReplicas = FromProto<TChunkReplicaList>(chunkInfo.replicas());
 
-        LOG_DEBUG("Chunk seeds received (SeedReplicas: [%v])",
-            JoinToString(seedReplicas, TChunkReplicaAddressFormatter(NodeDirectory_)));
+        LOG_DEBUG("Chunk seeds received (SeedReplicas: %v)",
+            MakeFormattableRange(seedReplicas, TChunkReplicaAddressFormatter(NodeDirectory_)));
 
         YCHECK(!GetSeedsPromise_.IsSet());
         GetSeedsPromise_.Set(seedReplicas);

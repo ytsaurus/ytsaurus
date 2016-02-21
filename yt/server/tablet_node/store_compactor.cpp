@@ -593,10 +593,10 @@ private:
 
             // NB: No exceptions must be thrown beyond this point!
 
-            LOG_INFO("Eden partitioning completed (RowCount: %v, StoreIdsToAdd: [%v], StoreIdsToRemove: [%v])",
+            LOG_INFO("Eden partitioning completed (RowCount: %v, StoreIdsToAdd: %v, StoreIdsToRemove: %v)",
                 readRowCount,
-                JoinToString(storeIdsToAdd),
-                JoinToString(storeIdsToRemove));
+                storeIdsToAdd,
+                storeIdsToRemove);
 
             for (const auto& store : stores) {
                 storeManager->EndStoreCompaction(store);
@@ -776,10 +776,10 @@ private:
 
             // NB: No exceptions must be thrown beyond this point!
 
-            LOG_INFO("Partition compaction completed (RowCount: %v, StoreIdsToAdd: [%v], StoreIdsToRemove: [%v])",
+            LOG_INFO("Partition compaction completed (RowCount: %v, StoreIdsToAdd: %v, StoreIdsToRemove: %v)",
                 readRowCount,
-                JoinToString(storeIdsToAdd),
-                JoinToString(storeIdsToRemove));
+                storeIdsToAdd,
+                storeIdsToRemove);
 
             for (const auto& store : stores) {
                 storeManager->EndStoreCompaction(store);

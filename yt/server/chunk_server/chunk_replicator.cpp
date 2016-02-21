@@ -651,11 +651,11 @@ bool TChunkReplicator::CreateReplicationJob(
         sourceNode,
         targetNodes);
 
-    LOG_DEBUG("Replication job scheduled (JobId: %v, Address: %v, ChunkId: %v, TargetAddresses: [%v])",
+    LOG_DEBUG("Replication job scheduled (JobId: %v, Address: %v, ChunkId: %v, TargetAddresses: %v)",
         (*job)->GetJobId(),
         sourceNode->GetDefaultAddress(),
         chunkWithIndex,
-        JoinToString(targetNodes, TNodePtrAddressFormatter()));
+        MakeFormattableRange(targetNodes, TNodePtrAddressFormatter()));
 
     return targetNodes.size() == replicasNeeded;
 }
@@ -776,11 +776,11 @@ bool TChunkReplicator::CreateRepairJob(
         erasedIndexes,
         Config_->RepairJobMemoryUsage);
 
-    LOG_DEBUG("Repair job scheduled (JobId: %v, Address: %v, ChunkId: %v, TargetAddresses: [%v], ErasedIndexes: %v)",
+    LOG_DEBUG("Repair job scheduled (JobId: %v, Address: %v, ChunkId: %v, TargetAddresses: %v, ErasedIndexes: %v)",
         (*job)->GetJobId(),
         node->GetDefaultAddress(),
         chunk->GetId(),
-        JoinToString(targetNodes, TNodePtrAddressFormatter()),
+        MakeFormattableRange(targetNodes, TNodePtrAddressFormatter()),
         erasedIndexes);
 
     return true;

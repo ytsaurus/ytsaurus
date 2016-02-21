@@ -35,16 +35,15 @@ static const auto& Logger = TabletNodeLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace {
-
-void StoreRangeFormatter(TStringBuilder* builder, const IStorePtr& store)
+struct TStoreRangeFormatter
 {
-    builder->AppendFormat("<%v:%v>",
-        store->GetMinKey(),
-        store->GetMaxKey());
-}
-
-} // namespace
+    void operator()(TStringBuilder* builder, const IStorePtr& store) const
+    {
+        builder->AppendFormat("<%v:%v>",
+            store->GetMinKey(),
+            store->GetMaxKey());
+    }
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -75,15 +74,15 @@ ISchemafulReaderPtr CreateSchemafulTabletReader(
     }
 
     LOG_DEBUG("Creating schemaful tablet reader (TabletId: %v, CellId: %v, Timestamp: %v, "
-        "LowerBound: %v, UpperBound: %v, WorkloadDescriptor: %v, StoreIds: [%v], StoreRanges: [%v])",
+        "LowerBound: %v, UpperBound: %v, WorkloadDescriptor: %v, StoreIds: %v, StoreRanges: %v)",
         tabletSnapshot->TabletId,
         tabletSnapshot->CellId,
         timestamp,
         lowerBound,
         upperBound,
         workloadDescriptor,
-        JoinToString(stores, TStoreIdFormatter()),
-        JoinToString(stores, StoreRangeFormatter));
+        MakeFormattableRange(stores, TStoreIdFormatter()),
+        MakeFormattableRange(stores, TStoreRangeFormatter()));
 
     if (stores.size() > tabletSnapshot->Config->MaxReadFanIn) {
         THROW_ERROR_EXCEPTION("Read fan-in limit exceeded; please wait until your data is merged")
@@ -156,13 +155,14 @@ ISchemafulReaderPtr CreateSchemafulPartitionReader(
     takePartition(tabletSnapshot->Eden);
     takePartition(paritionSnapshot);
 
-    LOG_DEBUG("Creating schemaful tablet reader (TabletId: %v, CellId: %v, Timestamp: %v, WorkloadDescriptor: %v, StoreIds: [%v], StoreRanges: {%v})",
+    LOG_DEBUG("Creating schemaful tablet reader (TabletId: %v, CellId: %v, Timestamp: %v, WorkloadDescriptor: %v, "
+        "StoreIds: %v, StoreRanges: %v)",
         tabletSnapshot->TabletId,
         tabletSnapshot->CellId,
         timestamp,
         workloadDescriptor,
-        JoinToString(stores, TStoreIdFormatter()),
-        JoinToString(stores, StoreRangeFormatter));
+        MakeFormattableRange(stores, TStoreIdFormatter()),
+        MakeFormattableRange(stores, TStoreRangeFormatter()));
 
     auto rowMerger = New<TSchemafulRowMerger>(
         rowBuffer
@@ -264,7 +264,7 @@ IVersionedReaderPtr CreateVersionedTabletReader(
 {
     LOG_DEBUG(
         "Creating versioned tablet reader (TabletId: %v, CellId: %v, LowerBound: %v, UpperBound: %v, "
-        "CurrentTimestamp: %v, MajorTimestamp: %v, WorkloadDescriptor: %v, StoreIds: [%v], StoreRanges: [%v])",
+        "CurrentTimestamp: %v, MajorTimestamp: %v, WorkloadDescriptor: %v, StoreIds: %v, StoreRanges: %v)",
         tabletSnapshot->TabletId,
         tabletSnapshot->CellId,
         lowerBound,
@@ -272,8 +272,8 @@ IVersionedReaderPtr CreateVersionedTabletReader(
         currentTimestamp,
         majorTimestamp,
         workloadDescriptor,
-        JoinToString(stores, TStoreIdFormatter()),
-        JoinToString(stores, StoreRangeFormatter));
+        MakeFormattableRange(stores, TStoreIdFormatter()),
+        MakeFormattableRange(stores, TStoreRangeFormatter()));
 
     auto rowMerger = New<TVersionedRowMerger>(
         New<TRowBuffer>(TRefCountedTypeTag<TTabletReaderPoolTag>()),

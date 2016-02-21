@@ -908,9 +908,9 @@ DEFINE_RPC_SERVICE_METHOD(TServiceBase, Discover)
     response->set_up(IsUp(context));
     ToProto(response->mutable_suggested_addresses(), SuggestAddresses());
 
-    context->SetResponseInfo("Up: %v, SuggestedAddresses: [%v]",
+    context->SetResponseInfo("Up: %v, SuggestedAddresses: %v",
         response->up(),
-        JoinToString(response->suggested_addresses()));
+        response->suggested_addresses());
 
     context->Reply();
 }
