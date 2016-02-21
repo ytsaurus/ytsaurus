@@ -14,40 +14,70 @@
 namespace NYT {
 namespace NCypressServer {
 
-using NCellMaster::TBootstrap;
 using namespace NYTree;
 using namespace NTransactionServer;
+using namespace NCellMaster;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace {
+static const int MaxNodesPerStep = 1000;
 
-static const int MaxNodesPerAction = 1000;
+////////////////////////////////////////////////////////////////////////////////
 
 class TNodeTraverser
     : public TRefCounted
 {
+public:
+    TNodeTraverser(
+        TBootstrap* bootstrap,
+        ICypressNodeVisitorPtr visitor,
+        ICypressNodeProxyPtr rootNode)
+        : Bootstrap_(bootstrap)
+        , Visitor_(std::move(visitor))
+        , RootNode_(std::move(rootNode))
+        , Invoker_(Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::CypressTraverser))
+        , TransactionId_(GetObjectId(RootNode_->GetTransaction()))
+    { }
+
+    void Run()
+    {
+        VisitNode(RootNode_);
+        DoTraverse();
+    }
+
 private:
+    TBootstrap* const Bootstrap_;
+    const ICypressNodeVisitorPtr Visitor_;
+    const ICypressNodeProxyPtr RootNode_;
+
+    const IInvokerPtr Invoker_;
+    const TTransactionId TransactionId_;
+
     struct TStackEntry
     {
         TNodeId Id;
-        int ChildIndex;
+        int ChildIndex = 0;
         std::vector<TNodeId> Children;
 
-        TStackEntry(const TNodeId& nodeId)
+        explicit TStackEntry(const TNodeId& nodeId)
             : Id(nodeId)
-            , ChildIndex(0)
         { }
     };
 
+    std::vector<TStackEntry> Stack_;
+
+    // Used to determine cyclic references.
+    yhash_set<TNodeId> VisitedNodes_;
+
+
     void VisitNode(ICypressNodeProxyPtr nodeProxy)
     {
-        Visitor->OnNode(nodeProxy);
+        Visitor_->OnNode(nodeProxy);
         const auto& id = nodeProxy->GetId();
 
-        YCHECK(VisitedNodes.insert(id).second);
-        Stack.push_back(TStackEntry(id));
-        auto& entry = Stack.back();
+        YCHECK(VisitedNodes_.insert(id).second);
+        Stack_.push_back(TStackEntry(id));
+        auto& entry = Stack_.back();
 
         switch (nodeProxy->GetType()) {
             case ENodeType::Map: {
@@ -85,22 +115,22 @@ private:
     void DoTraverse()
     {
         try {
-            auto transactionManager = Bootstrap->GetTransactionManager();
-            auto cypressManager = Bootstrap->GetCypressManager();
+            auto transactionManager = Bootstrap_->GetTransactionManager();
+            auto cypressManager = Bootstrap_->GetCypressManager();
 
-            auto* transaction = TransactionId
-                ? transactionManager->GetTransactionOrThrow(TransactionId)
+            auto* transaction = TransactionId_
+                ? transactionManager->GetTransactionOrThrow(TransactionId_)
                 : nullptr;
 
             int currentNodeCount = 0;
-            while (currentNodeCount < MaxNodesPerAction) {
-                YASSERT(!Stack.empty());
-                auto& entry = Stack.back();
+            while (currentNodeCount < MaxNodesPerStep) {
+                YASSERT(!Stack_.empty());
+                auto& entry = Stack_.back();
                 auto childIndex = entry.ChildIndex++;
                 if (childIndex >= entry.Children.size()) {
-                    Stack.pop_back();
-                    if (Stack.empty()) {
-                        Visitor->OnCompleted();
+                    Stack_.pop_back();
+                    if (Stack_.empty()) {
+                        Visitor_->OnCompleted();
                         return;
                     }
                 } else {
@@ -113,44 +143,12 @@ private:
             }
 
             // Schedule continuation.
-            Bootstrap
-                ->GetHydraFacade()
-                ->GetGuardedAutomatonInvoker()
-                ->Invoke(BIND(&TNodeTraverser::DoTraverse, MakeStrong(this)));
+            Invoker_->Invoke(BIND(&TNodeTraverser::DoTraverse, MakeStrong(this)));
         } catch (const std::exception& ex) {
-            Visitor->OnError(ex);
+            Visitor_->OnError(ex);
         }
     }
-
-    TBootstrap* Bootstrap;
-    ICypressNodeVisitorPtr Visitor;
-
-    TTransactionId TransactionId;
-
-    std::vector<TStackEntry> Stack;
-
-    // Used to determine cyclic references.
-    yhash_set<TNodeId> VisitedNodes;
-
-
-public:
-    TNodeTraverser(TBootstrap* bootstrap, ICypressNodeVisitorPtr visitor)
-        : Bootstrap(bootstrap)
-        , Visitor(visitor)
-        , TransactionId(NullTransactionId)
-    {  }
-
-    void Run(ICypressNodeProxyPtr rootNode)
-    {
-        auto* transaction = rootNode->GetTransaction();
-        TransactionId = transaction ? transaction->GetId() : NullTransactionId;
-        VisitNode(rootNode);
-        DoTraverse();
-    };
-
 };
-
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -159,8 +157,7 @@ void TraverseCypress(
     ICypressNodeProxyPtr rootNode,
     ICypressNodeVisitorPtr visitor)
 {
-    auto traverser = New<TNodeTraverser>(bootstrap, visitor);
-    traverser->Run(rootNode);
+    New<TNodeTraverser>(bootstrap, visitor, rootNode)->Run();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
