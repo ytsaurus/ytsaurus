@@ -197,22 +197,46 @@ struct TValueFormatter<TEnum, typename std::enable_if<TEnumTraits<TEnum>::IsEnum
     }
 };
 
+template <class TRange, class TFormatter>
+TFormattableRange<TRange, TFormatter> MakeFormattableRange(
+    const TRange& range,
+    const TFormatter& formatter)
+{
+    return TFormattableRange<TRange, TFormatter>{range, formatter};
+};
+
+template <class TRange, class TFormatter>
+void FormatRange(TStringBuilder* builder, const TRange& range, const TFormatter& formatter)
+{
+    builder->AppendChar('[');
+    bool firstItem = true;
+    for (const auto& item : range) {
+        if (!firstItem) {
+            builder->AppendString(DefaultJoinToStringDelimiter);
+        }
+        formatter(builder, item);
+        firstItem = false;
+    }
+    builder->AppendChar(']');
+}
+
+// TFormattableRange
+template <class TRange, class TFormatter>
+struct TValueFormatter<TFormattableRange<TRange, TFormatter>>
+{
+    static void Do(TStringBuilder* builder, const TFormattableRange<TRange, TFormatter>& range, const TStringBuf& /*format*/)
+    {
+        FormatRange(builder, range.Range, range.Formatter);
+    }
+};
+
 // TRange
 template <class T>
 struct TValueFormatter<TRange<T>>
 {
-    static void Do(TStringBuilder* builder, const TRange<T>& range, const TStringBuf& format)
+    static void Do(TStringBuilder* builder, const TRange<T>& range, const TStringBuf& /*format*/)
     {
-        builder->AppendChar('[');
-        bool firstItem = true;
-        for (const auto& item : range) {
-            if (!firstItem) {
-                builder->AppendString(DefaultJoinToStringDelimiter);
-            }
-            FormatValue(builder, item, format);
-            firstItem = false;
-        }
-        builder->AppendChar(']');
+        FormatRange(builder, range, TDefaultFormatter());
     }
 };
 
@@ -220,9 +244,9 @@ struct TValueFormatter<TRange<T>>
 template <class T>
 struct TValueFormatter<TSharedRange<T>>
 {
-    static void Do(TStringBuilder* builder, const TSharedRange<T>& range, const TStringBuf& format)
+    static void Do(TStringBuilder* builder, const TSharedRange<T>& range, const TStringBuf& /*format*/)
     {
-        FormatValue(builder, TRange<T>(range), format);
+        FormatRange(builder, range, TDefaultFormatter());
     }
 };
 
@@ -230,9 +254,9 @@ struct TValueFormatter<TSharedRange<T>>
 template <class T>
 struct TValueFormatter<std::vector<T>>
 {
-    static void Do(TStringBuilder* builder, const std::vector<T>& collection, const TStringBuf& format)
+    static void Do(TStringBuilder* builder, const std::vector<T>& collection, const TStringBuf& /*format*/)
     {
-        FormatValue(builder, MakeRange(collection), format);
+        FormatRange(builder, MakeRange(collection), TDefaultFormatter());
     }
 };
 
@@ -240,9 +264,29 @@ struct TValueFormatter<std::vector<T>>
 template <class T, unsigned N>
 struct TValueFormatter<SmallVector<T, N>>
 {
-    static void Do(TStringBuilder* builder, const SmallVector<T, N>& collection, const TStringBuf& format)
+    static void Do(TStringBuilder* builder, const SmallVector<T, N>& collection, const TStringBuf& /*format*/)
     {
-        FormatValue(builder, MakeRange(collection), format);
+        FormatRange(builder, collection, TDefaultFormatter());
+    }
+};
+
+// RepeatedField
+template <class T>
+struct TValueFormatter<::google::protobuf::RepeatedField<T>>
+{
+    static void Do(TStringBuilder* builder, const ::google::protobuf::RepeatedField<T>& collection, const TStringBuf& /*format*/)
+    {
+        FormatRange(builder, collection, TDefaultFormatter());
+    }
+};
+
+// RepeatedPtrField
+template <class T>
+struct TValueFormatter<::google::protobuf::RepeatedPtrField<T>>
+{
+    static void Do(TStringBuilder* builder, const ::google::protobuf::RepeatedPtrField<T>& collection, const TStringBuf& /*format*/)
+    {
+        FormatRange(builder, collection, TDefaultFormatter());
     }
 };
 
@@ -287,7 +331,7 @@ void FormatValueStd(TStringBuilder* builder, TValue value, const TStringBuf& for
     const int MaxFormatSize = 64;
     const int SmallResultSize = 64;
 
-    auto copyFormat = [] (char* destination, const char* source, int length) {
+    auto copyFormat = [ ](char* destination, const char* source, int length) {
         int position = 0;
         for (int index = 0; index < length; ++index) {
             if (IsQuotationSpecSymbol(source[index])) {
