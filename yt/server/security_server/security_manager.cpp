@@ -975,8 +975,8 @@ private:
 
     const TRequestTrackerPtr RequestTracker_;
 
-    TPeriodicExecutorPtr AccountStatiticsGossipExecutor_;
-    TPeriodicExecutorPtr UserStatiticsGossipExecutor_;
+    TPeriodicExecutorPtr AccountStatisticsGossipExecutor_;
+    TPeriodicExecutorPtr UserStatisticsGossipExecutor_;
 
     bool InitMulticell_ = false;
 
@@ -1439,17 +1439,17 @@ protected:
     {
         TMasterAutomatonPart::OnLeaderActive();
 
-        AccountStatiticsGossipExecutor_ = New<TPeriodicExecutor>(
+        AccountStatisticsGossipExecutor_ = New<TPeriodicExecutor>(
             Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(),
             BIND(&TImpl::OnAccountStatisticsGossip, MakeWeak(this)),
             Config_->AccountStatisticsGossipPeriod);
-        AccountStatiticsGossipExecutor_->Start();
+        AccountStatisticsGossipExecutor_->Start();
 
-        UserStatiticsGossipExecutor_ = New<TPeriodicExecutor>(
+        UserStatisticsGossipExecutor_ = New<TPeriodicExecutor>(
             Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(),
             BIND(&TImpl::OnUserStatisticsGossip, MakeWeak(this)),
             Config_->UserStatisticsGossipPeriod);
-        UserStatiticsGossipExecutor_->Start();
+        UserStatisticsGossipExecutor_->Start();
     }
 
     virtual void OnStopLeading() override
@@ -1458,14 +1458,14 @@ protected:
 
         RequestTracker_->Stop();
 
-        if (AccountStatiticsGossipExecutor_) {
-            AccountStatiticsGossipExecutor_->Stop();
-            AccountStatiticsGossipExecutor_.Reset();
+        if (AccountStatisticsGossipExecutor_) {
+            AccountStatisticsGossipExecutor_->Stop();
+            AccountStatisticsGossipExecutor_.Reset();
         }
 
-        if (UserStatiticsGossipExecutor_) {
-            UserStatiticsGossipExecutor_->Stop();
-            UserStatiticsGossipExecutor_.Reset();
+        if (UserStatisticsGossipExecutor_) {
+            UserStatisticsGossipExecutor_->Stop();
+            UserStatisticsGossipExecutor_.Reset();
         }
     }
 
