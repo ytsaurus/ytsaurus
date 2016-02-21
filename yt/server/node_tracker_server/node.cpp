@@ -356,9 +356,9 @@ int TNode::GetSessionCount(ESessionType sessionType) const
 int TNode::GetTotalSessionCount() const
 {
     return
-        GetSessionCount(ESessionType::User) +
-        GetSessionCount(ESessionType::Replication) +
-        GetSessionCount(ESessionType::Repair);
+        Statistics_.total_user_session_count() + HintedUserSessionCount_ +
+        Statistics_.total_replication_session_count() + HintedReplicationSessionCount_ +
+        Statistics_.total_repair_session_count() + HintedRepairSessionCount_;
 }
 
 TNode::TTabletSlot* TNode::FindTabletSlot(const TTabletCell* cell)
