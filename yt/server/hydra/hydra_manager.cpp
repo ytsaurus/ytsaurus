@@ -21,6 +21,38 @@ bool IHydraManager::IsRecovery() const
            GetAutomatonState() == EPeerState::FollowerRecovery;
 }
 
+void IHydraManager::ValidatePeer(EPeerKind kind)
+{
+    switch (kind) {
+        case EPeerKind::Leader:
+            if (!IsActiveLeader()) {
+                THROW_ERROR_EXCEPTION(
+                    NRpc::EErrorCode::Unavailable,
+                    "Not an active leader");
+            }
+            break;
+
+        case EPeerKind::Follower:
+            if (!IsActiveFollower()) {
+                THROW_ERROR_EXCEPTION(
+                    NRpc::EErrorCode::Unavailable,
+                    "Not an active follower");
+            }
+            break;
+
+        case EPeerKind::LeaderOrFollower:
+            if (!IsActiveLeader() && !IsActiveFollower()) {
+                THROW_ERROR_EXCEPTION(
+                    NRpc::EErrorCode::Unavailable,
+                    "Not an active peer");
+            }
+            break;
+
+        default:
+            YUNREACHABLE();
+    }
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 
 } // namespace NHydra

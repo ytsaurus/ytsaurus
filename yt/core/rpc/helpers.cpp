@@ -337,12 +337,12 @@ TMutationId GetMutationId(const TRequestHeader& header)
     return FromProto<TMutationId>(ext.mutation_id());
 }
 
-TMutationId GetMutationId(IServiceContextPtr context)
+TMutationId GetMutationId(const IServiceContextPtr& context)
 {
     return GetMutationId(context->RequestHeader());
 }
 
-void GenerateMutationId(IClientRequestPtr request)
+void GenerateMutationId(const IClientRequestPtr& request)
 {
     SetMutationId(request, GenerateMutationId(), false);
 }
@@ -358,12 +358,12 @@ void SetMutationId(TRequestHeader* header, const TMutationId& id, bool retry)
     }
 }
 
-void SetMutationId(IClientRequestPtr request, const TMutationId& id, bool retry)
+void SetMutationId(const IClientRequestPtr& request, const TMutationId& id, bool retry)
 {
     SetMutationId(&request->Header(), id, retry);
 }
 
-void SetOrGenerateMutationId(IClientRequestPtr request, const TMutationId& id, bool retry)
+void SetOrGenerateMutationId(const IClientRequestPtr& request, const TMutationId& id, bool retry)
 {
     SetMutationId(request, id ? id : TMutationId::Create(), retry);
 }

@@ -593,7 +593,7 @@ private:
 
         auto securityManager = Bootstrap_->GetSecurityManager();
         auto* user = securityManager->GetAuthenticatedUser();
-        ToProto(hydraRequest.mutable_user_id(), user->GetId());
+        hydraRequest.set_user_name(user->GetName());
 
         return NHive::SerializeMessage(hydraRequest);
     }

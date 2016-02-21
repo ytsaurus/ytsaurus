@@ -11,7 +11,9 @@ namespace NObjectServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NRpc::IServicePtr CreateObjectService(NCellMaster::TBootstrap* bootstrap);
+NRpc::IServicePtr CreateObjectService(
+    TObjectServiceConfigPtr config,
+    NCellMaster::TBootstrap* bootstrap);
 
 ////////////////////////////////////////////////////////////////////////////////
 

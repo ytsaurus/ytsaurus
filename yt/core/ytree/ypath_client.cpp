@@ -177,8 +177,8 @@ TYPath ComputeResolvedYPath(const TYPath& wholePath, const TYPath& unresolvedPat
 }
 
 void ResolveYPath(
-    IYPathServicePtr rootService,
-    IServiceContextPtr context,
+    const IYPathServicePtr& rootService,
+    const IServiceContextPtr& context,
     IYPathServicePtr* suffixService,
     TYPath* suffixPath)
 {
@@ -217,12 +217,8 @@ void ResolveYPath(
 }
 
 TFuture<TSharedRefArray> ExecuteVerb(
-    IYPathServicePtr service,
-    TSharedRefArray requestMessage,
-    const NLogging::TLogger& logger,
-    NLogging::ELogLevel logLevel,
-    const Stroka& requestInfo,
-    const Stroka& responseInfo)
+    const IYPathServicePtr& service,
+    const TSharedRefArray& requestMessage)
 {
     IYPathServicePtr suffixService;
     TYPath suffixPath;
@@ -243,12 +239,7 @@ TFuture<TSharedRefArray> ExecuteVerb(
 
     auto updatedRequestMessage = SetRequestHeader(requestMessage, requestHeader);
 
-    auto invokeContext = CreateYPathContext(
-        std::move(updatedRequestMessage),
-        logger,
-        logLevel,
-        requestInfo,
-        responseInfo);
+    auto invokeContext = CreateYPathContext(std::move(updatedRequestMessage));
 
     // NB: Calling GetAsyncResponseMessage after Invoke is not allowed.
     auto asyncResponseMessage = invokeContext->GetAsyncResponseMessage();
@@ -260,8 +251,8 @@ TFuture<TSharedRefArray> ExecuteVerb(
 }
 
 void ExecuteVerb(
-    IYPathServicePtr service,
-    IServiceContextPtr context)
+    const IYPathServicePtr& service,
+    const IServiceContextPtr& context)
 {
     IYPathServicePtr suffixService;
     TYPath suffixPath;
@@ -334,7 +325,7 @@ void ExecuteVerb(
 }
 
 TFuture<TYsonString> AsyncYPathGet(
-    IYPathServicePtr service,
+    const IYPathServicePtr& service,
     const TYPath& path,
     const TNullable<std::vector<Stroka>>& attributeKeys,
     bool ignoreOpaque)
@@ -350,7 +341,7 @@ TFuture<TYsonString> AsyncYPathGet(
         }));
 }
 
-Stroka SyncYPathGetKey(IYPathServicePtr service, const TYPath& path)
+Stroka SyncYPathGetKey(const IYPathServicePtr& service, const TYPath& path)
 {
     auto request = TYPathProxy::GetKey(path);
     return ExecuteVerb(service, request)
@@ -359,7 +350,7 @@ Stroka SyncYPathGetKey(IYPathServicePtr service, const TYPath& path)
 }
 
 TYsonString SyncYPathGet(
-    IYPathServicePtr service,
+    const IYPathServicePtr& service,
     const TYPath& path,
     const TNullable<std::vector<Stroka>>& attributeKeys,
     bool ignoreOpaque)
@@ -375,7 +366,7 @@ TYsonString SyncYPathGet(
 }
 
 TFuture<bool> AsyncYPathExists(
-    IYPathServicePtr service,
+    const IYPathServicePtr& service,
     const TYPath& path)
 {
     auto request = TYPathProxy::Exists(path);
@@ -385,14 +376,19 @@ TFuture<bool> AsyncYPathExists(
         }));
 }
 
-bool SyncYPathExists(IYPathServicePtr service, const TYPath& path)
+bool SyncYPathExists(
+    const IYPathServicePtr& service,
+    const TYPath& path)
 {
     return AsyncYPathExists(service, path)
         .Get()
         .ValueOrThrow();
 }
 
-void SyncYPathSet(IYPathServicePtr service, const TYPath& path, const TYsonString& value)
+void SyncYPathSet(
+    const IYPathServicePtr& service,
+    const TYPath& path,
+    const TYsonString& value)
 {
     auto request = TYPathProxy::Set(path);
     request->set_value(value.Data());
@@ -402,7 +398,7 @@ void SyncYPathSet(IYPathServicePtr service, const TYPath& path, const TYsonStrin
 }
 
 void SyncYPathRemove(
-    IYPathServicePtr service,
+    const IYPathServicePtr& service,
     const TYPath& path,
     bool recursive,
     bool force)
@@ -415,7 +411,9 @@ void SyncYPathRemove(
         .ThrowOnError();
 }
 
-std::vector<Stroka> SyncYPathList(IYPathServicePtr service, const TYPath& path)
+std::vector<Stroka> SyncYPathList(
+    const IYPathServicePtr& service,
+    const TYPath& path)
 {
     auto request = TYPathProxy::List(path);
     auto response = ExecuteVerb(service, request)
@@ -424,7 +422,9 @@ std::vector<Stroka> SyncYPathList(IYPathServicePtr service, const TYPath& path)
     return ConvertTo<std::vector<Stroka>>(TYsonString(response->value()));
 }
 
-void ApplyYPathOverride(INodePtr root, const TStringBuf& overrideString)
+void ApplyYPathOverride(
+    const INodePtr& root,
+    const TStringBuf& overrideString)
 {
     // TODO(babenko): this effectively forbids override path from containing "="
     int eqIndex = overrideString.find('=');
@@ -439,7 +439,9 @@ void ApplyYPathOverride(INodePtr root, const TStringBuf& overrideString)
     SyncYPathSet(root, path, value);
 }
 
-INodePtr GetNodeByYPath(INodePtr root, const TYPath& path)
+INodePtr GetNodeByYPath(
+    const INodePtr& root,
+    const TYPath& path)
 {
     auto currentNode = root;
     NYPath::TTokenizer tokenizer(path);
@@ -472,7 +474,10 @@ INodePtr GetNodeByYPath(INodePtr root, const TYPath& path)
     return currentNode;
 }
 
-void SetNodeByYPath(INodePtr root, const TYPath& path, INodePtr value)
+void SetNodeByYPath(
+    const INodePtr& root,
+    const TYPath& path,
+    const INodePtr& value)
 {
     auto currentNode = root;
 
@@ -544,7 +549,9 @@ void SetNodeByYPath(INodePtr root, const TYPath& path, INodePtr value)
     }
 }
 
-void ForceYPath(INodePtr root, const TYPath& path)
+void ForceYPath(
+    const INodePtr& root,
+    const TYPath& path)
 {
     auto currentNode = root;
 
@@ -599,23 +606,26 @@ void ForceYPath(INodePtr root, const TYPath& path)
     factory->Commit();
 }
 
-TYPath GetNodeYPath(INodePtr node, INodePtr* root)
+TYPath GetNodeYPath(
+    const INodePtr& node,
+    INodePtr* root)
 {
     std::vector<Stroka> tokens;
+    auto current = node;
     while (true) {
-        auto parent = node->GetParent();
+        auto parent = current->GetParent();
         if (!parent) {
             break;
         }
         Stroka token;
         switch (parent->GetType()) {
             case ENodeType::List: {
-                auto index = parent->AsList()->GetChildIndex(node);
+                auto index = parent->AsList()->GetChildIndex(current);
                 token = ToYPathLiteral(index);
                 break;
             }
             case ENodeType::Map: {
-                auto key = parent->AsMap()->GetChildKey(node);
+                auto key = parent->AsMap()->GetChildKey(current);
                 token = ToYPathLiteral(key);
                 break;
             }
@@ -623,10 +633,10 @@ TYPath GetNodeYPath(INodePtr node, INodePtr* root)
                 YUNREACHABLE();
         }
         tokens.push_back(token);
-        node = parent;
+        current = parent;
     }
     if (root) {
-        *root = node;
+        *root = current;
     }
     std::reverse(tokens.begin(), tokens.end());
     TYPath path;
@@ -637,12 +647,12 @@ TYPath GetNodeYPath(INodePtr node, INodePtr* root)
     return path;
 }
 
-INodePtr CloneNode(INodePtr node)
+INodePtr CloneNode(const INodePtr& node)
 {
     return ConvertToNode(node);
 }
 
-INodePtr UpdateNode(INodePtr base, INodePtr patch)
+INodePtr UpdateNode(const INodePtr& base, const INodePtr& patch)
 {
     if (base->GetType() == ENodeType::Map && patch->GetType() == ENodeType::Map) {
         auto result = CloneNode(base);
@@ -671,7 +681,7 @@ INodePtr UpdateNode(INodePtr base, INodePtr patch)
     }
 }
 
-bool AreNodesEqual(INodePtr lhs, INodePtr rhs)
+bool AreNodesEqual(const INodePtr& lhs, const INodePtr& rhs)
 {
     // Check types.
     auto lhsType = lhs->GetType();

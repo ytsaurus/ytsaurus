@@ -1,6 +1,7 @@
 #include "object_service.h"
 #include "private.h"
 #include "object_manager.h"
+#include "config.h"
 
 #include <yt/server/cell_master/bootstrap.h>
 #include <yt/server/cell_master/hydra_facade.h>
@@ -11,9 +12,6 @@
 #include <yt/server/security_server/security_manager.h>
 #include <yt/server/security_server/user.h>
 
-#include <yt/server/transaction_server/transaction.h>
-#include <yt/server/transaction_server/transaction_manager.h>
-
 #include <yt/ytlib/cypress_client/rpc_helpers.h>
 
 #include <yt/ytlib/object_client/object_service_proxy.h>
@@ -23,6 +21,8 @@
 #include <yt/core/rpc/helpers.h>
 #include <yt/core/rpc/message.h>
 #include <yt/core/rpc/service_detail.h>
+#include <yt/core/rpc/dispatcher.h>
+#include <yt/core/rpc/response_keeper.h>
 
 #include <yt/core/ytree/ypath_detail.h>
 
@@ -41,7 +41,6 @@ using namespace NYTree;
 using namespace NYTree::NProto;
 using namespace NCypressClient;
 using namespace NCypressServer;
-using namespace NTransactionServer;
 using namespace NSecurityClient;
 using namespace NSecurityServer;
 using namespace NObjectServer;
@@ -55,20 +54,26 @@ class TObjectService
     : public NCellMaster::TMasterHydraServiceBase
 {
 public:
-    explicit TObjectService(TBootstrap* bootstrap)
+    TObjectService(
+        TObjectServiceConfigPtr config,
+        TBootstrap* bootstrap)
         : TMasterHydraServiceBase(
             bootstrap,
             NObjectClient::TObjectServiceProxy::GetServiceName(),
             ObjectServerLogger,
             NObjectClient::TObjectServiceProxy::GetProtocolVersion())
+        , Config_(std::move(config))
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Execute)
             .SetMaxQueueSize(10000)
-            .SetMaxConcurrency(10000));
+            .SetMaxConcurrency(10000)
+            .SetInvoker(NRpc::TDispatcher::Get()->GetInvoker()));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GCCollect));
     }
 
 private:
+    const TObjectServiceConfigPtr Config_;
+
     class TExecuteSession;
 
     DECLARE_RPC_SERVICE_METHOD(NObjectClient::NProto, Execute);
@@ -78,9 +83,13 @@ private:
 
 DEFINE_REFCOUNTED_TYPE(TObjectService)
 
-IServicePtr CreateObjectService(TBootstrap* bootstrap)
+IServicePtr CreateObjectService(
+    TObjectServiceConfigPtr config,
+    TBootstrap* bootstrap)
 {
-    return New<TObjectService>(bootstrap);
+    return New<TObjectService>(
+        std::move(config),
+        bootstrap);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -92,280 +101,350 @@ public:
     TExecuteSession(
         TObjectServicePtr owner,
         TCtxExecutePtr context)
-        : Owner(std::move(owner))
-        , Context(std::move(context))
-        , RequestCount(Context->Request().part_counts_size())
-        , EpochAutomatonInvoker(Owner->Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker())
-    {
-        Request.Swap(&Context->Request());
-        RequestAttachments.swap(Context->RequestAttachments());
-    }
+        : Owner_(std::move(owner))
+        , Context_(std::move(context))
+        , SubrequestCount_(Context_->Request().part_counts_size())
+        , UserName_(Context_->GetUser())
+        , RequestId_(Context_->GetRequestId())
+        , HydraFacade_(Owner_->Bootstrap_->GetHydraFacade())
+        , HydraManager_(HydraFacade_->GetHydraManager())
+        , ObjectManager_(Owner_->Bootstrap_->GetObjectManager())
+        , SecurityManager_(Owner_->Bootstrap_->GetSecurityManager())
+        , ResponseKeeper_(HydraFacade_->GetResponseKeeper())
+    { }
 
     void Run()
     {
-        Context->SetRequestInfo("RequestCount: %v", RequestCount);
+        Context_->SetRequestInfo("Count: %v", SubrequestCount_);
 
-        if (RequestCount == 0) {
+        if (SubrequestCount_ == 0) {
             Reply();
             return;
         }
 
-        ResponseMessages.resize(RequestCount);
-        RequestHeaders.resize(RequestCount);
-        UserName = Context->GetUser();
-
-        if (Request.suppress_upstream_sync()) {
-            Continue();
+        try {
+            ParseSubrequests();
+        } catch (const std::exception& ex) {
+            Context_->Reply(ex);
             return;
         }
 
-        auto hydraManager = Owner->Bootstrap_->GetHydraFacade()->GetHydraManager();
-        auto sync = hydraManager->SyncWithUpstream();
-        if (sync.IsSet()) {
-            CheckAndContinue(sync.Get());
-        } else {
-            sync.Subscribe(BIND(&TExecuteSession::CheckAndContinue, MakeStrong(this))
-                .Via(EpochAutomatonInvoker));
-        }
+        HydraFacade_
+            ->GetGuardedAutomatonInvoker(EAutomatonThreadQueue::RpcService)
+            ->Invoke(BIND(&TExecuteSession::Continue, MakeStrong(this)));
     }
 
 private:
-    const TObjectServicePtr Owner;
-    const TCtxExecutePtr Context;
+    const TObjectServicePtr Owner_;
+    const TCtxExecutePtr Context_;
 
-    const int RequestCount;
-    const IInvokerPtr EpochAutomatonInvoker;
+    const int SubrequestCount_;
+    const Stroka UserName_;
+    const TRequestId RequestId_;
+    const THydraFacadePtr HydraFacade_;
+    const IHydraManagerPtr HydraManager_;
+    const TObjectManagerPtr ObjectManager_;
+    const TSecurityManagerPtr SecurityManager_;
+    const TResponseKeeperPtr ResponseKeeper_;
 
-    NObjectClient::NProto::TReqExecute Request;
-    std::vector<TSharedRef> RequestAttachments;
+    struct TSubrequest
+    {
+        IServiceContextPtr Context;
+        TFuture<TSharedRefArray> AsyncResponseMessage;
+        TMutationPtr Mutation;
+        TRequestHeader RequestHeader;
+        TSharedRefArray RequestMessage;
+        NTracing::TTraceContext TraceContext;
+        TMutationId MutationId;
+        bool Retry = false;
+    };
 
-    TFuture<void> LastMutationCommitted = VoidFuture;
-    std::atomic<bool> Replied = {false};
-    std::atomic<int> ResponseCount = {0};
-    std::vector<TSharedRefArray> ResponseMessages;
-    std::vector<TRequestHeader> RequestHeaders;
-    int CurrentRequestIndex = 0;
-    int CurrentRequestPartIndex = 0;
-    Stroka UserName;
+    std::vector<TSubrequest> Subrequests_;
+    int CurrentSubrequestIndex_ = 0;
+    IInvokerPtr EpochAutomatonInvoker_;
+    bool NeedsUpstreamSync_ = true;
+    bool NeedsUserAccessValidation_ = true;
+
+    std::atomic<bool> Replied_ = {false};
+    std::atomic<int> SubresponseCount_ = {0};
+    int LastMutatingSubRequestIndex_ = -1;
 
     const NLogging::TLogger& Logger = ObjectServerLogger;
 
 
-    void CheckAndContinue(const TError& error)
+    void ParseSubrequests()
     {
-        if (!error.IsOK()) {
-            Reply(error);
-            return;
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        const auto& request = Context_->Request();
+        const auto& attachments = Context_->RequestAttachments();
+        Subrequests_.resize(SubrequestCount_);
+        int currentPartIndex = 0;
+        for (int subrequestIndex = 0; subrequestIndex < SubrequestCount_; ++subrequestIndex) {
+            auto& subrequest = Subrequests_[subrequestIndex];
+            int partCount = request.part_counts(subrequestIndex);
+            if (partCount == 0) {
+                // Empty subrequest.
+                continue;
+            }
+
+            std::vector<TSharedRef> subrequestParts(
+                attachments.begin() + currentPartIndex,
+                attachments.begin() + currentPartIndex + partCount);
+            currentPartIndex += partCount;
+
+            auto& subrequestHeader = subrequest.RequestHeader;
+            TSharedRefArray subrequestMessage(std::move(subrequestParts));
+            if (!ParseRequestHeader(subrequestMessage, &subrequestHeader)) {
+                THROW_ERROR_EXCEPTION(
+                    NRpc::EErrorCode::ProtocolError,
+                    "Error parsing subrequest header");
+            }
+
+            // Propagate various parameters to the subrequest.
+            ToProto(subrequestHeader.mutable_request_id(), RequestId_);
+            subrequestHeader.set_retry(subrequestHeader.retry() || Context_->IsRetry());
+            subrequestHeader.set_user(UserName_);
+
+            auto updatedSubrequestMessage = SetRequestHeader(subrequestMessage, subrequestHeader);
+
+            const auto& ypathExt = subrequestHeader.GetExtension(TYPathHeaderExt::ypath_header_ext);
+            const auto& path = ypathExt.path();
+            bool mutating = ypathExt.mutating();
+
+            auto requestInfo = Format("RequestId: %v, Mutating: %v, RequestPath: %v, User: %v",
+                RequestId_,
+                mutating,
+                path,
+                UserName_);
+            auto responseInfo = Format("RequestId: %v",
+                RequestId_);
+
+            auto subcontext = CreateYPathContext(
+                updatedSubrequestMessage,
+                ObjectServerLogger,
+                NLogging::ELogLevel::Debug,
+                requestInfo,
+                responseInfo);
+
+            subrequest.RequestMessage = updatedSubrequestMessage;
+            subrequest.Context = subcontext;
+            subrequest.AsyncResponseMessage = subcontext->GetAsyncResponseMessage();
+            subrequest.TraceContext = NTracing::CreateChildTraceContext();
+            subrequest.MutationId = GetMutationId(subcontext);
+            subrequest.Retry = subcontext->IsRetry();
+            if (mutating) {
+                subrequest.Mutation = ObjectManager_->CreateExecuteMutation(UserName_, subcontext);
+            }
         }
 
+        NeedsUpstreamSync_ = !request.suppress_upstream_sync();
+    }
+
+    template <class T>
+    void CheckAndContinue(const TErrorOr<T>& result)
+    {
+        if (!result.IsOK()) {
+            Reply(result);
+            return;
+        }
         Continue();
     }
 
     void Continue()
     {
         try {
-            auto objectManager = Owner->Bootstrap_->GetObjectManager();
-            auto rootService = objectManager->GetRootService();
-
-            auto batchStartInstant = NProfiling::GetCpuInstant();
-
-            auto securityManager = Owner->Bootstrap_->GetSecurityManager();
-            auto* user = GetAuthenticatedUser();
-
-            if (CurrentRequestIndex == 0) {
-                securityManager->ValidateUserAccess(user);
-            }
-
-            TAuthenticatedUserGuard userGuard(securityManager, user);
-
-            while (CurrentRequestIndex < Request.part_counts_size()) {
-                // Don't allow the thread to be blocked for too long by a single batch.
-                if (objectManager->AdviceYield(batchStartInstant)) {
-                    EpochAutomatonInvoker->Invoke(
-                        BIND(&TExecuteSession::Continue, MakeStrong(this)));
-                    return;
-                }
-
-                NProfiling::TScopedTimer timer;
-
-                int partCount = Request.part_counts(CurrentRequestIndex);
-                if (partCount == 0) {
-                    // Skip empty requests.
-                    OnResponse(
-                        CurrentRequestIndex,
-                        false,
-                        NTracing::TTraceContext(),
-                        nullptr,
-                        TSharedRefArray());
-                    NextRequest();
-                    continue;
-                }
-
-                std::vector<TSharedRef> requestParts(
-                    RequestAttachments.begin() + CurrentRequestPartIndex,
-                    RequestAttachments.begin() + CurrentRequestPartIndex + partCount);
-
-                auto requestMessage = TSharedRefArray(std::move(requestParts));
-
-                auto& requestHeader = RequestHeaders[CurrentRequestIndex];
-                if (!ParseRequestHeader(requestMessage, &requestHeader)) {
-                    THROW_ERROR_EXCEPTION(
-                        NRpc::EErrorCode::ProtocolError,
-                        "Error parsing request header");
-                }
-
-                // Propagate various parameters to the subrequest.
-                ToProto(requestHeader.mutable_request_id(), Context->GetRequestId());
-                requestHeader.set_retry(requestHeader.retry() || Context->IsRetry());
-                requestHeader.set_user(user->GetName());
-                auto updatedRequestMessage = SetRequestHeader(requestMessage, requestHeader);
-
-                const auto& ypathExt = requestHeader.GetExtension(TYPathHeaderExt::ypath_header_ext);
-                const auto& path = ypathExt.path();
-                bool mutating = ypathExt.mutating();
-
-                if (mutating) {
-                    Owner->ValidatePeer(EPeerKind::Leader);
-                }
-
-                if (!mutating && !LastMutationCommitted.IsSet()) {
-                    LastMutationCommitted.Subscribe(
-                        BIND(&TExecuteSession::CheckAndContinue, MakeStrong(this))
-                            .Via(EpochAutomatonInvoker));
-                    return;
-                }
-
-                NTracing::TTraceContextGuard traceContextGuard(NTracing::CreateChildTraceContext());
-                NTracing::TraceEvent(
-                    requestHeader.service(),
-                    requestHeader.method(),
-                    NTracing::ServerReceiveAnnotation);
-
-                auto requestInfo = Format("RequestId: %v, Mutating: %v, RequestPath: %v, User: %v",
-                    Context->GetRequestId(),
-                    mutating,
-                    path,
-                    UserName);
-                auto responseInfo = Format("RequestId: %v",
-                    Context->GetRequestId());
-
-                TFuture<TSharedRefArray> asyncResponseMessage;
-                try {
-                    asyncResponseMessage = ExecuteVerb(
-                        rootService,
-                        updatedRequestMessage,
-                        ObjectServerLogger,
-                        NLogging::ELogLevel::Debug,
-                        requestInfo,
-                        responseInfo);
-                } catch (const TLeaderFallbackException&) {
-                    LOG_DEBUG("Performing leader fallback (RequestId: %v)",
-                        Context->GetRequestId());
-                    asyncResponseMessage = objectManager->ForwardToLeader(
-                        Owner->Bootstrap_->GetCellTag(),
-                        updatedRequestMessage,
-                        Context->GetTimeout());
-                }
-
-                auto syncTime = timer.GetElapsed();
-
-                // NB: Even if the user was just removed the instance is still valid but not alive.
-                if (IsObjectAlive(user)) {
-                    securityManager->ChargeUser(user, 1, syncTime, TDuration());
-                }
-
-                // Optimize for the (typical) case of synchronous response.
-                if (asyncResponseMessage.IsSet() && !objectManager->AdviceYield(batchStartInstant)) {
-                    OnResponse(
-                        CurrentRequestIndex,
-                        mutating,
-                        traceContextGuard.GetContext(),
-                        &requestHeader,
-                        asyncResponseMessage.Get());
-                } else {
-                    LastMutationCommitted = asyncResponseMessage.Apply(BIND(
-                        &TExecuteSession::OnResponse,
-                        MakeStrong(this),
-                        CurrentRequestIndex,
-                        mutating,
-                        traceContextGuard.GetContext(),
-                        &requestHeader));
-                }
-
-                NextRequest();
-            }
+            GuardedContinue();
         } catch (const std::exception& ex) {
             Reply(ex);
         }
     }
 
-    void OnResponse(
-        int requestIndex,
-        bool mutating,
-        const NTracing::TTraceContext& traceContext,
-        const TRequestHeader* requestHeader,
-        const TErrorOr<TSharedRefArray>& responseMessageOrError)
+    void GuardedContinue()
+    {
+        auto batchStartTime = NProfiling::GetCpuInstant();
+        auto batchDeadlineTime = batchStartTime + NProfiling::DurationToCpuDuration(Owner_->Config_->YieldTimeout);
+
+        if (!EpochAutomatonInvoker_) {
+            EpochAutomatonInvoker_ = HydraFacade_->GetEpochAutomatonInvoker(EAutomatonThreadQueue::RpcService);
+        }
+
+        if (NeedsUpstreamSync_) {
+            NeedsUpstreamSync_ = false;
+            auto result = HydraManager_->SyncWithUpstream();
+            // Optimize for (somewhat typical) case of no sync.
+            if (result.IsSet()) {
+                result.Get().ThrowOnError();
+            } else {
+                result.Subscribe(BIND(&TExecuteSession::CheckAndContinue<void>, MakeStrong(this))
+                    .Via(EpochAutomatonInvoker_));
+                return;
+            }
+        }
+
+        HydraManager_->ValidatePeer(EPeerKind::LeaderOrFollower);
+
+        auto* user = SecurityManager_->GetUserByNameOrThrow(UserName_);
+
+        if (NeedsUserAccessValidation_) {
+            NeedsUserAccessValidation_ = false;
+            SecurityManager_->ValidateUserAccess(user);
+        }
+
+        while (CurrentSubrequestIndex_ < SubrequestCount_ ) {
+            auto& subrequest = Subrequests_[CurrentSubrequestIndex_];
+            if (!subrequest.Context) {
+                ExecuteEmptySubrequest(&subrequest, user);
+                continue;
+            }
+
+            NTracing::TraceEvent(
+                subrequest.TraceContext,
+                subrequest.RequestHeader.service(),
+                subrequest.RequestHeader.method(),
+                NTracing::ServerReceiveAnnotation);
+
+            if (subrequest.Mutation) {
+                ExecuteMutatingSubrequest(&subrequest, user);
+                LastMutatingSubRequestIndex_ = CurrentSubrequestIndex_;
+            } else {
+                // Cannot serve new read requests before previous write ones are done.
+                if (LastMutatingSubRequestIndex_ >= 0) {
+                    auto& lastCommitResult = Subrequests_[LastMutatingSubRequestIndex_].AsyncResponseMessage;
+                    if (!lastCommitResult.IsSet()) {
+                        lastCommitResult.Subscribe(
+                            BIND(&TExecuteSession::CheckAndContinue<TSharedRefArray>, MakeStrong(this))
+                                .Via(EpochAutomatonInvoker_));
+                        return;
+                    }
+                }
+                ExecuteReadSubrequest(&subrequest, user);
+            }
+
+            // Optimize for the (typical) case of synchronous response.
+            auto& asyncResponseMessage = subrequest.AsyncResponseMessage;
+            if (asyncResponseMessage.IsSet()) {
+                OnSubresponse(&subrequest, asyncResponseMessage.Get());
+            } else {
+                asyncResponseMessage.Subscribe(
+                    BIND(&TExecuteSession::OnSubresponse<TSharedRefArray>, MakeStrong(this), &subrequest));
+            }
+
+            ++CurrentSubrequestIndex_;
+
+            if (NProfiling::GetCpuInstant() > batchDeadlineTime) {
+                LOG_DEBUG("Yielding automaton thread");
+                EpochAutomatonInvoker_->Invoke(BIND(&TExecuteSession::Continue, MakeStrong(this)));
+                break;
+            }
+        }
+    }
+
+    void ExecuteEmptySubrequest(TSubrequest* subrequest, TUser* /*user*/)
+    {
+        OnSubresponse(subrequest, TError());
+    }
+
+    void ExecuteMutatingSubrequest(TSubrequest* subrequest, TUser* user)
+    {
+        if (subrequest->MutationId) {
+            auto asyncResponseMessage = ResponseKeeper_->TryBeginRequest(
+                subrequest->MutationId,
+                subrequest->Retry);
+            if (asyncResponseMessage) {
+                subrequest->Context->ReplyFrom(std::move(asyncResponseMessage));
+                return;
+            }
+        }
+
+        subrequest->Mutation->Commit();
+    }
+
+    void ExecuteReadSubrequest(TSubrequest* subrequest, TUser* user)
+    {
+        auto asyncResponseMessage = subrequest->Context->GetAsyncResponseMessage();
+        NProfiling::TScopedTimer timer;
+        try {
+            auto rootService = ObjectManager_->GetRootService();
+            TAuthenticatedUserGuard userGuard(SecurityManager_, user);
+            NTracing::TTraceContextGuard traceContextGuard(subrequest->TraceContext);
+            ExecuteVerb(rootService, subrequest->Context);
+        } catch (const TLeaderFallbackException&) {
+            LOG_DEBUG("Performing leader fallback (RequestId: %v)",
+                RequestId_);
+            subrequest->Context->ReplyFrom(ObjectManager_->ForwardToLeader(
+                Owner_->Bootstrap_->GetCellTag(),
+                subrequest->RequestMessage,
+                Context_->GetTimeout()));
+        }
+
+        // NB: Even if the user was just removed the instance is still valid but not alive.
+        if (IsObjectAlive(user)) {
+            SecurityManager_->ChargeUser(user, 1, timer.GetElapsed(), TDuration());
+        }
+    }
+
+    template <class T>
+    void OnSubresponse(TSubrequest* subrequest, const TErrorOr<T>& result)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        if (!responseMessageOrError.IsOK()) {
-            // Unexpected error.
-            Context->Reply(responseMessageOrError);
+        if (!result.IsOK()) {
+            Reply(result);
             return;
         }
 
-        const auto& responseMessage = responseMessageOrError.Value();
-        if (responseMessage) {
+        if (subrequest->Context) {
             NTracing::TraceEvent(
-                traceContext,
-                requestHeader->service(),
-                requestHeader->method(),
+                subrequest->TraceContext,
+                subrequest->RequestHeader.service(),
+                subrequest->RequestHeader.method(),
                 NTracing::ServerSendAnnotation);
         }
 
-        ResponseMessages[requestIndex] = std::move(responseMessage);
-
-        if (++ResponseCount == ResponseMessages.size()) {
+        if (++SubresponseCount_ == SubrequestCount_) {
             Reply();
         }
     }
 
-    void NextRequest()
-    {
-        CurrentRequestPartIndex += Request.part_counts(CurrentRequestIndex);
-        CurrentRequestIndex += 1;
-    }
 
     void Reply(const TError& error = TError())
     {
+        VERIFY_THREAD_AFFINITY_ANY();
+
         bool expected = false;
-        if (!Replied.compare_exchange_strong(expected, true))
+        if (!Replied_.compare_exchange_strong(expected, true)) {
             return;
+        }
+
+        NRpc::TDispatcher::Get()
+            ->GetInvoker()
+            ->Invoke(BIND(&TExecuteSession::DoReply, MakeStrong(this), error));
+    }
+
+    void DoReply(const TError& error)
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
 
         if (error.IsOK()) {
-            auto& response = Context->Response();
-            for (const auto& responseMessage : ResponseMessages) {
-                if (responseMessage) {
-                    response.add_part_counts(responseMessage.Size());
-                    response.Attachments().insert(
-                        response.Attachments().end(),
-                        responseMessage.Begin(),
-                        responseMessage.End());
+            auto& response = Context_->Response();
+            auto& attachments = Context_->ResponseAttachments();
+            for (const auto& subrequest : Subrequests_) {
+                if (subrequest.Context) {
+                    auto subresponseMessage = subrequest.Context->GetResponseMessage();
+                    response.add_part_counts(subresponseMessage.Size());
+                    attachments.insert(
+                        attachments.end(),
+                        subresponseMessage.Begin(),
+                        subresponseMessage.End());
                 } else {
                     response.add_part_counts(0);
                 }
             }
         }
      
-        Context->Reply(error);
+        Context_->Reply(error);
     }
-
-    TUser* GetAuthenticatedUser()
-    {
-        auto securityManager = Owner->Bootstrap_->GetSecurityManager();
-        return securityManager->GetUserByNameOrThrow(UserName);
-    }
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -374,8 +453,6 @@ DEFINE_RPC_SERVICE_METHOD(TObjectService, Execute)
 {
     UNUSED(request);
     UNUSED(response);
-
-    ValidatePeer(EPeerKind::LeaderOrFollower);
 
     New<TExecuteSession>(this, std::move(context))->Run();
 }

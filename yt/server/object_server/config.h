@@ -23,21 +23,34 @@ public:
     //! Period between subsequent GC queue checks.
     TDuration GCSweepPeriod;
 
-    //! Amount of time to wait before yielding meta state thread to another request.
-    TDuration YieldTimeout;
-
     TObjectManagerConfig()
     {
         RegisterParameter("max_weight_per_gc_sweep", MaxWeightPerGCSweep)
             .Default(100000);
         RegisterParameter("gc_sweep_period", GCSweepPeriod)
             .Default(TDuration::MilliSeconds(1000));
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TObjectManagerConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TObjectServiceConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    //! Maximum amount of a single batch of Execute requests is allowed to occupy the automaton thread.
+    TDuration YieldTimeout;
+
+    TObjectServiceConfig()
+    {
         RegisterParameter("yield_timeout", YieldTimeout)
             .Default(TDuration::MilliSeconds(10));
     }
 };
 
-DEFINE_REFCOUNTED_TYPE(TObjectManagerConfig)
+DEFINE_REFCOUNTED_TYPE(TObjectServiceConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
