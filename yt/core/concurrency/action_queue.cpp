@@ -32,6 +32,7 @@ public:
             GetThreadTagIds(enableProfiling, threadName),
             enableLogging,
             enableProfiling))
+        , Invoker_(Queue_)
         , Thread_(New<TSingleQueueSchedulerThread>(
             Queue_,
             CallbackEventCount_,
@@ -72,17 +73,18 @@ public:
         return Thread_->IsStarted();
     }
 
-    IInvokerPtr GetInvoker()
+    const IInvokerPtr& GetInvoker()
     {
         if (Y_UNLIKELY(!IsStarted())) {
             Start();
         }
-        return Queue_;
+        return Invoker_;
     }
 
 private:
     const std::shared_ptr<TEventCount> CallbackEventCount_ = std::make_shared<TEventCount>();
     const TInvokerQueuePtr Queue_;
+    const IInvokerPtr Invoker_;
     const TSingleQueueSchedulerThreadPtr Thread_;
 };
 
@@ -100,7 +102,7 @@ void TActionQueue::Shutdown()
     return Impl_->Shutdown();
 }
 
-IInvokerPtr TActionQueue::GetInvoker()
+const IInvokerPtr& TActionQueue::GetInvoker()
 {
     return Impl_->GetInvoker();
 }

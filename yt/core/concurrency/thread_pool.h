@@ -29,7 +29,7 @@ public:
 
     void Configure(int threadCount);
 
-    IInvokerPtr GetInvoker();
+    const IInvokerPtr& GetInvoker();
 
 private:
     class TImpl;

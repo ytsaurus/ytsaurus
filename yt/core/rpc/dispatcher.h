@@ -30,7 +30,7 @@ public:
     /*!
      * This invoker is used by RPC to dispatch callbacks.
      */
-    IInvokerPtr GetInvoker();
+    const IInvokerPtr& GetInvoker();
 
 private:
     class TImpl;
