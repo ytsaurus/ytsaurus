@@ -160,6 +160,13 @@ TRange<T> MakeRange(const SmallVectorImpl<T>& elements)
     return elements;
 }
 
+//! "Copy-constructor".
+template <class T>
+TRange<T> MakeRange(const TRange<T>& range)
+{
+    return range;
+}
+
 //! Constructs a TRange from an std::vector.
 template <class T>
 TRange<T> MakeRange(const std::vector<T>& elements)
@@ -172,6 +179,20 @@ template <class T, size_t N>
 TRange<T> MakeRange(const T (& elements)[N])
 {
     return TRange<T>(elements);
+}
+
+//! Constructs a TRange from RepeatedField.
+template <class T>
+TRange<T> MakeRange(const ::google::protobuf::RepeatedField<T>& elements)
+{
+    return TRange<T>(elements.data(), elements.size());
+}
+
+//! Constructs a TRange from RepeatedPtrField.
+template <class T>
+TRange<const T*> MakeRange(const ::google::protobuf::RepeatedPtrField<T>& elements)
+{
+    return TRange<const T*>(elements.data(), elements.size());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
