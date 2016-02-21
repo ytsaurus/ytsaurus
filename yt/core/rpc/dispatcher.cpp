@@ -19,7 +19,7 @@ public:
         Pool_->Configure(poolSize);
     }
 
-    IInvokerPtr GetInvoker()
+    const IInvokerPtr& GetInvoker()
     {
         return Pool_->GetInvoker();
     }
@@ -60,7 +60,7 @@ void TDispatcher::Shutdown()
     Impl_->Shutdown();
 }
 
-IInvokerPtr TDispatcher::GetInvoker()
+const IInvokerPtr& TDispatcher::GetInvoker()
 {
     return Impl_->GetInvoker();
 }

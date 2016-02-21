@@ -35,6 +35,7 @@ public:
             GetThreadTagIds(enableProfiling, threadNamePrefix),
             enableLogging,
             enableProfiling))
+        , Invoker_(Queue_)
     {
         Configure(threadCount);
     }
@@ -102,14 +103,14 @@ public:
         }));
     }
 
-    IInvokerPtr GetInvoker()
+    const IInvokerPtr& GetInvoker()
     {
         if (Y_UNLIKELY(!Started_.load(std::memory_order_relaxed))) {
             // Concurrent calls to Start() are okay.
             Started_.store(true, std::memory_order_relaxed);
             Start();
         }
-        return Queue_;
+        return Invoker_;
     }
 
 private:
@@ -122,6 +123,8 @@ private:
 
     const std::shared_ptr<TEventCount> CallbackEventCount_ = std::make_shared<TEventCount>();
     const TInvokerQueuePtr Queue_;
+    const IInvokerPtr Invoker_;
+
     std::vector<TSchedulerThreadPtr> Threads_;
 
     TSchedulerThreadPtr SpawnThread(int index)
@@ -160,7 +163,7 @@ void TThreadPool::Configure(int threadCount)
     return Impl_->Configure(threadCount);
 }
 
-IInvokerPtr TThreadPool::GetInvoker()
+const IInvokerPtr& TThreadPool::GetInvoker()
 {
     return Impl_->GetInvoker();
 }
