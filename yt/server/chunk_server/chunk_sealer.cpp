@@ -69,7 +69,7 @@ public:
         YCHECK(!RefreshExecutor_);
         auto hydraFacade = Bootstrap_->GetHydraFacade();
         RefreshExecutor_ = New<TPeriodicExecutor>(
-            hydraFacade->GetEpochAutomatonInvoker(),
+            hydraFacade->GetEpochAutomatonInvoker(EAutomatonThreadQueue::ChunkMaintenance),
             BIND(&TImpl::OnRefresh, MakeWeak(this)),
             Config_->ChunkRefreshPeriod);
         RefreshExecutor_->Start();
