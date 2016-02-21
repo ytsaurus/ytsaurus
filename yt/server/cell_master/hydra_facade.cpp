@@ -178,17 +178,17 @@ public:
     }
 
 
-    IInvokerPtr GetAutomatonInvoker(EAutomatonThreadQueue queue = EAutomatonThreadQueue::Default) const
+    IInvokerPtr GetAutomatonInvoker(EAutomatonThreadQueue queue) const
     {
         return AutomatonQueue_->GetInvoker(static_cast<int>(queue));
     }
 
-    IInvokerPtr GetEpochAutomatonInvoker(EAutomatonThreadQueue queue = EAutomatonThreadQueue::Default) const
+    IInvokerPtr GetEpochAutomatonInvoker(EAutomatonThreadQueue queue) const
     {
         return EpochInvokers_[queue];
     }
 
-    IInvokerPtr GetGuardedAutomatonInvoker(EAutomatonThreadQueue queue = EAutomatonThreadQueue::Default) const
+    IInvokerPtr GetGuardedAutomatonInvoker(EAutomatonThreadQueue queue) const
     {
         return GuardedInvokers_[queue];
     }
