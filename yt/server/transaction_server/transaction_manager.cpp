@@ -1034,7 +1034,7 @@ private:
         auto lease = TLeaseManager::CreateLease(
             *timeout,
             BIND(&TImpl::OnTransactionExpired, MakeStrong(this), transaction->GetId())
-                .Via(hydraFacade->GetEpochAutomatonInvoker()));
+                .Via(hydraFacade->GetEpochAutomatonInvoker(EAutomatonThreadQueue::TransactionSupervisor)));
         transaction->SetLease(lease);
         transaction->SetLastPingTime(TInstant::Now());
     }

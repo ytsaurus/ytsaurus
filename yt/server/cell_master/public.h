@@ -39,10 +39,12 @@ DEFINE_ENUM(EAutomatonThreadQueue,
     (ChunkMaintenance)
     (ChunkLocator)
     (ChunkTraverser)
+    (CypressTraverser)
     (FullHeartbeat)
     (IncrementalHeartbeat)
     (RpcService)
     (TransactionSupervisor)
+    (GC)
 );
 
 ////////////////////////////////////////////////////////////////////////////////
