@@ -238,11 +238,11 @@ public:
             force);
     }
 
-    void PingTransaction(const TTransactionId& transactionId, const TReqPingTransaction& request)
+    void PingTransaction(const TTransactionId& transactionId, bool pingAncestors)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        LeaseTracker_->PingTransaction(transactionId, false);
+        LeaseTracker_->PingTransaction(transactionId, pingAncestors);
     }
 
 
@@ -547,9 +547,9 @@ void TTransactionManager::AbortTransaction(const TTransactionId& transactionId, 
     Impl_->AbortTransaction(transactionId, force);
 }
 
-void TTransactionManager::PingTransaction(const TTransactionId& transactionId, const TReqPingTransaction& request)
+void TTransactionManager::PingTransaction(const TTransactionId& transactionId, bool pingAncestors)
 {
-    Impl_->PingTransaction(transactionId, request);
+    Impl_->PingTransaction(transactionId, pingAncestors);
 }
 
 DELEGATE_SIGNAL(TTransactionManager, void(TTransaction*), TransactionStarted, *Impl_);

@@ -733,8 +733,7 @@ private:
             ToProto(req->mutable_transaction_id(), Id_);
 
             if (cellId == Owner_->CellId_) {
-                auto* reqExt = req->MutableExtension(NProto::TReqPingTransactionExt::ping_transaction_ext);
-                reqExt->set_ping_ancestors(PingAncestors_);
+                req->set_ping_ancestors(PingAncestors_);
             }
 
             auto asyncRspOrError = req->Invoke();

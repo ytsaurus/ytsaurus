@@ -851,12 +851,11 @@ public:
 
     void PingTransaction(
         const TTransactionId& transactionId,
-        const NHive::NProto::TReqPingTransaction& request)
+        bool pingAncestors)
     {
         VERIFY_THREAD_AFFINITY(TrackerThread);
 
-        const auto& requestExt = request.GetExtension(TReqPingTransactionExt::ping_transaction_ext);
-        LeaseTracker_->PingTransaction(transactionId, requestExt.ping_ancestors());
+        LeaseTracker_->PingTransaction(transactionId, pingAncestors);
     }
 
 private:
@@ -1220,9 +1219,9 @@ void TTransactionManager::AbortTransaction(
 
 void TTransactionManager::PingTransaction(
     const TTransactionId& transactionId,
-    const NHive::NProto::TReqPingTransaction& request)
+    bool pingAncestors)
 {
-    Impl_->PingTransaction(transactionId, request);
+    Impl_->PingTransaction(transactionId, pingAncestors);
 }
 
 DELEGATE_SIGNAL(TTransactionManager, void(TTransaction*), TransactionStarted, *Impl_);

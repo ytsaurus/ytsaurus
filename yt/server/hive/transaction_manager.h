@@ -38,7 +38,7 @@ struct ITransactionManager
 
     virtual void PingTransaction(
         const TTransactionId& transactionId,
-        const NProto::TReqPingTransaction& request) = 0;
+        bool pingAncestors) = 0;
 
 };
 

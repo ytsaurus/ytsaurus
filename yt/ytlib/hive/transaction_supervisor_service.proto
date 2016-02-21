@@ -31,8 +31,8 @@ message TRspAbortTransaction
 message TReqPingTransaction
 {
     required NYT.NProto.TGuid transaction_id = 1;
-
-    extensions 100 to max;
+    // Only makes sense for master transactions.
+    optional bool ping_ancestors = 2 [default = false];
 }
 
 message TRspPingTransaction

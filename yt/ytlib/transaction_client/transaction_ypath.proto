@@ -1,7 +1,6 @@
 package NYT.NTransactionClient.NProto;
 
 import "yt/ytlib/object_client/master_ypath.proto";
-import "yt/ytlib/hive/transaction_supervisor_service.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -14,16 +13,6 @@ message TTransactionCreationExt
 
     // Transaction timeout.
     required int64 timeout = 1;
-}
-
-message TReqPingTransactionExt
-{
-    extend NYT.NHive.NProto.TReqPingTransaction
-    {
-        optional TReqPingTransactionExt ping_transaction_ext = 100;
-    }
-
-    optional bool ping_ancestors = 1 [default = false];
 }
 
 ////////////////////////////////////////////////////////////////////////////////
