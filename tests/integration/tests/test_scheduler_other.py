@@ -359,7 +359,7 @@ class TestSchedulerMaxChunkPerJob(YTEnvSetup):
             reduce(command="cat >/dev/null", in_=["//tmp/in1", "//tmp/in2"], out="//tmp/out", reduce_by=["foo"])
 
 
-class TestSchedulerRunningOperationsLimitJob(YTEnvSetup):
+class TestSchedulerOperationLimits(YTEnvSetup):
     NUM_MASTERS = 3
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
@@ -511,6 +511,55 @@ class TestSchedulerRunningOperationsLimitJob(YTEnvSetup):
 
         op1.track()
         op2.track()
+
+    def test_total_operations_limit(self):
+        create("map_node", "//sys/pools/research")
+        create("map_node", "//sys/pools/research/research_subpool")
+        create("map_node", "//sys/pools/production")
+        set("//sys/pools/research/@max_operations", 3)
+
+        create("table", "//tmp/in")
+        write_table("//tmp/in", [{"foo": "bar"}])
+        for i in xrange(5):
+            create("table", "//tmp/out" + str(i))
+
+
+        ops = []
+        def run(index, pool, should_raise):
+            def execute(dont_track):
+                return map(
+                    dont_track=dont_track,
+                    command="sleep 5; cat",
+                    in_=["//tmp/in"],
+                    out="//tmp/out" + str(index),
+                    spec={"pool": pool})
+
+            if should_raise:
+                with pytest.raises(YtError):
+                    execute(False)
+            else:
+                ops.append(execute(True))
+
+        for i in xrange(3):
+            run(i, "research", False)
+
+        for i in xrange(3, 5):
+            run(i, "research", True)
+
+        for i in xrange(3, 5):
+            run(i, "research_subpool", True)
+
+        self.Env.kill_service("scheduler")
+        self.Env.start_schedulers("scheduler")
+
+        for i in xrange(3, 5):
+            run(i, "research", True)
+
+        for i in xrange(3, 5):
+            run(i, "production", False)
+
+        for op in ops:
+            track_op(op)
 
 
 class TestSchedulingTags(YTEnvSetup):

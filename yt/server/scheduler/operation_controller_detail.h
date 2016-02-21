@@ -168,6 +168,7 @@ protected:
     i64 TotalEstimatedInputValueCount = 0;
     i64 TotalEstimatedCompressedDataSize = 0;
 
+    int ChunkLocatedCallCount = 0;
     int UnavailableInputChunkCount = 0;
 
     // Job counters.

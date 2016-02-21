@@ -65,8 +65,12 @@ Stroka ToString(const TQueryStatistics& stats)
         "{"
         "RowsRead: %v, RowsWritten: %v, "
         "SyncTime: %v, AsyncTime: %v, ExecuteTime: %v, ReadTime: %v, WriteTime: %v, "
+<<<<<<< HEAD
         "IncompleteInput: %v, IncompleteOutput: %v"
         "}",
+=======
+        "IncompleteInput: %v, IncompleteOutput: %v",
+>>>>>>> prestable/0.17.5
         stats.RowsRead,
         stats.RowsWritten,
         stats.SyncTime,
@@ -75,7 +79,7 @@ Stroka ToString(const TQueryStatistics& stats)
         stats.ReadTime,
         stats.WriteTime,
         stats.IncompleteInput,
-        stats.IncompleteInput);
+        stats.IncompleteOutput);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
