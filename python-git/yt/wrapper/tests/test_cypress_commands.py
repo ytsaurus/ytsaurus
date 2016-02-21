@@ -362,7 +362,7 @@ class TestCypressCommands(object):
         try:
             assert yt.lock(dir) != "0-0-0-0"
             with client.Transaction():
-                assert client.lock(dir, waitable=True, wait_for=3000) != "0-0-0-0"
+                assert client.lock(dir, waitable=True, wait_for=4000) != "0-0-0-0"
         finally:
             yt.config.TRANSACTION = "0-0-0-0"
             yt.abort_transaction(tx)
