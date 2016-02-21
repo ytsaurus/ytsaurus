@@ -62,6 +62,21 @@ Stroka Format(const char* format, const TArgs&... args);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <class TRange, class TFormatter>
+struct TFormattableRange
+{
+    TRange Range;
+    TFormatter Formatter;
+};
+
+//! Annotates a given #range with #formatter to be applied to each item.
+template <class TRange, class TFormatter>
+TFormattableRange<TRange, TFormatter> MakeFormattableRange(
+    const TRange& range,
+    const TFormatter& formatter);
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT
 
 #define FORMAT_INL_H_
