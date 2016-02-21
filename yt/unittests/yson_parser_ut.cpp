@@ -467,10 +467,17 @@ TEST_F(TYsonParserTest, MemoryLimitFit)
 {
     EXPECT_CALL(Mock, OnBeginMap());
     EXPECT_CALL(Mock, OnKeyedItem("key"));
+<<<<<<< HEAD
     EXPECT_CALL(Mock, OnStringScalar(Stroka(777, 'a')));
     EXPECT_CALL(Mock, OnEndMap());
 
     Run("{key=" + Stroka(777, 'a') + "}", EYsonType::Node, 777);
+=======
+    EXPECT_CALL(Mock, OnStringScalar(Stroka(1024, 'a')));
+    EXPECT_CALL(Mock, OnEndMap());
+
+    Run("{key=" + Stroka(1024, 'a') + "}", EYsonType::Node, 1024);
+>>>>>>> prestable/0.17.5
 }
 
 TEST_F(TYsonParserTest, MemoryLimitExceeded)

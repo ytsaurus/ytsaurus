@@ -148,6 +148,9 @@ public:
         if (!Compiled_) {
             Finalize();
         }
+
+        LOG_DEBUG("Getting function address");
+
         return Engine_->getFunctionAddress(name.c_str());
     }
 
@@ -190,14 +193,18 @@ private:
         using namespace llvm;
         using namespace llvm::legacy;
 
+
+
         if (DumpIR()) {
             llvm::errs() << "\n******** Before Optimization ***********************************\n";
             Module_->dump();
             llvm::errs() << "\n****************************************************************\n";
         }
 
+        LOG_DEBUG("Verifying module");
         YCHECK(!llvm::verifyModule(*Module_, &llvm::errs()));
 
+<<<<<<< HEAD
         std::unique_ptr<PassManager> modulePassManager;
         std::unique_ptr<FunctionPassManager> functionPassManager;
 
@@ -212,6 +219,9 @@ private:
         modulePassManager->run(*Module_);
 
         // Now, setup optimization pipeline and run actual optimizations.
+=======
+        LOG_DEBUG("Optimizing module");
+>>>>>>> prestable/0.17.5
         llvm::PassManagerBuilder passManagerBuilder;
         passManagerBuilder.OptLevel = 2;
         passManagerBuilder.SizeLevel = 0;
@@ -239,6 +249,7 @@ private:
             llvm::errs() << "\n****************************************************************\n";
         }
 
+        LOG_DEBUG("Finalizing module");
         Engine_->finalizeObject();
 
         // TODO(sandello): Clean module here.
