@@ -640,7 +640,7 @@ void TObjectProxyBase::ValidateCustomAttributeLength(const NYson::TYsonString& v
     if (size > limit) {
         THROW_ERROR_EXCEPTION(
             NYTree::EErrorCode::MaxAttributeSizeViolation,
-            "Attribute size exceeded: %v > %v",
+            "Attribute size limit exceeded: %v > %v",
             size,
             limit);
     }
