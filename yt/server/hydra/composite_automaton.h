@@ -235,10 +235,17 @@ private:
 
     const IInvokerPtr AsyncSnapshotInvoker_;
 
+    struct TStaticMethodDescriptor
+    {
+        NProfiling::TSimpleCounter CumulativeTimeCounter;
+    };
+
+    class TStaticMethodDescriptorRegistry;
+
     struct TMethodDescriptor
     {
         TCallback<void(TMutationContext* context)> Callback;
-        NProfiling::TTagId TagId;
+        TStaticMethodDescriptor* StaticDescriptor;
     };
 
     struct TSaverDescriptorBase
