@@ -60,7 +60,6 @@ struct TChunkTreeStatistics;
 struct TTotalNodeStatistics;
 
 DECLARE_REFCOUNTED_CLASS(TJob)
-DECLARE_REFCOUNTED_CLASS(TJobList)
 
 DECLARE_REFCOUNTED_CLASS(TChunkManager)
 DECLARE_REFCOUNTED_CLASS(TChunkReplicator)

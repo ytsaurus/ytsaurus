@@ -307,40 +307,6 @@ TNodeList TChunkPlacement::AllocateWriteTargets(
     return targetNodes;
 }
 
-TNodeList TChunkPlacement::GetWriteTargets(
-    TChunk* chunk,
-    int desiredCount,
-    int minCount,
-    TNullable<int> replicationFactorOverride)
-{
-    auto nodeTracker = Bootstrap_->GetNodeTracker();
-    auto chunkManager = Bootstrap_->GetChunkManager();
-
-    TNodeList forbiddenNodes;
-    auto jobList = chunkManager->FindJobList(chunk);
-    if (jobList) {
-        for (const auto& job : jobList->Jobs()) {
-            auto type = job->GetType();
-            if (type == EJobType::ReplicateChunk || type == EJobType::RepairChunk) {
-                for (const auto& targetAddress : job->TargetAddresses()) {
-                    auto* targetNode = nodeTracker->FindNodeByAddress(targetAddress);
-                    if (targetNode) {
-                        forbiddenNodes.push_back(targetNode);
-                    }
-                }
-            }
-        }
-    }
-
-    return GetWriteTargets(
-        chunk,
-        desiredCount,
-        minCount,
-        replicationFactorOverride,
-        &forbiddenNodes,
-        Null);
-}
-
 TNode* TChunkPlacement::GetRemovalTarget(TChunkPtrWithIndex chunkWithIndex)
 {
     auto* chunk = chunkWithIndex.GetPtr();
@@ -525,7 +491,7 @@ std::vector<TChunkPtrWithIndex> TChunkPlacement::GetBalancingChunks(
         if (chunk->GetRefreshScheduled()) {
             continue;
         }
-        if (chunkManager->FindJobList(chunk)) {
+        if (chunk->GetJob()) {
             continue;
         }
         result.push_back(replica);

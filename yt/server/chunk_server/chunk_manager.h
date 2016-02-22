@@ -117,7 +117,6 @@ public:
     void ClearChunkList(TChunkList* chunkList);
 
     TJobPtr FindJob(const TJobId& id);
-    TJobListPtr FindJobList(TChunk* chunk);
 
     void ScheduleJobs(
         TNode* node,

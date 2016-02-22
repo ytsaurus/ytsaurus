@@ -34,9 +34,8 @@ DEFINE_ENUM(ERemoveReplicaReason,
 
 DEFINE_BIT_ENUM(EJobUnregisterFlags,
     ((None)                  (0x0000))
-    ((UnregisterFromChunk)   (0x0001))
-    ((UnregisterFromNode)    (0x0002))
-    ((ScheduleChunkRefresh)  (0x0004))
+    ((UnregisterFromNode)    (0x0001))
+    ((ScheduleChunkRefresh)  (0x0002))
     ((All)                   (0xffff))
 );
 

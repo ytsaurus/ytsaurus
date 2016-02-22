@@ -18,6 +18,26 @@ using namespace NChunkClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TJob::TJob(
+    EJobType type,
+    const TJobId& jobId,
+    const TChunkIdWithIndex& chunkIdWithIndex,
+    TNode* node,
+    const TNodeList& targets,
+    const TPartIndexList& erasedIndexes,
+    TInstant startTime,
+    const TNodeResources& resourceUsage)
+    : JobId_(jobId)
+    , Type_(type)
+    , ChunkIdWithIndex_(chunkIdWithIndex)
+    , Node_(node)
+    , Targets_(targets)
+    , ErasedIndexes_(erasedIndexes)
+    , StartTime_(startTime)
+    , ResourceUsage_(resourceUsage)
+    , State_(EJobState::Running)
+{ }
+
 TJobPtr TJob::CreateReplicate(
     const TJobId& jobId,
     TChunkPtrWithIndex chunkWithIndex,
@@ -107,26 +127,6 @@ TJobPtr TJob::CreateSeal(
         TInstant::Now(),
         resourceUsage);
 }
-
-TJob::TJob(
-    EJobType type,
-    const TJobId& jobId,
-    const TChunkIdWithIndex& chunkIdWithIndex,
-    TNode* node,
-    const TNodeList& targets,
-    const TPartIndexList& erasedIndexes,
-    TInstant startTime,
-    const TNodeResources& resourceUsage)
-    : JobId_(jobId)
-    , Type_(type)
-    , ChunkIdWithIndex_(chunkIdWithIndex)
-    , Node_(node)
-    , TargetAddresses_(ConvertToStrings(targets, TNodePtrAddressFormatter()))
-    , ErasedIndexes_(erasedIndexes)
-    , StartTime_(startTime)
-    , ResourceUsage_(resourceUsage)
-    , State_(EJobState::Running)
-{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 

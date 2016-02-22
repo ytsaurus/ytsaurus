@@ -83,14 +83,8 @@ private:
         int desiredCount,
         int minCount,
         TNullable<int> replicationFactorOverride,
-        const TNodeList* forbiddenNodes,
-        const TNullable<Stroka>& preferredHostName);
-
-    TNodeList GetWriteTargets(
-        TChunk* chunk,
-        int desiredCount,
-        int minCount,
-        TNullable<int> replicationFactorOverride);
+        const TNodeList* forbiddenNodes = nullptr,
+        const TNullable<Stroka>& preferredHostName = Null);
 
     TNode* GetBalancingTarget(
         TChunk* chunk,

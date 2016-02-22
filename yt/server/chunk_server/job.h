@@ -28,7 +28,7 @@ public:
      */
     DEFINE_BYVAL_RO_PROPERTY(NChunkClient::TChunkIdWithIndex, ChunkIdWithIndex);
     DEFINE_BYVAL_RO_PROPERTY(NNodeTrackerServer::TNode*, Node);
-    DEFINE_BYREF_RO_PROPERTY(std::vector<Stroka>, TargetAddresses);
+    DEFINE_BYREF_RO_PROPERTY(TNodeList, Targets);
     DEFINE_BYREF_RO_PROPERTY(NErasure::TPartIndexList, ErasedIndexes);
     DEFINE_BYVAL_RO_PROPERTY(TInstant, StartTime);
     DEFINE_BYREF_RO_PROPERTY(NNodeTrackerClient::NProto::TNodeResources, ResourceUsage);
@@ -76,18 +76,6 @@ public:
 };
 
 DEFINE_REFCOUNTED_TYPE(TJob)
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TJobList
-    : public TRefCounted
-{
-public:
-    DEFINE_BYREF_RW_PROPERTY(yhash_set<TJobPtr>, Jobs);
-
-};
-
-DEFINE_REFCOUNTED_TYPE(TJobList)
 
 ////////////////////////////////////////////////////////////////////////////////
 
