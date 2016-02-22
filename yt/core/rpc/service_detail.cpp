@@ -652,7 +652,7 @@ static PER_THREAD bool ScheduleRequestsRunning = false;
 
 void TServiceBase::ScheduleRequests(const TRuntimeMethodInfoPtr& runtimeInfo)
 {
-    // Prevent reeentarant invocations.
+    // Prevent reentrant invocations.
     if (ScheduleRequestsRunning)
         return;
     ScheduleRequestsRunning = true;
