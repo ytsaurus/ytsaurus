@@ -433,8 +433,10 @@ public:
         LOG_DEBUG("Flushing changelog");
 
         try {
-            DataFile_->FlushData();
-            IndexFile_->FlushData();
+            if (Config_->EnableSync) {
+                DataFile_->FlushData();
+                IndexFile_->FlushData();
+            }
 
             LastFlushed_ = TInstant::Now();
         } catch (const std::exception& ex) {
