@@ -1195,3 +1195,10 @@ class TestTablets(YTEnvSetup):
         sleep(1.0)
         for delay in xrange(0, 10):
             assert lookup_rows("//tmp/t", keys, read_from="follower", backup_request_delay=delay, timestamp=AsyncLastCommittedTimestamp) == rows
+
+    def test_tablet_cell_create_permission(self):
+        create_user("u")
+        set("//sys/schemas/tablet_cell/@acl/end", {"subjects": ["u"], "permissions": ["create"], "action": "allow"})
+        id = create_tablet_cell(1, user="u")
+        assert exists("//sys/tablet_cells/{0}/changelogs".format(id))
+        assert exists("//sys/tablet_cells/{0}/snapshots".format(id))
