@@ -248,14 +248,7 @@ public:
                     Id_,
                     coordinatorCellId);
 
-<<<<<<< HEAD
                 auto proxy = Owner_->MakeSupervisorProxy(coordinatorCellId);
-=======
-                auto cellChannel = Owner_->CellDirectory_->GetChannelOrThrow(coordinatorCellId);
-                auto retryingChannel = CreateRetryingChannel(Owner_->Config_, cellChannel);
-                TTransactionSupervisorServiceProxy proxy(retryingChannel);
->>>>>>> prestable/0.17.5
-
                 auto req = proxy->CommitTransaction();
                 ToProto(req->mutable_transaction_id(), Id_);
                 for (const auto& cellId : participantGuids) {
