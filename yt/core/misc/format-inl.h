@@ -203,7 +203,7 @@ TFormattableRange<TRange, TFormatter> MakeFormattableRange(
     const TFormatter& formatter)
 {
     return TFormattableRange<TRange, TFormatter>{range, formatter};
-};
+}
 
 template <class TRange, class TFormatter>
 void FormatRange(TStringBuilder* builder, const TRange& range, const TFormatter& formatter)
