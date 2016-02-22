@@ -1202,3 +1202,7 @@ class TestTablets(YTEnvSetup):
         id = create_tablet_cell(1, user="u")
         assert exists("//sys/tablet_cells/{0}/changelogs".format(id))
         assert exists("//sys/tablet_cells/{0}/snapshots".format(id))
+
+    def test_tablet_cell_create_attributes(self):
+        id = create_tablet_cell(1, attributes={"snapshot_replication_factor": 1})
+        assert get("//sys/tablet_cells/{0}/@snapshot_replication_factor".format(id)) == 1
