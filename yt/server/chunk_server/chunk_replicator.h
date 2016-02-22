@@ -69,7 +69,6 @@ public:
     void TouchChunk(TChunk* chunk);
 
     TJobPtr FindJob(const TJobId& id);
-    TJobListPtr FindJobList(TChunk* chunk);
 
     EChunkStatus ComputeChunkStatus(TChunk* chunk);
 
@@ -127,7 +126,6 @@ private:
     std::deque<TChunk*> PropertiesUpdateList_;
 
     yhash_map<TJobId, TJobPtr> JobMap_;
-    yhash_map<TChunk*, TJobListPtr> JobListMap_;
 
     TChunkRepairQueue ChunkRepairQueue_;
 
@@ -182,9 +180,6 @@ private:
     TChunkStatistics ComputeJournalChunkStatistics(TChunk* chunk);
 
     bool IsReplicaDecommissioned(TNodePtrWithIndex replica);
-
-    bool HasRunningJobs(TChunk* chunk);
-    bool HasRunningJobs(TChunkPtrWithIndex replica);
 
     void OnPropertiesUpdate();
 

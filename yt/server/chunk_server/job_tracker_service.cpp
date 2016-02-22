@@ -27,11 +27,14 @@ namespace NChunkServer {
 
 using namespace NHydra;
 using namespace NJobTrackerClient;
+using namespace NChunkClient;
 using namespace NNodeTrackerClient;
 using namespace NNodeTrackerServer;
 using namespace NJobTrackerClient::NProto;
 using namespace NChunkClient::NProto;
 using namespace NCellMaster;
+
+using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -156,11 +159,14 @@ private:
                 case EJobType::ReplicateChunk: {
                     auto* replicateChunkJobSpecExt = jobSpec->MutableExtension(TReplicateChunkJobSpecExt::replicate_chunk_job_spec_ext);
 
-                    auto targetReplicas = AddressesToReplicas(job->TargetAddresses());
-                    ToProto(replicateChunkJobSpecExt->mutable_targets(), targetReplicas);
-
                     NNodeTrackerServer::TNodeDirectoryBuilder builder(replicateChunkJobSpecExt->mutable_node_directory());
-                    builder.Add(targetReplicas);
+
+                    for (auto* node : job->Targets()) {
+                        TNodePtrWithIndex replica(node, GenericChunkReplicaIndex);
+                        replicateChunkJobSpecExt->add_targets(ToProto<ui32>(replica));
+                        builder.Add(replica);
+                    }
+
                     break;
                 }
 
@@ -175,13 +181,17 @@ private:
                     ToProto(repairChunkJobSpecExt->mutable_erased_indexes(), job->ErasedIndexes());
 
                     NNodeTrackerServer::TNodeDirectoryBuilder builder(repairChunkJobSpecExt->mutable_node_directory());
+
                     const auto& replicas = chunk->StoredReplicas();
                     builder.Add(replicas);
                     ToProto(repairChunkJobSpecExt->mutable_replicas(), replicas);
 
-                    auto targetReplicas = AddressesToReplicas(job->TargetAddresses());
-                    builder.Add(targetReplicas);
-                    ToProto(repairChunkJobSpecExt->mutable_targets(), targetReplicas);
+                    for (auto* node : job->Targets()) {
+                        TNodePtrWithIndex replica(node, GenericChunkReplicaIndex);
+                        repairChunkJobSpecExt->add_targets(ToProto<ui32>(replica));
+                        builder.Add(replica);
+                    }
+
                     break;
                 }
 
@@ -214,19 +224,6 @@ private:
 
         context->Reply();
     }
-
-    TNodePtrWithIndexList AddressesToReplicas(const std::vector<Stroka>& addresses)
-    {
-        TNodePtrWithIndexList replicas;
-        auto nodeTracker = Bootstrap_->GetNodeTracker();
-        for (const auto& address : addresses) {
-            auto* node = nodeTracker->GetNodeByAddress(address);
-            TNodePtrWithIndex replica(node, 0);
-            replicas.push_back(replica);
-        }
-        return replicas;
-    }
-
 };
 
 NRpc::IServicePtr CreateJobTrackerService(TBootstrap* boostrap)

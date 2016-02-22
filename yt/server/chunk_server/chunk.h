@@ -47,6 +47,9 @@ struct TChunkDynamicData
     //! Contains a valid iterator for those chunks belonging to the repair queue
     //! and |Null| for others.
     TNullable<TChunkRepairQueueIterator> RepairQueueIterator;
+
+    //! The job that is currently scheduled for this chunk (at most one).
+    TJobPtr Job;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -127,6 +130,9 @@ public:
 
     const TNullable<TChunkRepairQueueIterator>& GetRepairQueueIterator() const;
     void SetRepairQueueIterator(const TNullable<TChunkRepairQueueIterator>& value);
+
+    TJobPtr GetJob() const;
+    void SetJob(TJobPtr job);
 
     void Reset();
 

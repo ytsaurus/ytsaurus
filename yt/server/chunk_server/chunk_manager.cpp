@@ -753,11 +753,6 @@ public:
         return ChunkReplicator_->FindJob(id);
     }
 
-    TJobListPtr FindJobList(TChunk* chunk)
-    {
-        return ChunkReplicator_->FindJobList(chunk);
-    }
-
 
     void ScheduleJobs(
         TNode* node,
@@ -2041,11 +2036,6 @@ void TChunkManager::ClearChunkList(TChunkList* chunkList)
 TJobPtr TChunkManager::FindJob(const TJobId& id)
 {
     return Impl_->FindJob(id);
-}
-
-TJobListPtr TChunkManager::FindJobList(TChunk* chunk)
-{
-    return Impl_->FindJobList(chunk);
 }
 
 void TChunkManager::ScheduleJobs(

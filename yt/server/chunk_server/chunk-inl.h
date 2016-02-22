@@ -62,6 +62,16 @@ inline void TChunk::SetRepairQueueIterator(const TNullable<TChunkRepairQueueIter
     GetDynamicData()->RepairQueueIterator = value;
 }
 
+inline TJobPtr TChunk::GetJob() const
+{
+    return GetDynamicData()->Job;
+}
+
+inline void TChunk::SetJob(TJobPtr job)
+{
+    GetDynamicData()->Job = std::move(job);
+}
+
 inline void TChunk::Reset()
 {
     auto* data = GetDynamicData();
