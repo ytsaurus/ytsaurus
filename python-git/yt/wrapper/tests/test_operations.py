@@ -593,10 +593,12 @@ class TestOperations(object):
 
             assert time.time() - start_time < 2.0
             ops.append(yt.run_map("cat; sleep 2", table, TEST_DIR + "/output", sync=False))
-            assert time.time() - start_time > 3.0
+            assert time.time() - start_time > 2.0
 
             for op in ops:
                 op.wait()
+
+            assert time.time() - start_time > 4.0
 
         finally:
             yt.config["start_operation_retries"]["retry_timeout"] = old_value
