@@ -972,14 +972,13 @@ void TSchemalessTableWriter::DoOpen()
             "compression_codec",
             "erasure_codec",
             "account",
-            "vital"};
-
+            "vital"
+        };
         if (sorted) {
             attributeKeys.push_back("row_count");
             attributeKeys.push_back("sorted_by");
         }
-
-        ToProto(req->mutable_attributes(), attributeKeys);
+        ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
 
         auto rspOrError = WaitFor(proxy.Execute(req));
         THROW_ERROR_EXCEPTION_IF_FAILED(

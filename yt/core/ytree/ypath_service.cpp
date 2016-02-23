@@ -15,32 +15,13 @@
 #include <yt/core/concurrency/periodic_executor.h>
 
 namespace NYT {
-
-////////////////////////////////////////////////////////////////////////////////
-
-void ToProto(NYTree::NProto::TAttributeKeys* protoAttributes, const std::vector<Stroka>& attributes)
-{
-    for (const auto& attribute : attributes) {
-        protoAttributes->add_keys(attribute);
-    }
-}
-
-void FromProto(std::vector<Stroka>* attributes, const NYTree::NProto::TAttributeKeys& protoAttributes)
-{
-    *attributes = NYT::FromProto<std::vector<Stroka>>(protoAttributes.keys());
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-} // namespace NYT
-
-
-namespace NYT {
 namespace NYTree {
 
 using namespace NYson;
 using namespace NRpc;
 using namespace NConcurrency;
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TFromProducerYPathService
     : public TYPathServiceBase
@@ -134,6 +115,11 @@ public:
         IServiceContextPtr /*context*/) override
     {
         return TResolveResult::Here(path);
+    }
+
+    virtual bool ShouldHideAttributes() override
+    {
+        return UnderlyingService_->ShouldHideAttributes();
     }
 
 private:

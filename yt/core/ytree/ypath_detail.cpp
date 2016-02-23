@@ -27,6 +27,8 @@ using namespace NRpc::NProto;
 using namespace NYson;
 using namespace NYTree;
 
+using NYT::FromProto;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto NoneYsonFuture = MakeFuture(TYsonString());
@@ -390,7 +392,7 @@ void TSupportsAttributes::GetAttribute(
     context->SetRequestInfo();
 
     auto attributeKeys = request->has_attributes()
-        ? MakeNullable(NYT::FromProto<std::vector<Stroka>>(request->attributes()))
+        ? MakeNullable(FromProto<std::vector<Stroka>>(request->attributes().keys()))
         : Null;
 
     DoGetAttribute(path, attributeKeys).Subscribe(BIND([=] (const TErrorOr<TYsonString>& ysonOrError) {

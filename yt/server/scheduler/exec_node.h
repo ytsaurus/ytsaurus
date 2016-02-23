@@ -12,6 +12,8 @@
 #include <yt/core/misc/lease_manager.h>
 #include <yt/core/misc/property.h>
 
+#include <yt/core/concurrency/rw_spinlock.h>
+
 namespace NYT {
 namespace NScheduler {
 
@@ -105,7 +107,7 @@ private:
     Stroka InterconnectAddress_;
     TJobResources ResourceUsage_;
 
-    mutable TSpinLock SpinLock_;
+    mutable NConcurrency::TReaderWriterSpinLock SpinLock_;
     TJobResources ResourceLimits_;
     double IOWeight_ = 0;
 };

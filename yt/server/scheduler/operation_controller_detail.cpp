@@ -638,12 +638,12 @@ bool TOperationControllerBase::TTask::CanScheduleJob(
 void TOperationControllerBase::TTask::DoCheckResourceDemandSanity(
     const TJobResources& neededResources)
 {
-    int nodeCount = Controller->Host->GetExecNodeCount();
-    if (nodeCount < Controller->Config->SafeOnlineNodeCount) {
+    int execNodeCount = Controller->GetExecNodeCount();
+    if (execNodeCount < Controller->Config->SafeOnlineNodeCount) {
         return;
     }
 
-    auto nodeDescriptors = Controller->Host->GetExecNodeDescriptors(Controller->Operation->GetSchedulingTag());
+    const auto& nodeDescriptors = Controller->GetExecNodeDescriptors();
     for (const auto& descriptor : nodeDescriptors) {
         if (Dominates(descriptor.ResourceLimits, neededResources)) {
             return;
@@ -1777,23 +1777,29 @@ TJobStartRequestPtr TOperationControllerBase::ScheduleJob(
 {
     VERIFY_INVOKER_AFFINITY(CancelableInvoker);
 
-    auto jobStartRequestOrError = WaitFor(
-        BIND(&TOperationControllerBase::DoScheduleJob, MakeStrong(this))
-            .AsyncVia(CancelableInvoker)
-            .Run(context, jobLimits)
-            .WithTimeout(Config->ControllerScheduleJobTimeLimit));
-
-    if (jobStartRequestOrError.GetCode() == NYT::EErrorCode::Timeout) {
-        OnOperationFailed(TError("Controller is scheduling for too long, aborted")
-            << TErrorAttribute("time_limit", Config->ControllerScheduleJobTimeLimit));
-        return nullptr;
+    auto request = DoScheduleJob(context, jobLimits);
+    if (request) {
+        OnJobStarted(request->id);
     }
+    return request;
 
-    auto jobStartRequest = jobStartRequestOrError.ValueOrThrow();
-    if (jobStartRequest) {
-        OnJobStarted(jobStartRequest->id);
-    }
-    return jobStartRequest;
+    //auto jobStartRequestOrError = WaitFor(
+    //    BIND(&TOperationControllerBase::DoScheduleJob, MakeStrong(this))
+    //        .AsyncVia(CancelableInvoker)
+    //        .Run(context, jobLimits)
+    //        .WithTimeout(Config->ControllerScheduleJobTimeLimit));
+
+    //if (jobStartRequestOrError.GetCode() == NYT::EErrorCode::Timeout) {
+    //    OnOperationFailed(TError("Controller is scheduling for too long, aborted")
+    //        << TErrorAttribute("time_limit", Config->ControllerScheduleJobTimeLimit));
+    //    return nullptr;
+    //}
+
+    //auto jobStartRequest = jobStartRequestOrError.ValueOrThrow();
+    //if (jobStartRequest) {
+    //    OnJobStarted(jobStartRequest->id);
+    //}
+    //return jobStartRequest;
 }
 
 void TOperationControllerBase::UpdateConfig(TSchedulerConfigPtr config)
@@ -2736,8 +2742,9 @@ void TOperationControllerBase::LockInputTables()
                     "dynamic",
                     "sorted",
                     "sorted_by",
-                    "chunk_count"};
-                ToProto(req->mutable_attributes(), attributeKeys);
+                    "chunk_count"
+                };
+                ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
                 SetTransactionId(req, InputTransactionId);
                 batchReq->AddRequest(req, "get_attributes");
             }
@@ -2838,8 +2845,9 @@ void TOperationControllerBase::BeginUploadOutputTables()
                     "replication_factor",
                     "account",
                     "vital",
-                    "effective_acl"};
-                ToProto(req->mutable_attributes(), attributeKeys);
+                    "effective_acl"
+                };
+                ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
                 SetTransactionId(req, OutputTransactionId);
                 batchReq->AddRequest(req, "get_attributes");
             }
@@ -3048,7 +3056,7 @@ void TOperationControllerBase::LockUserFiles(
                 attributeKeys.push_back("key");
                 attributeKeys.push_back("chunk_count");
                 attributeKeys.push_back("uncompressed_data_size");
-                ToProto(req->mutable_attributes(), attributeKeys);
+                ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
                 batchReq->AddRequest(req, "get_attributes");
             }
         }
@@ -3875,6 +3883,31 @@ void TOperationControllerBase::ValidateUserFileCount(TUserJobSpecPtr spec, const
             Config->MaxUserFileCount,
             spec->FilePaths.size());
     }
+}
+
+void TOperationControllerBase::GetExecNodesInformation()
+{
+    auto now = TInstant::Now();
+    if (LastGetExecNodesInformationTime_ + Config->GetExecNodesInformationDelay > now) {
+        return;
+    }
+
+    ExecNodeCount_ = Host->GetExecNodeCount();
+    ExecNodesDescriptors_ = Host->GetExecNodeDescriptors(Operation->GetSchedulingTag());
+
+    LastGetExecNodesInformationTime_ = TInstant::Now();
+}
+
+int TOperationControllerBase::GetExecNodeCount()
+{
+    GetExecNodesInformation();
+    return ExecNodeCount_;
+}
+
+const std::vector<TExecNodeDescriptor>& TOperationControllerBase::GetExecNodeDescriptors()
+{
+    GetExecNodesInformation();
+    return ExecNodesDescriptors_;
 }
 
 void TOperationControllerBase::Persist(TPersistenceContext& context)

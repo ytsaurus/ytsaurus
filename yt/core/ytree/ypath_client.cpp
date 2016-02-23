@@ -29,6 +29,9 @@ using namespace NRpc::NProto;
 using namespace NYPath;
 using namespace NYson;
 
+using NYT::FromProto;
+using NYT::ToProto;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TYPathRequest::TYPathRequest(const TRequestHeader& header)
@@ -338,7 +341,7 @@ TFuture<TYsonString> AsyncYPathGet(
 {
     auto request = TYPathProxy::Get(path);
     if (attributeKeys) {
-        NYT::ToProto(request->mutable_attributes(), *attributeKeys);
+        ToProto(request->mutable_attributes()->mutable_keys(), *attributeKeys);
     }
     request->set_ignore_opaque(ignoreOpaque);
     return ExecuteVerb(service, request)

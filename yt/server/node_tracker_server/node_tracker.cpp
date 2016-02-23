@@ -507,6 +507,9 @@ public:
         TTotalNodeStatistics result;
         for (const auto& pair : NodeMap_) {
             const auto* node = pair.second;
+            if (node->GetAggregatedState() != ENodeState::Online) {
+                continue;
+            }
             const auto& statistics = node->Statistics();
             if (!node->GetDecommissioned()) {
                 result.AvailableSpace += statistics.total_available_space();
@@ -514,9 +517,7 @@ public:
             result.UsedSpace += statistics.total_used_space();
             result.ChunkCount += statistics.total_stored_chunk_count();
             result.FullNodeCount += statistics.full() ? 1 : 0;
-            if (node->GetAggregatedState() == ENodeState::Online) {
-                result.OnlineNodeCount++;
-            }
+            result.OnlineNodeCount += 1;
         }
         return result;
     }

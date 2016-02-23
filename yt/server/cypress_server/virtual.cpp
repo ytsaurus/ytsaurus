@@ -113,13 +113,9 @@ void TVirtualMulticellMapBase::GetSelf(TReqGet* request, TRspGet* response, TCtx
 {
     YASSERT(!NYson::TTokenizer(GetRequestYPath(context->RequestHeader())).ParseNext());
 
-    // NB: It is impossible to call FromProto<std::vector<Stroka>>(request->attributes()) due to visibility reasons.
-    TNullable<std::vector<Stroka>> attributeKeys;
-    if (request->has_attributes()) {
-        std::vector<Stroka> keys;
-        FromProto(&keys, request->attributes());
-        attributeKeys = keys;
-    }
+    auto attributeKeys = request->has_attributes()
+        ? MakeNullable(FromProto<std::vector<Stroka>>(request->attributes().keys()))
+        : Null;
 
     i64 limit = request->has_limit()
         ? request->limit()
@@ -184,13 +180,9 @@ void TVirtualMulticellMapBase::GetSelf(TReqGet* request, TRspGet* response, TCtx
 
 void TVirtualMulticellMapBase::ListSelf(TReqList* request, TRspList* response, TCtxListPtr context)
 {
-    // NB: It is impossible to call FromProto<std::vector<Stroka>>(request->attributes()) due to visibility reasons.
-    TNullable<std::vector<Stroka>> attributeKeys;
-    if (request->has_attributes()) {
-        std::vector<Stroka> keys;
-        FromProto(&keys, request->attributes());
-        attributeKeys = keys;
-    }
+    auto attributeKeys = request->has_attributes()
+        ? MakeNullable(FromProto<std::vector<Stroka>>(request->attributes().keys()))
+        : Null;
 
     i64 limit = request->has_limit()
         ? request->limit()
@@ -447,7 +439,7 @@ void TVirtualMulticellMapBase::FetchItemsFromRemote(
     auto req = TCypressYPathProxy::Enumerate(path);
     req->set_limit(session->Limit - session->Items.size());
     if (session->AttributeKeys) {
-        ToProto(req->mutable_attributes(), *session->AttributeKeys);
+        ToProto(req->mutable_attributes()->mutable_keys(), *session->AttributeKeys);
     }
     batchReq->AddRequest(req, "enumerate");
 
@@ -493,13 +485,9 @@ TFuture<TYsonString> TVirtualMulticellMapBase::GetOwningNodeAttributes(const TNu
 
 DEFINE_YPATH_SERVICE_METHOD(TVirtualMulticellMapBase, Enumerate)
 {
-    // NB: It is impossible to call FromProto<std::vector<Stroka>>(request->attributes()) due to visibility reasons.
-    TNullable<std::vector<Stroka>> attributeKeys;
-    if (request->has_attributes()) {
-        std::vector<Stroka> keys;
-        FromProto(&keys, request->attributes());
-        attributeKeys = keys;
-    }
+    auto attributeKeys = request->has_attributes()
+        ? MakeNullable(FromProto<std::vector<Stroka>>(request->attributes().keys()))
+        : Null;
 
     i64 limit = request->limit();
 
@@ -515,12 +503,12 @@ DEFINE_YPATH_SERVICE_METHOD(TVirtualMulticellMapBase, Enumerate)
         if (IsObjectAlive(object)) {
             auto* protoItem = response->add_items();
             protoItem->set_key(ToString(key));
-            if (attributeKeys) {
-                TAsyncYsonWriter writer(EYsonType::MapFragment);
-                auto proxy = objectManager->GetProxy(object, nullptr);
+            TAsyncYsonWriter writer(EYsonType::MapFragment);
+            auto proxy = objectManager->GetProxy(object, nullptr);
+            if (attributeKeys && !attributeKeys->empty() || !proxy->ShouldHideAttributes()) {
                 proxy->WriteAttributesFragment(&writer, attributeKeys, false);
-                asyncValues.push_back(writer.Finish());
             }
+            asyncValues.push_back(writer.Finish());
         }
     }
 

@@ -22,6 +22,9 @@ using namespace NRpc;
 using namespace NYPath;
 using namespace NYson;
 
+using NYT::FromProto;
+using NYT::ToProto;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 bool TNodeBase::DoInvoke(IServiceContextPtr context)
@@ -38,7 +41,7 @@ bool TNodeBase::DoInvoke(IServiceContextPtr context)
 void TNodeBase::GetSelf(TReqGet* request, TRspGet* response, TCtxGetPtr context)
 {
     auto attributeKeys = request->has_attributes()
-        ? MakeNullable(NYT::FromProto<std::vector<Stroka>>(request->attributes()))
+        ? MakeNullable(FromProto<std::vector<Stroka>>(request->attributes().keys()))
         : Null;
 
     // TODO(babenko): make use of limit
@@ -251,7 +254,7 @@ void TMapNodeMixin::ListSelf(TReqList* request, TRspList* response, TCtxListPtr 
     ValidatePermission(EPermissionCheckScope::This, EPermission::Read);
 
     auto attributeKeys = request->has_attributes()
-        ? MakeNullable(NYT::FromProto<std::vector<Stroka>>(request->attributes()))
+        ? MakeNullable(FromProto<std::vector<Stroka>>(request->attributes().keys()))
         : Null;
 
     auto limit = request->has_limit()

@@ -237,6 +237,10 @@ EExitCode GuardedMain(int argc, const char* argv[])
 
     INodePtr configNode;
 
+    if (isExecutor) {
+        NLogging::TLogManager::Get()->Configure(NLogging::TLogConfig::CreateQuiet());
+    }
+
     if (!printConfigTemplate && !isExecutor) {
         if (configFileName.empty()) {
             THROW_ERROR_EXCEPTION("Missing --config option");
@@ -330,7 +334,7 @@ EExitCode GuardedMain(int argc, const char* argv[])
             YCHECK(setuid(uid) == 0);
         }
 
-        std::vector<char*> env; 
+        std::vector<char*> env;
         for (auto envVar : parser.Environment.getValue()) {
             env.push_back(const_cast<char*>(envVar.c_str()));
         }

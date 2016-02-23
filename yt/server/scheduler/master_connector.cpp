@@ -555,8 +555,10 @@ private:
             auto batchReq = Owner->StartBatchRequest();
             {
                 auto req = TYPathProxy::List("//sys/operations");
-                std::vector<Stroka> attributeKeys{"state"};
-                ToProto(req->mutable_attributes(), attributeKeys);
+                std::vector<Stroka> attributeKeys{
+                    "state"
+                };
+                ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
                 batchReq->AddRequest(req, "list_operations");
             }
 
@@ -604,8 +606,9 @@ private:
                         "authenticated_user",
                         "start_time",
                         "state",
-                        "suspended"};
-                    ToProto(req->mutable_attributes(), attributeKeys);
+                        "suspended"
+                    };
+                    ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
                     batchReq->AddRequest(req, "get_op_attr");
                 }
             }

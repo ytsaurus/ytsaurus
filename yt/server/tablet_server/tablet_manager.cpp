@@ -358,6 +358,11 @@ public:
         auto cellNodePath = "/" + ToString(id);
 
         try {
+            // NB: Users typically are not allowed to create these types.
+            auto securityManager = Bootstrap_->GetSecurityManager();
+            auto* rootUser = securityManager->GetRootUser();
+            TAuthenticatedUserGuard userGuard(securityManager, rootUser);
+            
             // Create Cypress node.
             {
                 auto req = TCypressYPathProxy::Create(cellNodePath);
