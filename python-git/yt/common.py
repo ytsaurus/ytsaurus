@@ -2,6 +2,7 @@ from itertools import chain
 from collections import Mapping
 import os
 import sys
+import time
 import ctypes
 import types
 import signal
@@ -19,7 +20,7 @@ class YtError(Exception):
         if "host" not in self.attributes:
             self.attributes["host"] = socket.getfqdn()
         if "datetime" not in self.attributes:
-            self.attributes["datetime"] = datetime.now()
+            self.attributes["datetime"] = datetime_to_string(datetime.now())
 
     def simplify(self):
         """ Transform error (with inner errors) to standard python dict """
@@ -246,3 +247,12 @@ def makedirp(path):
     except OSError as err:
         if err.errno != errno.EEXIST:
             raise
+
+def date_string_to_timestamp(date):
+    # It is standard time representation in YT.
+    return time.mktime(datetime.strptime(date, "%Y-%m-%dT%H:%M:%S.%fZ").timetuple())
+
+def datetime_to_string(date):
+    # It is standard time representation in YT.
+    return date.strftime("%Y-%m-%dT%H:%M:%S.%fZ")
+

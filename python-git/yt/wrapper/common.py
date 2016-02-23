@@ -1,6 +1,6 @@
 """Some common useful misc"""
 
-from yt.common import require, flatten, update, which, YtError, update_from_env, unlist, get_value, filter_dict
+from yt.common import require, flatten, update, which, YtError, update_from_env, unlist, get_value, filter_dict, date_string_to_timestamp
 import yt.yson as yson
 
 import os
@@ -143,10 +143,6 @@ def run_with_retries(action, retry_count=6, backoff=20.0, exceptions=(YtError,),
             sleep_backoff = backoff * iter - total_seconds(datetime.now() - start_time)
             if sleep_backoff > 0.0:
                 time.sleep(sleep_backoff)
-
-def date_string_to_timestamp(date):
-    # It is standard time representation in YT.
-    return int(time.mktime(datetime.strptime(date, "%Y-%m-%dT%H:%M:%S.%fZ").timetuple()))
 
 def is_inside_job():
     """Returns True if the code is currently being run in the context of a YT job."""
