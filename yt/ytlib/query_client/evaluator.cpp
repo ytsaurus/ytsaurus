@@ -9,12 +9,7 @@
 
 #include <yt/ytlib/table_client/schemaful_writer.h>
 
-<<<<<<< HEAD
-#include <yt/core/misc/sync_cache.h>
-=======
-#include <yt/core/misc/common.h>
 #include <yt/core/misc/async_cache.h>
->>>>>>> prestable/0.17.5
 
 #include <yt/core/profiling/scoped_timer.h>
 
