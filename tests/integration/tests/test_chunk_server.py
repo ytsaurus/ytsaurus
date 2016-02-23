@@ -123,6 +123,13 @@ class TestChunkServer(YTEnvSetup):
 
         self._check_replicator(False)
 
+    def test_hide_chunk_attrs(self):
+        create("table", "//tmp/t")
+        write_table("//tmp/t", {"a" : "b"})
+        chunks = ls("//sys/chunks")
+        for c in chunks:
+            assert len(c.attributes) == 0
+
 ##################################################################
 
 class TestChunkServerMulticell(TestChunkServer):
