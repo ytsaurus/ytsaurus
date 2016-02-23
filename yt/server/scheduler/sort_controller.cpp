@@ -1277,7 +1277,7 @@ protected:
 
         LOG_DEBUG("Examining online nodes");
 
-        auto nodeDescriptors = Host->GetExecNodeDescriptors(Operation->GetSchedulingTag());
+        const auto& nodeDescriptors = GetExecNodeDescriptors();
         auto maxResourceLimits = ZeroJobResources();
         double maxIOWeight = 0;
         for (const auto& descriptor : nodeDescriptors) {
