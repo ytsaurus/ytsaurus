@@ -91,7 +91,7 @@ using namespace NJournalServer;
 static const auto& Logger = ChunkServerLogger;
 static const auto ProfilingPeriod = TDuration::MilliSeconds(100);
 // NB: Changing this value will invalidate all changelogs!
-static const auto UnapprovedReplicaGracePeriod = TDuration::Seconds(15);
+static const auto UnapprovedReplicaGracePeriod = TDuration::Seconds(60);
 
 ////////////////////////////////////////////////////////////////////////////////
 
