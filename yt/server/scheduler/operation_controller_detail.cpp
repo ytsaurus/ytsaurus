@@ -638,6 +638,11 @@ bool TOperationControllerBase::TTask::CanScheduleJob(
 void TOperationControllerBase::TTask::DoCheckResourceDemandSanity(
     const TJobResources& neededResources)
 {
+    int execNodeCount = Controller->GetExecNodeCount();
+    if (execNodeCount < Controller->Config->SafeOnlineNodeCount) {
+        return;
+    }
+
     const auto& nodeDescriptors = Controller->GetExecNodeDescriptors();
     for (const auto& descriptor : nodeDescriptors) {
         if (Dominates(descriptor.ResourceLimits, neededResources)) {
@@ -1971,14 +1976,6 @@ TJobStartRequestPtr TOperationControllerBase::DoScheduleJob(
     if (GetPendingJobCount() == 0) {
         LOG_TRACE("No pending jobs left, scheduling request ignored");
         return nullptr;
-    }
-
-    int execNodeCount = GetExecNodeCount();
-    if (execNodeCount < Config->SafeOnlineNodeCount) {
-        OnOperationFailed(TError(
-            "Not enough online nodes: %v < %v",
-            execNodeCount,
-            Config->SafeOnlineNodeCount));
     }
 
     auto localJobStartRequest = DoScheduleLocalJob(context, jobLimits);
