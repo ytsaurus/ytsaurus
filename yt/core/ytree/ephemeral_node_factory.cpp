@@ -59,9 +59,13 @@ class TEphemeralNodeBase
     , public TEphemeralAttributeOwner
 {
 public:
+    explicit TEphemeralNodeBase(bool shouldHideAttributes)
+        : ShouldHideAttributes_(shouldHideAttributes)
+    { }
+
     virtual INodeFactoryPtr CreateFactory() const override
     {
-        return GetEphemeralNodeFactory();
+        return GetEphemeralNodeFactory(ShouldHideAttributes_);
     }
 
     virtual INodeResolverPtr GetResolver() const override
@@ -81,6 +85,10 @@ public:
         Parent = parent;
     }
 
+    virtual bool ShouldHideAttributes() override
+    {
+        return ShouldHideAttributes_;
+    }
 
     virtual void WriteAttributesFragment(
         IAsyncYsonConsumer* consumer,
@@ -120,6 +128,7 @@ protected:
 private:
     TWeakPtr<ICompositeNode> Parent;
 
+    bool ShouldHideAttributes_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -130,8 +139,9 @@ class TScalarNode
     , public virtual IBase
 {
 public:
-    TScalarNode()
-        : Value()
+    TScalarNode(bool shouldHideAttributes)
+        : TEphemeralNodeBase(shouldHideAttributes)
+        , Value()
     { }
 
     virtual typename NMpl::TCallTraits<TValue>::TType GetValue() const override
@@ -156,6 +166,11 @@ private:
         : public TScalarNode<type, I ## name ## Node> \
     { \
         YTREE_NODE_TYPE_OVERRIDES(name) \
+        \
+        public: \
+            T ## name ## Node (bool shouldHideAttributes) \
+                : TScalarNode<type, I ## name ## Node> (shouldHideAttributes) \
+            { } \
     };
 
 DECLARE_SCALAR_TYPE(String, Stroka)
@@ -174,6 +189,10 @@ class TCompositeNodeBase
     , public virtual IBase
 {
 public:
+    TCompositeNodeBase(bool shouldHideAttributes)
+        : TEphemeralNodeBase(shouldHideAttributes)
+    { }
+
     virtual TIntrusivePtr<ICompositeNode> AsComposite() override
     {
         return this;
@@ -194,6 +213,10 @@ class TMapNode
     YTREE_NODE_TYPE_OVERRIDES(Map)
 
 public:
+    TMapNode(bool shouldHideAttributes)
+        : TCompositeNodeBase<IMapNode>(shouldHideAttributes)
+    { }
+
     virtual void Clear() override
     {
         for (const auto& pair : KeyToChild) {
@@ -330,6 +353,10 @@ class TListNode
     YTREE_NODE_TYPE_OVERRIDES(List)
 
 public:
+    TListNode(bool shouldHideAttributes)
+        : TCompositeNodeBase<IListNode>(shouldHideAttributes)
+    { }
+
     virtual void Clear() override
     {
         for (const auto& node : IndexToChild) {
@@ -447,6 +474,11 @@ class TEntityNode
     , public virtual IEntityNode
 {
     YTREE_NODE_TYPE_OVERRIDES(Entity)
+
+public:
+    explicit TEntityNode(bool shouldHideAttributes)
+        : TEphemeralNodeBase(shouldHideAttributes)
+    { }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -455,54 +487,83 @@ class TEphemeralNodeFactory
     : public INodeFactory
 {
 public:
+    explicit TEphemeralNodeFactory(bool shouldHideAttributes)
+        : ShouldHideAttributes_(shouldHideAttributes)
+    { }
+
     virtual IStringNodePtr CreateString() override
     {
-        return New<TStringNode>();
+        return New<TStringNode>(ShouldHideAttributes_);
     }
 
     virtual IInt64NodePtr CreateInt64() override
     {
-        return New<TInt64Node>();
+        return New<TInt64Node>(ShouldHideAttributes_);
     }
 
     virtual IUint64NodePtr CreateUint64() override
     {
-        return New<TUint64Node>();
+        return New<TUint64Node>(ShouldHideAttributes_);
     }
 
     virtual IDoubleNodePtr CreateDouble() override
     {
-        return New<TDoubleNode>();
+        return New<TDoubleNode>(ShouldHideAttributes_);
     }
 
     virtual IBooleanNodePtr CreateBoolean() override
     {
-        return New<TBooleanNode>();
+        return New<TBooleanNode>(ShouldHideAttributes_);
     }
 
     virtual IMapNodePtr CreateMap() override
     {
-        return New<TMapNode>();
+        return New<TMapNode>(ShouldHideAttributes_);
     }
 
     virtual IListNodePtr CreateList() override
     {
-        return New<TListNode>();
+        return New<TListNode>(ShouldHideAttributes_);
     }
 
     virtual IEntityNodePtr CreateEntity() override
     {
-        return New<TEntityNode>();
+        return New<TEntityNode>(ShouldHideAttributes_);
     }
 
     virtual void Commit() override
     { }
 
+private:
+    bool ShouldHideAttributes_;
 };
 
-INodeFactoryPtr GetEphemeralNodeFactory()
+
+class TNonHidingAttributesEphemeralNodeFactory
+    : public TEphemeralNodeFactory
 {
-    return RefCountedSingleton<TEphemeralNodeFactory>();
+public:
+    TNonHidingAttributesEphemeralNodeFactory()
+        : TEphemeralNodeFactory(false)
+    { }
+};
+
+class THidingAttributesEphemeralNodeFactory
+    : public TEphemeralNodeFactory
+{
+public:
+    THidingAttributesEphemeralNodeFactory()
+        : TEphemeralNodeFactory(true)
+    { }
+};
+
+INodeFactoryPtr GetEphemeralNodeFactory(bool shouldHideAttributes)
+{
+    if (shouldHideAttributes) {
+        return RefCountedSingleton<THidingAttributesEphemeralNodeFactory>();
+    } else {
+        return RefCountedSingleton<TNonHidingAttributesEphemeralNodeFactory>();
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

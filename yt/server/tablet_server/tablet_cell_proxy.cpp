@@ -48,20 +48,6 @@ private:
         }
     }
 
-    virtual void ValidateCustomAttributeUpdate(
-        const Stroka& key,
-        const TNullable<TYsonString>& oldValue,
-        const TNullable<TYsonString>& newValue) override
-    {
-        // Prevent changing options after creation.
-        static auto optionsKeys = New<TTabletCellOptions>()->GetRegisteredKeys();
-        if (std::find(optionsKeys.begin(), optionsKeys.end(), key) != optionsKeys.end()) {
-            THROW_ERROR_EXCEPTION("Cannot change tablet cell options after creation");
-        }
-
-        return TBase::ValidateCustomAttributeUpdate(key, oldValue, newValue);
-    }
-
     virtual void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override
     {
         TBase::ListSystemAttributes(descriptors);

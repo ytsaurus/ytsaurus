@@ -357,7 +357,7 @@ public:
     //! until number of chunk lists to release less that desired chunk lists to release.
     //! This option necessary to prevent chunk list release storm.
     TDuration ChunkListReleaseBatchDelay;
-    
+
     //! Desired number of chunks to release in one batch.
     int DesiredChunkListsPerRelease;
 
@@ -397,6 +397,9 @@ public:
     //! Don't check resource demand for sanity if the number of online
     //! nodes is less than this bound.
     int SafeOnlineNodeCount;
+
+    //! Time between two consecutive calls in operation controller to get exec nodes information from scheduler.
+    TDuration GetExecNodesInformationDelay;
 
     //! Maximum number of foreign chunks to locate per request.
     int MaxChunksPerLocateRequest;
@@ -559,6 +562,9 @@ public:
         RegisterParameter("safe_online_node_count", SafeOnlineNodeCount)
             .GreaterThanOrEqual(0)
             .Default(1);
+
+        RegisterParameter("get_exec_nodes_information_delay", GetExecNodesInformationDelay)
+            .Default(TDuration::Seconds(1));
 
         RegisterParameter("max_chunks_per_locate_request", MaxChunksPerLocateRequest)
             .GreaterThan(0)

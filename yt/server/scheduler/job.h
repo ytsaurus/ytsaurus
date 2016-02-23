@@ -93,7 +93,7 @@ DEFINE_REFCOUNTED_TYPE(TJob)
 
 struct TJobSummary
 {
-    explicit TJobSummary(TJobPtr job);
+    explicit TJobSummary(const TJobPtr& job);
     explicit TJobSummary(const TJobId& id);
 
     const TRefCountedJobResultPtr Result;
@@ -107,7 +107,7 @@ using TFailedJobSummary = TJobSummary;
 struct TCompletedJobSummary
     : public TJobSummary
 {
-    explicit TCompletedJobSummary(TJobPtr job, bool abandoned = false);
+    explicit TCompletedJobSummary(const TJobPtr& job, bool abandoned = false);
 
     const bool Abandoned = false;
 };
@@ -115,7 +115,7 @@ struct TCompletedJobSummary
 struct TAbortedJobSummary
     : public TJobSummary
 {
-    explicit TAbortedJobSummary(TJobPtr job);
+    explicit TAbortedJobSummary(const TJobPtr& job);
     TAbortedJobSummary(const TJobId& id, EAbortReason abortReason);
 
     const EAbortReason AbortReason;
@@ -124,7 +124,7 @@ struct TAbortedJobSummary
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TJobStartRequest
-    : public TRefCounted
+    : public TIntrinsicRefCounted
 {
     TJobStartRequest(
         TJobId id,

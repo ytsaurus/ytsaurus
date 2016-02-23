@@ -62,7 +62,7 @@ void TVirtualMapBase::GetSelf(TReqGet* request, TRspGet* response, TCtxGetPtr co
     YASSERT(!NYson::TTokenizer(GetRequestYPath(context->RequestHeader())).ParseNext());
 
     auto attributeKeys = request->has_attributes()
-        ? MakeNullable(NYT::FromProto<std::vector<Stroka>>(request->attributes()))
+        ? MakeNullable(NYT::FromProto<std::vector<Stroka>>(request->attributes().keys()))
         : Null;
 
     i64 limit = request->has_limit()
@@ -110,7 +110,7 @@ void TVirtualMapBase::GetSelf(TReqGet* request, TRspGet* response, TCtxGetPtr co
 void TVirtualMapBase::ListSelf(TReqList* request, TRspList* response, TCtxListPtr context)
 {
     auto attributeKeys = request->has_attributes()
-        ? MakeNullable(FromProto<std::vector<Stroka>>(request->attributes()))
+        ? MakeNullable(FromProto<std::vector<Stroka>>(request->attributes().keys()))
         : Null;
 
     i64 limit = request->has_limit()
@@ -244,6 +244,11 @@ public:
         const TNullable<std::vector<Stroka>>& /*attributeKeys*/,
         bool /*sortKeys*/) override
     { }
+
+    virtual bool ShouldHideAttributes() override
+    {
+        return UnderlyingService_->ShouldHideAttributes();
+    }
 
 private:
     const IYPathServicePtr UnderlyingService_;

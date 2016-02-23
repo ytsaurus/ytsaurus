@@ -522,7 +522,7 @@ void TBootstrap::DoInitialize()
         "/election",
         HydraFacade_->GetElectionManager()->GetMonitoringProducer());
 
-    auto orchidFactory = GetEphemeralNodeFactory();
+    auto orchidFactory = GetEphemeralNodeFactory(true);
     auto orchidRoot = orchidFactory->CreateMap();
     SetNodeByYPath(
         orchidRoot,

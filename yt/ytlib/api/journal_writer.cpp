@@ -381,8 +381,9 @@ private:
                     "replication_factor",
                     "read_quorum",
                     "write_quorum",
-                    "account"};
-                ToProto(req->mutable_attributes(), attributeKeys);
+                    "account"
+                };
+                ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
 
                 auto rspOrError = WaitFor(proxy.Execute(req));
                 THROW_ERROR_EXCEPTION_IF_FAILED(

@@ -13,19 +13,9 @@
 #include <yt/core/yson/consumer.h>
 
 namespace NYT {
-
-////////////////////////////////////////////////////////////////////////////////
-
-void ToProto(NYTree::NProto::TAttributeKeys* protoAttributes, const std::vector<Stroka>& attributes);
-void FromProto(std::vector<Stroka>* attributes, const NYTree::NProto::TAttributeKeys& protoAttributes);
-
-////////////////////////////////////////////////////////////////////////////////
-
-} // namespace NYT
-
-
-namespace NYT {
 namespace NYTree {
+
+////////////////////////////////////////////////////////////////////////////////
 
 //! Represents an abstract way of handling YPath requests.
 /*!
