@@ -125,8 +125,6 @@ public:
 
     virtual void Persist(TPersistenceContext& context) override;
 
-    const std::vector<TExecNodeDescriptor>& GetExecNodeDescriptors();
-
 protected:
     // Forward declarations.
     class TTask;
@@ -910,15 +908,6 @@ private:
 
     //! Runs periodic time limit checks that fail operation on timeout.
     NConcurrency::TPeriodicExecutorPtr CheckTimeLimitExecutor;
-
-    //! Exec node count do not consider scheduling tag.
-    //! But descriptors do.
-    int ExecNodeCount_ = 0;
-    std::vector<TExecNodeDescriptor> ExecNodesDescriptors_;
-    TInstant LastGetExecNodesInformationTime_;
-
-    void GetExecNodesInformation();
-    int GetExecNodeCount();
 
 
     void UpdateJobStatistics(const TJobSummary& jobSummary);

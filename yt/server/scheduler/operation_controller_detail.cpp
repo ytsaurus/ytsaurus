@@ -638,7 +638,12 @@ bool TOperationControllerBase::TTask::CanScheduleJob(
 void TOperationControllerBase::TTask::DoCheckResourceDemandSanity(
     const TJobResources& neededResources)
 {
-    const auto& nodeDescriptors = Controller->GetExecNodeDescriptors();
+    int nodeCount = Controller->Host->GetExecNodeCount();
+    if (nodeCount < Controller->Config->SafeOnlineNodeCount) {
+        return;
+    }
+
+    auto nodeDescriptors = Controller->Host->GetExecNodeDescriptors(Controller->Operation->GetSchedulingTag());
     for (const auto& descriptor : nodeDescriptors) {
         if (Dominates(descriptor.ResourceLimits, neededResources)) {
             return;
@@ -1971,14 +1976,6 @@ TJobStartRequestPtr TOperationControllerBase::DoScheduleJob(
     if (GetPendingJobCount() == 0) {
         LOG_TRACE("No pending jobs left, scheduling request ignored");
         return nullptr;
-    }
-
-    int execNodeCount = GetExecNodeCount();
-    if (execNodeCount < Config->SafeOnlineNodeCount) {
-        OnOperationFailed(TError(
-            "Not enough online nodes: %v < %v",
-            execNodeCount,
-            Config->SafeOnlineNodeCount));
     }
 
     auto localJobStartRequest = DoScheduleLocalJob(context, jobLimits);
@@ -3884,31 +3881,6 @@ void TOperationControllerBase::ValidateUserFileCount(TUserJobSpecPtr spec, const
             Config->MaxUserFileCount,
             spec->FilePaths.size());
     }
-}
-
-void TOperationControllerBase::GetExecNodesInformation()
-{
-    auto now = TInstant::Now();
-    if (LastGetExecNodesInformationTime_ + Config->GetExecNodesInformationDelay > now) {
-        return;
-    }
-
-    ExecNodeCount_ = Host->GetExecNodeCount();
-    ExecNodesDescriptors_ = Host->GetExecNodeDescriptors(Operation->GetSchedulingTag());
-
-    LastGetExecNodesInformationTime_ = TInstant::Now();
-}
-
-int TOperationControllerBase::GetExecNodeCount()
-{
-    GetExecNodesInformation();
-    return ExecNodeCount_;
-}
-
-const std::vector<TExecNodeDescriptor>& TOperationControllerBase::GetExecNodeDescriptors()
-{
-    GetExecNodesInformation();
-    return ExecNodesDescriptors_;
 }
 
 void TOperationControllerBase::Persist(TPersistenceContext& context)
