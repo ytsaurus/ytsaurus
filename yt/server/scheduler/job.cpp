@@ -95,7 +95,7 @@ const Stroka& TJob::GetStatisticsSuffix() const
 
 ////////////////////////////////////////////////////////////////////
 
-TJobSummary::TJobSummary(TJobPtr job)
+TJobSummary::TJobSummary(const TJobPtr& job)
     : Result(job->Result())
     , Id(job->GetId())
     , Statistics(job->Statistics())
@@ -111,7 +111,7 @@ TJobSummary::TJobSummary(const TJobId& id)
 
 ////////////////////////////////////////////////////////////////////
 
-TCompletedJobSummary::TCompletedJobSummary(TJobPtr job, bool abandoned)
+TCompletedJobSummary::TCompletedJobSummary(const TJobPtr& job, bool abandoned)
     : TJobSummary(job)
     , Abandoned(abandoned)
 { }
@@ -123,7 +123,7 @@ TAbortedJobSummary::TAbortedJobSummary(const TJobId& id, EAbortReason abortReaso
     , AbortReason(abortReason)
 { }
 
-TAbortedJobSummary::TAbortedJobSummary(TJobPtr job)
+TAbortedJobSummary::TAbortedJobSummary(const TJobPtr& job)
     : TJobSummary(job)
     , AbortReason(GetAbortReason(Result))
 { }
