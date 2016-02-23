@@ -46,10 +46,12 @@ class CountedRLock(object):
 
     @contextmanager
     def discharge(self):
-        acquired_count = self.get_counter()
-        self.release(count=acquired_count)
-        yield
-        self.acquire(count=acquired_count)
+        try:
+            acquired_count = self.get_counter()
+            self.release(count=acquired_count)
+            yield
+        finally:
+            self.acquire(count=acquired_count)
 
 
 
