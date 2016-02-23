@@ -404,33 +404,7 @@ private:
                             tablePartId,
                             keys,
                             timestamp,
-<<<<<<< HEAD
                             workloadDescriptor);
-=======
-                            workloadDescriptor,
-                            index = 0,
-                            this_ = MakeStrong(this)
-                        ] () mutable -> ISchemafulReaderPtr {
-                            if (index == groupedKeys.size()) {
-                                return nullptr;
-                            } else {
-                                const auto& group = groupedKeys[index++];
-
-                                // TODO(lukyan): Validate timestamp and read permission
-                                return CreateSchemafulTabletReader(
-                                    tabletSnapshot,
-                                    query->TableSchema,
-                                    group.first,
-                                    group.second,
-                                    timestamp,
-                                    workloadDescriptor);
-                            }
-                        };
-
-                        return CreateUnorderedSchemafulReader(
-                            std::move(bottomSplitReaderGenerator),
-                            Config_->MaxBottomReaderConcurrency);
->>>>>>> prestable/0.17.5
                     }
 
                     default:
