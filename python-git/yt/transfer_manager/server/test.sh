@@ -171,8 +171,11 @@ test_various_transfers() {
 }
 
 test_abort_restart_task() {
-    yt2 remove //tmp/test_table_from_plato --proxy smith.yt.yandex.net --force
-    echo "Importing from Plato to Smith"
+    echo "Test abort and restart"
+
+    yt2 remove --force //tmp/test_table_from_plato --proxy smith
+    yt2 remove --force //tmp/test_table --proxy plato
+    echo -e "a\tb\nc\td\ne\tf" | yt2 write //tmp/test_table --format yamr --proxy plato
     id=$(run_task '{"source_table": "//tmp/test_table", "source_cluster": "plato", "destination_table": "//tmp/test_table_from_plato", "destination_cluster": "smith", "pool": "ignat"}')
     echo "Aborting, than restarting task"
     abort_task $id
@@ -185,7 +188,8 @@ test_abort_restart_task() {
 }
 
 test_lease() {
-    echo "Importing from Plato to Smith"
+    echo "Test task lease"
+
     echo -e "a\tb\nc\td\ne\tf" | yt2 write //tmp/test_table --format yamr --proxy plato
     id=$(run_task '{"source_table": "//tmp/test_table", "source_cluster": "plato", "destination_table": "//tmp/test_table_from_plato", "destination_cluster": "smith", "pool": "ignat", "lease_timeout": 2}')
     sleep 10.0
@@ -194,6 +198,8 @@ test_lease() {
 }
 
 test_copy_table_range() {
+    echo "Test copy table with specified range"
+
     echo -e "a\tb\nc\td\ne\tf" | yt2 write //tmp/test_table --format yamr --proxy smith.yt.yandex.net
 
     id=$(run_task '{"source_table": "//tmp/test_table[#1:#2]", "source_cluster": "smith", "destination_table": "//tmp/test_table_from_smith", "destination_cluster": "plato", "pool" : "ignat", "copy_method": "proxy"}')
@@ -278,6 +284,7 @@ test_passing_custom_spec() {
 
 test_clusters_configuration_reloading() {
     echo "Test clusters configuration reloading"
+
     # Making config backup
     temp_filename=$(mktemp)
     cp $TM_CONFIG $temp_filename
@@ -313,6 +320,8 @@ test_types_preserving_during_copy() {
 }
 
 test_skip_if_destination_exists() {
+    echo "Test skipped state of task"
+
     echo 'a=b' | yt2 write //tmp/test_table --proxy quine --format dsv
     echo 'c=d' | yt2 write //tmp/test_table --proxy plato --format dsv
 
@@ -343,10 +352,15 @@ test_mutating_requests_retries() {
     retry_task_id2=$(request "POST" "tasks/" -d "$task" --header 'X-TM-Parameters:{"mutation_id": "tm_test_mutation_id_123"}')
     grep_result=$(echo $retry_task_id2 | grep "is not marked as")
     check "$?" "0"
+
+    wait_task "$task_id"
+
     echo "Ok"
 }
 
 test_destination_codecs() {
+    echo "Test destination codecs"
+
     echo 'a=b' | yt2 write //tmp/test_table --proxy quine --format dsv
 
     id=$(run_task '{"source_table": "//tmp/test_table", "source_cluster": "quine", "destination_table": "//tmp/test_table", "destination_cluster": "plato", "destination_compression_codec": "zlib6"}')
