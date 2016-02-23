@@ -136,6 +136,11 @@ public:
         return TResolveResult::Here(path);
     }
 
+    virtual bool ShouldHideAttributes() override
+    {
+        return UnderlyingService_->ShouldHideAttributes();
+    }
+
 private:
     const IYPathServicePtr UnderlyingService_;
     const IInvokerPtr Invoker_;

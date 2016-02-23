@@ -245,6 +245,11 @@ public:
         bool /*sortKeys*/) override
     { }
 
+    virtual bool ShouldHideAttributes() override
+    {
+        return UnderlyingService_->ShouldHideAttributes();
+    }
+
 private:
     const IYPathServicePtr UnderlyingService_;
 
