@@ -2742,8 +2742,9 @@ void TOperationControllerBase::LockInputTables()
                     "dynamic",
                     "sorted",
                     "sorted_by",
-                    "chunk_count"};
-                ToProto(req->mutable_attributes(), attributeKeys);
+                    "chunk_count"
+                };
+                ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
                 SetTransactionId(req, InputTransactionId);
                 batchReq->AddRequest(req, "get_attributes");
             }
@@ -2844,8 +2845,9 @@ void TOperationControllerBase::BeginUploadOutputTables()
                     "replication_factor",
                     "account",
                     "vital",
-                    "effective_acl"};
-                ToProto(req->mutable_attributes(), attributeKeys);
+                    "effective_acl"
+                };
+                ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
                 SetTransactionId(req, OutputTransactionId);
                 batchReq->AddRequest(req, "get_attributes");
             }
@@ -3054,7 +3056,7 @@ void TOperationControllerBase::LockUserFiles(
                 attributeKeys.push_back("key");
                 attributeKeys.push_back("chunk_count");
                 attributeKeys.push_back("uncompressed_data_size");
-                ToProto(req->mutable_attributes(), attributeKeys);
+                ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
                 batchReq->AddRequest(req, "get_attributes");
             }
         }

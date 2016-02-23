@@ -1856,7 +1856,7 @@ private:
         SetSuppressAccessTracking(req, options);
 
         if (options.Attributes) {
-            ToProto(req->mutable_attributes(), *options.Attributes);
+            ToProto(req->mutable_attributes()->mutable_keys(), *options.Attributes);
         }
         if (options.MaxSize) {
             req->set_limit(*options.MaxSize);
@@ -1924,7 +1924,7 @@ private:
         SetSuppressAccessTracking(req, options);
 
         if (options.Attributes) {
-            ToProto(req->mutable_attributes(), *options.Attributes);
+            ToProto(req->mutable_attributes()->mutable_keys(), *options.Attributes);
         }
         if (options.MaxSize) {
             req->set_limit(*options.MaxSize);
