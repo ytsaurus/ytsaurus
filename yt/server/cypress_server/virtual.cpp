@@ -515,7 +515,7 @@ DEFINE_YPATH_SERVICE_METHOD(TVirtualMulticellMapBase, Enumerate)
         if (IsObjectAlive(object)) {
             auto* protoItem = response->add_items();
             protoItem->set_key(ToString(key));
-`
+
             TAsyncYsonWriter writer(EYsonType::MapFragment);
             auto proxy = objectManager->GetProxy(object, nullptr);
             proxy->WriteAttributesFragment(&writer, attributeKeys, false);
