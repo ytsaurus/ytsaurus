@@ -181,7 +181,7 @@ void TOperationTracker::DumpResult()
             "address",
             "error"
         };
-        ToProto(req->mutable_attributes().mutable_keys(), attributeKeys);
+        ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
         batchReq->AddRequest(req, "get_jobs");
     }
 
