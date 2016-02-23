@@ -8,6 +8,7 @@ namespace NScheduler {
 
 using namespace NNodeTrackerClient;
 using namespace NNodeTrackerServer;
+using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////
 
@@ -52,7 +53,7 @@ bool TExecNode::CanSchedule(const TNullable<Stroka>& tag) const
 
 TExecNodeDescriptor TExecNode::BuildExecDescriptor() const
 {
-    TGuard<TSpinLock> guard(SpinLock_);
+    TReadGuard guard(SpinLock_);
     return TExecNodeDescriptor{
         Id_,
         DefaultAddress_,
@@ -68,7 +69,7 @@ double TExecNode::GetIOWeight() const
 
 void TExecNode::SetIOWeight(double value)
 {
-    TGuard<TSpinLock> guard(SpinLock_);
+    TWriterGuard guard(SpinLock_);
     IOWeight_ = value;
 }
 
@@ -79,7 +80,7 @@ const TJobResources& TExecNode::GetResourceLimits() const
 
 void TExecNode::SetResourceLimits(const TJobResources& value)
 {
-    TGuard<TSpinLock> guard(SpinLock_);
+    TWriterGuard guard(SpinLock_);
     ResourceLimits_ = value;
 }
 
