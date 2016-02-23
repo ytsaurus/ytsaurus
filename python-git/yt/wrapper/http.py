@@ -9,7 +9,6 @@ import yt.yson as yson
 import yt.json as json
 
 import os
-import sys
 import random
 import string
 import time
@@ -116,7 +115,7 @@ def _process_request_backoff(current_time, client):
             time.sleep(float(backoff) / 1000.0 - diff)
         get_session().last_request_time = now_seconds
 
-def raise_for_status(response, request_info, force_raise_error=False):
+def raise_for_status(response, request_info):
     if response.status_code == 503:
         raise YtProxyUnavailable(response)
     if response.status_code == 401:
@@ -127,14 +126,7 @@ def raise_for_status(response, request_info, force_raise_error=False):
             "please kindly submit a request to https://st.yandex-team.ru/createTicket?queue=YTADMIN"\
                 .format(response.headers.get("X-YT-Request-ID", "missing"), url_base))
 
-    if force_raise_error and response.is_ok():
-        url, params, headers = \
-                request_info["url"], request_info["headers"], get_value(request_info["params"], {})
-        logger.warning("Error occured but response does not contain error information. "
-                       "Url: %s, params: %s, headers: %s",
-                       url, str(params), str(hide_token(dict(headers))))
-
-    if not response.is_ok() or force_raise_error:
+    if not response.is_ok():
         raise YtHttpResponseError(error=response.error(), **request_info)
 
 def make_request_with_retries(method, url, make_retries=True, retry_unavailable_proxy=True, response_should_be_json=False,
@@ -159,13 +151,9 @@ def make_request_with_retries(method, url, make_retries=True, retry_unavailable_
                 if get_option("_ENABLE_HTTP_CHAOS_MONKEY", client) and random.randint(1, 5) == 1:
                     raise YtIncorrectResponse("", response)
             except requests.ConnectionError as error:
-                exc_info = sys.exc_info()
-                if hasattr(error, "response") and error.response is not None:
-                    try:
-                        rsp = create_response(error.response, request_info, client)
-                    except:
-                        raise exc_info[0], exc_info[1], exc_info[2]
-                    raise_for_status(rsp, request_info, force_raise_error=True)
+                if hasattr(error, "response"):
+                    rsp = create_response(error.response, request_info, client)
+                    raise_for_status(rsp, request_info)
                 raise
 
             # Sometimes (quite often) we obtain incomplete response with body expected to be JSON.
