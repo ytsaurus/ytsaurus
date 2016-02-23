@@ -34,4 +34,5 @@ class YtClientWithNotifications(Yt):
 
     def __init__(self, *args, **kwargs):
         super(YtClientWithNotifications, self).__init__(*args, **kwargs)
+        self.config["operation_tracker"]["stderr_logging_level"] = "DEBUG"
 
