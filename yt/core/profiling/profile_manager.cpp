@@ -48,7 +48,7 @@ public:
             true,
             false))
         , Thread(New<TThread>(this))
-        , Root(GetEphemeralNodeFactory()->CreateMap())
+        , Root(GetEphemeralNodeFactory(true)->CreateMap())
         , EnqueuedCounter("/enqueued")
         , DequeuedCounter("/dequeued")
     {
