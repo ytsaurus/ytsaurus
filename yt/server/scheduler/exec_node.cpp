@@ -53,7 +53,7 @@ bool TExecNode::CanSchedule(const TNullable<Stroka>& tag) const
 
 TExecNodeDescriptor TExecNode::BuildExecDescriptor() const
 {
-    TReadGuard guard(SpinLock_);
+    TReaderGuard guard(SpinLock_);
     return TExecNodeDescriptor{
         Id_,
         DefaultAddress_,
