@@ -164,8 +164,9 @@ private:
                 "replication_factor",
                 "account",
                 "compression_codec",
-                "erasure_codec"};
-            ToProto(req->mutable_attributes(), attributeKeys);
+                "erasure_codec"
+            };
+            ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
 
             auto rspOrError = WaitFor(proxy.Execute(req));
             THROW_ERROR_EXCEPTION_IF_FAILED(

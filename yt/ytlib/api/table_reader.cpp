@@ -192,8 +192,11 @@ void TSchemalessTableReader::DoOpen()
         auto req = TYPathProxy::Get(objectIdPath);
         SetTransactionId(req, Transaction_);
         SetSuppressAccessTracking(req, Config_->SuppressAccessTracking);
-        std::vector<Stroka> attributeKeys{"dynamic", "schema"};
-        ToProto(req->mutable_attributes(), attributeKeys);
+        std::vector<Stroka> attributeKeys{
+            "dynamic",
+            "schema"
+        };
+        ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
 
         auto rspOrError = WaitFor(proxy.Execute(req));
         THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error getting table schema %v",
