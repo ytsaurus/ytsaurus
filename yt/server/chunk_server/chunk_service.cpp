@@ -51,8 +51,10 @@ public:
             .SetHeavy(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(AllocateWriteTargets)
             .SetInvoker(GetGuardedAutomatonInvoker(EAutomatonThreadQueue::ChunkLocator)));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(ExportChunks));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(ImportChunks));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(ExportChunks)
+            .SetHeavy(true));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(ImportChunks)
+            .SetHeavy(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetChunkOwningNodes));
     }
 
