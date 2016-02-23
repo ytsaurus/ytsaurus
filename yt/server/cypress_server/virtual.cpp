@@ -517,7 +517,9 @@ DEFINE_YPATH_SERVICE_METHOD(TVirtualMulticellMapBase, Enumerate)
             protoItem->set_key(ToString(key));
             TAsyncYsonWriter writer(EYsonType::MapFragment);
             auto proxy = objectManager->GetProxy(object, nullptr);
-            proxy->WriteAttributesFragment(&writer, attributeKeys, false);
+            if (attributeKeys && !attributeKeys->empty() || !proxy->ShouldHideAttributes()) {
+                proxy->WriteAttributesFragment(&writer, attributeKeys, false);
+            }
             asyncValues.push_back(writer.Finish());
         }
     }
