@@ -1772,23 +1772,25 @@ TJobStartRequestPtr TOperationControllerBase::ScheduleJob(
 {
     VERIFY_INVOKER_AFFINITY(CancelableInvoker);
 
-    auto jobStartRequestOrError = WaitFor(
-        BIND(&TOperationControllerBase::DoScheduleJob, MakeStrong(this))
-            .AsyncVia(CancelableInvoker)
-            .Run(context, jobLimits)
-            .WithTimeout(Config->ControllerScheduleJobTimeLimit));
+    return DoScheduleJob(context, jobLimits);
 
-    if (jobStartRequestOrError.GetCode() == NYT::EErrorCode::Timeout) {
-        OnOperationFailed(TError("Controller is scheduling for too long, aborted")
-            << TErrorAttribute("time_limit", Config->ControllerScheduleJobTimeLimit));
-        return nullptr;
-    }
+    //auto jobStartRequestOrError = WaitFor(
+    //    BIND(&TOperationControllerBase::DoScheduleJob, MakeStrong(this))
+    //        .AsyncVia(CancelableInvoker)
+    //        .Run(context, jobLimits)
+    //        .WithTimeout(Config->ControllerScheduleJobTimeLimit));
 
-    auto jobStartRequest = jobStartRequestOrError.ValueOrThrow();
-    if (jobStartRequest) {
-        OnJobStarted(jobStartRequest->id);
-    }
-    return jobStartRequest;
+    //if (jobStartRequestOrError.GetCode() == NYT::EErrorCode::Timeout) {
+    //    OnOperationFailed(TError("Controller is scheduling for too long, aborted")
+    //        << TErrorAttribute("time_limit", Config->ControllerScheduleJobTimeLimit));
+    //    return nullptr;
+    //}
+
+    //auto jobStartRequest = jobStartRequestOrError.ValueOrThrow();
+    //if (jobStartRequest) {
+    //    OnJobStarted(jobStartRequest->id);
+    //}
+    //return jobStartRequest;
 }
 
 void TOperationControllerBase::UpdateConfig(TSchedulerConfigPtr config)
