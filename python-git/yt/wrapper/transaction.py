@@ -118,10 +118,12 @@ class Transaction(object):
 
             action = "commit" if type is None else "abort"
             if action == "abort":
+                # NB: logger may be socket logger. In this case we should convert error to string to avoid
+                # bug with unpickling Exception that has non-trivial __init__.
                 logger.warning(
                     "Error: (type=%s, value=%s), aborting transaction %s ...",
                     type,
-                    value,
+                    str(value).replace("\n", "\\n"),
                     self.transaction_id)
 
             try:
