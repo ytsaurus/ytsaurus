@@ -1772,7 +1772,11 @@ TJobStartRequestPtr TOperationControllerBase::ScheduleJob(
 {
     VERIFY_INVOKER_AFFINITY(CancelableInvoker);
 
-    return DoScheduleJob(context, jobLimits);
+    auto request = DoScheduleJob(context, jobLimits);
+    if (request) {
+        OnJobStarted(request->id);
+    }
+    return request;
 
     //auto jobStartRequestOrError = WaitFor(
     //    BIND(&TOperationControllerBase::DoScheduleJob, MakeStrong(this))
