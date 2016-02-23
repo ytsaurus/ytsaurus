@@ -337,11 +337,11 @@ class Application(object):
         # Add rules
         self._add_rule("/", 'main', methods=["GET"], depends_on_lock=False)
         self._add_rule("/tasks/", 'get_tasks', methods=["GET"])
-        self._add_rule("/tasks/", 'add', methods=["POST"], is_mutating=True)
+        self._add_rule("/tasks/", 'add_task', methods=["POST"], is_mutating=True)
         self._add_rule("/tasks/<id>/", 'get_task', methods=["GET"])
         self._add_rule("/tasks/<id>/", 'delete_task', methods=["DELETE"], is_mutating=True)
-        self._add_rule("/tasks/<id>/abort/", 'abort', methods=["POST"], is_mutating=True)
-        self._add_rule("/tasks/<id>/restart/", 'restart', methods=["POST"], is_mutating=True)
+        self._add_rule("/tasks/<id>/abort/", 'abort_task', methods=["POST"], is_mutating=True)
+        self._add_rule("/tasks/<id>/restart/", 'restart_task', methods=["POST"], is_mutating=True)
         self._add_rule("/tasks/<id>/ping/", 'ping_task', methods=["POST"])
         self._add_rule("/config/", 'config', methods=["GET"])
         self._add_rule("/ping/", 'ping', methods=["GET"])
@@ -354,16 +354,21 @@ class Application(object):
         self._execution_thread.join(self._sleep_step)
 
     def _add_rule(self, rule, endpoint, methods, depends_on_lock=True, is_mutating=False):
+        def process_mutation_request():
+            if is_mutating:
+                return [(self._process_mutating_request, ())]
+            return []
+
         methods.append("OPTIONS")
 
-        middlewares = [(self._check_requests_limit, ()),
+        middlewares = [(self._process_exception, ()),
+                       (self._check_requests_limit, ()),
                        (self._profile_time, (endpoint, )),
-                       (self._process_lock, (depends_on_lock, )),
-                       (process_gzip, ()),
+                       (self._process_lock, (depends_on_lock, ))] + \
+                       process_mutation_request() + \
+                       [(process_gzip, ()),
                        (self._process_cors, (methods, )),
                        (self._process_exception, ())]
-        if is_mutating:
-            middlewares.insert(1, (self._process_mutating_request, ()))
 
         endpoint_method = Application.__dict__[endpoint]
         for middleware, middleware_args in reversed(middlewares):
@@ -403,7 +408,7 @@ class Application(object):
                 return json.dumps(error.simplify()), 404
             except Exception as error:
                 logger.exception("Unknown error:")
-                return json.dumps({"code": 1, "message": "Unknown error: " + str(error)}), 404
+                return json.dumps({"code": 1, "message": "Unknown error: " + traceback.format_exc()}), 404
 
         return decorator
 
@@ -420,7 +425,7 @@ class Application(object):
 
             return result
 
-        return self._process_exception(decorator)
+        return decorator
 
     def _check_requests_limit(self, func):
         def decorator(*args, **kwargs):
@@ -467,9 +472,7 @@ class Application(object):
                        self._mutating_requests_cache[mutation_id] = response
                    return response
 
-        # XXX(asaitgalin): Decorator is wrapped with process_exception for correct handling RequestFailed
-        # (client expects to receive json, so process_exception will dump RequestFailed to json)
-        return self._process_exception(decorator)
+        return decorator
 
     def _take_lock(self):
         yt_client = deepcopy(self._yt)
@@ -1287,7 +1290,7 @@ class Application(object):
                 "type": "error",
                 "error": error.simplify()
             })
-        except Exception as error:
+        except BaseException as error:
             logger.exception("Task failed with error:")
             message_queue.put({
                 "type": "error",
@@ -1369,6 +1372,16 @@ class Application(object):
         if self._pending_tasks_per_user[task.user] > self._config["pending_tasks_limit_per_user"]:
             raise RequestFailed("Too many pending tasks per user (>{0})".format(self._pending_tasks_per_user[task.user]))
 
+        if task.queue_name is not None:
+            client = Yt(**self._config["yt_backend_options"])
+            try:
+                if client.check_permission(task.user, "write",
+                                           "{0}/queues/{1}".format(self._path, task.queue_name))["action"] != "allow":
+                    raise RequestFailed("There is not permission to create task in queue {0}".format(task.queue_name))
+            except yt.YtError() as err:
+                if err.is_resolve_error():
+                    raise RequestFailed("Queue {0} is missing".format(task.queue_name))
+
         clusters_configuration = self._get_clusters_configuration()
         self._set_defaults(task, clusters_configuration)
         if make_precheck:
@@ -1403,7 +1416,7 @@ class Application(object):
     def main(self):
         return "This is YT transfer manager"
 
-    def add(self):
+    def add_task(self):
         try:
             params = json.loads_as_bytes(request.data)
         except ValueError as error:
@@ -1420,7 +1433,7 @@ class Application(object):
         else:
             return self._create_task(params=params, token=token, user=user, dry_run=dry_run, make_precheck=True)
 
-    def abort(self, id):
+    def abort_task(self, id):
         if id not in self._tasks:
             raise RequestFailed("Unknown task " + id)
 
@@ -1434,7 +1447,7 @@ class Application(object):
 
         return ""
 
-    def restart(self, id):
+    def restart_task(self, id):
         if id not in self._tasks:
             raise RequestFailed("Unknown task " + id)
 
@@ -1452,14 +1465,22 @@ class Application(object):
 
             if self._tasks[id].history is None:
                 self._tasks[id].history = []
-            self._tasks[id].history.append(
-                {
-                    "progress": self._tasks[id].progress,
-                    "error": self._tasks[id].error
-                })
+
+            history_element = {
+                "progress": self._tasks[id].progress,
+                "error": self._tasks[id].error,
+                "start_time": self._tasks[id].start_time,
+                "finish_time": self._tasks[id].finish_time
+            }
+            for bad_key in [key for key, value in history_element.iteritems() if value is None]:
+                del history_element[bad_key]
+
+            self._tasks[id].history.append(history_element)
 
             self._tasks[id].progress = None
             self._tasks[id].error = None
+            self._tasks[id].start_time = None
+            self._tasks[id].finish_time = None
 
             self._dump_task(id)
             self._pending_tasks.append(id)
