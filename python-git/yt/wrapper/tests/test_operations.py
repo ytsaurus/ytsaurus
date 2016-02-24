@@ -9,9 +9,12 @@ import yt.logger as logger
 
 from helpers import TEST_DIR, get_test_file_path, check
 
+import os
 import sys
 import time
 import string
+import tempfile
+import subprocess
 import random
 import logging
 import pytest
@@ -602,6 +605,52 @@ class TestOperations(object):
 
         finally:
             yt.config["start_operation_retries"]["retry_timeout"] = old_value
+
+    def test_disable_yt_accesses_from_job(self, yt_env):
+        first_script = """\
+import yt.wrapper as yt
+
+def mapper(rec):
+    yield rec
+
+yt.config["proxy"]["url"] = "{0}"
+yt.config["pickling"]["enable_tmpfs_archive"] = False
+print yt.run_map(mapper, "{1}", "{2}", spec={3}, sync=False).id
+"""
+        second_script = """\
+import yt.wrapper as yt
+
+def mapper(rec):
+    yt.get("//@")
+    yield rec
+
+if __name__ == "__main__":
+    yt.config["proxy"]["url"] = "{0}"
+    yt.config["pickling"]["enable_tmpfs_archive"] = False
+    print yt.run_map(mapper, "{1}", "{2}", spec={3}, sync=False).id
+"""
+        table = TEST_DIR + "/table"
+        yt.write_table(table, ["x=1\nx=2\n"])
+
+        dir_ = yt_env.env.path_to_run
+        for script in [first_script, second_script]:
+            with tempfile.NamedTemporaryFile(dir=dir_, prefix="mapper", delete=False) as f:
+                mapper = script.format(yt.config["proxy"]["url"],
+                                       table,
+                                       TEST_DIR + "/other_table",
+                                       str({"max_failed_job_count": 1}))
+                f.write(mapper)
+
+            op_id = subprocess.check_output(["python", f.name]).strip()
+            op_path = "//sys/operations/{0}".format(op_id)
+            while not yt.exists(op_path) \
+                    or yt.get(op_path + "/@state") not in ["aborted", "failed", "completed"]:
+                time.sleep(0.2)
+            assert yt.get(op_path + "/@state") == "failed"
+
+            job_id = yt.list(op_path + "/jobs", attributes=["error"])[0]
+            stderr_path = os.path.join(op_path, "jobs", job_id, "stderr")
+            assert "Did you forget to surround" in yt.read_file(stderr_path).read()
 
     # TODO(ignat): replace timeout with scheduler-side option
     #def test_wait_strategy_timeout(self):

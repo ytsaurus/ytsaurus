@@ -1,7 +1,7 @@
 import yson
 from config import get_config, get_option
 from compression_wrapper import create_zlib_generator
-from common import require, generate_uuid, bool_to_string, get_version, total_seconds
+from common import require, generate_uuid, bool_to_string, get_version, total_seconds, forbidden_inside_job
 from errors import YtError, YtHttpResponseError, YtProxyUnavailable, YtConcurrentOperationsLimitExceeded
 from http import make_get_request_with_retries, make_request_with_retries, get_token, get_api_version, get_api_commands, get_proxy_url, parse_error_from_headers, get_header_format
 from response_stream import ResponseStream
@@ -58,6 +58,7 @@ def get_heavy_proxy(client):
 def ban_host(host, client):
     get_option("_banned_proxies", client)[host] = datetime.now()
 
+@forbidden_inside_job
 def make_request(command_name, params,
                  data=None, proxy=None,
                  return_content=True, verbose=False,

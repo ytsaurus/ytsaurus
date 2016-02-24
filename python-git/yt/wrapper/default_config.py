@@ -117,6 +117,10 @@ default_config = {
         "create_init_file_for_package_modules": True
     },
 
+    # By default HTTP requests to YT are forbidden inside jobs to avoid strange errors
+    # and unnecessary cluster accesses.
+    "allow_http_requests_to_yt_from_job": False,
+
     "yamr_mode": {
         "always_set_executable_flag_on_files": False,
         "use_yamr_style_destination_fds": False,
