@@ -182,6 +182,11 @@ default_config = {
     "transaction_timeout": 15 * 1000,
     # How often wake up to determine whether transaction need to be pinged.
     "transaction_sleep_period": 100,
+    # Use signal (SIGUSR1) instead of KeyboardInterrupt in main thread if ping failed.
+    # Signal is sent to main thread and YtTransactionPingError is raised inside
+    # signal handler. The error is processed inside __exit__ block: it will be thrown
+    # out to user, all transactions in nested context managers will be aborted.
+    "transaction_use_signal_if_ping_failed": True,
 
     # Always write files as one chunks.
     # It forces disabling of write retries for large files.

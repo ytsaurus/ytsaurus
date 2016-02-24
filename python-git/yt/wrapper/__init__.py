@@ -6,7 +6,7 @@ Package supports `YT API <https://wiki.yandex-team.ru/yt/pythonwrapper>`_.
 Be ready to catch :py:exc:`yt.wrapper.errors.YtError` after all commands!
 """
 from errors import YtError, YtOperationFailedError, YtResponseError, \
-                   YtProxyUnavailable, YtTokenError, YtTimeoutError
+                   YtProxyUnavailable, YtTokenError, YtTimeoutError, YtTransactionPingError
 from yamr_record import Record
 from format import DsvFormat, YamrFormat, YsonFormat, JsonFormat, SchemafulDsvFormat,\
                    YamredDsvFormat, Format, create_format, dumps_row, loads_row, YtFormatError, set_yamr_mode

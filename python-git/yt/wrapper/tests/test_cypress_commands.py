@@ -324,6 +324,35 @@ class TestCypressCommands(object):
 
         assert not yt.exists("//sys/transactions/" + transaction_id)
 
+        yt.config["transaction_use_signal_if_ping_failed"] = True
+        old_retry_timeout = yt.config["proxy"]["request_retry_timeout"]
+        yt.config["proxy"]["request_retry_timeout"] = 3000.0
+        try:
+            caught = False
+            try:
+                with yt.Transaction() as tx:
+                    new_client.abort_transaction(tx.transaction_id)
+                    time.sleep(5.0)
+            except yt.YtTransactionPingError:
+                caught = True
+
+            assert caught
+
+            caught = False
+            try:
+                with yt.Transaction() as tx1:
+                    with yt.Transaction():
+                        with yt.Transaction():
+                            new_client.abort_transaction(tx1.transaction_id)
+                            time.sleep(5.0)
+            except yt.YtTransactionPingError:
+                caught = True
+
+            assert caught
+        finally:
+            yt.config["transaction_use_signal_if_ping_failed"] = False
+            yt.config["proxy"]["request_retry_timeout"] = old_retry_timeout
+
     def test_lock(self):
         dir = TEST_DIR + "/dir"
 

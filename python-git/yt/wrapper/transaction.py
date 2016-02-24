@@ -1,15 +1,30 @@
 from config import get_option, set_option, get_config, get_total_request_timeout, get_request_retry_count
 import yt.logger as logger
 from common import get_value
-from errors import YtResponseError, YtError
+from errors import YtResponseError, YtError, YtTransactionPingError
 from transaction_commands import start_transaction, commit_transaction, abort_transaction, ping_transaction
 
 from thread import interrupt_main
 from time import sleep
 from threading import Thread
 from datetime import datetime, timedelta
+import signal
+import os
 
 null_transaction_id = "0-0-0-0"
+
+_sigusr_received = False
+
+def _set_sigusr_received(value):
+    global _sigusr_received
+    _sigusr_received = value
+
+def _sigusr_handler(signum, frame):
+    # XXX(asaitgalin): handler is always executed in main thread so it is safe
+    # to raise error here. This error will be caught by __exit__ method so it is ok.
+    if signum == signal.SIGUSR1 and not _sigusr_received:
+        _set_sigusr_received(True)
+        raise YtTransactionPingError()
 
 class TransactionStack(object):
     def __init__(self):
@@ -79,13 +94,17 @@ class Transaction(object):
         else:
             self._started = False
 
+        if get_config(self._client)["transaction_use_signal_if_ping_failed"]:
+            _set_sigusr_received(False)
+            self._old_sigusr_handler = signal.signal(signal.SIGUSR1, _sigusr_handler)
+
         if self._ping and self._started:
             delay = (timeout / 1000.0) / max(2, get_request_retry_count(self._client))
             self._ping_thread = PingTransaction(self.transaction_id, delay, client=self._client)
             self._ping_thread.start()
 
     def abort(self):
-        """ Abort transaction. """
+        """Abort transaction."""
         if self._finished or self.transaction_id == null_transaction_id:
             return
         self._stop_pinger()
@@ -93,7 +112,7 @@ class Transaction(object):
         self._finished = True
 
     def commit(self):
-        """ Commit transaction. """
+        """Commit transaction."""
         if self.transaction_id == null_transaction_id:
             return
         if self._finished:
@@ -140,6 +159,8 @@ class Transaction(object):
                     raise
         finally:
             self._stack.pop()
+            if get_config(self._client)["transaction_use_signal_if_ping_failed"]:
+                signal.signal(signal.SIGUSR1, self._old_sigusr_handler)
             transaction_id, ping_ancestor_transactions = self._stack.get()
             set_option("TRANSACTION", transaction_id, self._client)
             set_option("PING_ANCESTOR_TRANSACTIONS", ping_ancestor_transactions, self._client)
@@ -190,7 +211,10 @@ class PingTransaction(Thread):
                 ping_transaction(self.transaction, client=self._client)
             except:
                 logger.exception("Ping failed")
-                interrupt_main()
+                if get_config(self._client)["transaction_use_signal_if_ping_failed"]:
+                    os.kill(os.getpid(), signal.SIGUSR1)
+                else:
+                    interrupt_main()
             start_time = datetime.now()
             while datetime.now() - start_time < timedelta(seconds=self.delay):
                 sleep(self.step)
