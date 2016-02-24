@@ -7,6 +7,7 @@ import os
 import sys
 import random
 import time
+import functools
 from datetime import datetime
 from itertools import ifilter, chain
 
@@ -147,3 +148,16 @@ def run_with_retries(action, retry_count=6, backoff=20.0, exceptions=(YtError,),
 def is_inside_job():
     """Returns True if the code is currently being run in the context of a YT job."""
     return bool(int(os.environ.get("YT_WRAPPER_IS_INSIDE_JOB", "0")))
+
+def forbidden_inside_job(func):
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        flag = os.environ.get("YT_ALLOW_HTTP_REQUESTS_TO_YT_FROM_JOB", "0")
+        if is_inside_job() and not bool(int(flag)):
+            raise YtError('HTTP requests to YT are forbidden inside jobs by default. '
+                          'Did you forget to surround code that runs YT operations with '
+                          'if __name__ == "__main__"? If not and you need to make requests '
+                          'you can override this behaviour by turning on '
+                          '"enable_http_requests_to_yt_from_job" option in config.')
+        return func(*args, **kwargs)
+    return wrapper

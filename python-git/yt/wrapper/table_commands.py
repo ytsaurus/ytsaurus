@@ -48,7 +48,8 @@ Operation run under self-pinged transaction, if `yt.wrapper.get_config(client)["
 from config import get_config, get_option
 import py_wrapper
 from common import flatten, require, unlist, update, parse_bool, is_prefix, get_value, \
-                   compose, bool_to_string, chunk_iter_stream, get_version, MB, EMPTY_GENERATOR, run_with_retries
+                   compose, bool_to_string, chunk_iter_stream, get_version, MB, EMPTY_GENERATOR, \
+                   run_with_retries, forbidden_inside_job
 from errors import YtIncorrectResponse, YtError, YtOperationFailedError, YtConcurrentOperationsLimitExceeded
 from driver import make_request, get_backend_type
 from keyboard_interrupts_catcher import KeyboardInterruptsCatcher
@@ -303,11 +304,21 @@ def _add_user_command_spec(op_type, binary, format, input_format, output_format,
     input_format, output_format = _prepare_formats(format, input_format, output_format, binary=binary, client=client)
 
     if _is_python_function(binary):
-        spec = update({op_type: {"environment": {"YT_WRAPPER_IS_INSIDE_JOB": "1"}}}, spec)
+        # XXX(asaitgalin): Some flags are needed before operation (and config) is unpickled
+        # so these flags are passed through environment variables.
+        allow_requests_to_yt_from_job = \
+                str(int(get_config(client)["allow_http_requests_to_yt_from_job"]))
+
+        environment = {}
+        environment["YT_ALLOW_HTTP_REQUESTS_TO_YT_FROM_JOB"] = allow_requests_to_yt_from_job
+        environment["YT_WRAPPER_IS_INSIDE_JOB"] = "1"
+
+        spec = update({op_type: {"environment": environment}}, spec)
 
     binary, additional_files, tmpfs_size = \
         _prepare_binary(binary, op_type, input_format, output_format,
                         reduce_by, client=client)
+
     spec = update(
         {
             op_type: {
@@ -1056,6 +1067,7 @@ def delete_rows(table, input_stream, format=None, raw=None, client=None):
 
 # Operations.
 
+@forbidden_inside_job
 def run_erase(table, spec=None, strategy=None, sync=True, client=None):
     """Erase table or part of it.
 
@@ -1075,6 +1087,7 @@ def run_erase(table, spec=None, strategy=None, sync=True, client=None):
     spec = _configure_spec(spec, client)
     return _make_operation_request("erase", spec, strategy, sync, client=client)
 
+@forbidden_inside_job
 def run_merge(source_table, destination_table, mode=None,
               strategy=None, sync=True, table_writer=None,
               replication_factor=None, compression_codec=None,
@@ -1119,6 +1132,7 @@ def run_merge(source_table, destination_table, mode=None,
 
     return _make_operation_request("merge", spec, strategy, sync, finalizer=None, client=client)
 
+@forbidden_inside_job
 def run_sort(source_table, destination_table=None, sort_by=None,
              strategy=None, sync=True, table_writer=None, replication_factor=None,
              compression_codec=None, spec=None, client=None):
@@ -1227,6 +1241,7 @@ class Finalizer(object):
                         "}}'".format(table, mode, data_size_per_job, get_config(self.client)["proxy"]["url"]))
 
 
+@forbidden_inside_job
 def run_map_reduce(mapper, reducer, source_table, destination_table,
                    format=None,
                    map_input_format=None, map_output_format=None,
@@ -1339,6 +1354,7 @@ def run_map_reduce(mapper, reducer, source_table, destination_table,
                                                        destination_table, client=client),
                                    client=client)
 
+@forbidden_inside_job
 def _run_operation(binary, source_table, destination_table,
                   files=None, file_paths=None,
                   local_files=None, yt_files=None,
