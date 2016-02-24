@@ -130,6 +130,9 @@ class Yamr(object):
         else:
             return self._as_int(self.get_field_from_server(table, "size", allow_cache=allow_cache))
 
+    def get_compression_codec(self, table, allow_cache=False):
+        return self.get_field_from_server(table, "compression_algo", allow_cache=allow_cache)
+
     def is_directory(self, path):
         if path.endswith("/"):
             path = path[:-1]

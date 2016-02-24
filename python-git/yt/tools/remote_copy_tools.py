@@ -361,6 +361,10 @@ def copy_yamr_to_yt_pull(yamr_client, yt_client, src, dst, fastbone, copy_spec_t
     # It means that record count may be inconsistent with locked version of table.
     record_count = yamr_client.records_count(src, allow_cache=True)
     is_sorted = yamr_client.is_sorted(src, allow_cache=True)
+    if compression_codec is None:
+        yamr_codec_to_yt_codec = {"zlib": "zlib6", "quicklz": "quick_lz", "lzma": "zlib9"}
+        codec = yamr_client.get_compression_codec(src, allow_cache=True)
+        compression_codec = yamr_codec_to_yt_codec.get(codec)
 
     logger.info("Importing table '%s' (row count: %d, sorted: %d)", src, record_count, is_sorted)
 
