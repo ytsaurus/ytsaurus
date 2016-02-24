@@ -41,9 +41,10 @@ def _check_call(command, silent=False, **kwargs):
     logger.info("Command '{}' successfully executed".format(command))
 
 class Yamr(object):
-    def __init__(self, binary, server, server_port, http_port, proxies=None, proxy_port=None, fetch_info_from_http=False, mr_user="tmp", opts="", timeout=None, max_failed_jobs=None, scheduler_info_update_period=5.0):
+    def __init__(self, binary, server, server_port, http_port, name=None, proxies=None, proxy_port=None, fetch_info_from_http=False, mr_user="tmp", opts="", timeout=None, max_failed_jobs=None, scheduler_info_update_period=5.0):
         self.binary = binary
         self.binary_name = os.path.basename(binary)
+        self.name = name
         self.server = self._make_address(server, server_port)
         self.http_server = self._make_address(server, http_port)
         if proxies is None:
