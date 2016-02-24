@@ -93,3 +93,7 @@ class YtRetriableError(Exception):
     pass
 
 
+class YtTransactionPingError(BaseException):
+    """Raised in signal handler when thread was unable to ping transaction."""
+    pass
+
