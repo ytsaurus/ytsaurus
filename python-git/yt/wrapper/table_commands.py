@@ -301,6 +301,10 @@ def _add_user_command_spec(op_type, binary, format, input_format, output_format,
 
     files = _reliably_upload_files(files, client=client)
     input_format, output_format = _prepare_formats(format, input_format, output_format, binary=binary, client=client)
+
+    if _is_python_function(binary):
+        spec = update({op_type: {"environment": {"YT_WRAPPER_IS_INSIDE_JOB": "1"}}}, spec)
+
     binary, additional_files, tmpfs_size = \
         _prepare_binary(binary, op_type, input_format, output_format,
                         reduce_by, client=client)
@@ -313,8 +317,7 @@ def _add_user_command_spec(op_type, binary, format, input_format, output_format,
                 "file_paths":
                     flatten(files + additional_files + map(lambda path: prepare_path(path, client=client), get_value(file_paths, []))),
                 "use_yamr_descriptors": bool_to_string(get_config(client)["yamr_mode"]["use_yamr_style_destination_fds"]),
-                "check_input_fully_consumed": bool_to_string(get_config(client)["yamr_mode"]["check_input_fully_consumed"]),
-                "environment": {"YT_WRAPPER_IS_INSIDE_JOB": "1"}
+                "check_input_fully_consumed": bool_to_string(get_config(client)["yamr_mode"]["check_input_fully_consumed"])
             }
         },
         spec)
