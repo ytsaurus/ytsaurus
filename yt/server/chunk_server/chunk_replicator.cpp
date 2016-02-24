@@ -75,7 +75,6 @@ using NChunkClient::TReadLimit;
 
 static const auto& Logger = ChunkServerLogger;
 static const auto& Profiler = ChunkServerProfiler;
-static const auto EnabledCheckPeriod = TDuration::Seconds(3);
 
 ////////////////////////////////////////////////////////////////////////////////
 
