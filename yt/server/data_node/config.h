@@ -228,9 +228,12 @@ public:
     //! Random delay before first heartbeat
     TDuration HeartbeatSplay;
 
+    //! Timeout for RegisterNode requests.
+    TDuration RegisterTimeout;
+
     //! Timeout for IncrementalHeartbeat requests.
     /*!
-     *  This must not be too long to prevent node lease from expiring.
+     *  This is usually much larger then the default RPC timeout.
      */
     TDuration IncrementalHeartbeatTimeout;
 
@@ -355,7 +358,7 @@ public:
     TDataNodeConfig()
     {
         RegisterParameter("lease_transaction_timeout", LeaseTransactionTimeout)
-            .Default(TDuration::Seconds(60));
+            .Default(TDuration::Seconds(120));
         RegisterParameter("lease_transaction_ping_period", LeaseTransactionPingPeriod)
             .Default(TDuration::Seconds(15));
         RegisterParameter("incremental_heartbeat_period", IncrementalHeartbeatPeriod)
@@ -364,6 +367,8 @@ public:
             .Default();
         RegisterParameter("register_retry_period", RegisterRetryPeriod)
             .Default(TDuration::Seconds(3));
+        RegisterParameter("register_timeout", RegisterTimeout)
+            .Default(TDuration::Seconds(60));
         RegisterParameter("incremental_heartbeat_timeout", IncrementalHeartbeatTimeout)
             .Default(TDuration::Seconds(60));
         RegisterParameter("full_heartbeat_timeout", FullHeartbeatTimeout)
