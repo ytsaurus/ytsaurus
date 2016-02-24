@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/core/actions/future.h>
+
 #include <yt/core/concurrency/delayed_executor.h>
 #include <yt/core/concurrency/rw_spinlock.h>
 
@@ -11,12 +13,15 @@ namespace NYT {
 
 template <class TKey, class TValue>
 class TExpiringCache
-    : public TRefCounted
+    : public virtual TRefCounted
 {
 public:
+    typedef typename TFutureCombineTraits<TValue>::TCombined TCombinedValue;
+
     explicit TExpiringCache(TExpiringCacheConfigPtr config);
 
     TFuture<TValue> Get(const TKey& key);
+    TFuture<TCombinedValue> Get(const std::vector<TKey>& keys);
 
     bool TryRemove(const TKey& key);
 
@@ -24,6 +29,7 @@ public:
 
 protected:
     virtual TFuture<TValue> DoGet(const TKey& key) = 0;
+    virtual TFuture<TCombinedValue> DoGetMany(const std::vector<TKey>& keys);
 
 private:
     const TExpiringCacheConfigPtr Config_;
@@ -41,8 +47,9 @@ private:
     NConcurrency::TReaderWriterSpinLock SpinLock_;
     yhash<TKey, TEntry> Map_;
 
-
+    void SetResult(const TKey& key, const TErrorOr<TValue>& valueOrError);
     void InvokeGet(const TKey& key);
+    void InvokeGetMany(const std::vector<TKey>& keys);
 
 };
 
