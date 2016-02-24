@@ -1,5 +1,7 @@
 #include "throttler_manager.h"
 
+#include <yt/core/concurrency/throughput_throttler.h>
+
 namespace NYT {
 namespace NChunkClient {
 

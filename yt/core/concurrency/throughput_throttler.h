@@ -17,34 +17,10 @@ namespace NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
    
-class TThroughputThrottlerConfig
-    : public NYTree::TYsonSerializable
-{
-public:
-    TThroughputThrottlerConfig()
-    {
-        RegisterParameter("period", Period)
-            .Default(TDuration::MilliSeconds(1000));
-        RegisterParameter("limit", Limit)
-            .Default()
-            .GreaterThanOrEqual(0);
-    }
-
-    //! Period for which the bandwidth limit applies.
-    TDuration Period;
-
-    //! Limit on average throughput (per sec). Null means unlimited.
-    TNullable<i64> Limit;
-};
-
-DEFINE_REFCOUNTED_TYPE(TThroughputThrottlerConfig)
-
-////////////////////////////////////////////////////////////////////////////////
-
-//! Enables async operation to throttle based on throughput limit.
+//! Enables throttling sync and async operations.
 /*!
- *  This interface and its implementations are vastly inspired by |DataTransferThrottler| class from Hadoop
- *  but return promise instead of using direct sleep calls.
+ *  This interface and its implementations are vastly inspired by the "token bucket" algorithm and
+ *  |DataTransferThrottler| class from Hadoop.
  */
 struct IThroughputThrottler
     : public virtual TRefCounted
@@ -56,6 +32,26 @@ struct IThroughputThrottler
      *  \note Thread affinity: any
      */
     virtual TFuture<void> Throttle(i64 count) = 0;
+
+    //! Tries to acquire #count bytes for transfer.
+    //! Returns |true| if the request could be served without overdraft.
+    /*!
+     *  \note Thread affinity: any
+     */
+    virtual bool TryAcquire(i64 count) = 0;
+
+    //! Unconditionally acquires #count bytes for transfer.
+    //! This requires could easily lead to overdraft.
+    /*!
+     *  \note Thread affinity: any
+     */
+    virtual void Acquire(i64 count) = 0;
+
+    //! Returns |true| if the throttling limit has been exceeded.
+    /*!
+     *  \note Thread affinity: any
+     */
+    virtual bool IsOverdraft() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IThroughputThrottler)

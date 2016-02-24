@@ -1,7 +1,6 @@
 #include "throughput_throttler.h"
 #include "periodic_executor.h"
-
-#include <yt/core/actions/invoker_util.h>
+#include "config.h"
 
 #include <yt/core/concurrency/thread_affinity.h>
 
@@ -65,6 +64,44 @@ public:
         TRequest request{count, NewPromise<void>()};
         Requests_.push(request);
         return request.Promise;
+    }
+
+    virtual bool TryAcquire(i64 count) override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+        YCHECK(count >= 0);
+
+        {
+            TGuard<TSpinLock> guard(SpinLock_);
+            if (Available_ < count) {
+                return false;
+            }
+            Available_ -= count;
+        }
+
+        Profiler.Increment(ValueCounter_, count);
+        return true;
+    }
+
+    virtual void Acquire(i64 count) override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+        YCHECK(count >= 0);
+
+        {
+            TGuard<TSpinLock> guard(SpinLock_);
+            Available_ -= count;
+        }
+
+        Profiler.Increment(ValueCounter_, count);
+    }
+
+    virtual bool IsOverdraft() const override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        TGuard<TSpinLock> guard(SpinLock_);
+        return Available_ < 0;
     }
 
 private:
@@ -147,6 +184,26 @@ public:
         YCHECK(count >= 0);
 
         return VoidFuture;
+    }
+
+    virtual bool TryAcquire(i64 count) override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+        YCHECK(count >= 0);
+
+        return true;
+    }
+
+    virtual void Acquire(i64 count) override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+        YCHECK(count >= 0);
+    }
+
+    virtual bool IsOverdraft() const override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+        return false;
     }
 };
 

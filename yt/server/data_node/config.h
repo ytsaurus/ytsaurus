@@ -6,7 +6,7 @@
 
 #include <yt/ytlib/chunk_client/config.h>
 
-#include <yt/core/concurrency/throughput_throttler.h>
+#include <yt/core/concurrency/config.h>
 
 #include <yt/core/misc/config.h>
 
