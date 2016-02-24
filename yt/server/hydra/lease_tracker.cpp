@@ -81,24 +81,20 @@ private:
         const auto& decoratedAutomaton = Owner_->DecoratedAutomaton_;
         const auto& epochContext = Owner_->EpochContext_;
 
-        auto state = decoratedAutomaton->GetState();
-        auto loggedVersion = state == EPeerState::LeaderRecovery
-            ? epochContext->ReachableVersion
-            : decoratedAutomaton->GetLoggedVersion();
+        auto pingVersion = decoratedAutomaton->GetPingVersion();
         auto committedVersion = decoratedAutomaton->GetAutomatonVersion();
 
-        LOG_DEBUG("Sending ping to follower (FollowerId: %v, LoggedVersion: %v, CommittedVersion: %v, EpochId: %v)",
+        LOG_DEBUG("Sending ping to follower (FollowerId: %v, PingVersion: %v, CommittedVersion: %v, EpochId: %v)",
             followerId,
-            loggedVersion,
+            pingVersion,
             committedVersion,
             epochContext->EpochId);
 
         THydraServiceProxy proxy(channel);
-        proxy.SetDefaultTimeout(Owner_->Config_->LeaderLeaseTimeout);
-
         auto req = proxy.PingFollower();
+        req->SetTimeout(Owner_->Config_->LeaderLeaseTimeout);
         ToProto(req->mutable_epoch_id(), epochContext->EpochId);
-        req->set_logged_revision(loggedVersion.ToRevision());
+        req->set_ping_revision(pingVersion.ToRevision());
         req->set_committed_revision(committedVersion.ToRevision());
         AsyncResults_.push_back(req->Invoke().Apply(
             BIND(&TFollowerPinger::OnResponse, MakeStrong(this), followerId)

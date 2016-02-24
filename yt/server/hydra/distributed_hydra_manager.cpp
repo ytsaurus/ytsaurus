@@ -615,11 +615,11 @@ private:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         auto epochId = FromProto<TEpochId>(request->epoch_id());
-        auto loggedVersion = TVersion::FromRevision(request->logged_revision());
+        auto pingVersion = TVersion::FromRevision(request->ping_revision());
         auto committedVersion = TVersion::FromRevision(request->committed_revision());
 
-        context->SetRequestInfo("LoggedVersion: %v, CommittedVersion: %v, EpochId: %v",
-            loggedVersion,
+        context->SetRequestInfo("PingVersion: %v, CommittedVersion: %v, EpochId: %v",
+            pingVersion,
             committedVersion,
             epochId);
 
@@ -639,7 +639,7 @@ private:
                 break;
 
             case EPeerState::FollowerRecovery: {
-                CheckForInitialPing(loggedVersion);
+                CheckForInitialPing(pingVersion);
                 auto followerRecovery = epochContext->FollowerRecovery;
                 if (followerRecovery) {
                     followerRecovery->SetCommittedVersion(committedVersion);
@@ -1317,7 +1317,7 @@ private:
         SystemLockGuard_.Release();
     }
 
-    void CheckForInitialPing(TVersion version)
+    void CheckForInitialPing(TVersion pingVersion)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
         YCHECK(ControlState_ == EPeerState::FollowerRecovery);
@@ -1337,15 +1337,15 @@ private:
         // and some follower joins the a newly established (and still recovering!) quorum
         // with an empty changelog that nobody else has.
         auto reachableVersion = epochContext->ReachableVersion;
-        if (version < reachableVersion) {
+        if (pingVersion < reachableVersion) {
             LOG_DEBUG("Received initial ping from leader with a stale version; ignored (LeaderVersion: %v, ReachableVersion: %v)",
-                version,
+                pingVersion,
                 epochContext->ReachableVersion);
             return;
         }
 
         LOG_INFO("Received initial ping from leader (LeaderVersion: %v)",
-            version);
+            pingVersion);
 
         epochContext->FollowerRecovery = New<TFollowerRecovery>(
             Config_,
@@ -1356,7 +1356,7 @@ private:
             SnapshotStore_,
             Options_.ResponseKeeper,
             epochContext.Get(),
-            version);
+            pingVersion);
 
         epochContext->EpochControlInvoker->Invoke(
             BIND(&TDistributedHydraManager::RecoverFollower, MakeStrong(this)));

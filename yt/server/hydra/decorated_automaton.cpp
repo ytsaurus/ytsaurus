@@ -764,6 +764,7 @@ void TDecoratedAutomaton::LogLeaderMutation(
     YASSERT(recordData);
     YASSERT(localFlushResult);
     YASSERT(commitResult);
+    YASSERT(!RotatingChangelog_);
 
     TPendingMutation pendingMutation;
     pendingMutation.Version = LoggedVersion_;
@@ -793,6 +794,7 @@ void TDecoratedAutomaton::LogFollowerMutation(
     TFuture<void>* logResult)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
+    YASSERT(!RotatingChangelog_);
 
     TSharedRef mutationData;
     DeserializeMutationRecord(recordData, &MutationHeader_, &mutationData);
@@ -847,6 +849,9 @@ TFuture<void> TDecoratedAutomaton::RotateChangelog()
     LOG_INFO("Rotating changelog (Version: %v)",
         loggedVersion);
 
+    YCHECK(!RotatingChangelog_);
+    RotatingChangelog_ = true;
+
     return BIND(&TDecoratedAutomaton::DoRotateChangelog, MakeStrong(this))
         .AsyncVia(EpochContext_->EpochUserAutomatonInvoker)
         .Run();
@@ -876,6 +881,10 @@ void TDecoratedAutomaton::DoRotateChangelog()
     }
 
     LoggedVersion_ = rotatedVersion;
+
+    YCHECK(RotatingChangelog_);
+    RotatingChangelog_ = false;
+
     YCHECK(EpochContext_->ReachableVersion < LoggedVersion_);
 
     LOG_INFO("Changelog rotated");
@@ -1050,6 +1059,22 @@ TVersion TDecoratedAutomaton::GetCommittedVersion() const
     return CommittedVersion_.load();
 }
 
+TVersion TDecoratedAutomaton::GetPingVersion() const
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    if (State_ == EPeerState::LeaderRecovery) {
+        return EpochContext_->ReachableVersion;
+    }
+
+    auto loggedVersion = GetLoggedVersion();
+    if (RotatingChangelog_) {
+        return loggedVersion.Rotate();
+    }
+
+    return loggedVersion;
+}
+
 bool TDecoratedAutomaton::TryAcquireUserLock()
 {
     if (SystemLock_.load() != 0) {
@@ -1102,6 +1127,7 @@ void TDecoratedAutomaton::StopEpoch()
         PendingMutations_.pop();
     }
 
+    RotatingChangelog_ = false;
     Changelog_.Reset();
     EpochContext_.Reset();
     SnapshotVersion_ = TVersion();
