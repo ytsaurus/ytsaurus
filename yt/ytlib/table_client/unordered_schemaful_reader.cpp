@@ -78,9 +78,7 @@ public:
             }
 
             YASSERT(!session.ReadyEvent);
-            session.ReadyEvent = session.Reader->GetReadyEvent();
-            session.ReadyEvent->Subscribe(BIND(&TUnorderedSchemafulReader::OnReady, MakeStrong(this)));
-            CancelableContext_->PropagateTo(*session.ReadyEvent);
+            UpdateSession(session);
             pending = true;
         }
 
@@ -120,6 +118,13 @@ private:
     const TCancelableContextPtr CancelableContext_ = New<TCancelableContext>();
     TReaderWriterSpinLock SpinLock_;
 
+    void UpdateSession(TSession& session)
+    {
+        session.ReadyEvent = session.Reader->GetReadyEvent();
+        session.ReadyEvent->Subscribe(BIND(&TUnorderedSchemafulReader::OnReady, MakeStrong(this)));
+        CancelableContext_->PropagateTo(*session.ReadyEvent);
+    }
+
     bool RefillSession(TSession& session)
     {
         session.Reader.Reset();
@@ -134,9 +139,9 @@ private:
             return false;
         }
 
-        session.Reader = std::move(reader);
-        session.ReadyEvent->Reset();
         session.Exhausted = false;
+        session.Reader = std::move(reader);
+        UpdateSession(session);
         return true;
     }
 
