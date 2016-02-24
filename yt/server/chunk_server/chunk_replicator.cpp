@@ -45,6 +45,7 @@
 #include <yt/core/profiling/timing.h>
 
 #include <yt/core/concurrency/periodic_executor.h>
+#include <yt/core/concurrency/throughput_throttler.h>
 
 #include <yt/core/ytree/ypath_proxy.h>
 
@@ -93,7 +94,8 @@ TChunkReplicator::TChunkReplicator(
     : Config_(config)
     , Bootstrap_(bootstrap)
     , ChunkPlacement_(chunkPlacement)
-    , ChunkRefreshDelay_(DurationToCpuDuration(config->ChunkRefreshDelay))
+    , ChunkRefreshDelay_(DurationToCpuDuration(Config_->ChunkRefreshDelay))
+    , JobThrottler_(CreateLimitedThrottler(Config_->JobThrottler))
 {
     YCHECK(Config_);
     YCHECK(Bootstrap_);
@@ -822,6 +824,10 @@ void TChunkReplicator::ScheduleNewJobs(
     std::vector<TJobPtr>* jobsToStart,
     std::vector<TJobPtr>* jobsToAbort)
 {
+    if (JobThrottler_->IsOverdraft()) {
+        return;
+    }
+
     auto chunkManager = Bootstrap_->GetChunkManager();
 
     const auto& resourceLimits = node->ResourceLimits();
@@ -832,6 +838,7 @@ void TChunkReplicator::ScheduleNewJobs(
             resourceUsage += job->ResourceUsage();
             jobsToStart->push_back(job);
             RegisterJob(std::move(job));
+            JobThrottler_->Acquire(1);
         }
     };
 

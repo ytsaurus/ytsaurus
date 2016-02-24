@@ -7,6 +7,8 @@
 
 #include <yt/core/ytree/yson_serializable.h>
 
+#include <yt/core/concurrency/config.h>
+
 namespace NYT {
 namespace NChunkServer {
 
@@ -86,6 +88,8 @@ public:
     //! Interval between consequent replicator state checks.
     TDuration ReplicatorEnabledCheckPeriod;
 
+    NConcurrency::TThroughputThrottlerConfigPtr JobThrottler;
+
     TChunkManagerConfig()
     {
         RegisterParameter("safe_online_node_count", SafeOnlineNodeCount)
@@ -148,6 +152,13 @@ public:
 
         RegisterParameter("replicator_enabled_check_period", ReplicatorEnabledCheckPeriod)
             .Default(TDuration::Seconds(1));
+
+        RegisterParameter("job_throttler", JobThrottler)
+            .DefaultNew();
+
+        RegisterInitializer([&] () {
+            JobThrottler->Limit = 10000;
+        });
     }
 };
 
