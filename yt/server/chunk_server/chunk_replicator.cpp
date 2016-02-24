@@ -119,7 +119,7 @@ void TChunkReplicator::Start()
     PropertiesUpdateExecutor_->Start();
 
     EnabledCheckExecutor_ = New<TPeriodicExecutor>(
-        Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::ChunkMaintenance),
+        Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::Default),
         BIND(&TChunkReplicator::OnCheckEnabled, MakeWeak(this)),
         Config_->ReplicatorEnabledCheckPeriod);
     EnabledCheckExecutor_->Start();

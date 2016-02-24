@@ -38,7 +38,7 @@ void TGarbageCollector::Start()
 {
     YCHECK(!SweepExecutor_);
     SweepExecutor_ = New<TPeriodicExecutor>(
-        Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::GC),
+        Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::GarbageCollector),
         BIND(&TGarbageCollector::OnSweep, MakeWeak(this)),
         Config_->GCSweepPeriod);
     SweepExecutor_->Start();
