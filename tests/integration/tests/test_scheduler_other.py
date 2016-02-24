@@ -488,11 +488,11 @@ class TestSchedulerRunningOperationsLimitJob(YTEnvSetup):
 
         op1 = map(
             dont_track=True,
-            command="sleep 4; cat",
+            waiting_jobs=True,
+            command="cat",
             in_=["//tmp/in"],
             out="//tmp/out1",
             spec={"pool": "test_pool_1"})
-        time.sleep(1.5)
 
         remove("//sys/pools/test_pool_1")
         create("map_node", "//sys/pools/test_pool_2/test_pool_1")
@@ -500,15 +500,16 @@ class TestSchedulerRunningOperationsLimitJob(YTEnvSetup):
 
         op2 = map(
             dont_track=True,
-            command="sleep 1.7; cat",
+            command="cat",
             in_=["//tmp/in"],
             out="//tmp/out2",
             spec={"pool": "test_pool_2"})
-        time.sleep(1.5)
 
-        assert get("//sys/operations/{0}/@state".format(op1.id)) == "running"
-        assert get("//sys/operations/{0}/@state".format(op2.id)) == "pending"
+        op1.ensure_running()
+        with pytest.raises(TimeoutError):
+            op2.ensure_running(timeout=1.0)
 
+        op1.resume_jobs()
         op1.track()
         op2.track()
 
