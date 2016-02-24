@@ -7,6 +7,8 @@ import yt.packages.requests as requests
 import yt.packages.simplejson as json
 
 import time
+from threading import Thread, Semaphore
+import Queue
 from copy import deepcopy
 
 TM_BACKEND_URL = "http://transfer-manager.yt.yandex.net/api/v1"
@@ -25,14 +27,89 @@ def _raise_for_status(response):
         return
 
     if response.status_code == 500:
+        message = "Transfer Manager is not available"
         if response.content:
-            message = "Transfer Manager is not available: {0}".format(response.content)
-        else:
-            message = "Transfer manager is not available"
+            message += ": " + response.content
 
         raise YtTransferManagerUnavailableError(message)
 
     raise YtError(**response.json())
+
+class Poller(object):
+    def __init__(self, poll_period, running_tasks_limit, get_task_info_func):
+        self.poll_period = poll_period
+        self.get_task_info_func = get_task_info_func
+
+        self._thread = Thread(target=self._poll_tasks)
+        self._thread.daemon = True
+        self._thread.start()
+
+        self._queue = Queue.Queue()
+        self._semaphore = Semaphore(running_tasks_limit)
+
+    def stop(self):
+        self._queue.put({"type": "stop", "value": None})
+        self._thread.join()
+
+        aborted_task_count, failed_task_count = self._queue.get()["value"]
+        return aborted_task_count, failed_task_count
+
+    def acquire_task_slot(self):
+        self._semaphore.acquire()
+
+    def notify_task_started(self, task_id):
+        self._queue.put({"type": "task", "value": task_id})
+
+    def _poll_tasks(self):
+        logger.info("Polling thread started...")
+
+        is_running = True
+        running_tasks = []
+
+        aborted_task_count = 0
+        failed_task_count = 0
+
+        while is_running or running_tasks:
+            tasks_to_remove = []
+
+            for task in running_tasks:
+                state = self.get_task_info_func(task)["state"]
+                if state == "completed":
+                    logger.info("Task %s completed", task)
+                elif state == "skipped":
+                    logger.info("Task %s skipped", task)
+                elif state == "aborted":
+                    logger.warning("Task {0} was aborted".format(task))
+                    aborted_task_count += 1
+                elif state == "failed":
+                    logger.warning("Task {0} failed. Use get_task_info for more info".format(task))
+                    failed_task_count += 1
+                else:
+                    continue
+
+                tasks_to_remove.append(task)
+                self._semaphore.release()
+
+            time.sleep(self.poll_period)
+
+            for task in tasks_to_remove:
+                running_tasks.remove(task)
+
+            while True:
+                try:
+                    msg = self._queue.get_nowait()
+                except Queue.Empty:
+                    break
+
+                if msg["type"] == "stop":
+                    is_running = False
+                elif msg["type"] == "task":
+                    running_tasks.append(msg["value"])
+                else:
+                    assert False, "Unknown message type {0}".format(msg["type"])
+
+        # Send tasks statistics to main thread.
+        self._queue.put({"type": "stats", "value": (aborted_task_count, failed_task_count)})
 
 class TransferManager(object):
     def __init__(self, url=None, token=None, http_request_timeout=10000,
@@ -53,54 +130,14 @@ class TransferManager(object):
 
         self._backend_config = self.get_backend_config()
 
-    def add_task(self, source_cluster, source_table, destination_cluster, destination_table=None, params=None,
-                 sync=False, poll_period=None, attached=False):
-        params = get_value(params, {})
-        poll_period = get_value(poll_period, 5)
-
-        data = {
-            "source_cluster": source_cluster,
-            "source_table": source_table,
-            "destination_cluster": destination_cluster,
-        }
-        if destination_table is not None:
-            data["destination_table"] = destination_table
-        if attached:
-            params["lease_timeout"] = max(120, 2 * poll_period)
-
-        update(data, params)
-
-        task_id = self._make_request(
-            "POST",
-            self.backend_url + "/tasks/",
-            is_mutating=True,
-            data=json.dumps(data)).content
-
-        logger.info("Transfer task started: %s", TM_TASK_URL_PATTERN.format(
-            id=task_id, backend_tag=self._backend_config["backend_tag"]))
-
-        if sync:
-            self._wait_for_tasks([task_id], poll_period)
-
-        return task_id
+    def add_task(self, source_cluster, source_table, destination_cluster, destination_table=None, **kwargs):
+        src_dst_pairs = [(source_table, destination_table)]
+        return self._start_tasks(src_dst_pairs, source_cluster, destination_cluster, **kwargs)
 
     def add_tasks(self, source_cluster, source_pattern, destination_cluster, destination_pattern, **kwargs):
         src_dst_pairs = self.match_src_dst_pattern(source_cluster, source_pattern,
                                                    destination_cluster, destination_pattern)
-
-        sync = kwargs.pop("sync", False)
-        poll_period = get_value(kwargs.pop("poll_period", None), 5)
-
-        tasks = []
-        for source_table, destination_table in src_dst_pairs:
-            task = self.add_task(source_cluster, source_table, destination_cluster, destination_table,
-                                 sync=False, **kwargs)
-            tasks.append(task)
-
-        if sync:
-            self._wait_for_tasks(tasks, poll_period)
-
-        return tasks
+        return self._start_tasks(src_dst_pairs, source_cluster, destination_cluster, **kwargs)
 
     def abort_task(self, task_id):
         self._make_request(
@@ -182,42 +219,65 @@ class TransferManager(object):
             return run_with_retries(make_request, self.retry_count, exceptions=retriable_errors,
                                     except_action=except_action)
 
-        else:
-            return make_request()
+    def _start_one_task(self, source_table, source_cluster, destination_table, destination_cluster,
+                        params=None):
+        data = get_value(params, {})
 
-    def _wait_for_tasks(self, tasks, poll_period):
-        remaining_tasks = deepcopy(tasks)
-        aborted_task_count = 0
-        failed_task_count = 0
+        update(data, {
+            "source_cluster": source_cluster,
+            "source_table": source_table,
+            "destination_cluster": destination_cluster
+        })
 
-        while True:
-            tasks_to_remove = []
-            logger.info("Waiting for tasks...")
-            for task in remaining_tasks:
-                state = self.get_task_info(task)["state"]
-                if state == "completed":
-                    logger.info("Task %s completed", task)
-                elif state == "skipped":
-                    logger.info("Task %s skipped", task)
-                elif state == "aborted":
-                    logger.warning("Task {0} was aborted".format(task))
-                    aborted_task_count += 1
-                elif state == "failed":
-                    logger.warning("Task {0} failed. Use get_task_info for more info".format(task))
-                    failed_task_count += 1
-                else:
-                    continue
+        if destination_table is not None:
+            data["destination_table"] = destination_table
 
-                tasks_to_remove.append(task)
+        return self._make_request("POST",
+                                  self.backend_url + "/tasks/",
+                                  is_mutating=True,
+                                  data=json.dumps(data)).content
 
-            for task in tasks_to_remove:
-                remaining_tasks.remove(task)
+    def _start_tasks(self, src_dst_pairs, source_cluster, destination_cluster, params=None,
+                     sync=None, poll_period=None, attached=False, running_tasks_limit=None):
+        poll_period = get_value(poll_period, 5)
+        running_tasks_limit = get_value(running_tasks_limit, 10)
 
-            if not remaining_tasks:
-                break
+        params = deepcopy(get_value(params, {}))
+        if "lease_timeout" not in params and attached:
+            params["lease_timeout"] = max(120, 2 * poll_period)
 
-            time.sleep(poll_period)
+        tasks = []
 
-        if aborted_task_count or failed_task_count:
-            raise YtError("All tasks done but there are {0} failed and {1} aborted tasks"
-                          .format(failed_task_count, aborted_task_count))
+        if sync:
+            poller = Poller(poll_period, running_tasks_limit, self.get_task_info)
+
+        for source_table, destination_table in src_dst_pairs:
+            if sync:
+                poller.acquire_task_slot()
+
+            task_id = self._start_one_task(
+                source_table,
+                source_cluster,
+                destination_table,
+                destination_cluster,
+                params=params)
+
+            tasks.append(task_id)
+
+            logger.info("Transfer task started: %s", TM_TASK_URL_PATTERN.format(
+                id=task_id, backend_tag=self._backend_config["backend_tag"]))
+
+            if sync:
+                poller.notify_task_started(task_id)
+
+        if sync:
+            aborted_task_count, failed_task_count = poller.stop()
+
+            if aborted_task_count or failed_task_count:
+                raise YtError("All tasks done but there are {0} failed and {1} aborted tasks"
+                              .format(failed_task_count, aborted_task_count))
+            else:
+                logger.info("All tasks successfully finished")
+
+        return tasks
+
