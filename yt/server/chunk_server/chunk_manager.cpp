@@ -91,7 +91,7 @@ using namespace NJournalServer;
 static const auto& Logger = ChunkServerLogger;
 static const auto ProfilingPeriod = TDuration::MilliSeconds(100);
 // NB: Changing this value will invalidate all changelogs!
-static const auto UnapprovedReplicaGracePeriod = TDuration::Seconds(60);
+static const auto ReplicaApproveTimeout = TDuration::Seconds(60);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1112,9 +1112,9 @@ private:
             auto registerTimestamp = jt->second;
             auto reason = ERemoveReplicaReason::None;
             if (!IsObjectAlive(replica.GetPtr())) {
-                reason = ERemoveReplicaReason::ChunkIsDead;
-            } else if (mutationTimestamp > registerTimestamp + UnapprovedReplicaGracePeriod) {
-                reason = ERemoveReplicaReason::FailedToApprove;
+                reason = ERemoveReplicaReason::ChunkDestroyed;
+            } else if (mutationTimestamp > registerTimestamp + ReplicaApproveTimeout) {
+                reason = ERemoveReplicaReason::ApproveTimeout;
             }
             if (reason != ERemoveReplicaReason::None) {
                 // This also removes replica from unapprovedReplicas.
@@ -1540,8 +1540,8 @@ private:
 
         switch (reason) {
             case ERemoveReplicaReason::IncrementalHeartbeat:
-            case ERemoveReplicaReason::FailedToApprove:
-            case ERemoveReplicaReason::ChunkIsDead:
+            case ERemoveReplicaReason::ApproveTimeout:
+            case ERemoveReplicaReason::ChunkDestroyed:
                 node->RemoveReplica(chunkWithIndex, cached);
                 if (ChunkReplicator_ && !cached) {
                     ChunkReplicator_->OnReplicaRemoved(node, chunkWithIndex, reason);
@@ -1558,7 +1558,7 @@ private:
             LOG_EVENT(
                 Logger,
                 reason == ERemoveReplicaReason::NodeDisposed ||
-                reason == ERemoveReplicaReason::ChunkIsDead
+                reason == ERemoveReplicaReason::ChunkDestroyed
                 ? NLogging::ELogLevel::Trace : NLogging::ELogLevel::Debug,
                 "Chunk replica removed (ChunkId: %v, Cached: %v, Reason: %v, NodeId: %v, Address: %v)",
                 chunkWithIndex,
