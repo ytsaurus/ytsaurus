@@ -50,6 +50,8 @@ public:
             .SetHeavy(true)
             .SetInvoker(GetGuardedAutomatonInvoker(EAutomatonThreadQueue::FullHeartbeat)));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(IncrementalHeartbeat)
+            .SetMaxQueueSize(10000)
+            .SetMaxConcurrency(10000)
             .SetHeavy(true)
             .SetInvoker(GetGuardedAutomatonInvoker(EAutomatonThreadQueue::IncrementalHeartbeat)));
     }
