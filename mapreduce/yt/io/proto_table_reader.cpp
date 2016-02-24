@@ -34,6 +34,10 @@ void ReadMessageFromNode(const TNode& node, Message* row)
         if (it == nodeMap.end()) {
             continue; // no such column
         }
+        auto actualType = it->second.GetType();
+        if (actualType == TNode::ENTITY) {
+            continue; // null field
+        }
 
         auto checkType = [&columnName] (TNode::EType expected, TNode::EType actual) {
             if (expected != actual) {
@@ -43,7 +47,6 @@ void ReadMessageFromNode(const TNode& node, Message* row)
             }
         };
 
-        auto actualType = it->second.GetType();
         switch (fieldDesc->type()) {
             case FieldDescriptor::TYPE_STRING:
             case FieldDescriptor::TYPE_BYTES:
