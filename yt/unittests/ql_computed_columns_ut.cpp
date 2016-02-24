@@ -86,16 +86,14 @@ protected:
         return GetRangesFromSources(prunedSplits);
     }
 
-    void SetSchema(const TTableSchema& schema, const TKeyColumns& keyColumns)
+    void SetSchema(const TTableSchema& schema)
     {
         Schema_ = schema;
-        KeyColumns_ = keyColumns;
     }
 
-    void SetSecondarySchema(const TTableSchema& schema, const TKeyColumns& keyColumns)
+    void SetSecondarySchema(const TTableSchema& schema)
     {
         SecondarySchema_ = schema;
-        SecondaryKeyColumns_ = keyColumns;
     }
 
 private:
@@ -112,9 +110,7 @@ private:
             TColumnSchema("a", EValueType::Int64)
         });
 
-        TKeyColumns keyColumns{"k", "l", "m"};
-
-        SetSchema(tableSchema, keyColumns);
+        SetSchema(tableSchema);
     }
 
     TFuture<TDataSplit> MakeSimpleSplit(const NYPath::TRichYPath& path, ui64 counter = 0)
@@ -126,10 +122,10 @@ private:
             MakeId(EObjectType::Table, 0x42, counter, 0xdeadbabe));
 
         if (path.GetPath() == "//t") {
-            SetKeyColumns(&dataSplit, KeyColumns_);
+            SetKeyColumns(&dataSplit, Schema_.GetKeyColumns());
             SetTableSchema(&dataSplit, Schema_);
         } else {
-            SetKeyColumns(&dataSplit, SecondaryKeyColumns_);
+            SetKeyColumns(&dataSplit, SecondarySchema_.GetKeyColumns());
             SetTableSchema(&dataSplit, SecondarySchema_);
         }
 
@@ -151,9 +147,7 @@ private:
     StrictMock<TPrepareCallbacksMock> PrepareMock_;
     TColumnEvaluatorCachePtr ColumnEvaluatorCache_;
     TTableSchema Schema_;
-    TKeyColumns KeyColumns_;
     TTableSchema SecondarySchema_;
-    TKeyColumns SecondaryKeyColumns_;
 };
 
 TEST_F(TComputedColumnTest, NoKeyColumnsInPredicate)
@@ -237,9 +231,7 @@ TEST_F(TComputedColumnTest, ComputedColumnLast)
         TColumnSchema("a", EValueType::Int64),
     });
 
-    TKeyColumns keyColumns{"k", "l"};
-
-    SetSchema(tableSchema, keyColumns);
+    SetSchema(tableSchema);
 
     auto query = Stroka("a from [//t] where k = 10");
     auto result = Coordinate(query);
@@ -268,9 +260,7 @@ TEST_F(TComputedColumnTest, Complex1)
         TColumnSchema("a", EValueType::Int64)
     });
 
-    TKeyColumns keyColumns{"k", "l", "m", "n", "o"};
-
-    SetSchema(tableSchema, keyColumns);
+    SetSchema(tableSchema);
 
     auto query = Stroka("a from [//t] where k = 10 and n = 20");
     auto result = Coordinate(query);
@@ -299,9 +289,7 @@ TEST_F(TComputedColumnTest, Complex2)
         TColumnSchema("a", EValueType::Int64)
     });
 
-    TKeyColumns keyColumns{"k", "l", "m", "n", "o"};
-
-    SetSchema(tableSchema, keyColumns);
+    SetSchema(tableSchema);
 
     auto query = Stroka("a from [//t] where (k,n) in ((10,20),(50,60))");
     auto result = Coordinate(query);
@@ -332,9 +320,7 @@ TEST_F(TComputedColumnTest, Complex3)
         TColumnSchema("a", EValueType::Int64)
     });
 
-    TKeyColumns keyColumns{"k", "l", "m", "n", "o"};
-
-    SetSchema(tableSchema, keyColumns);
+    SetSchema(tableSchema);
 
     auto query = Stroka("a from [//t] where k = 10 and n = 20");
     auto result = Coordinate(query);
@@ -358,9 +344,7 @@ TEST_F(TComputedColumnTest, Far0)
         TColumnSchema("a", EValueType::Int64)
     });
 
-    TKeyColumns keyColumns{"k", "l", "m"};
-
-    SetSchema(tableSchema, keyColumns);
+    SetSchema(tableSchema);
 
     auto query = Stroka("a from [//t] where m = 10");
     auto result = Coordinate(query);
@@ -384,9 +368,7 @@ TEST_F(TComputedColumnTest, Far1)
         TColumnSchema("a", EValueType::Int64)
     });
 
-    TKeyColumns keyColumns{"k", "l", "m"};
-
-    SetSchema(tableSchema, keyColumns);
+    SetSchema(tableSchema);
 
     auto query = Stroka("a from [//t] where m = 10");
     auto result = Coordinate(query);
@@ -412,9 +394,7 @@ TEST_F(TComputedColumnTest, Far2)
         TColumnSchema("a", EValueType::Int64)
     });
 
-    TKeyColumns keyColumns{"k", "l", "m", "n"};
-
-    SetSchema(tableSchema, keyColumns);
+    SetSchema(tableSchema);
 
     auto query = Stroka("a from [//t] where n = 10 and l = 20");
     auto result = Coordinate(query);
@@ -440,9 +420,7 @@ TEST_F(TComputedColumnTest, Far3)
         TColumnSchema("a", EValueType::Int64)
     });
 
-    TKeyColumns keyColumns{"k", "l", "m", "n"};
-
-    SetSchema(tableSchema, keyColumns);
+    SetSchema(tableSchema);
 
     auto query = Stroka("a from [//t] where (n,l) in ((10,20), (30,40))");
     auto result = Coordinate(query);
@@ -470,9 +448,7 @@ TEST_F(TComputedColumnTest, Far4)
         TColumnSchema("a", EValueType::Int64)
     });
 
-    TKeyColumns keyColumns{"k", "l", "m", "n"};
-
-    SetSchema(tableSchema, keyColumns);
+    SetSchema(tableSchema);
 
     auto query = Stroka("a from [//t] where n in (10,30) and l in (20,40)");
     auto result = Coordinate(query);
@@ -499,9 +475,7 @@ TEST_F(TComputedColumnTest, NoComputedColumns)
         TColumnSchema("a", EValueType::Int64)
     });
 
-    TKeyColumns keyColumns{"k", "l"};
-
-    SetSchema(tableSchema, keyColumns);
+    SetSchema(tableSchema);
 
     auto query = Stroka("a from [//t] where a = 0");
     auto result = Coordinate(query);
@@ -523,9 +497,7 @@ TEST_F(TComputedColumnTest, Modulo0)
         TColumnSchema("a", EValueType::Int64)
     });
 
-    TKeyColumns keyColumns{"k", "l"};
-
-    SetSchema(tableSchema, keyColumns);
+    SetSchema(tableSchema);
 
     auto query = Stroka("a from [//t] where a = 0");
     auto result = Coordinate(query);
@@ -547,9 +519,7 @@ TEST_F(TComputedColumnTest, Modulo1)
         TColumnSchema("a", EValueType::Int64)
     });
 
-    TKeyColumns keyColumns{"k", "l"};
-
-    SetSchema(tableSchema, keyColumns);
+    SetSchema(tableSchema);
 
     auto query = Stroka("a from [//t] where l > 0 and l <= 2000");
     auto result = Coordinate(query);
@@ -582,9 +552,7 @@ TEST_F(TComputedColumnTest, Modulo2)
         TColumnSchema("a", EValueType::Int64)
     });
 
-    TKeyColumns keyColumns{"k", "l", "m", "n"};
-
-    SetSchema(tableSchema, keyColumns);
+    SetSchema(tableSchema);
 
     auto query = Stroka("a from [//t] where m = 1");
     auto result = Coordinate(query);
@@ -615,9 +583,7 @@ TEST_F(TComputedColumnTest, Modulo3)
         TColumnSchema("a", EValueType::Int64)
     });
 
-    TKeyColumns keyColumns{"k", "l", "m"};
-
-    SetSchema(tableSchema, keyColumns);
+    SetSchema(tableSchema);
 
     auto query = Stroka("a from [//t]");
     auto result = Coordinate(query);
@@ -641,9 +607,7 @@ TEST_F(TComputedColumnTest, Modulo4)
         TColumnSchema("a", EValueType::Int64)
     });
 
-    TKeyColumns keyColumns{"k", "l", "m"};
-
-    SetSchema(tableSchema, keyColumns);
+    SetSchema(tableSchema);
 
     auto query = Stroka("a from [//t] where l in (0,1,2)");
     auto result = Coordinate(query, 10);
@@ -671,9 +635,7 @@ TEST_F(TComputedColumnTest, Divide1)
         TColumnSchema("a", EValueType::Int64)
     });
 
-    TKeyColumns keyColumns{"k", "l"};
-
-    SetSchema(tableSchema, keyColumns);
+    SetSchema(tableSchema);
 
     auto query = Stroka("a from [//t] where l >= 3 and l < 6");
     auto result = Coordinate(query);
@@ -700,9 +662,7 @@ TEST_F(TComputedColumnTest, Divide2)
         TColumnSchema("a", EValueType::Int64)
     });
 
-    TKeyColumns keyColumns{"k", "l", "m"};
-
-    SetSchema(tableSchema, keyColumns);
+    SetSchema(tableSchema);
 
     auto query = Stroka("a from [//t] where m > 0 and m <= 6");
     auto result = Coordinate(query);
@@ -735,9 +695,7 @@ TEST_F(TComputedColumnTest, Divide3)
         TColumnSchema("a", EValueType::Uint64)
     });
 
-    TKeyColumns keyColumns{"k", "l", "m", "n"};
-
-    SetSchema(tableSchema, keyColumns);
+    SetSchema(tableSchema);
 
     auto query = Stroka("a from [//t] where m >= 0u and m < 3u");
     auto result = Coordinate(query);
@@ -765,9 +723,7 @@ TEST_F(TComputedColumnTest, Divide4)
         TColumnSchema("a", EValueType::Int64)
     });
 
-    TKeyColumns keyColumns{"k", "l"};
-
-    SetSchema(tableSchema, keyColumns);
+    SetSchema(tableSchema);
 
     auto query = Stroka("a from [//t] where l >= -9223372036854775808 and l <= 9223372036854775807");
     auto result = Coordinate(query);
@@ -793,9 +749,7 @@ TEST_F(TComputedColumnTest, FarDivide1)
         TColumnSchema("a", EValueType::Int64)
     });
 
-    TKeyColumns keyColumns{"k", "l", "m"};
-
-    SetSchema(tableSchema, keyColumns);
+    SetSchema(tableSchema);
 
     auto query = Stroka("a from [//t] where m >= 3 and m < 5");
     auto result = Coordinate(query);
@@ -812,32 +766,25 @@ TEST_P(TComputedColumnTest, Join)
 {
     const auto& args = GetParam();
     const auto& schemaString1 = args[0];
-    const auto& schemaString2 = args[2];
-    const auto& keyString1 = args[1];
-    const auto& keyString2 = args[3];
+    const auto& schemaString2 = args[1];
 
     TTableSchema tableSchema1;
     TTableSchema tableSchema2;
     Deserialize(tableSchema1, ConvertToNode(TYsonString(schemaString1)));
     Deserialize(tableSchema2, ConvertToNode(TYsonString(schemaString2)));
 
-    TKeyColumns keyColumns1;
-    TKeyColumns keyColumns2;
-    Deserialize(keyColumns1, ConvertToNode(TYsonString(keyString1)));
-    Deserialize(keyColumns2, ConvertToNode(TYsonString(keyString2)));
-
-    SetSchema(tableSchema1, keyColumns1);
-    SetSecondarySchema(tableSchema2, keyColumns2);
+    SetSchema(tableSchema1);
+    SetSecondarySchema(tableSchema2);
 
     auto query = Stroka("l from [//t] join [//t1] using l where l in (0, 1)");
     auto result = CoordinateForeign(query);
 
     EXPECT_EQ(2, result.size());
 
-    EXPECT_EQ(BuildKey(args[4]), result[0].first);
-    EXPECT_EQ(BuildKey(args[5]), result[0].second);
-    EXPECT_EQ(BuildKey(args[6]), result[1].first);
-    EXPECT_EQ(BuildKey(args[7]), result[1].second);
+    EXPECT_EQ(BuildKey(args[2]), result[0].first);
+    EXPECT_EQ(BuildKey(args[3]), result[0].second);
+    EXPECT_EQ(BuildKey(args[4]), result[1].first);
+    EXPECT_EQ(BuildKey(args[5]), result[1].second);
 }
 
 INSTANTIATE_TEST_CASE_P(
@@ -847,54 +794,42 @@ INSTANTIATE_TEST_CASE_P(
         std::vector<const char*>{
             "[{name=k;type=int64;sort_order=ascending;expression=l}; {name=l;type=int64;sort_order=ascending}; "
                 "{name=a;type=int64}]",
-            "[k;l]",
             "[{name=n;type=int64;sort_order=ascending;expression=l}; {name=l;type=int64;sort_order=ascending}; {name=b;type=int64}]",
-            "[n;l]",
             "0;0;",
             "0;0;" _MAX_,
             "1;1;",
             "1;1;" _MAX_},
         std::vector<const char*>{
             "[{name=l;type=int64;sort_order=ascending}; {name=a;type=int64}]",
-            "[l]",
             "[{name=l;type=int64;sort_order=ascending}; {name=b;type=int64}]",
-            "[l]",
             "0;",
             "0;" _MAX_,
             "1;",
             "1;" _MAX_},
         std::vector<const char*>{
             "[{name=l;type=int64;sort_order=ascending;expression=k}; {name=k;type=int64;sort_order=ascending}; {name=a;type=int64}]",
-            "[l;k]",
             "[{name=l;type=int64;sort_order=ascending}; {name=b;type=int64}]",
-            "[l]",
             "0;",
             "0;" _MAX_,
             "1;",
             "1;" _MAX_},
         std::vector<const char*>{
             "[{name=l;type=int64;sort_order=ascending}; {name=a;type=int64}]",
-            "[l]",
             "[{name=n;type=int64;sort_order=ascending;expression=l}; {name=l;type=int64;sort_order=ascending}; {name=b;type=int64}]",
-            "[n;l]",
             "0;0;",
             "0;0;" _MAX_,
             "1;1;",
             "1;1;" _MAX_},
         std::vector<const char*>{
             "[{name=l;type=int64;sort_order=ascending}; {name=a;type=int64}]",
-            "[l]",
             "[{name=l;type=int64;sort_order=ascending;expression=n}; {name=n;type=int64;sort_order=ascending}; {name=b;type=int64}]",
-            "[l;n]",
             "0;",
             "0;" _MAX_,
             "1;",
             "1;" _MAX_},
         std::vector<const char*>{
             "[{name=l;type=int64;sort_order=ascending}; {name=a;type=int64}]",
-            "[l]",
             "[{name=l;type=int64;sort_order=ascending}; {name=n;type=int64;sort_order=ascending;expression=l}; {name=b;type=int64}]",
-            "[l;n]",
             "0;0;",
             "0;0;" _MAX_,
             "1;1;",
