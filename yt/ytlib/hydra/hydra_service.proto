@@ -47,7 +47,7 @@ message TReqPingFollower
 {
     required NYT.NProto.TGuid epoch_id = 1;
     required int64 committed_revision = 2;
-    required int64 logged_revision = 3;
+    required int64 ping_revision = 3;
 }
 
 message TRspPingFollower
