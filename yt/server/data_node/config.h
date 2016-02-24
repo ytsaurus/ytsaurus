@@ -365,7 +365,7 @@ public:
         RegisterParameter("register_retry_period", RegisterRetryPeriod)
             .Default(TDuration::Seconds(3));
         RegisterParameter("incremental_heartbeat_timeout", IncrementalHeartbeatTimeout)
-            .Default(TDuration::Seconds(15));
+            .Default(TDuration::Seconds(60));
         RegisterParameter("full_heartbeat_timeout", FullHeartbeatTimeout)
             .Default(TDuration::Seconds(60));
         
