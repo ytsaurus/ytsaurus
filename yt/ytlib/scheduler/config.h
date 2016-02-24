@@ -109,6 +109,9 @@ public:
 
     bool CheckMultichunkFiles;
 
+    //! Users that can change operation parameters, e.g abort or suspend it.
+    std::vector<Stroka> Owners;
+
     TOperationSpecBase()
     {
         RegisterParameter("intermediate_data_account", IntermediateDataAccount)
@@ -161,6 +164,9 @@ public:
         SetKeepOptions(true);
 
         RegisterParameter("time_limit", TimeLimit)
+            .Default();
+
+        RegisterParameter("owners", Owners)
             .Default();
 
         RegisterValidator([&] () {
