@@ -225,9 +225,6 @@ public:
     //! Period between consequent registration attempts.
     TDuration RegisterRetryPeriod;
 
-    //! Random delay before first heartbeat
-    TDuration HeartbeatSplay;
-
     //! Timeout for RegisterNode requests.
     TDuration RegisterTimeout;
 
