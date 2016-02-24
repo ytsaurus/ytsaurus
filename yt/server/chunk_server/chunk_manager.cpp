@@ -1527,12 +1527,6 @@ private:
         TChunkIdWithIndex chunkIdWithIndex(chunk->GetId(), nodeWithIndex.GetIndex());
 
         if (reason == ERemoveReplicaReason::IncrementalHeartbeat && !node->HasReplica(chunkWithIndex, cached)) {
-            LOG_DEBUG_UNLESS(IsRecovery(), "Chunk replica is already removed (ChunkId: %v, Cached: %v, Reason: %v, NodeId: %v, Address: %v)",
-                chunkWithIndex,
-                cached,
-                reason,
-                nodeId,
-                node->GetDefaultAddress());
             return;
         }
 
