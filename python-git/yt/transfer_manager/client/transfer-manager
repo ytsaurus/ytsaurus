@@ -66,6 +66,8 @@ def _add_new_task_parameters(parser):
                         help="wait added tasks to be completed (default: False)")
     parser.add_argument("--poll-period", type=int, help="task polling period in sync mode (in seconds)")
     parser.add_argument("--attached", action="store_true", help="run task in attached mode", default=False)
+    parser.add_argument("--running-tasks-limit", type=int,
+                        help="in sync mode: maximum number of simultaneously running tasks (default: 10)")
 
 def add_new_task_subparser(subparsers):
     parser = subparsers.add_parser("add-task", help="add new transfer task")
