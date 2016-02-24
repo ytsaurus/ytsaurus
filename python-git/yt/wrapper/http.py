@@ -9,6 +9,7 @@ import yt.yson as yson
 import yt.json as json
 
 import os
+import sys
 import random
 import string
 import time
@@ -151,8 +152,17 @@ def make_request_with_retries(method, url, make_retries=True, retry_unavailable_
                 if get_option("_ENABLE_HTTP_CHAOS_MONKEY", client) and random.randint(1, 5) == 1:
                     raise YtIncorrectResponse("", response)
             except requests.ConnectionError as error:
+                # Module requests patched to process response from YT proxy
+                # in case of large chunked-encoding write requests.
+                # Here we check that this response was added to the error.
                 if hasattr(error, "response"):
-                    rsp = create_response(error.response, request_info, client)
+                    exc_info = sys.exc_info()
+                    try:
+                        # We should perform it under try..except due to response may be incomplete.
+                        # See YT-4053.
+                        rsp = create_response(error.response, request_info, client)
+                    except:
+                        raise exc_info[0], exc_info[1], exc_info[2]
                     raise_for_status(rsp, request_info)
                 raise
 
