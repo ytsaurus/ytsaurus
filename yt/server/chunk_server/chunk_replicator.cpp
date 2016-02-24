@@ -469,7 +469,7 @@ void TChunkReplicator::OnReplicaRemoved(
     RemoveReplicaFromQueues(
         chunkWithIndex.GetPtr(),
         TNodePtrWithIndex(node, chunkWithIndex.GetIndex()),
-        reason != ERemoveReplicaReason::ChunkIsDead);
+        reason != ERemoveReplicaReason::ChunkDestroyed);
 }
 
 void TChunkReplicator::ScheduleUnknownReplicaRemoval(
