@@ -110,3 +110,4 @@ configure_github_mirror Cyan4973-zstd
 configure_github_mirror kennethreitz-requests
 configure_github_mirror google-brotli
 configure_github_mirror kislyuk-argcomplete
+configure_github_mirror pympler-pympler
