@@ -367,7 +367,6 @@ private:
     typedef TCodedStream<TCharStream<TBlockStream, TPositionInfo<EnableLinePositionInfo>>> TBaseStream;
 
     std::vector<char> Buffer_;
-<<<<<<< HEAD
     const size_t MemoryLimit_;
 
     void Insert(const char* begin, const char* end)
@@ -378,18 +377,6 @@ private:
 
     void PushBack(char ch)
     {
-=======
-    TNullable<size_t> MemoryLimit_;
-
-    void Insert(const char* begin, const char* end)
-    {
-        ReserverAndCheckMemoryLimit(end - begin);
-        Buffer_.insert(Buffer_.end(), begin, end);
-    }
-
-    void PushBack(char ch)
-    {
->>>>>>> prestable/0.17.5
         ReserverAndCheckMemoryLimit(1);
         Buffer_.push_back(ch);
     }
@@ -404,14 +391,14 @@ private:
         auto newDefaultCapacity = std::max(Buffer_.capacity(), size_t(1)) * 2;
 
         if (MemoryLimit_) {
-            if (minReserveSize > *MemoryLimit_) {
+            if (minReserveSize > MemoryLimit_) {
                 THROW_ERROR_EXCEPTION(
                     "Memory limit exceeded while parsing YSON stream: allocated %v, limit %v",
                     minReserveSize,
-                    *MemoryLimit_);
+                    MemoryLimit_);
             }
 
-            newDefaultCapacity = std::min(newDefaultCapacity, *MemoryLimit_);
+            newDefaultCapacity = std::min(newDefaultCapacity, MemoryLimit_);
         }
 
         auto reserveSize = std::max(newDefaultCapacity, minReserveSize);
@@ -541,12 +528,7 @@ protected:
                     TBaseStream::Refresh();
                     continue;
                 }
-<<<<<<< HEAD
                 size_t readingBytes = std::min(needToRead, TBaseStream::Length());
-=======
-                size_t readingBytes = needToRead < TBaseStream::Length() ? needToRead : TBaseStream::Length(); // TODO: min
-
->>>>>>> prestable/0.17.5
                 Insert(TBaseStream::Begin(), TBaseStream::Begin() + readingBytes);
                 needToRead -= readingBytes;
                 TBaseStream::Advance(readingBytes);
