@@ -1,60 +1,68 @@
 #!/usr/bin/env python
 
 from yt.transfer_manager.client import TransferManager
+from yt.wrapper.client import Yt
 import yt.wrapper as yt
 
 import sys
 import argparse
 import Queue
 from threading import Thread, Semaphore
-import random
-import string
 import time
 
-TEST_TABLE_NAME = "//tmp/tm_load_tester_table"
+SRC_TEST_TABLE_NAME = "//tmp/tm_load_tester_table"
+DST_TEST_TABLES_PATH = "//tmp/tm_load_tester"
 
-def waiting_thread(client, queue, semaphore):
-    running_tasks = []
+SRC_YT_CLUSTER = "plato"
+DST_YT_CLUSTER = "aristotle"
+
+def waiting_thread(client, token, queue, semaphore):
+    dst_client = Yt(proxy=DST_YT_CLUSTER, token=token)
+
+    running_tasks = {}
     while True:
         tasks_to_remove = []
-        for task in running_tasks:
+        for task, destination in running_tasks.iteritems():
             state = client.get_task_info(task)["state"]
             if state in ["aborted", "failed", "completed"]:
                 print >>sys.stderr, "Task {0} {1}".format(task, state)
                 tasks_to_remove.append(task)
+                dst_client.remove(destination, force=True)
                 semaphore.release()
 
         for task in tasks_to_remove:
-            running_tasks.remove(task)
+            del running_tasks[task]
 
         while True:
             try:
-                task = queue.get_nowait()
+                task, destination = queue.get_nowait()
             except Queue.Empty:
                 break
 
-            running_tasks.append(task)
+            running_tasks[task] = destination
 
         time.sleep(0.3)
 
 def run_tasks(client, task_limit):
-    yt.config["proxy"]["url"] = "plato"
-    yt.write_table(TEST_TABLE_NAME, ["key=a\tvalue=b\n"], format="yamr")
+    yt.config["proxy"]["url"] = SRC_YT_CLUSTER
+    yt.write_table(SRC_TEST_TABLE_NAME, ["key=a\tvalue=b\n"], format="yamr")
+
+    dst_yt_client = Yt(proxy=DST_YT_CLUSTER, token=yt.config["token"])
+    dst_yt_client.create("map_node", DST_TEST_TABLES_PATH, ignore_existing=True)
 
     queue = Queue.Queue()
     semaphore = Semaphore(task_limit)
 
-    thread = Thread(target=waiting_thread, args=(client, queue, semaphore))
+    thread = Thread(target=waiting_thread, args=(client, yt.config["token"], queue, semaphore))
     thread.daemon = True
     thread.start()
 
     print >>sys.stderr, "Starting tasks creation. Task limit: {0}".format(task_limit)
     while True:
         semaphore.acquire()
-        destination = "tmp/yt_" + "".join(random.sample(string.ascii_letters + string.digits, 7))
-        task_id = client.add_task("plato", TEST_TABLE_NAME, "sakura", destination,
-                                  params={"mr_user": "userdata", "copy_method": "push"})
-        queue.put(task_id)
+        destination = dst_yt_client.create_temp_table(path=DST_TEST_TABLES_PATH)
+        task_id = client.add_task(SRC_YT_CLUSTER, SRC_TEST_TABLE_NAME, DST_YT_CLUSTER, destination)
+        queue.put((task_id, destination))
 
         time.sleep(0.5)
 
