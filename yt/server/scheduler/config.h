@@ -39,8 +39,15 @@ public:
     double MinPreemptableRatio;
 
     //! Limit on number of running operations.
+    // TODO(ignat): Rename Operations to OperationCount.
     int MaxRunningOperations;
     int MaxRunningOperationsPerPool;
+
+    //! Limit on number of operations started in pool.
+    int MaxOperationsPerPool;
+
+    //! Maximum number of operations that can be run concurrently.
+    int MaxOperationCount;
 
     //! If enabled, pools will be able to starve and provoke preemption.
     bool EnablePoolStarvation;
@@ -81,6 +88,14 @@ public:
 
         RegisterParameter("max_running_operations_per_pool", MaxRunningOperationsPerPool)
             .Default(50)
+            .GreaterThan(0);
+
+        RegisterParameter("max_operations_per_pool", MaxOperationsPerPool)
+            .Default(50)
+            .GreaterThan(0);
+
+        RegisterParameter("max_operation_count", MaxOperationCount)
+            .Default(1000)
             .GreaterThan(0);
 
         RegisterParameter("enable_pool_starvation", EnablePoolStarvation)
@@ -373,9 +388,6 @@ public:
     //! Controls finer initial slicing of input data to ensure even distribution of data split sizes among jobs.
     double SliceDataSizeMultiplier;
 
-    //! Maximum number of operations that can be run concurrently.
-    int MaxOperationCount;
-
     //! Maximum size of file allowed to be passed to jobs.
     i64 MaxFileSize;
 
@@ -590,10 +602,6 @@ public:
             .DefaultNew();
         RegisterParameter("remote_copy_operation_options", RemoteCopyOperationOptions)
             .DefaultNew();
-
-        RegisterParameter("max_operation_count", MaxOperationCount)
-            .Default(1000)
-            .GreaterThan(0);
 
         RegisterParameter("environment", Environment)
             .Default(yhash_map<Stroka, Stroka>());

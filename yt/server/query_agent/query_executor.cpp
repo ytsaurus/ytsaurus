@@ -353,7 +353,7 @@ private:
                     query,
                     MOVE(groupedSplit),
                     timestamp,
-                    &workloadDescriptor,
+                    workloadDescriptor,
                     index = 0,
                     this_ = MakeStrong(this)
                 ] () mutable -> ISchemafulReaderPtr {

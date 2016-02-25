@@ -52,7 +52,7 @@ std::pair<TMutableRow, int> TTopCollector::Capture(TRow row)
             for (size_t bufferId = 0; bufferId < buffersToRows.size(); ++bufferId) {
                 for (auto rowId : buffersToRows[bufferId]) {
                     auto& row = Rows_[rowId].first;
-                    
+
                     auto savedSize = buffer->GetSize();
                     row = buffer->Capture(row);
                     AllocatedMemorySize_ += buffer->GetSize() - savedSize;
@@ -220,7 +220,7 @@ TJoinEvaluator GetJoinEvaluator(
             columnMapping.emplace_back(false, subqueryTableSchema.GetColumnIndex(*foreign));
         } else {
             YUNREACHABLE();
-        }        
+        }
     }
 
     return [=] (
@@ -277,8 +277,10 @@ TJoinEvaluator GetJoinEvaluator(
         TRowBuilder rowBuilder;
         // allRows have format (join key... , other columns...)
 
+        i64 joinRowLimit = context->JoinRowLimit;
+
         auto addRow = [&] (TRow joinedRow) -> bool {
-            if (!UpdateAndCheckRowLimit(&context->JoinRowLimit, &context->StopFlag)) {
+            if (!UpdateAndCheckRowLimit(&joinRowLimit, &context->StopFlag)) {
                 context->Statistics->IncompleteOutput = true;
                 return true;
             }

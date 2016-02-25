@@ -1656,6 +1656,14 @@ void TOperationControllerBase::OnInputChunkUnavailable(const TChunkId& chunkId, 
     if (descriptor.State != EInputChunkState::Active)
         return;
 
+    ++ChunkLocatedCallCount;
+    if (ChunkLocatedCallCount >= Config->MaxChunksPerScratch) {
+        ChunkLocatedCallCount = 0;
+        LOG_DEBUG("Located another batch of chunks (Count: %v, UnavailableInputChunkCount: %v)",
+            Config->MaxChunksPerScratch,
+            UnavailableInputChunkCount);
+    }
+
     LOG_TRACE("Input chunk is unavailable (ChunkId: %v)", chunkId);
 
     ++UnavailableInputChunkCount;
