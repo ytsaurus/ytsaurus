@@ -1787,7 +1787,7 @@ TJobStartRequestPtr TOperationControllerBase::ScheduleJob(
 
     auto request = DoScheduleJob(context, jobLimits);
     if (request) {
-        OnJobStarted(request->id);
+        OnJobStarted(request->Id);
     }
     return request;
 
@@ -1805,7 +1805,7 @@ TJobStartRequestPtr TOperationControllerBase::ScheduleJob(
 
     //auto jobStartRequest = jobStartRequestOrError.ValueOrThrow();
     //if (jobStartRequest) {
-    //    OnJobStarted(jobStartRequest->id);
+    //    OnJobStarted(jobStartRequest->Id);
     //}
     //return jobStartRequest;
 }

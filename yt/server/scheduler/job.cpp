@@ -136,11 +136,11 @@ TJobStartRequest::TJobStartRequest(
     const TJobResources& resourceLimits,
     bool restarted,
     const TJobSpecBuilder& specBuilder)
-    : id(id)
-    , type(type)
-    , resourceLimits(resourceLimits)
-    , restarted(restarted)
-    , specBuilder(specBuilder)
+    : Id(id)
+    , Type(type)
+    , ResourceLimits(resourceLimits)
+    , Restarted(restarted)
+    , SpecBuilder(specBuilder)
 { }
 
 ////////////////////////////////////////////////////////////////////

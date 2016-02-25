@@ -1105,8 +1105,8 @@ public:
             return false;
         }
 
-        context.SchedulingContext->ResourceUsage() += jobStartRequest->resourceLimits;
-        OnJobStarted(jobStartRequest->id, jobStartRequest->resourceLimits);
+        context.SchedulingContext->ResourceUsage() += jobStartRequest->ResourceLimits;
+        OnJobStarted(jobStartRequest->Id, jobStartRequest->ResourceLimits);
         context.SchedulingContext->StartJob(Operation_, jobStartRequest);
 
         UpdateDynamicAttributes(context.AttributesIndex);
