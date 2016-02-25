@@ -30,6 +30,9 @@ import yt.wrapper as yt
 import yt.json as json
 from yt.packages.expiringdict import ExpiringDict
 
+import yt.packages.pympler.muppy as pympler_muppy
+import yt.packages.pympler.summary as pympler_summary
+
 from flask import Flask, request, jsonify, Response, make_response
 
 import os
@@ -336,43 +339,50 @@ class Application(object):
 
         # Add rules
         self._add_rule("/", 'main', methods=["GET"], depends_on_lock=False)
-        self._add_rule("/tasks/", 'get_tasks', methods=["GET"])
-        self._add_rule("/tasks/", 'add_task', methods=["POST"], is_mutating=True)
-        self._add_rule("/tasks/<id>/", 'get_task', methods=["GET"])
-        self._add_rule("/tasks/<id>/", 'delete_task', methods=["DELETE"], is_mutating=True)
-        self._add_rule("/tasks/<id>/abort/", 'abort_task', methods=["POST"], is_mutating=True)
-        self._add_rule("/tasks/<id>/restart/", 'restart_task', methods=["POST"], is_mutating=True)
-        self._add_rule("/tasks/<id>/ping/", 'ping_task', methods=["POST"])
+        self._add_rule("/tasks/", 'get_tasks', methods=["GET"], is_heavy=True)
+        self._add_rule("/tasks/", 'add_task', methods=["POST"], is_mutating=True, is_heavy=True)
+        self._add_rule("/tasks/<id>/", 'get_task', methods=["GET"], is_heavy=True)
+        self._add_rule("/tasks/<id>/", 'delete_task', methods=["DELETE"], is_mutating=True, is_heavy=True)
+        self._add_rule("/tasks/<id>/abort/", 'abort_task', methods=["POST"], is_mutating=True, is_heavy=True)
+        self._add_rule("/tasks/<id>/restart/", 'restart_task', methods=["POST"], is_mutating=True, is_heavy=True)
+        self._add_rule("/tasks/<id>/ping/", 'ping_task', methods=["POST"], is_heavy=True)
         self._add_rule("/config/", 'config', methods=["GET"])
         self._add_rule("/ping/", 'ping', methods=["GET"])
         self._add_rule("/match/", 'match', methods=["POST"])
-        self._add_rule("/profiling/", 'profiling', methods=["GET"])
+        self._add_rule("/profiling/timings/", 'profiling_timings', methods=["GET"])
+        self._add_rule("/profiling/memory_tracker/", 'profiling_memory_tracker', methods=["GET"])
 
     def terminate(self):
         self._terminating = True
         self._lock_thread.join(self._sleep_step)
         self._execution_thread.join(self._sleep_step)
 
-    def _add_rule(self, rule, endpoint, methods, depends_on_lock=True, is_mutating=False):
+    def _add_rule(self, rule, endpoint, methods, depends_on_lock=True, is_mutating=False, is_heavy=False):
         def process_mutation_request():
             if is_mutating:
-                return [(self._process_mutating_request, ())]
-            return []
+                return (self._process_mutating_request, ())
+            return (None, ())
+
+        def check_request_rate_limit():
+            if is_heavy:
+                return (self._check_requests_limit, ())
+            return (None, ())
 
         methods.append("OPTIONS")
 
         middlewares = [(self._process_exception, ()),
-                       (self._check_requests_limit, ()),
+                       check_request_rate_limit(),
                        (self._profile_time, (endpoint, )),
-                       (self._process_lock, (depends_on_lock, ))] + \
-                       process_mutation_request() + \
-                       [(process_gzip, ()),
+                       (self._process_lock, (depends_on_lock, )),
+                       process_mutation_request(),
+                       (process_gzip, ()),
                        (self._process_cors, (methods, )),
                        (self._process_exception, ())]
 
         endpoint_method = Application.__dict__[endpoint]
         for middleware, middleware_args in reversed(middlewares):
-            endpoint_method = middleware(endpoint_method, *middleware_args)
+            if middleware is not None:
+                endpoint_method = middleware(endpoint_method, *middleware_args)
 
         self._daemon.add_url_rule(rule, endpoint, endpoint_method, methods=methods)
 
@@ -434,10 +444,11 @@ class Application(object):
                     return "Incoming requests limit exceeded, try again later", 500
                 self._incoming_requests_count += 1
 
-            result = func(*args, **kwargs)
-
-            with self._incoming_requests_counter_mutex:
-                self._incoming_requests_count -= 1
+            try:
+                result = func(*args, **kwargs)
+            finally:
+                with self._incoming_requests_counter_mutex:
+                    self._incoming_requests_count -= 1
 
             return result
 
@@ -1613,7 +1624,7 @@ class Application(object):
         matchings = match_copy_pattern(client, source_pattern, destination_pattern)
         return Response(json.dumps(matchings), mimetype="application/json")
 
-    def profiling(self):
+    def profiling_timings(self):
         with self._profiling_mutex:
             profiling = deepcopy(self._profiling)
 
@@ -1621,6 +1632,12 @@ class Application(object):
             profiling["execution_time"][key] = list(profiling["execution_time"][key])
 
         return Response(json.dumps(profiling), mimetype="application/json")
+
+    def profiling_memory_tracker(self):
+        objects = pympler_muppy.get_objects()
+        summary = pympler_summary.summarize(objects)
+        summary_repr = "\n".join(list(pympler_summary.format_(summary, limit=50))) + "\n"
+        return summary_repr, 200
 
 
 def main():
