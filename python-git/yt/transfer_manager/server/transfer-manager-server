@@ -61,7 +61,10 @@ import Queue
 yt.config["read_retries"]["enable"] = True
 
 class RequestFailed(yt.YtError):
-    pass
+    def __init__(self, *args, **kwargs):
+        http_code = kwargs.pop("http_code", 404)
+        super(RequestFailed, self).__init__(self, *args, **kwargs)
+        self.attributes["http_code"] = http_code
 
 class IncorrectTokenError(RequestFailed):
     pass
@@ -415,7 +418,7 @@ class Application(object):
                 return func(*args, **kwargs)
             except RequestFailed as error:
                 log_yt_exception(logger)
-                return json.dumps(error.simplify()), 404
+                return json.dumps(error.simplify()), error.attributes["http_code"]
             except Exception as error:
                 logger.exception("Unknown error:")
                 return json.dumps({"code": 1, "message": "Unknown error: " + traceback.format_exc()}), 404
@@ -1378,7 +1381,7 @@ class Application(object):
             raise RequestFailed("Cannot create task", inner_errors=[yt.YtError(error.message)])
 
         if len(self._pending_tasks) > self._config["pending_tasks_limit"]:
-            raise RequestFailed("Too many pending tasks (>{0})".format(len(self._pending_tasks)))
+            raise RequestFailed("Too many pending tasks (>{0})".format(len(self._pending_tasks)), http_code=500)
 
         if self._pending_tasks_per_user[task.user] > self._config["pending_tasks_limit_per_user"]:
             raise RequestFailed("Too many pending tasks per user (>{0})".format(self._pending_tasks_per_user[task.user]))

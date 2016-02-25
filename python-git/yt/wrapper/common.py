@@ -5,6 +5,7 @@ import yt.yson as yson
 
 import os
 import sys
+import inspect
 import random
 import time
 import functools
@@ -136,11 +137,14 @@ def run_with_retries(action, retry_count=6, backoff=20.0, exceptions=(YtError,),
     for iter in xrange(retry_count):
         try:
             return action()
-        except exceptions:
+        except exceptions as err:
             if iter + 1 == retry_count:
                 raise
             if except_action:
-                except_action()
+                if len(inspect.getargspec(except_action).args) == 0:
+                    except_action()
+                else:
+                    except_action(err)
             sleep_backoff = backoff * iter - total_seconds(datetime.now() - start_time)
             if sleep_backoff > 0.0:
                 time.sleep(sleep_backoff)
