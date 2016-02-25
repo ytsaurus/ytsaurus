@@ -327,7 +327,7 @@ TCodegenExpression TUnversionedValueCallingConvention::MakeCodegenFunctionCall(
         auto arg = codegenArgs.begin();
         for (;
             arg != codegenArgs.end() && argIndex != RepeatedArgIndex_;
-            arg++, argIndex++) 
+            arg++, argIndex++)
         {
             auto valuePtr = builder.CreateAlloca(unversionedValueType);
             auto cgValue = (*arg)(builder, row);
@@ -357,7 +357,7 @@ TCodegenExpression TUnversionedValueCallingConvention::MakeCodegenFunctionCall(
                 auto valuePtr = builder.CreateConstGEP1_32(
                     varargPtr,
                     varargIndex);
-                
+
                 auto cgValue = (*arg)(builder, row);
                 cgValue.StoreToValue(builder, valuePtr, 0);
             }
@@ -423,7 +423,7 @@ TUserDefinedFunction::TUserDefinedFunction(
     : TTypedFunction(
         functionName,
         typeArgumentConstraints,
-        std::vector<TType>(argumentTypes.begin(), argumentTypes.end()),
+        argumentTypes,
         repeatedArgType,
         resultType)
     , TExternallyDefinedFunction(functionName, symbolName, implementationFile, callingConvention)

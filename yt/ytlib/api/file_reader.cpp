@@ -164,7 +164,7 @@ private:
         if (!isEmptyRead) {
             auto nodeDirectory = New<TNodeDirectory>();
             auto rspOrError = batchRsp->GetResponse<TFileYPathProxy::TRspFetch>("fetch");
-            THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error fetching file chunks");
+            THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error fetching file chunk specs");
             const auto& rsp = rspOrError.Value();
 
             nodeDirectory->MergeFrom(rsp->node_directory());
