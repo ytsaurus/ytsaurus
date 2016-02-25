@@ -390,14 +390,16 @@ private:
 
         auto newDefaultCapacity = std::max(Buffer_.capacity(), size_t(1)) * 2;
 
-        if (minReserveSize > MemoryLimit_) {
-            THROW_ERROR_EXCEPTION(
-                "Memory limit exceeded while parsing YSON stream: allocated %v, limit %v",
-                minReserveSize,
-                MemoryLimit_);
-        }
+        if (MemoryLimit_) {
+            if (minReserveSize > MemoryLimit_) {
+                THROW_ERROR_EXCEPTION(
+                    "Memory limit exceeded while parsing YSON stream: allocated %v, limit %v",
+                    minReserveSize,
+                    MemoryLimit_);
+            }
 
-        newDefaultCapacity = std::min(newDefaultCapacity, MemoryLimit_);
+            newDefaultCapacity = std::min(newDefaultCapacity, MemoryLimit_);
+        }
 
         auto reserveSize = std::max(newDefaultCapacity, minReserveSize);
 

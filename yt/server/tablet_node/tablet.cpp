@@ -92,6 +92,7 @@ TTablet::TTablet(
     : TObjectBase(tabletId)
     , MountRevision_(0)
     , Slot_(slot)
+    , HashTableSize_(0)
     , OverlappingStoreCount_(0)
     , Config_(New<TTableMountConfig>())
     , WriterOptions_(New<TTabletWriterOptions>())
