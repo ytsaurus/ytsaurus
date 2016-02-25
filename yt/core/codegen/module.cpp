@@ -204,7 +204,7 @@ private:
         std::unique_ptr<FunctionPassManager> functionPassManager;
 
         // Run DCE pass to strip unused code.
-        LOG_DEBUG("Pruning dead code (ExportedSymbols: %v)", ExportedSymbols_);
+        LOG_DEBUG("Pruning dead code (ExportedSymbols: %v)", JoinToString(ExportedSymbols_));
 
         std::vector<const char*> exportedNames;
         for (const auto& exportedSymbol : ExportedSymbols_) {
