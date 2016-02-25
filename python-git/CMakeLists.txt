@@ -24,3 +24,13 @@ file(
   COPY ${CMAKE_CURRENT_SOURCE_DIR}/contrib/python-argcomplete/argcomplete
   DESTINATION ${CMAKE_CURRENT_SOURCE_DIR}/yt/packages/
 )
+
+exec_program(
+  ${CMAKE_COMMAND} ARGS -E remove
+  ${CMAKE_CURRENT_SOURCE_DIR}/yt/packages/pympler
+)
+
+file(
+  COPY ${CMAKE_CURRENT_SOURCE_DIR}/contrib/python-pympler/pympler
+  DESTINATION ${CMAKE_CURRENT_SOURCE_DIR}/yt/packages/
+)
