@@ -169,19 +169,17 @@ void TBlobChunkBase::DoReadMeta(
     cookie.EndInsert(cachedMeta);
 }
 
-void TBlobChunkBase::DoReadBlockSet(
+TFuture<void> TBlobChunkBase::OnBlocksExtLoaded(
     TReadBlockSetSessionPtr session,
     const TWorkloadDescriptor& workloadDescriptor)
 {
-    auto config = Bootstrap_->GetConfig()->DataNode;
-
-    // Prepare to serve request: compute pending data size.
-
+    // Prepare to serve the request: compute pending data size.
     i64 cachedDataSize = 0;
     i64 pendingDataSize = 0;
     int cachedBlockCount = 0;
     int pendingBlockCount = 0;
 
+    auto config = Bootstrap_->GetConfig()->DataNode;
     const auto& blocksExt = GetBlocksExt();
 
     for (int index = 0; index < session->Entries.size(); ++index) {
@@ -210,8 +208,25 @@ void TBlobChunkBase::DoReadBlockSet(
         workloadDescriptor,
         pendingDataSize);
 
-    // Serve request.
+    // Actually serve the request: delegate to the appropriate thread.
+    auto priority = workloadDescriptor.GetPriority();
+    auto invoker = CreateFixedPriorityInvoker(Location_->GetDataReadInvoker(), priority);
+    return
+        BIND(
+            &TBlobChunkBase::DoReadBlockSet,
+            MakeStrong(this),
+            session,
+            workloadDescriptor,
+            Passed(std::move(pendingIOGuard)))
+        .AsyncVia(std::move(invoker))
+        .Run();
+}
 
+void TBlobChunkBase::DoReadBlockSet(
+    TReadBlockSetSessionPtr session,
+    const TWorkloadDescriptor& workloadDescriptor,
+    TPendingIOGuard /*pendingIOGuard*/)
+{
     auto& locationProfiler = Location_->GetProfiler();
     auto reader = Bootstrap_->GetBlobReaderCache()->GetReader(this);
 
@@ -362,13 +377,9 @@ TFuture<std::vector<TSharedRef>> TBlobChunkBase::ReadBlockSet(
             });
 
         auto asyncBlocksExtResult = LoadBlocksExt(workloadDescriptor);
-
-        auto priority = workloadDescriptor.GetPriority();
-        auto invoker = CreateFixedPriorityInvoker(Location_->GetDataReadInvoker(), priority);
-        auto asyncReadResult = BIND(&TBlobChunkBase::DoReadBlockSet, MakeStrong(this), session, workloadDescriptor)
-             .AsyncVia(std::move(invoker));
-
-        asyncResults.emplace_back(asyncBlocksExtResult.Apply(std::move(asyncReadResult)));
+        auto asyncReadResult = asyncBlocksExtResult.Apply(
+            BIND(&TBlobChunkBase::OnBlocksExtLoaded, MakeStrong(this), session, workloadDescriptor));
+        asyncResults.push_back(asyncReadResult);
     }
 
     auto asyncResult = Combine(asyncResults);
