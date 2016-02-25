@@ -559,7 +559,7 @@ class TestSchedulerOperationLimits(YTEnvSetup):
             run(i, "production", False)
 
         for op in ops:
-            track_op(op)
+            op.track()
 
 
 class TestSchedulingTags(YTEnvSetup):
