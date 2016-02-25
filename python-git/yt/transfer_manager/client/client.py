@@ -156,9 +156,14 @@ class TransferManager(object):
             params["mutation_id"] = generate_uuid()
             params["retry"] = bool_to_string(False)
 
-        def except_action():
+        def except_action(error):
             if is_mutating:
-                params["retry"] = bool_to_string(True)
+                # XXX(asaitgalin): use new mutation id because it is 503.
+                if isinstance(error, YtTransferManagerUnavailableError):
+                    params["mutation_id"] = generate_uuid()
+                    params["retry"] = bool_to_string(False)
+                else:
+                    params["retry"] = bool_to_string(True)
 
         def make_request():
             update(headers, {"X-TM-Parameters": json.dumps(params)})
