@@ -1637,10 +1637,17 @@ class Application(object):
         return Response(json.dumps(profiling), mimetype="application/json")
 
     def profiling_memory_tracker(self):
+        limit = int(request.args.get("limit", "50"))
+        info = request.args.get("format", "top_table")
         objects = pympler_muppy.get_objects()
         summary = pympler_summary.summarize(objects)
-        summary_repr = "\n".join(list(pympler_summary.format_(summary, limit=50))) + "\n"
-        return summary_repr, 200
+        if info == "top_table":
+            summary_repr = "\n".join(list(pympler_summary.format_(summary, limit=limit))) + "\n"
+            return summary_repr, 200
+        elif info == "full_json":
+            return json.dumps(summary), 200
+        else:
+            return "Unknown value of info option", 200
 
 
 def main():
