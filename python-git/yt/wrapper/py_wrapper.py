@@ -212,7 +212,9 @@ def wrap(function, operation_type, tempfiles_manager, input_format=None, output_
     if isinstance(modules_info, str):
         modules_info = [{"filename": modules_info, "tmpfs": False}]
     modules_filenames = [info["filename"] for info in modules_info]
-    tmpfs_size = int(TMPFS_SIZE_ADDEND + TMPFS_SIZE_MULTIPLIER * sum([info["size"] for info in modules_info if info["tmpfs"]]))
+    tmpfs_size = sum([info["size"] for info in modules_info if info["tmpfs"]])
+    if tmpfs_size > 0:
+        tmpfs_size = TMPFS_SIZE_ADDEND + TMPFS_SIZE_MULTIPLIER * tmpfs_size
 
     for info in modules_info:
         info["filename"] = os.path.basename(info["filename"])
