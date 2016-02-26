@@ -37,6 +37,7 @@ dpkg -x yandex-yt-local_*.deb "yandex-yt-local"
 download_and_extract yandex-yt-python $YANDEX_YT_PYTHON_VERSION
 download_and_extract yandex-yt $YANDEX_YT_VERSION
 download_and_extract yandex-yt-http-proxy $YANDEX_YT_VERSION
+download_and_extract yandex-yt-python-driver $YANDEX_YT_VERSION
 download_and_extract yandex-yt-python-yson $YANDEX_YT_YSON_BINDINGS_VERSION
 download_and_extract yandex-yt-web-interface
 download_and_extract nodejs $NODEJS_VERSION
@@ -44,6 +45,7 @@ download_and_extract nodejs $NODEJS_VERSION
 mkdir -p "archive/bin"
 mkdir -p "archive/python/yt"
 mkdir -p "archive/python/yt_yson_bindings"
+mkdir -p "archive/python/yt_driver_bindings"
 mkdir -p "archive/yt-thor"
 mkdir -p "archive/node"
 
@@ -57,10 +59,15 @@ cp -r yandex-yt-python/usr/bin/mapreduce-yt archive/bin
 cp -r yandex-yt-local/usr/share/pyshared/yt/* archive/python/yt
 cp -r yandex-yt-local/usr/bin/yt_local archive/bin/
 
+# YSON bindings.
 cp -r yandex-yt-python-yson/usr/share/pyshared/yt/* archive/python/yt
 cp -r yandex-yt-python-yson/usr/share/pyshared/yt_yson_bindings/* archive/python/yt_yson_bindings
 cp -r yandex-yt-python-yson/usr/lib/pyshared/python2.7/yt/* archive/python/yt
 cp -r yandex-yt-python-yson/usr/lib/pyshared/python2.7/yt_yson_bindings/* archive/python/yt_yson_bindings
+
+# Driver bindings.
+cp -r yandex-yt-python-driver/usr/share/pyshared/yt_driver_bindings/* archive/python/yt_driver_bindings
+cp -r yandex-yt-python-driver/usr/lib/pyshared/python2.7/yt_driver_bindings/* archive/python/yt_driver_bindings
 
 cp -r yandex-yt-web-interface/usr/share/yt-thor/* archive/yt-thor
 
