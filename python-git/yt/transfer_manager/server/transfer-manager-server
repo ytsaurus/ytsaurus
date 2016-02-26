@@ -63,7 +63,7 @@ yt.config["read_retries"]["enable"] = True
 class RequestFailed(yt.YtError):
     def __init__(self, *args, **kwargs):
         http_code = kwargs.pop("http_code", 404)
-        super(RequestFailed, self).__init__(self, *args, **kwargs)
+        super(RequestFailed, self).__init__(*args, **kwargs)
         self.attributes["http_code"] = http_code
 
 class IncorrectTokenError(RequestFailed):
