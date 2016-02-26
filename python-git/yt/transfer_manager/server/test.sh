@@ -111,13 +111,13 @@ test_copy_from_smith_to_cedar() {
 }
 
 test_copy_from_sakura_to_cedar() {
-    echo "Importing from Sakura to Redwood"
+    echo "Importing from Sakura to Cedar"
     id=$(run_task '{"source_table": "tmp/yt/test_table", "source_cluster": "sakura", "destination_table": "tmp/yt/test_table", "destination_cluster": "cedar", "mr_user": "userdata"}')
     wait_task $id
 }
 
 test_copy_from_cedar_to_plato() {
-    echo "Importing from Redwood to Plato"
+    echo "Importing from Cedar to Plato"
     id=$(run_task '{"source_table": "tmp/yt/test_table", "source_cluster": "cedar", "destination_table": "//tmp/test_table", "destination_cluster": "plato", "mr_user": "userdata", "pool": "ignat"}')
     wait_task $id
     check "true" "$(yt2 exists //tmp/test_table/@sorted --proxy plato.yt.yandex.net)"
