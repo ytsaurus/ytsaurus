@@ -62,19 +62,6 @@ TJob::TJob(
     , SpecBuilder_(std::move(specBuilder))
 { }
 
-void TJob::FinalizeJob(const TInstant& finishTime)
-{
-    FinishTime_ = finishTime;
-    Statistics_.AddSample("/time/total", GetDuration().MilliSeconds());
-    if (Result()->has_prepare_time()) {
-        Statistics_.AddSample("/time/prepare", Result()->prepare_time());
-    }
-
-    if (Result()->has_exec_time()) {
-        Statistics_.AddSample("/time/exec", Result()->exec_time());
-    }
-}
-
 TDuration TJob::GetDuration() const
 {
     return *FinishTime_ - StartTime_;
@@ -83,7 +70,6 @@ TDuration TJob::GetDuration() const
 void TJob::SetResult(NJobTrackerClient::NProto::TJobResult&& result)
 {
     Result_ = New<TRefCountedJobResult>(std::move(result));
-    Statistics_ = FromProto<TStatistics>(Result()->statistics());
 }
 
 const Stroka& TJob::GetStatisticsSuffix() const
@@ -98,16 +84,20 @@ const Stroka& TJob::GetStatisticsSuffix() const
 TJobSummary::TJobSummary(const TJobPtr& job)
     : Result(job->Result())
     , Id(job->GetId())
-    , Statistics(job->Statistics())
     , StatisticsSuffix(job->GetStatisticsSuffix())
+    , FinishTime(*job->GetFinishTime())
 { }
 
 TJobSummary::TJobSummary(const TJobId& id)
     : Result()
     , Id(id)
-    , Statistics()
     , StatisticsSuffix()
 { }
+
+void TJobSummary::ParseStatistics()
+{
+    Statistics = FromProto<NJobTrackerClient::TStatistics>(Result->statistics());
+}
 
 ////////////////////////////////////////////////////////////////////
 

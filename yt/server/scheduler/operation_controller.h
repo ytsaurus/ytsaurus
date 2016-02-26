@@ -38,8 +38,6 @@ namespace NScheduler {
 ////////////////////////////////////////////////////////////////////////////////
 
 struct IOperationHost
-    // TODO(acid): This interface should be reconsidered.
-    : public virtual IEventLogHost
 {
     virtual ~IOperationHost()
     { }
@@ -104,6 +102,12 @@ struct IOperationHost
     virtual void OnOperationFailed(
         TOperationPtr operation,
         const TError& error) = 0;
+
+    //! Creates new value consumer that can be used for logging.
+    /*!
+     *  \note Thread affinity: any
+     */
+    virtual NTableClient::IValueConsumerPtr CreateLogConsumer() = 0;
 };
 
 /*!
@@ -214,20 +218,26 @@ struct IOperationController
     /*!
      *  \note Invoker affinity: Cancellable controller invoker
      */
+    //! Called in the end of heartbeat when scheduler agrees to run operation job.
+    virtual void OnJobStarted(const TJobId& jobId, TInstant startTime) = 0;
+
+    /*!
+     *  \note Invoker affinity: Cancellable controller invoker
+     */
     //! Called during heartbeat processing to notify the controller that a job has completed.
-    virtual void OnJobCompleted(const TCompletedJobSummary& jobSummary) = 0;
+    virtual void OnJobCompleted(std::unique_ptr<TCompletedJobSummary> jobSummary) = 0;
 
     /*!
      *  \note Invoker affinity: Cancellable controller invoker
      */
     //! Called during heartbeat processing to notify the controller that a job has failed.
-    virtual void OnJobFailed(const TFailedJobSummary& jobSummary) = 0;
+    virtual void OnJobFailed(std::unique_ptr<TFailedJobSummary> jobSummary) = 0;
 
     /*!
      *  \note Invoker affinity: Cancellable controller invoker
      */
     //! Called during preemption to notify the controller that a job has been aborted.
-    virtual void OnJobAborted(const TAbortedJobSummary& jobSummary) = 0;
+    virtual void OnJobAborted(std::unique_ptr<TAbortedJobSummary> jobSummary) = 0;
 
     /*!
      *  \note Invoker affinity: Cancellable controller invoker

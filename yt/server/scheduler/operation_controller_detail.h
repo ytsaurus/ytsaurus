@@ -75,6 +75,7 @@ DEFINE_ENUM(EControllerState,
 
 class TOperationControllerBase
     : public IOperationController
+    , public TEventLogHostBase
     , public NPhoenix::IPersistent
     , public NPhoenix::TFactoryTag<NPhoenix::TNullFactory>
 {
@@ -93,9 +94,10 @@ public:
     virtual void Revive() override;
     virtual void Commit() override;
 
-    virtual void OnJobCompleted(const TCompletedJobSummary& jobSummary) override;
-    virtual void OnJobFailed(const TFailedJobSummary& jobSummary) override;
-    virtual void OnJobAborted(const TAbortedJobSummary& jobSummary) override;
+    virtual void OnJobStarted(const TJobId& jobId, TInstant startTime) override;
+    virtual void OnJobCompleted(std::unique_ptr<TCompletedJobSummary> jobSummary) override;
+    virtual void OnJobFailed(std::unique_ptr<TFailedJobSummary> jobSummary) override;
+    virtual void OnJobAborted(std::unique_ptr<TAbortedJobSummary> jobSummary) override;
 
     virtual void Abort() override;
 
@@ -339,6 +341,9 @@ protected:
          *  For jobs with final output this list typically contains one element per each output table.
          */
         std::vector<NChunkClient::TChunkListId> ChunkListIds;
+
+        TInstant StartTime;
+        TInstant FinishTime;
 
         void Persist(TPersistenceContext& context);
     };
@@ -616,8 +621,6 @@ protected:
     TJobStartRequestPtr DoScheduleJob(ISchedulingContext* context, const TJobResources& jobLimits);
     TJobStartRequestPtr DoScheduleLocalJob(ISchedulingContext* context, const TJobResources& jobLimits);
     TJobStartRequestPtr DoScheduleNonLocalJob(ISchedulingContext* context, const TJobResources& jobLimits);
-
-    void OnJobStarted(const TJobId& jobId);
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
     DECLARE_THREAD_AFFINITY_SLOT(BackgroundThread);
@@ -935,6 +938,8 @@ private:
     std::vector<TExecNodeDescriptor> ExecNodesDescriptors_;
     TInstant LastGetExecNodesInformationTime_;
 
+    std::unique_ptr<NYson::IYsonConsumer> EventLogConsumer_;
+
     void GetExecNodesInformation();
     int GetExecNodeCount();
 
@@ -946,6 +951,18 @@ private:
     static const NProto::TUserJobResult* FindUserJobResult(const TRefCountedJobResultPtr& result);
 
     void IncreaseNeededResources(const TJobResources& resourcesDelta);
+
+    //! Sets finish time and other timing statistics.
+    void FinalizeJoblet(
+        const TJobletPtr& joblet,
+        TJobSummary* jobSummary);
+
+    TFluentLogEvent LogFinishedJobFluently(
+        ELogEventType eventType,
+        const TJobletPtr& joblet,
+        const TJobSummary& jobSummary);
+
+    virtual NYson::IYsonConsumer* GetEventLogConsumer() override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
