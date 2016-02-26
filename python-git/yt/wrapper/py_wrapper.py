@@ -18,6 +18,7 @@ import time
 
 LOCATION = os.path.dirname(os.path.abspath(__file__))
 TMPFS_SIZE_MULTIPLIER = 1.05
+TMPFS_SIZE_ADDEND = 16 * 1024 * 1024
 
 # Modules below are imported to force their addition to modules archive.
 OPERATION_REQUIRED_MODULES = ["yt.wrapper.py_runner_helpers"]
@@ -211,7 +212,7 @@ def wrap(function, operation_type, tempfiles_manager, input_format=None, output_
     if isinstance(modules_info, str):
         modules_info = [{"filename": modules_info, "tmpfs": False}]
     modules_filenames = [info["filename"] for info in modules_info]
-    tmpfs_size = int(TMPFS_SIZE_MULTIPLIER * sum([info["size"] for info in modules_info if info["tmpfs"]]))
+    tmpfs_size = int(TMPFS_SIZE_ADDEND + TMPFS_SIZE_MULTIPLIER * sum([info["size"] for info in modules_info if info["tmpfs"]]))
 
     for info in modules_info:
         info["filename"] = os.path.basename(info["filename"])
