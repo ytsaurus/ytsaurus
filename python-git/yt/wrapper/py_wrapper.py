@@ -17,11 +17,24 @@ import pickle as standard_pickle
 import time
 
 LOCATION = os.path.dirname(os.path.abspath(__file__))
-TMPFS_SIZE_MULTIPLIER = 1.05
-TMPFS_SIZE_ADDEND = 16 * 1024 * 1024
+TMPFS_SIZE_MULTIPLIER = 1.01
+TMPFS_SIZE_ADDEND = 1024 * 1024
 
 # Modules below are imported to force their addition to modules archive.
 OPERATION_REQUIRED_MODULES = ["yt.wrapper.py_runner_helpers"]
+
+def round_up_to(num, divider):
+    if num % divider == 0:
+        return num
+    else:
+        return (1 + (num / divider)) * divider
+
+def get_disk_size(filepath):
+    stat = os.stat(filepath)
+    if hasattr(stat, "st_blocks") and hasattr(stat, "st_blksize"):
+        return stat.st_blocks * stat.st_blksize
+    else:
+        return round_up_to(stat.st_size, 4 * 1024)
 
 def is_running_interactively():
     # Does not work in bpython
@@ -136,10 +149,10 @@ def create_modules_archive_default(tempfiles_manager, client):
                 age = now - os.path.getmtime(filepath)
                 if age > get_config(client)["pickling"]["fresh_files_threshold"]:
                     zip.write(filepath, relpath)
-                    total_size += os.path.getsize(filepath)
+                    total_size += get_disk_size(filepath)
                 else:
                     fresh_zip.write(filepath, relpath)
-                    fresh_total_size += os.path.getsize(filepath)
+                    fresh_total_size += get_disk_size(filepath)
 
     result = [{
         "filename": zip_filename,
