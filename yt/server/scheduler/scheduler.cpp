@@ -37,6 +37,7 @@
 #include <yt/core/rpc/message.h>
 #include <yt/core/rpc/response_keeper.h>
 
+#include <yt/core/misc/lock_free.h>
 #include <yt/core/misc/finally.h>
 
 #include <yt/core/profiling/scoped_timer.h>
@@ -185,6 +186,12 @@ public:
             BIND(&TImpl::OnLogging, MakeWeak(this)),
             Config_->ClusterInfoLoggingPeriod);
         LoggingExecutor_->Start();
+
+        PendingEventLogRowsFlushExecutor_ = New<TPeriodicExecutor>(
+            Bootstrap_->GetControlInvoker(),
+            BIND(&TImpl::OnPendingEventLogRowsFlush, MakeWeak(this)),
+            Config_->PendingEventLogRowsFlushPeriod);
+        PendingEventLogRowsFlushExecutor_->Start();
     }
 
     ISchedulerStrategy* GetStrategy()
@@ -547,12 +554,12 @@ public:
 
             RegisterJob(job);
 
-            LogEventFluently(ELogEventType::JobStarted)
-                .Item("job_id").Value(job->GetId())
-                .Item("operation_id").Value(job->GetOperationId())
-                .Item("resource_limits").Value(job->ResourceLimits())
-                .Item("node_address").Value(job->GetNode()->GetDefaultAddress())
-                .Item("job_type").Value(job->GetType());
+            const auto& controller = operation->GetController();
+            controller->GetCancelableInvoker()->Invoke(BIND(
+                &IOperationController::OnJobStarted,
+                controller,
+                job->GetId(),
+                job->GetStartTime()));
 
             auto* startInfo = response->add_jobs_to_start();
             ToProto(startInfo->mutable_job_id(), job->GetId());
@@ -822,6 +829,11 @@ public:
         GetControlInvoker()->Invoke(BIND(&TImpl::DoFailOperation, MakeStrong(this), operation, error));
     }
 
+    virtual IValueConsumerPtr CreateLogConsumer() override
+    {
+        return New<TEventLogValueConsumer>(this);
+    }
+
 private:
     const TSchedulerConfigPtr Config_;
     const INodePtr InitialConfig_;
@@ -863,11 +875,50 @@ private:
     int ConcurrentHeartbeatCount_ = 0;
 
     TPeriodicExecutorPtr LoggingExecutor_;
+    TPeriodicExecutorPtr PendingEventLogRowsFlushExecutor_;
 
     Stroka ServiceAddress_;
 
+    class TEventLogValueConsumer
+        : public IValueConsumer
+    {
+    public:
+        explicit TEventLogValueConsumer(TScheduler::TImpl* host)
+            : Host_(host)
+        { }
+
+        virtual TNameTablePtr GetNameTable() const override
+        {
+            return Host_->EventLogWriter_->GetNameTable();
+        }
+
+        virtual bool GetAllowUnknownColumns() const override
+        {
+            return true;
+        }
+
+        virtual void OnBeginRow() override
+        { }
+
+        virtual void OnValue(const TUnversionedValue& value) override
+        {
+            Builder_.AddValue(value);
+        }
+
+        virtual void OnEndRow() override
+        {
+            Host_->PendingEventLogRows_.Enqueue(Builder_.FinishRow());
+        }
+
+    private:
+        TScheduler::TImpl* const Host_;
+        TUnversionedOwningRowBuilder Builder_;
+
+    };
+
     ISchemalessWriterPtr EventLogWriter_;
     std::unique_ptr<IYsonConsumer> EventLogConsumer_;
+    TMultipleProducerSingleConsumerLockFreeStack<TUnversionedOwningRow> PendingEventLogRows_;
 
     yhash_map<Stroka, TJobResources> SchedulingTagResources_;
 
@@ -903,6 +954,18 @@ private:
                 .Item("node_count").Value(GetExecNodeCount())
                 .Item("resource_limits").Value(TotalResourceLimits_)
                 .Item("resource_usage").Value(TotalResourceUsage_);
+        }
+    }
+
+
+    void OnPendingEventLogRowsFlush()
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        if (IsConnected()) {
+            auto owningRows = PendingEventLogRows_.DequeueAll();
+            std::vector<TUnversionedRow> rows(owningRows.begin(), owningRows.end());
+            EventLogWriter_->Write(rows);
         }
     }
 
@@ -1773,12 +1836,11 @@ private:
         YCHECK(operation);
 
         if (operation->GetState() == EOperationState::Running) {
-            LogFinishedJobFluently(ELogEventType::JobAborted, job)
-                .Item("reason").Value(GetAbortReason(job->Result()));
-            auto controller = operation->GetController();
-            BIND(&IOperationController::OnJobAborted, controller, TAbortedJobSummary(job))
-                .AsyncVia(controller->GetCancelableInvoker())
-                .Run();
+            const auto& controller = operation->GetController();
+            controller->GetCancelableInvoker()->Invoke(BIND(
+                &IOperationController::OnJobAborted,
+                controller,
+                Passed(std::make_unique<TAbortedJobSummary>(job))));
         }
     }
 
@@ -1822,30 +1884,17 @@ private:
             YCHECK(operation);
 
             if (operation->GetState() == EOperationState::Running) {
-                LogFinishedJobFluently(ELogEventType::JobCompleted, job);
-                auto controller = operation->GetController();
-                BIND(&IOperationController::OnJobCompleted, controller, TCompletedJobSummary(job, abandoned))
-                    .AsyncVia(controller->GetCancelableInvoker())
-                    .Run();
+                const auto& controller = operation->GetController();
+                controller->GetCancelableInvoker()->Invoke(BIND(
+                    &IOperationController::OnJobCompleted,
+                    controller,
+                    Passed(std::make_unique<TCompletedJobSummary>(job, abandoned))));
             }
 
             ProcessFinishedJobResult(job);
         }
 
         UnregisterJob(job);
-    }
-
-    TFluentLogEvent LogFinishedJobFluently(ELogEventType eventType, TJobPtr job)
-    {
-        return LogEventFluently(eventType)
-            .Item("job_id").Value(job->GetId())
-            .Item("operation_id").Value(job->GetOperationId())
-            .Item("start_time").Value(job->GetStartTime())
-            .Item("finish_time").Value(job->GetFinishTime())
-            .Item("resource_limits").Value(job->ResourceLimits())
-            .Item("statistics").Value(job->Statistics())
-            .Item("node_address").Value(job->GetNode()->GetDefaultAddress())
-            .Item("job_type").Value(job->GetType());
     }
 
     void OnJobFailed(TJobPtr job, TJobResult* result)
@@ -1862,13 +1911,11 @@ private:
             YCHECK(operation);
 
             if (operation->GetState() == EOperationState::Running) {
-                auto error = FromProto<TError>(job->Result()->error());
-                LogFinishedJobFluently(ELogEventType::JobFailed, job)
-                    .Item("error").Value(error);
-                auto controller = operation->GetController();
-                BIND(&IOperationController::OnJobFailed, controller, TFailedJobSummary(job))
-                    .AsyncVia(controller->GetCancelableInvoker())
-                    .Run();
+                const auto& controller = operation->GetController();
+                controller->GetCancelableInvoker()->Invoke(BIND(
+                    &IOperationController::OnJobFailed,
+                    controller,
+                    Passed(std::make_unique<TFailedJobSummary>(job))));
             }
 
             ProcessFinishedJobResult(job);
@@ -1895,12 +1942,11 @@ private:
             YCHECK(operation);
 
             if (operation->GetState() == EOperationState::Running) {
-                LogFinishedJobFluently(ELogEventType::JobAborted, job)
-                    .Item("reason").Value(GetAbortReason(job->Result()));
-                auto controller = operation->GetController();
-                BIND(&IOperationController::OnJobAborted, controller, TAbortedJobSummary(job))
-                    .AsyncVia(controller->GetCancelableInvoker())
-                    .Run();
+                const auto& controller = operation->GetController();
+                controller->GetCancelableInvoker()->Invoke(BIND(
+                    &IOperationController::OnJobAborted,
+                    controller,
+                    Passed(std::make_unique<TAbortedJobSummary>(job))));
             }
         }
 
@@ -1909,7 +1955,7 @@ private:
 
     void OnJobFinished(TJobPtr job)
     {
-        job->FinalizeJob(TInstant::Now());
+        job->SetFinishTime(TInstant::Now());
         auto duration = job->GetDuration();
 
         switch (job->GetState()) {
