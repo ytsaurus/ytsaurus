@@ -107,14 +107,13 @@ def _create_node_from_local_file(local_filename, dest_filename, client):
         for key in attributes:
             client.set_attribute(dest_filename, key, attributes[key])
 
-def _synchronize_cypress_with_local_dir(local_cypress_dir, proxy_url):
+def _synchronize_cypress_with_local_dir(local_cypress_dir, client):
     cypress_path_prefix = "//"
 
     local_cypress_dir = os.path.abspath(local_cypress_dir)
     require(os.path.exists(local_cypress_dir),
             yt.YtError("Local Cypress directory does not exist"))
 
-    client = Yt(proxy=proxy_url)
     root_attributes = _get_attributes_from_local_dir(local_cypress_dir)
     for key in root_attributes:
         client.set_attribute("/", key, root_attributes[key])
@@ -168,9 +167,23 @@ def _safe_kill(pid):
             # (EINVAL, EPERM, ESRCH)
             raise
 
-def _initialize_world(proxy_address):
-    client = Yt(proxy=proxy_address)
+def _create_native_client(environment):
+    driver_config_path = os.path.join(environment.path_to_run, "driver.yson")
 
+    with open(driver_config_path) as f:
+        driver_config = yson.load(f)
+
+    config = {
+        "backend": "native",
+        "driver_config": driver_config
+    }
+
+    import yt_driver_bindings
+    yt_driver_bindings.configure_logging(environment.driver_logging_config)
+
+    return Yt(config=config)
+
+def _initialize_world(client):
     initialize_world(client)
     # Create tablet cell
     attributes = {
@@ -237,9 +250,10 @@ def start(masters_count=1, nodes_count=3, schedulers_count=1, start_proxy=True,
 
     environment.id = sandbox_id
 
-    _initialize_world(environment.get_proxy_address())
+    native_client = _create_native_client(environment)
+    _initialize_world(native_client)
     if local_cypress_dir is not None:
-        _synchronize_cypress_with_local_dir(local_cypress_dir, environment.get_proxy_address())
+        _synchronize_cypress_with_local_dir(local_cypress_dir, native_client)
 
     log_started_instance_info(environment, start_proxy)
 
