@@ -238,7 +238,10 @@ EExitCode GuardedMain(int argc, const char* argv[])
 
     INodePtr configNode;
 
-    if (!printConfigTemplate) {
+    if (isExecutor) {
+        // Don't start any other singleton or parse config in executor mode.
+        NLogging::TLogManager::Get()->Configure(NLogging::TLogConfig::CreateQuiet());
+    } else if (!printConfigTemplate) {
         if (configFileName.empty()) {
             THROW_ERROR_EXCEPTION("Missing --config option");
         }
@@ -258,7 +261,7 @@ EExitCode GuardedMain(int argc, const char* argv[])
 
         // Configure singletons.
 
-        if (!isMasterSnapshotDump && !isMasterSnapshotValidate && !isExecutor) {
+        if (!isMasterSnapshotDump && !isMasterSnapshotValidate) {
             NLogging::TLogManager::Get()->Configure(configFileName, "/logging");
         } else {
             NLogging::TLogManager::Get()->Configure(NLogging::TLogConfig::CreateQuiet());
