@@ -271,7 +271,7 @@ Examples:
 
     add_bool_args(parser, action_flags + ["subkey", "lenval", "append", "dynallocmode", "dsv", "pingtx",
                                           "smartformat", "force", "executable", "waitable", "failonemptysrctable", "nocreatetmptable",
-                                          "jsonoutput", "tableindex"])
+                                          "jsonoutput", "tableindex", "tablerecordindex"])
     parser.add_argument(*arg_to_names("sort"), const=True, default=False, nargs="?")
 
     add_maybe_missing_value_args(parser, action_maybe_stores)
@@ -497,6 +497,10 @@ Examples:
     if args.maxjobfails is not None:
         spec["max_failed_job_count"] = args.maxjobfails
 
+    job_io = None
+    if args.tablerecordindex:
+        job_io = {"control_attributes": {"enable_row_index": True}}
+
     has_dstsorted = False
     dst = []
     for option_name, value in get_value(args.dst, []):
@@ -527,11 +531,12 @@ Examples:
     map_files = to_list(args.file) + to_list(args.mapfile)
     reduce_files = to_list(args.file) + to_list(args.reducefile)
 
+    enable_table_index = args.tableindex or args.tablerecordindex
     format = yt.YamrFormat(lenval=args.lenval,
                            has_subkey=args.subkey,
                            field_separator=args.fs,
                            record_separator=args.rs,
-                           enable_table_index=args.tableindex)
+                           enable_table_index=enable_table_index)
     if args.dsv:
         if args.lenval or args.subkey:
             die("Options subkey and lenval are mutually exclusive with dsv option")
@@ -649,6 +654,7 @@ Examples:
                           sort_by=args.sortby, reduce_by=args.reduceby,
                           replication_factor=replication_factor,
                           compression_codec=args.codec,
+                          job_io=job_io,
                           spec=spec)
     elif args.map is not None:
         yt.run_map(args.map, args.src, dst, files=map_files, file_paths=args.ytfile,
@@ -656,6 +662,7 @@ Examples:
                    replication_factor=replication_factor,
                    compression_codec=args.codec,
                    job_count=args.jobcount,
+                   job_io=job_io,
                    spec=spec)
     elif args.reduce is not None or args.reducews is not None or args.reducewsonly is not None:
         if inputformat.name() == "yamred_dsv" and args.reduceby is None:
@@ -668,6 +675,7 @@ Examples:
                       replication_factor=replication_factor,
                       compression_codec=args.codec,
                       job_count=args.jobcount,
+                      job_io=job_io,
                       spec=spec)
     if args.drop is not None:
         if yt.exists(args.drop):
@@ -697,14 +705,16 @@ Examples:
             args.sortby = inputformat.attributes.get("key_column_names", []) + \
                           inputformat.attributes.get("subkey_column_names", [])
         yt.run_sort(args.src, unlist_destination_tables(dst), sort_by=args.sortby,
-                      replication_factor=replication_factor,
-                      compression_codec=args.codec,
-                      spec=spec)
+                    replication_factor=replication_factor,
+                    compression_codec=args.codec,
+                    job_io=job_io,
+                    spec=spec)
     if args.merge:
         yt.run_merge(args.src, unlist_destination_tables(dst), mode=get_value(args.mode, "sorted"),
                      replication_factor=replication_factor,
                      compression_codec=args.codec,
                      job_count=args.jobcount,
+                     job_io=job_io,
                      spec=spec)
 
     if args.erase is not None:

@@ -21,6 +21,9 @@ Common operations parameters
 
 * **spec** : (dict) universal method to set operation parameters
 
+* **job_io** : (dict) spec for job io of all stages of operation \
+<https://wiki.yandex-team.ru/yt/Design/ClientInterface/Core#write>`_.
+
 * **strategy** : (`yt.wrapper.operation_commands.WaitStrategy`) (Deprecated!) \
 strategy of waiting result, `yt.wrapper.get_config(client).DEFAULT_STRATEGY` by default
 
@@ -51,7 +54,7 @@ from common import flatten, require, unlist, update, parse_bool, is_prefix, get_
                    compose, bool_to_string, chunk_iter_stream, get_version, MB, EMPTY_GENERATOR, \
                    run_with_retries, forbidden_inside_job
 from errors import YtIncorrectResponse, YtError, YtOperationFailedError, YtConcurrentOperationsLimitExceeded
-from driver import make_request, get_backend_type
+from driver import make_request
 from keyboard_interrupts_catcher import KeyboardInterruptsCatcher
 from table import TablePath, to_table, to_name, prepare_path
 from cypress_commands import exists, remove, remove_with_empty_dirs, get_attribute, copy, \
@@ -369,10 +372,14 @@ def _add_input_output_spec(source_table, destination_table, spec):
         spec = update({"output_table_paths": map(get_output_name, destination_table)}, spec)
     return spec
 
-def _add_table_writer_spec(job_types, table_writer, spec):
-    if table_writer is not None:
+def _add_job_io_spec(job_types, job_io, table_writer, spec):
+    if job_io is not None or table_writer is not None:
+        if job_io is None:
+            job_io = {}
+        if table_writer is not None:
+            job_io = update(job_io, {"table_writer": table_writer})
         for job_type in flatten(job_types):
-            spec = update({job_type: {"table_writer": table_writer}}, spec)
+            spec = update({job_type: job_io}, spec)
     return spec
 
 def _make_operation_request(command_name, spec, strategy, sync,
@@ -1089,7 +1096,7 @@ def run_erase(table, spec=None, strategy=None, sync=True, client=None):
 
 @forbidden_inside_job
 def run_merge(source_table, destination_table, mode=None,
-              strategy=None, sync=True, table_writer=None,
+              strategy=None, sync=True, job_io=None, table_writer=None,
               replication_factor=None, compression_codec=None,
               job_count=None, spec=None, client=None):
     """Merge source tables to destination table.
@@ -1101,6 +1108,7 @@ def run_merge(source_table, destination_table, mode=None,
                  In 'auto' mode system chooses proper mode depending on the table sortedness.
     :param job_count:  (integer) recommendation how many jobs should run.
     :param strategy: standard operation parameter
+    :param job_io: job io specification
     :param table_writer: standard operation parameter
     :param replication_factor: (int) number of destination table replicas.
     :param compression_codec: (string) compression algorithm of destination_table.
@@ -1123,7 +1131,7 @@ def run_merge(source_table, destination_table, mode=None,
 
     spec = compose(
         lambda _: _configure_spec(_, client),
-        lambda _: _add_table_writer_spec("job_io", table_writer, _),
+        lambda _: _add_job_io_spec("job_io", job_io, table_writer, _),
         lambda _: _add_input_output_spec(source_table, destination_table, _),
         lambda _: update({"job_count": job_count}, _) if job_count is not None else _,
         lambda _: update({"mode": mode}, _),
@@ -1134,7 +1142,7 @@ def run_merge(source_table, destination_table, mode=None,
 
 @forbidden_inside_job
 def run_sort(source_table, destination_table=None, sort_by=None,
-             strategy=None, sync=True, table_writer=None, replication_factor=None,
+             strategy=None, sync=True, job_io=None, table_writer=None, replication_factor=None,
              compression_codec=None, spec=None, client=None):
     """Sort source tables to destination table.
 
@@ -1165,12 +1173,12 @@ def run_sort(source_table, destination_table=None, sort_by=None,
     if get_config(client)["run_merge_instead_of_sort_if_input_tables_are_sorted"] \
             and all(sort_by == get_sorted_by(table.name, [], client=client) for table in source_table):
         run_merge(source_table, destination_table, "sorted",
-                  strategy=strategy, table_writer=table_writer, sync=sync, spec=spec, client=client)
+                  strategy=strategy, job_io=job_io, table_writer=table_writer, sync=sync, spec=spec, client=client)
         return
 
     spec = compose(
         lambda _: _configure_spec(_, client),
-        lambda _: _add_table_writer_spec(["sort_job_io", "merge_job_io"], table_writer, _),
+        lambda _: _add_job_io_spec(["sort_job_io", "merge_job_io"], job_io, table_writer, _),
         lambda _: _add_input_output_spec(source_table, destination_table, _),
         lambda _: update({"sort_by": sort_by}, _),
         lambda _: get_value(_, {})
@@ -1246,7 +1254,7 @@ def run_map_reduce(mapper, reducer, source_table, destination_table,
                    format=None,
                    map_input_format=None, map_output_format=None,
                    reduce_input_format=None, reduce_output_format=None,
-                   strategy=None, sync=True, table_writer=None, spec=None,
+                   strategy=None, sync=True, job_io=None, table_writer=None, spec=None,
                    replication_factor=None, compression_codec=None,
                    map_files=None, map_file_paths=None,
                    map_local_files=None, map_yt_files=None,
@@ -1273,6 +1281,7 @@ def run_map_reduce(mapper, reducer, source_table, destination_table,
     :param reduce_input_format: (string or descendant of `yt.wrapper.format.Format`)
     :param reduce_output_format: (string or descendant of `yt.wrapper.format.Format`)
     :param strategy:  standard operation parameter
+    :param job_io: job io specification
     :param table_writer: (dict) standard operation parameter
     :param spec: (dict) standard operation parameter
     :param replication_factor: (int) standard operation parameter
@@ -1327,8 +1336,8 @@ def run_map_reduce(mapper, reducer, source_table, destination_table,
 
     spec = compose(
         lambda _: _configure_spec(_, client),
-        lambda _: _add_table_writer_spec(["map_job_io", "reduce_job_io", "sort_job_io"],
-                                         table_writer, _),
+        lambda _: _add_job_io_spec(["map_job_io", "reduce_job_io", "sort_job_io"],
+                                   job_io, table_writer, _),
         lambda _: _add_input_output_spec(source_table, destination_table, _),
         lambda _: update({"sort_by": sort_by, "reduce_by": reduce_by}, _),
         lambda _: memorize_files(*_add_user_command_spec("mapper", mapper,
@@ -1360,6 +1369,7 @@ def _run_operation(binary, source_table, destination_table,
                   local_files=None, yt_files=None,
                   format=None, input_format=None, output_format=None,
                   strategy=None, sync=True,
+                  job_io=None,
                   table_writer=None,
                   replication_factor=None,
                   compression_codec=None,
@@ -1430,6 +1440,7 @@ def _run_operation(binary, source_table, destination_table,
                     format=format,
                     reduce_input_format=input_format,
                     reduce_output_format=output_format,
+                    job_io=job_io,
                     table_writer=table_writer,
                     reduce_by=reduce_by,
                     sort_by=sort_by,
@@ -1465,7 +1476,7 @@ def _run_operation(binary, source_table, destination_table,
     try:
         spec = compose(
             lambda _: _configure_spec(_, client),
-            lambda _: _add_table_writer_spec("job_io", table_writer, _),
+            lambda _: _add_job_io_spec("job_io", job_io, table_writer, _),
             lambda _: _add_input_output_spec(source_table, destination_table, _),
             lambda _: update({"reduce_by": reduce_by}, _) if op_name == "reduce" else _,
             lambda _: update({"join_by": join_by}, _) if op_name == "join_reduce" else _,

@@ -597,6 +597,16 @@ test_missing_prefix()
     export YT_PREFIX="$prefix"
 }
 
+test_table_record_index()
+{
+    echo -e "a\t1" | ./mapreduce -writesorted ignat/tableA
+    echo -e "b\t2" | ./mapreduce -writesorted ignat/tableB
+
+    ./mapreduce -reduce "cat | ./yt upload //tmp/test_file --proxy $YT_PROXY" -src ignat/tableA -src ignat/tableB -dst ignat/dst -tablerecordindex -file yt
+
+    check $(echo -e "0\n0\na\t1\n1\n0\nb\t2") $(./yt download //tmp/test_file)
+}
+
 prepare_table_files
 test_base_functionality
 test_list
@@ -629,5 +639,7 @@ test_force_drop
 test_parallel_dstappend
 test_many_to_many_copy_move
 test_missing_prefix
+# TODO(ignat): uncomment when yamr text with row indexes would be merged to all branches.
+#test_table_record_index
 
 cleanup
