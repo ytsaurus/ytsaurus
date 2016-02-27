@@ -510,6 +510,8 @@ class Application(object):
 
             self._lock_acquired = True
 
+            logger.info("Start processing requests")
+
             # Set attribute outside of transaction
             self._yt.set_attribute(self._path, "address", socket.getfqdn())
 
@@ -690,7 +692,7 @@ class Application(object):
         # Abort tasks operations (TM can fail but operations will go on)
         self._abort_running_operations()
 
-        logger.info("Tasks load")
+        logger.info("Tasks loaded")
 
     def _append_pending_task(self, task):
         self._pending_tasks.append(task.id)
