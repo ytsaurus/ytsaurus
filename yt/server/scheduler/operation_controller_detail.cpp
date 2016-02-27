@@ -1371,27 +1371,26 @@ void TOperationControllerBase::AttachOutputChunks()
 
         // Split large outputs into separate requests.
         {
-            TChunkListYPathProxy::TReqAttachPtr req;
-            int reqSize = 0;
-            auto flushReq = [&] () {
-                if (req) {
-                    batchReq->AddRequest(req, "attach");
-                    reqSize = 0;
-                    req.Reset();
+            TChunkListYPathProxy::TReqAttachPtr currentReq;
+            auto flushCurrentReq = [&] () {
+                if (currentReq) {
+                    batchReq->AddRequest(currentReq, "attach");
+                    currentReq.Reset();
                 }
             };
 
             auto addChunkTree = [&] (const TChunkTreeId& chunkTreeId) {
-                if (!req) {
-                    req = TChunkListYPathProxy::Attach(FromObjectId(table.OutputChunkListId));
-                    req->set_request_statistics(false);
-                    GenerateMutationId(req);
+                if (currentReq && currentReq->children_ids_size() >= Config->MaxChildrenPerAttachRequest) {
+                    flushCurrentReq();
                 }
-                ToProto(req->add_children_ids(), chunkTreeId);
-                ++reqSize;
-                if (reqSize >= Config->MaxChildrenPerAttachRequest) {
-                    flushReq();
+
+                if (!currentReq) {
+                    currentReq = TChunkListYPathProxy::Attach(FromObjectId(table.OutputChunkListId));
+                    currentReq->set_request_statistics(false);
+                    GenerateMutationId(currentReq);
                 }
+
+                ToProto(currentReq->add_children_ids(), chunkTreeId);
             };
 
             if (!table.KeyColumns.empty() && IsSortedOutputSupported()) {
@@ -1433,12 +1432,13 @@ void TOperationControllerBase::AttachOutputChunks()
                 }
             }
 
-            flushReq();
-        }
+            if (!currentReq) {
+                // No checks to attach.
+                continue;
+            }
 
-        {
-            auto req = TChunkListYPathProxy::GetStatistics(FromObjectId(table.OutputChunkListId));
-            batchReq->AddRequest(req, "get_statistics");
+            currentReq->set_request_statistics(true);
+            flushCurrentReq();
         }
 
         auto batchRspOrError = WaitFor(batchReq->Invoke());
@@ -1447,9 +1447,15 @@ void TOperationControllerBase::AttachOutputChunks()
         const auto& batchRsp = batchRspOrError.Value();
 
         {
-            auto rsp = batchRsp->GetResponse<TChunkListYPathProxy::TRspGetStatistics>("get_statistics").Value();
+            auto rspsOrError = batchRsp->GetResponses<TChunkListYPathProxy::TRspAttach>("attach");
+            const auto& rspOrError = rspsOrError.back();
+            const auto& rsp = rspOrError.Value();
             table.DataStatistics = rsp->statistics();
         }
+
+        LOG_INFO("Output chunks attached (Path: %v, Statistics: %v)",
+            path,
+            table.DataStatistics);
     }
 }
 

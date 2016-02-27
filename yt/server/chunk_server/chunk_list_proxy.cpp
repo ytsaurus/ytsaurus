@@ -132,7 +132,6 @@ private:
     virtual bool DoInvoke(NRpc::IServiceContextPtr context) override
     {
         DISPATCH_YPATH_SERVICE_METHOD(Attach);
-        DISPATCH_YPATH_SERVICE_METHOD(GetStatistics);
         return TBase::DoInvoke(context);
     }
 
@@ -164,19 +163,6 @@ private:
 
         context->Reply();
     }
-
-    DECLARE_YPATH_SERVICE_METHOD(NChunkClient::NProto, GetStatistics)
-    {
-        DeclareNonMutating();
-
-        context->SetRequestInfo();
-
-        auto* chunkList = GetThisTypedImpl();
-        *response->mutable_statistics() = chunkList->Statistics().ToDataStatistics();
-
-        context->Reply();
-    }
-
 };
 
 IObjectProxyPtr CreateChunkListProxy(
