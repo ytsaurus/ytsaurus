@@ -1141,17 +1141,17 @@ private:
 
     void InsertToAddressMaps(TNode* node)
     {
-        const auto& address = node->GetDefaultAddress();
-        YCHECK(AddressToNodeMap_.insert(std::make_pair(address, node)).second);
-        HostNameToNodeMap_.insert(std::make_pair(Stroka(GetServiceHostName(address)), node));
+        YCHECK(AddressToNodeMap_.insert(std::make_pair(node->GetDefaultAddress(), node)).second);
+        for (const auto& pair : node->GetAddresses()) {
+            HostNameToNodeMap_.insert(std::make_pair(Stroka(GetServiceHostName(pair.second)), node));
+        }
     }
 
     void RemoveFromAddressMaps(TNode* node)
     {
-        const auto& address = node->GetDefaultAddress();
-        YCHECK(AddressToNodeMap_.erase(address) == 1);
-        {
-            auto hostNameRange = HostNameToNodeMap_.equal_range(Stroka(GetServiceHostName(address)));
+        YCHECK(AddressToNodeMap_.erase(node->GetDefaultAddress()) == 1);
+        for (const auto& pair : node->GetAddresses()) {
+            auto hostNameRange = HostNameToNodeMap_.equal_range(Stroka(GetServiceHostName(pair.second)));
             for (auto it = hostNameRange.first; it != hostNameRange.second; ++it) {
                 if (it->second == node) {
                     HostNameToNodeMap_.erase(it);
