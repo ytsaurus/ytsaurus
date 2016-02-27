@@ -12,8 +12,6 @@ import sys
 import logging
 import uuid
 import shutil
-import contextlib
-import tempfile
 from time import sleep
 from threading import Thread
 
