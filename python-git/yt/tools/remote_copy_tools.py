@@ -269,14 +269,26 @@ def copy_yt_to_yt(source_client, destination_client, src, dst, network_name,
                              "If you can not get a write permission use 'proxy' copy method".format(src))
 
     destination_client.create("map_node", os.path.dirname(dst), recursive=True, ignore_existing=True)
+
+    cluster_connection = None
+    try:
+        cluster_connection = source_client.get("//sys/@cluster_connection")
+    except yt.YtError as err:
+        if not err.is_resolve_error():
+            raise
+
     with destination_client.Transaction():
+        if cluster_connection is not None:
+            kwargs = {"cluster_connection": cluster_connection}
+        else:
+            kwargs = {"cluster_name": source_client._name}
         apply_compression_codec(destination_client, dst, compression_codec)
         destination_client.run_remote_copy(
             src,
             dst,
-            cluster_name=source_client._name,
             network_name=network_name,
-            spec=copy_spec_template)
+            spec=copy_spec_template,
+            **kwargs)
 
         if erasure_codec is None:
             copy_codec_attributes(source_client, destination_client, src, dst)

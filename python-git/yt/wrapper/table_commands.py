@@ -1536,13 +1536,8 @@ def run_remote_copy(source_table, destination_table,
     .. seealso::  :ref:`operation_parameters`.
     """
 
-    # TODO(ignat): implement client-version of remote copy, that supports native driver
-
     def get_input_name(table):
         return to_table(table, client=client).to_yson_type()
-
-    if get_backend_type(client=client) == "driver":
-        raise YtError("Remote copy is not supported for native driver")
 
     # TODO(ignat): use base string in other places
     if isinstance(source_table, basestring):
