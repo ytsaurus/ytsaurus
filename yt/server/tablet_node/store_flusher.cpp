@@ -28,7 +28,6 @@
 #include <yt/ytlib/api/transaction.h>
 
 #include <yt/ytlib/chunk_client/chunk_writer.h>
-#include <yt/ytlib/chunk_client/chunk_ypath_proxy.h>
 #include <yt/ytlib/chunk_client/replication_writer.h>
 
 #include <yt/ytlib/node_tracker_client/node_directory.h>

@@ -8,7 +8,6 @@
 #include <yt/ytlib/api/client.h>
 
 #include <yt/ytlib/chunk_client/chunk_replica.h>
-#include <yt/ytlib/chunk_client/chunk_ypath_proxy.h>
 #include <yt/ytlib/chunk_client/chunk_service_proxy.h>
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/ytlib/chunk_client/chunk_spec.h>
@@ -61,31 +60,36 @@ TChunkId CreateChunk(
         transactionId,
         chunkListId);
 
-    auto channel = client->GetMasterChannelOrThrow(EMasterChannelKind::Leader, cellTag);
-    TObjectServiceProxy proxy(channel);
-
     auto chunkType = options->ErasureCodec == ECodec::None
-         ? EObjectType::Chunk
-         : EObjectType::ErasureChunk;
+        ? EObjectType::Chunk
+        : EObjectType::ErasureChunk;
 
-    auto req = TMasterYPathProxy::CreateObject();
+    auto channel = client->GetMasterChannelOrThrow(EMasterChannelKind::Leader, cellTag);
+    TChunkServiceProxy proxy(channel);
+
+    auto batchReq = proxy.ExecuteBatch();
+    GenerateMutationId(batchReq);
+
+    auto* req = batchReq->add_create_subrequests();
     ToProto(req->mutable_transaction_id(), transactionId);
-    GenerateMutationId(req);
     req->set_type(static_cast<int>(chunkType));
     req->set_account(options->Account);
-
-    auto* reqExt = req->mutable_extensions()->MutableExtension(NProto::TChunkCreationExt::chunk_creation_ext);
-    reqExt->set_replication_factor(options->ReplicationFactor);
-    reqExt->set_movable(options->ChunksMovable);
-    reqExt->set_vital(options->ChunksVital);
-    reqExt->set_erasure_codec(static_cast<int>(options->ErasureCodec));
+    req->set_replication_factor(options->ReplicationFactor);
+    req->set_movable(options->ChunksMovable);
+    req->set_vital(options->ChunksVital);
+    req->set_erasure_codec(static_cast<int>(options->ErasureCodec));
     if (chunkListId) {
-        ToProto(reqExt->mutable_chunk_list_id(), chunkListId);
+        ToProto(req->mutable_chunk_list_id(), chunkListId);
     }
 
-    auto rspOrError = WaitFor(proxy.Execute(req));
-    const auto& rsp = rspOrError.ValueOrThrow();
-    return FromProto<TChunkId>(rsp->object_id());
+    auto batchRspOrError = WaitFor(batchReq->Invoke());
+    THROW_ERROR_EXCEPTION_IF_FAILED(
+        GetCumulativeError(batchRspOrError),
+        "Error creating chunk");
+
+    const auto& batchRsp = batchRspOrError.Value();
+    const auto& rsp = batchRsp->create_subresponses(0);
+    return FromProto<TChunkId>(rsp.chunk_id());
 }
 
 void ProcessFetchResponse(
@@ -159,6 +163,29 @@ void ProcessFetchResponse(
         chunkSpecs->push_back(NProto::TChunkSpec());
         chunkSpecs->back().Swap(&chunkSpec);
     }
+}
+
+TError GetCumulativeError(const TChunkServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError)
+{
+    if (!batchRspOrError.IsOK()) {
+        return batchRspOrError;
+    }
+
+    const auto& batchRsp = batchRspOrError.Value();
+    TError cumulativeError("Error executing chunk operations");
+
+    auto processSubresponses = [&] (const auto& subresponses) {
+        for (const auto& subresponse : subresponses) {
+            if (subresponse.has_error()) {
+                cumulativeError.InnerErrors().push_back(FromProto<TError>(subresponse.error()));
+            }
+        }
+    };
+    processSubresponses(batchRsp->create_subresponses());
+    processSubresponses(batchRsp->confirm_subresponses());
+    processSubresponses(batchRsp->seal_subresponses());
+
+    return cumulativeError.InnerErrors().empty() ? TError() : cumulativeError;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -42,7 +42,6 @@ public:
     NHydra::TMutationPtr CreateUpdateChunkPropertiesMutation(
         const NProto::TReqUpdateChunkProperties& request);
 
-    // Pass RPC service context to avoid copying request message.
     using TCtxExportChunks = NRpc::TTypedServiceContext<
         NChunkClient::NProto::TReqExportChunks,
         NChunkClient::NProto::TRspExportChunks>;
@@ -50,13 +49,19 @@ public:
     NHydra::TMutationPtr CreateExportChunksMutation(
         TCtxExportChunksPtr context);
 
-    // Pass RPC service context to avoid copying request message.
     using TCtxImportChunks = NRpc::TTypedServiceContext<
         NChunkClient::NProto::TReqImportChunks,
         NChunkClient::NProto::TRspImportChunks>;
     using TCtxImportChunksPtr = TIntrusivePtr<TCtxImportChunks>;
     NHydra::TMutationPtr CreateImportChunksMutation(
         TCtxImportChunksPtr context);
+
+    using TCtxExecuteBatch = NRpc::TTypedServiceContext<
+        NChunkClient::NProto::TReqExecuteBatch,
+        NChunkClient::NProto::TRspExecuteBatch>;
+    using TCtxExecuteBatchPtr = TIntrusivePtr<TCtxExecuteBatch>;
+    NHydra::TMutationPtr CreateExecuteBatchMutation(
+        TCtxExecuteBatchPtr context);
 
     DECLARE_ENTITY_MAP_ACCESSORS(Chunk, TChunk, TChunkId);
     TChunk* GetChunkOrThrow(const TChunkId& id);
@@ -103,12 +108,6 @@ public:
 
     void RebalanceChunkTree(TChunkList* chunkList);
 
-    void ConfirmChunk(
-        TChunk* chunk,
-        const NChunkClient::TChunkReplicaList& replicas,
-        NChunkClient::NProto::TChunkInfo* chunkInfo,
-        NChunkClient::NProto::TChunkMeta* chunkMeta);
-    
     void UnstageChunk(TChunk* chunk);
     void UnstageChunkList(TChunkList* chunkList, bool recursive);
 
@@ -149,11 +148,6 @@ public:
     //! Computes misc extension of a given journal chunk
     //! by querying a quorum of replicas (if the chunk is not sealed).
     TFuture<NChunkClient::NProto::TMiscExt> GetChunkQuorumInfo(NChunkServer::TChunk* chunk);
-
-    //! Seals the chunk and the journals containing it.
-    void SealChunk(
-        NChunkServer::TChunk* chunk,
-        const NChunkClient::NProto::TMiscExt& info);
 
 private:
     class TImpl;

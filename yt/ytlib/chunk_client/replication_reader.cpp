@@ -3,7 +3,6 @@
 #include "block_cache.h"
 #include "block_id.h"
 #include "chunk_reader.h"
-#include "chunk_ypath_proxy.h"
 #include "config.h"
 #include "data_node_service_proxy.h"
 #include "dispatcher.h"

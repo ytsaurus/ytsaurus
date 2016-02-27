@@ -187,7 +187,7 @@ public:
 
 //! Returns the cumulative error for the whole batch.
 /*!
- *  If the envelope request has fails then the corresponding error is returned.
+ *  If the envelope request fails then the corresponding error is returned.
  *  Otherwise, individual responses are examined and a cumulative error
  *  is constructed (with individual errors attached as inner).
  *  If all individual responses were successful then OK is returned.

@@ -21,7 +21,6 @@
 #include <yt/ytlib/chunk_client/chunk_meta.pb.h>
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/ytlib/chunk_client/chunk_owner_ypath.pb.h>
-#include <yt/ytlib/chunk_client/chunk_ypath.pb.h>
 #include <yt/ytlib/chunk_client/schema.h>
 
 #include <yt/ytlib/table_client/chunk_meta_extensions.h>
@@ -485,8 +484,6 @@ private:
     virtual bool DoInvoke(NRpc::IServiceContextPtr context) override
     {
         DISPATCH_YPATH_SERVICE_METHOD(Fetch);
-        DISPATCH_YPATH_SERVICE_METHOD(Confirm);
-        DISPATCH_YPATH_SERVICE_METHOD(Seal);
         return TBase::DoInvoke(context);
     }
 
@@ -516,58 +513,6 @@ private:
 
         context->Reply();
     }
-
-    DECLARE_YPATH_SERVICE_METHOD(NChunkClient::NProto, Confirm)
-    {
-        UNUSED(response);
-
-        DeclareMutating();
-
-        auto replicas = FromProto<TChunkReplicaList>(request->replicas());
-
-        context->SetRequestInfo("Targets: %v", replicas);
-
-        auto* chunk = GetThisTypedImpl();
-
-        // Skip chunks that are already confirmed.
-        if (chunk->IsConfirmed()) {
-            context->Reply();
-            return;
-        }
-
-        auto chunkManager = Bootstrap_->GetChunkManager();
-        chunkManager->ConfirmChunk(
-            chunk,
-            replicas,
-            request->mutable_chunk_info(),
-            request->mutable_chunk_meta());
-
-        if (request->request_statistics()) {
-            *response->mutable_statistics() = chunk->GetStatistics().ToDataStatistics();
-        }
-
-        context->Reply();
-    }
-
-    DECLARE_YPATH_SERVICE_METHOD(NChunkClient::NProto, Seal)
-    {
-        UNUSED(response);
-
-        DeclareMutating();
-
-        context->SetRequestInfo();
-
-        const auto& info = request->info();
-        YCHECK(info.sealed());
-
-        auto* chunk = GetThisTypedImpl();
-
-        auto chunkManager = Bootstrap_->GetChunkManager();
-        chunkManager->SealChunk(chunk, info);
-
-        context->Reply();
-    }
-
 };
 
 IObjectProxyPtr CreateChunkProxy(

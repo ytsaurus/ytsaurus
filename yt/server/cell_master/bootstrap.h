@@ -63,6 +63,7 @@ public:
 
     TMulticellManagerPtr GetMulticellManager() const;
     NRpc::IServerPtr GetRpcServer() const;
+    NRpc::IChannelPtr GetLocalRpcChannel() const;
     NElection::TCellManagerPtr GetCellManager() const;
     NHydra::IChangelogStoreFactoryPtr GetChangelogStoreFactory() const;
     NHydra::ISnapshotStorePtr GetSnapshotStore() const;
@@ -104,6 +105,7 @@ private:
 
     TMulticellManagerPtr MulticellManager_;
     NRpc::IServerPtr RpcServer_;
+    NRpc::IChannelPtr LocalRpcChannel_;
     NMonitoring::TMonitoringManagerPtr MonitoringManager_;
     std::unique_ptr<NHttp::TServer> HttpServer_;
     NElection::TCellManagerPtr CellManager_;
