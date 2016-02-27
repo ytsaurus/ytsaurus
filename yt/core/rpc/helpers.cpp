@@ -325,7 +325,12 @@ void SetTraceContext(TRequestHeader* header, const NTracing::TTraceContext& cont
 
 TMutationId GenerateMutationId()
 {
-    return TMutationId::Create();
+    while (true) {
+        auto id = TMutationId::Create();
+        if (id != NullMutationId) {
+            return id;
+        }
+    }
 }
 
 TMutationId GetMutationId(const TRequestHeader& header)
