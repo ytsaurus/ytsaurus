@@ -60,9 +60,7 @@ cp -r yandex-yt-local/usr/share/pyshared/yt/* archive/python/yt
 cp -r yandex-yt-local/usr/bin/yt_local archive/bin/
 
 # YSON bindings.
-cp -r yandex-yt-python-yson/usr/share/pyshared/yt/* archive/python/yt
 cp -r yandex-yt-python-yson/usr/share/pyshared/yt_yson_bindings/* archive/python/yt_yson_bindings
-cp -r yandex-yt-python-yson/usr/lib/pyshared/python2.7/yt/* archive/python/yt
 cp -r yandex-yt-python-yson/usr/lib/pyshared/python2.7/yt_yson_bindings/* archive/python/yt_yson_bindings
 
 # Driver bindings.
