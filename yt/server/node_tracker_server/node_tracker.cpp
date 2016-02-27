@@ -723,11 +723,8 @@ private:
 
         for (const auto& pair : NodeMap_) {
             auto* node = pair.second;
-            const auto& address = node->GetDefaultAddress();
 
-            YCHECK(AddressToNodeMap_.insert(std::make_pair(address, node)).second);
-            HostNameToNodeMap_.insert(std::make_pair(Stroka(GetServiceHostName(address)), node));
-
+            InsertToAddressMaps(node);
             UpdateNodeCounters(node, +1);
 
             if (node->GetTransaction()) {
@@ -898,9 +895,7 @@ private:
             node->Statistics() = statistics;
             node->SetRack(config->Rack ? FindRackByName(*config->Rack) : nullptr);
 
-            AddressToNodeMap_.insert(std::make_pair(address, node));
-            HostNameToNodeMap_.insert(std::make_pair(Stroka(GetServiceHostName(address)), node));
-            
+            InsertToAddressMaps(node);
             UpdateNodeCounters(node, +1);
 
             auto transactionManager = Bootstrap_->GetTransactionManager();
@@ -983,18 +978,7 @@ private:
                 transactionManager->AbortTransaction(transaction, false);
             }
 
-            const auto& address = node->GetDefaultAddress();
-            YCHECK(AddressToNodeMap_.erase(address) == 1);
-            {
-                auto hostNameRange = HostNameToNodeMap_.equal_range(Stroka(GetServiceHostName(address)));
-                for (auto it = hostNameRange.first; it != hostNameRange.second; ++it) {
-                    if (it->second == node) {
-                        HostNameToNodeMap_.erase(it);
-                        break;
-                    }
-                }
-            }
-
+            RemoveFromAddressMaps(node);
             UpdateNodeCounters(node, -1);
             node->SetState(ENodeState::Unregistered);
             NodeUnregistered_.Fire(node);
@@ -1142,6 +1126,28 @@ private:
                 node->MutableAttributes()->Set("rack", rack->GetName());
             } else {
                 node->MutableAttributes()->Remove("rack");
+            }
+        }
+    }
+
+    void InsertToAddressMaps(TNode* node)
+    {
+        YCHECK(AddressToNodeMap_.insert(std::make_pair(node->GetDefaultAddress(), node)).second);
+        for (const auto& pair : node->GetAddresses()) {
+            HostNameToNodeMap_.insert(std::make_pair(Stroka(GetServiceHostName(pair.second)), node));
+        }
+    }
+
+    void RemoveFromAddressMaps(TNode* node)
+    {
+        YCHECK(AddressToNodeMap_.erase(node->GetDefaultAddress()) == 1);
+        for (const auto& pair : node->GetAddresses()) {
+            auto hostNameRange = HostNameToNodeMap_.equal_range(Stroka(GetServiceHostName(pair.second)));
+            for (auto it = hostNameRange.first; it != hostNameRange.second; ++it) {
+                if (it->second == node) {
+                    HostNameToNodeMap_.erase(it);
+                    break;
+                }
             }
         }
     }
