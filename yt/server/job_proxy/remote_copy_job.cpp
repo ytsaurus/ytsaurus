@@ -11,7 +11,6 @@
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/ytlib/chunk_client/chunk_reader.h>
 #include <yt/ytlib/chunk_client/chunk_writer.h>
-#include <yt/ytlib/chunk_client/chunk_ypath_proxy.h>
 #include <yt/ytlib/chunk_client/client_block_cache.h>
 #include <yt/ytlib/chunk_client/data_statistics.h>
 #include <yt/ytlib/chunk_client/erasure_reader.h>
@@ -19,11 +18,11 @@
 #include <yt/ytlib/chunk_client/helpers.h>
 #include <yt/ytlib/chunk_client/replication_reader.h>
 #include <yt/ytlib/chunk_client/replication_writer.h>
+#include <yt/ytlib/chunk_client/chunk_service_proxy.h>
 
 #include <yt/ytlib/node_tracker_client/node_directory.h>
 
 #include <yt/ytlib/object_client/helpers.h>
-#include <yt/ytlib/object_client/object_service_proxy.h>
 
 #include <yt/ytlib/table_client/chunk_meta_extensions.h>
 
@@ -156,10 +155,6 @@ private:
 
     void CopyChunk(const TChunkSpec& inputChunkSpec)
     {
-        auto outputCellTag = CellTagFromId(OutputChunkListId_);
-        auto outputMasterChannel = Host_->GetClient()->GetMasterChannelOrThrow(EMasterChannelKind::Leader, outputCellTag);
-        TObjectServiceProxy outputObjectProxy(outputMasterChannel);
-
         CopiedChunkSize_ = 0;
 
         auto writerOptions = CloneYsonSerializable(WriterOptionsTemplate_);
@@ -307,14 +302,23 @@ private:
                 chunkMeta.extensions(),
                 masterMetaTags);
 
-            auto req = TChunkYPathProxy::Confirm(FromObjectId(outputChunkId));
-            GenerateMutationId(req);
+            auto outputCellTag = CellTagFromId(OutputChunkListId_);
+            auto outputMasterChannel = Host_->GetClient()->GetMasterChannelOrThrow(EMasterChannelKind::Leader, outputCellTag);
+            TChunkServiceProxy proxy(outputMasterChannel);
+
+            auto batchReq = proxy.ExecuteBatch();
+            GenerateMutationId(batchReq);
+
+            auto* req = batchReq->add_confirm_subrequests();
+            ToProto(req->mutable_chunk_id(), outputChunkId);
             *req->mutable_chunk_info() = chunkInfo;
             *req->mutable_chunk_meta() = masterChunkMeta;
             NYT::ToProto(req->mutable_replicas(), writtenReplicas);
 
-            auto rspOrError = WaitFor(outputObjectProxy.Execute(req));
-            THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Failed to confirm chunk %v",
+            auto batchRspOrError = WaitFor(batchReq->Invoke());
+            THROW_ERROR_EXCEPTION_IF_FAILED(
+                GetCumulativeError(batchRspOrError),
+                "Failed to confirm chunk %v",
                 outputChunkId);
         }
     }

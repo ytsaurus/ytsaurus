@@ -1,5 +1,6 @@
 #include "public.h"
 #include "chunk_owner_ypath_proxy.h"
+#include "chunk_service_proxy.h"
 
 #include <yt/ytlib/api/public.h>
 
@@ -43,6 +44,15 @@ void ProcessFetchResponse(
     int maxChunksPerLocateRequest,
     const NLogging::TLogger& logger,
     std::vector<NProto::TChunkSpec>* chunkSpecs);
+
+//! Returns the cumulative error for the whole batch.
+/*!
+ *  If the envelope request fails then the corresponding error is returned.
+ *  Otherwise, subresponses are examined and a cumulative error
+ *  is constructed (with individual errors attached as inner).
+ *  If all subresponses were successful then OK is returned.
+ */
+TError GetCumulativeError(const TChunkServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError);
 
 ////////////////////////////////////////////////////////////////////////////////
 

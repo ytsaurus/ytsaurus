@@ -80,6 +80,7 @@
 
 #include <yt/core/rpc/caching_channel_factory.h>
 #include <yt/core/rpc/bus_channel.h>
+#include <yt/core/rpc/local_channel.h>
 #include <yt/core/rpc/bus_server.h>
 #include <yt/core/rpc/server.h>
 
@@ -190,6 +191,11 @@ TMulticellManagerPtr TBootstrap::GetMulticellManager() const
 IServerPtr TBootstrap::GetRpcServer() const
 {
     return RpcServer_;
+}
+
+IChannelPtr TBootstrap::GetLocalRpcChannel() const
+{
+    return LocalRpcChannel_;
 }
 
 TCellManagerPtr TBootstrap::GetCellManager() const
@@ -421,6 +427,10 @@ void TBootstrap::DoInitialize()
     //auto busServer = CreateTcpBusServer(busServerConfig);
 
     RpcServer_ = CreateBusServer(busServer);
+
+    LocalRpcChannel_ = CreateRealmChannel(
+        CreateLocalChannel(RpcServer_),
+        CellId_);
 
     CellManager_ = New<TCellManager>(
         localCellConfig,

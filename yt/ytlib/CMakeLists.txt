@@ -35,7 +35,6 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/chunk_spec.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/chunk_spec.proto
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/chunk_teleporter.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/chunk_client/chunk_ypath.proto
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/client_block_cache.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/confirming_writer.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/data_node_service.proto

@@ -2,19 +2,19 @@
 #include "private.h"
 #include "chunk_meta_extensions.h"
 #include "chunk_replica.h"
-#include "chunk_ypath_proxy.h"
 #include "config.h"
 #include "dispatcher.h"
 #include "erasure_writer.h"
 #include "helpers.h"
 #include "replication_writer.h"
+#include "chunk_service_proxy.h"
+#include "helpers.h"
 
 #include <yt/ytlib/api/client.h>
 #include <yt/ytlib/api/connection.h>
 
 #include <yt/ytlib/object_client/helpers.h>
 #include <yt/ytlib/object_client/master_ypath_proxy.h>
-#include <yt/ytlib/object_client/object_service_proxy.h>
 
 #include <yt/ytlib/table_client/chunk_meta_extensions.h>
 
@@ -40,6 +40,8 @@ using namespace NConcurrency;
 using namespace NYTree;
 using namespace NTableClient;
 using namespace NNodeTrackerClient;
+
+using NYT::ToProto;
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -313,26 +315,28 @@ void TConfirmingWriter::DoClose()
     YCHECK(FindProtoExtension<TMiscExt>(masterChunkMeta.extensions()));
 
     auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Leader, CellTag_);
-    TObjectServiceProxy objectProxy(channel);
+    TChunkServiceProxy proxy(channel);
 
-    auto req = TChunkYPathProxy::Confirm(FromObjectId(ChunkId_));
-    GenerateMutationId(req);
+    auto batchReq = proxy.ExecuteBatch();
+    GenerateMutationId(batchReq);
+
+    auto* req = batchReq->add_confirm_subrequests();
+    ToProto(req->mutable_chunk_id(), ChunkId_);
     *req->mutable_chunk_info() = UnderlyingWriter_->GetChunkInfo();
     *req->mutable_chunk_meta() = masterChunkMeta;
     req->set_request_statistics(true);
+    ToProto(req->mutable_replicas(), replicas);
 
-    NYT::ToProto(req->mutable_replicas(), replicas);
-
-    auto rspOrError = WaitFor(objectProxy.Execute(req));
-
+    auto batchRspOrError = WaitFor(batchReq->Invoke());
     THROW_ERROR_EXCEPTION_IF_FAILED(
-        rspOrError,
+        GetCumulativeError(batchRspOrError),
         EErrorCode::MasterCommunicationFailed,
         "Failed to confirm chunk %v",
         ChunkId_);
 
-    const auto& rsp = rspOrError.Value();
-    DataStatistics_ = rsp->statistics();
+    const auto& batchRsp = batchRspOrError.Value();
+    const auto& rsp = batchRsp->confirm_subresponses(0);
+    DataStatistics_ = rsp.statistics();
 
     Closed_ = true;
 

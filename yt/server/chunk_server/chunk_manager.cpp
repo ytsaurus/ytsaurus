@@ -45,7 +45,6 @@
 #include <yt/ytlib/chunk_client/chunk_list_ypath.pb.h>
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/ytlib/chunk_client/schema.h>
-#include <yt/ytlib/chunk_client/chunk_ypath.pb.h>
 #include <yt/ytlib/chunk_client/chunk_service.pb.h>
 
 #include <yt/ytlib/journal_client/helpers.h>
@@ -103,12 +102,12 @@ public:
         : Bootstrap_(bootstrap)
     { }
 
-    virtual void RefObject(NObjectServer::TObjectBase* object) override
+    virtual void RefObject(TObjectBase* object) override
     {
         Bootstrap_->GetObjectManager()->RefObject(object);
     }
 
-    virtual void UnrefObject(NObjectServer::TObjectBase* object) override
+    virtual void UnrefObject(TObjectBase* object) override
     {
         Bootstrap_->GetObjectManager()->UnrefObject(object);
     }
@@ -158,12 +157,12 @@ class TChunkManager::TChunkTypeHandlerBase
 public:
     explicit TChunkTypeHandlerBase(TImpl* owner);
 
-    virtual TObjectBase* CreateObject(
-        const TObjectId& hintId,
-        TTransaction* transaction,
-        TAccount* account,
-        IAttributeDictionary* attributes,
-        const TObjectCreationExtensions& extensions) override;
+    virtual TNullable<TTypeCreationOptions> GetCreationOptions() const override
+    {
+        return TTypeCreationOptions(
+            EObjectTransactionMode::Forbidden,
+            EObjectAccountMode::Forbidden);
+    }
 
     virtual void ResetAllObjects() override
     {
@@ -174,7 +173,7 @@ public:
         }
     }
 
-    virtual NObjectServer::TObjectBase* FindObject(const TObjectId& id) override
+    virtual TObjectBase* FindObject(const TObjectId& id) override
     {
         return Map_->Find(DecodeChunkId(id).Id);
     }
@@ -230,13 +229,6 @@ public:
         : TChunkTypeHandlerBase(owner)
     { }
 
-    virtual TNullable<TTypeCreationOptions> GetCreationOptions() const override
-    {
-        return TTypeCreationOptions(
-            EObjectTransactionMode::Required,
-            EObjectAccountMode::Required);
-    }
-
     virtual EObjectType GetType() const override
     {
         return EObjectType::Chunk;
@@ -260,17 +252,6 @@ public:
         : TChunkTypeHandlerBase(owner)
         , Type_(type)
     { }
-
-    virtual TNullable<TTypeCreationOptions> GetCreationOptions() const override
-    {
-        if (Type_ == EObjectType::ErasureChunk) {
-            return TTypeCreationOptions(
-                EObjectTransactionMode::Required,
-                EObjectAccountMode::Required);
-        } else {
-            return Null;
-        }
-    }
 
     virtual EObjectType GetType() const override
     {
@@ -296,13 +277,6 @@ public:
     explicit TJournalChunkTypeHandler(TImpl* owner)
         : TChunkTypeHandlerBase(owner)
     { }
-
-    virtual TNullable<TTypeCreationOptions> GetCreationOptions() const override
-    {
-        return TTypeCreationOptions(
-            EObjectTransactionMode::Required,
-            EObjectAccountMode::Required);
-    }
 
     virtual EObjectType GetType() const override
     {
@@ -386,6 +360,7 @@ public:
         RegisterMethod(BIND(&TImpl::HydraUpdateChunkProperties, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraExportChunks, Unretained(this), nullptr, nullptr));
         RegisterMethod(BIND(&TImpl::HydraImportChunks, Unretained(this), nullptr));
+        RegisterMethod(BIND(&TImpl::HydraExecuteBatch, Unretained(this), nullptr, nullptr));
 
         RegisterLoader(
             "ChunkManager.Keys",
@@ -462,6 +437,14 @@ public:
             }));
     }
 
+    TMutationPtr CreateExecuteBatchMutation(TCtxExecuteBatchPtr context)
+    {
+        return CreateMutation(Bootstrap_->GetHydraFacade()->GetHydraManager())
+            ->SetRequestData(context->GetRequestBody(), context->Request().GetTypeName())
+            ->SetAction(BIND([=, this_ = MakeStrong(this)] () {
+                HydraExecuteBatch(context, &context->Response(), context->Request());
+            }));
+    }
 
     TNodeList AllocateWriteTargets(
         TChunk* chunk,
@@ -479,6 +462,97 @@ public:
             forbiddenNodes,
             preferredHostName,
             ESessionType::User);
+    }
+
+    void ConfirmChunk(
+        TChunk* chunk,
+        const NChunkClient::TChunkReplicaList& replicas,
+        TChunkInfo* chunkInfo,
+        TChunkMeta* chunkMeta)
+    {
+        const auto& id = chunk->GetId();
+
+        if (chunk->IsConfirmed()) {
+            LOG_DEBUG_UNLESS(IsRecovery(), "Chunk is already confirmed (ChunkId: %v)",
+                id);
+            return;
+        }
+
+        chunk->Confirm(chunkInfo, chunkMeta);
+
+        auto nodeTracker = Bootstrap_->GetNodeTracker();
+
+        const auto* mutationContext = GetCurrentMutationContext();
+        auto mutationTimestamp = mutationContext->GetTimestamp();
+
+        for (auto replica : replicas) {
+            auto* node = nodeTracker->FindNode(replica.GetNodeId());
+            if (!IsObjectAlive(node)) {
+                LOG_DEBUG_UNLESS(IsRecovery(), "Tried to confirm chunk %v at an unknown node %v",
+                    id,
+                    replica.GetNodeId());
+                continue;
+            }
+
+            auto chunkWithIndex = chunk->IsJournal()
+                ? TChunkPtrWithIndex(chunk, ActiveChunkReplicaIndex)
+                : TChunkPtrWithIndex(chunk, replica.GetIndex());
+
+            if (node->GetLocalState() != ENodeState::Online) {
+                LOG_DEBUG_UNLESS(IsRecovery(), "Tried to confirm chunk %v at %v which has invalid state %Qlv",
+                    id,
+                    node->GetDefaultAddress(),
+                    node->GetLocalState());
+                continue;
+            }
+
+            if (!node->HasReplica(chunkWithIndex, false)) {
+                AddChunkReplica(
+                    node,
+                    chunkWithIndex,
+                    false,
+                    EAddReplicaReason::Confirmation);
+                node->AddUnapprovedReplica(chunkWithIndex, mutationTimestamp);
+            }
+        }
+
+        // NB: This is true for non-journal chunks.
+        if (chunk->IsSealed()) {
+            OnChunkSealed(chunk);
+        }
+
+        // Increase staged resource usage.
+        if (chunk->IsStaged() && !chunk->IsJournal()) {
+            auto* stagingTransaction = chunk->GetStagingTransaction();
+            auto* stagingAccount = chunk->GetStagingAccount();
+            auto securityManager = Bootstrap_->GetSecurityManager();
+            auto delta = chunk->GetResourceUsage();
+            securityManager->UpdateAccountStagingUsage(stagingTransaction, stagingAccount, delta);
+        }
+
+        ScheduleChunkRefresh(chunk);
+    }
+
+    void SealChunk(TChunk* chunk, const TMiscExt& miscExt)
+    {
+        if (!chunk->IsJournal()) {
+            THROW_ERROR_EXCEPTION("Not a journal chunk");
+        }
+
+        if (!chunk->IsConfirmed()) {
+            THROW_ERROR_EXCEPTION("Chunk is not confirmed");
+        }
+
+        if (chunk->IsSealed()) {
+            LOG_DEBUG_UNLESS(IsRecovery(), "Chunk is already sealed (ChunkId: %v)",
+                chunk->GetId());
+            return;
+        }
+
+        chunk->Seal(miscExt);
+        OnChunkSealed(chunk);
+
+        ScheduleChunkRefresh(chunk);
     }
 
     TChunk* CreateChunk(EObjectType type)
@@ -584,74 +658,6 @@ public:
             ChunkTreeBalancer_.Rebalance(chunkList);
             LOG_DEBUG_UNLESS(IsRecovery(), "Chunk tree rebalancing completed");
         }
-    }
-
-
-    void ConfirmChunk(
-        TChunk* chunk,
-        const NChunkClient::TChunkReplicaList& replicas,
-        TChunkInfo* chunkInfo,
-        TChunkMeta* chunkMeta)
-    {
-        YCHECK(!chunk->IsConfirmed());
-
-        const auto& id = chunk->GetId();
-
-        chunk->Confirm(chunkInfo, chunkMeta);
-
-        auto nodeTracker = Bootstrap_->GetNodeTracker();
-
-        const auto* mutationContext = GetCurrentMutationContext();
-        auto mutationTimestamp = mutationContext->GetTimestamp();
-
-        for (auto replica : replicas) {
-            auto* node = nodeTracker->FindNode(replica.GetNodeId());
-            if (!IsObjectAlive(node)) {
-                LOG_DEBUG_UNLESS(IsRecovery(), "Tried to confirm chunk %v at an unknown node %v",
-                    id,
-                    replica.GetNodeId());
-                continue;
-            }
-
-            auto chunkWithIndex = chunk->IsJournal()
-                ? TChunkPtrWithIndex(chunk, ActiveChunkReplicaIndex)
-                : TChunkPtrWithIndex(chunk, replica.GetIndex());
-
-            if (node->GetLocalState() != ENodeState::Online) {
-                LOG_DEBUG_UNLESS(IsRecovery(), "Tried to confirm chunk %v at %v which has invalid state %Qlv",
-                    id,
-                    node->GetDefaultAddress(),
-                    node->GetLocalState());
-                continue;
-            }
-
-            if (!node->HasReplica(chunkWithIndex, false)) {
-                AddChunkReplica(
-                    node,
-                    chunkWithIndex,
-                    false,
-                    EAddReplicaReason::Confirmation);
-                node->AddUnapprovedReplica(chunkWithIndex, mutationTimestamp);
-            }
-        }
-
-        // NB: This is true for non-journal chunks.
-        if (chunk->IsSealed()) {
-            OnChunkSealed(chunk);
-        }
-
-        // Increase staged resource usage.
-        if (chunk->IsStaged() && !chunk->IsJournal()) {
-            auto* stagingTransaction = chunk->GetStagingTransaction();
-            auto* stagingAccount = chunk->GetStagingAccount();
-            auto securityManager = Bootstrap_->GetSecurityManager();
-            auto delta = chunk->GetResourceUsage();
-            securityManager->UpdateAccountStagingUsage(stagingTransaction, stagingAccount, delta);
-        }
-
-        ScheduleChunkRefresh(chunk);
-
-        LOG_DEBUG_UNLESS(IsRecovery(), "Chunk confirmed (ChunkId: %v)", id);
     }
 
 
@@ -906,32 +912,6 @@ public:
             Bootstrap_->GetLightNodeChannelFactory());
     }
 
-    void SealChunk(TChunk* chunk, const TMiscExt& info)
-    {
-        if (!chunk->IsJournal()) {
-            THROW_ERROR_EXCEPTION("Not a journal chunk");
-        }
-
-        if (!chunk->IsConfirmed()) {
-            THROW_ERROR_EXCEPTION("Chunk is not confirmed");
-        }
-
-        if (chunk->IsSealed()) {
-            THROW_ERROR_EXCEPTION("Chunk is already sealed");
-        }
-
-        chunk->Seal(info);
-        OnChunkSealed(chunk);
-
-        ScheduleChunkRefresh(chunk);
-
-        LOG_DEBUG_UNLESS(IsRecovery(), "Chunk sealed (ChunkId: %v, RowCount: %v, UncompressedDataSize: %v, CompressedDataSize: %v)",
-            chunk->GetId(),
-            info.row_count(),
-            info.uncompressed_data_size(),
-            info.compressed_data_size());
-    }
-
 
     DECLARE_ENTITY_MAP_ACCESSORS(Chunk, TChunk, TChunkId);
     DECLARE_ENTITY_MAP_ACCESSORS(ChunkList, TChunkList, TChunkListId);
@@ -1180,7 +1160,7 @@ private:
     }
 
     void HydraExportChunks(
-        TCtxExportChunksPtr context,
+        const TCtxExportChunksPtr& context,
         TRspExportChunks* response,
         const TReqExportChunks& request)
     {
@@ -1222,7 +1202,7 @@ private:
     }
 
     void HydraImportChunks(
-        TCtxImportChunksPtr context,
+        const TCtxImportChunksPtr& context,
         TReqImportChunks& request)
     {
         auto transactionId = FromProto<TTransactionId>(request.transaction_id());
@@ -1253,6 +1233,155 @@ private:
         LOG_DEBUG_UNLESS(IsRecovery(), "Chunks imported (TransactionId: %v, ChunkIds: %v)",
             transactionId,
             chunkIds);
+    }
+
+    void HydraExecuteBatch(
+        const TCtxExecuteBatchPtr& context,
+        NChunkClient::NProto::TRspExecuteBatch* response,
+        NChunkClient::NProto::TReqExecuteBatch& request)
+    {
+        for (auto& subrequest : *request.mutable_create_subrequests()) {
+            auto* subresponse = response ? response->add_create_subresponses() : nullptr;
+            try {
+                ExecuteCreateChunkSubrequest(subrequest, subresponse);
+            } catch (const std::exception& ex) {
+                LOG_DEBUG_UNLESS(IsRecovery(), ex, "Error creating chunk");
+                if (subresponse) {
+                    ToProto(subresponse->mutable_error(), TError(ex));
+                }
+            }
+        }
+
+        for (auto& subrequest : *request.mutable_confirm_subrequests()) {
+            auto* subresponse = response ? response->add_confirm_subresponses() : nullptr;
+            try {
+                ExecuteConfirmChunkSubrequest(subrequest, subresponse);
+            } catch (const std::exception& ex) {
+                LOG_DEBUG_UNLESS(IsRecovery(), ex, "Error confirming chunk");
+                if (subresponse) {
+                    ToProto(subresponse->mutable_error(), TError(ex));
+                }
+            }
+        }
+
+        for (auto& subrequest : *request.mutable_seal_subrequests()) {
+            auto* subresponse = response ? response->add_seal_subresponses() : nullptr;
+            try {
+                ExecuteSealChunkSubrequest(subrequest, subresponse);
+            } catch (const std::exception& ex) {
+                LOG_DEBUG_UNLESS(IsRecovery(), ex, "Error sealing chunk");
+                if (subresponse) {
+                    ToProto(subresponse->mutable_error(), TError(ex));
+                }
+            }
+        }
+    }
+
+    void ExecuteCreateChunkSubrequest(
+        NChunkClient::NProto::TReqExecuteBatch::TCreateSubrequest& subrequest,
+        NChunkClient::NProto::TRspExecuteBatch::TCreateSubresponse* subresponse)
+    {
+        auto transactionId = FromProto<TTransactionId>(subrequest.transaction_id());
+        auto chunkType = EObjectType(subrequest.type());
+        bool isErasure = (chunkType == EObjectType::ErasureChunk);
+        bool isJournal = (chunkType == EObjectType::JournalChunk);
+        auto erasureCodecId = isErasure ? NErasure::ECodec(subrequest.erasure_codec()) : NErasure::ECodec::None;
+        int replicationFactor = isErasure ? 1 : subrequest.replication_factor();
+        int readQuorum = isJournal ? subrequest.read_quorum() : 0;
+        int writeQuorum = isJournal ? subrequest.write_quorum() : 0;
+
+        auto transactionManager = Bootstrap_->GetTransactionManager();
+        auto* transaction = transactionManager->GetTransactionOrThrow(transactionId);
+
+        auto securityManager = Bootstrap_->GetSecurityManager();
+        auto* account = securityManager->GetAccountByNameOrThrow(subrequest.account());
+        account->ValidateResourceUsageIncrease(TClusterResources(1, 0, 1));
+
+        TChunkList* chunkList = nullptr;
+        if (subrequest.has_chunk_list_id()) {
+            auto chunkListId = FromProto<TChunkListId>(subrequest.chunk_list_id());
+            chunkList = GetChunkListOrThrow(chunkListId);
+            chunkList->ValidateSealed();
+        }
+
+        // NB: Once the chunk is created, no exceptions could be thrown.
+        auto* chunk = CreateChunk(chunkType);
+        chunk->SetLocalReplicationFactor(replicationFactor);
+        chunk->SetReadQuorum(readQuorum);
+        chunk->SetWriteQuorum(writeQuorum);
+        chunk->SetErasureCodec(erasureCodecId);
+        chunk->SetMovable(subrequest.movable());
+        chunk->SetLocalVital(subrequest.vital());
+
+        StageChunkTree(chunk, transaction, account);
+
+        transactionManager->StageObject(transaction, chunk);
+
+        if (chunkList) {
+            AttachToChunkList(chunkList, chunk);
+        }
+
+        if (subresponse) {
+            ToProto(subresponse->mutable_chunk_id(), chunk->GetId());
+        }
+
+        LOG_DEBUG_UNLESS(IsRecovery(),
+            "Chunk created "
+            "(ChunkId: %v, ChunkListId: %v, TransactionId: %v, Account: %v, ReplicationFactor: %v, "
+            "ReadQuorum: %v, WriteQuorum: %v, ErasureCodec: %v, Movable: %v, Vital: %v)",
+            chunk->GetId(),
+            GetObjectId(chunkList),
+            transaction->GetId(),
+            account->GetName(),
+            chunk->GetLocalReplicationFactor(),
+            chunk->GetReadQuorum(),
+            chunk->GetWriteQuorum(),
+            erasureCodecId,
+            subrequest.movable(),
+            subrequest.vital());
+    }
+
+    void ExecuteConfirmChunkSubrequest(
+        NChunkClient::NProto::TReqExecuteBatch::TConfirmSubrequest& subrequest,
+        NChunkClient::NProto::TRspExecuteBatch::TConfirmSubresponse* subresponse)
+    {
+        auto chunkId = FromProto<TChunkId>(subrequest.chunk_id());
+        auto replicas = FromProto<TChunkReplicaList>(subrequest.replicas());
+
+        auto* chunk = GetChunkOrThrow(chunkId);
+
+        ConfirmChunk(
+            chunk,
+            replicas,
+            subrequest.mutable_chunk_info(),
+            subrequest.mutable_chunk_meta());
+
+        if (subresponse && subrequest.request_statistics()) {
+            *subresponse->mutable_statistics() = chunk->GetStatistics().ToDataStatistics();
+        }
+
+        LOG_DEBUG_UNLESS(IsRecovery(), "Chunk confirmed (ChunkId: %v)",
+            chunkId);
+    }
+
+    void ExecuteSealChunkSubrequest(
+        NChunkClient::NProto::TReqExecuteBatch::TSealSubrequest& subrequest,
+        NChunkClient::NProto::TRspExecuteBatch::TSealSubresponse* subresponse)
+    {
+        auto chunkId = FromProto<TChunkId>(subrequest.chunk_id());
+        auto* chunk = GetChunkOrThrow(chunkId);
+
+        const auto& miscExt = subrequest.misc();
+
+        SealChunk(
+            chunk,
+            miscExt);
+
+        LOG_DEBUG_UNLESS(IsRecovery(), "Chunk sealed (ChunkId: %v, RowCount: %v, UncompressedDataSize: %v, CompressedDataSize: %v)",
+            chunk->GetId(),
+            miscExt.row_count(),
+            miscExt.uncompressed_data_size(),
+            miscExt.compressed_data_size());
     }
 
 
@@ -1748,68 +1877,6 @@ IObjectProxyPtr TChunkManager::TChunkTypeHandlerBase::DoGetProxy(
     return CreateChunkProxy(Bootstrap_, chunk);
 }
 
-TObjectBase* TChunkManager::TChunkTypeHandlerBase::CreateObject(
-    const TObjectId& /*hintId*/,
-    TTransaction* transaction,
-    TAccount* account,
-    IAttributeDictionary* /*attributes*/,
-    const TObjectCreationExtensions& extensions)
-{
-    YCHECK(transaction);
-    YCHECK(account);
-
-    account->ValidateResourceUsageIncrease(TClusterResources(1, 0, 1));
-
-    auto chunkType = GetType();
-    bool isErasure = (chunkType == EObjectType::ErasureChunk);
-    bool isJournal = (chunkType == EObjectType::JournalChunk);
-
-    const auto& requestExt = extensions.GetExtension(TChunkCreationExt::chunk_creation_ext);
-    auto erasureCodecId = isErasure ? NErasure::ECodec(requestExt.erasure_codec()) : NErasure::ECodec::None;
-    int replicationFactor = isErasure ? 1 : requestExt.replication_factor();
-    int readQuorum = isJournal ? requestExt.read_quorum() : 0;
-    int writeQuorum = isJournal ? requestExt.write_quorum() : 0;
-
-    // NB: Once the chunk is created, no exceptions could be thrown.
-    auto chunkListId = requestExt.has_chunk_list_id() ? FromProto<TChunkListId>(requestExt.chunk_list_id()) : NullChunkListId;
-    TChunkList* chunkList = nullptr;
-    if (chunkListId) {
-        chunkList = Owner_->GetChunkListOrThrow(chunkListId);
-        chunkList->ValidateSealed();
-    }
-
-    auto* chunk = Owner_->CreateChunk(chunkType);
-    chunk->SetLocalReplicationFactor(replicationFactor);
-    chunk->SetReadQuorum(readQuorum);
-    chunk->SetWriteQuorum(writeQuorum);
-    chunk->SetErasureCodec(erasureCodecId);
-    chunk->SetMovable(requestExt.movable());
-    chunk->SetLocalVital(requestExt.vital());
-
-    Owner_->StageChunkTree(chunk, transaction, account);
-
-    if (chunkList) {
-        Owner_->AttachToChunkList(chunkList, chunk);
-    }
-
-    LOG_DEBUG_UNLESS(Owner_->IsRecovery(),
-        "Chunk created "
-        "(ChunkId: %v, ChunkListId: %v, TransactionId: %v, Account: %v, ReplicationFactor: %v, "
-        "ReadQuorum: %v, WriteQuorum: %v, ErasureCodec: %v, Movable: %v, Vital: %v)",
-        chunk->GetId(),
-        chunkListId,
-        transaction->GetId(),
-        account->GetName(),
-        chunk->GetLocalReplicationFactor(),
-        chunk->GetReadQuorum(),
-        chunk->GetWriteQuorum(),
-        erasureCodecId,
-        requestExt.movable(),
-        requestExt.vital());
-
-    return chunk;
-}
-
 void TChunkManager::TChunkTypeHandlerBase::DoDestroyObject(TChunk* chunk)
 {
     TObjectTypeHandlerWithMapBase::DoDestroyObject(chunk);
@@ -1843,7 +1910,7 @@ TObjectBase* TChunkManager::TChunkListTypeHandler::CreateObject(
     TTransaction* transaction,
     TAccount* account,
     IAttributeDictionary* /*attributes*/,
-    const TObjectCreationExtensions& extensions)
+    const TObjectCreationExtensions& /*extensions*/)
 {
     auto* chunkList = Owner_->CreateChunkList();
     chunkList->SetStagingTransaction(transaction);
@@ -1923,22 +1990,24 @@ TNodeList TChunkManager::AllocateWriteTargets(
         preferredHostName);
 }
 
-TMutationPtr TChunkManager::CreateUpdateChunkPropertiesMutation(
-    const NProto::TReqUpdateChunkProperties& request)
+TMutationPtr TChunkManager::CreateUpdateChunkPropertiesMutation(const NProto::TReqUpdateChunkProperties& request)
 {
     return Impl_->CreateUpdateChunkPropertiesMutation(request);
 }
 
-TMutationPtr TChunkManager::CreateExportChunksMutation(
-    TCtxExportChunksPtr context)
+TMutationPtr TChunkManager::CreateExportChunksMutation(TCtxExportChunksPtr context)
 {
-    return Impl_->CreateExportChunksMutation(context);
+    return Impl_->CreateExportChunksMutation(std::move(context));
 }
 
-TMutationPtr TChunkManager::CreateImportChunksMutation(
-    TCtxImportChunksPtr context)
+TMutationPtr TChunkManager::CreateImportChunksMutation(TCtxImportChunksPtr context)
 {
-    return Impl_->CreateImportChunksMutation(context);
+    return Impl_->CreateImportChunksMutation(std::move(context));
+}
+
+TMutationPtr TChunkManager::CreateExecuteBatchMutation(TCtxExecuteBatchPtr context)
+{
+    return Impl_->CreateExecuteBatchMutation(std::move(context));
 }
 
 TChunk* TChunkManager::CreateChunk(EObjectType type)
@@ -1949,19 +2018,6 @@ TChunk* TChunkManager::CreateChunk(EObjectType type)
 TChunkList* TChunkManager::CreateChunkList()
 {
     return Impl_->CreateChunkList();
-}
-
-void TChunkManager::ConfirmChunk(
-    TChunk* chunk,
-    const NChunkClient::TChunkReplicaList& replicas,
-    TChunkInfo* chunkInfo,
-    TChunkMeta* chunkMeta)
-{
-    Impl_->ConfirmChunk(
-        chunk,
-        replicas,
-        chunkInfo,
-        chunkMeta);
 }
 
 void TChunkManager::UnstageChunk(TChunk* chunk)
@@ -2093,11 +2149,6 @@ TFuture<TMiscExt> TChunkManager::GetChunkQuorumInfo(TChunk* chunk)
     return Impl_->GetChunkQuorumInfo(chunk);
 }
 
-void TChunkManager::SealChunk(TChunk* chunk, const TMiscExt& info)
-{
-    Impl_->SealChunk(chunk, info);
-}
-
 DELEGATE_ENTITY_MAP_ACCESSORS(TChunkManager, Chunk, TChunk, TChunkId, *Impl_)
 DELEGATE_ENTITY_MAP_ACCESSORS(TChunkManager, ChunkList, TChunkList, TChunkListId, *Impl_)
 
@@ -2108,7 +2159,7 @@ DELEGATE_BYREF_RO_PROPERTY(TChunkManager, yhash_set<TChunk*>, UnderreplicatedChu
 DELEGATE_BYREF_RO_PROPERTY(TChunkManager, yhash_set<TChunk*>, DataMissingChunks, *Impl_);
 DELEGATE_BYREF_RO_PROPERTY(TChunkManager, yhash_set<TChunk*>, ParityMissingChunks, *Impl_);
 DELEGATE_BYREF_RO_PROPERTY(TChunkManager, yhash_set<TChunk*>, QuorumMissingChunks, *Impl_);
-DELEGATE_BYREF_RO_PROPERTY(TChunkManager, yhash_set<TChunk*>, UnsafelyPlacedChunks, *Impl_);
+DELEGATE_BYREF_RO_PROPERTY(TChunkManager, yhash_set<TChunk*>, UnsafelyPlacedChunks, *Impl_)
 
 ///////////////////////////////////////////////////////////////////////////////
 

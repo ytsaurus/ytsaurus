@@ -22,7 +22,7 @@ public:
 
     static int GetProtocolVersion()
     {
-        return 1;
+        return 2;
     }
 
     explicit TChunkServiceProxy(NRpc::IChannelPtr channel)
@@ -34,6 +34,7 @@ public:
     DEFINE_RPC_PROXY_METHOD(NProto, ExportChunks);
     DEFINE_RPC_PROXY_METHOD(NProto, ImportChunks);
     DEFINE_RPC_PROXY_METHOD(NProto, GetChunkOwningNodes);
+    DEFINE_RPC_PROXY_METHOD(NProto, ExecuteBatch);
 
 };
 

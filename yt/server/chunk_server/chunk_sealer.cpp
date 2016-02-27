@@ -7,13 +7,10 @@
 #include "config.h"
 #include "helpers.h"
 
-#include <yt/server/cell_master/automaton.h>
 #include <yt/server/cell_master/bootstrap.h>
 #include <yt/server/cell_master/hydra_facade.h>
 
 #include <yt/server/node_tracker_server/node.h>
-
-#include <yt/ytlib/chunk_client/chunk_ypath_proxy.h>
 
 #include <yt/ytlib/journal_client/helpers.h>
 
@@ -21,18 +18,20 @@
 
 #include <yt/ytlib/object_client/helpers.h>
 
+#include <yt/ytlib/chunk_client/chunk_service_proxy.h>
+#include <yt/ytlib/chunk_client/helpers.h>
+
 #include <yt/core/concurrency/async_semaphore.h>
 #include <yt/core/concurrency/delayed_executor.h>
 #include <yt/core/concurrency/periodic_executor.h>
 #include <yt/core/concurrency/scheduler.h>
-
-#include <yt/core/ytree/ypath_client.h>
 
 #include <deque>
 
 namespace NYT {
 namespace NChunkServer {
 
+using namespace NRpc;
 using namespace NConcurrency;
 using namespace NYTree;
 using namespace NObjectClient;
@@ -242,7 +241,9 @@ private:
         if (!CanBeSealed(chunk))
             return;
 
-        LOG_INFO("Sealing journal chunk (ChunkId: %v)", chunk->GetId());
+        const auto& chunkId = chunk->GetId();
+        LOG_INFO("Sealing journal chunk (ChunkId: %v)",
+            chunkId);
 
         std::vector<TNodeDescriptor> replicas;
         for (auto nodeWithIndex : chunk->StoredReplicas()) {
@@ -261,7 +262,7 @@ private:
                 .ThrowOnError();
         }
 
-        auto req = TChunkYPathProxy::Seal(FromObjectId(chunk->GetId()));
+        TMiscExt miscExt;
         {
             auto asyncMiscExt = ComputeQuorumInfo(
                 chunk->GetId(),
@@ -269,22 +270,27 @@ private:
                 Config_->JournalRpcTimeout,
                 chunk->GetReadQuorum(),
                 Bootstrap_->GetLightNodeChannelFactory());
-            auto miscExt = WaitFor(asyncMiscExt)
+            miscExt = WaitFor(asyncMiscExt)
                 .ValueOrThrow();
-            auto* info = req->mutable_info();
-            *info = miscExt;
-            info->set_sealed(true);
+            miscExt.set_sealed(true);
         }
 
-        // NB: Double-check.
-        if (!IsObjectAlive(chunk))
-            return;
+        {
+            TChunkServiceProxy proxy(Bootstrap_->GetLocalRpcChannel());
 
-        auto objectManager = Bootstrap_->GetObjectManager();
-        auto rootService = objectManager->GetRootService();
-        auto chunkProxy = objectManager->GetProxy(chunk);
-        WaitFor(ExecuteVerb(rootService, req))
-            .ThrowOnError();
+            auto batchReq = proxy.ExecuteBatch();
+            GenerateMutationId(batchReq);
+
+            auto* req = batchReq->add_seal_subrequests();
+            ToProto(req->mutable_chunk_id(), chunkId);
+            *req->mutable_misc() = miscExt;
+
+            auto batchRspOrError = WaitFor(batchReq->Invoke());
+            THROW_ERROR_EXCEPTION_IF_FAILED(
+                GetCumulativeError(batchRspOrError),
+                "Failed to seal chunk %v",
+                chunkId);
+        }
 
         LOG_INFO("Journal chunk sealed (ChunkId: %v)", chunk->GetId());
     }

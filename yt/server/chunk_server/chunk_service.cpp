@@ -32,6 +32,7 @@ using namespace NObjectServer;
 using namespace NCellMaster;
 using namespace NHydra;
 using namespace NTransactionClient;
+using namespace NRpc;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -56,6 +57,10 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ImportChunks)
             .SetHeavy(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetChunkOwningNodes));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(ExecuteBatch)
+            .SetHeavy(true)
+            .SetMaxQueueSize(10000)
+            .SetMaxConcurrency(10000));
     }
 
 private:
@@ -219,9 +224,29 @@ private:
         context->Reply();
     }
 
+    DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, ExecuteBatch)
+    {
+        ValidatePeer(EPeerKind::Leader);
+        SyncWithUpstream();
+
+        context->SetRequestInfo(
+            "CreateSubrequestCount: %v, "
+            "ConfirmSubrequestCount: %v",
+            request->create_subrequests_size(),
+            request->confirm_subrequests_size());
+
+        if (ResponseKeeper_->TryReplyFrom(context)) {
+            return;
+        }
+
+        auto chunkManager = Bootstrap_->GetChunkManager();
+        chunkManager
+            ->CreateExecuteBatchMutation(context)
+            ->CommitAndReply(context);
+    }
 };
 
-NRpc::IServicePtr CreateChunkService(TBootstrap* boostrap)
+IServicePtr CreateChunkService(TBootstrap* boostrap)
 {
     return New<TChunkService>(boostrap);
 }

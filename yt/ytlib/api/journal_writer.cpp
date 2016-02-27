@@ -6,9 +6,10 @@
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/ytlib/chunk_client/chunk_owner_ypath_proxy.h>
 #include <yt/ytlib/chunk_client/chunk_service_proxy.h>
-#include <yt/ytlib/chunk_client/chunk_ypath_proxy.h>
 #include <yt/ytlib/chunk_client/data_node_service_proxy.h>
 #include <yt/ytlib/chunk_client/dispatcher.h>
+#include <yt/ytlib/chunk_client/chunk_service_proxy.h>
+#include <yt/ytlib/chunk_client/helpers.h>
 
 #include <yt/ytlib/cypress_client/cypress_ypath_proxy.h>
 #include <yt/ytlib/cypress_client/rpc_helpers.h>
@@ -527,26 +528,31 @@ private:
             LOG_INFO("Creating chunk");
 
             {
-                TObjectServiceProxy proxy(UploadMasterChannel_);
+                TChunkServiceProxy proxy(UploadMasterChannel_);
 
-                auto req = TMasterYPathProxy::CreateObject();
+                auto batchReq = proxy.ExecuteBatch();
+                GenerateMutationId(batchReq);
+
+                auto* req = batchReq->add_create_subrequests();
                 req->set_type(static_cast<int>(EObjectType::JournalChunk));
                 req->set_account(Account_);
                 ToProto(req->mutable_transaction_id(), UploadTransaction_->GetId());
+                req->set_replication_factor(ReplicationFactor_);
+                req->set_read_quorum(ReadQuorum_);
+                req->set_write_quorum(WriteQuorum_);
+                req->set_movable(true);
+                req->set_vital(true);
+                req->set_erasure_codec(static_cast<int>(NErasure::ECodec::None));
 
-                auto* reqExt = req->mutable_extensions()->MutableExtension(TChunkCreationExt::chunk_creation_ext);
-                reqExt->set_replication_factor(ReplicationFactor_);
-                reqExt->set_read_quorum(ReadQuorum_);
-                reqExt->set_write_quorum(WriteQuorum_);
-                reqExt->set_movable(true);
-                reqExt->set_vital(true);
-                reqExt->set_erasure_codec(static_cast<int>(NErasure::ECodec::None));
+                auto batchRspOrError = WaitFor(batchReq->Invoke());
+                THROW_ERROR_EXCEPTION_IF_FAILED(
+                    GetCumulativeError(batchRspOrError),
+                    "Error creating chunk");
 
-                auto rspOrError = WaitFor(proxy.Execute(req));
-                THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error creating chunk");
-                const auto& rsp = rspOrError.Value();
+                const auto& batchRsp = batchRspOrError.Value();
+                const auto& rsp = batchRsp->create_subresponses(0);
 
-                session->ChunkId = FromProto<TChunkId>(rsp->object_id());
+                session->ChunkId = FromProto<TChunkId>(rsp.chunk_id());
             }
 
             LOG_INFO("Chunk created (ChunkId: %v)",
@@ -624,33 +630,49 @@ private:
                 node->PingExecutor->Start();
             }
 
+            const auto& chunkId = session->ChunkId;
+
+            LOG_INFO("Confirming chunk");
+            {
+                TChunkServiceProxy proxy(UploadMasterChannel_);
+
+                auto batchReq = proxy.ExecuteBatch();
+                GenerateMutationId(batchReq);
+
+                YCHECK(!replicas.empty());
+                auto* req = batchReq->add_confirm_subrequests();
+                ToProto(req->mutable_chunk_id(), chunkId);
+                req->mutable_chunk_info();
+                ToProto(req->mutable_replicas(), replicas);
+                auto* meta = req->mutable_chunk_meta();
+                meta->set_type(static_cast<int>(EChunkType::Journal));
+                meta->set_version(0);
+                TMiscExt miscExt;
+                SetProtoExtension(meta->mutable_extensions(), miscExt);
+
+                auto batchRspOrError = WaitFor(batchReq->Invoke());
+                THROW_ERROR_EXCEPTION_IF_FAILED(
+                    GetCumulativeError(batchRspOrError),
+                    "Error confirming chunk %v",
+                    chunkId);
+            }
+            LOG_INFO("Chunk confirmed");
+
             LOG_INFO("Attaching chunk");
             {
                 TObjectServiceProxy proxy(UploadMasterChannel_);
                 auto batchReq = proxy.ExecuteBatch();
 
-                {
-                    YCHECK(!replicas.empty());
-                    auto req = TChunkYPathProxy::Confirm(FromObjectId(session->ChunkId));
-                    req->mutable_chunk_info();
-                    ToProto(req->mutable_replicas(), replicas);
-                    auto* meta = req->mutable_chunk_meta();
-                    meta->set_type(static_cast<int>(EChunkType::Journal));
-                    meta->set_version(0);
-                    TMiscExt miscExt;
-                    SetProtoExtension(meta->mutable_extensions(), miscExt);
-                    GenerateMutationId(req);
-                    batchReq->AddRequest(req, "confirm");
-                }
-                {
-                    auto req = TChunkListYPathProxy::Attach(FromObjectId(ChunkListId_));
-                    ToProto(req->add_children_ids(), session->ChunkId);
-                    GenerateMutationId(req);
-                    batchReq->AddRequest(req, "attach");
-                }
+                auto req = TChunkListYPathProxy::Attach(FromObjectId(ChunkListId_));
+                ToProto(req->add_children_ids(), chunkId);
+                GenerateMutationId(req);
+                batchReq->AddRequest(req, "attach");
 
                 auto batchRspOrError = WaitFor(batchReq->Invoke());
-                THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError), "Error attaching chunk");
+                THROW_ERROR_EXCEPTION_IF_FAILED(
+                    GetCumulativeError(batchRspOrError),
+                    "Error attaching chunk %v",
+                    chunkId);
             }
             LOG_INFO("Chunk attached");
 
@@ -769,10 +791,12 @@ private:
             auto session = CurrentSession_;
             CurrentSession_.Reset();
 
+            const auto& chunkId = session->ChunkId;
+
             LOG_INFO("Finishing chunk sessions");
             for (const auto& node : session->Nodes) {
                 auto req = node->LightProxy.FinishChunk();
-                ToProto(req->mutable_chunk_id(), session->ChunkId);
+                ToProto(req->mutable_chunk_id(), chunkId);
                 req->Invoke().Subscribe(
                     BIND(&TImpl::OnChunkFinished, MakeStrong(this), node)
                         .Via(Invoker_));
@@ -784,21 +808,27 @@ private:
 
             {
                 LOG_INFO("Sealing chunk (ChunkId: %v, RowCount: %v)",
-                    session->ChunkId,
+                    chunkId,
                     session->FlushedRowCount);
 
-                TObjectServiceProxy proxy(UploadMasterChannel_);
+                TChunkServiceProxy proxy(UploadMasterChannel_);
 
-                auto req = TChunkYPathProxy::Seal(FromObjectId(session->ChunkId));
-                auto* info = req->mutable_info();
-                info->set_sealed(true);
-                info->set_row_count(session->FlushedRowCount);
-                info->set_uncompressed_data_size(session->FlushedDataSize);
-                info->set_compressed_data_size(session->FlushedDataSize);
+                auto batchReq = proxy.ExecuteBatch();
+                GenerateMutationId(batchReq);
 
-                auto rspOrError = WaitFor(proxy.Execute(req));
-                THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error sealing chunk %v",
-                    session->ChunkId);
+                auto* req = batchReq->add_seal_subrequests();
+                ToProto(req->mutable_chunk_id(), chunkId);
+                auto* miscExt = req->mutable_misc();
+                miscExt->set_sealed(true);
+                miscExt->set_row_count(session->FlushedRowCount);
+                miscExt->set_uncompressed_data_size(session->FlushedDataSize);
+                miscExt->set_compressed_data_size(session->FlushedDataSize);
+
+                auto batchRspOrError = WaitFor(batchReq->Invoke());
+                THROW_ERROR_EXCEPTION_IF_FAILED(
+                    GetCumulativeError(batchRspOrError),
+                    "Error sealing chunk %v",
+                    chunkId);
 
                 LOG_INFO("Chunk sealed");
             }

@@ -10,7 +10,6 @@
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/ytlib/chunk_client/chunk_replica.h>
 #include <yt/ytlib/chunk_client/chunk_writer.h>
-#include <yt/ytlib/chunk_client/chunk_ypath_proxy.h>
 #include <yt/ytlib/chunk_client/confirming_writer.h>
 #include <yt/ytlib/chunk_client/helpers.h>
 

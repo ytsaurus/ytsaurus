@@ -31,6 +31,9 @@ class TRspExportChunks;
 class TReqImportChunks;
 class TRspImportChunks;
 
+class TReqExecuteBatch;
+class TRspExecuteBatch;
+
 } // namespace NProto
 
 ///////////////////////////////////////////////////////////////////////////////
