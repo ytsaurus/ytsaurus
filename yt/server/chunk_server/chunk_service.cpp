@@ -169,6 +169,10 @@ private:
             transactionId,
             request->chunks_size());
 
+        if (context->IsRetry()) {
+            THROW_ERROR_EXCEPTION("Request is not retriable");
+        }
+
         auto chunkManager = Bootstrap_->GetChunkManager();
         chunkManager
             ->CreateExportChunksMutation(context)
@@ -185,6 +189,10 @@ private:
         context->SetRequestInfo("TransactionId: %v, ChunkCount: %v",
             transactionId,
             request->chunks_size());
+
+        if (context->IsRetry()) {
+            THROW_ERROR_EXCEPTION("Request is not retriable");
+        }
 
         auto chunkManager = Bootstrap_->GetChunkManager();
         chunkManager
