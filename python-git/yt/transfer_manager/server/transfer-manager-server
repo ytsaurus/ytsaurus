@@ -521,6 +521,18 @@ class Application(object):
                     return
                 time.sleep(self._sleep_step)
 
+    def _get_version(self, cluster_client):
+        if hasattr(cluster_client, "_version"):
+            return cluster_client._version
+        elif cluster_client._type == "yt":
+            try:
+                with self._mutex:
+                    return cluster_client.get("//sys/@protocol_version")
+            except yt.YtError as err:
+                if not err.is_resolve_error():
+                    raise
+        return None
+
     def _get_clusters_configuration(self):
         with self._clusters_config_mutex:
             return deepcopy(self._clusters_configuration)
@@ -538,7 +550,8 @@ class Application(object):
                 options["config"] = update(config["yt_client_config"], options["config"])
                 clusters[name] = YtClientWithNotifications(**options)
                 clusters[name]._pools = cluster_description.get("pools", {})
-                clusters[name]._version = cluster_description.get("version", 0)
+                if "version" in cluster_description:
+                    clusters[name]._version = cluster_description["version"]
             elif type == "yamr":
                 clusters[name] = Yamr(**options)
             elif type == "kiwi":
@@ -830,7 +843,7 @@ class Application(object):
         if task.copy_method is None and source_client._type == "yt" and destination_client._type == "yamr":
             task.copy_method = "pull"
         if task.copy_method is None and source_client._type == "yt" and destination_client._type == "yt":
-            task.copy_method = "proxy" if source_client._version != destination_client._version else "native"
+            task.copy_method = "proxy" if self._get_version(source_client) != self._get_version(destination_client) else "native"
 
     def _precheck(self, task, clusters_configuration, ignore_timeout=False, yamr_timeout=None, custom_logger=None):
         if custom_logger is None:
@@ -872,7 +885,7 @@ class Application(object):
             if source_client._type == "yt" and destination_client._type == "yt":
                 if task.copy_method not in ["proxy", "native"]:
                     raise yt.YtError("Incorrect copy method {0} for YT to YT copy task".format(task.copy_method))
-                if task.copy_method == "native" and source_client._version != destination_client._version:
+                if task.copy_method == "native" and self._get_version(source_client) != self._get_version(destination_client):
                     raise yt.YtError("Native copy method should not be specified for clusters with "
                                      "different YT versions")
 
