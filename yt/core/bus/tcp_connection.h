@@ -63,6 +63,7 @@ public:
     // IEventLoopObject implementation.
     virtual void SyncInitialize() override;
     virtual void SyncFinalize() override;
+    virtual void SyncCheck() override;
     virtual Stroka GetLoggingId() const override;
 
     // IBus implementation.
@@ -165,12 +166,14 @@ private:
     std::unique_ptr<ev::io> SocketWatcher_;
 
     TPacketDecoder Decoder_;
+    NProfiling::TCpuInstant LastReadTime_ = std::numeric_limits<NProfiling::TCpuInstant>::max();
     TBlob ReadBuffer_;
 
     TRingQueue<TPacket*> QueuedPackets_;
     TRingQueue<TPacket*> EncodedPackets_;
 
     TPacketEncoder Encoder_;
+    NProfiling::TCpuInstant LastWriteTime_ = std::numeric_limits<NProfiling::TCpuInstant>::max();
     std::vector<std::unique_ptr<TBlob>> WriteBuffers_;
     TRingQueue<TRef> EncodedFragments_;
     TRingQueue<size_t> EncodedPacketSizes_;
@@ -209,6 +212,7 @@ private:
     bool IsSocketError(ssize_t result);
 
     void OnSocketRead();
+    bool HasUnreadData() const;
     bool ReadSocket(char* buffer, size_t size, size_t* bytesRead);
     bool CheckReadError(ssize_t result);
     bool AdvanceDecoder(size_t size);

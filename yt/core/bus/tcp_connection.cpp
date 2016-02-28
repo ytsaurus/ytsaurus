@@ -34,6 +34,9 @@ static const size_t MaxFragmentsPerWrite = 256;
 static const size_t MaxBatchWriteSize    = 64 * 1024;
 static const size_t MaxWriteCoalesceSize = 4 * 1024;
 
+static const auto ReadStallTimeout = TDuration::Minutes(5);
+static const auto WriteStallTimeout = TDuration::Minutes(5);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TTcpConnectionReadBufferTag { };
@@ -152,6 +155,31 @@ void TTcpConnection::SyncInitialize()
 void TTcpConnection::SyncFinalize()
 {
     SyncClose(TError(NRpc::EErrorCode::TransportError, "Bus terminated"));
+}
+
+void TTcpConnection::SyncCheck()
+{
+    if (State_ != EState::Open) {
+        return;
+    }
+
+    auto now = NProfiling::GetCpuInstant();
+
+    if (HasUnsentData() && LastWriteTime_ < now - NProfiling::DurationToCpuDuration(WriteStallTimeout)) {
+        SyncClose(TError(
+            NRpc::EErrorCode::TransportError,
+            "Socket write stalled")
+            << TErrorAttribute("timeout", WriteStallTimeout));
+        return;
+    }
+
+    if (HasUnreadData() && LastReadTime_ < now - NProfiling::DurationToCpuDuration(ReadStallTimeout)) {
+        SyncClose(TError(
+            NRpc::EErrorCode::TransportError,
+            "Socket read stalled")
+            << TErrorAttribute("timeout", ReadStallTimeout));
+        return;
+    }
 }
 
 Stroka TTcpConnection::GetLoggingId() const
@@ -557,6 +585,8 @@ void TTcpConnection::OnSocketRead()
         return;
     }
 
+    LastReadTime_ = NProfiling::GetCpuInstant();
+
     LOG_TRACE("Started serving read request");
     size_t bytesReadTotal = 0;
 
@@ -610,6 +640,11 @@ void TTcpConnection::OnSocketRead()
     }
 
     LOG_TRACE("Finished serving read request, %v bytes read total", bytesReadTotal);
+}
+
+bool TTcpConnection::HasUnreadData() const
+{
+    return Decoder_.IsInProgress();
 }
 
 bool TTcpConnection::ReadSocket(char* buffer, size_t size, size_t* bytesRead)
@@ -758,6 +793,8 @@ void TTcpConnection::OnSocketWrite()
     if (State_ == EState::Closed) {
         return;
     }
+
+    LastWriteTime_ = NProfiling::GetCpuInstant();
 
     // For client sockets the first write notification means that
     // connection was established (either successfully or not).
