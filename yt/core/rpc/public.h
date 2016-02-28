@@ -27,6 +27,9 @@ class TClientResponse;
 template <class TResponseMessage>
 class TTypedClientResponse;
 
+template <class TRequestMessage, class TResponseMessage>
+class TTypedServiceContext;
+
 struct TServiceId;
 
 DECLARE_REFCOUNTED_STRUCT(IClientRequest)
