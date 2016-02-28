@@ -111,7 +111,7 @@ private:
 
         context->SetRequestInfo(
             "ChunkId: %v, DesiredTargetCount: %v, MinTargetCount: %v, ReplicationFactorOverride: %v, "
-            "PeferredHostName: %v, ForbiddenAddresses: [%v]",
+            "PreferredHostName: %v, ForbiddenAddresses: [%v]",
             chunkId,
             desiredTargetCount,
             minTargetCount,
