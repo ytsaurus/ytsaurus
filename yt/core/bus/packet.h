@@ -56,6 +56,7 @@ class TPacketTranscoderBase
 public:
     TMutableRef GetFragment();
     bool IsFinished() const;
+    bool IsInProgress() const;
 
 protected:
     EPacketPhase Phase_ = EPacketPhase::Unstarted;
@@ -156,6 +157,18 @@ template <class TDerived>
 bool TPacketTranscoderBase<TDerived>::IsFinished() const
 {
     return Phase_ == EPacketPhase::Finished;
+}
+
+template <class TDerived>
+bool TPacketTranscoderBase<TDerived>::IsInProgress() const
+{
+    if (Phase_ == EPacketPhase::Unstarted || Phase_ == EPacketPhase::Finished) {
+        return false;
+    }
+    if (Phase_ == EPacketPhase::Header && FragmentRemaining_ == sizeof (TPacketHeader)) {
+        return false;
+    }
+    return true;
 }
 
 template <class TDerived>

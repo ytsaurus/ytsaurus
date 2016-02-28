@@ -88,6 +88,9 @@ public:
         }
     }
 
+    void SyncCheck()
+    { }
+
     virtual Stroka GetLoggingId() const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
