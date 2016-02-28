@@ -19,10 +19,6 @@ struct TMutationRequest
     TMutationRequest() = default;
     TMutationRequest(const TMutationRequest& other) = default;
     TMutationRequest(TMutationRequest&& other) noexcept = default;
-    TMutationRequest(
-        Stroka type,
-        TSharedRef data,
-        TCallback<void(TMutationContext*)> action = TCallback<void(TMutationContext*)>());
 
     TMutationRequest& operator = (const TMutationRequest& other) = default;
     TMutationRequest& operator = (TMutationRequest&& other) = default;
@@ -31,6 +27,8 @@ struct TMutationRequest
     TSharedRef Data;
     TCallback<void(TMutationContext*)> Action;
     bool AllowLeaderForwarding = false;
+    NRpc::TMutationId MutationId;
+    bool Retry = false;
 };
 
 struct TMutationResponse
@@ -38,7 +36,6 @@ struct TMutationResponse
     TMutationResponse() = default;
     TMutationResponse(const TMutationResponse& other) = default;
     TMutationResponse(TMutationResponse&& other) = default;
-    explicit TMutationResponse(TSharedRefArray data);
 
     TMutationResponse& operator = (const TMutationResponse& other) = default;
     TMutationResponse& operator = (TMutationResponse&& other) = default;

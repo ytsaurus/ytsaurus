@@ -111,6 +111,8 @@ message TRspSyncWithLeader
 message TReqCommitMutation
 {
     required string type = 1;
+    optional NYT.NProto.TGuid mutation_id = 2;
+    optional bool retry = 3 [default = false];
     // Request data is passed via attachment.
 }
 

@@ -2,6 +2,7 @@
 
 #include "private.h"
 #include "mutation_context.h"
+#include "distributed_hydra_manager.h"
 
 #include <yt/ytlib/election/public.h>
 
@@ -25,6 +26,7 @@ class TCommitterBase
 protected:
     TCommitterBase(
         TDistributedHydraManagerConfigPtr config,
+        const TDistributedHydraManagerOptions& options,
         NElection::TCellManagerPtr cellManager,
         TDecoratedAutomatonPtr decoratedAutomaton,
         TEpochContext* epochContext);
@@ -33,6 +35,7 @@ protected:
 
 
     const TDistributedHydraManagerConfigPtr Config_;
+    const TDistributedHydraManagerOptions Options_;
     const NElection::TCellManagerPtr CellManager_;
     const TDecoratedAutomatonPtr DecoratedAutomaton_;
     TEpochContext* EpochContext_;
@@ -60,12 +63,11 @@ class TLeaderCommitter
 public:
     TLeaderCommitter(
         TDistributedHydraManagerConfigPtr config,
+        const TDistributedHydraManagerOptions& options,
         NElection::TCellManagerPtr cellManager,
         TDecoratedAutomatonPtr decoratedAutomaton,
         IChangelogStorePtr changelogStore,
         TEpochContext* epochContext);
-
-    void Finalize();
 
     ~TLeaderCommitter();
 
@@ -150,6 +152,7 @@ class TFollowerCommitter
 public:
     TFollowerCommitter(
         TDistributedHydraManagerConfigPtr config,
+        const TDistributedHydraManagerOptions& options,
         NElection::TCellManagerPtr cellManager,
         TDecoratedAutomatonPtr decoratedAutomaton,
         TEpochContext* epochContext);

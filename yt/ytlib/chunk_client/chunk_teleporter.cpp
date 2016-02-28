@@ -8,6 +8,8 @@
 
 #include <yt/core/concurrency/scheduler.h>
 
+#include <yt/core/rpc/helpers.h>
+
 namespace NYT {
 namespace NChunkClient {
 
@@ -15,6 +17,7 @@ using namespace NApi;
 using namespace NObjectClient;
 using namespace NTransactionClient;
 using namespace NConcurrency;
+using namespace NRpc;
 
 ////////////////////////////////////////////////////////////////////
 
@@ -76,6 +79,7 @@ void TChunkTeleporter::Export()
                 static_cast<int>(chunks.size()));
 
             auto req = proxy.ExportChunks();
+            GenerateMutationId(req);
             ToProto(req->mutable_transaction_id(), TransactionId_);
             for (int index = beginIndex; index < endIndex; ++index) {
                 auto* protoData = req->add_chunks();
@@ -121,6 +125,7 @@ void TChunkTeleporter::Import()
                 static_cast<int>(chunks.size()));
 
             auto req = proxy.ImportChunks();
+            GenerateMutationId(req);
             ToProto(req->mutable_transaction_id(), TransactionId_);
             for (int index = beginIndex; index < endIndex; ++index) {
                 req->add_chunks()->Swap(&chunks[index]->Data);

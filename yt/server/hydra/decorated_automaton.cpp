@@ -26,6 +26,8 @@
 
 #include <yt/core/profiling/scoped_timer.h>
 
+#include <yt/core/rpc/response_keeper.h>
+
 #include <util/random/random.h>
 
 #include <util/system/file.h>
@@ -743,7 +745,12 @@ void TDecoratedAutomaton::ApplyMutationDuringRecovery(const TSharedRef& recordDa
     auto mutationVersion = TVersion(header.segment_id(), header.record_id());
     RotateAutomatonVersionIfNeeded(mutationVersion);
 
-    TMutationRequest request(header.mutation_type(), requestData);
+    TMutationRequest request;
+    request.Type = header.mutation_type();
+    if (header.has_mutation_id()) {
+        request.MutationId = FromProto<TMutationId>(header.mutation_id());
+    }
+    request.Data = std::move(requestData);
 
     TMutationContext context(
         AutomatonVersion_,
@@ -779,6 +786,9 @@ void TDecoratedAutomaton::LogLeaderMutation(
     MutationHeader_.set_random_seed(pendingMutation.RandomSeed);
     MutationHeader_.set_segment_id(pendingMutation.Version.SegmentId);
     MutationHeader_.set_record_id(pendingMutation.Version.RecordId);
+    if (pendingMutation.Request.MutationId) {
+        ToProto(MutationHeader_.mutable_mutation_id(), pendingMutation.Request.MutationId);
+    }
 
     *recordData = SerializeMutationRecord(MutationHeader_, request.Data);
     *localFlushResult = Changelog_->Append(*recordData);
@@ -800,6 +810,9 @@ void TDecoratedAutomaton::LogFollowerMutation(
     TPendingMutation pendingMutation;
     pendingMutation.Version = LoggedVersion_;
     pendingMutation.Request.Type = MutationHeader_.mutation_type();
+    if (MutationHeader_.has_mutation_id()) {
+        pendingMutation.Request.MutationId = FromProto<TMutationId>(MutationHeader_.mutation_id());
+    }
     pendingMutation.Request.Data = mutationData;
     pendingMutation.Timestamp = FromProto<TInstant>(MutationHeader_.timestamp());
     pendingMutation.RandomSeed  = MutationHeader_.random_seed();
@@ -971,6 +984,11 @@ void TDecoratedAutomaton::DoApplyMutation(TMutationContext* context)
         request.Action.Run(context);
     } else {
         Automaton_->ApplyMutation(context);
+    }
+
+    if (Options_.ResponseKeeper && request.MutationId) {
+        const auto& response = context->Response();
+        Options_.ResponseKeeper->EndRequest(request.MutationId, response.Data);
     }
 
     AutomatonVersion_ = automatonVersion.Advance();

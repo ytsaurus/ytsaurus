@@ -7,23 +7,6 @@ namespace NHydra {
 
 ///////////////////////////////////////////////////////////////////////////////
 
-TMutationRequest::TMutationRequest(
-    Stroka type,
-    TSharedRef data,
-    TCallback<void(TMutationContext*)> action)
-    : Type(std::move(type))
-    , Data(std::move(data))
-    , Action(std::move(action))
-{ }
-
-///////////////////////////////////////////////////////////////////////////////
-
-TMutationResponse::TMutationResponse(TSharedRefArray data)
-    : Data(std::move(data))
-{ }
-
-///////////////////////////////////////////////////////////////////////////////
-
 TMutationContext::TMutationContext(
     TMutationContext* parent,
     const TMutationRequest& request)

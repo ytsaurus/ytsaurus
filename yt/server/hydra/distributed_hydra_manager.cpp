@@ -845,9 +845,16 @@ private:
 
         TMutationRequest mutationRequest;
         mutationRequest.Type = request->type();
+        if (request->has_mutation_id()) {
+            mutationRequest.MutationId = FromProto<TMutationId>(request->mutation_id());
+            mutationRequest.Retry = request->retry();
+        }
         mutationRequest.Data = request->Attachments()[0];
 
-        context->SetRequestInfo("Type: %v", mutationRequest.Type);
+        context->SetRequestInfo("MutationType: %v, MutationId: %v, Retry: %v",
+            mutationRequest.Type,
+            mutationRequest.MutationId,
+            mutationRequest.Retry);
 
         CommitMutation(mutationRequest).Subscribe(BIND([=] (const TErrorOr<TMutationResponse>& result) {
             if (!result.IsOK()) {
@@ -1104,6 +1111,7 @@ private:
 
         epochContext->LeaderCommitter = New<TLeaderCommitter>(
             Config_,
+            Options_,
             CellManager_,
             DecoratedAutomaton_,
             ChangelogStore_,
@@ -1238,6 +1246,7 @@ private:
 
         epochContext->FollowerCommitter = New<TFollowerCommitter>(
             Config_,
+            Options_,
             CellManager_,
             DecoratedAutomaton_,
             epochContext.Get());

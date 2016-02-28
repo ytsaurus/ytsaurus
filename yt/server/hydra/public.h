@@ -29,6 +29,8 @@ DECLARE_REFCOUNTED_CLASS(TFileChangelog)
 DECLARE_REFCOUNTED_CLASS(TSnapshotStoreThunk)
 DECLARE_REFCOUNTED_CLASS(TChangelogStoreFactoryThunk)
 
+struct TDistributedHydraManagerOptions;
+
 struct TMutationRequest;
 struct TMutationResponse;
 class TMutationContext; 

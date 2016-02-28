@@ -15,6 +15,8 @@
 
 #include <yt/core/tracing/trace_context.h>
 
+#include <yt/core/rpc/response_keeper.h>
+
 namespace NYT {
 namespace NHydra {
 
@@ -32,10 +34,12 @@ static const auto& Profiler = HydraProfiler;
 
 TCommitterBase::TCommitterBase(
     TDistributedHydraManagerConfigPtr config,
+    const TDistributedHydraManagerOptions& options,
     TCellManagerPtr cellManager,
     TDecoratedAutomatonPtr decoratedAutomaton,
     TEpochContext* epochContext)
     : Config_(config)
+    , Options_(options)
     , CellManager_(cellManager)
     , DecoratedAutomaton_(decoratedAutomaton)
     , EpochContext_(epochContext)
@@ -83,10 +87,11 @@ public:
         BatchedRecordsData_.push_back(recordData);
         LocalFlushResult_ = std::move(localFlushResult);
 
-        LOG_DEBUG("Mutation batched (Version: %v, StartVersion: %v, MutationType: %v)",
+        LOG_DEBUG("Mutation batched (Version: %v, StartVersion: %v, MutationType: %v, MutationId: %v)",
             currentVersion,
             StartVersion_,
-            request.Type);
+            request.Type,
+            request.MutationId);
     }
 
     TFuture<void> GetQuorumFlushResult()
@@ -279,12 +284,14 @@ private:
 
 TLeaderCommitter::TLeaderCommitter(
     TDistributedHydraManagerConfigPtr config,
+    const TDistributedHydraManagerOptions& options,
     TCellManagerPtr cellManager,
     TDecoratedAutomatonPtr decoratedAutomaton,
     IChangelogStorePtr changelogStore,
     TEpochContext* epochContext)
     : TCommitterBase(
         config,
+        options,
         cellManager,
         decoratedAutomaton,
         epochContext)
@@ -306,6 +313,15 @@ TLeaderCommitter::~TLeaderCommitter()
 TFuture<TMutationResponse> TLeaderCommitter::Commit(const TMutationRequest& request)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+    if (Options_.ResponseKeeper) {
+        auto asyncResponseData = Options_.ResponseKeeper->TryBeginRequest(request.MutationId, request.Retry);
+        if (asyncResponseData) {
+            return asyncResponseData.Apply(BIND([] (const TSharedRefArray& data) {
+                return TMutationResponse{data};
+            }));
+        }
+    }
 
     NTracing::TNullTraceContextGuard guard;
     
@@ -502,11 +518,13 @@ void TLeaderCommitter::FireCommitFailed(const TError& error)
 
 TFollowerCommitter::TFollowerCommitter(
     TDistributedHydraManagerConfigPtr config,
+    const TDistributedHydraManagerOptions& options,
     TCellManagerPtr cellManager,
     TDecoratedAutomatonPtr decoratedAutomaton,
     TEpochContext* epochContext)
     : TCommitterBase(
         config,
+        options,
         cellManager,
         decoratedAutomaton,
         epochContext)
@@ -606,12 +624,16 @@ TFuture<TMutationResponse> TFollowerCommitter::Forward(const TMutationRequest& r
 
     auto req = proxy.CommitMutation();
     req->set_type(request.Type);
+    if (request.MutationId) {
+        ToProto(req->mutable_mutation_id(), request.MutationId);
+        req->set_retry(request.Retry);
+    }
     req->Attachments().push_back(request.Data);
 
     return req->Invoke().Apply(BIND([] (const THydraServiceProxy::TErrorOrRspCommitMutationPtr& rspOrError) {
         THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error forwarding mutation to leader");
         const auto& rsp = rspOrError.Value();
-        return TMutationResponse(TSharedRefArray(rsp->Attachments()));
+        return TMutationResponse{TSharedRefArray(rsp->Attachments())};
     }));
 }
 
