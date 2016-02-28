@@ -34,6 +34,7 @@ public:
     TMutationPtr SetAction(TCallback<TResponse()> action);
 
     TMutationPtr SetAllowLeaderForwarding(bool value);
+    TMutationPtr SetMutationId(const NRpc::TMutationId& mutationId, bool retry);
 
 private:
     const IHydraManagerPtr HydraManager_;

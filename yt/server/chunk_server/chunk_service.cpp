@@ -13,8 +13,6 @@
 #include <yt/server/node_tracker_server/node_directory_builder.h>
 #include <yt/server/node_tracker_server/node_tracker.h>
 
-#include <yt/server/object_server/object.h>
-
 #include <yt/server/transaction_server/transaction.h>
 
 #include <yt/ytlib/chunk_client/chunk_service_proxy.h>
@@ -234,10 +232,6 @@ private:
             "ConfirmSubrequestCount: %v",
             request->create_subrequests_size(),
             request->confirm_subrequests_size());
-
-        if (ResponseKeeper_->TryReplyFrom(context)) {
-            return;
-        }
 
         auto chunkManager = Bootstrap_->GetChunkManager();
         chunkManager

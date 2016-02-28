@@ -155,8 +155,6 @@ private:
         TRequestHeader RequestHeader;
         TSharedRefArray RequestMessage;
         NTracing::TTraceContext TraceContext;
-        TMutationId MutationId;
-        bool Retry = false;
     };
 
     std::vector<TSubrequest> Subrequests_;
@@ -231,10 +229,9 @@ private:
             subrequest.Context = subcontext;
             subrequest.AsyncResponseMessage = subcontext->GetAsyncResponseMessage();
             subrequest.TraceContext = NTracing::CreateChildTraceContext();
-            subrequest.MutationId = GetMutationId(subcontext);
-            subrequest.Retry = subcontext->IsRetry();
             if (mutating) {
-                subrequest.Mutation = ObjectManager_->CreateExecuteMutation(UserName_, subcontext);
+                subrequest.Mutation = ObjectManager_->CreateExecuteMutation(UserName_, subcontext)
+                    ->SetMutationId(GetMutationId(subcontext), subcontext->IsRetry());
             }
         }
 
@@ -347,32 +344,24 @@ private:
 
     void ExecuteMutatingSubrequest(TSubrequest* subrequest, TUser* user)
     {
-        if (subrequest->MutationId) {
-            auto asyncResponseMessage = ResponseKeeper_->TryBeginRequest(
-                subrequest->MutationId,
-                subrequest->Retry);
-            if (asyncResponseMessage) {
-                subrequest->Context->ReplyFrom(std::move(asyncResponseMessage));
-                return;
-            }
-        }
-
-        subrequest->Mutation->Commit();
+        subrequest->Mutation->Commit().Subscribe(
+            BIND(&TExecuteSession::OnMutationCommitted, MakeStrong(this), subrequest));
     }
 
     void ExecuteReadSubrequest(TSubrequest* subrequest, TUser* user)
     {
-        auto asyncResponseMessage = subrequest->Context->GetAsyncResponseMessage();
+        const auto& context = subrequest->Context;
+        auto asyncResponseMessage = context->GetAsyncResponseMessage();
         NProfiling::TScopedTimer timer;
         try {
             auto rootService = ObjectManager_->GetRootService();
             TAuthenticatedUserGuard userGuard(SecurityManager_, user);
             NTracing::TTraceContextGuard traceContextGuard(subrequest->TraceContext);
-            ExecuteVerb(rootService, subrequest->Context);
+            ExecuteVerb(rootService, context);
         } catch (const TLeaderFallbackException&) {
             LOG_DEBUG("Performing leader fallback (RequestId: %v)",
                 RequestId_);
-            subrequest->Context->ReplyFrom(ObjectManager_->ForwardToLeader(
+            context->ReplyFrom(ObjectManager_->ForwardToLeader(
                 Owner_->Bootstrap_->GetCellTag(),
                 subrequest->RequestMessage,
                 Context_->GetTimeout()));
@@ -381,6 +370,21 @@ private:
         // NB: Even if the user was just removed the instance is still valid but not alive.
         if (IsObjectAlive(user)) {
             SecurityManager_->ChargeUser(user, 1, timer.GetElapsed(), TDuration());
+        }
+    }
+
+    void OnMutationCommitted(TSubrequest* subrequest, const TErrorOr<TMutationResponse>& responseOrError)
+    {
+        const auto& context = subrequest->Context;
+        if (context->IsReplied()) {
+            return;
+        }
+        if (responseOrError.IsOK()) {
+            // Here the context is typically already replied.
+            // A notable exception is when the mutation response comes from Response Keeper.
+            context->Reply(responseOrError.Value().Data);
+        } else {
+            context->Reply(TError(responseOrError));
         }
     }
 

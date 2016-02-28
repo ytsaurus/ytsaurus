@@ -423,6 +423,7 @@ public:
     {
         return CreateMutation(Bootstrap_->GetHydraFacade()->GetHydraManager())
             ->SetRequestData(context->GetRequestBody(), context->Request().GetTypeName())
+            ->SetMutationId(GetMutationId(context), context->IsReplied())
             ->SetAction(BIND([=, this_ = MakeStrong(this)] () {
                 HydraExportChunks(context, &context->Response(), context->Request());
             }));
@@ -431,6 +432,7 @@ public:
     TMutationPtr CreateImportChunksMutation(TCtxImportChunksPtr context)
     {
         return CreateMutation(Bootstrap_->GetHydraFacade()->GetHydraManager())
+            ->SetMutationId(GetMutationId(context), context->IsReplied())
             ->SetRequestData(context->GetRequestBody(), context->Request().GetTypeName())
             ->SetAction(BIND([=, this_ = MakeStrong(this)] () {
                 HydraImportChunks(context, context->Request());
@@ -440,6 +442,7 @@ public:
     TMutationPtr CreateExecuteBatchMutation(TCtxExecuteBatchPtr context)
     {
         return CreateMutation(Bootstrap_->GetHydraFacade()->GetHydraManager())
+            ->SetMutationId(GetMutationId(context), context->IsReplied())
             ->SetRequestData(context->GetRequestBody(), context->Request().GetTypeName())
             ->SetAction(BIND([=, this_ = MakeStrong(this)] () {
                 HydraExecuteBatch(context, &context->Response(), context->Request());

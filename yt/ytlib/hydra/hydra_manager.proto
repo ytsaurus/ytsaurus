@@ -1,5 +1,7 @@
 package NYT.NHydra.NProto;
 
+import "yt/core/misc/guid.proto";
+
 ////////////////////////////////////////////////////////////////////////////////
 
 message TSnapshotMeta
@@ -22,6 +24,7 @@ message TMutationHeader
     optional uint64 random_seed = 3;
     required int32 segment_id = 5;
     required int32 record_id = 6;
+    optional NYT.NProto.TGuid mutation_id = 7;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

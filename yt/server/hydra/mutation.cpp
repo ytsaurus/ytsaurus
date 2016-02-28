@@ -72,6 +72,13 @@ TMutationPtr TMutation::SetAllowLeaderForwarding(bool value)
     return this;
 }
 
+TMutationPtr TMutation::SetMutationId(const NRpc::TMutationId& mutationId, bool retry)
+{
+    Request_.MutationId = mutationId;
+    Request_.Retry = retry;
+    return this;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TMutationPtr CreateMutation(IHydraManagerPtr hydraManager)
