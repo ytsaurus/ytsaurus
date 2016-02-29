@@ -122,6 +122,7 @@ class ArgsMapper(object):
         errors = []
         attempt = 0
         while attempt < self.max_retry_count:
+            attempt += 1
             try:
                 return make_request(command, params, data=data, client=client)
             except YtError as error:
