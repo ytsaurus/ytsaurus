@@ -289,7 +289,6 @@ private:
 
         Process_->AddArgument("--executor");
         Process_->AddArguments({"--command", UserJobSpec_.shell_command()});
-        Process_->AddArguments({"--config", NFS::CombinePaths(GetCwd(), NExecAgent::ProxyConfigFileName)});
         Process_->AddArguments({"--working-dir", SandboxDirectoryNames[ESandboxKind::User]});
 
         if (UserJobSpec_.enable_core_dump()) {
