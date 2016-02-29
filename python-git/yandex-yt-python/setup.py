@@ -39,7 +39,8 @@ def main():
     scripts, data_files = prepare_files([
         "yt/wrapper/mapreduce-yt",
         "yt/wrapper/yt2",
-        "yt/wrapper/yt-fuse"])
+        "yt/wrapper/yt-fuse",
+        "yt/wrapper/yt-admin"])
     if "DEB" in os.environ:
         if not os.path.exists("docs"):
             subprocess.check_call("PYTHONPATH=$(pwd) sphinx-apidoc -F -o docs yt", shell=True)
