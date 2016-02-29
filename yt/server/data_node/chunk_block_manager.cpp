@@ -87,19 +87,11 @@ public:
 
         auto cookie = BeginInsert(blockId);
         if (cookie.IsActive()) {
-            auto block = New<TCachedBlock>(blockId, data, source);
-            cookie.EndInsert(block);
-
-            LOG_DEBUG("Block is put into cache (BlockId: %v, Size: %v, SourceAddress: %v)",
-                blockId,
-                data.Size(),
-                source);
-        } else {
-            LOG_DEBUG("Failed to cache block due to concurrent read (BlockId: %v, Size: %v, SourceAddress: %v)",
-                blockId,
-                data.Size(),
-                source);
+            return;
         }
+
+        auto block = New<TCachedBlock>(blockId, data, source);
+        cookie.EndInsert(block);
     }
 
     TCachedBlockCookie BeginInsertCachedBlock(const TBlockId& blockId)
