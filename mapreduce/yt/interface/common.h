@@ -144,6 +144,7 @@ struct TRichYPath
     FLUENT_FIELD(TKeyColumns, SortedBy);
     FLUENT_FIELD_OPTION(bool, Teleport);
     FLUENT_FIELD_OPTION(bool, Primary);
+    FLUENT_FIELD_OPTION(bool, Foreign);
 
     TRichYPath()
     { }

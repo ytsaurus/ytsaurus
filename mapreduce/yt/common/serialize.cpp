@@ -142,6 +142,9 @@ void Serialize(const TRichYPath& path, IYsonConsumer* consumer)
         .DoIf(path.Primary_.Defined(), [&] (TFluentAttributes fluent) {
             fluent.Item("primary").Value(path.Primary_.GetRef());
         })
+        .DoIf(path.Foreign_.Defined(), [&] (TFluentAttributes fluent) {
+            fluent.Item("foreign").Value(path.Foreign_.GetRef());
+        })
     .EndAttributes()
     .Value(path.Path_);
 }
