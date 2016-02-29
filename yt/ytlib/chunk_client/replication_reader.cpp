@@ -548,7 +548,7 @@ protected:
         }
 
         if (PeerQueue_.empty()) {
-            LOG_DEBUG("No feasible seeds to start a pass");
+            RegisterError(TError("No feasible seeds to start a pass"));
             OnRetryFailed();
             return false;
         }
@@ -836,12 +836,15 @@ private:
         const TDataNodeServiceProxy::TErrorOrRspGetBlockSetPtr& rspOrError)
     {
         if (!rspOrError.IsOK()) {
-            RegisterError(TError("Error fetching blocks from node %v",
-                address)
-                << rspOrError);
-            if (rspOrError.GetCode() != NRpc::EErrorCode::Unavailable) {
-                // Do not ban node if it says "Unavailable".
+            auto error = TError("Error fetching blocks from node %v", address) << rspOrError;
+            if (rspOrError.GetCode() != NRpc::EErrorCode::Unavailable || 
+                rspOrError.GetCode() != NRpc::EErrorCode::RequestQueueLimitExceeded) 
+            {
+                // Do not ban node if it says "Unavailable" or "RequestQueueLimitExceeded".
                 BanPeer(address, rspOrError.GetCode() == NChunkClient::EErrorCode::NoSuchChunk);
+                RegisterError(error);
+            } else {
+                LOG_DEBUG(error);
             }
             RequestBlocks();
             return;
@@ -1104,19 +1107,23 @@ private:
         const TInstant requestTime,
         const TDataNodeServiceProxy::TErrorOrRspGetBlockRangePtr& rspOrError)
     {
-        Peers_[address].UpdateMeanResponseTime(TInstant::Now() - requestTime);
-
         if (!rspOrError.IsOK()) {
-            RegisterError(TError("Error fetching blocks from node %v",
-                address)
-                << rspOrError);
-            if (rspOrError.GetCode() != NRpc::EErrorCode::Unavailable) {
-                // Do not ban node if it says "Unavailable".
+            auto error = TError("Error fetching blocks from node %v", address) << rspOrError;
+            if (rspOrError.GetCode() != NRpc::EErrorCode::Unavailable || 
+                rspOrError.GetCode() != NRpc::EErrorCode::RequestQueueLimitExceeded) 
+            {
+                // Do not ban node if it says "Unavailable" or "RequestQueueLimitExceeded".
                 BanPeer(address, rspOrError.GetCode() == NChunkClient::EErrorCode::NoSuchChunk);
-            }
+                RegisterError(error);
+            } else {
+                LOG_DEBUG(error);
+            }   
             RequestBlocks();
             return;
         }
+
+        // Use only successful responses in peer prioritization.
+        Peers_[address].UpdateMeanResponseTime(TInstant::Now() - requestTime);
 
         const auto& rsp = rspOrError.Value();
         ProcessResponse(address, req, rsp)
