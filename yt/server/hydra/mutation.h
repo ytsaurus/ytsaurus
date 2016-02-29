@@ -26,13 +26,7 @@ public:
     TFuture<TMutationResponse> CommitAndReply(NRpc::IServiceContextPtr context);
 
     TMutationPtr SetRequestData(TSharedRef data, Stroka type);
-    template <class TRequest>
-    TMutationPtr SetRequestData(const TRequest& request);
-
-    TMutationPtr SetAction(TCallback<void(TMutationContext*)> action);
-    template <class TResponse>
-    TMutationPtr SetAction(TCallback<TResponse()> action);
-
+    TMutationPtr SetHandler(TCallback<void(TMutationContext*)> handler);
     TMutationPtr SetAllowLeaderForwarding(bool value);
     TMutationPtr SetMutationId(const NRpc::TMutationId& mutationId, bool retry);
 
@@ -47,10 +41,29 @@ DEFINE_REFCOUNTED_TYPE(TMutation)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TMutationPtr CreateMutation(IHydraManagerPtr hydraManager);
-
 template <class TRequest>
-TMutationPtr CreateMutation(IHydraManagerPtr hydraManager, const TRequest& request);
+TMutationPtr CreateMutation(
+    IHydraManagerPtr hydraManager,
+    const TRequest& request);
+
+template <class TRequest, class TTarget>
+TMutationPtr CreateMutation(
+    IHydraManagerPtr hydraManager,
+    const TRequest& request,
+    void (TTarget::* handler)(TRequest*),
+    TTarget* target);
+
+template <class TRequest, class TResponse>
+TMutationPtr CreateMutation(
+    IHydraManagerPtr hydraManager,
+    const TIntrusivePtr<NRpc::TTypedServiceContext<TRequest, TResponse>>& context);
+
+template <class TRequest, class TResponse, class TTarget>
+TMutationPtr CreateMutation(
+    IHydraManagerPtr hydraManager,
+    const TIntrusivePtr<NRpc::TTypedServiceContext<TRequest, TResponse>>& context,
+    void (TTarget::* handler)(TIntrusivePtr<NRpc::TTypedServiceContext<TRequest, TResponse>>, TRequest*, TResponse*),
+    TTarget* target);
 
 ////////////////////////////////////////////////////////////////////////////////
 

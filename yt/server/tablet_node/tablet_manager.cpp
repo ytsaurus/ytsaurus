@@ -494,18 +494,18 @@ private:
     }
 
 
-    void HydraMountTablet(const TReqMountTablet& request)
+    void HydraMountTablet(TReqMountTablet* request)
     {
-        auto tabletId = FromProto<TTabletId>(request.tablet_id());
-        auto mountRevision = request.mount_revision();
-        auto tableId = FromProto<TObjectId>(request.table_id());
-        auto schema = FromProto<TTableSchema>(request.schema());
-        auto keyColumns = FromProto<TKeyColumns>(request.key_columns());
-        auto pivotKey = FromProto<TOwningKey>(request.pivot_key());
-        auto nextPivotKey = FromProto<TOwningKey>(request.next_pivot_key());
-        auto mountConfig = DeserializeTableMountConfig((TYsonString(request.mount_config())), tabletId);
-        auto writerOptions = DeserializeTabletWriterOptions(TYsonString(request.writer_options()), tabletId);
-        auto atomicity = EAtomicity(request.atomicity());
+        auto tabletId = FromProto<TTabletId>(request->tablet_id());
+        auto mountRevision = request->mount_revision();
+        auto tableId = FromProto<TObjectId>(request->table_id());
+        auto schema = FromProto<TTableSchema>(request->schema());
+        auto keyColumns = FromProto<TKeyColumns>(request->key_columns());
+        auto pivotKey = FromProto<TOwningKey>(request->pivot_key());
+        auto nextPivotKey = FromProto<TOwningKey>(request->next_pivot_key());
+        auto mountConfig = DeserializeTableMountConfig((TYsonString(request->mount_config())), tabletId);
+        auto writerOptions = DeserializeTabletWriterOptions(TYsonString(request->writer_options()), tabletId);
+        auto atomicity = EAtomicity(request->atomicity());
 
         auto tabletHolder = std::make_unique<TTablet>(
             mountConfig,
@@ -532,7 +532,7 @@ private:
         std::vector<std::tuple<TOwningKey, int, int>> chunkBoundaries;
 
         int descriptorIndex = 0;
-        for (const auto& descriptor : request.chunk_stores()) {
+        for (const auto& descriptor : request->chunk_stores()) {
             auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(descriptor.chunk_meta().extensions());
             if (miscExt.has_max_timestamp()) {
                 UpdateLastCommittedTimestamp(miscExt.max_timestamp());
@@ -561,7 +561,7 @@ private:
             SplitTabletPartition(tablet, 0, pivotKeys);
         }
 
-        for (const auto& descriptor : request.chunk_stores()) {
+        for (const auto& descriptor : request->chunk_stores()) {
             auto chunkId = FromProto<TChunkId>(descriptor.store_id());
             auto store = CreateChunkStore(
                 chunkId,
@@ -592,20 +592,20 @@ private:
             tableId,
             pivotKey,
             nextPivotKey,
-            request.chunk_stores_size(),
+            request->chunk_stores_size(),
             tablet->Partitions().size(),
             tablet->GetAtomicity());
     }
 
-    void HydraUnmountTablet(const TReqUnmountTablet& request)
+    void HydraUnmountTablet(TReqUnmountTablet* request)
     {
-        auto tabletId = FromProto<TTabletId>(request.tablet_id());
+        auto tabletId = FromProto<TTabletId>(request->tablet_id());
         auto* tablet = FindTablet(tabletId);
         if (!tablet) {
             return;
         }
 
-        if (request.force()) {
+        if (request->force()) {
             LOG_INFO_UNLESS(IsRecovery(), "Tablet is forcefully unmounted (TabletId: %v)",
                 tabletId);
 
@@ -654,16 +654,16 @@ private:
         }
     }
 
-    void HydraRemountTablet(const TReqRemountTablet& request)
+    void HydraRemountTablet(TReqRemountTablet* request)
     {
-        auto tabletId = FromProto<TTabletId>(request.tablet_id());
+        auto tabletId = FromProto<TTabletId>(request->tablet_id());
         auto* tablet = FindTablet(tabletId);
         if (!tablet) {
             return;
         }
 
-        auto mountConfig = DeserializeTableMountConfig((TYsonString(request.mount_config())), tabletId);
-        auto writerOptions = DeserializeTabletWriterOptions(TYsonString(request.writer_options()), tabletId);
+        auto mountConfig = DeserializeTableMountConfig((TYsonString(request->mount_config())), tabletId);
+        auto writerOptions = DeserializeTabletWriterOptions(TYsonString(request->writer_options()), tabletId);
 
         if (mountConfig->ReadOnly && !tablet->GetConfig()->ReadOnly) {
             RotateStores(tablet, true);
@@ -685,20 +685,20 @@ private:
             tabletId);
     }
 
-    void HydraSetTabletState(const TReqSetTabletState& request)
+    void HydraSetTabletState(TReqSetTabletState* request)
     {
-        auto tabletId = FromProto<TTabletId>(request.tablet_id());
+        auto tabletId = FromProto<TTabletId>(request->tablet_id());
         auto* tablet = FindTablet(tabletId);
         if (!tablet) {
             return;
         }
 
-        auto mountRevision = request.mount_revision();
+        auto mountRevision = request->mount_revision();
         if (mountRevision != tablet->GetMountRevision()) {
             return;
         }
 
-        auto requestedState = ETabletState(request.state());
+        auto requestedState = ETabletState(request->state());
 
         switch (requestedState) {
             case ETabletState::Flushing: {
@@ -745,7 +745,8 @@ private:
     void HydraLeaderExecuteWriteAtomic(
         const TTransactionId& transactionId,
         int rowCount,
-        const TTransactionWriteRecord& writeRecord)
+        const TTransactionWriteRecord& writeRecord,
+        TMutationContext* /*context*/)
     {
         auto transactionManager = Slot_->GetTransactionManager();
         auto* transaction = transactionManager->GetTransaction(transactionId);
@@ -773,7 +774,8 @@ private:
         const TTabletId& tabletId,
         i64 mountRevision,
         const TTransactionId& transactionId,
-        const TSharedRef& recordData)
+        const TSharedRef& recordData,
+        TMutationContext* /*context*/)
     {
         auto* tablet = FindTablet(tabletId);
         // NB: Tablet could be missing if it was e.g. forcefully removed.
@@ -798,26 +800,26 @@ private:
             recordData.Size());
     }
 
-    void HydraFollowerExecuteWrite(const TReqExecuteWrite& request) noexcept
+    void HydraFollowerExecuteWrite(TReqExecuteWrite* request) noexcept
     {
-        auto transactionId = FromProto<TTransactionId>(request.transaction_id());
+        auto transactionId = FromProto<TTransactionId>(request->transaction_id());
         auto atomicity = AtomicityFromTransactionId(transactionId);
 
-        auto tabletId = FromProto<TTabletId>(request.tablet_id());
+        auto tabletId = FromProto<TTabletId>(request->tablet_id());
         auto* tablet = FindTablet(tabletId);
         // NB: Tablet could be missing if it was e.g. forcefully removed.
         if (!tablet) {
             return;
         }
 
-        auto mountRevision = request.mount_revision();
+        auto mountRevision = request->mount_revision();
         if (mountRevision != tablet->GetMountRevision()) {
             return;
         }
 
-        auto codecId = ECodec(request.codec());
+        auto codecId = ECodec(request->codec());
         auto* codec = GetCodec(codecId);
-        auto compressedRecordData = TSharedRef::FromString(request.compressed_data());
+        auto compressedRecordData = TSharedRef::FromString(request->compressed_data());
         auto recordData = codec->Decompress(compressedRecordData);
 
         TWireProtocolReader reader(recordData);
@@ -857,9 +859,9 @@ private:
             recordData.Size());
     }
 
-    void HydraRotateStore(const TReqRotateStore& request)
+    void HydraRotateStore(TReqRotateStore* request)
     {
-        auto tabletId = FromProto<TTabletId>(request.tablet_id());
+        auto tabletId = FromProto<TTabletId>(request->tablet_id());
         auto* tablet = FindTablet(tabletId);
         if (!tablet) {
             return;
@@ -868,7 +870,7 @@ private:
             return;
         }
 
-        auto mountRevision = request.mount_revision();
+        auto mountRevision = request->mount_revision();
         if (mountRevision != tablet->GetMountRevision()) {
             return;
         }
@@ -878,27 +880,27 @@ private:
     }
 
 
-    void HydraCommitTabletStoresUpdate(const TReqCommitTabletStoresUpdate& commitRequest)
+    void HydraCommitTabletStoresUpdate(TReqCommitTabletStoresUpdate* commitRequest)
     {
-        auto tabletId = FromProto<TTabletId>(commitRequest.tablet_id());
+        auto tabletId = FromProto<TTabletId>(commitRequest->tablet_id());
         auto* tablet = FindTablet(tabletId);
         if (!tablet) {
             return;
         }
 
-        auto mountRevision = commitRequest.mount_revision();
+        auto mountRevision = commitRequest->mount_revision();
         if (mountRevision != tablet->GetMountRevision()) {
             return;
         }
 
         SmallVector<TStoreId, TypicalStoreIdCount> storeIdsToAdd;
-        for (const auto& descriptor : commitRequest.stores_to_add()) {
+        for (const auto& descriptor : commitRequest->stores_to_add()) {
             auto storeId = FromProto<TStoreId>(descriptor.store_id());
             storeIdsToAdd.push_back(storeId);
         }
 
         SmallVector<TStoreId, TypicalStoreIdCount> storeIdsToRemove;
-        for (const auto& descriptor : commitRequest.stores_to_remove()) {
+        for (const auto& descriptor : commitRequest->stores_to_remove()) {
             auto storeId = FromProto<TStoreId>(descriptor.store_id());
             storeIdsToRemove.push_back(storeId);
             auto store = tablet->GetStore(storeId);
@@ -919,14 +921,14 @@ private:
             TReqUpdateTabletStores masterRequest;
             ToProto(masterRequest.mutable_tablet_id(), tabletId);
             masterRequest.set_mount_revision(mountRevision);
-            masterRequest.mutable_stores_to_add()->MergeFrom(commitRequest.stores_to_add());
-            masterRequest.mutable_stores_to_remove()->MergeFrom(commitRequest.stores_to_remove());
+            masterRequest.mutable_stores_to_add()->MergeFrom(commitRequest->stores_to_add());
+            masterRequest.mutable_stores_to_remove()->MergeFrom(commitRequest->stores_to_remove());
 
             hiveManager->PostMessage(slot->GetMasterMailbox(), masterRequest);
         }
 
-        if (commitRequest.has_transaction_id()) {
-            auto transactionId = FromProto<TTransactionId>(commitRequest.transaction_id());
+        if (commitRequest->has_transaction_id()) {
+            auto transactionId = FromProto<TTransactionId>(commitRequest->transaction_id());
 
             TReqHydraAbortTransaction masterRequest;
             ToProto(masterRequest.mutable_transaction_id(), transactionId);
@@ -936,27 +938,27 @@ private:
         }
     }
 
-    void HydraOnTabletStoresUpdated(const TRspUpdateTabletStores& response)
+    void HydraOnTabletStoresUpdated(TRspUpdateTabletStores* response)
     {
-        auto tabletId = FromProto<TTabletId>(response.tablet_id());
+        auto tabletId = FromProto<TTabletId>(response->tablet_id());
         auto* tablet = FindTablet(tabletId);
         if (!tablet) {
             return;
         }
 
-        auto mountRevision = response.mount_revision();
+        auto mountRevision = response->mount_revision();
         if (mountRevision != tablet->GetMountRevision()) {
             return;
         }
 
         const auto& storeManager = tablet->GetStoreManager();
 
-        if (response.has_error()) {
-            auto error = FromProto<TError>(response.error());
+        if (response->has_error()) {
+            auto error = FromProto<TError>(response->error());
             LOG_WARNING_UNLESS(IsRecovery(), error, "Error updating tablet stores (TabletId: %v)",
                 tabletId);
 
-            for (const auto& descriptor : response.stores_to_remove()) {
+            for (const auto& descriptor : response->stores_to_remove()) {
                 auto storeId = FromProto<TStoreId>(descriptor.store_id());
                 auto store = tablet->GetStore(storeId);
 
@@ -986,7 +988,7 @@ private:
         auto mountConfig = tablet->GetConfig();
         auto inMemoryManager = Bootstrap_->GetInMemoryManager();
         std::vector<TStoreId> addedStoreIds;
-        for (const auto& descriptor : response.stores_to_add()) {
+        for (const auto& descriptor : response->stores_to_add()) {
             auto storeId = FromProto<TChunkId>(descriptor.store_id());
             addedStoreIds.push_back(storeId);
             YCHECK(descriptor.has_chunk_meta());
@@ -1017,7 +1019,7 @@ private:
         }
 
         std::vector<TStoreId> removedStoreIds;
-        for (const auto& descriptor : response.stores_to_remove()) {
+        for (const auto& descriptor : response->stores_to_remove()) {
             auto storeId = FromProto<TStoreId>(descriptor.store_id());
             removedStoreIds.push_back(storeId);
             auto store = tablet->GetStore(storeId);
@@ -1040,22 +1042,22 @@ private:
         }
     }
 
-    void HydraSplitPartition(const TReqSplitPartition& request)
+    void HydraSplitPartition(TReqSplitPartition* request)
     {
-        auto tabletId = FromProto<TTabletId>(request.tablet_id());
+        auto tabletId = FromProto<TTabletId>(request->tablet_id());
         auto* tablet = FindTablet(tabletId);
         if (!tablet) {
             return;
         }
 
-        auto mountRevision = request.mount_revision();
+        auto mountRevision = request->mount_revision();
         if (mountRevision != tablet->GetMountRevision()) {
             return;
         }
 
-        auto partitionId = FromProto<TPartitionId>(request.partition_id());
+        auto partitionId = FromProto<TPartitionId>(request->partition_id());
         auto* partition = tablet->GetPartitionById(partitionId);
-        auto pivotKeys = FromProto<std::vector<TOwningKey>>(request.pivot_keys());
+        auto pivotKeys = FromProto<std::vector<TOwningKey>>(request->pivot_keys());
 
         // NB: Set the state back to normal; otherwise if some of the below checks fail, we might get
         // a partition stuck in splitting state forever.
@@ -1086,24 +1088,24 @@ private:
         UpdateTabletSnapshot(tablet);
     }
 
-    void HydraMergePartitions(const TReqMergePartitions& request)
+    void HydraMergePartitions(TReqMergePartitions* request)
     {
-        auto tabletId = FromProto<TTabletId>(request.tablet_id());
+        auto tabletId = FromProto<TTabletId>(request->tablet_id());
         auto* tablet = FindTablet(tabletId);
         if (!tablet) {
             return;
         }
 
-        auto mountRevision = request.mount_revision();
+        auto mountRevision = request->mount_revision();
         if (mountRevision != tablet->GetMountRevision()) {
             return;
         }
 
-        auto firstPartitionId = FromProto<TPartitionId>(request.partition_id());
+        auto firstPartitionId = FromProto<TPartitionId>(request->partition_id());
         auto* firstPartition = tablet->GetPartitionById(firstPartitionId);
 
         int firstPartitionIndex = firstPartition->GetIndex();
-        int lastPartitionIndex = firstPartitionIndex + request.partition_count() - 1;
+        int lastPartitionIndex = firstPartitionIndex + request->partition_count() - 1;
 
         i64 partitionsDataSize = 0;
         for (int index = firstPartitionIndex; index <= lastPartitionIndex; ++index) {
@@ -1136,27 +1138,27 @@ private:
         UpdateTabletSnapshot(tablet);
     }
 
-    void HydraUpdatePartitionSampleKeys(const TReqUpdatePartitionSampleKeys& request)
+    void HydraUpdatePartitionSampleKeys(TReqUpdatePartitionSampleKeys* request)
     {
-        auto tabletId = FromProto<TTabletId>(request.tablet_id());
+        auto tabletId = FromProto<TTabletId>(request->tablet_id());
         auto* tablet = FindTablet(tabletId);
         if (!tablet) {
             return;
         }
 
-        auto mountRevision = request.mount_revision();
+        auto mountRevision = request->mount_revision();
         if (mountRevision != tablet->GetMountRevision()) {
             return;
         }
 
-        auto partitionId = FromProto<TPartitionId>(request.partition_id());
+        auto partitionId = FromProto<TPartitionId>(request->partition_id());
         auto* partition = tablet->FindPartitionById(partitionId);
         if (!partition) {
             return;
         }
 
         auto sampleKeys = New<TKeyList>();
-        sampleKeys->Keys = FromProto<std::vector<TOwningKey>>(request.sample_keys());
+        sampleKeys->Keys = FromProto<std::vector<TOwningKey>>(request->sample_keys());
         partition->SetSampleKeys(sampleKeys);
         YCHECK(sampleKeys->Keys.empty() || sampleKeys->Keys[0] > partition->GetPivotKey());
         UpdateTabletSnapshot(tablet);
@@ -1381,13 +1383,12 @@ private:
             hydraRequest.set_codec(static_cast<int>(ChangelogCodec_->GetId()));
             hydraRequest.set_compressed_data(ToString(compressedRecordData));
             *commitResult = CreateMutation(Slot_->GetHydraManager(), hydraRequest)
-                ->SetAction(
-                    BIND(
-                        &TImpl::HydraLeaderExecuteWriteAtomic,
-                        MakeStrong(this),
-                        transactionId,
-                        prelockedCountDelta,
-                        writeRecord))
+                ->SetHandler(BIND(
+                    &TImpl::HydraLeaderExecuteWriteAtomic,
+                    MakeStrong(this),
+                    transactionId,
+                    prelockedCountDelta,
+                    writeRecord))
                 ->Commit()
                  .As<void>();
         }
@@ -1426,14 +1427,13 @@ private:
         hydraRequest.set_codec(static_cast<int>(ChangelogCodec_->GetId()));
         hydraRequest.set_compressed_data(ToString(compressedRecordData));
         *commitResult = CreateMutation(Slot_->GetHydraManager(), hydraRequest)
-            ->SetAction(
-                BIND(
-                    &TImpl::HydraLeaderExecuteWriteNonAtomic,
-                    MakeStrong(this),
-                    tablet->GetId(),
-                    tablet->GetMountRevision(),
-                    transactionId,
-                    recordData))
+            ->SetHandler(BIND(
+                &TImpl::HydraLeaderExecuteWriteNonAtomic,
+                MakeStrong(this),
+                tablet->GetId(),
+                tablet->GetMountRevision(),
+                transactionId,
+                recordData))
             ->Commit()
              .As<void>();
     }

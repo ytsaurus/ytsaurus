@@ -299,7 +299,11 @@ private:
         ToProto(hydraRequest.mutable_mutation_id(), commit->GetMutationId());
         ToProto(hydraRequest.mutable_participant_cell_ids(), commit->ParticipantCellIds());
         hydraRequest.set_prepare_timestamp(prepareTimestamp);
-        CreateMutation(HydraManager_, hydraRequest)
+        CreateMutation(
+            HydraManager_,
+            hydraRequest,
+            &TImpl::HydraCommitDistributedTransactionPhaseOne,
+            this)
             ->CommitAndLog(Logger);
     }
 
@@ -328,7 +332,12 @@ private:
         ToProto(hydraRequest.mutable_transaction_id(), transactionId);
         ToProto(hydraRequest.mutable_mutation_id(), mutationId);
         hydraRequest.set_force(force);
-        return CreateMutation(HydraManager_, hydraRequest)
+        return
+            CreateMutation(
+                HydraManager_,
+                hydraRequest,
+                &TImpl::HydraAbortTransaction,
+                this)
             ->Commit()
             .Apply(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<TMutationResponse>& result) -> TSharedRefArray {
                 if (result.IsOK()) {
@@ -353,11 +362,11 @@ private:
 
     // Hydra handlers.
 
-    void HydraCommitSimpleTransaction(const TReqCommitSimpleTransaction& request)
+    void HydraCommitSimpleTransaction(TReqCommitSimpleTransaction* request)
     {
-        auto mutationId = FromProto<TMutationId>(request.mutation_id());
-        auto transactionId = FromProto<TTransactionId>(request.transaction_id());
-        auto commitTimestamp = TTimestamp(request.commit_timestamp());
+        auto mutationId = FromProto<TMutationId>(request->mutation_id());
+        auto transactionId = FromProto<TTransactionId>(request->transaction_id());
+        auto commitTimestamp = TTimestamp(request->commit_timestamp());
 
         auto* commit = FindCommit(transactionId);
             
@@ -390,12 +399,12 @@ private:
         TransientCommitMap_.Remove(transactionId);
     }
 
-    void HydraCommitDistributedTransactionPhaseOne(const TReqCommitDistributedTransactionPhaseOne& request)
+    void HydraCommitDistributedTransactionPhaseOne(TReqCommitDistributedTransactionPhaseOne* request)
     {
-        auto mutationId = FromProto<TMutationId>(request.mutation_id());
-        auto transactionId = FromProto<TTransactionId>(request.transaction_id());
-        auto participantCellIds = FromProto<std::vector<TCellId>>(request.participant_cell_ids());
-        auto prepareTimestamp = TTimestamp(request.prepare_timestamp());
+        auto mutationId = FromProto<TMutationId>(request->mutation_id());
+        auto transactionId = FromProto<TTransactionId>(request->transaction_id());
+        auto participantCellIds = FromProto<std::vector<TCellId>>(request->participant_cell_ids());
+        auto prepareTimestamp = TTimestamp(request->prepare_timestamp());
 
         // Ensure commit existence (possibly moving it from transient to persistent).
         std::unique_ptr<TCommit> commitHolder;
@@ -457,11 +466,11 @@ private:
         }
     }
 
-    void HydraPrepareTransactionCommit(const TReqPrepareTransactionCommit& request)
+    void HydraPrepareTransactionCommit(TReqPrepareTransactionCommit* request)
     {
-        auto transactionId = FromProto<TTransactionId>(request.transaction_id());
-        auto prepareTimestamp = TTimestamp(request.prepare_timestamp());
-        auto coordinatorCellId = FromProto<TCellId>(request.coordinator_cell_id());
+        auto transactionId = FromProto<TTransactionId>(request->transaction_id());
+        auto prepareTimestamp = TTimestamp(request->prepare_timestamp());
+        auto coordinatorCellId = FromProto<TCellId>(request->coordinator_cell_id());
 
         YCHECK(!FindCommit(transactionId));
 
@@ -491,10 +500,10 @@ private:
         }
     }
 
-    void HydraOnTransactionCommitPrepared(const TReqOnTransactionCommitPrepared& request)
+    void HydraOnTransactionCommitPrepared(TReqOnTransactionCommitPrepared* request)
     {
-        auto transactionId = FromProto<TTransactionId>(request.transaction_id());
-        auto participantCellId = FromProto<TCellId>(request.participant_cell_id());
+        auto transactionId = FromProto<TTransactionId>(request->transaction_id());
+        auto participantCellId = FromProto<TCellId>(request->participant_cell_id());
 
         auto* commit = FindCommit(transactionId);
         if (!commit) {
@@ -508,7 +517,7 @@ private:
 
         YCHECK(commit->GetPersistent());
 
-        auto error = FromProto<TError>(request.error());
+        auto error = FromProto<TError>(request->error());
         if (!error.IsOK()) {
             LOG_DEBUG_UNLESS(IsRecovery(), error, "Participant response: transaction has failed to prepare (TransactionId: %v, ParticipantCellId: %v)",
                 transactionId,
@@ -546,10 +555,10 @@ private:
         }
     }
 
-    void HydraCommitDistributedTransactionPhaseTwo(const TReqCommitDistributedTransactionPhaseTwo& request)
+    void HydraCommitDistributedTransactionPhaseTwo(TReqCommitDistributedTransactionPhaseTwo* request)
     {
-        auto transactionId = FromProto<TTransactionId>(request.transaction_id());
-        auto commitTimestamp = TTimestamp(request.commit_timestamp());
+        auto transactionId = FromProto<TTransactionId>(request->transaction_id());
+        auto commitTimestamp = TTimestamp(request->commit_timestamp());
 
         auto* commit = FindCommit(transactionId);
         if (!commit) {
@@ -587,10 +596,10 @@ private:
         PersistentCommitMap_.Remove(transactionId);
     }
 
-    void HydraCommitPreparedTransaction(const TReqCommitPreparedTransaction& request)
+    void HydraCommitPreparedTransaction(TReqCommitPreparedTransaction* request)
     {
-        auto transactionId = FromProto<TTransactionId>(request.transaction_id());
-        auto commitTimestamp = TTimestamp(request.commit_timestamp());
+        auto transactionId = FromProto<TTransactionId>(request->transaction_id());
+        auto commitTimestamp = TTimestamp(request->commit_timestamp());
 
         try {
             // Any exception thrown here is caught below.
@@ -605,11 +614,11 @@ private:
             transactionId);
     }
 
-    void HydraAbortTransaction(const TReqHydraAbortTransaction& request)
+    void HydraAbortTransaction(TReqHydraAbortTransaction* request)
     {
-        auto mutationId = FromProto<TMutationId>(request.mutation_id());
-        auto transactionId = FromProto<TTransactionId>(request.transaction_id());
-        auto force = request.force();
+        auto mutationId = FromProto<TMutationId>(request->mutation_id());
+        auto transactionId = FromProto<TTransactionId>(request->transaction_id());
+        auto force = request->force();
 
         try {
             // All exceptions thrown here are caught below.
@@ -751,14 +760,22 @@ private:
             TReqCommitDistributedTransactionPhaseTwo hydraRequest;
             ToProto(hydraRequest.mutable_transaction_id(), transactionId);
             hydraRequest.set_commit_timestamp(timestamp);
-            CreateMutation(HydraManager_, hydraRequest)
+            CreateMutation(
+                HydraManager_,
+                hydraRequest,
+                &TImpl::HydraCommitDistributedTransactionPhaseTwo,
+                this)
                 ->CommitAndLog(Logger);
         } else {
             TReqCommitSimpleTransaction hydraRequest;
             ToProto(hydraRequest.mutable_transaction_id(), transactionId);
             ToProto(hydraRequest.mutable_mutation_id(), commit->GetMutationId());
             hydraRequest.set_commit_timestamp(timestamp);
-            CreateMutation(HydraManager_, hydraRequest)
+            CreateMutation(
+                HydraManager_,
+                hydraRequest,
+                &TImpl::HydraCommitSimpleTransaction,
+                this)
                 ->CommitAndLog(Logger);
         }
     }

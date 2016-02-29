@@ -60,9 +60,9 @@ TMutationPtr TMutation::SetRequestData(TSharedRef data, Stroka type)
     return this;
 }
 
-TMutationPtr TMutation::SetAction(TCallback<void(TMutationContext*)> action)
+TMutationPtr TMutation::SetHandler(TCallback<void(TMutationContext*)> handler)
 {
-    Request_.Action = std::move(action);
+    Request_.Handler = std::move(handler);
     return this;
 }
 
@@ -77,13 +77,6 @@ TMutationPtr TMutation::SetMutationId(const NRpc::TMutationId& mutationId, bool 
     Request_.MutationId = mutationId;
     Request_.Retry = retry;
     return this;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TMutationPtr CreateMutation(IHydraManagerPtr hydraManager)
-{
-    return New<TMutation>(std::move(hydraManager));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

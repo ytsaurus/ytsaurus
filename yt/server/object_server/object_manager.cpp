@@ -872,10 +872,8 @@ TMutationPtr TObjectManager::CreateExecuteMutation(
     return
         CreateMutation(
             Bootstrap_->GetHydraFacade()->GetHydraManager(),
-            request,
-            this,
-            &TObjectManager::HydraExecuteFollower)
-        ->SetAction(BIND(
+            request)
+        ->SetHandler(BIND(
             &TObjectManager::HydraExecuteLeader,
             MakeStrong(this),
             userName,
@@ -887,8 +885,8 @@ TMutationPtr TObjectManager::CreateDestroyObjectsMutation(const NProto::TReqDest
     return CreateMutation(
         Bootstrap_->GetHydraFacade()->GetHydraManager(),
         request,
-        this,
-        &TObjectManager::HydraDestroyObjects);
+        &TObjectManager::HydraDestroyObjects,
+        this);
 }
 
 TFuture<void> TObjectManager::GCCollect()
@@ -1179,7 +1177,8 @@ void TObjectManager::ReplicateObjectAttributesToSecondaryMaster(
 
 void TObjectManager::HydraExecuteLeader(
     const Stroka& userName,
-    const IServiceContextPtr& context)
+    const IServiceContextPtr& context,
+    TMutationContext*)
 {
     NProfiling::TScopedTimer timer;
 
@@ -1207,24 +1206,24 @@ void TObjectManager::HydraExecuteLeader(
     }
 }
 
-void TObjectManager::HydraExecuteFollower(const NProto::TReqExecute& request)
+void TObjectManager::HydraExecuteFollower(NProto::TReqExecute* request)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    const auto& userName = request.user_name();
+    const auto& userName = request->user_name();
 
-    std::vector<TSharedRef> parts(request.request_parts_size());
-    for (int partIndex = 0; partIndex < request.request_parts_size(); ++partIndex) {
-        parts[partIndex] = TSharedRef::FromString(request.request_parts(partIndex));
+    std::vector<TSharedRef> parts(request->request_parts_size());
+    for (int partIndex = 0; partIndex < request->request_parts_size(); ++partIndex) {
+        parts[partIndex] = TSharedRef::FromString(request->request_parts(partIndex));
     }
 
     auto requestMessage = TSharedRefArray(std::move(parts));
     auto context = CreateYPathContext(std::move(requestMessage));
 
-    HydraExecuteLeader(userName, std::move(context));
+    HydraExecuteLeader(userName, std::move(context), nullptr);
 }
 
-void TObjectManager::HydraDestroyObjects(const NProto::TReqDestroyObjects& request)
+void TObjectManager::HydraDestroyObjects(NProto::TReqDestroyObjects* request)
 {
     // NB: Ordered map is a must to make the behavior deterministic.
     std::map<TCellTag, NProto::TReqUnrefExportedObjects> crossCellRequestMap;
@@ -1232,7 +1231,7 @@ void TObjectManager::HydraDestroyObjects(const NProto::TReqDestroyObjects& reque
         return crossCellRequestMap[CellTagFromId(id)];
     };
 
-    for (const auto& protoId : request.object_ids()) {
+    for (const auto& protoId : request->object_ids()) {
         auto id = FromProto<TObjectId>(protoId);
         auto type = TypeFromId(id);
 
@@ -1275,16 +1274,16 @@ void TObjectManager::HydraDestroyObjects(const NProto::TReqDestroyObjects& reque
     GarbageCollector_->CheckEmpty();
 }
 
-void TObjectManager::HydraCreateForeignObject(const NProto::TReqCreateForeignObject& request) noexcept
+void TObjectManager::HydraCreateForeignObject(NProto::TReqCreateForeignObject* request) noexcept
 {
-    auto objectId = FromProto<TObjectId>(request.object_id());
-    auto transactionId = request.has_transaction_id()
-        ? FromProto<TTransactionId>(request.transaction_id())
+    auto objectId = FromProto<TObjectId>(request->object_id());
+    auto transactionId = request->has_transaction_id()
+        ? FromProto<TTransactionId>(request->transaction_id())
         : NullTransactionId;
-    auto accountId = request.has_account_id()
-        ? FromProto<TAccountId>(request.account_id())
+    auto accountId = request->has_account_id()
+        ? FromProto<TAccountId>(request->account_id())
         : NullObjectId;
-    auto type = EObjectType(request.type());
+    auto type = EObjectType(request->type());
 
     auto transactionManager = Bootstrap_->GetTransactionManager();
     auto* transaction =  transactionId
@@ -1296,8 +1295,8 @@ void TObjectManager::HydraCreateForeignObject(const NProto::TReqCreateForeignObj
         ? securityManager->GetAccount(accountId)
         : nullptr;
 
-    auto attributes = request.has_object_attributes()
-        ? FromProto(request.object_attributes())
+    auto attributes = request->has_object_attributes()
+        ? FromProto(request->object_attributes())
         : std::unique_ptr<IAttributeDictionary>();
 
     LOG_DEBUG_UNLESS(IsRecovery(), "Creating foreign object (ObjectId: %v, TransactionId: %v, Type: %v, Account: %v)",
@@ -1312,12 +1311,12 @@ void TObjectManager::HydraCreateForeignObject(const NProto::TReqCreateForeignObj
         account,
         type,
         attributes.get(),
-        request.extensions());
+        request->extensions());
 }
 
-void TObjectManager::HydraRemoveForeignObject(const NProto::TReqRemoveForeignObject& request) noexcept
+void TObjectManager::HydraRemoveForeignObject(NProto::TReqRemoveForeignObject* request) noexcept
 {
-    auto objectId = FromProto<TObjectId>(request.object_id());
+    auto objectId = FromProto<TObjectId>(request->object_id());
 
     auto* object = FindObject(objectId);
     if (object) {
@@ -1331,11 +1330,11 @@ void TObjectManager::HydraRemoveForeignObject(const NProto::TReqRemoveForeignObj
     }
 }
 
-void TObjectManager::HydraUnrefExportedObjects(const NProto::TReqUnrefExportedObjects& request) noexcept
+void TObjectManager::HydraUnrefExportedObjects(NProto::TReqUnrefExportedObjects* request) noexcept
 {
-    auto cellTag = request.cell_tag();
+    auto cellTag = request->cell_tag();
 
-    for (const auto& entry : request.entries()) {
+    for (const auto& entry : request->entries()) {
         auto objectId = FromProto<TObjectId>(entry.object_id());
         auto importRefCounter = entry.import_ref_counter();
 
@@ -1348,7 +1347,7 @@ void TObjectManager::HydraUnrefExportedObjects(const NProto::TReqUnrefExportedOb
 
     LOG_DEBUG_UNLESS(IsRecovery(), "Exported objects unreferenced (CellTag: %v, Count: %v)",
         cellTag,
-        request.entries_size());
+        request->entries_size());
 }
 
 const NProfiling::TProfiler& TObjectManager::GetProfiler()

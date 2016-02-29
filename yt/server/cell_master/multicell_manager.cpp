@@ -355,11 +355,11 @@ private:
     }
 
 
-    void HydraRegisterSecondaryMasterAtPrimary(const NProto::TReqRegisterSecondaryMasterAtPrimary& request)
+    void HydraRegisterSecondaryMasterAtPrimary(NProto::TReqRegisterSecondaryMasterAtPrimary* request)
     {
         YCHECK(Bootstrap_->IsPrimaryMaster());
 
-        auto cellTag = request.cell_tag();
+        auto cellTag = request->cell_tag();
         try {
             ValidateSecondaryCellTag(cellTag);
 
@@ -404,12 +404,12 @@ private:
         }
     }
 
-    void HydraOnSecondaryMasterRegisteredAtPrimary(const NProto::TRspRegisterSecondaryMasterAtPrimary& response)
+    void HydraOnSecondaryMasterRegisteredAtPrimary(NProto::TRspRegisterSecondaryMasterAtPrimary* response)
     {
         YCHECK(Bootstrap_->IsSecondaryMaster());
 
-        if (response.has_error()) {
-            auto error = FromProto<TError>(response.error());
+        if (response->has_error()) {
+            auto error = FromProto<TError>(response->error());
             LOG_ERROR_UNLESS(IsRecovery(), error, "Error registering at primary master");
             RegisterState_ = EPrimaryRegisterState::None;
             return;
@@ -420,11 +420,11 @@ private:
         LOG_INFO_UNLESS(IsRecovery(), "Successfully registered at primary master");
     }
 
-    void HydraRegisterSecondaryMasterAtSecondary(const NProto::TReqRegisterSecondaryMasterAtSecondary& request)
+    void HydraRegisterSecondaryMasterAtSecondary(NProto::TReqRegisterSecondaryMasterAtSecondary* request)
     {
         YCHECK(Bootstrap_->IsSecondaryMaster());
 
-        auto cellTag = request.cell_tag();
+        auto cellTag = request->cell_tag();
         try {
             ValidateSecondaryCellTag(cellTag);
 
@@ -440,7 +440,7 @@ private:
         }
     }
 
-    void HydraStartSecondaryMasterRegistration(const NProto::TReqStartSecondaryMasterRegistration& /*request*/)
+    void HydraStartSecondaryMasterRegistration(NProto::TReqStartSecondaryMasterRegistration* /*request*/)
     {
         YCHECK(Bootstrap_->IsSecondaryMaster());
 
@@ -462,16 +462,16 @@ private:
         PostToMaster(request, PrimaryMasterCellTag, true);
     }
 
-    void HydraSetCellStatistics(const NProto::TReqSetCellStatistics& request)
+    void HydraSetCellStatistics(NProto::TReqSetCellStatistics* request)
     {
         YCHECK(Bootstrap_->IsPrimaryMaster());
 
-        auto cellTag = request.cell_tag();
+        auto cellTag = request->cell_tag();
         LOG_INFO_UNLESS(IsRecovery(), "Received cell statistics gossip message (CellTag: %v)",
             cellTag);
 
         auto* entry = GetMasterEntry(cellTag);
-        entry->Statistics = request.statistics();
+        entry->Statistics = request->statistics();
     }
 
 

@@ -111,8 +111,8 @@ public:
         TServiceBase::RegisterMethod(RPC_SERVICE_METHOD_DESC(SendMessages));
 
         TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::HydraAcknowledgeMessages, Unretained(this)));
-        TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::HydraPostMessages, Unretained(this), nullptr));
-        TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::HydraSendMessages, Unretained(this), nullptr));
+        TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::HydraPostMessages, Unretained(this)));
+        TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::HydraSendMessages, Unretained(this)));
         TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::HydraUnregisterMailbox, Unretained(this)));
 
         RegisterLoader(
@@ -375,16 +375,16 @@ private:
 
     // Hydra handlers.
 
-    void HydraAcknowledgeMessages(const TReqAcknowledgeMessages& request)
+    void HydraAcknowledgeMessages(TReqAcknowledgeMessages* request)
     {
-        auto cellId = FromProto<TCellId>(request.cell_id());
+        auto cellId = FromProto<TCellId>(request->cell_id());
         auto* mailbox = FindMailbox(cellId);
         if (!mailbox)
             return;
 
         mailbox->SetPostMessagesInFlight(false);
 
-        auto lastAcknowledgedMessageId = request.last_acknowledged_message_id();
+        auto lastAcknowledgedMessageId = request->last_acknowledged_message_id();
         auto acknowledgeCount = lastAcknowledgedMessageId - mailbox->GetFirstOutcomingMessageId() + 1;
         if (acknowledgeCount <= 0) {
             LOG_DEBUG_UNLESS(IsRecovery(), "No messages acknowledged (SrcCellId: %v, DstCellId: %v, FirstOutcomingMessageId: %v)",
@@ -419,66 +419,48 @@ private:
         }
     }
 
-    void HydraPostMessages(TCtxPostMessagesPtr context, const TReqPostMessages& request)
+    void HydraPostMessages(TCtxPostMessagesPtr context, NProto::TReqPostMessages* request, NProto::TRspPostMessages* response)
     {
-        auto srcCellId = FromProto<TCellId>(request.src_cell_id());
-        auto firstMessageId = request.first_message_id();
+        auto srcCellId = FromProto<TCellId>(request->src_cell_id());
+        auto firstMessageId = request->first_message_id();
         auto* mailbox = FindMailbox(srcCellId);
         if (!mailbox) {
-            if (firstMessageId == 0) {
-                mailbox = CreateMailbox(srcCellId);
-            } else {
-                auto error = TError("Mailbox does not exist; expecting message 0 but got %v",
+            if (firstMessageId != 0) {
+                THROW_ERROR_EXCEPTION("Mailbox does not exist; expecting message 0 but got %v",
                     firstMessageId);
-                LOG_DEBUG_UNLESS(IsRecovery(), error, "Reliable incoming messages dropped (SrcCellId: %v, DstCellId: %v)",
-                    srcCellId,
-                    SelfCellId_);
-                if (context) {
-                    context->Reply(error);
-                }
-                return;
             }
+            mailbox = CreateMailbox(srcCellId);
         }
 
         HandleReliableIncomingMessages(mailbox, request);
 
+        auto lastAcknowledgedMessageId = mailbox->GetLastIncomingMessageId();
+        response->set_last_acknowledged_message_id(lastAcknowledgedMessageId);
+
         if (context) {
-            auto* response = &context->Response();
-            auto lastAcknowledgedMessageId = mailbox->GetLastIncomingMessageId();
-            response->set_last_acknowledged_message_id(lastAcknowledgedMessageId);
             context->SetResponseInfo("LastAcknowledgedMessageId: %v",
                 lastAcknowledgedMessageId);
         }
     }
 
-    void HydraSendMessages(TCtxSendMessagesPtr context, const TReqSendMessages& request)
+    void HydraSendMessages(TCtxSendMessagesPtr /*context*/, NProto::TReqSendMessages* request, NProto::TRspSendMessages* /*response*/)
     {
-        auto srcCellId = FromProto<TCellId>(request.src_cell_id());
+        auto srcCellId = FromProto<TCellId>(request->src_cell_id());
         auto* mailbox = FindMailbox(srcCellId);
         if (!mailbox) {
-            auto error = TError("Mailbox %v does not exist", srcCellId);
-            LOG_DEBUG_UNLESS(IsRecovery(), error, "Unreliable incoming messages dropped (SrcCellId: %v, DstCellId: %v)",
-                srcCellId,
-                SelfCellId_);
-            if (context) {
-                context->Reply(error);
-            }
-            return;
+            THROW_ERROR_EXCEPTION("Mailbox %v does not exist", srcCellId);
         }
 
         HandleUnreliableIncomingMessages(mailbox, request);
-
-        if (context) {
-            context->Reply();
-        }
     }
 
-    void HydraUnregisterMailbox(const TReqUnregisterMailbox& request)
+    void HydraUnregisterMailbox(TReqUnregisterMailbox* request)
     {
-        auto cellId = FromProto<TCellId>(request.cell_id());
+        auto cellId = FromProto<TCellId>(request->cell_id());
         auto* mailbox = FindMailbox(cellId);
-        if (!mailbox)
+        if (!mailbox) {
             return;
+        }
 
         MailboxMap_.Remove(cellId);
 
@@ -873,22 +855,26 @@ private:
         return CreateMutation(
             HydraManager_,
             req,
-            this,
-            &TImpl::HydraAcknowledgeMessages);
+            &TImpl::HydraAcknowledgeMessages,
+            this);
     }
 
     TMutationPtr CreatePostMessagesMutation(TCtxPostMessagesPtr context)
     {
-        return CreateMutation(HydraManager_)
-            ->SetRequestData(context->GetRequestBody(), context->Request().GetTypeName())
-            ->SetAction(BIND(&TImpl::HydraPostMessages, MakeStrong(this), context, ConstRef(context->Request())));
+        return CreateMutation(
+            HydraManager_,
+            std::move(context),
+            &TImpl::HydraPostMessages,
+            this);
     }
 
     TMutationPtr CreateSendMessagesMutation(TCtxSendMessagesPtr context)
     {
-        return CreateMutation(HydraManager_)
-            ->SetRequestData(context->GetRequestBody(), context->Request().GetTypeName())
-            ->SetAction(BIND(&TImpl::HydraSendMessages, MakeStrong(this), context, ConstRef(context->Request())));
+        return CreateMutation(
+            HydraManager_,
+            std::move(context),
+            &TImpl::HydraSendMessages,
+            this);
     }
 
     TMutationPtr CreateUnregisterMailboxMutation(const TReqUnregisterMailbox& req)
@@ -896,8 +882,8 @@ private:
         return CreateMutation(
             HydraManager_,
             req,
-            this,
-            &TImpl::HydraUnregisterMailbox);
+            &TImpl::HydraUnregisterMailbox,
+            this);
     }
 
 
@@ -911,11 +897,11 @@ private:
             ->CommitAndLog(Logger);
     }
 
-    void HandleReliableIncomingMessages(TMailbox* mailbox, const TReqPostMessages& req)
+    void HandleReliableIncomingMessages(TMailbox* mailbox, const NProto::TReqPostMessages* req)
     {
-        for (int index = 0; index < req.messages_size(); ++index) {
-            auto messageId = req.first_message_id() + index;
-            HandleReliableIncomingMessage(mailbox, messageId, req.messages(index));
+        for (int index = 0; index < req->messages_size(); ++index) {
+            auto messageId = req->first_message_id() + index;
+            HandleReliableIncomingMessage(mailbox, messageId, req->messages(index));
         }
     }
 
@@ -976,9 +962,9 @@ private:
         }
     }
 
-    void HandleUnreliableIncomingMessages(TMailbox* mailbox, const TReqSendMessages& req)
+    void HandleUnreliableIncomingMessages(TMailbox* mailbox, const NProto::TReqSendMessages* req)
     {
-        for (const auto& message : req.messages()) {
+        for (const auto& message : req->messages()) {
             LOG_DEBUG_UNLESS(IsRecovery(), "Consuming unreliable incoming message (SrcCellId: %v, DstCellId: %v, MutationType: %v)",
                 mailbox->GetCellId(),
                 SelfCellId_,
