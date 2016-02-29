@@ -747,7 +747,14 @@ TLogManager::~TLogManager()
 
 TLogManager* TLogManager::Get()
 {
-    return TSingletonWithFlag<TLogManager>::Get();
+    try {
+        return TSingletonWithFlag<TLogManager>::Get();
+    } catch (const std::exception& ex) {
+        // If log manager ctor fails, than we are severely broken.
+        // We'd better not tempt fate by a proper shutdown here.
+        fprintf(stderr, "Failed to create log manager:\n%s\n", ex.what());
+        ::_exit(1);
+    }
 }
 
 void TLogManager::StaticShutdown()

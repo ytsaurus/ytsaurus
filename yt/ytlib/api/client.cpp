@@ -679,8 +679,7 @@ private:
                     std::move(writer),
                     FunctionRegistry_,
                     options.EnableCodeCache);
-            },
-            FunctionRegistry_);
+            });
     }
 
     TQueryStatistics DoExecute(
