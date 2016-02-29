@@ -25,6 +25,7 @@ namespace NYT {
 
 namespace {
 
+// TODO: use row_index from stream instead
 int GetRowIndexFromHeaders(THttpInput* httpInput)
 {
     const THttpHeaders& headers = httpInput->Headers();
@@ -34,16 +35,13 @@ int GetRowIndexFromHeaders(THttpInput* httpInput)
             responseParameters = h->Value();
     }
 
-    TStringInput stream(responseParameters);
-    NJson::TJsonValue value;
-    NJson::ReadJsonTree(&stream, &value);
-    auto& jsonMap = value.GetMap();
-    auto it = jsonMap.find("start_row_index");
-    if (it == jsonMap.end()) {
-        return 0;
-    } else {
-        return it->second.GetInteger();
+    auto params = NodeFromYsonString(responseParameters);
+    auto& map = params.AsMap();
+    auto it = map.find("start_row_index");
+    if (it == map.end()) {
+        ythrow yexception() << "No start_row_index parameter in response header";
     }
+    return it->second.AsInt64();
 }
 
 }
