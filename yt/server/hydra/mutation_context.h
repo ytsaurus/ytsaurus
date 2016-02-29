@@ -25,7 +25,7 @@ struct TMutationRequest
 
     Stroka Type;
     TSharedRef Data;
-    TCallback<void(TMutationContext*)> Action;
+    TCallback<void(TMutationContext*)> Handler;
     bool AllowLeaderForwarding = false;
     NRpc::TMutationId MutationId;
     bool Retry = false;

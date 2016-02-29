@@ -1033,7 +1033,7 @@ private:
 
     void OnIncrementalHeartbeat(
         TNode* node,
-        const TReqIncrementalHeartbeat& request,
+        TReqIncrementalHeartbeat* request,
         TRspIncrementalHeartbeat* response)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
@@ -1115,12 +1115,12 @@ private:
 
         // Figure out and analyze the reality.
         yhash_set<TTabletCell*> actualCells;
-        for (int slotIndex = 0; slotIndex < request.tablet_slots_size(); ++slotIndex) {
+        for (int slotIndex = 0; slotIndex < request->tablet_slots_size(); ++slotIndex) {
             // Pre-erase slot.
             auto& slot = node->TabletSlots()[slotIndex];
             slot = TNode::TTabletSlot();
 
-            const auto& slotInfo = request.tablet_slots(slotIndex);
+            const auto& slotInfo = request->tablet_slots(slotIndex);
 
             auto state = EPeerState(slotInfo.peer_state());
             if (state == EPeerState::None)
@@ -1210,7 +1210,7 @@ private:
 
         // Copy tablet statistics, update performance counters.
         auto now = TInstant::Now();
-        for (auto& tabletInfo : request.tablets()) {
+        for (auto& tabletInfo : request->tablets()) {
             auto tabletId = FromProto<TTabletId>(tabletInfo.tablet_id());
             auto* tablet = FindTablet(tabletId);
             if (!tablet || tablet->GetState() != ETabletState::Mounted)
@@ -1255,11 +1255,11 @@ private:
     }
 
 
-    void HydraAssignPeers(const TReqAssignPeers& request)
+    void HydraAssignPeers(TReqAssignPeers* request)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        auto cellId = FromProto<TTabletCellId>(request.cell_id());
+        auto cellId = FromProto<TTabletCellId>(request->cell_id());
         auto* cell = FindTabletCell(cellId);
         if (!IsObjectAlive(cell))
             return;
@@ -1268,7 +1268,7 @@ private:
         auto mutationTimestamp = mutationContext->GetTimestamp();
 
         bool leadingPeerAssigned = false;
-        for (const auto& peerInfo : request.peer_infos()) {
+        for (const auto& peerInfo : request->peer_infos()) {
             auto peerId = peerInfo.peer_id();
             auto descriptor = FromProto<TNodeDescriptor>(peerInfo.node_descriptor());
 
@@ -1298,17 +1298,17 @@ private:
         ReconfigureCell(cell);
     }
 
-    void HydraRevokePeers(const TReqRevokePeers& request)
+    void HydraRevokePeers(TReqRevokePeers* request)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        auto cellId = FromProto<TTabletCellId>(request.cell_id());
+        auto cellId = FromProto<TTabletCellId>(request->cell_id());
         auto* cell = FindTabletCell(cellId);
         if (!IsObjectAlive(cell))
             return;
 
         bool leadingPeerRevoked = false;
-        for (auto peerId : request.peer_ids()) {
+        for (auto peerId : request->peer_ids()) {
             if (peerId == cell->GetLeadingPeerId()) {
                 leadingPeerRevoked = true;
             }
@@ -1321,16 +1321,16 @@ private:
         ReconfigureCell(cell);
     }
 
-    void HydraSetLeadingPeer(const TReqSetLeadingPeer& request)
+    void HydraSetLeadingPeer(TReqSetLeadingPeer* request)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        auto cellId = FromProto<TTabletCellId>(request.cell_id());
+        auto cellId = FromProto<TTabletCellId>(request->cell_id());
         auto* cell = FindTabletCell(cellId);
         if (!IsObjectAlive(cell))
             return;
 
-        auto peerId = request.peer_id();
+        auto peerId = request->peer_id();
         cell->SetLeadingPeerId(peerId);
 
         const auto& descriptor = cell->Peers()[peerId].Descriptor;
@@ -1343,9 +1343,9 @@ private:
         ReconfigureCell(cell);
     }
 
-    void HydraOnTabletMounted(const TRspMountTablet& response)
+    void HydraOnTabletMounted(TRspMountTablet* response)
     {
-        auto tabletId = FromProto<TTabletId>(response.tablet_id());
+        auto tabletId = FromProto<TTabletId>(response->tablet_id());
         auto* tablet = FindTablet(tabletId);
         if (!IsObjectAlive(tablet))
             return;
@@ -1371,9 +1371,9 @@ private:
         tablet->SetState(ETabletState::Mounted);
     }
 
-    void HydraOnTabletUnmounted(const TRspUnmountTablet& response)
+    void HydraOnTabletUnmounted(TRspUnmountTablet* response)
     {
-        auto tabletId = FromProto<TTabletId>(response.tablet_id());
+        auto tabletId = FromProto<TTabletId>(response->tablet_id());
         auto* tablet = FindTablet(tabletId);
         if (!IsObjectAlive(tablet))
             return;
@@ -1471,15 +1471,15 @@ private:
         }
     }
 
-    void HydraUpdateTabletStores(const TReqUpdateTabletStores& request)
+    void HydraUpdateTabletStores(TReqUpdateTabletStores* request)
     {
-        auto tabletId = FromProto<TTabletId>(request.tablet_id());
+        auto tabletId = FromProto<TTabletId>(request->tablet_id());
         auto* tablet = FindTablet(tabletId);
         if (!IsObjectAlive(tablet)) {
             return;
         }
 
-        auto mountRevision = request.mount_revision();
+        auto mountRevision = request->mount_revision();
 
         // NB: Stores may be updated while unmounting to facilitate flush.
         if (tablet->GetState() != ETabletState::Mounted &&
@@ -1501,11 +1501,11 @@ private:
         cypressManager->SetModified(table, nullptr);
 
         TRspUpdateTabletStores response;
-        response.mutable_tablet_id()->MergeFrom(request.tablet_id());
+        response.mutable_tablet_id()->MergeFrom(request->tablet_id());
         // NB: Take mount revision from the request, not from the tablet.
         response.set_mount_revision(mountRevision);
-        response.mutable_stores_to_add()->MergeFrom(request.stores_to_add());
-        response.mutable_stores_to_remove()->MergeFrom(request.stores_to_remove());
+        response.mutable_stores_to_add()->MergeFrom(request->stores_to_add());
+        response.mutable_stores_to_remove()->MergeFrom(request->stores_to_remove());
 
         try {
             tablet->ValidateMountRevision(mountRevision);
@@ -1516,7 +1516,7 @@ private:
             // Collect all changes first.
             std::vector<TChunkTree*> chunksToAttach;
             i64 attachedRowCount = 0;
-            for (const auto& descriptor : request.stores_to_add()) {
+            for (const auto& descriptor : request->stores_to_add()) {
                 auto storeId = FromProto<TStoreId>(descriptor.store_id());
                 if (TypeFromId(storeId) == EObjectType::Chunk ||
                     TypeFromId(storeId) == EObjectType::ErasureChunk)
@@ -1530,7 +1530,7 @@ private:
 
             std::vector<TChunkTree*> chunksToDetach;
             i64 detachedRowCount = 0;
-            for (const auto& descriptor : request.stores_to_remove()) {
+            for (const auto& descriptor : request->stores_to_remove()) {
                 auto storeId = FromProto<TStoreId>(descriptor.store_id());
                 if (TypeFromId(storeId) == EObjectType::Chunk ||
                     TypeFromId(storeId) == EObjectType::ErasureChunk)

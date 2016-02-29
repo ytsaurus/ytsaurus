@@ -1523,15 +1523,15 @@ protected:
         }
     }
 
-    void HydraSetAccountStatistics(const NProto::TReqSetAccountStatistics& request)
+    void HydraSetAccountStatistics(NProto::TReqSetAccountStatistics* request)
     {
-        auto cellTag = request.cell_tag();
+        auto cellTag = request->cell_tag();
         LOG_INFO_UNLESS(IsRecovery(), "Received account statistics gossip message (CellTag: %v)",
             cellTag);
 
         YCHECK(Bootstrap_->IsPrimaryMaster() || cellTag == Bootstrap_->GetPrimaryCellTag());
 
-        for (const auto& entry : request.entries()) {
+        for (const auto& entry : request->entries()) {
             auto accountId = FromProto<TAccountId>(entry.account_id());
             auto* account = FindAccount(accountId);
             if (!IsObjectAlive(account))
@@ -1597,11 +1597,11 @@ protected:
         }
     }
 
-    void HydraIncreaseUserStatistics(const NProto::TReqIncreaseUserStatistics& request)
+    void HydraIncreaseUserStatistics(NProto::TReqIncreaseUserStatistics* request)
     {
         auto* profilingManager = NProfiling::TProfileManager::Get();
         auto now = TInstant::Now();
-        for (const auto& entry : request.entries()) {
+        for (const auto& entry : request->entries()) {
             auto userId = FromProto<TUserId>(entry.user_id());
             auto* user = FindUser(userId);
             if (!IsObjectAlive(user))
@@ -1633,15 +1633,15 @@ protected:
         }
     }
 
-    void HydraSetUserStatistics(const NProto::TReqSetUserStatistics& request)
+    void HydraSetUserStatistics(NProto::TReqSetUserStatistics* request)
     {
-        auto cellTag = request.cell_tag();
+        auto cellTag = request->cell_tag();
         LOG_INFO_UNLESS(IsRecovery(), "Received user statistics gossip message (CellTag: %v)",
             cellTag);
 
         YCHECK(Bootstrap_->IsPrimaryMaster() || cellTag == Bootstrap_->GetPrimaryCellTag());
 
-        for (const auto& entry : request.entries()) {
+        for (const auto& entry : request->entries()) {
             auto userId = FromProto<TAccountId>(entry.user_id());
             auto* user = FindUser(userId);
             if (!IsObjectAlive(user))

@@ -870,24 +870,24 @@ private:
     DECLARE_THREAD_AFFINITY_SLOT(TrackerThread);
 
     // Primary-secondary replication only.
-    void HydraPrepareTransactionCommit(const NProto::TReqPrepareTransactionCommit& request)
+    void HydraPrepareTransactionCommit(NProto::TReqPrepareTransactionCommit* request)
     {
-        auto transactionId = FromProto<TTransactionId>(request.transaction_id());
-        auto prepareTimestamp = request.prepare_timestamp();
+        auto transactionId = FromProto<TTransactionId>(request->transaction_id());
+        auto prepareTimestamp = request->prepare_timestamp();
         PrepareTransactionCommit(transactionId, true, prepareTimestamp);
     }
 
-    void HydraCommitTransaction(const NProto::TReqCommitTransaction& request)
+    void HydraCommitTransaction(NProto::TReqCommitTransaction* request)
     {
-        auto transactionId = FromProto<TTransactionId>(request.transaction_id());
-        auto commitTimestamp = request.commit_timestamp();
+        auto transactionId = FromProto<TTransactionId>(request->transaction_id());
+        auto commitTimestamp = request->commit_timestamp();
         CommitTransaction(transactionId, commitTimestamp);
     }
 
-    void HydraAbortTransaction(const NProto::TReqAbortTransaction& request)
+    void HydraAbortTransaction(NProto::TReqAbortTransaction* request)
     {
-        auto transactionId = FromProto<TTransactionId>(request.transaction_id());
-        bool force = request.force();
+        auto transactionId = FromProto<TTransactionId>(request->transaction_id());
+        bool force = request->force();
         AbortTransaction(transactionId, force);
     }
 

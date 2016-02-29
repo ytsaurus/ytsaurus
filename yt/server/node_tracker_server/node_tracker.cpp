@@ -189,8 +189,8 @@ public:
         RegisterMethod(BIND(&TImpl::HydraRegisterNode, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraUnregisterNode, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraDisposeNode, Unretained(this)));
-        RegisterMethod(BIND(&TImpl::HydraFullHeartbeat, Unretained(this), nullptr));
-        RegisterMethod(BIND(&TImpl::HydraIncrementalHeartbeat, Unretained(this), nullptr, nullptr));
+        RegisterMethod(BIND(&TImpl::HydraFullHeartbeat, Unretained(this)));
+        RegisterMethod(BIND(&TImpl::HydraIncrementalHeartbeat, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraSetNodeStates, Unretained(this)));
 
         RegisterLoader(
@@ -239,33 +239,31 @@ public:
         }
 
         ++PendingRegisterNodeMutationCount_;
-        CreateMutation(Bootstrap_->GetHydraFacade()->GetHydraManager(), context->Request())
+        CreateMutation(
+            Bootstrap_->GetHydraFacade()->GetHydraManager(),
+            std::move(context),
+            &TImpl::HydraRegisterNode,
+            this)
             ->CommitAndReply(context);
     }
 
     void ProcessFullHeartbeat(TCtxFullHeartbeatPtr context)
     {
-        auto mutation = CreateMutation(Bootstrap_->GetHydraFacade()->GetHydraManager())
-            ->SetRequestData(context->GetRequestBody(), context->Request().GetTypeName())
-            ->SetAction(BIND(
-                &TImpl::HydraFullHeartbeat,
-                MakeStrong(this),
-                context,
-                ConstRef(context->Request())));
+        auto mutation = CreateMutation(
+            Bootstrap_->GetHydraFacade()->GetHydraManager(),
+            context,
+            &TImpl::HydraFullHeartbeat,
+            this);
         CommitMutationWithSemaphore(mutation, context, &FullHeartbeatSemaphore_);
-
    }
 
     void ProcessIncrementalHeartbeat(TCtxIncrementalHeartbeatPtr context)
     {
-        auto mutation = CreateMutation(Bootstrap_->GetHydraFacade()->GetHydraManager())
-            ->SetRequestData(context->GetRequestBody(), context->Request().GetTypeName())
-            ->SetAction(BIND(
-                &TImpl::HydraIncrementalHeartbeat,
-                MakeStrong(this),
-                context,
-                &context->Response(),
-                ConstRef(context->Request())));
+        auto mutation = CreateMutation(
+            Bootstrap_->GetHydraFacade()->GetHydraManager(),
+            context,
+            &TImpl::HydraIncrementalHeartbeat,
+            this);
         CommitMutationWithSemaphore(mutation, context, &IncrementalHeartbeatSemaphore_);
     }
 
@@ -279,8 +277,8 @@ public:
     DEFINE_SIGNAL(void(TNode* node), NodeBanChanged);
     DEFINE_SIGNAL(void(TNode* node), NodeDecommissionChanged);
     DEFINE_SIGNAL(void(TNode* node), NodeRackChanged);
-    DEFINE_SIGNAL(void(TNode* node, const TReqFullHeartbeat& request), FullHeartbeat);
-    DEFINE_SIGNAL(void(TNode* node, const TReqIncrementalHeartbeat& request, TRspIncrementalHeartbeat* response), IncrementalHeartbeat);
+    DEFINE_SIGNAL(void(TNode* node, TReqFullHeartbeat* request), FullHeartbeat);
+    DEFINE_SIGNAL(void(TNode* node, TReqIncrementalHeartbeat* request, TRspIncrementalHeartbeat* response), IncrementalHeartbeat);
 
 
     void DestroyNode(TNode* node)
@@ -602,17 +600,17 @@ private:
     }
 
 
-    TRspRegisterNode HydraRegisterNode(const TReqRegisterNode& request)
+    void HydraRegisterNode(TCtxRegisterNodePtr context, TReqRegisterNode* request, TRspRegisterNode* response)
     {
         if (Bootstrap_->IsPrimaryMaster() && IsLeader()) {
             YCHECK(--PendingRegisterNodeMutationCount_ >= 0);
         }
 
-        auto addresses = FromProto<TAddressMap>(request.addresses());
+        auto addresses = FromProto<TAddressMap>(request->addresses());
         const auto& address = GetDefaultAddress(addresses);
-        const auto& statistics = request.statistics();
-        auto leaseTransactionId = request.has_lease_transaction_id()
-            ? FromProto<TTransactionId>(request.lease_transaction_id())
+        const auto& statistics = request->statistics();
+        auto leaseTransactionId = request->has_lease_transaction_id()
+            ? FromProto<TTransactionId>(request->lease_transaction_id())
             : NullTransactionId;
 
         // Check lease transaction.
@@ -655,7 +653,7 @@ private:
 
             UpdateNode(node, addresses);
         } else {
-            auto nodeId = request.has_node_id() ? request.node_id() : GenerateNodeId();
+            auto nodeId = request->has_node_id() ? request->node_id() : GenerateNodeId();
             node = CreateNode(nodeId, addresses);
         }
 
@@ -683,14 +681,17 @@ private:
             PostRegisterNodeMutation(node);
         }
 
-        TRspRegisterNode response;
-        response.set_node_id(node->GetId());
-        return response;
+        response->set_node_id(node->GetId());
+
+        if (context) {
+            context->SetResponseInfo("NodeId: %v",
+                node->GetId());
+        }
     }
 
-    void HydraUnregisterNode(const TReqUnregisterNode& request)
+    void HydraUnregisterNode(TReqUnregisterNode* request)
     {
-        auto nodeId = request.node_id();
+        auto nodeId = request->node_id();
 
         auto* node = FindNode(nodeId);
         if (!IsObjectAlive(node))
@@ -703,9 +704,9 @@ private:
         UnregisterNode(node, true);
     }
 
-    void HydraDisposeNode(const TReqDisposeNode& request)
+    void HydraDisposeNode(TReqDisposeNode* request)
     {
-        auto nodeId = request.node_id();
+        auto nodeId = request->node_id();
         auto* node = FindNode(nodeId);
         if (!IsObjectAlive(node))
             return;
@@ -716,12 +717,10 @@ private:
         DisposeNode(node);
     }
 
-    void HydraFullHeartbeat(
-        TCtxFullHeartbeatPtr context,
-        const TReqFullHeartbeat& request)
+    void HydraFullHeartbeat(TCtxFullHeartbeatPtr /*context*/, TReqFullHeartbeat* request, TRspFullHeartbeat* /*response*/)
     {
-        auto nodeId = request.node_id();
-        const auto& statistics = request.statistics();
+        auto nodeId = request->node_id();
+        const auto& statistics = request->statistics();
 
         auto* node = GetNodeOrThrow(nodeId);
         if (node->GetLocalState() != ENodeState::Registered) {
@@ -754,13 +753,10 @@ private:
         }
     }
 
-    void HydraIncrementalHeartbeat(
-        TCtxIncrementalHeartbeatPtr context,
-        TRspIncrementalHeartbeat* response,
-        const TReqIncrementalHeartbeat& request)
+    void HydraIncrementalHeartbeat(TCtxIncrementalHeartbeatPtr context, TReqIncrementalHeartbeat* request, TRspIncrementalHeartbeat* response)
     {
-        auto nodeId = request.node_id();
-        const auto& statistics = request.statistics();
+        auto nodeId = request->node_id();
+        const auto& statistics = request->statistics();
 
         auto* node = GetNodeOrThrow(nodeId);
         if (node->GetLocalState() != ENodeState::Online) {
@@ -778,11 +774,11 @@ private:
                 statistics);
 
             node->Statistics() = statistics;
-            node->Alerts() = FromProto<std::vector<TError>>(request.alerts());
+            node->Alerts() = FromProto<std::vector<TError>>(request->alerts());
 
             UpdateLastSeenTime(node);
 
-            if (response && node->GetRack()) {
+            if (node->GetRack()) {
                 response->set_rack(node->GetRack()->GetName());
             }
             
@@ -790,15 +786,15 @@ private:
         }
     }
 
-    void HydraSetNodeStates(const TReqSetNodeStates& request)
+    void HydraSetNodeStates(TReqSetNodeStates* request)
     {
-        auto cellTag = request.cell_tag();
+        auto cellTag = request->cell_tag();
         LOG_INFO_UNLESS(IsRecovery(), "Received node states gossip message (CellTag: %v)",
             cellTag);
 
         YCHECK(Bootstrap_->IsPrimaryMaster());
 
-        for (const auto& entry : request.entries()) {
+        for (const auto& entry : request->entries()) {
             auto* node = FindNode(entry.node_id());
             if (!IsObjectAlive(node))
                 continue;
@@ -1202,7 +1198,9 @@ private:
 
         auto mutation = CreateMutation(
             Bootstrap_->GetHydraFacade()->GetHydraManager(),
-            request);
+            request,
+            &TImpl::HydraDisposeNode,
+            this);
 
         auto handler = BIND([=] (TAsyncSemaphoreGuard) {
             WaitFor(mutation->CommitAndLog(NodeTrackerServerLogger));
@@ -1423,8 +1421,8 @@ DELEGATE_SIGNAL(TNodeTracker, void(TNode*), NodeDisposed, *Impl_);
 DELEGATE_SIGNAL(TNodeTracker, void(TNode*), NodeBanChanged, *Impl_);
 DELEGATE_SIGNAL(TNodeTracker, void(TNode*), NodeDecommissionChanged, *Impl_);
 DELEGATE_SIGNAL(TNodeTracker, void(TNode*), NodeRackChanged, *Impl_);
-DELEGATE_SIGNAL(TNodeTracker, void(TNode*, const TReqFullHeartbeat&), FullHeartbeat, *Impl_);
-DELEGATE_SIGNAL(TNodeTracker, void(TNode*, const TReqIncrementalHeartbeat&, TRspIncrementalHeartbeat*), IncrementalHeartbeat, *Impl_);
+DELEGATE_SIGNAL(TNodeTracker, void(TNode*, TReqFullHeartbeat*), FullHeartbeat, *Impl_);
+DELEGATE_SIGNAL(TNodeTracker, void(TNode*, TReqIncrementalHeartbeat*, TRspIncrementalHeartbeat*), IncrementalHeartbeat, *Impl_);
 
 ///////////////////////////////////////////////////////////////////////////////
 

@@ -321,11 +321,11 @@ private:
     }
 
 
-    void HydraCommitTimestamp(const TReqCommitTimestamp& request)
+    void HydraCommitTimestamp(TReqCommitTimestamp* request)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        PersistentTimestamp_ = request.timestamp();
+        PersistentTimestamp_ = request->timestamp();
 
         LOG_DEBUG_UNLESS(IsRecovery(), "Persistent timestamp updated (Timestamp: %v)",
             PersistentTimestamp_);

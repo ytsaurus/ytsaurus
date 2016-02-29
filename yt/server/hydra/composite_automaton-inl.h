@@ -2,6 +2,7 @@
 #error "Direct inclusion of this file is not allowed, include composite_automaton.h"
 #endif
 
+#include <yt/core/rpc/service_detail.h>
 #include "mutation.h"
 
 namespace NYT {
@@ -87,22 +88,71 @@ void TCompositeAutomatonPart::RegisterLoader(
         }));
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
 template <class TRequest, class TResponse>
+struct TMutationHandlerTraits
+{
+    using THandler = TCallback<void(
+        TIntrusivePtr<NRpc::TTypedServiceContext<TRequest, TResponse>>,
+        TRequest*,
+        TResponse*)>;
+
+    static void Run(const THandler& handler, TMutationContext* context)
+    {
+        TRequest request;
+        DeserializeFromProtoWithEnvelope(&request, context->Request().Data);
+
+        auto& mutationResponse = context->Response();
+
+        try {
+            TResponse response;
+            handler.Run(nullptr, &request, &response);
+            mutationResponse.Data = NRpc::CreateResponseMessage(response);
+        } catch (const std::exception& ex) {
+            mutationResponse.Data = NRpc::CreateErrorResponseMessage(ex);
+        }
+    }
+};
+
+template <class TRequest>
+struct TMutationHandlerTraits<TRequest, void>
+{
+    using THandler = TCallback<void(TRequest*)>;
+
+    static void Run(const THandler& handler, TMutationContext* context)
+    {
+        TRequest request;
+        DeserializeFromProtoWithEnvelope(&request, context->Request().Data);
+
+        auto& mutationResponse = context->Response();
+
+        try {
+            handler.Run(&request);
+            static auto cachedResponseMessage = NRpc::CreateResponseMessage(NProto::TVoidMutationResponse());
+            mutationResponse.Data = cachedResponseMessage;
+        } catch (const std::exception& ex) {
+            mutationResponse.Data = NRpc::CreateErrorResponseMessage(ex);
+        }
+    }
+};
+
+template <class TRequest>
 void TCompositeAutomatonPart::RegisterMethod(
-    TCallback<TResponse(const TRequest&)> callback)
+    TCallback<void(TRequest*)> callback)
 {
     RegisterMethod(
         TRequest::default_instance().GetTypeName(),
-        BIND(&TMutationActionTraits<TRequest, TResponse>::template Run<TCallback<TResponse(const TRequest&)>>, callback));
+        BIND(&TMutationHandlerTraits<TRequest, void>::Run, callback));
 }
 
 template <class TRequest, class TResponse>
 void TCompositeAutomatonPart::RegisterMethod(
-    TCallback<TResponse(TRequest&)> callback)
+    TCallback<void(TIntrusivePtr<NRpc::TTypedServiceContext<TRequest, TResponse>>, TRequest*, TResponse*)> callback)
 {
     RegisterMethod(
         TRequest::default_instance().GetTypeName(),
-        BIND(&TMutationActionTraits<TRequest, TResponse>::template Run<TCallback<TResponse(TRequest&)>>, callback));
+        BIND(&TMutationHandlerTraits<TRequest, TResponse>::Run, callback));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

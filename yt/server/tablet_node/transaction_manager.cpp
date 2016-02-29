@@ -85,15 +85,15 @@ public:
     }
 
 
-    TMutationPtr CreateStartTransactionMutation(TReqStartTransaction request)
+    TMutationPtr CreateStartTransactionMutation(const TReqStartTransaction& request)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         return CreateMutation(
             Slot_->GetHydraManager(),
             request,
-            this,
-            &TImpl::HydraStartTransaction);
+            &TImpl::HydraStartTransaction,
+            this);
     }
 
     TTransaction* GetTransactionOrThrow(const TTransactionId& id)
@@ -338,19 +338,19 @@ private:
 
 
     // Hydra handlers.
-    void HydraStartTransaction(const TReqStartTransaction& request)
+    void HydraStartTransaction(TReqStartTransaction* request)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        auto transactionId = FromProto<TTransactionId>(request.transaction_id());
+        auto transactionId = FromProto<TTransactionId>(request->transaction_id());
         if (TransactionMap_.Contains(transactionId)) {
             LOG_DEBUG_UNLESS(IsRecovery(), "Transaction is already started, request ignored (TransactionId: %v)",
                 transactionId);
             return;
         }
 
-        auto startTimestamp = TTimestamp(request.start_timestamp());
-        auto timeout = FromProto<TDuration>(request.timeout());
+        auto startTimestamp = TTimestamp(request->start_timestamp());
+        auto timeout = FromProto<TDuration>(request->timeout());
 
         auto transactionHolder = std::make_unique<TTransaction>(transactionId);
         auto* transaction = TransactionMap_.Insert(transactionId, std::move(transactionHolder));

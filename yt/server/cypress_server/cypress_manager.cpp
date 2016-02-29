@@ -1952,9 +1952,9 @@ private:
     }
 
 
-    void HydraUpdateAccessStatistics(const NProto::TReqUpdateAccessStatistics& request) throw()
+    void HydraUpdateAccessStatistics(NProto::TReqUpdateAccessStatistics* request) throw()
     {
-        for (const auto& update : request.updates()) {
+        for (const auto& update : request->updates()) {
             auto nodeId = FromProto<TNodeId>(update.node_id());
             auto* node = FindNode(TVersionedNodeId(nodeId));
             if (!IsObjectAlive(node))
@@ -1972,18 +1972,18 @@ private:
         }
     }
 
-    void HydraCreateForeignNode(const NProto::TReqCreateForeignNode& request) throw()
+    void HydraCreateForeignNode(NProto::TReqCreateForeignNode* request) throw()
     {
         YCHECK(Bootstrap_->IsSecondaryMaster());
 
-        auto nodeId = FromProto<TObjectId>(request.node_id());
-        auto transactionId = request.has_transaction_id()
-            ? FromProto<TTransactionId>(request.transaction_id())
+        auto nodeId = FromProto<TObjectId>(request->node_id());
+        auto transactionId = request->has_transaction_id()
+            ? FromProto<TTransactionId>(request->transaction_id())
             : NullTransactionId;
-        auto accountId = request.has_account_id()
-            ? FromProto<TAccountId>(request.account_id())
+        auto accountId = request->has_account_id()
+            ? FromProto<TAccountId>(request->account_id())
             : NullObjectId;
-        auto type = EObjectType(request.type());
+        auto type = EObjectType(request->type());
 
         auto transactionManager = Bootstrap_->GetTransactionManager();
         auto* transaction = transactionId
@@ -1995,11 +1995,11 @@ private:
             ? securityManager->GetAccount(accountId)
             : nullptr;
 
-        auto attributes = request.has_node_attributes()
-            ? FromProto(request.node_attributes())
+        auto attributes = request->has_node_attributes()
+            ? FromProto(request->node_attributes())
             : std::unique_ptr<IAttributeDictionary>();
 
-        auto enableAccounting = request.enable_accounting();
+        auto enableAccounting = request->enable_accounting();
 
         auto versionedNodeId = TVersionedNodeId(nodeId, transactionId);
 
@@ -2027,20 +2027,20 @@ private:
         LockNode(trunkNode, transaction, ELockMode::Exclusive);
     }
 
-    void HydraCloneForeignNode(const NProto::TReqCloneForeignNode& request) throw()
+    void HydraCloneForeignNode(NProto::TReqCloneForeignNode* request) throw()
     {
         YCHECK(Bootstrap_->IsSecondaryMaster());
 
-        auto sourceNodeId = FromProto<TNodeId>(request.source_node_id());
-        auto sourceTransactionId = request.has_source_transaction_id()
-            ? FromProto<TTransactionId>(request.source_transaction_id())
+        auto sourceNodeId = FromProto<TNodeId>(request->source_node_id());
+        auto sourceTransactionId = request->has_source_transaction_id()
+            ? FromProto<TTransactionId>(request->source_transaction_id())
             : NullTransactionId;
-        auto clonedNodeId = FromProto<TNodeId>(request.cloned_node_id());
-        auto clonedTransactionId = request.has_cloned_transaction_id()
-            ? FromProto<TNodeId>(request.cloned_transaction_id())
+        auto clonedNodeId = FromProto<TNodeId>(request->cloned_node_id());
+        auto clonedTransactionId = request->has_cloned_transaction_id()
+            ? FromProto<TNodeId>(request->cloned_transaction_id())
             : NullTransactionId;
-        auto mode = ENodeCloneMode(request.mode());
-        auto accountId = FromProto<TAccountId>(request.account_id());
+        auto mode = ENodeCloneMode(request->mode());
+        auto accountId = FromProto<TAccountId>(request->account_id());
 
         auto transactionManager = Bootstrap_->GetTransactionManager();
         auto* sourceTransaction = sourceTransactionId

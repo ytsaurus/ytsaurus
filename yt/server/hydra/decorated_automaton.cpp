@@ -980,8 +980,8 @@ void TDecoratedAutomaton::DoApplyMutation(TMutationContext* context)
 
     TMutationContextGuard contextGuard(context);
 
-    if (request.Action) {
-        request.Action.Run(context);
+    if (request.Handler) {
+        request.Handler.Run(context);
     } else {
         Automaton_->ApplyMutation(context);
     }

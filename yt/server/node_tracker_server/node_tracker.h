@@ -74,12 +74,15 @@ public:
     DECLARE_SIGNAL(void(TNode* node), NodeRackChanged);
 
     //! Fired when a full heartbeat is received from a node.
-    DECLARE_SIGNAL(void(TNode* node, const NProto::TReqFullHeartbeat& request), FullHeartbeat);
+    DECLARE_SIGNAL(void(
+        TNode* node,
+        NNodeTrackerClient::NProto::TReqFullHeartbeat* request),
+        FullHeartbeat);
 
     //! Fired when an incremental heartbeat is received from a node.
     DECLARE_SIGNAL(void(
         TNode* node,
-        const NProto::TReqIncrementalHeartbeat& request,
+        NNodeTrackerClient::NProto::TReqIncrementalHeartbeat* request,
         NNodeTrackerClient::NProto::TRspIncrementalHeartbeat* response),
         IncrementalHeartbeat);
 

@@ -144,10 +144,12 @@ protected:
         const Stroka& name,
         TCallback<void(TContext&)> callback);
 
+    template <class TRequest>
+    void RegisterMethod(
+        TCallback<void(TRequest*)> callback);
     template <class TRequest, class TResponse>
-    void RegisterMethod(TCallback<TResponse(const TRequest&)> callback);
-    template <class TRequest, class TResponse>
-    void RegisterMethod(TCallback<TResponse(TRequest&)> callback);
+    void RegisterMethod(
+        TCallback<void(TIntrusivePtr<NRpc::TTypedServiceContext<TRequest, TResponse>>, TRequest*, TResponse*)> callback);
 
     bool IsLeader() const;
     bool IsFollower() const;

@@ -358,9 +358,9 @@ public:
         , RemovedChunkReplicaCounter_("/removed_chunk_replicas")
     {
         RegisterMethod(BIND(&TImpl::HydraUpdateChunkProperties, Unretained(this)));
-        RegisterMethod(BIND(&TImpl::HydraExportChunks, Unretained(this), nullptr, nullptr));
-        RegisterMethod(BIND(&TImpl::HydraImportChunks, Unretained(this), nullptr));
-        RegisterMethod(BIND(&TImpl::HydraExecuteBatch, Unretained(this), nullptr, nullptr));
+        RegisterMethod(BIND(&TImpl::HydraExportChunks, Unretained(this)));
+        RegisterMethod(BIND(&TImpl::HydraImportChunks, Unretained(this)));
+        RegisterMethod(BIND(&TImpl::HydraExecuteBatch, Unretained(this)));
 
         RegisterLoader(
             "ChunkManager.Keys",
@@ -415,38 +415,35 @@ public:
         return CreateMutation(
             Bootstrap_->GetHydraFacade()->GetHydraManager(),
             request,
-            this,
-            &TImpl::HydraUpdateChunkProperties);
+            &TImpl::HydraUpdateChunkProperties,
+            this);
     }
 
     TMutationPtr CreateExportChunksMutation(TCtxExportChunksPtr context)
     {
-        return CreateMutation(Bootstrap_->GetHydraFacade()->GetHydraManager())
-            ->SetRequestData(context->GetRequestBody(), context->Request().GetTypeName())
-            ->SetMutationId(GetMutationId(context), context->IsReplied())
-            ->SetAction(BIND([=, this_ = MakeStrong(this)] () {
-                HydraExportChunks(context, &context->Response(), context->Request());
-            }));
+        return CreateMutation(
+            Bootstrap_->GetHydraFacade()->GetHydraManager(),
+            std::move(context),
+            &TImpl::HydraExportChunks,
+            this);
     }
 
     TMutationPtr CreateImportChunksMutation(TCtxImportChunksPtr context)
     {
-        return CreateMutation(Bootstrap_->GetHydraFacade()->GetHydraManager())
-            ->SetMutationId(GetMutationId(context), context->IsReplied())
-            ->SetRequestData(context->GetRequestBody(), context->Request().GetTypeName())
-            ->SetAction(BIND([=, this_ = MakeStrong(this)] () {
-                HydraImportChunks(context, context->Request());
-            }));
+        return CreateMutation(
+            Bootstrap_->GetHydraFacade()->GetHydraManager(),
+            std::move(context),
+            &TImpl::HydraImportChunks,
+            this);
     }
 
     TMutationPtr CreateExecuteBatchMutation(TCtxExecuteBatchPtr context)
     {
-        return CreateMutation(Bootstrap_->GetHydraFacade()->GetHydraManager())
-            ->SetMutationId(GetMutationId(context), context->IsReplied())
-            ->SetRequestData(context->GetRequestBody(), context->Request().GetTypeName())
-            ->SetAction(BIND([=, this_ = MakeStrong(this)] () {
-                HydraExecuteBatch(context, &context->Response(), context->Request());
-            }));
+        return CreateMutation(
+            Bootstrap_->GetHydraFacade()->GetHydraManager(),
+            std::move(context),
+            &TImpl::HydraExecuteBatch,
+            this);
     }
 
     TNodeList AllocateWriteTargets(
@@ -1048,15 +1045,17 @@ private:
         }
     }
 
-    void OnFullHeartbeat(TNode* node, const NNodeTrackerServer::NProto::TReqFullHeartbeat& request)
+    void OnFullHeartbeat(
+        TNode* node,
+        NNodeTrackerServer::NProto::TReqFullHeartbeat* request)
     {
         YCHECK(node->StoredReplicas().empty());
         YCHECK(node->CachedReplicas().empty());
 
-        node->ReserveStoredReplicas(request.stored_chunk_count());
-        node->ReserveCachedReplicas(request.cached_chunk_count());
+        node->ReserveStoredReplicas(request->stored_chunk_count());
+        node->ReserveCachedReplicas(request->cached_chunk_count());
 
-        for (const auto& chunkInfo : request.chunks()) {
+        for (const auto& chunkInfo : request->chunks()) {
             ProcessAddedChunk(node, chunkInfo, false);
         }
 
@@ -1067,16 +1066,16 @@ private:
 
     void OnIncrementalHeartbeat(
         TNode* node,
-        const TReqIncrementalHeartbeat& request,
+        TReqIncrementalHeartbeat* request,
         TRspIncrementalHeartbeat* /*response*/)
     {
         node->ShrinkHashTables();
 
-        for (const auto& chunkInfo : request.added_chunks()) {
+        for (const auto& chunkInfo : request->added_chunks()) {
             ProcessAddedChunk(node, chunkInfo, true);
         }
 
-        for (const auto& chunkInfo : request.removed_chunks()) {
+        for (const auto& chunkInfo : request->removed_chunks()) {
             ProcessRemovedChunk(node, chunkInfo);
         }
 
@@ -1106,7 +1105,7 @@ private:
     }
 
 
-    void HydraUpdateChunkProperties(const NProto::TReqUpdateChunkProperties& request)
+    void HydraUpdateChunkProperties(NProto::TReqUpdateChunkProperties* request)
     {
         // NB: Ordered map is a must to make the behavior deterministic.
         std::map<TCellTag, NProto::TReqUpdateChunkProperties> crossCellRequestMap;
@@ -1120,12 +1119,12 @@ private:
             return it->second;
         };
 
-        bool local = request.cell_tag() == Bootstrap_->GetCellTag();
+        bool local = request->cell_tag() == Bootstrap_->GetCellTag();
 
         auto multicellManager = Bootstrap_->GetMulticellManager();
-        int cellIndex = local ? -1 : multicellManager->GetRegisteredMasterCellIndex(request.cell_tag());
+        int cellIndex = local ? -1 : multicellManager->GetRegisteredMasterCellIndex(request->cell_tag());
 
-        for (const auto& update : request.updates()) {
+        for (const auto& update : request->updates()) {
             auto chunkId = FromProto<TChunkId>(update.chunk_id());
             auto* chunk = FindChunk(chunkId);
             if (!IsObjectAlive(chunk)) {
@@ -1162,12 +1161,9 @@ private:
         }
     }
 
-    void HydraExportChunks(
-        const TCtxExportChunksPtr& context,
-        TRspExportChunks* response,
-        const TReqExportChunks& request)
+    void HydraExportChunks(TCtxExportChunksPtr /*context*/, TReqExportChunks* request, TRspExportChunks* response)
     {
-        auto transactionId = FromProto<TTransactionId>(request.transaction_id());
+        auto transactionId = FromProto<TTransactionId>(request->transaction_id());
         auto transactionManager = Bootstrap_->GetTransactionManager();
         auto* transaction = transactionManager->GetTransactionOrThrow(transactionId);
         if (transaction->GetPersistentState() != ETransactionState::Active) {
@@ -1177,7 +1173,7 @@ private:
         auto multicellManager = Bootstrap_->GetMulticellManager();
 
         std::vector<TChunkId> chunkIds;
-        for (const auto& exportData : request.chunks()) {
+        for (const auto& exportData : request->chunks()) {
             auto chunkId = FromProto<TChunkId>(exportData.id());
             auto* chunk = GetChunkOrThrow(chunkId);
 
@@ -1204,11 +1200,9 @@ private:
             chunkIds);
     }
 
-    void HydraImportChunks(
-        const TCtxImportChunksPtr& context,
-        TReqImportChunks& request)
+    void HydraImportChunks(TCtxImportChunksPtr /*context*/, TReqImportChunks* request, TRspImportChunks* /*response*/)
     {
-        auto transactionId = FromProto<TTransactionId>(request.transaction_id());
+        auto transactionId = FromProto<TTransactionId>(request->transaction_id());
         auto transactionManager = Bootstrap_->GetTransactionManager();
         auto* transaction = transactionManager->GetTransactionOrThrow(transactionId);
 
@@ -1217,7 +1211,7 @@ private:
         }
 
         std::vector<TChunkId> chunkIds;
-        for (auto& importData : *request.mutable_chunks()) {
+        for (auto& importData : *request->mutable_chunks()) {
             auto chunkId = FromProto<TChunkId>(importData.id());
             auto* chunk = ChunkMap_.Find(chunkId);
             if (!chunk) {
@@ -1238,15 +1232,12 @@ private:
             chunkIds);
     }
 
-    void HydraExecuteBatch(
-        const TCtxExecuteBatchPtr& context,
-        NChunkClient::NProto::TRspExecuteBatch* response,
-        NChunkClient::NProto::TReqExecuteBatch& request)
+    void HydraExecuteBatch(TCtxExecuteBatchPtr /*context*/, TReqExecuteBatch* request, TRspExecuteBatch* response)
     {
-        for (auto& subrequest : *request.mutable_create_subrequests()) {
+        for (auto& subrequest : *request->mutable_create_subrequests()) {
             auto* subresponse = response ? response->add_create_subresponses() : nullptr;
             try {
-                ExecuteCreateChunkSubrequest(subrequest, subresponse);
+                ExecuteCreateChunkSubrequest(&subrequest, subresponse);
             } catch (const std::exception& ex) {
                 LOG_DEBUG_UNLESS(IsRecovery(), ex, "Error creating chunk");
                 if (subresponse) {
@@ -1255,10 +1246,10 @@ private:
             }
         }
 
-        for (auto& subrequest : *request.mutable_confirm_subrequests()) {
+        for (auto& subrequest : *request->mutable_confirm_subrequests()) {
             auto* subresponse = response ? response->add_confirm_subresponses() : nullptr;
             try {
-                ExecuteConfirmChunkSubrequest(subrequest, subresponse);
+                ExecuteConfirmChunkSubrequest(&subrequest, subresponse);
             } catch (const std::exception& ex) {
                 LOG_DEBUG_UNLESS(IsRecovery(), ex, "Error confirming chunk");
                 if (subresponse) {
@@ -1267,10 +1258,10 @@ private:
             }
         }
 
-        for (auto& subrequest : *request.mutable_seal_subrequests()) {
+        for (auto& subrequest : *request->mutable_seal_subrequests()) {
             auto* subresponse = response ? response->add_seal_subresponses() : nullptr;
             try {
-                ExecuteSealChunkSubrequest(subrequest, subresponse);
+                ExecuteSealChunkSubrequest(&subrequest, subresponse);
             } catch (const std::exception& ex) {
                 LOG_DEBUG_UNLESS(IsRecovery(), ex, "Error sealing chunk");
                 if (subresponse) {
@@ -1281,28 +1272,28 @@ private:
     }
 
     void ExecuteCreateChunkSubrequest(
-        NChunkClient::NProto::TReqExecuteBatch::TCreateSubrequest& subrequest,
-        NChunkClient::NProto::TRspExecuteBatch::TCreateSubresponse* subresponse)
+        TReqExecuteBatch::TCreateSubrequest* subrequest,
+        TRspExecuteBatch::TCreateSubresponse* subresponse)
     {
-        auto transactionId = FromProto<TTransactionId>(subrequest.transaction_id());
-        auto chunkType = EObjectType(subrequest.type());
+        auto transactionId = FromProto<TTransactionId>(subrequest->transaction_id());
+        auto chunkType = EObjectType(subrequest->type());
         bool isErasure = (chunkType == EObjectType::ErasureChunk);
         bool isJournal = (chunkType == EObjectType::JournalChunk);
-        auto erasureCodecId = isErasure ? NErasure::ECodec(subrequest.erasure_codec()) : NErasure::ECodec::None;
-        int replicationFactor = isErasure ? 1 : subrequest.replication_factor();
-        int readQuorum = isJournal ? subrequest.read_quorum() : 0;
-        int writeQuorum = isJournal ? subrequest.write_quorum() : 0;
+        auto erasureCodecId = isErasure ? NErasure::ECodec(subrequest->erasure_codec()) : NErasure::ECodec::None;
+        int replicationFactor = isErasure ? 1 : subrequest->replication_factor();
+        int readQuorum = isJournal ? subrequest->read_quorum() : 0;
+        int writeQuorum = isJournal ? subrequest->write_quorum() : 0;
 
         auto transactionManager = Bootstrap_->GetTransactionManager();
         auto* transaction = transactionManager->GetTransactionOrThrow(transactionId);
 
         auto securityManager = Bootstrap_->GetSecurityManager();
-        auto* account = securityManager->GetAccountByNameOrThrow(subrequest.account());
+        auto* account = securityManager->GetAccountByNameOrThrow(subrequest->account());
         account->ValidateResourceUsageIncrease(TClusterResources(1, 0, 1));
 
         TChunkList* chunkList = nullptr;
-        if (subrequest.has_chunk_list_id()) {
-            auto chunkListId = FromProto<TChunkListId>(subrequest.chunk_list_id());
+        if (subrequest->has_chunk_list_id()) {
+            auto chunkListId = FromProto<TChunkListId>(subrequest->chunk_list_id());
             chunkList = GetChunkListOrThrow(chunkListId);
             chunkList->ValidateSealed();
         }
@@ -1313,8 +1304,8 @@ private:
         chunk->SetReadQuorum(readQuorum);
         chunk->SetWriteQuorum(writeQuorum);
         chunk->SetErasureCodec(erasureCodecId);
-        chunk->SetMovable(subrequest.movable());
-        chunk->SetLocalVital(subrequest.vital());
+        chunk->SetMovable(subrequest->movable());
+        chunk->SetLocalVital(subrequest->vital());
 
         StageChunkTree(chunk, transaction, account);
 
@@ -1340,26 +1331,26 @@ private:
             chunk->GetReadQuorum(),
             chunk->GetWriteQuorum(),
             erasureCodecId,
-            subrequest.movable(),
-            subrequest.vital());
+            subrequest->movable(),
+            subrequest->vital());
     }
 
     void ExecuteConfirmChunkSubrequest(
-        NChunkClient::NProto::TReqExecuteBatch::TConfirmSubrequest& subrequest,
-        NChunkClient::NProto::TRspExecuteBatch::TConfirmSubresponse* subresponse)
+        TReqExecuteBatch::TConfirmSubrequest* subrequest,
+        TRspExecuteBatch::TConfirmSubresponse* subresponse)
     {
-        auto chunkId = FromProto<TChunkId>(subrequest.chunk_id());
-        auto replicas = FromProto<TChunkReplicaList>(subrequest.replicas());
+        auto chunkId = FromProto<TChunkId>(subrequest->chunk_id());
+        auto replicas = FromProto<TChunkReplicaList>(subrequest->replicas());
 
         auto* chunk = GetChunkOrThrow(chunkId);
 
         ConfirmChunk(
             chunk,
             replicas,
-            subrequest.mutable_chunk_info(),
-            subrequest.mutable_chunk_meta());
+            subrequest->mutable_chunk_info(),
+            subrequest->mutable_chunk_meta());
 
-        if (subresponse && subrequest.request_statistics()) {
+        if (subresponse && subrequest->request_statistics()) {
             *subresponse->mutable_statistics() = chunk->GetStatistics().ToDataStatistics();
         }
 
@@ -1368,13 +1359,13 @@ private:
     }
 
     void ExecuteSealChunkSubrequest(
-        NChunkClient::NProto::TReqExecuteBatch::TSealSubrequest& subrequest,
-        NChunkClient::NProto::TRspExecuteBatch::TSealSubresponse* subresponse)
+        TReqExecuteBatch::TSealSubrequest* subrequest,
+        TRspExecuteBatch::TSealSubresponse* subresponse)
     {
-        auto chunkId = FromProto<TChunkId>(subrequest.chunk_id());
+        auto chunkId = FromProto<TChunkId>(subrequest->chunk_id());
         auto* chunk = GetChunkOrThrow(chunkId);
 
-        const auto& miscExt = subrequest.misc();
+        const auto& miscExt = subrequest->misc();
 
         SealChunk(
             chunk,
