@@ -80,6 +80,7 @@ struct TReduceOperationSpec
     FLUENT_FIELD(TUserJobSpec, ReducerSpec);
     FLUENT_FIELD(TKeyColumns, SortBy);
     FLUENT_FIELD(TKeyColumns, ReduceBy);
+    FLUENT_FIELD_OPTION(TKeyColumns, JoinBy);
 };
 
 struct TMapReduceOperationSpec

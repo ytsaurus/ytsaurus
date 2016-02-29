@@ -575,6 +575,9 @@ TOperationId ExecuteReduce(
             std::placeholders::_1))
         .Item("sort_by").Value(sortBy)
         .Item("reduce_by").Value(reduceBy)
+        .DoIf(spec.JoinBy_.Defined(), [&] (TFluentMap fluent) {
+            fluent.Item("join_by").Value(spec.JoinBy_.GetRef());
+        })
         .Item("input_table_paths").DoListFor(spec.Inputs_, BuildPathPrefix)
         .Item("output_table_paths").DoListFor(spec.Outputs_, BuildPathPrefix)
         .Item("job_io").BeginMap()
