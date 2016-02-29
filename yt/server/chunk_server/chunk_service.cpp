@@ -32,6 +32,8 @@ using namespace NHydra;
 using namespace NTransactionClient;
 using namespace NRpc;
 
+using NYT::ToProto;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TChunkService
@@ -101,63 +103,65 @@ private:
     {
         ValidatePeer(EPeerKind::Leader);
 
-        auto chunkId = FromProto<TChunkId>(request->chunk_id());
-        int desiredTargetCount = request->desired_target_count();
-        int minTargetCount = request->min_target_count();
-        auto replicationFactorOverride = request->has_replication_factor_override()
-            ? MakeNullable(request->replication_factor_override())
-            : Null;
-        auto preferredHostName = request->has_preferred_host_name()
-            ? MakeNullable(request->preferred_host_name())
-            : Null;
-        const auto& forbiddenAddresses = request->forbidden_addresses();
+        context->SetRequestInfo("SubrequestCount: %v",
+            request->subrequests_size());
 
-        context->SetRequestInfo(
-            "ChunkId: %v, DesiredTargetCount: %v, MinTargetCount: %v, ReplicationFactorOverride: %v, "
-            "PeferredHostName: %v, ForbiddenAddresses: %v",
-            chunkId,
-            desiredTargetCount,
-            minTargetCount,
-            replicationFactorOverride,
-            preferredHostName,
-            forbiddenAddresses);
-        
         auto chunkManager = Bootstrap_->GetChunkManager();
         auto nodeTracker = Bootstrap_->GetNodeTracker();
-        
-        auto* chunk = chunkManager->GetChunkOrThrow(chunkId);
-
-        TNodeList forbiddenNodes;
-        for (const auto& address : forbiddenAddresses) {
-            auto* node = nodeTracker->FindNodeByAddress(address);
-            if (node) {
-                forbiddenNodes.push_back(node);
-            }
-        }
-        std::sort(forbiddenNodes.begin(), forbiddenNodes.end());
-
-        auto targets = chunkManager->AllocateWriteTargets(
-            chunk,
-            desiredTargetCount,
-            minTargetCount,
-            replicationFactorOverride,
-            &forbiddenNodes,
-            preferredHostName);
-
-        if (targets.empty()) {
-            THROW_ERROR_EXCEPTION("Not enough data nodes available");
-        }
 
         TNodeDirectoryBuilder builder(response->mutable_node_directory());
-        for (int index = 0; index < static_cast<int>(targets.size()); ++index) {
-            auto* target = targets[index];
-            auto replica = TNodePtrWithIndex(target, GenericChunkReplicaIndex);
-            builder.Add(replica);
-            response->add_replicas(NYT::ToProto<ui32>(replica));
+
+        for (const auto& subrequest : request->subrequests()) {
+            auto chunkId = FromProto<TChunkId>(subrequest.chunk_id());
+            int desiredTargetCount = subrequest.desired_target_count();
+            int minTargetCount = subrequest.min_target_count();
+            auto replicationFactorOverride = subrequest.has_replication_factor_override()
+                ? MakeNullable(subrequest.replication_factor_override())
+                : Null;
+            auto preferredHostName = subrequest.has_preferred_host_name()
+                ? MakeNullable(subrequest.preferred_host_name())
+                : Null;
+            const auto& forbiddenAddresses = subrequest.forbidden_addresses();
+
+            auto* chunk = chunkManager->GetChunkOrThrow(chunkId);
+
+            TNodeList forbiddenNodes;
+            for (const auto& address : forbiddenAddresses) {
+                auto* node = nodeTracker->FindNodeByAddress(address);
+                if (node) {
+                    forbiddenNodes.push_back(node);
+                }
+            }
+            std::sort(forbiddenNodes.begin(), forbiddenNodes.end());
+
+            auto targets = chunkManager->AllocateWriteTargets(
+                chunk,
+                desiredTargetCount,
+                minTargetCount,
+                replicationFactorOverride,
+                &forbiddenNodes,
+                preferredHostName);
+
+            auto* subresponse = response->add_subresponses();
+            for (int index = 0; index < static_cast<int>(targets.size()); ++index) {
+                auto* target = targets[index];
+                auto replica = TNodePtrWithIndex(target, GenericChunkReplicaIndex);
+                builder.Add(replica);
+                subresponse->add_replicas(ToProto<ui32>(replica));
+            }
+
+            LOG_DEBUG("Write targets allocated "
+                "(ChunkId: %v, DesiredTargetCount: %v, MinTargetCount: %v, ReplicationFactorOverride: %v, "
+                "PreferredHostName: %v, ForbiddenAddresses: %v, Targets: %v",
+                chunkId,
+                desiredTargetCount,
+                minTargetCount,
+                replicationFactorOverride,
+                preferredHostName,
+                forbiddenAddresses,
+                MakeFormattableRange(targets, TNodePtrAddressFormatter()));
         }
 
-        context->SetResponseInfo("Targets: %v",
-            MakeFormattableRange(targets, TNodePtrAddressFormatter()));
         context->Reply();
     }
 

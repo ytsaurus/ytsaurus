@@ -6,6 +6,8 @@
 #include "config.h"
 #include "dispatcher.h"
 #include "replication_writer.h"
+#include "helpers.h"
+#include "private.h"
 
 #include <yt/ytlib/api/client.h>
 
@@ -20,10 +22,6 @@
 #include <yt/core/concurrency/thread_affinity.h>
 
 #include <yt/core/erasure/codec.h>
-
-#include <yt/core/misc/address.h>
-
-#include <yt/core/ytree/yson_serializable.h>
 
 namespace NYT {
 namespace NChunkClient {
@@ -491,27 +489,16 @@ std::vector<IChunkWriterPtr> CreateErasurePartWriters(
     auto partConfig = NYTree::CloneYsonSerializable(config);
     partConfig->UploadReplicationFactor = 1;
 
-    auto channel = client->GetMasterChannelOrThrow(NApi::EMasterChannelKind::Leader, CellTagFromId(chunkId));
-    TChunkServiceProxy proxy(channel);
-
-    auto req = proxy.AllocateWriteTargets();
-    req->set_desired_target_count(codec->GetTotalPartCount());
-    req->set_min_target_count(codec->GetTotalPartCount());
-    if (partConfig->PreferLocalHost) {
-        req->set_preferred_host_name(TAddressResolver::Get()->GetLocalHostName());
-    }
-    ToProto(req->mutable_chunk_id(), chunkId);
-
-    auto rspOrError = WaitFor(req->Invoke());
-    THROW_ERROR_EXCEPTION_IF_FAILED(
-        rspOrError,
-        EErrorCode::MasterCommunicationFailed,
-        "Failed to allocate write targets for chunk %v",
-        chunkId);
-    auto rsp = rspOrError.Value();
-
-    nodeDirectory->MergeFrom(rsp->node_directory());
-    auto replicas = NYT::FromProto<TChunkReplicaList>(rsp->replicas());
+    auto replicas = AllocateWriteTargets(
+        client,
+        chunkId,
+        codec->GetTotalPartCount(),
+        codec->GetTotalPartCount(),
+        Null,
+        partConfig->PreferLocalHost,
+        std::vector<Stroka>(),
+        nodeDirectory,
+        ChunkClientLogger);
 
     YCHECK(replicas.size() == codec->GetTotalPartCount());
 

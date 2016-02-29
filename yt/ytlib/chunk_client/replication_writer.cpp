@@ -8,6 +8,7 @@
 #include "config.h"
 #include "data_node_service_proxy.h"
 #include "dispatcher.h"
+#include "helpers.h"
 
 #include <yt/ytlib/api/client.h>
 #include <yt/ytlib/api/config.h>
@@ -24,7 +25,6 @@
 
 #include <yt/core/rpc/retrying_channel.h>
 
-#include <yt/core/misc/address.h>
 #include <yt/core/misc/async_stream_state.h>
 #include <yt/core/misc/nullable.h>
 
@@ -510,34 +510,22 @@ TChunkReplicaList TReplicationWriter::AllocateTargets()
             "Allocating new target nodes is disabled");
     }
 
-    auto channel = Client_->GetMasterChannelOrThrow(NApi::EMasterChannelKind::Leader, CellTagFromId(ChunkId_));
-    TChunkServiceProxy proxy(channel);
-
-    auto req = proxy.AllocateWriteTargets();
     int activeTargets = Nodes_.size();
-    req->set_desired_target_count(UploadReplicationFactor_ - activeTargets);
-    req->set_min_target_count(std::max(MinUploadReplicationFactor_ - activeTargets, 1));
-    req->set_replication_factor_override(UploadReplicationFactor_);
-    if (Config_->PreferLocalHost) {
-        req->set_preferred_host_name(TAddressResolver::Get()->GetLocalHostName());
+    std::vector<Stroka> forbiddenAddresses;
+    for (const auto& node : Nodes_) {
+        forbiddenAddresses.push_back(node->Descriptor.GetDefaultAddress());
     }
-    for (auto node : Nodes_) {
-        req->add_forbidden_addresses(node->Descriptor.GetDefaultAddress());
-    }
-    ToProto(req->mutable_chunk_id(), ChunkId_);
 
-    auto rspOrError = WaitFor(req->Invoke());
-    THROW_ERROR_EXCEPTION_IF_FAILED(
-        rspOrError,
-        EErrorCode::MasterCommunicationFailed,
-        "Failed to allocate targets for chunk %v",
-        ChunkId_);
-    const auto& rsp = rspOrError.Value();
-
-    NodeDirectory_->MergeFrom(rsp->node_directory());
-
-    auto replicas = NYT::FromProto<TChunkReplicaList>(rsp->replicas());
-    return replicas;
+    return AllocateWriteTargets(
+        Client_,
+        ChunkId_,
+        UploadReplicationFactor_ - activeTargets,
+        std::max(MinUploadReplicationFactor_ - activeTargets, 1),
+        UploadReplicationFactor_,
+        Config_->PreferLocalHost,
+        forbiddenAddresses,
+        NodeDirectory_,
+        Logger);
 }
 
 void TReplicationWriter::StartSessions(const TChunkReplicaList& targets)

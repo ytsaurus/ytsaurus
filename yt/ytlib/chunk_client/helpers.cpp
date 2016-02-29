@@ -25,6 +25,8 @@
 
 #include <yt/core/erasure/codec.h>
 
+#include <yt/core/misc/address.h>
+
 namespace NYT {
 namespace NChunkClient {
 
@@ -38,10 +40,7 @@ using namespace NProto;
 using namespace NApi;
 
 using NYT::FromProto;
-
-////////////////////////////////////////////////////////////////////////////////
-
-const auto& Logger = ChunkClientLogger;
+using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -165,6 +164,71 @@ void ProcessFetchResponse(
     }
 }
 
+TChunkReplicaList AllocateWriteTargets(
+    NApi::IClientPtr client,
+    const TChunkId& chunkId,
+    int desiredTargetCount,
+    int minTargetCount,
+    TNullable<int> replicationFactorOverride,
+    bool preferLocalHost,
+    const std::vector<Stroka>& forbiddenAddresses,
+    TNodeDirectoryPtr nodeDirectory,
+    const NLogging::TLogger& logger)
+{
+    const auto& Logger = logger;
+
+    LOG_DEBUG(
+        "Allocating write targets "
+        "(ChunkId: %v, DesiredTargetCount: %v, MinTargetCount: %v, PreferLocalHost: %v, "
+        "ForbiddenAddresses: [%v])",
+        chunkId,
+        desiredTargetCount,
+        minTargetCount,
+        preferLocalHost,
+        forbiddenAddresses);
+
+    auto channel = client->GetMasterChannelOrThrow(EMasterChannelKind::Leader, CellTagFromId(chunkId));
+    TChunkServiceProxy proxy(channel);
+
+    auto batchReq = proxy.AllocateWriteTargets();
+    auto* req = batchReq->add_subrequests();
+    req->set_desired_target_count(desiredTargetCount);
+    req->set_min_target_count(minTargetCount);
+    if (replicationFactorOverride) {
+        req->set_replication_factor_override(*replicationFactorOverride);
+    }
+    if (preferLocalHost) {
+        req->set_preferred_host_name(TAddressResolver::Get()->GetLocalHostName());
+    }
+    ToProto(req->mutable_forbidden_addresses(), forbiddenAddresses);
+    ToProto(req->mutable_chunk_id(), chunkId);
+
+    auto batchRspOrError = WaitFor(batchReq->Invoke());
+    THROW_ERROR_EXCEPTION_IF_FAILED(
+        batchRspOrError,
+        NChunkClient::EErrorCode::MasterCommunicationFailed,
+        "Error allocating targets for chunk %v",
+        chunkId);
+    const auto& batchRsp = batchRspOrError.Value();
+
+    nodeDirectory->MergeFrom(batchRsp->node_directory());
+
+    auto& rsp = batchRsp->subresponses(0);
+    auto replicas = FromProto<TChunkReplicaList>(rsp.replicas());
+    if (replicas.empty()) {
+        THROW_ERROR_EXCEPTION(
+            NChunkClient::EErrorCode::MasterCommunicationFailed,
+            "Not enough data nodes available to write chunk %v",
+            chunkId);
+    }
+
+    LOG_DEBUG("Write targets allocated (ChunkId: %v, Targets: %v)",
+        chunkId,
+        MakeFormattableRange(replicas, TChunkReplicaAddressFormatter(nodeDirectory)));
+
+    return replicas;
+}
+
 TError GetCumulativeError(const TChunkServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError)
 {
     if (!batchRspOrError.IsOK()) {
@@ -225,6 +289,7 @@ IChunkReaderPtr CreateRemoteReader(
     auto chunkId = NYT::FromProto<TChunkId>(chunkSpec.chunk_id());
     auto replicas = NYT::FromProto<TChunkReplicaList>(chunkSpec.replicas());
 
+    const auto& Logger = ChunkClientLogger;
     LOG_DEBUG("Creating remote reader (ChunkId: %v)", chunkId);
 
     if (IsErasureChunkId(chunkId)) {

@@ -30,32 +30,43 @@ message TRspLocateChunks
 
 message TReqAllocateWriteTargets
 {
-    required NYT.NProto.TGuid chunk_id = 1;
+    message TSubrequest
+    {
+        required NYT.NProto.TGuid chunk_id = 1;
 
-    // Node addresses (with port number!) that are not allowed to be allocated for this chunk.
-    // This does not prevent further balancing to move chunk there.
-    repeated string forbidden_addresses = 2;
+        // Node addresses (with port number!) that are not allowed to be allocated for this chunk.
+        // This does not prevent further balancing to move chunk there.
+        repeated string forbidden_addresses = 2;
 
-    // Host name (without port number!) to be preferred for upload.
-    // The client typically puts the name of the local host here to
-    // facilitate local uploads.
-    optional string preferred_host_name = 3;
+        // Host name (without port number!) to be preferred for upload.
+        // The client typically puts the name of the local host here to
+        // facilitate local uploads.
+        optional string preferred_host_name = 3;
 
-    // Desired number of nodes to allocate.
-    required int32 desired_target_count = 4;
+        // Desired number of nodes to allocate.
+        required int32 desired_target_count = 4;
 
-    // Minimum acceptable number of nodes to allocate.
-    required int32 min_target_count = 5;
+        // Minimum acceptable number of nodes to allocate.
+        required int32 min_target_count = 5;
 
-    // An override for chunk replication factor;
-    // used when one wants to upload fewer replicas but still guarantee placement safety.
-    optional int32 replication_factor_override = 6;
+        // An override for chunk replication factor;
+        // used when one wants to upload fewer replicas but still guarantee placement safety.
+        optional int32 replication_factor_override = 6;
+    }
+
+    repeated TSubrequest subrequests = 1;
 }
 
 message TRspAllocateWriteTargets
 {
     required NNodeTrackerClient.NProto.TNodeDirectory node_directory = 1;
-    repeated fixed32 replicas = 2;
+
+    message TSubresponse
+    {
+        repeated fixed32 replicas = 1;
+    }
+
+    repeated TSubresponse subresponses = 2;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
