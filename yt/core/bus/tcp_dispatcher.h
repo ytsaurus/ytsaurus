@@ -24,6 +24,12 @@ struct TTcpDispatcherStatistics
 
     int ClientConnections = 0;
     int ServerConnections = 0;
+
+    i64 StalledReads = 0;
+    i64 StalledWrites = 0;
+
+    i64 ReadErrors = 0;
+    i64 WriteErrors = 0;
 };
 
 TTcpDispatcherStatistics operator + (

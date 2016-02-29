@@ -166,6 +166,7 @@ void TTcpConnection::SyncCheck()
     auto now = NProfiling::GetCpuInstant();
 
     if (HasUnsentData() && LastWriteTime_ < now - NProfiling::DurationToCpuDuration(WriteStallTimeout)) {
+        ++Statistics_->StalledWrites;
         SyncClose(TError(
             NRpc::EErrorCode::TransportError,
             "Socket write stalled")
@@ -174,6 +175,7 @@ void TTcpConnection::SyncCheck()
     }
 
     if (HasUnreadData() && LastReadTime_ < now - NProfiling::DurationToCpuDuration(ReadStallTimeout)) {
+        ++Statistics_->StalledReads;
         SyncClose(TError(
             NRpc::EErrorCode::TransportError,
             "Socket read stalled")
@@ -657,6 +659,7 @@ bool TTcpConnection::CheckReadError(ssize_t result)
     if (result < 0) {
         int error = LastSystemError();
         if (IsSocketError(error)) {
+            ++Statistics_->ReadErrors;
             auto wrappedError = TError(
                 NRpc::EErrorCode::TransportError,
                 "Socket read error")
@@ -1000,6 +1003,7 @@ bool TTcpConnection::CheckWriteError(ssize_t result)
     if (result < 0) {
         int error = LastSystemError();
         if (IsSocketError(error)) {
+            ++Statistics_->WriteErrors;
             auto wrappedError = TError(
                 NRpc::EErrorCode::TransportError,
                 "Socket write error")
