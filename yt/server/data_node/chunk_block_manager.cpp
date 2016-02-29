@@ -190,19 +190,6 @@ private:
         return block->GetData().Size();
     }
 
-
-    TChunkReadGuard AcquireReadGuard(IChunkPtr chunk)
-    {
-        auto guard = TChunkReadGuard::TryAcquire(chunk);
-        if (!guard) {
-            THROW_ERROR_EXCEPTION(
-                NChunkClient::EErrorCode::NoSuchChunk,
-                "Cannot read chunk %v since it is scheduled for removal",
-                chunk->GetId());
-        }
-        return guard;
-    }
-
     static std::vector<TSharedRef> OnBlocksRead(
         TChunkReadGuard /*guard*/,
         const std::vector<TSharedRef>& blocks)
