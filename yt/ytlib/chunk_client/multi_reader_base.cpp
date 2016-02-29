@@ -200,6 +200,7 @@ TSequentialMultiReaderBase::TSequentialMultiReaderBase(
     NextReaders_.reserve(ReaderFactories_.size());
     for (int i = 0; i < ReaderFactories_.size(); ++i) {
         NextReaders_.push_back(NewPromise<IReaderBasePtr>());
+        NextReaders_.back().TrySetFrom(CompletionError_.ToFuture());
     }
 }
 
@@ -269,17 +270,7 @@ void TSequentialMultiReaderBase::WaitForCurrentReader()
 }
 
 void TSequentialMultiReaderBase::OnError()
-{
-    BIND([=, this_ = MakeStrong(this)] () {
-        // This is to avoid infinite waiting and memory leaks.
-        for (int i = NextReaderIndex_; i < NextReaders_.size(); ++i) {
-            NextReaders_[i].Reset();
-        }
-        NextReaderIndex_ = NextReaders_.size();
-    })
-    .Via(TDispatcher::Get()->GetReaderInvoker())
-    .Run();
-}
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 
