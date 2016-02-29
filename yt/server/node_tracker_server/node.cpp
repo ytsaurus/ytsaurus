@@ -60,7 +60,6 @@ TNode::TNode(const TObjectId& objectId)
 void TNode::Init()
 {
     VisitMark_ = 0;
-    LoadRank_ = -1;
     IOWeight_ = 0.0;
     Banned_ = false;
     Decommissioned_ = false;
@@ -421,8 +420,8 @@ void TNode::Reset()
         queue.clear();
     }
     ChunkSealQueue_.clear();
-    LoadRank_ = -1;
     FillFactorIterator_ = Null;
+    LoadFactorIterator_ = Null;
 }
 
 ui64 TNode::GenerateVisitMark()
@@ -436,6 +435,25 @@ int TNode::GetTotalTabletSlots() const
     return
         Statistics_.used_tablet_slots() +
         Statistics_.available_tablet_slots();
+}
+
+double TNode::GetFillFactor() const
+{
+    auto freeSpace = Statistics_.total_available_space() - Statistics_.total_low_watermark_space();
+    return
+        Statistics_.total_used_space() /
+        std::max(1.0, static_cast<double>(freeSpace + Statistics_.total_used_space()));
+}
+
+double TNode::GetLoadFactor() const
+{
+    // NB: Avoid division by zero.
+    return static_cast<double>(GetTotalSessionCount()) / std::max(IOWeight_, 0.000000001);
+}
+
+bool TNode::IsFull() const
+{
+    return Statistics_.full();
 }
 
 TChunkPtrWithIndex TNode::ToGeneric(TChunkPtrWithIndex replica)

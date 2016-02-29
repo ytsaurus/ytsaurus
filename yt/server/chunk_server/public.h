@@ -98,6 +98,9 @@ typedef TChunkRepairQueue::iterator TChunkRepairQueueIterator;
 typedef std::multimap<double, NNodeTrackerServer::TNode*> TFillFactorToNodeMap;
 typedef TFillFactorToNodeMap::iterator TFillFactorToNodeIterator;
 
+typedef std::multimap<double, NNodeTrackerServer::TNode*> TLoadFactorToNodeMap;
+typedef TLoadFactorToNodeMap::iterator TLoadFactorToNodeIterator;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NChunkServer

@@ -53,7 +53,6 @@ public:
 
     // Transient properties.
     DEFINE_BYVAL_RW_PROPERTY(ui64, VisitMark);
-    DEFINE_BYVAL_RW_PROPERTY(int, LoadRank);
     DEFINE_BYVAL_RW_PROPERTY(double, IOWeight);
 
     using TMulticellStates = yhash_map<NObjectClient::TCellTag, ENodeState>;
@@ -78,6 +77,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(bool, Banned);
     DEFINE_BYVAL_RW_PROPERTY(bool, Decommissioned);
     DEFINE_BYVAL_RW_PROPERTY(TNullable<NChunkServer::TFillFactorToNodeIterator>, FillFactorIterator);
+    DEFINE_BYVAL_RW_PROPERTY(TNullable<NChunkServer::TLoadFactorToNodeIterator>, LoadFactorIterator);
 
     // NB: Randomize replica hashing to avoid collisions during balancing.
     using TReplicaSet = yhash_set<TChunkPtrWithIndex>;
@@ -168,6 +168,10 @@ public:
     int GetTotalSessionCount() const;
 
     int GetTotalTabletSlots() const;
+
+    double GetFillFactor() const;
+    double GetLoadFactor() const;
+    bool IsFull() const;
 
     TTabletSlot* FindTabletSlot(const NTabletServer::TTabletCell* cell);
     TTabletSlot* GetTabletSlot(const NTabletServer::TTabletCell* cell);
