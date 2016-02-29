@@ -36,7 +36,6 @@
 
 #include <yt/core/logging/log.h>
 
-#include <yt/core/misc/address.h>
 #include <yt/core/misc/variant.h>
 
 #include <yt/core/rpc/helpers.h>
@@ -558,35 +557,22 @@ private:
             LOG_INFO("Chunk created (ChunkId: %v)",
                 session->ChunkId);
 
-            TChunkReplicaList replicas;
+            auto replicas = AllocateWriteTargets(
+                Client_,
+                session->ChunkId,
+                ReplicationFactor_,
+                WriteQuorum_,
+                Null,
+                Config_->PreferLocalHost,
+                GetBannedNodes(),
+                NodeDirectory_,
+                Logger);
+
             std::vector<TNodeDescriptor> targets;
-            {
-                TChunkServiceProxy proxy(UploadMasterChannel_);
-
-                auto req = proxy.AllocateWriteTargets();
-                ToProto(req->mutable_chunk_id(), session->ChunkId);
-                ToProto(req->mutable_forbidden_addresses(), GetBannedNodes());
-                if (Config_->PreferLocalHost) {
-                    req->set_preferred_host_name(TAddressResolver::Get()->GetLocalHostName());
-                }
-                req->set_desired_target_count(ReplicationFactor_);
-                req->set_min_target_count(WriteQuorum_);
-
-                auto rspOrError = WaitFor(req->Invoke());
-                THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error allocating write targets");
-                const auto& rsp = rspOrError.Value();
-
-                NodeDirectory_->MergeFrom(rsp->node_directory());
-
-                replicas = FromProto<TChunkReplicaList>(rsp->replicas());
-                for (auto replica : replicas) {
-                    const auto& descriptor = NodeDirectory_->GetDescriptor(replica);
-                    targets.push_back(descriptor);
-                }
+            for (auto replica : replicas) {
+                const auto& descriptor = NodeDirectory_->GetDescriptor(replica);
+                targets.push_back(descriptor);
             }
-
-            LOG_INFO("Write targets allocated (Targets: %v)",
-                targets);
 
             const auto& networkName = Client_->GetConnection()->GetConfig()->NetworkName;
             for (const auto& target : targets) {

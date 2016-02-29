@@ -45,6 +45,20 @@ void ProcessFetchResponse(
     const NLogging::TLogger& logger,
     std::vector<NProto::TChunkSpec>* chunkSpecs);
 
+//! Synchronously invokes TChunkServiceProxy::AllocateWriteTargets.
+//! Populates #nodeDirectory with the returned node descriptors.
+//! Throws if the server returns no replicas.
+TChunkReplicaList AllocateWriteTargets(
+    NApi::IClientPtr client,
+    const TChunkId& chunkId,
+    int desiredTargetCount,
+    int minTargetCount,
+    TNullable<int> replicationFactorOverride,
+    bool preferLocalHost,
+    const std::vector<Stroka>& forbiddenAddresses,
+    NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
+    const NLogging::TLogger& logger);
+
 //! Returns the cumulative error for the whole batch.
 /*!
  *  If the envelope request fails then the corresponding error is returned.
