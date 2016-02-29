@@ -238,10 +238,9 @@ EExitCode GuardedMain(int argc, const char* argv[])
     INodePtr configNode;
 
     if (isExecutor) {
+        // Don't start any other singleton or parse config in executor mode.
         NLogging::TLogManager::Get()->Configure(NLogging::TLogConfig::CreateQuiet());
-    }
-
-    if (!printConfigTemplate && !isExecutor) {
+    } else if (!printConfigTemplate) {
         if (configFileName.empty()) {
             THROW_ERROR_EXCEPTION("Missing --config option");
         }
