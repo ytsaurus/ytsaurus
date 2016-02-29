@@ -687,12 +687,10 @@ bool TTcpConnection::CheckReadError(ssize_t result)
         int error = LastSystemError();
         if (IsSocketError(error)) {
             ++Statistics_->ReadErrors;
-            auto wrappedError = TError(
+            SyncClose(TError(
                 NRpc::EErrorCode::TransportError,
                 "Socket read error")
-                << TError::FromSystem(error);
-            LOG_DEBUG(wrappedError);
-            SyncClose(wrappedError);
+                << TError::FromSystem(error));
         }
         return false;
     }
@@ -732,7 +730,6 @@ bool TTcpConnection::OnPacketReceived() throw()
 bool TTcpConnection::OnAckPacketReceived()
 {
     if (UnackedMessages_.empty()) {
-        LOG_ERROR("Unexpected ack received");
         SyncClose(TError(
             NRpc::EErrorCode::TransportError,
             "Unexpected ack received"));
@@ -742,12 +739,11 @@ bool TTcpConnection::OnAckPacketReceived()
     auto& unackedMessage = UnackedMessages_.front();
 
     if (Decoder_.GetPacketId() != unackedMessage.PacketId) {
-        LOG_ERROR("Ack for invalid packet ID received: expected %v, found %v",
-            unackedMessage.PacketId,
-            Decoder_.GetPacketId());
         SyncClose(TError(
             NRpc::EErrorCode::TransportError,
-            "Ack for invalid packet ID received"));
+            "Ack for invalid packet ID received: expected %v, found %v",
+            unackedMessage.PacketId,
+            Decoder_.GetPacketId()));
         return false;
     }
 
@@ -805,16 +801,12 @@ void TTcpConnection::OnSocketWrite()
         // Check if connection was established successfully.
         int error = GetSocketError();
         if (error != 0) {
-            auto wrappedErrror = TError(
+            // We're currently in event loop context, so calling |SyncClose| is safe.
+            SyncClose(TError(
                 NRpc::EErrorCode::TransportError,
                 "Error connecting to %v",
                 EndpointDescription_)
-                << TError::FromSystem(error);
-            LOG_ERROR(wrappedErrror);
-
-            // We're currently in event loop context, so calling |SyncClose| is safe.
-            SyncClose(wrappedErrror);
-
+                << TError::FromSystem(error));
             return;
         }
         SyncOpen();
@@ -1000,7 +992,9 @@ bool TTcpConnection::MaybeEncodeFragments()
             packet->PacketId,
             packet->Message);
         if (!encodeResult) {
-            SyncClose(TError(NRpc::EErrorCode::TransportError, "Error encoding outcoming packet"));
+            SyncClose(TError(
+                NRpc::EErrorCode::TransportError,
+                "Error encoding outcoming packet"));
             return false;
         }
 
@@ -1033,12 +1027,10 @@ bool TTcpConnection::CheckWriteError(ssize_t result)
         int error = LastSystemError();
         if (IsSocketError(error)) {
             ++Statistics_->WriteErrors;
-            auto wrappedError = TError(
+            SyncClose(TError(
                 NRpc::EErrorCode::TransportError,
                 "Socket write error")
-                << TError::FromSystem(error);
-            LOG_WARNING(wrappedError);
-            SyncClose(wrappedError);
+                << TError::FromSystem(error));
         }
         return false;
     }
