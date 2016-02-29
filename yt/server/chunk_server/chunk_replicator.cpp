@@ -899,7 +899,7 @@ void TChunkReplicator::ScheduleNewJobs(
         }
 
         // Schedule balancing jobs.
-        double sourceFillFactor = ChunkPlacement_->GetFillFactor(node);
+        double sourceFillFactor = node->GetFillFactor();
         double targetFillFactor = sourceFillFactor - Config_->MinBalancingFillFactorDiff;
         if (hasSpareReplicationResources() &&
             sourceFillFactor > Config_->MinBalancingFillFactor &&

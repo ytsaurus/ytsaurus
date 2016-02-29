@@ -29,8 +29,6 @@ public:
     void OnNodeUpdated(TNode* node);
     void OnNodeDisposed(TNode* node);
 
-    double GetFillFactor(TNode* node) const;
-
     TNodeList AllocateWriteTargets(
         TChunk* chunk,
         int desiredCount,
@@ -65,18 +63,15 @@ private:
     const TChunkManagerConfigPtr Config_;
     NCellMaster::TBootstrap* const Bootstrap_;
 
-    std::vector<TNode*> LoadRankToNode_;
     TFillFactorToNodeMap FillFactorToNode_;
+    TFillFactorToNodeMap LoadFactorToNode_;
 
-
-    static double GetLoadFactor(TNode* node);
 
     void InsertToFillFactorMap(TNode* node);
     void RemoveFromFillFactorMap(TNode* node);
 
-    void InsertToLoadRankList(TNode* node);
-    void RemoveFromLoadRankList(TNode* node);
-    void AdvanceInLoadRankList(TNode* node);
+    void InsertToLoadFactorMap(TNode* node);
+    void RemoveFromLoadFactorMap(TNode* node);
 
     TNodeList GetWriteTargets(
         TChunk* chunk,
@@ -89,8 +84,6 @@ private:
     TNode* GetBalancingTarget(
         TChunk* chunk,
         double maxFillFactor);
-
-    static bool IsFull(TNode* node);
 
     static bool IsAcceptedChunkType(
         TNode* node,

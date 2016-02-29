@@ -116,7 +116,7 @@ void TChunkPlacement::OnNodeRegistered(TNode* node)
         node->GetLocalState() != ENodeState::Online)
         return;
 
-    InsertToLoadRankList(node);
+    InsertToLoadFactorMap(node);
 
     if (node->GetSessionCount(ESessionType::Replication) < Config_->MaxReplicationWriteSessions) {
         InsertToFillFactorMap(node);
@@ -125,7 +125,7 @@ void TChunkPlacement::OnNodeRegistered(TNode* node)
 
 void TChunkPlacement::OnNodeUnregistered(TNode* node)
 {
-    RemoveFromLoadRankList(node);
+    RemoveFromLoadFactorMap(node);
 
     RemoveFromFillFactorMap(node);
 }
@@ -150,7 +150,8 @@ void TChunkPlacement::OnNodeUpdated(TNode* node)
 
 void TChunkPlacement::OnNodeDisposed(TNode* node)
 {
-    YCHECK(node->GetLoadRank() < 0);
+    YCHECK(!node->GetLoadFactorIterator());
+    YCHECK(!node->GetFillFactorIterator());
 }
 
 TNodeList TChunkPlacement::AllocateWriteTargets(
@@ -177,73 +178,37 @@ TNodeList TChunkPlacement::AllocateWriteTargets(
     return targetNodes;
 }
 
-double TChunkPlacement::GetLoadFactor(TNode* node)
-{
-    // NB: Avoid division by zero.
-    return static_cast<double>(node->GetTotalSessionCount()) / std::max(node->GetIOWeight(), 0.000000001);
-}
-
 void TChunkPlacement::InsertToFillFactorMap(TNode* node)
 {
     RemoveFromFillFactorMap(node);
 
-    double fillFactor = GetFillFactor(node);
+    double fillFactor = node->GetFillFactor();
     auto it = FillFactorToNode_.insert(std::make_pair(fillFactor, node));
     node->SetFillFactorIterator(it);
 }
 
 void TChunkPlacement::RemoveFromFillFactorMap(TNode* node)
 {
-    if (!node->GetFillFactorIterator())
-        return;
-    FillFactorToNode_.erase(*node->GetFillFactorIterator());
-    node->SetFillFactorIterator(Null);
+    if (node->GetFillFactorIterator()) {
+        FillFactorToNode_.erase(*node->GetFillFactorIterator());
+        node->SetFillFactorIterator(Null);
+    }
 }
 
-void TChunkPlacement::InsertToLoadRankList(TNode* node)
+void TChunkPlacement::InsertToLoadFactorMap(TNode* node)
 {
-    RemoveFromLoadRankList(node);
+    RemoveFromLoadFactorMap(node);
 
-    double loadFactor = GetLoadFactor(node);
-    int i = 0;
-    while (i < LoadRankToNode_.size() && GetLoadFactor(LoadRankToNode_[i]) < loadFactor) {
-        ++i;
-    }
-    LoadRankToNode_.resize(LoadRankToNode_.size() + 1);
-    for (int j = LoadRankToNode_.size() - 1; j > i; --j) {
-        LoadRankToNode_[j] = LoadRankToNode_[j - 1];
-        LoadRankToNode_[j]->SetLoadRank(j);
-    }
-    LoadRankToNode_[i] = node;
-    node->SetLoadRank(i);
+    double loadFactor = node->GetLoadFactor();
+    auto it = LoadFactorToNode_.insert(std::make_pair(loadFactor, node));
+    node->SetLoadFactorIterator(it);
 }
 
-void TChunkPlacement::RemoveFromLoadRankList(TNode* node)
+void TChunkPlacement::RemoveFromLoadFactorMap(TNode* node)
 {
-    int loadRank = node->GetLoadRank();
-    if (loadRank < 0)
-        return;
-    for (int i = loadRank; i < LoadRankToNode_.size() - 1; i++) {
-        LoadRankToNode_[i] = LoadRankToNode_[i + 1];
-        LoadRankToNode_[i]->SetLoadRank(i);
-    }
-    LoadRankToNode_.resize(LoadRankToNode_.size() - 1);
-    node->SetLoadRank(-1);
-}
-
-void TChunkPlacement::AdvanceInLoadRankList(TNode* node)
-{
-    int loadRank = node->GetLoadRank();
-    YCHECK(loadRank >= 0);
-
-    for (int i = loadRank;
-         i + 1 < LoadRankToNode_.size() &&
-         GetLoadFactor(LoadRankToNode_[i + 1]) < GetLoadFactor(LoadRankToNode_[i]);
-         ++i)
-    {
-        std::swap(LoadRankToNode_[i], LoadRankToNode_[i + 1]);
-        LoadRankToNode_[i]->SetLoadRank(i);
-        LoadRankToNode_[i + 1]->SetLoadRank(i + 1);
+    if (node->GetLoadFactorIterator()) {
+        LoadFactorToNode_.erase(*node->GetLoadFactorIterator());
+        node->SetLoadFactorIterator(Null);
     }
 }
 
@@ -265,7 +230,8 @@ TNodeList TChunkPlacement::GetWriteTargets(
     };
 
     auto tryAddAll = [&] (bool enableRackAwareness) {
-        for (auto* node : LoadRankToNode_) {
+        for (const auto& pair : LoadFactorToNode_) {
+            auto* node = pair.second;
             if (collector.GetAddedNodes().size() == desiredCount)
                 break;
             tryAdd(node, enableRackAwareness);
@@ -339,7 +305,7 @@ TNode* TChunkPlacement::GetRemovalTarget(TChunkPtrWithIndex chunkWithIndex)
                 rackWinner = node;
             }
 
-            if (!fillFactorWinner || GetFillFactor(node) > GetFillFactor(fillFactorWinner)) {
+            if (!fillFactorWinner || node->GetFillFactor() > fillFactorWinner->GetFillFactor()) {
                 fillFactorWinner = node;
             }
         }
@@ -359,7 +325,7 @@ bool TChunkPlacement::HasBalancingTargets(double maxFillFactor)
     }
 
     auto* node = FillFactorToNode_.begin()->second;
-    return GetFillFactor(node) < maxFillFactor;
+    return node->GetFillFactor() < maxFillFactor;
 }
 
 TNode* TChunkPlacement::AllocateBalancingTarget(
@@ -384,7 +350,7 @@ TNode* TChunkPlacement::GetBalancingTarget(
 
     for (const auto& pair : FillFactorToNode_) {
         auto* node = pair.second;
-        if (GetFillFactor(node) > maxFillFactor) {
+        if (node->GetFillFactor() > maxFillFactor) {
             break;
         }
         if (IsValidBalancingTarget(node, chunk->GetType(), &collector, true)) {
@@ -406,7 +372,7 @@ bool TChunkPlacement::IsValidWriteTarget(
         return false;
     }
 
-    if (IsFull(node)) {
+    if (node->IsFull()) {
         // Do not write anything to full nodes.
         return false;
     }
@@ -425,9 +391,6 @@ bool TChunkPlacement::IsValidWriteTarget(
         // The collector does not like this node.
         return false;
     }
-
-    // Sanity checks.
-    YCHECK(node->GetLoadRank() >= 0);
 
     // Seems OK :)
     return true;
@@ -500,20 +463,6 @@ std::vector<TChunkPtrWithIndex> TChunkPlacement::GetBalancingChunks(
     return result;
 }
 
-double TChunkPlacement::GetFillFactor(TNode* node) const
-{
-    const auto& statistics = node->Statistics();
-    auto freeSpace = statistics.total_available_space() - statistics.total_low_watermark_space();
-    return
-        statistics.total_used_space() /
-        std::max(1.0, static_cast<double>(freeSpace + statistics.total_used_space()));
-}
-
-bool TChunkPlacement::IsFull(TNode* node)
-{
-    return node->Statistics().full();
-}
-
 bool TChunkPlacement::IsAcceptedChunkType(TNode* node, EObjectType type)
 {
     for (auto acceptedType : node->Statistics().accepted_chunk_types()) {
@@ -528,7 +477,8 @@ void TChunkPlacement::AddSessionHint(TNode* node, ESessionType sessionType)
 {
     node->AddSessionHint(sessionType);
 
-    AdvanceInLoadRankList(node);
+    RemoveFromLoadFactorMap(node);
+    InsertToLoadFactorMap(node);
 
     if (node->GetSessionCount(ESessionType::Replication) >= Config_->MaxReplicationWriteSessions) {
         RemoveFromFillFactorMap(node);
