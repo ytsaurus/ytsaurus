@@ -417,9 +417,6 @@ void TBootstrap::DoInitialize()
         Config_->BusServer->BindRetryBackoff);
 
     auto busServer = CreateTcpBusServer(Config_->BusServer);
-    // TODO(ignat): remove?
-    //auto busServerConfig = TTcpBusServerConfig::CreateTcp(Config_->RpcPort);
-    //auto busServer = CreateTcpBusServer(busServerConfig);
 
     RpcServer_ = CreateBusServer(busServer);
 
