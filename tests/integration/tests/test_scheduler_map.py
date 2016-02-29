@@ -282,7 +282,6 @@ done
                 jobs_path = "//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(op_id)
                 jobs = ls(jobs_path)
                 assert jobs
-                initial_job = jobs[0]
 
                 # Send signal and wait for a new job
                 signal_job(jobs[0], "SIGUSR1")
@@ -336,7 +335,7 @@ done
                 job_id = open(pin_filename).read()
                 assert job_id
 
-                result = abandon_job(job_id)
+                abandon_job(job_id)
             finally:
                 try:
                     os.unlink(pin_filename)
@@ -398,6 +397,24 @@ class TestSchedulerMapCommands(YTEnvSetup):
 
         new_data = read_table("//tmp/t2", verbose=False)
         assert sorted(row.items() for row in new_data) == [[("index", i)] for i in xrange(count)]
+
+    def test_file_with_integer_name(self):
+        create("table", "//tmp/t_input")
+        create("table", "//tmp/t_output")
+
+        write_table("//tmp/t_input", [{"hello": "world"}])
+
+        file = "//tmp/1000"
+        create("file", file)
+        write_file(file, "{value=42};\n")
+
+        map(in_="//tmp/t_input",
+            out=["//tmp/t_output"],
+            command="cat 1000 >&2; cat",
+            file=[file],
+            verbose=True)
+
+        assert read_table("//tmp/t_output") == [{"hello": "world"}]
 
     def test_two_inputs_at_the_same_time(self):
         create("table", "//tmp/t_input")
