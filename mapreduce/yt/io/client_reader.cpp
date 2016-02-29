@@ -39,7 +39,7 @@ int GetRowIndexFromHeaders(THttpInput* httpInput)
     auto& map = params.AsMap();
     auto it = map.find("start_row_index");
     if (it == map.end()) {
-        ythrow yexception() << "No start_row_index parameter in response header";
+        return 0;
     }
     return it->second.AsInt64();
 }
