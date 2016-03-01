@@ -138,6 +138,10 @@ class TestTables(YTEnvSetup):
         with pytest.raises(YtError):
             write_table("//tmp/table", {"a" : "long_string"}, table_writer = {"max_row_weight" : 2})
 
+        # check duplicate ids
+        with pytest.raises(YtError):
+            write_table("//tmp/table", {"a" : "version1", "a" : "version2"})
+
         content = "some_data"
         create("file", "//tmp/file")
         write_file("//tmp/file", content)
