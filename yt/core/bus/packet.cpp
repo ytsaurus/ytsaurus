@@ -1,6 +1,6 @@
 #include "packet.h"
 
-#include <yt/core/misc/common.h>
+#include <yt/core/misc/checksum.h>
 
 namespace NYT {
 namespace NBus {
@@ -26,15 +26,13 @@ TPacketDecoder::TPacketDecoder()
 
 void TPacketDecoder::Restart()
 {
-    Phase_ = EPacketPhase::Header;
+    Phase_ = EPacketPhase::FixedHeader;
     PacketSize_ = 0;
-    PartSizes_.clear();
     Parts_.clear();
-    PartCount_ = 0;
     PartIndex_ = -1;
     Message_.Reset();
 
-    BeginPhase(EPacketPhase::Header, &Header_, sizeof (TPacketHeader));
+    BeginPhase(EPacketPhase::FixedHeader, &FixedHeader_, sizeof (TPacketHeader));
 }
 
 bool TPacketDecoder::Advance(size_t size)
@@ -42,6 +40,7 @@ bool TPacketDecoder::Advance(size_t size)
     YASSERT(FragmentRemaining_ != 0);
     YASSERT(size <= FragmentRemaining_);
 
+    PacketSize_ += size;
     FragmentRemaining_ -= size;
     FragmentPtr_ += size;
     if (FragmentRemaining_ == 0) {
@@ -51,19 +50,24 @@ bool TPacketDecoder::Advance(size_t size)
     }
 }
 
+bool TPacketDecoder::IsInProgress() const
+{
+    return Phase_ != EPacketPhase::Finished && PacketSize_ > 0;
+}
+
 EPacketType TPacketDecoder::GetPacketType() const
 {
-    return Header_.Type;
+    return FixedHeader_.Type;
 }
 
 EPacketFlags TPacketDecoder::GetPacketFlags() const
 {
-    return EPacketFlags(Header_.Flags);
+    return EPacketFlags(FixedHeader_.Flags);
 }
 
 const TPacketId& TPacketDecoder::GetPacketId() const
 {
-    return Header_.PacketId;
+    return FixedHeader_.PacketId;
 }
 
 TSharedRefArray TPacketDecoder::GetMessage() const
@@ -76,18 +80,35 @@ size_t TPacketDecoder::GetPacketSize() const
     return PacketSize_;
 }
 
-bool TPacketDecoder::EndHeaderPhase()
+bool TPacketDecoder::EndFixedHeaderPhase()
 {
-    if (Header_.Signature != PacketSignature) {
+    if (FixedHeader_.Signature != PacketSignature) {
         LOG_ERROR("Packet header signature mismatch: expected %X, actual %X",
             PacketSignature,
-            Header_.Signature);
+            FixedHeader_.Signature);
         return false;
     }
 
-    switch (Header_.Type) {
+    if (FixedHeader_.PartCount > MaxPacketPartCount) {
+        LOG_ERROR("Invalid part count %v",
+            FixedHeader_.PartCount);
+        return false;
+    }
+
+    if (FixedHeader_.Checksum != NullChecksum) {
+        auto expectedChecksum = FixedHeader_.Checksum;
+        FixedHeader_.Checksum = NullChecksum;
+        auto actualChecksum = GetChecksum(TRef::FromPod(FixedHeader_));
+        if (expectedChecksum != actualChecksum) {
+            LOG_ERROR("Packet header checksum mismatch");
+            return false;
+        }
+    }
+
+    switch (FixedHeader_.Type) {
         case EPacketType::Message:
-            BeginPhase(EPacketPhase::PartCount, &PartCount_, sizeof (i32));
+            AllocateVariableHeader();
+            BeginPhase(EPacketPhase::VariableHeader, VariableHeader_.data(), VariableHeaderSize_);
             return true;
 
         case EPacketType::Ack:
@@ -95,41 +116,22 @@ bool TPacketDecoder::EndHeaderPhase()
             return true;
 
         default:
-            LOG_ERROR("Invalid packet type %v", Header_.Type);
+            LOG_ERROR("Invalid packet type %v",
+                FixedHeader_.Type);
             return false;
     }
 }
 
-bool TPacketDecoder::EndPartCountPhase()
+bool TPacketDecoder::EndVariableHeaderPhase()
 {
-    if (PartCount_ < 0 || PartCount_ > MaxPacketPartCount) {
-        LOG_ERROR("Invalid part count %v", PartCount_);
-        return false;
-    }
-
-    PartSizes_.resize(PartCount_);
-    BeginPhase(EPacketPhase::PartSizes, PartSizes_.data(), PartCount_ * sizeof (i32));
-    return true;
-}
-
-bool TPacketDecoder::EndPartSizesPhase()
-{
-    PacketSize_ =
-        sizeof (TPacketHeader) + // header
-        sizeof (i32) + // PartCount
-        PartCount_ * sizeof (i32); // PartSizes
-
-    for (int index = 0; index < PartCount_; ++index) {
-        i32 partSize = PartSizes_[index];
-        if (partSize == NullPacketPartSize)
-            continue;
-        if (partSize < 0 || partSize > MaxPacketPartSize) {
+    for (int index = 0; index < FixedHeader_.PartCount; ++index) {
+        ui32 partSize = PartSizes_[index];
+        if (partSize != NullPacketPartSize && partSize > MaxPacketPartSize) {
             LOG_ERROR("Invalid size %v of part %v",
                 partSize,
                 index);
             return false;
         }
-        PacketSize_ += partSize;
     }
 
     NextMessagePartPhase();
@@ -138,23 +140,30 @@ bool TPacketDecoder::EndPartSizesPhase()
 
 bool TPacketDecoder::EndMessagePartPhase()
 {
+    auto expectedChecksum = PartChecksums_[PartIndex_];
+    if (expectedChecksum != NullChecksum) {
+        auto actualChecksum = GetChecksum(Parts_[PartIndex_]);
+        if (expectedChecksum != actualChecksum) {
+            LOG_ERROR("Packet part checksum mismatch");
+            return false;
+        }
+    }
+
     NextMessagePartPhase();
     return true;
 }
 
 void TPacketDecoder::NextMessagePartPhase()
 {
-    YASSERT(PartIndex_ < PartCount_);
-
     while (true) {
         ++PartIndex_;
-        if (PartIndex_ == PartCount_) {
+        if (PartIndex_ == FixedHeader_.PartCount) {
             Message_ = TSharedRefArray(std::move(Parts_));
             SetFinished();
             break;
         }
 
-        int partSize = PartSizes_[PartIndex_];
+        ui32 partSize = PartSizes_[PartIndex_];
         if (partSize == NullPacketPartSize) {
             Parts_.push_back(TSharedRef());
         } else if (partSize == 0) {
@@ -172,23 +181,21 @@ void TPacketDecoder::NextMessagePartPhase()
 
 TPacketEncoder::TPacketEncoder()
 {
-    Phase_ = EPacketPhase::Unstarted;
-    Header_.Signature = PacketSignature;
+    FixedHeader_.Signature = PacketSignature;
 }
 
-i64 TPacketEncoder::GetPacketSize(
+size_t TPacketEncoder::GetPacketSize(
     EPacketType type,
     const TSharedRefArray& message)
 {
-    i64 size = sizeof (TPacketHeader);
+    size_t size = sizeof (TPacketHeader);
     switch (type) {
         case EPacketType::Ack:
             break;
 
         case EPacketType::Message:
             size +=
-                sizeof(i32) +
-                sizeof(i32) * message.Size() +
+                message.Size() * (sizeof (ui32) + sizeof (ui64)) +
                 GetByteSize(message);
             break;
 
@@ -201,17 +208,23 @@ i64 TPacketEncoder::GetPacketSize(
 bool TPacketEncoder::Start(
     EPacketType type,
     EPacketFlags flags,
+    bool enableChecksums,
     const TPacketId& packetId,
     TSharedRefArray message)
 {
-    Header_.Type = type;
-    Header_.Flags = flags;
-    Header_.PacketId = packetId;
-
-    PartSizes_.clear();
-    PartCount_ = 0;
     PartIndex_ = -1;
     Message_ = std::move(message);
+
+    FixedHeader_.Type = type;
+    FixedHeader_.Flags = flags;
+    FixedHeader_.PacketId = packetId;
+    FixedHeader_.PartCount = Message_.Size();
+    FixedHeader_.Checksum = NullChecksum;
+    if (enableChecksums) {
+        FixedHeader_.Checksum = GetChecksum(TRef::FromPod(FixedHeader_));
+    }
+
+    AllocateVariableHeader();
 
     if (type == EPacketType::Message) {
         if (Message_.Size() > MaxPacketPartCount) {
@@ -221,8 +234,7 @@ bool TPacketEncoder::Start(
             return false;
         }
 
-        PartCount_ = Message_.Size();
-        for (int index = 0; index < PartCount_; ++index) {
+        for (int index = 0; index < Message_.Size(); ++index) {
             const auto& part = Message_[index];
             if (part) {
                 if (part.Size() > MaxPacketPartSize) {
@@ -232,14 +244,16 @@ bool TPacketEncoder::Start(
                         MaxPacketPartSize);
                     return false;
                 }
-                PartSizes_.push_back(part.Size());
+                PartSizes_[index] = part.Size();
+                PartChecksums_[index] = enableChecksums ? GetChecksum(part) : NullChecksum;
             } else {
-                PartSizes_.push_back(NullPacketPartSize);
+                PartSizes_[index] = NullPacketPartSize;
+                PartChecksums_[index] = NullChecksum;
             }
         }
     }
 
-    BeginPhase(EPacketPhase::Header, &Header_, sizeof (TPacketHeader));
+    BeginPhase(EPacketPhase::FixedHeader, &FixedHeader_, sizeof (TPacketHeader));
     return true;
 }
 
@@ -253,11 +267,11 @@ void TPacketEncoder::NextFragment()
     EndPhase();
 }
 
-bool TPacketEncoder::EndHeaderPhase()
+bool TPacketEncoder::EndFixedHeaderPhase()
 {
-    switch (Header_.Type) {
+    switch (FixedHeader_.Type) {
         case EPacketType::Message:
-            BeginPhase(EPacketPhase::PartCount, &PartCount_, sizeof (i32));
+            BeginPhase(EPacketPhase::VariableHeader, VariableHeader_.data(), VariableHeaderSize_);
             return true;
 
         case EPacketType::Ack:
@@ -269,13 +283,7 @@ bool TPacketEncoder::EndHeaderPhase()
     }
 }
 
-bool TPacketEncoder::EndPartCountPhase()
-{
-    BeginPhase(EPacketPhase::PartSizes, PartSizes_.data(), PartCount_ * sizeof (i32));
-    return true;
-}
-
-bool TPacketEncoder::EndPartSizesPhase()
+bool TPacketEncoder::EndVariableHeaderPhase()
 {
     NextMessagePartPhase();
     return true;
@@ -289,11 +297,9 @@ bool TPacketEncoder::EndMessagePartPhase()
 
 void TPacketEncoder::NextMessagePartPhase()
 {
-    YASSERT(PartIndex_ < PartCount_);
-
     while (true) {
         ++PartIndex_;
-        if (PartIndex_ == PartCount_) {
+        if (PartIndex_ == FixedHeader_.PartCount) {
             break;
         }
 
