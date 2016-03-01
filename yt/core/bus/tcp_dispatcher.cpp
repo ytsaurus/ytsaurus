@@ -32,6 +32,12 @@ TTcpDispatcherStatistics& operator += (
     lhs.PendingOutPackets += rhs.PendingOutPackets;
     lhs.ClientConnections += rhs.ClientConnections;
     lhs.ServerConnections += rhs.ServerConnections;
+    lhs.StalledReads += rhs.StalledReads;
+    lhs.StalledWrites += rhs.StalledWrites;
+    lhs.ReadErrors += rhs.ReadErrors;
+    lhs.WriteErrors += rhs.WriteErrors;
+    lhs.EncoderErrors += rhs.EncoderErrors;
+    lhs.DecoderErrors += rhs.DecoderErrors;
     return lhs;
 }
 
