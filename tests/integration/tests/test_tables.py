@@ -140,7 +140,7 @@ class TestTables(YTEnvSetup):
 
         # check duplicate ids
         with pytest.raises(YtError):
-            write_table("//tmp/table", {"a" : "version1", "a" : "version2"})
+            write_table("//tmp/table", "{a=version1; a=version2}", is_raw=True)
 
         content = "some_data"
         create("file", "//tmp/file")
