@@ -7,16 +7,15 @@ namespace NBus {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = BusLogger;
-
 static const i64 PacketDecoderChunkSize = 16 * 1024;
 
 struct TPacketDecoderTag { };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TPacketDecoder::TPacketDecoder()
-    : Allocator_(
+TPacketDecoder::TPacketDecoder(const NLogging::TLogger& logger)
+    : TPacketTranscoderBase(logger)
+    , Allocator_(
         PacketDecoderChunkSize,
         TChunkedMemoryAllocator::DefaultMaxSmallBlockSizeRatio,
         GetRefCountedTypeCookie<TPacketDecoderTag>())
@@ -179,7 +178,8 @@ void TPacketDecoder::NextMessagePartPhase()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TPacketEncoder::TPacketEncoder()
+TPacketEncoder::TPacketEncoder(const NLogging::TLogger& logger)
+    : TPacketTranscoderBase(logger)
 {
     FixedHeader_.Signature = PacketSignature;
 }

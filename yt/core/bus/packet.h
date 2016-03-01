@@ -62,10 +62,14 @@ template <class TDerived>
 class TPacketTranscoderBase
 {
 public:
+    explicit TPacketTranscoderBase(const NLogging::TLogger& logger);
+
     TMutableRef GetFragment();
     bool IsFinished() const;
 
 protected:
+	const NLogging::TLogger& Logger;
+
     EPacketPhase Phase_ = EPacketPhase::Finished;
     char* FragmentPtr_ = nullptr;
     size_t FragmentRemaining_ = 0;
@@ -97,7 +101,7 @@ class TPacketDecoder
     : public TPacketTranscoderBase<TPacketDecoder>
 {
 public:
-    TPacketDecoder();
+    explicit TPacketDecoder(const NLogging::TLogger& logger);
 
     bool Advance(size_t size);
     void Restart();
@@ -132,7 +136,7 @@ class TPacketEncoder
     : public TPacketTranscoderBase<TPacketEncoder>
 {
 public:
-    TPacketEncoder();
+    explicit TPacketEncoder(const NLogging::TLogger& logger);
 
     static size_t GetPacketSize(
         EPacketType type,
