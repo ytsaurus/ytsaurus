@@ -219,6 +219,8 @@ void TTcpDispatcher::TImpl::OnProfiling()
         Profiler.Enqueue("/stalled_writes", statistics.StalledWrites, tagIds);
         Profiler.Enqueue("/read_errors", statistics.ReadErrors, tagIds);
         Profiler.Enqueue("/write_errors", statistics.WriteErrors, tagIds);
+        Profiler.Enqueue("/encoder_errors", statistics.EncoderErrors, tagIds);
+        Profiler.Enqueue("/decoder_errors", statistics.DecoderErrors, tagIds);
     }
 }
 
