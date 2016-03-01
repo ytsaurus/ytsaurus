@@ -54,6 +54,9 @@ void TUserJobIOBase::Init()
     auto transactionId = FromProto<TTransactionId>(SchedulerJobSpec_.output_transaction_id());
     for (const auto& outputSpec : SchedulerJobSpec_.output_specs()) {
         auto options = ConvertTo<TTableWriterOptionsPtr>(TYsonString(outputSpec.table_writer_options()));
+        options->ValidateDuplicateIds = true;
+        options->ValidateRowWeight = true;
+
         auto chunkListId = FromProto<TChunkListId>(outputSpec.chunk_list_id());
         TKeyColumns keyColumns;
 
