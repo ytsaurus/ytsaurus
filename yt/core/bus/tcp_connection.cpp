@@ -780,7 +780,7 @@ TTcpConnection::TPacket* TTcpConnection::EnqueuePacket(
     const TPacketId& packetId,
     TSharedRefArray message)
 {
-    i64 size = TPacketEncoder::GetPacketSize(type, message);
+    size_t size = TPacketEncoder::GetPacketSize(type, message);
     auto* packet = new TPacket(type, flags, packetId, std::move(message), size);
     QueuedPackets_.push(packet);
     UpdatePendingOut(+1, +size);
@@ -989,6 +989,7 @@ bool TTcpConnection::MaybeEncodeFragments()
         bool encodeResult = Encoder_.Start(
             packet->Type,
             packet->Flags,
+            InterfaceType_ == ETcpInterfaceType::Remote,
             packet->PacketId,
             packet->Message);
         if (!encodeResult) {
