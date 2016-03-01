@@ -701,6 +701,7 @@ bool TTcpConnection::CheckReadError(ssize_t result)
 bool TTcpConnection::AdvanceDecoder(size_t size)
 {
     if (!Decoder_.Advance(size)) {
+        ++Statistics_->DecoderErrors;
         SyncClose(TError(NRpc::EErrorCode::TransportError, "Error decoding incoming packet"));
         return false;
     }
@@ -993,6 +994,7 @@ bool TTcpConnection::MaybeEncodeFragments()
             packet->PacketId,
             packet->Message);
         if (!encodeResult) {
+            ++Statistics_->EncoderErrors;
             SyncClose(TError(
                 NRpc::EErrorCode::TransportError,
                 "Error encoding outcoming packet"));
