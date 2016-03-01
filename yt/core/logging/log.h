@@ -44,9 +44,9 @@ public:
     bool IsEnabled(ELogLevel level) const;
     void Write(TLogEvent&& event) const;
 
-    void AddRawTag(const Stroka& tag);
+    TLogger& AddRawTag(const Stroka& tag);
     template <class... TArgs>
-    void AddTag(const char* format, const TArgs&... args);
+    TLogger& AddTag(const char* format, const TArgs&... args);
 
 private:
     const char* Category_;
