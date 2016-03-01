@@ -7,7 +7,7 @@ export PYTHONPATH="$(pwd)"
 YT="$(pwd)/yt/wrapper/yt"
 
 YANDEX_YT_LOCAL_VERSION=$(dpkg-parsechangelog | grep Version | awk '{print $2}')
-YANDEX_YT_PYTHON_VERSION="0.6.67-0"
+YANDEX_YT_PYTHON_VERSION="0.6.82-0"
 YANDEX_YT_VERSION="0.17.4-stable-without-yt~6595~df8d03c"
 YANDEX_YT_YSON_BINDINGS_VERSION="0.2.23-0"
 NODEJS_VERSION="0.8.26"
