@@ -26,7 +26,7 @@ namespace NYT {
 namespace {
 
 // TODO: use row_index from stream instead
-int GetRowIndexFromHeaders(THttpInput* httpInput)
+i64 GetRowIndexFromHeaders(THttpInput* httpInput)
 {
     const THttpHeaders& headers = httpInput->Headers();
     Stroka responseParameters;
