@@ -93,13 +93,16 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(PingSession));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetBlockSet)
             .SetCancelable(true)
-            .SetMaxQueueSize(5000));
+            .SetMaxQueueSize(5000)
+            .SetMaxConcurrency(5000));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetBlockRange)
             .SetCancelable(true)
-            .SetMaxQueueSize(5000));
+            .SetMaxQueueSize(5000)
+            .SetMaxConcurrency(5000));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetChunkMeta)
             .SetCancelable(true)
-            .SetMaxQueueSize(5000));
+            .SetMaxQueueSize(5000)
+            .SetMaxConcurrency(5000));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(UpdatePeer)
             .SetOneWay(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetTableSamples)
