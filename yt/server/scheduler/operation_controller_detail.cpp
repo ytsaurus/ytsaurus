@@ -2846,7 +2846,6 @@ void TOperationControllerBase::BeginUploadOutputTables()
                 auto req = TTableYPathProxy::Get(objectIdPath + "/@");
 
                 std::vector<Stroka> attributeKeys{
-                    "channels",
                     "compression_codec",
                     "erasure_codec",
                     "row_count",
@@ -2880,7 +2879,6 @@ void TOperationControllerBase::BeginUploadOutputTables()
                         path);
                 }
 
-                table.Options->Channels = attributes->Get<NChunkClient::TChannels>("channels", TChannels());
                 table.Options->CompressionCodec = attributes->Get<NCompression::ECodec>("compression_codec");
                 table.Options->ErasureCodec = attributes->Get<NErasure::ECodec>("erasure_codec", NErasure::ECodec::None);
                 table.Options->ReplicationFactor = attributes->Get<int>("replication_factor");
