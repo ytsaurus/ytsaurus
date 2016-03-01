@@ -1178,7 +1178,7 @@ def run_sort(source_table, destination_table=None, sort_by=None,
 
     spec = compose(
         lambda _: _configure_spec(_, client),
-        lambda _: _add_job_io_spec(["sort_job_io", "merge_job_io"], job_io, table_writer, _),
+        lambda _: _add_job_io_spec(["partition_job_io", "sort_job_io", "merge_job_io"], job_io, table_writer, _),
         lambda _: _add_input_output_spec(source_table, destination_table, _),
         lambda _: update({"sort_by": sort_by}, _),
         lambda _: get_value(_, {})
