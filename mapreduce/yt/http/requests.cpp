@@ -116,6 +116,19 @@ Stroka Get(
     return RetryRequest(auth, header);
 }
 
+void Set(
+    const TAuth& auth,
+    const TTransactionId& transactionId,
+    const TYPath& path,
+    const Stroka& value)
+{
+    THttpHeader header("PUT", "set");
+    header.AddTransactionId(transactionId);
+    header.AddPath(path);
+    header.AddMutationId();
+    RetryRequest(auth, header, value);
+}
+
 bool Exists(
     const TAuth& auth,
     const TTransactionId& transactionId,

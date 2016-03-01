@@ -143,6 +143,8 @@ private:
             };
             RetryHeavyWriteRequest(Auth_, TTransactionId(), header, streamMaker);
         }
+        Set(Auth_, TTransactionId(), uniquePath + "/@hash",
+            TStringBuilder() << "\"" << buf << "\"");
         {
             THttpHeader header("POST", "link");
             header.AddParam("target_path", uniquePath);
