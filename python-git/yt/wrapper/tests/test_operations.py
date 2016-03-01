@@ -650,6 +650,10 @@ if __name__ == "__main__":
 
             job_id = yt.list(op_path + "/jobs", attributes=["error"])[0]
             stderr_path = os.path.join(op_path, "jobs", job_id, "stderr")
+
+            while not yt.exists(stderr_path):
+                time.sleep(0.2)
+
             assert "Did you forget to surround" in yt.read_file(stderr_path).read()
 
     # TODO(ignat): replace timeout with scheduler-side option
