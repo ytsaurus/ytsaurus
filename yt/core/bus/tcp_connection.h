@@ -146,9 +146,9 @@ private:
 #endif
     const IMessageHandlerPtr Handler_;
 
-    int FD_ = INVALID_SOCKET;
-
     NLogging::TLogger Logger;
+
+    int FD_ = INVALID_SOCKET;
 
     TTcpDispatcherStatistics* const Statistics_;
 
