@@ -8,6 +8,11 @@ namespace NBus {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TDerived>
+TPacketTranscoderBase<TDerived>::TPacketTranscoderBase(const NLogging::TLogger& logger)
+    : Logger(logger)
+{ }
+
+template <class TDerived>
 TMutableRef TPacketTranscoderBase<TDerived>::GetFragment()
 {
     return TMutableRef(FragmentPtr_, FragmentRemaining_);

@@ -71,17 +71,18 @@ TTcpConnection::TTcpConnection(
     , Priority_(priority)
 #endif
     , Handler_(std::move(handler))
+    , Logger(NLogging::TLogger(BusLogger)
+        .AddTag("ConnectionId: %v, RemoteAddress: %v",
+            Id_,
+            EndpointDescription_))
     , Statistics_(DispatcherThread_->GetStatistics(InterfaceType_))
     , MessageEnqueuedCallback_(BIND(&TTcpConnection::OnMessageEnqueuedThunk, MakeWeak(this)))
+    , Decoder_(Logger)
+    , Encoder_(Logger)
 {
     VERIFY_THREAD_AFFINITY_ANY();
     YASSERT(Handler_);
     YASSERT(DispatcherThread_);
-
-    Logger = BusLogger;
-    Logger.AddTag("ConnectionId: %v, RemoteAddress: %v",
-        Id_,
-        EndpointDescription_);
 
     switch (ConnectionType_) {
         case EConnectionType::Client:
