@@ -9,9 +9,9 @@ namespace NLogging {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class... TArgs>
-void TLogger::AddTag(const char* format, const TArgs&... args)
+TLogger& TLogger::AddTag(const char* format, const TArgs&... args)
 {
-    AddRawTag(Format(format, args...));
+    return AddRawTag(Format(format, args...));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
