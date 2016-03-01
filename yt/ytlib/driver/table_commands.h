@@ -238,6 +238,8 @@ public:
             .Optional();
         RegisterParameter("column_names", ColumnNames)
             .Default();
+        RegisterParameter("keep_missing_rows", Options.KeepMissingRows)
+            .Optional();
     }
 
     void Execute(ICommandContextPtr context);
