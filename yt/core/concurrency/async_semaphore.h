@@ -62,6 +62,8 @@ private:
 
     volatile i64 FreeSlots_;
 
+    bool Releasing_ = false;
+
     TPromise<void> ReadyEvent_;
     TPromise<void> FreeEvent_;
 
