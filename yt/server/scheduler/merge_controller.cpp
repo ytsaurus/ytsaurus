@@ -1916,7 +1916,7 @@ private:
         {
             int primaryInputCount = 0;
             for (int i = 0; i < static_cast<int>(InputTables.size()); ++i) {
-                if (InputTables[i].Path.Attributes().Get<bool>("primary", false)) {
+                if (!InputTables[i].Path.Attributes().Get<bool>("foreign", false)) {
                     ++primaryInputCount;
                     PrimaryTableIndex = i;
                 }
@@ -1926,7 +1926,7 @@ private:
             }
 
             if (primaryInputCount != 1) {
-                THROW_ERROR_EXCEPTION("You must specify exactly one primary input table (%v specified)",
+                THROW_ERROR_EXCEPTION("You must specify exactly one non-foreign input table (%v specified)",
                     primaryInputCount);
             }
         }

@@ -82,7 +82,7 @@ class TestBriefSpec(YTEnvSetup):
 
         create("table", "//tmp/t3")
         op_id = join_reduce(
-            in_=["<primary=true>//tmp/t1", "//tmp/t2"],
+            in_=["//tmp/t1", "<foreign=true>//tmp/t2"],
             out="//tmp/t3",
             command="cat",
             join_by="key",
