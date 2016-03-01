@@ -44,6 +44,12 @@ Stroka Get(
     const TTransactionId& transactionId,
     const TYPath& path);
 
+void Set(
+    const TAuth& auth,
+    const TTransactionId& transactionId,
+    const TYPath& path,
+    const Stroka& value);
+
 bool Exists(
     const TAuth& auth,
     const TTransactionId& transactionid,
