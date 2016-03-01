@@ -284,6 +284,9 @@ private:
             LightChannelFactory_,
             Config_->NetworkName);
         CellDirectory_->ReconfigureCell(Config_->PrimaryMaster);
+        for (const auto& cellConfig : Config_->SecondaryMasters) {
+            CellDirectory_->ReconfigureCell(cellConfig);
+        }
 
         BlockCache_ = CreateClientBlockCache(
             Config_->BlockCache,
