@@ -112,6 +112,7 @@ bool TSchemalessChunkWriter<TBase>::Write(const std::vector<TUnversionedRow>& ro
     YCHECK(CurrentBlockWriter_);
 
     for (auto row : rows) {
+        this->ValidateDuplicateIds(row, NameTable_);
         CurrentBlockWriter_->WriteRow(row);
         this->OnRow(row);
     }
@@ -287,6 +288,7 @@ TPartitionChunkWriter::TPartitionChunkWriter(
 bool TPartitionChunkWriter::Write(const std::vector<TUnversionedRow>& rows)
 {
     for (auto& row : rows) {
+        this->ValidateDuplicateIds(row, NameTable_);
         WriteRow(row);
     }
 

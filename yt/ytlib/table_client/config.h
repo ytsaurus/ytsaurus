@@ -67,15 +67,23 @@ class TChunkWriterOptions
     : public virtual NChunkClient::TEncodingWriterOptions
 {
 public:
-    bool VerifySorted;
+    bool ValidateSorted;
+    bool ValidateDuplicateIds;
+    bool ValidateRowWeight;
 
     //ToDo(psushin): use it!
     NChunkClient::TChannels Channels;
 
     TChunkWriterOptions()
     {
-        RegisterParameter("verify_sorted", VerifySorted)
-            .Default(true);
+
+        RegisterParameter("validate_sorted", ValidateSorted)
+             .Default(true);
+        RegisterParameter("validate_row_weight", ValidateRowWeight)
+            .Default(false);
+        RegisterParameter("validate_duplicate_ids", ValidateDuplicateIds)
+            .Default(false);
+
         RegisterParameter("channels", Channels)
             .Default(NChunkClient::TChannels());
     }

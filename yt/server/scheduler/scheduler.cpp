@@ -153,9 +153,13 @@ public:
         ProfilingExecutor_->Start();
 
         auto nameTable = New<TNameTable>();
+        auto options = New<TTableWriterOptions>();
+        options->ValidateDuplicateIds = true;
+        options->ValidateRowWeight = true;
+
         EventLogWriter_ = CreateSchemalessBufferedTableWriter(
             Config_->EventLog,
-            New<TRemoteWriterOptions>(),
+            options,
             Bootstrap_->GetMasterClient(),
             nameTable,
             Config_->EventLog->Path);
