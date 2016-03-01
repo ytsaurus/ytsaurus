@@ -500,7 +500,7 @@ protected:
         //! The number of currently queued requests.
         NProfiling::TAggregateCounter QueueSizeCounter;
 
-        std::atomic<int> RunningRequestSemaphore = {0};
+        std::atomic<int> ConcurrencySemaphore = {0};
         TLockFreeQueue<TServiceContextPtr> RequestQueue;
 
         NConcurrency::TReaderWriterSpinLock PerformanceCountersLock;

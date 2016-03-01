@@ -630,7 +630,7 @@ void TServiceBase::OnReplyBusTerminated(IBusPtr bus, const TError& error)
 
 bool TServiceBase::TryAcquireRequestSemaphore(const TRuntimeMethodInfoPtr& runtimeInfo)
 {
-    auto& semaphore = runtimeInfo->RunningRequestSemaphore;
+    auto& semaphore = runtimeInfo->ConcurrencySemaphore;
     auto limit = runtimeInfo->Descriptor.MaxConcurrency;
     while (true) {
         auto current = semaphore.load();
@@ -645,7 +645,7 @@ bool TServiceBase::TryAcquireRequestSemaphore(const TRuntimeMethodInfoPtr& runti
 
 void TServiceBase::ReleaseRequestSemaphore(const TRuntimeMethodInfoPtr& runtimeInfo)
 {
-    --runtimeInfo->RunningRequestSemaphore;
+    --runtimeInfo->ConcurrencySemaphore;
 }
 
 static PER_THREAD bool ScheduleRequestsRunning = false;
