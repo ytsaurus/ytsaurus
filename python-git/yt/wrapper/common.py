@@ -162,6 +162,6 @@ def forbidden_inside_job(func):
                           'Did you forget to surround code that runs YT operations with '
                           'if __name__ == "__main__"? If not and you need to make requests '
                           'you can override this behaviour by turning on '
-                          '"enable_http_requests_to_yt_from_job" option in config.')
+                          '"allow_http_requests_to_yt_from_job" option in config.')
         return func(*args, **kwargs)
     return wrapper
