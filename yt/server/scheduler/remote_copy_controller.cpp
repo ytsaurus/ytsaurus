@@ -151,6 +151,7 @@ private:
             using NYT::Persist;
             Persist(context, Controller_);
             Persist(context, ChunkPool_);
+            Persist(context, Index_);
         }
 
     private:

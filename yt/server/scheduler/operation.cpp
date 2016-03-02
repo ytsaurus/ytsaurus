@@ -21,6 +21,7 @@ TOperation::TOperation(
     ITransactionPtr userTransaction,
     IMapNodePtr spec,
     const Stroka& authenticatedUser,
+    const std::vector<Stroka>& owners,
     TInstant startTime,
     EOperationState state,
     bool suspended)
@@ -35,6 +36,7 @@ TOperation::TOperation(
     , HasActiveTransactions_(false)
     , Spec_(spec)
     , AuthenticatedUser_(authenticatedUser)
+    , Owners_(owners)
     , StartTime_(startTime)
     , StderrCount_(0)
     , MaxStderrCount_(0)
