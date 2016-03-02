@@ -757,8 +757,12 @@ private:
                     std::move(writer),
                     std::move(functionRegistry),
                     options.EnableCodeCache);
+<<<<<<< HEAD
             },
             Connection_->GetFunctionRegistry());
+=======
+            });
+>>>>>>> prestable/0.17.5
     }
 
     TQueryStatistics DoExecute(

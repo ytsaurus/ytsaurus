@@ -600,6 +600,17 @@ public:
         OutputTablePaths = NYT::NYPath::Normalize(OutputTablePaths);
 
         Reducer->InitEnableInputTableIndex(InputTablePaths.size(), JobIO);
+
+        bool hasPrimary = false;
+        for (const auto& path: InputTablePaths) {
+            hasPrimary |= path.Attributes().Get<bool>("primary", false);
+        }
+        if (hasPrimary) {
+            for (auto& path: InputTablePaths) {
+                path.Attributes().Set("foreign", !path.Attributes().Get<bool>("primary", false));
+                path.Attributes().Remove("primary");
+            }
+        }
     }
 };
 

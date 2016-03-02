@@ -24,8 +24,11 @@ using namespace NConcurrency;
 
 static const auto& Logger = BusLogger;
 static const auto& Profiler = BusProfiler;
+
 static const int ThreadCount = 8;
+
 static const auto ProfilingPeriod = TDuration::MilliSeconds(100);
+static const auto CheckPeriod = TDuration::Seconds(15);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -75,7 +78,13 @@ bool IsLocalServiceAddress(const Stroka& address)
 
 TTcpDispatcherThread::TTcpDispatcherThread(const Stroka& threadName)
     : TEVSchedulerThread(threadName, false)
-{ }
+    , CheckExecutor_(New<TPeriodicExecutor>(
+        GetInvoker(),
+        BIND(&TTcpDispatcherThread::OnCheck, MakeWeak(this)),
+        CheckPeriod))
+{
+    CheckExecutor_->Start();
+}
 
 const ev::loop_ref& TTcpDispatcherThread::GetEventLoop() const
 {
@@ -119,6 +128,19 @@ void TTcpDispatcherThread::DoUnregister(IEventLoopObjectPtr object)
     YCHECK(Objects_.erase(object) == 1);
 
     LOG_DEBUG("Object unregistered (%v)", object->GetLoggingId());
+}
+
+void TTcpDispatcherThread::OnShutdown()
+{
+    CheckExecutor_->Stop();
+    TEVSchedulerThread::OnShutdown();
+}
+
+void TTcpDispatcherThread::OnCheck()
+{
+    for (const auto& object : Objects_) {
+        object->SyncCheck();
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -200,6 +222,12 @@ void TTcpDispatcher::TImpl::OnProfiling()
         Profiler.Enqueue("/pending_out_packets", statistics.PendingOutPackets, tagIds);
         Profiler.Enqueue("/client_connections", statistics.ClientConnections, tagIds);
         Profiler.Enqueue("/server_connections", statistics.ServerConnections, tagIds);
+        Profiler.Enqueue("/stalled_reads", statistics.StalledReads, tagIds);
+        Profiler.Enqueue("/stalled_writes", statistics.StalledWrites, tagIds);
+        Profiler.Enqueue("/read_errors", statistics.ReadErrors, tagIds);
+        Profiler.Enqueue("/write_errors", statistics.WriteErrors, tagIds);
+        Profiler.Enqueue("/encoder_errors", statistics.EncoderErrors, tagIds);
+        Profiler.Enqueue("/decoder_errors", statistics.DecoderErrors, tagIds);
     }
 }
 

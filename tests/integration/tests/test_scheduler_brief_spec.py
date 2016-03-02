@@ -82,7 +82,7 @@ class TestSchedulerBriefSpec(YTEnvSetup):
 
         create("table", "//tmp/t3")
         op = join_reduce(
-            in_=["<primary=true>//tmp/t1", "//tmp/t2"],
+            in_=["//tmp/t1", "<foreign=true>//tmp/t2"],
             out="//tmp/t3",
             command="cat",
             join_by="key",

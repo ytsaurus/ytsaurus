@@ -175,14 +175,19 @@ YtApplicationUpravlyator.prototype.dispatch = function(req, rsp, next)
     return Q.try(function() {
         switch (url.parse(req.url).pathname) {
             case "/info":
+            case "/info/":
                 return self._dispatchInfo(req, rsp);
             case "/add-role":
+            case "/add-role/":
                 return self._dispatchAddRole(req, rsp);
             case "/remove-role":
+            case "/remove-role/":
                 return self._dispatchRemoveRole(req, rsp);
             case "/get-user-roles":
+            case "/get-user-roles/":
                 return self._dispatchGetUserRoles(req, rsp);
             case "/get-all-roles":
+            case "/get-all-roles/":
                 return self._dispatchGetAllRoles(req, rsp);
         }
         throw new YtError("Unknown URI");

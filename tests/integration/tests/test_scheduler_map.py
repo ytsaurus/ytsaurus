@@ -225,6 +225,7 @@ class TestJobProber(YTEnvSetup):
                 "max_failed_job_count": 1
             })
 
+<<<<<<< HEAD
         # Send signal and wait for a new job
         signal_job(op.jobs[0], "SIGUSR1")
         op.resume_job(op.jobs[0])
@@ -237,6 +238,35 @@ class TestJobProber(YTEnvSetup):
         assert get("//sys/operations/{0}/@progress/jobs/aborted/other".format(op.id)) == 1
         assert get("//sys/operations/{0}/@progress/jobs/failed".format(op.id)) == 0
         assert read_table("//tmp/t2") == [{"foo": "bar"}]
+=======
+            try:
+                pin_filename = os.path.join(tmpdir, "started")
+                while not os.access(pin_filename, os.F_OK):
+                    time.sleep(0.5)
+
+                jobs_path = "//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(op_id)
+                jobs = ls(jobs_path)
+                assert jobs
+
+                # Send signal and wait for a new job
+                signal_job(jobs[0], "SIGUSR1")
+                while not exists("//sys/operations/{0}/@progress/jobs".format(op_id)) or get("//sys/operations/{0}/@progress/jobs/aborted/total".format(op_id)) == 0:
+                    time.sleep(0.5)
+                while not os.access(pin_filename, os.F_OK):
+                    time.sleep(0.5)
+
+            finally:
+                try:
+                    os.unlink(pin_filename)
+                except OSError:
+                    pass
+
+            track_op(op_id)
+            assert get("//sys/operations/{0}/@progress/jobs/aborted/total".format(op_id)) == 1
+            assert get("//sys/operations/{0}/@progress/jobs/aborted/other".format(op_id)) == 1
+            assert get("//sys/operations/{0}/@progress/jobs/failed".format(op_id)) == 0
+            assert read_table("//tmp/t2") == [{"foo": "bar"}]
+>>>>>>> prestable/0.17.5
 
     def test_abandon_job(self):
         create("table", "//tmp/t1")
@@ -257,9 +287,18 @@ class TestJobProber(YTEnvSetup):
 
         result = abandon_job(op.jobs[3])
 
+<<<<<<< HEAD
         op.resume_jobs()
         op.track()
         assert len(read_table("//tmp/t2")) == 4
+=======
+                abandon_job(job_id)
+            finally:
+                try:
+                    os.unlink(pin_filename)
+                except OSError:
+                    pass
+>>>>>>> prestable/0.17.5
 
 ##################################################################
 
@@ -318,6 +357,24 @@ class TestSchedulerMapCommands(YTEnvSetup):
 
         new_data = read_table("//tmp/t2", verbose=False)
         assert sorted(row.items() for row in new_data) == [[("index", i)] for i in xrange(count)]
+
+    def test_file_with_integer_name(self):
+        create("table", "//tmp/t_input")
+        create("table", "//tmp/t_output")
+
+        write_table("//tmp/t_input", [{"hello": "world"}])
+
+        file = "//tmp/1000"
+        create("file", file)
+        write_file(file, "{value=42};\n")
+
+        map(in_="//tmp/t_input",
+            out=["//tmp/t_output"],
+            command="cat 1000 >&2; cat",
+            file=[file],
+            verbose=True)
+
+        assert read_table("//tmp/t_output") == [{"hello": "world"}]
 
     def test_two_inputs_at_the_same_time(self):
         create("table", "//tmp/t_input")
@@ -882,14 +939,14 @@ assert input == '{"foo"="bar";};'
 print "key\\tsubkey\\tvalue"
 
 """
-        create("file", "//tmp/mapper.sh")
-        write_file("//tmp/mapper.sh", mapper)
+        create("file", "//tmp/mapper.py")
+        write_file("//tmp/mapper.py", mapper)
 
         create("table", "//tmp/t_out")
         map(in_="//tmp/t_in",
             out="//tmp/t_out",
-            command="python mapper.sh",
-            file="//tmp/mapper.sh",
+            command="python mapper.py",
+            file="//tmp/mapper.py",
             spec={"mapper": {
                     "input_format": yson.loads("<format=text>yson"),
                     "output_format": yson.loads("<has_subkey=true>yamr")
