@@ -30,6 +30,8 @@ public:
 
 protected:
     TYamrFormatConfigBasePtr Config_;
+    bool TableIndexWasWritten_ = false;
+    int CurrentTableIndex_ = 0;
 
     void WriteInLenvalMode(const TStringBuf& value);
     

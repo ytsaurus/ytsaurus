@@ -48,6 +48,8 @@ public:
     // ISchemalessFormatWriter override.
     virtual void DoWrite(const std::vector<TUnversionedRow>& rows) override
     {
+        TableIndexWasWritten_ = false;
+
         auto* stream = GetOutputStream();
         
         UpdateEscapedColumnNames();
@@ -242,10 +244,6 @@ ISchemalessFormatWriterPtr CreateSchemalessWriterForYamredDsv(
 
     if (controlAttributesConfig->EnableRangeIndex && !config->Lenval) {
         THROW_ERROR_EXCEPTION("Range indices are not supported in text YAMRed DSV format");
-    }
-
-    if (controlAttributesConfig->EnableRowIndex && !config->Lenval) {
-         THROW_ERROR_EXCEPTION("Row indices are not supported in text YAMRed DSV format");
     }
 
     return New<TSchemalessWriterForYamredDsv>(

@@ -81,6 +81,9 @@ public:
     //! Thread pool for job startup initialization.
     int PoolSize;
 
+    //! Silently ignore tmpfs creation if job control is disabled.
+    bool DisableTmpfsCreation;
+
     //! CPU share in cpu cgroup dedicated for slots.
     double CGroupCpuShare;
 
@@ -98,6 +101,8 @@ public:
         RegisterParameter("pool_size", PoolSize)
             .GreaterThanOrEqual(1)
             .Default(3);
+        RegisterParameter("disable_tmpfs_creation", DisableTmpfsCreation)
+            .Default(false);
 
         // NB: Default value is minimum possible share in cgroup.
         // http://git.kernel.org/cgit/linux/kernel/git/tip/tip.git/tree/kernel/sched/sched.h#n279

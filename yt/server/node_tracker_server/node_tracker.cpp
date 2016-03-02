@@ -1094,6 +1094,7 @@ private:
                 transactionManager->AbortTransaction(transaction, true);
             }
 
+            RemoveFromAddressMaps(node);
             UpdateNodeCounters(node, -1);
             node->SetLocalState(ENodeState::Unregistered);
             NodeUnregistered_.Fire(node);
@@ -1136,30 +1137,6 @@ private:
         if (node->GetLocalState() == ENodeState::Unregistered) {
             DisposeNode(node);
         }
-    }
-
-
-    void InsertToAddressMaps(TNode* node)
-    {
-        const auto& address = node->GetDefaultAddress();
-        YCHECK(AddressToNodeMap_.insert(std::make_pair(address, node)).second);
-        HostNameToNodeMap_.insert(std::make_pair(Stroka(GetServiceHostName(address)), node));
-    }
-
-    void RemoveFromAddressMaps(TNode* node)
-    {
-        const auto& address = node->GetDefaultAddress();
-        YCHECK(AddressToNodeMap_.erase(address) == 1);
-        {
-            auto hostNameRange = HostNameToNodeMap_.equal_range(Stroka(GetServiceHostName(address)));
-            for (auto it = hostNameRange.first; it != hostNameRange.second; ++it) {
-                if (it->second == node) {
-                    HostNameToNodeMap_.erase(it);
-                    break;
-                }
-            }
-        }
-
     }
 
 
@@ -1289,6 +1266,29 @@ private:
             }
         }
     }
+ 
+    void InsertToAddressMaps(TNode* node)
+    {
+        YCHECK(AddressToNodeMap_.insert(std::make_pair(node->GetDefaultAddress(), node)).second);
+        for (const auto& pair : node->GetAddresses()) {
+            HostNameToNodeMap_.insert(std::make_pair(Stroka(GetServiceHostName(pair.second)), node));
+        }
+    }
+
+    void RemoveFromAddressMaps(TNode* node)
+    {
+        YCHECK(AddressToNodeMap_.erase(node->GetDefaultAddress()) == 1);
+        for (const auto& pair : node->GetAddresses()) {
+            auto hostNameRange = HostNameToNodeMap_.equal_range(Stroka(GetServiceHostName(pair.second)));
+            for (auto it = hostNameRange.first; it != hostNameRange.second; ++it) {
+                if (it->second == node) {
+                    HostNameToNodeMap_.erase(it);
+                    break;
+                }
+            }
+        }
+    }
+
 };
 
 DEFINE_ENTITY_MAP_ACCESSORS(TNodeTracker::TImpl, Node, TNode, TObjectId, NodeMap_)

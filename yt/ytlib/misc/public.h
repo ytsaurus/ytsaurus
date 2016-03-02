@@ -15,21 +15,24 @@ class TWorkloadDescriptor;
 ////////////////////////////////////////////////////////////////////////////////
 
 //! The type of the workload.
-//! Higher is better.
+//! Order is given by |GetBasicPriority| function and not by concrete enum values.
 /*!
  *  This is the most fine-grained categorization available.
  *  Most subsystems will map EWorkloadCategory to their own coarser categories.
+ *
+ *  NB: This enum is serializable, so please keep values intact or advance
+ *  protocol version where appropriate.
  */
 DEFINE_ENUM(EWorkloadCategory,
-    (Idle)
-    (SystemReplication)
-    (SystemRepair)
-    (SystemTabletCompaction)
-    (SystemTabletPartitioning)
-    (SystemTabletPreload)
-    (UserBatch)
-    (UserRealtime)
-    (SystemRealtime)
+    ((Idle)                    (0))
+    ((SystemReplication)       (1))
+    ((SystemRepair)            (2))
+    ((SystemTabletCompaction)  (6))
+    ((SystemTabletPartitioning)(7))
+    ((SystemTabletPreload)     (8))
+    ((UserBatch)               (3))
+    ((UserRealtime)            (4))
+    ((SystemRealtime)          (5))
 );
 
 struct TWorkloadDescriptor;

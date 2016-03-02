@@ -50,6 +50,8 @@ public:
     // ISchemalessFormatWriter override.
     virtual void DoWrite(const std::vector<TUnversionedRow>& rows) override
     {
+        TableIndexWasWritten_ = false;
+
         auto* stream = GetOutputStream();
         // This nasty line is needed to use Config as TYamrFormatConfigPtr
         // without extra serializing/deserializing.
@@ -152,10 +154,6 @@ ISchemalessFormatWriterPtr CreateSchemalessWriterForYamr(
 
     if (controlAttributesConfig->EnableRangeIndex && !config->Lenval) {
         THROW_ERROR_EXCEPTION("Range indices are not supported in text YAMR format");
-    }
-
-    if (controlAttributesConfig->EnableRowIndex && !config->Lenval) {
-         THROW_ERROR_EXCEPTION("Row indices are not supported in text YAMR format");
     }
 
     return New<TSchemalessWriterForYamr>(
