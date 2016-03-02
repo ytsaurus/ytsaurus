@@ -299,8 +299,10 @@ def copy_yt_to_yt(source_client, destination_client, src, dst, network_name,
 
 def copy_yt_to_yt_through_proxy(source_client, destination_client, src, dst, fastbone,
                                 copy_spec_template=None, postprocess_spec_template=None, default_tmp_dir=None,
-                                compression_codec=None, erasure_codec=None):
+                                compression_codec=None, erasure_codec=None, intermediate_format=None):
     tmp_dir = tempfile.mkdtemp(dir=default_tmp_dir)
+
+    intermediate_format = yt.create_format(get_value(intermediate_format, "json"))
 
     destination_client.create("map_node", os.path.dirname(dst), recursive=True, ignore_existing=True)
     try:
@@ -311,7 +313,8 @@ def copy_yt_to_yt_through_proxy(source_client, destination_client, src, dst, fas
             src = yt.TablePath(src, client=source_client)
             src.name = yson.to_yson_type("#" + source_client.get(src.name + "/@id"), attributes=src.attributes)
             source_client.lock(src, mode="snapshot")
-            files = _prepare_read_from_yt_command(source_client, src.to_yson_string(), "json", tmp_dir, fastbone, pack=True)
+            files = _prepare_read_from_yt_command(source_client, src.to_yson_string(),
+                                                  str(intermediate_format), tmp_dir, fastbone, pack=True)
 
             ranges = _split_rows_yt(source_client, src.name)
 
@@ -338,7 +341,7 @@ def copy_yt_to_yt_through_proxy(source_client, destination_client, src, dst, fas
                 files=files,
                 spec=spec,
                 input_format=yt.SchemafulDsvFormat(columns=["start", "end"]),
-                output_format=yt.JsonFormat())
+                output_format=intermediate_format)
 
             result_row_count = destination_client.records_count(dst)
             if not src.has_delimiters() and row_count != result_row_count:
