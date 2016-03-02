@@ -375,7 +375,7 @@ test_intermediate_format() {
 
     echo 'a=b' | yt2 write //tmp/test_table --proxy quine --format dsv
 
-    id=$(run_task '{"source_table": "//tmp/test_table", "source_cluster": "quine", "destination_table": "//tmp/test_table", "destination_cluster": "plato", "copy_method": "proxy", "intermedate_format": "<boolean_as_string=false>yson"}')
+    id=$(run_task '{"source_table": "//tmp/test_table", "source_cluster": "quine", "destination_table": "//tmp/test_table", "destination_cluster": "plato", "copy_method": "proxy", "intermediate_format": "<boolean_as_string=false>yson"}')
     wait_task $id
 
     check "a=b" "$(yt2 read //tmp/test_table --proxy plato --format dsv)"
