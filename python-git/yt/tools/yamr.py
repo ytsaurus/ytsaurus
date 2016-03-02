@@ -1,5 +1,5 @@
 import yt.logger as logger
-from yt.common import YtError, set_pdeathsig
+from yt.common import YtError, set_pdeathsig, flatten
 from yt.wrapper.common import generate_uuid
 import yt.json as json
 
@@ -239,8 +239,15 @@ class Yamr(object):
     def run_map(self, command, src, dst, files=None, opts=""):
         if files is None:
             files = []
-        shell_command = 'MR_USER={0} {1} -server {2} -map "{3}" -src "{4}" -dst "{5}" -maxjobfails {6} {7} {8}'\
-            .format(self.mr_user, self.binary, self.server, command, src, dst, self.max_failed_jobs, " ".join("-file " + file for file in files), opts)
+
+        dst_args = " ".join('-dst "{0}"'.format(table) for table in flatten(dst))
+        src_args = " ".join('-src "{0}"'.format(table) for table in flatten(src))
+        file_args = " ".join('-file "{0}"'.format(file_) for file_ in flatten(files))
+
+        shell_command = 'MR_USER={0} {1} -server {2} -map "{3}" {4} {5} -maxjobfails {6} {7} {8}'\
+            .format(self.mr_user, self.binary, self.server, command, src_args, dst_args,
+                    self.max_failed_jobs, file_args, opts)
+
         _check_call(shell_command, shell=True)
 
     def make_read_snapshot(self, table, finish_timeout=7200):

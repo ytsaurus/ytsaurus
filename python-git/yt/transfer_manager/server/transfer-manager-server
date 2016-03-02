@@ -1212,7 +1212,8 @@ class Application(object):
                         compression_codec=task.destination_compression_codec,
                         erasure_codec=task.destination_erasure_codec,
                         intermediate_format=task.intermediate_format,
-                        default_tmp_dir=self._config.get("default_tmp_dir"))
+                        default_tmp_dir=self._config.get("default_tmp_dir"),
+                        enable_row_count_check=self._config.get("enable_row_count_check"))
                 else:  # native
                     network_name = "fastbone" if fastbone else "default"
                     network_name = parameters.get("network_name", network_name)
@@ -1244,7 +1245,8 @@ class Application(object):
                         task.destination_table,
                         fastbone=fastbone,
                         force_sort=task.destination_force_sort,
-                        default_tmp_dir=self._config.get("default_tmp_dir"))
+                        default_tmp_dir=self._config.get("default_tmp_dir"),
+                        enable_row_count_check=self._config.get("enable_row_count_check"))
             elif source_client._type == "yamr" and destination_client._type == "yt":
                 logger.info("Running YAMR -> YT remote copy")
                 copy_yamr_to_yt_pull(
@@ -1278,7 +1280,8 @@ class Application(object):
                     kiwi_user=task.kiwi_user,
                     kwworm_options=task.kwworm_options,
                     copy_spec_template=copy_spec,
-                    default_tmp_dir=self._config.get("default_tmp_dir"))
+                    default_tmp_dir=self._config.get("default_tmp_dir"),
+                    enable_row_count_check=self._config.get("enable_row_count_check"))
             elif source_client._type == "hive" and destination_client._type == "yt":
                 copy_hive_to_yt(
                     source_client,
