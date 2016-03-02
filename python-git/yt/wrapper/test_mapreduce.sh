@@ -44,7 +44,7 @@ prepare_table_files() {
 cleanup() {
     for pid in `jobs -p`; do
         if ps ax | awk '{print $1}' | grep $pid; then
-            # We use "|| true" to prevent failure in case when the process 
+            # We use "|| true" to prevent failure in case when the process
             # terminates before we kill it.
             kill $pid || true
         fi
@@ -91,9 +91,15 @@ test_base_functionality()
     check 2 `./mapreduce -read "ignat/mapped" | wc -l`
     ./mapreduce -map "cat" -src "ignat/other_table" -src "ignat/mapped" \
         -dstappend "ignat/temp"
-    ./mapreduce -map "cat" -src "ignat/other_table" -src "ignat/mapped" \
+    ./mapreduce -orderedmap "cat" -src "ignat/other_table" -src "ignat/mapped" \
         -dst "ignat/temp" -append
     check 8 `./mapreduce -read "ignat/temp" | wc -l`
+
+    ./mapreduce -reduce "cat" -src "ignat/other_table" -dst "ignat/temp"
+    check 2 `./mapreduce -read "ignat/temp" | wc -l`
+
+    ./mapreduce -hash-reduce "cat" -src "ignat/other_table" -dst "ignat/temp"
+    check 2 `./mapreduce -read "ignat/temp" | wc -l`
 }
 
 test_list()

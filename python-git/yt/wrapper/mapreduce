@@ -264,7 +264,7 @@ Examples:
     )
 
     action_maybe_stores = ["write"]
-    action_stores = ["read", "writesorted", "map", "reduce", "reducews", "reducewsonly", "drop",
+    action_stores = ["read", "writesorted", "map", "orderedmap", "reduce", "hash-reduce", "reducews", "reducewsonly", "drop",
                      "erase", "aborttx", "committx", "renewtx", "set", "get", "upload", "download",
                      "createtable", "exists", "track", "ytlock"]
     action_flags = ["version", "copy", "move", "merge", "list", "listfiles", "starttx"]
@@ -336,6 +336,8 @@ Examples:
              "field separator for yamr format"),
             ("get",
              "NEW! returns subtree at given path in JSON format"),
+            ("hash-reduce",
+             "another alias to reduce (for compatibility with mapreduce binary)"),
             ("inputformat",
              "NEW! specifies operation input format. "
              "This option has the following format: "
@@ -370,6 +372,8 @@ Examples:
              "OLD! this option do nothing"),
             ("opt",
              "OLD! this option do nothing"),
+            ("orderedmap",
+             "specifies ordered map operation command"),
             ("outputformat",
              "NEW! specifies operation output format. "
              "This option has the following format: "
@@ -463,8 +467,19 @@ Examples:
 
     args = parser.parse_args()
 
-    actions_count = sum([vars(args)[arg] is not None for arg in action_stores + action_maybe_stores]) + \
-                    sum([vars(args)[arg] for arg in action_flags])
+    if args.hash_reduce is not None:
+        args.reduce = args.hash_reduce
+        args.hash_reduce = None
+
+    ordered_map = False
+    if args.orderedmap is not None:
+        args.map = args.orderedmap
+        args.orderedmap = None
+        ordered_map = True
+
+    actions_count = sum([vars(args)[arg.replace("-", "_")] is not None for arg in action_stores + action_maybe_stores]) + \
+                    sum([vars(args)[arg.replace("-", "_")] for arg in action_flags])
+
     if args.sort:
         actions_count += 1
     mapreduce_case = args.map is not None and args.reduce is not None and actions_count == 2
@@ -496,6 +511,9 @@ Examples:
 
     if args.maxjobfails is not None:
         spec["max_failed_job_count"] = args.maxjobfails
+
+    if ordered_map:
+        spec["ordered"] = True
 
     job_io = None
     if args.tablerecordindex:
