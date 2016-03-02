@@ -90,7 +90,7 @@ ISchemalessMultiChunkWriterPtr CreatePartitionMultiChunkWriter(
 
 ISchemalessWriterPtr CreateSchemalessTableWriter(
     TTableWriterConfigPtr config,
-    NChunkClient::TRemoteWriterOptionsPtr options,
+    TTableWriterOptionsPtr options,
     const NYPath::TRichYPath& richPath,
     TNameTablePtr nameTable,
     const TKeyColumns& keyColumns,
