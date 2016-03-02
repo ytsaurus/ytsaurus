@@ -1,7 +1,5 @@
 #include "packet.h"
 
-#include <yt/core/misc/checksum.h>
-
 namespace NYT {
 namespace NBus {
 
@@ -94,12 +92,11 @@ bool TPacketDecoder::EndFixedHeaderPhase()
         return false;
     }
 
-    if (FixedHeader_.Checksum != NullChecksum) {
-        auto expectedChecksum = FixedHeader_.Checksum;
-        FixedHeader_.Checksum = NullChecksum;
-        auto actualChecksum = GetChecksum(TRef::FromPod(FixedHeader_));
+    auto expectedChecksum = FixedHeader_.Checksum;
+    if (expectedChecksum != NullChecksum) {
+        auto actualChecksum = GetFixedChecksum();
         if (expectedChecksum != actualChecksum) {
-            LOG_ERROR("Packet header checksum mismatch");
+            LOG_ERROR("Fixed packet header checksum mismatch");
             return false;
         }
     }
@@ -123,6 +120,15 @@ bool TPacketDecoder::EndFixedHeaderPhase()
 
 bool TPacketDecoder::EndVariableHeaderPhase()
 {
+    auto expectedChecksum = PartChecksums_[FixedHeader_.PartCount];
+    if (expectedChecksum != NullChecksum) {
+        auto actualChecksum = GetVariableChecksum();
+        if (expectedChecksum != actualChecksum) {
+            LOG_ERROR("Variable packet header checksum mismatch");
+            return false;
+        }
+    }
+
     for (int index = 0; index < FixedHeader_.PartCount; ++index) {
         ui32 partSize = PartSizes_[index];
         if (partSize != NullPacketPartSize && partSize > MaxPacketPartSize) {
@@ -196,6 +202,7 @@ size_t TPacketEncoder::GetPacketSize(
         case EPacketType::Message:
             size +=
                 message.Size() * (sizeof (ui32) + sizeof (ui64)) +
+                sizeof (ui64) +
                 GetByteSize(message);
             break;
 
@@ -219,10 +226,7 @@ bool TPacketEncoder::Start(
     FixedHeader_.Flags = flags;
     FixedHeader_.PacketId = packetId;
     FixedHeader_.PartCount = Message_.Size();
-    FixedHeader_.Checksum = NullChecksum;
-    if (enableChecksums) {
-        FixedHeader_.Checksum = GetChecksum(TRef::FromPod(FixedHeader_));
-    }
+    FixedHeader_.Checksum = enableChecksums ? GetFixedChecksum() : NullChecksum;
 
     AllocateVariableHeader();
 
@@ -251,6 +255,8 @@ bool TPacketEncoder::Start(
                 PartChecksums_[index] = NullChecksum;
             }
         }
+
+        PartChecksums_[Message_.Size()] = enableChecksums ? GetVariableChecksum() : NullChecksum;
     }
 
     BeginPhase(EPacketPhase::FixedHeader, &FixedHeader_, sizeof (TPacketHeader));
