@@ -39,13 +39,15 @@ struct TPacketHeader
     EPacketFlags Flags;
     TPacketId PacketId;
     ui32 PartCount;
-    // Computed for the whole TPacketHeader with Checksum field initially set
-    // to NullChecksum.
     ui64 Checksum;
-    // Variable-sized part:
-    //   ui32 PartSizes[PartCount];
-    //   ui64 PartChecksums[PartCount];
 };
+
+/*
+  Variable-sized header:
+    ui32 PartSizes[PartCount];
+    ui64 PartChecksums[PartCount];
+    ui64 Checksum;
+*/
 
 #pragma pack(pop)
 
@@ -85,6 +87,8 @@ protected:
     TSharedRefArray Message_;
 
     void AllocateVariableHeader();
+    TChecksum GetFixedChecksum();
+    TChecksum GetVariableChecksum();
 
     void BeginPhase(EPacketPhase phase, void* fragment, size_t size);
     bool EndPhase();
