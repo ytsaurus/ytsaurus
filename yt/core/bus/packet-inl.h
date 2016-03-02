@@ -2,6 +2,8 @@
 #error "Direct inclusion of this file is not allowed, include packet.h"
 #endif
 
+#include <yt/core/misc/checksum.h>
+
 namespace NYT {
 namespace NBus {
 
@@ -27,10 +29,24 @@ bool TPacketTranscoderBase<TDerived>::IsFinished() const
 template <class TDerived>
 void TPacketTranscoderBase<TDerived>::AllocateVariableHeader()
 {
-    VariableHeaderSize_ = (sizeof (ui32) + sizeof (ui64)) * FixedHeader_.PartCount;
+    VariableHeaderSize_ =
+        (sizeof (ui32) + sizeof (ui64)) * FixedHeader_.PartCount +
+        sizeof (ui64);
     VariableHeader_.reserve(VariableHeaderSize_);
     PartSizes_ = reinterpret_cast<ui32*>(VariableHeader_.data());
     PartChecksums_ = reinterpret_cast<ui64*>(PartSizes_ + FixedHeader_.PartCount);
+}
+
+template <class TDerived>
+TChecksum TPacketTranscoderBase<TDerived>::GetFixedChecksum()
+{
+    return GetChecksum(TRef(&FixedHeader_, sizeof (FixedHeader_) - sizeof (ui64)));
+}
+
+template <class TDerived>
+TChecksum TPacketTranscoderBase<TDerived>::GetVariableChecksum()
+{
+    return GetChecksum(TRef(VariableHeader_.data(), VariableHeaderSize_ - sizeof (ui64)));
 }
 
 template <class TDerived>
