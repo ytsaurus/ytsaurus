@@ -291,6 +291,9 @@ CXXFLAGS(
   -Wno-unused-parameter
   -Wno-unused-value
   -Wno-c++14-extensions
+  -Wno-switch
+  -Wno-type-limits
+  -Wno-maybe-uninitialized
 )
 
 ADDINCL(

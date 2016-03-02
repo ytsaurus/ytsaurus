@@ -341,7 +341,7 @@ public:
 
     void SetCount(int count)
     {
-        YASSERT(count >= 0 && count <= Header->Capacity);
+        YASSERT(count >= 0 && count <= (int)Header->Capacity);
         Header->Count = count;
     }
 

@@ -1,3 +1,5 @@
+#pragma once
+
 #ifndef FORMAT_INL_H_
 #error "Direct inclusion of this file is not allowed, include format.h"
 #endif
@@ -45,7 +47,7 @@ inline void FormatValue(TStringBuilder* builder, const TStringBuf& value, const 
         alignLeft = true;
         ++current;
     }
-    
+
     bool hasAlign = false;
     int alignSize = 0;
     while (*current >= '0' && *current <= '9') {
@@ -274,7 +276,7 @@ void FormatValueStd(TStringBuilder* builder, TValue value, const TStringBuf& for
     size_t resultSize = snprintf(result, SmallResultSize, formatBuf, value);
     if (resultSize >= SmallResultSize) {
         result = builder->Preallocate(resultSize + 1);
-        YCHECK(snprintf(result, resultSize + 1, formatBuf, value) == resultSize);
+        YCHECK(snprintf(result, resultSize + 1, formatBuf, value) == (int)resultSize);
     }
     builder->Advance(resultSize);
 }
@@ -419,7 +421,7 @@ struct TArgFormatterImpl;
 template <size_t IndexBase>
 struct TArgFormatterImpl<IndexBase>
 {
-    void operator() (size_t index, TStringBuilder* builder, const TStringBuf& /*format*/) const
+    void operator() (size_t, TStringBuilder* builder, const TStringBuf& /*format*/) const
     {
         builder->AppendString(STRINGBUF("<missing argument>"));
     }

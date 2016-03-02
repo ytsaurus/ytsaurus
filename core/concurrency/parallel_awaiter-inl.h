@@ -1,3 +1,5 @@
+#pragma once
+
 #ifndef PARALLEL_AWAITER_INL_H_
 #error "Direct inclusion of this file is not allowed, include parallel_awaiter.h"
 #endif
@@ -108,11 +110,12 @@ inline TFuture<void> TParallelAwaiter::Complete(TClosure onComplete)
 
 inline void TParallelAwaiter::FireCompleted(TClosure onComplete)
 {
-    CancelableInvoker_->Invoke(BIND([=, this_ = MakeStrong(this)] () {
+    auto this_ = MakeStrong(this);
+    CancelableInvoker_->Invoke(BIND([=] () {
         if (onComplete) {
             onComplete.Run();
         }
-        CompletedPromise_.Set();
+        this_->CompletedPromise_.Set();
     }));
 }
 
