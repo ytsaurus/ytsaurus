@@ -114,7 +114,7 @@ class TablePath(object):
             raise YtError("You could not specify upper key bound and end index simultaneously")
 
         if exact_key is not None:
-            attributes["exact_limit"] = {"key": flatten(exact_key)}
+            attributes["exact"] = {"key": flatten(exact_key)}
         if lower_key is not None:
             attributes["lower_limit"] = {"key": flatten(lower_key)}
         if upper_key is not None:
@@ -122,7 +122,7 @@ class TablePath(object):
                 upper_key = upper_key + "\0"
             attributes["upper_limit"] = {"key": flatten(upper_key)}
         if exact_index is not None:
-            attributes["exact_limit"] = {"row_index": flatten(exact_index)}
+            attributes["exact"] = {"row_index": flatten(exact_index)}
         if start_index is not None:
             attributes["lower_limit"] = {"row_index": start_index}
         if end_index is not None:
@@ -130,8 +130,8 @@ class TablePath(object):
 
         if ranges is not None:
             attributes["ranges"] = ranges
-            if "exact_limit" in attributes:
-                del attributes["exact_limit"]
+            if "exact" in attributes:
+                del attributes["exact"]
             if "lower_limit" in attributes:
                 del attributes["lower_limit"]
             if "upper_limit" in attributes:

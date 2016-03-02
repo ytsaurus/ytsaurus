@@ -206,6 +206,8 @@ default_config = {
         "chunk_size": 512 * common.MB
     },
 
+    # Retries for start operation requests.
+    # It may fail due to violation of cluster operation limit.
     "start_operation_retries": {
         "retry_count": 30,
         "retry_timeout": 60000
@@ -221,9 +223,12 @@ default_config = {
         "max_chunk_size": 32 * common.MB
     },
 
+    # Enable printing argcomplete errors.
     "argcomplete_verbose": False,
 
-    "enable_native_parse_ypath": True
+    # Enables using parse ypath that comes with yson bindigs for optimization.
+    # Use this option with caution. YPath syntax in yson bindings and on cluster may differ.
+    "enable_native_parse_ypath": False
 }
 
 def transform_value(value, original_value):
