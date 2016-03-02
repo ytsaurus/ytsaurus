@@ -244,9 +244,9 @@ class TestSchedulerJoinReduceCommands(YTEnvSetup):
         assert read_table('//tmp/out2') == \
             [
                 {'key': "0", 'value': "1", '@table_index': "0"},
-                {'key': "2", 'value': "1", '@table_index': "2"},
                 {'key': "2", 'value': "2", '@table_index': "0"},
                 {'key': "2", 'value': "5", '@table_index': "1"},
+                {'key': "2", 'value': "1", '@table_index': "2"},
                 {'key': "3", 'value': "6", '@table_index': "1"},
                 {'key': "3", 'value': "7", '@table_index': "3"},
                 {'key': "4", 'value': "3", '@table_index': "0"},

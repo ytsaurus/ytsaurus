@@ -2128,9 +2128,7 @@ private:
             Files);
 
         auto* reduceJobSpecExt = JobSpecTemplate.MutableExtension(TReduceJobSpecExt::reduce_job_spec_ext);
-        const auto& sortBy = GetCommonInputKeyPrefix();
-        YCHECK(sortBy.size() >= KeyColumns.size());
-        ToProto(reduceJobSpecExt->mutable_key_columns(), sortBy);
+        ToProto(reduceJobSpecExt->mutable_key_columns(), KeyColumns);
         reduceJobSpecExt->set_reduce_key_column_count(KeyColumns.size());
     }
 
