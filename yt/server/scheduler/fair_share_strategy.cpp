@@ -1700,7 +1700,7 @@ public:
             .Item("pool").Value(pool->GetId())
             .Item("start_time").Value(element->DynamicAttributes().MinSubtreeStartTime)
             .Item("preemptable_job_count").Value(element->PreemptableJobs().size())
-            .Do(BIND(&TFairShareStrategy::BuildElementYson, pool, element));
+            .Do(BIND(&TFairShareStrategy::BuildElementYson, MakeStrong(pool), element));
     }
 
     virtual void BuildBriefOperationProgress(const TOperationId& operationId, IYsonConsumer* consumer) override
