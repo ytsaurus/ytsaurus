@@ -225,6 +225,7 @@ CXXFLAGS(
   -Wno-unused-parameter
   -Wno-unused-value
   -Wno-c++14-extensions
+  -Wno-unused-function
 )
 
 ADDINCL(
@@ -264,7 +265,7 @@ target_link_libraries(ytcore
   ytext-arcadia-library-http
   ytext-yajl
   protobuf
-  ${REQUIRED_LLVM_LIBRARIES} 
+  ${REQUIRED_LLVM_LIBRARIES}
 )
 
 if (CMAKE_COMPILER_IS_CLANG AND NOT APPLE)

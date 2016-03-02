@@ -104,7 +104,7 @@ public:
     virtual TSharedRefArray Serialize() override;
 
     virtual bool IsOneWay() const override;
-    
+
     virtual TRequestId GetRequestId() const override;
     virtual TRealmId GetRealmId() const override;
     virtual const Stroka& GetService() const override;
@@ -174,8 +174,9 @@ public:
         auto promise = response->GetPromise();
         auto requestControl = Send(std::move(response));
         if (requestControl) {
-            promise.OnCanceled(BIND([requestControl = std::move(requestControl)] () {
-                requestControl->Cancel();
+            auto requestControl_ = std::move(requestControl);
+            promise.OnCanceled(BIND([requestControl_] () {
+                requestControl_->Cancel();
             }));
         }
         return promise.ToFuture();
