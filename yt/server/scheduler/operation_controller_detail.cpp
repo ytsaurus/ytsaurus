@@ -2855,7 +2855,7 @@ void TOperationControllerBase::DoRequestFileObjects(
                     path);
                 const auto& rsp = rspOrError.Value();
                 if (file.Type == EObjectType::File) {
-                    file.FileName = rsp->value();
+                    file.FileName = ConvertTo<Stroka>(TYsonString(rsp->value()));
                 } else {
                     auto key = ConvertTo<Stroka>(TYsonString(rsp->value()));
                     file.FileName = file.Path.Attributes().Get<Stroka>("file_name", key);

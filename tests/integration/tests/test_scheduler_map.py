@@ -1005,14 +1005,14 @@ assert input == '{"foo"="bar"};'
 print "key\\tsubkey\\tvalue"
 
 """
-        create("file", "//tmp/mapper.sh")
-        write_file("//tmp/mapper.sh", mapper)
+        create("file", "//tmp/mapper.py")
+        write_file("//tmp/mapper.py", mapper)
 
         create("table", "//tmp/t_out")
         map(in_="//tmp/t_in",
             out="//tmp/t_out",
-            command="python mapper.sh",
-            file="//tmp/mapper.sh",
+            command="python mapper.py",
+            file="//tmp/mapper.py",
             spec={"mapper": {
                     "input_format": yson.loads("<format=text>yson"),
                     "output_format": yson.loads("<has_subkey=true>yamr")
