@@ -2839,6 +2839,10 @@ void TOperationControllerBase::DoRequestFileObjects(
         for (int index = 0; index < static_cast<int>(files->size()); ++index) {
             auto& file = (*files)[index];
             auto path = file.Path.GetPath();
+
+            Stroka fileName;
+            bool executable = false;
+
             {
                 const auto& rspOrError = lockFileRspsOrError[index];
                 THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error locking user file %v",
@@ -2854,13 +2858,8 @@ void TOperationControllerBase::DoRequestFileObjects(
                     "Error getting file name for user file %v",
                     path);
                 const auto& rsp = rspOrError.Value();
-                if (file.Type == EObjectType::File) {
-                    file.FileName = ConvertTo<Stroka>(TYsonString(rsp->value()));
-                } else {
-                    auto key = ConvertTo<Stroka>(TYsonString(rsp->value()));
-                    file.FileName = file.Path.Attributes().Get<Stroka>("file_name", key);
-                    file.Format = file.Path.Attributes().GetYson("format");
-                }
+
+                fileName = ConvertTo<Stroka>(TYsonString(rsp->value()));
             }
             {
                 const auto& rspOrError = getFileAttributesRspsOrError[index];
@@ -2871,9 +2870,10 @@ void TOperationControllerBase::DoRequestFileObjects(
                 auto node = ConvertToNode(TYsonString(rsp->value()));
                 const auto& attributes = node->Attributes();
 
+                fileName = attributes.Get<Stroka>("file_name", fileName);
+                // NB: Getting format from node attributes for table files is not supported.
                 if (file.Type == EObjectType::File) {
-                    file.FileName = attributes.Get<Stroka>("file_name", file.FileName);
-                    file.Executable = attributes.Get<bool>("executable", false);
+                    executable = attributes.Get<bool>("executable", executable);
                 }
 
                 i64 fileSize = attributes.Get<i64>("uncompressed_data_size");
@@ -2901,9 +2901,11 @@ void TOperationControllerBase::DoRequestFileObjects(
                 LOG_INFO("User file attributes received (Path: %v)", path);
             }
 
+            file.FileName = file.Path.Attributes().Get<Stroka>("file_name", fileName);
             if (file.Type == EObjectType::File) {
-                file.FileName = file.Path.Attributes().Get<Stroka>("file_name", file.FileName);
-                file.Executable = file.Path.Attributes().Get<bool>("executable", file.Executable);
+                file.Executable = file.Path.Attributes().Get<bool>("executable", executable);
+            } else {
+                file.Format = file.Path.Attributes().GetYson("format");
             }
             validateUserFileName(file);
         }
