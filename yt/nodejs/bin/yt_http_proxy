@@ -113,6 +113,7 @@ config = {
     spare_threads     : 4,
     concurrency_limit : null,
     show_ports        : false,
+    rewrite_yandex_team_domain : false,
     agent             : opts.argv.agent,
 
     bind_retry_count  : 1,
