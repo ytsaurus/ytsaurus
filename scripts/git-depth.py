@@ -4,6 +4,14 @@ import os
 import sys
 import copy
 
+try:
+    import subprocess32 as subprocess
+except ImportError:
+    if sys.version_info[:2] <= (2, 6):
+        print >>sys.stderr, "Script may not work properly on python of version <= 2.6" \
+                            "because subprocess32 library is not installed."
+    import subprocess
+
 _seeds = {
     "9aa642a8a5b73710faad906b75b605eba7521f03": 1144,  # 2011-09-02, branch out from SVN
     "b4cdcdb8aa59b321809072043cd465e4f7cb82ae": 8223,  # 2013-01-17, just a linearization point
@@ -38,7 +46,6 @@ def get_depth_pygit2(path, sha1):
 
 
 def get_depth_subprocess(path):
-    import subprocess
     cache = copy.copy(_seeds)
 
     history = subprocess.check_output(["git", "log", "--full-history", "--format=%H %P", "HEAD"])
