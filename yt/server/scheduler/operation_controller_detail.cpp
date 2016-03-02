@@ -2894,20 +2894,21 @@ void TOperationControllerBase::DoRequestFileObjects(
                         Config->MaxChunksPerFetch);
                 }
 
+                file.FileName = file.Path.Attributes().Get<Stroka>("file_name", fileName);
+                if (file.Type == EObjectType::File) {
+                    file.Executable = file.Path.Attributes().Get<bool>("executable", executable);
+                } else {
+                    file.Format = file.Path.Attributes().GetYson("format");
+                }
+
                 if (onFileObject) {
                     onFileObject(file, attributes);
                 }
 
+                validateUserFileName(file);
+
                 LOG_INFO("User file attributes received (Path: %v)", path);
             }
-
-            file.FileName = file.Path.Attributes().Get<Stroka>("file_name", fileName);
-            if (file.Type == EObjectType::File) {
-                file.Executable = file.Path.Attributes().Get<bool>("executable", executable);
-            } else {
-                file.Format = file.Path.Attributes().GetYson("format");
-            }
-            validateUserFileName(file);
         }
     }
 }
