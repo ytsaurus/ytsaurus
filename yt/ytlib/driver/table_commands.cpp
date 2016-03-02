@@ -97,9 +97,13 @@ void TWriteTableCommand::Execute(ICommandContextPtr context)
     auto keyColumns = Path.GetSortedBy();
     auto nameTable = TNameTable::FromKeyColumns(keyColumns);
 
+    auto options = New<TTableWriterOptions>();
+    options->ValidateRowWeight = true;
+    options->ValidateDuplicateIds = true;
+
     auto writer = CreateSchemalessTableWriter(
         config,
-        New<TTableWriterOptions>(),
+        options,
         Path,
         nameTable,
         keyColumns,

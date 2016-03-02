@@ -245,8 +245,7 @@ private:
                     options.EnableCodeCache);
                 LOG_DEBUG("Finished evaluating top query (TopQueryId: %v)", topQuery->Id);
                 return result;
-            },
-            FunctionRegistry_);
+            });
     }
 
     TQueryStatistics DoExecute(

@@ -72,10 +72,13 @@ protected:
 
     virtual void OnReaderFinished();
 
+<<<<<<< HEAD:yt/ytlib/chunk_client/multi_reader_base.h
     virtual void DoOpen() = 0;
 
     virtual void OnError();
 
+=======
+>>>>>>> prestable/0.17.5:yt/ytlib/chunk_client/multi_chunk_reader_base.h
     bool OnEmptyRead(bool readerFinished);
 
     void RegisterFailedReader(IReaderBasePtr reader);
@@ -129,12 +132,11 @@ private:
 
     virtual void OnReaderFinished() override;
 
-    virtual void OnError() override;
-
     void WaitForNextReader();
 
     void WaitForCurrentReader();
 
+    void PropagateError(const TError& error);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -162,12 +164,11 @@ private:
 
     virtual void OnReaderFinished() override;
 
-    virtual void OnError() override;
-
     void WaitForReadyReader();
 
     void WaitForReader(TSession session);
 
+    void PropagateError(const TError& error);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

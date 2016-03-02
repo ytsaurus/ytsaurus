@@ -1923,7 +1923,11 @@ private:
         {
             int primaryInputCount = 0;
             for (int i = 0; i < static_cast<int>(InputTables.size()); ++i) {
+<<<<<<< HEAD
                 if (InputTables[i].Path.GetPrimary()) {
+=======
+                if (!InputTables[i].Path.Attributes().Get<bool>("foreign", false)) {
+>>>>>>> prestable/0.17.5
                     ++primaryInputCount;
                     PrimaryTableIndex = i;
                 }
@@ -1933,7 +1937,7 @@ private:
             }
 
             if (primaryInputCount != 1) {
-                THROW_ERROR_EXCEPTION("You must specify exactly one primary input table (%v specified)",
+                THROW_ERROR_EXCEPTION("You must specify exactly one non-foreign input table (%v specified)",
                     primaryInputCount);
             }
         }
@@ -2137,9 +2141,7 @@ private:
             Files);
 
         auto* reduceJobSpecExt = JobSpecTemplate.MutableExtension(TReduceJobSpecExt::reduce_job_spec_ext);
-        const auto& sortBy = GetCommonInputKeyPrefix();
-        YCHECK(sortBy.size() >= KeyColumns.size());
-        ToProto(reduceJobSpecExt->mutable_key_columns(), sortBy);
+        ToProto(reduceJobSpecExt->mutable_key_columns(), KeyColumns);
         reduceJobSpecExt->set_reduce_key_column_count(KeyColumns.size());
     }
 

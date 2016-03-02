@@ -42,12 +42,13 @@ void TLogger::Write(TLogEvent&& event) const
     GetLogManager()->Enqueue(std::move(event));
 }
 
-void TLogger::AddRawTag(const Stroka& tag)
+TLogger& TLogger::AddRawTag(const Stroka& tag)
 {
     if (!Context_.empty()) {
         Context_ += ", ";
     }
     Context_ += tag;
+    return *this;
 }
 
 const Stroka& TLogger::GetContext() const

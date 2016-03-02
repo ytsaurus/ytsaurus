@@ -296,11 +296,15 @@ void CrashSignalHandler(int signal, siginfo_t* si, void* uc)
             // Something must be going wrong (maybe we are reentering by another
             // type of signal?). Kill ourself by the default signal handler.
             Terminate(signal);
-        }
-        // Another thread is dumping stuff. Let's wait until that thread
-        // finishes the job and kills the process.
-        while (true) {
-            sleep(1);
+            // If we happen to fall through here, not being killed, we will probably end up
+            // running out of stack entering CrashSignalHandler over and over again.
+            // Not a bad thing, after all.
+        } else {
+            // Another thread is dumping stuff. Let's wait until that thread
+            // finishes the job and kills the process.
+            while (true) {
+                sleep(1);
+            }
         }
     }
 
