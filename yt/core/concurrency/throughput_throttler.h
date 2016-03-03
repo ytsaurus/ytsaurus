@@ -56,7 +56,7 @@ struct IThroughputThrottler
 
 DEFINE_REFCOUNTED_TYPE(IThroughputThrottler)
 
-//! Returns a throttler from #config.
+//! Constructs a throttler from #config.
 IThroughputThrottlerPtr CreateLimitedThrottler(
     TThroughputThrottlerConfigPtr config,
     const NLogging::TLogger& logger = NLogging::TLogger(),
@@ -64,6 +64,12 @@ IThroughputThrottlerPtr CreateLimitedThrottler(
 
 //! Returns a throttler that imposes no throughput limit.
 IThroughputThrottlerPtr GetUnlimitedThrottler();
+
+//! Constructs a throttler providing a joint rate limit
+//! enforced by a set of underlying #throttlers.
+//! Note that IThroughputThrotter::TryAcquire is not implemented.
+IThroughputThrottlerPtr CreateCombinedThrottler(
+    const std::vector<IThroughputThrottlerPtr>& throttler);
 
 ////////////////////////////////////////////////////////////////////////////////
 
