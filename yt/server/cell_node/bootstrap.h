@@ -128,6 +128,8 @@ private:
     NDataNode::TJournalDispatcherPtr JournalDispatcher;
     NDataNode::TMasterConnectorPtr MasterConnector;
 
+    NConcurrency::IThroughputThrottlerPtr TotalInThrottler;
+    NConcurrency::IThroughputThrottlerPtr TotalOutThrottler;
     NConcurrency::IThroughputThrottlerPtr ReplicationInThrottler;
     NConcurrency::IThroughputThrottlerPtr ReplicationOutThrottler;
     NConcurrency::IThroughputThrottlerPtr RepairInThrottler;

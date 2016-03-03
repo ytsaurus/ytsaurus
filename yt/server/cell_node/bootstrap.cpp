@@ -267,7 +267,7 @@ void TBootstrap::DoRun()
 
     ChunkCache = New<TChunkCache>(Config->DataNode, this);
 
-    auto createThrottler = [] (TThroughputThrottlerConfigPtr config, const Stroka& name) -> IThroughputThrottlerPtr {
+    auto createThrottler = [] (TThroughputThrottlerConfigPtr config, const Stroka& name) {
         auto logger = DataNodeLogger;
         logger.AddTag("Throttler: %v", name);
 
@@ -277,10 +277,27 @@ void TBootstrap::DoRun()
 
         return CreateLimitedThrottler(config, logger, profiler);
     };
-    ReplicationInThrottler = createThrottler(Config->DataNode->ReplicationInThrottler, "ReplicationIn");
-    ReplicationOutThrottler = createThrottler(Config->DataNode->ReplicationOutThrottler, "ReplicationOut");
-    RepairInThrottler = createThrottler(Config->DataNode->RepairInThrottler, "RepairIn");
-    RepairOutThrottler = createThrottler(Config->DataNode->RepairOutThrottler, "RepairOut");
+
+    TotalInThrottler = createThrottler(Config->DataNode->ReplicationInThrottler, "TotalIn");
+    TotalOutThrottler = createThrottler(Config->DataNode->ReplicationInThrottler, "TotalOut");
+
+    ReplicationInThrottler = CreateCombinedThrottler(std::vector<IThroughputThrottlerPtr>{
+        TotalInThrottler,
+        createThrottler(Config->DataNode->ReplicationInThrottler, "ReplicationIn")
+    });
+    ReplicationOutThrottler = CreateCombinedThrottler(std::vector<IThroughputThrottlerPtr>{
+        TotalOutThrottler,
+        createThrottler(Config->DataNode->ReplicationOutThrottler, "ReplicationOut")
+    });
+
+    RepairInThrottler = CreateCombinedThrottler(std::vector<IThroughputThrottlerPtr>{
+        TotalInThrottler,
+        createThrottler(Config->DataNode->RepairInThrottler, "RepairIn")
+    });
+    RepairOutThrottler = CreateCombinedThrottler(std::vector<IThroughputThrottlerPtr>{
+        TotalOutThrottler,
+        createThrottler(Config->DataNode->RepairOutThrottler, "RepairOut")
+    });
 
     RpcServer->RegisterService(CreateDataNodeService(Config->DataNode, this));
 
@@ -651,7 +668,7 @@ IThroughputThrottlerPtr TBootstrap::GetInThrottler(const TWorkloadDescriptor& de
             return ReplicationInThrottler;
 
         default:
-            return GetUnlimitedThrottler();
+            return TotalInThrottler;
     }
 }
 
@@ -665,7 +682,7 @@ IThroughputThrottlerPtr TBootstrap::GetOutThrottler(const TWorkloadDescriptor& d
             return ReplicationOutThrottler;
 
         default:
-            return GetUnlimitedThrottler();
+            return TotalOutThrottler;
     }
 }
 
