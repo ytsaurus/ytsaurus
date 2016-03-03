@@ -315,6 +315,12 @@ public:
     //! Reader configuration used to seal chunks.
     NChunkClient::TReplicationReaderConfigPtr SealReader;
 
+    //! Controls the total incoming bandwidth.
+    NConcurrency::TThroughputThrottlerConfigPtr TotalInThrottler;
+
+    //! Controls the total outcoming bandwidth.
+    NConcurrency::TThroughputThrottlerConfigPtr TotalOutThrottler;
+
     //! Controls incoming bandwidth used by replication jobs.
     NConcurrency::TThroughputThrottlerConfigPtr ReplicationInThrottler;
 
@@ -425,6 +431,10 @@ public:
         RegisterParameter("seal_reader", SealReader)
             .DefaultNew();
 
+        RegisterParameter("total_in_throttler", TotalInThrottler)
+            .DefaultNew();
+        RegisterParameter("total_out_throttler", TotalOutThrottler)
+            .DefaultNew();
         RegisterParameter("replication_in_throttler", ReplicationInThrottler)
             .DefaultNew();
         RegisterParameter("replication_out_throttler", ReplicationOutThrottler)
