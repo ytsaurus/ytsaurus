@@ -594,16 +594,16 @@ class TestOperations(object):
             start_time = time.time()
             ops = []
             for i in xrange(5):
-                ops.append(yt.run_map("cat; sleep 2", table, TEST_DIR + "/output_" + str(i), sync=False))
+                ops.append(yt.run_map("cat; sleep 5", table, TEST_DIR + "/output_" + str(i), sync=False))
 
-            assert time.time() - start_time < 2.0
-            ops.append(yt.run_map("cat; sleep 2", table, TEST_DIR + "/output", sync=False))
-            assert time.time() - start_time > 2.0
+            assert time.time() - start_time < 5.0
+            ops.append(yt.run_map("cat; sleep 5", table, TEST_DIR + "/output", sync=False))
+            assert time.time() - start_time > 5.0
 
             for op in ops:
                 op.wait()
 
-            assert time.time() - start_time > 4.0
+            assert time.time() - start_time > 10.0
 
         finally:
             yt.config["start_operation_retries"]["retry_timeout"] = old_value
