@@ -93,7 +93,6 @@ public:
     virtual void Revive() override;
     virtual void Commit() override;
 
-    virtual void OnJobRunning(const TJobId& jobId, const NJobTrackerClient::NProto::TJobStatus& status) override;
     virtual void OnJobCompleted(const TCompletedJobSummary& jobSummary) override;
     virtual void OnJobFailed(const TFailedJobSummary& jobSummary) override;
     virtual void OnJobAborted(const TAbortedJobSummary& jobSummary) override;

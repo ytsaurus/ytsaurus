@@ -1788,15 +1788,7 @@ private:
 
     void OnJobRunning(TJobPtr job, const TJobStatus& status)
     {
-        auto operation = FindOperation(job->GetOperationId());
-        YCHECK(operation);
-
-        if (operation->GetState() == EOperationState::Running) {
-            auto controller = operation->GetController();
-            BIND(&IOperationController::OnJobRunning, controller, job->GetId(), status)
-                .AsyncVia(controller->GetCancelableInvoker())
-                .Run();
-        }
+        // Do nothing.
     }
 
     void OnJobWaiting(TJobPtr)
