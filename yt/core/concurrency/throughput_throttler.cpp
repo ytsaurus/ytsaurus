@@ -214,5 +214,65 @@ IThroughputThrottlerPtr GetUnlimitedThrottler()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TCombinedThroughtputThrottler
+    : public IThroughputThrottler
+{
+public:
+    explicit TCombinedThroughtputThrottler(const std::vector<IThroughputThrottlerPtr>& throttlers)
+        : Throttlers_(throttlers)
+    { }
+
+    virtual TFuture<void> Throttle(i64 count) override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+        YCHECK(count >= 0);
+
+        std::vector<TFuture<void>> asyncResults;
+        for (const auto& throttler : Throttlers_) {
+            asyncResults.push_back(throttler->Throttle(count));
+        }
+        return Combine(asyncResults);
+    }
+
+    virtual bool TryAcquire(i64 /*count*/) override
+    {
+        YUNREACHABLE();
+    }
+
+    virtual void Acquire(i64 count) override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+        YCHECK(count >= 0);
+
+        for (const auto& throttler : Throttlers_) {
+            throttler->Acquire(count);
+        }
+    }
+
+    virtual bool IsOverdraft() const override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        for (const auto& throttler : Throttlers_) {
+            if (throttler->IsOverdraft()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+private:
+    const std::vector<IThroughputThrottlerPtr> Throttlers_;
+
+};
+
+IThroughputThrottlerPtr CreateCombinedThrottler(
+    const std::vector<IThroughputThrottlerPtr>& throttler)
+{
+    return New<TCombinedThroughtputThrottler>(throttler);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NConcurrency
 } // namespace NYT
