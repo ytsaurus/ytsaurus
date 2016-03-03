@@ -84,14 +84,6 @@ TTcpConnection::TTcpConnection(
     YASSERT(Handler_);
     YASSERT(DispatcherThread_);
 
-<<<<<<< HEAD
-    Logger = BusLogger;
-    Logger.AddTag("ConnectionId: %v, RemoteAddress: %v",
-        Id_,
-        EndpointDescription_);
-
-=======
->>>>>>> prestable/0.17.5
     switch (ConnectionType_) {
         case EConnectionType::Client:
             YCHECK(Socket_ == INVALID_SOCKET);
@@ -790,11 +782,7 @@ TTcpConnection::TPacket* TTcpConnection::EnqueuePacket(
     const TPacketId& packetId,
     TSharedRefArray message)
 {
-<<<<<<< HEAD
-    i64 size = TPacketEncoder::GetPacketSize(type, message);
-=======
     size_t size = TPacketEncoder::GetPacketSize(type, message);
->>>>>>> prestable/0.17.5
     auto* packet = new TPacket(type, flags, packetId, std::move(message), size);
     QueuedPackets_.push(packet);
     UpdatePendingOut(+1, +size);
