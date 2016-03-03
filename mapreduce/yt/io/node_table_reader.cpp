@@ -339,7 +339,6 @@ void TNodeTableReader::NextKey()
     }
 
     Valid_ = true;
-    Next();
 }
 
 void TNodeTableReader::PrepareParsing()

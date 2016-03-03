@@ -239,6 +239,9 @@ int RunReduceJob(size_t outputTableCount, bool hasState)
         while (reader->IsValid()) {
             reducer->Do(reader.Get(), writer.Get());
             readerImpl->NextKey();
+            if (reader->IsValid()) {
+                reader->Next();
+            }
         }
         reducer->Finish(writer.Get());
         writer->Finish();

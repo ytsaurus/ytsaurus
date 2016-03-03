@@ -233,7 +233,6 @@ void TYaMRTableReader::NextKey()
     }
 
     Valid_ = true;
-    Next();
 }
 
 ui32 TYaMRTableReader::GetTableIndex() const
