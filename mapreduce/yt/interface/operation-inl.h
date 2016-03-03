@@ -310,8 +310,8 @@ private:
     {
         if (JobNames.find(typeInfoPtr) != JobNames.end()) {
             ythrow yexception() <<
-                Sprintf("type_info for %s is already registered",
-                    typeInfoPtr->name());
+                Sprintf("type_info '%s' is already registered under name '%s'",
+                    typeInfoPtr->name(), ~JobNames[typeInfoPtr]);
         }
         if (JobFunctions.find(name) != JobFunctions.end()) {
             ythrow yexception() <<
@@ -324,7 +324,7 @@ private:
     {
         if (JobNames.find(typeInfoPtr) == JobNames.end()) {
             ythrow yexception() <<
-                Sprintf("type_info for %s is not registered, use REGISTER_* macros",
+                Sprintf("type_info '%s' is not registered, use REGISTER_* macros",
                     typeInfoPtr->name());
         }
     }
@@ -361,7 +361,7 @@ struct TReducerRegistrator
 
 #define REGISTER_MAPPER(...) \
 static NYT::TMapperRegistrator<__VA_ARGS__> \
-GENERATE_UNIQUE_ID(TJobRegistrator)(~TypeName<__VA_ARGS__>()); \
+GENERATE_UNIQUE_ID(TJobRegistrator)(~TypeName<__VA_ARGS__>());
 
 #define REGISTER_NAMED_MAPPER(name, ...) \
 static NYT::TMapperRegistrator<__VA_ARGS__> \
