@@ -42,10 +42,13 @@ public:
     virtual TJobId GenerateJobId() override;
 
 private:
+    virtual bool HasEnoughResources(const TJobResources& neededResources) const;
+
     const TSchedulerConfigPtr Config_;
     const NObjectClient::TCellTag CellTag_;
     const TExecNodePtr Node_;
     const TExecNodeDescriptor NodeDescriptor_;
+    const yhash_set<Stroka> SchedulingTags_;
 
 };
 
