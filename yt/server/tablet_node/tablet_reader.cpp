@@ -140,7 +140,7 @@ protected:
         PerformanceCounters_->UnmergedRowReadCount += rowCount;
 
         session->CurrentRow = rows.begin();
-        
+
         Merger_.AddSessionToActive(session);
         return true;
     }
