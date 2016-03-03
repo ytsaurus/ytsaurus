@@ -225,7 +225,6 @@ class TestJobProber(YTEnvSetup):
                 "max_failed_job_count": 1
             })
 
-<<<<<<< HEAD
         # Send signal and wait for a new job
         signal_job(op.jobs[0], "SIGUSR1")
         op.resume_job(op.jobs[0])
@@ -238,35 +237,6 @@ class TestJobProber(YTEnvSetup):
         assert get("//sys/operations/{0}/@progress/jobs/aborted/other".format(op.id)) == 1
         assert get("//sys/operations/{0}/@progress/jobs/failed".format(op.id)) == 0
         assert read_table("//tmp/t2") == [{"foo": "bar"}]
-=======
-            try:
-                pin_filename = os.path.join(tmpdir, "started")
-                while not os.access(pin_filename, os.F_OK):
-                    time.sleep(0.5)
-
-                jobs_path = "//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(op_id)
-                jobs = ls(jobs_path)
-                assert jobs
-
-                # Send signal and wait for a new job
-                signal_job(jobs[0], "SIGUSR1")
-                while not exists("//sys/operations/{0}/@progress/jobs".format(op_id)) or get("//sys/operations/{0}/@progress/jobs/aborted/total".format(op_id)) == 0:
-                    time.sleep(0.5)
-                while not os.access(pin_filename, os.F_OK):
-                    time.sleep(0.5)
-
-            finally:
-                try:
-                    os.unlink(pin_filename)
-                except OSError:
-                    pass
-
-            track_op(op_id)
-            assert get("//sys/operations/{0}/@progress/jobs/aborted/total".format(op_id)) == 1
-            assert get("//sys/operations/{0}/@progress/jobs/aborted/other".format(op_id)) == 1
-            assert get("//sys/operations/{0}/@progress/jobs/failed".format(op_id)) == 0
-            assert read_table("//tmp/t2") == [{"foo": "bar"}]
->>>>>>> prestable/0.17.5
 
     def test_abandon_job(self):
         create("table", "//tmp/t1")
@@ -285,20 +255,11 @@ class TestJobProber(YTEnvSetup):
                 "data_size_per_job": 1
             })
 
-        result = abandon_job(op.jobs[3])
+        abandon_job(op.jobs[3])
 
-<<<<<<< HEAD
         op.resume_jobs()
         op.track()
         assert len(read_table("//tmp/t2")) == 4
-=======
-                abandon_job(job_id)
-            finally:
-                try:
-                    os.unlink(pin_filename)
-                except OSError:
-                    pass
->>>>>>> prestable/0.17.5
 
 ##################################################################
 
