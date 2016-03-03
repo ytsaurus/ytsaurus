@@ -521,14 +521,16 @@ class TestOperations(object):
         table = TEST_DIR + "/table"
         yt.write_table(table, ["x=1\n"])
         try:
-            op = yt.run_map("cat", table, table, sync=False)
+            op = yt.run_map("sleep 1; cat", table, table, sync=False)
             spec = yt.get_attribute("//sys/operations/{0}".format(op.id), "spec")
             assert spec["mapper"]["memory_limit"] == 123
             assert parse_bool(spec["mapper"]["check_input_fully_consumed"]) != check_input_fully_consumed
             assert parse_bool(spec["mapper"]["use_yamr_descriptors"]) != use_yamr_descriptors
         finally:
-            if op.get_state() not in ["completed", "failed", "aborted"]:
+            try:
                 op.abort()
+            except yt.YtError:
+                pass
             yt.config["memory_limit"] = memory_limit
             yt.config["yamr_mode"]["check_input_fully_consumed"] = check_input_fully_consumed
             yt.config["yamr_mode"]["use_yamr_style_destination_fds"] = use_yamr_descriptors
