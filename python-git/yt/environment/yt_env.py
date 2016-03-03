@@ -788,21 +788,21 @@ class YTEnv(object):
             self.driver_logging_config = init_logging(None, self.path_to_run, "driver", self._enable_debug_logging)
 
     def _prepare_console_driver(self, console_driver_name, driver_config):
-            from default_configs import get_console_driver_config
+        from default_configs import get_console_driver_config
 
-            config = get_console_driver_config()
+        config = get_console_driver_config()
 
-            config["driver"] = driver_config
-            config["logging"] = init_logging(config["logging"], self.path_to_run, "console_driver",
-                                             self._enable_debug_logging)
+        config["driver"] = driver_config
+        config["logging"] = init_logging(config["logging"], self.path_to_run, "console_driver",
+                                         self._enable_debug_logging)
 
-            config_path = os.path.join(self.path_to_run, "console_driver_config.yson")
+        config_path = os.path.join(self.path_to_run, "console_driver_config.yson")
 
-            write_config(config, config_path)
+        write_config(config, config_path)
 
-            self.configs[console_driver_name].append(config)
-            self.config_paths[console_driver_name].append(config_path)
-            self.log_paths[console_driver_name].append(config["logging"]["writers"]["info"]["file_name"])
+        self.configs[console_driver_name].append(config)
+        self.config_paths[console_driver_name].append(config_path)
+        self.log_paths[console_driver_name].append(config["logging"]["writers"]["info"]["file_name"])
 
     def _get_ui_config(self, proxy_name):
         if self._load_existing_environment:
