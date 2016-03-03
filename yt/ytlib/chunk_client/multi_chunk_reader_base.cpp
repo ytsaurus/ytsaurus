@@ -248,9 +248,6 @@ bool TMultiChunkReaderBase::OnEmptyRead(bool readerFinished)
     }
 }
 
-void TMultiChunkReaderBase::OnError()
-{ }
-
 TFuture<void> TMultiChunkReaderBase::CombineCompletionError(TFuture<void> future)
 {
     auto promise = NewPromise<void>();
@@ -263,8 +260,6 @@ void TMultiChunkReaderBase::RegisterFailedChunk(int chunkIndex)
 {
     auto chunkId = NYT::FromProto<TChunkId>(Chunks_[chunkIndex].Spec.chunk_id());
     LOG_WARNING("Chunk reader failed (ChunkId: %v)", chunkId);
-
-    OnError();
 
     TGuard<TSpinLock> guard(FailedChunksLock_);
     FailedChunks_.push_back(chunkId);
@@ -294,12 +289,29 @@ TSequentialMultiChunkReaderBase::TSequentialMultiChunkReaderBase(
     for (int i = 0; i < Chunks_.size(); ++i) {
         NextReaders_.push_back(NewPromise<IChunkReaderBasePtr>());
     }
+
+    CompletionError_.ToFuture().Subscribe(
+        BIND(&TSequentialMultiChunkReaderBase::PropagateError, MakeWeak(this))
+            .Via(TDispatcher::Get()->GetReaderInvoker()));
 }
 
 void TSequentialMultiChunkReaderBase::DoOpen()
 {
     OpenNextChunks();
     WaitForNextReader();
+}
+
+void TSequentialMultiChunkReaderBase::PropagateError(const TError& error)
+{
+    if (error.IsOK()) {
+        return;
+    }
+
+    for (auto nextReader : NextReaders_) {
+        if (nextReader) {
+            nextReader.TrySet(error);
+        }
+    }
 }
 
 void TSequentialMultiChunkReaderBase::OnReaderOpened(IChunkReaderBasePtr chunkReader, int chunkIndex)
@@ -361,19 +373,6 @@ void TSequentialMultiChunkReaderBase::WaitForCurrentReader()
     }
 }
 
-void TSequentialMultiChunkReaderBase::OnError()
-{
-    BIND([=, this_ = MakeStrong(this)] () {
-        // This is to avoid infinite waiting and memory leaks.
-        for (int i = NextReaderIndex_; i < NextReaders_.size(); ++i) {
-            NextReaders_[i].Reset();
-        }
-        NextReaderIndex_ = NextReaders_.size();
-    })
-    .Via(TDispatcher::Get()->GetReaderInvoker())
-    .Run();
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 TParallelMultiChunkReaderBase::TParallelMultiChunkReaderBase(
@@ -394,6 +393,8 @@ TParallelMultiChunkReaderBase::TParallelMultiChunkReaderBase(
         throttler)
 {
     LOG_DEBUG("Multi chunk reader is parallel");
+    CompletionError_.ToFuture().Subscribe(
+        BIND(&TParallelMultiChunkReaderBase::PropagateError, MakeWeak(this)));
 }
 
 void TParallelMultiChunkReaderBase::DoOpen()
@@ -435,7 +436,6 @@ void TParallelMultiChunkReaderBase::OnReaderFinished()
 
     ++FinishedReaderCount_;
     if (FinishedReaderCount_ == Chunks_.size()) {
-        ReadySessions_.Enqueue(TError("Sentinel session"));
         CompletionError_.TrySet(TError());
     } else {
         ReadyEvent_ = CombineCompletionError(BIND(
@@ -446,10 +446,10 @@ void TParallelMultiChunkReaderBase::OnReaderFinished()
     }
 }
 
-void TParallelMultiChunkReaderBase::OnError()
+void TParallelMultiChunkReaderBase::PropagateError(const TError& error)
 {
     // Someone may wait for this future.
-    ReadySessions_.Enqueue(TError("Sentinel session"));
+    ReadySessions_.Enqueue(TError("Sentinel session") << error);
 }
 
 void TParallelMultiChunkReaderBase::WaitForReadyReader()

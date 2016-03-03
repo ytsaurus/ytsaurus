@@ -1345,16 +1345,16 @@ protected:
         AddSortTasksPendingHints();
     }
 
-    static void CheckPartitionWriterBuffer(int partitionCount, TChunkWriterConfigPtr config)
+    static int AdjustPartitionCountToWriterBufferSize(
+        int partitionCount, 
+        TChunkWriterConfigPtr config)
     {
         auto averageBufferSize = config->MaxBufferSize / partitionCount / 2;
         if (averageBufferSize < THorizontalSchemalessBlockWriter::MinReserveSize) {
-            i64 minAppropriateSize = partitionCount * 2 * THorizontalSchemalessBlockWriter::MinReserveSize;
-            THROW_ERROR_EXCEPTION(
-                "Partitioner table writer buffer size is too small: expected >= %v, got %v",
-                minAppropriateSize,
-                config->MaxBufferSize);
+            i64 minAppropriateSize = 2 * THorizontalSchemalessBlockWriter::MinReserveSize;
+            return std::max(config->MaxBufferSize / minAppropriateSize, (i64)1);
         }
+        return partitionCount;
     }
 
     void CheckMergeStartThreshold()
@@ -1800,7 +1800,9 @@ private:
 
         InitJobIOConfigs();
 
-        CheckPartitionWriterBuffer(partitionCount, PartitionJobIOConfig->TableWriter);
+        partitionCount = AdjustPartitionCountToWriterBufferSize(
+            partitionCount, 
+            PartitionJobIOConfig->TableWriter);
 
         if (SimpleSort) {
             BuildSinglePartition();
@@ -2374,7 +2376,9 @@ private:
 
         InitJobIOConfigs();
 
-        CheckPartitionWriterBuffer(partitionCount, PartitionJobIOConfig->TableWriter);
+        partitionCount = AdjustPartitionCountToWriterBufferSize(
+            partitionCount, 
+            PartitionJobIOConfig->TableWriter);
 
         BuildMultiplePartitions(partitionCount);
     }

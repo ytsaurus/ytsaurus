@@ -142,6 +142,15 @@ YtDriver.prototype.execute = function(
     var deferred = Q.defer();
     var self = this;
 
+    var wrapped_stream_flags = { destroyed: false };
+    function destroy_wrapped_streams() {
+        if (!wrapped_stream_flags.destroyed) {
+            wrapped_input_stream.destroy();
+            wrapped_output_stream.destroy();
+            wrapped_stream_flags.destroyed = true;
+        }
+    }
+
     var input_pipe_promise = promisinglyPipe(input_stream, wrapped_input_stream)
         .then(
         function() {
@@ -151,7 +160,7 @@ YtDriver.prototype.execute = function(
         function(err) {
             self.__DBG("execute -> input_pipe_promise has been rejected");
             input_stream.destroy();
-            wrapped_input_stream.destroy();
+            destroy_wrapped_streams();
             deferred.reject(new YtError("Input pipe has been canceled", err));
         });
 
@@ -164,7 +173,7 @@ YtDriver.prototype.execute = function(
         function(err) {
             self.__DBG("execute -> output_pipe_promise has been rejected");
             output_stream.destroy();
-            wrapped_output_stream.destroy();
+            destroy_wrapped_streams();
             deferred.reject(new YtError("Output pipe has been canceled", err));
         });
 
@@ -189,9 +198,8 @@ YtDriver.prototype.execute = function(
                 self.__DBG("execute -> execute_promise has been resolved");
                 deferred.resolve(Array.prototype.slice.call(arguments));
             } else {
-                wrapped_input_stream.destroy();
-                wrapped_output_stream.destroy();
                 self.__DBG("execute -> execute_promise has been rejected");
+                destroy_wrapped_streams();
                 deferred.reject(result);
             }
         },
