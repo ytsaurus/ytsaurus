@@ -675,7 +675,7 @@ def read_table(table, format=None, table_reader=None, control_attributes=None, u
 
             for row in format.load_rows(response, raw=True):
                 # NB: Low level check for optimization purposes. Only YSON format supported!
-                is_control_row = row.endswith("#;")
+                is_control_row = (format.name() == "yson") and row.endswith("#;")
                 if is_control_row:
                     row = format.load_rows(StringIO(row)).next()
 
