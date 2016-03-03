@@ -740,6 +740,7 @@ public:
         MemoryPool_.Clear();
         UncompressedBlocks_.clear();
         LastUncompressedBlockIndex_ = -1;
+        LastUncompressedBlock_ = TSharedRef();
         rows->clear();
 
         if (Finished_) {
@@ -786,6 +787,7 @@ protected:
         // NB: requested block indexes are ascending, even in lookups.
         if (LastUncompressedBlockIndex_ != blockIndex) {
             LastUncompressedBlock_ = GetUncompressedBlock(blockIndex);
+            LastUncompressedBlockIndex_ = blockIndex;
         }
 
         return LastUncompressedBlock_;
