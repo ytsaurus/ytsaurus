@@ -49,13 +49,33 @@ Stroka ToString(EMergeMode mode)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TFileUploader
+class TJobPreparer
     : private TNonCopyable
 {
 public:
-    TFileUploader(const TAuth& auth)
+    TJobPreparer(
+        const TAuth& auth,
+        const Stroka& commandLineName,
+        const TUserJobSpec& spec,
+        IJob* job,
+        size_t outputTableCount,
+        const TOperationOptions& options)
         : Auth_(auth)
-    { }
+    {
+        UploadFilesFromSpec(spec);
+        UploadBinary();
+        UploadJobState(job);
+
+        ClassName_ = TJobFactory::Get()->GetJobName(job);
+        Command_ = TStringBuilder() <<
+            options.JobCommandPrefix_ <<
+            "./cppbinary " <<
+            commandLineName << " " <<
+            "\"" << ClassName_ << "\" " <<
+            outputTableCount << " " <<
+            HasState_ <<
+            options.JobCommandSuffix_;
+    }
 
     struct TFile
     {
@@ -69,22 +89,22 @@ public:
         return Files_;
     }
 
-    void UploadFiles(const TUserJobSpec& spec, IJob* job)
+    const Stroka& GetClassName() const
     {
-        UploadFilesFromSpec(spec);
-        UploadBinary();
-        UploadJobState(job);
+        return ClassName_;
     }
 
-    bool HasState() const
+    const Stroka& GetCommand() const
     {
-        return HasState_;
+        return Command_;
     }
 
 private:
     TAuth Auth_;
     yvector<TFile> Files_;
     bool HasState_ = false;
+    Stroka ClassName_;
+    Stroka Command_;
 
     static void CalculateMD5(const Stroka& localFileName, char* buf)
     {
@@ -380,8 +400,7 @@ void AbortOperation(
 ////////////////////////////////////////////////////////////////////////////////
 
 void BuildUserJobFluently(
-    const Stroka& command,
-    const yvector<TFileUploader::TFile>& files,
+    const TJobPreparer& preparer,
     TMaybe<TNode> format,
     const TMultiFormatDesc& inputDesc,
     const TMultiFormatDesc& outputDesc,
@@ -389,8 +408,8 @@ void BuildUserJobFluently(
 {
     // TODO: tables as files
     fluent
-    .Item("file_paths").DoListFor(files,
-        [&] (TFluentList fluent, const TFileUploader::TFile& file) {
+    .Item("file_paths").DoListFor(preparer.GetFiles(),
+        [&] (TFluentList fluent, const TJobPreparer::TFile& file) {
             fluent.Item()
                 .BeginAttributes()
                     .DoIf(!file.SandboxName.Empty(), [&] (TFluentAttributes fluent) {
@@ -441,7 +460,8 @@ void BuildUserJobFluently(
         .EndAttributes()
         .Value("yamr");
     })
-    .Item("command").Value(command);
+    .Item("command").Value(preparer.GetCommand())
+    .Item("class_name").Value(preparer.GetClassName());
 }
 
 void BuildCommonOperationPart(TFluentMap fluent)
@@ -487,9 +507,6 @@ TOperationId ExecuteMap(
     IJob* mapper,
     const TOperationOptions& options)
 {
-    TFileUploader uploader(auth);
-    uploader.UploadFiles(spec.MapperSpec_, mapper);
-
     TMaybe<TNode> format;
     if (spec.InputDesc_.Format == TMultiFormatDesc::F_YAMR &&
         options.UseTableFormats_)
@@ -497,18 +514,19 @@ TOperationId ExecuteMap(
         format = GetTableFormats(auth, transactionId, spec.Inputs_);
     }
 
-    Stroka command = Sprintf("./cppbinary --yt-map \"%s\" %" PRISZT " %d",
-        ~TJobFactory::Get()->GetJobName(mapper),
+    TJobPreparer map(
+        auth,
+        "--yt-map",
+        spec.MapperSpec_,
+        mapper,
         spec.Outputs_.size(),
-        uploader.HasState());
-    command = options.JobCommandPrefix_ + command + options.JobCommandSuffix_;
+        options);
 
     TNode specNode = BuildYsonNodeFluently()
     .BeginMap().Item("spec").BeginMap()
         .Item("mapper").DoMap(std::bind(
             BuildUserJobFluently,
-            command,
-            uploader.GetFiles(),
+            std::cref(map),
             format,
             spec.InputDesc_,
             spec.OutputDesc_,
@@ -556,21 +574,19 @@ TOperationId ExecuteReduce(
         reduceBy = TKeyColumns("key");
     }
 
-    TFileUploader uploader(auth);
-    uploader.UploadFiles(spec.ReducerSpec_, reducer);
-
-    Stroka command = Sprintf("./cppbinary --yt-reduce \"%s\" %" PRISZT " %d",
-        ~TJobFactory::Get()->GetJobName(reducer),
+    TJobPreparer reduce(
+        auth,
+        "--yt-reduce",
+        spec.ReducerSpec_,
+        reducer,
         spec.Outputs_.size(),
-        uploader.HasState());
-    command = options.JobCommandPrefix_ + command + options.JobCommandSuffix_;
+        options);
 
     TNode specNode = BuildYsonNodeFluently()
     .BeginMap().Item("spec").BeginMap()
         .Item("reducer").DoMap(std::bind(
             BuildUserJobFluently,
-            command,
-            uploader.GetFiles(),
+            std::cref(reduce),
             format,
             spec.InputDesc_,
             spec.OutputDesc_,
@@ -619,21 +635,19 @@ TOperationId ExecuteJoinReduce(
         joinBy = TKeyColumns("key");
     }
 
-    TFileUploader uploader(auth);
-    uploader.UploadFiles(spec.ReducerSpec_, reducer);
-
-    Stroka command = Sprintf("./cppbinary --yt-reduce \"%s\" %" PRISZT " %d",
-        ~TJobFactory::Get()->GetJobName(reducer),
+    TJobPreparer reduce(
+        auth,
+        "--yt-reduce",
+        spec.ReducerSpec_,
+        reducer,
         spec.Outputs_.size(),
-        uploader.HasState());
-    command = options.JobCommandPrefix_ + command + options.JobCommandSuffix_;
+        options);
 
     TNode specNode = BuildYsonNodeFluently()
     .BeginMap().Item("spec").BeginMap()
         .Item("reducer").DoMap(std::bind(
             BuildUserJobFluently,
-            command,
-            uploader.GetFiles(),
+            std::cref(reduce),
             format,
             spec.InputDesc_,
             spec.OutputDesc_,
@@ -706,58 +720,45 @@ TOperationId ExecuteMapReduce(
         }
     }
 
-    TFileUploader mapUploader(auth);
-    if (mapper) {
-        mapUploader.UploadFiles(spec.MapperSpec_, mapper);
-    }
-
-    TFileUploader reduceCombinerUploader(auth);
-    if (reduceCombiner) {
-        reduceCombinerUploader.UploadFiles(spec.ReduceCombinerSpec_, reduceCombiner);
-    }
-
-    TFileUploader reduceUploader(auth);
-    reduceUploader.UploadFiles(spec.ReducerSpec_, reducer);
-
-    Stroka mapCommand;
-    if (mapper) {
-        mapCommand = Sprintf("./cppbinary --yt-map \"%s\" 1 %d",
-            ~TJobFactory::Get()->GetJobName(mapper),
-            mapUploader.HasState());
-        mapCommand = options.JobCommandPrefix_ + mapCommand + options.JobCommandSuffix_;
-    }
-
-    Stroka reduceCombinerCommand;
-    if (reduceCombiner) {
-        reduceCombinerCommand = Sprintf("./cppbinary --yt-reduce \"%s\" 1 %d",
-            ~TJobFactory::Get()->GetJobName(reduceCombiner),
-            reduceCombinerUploader.HasState());
-        reduceCombinerCommand = options.JobCommandPrefix_ + reduceCombinerCommand + options.JobCommandSuffix_;
-    }
-
-    Stroka reduceCommand = Sprintf("./cppbinary --yt-reduce \"%s\" %" PRISZT " %d",
-        ~TJobFactory::Get()->GetJobName(reducer),
+    TJobPreparer reduce(
+        auth,
+        "--yt-reduce",
+        spec.ReducerSpec_,
+        reducer,
         spec.Outputs_.size(),
-        reduceUploader.HasState());
-    reduceCommand = options.JobCommandPrefix_ + reduceCommand + options.JobCommandSuffix_;
+        options);
 
     TNode specNode = BuildYsonNodeFluently()
     .BeginMap().Item("spec").BeginMap()
         .DoIf(mapper, [&] (TFluentMap fluent) {
+            TJobPreparer map(
+                auth,
+                "--yt-map",
+                spec.MapperSpec_,
+                mapper,
+                1,
+                options);
+
             fluent.Item("mapper").DoMap(std::bind(
                 BuildUserJobFluently,
-                mapCommand,
-                mapUploader.GetFiles(),
+                std::cref(map),
                 format,
                 spec.InputDesc_,
                 outputMapperDesc,
                 std::placeholders::_1));
         })
         .DoIf(reduceCombiner, [&] (TFluentMap fluent) {
+            TJobPreparer combine(
+                auth,
+                "--yt-reduce",
+                spec.ReduceCombinerSpec_,
+                reduceCombiner,
+                1,
+                options);
+
             fluent.Item("reduce_combiner").DoMap(std::bind(
                 BuildUserJobFluently,
-                reduceCombinerCommand,
-                reduceCombinerUploader.GetFiles(),
+                std::cref(combine),
                 mapper ? TMaybe<TNode>() : format,
                 inputReduceCombinerDesc,
                 outputReduceCombinerDesc,
@@ -765,8 +766,7 @@ TOperationId ExecuteMapReduce(
         })
         .Item("reducer").DoMap(std::bind(
             BuildUserJobFluently,
-            reduceCommand,
-            reduceUploader.GetFiles(),
+            std::cref(reduce),
             (mapper || reduceCombiner) ? TMaybe<TNode>() : format,
             inputReducerDesc,
             spec.OutputDesc_,
