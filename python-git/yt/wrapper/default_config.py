@@ -186,7 +186,9 @@ default_config = {
     # Signal is sent to main thread and YtTransactionPingError is raised inside
     # signal handler. The error is processed inside __exit__ block: it will be thrown
     # out to user, all transactions in nested context managers will be aborted.
-    "transaction_use_signal_if_ping_failed": True,
+    # Be careful! If Transaction is created not in main thread this will cause
+    # error "ValueError: signal only works in main thread".
+    "transaction_use_signal_if_ping_failed": False,
 
     # Always write files as one chunks.
     # It forces disabling of write retries for large files.
