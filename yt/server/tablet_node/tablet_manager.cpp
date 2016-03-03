@@ -1916,7 +1916,7 @@ private:
 
 
     void OnRowBlocked(
-        IStore* store,
+        IStorePtr store,
         const TTabletId& tabletId,
         IInvokerPtr invoker,
         TDynamicRow row,
@@ -1926,7 +1926,7 @@ private:
             BIND(
                 &TImpl::WaitOnBlockedRow,
                 MakeStrong(this),
-                MakeStrong(store),
+                store,
                 tabletId,
                 row,
                 lockIndex)
@@ -1998,7 +1998,7 @@ private:
         return BIND(
             &TImpl::OnRowBlocked,
             MakeWeak(this),
-            store,
+            MakeStrong(store),
             tablet->GetTabletId(),
             Slot_->GetEpochAutomatonInvoker(EAutomatonThreadQueue::Read));
     }
