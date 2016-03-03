@@ -60,9 +60,6 @@ public:
         NNodeTrackerClient::TNodeId id,
         const NNodeTrackerClient::TNodeDescriptor& nodeDescriptor);
 
-    bool HasEnoughResources(const TJobResources& neededResources) const;
-    bool HasSpareResources(const TJobResources& resourceDiscount) const;
-
     const Stroka& GetDefaultAddress() const;
     const Stroka& GetInterconnectAddress() const;
 

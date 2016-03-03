@@ -24,18 +24,6 @@ TExecNode::TExecNode(
     UpdateNodeDescriptor(nodeDescriptor);
 }
 
-bool TExecNode::HasEnoughResources(const TJobResources& neededResources) const
-{
-    return Dominates(
-        ResourceLimits_,
-        ResourceUsage_ + neededResources);
-}
-
-bool TExecNode::HasSpareResources(const TJobResources& resourceDiscount) const
-{
-    return HasEnoughResources(MinSpareNodeResources() - resourceDiscount);
-}
-
 const Stroka& TExecNode::GetDefaultAddress() const
 {
     return DefaultAddress_;

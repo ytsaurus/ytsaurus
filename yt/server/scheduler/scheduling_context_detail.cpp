@@ -25,6 +25,7 @@ TSchedulingContextBase::TSchedulingContextBase(
     , CellTag_(cellTag)
     , Node_(node)
     , NodeDescriptor_(Node_->BuildExecDescriptor())
+    , SchedulingTags_(Node_->SchedulingTags())
 { }
 
 const TExecNodeDescriptor& TSchedulingContextBase::GetNodeDescriptor() const
@@ -43,9 +44,16 @@ TJobPtr TSchedulingContextBase::GetStartedJob(const TJobId& jobId) const
     YUNREACHABLE();
 }
 
+bool TSchedulingContextBase::HasEnoughResources(const TJobResources& neededResources) const
+{
+    return Dominates(
+        ResourceLimits_,
+        ResourceUsage_ + neededResources);
+}
+
 bool TSchedulingContextBase::CanStartMoreJobs() const
 {
-    if (!Node_->HasSpareResources(ResourceUsageDiscount())) {
+    if (!HasEnoughResources(MinSpareNodeResources() - ResourceUsageDiscount())) {
         return false;
     }
 
@@ -59,7 +67,7 @@ bool TSchedulingContextBase::CanStartMoreJobs() const
 
 bool TSchedulingContextBase::CanSchedule(const TNullable<Stroka>& tag) const
 {
-    return Node_->CanSchedule(tag);
+    return !tag || SchedulingTags_.find(*tag) != SchedulingTags_.end();
 }
 
 void TSchedulingContextBase::StartJob(TOperationPtr operation, TJobStartRequestPtr jobStartRequest)
