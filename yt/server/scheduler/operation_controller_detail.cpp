@@ -1488,11 +1488,6 @@ void TOperationControllerBase::EndUploadOutputTables()
     THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError), "Error finishing upload to output tables");
 }
 
-void TOperationControllerBase::OnJobRunning(const TJobId& /* jobId */, const TJobStatus& /* status */)
-{
-    VERIFY_INVOKER_AFFINITY(CancelableInvoker);
-}
-
 void TOperationControllerBase::OnJobStarted(const TJobId& /* jobId */)
 {
     VERIFY_INVOKER_AFFINITY(CancelableInvoker);
