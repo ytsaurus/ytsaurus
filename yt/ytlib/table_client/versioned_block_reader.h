@@ -42,10 +42,10 @@ public:
     static const ETableChunkFormat FormatVersion = ETableChunkFormat::VersionedSimple;
 
 private:
-    TSharedRef Block_;
+    const TSharedRef Block_;
     typedef TReadOnlyBitmap<ui64> TBitmap;
 
-    TTimestamp Timestamp_;
+    const TTimestamp Timestamp_;
     const int ChunkKeyColumnCount_;
     const int KeyColumnCount_;
 
