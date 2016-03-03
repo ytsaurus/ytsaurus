@@ -527,13 +527,13 @@ class TestOperations(object):
             assert parse_bool(spec["mapper"]["check_input_fully_consumed"]) != check_input_fully_consumed
             assert parse_bool(spec["mapper"]["use_yamr_descriptors"]) != use_yamr_descriptors
         finally:
+            yt.config["memory_limit"] = memory_limit
+            yt.config["yamr_mode"]["check_input_fully_consumed"] = check_input_fully_consumed
+            yt.config["yamr_mode"]["use_yamr_style_destination_fds"] = use_yamr_descriptors
             try:
                 op.abort()
             except yt.YtError:
                 pass
-            yt.config["memory_limit"] = memory_limit
-            yt.config["yamr_mode"]["check_input_fully_consumed"] = check_input_fully_consumed
-            yt.config["yamr_mode"]["use_yamr_style_destination_fds"] = use_yamr_descriptors
 
     @add_failed_operation_stderrs_to_error_message
     def test_operation_start_finish_methods(self):
