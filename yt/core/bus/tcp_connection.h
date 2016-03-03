@@ -102,7 +102,7 @@ private:
             EPacketFlags flags,
             const TPacketId& packetId,
             TSharedRefArray message,
-            i64 size)
+            size_t size)
             : Type(type)
             , Flags(flags)
             , PacketId(packetId)
@@ -114,7 +114,7 @@ private:
         EPacketFlags Flags;
         TPacketId PacketId;
         TSharedRefArray Message;
-        i64 Size;
+        size_t Size;
     };
 
     struct TUnackedMessage
@@ -146,9 +146,9 @@ private:
 #endif
     const IMessageHandlerPtr Handler_;
 
-    int FD_ = INVALID_SOCKET;
-
     NLogging::TLogger Logger;
+
+    int FD_ = INVALID_SOCKET;
 
     TTcpDispatcherStatistics* const Statistics_;
 

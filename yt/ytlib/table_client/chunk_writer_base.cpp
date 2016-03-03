@@ -3,6 +3,7 @@
 #include "block_writer.h"
 #include "chunk_meta_extensions.h"
 #include "config.h"
+#include "name_table.h"
 #include "unversioned_row.h"
 #include "versioned_row.h"
 
@@ -96,14 +97,39 @@ TChunkMeta TChunkWriterBase::GetNodeMeta() const
 
 void TChunkWriterBase::ValidateRowWeight(i64 weight)
 {
-    if (weight < Config_->MaxRowWeight) {
+    if (!Options_->ValidateRowWeight || weight < Config_->MaxRowWeight) {
         return;
     }
 
     THROW_ERROR_EXCEPTION("Row weight is too large")
         << TErrorAttribute("row_weight", weight)
         << TErrorAttribute("row_weight_limit", Config_->MaxRowWeight);
+}
 
+void TChunkWriterBase::ValidateDuplicateIds(const TUnversionedRow row, TNameTablePtr nameTable)
+{
+    if (!Options_->ValidateDuplicateIds) {
+        return;
+    }
+
+    std::vector<int> ids;
+    ids.reserve(row.GetCount());
+
+    for (const auto* value = row.Begin(); value != row.End(); ++value) {
+        ids.push_back(value->Id);
+    }
+
+    std::sort(ids.begin(), ids.end());
+    auto it = std::adjacent_find(ids.begin(), ids.end());
+
+    if (it != ids.end()) {
+        auto error = TError("Duplicate value id in unversioned row")
+            << TErrorAttribute("id", *it);
+        if (nameTable) {
+            error = error << TErrorAttribute("column_name", nameTable->GetName(*it));
+        }
+        THROW_ERROR error;
+    }
 }
 
 TDataStatistics TChunkWriterBase::GetDataStatistics() const
@@ -298,7 +324,7 @@ void TSortedChunkWriterBase::OnRow(const TUnversionedValue* begin, const TUnvers
     auto newKey = TOwningKey(begin, begin + KeyColumns_.size());
     if (RowCount_ == 0) {
         ToProto(BoundaryKeysExt_.mutable_min(), newKey);
-    } else if (Options_->VerifySorted) {
+    } else if (Options_->ValidateSorted) {
         YCHECK(CompareRows(newKey, LastKey_) >= 0);
     }
     LastKey_ = std::move(newKey);
