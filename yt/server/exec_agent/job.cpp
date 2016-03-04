@@ -83,22 +83,25 @@ public:
 public:
     TJob(
         const TJobId& jobId,
+        const TOperationId& operationId,
         const TNodeResources& resourceUsage,
         TJobSpec&& jobSpec,
         TBootstrap* bootstrap)
-        : JobId(jobId)
-        , Bootstrap(bootstrap)
+        : Id_(jobId)
+        , OperationId_(operationId)
+        , Bootstrap_(bootstrap)
         , ResourceUsage(resourceUsage)
     {
         JobSpec.Swap(&jobSpec);
 
         const auto& schedulerJobSpecExt = JobSpec.GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
         if (schedulerJobSpecExt.has_aux_node_directory()) {
-            AuxNodeDirectory->MergeFrom(schedulerJobSpecExt.aux_node_directory());
+            AuxNodeDirectory_->MergeFrom(schedulerJobSpecExt.aux_node_directory());
         }
 
-        Logger.AddTag("JobId: %v, JobType: %v",
-            GetId(),
+        Logger.AddTag("JobId: %v, OperationId: %v, JobType: %v",
+            Id_,
+            OperationId_,
             GetType());
     }
 
@@ -106,14 +109,14 @@ public:
     {
         // No SpinLock here, because concurrent access is impossible before
         // calling Start.
-        YCHECK(JobState == EJobState::Waiting);
-        JobState = EJobState::Running;
+        YCHECK(JobState_ == EJobState::Waiting);
+        JobState_ = EJobState::Running;
 
-        PrepareTime = TInstant::Now();
-        auto slotManager = Bootstrap->GetExecSlotManager();
-        Slot = slotManager->AcquireSlot();
+        PrepareTime_ = TInstant::Now();
+        auto slotManager = Bootstrap_->GetExecSlotManager();
+        Slot_ = slotManager->AcquireSlot();
 
-        auto invoker = CancelableContext->CreateInvoker(Slot->GetInvoker());
+        auto invoker = CancelableContext_->CreateInvoker(Slot_->GetInvoker());
         BIND(&TJob::DoRun, MakeWeak(this))
             .Via(invoker)
             .Run();
@@ -123,7 +126,7 @@ public:
     {
         if (GetState() == EJobState::Waiting) {
             // Abort before the start.
-            YCHECK(!JobResult.HasValue());
+            YCHECK(!JobResult_.HasValue());
             DoSetResult(error);
             SetFinalState();
             return;
@@ -131,23 +134,28 @@ public:
 
         {
             TGuard<TSpinLock> guard(SpinLock);
-            if (JobState != EJobState::Running) {
+            if (JobState_ != EJobState::Running) {
                 return;
             }
             DoSetResult(error);
-            JobState = EJobState::Aborting;
+            JobState_ = EJobState::Aborting;
         }
 
-        CancelableContext->Cancel();
-        YCHECK(Slot);
+        CancelableContext_->Cancel();
+        YCHECK(Slot_);
         BIND(&TJob::DoAbort, MakeStrong(this))
-            .Via(Slot->GetInvoker())
+            .Via(Slot_->GetInvoker())
             .Run();
     }
 
     virtual const TJobId& GetId() const override
     {
-        return JobId;
+        return Id_;
+    }
+
+    virtual const TJobId& GetOperationId() const override
+    {
+        return OperationId_;
     }
 
     virtual EJobType GetType() const override
@@ -163,12 +171,12 @@ public:
     virtual EJobState GetState() const override
     {
         TGuard<TSpinLock> guard(SpinLock);
-        return JobState;
+        return JobState_;
     }
 
     virtual EJobPhase GetPhase() const override
     {
-        return JobPhase;
+        return JobPhase_;
     }
 
     virtual TNodeResources GetResourceUsage() const override
@@ -182,7 +190,7 @@ public:
         TNodeResources delta = newUsage;
         {
             TGuard<TSpinLock> guard(SpinLock);
-            if (JobState != EJobState::Running) {
+            if (JobState_ != EJobState::Running) {
                 return;
             }
             delta -= ResourceUsage;
@@ -194,13 +202,13 @@ public:
     virtual TJobResult GetResult() const override
     {
         TGuard<TSpinLock> guard(SpinLock);
-        return JobResult.Get();
+        return JobResult_.Get();
     }
 
     virtual void SetResult(const TJobResult& jobResult) override
     {
         TGuard<TSpinLock> guard(SpinLock);
-        if (JobState != EJobState::Running) {
+        if (JobState_ != EJobState::Running) {
             return;
         }
         DoSetResult(jobResult);
@@ -209,41 +217,41 @@ public:
     virtual double GetProgress() const override
     {
         TGuard<TSpinLock> guard(SpinLock);
-        return Progress;
+        return Progress_;
     }
 
     virtual void SetProgress(double value) override
     {
         TGuard<TSpinLock> guard(SpinLock);
-        if (JobState == EJobState::Running) {
-            Progress = value;
+        if (JobState_ == EJobState::Running) {
+            Progress_ = value;
         }
     }
 
     NJobProberClient::TJobProberServiceProxy CreateJobProberProxy() const
     {
-        auto jobProberClient = CreateTcpBusClient(Slot->GetRpcClientConfig());
+        auto jobProberClient = CreateTcpBusClient(Slot_->GetRpcClientConfig());
         auto jobProberChannel = CreateBusChannel(jobProberClient);
 
         NJobProberClient::TJobProberServiceProxy jobProberProxy(jobProberChannel);
-        jobProberProxy.SetDefaultTimeout(Bootstrap->GetConfig()->ExecAgent->JobProberRpcTimeout);
+        jobProberProxy.SetDefaultTimeout(Bootstrap_->GetConfig()->ExecAgent->JobProberRpcTimeout);
         return jobProberProxy;
     }
 
     virtual void SetStatistics(const NJobTrackerClient::NProto::TStatistics& statistics) override
     {
         TGuard<TSpinLock> guard(SpinLock);
-        if (JobState == EJobState::Running) {
-            Statistics = statistics;
+        if (JobState_ == EJobState::Running) {
+            Statistics_ = statistics;
         }
     }
 
-    std::vector<TChunkId> DumpInputContexts() const override
+    virtual std::vector<TChunkId> DumpInputContexts() const override
     {
         auto jobProberProxy = CreateJobProberProxy();
         auto req = jobProberProxy.DumpInputContext();
 
-        ToProto(req->mutable_job_id(), JobId);
+        ToProto(req->mutable_job_id(), Id_);
         auto rspOrError = WaitFor(req->Invoke());
         THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error requesting input contexts dump from job proxy");
         const auto& rsp = rspOrError.Value();
@@ -256,7 +264,7 @@ public:
         auto jobProberProxy = CreateJobProberProxy();
         auto req = jobProberProxy.Strace();
 
-        ToProto(req->mutable_job_id(), JobId);
+        ToProto(req->mutable_job_id(), Id_);
         auto rspOrError = WaitFor(req->Invoke());
         THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error requesting strace dump from job proxy");
         const auto& rsp = rspOrError.Value();
@@ -266,95 +274,97 @@ public:
 
     virtual void SignalJob(const Stroka& signalName) override
     {
-        Signaled = true;
+        Signaled_ = true;
 
         auto jobProberProxy = CreateJobProberProxy();
         auto req = jobProberProxy.SignalJob();
 
-        ToProto(req->mutable_job_id(), JobId);
+        ToProto(req->mutable_job_id(), Id_);
         ToProto(req->mutable_signal_name(), signalName);
         auto rspOrError = WaitFor(req->Invoke());
         THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error sending signal to job proxy");
     }
 
 private:
-    const TJobId JobId;
-    NCellNode::TBootstrap* const Bootstrap;
+    const TJobId Id_;
+    const TOperationId OperationId_;
+    NCellNode::TBootstrap* const Bootstrap_;
 
     TJobSpec JobSpec;
 
     TSpinLock SpinLock;
     TNodeResources ResourceUsage;
 
-    EJobState JobState = EJobState::Waiting;
-    EJobPhase JobPhase = EJobPhase::Created;
+    EJobState JobState_ = EJobState::Waiting;
+    EJobPhase JobPhase_ = EJobPhase::Created;
 
-    TCancelableContextPtr CancelableContext = New<TCancelableContext>();
+    const TCancelableContextPtr CancelableContext_ = New<TCancelableContext>();
 
-    double Progress = 0.0;
-    NJobTrackerClient::NProto::TStatistics Statistics;
-    bool Signaled = false;
+    double Progress_ = 0.0;
+    NJobTrackerClient::NProto::TStatistics Statistics_;
+    bool Signaled_ = false;
 
-    TNullable<TJobResult> JobResult;
+    TNullable<TJobResult> JobResult_;
 
-    TNullable<TInstant> PrepareTime;
-    TNullable<TInstant> ExecTime;
-    TSlotPtr Slot;
+    TNullable<TInstant> PrepareTime_;
+    TNullable<TInstant> ExecTime_;
+    TSlotPtr Slot_;
 
-    IProxyControllerPtr ProxyController;
+    IProxyControllerPtr ProxyController_;
 
-    EJobState FinalJobState = EJobState::Completed;
+    EJobState FinalJobState_ = EJobState::Completed;
 
-    std::vector<NDataNode::IChunkPtr> CachedChunks;
+    std::vector<NDataNode::IChunkPtr> CachedChunks_;
 
-    TNodeDirectoryPtr AuxNodeDirectory = New<TNodeDirectory>();
+    TNodeDirectoryPtr AuxNodeDirectory_ = New<TNodeDirectory>();
 
     NLogging::TLogger Logger = ExecAgentLogger;
+
 
     void DoRun()
     {
         try {
-            YCHECK(JobPhase == EJobPhase::Created);
-            JobPhase = EJobPhase::PreparingConfig;
+            YCHECK(JobPhase_ == EJobPhase::Created);
+            JobPhase_ = EJobPhase::PreparingConfig;
             PrepareConfig();
 
-            YCHECK(JobPhase == EJobPhase::PreparingConfig);
-            JobPhase = EJobPhase::PreparingProxy;
+            YCHECK(JobPhase_ == EJobPhase::PreparingConfig);
+            JobPhase_ = EJobPhase::PreparingProxy;
             PrepareProxy();
 
-            YCHECK(JobPhase == EJobPhase::PreparingProxy);
-            JobPhase = EJobPhase::PreparingSandbox;
-            Slot->InitSandbox();
+            YCHECK(JobPhase_ == EJobPhase::PreparingProxy);
+            JobPhase_ = EJobPhase::PreparingSandbox;
+            Slot_->InitSandbox();
 
-            YCHECK(JobPhase == EJobPhase::PreparingSandbox);
-            JobPhase = EJobPhase::PreparingTmpfs;
+            YCHECK(JobPhase_ == EJobPhase::PreparingSandbox);
+            JobPhase_ = EJobPhase::PreparingTmpfs;
             PrepareTmpfs();
 
-            YCHECK(JobPhase == EJobPhase::PreparingTmpfs);
-            JobPhase = EJobPhase::PreparingFiles;
+            YCHECK(JobPhase_ == EJobPhase::PreparingTmpfs);
+            JobPhase_ = EJobPhase::PreparingFiles;
             PrepareUserFiles();
 
-            YCHECK(JobPhase == EJobPhase::PreparingFiles);
-            JobPhase = EJobPhase::Running;
+            YCHECK(JobPhase_ == EJobPhase::PreparingFiles);
+            JobPhase_ = EJobPhase::Running;
 
             {
                 TGuard<TSpinLock> guard(SpinLock);
-                ExecTime = TInstant::Now();
+                ExecTime_ = TInstant::Now();
             }
 
             RunJobProxy();
         } catch (const std::exception& ex) {
             {
                 TGuard<TSpinLock> guard(SpinLock);
-                if (JobState != EJobState::Running) {
-                    YCHECK(JobState == EJobState::Aborting);
+                if (JobState_ != EJobState::Running) {
+                    YCHECK(JobState_ == EJobState::Aborting);
                     return;
                 }
                 DoSetResult(ex);
-                JobState = EJobState::Aborting;
+                JobState_ = EJobState::Aborting;
             }
             BIND(&TJob::DoAbort, MakeStrong(this))
-                .Via(Slot->GetInvoker())
+                .Via(Slot_->GetInvoker())
                 .Run();
         }
     }
@@ -364,26 +374,26 @@ private:
     {
         TJobResult jobResult;
         ToProto(jobResult.mutable_error(), error);
-        *jobResult.mutable_statistics() = Statistics;
+        *jobResult.mutable_statistics() = Statistics_;
         DoSetResult(jobResult);
     }
 
     // Must be called with set SpinLock.
     void DoSetResult(const TJobResult& jobResult)
     {
-        if (JobResult) {
-            auto error = FromProto<TError>(JobResult->error());
+        if (JobResult_) {
+            auto error = FromProto<TError>(JobResult_->error());
             if (!error.IsOK()) {
                 return;
             }
         }
 
-        JobResult = jobResult;
-        if (ExecTime) {
-            JobResult->set_exec_time(ToProto(TInstant::Now() - *ExecTime));
-            JobResult->set_prepare_time(ToProto(*ExecTime - *PrepareTime));
-        } else if (PrepareTime) {
-            JobResult->set_prepare_time(ToProto(TInstant::Now() - *PrepareTime));
+        JobResult_ = jobResult;
+        if (ExecTime_) {
+            JobResult_->set_exec_time(ToProto(TInstant::Now() - *ExecTime_));
+            JobResult_->set_prepare_time(ToProto(*ExecTime_ - *PrepareTime_));
+        } else if (PrepareTime_) {
+            JobResult_->set_prepare_time(ToProto(TInstant::Now() - *PrepareTime_));
         }
 
         auto error = FromProto<TError>(jobResult.error());
@@ -394,20 +404,20 @@ private:
 
         if (IsFatalError(error)) {
             error.Attributes().Set("fatal", IsFatalError(error));
-            ToProto(JobResult->mutable_error(), error);
-            FinalJobState = EJobState::Failed;
+            ToProto(JobResult_->mutable_error(), error);
+            FinalJobState_ = EJobState::Failed;
             return;
         }
 
-        auto abortReason = GetAbortReason(jobResult, Signaled);
+        auto abortReason = GetAbortReason(jobResult, Signaled_);
         if (abortReason) {
             error.Attributes().Set("abort_reason", abortReason);
-            ToProto(JobResult->mutable_error(), error);
-            FinalJobState = EJobState::Aborted;
+            ToProto(JobResult_->mutable_error(), error);
+            FinalJobState_ = EJobState::Aborted;
             return;
         }
 
-        FinalJobState = EJobState::Failed;
+        FinalJobState_ = EJobState::Failed;
     }
 
     void PrepareConfig()
@@ -429,15 +439,15 @@ private:
                 << ex;
         }
 
-        auto proxyConfig = CloneYsonSerializable(Bootstrap->GetJobProxyConfig());
+        auto proxyConfig = CloneYsonSerializable(Bootstrap_->GetJobProxyConfig());
         proxyConfig->JobIO = ioConfig;
-        proxyConfig->UserId = Slot->GetUserId();
-        proxyConfig->TmpfsPath = Slot->GetTmpfsPath(ESandboxKind::User);
+        proxyConfig->UserId = Slot_->GetUserId();
+        proxyConfig->TmpfsPath = Slot_->GetTmpfsPath(ESandboxKind::User);
 
-        proxyConfig->RpcServer = Slot->GetRpcServerConfig();
+        proxyConfig->RpcServer = Slot_->GetRpcServerConfig();
 
         auto proxyConfigPath = NFS::CombinePaths(
-            Slot->GetWorkingDirectory(),
+            Slot_->GetWorkingDirectory(),
             ProxyConfigFileName);
 
         try {
@@ -457,15 +467,15 @@ private:
     {
         Stroka environmentType = "default";
         try {
-            auto environmentManager = Bootstrap->GetEnvironmentManager();
-            ProxyController = environmentManager->CreateProxyController(
+            auto environmentManager = Bootstrap_->GetEnvironmentManager();
+            ProxyController_ = environmentManager->CreateProxyController(
                 //XXX(psushin): execution environment type must not be directly
                 // selectable by user -- it is more of the global cluster setting
                 //jobSpec.operation_spec().environment(),
                 environmentType,
-                JobId,
-                *Slot,
-                Slot->GetWorkingDirectory());
+                Id_,
+                OperationId_,
+                Slot_);
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Failed to create proxy controller for environment %Qv",
                 environmentType)
@@ -479,7 +489,7 @@ private:
         if (schedulerJobSpecExt.has_user_job_spec()) {
             const auto& userJobSpec = schedulerJobSpecExt.user_job_spec();
             if (userJobSpec.has_tmpfs_size()) {
-                Slot->PrepareTmpfs(ESandboxKind::User, userJobSpec.tmpfs_size());
+                Slot_->PrepareTmpfs(ESandboxKind::User, userJobSpec.tmpfs_size());
             }
         }
     }
@@ -505,19 +515,19 @@ private:
 
     void RunJobProxy()
     {
-        auto runError = WaitFor(ProxyController->Run());
+        auto runError = WaitFor(ProxyController_->Run());
 
         // NB: We should explicitly call Kill() to clean up possible child processes.
-        ProxyController->Kill(Slot->GetProcessGroup());
+        ProxyController_->Kill(Slot_->GetProcessGroup());
 
         runError.ThrowOnError();
 
-        YCHECK(JobResult.HasValue());
-        YCHECK(JobPhase == EJobPhase::Running);
+        YCHECK(JobResult_.HasValue());
+        YCHECK(JobPhase_ == EJobPhase::Running);
 
-        JobPhase = EJobPhase::Cleanup;
-        Slot->Clean();
-        YCHECK(JobPhase == EJobPhase::Cleanup);
+        JobPhase_ = EJobPhase::Cleanup;
+        Slot_->Clean();
+        YCHECK(JobPhase_ == EJobPhase::Cleanup);
 
         LOG_INFO("Job completed");
 
@@ -526,8 +536,8 @@ private:
 
     void FinalizeJob()
     {
-        auto slotManager = Bootstrap->GetExecSlotManager();
-        slotManager->ReleaseSlot(Slot);
+        auto slotManager = Bootstrap_->GetExecSlotManager();
+        slotManager->ReleaseSlot(Slot_);
 
         auto resourceDelta = ZeroNodeResources() - ResourceUsage;
         {
@@ -543,8 +553,8 @@ private:
     {
         ResourceUsage = ZeroNodeResources();
 
-        JobPhase = EJobPhase::Finished;
-        JobState = FinalJobState;
+        JobPhase_ = EJobPhase::Finished;
+        JobState_ = FinalJobState_;
     }
 
     void DoAbort()
@@ -555,15 +565,15 @@ private:
 
         LOG_INFO("Aborting job");
 
-        auto prevJobPhase = JobPhase;
-        JobPhase = EJobPhase::Cleanup;
+        auto prevJobPhase = JobPhase_;
+        JobPhase_ = EJobPhase::Cleanup;
 
         if (prevJobPhase >= EJobPhase::Running) {
-            ProxyController->Kill(Slot->GetProcessGroup());
+            ProxyController_->Kill(Slot_->GetProcessGroup());
         }
 
         if (prevJobPhase >= EJobPhase::PreparingSandbox) {
-            Slot->Clean();
+            Slot_->Clean();
         }
 
         LOG_INFO("Job aborted");
@@ -580,21 +590,21 @@ private:
             isExecutable);
 
         TArtifactKey key(descriptor);
-        auto chunkCache = Bootstrap->GetChunkCache();
+        auto chunkCache = Bootstrap_->GetChunkCache();
         auto chunkOrError = WaitFor(chunkCache->PrepareArtifact(
             key,
-            AuxNodeDirectory));
+            AuxNodeDirectory_));
 
-        YCHECK(JobPhase == EJobPhase::PreparingFiles);
+        YCHECK(JobPhase_ == EJobPhase::PreparingFiles);
         THROW_ERROR_EXCEPTION_IF_FAILED(chunkOrError,
             "Failed to prepare user file %Qv",
             fileName);
 
         const auto& chunk = chunkOrError.Value();
-        CachedChunks.push_back(chunk);
+        CachedChunks_.push_back(chunk);
 
         try {
-            Slot->MakeLink(
+            Slot_->MakeLink(
                 sandboxKind,
                 chunk->GetFileName(),
                 fileName,
@@ -663,12 +673,14 @@ private:
 
 NJobAgent::IJobPtr CreateUserJob(
     const TJobId& jobId,
+    const TOperationId& operationId,
     const TNodeResources& resourceUsage,
     TJobSpec&& jobSpec,
     TBootstrap* bootstrap)
 {
     return New<TJob>(
         jobId,
+        operationId,
         resourceUsage,
         std::move(jobSpec),
         bootstrap);

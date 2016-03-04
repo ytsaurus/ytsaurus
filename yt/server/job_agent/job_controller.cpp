@@ -172,6 +172,7 @@ void TJobController::StartWaitingJobs()
 
 IJobPtr TJobController::CreateJob(
     const TJobId& jobId,
+    const TOperationId& operationId,
     const TNodeResources& resourceLimits,
     TJobSpec&& jobSpec)
 {
@@ -181,11 +182,13 @@ IJobPtr TJobController::CreateJob(
 
     auto job = factory.Run(
         jobId,
+        operationId,
         resourceLimits,
         std::move(jobSpec));
 
-    LOG_INFO("Job created (JobId: %v, JobType: %v)",
+    LOG_INFO("Job created (JobId: %v, OperationId: %v, JobType: %v)",
         jobId,
+        operationId,
         type);
 
     YCHECK(Jobs_.insert(std::make_pair(jobId, job)).second);
@@ -349,9 +352,10 @@ void TJobController::ProcessHeartbeatResponse(TRspHeartbeat* response)
 
     for (auto& info : *response->mutable_jobs_to_start()) {
         auto jobId = FromProto<TJobId>(info.job_id());
+        auto operationId = FromProto<TJobId>(info.operation_id());
         const auto& resourceLimits = info.resource_limits();
         auto& spec = *info.mutable_spec();
-        CreateJob(jobId, resourceLimits, std::move(spec));
+        CreateJob(jobId, operationId, resourceLimits, std::move(spec));
     }
 }
 

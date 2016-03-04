@@ -11,10 +11,9 @@ namespace NScheduler {
 ////////////////////////////////////////////////////////////////////////////////
 
 using NJobTrackerClient::TJobId;
+using NJobTrackerClient::TOperationId;
 using NJobTrackerClient::EJobType;
 using NJobTrackerClient::EJobState;
-
-typedef TGuid TOperationId;
 
 DEFINE_ENUM(EOperationType,
     (Map)

@@ -1,5 +1,7 @@
 #pragma once
 
+#include "public.h"
+
 #include <yt/core/logging/log.h>
 
 #include <yt/core/profiling/profiler.h>

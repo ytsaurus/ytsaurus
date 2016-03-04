@@ -547,6 +547,7 @@ public:
 
             auto* startInfo = response->add_jobs_to_start();
             ToProto(startInfo->mutable_job_id(), job->GetId());
+            ToProto(startInfo->mutable_operation_id(), operation->GetId());
             *startInfo->mutable_resource_limits() = job->ResourceUsage().ToNodeResources();
 
             // Build spec asynchronously.

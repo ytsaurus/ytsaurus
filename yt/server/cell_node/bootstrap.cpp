@@ -352,15 +352,17 @@ void TBootstrap::DoRun()
 
     auto createExecJob = BIND([this] (
             const NJobAgent::TJobId& jobId,
+            const NJobAgent::TOperationId& operationId,
             const NNodeTrackerClient::NProto::TNodeResources& resourceLimits,
             NJobTrackerClient::NProto::TJobSpec&& jobSpec) ->
             NJobAgent::IJobPtr
         {
             return NExecAgent::CreateUserJob(
-                    jobId,
-                    resourceLimits,
-                    std::move(jobSpec),
-                    this);
+                jobId,
+                operationId,
+                resourceLimits,
+                std::move(jobSpec),
+                this);
         });
     JobController->RegisterFactory(NJobAgent::EJobType::Map,             createExecJob);
     JobController->RegisterFactory(NJobAgent::EJobType::PartitionMap,    createExecJob);
@@ -379,16 +381,17 @@ void TBootstrap::DoRun()
 
     auto createChunkJob = BIND([this] (
             const NJobAgent::TJobId& jobId,
+            const NJobAgent::TOperationId& /*operationId*/,
             const NNodeTrackerClient::NProto::TNodeResources& resourceLimits,
             NJobTrackerClient::NProto::TJobSpec&& jobSpec) ->
             NJobAgent::IJobPtr
         {
             return NDataNode::CreateChunkJob(
-                    jobId,
-                    std::move(jobSpec),
-                    resourceLimits,
-                    Config->DataNode,
-                    this);
+                jobId,
+                std::move(jobSpec),
+                resourceLimits,
+                Config->DataNode,
+                this);
         });
     JobController->RegisterFactory(NJobAgent::EJobType::RemoveChunk,     createChunkJob);
     JobController->RegisterFactory(NJobAgent::EJobType::ReplicateChunk,  createChunkJob);
@@ -400,7 +403,7 @@ void TBootstrap::DoRun()
     RpcServer->RegisterService(New<TSupervisorService>(this));
 
     EnvironmentManager = New<TEnvironmentManager>(Config->ExecAgent->EnvironmentManager);
-    EnvironmentManager->Register("unsafe", CreateUnsafeEnvironmentBuilder());
+    EnvironmentManager->RegisterBuilder("unsafe", CreateUnsafeEnvironmentBuilder());
 
     SchedulerConnector = New<TSchedulerConnector>(Config->ExecAgent->SchedulerConnector, this);
 
