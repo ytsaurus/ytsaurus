@@ -36,18 +36,9 @@ TTableSchema GetIntermediateSchema(TConstGroupClausePtr groupClause)
     }
 
     for (auto item : groupClause->AggregateItems) {
-<<<<<<< HEAD
-        auto intermediateType = functionRegistry
-            ->GetAggregateFunction(item.AggregateFunction)
-            ->GetStateType(item.Expression->Type);
         schema.AppendColumn(TColumnSchema(
             item.Name,
-            intermediateType));
-=======
-        schema.Columns().emplace_back(
-            item.Name,
-            item.StateType);
->>>>>>> prestable/0.17.5
+            item.StateType));
     }
 
     return schema;
