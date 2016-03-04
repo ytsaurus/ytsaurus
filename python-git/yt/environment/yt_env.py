@@ -37,9 +37,9 @@ def _get_ytserver_version():
     output = subprocess.check_output(["ytserver", "--version"])
     return output.split(":", 1)[1].strip()
 
-def _get_proxy_version(proxy_binary_path):
+def _get_proxy_version(node_binary_path, proxy_binary_path):
     # Output example: "*** YT HTTP Proxy ***\nVersion 0.17.3\nDepends..."
-    process = subprocess.Popen(["node", proxy_binary_path, "-v"], stderr=subprocess.PIPE)
+    process = subprocess.Popen([node_binary_path, proxy_binary_path, "-v"], stderr=subprocess.PIPE)
     _, err = process.communicate()
     version_str = err.split("\n")[1].split()[1]
 
@@ -888,13 +888,15 @@ class YTEnv(object):
             raise YtError("Failed to find YT http proxy binary. "
                           "Make sure you installed yandex-yt-http-proxy package")
 
-        proxy_version = _get_proxy_version(proxy_binary_path)[:2]  # major, minor
+        nodejs_binary_path = self._find_nodejs()
+
+        proxy_version = _get_proxy_version(nodejs_binary_path, proxy_binary_path)[:2]  # major, minor
         ytserver_version = map(int, self._ytserver_version.split("."))[:2]
         if proxy_version and proxy_version != ytserver_version:
             raise YtError("Proxy version does not match ytserver version. "
                           "Expected: {0}.{1}, actual: {2}.{3}".format(*(ytserver_version + proxy_version)))
 
-        self._run([self._find_nodejs(),
+        self._run([nodejs_binary_path,
                    proxy_binary_path,
                    "-c", self.config_paths[proxy_name],
                    "-l", self.log_paths[proxy_name]],
