@@ -17,12 +17,12 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool ParseBool(const Stroka& response)
+bool ParseBoolFromResponse(const Stroka& response)
 {
     return GetBool(NodeFromYsonString(response));
 }
 
-TGUID ParseGuid(const Stroka& response)
+TGUID ParseGuidFromResponse(const Stroka& response)
 {
     auto node = NodeFromYsonString(response);
     return GetGuid(node.AsString());
@@ -64,7 +64,7 @@ TTransactionId StartTransaction(
         header.SetParameters(AttributesToYsonString(*attributes));
     }
 
-    auto txId = ParseGuid(RetryRequest(auth, header));
+    auto txId = ParseGuidFromResponse(RetryRequest(auth, header));
     LOG_INFO("Transaction %s started", ~GetGuidAsString(txId));
     return txId;
 }
@@ -137,7 +137,7 @@ bool Exists(
     THttpHeader header("GET", "exists");
     header.AddTransactionId(transactionId);
     header.AddPath(path);
-    return ParseBool(RetryRequest(auth, header));
+    return ParseBoolFromResponse(RetryRequest(auth, header));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
