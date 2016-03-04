@@ -130,7 +130,7 @@ public:
     }
 
 
-    TCellTag PickSecondaryMasterCell()
+    TCellTag PickSecondaryMasterCell(double bias)
     {
         YCHECK(Bootstrap_->IsPrimaryMaster());
 
@@ -147,22 +147,34 @@ public:
 
         int avgChunkCount = chunkCountSum / RegisteredMasterMap_.size();
 
-        // Construct candidates by putting each secondary cell
-        // * once if the number of chunks there is at least the average
-        // * twice otherwise
-        SmallVector<TCellTag, 2 * MaxSecondaryMasterCells> candidates;
+
+        // Split the candidates into two subsets: less-that-avg and more-than-avg.
+        SmallVector<TCellTag, MaxSecondaryMasterCells> loCandidates;
+        SmallVector<TCellTag, MaxSecondaryMasterCells> hiCandidates;
         for (const auto& pair : RegisteredMasterMap_) {
             auto cellTag = pair.first;
             const auto& entry = pair.second;
-            candidates.push_back(cellTag);
             if (entry.Statistics.chunk_count() < avgChunkCount) {
-                candidates.push_back(cellTag);
+                loCandidates.push_back(cellTag);
+            } else {
+                hiCandidates.push_back(cellTag);
             }
         }
 
-        // Sample candidates uniformly.
+        // Sample candidates.
+        // loCandidates have weight 2^8 + bias * 2^8.
+        // hiCandidates have weight 2^8.
+        ui64 scaledBias = static_cast<ui64>(bias * (1ULL << 8));
+        ui64 weightPerLo = (1ULL << 8) + scaledBias;
+        ui64 totalLoWeight = weightPerLo * loCandidates.size();
+        ui64 weightPerHi = 1ULL << 8;
+        ui64 totalHiWeight = weightPerHi * hiCandidates.size();
+        ui64 totalTokens = totalLoWeight + totalHiWeight;
         auto* mutationContext = GetCurrentMutationContext();
-        return candidates[mutationContext->RandomGenerator().Generate<size_t>() % candidates.size()];
+        ui64 random = mutationContext->RandomGenerator().Generate<ui64>() % totalTokens;
+        return random < totalLoWeight
+            ? loCandidates[random / weightPerLo]
+            : hiCandidates[(random - totalLoWeight) / weightPerHi];
     }
 
     NProto::TCellStatistics ComputeClusterStatistics()
@@ -673,9 +685,9 @@ int TMulticellManager::GetRegisteredMasterCellIndex(TCellTag cellTag)
     return Impl_->GetRegisteredMasterCellIndex(cellTag);
 }
 
-TCellTag TMulticellManager::PickSecondaryMasterCell()
+TCellTag TMulticellManager::PickSecondaryMasterCell(double bias)
 {
-    return Impl_->PickSecondaryMasterCell();
+    return Impl_->PickSecondaryMasterCell(bias);
 }
 
 NProto::TCellStatistics TMulticellManager::ComputeClusterStatistics()

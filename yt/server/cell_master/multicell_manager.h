@@ -88,7 +88,7 @@ public:
 
     //! Returns the list of cell tags for all registered master cells (other than the local one),
     //! in a stable order.
-    /*!
+    /*!`
      *  For secondary masters, the primary master is always the first element.
      */
     const NObjectClient::TCellTagList& GetRegisteredMasterCellTags();
@@ -97,9 +97,16 @@ public:
     int GetRegisteredMasterCellIndex(NObjectClient::TCellTag cellTag);
 
     //! Picks a random (but deterministically chosen) secondary master cell for
-    //! a new chunk owner node. Cells with less-than-average number of chunks are preferred.
-    //! If no secondary cells are registered then #InvalidCellTag is returned.
-    NObjectClient::TCellTag PickSecondaryMasterCell();
+`    //! a new chunk owner node.
+    /*!
+     *  Cells with less-than-average number of chunks are typically preferred.
+     *  The exact amount of skewness is controlled by #bias argument, 0 indicating no preference,
+     *  and 1.0 indicating that cells with low number of chunks are picked twice as more often as those
+     *  with the high number of chunks.
+     *
+     *  If no secondary cells are registered then #InvalidCellTag is returned.
+     */
+    NObjectClient::TCellTag PickSecondaryMasterCell(double bias);
 
     //! Computes the total cluster statistics by summing counters for all cells (including primary).
     NProto::TCellStatistics ComputeClusterStatistics();

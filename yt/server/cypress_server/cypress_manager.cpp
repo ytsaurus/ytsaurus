@@ -174,6 +174,15 @@ public:
                 handler->IsExternalizable();
         }
 
+        double externalCellBias = 1.0;
+        if (attributes->Contains("external_cell_bias")) {
+            externalCellBias = attributes->Get<double>("external_cell_bias");
+            if (externalCellBias < 0.0 || externalCellBias > 1.0) {
+                THROW_ERROR_EXCEPTION("\"external_cell_bias\" must be in range [0, 1]");
+            }
+            attributes->Remove("external_cell_bias");
+        }
+
         auto cellTag = NotReplicatedCellTag;
         if (isExternal) {
             if (!Bootstrap_->IsPrimaryMaster()) {
@@ -193,7 +202,7 @@ public:
                 }
                 attributes->Remove("external_cell_tag");
             } else {
-                cellTag = multicellManager->PickSecondaryMasterCell();
+                cellTag = multicellManager->PickSecondaryMasterCell(externalCellBias);
                 if (cellTag == InvalidCellTag) {
                     THROW_ERROR_EXCEPTION("No secondary masters registered");
                 }
