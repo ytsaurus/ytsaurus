@@ -274,7 +274,10 @@ class Application(object):
         self._yt = Yt(**self._config["yt_backend_options"])
 
         self._profiling_mutex = RLock()
-        self._profiling = {"execution_time": defaultdict(deque)}
+        self._profiling = {
+            "execution_time": defaultdict(deque),
+            "requests_cache_accesses": deque()
+        }
 
         self._configure_logging(self._config.get("logging", {}))
 
@@ -355,6 +358,7 @@ class Application(object):
         self._add_rule("/match/", 'match', methods=["POST"])
         self._add_rule("/profiling/timings/", 'profiling_timings', methods=["GET"])
         self._add_rule("/profiling/memory_tracker/", 'profiling_memory_tracker', methods=["GET"])
+        self._add_rule("/profiling/requests_cache/", 'profiling_requests_cache', methods=["GET"])
 
     def terminate(self):
         self._terminating = True
@@ -458,6 +462,13 @@ class Application(object):
 
         return decorator
 
+    def _profiling_append_requests_cache_access(self, access_info):
+        if "status" in access_info:
+            with self._profiling_mutex:
+                if len(self._profiling["requests_cache_accesses"]) > self._config["profiling"]["queue_limit"]:
+                    self._profiling["requests_cache_accesses"].popleft()
+                self._profiling["requests_cache_accesses"].append(access_info)
+
     def _process_mutating_request(self, func):
         def decorator(*args, **kwargs):
             params = json.loads_as_bytes(request.headers.get("X-TM-Parameters", "{}"))
@@ -470,22 +481,33 @@ class Application(object):
             if retry and not mutation_id:
                 raise RequestFailed('Cannot process retry request without specified "mutation_id" header')
 
-            if retry:
-                processed_request = self._mutating_requests_cache.get(mutation_id)
-                if processed_request is not None:
-                    return processed_request
-                else:
+            access_info = {
+                "mutation_id": mutation_id,
+                "retry": retry,
+                "time": datetime.now().isoformat()
+            }
+
+            try:
+                if retry:
+                    processed_request = self._mutating_requests_cache.get(mutation_id)
+                    access_info["status"] = "hit" if processed_request is not None else "miss"
+                    if processed_request is not None:
+                        return processed_request
+
                     raise RequestFailed("Cached response for request with mutation id {0} not found"
                                         .format(mutation_id))
-            else:
-               if mutation_id in self._mutating_requests_cache:
-                    raise RequestFailed('Duplicate request with mutation id {0} is not marked as "retry"'\
-                                        .format(mutation_id))
-               else:
-                   response = func(*args, **kwargs)
-                   if mutation_id is not None:
-                       self._mutating_requests_cache[mutation_id] = response
-                   return response
+                else:
+                    if mutation_id in self._mutating_requests_cache:
+                        raise RequestFailed('Duplicate request with mutation id {0} is not marked as "retry"'\
+                                            .format(mutation_id))
+
+                    response = func(*args, **kwargs)
+                    if mutation_id is not None:
+                        access_info["status"] = "new"
+                        self._mutating_requests_cache[mutation_id] = response
+                    return response
+            finally:
+                self._profiling_append_requests_cache_access(access_info)
 
         return decorator
 
@@ -1649,12 +1671,12 @@ class Application(object):
 
     def profiling_timings(self):
         with self._profiling_mutex:
-            profiling = deepcopy(self._profiling)
+            execution_time_dict = deepcopy(self._profiling["execution_time"])
 
-        for key in profiling["execution_time"]:
-            profiling["execution_time"][key] = list(profiling["execution_time"][key])
+        for key in execution_time_dict:
+            execution_time_dict[key] = list(execution_time_dict[key])
 
-        return Response(json.dumps(profiling), mimetype="application/json")
+        return Response(json.dumps(execution_time_dict), mimetype="application/json")
 
     def profiling_memory_tracker(self):
         limit = int(request.args.get("limit", "50"))
@@ -1669,6 +1691,16 @@ class Application(object):
         else:
             return "Unknown value of info option", 200
 
+    def profiling_requests_cache(self):
+        with self._profiling_mutex:
+            requests_cache_accesses = deepcopy(self._profiling["requests_cache_accesses"])
+
+        response_dict = {
+            "cache_size": len(self._mutating_requests_cache),
+            "accesses": list(requests_cache_accesses)
+        }
+
+        return Response(json.dumps(response_dict), mimetype="application/json")
 
 def main():
     parser = argparse.ArgumentParser(description="Transfer manager.")
