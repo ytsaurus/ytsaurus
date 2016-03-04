@@ -238,16 +238,9 @@ EExitCode GuardedMain(int argc, const char* argv[])
     INodePtr configNode;
 
     if (isExecutor) {
-<<<<<<< HEAD
-        NLogging::TLogManager::Get()->Configure(NLogging::TLogConfig::CreateQuiet());
-    }
-
-    if (!printConfigTemplate && !isExecutor) {
-=======
         // Don't start any other singleton or parse config in executor mode.
         NLogging::TLogManager::Get()->Configure(NLogging::TLogConfig::CreateQuiet());
     } else if (!printConfigTemplate) {
->>>>>>> prestable/0.17.5
         if (configFileName.empty()) {
             THROW_ERROR_EXCEPTION("Missing --config option");
         }
