@@ -315,7 +315,7 @@ TOperationId StartOperation(
     header.AddTransactionId(transactionId);
     header.AddMutationId();
 
-    TOperationId operationId = ParseGuid(RetryRequest(auth, header, ysonSpec));
+    TOperationId operationId = ParseGuidFromResponse(RetryRequest(auth, header, ysonSpec));
     LOG_INFO("Operation %s started", ~GetGuidAsString(operationId));
 
     if (wait) {

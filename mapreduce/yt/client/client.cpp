@@ -104,7 +104,7 @@ public:
             header.SetParameters(AttributesToYsonString(*options.Attributes_));
         }
 
-        return ParseGuid(RetryRequest(Auth_, header));
+        return ParseGuidFromResponse(RetryRequest(Auth_, header));
     }
 
     virtual void Remove(
@@ -127,7 +127,7 @@ public:
         THttpHeader header("GET", "exists");
         header.AddPath(AddPathPrefix(path));
         header.AddTransactionId(TransactionId_);
-        return ParseBool(RetryRequest(Auth_, header));
+        return ParseBoolFromResponse(RetryRequest(Auth_, header));
     }
 
     virtual TNode Get(
@@ -195,7 +195,7 @@ public:
 
         header.AddParam("recursive", options.Recursive_);
         header.AddParam("preserve_account", options.PreserveAccount_);
-        return ParseGuid(RetryRequest(Auth_, header));
+        return ParseGuidFromResponse(RetryRequest(Auth_, header));
     }
 
     virtual TNodeId Move(
@@ -211,7 +211,7 @@ public:
 
         header.AddParam("recursive", options.Recursive_);
         header.AddParam("preserve_account", options.PreserveAccount_);
-        return ParseGuid(RetryRequest(Auth_, header));
+        return ParseGuidFromResponse(RetryRequest(Auth_, header));
     }
 
     virtual TNodeId Link(
@@ -230,7 +230,7 @@ public:
         if (options.Attributes_) {
             header.SetParameters(AttributesToYsonString(*options.Attributes_));
         }
-        return ParseGuid(RetryRequest(Auth_, header));
+        return ParseGuidFromResponse(RetryRequest(Auth_, header));
     }
 
     // io
@@ -448,7 +448,7 @@ public:
         header.AddMutationId();
 
         header.AddParam("waitable", options.Waitable_);
-        return ParseGuid(RetryRequest(Auth_, header));
+        return ParseGuidFromResponse(RetryRequest(Auth_, header));
     }
 
     virtual void Commit() override
