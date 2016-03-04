@@ -442,6 +442,7 @@ private:
             StartLockTransaction();
             TakeLock();
             AssumeControl();
+            InvokeWatchers();
             UpdateClusterDirectory();
             ListOperations();
             RequestOperationAttributes();
@@ -449,7 +450,6 @@ private:
             DownloadSnapshots();
             AbortTransactions();
             RemoveSnapshots();
-            InvokeWatchers();
             return Result;
         }
 
