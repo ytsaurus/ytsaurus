@@ -155,8 +155,8 @@ DEFINE_REFCOUNTED_TYPE(TChunkReaderConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTableReaderConfig
-    : public NChunkClient::TMultiChunkReaderConfig
-    , public TChunkReaderConfig
+    : public virtual NChunkClient::TMultiChunkReaderConfig
+    , public virtual TChunkReaderConfig
 {
 public:
     bool SuppressAccessTracking;

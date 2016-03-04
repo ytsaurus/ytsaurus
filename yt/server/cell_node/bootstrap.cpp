@@ -299,6 +299,15 @@ void TBootstrap::DoRun()
         createThrottler(Config->DataNode->RepairOutThrottler, "RepairOut")
     });
 
+    ArtifactCacheInThrottler = CreateCombinedThrottler(std::vector<IThroughputThrottlerPtr>{
+        TotalInThrottler,
+        createThrottler(Config->DataNode->RepairInThrottler, "ArtifactCacheIn")
+    });
+    ArtifactCacheOutThrottler = CreateCombinedThrottler(std::vector<IThroughputThrottlerPtr>{
+        TotalOutThrottler,
+        createThrottler(Config->DataNode->RepairOutThrottler, "ArtifactCacheOut")
+    });
+
     RpcServer->RegisterService(CreateDataNodeService(Config->DataNode, this));
 
     auto localInterconnectAddress = GetInterconnectAddress(localAddresses);
@@ -658,6 +667,16 @@ IThroughputThrottlerPtr TBootstrap::GetRepairOutThrottler() const
     return RepairOutThrottler;
 }
 
+IThroughputThrottlerPtr TBootstrap::GetArtifactCacheInThrottler() const
+{
+    return ArtifactCacheInThrottler;
+}
+
+IThroughputThrottlerPtr TBootstrap::GetArtifactCacheOutThrottler() const
+{
+    return ArtifactCacheOutThrottler;
+}
+
 IThroughputThrottlerPtr TBootstrap::GetInThrottler(const TWorkloadDescriptor& descriptor) const
 {
     switch (descriptor.Category) {
@@ -666,6 +685,9 @@ IThroughputThrottlerPtr TBootstrap::GetInThrottler(const TWorkloadDescriptor& de
 
         case EWorkloadCategory::SystemReplication:
             return ReplicationInThrottler;
+
+        case EWorkloadCategory::SystemArtifactCacheDownload:
+            return ArtifactCacheInThrottler;
 
         default:
             return TotalInThrottler;
@@ -680,6 +702,9 @@ IThroughputThrottlerPtr TBootstrap::GetOutThrottler(const TWorkloadDescriptor& d
 
         case EWorkloadCategory::SystemReplication:
             return ReplicationOutThrottler;
+
+        case EWorkloadCategory::SystemArtifactCacheDownload:
+            return ArtifactCacheOutThrottler;
 
         default:
             return TotalOutThrottler;

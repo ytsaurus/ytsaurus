@@ -205,6 +205,15 @@ public:
 
 DEFINE_REFCOUNTED_TYPE(TMultiplexedChangelogConfig)
 
+class TArtifactCacheReaderConfig
+    : public virtual NChunkClient::TReplicationReaderConfig
+    , public virtual NChunkClient::TSequentialReaderConfig
+    , public virtual NTableClient::TTableReaderConfig
+    , public virtual NApi::TFileReaderConfig
+{ };
+
+DEFINE_REFCOUNTED_TYPE(TArtifactCacheReaderConfig)
+
 //! Describes a configuration of a data node.
 class TDataNodeConfig
     : public NYTree::TYsonSerializable
@@ -297,11 +306,8 @@ public:
     //! Cached chunks location.
     std::vector<TCacheLocationConfigPtr> CacheLocations;
 
-    //! Remote reader configuration used to download chunks into cache.
-    NChunkClient::TReplicationReaderConfigPtr CacheRemoteReader;
-
-    //! Sequential reader configuration used to download chunks into cache.
-    NChunkClient::TSequentialReaderConfigPtr CacheSequentialReader;
+    //! Reader configuration used to download chunks into cache.
+    TArtifactCacheReaderConfigPtr ArtifactCacheReader;
 
     //! Writer configuration used to replicate chunks.
     NChunkClient::TReplicationWriterConfigPtr ReplicationWriter;
@@ -332,6 +338,12 @@ public:
 
     //! Controls outcoming bandwidth used by repair jobs.
     NConcurrency::TThroughputThrottlerConfigPtr RepairOutThrottler;
+
+    //! Controls incoming bandwidth used by Artifact Cache downloads.
+    NConcurrency::TThroughputThrottlerConfigPtr ArtifactCacheInThrottler;
+
+    //! Controls outcoming bandwidth used by Artifact Cache downloads.
+    NConcurrency::TThroughputThrottlerConfigPtr ArtifactCacheOutThrottler;
 
     //! Keeps chunk peering information.
     TPeerBlockTableConfigPtr PeerBlockTable;
@@ -417,9 +429,7 @@ public:
         RegisterParameter("cache_locations", CacheLocations)
             .NonEmpty();
 
-        RegisterParameter("cache_remote_reader", CacheRemoteReader)
-            .DefaultNew();
-        RegisterParameter("cache_sequential_reader", CacheSequentialReader)
+        RegisterParameter("artifact_cache_reader", ArtifactCacheReader)
             .DefaultNew();
         RegisterParameter("replication_writer", ReplicationWriter)
             .DefaultNew();
@@ -442,6 +452,10 @@ public:
         RegisterParameter("repair_in_throttler", RepairInThrottler)
             .DefaultNew();
         RegisterParameter("repair_out_throttler", RepairOutThrottler)
+            .DefaultNew();
+        RegisterParameter("artifact_cache_in_throttler", ArtifactCacheInThrottler)
+            .DefaultNew();
+        RegisterParameter("artifact_cache_out_throttler", ArtifactCacheOutThrottler)
             .DefaultNew();
 
         RegisterParameter("peer_block_table", PeerBlockTable)
@@ -492,6 +506,7 @@ public:
             RepairWriter->WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::SystemRepair);
             SealReader->WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::SystemReplication);
             ReplicationWriter->WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::SystemReplication);
+            ArtifactCacheReader->WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::SystemArtifactCacheDownload);
 
             // Don't populate caches in chunk jobs.
             RepairReader->PopulateCache = false;
