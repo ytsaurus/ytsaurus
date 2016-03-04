@@ -1900,18 +1900,12 @@ private:
         partitionCount = std::min(partitionCount, static_cast<int>(sortedSamples.size()) + 1);
 
         YCHECK(partitionCount > 0);
-
-        SimpleSort = (partitionCount == 1);
-
-<<<<<<< HEAD
-        CheckPartitionWriterBuffer(partitionCount, PartitionJobIOConfig->TableWriter);
-=======
-        InitJobIOConfigs();
-
+        
         partitionCount = AdjustPartitionCountToWriterBufferSize(
             partitionCount, 
             PartitionJobIOConfig->TableWriter);
->>>>>>> prestable/0.17.5
+        SimpleSort = (partitionCount == 1);
+
 
         if (SimpleSort) {
             BuildSinglePartition();
@@ -2484,15 +2478,9 @@ private:
         // Otherwise use size estimates.
         int partitionCount = SuggestPartitionCount();
 
-<<<<<<< HEAD
-        CheckPartitionWriterBuffer(partitionCount, PartitionJobIOConfig->TableWriter);
-=======
-        InitJobIOConfigs();
-
         partitionCount = AdjustPartitionCountToWriterBufferSize(
             partitionCount, 
             PartitionJobIOConfig->TableWriter);
->>>>>>> prestable/0.17.5
 
         BuildMultiplePartitions(partitionCount);
     }
