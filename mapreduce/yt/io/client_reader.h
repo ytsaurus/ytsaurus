@@ -2,6 +2,8 @@
 
 #include "proxy_input.h"
 
+#include <mapreduce/yt/interface/io.h>
+
 #include <mapreduce/yt/http/requests.h>
 #include <mapreduce/yt/http/http.h>
 
@@ -19,7 +21,8 @@ public:
         const TRichYPath& path,
         const TAuth& auth,
         const TTransactionId& transactionId,
-        EDataStreamFormat format);
+        EDataStreamFormat format,
+        const TTableReaderOptions& options);
 
     virtual bool OnStreamError(const yexception& ex) override;
     virtual void OnRowFetched() override;
@@ -32,6 +35,7 @@ private:
     TAuth Auth_;
     TTransactionId TransactionId_;
     EDataStreamFormat Format_;
+    TTableReaderOptions Options_;
 
     THolder<TPingableTransaction> ReadTransaction_;
 

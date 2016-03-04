@@ -215,15 +215,17 @@ public:
 };
 
 template <>
-inline TTableReaderPtr<TNode> IIOClient::CreateTableReader<TNode>(const TRichYPath& path)
+inline TTableReaderPtr<TNode> IIOClient::CreateTableReader<TNode>(
+    const TRichYPath& path, const TTableReaderOptions& options)
 {
-    return new TTableReader<TNode>(CreateNodeReader(path));
+    return new TTableReader<TNode>(CreateNodeReader(path, options));
 }
 
 template <>
-inline TTableReaderPtr<TYaMRRow> IIOClient::CreateTableReader<TYaMRRow>(const TRichYPath& path)
+inline TTableReaderPtr<TYaMRRow> IIOClient::CreateTableReader<TYaMRRow>(
+    const TRichYPath& path, const TTableReaderOptions& options)
 {
-    return new TTableReader<TYaMRRow>(CreateYaMRReader(path));
+    return new TTableReader<TYaMRRow>(CreateYaMRReader(path, options));
 }
 
 template <class T, class = TEnableIf<TIsBaseOf<Message, T>::Value>>
@@ -236,9 +238,10 @@ struct TReaderCreator
 };
 
 template <class T>
-inline TTableReaderPtr<T> IIOClient::CreateTableReader(const TRichYPath& path)
+inline TTableReaderPtr<T> IIOClient::CreateTableReader(
+    const TRichYPath& path, const TTableReaderOptions& options)
 {
-    return TReaderCreator<T>::Create(CreateProtoReader(path));
+    return TReaderCreator<T>::Create(CreateProtoReader(path, options));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -380,15 +383,17 @@ public:
 };
 
 template <>
-inline TTableWriterPtr<TNode> IIOClient::CreateTableWriter<TNode>(const TRichYPath& path)
+inline TTableWriterPtr<TNode> IIOClient::CreateTableWriter<TNode>(
+    const TRichYPath& path, const TTableWriterOptions& options)
 {
-    return new TTableWriter<TNode>(CreateNodeWriter(path));
+    return new TTableWriter<TNode>(CreateNodeWriter(path, options));
 }
 
 template <>
-inline TTableWriterPtr<TYaMRRow> IIOClient::CreateTableWriter<TYaMRRow>(const TRichYPath& path)
+inline TTableWriterPtr<TYaMRRow> IIOClient::CreateTableWriter<TYaMRRow>(
+    const TRichYPath& path, const TTableWriterOptions& options)
 {
-    return new TTableWriter<TYaMRRow>(CreateYaMRWriter(path));
+    return new TTableWriter<TYaMRRow>(CreateYaMRWriter(path, options));
 }
 
 template <class T, class = TEnableIf<TIsBaseOf<Message, T>::Value>>
@@ -401,9 +406,10 @@ struct TWriterCreator
 };
 
 template <class T>
-inline TTableWriterPtr<T> IIOClient::CreateTableWriter(const TRichYPath& path)
+inline TTableWriterPtr<T> IIOClient::CreateTableWriter(
+    const TRichYPath& path, const TTableWriterOptions& options)
 {
-    return TWriterCreator<T>::Create(CreateProtoWriter(path));
+    return TWriterCreator<T>::Create(CreateProtoWriter(path, options));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

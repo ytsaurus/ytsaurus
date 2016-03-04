@@ -6,6 +6,7 @@
 
 namespace NYT {
 
+struct TTableWriterOptions;
 class TBlockWriter;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -18,7 +19,8 @@ public:
         const TRichYPath& path,
         const TAuth& auth,
         const TTransactionId& transactionId,
-        EDataStreamFormat format);
+        EDataStreamFormat format,
+        const TTableWriterOptions& options);
 
     virtual size_t GetStreamCount() const override;
     virtual TOutputStream* GetStream(size_t tableIndex) override;

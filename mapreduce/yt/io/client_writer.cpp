@@ -2,6 +2,7 @@
 
 #include "block_writer.h"
 
+#include <mapreduce/yt/interface/io.h>
 #include <mapreduce/yt/common/helpers.h>
 
 namespace NYT {
@@ -12,14 +13,16 @@ TClientWriter::TClientWriter(
     const TRichYPath& path,
     const TAuth& auth,
     const TTransactionId& transactionId,
-    EDataStreamFormat format)
+    EDataStreamFormat format,
+    const TTableWriterOptions& options)
     : BlockWriter_(new TBlockWriter(
         auth,
         transactionId,
         GetWriteTableCommand(),
         format,
         path,
-        BUFFER_SIZE))
+        BUFFER_SIZE,
+        options))
 { }
 
 size_t TClientWriter::GetStreamCount() const

@@ -86,27 +86,67 @@ using ::google::protobuf::Message;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <class TDerived>
+struct TIOOptions
+{
+    using TSelf = TDerived;
+
+    FLUENT_FIELD_OPTION(TNode, Config);
+};
+
+struct TFileReaderOptions
+    : public TIOOptions<TFileReaderOptions>
+{ };
+
+struct TFileWriterOptions
+    : public TIOOptions<TFileWriterOptions>
+{ };
+
+struct TTableReaderOptions
+    : public TIOOptions<TTableReaderOptions>
+{ };
+
+struct TTableWriterOptions
+    : public TIOOptions<TTableWriterOptions>
+{ };
+
+////////////////////////////////////////////////////////////////////////////////
+
 class IIOClient
 {
 public:
-    virtual IFileReaderPtr CreateFileReader(const TRichYPath& path) = 0;
+    virtual IFileReaderPtr CreateFileReader(
+        const TRichYPath& path,
+        const TFileReaderOptions& options = TFileReaderOptions()) = 0;
 
-    virtual IFileWriterPtr CreateFileWriter(const TRichYPath& path) = 0;
+    virtual IFileWriterPtr CreateFileWriter(
+        const TRichYPath& path,
+        const TFileWriterOptions& options = TFileWriterOptions()) = 0;
 
     template <class T>
-    TTableReaderPtr<T> CreateTableReader(const TRichYPath& path);
+    TTableReaderPtr<T> CreateTableReader(
+        const TRichYPath& path,
+        const TTableReaderOptions& options = TTableReaderOptions());
 
     template <class T>
-    TTableWriterPtr<T> CreateTableWriter(const TRichYPath& path);
+    TTableWriterPtr<T> CreateTableWriter(
+        const TRichYPath& path,
+        const TTableWriterOptions& options = TTableWriterOptions());
 
 private:
-    virtual TIntrusivePtr<INodeReaderImpl> CreateNodeReader(const TRichYPath& path) = 0;
-    virtual TIntrusivePtr<IYaMRReaderImpl> CreateYaMRReader(const TRichYPath& path) = 0;
-    virtual TIntrusivePtr<IProtoReaderImpl> CreateProtoReader(const TRichYPath& path) = 0;
+    virtual TIntrusivePtr<INodeReaderImpl> CreateNodeReader(
+        const TRichYPath& path, const TTableReaderOptions& options) = 0;
+    virtual TIntrusivePtr<IYaMRReaderImpl> CreateYaMRReader(
+        const TRichYPath& path, const TTableReaderOptions& options) = 0;
+    virtual TIntrusivePtr<IProtoReaderImpl> CreateProtoReader(
+        const TRichYPath& path, const TTableReaderOptions& options) = 0;
 
-    virtual TIntrusivePtr<INodeWriterImpl> CreateNodeWriter(const TRichYPath& path) = 0;
-    virtual TIntrusivePtr<IYaMRWriterImpl> CreateYaMRWriter(const TRichYPath& path) = 0;
-    virtual TIntrusivePtr<IProtoWriterImpl> CreateProtoWriter(const TRichYPath& path) = 0;
+    virtual TIntrusivePtr<INodeWriterImpl> CreateNodeWriter(
+        const TRichYPath& path, const TTableWriterOptions& options) = 0;
+    virtual TIntrusivePtr<IYaMRWriterImpl> CreateYaMRWriter(
+        const TRichYPath& path, const TTableWriterOptions& options) = 0;
+    virtual TIntrusivePtr<IProtoWriterImpl> CreateProtoWriter(
+        const TRichYPath& path, const TTableWriterOptions& options) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

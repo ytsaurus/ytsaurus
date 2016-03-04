@@ -15,7 +15,8 @@ public:
     TFileWriter(
         const TRichYPath& path,
         const TAuth& auth,
-        const TTransactionId& transactionId);
+        const TTransactionId& transactionId,
+        const TFileWriterOptions& options = TFileWriterOptions());
 
 protected:
     virtual void DoWrite(const void* buf, size_t len) override;

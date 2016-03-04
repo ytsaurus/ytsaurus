@@ -18,7 +18,8 @@ public:
     TFileReader(
         const TRichYPath& path,
         const TAuth& auth,
-        const TTransactionId& transactionId);
+        const TTransactionId& transactionId,
+        const TFileReaderOptions& options = TFileReaderOptions());
 
 protected:
     virtual size_t DoRead(void* buf, size_t len) override;

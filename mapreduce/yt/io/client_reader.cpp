@@ -1,5 +1,6 @@
 #include "client_reader.h"
 
+#include "helpers.h"
 #include "yamr_table_reader.h"
 
 #include <mapreduce/yt/common/log.h>
@@ -52,11 +53,13 @@ TClientReader::TClientReader(
     const TRichYPath& path,
     const TAuth& auth,
     const TTransactionId& transactionId,
-    EDataStreamFormat format)
+    EDataStreamFormat format,
+    const TTableReaderOptions& options)
     : Path_(path)
     , Auth_(auth)
     , TransactionId_(transactionId)
     , Format_(format)
+    , Options_(options)
     , ReadTransaction_(new TPingableTransaction(auth, transactionId))
     , RetriesLeft_(TConfig::Get()->RetryCount)
 {
@@ -110,7 +113,7 @@ void TClientReader::CreateRequest(bool initial)
 
             // for now assume we always use only the first range
             if (initial) {
-                header.SetParameters(YPathToYsonString(Path_));
+                header.SetParameters(FormIORequestParameters(Path_, Options_));
             } else {
                 TRichYPath path = Path_;
                 TReadRange range;
@@ -120,7 +123,8 @@ void TClientReader::CreateRequest(bool initial)
                 }
                 range.LowerLimit(TReadLimit().RowIndex(RowIndex_));
                 path.Ranges_.push_back(range);
-                header.SetParameters(YPathToYsonString(path));
+
+                header.SetParameters(FormIORequestParameters(path, Options_));
             }
 
             Request_.Reset(new THttpRequest(proxyName));
