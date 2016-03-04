@@ -11,21 +11,21 @@ class TEnvironmentManager
     : public TRefCounted
 {
 public:
-    TEnvironmentManager(TEnvironmentManagerConfigPtr config);
+    explicit TEnvironmentManager(TEnvironmentManagerConfigPtr config);
 
     IProxyControllerPtr CreateProxyController(
-        const Stroka& envName,
+        const Stroka& environmentName,
         const TJobId& jobId,
-        const TSlot& slot,
-        const Stroka& workingDirectory);
+        const TOperationId& operationId,
+        TSlotPtr slot);
 
-    void Register(
-        const Stroka& envType,
-        IEnvironmentBuilderPtr envBuilder);
+    void RegisterBuilder(
+        const Stroka& environmentName,
+        IEnvironmentBuilderPtr environmentBuilder);
 
 private:
-    TEnvironmentManagerConfigPtr Config;
-    yhash_map<Stroka, IEnvironmentBuilderPtr> Builders;
+    const TEnvironmentManagerConfigPtr Config_;
+    yhash_map<Stroka, IEnvironmentBuilderPtr> Builders_;
 
 };
 
