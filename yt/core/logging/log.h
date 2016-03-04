@@ -46,12 +46,8 @@ public:
 
     TLogger& AddRawTag(const Stroka& tag);
     template <class... TArgs>
-<<<<<<< HEAD
-    void AddTag(const char* format, const TArgs&... args);
-    const Stroka& GetContext() const;
-=======
     TLogger& AddTag(const char* format, const TArgs&... args);
->>>>>>> prestable/0.17.5
+    const Stroka& GetContext() const;
 
 private:
     const char* Category_;
