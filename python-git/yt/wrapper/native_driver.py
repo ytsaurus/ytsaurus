@@ -70,7 +70,7 @@ def make_request(command_name, params,
         if return_content:
             output_stream = StringIO()
         else:
-            output_stream = BufferedStream(size=1024 * 1024)
+            output_stream = BufferedStream(size=get_config(client)["read_buffer_size"])
 
     response = driver.execute(
         Request(command_name=command_name,
