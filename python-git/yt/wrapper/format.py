@@ -317,7 +317,8 @@ class YsonFormat(Format):
         self.table_index_column = table_index_column
 
     def _check_bindings(self):
-        require(yson.TYPE == "BINARY", YtError("Yson bindings required"))
+        if yson.TYPE != "BINARY":
+            raise YtError("Yson bindings required")
 
     def load_row(self, stream, raw=None):
         """Not supported"""
@@ -640,8 +641,8 @@ class JsonFormat(Format):
         table_index = None
         for row in rows:
             if "$value" in row:
-                require(row["$value"] == None,
-                        YtError("Incorrect $value of table switch in JSON format"))
+                if row["$value"] is not None:
+                    raise YtError("Incorrect $value of table switch in JSON format")
                 table_index = row["$attributes"]["table_index"]
             else:
                 if table_index is not None:
