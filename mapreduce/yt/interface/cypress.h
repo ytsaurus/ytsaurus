@@ -45,7 +45,7 @@ struct TGetOptions
     using TSelf = TGetOptions;
 
     FLUENT_FIELD_OPTION(TAttributeFilter, AttributeFilter);
-    FLUENT_FIELD_OPTION(i64, MaxSize);
+    FLUENT_FIELD_OPTION(i64, MaxSize); // TODO: rename to limit
     FLUENT_FIELD_DEFAULT(bool, IgnoreOpaque, false);
 };
 
@@ -54,7 +54,7 @@ struct TListOptions
     using TSelf = TListOptions;
 
     FLUENT_FIELD_OPTION(TAttributeFilter, AttributeFilter);
-    FLUENT_FIELD_OPTION(i64, MaxSize);
+    FLUENT_FIELD_OPTION(i64, MaxSize); // TODO: rename to limit
 };
 
 struct TCopyOptions
@@ -62,6 +62,7 @@ struct TCopyOptions
     using TSelf = TCopyOptions;
 
     FLUENT_FIELD_DEFAULT(bool, Recursive, false);
+    FLUENT_FIELD_DEFAULT(bool, Force, false);
     FLUENT_FIELD_DEFAULT(bool, PreserveAccount, false);
 };
 
@@ -70,6 +71,7 @@ struct TMoveOptions
     using TSelf = TMoveOptions;
 
     FLUENT_FIELD_DEFAULT(bool, Recursive, false);
+    FLUENT_FIELD_DEFAULT(bool, Force, false);
     FLUENT_FIELD_DEFAULT(bool, PreserveAccount, false);
 };
 
