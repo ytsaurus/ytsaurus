@@ -101,7 +101,7 @@ DEFINE_REFCOUNTED_TYPE(TConnectionConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TFileReaderConfig
-    : public NChunkClient::TMultiChunkReaderConfig
+    : public virtual NChunkClient::TMultiChunkReaderConfig
 { };
 
 DEFINE_REFCOUNTED_TYPE(TFileReaderConfig)

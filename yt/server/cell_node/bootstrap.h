@@ -81,6 +81,8 @@ public:
     NConcurrency::IThroughputThrottlerPtr GetReplicationOutThrottler() const;
     NConcurrency::IThroughputThrottlerPtr GetRepairInThrottler() const;
     NConcurrency::IThroughputThrottlerPtr GetRepairOutThrottler() const;
+    NConcurrency::IThroughputThrottlerPtr GetArtifactCacheInThrottler() const;
+    NConcurrency::IThroughputThrottlerPtr GetArtifactCacheOutThrottler() const;
 
     NConcurrency::IThroughputThrottlerPtr GetInThrottler(const TWorkloadDescriptor& descriptor) const;
     NConcurrency::IThroughputThrottlerPtr GetOutThrottler(const TWorkloadDescriptor& descriptor) const;
@@ -134,6 +136,8 @@ private:
     NConcurrency::IThroughputThrottlerPtr ReplicationOutThrottler;
     NConcurrency::IThroughputThrottlerPtr RepairInThrottler;
     NConcurrency::IThroughputThrottlerPtr RepairOutThrottler;
+    NConcurrency::IThroughputThrottlerPtr ArtifactCacheInThrottler;
+    NConcurrency::IThroughputThrottlerPtr ArtifactCacheOutThrottler;
 
     NTabletNode::TSlotManagerPtr TabletSlotManager;
     NTabletNode::TSecurityManagerPtr SecurityManager;
