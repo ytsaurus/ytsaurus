@@ -8,27 +8,6 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TBlockWriter::TBlockWriter(
-    const TAuth& auth,
-    const TTransactionId& parentId,
-    const Stroka& command,
-    EDataStreamFormat format,
-    const TRichYPath& path,
-    size_t bufferSize)
-    : Auth_(auth)
-    , Command_(command)
-    , Format_(format)
-    , Path_(path)
-    , BufferSize_(bufferSize)
-    , WriteTransaction_(auth, parentId)
-    , Buffer_(BufferSize_ * 2)
-    , BufferOutput_(Buffer_)
-    , Thread_(SendThread, this)
-    , Started_(false)
-    , Stopped_(false)
-    , Finished_(false)
-{ }
-
 void TBlockWriter::DoFlushIfNeeded()
 {
     if (Buffer_.Size() >= BufferSize_) {
@@ -83,16 +62,16 @@ void TBlockWriter::Send(const TBuffer& buffer)
     }
 
     THttpHeader header("PUT", Command_);
-    header.SetParameters(YPathToYsonString(Path_));
     header.SetChunkedEncoding();
     header.SetDataStreamFormat(Format_);
+    header.SetParameters(Parameters_);
 
     auto streamMaker = [&buffer] () {
         return new TBufferInput(buffer);
     };
     RetryHeavyWriteRequest(Auth_, WriteTransaction_.GetId(), header, streamMaker);
 
-    Path_.Append_ = true; // all blocks except the first one are appended
+    Parameters_ = SecondaryParameters_; // all blocks except the first one are appended
 }
 
 void TBlockWriter::SendThread()

@@ -1,5 +1,7 @@
 #pragma once
 
+#include "helpers.h"
+
 #include <mapreduce/yt/interface/common.h>
 #include <mapreduce/yt/http/http.h>
 #include <mapreduce/yt/http/transaction.h>
@@ -18,13 +20,30 @@ class TBlockWriter
     : public TOutputStream
 {
 public:
+    template <class TWriterOptions>
     TBlockWriter(
         const TAuth& auth,
         const TTransactionId& parentId,
         const Stroka& command,
         EDataStreamFormat format,
         const TRichYPath& path,
-        size_t bufferSize);
+        size_t bufferSize,
+        const TWriterOptions& options)
+        : Auth_(auth)
+        , Command_(command)
+        , Format_(format)
+        , BufferSize_(bufferSize)
+        , WriteTransaction_(auth, parentId)
+        , Buffer_(BufferSize_ * 2)
+        , BufferOutput_(Buffer_)
+        , Thread_(SendThread, this)
+    {
+        Parameters_ = FormIORequestParameters(path, options);
+
+        auto secondaryPath = path;
+        secondaryPath.Append_ = true;
+        SecondaryParameters_ = FormIORequestParameters(secondaryPath, options);
+    }
 
     void DoFlushIfNeeded();
 
@@ -36,8 +55,10 @@ private:
     TAuth Auth_;
     Stroka Command_;
     EDataStreamFormat Format_;
-    TRichYPath Path_;
     size_t BufferSize_;
+
+    Stroka Parameters_;
+    Stroka SecondaryParameters_;
 
     TPingableTransaction WriteTransaction_;
 
@@ -46,9 +67,9 @@ private:
     TBuffer SecondaryBuffer_;
 
     TThread Thread_;
-    volatile bool Started_;
-    volatile bool Stopped_;
-    bool Finished_;
+    volatile bool Started_ = false;
+    volatile bool Stopped_ = false;
+    bool Finished_ = false;
 
     TAutoEvent HasData_;
     TAutoEvent CanWrite_;

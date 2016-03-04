@@ -28,7 +28,7 @@ using TLocalFilePath = Stroka;
     TSelf& name(const type& value) \
     { \
         name##_ = value; \
-        return *this; \
+        return static_cast<TSelf&>(*this); \
     }
 
 #define FLUENT_FIELD_OPTION(type, name) \
@@ -36,7 +36,7 @@ using TLocalFilePath = Stroka;
     TSelf& name(const type& value) \
     { \
         name##_ = value; \
-        return *this; \
+        return static_cast<TSelf&>(*this); \
     }
 
 #define FLUENT_FIELD_DEFAULT(type, name, defaultValue) \
@@ -44,7 +44,7 @@ using TLocalFilePath = Stroka;
     TSelf& name(const type& value) \
     { \
         name##_ = value; \
-        return *this; \
+        return static_cast<TSelf&>(*this); \
     }
 
 #define FLUENT_VECTOR_FIELD(type, name) \
@@ -52,7 +52,7 @@ using TLocalFilePath = Stroka;
     TSelf& Add##name(const type& value) \
     { \
         name##s_.push_back(value); \
-        return *this;\
+        return static_cast<TSelf&>(*this);\
     }
 
 ////////////////////////////////////////////////////////////////////////////////

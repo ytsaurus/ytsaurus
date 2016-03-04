@@ -1,5 +1,7 @@
 #include "file_writer.h"
 
+#include "helpers.h"
+
 #include <mapreduce/yt/common/helpers.h>
 
 namespace NYT {
@@ -9,14 +11,16 @@ namespace NYT {
 TFileWriter::TFileWriter(
     const TRichYPath& path,
     const TAuth& auth,
-    const TTransactionId& transactionId)
+    const TTransactionId& transactionId,
+    const TFileWriterOptions& options)
     : BlockWriter_(
         auth,
         transactionId,
         GetWriteFileCommand(),
         DSF_BYTES,
         path,
-        BUFFER_SIZE)
+        BUFFER_SIZE,
+        options)
 { }
 
 void TFileWriter::DoWrite(const void* buf, size_t len)

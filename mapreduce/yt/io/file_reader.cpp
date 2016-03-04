@@ -1,5 +1,7 @@
 #include "file_reader.h"
 
+#include "helpers.h"
+
 #include <mapreduce/yt/common/log.h>
 #include <mapreduce/yt/common/helpers.h>
 #include <mapreduce/yt/http/http.h>
@@ -13,7 +15,8 @@ namespace NYT {
 TFileReader::TFileReader(
     const TRichYPath& path,
     const TAuth& auth,
-    const TTransactionId& transactionId)
+    const TTransactionId& transactionId,
+    const TFileReaderOptions& options)
     : Path_(path)
     , Auth_(auth)
     , TransactionId_(transactionId)
@@ -26,7 +29,7 @@ TFileReader::TFileReader(
         header.SetToken(auth.Token);
         header.AddTransactionId(TransactionId_);
         header.SetDataStreamFormat(DSF_BYTES);
-        header.SetParameters(YPathToYsonString(Path_));
+        header.SetParameters(FormIORequestParameters(Path_, options));
 
         Request_.Reset(new THttpRequest(proxyName));
         requestId = Request_->GetRequestId();
