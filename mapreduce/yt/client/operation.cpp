@@ -61,6 +61,7 @@ public:
         size_t outputTableCount,
         const TOperationOptions& options)
         : Auth_(auth)
+        , Spec_(spec)
     {
         UploadFilesFromSpec(spec);
         UploadBinary();
@@ -99,8 +100,14 @@ public:
         return Command_;
     }
 
+    const TUserJobSpec& GetSpec() const
+    {
+        return Spec_;
+    }
+
 private:
     TAuth Auth_;
+    TUserJobSpec Spec_;
     yvector<TFile> Files_;
     bool HasState_ = false;
     Stroka ClassName_;
@@ -461,7 +468,10 @@ void BuildUserJobFluently(
         .Value("yamr");
     })
     .Item("command").Value(preparer.GetCommand())
-    .Item("class_name").Value(preparer.GetClassName());
+    .Item("class_name").Value(preparer.GetClassName())
+    .DoIf(preparer.GetSpec().MemoryLimit_.Defined(), [&] (TFluentMap fluent) {
+        fluent.Item("memory_limit").Value(*preparer.GetSpec().MemoryLimit_);
+    });
 }
 
 void BuildCommonOperationPart(TFluentMap fluent)
