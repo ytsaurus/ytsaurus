@@ -1123,6 +1123,9 @@ ITransactionPtr TOperationControllerBase::StartTransaction(
         "title",
         Format("Scheduler %v for operation %v", transactionName, OperationId));
     attributes->Set("operation_id", OperationId);
+    if (Spec->Title) {
+        attributes->Set("operation_title", Spec->Title);
+    }
     options.Attributes = std::move(attributes);
     if (parentTransactionId) {
         options.ParentId = parentTransactionId.Get();
