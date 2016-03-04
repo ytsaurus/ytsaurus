@@ -61,6 +61,7 @@ struct TUserJobSpec
 
     FLUENT_VECTOR_FIELD(TLocalFilePath, LocalFile);
     FLUENT_VECTOR_FIELD(TYPath, File);
+    FLUENT_FIELD_OPTION(i64, MemoryLimit);
 };
 
 struct TMapOperationSpec
