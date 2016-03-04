@@ -194,6 +194,7 @@ public:
         header.AddMutationId();
 
         header.AddParam("recursive", options.Recursive_);
+        header.AddParam("force", options.Force_);
         header.AddParam("preserve_account", options.PreserveAccount_);
         return ParseGuidFromResponse(RetryRequest(Auth_, header));
     }
@@ -210,6 +211,7 @@ public:
         header.AddMutationId();
 
         header.AddParam("recursive", options.Recursive_);
+        header.AddParam("force", options.Force_);
         header.AddParam("preserve_account", options.PreserveAccount_);
         return ParseGuidFromResponse(RetryRequest(Auth_, header));
     }
