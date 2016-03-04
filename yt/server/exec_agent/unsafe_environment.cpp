@@ -63,7 +63,6 @@ public:
         , JobId_(jobId)
         , OperationId_(operationId)
         , Slot_(slot)
-        , Logger(ExecAgentLogger)
         , Process_(New<TProcess>(proxyPath))
         , EnvironmentBuilder_(environmentBuilder)
         , WaitingThread_(ThreadFunc, this)
@@ -171,8 +170,6 @@ private:
     const TProcessPtr Process_;
     const TUnsafeEnvironmentBuilderPtr EnvironmentBuilder_;
 
-    NLogging::TLogger Logger;
-
     TFuture<void> ProcessFinished_;
 
     TSpinLock SpinLock_;
@@ -181,6 +178,8 @@ private:
     TPromise<void> ProxyExited_ = NewPromise<void>();
 
     TThread WaitingThread_;
+
+    NLogging::TLogger Logger = ExecAgentLogger;
 };
 
 #else
