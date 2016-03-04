@@ -4,6 +4,7 @@
 #include <yt/server/cell_master/serialize.h>
 
 #include <yt/server/security_server/account.h>
+#include <yt/server/security_server/subject.h>
 
 #include <yt/core/misc/string.h>
 
@@ -89,19 +90,24 @@ void TTransaction::Load(NCellMaster::TLoadContext& context)
     Load(context, Acd_);
 }
 
-TYsonString TTransaction::GetDescription() const
+TYsonString TTransaction::GetErrorDescription() const
 {
     return BuildYsonStringFluently()
         .BeginMap()
             .Item("id").Value(Id_)
             .Item("start_time").Value(StartTime_)
+            .Item("owner").Value(Acd_.GetOwner()->GetName())
+            .DoIf(Timeout_.HasValue(), [&] (TFluentMap fluent) {
+                fluent
+                    .Item("timeout").Value(*Timeout_);
+            })
             .DoIf(Title_.HasValue(), [&] (TFluentMap fluent) {
                 fluent
                     .Item("title").Value(*Title_);
             })
             .DoIf(Parent_ != nullptr, [&] (TFluentMap fluent) {
                 fluent
-                    .Item("parent").Value(Parent_->GetDescription());
+                    .Item("parent").Value(Parent_->GetErrorDescription());
             })
         .EndMap();
 }
