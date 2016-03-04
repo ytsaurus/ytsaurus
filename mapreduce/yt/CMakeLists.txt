@@ -6,4 +6,5 @@ RECURSE(
     io
     client
     examples
+    python
 )
