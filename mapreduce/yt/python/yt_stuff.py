@@ -74,6 +74,9 @@ class YtStuff:
     def get_mapreduce_yt(self):
         return self.mapreduce_yt_path
 
+    def get_server(self):
+        return "localhost:%d" % self.proxy_port
+
     def start_local_yt(self):
         res = self._yt_local("start", "--path=" + self.working_dir)
         self.yt_id = res.std_out.strip()
