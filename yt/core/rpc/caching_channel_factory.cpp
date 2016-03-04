@@ -41,9 +41,6 @@ public:
                 YCHECK(ChannelMap_.insert(std::make_pair(address, wrappedChannel)).second);
                 return wrappedChannel;
             } else {
-                underlyingChannel->Terminate(TError(
-                    NRpc::EErrorCode::TransportError,
-                    "Cached channel terminated due to racy requests"));
                 return it->second;
             }
         }
