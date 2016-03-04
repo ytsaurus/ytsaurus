@@ -912,9 +912,19 @@ class TestCypress(YTEnvSetup):
             # This must definitely exceed the limit of 300.
             set("//tmp/test_node/@test_attr", "x" * 301)
 
+    def test_invalid_external_cell_bias(self):
+        with pytest.raises(YtError):
+            create("table", "//tmp/t", attributes={"external_cell_bias": -1.0})
+        with pytest.raises(YtError):
+            create("table", "//tmp/t", attributes={"external_cell_bias": 2.0})
+
 ##################################################################
 
 class TestCypressMulticell(TestCypress):
     NUM_SECONDARY_MASTER_CELLS = 2
 
- 
+    def test_zero_external_cell_bias(self):
+        # Unfortunately, it's difficult to actually check anything here.
+        create("table", "//tmp/t", attributes={"external_cell_bias": 0.0})
+        assert not exists("//tmp/t/@external_cell_bias")
+
