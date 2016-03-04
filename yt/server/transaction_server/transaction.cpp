@@ -92,6 +92,21 @@ void TTransaction::Load(NCellMaster::TLoadContext& context)
 
 TYsonString TTransaction::GetErrorDescription() const
 {
+    auto customAttributes = CreateEphemeralAttributes();
+    auto copyCustomAttribute = [&] (const Stroka& key) {
+        if (!Attributes_) {
+            return;
+        }
+        const auto& attributeMap = Attributes_->Attributes();
+        auto it = attributeMap.find(key);
+        if (it == attributeMap.end()) {
+            return;
+        }
+        customAttributes->SetYson(it->first, *it->second);
+    };
+    copyCustomAttribute("operation_id");
+    copyCustomAttribute("operation_title");
+
     return BuildYsonStringFluently()
         .BeginMap()
             .Item("id").Value(Id_)
@@ -109,6 +124,7 @@ TYsonString TTransaction::GetErrorDescription() const
                 fluent
                     .Item("parent").Value(Parent_->GetErrorDescription());
             })
+            .Items(*customAttributes)
         .EndMap();
 }
 
