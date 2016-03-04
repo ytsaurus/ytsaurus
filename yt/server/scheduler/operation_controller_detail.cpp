@@ -2797,18 +2797,25 @@ void TOperationControllerBase::BeginUploadOutputTables()
         auto channel = AuthenticatedOutputMasterClient->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
         TObjectServiceProxy proxy(channel);
 
-        auto batchReq = proxy.ExecuteBatch();
-
-        for (const auto& table : OutputTables) {
-            auto objectIdPath = FromObjectId(table.ObjectId);
-            {
+        {
+            auto batchReq = proxy.ExecuteBatch();
+            for (const auto& table : OutputTables) {
+                auto objectIdPath = FromObjectId(table.ObjectId);
                 auto req = TTableYPathProxy::Lock(objectIdPath);
                 req->set_mode(static_cast<int>(table.LockMode));
                 GenerateMutationId(req);
                 SetTransactionId(req, OutputTransactionId);
                 batchReq->AddRequest(req, "lock");
             }
-            {
+
+            auto batchRspOrError = WaitFor(batchReq->Invoke());
+            THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError), "Error locking output tables");
+        }
+
+        {
+            auto batchReq = proxy.ExecuteBatch();
+            for (const auto& table : OutputTables) {
+                auto objectIdPath = FromObjectId(table.ObjectId);
                 auto req = TTableYPathProxy::BeginUpload(objectIdPath);
                 SetTransactionId(req, OutputTransactionId);
                 GenerateMutationId(req);
@@ -2816,20 +2823,20 @@ void TOperationControllerBase::BeginUploadOutputTables()
                 req->set_lock_mode(static_cast<int>(table.LockMode));
                 batchReq->AddRequest(req, "begin_upload");
             }
-        }
+            auto batchRspOrError = WaitFor(batchReq->Invoke());
+            THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError), "Errorexecuting begin_upload for output tables");
+            const auto& batchRsp = batchRspOrError.Value();
 
-        auto batchRspOrError = WaitFor(batchReq->Invoke());
-        THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError), "Error locking output tables");
-        const auto& batchRsp = batchRspOrError.Value();
-
-        auto beginUploadRspsOrError = batchRsp->GetResponses<TTableYPathProxy::TRspBeginUpload>("begin_upload");
-        for (int index = 0; index < OutputTables.size(); ++index) {
-            auto& table = OutputTables[index];
-            {
-                const auto& rsp = beginUploadRspsOrError[index].Value();
-                table.UploadTransactionId = FromProto<TTransactionId>(rsp->upload_transaction_id());
+            auto beginUploadRspsOrError = batchRsp->GetResponses<TTableYPathProxy::TRspBeginUpload>("begin_upload");
+            for (int index = 0; index < OutputTables.size(); ++index) {
+                auto& table = OutputTables[index];
+                {
+                    const auto& rsp = beginUploadRspsOrError[index].Value();
+                    table.UploadTransactionId = FromProto<TTransactionId>(rsp->upload_transaction_id());
+                }
             }
         }
+
     }
 
     LOG_INFO("Getting output tables attributes");
