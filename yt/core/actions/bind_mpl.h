@@ -372,6 +372,8 @@ struct TIsRawPtrToRefCountedType
 {
     enum {
         Value = (NMpl::TIsPointer<T>::Value && (
+            NMpl::TIsConvertible<T, const TIntrinsicRefCounted*>::Value ||
+            NMpl::TIsConvertible<T, const TExtrinsicRefCounted*>::Value ||
             NMpl::TIsConvertible<T, TIntrinsicRefCounted*>::Value ||
             NMpl::TIsConvertible<T, TExtrinsicRefCounted*>::Value
         ))

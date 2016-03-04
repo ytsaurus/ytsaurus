@@ -737,9 +737,14 @@ public:
 
     virtual bool Read(std::vector<TVersionedRow>* rows) override
     {
+        for (const auto& block : UncompressedBlocks_) {
+            LOG_DEBUG("XXX Releasing block {%p, %v}", block.Begin(), block.Size());
+        }
+
         MemoryPool_.Clear();
         UncompressedBlocks_.clear();
         LastUncompressedBlockIndex_ = -1;
+        LastUncompressedBlock_ = TSharedRef();
         rows->clear();
 
         if (Finished_) {
@@ -785,8 +790,12 @@ protected:
     {
         // NB: requested block indexes are ascending, even in lookups.
         if (LastUncompressedBlockIndex_ != blockIndex) {
+            LOG_DEBUG("XXX Dropping last captured block %v {%p, %v}", LastUncompressedBlockIndex_, LastUncompressedBlock_.Begin(), LastUncompressedBlock_.Size());
             LastUncompressedBlock_ = GetUncompressedBlock(blockIndex);
+            LastUncompressedBlockIndex_ = blockIndex;
         }
+
+        LOG_DEBUG("XXX Captured block %v {%p, %v}", LastUncompressedBlockIndex_, LastUncompressedBlock_.Begin(), LastUncompressedBlock_.Size());
 
         return LastUncompressedBlock_;
     }
@@ -820,6 +829,7 @@ private:
             // In compressed in-memory mode we could still happen to find block in
             // uncompressed cache, but to guarantee proper block lifetime, we have to 
             // explicitly capture it.
+            LOG_DEBUG("XXX GetUncompressedBlock %v -> found cached uncompressed block {%p, %v}", blockId, uncompressedBlock.Begin(), uncompressedBlock.Size());
             UncompressedBlocks_.push_back(uncompressedBlock);
             return uncompressedBlock;
         }
@@ -829,6 +839,7 @@ private:
             auto codecId = NCompression::ECodec(ChunkMeta_->Misc().compression_codec());
             auto* codec = NCompression::GetCodec(codecId);
             auto block = codec->Decompress(compressedBlock);
+            LOG_DEBUG("XXX GetUncompressedBlock %v -> found cached compressed block {%p, %v}", blockId, block.Begin(), block.Size());
             UncompressedBlocks_.push_back(block);
             return block;
         }
@@ -1040,6 +1051,7 @@ private:
     void CreateBlockReader()
     {
         auto uncompressedBlock = CaptureUncompressedBlock(BlockIndex_);
+        LOG_DEBUG("XXX Creating block reader {%p, %v}", uncompressedBlock.Begin(), uncompressedBlock.Size());
         BlockReader_ = std::make_unique<TBlockReader>(
             std::move(uncompressedBlock),
             ChunkMeta_->BlockMeta().blocks(BlockIndex_),
