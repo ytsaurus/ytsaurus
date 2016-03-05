@@ -13,3 +13,7 @@ FILES(
 FROM_SANDBOX(FILE 112204044 OUT yt.tgz)
 
 END()
+
+RECURSE(
+    test
+)
