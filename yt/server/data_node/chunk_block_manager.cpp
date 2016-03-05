@@ -86,7 +86,7 @@ public:
         VERIFY_THREAD_AFFINITY_ANY();
 
         auto cookie = BeginInsert(blockId);
-        if (cookie.IsActive()) {
+        if (!cookie.IsActive()) {
             return;
         }
 
