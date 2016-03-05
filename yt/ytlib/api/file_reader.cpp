@@ -178,31 +178,7 @@ private:
                 Path_);
             const auto& rsp = rspOrError.Value();
 
-<<<<<<< HEAD
             ProcessFetchResponse(
-=======
-            auto type = EObjectType(rsp->type());
-            if (type != EObjectType::File) {
-                THROW_ERROR_EXCEPTION("Invalid type of %v: expected %Qlv, actual %Qlv",
-                    Path_,
-                    EObjectType::File,
-                    type);
-            }
-        }
-
-        if (!isEmptyRead) {
-            auto nodeDirectory = New<TNodeDirectory>();
-            auto rspOrError = batchRsp->GetResponse<TFileYPathProxy::TRspFetch>("fetch");
-            THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error fetching file chunk specs");
-            const auto& rsp = rspOrError.Value();
-
-            nodeDirectory->MergeFrom(rsp->node_directory());
-
-            auto chunks = FromProto<NChunkClient::NProto::TChunkSpec>(rsp->chunks());
-            Reader_ = CreateFileMultiChunkReader(
-                Config_,
-                New<TMultiChunkReaderOptions>(),
->>>>>>> prestable/0.17.5
                 Client_,
                 rsp,
                 cellTag,
