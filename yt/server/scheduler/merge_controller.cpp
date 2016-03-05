@@ -1923,11 +1923,7 @@ private:
         {
             int primaryInputCount = 0;
             for (int i = 0; i < static_cast<int>(InputTables.size()); ++i) {
-<<<<<<< HEAD
-                if (InputTables[i].Path.GetPrimary()) {
-=======
                 if (!InputTables[i].Path.Attributes().Get<bool>("foreign", false)) {
->>>>>>> prestable/0.17.5
                     ++primaryInputCount;
                     PrimaryTableIndex = i;
                 }
