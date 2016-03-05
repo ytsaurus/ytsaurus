@@ -97,7 +97,7 @@ public:
     int GetRegisteredMasterCellIndex(NObjectClient::TCellTag cellTag);
 
     //! Picks a random (but deterministically chosen) secondary master cell for
-`    //! a new chunk owner node.
+    //! a new chunk owner node.
     /*!
      *  Cells with less-than-average number of chunks are typically preferred.
      *  The exact amount of skewness is controlled by #bias argument, 0 indicating no preference,
