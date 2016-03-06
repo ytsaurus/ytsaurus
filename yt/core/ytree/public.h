@@ -86,6 +86,7 @@ DEFINE_ENUM(EErrorCode,
     ((MaxChildCountViolation)              (502))
     ((MaxStringLengthViolation)            (503))
     ((MaxAttributeSizeViolation)           (504))
+    ((MaxKeyLengthViolation)               (505))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

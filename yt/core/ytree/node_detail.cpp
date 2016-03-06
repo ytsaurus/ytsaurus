@@ -317,6 +317,15 @@ void TMapNodeMixin::SetChild(
         tokenizer.Expect(NYPath::ETokenType::Literal);
         auto key = tokenizer.GetLiteralValue();
 
+        int maxKeyLength = GetMaxKeyLength();
+        if (key.length() > maxKeyLength) {
+            THROW_ERROR_EXCEPTION(
+                NYTree::EErrorCode::MaxKeyLengthViolation,
+                "Map node %v is not allowed to contain more items with keys longer than %v symbols",
+                GetPath(),
+                maxKeyLength);
+        }
+
         tokenizer.Advance();
 
         bool lastStep = (tokenizer.GetType() == NYPath::ETokenType::EndOfStream);
@@ -340,6 +349,11 @@ void TMapNodeMixin::SetChild(
             currentNode = newChild->AsMap();
         }
     }
+}
+
+int TMapNodeMixin::GetMaxKeyLength() const
+{
+    return std::numeric_limits<int>::max();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

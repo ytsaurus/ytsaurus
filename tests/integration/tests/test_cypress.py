@@ -21,7 +21,10 @@ class TestCypress(YTEnvSetup):
             "max_string_node_length" : 300,
 
             # See test_attribute_size_limit
-            "max_attribute_size" : 300
+            "max_attribute_size" : 300,
+
+            # See test_map_node_key_length_limit
+            "max_map_node_key_length": 300
         }
     }
 
@@ -920,6 +923,11 @@ class TestCypress(YTEnvSetup):
         with pytest.raises(YtError):
             # This must definitely exceed the limit of 300.
             set("//tmp/test_node/@test_attr", "x" * 301)
+
+    def test_map_node_key_length_limits(self):
+        set("//tmp/" + "a" * 300, 0)
+        with pytest.raises(YtError):
+            set("//tmp/" + "a" * 301, 0)
 
     def test_invalid_external_cell_bias(self):
         with pytest.raises(YtError):

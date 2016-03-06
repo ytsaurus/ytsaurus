@@ -1267,6 +1267,11 @@ int TMapNodeProxy::GetMaxChildCount() const
     return Config->MaxNodeChildCount;
 }
 
+int TMapNodeProxy::GetMaxKeyLength() const
+{
+    return Config->MaxMapNodeKeyLength;
+}
+
 IYPathService::TResolveResult TMapNodeProxy::ResolveRecursive(
     const TYPath& path,
     IServiceContextPtr context)

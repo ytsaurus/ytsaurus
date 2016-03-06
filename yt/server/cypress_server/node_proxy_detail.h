@@ -397,6 +397,7 @@ private:
         bool recursive) override;
 
     virtual int GetMaxChildCount() const override;
+    virtual int GetMaxKeyLength() const override;
 
     virtual TResolveResult ResolveRecursive(const NYPath::TYPath& path, NRpc::IServiceContextPtr context) override;
 

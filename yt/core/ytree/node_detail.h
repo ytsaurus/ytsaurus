@@ -127,6 +127,8 @@ protected:
         const TYPath& path,
         INodePtr child,
         bool recursive) override;
+    
+    virtual int GetMaxKeyLength() const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
