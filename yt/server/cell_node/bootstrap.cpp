@@ -228,9 +228,6 @@ void TBootstrap::DoRun()
         RpcServer->RegisterService(CreateRedirectorService(
             TServiceId(NChunkClient::TChunkServiceProxy::GetServiceName(), redirectorCellId),
             masterRedirectorChannel));
-        RpcServer->RegisterService(CreateRedirectorService(
-            TServiceId(NObjectClient::TObjectServiceProxy::GetServiceName(), redirectorCellId),
-            masterRedirectorChannel));
     };
 
     createMasterRedirectorService(Config->ClusterConnection->PrimaryMaster);
