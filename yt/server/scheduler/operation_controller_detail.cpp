@@ -2494,6 +2494,7 @@ void TOperationControllerBase::FetchInputTables()
                 req->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
                 if (IsBoundaryKeysFetchEnabled()) {
                     req->add_extension_tags(TProtoExtensionTag<NTableClient::NProto::TBoundaryKeysExt>::Value);
+                    req->add_extension_tags(TProtoExtensionTag<NTableClient::NProto::TOldBoundaryKeysExt>::Value);
                 }
                 req->set_fetch_parity_replicas(IsParityReplicasFetchEnabled());
                 SetTransactionId(req, InputTransactionId);
