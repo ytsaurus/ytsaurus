@@ -321,7 +321,7 @@ void TMapNodeMixin::SetChild(
         if (key.length() > maxKeyLength) {
             THROW_ERROR_EXCEPTION(
                 NYTree::EErrorCode::MaxKeyLengthViolation,
-                "Map node %v is not allowed to contain more items with keys longer than %v symbols",
+                "Map node %v is not allowed to contain items with keys longer than %v symbols",
                 GetPath(),
                 maxKeyLength);
         }
