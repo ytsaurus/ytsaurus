@@ -246,7 +246,6 @@ class TestOperations(object):
     def test_run_join_operation(self, yt_env):
         if yt.config["api_version"] == "v2":
             pytest.skip()
-        print >>sys.stderr, "api_version:", yt.config["api_version"], ", yt_env.version:", yt_env.version
 
         table1 = TEST_DIR + "/first"
         yt.write_table("<sorted_by=[x]>" + table1, ["x=1\n"])
@@ -268,7 +267,7 @@ class TestOperations(object):
             with pytest.raises(yt.YtError):
                 yt.run_join_reduce("cat", ["<primary=true>" + unsorted_table, table2], table, join_by=["x"])
 
-        if yt_env.version >= "0.17.5" and yt_env.version < "0.18" or yt_env.version >= "0.18.2":
+        if yt_env.version >= "0.17.5" and yt_env.version < "0.18.0" or yt_env.version >= "18.2.0":
             yt.run_join_reduce("cat", [table1, "<foreign=true>" + table2], table, join_by=["x"])
             check(["x=1\n"], yt.read_table(table))
 
@@ -283,7 +282,7 @@ class TestOperations(object):
         yt.write_table("<sorted_by=[x;y]>" + table1, ["x=1\ty=1\n"])
         yt.write_table("<sorted_by=[x]>" + table2, ["x=1\n"])
 
-        if yt_env.version >= "0.18.2":
+        if yt_env.version >= "18.2.0":
             yt.run_reduce("cat", [table1, "<foreign=true>" + table2], table, reduce_by=["x","y"],
                 join_by=["x"])
             check(["x=1\ty=1\n", "x=1\n"], yt.read_table(table))
