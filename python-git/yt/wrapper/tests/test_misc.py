@@ -122,22 +122,23 @@ class TestMutations(object):
         yt.write_table(table, ["x=1\n", "x=2\n"], format="dsv")
         yt.create_table(other_table)
 
-        for command, params in \
-            [(
-                "map",
-                {"spec":
-                    {"mapper":
-                        {"command": "sleep 1; cat"},
-                     "input_table_paths": [table],
-                     "output_table_paths": [other_table]}})]:
+        params = {
+            "spec": {
+                "mapper": {
+                    "command": "sleep 2; cat"
+                },
+                "input_table_paths": [table],
+                "output_table_paths": [other_table]
+            }
+        }
 
-            operations_count = yt.get("//sys/operations/@count")
+        operations_count = yt.get("//sys/operations/@count")
 
-            self.check_command(
-                lambda: yson.loads(yt.driver.make_request(command, params)),
-                None,
-                lambda: yt.get("//sys/operations/@count") == operations_count + 1,
-                abort)
+        self.check_command(
+            lambda: yson.loads(yt.driver.make_request("map", params)),
+            None,
+            lambda: yt.get("//sys/operations/@count") == operations_count + 1,
+            abort)
 
 
 @pytest.mark.usefixtures("yt_env")
