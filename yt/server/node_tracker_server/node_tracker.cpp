@@ -1094,7 +1094,6 @@ private:
                 transactionManager->AbortTransaction(transaction, true);
             }
 
-            RemoveFromAddressMaps(node);
             UpdateNodeCounters(node, -1);
             node->SetLocalState(ENodeState::Unregistered);
             NodeUnregistered_.Fire(node);
