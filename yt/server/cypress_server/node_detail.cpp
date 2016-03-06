@@ -151,6 +151,12 @@ void TNontemplateCypressNodeTypeHandlerBase::CloneCoreEpilogue(
             YCHECK(clonedAttributes->Attributes().insert(pair).second);
         }
     }
+
+    // Copy ACD.
+    clonedNode->Acd().SetInherit(sourceNode->Acd().GetInherit());
+    for (const auto& ace : sourceNode->Acd().Acl().Entries) {
+        clonedNode->Acd().AddEntry(ace);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
