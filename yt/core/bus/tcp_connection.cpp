@@ -34,6 +34,9 @@ static const size_t MaxFragmentsPerWrite = 256;
 static const size_t MaxBatchWriteSize    = 64 * 1024;
 static const size_t MaxWriteCoalesceSize = 4 * 1024;
 
+static const auto ReadStallTimeout = TDuration::Minutes(5);
+static const auto WriteStallTimeout = TDuration::Minutes(5);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TTcpConnectionReadBufferTag { };
@@ -68,17 +71,18 @@ TTcpConnection::TTcpConnection(
     , Priority_(priority)
 #endif
     , Handler_(std::move(handler))
+    , Logger(NLogging::TLogger(BusLogger)
+        .AddTag("ConnectionId: %v, RemoteAddress: %v",
+            Id_,
+            EndpointDescription_))
     , Statistics_(DispatcherThread_->GetStatistics(InterfaceType_))
     , MessageEnqueuedCallback_(BIND(&TTcpConnection::OnMessageEnqueuedThunk, MakeWeak(this)))
+    , Decoder_(Logger)
+    , Encoder_(Logger)
 {
     VERIFY_THREAD_AFFINITY_ANY();
     YASSERT(Handler_);
     YASSERT(DispatcherThread_);
-
-    Logger = BusLogger;
-    Logger.AddTag("ConnectionId: %v, RemoteAddress: %v",
-        Id_,
-        EndpointDescription_);
 
     switch (ConnectionType_) {
         case EConnectionType::Client:
@@ -152,6 +156,33 @@ void TTcpConnection::SyncInitialize()
 void TTcpConnection::SyncFinalize()
 {
     SyncClose(TError(NRpc::EErrorCode::TransportError, "Bus terminated"));
+}
+
+void TTcpConnection::SyncCheck()
+{
+    if (State_ != EState::Open) {
+        return;
+    }
+
+    auto now = NProfiling::GetCpuInstant();
+
+    if (HasUnsentData() && LastWriteTime_ < now - NProfiling::DurationToCpuDuration(WriteStallTimeout)) {
+        ++Statistics_->StalledWrites;
+        SyncClose(TError(
+            NRpc::EErrorCode::TransportError,
+            "Socket write stalled")
+            << TErrorAttribute("timeout", WriteStallTimeout));
+        return;
+    }
+
+    if (HasUnreadData() && LastReadTime_ < now - NProfiling::DurationToCpuDuration(ReadStallTimeout)) {
+        ++Statistics_->StalledReads;
+        SyncClose(TError(
+            NRpc::EErrorCode::TransportError,
+            "Socket read stalled")
+            << TErrorAttribute("timeout", ReadStallTimeout));
+        return;
+    }
 }
 
 Stroka TTcpConnection::GetLoggingId() const
@@ -557,6 +588,8 @@ void TTcpConnection::OnSocketRead()
         return;
     }
 
+    LastReadTime_ = NProfiling::GetCpuInstant();
+
     LOG_TRACE("Started serving read request");
     size_t bytesReadTotal = 0;
 
@@ -612,6 +645,11 @@ void TTcpConnection::OnSocketRead()
     LOG_TRACE("Finished serving read request, %v bytes read total", bytesReadTotal);
 }
 
+bool TTcpConnection::HasUnreadData() const
+{
+    return Decoder_.IsInProgress();
+}
+
 bool TTcpConnection::ReadSocket(char* buffer, size_t size, size_t* bytesRead)
 {
     ssize_t result;
@@ -649,12 +687,11 @@ bool TTcpConnection::CheckReadError(ssize_t result)
     if (result < 0) {
         int error = LastSystemError();
         if (IsSocketError(error)) {
-            auto wrappedError = TError(
+            ++Statistics_->ReadErrors;
+            SyncClose(TError(
                 NRpc::EErrorCode::TransportError,
                 "Socket read error")
-                << TError::FromSystem(error);
-            LOG_DEBUG(wrappedError);
-            SyncClose(wrappedError);
+                << TError::FromSystem(error));
         }
         return false;
     }
@@ -665,6 +702,7 @@ bool TTcpConnection::CheckReadError(ssize_t result)
 bool TTcpConnection::AdvanceDecoder(size_t size)
 {
     if (!Decoder_.Advance(size)) {
+        ++Statistics_->DecoderErrors;
         SyncClose(TError(NRpc::EErrorCode::TransportError, "Error decoding incoming packet"));
         return false;
     }
@@ -694,7 +732,6 @@ bool TTcpConnection::OnPacketReceived() throw()
 bool TTcpConnection::OnAckPacketReceived()
 {
     if (UnackedMessages_.empty()) {
-        LOG_ERROR("Unexpected ack received");
         SyncClose(TError(
             NRpc::EErrorCode::TransportError,
             "Unexpected ack received"));
@@ -704,12 +741,11 @@ bool TTcpConnection::OnAckPacketReceived()
     auto& unackedMessage = UnackedMessages_.front();
 
     if (Decoder_.GetPacketId() != unackedMessage.PacketId) {
-        LOG_ERROR("Ack for invalid packet ID received: expected %v, found %v",
-            unackedMessage.PacketId,
-            Decoder_.GetPacketId());
         SyncClose(TError(
             NRpc::EErrorCode::TransportError,
-            "Ack for invalid packet ID received"));
+            "Ack for invalid packet ID received: expected %v, found %v",
+            unackedMessage.PacketId,
+            Decoder_.GetPacketId()));
         return false;
     }
 
@@ -746,7 +782,7 @@ TTcpConnection::TPacket* TTcpConnection::EnqueuePacket(
     const TPacketId& packetId,
     TSharedRefArray message)
 {
-    i64 size = TPacketEncoder::GetPacketSize(type, message);
+    size_t size = TPacketEncoder::GetPacketSize(type, message);
     auto* packet = new TPacket(type, flags, packetId, std::move(message), size);
     QueuedPackets_.push(packet);
     UpdatePendingOut(+1, +size);
@@ -759,22 +795,20 @@ void TTcpConnection::OnSocketWrite()
         return;
     }
 
+    LastWriteTime_ = NProfiling::GetCpuInstant();
+
     // For client sockets the first write notification means that
     // connection was established (either successfully or not).
     if (ConnectionType_ == EConnectionType::Client && State_ == EState::Opening) {
         // Check if connection was established successfully.
         int error = GetSocketError();
         if (error != 0) {
-            auto wrappedErrror = TError(
+            // We're currently in event loop context, so calling |SyncClose| is safe.
+            SyncClose(TError(
                 NRpc::EErrorCode::TransportError,
                 "Error connecting to %v",
                 EndpointDescription_)
-                << TError::FromSystem(error);
-            LOG_ERROR(wrappedErrror);
-
-            // We're currently in event loop context, so calling |SyncClose| is safe.
-            SyncClose(wrappedErrror);
-
+                << TError::FromSystem(error));
             return;
         }
         SyncOpen();
@@ -957,10 +991,14 @@ bool TTcpConnection::MaybeEncodeFragments()
         bool encodeResult = Encoder_.Start(
             packet->Type,
             packet->Flags,
+            InterfaceType_ == ETcpInterfaceType::Remote,
             packet->PacketId,
             packet->Message);
         if (!encodeResult) {
-            SyncClose(TError(NRpc::EErrorCode::TransportError, "Error encoding outcoming packet"));
+            ++Statistics_->EncoderErrors;
+            SyncClose(TError(
+                NRpc::EErrorCode::TransportError,
+                "Error encoding outcoming packet"));
             return false;
         }
 
@@ -992,12 +1030,11 @@ bool TTcpConnection::CheckWriteError(ssize_t result)
     if (result < 0) {
         int error = LastSystemError();
         if (IsSocketError(error)) {
-            auto wrappedError = TError(
+            ++Statistics_->WriteErrors;
+            SyncClose(TError(
                 NRpc::EErrorCode::TransportError,
                 "Socket write error")
-                << TError::FromSystem(error);
-            LOG_WARNING(wrappedError);
-            SyncClose(wrappedError);
+                << TError::FromSystem(error));
         }
         return false;
     }

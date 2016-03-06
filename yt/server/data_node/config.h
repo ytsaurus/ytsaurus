@@ -6,7 +6,7 @@
 
 #include <yt/ytlib/chunk_client/config.h>
 
-#include <yt/core/concurrency/throughput_throttler.h>
+#include <yt/core/concurrency/config.h>
 
 #include <yt/core/misc/config.h>
 
@@ -205,6 +205,15 @@ public:
 
 DEFINE_REFCOUNTED_TYPE(TMultiplexedChangelogConfig)
 
+class TArtifactCacheReaderConfig
+    : public virtual NChunkClient::TReplicationReaderConfig
+    , public virtual NChunkClient::TSequentialReaderConfig
+    , public virtual NTableClient::TTableReaderConfig
+    , public virtual NApi::TFileReaderConfig
+{ };
+
+DEFINE_REFCOUNTED_TYPE(TArtifactCacheReaderConfig)
+
 //! Describes a configuration of a data node.
 class TDataNodeConfig
     : public NYTree::TYsonSerializable
@@ -225,12 +234,12 @@ public:
     //! Period between consequent registration attempts.
     TDuration RegisterRetryPeriod;
 
-    //! Random delay before first heartbeat
-    TDuration HeartbeatSplay;
+    //! Timeout for RegisterNode requests.
+    TDuration RegisterTimeout;
 
     //! Timeout for IncrementalHeartbeat requests.
     /*!
-     *  This must not be too long to prevent node lease from expiring.
+     *  This is usually much larger then the default RPC timeout.
      */
     TDuration IncrementalHeartbeatTimeout;
 
@@ -297,11 +306,8 @@ public:
     //! Cached chunks location.
     std::vector<TCacheLocationConfigPtr> CacheLocations;
 
-    //! Remote reader configuration used to download chunks into cache.
-    NChunkClient::TReplicationReaderConfigPtr CacheRemoteReader;
-
-    //! Sequential reader configuration used to download chunks into cache.
-    NChunkClient::TSequentialReaderConfigPtr CacheSequentialReader;
+    //! Reader configuration used to download chunks into cache.
+    TArtifactCacheReaderConfigPtr ArtifactCacheReader;
 
     //! Writer configuration used to replicate chunks.
     NChunkClient::TReplicationWriterConfigPtr ReplicationWriter;
@@ -315,6 +321,12 @@ public:
     //! Reader configuration used to seal chunks.
     NChunkClient::TReplicationReaderConfigPtr SealReader;
 
+    //! Controls the total incoming bandwidth.
+    NConcurrency::TThroughputThrottlerConfigPtr TotalInThrottler;
+
+    //! Controls the total outcoming bandwidth.
+    NConcurrency::TThroughputThrottlerConfigPtr TotalOutThrottler;
+
     //! Controls incoming bandwidth used by replication jobs.
     NConcurrency::TThroughputThrottlerConfigPtr ReplicationInThrottler;
 
@@ -326,6 +338,12 @@ public:
 
     //! Controls outcoming bandwidth used by repair jobs.
     NConcurrency::TThroughputThrottlerConfigPtr RepairOutThrottler;
+
+    //! Controls incoming bandwidth used by Artifact Cache downloads.
+    NConcurrency::TThroughputThrottlerConfigPtr ArtifactCacheInThrottler;
+
+    //! Controls outcoming bandwidth used by Artifact Cache downloads.
+    NConcurrency::TThroughputThrottlerConfigPtr ArtifactCacheOutThrottler;
 
     //! Keeps chunk peering information.
     TPeerBlockTableConfigPtr PeerBlockTable;
@@ -355,7 +373,7 @@ public:
     TDataNodeConfig()
     {
         RegisterParameter("lease_transaction_timeout", LeaseTransactionTimeout)
-            .Default(TDuration::Seconds(60));
+            .Default(TDuration::Seconds(120));
         RegisterParameter("lease_transaction_ping_period", LeaseTransactionPingPeriod)
             .Default(TDuration::Seconds(15));
         RegisterParameter("incremental_heartbeat_period", IncrementalHeartbeatPeriod)
@@ -364,8 +382,10 @@ public:
             .Default();
         RegisterParameter("register_retry_period", RegisterRetryPeriod)
             .Default(TDuration::Seconds(3));
+        RegisterParameter("register_timeout", RegisterTimeout)
+            .Default(TDuration::Seconds(60));
         RegisterParameter("incremental_heartbeat_timeout", IncrementalHeartbeatTimeout)
-            .Default(TDuration::Seconds(15));
+            .Default(TDuration::Seconds(60));
         RegisterParameter("full_heartbeat_timeout", FullHeartbeatTimeout)
             .Default(TDuration::Seconds(60));
         
@@ -409,9 +429,7 @@ public:
         RegisterParameter("cache_locations", CacheLocations)
             .NonEmpty();
 
-        RegisterParameter("cache_remote_reader", CacheRemoteReader)
-            .DefaultNew();
-        RegisterParameter("cache_sequential_reader", CacheSequentialReader)
+        RegisterParameter("artifact_cache_reader", ArtifactCacheReader)
             .DefaultNew();
         RegisterParameter("replication_writer", ReplicationWriter)
             .DefaultNew();
@@ -423,6 +441,10 @@ public:
         RegisterParameter("seal_reader", SealReader)
             .DefaultNew();
 
+        RegisterParameter("total_in_throttler", TotalInThrottler)
+            .DefaultNew();
+        RegisterParameter("total_out_throttler", TotalOutThrottler)
+            .DefaultNew();
         RegisterParameter("replication_in_throttler", ReplicationInThrottler)
             .DefaultNew();
         RegisterParameter("replication_out_throttler", ReplicationOutThrottler)
@@ -430,6 +452,10 @@ public:
         RegisterParameter("repair_in_throttler", RepairInThrottler)
             .DefaultNew();
         RegisterParameter("repair_out_throttler", RepairOutThrottler)
+            .DefaultNew();
+        RegisterParameter("artifact_cache_in_throttler", ArtifactCacheInThrottler)
+            .DefaultNew();
+        RegisterParameter("artifact_cache_out_throttler", ArtifactCacheOutThrottler)
             .DefaultNew();
 
         RegisterParameter("peer_block_table", PeerBlockTable)
@@ -480,6 +506,7 @@ public:
             RepairWriter->WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::SystemRepair);
             SealReader->WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::SystemReplication);
             ReplicationWriter->WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::SystemReplication);
+            ArtifactCacheReader->WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::SystemArtifactCacheDownload);
 
             // Don't populate caches in chunk jobs.
             RepairReader->PopulateCache = false;

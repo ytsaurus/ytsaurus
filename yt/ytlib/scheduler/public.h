@@ -11,10 +11,9 @@ namespace NScheduler {
 ////////////////////////////////////////////////////////////////////////////////
 
 using NJobTrackerClient::TJobId;
+using NJobTrackerClient::TOperationId;
 using NJobTrackerClient::EJobType;
 using NJobTrackerClient::EJobState;
-
-typedef TGuid TOperationId;
 
 DEFINE_ENUM(EOperationType,
     (Map)
@@ -45,6 +44,7 @@ DEFINE_ENUM(EOperationState,
 DEFINE_ENUM(EErrorCode,
     ((NoSuchOperation)      (200))
     ((InvalidOperationState)(201))
+    ((TooManyOperations)    (202))
 );
 
 DEFINE_ENUM(EUnavailableChunkAction,
@@ -107,6 +107,9 @@ typedef TIntrusivePtr<TSortedMergeOperationSpec> TSortedMergeOperationSpecPtr;
 
 class TEraseOperationSpec;
 typedef TIntrusivePtr<TEraseOperationSpec> TEraseOperationSpecPtr;
+
+class TReduceOperationSpecBase;
+typedef TIntrusivePtr<TReduceOperationSpecBase> TReduceOperationSpecBasePtr;
 
 class TReduceOperationSpec;
 typedef TIntrusivePtr<TReduceOperationSpec> TReduceOperationSpecPtr;

@@ -59,6 +59,7 @@ protected:
     i64 BlockMetaExtSize_ = 0;
 
     void ValidateRowWeight(i64 weight);
+    void ValidateDuplicateIds(const TUnversionedRow row, TNameTablePtr nameTable);
 
     void FillCommonMeta(NChunkClient::NProto::TChunkMeta* meta) const;
 

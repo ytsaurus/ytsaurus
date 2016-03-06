@@ -148,6 +148,7 @@ public:
         if (!Compiled_) {
             Finalize();
         }
+
         return Engine_->getFunctionAddress(name.c_str());
     }
 
@@ -196,12 +197,15 @@ private:
             llvm::errs() << "\n****************************************************************\n";
         }
 
+        LOG_DEBUG("Verifying IR");
         YCHECK(!llvm::verifyModule(*Module_, &llvm::errs()));
 
         std::unique_ptr<PassManager> modulePassManager;
         std::unique_ptr<FunctionPassManager> functionPassManager;
 
         // Run DCE pass to strip unused code.
+        LOG_DEBUG("Pruning dead code (ExportedSymbols: %v)", JoinToString(ExportedSymbols_));
+
         std::vector<const char*> exportedNames;
         for (const auto& exportedSymbol : ExportedSymbols_) {
             exportedNames.emplace_back(exportedSymbol.c_str());
@@ -212,6 +216,8 @@ private:
         modulePassManager->run(*Module_);
 
         // Now, setup optimization pipeline and run actual optimizations.
+        LOG_DEBUG("Optimizing IR");
+
         llvm::PassManagerBuilder passManagerBuilder;
         passManagerBuilder.OptLevel = 2;
         passManagerBuilder.SizeLevel = 0;
@@ -239,6 +245,7 @@ private:
             llvm::errs() << "\n****************************************************************\n";
         }
 
+        LOG_DEBUG("Finalizing module");
         Engine_->finalizeObject();
 
         // TODO(sandello): Clean module here.

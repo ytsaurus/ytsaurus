@@ -45,16 +45,16 @@ TChunkStripeStatisticsVector AggregateStatistics(
 struct TChunkStripe
     : public TIntrinsicRefCounted
 {
-    TChunkStripe();
-    explicit TChunkStripe(NChunkClient::TChunkSlicePtr chunkSlice);
-    explicit TChunkStripe(const TChunkStripe& other);
+    explicit TChunkStripe(bool foreign = false);
+    explicit TChunkStripe(NChunkClient::TChunkSlicePtr chunkSlice, bool foreign = false);
 
     TChunkStripeStatistics GetStatistics() const;
 
     void Persist(TPersistenceContext& context);
 
     SmallVector<NChunkClient::TChunkSlicePtr, 1> ChunkSlices;
-    int WaitingChunkCount;
+    int WaitingChunkCount = 0;
+    bool Foreign = false;
 
 };
 

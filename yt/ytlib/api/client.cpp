@@ -1283,9 +1283,18 @@ private:
 
             auto config = Connection_->GetConfig();
             if (++retryCount <= config->TableMountInfoUpdateRetryCount) {
-                if (error.FindMatching(NTabletClient::EErrorCode::NoSuchTablet) ||
-                    error.FindMatching(NTabletClient::EErrorCode::TabletNotMounted))
-                {
+                auto noSuchTablet = error.FindMatching(NTabletClient::EErrorCode::NoSuchTablet);
+                auto notMounted = error.FindMatching(NTabletClient::EErrorCode::TabletNotMounted);
+
+                if (noSuchTablet) {
+                    error = noSuchTablet.Get();
+                }
+
+                if (notMounted) {
+                    error = notMounted.Get();
+                }
+
+                if (noSuchTablet || notMounted) {
                     LOG_DEBUG(error, "Got error, will clear table mount cache and retry");
                     auto tabletId = error.Attributes().Get<TTabletId>("tablet_id");
                     auto tableMountCache = Connection_->GetTableMountCache();

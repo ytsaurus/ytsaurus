@@ -74,8 +74,6 @@ protected:
 
     virtual void DoOpen() = 0;
 
-    virtual void OnError();
-
     bool OnEmptyRead(bool readerFinished);
 
     void RegisterFailedReader(IReaderBasePtr reader);
@@ -129,12 +127,11 @@ private:
 
     virtual void OnReaderFinished() override;
 
-    virtual void OnError() override;
-
     void WaitForNextReader();
 
     void WaitForCurrentReader();
 
+    void PropagateError(const TError& error);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -162,12 +159,11 @@ private:
 
     virtual void OnReaderFinished() override;
 
-    virtual void OnError() override;
-
     void WaitForReadyReader();
 
     void WaitForReader(TSession session);
 
+    void PropagateError(const TError& error);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

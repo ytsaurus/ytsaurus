@@ -30,6 +30,7 @@ DEFINE_ENUM(EWorkloadCategory,
     (UserBatch)
     (UserRealtime)
     (SystemRealtime)
+    (SystemArtifactCacheDownload)
 );
 
 struct TWorkloadDescriptor;

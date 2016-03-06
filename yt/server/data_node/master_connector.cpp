@@ -272,6 +272,7 @@ void TMasterConnector::RegisterAtMaster()
     TNodeTrackerServiceProxy proxy(masterChannel);
 
     auto req = proxy.RegisterNode();
+    req->SetTimeout(Config_->RegisterTimeout);
     *req->mutable_statistics() = ComputeStatistics();
     ToProto(req->mutable_addresses(), LocalAddresses_);
     ToProto(req->mutable_lease_transaction_id(), LeaseTransaction_->GetId());
@@ -847,7 +848,7 @@ IChannelPtr TMasterConnector::GetMasterChannel(TCellTag cellTag)
     auto client = Bootstrap_->GetMasterClient();
     auto connection = client->GetConnection();
     auto cellDirectory = connection->GetCellDirectory();
-    return cellDirectory->GetChannelOrThrow(cellId, EPeerKind::Leader);
+    return cellDirectory->GetChannel(cellId, EPeerKind::Leader);
 }
 
 bool TMasterConnector::IsRetriableHearbeatError(const TError& error)

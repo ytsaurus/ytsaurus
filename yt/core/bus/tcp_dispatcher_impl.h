@@ -31,6 +31,7 @@ struct IEventLoopObject
 {
     virtual void SyncInitialize() = 0;
     virtual void SyncFinalize() = 0;
+    virtual void SyncCheck() = 0;
     virtual Stroka GetLoggingId() const = 0;
 };
 
@@ -52,14 +53,18 @@ public:
     TTcpDispatcherStatistics* GetStatistics(ETcpInterfaceType interfaceType);
 
 private:
-    friend class TTcpDispatcherInvokerQueue;
+    const NConcurrency::TPeriodicExecutorPtr CheckExecutor_;
 
     TEnumIndexedVector<TTcpDispatcherStatistics, ETcpInterfaceType> Statistics_;
     yhash_set<IEventLoopObjectPtr> Objects_;
 
-
     void DoRegister(IEventLoopObjectPtr object);
     void DoUnregister(IEventLoopObjectPtr object);
+
+
+    virtual void OnShutdown() override;
+
+    void OnCheck();
 
 };
 

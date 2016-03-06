@@ -116,6 +116,7 @@ private:
     TCLAP::ValueArg<Stroka> CommandArg;
     TCLAP::MultiArg<NYPath::TRichYPath> FileArg;
     TCLAP::ValueArg<Stroka> ReduceByArg;
+    TCLAP::ValueArg<Stroka> JoinByArg;
 
     virtual void BuildParameters(NYson::IYsonConsumer* consumer) override;
     virtual Stroka GetCommandName() const override;

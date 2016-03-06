@@ -73,7 +73,7 @@ public:
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);
 
-    NYson::TYsonString GetDescription() const;
+    NYson::TYsonString GetErrorDescription() const;
 
 };
 
