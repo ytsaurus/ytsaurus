@@ -469,6 +469,15 @@ class TestCypress(YTEnvSetup):
         copy("//tmp/t1", "//tmp/t2")
         commit_transaction(tx)
 
+    def test_copy_acd(self):
+        create("table", "//tmp/t1")
+        set("//tmp/t1/@inherit_acl", False)
+        set("//tmp/t1/@acl", [{"action": "deny", "permissions": ["write"], "subjects": ["guest"]}])
+        copy("//tmp/t1", "//tmp/t2")
+        assert not get("//tmp/t2/@inherit_acl")
+        assert len(get("//tmp/t2/@acl")) == 1
+
+        
     def test_move_simple1(self):
         set("//tmp/a", 1)
         move("//tmp/a", "//tmp/b")
