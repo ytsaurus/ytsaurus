@@ -333,7 +333,7 @@ private:
         LOG_INFO("Processing inputs");
 
         std::vector<TChunkStripePtr> stripes;
-        for (const auto& chunkSpec : CollectInputChunks()) {
+        for (const auto& chunkSpec : CollectPrimaryInputChunks()) {
             if (chunkSpec->has_lower_limit() && !IsTrivial(chunkSpec->lower_limit()) ||
                 chunkSpec->has_upper_limit() && !IsTrivial(chunkSpec->upper_limit()))
             {

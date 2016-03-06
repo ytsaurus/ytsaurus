@@ -144,16 +144,15 @@ std::vector<TChunkDescriptor> TLocation::Scan()
         return std::vector<TChunkDescriptor>();
     }
 
-    std::vector<TChunkDescriptor> result;
     try {
-        result = DoScan();
+        // Be optimistic and assume everything will be OK.
+        // Also Disable requires Enabled_ to be true.
+        Enabled_.store(true);
+        return DoScan();
     } catch (const std::exception& ex) {
         Disable(TError("Location scan failed") << ex);
         YUNREACHABLE(); // Disable() exits the process.
     }
-
-    Enabled_.store(true);
-    return result;
 }
 
 void TLocation::Start()
@@ -275,6 +274,7 @@ EIOCategory TLocation::ToIOCategory(const TWorkloadDescriptor& workloadDescripto
         case EWorkloadCategory::SystemTabletCompaction:
         case EWorkloadCategory::SystemTabletPartitioning:
         case EWorkloadCategory::SystemTabletPreload:
+        case EWorkloadCategory::SystemArtifactCacheDownload:
         case EWorkloadCategory::UserBatch:
             return EIOCategory::Batch;
 
@@ -1029,8 +1029,13 @@ TNullable<TChunkDescriptor> TCacheLocation::Repair(
             metaFileName);
     }
 
-    NFS::Remove(dataFileName);
-    NFS::Remove(metaFileName);
+    if (hasData) {
+        NFS::Remove(dataFileName);
+    }
+    if (hasMeta) {
+        NFS::Remove(metaFileName);
+    }
+
     return Null;
 }
 

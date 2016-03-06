@@ -214,12 +214,6 @@ struct IOperationController
     /*!
      *  \note Invoker affinity: Cancellable controller invoker
      */
-    //! Called during heartbeat processing to notify the controller that a job is running.
-    virtual void OnJobRunning(const TJobId& jobId, const NJobTrackerClient::NProto::TJobStatus& status) = 0;
-
-    /*!
-     *  \note Invoker affinity: Cancellable controller invoker
-     */
     //! Called during heartbeat processing to notify the controller that a job has completed.
     virtual void OnJobCompleted(const TCompletedJobSummary& jobSummary) = 0;
 

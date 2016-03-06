@@ -132,6 +132,8 @@ private:
     NConcurrency::TPeriodicExecutorPtr EnabledCheckExecutor_;
     bool Enabled_ = false;
 
+    NConcurrency::IThroughputThrottlerPtr JobThrottler_;
+
 
     void ProcessExistingJobs(
         TNode* node,

@@ -442,6 +442,7 @@ private:
             StartLockTransaction();
             TakeLock();
             AssumeControl();
+            InvokeWatchers();
             UpdateClusterDirectory();
             ListOperations();
             RequestOperationAttributes();
@@ -449,7 +450,6 @@ private:
             DownloadSnapshots();
             AbortTransactions();
             RemoveSnapshots();
-            InvokeWatchers();
             return Result;
         }
 
@@ -658,7 +658,8 @@ private:
                         BIND([=] (const TError& error) {
                             if (!error.IsOK() && !operation->GetCleanStart()) {
                                 operation->SetCleanStart(true);
-                                LOG_INFO("Error renewing operation transaction, will use clean start (OperationId: %v, TransactionId: %v)",
+                                LOG_INFO(error,
+                                    "Error renewing operation transaction, will use clean start (OperationId: %v, TransactionId: %v)",
                                     operation->GetId(),
                                     transaction->GetId());
                             }

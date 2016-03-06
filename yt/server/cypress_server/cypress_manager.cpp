@@ -1392,7 +1392,7 @@ private:
                         GetNodePath(trunkNode, transaction),
                         existingState.Mode,
                         existingTransaction->GetId())
-                        << TErrorAttribute("winner_transaction", existingTransaction->GetDescription());
+                        << TErrorAttribute("winner_transaction", existingTransaction->GetErrorDescription());
                 }
 
                 // For Shared locks we check child and attribute keys.
@@ -1406,7 +1406,7 @@ private:
                             *request.ChildKey,
                             GetNodePath(trunkNode, transaction),
                             existingTransaction->GetId())
-                            << TErrorAttribute("winner_transaction", existingTransaction->GetDescription());
+                            << TErrorAttribute("winner_transaction", existingTransaction->GetErrorDescription());
                     }
                     if (request.AttributeKey &&
                         existingState.AttributeKeys.find(request.AttributeKey.Get()) != existingState.AttributeKeys.end())
@@ -1417,7 +1417,7 @@ private:
                             *request.AttributeKey,
                             GetNodePath(trunkNode, transaction),
                             existingTransaction->GetId())
-                            << TErrorAttribute("winner_transaction", existingTransaction->GetDescription());
+                            << TErrorAttribute("winner_transaction", existingTransaction->GetErrorDescription());
                     }
                 }
             }

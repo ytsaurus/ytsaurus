@@ -249,7 +249,6 @@ public:
                     coordinatorCellId);
 
                 auto proxy = Owner_->MakeSupervisorProxy(coordinatorCellId);
-
                 auto req = proxy->CommitTransaction();
                 ToProto(req->mutable_transaction_id(), Id_);
                 for (const auto& cellId : participantGuids) {

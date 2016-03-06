@@ -6,8 +6,6 @@
 
 #include <yt/server/job_proxy/public.h>
 
-#include <yt/core/concurrency/thread_affinity.h>
-
 #include <yt/core/misc/process.h>
 
 #include <yt/core/tools/tools.h>
@@ -23,25 +21,29 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DECLARE_REFCOUNTED_CLASS(TUnsafeEnvironmentBuilder)
+
 class TUnsafeEnvironmentBuilder
     : public IEnvironmentBuilder
 {
 public:
     TUnsafeEnvironmentBuilder()
-        : ProxyPath(GetExecPath())
+        : ProxyPath_(GetExecPath())
     { }
 
-    IProxyControllerPtr CreateProxyController(
+    virtual IProxyControllerPtr CreateProxyController(
         NYTree::INodePtr config,
         const TJobId& jobId,
-        const TSlot& slot,
-        const Stroka& workingDirectory) override;
+        const TOperationId& operationId,
+        TSlotPtr slot) override;
 
 private:
     friend class TUnsafeProxyController;
 
-    Stroka ProxyPath;
+    const Stroka ProxyPath_;
 };
+
+DEFINE_REFCOUNTED_TYPE(TUnsafeEnvironmentBuilder)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -54,18 +56,16 @@ public:
     TUnsafeProxyController(
         const Stroka& proxyPath,
         const TJobId& jobId,
-        const TSlot& slot,
-        const Stroka& workingDirectory,
-        TUnsafeEnvironmentBuilder* envBuilder)
-        : ProxyPath(proxyPath)
-        , WorkingDirectory(workingDirectory)
-        , JobId(jobId)
-        , Slot(slot)
-        , Logger(ExecAgentLogger)
-        , Process(New<TProcess>(proxyPath))
-        , EnvironmentBuilder(envBuilder)
-        , OnExit(NewPromise<void>())
-        , WaitingThread(ThreadFunc, this)
+        const TOperationId& operationId,
+        TSlotPtr slot,
+        TUnsafeEnvironmentBuilderPtr environmentBuilder)
+        : ProxyPath_(proxyPath)
+        , JobId_(jobId)
+        , OperationId_(operationId)
+        , Slot_(slot)
+        , Process_(New<TProcess>(proxyPath))
+        , EnvironmentBuilder_(environmentBuilder)
+        , WaitingThread_(ThreadFunc, this)
     {
         Logger.AddTag("JobId: %v", jobId);
     }
@@ -73,45 +73,43 @@ public:
     virtual TFuture<void> Run() override
     {
         LOG_INFO("Starting job proxy in unsafe environment (WorkDir: %v)",
-            WorkingDirectory);
+            Slot_->GetWorkingDirectory());
 
-        Process->AddArguments({
+        Process_->AddArguments({
             "--job-proxy",
-            "--config",
-            ProxyConfigFileName,
-            "--job-id",
-            ToString(JobId),
-            "--working-dir",
-            WorkingDirectory
+            "--config", ProxyConfigFileName,
+            "--job-id", ToString(JobId_),
+            "--operation-id", ToString(OperationId_),
+            "--working-dir", Slot_->GetWorkingDirectory()
         });
 
 #ifdef _linux_
-        for (const auto& path : Slot.GetCGroupPaths()) {
-            Process->AddArguments({
+        for (const auto& path : Slot_->GetCGroupPaths()) {
+            Process_->AddArguments({
                 "--cgroup",
                 path
             });
         }
 #endif
 
-        LOG_INFO("Spawning a job proxy (Path: %v)", ProxyPath);
+        LOG_INFO("Spawning a job proxy (Path: %v)", ProxyPath_);
 
         try {
-            ProcessFinished = Process->Spawn();
+            ProcessFinished_ = Process_->Spawn();
         } catch (const std::exception& ex) {
             return MakeFuture(TError("Failed to spawn job pxoxy") << ex);
         }
 
         LOG_INFO("Job proxy started (ProcessId: %v)",
-            Process->GetProcessId());
+            Process_->GetProcessId());
 
         // Unref is called in the thread.
         Ref();
-        WaitingThread.Start();
+        WaitingThread_.Start();
 
-        WaitingThread.Detach();
+        WaitingThread_.Detach();
 
-        return OnExit;
+        return ProxyExited_;
     }
 
     // Safe to call multiple times
@@ -119,18 +117,18 @@ public:
     {
         LOG_INFO("Killing job in unsafe environment (ProcessGroup: %v)", group.GetFullPath());
 
-        // One certaily can say that Process->Spawn exited
-        // before this line due to thread affinity
-        if (Process->IsStarted() && !Process->IsFinished()) {
+        // One can be certain that Spawn is already finished
+        // before this line due to thread affinity.
+        if (Process_->IsStarted() && !Process_->IsFinished()) {
             try {
-                Process->Kill(SIGKILL);
+                Process_->Kill(SIGKILL);
             } catch (const std::exception& ex) {
                 LOG_FATAL(ex, "Failed to kill job proxy: kill failed");
             }
         }
 
         // Wait until job proxy finishes.
-        OnExit.Get();
+        ProxyExited_.Get();
 
         try {
             RunKiller(group.GetFullPath());
@@ -154,33 +152,34 @@ private:
     {
         LOG_INFO("Waiting for job proxy to finish");
 
-        auto error = WaitFor(ProcessFinished);
+        auto error = WaitFor(ProcessFinished_);
         LOG_INFO(error, "Job proxy finished");
 
         if (!error.IsOK()) {
             error = TError("Job proxy failed") << error;
         }
 
-        OnExit.Set(error);
+        ProxyExited_.Set(error);
     }
 
-    const Stroka ProxyPath;
-    const Stroka WorkingDirectory;
-    const TJobId JobId;
-    const TSlot& Slot;
+    const Stroka ProxyPath_;
+    const TJobId JobId_;
+    const TOperationId OperationId_;
+    const TSlotPtr Slot_;
 
-    NLogging::TLogger Logger;
+    const TProcessPtr Process_;
+    const TUnsafeEnvironmentBuilderPtr EnvironmentBuilder_;
 
-    TProcessPtr Process;
-    TFuture<void> ProcessFinished;
-    TIntrusivePtr<TUnsafeEnvironmentBuilder> EnvironmentBuilder;
+    TFuture<void> ProcessFinished_;
 
-    TSpinLock SpinLock;
-    TError Error;
+    TSpinLock SpinLock_;
+    TError Error_;
 
-    TPromise<void> OnExit;
+    TPromise<void> ProxyExited_ = NewPromise<void>();
 
-    TThread WaitingThread;
+    TThread WaitingThread_;
+
+    NLogging::TLogger Logger = ExecAgentLogger;
 };
 
 #else
@@ -190,12 +189,15 @@ class TUnsafeProxyController
     : public IProxyController
 {
 public:
-    explicit TUnsafeProxyController(const TJobId& jobId)
+    TUnsafeProxyController(
+        const TJobId& jobId,
+        const TOperationId& operationId)
         : Logger(ExecAgentLogger)
-        , OnExit(NewPromise<void>())
         , WaitingThread(ThreadFunc, this)
     {
-        Logger.AddTag("JobId: %v", jobId);
+        Logger.AddTag("JobId: %v, OperationId: %v",
+            jobId,
+            operationId);
     }
 
     TFuture<void> Run()
@@ -205,13 +207,13 @@ public:
 
         LOG_INFO("Running dummy job");
 
-        return OnExit;
+        return ProxyExited_;
     }
 
     virtual void Kill(const TNonOwningCGroup& group) override
     {
         LOG_INFO("Killing dummy job");
-        OnExit.Get();
+        ProxyExited_.Get();
     }
 
 private:
@@ -219,7 +221,7 @@ private:
     {
         TIntrusivePtr<TUnsafeProxyController> controller(reinterpret_cast<TUnsafeProxyController*>(param));
         controller->ThreadMain();
-        return NULL;
+        return nullptr;
     }
 
     void ThreadMain()
@@ -229,12 +231,12 @@ private:
         // This might help with scheduler debugging under Windows.
         Sleep(TDuration::Seconds(5));
         LOG_INFO("Dummy job finished");
-        OnExit.Set(TError("Jobs are not supported under Windows"));
+        ProxyExited_.Set(TError("Jobs are not supported under Windows"));
     }
 
     NLogging::TLogger Logger;
-    TPromise<void> OnExit;
-    TThread WaitingThread;
+    TPromise<void> ProxyExited_ = NewPromise<void>();
+    TThread WaitingThread_;
 };
 
 #endif
@@ -242,18 +244,23 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 IProxyControllerPtr TUnsafeEnvironmentBuilder::CreateProxyController(
-    NYTree::INodePtr config,
+    NYTree::INodePtr /*config*/,
     const TJobId& jobId,
-    const TSlot& slot,
-    const Stroka& workingDirectory)
+    const TOperationId& operationId,
+    TSlotPtr slot)
 {
 #ifndef _win_
-    return New<TUnsafeProxyController>(ProxyPath, jobId, slot, workingDirectory, this);
+    return New<TUnsafeProxyController>(
+        ProxyPath_,
+        jobId,
+        operationId,
+        slot,
+        this);
 #else
-    UNUSED(config);
     UNUSED(slot);
-    UNUSED(workingDirectory);
-    return New<TUnsafeProxyController>(jobId);
+    return New<TUnsafeProxyController>(
+        jobId,
+        operationId);
 #endif
 }
 

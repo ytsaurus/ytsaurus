@@ -74,14 +74,14 @@ void TSchedulingContextBase::StartJob(TOperationPtr operation, TJobStartRequestP
 {
     auto startTime = GetNow();
     auto job = New<TJob>(
-        jobStartRequest->id,
-        jobStartRequest->type,
+        jobStartRequest->Id,
+        jobStartRequest->Type,
         operation,
         Node_,
         startTime,
-        jobStartRequest->resourceLimits,
-        jobStartRequest->restarted,
-        jobStartRequest->specBuilder);
+        jobStartRequest->ResourceLimits,
+        jobStartRequest->Restarted,
+        jobStartRequest->SpecBuilder);
     StartedJobs_.push_back(job);
 }
 

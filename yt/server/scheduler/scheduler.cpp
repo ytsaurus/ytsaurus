@@ -158,9 +158,12 @@ public:
         ProfilingExecutor_->Start();
 
         auto nameTable = New<TNameTable>();
+        auto options = New<TTableWriterOptions>();
+        options->ValidateDuplicateIds = true;
+
         EventLogWriter_ = CreateSchemalessBufferedTableWriter(
             Config_->EventLog,
-            New<TTableWriterOptions>(),
+            options,
             Bootstrap_->GetMasterClient(),
             nameTable,
             Config_->EventLog->Path);
@@ -280,7 +283,9 @@ public:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         if (static_cast<int>(IdToOperation_.size()) >= Config_->MaxOperationCount) {
-            THROW_ERROR_EXCEPTION("Limit for the number of concurrent operations %v has been reached",
+            THROW_ERROR_EXCEPTION(
+                EErrorCode::TooManyOperations,
+                "Limit for the number of concurrent operations %v has been reached",
                 Config_->MaxOperationCount);
         }
 
@@ -312,6 +317,11 @@ public:
             TInstant::Now());
         operation->SetCleanStart(true);
         operation->SetState(EOperationState::Initializing);
+
+        auto error = Strategy_->CanAddOperation(operation);
+        if (!error.IsOK()) {
+            THROW_ERROR error;
+        }
 
         LOG_INFO("Starting operation (OperationType: %v, OperationId: %v, TransactionId: %v, User: %v)",
             type,
@@ -529,6 +539,7 @@ public:
 
             auto* startInfo = response->add_jobs_to_start();
             ToProto(startInfo->mutable_job_id(), job->GetId());
+            ToProto(startInfo->mutable_operation_id(), operation->GetId());
             *startInfo->mutable_resource_limits() = job->ResourceUsage().ToNodeResources();
 
             // Build spec asynchronously.
@@ -1768,15 +1779,7 @@ private:
 
     void OnJobRunning(TJobPtr job, const TJobStatus& status)
     {
-        auto operation = FindOperation(job->GetOperationId());
-        YCHECK(operation);
-
-        if (operation->GetState() == EOperationState::Running) {
-            auto controller = operation->GetController();
-            BIND(&IOperationController::OnJobRunning, controller, job->GetId(), status)
-                .AsyncVia(controller->GetCancelableInvoker())
-                .Run();
-        }
+        // Do nothing.
     }
 
     void OnJobWaiting(TJobPtr)

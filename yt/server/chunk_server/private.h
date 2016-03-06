@@ -27,8 +27,8 @@ DEFINE_ENUM(EAddReplicaReason,
 DEFINE_ENUM(ERemoveReplicaReason,
     (None)
     (IncrementalHeartbeat)
-    (FailedToApprove)
-    (ChunkIsDead)
+    (ApproveTimeout)
+    (ChunkDestroyed)
     (NodeDisposed)
 );
 

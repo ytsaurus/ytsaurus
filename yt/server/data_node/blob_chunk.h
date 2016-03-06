@@ -89,9 +89,13 @@ private:
     void DoReadMeta(
         TChunkReadGuard readGuard,
         TCachedChunkMetaCookie cookie);
-    void DoReadBlockSet(
+    TFuture<void> OnBlocksExtLoaded(
         TReadBlockSetSessionPtr session,
         const TWorkloadDescriptor& workloadDescriptor);
+    void DoReadBlockSet(
+        TReadBlockSetSessionPtr session,
+        const TWorkloadDescriptor& workloadDescriptor,
+        TPendingIOGuard pendingIOGuard);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

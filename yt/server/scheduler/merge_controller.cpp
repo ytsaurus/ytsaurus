@@ -13,6 +13,7 @@
 
 #include <yt/ytlib/table_client/chunk_meta_extensions.h>
 #include <yt/ytlib/table_client/chunk_slices_fetcher.h>
+#include <yt/ytlib/table_client/unversioned_row.h>
 
 namespace NYT {
 namespace NScheduler {
@@ -329,7 +330,7 @@ protected:
     }
 
     //! Finishes the current task.
-    void EndTask()
+    virtual void EndTaskIfActive()
     {
         if (!HasActiveTask())
             return;
@@ -347,7 +348,7 @@ protected:
     void EndTaskIfLarge()
     {
         if (HasLargeActiveTask()) {
-            EndTask();
+            EndTaskIfActive();
         }
     }
 
@@ -366,11 +367,12 @@ protected:
     }
 
     //! Add chunk to the current task's pool.
-    void AddPendingChunkSlice(TChunkSlicePtr chunkSlice)
+    virtual void AddPendingChunkSlice(TChunkSlicePtr chunkSlice)
     {
-        auto stripe = CurrentTaskStripes[chunkSlice->GetChunkSpec()->table_index()];
+        auto tableIndex = chunkSlice->GetChunkSpec()->table_index();
+        auto stripe = CurrentTaskStripes[tableIndex];
         if (!stripe) {
-            stripe = CurrentTaskStripes[chunkSlice->GetChunkSpec()->table_index()] = New<TChunkStripe>();
+            stripe = CurrentTaskStripes[tableIndex] = New<TChunkStripe>(InputTables[tableIndex].IsForeign());
         }
 
         i64 chunkDataSize = chunkSlice->GetDataSize();
@@ -440,7 +442,7 @@ protected:
             LOG_INFO("Processing inputs");
 
             ClearCurrentTaskStripes();
-            for (auto chunk : CollectInputChunks()) {
+            for (auto chunk : CollectPrimaryInputChunks()) {
                 ProcessInputChunk(chunk);
             }
         }
@@ -465,7 +467,7 @@ protected:
     {
         // Close the last task, if any.
         if (CurrentTaskDataSize > 0) {
-            EndTask();
+            EndTaskIfActive();
         }
     }
 
@@ -519,7 +521,7 @@ protected:
             : IsCompleteChunk(chunkSpec);
     }
 
-    //! Initializes #obIOConfig and #TableReaderOptions.
+    //! Initializes #JobIOConfig and #TableReaderOptions.
     void InitJobIOConfig()
     {
         JobIOConfig = CloneYsonSerializable(Spec->JobIO);
@@ -556,9 +558,7 @@ private:
     {
         if (IsTeleportChunk(*chunkSpec)) {
             // Merge is not needed. Copy the chunk directly to the output.
-            if (HasActiveTask()) {
-                EndTask();
-            }
+            EndTaskIfActive();
             AddTeleportChunk(chunkSpec);
             return;
         }
@@ -995,6 +995,7 @@ protected:
 
     };
 
+public:
     struct TKeyEndpoint
     {
         EEndpointType Type;
@@ -1020,6 +1021,7 @@ protected:
                 : MaxBoundaryKey;
         }
     };
+protected:
 
     std::vector<TKeyEndpoint> Endpoints;
 
@@ -1033,6 +1035,11 @@ protected:
 
     virtual TKeyColumns GetSpecKeyColumns() = 0;
 
+    virtual bool ShouldSlicePrimaryTableByKeys()
+    {
+        return true;
+    }
+
     virtual bool IsTeleportChunk(const TChunkSpec& chunkSpec) const override
     {
         YUNREACHABLE();
@@ -1043,15 +1050,20 @@ protected:
         return false;
     }
 
-    virtual void CustomPrepare() override
+    virtual void AdjustKeyColumns()
     {
-        // NB: Base member is not called intentionally.
-
-        auto specKeyColumns = GetSpecKeyColumns();
+        const auto& specKeyColumns = GetSpecKeyColumns();
         LOG_INFO("Spec key columns are %v", specKeyColumns);
 
         KeyColumns = CheckInputTablesSorted(specKeyColumns);
         LOG_INFO("Adjusted key columns are %v", KeyColumns);
+    }
+
+    virtual void CustomPrepare() override
+    {
+        // NB: Base member is not called intentionally.
+
+        AdjustKeyColumns();
 
         CalculateSizes();
 
@@ -1066,13 +1078,11 @@ protected:
                 Logger);
         }
 
-        bool sliceByKeys = true;
-
         ChunkSlicesFetcher = New<TChunkSlicesFetcher>(
             Config->Fetcher,
             ChunkSliceSize,
             KeyColumns,
-            sliceByKeys,
+            ShouldSlicePrimaryTableByKeys(),
             InputNodeDirectory,
             GetCancelableInvoker(),
             scraperCallback,
@@ -1084,12 +1094,17 @@ protected:
         WaitFor(ChunkSlicesFetcher->Fetch())
             .ThrowOnError();
 
-        CollectEndpoints();
+        if (ShouldSlicePrimaryTableByKeys()) {
+            CollectEndpoints();
 
-        LOG_INFO("Sorting %v endpoints", static_cast<int>(Endpoints.size()));
-        SortEndpoints();
+            LOG_INFO("Sorting %v endpoints", static_cast<int>(Endpoints.size()));
+            SortEndpoints();
 
-        FindTeleportChunks();
+            if (GetTeleportTableIndex()) {
+                FindTeleportChunks();
+            }
+        }
+        ProcessForeignInputTables();
         BuildTasks();
 
         FinishPreparation();
@@ -1137,7 +1152,7 @@ protected:
 
     virtual bool IsTeleportCandidate(TRefCountedChunkSpecPtr chunkSpec) const
     {
-        return !chunkSpec->lower_limit().has_row_index() && 
+        return !chunkSpec->lower_limit().has_row_index() &&
             !chunkSpec->upper_limit().has_row_index();
     }
 
@@ -1145,6 +1160,9 @@ protected:
     {
         return true;
     }
+
+    virtual void ProcessForeignInputTables()
+    { }
 };
 
 DEFINE_DYNAMIC_PHOENIX_TYPE(TSortedMergeControllerBase::TManiacTask);
@@ -1232,11 +1250,11 @@ private:
 
             if (currentChunkSpec) {
                 if (chunkSlice->GetChunkSpec() == currentChunkSpec) {
-                    if (endpoint.Type == EEndpointType::Right && 
-                        CompareRows(maxKey, endpoint.MaxBoundaryKey, KeyColumns.size()) == 0) 
+                    if (endpoint.Type == EEndpointType::Right &&
+                        CompareRows(maxKey, endpoint.MaxBoundaryKey, KeyColumns.size()) == 0)
                     {
                         // The last slice of a full chunk.
-                        currentChunkSpec = nullptr;
+                        currentChunkSpec.Reset();
                         auto completeChunk = chunkSlice->GetChunkSpec();
 
                         bool isManiacTeleport = CompareRows(
@@ -1254,7 +1272,7 @@ private:
 
                     continue;
                 } else {
-                    currentChunkSpec = nullptr;
+                    currentChunkSpec.Reset();
                 }
             }
 
@@ -1356,7 +1374,7 @@ private:
                 }
                 lastBreakpoint = nextBreakpoint;
 
-                EndTask();
+                EndTaskIfActive();
             };
 
             while (!HasLargeActiveTask() && !maniacs.empty()) {
@@ -1392,9 +1410,7 @@ private:
         }
 
         YCHECK(globalOpenedSlices.empty());
-        if (HasActiveTask()) {
-            EndTask();
-        }
+        EndTaskIfActive();
     }
 
     void EndManiacTask()
@@ -1500,16 +1516,17 @@ IOperationControllerPtr CreateMergeController(
 
 ////////////////////////////////////////////////////////////////////
 
-class TReduceController
+class TReduceControllerBase
     : public TSortedMergeControllerBase
 {
 public:
-    TReduceController(
+    TReduceControllerBase(
         TSchedulerConfigPtr config,
-        TReduceOperationSpecPtr spec,
+        TReduceOperationSpecBasePtr spec,
+        TReduceOperationOptionsPtr options,
         IOperationHost* host,
         TOperation* operation)
-        : TSortedMergeControllerBase(config, spec, config->ReduceOperationOptions, host, operation)
+        : TSortedMergeControllerBase(config, spec, options, host, operation)
         , Spec(spec)
     { }
 
@@ -1529,20 +1546,40 @@ public:
 
         using NYT::Persist;
         Persist(context, StartRowIndex);
+        Persist(context, ForeignKeyColumnCount);
     }
 
-private:
-    DECLARE_DYNAMIC_PHOENIX_TYPE(TReduceController, 0xacd16dbc);
+protected:
+    DECLARE_DYNAMIC_PHOENIX_TYPE(TReduceControllerBase, 0xf913ed08);
 
-    TReduceOperationSpecPtr Spec;
+    TReduceOperationSpecBasePtr Spec;
 
     i64 StartRowIndex = 0;
-    TNullable<int> TeleportOutputTable;
 
+    //! Number of key columns for foreign tables.
+    int ForeignKeyColumnCount = 0;
+
+    TNullable<int> TeleportOutputTable;
+    std::vector<std::deque<TRefCountedChunkSpecPtr>> ForeignInputChunks;
+    TChunkSlicePtr CurrentTaskFirstChunkSlice;
+    TChunkSlicePtr CurrentTaskLastChunkSlice;
 
     virtual void DoInitialize() override
     {
         TSortedMergeControllerBase::DoInitialize();
+
+        int teleportOutputCount = 0;
+        for (int i = 0; i < static_cast<int>(OutputTables.size()); ++i) {
+            if (OutputTables[i].Path.GetTeleport()) {
+                ++teleportOutputCount;
+                TeleportOutputTable = i;
+            }
+        }
+
+        if (teleportOutputCount > 1) {
+            THROW_ERROR_EXCEPTION("Too many teleport output tables: maximum allowed 1, actual %v",
+                teleportOutputCount);
+        }
 
         ValidateUserFileCount(Spec->Reducer, "reducer");
     }
@@ -1552,210 +1589,74 @@ private:
         return false;
     }
 
-    virtual bool IsTeleportCandidate(TRefCountedChunkSpecPtr chunkSpec) const override
+    virtual void ProcessForeignInputTables() override
     {
-        return
-            TSortedMergeControllerBase::IsTeleportCandidate(chunkSpec) &&
-            InputTables[chunkSpec->table_index()].Path.GetTeleport();
+        ForeignInputChunks = CollectForeignInputChunks();
     }
 
-    virtual void SortEndpoints() override
+    void AddForeignTablesToTask(
+        const TOwningKey& primaryMinKey,
+        const TOwningKey& primaryMaxKey)
     {
-        std::sort(
-            Endpoints.begin(),
-            Endpoints.end(),
-            [=] (const TKeyEndpoint& lhs, const TKeyEndpoint& rhs) -> bool {
-                int cmpResult = CompareRows(lhs.GetKey(), rhs.GetKey());
-                if (cmpResult != 0) {
-                    return cmpResult < 0;
-                }
+        YCHECK(ForeignKeyColumnCount > 0 && ForeignKeyColumnCount <= static_cast<int>(KeyColumns.size()));
 
-                cmpResult = static_cast<int>(lhs.Type) - static_cast<int>(rhs.Type);
-                if (cmpResult != 0) {
-                    return cmpResult < 0;
-                }
-
-                // If keys (trimmed to key columns) are equal, we put slices in
-                // the same order they are in the original table.
-                cmpResult = lhs.ChunkSlice->GetChunkSpec()->table_row_index() -
-                    rhs.ChunkSlice->GetChunkSpec()->table_row_index();
-                if (cmpResult != 0) {
-                    return cmpResult < 0;
-                }
-
-                return (reinterpret_cast<intptr_t>(lhs.ChunkSlice->GetChunkSpec().Get())
-                    - reinterpret_cast<intptr_t>(rhs.ChunkSlice->GetChunkSpec().Get())) < 0;
-            });
-    }
-
-    virtual void FindTeleportChunks() override
-    {
-        const int prefixLength = static_cast<int>(KeyColumns.size());
-
-        {
-            int teleportOutputCount = 0;
-            for (int i = 0; i < static_cast<int>(OutputTables.size()); ++i) {
-                if (OutputTables[i].Path.GetTeleport()) {
-                    ++teleportOutputCount;
-                    TeleportOutputTable = i;
-                }
-            }
-
-            if (teleportOutputCount > 1) {
-                THROW_ERROR_EXCEPTION("Too many teleport output tables: maximum allowed 1, actual %v",
-                    teleportOutputCount);
-            }
+        TOwningKey primaryMinPrefix;
+        TOwningKey primaryMaxPrefix;
+        if (ForeignKeyColumnCount < static_cast<int>(KeyColumns.size())) {
+            primaryMinPrefix = GetKeyPrefix(primaryMinKey, ForeignKeyColumnCount);
+            primaryMaxPrefix = GetKeyPrefixSuccessor(primaryMaxKey, ForeignKeyColumnCount);
+        } else {
+            primaryMinPrefix = primaryMinKey;
+            primaryMaxPrefix = primaryMaxKey;
         }
 
-        TRefCountedChunkSpecPtr currentChunkSpec = nullptr;
-        int startTeleportIndex = -1;
-
-        int openedSlicesCount = 0;
-        auto previousKey = EmptyKey();
-
-        for (int i = 0; i < static_cast<int>(Endpoints.size()); ++i) {
-            auto& endpoint = Endpoints[i];
-            auto& key = endpoint.GetKey();
-
-            openedSlicesCount += endpoint.Type == EEndpointType::Left ? 1 : -1;
-
-            if (currentChunkSpec &&
-                endpoint.ChunkSlice->GetChunkSpec() == currentChunkSpec)
-            {
-                previousKey = key;
-                continue;
-            }
-
-            if (CompareRows(key, previousKey, prefixLength) == 0) {
-                currentChunkSpec = nullptr;
-                // Don't update previous key - it's equal to current.
-                continue;
-            }
-
-            if (currentChunkSpec) {
-                auto& previousEndpoint = Endpoints[i - 1];
-                const auto& chunkSpec = previousEndpoint.ChunkSlice->GetChunkSpec();
-
+        for (auto& tableChunks : ForeignInputChunks) {
+            auto firstUsed = tableChunks.cbegin();
+            for (const auto& chunkSpec :  tableChunks) {
                 TOwningKey maxKey, minKey;
                 YCHECK(TryGetBoundaryKeys(chunkSpec->chunk_meta(), &minKey, &maxKey));
-                if (previousEndpoint.Type == EEndpointType::Right
-                    && CompareRows(maxKey, previousEndpoint.GetKey(), prefixLength) == 0)
-                {
-                    for (int j = startTeleportIndex; j < i; ++j) {
-                        Endpoints[j].IsTeleport = true;
-                    }
+                if (CompareRows(primaryMinPrefix, maxKey, ForeignKeyColumnCount) > 0) {
+                    ++firstUsed;
+                    continue;
                 }
-            }
-
-            currentChunkSpec = nullptr;
-            previousKey = key;
-
-            // No current Teleport candidate.
-            const auto& chunkSpec = endpoint.ChunkSlice->GetChunkSpec();
-            TOwningKey maxKey, minKey;
-            YCHECK(TryGetBoundaryKeys(chunkSpec->chunk_meta(), &minKey, &maxKey));
-            if (endpoint.Type == EEndpointType::Left &&
-                CompareRows(minKey, endpoint.GetKey(), prefixLength) == 0 &&
-                IsTeleportCandidate(chunkSpec) &&
-                openedSlicesCount == 1)
-            {
-                currentChunkSpec = endpoint.ChunkSlice->GetChunkSpec();
-                startTeleportIndex = i;
-            }
-        }
-
-        if (currentChunkSpec) {
-            // Last Teleport candidate.
-            auto& previousEndpoint = Endpoints.back();
-            const auto& chunkSpec = previousEndpoint.ChunkSlice->GetChunkSpec();
-            YCHECK(previousEndpoint.Type == EEndpointType::Right);
-            TOwningKey maxKey, minKey;
-            YCHECK(TryGetBoundaryKeys(chunkSpec->chunk_meta(), &minKey, &maxKey));
-            if (CompareRows(maxKey, previousEndpoint.GetKey(), prefixLength) == 0) {
-                for (int j = startTeleportIndex; j < static_cast<int>(Endpoints.size()); ++j) {
-                    Endpoints[j].IsTeleport = true;
+                if (CompareRows(primaryMaxPrefix, minKey, ForeignKeyColumnCount) < 0) {
+                    break;
                 }
+                AddPendingChunkSlice(CreateChunkSlice(chunkSpec, primaryMinPrefix, primaryMaxPrefix));
             }
+            tableChunks.erase(tableChunks.cbegin(), firstUsed);
         }
     }
 
-    virtual void BuildTasks() override
+    virtual void AddPendingChunkSlice(TChunkSlicePtr chunkSlice) override
     {
-        const int prefixLength = static_cast<int>(KeyColumns.size());
+        if (!CurrentTaskFirstChunkSlice) {
+            CurrentTaskFirstChunkSlice = chunkSlice;
+        }
+        CurrentTaskLastChunkSlice = chunkSlice;
 
-        yhash_set<TChunkSlicePtr> openedSlices;
-        TNullable<TOwningKey> lastBreakpoint = Null;
+        TSortedMergeControllerBase::AddPendingChunkSlice(chunkSlice);
+    }
 
-        int startIndex = 0;
-        while (startIndex < static_cast<int>(Endpoints.size())) {
-            auto& key = Endpoints[startIndex].GetKey();
+    virtual void EndTaskIfActive() override
+    {
+        if (!HasActiveTask())
+            return;
 
-            int currentIndex = startIndex;
-            while (currentIndex < static_cast<int>(Endpoints.size())) {
-                // Iterate over endpoints with equal keys.
-                auto& endpoint = Endpoints[currentIndex];
-                auto& currentKey = endpoint.GetKey();
+        if (ForeignKeyColumnCount != 0) {
+            YCHECK(CurrentTaskFirstChunkSlice);
+            YCHECK(CurrentTaskFirstChunkSlice->LowerLimit().HasKey());
+            YCHECK(CurrentTaskLastChunkSlice->LowerLimit().HasKey());
 
-                if (CompareRows(key, currentKey, prefixLength) != 0) {
-                    // This key is over.
-                    break;
-                }
-
-                if (endpoint.IsTeleport) {
-                    YCHECK(openedSlices.empty());
-                    EndTask();
-
-                    auto chunkSpec = endpoint.ChunkSlice->GetChunkSpec();
-                    AddTeleportChunk(chunkSpec);
-
-                    while (currentIndex < static_cast<int>(Endpoints.size()) &&
-                        Endpoints[currentIndex].IsTeleport &&
-                        Endpoints[currentIndex].ChunkSlice->GetChunkSpec() == chunkSpec)
-                    {
-                        ++currentIndex;
-                    }
-                    continue;
-                }
-
-                if (endpoint.Type == EEndpointType::Left) {
-                    YCHECK(openedSlices.insert(endpoint.ChunkSlice).second);
-                    ++currentIndex;
-                    continue;
-                }
-
-                // Right non-Teleport endpoint.
-                YCHECK(endpoint.Type == EEndpointType::Right);
-
-                auto it = openedSlices.find(endpoint.ChunkSlice);
-                YCHECK(it != openedSlices.end());
-                AddPendingChunkSlice(CreateChunkSlice(*it, lastBreakpoint));
-                openedSlices.erase(it);
-                ++currentIndex;
-            }
-
-            if (HasLargeActiveTask()) {
-                YCHECK(!lastBreakpoint || CompareRows(key, *lastBreakpoint, prefixLength) != 0);
-
-                auto nextBreakpoint = GetKeyPrefixSuccessor(key, prefixLength);
-                LOG_TRACE("Finish current task, flushing %v chunks at key %v",
-                    openedSlices.size(),
-                    nextBreakpoint);
-
-                for (const auto& chunkSlice : openedSlices) {
-                    AddPendingChunkSlice(CreateChunkSlice(chunkSlice, lastBreakpoint, nextBreakpoint));
-                }
-                lastBreakpoint = nextBreakpoint;
-
-                EndTask();
-            }
-
-            startIndex = currentIndex;
+            AddForeignTablesToTask(
+                CurrentTaskFirstChunkSlice->LowerLimit().GetKey(),
+                CurrentTaskLastChunkSlice->UpperLimit().GetKey());
         }
 
-        YCHECK(openedSlices.empty());
-        if (HasActiveTask()) {
-            EndTask();
-        }
+        CurrentTaskFirstChunkSlice.Reset();
+        CurrentTaskLastChunkSlice.Reset();
+
+        TSortedMergeControllerBase::EndTaskIfActive();
     }
 
     virtual std::vector<TRichYPath> GetInputTablePaths() const override
@@ -1820,10 +1721,11 @@ private:
             Files);
 
         auto* reduceJobSpecExt = JobSpecTemplate.MutableExtension(TReduceJobSpecExt::reduce_job_spec_ext);
-        const auto& sortBy = GetCommonInputKeyPrefix();
+        const auto& sortBy = GetCommonInputKeyPrefix(&TInputTable::IsPrimary);
         YCHECK(sortBy.size() >= KeyColumns.size());
         ToProto(reduceJobSpecExt->mutable_key_columns(), sortBy);
         reduceJobSpecExt->set_reduce_key_column_count(KeyColumns.size());
+        reduceJobSpecExt->set_join_key_column_count(ForeignKeyColumnCount);
 
         ManiacJobSpecTemplate.CopyFrom(JobSpecTemplate);
     }
@@ -1854,6 +1756,281 @@ private:
     }
 };
 
+////////////////////////////////////////////////////////////////////
+
+class TReduceController
+    : public TReduceControllerBase
+{
+public:
+    TReduceController(
+        TSchedulerConfigPtr config,
+        TReduceOperationSpecPtr spec,
+        IOperationHost* host,
+        TOperation* operation)
+        : TReduceControllerBase(config, spec, config->ReduceOperationOptions, host, operation)
+        , Spec(spec)
+    { }
+
+private:
+    DECLARE_DYNAMIC_PHOENIX_TYPE(TReduceController, 0xacd16dbc);
+
+    TReduceOperationSpecPtr Spec;
+
+    virtual void DoInitialize() override
+    {
+        TReduceControllerBase::DoInitialize();
+
+        int foreignInputCount = 0;
+        for (auto& table : InputTables) {
+            if (table.Path.GetForeign()) {
+                if (table.Path.GetTeleport()) {
+                    THROW_ERROR_EXCEPTION("Foreign table can not be specified as teleport");
+                }
+                if (table.Path.GetRanges().size() > 1) {
+                    THROW_ERROR_EXCEPTION("Reduce operation does not support foreign tables with multiple ranges");
+                }
+                ++foreignInputCount;
+            }
+        }
+
+        if (foreignInputCount == InputTables.size()) {
+            THROW_ERROR_EXCEPTION("At least one non-foreign input table is required");
+        }
+
+        if (foreignInputCount == 0 && !Spec->JoinBy.empty()) {
+            THROW_ERROR_EXCEPTION("At least one foreign input table is required");
+        }
+
+        if (foreignInputCount != 0 && Spec->JoinBy.empty()) {
+            THROW_ERROR_EXCEPTION("Join key columns are required");
+        }
+    }
+
+    virtual void AdjustKeyColumns() override
+    {
+        const auto& specKeyColumns = GetSpecKeyColumns();
+        LOG_INFO("Spec key columns are %v", specKeyColumns);
+
+        KeyColumns = CheckInputTablesSorted(specKeyColumns, &TInputTable::IsPrimary);
+        LOG_INFO("Adjusted key columns are %v", KeyColumns);
+
+        const auto& specForeignKeyColumns = Spec->JoinBy;
+        ForeignKeyColumnCount = specForeignKeyColumns.size();
+        if (ForeignKeyColumnCount != 0) {
+            LOG_INFO("Foreign key columns are %v", specForeignKeyColumns);
+
+            CheckInputTablesSorted(specForeignKeyColumns, &TInputTable::IsForeign);
+
+            if (KeyColumns.size() <= specForeignKeyColumns.size() ||
+                !CheckKeyColumnsCompatible(KeyColumns, specForeignKeyColumns))
+            {
+                    THROW_ERROR_EXCEPTION("Join key columns %v are not compatible with reduce columns %v",
+                        specForeignKeyColumns,
+                        KeyColumns);
+            }
+        }
+    }
+
+    virtual bool IsTeleportCandidate(TRefCountedChunkSpecPtr chunkSpec) const override
+    {
+        return
+            TSortedMergeControllerBase::IsTeleportCandidate(chunkSpec) &&
+            InputTables[chunkSpec->table_index()].Path.GetTeleport();
+    }
+
+    virtual void SortEndpoints() override
+    {
+        std::sort(
+            Endpoints.begin(),
+            Endpoints.end(),
+            [=] (const TKeyEndpoint& lhs, const TKeyEndpoint& rhs) -> bool {
+                int cmpResult = CompareRows(lhs.GetKey(), rhs.GetKey());
+                if (cmpResult != 0) {
+                    return cmpResult < 0;
+                }
+
+                cmpResult = static_cast<int>(lhs.Type) - static_cast<int>(rhs.Type);
+                if (cmpResult != 0) {
+                    return cmpResult < 0;
+                }
+
+                // If keys (trimmed to key columns) are equal, we put slices in
+                // the same order they are in the original table.
+                cmpResult = lhs.ChunkSlice->GetChunkSpec()->table_row_index() -
+                    rhs.ChunkSlice->GetChunkSpec()->table_row_index();
+                if (cmpResult != 0) {
+                    return cmpResult < 0;
+                }
+
+                return (reinterpret_cast<intptr_t>(lhs.ChunkSlice->GetChunkSpec().Get())
+                    - reinterpret_cast<intptr_t>(rhs.ChunkSlice->GetChunkSpec().Get())) < 0;
+            });
+    }
+
+    virtual void FindTeleportChunks() override
+    {
+        const int prefixLength = static_cast<int>(KeyColumns.size());
+
+        TRefCountedChunkSpecPtr currentChunkSpec;
+        int startTeleportIndex = -1;
+
+        int openedSlicesCount = 0;
+        auto previousKey = EmptyKey();
+
+        for (int i = 0; i < static_cast<int>(Endpoints.size()); ++i) {
+            auto& endpoint = Endpoints[i];
+            auto& key = endpoint.GetKey();
+
+            openedSlicesCount += endpoint.Type == EEndpointType::Left ? 1 : -1;
+
+            if (currentChunkSpec &&
+                endpoint.ChunkSlice->GetChunkSpec() == currentChunkSpec)
+            {
+                previousKey = key;
+                continue;
+            }
+
+            if (CompareRows(key, previousKey, prefixLength) == 0) {
+                currentChunkSpec.Reset();
+                // Don't update previous key - it's equal to current.
+                continue;
+            }
+
+            if (currentChunkSpec) {
+                auto& previousEndpoint = Endpoints[i - 1];
+                const auto& chunkSpec = previousEndpoint.ChunkSlice->GetChunkSpec();
+
+                TOwningKey maxKey, minKey;
+                YCHECK(TryGetBoundaryKeys(chunkSpec->chunk_meta(), &minKey, &maxKey));
+                if (previousEndpoint.Type == EEndpointType::Right
+                    && CompareRows(maxKey, previousEndpoint.GetKey(), prefixLength) == 0)
+                {
+                    for (int j = startTeleportIndex; j < i; ++j) {
+                        Endpoints[j].IsTeleport = true;
+                    }
+                }
+            }
+
+            currentChunkSpec.Reset();
+            previousKey = key;
+
+            // No current Teleport candidate.
+            const auto& chunkSpec = endpoint.ChunkSlice->GetChunkSpec();
+            TOwningKey maxKey, minKey;
+            YCHECK(TryGetBoundaryKeys(chunkSpec->chunk_meta(), &minKey, &maxKey));
+            if (endpoint.Type == EEndpointType::Left &&
+                CompareRows(minKey, endpoint.GetKey(), prefixLength) == 0 &&
+                IsTeleportCandidate(chunkSpec) &&
+                openedSlicesCount == 1)
+            {
+                currentChunkSpec = endpoint.ChunkSlice->GetChunkSpec();
+                startTeleportIndex = i;
+            }
+        }
+
+        if (currentChunkSpec) {
+            // Last Teleport candidate.
+            auto& previousEndpoint = Endpoints.back();
+            const auto& chunkSpec = previousEndpoint.ChunkSlice->GetChunkSpec();
+            YCHECK(previousEndpoint.Type == EEndpointType::Right);
+            TOwningKey maxKey, minKey;
+            YCHECK(TryGetBoundaryKeys(chunkSpec->chunk_meta(), &minKey, &maxKey));
+            if (CompareRows(maxKey, previousEndpoint.GetKey(), prefixLength) == 0) {
+                for (int j = startTeleportIndex; j < static_cast<int>(Endpoints.size()); ++j) {
+                    Endpoints[j].IsTeleport = true;
+                }
+            }
+        }
+    }
+
+    virtual void BuildTasks() override
+    {
+        const int prefixLength = static_cast<int>(KeyColumns.size());
+
+        yhash_set<TChunkSlicePtr> openedSlices;
+        TNullable<TOwningKey> lastBreakpoint = Null;
+
+        int startIndex = 0;
+        while (startIndex < static_cast<int>(Endpoints.size())) {
+            auto& key = Endpoints[startIndex].GetKey();
+
+            int currentIndex = startIndex;
+            while (currentIndex < static_cast<int>(Endpoints.size())) {
+                // Iterate over endpoints with equal keys.
+                auto& endpoint = Endpoints[currentIndex];
+                auto& currentKey = endpoint.GetKey();
+
+                if (CompareRows(key, currentKey, prefixLength) != 0) {
+                    // This key is over.
+                    break;
+                }
+
+                if (endpoint.IsTeleport) {
+                    YCHECK(openedSlices.empty());
+                    EndTaskIfActive();
+
+                    auto chunkSpec = endpoint.ChunkSlice->GetChunkSpec();
+                    AddTeleportChunk(chunkSpec);
+
+                    while (currentIndex < static_cast<int>(Endpoints.size()) &&
+                        Endpoints[currentIndex].IsTeleport &&
+                        Endpoints[currentIndex].ChunkSlice->GetChunkSpec() == chunkSpec)
+                    {
+                        ++currentIndex;
+                    }
+                    continue;
+                }
+
+                if (endpoint.Type == EEndpointType::Left) {
+                    YCHECK(openedSlices.insert(endpoint.ChunkSlice).second);
+                    ++currentIndex;
+                    continue;
+                }
+
+                // Right non-Teleport endpoint.
+                YCHECK(endpoint.Type == EEndpointType::Right);
+
+                auto it = openedSlices.find(endpoint.ChunkSlice);
+                YCHECK(it != openedSlices.end());
+                AddPendingChunkSlice(CreateChunkSlice(*it, lastBreakpoint));
+                openedSlices.erase(it);
+                ++currentIndex;
+            }
+
+            if (HasLargeActiveTask()) {
+                YCHECK(!lastBreakpoint || CompareRows(key, *lastBreakpoint, prefixLength) != 0);
+
+                auto nextBreakpoint = GetKeyPrefixSuccessor(key, prefixLength);
+                LOG_TRACE("Finish current task, flushing %v chunks at key %v",
+                    openedSlices.size(),
+                    nextBreakpoint);
+
+                for (const auto& chunkSlice : openedSlices) {
+                    AddPendingChunkSlice(CreateChunkSlice(chunkSlice, lastBreakpoint, nextBreakpoint));
+                }
+                lastBreakpoint = nextBreakpoint;
+
+                EndTaskIfActive();
+            }
+
+            startIndex = currentIndex;
+        }
+
+        YCHECK(openedSlices.empty());
+        EndTaskIfActive();
+    }
+
+    virtual TNullable<int> GetTeleportTableIndex() const override
+    {
+        return TeleportOutputTable;
+    }
+
+    virtual TKeyColumns GetSpecKeyColumns() override
+    {
+        return Spec->ReduceBy;
+    }
+};
+
 DEFINE_DYNAMIC_PHOENIX_TYPE(TReduceController);
 
 IOperationControllerPtr CreateReduceController(
@@ -1868,7 +2045,7 @@ IOperationControllerPtr CreateReduceController(
 ////////////////////////////////////////////////////////////////////
 
 class TJoinReduceController
-    : public TMergeControllerBase
+    : public TReduceControllerBase
 {
 public:
     TJoinReduceController(
@@ -1876,66 +2053,36 @@ public:
         TJoinReduceOperationSpecPtr spec,
         IOperationHost* host,
         TOperation* operation)
-        : TMergeControllerBase(config, spec, config->JoinReduceOperationOptions, host, operation)
+        : TReduceControllerBase(config, spec, config->JoinReduceOperationOptions, host, operation)
         , Spec(spec)
     { }
-
-    virtual void BuildBriefSpec(IYsonConsumer* consumer) const override
-    {
-        TMergeControllerBase::BuildBriefSpec(consumer);
-        BuildYsonMapFluently(consumer)
-            .Item("reducer").BeginMap()
-                .Item("command").Value(TrimCommandForBriefSpec(Spec->Reducer->Command))
-            .EndMap();
-    }
-
-    // Persistence.
-    virtual void Persist(TPersistenceContext& context) override
-    {
-        TMergeControllerBase::Persist(context);
-
-        using NYT::Persist;
-        Persist(context, KeyColumns);
-        Persist(context, StartRowIndex);
-    }
 
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TJoinReduceController, 0xc0fd3095);
 
     TJoinReduceOperationSpecPtr Spec;
 
-    //! The actual (adjusted) key columns.
-    std::vector<Stroka> KeyColumns;
-    i64 StartRowIndex = 0;
-
-    TChunkSlicesFetcherPtr ChunkSlicesFetcher;
-    TNullable<int> PrimaryTableIndex;
-
-
     virtual void DoInitialize() override
     {
-        TMergeControllerBase::DoInitialize();
+        TReduceControllerBase::DoInitialize();
 
         if (InputTables.size() < 2) {
             THROW_ERROR_EXCEPTION("At least two input tables are required");
         }
 
-        {
-            int primaryInputCount = 0;
-            for (int i = 0; i < static_cast<int>(InputTables.size()); ++i) {
-                if (InputTables[i].Path.GetPrimary()) {
-                    ++primaryInputCount;
-                    PrimaryTableIndex = i;
-                }
-                if (InputTables[i].Path.GetTeleport()) {
-                    THROW_ERROR_EXCEPTION("Teleport tables are not supported in join-reduce");
-                }
+        int primaryInputCount = 0;
+        for (int i = 0; i < static_cast<int>(InputTables.size()); ++i) {
+            if (!InputTables[i].Path.GetForeign()) {
+                ++primaryInputCount;
             }
+            if (InputTables[i].Path.GetTeleport()) {
+                THROW_ERROR_EXCEPTION("Teleport tables are not supported in join-reduce");
+            }
+        }
 
-            if (primaryInputCount != 1) {
-                THROW_ERROR_EXCEPTION("You must specify exactly one primary input table (%v specified)",
-                    primaryInputCount);
-            }
+        if (primaryInputCount != 1) {
+            THROW_ERROR_EXCEPTION("You must specify exactly one non-foreign (primary) input table (%v specified)",
+                primaryInputCount);
         }
 
         // For join reduce tables with multiple ranges are not supported.
@@ -1946,104 +2093,39 @@ private:
                 THROW_ERROR_EXCEPTION("Join reduce operation does not support tables with multiple ranges");
             }
         }
-        ValidateUserFileCount(Spec->Reducer, "reducer");
+
+        // Forbid teleport attribute for output tables.
+        if (GetTeleportTableIndex()) {
+            THROW_ERROR_EXCEPTION("Teleport tables are not supported in join-reduce");
+        }
     }
 
-    virtual bool IsRowCountPreserved() const override
-    {
-        return false;
-    }
-
-    virtual void CustomPrepare() override
+    virtual void AdjustKeyColumns() override
     {
         // NB: Base member is not called intentionally.
 
-        auto specKeyColumns = Spec->JoinBy;
+        const auto& specKeyColumns = GetSpecKeyColumns();
         LOG_INFO("Spec key columns are %v", specKeyColumns);
 
         KeyColumns = CheckInputTablesSorted(specKeyColumns);
         LOG_INFO("Adjusted key columns are %v", KeyColumns);
 
-        CalculateSizes();
-
-        TScrapeChunksCallback scraperCallback;
-        if (Spec->UnavailableChunkStrategy == EUnavailableChunkAction::Wait) {
-            scraperCallback = CreateScrapeChunksSessionCallback(
-                Config,
-                GetCancelableInvoker(),
-                Host->GetChunkLocationThrottlerManager(),
-                AuthenticatedInputMasterClient,
-                InputNodeDirectory,
-                Logger);
-        }
-
-        bool sliceByKeys = false;
-
-        ChunkSlicesFetcher = New<TChunkSlicesFetcher>(
-            Config->Fetcher,
-            ChunkSliceSize,
-            KeyColumns,
-            sliceByKeys,
-            InputNodeDirectory,
-            GetCancelableInvoker(),
-            scraperCallback,
-            Host->GetMasterClient(),
-            Logger);
-
-        ProcessInputs();
-
-        WaitFor(ChunkSlicesFetcher->Fetch())
-            .ThrowOnError();
-
-        BuildTasks();
-
-        FinishPreparation();
+        ForeignKeyColumnCount = KeyColumns.size();
     }
 
-    virtual void ProcessInputChunk(TRefCountedChunkSpecPtr chunkSpec) override
+    virtual void SortEndpoints() override
     {
-        if (chunkSpec->table_index() == PrimaryTableIndex) {
-            ChunkSlicesFetcher->AddChunk(chunkSpec);
-        }
+        YUNREACHABLE();
     }
 
-    void AddSecondaryTablesToTask(std::vector<int>& startIndexes)
+    virtual void FindTeleportChunks() override
     {
-        const int prefixLength = static_cast<int>(KeyColumns.size());
-
-        const auto& stripe = CurrentTaskStripes[*PrimaryTableIndex];
-        YCHECK(stripe && !stripe->ChunkSlices.empty());
-
-        const auto& primaryMinKey = stripe->ChunkSlices.front()->LowerLimit().GetKey();
-        const auto& primaryMaxKey = stripe->ChunkSlices.back()->UpperLimit().GetKey();
-
-        for (int tableIndex = 0; tableIndex < static_cast<int>(InputTables.size()); ++tableIndex) {
-            if (tableIndex == PrimaryTableIndex) {
-                continue;
-            }
-            const auto& chunks = InputTables[tableIndex].Chunks;
-            for (int chunkIndex = startIndexes[tableIndex]; chunkIndex < static_cast<int>(chunks.size()); ++chunkIndex) {
-                const auto& chunkSpec = chunks[chunkIndex];
-                TOwningKey maxKey, minKey;
-                YCHECK(TryGetBoundaryKeys(chunkSpec->chunk_meta(), &minKey, &maxKey));
-                if (CompareRows(primaryMinKey, maxKey, prefixLength) > 0) {
-                    startIndexes[tableIndex] = chunkIndex + 1;
-                    continue;
-                }
-                if (CompareRows(primaryMaxKey, minKey, prefixLength) < 0) {
-                    break;
-                }
-                AddPendingChunkSlice(CreateChunkSlice(chunkSpec, primaryMinKey, primaryMaxKey));
-            }
-        }
+        YUNREACHABLE();
     }
 
-    void BuildTasks()
+    virtual void BuildTasks() override
     {
         const auto& slices = ChunkSlicesFetcher->GetChunkSlices();
-
-        // Slices in primary table are ordered by key.
-        std::vector<int> startIndexes(InputTables.size());
 
         for (const auto& slice : slices) {
             YCHECK(slice->LowerLimit().HasKey());
@@ -2063,109 +2145,20 @@ private:
 
             AddPendingChunkSlice(slice);
 
-            if (HasLargeActiveTask()) {
-                AddSecondaryTablesToTask(startIndexes);
-                EndTask();
-            }
+            EndTaskIfLarge();
         }
-        if (HasActiveTask()) {
-            AddSecondaryTablesToTask(startIndexes);
-            EndTask();
-        }
+        EndTaskIfActive();
     }
 
-    virtual std::vector<TRichYPath> GetInputTablePaths() const override
+    virtual TKeyColumns GetSpecKeyColumns() override
     {
-        return Spec->InputTablePaths;
+        return Spec->JoinBy;
     }
 
-    virtual std::vector<TRichYPath> GetOutputTablePaths() const override
+    virtual bool ShouldSlicePrimaryTableByKeys() override
     {
-        return Spec->OutputTablePaths;
-    }
-
-    virtual std::vector<TPathWithStage> GetFilePaths() const override
-    {
-        std::vector<TPathWithStage> result;
-        for (const auto& path : Spec->Reducer->FilePaths) {
-            result.push_back(std::make_pair(path, EOperationStage::Reduce));
-        }
-        return result;
-    }
-
-    // Unsorted helpers.
-    virtual int GetCpuLimit() const override
-    {
-        return Spec->Reducer->CpuLimit;
-    }
-
-    virtual i64 GetAdditionalMemorySize(bool memoryReserveEnabled) const override
-    {
-        return GetMemoryReserve(memoryReserveEnabled, Spec->Reducer);
-    }
-
-    virtual bool IsSortedOutputSupported() const override
-    {
-        return true;
-    }
-
-    virtual bool IsTeleportChunk(const TChunkSpec& chunkSpec) const override
-    {
-        YUNREACHABLE();
-    }
-
-    virtual bool IsSingleStripeInput() const override
-    {
+        // JoinReduce slices by row indexes.
         return false;
-    }
-
-    virtual void InitJobSpecTemplate() override
-    {
-        YCHECK(!KeyColumns.empty());
-
-        JobSpecTemplate.set_type(static_cast<int>(EJobType::SortedReduce));
-        auto* schedulerJobSpecExt = JobSpecTemplate.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
-
-        AuxNodeDirectory->DumpTo(schedulerJobSpecExt->mutable_aux_node_directory());
-        schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());
-        ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), OutputTransactionId);
-        schedulerJobSpecExt->set_io_config(ConvertToYsonString(JobIOConfig).Data());
-
-        InitUserJobSpecTemplate(
-            schedulerJobSpecExt->mutable_user_job_spec(),
-            Spec->Reducer,
-            Files);
-
-        auto* reduceJobSpecExt = JobSpecTemplate.MutableExtension(TReduceJobSpecExt::reduce_job_spec_ext);
-        const auto& sortBy = GetCommonInputKeyPrefix();
-        YCHECK(sortBy.size() >= KeyColumns.size());
-        ToProto(reduceJobSpecExt->mutable_key_columns(), sortBy);
-        reduceJobSpecExt->set_reduce_key_column_count(KeyColumns.size());
-    }
-
-    virtual void CustomizeJoblet(TJobletPtr joblet) override
-    {
-        joblet->StartRowIndex = StartRowIndex;
-        StartRowIndex += joblet->InputStripeList->TotalRowCount;
-    }
-
-    virtual void CustomizeJobSpec(TJobletPtr joblet, TJobSpec* jobSpec) override
-    {
-        auto* schedulerJobSpecExt = jobSpec->MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
-        InitUserJobSpec(
-            schedulerJobSpecExt->mutable_user_job_spec(),
-            joblet,
-            GetAdditionalMemorySize(joblet->MemoryReserveEnabled));
-    }
-
-    virtual bool IsOutputLivePreviewSupported() const override
-    {
-        return true;
-    }
-
-    virtual bool IsBoundaryKeysFetchEnabled() const override
-    {
-        return true;
     }
 };
 
@@ -2184,4 +2177,3 @@ IOperationControllerPtr CreateJoinReduceController(
 
 } // namespace NScheduler
 } // namespace NYT
-

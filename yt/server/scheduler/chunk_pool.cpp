@@ -71,21 +71,14 @@ void AddStripeToList(
 
 ////////////////////////////////////////////////////////////////////
 
-TChunkStripe::TChunkStripe()
-    : WaitingChunkCount(0)
+TChunkStripe::TChunkStripe(bool foreign)
+    : Foreign(foreign)
 { }
 
-TChunkStripe::TChunkStripe(TChunkSlicePtr chunkSlice)
-    : WaitingChunkCount(0)
+TChunkStripe::TChunkStripe(TChunkSlicePtr chunkSlice, bool foreign)
+    : Foreign(foreign)
 {
-    ChunkSlices.push_back(chunkSlice);
-}
-
-TChunkStripe::TChunkStripe(const TChunkStripe& other)
-{
-    for (const auto& chunkSlice : other.ChunkSlices) {
-        ChunkSlices.push_back(chunkSlice);
-    }
+    ChunkSlices.emplace_back(std::move(chunkSlice));
 }
 
 TChunkStripeStatistics TChunkStripe::GetStatistics() const

@@ -45,6 +45,7 @@
 #include <yt/core/profiling/timing.h>
 
 #include <yt/core/concurrency/periodic_executor.h>
+#include <yt/core/concurrency/throughput_throttler.h>
 
 #include <yt/core/ytree/ypath_proxy.h>
 
@@ -74,7 +75,6 @@ using NChunkClient::TReadLimit;
 
 static const auto& Logger = ChunkServerLogger;
 static const auto& Profiler = ChunkServerProfiler;
-static const auto EnabledCheckPeriod = TDuration::Seconds(3);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -93,7 +93,11 @@ TChunkReplicator::TChunkReplicator(
     : Config_(config)
     , Bootstrap_(bootstrap)
     , ChunkPlacement_(chunkPlacement)
-    , ChunkRefreshDelay_(DurationToCpuDuration(config->ChunkRefreshDelay))
+    , ChunkRefreshDelay_(DurationToCpuDuration(Config_->ChunkRefreshDelay))
+    , JobThrottler_(CreateLimitedThrottler(
+        Config_->JobThrottler,
+        ChunkServerLogger,
+        NProfiling::TProfiler(ChunkServerProfiler.GetPathPrefix() + "/job_throttler")))
 {
     YCHECK(Config_);
     YCHECK(Bootstrap_);
@@ -115,7 +119,7 @@ void TChunkReplicator::Start()
     PropertiesUpdateExecutor_->Start();
 
     EnabledCheckExecutor_ = New<TPeriodicExecutor>(
-        Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::ChunkMaintenance),
+        Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::Default),
         BIND(&TChunkReplicator::OnCheckEnabled, MakeWeak(this)),
         Config_->ReplicatorEnabledCheckPeriod);
     EnabledCheckExecutor_->Start();
@@ -463,7 +467,7 @@ void TChunkReplicator::OnReplicaRemoved(
     RemoveReplicaFromQueues(
         chunkWithIndex.GetPtr(),
         TNodePtrWithIndex(node, chunkWithIndex.GetIndex()),
-        reason != ERemoveReplicaReason::ChunkIsDead);
+        reason != ERemoveReplicaReason::ChunkDestroyed);
 }
 
 void TChunkReplicator::ScheduleUnknownReplicaRemoval(
@@ -816,6 +820,10 @@ void TChunkReplicator::ScheduleNewJobs(
     std::vector<TJobPtr>* jobsToStart,
     std::vector<TJobPtr>* jobsToAbort)
 {
+    if (JobThrottler_->IsOverdraft()) {
+        return;
+    }
+
     auto chunkManager = Bootstrap_->GetChunkManager();
 
     const auto& resourceLimits = node->ResourceLimits();
@@ -826,6 +834,7 @@ void TChunkReplicator::ScheduleNewJobs(
             resourceUsage += job->ResourceUsage();
             jobsToStart->push_back(job);
             RegisterJob(std::move(job));
+            JobThrottler_->Acquire(1);
         }
     };
 

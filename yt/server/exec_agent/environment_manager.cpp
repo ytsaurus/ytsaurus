@@ -9,34 +9,34 @@ namespace NExecAgent {
 ////////////////////////////////////////////////////////////////////////////////
 
 TEnvironmentManager::TEnvironmentManager(TEnvironmentManagerConfigPtr config)
-    : Config(config)
+    : Config_(config)
 { }
 
-void TEnvironmentManager::Register(
-    const Stroka& envType,
-    IEnvironmentBuilderPtr envBuilder)
+void TEnvironmentManager::RegisterBuilder(
+    const Stroka& environmentName,
+    IEnvironmentBuilderPtr environmentBuilder)
 {
-    YCHECK(Builders.insert(std::make_pair(envType, envBuilder)).second);
+    YCHECK(Builders_.insert(std::make_pair(environmentName, environmentBuilder)).second);
 }
 
 IProxyControllerPtr TEnvironmentManager::CreateProxyController(
-    const Stroka& envName,
+    const Stroka& environmentName,
     const TJobId& jobId,
-    const TSlot& slot,
-    const Stroka& workingDirectory)
+    const TOperationId& operationId,
+    TSlotPtr slot)
 {
-    auto env = Config->FindEnvironment(envName);
+    auto env = Config_->FindEnvironment(environmentName);
 
-    auto it = Builders.find(env->Type);
-    if (it == Builders.end()) {
+    auto it = Builders_.find(env->Type);
+    if (it == Builders_.end()) {
         THROW_ERROR_EXCEPTION("No such environment type %Qv", env->Type);
     }
 
     return it->second->CreateProxyController(
         env->GetOptions(),
         jobId,
-        slot,
-        workingDirectory);
+        operationId,
+        slot);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -133,11 +133,11 @@ struct TJobStartRequest
         bool restarted,
         const TJobSpecBuilder& specBuilder);
 
-    const TJobId id;
-    const EJobType type;
-    const TJobResources resourceLimits;
-    const bool restarted;
-    const TJobSpecBuilder specBuilder;
+    const TJobId Id;
+    const EJobType Type;
+    const TJobResources ResourceLimits;
+    const bool Restarted;
+    const TJobSpecBuilder SpecBuilder;
 };
 
 DEFINE_REFCOUNTED_TYPE(TJobStartRequest)

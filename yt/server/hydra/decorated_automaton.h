@@ -153,6 +153,8 @@ public:
 
     TVersion GetCommittedVersion() const;
 
+    TVersion GetPingVersion() const;
+
     void LoadSnapshot(
         int snapshotId,
         TVersion version,
@@ -212,6 +214,8 @@ private:
     std::atomic<TVersion> LoggedVersion_;
     std::atomic<TVersion> AutomatonVersion_;
     std::atomic<TVersion> CommittedVersion_;
+
+    bool RotatingChangelog_ = false;
 
     //! AutomatonVersion_ <= SnapshotVersion_
     TVersion SnapshotVersion_;

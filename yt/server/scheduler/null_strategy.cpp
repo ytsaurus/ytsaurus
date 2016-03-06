@@ -22,6 +22,11 @@ public:
     virtual void ResetState() override
     { }
 
+    virtual TError CanAddOperation(TOperationPtr operation) override
+    {
+        return TError();
+    }
+
     virtual void BuildOperationAttributes(const TOperationId& /*operationId*/, IYsonConsumer* /*consumer*/) override
     { }
 

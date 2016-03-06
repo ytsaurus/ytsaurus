@@ -9,16 +9,12 @@ TAsyncSemaphore::TAsyncSemaphore(i64 totalSlots)
     : TotalSlots_(totalSlots)
     , FreeSlots_(totalSlots)
 {
-    YCHECK(TotalSlots_ > 0);
+    YCHECK(TotalSlots_ >= 0);
 }
 
 void TAsyncSemaphore::Release(i64 slots /* = 1 */)
 {
     YCHECK(slots >= 0);
-
-    TPromise<void> readyEventToSet;
-    TPromise<void> freeEventToSet;
-    std::vector<TWaiter> waitersToRelease;
 
     {
         TGuard<TSpinLock> guard(SpinLock_);
@@ -26,32 +22,54 @@ void TAsyncSemaphore::Release(i64 slots /* = 1 */)
         FreeSlots_ += slots;
         YASSERT(FreeSlots_ <= TotalSlots_);
 
-        while (!Waiters_.empty() && FreeSlots_ >= Waiters_.front().Slots) {
-            auto& waiter = Waiters_.front();
-            FreeSlots_ -= waiter.Slots;
-            waitersToRelease.push_back(std::move(waiter));
-            Waiters_.pop();
+        if (Releasing_) {
+            return;
         }
 
-        if (ReadyEvent_ && FreeSlots_ > 0) {
-            swap(readyEventToSet, ReadyEvent_);
+        Releasing_ = true;
+    }
+
+    while (true) {
+        std::vector<TWaiter> waitersToRelease;
+        TPromise<void> readyEventToSet;
+        TPromise<void> freeEventToSet;
+
+        {
+            TGuard<TSpinLock> guard(SpinLock_);
+
+            while (!Waiters_.empty() && FreeSlots_ >= Waiters_.front().Slots) {
+                auto& waiter = Waiters_.front();
+                FreeSlots_ -= waiter.Slots;
+                waitersToRelease.push_back(std::move(waiter));
+                Waiters_.pop();
+            }
+
+            if (ReadyEvent_ && FreeSlots_ > 0) {
+                swap(readyEventToSet, ReadyEvent_);
+            }
+
+            if (FreeEvent_ && FreeSlots_ == TotalSlots_) {
+                swap(freeEventToSet, FreeEvent_);
+            }
+
+            if (waitersToRelease.empty() && !readyEventToSet && !freeEventToSet) {
+                Releasing_ = false;
+                break;
+            }
         }
 
-        if (FreeEvent_ && FreeSlots_ == TotalSlots_) {
-            swap(freeEventToSet, FreeEvent_);
+        for (const auto& waiter : waitersToRelease) {
+            // NB: This may lead to a reentrant invocation of Release if the invoker discards the callback.
+            waiter.Invoker->Invoke(BIND(waiter.Handler, Passed(TAsyncSemaphoreGuard(this, waiter.Slots))));
         }
-    }
 
-    for (const auto& waiter : waitersToRelease) {
-        waiter.Invoker->Invoke(BIND(waiter.Handler, Passed(TAsyncSemaphoreGuard(this, waiter.Slots))));
-    }
+        if (readyEventToSet) {
+            readyEventToSet.Set();
+        }
 
-    if (readyEventToSet) {
-        readyEventToSet.Set();
-    }
-
-    if (freeEventToSet) {
-        freeEventToSet.Set();
+        if (freeEventToSet) {
+            freeEventToSet.Set();
+        }
     }
 }
 

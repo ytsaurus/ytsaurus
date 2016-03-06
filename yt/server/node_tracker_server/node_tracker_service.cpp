@@ -47,11 +47,11 @@ public:
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(RegisterNode));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(FullHeartbeat)
-            .SetHeavy(true)
-            .SetInvoker(GetGuardedAutomatonInvoker(EAutomatonThreadQueue::FullHeartbeat)));
+            .SetHeavy(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(IncrementalHeartbeat)
-            .SetHeavy(true)
-            .SetInvoker(GetGuardedAutomatonInvoker(EAutomatonThreadQueue::IncrementalHeartbeat)));
+            .SetMaxQueueSize(10000)
+            .SetMaxConcurrency(10000)
+            .SetHeavy(true));
     }
 
 private:

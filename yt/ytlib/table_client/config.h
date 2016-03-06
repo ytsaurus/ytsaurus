@@ -67,17 +67,20 @@ class TChunkWriterOptions
     : public virtual NChunkClient::TEncodingWriterOptions
 {
 public:
-    bool VerifySorted;
+    bool ValidateSorted;
 
-    //ToDo(psushin): use it!
-    NChunkClient::TChannels Channels;
+    bool ValidateRowWeight;
+
+    bool ValidateDuplicateIds;
 
     TChunkWriterOptions()
     {
-        RegisterParameter("verify_sorted", VerifySorted)
+        RegisterParameter("validate_sorted", ValidateSorted)
             .Default(true);
-        RegisterParameter("channels", Channels)
-            .Default(NChunkClient::TChannels());
+        RegisterParameter("validate_row_weight", ValidateRowWeight)
+            .Default(false);
+        RegisterParameter("validate_duplicate_ids", ValidateDuplicateIds)
+            .Default(false);
     }
 };
 
@@ -152,8 +155,8 @@ DEFINE_REFCOUNTED_TYPE(TChunkReaderConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTableReaderConfig
-    : public NChunkClient::TMultiChunkReaderConfig
-    , public TChunkReaderConfig
+    : public virtual NChunkClient::TMultiChunkReaderConfig
+    , public virtual TChunkReaderConfig
 {
 public:
     bool SuppressAccessTracking;

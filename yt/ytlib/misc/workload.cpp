@@ -48,6 +48,7 @@ i64 GetBasicPriority(EWorkloadCategory category)
         case EWorkloadCategory::SystemTabletCompaction:
         case EWorkloadCategory::SystemTabletPartitioning:
         case EWorkloadCategory::SystemTabletPreload:
+        case EWorkloadCategory::SystemArtifactCacheDownload:
         case EWorkloadCategory::UserBatch:
             return -CategoryPriorityFactor * 1;
 
