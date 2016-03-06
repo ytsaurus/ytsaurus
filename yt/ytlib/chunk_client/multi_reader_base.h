@@ -72,6 +72,8 @@ protected:
 
     virtual void OnReaderFinished();
 
+    virtual void DoOpen() = 0;
+
     bool OnEmptyRead(bool readerFinished);
 
     void RegisterFailedReader(IReaderBasePtr reader);
