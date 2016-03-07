@@ -67,6 +67,10 @@ private:
             .SetPresent(isGood));
         descriptors->push_back(TAttributeDescriptor("io_weight")
             .SetPresent(isGood));
+        descriptors->push_back(TAttributeDescriptor("resource_usage")
+            .SetPresent(isGood));
+        descriptors->push_back(TAttributeDescriptor("resource_limits")
+            .SetPresent(isGood));
     }
 
     virtual bool GetBuiltinAttribute(const Stroka& key, IYsonConsumer* consumer) override
@@ -204,6 +208,17 @@ private:
                 return true;
             }
 
+            if (key == "resource_usage") {
+                BuildYsonFluently(consumer)
+                    .Value(node->ResourceUsage());
+                return true;
+            }
+
+            if (key == "resource_limits") {
+                BuildYsonFluently(consumer)
+                    .Value(node->ResourceLimits());
+                return true;
+            }
         }
 
         return TNonversionedObjectProxyBase::GetBuiltinAttribute(key, consumer);
