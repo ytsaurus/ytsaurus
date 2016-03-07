@@ -68,9 +68,7 @@ class TChunkWriterOptions
 {
 public:
     bool ValidateSorted;
-
     bool ValidateRowWeight;
-
     bool ValidateDuplicateIds;
 
     TChunkWriterOptions()

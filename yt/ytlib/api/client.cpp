@@ -757,8 +757,7 @@ private:
                     std::move(writer),
                     std::move(functionRegistry),
                     options.EnableCodeCache);
-            },
-            Connection_->GetFunctionRegistry());
+            });
     }
 
     TQueryStatistics DoExecute(

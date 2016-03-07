@@ -185,6 +185,18 @@ class TestAcls(YTEnvSetup):
         with pytest.raises(YtError): op.abort(user="u1")
         op.abort(user="u")
 
+    def test_scheduler_operation_abort_by_owners(self):
+        self._prepare_scheduler_test()
+        create_user("u1")
+        op = map(
+            dont_track=True,
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            command="cat; sleep 1",
+            user="u",
+            spec={"owners": ["u1"]})
+        op.abort(user="u1")
+
     def test_inherit1(self):
         set("//tmp/p", {})
         set("//tmp/p/@inherit_acl", False)

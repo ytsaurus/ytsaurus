@@ -25,9 +25,7 @@ using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTableSchema GetIntermediateSchema(
-    TConstGroupClausePtr groupClause,
-    IFunctionRegistryPtr functionRegistry)
+TTableSchema GetIntermediateSchema(TConstGroupClausePtr groupClause)
 {
     auto schema = TTableSchema();
 
@@ -38,12 +36,9 @@ TTableSchema GetIntermediateSchema(
     }
 
     for (auto item : groupClause->AggregateItems) {
-        auto intermediateType = functionRegistry
-            ->GetAggregateFunction(item.AggregateFunction)
-            ->GetStateType(item.Expression->Type);
         schema.AppendColumn(TColumnSchema(
             item.Name,
-            intermediateType));
+            item.StateType));
     }
 
     return schema;
@@ -51,8 +46,7 @@ TTableSchema GetIntermediateSchema(
 
 std::pair<TConstQueryPtr, std::vector<TConstQueryPtr>> CoordinateQuery(
     TConstQueryPtr query,
-    const std::vector<TRefiner>& refiners,
-    IFunctionRegistryPtr functionRegistry)
+    const std::vector<TRefiner>& refiners)
 {
     auto Logger = BuildLogger(query);
 
@@ -82,9 +76,7 @@ std::pair<TConstQueryPtr, std::vector<TConstQueryPtr>> CoordinateQuery(
     if (query->GroupClause) {
         if (refiners.size() > 1) {
             auto subqueryGroupClause = New<TGroupClause>();
-            subqueryGroupClause->GroupedTableSchema = GetIntermediateSchema(
-                query->GroupClause,
-                functionRegistry);
+            subqueryGroupClause->GroupedTableSchema = GetIntermediateSchema(query->GroupClause);
             subqueryGroupClause->GroupItems = query->GroupClause->GroupItems;
             subqueryGroupClause->AggregateItems = query->GroupClause->AggregateItems;
             subqueryGroupClause->IsMerge = query->GroupClause->IsMerge;
@@ -254,8 +246,7 @@ TQueryStatistics CoordinateAndExecute(
     ISchemafulWriterPtr writer,
     const std::vector<TRefiner>& refiners,
     std::function<TEvaluateResult(TConstQueryPtr, int)> evaluateSubquery,
-    std::function<TQueryStatistics(TConstQueryPtr, ISchemafulReaderPtr, ISchemafulWriterPtr)> evaluateTop,
-    IFunctionRegistryPtr functionRegistry)
+    std::function<TQueryStatistics(TConstQueryPtr, ISchemafulReaderPtr, ISchemafulWriterPtr)> evaluateTop)
 {
     auto Logger = BuildLogger(query);
 
@@ -263,7 +254,7 @@ TQueryStatistics CoordinateAndExecute(
 
     TConstQueryPtr topQuery;
     std::vector<TConstQueryPtr> subqueries;
-    std::tie(topQuery, subqueries) = CoordinateQuery(query, refiners, functionRegistry);
+    std::tie(topQuery, subqueries) = CoordinateQuery(query, refiners);
 
     LOG_DEBUG("Finished coordinating query");
 

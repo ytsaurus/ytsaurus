@@ -102,7 +102,7 @@ void TNodeBase::GetKeySelf(TReqGetKey* /*request*/, TRspGetKey* response, TCtxGe
     }
 
     context->SetResponseInfo("Key: %v", key);
-    response->set_value(key);
+    response->set_value(ConvertToYsonString(key).Data());
 
     context->Reply();
 }

@@ -126,6 +126,9 @@ public:
 
     TTestingOperationOptionsPtr TestingOperationOptions;
 
+    //! Users that can change operation parameters, e.g abort or suspend it.
+    std::vector<Stroka> Owners;
+
     TOperationSpecBase()
     {
         RegisterParameter("intermediate_data_account", IntermediateDataAccount)
@@ -181,6 +184,9 @@ public:
             .Default();
 
         RegisterParameter("testing", TestingOperationOptions)
+            .Default();
+
+        RegisterParameter("owners", Owners)
             .Default();
 
         RegisterValidator([&] () {

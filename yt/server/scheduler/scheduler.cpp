@@ -160,6 +160,7 @@ public:
         auto nameTable = New<TNameTable>();
         auto options = New<TTableWriterOptions>();
         options->ValidateDuplicateIds = true;
+        options->ValidateRowWeight = true;
 
         EventLogWriter_ = CreateSchemalessBufferedTableWriter(
             Config_->EventLog,
@@ -303,6 +304,13 @@ public:
             spec = UpdateNode(specTemplate, spec)->AsMap();
         }
 
+        TOperationSpecBasePtr operationSpec;
+        try {
+            operationSpec = ConvertTo<TOperationSpecBasePtr>(spec);
+        } catch (const std::exception& ex) {
+            THROW_ERROR_EXCEPTION("Error parsing operation spec") << ex;
+        }
+
         // Create operation object.
         auto operationId = MakeRandomId(
             EObjectType::Operation,
@@ -314,6 +322,7 @@ public:
             userTransaction,
             spec,
             user,
+            operationSpec->Owners,
             TInstant::Now());
         operation->SetCleanStart(true);
         operation->SetState(EOperationState::Initializing);
