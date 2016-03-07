@@ -77,6 +77,7 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(NYTree::IMapNodePtr, Spec);
 
     DEFINE_BYVAL_RO_PROPERTY(Stroka, AuthenticatedUser);
+    DEFINE_BYVAL_RO_PROPERTY(std::vector<Stroka>, Owners);
 
     DEFINE_BYVAL_RO_PROPERTY(TInstant, StartTime);
     DEFINE_BYVAL_RW_PROPERTY(TNullable<TInstant>, FinishTime);
@@ -139,6 +140,7 @@ public:
         NApi::ITransactionPtr userTransaction,
         NYTree::IMapNodePtr spec,
         const Stroka& authenticatedUser,
+        const std::vector<Stroka>& owners,
         TInstant startTime,
         EOperationState state = EOperationState::Initializing,
         bool suspended = false);

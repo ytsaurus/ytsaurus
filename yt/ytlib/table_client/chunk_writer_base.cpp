@@ -107,7 +107,6 @@ void TChunkWriterBase::ValidateRowWeight(i64 weight)
     THROW_ERROR_EXCEPTION("Row weight is too large")
         << TErrorAttribute("row_weight", weight)
         << TErrorAttribute("row_weight_limit", Config_->MaxRowWeight);
-
 }
 
 void TChunkWriterBase::ValidateDuplicateIds(const TUnversionedRow row, TNameTablePtr nameTable)

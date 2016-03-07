@@ -2160,6 +2160,56 @@ private:
         // JoinReduce slices by row indexes.
         return false;
     }
+
+
+    /*
+    virtual void InitJobSpecTemplate() override
+    {
+        YCHECK(!KeyColumns.empty());
+
+        JobSpecTemplate.set_type(static_cast<int>(EJobType::SortedReduce));
+        auto* schedulerJobSpecExt = JobSpecTemplate.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
+
+        AuxNodeDirectory->DumpTo(schedulerJobSpecExt->mutable_aux_node_directory());
+        schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());
+        ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), OutputTransactionId);
+        schedulerJobSpecExt->set_io_config(ConvertToYsonString(JobIOConfig).Data());
+
+        InitUserJobSpecTemplate(
+            schedulerJobSpecExt->mutable_user_job_spec(),
+            Spec->Reducer,
+            Files);
+
+        auto* reduceJobSpecExt = JobSpecTemplate.MutableExtension(TReduceJobSpecExt::reduce_job_spec_ext);
+        ToProto(reduceJobSpecExt->mutable_key_columns(), KeyColumns);
+        reduceJobSpecExt->set_reduce_key_column_count(KeyColumns.size());
+    }
+
+    virtual void CustomizeJoblet(TJobletPtr joblet) override
+    {
+        joblet->StartRowIndex = StartRowIndex;
+        StartRowIndex += joblet->InputStripeList->TotalRowCount;
+    }
+
+    virtual void CustomizeJobSpec(TJobletPtr joblet, TJobSpec* jobSpec) override
+    {
+        auto* schedulerJobSpecExt = jobSpec->MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
+        InitUserJobSpec(
+            schedulerJobSpecExt->mutable_user_job_spec(),
+            joblet,
+            GetAdditionalMemorySize(joblet->MemoryReserveEnabled));
+    }
+
+    virtual bool IsOutputLivePreviewSupported() const override
+    {
+        return true;
+    }
+
+    virtual bool IsBoundaryKeysFetchEnabled() const override
+    {
+        return true;
+    }
+    */
 };
 
 DEFINE_DYNAMIC_PHOENIX_TYPE(TJoinReduceController);

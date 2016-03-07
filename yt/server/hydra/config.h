@@ -30,6 +30,10 @@ public:
     //! Interval between consequent automatic flushes.
     TDuration FlushPeriod;
 
+    //! When |false|, no |fdatasync| calls are actually made.
+    //! Should only be used in tests and local mode.
+    bool EnableSync;
+
     TFileChangelogConfig()
     {
         RegisterParameter("index_block_size", IndexBlockSize)
@@ -40,6 +44,8 @@ public:
             .Default((i64) 16 * 1024 * 1024);
         RegisterParameter("flush_period", FlushPeriod)
             .Default(TDuration::MilliSeconds(10));
+        RegisterParameter("enable_sync", EnableSync)
+            .Default(true);
     }
 };
 

@@ -1904,7 +1904,10 @@ private:
             PartitionJobIOConfig->TableWriter);
 
         YCHECK(partitionCount > 0);
-
+        
+        partitionCount = AdjustPartitionCountToWriterBufferSize(
+            partitionCount, 
+            PartitionJobIOConfig->TableWriter);
         SimpleSort = (partitionCount == 1);
 
         if (SimpleSort) {

@@ -255,7 +255,7 @@ class TestJobProber(YTEnvSetup):
                 "data_size_per_job": 1
             })
 
-        result = abandon_job(op.jobs[3])
+        abandon_job(op.jobs[3])
 
         op.resume_jobs()
         op.track()
@@ -318,6 +318,24 @@ class TestSchedulerMapCommands(YTEnvSetup):
 
         new_data = read_table("//tmp/t2", verbose=False)
         assert sorted(row.items() for row in new_data) == [[("index", i)] for i in xrange(count)]
+
+    def test_file_with_integer_name(self):
+        create("table", "//tmp/t_input")
+        create("table", "//tmp/t_output")
+
+        write_table("//tmp/t_input", [{"hello": "world"}])
+
+        file = "//tmp/1000"
+        create("file", file)
+        write_file(file, "{value=42};\n")
+
+        map(in_="//tmp/t_input",
+            out=["//tmp/t_output"],
+            command="cat 1000 >&2; cat",
+            file=[file],
+            verbose=True)
+
+        assert read_table("//tmp/t_output") == [{"hello": "world"}]
 
     def test_two_inputs_at_the_same_time(self):
         create("table", "//tmp/t_input")
@@ -882,14 +900,14 @@ assert input == '{"foo"="bar";};'
 print "key\\tsubkey\\tvalue"
 
 """
-        create("file", "//tmp/mapper.sh")
-        write_file("//tmp/mapper.sh", mapper)
+        create("file", "//tmp/mapper.py")
+        write_file("//tmp/mapper.py", mapper)
 
         create("table", "//tmp/t_out")
         map(in_="//tmp/t_in",
             out="//tmp/t_out",
-            command="python mapper.sh",
-            file="//tmp/mapper.sh",
+            command="python mapper.py",
+            file="//tmp/mapper.py",
             spec={"mapper": {
                     "input_format": yson.loads("<format=text>yson"),
                     "output_format": yson.loads("<has_subkey=true>yamr")

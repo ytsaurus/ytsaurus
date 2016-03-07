@@ -21,11 +21,12 @@ function addHostNameSuffix(name, suffix)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-function YtApplicationHosts(logger, coordinator, show_ports)
+function YtApplicationHosts(logger, coordinator, show_ports, rewrite_yandex_team_domain)
 {
     this.logger = logger;
     this.coordinator = coordinator;
     this.show_ports = show_ports;
+    this.rewrite_yandex_team_domain = rewrite_yandex_team_domain;
 }
 
 YtApplicationHosts.prototype.dispatch = function(req, rsp, next)
@@ -59,12 +60,30 @@ YtApplicationHosts.prototype._dispatchBasic = function(req, rsp, suffix)
     .sort(function(lhs, rhs) { return lhs.fitness - rhs.fitness; })
     .map(function(entry) { return addHostNameSuffix(entry.name, suffix); });
 
-    if (!this.show_ports) {
-        hosts = hosts.map(function(entry) { return entry.split(":")[0]; });
+    if (this.rewrite_yandex_team_domain) {
+        var origin = req.headers.origin;
+        if (typeof(origin) === "string") {
+            try {
+                origin = url.parse(origin).hostname;
+                if (/\yandex-team\.ru$/.test(origin)) {
+                    hosts = hosts.map(function(entry) {
+                        return entry.replace("yandex.net", "yandex-team.ru");
+                    });
+                }
+            } catch (ex) {
+            }
+        }
     }
 
+    if (!this.show_ports) {
+        hosts = hosts.map(function(entry) {
+            return entry.split(":")[0];
+        });
+    }
+
+    var accept = req.headers.accept;
     var mime, body;
-    mime = utils.bestAcceptedType(["application/json", "text/plain"], req.headers["accept"]);
+    mime = utils.bestAcceptedType(["application/json", "text/plain"], accept);
     mime = mime || "application/json";
 
     switch (mime) {

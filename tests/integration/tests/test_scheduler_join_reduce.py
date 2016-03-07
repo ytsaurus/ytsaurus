@@ -103,6 +103,37 @@ class TestSchedulerJoinReduceCommands(YTEnvSetup):
         assert get("//tmp/out/@sorted")
 
     @unix_only
+    def test_join_reduce_primary_attribute_compatibility(self):
+        create("table", "//tmp/in1")
+        write_table("//tmp/in1", [{"key": 2*i, "value": i+1} for i in range(4)], sorted_by = "key")
+
+        create("table", "//tmp/in2")
+        write_table("//tmp/in2", [{"key": 2*i-1, "value": i+5} for i in range(4)], sorted_by = "key")
+
+        create("table", "//tmp/out")
+
+        join_reduce(
+            in_ = ["//tmp/in1", "<primary=true>//tmp/in2"],
+            out = "<sorted_by=[key]>//tmp/out",
+            command = "cat",
+            spec = {
+                "reducer": {
+                    "format": "dsv"}})
+
+        assert read_table("//tmp/out") == \
+            [
+                {"key": "-1", "value": "5"},
+                {"key": "0", "value": "1"},
+                {"key": "1", "value": "6"},
+                {"key": "2", "value": "2"},
+                {"key": "3", "value": "7"},
+                {"key": "4", "value": "3"},
+                {"key": "5", "value": "8"},
+            ]
+
+        assert get("//tmp/out/@sorted")
+
+    @unix_only
     def test_join_reduce_control_attributes_yson(self):
         create("table", "//tmp/in1")
         write_table(
@@ -231,7 +262,6 @@ class TestSchedulerJoinReduceCommands(YTEnvSetup):
 
         join_reduce(
             in_ = ["//tmp/in1", "<foreign=true>//tmp/in2"],
-
             out = "//tmp/out",
             command = "cat")
 
@@ -468,7 +498,10 @@ echo {v = 2} >&7
             table_writer = {"block_size": 1024})
 
         join_reduce(
-            in_ = [ '<ranges=[{lower_limit={row_index=100;key=["10010"]};upper_limit={row_index=540;key=["10280"]}}];primary=true>//tmp/in1', "<foreign=true>//tmp/in2" ],
+            in_ = [
+                '<ranges=[{lower_limit={row_index=100;key=["10010"]};upper_limit={row_index=540;key=["10280"]}}];primary=true>//tmp/in1',
+                "<foreign=true>//tmp/in2"
+            ],
             out = "//tmp/out",
             command = """awk '{print $0"\tji="ENVIRON["YT_JOB_INDEX"]"\tsi="ENVIRON["YT_START_ROW_INDEX"]}' """,
             join_by = ["key"],

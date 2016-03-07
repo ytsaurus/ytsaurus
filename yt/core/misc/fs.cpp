@@ -494,7 +494,8 @@ void Umount(const Stroka& path)
 {
 #ifdef _linux_
     int result = ::umount(~path);
-    if (result < 0) {
+    // EINVAL for ::umount means that nothing mounted at this point.
+    if (result < 0 && LastSystemError() != EINVAL) {
         THROW_ERROR_EXCEPTION("Failed to umount %v", path)
             << TError::FromSystem();
     }
