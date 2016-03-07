@@ -82,6 +82,7 @@ public:
         , Scheduler("", "scheduler", "start scheduler")
         , JobProxy("", "job-proxy", "start job proxy")
         , JobId("", "job-id", "job id (for job proxy mode)", false, "", "ID")
+        , OperationId("", "operation-id", "operation id (for job proxy mode)", false, "", "ID")
 #ifdef _unix_
         , Tool("", "tool", "tool id", false, "", "ID")
         , Spec("", "spec", "tool spec", false, "", "SPEC")
@@ -106,6 +107,7 @@ public:
         CmdLine.add(Scheduler);
         CmdLine.add(JobProxy);
         CmdLine.add(JobId);
+        CmdLine.add(OperationId);
 #ifdef _unix_
         CmdLine.add(Tool);
         CmdLine.add(Spec);
@@ -133,6 +135,7 @@ public:
     TCLAP::SwitchArg Scheduler;
     TCLAP::SwitchArg JobProxy;
     TCLAP::ValueArg<Stroka> JobId;
+    TCLAP::ValueArg<Stroka> OperationId;
 
 #ifdef _unix_
     TCLAP::ValueArg<Stroka> Tool;

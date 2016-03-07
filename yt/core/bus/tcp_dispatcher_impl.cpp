@@ -8,8 +8,6 @@
 
 #include <yt/core/concurrency/periodic_executor.h>
 
-#include <yt/core/concurrency/periodic_executor.h>
-
 #ifdef _linux_
     #include <sys/socket.h>
     #include <sys/un.h>

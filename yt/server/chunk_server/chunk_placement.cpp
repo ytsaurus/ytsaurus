@@ -275,7 +275,7 @@ TNodeList TChunkPlacement::GetWriteTargets(
     if (preferredHostName) {
         auto nodeTracker = Bootstrap_->GetNodeTracker();
         auto* preferredNode = nodeTracker->FindNodeByHostName(*preferredHostName);
-        if (preferredNode) {
+        if (preferredNode && preferredNode->GetLocalState() == ENodeState::Online) {
             tryAdd(preferredNode, true);
         }
     }

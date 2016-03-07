@@ -47,8 +47,8 @@ struct IEnvironmentBuilder
     virtual IProxyControllerPtr CreateProxyController(
         NYTree::INodePtr config,
         const TJobId& jobId,
-        const TSlot& slot,
-        const Stroka& workingDirectory) = 0;
+        const TOperationId& operationId,
+        TSlotPtr slot) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IEnvironmentBuilder)

@@ -24,15 +24,16 @@ class TWorkloadDescriptor;
  *  protocol version where appropriate.
  */
 DEFINE_ENUM(EWorkloadCategory,
-    ((Idle)                    (0))
-    ((SystemReplication)       (1))
-    ((SystemRepair)            (2))
-    ((SystemTabletCompaction)  (6))
-    ((SystemTabletPartitioning)(7))
-    ((SystemTabletPreload)     (8))
-    ((UserBatch)               (3))
-    ((UserRealtime)            (4))
-    ((SystemRealtime)          (5))
+    ((Idle)                        (0))
+    ((SystemReplication)           (1))
+    ((SystemRepair)                (2))
+    ((SystemTabletCompaction)      (6))
+    ((SystemTabletPartitioning)    (7))
+    ((SystemTabletPreload)         (8))
+    ((UserBatch)                   (3))
+    ((UserRealtime)                (4))
+    ((SystemRealtime)              (5))
+    ((SystemArtifactCacheDownload) (9))
 );
 
 struct TWorkloadDescriptor;
