@@ -1865,8 +1865,8 @@ ui32 TDynamicMemoryStore::GetLatestRevision() const
 
 ui32 TDynamicMemoryStore::RegisterRevision(TTimestamp timestamp)
 {
-    YASSERT(timestamp >= MinTimestamp && timestamp <= MaxTimestamp);
-    YASSERT(RevisionToTimestamp_.Size() < HardRevisionsPerDynamicMemoryStoreLimit);
+    YCHECK(timestamp >= MinTimestamp && timestamp <= MaxTimestamp);
+    YCHECK(RevisionToTimestamp_.Size() < HardRevisionsPerDynamicMemoryStoreLimit);
     RevisionToTimestamp_.PushBack(timestamp);
     return GetLatestRevision();
 }
