@@ -4,7 +4,7 @@
 
 #include <yt/core/ytree/fluent.h>
 
-#include <yt/ytlib/node_tracker_client/public.h>
+#include <yt/ytlib/node_tracker_client/helpers.h>
 
 #include <yt/server/object_server/object_detail.h>
 
