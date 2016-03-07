@@ -46,6 +46,8 @@ TServiceBase::TMethodDescriptor::TMethodDescriptor(
 
 TServiceBase::TMethodPerformanceCounters::TMethodPerformanceCounters(const NProfiling::TTagIdList& tagIds)
     : RequestCounter("/request_count", tagIds)
+    , CanceledRequestCounter("/canceled_request_count", tagIds)
+    , TimedOutRequestCounter("/timed_out_request_count", tagIds)
     , ExecutionTimeCounter("/request_time/execution", tagIds)
     , RemoteWaitTimeCounter("/request_time/remote_wait", tagIds)
     , LocalWaitTimeCounter("/request_time/local_wait", tagIds)
@@ -128,8 +130,9 @@ public:
         }
 
         const auto& handler = handlerOrError.Value();
-        if (!handler)
+        if (!handler) {
             return;
+        }
 
         auto wrappedHandler = BIND(&TServiceContext::DoRun, MakeStrong(this), handler);
 
@@ -150,15 +153,37 @@ public:
 
     virtual void Cancel() override
     {
+        LOG_DEBUG("Request canceled (RequestId: %v)",
+            RequestId_);
+        Profiler.Increment(PerformanceCounters_->CanceledRequestCounter);
         Canceled_.Fire();
     }
 
     virtual void SetComplete() override
     {
-        if (RuntimeInfo_->Descriptor.OneWay)
+        if (RuntimeInfo_->Descriptor.OneWay) {
             return;
+        }
 
         DoSetComplete();
+    }
+
+    void HandleTimeout()
+    {
+        if (TimedOut_.test_and_set()) {
+            return;
+        }
+
+        LOG_DEBUG("Request timed out, canceling (RequestId: %v)",
+            RequestId_);
+        Profiler.Increment(PerformanceCounters_->TimedOutRequestCounter);
+        Canceled_.Fire();
+
+        // NB: We can only mark as complete those requests that have not started running yet
+        // as there's no guarantee that the method handler will respond promptly to cancelation.
+        if (!Started_) {
+            SetComplete();
+        }
     }
 
 private:
@@ -175,15 +200,16 @@ private:
     bool Started_ = false;
     bool RunningSync_ = false;
     TSingleShotCallbackList<void()> Canceled_;
-    NProfiling::TCpuInstant ArrivalTime_;
-    NProfiling::TCpuInstant StartTime_ = -1;
+    NProfiling::TCpuInstant ArrivalTime_ = 0;
+    NProfiling::TCpuInstant StartTime_ = 0;
 
     std::atomic_flag Completed_ = ATOMIC_FLAG_INIT;
+    std::atomic_flag TimedOut_ = ATOMIC_FLAG_INIT;
     bool Finalized_ = false;
 
     void Initialize()
     {
-        Profiler.Increment(PerformanceCounters_->RequestCounter, +1);
+        Profiler.Increment(PerformanceCounters_->RequestCounter);
 
         if (RequestHeader_->has_start_time()) {
             // Decode timing information.
@@ -199,6 +225,13 @@ private:
         if (!RuntimeInfo_->Descriptor.OneWay) {
             if (RuntimeInfo_->Descriptor.Cancelable) {
                 Service_->RegisterCancelableRequest(this);
+
+                auto timeout = GetTimeout();
+                if (timeout) {
+                    TimeoutCookie_ = TDelayedExecutor::Submit(
+                        BIND(&TServiceBase::OnRequestTimeout, Service_, RequestId_),
+                        *timeout);
+                }
             }
 
             Profiler.Increment(RuntimeInfo_->QueueSizeCounter, +1);
@@ -268,10 +301,13 @@ private:
             Service_->BeforeInvoke();
         }
 
-        auto timeout = GetLocalTimeout();
-        if (timeout == TDuration::Zero()) {
-            LOG_DEBUG("Request dropped due to timeout before being run (RequestId: %v)",
-                RequestId_);
+        auto timeout = GetTimeout();
+        if (timeout && NProfiling::GetCpuInstant() > ArrivalTime_ + NProfiling::DurationToCpuDuration(*timeout)) {
+            if (!TimedOut_.test_and_set()) {
+                LOG_DEBUG("Request dropped due to timeout before being run (RequestId: %v)",
+                    RequestId_);
+                Profiler.Increment(PerformanceCounters_->TimedOutRequestCounter);
+            }
             return;
         }
 
@@ -285,15 +321,6 @@ private:
             }
 
             Canceled_.Subscribe(GetCurrentFiberCanceler());
-
-            if (timeout != TDuration::Max()) {
-                LOG_TRACE("Setting up server-side request timeout (RequestId: %v, Timeout: %v)",
-                    RequestId_,
-                    timeout);
-                TimeoutCookie_ = TDelayedExecutor::Submit(
-                BIND(&TServiceBase::OnRequestTimeout, Service_, RequestId_),
-                    timeout);
-            }
         }
 
         handler.Run(this, descriptor.Options);
@@ -313,25 +340,6 @@ private:
             Profiler.Update(PerformanceCounters_->TotalTimeCounter, value);
         }
     }
-
-
-    //! Returns TDuration::Zero() if the request has already timed out.
-    //! Returns TDuration::Max() if the request has no associated timeout.
-    TDuration GetLocalTimeout() const
-    {
-        auto timeout = GetTimeout();
-        if (!timeout) {
-            return TDuration::Max();
-        }
-
-        auto deadlineTime = ArrivalTime_ + DurationToCpuDuration(*timeout);
-        if (deadlineTime < StartTime_) {
-            return TDuration::Zero();
-        }
-
-        return CpuDurationToDuration(deadlineTime - StartTime_);
-    }
-
 
     virtual void DoReply() override
     {
@@ -594,11 +602,11 @@ void TServiceBase::HandleRequestCancelation(const TRequestId& requestId)
 void TServiceBase::OnRequestTimeout(const TRequestId& requestId)
 {
     auto context = FindCancelableRequest(requestId);
-    if (context) {
-        LOG_DEBUG("Server-side timeout occurred, canceling request (RequestId: %v)",
-            requestId);
-        context->Cancel();
+    if (!context) {
+        return;
     }
+
+    context->HandleTimeout();
 }
 
 void TServiceBase::OnReplyBusTerminated(IBusPtr bus, const TError& error)
@@ -630,7 +638,7 @@ void TServiceBase::OnReplyBusTerminated(IBusPtr bus, const TError& error)
 
 bool TServiceBase::TryAcquireRequestSemaphore(const TRuntimeMethodInfoPtr& runtimeInfo)
 {
-    auto& semaphore = runtimeInfo->RunningRequestSemaphore;
+    auto& semaphore = runtimeInfo->ConcurrencySemaphore;
     auto limit = runtimeInfo->Descriptor.MaxConcurrency;
     while (true) {
         auto current = semaphore.load();
@@ -645,7 +653,7 @@ bool TServiceBase::TryAcquireRequestSemaphore(const TRuntimeMethodInfoPtr& runti
 
 void TServiceBase::ReleaseRequestSemaphore(const TRuntimeMethodInfoPtr& runtimeInfo)
 {
-    --runtimeInfo->RunningRequestSemaphore;
+    --runtimeInfo->ConcurrencySemaphore;
 }
 
 static PER_THREAD bool ScheduleRequestsRunning = false;

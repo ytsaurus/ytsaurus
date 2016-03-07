@@ -23,7 +23,7 @@ public:
     virtual std::vector<NTableClient::ISchemalessMultiChunkWriterPtr> GetWriters() const override;
     virtual NTableClient::ISchemalessMultiChunkReaderPtr GetReader() const override;
 
-    virtual int GetReduceKeyColumnCount() const override;
+    virtual int GetKeySwitchColumnCount() const override;
 
     virtual void PopulateResult(NScheduler::NProto::TSchedulerJobResultExt* schedulerJobResultExt) override;
 

@@ -727,7 +727,8 @@ void TOperationControllerBase::TTask::AddParallelInputSpec(
         schedulerJobSpecExt->mutable_input_node_directory());
     const auto& list = joblet->InputStripeList;
     for (const auto& stripe : list->Stripes) {
-        auto* inputSpec = schedulerJobSpecExt->add_input_specs();
+        auto* inputSpec = stripe->Foreign ? schedulerJobSpecExt->add_foreign_input_specs() :
+            schedulerJobSpecExt->add_input_specs();
         inputSpec->set_table_reader_options(ConvertToYsonString(GetTableReaderOptions()).Data());
         AddChunksToInputSpec(&directoryBuilder, inputSpec, stripe);
     }
@@ -1122,6 +1123,9 @@ ITransactionPtr TOperationControllerBase::StartTransaction(
         "title",
         Format("Scheduler %v for operation %v", transactionName, OperationId));
     attributes->Set("operation_id", OperationId);
+    if (Spec->Title) {
+        attributes->Set("operation_title", Spec->Title);
+    }
     options.Attributes = std::move(attributes);
     if (parentTransactionId) {
         options.ParentId = parentTransactionId.Get();
@@ -1485,11 +1489,6 @@ void TOperationControllerBase::EndUploadOutputTables()
 
     auto batchRspOrError = WaitFor(batchReq->Invoke());
     THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError), "Error finishing upload to output tables");
-}
-
-void TOperationControllerBase::OnJobRunning(const TJobId& /* jobId */, const TJobStatus& /* status */)
-{
-    VERIFY_INVOKER_AFFINITY(CancelableInvoker);
 }
 
 void TOperationControllerBase::OnJobStarted(const TJobId& /* jobId */)
@@ -2798,18 +2797,25 @@ void TOperationControllerBase::BeginUploadOutputTables()
         auto channel = AuthenticatedOutputMasterClient->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
         TObjectServiceProxy proxy(channel);
 
-        auto batchReq = proxy.ExecuteBatch();
-
-        for (const auto& table : OutputTables) {
-            auto objectIdPath = FromObjectId(table.ObjectId);
-            {
+        {
+            auto batchReq = proxy.ExecuteBatch();
+            for (const auto& table : OutputTables) {
+                auto objectIdPath = FromObjectId(table.ObjectId);
                 auto req = TTableYPathProxy::Lock(objectIdPath);
                 req->set_mode(static_cast<int>(table.LockMode));
                 GenerateMutationId(req);
                 SetTransactionId(req, OutputTransactionId);
                 batchReq->AddRequest(req, "lock");
             }
-            {
+
+            auto batchRspOrError = WaitFor(batchReq->Invoke());
+            THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError), "Error locking output tables");
+        }
+
+        {
+            auto batchReq = proxy.ExecuteBatch();
+            for (const auto& table : OutputTables) {
+                auto objectIdPath = FromObjectId(table.ObjectId);
                 auto req = TTableYPathProxy::BeginUpload(objectIdPath);
                 SetTransactionId(req, OutputTransactionId);
                 GenerateMutationId(req);
@@ -2817,20 +2823,20 @@ void TOperationControllerBase::BeginUploadOutputTables()
                 req->set_lock_mode(static_cast<int>(table.LockMode));
                 batchReq->AddRequest(req, "begin_upload");
             }
-        }
+            auto batchRspOrError = WaitFor(batchReq->Invoke());
+            THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError), "Errorexecuting begin_upload for output tables");
+            const auto& batchRsp = batchRspOrError.Value();
 
-        auto batchRspOrError = WaitFor(batchReq->Invoke());
-        THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError), "Error locking output tables");
-        const auto& batchRsp = batchRspOrError.Value();
-
-        auto beginUploadRspsOrError = batchRsp->GetResponses<TTableYPathProxy::TRspBeginUpload>("begin_upload");
-        for (int index = 0; index < OutputTables.size(); ++index) {
-            auto& table = OutputTables[index];
-            {
-                const auto& rsp = beginUploadRspsOrError[index].Value();
-                table.UploadTransactionId = FromProto<TTransactionId>(rsp->upload_transaction_id());
+            auto beginUploadRspsOrError = batchRsp->GetResponses<TTableYPathProxy::TRspBeginUpload>("begin_upload");
+            for (int index = 0; index < OutputTables.size(); ++index) {
+                auto& table = OutputTables[index];
+                {
+                    const auto& rsp = beginUploadRspsOrError[index].Value();
+                    table.UploadTransactionId = FromProto<TTransactionId>(rsp->upload_transaction_id());
+                }
             }
         }
+
     }
 
     LOG_INFO("Getting output tables attributes");
@@ -2846,7 +2852,6 @@ void TOperationControllerBase::BeginUploadOutputTables()
                 auto req = TTableYPathProxy::Get(objectIdPath + "/@");
 
                 std::vector<Stroka> attributeKeys{
-                    "channels",
                     "compression_codec",
                     "erasure_codec",
                     "row_count",
@@ -2880,7 +2885,6 @@ void TOperationControllerBase::BeginUploadOutputTables()
                         path);
                 }
 
-                table.Options->Channels = attributes->Get<NChunkClient::TChannels>("channels", TChannels());
                 table.Options->CompressionCodec = attributes->Get<NCompression::ECodec>("compression_codec");
                 table.Options->ErasureCodec = attributes->Get<NErasure::ECodec>("erasure_codec", NErasure::ECodec::None);
                 table.Options->ReplicationFactor = attributes->Get<int>("replication_factor");
@@ -3267,25 +3271,54 @@ void TOperationControllerBase::CustomPrepare()
 { }
 
 // NB: must preserve order of chunks in the input tables, no shuffling.
-std::vector<TRefCountedChunkSpecPtr> TOperationControllerBase::CollectInputChunks() const
+std::vector<TRefCountedChunkSpecPtr> TOperationControllerBase::CollectPrimaryInputChunks() const
 {
     std::vector<TRefCountedChunkSpecPtr> result;
     for (const auto& table : InputTables) {
-        for (const auto& chunkSpec : table.Chunks) {
-            if (IsUnavailable(*chunkSpec, IsParityReplicasFetchEnabled())) {
-                switch (Spec->UnavailableChunkStrategy) {
-                    case EUnavailableChunkAction::Skip:
-                        continue;
+        if (!table.IsForeign()) {
+            for (const auto& chunkSpec : table.Chunks) {
+                if (IsUnavailable(*chunkSpec, IsParityReplicasFetchEnabled())) {
+                    switch (Spec->UnavailableChunkStrategy) {
+                        case EUnavailableChunkAction::Skip:
+                            continue;
 
-                    case EUnavailableChunkAction::Wait:
-                        // Do nothing.
-                        break;
+                        case EUnavailableChunkAction::Wait:
+                            // Do nothing.
+                            break;
 
-                    default:
-                        YUNREACHABLE();
+                        default:
+                            YUNREACHABLE();
+                    }
                 }
+                result.push_back(chunkSpec);
             }
-            result.push_back(chunkSpec);
+        }
+    }
+    return result;
+}
+
+std::vector<std::deque<TRefCountedChunkSpecPtr>> TOperationControllerBase::CollectForeignInputChunks() const
+{
+    std::vector<std::deque<TRefCountedChunkSpecPtr>> result;
+    for (const auto& table : InputTables) {
+        if (table.IsForeign()) {
+            result.push_back(std::deque<TRefCountedChunkSpecPtr>());
+            for (const auto& chunkSpec : table.Chunks) {
+                if (IsUnavailable(*chunkSpec, IsParityReplicasFetchEnabled())) {
+                    switch (Spec->UnavailableChunkStrategy) {
+                        case EUnavailableChunkAction::Skip:
+                            continue;
+
+                        case EUnavailableChunkAction::Wait:
+                            // Do nothing.
+                            break;
+
+                        default:
+                            YUNREACHABLE();
+                    }
+                }
+                result.back().push_back(chunkSpec);
+            }
         }
     }
     return result;
@@ -3341,15 +3374,17 @@ std::vector<TChunkStripePtr> TOperationControllerBase::SliceInputChunks(
     i64 maxSliceDataSize,
     int* jobCount)
 {
-    return SliceChunks(CollectInputChunks(), maxSliceDataSize, jobCount);
+    return SliceChunks(CollectPrimaryInputChunks(), maxSliceDataSize, jobCount);
 }
 
-TKeyColumns TOperationControllerBase::CheckInputTablesSorted(const TKeyColumns& keyColumns)
+TKeyColumns TOperationControllerBase::CheckInputTablesSorted(
+    const TKeyColumns& keyColumns,
+    std::function<bool(const TInputTable& table)> inputTableFilter)
 {
     YCHECK(!InputTables.empty());
 
     for (const auto& table : InputTables) {
-        if (table.KeyColumns.empty()) {
+        if (inputTableFilter(table) && table.KeyColumns.empty()) {
             THROW_ERROR_EXCEPTION("Input table %v is not sorted",
                 table.Path.GetPath());
         }
@@ -3357,7 +3392,7 @@ TKeyColumns TOperationControllerBase::CheckInputTablesSorted(const TKeyColumns& 
 
     if (!keyColumns.empty()) {
         for (const auto& table : InputTables) {
-            if (!CheckKeyColumnsCompatible(table.KeyColumns, keyColumns)) {
+            if (inputTableFilter(table) && !CheckKeyColumnsCompatible(table.KeyColumns, keyColumns)) {
                 THROW_ERROR_EXCEPTION("Input table %v is sorted by columns %v that are not compatible "
                     "with the requested columns %v",
                     table.Path.GetPath(),
@@ -3367,19 +3402,23 @@ TKeyColumns TOperationControllerBase::CheckInputTablesSorted(const TKeyColumns& 
         }
         return keyColumns;
     } else {
-        const auto& referenceTable = InputTables[0];
-        for (const auto& table : InputTables) {
-            if (table.KeyColumns != referenceTable.KeyColumns) {
-                THROW_ERROR_EXCEPTION("Key columns do not match: input table %v is sorted by columns %v "
-                    "while input table %v is sorted by columns %v",
-                    table.Path.GetPath(),
-                    table.KeyColumns,
-                    referenceTable.Path.GetPath(),
-                    referenceTable.KeyColumns);
+        for (const auto& referenceTable : InputTables) {
+            if (inputTableFilter(referenceTable)) {
+                for (const auto& table : InputTables) {
+                    if (inputTableFilter(table) && table.KeyColumns != referenceTable.KeyColumns) {
+                        THROW_ERROR_EXCEPTION("Key columns do not match: input table %v is sorted by columns %v "
+                            "while input table %v is sorted by columns %v",
+                            table.Path.GetPath(),
+                            table.KeyColumns,
+                            referenceTable.Path.GetPath(),
+                            referenceTable.KeyColumns);
+                    }
+                }
+                return referenceTable.KeyColumns;
             }
         }
-        return referenceTable.KeyColumns;
     }
+    YUNREACHABLE();
 }
 
 bool TOperationControllerBase::CheckKeyColumnsCompatible(
@@ -3399,21 +3438,30 @@ bool TOperationControllerBase::CheckKeyColumnsCompatible(
     return true;
 }
 
-TKeyColumns TOperationControllerBase::GetCommonInputKeyPrefix()
+TKeyColumns TOperationControllerBase::GetCommonInputKeyPrefix(
+    std::function<bool(const TInputTable& table)> inputTableFilter)
 {
-    auto commonKey = InputTables[0].KeyColumns;
-    for (const auto& table : InputTables) {
-        if (table.KeyColumns.size() < commonKey.size()) {
-            commonKey.erase(commonKey.begin() + table.KeyColumns.size(), commonKey.end());
-        }
+    TKeyColumns commonKey;
+    for (const auto& referenceTable : InputTables) {
+        if (inputTableFilter(referenceTable)) {
+            commonKey = referenceTable.KeyColumns;
+            for (const auto& table : InputTables) {
+                if (inputTableFilter(table)) {
+                    if (table.KeyColumns.size() < commonKey.size()) {
+                        commonKey.resize(table.KeyColumns.size());
+                    }
 
-        int i = 0;
-        for (; i < static_cast<int>(commonKey.size()); ++i) {
-            if (commonKey[i] != table.KeyColumns[i]) {
-                break;
+                    int i = 0;
+                    while (i < static_cast<int>(commonKey.size())) {
+                        if (commonKey[i] != table.KeyColumns[i]) {
+                            break;
+                        }
+                        ++i;
+                    }
+                    commonKey.resize(i);
+                }
             }
         }
-        commonKey.erase(commonKey.begin() + i, commonKey.end());
     }
     return commonKey;
 }

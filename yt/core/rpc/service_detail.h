@@ -471,6 +471,12 @@ protected:
         //! Counts the number of method calls.
         NProfiling::TSimpleCounter RequestCounter;
 
+        //! Counts the number of canceled method calls.
+        NProfiling::TSimpleCounter CanceledRequestCounter;
+
+        //! Counts the number of timed out method calls.
+        NProfiling::TSimpleCounter TimedOutRequestCounter;
+
         //! Time spent while handling the request.
         NProfiling::TAggregateCounter ExecutionTimeCounter;
 
@@ -500,7 +506,7 @@ protected:
         //! The number of currently queued requests.
         NProfiling::TAggregateCounter QueueSizeCounter;
 
-        std::atomic<int> RunningRequestSemaphore = {0};
+        std::atomic<int> ConcurrencySemaphore = {0};
         TLockFreeQueue<TServiceContextPtr> RequestQueue;
 
         NConcurrency::TReaderWriterSpinLock PerformanceCountersLock;

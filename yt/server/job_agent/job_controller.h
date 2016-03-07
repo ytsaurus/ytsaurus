@@ -35,24 +35,6 @@ public:
         EJobType type,
         TJobFactory factory);
 
-    //! Starts a new job.
-    IJobPtr CreateJob(
-        const TJobId& jobId,
-        const NNodeTrackerClient::NProto::TNodeResources& resourceLimits,
-        NJobTrackerClient::NProto::TJobSpec&& jobSpec);
-
-    //! Stops a job.
-    /*!
-     *  If the job is running, aborts it.
-     */
-    void AbortJob(IJobPtr job);
-
-    //! Removes the job from the map.
-    /*!
-     *  It is illegal to call #Remove before the job is stopped.
-     */
-    void RemoveJob(IJobPtr job);
-
     //! Finds the job by its id, returns |nullptr| if no job is found.
     IJobPtr FindJob(const TJobId& jobId);
 
@@ -87,11 +69,33 @@ private:
     bool StartScheduled_ = false;
 
 
+    //! Starts a new job.
+    IJobPtr CreateJob(
+        const TJobId& jobId,
+        const TOperationId& operationId,
+        const NNodeTrackerClient::NProto::TNodeResources& resourceLimits,
+        NJobTrackerClient::NProto::TJobSpec&& jobSpec);
+
+    //! Stops a job.
+    /*!
+     *  If the job is running, aborts it.
+     */
+    void AbortJob(IJobPtr job);
+
+    //! Removes the job from the map.
+    /*!
+     *  It is illegal to call #Remove before the job is stopped.
+     */
+    void RemoveJob(IJobPtr job);
+
     TJobFactory GetFactory(EJobType type);
+
     void ScheduleStart();
+
     void OnResourcesUpdated(
         TWeakPtr<IJob> job, 
         const NNodeTrackerClient::NProto::TNodeResources& resourceDelta);
+
     void StartWaitingJobs();
 
     //! Compares new usage with resource limits. Detects resource overdraft.

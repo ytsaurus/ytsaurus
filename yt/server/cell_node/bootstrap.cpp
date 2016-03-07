@@ -267,7 +267,7 @@ void TBootstrap::DoRun()
 
     ChunkCache = New<TChunkCache>(Config->DataNode, this);
 
-    auto createThrottler = [] (TThroughputThrottlerConfigPtr config, const Stroka& name) -> IThroughputThrottlerPtr {
+    auto createThrottler = [] (TThroughputThrottlerConfigPtr config, const Stroka& name) {
         auto logger = DataNodeLogger;
         logger.AddTag("Throttler: %v", name);
 
@@ -277,10 +277,36 @@ void TBootstrap::DoRun()
 
         return CreateLimitedThrottler(config, logger, profiler);
     };
-    ReplicationInThrottler = createThrottler(Config->DataNode->ReplicationInThrottler, "ReplicationIn");
-    ReplicationOutThrottler = createThrottler(Config->DataNode->ReplicationOutThrottler, "ReplicationOut");
-    RepairInThrottler = createThrottler(Config->DataNode->RepairInThrottler, "RepairIn");
-    RepairOutThrottler = createThrottler(Config->DataNode->RepairOutThrottler, "RepairOut");
+
+    TotalInThrottler = createThrottler(Config->DataNode->ReplicationInThrottler, "TotalIn");
+    TotalOutThrottler = createThrottler(Config->DataNode->ReplicationInThrottler, "TotalOut");
+
+    ReplicationInThrottler = CreateCombinedThrottler(std::vector<IThroughputThrottlerPtr>{
+        TotalInThrottler,
+        createThrottler(Config->DataNode->ReplicationInThrottler, "ReplicationIn")
+    });
+    ReplicationOutThrottler = CreateCombinedThrottler(std::vector<IThroughputThrottlerPtr>{
+        TotalOutThrottler,
+        createThrottler(Config->DataNode->ReplicationOutThrottler, "ReplicationOut")
+    });
+
+    RepairInThrottler = CreateCombinedThrottler(std::vector<IThroughputThrottlerPtr>{
+        TotalInThrottler,
+        createThrottler(Config->DataNode->RepairInThrottler, "RepairIn")
+    });
+    RepairOutThrottler = CreateCombinedThrottler(std::vector<IThroughputThrottlerPtr>{
+        TotalOutThrottler,
+        createThrottler(Config->DataNode->RepairOutThrottler, "RepairOut")
+    });
+
+    ArtifactCacheInThrottler = CreateCombinedThrottler(std::vector<IThroughputThrottlerPtr>{
+        TotalInThrottler,
+        createThrottler(Config->DataNode->RepairInThrottler, "ArtifactCacheIn")
+    });
+    ArtifactCacheOutThrottler = CreateCombinedThrottler(std::vector<IThroughputThrottlerPtr>{
+        TotalOutThrottler,
+        createThrottler(Config->DataNode->RepairOutThrottler, "ArtifactCacheOut")
+    });
 
     RpcServer->RegisterService(CreateDataNodeService(Config->DataNode, this));
 
@@ -326,15 +352,17 @@ void TBootstrap::DoRun()
 
     auto createExecJob = BIND([this] (
             const NJobAgent::TJobId& jobId,
+            const NJobAgent::TOperationId& operationId,
             const NNodeTrackerClient::NProto::TNodeResources& resourceLimits,
             NJobTrackerClient::NProto::TJobSpec&& jobSpec) ->
             NJobAgent::IJobPtr
         {
             return NExecAgent::CreateUserJob(
-                    jobId,
-                    resourceLimits,
-                    std::move(jobSpec),
-                    this);
+                jobId,
+                operationId,
+                resourceLimits,
+                std::move(jobSpec),
+                this);
         });
     JobController->RegisterFactory(NJobAgent::EJobType::Map,             createExecJob);
     JobController->RegisterFactory(NJobAgent::EJobType::PartitionMap,    createExecJob);
@@ -353,16 +381,17 @@ void TBootstrap::DoRun()
 
     auto createChunkJob = BIND([this] (
             const NJobAgent::TJobId& jobId,
+            const NJobAgent::TOperationId& /*operationId*/,
             const NNodeTrackerClient::NProto::TNodeResources& resourceLimits,
             NJobTrackerClient::NProto::TJobSpec&& jobSpec) ->
             NJobAgent::IJobPtr
         {
             return NDataNode::CreateChunkJob(
-                    jobId,
-                    std::move(jobSpec),
-                    resourceLimits,
-                    Config->DataNode,
-                    this);
+                jobId,
+                std::move(jobSpec),
+                resourceLimits,
+                Config->DataNode,
+                this);
         });
     JobController->RegisterFactory(NJobAgent::EJobType::RemoveChunk,     createChunkJob);
     JobController->RegisterFactory(NJobAgent::EJobType::ReplicateChunk,  createChunkJob);
@@ -374,7 +403,7 @@ void TBootstrap::DoRun()
     RpcServer->RegisterService(New<TSupervisorService>(this));
 
     EnvironmentManager = New<TEnvironmentManager>(Config->ExecAgent->EnvironmentManager);
-    EnvironmentManager->Register("unsafe", CreateUnsafeEnvironmentBuilder());
+    EnvironmentManager->RegisterBuilder("unsafe", CreateUnsafeEnvironmentBuilder());
 
     SchedulerConnector = New<TSchedulerConnector>(Config->ExecAgent->SchedulerConnector, this);
 
@@ -641,6 +670,16 @@ IThroughputThrottlerPtr TBootstrap::GetRepairOutThrottler() const
     return RepairOutThrottler;
 }
 
+IThroughputThrottlerPtr TBootstrap::GetArtifactCacheInThrottler() const
+{
+    return ArtifactCacheInThrottler;
+}
+
+IThroughputThrottlerPtr TBootstrap::GetArtifactCacheOutThrottler() const
+{
+    return ArtifactCacheOutThrottler;
+}
+
 IThroughputThrottlerPtr TBootstrap::GetInThrottler(const TWorkloadDescriptor& descriptor) const
 {
     switch (descriptor.Category) {
@@ -650,8 +689,11 @@ IThroughputThrottlerPtr TBootstrap::GetInThrottler(const TWorkloadDescriptor& de
         case EWorkloadCategory::SystemReplication:
             return ReplicationInThrottler;
 
+        case EWorkloadCategory::SystemArtifactCacheDownload:
+            return ArtifactCacheInThrottler;
+
         default:
-            return GetUnlimitedThrottler();
+            return TotalInThrottler;
     }
 }
 
@@ -664,8 +706,11 @@ IThroughputThrottlerPtr TBootstrap::GetOutThrottler(const TWorkloadDescriptor& d
         case EWorkloadCategory::SystemReplication:
             return ReplicationOutThrottler;
 
+        case EWorkloadCategory::SystemArtifactCacheDownload:
+            return ArtifactCacheOutThrottler;
+
         default:
-            return GetUnlimitedThrottler();
+            return TotalOutThrottler;
     }
 }
 

@@ -1819,7 +1819,7 @@ private:
 
         TFuture<void> asyncSamplesResult;
         PROFILE_TIMING ("/input_processing_time") {
-            auto chunks = CollectInputChunks();
+            auto chunks = CollectPrimaryInputChunks();
             int sampleCount = SuggestPartitionCount() * Spec->SamplesPerPartition;
 
             TScrapeChunksCallback scraperCallback;
@@ -1899,13 +1899,16 @@ private:
         // Don't create more partitions than we have samples (plus one).
         partitionCount = std::min(partitionCount, static_cast<int>(sortedSamples.size()) + 1);
 
+        partitionCount = AdjustPartitionCountToWriterBufferSize(
+            partitionCount, 
+            PartitionJobIOConfig->TableWriter);
+
         YCHECK(partitionCount > 0);
         
         partitionCount = AdjustPartitionCountToWriterBufferSize(
             partitionCount, 
             PartitionJobIOConfig->TableWriter);
         SimpleSort = (partitionCount == 1);
-
 
         if (SimpleSort) {
             BuildSinglePartition();

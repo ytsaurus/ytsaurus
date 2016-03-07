@@ -211,7 +211,7 @@ DEFINE_REFCOUNTED_TYPE(TReduceOperationOptions)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TJoinReduceOperationOptions
-    : public TSortedMergeOperationOptions
+    : public TReduceOperationOptions
 { };
 
 DEFINE_REFCOUNTED_TYPE(TJoinReduceOperationOptions)

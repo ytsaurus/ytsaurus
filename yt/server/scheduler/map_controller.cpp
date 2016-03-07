@@ -227,7 +227,7 @@ protected:
 
             std::vector<TRefCountedChunkSpecPtr> mergedChunks;
 
-            for (const auto& chunkSpec : CollectInputChunks()) {
+            for (const auto& chunkSpec : CollectPrimaryInputChunks()) {
                 if (IsTeleportChunk(*chunkSpec)) {
                     // Chunks not requiring merge go directly to the output chunk list.
                     LOG_TRACE("Teleport chunk added (ChunkId: %v, Partition: %v)",

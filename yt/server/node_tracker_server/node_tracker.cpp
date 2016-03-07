@@ -1266,6 +1266,7 @@ private:
         }
     }
  
+    
     void InsertToAddressMaps(TNode* node)
     {
         YCHECK(AddressToNodeMap_.insert(std::make_pair(node->GetDefaultAddress(), node)).second);

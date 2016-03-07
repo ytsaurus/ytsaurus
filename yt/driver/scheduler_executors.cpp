@@ -256,7 +256,9 @@ TReduceExecutor::TReduceExecutor()
     , CommandArg("", "command", "reducer shell command", true, "", "STRING")
     , FileArg("", "file", "additional file path", false, "YPATH")
     , ReduceByArg("", "reduce_by", "columns to reduce by"
-        "(if omitted then all input tables are assumed to have same key columns)",
+        " (if omitted then all input tables are assumed to have same key columns)",
+        false, "", "YSON_LIST_FRAGMENT")
+    , JoinByArg("", "join_by", "columns to join by (for foreign tables only)",
         false, "", "YSON_LIST_FRAGMENT")
 {
     CmdLine.add(InArg);
@@ -264,6 +266,7 @@ TReduceExecutor::TReduceExecutor()
     CmdLine.add(CommandArg);
     CmdLine.add(FileArg);
     CmdLine.add(ReduceByArg);
+    CmdLine.add(JoinByArg);
 }
 
 void TReduceExecutor::BuildParameters(IYsonConsumer* consumer)
@@ -272,6 +275,7 @@ void TReduceExecutor::BuildParameters(IYsonConsumer* consumer)
     auto outputs = PreprocessYPaths(OutArg.getValue());
     auto files = PreprocessYPaths(FileArg.getValue());
     auto reduceBy = ConvertTo< std::vector<Stroka> >(TYsonString(ReduceByArg.getValue(), EYsonType::ListFragment));
+    auto joinBy = ConvertTo< std::vector<Stroka> >(TYsonString(JoinByArg.getValue(), EYsonType::ListFragment));
 
     BuildYsonMapFluently(consumer)
         .Item("spec").BeginMap()
@@ -279,6 +283,9 @@ void TReduceExecutor::BuildParameters(IYsonConsumer* consumer)
             .Item("output_table_paths").Value(outputs)
             .DoIf(!reduceBy.empty(), [=] (TFluentMap fluent) {
                 fluent.Item("reduce_by").Value(reduceBy);
+            })
+            .DoIf(!joinBy.empty(), [=] (TFluentMap fluent) {
+                fluent.Item("join_by").Value(joinBy);
             })
             .Item("reducer").BeginMap()
                 .Item("command").Value(CommandArg.getValue())

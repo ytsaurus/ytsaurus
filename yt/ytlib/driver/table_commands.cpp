@@ -98,8 +98,8 @@ void TWriteTableCommand::Execute(ICommandContextPtr context)
     auto nameTable = TNameTable::FromKeyColumns(keyColumns);
 
     auto options = New<TTableWriterOptions>();
-    options->ValidateRowWeight = true;
     options->ValidateDuplicateIds = true;
+    options->ValidateRowWeight = true;
 
     auto writer = CreateSchemalessTableWriter(
         config,

@@ -542,14 +542,15 @@ private:
             TSessionCounterGuard sessionCounterGuard(location);
 
             auto chunkReader = CreateReplicationReader(
-                Config_->CacheRemoteReader,
+                Config_->ArtifactCacheReader,
                 New<TRemoteReaderOptions>(),
                 Bootstrap_->GetMasterClient(),
                 nodeDirectory,
                 Bootstrap_->GetMasterConnector()->GetLocalDescriptor(),
                 chunkId,
                 seedReplicas,
-                Bootstrap_->GetBlockCache());
+                Bootstrap_->GetBlockCache(),
+                Bootstrap_->GetArtifactCacheInThrottler());
 
             auto fileName = location->GetChunkPath(chunkId);
             auto chunkWriter = New<TFileWriter>(chunkId, fileName);
@@ -576,7 +577,7 @@ private:
             }
 
             auto sequentialReader = New<TSequentialReader>(
-                Config_->CacheSequentialReader,
+                Config_->ArtifactCacheReader,
                 std::move(blocks),
                 chunkReader,
                 GetNullBlockCache(),
@@ -633,12 +634,13 @@ private:
         std::vector<TChunkSpec> chunkSpecs(key.chunks().begin(), key.chunks().end());
 
         auto reader = CreateFileMultiChunkReader(
-            New<TFileReaderConfig>(),
+            Config_->ArtifactCacheReader,
             New<TMultiChunkReaderOptions>(),
             Bootstrap_->GetMasterClient(),
             Bootstrap_->GetBlockCache(),
             nodeDirectory,
-            chunkSpecs);
+            chunkSpecs,
+            Bootstrap_->GetArtifactCacheInThrottler());
 
         try {
             TSessionCounterGuard sessionCounterGuard(location);
@@ -682,13 +684,17 @@ private:
         chunkSpecs.insert(chunkSpecs.end(), key.chunks().begin(), key.chunks().end());
 
         auto reader = CreateSchemalessSequentialMultiChunkReader(
-            New<TTableReaderConfig>(),
+            Config_->ArtifactCacheReader,
             New<NTableClient::TTableReaderOptions>(),
             Bootstrap_->GetMasterClient(),
             Bootstrap_->GetBlockCache(),
             nodeDirectory,
             std::move(chunkSpecs),
-            nameTable);
+            nameTable,
+            TColumnFilter(),
+            TKeyColumns(),
+            Null,
+            Bootstrap_->GetArtifactCacheInThrottler());
 
         auto format = ConvertTo<NFormats::TFormat>(TYsonString(key.format()));
 

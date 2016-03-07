@@ -10,6 +10,7 @@ namespace NExecAgent {
 ////////////////////////////////////////////////////////////////////////////////
 
 using NJobTrackerClient::TJobId;
+using NJobTrackerClient::TOperationId;
 using NJobTrackerClient::EJobType;
 using NJobTrackerClient::EJobState;
 using NJobTrackerClient::EJobPhase;

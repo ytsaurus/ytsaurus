@@ -120,6 +120,11 @@ public:
         return JobId_;
     }
 
+    virtual const TOperationId& GetOperationId() const override
+    {
+        return NullOperationId;
+    }
+
     virtual EJobType GetType() const override
     {
         return EJobType(JobSpec_.type());

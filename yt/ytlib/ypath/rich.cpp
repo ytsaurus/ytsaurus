@@ -418,6 +418,11 @@ bool TRichYPath::GetPrimary() const
     return Attributes().Get("primary", false);
 }
 
+bool TRichYPath::GetForeign() const
+{
+    return Attributes().Get("foreign", false);
+}
+
 TChannel TRichYPath::GetChannel() const
 {
     if (Attributes().Contains("channel")) {
