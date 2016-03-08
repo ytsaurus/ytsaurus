@@ -364,6 +364,10 @@ private:
             addStores(partition->Stores());
             addStores(tablet->GetEden()->Stores());
 
+            if (req->chunk_ids_size() == 0) {
+                return std::vector<TOwningKey>();
+            }
+
             LOG_INFO("Locating partition chunks (ChunkCount: %v)",
                 storeMap.size());
 
