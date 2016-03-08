@@ -26,6 +26,8 @@
 
 #include <yt/core/erasure/codec.h>
 
+#include <array>
+
 namespace NYT {
 namespace NChunkClient {
 
@@ -199,32 +201,33 @@ IChunkReaderPtr CreateRemoteReader(
     auto chunkId = FromProto<TChunkId>(chunkSpec.chunk_id());
     auto replicas = FromProto<TChunkReplicaList>(chunkSpec.replicas());
 
-    LOG_DEBUG("Creating remote reader (ChunkId: %v)", chunkId);
-
     if (IsErasureChunkId(chunkId)) {
-        std::sort(
-            replicas.begin(),
-            replicas.end(),
-            [] (TChunkReplica lhs, TChunkReplica rhs) {
-                return lhs.GetIndex() < rhs.GetIndex();
-            });
-
         auto erasureCodecId = ECodec(chunkSpec.erasure_codec());
+        LOG_DEBUG("Creating erasure remote reader (ChunkId: %v, Codec: %v)",
+            chunkId,
+            erasureCodecId);
+
+        std::array<TNodeId, MaxTotalPartCount> partIndexToNodeId;
+        std::fill(partIndexToNodeId.begin(), partIndexToNodeId.end(), InvalidNodeId);
+        for (auto replica : replicas) {
+            partIndexToNodeId[replica.GetIndex()] = replica.GetNodeId();
+        }
+
         auto* erasureCodec = GetCodec(erasureCodecId);
         auto dataPartCount = erasureCodec->GetDataPartCount();
 
         std::vector<IChunkReaderPtr> readers;
         readers.reserve(dataPartCount);
 
-        auto it = replicas.begin();
-        while (it != replicas.end() && it->GetIndex() < dataPartCount) {
-            auto jt = it;
-            while (jt != replicas.end() && it->GetIndex() == jt->GetIndex()) {
-                ++jt;
+        for (int index = 0; index < dataPartCount; ++index) {
+            TChunkReplicaList partReplicas;
+            auto nodeId = partIndexToNodeId[index];
+            if (nodeId != InvalidNodeId) {
+                partReplicas.push_back(TChunkReplica(nodeId, index));
             }
 
-            TChunkReplicaList partReplicas(it, jt);
-            auto partId = ErasurePartIdFromChunkId(chunkId, it->GetIndex());
+            auto partId = ErasurePartIdFromChunkId(chunkId, index);
+
             auto reader = CreateReplicationReader(
                 config,
                 options,
@@ -236,13 +239,13 @@ IChunkReaderPtr CreateRemoteReader(
                 blockCache,
                 throttler);
             readers.push_back(reader);
-
-            it = jt;
         }
 
-        YCHECK(readers.size() == dataPartCount);
         return CreateNonRepairingErasureReader(readers);
     } else {
+        LOG_DEBUG("Creating regular remote reader (ChunkId: %v)",
+            chunkId);
+
         return CreateReplicationReader(
             config,
             options,
