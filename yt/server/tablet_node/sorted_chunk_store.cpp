@@ -278,8 +278,7 @@ void TSortedChunkStore::SetInMemoryMode(EInMemoryMode mode)
         }
     }
 
-    RealtimeChunkReader_.Reset();
-    BatchChunkReader_.Reset();
+    ChunkReader_.Reset();
 
     InMemoryMode_ = mode;
 }
@@ -297,12 +296,12 @@ void TSortedChunkStore::Preload(TInMemoryChunkDataPtr chunkData)
     CachedVersionedChunkMeta_ = chunkData->ChunkMeta;
 }
 
-IChunkReaderPtr TSortedChunkStore::GetChunkReader(const TWorkloadDescriptor& workloadDescriptor)
+IChunkReaderPtr TSortedChunkStore::GetChunkReader()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
     auto chunk = PrepareChunk();
-    auto chunkReader = PrepareChunkReader(std::move(chunk), workloadDescriptor);
+    auto chunkReader = PrepareChunkReader(std::move(chunk));
 
     return chunkReader;
 }
@@ -377,7 +376,7 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
     }
 
     auto blockCache = GetBlockCache();
-    auto chunkReader = GetChunkReader(workloadDescriptor);
+    auto chunkReader = GetChunkReader();
     auto cachedVersionedChunkMeta = PrepareCachedVersionedChunkMeta(chunkReader);
 
     TReadLimit lowerLimit;
@@ -386,8 +385,11 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
     TReadLimit upperLimit;
     upperLimit.SetKey(std::move(upperKey));
 
+    auto config = CloneYsonSerializable(Bootstrap_->GetConfig()->TabletNode->ChunkReader);
+    config->WorkloadDescriptor = workloadDescriptor;
+
     return CreateVersionedChunkReader(
-        Bootstrap_->GetConfig()->TabletNode->ChunkReader,
+        std::move(config),
         std::move(chunkReader),
         std::move(blockCache),
         std::move(cachedVersionedChunkMeta),
@@ -452,11 +454,13 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
     }
 
     auto blockCache = GetBlockCache();
-    auto chunkReader = GetChunkReader(workloadDescriptor);
+    auto chunkReader = GetChunkReader();
     auto cachedVersionedChunkMeta = PrepareCachedVersionedChunkMeta(chunkReader);
+    auto config = CloneYsonSerializable(Bootstrap_->GetConfig()->TabletNode->ChunkReader);
+    config->WorkloadDescriptor = workloadDescriptor;
 
     return CreateVersionedChunkReader(
-        Bootstrap_->GetConfig()->TabletNode->ChunkReader,
+        std::move(config),
         std::move(chunkReader),
         std::move(blockCache),
         std::move(cachedVersionedChunkMeta),
@@ -586,46 +590,24 @@ IChunkPtr TSortedChunkStore::PrepareChunk()
     return chunk;
 }
 
-IChunkReaderPtr TSortedChunkStore::PrepareChunkReader(
-    IChunkPtr chunk,
-    const TWorkloadDescriptor& workloadDescriptor)
+IChunkReaderPtr TSortedChunkStore::PrepareChunkReader(IChunkPtr chunk)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    bool isRT = false;
-    switch (workloadDescriptor.Category) {
-        case EWorkloadCategory::SystemRealtime:
-        case EWorkloadCategory::UserRealtime:
-            isRT = true;
-            break;
-        default:
-            break;
-    }
-
     {
         TReaderGuard guard(SpinLock_);
-        if (isRT) {
-            if (RealtimeChunkReader_) {
-                return RealtimeChunkReader_;
-            }
-        } else {
-            if (BatchChunkReader_) {
-                return BatchChunkReader_;
-            }
+        if (ChunkReader_) {
+            return ChunkReader_;
         }
     }
 
     auto readerConfig = Bootstrap_->GetConfig()->TabletNode->ChunkReader;
-    auto readerConfigCopy = CloneYsonSerializable(readerConfig);
-
-    readerConfigCopy->WorkloadDescriptor = workloadDescriptor;
-    readerConfigCopy->PopulateCache = isRT;
 
     IChunkReaderPtr chunkReader;
     if (chunk && !chunk->IsRemoveScheduled()) {
         chunkReader = CreateLocalChunkReader(
             Bootstrap_,
-            readerConfigCopy,
+            readerConfig,
             chunk,
             GetBlockCache(),
             BIND(&TSortedChunkStore::OnLocalReaderFailed, MakeWeak(this)));
@@ -633,7 +615,7 @@ IChunkReaderPtr TSortedChunkStore::PrepareChunkReader(
         // TODO(babenko): provide seed replicas
         auto options = New<TRemoteReaderOptions>();
         chunkReader = CreateReplicationReader(
-            readerConfigCopy,
+            readerConfig,
             options,
             Bootstrap_->GetMasterClient(),
             New<TNodeDirectory>(),
@@ -645,11 +627,7 @@ IChunkReaderPtr TSortedChunkStore::PrepareChunkReader(
 
     {
         TWriterGuard guard(SpinLock_);
-        if (isRT) {
-            RealtimeChunkReader_ = chunkReader;
-        } else {
-            BatchChunkReader_ = chunkReader;
-        }
+        ChunkReader_ = chunkReader;
     }
 
     TDelayedExecutor::Submit(
@@ -670,7 +648,12 @@ TCachedVersionedChunkMetaPtr TSortedChunkStore::PrepareCachedVersionedChunkMeta(
         }
     }
 
-    auto cachedMeta = WaitFor(TCachedVersionedChunkMeta::Load(chunkReader, Schema_))
+    // TODO(babenko): do we need to make this workload descriptor configurable?
+    auto asyncCachedMeta = TCachedVersionedChunkMeta::Load(
+        chunkReader,
+        TWorkloadDescriptor(EWorkloadCategory::UserBatch),
+        Schema_);
+    auto cachedMeta = WaitFor(asyncCachedMeta)
         .ValueOrThrow();
 
     {
@@ -727,8 +710,7 @@ void TSortedChunkStore::OnChunkReaderExpired()
     VERIFY_THREAD_AFFINITY_ANY();
 
     TWriterGuard guard(SpinLock_);
-    RealtimeChunkReader_.Reset();
-    BatchChunkReader_.Reset();
+    ChunkReader_.Reset();
 }
 
 bool TSortedChunkStore::ValidateBlockCachePreloaded()

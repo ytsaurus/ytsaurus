@@ -57,7 +57,7 @@ TFuture<void> TPartitionChunkReader::InitializeBlockSequence()
         TProtoExtensionTag<TKeyColumnsExt>::Value
     };
 
-    ChunkMeta_ = WaitFor(UnderlyingReader_->GetMeta(PartitionTag_, extensionTags))
+    ChunkMeta_ = WaitFor(UnderlyingReader_->GetMeta(Config_->WorkloadDescriptor, PartitionTag_, extensionTags))
         .ValueOrThrow();
 
     TNameTablePtr chunkNameTable;

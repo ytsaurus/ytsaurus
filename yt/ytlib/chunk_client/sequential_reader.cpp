@@ -202,7 +202,7 @@ void TSequentialReader::RequestBlocks(
         uncompressedSize);
 
     AsyncSemaphore_.Acquire(uncompressedSize);
-    ChunkReader_->ReadBlocks(blockIndexes).Subscribe(
+    ChunkReader_->ReadBlocks(Config_->WorkloadDescriptor, blockIndexes).Subscribe(
         BIND(&TSequentialReader::OnGotBlocks,
             MakeWeak(this),
             windowIndexes,

@@ -1,6 +1,8 @@
 #include "cached_versioned_chunk_meta.h"
 #include "schema.h"
 
+#include <yt/ytlib/misc/workload.h>
+
 #include <yt/ytlib/chunk_client/chunk_reader.h>
 #include <yt/ytlib/chunk_client/dispatcher.h>
 
@@ -44,20 +46,22 @@ TCachedVersionedChunkMetaPtr TCachedVersionedChunkMeta::Create(
 
 TFuture<TCachedVersionedChunkMetaPtr> TCachedVersionedChunkMeta::Load(
     IChunkReaderPtr chunkReader,
+    const TWorkloadDescriptor& workloadDescriptor,
     const TTableSchema& schema)
 {
     auto cachedMeta = New<TCachedVersionedChunkMeta>();
     return BIND(&TCachedVersionedChunkMeta::DoLoad, cachedMeta)
         .AsyncVia(TDispatcher::Get()->GetReaderInvoker())
-        .Run(chunkReader, schema);
+        .Run(chunkReader, workloadDescriptor, schema);
 }
 
 TCachedVersionedChunkMetaPtr TCachedVersionedChunkMeta::DoLoad(
     IChunkReaderPtr chunkReader,
+    const TWorkloadDescriptor& workloadDescriptor,
     const TTableSchema& schema)
 {
     try {
-        auto asyncChunkMeta = chunkReader->GetMeta();
+        auto asyncChunkMeta = chunkReader->GetMeta(workloadDescriptor);
         auto chunkMeta = WaitFor(asyncChunkMeta)
             .ValueOrThrow();
 

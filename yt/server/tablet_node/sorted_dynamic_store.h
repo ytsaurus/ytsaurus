@@ -161,6 +161,7 @@ public:
     virtual i64 GetUncompressedDataSize() const override;
     virtual i64 GetRowCount() const override;
 
+    // ISortedStore implementation.
     virtual TOwningKey GetMinKey() const override;
     virtual TOwningKey GetMaxKey() const override;
 

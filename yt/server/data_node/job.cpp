@@ -535,6 +535,7 @@ private:
                 erasedIndexes,
                 readers,
                 writers,
+                Config_->RepairReader->WorkloadDescriptor,
                 onProgress);
 
             auto repairError = WaitFor(result);
@@ -542,7 +543,6 @@ private:
                 ChunkId_);
         }
     }
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -634,6 +634,7 @@ private:
 
             while (currentRowCount < sealRowCount) {
                 auto asyncBlocks  = reader->ReadBlocks(
+                    Config_->RepairReader->WorkloadDescriptor,
                     currentRowCount,
                     sealRowCount - currentRowCount);
                 auto blocks = WaitFor(asyncBlocks)

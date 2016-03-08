@@ -35,12 +35,16 @@ using NYT::FromProto;
 
 namespace {
 
-TFuture<TChunkMeta> GetPlacementMeta(IChunkReaderPtr reader)
+TFuture<TChunkMeta> GetPlacementMeta(
+    const IChunkReaderPtr& reader,
+    const TWorkloadDescriptor& workloadDescriptor)
 {
-    std::vector<int> extensionTags {
-        TProtoExtensionTag<TErasurePlacementExt>::Value
-    };
-    return reader->GetMeta(Null, extensionTags);
+    return reader->GetMeta(
+        workloadDescriptor,
+        Null,
+        std::vector<int>{
+            TProtoExtensionTag<TErasurePlacementExt>::Value
+        });
 }
 
 } // namespace
@@ -55,10 +59,12 @@ public:
     TNonReparingReaderSession(
         const std::vector<IChunkReaderPtr>& readers,
         const std::vector<TPartInfo>& partInfos,
-        const std::vector<int>& blockIndexes)
+        const std::vector<int>& blockIndexes,
+        const TWorkloadDescriptor& workloadDescriptor)
         : Readers_(readers)
         , PartInfos_(partInfos)
         , BlockIndexes_(blockIndexes)
+        , WorkloadDescriptor_(workloadDescriptor)
     { }
 
 
@@ -97,7 +103,7 @@ public:
         std::vector<TFuture<std::vector<TSharedRef>>> readBlocksFutures;
         for (int readerIndex = 0; readerIndex < Readers_.size(); ++readerIndex) {
             auto reader = Readers_[readerIndex];
-            readBlocksFutures.push_back(reader->ReadBlocks(blockLocations[readerIndex].first));
+            readBlocksFutures.push_back(reader->ReadBlocks(WorkloadDescriptor_, blockLocations[readerIndex].first));
         }
 
         return Combine(readBlocksFutures).Apply(
@@ -121,11 +127,10 @@ private:
         }
     };
 
-    std::vector<IChunkReaderPtr> Readers_;
-    std::vector<TPartInfo> PartInfos_;
-
-    std::vector<int> BlockIndexes_;
-
+    const std::vector<IChunkReaderPtr> Readers_;
+    const std::vector<TPartInfo> PartInfos_;
+    const std::vector<int> BlockIndexes_;
+    const TWorkloadDescriptor WorkloadDescriptor_;
 };
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -140,27 +145,38 @@ public:
         YCHECK(!Readers_.empty());
     }
 
-    virtual TFuture<std::vector<TSharedRef>> ReadBlocks(const std::vector<int>& blockIndexes) override
+    virtual TFuture<std::vector<TSharedRef>> ReadBlocks(
+        const TWorkloadDescriptor& workloadDescriptor,
+        const std::vector<int>& blockIndexes) override
     {
-        return PreparePartInfos().Apply(
-            BIND([=, this_ = MakeStrong(this)] () -> TFuture<std::vector<TSharedRef>> {
-                return New<TNonReparingReaderSession>(Readers_, PartInfos_, blockIndexes)->Run();
+        return PreparePartInfos(workloadDescriptor).Apply(
+            BIND([=, this_ = MakeStrong(this)] () {
+                auto session = New<TNonReparingReaderSession>(
+                    Readers_,
+                    PartInfos_,
+                    blockIndexes,
+                    workloadDescriptor);
+                return session->Run();
             }).AsyncVia(TDispatcher::Get()->GetReaderInvoker()));
     }
 
-    virtual TFuture<std::vector<TSharedRef>> ReadBlocks(int firstBlockIndex, int blockCount) override
+    virtual TFuture<std::vector<TSharedRef>> ReadBlocks(
+        const TWorkloadDescriptor& workloadDescriptor,
+        int firstBlockIndex,
+        int blockCount) override
     {
         // TODO(babenko): implement when first needed
         YUNIMPLEMENTED();
     }
 
     virtual TFuture<TChunkMeta> GetMeta(
+        const TWorkloadDescriptor& workloadDescriptor,
         const TNullable<int>& partitionTag,
         const TNullable<std::vector<int>>& extensionTags) override
     {
         // TODO(ignat): check that no storage-layer extensions are being requested
         YCHECK(!partitionTag);
-        return Readers_.front()->GetMeta(partitionTag, extensionTags);
+        return Readers_.front()->GetMeta(workloadDescriptor, partitionTag, extensionTags);
     }
 
     virtual TChunkId GetChunkId() const override
@@ -169,18 +185,18 @@ public:
     }
 
 private:
-    std::vector<IChunkReaderPtr> Readers_;
+    const std::vector<IChunkReaderPtr> Readers_;
 
     std::vector<TPartInfo> PartInfos_;
 
 
-    TFuture<void> PreparePartInfos()
+    TFuture<void> PreparePartInfos(const TWorkloadDescriptor& workloadDescriptor)
     {
         if (!PartInfos_.empty()) {
             return MakePromise(TError());
         }
 
-        return GetPlacementMeta(this).Apply(
+        return GetPlacementMeta(this, workloadDescriptor).Apply(
             BIND(&TNonRepairingReader::OnGotPlacementMeta, MakeStrong(this))
                 .AsyncVia(TDispatcher::Get()->GetReaderInvoker()));
     }
@@ -218,15 +234,12 @@ class TWindowReader
 public:
     TWindowReader(
         IChunkReaderPtr reader,
-        const std::vector<i64>& blockSizes)
+        const std::vector<i64>& blockSizes,
+        const TWorkloadDescriptor& workloadDescriptor)
         : Reader_(reader)
         , BlockSizes_(blockSizes)
         , BlockCount_(blockSizes.size())
-        , WindowSize_(-1)
-        , BlockIndex_(0)
-        , BlocksDataSize_(0)
-        , BuildDataSize_(0)
-        , FirstBlockOffset_(0)
+        , WorkloadDescriptor_(workloadDescriptor)
     { }
 
     TFuture<TSharedRef> Read(i64 windowSize)
@@ -242,27 +255,28 @@ public:
     }
 
 private:
-    IChunkReaderPtr Reader_;
-    std::vector<i64> BlockSizes_;
-    int BlockCount_;
+    const IChunkReaderPtr Reader_;
+    const std::vector<i64> BlockSizes_;
+    const int BlockCount_;
+    const TWorkloadDescriptor WorkloadDescriptor_;
 
     //! Window size requested by the currently served #Read.
-    i64 WindowSize_;
+    i64 WindowSize_ = -1;
 
     //! Blocks already fetched via the underlying reader.
     std::deque<TSharedRef> Blocks_;
 
     // Current number of read blocks.
-    int BlockIndex_;
+    int BlockIndex_ = 0;
 
     //! Total blocks data size.
-    i64 BlocksDataSize_;
+    i64 BlocksDataSize_ = 0;
 
     //! Total size of data returned from |Read|
-    i64 BuildDataSize_;
+    i64 BuildDataSize_ = 0;
 
     //! Offset of used data in the first block.
-    i64 FirstBlockOffset_;
+    i64 FirstBlockOffset_ = 0;
 
 
     void Continue(TPromise<TSharedRef> promise)
@@ -282,7 +296,7 @@ private:
             requestBlockCount++;
         }
 
-        Reader_->ReadBlocks(blockIndexes).Subscribe(
+        Reader_->ReadBlocks(WorkloadDescriptor_, blockIndexes).Subscribe(
             BIND(&TWindowReader::OnBlockRead, MakeStrong(this), promise)
                 .Via(TDispatcher::Get()->GetReaderInvoker()));
     }
@@ -301,7 +315,7 @@ private:
         }
 
         const auto& blocks = blocksOrError.Value();
-        for (auto block : blocks) {
+        for (const auto& block : blocks) {
             BlockIndex_ += 1;
             Blocks_.push_back(block);
             BlocksDataSize_ += block.Size();
@@ -439,16 +453,13 @@ public:
         NErasure::ICodec* codec,
         const std::vector<IChunkReaderPtr>& readers,
         const TPartIndexList& erasedIndices,
-        const TPartIndexList& repairIndices)
+        const TPartIndexList& repairIndices,
+        const TWorkloadDescriptor& workloadDescriptor)
         : Codec_(codec)
         , Readers_(readers)
         , ErasedIndices_(erasedIndices)
         , RepairIndices_(repairIndices)
-        , Prepared_(false)
-        , WindowIndex_(0)
-        , ErasedDataSize_(0)
-        , ErasedBlockCount_(0)
-        , RepairedBlockCount_(0)
+        , WorkloadDescriptor_(workloadDescriptor)
     {
         YCHECK(Codec_->GetRepairIndices(ErasedIndices_));
         YCHECK(Codec_->GetRepairIndices(ErasedIndices_)->size() == Readers_.size());
@@ -467,28 +478,28 @@ public:
     i64 GetErasedDataSize() const;
 
 private:
-    NErasure::ICodec* Codec_;
-    std::vector<IChunkReaderPtr> Readers_;
-
-    TPartIndexList ErasedIndices_;
-    TPartIndexList RepairIndices_;
+    NErasure::ICodec* const Codec_;
+    const std::vector<IChunkReaderPtr> Readers_;
+    const TPartIndexList ErasedIndices_;
+    const TPartIndexList RepairIndices_;
+    const TWorkloadDescriptor WorkloadDescriptor_;
 
     std::vector<TWindowReaderPtr> WindowReaders_;
     std::vector<TRepairPartReader> RepairBlockReaders_;
 
     std::deque<TBlock> RepairedBlocksQueue_;
 
-    bool Prepared_;
+    bool Prepared_ = false;
 
-    int WindowIndex_;
-    int WindowCount_;
-    i64 WindowSize_;
-    i64 LastWindowSize_;
+    int WindowIndex_ = 0;
+    int WindowCount_ = -1;
+    i64 WindowSize_ = -1;
+    i64 LastWindowSize_ = -1;
 
-    i64 ErasedDataSize_;
+    i64 ErasedDataSize_ = 0;
 
-    int ErasedBlockCount_;
-    int RepairedBlockCount_;
+    int ErasedBlockCount_ = 0;
+    int RepairedBlockCount_ = 0;
 
     TFuture<void> RepairBlockIfNeeded();
     TBlock OnBlockRepaired();
@@ -526,7 +537,7 @@ TFuture<void> TRepairReader::Repair(const std::vector<TSharedRef>& aliveWindows)
     YCHECK(repairedWindows.size() == ErasedIndices_.size());
     for (int i = 0; i < repairedWindows.size(); ++i) {
         auto repairedWindow = repairedWindows[i];
-        for (auto block : RepairBlockReaders_[i].Add(repairedWindow)) {
+        for (const auto& block : RepairBlockReaders_[i].Add(repairedWindow)) {
             RepairedBlocksQueue_.push_back(TBlock(block, ErasedIndices_[i]));
         }
     }
@@ -592,7 +603,8 @@ void TRepairReader::OnGotMeta(const TChunkMeta& meta)
 
         WindowReaders_.push_back(New<TWindowReader>(
             Readers_[i],
-            blockSizes));
+            blockSizes,
+            WorkloadDescriptor_));
     }
 
     for (int erasedIndex : ErasedIndices_) {
@@ -621,7 +633,7 @@ TFuture<void> TRepairReader::Prepare()
     YCHECK(!Readers_.empty());
 
     auto reader = Readers_.front();
-    return GetPlacementMeta(reader).Apply(
+    return GetPlacementMeta(reader, WorkloadDescriptor_).Apply(
         BIND(&TRepairReader::OnGotMeta, MakeStrong(this))
             .AsyncVia(TDispatcher::Get()->GetReaderInvoker()));
 }
@@ -643,14 +655,17 @@ public:
         const TPartIndexList& erasedIndices,
         const std::vector<IChunkReaderPtr>& readers,
         const std::vector<IChunkWriterPtr>& writers,
+        const TWorkloadDescriptor& workloadDescriptor,
         TRepairProgressHandler onProgress)
         : Reader_(New<TRepairReader>(
             codec,
             readers,
             erasedIndices,
-            erasedIndices))
+            erasedIndices,
+            workloadDescriptor))
         , Readers_(readers)
         , Writers_(writers)
+        , WorkloadDescriptor_(workloadDescriptor)
         , OnProgress_(std::move(onProgress))
     {
         YCHECK(erasedIndices.size() == writers.size());
@@ -713,7 +728,7 @@ private:
 
         // Fetch chunk meta.
         auto reader = Readers_.front(); // an arbitrary one will do
-        auto meta = WaitFor(reader->GetMeta())
+        auto meta = WaitFor(reader->GetMeta(WorkloadDescriptor_))
             .ValueOrThrow();
 
         // Close all writers.
@@ -735,10 +750,11 @@ private:
     }
 
 
-    TRepairReaderPtr Reader_;
-    std::vector<IChunkReaderPtr> Readers_;
-    std::vector<IChunkWriterPtr> Writers_;
-    TRepairProgressHandler OnProgress_;
+    const TRepairReaderPtr Reader_;
+    const std::vector<IChunkReaderPtr> Readers_;
+    const std::vector<IChunkWriterPtr> Writers_;
+    const TWorkloadDescriptor WorkloadDescriptor_;
+    const TRepairProgressHandler OnProgress_;
 
     yhash_map<int, IChunkWriterPtr> IndexToWriter_;
 
@@ -751,6 +767,7 @@ TFuture<void> RepairErasedParts(
     const TPartIndexList& erasedIndices,
     const std::vector<IChunkReaderPtr>& readers,
     const std::vector<IChunkWriterPtr>& writers,
+    const TWorkloadDescriptor& workloadDescriptor,
     TRepairProgressHandler onProgress)
 {
     auto session = New<TRepairAllPartsSession>(
@@ -758,6 +775,7 @@ TFuture<void> RepairErasedParts(
         erasedIndices,
         readers,
         writers,
+        workloadDescriptor,
         onProgress);
     return session->Run();
 }

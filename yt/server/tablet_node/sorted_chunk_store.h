@@ -51,8 +51,7 @@ public:
     virtual EInMemoryMode GetInMemoryMode() const override;
     virtual void SetInMemoryMode(EInMemoryMode mode) override;
 
-    virtual NChunkClient::IChunkReaderPtr GetChunkReader(
-        const TWorkloadDescriptor& workloadDescriptor) override;
+    virtual NChunkClient::IChunkReaderPtr GetChunkReader() override;
 
     virtual void Preload(TInMemoryChunkDataPtr chunkData) override;
 
@@ -115,8 +114,7 @@ private:
     bool ChunkInitialized_ = false;
     NDataNode::IChunkPtr Chunk_;
 
-    NChunkClient::IChunkReaderPtr RealtimeChunkReader_;
-    NChunkClient::IChunkReaderPtr BatchChunkReader_;
+    NChunkClient::IChunkReaderPtr ChunkReader_;
 
     NTableClient::TCachedVersionedChunkMetaPtr CachedVersionedChunkMeta_;
 
@@ -142,8 +140,7 @@ private:
 
     NDataNode::IChunkPtr PrepareChunk();
     NChunkClient::IChunkReaderPtr PrepareChunkReader(
-        NDataNode::IChunkPtr chunk,
-        const TWorkloadDescriptor& workloadDescriptor);
+        NDataNode::IChunkPtr chunk);
     NTableClient::TCachedVersionedChunkMetaPtr PrepareCachedVersionedChunkMeta(
         NChunkClient::IChunkReaderPtr chunkReader);
     ISortedStorePtr GetBackingStore();
