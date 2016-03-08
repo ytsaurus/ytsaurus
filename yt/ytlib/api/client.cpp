@@ -407,7 +407,7 @@ public:
         TConstQueryPtr query,
         TDataRanges dataSource,
         ISchemafulWriterPtr writer,
-        TQueryOptions options) override
+        const TQueryOptions& options) override
     {
         TRACE_CHILD("QueryClient", "Execute") {
 
@@ -417,7 +417,7 @@ public:
 
             return BIND(execute, MakeStrong(this))
                 .AsyncVia(Connection_->GetHeavyInvoker())
-                .Run(std::move(query), std::move(dataSource), std::move(options), std::move(writer));
+                .Run(std::move(query), std::move(dataSource), options, std::move(writer));
         }
     }
 

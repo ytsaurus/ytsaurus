@@ -232,6 +232,7 @@ private:
             }
 
             auto rowsOrError = WaitFor(CurrentChunkReader_->ReadBlocks(
+                Config_->WorkloadDescriptor,
                 CurrentRowIndex_,
                 EndRowIndex_ - CurrentRowIndex_));
             THROW_ERROR_EXCEPTION_IF_FAILED(rowsOrError);

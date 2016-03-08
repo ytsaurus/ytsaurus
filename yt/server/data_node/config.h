@@ -214,6 +214,20 @@ class TArtifactCacheReaderConfig
 
 DEFINE_REFCOUNTED_TYPE(TArtifactCacheReaderConfig)
 
+class TRepairReaderConfig
+    : public NChunkClient::TReplicationReaderConfig
+    , public TWorkloadConfig
+{ };
+
+DEFINE_REFCOUNTED_TYPE(TRepairReaderConfig)
+
+class TSealReaderConfig
+    : public NChunkClient::TReplicationReaderConfig
+    , public TWorkloadConfig
+{ };
+
+DEFINE_REFCOUNTED_TYPE(TSealReaderConfig)
+
 //! Describes a configuration of a data node.
 class TDataNodeConfig
     : public NYTree::TYsonSerializable
@@ -313,13 +327,13 @@ public:
     NChunkClient::TReplicationWriterConfigPtr ReplicationWriter;
 
     //! Reader configuration used to repair chunks.
-    NChunkClient::TReplicationReaderConfigPtr RepairReader;
+    TRepairReaderConfigPtr RepairReader;
 
     //! Writer configuration used to repair chunks.
     NChunkClient::TReplicationWriterConfigPtr RepairWriter;
 
     //! Reader configuration used to seal chunks.
-    NChunkClient::TReplicationReaderConfigPtr SealReader;
+    TSealReaderConfigPtr SealReader;
 
     //! Controls the total incoming bandwidth.
     NConcurrency::TThroughputThrottlerConfigPtr TotalInThrottler;

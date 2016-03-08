@@ -207,7 +207,7 @@ TEST_F(TErasureMixture, ReaderTest)
         // Check blocks separately
         int index = 0;
         for (const auto& ref : dataRefs) {
-            auto result = erasureReader->ReadBlocks(std::vector<int>(1, index++)).Get();
+            auto result = erasureReader->ReadBlocks(TWorkloadDescriptor(), std::vector<int>(1, index++)).Get();
             EXPECT_TRUE(result.IsOK());
             auto resultRef = result.ValueOrThrow().front();
 
@@ -220,7 +220,7 @@ TEST_F(TErasureMixture, ReaderTest)
         std::vector<int> indices;
         indices.push_back(1);
         indices.push_back(3);
-        auto result = erasureReader->ReadBlocks(indices).Get();
+        auto result = erasureReader->ReadBlocks(TWorkloadDescriptor(), indices).Get();
         EXPECT_TRUE(result.IsOK());
         auto resultRef = result.ValueOrThrow();
         EXPECT_EQ(ToString(dataRefs[1]), ToString(resultRef[0]));
@@ -270,14 +270,14 @@ TEST_F(TErasureMixture, RepairTest1)
         }
     }
 
-    auto repairResult = RepairErasedParts(codec, erasedIndices, readers, writers).Get();
+    auto repairResult = RepairErasedParts(codec, erasedIndices, readers, writers, TWorkloadDescriptor()).Get();
     EXPECT_TRUE(repairResult.IsOK());
 
     auto erasureReader = CreateErasureReader(codec);
 
     int index = 0;
     for (const auto& ref : dataRefs) {
-        auto result = erasureReader->ReadBlocks(std::vector<int>(1, index++)).Get();
+        auto result = erasureReader->ReadBlocks(TWorkloadDescriptor(), std::vector<int>(1, index++)).Get();
         EXPECT_TRUE(result.IsOK());
         auto resultRef = result.ValueOrThrow().front();
 
@@ -331,14 +331,14 @@ TEST_F(TErasureMixture, RepairTest2)
         }
     }
 
-    auto repairResult = RepairErasedParts(codec, erasedIndices, readers, writers).Get();
+    auto repairResult = RepairErasedParts(codec, erasedIndices, readers, writers, TWorkloadDescriptor()).Get();
     EXPECT_TRUE(repairResult.IsOK());
 
     auto erasureReader = CreateErasureReader(codec);
 
     int index = 0;
     for (const auto& ref : dataRefs) {
-        auto result = erasureReader->ReadBlocks(std::vector<int>(1, index++)).Get();
+        auto result = erasureReader->ReadBlocks(TWorkloadDescriptor(), std::vector<int>(1, index++)).Get();
         EXPECT_TRUE(result.IsOK());
         auto resultRef = result.ValueOrThrow().front();
 
@@ -367,7 +367,7 @@ TEST_F(TErasureMixture, RepairTestWithSeveralWindows)
     { // Check reader
         auto erasureReader = CreateErasureReader(codec);
         for (int i = 0; i < dataRefs.size(); ++i ) {
-            auto result = erasureReader->ReadBlocks(std::vector<int>(1, i)).Get();
+            auto result = erasureReader->ReadBlocks(TWorkloadDescriptor(), std::vector<int>(1, i)).Get();
             EXPECT_TRUE(result.IsOK());
 
             auto resultRef = result.Value().front();
@@ -405,12 +405,12 @@ TEST_F(TErasureMixture, RepairTestWithSeveralWindows)
         }
     }
 
-    RepairErasedParts(codec, erasedIndices, readers, writers).Get();
+    RepairErasedParts(codec, erasedIndices, readers, writers, TWorkloadDescriptor()).Get();
 
     { // Check reader
         auto erasureReader = CreateErasureReader(codec);
         for (int i = 0; i < dataRefs.size(); ++i ) {
-            auto result = erasureReader->ReadBlocks(std::vector<int>(1, i)).Get();
+            auto result = erasureReader->ReadBlocks(TWorkloadDescriptor(), std::vector<int>(1, i)).Get();
             EXPECT_TRUE(result.IsOK());
 
             auto resultRef = result.Value().front();

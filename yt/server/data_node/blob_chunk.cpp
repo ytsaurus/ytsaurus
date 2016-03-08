@@ -259,7 +259,7 @@ void TBlobChunkBase::DoReadBlockSet(
 
         NProfiling::TScopedTimer timer;
         // NB: The reader is synchronous.
-        auto blocksOrError = reader->ReadBlocks(firstBlockIndex, blocksToRead).Get();
+        auto blocksOrError = reader->ReadBlocks(workloadDescriptor, firstBlockIndex, blocksToRead).Get();
         auto readTime = timer.GetElapsed();
 
         if (!blocksOrError.IsOK()) {

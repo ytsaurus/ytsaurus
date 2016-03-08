@@ -276,11 +276,13 @@ private:
             return;
         }
 
-        auto reader = store->GetChunkReader(TWorkloadDescriptor(EWorkloadCategory::SystemTabletPreload));
+        auto reader = store->GetChunkReader();
 
         LOG_INFO("Store preload started");
 
-        auto meta = WaitFor(reader->GetMeta())
+        auto workloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::SystemTabletPreload);
+        auto asyncMeta = reader->GetMeta(TWorkloadDescriptor(workloadDescriptor));
+        auto meta = WaitFor(asyncMeta)
             .ValueOrThrow();
 
         auto miscExt = GetProtoExtension<TMiscExt>(meta.extensions());
@@ -298,7 +300,10 @@ private:
             LOG_DEBUG("Started reading chunk blocks (FirstBlock: %v)",
                 startBlockIndex);
 
-            auto asyncResult = reader->ReadBlocks(startBlockIndex, totalBlockCount - startBlockIndex);
+            auto asyncResult = reader->ReadBlocks(
+                workloadDescriptor,
+                startBlockIndex,
+                totalBlockCount - startBlockIndex);
             auto compressedBlocks = WaitFor(asyncResult)
                 .ValueOrThrow();
 

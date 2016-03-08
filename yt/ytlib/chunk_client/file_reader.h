@@ -42,11 +42,17 @@ public:
     const NProto::TChunkMeta& GetMeta();
 
     // IReader implementation.
-    virtual TFuture<std::vector<TSharedRef>> ReadBlocks(const std::vector<int>& blockIndexes) override;
+    virtual TFuture<std::vector<TSharedRef>> ReadBlocks(
+        const TWorkloadDescriptor& workloadDescriptor,
+        const std::vector<int>& blockIndexes) override;
 
-    virtual TFuture<std::vector<TSharedRef>> ReadBlocks(int firstBlockIndex, int blockCount) override;
+    virtual TFuture<std::vector<TSharedRef>> ReadBlocks(
+        const TWorkloadDescriptor& workloadDescriptor,
+        int firstBlockIndex,
+        int blockCount) override;
 
     virtual TFuture<NProto::TChunkMeta> GetMeta(
+        const TWorkloadDescriptor& workloadDescriptor,
         const TNullable<int>& partitionTag,
         const TNullable<std::vector<int>>& extensionTags) override;
 

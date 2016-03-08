@@ -1887,7 +1887,7 @@ void TSortedDynamicStore::AsyncLoad(TLoadContext& context)
 
         auto chunkReader = CreateMemoryReader(chunkMeta, blocks);
 
-        auto asyncCachedMeta = TCachedVersionedChunkMeta::Load(chunkReader, Schema_);
+        auto asyncCachedMeta = TCachedVersionedChunkMeta::Load(chunkReader, TWorkloadDescriptor(), Schema_);
         auto cachedMeta = WaitFor(asyncCachedMeta)
             .ValueOrThrow();
 

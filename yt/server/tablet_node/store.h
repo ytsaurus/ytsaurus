@@ -14,7 +14,6 @@
 #include <yt/core/misc/range.h>
 
 #include <yt/core/yson/public.h>
-#include <yt/ytlib/misc/workload.h>
 
 namespace NYT {
 namespace NTabletNode {
@@ -93,8 +92,7 @@ struct IChunkStore
     virtual TFuture<void> GetPreloadFuture() const = 0;
     virtual void SetPreloadFuture(TFuture<void> future) = 0;
 
-    virtual NChunkClient::IChunkReaderPtr GetChunkReader(
-        const TWorkloadDescriptor& workloadDescriptor) = 0;
+    virtual NChunkClient::IChunkReaderPtr GetChunkReader() = 0;
 
     virtual EInMemoryMode GetInMemoryMode() const = 0;
     virtual void SetInMemoryMode(EInMemoryMode mode) = 0;

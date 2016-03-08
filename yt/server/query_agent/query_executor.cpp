@@ -61,6 +61,7 @@
 namespace NYT {
 namespace NQueryAgent {
 
+using namespace NYTree;
 using namespace NConcurrency;
 using namespace NObjectClient;
 using namespace NQueryClient;
@@ -122,7 +123,7 @@ class TQueryExecutor
     : public ISubExecutor
 {
 public:
-    explicit TQueryExecutor(
+    TQueryExecutor(
         TQueryAgentConfigPtr config,
         TBootstrap* bootstrap)
         : Config_(config)
@@ -137,7 +138,7 @@ public:
         TConstQueryPtr query,
         std::vector<TDataRanges> dataSources,
         ISchemafulWriterPtr writer,
-        TQueryOptions options) override
+        const TQueryOptions& options) override
     {
         auto securityManager = Bootstrap_->GetSecurityManager();
         auto maybeUser = securityManager->GetAuthenticatedUser();
@@ -148,7 +149,7 @@ public:
 
         return BIND(execute, MakeStrong(this))
             .AsyncVia(Bootstrap_->GetQueryPoolInvoker())
-            .Run(std::move(query), std::move(dataSources), std::move(options), std::move(writer), maybeUser);
+            .Run(std::move(query), std::move(dataSources), options, std::move(writer), maybeUser);
     }
 
 private:
@@ -162,7 +163,7 @@ private:
 
     TQueryStatistics DoCoordinateAndExecute(
         TConstQueryPtr query,
-        TQueryOptions options,
+        const TQueryOptions& options,
         ISchemafulWriterPtr writer,
         const std::vector<TRefiner>& refiners,
         const std::vector<TSubreaderCreator>& subreaderCreators)
@@ -251,7 +252,7 @@ private:
     TQueryStatistics DoExecute(
         TConstQueryPtr query,
         std::vector<TDataRanges> dataSources,
-        TQueryOptions options,
+        const TQueryOptions& options,
         ISchemafulWriterPtr writer,
         const TNullable<Stroka>& maybeUser)
     {
@@ -325,9 +326,6 @@ private:
             query->TableSchema,
             query->KeyColumnsCount);
 
-        auto timestamp = options.Timestamp;
-        const auto& workloadDescriptor = options.WorkloadDescriptor;
-
         std::vector<TRefiner> refiners;
         std::vector<TSubreaderCreator> subreaderCreators;
 
@@ -351,9 +349,9 @@ private:
                     Logger,
                     query,
                     MOVE(groupedSplit),
-                    timestamp,
-                    workloadDescriptor,
+                    options,
                     index = 0,
+                    this,
                     this_ = MakeStrong(this)
                 ] () mutable -> ISchemafulReaderPtr {
                     if (index == groupedSplit.Size()) {
@@ -361,12 +359,11 @@ private:
                     }
 
                     const auto& group = groupedSplit[index++];
-                    return this_->GetReader(
+                    return GetReader(
                         query->TableSchema,
                         group.Id,
                         group.Range,
-                        timestamp,
-                        workloadDescriptor);
+                        options);
                 };
 
                 return CreateUnorderedSchemafulReader(
@@ -383,7 +380,7 @@ private:
                 return RefinePredicate(keys, expr, keyColumns);
             });
             subreaderCreators.push_back([&, MOVE(keys)] () {
-                ValidateReadTimestamp(timestamp);
+                ValidateReadTimestamp(options.Timestamp);
 
                 std::function<ISchemafulReaderPtr()> bottomSplitReaderGenerator;
 
@@ -394,7 +391,7 @@ private:
                             query->TableSchema,
                             tablePartId,
                             keys,
-                            timestamp);
+                            options);
                     }
 
                     case EObjectType::Tablet: {
@@ -402,8 +399,7 @@ private:
                             query->TableSchema,
                             tablePartId,
                             keys,
-                            timestamp,
-                            workloadDescriptor);
+                            options);
                     }
 
                     default:
@@ -424,7 +420,7 @@ private:
     TQueryStatistics DoExecuteOrdered(
         TConstQueryPtr query,
         std::vector<TDataRanges> dataSources,
-        TQueryOptions options,
+        const TQueryOptions& options,
         ISchemafulWriterPtr writer,
         const TNullable<Stroka>& maybeUser)
     {
@@ -453,9 +449,6 @@ private:
             query->TableSchema,
             query->KeyColumnsCount);
 
-        auto timestamp = options.Timestamp;
-        const auto& workloadDescriptor = options.WorkloadDescriptor;
-
         std::vector<TRefiner> refiners;
         std::vector<TSubreaderCreator> subreaderCreators;
 
@@ -464,7 +457,7 @@ private:
                 return RefinePredicate(dataSplit.Range, expr, schema, keyColumns, columnEvaluator);
             });
             subreaderCreators.push_back([&] () {
-                return GetReader(query->TableSchema, dataSplit.Id, dataSplit.Range, timestamp, workloadDescriptor);
+                return GetReader(query->TableSchema, dataSplit.Id, dataSplit.Range, options);
             });
         }
 
@@ -722,18 +715,17 @@ private:
         const TTableSchema& schema,
         const NObjectClient::TObjectId& objectId,
         const TRowRange& range,
-        TTimestamp timestamp,
-        const TWorkloadDescriptor& workloadDescriptor)
+        const TQueryOptions& options)
     {
-        ValidateReadTimestamp(timestamp);
+        ValidateReadTimestamp(options.Timestamp);
 
         switch (TypeFromId(objectId)) {
             case EObjectType::Chunk:
             case EObjectType::ErasureChunk:
-                return GetChunkReader(schema, objectId, range, timestamp);
+                return GetChunkReader(schema, objectId, range, options);
 
             case EObjectType::Tablet:
-                return GetTabletReader(schema, objectId, range, timestamp, workloadDescriptor);
+                return GetTabletReader(schema, objectId, range, options);
 
             default:
                 THROW_ERROR_EXCEPTION("Unsupported data split type %Qlv",
@@ -745,18 +737,17 @@ private:
         const TTableSchema& schema,
         const NObjectClient::TObjectId& objectId,
         const TSharedRange<TRow>& keys,
-        TTimestamp timestamp,
-        const TWorkloadDescriptor& workloadDescriptor)
+        const TQueryOptions& options)
     {
-        ValidateReadTimestamp(timestamp);
+        ValidateReadTimestamp(options.Timestamp);
 
         switch (TypeFromId(objectId)) {
             case EObjectType::Chunk:
             case EObjectType::ErasureChunk:
-                return GetChunkReader(schema,  objectId, keys, timestamp);
+                return GetChunkReader(schema,  objectId, keys, options);
 
             case EObjectType::Tablet:
-                return GetTabletReader(schema, objectId, keys, timestamp, workloadDescriptor);
+                return GetTabletReader(schema, objectId, keys, options);
 
             default:
                 THROW_ERROR_EXCEPTION("Unsupported data split type %Qlv",
@@ -768,26 +759,23 @@ private:
         const TTableSchema& schema,
         const NObjectClient::TObjectId& chunkId,
         const TRowRange& range,
-        TTimestamp timestamp)
+        const TQueryOptions& options)
     {
-        // TODO(sandello): Use options for passing workload descriptor.
         std::vector<TReadRange> readRanges;
         TReadLimit lowerReadLimit;
         TReadLimit upperReadLimit;
         lowerReadLimit.SetKey(TOwningKey(range.first));
         upperReadLimit.SetKey(TOwningKey(range.second));
         readRanges.emplace_back(std::move(lowerReadLimit), std::move(upperReadLimit));
-        return GetChunkReader(schema, chunkId, std::move(readRanges), timestamp);
+        return GetChunkReader(schema, chunkId, std::move(readRanges), options);
     }
 
     ISchemafulReaderPtr GetChunkReader(
         const TTableSchema& schema,
         const TChunkId& chunkId,
         const TSharedRange<TRow>& keys,
-        TTimestamp timestamp)
+        const TQueryOptions& options)
     {
-        // TODO(sandello): Use options for passing workload descriptor.
-
         std::vector<TReadRange> readRanges;
         TUnversionedOwningRowBuilder builder;
         for (const auto& key : keys) {
@@ -804,42 +792,43 @@ private:
             readRanges.emplace_back(std::move(lowerReadLimit), std::move(upperReadLimit));
         }
 
-        return GetChunkReader(schema, chunkId, readRanges, timestamp);
+        return GetChunkReader(schema, chunkId, readRanges, options);
     }
 
     ISchemafulReaderPtr GetChunkReader(
         const TTableSchema& schema,
         const TChunkId& chunkId,
         std::vector<TReadRange> readRanges,
-        TTimestamp timestamp)
+        const TQueryOptions& options)
     {
         auto blockCache = Bootstrap_->GetBlockCache();
         auto chunkRegistry = Bootstrap_->GetChunkRegistry();
         auto chunk = chunkRegistry->FindChunk(chunkId);
 
-        // TODO(sandello): Use options for passing workload descriptor.
+        auto config = CloneYsonSerializable(Bootstrap_->GetConfig()->TabletNode->ChunkReader);
+        config->WorkloadDescriptor = options.WorkloadDescriptor;
 
         NChunkClient::IChunkReaderPtr chunkReader;
         if (chunk && !chunk->IsRemoveScheduled()) {
             LOG_DEBUG("Creating local reader for chunk split (ChunkId: %v, Timestamp: %v)",
                 chunkId,
-                timestamp);
+                options.Timestamp);
 
             chunkReader = CreateLocalChunkReader(
                 Bootstrap_,
-                Bootstrap_->GetConfig()->TabletNode->ChunkReader,
+                config,
                 chunk,
                 blockCache);
         } else {
             LOG_DEBUG("Creating remote reader for chunk split (ChunkId: %v, Timestamp: %v)",
                 chunkId,
-                timestamp);
+                options.Timestamp);
 
             // TODO(babenko): seed replicas?
             // TODO(babenko): throttler?
             auto options = New<TRemoteReaderOptions>();
             chunkReader = CreateReplicationReader(
-                Bootstrap_->GetConfig()->TabletNode->ChunkReader,
+                config,
                 options,
                 Bootstrap_->GetMasterClient(),
                 New<TNodeDirectory>(),
@@ -849,31 +838,32 @@ private:
                 Bootstrap_->GetBlockCache());
         }
 
-        auto chunkMeta = WaitFor(chunkReader->GetMeta()).ValueOrThrow();
+        auto asyncChunkMeta = chunkReader->GetMeta(config->WorkloadDescriptor);
+        auto chunkMeta = WaitFor(asyncChunkMeta)
+            .ValueOrThrow();
 
         return CreateSchemafulChunkReader(
-            Bootstrap_->GetConfig()->TabletNode->ChunkReader,
+            std::move(config),
             std::move(chunkReader),
             Bootstrap_->GetBlockCache(),
             schema,
             chunkMeta,
             std::move(readRanges),
-            timestamp);
+            options.Timestamp);
     }
 
     ISchemafulReaderPtr GetTabletReader(
         const TTableSchema& schema,
         const NObjectClient::TObjectId& tabletId,
         const TRowRange& range,
-        TTimestamp timestamp,
-        const TWorkloadDescriptor& workloadDescriptor)
+        const TQueryOptions& options)
     {
         auto slotManager = Bootstrap_->GetTabletSlotManager();
         auto tabletSnapshot = slotManager->GetTabletSnapshotOrThrow(tabletId);
         slotManager->ValidateTabletAccess(
             tabletSnapshot,
             NYTree::EPermission::Read,
-            timestamp);
+            options.Timestamp);
 
         TOwningKey lowerBound(range.first);
         TOwningKey upperBound(range.second);
@@ -885,23 +875,22 @@ private:
             columnFilter,
             std::move(lowerBound),
             std::move(upperBound),
-            timestamp,
-            workloadDescriptor);
+            options.Timestamp,
+            options.WorkloadDescriptor);
     }
 
     ISchemafulReaderPtr GetTabletReader(
         const TTableSchema& schema,
         const TTabletId& tabletId,
         const TSharedRange<TRow>& keys,
-        TTimestamp timestamp,
-        const TWorkloadDescriptor& workloadDescriptor)
+        const TQueryOptions& options)
     {
         auto slotManager = Bootstrap_->GetTabletSlotManager();
         auto tabletSnapshot = slotManager->GetTabletSnapshotOrThrow(tabletId);
         slotManager->ValidateTabletAccess(
             tabletSnapshot,
             NYTree::EPermission::Read,
-            timestamp);
+            options.Timestamp);
 
         auto columnFilter = GetColumnFilter(schema, tabletSnapshot->Schema);
 
@@ -909,8 +898,8 @@ private:
             std::move(tabletSnapshot),
             columnFilter,
             keys,
-            timestamp,
-            workloadDescriptor,
+            options.Timestamp,
+            options.WorkloadDescriptor,
             Config_->MaxBottomReaderConcurrency);
     }
 };
