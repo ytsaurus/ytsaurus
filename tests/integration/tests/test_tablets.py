@@ -14,7 +14,7 @@ from yt.environment.helpers import assert_items_equal
 
 class TestTablets(YTEnvSetup):
     NUM_MASTERS = 3
-    NUM_NODES = 5
+    NUM_NODES = 16
     NUM_SCHEDULERS = 0
 
     DELTA_MASTER_CONFIG = {
@@ -1204,3 +1204,23 @@ class TestTablets(YTEnvSetup):
     def test_tablet_cell_create_attributes(self):
         id = create_tablet_cell(1, attributes={"snapshot_replication_factor": 1})
         assert get("//sys/tablet_cells/{0}/@snapshot_replication_factor".format(id)) == 1
+
+    def test_erasure(self):
+        self.sync_create_cells(3, 1)
+        self._create_table("//tmp/t")
+        set("//tmp/t/@erasure_codec", "lrc_12_2_2")
+        self.sync_mount_table("//tmp/t")
+
+        rows = [{"key": 1, "value": "2"}]
+        insert_rows("//tmp/t", rows)
+
+        self.sync_unmount_table("//tmp/t")
+
+        chunk_ids = get("//tmp/t/@chunk_ids")
+        assert len(chunk_ids) == 1
+        chunk_id = chunk_ids[0]
+
+        assert get("#" + chunk_id + "/@erasure_codec") == "lrc_12_2_2"
+
+        self.sync_mount_table("//tmp/t")
+        assert_items_equal(select_rows("* from [//tmp/t]"), rows)
