@@ -83,9 +83,9 @@ void TRequestTracker::ChargeUser(
     auto now = NProfiling::CpuInstantToInstant(NProfiling::GetCpuInstant());
     auto* entry = Request_.mutable_entries(index);
     auto* statistics = entry->mutable_statistics();
-    statistics->set_request_counter(statistics->request_counter() + requestCount);
-    statistics->set_read_request_timer(ToProto(FromProto<TDuration>(statistics->read_request_timer()) + readRequestTime));
-    statistics->set_write_request_timer(ToProto(FromProto<TDuration>(statistics->write_request_timer()) + writeRequestTime));
+    statistics->set_request_count(statistics->request_count() + requestCount);
+    statistics->set_read_request_time(ToProto(FromProto<TDuration>(statistics->read_request_time()) + readRequestTime));
+    statistics->set_write_request_time(ToProto(FromProto<TDuration>(statistics->write_request_time()) + writeRequestTime));
     statistics->set_access_time(ToProto(now));
 }
 
