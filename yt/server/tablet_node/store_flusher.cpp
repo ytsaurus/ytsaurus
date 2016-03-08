@@ -325,9 +325,6 @@ private:
                     transaction->GetId());
             }
 
-            auto inMemoryManager = Bootstrap_->GetInMemoryManager();
-            auto blockCache = inMemoryManager->CreateInterceptingBlockCache(mountConfig->InMemoryMode);
-
             TChunkWriterPool writerPool(
                 Bootstrap_->GetInMemoryManager(),
                 tabletSnapshot,
