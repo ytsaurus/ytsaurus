@@ -192,11 +192,12 @@ IChunkReaderPtr CreateRemoteReader(
     TRemoteReaderOptionsPtr options,
     NApi::IClientPtr client,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
+    const TNullable<TNodeDescriptor>& localDescriptor,
     IBlockCachePtr blockCache,
     IThroughputThrottlerPtr throttler)
 {
-    auto chunkId = NYT::FromProto<TChunkId>(chunkSpec.chunk_id());
-    auto replicas = NYT::FromProto<TChunkReplicaList>(chunkSpec.replicas());
+    auto chunkId = FromProto<TChunkId>(chunkSpec.chunk_id());
+    auto replicas = FromProto<TChunkReplicaList>(chunkSpec.replicas());
 
     LOG_DEBUG("Creating remote reader (ChunkId: %v)", chunkId);
 
@@ -229,7 +230,7 @@ IChunkReaderPtr CreateRemoteReader(
                 options,
                 client,
                 nodeDirectory,
-                Null,
+                localDescriptor,
                 partId,
                 partReplicas,
                 blockCache,
@@ -247,7 +248,7 @@ IChunkReaderPtr CreateRemoteReader(
             options,
             client,
             nodeDirectory,
-            Null,
+            localDescriptor,
             chunkId,
             replicas,
             blockCache,

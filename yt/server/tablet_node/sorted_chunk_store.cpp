@@ -24,6 +24,7 @@
 #include <yt/ytlib/chunk_client/read_limit.h>
 #include <yt/ytlib/chunk_client/replication_reader.h>
 #include <yt/ytlib/chunk_client/ref_counted_proto.h>
+#include <yt/ytlib/chunk_client/helpers.h>
 
 #include <yt/ytlib/misc/workload.h>
 
@@ -313,12 +314,12 @@ EStoreType TSortedChunkStore::GetType() const
 
 i64 TSortedChunkStore::GetUncompressedDataSize() const
 {
-    return DataSize_;
+    return MiscExt_.uncompressed_data_size();
 }
 
 i64 TSortedChunkStore::GetRowCount() const
 {
-    return RowCount_;
+    return MiscExt_.row_count();
 }
 
 TOwningKey TSortedChunkStore::GetMinKey() const
@@ -333,12 +334,12 @@ TOwningKey TSortedChunkStore::GetMaxKey() const
 
 TTimestamp TSortedChunkStore::GetMinTimestamp() const
 {
-    return MinTimestamp_;
+    return MiscExt_.min_timestamp();
 }
 
 TTimestamp TSortedChunkStore::GetMaxTimestamp() const
 {
-    return MaxTimestamp_;
+    return MiscExt_.max_timestamp();
 }
 
 IVersionedReaderPtr TSortedChunkStore::CreateReader(
@@ -612,17 +613,20 @@ IChunkReaderPtr TSortedChunkStore::PrepareChunkReader(IChunkPtr chunk)
             GetBlockCache(),
             BIND(&TSortedChunkStore::OnLocalReaderFailed, MakeWeak(this)));
     } else {
-        // TODO(babenko): provide seed replicas
-        auto options = New<TRemoteReaderOptions>();
-        chunkReader = CreateReplicationReader(
+        TChunkSpec chunkSpec;
+        ToProto(chunkSpec.mutable_chunk_id(), StoreId_);
+        chunkSpec.set_erasure_codec(MiscExt_.erasure_codec());
+        *chunkSpec.mutable_chunk_meta() = *ChunkMeta_;
+
+        chunkReader = CreateRemoteReader(
+            chunkSpec,
             readerConfig,
-            options,
+            New<TRemoteReaderOptions>(),
             Bootstrap_->GetMasterClient(),
             New<TNodeDirectory>(),
             Bootstrap_->GetMasterConnector()->GetLocalDescriptor(),
-            StoreId_,
-            TChunkReplicaList(),
-            GetBlockCache());
+            GetBlockCache(),
+            GetUnlimitedThrottler());
     }
 
     {
@@ -677,11 +681,7 @@ IBlockCachePtr TSortedChunkStore::GetBlockCache()
 void TSortedChunkStore::PrecacheProperties()
 {
     // Precache frequently used values.
-    auto miscExt = GetProtoExtension<TMiscExt>(ChunkMeta_->extensions());
-    DataSize_ = miscExt.uncompressed_data_size();
-    RowCount_ = miscExt.row_count();
-    MinTimestamp_ = miscExt.min_timestamp();
-    MaxTimestamp_ = miscExt.max_timestamp();
+    MiscExt_ = GetProtoExtension<TMiscExt>(ChunkMeta_->extensions());
 
     auto boundaryKeysExt = GetProtoExtension<TBoundaryKeysExt>(ChunkMeta_->extensions());
     MinKey_ = WidenKey(FromProto<TOwningKey>(boundaryKeysExt.min()), KeyColumnCount_);

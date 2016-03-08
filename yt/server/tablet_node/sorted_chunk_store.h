@@ -100,12 +100,9 @@ private:
     NCellNode::TBootstrap* const Bootstrap_;
 
     // Cached for fast retrieval from ChunkMeta_.
+    NChunkClient::NProto::TMiscExt MiscExt_;
     TOwningKey MinKey_;
     TOwningKey MaxKey_;
-    TTimestamp MinTimestamp_;
-    TTimestamp MaxTimestamp_;
-    i64 DataSize_ = -1;
-    i64 RowCount_ = -1;
 
     NChunkClient::TRefCountedChunkMetaPtr ChunkMeta_;
 
