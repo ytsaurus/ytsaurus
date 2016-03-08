@@ -54,6 +54,7 @@ IChunkReaderPtr CreateRemoteReader(
     TRemoteReaderOptionsPtr options,
     NApi::IClientPtr client,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
+    const TNullable<NNodeTrackerClient::TNodeDescriptor>& localDescriptor,
     IBlockCachePtr blockCache,
     NConcurrency::IThroughputThrottlerPtr throttler);
 

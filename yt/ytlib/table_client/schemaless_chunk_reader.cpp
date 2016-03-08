@@ -657,6 +657,8 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
                 options,
                 client,
                 nodeDirectory,
+                //XXX(babenko): hotfix for YT-3915
+                Null,
                 blockCache,
                 throttler);
 
