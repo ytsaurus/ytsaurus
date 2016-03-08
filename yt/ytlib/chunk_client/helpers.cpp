@@ -42,7 +42,7 @@ using NYT::FromProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const auto& Logger = ChunkClientLogger;
+static const auto& Logger = ChunkClientLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -187,13 +187,13 @@ i64 GetChunkReaderMemoryEstimate(const TChunkSpec& chunkSpec, TMultiChunkReaderC
 }
 
 IChunkReaderPtr CreateRemoteReader(
-    const TChunkSpec& chunkSpec, 
+    const TChunkSpec& chunkSpec,
     TReplicationReaderConfigPtr config,
     TRemoteReaderOptionsPtr options,
     NApi::IClientPtr client,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
     IBlockCachePtr blockCache,
-    NConcurrency::IThroughputThrottlerPtr throttler)
+    IThroughputThrottlerPtr throttler)
 {
     auto chunkId = NYT::FromProto<TChunkId>(chunkSpec.chunk_id());
     auto replicas = NYT::FromProto<TChunkReplicaList>(chunkSpec.replicas());
