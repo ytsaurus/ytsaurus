@@ -40,11 +40,11 @@ class TestRff(YTEnvSetup):
 
     def test_request_stat(self):
         create_user("u")
-        assert get("//sys/users/u/@request_counter") == 0
+        assert get("//sys/users/u/@request_count") == 0
         for i in xrange(100):
             ls("//tmp", user="u", read_from="follower")
         time.sleep(1.0)
-        assert get("//sys/users/u/@request_counter") == 100
+        assert get("//sys/users/u/@request_count") == 100
 
     def test_leader_fallback(self):
         create("table", "//tmp/t")
