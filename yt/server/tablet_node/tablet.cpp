@@ -1,8 +1,8 @@
 #include "tablet.h"
 #include "automaton.h"
-#include "chunk_store.h"
+#include "sorted_chunk_store.h"
 #include "config.h"
-#include "dynamic_memory_store.h"
+#include "sorted_dynamic_store.h"
 #include "partition.h"
 #include "store_manager.h"
 #include "tablet_manager.h"
@@ -88,15 +88,14 @@ void TTabletSnapshot::ValiateMountRevision(i64 mountRevision)
 
 TTablet::TTablet(
     const TTabletId& tabletId,
-    TTabletSlotPtr slot)
+    ITabletContext* context)
     : TObjectBase(tabletId)
     , MountRevision_(0)
-    , Slot_(slot)
     , HashTableSize_(0)
     , OverlappingStoreCount_(0)
     , Config_(New<TTableMountConfig>())
     , WriterOptions_(New<TTabletWriterOptions>())
-    , ColumnEvaluatorCache_(Slot_->GetColumnEvaluatorCache())
+    , Context_(context)
 { }
 
 TTablet::TTablet(
@@ -105,8 +104,7 @@ TTablet::TTablet(
     const TTabletId& tabletId,
     i64 mountRevision,
     const TObjectId& tableId,
-    TTabletSlotPtr slot,
-    TColumnEvaluatorCachePtr columnEvaluatorCache,
+    ITabletContext* context,
     const TTableSchema& schema,
     const TKeyColumns& keyColumns,
     TOwningKey pivotKey,
@@ -115,30 +113,27 @@ TTablet::TTablet(
     : TObjectBase(tabletId)
     , MountRevision_(mountRevision)
     , TableId_(tableId)
-    , Slot_(slot)
     , Schema_(schema)
     , KeyColumns_(keyColumns)
     , PivotKey_(std::move(pivotKey))
     , NextPivotKey_(std::move(nextPivotKey))
     , State_(ETabletState::Mounted)
     , Atomicity_(atomicity)
-    , HashTableSize_(config->EnableLookupHashTable ? config->MaxMemoryStoreKeyCount : 0)
+    , HashTableSize_(config->EnableLookupHashTable ? config->MaxDynamicStoreKeyCount : 0)
     , OverlappingStoreCount_(0)
     , Config_(config)
     , WriterOptions_(writerOptions)
     , Eden_(std::make_unique<TPartition>(
         this,
-        GenerateId(EObjectType::TabletPartition),
+        context->GenerateId(EObjectType::TabletPartition),
         TPartition::EdenIndex,
         PivotKey_,
         NextPivotKey_))
-    , ColumnEvaluatorCache_(std::move(columnEvaluatorCache))
+    , Context_(context)
 {
-    Initialize();
+    PreInitialize();
+    PostInitialize();
 }
-
-TTablet::~TTablet()
-{ }
 
 ETabletState TTablet::GetPersistentState() const
 {
@@ -172,16 +167,9 @@ void TTablet::SetWriterOptions(TTabletWriterOptionsPtr options)
     WriterOptions_ = options;
 }
 
-const TStoreManagerPtr& TTablet::GetStoreManager() const
+const IStoreManagerPtr& TTablet::GetStoreManager() const
 {
     return StoreManager_;
-}
-
-void TTablet::SetStoreManager(TStoreManagerPtr storeManager)
-{
-    YCHECK(storeManager);
-    YCHECK(!StoreManager_);
-    StoreManager_ = storeManager;
 }
 
 const TTabletPerformanceCountersPtr& TTablet::GetPerformanceCounters() const
@@ -205,6 +193,7 @@ void TTablet::Save(TSaveContext& context) const
     // NB: This is not stable.
     for (const auto& pair : Stores_) {
         const auto& store = pair.second;
+        Save(context, store->GetType());
         Save(context, store->GetId());
         store->Save(context);
     }
@@ -228,15 +217,12 @@ void TTablet::Load(TLoadContext& context)
 {
     using NYT::Load;
 
-    auto tabletManager = Slot_->GetTabletManager();
-
     Load(context, TableId_);
     // COMPAT(babenko)
     if (context.GetVersion() >= 10) {
         Load(context, MountRevision_);
     }
     Load(context, State_);
-    // TODO(babenko): consider moving schema and key columns to async part
     Load(context, Schema_);
     Load(context, KeyColumns_);
     Load(context, Atomicity_);
@@ -251,14 +237,15 @@ void TTablet::Load(TLoadContext& context)
 
     // NB: Call Initialize here since stores that we're about to create
     // may request some tablet properties (e.g. column lock count) during construction.
-    Initialize();
+    PreInitialize();
 
     int storeCount = TSizeSerializer::LoadSuspended(context);
     SERIALIZATION_DUMP_WRITE(context, "stores[%v]", storeCount);
     SERIALIZATION_DUMP_INDENT(context) {
         for (int index = 0; index < storeCount; ++index) {
+            auto storeType = Load<EStoreType>(context);
             auto storeId = Load<TStoreId> (context);
-            auto store = tabletManager->CreateStore(this, storeId);
+            auto store = Context_->CreateStore(this, storeType, storeId);
             YCHECK(Stores_.insert(std::make_pair(store->GetId(), store)).second);
             store->Load(context);
         }
@@ -266,7 +253,7 @@ void TTablet::Load(TLoadContext& context)
 
     auto activeStoreId = Load<TStoreId>(context);
     if (activeStoreId) {
-        ActiveStore_ = GetStore(activeStoreId)->AsDynamicMemory();
+        ActiveStore_ = GetStore(activeStoreId)->AsDynamic();
     }
 
     auto loadPartition = [&] (int index) -> std::unique_ptr<TPartition> {
@@ -296,6 +283,8 @@ void TTablet::Load(TLoadContext& context)
             PartitionList_.push_back(std::move(partition));
         }
     }
+
+    PostInitialize();
 }
 
 TCallback<void(TSaveContext&)> TTablet::AsyncSave()
@@ -315,7 +304,7 @@ TCallback<void(TSaveContext&)> TTablet::AsyncSave()
 
     return BIND(
         [
-            snapshot = Snapshot_,
+            snapshot = BuildSnapshot(nullptr),
             capturedStores = std::move(capturedStores),
             capturedEden = std::move(capturedEden),
             capturedPartitions = std::move(capturedPartitions)
@@ -392,7 +381,7 @@ void TTablet::CreateInitialPartition()
     YCHECK(PartitionList_.empty());
     auto partition = std::make_unique<TPartition>(
         this,
-        GenerateId(EObjectType::TabletPartition),
+        Context_->GenerateId(EObjectType::TabletPartition),
         static_cast<int>(PartitionList_.size()),
         PivotKey_,
         NextPivotKey_);
@@ -440,7 +429,7 @@ void TTablet::MergePartitions(int firstIndex, int lastIndex)
 
     auto mergedPartition = std::make_unique<TPartition>(
         this,
-        GenerateId(EObjectType::TabletPartition),
+        Context_->GenerateId(EObjectType::TabletPartition),
         firstIndex,
         PartitionList_[firstIndex]->GetPivotKey(),
         PartitionList_[lastIndex]->GetNextPivotKey());
@@ -495,7 +484,7 @@ void TTablet::SplitPartition(int index, const std::vector<TOwningKey>& pivotKeys
             : pivotKeys[pivotKeyIndex + 1];
         auto partition = std::make_unique<TPartition>(
             this,
-            GenerateId(EObjectType::TabletPartition),
+            Context_->GenerateId(EObjectType::TabletPartition),
             index + pivotKeyIndex,
             thisPivotKey,
             nextPivotKey);
@@ -568,19 +557,26 @@ const yhash_map<TStoreId, IStorePtr>& TTablet::Stores() const
 
 void TTablet::AddStore(IStorePtr store)
 {
-    auto* partition = GetContainingPartition(store);
-    store->SetPartition(partition);
     YCHECK(Stores_.insert(std::make_pair(store->GetId(), store)).second);
-    YCHECK(partition->Stores().insert(store).second);
-    UpdateOverlappingStoreCount();
+    if (store->IsSorted()) {
+        auto sortedStore = store->AsSorted();
+        auto* partition = GetContainingPartition(sortedStore);
+        YCHECK(partition->Stores().insert(sortedStore).second);
+        sortedStore->SetPartition(partition);
+        UpdateOverlappingStoreCount();
+    }
 }
 
 void TTablet::RemoveStore(IStorePtr store)
 {
     YCHECK(Stores_.erase(store->GetId()) == 1);
-    auto* partition = store->GetPartition();
-    YCHECK(partition->Stores().erase(store) == 1);
-    UpdateOverlappingStoreCount();
+    if (store->IsSorted()) {
+        auto sortedStore = store->AsSorted();
+        auto* partition = sortedStore->GetPartition();
+        YCHECK(partition->Stores().erase(sortedStore) == 1);
+        sortedStore->SetPartition(nullptr);
+        UpdateOverlappingStoreCount();
+    }
 }
 
 IStorePtr TTablet::FindStore(const TStoreId& id)
@@ -594,16 +590,6 @@ IStorePtr TTablet::GetStore(const TStoreId& id)
     auto store = FindStore(id);
     YCHECK(store);
     return store;
-}
-
-const TDynamicMemoryStorePtr& TTablet::GetActiveStore() const
-{
-    return ActiveStore_;
-}
-
-void TTablet::SetActiveStore(TDynamicMemoryStorePtr store)
-{
-    ActiveStore_ = std::move(store);
 }
 
 int TTablet::GetSchemaColumnCount() const
@@ -661,48 +647,46 @@ IInvokerPtr TTablet::GetEpochAutomatonInvoker(EAutomatonThreadQueue queue)
     return EpochAutomatonInvokers_[queue];
 }
 
-TTabletSnapshotPtr TTablet::RebuildSnapshot()
+TTabletSnapshotPtr TTablet::BuildSnapshot(TTabletSlotPtr slot) const
 {
-    Snapshot_ = New<TTabletSnapshot>();
-    Snapshot_->Slot = Slot_;
-    // NB: Slot_ could be null in tests.
-    if (Slot_) {
-        Snapshot_->CellId = Slot_->GetCellId();
-        Snapshot_->HydraManager = Slot_->GetHydraManager();
-        Snapshot_->TabletManager = Slot_->GetTabletManager();
+    auto snapshot = New<TTabletSnapshot>();
+    if (slot) {
+        snapshot->CellId = slot->GetCellId();
+        snapshot->HydraManager = slot->GetHydraManager();
+        snapshot->TabletManager = slot->GetTabletManager();
     }
-    Snapshot_->TabletId = Id_;
-    Snapshot_->MountRevision = MountRevision_;
-    Snapshot_->TableId = TableId_;
-    Snapshot_->Config = Config_;
-    Snapshot_->WriterOptions = WriterOptions_;
-    Snapshot_->PivotKey = PivotKey_;
-    Snapshot_->NextPivotKey = NextPivotKey_;
-    Snapshot_->Schema = Schema_;
-    Snapshot_->KeyColumns = KeyColumns_;
-    Snapshot_->Eden = Eden_->RebuildSnapshot();
-    Snapshot_->Atomicity = Atomicity_;
-    Snapshot_->HashTableSize = HashTableSize_;
-    Snapshot_->OverlappingStoreCount = OverlappingStoreCount_;
-    Snapshot_->Partitions.reserve(PartitionList_.size());
+	snapshot->TabletId = Id_;
+    snapshot->MountRevision = MountRevision_;
+    snapshot->TableId = TableId_;
+    snapshot->Config = Config_;
+    snapshot->WriterOptions = WriterOptions_;
+    snapshot->PivotKey = PivotKey_;
+    snapshot->NextPivotKey = NextPivotKey_;
+    snapshot->Schema = Schema_;
+    snapshot->KeyColumns = KeyColumns_;
+    snapshot->Atomicity = Atomicity_;
+    snapshot->HashTableSize = HashTableSize_;
+    snapshot->OverlappingStoreCount = OverlappingStoreCount_;
+    snapshot->Eden = Eden_->BuildSnapshot();
+    snapshot->Partitions.reserve(PartitionList_.size());
     for (const auto& partition : PartitionList_) {
-        auto partitionSnapshot = partition->RebuildSnapshot();
-        Snapshot_->Partitions.push_back(partitionSnapshot);
-        Snapshot_->StoreCount += partitionSnapshot->Stores.size();
+        auto partitionSnapshot = partition->BuildSnapshot();
+        snapshot->Partitions.push_back(partitionSnapshot);
+        snapshot->StoreCount += partitionSnapshot->Stores.size();
         for (const auto& store : partitionSnapshot->Stores) {
-            auto chunkStore = store->AsChunk();
-            if (chunkStore) {
+            if (store->IsChunk()) {
+                auto chunkStore = store->AsChunk();
                 auto preloadState = chunkStore->GetPreloadState();
                 switch (preloadState) {
                     case EStorePreloadState::Scheduled:
                     case EStorePreloadState::Running:
-                        ++Snapshot_->PreloadPendingStoreCount;
+                        ++snapshot->PreloadPendingStoreCount;
                         break;
                     case EStorePreloadState::Complete:
-                        ++Snapshot_->PreloadCompletedStoreCount;
+                        ++snapshot->PreloadCompletedStoreCount;
                         break;
                     case EStorePreloadState::Failed:
-                        ++Snapshot_->PreloadFailedStoreCount;
+                        ++snapshot->PreloadFailedStoreCount;
                         break;
                     default:
                         break;
@@ -710,22 +694,17 @@ TTabletSnapshotPtr TTablet::RebuildSnapshot()
             }
         }
     }
-    Snapshot_->RowKeyComparer = RowKeyComparer_;
-    Snapshot_->PerformanceCounters = PerformanceCounters_;
-    Snapshot_->ColumnEvaluator = ColumnEvaluator_;
-    return Snapshot_;
+    snapshot->RowKeyComparer = RowKeyComparer_;
+    snapshot->PerformanceCounters = PerformanceCounters_;
+    snapshot->ColumnEvaluator = ColumnEvaluator_;
+    return snapshot;
 }
 
-void TTablet::ResetSnapshot()
-{
-    Snapshot_.Reset();
-}
-
-void TTablet::Initialize()
+void TTablet::PreInitialize()
 {
     PerformanceCounters_ = New<TTabletPerformanceCounters>();
 
-    RowKeyComparer_ = TDynamicRowKeyComparer::Create(
+    RowKeyComparer_ = TSortedDynamicRowKeyComparer::Create(
         GetKeyColumnCount(),
         Schema_);
 
@@ -741,7 +720,7 @@ void TTablet::Initialize()
     yhash_map<Stroka, int> groupToIndex;
     for (int index = KeyColumns_.size(); index < Schema_.Columns().size(); ++index) {
         const auto& columnSchema = Schema_.Columns()[index];
-        int lockIndex = TDynamicRow::PrimaryLockIndex;
+        int lockIndex = TSortedDynamicRow::PrimaryLockIndex;
         // No locking supported for non-atomic tablets, however we still need the primary
         // lock descriptor to maintain last commit timestamps.
         if (columnSchema.Lock && Atomicity_ == EAtomicity::Full) {
@@ -754,17 +733,22 @@ void TTablet::Initialize()
                 lockIndex = it->second;
             }
         } else {
-            lockIndex = TDynamicRow::PrimaryLockIndex;
+            lockIndex = TSortedDynamicRow::PrimaryLockIndex;
         }
         ColumnIndexToLockIndex_[index] = lockIndex;
     }
 
     ColumnLockCount_ = groupToIndex.size() + 1;
 
-    ColumnEvaluator_ = ColumnEvaluatorCache_->Find(Schema_, KeyColumns_.size());
+    ColumnEvaluator_ = Context_->GetColumnEvaluatorCache()->Find(Schema_, KeyColumns_.size());
 }
 
-TPartition* TTablet::GetContainingPartition(IStorePtr store)
+void TTablet::PostInitialize()
+{
+    StoreManager_ = Context_->CreateStoreManager(this);
+}
+
+TPartition* TTablet::GetContainingPartition(const ISortedStorePtr& store)
 {
     // Dynamic stores must reside in Eden.
     if (store->GetStoreState() == EStoreState::ActiveDynamic ||
@@ -776,7 +760,7 @@ TPartition* TTablet::GetContainingPartition(IStorePtr store)
     return GetContainingPartition(store->GetMinKey(), store->GetMaxKey());
 }
 
-const TDynamicRowKeyComparer& TTablet::GetRowKeyComparer() const
+const TSortedDynamicRowKeyComparer& TTablet::GetRowKeyComparer() const
 {
     return RowKeyComparer_;
 }
@@ -790,16 +774,6 @@ void TTablet::ValidateMountRevision(i64 mountRevision)
             Id_,
             MountRevision_,
             mountRevision);
-    }
-}
-
-TObjectId TTablet::GenerateId(EObjectType type)
-{
-    // NB: Slot can be null in tests.
-    if (Slot_) {
-        return Slot_->GenerateId(type);
-    } else {
-        return TObjectId::Create();
     }
 }
 

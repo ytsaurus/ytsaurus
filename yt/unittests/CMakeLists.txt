@@ -15,7 +15,7 @@ set( SRCS
   ${CMAKE_CURRENT_LIST_DIR}/coroutines_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/dsv_parser_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/dsv_writer_ut.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/dynamic_memory_store_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/sorted_dynamic_store_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/election_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/enum_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/erasure_ut.cpp
@@ -37,7 +37,7 @@ set( SRCS
   ${CMAKE_CURRENT_LIST_DIR}/lifecycle_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/logging_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/main.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/memory_store_pt.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/sorted_dynamic_store_pt.cpp
   ${CMAKE_CURRENT_LIST_DIR}/mpl_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/network_address_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/nonblocking_queue_ut.cpp

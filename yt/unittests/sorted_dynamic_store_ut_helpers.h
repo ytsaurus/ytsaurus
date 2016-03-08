@@ -1,9 +1,8 @@
-
 #include "framework.h"
 #include "versioned_table_client_ut.h"
 
 #include <yt/server/tablet_node/config.h>
-#include <yt/server/tablet_node/dynamic_memory_store.h>
+#include <yt/server/tablet_node/sorted_dynamic_store.h>
 #include <yt/server/tablet_node/public.h>
 #include <yt/server/tablet_node/tablet.h>
 #include <yt/server/tablet_node/tablet_manager.h>
@@ -46,10 +45,46 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TMemoryStoreTestBase
+class TSortedDynamicStoreTestBase
     : public ::testing::Test
+    , public ITabletContext
 {
 protected:
+    // ITabletContext implementation.
+    virtual TCellId GetCellId() override
+    {
+        return NullCellId;
+    }
+
+    virtual TColumnEvaluatorCachePtr GetColumnEvaluatorCache() override
+    {
+        return ColumnEvaluatorCache_;
+    }
+
+    virtual TObjectId GenerateId(EObjectType /*type*/) override
+    {
+        return TObjectId::Create();
+    }
+
+    virtual IStorePtr CreateStore(
+        TTablet* tablet,
+        EStoreType type,
+        const TStoreId& storeId) override
+    {
+        YCHECK(type == EStoreType::SortedDynamic);
+        return New<TSortedDynamicStore>(
+            New<TTabletManagerConfig>(),
+            storeId,
+            tablet);
+    }
+
+    virtual IStoreManagerPtr CreateStoreManager(TTablet* /*tablet*/) override
+    {
+        return nullptr;
+    }
+
+
+
     virtual void SetUp() override
     {
         auto schema = GetSchema();
@@ -58,23 +93,18 @@ protected:
             NameTable_->RegisterName(column.Name);
         }
 
-        auto columnEvaluatorCache = New<TColumnEvaluatorCache>(
-            New<TColumnEvaluatorCacheConfig>(),
-            CreateBuiltinFunctionRegistry());
-
-        Tablet_.reset(new TTablet(
+        Tablet_ = std::make_unique<TTablet>(
             New<TTableMountConfig>(),
             New<TTabletWriterOptions>(),
             NullTabletId,
             0,
             NullObjectId,
-            nullptr,
-            columnEvaluatorCache,
+            this,
             schema,
             schema.GetKeyColumns(),
             MinKey(),
             MaxKey(),
-            GetAtomicity()));
+            GetAtomicity());
         Tablet_->CreateInitialPartition();
         Tablet_->StartEpoch(nullptr);
     }
@@ -210,7 +240,7 @@ protected:
         return true;
     }
 
-    TUnversionedOwningRow LookupRow(IStorePtr store, const TOwningKey& key, TTimestamp timestamp)
+    TUnversionedOwningRow LookupRow(ISortedStorePtr store, const TOwningKey& key, TTimestamp timestamp)
     {
         std::vector<TKey> lookupKeys(1, key.Get());
         auto sharedLookupKeys = MakeSharedRange(std::move(lookupKeys), key);
@@ -260,14 +290,17 @@ protected:
         return builder.FinishRow();
     }
 
-    const TLockDescriptor& GetLock(TDynamicRow row, int index = TDynamicRow::PrimaryLockIndex)
+    const TLockDescriptor& GetLock(TSortedDynamicRow row, int index = TSortedDynamicRow::PrimaryLockIndex)
     {
         return row.BeginLocks(Tablet_->KeyColumns().size())[index];
     }
 
 
     TTimestamp CurrentTimestamp_ = 10000; // some reasonable starting point
-    TNameTablePtr NameTable_ = New<TNameTable>();
+    const TNameTablePtr NameTable_ = New<TNameTable>();
+    const TColumnEvaluatorCachePtr ColumnEvaluatorCache_ = New<TColumnEvaluatorCache>(
+        New<TColumnEvaluatorCacheConfig>(),
+        CreateBuiltinFunctionRegistry());
     std::unique_ptr<TTablet> Tablet_;
 
 };

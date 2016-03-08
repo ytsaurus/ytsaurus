@@ -1,8 +1,8 @@
 package NYT.NTabletServer.NProto;
 
 import "yt/core/misc/guid.proto";
-import "yt/ytlib/chunk_client/chunk_meta.proto";
 import "yt/ytlib/node_tracker_client/node.proto";
+import "yt/server/tablet_node/tablet_manager.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -40,24 +40,12 @@ message TRspUnmountTablet
     required NYT.NProto.TGuid tablet_id = 1;
 }
 
-message TAddStoreDescriptor
-{
-    required NYT.NProto.TGuid store_id = 1;
-    optional NYT.NChunkClient.NProto.TChunkMeta chunk_meta = 2;
-    required NYT.NProto.TGuid backing_store_id = 3;
-}
-
-message TRemoveStoreDescriptor
-{
-    required NYT.NProto.TGuid store_id = 1;
-}
-
 message TReqUpdateTabletStores
 {
     required NYT.NProto.TGuid tablet_id = 1;
     required int64 mount_revision = 4;
-    repeated TAddStoreDescriptor stores_to_add = 2;
-    repeated TRemoveStoreDescriptor stores_to_remove = 3;
+    repeated NTabletNode.NProto.TAddStoreDescriptor stores_to_add = 2;
+    repeated NTabletNode.NProto.TRemoveStoreDescriptor stores_to_remove = 3;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

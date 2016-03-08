@@ -68,16 +68,16 @@ public:
         NTransactionClient::TTimestamp timestamp);
 
     //! Informs the controller that some slot now serves #tablet.
-    void RegisterTabletSnapshot(TTablet* tablet);
+    void RegisterTabletSnapshot(TTabletSlotPtr slot, TTablet* tablet);
 
     //! Informs the controller that #tablet is no longer served.
-    void UnregisterTabletSnapshot(TTablet* tablet);
+    void UnregisterTabletSnapshot(TTabletSlotPtr slot, TTablet* tablet);
 
     //! Informs the controller that #slot no longer serves any tablet.
     void UnregisterTabletSnapshots(TTabletSlotPtr slot);
 
     //! Informs the controller that #tablet's snapshot must be updated.
-    void UpdateTabletSnapshot(TTablet* tablet);
+    void UpdateTabletSnapshot(TTabletSlotPtr slot, TTablet* tablet);
 
     //! Returns a thread pool invoker used for building tablet snapshots.
     IInvokerPtr GetSnapshotPoolInvoker();

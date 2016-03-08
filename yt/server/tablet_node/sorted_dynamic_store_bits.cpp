@@ -1,4 +1,4 @@
-#include "dynamic_memory_store_bits.h"
+#include "sorted_dynamic_store_bits.h"
 #include "automaton.h"
 #include "tablet.h"
 
@@ -11,9 +11,9 @@ using namespace NTableClient;
 
 #ifndef _win_
 
-const int TDynamicRow::PrimaryLockIndex;
-const ui32 TDynamicRow::PrimaryLockMask;
-const ui32 TDynamicRow::AllLocksMask;
+const int TSortedDynamicRow::PrimaryLockIndex;
+const ui32 TSortedDynamicRow::PrimaryLockMask;
+const ui32 TSortedDynamicRow::AllLocksMask;
 
 #endif
 
@@ -22,7 +22,7 @@ const ui32 TDynamicRow::AllLocksMask;
 TOwningKey RowToKey(
     const TTableSchema& schema,
     const TKeyColumns& keyColumns,
-    TDynamicRow row)
+    TSortedDynamicRow row)
 {
     TUnversionedOwningRowBuilder builder;
     ui32 nullKeyBit = 1;

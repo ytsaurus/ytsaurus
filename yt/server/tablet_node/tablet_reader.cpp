@@ -37,7 +37,7 @@ static const auto& Logger = TabletNodeLogger;
 
 namespace {
 
-void StoreRangeFormatter(TStringBuilder* builder, const IStorePtr& store)
+void StoreRangeFormatter(TStringBuilder* builder, const ISortedStorePtr& store)
 {
     builder->AppendFormat("<%v:%v>",
         store->GetMinKey(),
@@ -56,7 +56,7 @@ ISchemafulReaderPtr CreateSchemafulTabletReader(
     TTimestamp timestamp,
     const TWorkloadDescriptor& workloadDescriptor)
 {
-    std::vector<IStorePtr> stores;
+    std::vector<ISortedStorePtr> stores;
 
     // Pick stores which intersect [lowerBound, upperBound) (excluding upperBound).
     auto takePartition = [&] (const TPartitionSnapshotPtr& partitionSnapshot) {
@@ -139,9 +139,9 @@ ISchemafulReaderPtr CreateSchemafulPartitionReader(
     const TWorkloadDescriptor& workloadDescriptor,
     TRowBufferPtr rowBuffer)
 {
-    TKey minKey = *keys.Begin();
-    TKey maxKey = *(keys.End() - 1);
-    std::vector<IStorePtr> stores;
+    auto minKey = *keys.Begin();
+    auto maxKey = *(keys.End() - 1);
+    std::vector<ISortedStorePtr> stores;
 
     // Pick stores which intersect [minKey, maxKey] (including maxKey).
     auto takePartition = [&] (const TPartitionSnapshotPtr& partitionSnapshot) {
@@ -255,7 +255,7 @@ ISchemafulReaderPtr CreateSchemafulTabletReader(
 IVersionedReaderPtr CreateVersionedTabletReader(
     IInvokerPtr poolInvoker,
     TTabletSnapshotPtr tabletSnapshot,
-    std::vector<IStorePtr> stores,
+    std::vector<ISortedStorePtr> stores,
     TOwningKey lowerBound,
     TOwningKey upperBound,
     TTimestamp currentTimestamp,

@@ -1,22 +1,75 @@
 #include "store.h"
-#include "chunk_store.h"
-#include "dynamic_memory_store.h"
+#include "sorted_chunk_store.h"
+#include "sorted_dynamic_store.h"
 
 namespace NYT {
 namespace NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TDynamicMemoryStorePtr IStore::AsDynamicMemory()
+bool IStore::IsDynamic() const
 {
-    auto* result = dynamic_cast<TDynamicMemoryStore*>(this);
+    auto type = GetType();
+    return type == EStoreType::SortedDynamic;
+}
+
+IDynamicStorePtr IStore::AsDynamic()
+{
+    auto* result = dynamic_cast<IDynamicStore*>(this);
     YCHECK(result);
     return result;
 }
 
-TChunkStorePtr IStore::AsChunk()
+bool IStore::IsChunk() const
 {
-    auto* result = dynamic_cast<TChunkStore*>(this);
+    auto type = GetType();
+    return type == EStoreType::SortedChunk;
+}
+
+IChunkStorePtr IStore::AsChunk()
+{
+    auto* result = dynamic_cast<IChunkStore*>(this);
+    YCHECK(result);
+    return result;
+}
+
+bool IStore::IsSorted() const
+{
+    auto type = GetType();
+    return type == EStoreType::SortedDynamic ||
+           type == EStoreType::SortedChunk;
+}
+
+ISortedStorePtr IStore::AsSorted()
+{
+    auto* result = dynamic_cast<ISortedStore*>(this);
+    YCHECK(result);
+    return result;
+}
+
+TSortedDynamicStorePtr IStore::AsSortedDynamic()
+{
+    auto* result = dynamic_cast<TSortedDynamicStore*>(this);
+    YCHECK(result);
+    return result;
+}
+
+TSortedChunkStorePtr IStore::AsSortedChunk()
+{
+    auto* result = dynamic_cast<TSortedChunkStore*>(this);
+    YCHECK(result);
+    return result;
+}
+
+bool IStore::IsOrdered() const
+{
+    // TODO(babenko): ordered stores
+    return false;
+}
+
+IOrderedStorePtr IStore::AsOrdered()
+{
+    auto* result = dynamic_cast<IOrderedStore*>(this);
     YCHECK(result);
     return result;
 }

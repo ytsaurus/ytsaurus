@@ -1,7 +1,7 @@
 #pragma once
 
 #include "public.h"
-#include "dynamic_memory_store_bits.h"
+#include "sorted_dynamic_store_bits.h"
 #include "row_comparer_generator.h"
 
 #include <yt/ytlib/table_client/unversioned_row.h>
@@ -38,18 +38,18 @@ struct TKeyWrapper
 };
 
 //! Provides a comparer functor for dynamic row keys.
-class TDynamicRowKeyComparer
+class TSortedDynamicRowKeyComparer
 {
 public:
-    static TDynamicRowKeyComparer Create(
+    static TSortedDynamicRowKeyComparer Create(
         int keyColumnCount,
         const TTableSchema& schema);
 
-    TDynamicRowKeyComparer() = default;
+    TSortedDynamicRowKeyComparer() = default;
 
-    int operator()(TDynamicRow lhs, TDynamicRow rhs) const;
-    int operator()(TDynamicRow lhs, TRowWrapper rhs) const;
-    int operator()(TDynamicRow lhs, TKeyWrapper rhs) const;
+    int operator()(TSortedDynamicRow lhs, TSortedDynamicRow rhs) const;
+    int operator()(TSortedDynamicRow lhs, TRowWrapper rhs) const;
+    int operator()(TSortedDynamicRow lhs, TKeyWrapper rhs) const;
     int operator()(TUnversionedRow lhs, TUnversionedRow rhs) const;
     int operator()(
         const TUnversionedValue* lhsBegin,
@@ -63,7 +63,7 @@ private:
     NCodegen::TCGFunction<TDUComparerSignature> DUComparer_;
     NCodegen::TCGFunction<TUUComparerSignature> UUComparer_;
 
-    TDynamicRowKeyComparer(
+    TSortedDynamicRowKeyComparer(
         int keyColumnCount,
         NCodegen::TCGFunction<TDDComparerSignature> ddComparer,
         NCodegen::TCGFunction<TDUComparerSignature> duComparer,

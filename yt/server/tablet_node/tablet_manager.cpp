@@ -1,16 +1,16 @@
 #include "tablet_manager.h"
 #include "private.h"
 #include "automaton.h"
-#include "chunk_store.h"
+#include "sorted_chunk_store.h"
 #include "config.h"
-#include "dynamic_memory_store.h"
+#include "sorted_dynamic_store.h"
 #include "in_memory_manager.h"
 #include "lookup.h"
 #include "partition.h"
 #include "security_manager.h"
 #include "slot_manager.h"
 #include "store_flusher.h"
-#include "store_manager.h"
+#include "sorted_store_manager.h"
 #include "tablet.h"
 #include "tablet_slot.h"
 #include "transaction.h"
@@ -80,6 +80,7 @@ using namespace NObjectClient;
 using namespace NNodeTrackerClient;
 using namespace NHive;
 using namespace NHive::NProto;
+using namespace NQueryClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -100,6 +101,7 @@ public:
             bootstrap)
         , Config_(config)
         , ChangelogCodec_(GetCodec(Config_->ChangelogCodec))
+        , TabletContext_(this)
         , TabletMap_(TTabletMapTraits(this))
     {
         VERIFY_INVOKER_THREAD_AFFINITY(Slot_->GetAutomatonInvoker(), AutomatonThread);
@@ -217,21 +219,6 @@ public:
     }
 
 
-    IStorePtr CreateStore(TTablet* tablet, const TStoreId& storeId)
-    {
-        switch (TypeFromId(storeId)) {
-            case EObjectType::Chunk:
-            case EObjectType::ErasureChunk:
-                return CreateChunkStore(storeId, tablet, nullptr);
-
-            case EObjectType::DynamicMemoryTabletStore:
-                return CreateDynamicMemoryStore(storeId, tablet);
-
-            default:
-                YUNREACHABLE();
-        }
-    }
-
     void ScheduleStoreRotation(TTablet* tablet)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
@@ -271,6 +258,44 @@ private:
 
     ICodec* const ChangelogCodec_;
 
+    class TTabletContext
+        : public ITabletContext
+    {
+    public:
+        explicit TTabletContext(TImpl* owner)
+            : Owner_(owner)
+        { }
+
+        virtual TCellId GetCellId() override
+        {
+            return Owner_->Slot_->GetCellId();
+        }
+
+        virtual TColumnEvaluatorCachePtr GetColumnEvaluatorCache() override
+        {
+            return Owner_->Bootstrap_->GetColumnEvaluatorCache();
+        }
+
+        virtual TObjectId GenerateId(EObjectType type) override
+        {
+            return Owner_->Slot_->GenerateId(type);
+        }
+
+        virtual IStorePtr CreateStore(TTablet* tablet, EStoreType type, const TStoreId& storeId) override
+        {
+            return Owner_->CreateStore(tablet, type, storeId, nullptr);
+        }
+
+        virtual IStoreManagerPtr CreateStoreManager(TTablet* tablet) override
+        {
+            return Owner_->CreateStoreManager(tablet);
+        }
+
+    private:
+        TImpl* const Owner_;
+
+    };
+
     class TTabletMapTraits
     {
     public:
@@ -280,7 +305,7 @@ private:
 
         std::unique_ptr<TTablet> Create(const TTabletId& id) const
         {
-            return std::make_unique<TTablet>(id, Owner_->Slot_);
+            return std::make_unique<TTablet>(id, &Owner_->TabletContext_);
         }
 
     private:
@@ -289,10 +314,11 @@ private:
     };
 
     TTimestamp LastCommittedTimestamp_ = MinTimestamp;
+    TTabletContext TabletContext_;
     TEntityMap<TTabletId, TTablet, TTabletMapTraits> TabletMap_;
     yhash_set<TTablet*> UnmountingTablets_;
 
-    yhash_set<TDynamicMemoryStorePtr> OrphanedStores_;
+    yhash_set<TSortedDynamicStorePtr> OrphanedStores_;
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
@@ -371,7 +397,6 @@ private:
 
         for (const auto& pair : TabletMap_) {
             auto* tablet = pair.second;
-            CreateStoreManager(tablet);
             if (tablet->GetState() >= ETabletState::WaitingForLocks) {
                 YCHECK(UnmountingTablets_.insert(tablet).second);
             }
@@ -386,9 +411,11 @@ private:
                 // NB: Tablet could be missing if it was e.g. forcefully removed.
                 if (!tablet)
                     continue;
+
                 TWireProtocolReader reader(record.Data);
+                const auto& storeManager = tablet->GetStoreManager();
                 while (!reader.IsFinished()) {
-                    ExecuteSingleWriteAtomic(tablet, transaction, &reader, false);
+                    storeManager->ExecuteAtomicWrite(tablet, transaction, &reader, false);
                     ++rowCount;
                 }
             }
@@ -449,7 +476,7 @@ private:
                 auto rowRef = transaction->PrelockedRows().front();
                 transaction->PrelockedRows().pop();
                 if (ValidateAndDiscardRowRef(rowRef)) {
-                    rowRef.Store->GetTablet()->GetStoreManager()->AbortRow(transaction, rowRef);
+                    rowRef.StoreManager->AbortRow(transaction, rowRef);
                 }
             }
         }
@@ -513,32 +540,32 @@ private:
             tabletId,
             mountRevision,
             tableId,
-            Slot_,
-            Slot_->GetColumnEvaluatorCache(),
+            &TabletContext_,
             schema,
             keyColumns,
             pivotKey,
             nextPivotKey,
             atomicity);
 
-        tabletHolder->CreateInitialPartition();
-        tabletHolder->SetState(ETabletState::Mounted);
-
-        auto storeManager = CreateStoreManager(tabletHolder.get());
-        storeManager->CreateActiveStore();
-
         auto* tablet = TabletMap_.Insert(tabletId, std::move(tabletHolder));
+
+        tablet->CreateInitialPartition();
+        tablet->SetState(ETabletState::Mounted);
+
+        const auto& storeManager = tablet->GetStoreManager();
+        storeManager->CreateActiveStore();
 
         std::vector<std::tuple<TOwningKey, int, int>> chunkBoundaries;
 
         int descriptorIndex = 0;
-        for (const auto& descriptor : request.chunk_stores()) {
-            auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(descriptor.chunk_meta().extensions());
+        for (const auto& descriptor : request.stores()) {
+            const auto& extensions = descriptor.chunk_meta().extensions();
+            auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(extensions);
             if (miscExt.has_max_timestamp()) {
                 UpdateLastCommittedTimestamp(miscExt.max_timestamp());
             }
             if (!miscExt.eden()) {
-                auto boundaryKeysExt = GetProtoExtension<NTableClient::NProto::TBoundaryKeysExt>(descriptor.chunk_meta().extensions());
+                auto boundaryKeysExt = GetProtoExtension<NTableClient::NProto::TBoundaryKeysExt>(extensions);
                 auto minKey = WidenKey(FromProto<TOwningKey>(boundaryKeysExt.min()), keyColumns.size());
                 auto maxKey = WidenKey(FromProto<TOwningKey>(boundaryKeysExt.max()), keyColumns.size());
                 chunkBoundaries.push_back(std::make_tuple(minKey, -1, descriptorIndex));
@@ -561,16 +588,17 @@ private:
             SplitTabletPartition(tablet, 0, pivotKeys);
         }
 
-        for (const auto& descriptor : request.chunk_stores()) {
-            auto chunkId = FromProto<TChunkId>(descriptor.store_id());
-            auto store = CreateChunkStore(
-                chunkId,
+        for (const auto& descriptor : request.stores()) {
+            auto type = EStoreType(descriptor.store_type());
+            auto storeId = FromProto < TChunkId > (descriptor.store_id());
+            YCHECK(descriptor.has_chunk_meta());
+            YCHECK(!descriptor.has_backing_store_id());
+            auto store = CreateStore(
                 tablet,
+                type,
+                storeId,
                 &descriptor.chunk_meta());
-            storeManager->AddStore(store);
-            if (mountConfig->InMemoryMode != EInMemoryMode::None) {
-                storeManager->ScheduleStorePreload(store);
-            }
+            storeManager->AddStore(store->AsChunk(), true);
         }
 
         SchedulePartitionsSampling(tablet);
@@ -592,7 +620,7 @@ private:
             tableId,
             pivotKey,
             nextPivotKey,
-            request.chunk_stores_size(),
+            request.stores_size(),
             tablet->Partitions().size(),
             tablet->GetAtomicity());
     }
@@ -672,7 +700,7 @@ private:
         int oldSamplesPerPartition = tablet->GetConfig()->SamplesPerPartition;
         int newSamplesPerPartition = mountConfig->SamplesPerPartition;
 
-        auto storeManager = tablet->GetStoreManager();
+        const auto& storeManager = tablet->GetStoreManager();
         storeManager->Remount(mountConfig, writerOptions);
 
         if (oldSamplesPerPartition != newSamplesPerPartition) {
@@ -756,7 +784,7 @@ private:
             transaction->PrelockedRows().pop();
 
             if (ValidateAndDiscardRowRef(rowRef)) {
-                rowRef.Store->GetTablet()->GetStoreManager()->ConfirmRow(transaction, rowRef);
+                rowRef.StoreManager->ConfirmRow(transaction, rowRef);
             }
         }
 
@@ -783,10 +811,14 @@ private:
 
         tablet->ValidateMountRevision(mountRevision);
 
+        auto commitTimestamp = TimestampFromTransactionId(transactionId);
+        auto adjustedCommitTimestamp = AdjustCommitTimestamp(commitTimestamp);
+
         TWireProtocolReader reader(recordData);
         int rowCount = 0;
+        const auto& storeManager = tablet->GetStoreManager();
         while (!reader.IsFinished()) {
-            ExecuteSingleWriteNonAtomic(tablet, transactionId, &reader);
+            storeManager->ExecuteNonAtomicWrite(tablet, adjustedCommitTimestamp, &reader);
             ++rowCount;
         }
 
@@ -823,6 +855,8 @@ private:
         TWireProtocolReader reader(recordData);
         int rowCount = 0;
 
+        const auto& storeManager = tablet->GetStoreManager();
+
         switch (atomicity) {
             case EAtomicity::Full: {
                 auto transactionManager = Slot_->GetTransactionManager();
@@ -831,7 +865,7 @@ private:
                 auto writeRecord = TTransactionWriteRecord{tabletId, recordData};
 
                 while (!reader.IsFinished()) {
-                    ExecuteSingleWriteAtomic(tablet, transaction, &reader, false);
+                    storeManager->ExecuteAtomicWrite(tablet, transaction, &reader, false);
                     ++rowCount;
                 }
 
@@ -839,8 +873,10 @@ private:
             }
 
             case EAtomicity::None: {
+                auto commitTimestamp = TimestampFromTransactionId(transactionId);
+                auto adjustedCommitTimestamp = AdjustCommitTimestamp(commitTimestamp);
                 while (!reader.IsFinished()) {
-                    ExecuteSingleWriteNonAtomic(tablet, transactionId, &reader);
+                    storeManager->ExecuteNonAtomicWrite(tablet, adjustedCommitTimestamp, &reader);
                     ++rowCount;
                 }
                 break;
@@ -912,8 +948,8 @@ private:
             storeIdsToAdd,
             storeIdsToRemove);
 
-        auto slot = tablet->GetSlot();
-        auto hiveManager = slot->GetHiveManager();
+        auto hiveManager = Slot_->GetHiveManager();
+        auto* masterMailbox = Slot_->GetMasterMailbox();
 
         {
             TReqUpdateTabletStores masterRequest;
@@ -922,7 +958,7 @@ private:
             masterRequest.mutable_stores_to_add()->MergeFrom(commitRequest.stores_to_add());
             masterRequest.mutable_stores_to_remove()->MergeFrom(commitRequest.stores_to_remove());
 
-            hiveManager->PostMessage(slot->GetMasterMailbox(), masterRequest);
+            hiveManager->PostMessage(masterMailbox, masterRequest);
         }
 
         if (commitRequest.has_transaction_id()) {
@@ -932,7 +968,7 @@ private:
             ToProto(masterRequest.mutable_transaction_id(), transactionId);
             ToProto(masterRequest.mutable_mutation_id(), NRpc::NullMutationId);
 
-            hiveManager->PostMessage(slot->GetMasterMailbox(), masterRequest);
+            hiveManager->PostMessage(masterMailbox, masterRequest);
         }
     }
 
@@ -962,11 +998,11 @@ private:
 
                 YCHECK(store->GetStoreState() == EStoreState::RemoveCommitting);
                 switch (store->GetType()) {
-                    case EStoreType::DynamicMemory: {
+                    case EStoreType::SortedDynamic: {
                         store->SetStoreState(EStoreState::PassiveDynamic);
                         break;
                     }
-                    case EStoreType::Chunk: {
+                    case EStoreType::SortedChunk: {
                         store->SetStoreState(EStoreState::Persistent);
                         break;
                     }
@@ -987,27 +1023,22 @@ private:
         auto inMemoryManager = Bootstrap_->GetInMemoryManager();
         std::vector<TStoreId> addedStoreIds;
         for (const auto& descriptor : response.stores_to_add()) {
+            auto storeType = EStoreType(descriptor.store_type());
             auto storeId = FromProto<TChunkId>(descriptor.store_id());
             addedStoreIds.push_back(storeId);
-            YCHECK(descriptor.has_chunk_meta());
 
-            auto store = CreateChunkStore(storeId, tablet, &descriptor.chunk_meta());
-            storeManager->AddStore(store);
+            auto store = CreateStore(tablet, storeType, storeId, &descriptor.chunk_meta());
+            storeManager->AddStore(store, false);
 
-            auto chunkData = inMemoryManager->EvictInterceptedChunkData(storeId);
-            if (mountConfig->InMemoryMode != EInMemoryMode::None) {
-                if (!storeManager->TryPreloadStoreFromInterceptedData(store, chunkData)) {
-                    storeManager->ScheduleStorePreload(store);
-                }
-            }
-
-            SchedulePartitionSampling(store->GetPartition());
+            // XXX(babenko): get rid of this
+            auto chunkStore = store->AsSortedChunk();
+            SchedulePartitionSampling(chunkStore->GetPartition());
 
             TStoreId backingStoreId;
             if (!IsRecovery() && descriptor.has_backing_store_id()) {
                 backingStoreId = FromProto<TStoreId>(descriptor.backing_store_id());
-                auto backingStore = tablet->GetStore(backingStoreId);
-                SetBackingStore(tablet, store, backingStore);
+                auto backingStore = tablet->GetStore(backingStoreId)->AsSorted();
+                SetBackingStore(tablet, chunkStore, backingStore);
             }
 
             LOG_DEBUG_UNLESS(IsRecovery(), "Store added (TabletId: %v, StoreId: %v, BackingStoreId: %v)",
@@ -1020,9 +1051,15 @@ private:
         for (const auto& descriptor : response.stores_to_remove()) {
             auto storeId = FromProto<TStoreId>(descriptor.store_id());
             removedStoreIds.push_back(storeId);
+
             auto store = tablet->GetStore(storeId);
+            // XXX(babenko): consider moving to store manager
+            if (store->IsSorted()) {
+                auto sortedStore = store->AsSorted();
+                SchedulePartitionSampling(sortedStore->GetPartition());
+            }
             storeManager->RemoveStore(store);
-            SchedulePartitionSampling(store->GetPartition());
+
             LOG_DEBUG_UNLESS(IsRecovery(), "Store removed (TabletId: %v, StoreId: %v)",
                 tabletId,
                 storeId);
@@ -1172,10 +1209,10 @@ private:
 
     void OnTransactionPrepared(TTransaction* transaction)
     {
-        auto handleRow = [&] (const TDynamicRowRef& rowRef) {
+        auto handleRow = [&] (const TSortedDynamicRowRef& rowRef) {
             // NB: Don't call ValidateAndDiscardRowRef, row refs are just scanned.
             if (ValidateRowRef(rowRef)) {
-                rowRef.Store->GetTablet()->GetStoreManager()->PrepareRow(transaction, rowRef);
+                rowRef.StoreManager->PrepareRow(transaction, rowRef);
             }
         };
 
@@ -1198,9 +1235,9 @@ private:
 
     void OnTransactionCommitted(TTransaction* transaction)
     {
-        auto handleRow = [&] (const TDynamicRowRef& rowRef) {
+        auto handleRow = [&] (const TSortedDynamicRowRef& rowRef) {
             if (ValidateAndDiscardRowRef(rowRef)) {
-                rowRef.Store->GetTablet()->GetStoreManager()->CommitRow(transaction, rowRef);
+                rowRef.StoreManager->CommitRow(transaction, rowRef);
             }
         };
 
@@ -1222,9 +1259,9 @@ private:
 
     void OnTransactionAborted(TTransaction* transaction)
     {
-        auto handleRow = [&] (const TDynamicRowRef& rowRef) {
+        auto handleRow = [&] (const TSortedDynamicRowRef& rowRef) {
             if (ValidateAndDiscardRowRef(rowRef)) {
-                rowRef.Store->GetTablet()->GetStoreManager()->AbortRow(transaction, rowRef);
+                rowRef.StoreManager->AbortRow(transaction, rowRef);
             }
         };
 
@@ -1260,11 +1297,11 @@ private:
 
         store->SetStoreState(EStoreState::Orphaned);
 
-        if (store->GetType() != EStoreType::DynamicMemory) {
+        if (store->GetType() != EStoreType::SortedDynamic) {
             return;
         }
         
-        auto dynamicStore = store->AsDynamicMemory();
+        auto dynamicStore = store->AsSortedDynamic();
         int lockCount = dynamicStore->GetLockCount();
         if (lockCount > 0) {
             YCHECK(OrphanedStores_.insert(dynamicStore).second);
@@ -1275,13 +1312,13 @@ private:
         }
     }
 
-    bool ValidateRowRef(const TDynamicRowRef& rowRef)
+    bool ValidateRowRef(const TSortedDynamicRowRef& rowRef)
     {
         auto* store = rowRef.Store;
         return store->GetStoreState() != EStoreState::Orphaned;
     }
 
-    bool ValidateAndDiscardRowRef(const TDynamicRowRef& rowRef)
+    bool ValidateAndDiscardRowRef(const TSortedDynamicRowRef& rowRef)
     {
         auto* store = rowRef.Store;
         if (store->GetStoreState() != EStoreState::Orphaned) {
@@ -1331,6 +1368,7 @@ private:
         TFuture<void>* commitResult)
     {
         const auto& tabletId = tablet->GetId();
+        const auto& storeManager = tablet->GetStoreManager();
 
         auto transactionManager = Slot_->GetTransactionManager();
         auto* transaction = transactionManager->GetTransactionOrThrow(transactionId);
@@ -1348,7 +1386,7 @@ private:
                 reader->SetCurrent(readerCheckpoint);
             };
             try {
-                ExecuteSingleWriteAtomic(tablet, transaction, reader, true);
+                storeManager->ExecuteAtomicWrite(tablet, transaction, reader, true);
             } catch (const TRowBlockedException& ex) {
                 rewindReader();
                 rowBlockedEx = ex;
@@ -1437,86 +1475,6 @@ private:
              .As<void>();
     }
 
-    void ExecuteSingleWriteAtomic(
-        TTablet* tablet,
-        TTransaction* transaction,
-        TWireProtocolReader* reader,
-        bool prelock)
-    {
-        const auto& storeManager = tablet->GetStoreManager();
-
-        TDynamicRowRef rowRef;
-
-        auto command = reader->ReadCommand();
-        switch (command) {
-            case EWireProtocolCommand::WriteRow: {
-                TReqWriteRow req;
-                reader->ReadMessage(&req);
-                auto row = reader->ReadUnversionedRow();
-                rowRef = storeManager->WriteRowAtomic(
-                    transaction,
-                    row,
-                    prelock);
-                break;
-            }
-
-            case EWireProtocolCommand::DeleteRow: {
-                TReqDeleteRow req;
-                reader->ReadMessage(&req);
-                auto key = reader->ReadUnversionedRow();
-                rowRef = storeManager->DeleteRowAtomic(
-                    transaction,
-                    key,
-                    prelock);
-                break;
-            }
-
-            default:
-                THROW_ERROR_EXCEPTION("Unknown write command %v",
-                    command);
-        }
-
-        if (prelock) {
-            ValidateTabletMounted(tablet);
-            ValidateTransactionActive(transaction);
-            transaction->PrelockedRows().push(rowRef);
-        }
-    }
-
-    void ExecuteSingleWriteNonAtomic(
-        TTablet* tablet,
-        const TTransactionId& transactionId,
-        TWireProtocolReader* reader)
-    {
-        auto commitTimestamp = TimestampFromTransactionId(transactionId);
-        auto adjustedCommitTimestamp = AdjustCommitTimestamp(commitTimestamp);
-
-        const auto& storeManager = tablet->GetStoreManager();
-
-        auto command = reader->ReadCommand();
-        switch (command) {
-            case EWireProtocolCommand::WriteRow: {
-                TReqWriteRow req;
-                reader->ReadMessage(&req);
-                auto row = reader->ReadUnversionedRow();
-                storeManager->WriteRowNonAtomic(transactionId, adjustedCommitTimestamp, row);
-                break;
-            }
-
-            case EWireProtocolCommand::DeleteRow: {
-                TReqDeleteRow req;
-                reader->ReadMessage(&req);
-                auto key = reader->ReadUnversionedRow();
-                storeManager->DeleteRowNonAtomic(transactionId, adjustedCommitTimestamp, key);
-                break;
-            }
-
-            default:
-                THROW_ERROR_EXCEPTION("Unknown write command %v",
-                    command);
-        }
-    }
-
 
     void CheckIfFullyUnlocked(TTablet* tablet)
     {
@@ -1583,36 +1541,22 @@ private:
     }
 
 
-    TStoreManagerPtr CreateStoreManager(TTablet* tablet)
-    {
-        auto storeManager = New<TStoreManager>(
-            Config_,
-            tablet,
-            BIND([=] () -> TDynamicMemoryStorePtr {
-                auto slot = tablet->GetSlot();
-                auto storeId = slot->GenerateId(EObjectType::DynamicMemoryTabletStore);
-                return CreateDynamicMemoryStore(storeId, tablet);
-            }));
-        tablet->SetStoreManager(storeManager);
-        return storeManager;
-    }
-
     void StartTabletEpoch(TTablet* tablet)
     {
         const auto& storeManager = tablet->GetStoreManager();
         storeManager->StartEpoch(Slot_);
 
         auto slotManager = Bootstrap_->GetTabletSlotManager();
-        slotManager->RegisterTabletSnapshot(tablet);
+        slotManager->RegisterTabletSnapshot(Slot_, tablet);
 
         for (const auto& pair : tablet->Stores()) {
             const auto& store = pair.second;
-            if (store->GetType() == EStoreType::DynamicMemory) {
-                auto dynamicStore = store->AsDynamicMemory();
+            if (store->GetType() == EStoreType::SortedDynamic) {
+                auto sortedDynamicStore = store->AsSortedDynamic();
                 auto rowBlockedHandler = CreateRowBlockedHandler(
-                    dynamicStore.Get(),
+                    sortedDynamicStore,
                     tablet);
-                dynamicStore->SetRowBlockedHandler(rowBlockedHandler);
+                sortedDynamicStore->SetRowBlockedHandler(rowBlockedHandler);
             }
         }
     }
@@ -1623,12 +1567,12 @@ private:
         storeManager->StopEpoch();
 
         auto slotManager = Bootstrap_->GetTabletSlotManager();
-        slotManager->UnregisterTabletSnapshot(tablet);
+        slotManager->UnregisterTabletSnapshot(Slot_, tablet);
 
         for (const auto& pair : tablet->Stores()) {
             const auto& store = pair.second;
-            if (store->GetType() == EStoreType::DynamicMemory) {
-                store->AsDynamicMemory()->ResetRowBlockedHandler();
+            if (store->GetType() == EStoreType::SortedDynamic) {
+                store->AsSortedDynamic()->ResetRowBlockedHandler();
             }
         }
     }
@@ -1653,7 +1597,7 @@ private:
     }
 
 
-    void SetBackingStore(TTablet* tablet, TChunkStorePtr store, IStorePtr backingStore)
+    void SetBackingStore(TTablet* tablet, TSortedChunkStorePtr store, ISortedStorePtr backingStore)
     {
         store->SetBackingStore(backingStore);
         LOG_DEBUG("Backing store set (StoreId: %v, BackingStoreId: %v)",
@@ -1668,7 +1612,7 @@ private:
         TDelayedExecutor::Submit(
             // NB: Submit the callback via the regular automaton invoker, not the epoch one since
             // we need the store to be released even if the epoch ends.
-            callback.Via(tablet->GetSlot()->GetAutomatonInvoker()),
+            callback.Via(Slot_->GetAutomatonInvoker()),
             tablet->GetConfig()->BackingStoreRetentionTime);
     }
 
@@ -1730,9 +1674,9 @@ private:
     static EMemoryCategory GetMemoryCategoryFromStore(IStorePtr store)
     {
         switch (store->GetType()) {
-            case EStoreType::DynamicMemory:
+            case EStoreType::SortedDynamic:
                 return EMemoryCategory::TabletDynamic;
-            case EStoreType::Chunk:
+            case EStoreType::SortedChunk:
                 return EMemoryCategory::TabletStatic;
             default:
                 YUNREACHABLE();
@@ -1806,7 +1750,7 @@ private:
     {
         if (!IsRecovery()) {
             auto slotManager = Bootstrap_->GetTabletSlotManager();
-            slotManager->UpdateTabletSnapshot(tablet);
+            slotManager->UpdateTabletSnapshot(Slot_, tablet);
         }
     }
 
@@ -1891,7 +1835,7 @@ private:
         IStore* store,
         const TTabletId& tabletId,
         IInvokerPtr invoker,
-        TDynamicRow row,
+        TSortedDynamicRow row,
         int lockIndex)
     {
         WaitFor(
@@ -1909,7 +1853,7 @@ private:
     void WaitOnBlockedRow(
         IStorePtr /*store*/,
         const TTabletId& tabletId,
-        TDynamicRow row,
+        TSortedDynamicRow row,
         int lockIndex)
     {
         auto* tablet = FindTablet(tabletId);
@@ -1933,38 +1877,55 @@ private:
     }
 
 
-    TChunkStorePtr CreateChunkStore(
-        const TStoreId& storeId,
+    IStoreManagerPtr CreateStoreManager(TTablet* tablet)
+    {
+        // XXX(babenko): handle ordered tablets
+        return New<TSortedStoreManager>(
+            Config_,
+            tablet,
+            &TabletContext_,
+            Slot_->GetHydraManager(),
+            Bootstrap_->GetInMemoryManager());
+    }
+
+    IStorePtr CreateStore(
         TTablet* tablet,
+        EStoreType type,
+        const TStoreId& storeId,
         const TChunkMeta* chunkMeta)
     {
-        auto store = New<TChunkStore>(
-            storeId,
-            tablet,
-            chunkMeta,
-            Bootstrap_);
-        store->SetInMemoryMode(tablet->GetConfig()->InMemoryMode);
+        auto store = DoCreateStore(tablet, type, storeId, chunkMeta);
         StartMemoryUsageTracking(store);
         return store;
     }
 
-
-    TDynamicMemoryStorePtr CreateDynamicMemoryStore(
+    IStorePtr DoCreateStore(
+        TTablet* tablet,
+        EStoreType type,
         const TStoreId& storeId,
-        TTablet* tablet)
+        const TChunkMeta* chunkMeta)
     {
-        auto store = New<TDynamicMemoryStore>(
-            Config_,
-            storeId,
-            tablet);
-        store->SetRowBlockedHandler(CreateRowBlockedHandler(store.Get(), tablet));
-        StartMemoryUsageTracking(store);
-        return store;
+        switch (type) {
+            case EStoreType::SortedChunk:
+                return New<TSortedChunkStore>(
+                    storeId,
+                    tablet,
+                    chunkMeta,
+                    Bootstrap_);
+
+            case EStoreType::SortedDynamic:
+                return New<TSortedDynamicStore>(
+                    Config_,
+                    storeId,
+                    tablet);
+
+            default:
+                YUNREACHABLE();
+        }
     }
 
-
-    TDynamicMemoryStore::TRowBlockedHandler CreateRowBlockedHandler(
-        const TDynamicMemoryStorePtr& store,
+    TSortedDynamicStore::TRowBlockedHandler CreateRowBlockedHandler(
+        const IStorePtr& store,
         TTablet* tablet)
     {
         return BIND(
@@ -2030,11 +1991,6 @@ void TTabletManager::Write(
         transactionId,
         reader,
         commitResult);
-}
-
-IStorePtr TTabletManager::CreateStore(TTablet* tablet, const TStoreId& storeId)
-{
-    return Impl_->CreateStore(tablet, storeId);
 }
 
 void TTabletManager::ScheduleStoreRotation(TTablet* tablet)

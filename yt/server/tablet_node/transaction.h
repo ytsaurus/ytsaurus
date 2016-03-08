@@ -2,7 +2,7 @@
 
 #include "public.h"
 #include "object_detail.h"
-#include "dynamic_memory_store_bits.h"
+#include "sorted_dynamic_store_bits.h"
 
 #include <yt/server/hive/transaction_detail.h>
 
@@ -48,8 +48,8 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(TTimestamp, StartTimestamp);
     DEFINE_BYVAL_RW_PROPERTY(TTimestamp, PrepareTimestamp);
     DEFINE_BYVAL_RW_PROPERTY(TTimestamp, CommitTimestamp);
-    DEFINE_BYREF_RW_PROPERTY(std::vector<TDynamicRowRef>, LockedRows);
-    DEFINE_BYREF_RW_PROPERTY(TRingQueue<TDynamicRowRef>, PrelockedRows);
+    DEFINE_BYREF_RW_PROPERTY(std::vector<TSortedDynamicRowRef>, LockedRows);
+    DEFINE_BYREF_RW_PROPERTY(TRingQueue<TSortedDynamicRowRef>, PrelockedRows);
     DEFINE_BYREF_RW_PROPERTY(TTransactionWriteLog, WriteLog);
 
 public:

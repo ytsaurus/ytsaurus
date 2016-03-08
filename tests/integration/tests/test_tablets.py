@@ -724,7 +724,7 @@ class TestTablets(YTEnvSetup):
         self.sync_create_cells(1, 1)
         self._create_table("//tmp/t")
 
-        set("//tmp/t/@max_memory_store_key_count", 10)
+        set("//tmp/t/@max_dynamic_store_key_count", 10)
         self.sync_mount_table("//tmp/t")
 
         tablet_id = get("//tmp/t/@tablets/0/tablet_id")
@@ -745,7 +745,7 @@ class TestTablets(YTEnvSetup):
         self._create_table("//tmp/t")
 
         set("//tmp/t/@in_memory_mode", mode)
-        set("//tmp/t/@max_memory_store_key_count", 10)
+        set("//tmp/t/@max_dynamic_store_key_count", 10)
         self.sync_mount_table("//tmp/t")
 
         tablet_id = get("//tmp/t/@tablets/0/tablet_id")
@@ -802,7 +802,7 @@ class TestTablets(YTEnvSetup):
 
         set("//tmp/t/@in_memory_mode", "uncompressed")
         set("//tmp/t/@enable_lookup_hash_table", True)
-        set("//tmp/t/@max_memory_store_key_count", 10)
+        set("//tmp/t/@max_dynamic_store_key_count", 10)
         self.sync_mount_table("//tmp/t")
 
         def _rows(i, j):
@@ -820,18 +820,16 @@ class TestTablets(YTEnvSetup):
         assert lookup_rows("//tmp/t", _keys(0, 10)) == _rows(0, 10)
 
         self.sync_unmount_table("//tmp/t")
-        set("//tmp/t/@memory_store_pressure_threshold", 0.6)
         self.sync_mount_table("//tmp/t")
 
         # check that stores are rotated on-demand
-        insert_rows("//tmp/t", _rows(10, 18))
+        insert_rows("//tmp/t", _rows(10, 20))
         # ensure slot gets scanned
         sleep(3)
-        insert_rows("//tmp/t", _rows(18, 28))
-        assert lookup_rows("//tmp/t", _keys(10, 28)) == _rows(10, 28)
+        insert_rows("//tmp/t", _rows(20, 30))
+        assert lookup_rows("//tmp/t", _keys(10, 30)) == _rows(10, 30)
 
         self.sync_unmount_table("//tmp/t")
-        remove("//tmp/t/@memory_store_pressure_threshold")
         self.sync_mount_table("//tmp/t")
 
         # check that we can delete rows
@@ -844,7 +842,7 @@ class TestTablets(YTEnvSetup):
         # check that everything survives after recovery
         self.sync_unmount_table("//tmp/t")
         self.sync_mount_table("//tmp/t")
-        assert lookup_rows("//tmp/t", _keys(0, 50)) == _rows(10, 28)
+        assert lookup_rows("//tmp/t", _keys(0, 50)) == _rows(10, 30)
         self.sync_unmount_table("//tmp/t")
 
         # check that we can extend key
@@ -854,7 +852,7 @@ class TestTablets(YTEnvSetup):
             {"name": "key2", "type": "int64", "sort_order": "ascending"},
             {"name": "value", "type": "string"}]);
         self.sync_mount_table("//tmp/t")
-        assert lookup_rows("//tmp/t", _keys(0, 50), column_names=["key", "value"]) == _rows(10, 28)
+        assert lookup_rows("//tmp/t", _keys(0, 50), column_names=["key", "value"]) == _rows(10, 30)
 
     def test_update_key_columns_fail1(self):
         self.sync_create_cells(1, 1)

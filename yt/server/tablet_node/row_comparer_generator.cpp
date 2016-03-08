@@ -1,6 +1,6 @@
 #include "row_comparer_generator.h"
-#include "dynamic_memory_store_bits.h"
-#include "dynamic_memory_store_comparer.h"
+#include "sorted_dynamic_store_bits.h"
+#include "sorted_dynamic_comparer.h"
 #include "llvm_types.h"
 
 #include <yt/ytlib/table_client/llvm_types.h>

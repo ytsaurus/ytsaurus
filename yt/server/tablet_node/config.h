@@ -50,10 +50,9 @@ class TTableMountConfig
     : public NTableClient::TRetentionConfig
 {
 public:
-    int MaxMemoryStoreKeyCount;
-    int MaxMemoryStoreValueCount;
-    i64 MaxMemoryStorePoolSize;
-    double MemoryStorePressureThreshold;
+    int MaxDynamicStoreKeyCount;
+    int MaxDynamicStoreValueCount;
+    i64 MaxDynamicStorePoolSize;
 
     i64 MaxPartitionDataSize;
     i64 DesiredPartitionDataSize;
@@ -87,7 +86,7 @@ public:
 
     TNullable<ui64> ForcedCompactionRevision;
 
-    TDuration MemoryStoreAutoFlushPeriod;
+    TDuration DynamicStoreAutoFlushPeriod;
     TNullable<TDuration> AutoCompactionPeriod;
 
     bool EnableLookupHashTable;
@@ -95,23 +94,18 @@ public:
 
     TTableMountConfig()
     {
-        RegisterParameter("max_memory_store_key_count", MaxMemoryStoreKeyCount)
+        RegisterParameter("max_dynamic_store_key_count", MaxDynamicStoreKeyCount)
             .GreaterThan(0)
             .Default(1000000);
-        RegisterParameter("max_memory_store_value_count", MaxMemoryStoreValueCount)
+        RegisterParameter("max_dynamic_store_value_count", MaxDynamicStoreValueCount)
             .GreaterThan(0)
             .Default(10000000)
             // NB: This limit is really important; please consult babenko@
             // before changing it.
-            .LessThanOrEqual(SoftRevisionsPerDynamicMemoryStoreLimit);
-        RegisterParameter("max_memory_store_pool_size", MaxMemoryStorePoolSize)
+            .LessThanOrEqual(SoftRevisionsPerDynamicStoreLimit);
+        RegisterParameter("max_dynamic_store_pool_size", MaxDynamicStorePoolSize)
             .GreaterThan(0)
             .Default((i64) 1024 * 1024 * 1024);
-
-        RegisterParameter("memory_store_pressure_threshold", MemoryStorePressureThreshold)
-            .GreaterThanOrEqual(0.5)
-            .LessThan(1.0)
-            .Default(0.9);
 
         RegisterParameter("max_partition_data_size", MaxPartitionDataSize)
             .Default((i64) 320 * 1024 * 1024)
@@ -181,7 +175,7 @@ public:
         RegisterParameter("forced_compaction_revision", ForcedCompactionRevision)
             .Default(Null);
 
-        RegisterParameter("memory_store_auto_flush_period", MemoryStoreAutoFlushPeriod)
+        RegisterParameter("dynamic_store_auto_flush_period", DynamicStoreAutoFlushPeriod)
             .Default(TDuration::Hours(1));
         RegisterParameter("auto_compaction_period", AutoCompactionPeriod)
             .Default(Null);
@@ -192,8 +186,8 @@ public:
             .Default(false);
 
         RegisterValidator([&] () {
-            if (MaxMemoryStoreKeyCount > MaxMemoryStoreValueCount) {
-                THROW_ERROR_EXCEPTION("\"max_memory_store_key_count\" must be less than or equal to \"max_memory_store_value_count\"");
+            if (MaxDynamicStoreKeyCount > MaxDynamicStoreValueCount) {
+                THROW_ERROR_EXCEPTION("\"max_dynamic_store_key_count\" must be less than or equal to \"max_dynamic_store_value_count\"");
             }
             if (MinPartitionDataSize >= DesiredPartitionDataSize) {
                 THROW_ERROR_EXCEPTION("\"min_partition_data_size\" must be less than \"desired_partition_data_size\"");
