@@ -588,10 +588,10 @@ void TMasterConnector::SendIncrementalNodeHeartbeat(TCellTag cellTag)
 
             auto* protoPerformanceCounters = protoTabletInfo->mutable_performance_counters();
             auto performanceCounters = snapshot->PerformanceCounters;
-            protoPerformanceCounters->set_dynamic_memory_row_read_count(performanceCounters->DynamicMemoryRowReadCount);
-            protoPerformanceCounters->set_dynamic_memory_row_lookup_count(performanceCounters->DynamicMemoryRowLookupCount);
-            protoPerformanceCounters->set_dynamic_memory_row_write_count(performanceCounters->DynamicMemoryRowWriteCount);
-            protoPerformanceCounters->set_dynamic_memory_row_delete_count(performanceCounters->DynamicMemoryRowDeleteCount);
+            protoPerformanceCounters->set_dynamic_row_read_count(performanceCounters->DynamicRowReadCount);
+            protoPerformanceCounters->set_dynamic_row_lookup_count(performanceCounters->DynamicRowLookupCount);
+            protoPerformanceCounters->set_dynamic_row_write_count(performanceCounters->DynamicRowWriteCount);
+            protoPerformanceCounters->set_dynamic_row_delete_count(performanceCounters->DynamicRowDeleteCount);
             protoPerformanceCounters->set_static_chunk_row_read_count(performanceCounters->StaticChunkRowReadCount);
             protoPerformanceCounters->set_static_chunk_row_lookup_count(performanceCounters->StaticChunkRowLookupCount);
             protoPerformanceCounters->set_static_chunk_row_lookup_true_negative_count(performanceCounters->StaticChunkRowLookupTrueNegativeCount);

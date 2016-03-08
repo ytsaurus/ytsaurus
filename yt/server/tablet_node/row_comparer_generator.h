@@ -1,6 +1,6 @@
 #pragma once
 
-#include "dynamic_memory_store_bits.h"
+#include "sorted_dynamic_store_bits.h"
 
 #include <yt/ytlib/table_client/schema.h>
 #include <yt/ytlib/table_client/unversioned_row.h>
@@ -30,5 +30,3 @@ GenerateComparers(int keyColumnCount, const TTableSchema& schema);
 
 } // namespace NTabletNode
 } // namespace NYT
-
-////////////////////////////////////////////////////////////////////////////////

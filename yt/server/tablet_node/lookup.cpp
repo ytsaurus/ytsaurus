@@ -81,7 +81,7 @@ public:
 
         LOG_DEBUG("Performing tablet lookup (TabletId: %v, CellId: %v, KeyCount: %v)",
             TabletSnapshot_->TabletId,
-            TabletSnapshot_->Slot ? TabletSnapshot_->Slot->GetCellId() : NullCellId,
+            TabletSnapshot_->CellId,
             LookupKeys_.Size());
 
         CreateReadSessions(&EdenSessions_, TabletSnapshot_->Eden, LookupKeys_);

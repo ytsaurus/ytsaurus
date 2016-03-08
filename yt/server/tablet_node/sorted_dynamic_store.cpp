@@ -1,4 +1,4 @@
-#include "dynamic_memory_store.h"
+#include "sorted_dynamic_store.h"
 #include "config.h"
 #include "tablet.h"
 #include "transaction.h"
@@ -52,7 +52,7 @@ static const int MaxEditListCapacity = 256;
 static const int TabletReaderPoolSize = 16 * 1024;
 static const int SnapshotRowsPerRead = 1024;
 
-struct TDynamicMemoryStoreReaderPoolTag
+struct TSortedDynamicStoreReaderPoolTag
 { };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -98,42 +98,42 @@ bool AllocateListForPushIfNeeded(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDynamicMemoryStore::TDynamicStoreLookupHashTable
+class TSortedDynamicStore::TLookupHashTable
 {
 public:
-    TDynamicStoreLookupHashTable(
+    TLookupHashTable(
         int size,
-        TDynamicRowKeyComparer keyComparer,
+        TSortedDynamicRowKeyComparer keyComparer,
         int keyColumnCount)
         : HashTable_(size)
         , KeyComparer_(std::move(keyComparer))
         , KeyColumnCount_(keyColumnCount)
     { }
 
-    void Insert(const TUnversionedValue* keyBegin, TDynamicRow dynamicRow)
+    void Insert(const TUnversionedValue* keyBegin, TSortedDynamicRow dynamicRow)
     {
         auto fingerprint = GetFarmFingerprint(keyBegin, keyBegin + KeyColumnCount_);
         auto value = reinterpret_cast<ui64>(dynamicRow.GetHeader());
         YCHECK(HashTable_.Insert(fingerprint, value));
     }
 
-    void Insert(TUnversionedRow row, TDynamicRow dynamicRow)
+    void Insert(TUnversionedRow row, TSortedDynamicRow dynamicRow)
     {
         Insert(row.Begin(), dynamicRow);
     }
 
-    TDynamicRow Find(TKey key) const
+    TSortedDynamicRow Find(TKey key) const
     {
         auto fingerprint = GetFarmFingerprint(key);
         SmallVector<ui64, 1> items;
         HashTable_.Find(fingerprint, &items);
         for (auto item : items) {
-            auto dynamicRow = TDynamicRow(reinterpret_cast<TDynamicRowHeader*>(item));
+            auto dynamicRow = TSortedDynamicRow(reinterpret_cast<TSortedDynamicRowHeader*>(item));
             if (KeyComparer_(dynamicRow, TKeyWrapper{key}) == 0) {
                 return dynamicRow;
             }
         }
-        return TDynamicRow();
+        return TSortedDynamicRow();
     }
 
     size_t GetByteSize() const
@@ -143,17 +143,17 @@ public:
 
 private:
     TLinearProbeHashTable HashTable_;
-    const TDynamicRowKeyComparer KeyComparer_;
+    const TSortedDynamicRowKeyComparer KeyComparer_;
     const int KeyColumnCount_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDynamicMemoryStore::TReaderBase
+class TSortedDynamicStore::TReaderBase
 {
 public:
     explicit TReaderBase(
-        TDynamicMemoryStorePtr store,
+        TSortedDynamicStorePtr store,
         TTimestamp timestamp,
         ui32 revision,
         const TColumnFilter& columnFilter)
@@ -164,14 +164,14 @@ public:
         , KeyColumnCount_(Store_->KeyColumnCount_)
         , SchemaColumnCount_(Store_->SchemaColumnCount_)
         , ColumnLockCount_(Store_->ColumnLockCount_)
-        , Pool_(TDynamicMemoryStoreReaderPoolTag(), TabletReaderPoolSize)
+        , Pool_(TSortedDynamicStoreReaderPoolTag(), TabletReaderPoolSize)
     {
         YCHECK(Timestamp_ != AllCommittedTimestamp || ColumnFilter_.All);
 
         if (columnFilter.All) {
-            LockMask_ = TDynamicRow::AllLocksMask;
+            LockMask_ = TSortedDynamicRow::AllLocksMask;
         } else {
-            LockMask_ = TDynamicRow::PrimaryLockMask;
+            LockMask_ = TSortedDynamicRow::PrimaryLockMask;
             for (int columnIndex : columnFilter.Indexes) {
                 int lockIndex = Store_->ColumnIndexToLockIndex_[columnIndex];
                 LockMask_ |= (1 << lockIndex);
@@ -180,7 +180,7 @@ public:
     }
 
 protected:
-    const TDynamicMemoryStorePtr Store_;
+    const TSortedDynamicStorePtr Store_;
     const TTimestamp Timestamp_;
     const ui32 Revision_;
     const TColumnFilter ColumnFilter_;
@@ -198,12 +198,12 @@ protected:
     ui32 LockMask_;
 
 
-    TTimestamp GetLatestWriteTimestamp(TDynamicRow dynamicRow)
+    TTimestamp GetLatestWriteTimestamp(TSortedDynamicRow dynamicRow)
     {
         auto* lock = dynamicRow.BeginLocks(KeyColumnCount_);
         auto maxTimestamp = NullTimestamp;
         for (int index = 0; index < ColumnLockCount_; ++index, ++lock) {
-            auto list = TDynamicRow::GetWriteRevisionList(*lock);
+            auto list = TSortedDynamicRow::GetWriteRevisionList(*lock);
             const auto* revisionPtr = SearchByTimestamp(list, Timestamp_);
             if (revisionPtr) {
                 auto timestamp = Store_->TimestampFromRevision(*revisionPtr);
@@ -213,7 +213,7 @@ protected:
         return maxTimestamp;
     }
 
-    TTimestamp GetLatestDeleteTimestamp(TDynamicRow dynamicRow)
+    TTimestamp GetLatestDeleteTimestamp(TSortedDynamicRow dynamicRow)
     {
         auto list = dynamicRow.GetDeleteRevisionList(KeyColumnCount_, ColumnLockCount_);
         const auto* revisionPtr = SearchByTimestamp(list, Timestamp_);
@@ -221,7 +221,7 @@ protected:
     }
 
 
-    TVersionedRow ProduceSingleRowVersion(TDynamicRow dynamicRow)
+    TVersionedRow ProduceSingleRowVersion(TSortedDynamicRow dynamicRow)
     {
         Store_->WaitOnBlockedRow(dynamicRow, LockMask_, Timestamp_);
 
@@ -309,7 +309,7 @@ protected:
         return versionedRow;
     }
 
-    TVersionedRow ProduceAllRowVersions(TDynamicRow dynamicRow)
+    TVersionedRow ProduceAllRowVersions(TSortedDynamicRow dynamicRow)
     {
         // Prepare values and write timestamps.
         VersionedValues_.clear();
@@ -375,7 +375,7 @@ protected:
         return versionedRow;
     }
 
-    void ProduceKeys(TDynamicRow dynamicRow, TUnversionedValue* dstKey)
+    void ProduceKeys(TSortedDynamicRow dynamicRow, TUnversionedValue* dstKey)
     {
         ui32 nullKeyMask = dynamicRow.GetNullKeyMask();
         ui32 nullKeyBit = 1;
@@ -513,13 +513,13 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDynamicMemoryStore::TRangeReader
+class TSortedDynamicStore::TRangeReader
     : public TReaderBase
     , public IVersionedReader
 {
 public:
     TRangeReader(
-        TDynamicMemoryStorePtr store,
+        TSortedDynamicStorePtr store,
         TOwningKey lowerKey,
         TOwningKey upperKey,
         TTimestamp timestamp,
@@ -569,7 +569,7 @@ public:
             return false;
         }
 
-        Store_->PerformanceCounters_->DynamicMemoryRowReadCount += rows->size();
+        Store_->PerformanceCounters_->DynamicRowReadCount += rows->size();
 
         return true;
     }
@@ -598,7 +598,7 @@ private:
     const TOwningKey LowerKey_;
     const TOwningKey UpperKey_;
 
-    TSkipList<TDynamicRow, TDynamicRowKeyComparer>::TIterator Iterator_;
+    TSkipList<TSortedDynamicRow, TSortedDynamicRowKeyComparer>::TIterator Iterator_;
 
     bool Finished_ = false;
 
@@ -615,13 +615,13 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDynamicMemoryStore::TLookupReader
+class TSortedDynamicStore::TLookupReader
     : public TReaderBase
     , public IVersionedReader
 {
 public:
     TLookupReader(
-        TDynamicMemoryStorePtr store,
+        TSortedDynamicStorePtr store,
         const TSharedRange<TKey>& keys,
         TTimestamp timestamp,
         const TColumnFilter& columnFilter)
@@ -679,7 +679,7 @@ public:
             return false;
         }
 
-        Store_->PerformanceCounters_->DynamicMemoryRowLookupCount += rows->size();
+        Store_->PerformanceCounters_->DynamicRowLookupCount += rows->size();
 
         return true;
     }
@@ -708,21 +708,20 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TDynamicMemoryStore::TDynamicMemoryStore(
+TSortedDynamicStore::TSortedDynamicStore(
     TTabletManagerConfigPtr config,
     const TStoreId& id,
     TTablet* tablet)
-    : TStoreBase(
-        id,
-        tablet)
-    , FlushState_(EStoreFlushState::None)
+    : TStoreBase(id, tablet)
+    , TDynamicStoreBase(id, tablet)
+    , TSortedStoreBase(id, tablet)
     , Config_(config)
     , Atomicity_(Tablet_->GetAtomicity())
     , RowKeyComparer_(Tablet_->GetRowKeyComparer())
     , RowBuffer_(New<TRowBuffer>(
         Config_->PoolChunkSize,
         Config_->MaxPoolSmallBlockRatio))
-    , Rows_(new TSkipList<TDynamicRow, TDynamicRowKeyComparer>(
+    , Rows_(new TSkipList<TSortedDynamicRow, TSortedDynamicRowKeyComparer>(
         RowBuffer_->GetPool(),
         RowKeyComparer_))
 {
@@ -735,23 +734,23 @@ TDynamicMemoryStore::TDynamicMemoryStore(
     YCHECK(TimestampFromRevision(UncommittedRevision) == UncommittedTimestamp);
 
     if (Tablet_->GetHashTableSize() > 0) {
-        LookupHashTable_ = std::make_unique<TDynamicStoreLookupHashTable>(
+        LookupHashTable_ = std::make_unique<TLookupHashTable>(
             Tablet_->GetHashTableSize(),
             RowKeyComparer_,
             Tablet_->GetKeyColumnCount());
     }
 
-    LOG_DEBUG("Dynamic memory store created (TabletId: %v, LookupHashTable: %v)",
+    LOG_DEBUG("Sorted dynamic store created (TabletId: %v, LookupHashTable: %v)",
         TabletId_,
         static_cast<bool>(LookupHashTable_));
 }
 
-TDynamicMemoryStore::~TDynamicMemoryStore()
+TSortedDynamicStore::~TSortedDynamicStore()
 {
-    LOG_DEBUG("Dynamic memory store destroyed");
+    LOG_DEBUG("Sorted dynamic memory store destroyed");
 }
 
-void TDynamicMemoryStore::SetStoreState(EStoreState state)
+void TSortedDynamicStore::SetStoreState(EStoreState state)
 {
     if (StoreState_ == EStoreState::ActiveDynamic && state == EStoreState::PassiveDynamic) {
         YCHECK(FlushRevision_ == InvalidRevision);
@@ -760,7 +759,7 @@ void TDynamicMemoryStore::SetStoreState(EStoreState state)
     TStoreBase::SetStoreState(state);
 }
 
-IVersionedReaderPtr TDynamicMemoryStore::CreateFlushReader()
+IVersionedReaderPtr TSortedDynamicStore::CreateFlushReader()
 {
     YCHECK(FlushRevision_ != InvalidRevision);
     return New<TRangeReader>(
@@ -772,7 +771,7 @@ IVersionedReaderPtr TDynamicMemoryStore::CreateFlushReader()
         TColumnFilter());
 }
 
-IVersionedReaderPtr TDynamicMemoryStore::CreateSnapshotReader()
+IVersionedReaderPtr TSortedDynamicStore::CreateSnapshotReader()
 {
     return New<TRangeReader>(
         this,
@@ -783,17 +782,17 @@ IVersionedReaderPtr TDynamicMemoryStore::CreateSnapshotReader()
         TColumnFilter());
 }
 
-const TDynamicRowKeyComparer& TDynamicMemoryStore::GetRowKeyComparer() const
+const TSortedDynamicRowKeyComparer& TSortedDynamicStore::GetRowKeyComparer() const
 {
     return RowKeyComparer_;
 }
 
-int TDynamicMemoryStore::GetLockCount() const
+int TSortedDynamicStore::GetLockCount() const
 {
     return StoreLockCount_;
 }
 
-int TDynamicMemoryStore::Lock()
+int TSortedDynamicStore::Lock()
 {
     YASSERT(Atomicity_ == EAtomicity::Full);
 
@@ -803,7 +802,7 @@ int TDynamicMemoryStore::Lock()
     return result;
 }
 
-int TDynamicMemoryStore::Unlock()
+int TSortedDynamicStore::Unlock()
 {
     YASSERT(Atomicity_ == EAtomicity::Full);
     YASSERT(StoreLockCount_ > 0);
@@ -814,20 +813,20 @@ int TDynamicMemoryStore::Unlock()
     return result;
 }
 
-void TDynamicMemoryStore::SetRowBlockedHandler(TRowBlockedHandler handler)
+void TSortedDynamicStore::SetRowBlockedHandler(TRowBlockedHandler handler)
 {
     TWriterGuard guard(RowBlockedLock_);
     RowBlockedHandler_ = std::move(handler);
 }
 
-void TDynamicMemoryStore::ResetRowBlockedHandler()
+void TSortedDynamicStore::ResetRowBlockedHandler()
 {
     TWriterGuard guard(RowBlockedLock_);
     RowBlockedHandler_.Reset();
 }
 
-void TDynamicMemoryStore::WaitOnBlockedRow(
-    TDynamicRow row,
+void TSortedDynamicStore::WaitOnBlockedRow(
+    TSortedDynamicRow row,
     ui32 lockMask,
     TTimestamp timestamp)
 {
@@ -866,19 +865,18 @@ void TDynamicMemoryStore::WaitOnBlockedRow(
     }
 }
 
-TDynamicRow TDynamicMemoryStore::WriteRowAtomic(
+TSortedDynamicRow TSortedDynamicStore::WriteRowAtomic(
     TTransaction* transaction,
     TUnversionedRow row,
-    bool prelock,
     ui32 lockMask)
 {
     YASSERT(Atomicity_ == EAtomicity::Full);
     YASSERT(lockMask != 0);
     YASSERT(FlushRevision_ != MaxRevision);
 
-    TDynamicRow result;
+    TSortedDynamicRow result;
 
-    auto addValues = [&] (TDynamicRow dynamicRow) {
+    auto addValues = [&] (TSortedDynamicRow dynamicRow) {
         for (int index = KeyColumnCount_; index < row.GetCount(); ++index) {
             const auto& value = row[index];
             auto list = PrepareFixedValue(dynamicRow, value.Id);
@@ -888,7 +886,7 @@ TDynamicRow TDynamicMemoryStore::WriteRowAtomic(
         }
     };
 
-    auto newKeyProvider = [&] () -> TDynamicRow {
+    auto newKeyProvider = [&] () -> TSortedDynamicRow {
         YASSERT(StoreState_ == EStoreState::ActiveDynamic);
 
         auto dynamicRow = AllocateRow();
@@ -897,7 +895,7 @@ TDynamicRow TDynamicMemoryStore::WriteRowAtomic(
         SetKeys(dynamicRow, row.Begin());
 
         // Acquire the lock.
-        AcquireRowLocks(dynamicRow, transaction, prelock, lockMask, false);
+        AcquireRowLocks(dynamicRow, transaction, lockMask, false);
 
         // Copy values.
         addValues(dynamicRow);
@@ -911,13 +909,13 @@ TDynamicRow TDynamicMemoryStore::WriteRowAtomic(
         return dynamicRow;
     };
 
-    auto existingKeyConsumer = [&] (TDynamicRow dynamicRow) {
+    auto existingKeyConsumer = [&] (TSortedDynamicRow dynamicRow) {
         // Make sure the row is not blocked.
         ValidateRowNotBlocked(dynamicRow, lockMask, transaction->GetStartTimestamp());
 
         // Check for lock conflicts and acquire the lock.
         CheckRowLocks(dynamicRow, transaction, lockMask);
-        AcquireRowLocks(dynamicRow, transaction, prelock, lockMask, false);
+        AcquireRowLocks(dynamicRow, transaction, lockMask, false);
 
         // Copy values.
         addValues(dynamicRow);
@@ -929,23 +927,23 @@ TDynamicRow TDynamicMemoryStore::WriteRowAtomic(
 
     OnMemoryUsageUpdated();
 
-    ++PerformanceCounters_->DynamicMemoryRowWriteCount;
+    ++PerformanceCounters_->DynamicRowWriteCount;
 
     return result;
 }
 
-TDynamicRow TDynamicMemoryStore::WriteRowNonAtomic(
+TSortedDynamicRow TSortedDynamicStore::WriteRowNonAtomic(
     TUnversionedRow row,
     TTimestamp commitTimestamp)
 {
     YASSERT(Atomicity_ == EAtomicity::None);
     YASSERT(FlushRevision_ != MaxRevision);
 
-    TDynamicRow result;
+    TSortedDynamicRow result;
 
     ui32 commitRevision = RegisterRevision(commitTimestamp);
 
-    auto addValues = [&] (TDynamicRow dynamicRow) {
+    auto addValues = [&] (TSortedDynamicRow dynamicRow) {
         for (int index = KeyColumnCount_; index < row.GetCount(); ++index) {
             const auto& value = row[index];
             auto list = PrepareFixedValue(dynamicRow, value.Id);
@@ -956,7 +954,7 @@ TDynamicRow TDynamicMemoryStore::WriteRowNonAtomic(
         }
     };
 
-    auto newKeyProvider = [&] () -> TDynamicRow {
+    auto newKeyProvider = [&] () -> TSortedDynamicRow {
         YASSERT(StoreState_ == EStoreState::ActiveDynamic);
 
         auto dynamicRow = AllocateRow();
@@ -976,7 +974,7 @@ TDynamicRow TDynamicMemoryStore::WriteRowNonAtomic(
         return dynamicRow;
     };
 
-    auto existingKeyConsumer = [&] (TDynamicRow dynamicRow) {
+    auto existingKeyConsumer = [&] (TSortedDynamicRow dynamicRow) {
         // Copy values.
         addValues(dynamicRow);
 
@@ -989,22 +987,21 @@ TDynamicRow TDynamicMemoryStore::WriteRowNonAtomic(
 
     OnMemoryUsageUpdated();
 
-    ++PerformanceCounters_->DynamicMemoryRowWriteCount;
+    ++PerformanceCounters_->DynamicRowWriteCount;
 
     return result;
 }
 
-TDynamicRow TDynamicMemoryStore::DeleteRowAtomic(
+TSortedDynamicRow TSortedDynamicStore::DeleteRowAtomic(
     TTransaction* transaction,
-    NTableClient::TKey key,
-    bool prelock)
+    NTableClient::TKey key)
 {
     YASSERT(Atomicity_ == EAtomicity::Full);
     YASSERT(FlushRevision_ != MaxRevision);
 
-    TDynamicRow result;
+    TSortedDynamicRow result;
 
-    auto newKeyProvider = [&] () -> TDynamicRow {
+    auto newKeyProvider = [&] () -> TSortedDynamicRow {
         YASSERT(StoreState_ == EStoreState::ActiveDynamic);
 
         auto dynamicRow = AllocateRow();
@@ -1013,7 +1010,7 @@ TDynamicRow TDynamicMemoryStore::DeleteRowAtomic(
         SetKeys(dynamicRow, key.Begin());
 
         // Acquire the lock.
-        AcquireRowLocks(dynamicRow, transaction, prelock, TDynamicRow::PrimaryLockMask, true);
+        AcquireRowLocks(dynamicRow, transaction, TSortedDynamicRow::PrimaryLockMask, true);
 
         // Insert row in hash table.
         if (LookupHashTable_) {
@@ -1024,13 +1021,13 @@ TDynamicRow TDynamicMemoryStore::DeleteRowAtomic(
         return dynamicRow;
     };
 
-    auto existingKeyConsumer = [&] (TDynamicRow dynamicRow) {
+    auto existingKeyConsumer = [&] (TSortedDynamicRow dynamicRow) {
         // Make sure the row is not blocked.
-        ValidateRowNotBlocked(dynamicRow, TDynamicRow::PrimaryLockMask, transaction->GetStartTimestamp());
+        ValidateRowNotBlocked(dynamicRow, TSortedDynamicRow::PrimaryLockMask, transaction->GetStartTimestamp());
 
         // Check for lock conflicts and acquire the lock.
-        CheckRowLocks(dynamicRow, transaction, TDynamicRow::PrimaryLockMask);
-        AcquireRowLocks(dynamicRow, transaction, prelock, TDynamicRow::PrimaryLockMask, true);
+        CheckRowLocks(dynamicRow, transaction, TSortedDynamicRow::PrimaryLockMask);
+        AcquireRowLocks(dynamicRow, transaction, TSortedDynamicRow::PrimaryLockMask, true);
 
         result = dynamicRow;
     };
@@ -1039,12 +1036,12 @@ TDynamicRow TDynamicMemoryStore::DeleteRowAtomic(
 
     OnMemoryUsageUpdated();
 
-    ++PerformanceCounters_->DynamicMemoryRowDeleteCount;
+    ++PerformanceCounters_->DynamicRowDeleteCount;
 
     return result;
 }
 
-TDynamicRow TDynamicMemoryStore::DeleteRowNonAtomic(
+TSortedDynamicRow TSortedDynamicStore::DeleteRowNonAtomic(
     NTableClient::TKey key,
     TTimestamp commitTimestamp)
 {
@@ -1053,9 +1050,9 @@ TDynamicRow TDynamicMemoryStore::DeleteRowNonAtomic(
 
     ui32 commitRevision = RegisterRevision(commitTimestamp);
 
-    TDynamicRow result;
+    TSortedDynamicRow result;
 
-    auto newKeyProvider = [&] () -> TDynamicRow {
+    auto newKeyProvider = [&] () -> TSortedDynamicRow {
         YASSERT(StoreState_ == EStoreState::ActiveDynamic);
 
         auto dynamicRow = AllocateRow();
@@ -1072,7 +1069,7 @@ TDynamicRow TDynamicMemoryStore::DeleteRowNonAtomic(
         return dynamicRow;
     };
 
-    auto existingKeyConsumer = [&] (TDynamicRow dynamicRow) {
+    auto existingKeyConsumer = [&] (TSortedDynamicRow dynamicRow) {
         result = dynamicRow;
     };
 
@@ -1084,17 +1081,17 @@ TDynamicRow TDynamicMemoryStore::DeleteRowNonAtomic(
 
     OnMemoryUsageUpdated();
 
-    ++PerformanceCounters_->DynamicMemoryRowDeleteCount;
+    ++PerformanceCounters_->DynamicRowDeleteCount;
 
     return result;
 }
 
-TDynamicRow TDynamicMemoryStore::MigrateRow(TTransaction* transaction, TDynamicRow row)
+TSortedDynamicRow TSortedDynamicStore::MigrateRow(TTransaction* transaction, TSortedDynamicRow row)
 {
     YASSERT(Atomicity_ == EAtomicity::Full);
     YASSERT(FlushRevision_ != MaxRevision);
 
-    auto migrateLocksAndValues = [&] (TDynamicRow migratedRow) {
+    auto migrateLocksAndValues = [&] (TSortedDynamicRow migratedRow) {
         auto* locks = row.BeginLocks(KeyColumnCount_);
         auto* migratedLocks = migratedRow.BeginLocks(KeyColumnCount_);
 
@@ -1117,7 +1114,7 @@ TDynamicRow TDynamicMemoryStore::MigrateRow(TTransaction* transaction, TDynamicR
 
                     migratedLock->Transaction = lock->Transaction;
                     migratedLock->PrepareTimestamp = lock->PrepareTimestamp;
-                    if (index == TDynamicRow::PrimaryLockIndex) {
+                    if (index == TSortedDynamicRow::PrimaryLockIndex) {
                         YASSERT(!migratedRow.GetDeleteLockFlag());
                         migratedRow.SetDeleteLockFlag(row.GetDeleteLockFlag());
                     }
@@ -1140,8 +1137,8 @@ TDynamicRow TDynamicMemoryStore::MigrateRow(TTransaction* transaction, TDynamicR
         Lock();
     };
 
-    TDynamicRow result;
-    auto newKeyProvider = [&] () -> TDynamicRow {
+    TSortedDynamicRow result;
+    auto newKeyProvider = [&] () -> TSortedDynamicRow {
         // Create migrated row.
         auto migratedRow = result = AllocateRow();
 
@@ -1159,7 +1156,7 @@ TDynamicRow TDynamicMemoryStore::MigrateRow(TTransaction* transaction, TDynamicR
         return migratedRow;
     };
 
-    auto existingKeyConsumer = [&] (TDynamicRow migratedRow) {
+    auto existingKeyConsumer = [&] (TSortedDynamicRow migratedRow) {
         result = migratedRow;
 
         migrateLocksAndValues(migratedRow);
@@ -1175,15 +1172,8 @@ TDynamicRow TDynamicMemoryStore::MigrateRow(TTransaction* transaction, TDynamicR
     return result;
 }
 
-void TDynamicMemoryStore::ConfirmRow(TTransaction* transaction, TDynamicRow row)
-{
-    YASSERT(Atomicity_ == EAtomicity::Full);
-    YASSERT(FlushRevision_ != MaxRevision);
 
-    transaction->LockedRows().push_back(TDynamicRowRef(this, row));
-}
-
-void TDynamicMemoryStore::PrepareRow(TTransaction* transaction, TDynamicRow row)
+void TSortedDynamicStore::PrepareRow(TTransaction* transaction, TSortedDynamicRow row)
 {
     YASSERT(Atomicity_ == EAtomicity::Full);
     YASSERT(FlushRevision_ != MaxRevision);
@@ -1201,7 +1191,7 @@ void TDynamicMemoryStore::PrepareRow(TTransaction* transaction, TDynamicRow row)
     }
 }
 
-void TDynamicMemoryStore::CommitRow(TTransaction* transaction, TDynamicRow row)
+void TSortedDynamicStore::CommitRow(TTransaction* transaction, TSortedDynamicRow row)
 {
     YASSERT(Atomicity_ == EAtomicity::Full);
     YASSERT(FlushRevision_ != MaxRevision);
@@ -1248,7 +1238,7 @@ void TDynamicMemoryStore::CommitRow(TTransaction* transaction, TDynamicRow row)
     UpdateTimestampRange(commitTimestamp);
 }
 
-void TDynamicMemoryStore::AbortRow(TTransaction* transaction, TDynamicRow row)
+void TSortedDynamicStore::AbortRow(TTransaction* transaction, TSortedDynamicRow row)
 {
     YASSERT(Atomicity_ == EAtomicity::Full);
     YASSERT(FlushRevision_ != MaxRevision);
@@ -1283,15 +1273,15 @@ void TDynamicMemoryStore::AbortRow(TTransaction* transaction, TDynamicRow row)
     Unlock();
 }
 
-TDynamicRow TDynamicMemoryStore::FindRow(TKey key)
+TSortedDynamicRow TSortedDynamicStore::FindRow(TKey key)
 {
     auto it = Rows_->FindEqualTo(TKeyWrapper{key});
-    return it.IsValid() ? it.GetCurrent() : TDynamicRow();
+    return it.IsValid() ? it.GetCurrent() : TSortedDynamicRow();
 }
 
-std::vector<TDynamicRow> TDynamicMemoryStore::GetAllRows()
+std::vector<TSortedDynamicRow> TSortedDynamicStore::GetAllRows()
 {
-    std::vector<TDynamicRow> rows;
+    std::vector<TSortedDynamicRow> rows;
     for (auto it = Rows_->FindGreaterThanOrEqualTo(TKeyWrapper{MinKey()});
          it.IsValid();
          it.MoveNext())
@@ -1301,23 +1291,23 @@ std::vector<TDynamicRow> TDynamicMemoryStore::GetAllRows()
     return rows;
 }
 
-TDynamicRow TDynamicMemoryStore::AllocateRow()
+TSortedDynamicRow TSortedDynamicStore::AllocateRow()
 {
-    return TDynamicRow::Allocate(
+    return TSortedDynamicRow::Allocate(
         RowBuffer_->GetPool(),
         KeyColumnCount_,
         ColumnLockCount_,
         SchemaColumnCount_);
 }
 
-TDynamicMemoryStore::TRowBlockedHandler TDynamicMemoryStore::GetRowBlockedHandler()
+TSortedDynamicStore::TRowBlockedHandler TSortedDynamicStore::GetRowBlockedHandler()
 {
     TReaderGuard guard(RowBlockedLock_);
     return RowBlockedHandler_;
 }
 
-int TDynamicMemoryStore::GetBlockingLockIndex(
-    TDynamicRow row,
+int TSortedDynamicStore::GetBlockingLockIndex(
+    TSortedDynamicRow row,
     ui32 lockMask,
     TTimestamp timestamp)
 {
@@ -1336,8 +1326,8 @@ int TDynamicMemoryStore::GetBlockingLockIndex(
     return -1;
 }
 
-void TDynamicMemoryStore::ValidateRowNotBlocked(
-    TDynamicRow row,
+void TSortedDynamicStore::ValidateRowNotBlocked(
+    TSortedDynamicRow row,
     ui32 lockMask,
     TTimestamp timestamp)
 {
@@ -1347,20 +1337,20 @@ void TDynamicMemoryStore::ValidateRowNotBlocked(
     }
 }
 
-TTimestamp TDynamicMemoryStore::GetLastCommitTimestamp(
-    TDynamicRow row,
+TTimestamp TSortedDynamicStore::GetLastCommitTimestamp(
+    TSortedDynamicRow row,
     int lockIndex)
 {
     auto timestamp = MinTimestamp;
     auto& lock = row.BeginLocks(KeyColumnCount_)[lockIndex];
-    auto writeRevisionList = TDynamicRow::GetWriteRevisionList(lock);
+    auto writeRevisionList = TSortedDynamicRow::GetWriteRevisionList(lock);
     if (writeRevisionList) {
         int size = writeRevisionList.GetSize();
         if (size > 0) {
             timestamp = TimestampFromRevision(writeRevisionList[size - 1]);
         }
     }
-    if (lockIndex == TDynamicRow::PrimaryLockIndex) {
+    if (lockIndex == TSortedDynamicRow::PrimaryLockIndex) {
         auto deleteRevisionList = row.GetDeleteRevisionList(KeyColumnCount_, ColumnLockCount_);
         if (deleteRevisionList) {
             int size = deleteRevisionList.GetSize();
@@ -1372,8 +1362,8 @@ TTimestamp TDynamicMemoryStore::GetLastCommitTimestamp(
     return timestamp;
 }
 
-void TDynamicMemoryStore::CheckRowLocks(
-    TDynamicRow row,
+void TSortedDynamicStore::CheckRowLocks(
+    TSortedDynamicRow row,
     TTransaction* transaction,
     ui32 lockMask)
 {
@@ -1392,8 +1382,8 @@ void TDynamicMemoryStore::CheckRowLocks(
         // * if primary lock is requested then all locks are checked
         // * primary lock is always checked
         if ((lockMask & lockMaskBit) ||
-            (lockMask & TDynamicRow::PrimaryLockMask) ||
-            (index == TDynamicRow::PrimaryLockIndex))
+            (lockMask & TSortedDynamicRow::PrimaryLockMask) ||
+            (index == TSortedDynamicRow::PrimaryLockIndex))
         {
             if (lock->Transaction) {
                 THROW_ERROR_EXCEPTION(
@@ -1420,26 +1410,21 @@ void TDynamicMemoryStore::CheckRowLocks(
     }
 }
 
-void TDynamicMemoryStore::AcquireRowLocks(
-    TDynamicRow row,
+void TSortedDynamicStore::AcquireRowLocks(
+    TSortedDynamicRow row,
     TTransaction* transaction,
-    bool prelock,
     ui32 lockMask,
     bool deleteFlag)
 {
     YASSERT(Atomicity_ == EAtomicity::Full);
 
-    if (!prelock) {
-        transaction->LockedRows().push_back(TDynamicRowRef(this, row));
-    }
-    
     // Acquire locks requested in #lockMask with the following exceptions:
     // * if primary lock is requested then all locks are acquired
     {
         auto* lock = row.BeginLocks(KeyColumnCount_);
         ui32 lockMaskBit = 1;
         for (int index = 0; index < ColumnLockCount_; ++index, ++lock, lockMaskBit <<= 1) {
-            if ((lockMask & lockMaskBit) || (lockMask & TDynamicRow::PrimaryLockMask)) {
+            if ((lockMask & lockMaskBit) || (lockMask & TSortedDynamicRow::PrimaryLockMask)) {
                 YASSERT(!lock->Transaction);
                 lock->Transaction = transaction;
                 YASSERT(lock->PrepareTimestamp == NotPreparedTimestamp);
@@ -1455,7 +1440,7 @@ void TDynamicMemoryStore::AcquireRowLocks(
     Lock();
 }
 
-TValueList TDynamicMemoryStore::PrepareFixedValue(TDynamicRow row, int index)
+TValueList TSortedDynamicStore::PrepareFixedValue(TSortedDynamicRow row, int index)
 {
     YASSERT(index >= KeyColumnCount_ && index < SchemaColumnCount_);
 
@@ -1468,7 +1453,7 @@ TValueList TDynamicMemoryStore::PrepareFixedValue(TDynamicRow row, int index)
     return list;
 }
 
-void TDynamicMemoryStore::AddDeleteRevision(TDynamicRow row, ui32 revision)
+void TSortedDynamicStore::AddDeleteRevision(TSortedDynamicRow row, ui32 revision)
 {
     auto list = row.GetDeleteRevisionList(KeyColumnCount_, ColumnLockCount_);
     YASSERT(!list || TimestampFromRevision(list.Back()) < TimestampFromRevision(revision));
@@ -1478,18 +1463,18 @@ void TDynamicMemoryStore::AddDeleteRevision(TDynamicRow row, ui32 revision)
     list.Push(revision);
 }
 
-void TDynamicMemoryStore::AddWriteRevision(TLockDescriptor& lock, ui32 revision)
+void TSortedDynamicStore::AddWriteRevision(TLockDescriptor& lock, ui32 revision)
 {
-    auto list = TDynamicRow::GetWriteRevisionList(lock);
+    auto list = TSortedDynamicRow::GetWriteRevisionList(lock);
     YASSERT(!list || TimestampFromRevision(list.Back()) < TimestampFromRevision(revision));
     if (AllocateListForPushIfNeeded(&list, RowBuffer_->GetPool())) {
-        TDynamicRow::SetWriteRevisionList(lock, list);
+        TSortedDynamicRow::SetWriteRevisionList(lock, list);
     }
     list.Push(revision);
 }
 
-void TDynamicMemoryStore::AddDeleteRevisionNonAtomic(
-    TDynamicRow row,
+void TSortedDynamicStore::AddDeleteRevisionNonAtomic(
+    TSortedDynamicRow row,
     TTimestamp commitTimestamp,
     ui32 commitRevision)
 {
@@ -1499,19 +1484,19 @@ void TDynamicMemoryStore::AddDeleteRevisionNonAtomic(
     UpdateTimestampRange(commitTimestamp);
 }
 
-void TDynamicMemoryStore::AddWriteRevisionNonAtomic(
-    TDynamicRow row,
+void TSortedDynamicStore::AddWriteRevisionNonAtomic(
+    TSortedDynamicRow row,
     TTimestamp commitTimestamp,
     ui32 commitRevision)
 {
     YASSERT(Atomicity_ == EAtomicity::None);
 
-    auto& lock = row.BeginLocks(KeyColumnCount_)[TDynamicRow::PrimaryLockIndex];
+    auto& lock = row.BeginLocks(KeyColumnCount_)[TSortedDynamicRow::PrimaryLockIndex];
     AddWriteRevision(lock, commitRevision);
     UpdateTimestampRange(commitTimestamp);
 }
 
-void TDynamicMemoryStore::SetKeys(TDynamicRow dstRow, const TUnversionedValue* srcKeys)
+void TSortedDynamicStore::SetKeys(TSortedDynamicRow dstRow, const TUnversionedValue* srcKeys)
 {
     ui32 nullKeyMask = 0;
     ui32 nullKeyBit = 1;
@@ -1537,7 +1522,7 @@ void TDynamicMemoryStore::SetKeys(TDynamicRow dstRow, const TUnversionedValue* s
     dstRow.SetNullKeyMask(nullKeyMask);
 }
 
-void TDynamicMemoryStore::SetKeys(TDynamicRow dstRow, TDynamicRow srcRow)
+void TSortedDynamicStore::SetKeys(TSortedDynamicRow dstRow, TSortedDynamicRow srcRow)
 {
     ui32 nullKeyMask = srcRow.GetNullKeyMask();
     dstRow.SetNullKeyMask(nullKeyMask);
@@ -1557,7 +1542,7 @@ void TDynamicMemoryStore::SetKeys(TDynamicRow dstRow, TDynamicRow srcRow)
     }
 }
 
-void TDynamicMemoryStore::LoadRow(
+void TSortedDynamicStore::LoadRow(
     TVersionedRow row,
     TLoadScratchData* scratchData)
 {
@@ -1593,12 +1578,12 @@ void TDynamicMemoryStore::LoadRow(
     }
 
     auto* locks = dynamicRow.BeginLocks(KeyColumnCount_);
-    const auto& primaryRevisions = scratchData->WriteRevisions[TDynamicRow::PrimaryLockIndex];
+    const auto& primaryRevisions = scratchData->WriteRevisions[TSortedDynamicRow::PrimaryLockIndex];
     for (int lockIndex = 0; lockIndex < ColumnLockCount_; ++lockIndex) {
         auto& lock = locks[lockIndex];
         auto& revisions = scratchData->WriteRevisions[lockIndex];
         // NB: Taking the primary lock implies taking all other locks.
-        if (lockIndex != TDynamicRow::PrimaryLockIndex) {
+        if (lockIndex != TSortedDynamicRow::PrimaryLockIndex) {
             revisions.insert(
                 revisions.end(),
                 primaryRevisions.begin(),
@@ -1638,7 +1623,7 @@ void TDynamicMemoryStore::LoadRow(
     }
 }
 
-ui32 TDynamicMemoryStore::CaptureTimestamp(
+ui32 TSortedDynamicStore::CaptureTimestamp(
     TTimestamp timestamp,
     TLoadScratchData* scratchData)
 {
@@ -1653,7 +1638,7 @@ ui32 TDynamicMemoryStore::CaptureTimestamp(
     }
 }
 
-ui32 TDynamicMemoryStore::CaptureVersionedValue(
+ui32 TSortedDynamicStore::CaptureVersionedValue(
     TDynamicValue* dst,
     const TVersionedValue& src,
     TLoadScratchData* scratchData)
@@ -1665,7 +1650,7 @@ ui32 TDynamicMemoryStore::CaptureVersionedValue(
     return revision;
 }
 
-void TDynamicMemoryStore::CaptureUncommittedValue(TDynamicValue* dst, const TDynamicValue& src, int index)
+void TSortedDynamicStore::CaptureUncommittedValue(TDynamicValue* dst, const TDynamicValue& src, int index)
 {
     YASSERT(index >= KeyColumnCount_ && index < SchemaColumnCount_);
     YASSERT(src.Revision == UncommittedRevision);
@@ -1676,7 +1661,7 @@ void TDynamicMemoryStore::CaptureUncommittedValue(TDynamicValue* dst, const TDyn
     }
 }
 
-void TDynamicMemoryStore::CaptureUnversionedValue(
+void TSortedDynamicStore::CaptureUnversionedValue(
     TDynamicValue* dst,
     const TUnversionedValue& src)
 {
@@ -1698,7 +1683,7 @@ void TDynamicMemoryStore::CaptureUnversionedValue(
     }
 }
 
-TDynamicValueData TDynamicMemoryStore::CaptureStringValue(TDynamicValueData src)
+TDynamicValueData TSortedDynamicStore::CaptureStringValue(TDynamicValueData src)
 {
     ui32 length = src.String->Length;
     TDynamicValueData dst;
@@ -1709,7 +1694,7 @@ TDynamicValueData TDynamicMemoryStore::CaptureStringValue(TDynamicValueData src)
     return dst;
 }
 
-TDynamicValueData TDynamicMemoryStore::CaptureStringValue(const TUnversionedValue& src)
+TDynamicValueData TSortedDynamicStore::CaptureStringValue(const TUnversionedValue& src)
 {
     YASSERT(IsStringLikeType(EValueType(src.Type)));
     ui32 length = src.Length;
@@ -1722,62 +1707,62 @@ TDynamicValueData TDynamicMemoryStore::CaptureStringValue(const TUnversionedValu
     return dst;
 }
 
-int TDynamicMemoryStore::GetValueCount() const
+int TSortedDynamicStore::GetValueCount() const
 {
     return StoreValueCount_;
 }
 
-int TDynamicMemoryStore::GetKeyCount() const
+int TSortedDynamicStore::GetKeyCount() const
 {
     return Rows_->GetSize();
 }
 
-i64 TDynamicMemoryStore::GetPoolSize() const
+i64 TSortedDynamicStore::GetPoolSize() const
 {
     return RowBuffer_->GetSize();
 }
 
-i64 TDynamicMemoryStore::GetPoolCapacity() const
+i64 TSortedDynamicStore::GetPoolCapacity() const
 {
     return RowBuffer_->GetCapacity();
 }
 
-EStoreType TDynamicMemoryStore::GetType() const
+EStoreType TSortedDynamicStore::GetType() const
 {
-    return EStoreType::DynamicMemory;
+    return EStoreType::SortedDynamic;
 }
 
-i64 TDynamicMemoryStore::GetUncompressedDataSize() const
+i64 TSortedDynamicStore::GetUncompressedDataSize() const
 {
     return GetPoolCapacity();
 }
 
-i64 TDynamicMemoryStore::GetRowCount() const
+i64 TSortedDynamicStore::GetRowCount() const
 {
     return Rows_->GetSize();
 }
 
-TOwningKey TDynamicMemoryStore::GetMinKey() const
+TOwningKey TSortedDynamicStore::GetMinKey() const
 {
     return MinKey();
 }
 
-TOwningKey TDynamicMemoryStore::GetMaxKey() const
+TOwningKey TSortedDynamicStore::GetMaxKey() const
 {
     return MaxKey();
 }
 
-TTimestamp TDynamicMemoryStore::GetMinTimestamp() const
+TTimestamp TSortedDynamicStore::GetMinTimestamp() const
 {
     return MinTimestamp_;
 }
 
-TTimestamp TDynamicMemoryStore::GetMaxTimestamp() const
+TTimestamp TSortedDynamicStore::GetMaxTimestamp() const
 {
     return MaxTimestamp_;
 }
 
-IVersionedReaderPtr TDynamicMemoryStore::CreateReader(
+IVersionedReaderPtr TSortedDynamicStore::CreateReader(
     TOwningKey lowerKey,
     TOwningKey upperKey,
     TTimestamp timestamp,
@@ -1794,7 +1779,7 @@ IVersionedReaderPtr TDynamicMemoryStore::CreateReader(
         columnFilter);
 }
 
-IVersionedReaderPtr TDynamicMemoryStore::CreateReader(
+IVersionedReaderPtr TSortedDynamicStore::CreateReader(
     const TSharedRange<TKey>& keys,
     TTimestamp timestamp,
     const TColumnFilter& columnFilter,
@@ -1808,7 +1793,7 @@ IVersionedReaderPtr TDynamicMemoryStore::CreateReader(
         columnFilter);
 }
 
-void TDynamicMemoryStore::CheckRowLocks(
+void TSortedDynamicStore::CheckRowLocks(
     TUnversionedRow row,
     TTransaction* transaction,
     ui32 lockMask)
@@ -1821,7 +1806,7 @@ void TDynamicMemoryStore::CheckRowLocks(
     CheckRowLocks(dynamicRow, transaction, lockMask);
 }
 
-void TDynamicMemoryStore::Save(TSaveContext& context) const
+void TSortedDynamicStore::Save(TSaveContext& context) const
 {
     TStoreBase::Save(context);
 
@@ -1830,7 +1815,7 @@ void TDynamicMemoryStore::Save(TSaveContext& context) const
     Save(context, MaxTimestamp_);
 }
 
-void TDynamicMemoryStore::Load(TLoadContext& context)
+void TSortedDynamicStore::Load(TLoadContext& context)
 {
     TStoreBase::Load(context);
 
@@ -1839,7 +1824,7 @@ void TDynamicMemoryStore::Load(TLoadContext& context)
     Load(context, MaxTimestamp_);
 }
 
-TCallback<void(TSaveContext& context)> TDynamicMemoryStore::AsyncSave()
+TCallback<void(TSaveContext& context)> TSortedDynamicStore::AsyncSave()
 {
     auto tableReader = CreateSnapshotReader();
 
@@ -1892,7 +1877,7 @@ TCallback<void(TSaveContext& context)> TDynamicMemoryStore::AsyncSave()
     });
 }
 
-void TDynamicMemoryStore::AsyncLoad(TLoadContext& context)
+void TSortedDynamicStore::AsyncLoad(TLoadContext& context)
 {
     using NYT::Load;
 
@@ -1948,7 +1933,7 @@ void TDynamicMemoryStore::AsyncLoad(TLoadContext& context)
     OnMemoryUsageUpdated();
 }
 
-void TDynamicMemoryStore::BuildOrchidYson(IYsonConsumer* consumer)
+void TSortedDynamicStore::BuildOrchidYson(IYsonConsumer* consumer)
 {
     TStoreBase::BuildOrchidYson(consumer);
 
@@ -1961,32 +1946,32 @@ void TDynamicMemoryStore::BuildOrchidYson(IYsonConsumer* consumer)
         .Item("pool_capacity").Value(GetPoolCapacity());
 }
 
-ui32 TDynamicMemoryStore::GetLatestRevision() const
+ui32 TSortedDynamicStore::GetLatestRevision() const
 {
     YASSERT(!RevisionToTimestamp_.Empty());
     return RevisionToTimestamp_.Size() - 1;
 }
 
-ui32 TDynamicMemoryStore::RegisterRevision(TTimestamp timestamp)
+ui32 TSortedDynamicStore::RegisterRevision(TTimestamp timestamp)
 {
     YASSERT(timestamp >= MinTimestamp && timestamp <= MaxTimestamp);
-    YASSERT(RevisionToTimestamp_.Size() < HardRevisionsPerDynamicMemoryStoreLimit);
+    YASSERT(RevisionToTimestamp_.Size() < HardRevisionsPerDynamicStoreLimit);
     RevisionToTimestamp_.PushBack(timestamp);
     return GetLatestRevision();
 }
 
-void TDynamicMemoryStore::UpdateTimestampRange(TTimestamp commitTimestamp)
+void TSortedDynamicStore::UpdateTimestampRange(TTimestamp commitTimestamp)
 {
     // NB: Don't update min/max timestamps for passive stores since
     // others are relying on these values to remain constant.
-    // See, e.g., TStoreManager::MaxTimestampToStore_.
+    // See, e.g., TSortedStoreManager::MaxTimestampToStore_.
     if (StoreState_ == EStoreState::ActiveDynamic) {
         MinTimestamp_ = std::min(MinTimestamp_, commitTimestamp);
         MaxTimestamp_ = std::max(MaxTimestamp_, commitTimestamp);
     }
 }
 
-void TDynamicMemoryStore::OnMemoryUsageUpdated()
+void TSortedDynamicStore::OnMemoryUsageUpdated()
 {
     auto hashTableSize = LookupHashTable_ ? LookupHashTable_->GetByteSize() : 0;
     SetMemoryUsage(GetUncompressedDataSize() + hashTableSize);

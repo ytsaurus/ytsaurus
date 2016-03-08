@@ -1,4 +1,4 @@
-#include "memory_store_ut.h"
+#include "sorted_dynamic_store_ut_helpers.h"
 
 #include <yt/core/profiling/scoped_timer.h>
 
@@ -14,8 +14,8 @@ using namespace NProfiling;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TMemoryStorePerfTest
-    : public TMemoryStoreTestBase
+class TSortedDynamicStorePerfTest
+    : public TSortedDynamicStoreTestBase
 {
 public:
     void RunDynamic(
@@ -60,8 +60,8 @@ public:
             auto dynamicRow = Store_->WriteRowAtomic(
                 transaction.get(),
                 row,
-                false,
-                TDynamicRow::PrimaryLockMask);
+                TSortedDynamicRow::PrimaryLockMask);
+            transaction->LockedRows().push_back(TSortedDynamicRowRef(Store_.Get(), nullptr, dynamicRow));
 
             PrepareTransaction(transaction.get());
             Store_->PrepareRow(transaction.get(), dynamicRow);
@@ -96,37 +96,37 @@ public:
 private:
     virtual void SetUp() override
     {
-        TMemoryStoreTestBase::SetUp();
+        TSortedDynamicStoreTestBase::SetUp();
 
         auto config = New<TTabletManagerConfig>();
-        Store_ = New<TDynamicMemoryStore>(
+        Store_ = New<TSortedDynamicStore>(
             config,
             TStoreId(),
             Tablet_.get());
     }
 
 
-    TDynamicMemoryStorePtr Store_;
+    TSortedDynamicStorePtr Store_;
 
 };
 
 ///////////////////////////////////////////////////////////////////////////////
 
-TEST_F(TMemoryStorePerfTest, DISABLED_DynamicWrite)
+TEST_F(TSortedDynamicStorePerfTest, DISABLED_DynamicWrite)
 {
     RunDynamic(
         1000000,
         100);
 }
 
-TEST_F(TMemoryStorePerfTest, DISABLED_DynamicRead)
+TEST_F(TSortedDynamicStorePerfTest, DISABLED_DynamicRead)
 {
     RunDynamic(
         1000000,
         0);
 }
 
-TEST_F(TMemoryStorePerfTest, DISABLED_DynamicReadWrite)
+TEST_F(TSortedDynamicStorePerfTest, DISABLED_DynamicReadWrite)
 {
     RunDynamic(
         1000000,

@@ -164,7 +164,7 @@ DEFINE_ENUM(EObjectType,
     ((TabletCellNode)             (701))
     ((Tablet)                     (702))
     ((TabletMap)                  (703))
-    ((DynamicMemoryTabletStore)   (704))
+    ((SortedDynamicTabletStore)   (704))
     ((TabletPartition)            (705))
     ((TabletCellBundle)           (706))
     ((TabletCellBundleMap)        (707))

@@ -206,26 +206,25 @@ public:
         }
     }
 
-    void RegisterTabletSnapshot(TTablet* tablet)
+    void RegisterTabletSnapshot(TTabletSlotPtr slot, TTablet* tablet)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        auto snapshot = tablet->RebuildSnapshot();
+        auto snapshot = tablet->BuildSnapshot(slot);
 
         {
             TWriterGuard guard(TabletSnapshotsSpinLock_);
             YCHECK(TabletIdToSnapshot_.insert(std::make_pair(tablet->GetId(), snapshot)).second);
         }
 
-        LOG_INFO("Tablet snapshot registered (TabletId: %v)",
-            tablet->GetId());
+        LOG_INFO("Tablet snapshot registered (TabletId: %v, CellId: %v)",
+            tablet->GetId(),
+            slot->GetCellId());
     }
 
-    void UnregisterTabletSnapshot(TTablet* tablet)
+    void UnregisterTabletSnapshot(TTabletSlotPtr slot, TTablet* tablet)
     {
         VERIFY_THREAD_AFFINITY_ANY();
-
-        tablet->ResetSnapshot();
 
         {
             TWriterGuard guard(TabletSnapshotsSpinLock_);
@@ -233,15 +232,16 @@ public:
             TabletIdToSnapshot_.erase(tablet->GetId());
         }
 
-        LOG_INFO("Tablet snapshot unregistered (TabletId: %v)",
-            tablet->GetId());
+        LOG_INFO("Tablet snapshot unregistered (TabletId: %v, CellId: %v)",
+            tablet->GetId(),
+            slot->GetCellId());
     }
 
-    void UpdateTabletSnapshot(TTablet* tablet)
+    void UpdateTabletSnapshot(TTabletSlotPtr slot, TTablet* tablet)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        auto snapshot = tablet->RebuildSnapshot();
+        auto snapshot = tablet->BuildSnapshot(slot);
 
         {
             TWriterGuard guard(TabletSnapshotsSpinLock_);
@@ -255,7 +255,7 @@ public:
 
         LOG_DEBUG("Tablet snapshot updated (TabletId: %v, CellId: %v)",
             tablet->GetId(),
-            tablet->GetSlot()->GetCellId());
+            slot->GetCellId());
     }
 
     void UnregisterTabletSnapshots(TTabletSlotPtr slot)
@@ -473,19 +473,19 @@ void TSlotManager::ValidateTabletAccess(
     Impl_->ValidateTabletAccess(tabletSnapshot, permission, timestamp);
 }
 
-void TSlotManager::RegisterTabletSnapshot(TTablet* tablet)
+void TSlotManager::RegisterTabletSnapshot(TTabletSlotPtr slot, TTablet* tablet)
 {
-    Impl_->RegisterTabletSnapshot(tablet);
+    Impl_->RegisterTabletSnapshot(std::move(slot), tablet);
 }
 
-void TSlotManager::UnregisterTabletSnapshot(TTablet* tablet)
+void TSlotManager::UnregisterTabletSnapshot(TTabletSlotPtr slot, TTablet* tablet)
 {
-    Impl_->UnregisterTabletSnapshot(tablet);
+    Impl_->UnregisterTabletSnapshot(std::move(slot), tablet);
 }
 
-void TSlotManager::UpdateTabletSnapshot(TTablet* tablet)
+void TSlotManager::UpdateTabletSnapshot(TTabletSlotPtr slot, TTablet* tablet)
 {
-    Impl_->UpdateTabletSnapshot(tablet);
+    Impl_->UpdateTabletSnapshot(std::move(slot), tablet);
 }
 
 void TSlotManager::UnregisterTabletSnapshots(TTabletSlotPtr slot)

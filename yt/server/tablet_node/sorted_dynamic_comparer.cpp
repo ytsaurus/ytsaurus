@@ -1,6 +1,6 @@
-#include "dynamic_memory_store_comparer.h"
+#include "sorted_dynamic_comparer.h"
 #include "private.h"
-#include "dynamic_memory_store_bits.h"
+#include "sorted_dynamic_store_bits.h"
 #include "row_comparer_generator.h"
 
 namespace NYT {
@@ -11,7 +11,7 @@ using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TDynamicRowKeyComparer::TDynamicRowKeyComparer(
+TSortedDynamicRowKeyComparer::TSortedDynamicRowKeyComparer(
     int keyColumnCount,
     TCGFunction<TDDComparerSignature> ddComparer,
     TCGFunction<TDUComparerSignature> duComparer,
@@ -22,7 +22,7 @@ TDynamicRowKeyComparer::TDynamicRowKeyComparer(
     , UUComparer_(std::move(uuComparer))
 { }
 
-TDynamicRowKeyComparer TDynamicRowKeyComparer::Create(
+TSortedDynamicRowKeyComparer TSortedDynamicRowKeyComparer::Create(
     int keyColumnCount,
     const TTableSchema& schema)
 {
@@ -30,14 +30,14 @@ TDynamicRowKeyComparer TDynamicRowKeyComparer::Create(
     TCGFunction<TDUComparerSignature> duComparer;
     TCGFunction<TUUComparerSignature> uuComparer;
     std::tie(ddComparer, duComparer, uuComparer) = GenerateComparers(keyColumnCount, schema);
-    return TDynamicRowKeyComparer(
+    return TSortedDynamicRowKeyComparer(
         keyColumnCount,
         std::move(ddComparer),
         std::move(duComparer),
         std::move(uuComparer));
 }
 
-int TDynamicRowKeyComparer::operator()(TDynamicRow lhs, TDynamicRow rhs) const
+int TSortedDynamicRowKeyComparer::operator()(TSortedDynamicRow lhs, TSortedDynamicRow rhs) const
 {
     return DDComparer_(
         lhs.GetNullKeyMask(),
@@ -46,7 +46,7 @@ int TDynamicRowKeyComparer::operator()(TDynamicRow lhs, TDynamicRow rhs) const
         rhs.BeginKeys());
 }
 
-int TDynamicRowKeyComparer::operator()(TDynamicRow lhs, TRowWrapper rhs) const
+int TSortedDynamicRowKeyComparer::operator()(TSortedDynamicRow lhs, TRowWrapper rhs) const
 {
     YASSERT(rhs.Row.GetCount() >= KeyColumnCount_);
     return DUComparer_(
@@ -56,7 +56,7 @@ int TDynamicRowKeyComparer::operator()(TDynamicRow lhs, TRowWrapper rhs) const
         KeyColumnCount_);
 }
 
-int TDynamicRowKeyComparer::operator()(TDynamicRow lhs, TKeyWrapper rhs) const
+int TSortedDynamicRowKeyComparer::operator()(TSortedDynamicRow lhs, TKeyWrapper rhs) const
 {
     return DUComparer_(
         lhs.GetNullKeyMask(),
@@ -65,12 +65,12 @@ int TDynamicRowKeyComparer::operator()(TDynamicRow lhs, TKeyWrapper rhs) const
         rhs.Row.GetCount());
 }
 
-int TDynamicRowKeyComparer::operator()(TUnversionedRow lhs, TUnversionedRow rhs) const
+int TSortedDynamicRowKeyComparer::operator()(TUnversionedRow lhs, TUnversionedRow rhs) const
 {
     return operator()(lhs.Begin(), lhs.End(), rhs.Begin(), rhs.End());
 }
 
-int TDynamicRowKeyComparer::operator()(
+int TSortedDynamicRowKeyComparer::operator()(
     const TUnversionedValue* lhsBegin,
     const TUnversionedValue* lhsEnd,
     const TUnversionedValue* rhsBegin,

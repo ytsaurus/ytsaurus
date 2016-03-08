@@ -78,7 +78,7 @@ void TPartition::Load(TLoadContext& context)
     SERIALIZATION_DUMP_INDENT(context) {
         for (int index = 0; index < storeCount; ++index) {
             auto storeId = Load<TStoreId>(context);
-            auto store = Tablet_->GetStore(storeId);
+            auto store = Tablet_->GetStore(storeId)->AsSorted();
             YCHECK(Stores_.insert(store).second);
         }
     }
@@ -86,7 +86,7 @@ void TPartition::Load(TLoadContext& context)
 
 TCallback<void(TSaveContext&)> TPartition::AsyncSave()
 {
-    return BIND([snapshot = Snapshot_] (TSaveContext& context) {
+    return BIND([snapshot = BuildSnapshot()] (TSaveContext& context) {
         using NYT::Save;
 
         Save(context, snapshot->PivotKey);
@@ -127,15 +127,15 @@ bool TPartition::IsEden() const
     return Index_ == EdenIndex;
 }
 
-TPartitionSnapshotPtr TPartition::RebuildSnapshot()
+TPartitionSnapshotPtr TPartition::BuildSnapshot() const
 {
-    Snapshot_ = New<TPartitionSnapshot>();
-    Snapshot_->Id = Id_;
-    Snapshot_->PivotKey = PivotKey_;
-    Snapshot_->NextPivotKey = NextPivotKey_;
-    Snapshot_->SampleKeys = SampleKeys_;
-    Snapshot_->Stores.insert(Snapshot_->Stores.end(), Stores_.begin(), Stores_.end());
-    return Snapshot_;
+    auto snapshot = New<TPartitionSnapshot>();
+    snapshot->Id = Id_;
+    snapshot->PivotKey = PivotKey_;
+    snapshot->NextPivotKey = NextPivotKey_;
+    snapshot->SampleKeys = SampleKeys_;
+    snapshot->Stores.insert(snapshot->Stores.end(), Stores_.begin(), Stores_.end());
+    return snapshot;
 }
 
 void TPartition::StartEpoch()

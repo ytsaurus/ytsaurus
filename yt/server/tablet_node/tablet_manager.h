@@ -54,7 +54,6 @@ public:
         TFuture<void>* commitResult);
 
 
-    IStorePtr CreateStore(TTablet* tablet, const TStoreId& storeId);
     void ScheduleStoreRotation(TTablet* tablet);
 
     void BuildOrchidYson(NYson::IYsonConsumer* consumer);
