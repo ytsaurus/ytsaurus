@@ -13,6 +13,7 @@ import re
 import uuid
 import time
 import signal
+import requests
 import socket
 import shutil
 import sys
@@ -930,8 +931,7 @@ class YTEnv(object):
                    proxy_binary_path,
                    "-c", self.config_paths[proxy_name],
                    "-l", self.log_paths[proxy_name]],
-                   "proxy",
-                   timeout=3.0)
+                   "proxy")
 
     def start_proxy(self, proxy_name, use_proxy_from_package=False):
         if len(self.log_paths[proxy_name]) == 0:
@@ -947,23 +947,21 @@ class YTEnv(object):
             self._run(["run_proxy.sh",
                        "-c", self.config_paths[proxy_name],
                        "-l", self.log_paths[proxy_name]],
-                       "proxy",
-                       timeout=3.0)
+                       "proxy")
 
         def started():
             try:
-                sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                sock.connect(("127.0.0.1", int(self.get_proxy_address().split(":", 1)[1])))
-                sock.shutdown(2)
-                return True
-            except:
+                address = "127.0.0.1:{0}".format(self.get_proxy_address().split(":")[1])
+                resp = requests.get("http://{0}/ping".format(address))
+                resp.raise_for_status()
+            except (requests.exceptions.RequestException, socket.error):
                 return False
-            finally:
-                sock.close()
+
+            return True
 
         self._wait_for(started, name=proxy_name, max_wait_time=20)
 
-    def _wait_for(self, condition, max_wait_time=40, sleep_quantum=1.0, name=""):
+    def _wait_for(self, condition, max_wait_time=40, sleep_quantum=0.1, name=""):
         current_wait_time = 0
         logger.info("Waiting for %s...", name)
         while current_wait_time < max_wait_time:

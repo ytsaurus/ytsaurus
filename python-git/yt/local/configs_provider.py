@@ -43,6 +43,9 @@ def _remove_none_fields(node):
 # None values mean config subtree removal (see _remove_none_fields function)
 MASTER_CONFIG_PATCHES = [
     {
+        "changelogs": {
+            "enable_sync": False
+        },
         "node_tracker": {
             "online_node_timeout": 20000,
             "registered_node_timeout": 20000,
@@ -82,7 +85,7 @@ SCHEDULER_CONFIG_PATCH = {
     "scheduler": {
         "transactions_refresh_period": None,
         "operations_update_period": None,
-        "watchers_update_period": None,
+        "watchers_update_period": 300,
         "connect_grace_delay": None,
         "lock_transaction_timeout": 30000
     },
@@ -109,7 +112,7 @@ NODE_CONFIG_PATCHES = [
                     "capacity": 524288000  # 500 MB
                 }
             },
-            "incremental_heartbeat_period": None,
+            "incremental_heartbeat_period": 300,
             "store_locations": [
                 {
                     "enable_journals": True
@@ -135,6 +138,13 @@ NODE_CONFIG_PATCHES = [
                 "slots": 1,
                 "tablet_dynamic_memory": 524288000,  # 500 MB
                 "tablet_static_memory": 0
+            }
+        },
+        "exec_agent": {
+            "scheduler_connector": {
+                "failed_heartbeat_backoff_time": 50,
+                "heartbeat_period": 300,
+                "heartbeat_splay": 100
             }
         }
     }
