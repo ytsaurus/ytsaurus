@@ -1,6 +1,7 @@
 from yt.common import YtError
 from yt.wrapper.common import get_value, require, update, run_with_retries, generate_uuid, bool_to_string
 from yt.wrapper.http import get_retriable_errors, get_token
+from yt.wrapper.errors import hide_token
 import yt.logger as logger
 
 import yt.packages.requests as requests
@@ -206,6 +207,11 @@ class TransferManager(object):
                 else:
                     params["retry"] = bool_to_string(True)
 
+        def backoff_action(error, iteration, sleep_backoff):
+            logger.warning('HTTP %s request %s failed with error %s, message: "%s", headers: %s',
+                           method, url, error.message, str(type(error)), str(hide_token(headers)))
+            logger.warning("Sleep for %.2lf seconds before next retry (%d)", sleep_backoff, iteration + 1)
+
         def make_request():
             update(headers, {"X-TM-Parameters": json.dumps(params)})
             response = requests.request(
@@ -221,7 +227,7 @@ class TransferManager(object):
         if self.enable_retries:
             retriable_errors = get_retriable_errors() + (YtTransferManagerUnavailableError,)
             return run_with_retries(make_request, self.retry_count, exceptions=retriable_errors,
-                                    except_action=except_action)
+                                    except_action=except_action, backoff_action=backoff_action)
 
     def _start_one_task(self, source_table, source_cluster, destination_table, destination_cluster,
                         params=None):

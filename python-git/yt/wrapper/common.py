@@ -132,7 +132,8 @@ def get_version():
 def get_python_version():
     return sys.version_info[:3]
 
-def run_with_retries(action, retry_count=6, backoff=20.0, exceptions=(YtError,), except_action=None):
+def run_with_retries(action, retry_count=6, backoff=20.0, exceptions=(YtError,), except_action=None,
+                     backoff_action=None):
     start_time = datetime.now()
     for iter in xrange(retry_count):
         try:
@@ -140,14 +141,19 @@ def run_with_retries(action, retry_count=6, backoff=20.0, exceptions=(YtError,),
         except exceptions as err:
             if iter + 1 == retry_count:
                 raise
+
             if except_action:
                 if len(inspect.getargspec(except_action).args) == 0:
                     except_action()
                 else:
                     except_action(err)
-            sleep_backoff = backoff * iter - total_seconds(datetime.now() - start_time)
-            if sleep_backoff > 0.0:
-                time.sleep(sleep_backoff)
+
+            sleep_backoff = max(0.0, backoff * iter - total_seconds(datetime.now() - start_time))
+
+            if backoff_action:
+                backoff_action(err, iter, sleep_backoff)
+
+            time.sleep(sleep_backoff)
 
 def is_inside_job():
     """Returns True if the code is currently being run in the context of a YT job."""
