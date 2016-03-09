@@ -1,4 +1,5 @@
 import sys
+
 import yatest.common
 
 from mapreduce.yt.python.yt_stuff import YtStuff
@@ -15,8 +16,8 @@ def test_fixture(yt_stuff):
 
 def test_mapreduce_yt(yt_stuff):
     yt_server = yt_stuff.get_server()
-    mapreduce_yt = yt_stuff.get_mapreduce_yt()
-    yatest.common.execute(
-        [sys.executable, mapreduce_yt, "-server", yt_server, "-createtable", "//table"],
-        cwd=yt_stuff.python_dir
-    )
+    yt_stuff.run_mapreduce_yt("-server", yt_server, "-createtable", "//table")
+
+def test_yt_wrapper(yt_stuff):
+    yt_wrapper = yt_stuff.get_yt_wrapper()
+    assert not yt_wrapper.exists("//hello/world/path")
