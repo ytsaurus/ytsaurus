@@ -62,7 +62,7 @@ class YtStuff:
         res = yatest.common.process.execute(
             cmd,
             env=self.env,
-            cwd=self.yt_dir
+            cwd=self.working_dir
         )
         self._log(res.std_out)
         self._log(res.std_err)
@@ -71,16 +71,15 @@ class YtStuff:
     def get_yt_wrapper(self):
         return self.yt_wrapper
 
+    def get_server(self):
+        return "localhost:%d" % self.proxy_port
+
     def run_mapreduce_yt(self, *args):
         cmd = [sys.executable, self.mapreduce_yt_path] + list(args)
         return yatest.common.execute(
             cmd,
-            cwd=self.python_dir,
-            env=self.env
-            )
-
-    def get_server(self):
-        return "localhost:%d" % self.proxy_port
+            env=self.env,
+        )
 
     def start_local_yt(self):
         try:
