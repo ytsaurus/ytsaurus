@@ -1418,14 +1418,12 @@ private:
             TClientPtr client,
             const TCellId& cellId,
             const TLookupRowsOptions& options,
-            const TNameTableToSchemaIdMapping& idMapping,
             const TTableSchema& schema,
             int keyColumnCount)
             : Client_(std::move(client))
             , Config_(Client_->Connection_->GetConfig())
             , CellId_(cellId)
             , Options_(options)
-            , IdMapping_(idMapping)
             , Schema_(schema)
             , KeyColumnCount_(keyColumnCount)
         { }
@@ -1456,7 +1454,7 @@ private:
                 TWireProtocolWriter writer;
                 writer.WriteCommand(EWireProtocolCommand::LookupRows);
                 writer.WriteMessage(req);
-                writer.WriteSchemafulRowset(batch->Keys, IdMapping_.empty() ? nullptr : &IdMapping_);
+                writer.WriteSchemafulRowset(batch->Keys, nullptr);
 
                 auto chunkedData = writer.Flush();
 
@@ -1529,7 +1527,6 @@ private:
         const TConnectionConfigPtr Config_;
         const TCellId CellId_;
         const TLookupRowsOptions Options_;
-        const TNameTableToSchemaIdMapping IdMapping_;
         const TTableSchema& Schema_;
         const int KeyColumnCount_;
 
@@ -1618,25 +1615,22 @@ private:
         sortedKeys.reserve(keys.size());
 
         auto rowBuffer = New<TRowBuffer>();
+        auto evaluatorCache = Connection_->GetColumnEvaluatorCache();
+        auto evaluator = tableInfo->NeedKeyEvaluation
+            ? evaluatorCache->Find(tableInfo->Schema, keyColumnCount)
+            : nullptr;
 
-        if (tableInfo->NeedKeyEvaluation) {
-            const auto& evaluatorCache = Connection_->GetColumnEvaluatorCache();
-            auto evaluator = evaluatorCache->Find(tableInfo->Schema, keyColumnCount);
+        for (int index = 0; index < keys.size(); ++index) {
+            ValidateClientKey(keys[index], keyColumnCount, tableInfo->Schema, idMapping);
+            auto capturedKey = rowBuffer->CaptureAndPermuteRow(keys[index], tableInfo->Schema, idMapping);
 
-            for (int index = 0; index < keys.size(); ++index) {
-                ValidateClientKey(keys[index], keyColumnCount, tableInfo->Schema, idMapping);
-                auto capturedKey = rowBuffer->CaptureAndPermuteRow(keys[index], tableInfo->Schema, idMapping);
+            if (evaluator) {
                 evaluator->EvaluateKeys(capturedKey, rowBuffer);
-                sortedKeys.push_back(std::make_pair(capturedKey, index));
             }
 
-            idMapping.clear();
-        } else {
-            for (int index = 0; index < static_cast<int>(keys.size()); ++index) {
-                ValidateClientKey(keys[index], keyColumnCount, tableInfo->Schema, idMapping);
-                sortedKeys.push_back(std::make_pair(keys[index], index));
-            }
+            sortedKeys.push_back(std::make_pair(capturedKey, index));
         }
+
         std::sort(sortedKeys.begin(), sortedKeys.end());
 
         yhash_map<TCellId, TTabletCellLookupSessionPtr> cellIdToSession;
@@ -1654,7 +1648,6 @@ private:
                         this,
                         cellId,
                         options,
-                        idMapping,
                         tableInfo->Schema,
                         tableInfo->KeyColumns.size())))
                     .first;
