@@ -218,22 +218,12 @@ void TTablet::Load(TLoadContext& context)
     using NYT::Load;
 
     Load(context, TableId_);
-    // COMPAT(babenko)
-    if (context.GetVersion() >= 10) {
-        Load(context, MountRevision_);
-    }
+    Load(context, MountRevision_);
     Load(context, State_);
     Load(context, Schema_);
     Load(context, KeyColumns_);
     Load(context, Atomicity_);
-    // COMPAT(savrus)
-    if (context.GetVersion() >= 11 && context.GetVersion() < 12) {
-        bool dummy;
-        Load(context, dummy);
-    }
-    if (context.GetVersion() >= 12) {
-        Load(context, HashTableSize_);
-    }
+    Load(context, HashTableSize_);
 
     // NB: Call Initialize here since stores that we're about to create
     // may request some tablet properties (e.g. column lock count) during construction.
