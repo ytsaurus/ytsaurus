@@ -17,5 +17,6 @@ def test_mapreduce_yt(yt_stuff):
     yt_server = yt_stuff.get_server()
     mapreduce_yt = yt_stuff.get_mapreduce_yt()
     yatest.common.execute(
-        [sys.executable, mapreduce_yt, "-server", yt_server, "-createtable", "//table"]
-        )
+        [sys.executable, mapreduce_yt, "-server", yt_server, "-createtable", "//table"],
+        cwd=yt_stuff.python_dir
+    )
