@@ -128,10 +128,10 @@ void TTcpDispatcherThread::DoUnregister(IEventLoopObjectPtr object)
     LOG_DEBUG("Object unregistered (%v)", object->GetLoggingId());
 }
 
-void TTcpDispatcherThread::OnShutdown()
+void TTcpDispatcherThread::BeforeShutdown()
 {
     CheckExecutor_->Stop();
-    TEVSchedulerThread::OnShutdown();
+    TEVSchedulerThread::BeforeShutdown();
 }
 
 void TTcpDispatcherThread::OnCheck()
