@@ -1,5 +1,4 @@
-from yt.wrapper.py_wrapper import create_modules_archive_default
-from yt.wrapper.table_commands import TempfilesManager
+from yt.wrapper.py_wrapper import create_modules_archive_default, TempfilesManager
 
 from yt.wrapper.common import parse_bool
 from yt.wrapper.operation_commands import add_failed_operation_stderrs_to_error_message
@@ -315,10 +314,6 @@ class TestOperations(object):
                 sum += int(rec.get("x", 0))
             yield {"sum": sum}
 
-        #@yt.simple
-        #def identity(rec):
-        #    yield rec
-
         @yt.raw_io
         def sum_x_raw():
             sum = 0
@@ -365,9 +360,6 @@ class TestOperations(object):
         yt.run_map(sum_x, table, table)
         check(yt.read_table(table), ["sum=6\n"])
 
-        #yt.run_map(identity, table, table)
-        #check(yt.read_table(table), ["sum=6\n"])
-
         yt.write_table(table, ["x=3\n", "x=3\n", "x=3\n"])
         yt.run_map(sum_x_raw, table, table)
         check(yt.read_table(table), ["sum=9\n"])
@@ -378,6 +370,23 @@ class TestOperations(object):
         assert sorted(op.get_job_statistics()["custom"].keys()) == sorted(["row_count", "python_job_preparation_time"])
         assert op.get_job_statistics()["custom"]["row_count"] == {"$": {"completed": {"map": {"count": 2, "max": 1, "sum": 2, "min": 1}}}}
         check(yt.read_table(table), ["x=1\n", "y=2\n"])
+
+    @add_failed_operation_stderrs_to_error_message
+    def test_python_operations_in_local_mode(self):
+        old_value = yt.config["pickling"]["local_mode"]
+        yt.config["pickling"]["local_mode"] = True
+
+        try:
+            def foo(rec):
+                yield rec
+
+            table = TEST_DIR + "/table"
+
+            yt.write_table(table, ["x=1\n", "y=2\n"])
+            yt.run_map(foo, table, table, format=None)
+            check(yt.read_table(table), ["x=1\n", "y=2\n"])
+        finally:
+            yt.config["pickling"]["local_mode"] = old_value
 
     @add_failed_operation_stderrs_to_error_message
     def test_cross_format_operations(self):
@@ -614,7 +623,7 @@ class TestOperations(object):
                 lambda tempfiles_manager: create_modules_archive_default(tempfiles_manager, None)
             yt.run_map(foo, table, table)
 
-            with TempfilesManager(None) as tempfiles_manager:
+            with TempfilesManager(remove_temp_files=True) as tempfiles_manager:
                 yt.config["pickling"]["create_modules_archive_function"] = lambda: create_modules_archive_default(tempfiles_manager, None)
                 yt.run_map(foo, table, table)
 

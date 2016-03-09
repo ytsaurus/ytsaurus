@@ -1,6 +1,7 @@
 import config
 from config import get_config
 from pickling import Pickler
+from cypress_commands import get
 from common import get_python_version, YtError
 
 from yt.packages.importlib import import_module
@@ -8,13 +9,15 @@ from yt.zip import ZipFile
 import yt.logger as logger
 
 import imp
-import pipes
 import inspect
 import os
-import sys
+import pipes
 import shutil
-import pickle as standard_pickle
+import socket
+import tempfile
+import sys
 import time
+import pickle as standard_pickle
 
 LOCATION = os.path.dirname(os.path.abspath(__file__))
 TMPFS_SIZE_MULTIPLIER = 1.01
@@ -48,6 +51,40 @@ def is_running_interactively():
             return False
         else:
             return True
+
+def is_local_mode(client):
+    local_mode = get_config(client)["pickling"]["local_mode"]
+    if local_mode is not None:
+        return local_mode
+
+    fqdn = None
+    try:
+        fqdn = get("//sys/@local_mode_fqdn")
+    except YtError as err:
+        if not err.is_resolve_error():
+            raise
+
+    return fqdn == socket.getfqdn()
+
+class TempfilesManager(object):
+    def __init__(self, remove_temp_files):
+        self._remove_temp_files = remove_temp_files
+        self._tempfiles_pool = []
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, type, value, traceback):
+        if self._remove_temp_files:
+            for file in self._tempfiles_pool:
+                os.remove(file)
+
+    def create_tempfile(self, *args, **kwargs):
+        """Use syntax tempfile.mkstemp"""
+        fd, filepath = tempfile.mkstemp(*args, **kwargs)
+        os.close(fd)
+        self._tempfiles_pool.append(filepath)
+        return filepath
 
 def module_relpath(module_name, module_file, client):
     search_extensions = get_config(client)["pickling"]["search_extensions"]
@@ -195,7 +232,17 @@ def get_function_name(function):
     else:
         return "operation"
 
-def wrap(function, operation_type, tempfiles_manager, input_format=None, output_format=None, reduce_by=None, client=None):
+def wrap(tempfiles_manager, client, **kwargs):
+    local_mode = is_local_mode(client)
+    remove_temp_files = get_config(client)["clear_local_temp_files"] and not local_mode
+
+    if tempfiles_manager is None:
+        with TempfilesManager(remove_temp_files) as new_tempfiles_manager:
+            return do_wrap(tempfiles_manager=new_tempfiles_manager, client=client, local_mode=local_mode, **kwargs)
+    else:
+        return do_wrap(tempfiles_manager=tempfiles_manager, client=client, local_mode=local_mode, **kwargs)
+
+def do_wrap(function, operation_type, tempfiles_manager, input_format, output_format, reduce_by, local_mode, uploader, client):
     assert operation_type in ["mapper", "reducer", "reduce_combiner"]
     local_temp_directory = get_config(client)["local_temp_directory"]
     function_filename = tempfiles_manager.create_tempfile(dir=local_temp_directory,
@@ -212,14 +259,6 @@ def wrap(function, operation_type, tempfiles_manager, input_format=None, output_
     with open(config_filename, "w") as fout:
         Pickler(config.DEFAULT_PICKLING_FRAMEWORK).dump(get_config(client), fout)
 
-    if attributes.get('is_simple', False):
-        files = [function_filename, config_filename] + [os.path.join(LOCATION, module + ".py")
-                                                        for module in OPERATION_REQUIRED_MODULES]
-        return ("PYTHONPATH=. python _py_runner.py " + " ".join([
-                    os.path.basename(function_filename),
-                    os.path.basename(config_filename)]),
-                os.path.join(LOCATION, "_py_runner.py"), files)
-
     modules_info = create_modules_archive(tempfiles_manager, client)
     # COMPAT: previous version of create_modules_archive returns string.
     if isinstance(modules_info, str):
@@ -230,7 +269,11 @@ def wrap(function, operation_type, tempfiles_manager, input_format=None, output_
         tmpfs_size = int(TMPFS_SIZE_ADDEND + TMPFS_SIZE_MULTIPLIER * tmpfs_size)
 
     for info in modules_info:
-        info["filename"] = os.path.basename(info["filename"])
+
+        if local_mode:
+            info["filename"] = os.path.abspath(info["filename"])
+        else:
+            info["filename"] = os.path.basename(info["filename"])
 
     modules_info_filename = tempfiles_manager.create_tempfile(dir=local_temp_directory,
                                                               prefix="_modules")
@@ -263,18 +306,25 @@ def wrap(function, operation_type, tempfiles_manager, input_format=None, output_
     if function_source_filename:
         shutil.copy(function_source_filename, main_filename)
 
-    return (" ".join([get_config(client)["pickling"]["python_binary"],
-                      "_py_runner.py",
-                      # NB: Function filename may contain special symbols.
-                      pipes.quote(os.path.basename(function_filename)),
-                      os.path.basename(config_filename),
-                      os.path.basename(modules_info_filename),
-                      os.path.basename(main_filename),
-                      "_main_module",
-                      main_module_type]),
-            os.path.join(LOCATION, "_py_runner.py"),
-            [function_filename, config_filename, modules_info_filename, main_filename] + modules_filenames,
-            tmpfs_size)
+    files = map(os.path.abspath, [
+        os.path.join(LOCATION, "_py_runner.py"),
+        pipes.quote(function_filename),
+        config_filename,
+        modules_info_filename,
+        main_filename])
+
+    if local_mode:
+        file_args = files
+        uploaded_files = []
+        local_files_to_remove = files[1:]
+    else:
+        file_args = map(os.path.basename, files)
+        uploaded_files = uploader(files + modules_filenames)
+        local_files_to_remove = []
+
+    cmd = " ".join([get_config(client)["pickling"]["python_binary"]] + file_args + ["_main_module", main_module_type])
+
+    return cmd, uploaded_files, local_files_to_remove, tmpfs_size
 
 def _set_attribute(func, key, value):
     if not hasattr(func, "attributes"):
@@ -298,7 +348,3 @@ def raw_io(func):
     """Decorate function to run as is. No arguments are passed. Function handles IO."""
     return _set_attribute(func, "is_raw_io", True)
 
-def simple(func):
-    """Decorate function to be simple - without code or variable dependencies outside of body.
-    It prevents library to collect dependency modules and send it with function."""
-    return _set_attribute(func, "is_simple", True)
