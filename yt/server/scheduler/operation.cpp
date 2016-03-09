@@ -40,7 +40,6 @@ TOperation::TOperation(
     , StartTime_(startTime)
     , StderrCount_(0)
     , MaxStderrCount_(0)
-    , CleanStart_(false)
 { }
 
 TFuture<TOperationPtr> TOperation::GetStarted()

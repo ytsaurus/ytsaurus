@@ -242,6 +242,24 @@ public:
             .Run(operation, tableId, childrenIds);
     }
 
+    TFuture<TSharedRef> DownloadSnapshot(const TOperationId& operationId)
+    {
+        if (!Config->EnableSnapshotLoading) {
+            return MakeFuture<TSharedRef>(TError("Snapshot loading is disabled in configuration"));
+        }
+
+        return BIND(&TImpl::DoDownloadSnapshot, MakeStrong(this), operationId)
+            .AsyncVia(CancelableControlInvoker)
+            .Run();
+    }
+
+    TFuture<void> RemoveSnapshot(const TOperationId& operationId)
+    {
+        return BIND(&TImpl::DoRemoveSnapshot, MakeStrong(this), operationId)
+            .AsyncVia(CancelableControlInvoker)
+            .Run();
+    }
+
     void AddGlobalWatcherRequester(TWatcherRequester requester)
     {
         GlobalWatcherRequesters.push_back(requester);
@@ -447,10 +465,6 @@ private:
             UpdateClusterDirectory();
             ListOperations();
             RequestOperationAttributes();
-            CheckOperationTransactions();
-            DownloadSnapshots();
-            AbortTransactions();
-            RemoveSnapshots();
             return Result;
         }
 
@@ -633,185 +647,8 @@ private:
                         Result.AbortingOperations.push_back(operation);
                     } else {
                         Result.RevivingOperations.push_back(operation);
+                        operation->SetState(EOperationState::Reviving);
                     }
-                }
-            }
-        }
-
-        // - Try to ping the previous incarnations of scheduler transactions.
-        void CheckOperationTransactions()
-        {
-            std::vector<TFuture<void>> asyncResults;
-            for (auto operation : Result.RevivingOperations) {
-                operation->SetState(EOperationState::Reviving);
-
-                auto checkTransaction = [&] (ITransactionPtr transaction, bool required) {
-                    if (!transaction) {
-                        if (required && !operation->GetCleanStart()) {
-                            operation->SetCleanStart(true);
-                            LOG_INFO("Operation is missing required transaction, will use clean start (OperationId: %v)",
-                                operation->GetId());
-                        }
-                        return;
-                    }
-
-                    asyncResults.push_back(transaction->Ping().Apply(
-                        BIND([=] (const TError& error) {
-                            if (!error.IsOK() && !operation->GetCleanStart()) {
-                                operation->SetCleanStart(true);
-                                LOG_INFO(error,
-                                    "Error renewing operation transaction, will use clean start (OperationId: %v, TransactionId: %v)",
-                                    operation->GetId(),
-                                    transaction->GetId());
-                            }
-                        })));
-                };
-
-                // NB: Async transaction is not checked.
-                checkTransaction(operation->GetUserTransaction(), false);
-                checkTransaction(operation->GetSyncSchedulerTransaction(), true);
-                checkTransaction(operation->GetInputTransaction(), true);
-                checkTransaction(operation->GetOutputTransaction(), true);
-            }
-
-            WaitFor(Combine(asyncResults))
-                .ThrowOnError();
-        }
-
-        // - Check snapshots for existence and validate versions.
-        void DownloadSnapshots()
-        {
-            for (auto operation : Result.RevivingOperations) {
-                if (!operation->GetCleanStart()) {
-                    if (!DownloadSnapshot(operation)) {
-                        operation->SetCleanStart(true);
-                    }
-                }
-            }
-        }
-
-        bool DownloadSnapshot(TOperationPtr operation)
-        {
-            const auto& operationId = operation->GetId();
-            auto snapshotPath = GetSnapshotPath(operationId);
-
-            auto batchReq = Owner->StartBatchRequest();
-            auto req = TYPathProxy::Get(snapshotPath + "/@version");
-            batchReq->AddRequest(req, "get_version");
-
-            auto batchRspOrError = WaitFor(batchReq->Invoke());
-            THROW_ERROR_EXCEPTION_IF_FAILED(batchRspOrError);
-            const auto& batchRsp = batchRspOrError.Value();
-
-            auto rspOrError = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_version");
-            // Check for missing snapshots.
-            if (rspOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
-                LOG_INFO("Snapshot does not exist, will use clean start (OperationId: %v)",
-                    operationId);
-                return false;
-            }
-            THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error getting snapshot version");
-
-            const auto& rsp = rspOrError.Value();
-            int version = ConvertTo<int>(TYsonString(rsp->value()));
-
-            LOG_INFO("Snapshot found (OperationId: %v, Version: %v)",
-                operationId,
-                version);
-
-            if (!ValidateSnapshotVersion(version)) {
-                LOG_INFO("Snapshot version validation failed, will use clean start (OperationId: %v)",
-                    operationId);
-                return false;
-            }
-
-            if (!Owner->Config->EnableSnapshotLoading) {
-                LOG_INFO("Snapshot loading is disabled in configuration (OperationId: %v)",
-                    operationId);
-                return false;
-            }
-
-            try {
-                auto downloader = New<TSnapshotDownloader>(
-                    Owner->Config,
-                    Owner->Bootstrap,
-                    operation);
-                downloader->Run();
-            } catch (const std::exception& ex) {
-                LOG_ERROR(ex, "Error downloading snapshot (OperationId: %v)",
-                    operationId);
-                return false;
-            }
-
-            // Everything seems OK.
-            LOG_INFO("Operation state will be recovered from snapshot (OperationId: %v)",
-                operationId);
-            return true;
-        }
-
-        // - Abort orphaned transactions.
-        void AbortTransactions()
-        {
-            std::vector<TFuture<void>> asyncResults;
-            for (auto operation : Result.Operations) {
-                auto scheduleAbort = [&] (ITransactionPtr transaction) {
-                    if (!transaction)
-                        return;
-                    asyncResults.push_back(transaction->Abort());
-                };
-
-                // NB: Async transaction is always aborted.
-                {
-                    scheduleAbort(operation->GetAsyncSchedulerTransaction());
-                    operation->SetAsyncSchedulerTransaction(nullptr);
-                }
-
-                if (operation->GetCleanStart()) {
-                    LOG_INFO("Aborting operation transactions (OperationId: %v)",
-                        operation->GetId());
-
-                    operation->SetHasActiveTransactions(false);
-
-                    // NB: Don't touch user transaction.
-                    scheduleAbort(operation->GetSyncSchedulerTransaction());
-                    operation->SetSyncSchedulerTransaction(nullptr);
-
-                    scheduleAbort(operation->GetInputTransaction());
-                    operation->SetInputTransaction(nullptr);
-
-                    scheduleAbort(operation->GetOutputTransaction());
-                    operation->SetOutputTransaction(nullptr);
-                } else {
-                    LOG_INFO("Reusing operation transactions (OperationId: %v)",
-                        operation->GetId());
-                }
-            }
-
-            WaitFor(Combine(asyncResults))
-                .ThrowOnError();
-        }
-
-        // - Remove unneeded snapshots.
-        void RemoveSnapshots()
-        {
-            auto batchReq = Owner->StartBatchRequest();
-
-            for (auto operation : Result.Operations) {
-                if (operation->GetCleanStart()) {
-                    auto req = TYPathProxy::Remove(GetSnapshotPath(operation->GetId()));
-                    req->set_force(true);
-                    batchReq->AddRequest(req, "remove_snapshot");
-                }
-            }
-
-            auto batchRspOrError = WaitFor(batchReq->Invoke());
-            THROW_ERROR_EXCEPTION_IF_FAILED(batchRspOrError);
-
-            {
-                const auto& batchRsp = batchRspOrError.Value();
-                auto rspsOrError = batchRsp->GetResponses<TYPathProxy::TRspRemove>("remove_snapshot");
-                for (auto rspOrError : rspsOrError) {
-                    THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error removing snapshot");
                 }
             }
         }
@@ -825,8 +662,7 @@ private:
             }
 
             auto batchRspOrError = WaitFor(batchReq->Invoke());
-            THROW_ERROR_EXCEPTION_IF_FAILED(batchRspOrError);
-            Result.WatcherResponses = batchRspOrError.Value();
+            Result.WatcherResponses = batchRspOrError.ValueOrThrow();
         }
 
     };
@@ -1326,6 +1162,58 @@ private:
         }
 
         auto batchRspOrError = WaitFor(batchReq->Invoke());
+        THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError));
+    }
+
+    TSharedRef DoDownloadSnapshot(const TOperationId& operationId)
+    {
+        auto snapshotPath = GetSnapshotPath(operationId);
+
+        auto batchReq = StartBatchRequest();
+        auto req = TYPathProxy::Get(snapshotPath + "/@version");
+        batchReq->AddRequest(req, "get_version");
+
+        auto batchRspOrError = WaitFor(batchReq->Invoke());
+        const auto& batchRsp = batchRspOrError.ValueOrThrow();
+
+        auto rspOrError = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_version");
+        // Check for missing snapshots.
+        if (rspOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
+            THROW_ERROR_EXCEPTION("Snapshot does not exist");
+        }
+        THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error getting snapshot version");
+
+        const auto& rsp = rspOrError.Value();
+        int version = ConvertTo<int>(TYsonString(rsp->value()));
+
+        LOG_INFO("Snapshot found (OperationId: %v, Version: %v)",
+            operationId,
+            version);
+
+        if (!ValidateSnapshotVersion(version)) {
+            THROW_ERROR_EXCEPTION("Snapshot version validation failed");
+        }
+
+        try {
+            auto downloader = New<TSnapshotDownloader>(
+                Config,
+                Bootstrap,
+                operationId);
+            return downloader->Run();
+        } catch (const std::exception& ex) {
+            THROW_ERROR_EXCEPTION("Error downloading snapshot") << ex;
+        }
+    }
+
+    void DoRemoveSnapshot(const TOperationId& operationId)
+    {
+        auto batchReq = StartBatchRequest();
+        auto req = TYPathProxy::Remove(GetSnapshotPath(operationId));
+        req->set_force(true);
+        batchReq->AddRequest(req, "remove_snapshot");
+
+        auto batchRspOrError = WaitFor(batchReq->Invoke());
+
         THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError));
     }
 
@@ -1995,6 +1883,16 @@ TFuture<void> TMasterConnector::ResetRevivingOperationNode(TOperationPtr operati
 TFuture<void> TMasterConnector::FlushOperationNode(TOperationPtr operation)
 {
     return Impl->FlushOperationNode(operation);
+}
+
+TFuture<TSharedRef> TMasterConnector::DownloadSnapshot(const TOperationId& operationId)
+{
+    return Impl->DownloadSnapshot(operationId);
+}
+
+TFuture<void> TMasterConnector::RemoveSnapshot(const TOperationId& operationId)
+{
+    return Impl->RemoveSnapshot(operationId);
 }
 
 void TMasterConnector::CreateJobNode(
