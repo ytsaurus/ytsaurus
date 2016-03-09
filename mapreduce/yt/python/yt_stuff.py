@@ -1,8 +1,8 @@
 import os
-import sys
 import logging
 import shutil
 import socket
+import sys
 import tarfile
 import tempfile
 
@@ -71,8 +71,13 @@ class YtStuff:
     def get_yt_wrapper(self):
         return self.yt_wrapper
 
-    def get_mapreduce_yt(self):
-        return self.mapreduce_yt_path
+    def run_mapreduce_yt(self, *args):
+        cmd = [sys.executable, self.mapreduce_yt_path] + list(args)
+        return yatest.common.execute(
+            cmd,
+            cwd=self.python_dir,
+            env=self.env
+            )
 
     def get_server(self):
         return "localhost:%d" % self.proxy_port
