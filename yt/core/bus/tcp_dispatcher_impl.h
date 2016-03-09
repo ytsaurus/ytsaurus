@@ -62,7 +62,7 @@ private:
     void DoUnregister(IEventLoopObjectPtr object);
 
 
-    virtual void OnShutdown() override;
+    virtual void BeforeShutdown() override;
 
     void OnCheck();
 
