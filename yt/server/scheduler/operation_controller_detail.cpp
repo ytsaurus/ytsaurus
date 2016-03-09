@@ -925,71 +925,85 @@ TOperationControllerBase::TOperationControllerBase(
     EventLogConsumer_.reset(new TTableConsumer(Host->CreateLogConsumer()));
 }
 
-void TOperationControllerBase::Initialize()
+void TOperationControllerBase::InitializeConnections()
+{ }
+
+void TOperationControllerBase::Initialize(bool cleanStart)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     LOG_INFO("Initializing operation (Title: %v)",
         Spec->Title);
 
-    InputNodeDirectory = New<NNodeTrackerClient::TNodeDirectory>();
-    AuxNodeDirectory = New<NNodeTrackerClient::TNodeDirectory>();
+    CleanStart = cleanStart;
 
-    for (const auto& path : GetInputTablePaths()) {
-        TInputTable table;
-        table.Path = path;
-        InputTables.push_back(table);
+    InitializeConnections();
+
+    // NB: CleanStart may be changed from false to true in this function.
+    CheckTransactions();
+    InitializeTransactions();
+
+    if (Operation->GetState() != EOperationState::Initializing &&
+        Operation->GetState() != EOperationState::Reviving)
+    {
+        throw TFiberCanceledException();
     }
 
-    for (const auto& path : GetOutputTablePaths()) {
-        TOutputTable table;
-        table.Path = path;
+    // NB: CleanStart should not be changed since this point.
+    // Initialize inner state of controller if needed.
+    if (CleanStart) {
+        InputNodeDirectory = New<NNodeTrackerClient::TNodeDirectory>();
+        AuxNodeDirectory = New<NNodeTrackerClient::TNodeDirectory>();
 
-        if (path.GetAppend()) {
-            table.AppendRequested = true;
-            table.UpdateMode = EUpdateMode::Append;
-            table.LockMode = ELockMode::Shared;
+        for (const auto& path : GetInputTablePaths()) {
+            TInputTable table;
+            table.Path = path;
+            InputTables.push_back(table);
         }
 
-        table.KeyColumns = path.GetSortedBy();
-        if (!table.KeyColumns.empty()) {
-            if (!IsSortedOutputSupported()) {
-                THROW_ERROR_EXCEPTION("Sorted outputs are not supported");
+        for (const auto& path : GetOutputTablePaths()) {
+            TOutputTable table;
+            table.Path = path;
+
+            if (path.GetAppend()) {
+                table.AppendRequested = true;
+                table.UpdateMode = EUpdateMode::Append;
+                table.LockMode = ELockMode::Shared;
             }
-            table.UpdateMode = EUpdateMode::Overwrite;
-            table.LockMode = ELockMode::Exclusive;
+
+            table.KeyColumns = path.GetSortedBy();
+            if (!table.KeyColumns.empty()) {
+                if (!IsSortedOutputSupported()) {
+                    THROW_ERROR_EXCEPTION("Sorted outputs are not supported");
+                }
+                table.UpdateMode = EUpdateMode::Overwrite;
+                table.LockMode = ELockMode::Exclusive;
+            }
+
+            OutputTables.push_back(table);
         }
 
-        OutputTables.push_back(table);
+        for (const auto& pair : GetFilePaths()) {
+            TUserFile file;
+            file.Path = pair.first;
+            file.Stage = pair.second;
+            Files.push_back(file);
+        }
+
+        if (InputTables.size() > Config->MaxInputTableCount) {
+            THROW_ERROR_EXCEPTION(
+                "Too many input tables: maximum allowed %v, actual %v",
+                Config->MaxInputTableCount,
+                InputTables.size());
+        }
+
+        DoInitialize();
     }
-
-    for (const auto& pair : GetFilePaths()) {
-        TUserFile file;
-        file.Path = pair.first;
-        file.Stage = pair.second;
-        Files.push_back(file);
-    }
-
-    if (InputTables.size() > Config->MaxInputTableCount) {
-        THROW_ERROR_EXCEPTION(
-            "Too many input tables: maximum allowed %v, actual %v",
-            Config->MaxInputTableCount,
-            InputTables.size());
-    }
-
-    DoInitialize();
-
-    LOG_INFO("Operation initialized");
-}
-
-void TOperationControllerBase::Essentiate()
-{
-    VERIFY_THREAD_AFFINITY(ControlThread);
 
     Operation->SetMaxStderrCount(Spec->MaxStderrCount.Get(Config->MaxStderrCount));
     Operation->SetSchedulingTag(Spec->SchedulingTag);
 
-    InitializeTransactions();
+    LOG_INFO("Operation initialized");
 }
 
 void TOperationControllerBase::DoInitialize()
@@ -1073,13 +1087,13 @@ void TOperationControllerBase::DoSaveSnapshot(TOutputStream* output)
     Save(context, this);
 }
 
-void TOperationControllerBase::Revive()
+void TOperationControllerBase::Revive(const TSharedRef& snapshot)
 {
     VERIFY_INVOKER_AFFINITY(CancelableInvoker);
 
     InitChunkListPool();
 
-    DoLoadSnapshot();
+    DoLoadSnapshot(snapshot);
 
     LockLivePreviewTables();
 
@@ -1100,7 +1114,7 @@ void TOperationControllerBase::Revive()
 void TOperationControllerBase::InitializeTransactions()
 {
     StartAsyncSchedulerTransaction();
-    if (Operation->GetCleanStart()) {
+    if (CleanStart) {
         StartSyncSchedulerTransaction();
         StartInputTransaction(SyncSchedulerTransactionId);
         StartOutputTransaction(SyncSchedulerTransactionId);
@@ -1109,6 +1123,94 @@ void TOperationControllerBase::InitializeTransactions()
         OutputTransactionId = Operation->GetOutputTransaction()->GetId();
     }
     Operation->SetHasActiveTransactions(true);
+}
+
+void TOperationControllerBase::CheckTransactions()
+{
+    if (Operation->GetState() != EOperationState::Reviving) {
+        return;
+    }
+
+    // Check transactions.
+    {
+        std::vector<TFuture<void>> asyncResults;
+
+        auto checkTransaction = [&] (ITransactionPtr transaction, bool required) {
+            if (CleanStart) {
+                return;
+            }
+            if (!transaction) {
+                if (required) {
+                    CleanStart = true;
+                    LOG_INFO("Operation is missing required transaction, will use clean start");
+                }
+                return;
+            }
+
+            asyncResults.push_back(transaction->Ping().Apply(
+                BIND([=] (const TError& error) {
+                    if (!error.IsOK() && !CleanStart) {
+                        CleanStart = true;
+                        LOG_INFO(error,
+                            "Error renewing operation transaction, will use clean start (TransactionId: %v)",
+                            transaction->GetId());
+                    }
+                })));
+        };
+
+        // NB: Async transaction is not checked.
+        checkTransaction(Operation->GetUserTransaction(), false);
+        checkTransaction(Operation->GetSyncSchedulerTransaction(), true);
+        checkTransaction(Operation->GetInputTransaction(), true);
+        checkTransaction(Operation->GetOutputTransaction(), true);
+
+        WaitFor(Combine(asyncResults))
+            .ThrowOnError();
+    }
+
+    if (Operation->GetState() != EOperationState::Reviving) {
+        return;
+    }
+
+    // Abort transactions if needed.
+    {
+        std::vector<TFuture<void>> asyncResults;
+
+        auto scheduleAbort = [&] (ITransactionPtr transaction) {
+            if (transaction) {
+                asyncResults.push_back(transaction->Abort());
+            }
+        };
+
+        // NB: Async transaction is always aborted.
+        {
+            scheduleAbort(Operation->GetAsyncSchedulerTransaction());
+            Operation->SetAsyncSchedulerTransaction(nullptr);
+        }
+
+        if (CleanStart) {
+            LOG_INFO("Aborting operation transactions (OperationId: %v)",
+                Operation->GetId());
+
+            Operation->SetHasActiveTransactions(false);
+
+            // NB: Don't touch user transaction.
+            scheduleAbort(Operation->GetSyncSchedulerTransaction());
+            Operation->SetSyncSchedulerTransaction(nullptr);
+
+            scheduleAbort(Operation->GetInputTransaction());
+            Operation->SetInputTransaction(nullptr);
+
+            scheduleAbort(Operation->GetOutputTransaction());
+            Operation->SetOutputTransaction(nullptr);
+        } else {
+            LOG_INFO("Reusing operation transactions (OperationId: %v)",
+                Operation->GetId());
+        }
+
+        WaitFor(Combine(asyncResults))
+            .ThrowOnError();
+    }
 }
 
 ITransactionPtr TOperationControllerBase::StartTransaction(
@@ -1309,11 +1411,10 @@ void TOperationControllerBase::AbortAllJoblets()
     JobletMap.clear();
 }
 
-void TOperationControllerBase::DoLoadSnapshot()
+void TOperationControllerBase::DoLoadSnapshot(TSharedRef snapshot)
 {
     LOG_INFO("Started loading snapshot");
 
-    auto snapshot = Operation->Snapshot();
     TMemoryInput input(snapshot.Begin(), snapshot.Size());
 
     TLoadContext context;
@@ -2324,6 +2425,13 @@ void TOperationControllerBase::Resume()
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     SuspendableInvoker->Resume();
+}
+
+bool TOperationControllerBase::GetCleanStart() const
+{
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
+    return CleanStart;
 }
 
 int TOperationControllerBase::GetPendingJobCount() const

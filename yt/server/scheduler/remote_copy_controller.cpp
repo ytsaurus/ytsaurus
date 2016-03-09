@@ -267,7 +267,7 @@ private:
     void InitializeTransactions() override
     {
         StartAsyncSchedulerTransaction();
-        if (Operation->GetCleanStart()) {
+        if (CleanStart) {
             StartInputTransaction(TTransactionId());
             auto userTransactionId =
                 Operation->GetUserTransaction()
@@ -288,7 +288,7 @@ private:
         RegisterTaskGroup(RemoteCopyTaskGroup_);
     }
 
-    virtual void Essentiate() override
+    virtual void InitializeConnections() override
     {
         TClientOptions options;
         options.User = Operation->GetAuthenticatedUser();
@@ -302,8 +302,6 @@ private:
                 ->GetConnectionOrThrow(*Spec_->ClusterName)
                 ->CreateClient(options);
         }
-
-        TOperationControllerBase::Essentiate();
     }
 
     virtual std::vector<TRichYPath> GetInputTablePaths() const override

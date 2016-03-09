@@ -116,20 +116,14 @@ struct IOperationHost
 struct IOperationController
     : public virtual TRefCounted
 {
-    //! Performs first stage of fast synchronous initialization, skipped if operation restarts from snapshot.
+    //! Performs controller inner state initialization. Check and start all operation transactions.
     /*
      *  If an exception is thrown then the operation fails immediately.
      *  The diagnostics is returned to the client, no Cypress node is created.
      *
      *  \note Invoker affinity: Control invoker
      */
-    virtual void Initialize() = 0;
-
-    //! Performs second stage of initialization, executed even if operation restarts from snapshot.
-    /*!
-     *  \note Invoker affinity: Control invoker
-     */
-    virtual void Essentiate() = 0;
+    virtual void Initialize(bool cleanStart) = 0;
 
     /*!
      *  \note Invoker affinity: Controller invoker
@@ -158,7 +152,7 @@ struct IOperationController
      *  The controller may try to recover its state from the snapshot, if any
      *  (see TOperation::Snapshot).
      */
-    virtual void Revive() = 0;
+    virtual void Revive(const TSharedRef& snapshot) = 0;
 
     //! Notifies the controller that the operation has been aborted.
     /*!
@@ -199,6 +193,13 @@ struct IOperationController
      *  \note Invoker affinity: Control invoker
      */
     virtual void Resume() = 0;
+
+    /*!
+     *  Indicates that controller should be initialized from scratch.
+     *
+     *  \note Invoker affinity: Control invoker
+     */
+    virtual bool GetCleanStart() const = 0;
 
     /*!
      *  \note Thread affinity: any

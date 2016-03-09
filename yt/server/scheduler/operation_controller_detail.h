@@ -86,12 +86,11 @@ public:
         IOperationHost* host,
         TOperation* operation);
 
-    virtual void Initialize() override;
-    virtual void Essentiate() override;
+    virtual void Initialize(bool cleanStart) override;
     virtual void Prepare() override;
     virtual void Materialize() override;
     virtual void SaveSnapshot(TOutputStream* output) override;
-    virtual void Revive() override;
+    virtual void Revive(const TSharedRef& snapshot) override;
     virtual void Commit() override;
 
     virtual void OnJobStarted(const TJobId& jobId, TInstant startTime) override;
@@ -115,6 +114,7 @@ public:
     virtual TFuture<void> Suspend() override;
     virtual void Resume() override;
 
+    virtual bool GetCleanStart() const override;
     virtual int GetPendingJobCount() const override;
     virtual int GetTotalJobCount() const override;
     virtual TJobResources GetNeededResources() const override;
@@ -173,6 +173,8 @@ protected:
 
     int ChunkLocatedCallCount = 0;
     int UnavailableInputChunkCount = 0;
+
+    bool CleanStart = true;
 
     // Job counters.
     TProgressCounter JobCounter;
@@ -634,7 +636,9 @@ protected:
 
     // Initialization.
     virtual void DoInitialize();
+    virtual void InitializeConnections();
     virtual void InitializeTransactions();
+    void CheckTransactions();
 
 
     // Preparation.
@@ -679,7 +683,7 @@ protected:
     void AbortAllJoblets();
 
     void DoSaveSnapshot(TOutputStream* output);
-    void DoLoadSnapshot();
+    void DoLoadSnapshot(TSharedRef snapshot);
 
     //! Called to extract input table paths from the spec.
     virtual std::vector<NYPath::TRichYPath> GetInputTablePaths() const = 0;

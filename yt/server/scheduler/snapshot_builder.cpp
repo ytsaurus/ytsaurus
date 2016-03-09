@@ -211,8 +211,7 @@ void TSnapshotBuilder::UploadSnapshot(const TJob& job)
                 Client_->StartTransaction(
                 NTransactionClient::ETransactionType::Master,
                 options));
-            THROW_ERROR_EXCEPTION_IF_FAILED(transactionOrError);
-            transaction = transactionOrError.Value();
+            transaction = transactionOrError.ValueOrThrow();
         }
 
         // Remove previous snapshot, if exists.

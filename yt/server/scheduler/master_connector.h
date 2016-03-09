@@ -50,6 +50,9 @@ public:
     TFuture<void> ResetRevivingOperationNode(TOperationPtr operation);
     TFuture<void> FlushOperationNode(TOperationPtr operation);
 
+    TFuture<TSharedRef> DownloadSnapshot(const TOperationId& operationId);
+    TFuture<void> RemoveSnapshot(const TOperationId& operationId);
+
     void CreateJobNode(TJobPtr job,
         const NChunkClient::TChunkId& stderrChunkId,
         const NChunkClient::TChunkId& failContextChunkId);

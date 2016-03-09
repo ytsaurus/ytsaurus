@@ -18,14 +18,14 @@ public:
     TSnapshotDownloader(
         TSchedulerConfigPtr config,
         NCellScheduler::TBootstrap* bootstrap,
-        TOperationPtr operation);
+        const TOperationId& operationId);
 
-    void Run();
+    TSharedRef Run();
 
 private:
     const TSchedulerConfigPtr Config_;
     NCellScheduler::TBootstrap* const Bootstrap_;
-    const TOperationPtr Operation_;
+    const TOperationId OperationId_;
 
     NLogging::TLogger Logger;
 

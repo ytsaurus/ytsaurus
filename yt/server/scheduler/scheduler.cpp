@@ -337,7 +337,6 @@ public:
             user,
             operationSpec->Owners,
             TInstant::Now());
-        operation->SetCleanStart(true);
         operation->SetState(EOperationState::Initializing);
 
         auto error = Strategy_->CanAddOperation(operation);
@@ -760,9 +759,9 @@ public:
 
     void MaterializeOperation(TOperationPtr operation)
     {
-        if (operation->GetCleanStart()) {
+        auto controller = operation->GetController();
+        if (controller->GetCleanStart()) {
             operation->SetState(EOperationState::Materializing);
-            auto controller = operation->GetController();
             BIND(&IOperationController::Materialize, controller)
                 .AsyncVia(controller->GetCancelableInvoker())
                 .Run()
@@ -1259,8 +1258,7 @@ private:
             RegisterOperation(operation);
             registered = true;
 
-            controller->Initialize();
-            controller->Essentiate();
+            controller->Initialize(/* clean start */ true);
 
             WaitFor(MasterConnector_->CreateOperationNode(operation))
                 .ThrowOnError();
@@ -1419,13 +1417,30 @@ private:
 
         try {
             auto controller = operation->GetController();
+            TSharedRef snapshot;
 
-            if (!operation->Snapshot()) {
-                operation->SetCleanStart(true);
-                controller->Initialize();
+            {
+                bool cleanStart = false;
+
+                auto snapshotOrError = WaitFor(MasterConnector_->DownloadSnapshot(operation->GetId()));
+                if (!snapshotOrError.IsOK()) {
+                    LOG_INFO(snapshotOrError, "Failed to download snapshot, will use clean start (OperationId: %v)", operation->GetId());
+                    cleanStart = true;
+                    auto error = WaitFor(MasterConnector_->RemoveSnapshot(operation->GetId()));
+                    if (!error.IsOK()) {
+                        LOG_WARNING(error, "Failed to remove snapshot (OperationId: %v)", operation->GetId());
+                    }
+                } else {
+                    LOG_INFO("Snapshot succesfully downloaded (OperationId: %v)", operation->GetId());
+                    snapshot = snapshotOrError.Value();
+                }
+
+                controller->Initialize(cleanStart);
             }
 
-            controller->Essentiate();
+            if (operation->GetState() != EOperationState::Reviving) {
+                throw TFiberCanceledException();
+            }
 
             {
                 auto error = WaitFor(MasterConnector_->ResetRevivingOperationNode(operation));
@@ -1434,12 +1449,12 @@ private:
 
             {
                 auto asyncResult = VoidFuture;
-                if (operation->Snapshot()) {
-                    asyncResult = BIND(&IOperationController::Revive, controller)
+                if (controller->GetCleanStart()) {
+                    asyncResult = BIND(&IOperationController::Prepare, controller)
                         .AsyncVia(controller->GetCancelableInvoker())
                         .Run();
                 } else {
-                    asyncResult = BIND(&IOperationController::Prepare, controller)
+                    asyncResult = BIND(&IOperationController::Revive, controller, snapshot)
                         .AsyncVia(controller->GetCancelableInvoker())
                         .Run();
                 }
@@ -1450,6 +1465,7 @@ private:
             if (operation->GetState() != EOperationState::Reviving) {
                 throw TFiberCanceledException();
             }
+
             operation->SetState(EOperationState::Pending);
             operation->SetPrepared(true);
             if (operation->GetActivated()) {
@@ -1462,9 +1478,6 @@ private:
             OnOperationFailed(operation, wrappedError);
             return;
         }
-
-        // Discard the snapshot, if any.
-        operation->Snapshot().Reset();
 
         LOG_INFO("Operation has been revived and is now running (OperationId: %v)",
             operation->GetId());
@@ -1734,6 +1747,7 @@ private:
         operation->GetAsyncSchedulerTransaction()->Abort();
     }
 
+    // TODO(ignat): unify with aborting transactions in controller.
     void AbortSchedulerTransactions(TOperationPtr operation)
     {
         auto abortTransaction = [&] (ITransactionPtr transaction) {
@@ -1745,9 +1759,13 @@ private:
 
         operation->SetHasActiveTransactions(false);
         abortTransaction(operation->GetInputTransaction());
+        operation->SetInputTransaction(nullptr);
         abortTransaction(operation->GetOutputTransaction());
+        operation->SetOutputTransaction(nullptr);
         abortTransaction(operation->GetSyncSchedulerTransaction());
+        operation->SetSyncSchedulerTransaction(nullptr);
         abortTransaction(operation->GetAsyncSchedulerTransaction());
+        operation->SetAsyncSchedulerTransaction(nullptr);
     }
 
     void FinishOperation(TOperationPtr operation)
