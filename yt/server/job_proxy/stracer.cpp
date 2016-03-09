@@ -35,7 +35,7 @@ TStrace::TStrace()
 {
     RegisterParameter("trace", Trace);
     RegisterParameter("process_name", ProcessName);
-    RegisterParameter("process_command_lint", ProcessCommandLine);
+    RegisterParameter("process_command_line", ProcessCommandLine);
 }
 
 TStracerResult::TStracerResult()
