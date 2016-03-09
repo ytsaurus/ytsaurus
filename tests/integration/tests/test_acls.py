@@ -181,7 +181,12 @@ class TestAcls(YTEnvSetup):
     def test_scheduler_operation_abort_acl(self):
         self._prepare_scheduler_test()
         create_user("u1")
-        op = map(dont_track=True, in_="//tmp/t1", out="//tmp/t2", command="cat; sleep 1", user="u")
+        op = map(
+            dont_track=True,
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            command="cat; while true; do sleep 1; done",
+            user="u")
         with pytest.raises(YtError): op.abort(user="u1")
         op.abort(user="u")
 
@@ -192,7 +197,7 @@ class TestAcls(YTEnvSetup):
             dont_track=True,
             in_="//tmp/t1",
             out="//tmp/t2",
-            command="cat; sleep 1",
+            command="cat; while true; do sleep 1; done",
             user="u",
             spec={"owners": ["u1"]})
         op.abort(user="u1")
