@@ -13,6 +13,7 @@ import signal
 import errno
 import logging
 import shutil
+import socket
 
 logger = logging.getLogger("Yt.local")
 
@@ -177,6 +178,8 @@ def _initialize_world(client):
         "changelog_write_quorum": 1
     }
     client.create("tablet_cell", attributes=attributes)
+    # Used to automatically determine local mode from python wrapper.
+    client.set("//sys/@local_mode_fqdn", socket.getfqdn())
 
 def start(master_count=1, node_count=3, scheduler_count=1, start_proxy=True,
           master_config=None, node_config=None, scheduler_config=None, proxy_config=None,

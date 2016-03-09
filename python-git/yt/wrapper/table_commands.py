@@ -74,7 +74,6 @@ import os
 import sys
 import time
 import types
-import tempfile
 import socket
 import getpass
 from cStringIO import StringIO
@@ -218,41 +217,26 @@ def _prepare_format(format, raw, client):
             YtError("You should specify format"))
     return format
 
-class TempfilesManager(object):
-    def __init__(self, client):
-        self.client = client
-        self._tempfiles_pool = []
-
-    def __enter__(self):
-        return self
-
-    def __exit__(self, type, value, traceback):
-        if get_config(self.client)["clear_local_temp_files"]:
-            for file in self._tempfiles_pool:
-                os.remove(file)
-
-    def create_tempfile(self, *args, **kwargs):
-        """Use syntax tempfile.mkstemp"""
-        fd, filepath = tempfile.mkstemp(*args, **kwargs)
-        os.close(fd)
-        self._tempfiles_pool.append(filepath)
-        return filepath
-
 def _prepare_binary(binary, operation_type, input_format=None, output_format=None,
                     reduce_by=None, client=None):
     if _is_python_function(binary):
         start_time = time.time()
         if isinstance(input_format, YamrFormat) and reduce_by is not None and set(reduce_by) != set(["key"]):
             raise YtError("Yamr format does not support reduce by %r", reduce_by)
-        with TempfilesManager(client) as tempfiles_manager:
-            binary, binary_file, files, tmpfs_size = \
-                py_wrapper.wrap(binary, operation_type, tempfiles_manager,
-                                input_format, output_format, reduce_by, client=client)
-            uploaded_files = _reliably_upload_files([binary_file] + files, client=client)
-            return binary, uploaded_files, tmpfs_size
+        binary, files, local_files_to_remove, tmpfs_size = \
+            py_wrapper.wrap(function=binary,
+                            operation_type=operation_type,
+                            tempfiles_manager=None,
+                            input_format=input_format,
+                            output_format=output_format,
+                            reduce_by=reduce_by,
+                            uploader=lambda files: _reliably_upload_files(files, client=client),
+                            client=client)
+
         logger.debug("Collecting python modules and uploading to cypress takes %.2lf seconds", time.time() - start_time)
+        return binary, files, local_files_to_remove, tmpfs_size
     else:
-        return binary, [], 0
+        return binary, [], [], 0
 
 def _prepare_destination_tables(tables, replication_factor, compression_codec, client=None):
     if tables is None:
@@ -293,9 +277,9 @@ def _remove_tables(tables, client=None):
 
 def _add_user_command_spec(op_type, binary, format, input_format, output_format,
                            files, file_paths, local_files, yt_files,
-                           memory_limit, reduce_by, spec, client=None):
+                           memory_limit, reduce_by, local_files_to_remove, spec, client=None):
     if binary is None:
-        return spec, []
+        return spec
 
     if local_files is not None:
         require(files is None, YtError("You cannot specify files and local_files simultaneously"))
@@ -320,9 +304,12 @@ def _add_user_command_spec(op_type, binary, format, input_format, output_format,
 
         spec = update({op_type: {"environment": environment}}, spec)
 
-    binary, additional_files, tmpfs_size = \
+    binary, additional_files, additional_local_files_to_remove, tmpfs_size = \
         _prepare_binary(binary, op_type, input_format, output_format,
                         reduce_by, client=client)
+
+    if local_files_to_remove is not None:
+        local_files_to_remove += additional_local_files_to_remove
 
     spec = update(
         {
@@ -345,7 +332,7 @@ def _add_user_command_spec(op_type, binary, format, input_format, output_format,
     memory_limit = get_value(memory_limit, get_config(client)["memory_limit"])
     if memory_limit is not None:
         spec = update({op_type: {"memory_limit": int(memory_limit)}}, spec)
-    return spec, files + additional_files
+    return spec
 
 def _configure_spec(spec, client):
     started_by = {
@@ -1190,14 +1177,16 @@ def run_sort(source_table, destination_table=None, sort_by=None,
 
 class Finalizer(object):
     """Entity for operation finalizing: checking size of result chunks, deleting of \
-    empty output tables and uploaded files.
+    empty output tables and temporary local files.
     """
-    def __init__(self, files, output_tables, client=None):
-        self.files = files if files is not None else []
+    def __init__(self, local_files_to_remove, output_tables, client=None):
+        self.local_files_to_remove = local_files_to_remove
         self.output_tables = output_tables
         self.client = client
 
     def __call__(self, state):
+        for file in self.local_files_to_remove:
+            os.remove(file)
         if state == "completed":
             for table in map(lambda table: to_name(table, client=self.client), self.output_tables):
                 self.check_for_merge(table)
@@ -1318,10 +1307,7 @@ def run_map_reduce(mapper, reducer, source_table, destination_table,
     .. seealso::  :ref:`operation_parameters`.
     """
 
-    run_map_reduce.files_to_remove = []
-    def memorize_files(spec, files):
-        run_map_reduce.files_to_remove += files
-        return spec
+    local_files_to_remove = []
 
     source_table = _prepare_source_tables(source_table, client=client)
     destination_table = _prepare_destination_tables(destination_table, replication_factor,
@@ -1343,27 +1329,26 @@ def run_map_reduce(mapper, reducer, source_table, destination_table,
                                    job_io, table_writer, _),
         lambda _: _add_input_output_spec(source_table, destination_table, _),
         lambda _: update({"sort_by": sort_by, "reduce_by": reduce_by}, _),
-        lambda _: memorize_files(*_add_user_command_spec("mapper", mapper,
+        lambda _: _add_user_command_spec("mapper", mapper,
             format, map_input_format, map_output_format,
             map_files, map_file_paths,
             map_local_files, map_yt_files,
-            mapper_memory_limit, None, _, client=client)),
-        lambda _: memorize_files(*_add_user_command_spec("reducer", reducer,
+            mapper_memory_limit, None, local_files_to_remove,  _, client=client),
+        lambda _: _add_user_command_spec("reducer", reducer,
             format, reduce_input_format, reduce_output_format,
             reduce_files, reduce_file_paths,
             reduce_local_files, reduce_yt_files,
-            reducer_memory_limit, reduce_by, _, client=client)),
-        lambda _: memorize_files(*_add_user_command_spec("reduce_combiner", reduce_combiner,
+            reducer_memory_limit, reduce_by, local_files_to_remove, _, client=client),
+        lambda _: _add_user_command_spec("reduce_combiner", reduce_combiner,
             format, reduce_combiner_input_format, reduce_combiner_output_format,
             reduce_combiner_files, reduce_combiner_file_paths,
             reduce_combiner_local_files, reduce_combiner_yt_files,
-            reduce_combiner_memory_limit, reduce_by, _, client=client)),
+            reduce_combiner_memory_limit, reduce_by, local_files_to_remove, _, client=client),
         lambda _: get_value(_, {})
     )(spec)
 
     return _make_operation_request("map_reduce", spec, strategy, sync,
-                                   finalizer=Finalizer(run_map_reduce.files_to_remove,
-                                                       destination_table, client=client),
+                                   finalizer=Finalizer(local_files_to_remove, destination_table, client=client),
                                    client=client)
 
 @forbidden_inside_job
@@ -1397,10 +1382,9 @@ def _run_operation(binary, source_table, destination_table,
 
     .. seealso::  :ref:`operation_parameters` and :py:func:`yt.wrapper.table_commands.run_map_reduce`.
     """
-    _run_operation.files = []
-    def memorize_files(spec, files):
-        _run_operation.files += files
-        return spec
+
+    local_files_to_remove = []
+
     op_name = get_value(op_name, "map")
     source_table = _prepare_source_tables(source_table, client=client)
     destination_table = _prepare_destination_tables(destination_table, replication_factor,
@@ -1490,16 +1474,16 @@ def _run_operation(binary, source_table, destination_table,
             lambda _: update({"ordered": bool_to_string(ordered)}, _) \
                 if op_name == "map" and ordered is not None else _,
             lambda _: update({"job_count": job_count}, _) if job_count is not None else _,
-            lambda _: memorize_files(*_add_user_command_spec(op_type, binary,
+            lambda _: _add_user_command_spec(op_type, binary,
                 format, input_format, output_format,
                 files, file_paths,
                 local_files, yt_files,
-                memory_limit, reduce_by, _, client=client)),
+                memory_limit, reduce_by, local_files_to_remove, _, client=client),
             lambda _: get_value(_, {})
         )(spec)
 
         return _make_operation_request(op_name, spec, strategy, sync,
-                                       finalizer=Finalizer(_run_operation.files, destination_table, client=client),
+                                       finalizer=Finalizer(local_files_to_remove, destination_table, client=client),
                                        client=client)
     finally:
         if finalize is not None:

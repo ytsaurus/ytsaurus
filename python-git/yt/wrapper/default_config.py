@@ -114,7 +114,14 @@ default_config = {
         # Such packages can lack of __init__.py and sometimes can not be imported on nodes
         # (e.g. because .pth files can not be taken to nodes)
         # In this case artificial __init__.py is added when modules achive is created.
-        "create_init_file_for_package_modules": True
+        "create_init_file_for_package_modules": True,
+        # Should we assume that client and server are run on the same node.
+        # Possible values:
+        # False - all pickled data will be uploaded to cluster and then used in jobs.
+        # True - we assumed that cluster run in local mode and the client code executed on the same node.
+        # In this case jobs can use local files without uploading it on cluster.
+        # None - client will try to auto-detect that server and client are run on the same node.
+        "local_mode": None
     },
 
     # By default HTTP requests to YT are forbidden inside jobs to avoid strange errors
