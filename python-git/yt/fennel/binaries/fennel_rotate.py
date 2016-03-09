@@ -72,7 +72,7 @@ def get_processed_row_count(attributes=None):
     if "processed_row_count" in attributes:
         return attributes["processed_row_count"]
     else:
-        return
+        return attributes["row_count"]
 
 def get_possible_size_to_archive():
     attributes = yt.get("event_log/@")
