@@ -2830,7 +2830,7 @@ void TOperationControllerBase::BeginUploadOutputTables()
                 batchReq->AddRequest(req, "begin_upload");
             }
             auto batchRspOrError = WaitFor(batchReq->Invoke());
-            THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError), "Errorexecuting begin_upload for output tables");
+            THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError), "Error starting upload transactions for output tables");
             const auto& batchRsp = batchRspOrError.Value();
 
             auto beginUploadRspsOrError = batchRsp->GetResponses<TTableYPathProxy::TRspBeginUpload>("begin_upload");
