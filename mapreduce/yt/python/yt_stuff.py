@@ -78,14 +78,29 @@ class YtStuff:
         return "localhost:%d" % self.proxy_port
 
     def start_local_yt(self):
-        res = self._yt_local("start", "--path=" + self.working_dir)
+        try:
+            res = self._yt_local("start", "--path=" + self.working_dir)
+        except Exception, e:
+            self._log("Failed to start local YT:")
+            self._log(str(e))
+            self._save_server_logs()
+            raise
         self.yt_id = res.std_out.strip()
         self.proxy_port = int(res.std_err.strip().splitlines()[-1].strip().split(":")[-1])
         self.yt_wrapper.config["proxy"]["url"] = "%s:%d" % (socket.gethostname(), self.proxy_port)
         self.yt_wrapper.config["proxy"]["enable_proxy_discovery"] = False
 
     def stop_local_yt(self):
-        self._yt_local("stop", os.path.join(self.working_dir, self.yt_id))
+        try:
+            self._yt_local("stop", os.path.join(self.working_dir, self.yt_id))
+        except Exception, e:
+            self._log("Errors while stopping local YT:")
+            self._log(str(e))
+            raise
+        finally:
+            self._save_server_logs()
+
+    def _save_server_logs(self):
         output_dir = yatest.common.output_path("yt")
         if not os.path.isdir(output_dir):
             os.mkdir(output_dir)
