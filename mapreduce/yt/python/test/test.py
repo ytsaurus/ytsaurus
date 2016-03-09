@@ -1,3 +1,4 @@
+import sys
 import yatest.common
 
 from mapreduce.yt.python.yt_stuff import YtStuff
@@ -16,5 +17,5 @@ def test_mapreduce_yt(yt_stuff):
     yt_server = yt_stuff.get_server()
     mapreduce_yt = yt_stuff.get_mapreduce_yt()
     yatest.common.execute(
-        [mapreduce_yt, "-server", yt_server, "-createtable", "//table"]
+        [sys.executable, mapreduce_yt, "-server", yt_server, "-createtable", "//table"]
         )
