@@ -16,6 +16,7 @@ from cStringIO import StringIO
 ###########################################################################
 
 driver = None
+secondary_drivers = None
 is_multicell = None
 path_to_run_tests = None
 
@@ -23,12 +24,20 @@ path_to_run_tests = None
 SyncLastCommittedTimestamp   = 0x3fffffffffffff01
 AsyncLastCommittedTimestamp  = 0x3fffffffffffff04
 
-def get_driver():
-    return driver
+def get_driver(index=0):
+    if index == 0:
+        return driver
+    else:
+        return secondary_drivers[index - 1]
 
-def init_driver(config):
+def init_driver(config, secondary_driver_configs):
     global driver
+    global secondary_drivers
+
     driver = Driver(config=config)
+    secondary_drivers = []
+    for secondary_driver_config in secondary_driver_configs:
+        secondary_drivers.append(Driver(config=secondary_driver_config))
 
 def set_branch(dict, path, value):
     root = dict
