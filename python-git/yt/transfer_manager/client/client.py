@@ -49,13 +49,17 @@ class Poller(object):
 
     def stop(self):
         self._queue.put({"type": "stop", "value": None})
-        self._thread.join()
+
+        # XXX(asaitgalin): join() can't be interrupted with KeyboardInterrupt
+        # so it is better to use polling with timeout.
+        while self._thread.is_alive():
+            self._thread.join(1.0)
 
         aborted_task_count, failed_task_count = self._queue.get()["value"]
         return aborted_task_count, failed_task_count
 
     def acquire_task_slot(self):
-        self._semaphore.acquire()
+        return self._semaphore.acquire(False)
 
     def notify_task_started(self, task_id):
         self._queue.put({"type": "task", "value": task_id})
@@ -253,7 +257,8 @@ class TransferManager(object):
 
         for source_table, destination_table in src_dst_pairs:
             if sync:
-                poller.acquire_task_slot()
+                while not poller.acquire_task_slot():
+                    time.sleep(0.5)
 
             task_id = self._start_one_task(
                 source_table,
