@@ -62,6 +62,9 @@ public:
     //! Limit on number of concurrent calls to ScheduleJob of single controller.
     int MaxConcurrentControllerScheduleJobCalls;
 
+    //! Maximum allowed time for single job scheduling.
+    TDuration ControllerScheduleJobTimeLimit;
+
     TFairShareStrategyConfig()
     {
         RegisterParameter("min_share_preemption_timeout", MinSharePreemptionTimeout)
@@ -111,6 +114,9 @@ public:
         RegisterParameter("max_concurrent_controller_schedule_job_calls", MaxConcurrentControllerScheduleJobCalls)
             .Default(10)
             .GreaterThan(0);
+
+        RegisterParameter("schedule_job_time_limit", ControllerScheduleJobTimeLimit)
+            .Default(TDuration::Seconds(60));
     }
 };
 
@@ -343,9 +349,6 @@ public:
     //! Maximum allowed running time of operation. Null value is interpreted as infinity.
     TNullable<TDuration> OperationTimeLimit;
 
-    //! Maximum allowed time for single job scheduling.
-    TDuration ControllerScheduleJobTimeLimit;
-
     //! Once this limit is reached the operation fails.
     int MaxFailedJobCount;
 
@@ -507,9 +510,6 @@ public:
 
         RegisterParameter("operation_time_limit", OperationTimeLimit)
             .Default();
-
-        RegisterParameter("schedule_job_time_limit", ControllerScheduleJobTimeLimit)
-            .Default(TDuration::Seconds(5));
 
         RegisterParameter("max_failed_job_count", MaxFailedJobCount)
             .Default(100)

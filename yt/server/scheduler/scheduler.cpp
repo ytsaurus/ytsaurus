@@ -537,7 +537,7 @@ public:
     }
 
     TFuture<void> ProcessScheduledJobs(
-        ISchedulingContext* schedulingContext,
+        const ISchedulingContextPtr& schedulingContext,
         NJobTrackerClient::NProto::TRspHeartbeat* response,
         yhash_set<TOperationPtr>* operationsToLog)
     {
@@ -683,13 +683,13 @@ public:
                         Bootstrap_->GetMasterClient()->GetConnection()->GetPrimaryMasterCellTag());
 
                     PROFILE_TIMING ("/schedule_time") {
-                        Strategy_->ScheduleJobs(schedulingContext.get());
+                        Strategy_->ScheduleJobs(schedulingContext);
                     }
 
                     node->SetResourceUsage(schedulingContext->ResourceUsage());
 
                     scheduleJobsAsyncResult = ProcessScheduledJobs(
-                        schedulingContext.get(),
+                        schedulingContext,
                         response,
                         &operationsToLog);
                 }

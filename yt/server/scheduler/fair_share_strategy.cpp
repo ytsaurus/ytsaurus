@@ -131,13 +131,13 @@ struct ISchedulerElement
 struct TFairShareContext
 {
     TFairShareContext(
-        ISchedulingContext* schedulingContext,
+        const ISchedulingContextPtr& schedulingContext,
         int attributesIndex)
         : SchedulingContext(schedulingContext)
         , AttributesIndex(attributesIndex)
     { }
 
-    ISchedulingContext* SchedulingContext;
+    const ISchedulingContextPtr SchedulingContext;
     int AttributesIndex;
 };
 
@@ -1070,24 +1070,9 @@ public:
             --ConcurrentScheduleJobCalls_;
         });
 
-        auto controller = Operation_->GetController();
-        auto jobLimits = GetHierarchicalResourceLimits(context);
-
-        auto asyncResult = BIND(&IOperationController::ScheduleJob, controller)
-            .AsyncVia(controller->GetCancelableInvoker())
-            .Run(context.SchedulingContext, jobLimits);
-
         NProfiling::TScopedTimer timer;
-        auto jobStartRequestOrError = WaitFor(asyncResult);
+        auto jobStartRequest = DoScheduleJob(context);
         auto scheduleJobDuration = timer.GetElapsed();
-
-        // This can happen if operation is aborted from control thread during ScheduleJob call.
-        // In this case current operation element is removed from scheduling tree and we don't
-        // need to update parent attributes.
-        if (!jobStartRequestOrError.IsOK()) {
-            YCHECK(!IsActive(GlobalAttributesIndex));
-            return false;
-        }
 
         // This can happen if operation controller was canceled after invocation
         // of IOperationController::ScheduleJob. In this case cancel won't be applied
@@ -1095,8 +1080,6 @@ public:
         if (!IsActive(GlobalAttributesIndex)) {
             return false;
         }
-
-        auto jobStartRequest = jobStartRequestOrError.Value();
 
         if (!jobStartRequest) {
             DynamicAttributes(context.AttributesIndex).Active = false;
@@ -1367,7 +1350,7 @@ private:
 
     TJobResources GetHierarchicalResourceLimits(const TFairShareContext& context) const
     {
-        auto* schedulingContext = context.SchedulingContext;
+        const auto& schedulingContext = context.SchedulingContext;
 
         // Bound limits with node free resources.
         auto limits =
@@ -1391,6 +1374,52 @@ private:
         limits = Min(limits, ResourceLimits() - ResourceUsage());
 
         return limits;
+    }
+
+    TJobStartRequestPtr DoScheduleJob(TFairShareContext& context)
+    {
+        auto jobLimits = GetHierarchicalResourceLimits(context);
+        auto controller = Operation_->GetController();
+
+        auto jobStartRequestFuture = BIND(&IOperationController::ScheduleJob, controller)
+            .AsyncVia(controller->GetCancelableInvoker())
+            .Run(context.SchedulingContext, jobLimits);
+
+        auto jobStartRequestFutureWithTimeout = jobStartRequestFuture
+            .WithTimeout(Config->ControllerScheduleJobTimeLimit);
+
+        auto jobStartRequestWithTimeoutOrError = WaitFor(jobStartRequestFutureWithTimeout);
+
+        if (!jobStartRequestWithTimeoutOrError.IsOK()) {
+            if (jobStartRequestWithTimeoutOrError.GetCode() == NYT::EErrorCode::Timeout) {
+                LOG_WARNING("Controller is scheduling for too long, aborting ScheduleJob");
+                // If ScheduleJob was not canceled we need to abort created job.
+                jobStartRequestFuture.Subscribe(
+                    BIND([=] (const TErrorOr<TJobStartRequestPtr>& jobStartRequestOrError) {
+                        if (jobStartRequestOrError.IsOK()) {
+                            auto jobStartRequest = jobStartRequestOrError.Value();
+                            if (jobStartRequest) {
+                                auto jobId = jobStartRequest->Id;
+                                LOG_WARNING("Aborting late job (JobId: %v, OperationId: %v)",
+                                    jobId,
+                                    OperationId_);
+                                controller->OnJobAborted(
+                                    std::make_unique<TAbortedJobSummary>(
+                                        jobId,
+                                        EAbortReason::SchedulingTimeout));
+                            }
+                        }
+                }));
+            } else {
+                // This can happen if operation is aborted from control thread during ScheduleJob call.
+                // In this case current operation element is removed from scheduling tree and we don't
+                // need to update parent attributes.
+                YCHECK(!IsActive(GlobalAttributesIndex));
+            }
+            return nullptr;
+        }
+
+        return jobStartRequestWithTimeoutOrError.Value();
     }
 
     // Fair share strategy stuff.
@@ -1506,7 +1535,7 @@ public:
     }
 
 
-    virtual void ScheduleJobs(ISchedulingContext* schedulingContext) override
+    virtual void ScheduleJobs(const ISchedulingContextPtr& schedulingContext) override
     {
         auto guard = WaitFor(TAsyncLockReaderGuard::Acquire(&ScheduleJobsLock))
             .Value();
