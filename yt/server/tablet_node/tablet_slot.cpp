@@ -64,6 +64,7 @@
 #include <yt/core/rpc/server.h>
 
 #include <yt/core/ytree/fluent.h>
+#include <yt/core/ytree/virtual.h>
 
 namespace NYT {
 namespace NTabletNode {
@@ -350,6 +351,20 @@ public:
         return TabletManager_;
     }
 
+    TTransactionId GetPrerequisiteTransactionId() const
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        return PrerequisiteTransactionId_;
+    }
+
+    TTabletCellOptionsPtr GetOptions() const
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        return Options_;
+    }
+
     TObjectId GenerateId(EObjectType type)
     {
         auto* mutationContext = GetCurrentMutationContext();
@@ -550,6 +565,8 @@ public:
             rpcServer->RegisterService(HiveManager_->GetRpcService());
             rpcServer->RegisterService(TabletService_);
 
+            OrchidService_ = CreateOrchidService();
+
             LOG_INFO("Slot configured (ConfigVersion: %v)",
                 CellDescriptor_.ConfigVersion);
         }
@@ -580,16 +597,9 @@ public:
     }
 
 
-    void BuildOrchidYson(IYsonConsumer* consumer)
+    IYPathServicePtr GetOrchidService()
     {
-        BuildYsonFluently(consumer)
-            .BeginAttributes()
-                .Item("opaque").Value(true)
-            .EndAttributes()
-            .BeginMap()
-                .Do(BIND(&TImpl::BuildOrchidYsonControl, Unretained(this)))
-                .Do(BIND(&TImpl::BuildOrchidYsonAutomaton, Unretained(this)))
-            .EndMap();
+        return OrchidService_;
     }
 
 private:
@@ -640,6 +650,29 @@ private:
 
     NLogging::TLogger Logger = TabletNodeLogger;
 
+    IYPathServicePtr OrchidService_;
+
+
+    IYPathServicePtr CreateOrchidService()
+    {
+        return New<TCompositeMapService>()
+            ->AddAttribute("opaque", BIND([] (IYsonConsumer* consumer) {
+                    BuildYsonFluently(consumer)
+                        .Value(true);
+                }))
+            ->AddChild("state", IYPathService::FromMethod(
+                &TImpl::GetControlState,
+                MakeWeak(this)))
+            ->AddChild("prerequisite_transaction_id", IYPathService::FromMethod(
+                &TImpl::GetPrerequisiteTransactionId,
+                MakeWeak(this)))
+            ->AddChild("options", IYPathService::FromMethod(
+                &TImpl::GetOptions,
+                MakeWeak(this)))
+            ->AddChild("transactions", TransactionManager_->GetOrchidService())
+            ->AddChild("tablets", TabletManager_->GetOrchidService())
+            ->AddChild("hive", HiveManager_->GetOrchidService());
+    }
 
     void ResetEpochInvokers()
     {
@@ -741,48 +774,6 @@ private:
         TabletService_.Reset();
 
         TabletManager_.Reset();
-    }
-
-
-    void BuildOrchidYsonControl(IYsonConsumer* consumer)
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        BuildYsonMapFluently(consumer)
-            .Item("state").Value(GetControlState())
-            .Item("prerequisite_transaction_id").Value(PrerequisiteTransactionId_)
-            .Item("options").Value(*Options_);
-    }
-
-    void BuildOrchidYsonAutomaton(IYsonConsumer* consumer)
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        if (!HydraManager_)
-            return;
-        
-        auto cancelableContext = HydraManager_->GetControlCancelableContext();
-        if (!cancelableContext)
-            return;
-
-        WaitFor(BIND(&TImpl::DoBuildOrchidYsonAutomaton, MakeStrong(this))
-            .AsyncVia(GetGuardedAutomatonInvoker())
-            .Run(cancelableContext, consumer));
-    }
-
-    void DoBuildOrchidYsonAutomaton(TCancelableContextPtr context, IYsonConsumer* consumer)
-    {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
-
-        // Make sure we're still using the same context.
-        // Otherwise cell id, which has already been printed, might be wrong.
-        if (context->IsCanceled())
-            return;
-
-        BuildYsonMapFluently(consumer)
-            .Item("transactions").Do(BIND(&TTransactionManager::BuildOrchidYson, TransactionManager_))
-            .Item("tablets").Do(BIND(&TTabletManager::BuildOrchidYson, TabletManager_))
-            .Item("hive").Do(BIND(&THiveManager::BuildOrchidYson, HiveManager_));
     }
 
 
@@ -927,9 +918,9 @@ TFuture<void> TTabletSlot::Finalize()
     return Impl_->Finalize();
 }
 
-void TTabletSlot::BuildOrchidYson(IYsonConsumer* consumer)
+IYPathServicePtr TTabletSlot::GetOrchidService()
 {
-    return Impl_->BuildOrchidYson(consumer);
+    return Impl_->GetOrchidService();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -63,12 +63,13 @@ class TestTablets(YTEnvSetup):
         return leader_peer["address"]
 
     def _find_tablet_orchid(self, address, tablet_id):
-        cells = get("//sys/nodes/" + address + "/orchid/tablet_cells", ignore_opaque=True)
-        for (cell_id, cell_data) in cells.iteritems():
-            if cell_data["state"] == "leading":
-                tablets = cell_data["tablets"]
+        path = "//sys/nodes/" + address + "/orchid/tablet_cells"
+        cells = ls(path)
+        for cell_id in cells:
+            if get(path + "/" + cell_id + "/state") == "leading":
+                tablets = ls(path + "/" + cell_id + "/tablets")
                 if tablet_id in tablets:
-                    return tablets[tablet_id]
+                    return get(path + "/" + cell_id + "/tablets/" + tablet_id, ignore_opaque=True)
         return None
 
     def _get_pivot_keys(self, path):

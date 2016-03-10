@@ -5,6 +5,9 @@
 #include "tablet_slot.h"
 #include "transaction.h"
 
+#include <yt/server/cell_node/bootstrap.h>
+#include <yt/server/cell_node/config.h>
+
 #include <yt/server/hive/transaction_supervisor.h>
 #include <yt/server/hive/transaction_lease_tracker.h>
 
@@ -55,6 +58,7 @@ public:
         , LeaseTracker_(New<TTransactionLeaseTracker>(
             Slot_->GetAutomatonInvoker(),
             Logger))
+        , OrchidService_(CreateOrchidService())
     {
         VERIFY_INVOKER_THREAD_AFFINITY(Slot_->GetAutomatonInvoker(), AutomatonThread);
 
@@ -110,24 +114,9 @@ public:
         return transaction;
     }
 
-    void BuildOrchidYson(IYsonConsumer* consumer)
+    IYPathServicePtr GetOrchidService()
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
-
-        BuildYsonFluently(consumer)
-            .DoMapFor(TransactionMap_, [&] (TFluentMap fluent, const std::pair<TTransactionId, TTransaction*>& pair) {
-                auto* transaction = pair.second;
-                fluent
-                    .Item(ToString(transaction->GetId())).BeginMap()
-                        .Item("timeout").Value(transaction->GetTimeout())
-                        .Item("register_time").Value(transaction->GetRegisterTime())
-                        .Item("state").Value(transaction->GetState())
-                        .Item("start_timestamp").Value(transaction->GetStartTimestamp())
-                        .Item("prepare_timestamp").Value(transaction->GetPrepareTimestamp())
-                        // Omit CommitTimestamp, it's typically null.
-                        .Item("locked_row_count").Value(transaction->LockedRows().size())
-                    .EndMap();
-            });
+        return OrchidService_;
     }
 
 
@@ -254,8 +243,38 @@ private:
 
     TEntityMap<TTransactionId, TTransaction> TransactionMap_;
 
+    const IYPathServicePtr OrchidService_;
+
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
+
+    IYPathServicePtr CreateOrchidService()
+    {
+        auto producer = BIND(&TImpl::BuildOrchidYson, MakeStrong(this));
+        return IYPathService::FromProducer(producer)
+            ->Via(Slot_->GetAutomatonInvoker())
+            ->Cached(TDuration::Seconds(1));
+    }
+
+    void BuildOrchidYson(IYsonConsumer* consumer)
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        BuildYsonFluently(consumer)
+            .DoMapFor(TransactionMap_, [&] (TFluentMap fluent, const std::pair<TTransactionId, TTransaction*>& pair) {
+                auto* transaction = pair.second;
+                fluent
+                    .Item(ToString(transaction->GetId())).BeginMap()
+                        .Item("timeout").Value(transaction->GetTimeout())
+                        .Item("register_time").Value(transaction->GetRegisterTime())
+                        .Item("state").Value(transaction->GetState())
+                        .Item("start_timestamp").Value(transaction->GetStartTimestamp())
+                        .Item("prepare_timestamp").Value(transaction->GetPrepareTimestamp())
+                        // Omit CommitTimestamp, it's typically null.
+                        .Item("locked_row_count").Value(transaction->LockedRows().size())
+                    .EndMap();
+            });
+    }
 
     void CreateLeases(TTransaction* transaction)
     {
@@ -516,9 +535,9 @@ TTransaction* TTransactionManager::GetTransactionOrThrow(const TTransactionId& i
     return Impl_->GetTransactionOrThrow(id);
 }
 
-void TTransactionManager::BuildOrchidYson(IYsonConsumer* consumer)
+IYPathServicePtr TTransactionManager::GetOrchidService()
 {
-    Impl_->BuildOrchidYson(consumer);
+    return Impl_->GetOrchidService();
 }
 
 void TTransactionManager::PrepareTransactionCommit(

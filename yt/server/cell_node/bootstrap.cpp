@@ -276,7 +276,7 @@ void TBootstrap::DoRun()
     };
 
     TotalInThrottler = createThrottler(Config->DataNode->ReplicationInThrottler, "TotalIn");
-    TotalOutThrottler = createThrottler(Config->DataNode->ReplicationInThrottler, "TotalOut");
+    TotalOutThrottler = createThrottler(Config->DataNode->ReplicationOutThrottler, "TotalOut");
 
     ReplicationInThrottler = CreateCombinedThrottler(std::vector<IThroughputThrottlerPtr>{
         TotalInThrottler,
@@ -460,9 +460,7 @@ void TBootstrap::DoRun()
     SetNodeByYPath(
         OrchidRoot,
         "/tablet_cells",
-        CreateVirtualNode(TabletSlotManager
-            ->GetOrchidService()
-            ->Cached(Config->OrchidCacheUpdatePeriod)));
+        CreateVirtualNode(TabletSlotManager->GetOrchidService()));
     SetBuildAttributes(OrchidRoot, "node");
 
     HttpServer->Register(
