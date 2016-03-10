@@ -830,7 +830,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Copy)
     ValidatePermission(
         trunkSourceImpl,
         EPermissionCheckScope::This | EPermissionCheckScope::Descendants,
-        removeSource ? EPermission::Read : EPermission::Read | EPermission::Write);
+        removeSource ? EPermission::Read | EPermission::Write : EPermission::Read);
 
     auto sourceParent = sourceProxy->GetParent();
     if (removeSource) {
