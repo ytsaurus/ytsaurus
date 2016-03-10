@@ -1191,11 +1191,11 @@ class Application(object):
                 "transfer_manager": {
                     "task_id": task.id,
                     "backend_tag": task.backend_tag
-                }
+                },
+                "pool": task.pool
             }
 
             copy_spec = update(get_value(task.copy_spec, {}), common_spec)
-            copy_spec["pool"] = task.pool
 
             postprocess_spec = update(get_value(task.postprocess_spec, {}), common_spec)
 
