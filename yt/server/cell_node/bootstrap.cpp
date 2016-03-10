@@ -278,8 +278,8 @@ void TBootstrap::DoRun()
         return CreateLimitedThrottler(config, logger, profiler);
     };
 
-    TotalInThrottler = createThrottler(Config->DataNode->ReplicationInThrottler, "TotalIn");
-    TotalOutThrottler = createThrottler(Config->DataNode->ReplicationOutThrottler, "TotalOut");
+    TotalInThrottler = createThrottler(Config->DataNode->TotalInThrottler, "TotalIn");
+    TotalOutThrottler = createThrottler(Config->DataNode->TotalOutThrottler, "TotalOut");
 
     ReplicationInThrottler = CreateCombinedThrottler(std::vector<IThroughputThrottlerPtr>{
         TotalInThrottler,
