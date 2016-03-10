@@ -141,6 +141,7 @@ public:
     const yhash_set<TChunk*>& ParityMissingChunks() const;
     const yhash_set<TChunk*>& QuorumMissingChunks() const;
     const yhash_set<TChunk*>& UnsafelyPlacedChunks() const;
+    const yhash_set<TChunk*>& ForeignChunks() const;
 
     //! Returns the total number of all chunk replicas.
     int GetTotalReplicaCount();
