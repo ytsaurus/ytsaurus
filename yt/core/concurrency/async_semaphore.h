@@ -79,7 +79,6 @@ private:
 };
 
 DEFINE_REFCOUNTED_TYPE(TAsyncSemaphore)
-DECLARE_REFCOUNTED_CLASS(TAsyncSemaphore)
 
 ////////////////////////////////////////////////////////////////////////////////
 

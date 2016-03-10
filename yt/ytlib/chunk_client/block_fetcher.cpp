@@ -35,7 +35,7 @@ TBlockFetcher::TBlockFetcher(
     , CompressionInvoker_(CreateFixedPriorityInvoker(
         TDispatcher::Get()->GetCompressionPoolInvoker(),
         Config_->WorkloadDescriptor.GetPriority()))
-    , AsyncSemaphore_(asyncSemaphore)
+    , AsyncSemaphore_(std::move(asyncSemaphore))
     , Codec_(NCompression::GetCodec(codecId))
     , Logger(ChunkClientLogger)
 {
@@ -98,7 +98,7 @@ TBlockFetcher::TBlockFetcher(
     // Now Window_ and BlockInfos_ correspond to each other.
     BlockInfos_.resize(WindowSize_);
 
-    LOG_DEBUG("Creating sequential reader (Blocks: %v)",
+    LOG_DEBUG("Creating block fetcher (Blocks: %v)",
         blockIndexes);
 
     YCHECK(TotalRemainingSize_ > 0);
@@ -150,38 +150,16 @@ TFuture<TSharedRef> TBlockFetcher::FetchBlock(int blockIndex)
     }
     auto returnValue = windowSlot.Block.ToFuture();
 
-    if (--windowSlot.RemainingFetches == 0) {
-        if (windowSlot.Block.IsSet()) {
-            TDispatcher::Get()->GetReaderInvoker()->Invoke(
-                BIND(&TBlockFetcher::ReleaseBlock,
-                    MakeWeak(this),
-                    windowIndex));
-        }
+    if (--windowSlot.RemainingFetches == 0 && windowSlot.Block.IsSet()) {
+        TDispatcher::Get()->GetReaderInvoker()->Invoke(
+            BIND(&TBlockFetcher::ReleaseBlock,
+                MakeWeak(this),
+                windowIndex));
     } 
     
     --TotalRemainingFetches_;
 
     return returnValue;
-}
-
-void TBlockFetcher::OnGotBlocks(
-    const std::vector<int>& windowIndexes,
-    const std::vector<int>& blockIndexes,
-    const TErrorOr<std::vector<TSharedRef>>& blocksOrError)
-{
-    if (!blocksOrError.IsOK()) {
-        MarkFailedBlocks(windowIndexes, blocksOrError);
-        return;
-    }
-
-    LOG_DEBUG("Got block group (Blocks: %v)",
-        blockIndexes);
-
-    CompressionInvoker_->Invoke(BIND(
-        &TBlockFetcher::DecompressBlocks,
-        MakeWeak(this),
-        windowIndexes,
-        blocksOrError.Value()));
 }
 
 void TBlockFetcher::DecompressBlocks(
@@ -258,6 +236,8 @@ void TBlockFetcher::FetchNextGroup(TAsyncSemaphoreGuard asyncSemaphoreGuard)
                 windowIndexes.push_back(FirstUnfetchedWindowIndex_);
                 blockIndexes.push_back(blockIndex);
             }
+        } else {
+            break;
         }
 
         ++FirstUnfetchedWindowIndex_;
@@ -268,8 +248,6 @@ void TBlockFetcher::FetchNextGroup(TAsyncSemaphoreGuard asyncSemaphoreGuard)
         return;
     }
 
-    RequestBlocks(windowIndexes, blockIndexes, uncompressedSize);
-
     if (TotalRemainingSize_ > 0) {
         AsyncSemaphore_->AsyncAcquire(
             BIND(&TBlockFetcher::FetchNextGroup,
@@ -277,6 +255,8 @@ void TBlockFetcher::FetchNextGroup(TAsyncSemaphoreGuard asyncSemaphoreGuard)
             TDispatcher::Get()->GetReaderInvoker(),
             std::min(static_cast<i64>(TotalRemainingSize_), Config_->GroupSize));
     }
+    
+    RequestBlocks(windowIndexes, blockIndexes, uncompressedSize);
 }
 
 void TBlockFetcher::MarkFailedBlocks(const std::vector<int>& windowIndexes, const TError& error)
@@ -303,9 +283,21 @@ void TBlockFetcher::RequestBlocks(
 
     TotalRemainingSize_ -= uncompressedSize;
     
-    auto blocksOrError = WaitFor(ChunkReader_->ReadBlocks(blockIndexes));
+    auto blocksOrError = WaitFor(ChunkReader_->ReadBlocks(Config_->WorkloadDescriptor, blockIndexes));
 
-    OnGotBlocks(windowIndexes, blockIndexes, blocksOrError);
+    if (!blocksOrError.IsOK()) {
+        MarkFailedBlocks(windowIndexes, blocksOrError);
+        return;
+    }
+
+    LOG_DEBUG("Got block group (Blocks: %v)",
+        blockIndexes);
+
+    CompressionInvoker_->Invoke(BIND(
+        &TBlockFetcher::DecompressBlocks,
+        MakeWeak(this),
+        windowIndexes,
+        blocksOrError.Value()));
 }
 
 bool TBlockFetcher::IsFetchingCompleted()
@@ -322,14 +314,14 @@ TSequentialBlockFetcher::TSequentialBlockFetcher(
     IChunkReaderPtr chunkReader,
     IBlockCachePtr blockCache,
     NCompression::ECodec codecId)
-: TBlockFetcher(
-    config,
-    blockInfos,
-    asyncSemaphore,
-    chunkReader,
-    blockCache,
-    codecId)
-, OriginalOrderBlockInfos_(blockInfos)
+    : TBlockFetcher(
+        config,
+        blockInfos,
+        asyncSemaphore,
+        chunkReader,
+        blockCache,
+        codecId)
+    , OriginalOrderBlockInfos_(blockInfos)
 { }
 
 TFuture<TSharedRef> TSequentialBlockFetcher::FetchNextBlock() 
