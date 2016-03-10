@@ -24,7 +24,6 @@
 
 #include <yt/core/ytree/fluent.h>
 #include <yt/core/ytree/ypath_service.h>
-#include <yt/core/ytree/virtual.h>
 
 namespace NYT {
 namespace NTabletNode {
@@ -57,7 +56,6 @@ public:
             BIND(&TImpl::OnScanSlots, Unretained(this)),
             Config_->SlotScanPeriod,
             EPeriodicExecutorMode::Automatic))
-        , OrchidService_(TOrchidService::Create(MakeWeak(this), Bootstrap_->GetControlInvoker()))
     { }
 
     void Initialize()
@@ -302,7 +300,9 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        return OrchidService_;
+        auto producer = BIND(&TImpl::BuildOrchidYson, MakeStrong(this));
+        return IYPathService::FromProducer(producer)
+            ->Via(Bootstrap_->GetControlInvoker());
     }
 
 
@@ -311,60 +311,6 @@ public:
     DEFINE_SIGNAL(void(), EndSlotScan);
 
 private:
-    class TOrchidService
-        : public TVirtualMapBase
-    {
-    public:
-        static IYPathServicePtr Create(TWeakPtr<TImpl> impl, IInvokerPtr invoker)
-        {
-            return New<TOrchidService>(std::move(impl))
-                ->Via(invoker);
-        }
-
-        virtual std::vector<Stroka> GetKeys(i64 limit) const override
-        {
-            std::vector<Stroka> keys;
-            if (auto owner = Owner_.Lock()) {
-                for (const auto& slot : owner->Slots()) {
-                    if (slot) {
-                        keys.push_back(ToString(slot->GetCellId()));
-                    }
-                    if (keys.size() >= limit) {
-                        break;
-                    }
-                }
-            }
-            return keys;
-        }
-
-        virtual i64 GetSize() const override
-        {
-            if (auto owner = Owner_.Lock()) {
-                return owner->GetUsedTabletSlotCount();
-            }
-            return 0;
-        }
-
-        virtual IYPathServicePtr FindItemService(const TStringBuf& key) const override
-        {
-            if (auto owner = Owner_.Lock()) {
-                if (auto slot = owner->FindSlot(TCellId::FromString(key))) {
-                    return slot->GetOrchidService();
-                }
-            }
-            return nullptr;
-        }
-
-    private:
-        const TWeakPtr<TImpl> Owner_;
-
-        explicit TOrchidService(TWeakPtr<TImpl> owner)
-            : Owner_(std::move(owner))
-        { }
-
-        DECLARE_NEW_FRIEND();
-    };
-
     const TTabletNodeConfigPtr Config_;
     NCellNode::TBootstrap* const Bootstrap_;
 
@@ -376,10 +322,23 @@ private:
     TReaderWriterSpinLock TabletSnapshotsSpinLock_;
     yhash_map<TTabletId, TTabletSnapshotPtr> TabletIdToSnapshot_;
 
-    IYPathServicePtr OrchidService_;
-
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
+
+
+    void BuildOrchidYson(IYsonConsumer* consumer)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        BuildYsonFluently(consumer)
+            .DoMapFor(Slots_, [&] (TFluentMap fluent, TTabletSlotPtr slot) {
+                if (slot) {
+                    fluent
+                        .Item(ToString(slot->GetCellId()))
+                        .Do(BIND(&TTabletSlot::BuildOrchidYson, slot));
+                }
+            });
+    }
 
 
     void OnScanSlots()

@@ -1,8 +1,7 @@
 import pytest
 
-from yt_env_setup import YTEnvSetup, skip_if_multicell
+from yt_env_setup import YTEnvSetup
 from yt_commands import *
-from yt.environment.helpers import assert_items_equal
 
 ##################################################################
 
@@ -31,21 +30,6 @@ class TestOrchid(YTEnvSetup):
     def test_at_scheduler(self):
         self._check_service("//sys/scheduler/orchid", "scheduler")
 
-    @skip_if_multicell
-    def test_at_tablet_cells(self):
-        self.sync_create_cells(1, 1)
-        cells = ls("//sys/tablet_cells")
-        assert len(cells) == 1
-        for cell in cells:
-            tablets = get("//sys/tablet_cells/" + cell + "/@tablet_ids")
-            peers = get("//sys/tablet_cells/" + cell + "/@peers")
-            for peer in peers:
-                address = peer["address"]
-                peer_cells = ls("//sys/nodes/" + address + "/orchid/tablet_cells")
-                assert cell in peer_cells
-                orchid_tablets = ls("//sys/nodes/" + address + "/orchid/tablet_cells/" + cell + "/tablets")
-                assert_items_equal(orchid_tablets, tablets)
-
 ##################################################################
 
 class TestOrchidMulticell(TestOrchid):
@@ -54,3 +38,4 @@ class TestOrchidMulticell(TestOrchid):
     def test_at_secondary_masters(self):
         for tag in range(1, self.NUM_SECONDARY_MASTER_CELLS + 1):
             self._check_orchid("//sys/secondary_masters/" + str(tag) , self.NUM_MASTERS, "master")
+

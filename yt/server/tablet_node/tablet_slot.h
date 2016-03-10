@@ -21,7 +21,7 @@
 
 #include <yt/core/rpc/public.h>
 
-#include <yt/core/ytree/public.h>
+#include <yt/core/yson/public.h>
 
 #include <yt/ytlib/query_client/public.h>
 
@@ -78,7 +78,7 @@ public:
     void Configure(const NNodeTrackerClient::NProto::TConfigureTabletSlotInfo& configureInfo);
     TFuture<void> Finalize();
 
-    NYTree::IYPathServicePtr GetOrchidService();
+    void BuildOrchidYson(NYson::IYsonConsumer* consumer);
 
 private:
     class TImpl;
