@@ -48,10 +48,10 @@ public:
         , Logger(logger)
     { }
 
-    TFuture<void> ScrapeChunks(
-        yhash_set<TRefCountedChunkSpecPtr> chunkSpecs)
+    TFuture<void> ScrapeChunks(yhash_set<TRefCountedChunkSpecPtr> chunkSpecs)
     {
         yhash_set<TChunkId> chunkIds;
+        ChunkMap_.clear();
         for (const auto& chunkSpec : chunkSpecs) {
             auto chunkId = NYT::FromProto<TChunkId>(chunkSpec->chunk_id());
             chunkIds.insert(chunkId);
