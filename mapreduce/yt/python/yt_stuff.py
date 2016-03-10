@@ -74,6 +74,12 @@ class YtStuff:
     def get_server(self):
         return "localhost:%d" % self.proxy_port
 
+    def get_mapreduce_yt(self):
+        return self.mapreduce_yt_path
+
+    def get_env(self):
+        return self.env
+
     def run_mapreduce_yt(self, *args):
         cmd = [sys.executable, self.mapreduce_yt_path] + list(args)
         return yatest.common.execute(
