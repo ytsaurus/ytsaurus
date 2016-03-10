@@ -569,7 +569,7 @@ private:
             auto blocksExt = GetProtoExtension<TBlocksExt>(chunkMeta.extensions());
             int blockCount = blocksExt.blocks_size();
             std::vector<TBlockFetcher::TBlockInfo> blocks;
-            TAsyncSemaphorePtr asyncSemaphore = New<TAsyncSemaphore>(Config_->CacheBlockFetcher->WindowSize);
+            TAsyncSemaphorePtr asyncSemaphore = New<TAsyncSemaphore>(Config_->ArtifactCacheReader->WindowSize);
             blocks.reserve(blockCount);
             for (int index = 0; index < blockCount; ++index) {
                 blocks.push_back(TBlockFetcher::TBlockInfo(

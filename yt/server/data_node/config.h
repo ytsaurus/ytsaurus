@@ -207,7 +207,7 @@ DEFINE_REFCOUNTED_TYPE(TMultiplexedChangelogConfig)
 
 class TArtifactCacheReaderConfig
     : public virtual NChunkClient::TReplicationReaderConfig
-    , public virtual NChunkClient::TSequentialReaderConfig
+    , public virtual NChunkClient::TBlockFetcherConfig
     , public virtual NTableClient::TTableReaderConfig
     , public virtual NApi::TFileReaderConfig
 { };
