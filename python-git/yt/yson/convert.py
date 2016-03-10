@@ -78,7 +78,7 @@ def yson_to_json(yson_tree, print_attributes=True):
         return process_dict(yson_tree)
     elif isinstance(yson_tree, YsonEntity):
         return None
-    elif isinstance(yson_tree, bool):
+    elif isinstance(yson_tree, bool) or isinstance(yson_tree, YsonBoolean):
         return "true" if yson_tree else "false"
     else:
         bases = type(yson_tree).__bases__
