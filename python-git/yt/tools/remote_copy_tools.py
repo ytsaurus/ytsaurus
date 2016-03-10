@@ -150,12 +150,13 @@ def _get_read_from_yt_command(yt_client, src, format_, fastbone, enable_row_coun
         "default_api_version_for_http": None
     }
 
-    command = """export  PYTHONPATH=.\n"""\
-              """TABLE_PATH="$(YT_PROXY={2} python merge_limits.py '{0}' ${{start}} ${{end}})"\n"""\
-              """PATH=".:$PATH" yt2 read ${{TABLE_PATH}} --format '{1}' --proxy {2} --config '{3}' --tx {4}"""\
-              .format(src, format_, yt_client.config["proxy"]["url"], yson.dumps(config, boolean_as_string=False), yt_client.TRANSACTION)
+    command = """export PYTHONPATH=.\n"""\
+              """export YT_PROXY="{0}"\n"""\
+              """TABLE_PATH="$(python merge_limits.py '{1}' ${{start}} ${{end}})"\n"""\
+              """PATH=".:$PATH" yt2 read ${{TABLE_PATH}} --format '{2}' --config '{3}' --tx {4}"""\
+              .format(yt_client.config["proxy"]["url"], src, format_, yson.dumps(config, boolean_as_string=False), yt_client.TRANSACTION)
     if enable_row_count_check:
-        command += " | python check_record_count.py ${{start}} ${{end}} '{0}'".format(format_)
+        command += " | python check_record_count.py ${{TABLE_PATH}} '{0}'".format(format_)
 
     return command
 
@@ -218,18 +219,26 @@ import yt.wrapper
 
 import sys
 
-start, end, = map(int, sys.argv[1:3])
-format_ = yt.wrapper.create_format(sys.argv[3])
+table = yt.wrapper.TablePath(sys.argv[1])
+format_ = yt.wrapper.create_format(sys.argv[2])
+
+def extract_limit(table, limit_name):
+    ranges = table.attributes.get("ranges")
+    if ranges is not None:
+        assert len(ranges) == 1
+        return ranges[0][limit_name]["row_index"]
+
+    return table.attributes[limit_name]["row_index"]
 
 actual_row_count = 0
 for row in format_.load_rows(sys.stdin, raw=True):
     actual_row_count += 1
     format_.dump_row(row, sys.stdout, raw=True)
 
-row_count = end - start
+row_count = extract_limit(table, "upper_limit") - extract_limit(table, "lower_limit")
 
 if actual_row_count != row_count:
-    assert False, "Range ({0}, {1}) read mismatch. " \
+    assert False, "Range [{0}, {1}) read mismatch. " \
                   "Expected row count: {2}, actual row count: {3}".format(start, end, row_count, actual_row_count)
 """
 
