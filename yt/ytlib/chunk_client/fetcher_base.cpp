@@ -51,10 +51,10 @@ public:
         , Logger(logger)
     { }
 
-    TFuture<void> ScrapeChunks(
-        yhash_set<TRefCountedChunkSpecPtr> chunkSpecs)
+    TFuture<void> ScrapeChunks(yhash_set<TRefCountedChunkSpecPtr> chunkSpecs)
     {
         yhash_set<TChunkId> chunkIds;
+        ChunkMap_.clear();
         for (const auto& chunkSpec : chunkSpecs) {
             auto chunkId = NYT::FromProto<TChunkId>(chunkSpec->chunk_id());
             chunkIds.insert(chunkId);
@@ -119,7 +119,7 @@ private:
     TChunkScraperConfigPtr Config_;
     NLogging::TLogger Logger;
 
-    yhash_map<NChunkClient::TChunkId,TFetcherChunkDescriptor> ChunkMap_;
+    yhash_map<TChunkId, TFetcherChunkDescriptor> ChunkMap_;
     int UnavailableFetcherChunkCount_ = 0;
     TPromise<void> BatchLocatedPromise_ = NewPromise<void>();
 
