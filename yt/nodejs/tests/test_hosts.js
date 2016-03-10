@@ -75,7 +75,7 @@ describe("ApplicationHosts", function() {
         }, done).end();
     });
 
-    it("should switch from yandex.net to yandex-team.ru on domain-originating calls to /hosts", function(done) {
+    it("should switch from yandex.net to yandex-team.ru on domain-originating call to /hosts", function(done) {
         var mock = mockCoordinator(this.coordinator);
         ask("GET", "/", {"accept": "text/plain", "origin": "https://yt.yandex-team.ru"}, function(rsp) {
             rsp.should.be.http2xx;
@@ -83,4 +83,14 @@ describe("ApplicationHosts", function() {
             mock.verify();
         }, done).end();
     });
+
+    it("should switch from yandex.net to yandex-team.ru for respective vhost call to /hosts", function(done) {
+        var mock = mockCoordinator(this.coordinator);
+        ask("GET", "/", {"accept": "text/plain", "host": "cluster.yt.yandex-team.ru"}, function(rsp) {
+            rsp.should.be.http2xx;
+            rsp.body.should.be.eql("bar.yandex-team.ru\nbaz.yandex-team.ru\nfoo.yandex-team.ru\nabc.yandex-team.ru");
+            mock.verify();
+        }, done).end();
+    });
+
 });

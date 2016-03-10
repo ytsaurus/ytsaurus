@@ -67,6 +67,7 @@ using namespace NQueryClient;
 
 using NNodeTrackerClient::TNodeId;
 using NTableClient::NProto::TBoundaryKeysExt;
+using NTableClient::NProto::TOldBoundaryKeysExt;
 using NTableClient::TTableReaderOptions;
 
 ////////////////////////////////////////////////////////////////////
@@ -2745,7 +2746,8 @@ void TOperationControllerBase::FetchInputTables()
                 req->set_fetch_all_meta_extensions(false);
                 req->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
                 if (IsBoundaryKeysFetchEnabled()) {
-                    req->add_extension_tags(TProtoExtensionTag<NTableClient::NProto::TBoundaryKeysExt>::Value);
+                    req->add_extension_tags(TProtoExtensionTag<TBoundaryKeysExt>::Value);
+                    req->add_extension_tags(TProtoExtensionTag<TOldBoundaryKeysExt>::Value);
                 }
                 req->set_fetch_parity_replicas(IsParityReplicasFetchEnabled());
                 SetTransactionId(req, InputTransactionId);

@@ -61,17 +61,25 @@ YtApplicationHosts.prototype._dispatchBasic = function(req, rsp, suffix)
     .map(function(entry) { return addHostNameSuffix(entry.name, suffix); });
 
     if (this.rewrite_yandex_team_domain) {
+        var need_to_rewrite = false;
+
         var origin = req.headers.origin;
         if (typeof(origin) === "string") {
-            try {
-                origin = url.parse(origin).hostname;
-                if (/\yandex-team\.ru$/.test(origin)) {
-                    hosts = hosts.map(function(entry) {
-                        return entry.replace("yandex.net", "yandex-team.ru");
-                    });
-                }
-            } catch (ex) {
+            if (/\yandex-team\.ru$/.test(origin)) {
+                need_to_rewrite = true;
             }
+        }
+        var host = req.headers.host;
+        if (typeof(host) === "string") {
+            if (/\yandex-team\.ru/.test(host)) {
+                need_to_rewrite = true;
+            }
+        }
+
+        if (need_to_rewrite) {
+            hosts = hosts.map(function(entry) {
+                return entry.replace("yandex.net", "yandex-team.ru");
+            });
         }
     }
 

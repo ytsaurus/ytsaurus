@@ -1954,8 +1954,8 @@ ui32 TSortedDynamicStore::GetLatestRevision() const
 
 ui32 TSortedDynamicStore::RegisterRevision(TTimestamp timestamp)
 {
-    YASSERT(timestamp >= MinTimestamp && timestamp <= MaxTimestamp);
-    YASSERT(RevisionToTimestamp_.Size() < HardRevisionsPerDynamicStoreLimit);
+    YCHECK(timestamp >= MinTimestamp && timestamp <= MaxTimestamp);
+    YCHECK(RevisionToTimestamp_.Size() < HardRevisionsPerDynamicStoreLimit);
     RevisionToTimestamp_.PushBack(timestamp);
     return GetLatestRevision();
 }
