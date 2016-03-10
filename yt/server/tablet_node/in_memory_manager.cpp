@@ -77,7 +77,7 @@ public:
         , CompressionInvoker_(CreateFixedPriorityInvoker(
             NChunkClient::TDispatcher::Get()->GetCompressionPoolInvoker(),
             Config_->WorkloadDescriptor.GetPriority()))
-        , PreloadSemaphore_(Config_->MaxConcurrentPreloads)
+        , PreloadSemaphore_(New<TAsyncSemaphore>(Config_->MaxConcurrentPreloads))
     {
         auto slotManager = Bootstrap_->GetTabletSlotManager();
         slotManager->SubscribeScanSlot(BIND(&TImpl::ScanSlot, MakeStrong(this)));
@@ -151,7 +151,7 @@ private:
 
     const IInvokerPtr CompressionInvoker_;
 
-    TAsyncSemaphore PreloadSemaphore_;
+    TAsyncSemaphorePtr PreloadSemaphore_;
 
     TReaderWriterSpinLock InterceptedDataSpinLock_;
     yhash_map<TChunkId, TInMemoryChunkDataPtr> ChunkIdToData_;
@@ -211,7 +211,7 @@ private:
 
     bool ScanStore(TTabletSlotPtr slot, TTablet* tablet, IChunkStorePtr store)
     {
-        auto guard = TAsyncSemaphoreGuard::TryAcquire(&PreloadSemaphore_);
+        auto guard = TAsyncSemaphoreGuard::TryAcquire(PreloadSemaphore_);
         if (!guard) {
             return false;
         }

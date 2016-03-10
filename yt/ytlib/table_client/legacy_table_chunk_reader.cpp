@@ -179,7 +179,7 @@ public:
             tableChunkReader->SequentialBlockFetcher_ = New<TSequentialBlockFetcher>(
                 SequentialConfig_,
                 std::move(blockSequence),
-                &tableChunkReader->AsyncSemaphore_,
+                tableChunkReader->AsyncSemaphore_,
                 UnderlyingReader_,
                 BlockCache_,
                 NCompression::ECodec(miscExt.compression_codec()));
@@ -462,7 +462,7 @@ TLegacyTableChunkReader::TLegacyTableChunkReader(
     : ChunkSpec_(chunkSpec)
     , Config_(config)
     , Options_(options)
-    , AsyncSemaphore_(Config_->WindowSize)
+    , AsyncSemaphore_(New<TAsyncSemaphore>(Config_->WindowSize))
     , UnderlyingReader_(underlyingReader)
     , SequentialBlockFetcher_(nullptr)
     , ColumnFilter_(columnFilter)

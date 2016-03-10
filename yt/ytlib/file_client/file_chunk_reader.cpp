@@ -55,7 +55,7 @@ public:
         , CodecId_(codecId)
         , StartOffset_(startOffset)
         , EndOffset_(endOffset)
-        , AsyncSemaphore_(Config_->WindowSize)
+        , AsyncSemaphore_(New<TAsyncSemaphore>(Config_->WindowSize))
     {
         Logger.AddTag("ChunkId: %v", ChunkReader_->GetChunkId());
 
@@ -136,7 +136,7 @@ private:
     i64 StartOffset_;
     i64 EndOffset_;
 
-    TAsyncSemaphore AsyncSemaphore_;
+    TAsyncSemaphorePtr AsyncSemaphore_;
 
     TSequentialBlockFetcherPtr SequentialBlockFetcher_;
     TFuture<void> ReadyEvent_;
@@ -224,7 +224,7 @@ private:
         SequentialBlockFetcher_ = New<TSequentialBlockFetcher>(
             Config_,
             std::move(blockSequence),
-            &AsyncSemaphore_,
+            AsyncSemaphore_,
             ChunkReader_,
             BlockCache_,
             CodecId_);

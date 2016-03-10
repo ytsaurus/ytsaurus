@@ -58,7 +58,7 @@ public:
         TBootstrap* bootstrap)
         : Config_(config)
         , Bootstrap_(bootstrap)
-        , Semaphore_(Config_->MaxConcurrentChunkSeals)
+        , Semaphore_(New<TAsyncSemaphore>(Config_->MaxConcurrentChunkSeals))
     {
         YCHECK(Config_);
         YCHECK(Bootstrap_);
@@ -96,7 +96,7 @@ private:
     const TChunkManagerConfigPtr Config_;
     TBootstrap* const Bootstrap_;
 
-    TAsyncSemaphore Semaphore_;
+    TAsyncSemaphorePtr Semaphore_;
 
     TPeriodicExecutorPtr RefreshExecutor_;
 
@@ -193,7 +193,7 @@ private:
     {
         int chunksDequeued = 0;
         while (true) {
-            auto guard = TAsyncSemaphoreGuard::TryAcquire(&Semaphore_);
+            auto guard = TAsyncSemaphoreGuard::TryAcquire(Semaphore_);
             if (!guard)
                 return;
 

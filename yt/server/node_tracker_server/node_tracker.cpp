@@ -182,9 +182,9 @@ public:
         TBootstrap* bootstrap)
         : TMasterAutomatonPart(bootstrap)
         , Config_(config)
-        , FullHeartbeatSemaphore_(Config_->MaxConcurrentFullHeartbeats)
-        , IncrementalHeartbeatSemaphore_(Config_->MaxConcurrentIncrementalHeartbeats)
-        , DisposeNodeSemaphore_(Config_->MaxConcurrentNodeUnregistrations)
+        , FullHeartbeatSemaphore_(New<TAsyncSemaphore>(Config_->MaxConcurrentFullHeartbeats))
+        , IncrementalHeartbeatSemaphore_(New<TAsyncSemaphore>(Config_->MaxConcurrentIncrementalHeartbeats))
+        , DisposeNodeSemaphore_(New<TAsyncSemaphore>(Config_->MaxConcurrentNodeUnregistrations))
     {
         RegisterMethod(BIND(&TImpl::HydraRegisterNode, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraUnregisterNode, Unretained(this)));
@@ -252,8 +252,7 @@ public:
                 MakeStrong(this),
                 context,
                 ConstRef(context->Request())));
-        CommitMutationWithSemaphore(mutation, context, &FullHeartbeatSemaphore_);
-
+        CommitMutationWithSemaphore(mutation, context, FullHeartbeatSemaphore_);
    }
 
     void ProcessIncrementalHeartbeat(TCtxIncrementalHeartbeatPtr context)
@@ -266,7 +265,7 @@ public:
                 context,
                 &context->Response(),
                 ConstRef(context->Request())));
-        CommitMutationWithSemaphore(mutation, context, &IncrementalHeartbeatSemaphore_);
+        CommitMutationWithSemaphore(mutation, context, IncrementalHeartbeatSemaphore_);
     }
 
 
@@ -553,9 +552,9 @@ private:
 
     int PendingRegisterNodeMutationCount_ = 0;
 
-    TAsyncSemaphore FullHeartbeatSemaphore_;
-    TAsyncSemaphore IncrementalHeartbeatSemaphore_;
-    TAsyncSemaphore DisposeNodeSemaphore_;
+    TAsyncSemaphorePtr FullHeartbeatSemaphore_;
+    TAsyncSemaphorePtr IncrementalHeartbeatSemaphore_;
+    TAsyncSemaphorePtr DisposeNodeSemaphore_;
 
 
     TNodeId GenerateNodeId()
@@ -1160,7 +1159,7 @@ private:
     }
 
 
-    void CommitMutationWithSemaphore(TMutationPtr mutation, NRpc::IServiceContextPtr context, TAsyncSemaphore* semaphore)
+    void CommitMutationWithSemaphore(TMutationPtr mutation, NRpc::IServiceContextPtr context, TAsyncSemaphorePtr semaphore)
     {
         auto handler = BIND([=] (TAsyncSemaphoreGuard) {
             WaitFor(mutation->CommitAndReply(context));
@@ -1186,7 +1185,7 @@ private:
 
         auto invoker = Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker();
 
-        DisposeNodeSemaphore_.AsyncAcquire(handler, invoker);
+        DisposeNodeSemaphore_->AsyncAcquire(handler, invoker);
     }
 
 
