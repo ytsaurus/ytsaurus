@@ -58,7 +58,7 @@ private:
     std::atomic<double> CompressionRatio_;
 
     IInvokerPtr CompressionInvoker_;
-    NConcurrency::TAsyncSemaphore Semaphore_;
+    NConcurrency::TAsyncSemaphorePtr Semaphore_;
     NCompression::ICodec* Codec_;
 
     NConcurrency::TNonblockingQueue<TSharedRef> PendingBlocks_;

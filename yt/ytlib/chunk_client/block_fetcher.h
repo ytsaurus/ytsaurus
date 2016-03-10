@@ -53,7 +53,7 @@ public:
     TBlockFetcher(
         TBlockFetcherConfigPtr config,
         std::vector<TBlockInfo> blockInfos,
-        NConcurrency::TAsyncSemaphore* asyncSemaphore,
+        NConcurrency::TAsyncSemaphorePtr asyncSemaphore,
         IChunkReaderPtr chunkReader,
         IBlockCachePtr blockCache,
         NCompression::ECodec codecId);
@@ -115,7 +115,7 @@ private:
     std::unique_ptr<TWindowSlot[]> Window_;
     int WindowSize_ = 0;
 
-    NConcurrency::TAsyncSemaphore* AsyncSemaphore_;
+    NConcurrency::TAsyncSemaphorePtr AsyncSemaphore_;
 
     int TotalRemainingFetches_ = 0;
     std::atomic<i64> TotalRemainingSize_ = {0};
@@ -140,7 +140,7 @@ public:
     TSequentialBlockFetcher(
         TBlockFetcherConfigPtr config,
         std::vector<TBlockInfo> blockInfos,
-        NConcurrency::TAsyncSemaphore* asyncSemaphore,
+        NConcurrency::TAsyncSemaphorePtr asyncSemaphore,
         IChunkReaderPtr chunkReader,
         IBlockCachePtr blockCache,
         NCompression::ECodec codecId);

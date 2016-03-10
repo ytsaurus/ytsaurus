@@ -14,6 +14,7 @@ using namespace NChunkClient;
 using namespace NChunkClient::NProto;
 using namespace NCompression;
 using namespace NTableClient::NProto;
+using NConcurrency::TAsyncSemaphore;
 
 using NYT::FromProto;
 
@@ -26,7 +27,7 @@ TChunkReaderBase::TChunkReaderBase(
     : Config_(std::move(config))
     , BlockCache_(std::move(blockCache))
     , UnderlyingReader_(std::move(underlyingReader))
-    , AsyncSemaphore_(Config_->WindowSize)
+    , AsyncSemaphore_(New<TAsyncSemaphore>(Config_->WindowSize))
 {
     Logger = TableClientLogger;
     Logger.AddTag("ChunkId: %v", UnderlyingReader_->GetChunkId());
@@ -43,7 +44,7 @@ TFuture<void> TChunkReaderBase::DoOpen(
     SequentialBlockFetcher_ = New<TSequentialBlockFetcher>(
         Config_,
         std::move(blockSequence),
-        &AsyncSemaphore_,
+        AsyncSemaphore_,
         UnderlyingReader_,
         BlockCache_,
         ECodec(miscExt.compression_codec()));

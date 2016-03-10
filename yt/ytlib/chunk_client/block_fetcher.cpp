@@ -22,7 +22,7 @@ using namespace NConcurrency;
 TBlockFetcher::TBlockFetcher(
     TBlockFetcherConfigPtr config,
     std::vector<TBlockInfo> blockInfos,
-    TAsyncSemaphore* asyncSemaphore,
+    TAsyncSemaphorePtr asyncSemaphore,
     IChunkReaderPtr chunkReader,
     IBlockCachePtr blockCache,
     NCompression::ECodec codecId)
@@ -318,7 +318,7 @@ bool TBlockFetcher::IsFetchingCompleted()
 TSequentialBlockFetcher::TSequentialBlockFetcher(
     TBlockFetcherConfigPtr config,
     std::vector<TBlockInfo> blockInfos,
-    NConcurrency::TAsyncSemaphore* asyncSemaphore,
+    NConcurrency::TAsyncSemaphorePtr asyncSemaphore,
     IChunkReaderPtr chunkReader,
     IBlockCachePtr blockCache,
     NCompression::ECodec codecId)

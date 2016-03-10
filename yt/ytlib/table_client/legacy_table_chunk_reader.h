@@ -80,7 +80,7 @@ private:
     TChunkReaderConfigPtr Config_;
     TChunkReaderOptionsPtr Options_;
 
-    NConcurrency::TAsyncSemaphore AsyncSemaphore_;
+    NConcurrency::TAsyncSemaphorePtr AsyncSemaphore_;
 
     NChunkClient::IChunkReaderPtr UnderlyingReader_;
     NChunkClient::TSequentialBlockFetcherPtr SequentialBlockFetcher_;

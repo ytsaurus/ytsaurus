@@ -37,7 +37,7 @@ protected:
     const NChunkClient::IChunkReaderPtr UnderlyingReader_;
 
     NChunkClient::TSequentialBlockFetcherPtr SequentialBlockFetcher_;
-    NConcurrency::TAsyncSemaphore AsyncSemaphore_;
+    NConcurrency::TAsyncSemaphorePtr AsyncSemaphore_;
     TFuture<void> ReadyEvent_ = VoidFuture;
     TFuture<TSharedRef> CurrentBlock_; 
 

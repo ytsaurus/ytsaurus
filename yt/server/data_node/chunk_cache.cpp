@@ -569,7 +569,7 @@ private:
             auto blocksExt = GetProtoExtension<TBlocksExt>(chunkMeta.extensions());
             int blockCount = blocksExt.blocks_size();
             std::vector<TBlockFetcher::TBlockInfo> blocks;
-            TAsyncSemaphore asyncSemaphore(Config_->CacheBlockFetcher->WindowSize);
+            TAsyncSemaphorePtr asyncSemaphore = New<TAsyncSemaphore>(Config_->CacheBlockFetcher->WindowSize);
             blocks.reserve(blockCount);
             for (int index = 0; index < blockCount; ++index) {
                 blocks.push_back(TBlockFetcher::TBlockInfo(
@@ -581,7 +581,7 @@ private:
             auto blockFetcher = New<TBlockFetcher>(
                 Config_->ArtifactCacheReader,
                 std::move(blocks),
-                &asyncSemaphore,
+                asyncSemaphore,
                 chunkReader,
                 GetNullBlockCache(),
                 NCompression::ECodec::None);

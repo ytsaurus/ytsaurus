@@ -13,7 +13,7 @@ class TAsyncSemaphoreGuard;
 
 //! Custom semaphore class with async acquire operation.
 class TAsyncSemaphore
-    : private TNonCopyable
+    : public TIntrinsicRefCounted
 {
 public:
     explicit TAsyncSemaphore(i64 totalSlots);
@@ -78,6 +78,9 @@ private:
 
 };
 
+DEFINE_REFCOUNTED_TYPE(TAsyncSemaphore)
+DECLARE_REFCOUNTED_CLASS(TAsyncSemaphore)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TAsyncSemaphoreGuard
@@ -92,12 +95,12 @@ public:
 
     TAsyncSemaphoreGuard& operator=(TAsyncSemaphoreGuard&& other);
 
-    static TAsyncSemaphoreGuard Acquire(TAsyncSemaphore* semaphore, i64 slots = 1);
-    static TAsyncSemaphoreGuard TryAcquire(TAsyncSemaphore* semaphore, i64 slots = 1);
+    static TAsyncSemaphoreGuard Acquire(TAsyncSemaphorePtr semaphore, i64 slots = 1);
+    static TAsyncSemaphoreGuard TryAcquire(TAsyncSemaphorePtr semaphore, i64 slots = 1);
 
     friend void swap(TAsyncSemaphoreGuard& lhs, TAsyncSemaphoreGuard& rhs);
 
-    TAsyncSemaphoreGuard TransferSlots(i64 transferSlots);
+    TAsyncSemaphoreGuard TransferSlots(i64 slotsToTransfer);
 
     void Release();
 
@@ -106,10 +109,10 @@ public:
 private:
     friend class TAsyncSemaphore;
 
-    TAsyncSemaphore* Semaphore_;
+    TAsyncSemaphorePtr Semaphore_;
 
     TAsyncSemaphoreGuard();
-    TAsyncSemaphoreGuard(TAsyncSemaphore* semaphore, i64 slots);
+    TAsyncSemaphoreGuard(TAsyncSemaphorePtr semaphore, i64 slots);
 
     void MoveFrom(TAsyncSemaphoreGuard&& other);
 
