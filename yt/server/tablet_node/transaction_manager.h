@@ -13,7 +13,7 @@
 
 #include <yt/core/actions/signal.h>
 
-#include <yt/core/ytree/public.h>
+#include <yt/core/yson/public.h>
 
 namespace NYT {
 namespace NTabletNode {
@@ -50,7 +50,8 @@ public:
     //! Finds transaction by id, throws if nothing is found.
     TTransaction* GetTransactionOrThrow(const TTransactionId& id);
 
-    NYTree::IYPathServicePtr GetOrchidService();
+    void BuildOrchidYson(NYson::IYsonConsumer* consumer);
+    
 
     DECLARE_ENTITY_MAP_ACCESSORS(Transaction, TTransaction, TTransactionId);
 

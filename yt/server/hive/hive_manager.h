@@ -11,8 +11,7 @@
 
 #include <yt/core/rpc/public.h>
 
-#include <yt/core/ytree/public.h>
-
+#include <yt/core/yson/public.h>
 
 namespace NYT {
 namespace NHive {
@@ -67,7 +66,7 @@ public:
     //! prior to T, are received and applied.
     TFuture<void> SyncWith(const TCellId& cellId);
 
-    NYTree::IYPathServicePtr GetOrchidService();
+    void BuildOrchidYson(NYson::IYsonConsumer* consumer);
 
     DECLARE_ENTITY_MAP_ACCESSORS(Mailbox, TMailbox, TCellId);
 
