@@ -1,4 +1,6 @@
-#include "memory_store_ut.h"
+#include "sorted_dynamic_store_ut_helpers.h"
+
+#include <yt/server/tablet_node/sorted_store_manager.h>
 
 #include <yt/server/tablet_node/automaton.h>
 
@@ -17,49 +19,51 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSingleLockDynamicMemoryStoreTest
-    : public TMemoryStoreTestBase
+class TSingleLockSortedDynamicStoreTest
+    : public TSortedDynamicStoreTestBase
 {
 protected:
     virtual void SetUp() override
     {
-        TMemoryStoreTestBase::SetUp();
-        CreateStore();
+        TSortedDynamicStoreTestBase::SetUp();
+        CreateDynamicStore();
     }
 
 
-    void ConfirmRow(TTransaction* transaction, TDynamicRow row)
+    void ConfirmRow(TTransaction* transaction, TSortedDynamicRow row)
     {
-        Store_->ConfirmRow(transaction, row);
+        transaction->LockedRows().push_back(TSortedDynamicRowRef(Store_.Get(), nullptr, row));
     }
 
-    void PrepareRow(TTransaction* transaction, TDynamicRow row)
+    void PrepareRow(TTransaction* transaction, TSortedDynamicRow row)
     {
         Store_->PrepareRow(transaction, row);
     }
 
-    void CommitRow(TTransaction* transaction, TDynamicRow row)
+    void CommitRow(TTransaction* transaction, TSortedDynamicRow row)
     {
         Store_->CommitRow(transaction, row);
     }
 
-    void AbortRow(TTransaction* transaction, TDynamicRow row)
+    void AbortRow(TTransaction* transaction, TSortedDynamicRow row)
     {
         Store_->AbortRow(transaction, row);
     }
 
-    TDynamicRow WriteRow(
+    TSortedDynamicRow WriteRow(
         TTransaction* transaction,
         const TUnversionedOwningRow& row,
         bool prelock,
-        ui32 lockMask = TDynamicRow::PrimaryLockMask)
+        ui32 lockMask = TSortedDynamicRow::PrimaryLockMask)
     {
-        return Store_->WriteRowAtomic(transaction, row, prelock, lockMask);
+        auto dynamicRow = Store_->WriteRowAtomic(transaction, row, lockMask);
+        LockRow(transaction, prelock, dynamicRow);
+        return dynamicRow;
     }
 
     TTimestamp WriteRow(
         const TUnversionedOwningRow& row,
-        ui32 lockMask = TDynamicRow::PrimaryLockMask)
+        ui32 lockMask = TSortedDynamicRow::PrimaryLockMask)
     {
         auto transaction = StartTransaction();
         auto dynamicRow = WriteRow(transaction.get(), row, false, lockMask);
@@ -70,17 +74,19 @@ protected:
         return ts;
     }
 
-    TDynamicRow WriteRowNonAtomic(const TUnversionedOwningRow& row, TTimestamp timestamp)
+    TSortedDynamicRow WriteRowNonAtomic(const TUnversionedOwningRow& row, TTimestamp timestamp)
     {
         return Store_->WriteRowNonAtomic(row, timestamp);
     }
 
-    TDynamicRow DeleteRow(
+    TSortedDynamicRow DeleteRow(
         TTransaction* transaction,
         const TOwningKey& key,
         bool prelock)
     {
-        return Store_->DeleteRowAtomic(transaction, key, prelock);
+        auto dynamicRow = Store_->DeleteRowAtomic(transaction, key);
+        LockRow(transaction, prelock, dynamicRow);
+        return dynamicRow;
     }
 
     TTimestamp DeleteRow(const TOwningKey& key)
@@ -94,27 +100,27 @@ protected:
         return ts;
     }
 
-    TDynamicRow DeleteRowNonAtomic(const TOwningKey& key, TTimestamp timestamp)
+    TSortedDynamicRow DeleteRowNonAtomic(const TOwningKey& key, TTimestamp timestamp)
     {
         return Store_->DeleteRowNonAtomic(key, timestamp);
     }
 
     TUnversionedOwningRow LookupRow(const TOwningKey& key, TTimestamp timestamp)
     {
-        return TMemoryStoreTestBase::LookupRow(Store_, key, timestamp);
+        return TSortedDynamicStoreTestBase::LookupRow(Store_, key, timestamp);
     }
 
-    TDynamicRow LookupDynamicRow(const TOwningKey& key)
+    TSortedDynamicRow LookupDynamicRow(const TOwningKey& key)
     {
         return Store_->FindRow(key);
     }
 
-    TTimestamp GetLastCommitTimestamp(TDynamicRow row, int lockIndex = TDynamicRow::PrimaryLockIndex)
+    TTimestamp GetLastCommitTimestamp(TSortedDynamicRow row, int lockIndex = TSortedDynamicRow::PrimaryLockIndex)
     {
         return Store_->GetLastCommitTimestamp(row, lockIndex);
     }
 
-    TTimestamp GetLastCommitTimestamp(const TOwningKey& key, int lockIndex = TDynamicRow::PrimaryLockIndex)
+    TTimestamp GetLastCommitTimestamp(const TOwningKey& key, int lockIndex = TSortedDynamicRow::PrimaryLockIndex)
     {
         auto row = LookupDynamicRow(key);
         EXPECT_TRUE(row);
@@ -149,7 +155,7 @@ protected:
         TLoadContext loadContext;
         loadContext.SetInput(&input);
 
-        CreateStore();
+        CreateDynamicStore();
         Store_->Load(loadContext);
         Store_->AsyncLoad(loadContext);
     }
@@ -211,7 +217,7 @@ protected:
             for (int i = 0; i < columnLockCount; ++i) {
                 auto& lock = row.BeginLocks(keyColumnCount)[i];
                 builder.AppendFormat(" wts#%v: ", i);
-                dumpTimestamps(TDynamicRow::GetWriteRevisionList(lock));
+                dumpTimestamps(TSortedDynamicRow::GetWriteRevisionList(lock));
             }
 
             builder.AppendString(" dts: ");
@@ -223,15 +229,15 @@ protected:
     }
 
 
-    TDynamicMemoryStorePtr Store_;
+    TSortedDynamicStorePtr Store_;
 
 private:
-    void CreateStore()
+    void CreateDynamicStore()
     {
         auto config = New<TTabletManagerConfig>();
         config->MaxBlockedRowWaitTime = TDuration::MilliSeconds(100);
 
-        Store_ = New<TDynamicMemoryStore>(
+        Store_ = New<TSortedDynamicStore>(
             config,
             TTabletId(),
             Tablet_.get());
@@ -251,18 +257,24 @@ private:
         return value;
     }
 
+    void LockRow(TTransaction* transaction, bool prelock, TSortedDynamicRow row)
+    {
+        auto rowRef = TSortedDynamicRowRef(Store_.Get(), nullptr, row);
+        TSortedStoreManager::LockRow(transaction, prelock, rowRef);
+    }
+
 };
 
 ///////////////////////////////////////////////////////////////////////////////
 
-class TDynamicRowKeyComparerTest
-    : public TSingleLockDynamicMemoryStoreTest
+class TSortedDynamicRowKeyComparerTest
+    : public TSingleLockSortedDynamicStoreTest
     , public ::testing::WithParamInterface<std::tuple<const char*, const char*>>
 {
 public:
     virtual void SetUp() override
     {
-        TSingleLockDynamicMemoryStoreTest::SetUp();
+        TSingleLockSortedDynamicStoreTest::SetUp();
 
         Transaction_ = StartTransaction();
 
@@ -270,12 +282,12 @@ public:
         int keyColumnCount = schema.GetKeyColumnCount();
 
         StaticComparer_ = TStaticComparer(schema);
-        LlvmComparer_ = TDynamicRowKeyComparer::Create(keyColumnCount, schema);
+        LlvmComparer_ = TSortedDynamicRowKeyComparer::Create(keyColumnCount, schema);
     }
 
-    TDynamicRow BuildDynamicRow(
+    TSortedDynamicRow BuildDynamicRow(
         const TUnversionedOwningRow& row,
-        ui32 lockMask = TDynamicRow::PrimaryLockMask)
+        ui32 lockMask = TSortedDynamicRow::PrimaryLockMask)
     {
         auto transaction = StartTransaction();
         auto dynamicRow = WriteRow(transaction.get(), row, false, lockMask);
@@ -297,18 +309,18 @@ private:
             , Schema_(schema)
         { }
 
-        int operator()(TDynamicRow lhs, TDynamicRow rhs) const
+        int operator()(TSortedDynamicRow lhs, TSortedDynamicRow rhs) const
         {
             return Compare(lhs, rhs);
         }
 
-        int operator()(TDynamicRow lhs, TRowWrapper rhs) const
+        int operator()(TSortedDynamicRow lhs, TRowWrapper rhs) const
         {
             YASSERT(rhs.Row.GetCount() >= KeyColumnCount_);
             return Compare(lhs, rhs.Row.Begin(), KeyColumnCount_);
         }
 
-        int operator()(TDynamicRow lhs, TKeyWrapper rhs) const
+        int operator()(TSortedDynamicRow lhs, TKeyWrapper rhs) const
         {
             return Compare(lhs, rhs.Row.Begin(), rhs.Row.GetCount());
         }
@@ -323,7 +335,7 @@ private:
         }
 
     private:
-        int Compare(TDynamicRow lhs, TDynamicRow rhs) const
+        int Compare(TSortedDynamicRow lhs, TSortedDynamicRow rhs) const
         {
             ui32 nullKeyBit = 1;
             ui32 lhsNullKeyMask = lhs.GetNullKeyMask();
@@ -412,7 +424,7 @@ private:
             return 0;
         }
 
-        int Compare(TDynamicRow lhs, const TUnversionedValue* rhsBegin, int rhsLength) const
+        int Compare(TSortedDynamicRow lhs, const TUnversionedValue* rhsBegin, int rhsLength) const
         {
             ui32 nullKeyBit = 1;
             ui32 lhsNullKeyMask = lhs.GetNullKeyMask();
@@ -527,10 +539,10 @@ protected:
 
     std::unique_ptr<TTransaction> Transaction_;
     TStaticComparer StaticComparer_;
-    TDynamicRowKeyComparer LlvmComparer_;
+    TSortedDynamicRowKeyComparer LlvmComparer_;
 };
 
-TEST_P(TDynamicRowKeyComparerTest, Test)
+TEST_P(TSortedDynamicRowKeyComparerTest, Test)
 {
     auto str1 = Stroka(std::get<0>(GetParam()));
     auto str2 = Stroka(std::get<1>(GetParam()));
@@ -569,19 +581,19 @@ auto comparerTestParams = ::testing::Values(
 
 INSTANTIATE_TEST_CASE_P(
     CodeGenerationTest,
-    TDynamicRowKeyComparerTest,
+    TSortedDynamicRowKeyComparerTest,
     ::testing::Combine(comparerTestParams, comparerTestParams));
 
 ///////////////////////////////////////////////////////////////////////////////
 
-TEST_F(TSingleLockDynamicMemoryStoreTest, Empty)
+TEST_F(TSingleLockSortedDynamicStoreTest, Empty)
 {
     auto key = BuildKey("1");
     EXPECT_TRUE(AreRowsEqual(LookupRow(key, 0), nullptr));
     EXPECT_TRUE(AreRowsEqual(LookupRow(key, AsyncLastCommittedTimestamp), nullptr));
 }
 
-TEST_F(TSingleLockDynamicMemoryStoreTest, PrelockWriteAndCommit)
+TEST_F(TSingleLockSortedDynamicStoreTest, PrelockWriteAndCommit)
 {
     auto transaction = StartTransaction();
 
@@ -619,7 +631,7 @@ TEST_F(TSingleLockDynamicMemoryStoreTest, PrelockWriteAndCommit)
     EXPECT_TRUE(AreRowsEqual(LookupRow(key, ts - 1), nullptr));
 }
 
-TEST_F(TSingleLockDynamicMemoryStoreTest, PrelockDeleteAndCommit)
+TEST_F(TSingleLockSortedDynamicStoreTest, PrelockDeleteAndCommit)
 {
     auto key = BuildKey("1");
     auto rowString = "key=1;a=1";
@@ -658,7 +670,7 @@ TEST_F(TSingleLockDynamicMemoryStoreTest, PrelockDeleteAndCommit)
     EXPECT_TRUE(AreRowsEqual(LookupRow(key, ts2), nullptr));
 }
 
-TEST_F(TSingleLockDynamicMemoryStoreTest, PrelockManyWritesAndCommit)
+TEST_F(TSingleLockSortedDynamicStoreTest, PrelockManyWritesAndCommit)
 {
     auto key = BuildKey("1");
 
@@ -694,7 +706,7 @@ TEST_F(TSingleLockDynamicMemoryStoreTest, PrelockManyWritesAndCommit)
     }
 }
 
-TEST_F(TSingleLockDynamicMemoryStoreTest, WriteSameRow)
+TEST_F(TSingleLockSortedDynamicStoreTest, WriteSameRow)
 {
     auto key = BuildKey("1");
 
@@ -706,7 +718,7 @@ TEST_F(TSingleLockDynamicMemoryStoreTest, WriteSameRow)
     });
 }
 
-TEST_F(TSingleLockDynamicMemoryStoreTest, WriteAndAbort)
+TEST_F(TSingleLockSortedDynamicStoreTest, WriteAndAbort)
 {
     auto key = BuildKey("1");
 
@@ -723,7 +735,7 @@ TEST_F(TSingleLockDynamicMemoryStoreTest, WriteAndAbort)
     ASSERT_EQ(nullptr, GetLock(row).Transaction);
 }
 
-TEST_F(TSingleLockDynamicMemoryStoreTest, Delete)
+TEST_F(TSingleLockSortedDynamicStoreTest, Delete)
 {
     auto key = BuildKey("1");
     auto ts = DeleteRow(key);
@@ -733,7 +745,7 @@ TEST_F(TSingleLockDynamicMemoryStoreTest, Delete)
     EXPECT_TRUE(AreRowsEqual(LookupRow(key, AsyncLastCommittedTimestamp), nullptr));
 }
 
-TEST_F(TSingleLockDynamicMemoryStoreTest, WriteDelete)
+TEST_F(TSingleLockSortedDynamicStoreTest, WriteDelete)
 {
     auto key = BuildKey("1");
 
@@ -760,7 +772,7 @@ TEST_F(TSingleLockDynamicMemoryStoreTest, WriteDelete)
     EXPECT_EQ(ts2, GetLastCommitTimestamp(row));
 }
 
-TEST_F(TSingleLockDynamicMemoryStoreTest, WriteWrite)
+TEST_F(TSingleLockSortedDynamicStoreTest, WriteWrite)
 {
     auto key = BuildKey("1");
 
@@ -785,7 +797,7 @@ TEST_F(TSingleLockDynamicMemoryStoreTest, WriteWrite)
     EXPECT_TRUE(AreRowsEqual(LookupRow(key, ts2), "key=1;b=3.14"));
 }
 
-TEST_F(TSingleLockDynamicMemoryStoreTest, DeleteSameRow)
+TEST_F(TSingleLockSortedDynamicStoreTest, DeleteSameRow)
 {
     auto key = BuildKey("1");
 
@@ -797,7 +809,7 @@ TEST_F(TSingleLockDynamicMemoryStoreTest, DeleteSameRow)
     });
 }
 
-TEST_F(TSingleLockDynamicMemoryStoreTest, Update1)
+TEST_F(TSingleLockSortedDynamicStoreTest, Update1)
 {
     auto key = BuildKey("1");
     
@@ -807,7 +819,7 @@ TEST_F(TSingleLockDynamicMemoryStoreTest, Update1)
     EXPECT_TRUE(AreRowsEqual(LookupRow(key, ts), "key=1;a=1"));
 }
 
-TEST_F(TSingleLockDynamicMemoryStoreTest, Update2)
+TEST_F(TSingleLockSortedDynamicStoreTest, Update2)
 {
     auto key = BuildKey("1");
 
@@ -821,7 +833,7 @@ TEST_F(TSingleLockDynamicMemoryStoreTest, Update2)
     EXPECT_TRUE(AreRowsEqual(LookupRow(key, ts3), "key=1;a=1;b=3.0;c=test"));
 }
 
-TEST_F(TSingleLockDynamicMemoryStoreTest, Update3)
+TEST_F(TSingleLockSortedDynamicStoreTest, Update3)
 {
     auto key = BuildKey("1");
 
@@ -835,7 +847,7 @@ TEST_F(TSingleLockDynamicMemoryStoreTest, Update3)
     EXPECT_TRUE(AreRowsEqual(LookupRow(key, ts3), "key=1;a=3"));
 }
 
-TEST_F(TSingleLockDynamicMemoryStoreTest, UpdateDelete1)
+TEST_F(TSingleLockSortedDynamicStoreTest, UpdateDelete1)
 {
     auto key = BuildKey("1");
 
@@ -855,7 +867,7 @@ TEST_F(TSingleLockDynamicMemoryStoreTest, UpdateDelete1)
     EXPECT_TRUE(AreRowsEqual(LookupRow(key, ts6), nullptr));
 }
 
-TEST_F(TSingleLockDynamicMemoryStoreTest, UpdateDelete2)
+TEST_F(TSingleLockSortedDynamicStoreTest, UpdateDelete2)
 {
     auto key = BuildKey("1");
 
@@ -873,7 +885,7 @@ TEST_F(TSingleLockDynamicMemoryStoreTest, UpdateDelete2)
     EXPECT_TRUE(AreRowsEqual(LookupRow(key, ts5), nullptr));
 }
 
-TEST_F(TSingleLockDynamicMemoryStoreTest, DeleteAfterWriteFailure1)
+TEST_F(TSingleLockSortedDynamicStoreTest, DeleteAfterWriteFailure1)
 {
     auto transaction = StartTransaction();
     WriteRow(transaction.get(), BuildRow("key=1"), true);
@@ -882,7 +894,7 @@ TEST_F(TSingleLockDynamicMemoryStoreTest, DeleteAfterWriteFailure1)
     });
 }
 
-TEST_F(TSingleLockDynamicMemoryStoreTest, DeleteAfterWriteFailure2)
+TEST_F(TSingleLockSortedDynamicStoreTest, DeleteAfterWriteFailure2)
 {
     WriteRow(BuildRow("key=1"));
 
@@ -895,7 +907,7 @@ TEST_F(TSingleLockDynamicMemoryStoreTest, DeleteAfterWriteFailure2)
     }
 }
 
-TEST_F(TSingleLockDynamicMemoryStoreTest, WriteAfterDeleteFailure1)
+TEST_F(TSingleLockSortedDynamicStoreTest, WriteAfterDeleteFailure1)
 {
     auto transaction = StartTransaction();
     DeleteRow(transaction.get(), BuildKey("1"), true);
@@ -904,7 +916,7 @@ TEST_F(TSingleLockDynamicMemoryStoreTest, WriteAfterDeleteFailure1)
     });
 }
 
-TEST_F(TSingleLockDynamicMemoryStoreTest, WriteAfterDeleteFailure2)
+TEST_F(TSingleLockSortedDynamicStoreTest, WriteAfterDeleteFailure2)
 {
     WriteRow(BuildRow("key=1"));
 
@@ -917,7 +929,7 @@ TEST_F(TSingleLockDynamicMemoryStoreTest, WriteAfterDeleteFailure2)
     }
 }
 
-TEST_F(TSingleLockDynamicMemoryStoreTest, WriteWriteConflict1)
+TEST_F(TSingleLockSortedDynamicStoreTest, WriteWriteConflict1)
 {
     auto key = BuildKey("1");
 
@@ -929,7 +941,7 @@ TEST_F(TSingleLockDynamicMemoryStoreTest, WriteWriteConflict1)
     });
 }
 
-TEST_F(TSingleLockDynamicMemoryStoreTest, WriteWriteConflict2)
+TEST_F(TSingleLockSortedDynamicStoreTest, WriteWriteConflict2)
 {
     auto key = BuildKey("1");
 
@@ -949,7 +961,7 @@ TEST_F(TSingleLockDynamicMemoryStoreTest, WriteWriteConflict2)
     });
 }
 
-TEST_F(TSingleLockDynamicMemoryStoreTest, ReadNotBlocked)
+TEST_F(TSingleLockSortedDynamicStoreTest, ReadNotBlocked)
 {
     auto key = BuildKey("1");
 
@@ -961,7 +973,7 @@ TEST_F(TSingleLockDynamicMemoryStoreTest, ReadNotBlocked)
     PrepareRow(transaction.get(), row);
 
     bool blocked = false;
-    Store_->SetRowBlockedHandler(BIND([&] (TDynamicRow /*row*/, int /*lockIndex*/) {
+    Store_->SetRowBlockedHandler(BIND([&] (TSortedDynamicRow /*row*/, int /*lockIndex*/) {
         blocked = true;
     }));
 
@@ -972,7 +984,7 @@ TEST_F(TSingleLockDynamicMemoryStoreTest, ReadNotBlocked)
     EXPECT_FALSE(blocked);
 }
 
-TEST_F(TSingleLockDynamicMemoryStoreTest, ReadBlockedAbort)
+TEST_F(TSingleLockSortedDynamicStoreTest, ReadBlockedAbort)
 {
     auto key = BuildKey("1");
 
@@ -984,8 +996,8 @@ TEST_F(TSingleLockDynamicMemoryStoreTest, ReadBlockedAbort)
     PrepareRow(transaction.get(), row);
 
     bool blocked = false;
-    Store_->SetRowBlockedHandler(BIND([&] (TDynamicRow blockedRow, int lockIndex) {
-        EXPECT_EQ(TDynamicRow::PrimaryLockIndex, lockIndex);
+    Store_->SetRowBlockedHandler(BIND([&] (TSortedDynamicRow blockedRow, int lockIndex) {
+        EXPECT_EQ(TSortedDynamicRow::PrimaryLockIndex, lockIndex);
         EXPECT_EQ(blockedRow, row);
         AbortTransaction(transaction.get());
         AbortRow(transaction.get(), row);
@@ -997,7 +1009,7 @@ TEST_F(TSingleLockDynamicMemoryStoreTest, ReadBlockedAbort)
     EXPECT_TRUE(blocked);
 }
 
-TEST_F(TSingleLockDynamicMemoryStoreTest, ReadBlockedCommit)
+TEST_F(TSingleLockSortedDynamicStoreTest, ReadBlockedCommit)
 {
     auto key = BuildKey("1");
 
@@ -1009,8 +1021,8 @@ TEST_F(TSingleLockDynamicMemoryStoreTest, ReadBlockedCommit)
     PrepareRow(transaction.get(), row);
 
     bool blocked = false;
-    Store_->SetRowBlockedHandler(BIND([&] (TDynamicRow blockedRow, int lockIndex) {
-        EXPECT_EQ(TDynamicRow::PrimaryLockIndex, lockIndex);
+    Store_->SetRowBlockedHandler(BIND([&] (TSortedDynamicRow blockedRow, int lockIndex) {
+        EXPECT_EQ(TSortedDynamicRow::PrimaryLockIndex, lockIndex);
         EXPECT_EQ(blockedRow, row);
         CommitTransaction(transaction.get());
         CommitRow(transaction.get(), row);
@@ -1022,7 +1034,7 @@ TEST_F(TSingleLockDynamicMemoryStoreTest, ReadBlockedCommit)
     EXPECT_TRUE(blocked);
 }
 
-TEST_F(TSingleLockDynamicMemoryStoreTest, ReadBlockedTimeout)
+TEST_F(TSingleLockSortedDynamicStoreTest, ReadBlockedTimeout)
 {
     auto key = BuildKey("1");
 
@@ -1034,7 +1046,7 @@ TEST_F(TSingleLockDynamicMemoryStoreTest, ReadBlockedTimeout)
     PrepareRow(transaction.get(), row);
 
     bool blocked = false;
-    Store_->SetRowBlockedHandler(BIND([&] (TDynamicRow blockedRow, int lockIndex) {
+    Store_->SetRowBlockedHandler(BIND([&] (TSortedDynamicRow blockedRow, int lockIndex) {
         blocked = true;
         Sleep(TDuration::MilliSeconds(10));
     }));
@@ -1046,7 +1058,7 @@ TEST_F(TSingleLockDynamicMemoryStoreTest, ReadBlockedTimeout)
     EXPECT_TRUE(blocked);
 }
 
-TEST_F(TSingleLockDynamicMemoryStoreTest, WriteNotBlocked)
+TEST_F(TSingleLockSortedDynamicStoreTest, WriteNotBlocked)
 {
     auto inputRow = BuildRow("key=1;a=1");
 
@@ -1059,7 +1071,7 @@ TEST_F(TSingleLockDynamicMemoryStoreTest, WriteNotBlocked)
     PrepareRow(transaction1.get(), row);
 
     bool blocked = false;
-    Store_->SetRowBlockedHandler(BIND([&] (TDynamicRow /*blockedRow*/, int /*lockIndex*/) {
+    Store_->SetRowBlockedHandler(BIND([&] (TSortedDynamicRow /*blockedRow*/, int /*lockIndex*/) {
         blocked = true;
     }));
 
@@ -1070,7 +1082,7 @@ TEST_F(TSingleLockDynamicMemoryStoreTest, WriteNotBlocked)
     EXPECT_FALSE(blocked);
 }
 
-TEST_F(TSingleLockDynamicMemoryStoreTest, WriteBlocked)
+TEST_F(TSingleLockSortedDynamicStoreTest, WriteBlocked)
 {
     auto inputRow = BuildRow("key=1;a=1");
 
@@ -1089,7 +1101,7 @@ TEST_F(TSingleLockDynamicMemoryStoreTest, WriteBlocked)
     }, TRowBlockedException);
 }
 
-TEST_F(TSingleLockDynamicMemoryStoreTest, ArbitraryKeyLength)
+TEST_F(TSingleLockSortedDynamicStoreTest, ArbitraryKeyLength)
 {
     WriteRow(BuildRow("key=1;a=1"));
 
@@ -1111,7 +1123,7 @@ TEST_F(TSingleLockDynamicMemoryStoreTest, ArbitraryKeyLength)
     EXPECT_FALSE(reader->Read(&rows));
 }
 
-TEST_F(TSingleLockDynamicMemoryStoreTest, SerializeEmpty)
+TEST_F(TSingleLockSortedDynamicStoreTest, SerializeEmpty)
 {
     auto check = [&] () {
         EXPECT_EQ(0, Store_->GetKeyCount());
@@ -1127,7 +1139,7 @@ TEST_F(TSingleLockDynamicMemoryStoreTest, SerializeEmpty)
     check();
 }
 
-TEST_F(TSingleLockDynamicMemoryStoreTest, SerializeNonempty1)
+TEST_F(TSingleLockSortedDynamicStoreTest, SerializeNonempty1)
 {
     std::vector<TTimestamp> timestamps;
     for (int i = 0; i < 100; ++i) {
@@ -1159,7 +1171,7 @@ TEST_F(TSingleLockDynamicMemoryStoreTest, SerializeNonempty1)
     check();
 }
 
-TEST_F(TSingleLockDynamicMemoryStoreTest, SerializeNonempty2)
+TEST_F(TSingleLockSortedDynamicStoreTest, SerializeNonempty2)
 {
     auto key = BuildKey("1");
     auto ts1 = WriteRow(BuildRow("key=1;a=1", false));
@@ -1187,7 +1199,7 @@ TEST_F(TSingleLockDynamicMemoryStoreTest, SerializeNonempty2)
     check();
 }
 
-TEST_F(TSingleLockDynamicMemoryStoreTest, SerializeSnapshot1)
+TEST_F(TSingleLockSortedDynamicStoreTest, SerializeSnapshot1)
 {
     auto snapshot = BeginReserializeStore();
 
@@ -1203,7 +1215,7 @@ TEST_F(TSingleLockDynamicMemoryStoreTest, SerializeSnapshot1)
     EXPECT_EQ(MinTimestamp, Store_->GetMaxTimestamp());
 }
 
-TEST_F(TSingleLockDynamicMemoryStoreTest, SerializeSnapshot2)
+TEST_F(TSingleLockSortedDynamicStoreTest, SerializeSnapshot2)
 {
     auto ts1 = WriteRow(BuildRow("key=1;a=1", false));
 
@@ -1235,7 +1247,7 @@ TEST_F(TSingleLockDynamicMemoryStoreTest, SerializeSnapshot2)
     EXPECT_EQ(ts1, GetLastCommitTimestamp(key1));
 }
 
-TEST_F(TSingleLockDynamicMemoryStoreTest, SerializeSnapshot3)
+TEST_F(TSingleLockSortedDynamicStoreTest, SerializeSnapshot3)
 {
     auto ts1 = WriteRow(BuildRow("key=1;a=1", false));
 
@@ -1266,7 +1278,7 @@ TEST_F(TSingleLockDynamicMemoryStoreTest, SerializeSnapshot3)
     EXPECT_EQ(ts1, GetLastCommitTimestamp(key));
 }
 
-TEST_F(TSingleLockDynamicMemoryStoreTest, SerializeSnapshot4)
+TEST_F(TSingleLockSortedDynamicStoreTest, SerializeSnapshot4)
 {
     auto key = BuildKey("1");
 
@@ -1298,7 +1310,7 @@ TEST_F(TSingleLockDynamicMemoryStoreTest, SerializeSnapshot4)
     EXPECT_EQ(ts1, GetLastCommitTimestamp(key));
 }
 
-TEST_F(TSingleLockDynamicMemoryStoreTest, SerializeSnapshot5)
+TEST_F(TSingleLockSortedDynamicStoreTest, SerializeSnapshot5)
 {
     auto key = BuildKey("1");
 
@@ -1333,7 +1345,7 @@ TEST_F(TSingleLockDynamicMemoryStoreTest, SerializeSnapshot5)
     EXPECT_EQ(timestamps[50], GetLastCommitTimestamp(key));
 }
 
-TEST_F(TSingleLockDynamicMemoryStoreTest, SerializeSnapshot_YT2591)
+TEST_F(TSingleLockSortedDynamicStoreTest, SerializeSnapshot_YT2591)
 {
     auto transaction1 = StartTransaction();
     auto row1 = WriteRow(transaction1.get(), BuildRow("key=1;b=2.7", false), false);
@@ -1360,8 +1372,8 @@ TEST_F(TSingleLockDynamicMemoryStoreTest, SerializeSnapshot_YT2591)
 
 ///////////////////////////////////////////////////////////////////////////////
 
-class TMultiLockDynamicMemoryStoreTest
-    : public TSingleLockDynamicMemoryStoreTest
+class TMultiLockSortedDynamicStoreTest
+    : public TSingleLockSortedDynamicStoreTest
 {
 protected:
     virtual TTableSchema GetSchema() const
@@ -1381,7 +1393,7 @@ protected:
 
 };
 
-TEST_F(TMultiLockDynamicMemoryStoreTest, ConcurrentWrites1)
+TEST_F(TMultiLockSortedDynamicStoreTest, ConcurrentWrites1)
 {
     auto key = BuildKey("1");
 
@@ -1414,7 +1426,7 @@ TEST_F(TMultiLockDynamicMemoryStoreTest, ConcurrentWrites1)
     EXPECT_EQ(ts2, GetLastCommitTimestamp(row, 2));
 }
 
-TEST_F(TMultiLockDynamicMemoryStoreTest, ConcurrentWrites2)
+TEST_F(TMultiLockSortedDynamicStoreTest, ConcurrentWrites2)
 {
     auto key = BuildKey("1");
 
@@ -1449,7 +1461,7 @@ TEST_F(TMultiLockDynamicMemoryStoreTest, ConcurrentWrites2)
     EXPECT_EQ(ts2, GetLastCommitTimestamp(row, 2));
 }
 
-TEST_F(TMultiLockDynamicMemoryStoreTest, ConcurrentWrites3)
+TEST_F(TMultiLockSortedDynamicStoreTest, ConcurrentWrites3)
 {
     auto key = BuildKey("1");
 
@@ -1477,7 +1489,7 @@ TEST_F(TMultiLockDynamicMemoryStoreTest, ConcurrentWrites3)
     EXPECT_EQ(MinTimestamp, GetLastCommitTimestamp(row2, 2));
 }
 
-TEST_F(TMultiLockDynamicMemoryStoreTest, WriteWriteConflict1)
+TEST_F(TMultiLockSortedDynamicStoreTest, WriteWriteConflict1)
 {
     auto key = BuildKey("1");
 
@@ -1490,7 +1502,7 @@ TEST_F(TMultiLockDynamicMemoryStoreTest, WriteWriteConflict1)
     });
 }
 
-TEST_F(TMultiLockDynamicMemoryStoreTest, WriteWriteConflict2)
+TEST_F(TMultiLockSortedDynamicStoreTest, WriteWriteConflict2)
 {
     auto key = BuildKey("1");
 
@@ -1503,12 +1515,12 @@ TEST_F(TMultiLockDynamicMemoryStoreTest, WriteWriteConflict2)
     });
 }
 
-TEST_F(TMultiLockDynamicMemoryStoreTest, WriteWriteConflict3)
+TEST_F(TMultiLockSortedDynamicStoreTest, WriteWriteConflict3)
 {
     auto key = BuildKey("1");
 
     auto transaction1 = StartTransaction();
-    WriteRow(transaction1.get(), BuildRow("key=1;c=test", false), true, TDynamicRow::PrimaryLockMask);
+    WriteRow(transaction1.get(), BuildRow("key=1;c=test", false), true, TSortedDynamicRow::PrimaryLockMask);
 
     auto transaction2 = StartTransaction();
     EXPECT_ANY_THROW({
@@ -1516,7 +1528,7 @@ TEST_F(TMultiLockDynamicMemoryStoreTest, WriteWriteConflict3)
     });
 }
 
-TEST_F(TMultiLockDynamicMemoryStoreTest, WriteWriteConflict4)
+TEST_F(TMultiLockSortedDynamicStoreTest, WriteWriteConflict4)
 {
     auto key = BuildKey("1");
 
@@ -1529,7 +1541,7 @@ TEST_F(TMultiLockDynamicMemoryStoreTest, WriteWriteConflict4)
     });
 }
 
-TEST_F(TMultiLockDynamicMemoryStoreTest, WriteDeleteConflict1)
+TEST_F(TMultiLockSortedDynamicStoreTest, WriteDeleteConflict1)
 {
     auto key = BuildKey("1");
 
@@ -1542,7 +1554,7 @@ TEST_F(TMultiLockDynamicMemoryStoreTest, WriteDeleteConflict1)
     });
 }
 
-TEST_F(TMultiLockDynamicMemoryStoreTest, WriteDeleteConflict2)
+TEST_F(TMultiLockSortedDynamicStoreTest, WriteDeleteConflict2)
 {
     auto key = BuildKey("1");
 
@@ -1555,7 +1567,7 @@ TEST_F(TMultiLockDynamicMemoryStoreTest, WriteDeleteConflict2)
     });
 }
 
-TEST_F(TMultiLockDynamicMemoryStoreTest, DeleteWriteConflict1)
+TEST_F(TMultiLockSortedDynamicStoreTest, DeleteWriteConflict1)
 {
     auto key = BuildKey("1");
 
@@ -1568,7 +1580,7 @@ TEST_F(TMultiLockDynamicMemoryStoreTest, DeleteWriteConflict1)
     });
 }
 
-TEST_F(TMultiLockDynamicMemoryStoreTest, DeleteWriteConflict2)
+TEST_F(TMultiLockSortedDynamicStoreTest, DeleteWriteConflict2)
 {
     auto key = BuildKey("1");
 
@@ -1581,7 +1593,7 @@ TEST_F(TMultiLockDynamicMemoryStoreTest, DeleteWriteConflict2)
     });
 }
 
-TEST_F(TMultiLockDynamicMemoryStoreTest, WriteNotBlocked)
+TEST_F(TMultiLockSortedDynamicStoreTest, WriteNotBlocked)
 {
     auto transaction1 = StartTransaction();
     auto transaction2 = StartTransaction();
@@ -1592,7 +1604,7 @@ TEST_F(TMultiLockDynamicMemoryStoreTest, WriteNotBlocked)
     PrepareRow(transaction1.get(), row1);
 
     bool blocked = false;
-    Store_->SetRowBlockedHandler(BIND([&] (TDynamicRow /*blockedRow*/, int /*lockIndex*/) {
+    Store_->SetRowBlockedHandler(BIND([&] (TSortedDynamicRow /*blockedRow*/, int /*lockIndex*/) {
         blocked = true;
     }));
 
@@ -1602,7 +1614,7 @@ TEST_F(TMultiLockDynamicMemoryStoreTest, WriteNotBlocked)
     EXPECT_FALSE(blocked);
 }
 
-TEST_F(TMultiLockDynamicMemoryStoreTest, OutOfOrderWrites)
+TEST_F(TMultiLockSortedDynamicStoreTest, OutOfOrderWrites)
 {
     auto transaction1 = StartTransaction();
     auto transaction2 = StartTransaction();
@@ -1659,13 +1671,13 @@ TEST_F(TMultiLockDynamicMemoryStoreTest, OutOfOrderWrites)
     }
 }
 
-TEST_F(TMultiLockDynamicMemoryStoreTest, SerializeSnapshot1)
+TEST_F(TMultiLockSortedDynamicStoreTest, SerializeSnapshot1)
 {
     auto key = BuildKey("1");
 
     auto ts1 = DeleteRow(key);
     auto ts2 = WriteRow(BuildRow("key=1;a=1", false), LockMask1);
-    auto ts3 = WriteRow(BuildRow("key=1;c=test", false), TDynamicRow::PrimaryLockMask);
+    auto ts3 = WriteRow(BuildRow("key=1;c=test", false), TSortedDynamicRow::PrimaryLockMask);
     auto ts4 = WriteRow(BuildRow("key=1;b=3.14", false), LockMask2);
 
     auto check = [&] () {
@@ -1696,8 +1708,8 @@ TEST_F(TMultiLockDynamicMemoryStoreTest, SerializeSnapshot1)
 
 ///////////////////////////////////////////////////////////////////////////////
 
-class TNonAtomicDynamicMemoryStoreTest
-    : public TSingleLockDynamicMemoryStoreTest
+class TNonAtomicSortedDynamicStoreTest
+    : public TSingleLockSortedDynamicStoreTest
 {
 protected:
     virtual EAtomicity GetAtomicity() const override
@@ -1706,7 +1718,7 @@ protected:
     }
 };
 
-TEST_F(TNonAtomicDynamicMemoryStoreTest, Write1)
+TEST_F(TNonAtomicSortedDynamicStoreTest, Write1)
 {
     auto key = BuildKey("1");
 
@@ -1719,7 +1731,7 @@ TEST_F(TNonAtomicDynamicMemoryStoreTest, Write1)
     EXPECT_TRUE(AreRowsEqual(LookupRow(key, AsyncLastCommittedTimestamp), "key=1;a=1"));
 }
 
-TEST_F(TNonAtomicDynamicMemoryStoreTest, Write2)
+TEST_F(TNonAtomicSortedDynamicStoreTest, Write2)
 {
     auto key = BuildKey("1");
     auto rowStr1 = "key=1;a=1";
@@ -1738,7 +1750,7 @@ TEST_F(TNonAtomicDynamicMemoryStoreTest, Write2)
     EXPECT_TRUE(AreRowsEqual(LookupRow(key, 300), "key=1;a=1;b=3.14"));
 }
 
-TEST_F(TNonAtomicDynamicMemoryStoreTest, Write3)
+TEST_F(TNonAtomicSortedDynamicStoreTest, Write3)
 {
     auto key = BuildKey("1");
 
@@ -1765,7 +1777,7 @@ TEST_F(TNonAtomicDynamicMemoryStoreTest, Write3)
     }
 }
 
-TEST_F(TNonAtomicDynamicMemoryStoreTest, Delete1)
+TEST_F(TNonAtomicSortedDynamicStoreTest, Delete1)
 {
     auto key = BuildKey("1");
     auto row = DeleteRowNonAtomic(key, 100);
@@ -1776,7 +1788,7 @@ TEST_F(TNonAtomicDynamicMemoryStoreTest, Delete1)
     EXPECT_TRUE(AreRowsEqual(LookupRow(key, SyncLastCommittedTimestamp), nullptr));
 }
 
-TEST_F(TNonAtomicDynamicMemoryStoreTest, Delete2)
+TEST_F(TNonAtomicSortedDynamicStoreTest, Delete2)
 {
     auto key = BuildKey("1");
 
@@ -1792,7 +1804,7 @@ TEST_F(TNonAtomicDynamicMemoryStoreTest, Delete2)
     EXPECT_TRUE(AreRowsEqual(LookupRow(key, SyncLastCommittedTimestamp), nullptr));
 }
 
-TEST_F(TNonAtomicDynamicMemoryStoreTest, WriteDelete1)
+TEST_F(TNonAtomicSortedDynamicStoreTest, WriteDelete1)
 {
     auto key = BuildKey("1");
 
@@ -1809,7 +1821,7 @@ TEST_F(TNonAtomicDynamicMemoryStoreTest, WriteDelete1)
     EXPECT_TRUE(AreRowsEqual(LookupRow(key, SyncLastCommittedTimestamp), nullptr));
 }
 
-TEST_F(TNonAtomicDynamicMemoryStoreTest, WriteDelete2)
+TEST_F(TNonAtomicSortedDynamicStoreTest, WriteDelete2)
 {
     auto key = BuildKey("1");
 
@@ -1826,7 +1838,7 @@ TEST_F(TNonAtomicDynamicMemoryStoreTest, WriteDelete2)
     EXPECT_TRUE(AreRowsEqual(LookupRow(key, SyncLastCommittedTimestamp), "key=1;a=1"));
 }
 
-TEST_F(TNonAtomicDynamicMemoryStoreTest, WriteDelete3)
+TEST_F(TNonAtomicSortedDynamicStoreTest, WriteDelete3)
 {
     std::vector<TTimestamp> writeTimestamps;
     for (int i = 0; i < 100; ++i) {

@@ -324,8 +324,8 @@ private:
     }
 
     void DoCopy(
-        NChunkClient::IChunkReaderPtr reader,
-        NChunkClient::IChunkWriterPtr writer,
+        IChunkReaderPtr reader,
+        IChunkWriterPtr writer,
         int blockCount,
         const TChunkMeta& meta)
     {
@@ -333,7 +333,8 @@ private:
         THROW_ERROR_EXCEPTION_IF_FAILED(error, "Error opening writer");
 
         for (int i = 0; i < blockCount; ++i) {
-            auto result = WaitFor(reader->ReadBlocks(i, 1));
+            auto asyncResult = reader->ReadBlocks(ReaderConfig_->WorkloadDescriptor, i, 1);
+            auto result = WaitFor(asyncResult);
             if (!result.IsOK()) {
                 FailedChunkId_ = reader->GetChunkId();
                 THROW_ERROR_EXCEPTION_IF_FAILED(result, "Error reading block");
@@ -355,9 +356,10 @@ private:
     }
 
     // Request input chunk meta. Input and output chunk metas are the same.
-    TChunkMeta GetChunkMeta(NChunkClient::IChunkReaderPtr reader)
+    TChunkMeta GetChunkMeta(IChunkReaderPtr reader)
     {
-        auto result = WaitFor(reader->GetMeta());
+        auto asyncResult = reader->GetMeta(ReaderConfig_->WorkloadDescriptor);
+        auto result = WaitFor(asyncResult);
         if (!result.IsOK()) {
             FailedChunkId_ = reader->GetChunkId();
             THROW_ERROR_EXCEPTION_IF_FAILED(result, "Failed to get chunk meta");

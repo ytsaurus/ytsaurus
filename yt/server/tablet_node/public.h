@@ -14,6 +14,8 @@
 
 #include <yt/ytlib/transaction_client/public.h>
 
+#include <yt/ytlib/object_client/public.h>
+
 namespace NYT {
 namespace NTabletNode {
 
@@ -85,8 +87,8 @@ DEFINE_ENUM(ETabletState,
 );
 
 DEFINE_ENUM(EStoreType,
-    (DynamicMemory)
-    (Chunk)
+    (SortedDynamic)
+    (SortedChunk)
 );
 
 DEFINE_ENUM(EStoreState,
@@ -173,18 +175,25 @@ DECLARE_REFCOUNTED_STRUCT(TTabletPerformanceCounters)
 class TTransaction;
 
 DECLARE_REFCOUNTED_STRUCT(IStore)
+DECLARE_REFCOUNTED_STRUCT(IDynamicStore)
+DECLARE_REFCOUNTED_STRUCT(IChunkStore)
+DECLARE_REFCOUNTED_STRUCT(ISortedStore)
+DECLARE_REFCOUNTED_STRUCT(IOrderedStore)
 
-DECLARE_REFCOUNTED_CLASS(TDynamicMemoryStore)
-DECLARE_REFCOUNTED_CLASS(TChunkStore)
-DECLARE_REFCOUNTED_CLASS(TStoreManager)
+DECLARE_REFCOUNTED_CLASS(TSortedDynamicStore)
+DECLARE_REFCOUNTED_CLASS(TSortedChunkStore)
+
+DECLARE_REFCOUNTED_STRUCT(IStoreManager)
+DECLARE_REFCOUNTED_CLASS(TSortedStoreManager)
+
 DECLARE_REFCOUNTED_CLASS(TSecurityManager)
 
 DECLARE_REFCOUNTED_STRUCT(TInMemoryChunkData)
 DECLARE_REFCOUNTED_CLASS(TInMemoryManager)
 
-struct TDynamicRowHeader;
-class TDynamicRow;
-struct TDynamicRowRef;
+struct TSortedDynamicRowHeader;
+class TSortedDynamicRow;
+struct TSortedDynamicRowRef;
 
 union TDynamicValueData;
 struct TDynamicValue;
@@ -198,11 +207,13 @@ using TRevisionList = TEditList<ui32>;
 using TTabletWriterOptions = NTableClient::TTableWriterOptions;
 using TTabletWriterOptionsPtr = NTableClient::TTableWriterOptionsPtr;
 
+struct ITabletContext;
+
 //! This is the hard limit.
 //! Moreover, it is quite expensive to be graceful in preventing it from being exceeded.
 //! The soft limit, thus, is significantly smaller.
-static const i64 HardRevisionsPerDynamicMemoryStoreLimit = 1ULL << 26;
-static const i64 SoftRevisionsPerDynamicMemoryStoreLimit = 1ULL << 25;
+static const i64 HardRevisionsPerDynamicStoreLimit = 1ULL << 26;
+static const i64 SoftRevisionsPerDynamicStoreLimit = 1ULL << 25;
 
 ////////////////////////////////////////////////////////////////////////////////
 

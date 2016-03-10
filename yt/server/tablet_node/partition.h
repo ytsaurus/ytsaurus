@@ -34,7 +34,7 @@ struct TPartitionSnapshot
     TOwningKey PivotKey;
     TOwningKey NextPivotKey;
     TKeyListPtr SampleKeys;
-    std::vector<IStorePtr> Stores;
+    std::vector<ISortedStorePtr> Stores;
 };
 
 DEFINE_REFCOUNTED_TYPE(TPartitionSnapshot)
@@ -48,15 +48,13 @@ class TPartition
 public:
     static const int EdenIndex = -1;
 
-    DEFINE_BYVAL_RO_PROPERTY(TPartitionSnapshotPtr, Snapshot);
-
     DEFINE_BYVAL_RO_PROPERTY(TTablet*, Tablet);
     DEFINE_BYVAL_RW_PROPERTY(int, Index);
 
     DEFINE_BYVAL_RO_PROPERTY(TOwningKey, PivotKey);
     DEFINE_BYVAL_RO_PROPERTY(TOwningKey, NextPivotKey);
 
-    DEFINE_BYREF_RW_PROPERTY(yhash_set<IStorePtr>, Stores);
+    DEFINE_BYREF_RW_PROPERTY(yhash_set<ISortedStorePtr>, Stores);
 
     DEFINE_BYVAL_RW_PROPERTY(EPartitionState, State);
 
@@ -87,7 +85,7 @@ public:
 
     bool IsEden() const;
 
-    TPartitionSnapshotPtr RebuildSnapshot();
+    TPartitionSnapshotPtr BuildSnapshot() const;
 
     void StartEpoch();
     void StopEpoch();

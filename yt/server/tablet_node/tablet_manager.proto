@@ -4,14 +4,20 @@ import "yt/core/misc/guid.proto";
 import "yt/core/misc/error.proto";
 import "yt/ytlib/table_client/chunk_meta.proto";
 import "yt/ytlib/chunk_client/chunk_meta.proto";
-import "yt/server/tablet_server/tablet_manager.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message TChunkStoreDescriptor
+message TAddStoreDescriptor
+{
+    required int32 store_type = 1;
+    required NYT.NProto.TGuid store_id = 2;
+    required NYT.NChunkClient.NProto.TChunkMeta chunk_meta = 3;
+    optional NYT.NProto.TGuid backing_store_id = 4;
+}
+
+message TRemoveStoreDescriptor
 {
     required NYT.NProto.TGuid store_id = 1;
-    required NYT.NChunkClient.NProto.TChunkMeta chunk_meta = 2;
 }
 
 message TReqMountTablet
@@ -20,7 +26,7 @@ message TReqMountTablet
     required NYT.NProto.TGuid table_id = 9;
     required NYT.NTableClient.NProto.TTableSchemaExt schema = 2;
     required NYT.NTableClient.NProto.TKeyColumnsExt key_columns = 3;
-    repeated TChunkStoreDescriptor chunk_stores = 4;
+    repeated TAddStoreDescriptor stores = 4;
     required bytes pivot_key = 5;
     required bytes next_pivot_key = 6;
     required string mount_config = 7;
@@ -72,8 +78,8 @@ message TReqCommitTabletStoresUpdate
 {
     required NYT.NProto.TGuid tablet_id = 1;
     required int64 mount_revision = 5;
-    repeated NYT.NTabletServer.NProto.TAddStoreDescriptor stores_to_add = 2;
-    repeated NYT.NTabletServer.NProto.TRemoveStoreDescriptor stores_to_remove = 3;
+    repeated TAddStoreDescriptor stores_to_add = 2;
+    repeated TRemoveStoreDescriptor stores_to_remove = 3;
     optional NYT.NProto.TGuid transaction_id = 4;
 }
 
@@ -82,8 +88,8 @@ message TRspUpdateTabletStores
     required NYT.NProto.TGuid tablet_id = 1;
     required int64 mount_revision = 5;
     optional NYT.NProto.TError error = 2;
-    repeated NYT.NTabletServer.NProto.TAddStoreDescriptor stores_to_add = 3;
-    repeated NYT.NTabletServer.NProto.TRemoveStoreDescriptor stores_to_remove = 4;
+    repeated TAddStoreDescriptor stores_to_add = 3;
+    repeated TRemoveStoreDescriptor stores_to_remove = 4;
 }
 
 message TReqSplitPartition

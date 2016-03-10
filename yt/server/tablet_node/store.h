@@ -6,7 +6,10 @@
 
 #include <yt/ytlib/table_client/public.h>
 
+#include <yt/ytlib/chunk_client/public.h>
+
 #include <yt/core/actions/signal.h>
+#include <yt/core/actions/future.h>
 
 #include <yt/core/misc/range.h>
 
@@ -31,9 +34,82 @@ struct IStore
     virtual EStoreState GetStoreState() const = 0;
     virtual void SetStoreState(EStoreState state) = 0;
 
-    TDynamicMemoryStorePtr AsDynamicMemory();
-    TChunkStorePtr AsChunk();
+    //! Returns the number of bytes currently used by the store.
+    virtual i64 GetMemoryUsage() const = 0;
+    //! Raised whenever the store memory usage is changed.
+    DECLARE_INTERFACE_SIGNAL(void(i64 delta), MemoryUsageUpdated);
 
+    //! Serializes the synchronous part of the state.
+    virtual void Save(TSaveContext& context) const = 0;
+    //! Deserializes the synchronous part of the state.
+    virtual void Load(TLoadContext& context) = 0;
+
+    //! Serializes the asynchronous part of the state.
+    virtual TCallback<void(TSaveContext&)> AsyncSave() = 0;
+    //! Deserializes the asynchronous part of the state.
+    virtual void AsyncLoad(TLoadContext& context) = 0;
+
+    virtual void BuildOrchidYson(NYson::IYsonConsumer* consumer) = 0;
+
+    // Extension methods.
+    bool IsDynamic() const;
+    IDynamicStorePtr AsDynamic();
+
+    bool IsChunk() const;
+    IChunkStorePtr AsChunk();
+
+    bool IsSorted() const;
+    ISortedStorePtr AsSorted();
+    TSortedDynamicStorePtr AsSortedDynamic();
+    TSortedChunkStorePtr AsSortedChunk();
+
+    bool IsOrdered() const;
+    IOrderedStorePtr AsOrdered();
+
+};
+
+DEFINE_REFCOUNTED_TYPE(IStore)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct IDynamicStore
+    : public virtual IStore
+{
+    virtual EStoreFlushState GetFlushState() const = 0;
+    virtual void SetFlushState(EStoreFlushState state) = 0;
+};
+
+DEFINE_REFCOUNTED_TYPE(IDynamicStore)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct IChunkStore
+    : public virtual IStore
+{
+    virtual EStorePreloadState GetPreloadState() const = 0;
+    virtual void SetPreloadState(EStorePreloadState state) = 0;
+
+    virtual TFuture<void> GetPreloadFuture() const = 0;
+    virtual void SetPreloadFuture(TFuture<void> future) = 0;
+
+    virtual NChunkClient::IChunkReaderPtr GetChunkReader() = 0;
+
+    virtual EInMemoryMode GetInMemoryMode() const = 0;
+    virtual void SetInMemoryMode(EInMemoryMode mode) = 0;
+
+    virtual void Preload(TInMemoryChunkDataPtr chunkData) = 0;
+
+    virtual EStoreCompactionState GetCompactionState() const = 0;
+    virtual void SetCompactionState(EStoreCompactionState state) = 0;
+};
+
+DEFINE_REFCOUNTED_TYPE(IChunkStore)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct ISortedStore
+    : public virtual IStore
+{
     virtual TPartition* GetPartition() const = 0;
     virtual void SetPartition(TPartition* partition) = 0;
 
@@ -93,29 +169,19 @@ struct IStore
         TUnversionedRow row,
         TTransaction* transaction,
         ui32 lockMask) = 0;
-
-    //! Returns the number of bytes currently used by the store.
-    virtual i64 GetMemoryUsage() const = 0;
-
-    //! Raised whenever the store memory usage is changed.
-    DECLARE_INTERFACE_SIGNAL(void(i64 delta), MemoryUsageUpdated);
-
-
-    //! Serializes the synchronous part of the state.
-    virtual void Save(TSaveContext& context) const = 0;
-    //! Deserializes the synchronous part of the state.
-    virtual void Load(TLoadContext& context) = 0;
-
-    //! Serializes the asynchronous part of the state.
-    virtual TCallback<void(TSaveContext&)> AsyncSave() = 0;
-    //! Deserializes the asynchronous part of the state.
-    virtual void AsyncLoad(TLoadContext& context) = 0;
-
-    virtual void BuildOrchidYson(NYson::IYsonConsumer* consumer) = 0;
-
 };
 
-DEFINE_REFCOUNTED_TYPE(IStore)
+DEFINE_REFCOUNTED_TYPE(ISortedStore)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct IOrderedStore
+    : public IStore
+{
+    // TODO(babenko): add members
+};
+
+DEFINE_REFCOUNTED_TYPE(IOrderedStore)
 
 ////////////////////////////////////////////////////////////////////////////////
 

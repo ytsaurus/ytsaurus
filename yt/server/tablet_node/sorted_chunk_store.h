@@ -30,36 +30,32 @@ namespace NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TChunkStore
-    : public TStoreBase
+class TSortedChunkStore
+    : public TChunkStoreBase
+    , public TSortedStoreBase
 {
 public:
-    DEFINE_BYVAL_RW_PROPERTY(EStorePreloadState, PreloadState);
-    DEFINE_BYVAL_RW_PROPERTY(TFuture<void>, PreloadFuture);
-
-    DEFINE_BYVAL_RW_PROPERTY(EStoreCompactionState, CompactionState);
-
-public:
-    TChunkStore(
+    TSortedChunkStore(
         const TStoreId& id,
         TTablet* tablet,
         const NChunkClient::NProto::TChunkMeta* chunkMeta,
         NCellNode::TBootstrap* bootstrap);
-    ~TChunkStore();
+    ~TSortedChunkStore();
 
     const NChunkClient::NProto::TChunkMeta& GetChunkMeta() const;
 
-    void SetBackingStore(IStorePtr store);
+    void SetBackingStore(ISortedStorePtr store);
     bool HasBackingStore() const;
 
-    EInMemoryMode GetInMemoryMode() const;
-    void SetInMemoryMode(EInMemoryMode mode);
-    void Preload(TInMemoryChunkDataPtr chunkData);
+    // IChunkStore implementation.
+    virtual EInMemoryMode GetInMemoryMode() const override;
+    virtual void SetInMemoryMode(EInMemoryMode mode) override;
 
-    NChunkClient::IChunkReaderPtr GetChunkReader(
-        const TWorkloadDescriptor& workloadDescriptor);
+    virtual NChunkClient::IChunkReaderPtr GetChunkReader() override;
 
-    // IStore implementation.
+    virtual void Preload(TInMemoryChunkDataPtr chunkData) override;
+
+    // ISortedStore implementation.
     virtual EStoreType GetType() const override;
 
     virtual i64 GetUncompressedDataSize() const override;
@@ -104,12 +100,9 @@ private:
     NCellNode::TBootstrap* const Bootstrap_;
 
     // Cached for fast retrieval from ChunkMeta_.
+    NChunkClient::NProto::TMiscExt MiscExt_;
     TOwningKey MinKey_;
     TOwningKey MaxKey_;
-    TTimestamp MinTimestamp_;
-    TTimestamp MaxTimestamp_;
-    i64 DataSize_ = -1;
-    i64 RowCount_ = -1;
 
     NChunkClient::TRefCountedChunkMetaPtr ChunkMeta_;
 
@@ -118,12 +111,11 @@ private:
     bool ChunkInitialized_ = false;
     NDataNode::IChunkPtr Chunk_;
 
-    NChunkClient::IChunkReaderPtr RealtimeChunkReader_;
-    NChunkClient::IChunkReaderPtr BatchChunkReader_;
+    NChunkClient::IChunkReaderPtr ChunkReader_;
 
     NTableClient::TCachedVersionedChunkMetaPtr CachedVersionedChunkMeta_;
 
-    IStorePtr BackingStore_;
+    ISortedStorePtr BackingStore_;
 
     TPreloadedBlockCachePtr PreloadedBlockCache_;
 
@@ -145,11 +137,10 @@ private:
 
     NDataNode::IChunkPtr PrepareChunk();
     NChunkClient::IChunkReaderPtr PrepareChunkReader(
-        NDataNode::IChunkPtr chunk,
-        const TWorkloadDescriptor& workloadDescriptor);
+        NDataNode::IChunkPtr chunk);
     NTableClient::TCachedVersionedChunkMetaPtr PrepareCachedVersionedChunkMeta(
         NChunkClient::IChunkReaderPtr chunkReader);
-    IStorePtr GetBackingStore();
+    ISortedStorePtr GetBackingStore();
     NChunkClient::IBlockCachePtr GetBlockCache();
 
     void PrecacheProperties();
@@ -161,7 +152,7 @@ private:
     bool ValidateBlockCachePreloaded();
 };
 
-DEFINE_REFCOUNTED_TYPE(TChunkStore)
+DEFINE_REFCOUNTED_TYPE(TSortedChunkStore)
 
 ////////////////////////////////////////////////////////////////////////////////
 

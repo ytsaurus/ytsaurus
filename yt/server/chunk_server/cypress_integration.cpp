@@ -58,6 +58,8 @@ private:
                 return chunkManager->QuorumMissingChunks();
             case EObjectType::UnsafelyPlacedChunkMap:
                 return chunkManager->UnsafelyPlacedChunks();
+            case EObjectType::ForeignChunkMap:
+                return chunkManager->ForeignChunks();
             default:
                 YUNREACHABLE();
         }
@@ -121,6 +123,8 @@ private:
                 return "//sys/quorum_missing_chunks";
             case EObjectType::UnsafelyPlacedChunkMap:
                 return "//sys/unsafely_placed_chunks";
+            case EObjectType::ForeignChunkMap:
+                return "//sys/foreign_chunks";
             default:
                 YUNREACHABLE();
         }

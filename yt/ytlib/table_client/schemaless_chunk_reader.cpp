@@ -306,7 +306,11 @@ void TSchemalessChunkReader::DownloadChunkMeta(std::vector<int> extensionTags, T
     extensionTags.push_back(TProtoExtensionTag<TMiscExt>::Value);
     extensionTags.push_back(TProtoExtensionTag<TBlockMetaExt>::Value);
     extensionTags.push_back(TProtoExtensionTag<TNameTableExt>::Value);
-    ChunkMeta_ = WaitFor(UnderlyingReader_->GetMeta(partitionTag, extensionTags))
+    auto asynChunkMeta = UnderlyingReader_->GetMeta(
+        Config_->WorkloadDescriptor,
+        partitionTag,
+        extensionTags);
+    ChunkMeta_ = WaitFor(asynChunkMeta)
         .ValueOrThrow();
 
     BlockMetaExt_ = GetProtoExtension<TBlockMetaExt>(ChunkMeta_.extensions());
@@ -653,6 +657,8 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
                 options,
                 client,
                 nodeDirectory,
+                //XXX(babenko): hotfix for YT-3915
+                Null,
                 blockCache,
                 throttler);
 
@@ -1026,9 +1032,11 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
             replicas,
             blockCache);
 
-        auto chunkMeta = WaitFor(TCachedVersionedChunkMeta::Load(
+        auto asyncChunkMeta = TCachedVersionedChunkMeta::Load(
             chunkReader,
-            tableSchema))
+            config->WorkloadDescriptor,
+            tableSchema);
+        auto chunkMeta = WaitFor(asyncChunkMeta)
             .ValueOrThrow();
 
         return CreateVersionedChunkReader(

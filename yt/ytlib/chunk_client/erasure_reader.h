@@ -30,6 +30,7 @@ TFuture<void> RepairErasedParts(
     const NErasure::TPartIndexList& erasedIndices,
     const std::vector<IChunkReaderPtr>& readers,
     const std::vector<IChunkWriterPtr>& writers,
+    const TWorkloadDescriptor& workloadDescriptor,
     TRepairProgressHandler onProgress = TRepairProgressHandler());
 
 std::vector<IChunkReaderPtr> CreateErasureDataPartsReaders(

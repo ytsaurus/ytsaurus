@@ -58,10 +58,10 @@ struct TTabletPerformanceCounter
 };
 
 #define ITERATE_TABLET_PERFORMANCE_COUNTERS(XX) \
-    XX(dynamic_memory_row_read,                 DynamicMemoryRowRead) \
-    XX(dynamic_memory_row_lookup,               DynamicMemoryRowLookup) \
-    XX(dynamic_memory_row_write,                DynamicMemoryRowWrite) \
-    XX(dynamic_memory_row_delete,               DynamicMemoryRowDelete) \
+    XX(dynamic_row_read,                        DynamicRowRead) \
+    XX(dynamic_row_lookup,                      DynamicRowLookup) \
+    XX(dynamic_row_write,                       DynamicRowWrite) \
+    XX(dynamic_row_delete,                      DynamicRowDelete) \
     XX(static_chunk_row_read,                   StaticChunkRowRead) \
     XX(static_chunk_row_lookup,                 StaticChunkRowLookup) \
     XX(static_chunk_row_lookup_true_negative,   StaticChunkRowLookupTrueNegative) \

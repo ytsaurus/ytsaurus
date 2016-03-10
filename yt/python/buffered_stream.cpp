@@ -6,101 +6,99 @@ namespace NPython {
 
 ///////////////////////////////////////////////////////////////////////////////
 
-TBufferedStream::TBufferedStream(size_t bufferSize)
-    : Size_(0)
-    , AllowedSize_(bufferSize / 2)
-    , Data_(TSharedMutableRef::Allocate(bufferSize, false))
+TBufferedStream::TBufferedStream(size_t capacity)
+    : Data_(TSharedMutableRef::Allocate(capacity, false))
     , Begin_(Data_.Begin())
-    , End_(Data_.Begin())
-    , State_(EState::Normal)
+    , Capacity_(capacity)
     , AllowWrite_(NewPromise<void>())
-    , AllowRead_(NewPromise<void>())
 { }
 
-TSharedRef TBufferedStream::Read(size_t size)
+Py::String TBufferedStream::Read(size_t size)
 {
-    YCHECK(State_ != EState::WaitingData);
-
-    if (Size_ >= size) {
-        return ExtractChunk(size);
-    }
+    TGuard<TMutex> guard(ReadMutex_);
 
     bool wait = false;
+
     {
         TGuard<TMutex> guard(Mutex_);
-        if (State_ == EState::Full) {
-            AllowedSize_ = std::max(AllowedSize_, size);
-            AllowWrite_.Set(TError());
+
+        if (Size_ >= size) {
+            return ExtractChunk(size);
         }
 
-        if (State_ != EState::Finished)
-        {
+        SizeToRead_ = size;
+        Capacity_ = std::max(Capacity_, size * 2);
+        if (Full_) {
+            Full_ = false;
+            AllowWrite_.Set(TError());
+        }
+        if (!Finished_) {
             wait = true;
-            State_ = EState::WaitingData;
-            AllowRead_ = NewPromise<void>();
+            AllowRead_.store(false);
         }
     }
 
     if (wait) {
-        AllowRead_.Get();
+        // Busy wait.
+        while (true) {
+            if (AllowRead_.load()) {
+                break;
+            }
+        }
     }
 
-    return ExtractChunk(size);
+    {
+        TGuard<TMutex> guard(Mutex_);
+        SizeToRead_ = 0;
+        return ExtractChunk(size);
+    }
 }
 
 bool TBufferedStream::Empty() const
 {
-    return Size_ == 0;
+    TGuard<TMutex> guard(Mutex_);
+    return Finished_ && Size_ == 0;
 }
 
 void TBufferedStream::Finish()
 {
     TGuard<TMutex> guard(Mutex_);
 
-    YASSERT(State_ != EState::Finished);
+    YCHECK(!Finished_);
 
-    if (State_ == EState::WaitingData) {
-        AllowRead_.Set();
-    }
-    if (State_ == EState::Full) {
-        AllowWrite_.Set(TError());
-    }
+    Finished_ = true;
 
-    State_ = EState::Finished;
+    AllowRead_.store(true);
 }
 
-TFuture<void> TBufferedStream::Write(const TSharedRef& buffer)
+TFuture<void> TBufferedStream::Write(const TSharedRef& data)
 {
-    YCHECK(State_ != EState::Full);
+    TGuard<TMutex> guard(Mutex_);
+
+    YCHECK(!Finished_);
 
     {
-        TGuard<TMutex> guard(Mutex_);
-
-        if (Data_.End() - End_ < buffer.Size()) {
-            if (Size_ + buffer.Size() > Data_.Size()) {
-                Reallocate(std::max(Size_ + buffer.Size(), Data_.Size() * 2));
-            } else if (End_ - Begin_ <= Begin_ - Data_.Begin()) {
+        if (Data_.End() - Begin_ + Size_ < data.Size()) {
+            if (Size_ + data.Size() > Data_.Size()) {
+                Reallocate(std::max(Size_ + data.Size(), Data_.Size() * 2));
+            } else if (Size_ <= Begin_ - Data_.Begin()) {
                 Move(Data_.Begin());
             } else {
                 Reallocate(Data_.Size());
             }
         }
 
-        std::copy(buffer.Begin(), buffer.Begin() + buffer.Size(), End_);
-        End_ = End_ + buffer.Size();
-        Size_ += buffer.Size();
+        std::copy(data.Begin(), data.Begin() + data.Size(), Begin_ + Size_);
+        Size_ += data.Size();
     }
 
-    if (Size_ >= AllowedSize_) {
-        TGuard<TMutex> guard(Mutex_);
+    if (Size_ >= SizeToRead_) {
+        AllowRead_.store(true);
+    }
 
-        if (State_ == EState::WaitingData) {
-            AllowRead_.Set();
-        }
-
+    if (Capacity_ <= Size_ * 2) {
+        Full_ = true;
         AllowWrite_ = NewPromise<void>();
-        State_ = EState::Full;
-
         return AllowWrite_;
     } else {
         return VoidFuture;
@@ -109,6 +107,8 @@ TFuture<void> TBufferedStream::Write(const TSharedRef& buffer)
 
 void TBufferedStream::Reallocate(size_t len)
 {
+    YCHECK(len >= Size_);
+
     auto newData = TSharedMutableRef::Allocate(len, false);
     Move(newData.Begin());
     std::swap(Data_, newData);
@@ -116,27 +116,24 @@ void TBufferedStream::Reallocate(size_t len)
 
 void TBufferedStream::Move(char* dest)
 {
-    std::copy(Begin_, End_, dest);
-    End_ = dest + (End_ - Begin_);
+    std::copy(Begin_, Begin_ + Size_, dest);
     Begin_ = dest;
 }
 
-TSharedRef TBufferedStream::ExtractChunk(size_t size)
+Py::String TBufferedStream::ExtractChunk(size_t size)
 {
-    TGuard<TMutex> guard(Mutex_);
-
-    size = std::min(size, static_cast<size_t>(End_ - Begin_));
+    size = std::min(size, static_cast<size_t>(Size_));
 
     auto result = Data_.Slice(Begin_, Begin_ + size);
     Begin_ += size;
-
     Size_ -= size;
-    if (Size_ < AllowedSize_ && State_ == EState::Full) {
+
+    if (Size_ * 2 < Capacity_ && Full_) {
+        Full_ = false;
         AllowWrite_.Set(TError());
-        State_ = EState::Normal;
     }
 
-    return result;
+    return Py::String(result.Begin(), static_cast<int>(result.Size()));
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -153,13 +150,13 @@ Py::Object TBufferedStreamWrap::Read(Py::Tuple& args, Py::Dict& kwargs)
     auto size = Py::Int(ExtractArgument(args, kwargs, "size"));
     ValidateArgumentsEmpty(args, kwargs);
 
-    TSharedRef result;
+    Py::String result;
     {
         Py_BEGIN_ALLOW_THREADS
         result = Stream_->Read(size.asLongLong());
         Py_END_ALLOW_THREADS
     }
-    return Py::String(result.Begin(), result.Size());
+    return result;
 }
 
 Py::Object TBufferedStreamWrap::Empty(Py::Tuple& args, Py::Dict& kwargs)

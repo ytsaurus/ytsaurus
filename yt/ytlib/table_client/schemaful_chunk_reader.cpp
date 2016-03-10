@@ -166,7 +166,7 @@ void TChunkReader::DoOpen()
     };
 
     LOG_INFO("Requesting chunk meta");
-    auto metaOrError = WaitFor(ChunkReader->GetMeta(Null, extensionTags));
+    auto metaOrError = WaitFor(ChunkReader->GetMeta(Config->WorkloadDescriptor, Null, extensionTags));
     if (!metaOrError.IsOK()) {
         State.Fail(metaOrError);
         return;

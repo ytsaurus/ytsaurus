@@ -53,6 +53,12 @@ IInvokerPtr TEVSchedulerThread::GetInvoker()
 void TEVSchedulerThread::OnShutdown()
 {
     CallbackWatcher.send();
+
+    // Drain queue.
+    TClosure callback;
+    while (Queue.Dequeue(&callback)) {
+        callback.Reset();
+    }
 }
 
 EBeginExecuteResult TEVSchedulerThread::BeginExecute()

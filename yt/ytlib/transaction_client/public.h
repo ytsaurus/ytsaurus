@@ -72,9 +72,9 @@ const TTimestamp AsyncLastCommittedTimestamp  = 0x3fffffffffffff04ULL;
 const TTimestamp AllCommittedTimestamp        = 0x3fffffffffffff03ULL;
 
 // System sentinels:
-//! Used by TDynamicMemoryStore to mark values being written by transactions.
+//! Used by TSortedDynamicStore to mark values being written by transactions.
 const TTimestamp UncommittedTimestamp         = 0x3fffffffffffff02ULL;
-//! Used by TDynamicMemoryStore in TLockDescriptor::PrepareTimestamp.
+//! Used by TSortedDynamicStore in TLockDescriptor::PrepareTimestamp.
 //! TMust be larger than SyncLastCommittedTimestamp.
 const TTimestamp NotPreparedTimestamp         = 0x3fffffffffffffffULL;
 

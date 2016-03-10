@@ -24,9 +24,11 @@
 #include <yt/ytlib/tablet_client/config.h>
 
 #include <yt/ytlib/transaction_client/helpers.h>
+#include <yt/ytlib/transaction_client/transaction_manager.h>
 
 #include <yt/core/concurrency/scheduler.h>
 
+#include <yt/core/misc/common.h>
 #include <yt/core/misc/small_vector.h>
 
 namespace NYT {
@@ -59,7 +61,7 @@ TStoreManager::TStoreManager(
     YCHECK(Tablet_);
     YCHECK(DynamicMemoryStoreFactory_);
 
-    Logger.AddTag("TabletId: %v", Tablet_->GetId());
+    Logger.AddTag("TabletId: %v", Tablet_->GetTabletId());
     if (Tablet_->GetSlot()) {
         Logger.AddTag("CellId: %v", Tablet_->GetSlot()->GetCellId());
     }
@@ -97,10 +99,12 @@ bool TStoreManager::HasUnflushedStores() const
 {
     for (const auto& pair : Tablet_->Stores()) {
         const auto& store = pair.second;
+        // COMPAT(sandello): Temporary treat "remove_committing" chunk stores as flushed.
         if (store->GetType() != EStoreType::Chunk) {
             return true;
         }
-        if (store->GetStoreState() != EStoreState::Persistent) {
+        if (store->GetStoreState() != EStoreState::Persistent &&
+            store->GetStoreState() != EStoreState::RemoveCommitting) {
             return true;
         }
     }
@@ -148,7 +152,7 @@ void TStoreManager::ValidateActiveStoreOverflow()
         auto keyLimit = config->MaxMemoryStoreKeyCount;
         if (keyCount >= keyLimit) {
             THROW_ERROR_EXCEPTION("Active store is over key capacity")
-                << TErrorAttribute("tablet_id", Tablet_->GetId())
+                << TErrorAttribute("tablet_id", Tablet_->GetTabletId())
                 << TErrorAttribute("key_count", keyCount)
                 << TErrorAttribute("key_limit", keyLimit);
         }
@@ -159,7 +163,7 @@ void TStoreManager::ValidateActiveStoreOverflow()
         auto valueLimit = config->MaxMemoryStoreValueCount;
         if (valueCount >= valueLimit) {
             THROW_ERROR_EXCEPTION("Active store is over value capacity")
-                << TErrorAttribute("tablet_id", Tablet_->GetId())
+                << TErrorAttribute("tablet_id", Tablet_->GetTabletId())
                 << TErrorAttribute("value_count", valueCount)
                 << TErrorAttribute("value_limit", valueLimit);
         }
@@ -170,7 +174,7 @@ void TStoreManager::ValidateActiveStoreOverflow()
         auto poolCapacityLimit = config->MaxMemoryStorePoolSize;
         if (poolCapacity >= poolCapacityLimit) {
             THROW_ERROR_EXCEPTION("Active store is over its memory pool capacity")
-                << TErrorAttribute("tablet_id", Tablet_->GetId())
+                << TErrorAttribute("tablet_id", Tablet_->GetTabletId())
                 << TErrorAttribute("pool_capacity", poolCapacity)
                 << TErrorAttribute("pool_capacity_limit", poolCapacityLimit);
         }
@@ -189,9 +193,9 @@ void TStoreManager::ValidateOnWrite(
         }
     } catch (TErrorException& ex) {
         auto& errorAttributes = ex.Error().Attributes();
-        errorAttributes.Set("transaction_id", transactionId);
-        errorAttributes.Set("tablet_id", Tablet_->GetId());
-        errorAttributes.Set("row", row);
+        errorAttributes.SetYson("transaction_id", NYTree::ConvertToYsonString(transactionId));
+        errorAttributes.SetYson("tablet_id", NYTree::ConvertToYsonString(Tablet_->GetTabletId()));
+        errorAttributes.SetYson("row", NYTree::ConvertToYsonString(row));
         throw ex;
     }
 }
@@ -205,9 +209,9 @@ void TStoreManager::ValidateOnDelete(
         ValidateServerKey(key, KeyColumnCount_, Tablet_->Schema());
     } catch (TErrorException& ex) {
         auto& errorAttributes = ex.Error().Attributes();
-        errorAttributes.Set("transaction_id", transactionId);
-        errorAttributes.Set("tablet_id", Tablet_->GetId());
-        errorAttributes.Set("key", key);
+        errorAttributes.SetYson("transaction_id", NYTree::ConvertToYsonString(transactionId));
+        errorAttributes.SetYson("tablet_id", NYTree::ConvertToYsonString(Tablet_->GetTabletId()));
+        errorAttributes.SetYson("key", NYTree::ConvertToYsonString(key));
         throw ex;
     }
 }
@@ -217,7 +221,9 @@ TDynamicRowRef TStoreManager::WriteRowAtomic(
     TUnversionedRow row,
     bool prelock)
 {
-    ValidateOnWrite(transaction->GetId(), row);
+    if (prelock) {
+        ValidateOnWrite(transaction->GetId(), row);
+    }
 
     ui32 lockMask = ComputeLockMask(row);
 
@@ -242,7 +248,8 @@ void TStoreManager::WriteRowNonAtomic(
     TTimestamp commitTimestamp,
     TUnversionedRow row)
 {
-    ValidateOnWrite(transactionId, row);
+    // TODO(sandello): YT-4148
+    // ValidateOnWrite(transactionId, row);
 
     const auto& store = Tablet_->GetActiveStore();
     store->WriteRowNonAtomic(row, commitTimestamp);
@@ -253,9 +260,9 @@ TDynamicRowRef TStoreManager::DeleteRowAtomic(
     TKey key,
     bool prelock)
 {
-    ValidateOnDelete(transaction->GetId(), key);
-
     if (prelock) {
+        ValidateOnDelete(transaction->GetId(), key);
+
         CheckInactiveStoresLocks(
             transaction,
             key,
@@ -275,7 +282,8 @@ void TStoreManager::DeleteRowNonAtomic(
     TTimestamp commitTimestamp,
     TKey key)
 {
-    ValidateOnDelete(transactionId, key);
+    // TODO(sandello): YT-4148
+    // ValidateOnDelete(transactionId, key);
 
     const auto& store = Tablet_->GetActiveStore();
     store->DeleteRowNonAtomic(key, commitTimestamp);

@@ -1608,27 +1608,32 @@ protected:
                 continue;
 
             // Update access time.
-            auto statistics = FromProto<TUserStatistics>(entry.statistics());
-            user->LocalStatistics() += statistics;
-            user->ClusterStatistics() += statistics;
+            auto statisticsDelta = FromProto<TUserStatistics>(entry.statistics());
+            user->LocalStatistics() += statisticsDelta;
+            user->ClusterStatistics() += statisticsDelta;
 
             NProfiling::TTagIdList tags;
             tags.push_back(profilingManager->RegisterTag("user", user->GetName()));
 
-            i64 localRequestCounter = user->LocalStatistics().RequestCounter;
-            Profiler.Enqueue("/user_request_counter", localRequestCounter, tags);
+            const auto& localStatistics = user->LocalStatistics();
+            Profiler.Enqueue("/user_read_time", localStatistics.ReadRequestTime.MicroSeconds(), tags);
+            Profiler.Enqueue("/user_write_time", localStatistics.WriteRequestTime.MicroSeconds(), tags);
+            Profiler.Enqueue("/user_request_count", localStatistics.RequestCount, tags);
+            // COMPAT(babenko)
+            Profiler.Enqueue("/user_request_counter", localStatistics.RequestCount, tags);
 
             // Recompute request rate.
             if (now > user->GetCheckpointTime() + Config_->RequestRateSmoothingPeriod) {
+                i64 currentCount = localStatistics.RequestCount;
                 if (user->GetCheckpointTime() != TInstant::Zero()) {
                     double requestRate =
-                        static_cast<double>(localRequestCounter - user->GetCheckpointRequestCounter()) /
+                        static_cast<double>(currentCount - user->GetCheckpointRequestCount()) /
                         (now - user->GetCheckpointTime()).SecondsFloat();
                     user->SetRequestRate(requestRate);
                     Profiler.Enqueue("/user_request_rate", static_cast<int>(requestRate), tags);
                 }
                 user->SetCheckpointTime(now);
-                user->SetCheckpointRequestCounter(localRequestCounter);
+                user->SetCheckpointRequestCount(currentCount);
             }
         }
     }

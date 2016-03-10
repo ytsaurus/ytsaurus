@@ -1,6 +1,6 @@
 #pragma once
 
-#include "dynamic_memory_store_bits.h"
+#include "sorted_dynamic_store_bits.h"
 
 #include <type_traits>
 

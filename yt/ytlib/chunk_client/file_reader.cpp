@@ -100,7 +100,9 @@ void TFileReader::Open()
     Opened_ = true;
 }
 
-TFuture<std::vector<TSharedRef>> TFileReader::ReadBlocks(const std::vector<int>& blockIndexes)
+TFuture<std::vector<TSharedRef>> TFileReader::ReadBlocks(
+    const TWorkloadDescriptor& /*workloadDescriptor*/,
+    const std::vector<int>& blockIndexes)
 {
     YCHECK(Opened_);
 
@@ -132,6 +134,7 @@ TFuture<std::vector<TSharedRef>> TFileReader::ReadBlocks(const std::vector<int>&
 }
 
 TFuture<std::vector<TSharedRef>> TFileReader::ReadBlocks(
+    const TWorkloadDescriptor& /*workloadDescriptor*/,
     int firstBlockIndex,
     int blockCount)
 {
@@ -216,6 +219,7 @@ i64 TFileReader::GetFullSize() const
 }
 
 TFuture<NProto::TChunkMeta> TFileReader::GetMeta(
+    const TWorkloadDescriptor& /*workloadDescriptor*/,
     const TNullable<int>& partitionTag,
     const TNullable<std::vector<int>>& extensionTags)
 {

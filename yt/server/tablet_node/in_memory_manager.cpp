@@ -1,6 +1,6 @@
 #include "in_memory_manager.h"
 #include "private.h"
-#include "chunk_store.h"
+#include "sorted_chunk_store.h"
 #include "config.h"
 #include "slot_manager.h"
 #include "store_manager.h"
@@ -98,6 +98,8 @@ public:
 
         auto it = ChunkIdToData_.find(chunkId);
         if (it == ChunkIdToData_.end()) {
+            LOG_WARNING("Intercepted chunk data for in-memory store is missing (ChunkId: %v)",
+                chunkId);
             return nullptr;
         }
 
@@ -176,35 +178,38 @@ private:
 
     void ScanSlot(TTabletSlotPtr slot)
     {
-        if (IsMemoryLimitExceeded())
+        if (IsMemoryLimitExceeded()) {
             return;
+        }
 
-        if (slot->GetAutomatonState() != EPeerState::Leading)
+        if (slot->GetAutomatonState() != EPeerState::Leading) {
             return;
+        }
 
         auto tabletManager = slot->GetTabletManager();
         for (const auto& pair : tabletManager->Tablets()) {
             auto* tablet = pair.second;
-            ScanTablet(tablet);
+            ScanTablet(slot, tablet);
         }
     }
 
-    void ScanTablet(TTablet* tablet)
+    void ScanTablet(TTabletSlotPtr slot, TTablet* tablet)
     {
-        if (tablet->GetState() != ETabletState::Mounted)
+        if (tablet->GetState() != ETabletState::Mounted) {
             return;
+        }
 
-        auto storeManager = tablet->GetStoreManager();
+        const auto& storeManager = tablet->GetStoreManager();
         while (true) {
             auto store = storeManager->PeekStoreForPreload();
             if (!store)
                 break;
-            if (!ScanStore(tablet, store))
+            if (!ScanStore(slot, tablet, store))
                 break;
         }
     }
 
-    bool ScanStore(TTablet* tablet, TChunkStorePtr store)
+    bool ScanStore(TTabletSlotPtr slot, TTablet* tablet, IChunkStorePtr store)
     {
         auto guard = TAsyncSemaphoreGuard::TryAcquire(&PreloadSemaphore_);
         if (!guard) {
@@ -216,27 +221,29 @@ private:
                 &TImpl::PreloadStore,
                 MakeStrong(this),
                 Passed(std::move(guard)),
+                slot,
                 tablet,
                 store)
             .AsyncVia(tablet->GetEpochAutomatonInvoker())
             .Run();
 
-        auto storeManager = tablet->GetStoreManager();
+        const auto& storeManager = tablet->GetStoreManager();
         storeManager->BeginStorePreload(store, future);
         return true;
     }
 
     void PreloadStore(
         TAsyncSemaphoreGuard /*guard*/,
+        TTabletSlotPtr slot,
         TTablet* tablet,
-        TChunkStorePtr store)
+        IChunkStorePtr store)
     {
         NLogging::TLogger Logger(TabletNodeLogger);
         Logger.AddTag("TabletId: %v, StoreId: %v",
             tablet->GetId(),
             store->GetId());
 
-        auto storeManager = tablet->GetStoreManager();
+        const auto& storeManager = tablet->GetStoreManager();
         try {
             GuardedPreloadStore(tablet, store, Logger);
             storeManager->EndStorePreload(store);
@@ -246,26 +253,36 @@ private:
         }
 
         auto slotManager = Bootstrap_->GetTabletSlotManager();
-        slotManager->UpdateTabletSnapshot(tablet);
+        slotManager->UpdateTabletSnapshot(slot, tablet);
     }
 
     void GuardedPreloadStore(
         TTablet* tablet,
-        TChunkStorePtr store,
+        IChunkStorePtr store,
         const NLogging::TLogger& Logger)
     {
-        if (IsMemoryLimitExceeded())
+        if (IsMemoryLimitExceeded()) {
             return;
+        }
 
         auto mode = tablet->GetConfig()->InMemoryMode;
-        if (mode == EInMemoryMode::None)
+        if (mode == EInMemoryMode::None) {
             return;
+        }
 
-        auto reader = store->GetChunkReader(TWorkloadDescriptor(EWorkloadCategory::SystemTabletPreload));
+        auto slotManager = Bootstrap_->GetTabletSlotManager();
+        auto tabletSnapshot = slotManager->FindTabletSnapshot(tablet->GetId());
+        if (!tabletSnapshot) {
+            return;
+        }
+
+        auto reader = store->GetChunkReader();
 
         LOG_INFO("Store preload started");
 
-        auto meta = WaitFor(reader->GetMeta())
+        auto workloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::SystemTabletPreload);
+        auto asyncMeta = reader->GetMeta(TWorkloadDescriptor(workloadDescriptor));
+        auto meta = WaitFor(asyncMeta)
             .ValueOrThrow();
 
         auto miscExt = GetProtoExtension<TMiscExt>(meta.extensions());
@@ -283,7 +300,10 @@ private:
             LOG_DEBUG("Started reading chunk blocks (FirstBlock: %v)",
                 startBlockIndex);
 
-            auto asyncResult = reader->ReadBlocks(startBlockIndex, totalBlockCount - startBlockIndex);
+            auto asyncResult = reader->ReadBlocks(
+                workloadDescriptor,
+                startBlockIndex,
+                totalBlockCount - startBlockIndex);
             auto compressedBlocks = WaitFor(asyncResult)
                 .ValueOrThrow();
 
@@ -325,7 +345,7 @@ private:
             startBlockIndex += readBlockCount;
         }
 
-        FinalizeChunkData(chunkData, store->GetId(), meta, tablet->GetSnapshot());
+        FinalizeChunkData(chunkData, store->GetId(), meta, tabletSnapshot);
 
         store->Preload(chunkData);
 
@@ -359,8 +379,9 @@ private:
             const TSharedRef& block,
             const TNullable<NNodeTrackerClient::TNodeDescriptor>& /*source*/) override
         {
-            if (type != BlockType_)
+            if (type != BlockType_) {
                 return;
+            }
 
             if (Owner_->IsMemoryLimitExceeded()) {
                 TGuard<TSpinLock> guard(SpinLock_);
@@ -371,8 +392,9 @@ private:
 
             TGuard<TSpinLock> guard(SpinLock_);
 
-            if (Dropped_)
+            if (Dropped_) {
                 return;
+            }
 
             auto it = ChunkIds_.find(id.ChunkId);
             TInMemoryChunkDataPtr data;

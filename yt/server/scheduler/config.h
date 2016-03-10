@@ -336,6 +336,8 @@ public:
 
     TDuration ClusterInfoLoggingPeriod;
 
+    TDuration PendingEventLogRowsFlushPeriod;
+
     TDuration OperationTimeLimitCheckPeriod;
 
     //! Jobs running on node are logged periodically or when they change their state.
@@ -498,6 +500,9 @@ public:
             .Default(TDuration::Seconds(300));
 
         RegisterParameter("cluster_info_logging_period", ClusterInfoLoggingPeriod)
+            .Default(TDuration::Seconds(1));
+
+        RegisterParameter("pending_event_log_rows_flush_period", PendingEventLogRowsFlushPeriod)
             .Default(TDuration::Seconds(1));
 
         RegisterParameter("operation_time_limit_check_period", OperationTimeLimitCheckPeriod)

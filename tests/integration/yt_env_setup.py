@@ -93,7 +93,9 @@ class YTEnvSetup(YTEnv):
         yt_commands.path_to_run_tests = cls.path_to_run
 
         if cls.Env.configs["driver"]:
-            yt_commands.init_driver(cls.Env.configs["driver"])
+            secondary_driver_configs = [cls.Env.configs["driver_secondary_{0}".format(i)]
+                                        for i in xrange(cls.Env.NUM_SECONDARY_MASTER_CELLS)]
+            yt_commands.init_driver(cls.Env.configs["driver"], secondary_driver_configs)
             yt_commands.is_multicell = (cls.Env.NUM_SECONDARY_MASTER_CELLS > 0)
             yt_driver_bindings.configure_logging(cls.Env.driver_logging_config)
 

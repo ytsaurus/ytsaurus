@@ -52,7 +52,9 @@ using NYT::ToProto;
 using NYT::FromProto;
 using ::ToString;
 
-const double MaxBackoffMultiplier = 1000.0;
+///////////////////////////////////////////////////////////////////////////////
+
+static const double MaxBackoffMultiplier = 1000.0;
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -108,11 +110,17 @@ public:
             NetworkName_);
     }
 
-    virtual TFuture<std::vector<TSharedRef>> ReadBlocks(const std::vector<int>& blockIndexes) override;
+    virtual TFuture<std::vector<TSharedRef>> ReadBlocks(
+        const TWorkloadDescriptor& workloadDescriptor,
+        const std::vector<int>& blockIndexes) override;
 
-    virtual TFuture<std::vector<TSharedRef>> ReadBlocks(int firstBlockIndex, int blockCount) override;
+    virtual TFuture<std::vector<TSharedRef>> ReadBlocks(
+        const TWorkloadDescriptor& workloadDescriptor,
+        int firstBlockIndex,
+        int blockCount) override;
 
     virtual TFuture<TChunkMeta> GetMeta(
+        const TWorkloadDescriptor& workloadDescriptor,
         const TNullable<int>& partitionTag,
         const TNullable<std::vector<int>>& extensionTags) override;
 
@@ -312,13 +320,17 @@ class TReplicationReader::TSessionBase
 {
 protected:
     //! Reference to the owning reader.
-    TWeakPtr<TReplicationReader> Reader_;
+    const TWeakPtr<TReplicationReader> Reader_;
+
+    //! The workload descriptor from the config with instant field updated
+    //! properly.
+    const TWorkloadDescriptor WorkloadDescriptor_;
 
     //! Translates node ids to node descriptors.
-    TNodeDirectoryPtr NodeDirectory_;
+    const TNodeDirectoryPtr NodeDirectory_;
 
     //! Name of the network to use from descriptor.
-    Stroka NetworkName_;
+    const Stroka NetworkName_;
 
     //! Zero based retry index (less than |Reader->Config->RetryCount|).
     int RetryIndex_ = 0;
@@ -346,18 +358,16 @@ protected:
     //! Set of addresses corresponding to PeerQueue_.
     yhash_set<Stroka> PeerQueueSet_;
 
-    //! The workload descriptor from the config with instant field updated
-    //! properly.
-    TWorkloadDescriptor WorkloadDescriptor_;
-
     NLogging::TLogger Logger = ChunkClientLogger;
 
 
-    explicit TSessionBase(TReplicationReader* reader)
+    TSessionBase(
+        TReplicationReader* reader,
+        const TWorkloadDescriptor& workloadDescriptor)
         : Reader_(reader)
+        , WorkloadDescriptor_(workloadDescriptor.SetCurrentInstant())
         , NodeDirectory_(reader->NodeDirectory_)
         , NetworkName_(reader->NetworkName_)
-        , WorkloadDescriptor_(reader->Config_->WorkloadDescriptor.SetCurrentInstant())
     {
         Logger.AddTag("Session: %p, ChunkId: %v",
             this,
@@ -652,9 +662,11 @@ class TReplicationReader::TReadBlockSetSession
     : public TSessionBase
 {
 public:
-    TReadBlockSetSession(TReplicationReader* reader, const std::vector<int>& blockIndexes)
-        : TSessionBase(reader)
-        , Promise_(NewPromise<std::vector<TSharedRef>>())
+    TReadBlockSetSession(
+        TReplicationReader* reader,
+        const TWorkloadDescriptor& workloadDescriptor,
+        const std::vector<int>& blockIndexes)
+        : TSessionBase(reader, workloadDescriptor)
         , BlockIndexes_(blockIndexes)
     {
         Logger.AddTag("Blocks: %v", blockIndexes);
@@ -680,11 +692,11 @@ public:
     }
 
 private:
-    //! Promise representing the session.
-    TPromise<std::vector<TSharedRef>> Promise_;
-
     //! Block indexes to read during the session.
-    std::vector<int> BlockIndexes_;
+    const std::vector<int> BlockIndexes_;
+
+    //! Promise representing the session.
+    TPromise<std::vector<TSharedRef>> Promise_ = NewPromise<std::vector<TSharedRef>>();
 
     //! Blocks that are fetched so far.
     yhash_map<int, TSharedRef> Blocks_;
@@ -976,11 +988,13 @@ private:
     }
 };
 
-TFuture<std::vector<TSharedRef>> TReplicationReader::ReadBlocks(const std::vector<int>& blockIndexes)
+TFuture<std::vector<TSharedRef>> TReplicationReader::ReadBlocks(
+    const TWorkloadDescriptor& workloadDescriptor,
+    const std::vector<int>& blockIndexes)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    auto session = New<TReadBlockSetSession>(this, blockIndexes);
+    auto session = New<TReadBlockSetSession>(this, workloadDescriptor, blockIndexes);
     return BIND(&TReadBlockSetSession::Run, session)
         .AsyncVia(TDispatcher::Get()->GetReaderInvoker())
         .Run();
@@ -994,10 +1008,10 @@ class TReplicationReader::TReadBlockRangeSession
 public:
     TReadBlockRangeSession(
         TReplicationReader* reader,
+        const TWorkloadDescriptor& workloadDescriptor,
         int firstBlockIndex,
         int blockCount)
-        : TSessionBase(reader)
-        , Promise_(NewPromise<std::vector<TSharedRef>>())
+        : TSessionBase(reader, workloadDescriptor)
         , FirstBlockIndex_(firstBlockIndex)
         , BlockCount_(blockCount)
     {
@@ -1017,14 +1031,14 @@ public:
     }
 
 private:
-    //! Promise representing the session.
-    TPromise<std::vector<TSharedRef>> Promise_;
-
     //! First block index to fetch.
-    int FirstBlockIndex_;
+    const int FirstBlockIndex_;
 
     //! Number of blocks to fetch.
-    int BlockCount_;
+    const int BlockCount_;
+
+    //! Promise representing the session.
+    TPromise<std::vector<TSharedRef>> Promise_ = NewPromise<std::vector<TSharedRef>>();
 
     //! Blocks that are fetched so far.
     std::vector<TSharedRef> FetchedBlocks_;
@@ -1212,12 +1226,13 @@ private:
 };
 
 TFuture<std::vector<TSharedRef>> TReplicationReader::ReadBlocks(
+    const TWorkloadDescriptor& workloadDescriptor,
     int firstBlockIndex,
     int blockCount)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    auto session = New<TReadBlockRangeSession>(this, firstBlockIndex, blockCount);
+    auto session = New<TReadBlockRangeSession>(this, workloadDescriptor, firstBlockIndex, blockCount);
     return BIND(&TReadBlockRangeSession::Run, session)
         .AsyncVia(TDispatcher::Get()->GetReaderInvoker())
         .Run();
@@ -1231,10 +1246,10 @@ class TReplicationReader::TGetMetaSession
 public:
     TGetMetaSession(
         TReplicationReader* reader,
+        const TWorkloadDescriptor& workloadDescriptor,
         const TNullable<int> partitionTag,
         const TNullable<std::vector<int>>& extensionTags)
-        : TSessionBase(reader)
-        , Promise_(NewPromise<TChunkMeta>())
+        : TSessionBase(reader, workloadDescriptor)
         , PartitionTag_(partitionTag)
         , ExtensionTags_(extensionTags)
     { }
@@ -1251,11 +1266,11 @@ public:
     }
 
 private:
-    //! Promise representing the session.
-    TPromise<TChunkMeta> Promise_;
-
     const TNullable<int> PartitionTag_;
     const TNullable<std::vector<int>> ExtensionTags_;
+
+    //! Promise representing the session.
+    TPromise<TChunkMeta> Promise_ = NewPromise<TChunkMeta>();
 
     virtual bool IsCanceled() const override
     {
@@ -1363,12 +1378,13 @@ private:
 };
 
 TFuture<TChunkMeta> TReplicationReader::GetMeta(
+    const TWorkloadDescriptor& workloadDescriptor,
     const TNullable<int>& partitionTag,
     const TNullable<std::vector<int>>& extensionTags)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    auto session = New<TGetMetaSession>(this, partitionTag, extensionTags);
+    auto session = New<TGetMetaSession>(this, workloadDescriptor, partitionTag, extensionTags);
     return BIND(&TGetMetaSession::Run, session)
         .AsyncVia(TDispatcher::Get()->GetReaderInvoker())
         .Run();

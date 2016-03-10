@@ -1,7 +1,6 @@
 #pragma once
 
 #include "public.h"
-#include "dynamic_memory_store_bits.h"
 
 #include <yt/server/cell_node/public.h>
 
@@ -9,144 +8,88 @@
 
 #include <yt/ytlib/tablet_client/public.h>
 
-#include <yt/core/logging/log.h>
+#include <yt/core/actions/future.h>
 
 namespace NYT {
 namespace NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Manages a set of stores comprising a tablet.
+//! Provides a facade for modifying data within a given tablet.
 /*!
- *  This class provides a facade for modifying data within a given tablet.
- *
- *  Each tablet has an instance of TStoreManager, which is attached to the tablet
+ *  Each tablet has an instance of IStoreManager, which is attached to the tablet
  *  upon its construction.
  *
- *  TStoreManager instances are not bound to any specific epoch and are reused.
+ *  IStoreManager instances are not bound to any specific epoch and are reused.
  */
-class TStoreManager
-    : public TRefCounted
+struct IStoreManager
+    : public virtual TRefCounted
 {
-public:
-    TStoreManager(
-        TTabletManagerConfigPtr config,
-        TTablet* tablet,
-        TCallback<TDynamicMemoryStorePtr()> dynamicMemoryStoreFactory);
-
     //! Returns the tablet this instance is bound to.
-    TTablet* GetTablet() const;
+    virtual TTablet* GetTablet() const = 0;
 
     //! Returns |true| if there are outstanding locks to any of dynamic memory stores.
     //! Used to determine when it is safe to unmount the tablet.
-    bool HasActiveLocks() const;
+    virtual bool HasActiveLocks() const = 0;
 
     //! Returns |true| if there are some dynamic memory stores that are not flushed yet.
-    bool HasUnflushedStores() const;
+    virtual bool HasUnflushedStores() const = 0;
 
-    void StartEpoch(TTabletSlotPtr slot);
-    void StopEpoch();
+    virtual void StartEpoch(TTabletSlotPtr slot) = 0;
+    virtual void StopEpoch() = 0;
 
-    TDynamicRowRef WriteRowAtomic(
+    virtual void ExecuteAtomicWrite(
+        TTablet* tablet,
         TTransaction* transaction,
-        TUnversionedRow row,
-        bool prelock);
+        NTabletClient::TWireProtocolReader* reader,
+        bool prelock) = 0;
+    virtual void ExecuteNonAtomicWrite(
+        TTablet* tablet,
+        NTransactionClient::TTimestamp commitTimestamp,
+        NTabletClient::TWireProtocolReader* reader) = 0;
 
-    void WriteRowNonAtomic(
-        const TTransactionId& transactionId,
-        TTimestamp commitTimestamp,
-        TUnversionedRow row);
+    virtual bool IsOverflowRotationNeeded() const = 0;
+    virtual bool IsPeriodicRotationNeeded() const = 0;
+    virtual bool IsRotationPossible() const = 0;
+    virtual bool IsForcedRotationPossible() const = 0;
+    virtual bool IsRotationScheduled() const = 0;
+    virtual void ScheduleRotation() = 0;
+    virtual void Rotate(bool createNewStore) = 0;
 
-    TDynamicRowRef DeleteRowAtomic(
-        TTransaction* transaction,
-        TKey key,
-        bool prelock);
+    virtual void AddStore(IStorePtr store, bool onMount) = 0;
 
-    void DeleteRowNonAtomic(
-        const TTransactionId& transactionId,
-        TTimestamp commitTimestamp,
-        TKey key);
+    virtual void RemoveStore(IStorePtr store) = 0;
+    virtual void BackoffStoreRemoval(IStorePtr store) = 0;
 
-    void ConfirmRow(TTransaction* transaction, const TDynamicRowRef& rowRef);
-    void PrepareRow(TTransaction* transaction, const TDynamicRowRef& rowRef);
-    void CommitRow(TTransaction* transaction, const TDynamicRowRef& rowRef);
-    void AbortRow(TTransaction* transaction, const TDynamicRowRef& rowRef);
+    //! Creates and sets an empty dynamic store.
+    virtual void CreateActiveStore() = 0;
 
-    bool IsNearActiveStoreOverflow() const;
+    virtual bool IsStoreLocked(IStorePtr store) const = 0;
+    virtual std::vector<IStorePtr> GetLockedStores() const = 0;
 
-    bool IsPeriodicRotationNeeded() const;
-    bool IsRotationPossible() const;
-    bool IsForcedRotationPossible() const;
-    bool IsRotationScheduled() const;
-    void ScheduleRotation();
-    void Rotate(bool createNewStore);
+    virtual IChunkStorePtr PeekStoreForPreload() = 0;
+    virtual void BeginStorePreload(
+        IChunkStorePtr store,
+        TFuture<void> future) = 0;
+    virtual void EndStorePreload(IChunkStorePtr store) = 0;
+    virtual void BackoffStorePreload(IChunkStorePtr store) = 0;
 
-    void AddStore(IStorePtr store);
-    void RemoveStore(IStorePtr store);
-    void CreateActiveStore();
+    virtual bool IsStoreFlushable(IStorePtr store) const = 0;
+    virtual void BeginStoreFlush(IDynamicStorePtr store) = 0;
+    virtual void EndStoreFlush(IDynamicStorePtr store) = 0;
+    virtual void BackoffStoreFlush(IDynamicStorePtr store) = 0;
 
-    bool IsStoreLocked(TDynamicMemoryStorePtr store) const;
-    const yhash_set<TDynamicMemoryStorePtr>& GetLockedStores() const;
+    virtual bool IsStoreCompactable(IStorePtr store) const = 0;
+    virtual void BeginStoreCompaction(IChunkStorePtr store) = 0;
+    virtual void EndStoreCompaction(IChunkStorePtr store) = 0;
+    virtual void BackoffStoreCompaction(IChunkStorePtr store) = 0;
 
-    static bool IsStoreFlushable(IStorePtr store);
-    void BeginStoreFlush(TDynamicMemoryStorePtr store);
-    void EndStoreFlush(TDynamicMemoryStorePtr store);
-    void BackoffStoreFlush(TDynamicMemoryStorePtr store);
-
-    static bool IsStoreCompactable(IStorePtr store);
-    void BeginStoreCompaction(TChunkStorePtr store);
-    void EndStoreCompaction(TChunkStorePtr store);
-    void BackoffStoreCompaction(TChunkStorePtr store);
-
-    void ScheduleStorePreload(TChunkStorePtr store);
-    bool TryPreloadStoreFromInterceptedData(TChunkStorePtr store, TInMemoryChunkDataPtr chunkData);
-    TChunkStorePtr PeekStoreForPreload();
-    void BeginStorePreload(TChunkStorePtr store, TFuture<void> future);
-    void EndStorePreload(TChunkStorePtr store);
-    void BackoffStorePreload(TChunkStorePtr store);
-
-    void BackoffStoreRemoval(IStorePtr store);
-
-    void Remount(
+    virtual void Remount(
         TTableMountConfigPtr mountConfig,
-        TTabletWriterOptionsPtr writerOptions);
-
-private:
-    const TTabletManagerConfigPtr Config_;
-    TTablet* const Tablet_;
-    const TCallback<TDynamicMemoryStorePtr()> DynamicMemoryStoreFactory_;
-
-    int KeyColumnCount_;
-
-    bool RotationScheduled_;
-    TInstant LastRotated_;
-
-    yhash_set<TDynamicMemoryStorePtr> LockedStores_;
-    std::multimap<TTimestamp, IStorePtr> MaxTimestampToStore_;
-
-    NLogging::TLogger Logger;
-
-private:
-    ui32 ComputeLockMask(TUnversionedRow row);
-
-    void CheckInactiveStoresLocks(
-        TTransaction* transaction,
-        TUnversionedRow row,
-        ui32 lockMask);
-
-    void CheckForUnlockedStore(TDynamicMemoryStore* store);
-
-    void ValidateActiveStoreOverflow();
-    void ValidateOnWrite(const TTransactionId& transactionId, TUnversionedRow row);
-    void ValidateOnDelete(const TTransactionId& transactionId, TKey key);
-
-    bool IsRecovery() const;
-
-    void UpdateInMemoryMode();
-
+        TTabletWriterOptionsPtr writerOptions) = 0;
 };
 
-DEFINE_REFCOUNTED_TYPE(TStoreManager)
+DEFINE_REFCOUNTED_TYPE(IStoreManager)
 
 ////////////////////////////////////////////////////////////////////////////////
 

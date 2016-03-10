@@ -1,5 +1,5 @@
-#ifndef DYNAMIC_MEMORY_STORE_INL_H_
-#error "Direct inclusion of this file is not allowed, include dynamic_memory_store.h"
+#ifndef SORTED_DYNAMIC_STORE_INL_H_
+#error "Direct inclusion of this file is not allowed, include sorted_dynamic_store.h"
 #endif
 
 namespace NYT {
@@ -7,7 +7,7 @@ namespace NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTimestamp TDynamicMemoryStore::TimestampFromRevision(ui32 revision) const
+TTimestamp TSortedDynamicStore::TimestampFromRevision(ui32 revision) const
 {
     return RevisionToTimestamp_[revision];
 }

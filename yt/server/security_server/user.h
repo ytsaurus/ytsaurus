@@ -18,9 +18,9 @@ namespace NSecurityServer {
 
 struct TUserStatistics
 {
-    i64 RequestCounter = 0;
-    TDuration ReadRequestTimer;
-    TDuration WriteRequestTimer;
+    i64 RequestCount = 0;
+    TDuration ReadRequestTime;
+    TDuration WriteRequestTime;
     TInstant AccessTime;
 
     void Persist(NCellMaster::TPersistenceContext& context);
@@ -53,7 +53,7 @@ public:
     
     // Request rate management.
     DEFINE_BYVAL_RW_PROPERTY(TInstant, CheckpointTime);
-    DEFINE_BYVAL_RW_PROPERTY(i64, CheckpointRequestCounter);
+    DEFINE_BYVAL_RW_PROPERTY(i64, CheckpointRequestCount);
     DEFINE_BYVAL_RW_PROPERTY(double, RequestRate);
 
 public:

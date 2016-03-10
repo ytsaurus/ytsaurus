@@ -9,6 +9,8 @@
 #include <yt/ytlib/chunk_client/helpers.h>
 #include <yt/ytlib/chunk_client/reader_factory.h>
 
+#include <yt/ytlib/node_tracker_client/node_directory.h>
+
 #include <yt/core/concurrency/scheduler.h>
 
 namespace NYT {
@@ -57,7 +59,7 @@ TFuture<void> TPartitionChunkReader::InitializeBlockSequence()
         TProtoExtensionTag<TKeyColumnsExt>::Value
     };
 
-    ChunkMeta_ = WaitFor(UnderlyingReader_->GetMeta(PartitionTag_, extensionTags))
+    ChunkMeta_ = WaitFor(UnderlyingReader_->GetMeta(Config_->WorkloadDescriptor, PartitionTag_, extensionTags))
         .ValueOrThrow();
 
     TNameTablePtr chunkNameTable;
@@ -146,6 +148,8 @@ TPartitionMultiChunkReaderPtr CreatePartitionMultiChunkReader(
                 options,
                 client,
                 nodeDirectory,
+                //XXX(babenko): hotfix for YT-3915
+                Null,
                 blockCache,
                 GetUnlimitedThrottler());
 

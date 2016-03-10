@@ -118,6 +118,7 @@ DEFINE_ENUM(EObjectType,
     ((ParityMissingChunkMap)      (420))
     ((QuorumMissingChunkMap)      (424))
     ((UnsafelyPlacedChunkMap)     (120))
+    ((ForeignChunkMap)            (122))
     ((ChunkList)                  (101))
     ((ChunkListMap)               (406))
         
@@ -164,7 +165,7 @@ DEFINE_ENUM(EObjectType,
     ((TabletCellNode)             (701))
     ((Tablet)                     (702))
     ((TabletMap)                  (703))
-    ((DynamicMemoryTabletStore)   (704))
+    ((SortedDynamicTabletStore)   (704))
     ((TabletPartition)            (705))
     ((TabletCellBundle)           (706))
     ((TabletCellBundleMap)        (707))
