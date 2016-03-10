@@ -284,9 +284,9 @@ LIBRARY()
 
 OWNER(sandello)
 
-SET_APPEND(BASE_CXXFLAGS -std=c++1y)
 
 CXXFLAGS(
+  -std=c++1y
   -Wno-sign-compare
   -Wno-unused-parameter
   -Wno-unused-value
