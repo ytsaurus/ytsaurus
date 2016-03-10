@@ -1337,13 +1337,11 @@ private:
             TClient* owner,
             TTabletInfoPtr tabletInfo,
             const TLookupRowsOptions& options,
-            const TNameTableToSchemaIdMapping& idMapping,
             const TTableSchema& schema,
             int keyColumnCount)
             : Config_(owner->Connection_->GetConfig())
             , TabletId_(tabletInfo->TabletId)
             , Options_(options)
-            , IdMapping_(idMapping)
             , Schema_(schema)
             , KeyColumnCount_(keyColumnCount)
         { }
@@ -1371,7 +1369,7 @@ private:
                 TWireProtocolWriter writer;
                 writer.WriteCommand(EWireProtocolCommand::LookupRows);
                 writer.WriteMessage(req);
-                writer.WriteSchemafulRowset(batch->Keys, IdMapping_.empty() ? nullptr : &IdMapping_);
+                writer.WriteSchemafulRowset(batch->Keys, nullptr);
 
                 auto chunkedData = writer.Flush();
 
@@ -1432,7 +1430,6 @@ private:
         const TConnectionConfigPtr Config_;
         const TTabletId TabletId_;
         const TLookupRowsOptions Options_;
-        const TNameTableToSchemaIdMapping IdMapping_;
         const TTableSchema& Schema_;
         const int KeyColumnCount_;
 
@@ -1532,12 +1529,11 @@ private:
                 auto capturedKey = evaluator->EvaluateKeys(keys[index], rowBuffer, idMapping, tableInfo->Schema);
                 sortedKeys.push_back(std::make_pair(capturedKey, index));
             }
-
-            idMapping.clear();
         } else {
             for (int index = 0; index < static_cast<int>(keys.size()); ++index) {
                 ValidateClientKey(keys[index], keyColumnCount, tableInfo->Schema, idMapping);
-                sortedKeys.push_back(std::make_pair(keys[index], index));
+                auto capturedKey = CaptureRow(keys[index], rowBuffer, tableInfo->Schema, keyColumnCount, idMapping);
+                sortedKeys.push_back(std::make_pair(capturedKey, index));
             }
         }
         std::sort(sortedKeys.begin(), sortedKeys.end());
@@ -1556,7 +1552,6 @@ private:
                         this,
                         tabletInfo,
                         options,
-                        idMapping,
                         tableInfo->Schema,
                         tableInfo->KeyColumns.size())))
                     .first;
