@@ -1857,34 +1857,19 @@ void TOperationControllerBase::CheckTimeLimit()
 }
 
 TJobStartRequestPtr TOperationControllerBase::ScheduleJob(
-    ISchedulingContext* context,
+    ISchedulingContextPtr context,
     const TJobResources& jobLimits)
 {
     VERIFY_INVOKER_AFFINITY(CancelableInvoker);
 
-    auto request = DoScheduleJob(context, jobLimits);
-    if (request) {
+    // ScheduleJob must be a synchronous action, any context switches are prohibited.
+    TContextSwitchedGuard contextSwitchGuard(BIND([] { YUNREACHABLE(); }));
+
+    auto jobStartRequest = DoScheduleJob(context.Get(), jobLimits);
+    if (jobStartRequest) {
         JobCounter.Start(1);
     }
-    return request;
-
-    //auto jobStartRequestOrError = WaitFor(
-    //    BIND(&TOperationControllerBase::DoScheduleJob, MakeStrong(this))
-    //        .AsyncVia(CancelableInvoker)
-    //        .Run(context, jobLimits)
-    //        .WithTimeout(Config->ControllerScheduleJobTimeLimit));
-
-    //if (jobStartRequestOrError.GetCode() == NYT::EErrorCode::Timeout) {
-    //    OnOperationFailed(TError("Controller is scheduling for too long, aborted")
-    //        << TErrorAttribute("time_limit", Config->ControllerScheduleJobTimeLimit));
-    //    return nullptr;
-    //}
-
-    //auto jobStartRequest = jobStartRequestOrError.ValueOrThrow();
-    //if (jobStartRequest) {
-    //    OnJobStarted(jobStartRequest->Id);
-    //}
-    //return jobStartRequest;
+    return jobStartRequest;
 }
 
 void TOperationControllerBase::UpdateConfig(TSchedulerConfigPtr config)

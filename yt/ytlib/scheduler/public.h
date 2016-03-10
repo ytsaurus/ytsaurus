@@ -59,6 +59,7 @@ DEFINE_ENUM(EAbortReason,
     (ResourceOverdraft)
     (Other)
     (Preemption)
+    (SchedulingTimeout)
 );
 
 DEFINE_ENUM(EJobFinalState,

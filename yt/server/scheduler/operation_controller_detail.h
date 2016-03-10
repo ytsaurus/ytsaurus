@@ -102,7 +102,7 @@ public:
     virtual void Abort() override;
 
     virtual TJobStartRequestPtr ScheduleJob(
-        ISchedulingContext* context,
+        ISchedulingContextPtr context,
         const TJobResources& jobLimits) override;
 
     virtual void UpdateConfig(TSchedulerConfigPtr config) override;

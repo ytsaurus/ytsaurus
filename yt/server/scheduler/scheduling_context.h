@@ -12,6 +12,7 @@ namespace NScheduler {
 ////////////////////////////////////////////////////////////////////////////////
 
 struct ISchedulingContext
+    : public virtual TRefCounted
 {
     virtual ~ISchedulingContext() = default;
 
@@ -46,7 +47,9 @@ struct ISchedulingContext
     virtual TJobId GenerateJobId() = 0;
 };
 
-std::unique_ptr<ISchedulingContext> CreateSchedulingContext(
+DEFINE_REFCOUNTED_TYPE(ISchedulingContext)
+
+ISchedulingContextPtr CreateSchedulingContext(
     TSchedulerConfigPtr config,
     TExecNodePtr node,
     const std::vector<TJobPtr>& runningJobs,

@@ -32,17 +32,13 @@ public:
 
 ////////////////////////////////////////////////////////////////////
 
-std::unique_ptr<ISchedulingContext> CreateSchedulingContext(
+ISchedulingContextPtr CreateSchedulingContext(
     TSchedulerConfigPtr config,
     TExecNodePtr node,
     const std::vector<TJobPtr>& runningJobs,
     TCellTag cellTag)
 {
-    return std::unique_ptr<ISchedulingContext>(new TSchedulingContext(
-        config,
-        node,
-        runningJobs,
-        cellTag));
+    return New<TSchedulingContext>(config, node, runningJobs, cellTag);
 }
 
 ////////////////////////////////////////////////////////////////////
