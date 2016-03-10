@@ -1,5 +1,4 @@
 #include "serialize.h"
-#include "private.h"
 
 namespace NYT {
 namespace NTabletNode {
