@@ -41,26 +41,26 @@ class TestUsers(YTEnvSetup):
 
     def test_access_counter1(self):
         create_user("u")
-        assert get("//sys/users/u/@request_counter") == 0
+        assert get("//sys/users/u/@request_count") == 0
 
         ls("//tmp", user="u")
         sleep(1.0)
-        assert get("//sys/users/u/@request_counter") == 1
+        assert get("//sys/users/u/@request_count") == 1
 
     def test_access_counter2(self):
         create_user('u')
-        with pytest.raises(YtError): set('//sys/users/u/@request_counter', -1.0)
+        with pytest.raises(YtError): set('//sys/users/u/@request_count', -1.0)
 
     def test_access_counter3(self):
         create_user('u')
 
-        assert get("//sys/users/u/@request_counter") == 0
+        assert get("//sys/users/u/@request_count") == 0
 
         # Transaction ping is not accounted in request counter
         tx = start_transaction()
         ping_transaction(tx, user='u')
 
-        assert get("//sys/users/u/@request_counter") == 0
+        assert get("//sys/users/u/@request_count") == 0
 
     def test_builtin_init(self):
         assert sorted(get("//sys/groups/everyone/@members")) == sorted(["users", "guest"])

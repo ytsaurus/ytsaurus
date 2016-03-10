@@ -622,7 +622,9 @@ public:
             auto* chunkList = chunkLists[tabletIndex]->AsChunkList();
             auto chunks = EnumerateChunksInChunkTree(chunkList);
             for (const auto* chunk : chunks) {
-                auto* descriptor = req.add_chunk_stores();
+                auto* descriptor = req.add_stores();
+                // XXX(babenko): generalize
+                descriptor->set_store_type(static_cast<int>(NTabletNode::EStoreType::SortedChunk));
                 ToProto(descriptor->mutable_store_id(), chunk->GetId());
                 descriptor->mutable_chunk_meta()->CopyFrom(chunk->ChunkMeta());
             }

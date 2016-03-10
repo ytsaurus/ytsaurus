@@ -20,7 +20,9 @@ public:
         , Blocks_(std::move(blocks))
     { }
 
-    virtual TFuture<std::vector<TSharedRef>> ReadBlocks(const std::vector<int>& blockIndexes) override
+    virtual TFuture<std::vector<TSharedRef>> ReadBlocks(
+        const TWorkloadDescriptor& /*workloadDescriptor*/,
+        const std::vector<int>& blockIndexes) override
     {
         std::vector<TSharedRef> blocks;
         for (auto index : blockIndexes) {
@@ -30,7 +32,10 @@ public:
         return MakeFuture(std::move(blocks));
     }
 
-    virtual TFuture<std::vector<TSharedRef>> ReadBlocks(int firstBlockIndex, int blockCount) override
+    virtual TFuture<std::vector<TSharedRef>> ReadBlocks(
+        const TWorkloadDescriptor& /*workloadDescriptor*/,
+        int firstBlockIndex,
+        int blockCount) override
     {
         if (firstBlockIndex >= Blocks_.size()) {
             return MakeFuture(std::vector<TSharedRef>());
@@ -42,6 +47,7 @@ public:
     }
 
     virtual TFuture<TChunkMeta> GetMeta(
+        const TWorkloadDescriptor& /*workloadDescriptor*/,
         const TNullable<int>& partitionTag,
         const TNullable<std::vector<int>>& extensionTags) override
     {

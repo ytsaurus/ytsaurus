@@ -44,6 +44,7 @@ public:
 
     static TFuture<TCachedVersionedChunkMetaPtr> Load(
         NChunkClient::IChunkReaderPtr chunkReader,
+        const TWorkloadDescriptor& workloadDescriptor,
         const TTableSchema& schema);
 
 private:
@@ -51,6 +52,7 @@ private:
 
     TCachedVersionedChunkMetaPtr DoLoad(
         NChunkClient::IChunkReaderPtr chunkReader,
+        const TWorkloadDescriptor& workloadDescriptor,
         const TTableSchema& schema);
 
     void Init(

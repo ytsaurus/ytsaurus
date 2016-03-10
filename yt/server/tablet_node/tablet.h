@@ -1,7 +1,7 @@
 #pragma once
 
 #include "public.h"
-#include "dynamic_memory_store_comparer.h"
+#include "sorted_dynamic_comparer.h"
 #include "partition.h"
 #include "object_detail.h"
 
@@ -30,7 +30,6 @@ namespace NTabletNode {
 struct TTabletSnapshot
     : public TIntrinsicRefCounted
 {
-    TTabletSlotPtr Slot;
     NHydra::TCellId CellId;
     NHydra::IHydraManagerPtr HydraManager;
     TTabletManagerPtr TabletManager;
@@ -49,8 +48,8 @@ struct TTabletSnapshot
 
     TPartitionSnapshotPtr Eden;
 
-    typedef std::vector<TPartitionSnapshotPtr> TPartitionList;
-    typedef TPartitionList::iterator TPartitionListIterator;
+    using TPartitionList = std::vector<TPartitionSnapshotPtr>;
+    using TPartitionListIterator = TPartitionList::iterator;
     TPartitionList Partitions;
 
     int StoreCount = 0;
@@ -58,7 +57,7 @@ struct TTabletSnapshot
     int PreloadCompletedStoreCount = 0;
     int PreloadFailedStoreCount = 0;
 
-    TDynamicRowKeyComparer RowKeyComparer;
+    TSortedDynamicRowKeyComparer RowKeyComparer;
 
     TTabletPerformanceCountersPtr PerformanceCounters;
 
@@ -83,15 +82,31 @@ DEFINE_REFCOUNTED_TYPE(TTabletSnapshot)
 struct TTabletPerformanceCounters
     : public TChunkReaderPerformanceCounters
 {
-    std::atomic<i64> DynamicMemoryRowReadCount = {0};
-    std::atomic<i64> DynamicMemoryRowLookupCount = {0};
-    std::atomic<i64> DynamicMemoryRowWriteCount = {0};
-    std::atomic<i64> DynamicMemoryRowDeleteCount = {0};
+    std::atomic<i64> DynamicRowReadCount = {0};
+    std::atomic<i64> DynamicRowLookupCount = {0};
+    std::atomic<i64> DynamicRowWriteCount = {0};
+    std::atomic<i64> DynamicRowDeleteCount = {0};
     std::atomic<i64> UnmergedRowReadCount = {0};
     std::atomic<i64> MergedRowReadCount = {0};
 };
 
 DEFINE_REFCOUNTED_TYPE(TTabletPerformanceCounters)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct ITabletContext
+{
+    virtual ~ITabletContext() = default;
+
+    virtual NObjectClient::TCellId GetCellId() = 0;
+    virtual NQueryClient::TColumnEvaluatorCachePtr GetColumnEvaluatorCache() = 0;
+    virtual NObjectClient::TObjectId GenerateId(NObjectClient::EObjectType type) = 0;
+    virtual IStorePtr CreateStore(
+        TTablet* tablet,
+        EStoreType type,
+        const TStoreId& storeId) = 0;
+    virtual IStoreManagerPtr CreateStoreManager(TTablet* tablet) = 0;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -102,9 +117,6 @@ class TTablet
 public:
     DEFINE_BYVAL_RO_PROPERTY(i64, MountRevision);
     DEFINE_BYVAL_RO_PROPERTY(NObjectClient::TObjectId, TableId);
-    DEFINE_BYVAL_RO_PROPERTY(TTabletSlotPtr, Slot);
-
-    DEFINE_BYVAL_RO_PROPERTY(TTabletSnapshotPtr, Snapshot);
 
     DEFINE_BYREF_RO_PROPERTY(NTableClient::TTableSchema, Schema);
     DEFINE_BYREF_RO_PROPERTY(NTableClient::TKeyColumns, KeyColumns);
@@ -128,25 +140,24 @@ public:
 
     DEFINE_BYVAL_RO_PROPERTY(int, OverlappingStoreCount);
 
+    DEFINE_BYVAL_RW_PROPERTY(IDynamicStorePtr, ActiveStore);
+
 public:
     TTablet(
         const TTabletId& tabletId,
-        TTabletSlotPtr slot);
+        ITabletContext* context);
     TTablet(
         TTableMountConfigPtr config,
         TTabletWriterOptionsPtr writerOptions,
         const TTabletId& tabletId,
         i64 mountRevision,
         const NObjectClient::TObjectId& tableId,
-        TTabletSlotPtr slot,
-        NQueryClient::TColumnEvaluatorCachePtr columnEvaluatorCache,
+        ITabletContext* context,
         const NTableClient::TTableSchema& schema,
         const NTableClient::TKeyColumns& keyColumns,
         TOwningKey pivotKey,
         TOwningKey nextPivotKey,
         NTransactionClient::EAtomicity atomicity);
-
-    ~TTablet();
 
     ETabletState GetPersistentState() const;
 
@@ -156,12 +167,11 @@ public:
     const TTabletWriterOptionsPtr& GetWriterOptions() const;
     void SetWriterOptions(TTabletWriterOptionsPtr options);
 
-    const TStoreManagerPtr& GetStoreManager() const;
-    void SetStoreManager(TStoreManagerPtr storeManager);
+    const IStoreManagerPtr& GetStoreManager() const;
 
     const TTabletPerformanceCountersPtr& GetPerformanceCounters() const;
 
-    typedef std::vector<std::unique_ptr<TPartition>> TPartitionList;
+    using TPartitionList = std::vector<std::unique_ptr<TPartition>>;
     const TPartitionList& Partitions() const;
     TPartition* GetEden() const;
     void CreateInitialPartition();
@@ -171,7 +181,6 @@ public:
     TPartition* GetPartitionById(const TPartitionId& partitionId);
     void MergePartitions(int firstIndex, int lastIndex);
     void SplitPartition(int index, const std::vector<TOwningKey>& pivotKeys);
-
     //! Finds a partition fully containing the range |[minKey, maxKey]|.
     //! Returns the Eden if no such partition exists.
     TPartition* GetContainingPartition(
@@ -183,9 +192,6 @@ public:
     void RemoveStore(IStorePtr store);
     IStorePtr FindStore(const TStoreId& id);
     IStorePtr GetStore(const TStoreId& id);
-
-    const TDynamicMemoryStorePtr& GetActiveStore() const;
-    void SetActiveStore(TDynamicMemoryStorePtr store);
 
     void Save(TSaveContext& context) const;
     void Load(TLoadContext& context);
@@ -201,10 +207,9 @@ public:
     void StopEpoch();
     IInvokerPtr GetEpochAutomatonInvoker(EAutomatonThreadQueue queue = EAutomatonThreadQueue::Default);
 
-    TTabletSnapshotPtr RebuildSnapshot();
-    void ResetSnapshot();
+    TTabletSnapshotPtr BuildSnapshot(TTabletSlotPtr slot) const;
 
-    const TDynamicRowKeyComparer& GetRowKeyComparer() const;
+    const TSortedDynamicRowKeyComparer& GetRowKeyComparer() const;
 
     void ValidateMountRevision(i64 mountRevision);
 
@@ -212,7 +217,7 @@ private:
     TTableMountConfigPtr Config_;
     TTabletWriterOptionsPtr WriterOptions_;
 
-    TStoreManagerPtr StoreManager_;
+    IStoreManagerPtr StoreManager_;
 
     TTabletPerformanceCountersPtr PerformanceCounters_;
 
@@ -224,20 +229,22 @@ private:
     yhash_map<TPartitionId, TPartition*> PartitionMap_;
 
     yhash_map<TStoreId, IStorePtr> Stores_;
-    TDynamicMemoryStorePtr ActiveStore_;
 
-    TDynamicRowKeyComparer RowKeyComparer_;
+    TSortedDynamicRowKeyComparer RowKeyComparer_;
 
     int ColumnLockCount_ = -1;
 
-    NQueryClient::TColumnEvaluatorCachePtr ColumnEvaluatorCache_;
+    ITabletContext* const Context_;
+
     NQueryClient::TColumnEvaluatorPtr ColumnEvaluator_;
 
-    void Initialize();
 
-    TPartition* GetContainingPartition(IStorePtr store);
-    NObjectClient::TObjectId GenerateId(NObjectClient::EObjectType type);
-    void UpdateOverlappingStoreCount();
+    void PreInitialize();
+    void PostInitialize();
+
+    TPartition* GetContainingPartition(const ISortedStorePtr& store);
+
+ 	void UpdateOverlappingStoreCount();
 };
 
 ////////////////////////////////////////////////////////////////////////////////

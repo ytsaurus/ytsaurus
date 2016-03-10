@@ -1,7 +1,7 @@
-#include "memory_store_ut.h"
+#include "sorted_dynamic_store_ut_helpers.h"
 
 #include <yt/server/tablet_node/lookup.h>
-#include <yt/server/tablet_node/store_manager.h>
+#include <yt/server/tablet_node/sorted_store_manager.h>
 
 #include <yt/ytlib/tablet_client/wire_protocol.h>
 #include <yt/ytlib/tablet_client/wire_protocol.pb.h>
@@ -10,27 +10,31 @@ namespace NYT {
 namespace NTabletNode {
 namespace {
 
+using namespace NObjectClient;
 using namespace NTabletClient;
 using namespace NTabletClient::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TStoreManagerTestBase
-    : public TMemoryStoreTestBase
+    : public TSortedDynamicStoreTestBase
 {
 protected:
+    virtual IStoreManagerPtr CreateStoreManager(TTablet* tablet) override
+    {
+        YCHECK(!StoreManager_);
+        StoreManager_ = New<TSortedStoreManager>(
+            New<TTabletManagerConfig>(),
+            tablet,
+            this,
+            nullptr,
+            nullptr);
+        return StoreManager_;
+    }
+
     virtual void SetUp() override
     {
-        TMemoryStoreTestBase::SetUp();
-
-        auto config = New<TTabletManagerConfig>();
-        StoreManager_ = New<TStoreManager>(
-            config,
-            Tablet_.get(),
-            BIND([=] () {
-                return New<TDynamicMemoryStore>(config, TStoreId::Create(), Tablet_.get());
-            }));
-        Tablet_->SetStoreManager(StoreManager_);
+        TSortedDynamicStoreTestBase::SetUp();
 
         StoreManager_->StartEpoch(nullptr);
         StoreManager_->CreateActiveStore();
@@ -42,7 +46,7 @@ protected:
         StoreManager_->Rotate(true);
     }
 
-    TDynamicRowRef WriteRow(
+    TSortedDynamicRowRef WriteRow(
         TTransaction* transaction,
         TUnversionedRow row,
         bool prelock)
@@ -66,7 +70,7 @@ protected:
         StoreManager_->CommitRow(transaction.get(), rowRef);
     }
 
-    TDynamicRowRef DeleteRow(
+    TSortedDynamicRowRef DeleteRow(
         TTransaction* transaction,
         TUnversionedRow row,
         bool prelock)
@@ -90,27 +94,27 @@ protected:
         StoreManager_->CommitRow(transaction.get(), rowRef);
     }
 
-    void PrepareRow(TTransaction* transaction, const TDynamicRowRef& rowRef)
+    void PrepareRow(TTransaction* transaction, const TSortedDynamicRowRef& rowRef)
     {
         StoreManager_->PrepareRow(transaction, rowRef);
     }
 
-    void CommitRow(TTransaction* transaction, const TDynamicRowRef& rowRef)
+    void CommitRow(TTransaction* transaction, const TSortedDynamicRowRef& rowRef)
     {
         StoreManager_->CommitRow(transaction, rowRef);
     }
 
-    void AbortRow(TTransaction* transaction, const TDynamicRowRef& rowRef)
+    void AbortRow(TTransaction* transaction, const TSortedDynamicRowRef& rowRef)
     {
         StoreManager_->AbortRow(transaction, rowRef);
     }
 
-    void ConfirmRow(TTransaction* transaction, const TDynamicRowRef& rowRef)
+    void ConfirmRow(TTransaction* transaction, const TSortedDynamicRowRef& rowRef)
     {
         StoreManager_->ConfirmRow(transaction, rowRef);
     }
 
-    using TMemoryStoreTestBase::LookupRow;
+    using TSortedDynamicStoreTestBase::LookupRow;
     
     TUnversionedOwningRow LookupRow(const TOwningKey& key, TTimestamp timestamp)
     {
@@ -131,7 +135,7 @@ protected:
             TWireProtocolReader reader(request);
             TWireProtocolWriter writer;
             LookupRows(
-                Tablet_->RebuildSnapshot(),
+                Tablet_->BuildSnapshot(nullptr),
                 timestamp,
                 TWorkloadDescriptor(),
                 &reader,
@@ -146,9 +150,14 @@ protected:
             return TUnversionedOwningRow(row);
         }
     }
+    
+    TSortedDynamicStorePtr GetActiveStore()
+    {
+        return Tablet_->GetActiveStore()->AsSortedDynamic();
+    }
 
 
-    TStoreManagerPtr StoreManager_;
+    TSortedStoreManagerPtr StoreManager_;
 
 };
 
@@ -167,7 +176,7 @@ TEST_F(TSingleLockStoreManagerTest, EmptyWriteFailure)
 
 TEST_F(TSingleLockStoreManagerTest, PrelockRow)
 {
-    auto store = Tablet_->GetActiveStore();
+    auto store = GetActiveStore();
     EXPECT_EQ(0, store->GetLockCount());
 
     auto transaction = StartTransaction();
@@ -186,7 +195,7 @@ TEST_F(TSingleLockStoreManagerTest, PrelockRow)
 
 TEST_F(TSingleLockStoreManagerTest, AbortRow)
 {
-    auto store = Tablet_->GetActiveStore();
+    auto store = GetActiveStore();
     EXPECT_EQ(0, store->GetLockCount());
 
     auto transaction = StartTransaction();
@@ -206,7 +215,7 @@ TEST_F(TSingleLockStoreManagerTest, AbortRow)
 
 TEST_F(TSingleLockStoreManagerTest, CommitRow)
 {
-    auto store = Tablet_->GetActiveStore();
+    auto store = GetActiveStore();
     EXPECT_EQ(0, store->GetLockCount());
 
     auto transaction = StartTransaction();
@@ -227,7 +236,7 @@ TEST_F(TSingleLockStoreManagerTest, CommitRow)
 
 TEST_F(TSingleLockStoreManagerTest, ConfirmRowWithRotation)
 {
-    auto store1 = Tablet_->GetActiveStore();
+    auto store1 = GetActiveStore();
 
     auto transaction = StartTransaction();
 
@@ -236,7 +245,7 @@ TEST_F(TSingleLockStoreManagerTest, ConfirmRowWithRotation)
     EXPECT_EQ(store1, rowRef1.Store);
 
     Rotate();
-    auto store2 = Tablet_->GetActiveStore();
+    auto store2 = GetActiveStore();
 
     EXPECT_NE(store1, store2);
     EXPECT_EQ(1, store1->GetLockCount());
@@ -267,7 +276,7 @@ TEST_F(TSingleLockStoreManagerTest, ConfirmRowWithRotation)
 
 TEST_F(TSingleLockStoreManagerTest, PrepareRowWithRotation)
 {
-    auto store1 = Tablet_->GetActiveStore();
+    auto store1 = GetActiveStore();
 
     auto transaction = StartTransaction();
 
@@ -275,7 +284,7 @@ TEST_F(TSingleLockStoreManagerTest, PrepareRowWithRotation)
     EXPECT_EQ(1, transaction->LockedRows().size());
 
     Rotate();
-    auto store2 = Tablet_->GetActiveStore();
+    auto store2 = GetActiveStore();
 
     EXPECT_NE(store1, store2);
     EXPECT_EQ(1, store1->GetLockCount());
@@ -305,7 +314,7 @@ TEST_F(TSingleLockStoreManagerTest, PrepareRowWithRotation)
 
 TEST_F(TSingleLockStoreManagerTest, MigrateRow)
 {
-    auto store1 = Tablet_->GetActiveStore();
+    auto store1 = GetActiveStore();
 
     auto transaction = StartTransaction();
 
@@ -319,7 +328,7 @@ TEST_F(TSingleLockStoreManagerTest, MigrateRow)
     PrepareRow(transaction.get(), rowRef);
 
     Rotate();
-    auto store2 = Tablet_->GetActiveStore();
+    auto store2 = GetActiveStore();
 
     EXPECT_NE(store1, store2);
     EXPECT_EQ(1, store1->GetLockCount());
@@ -338,7 +347,7 @@ TEST_F(TSingleLockStoreManagerTest, MigrateRow)
 
 TEST_F(TSingleLockStoreManagerTest, WriteSameRowWithRotation)
 {
-    auto store1 = Tablet_->GetActiveStore();
+    auto store1 = GetActiveStore();
 
     auto transaction = StartTransaction();
 
@@ -421,7 +430,7 @@ TEST_F(TSingleLockStoreManagerTest, WriteWriteConflictWithRotation3)
     auto transaction1 = StartTransaction();
     auto transaction2 = StartTransaction();
 
-    auto store1 = Tablet_->GetActiveStore();
+    auto store1 = GetActiveStore();
 
     WriteRow(transaction1.get(), BuildRow("key=1;a=1"), true);
 
@@ -436,7 +445,7 @@ TEST_F(TSingleLockStoreManagerTest, WriteWriteConflictWithRotation3)
 
 TEST_F(TSingleLockStoreManagerTest, AbortRowWithRotation)
 {
-    auto store1 = Tablet_->GetActiveStore();
+    auto store1 = GetActiveStore();
 
     auto transaction = StartTransaction();
 
@@ -444,7 +453,7 @@ TEST_F(TSingleLockStoreManagerTest, AbortRowWithRotation)
     EXPECT_EQ(1, transaction->LockedRows().size());
 
     Rotate();
-    auto store2 = Tablet_->GetActiveStore();
+    auto store2 = GetActiveStore();
 
     EXPECT_NE(store1, store2);
     EXPECT_EQ(1, store1->GetLockCount());
@@ -503,7 +512,7 @@ TEST_F(TSingleLockStoreManagerTest, LookupRow4)
 
 TEST_F(TSingleLockStoreManagerTest, UnlockStoreOnCommit)
 {
-    auto store = Tablet_->GetActiveStore();
+    auto store = GetActiveStore();
     auto transaction = StartTransaction();
 
     WriteRow(transaction.get(), BuildRow("key=1;a=1"), false);
@@ -524,7 +533,7 @@ TEST_F(TSingleLockStoreManagerTest, UnlockStoreOnCommit)
 
 TEST_F(TSingleLockStoreManagerTest, UnlockStoreOnAbort)
 {
-    auto store = Tablet_->GetActiveStore();
+    auto store = GetActiveStore();
     auto transaction = StartTransaction();
 
     WriteRow(transaction.get(), BuildRow("key=1;a=1"), false);
@@ -543,7 +552,7 @@ TEST_F(TSingleLockStoreManagerTest, UnlockStoreOnAbort)
 
 TEST_F(TSingleLockStoreManagerTest, WriteRotateWrite)
 {
-    auto store1 = Tablet_->GetActiveStore();
+    auto store1 = GetActiveStore();
     EXPECT_EQ(0, store1->GetLockCount());
 
     auto transaction1 = StartTransaction();
@@ -565,7 +574,7 @@ TEST_F(TSingleLockStoreManagerTest, WriteRotateWrite)
     EXPECT_EQ(1, store1->GetLockCount());
 
     Rotate();
-    auto store2 = Tablet_->GetActiveStore();
+    auto store2 = GetActiveStore();
     EXPECT_NE(store1, store2);
 
     EXPECT_EQ(1, store1->GetLockCount());
@@ -595,7 +604,7 @@ TEST_F(TSingleLockStoreManagerTest, WriteRotateWrite)
 
 TEST_F(TSingleLockStoreManagerTest, WriteBlockedWrite)
 {
-    auto store = Tablet_->GetActiveStore();
+    auto store = GetActiveStore();
     EXPECT_EQ(0, store->GetLockCount());
 
     auto transaction1 = StartTransaction();
@@ -714,7 +723,7 @@ protected:
 
 TEST_F(TMultiLockStoreManagerTest, WriteTakesPrimaryLock)
 {
-    auto store = Tablet_->GetActiveStore();
+    auto store = GetActiveStore();
     auto transaction = StartTransaction();
     auto* transaction_ = transaction.get();
     auto row = WriteRow(transaction_, BuildRow("key=1;c=text", false), false).Row;
@@ -726,7 +735,7 @@ TEST_F(TMultiLockStoreManagerTest, WriteTakesPrimaryLock)
 
 TEST_F(TMultiLockStoreManagerTest, WriteTakesSecondaryLocks1)
 {
-    auto store = Tablet_->GetActiveStore();
+    auto store = GetActiveStore();
     auto transaction = StartTransaction();
     auto* transaction_ = transaction.get();
     auto row = WriteRow(transaction_, BuildRow("key=1;a=1", false), false).Row;
@@ -738,7 +747,7 @@ TEST_F(TMultiLockStoreManagerTest, WriteTakesSecondaryLocks1)
 
 TEST_F(TMultiLockStoreManagerTest, WriteTakesSecondaryLocks2)
 {
-    auto store = Tablet_->GetActiveStore();
+    auto store = GetActiveStore();
     auto transaction = StartTransaction();
     auto* transaction_ = transaction.get();
     auto row = WriteRow(transaction_, BuildRow("key=1;b=3.14", false), false).Row;
@@ -750,7 +759,7 @@ TEST_F(TMultiLockStoreManagerTest, WriteTakesSecondaryLocks2)
 
 TEST_F(TMultiLockStoreManagerTest, WriteTakesSecondaryLocks3)
 {
-    auto store = Tablet_->GetActiveStore();
+    auto store = GetActiveStore();
     auto transaction = StartTransaction();
     auto* transaction_ = transaction.get();
     auto row = WriteRow(transaction_, BuildRow("key=1;a=1;b=3.14", false), false).Row;
@@ -762,7 +771,7 @@ TEST_F(TMultiLockStoreManagerTest, WriteTakesSecondaryLocks3)
 
 TEST_F(TMultiLockStoreManagerTest, DeleteTakesPrimaryLock)
 {
-    auto store = Tablet_->GetActiveStore();
+    auto store = GetActiveStore();
     auto transaction = StartTransaction();
     auto* transaction_ = transaction.get();
     auto row = DeleteRow(transaction_, BuildKey("1"), false).Row;
@@ -776,7 +785,7 @@ TEST_F(TMultiLockStoreManagerTest, MigrateRow1)
 {
     auto key = BuildKey("1");
 
-    auto store1 = Tablet_->GetActiveStore();
+    auto store1 = GetActiveStore();
 
     auto transaction1 = StartTransaction();
     WriteRow(transaction1.get(), BuildRow("key=1;a=1", false), false);
@@ -799,7 +808,7 @@ TEST_F(TMultiLockStoreManagerTest, MigrateRow1)
     PrepareRow(transaction2.get(), rowRef2);
 
     Rotate();
-    auto store2 = Tablet_->GetActiveStore();
+    auto store2 = GetActiveStore();
 
     EXPECT_NE(store1, store2);
     EXPECT_EQ(2, store1->GetLockCount());
@@ -828,7 +837,7 @@ TEST_F(TMultiLockStoreManagerTest, MigrateRow2)
 {
     auto key = BuildKey("1");
 
-    auto store1 = Tablet_->GetActiveStore();
+    auto store1 = GetActiveStore();
 
     auto transaction1 = StartTransaction();
     WriteRow(transaction1.get(), BuildRow("key=1;a=1", false), false);
@@ -840,7 +849,7 @@ TEST_F(TMultiLockStoreManagerTest, MigrateRow2)
     PrepareRow(transaction1.get(), rowRef1);
 
     Rotate();
-    auto store2 = Tablet_->GetActiveStore();
+    auto store2 = GetActiveStore();
 
     EXPECT_NE(store1, store2);
     EXPECT_EQ(1, store1->GetLockCount());

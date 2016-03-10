@@ -1,8 +1,8 @@
 #pragma once
 
 #include "private.h"
-#include "dynamic_memory_store_bits.h"
-#include "dynamic_memory_store_comparer.h"
+#include "sorted_dynamic_store_bits.h"
+#include "sorted_dynamic_comparer.h"
 #include "store_detail.h"
 #include "transaction.h"
 
@@ -30,8 +30,8 @@ class TRowBlockedException
 {
 public:
     TRowBlockedException(
-        TDynamicMemoryStorePtr store,
-        TDynamicRow row,
+        TSortedDynamicStorePtr store,
+        TSortedDynamicRow row,
         ui32 lockMask,
         TTimestamp timestamp)
         : Store_(std::move(store))
@@ -40,8 +40,8 @@ public:
         , Timestamp_(timestamp)
     { }
 
-    DEFINE_BYVAL_RO_PROPERTY(TDynamicMemoryStorePtr, Store);
-    DEFINE_BYVAL_RO_PROPERTY(TDynamicRow, Row);
+    DEFINE_BYVAL_RO_PROPERTY(TSortedDynamicStorePtr, Store);
+    DEFINE_BYVAL_RO_PROPERTY(TSortedDynamicRow, Row);
     DEFINE_BYVAL_RO_PROPERTY(ui32, LockMask);
     DEFINE_BYVAL_RO_PROPERTY(TTimestamp, Timestamp);
 
@@ -49,19 +49,16 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDynamicMemoryStore
-    : public TStoreBase
+class TSortedDynamicStore
+    : public TDynamicStoreBase
+    , public TSortedStoreBase
 {
 public:
-    DEFINE_BYVAL_RW_PROPERTY(EStoreFlushState, FlushState);
-
-public:
-    TDynamicMemoryStore(
+    TSortedDynamicStore(
         TTabletManagerConfigPtr config,
         const TStoreId& id,
         TTablet* tablet);
-
-    ~TDynamicMemoryStore();
+    ~TSortedDynamicStore();
 
 
     //! Sets the store state, as expected.
@@ -78,15 +75,15 @@ public:
 
     //! Returns the cached instance of row key comparer
     //! (obtained by calling TTablet::GetRowKeyComparer).
-    const TDynamicRowKeyComparer& GetRowKeyComparer() const;
+    const TSortedDynamicRowKeyComparer& GetRowKeyComparer() const;
 
     int GetLockCount() const;
     int Lock();
     int Unlock();
 
-    using TRowBlockedHandler = TCallback<void(TDynamicRow row, int lockIndex)>;
+    using TRowBlockedHandler = TCallback<void(TSortedDynamicRow row, int lockIndex)>;
 
-    //! Sets the handler that is being invoked when read request faces a block row.
+    //! Sets the handler that is being invoked when read request faces a blocked row.
     void SetRowBlockedHandler(TRowBlockedHandler handler);
 
     //! Clears the blocked row handler.
@@ -95,7 +92,7 @@ public:
     //! Checks if a given #row has any locks from #lockMask with prepared timestamp
     //! less that #timestamp. If so, raises |RowBlocked| signal and loops.
     void WaitOnBlockedRow(
-        TDynamicRow row,
+        TSortedDynamicRow row,
         ui32 lockMask,
         TTimestamp timestamp);
 
@@ -106,17 +103,16 @@ public:
      *  On lock failure, throws TErrorException explaining the cause.
      *  If a blocked row is encountered, throws TRowBlockedException.
      */
-    TDynamicRow WriteRowAtomic(
+    TSortedDynamicRow WriteRowAtomic(
         TTransaction* transaction,
         NTableClient::TUnversionedRow row,
-        bool prelock,
         ui32 lockMask);
 
     //! Writes and immediately commits the row.
     /*!
      *  Only applies to non-atomic transactions. No locks are checked or taken.
      */
-    TDynamicRow WriteRowNonAtomic(
+    TSortedDynamicRow WriteRowNonAtomic(
         NTableClient::TUnversionedRow row,
         TTimestamp commitTimestamp);
 
@@ -127,32 +123,31 @@ public:
      *  On lock failure, throws TErrorException explaining the cause.
      *  If a blocked row is encountered, throws TRowBlockedException.
      */
-    TDynamicRow DeleteRowAtomic(
+    TSortedDynamicRow DeleteRowAtomic(
         TTransaction* transaction,
-        TKey key,
-        bool prelock);
+        TKey key);
 
     //! Deletes and immediately commits the row.
     /*!
      *  Only applies to non-atomic transactions. No locks are checked or taken.
      */
-    TDynamicRow DeleteRowNonAtomic(
+    TSortedDynamicRow DeleteRowNonAtomic(
         TKey key,
         TTimestamp commitTimestamp);
 
-    TDynamicRow MigrateRow(
+    TSortedDynamicRow MigrateRow(
         TTransaction* transaction,
-        TDynamicRow row);
+        TSortedDynamicRow row);
 
-    void ConfirmRow(TTransaction* transaction, TDynamicRow row);
-    void PrepareRow(TTransaction* transaction, TDynamicRow row);
-    void CommitRow(TTransaction* transaction, TDynamicRow row);
-    void AbortRow(TTransaction* transaction, TDynamicRow row);
+    void PrepareRow(TTransaction* transaction, TSortedDynamicRow row);
+    void CommitRow(TTransaction* transaction, TSortedDynamicRow row);
+    void AbortRow(TTransaction* transaction, TSortedDynamicRow row);
 
     // The following functions are made public for unit-testing.
-    TDynamicRow FindRow(NTableClient::TUnversionedRow key);
-    std::vector<TDynamicRow> GetAllRows();
-    TTimestamp GetLastCommitTimestamp(TDynamicRow row, int lockIndex);
+    TSortedDynamicRow FindRow(NTableClient::TUnversionedRow key);
+    std::vector<TSortedDynamicRow> GetAllRows();
+    Y_FORCE_INLINE TTimestamp TimestampFromRevision(ui32 revision) const;
+    TTimestamp GetLastCommitTimestamp(TSortedDynamicRow row, int lockIndex);
 
     int GetValueCount() const;
     int GetKeyCount() const;
@@ -166,6 +161,7 @@ public:
     virtual i64 GetUncompressedDataSize() const override;
     virtual i64 GetRowCount() const override;
 
+    // ISortedStore implementation.
     virtual TOwningKey GetMinKey() const override;
     virtual TOwningKey GetMaxKey() const override;
 
@@ -198,13 +194,11 @@ public:
 
     virtual void BuildOrchidYson(NYson::IYsonConsumer* consumer) override;
 
-    Y_FORCE_INLINE TTimestamp TimestampFromRevision(ui32 revision) const;
-
 private:
     class TReaderBase;
     class TRangeReader;
     class TLookupReader;
-    class TDynamicStoreLookupHashTable;
+    class TLookupHashTable;
 
     const TTabletManagerConfigPtr Config_;
 
@@ -212,10 +206,10 @@ private:
     //! So we capture a copy of this mode upon store's construction.
     const NTransactionClient::EAtomicity Atomicity_;
 
-    const TDynamicRowKeyComparer RowKeyComparer_;
+    const TSortedDynamicRowKeyComparer RowKeyComparer_;
     const NTableClient::TRowBufferPtr RowBuffer_;
-    const std::unique_ptr<TSkipList<TDynamicRow, TDynamicRowKeyComparer>> Rows_;
-    std::unique_ptr<TDynamicStoreLookupHashTable> LookupHashTable_;
+    const std::unique_ptr<TSkipList<TSortedDynamicRow, TSortedDynamicRowKeyComparer>> Rows_;
+	std::unique_ptr<TLookupHashTable> LookupHashTable_;
 
     ui32 FlushRevision_ = InvalidRevision;
 
@@ -226,43 +220,42 @@ private:
     TTimestamp MaxTimestamp_ = NTransactionClient::MinTimestamp;
 
     static const size_t RevisionsPerChunk = 1ULL << 13;
-    static const size_t MaxRevisionChunks = HardRevisionsPerDynamicMemoryStoreLimit / RevisionsPerChunk + 1;
+    static const size_t MaxRevisionChunks = HardRevisionsPerDynamicStoreLimit / RevisionsPerChunk + 1;
     TChunkedVector<TTimestamp, RevisionsPerChunk> RevisionToTimestamp_;
 
     NConcurrency::TReaderWriterSpinLock RowBlockedLock_;
     TRowBlockedHandler RowBlockedHandler_;
 
 
-    TDynamicRow AllocateRow();
+    TSortedDynamicRow AllocateRow();
 
     TRowBlockedHandler GetRowBlockedHandler();
     int GetBlockingLockIndex(
-        TDynamicRow row,
+        TSortedDynamicRow row,
         ui32 lockMask,
         TTimestamp timestamp);
     void ValidateRowNotBlocked(
-        TDynamicRow row,
+        TSortedDynamicRow row,
         ui32 lockMask,
         TTimestamp timestamp);
 
     void CheckRowLocks(
-        TDynamicRow row,
+        TSortedDynamicRow row,
         TTransaction* transaction,
         ui32 lockMask);
     void AcquireRowLocks(
-        TDynamicRow row,
+        TSortedDynamicRow row,
         TTransaction* transaction,
-        bool prelock,
         ui32 lockMask,
         bool deleteFlag);
 
-    TValueList PrepareFixedValue(TDynamicRow row, int index);
-    void AddDeleteRevision(TDynamicRow row, ui32 revision);
+    TValueList PrepareFixedValue(TSortedDynamicRow row, int index);
+    void AddDeleteRevision(TSortedDynamicRow row, ui32 revision);
     void AddWriteRevision(TLockDescriptor& lock, ui32 revision);
-    void AddDeleteRevisionNonAtomic(TDynamicRow row, TTimestamp commitTimestamp, ui32 commitRevision);
-    void AddWriteRevisionNonAtomic(TDynamicRow row, TTimestamp commitTimestamp, ui32 commitRevision);
-    void SetKeys(TDynamicRow dstRow, const TUnversionedValue* srcKeys);
-    void SetKeys(TDynamicRow dstRow, TDynamicRow srcRow);
+    void AddDeleteRevisionNonAtomic(TSortedDynamicRow row, TTimestamp commitTimestamp, ui32 commitRevision);
+    void AddWriteRevisionNonAtomic(TSortedDynamicRow row, TTimestamp commitTimestamp, ui32 commitRevision);
+    void SetKeys(TSortedDynamicRow dstRow, const TUnversionedValue* srcKeys);
+    void SetKeys(TSortedDynamicRow dstRow, TSortedDynamicRow srcRow);
 
     struct TLoadScratchData
     {
@@ -286,14 +279,14 @@ private:
     void OnMemoryUsageUpdated();
 };
 
-DEFINE_REFCOUNTED_TYPE(TDynamicMemoryStore)
+DEFINE_REFCOUNTED_TYPE(TSortedDynamicStore)
 
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NTabletNode
 } // namespace NYT
 
-#define DYNAMIC_MEMORY_STORE_INL_H_
-#include "dynamic_memory_store-inl.h"
-#undef DYNAMIC_MEMORY_STORE_INL_H_
+#define SORTED_DYNAMIC_STORE_INL_H_
+#include "sorted_dynamic_store-inl.h"
+#undef SORTED_DYNAMIC_STORE_INL_H_
 

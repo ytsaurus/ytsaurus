@@ -1074,19 +1074,17 @@ print row + table_index
             out="//tmp/t2",
             spec={"data_size_per_job": 1})
 
-        assert exists("//sys/operations/{0}/output_0".format(op.id))
-        assert effective_acl == get("//sys/operations/{0}/output_0/@acl".format(op.id))
-        async_transactions = filter(
-            lambda tx: "operation_id" in tx.attributes and "async" in tx.attributes["title"],
-            ls("//sys/transactions", attributes=["title", "operation_id"]))
+        operation_path = "//sys/operations/{0}".format(op.id)
 
-        assert len(async_transactions) == 1
-        transaction_id = str(async_transactions[0])
+        assert exists(operation_path + "/output_0")
+        assert effective_acl == get(operation_path + "/output_0/@acl")
 
         op.resume_job(op.jobs[0])
         op.resume_job(op.jobs[1])
         time.sleep(2)
-        live_preview_data = read_table("//sys/operations/{0}/output_0".format(op.id), tx=transaction_id)
+
+        transaction_id = get(operation_path + "/@async_scheduler_transaction_id")
+        live_preview_data = read_table(operation_path + "/output_0", tx=transaction_id)
         assert len(live_preview_data) == 2
         assert all(record in data for record in live_preview_data)
 

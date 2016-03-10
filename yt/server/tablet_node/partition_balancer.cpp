@@ -1,6 +1,6 @@
 #include "partition_balancer.h"
 #include "private.h"
-#include "chunk_store.h"
+#include "sorted_chunk_store.h"
 #include "config.h"
 #include "partition.h"
 #include "slot_manager.h"
@@ -103,7 +103,7 @@ private:
         // Maximum data size the partition might have if all chunk stores from Eden go here.
         i64 maxPotentialDataSize = actualDataSize;
         for (const auto& store : tablet->GetEden()->Stores()) {
-            if (store->GetType() == EStoreType::Chunk) {
+            if (store->GetType() == EStoreType::SortedChunk) {
                 maxPotentialDataSize += store->GetUncompressedDataSize();
             }
         }
@@ -114,7 +114,7 @@ private:
                 actualDataSize / config->MinPartitioningDataSize),
                 static_cast<i64>(config->MaxPartitionCount - partitionCount));
             if (splitFactor > 1) {
-                RunSplit(partition, splitFactor);
+                RunSplit(slot, partition, splitFactor);
             }
         }
         
@@ -125,18 +125,18 @@ private:
                 --firstPartitionIndex;
                 --lastPartitionIndex;
             }
-            RunMerge(partition, firstPartitionIndex, lastPartitionIndex);
+            RunMerge(slot, partition, firstPartitionIndex, lastPartitionIndex);
         }
 
         if (partition->GetSamplingRequestTime() > partition->GetSamplingTime() &&
             partition->GetSamplingTime() < TInstant::Now() - Config_->ResamplingPeriod)
         {
-            RunSample(partition);
+            RunSample(slot, partition);
         }
     }
 
 
-    void RunSplit(TPartition* partition, int splitFactor)
+    void RunSplit(TTabletSlotPtr slot, TPartition* partition, int splitFactor)
     {
         if (partition->GetState() != EPartitionState::Normal) {
             return;
@@ -152,15 +152,14 @@ private:
 
         BIND(&TPartitionBalancer::DoRunSplit, MakeStrong(this))
             .AsyncVia(partition->GetTablet()->GetEpochAutomatonInvoker())
-            .Run(partition, splitFactor);
+            .Run(slot, partition, splitFactor);
     }
 
-    void DoRunSplit(TPartition* partition, int splitFactor)
+    void DoRunSplit(TTabletSlotPtr slot, TPartition* partition, int splitFactor)
     {
         auto Logger = BuildLogger(partition);
 
         auto* tablet = partition->GetTablet();
-        auto slot = tablet->GetSlot();
         auto hydraManager = slot->GetHydraManager();
 
         LOG_INFO("Partition is eligible for split (SplitFactor: %v)",
@@ -208,6 +207,7 @@ private:
 
 
     void RunMerge(
+        TTabletSlotPtr slot,
         TPartition* partition,
         int firstPartitionIndex,
         int lastPartitionIndex)
@@ -235,7 +235,6 @@ private:
 
         LOG_INFO("Partition is eligible for merge");
 
-        auto slot = tablet->GetSlot();
         auto hydraManager = slot->GetHydraManager();
 
         TReqMergePartitions request;
@@ -249,7 +248,7 @@ private:
     }
 
 
-    void RunSample(TPartition* partition)
+    void RunSample(TTabletSlotPtr slot, TPartition* partition)
     {
         if (partition->GetState() != EPartitionState::Normal) {
             return;
@@ -264,17 +263,19 @@ private:
 
         BIND(&TPartitionBalancer::DoRunSample, MakeStrong(this), Passed(std::move(guard)))
             .AsyncVia(partition->GetTablet()->GetEpochAutomatonInvoker())
-            .Run(partition);
+            .Run(slot, partition);
     }
 
-    void DoRunSample(TAsyncSemaphoreGuard /* guard */, TPartition* partition)
+    void DoRunSample(
+        TAsyncSemaphoreGuard /*guard*/,
+        TTabletSlotPtr slot,
+        TPartition* partition)
     {
         auto Logger = BuildLogger(partition);
 
         auto* tablet = partition->GetTablet();
         auto config = tablet->GetConfig();
 
-        auto slot = tablet->GetSlot();
         auto hydraManager = slot->GetHydraManager();
 
         LOG_INFO("Sampling partition (DesiredSampleCount: %v)",
@@ -340,10 +341,10 @@ private:
 
             auto req = proxy.LocateChunks();
 
-            yhash_map<TChunkId, TChunkStorePtr> storeMap;
+            yhash_map<TChunkId, TSortedChunkStorePtr> storeMap;
 
-            auto addStore = [&] (IStorePtr store) {
-                if (store->GetType() != EStoreType::Chunk)
+            auto addStore = [&] (const ISortedStorePtr& store) {
+                if (store->GetType() != EStoreType::SortedChunk)
                     return;
 
                 if (store->GetMaxKey() <= partition->GetPivotKey() ||
@@ -351,11 +352,11 @@ private:
                     return;
 
                 const auto& chunkId = store->GetId();
-                YCHECK(storeMap.insert(std::make_pair(chunkId, store->AsChunk())).second);
+                YCHECK(storeMap.insert(std::make_pair(chunkId, store->AsSortedChunk())).second);
                 ToProto(req->add_chunk_ids(), chunkId);
             };
 
-            auto addStores = [&] (const yhash_set<IStorePtr>& stores) {
+            auto addStores = [&] (const yhash_set<ISortedStorePtr>& stores) {
                 for (const auto& store : stores) {
                     addStore(store);
                 }
@@ -363,6 +364,10 @@ private:
 
             addStores(partition->Stores());
             addStores(tablet->GetEden()->Stores());
+
+            if (req->chunk_ids_size() == 0) {
+                return std::vector<TOwningKey>();
+            }
 
             LOG_INFO("Locating partition chunks (ChunkCount: %v)",
                 storeMap.size());

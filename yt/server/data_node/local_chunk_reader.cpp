@@ -41,23 +41,29 @@ public:
         , FailureHandler_(std::move(failureHandler))
     { }
 
-    virtual TFuture<std::vector<TSharedRef>> ReadBlocks(const std::vector<int>& blockIndexes) override
+    virtual TFuture<std::vector<TSharedRef>> ReadBlocks(
+        const TWorkloadDescriptor& workloadDescriptor,
+        const std::vector<int>& blockIndexes) override
     {
         auto session = New<TReadBlockSetSession>();
+        session->WorkloadDescriptor = workloadDescriptor;
         session->BlockIndexes = blockIndexes;
         session->Blocks.resize(blockIndexes.size());
         RequestBlockSet(session);
         return session->Promise.ToFuture();
     }
 
-    virtual TFuture<std::vector<TSharedRef>> ReadBlocks(int firstBlockIndex, int blockCount) override
+    virtual TFuture<std::vector<TSharedRef>> ReadBlocks(
+        const TWorkloadDescriptor& workloadDescriptor,
+        int firstBlockIndex,
+        int blockCount) override
     {
         auto chunkBlockManager = Bootstrap_->GetChunkBlockManager();
         auto asyncResult = chunkBlockManager->ReadBlockRange(
             Chunk_->GetId(),
             firstBlockIndex,
             blockCount,
-            Config_->WorkloadDescriptor,
+            workloadDescriptor,
             BlockCache_,
             Config_->PopulateCache);
         return asyncResult.Apply(BIND([=] (const TErrorOr<std::vector<TSharedRef>>& blocksOrError) {
@@ -69,10 +75,11 @@ public:
     }
 
     virtual TFuture<TChunkMeta> GetMeta(
+        const TWorkloadDescriptor& workloadDescriptor,
         const TNullable<int>& partitionTag,
         const TNullable<std::vector<int>>& extensionTags) override
     {
-        auto asyncResult = Chunk_->ReadMeta(Config_->WorkloadDescriptor, extensionTags);
+        auto asyncResult = Chunk_->ReadMeta(workloadDescriptor, extensionTags);
         return asyncResult.Apply(BIND([=] (const TErrorOr<TRefCountedChunkMetaPtr>& metaOrError) {
             if (!metaOrError.IsOK()) {
                 ThrowError(metaOrError);
@@ -99,6 +106,7 @@ private:
     struct TReadBlockSetSession
         : public TIntrinsicRefCounted
     {
+        TWorkloadDescriptor WorkloadDescriptor;
         std::vector<int> BlockIndexes;
         std::vector<TSharedRef> Blocks;
         TPromise<std::vector<TSharedRef>> Promise = NewPromise<std::vector<TSharedRef>>();
@@ -132,7 +140,7 @@ private:
             auto asyncResult = chunkBlockManager->ReadBlockSet(
                 Chunk_->GetId(),
                 blockIndexes,
-                Config_->WorkloadDescriptor,
+                session->WorkloadDescriptor,
                 BlockCache_,
                 Config_->PopulateCache);
             asyncResult.Subscribe(

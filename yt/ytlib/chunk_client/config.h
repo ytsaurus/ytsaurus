@@ -24,7 +24,7 @@ namespace NChunkClient {
 ///////////////////////////////////////////////////////////////////////////////
 
 class TReplicationReaderConfig
-    : public virtual TWorkloadConfig
+    : public virtual NYTree::TYsonSerializable
 {
 public:
     //! Timeout for a block request.

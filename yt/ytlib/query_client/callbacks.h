@@ -14,12 +14,12 @@ namespace NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-typedef std::function<TFuture<TQueryStatistics>(
+using TExecuteQuery = std::function<TFuture<TQueryStatistics>(
     const TQueryPtr& query,
     TGuid dataId,
     TRowBufferPtr buffer,
     TRowRanges ranges,
-    ISchemafulWriterPtr writer)> TExecuteQuery;
+    ISchemafulWriterPtr writer)>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -30,7 +30,7 @@ struct IExecutor
         TConstQueryPtr query,
         TDataRanges dataSource,
         ISchemafulWriterPtr writer,
-        TQueryOptions options) = 0;
+        const TQueryOptions& options) = 0;
 
 };
 
@@ -43,7 +43,7 @@ struct ISubExecutor
         TConstQueryPtr query,
         std::vector<TDataRanges> dataSources,
         ISchemafulWriterPtr writer,
-        TQueryOptions options) = 0;
+        const TQueryOptions& options) = 0;
 
 };
 

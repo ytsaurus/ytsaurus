@@ -119,6 +119,7 @@ DEFINE_REFCOUNTED_TYPE(TFileWriterConfig)
 
 class TJournalReaderConfig
     : public NChunkClient::TReplicationReaderConfig
+    , public TWorkloadConfig
 { };
 
 DEFINE_REFCOUNTED_TYPE(TJournalReaderConfig)

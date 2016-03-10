@@ -44,10 +44,7 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(bool, Restarted);
 
     //! The time when the job was finished.
-    DEFINE_BYVAL_RO_PROPERTY(TNullable<TInstant>, FinishTime);
-
-    //! Sets finish time and other timing statistics.
-    void FinalizeJob(const TInstant& finishTime);
+    DEFINE_BYVAL_RW_PROPERTY(TNullable<TInstant>, FinishTime);
 
     //! The difference between |FinishTime| and |StartTime|.
     TDuration GetDuration() const;
@@ -57,8 +54,6 @@ public:
 
     void SetResult(NJobTrackerClient::NProto::TJobResult&& result);
 
-    // Custom and builtin job statistics.
-    DEFINE_BYREF_RO_PROPERTY(NJobTrackerClient::TStatistics, Statistics);
     const Stroka& GetStatisticsSuffix() const;
 
     //! Some rough approximation that is updated with every heartbeat.
@@ -96,10 +91,15 @@ struct TJobSummary
     explicit TJobSummary(const TJobPtr& job);
     explicit TJobSummary(const TJobId& id);
 
+    void ParseStatistics();
+
     const TRefCountedJobResultPtr Result;
     const TJobId Id;
-    const NJobTrackerClient::TStatistics Statistics;
     const Stroka StatisticsSuffix;
+    const TInstant FinishTime;
+
+    // NB: This field will be set inside the controller in ParseStatistics().
+    NJobTrackerClient::TStatistics Statistics;
 };
 
 using TFailedJobSummary = TJobSummary;

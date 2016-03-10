@@ -4,7 +4,7 @@
 
 #include <yt/core/ytree/fluent.h>
 
-#include <yt/ytlib/node_tracker_client/public.h>
+#include <yt/ytlib/node_tracker_client/helpers.h>
 
 #include <yt/server/object_server/object_detail.h>
 
@@ -66,6 +66,10 @@ private:
         descriptors->push_back(TAttributeDescriptor("tablet_slots")
             .SetPresent(isGood));
         descriptors->push_back(TAttributeDescriptor("io_weight")
+            .SetPresent(isGood));
+        descriptors->push_back(TAttributeDescriptor("resource_usage")
+            .SetPresent(isGood));
+        descriptors->push_back(TAttributeDescriptor("resource_limits")
             .SetPresent(isGood));
     }
 
@@ -204,6 +208,17 @@ private:
                 return true;
             }
 
+            if (key == "resource_usage") {
+                BuildYsonFluently(consumer)
+                    .Value(node->ResourceUsage());
+                return true;
+            }
+
+            if (key == "resource_limits") {
+                BuildYsonFluently(consumer)
+                    .Value(node->ResourceLimits());
+                return true;
+            }
         }
 
         return TNonversionedObjectProxyBase::GetBuiltinAttribute(key, consumer);

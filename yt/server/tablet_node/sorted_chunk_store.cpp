@@ -1,4 +1,4 @@
-#include "chunk_store.h"
+#include "sorted_chunk_store.h"
 #include "automaton.h"
 #include "config.h"
 #include "in_memory_manager.h"
@@ -24,6 +24,7 @@
 #include <yt/ytlib/chunk_client/read_limit.h>
 #include <yt/ytlib/chunk_client/replication_reader.h>
 #include <yt/ytlib/chunk_client/ref_counted_proto.h>
+#include <yt/ytlib/chunk_client/helpers.h>
 
 #include <yt/ytlib/misc/workload.h>
 
@@ -71,12 +72,12 @@ static const auto ChunkReaderExpirationTimeout = TDuration::Seconds(15);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TChunkStore::TPreloadedBlockCache
+class TSortedChunkStore::TPreloadedBlockCache
     : public IBlockCache
 {
 public:
     TPreloadedBlockCache(
-        TChunkStorePtr owner,
+        TSortedChunkStorePtr owner,
         const TChunkId& chunkId,
         EBlockType type,
         IBlockCachePtr underlyingCache)
@@ -150,7 +151,7 @@ public:
     }
 
 private:
-    const TWeakPtr<TChunkStore> Owner_;
+    const TWeakPtr<TSortedChunkStore> Owner_;
     const TChunkId ChunkId_;
     const EBlockType Type_;
     const IBlockCachePtr UnderlyingCache_;
@@ -162,16 +163,14 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TChunkStore::TChunkStore(
+TSortedChunkStore::TSortedChunkStore(
     const TStoreId& id,
     TTablet* tablet,
     const TChunkMeta* chunkMeta,
     TBootstrap* boostrap)
-    : TStoreBase(
-        id,
-        tablet)
-    , PreloadState_(EStorePreloadState::Disabled)
-    , CompactionState_(EStoreCompactionState::None)
+    : TStoreBase(id, tablet)
+    , TChunkStoreBase(id, tablet)
+    , TSortedStoreBase(id, tablet)
     , Bootstrap_(boostrap)
     , ChunkMeta_(New<TRefCountedChunkMeta>())
     , KeyComparer_(tablet->GetRowKeyComparer())
@@ -188,21 +187,23 @@ TChunkStore::TChunkStore(
         PrecacheProperties();
     }
 
+    SetInMemoryMode(Tablet_->GetConfig()->InMemoryMode);
+
     LOG_DEBUG("Static chunk store created (TabletId: %v)",
         TabletId_);
 }
 
-TChunkStore::~TChunkStore()
+TSortedChunkStore::~TSortedChunkStore()
 {
     LOG_DEBUG("Static chunk store destroyed");
 }
 
-const TChunkMeta& TChunkStore::GetChunkMeta() const
+const TChunkMeta& TSortedChunkStore::GetChunkMeta() const
 {
     return *ChunkMeta_;
 }
 
-IStorePtr TChunkStore::GetBackingStore()
+ISortedStorePtr TSortedChunkStore::GetBackingStore()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -210,7 +211,7 @@ IStorePtr TChunkStore::GetBackingStore()
     return BackingStore_;
 }
 
-void TChunkStore::SetBackingStore(IStorePtr store)
+void TSortedChunkStore::SetBackingStore(ISortedStorePtr store)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -218,7 +219,7 @@ void TChunkStore::SetBackingStore(IStorePtr store)
     BackingStore_ = store;
 }
 
-bool TChunkStore::HasBackingStore() const
+bool TSortedChunkStore::HasBackingStore() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -226,7 +227,7 @@ bool TChunkStore::HasBackingStore() const
     return BackingStore_.operator bool();
 }
 
-EInMemoryMode TChunkStore::GetInMemoryMode() const
+EInMemoryMode TSortedChunkStore::GetInMemoryMode() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -234,7 +235,7 @@ EInMemoryMode TChunkStore::GetInMemoryMode() const
     return InMemoryMode_;
 }
 
-void TChunkStore::SetInMemoryMode(EInMemoryMode mode)
+void TSortedChunkStore::SetInMemoryMode(EInMemoryMode mode)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -278,13 +279,12 @@ void TChunkStore::SetInMemoryMode(EInMemoryMode mode)
         }
     }
 
-    RealtimeChunkReader_.Reset();
-    BatchChunkReader_.Reset();
+    ChunkReader_.Reset();
 
     InMemoryMode_ = mode;
 }
 
-void TChunkStore::Preload(TInMemoryChunkDataPtr chunkData)
+void TSortedChunkStore::Preload(TInMemoryChunkDataPtr chunkData)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -297,52 +297,52 @@ void TChunkStore::Preload(TInMemoryChunkDataPtr chunkData)
     CachedVersionedChunkMeta_ = chunkData->ChunkMeta;
 }
 
-IChunkReaderPtr TChunkStore::GetChunkReader(const TWorkloadDescriptor& workloadDescriptor)
+IChunkReaderPtr TSortedChunkStore::GetChunkReader()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
     auto chunk = PrepareChunk();
-    auto chunkReader = PrepareChunkReader(std::move(chunk), workloadDescriptor);
+    auto chunkReader = PrepareChunkReader(std::move(chunk));
 
     return chunkReader;
 }
 
-EStoreType TChunkStore::GetType() const
+EStoreType TSortedChunkStore::GetType() const
 {
-    return EStoreType::Chunk;
+    return EStoreType::SortedChunk;
 }
 
-i64 TChunkStore::GetUncompressedDataSize() const
+i64 TSortedChunkStore::GetUncompressedDataSize() const
 {
-    return DataSize_;
+    return MiscExt_.uncompressed_data_size();
 }
 
-i64 TChunkStore::GetRowCount() const
+i64 TSortedChunkStore::GetRowCount() const
 {
-    return RowCount_;
+    return MiscExt_.row_count();
 }
 
-TOwningKey TChunkStore::GetMinKey() const
+TOwningKey TSortedChunkStore::GetMinKey() const
 {
     return MinKey_;
 }
 
-TOwningKey TChunkStore::GetMaxKey() const
+TOwningKey TSortedChunkStore::GetMaxKey() const
 {
     return MaxKey_;
 }
 
-TTimestamp TChunkStore::GetMinTimestamp() const
+TTimestamp TSortedChunkStore::GetMinTimestamp() const
 {
-    return MinTimestamp_;
+    return MiscExt_.min_timestamp();
 }
 
-TTimestamp TChunkStore::GetMaxTimestamp() const
+TTimestamp TSortedChunkStore::GetMaxTimestamp() const
 {
-    return MaxTimestamp_;
+    return MiscExt_.max_timestamp();
 }
 
-IVersionedReaderPtr TChunkStore::CreateReader(
+IVersionedReaderPtr TSortedChunkStore::CreateReader(
     TOwningKey lowerKey,
     TOwningKey upperKey,
     TTimestamp timestamp,
@@ -377,7 +377,7 @@ IVersionedReaderPtr TChunkStore::CreateReader(
     }
 
     auto blockCache = GetBlockCache();
-    auto chunkReader = GetChunkReader(workloadDescriptor);
+    auto chunkReader = GetChunkReader();
     auto cachedVersionedChunkMeta = PrepareCachedVersionedChunkMeta(chunkReader);
 
     TReadLimit lowerLimit;
@@ -386,8 +386,11 @@ IVersionedReaderPtr TChunkStore::CreateReader(
     TReadLimit upperLimit;
     upperLimit.SetKey(std::move(upperKey));
 
+    auto config = CloneYsonSerializable(Bootstrap_->GetConfig()->TabletNode->ChunkReader);
+    config->WorkloadDescriptor = workloadDescriptor;
+
     return CreateVersionedChunkReader(
-        Bootstrap_->GetConfig()->TabletNode->ChunkReader,
+        std::move(config),
         std::move(chunkReader),
         std::move(blockCache),
         std::move(cachedVersionedChunkMeta),
@@ -398,7 +401,7 @@ IVersionedReaderPtr TChunkStore::CreateReader(
         timestamp);
 }
 
-IVersionedReaderPtr TChunkStore::CreateCacheBasedReader(
+IVersionedReaderPtr TSortedChunkStore::CreateCacheBasedReader(
     TOwningKey lowerKey,
     TOwningKey upperKey,
     TTimestamp timestamp,
@@ -424,7 +427,7 @@ IVersionedReaderPtr TChunkStore::CreateCacheBasedReader(
         timestamp);
 }
 
-IVersionedReaderPtr TChunkStore::CreateReader(
+IVersionedReaderPtr TSortedChunkStore::CreateReader(
     const TSharedRange<TKey>& keys,
     TTimestamp timestamp,
     const TColumnFilter& columnFilter,
@@ -452,11 +455,13 @@ IVersionedReaderPtr TChunkStore::CreateReader(
     }
 
     auto blockCache = GetBlockCache();
-    auto chunkReader = GetChunkReader(workloadDescriptor);
+    auto chunkReader = GetChunkReader();
     auto cachedVersionedChunkMeta = PrepareCachedVersionedChunkMeta(chunkReader);
+    auto config = CloneYsonSerializable(Bootstrap_->GetConfig()->TabletNode->ChunkReader);
+    config->WorkloadDescriptor = workloadDescriptor;
 
     return CreateVersionedChunkReader(
-        Bootstrap_->GetConfig()->TabletNode->ChunkReader,
+        std::move(config),
         std::move(chunkReader),
         std::move(blockCache),
         std::move(cachedVersionedChunkMeta),
@@ -467,7 +472,7 @@ IVersionedReaderPtr TChunkStore::CreateReader(
         timestamp);
 }
 
-IVersionedReaderPtr TChunkStore::CreateCacheBasedReader(
+IVersionedReaderPtr TSortedChunkStore::CreateCacheBasedReader(
     const TSharedRange<TKey>& keys,
     TTimestamp timestamp,
     const TColumnFilter& columnFilter)
@@ -493,7 +498,7 @@ IVersionedReaderPtr TChunkStore::CreateCacheBasedReader(
         timestamp);
 }
 
-void TChunkStore::CheckRowLocks(
+void TSortedChunkStore::CheckRowLocks(
     TUnversionedRow row,
     TTransaction* transaction,
     ui32 lockMask)
@@ -514,17 +519,17 @@ void TChunkStore::CheckRowLocks(
         << TErrorAttribute("key", RowToKey(row));
 }
 
-void TChunkStore::Save(TSaveContext& context) const
+void TSortedChunkStore::Save(TSaveContext& context) const
 {
     TStoreBase::Save(context);
 }
 
-void TChunkStore::Load(TLoadContext& context)
+void TSortedChunkStore::Load(TLoadContext& context)
 {
     TStoreBase::Load(context);
 }
 
-TCallback<void(TSaveContext&)> TChunkStore::AsyncSave()
+TCallback<void(TSaveContext&)> TSortedChunkStore::AsyncSave()
 {
     return BIND([chunkMeta = ChunkMeta_] (TSaveContext& context) {
         using NYT::Save;
@@ -533,7 +538,7 @@ TCallback<void(TSaveContext&)> TChunkStore::AsyncSave()
     });
 }
 
-void TChunkStore::AsyncLoad(TLoadContext& context)
+void TSortedChunkStore::AsyncLoad(TLoadContext& context)
 {
     using NYT::Load;
 
@@ -542,7 +547,7 @@ void TChunkStore::AsyncLoad(TLoadContext& context)
     PrecacheProperties();
 }
 
-void TChunkStore::BuildOrchidYson(IYsonConsumer* consumer)
+void TSortedChunkStore::BuildOrchidYson(IYsonConsumer* consumer)
 {
     TStoreBase::BuildOrchidYson(consumer);
 
@@ -559,7 +564,7 @@ void TChunkStore::BuildOrchidYson(IYsonConsumer* consumer)
         });
 }
 
-IChunkPtr TChunkStore::PrepareChunk()
+IChunkPtr TSortedChunkStore::PrepareChunk()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -580,86 +585,63 @@ IChunkPtr TChunkStore::PrepareChunk()
     }
 
     TDelayedExecutor::Submit(
-        BIND(&TChunkStore::OnChunkExpired, MakeWeak(this)),
+        BIND(&TSortedChunkStore::OnChunkExpired, MakeWeak(this)),
         ChunkExpirationTimeout);
 
     return chunk;
 }
 
-IChunkReaderPtr TChunkStore::PrepareChunkReader(
-    IChunkPtr chunk,
-    const TWorkloadDescriptor& workloadDescriptor)
+IChunkReaderPtr TSortedChunkStore::PrepareChunkReader(IChunkPtr chunk)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    bool isRT = false;
-    switch (workloadDescriptor.Category) {
-        case EWorkloadCategory::SystemRealtime:
-        case EWorkloadCategory::UserRealtime:
-            isRT = true;
-            break;
-        default:
-            break;
-    }
-
     {
         TReaderGuard guard(SpinLock_);
-        if (isRT) {
-            if (RealtimeChunkReader_) {
-                return RealtimeChunkReader_;
-            }
-        } else {
-            if (BatchChunkReader_) {
-                return BatchChunkReader_;
-            }
+        if (ChunkReader_) {
+            return ChunkReader_;
         }
     }
 
     auto readerConfig = Bootstrap_->GetConfig()->TabletNode->ChunkReader;
-    auto readerConfigCopy = CloneYsonSerializable(readerConfig);
-
-    readerConfigCopy->WorkloadDescriptor = workloadDescriptor;
-    readerConfigCopy->PopulateCache = isRT;
 
     IChunkReaderPtr chunkReader;
     if (chunk && !chunk->IsRemoveScheduled()) {
         chunkReader = CreateLocalChunkReader(
             Bootstrap_,
-            readerConfigCopy,
+            readerConfig,
             chunk,
             GetBlockCache(),
-            BIND(&TChunkStore::OnLocalReaderFailed, MakeWeak(this)));
+            BIND(&TSortedChunkStore::OnLocalReaderFailed, MakeWeak(this)));
     } else {
-        // TODO(babenko): provide seed replicas
-        auto options = New<TRemoteReaderOptions>();
-        chunkReader = CreateReplicationReader(
-            readerConfigCopy,
-            options,
+        TChunkSpec chunkSpec;
+        ToProto(chunkSpec.mutable_chunk_id(), StoreId_);
+        chunkSpec.set_erasure_codec(MiscExt_.erasure_codec());
+        *chunkSpec.mutable_chunk_meta() = *ChunkMeta_;
+
+        chunkReader = CreateRemoteReader(
+            chunkSpec,
+            readerConfig,
+            New<TRemoteReaderOptions>(),
             Bootstrap_->GetMasterClient(),
             New<TNodeDirectory>(),
             Bootstrap_->GetMasterConnector()->GetLocalDescriptor(),
-            StoreId_,
-            TChunkReplicaList(),
-            GetBlockCache());
+            GetBlockCache(),
+            GetUnlimitedThrottler());
     }
 
     {
         TWriterGuard guard(SpinLock_);
-        if (isRT) {
-            RealtimeChunkReader_ = chunkReader;
-        } else {
-            BatchChunkReader_ = chunkReader;
-        }
+        ChunkReader_ = chunkReader;
     }
 
     TDelayedExecutor::Submit(
-        BIND(&TChunkStore::OnChunkReaderExpired, MakeWeak(this)),
+        BIND(&TSortedChunkStore::OnChunkReaderExpired, MakeWeak(this)),
         ChunkReaderExpirationTimeout);
 
     return chunkReader;
 }
 
-TCachedVersionedChunkMetaPtr TChunkStore::PrepareCachedVersionedChunkMeta(IChunkReaderPtr chunkReader)
+TCachedVersionedChunkMetaPtr TSortedChunkStore::PrepareCachedVersionedChunkMeta(IChunkReaderPtr chunkReader)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -670,7 +652,12 @@ TCachedVersionedChunkMetaPtr TChunkStore::PrepareCachedVersionedChunkMeta(IChunk
         }
     }
 
-    auto cachedMeta = WaitFor(TCachedVersionedChunkMeta::Load(chunkReader, Schema_))
+    // TODO(babenko): do we need to make this workload descriptor configurable?
+    auto asyncCachedMeta = TCachedVersionedChunkMeta::Load(
+        chunkReader,
+        TWorkloadDescriptor(EWorkloadCategory::UserBatch),
+        Schema_);
+    auto cachedMeta = WaitFor(asyncCachedMeta)
         .ValueOrThrow();
 
     {
@@ -681,7 +668,7 @@ TCachedVersionedChunkMetaPtr TChunkStore::PrepareCachedVersionedChunkMeta(IChunk
     return cachedMeta;
 }
 
-IBlockCachePtr TChunkStore::GetBlockCache()
+IBlockCachePtr TSortedChunkStore::GetBlockCache()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -691,21 +678,17 @@ IBlockCachePtr TChunkStore::GetBlockCache()
         : Bootstrap_->GetBlockCache();
 }
 
-void TChunkStore::PrecacheProperties()
+void TSortedChunkStore::PrecacheProperties()
 {
     // Precache frequently used values.
-    auto miscExt = GetProtoExtension<TMiscExt>(ChunkMeta_->extensions());
-    DataSize_ = miscExt.uncompressed_data_size();
-    RowCount_ = miscExt.row_count();
-    MinTimestamp_ = miscExt.min_timestamp();
-    MaxTimestamp_ = miscExt.max_timestamp();
+    MiscExt_ = GetProtoExtension<TMiscExt>(ChunkMeta_->extensions());
 
     auto boundaryKeysExt = GetProtoExtension<TBoundaryKeysExt>(ChunkMeta_->extensions());
     MinKey_ = WidenKey(FromProto<TOwningKey>(boundaryKeysExt.min()), KeyColumnCount_);
     MaxKey_ = WidenKey(FromProto<TOwningKey>(boundaryKeysExt.max()), KeyColumnCount_);
 }
 
-void TChunkStore::OnLocalReaderFailed()
+void TSortedChunkStore::OnLocalReaderFailed()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -713,7 +696,7 @@ void TChunkStore::OnLocalReaderFailed()
     OnChunkReaderExpired();
 }
 
-void TChunkStore::OnChunkExpired()
+void TSortedChunkStore::OnChunkExpired()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -722,16 +705,15 @@ void TChunkStore::OnChunkExpired()
     Chunk_.Reset();
 }
 
-void TChunkStore::OnChunkReaderExpired()
+void TSortedChunkStore::OnChunkReaderExpired()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
     TWriterGuard guard(SpinLock_);
-    RealtimeChunkReader_.Reset();
-    BatchChunkReader_.Reset();
+    ChunkReader_.Reset();
 }
 
-bool TChunkStore::ValidateBlockCachePreloaded()
+bool TSortedChunkStore::ValidateBlockCachePreloaded()
 {
     if (!PreloadedBlockCache_ || !PreloadedBlockCache_->IsPreloaded()) {
         if (RequireChunkPreload_) {

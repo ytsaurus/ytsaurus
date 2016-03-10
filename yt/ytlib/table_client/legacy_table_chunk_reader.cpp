@@ -123,8 +123,12 @@ public:
 
             LOG_DEBUG("Requesting chunk meta");
 
-            auto chunkMeta = WaitFor(UnderlyingReader_->GetMeta(Null, extensionTags))
-                    .ValueOrThrow();
+            auto asyncChunkMeta = UnderlyingReader_->GetMeta(
+                tableChunkReader->Config_->WorkloadDescriptor,
+                Null,
+                extensionTags);
+            auto chunkMeta = WaitFor(asyncChunkMeta)
+                .ValueOrThrow();
 
             LOG_DEBUG("Chunk meta received");
 

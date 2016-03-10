@@ -63,16 +63,6 @@ void TStoreBase::SetStoreState(EStoreState state)
     StoreState_ = state;
 }
 
-TPartition* TStoreBase::GetPartition() const
-{
-    return Partition_;
-}
-
-void TStoreBase::SetPartition(TPartition* partition)
-{
-    Partition_ = partition;
-}
-
 i64 TStoreBase::GetMemoryUsage() const
 {
     return MemoryUsage_;
@@ -104,7 +94,7 @@ TOwningKey TStoreBase::RowToKey(TUnversionedRow row)
     return NTabletNode::RowToKey(Schema_, KeyColumns_, row);
 }
 
-TOwningKey TStoreBase::RowToKey(TDynamicRow row)
+TOwningKey TStoreBase::RowToKey(TSortedDynamicRow row)
 {
     return NTabletNode::RowToKey(Schema_, KeyColumns_, row);
 }
@@ -125,6 +115,74 @@ void TStoreBase::BuildOrchidYson(IYsonConsumer* consumer)
 {
     BuildYsonMapFluently(consumer)
         .Item("store_state").Value(StoreState_);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TDynamicStoreBase::TDynamicStoreBase(const TStoreId& id, TTablet* tablet)
+    : TStoreBase(id, tablet)
+{ }
+
+EStoreFlushState TDynamicStoreBase::GetFlushState() const
+{
+    return FlushState_;
+}
+
+void TDynamicStoreBase::SetFlushState(EStoreFlushState state)
+{
+    FlushState_ = state;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+
+TChunkStoreBase::TChunkStoreBase(const TStoreId& id, TTablet* tablet)
+    : TStoreBase(id, tablet)
+{ }
+
+EStorePreloadState TChunkStoreBase::GetPreloadState() const
+{
+    return PreloadState_;
+}
+
+void TChunkStoreBase::SetPreloadState(EStorePreloadState state)
+{
+    PreloadState_ = state;
+}
+
+TFuture<void> TChunkStoreBase::GetPreloadFuture() const
+{
+    return PreloadFuture_;
+}
+
+void TChunkStoreBase::SetPreloadFuture(TFuture<void> future)
+{
+    PreloadFuture_ = future;
+}
+
+EStoreCompactionState TChunkStoreBase::GetCompactionState() const
+{
+    return CompactionState_;
+}
+
+void TChunkStoreBase::SetCompactionState(EStoreCompactionState state)
+{
+    CompactionState_ = state;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TSortedStoreBase::TSortedStoreBase(const TStoreId& id, TTablet* tablet)
+    : TStoreBase(id, tablet)
+{ }
+
+TPartition* TSortedStoreBase::GetPartition() const
+{
+    return Partition_;
+}
+
+void TSortedStoreBase::SetPartition(TPartition* partition)
+{
+    Partition_ = partition;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

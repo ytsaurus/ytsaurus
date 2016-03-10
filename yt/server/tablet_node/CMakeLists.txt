@@ -2,10 +2,10 @@
 set( SRCS
   ${CMAKE_CURRENT_LIST_DIR}/object_detail.cpp
   ${CMAKE_CURRENT_LIST_DIR}/automaton.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/chunk_store.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/dynamic_memory_store.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/dynamic_memory_store_bits.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/dynamic_memory_store_comparer.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/sorted_chunk_store.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/sorted_dynamic_store.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/sorted_dynamic_store_bits.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/sorted_dynamic_comparer.cpp
   ${CMAKE_CURRENT_LIST_DIR}/lookup.cpp
   ${CMAKE_CURRENT_LIST_DIR}/partition.cpp
   ${CMAKE_CURRENT_LIST_DIR}/partition_balancer.cpp
@@ -18,7 +18,8 @@ set( SRCS
   ${CMAKE_CURRENT_LIST_DIR}/store_compactor.cpp
   ${CMAKE_CURRENT_LIST_DIR}/store_detail.cpp
   ${CMAKE_CURRENT_LIST_DIR}/store_flusher.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/store_manager.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/store_manager_detail.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/sorted_store_manager.cpp
   ${CMAKE_CURRENT_LIST_DIR}/tablet.cpp
   ${CMAKE_CURRENT_LIST_DIR}/tablet_manager.cpp
   ${CMAKE_CURRENT_LIST_DIR}/tablet_reader.cpp
@@ -32,12 +33,12 @@ set( SRCS
 set( HDRS
   ${CMAKE_CURRENT_LIST_DIR}/object_detail.h
   ${CMAKE_CURRENT_LIST_DIR}/automaton.h
-  ${CMAKE_CURRENT_LIST_DIR}/chunk_store.h
+  ${CMAKE_CURRENT_LIST_DIR}/sorted_chunk_store.h
   ${CMAKE_CURRENT_LIST_DIR}/config.h
-  ${CMAKE_CURRENT_LIST_DIR}/dynamic_memory_store.h
-  ${CMAKE_CURRENT_LIST_DIR}/dynamic_memory_store-inl.h
-  ${CMAKE_CURRENT_LIST_DIR}/dynamic_memory_store_bits.h
-  ${CMAKE_CURRENT_LIST_DIR}/dynamic_memory_store_comparer.h
+  ${CMAKE_CURRENT_LIST_DIR}/sorted_dynamic_store.h
+  ${CMAKE_CURRENT_LIST_DIR}/sorted_dynamic_store-inl.h
+  ${CMAKE_CURRENT_LIST_DIR}/sorted_dynamic_store_bits.h
+  ${CMAKE_CURRENT_LIST_DIR}/sorted_dynamic_comparer.h
   ${CMAKE_CURRENT_LIST_DIR}/llvm_types.h
   ${CMAKE_CURRENT_LIST_DIR}/lookup.h
   ${CMAKE_CURRENT_LIST_DIR}/partition.h
@@ -53,6 +54,8 @@ set( HDRS
   ${CMAKE_CURRENT_LIST_DIR}/store_detail.h
   ${CMAKE_CURRENT_LIST_DIR}/store_flusher.h
   ${CMAKE_CURRENT_LIST_DIR}/store_manager.h
+  ${CMAKE_CURRENT_LIST_DIR}/store_manager_detail.h
+  ${CMAKE_CURRENT_LIST_DIR}/sorted_store_manager.h
   ${CMAKE_CURRENT_LIST_DIR}/tablet.h
   ${CMAKE_CURRENT_LIST_DIR}/tablet_manager.h
   ${CMAKE_CURRENT_LIST_DIR}/tablet_reader.h

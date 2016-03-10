@@ -812,6 +812,10 @@ void ValidateServerDataRow(
     const TTableSchema& schema)
 {
     ValidateDataRow(row, keyColumnCount, nullptr, schema);
+
+    if (row.GetCount() == keyColumnCount) {
+        THROW_ERROR_EXCEPTION("Write row must contain at least one non-key column");
+    }
 }
 
 void ValidateClientKey(TKey key)

@@ -147,7 +147,7 @@ private:
     {
         LOG_INFO("Requesting chunk meta");
 
-        auto metaOrError = WaitFor(ChunkReader_->GetMeta());
+        auto metaOrError = WaitFor(ChunkReader_->GetMeta(Config_->WorkloadDescriptor));
         THROW_ERROR_EXCEPTION_IF_FAILED(metaOrError, "Failed to get file chunk meta");
 
         LOG_INFO("Chunk meta received");
@@ -335,6 +335,8 @@ IFileReaderPtr CreateFileMultiChunkReader(
                 options,
                 client,
                 nodeDirectory,
+                //XXX(babenko): hotfix for YT-3915
+                Null,
                 blockCache,
                 throttler);
 

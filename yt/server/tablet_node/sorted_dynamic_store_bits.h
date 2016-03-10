@@ -60,7 +60,7 @@ struct TLockDescriptor
     TEditListHeader* WriteRevisionList;
 };
 
-struct TDynamicRowHeader
+struct TSortedDynamicRowHeader
 {
     ui32 NullKeyMask;
     ui32 DeleteLockFlag : 1;
@@ -273,7 +273,7 @@ public:
     }
 
 private:
-    friend class  TDynamicRow;
+    friend class  TSortedDynamicRow;
 
     TEditListHeader* Header_;
 
@@ -288,9 +288,9 @@ static_assert(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! A row within TDynamicMemoryStore.
+//! A row within TSortedDynamicStore.
 /*!
- *  A lightweight wrapper around |TDynamicRowHeader*|.
+ *  A lightweight wrapper around |TSortedDynamicRowHeader*|.
  *
  *  Provides access to the following parts:
  *  1) keys
@@ -299,24 +299,24 @@ static_assert(
  *  4) edit lists for versioned values per each fixed non-key column
  *
  *  Memory layout:
- *  1) TDynamicRowHeader
+ *  1) TSortedDynamicRowHeader
  *  2) TDynamicValueData per each key column
  *  3) TLockDescriptor per each lock group
  *  4) TEditListHeader* for delete timestamps
  *  5) TEditListHeader* per each fixed non-key column
  */
-class TDynamicRow
+class TSortedDynamicRow
 {
 public:
-    TDynamicRow()
+    TSortedDynamicRow()
         : Header_(nullptr)
     { }
 
-    explicit TDynamicRow(TDynamicRowHeader* header)
+    explicit TSortedDynamicRow(TSortedDynamicRowHeader* header)
         : Header_(header)
     { }
 
-    static TDynamicRow Allocate(
+    static TSortedDynamicRow Allocate(
         TChunkedMemoryPool* pool,
         int keyColumnCount,
         int columnLockCount,
@@ -325,14 +325,14 @@ public:
         // One list per each non-key schema column plus delete timestamp.
         int listCount = (schemaColumnCount - keyColumnCount) + 1;
         size_t size =
-            sizeof(TDynamicRowHeader) +
+            sizeof(TSortedDynamicRowHeader) +
             keyColumnCount * sizeof(TDynamicValueData) +
             columnLockCount * sizeof(TLockDescriptor) +
             listCount * sizeof(TEditListHeader*);
 
         // Allocate memory.
-        auto* header = reinterpret_cast<TDynamicRowHeader*>(pool->AllocateAligned(size));
-        auto row = TDynamicRow(header);
+        auto* header = reinterpret_cast<TSortedDynamicRowHeader*>(pool->AllocateAligned(size));
+        auto row = TSortedDynamicRow(header);
 
         // Generic fill.
         ::memset(header, 0, size);
@@ -359,7 +359,7 @@ public:
     static const ui32 PrimaryLockMask = (1 << PrimaryLockIndex);
     static const ui32 AllLocksMask = 0xffffffff;
 
-    TDynamicRowHeader* GetHeader() const
+    TSortedDynamicRowHeader* GetHeader() const
     {
         return Header_;
     }
@@ -443,18 +443,18 @@ public:
     }
 
 
-    bool operator == (TDynamicRow other) const
+    bool operator == (TSortedDynamicRow other) const
     {
         return Header_ == other.Header_;
     }
 
-    bool operator != (TDynamicRow other) const
+    bool operator != (TSortedDynamicRow other) const
     {
         return Header_ != other.Header_;
     }
 
 private:
-    TDynamicRowHeader* Header_;
+    TSortedDynamicRowHeader* Header_;
 
 
     TEditListHeader** GetLists(int keyColumnCount, int columnLockCount) const
@@ -464,22 +464,27 @@ private:
 };
 
 static_assert(
-    sizeof(TDynamicRow) == sizeof(intptr_t),
-    "TDynamicRow size must match that of a pointer.");
+    sizeof(TSortedDynamicRow) == sizeof(intptr_t),
+    "TSortedDynamicRow size must match that of a pointer.");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TDynamicRowRef
+struct TSortedDynamicRowRef
 {
-    TDynamicRowRef()
+    TSortedDynamicRowRef()
         : Store(nullptr)
+        , StoreManager(nullptr)
         , Row()
     { }
 
-    TDynamicRowRef(const TDynamicRowRef& other) = default;
+    TSortedDynamicRowRef(const TSortedDynamicRowRef& other) = default;
     
-    TDynamicRowRef(TDynamicMemoryStore* store, TDynamicRow row)
+    TSortedDynamicRowRef(
+        TSortedDynamicStore* store,
+        TSortedStoreManager* storeManager,
+        TSortedDynamicRow row)
         : Store(store)
+        , StoreManager(storeManager)
         , Row(row)
     { }
 
@@ -490,21 +495,22 @@ struct TDynamicRowRef
     }
 
 
-    bool operator == (const TDynamicRowRef& other) const
+    bool operator == (const TSortedDynamicRowRef& other) const
     {
         return
             Store == other.Store &&
             Row == other.Row;
     }
 
-    bool operator != (const TDynamicRowRef& other) const
+    bool operator != (const TSortedDynamicRowRef& other) const
     {
         return !(*this == other);
     }
 
 
-    TDynamicMemoryStore* Store;
-    TDynamicRow Row;
+    TSortedDynamicStore* Store;
+    TSortedStoreManager* StoreManager;
+    TSortedDynamicRow Row;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -512,7 +518,7 @@ struct TDynamicRowRef
 TOwningKey RowToKey(
     const NTableClient::TTableSchema& schema,
     const NTableClient::TKeyColumns& keyColumns,
-    TDynamicRow row);
+    TSortedDynamicRow row);
 
 TOwningKey RowToKey(
     const NTableClient::TTableSchema& schema,

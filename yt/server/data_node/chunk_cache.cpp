@@ -562,7 +562,7 @@ private:
                 .ThrowOnError();
 
             LOG_DEBUG("Getting chunk meta");
-            auto chunkMeta = WaitFor(chunkReader->GetMeta())
+            auto chunkMeta = WaitFor(chunkReader->GetMeta(Config_->ArtifactCacheReader->WorkloadDescriptor))
                 .ValueOrThrow();
 
             // Download all blocks.

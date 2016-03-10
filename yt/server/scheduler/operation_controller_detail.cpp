@@ -27,6 +27,7 @@
 
 #include <yt/ytlib/table_client/chunk_meta_extensions.h>
 #include <yt/ytlib/table_client/schema.h>
+#include <yt/ytlib/table_client/table_consumer.h>
 
 #include <yt/ytlib/transaction_client/helpers.h>
 #include <yt/ytlib/transaction_client/transaction_ypath.pb.h>
@@ -66,6 +67,7 @@ using namespace NQueryClient;
 
 using NNodeTrackerClient::TNodeId;
 using NTableClient::NProto::TBoundaryKeysExt;
+using NTableClient::NProto::TOldBoundaryKeysExt;
 using NTableClient::TTableReaderOptions;
 
 ////////////////////////////////////////////////////////////////////
@@ -539,7 +541,7 @@ void TOperationControllerBase::TTask::Persist(TPersistenceContext& context)
 void TOperationControllerBase::TTask::PrepareJoblet(TJobletPtr /* joblet */)
 { }
 
-void TOperationControllerBase::TTask::OnJobStarted(TJobletPtr /* joblet */)
+void TOperationControllerBase::TTask::OnJobStarted(TJobletPtr joblet)
 { }
 
 void TOperationControllerBase::TTask::OnJobCompleted(TJobletPtr joblet, const TCompletedJobSummary& jobSummary)
@@ -922,6 +924,7 @@ TOperationControllerBase::TOperationControllerBase(
         Config->OperationTimeLimitCheckPeriod))
 {
     Logger.AddTag("OperationId: %v", operation->GetId());
+    EventLogConsumer_.reset(new TTableConsumer(Host->CreateLogConsumer()));
 }
 
 void TOperationControllerBase::Initialize()
@@ -1497,22 +1500,38 @@ void TOperationControllerBase::EndUploadOutputTables()
     THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError), "Error finishing upload to output tables");
 }
 
-void TOperationControllerBase::OnJobStarted(const TJobId& /* jobId */)
+void TOperationControllerBase::OnJobStarted(const TJobId& jobId, TInstant startTime)
 {
     VERIFY_INVOKER_AFFINITY(CancelableInvoker);
 
-    JobCounter.Start(1);
+    auto joblet = GetJoblet(jobId);
+    joblet->StartTime = startTime;
+
+    LogEventFluently(ELogEventType::JobStarted)
+        .Item("job_id").Value(jobId)
+        .Item("operation_id").Value(Operation->GetId())
+        .Item("resource_limits").Value(joblet->ResourceLimits)
+        .Item("node_address").Value(joblet->NodeDescriptor.Address)
+        .Item("job_type").Value(joblet->JobType);
 }
 
-void TOperationControllerBase::OnJobCompleted(const TCompletedJobSummary& jobSummary)
+void TOperationControllerBase::OnJobCompleted(std::unique_ptr<TCompletedJobSummary> jobSummary)
 {
     VERIFY_INVOKER_AFFINITY(CancelableInvoker);
 
-    const auto& jobId = jobSummary.Id;
-    const auto& result = jobSummary.Result;
+    jobSummary->ParseStatistics();
+
+    const auto& jobId = jobSummary->Id;
+    const auto& result = jobSummary->Result;
 
     JobCounter.Completed(1);
-    UpdateJobStatistics(jobSummary);
+
+    auto joblet = GetJoblet(jobId);
+
+    FinalizeJoblet(joblet, jobSummary.get());
+    LogFinishedJobFluently(ELogEventType::JobCompleted, joblet, *jobSummary);
+
+    UpdateJobStatistics(*jobSummary);
 
     const auto& schedulerResultEx = result->GetExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
 
@@ -1520,8 +1539,7 @@ void TOperationControllerBase::OnJobCompleted(const TCompletedJobSummary& jobSum
     // NB: Job's output may become some other job's input.
     InputNodeDirectory->MergeFrom(schedulerResultEx.output_node_directory());
 
-    auto joblet = GetJoblet(jobId);
-    joblet->Task->OnJobCompleted(joblet, jobSummary);
+    joblet->Task->OnJobCompleted(joblet, *jobSummary);
 
     RemoveJoblet(jobId);
 
@@ -1532,20 +1550,28 @@ void TOperationControllerBase::OnJobCompleted(const TCompletedJobSummary& jobSum
     }
 }
 
-void TOperationControllerBase::OnJobFailed(const TFailedJobSummary& jobSummary)
+void TOperationControllerBase::OnJobFailed(std::unique_ptr<TFailedJobSummary> jobSummary)
 {
     VERIFY_INVOKER_AFFINITY(CancelableInvoker);
 
-    const auto& jobId = jobSummary.Id;
-    const auto& result = jobSummary.Result;
+    jobSummary->ParseStatistics();
+
+    const auto& jobId = jobSummary->Id;
+    const auto& result = jobSummary->Result;
 
     auto error = FromProto<TError>(result->error());
 
     JobCounter.Failed(1);
-    UpdateJobStatistics(jobSummary);
 
     auto joblet = GetJoblet(jobId);
-    joblet->Task->OnJobFailed(joblet, jobSummary);
+
+    FinalizeJoblet(joblet, jobSummary.get());
+    LogFinishedJobFluently(ELogEventType::JobFailed, joblet, *jobSummary)
+        .Item("error").Value(error);
+
+    UpdateJobStatistics(*jobSummary);
+
+    joblet->Task->OnJobFailed(joblet, *jobSummary);
 
     RemoveJoblet(jobId);
 
@@ -1562,30 +1588,81 @@ void TOperationControllerBase::OnJobFailed(const TFailedJobSummary& jobSummary)
     }
 }
 
-void TOperationControllerBase::OnJobAborted(const TAbortedJobSummary& jobSummary)
+void TOperationControllerBase::OnJobAborted(std::unique_ptr<TAbortedJobSummary> jobSummary)
 {
     VERIFY_INVOKER_AFFINITY(CancelableInvoker);
 
-    const auto& jobId = jobSummary.Id;
-    auto abortReason = jobSummary.AbortReason;
+    jobSummary->ParseStatistics();
+
+    const auto& jobId = jobSummary->Id;
+    auto abortReason = jobSummary->AbortReason;
 
     JobCounter.Aborted(1, abortReason);
-    UpdateJobStatistics(jobSummary);
 
     auto joblet = GetJoblet(jobId);
-    joblet->Task->OnJobAborted(joblet, jobSummary);
 
+    FinalizeJoblet(joblet, jobSummary.get());
+    LogFinishedJobFluently(ELogEventType::JobAborted, joblet, *jobSummary)
+        .Item("reason").Value(abortReason);
+
+    joblet->Task->OnJobAborted(joblet, *jobSummary);
+
+    UpdateJobStatistics(*jobSummary);
 
     RemoveJoblet(jobId);
 
     if (abortReason == EAbortReason::FailedChunks) {
-        const auto& result = jobSummary.Result;
+        const auto& result = jobSummary->Result;
         const auto& schedulerResultExt = result->GetExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
         for (const auto& chunkId : schedulerResultExt.failed_chunk_ids()) {
             OnChunkFailed(FromProto<TChunkId>(chunkId));
         }
     }
 }
+
+void TOperationControllerBase::FinalizeJoblet(
+    const TJobletPtr& joblet,
+    TJobSummary* jobSummary)
+{
+    const auto& result = jobSummary->Result;
+    auto& statistics = jobSummary->Statistics;
+
+    joblet->FinishTime = jobSummary->FinishTime;
+    {
+        auto duration = joblet->FinishTime - joblet->StartTime;
+        statistics.AddSample("/time/total", duration.MilliSeconds());
+    }
+    if (result->has_prepare_time()) {
+        statistics.AddSample("/time/prepare", result->prepare_time());
+    }
+    if (result->has_exec_time()) {
+        statistics.AddSample("/time/exec", result->exec_time());
+    }
+}
+
+TFluentLogEvent TOperationControllerBase::LogFinishedJobFluently(
+    ELogEventType eventType,
+    const TJobletPtr& joblet,
+    const TJobSummary& jobSummary)
+{
+    return LogEventFluently(eventType)
+        .Item("job_id").Value(joblet->JobId)
+        .Item("operation_id").Value(Operation->GetId())
+        .Item("start_time").Value(joblet->StartTime)
+        .Item("finish_time").Value(joblet->FinishTime)
+        .Item("resource_limits").Value(joblet->ResourceLimits)
+        .Item("statistics").Value(jobSummary.Statistics)
+        .Item("node_address").Value(joblet->NodeDescriptor.Address)
+        .Item("job_type").Value(joblet->JobType);
+}
+
+IYsonConsumer* TOperationControllerBase::GetEventLogConsumer()
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    return EventLogConsumer_.get();
+}
+
 
 void TOperationControllerBase::OnChunkFailed(const TChunkId& chunkId)
 {
@@ -1792,7 +1869,7 @@ TJobStartRequestPtr TOperationControllerBase::ScheduleJob(
 
     auto request = DoScheduleJob(context, jobLimits);
     if (request) {
-        OnJobStarted(request->Id);
+        JobCounter.Start(1);
     }
     return request;
 
@@ -2675,7 +2752,8 @@ void TOperationControllerBase::FetchInputTables()
                 req->set_fetch_all_meta_extensions(false);
                 req->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
                 if (IsBoundaryKeysFetchEnabled()) {
-                    req->add_extension_tags(TProtoExtensionTag<NTableClient::NProto::TBoundaryKeysExt>::Value);
+                    req->add_extension_tags(TProtoExtensionTag<TBoundaryKeysExt>::Value);
+                    req->add_extension_tags(TProtoExtensionTag<TOldBoundaryKeysExt>::Value);
                 }
                 req->set_fetch_parity_replicas(IsParityReplicasFetchEnabled());
                 SetTransactionId(req, InputTransactionId);
@@ -3720,6 +3798,7 @@ void TOperationControllerBase::BuildResult(IYsonConsumer* consumer) const
 
 void TOperationControllerBase::UpdateJobStatistics(const TJobSummary& jobSummary)
 {
+    // NB: There is a copy happening here that can be eliminated.
     auto statistics = jobSummary.Statistics;
     LOG_DEBUG("Job data statistics (JobId: %v, Input: %v, Output: %v)",
         jobSummary.Id,

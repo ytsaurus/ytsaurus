@@ -1,6 +1,6 @@
 #include "transaction.h"
 #include "automaton.h"
-#include "dynamic_memory_store.h"
+#include "sorted_dynamic_store.h"
 #include "tablet.h"
 #include "tablet_manager.h"
 #include "tablet_slot.h"

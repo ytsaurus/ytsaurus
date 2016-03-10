@@ -20,27 +20,27 @@ using NYT::FromProto;
 void TUserStatistics::Persist(NCellMaster::TPersistenceContext& context)
 {
     using NYT::Persist;
-    Persist(context, RequestCounter);
+    Persist(context, RequestCount);
     if (context.IsSave() || context.LoadContext().GetVersion() >= 200) {
-        Persist(context, ReadRequestTimer);
-        Persist(context, WriteRequestTimer);
+        Persist(context, ReadRequestTime);
+        Persist(context, WriteRequestTime);
     }
     Persist(context, AccessTime);
 }
 
 void ToProto(NProto::TUserStatistics* protoStatistics, const TUserStatistics& statistics)
 {
-    protoStatistics->set_request_counter(statistics.RequestCounter);
-    protoStatistics->set_read_request_timer(ToProto(statistics.ReadRequestTimer));
-    protoStatistics->set_write_request_timer(ToProto(statistics.WriteRequestTimer));
+    protoStatistics->set_request_count(statistics.RequestCount);
+    protoStatistics->set_read_request_time(ToProto(statistics.ReadRequestTime));
+    protoStatistics->set_write_request_time(ToProto(statistics.WriteRequestTime));
     protoStatistics->set_access_time(ToProto(statistics.AccessTime));
 }
 
 void FromProto(TUserStatistics* statistics, const NProto::TUserStatistics& protoStatistics)
 {
-    statistics->RequestCounter = protoStatistics.request_counter();
-    statistics->ReadRequestTimer = FromProto<TDuration>(protoStatistics.read_request_timer());
-    statistics->WriteRequestTimer = FromProto<TDuration>(protoStatistics.write_request_timer());
+    statistics->RequestCount = protoStatistics.request_count();
+    statistics->ReadRequestTime = FromProto<TDuration>(protoStatistics.read_request_time());
+    statistics->WriteRequestTime = FromProto<TDuration>(protoStatistics.write_request_time());
     statistics->AccessTime = FromProto<TInstant>(protoStatistics.access_time());
 }
 
@@ -48,18 +48,18 @@ void Serialize(const TUserStatistics& statistics, IYsonConsumer* consumer)
 {
     BuildYsonFluently(consumer)
         .BeginMap()
-            .Item("request_counter").Value(statistics.RequestCounter)
-            .Item("read_request_timer").Value(statistics.ReadRequestTimer)
-            .Item("write_request_timer").Value(statistics.WriteRequestTimer)
+            .Item("request_count").Value(statistics.RequestCount)
+            .Item("read_request_time").Value(statistics.ReadRequestTime)
+            .Item("write_request_time").Value(statistics.WriteRequestTime)
             .Item("access_time").Value(statistics.AccessTime)
         .EndMap();
 }
 
 TUserStatistics& operator += (TUserStatistics& lhs, const TUserStatistics& rhs)
 {
-    lhs.RequestCounter += rhs.RequestCounter;
-    lhs.ReadRequestTimer += rhs.ReadRequestTimer;
-    lhs.WriteRequestTimer += rhs.WriteRequestTimer;
+    lhs.RequestCount += rhs.RequestCount;
+    lhs.ReadRequestTime += rhs.ReadRequestTime;
+    lhs.WriteRequestTime += rhs.WriteRequestTime;
     lhs.AccessTime = std::max(lhs.AccessTime, rhs.AccessTime);
     return lhs;
 }
@@ -111,7 +111,7 @@ void TUser::Load(NCellMaster::TLoadContext& context)
 void TUser::ResetRequestRate()
 {
     CheckpointTime_ = TInstant::Zero();
-    CheckpointRequestCounter_ = 0;
+    CheckpointRequestCount_ = 0;
     RequestRate_ = 0;
 }
 

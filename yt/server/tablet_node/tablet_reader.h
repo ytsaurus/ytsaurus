@@ -39,7 +39,7 @@ NTableClient::ISchemafulReaderPtr CreateSchemafulTabletReader(
 NTableClient::IVersionedReaderPtr CreateVersionedTabletReader(
     IInvokerPtr poolInvoker,
     TTabletSnapshotPtr tabletSnapshot,
-    std::vector<IStorePtr> stores,
+    std::vector<ISortedStorePtr> stores,
     TOwningKey lowerBound,
     TOwningKey upperBound,
     TTimestamp currentTimestamp,
