@@ -103,6 +103,8 @@ private:
     const TCellMasterConfigPtr Config_;
     TBootstrap* const Bootstrap_;
 
+    std::vector<TFuture<void>> ScheduledMutations_;
+
 
     void OnLeaderActive()
     {
@@ -149,7 +151,8 @@ private:
             // All initialization will be happening within this transaction.
             auto transactionId = StartTransaction();
 
-            CreateNode(
+            // Level 1
+            ScheduleCreateNode(
                 "//sys",
                 transactionId,
                 EObjectType::SysNode,
@@ -160,7 +163,26 @@ private:
                         })
                     .EndMap());
 
-            CreateNode(
+            ScheduleCreateNode(
+                "//tmp",
+                transactionId,
+                EObjectType::MapNode,
+                BuildYsonStringFluently()
+                    .BeginMap()
+                        .Item("opaque").Value(true)
+                        .Item("account").Value("tmp")
+                        .Item("acl").BeginList()
+                            .Item().Value(TAccessControlEntry(
+                                ESecurityAction::Allow,
+                                securityManager->GetUsersGroup(),
+                                EPermissionSet(EPermission::Read | EPermission::Write | EPermission::Remove)))
+                        .EndList()
+                    .EndMap());
+
+            FlushScheduled();
+
+            // Level 2
+            ScheduleCreateNode(
                 "//sys/schemas",
                 transactionId,
                 EObjectType::MapNode,
@@ -169,20 +191,7 @@ private:
                         .Item("opaque").Value(true)
                     .EndMap());
 
-            for (auto type : objectManager->GetRegisteredTypes()) {
-                if (HasSchema(type)) {
-                    CreateNode(
-                        "//sys/schemas/" + ToYPathLiteral(FormatEnum(type)),
-                        transactionId,
-                        EObjectType::Link,
-                        BuildYsonStringFluently()
-                            .BeginMap()
-                                .Item("target_id").Value(objectManager->GetSchema(type)->GetId())
-                            .EndMap());
-                }
-            }
-
-            CreateNode(
+            ScheduleCreateNode(
                 "//sys/scheduler",
                 transactionId,
                 EObjectType::MapNode,
@@ -191,12 +200,7 @@ private:
                         .Item("opaque").Value(true)
                     .EndMap());
 
-            CreateNode(
-                "//sys/scheduler/lock",
-                transactionId,
-                EObjectType::MapNode);
-
-            CreateNode(
+            ScheduleCreateNode(
                 "//sys/pools",
                 transactionId,
                 EObjectType::MapNode,
@@ -205,7 +209,7 @@ private:
                         .Item("opaque").Value(true)
                     .EndMap());
 
-            CreateNode(
+            ScheduleCreateNode(
                 "//sys/tokens",
                 transactionId,
                 EObjectType::Document,
@@ -215,7 +219,7 @@ private:
                         .EndMap()
                     .EndMap());
 
-            CreateNode(
+            ScheduleCreateNode(
                 "//sys/clusters",
                 transactionId,
                 EObjectType::Document,
@@ -225,7 +229,7 @@ private:
                         .EndMap()
                     .EndMap());
 
-            CreateNode(
+            ScheduleCreateNode(
                 "//sys/empty_yamr_table",
                 transactionId,
                 EObjectType::Table,
@@ -257,7 +261,7 @@ private:
                             .EndList()
                     .EndMap());
 
-            CreateNode(
+            ScheduleCreateNode(
                 "//sys/scheduler/instances",
                 transactionId,
                 EObjectType::MapNode,
@@ -266,12 +270,12 @@ private:
                         .Item("opaque").Value(true)
                     .EndMap());
 
-            CreateNode(
+            ScheduleCreateNode(
                 "//sys/scheduler/orchid",
                 transactionId,
                 EObjectType::Orchid);
 
-            CreateNode(
+            ScheduleCreateNode(
                 "//sys/scheduler/event_log",
                 transactionId,
                 EObjectType::Table,
@@ -280,7 +284,7 @@ private:
                         .Item("external").Value(false)
                     .EndMap());
 
-            CreateNode(
+            ScheduleCreateNode(
                 "//sys/operations",
                 transactionId,
                 EObjectType::MapNode,
@@ -289,7 +293,7 @@ private:
                         .Item("opaque").Value(true)
                     .EndMap());
 
-            CreateNode(
+            ScheduleCreateNode(
                 "//sys/proxies",
                 transactionId,
                 EObjectType::MapNode,
@@ -298,7 +302,7 @@ private:
                         .Item("opaque").Value(true)
                     .EndMap());
 
-            CreateNode(
+            ScheduleCreateNode(
                 "//sys/nodes",
                 transactionId,
                 EObjectType::ClusterNodeMap,
@@ -307,22 +311,160 @@ private:
                         .Item("opaque").Value(true)
                     .EndMap());
 
-            CreateNode(
+            ScheduleCreateNode(
                 "//sys/racks",
                 transactionId,
                 EObjectType::RackMap);
+
+            ScheduleCreateNode(
+                "//sys/primary_masters",
+                transactionId,
+                EObjectType::MapNode,
+                BuildYsonStringFluently()
+                    .BeginMap()
+                        .Item("opaque").Value(true)
+                    .EndMap());
+
+            ScheduleCreateNode(
+                "//sys/secondary_masters",
+                transactionId,
+                EObjectType::MapNode,
+                BuildYsonStringFluently()
+                    .BeginMap()
+                        .Item("opaque").Value(true)
+                    .EndMap());
+
+            ScheduleCreateNode(
+                "//sys/locks",
+                transactionId,
+                EObjectType::LockMap);
+
+            ScheduleCreateNode(
+                "//sys/chunks",
+                transactionId,
+                EObjectType::ChunkMap);
+
+            ScheduleCreateNode(
+                "//sys/lost_chunks",
+                transactionId,
+                EObjectType::LostChunkMap);
+
+            ScheduleCreateNode(
+                "//sys/lost_vital_chunks",
+                transactionId,
+                EObjectType::LostVitalChunkMap);
+
+            ScheduleCreateNode(
+                "//sys/overreplicated_chunks",
+                transactionId,
+                EObjectType::OverreplicatedChunkMap);
+
+            ScheduleCreateNode(
+                "//sys/underreplicated_chunks",
+                transactionId,
+                EObjectType::UnderreplicatedChunkMap);
+
+            ScheduleCreateNode(
+                "//sys/data_missing_chunks",
+                transactionId,
+                EObjectType::DataMissingChunkMap);
+
+            ScheduleCreateNode(
+                "//sys/parity_missing_chunks",
+                transactionId,
+                EObjectType::ParityMissingChunkMap);
+
+            ScheduleCreateNode(
+                "//sys/quorum_missing_chunks",
+                transactionId,
+                EObjectType::QuorumMissingChunkMap);
+
+            ScheduleCreateNode(
+                "//sys/unsafely_placed_chunks",
+                transactionId,
+                EObjectType::UnsafelyPlacedChunkMap);
+
+            ScheduleCreateNode(
+                "//sys/foreign_chunks",
+                transactionId,
+                EObjectType::ForeignChunkMap);
+
+            ScheduleCreateNode(
+                "//sys/chunk_lists",
+                transactionId,
+                EObjectType::ChunkListMap);
+
+            ScheduleCreateNode(
+                "//sys/transactions",
+                transactionId,
+                EObjectType::TransactionMap);
+
+            ScheduleCreateNode(
+                "//sys/topmost_transactions",
+                transactionId,
+                EObjectType::TopmostTransactionMap);
+
+            ScheduleCreateNode(
+                "//sys/accounts",
+                transactionId,
+                EObjectType::AccountMap);
+
+            ScheduleCreateNode(
+                "//sys/users",
+                transactionId,
+                EObjectType::UserMap);
+
+            ScheduleCreateNode(
+                "//sys/groups",
+                transactionId,
+                EObjectType::GroupMap);
+
+            ScheduleCreateNode(
+                "//sys/tablet_cell_bundles",
+                transactionId,
+                EObjectType::TabletCellBundleMap);
+
+            ScheduleCreateNode(
+                "//sys/tablet_cells",
+                transactionId,
+                EObjectType::MapNode,
+                BuildYsonStringFluently()
+                    .BeginMap()
+                        .Item("opaque").Value(true)
+                    .EndMap());
+
+            ScheduleCreateNode(
+                "//sys/tablets",
+                transactionId,
+                EObjectType::TabletMap);
+
+            FlushScheduled();
+
+            // Level 3
+
+            for (auto type : objectManager->GetRegisteredTypes()) {
+                if (HasSchema(type)) {
+                    ScheduleCreateNode(
+                        "//sys/schemas/" + ToYPathLiteral(FormatEnum(type)),
+                        transactionId,
+                        EObjectType::Link,
+                        BuildYsonStringFluently()
+                            .BeginMap()
+                                .Item("target_id").Value(objectManager->GetSchema(type)->GetId())
+                            .EndMap());
+                }
+            }
+
+            ScheduleCreateNode(
+                "//sys/scheduler/lock",
+                transactionId,
+                EObjectType::MapNode);
 
             auto createMasters = [&] (const TYPath& rootPath, NElection::TCellConfigPtr cellConfig) {
                 for (const auto& peer : cellConfig->Peers) {
                     const auto& address = *peer.Address;
                     auto addressPath = "/" + ToYPathLiteral(address);
-
-                    CreateNode(
-                        rootPath + addressPath,
-                        transactionId,
-                        EObjectType::MapNode);
-
-                    CreateNode(
+                    ScheduleCreateNode(
                         rootPath + addressPath + "/orchid",
                         transactionId,
                         EObjectType::Orchid,
@@ -333,163 +475,22 @@ private:
                 }
             };
 
-            CreateNode(
-                "//sys/primary_masters",
-                transactionId,
-                EObjectType::MapNode,
-                BuildYsonStringFluently()
-                    .BeginMap()
-                        .Item("opaque").Value(true)
-                    .EndMap());
-
             createMasters("//sys/primary_masters", Config_->PrimaryMaster);
-
-            CreateNode(
-                "//sys/secondary_masters",
-                transactionId,
-                EObjectType::MapNode,
-                BuildYsonStringFluently()
-                    .BeginMap()
-                        .Item("opaque").Value(true)
-                    .EndMap());
 
             for (auto cellConfig : Config_->SecondaryMasters) {
                 auto cellTag = CellTagFromId(cellConfig->CellId);
                 auto cellPath = "//sys/secondary_masters/" + ToYPathLiteral(cellTag);
-
-                CreateNode(
-                    cellPath,
-                    transactionId,
-                    EObjectType::MapNode);
-
                 createMasters(cellPath, cellConfig);
             }
 
-            CreateNode(
-                "//sys/locks",
-                transactionId,
-                EObjectType::LockMap);
-
-            CreateNode(
-                "//sys/chunks",
-                transactionId,
-                EObjectType::ChunkMap);
-
-            CreateNode(
-                "//sys/lost_chunks",
-                transactionId,
-                EObjectType::LostChunkMap);
-
-            CreateNode(
-                "//sys/lost_vital_chunks",
-                transactionId,
-                EObjectType::LostVitalChunkMap);
-
-            CreateNode(
-                "//sys/overreplicated_chunks",
-                transactionId,
-                EObjectType::OverreplicatedChunkMap);
-
-            CreateNode(
-                "//sys/underreplicated_chunks",
-                transactionId,
-                EObjectType::UnderreplicatedChunkMap);
-
-            CreateNode(
-                "//sys/data_missing_chunks",
-                transactionId,
-                EObjectType::DataMissingChunkMap);
-
-            CreateNode(
-                "//sys/parity_missing_chunks",
-                transactionId,
-                EObjectType::ParityMissingChunkMap);
-
-            CreateNode(
-                "//sys/quorum_missing_chunks",
-                transactionId,
-                EObjectType::QuorumMissingChunkMap);
-
-            CreateNode(
-                "//sys/unsafely_placed_chunks",
-                transactionId,
-                EObjectType::UnsafelyPlacedChunkMap);
-
-            CreateNode(
-                "//sys/foreign_chunks",
-                transactionId,
-                EObjectType::ForeignChunkMap);
-
-            CreateNode(
-                "//sys/chunk_lists",
-                transactionId,
-                EObjectType::ChunkListMap);
-
-            CreateNode(
-                "//sys/transactions",
-                transactionId,
-                EObjectType::TransactionMap);
-
-            CreateNode(
-                "//sys/topmost_transactions",
-                transactionId,
-                EObjectType::TopmostTransactionMap);
-
-            CreateNode(
-                "//sys/accounts",
-                transactionId,
-                EObjectType::AccountMap);
-
-            CreateNode(
-                "//sys/users",
-                transactionId,
-                EObjectType::UserMap);
-
-            CreateNode(
-                "//sys/groups",
-                transactionId,
-                EObjectType::GroupMap);
-
-            CreateNode(
-                "//sys/tablet_cell_bundles",
-                transactionId,
-                EObjectType::TabletCellBundleMap);
-
-            CreateNode(
-                "//sys/tablet_cells",
-                transactionId,
-                EObjectType::MapNode,
-                BuildYsonStringFluently()
-                    .BeginMap()
-                        .Item("opaque").Value(true)
-                    .EndMap());
-
-            CreateNode(
-                "//sys/tablets",
-                transactionId,
-                EObjectType::TabletMap);
-
-            CreateNode(
-                "//tmp",
-                transactionId,
-                EObjectType::MapNode,
-                BuildYsonStringFluently()
-                    .BeginMap()
-                        .Item("opaque").Value(true)
-                        .Item("account").Value("tmp")
-                        .Item("acl").BeginList()
-                            .Item().Value(TAccessControlEntry(
-                                ESecurityAction::Allow,
-                                securityManager->GetUsersGroup(),
-                                EPermissionSet(EPermission::Read | EPermission::Write | EPermission::Remove)))
-                        .EndList()
-                    .EndMap());
+            FlushScheduled();
 
             CommitTransaction(transactionId);
 
             LOG_INFO("World initialization completed");
         } catch (const std::exception& ex) {
             LOG_ERROR(ex, "World initialization failed");
+            AbandonScheduled();
             ScheduleInitialize(InitRetryPeriod);
         }
     }
@@ -529,7 +530,7 @@ private:
             .ThrowOnError();
     }
 
-    void CreateNode(
+    void ScheduleCreateNode(
         const TYPath& path,
         const TTransactionId& transactionId,
         EObjectType type,
@@ -541,10 +542,21 @@ private:
         req->set_type(static_cast<int>(type));
         req->set_recursive(true);
         ToProto(req->mutable_node_attributes(), *ConvertToAttributes(attributes));
-        WaitFor(ExecuteVerb(service, req))
+        ScheduledMutations_.push_back(ExecuteVerb(service, req).As<void>());
+    }
+
+    void FlushScheduled()
+    {
+        std::vector<TFuture<void>> scheduledMutations;
+        ScheduledMutations_.swap(scheduledMutations);
+        WaitFor(Combine(scheduledMutations))
             .ThrowOnError();
     }
 
+    void AbandonScheduled()
+    {
+        ScheduledMutations_.clear();
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
