@@ -561,6 +561,7 @@ void TBootstrap::DoInitialize()
     CypressManager_->RegisterHandler(CreateChunkMapTypeHandler(this, EObjectType::ParityMissingChunkMap));
     CypressManager_->RegisterHandler(CreateChunkMapTypeHandler(this, EObjectType::QuorumMissingChunkMap));
     CypressManager_->RegisterHandler(CreateChunkMapTypeHandler(this, EObjectType::UnsafelyPlacedChunkMap));
+    CypressManager_->RegisterHandler(CreateChunkMapTypeHandler(this, EObjectType::ForeignChunkMap));
     CypressManager_->RegisterHandler(CreateChunkListMapTypeHandler(this));
     CypressManager_->RegisterHandler(CreateTransactionMapTypeHandler(this));
     CypressManager_->RegisterHandler(CreateTopmostTransactionMapTypeHandler(this));

@@ -35,6 +35,7 @@ inline bool IsVersionedType(EObjectType type)
         type == EObjectType::ParityMissingChunkMap ||
         type == EObjectType::QuorumMissingChunkMap ||
         type == EObjectType::UnsafelyPlacedChunkMap ||
+        type == EObjectType::ForeignChunkMap ||
         type == EObjectType::RackMap ||
         type == EObjectType::ChunkListMap ||
         type == EObjectType::TransactionMap ||

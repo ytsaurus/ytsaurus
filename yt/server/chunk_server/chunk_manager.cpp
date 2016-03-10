@@ -775,14 +775,15 @@ public:
     }
 
 
-    const yhash_set<TChunk*>& LostChunks() const;
-    const yhash_set<TChunk*>& LostVitalChunks() const;
-    const yhash_set<TChunk*>& OverreplicatedChunks() const;
-    const yhash_set<TChunk*>& UnderreplicatedChunks() const;
-    const yhash_set<TChunk*>& DataMissingChunks() const;
-    const yhash_set<TChunk*>& ParityMissingChunks() const;
-    const yhash_set<TChunk*>& QuorumMissingChunks() const;
-    const yhash_set<TChunk*>& UnsafelyPlacedChunks() const;
+    DECLARE_BYREF_RO_PROPERTY(yhash_set<TChunk*>, LostChunks);
+    DECLARE_BYREF_RO_PROPERTY(yhash_set<TChunk*>, LostVitalChunks);
+    DECLARE_BYREF_RO_PROPERTY(yhash_set<TChunk*>, OverreplicatedChunks);
+    DECLARE_BYREF_RO_PROPERTY(yhash_set<TChunk*>, UnderreplicatedChunks);
+    DECLARE_BYREF_RO_PROPERTY(yhash_set<TChunk*>, DataMissingChunks);
+    DECLARE_BYREF_RO_PROPERTY(yhash_set<TChunk*>, ParityMissingChunks);
+    DECLARE_BYREF_RO_PROPERTY(yhash_set<TChunk*>, QuorumMissingChunks);
+    DECLARE_BYREF_RO_PROPERTY(yhash_set<TChunk*>, UnsafelyPlacedChunks);
+    DEFINE_BYREF_RO_PROPERTY(yhash_set<TChunk*>, ForeignChunks);
 
 
     int GetTotalReplicaCount()
@@ -973,6 +974,10 @@ private:
 
     void DestroyChunk(TChunk* chunk)
     {
+        if (chunk->IsForeign()) {
+            YCHECK(ForeignChunks_.erase(chunk) == 1);
+        }
+
         // Decrease staging resource usage; release account.
         UnstageChunk(chunk);
 
@@ -1248,6 +1253,7 @@ private:
                 chunk->SetForeign();
                 chunk->Confirm(importData.mutable_info(), importData.mutable_meta());
                 chunk->SetErasureCodec(NErasure::ECodec(importData.erasure_codec()));
+                YCHECK(ForeignChunks_.insert(chunk).second);
             }
 
             transactionManager->ImportObject(transaction, chunk);
@@ -1293,7 +1299,7 @@ private:
         // Populate nodes' chunk replica sets.
         // Compute chunk replica count.
 
-        LOG_INFO("Started populating nodes' chunk replicas");
+        LOG_INFO("Started initializing chunks");
 
         TotalReplicaCount_ = 0;
         for (const auto& pair : ChunkMap_) {
@@ -1312,9 +1318,13 @@ private:
                 }
                 TotalReplicaCount_ += chunk->CachedReplicas()->size();
             }
+
+            if (chunk->IsForeign()) {
+                YCHECK(ForeignChunks_.insert(chunk).second);
+            }
         }
 
-        LOG_INFO("Finished populating nodes' chunk replicas");
+        LOG_INFO("Finished initializing chunks");
     }
 
 
@@ -1324,6 +1334,7 @@ private:
 
         ChunkMap_.Clear();
         ChunkListMap_.Clear();
+        ForeignChunks_.clear();
         TotalReplicaCount_ = 0;
     }
 
@@ -2113,6 +2124,7 @@ DELEGATE_BYREF_RO_PROPERTY(TChunkManager, yhash_set<TChunk*>, DataMissingChunks,
 DELEGATE_BYREF_RO_PROPERTY(TChunkManager, yhash_set<TChunk*>, ParityMissingChunks, *Impl_);
 DELEGATE_BYREF_RO_PROPERTY(TChunkManager, yhash_set<TChunk*>, QuorumMissingChunks, *Impl_);
 DELEGATE_BYREF_RO_PROPERTY(TChunkManager, yhash_set<TChunk*>, UnsafelyPlacedChunks, *Impl_);
+DELEGATE_BYREF_RO_PROPERTY(TChunkManager, yhash_set<TChunk*>, ForeignChunks, *Impl_);
 
 ///////////////////////////////////////////////////////////////////////////////
 

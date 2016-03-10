@@ -416,6 +416,11 @@ private:
                 EObjectType::UnsafelyPlacedChunkMap);
 
             CreateNode(
+                "//sys/foreign_chunks",
+                transactionId,
+                EObjectType::ForeignChunkMap);
+
+            CreateNode(
                 "//sys/chunk_lists",
                 transactionId,
                 EObjectType::ChunkListMap);
