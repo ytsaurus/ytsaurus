@@ -3,12 +3,6 @@ from yt_commands import *
 
 ##################################################################
 
-def _create_drivers(environment):
-    driver_names = ["driver_secondary_{0}".format(i)
-                    for i in xrange(environment.NUM_SECONDARY_MASTER_CELLS)]
-    driver_configs = [environment.configs[driver_name] for driver_name in driver_names]
-    return [Driver(config=config) for config in driver_configs]
-
 class TestMasterCellsSync(YTEnvSetup):
     START_SECONDARY_MASTER_CELLS = True
     NUM_SECONDARY_MASTER_CELLS = 2
@@ -20,19 +14,18 @@ class TestMasterCellsSync(YTEnvSetup):
         cls.delayed_secondary_cells_start = delayed_secondary_cells_start
 
     def _check_true_for_secondary(self, check):
+        if self.delayed_secondary_cells_start:
+            for i in xrange(self.Env.NUM_SECONDARY_MASTER_CELLS):
+                self.Env.start_masters("master_secondary_{0}".format(i))
+        try:
+            multicell_sleep()
+            for i in xrange(self.Env.NUM_SECONDARY_MASTER_CELLS):
+                value = check(get_driver(i + 1))
+                assert value
+        finally:
             if self.delayed_secondary_cells_start:
                 for i in xrange(self.Env.NUM_SECONDARY_MASTER_CELLS):
-                    self.Env.start_masters("master_secondary_{0}".format(i))
-            try:
-                drivers = _create_drivers(self.Env)
-                multicell_sleep()
-                for driver in drivers:
-                    value = check(driver)
-                    assert value
-            finally:
-                if self.delayed_secondary_cells_start:
-                    for i in xrange(self.Env.NUM_SECONDARY_MASTER_CELLS):
-                        self.Env.kill_service("master_secondary_{0}".format(i))
+                    self.Env.kill_service("master_secondary_{0}".format(i))
 
     def teardown(self):
         if self.delayed_secondary_cells_start:
