@@ -5,6 +5,8 @@ OWNER(
 
 UNION()
 
+BUILD_ONLY_IF(LINUX)
+
 FILES(
     __init__.py
     yt_stuff.py
