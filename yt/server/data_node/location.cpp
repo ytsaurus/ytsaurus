@@ -283,7 +283,8 @@ EIOCategory TLocation::ToIOCategory(const TWorkloadDescriptor& workloadDescripto
             return EIOCategory::Realtime;
 
         default:
-            YUNREACHABLE();
+            // Graceful fallback for possible future extensions of categories.
+            return EIOCategory::Batch;
     }
 }
 
