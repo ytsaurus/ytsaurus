@@ -1471,13 +1471,25 @@ class Application(object):
     def _delete_tasks(self, ids):
         client = Yt(**self._config["yt_backend_options"])
 
-        for id_ in ids:
-            client.remove(os.path.join(self._tasks_path, id_), recursive=True, force=True)
+        failed_ids = []
+        ids_to_delete = []
 
         with self._mutex:
             for id_ in ids:
-                if id_ in self._tasks:
-                    del self._tasks[id_]
+                task = self._tasks.get(id_)
+                if task is None or task.state not in ["aborted", "failed", "completed"]:
+                    failed_ids.append(id_)
+                    continue
+
+                del self._tasks[id_]
+                ids_to_delete.append(id_)
+
+        for id_ in ids_to_delete:
+            client.remove(os.path.join(self._tasks_path, id_), recursive=True, force=True)
+
+        if failed_ids:
+            raise RequestFailed("The following tasks not finished or do not exist "
+                                "and can't be deleted: {0}".format(", ".join(failed_ids)))
 
     # Public interface
     def run(self, *args, **kwargs):
@@ -1602,36 +1614,14 @@ class Application(object):
 
         self._check_administer_permission("delete", headers=request.headers)
 
-        ids_to_delete = []
-        failed_ids = []
-
-        with self._mutex:
-            for id_ in ids:
-                task = self._tasks.get(id_)
-                if task is None:
-                    failed_ids.append(id_)
-                    continue
-
-                if task.state not in ["completed", "aborted", "failed"]:
-                    failed_ids.append(id_)
-                else:
-                    ids_to_delete.append(id_)
-
-        self._delete_tasks(ids_to_delete)
-        if failed_ids:
-            raise RequestFailed("The following tasks not finished or do not exist "
-                                "and can't be deleted: {0}".format(", ".join(failed_ids)))
+        self._delete_tasks(ids)
 
         return ""
 
     def delete_task(self, id):
-        if id not in self._tasks:
-            raise RequestFailed("Unknown task " + id)
-
         with self._mutex:
-            self._check_permission(id, request.headers, "Deleting")
-            if self._tasks[id].state not in ["completed", "aborted", "failed"]:
-                raise RequestFailed("Cannot delete running task " + self._tasks[id].state)
+            if id in self._tasks:
+                self._check_permission(id, request.headers, "Deleting")
 
         self._delete_tasks([id])
 
