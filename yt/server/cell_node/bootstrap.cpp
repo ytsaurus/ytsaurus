@@ -298,11 +298,11 @@ void TBootstrap::DoRun()
 
     ArtifactCacheInThrottler = CreateCombinedThrottler(std::vector<IThroughputThrottlerPtr>{
         TotalInThrottler,
-        createThrottler(Config->DataNode->RepairInThrottler, "ArtifactCacheIn")
+        createThrottler(Config->DataNode->ArtifactCacheInThrottler, "ArtifactCacheIn")
     });
     ArtifactCacheOutThrottler = CreateCombinedThrottler(std::vector<IThroughputThrottlerPtr>{
         TotalOutThrottler,
-        createThrottler(Config->DataNode->RepairOutThrottler, "ArtifactCacheOut")
+        createThrottler(Config->DataNode->ArtifactCacheOutThrottler, "ArtifactCacheOut")
     });
 
     RpcServer->RegisterService(CreateDataNodeService(Config->DataNode, this));

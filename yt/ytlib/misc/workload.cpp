@@ -58,8 +58,9 @@ i64 GetBasicPriority(EWorkloadCategory category)
         case EWorkloadCategory::SystemRealtime:
             return -CategoryPriorityFactor * 3;
 
+        // Graceful fallback for possible future extensions of categories.
         default:
-            YUNREACHABLE();
+            return 0;
     }
 }
 
