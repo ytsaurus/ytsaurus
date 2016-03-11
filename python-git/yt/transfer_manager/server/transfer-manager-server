@@ -348,6 +348,7 @@ class Application(object):
         self._add_rule("/", 'main', methods=["GET"], depends_on_lock=False)
         self._add_rule("/tasks/", 'get_tasks', methods=["GET"], is_heavy=True)
         self._add_rule("/tasks/", 'add_task', methods=["POST"], is_mutating=True, is_heavy=True)
+        self._add_rule("/tasks/", 'delete_tasks', methods=["DELETE"], is_mutating=True, is_heavy=True)
         self._add_rule("/tasks/<id>/", 'get_task', methods=["GET"], is_heavy=True)
         self._add_rule("/tasks/<id>/", 'delete_task', methods=["DELETE"], is_mutating=True, is_heavy=True)
         self._add_rule("/tasks/<id>/abort/", 'abort_task', methods=["POST"], is_mutating=True, is_heavy=True)
@@ -851,10 +852,15 @@ class Application(object):
     def _check_permission(self, id, headers, action_name):
         _, user = self._get_token_and_user(headers)
         if self._tasks[id].user != user:
-            client = Yt(**self._config["yt_backend_options"])
             with self._mutex.discharge():
-                if client.check_permission(user, "administer", self._auth_path)["action"] != "allow":
-                    raise RequestFailed("{0} task is not permitted.".format(action_name))
+                self._check_administer_permission(action_name, header=headers, user=user)
+
+    def _check_administer_permission(self, action_name, headers=None, user=None):
+        if user is None:
+            _, user = self._get_token_and_user(headers)
+        client = Yt(**self._config["yt_backend_options"])
+        if client.check_permission(user, "administer", self._auth_path)["action"] != "allow":
+            raise RequestFailed("{0} task is not permitted.".format(action_name))
 
     def _set_defaults(self, task, clusters_configuration):
         source_client = task.get_source_client(clusters_configuration.clusters)
@@ -1462,6 +1468,16 @@ class Application(object):
 
         return task.id
 
+    def _delete_tasks(self, ids):
+        client = Yt(**self._config["yt_backend_options"])
+        for id in ids:
+            client.remove(os.path.join(self._tasks_path, id), recursive=True, force=True)
+
+        with self._mutex:
+            for id in ids:
+                if id in self._tasks:
+                    del self._tasks[id]
+
     # Public interface
     def run(self, *args, **kwargs):
         logger.info("Starting transfer manager (pid %s)", os.getpid())
@@ -1577,6 +1593,18 @@ class Application(object):
 
         return ""
 
+    def delete_tasks(self):
+        try:
+            ids = json.loads_as_bytes(request.data)
+        except ValueError as error:
+            raise RequestFailed("Cannot parse JSON from body '{}'".format(request.data), inner_errors=[yt.YtError(error.message)])
+
+        self._check_administer_permission("delete", headers=request.headers)
+
+        self._delete_tasks(ids)
+
+        return ""
+
     def delete_task(self, id):
         if id not in self._tasks:
             raise RequestFailed("Unknown task " + id)
@@ -1586,11 +1614,7 @@ class Application(object):
             if self._tasks[id].state not in ["completed", "aborted", "failed"]:
                 raise RequestFailed("Cannot delete running task " + self._tasks[id].state)
 
-        client = Yt(**self._config["yt_backend_options"])
-        client.remove(os.path.join(self._tasks_path, id), recursive=True)
-
-        with self._mutex:
-            del self._tasks[id]
+        self._delete_tasks([id])
 
         return ""
 
