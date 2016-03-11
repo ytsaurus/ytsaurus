@@ -728,14 +728,15 @@ class TestSchedulerSnapshots(YTEnvSetup):
 
     def test_snapshots(self):
         create("table", "//tmp/in")
-        write_table("//tmp/in", [{"foo": i} for i in xrange(10)])
+        write_table("//tmp/in", [{"foo": i} for i in xrange(5)])
         create("table", "//tmp/out")
 
         testing_options = {"scheduling_delay": 500}
 
         op = map(
             dont_track=True,
-            command="cat; sleep 1",
+            waiting_jobs=True,
+            command="cat",
             in_="//tmp/in",
             out="//tmp/out",
             spec={"data_size_per_job": 1, "testing": testing_options})
@@ -743,6 +744,7 @@ class TestSchedulerSnapshots(YTEnvSetup):
         track_path("//sys/operations/{0}/snapshot".format(op.id), 10)
         assert len(read_file("//sys/operations/{0}/snapshot".format(op.id), verbose=False)) > 0
 
+        op.resume_jobs()
         op.track()
 
     def test_parallel_snapshots(self):
@@ -750,7 +752,7 @@ class TestSchedulerSnapshots(YTEnvSetup):
 
         testing_options = {"scheduling_delay": 100}
 
-        job_count = 2
+        job_count = 1
         original_data = [{"index": i} for i in xrange(job_count)]
         write_table("//tmp/input", original_data)
 
@@ -760,12 +762,14 @@ class TestSchedulerSnapshots(YTEnvSetup):
             output = "//tmp/output" + str(index)
             create("table", output)
             ops.append(
-                map(command="sleep 1; cat",
+                map(dont_track=True,
+                    waiting_jobs=True,
+                    command="cat",
                     in_="//tmp/input",
                     out=[output],
-                    spec={"data_size_per_job": 1, "testing": testing_options},
-                    dont_track=True))
+                    spec={"data_size_per_job": 1, "testing": testing_options}))
 
         for op in ops:
             track_path("//sys/operations/{0}/snapshot".format(op.id), 10)
             assert len(read_file("//sys/operations/{0}/snapshot".format(op.id), verbose=False)) > 0
+            op.resume_jobs()
