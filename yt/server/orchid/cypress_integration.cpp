@@ -147,7 +147,7 @@ private:
         const TOrchidServiceProxy::TErrorOrRspExecutePtr& rspOrError)
     {
         if (rspOrError.IsOK()) {
-            LOG_DEBUG("Orchid request succeded");
+            LOG_DEBUG("Orchid request succeeded");
             const auto& rsp = rspOrError.Value();
             auto innerResponseMessage = TSharedRefArray(rsp->Attachments());
             context->Reply(innerResponseMessage);

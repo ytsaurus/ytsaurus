@@ -226,11 +226,11 @@ private:
 
         ++FlushCount_;
         if (FlushCount_ == Owner_->CellManager_->GetQuorumPeerCount()) {
-            SetSucceded();
+            SetSucceeded();
         }
     }
 
-    void SetSucceded()
+    void SetSucceeded()
     {
         if (QuorumFlushResult_.IsSet())
             return;

@@ -259,7 +259,7 @@ private:
             YCHECK(ParseResponseHeader(responseMessage, &responseHeader));
             auto responseError = FromProto<TError>(responseHeader.error());
 
-            LOG_DEBUG("Cache population request succeded (Key: %v, Error: %v)",
+            LOG_DEBUG("Cache population request succeeded (Key: %v, Error: %v)",
                 key,
                 responseError);
 
@@ -332,7 +332,7 @@ private:
                 return;
             }
 
-            LOG_DEBUG("Cache bypass request succeded (RequestId: %v)",
+            LOG_DEBUG("Cache bypass request succeeded (RequestId: %v)",
                 Context_->GetRequestId());
 
             const auto& rsp = rspOrError.Value();

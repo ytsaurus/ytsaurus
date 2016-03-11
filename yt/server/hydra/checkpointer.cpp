@@ -274,12 +274,12 @@ private:
             return;
 
         Owner_->EpochContext_->EpochUserAutomatonInvoker->Invoke(
-            BIND(&TSession::OnRotationSucceded, MakeStrong(this)));
+            BIND(&TSession::OnRotationSucceeded, MakeStrong(this)));
 
         ChangelogPromise_.Set();
     }
 
-    void OnRotationSucceded()
+    void OnRotationSucceeded()
     {
         VERIFY_THREAD_AFFINITY(Owner_->AutomatonThread);
 
