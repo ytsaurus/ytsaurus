@@ -1470,13 +1470,27 @@ class Application(object):
 
     def _delete_tasks(self, ids):
         client = Yt(**self._config["yt_backend_options"])
-        for id in ids:
-            client.remove(os.path.join(self._tasks_path, id), recursive=True, force=True)
+
+        ids_to_delete = []
+        failed_ids = []
+
+        for id_ in ids:
+            task_path = os.path.join(self._tasks_path, id_)
+            state = client.get(os.path.join(task_path, "state"))
+            if state not in ["aborted", "completed", "failed"]:
+                failed_ids.append(id_)
+            else:
+                ids_to_delete.append(id_)
+                client.remove(task_path, recursive=True, force=True)
 
         with self._mutex:
-            for id in ids:
-                if id in self._tasks:
-                    del self._tasks[id]
+            for id_ in ids_to_delete:
+                if id_ in self._tasks:
+                    del self._tasks[id_]
+
+        if failed_ids:
+            raise RequestFailed("The following tasks not finished and can't be deleted: {0}"\
+                                .format(", ".join(failed_ids)))
 
     # Public interface
     def run(self, *args, **kwargs):

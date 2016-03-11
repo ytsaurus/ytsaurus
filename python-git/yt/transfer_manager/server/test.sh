@@ -381,6 +381,26 @@ test_intermediate_format() {
     check "a=b" "$(yt2 read //tmp/test_table --proxy plato --format dsv)"
 }
 
+test_delete_tasks() {
+    echo "Test delete multiple tasks"
+
+    echo 'a=b' | yt2 write //tmp/test_table --proxy quine --format dsv
+
+    t1=$(run_task '{"source_table": "//tmp/test_table", "source_cluster": "quine", "destination_table": "//tmp/test_table1", "destination_cluster": "plato"}')
+    t2=$(run_task '{"source_table": "//tmp/test_table", "source_cluster": "quine", "destination_table": "//tmp/test_table2", "destination_cluster": "plato"}')
+
+    http_code=$(request "DELETE" "tasks/" -d "[\"$t1\", \"$t2\"]" --silent --write-out %{http_code} --output /dev/null)
+    check "$http_code" "404"
+
+    wait_task $t1
+    wait_task $t2
+
+    http_code=$(request "DELETE" "tasks/" -d "[\"$t1\", \"$t2\"]" --silent --write-out %{http_code} --output /dev/null)
+    check "$http_code" "200"
+
+    echo "Ok"
+}
+
 # Different transfers
 test_copy_empty_table
 test_various_transfers
@@ -397,3 +417,4 @@ test_skip_if_destination_exists
 test_mutating_requests_retries
 test_destination_codecs
 test_intermediate_format
+test_delete_tasks

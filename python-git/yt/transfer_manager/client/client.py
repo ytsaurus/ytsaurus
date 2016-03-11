@@ -137,7 +137,7 @@ class TransferManager(object):
 
     def add_task(self, source_cluster, source_table, destination_cluster, destination_table=None, **kwargs):
         src_dst_pairs = [(source_table, destination_table)]
-        return self._start_tasks(src_dst_pairs, source_cluster, destination_cluster, **kwargs)
+        return self._start_tasks(src_dst_pairs, source_cluster, destination_cluster, **kwargs)[0]
 
     def add_tasks(self, source_cluster, source_pattern, destination_cluster, destination_pattern, **kwargs):
         src_dst_pairs = self.match_src_dst_pattern(source_cluster, source_pattern,
