@@ -72,6 +72,8 @@ MASTER_CONFIG_PATCHES = [
     {
         "timestamp_manager": {
             "commit_advance": 3000,
+            "request_backoff_time": 10,
+            "calibration_period": 10
         }
     },
 ]
