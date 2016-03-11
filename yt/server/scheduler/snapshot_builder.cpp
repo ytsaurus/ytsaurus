@@ -175,11 +175,13 @@ TFuture<void> TSnapshotBuilder::UploadSnapshots()
     std::vector<TFuture<void>> snapshotUploadFutures;
     for (auto& job : Jobs_) {
         auto controller = job.Operation->GetController();
+        auto cancelableInvoker = controller->GetCancelableContext()->CreateInvoker(
+            Scheduler_->GetSnapshotIOInvoker());
         auto uploadFuture = BIND(
             &TSnapshotBuilder::UploadSnapshot,
             MakeStrong(this),
             Passed(std::move(job)))
-                .AsyncVia(Scheduler_->GetSnapshotIOInvoker())
+                .AsyncVia(cancelableInvoker)
                 .Run();
         snapshotUploadFutures.push_back(std::move(uploadFuture));
     }
