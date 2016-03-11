@@ -179,7 +179,7 @@ TFuture<void> TSnapshotBuilder::UploadSnapshots()
             &TSnapshotBuilder::UploadSnapshot,
             MakeStrong(this),
             Passed(std::move(job)))
-                .AsyncVia(controller->GetCancelableInvoker())
+                .AsyncVia(Scheduler_->GetSnapshotIOInvoker())
                 .Run();
         snapshotUploadFutures.push_back(std::move(uploadFuture));
     }
