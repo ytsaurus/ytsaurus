@@ -34,13 +34,13 @@ def main():
 
         sys.path = ["./modules", "./tmpfs/modules"] + sys.path
 
-        sys.modules['__main__'] = imp.load_module(__main_module_name,
-                                                  open(__main_filename, 'rU'),
-                                                  __main_filename,
-                                                  ('', 'rU', imp.__dict__[__main_module_type]))
+        main_module = imp.load_module(__main_module_name,
+                                      open(__main_filename, 'rU'),
+                                      __main_filename,
+                                      ('', 'rU', imp.__dict__[__main_module_type]))
 
-        for name in dir(sys.modules['__main__']):
-            globals()[name] = sys.modules['__main__'].__dict__[name]
+        for name in dir(main_module):
+            globals()[name] = main_module.__dict__[name]
 
     import yt.yson
     import yt.wrapper.config
