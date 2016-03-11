@@ -572,7 +572,6 @@ class Application(object):
                 if "config" not in options:
                     options["config"] = {}
                 options["config"] = update(config["yt_client_config"], options["config"])
-                options["config"].setdefault("api_version", "v3")
                 clusters[name] = YtClientWithNotifications(**options)
                 clusters[name]._pools = cluster_description.get("pools", {})
                 if "version" in cluster_description:
