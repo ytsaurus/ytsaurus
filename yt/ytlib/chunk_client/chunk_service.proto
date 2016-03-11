@@ -11,19 +11,20 @@ import "yt/ytlib/chunk_client/data_statistics.proto";
 
 message TReqLocateChunks
 {
-    repeated NYT.NProto.TGuid chunk_ids = 1;
+    // Each subrequest is chunk id.
+    repeated NYT.NProto.TGuid subrequests = 1;
 }
 
 message TRspLocateChunks
 {
-    message TChunkInfo
+    message TSubresponse
     {
-        required NYT.NProto.TGuid chunk_id = 1;
+        optional bool missing = 1 [default = false];
         repeated fixed32 replicas = 2;
     }
 
     required NNodeTrackerClient.NProto.TNodeDirectory node_directory = 1;
-    repeated TChunkInfo chunks = 2;
+    repeated TSubresponse subresponses = 2;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

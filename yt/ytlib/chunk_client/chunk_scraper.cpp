@@ -116,7 +116,7 @@ private:
         auto req = Proxy_.LocateChunks();
 
         for (int chunkCount = 0; chunkCount < Config_->MaxChunksPerScratch; ++chunkCount) {
-            ToProto(req->add_chunk_ids(), ChunkIds_[NextChunkIndex_]);
+            ToProto(req->add_subrequests(), ChunkIds_[NextChunkIndex_]);
             ++NextChunkIndex_;
             if (NextChunkIndex_ >= ChunkIds_.size()) {
                 NextChunkIndex_ = 0;
@@ -127,29 +127,33 @@ private:
             }
         }
 
-        WaitFor(Throttler_->Throttle(req->chunk_ids_size()));
+        WaitFor(Throttler_->Throttle(req->subrequests_size()));
 
-        LOG_DEBUG("Locating chunks (Count: %v)", req->chunk_ids_size());
+        LOG_DEBUG("Locating chunks (Count: %v)", req->subrequests_size());
 
         auto rspOrError = WaitFor(req->Invoke());
         if (!rspOrError.IsOK()) {
-            LOG_WARNING(rspOrError, "Failed to locate input chunks");
+            LOG_WARNING(rspOrError, "Failed to locate chunks");
             return;
         }
 
         const auto& rsp = rspOrError.Value();
+        YCHECK(req->subrequests_size() == rsp->subresponses_size());
 
-        LOG_DEBUG("Chunks located (Count: %v)", rsp->chunks_size());
+        LOG_DEBUG("Chunks located");
 
         NodeDirectory_->MergeFrom(rsp->node_directory());
 
-        for (const auto& chunkInfo : rsp->chunks()) {
-            auto chunkId = FromProto<TChunkId>(chunkInfo.chunk_id());
-            auto replicas = FromProto<TChunkReplicaList>(chunkInfo.replicas());
-            OnChunkLocated_.Run(std::move(chunkId), std::move(replicas));
+        for (int index = 0; index < req->subrequests_size(); ++index) {
+            const auto& subrequest = req->subrequests(index);
+            const auto& subresponse = rsp->subresponses(index);
+            if (!subresponse.missing()) {
+                auto chunkId = FromProto<TChunkId>(subrequest);
+                auto replicas = FromProto<TChunkReplicaList>(subresponse.replicas());
+                OnChunkLocated_.Run(chunkId, replicas);
+            }
         }
     }
-
 };
 
 DEFINE_REFCOUNTED_TYPE(TScraperTask)

@@ -202,7 +202,7 @@ private:
         TChunkServiceProxy proxy(channel);
 
         auto req = proxy.LocateChunks();
-        ToProto(req->add_chunk_ids(), ChunkId_);
+        ToProto(req->add_subrequests(), ChunkId_);
         req->Invoke().Subscribe(
             BIND(&TReplicationReader::OnLocateChunkResponse, MakeStrong(this))
                 .Via(TDispatcher::Get()->GetReaderInvoker()));
@@ -225,8 +225,9 @@ private:
         }
 
         const auto& rsp = rspOrError.Value();
-        YCHECK(rsp->chunks_size() <= 1);
-        if (rsp->chunks_size() == 0) {
+        YCHECK(rsp->subresponses_size() == 1);
+        const auto& subresponse = rsp->subresponses(0);
+        if (subresponse.missing()) {
             YCHECK(!GetSeedsPromise_.IsSet());
             GetSeedsPromise_.Set(TError(
                 NChunkClient::EErrorCode::NoSuchChunk,
@@ -234,10 +235,9 @@ private:
                 ChunkId_));
             return;
         }
-        const auto& chunkInfo = rsp->chunks(0);
 
         NodeDirectory_->MergeFrom(rsp->node_directory());
-        auto seedReplicas = FromProto<TChunkReplicaList>(chunkInfo.replicas());
+        auto seedReplicas = FromProto<TChunkReplicaList>(subresponse.replicas());
 
         LOG_DEBUG("Chunk seeds received (SeedReplicas: %v)",
             MakeFormattableRange(seedReplicas, TChunkReplicaAddressFormatter(NodeDirectory_)));

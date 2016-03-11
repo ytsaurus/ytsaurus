@@ -23,6 +23,7 @@
 #include <yt/server/security_server/acl.h>
 #include <yt/server/security_server/security_manager.h>
 #include <yt/server/security_server/user.h>
+#include <yt/server/security_server/group.h>
 #include <yt/server/security_server/security_manager.pb.h>
 
 #include <yt/server/transaction_server/transaction.h>
@@ -580,7 +581,8 @@ bool TObjectProxyBase::SetBuiltinAttribute(const Stroka& key, const TYsonString&
             auto name = ConvertTo<Stroka>(value);
             auto* owner = securityManager->GetSubjectByNameOrThrow(name);
             auto* user = securityManager->GetAuthenticatedUser();
-            if (user != securityManager->GetRootUser() && user != owner) {
+            auto* superusers = securityManager->GetSuperusersGroup();
+            if (user != owner && user->RecursiveMemberOf().find(superusers) == user->RecursiveMemberOf().end()) {
                 THROW_ERROR_EXCEPTION(
                     NSecurityClient::EErrorCode::AuthorizationError,
                     "Access denied: can only set owner to self");

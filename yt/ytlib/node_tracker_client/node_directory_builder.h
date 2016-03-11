@@ -11,20 +11,22 @@ namespace NNodeTrackerClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! A helper for building node directories in operation controllers.
+//! A helper for building node directories in RPC responses.
 class TNodeDirectoryBuilder
 {
 public:
-    explicit TNodeDirectoryBuilder(
+    TNodeDirectoryBuilder(
         TNodeDirectoryPtr directory,
         NNodeTrackerClient::NProto::TNodeDirectory* protoDirectory);
 
     void Add(NChunkClient::TChunkReplica replica);
+    void Add(const NChunkClient::TChunkReplicaList& replicas);
 
 private:
-    TNodeDirectoryPtr Directory;
-    NProto::TNodeDirectory* ProtoDirectory;
-    yhash_set<TNodeId> ListedNodeIds;
+    const TNodeDirectoryPtr Directory_;
+    NProto::TNodeDirectory* const ProtoDirectory_;
+
+    yhash_set<TNodeId> ListedNodeIds_;
 
 };
 
