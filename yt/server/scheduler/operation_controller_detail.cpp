@@ -2745,6 +2745,8 @@ void TOperationControllerBase::GetOutputTablesBasicAttributes()
     THROW_ERROR_EXCEPTION_IF_FAILED(batchRspOrError, "Error getting basic attributes of output tables");
     const auto& batchRsp = batchRspOrError.Value();
 
+    yhash_set<TObjectId> outputTableIds;
+
     auto rspsOrError = batchRsp->GetResponses<TObjectYPathProxy::TRspGetBasicAttributes>("get_basic_attributes");
     for (int index = 0; index < OutputTables.size(); ++index) {
         auto& table = OutputTables[index];
@@ -2757,6 +2759,12 @@ void TOperationControllerBase::GetOutputTablesBasicAttributes()
 
             table.ObjectId = FromProto<TObjectId>(rsp->object_id());
             table.CellTag = rsp->cell_tag();
+
+            if (outputTableIds.find(table.ObjectId) != outputTableIds.end()) {
+                THROW_ERROR_EXCEPTION("Output table %v is specified multiple times",
+                    path);
+            }
+            outputTableIds.insert(table.ObjectId);
 
             auto type = TypeFromId(table.ObjectId);
             if (type != EObjectType::Table) {
