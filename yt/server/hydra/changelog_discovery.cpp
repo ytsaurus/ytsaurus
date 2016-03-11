@@ -109,7 +109,7 @@ private:
         result.RecordCount = recordCount;
 
         if (Promise_.TrySet(result)) {
-            LOG_INFO("Changelog discovery succeded (PeerId: %v, ChangelogId: %v, RecordCount: %v)",
+            LOG_INFO("Changelog discovery succeeded (PeerId: %v, ChangelogId: %v, RecordCount: %v)",
                 peerId,
                 ChangelogId_,
                 recordCount);

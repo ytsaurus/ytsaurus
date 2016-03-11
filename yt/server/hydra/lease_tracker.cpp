@@ -116,7 +116,7 @@ private:
 
         const auto& rsp = rspOrError.Value();
         auto state = EPeerState(rsp->state());
-        LOG_DEBUG("Follower ping succeded (PeerId: %v, State: %v)",
+        LOG_DEBUG("Follower ping succeeded (PeerId: %v, State: %v)",
             followerId,
             state);
 
@@ -204,7 +204,7 @@ void TLeaseTracker::OnLeaseCheck()
 
     if (result.IsOK()) {
         Lease_->SetDeadline(startTime + NProfiling::DurationToCpuDuration(Config_->LeaderLeaseTimeout));
-        LOG_DEBUG("Leader lease check succeded");
+        LOG_DEBUG("Leader lease check succeeded");
         if (!LeaseAcquired_.IsSet()) {
             LeaseAcquired_.Set();
         }

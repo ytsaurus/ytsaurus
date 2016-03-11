@@ -80,7 +80,7 @@ void TForkExecutor::DoRunChild()
 
 void TForkExecutor::DoRunParent()
 {
-    LOG_INFO("Fork succeded (ChildPid: %v)", ChildPid_);
+    LOG_INFO("Fork succeeded (ChildPid: %v)", ChildPid_);
 
     RunParent();
 
