@@ -8,6 +8,8 @@
 #include <yt/ytlib/node_tracker_client/node_directory.h>
 #include <yt/ytlib/node_tracker_client/node_directory_builder.h>
 
+#include <yt/ytlib/security_client/public.h>
+
 #include <yt/core/rpc/service_detail.h>
 #include <yt/core/rpc/helpers.h>
 #include <yt/core/rpc/dispatcher.h>
@@ -99,6 +101,7 @@ private:
                 CurrentBatch_ = New<TBatch>();
                 CurrentBatch_->BatchRequest = CreateBatchRequest();
                 GenerateMutationId(CurrentBatch_->BatchRequest);
+                CurrentBatch_->BatchRequest->SetUser(NSecurityClient::JobUserName);
                 TDelayedExecutor::Submit(
                     BIND(&TBatcherBase::OnTimeout, MakeStrong(this), CurrentBatch_),
                     owner->Config_->MaxBatchDelay);
