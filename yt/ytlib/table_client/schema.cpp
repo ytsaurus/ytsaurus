@@ -52,6 +52,8 @@ struct TSerializableColumnSchema
             .Default();
         RegisterParameter("expression", Expression)
             .Default();
+        RegisterParameter("sort_order", SortOrder)
+            .Default();
 
         RegisterValidator([&] () {
             // Name
@@ -97,6 +99,9 @@ void ToProto(NProto::TColumnSchema* protoSchema, const TColumnSchema& schema)
     if (schema.Expression) {
         protoSchema->set_expression(*schema.Expression);
     }
+    if (schema.SortOrder) {
+        protoSchema->set_sort_order(static_cast<int>(*schema.SortOrder));
+    }
 }
 
 void FromProto(TColumnSchema* schema, const NProto::TColumnSchema& protoSchema)
@@ -105,6 +110,7 @@ void FromProto(TColumnSchema* schema, const NProto::TColumnSchema& protoSchema)
     schema->Type = EValueType(protoSchema.type());
     schema->Lock = protoSchema.has_lock() ? MakeNullable(protoSchema.lock()) : Null;
     schema->Expression = protoSchema.has_expression() ? MakeNullable(protoSchema.expression()) : Null;
+    schema->SortOrder = protoSchema.has_sort_order() ? MakeNullable(ESortOrder(protoSchema.sort_order())) : Null;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -179,6 +185,17 @@ TTableSchema TTableSchema::TrimNonkeyColumns(const TKeyColumns& keyColumns) cons
         result.Columns().push_back(Columns_[id]);
     }
     return result;
+}
+
+TKeyColumns TTableSchema::GetKeyColumns() const
+{
+    TKeyColumns keyColumns;
+    for (const auto& column : Columns()) {
+        if (column.SortOrder) {
+            keyColumns.push_back(column.Name);
+        }
+    }
+    return keyColumns;
 }
 
 bool TTableSchema::HasComputedColumns() const

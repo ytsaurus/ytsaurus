@@ -15,6 +15,10 @@ namespace NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(ESortOrder,
+    (Ascending)
+)
+
 struct TColumnSchema
 {
     TColumnSchema();
@@ -29,9 +33,10 @@ struct TColumnSchema
 
     TColumnSchema& operator=(const TColumnSchema&) = default;
     TColumnSchema& operator=(TColumnSchema&&) = default;
-
+    
     Stroka Name;
     EValueType Type;
+    TNullable<ESortOrder> SortOrder;
     TNullable<Stroka> Lock;
     TNullable<Stroka> Expression;
 };
@@ -61,6 +66,8 @@ public:
 
     TTableSchema Filter(const TColumnFilter& columnFilter) const;
     TTableSchema TrimNonkeyColumns(const TKeyColumns& keyColumns) const;
+    
+    TKeyColumns GetKeyColumns() const;
 
     bool HasComputedColumns() const;
 
