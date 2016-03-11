@@ -3,6 +3,7 @@ from config import get_config
 from pickling import Pickler
 from cypress_commands import get
 from common import get_python_version, YtError
+from errors import YtResponseError
 
 from yt.packages.importlib import import_module
 from yt.zip import ZipFile
@@ -60,7 +61,7 @@ def is_local_mode(client):
     fqdn = None
     try:
         fqdn = get("//sys/@local_mode_fqdn")
-    except YtError as err:
+    except YtResponseError as err:
         if not err.is_resolve_error():
             raise
 
