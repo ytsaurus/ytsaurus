@@ -853,7 +853,7 @@ class Application(object):
         _, user = self._get_token_and_user(headers)
         if self._tasks[id].user != user:
             with self._mutex.discharge():
-                self._check_administer_permission(action_name, header=headers, user=user)
+                self._check_administer_permission(action_name, headers=headers, user=user)
 
     def _check_administer_permission(self, action_name, headers=None, user=None):
         if user is None:
