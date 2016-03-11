@@ -171,32 +171,37 @@ private:
 
         return TBase::GetBuiltinAttribute(key, consumer);
     }
+    
+    void SetKeyColumns(const TKeyColumns& keyColumns) 
+    {
+        ValidateNoTransaction();
+
+        auto* table = LockThisTypedImpl();
+        auto* chunkList = table->GetChunkList();
+        if (table->IsDynamic()) {
+            if (table->HasMountedTablets()) {
+                THROW_ERROR_EXCEPTION("Cannot change key columns of a dynamic table with mounted tablets");
+            }
+        } else {
+            if (!chunkList->Children().empty()) {
+                THROW_ERROR_EXCEPTION("Cannot change key columns of a non-empty static table");
+            }
+        }
+
+        ValidateKeyColumnsUpdate(table->KeyColumns(), keyColumns);
+
+        table->KeyColumns() = keyColumns;
+        if (!table->IsDynamic() && !keyColumns.empty()) {
+            table->SetSorted(true);
+        }
+    }
 
     bool SetBuiltinAttribute(const Stroka& key, const TYsonString& value) override
     {
         if (key == "key_columns") {
             auto keyColumns = ConvertTo<TKeyColumns>(value);
+            SetKeyColumns(keyColumns);
 
-            ValidateNoTransaction();
-
-            auto* table = LockThisTypedImpl();
-            auto* chunkList = table->GetChunkList();
-            if (table->IsDynamic()) {
-                if (table->HasMountedTablets()) {
-                    THROW_ERROR_EXCEPTION("Cannot change key columns of a dynamic table with mounted tablets");
-                }
-            } else {
-                if (!chunkList->Children().empty()) {
-                    THROW_ERROR_EXCEPTION("Cannot change key columns of a non-empty static table");
-                }
-            }
-
-            ValidateKeyColumnsUpdate(table->KeyColumns(), keyColumns);
-
-            table->KeyColumns() = keyColumns;
-            if (!table->IsDynamic() && !keyColumns.empty()) {
-                table->SetSorted(true);
-            }
             return true;
         }
 
@@ -250,6 +255,16 @@ private:
             if (table->HasMountedTablets()) {
                 THROW_ERROR_EXCEPTION("Table has mounted tablets");
             }
+            
+            // COMPAT(max42): this is a compatibility code only for 17.*.
+            // If schema contains key columns, we also set key columns.
+            auto newKeyColumns = newSchema.GetKeyColumns();
+           
+            if (!newKeyColumns.empty()) {
+                ValidateTableSchemaAndKeyColumns(newSchema, newKeyColumns);
+                SetKeyColumns(newKeyColumns);
+            }
+
             return;
         }
 
