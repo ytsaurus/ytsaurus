@@ -741,8 +741,13 @@ class TestSchedulerSnapshots(YTEnvSetup):
             out="//tmp/out",
             spec={"data_size_per_job": 1, "testing": testing_options})
 
-        track_path("//sys/operations/{0}/snapshot".format(op.id), 10)
-        assert len(read_file("//sys/operations/{0}/snapshot".format(op.id), verbose=False)) > 0
+        snapshot_path = "//sys/operations/{0}/snapshot".format(op.id)
+        track_path(snapshot_path, 10)
+
+        # This is done to avoid read failures due to snapshot file rewriting.
+        snapshot_backup_path = snapshot_path + ".backup"
+        copy(snapshot_path, snapshot_backup_path)
+        assert len(read_file(snapshot_backup_path, verbose=False)) > 0
 
         op.resume_jobs()
         op.track()
@@ -770,6 +775,10 @@ class TestSchedulerSnapshots(YTEnvSetup):
                     spec={"data_size_per_job": 1, "testing": testing_options}))
 
         for op in ops:
-            track_path("//sys/operations/{0}/snapshot".format(op.id), 10)
-            assert len(read_file("//sys/operations/{0}/snapshot".format(op.id), verbose=False)) > 0
+            snapshot_path = "//sys/operations/{0}/snapshot".format(op.id)
+            track_path(snapshot_path, 10)
+
+            snapshot_backup_path = snapshot_path + ".backup"
+            copy(snapshot_path, snapshot_backup_path)
+            assert len(read_file(snapshot_backup_path, verbose=False)) > 0
             op.resume_jobs()
