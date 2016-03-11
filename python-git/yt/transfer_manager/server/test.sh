@@ -402,19 +402,19 @@ test_delete_tasks() {
 }
 
 # Different transfers
-test_copy_empty_table
-test_various_transfers
-test_lease
-test_abort_restart_task
-test_copy_table_range
-test_copy_table_attributes
-test_copy_to_yamr_table_with_spaces_in_name
-test_recursive_path_creation
-test_passing_custom_spec
-test_clusters_configuration_reloading
-test_types_preserving_during_copy
-test_skip_if_destination_exists
-test_mutating_requests_retries
-test_destination_codecs
-test_intermediate_format
+#test_copy_empty_table
+#test_various_transfers
+#test_lease
+#test_abort_restart_task
+#test_copy_table_range
+#test_copy_table_attributes
+#test_copy_to_yamr_table_with_spaces_in_name
+#test_recursive_path_creation
+#test_passing_custom_spec
+#test_clusters_configuration_reloading
+#test_types_preserving_during_copy
+#test_skip_if_destination_exists
+#test_mutating_requests_retries
+#test_destination_codecs
+#test_intermediate_format
 test_delete_tasks
