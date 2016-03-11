@@ -1858,12 +1858,12 @@ private:
     }
 
 
-    void OnJobRunning(TJobPtr job, const TJobStatus& status)
+    void OnJobRunning(TJobPtr /*job*/, const TJobStatus& status)
     {
         // Do nothing.
     }
 
-    void OnJobWaiting(TJobPtr)
+    void OnJobWaiting(TJobPtr /*job*/)
     {
         // Do nothing.
     }
