@@ -45,7 +45,7 @@ void ZstdCompress(StreamSource* source, TBlob* output)
     }
 
     auto context = ZSTD_createCCtx();
-    TFinallyGuard contextGuard([&] () {
+    auto contextGuard = Finally([&] () {
        ZSTD_freeCCtx(context);
     });
 

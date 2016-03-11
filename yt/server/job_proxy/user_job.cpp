@@ -449,7 +449,7 @@ private:
             THROW_ERROR_EXCEPTION("Another strace session is in progress");
         }
 
-        TFinallyGuard guard([&] () {
+        auto guard = Finally([&] () {
             Stracing_.clear();
         });
 

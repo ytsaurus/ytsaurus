@@ -213,7 +213,7 @@ NErasure::ECodec TConfirmingWriter::GetErasureCodecId() const
 
 void TConfirmingWriter::OpenSession()
 {
-    TFinallyGuard finally([&] () {
+    auto finally = Finally([&] () {
         Initialized_ = true;
     });
 

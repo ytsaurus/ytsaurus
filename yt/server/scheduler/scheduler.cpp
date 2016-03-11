@@ -631,7 +631,7 @@ public:
 
         {
             BeginNodeHeartbeatProcessing(node);
-            TFinallyGuard heartbeatGuard([&] {
+            auto heartbeatGuard = Finally([&] {
                 EndNodeHeartbeatProcessing(node);
             });
 
