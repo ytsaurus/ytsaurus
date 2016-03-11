@@ -101,7 +101,7 @@ public:
         auto tableChunkReader = TableChunkReader_.Lock();
         YCHECK(tableChunkReader);
 
-        TFinallyGuard finallyGuard([=] () {
+        auto finallyGuard = Finally([=] () {
             tableChunkReader->Initializer_.Reset();
         });
 
