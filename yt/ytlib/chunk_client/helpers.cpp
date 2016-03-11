@@ -133,33 +133,33 @@ void ProcessFetchResponse(
 
             auto req = proxy.LocateChunks();
             for (int index = beginIndex; index < endIndex; ++index) {
-                req->add_chunk_ids()->CopyFrom(foreignChunkSpecs[index]->chunk_id());
+                *req->add_subrequests() = foreignChunkSpecs[index]->chunk_id();
             }
 
             LOG_DEBUG("Locating foreign chunks (CellTag: %v, ChunkCount: %v)",
                 foreignCellTag,
-                req->chunk_ids_size());
+                req->subrequests_size());
 
             auto rspOrError = WaitFor(req->Invoke());
             THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error locating foreign chunks at cell %v",
                 foreignCellTag);
             const auto& rsp = rspOrError.Value();
+            YCHECK(req->subrequests_size() == rsp->subresponses_size());
 
             nodeDirectory->MergeFrom(rsp->node_directory());
 
-            for (int index = beginIndex; index < endIndex; ++index) {
-                int rspIndex = index - beginIndex;
-                auto expectedChunkId = FromProto<TChunkId>(foreignChunkSpecs[index]->chunk_id());
-                auto actualChunkId = rspIndex < rsp->chunks_size()
-                    ? FromProto<TChunkId>(rsp->chunks(rspIndex).chunk_id())
-                    : NullChunkId;
-                if (expectedChunkId != actualChunkId) {
+            for (int globalIndex = beginIndex; globalIndex < endIndex; ++globalIndex) {
+                int localIndex = globalIndex - beginIndex;
+                const auto& subrequest = req->subrequests(localIndex);
+                auto* subresponse = rsp->mutable_subresponses(localIndex);
+                auto chunkId = FromProto<TChunkId>(subrequest);
+                if (subresponse->missing()) {
                     THROW_ERROR_EXCEPTION(
                         NChunkClient::EErrorCode::NoSuchChunk,
                         "No such chunk %v",
-                        expectedChunkId);
+                        chunkId);
                 }
-                foreignChunkSpecs[index]->mutable_replicas()->Swap(rsp->mutable_chunks(rspIndex)->mutable_replicas());
+                foreignChunkSpecs[globalIndex]->mutable_replicas()->Swap(subresponse->mutable_replicas());
             }
         }
     }

@@ -12,11 +12,13 @@
 
 #include <yt/server/tablet_node/config.h>
 
+#include <yt/server/hive/config.h>
+
 #include <yt/ytlib/api/config.h>
 
 #include <yt/ytlib/node_tracker_client/public.h>
 
-#include <yt/server/hive/config.h>
+#include <yt/core/concurrency/config.h>
 
 namespace NYT {
 namespace NCellNode {
@@ -39,6 +41,31 @@ public:
 };
 
 DEFINE_REFCOUNTED_TYPE(TResourceLimitsConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TBatchingChunkServiceConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    TDuration MaxBatchDelay;
+    int MaxBatchCost;
+    NConcurrency::TThroughputThrottlerConfigPtr CostThrottler;
+
+    TBatchingChunkServiceConfig()
+    {
+        RegisterParameter("max_batch_delay", MaxBatchDelay)
+            .Default(TDuration::Zero());
+        RegisterParameter("max_batch_cost", MaxBatchCost)
+            .Default(1000);
+        RegisterParameter("cost_throttler", CostThrottler)
+            .DefaultNew();
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TBatchingChunkServiceConfig)
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TCellNodeConfig
     : public TServerConfig
@@ -71,6 +98,9 @@ public:
     //! Jobs-to-master redirector.
     NRpc::TThrottlingChannelConfigPtr MasterRedirectorService;
 
+    //! Chunk Service batcher and redirector.
+    TBatchingChunkServiceConfigPtr BatchingChunkService;
+
     //! Known node addresses.
     NNodeTrackerClient::TAddressMap Addresses;
 
@@ -95,6 +125,8 @@ public:
         RegisterParameter("master_cache_service", MasterCacheService)
             .DefaultNew();
         RegisterParameter("master_redirector_service", MasterRedirectorService)
+            .DefaultNew();
+        RegisterParameter("batching_chunk_service", BatchingChunkService)
             .DefaultNew();
         RegisterParameter("addresses", Addresses)
             .Default();

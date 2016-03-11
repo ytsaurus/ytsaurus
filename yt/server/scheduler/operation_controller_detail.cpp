@@ -745,10 +745,8 @@ void TOperationControllerBase::TTask::AddChunksToInputSpec(
     for (const auto& chunkSlice : stripe->ChunkSlices) {
         auto* chunkSpec = inputSpec->add_chunks();
         ToProto(chunkSpec, chunkSlice);
-        for (ui32 protoReplica : chunkSlice->GetChunkSpec()->replicas()) {
-            auto replica = FromProto<TChunkReplica>(protoReplica);
-            directoryBuilder->Add(replica);
-        }
+        auto replicas = FromProto<TChunkReplicaList>(chunkSlice->GetChunkSpec()->replicas());
+        directoryBuilder->Add(replicas);
     }
 }
 

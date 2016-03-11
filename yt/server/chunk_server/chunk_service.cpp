@@ -68,34 +68,31 @@ private:
     {
         ValidatePeer(EPeerKind::LeaderOrFollower);
 
-        context->SetRequestInfo("ChunkCount: %v",
-            request->chunk_ids_size());
+        context->SetRequestInfo("SubrequestCount: %v",
+            request->subrequests_size());
 
         auto chunkManager = Bootstrap_->GetChunkManager();
         TNodeDirectoryBuilder nodeDirectoryBuilder(response->mutable_node_directory());
 
-        for (const auto& protoChunkId : request->chunk_ids()) {
+        for (const auto& protoChunkId : request->subrequests()) {
             auto chunkId = FromProto<TChunkId>(protoChunkId);
             auto chunkIdWithIndex = DecodeChunkId(chunkId);
 
+            auto* subresponse = response->add_subresponses();
+
             auto* chunk = chunkManager->FindChunk(chunkIdWithIndex.Id);
-            if (!IsObjectAlive(chunk))
-                continue;
-
-            TChunkPtrWithIndex chunkWithIndex(chunk, chunkIdWithIndex.Index);
-            auto replicas = chunkManager->LocateChunk(chunkWithIndex);
-
-            auto* info = response->add_chunks();
-            ToProto(info->mutable_chunk_id(), chunkId);
-            ToProto(info->mutable_replicas(), replicas);
-
-            for (auto replica : replicas) {
-                nodeDirectoryBuilder.Add(replica);
+            if (IsObjectAlive(chunk)) {
+                TChunkPtrWithIndex chunkWithIndex(chunk, chunkIdWithIndex.Index);
+                auto replicas = chunkManager->LocateChunk(chunkWithIndex);
+                ToProto(subresponse->mutable_replicas(), replicas);
+                for (auto replica : replicas) {
+                    nodeDirectoryBuilder.Add(replica);
+                }
+            } else {
+                subresponse->set_missing(true);
             }
         }
 
-        context->SetResponseInfo("ChunkCount: %v",
-            response->chunks_size());
         context->Reply();
     }
 
@@ -241,9 +238,11 @@ private:
 
         context->SetRequestInfo(
             "CreateSubrequestCount: %v, "
-            "ConfirmSubrequestCount: %v",
+            "ConfirmSubrequestCount: %v, "
+            "SealSubrequestCount: %v",
             request->create_subrequests_size(),
-            request->confirm_subrequests_size());
+            request->confirm_subrequests_size(),
+            request->seal_subrequests_size());
 
         auto chunkManager = Bootstrap_->GetChunkManager();
         chunkManager

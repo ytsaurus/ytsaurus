@@ -1,5 +1,7 @@
 #include "bootstrap.h"
 #include "config.h"
+#include "batching_chunk_service.h"
+#include "private.h"
 
 #include <yt/server/data_node/blob_reader_cache.h>
 #include <yt/server/data_node/block_cache.h>
@@ -93,7 +95,6 @@
 #include <yt/core/rpc/channel.h>
 #include <yt/core/rpc/redirector_service.h>
 #include <yt/core/rpc/server.h>
-#include <yt/core/rpc/throttling_channel.h>
 
 #include <yt/core/ytree/ephemeral_node_factory.h>
 #include <yt/core/ytree/virtual.h>
@@ -128,7 +129,7 @@ using namespace NObjectClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLogging::TLogger Logger("Bootstrap");
+static const auto& Logger = CellNodeLogger;
 static const i64 FootprintMemorySize = (i64) 1024 * 1024 * 1024;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -220,14 +221,12 @@ void TBootstrap::DoRun()
             config,
             GetBusChannelFactory(),
             EPeerKind::Leader);
-        auto masterRedirectorChannel = CreateThrottlingChannel(
-            Config->MasterRedirectorService,
-            directMasterChannel);
 
         auto redirectorCellId = ToRedirectorCellId(config->CellId);
-        RpcServer->RegisterService(CreateRedirectorService(
-            TServiceId(NChunkClient::TChunkServiceProxy::GetServiceName(), redirectorCellId),
-            masterRedirectorChannel));
+        RpcServer->RegisterService(CreateBatchingChunkService(
+            redirectorCellId,
+            Config->BatchingChunkService,
+            directMasterChannel));
     };
 
     createMasterRedirectorService(Config->ClusterConnection->PrimaryMaster);
@@ -313,14 +312,19 @@ void TBootstrap::DoRun()
     
     JobProxyConfig->ClusterConnection = CloneYsonSerializable(Config->ClusterConnection);
 
-    auto patchMasterRedirectorConnectionConfig = [&] (TMasterConnectionConfigPtr config) {
+    auto patchMasterConnectionConfig = [&] (TMasterConnectionConfigPtr config) {
         config->CellId = ToRedirectorCellId(config->CellId);
         config->Addresses = {localInterconnectAddress};
+        if (config->RetryTimeout && *config->RetryTimeout > config->RpcTimeout) {
+            config->RpcTimeout = *config->RetryTimeout;
+        }
+        config->RetryTimeout = Null;
+        config->RetryAttempts = 1;
     };
 
-    patchMasterRedirectorConnectionConfig(JobProxyConfig->ClusterConnection->PrimaryMaster);
+    patchMasterConnectionConfig(JobProxyConfig->ClusterConnection->PrimaryMaster);
     for (const auto& config : JobProxyConfig->ClusterConnection->SecondaryMasters) {
-        patchMasterRedirectorConnectionConfig(config);
+        patchMasterConnectionConfig(config);
     }
 
     JobProxyConfig->MemoryWatchdogPeriod = Config->ExecAgent->MemoryWatchdogPeriod;

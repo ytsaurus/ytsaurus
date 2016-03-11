@@ -353,7 +353,7 @@ private:
 
                 const auto& chunkId = store->GetId();
                 YCHECK(storeMap.insert(std::make_pair(chunkId, store->AsSortedChunk())).second);
-                ToProto(req->add_chunk_ids(), chunkId);
+                ToProto(req->add_subrequests(), chunkId);
             };
 
             auto addStores = [&] (const yhash_set<ISortedStorePtr>& stores) {
@@ -365,28 +365,32 @@ private:
             addStores(partition->Stores());
             addStores(tablet->GetEden()->Stores());
 
-            if (req->chunk_ids_size() == 0) {
+            if (req->subrequests_size() == 0) {
                 return std::vector<TOwningKey>();
             }
 
             LOG_INFO("Locating partition chunks (ChunkCount: %v)",
-                storeMap.size());
+                req->subrequests_size());
 
-            auto rsp = WaitFor(req->Invoke())
-                .ValueOrThrow();
+            auto rspOrError = WaitFor(req->Invoke());
+            THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error locating partition chunks");
+            const auto& rsp = rspOrError.Value();
+            YCHECK(req->subrequests_size() == rsp->subresponses_size());
 
             LOG_INFO("Partition chunks located");
 
             nodeDirectory->MergeFrom(rsp->node_directory());
 
-            for (const auto& chunkInfo : rsp->chunks()) {
-                auto chunkId = FromProto<TChunkId>(chunkInfo.chunk_id());
+            for (int index = 0; index < rsp->subresponses_size(); ++index) {
+                const auto& subrequest = req->subrequests(index);
+                const auto& subresponse = rsp->subresponses(index);
+                auto chunkId = FromProto<TChunkId>(subrequest);
                 auto storeIt = storeMap.find(chunkId);
                 YCHECK(storeIt != storeMap.end());
                 auto store = storeIt->second;
                 auto chunkSpec = New<TRefCountedChunkSpec>();
-                chunkSpec->mutable_chunk_id()->CopyFrom(chunkInfo.chunk_id());
-                chunkSpec->mutable_replicas()->MergeFrom(chunkInfo.replicas());
+                ToProto(chunkSpec->mutable_chunk_id(), chunkId);
+                chunkSpec->mutable_replicas()->MergeFrom(subresponse.replicas());
                 chunkSpec->mutable_chunk_meta()->CopyFrom(store->GetChunkMeta());
                 ToProto(chunkSpec->mutable_lower_limit(), TReadLimit(partition->GetPivotKey()));
                 ToProto(chunkSpec->mutable_upper_limit(), TReadLimit(partition->GetNextPivotKey()));
