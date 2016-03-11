@@ -1759,13 +1759,9 @@ private:
 
         operation->SetHasActiveTransactions(false);
         abortTransaction(operation->GetInputTransaction());
-        operation->SetInputTransaction(nullptr);
         abortTransaction(operation->GetOutputTransaction());
-        operation->SetOutputTransaction(nullptr);
         abortTransaction(operation->GetSyncSchedulerTransaction());
-        operation->SetSyncSchedulerTransaction(nullptr);
         abortTransaction(operation->GetAsyncSchedulerTransaction());
-        operation->SetAsyncSchedulerTransaction(nullptr);
     }
 
     void FinishOperation(TOperationPtr operation)
