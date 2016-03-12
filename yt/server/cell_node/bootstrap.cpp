@@ -216,17 +216,11 @@ void TBootstrap::DoRun()
         TRefCountedTracker::Get()->GetMonitoringProducer());
 
     auto createMasterRedirectorService = [&] (TMasterConnectionConfigPtr config) {
-        // NB: No retries, no user overriding.
-        auto directMasterChannel = CreatePeerChannel(
-            config,
-            GetBusChannelFactory(),
-            EPeerKind::Leader);
-
-        auto redirectorCellId = ToRedirectorCellId(config->CellId);
         RpcServer->RegisterService(CreateBatchingChunkService(
-            redirectorCellId,
+            ToRedirectorCellId(config->CellId),
             Config->BatchingChunkService,
-            directMasterChannel));
+            config,
+            MasterConnection->GetLightChannelFactory()));
     };
 
     createMasterRedirectorService(Config->ClusterConnection->PrimaryMaster);
