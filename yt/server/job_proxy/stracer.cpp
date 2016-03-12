@@ -96,11 +96,10 @@ TStracePtr DoStrace(int pid)
         }),
         TraceTimeout);
 
-    TFinallyGuard cookieGuard(
-        [&] () {
-            TDelayedExecutor::Cancel(intCookie);
-            TDelayedExecutor::Cancel(killCookie);
-        });
+    auto cookieGuard = Finally([&] () {
+        TDelayedExecutor::Cancel(intCookie);
+        TDelayedExecutor::Cancel(killCookie);
+    });
 
     auto tracerResult = tracer.Execute();
     if (!tracerResult.Status.IsOK()) {

@@ -47,7 +47,7 @@ void TUserJobIOBase::Init()
 {
     LOG_INFO("Opening writers");
 
-    TFinallyGuard guard([&] () {
+    auto guard = Finally([&] () {
         Initialized_ = true;
     });
 
