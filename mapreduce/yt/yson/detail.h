@@ -663,8 +663,8 @@ private:
 
 public:
     TStringReader()
-        : BeginPtr(0)
-        , EndPtr(0)
+        : BeginPtr(nullptr)
+        , EndPtr(nullptr)
     { }
 
     TStringReader(const char* begin, const char* end)
