@@ -287,7 +287,7 @@ bool TNontemplateCypressNodeProxyBase::SetBuiltinAttribute(const Stroka& key, co
 {
     if (key == "account") {
         ValidateNoTransaction();
-        
+
         auto securityManager = Bootstrap_->GetSecurityManager();
 
         auto name = ConvertTo<Stroka>(value);
@@ -823,14 +823,14 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Copy)
         THROW_ERROR_EXCEPTION("Cannot copy or move a node to its descendant");
     }
 
-    ValidatePermission(
-        replace ? EPermissionCheckScope::This | EPermissionCheckScope::Descendants : EPermissionCheckScope::This,
-        EPermission::Write);
+    if (replace) {
+        ValidatePermission(EPermissionCheckScope::This | EPermissionCheckScope::Descendants, EPermission::Remove);
+        ValidatePermission(EPermissionCheckScope::Parent, EPermission::Write);
+    } else {
+        ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
+    }
 
-    ValidatePermission(
-        trunkSourceImpl,
-        EPermissionCheckScope::This | EPermissionCheckScope::Descendants,
-        removeSource ? EPermission::Read | EPermission::Write : EPermission::Read);
+    ValidatePermission(sourceImpl, EPermissionCheckScope::This | EPermissionCheckScope::Descendants, EPermission::Read);
 
     auto sourceParent = sourceProxy->GetParent();
     if (removeSource) {
@@ -839,8 +839,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Copy)
             ThrowCannotRemoveRoot();
         }
 
-        ValidatePermission(sourceImpl, EPermissionCheckScope::This, EPermission::Remove);
-        ValidatePermission(sourceImpl, EPermissionCheckScope::Descendants, EPermission::Remove);
+        ValidatePermission(sourceImpl, EPermissionCheckScope::This | EPermissionCheckScope::Descendants, EPermission::Remove);
         ValidatePermission(sourceImpl, EPermissionCheckScope::Parent, EPermission::Write);
     }
 

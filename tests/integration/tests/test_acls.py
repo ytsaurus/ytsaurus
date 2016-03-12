@@ -142,7 +142,7 @@ class TestAcls(YTEnvSetup):
         with pytest.raises(YtError):
             set("//tmp/t/@account", "a", user="u")
 
-        set("//tmp/@acl/end", self._make_ace("allow", "u", "administer"))
+        set("//tmp/t/@acl/end", self._make_ace("allow", "u", "administer"))
         set("//tmp/t/@account", "a", user="u")
         assert get("//tmp/t/@account") == "a"
 
@@ -250,7 +250,7 @@ class TestAcls(YTEnvSetup):
     def test_administer_permission2(self):
         create_user("u")
         create("table", "//tmp/t")
-        set("//tmp/@acl/end", self._make_ace("allow", "u", "administer"))
+        set("//tmp/t/@acl/end", self._make_ace("allow", "u", "administer"))
         set("//tmp/t/@acl", [], user="u")
 
     def test_administer_permission3(self):
@@ -395,7 +395,7 @@ class TestAcls(YTEnvSetup):
         create_account("a")
         create_user("u")
 
-        set("//tmp/x", {"u" : "v"})
+        set("//tmp/x", {"u": "v"})
         set("//tmp/x/u/@account", "a")
 
         with pytest.raises(YtError):
@@ -404,10 +404,47 @@ class TestAcls(YTEnvSetup):
     def test_copy_non_writable_src(self):
         # YT-4175
         create_user("u")
-        set("//tmp/x", {})
-        set("//tmp/x/@acl/end", self._make_ace("deny", "u", "write"))
-        copy("//tmp/x", "//tmp/y", user="u")
-        assert get("//tmp/x", user="u") == {}
+        set("//tmp/s", {"x": {"a": 1}})
+        set("//tmp/s/@acl/end", self._make_ace("allow", "u", ["read", "write", "remove"]))
+        set("//tmp/s/x/@acl", [self._make_ace("deny", "u", ["write", "remove"])])
+        copy("//tmp/s/x", "//tmp/s/y", user="u")
+        assert get("//tmp/s/y", user="u") == get("//tmp/s/x", user="u")
+
+    def test_copy_and_move_require_read_on_source(self):
+        create_user("u")
+        set("//tmp/s", {"x": {}})
+        set("//tmp/s/@acl/end", self._make_ace("allow", "u", ["read", "write", "remove"]))
+        set("//tmp/s/x/@acl", [self._make_ace("deny", "u", "read")])
+        with pytest.raises(YtError): copy("//tmp/s/x", "//tmp/s/y", user="u")
+        with pytest.raises(YtError): move("//tmp/s/x", "//tmp/s/y", user="u")
+
+    def test_copy_and_move_require_write_on_target_parent(self):
+        create_user("u")
+        set("//tmp/s", {"x": {}})
+        set("//tmp/s/@acl/end", self._make_ace("allow", "u", ["read", "remove"]))
+        set("//tmp/s/@acl/end", self._make_ace("deny", "u", ["write"]))
+        with pytest.raises(YtError): copy("//tmp/s/x", "//tmp/s/y", user="u")
+        with pytest.raises(YtError): move("//tmp/s/x", "//tmp/s/y", user="u")
+
+    def test_copy_and_move_requires_remove_on_target_if_exists(self):
+        create_user("u")
+        set("//tmp/s", {"x": {}, "y": {}})
+        set("//tmp/s/@acl/end", self._make_ace("allow", "u", ["read", "write", "remove"]))
+        set("//tmp/s/y/@acl", [self._make_ace("deny", "u", "remove")])
+        with pytest.raises(YtError): copy("//tmp/s/x", "//tmp/s/y", force=True, user="u")
+        with pytest.raises(YtError): move("//tmp/s/x", "//tmp/s/y", force=True, user="u")
+
+    def test_move_requires_remove_on_self_and_write_on_self_parent(self):
+        create_user("u")
+        set("//tmp/s", {"x": {}})
+        set("//tmp/s/@acl", [self._make_ace("allow", "u", ["read", "write", "remove"])])
+        set("//tmp/s/x/@acl", [self._make_ace("deny", "u", "remove")])
+        with pytest.raises(YtError): move("//tmp/s/x", "//tmp/s/y", user="u")
+        set("//tmp/s/x/@acl", [])
+        set("//tmp/s/@acl", [self._make_ace("allow", "u", ["read", "remove"]), self._make_ace("deny", "u", "write")])
+        with pytest.raises(YtError): move("//tmp/s/x", "//tmp/s/y", user="u")
+        set("//tmp/s/@acl", [self._make_ace("allow", "u", ["read", "write", "remove"])])
+        move("//tmp/s/x", "//tmp/s/y", user="u")
 
     def test_superusers(self):
         create("table", "//sys/protected")
