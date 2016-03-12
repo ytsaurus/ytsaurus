@@ -13,30 +13,6 @@ import time
 from StringIO import StringIO
 from itertools import imap
 
-def test_reliable_remove_tempfiles_in_py_wrap():
-    old_tmp_dir = yt.config["local_temp_directory"]
-    yt.config["local_temp_directory"] = tempfile.mkdtemp(dir=old_tmp_dir)
-
-    def foo(rec):
-        yield rec
-
-    def uploader(files):
-        assert files != []
-        assert os.listdir(yt.config["local_temp_directory"]) != []
-
-    try:
-        assert os.listdir(yt.config["local_temp_directory"]) == []
-        with pytest.raises(Exception):
-            py_wrapper.wrap(function=foo, operation_type="mapper", uploader=None,
-                            tempfiles_manager=None, client=None, input_format=None, output_format=None, reduce_by=None)
-        assert os.listdir(yt.config["local_temp_directory"]) == []
-        py_wrapper.wrap(function=foo, operation_type="mapper", uploader=uploader,
-                        tempfiles_manager=None, client=None, input_format=None, output_format=None, reduce_by=None)
-        assert os.listdir(yt.config["local_temp_directory"]) == []
-    finally:
-        shutil.rmtree(yt.config["local_temp_directory"])
-        yt.config["local_temp_directory"] = old_tmp_dir
-
 
 @pytest.mark.usefixtures("yt_env")
 class TestTableCommands(object):
@@ -442,4 +418,28 @@ class TestTableCommands(object):
             assert "JSON" in str(err), "Incorrect error messager: " + str(err)
         else:
             assert False, "Failed to catch response error"
+
+    def test_reliable_remove_tempfiles_in_py_wrap(self):
+        old_tmp_dir = yt.config["local_temp_directory"]
+        yt.config["local_temp_directory"] = tempfile.mkdtemp(dir=old_tmp_dir)
+
+        def foo(rec):
+            yield rec
+
+        def uploader(files):
+            assert files != []
+            assert os.listdir(yt.config["local_temp_directory"]) != []
+
+        try:
+            assert os.listdir(yt.config["local_temp_directory"]) == []
+            with pytest.raises(Exception):
+                py_wrapper.wrap(function=foo, operation_type="mapper", uploader=None,
+                                tempfiles_manager=None, client=None, input_format=None, output_format=None, reduce_by=None)
+            assert os.listdir(yt.config["local_temp_directory"]) == []
+            py_wrapper.wrap(function=foo, operation_type="mapper", uploader=uploader,
+                            tempfiles_manager=None, client=None, input_format=None, output_format=None, reduce_by=None)
+            assert os.listdir(yt.config["local_temp_directory"]) == []
+        finally:
+            shutil.rmtree(yt.config["local_temp_directory"])
+            yt.config["local_temp_directory"] = old_tmp_dir
 
