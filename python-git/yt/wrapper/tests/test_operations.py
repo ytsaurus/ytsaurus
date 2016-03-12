@@ -376,6 +376,11 @@ class TestOperations(object):
         old_value = yt.config["pickling"]["local_mode"]
         yt.config["pickling"]["local_mode"] = True
 
+        old_tmp_dir = yt.config["local_temp_directory"]
+        yt.config["local_temp_directory"] = tempfile.mkdtemp(dir=old_tmp_dir)
+
+        os.chmod(yt.config["local_temp_directory"], 0o777)
+
         try:
             def foo(rec):
                 yield rec
@@ -387,6 +392,7 @@ class TestOperations(object):
             check(yt.read_table(table), ["x=1\n", "y=2\n"])
         finally:
             yt.config["pickling"]["local_mode"] = old_value
+            yt.config["local_temp_directory"] = old_tmp_dir
 
     @add_failed_operation_stderrs_to_error_message
     def test_cross_format_operations(self):
