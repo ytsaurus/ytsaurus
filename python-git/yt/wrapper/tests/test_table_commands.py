@@ -1,3 +1,4 @@
+import yt.wrapper.py_wrapper as py_wrapper
 from yt.wrapper.table import TablePath, TempTable
 from yt.wrapper.client import Yt
 import yt.wrapper as yt
@@ -12,27 +13,30 @@ import time
 from StringIO import StringIO
 from itertools import imap
 
-def test_reliable_remove_tempfiles():
-    def dummy_buggy_upload(*args, **kwargs):
-        raise TypeError
+def test_reliable_remove_tempfiles_in_py_wrap():
+    old_tmp_dir = yt.config["local_temp_directory"]
+    yt.config["local_temp_directory"] = tempfile.mkdtemp(dir=old_tmp_dir)
 
     def foo(rec):
         yield rec
 
-    real_upload = yt.table_commands._prepare_binary.func_globals['_reliably_upload_files']
-    yt.table_commands._prepare_binary.func_globals['_reliably_upload_files'] = dummy_buggy_upload
-    old_tmp_dir = yt.config["local_temp_directory"]
-    yt.config["local_temp_directory"] = tempfile.mkdtemp(dir=old_tmp_dir)
+    def uploader(files):
+        assert files != []
+        assert os.listdir(yt.config["local_temp_directory"]) != []
+
     try:
-        files_before_fail = os.listdir(yt.config["local_temp_directory"])
-        with pytest.raises(TypeError):
-            yt.table_commands._prepare_binary(foo, "mapper")
-        files_after_fail = os.listdir(yt.config["local_temp_directory"])
-        assert files_after_fail == files_before_fail
+        assert os.listdir(yt.config["local_temp_directory"]) == []
+        with pytest.raises(Exception):
+            py_wrapper.wrap(function=foo, operation_type="mapper", uploader=None,
+                            tempfiles_manager=None, client=None, input_format=None, output_format=None, reduce_by=None)
+        assert os.listdir(yt.config["local_temp_directory"]) == []
+        py_wrapper.wrap(function=foo, operation_type="mapper", uploader=uploader,
+                        tempfiles_manager=None, client=None, input_format=None, output_format=None, reduce_by=None)
+        assert os.listdir(yt.config["local_temp_directory"]) == []
     finally:
-        yt.table_commands._prepare_binary.func_globals['_reliably_upload_files'] = real_upload
         shutil.rmtree(yt.config["local_temp_directory"])
         yt.config["local_temp_directory"] = old_tmp_dir
+
 
 @pytest.mark.usefixtures("yt_env")
 class TestTableCommands(object):
