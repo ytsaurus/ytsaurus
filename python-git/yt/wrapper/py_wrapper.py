@@ -84,6 +84,8 @@ class TempfilesManager(object):
         """Use syntax tempfile.mkstemp"""
         fd, filepath = tempfile.mkstemp(*args, **kwargs)
         os.close(fd)
+        # NB: files should be accesible from jobs in local mode.
+        os.chmod(filepath, 0o755)
         self._tempfiles_pool.append(filepath)
         return filepath
 
