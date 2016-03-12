@@ -8,6 +8,10 @@
 #include <yt/ytlib/node_tracker_client/node_directory.h>
 #include <yt/ytlib/node_tracker_client/node_directory_builder.h>
 
+#include <yt/ytlib/api/config.h>
+
+#include <yt/ytlib/hydra/peer_channel.h>
+
 #include <yt/ytlib/security_client/public.h>
 
 #include <yt/core/rpc/service_detail.h>
@@ -27,6 +31,8 @@ using namespace NChunkClient;
 using namespace NChunkClient::NProto;
 using namespace NNodeTrackerClient;
 using namespace NElection;
+using namespace NApi;
+using namespace NHydra;
 
 using NYT::FromProto;
 
@@ -38,16 +44,25 @@ class TBatchingChunkService
 public:
     TBatchingChunkService(
         const TCellId& cellId,
-        TBatchingChunkServiceConfigPtr config,
-        IChannelPtr underlyingChannel)
+        TBatchingChunkServiceConfigPtr serviceConfig,
+        TMasterConnectionConfigPtr connectionConfig,
+        IChannelFactoryPtr channelFactory)
         : TServiceBase(
             NRpc::TDispatcher::Get()->GetInvoker(),
             TServiceId(TChunkServiceProxy::GetServiceName(), cellId),
             CellNodeLogger,
             TChunkServiceProxy::GetProtocolVersion())
-        , Config_(std::move(config))
-        , UnderlyingChannel_(std::move(underlyingChannel))
-        , CostThrottler_(CreateLimitedThrottler(Config_->CostThrottler))
+        , ServiceConfig_(std::move(serviceConfig))
+        , ConnectionConfig_(std::move(connectionConfig))
+        , CostThrottler_(CreateLimitedThrottler(ServiceConfig_->CostThrottler))
+        , LeaderChannel_(CreatePeerChannel(
+            ConnectionConfig_,
+            ChannelFactory_,
+            EPeerKind::Leader))
+        , FollowerChannel_(CreatePeerChannel(
+            ConnectionConfig_,
+            ChannelFactory_,
+            EPeerKind::Follower))
         , LocateChunksBatcher_(New<TLocateChunksBatcher>(this))
         , AllocateWriteTargetsBatcher_(New<TAllocateWriteTargetsBatcher>(this))
         , ExecuteBatchBatcher_(New<TExecuteBatchBatcher>(this))
@@ -58,8 +73,12 @@ public:
     }
 
 private:
-    const TBatchingChunkServiceConfigPtr Config_;
-    const IChannelPtr UnderlyingChannel_;
+    const TBatchingChunkServiceConfigPtr ServiceConfig_;
+    const TMasterConnectionConfigPtr ConnectionConfig_;
+    const IChannelFactoryPtr ChannelFactory_;
+
+    const IChannelPtr LeaderChannel_;
+    const IChannelPtr FollowerChannel_;
 
     const IThroughputThrottlerPtr CostThrottler_;
 
@@ -79,7 +98,8 @@ private:
         explicit TBatcherBase(TBatchingChunkService* owner)
             : Owner_(owner)
             , Logger(owner->Logger)
-            , Proxy_(owner->UnderlyingChannel_)
+            , LeaderProxy_(owner->LeaderChannel_)
+            , FollowerProxy_(owner->FollowerChannel_)
         { }
 
         void HandleRequest(const TContextPtr& context)
@@ -99,23 +119,26 @@ private:
 
             if (!CurrentBatch_) {
                 CurrentBatch_ = New<TBatch>();
-                CurrentBatch_->BatchRequest = CreateBatchRequest();
-                GenerateMutationId(CurrentBatch_->BatchRequest);
-                CurrentBatch_->BatchRequest->SetUser(NSecurityClient::JobUserName);
+
+                auto request = CurrentBatch_->BatchRequest = CreateBatchRequest();
+                GenerateMutationId(request);
+                request->SetUser(NSecurityClient::JobUserName);
+                request->SetTimeout(owner->ConnectionConfig_->RpcTimeout);
+
                 TDelayedExecutor::Submit(
                     BIND(&TBatcherBase::OnTimeout, MakeStrong(this), CurrentBatch_),
-                    owner->Config_->MaxBatchDelay);
+                    owner->ServiceConfig_->MaxBatchDelay);
             }
 
             CurrentBatch_->ContextsWithStates.emplace_back(context, TState());
             auto& state = CurrentBatch_->ContextsWithStates.back().second;
             BatchRequest(&context->Request(), CurrentBatch_->BatchRequest.Get(), &state);
 
-            LOG_DEBUG("Request batched (RequestId: %v -> %v)",
+            LOG_DEBUG("Chunk Service request batched (RequestId: %v -> %v)",
                 context->GetRequestId(),
                 CurrentBatch_->BatchRequest->GetRequestId());
 
-            if (GetCost(CurrentBatch_->BatchRequest) >= owner->Config_->MaxBatchCost) {
+            if (GetCost(CurrentBatch_->BatchRequest) >= owner->ServiceConfig_->MaxBatchCost) {
                 DoFlush();
             }
         }
@@ -133,7 +156,8 @@ private:
 
         using TBatchPtr = TIntrusivePtr<TBatch>;
 
-        TChunkServiceProxy Proxy_;
+        TChunkServiceProxy LeaderProxy_;
+        TChunkServiceProxy FollowerProxy_;
 
         TSpinLock SpinLock_;
         TBatchPtr CurrentBatch_;
@@ -209,7 +233,7 @@ private:
                 return;
             }
 
-            LOG_DEBUG("Batched request sent (RequestId: %v)",
+            LOG_DEBUG("Chunk Service batch request sent (RequestId: %v)",
                 batch->BatchRequest->GetRequestId());
 
             batch->BatchRequest->Invoke().Subscribe(
@@ -220,10 +244,10 @@ private:
         void OnBatchResponse(const TBatchPtr& batch, const TErrorOr<TResponsePtr>& responseOrError)
         {
             if (responseOrError.IsOK()) {
-                LOG_DEBUG("Batched request succeeded (RequestId: %v)",
+                LOG_DEBUG("Chunk Service batch request succeeded (RequestId: %v)",
                     batch->BatchRequest->GetRequestId());
             } else {
-                LOG_DEBUG(responseOrError, "Batched request failed (RequestId: %v)",
+                LOG_DEBUG(responseOrError, "Chunk Service batch request failed (RequestId: %v)",
                     batch->BatchRequest->GetRequestId());
             }
 
@@ -260,7 +284,7 @@ private:
     protected:
         virtual TChunkServiceProxy::TReqLocateChunksPtr CreateBatchRequest() override
         {
-            return Proxy_.LocateChunks();
+            return FollowerProxy_.LocateChunks();
         }
 
         virtual void BatchRequest(
@@ -319,7 +343,7 @@ private:
     protected:
         virtual TChunkServiceProxy::TReqAllocateWriteTargetsPtr CreateBatchRequest() override
         {
-            return Proxy_.AllocateWriteTargets();
+            return LeaderProxy_.AllocateWriteTargets();
         }
 
         virtual void BatchRequest(
@@ -381,7 +405,7 @@ private:
     protected:
         virtual TChunkServiceProxy::TReqExecuteBatchPtr CreateBatchRequest() override
         {
-            return Proxy_.ExecuteBatch();
+            return LeaderProxy_.ExecuteBatch();
         }
 
         virtual void BatchRequest(
@@ -423,13 +447,15 @@ private:
 
 IServicePtr CreateBatchingChunkService(
     const TCellId& cellId,
-    TBatchingChunkServiceConfigPtr config,
-    IChannelPtr underlyingChannel)
+    TBatchingChunkServiceConfigPtr serviceConfig,
+    TMasterConnectionConfigPtr connectionConfig,
+    IChannelFactoryPtr channelFactory)
 {
     return New<TBatchingChunkService>(
         cellId,
-        config,
-        underlyingChannel);
+        serviceConfig,
+        connectionConfig,
+        channelFactory);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
