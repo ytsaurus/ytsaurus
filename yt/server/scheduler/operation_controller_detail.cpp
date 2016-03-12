@@ -170,6 +170,7 @@ void TOperationControllerBase::TCompletedJob::Persist(TPersistenceContext& conte
     Persist(context, JobId);
     Persist(context, SourceTask);
     Persist(context, OutputCookie);
+    Persist(context, DataSize);
     Persist(context, DestinationPool);
     Persist(context, InputCookie);
     Persist(context, NodeDescriptor);

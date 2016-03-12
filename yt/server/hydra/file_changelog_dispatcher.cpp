@@ -334,7 +334,7 @@ public:
         const TSharedRef& record)
     {
         auto queue = GetAndLockQueue(changelog);
-        TFinallyGuard guard([&] () {
+        auto guard = Finally([&] () {
             queue->Unlock();
         });
 
@@ -366,7 +366,7 @@ public:
             return VoidFuture;
         }
 
-        TFinallyGuard guard([&] () {
+        auto guard = Finally([&] () {
             queue->Unlock();
         });
 
@@ -545,7 +545,7 @@ private:
         std::vector<TSharedRef> records;
         auto queue = FindAndLockQueue(changelog);
         if (queue) {
-            TFinallyGuard guard([&] () {
+            auto guard = Finally([&] () {
                 queue->Unlock();
             });
             records = queue->Read(firstRecordId, maxRecords, maxBytes);

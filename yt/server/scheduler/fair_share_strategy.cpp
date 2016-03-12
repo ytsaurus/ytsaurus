@@ -1066,7 +1066,7 @@ public:
         }
 
         ++ConcurrentScheduleJobCalls_;
-        TFinallyGuard scheduleJobGuard([&] {
+        auto scheduleJobGuard = Finally([&] {
             --ConcurrentScheduleJobCalls_;
         });
 
