@@ -379,7 +379,7 @@ class TestOperations(object):
         old_tmp_dir = yt.config["local_temp_directory"]
         yt.config["local_temp_directory"] = tempfile.mkdtemp(dir=old_tmp_dir)
 
-        os.chmod(yt.config["local_temp_directory"], 0o777)
+        os.chmod(yt.config["local_temp_directory"], 0o755)
 
         try:
             def foo(rec):
