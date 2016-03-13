@@ -130,7 +130,7 @@ message TRspGetChunkOwningNodes
 
 message TReqExecuteBatch
 {
-    message TCreateSubrequest
+    message TCreateChunkSubrequest
     {
         // The id of the transaction where the chunk should be staged.
         required NYT.NProto.TGuid transaction_id = 1;
@@ -162,9 +162,9 @@ message TReqExecuteBatch
         optional NYT.NProto.TGuid chunk_list_id = 10;
     }
 
-    repeated TCreateSubrequest create_subrequests = 1;
+    repeated TCreateChunkSubrequest create_chunk_subrequests = 1;
 
-    message TConfirmSubrequest
+    message TConfirmChunkSubrequest
     {
         required NYT.NProto.TGuid chunk_id = 1;
         repeated fixed32 replicas = 2;
@@ -173,41 +173,41 @@ message TReqExecuteBatch
         optional bool request_statistics = 5 [default = false];
     }
 
-    repeated TConfirmSubrequest confirm_subrequests = 2;
+    repeated TConfirmChunkSubrequest confirm_chunk_subrequests = 2;
 
-    message TSealSubrequest
+    message TSealChunkSubrequest
     {
         required NYT.NProto.TGuid chunk_id = 1;
         required TMiscExt misc = 2;
     }
 
-    repeated TSealSubrequest seal_subrequests = 3;
+    repeated TSealChunkSubrequest seal_chunk_subrequests = 3;
 }
 
 message TRspExecuteBatch
 {
-    message TCreateSubresponse
+    message TCreateChunkSubresponse
     {
         optional NYT.NProto.TError error = 1;
         optional NYT.NProto.TGuid chunk_id = 2;
     }
 
-    repeated TCreateSubresponse create_subresponses = 1;
+    repeated TCreateChunkSubresponse create_chunk_subresponses = 1;
 
-    message TConfirmSubresponse
+    message TConfirmChunkSubresponse
     {
         optional NYT.NProto.TError error = 1;
         optional TDataStatistics statistics = 2;
     }
 
-    repeated TConfirmSubresponse confirm_subresponses = 2;
+    repeated TConfirmChunkSubresponse confirm_chunk_subresponses = 2;
 
-    message TSealSubresponse
+    message TSealChunkSubresponse
     {
         optional NYT.NProto.TError error = 1;
     }
 
-    repeated TSealSubresponse seal_subresponses = 3;
+    repeated TSealChunkSubresponse seal_chunk_subresponses = 3;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

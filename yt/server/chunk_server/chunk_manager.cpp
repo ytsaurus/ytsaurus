@@ -1240,8 +1240,8 @@ private:
 
     void HydraExecuteBatch(TCtxExecuteBatchPtr /*context*/, TReqExecuteBatch* request, TRspExecuteBatch* response)
     {
-        for (auto& subrequest : *request->mutable_create_subrequests()) {
-            auto* subresponse = response ? response->add_create_subresponses() : nullptr;
+        for (auto& subrequest : *request->mutable_create_chunk_subrequests()) {
+            auto* subresponse = response ? response->add_create_chunk_subresponses() : nullptr;
             try {
                 ExecuteCreateChunkSubrequest(&subrequest, subresponse);
             } catch (const std::exception& ex) {
@@ -1252,8 +1252,8 @@ private:
             }
         }
 
-        for (auto& subrequest : *request->mutable_confirm_subrequests()) {
-            auto* subresponse = response ? response->add_confirm_subresponses() : nullptr;
+        for (auto& subrequest : *request->mutable_confirm_chunk_subrequests()) {
+            auto* subresponse = response ? response->add_confirm_chunk_subresponses() : nullptr;
             try {
                 ExecuteConfirmChunkSubrequest(&subrequest, subresponse);
             } catch (const std::exception& ex) {
@@ -1264,8 +1264,8 @@ private:
             }
         }
 
-        for (auto& subrequest : *request->mutable_seal_subrequests()) {
-            auto* subresponse = response ? response->add_seal_subresponses() : nullptr;
+        for (auto& subrequest : *request->mutable_seal_chunk_subrequests()) {
+            auto* subresponse = response ? response->add_seal_chunk_subresponses() : nullptr;
             try {
                 ExecuteSealChunkSubrequest(&subrequest, subresponse);
             } catch (const std::exception& ex) {
@@ -1278,8 +1278,8 @@ private:
     }
 
     void ExecuteCreateChunkSubrequest(
-        TReqExecuteBatch::TCreateSubrequest* subrequest,
-        TRspExecuteBatch::TCreateSubresponse* subresponse)
+        TReqExecuteBatch::TCreateChunkSubrequest* subrequest,
+        TRspExecuteBatch::TCreateChunkSubresponse* subresponse)
     {
         auto transactionId = FromProto<TTransactionId>(subrequest->transaction_id());
         auto chunkType = EObjectType(subrequest->type());
@@ -1342,8 +1342,8 @@ private:
     }
 
     void ExecuteConfirmChunkSubrequest(
-        TReqExecuteBatch::TConfirmSubrequest* subrequest,
-        TRspExecuteBatch::TConfirmSubresponse* subresponse)
+        TReqExecuteBatch::TConfirmChunkSubrequest* subrequest,
+        TRspExecuteBatch::TConfirmChunkSubresponse* subresponse)
     {
         auto chunkId = FromProto<TChunkId>(subrequest->chunk_id());
         auto replicas = FromProto<TChunkReplicaList>(subrequest->replicas());
@@ -1365,8 +1365,8 @@ private:
     }
 
     void ExecuteSealChunkSubrequest(
-        TReqExecuteBatch::TSealSubrequest* subrequest,
-        TRspExecuteBatch::TSealSubresponse* subresponse)
+        TReqExecuteBatch::TSealChunkSubrequest* subrequest,
+        TRspExecuteBatch::TSealChunkSubresponse* subresponse)
     {
         auto chunkId = FromProto<TChunkId>(subrequest->chunk_id());
         auto* chunk = GetChunkOrThrow(chunkId);

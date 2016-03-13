@@ -54,7 +54,6 @@ public:
             TChunkServiceProxy::GetProtocolVersion())
         , ServiceConfig_(std::move(serviceConfig))
         , ConnectionConfig_(std::move(connectionConfig))
-        , CostThrottler_(CreateLimitedThrottler(ServiceConfig_->CostThrottler))
         , LeaderChannel_(CreatePeerChannel(
             ConnectionConfig_,
             ChannelFactory_,
@@ -63,6 +62,7 @@ public:
             ConnectionConfig_,
             ChannelFactory_,
             EPeerKind::Follower))
+        , CostThrottler_(CreateLimitedThrottler(ServiceConfig_->CostThrottler))
         , LocateChunksBatcher_(New<TLocateChunksBatcher>(this))
         , AllocateWriteTargetsBatcher_(New<TAllocateWriteTargetsBatcher>(this))
         , ExecuteBatchBatcher_(New<TExecuteBatchBatcher>(this))
@@ -413,9 +413,9 @@ private:
             NChunkClient::NProto::TReqExecuteBatch* batchRequest,
             TExecuteBatchState* state) override
         {
-            BatchSubrequests(request->create_subrequests(), batchRequest->mutable_create_subrequests(), &state->CreateIndexes);
-            BatchSubrequests(request->confirm_subrequests(), batchRequest->mutable_confirm_subrequests(), &state->ConfirmIndexes);
-            BatchSubrequests(request->seal_subrequests(), batchRequest->mutable_seal_subrequests(), &state->SealIndexes);
+            BatchSubrequests(request->create_chunk_subrequests(), batchRequest->mutable_create_chunk_subrequests(), &state->CreateIndexes);
+            BatchSubrequests(request->confirm_chunk_subrequests(), batchRequest->mutable_confirm_chunk_subrequests(), &state->ConfirmIndexes);
+            BatchSubrequests(request->seal_chunk_subrequests(), batchRequest->mutable_seal_chunk_subrequests(), &state->SealIndexes);
         }
 
         virtual void UnbatchResponse(
@@ -423,17 +423,17 @@ private:
             const NChunkClient::NProto::TRspExecuteBatch* batchResponse,
             const TExecuteBatchState& state) override
         {
-            UnbatchSubresponses(batchResponse->create_subresponses(), response->mutable_create_subresponses(), state.CreateIndexes);
-            UnbatchSubresponses(batchResponse->confirm_subresponses(), response->mutable_confirm_subresponses(), state.ConfirmIndexes);
-            UnbatchSubresponses(batchResponse->seal_subresponses(), response->mutable_seal_subresponses(), state.SealIndexes);
+            UnbatchSubresponses(batchResponse->create_chunk_subresponses(), response->mutable_create_chunk_subresponses(), state.CreateIndexes);
+            UnbatchSubresponses(batchResponse->confirm_chunk_subresponses(), response->mutable_confirm_chunk_subresponses(), state.ConfirmIndexes);
+            UnbatchSubresponses(batchResponse->seal_chunk_subresponses(), response->mutable_seal_chunk_subresponses(), state.SealIndexes);
         }
 
         virtual int GetCost(const TRequestPtr& request) const override
         {
             return
-                request->create_subrequests_size() +
-                request->confirm_subrequests_size() +
-                request->seal_subrequests_size();
+                request->create_chunk_subrequests_size() +
+                request->confirm_chunk_subrequests_size() +
+                request->seal_chunk_subrequests_size();
         }
     };
 

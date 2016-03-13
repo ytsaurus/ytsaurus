@@ -532,7 +532,7 @@ private:
                 auto batchReq = proxy.ExecuteBatch();
                 GenerateMutationId(batchReq);
 
-                auto* req = batchReq->add_create_subrequests();
+                auto* req = batchReq->add_create_chunk_subrequests();
                 req->set_type(static_cast<int>(EObjectType::JournalChunk));
                 req->set_account(Account_);
                 ToProto(req->mutable_transaction_id(), UploadTransaction_->GetId());
@@ -549,7 +549,7 @@ private:
                     "Error creating chunk");
 
                 const auto& batchRsp = batchRspOrError.Value();
-                const auto& rsp = batchRsp->create_subresponses(0);
+                const auto& rsp = batchRsp->create_chunk_subresponses(0);
 
                 session->ChunkId = FromProto<TChunkId>(rsp.chunk_id());
             }
@@ -626,7 +626,7 @@ private:
                 GenerateMutationId(batchReq);
 
                 YCHECK(!replicas.empty());
-                auto* req = batchReq->add_confirm_subrequests();
+                auto* req = batchReq->add_confirm_chunk_subrequests();
                 ToProto(req->mutable_chunk_id(), chunkId);
                 req->mutable_chunk_info();
                 ToProto(req->mutable_replicas(), replicas);
@@ -802,7 +802,7 @@ private:
                 auto batchReq = proxy.ExecuteBatch();
                 GenerateMutationId(batchReq);
 
-                auto* req = batchReq->add_seal_subrequests();
+                auto* req = batchReq->add_seal_chunk_subrequests();
                 ToProto(req->mutable_chunk_id(), chunkId);
                 auto* miscExt = req->mutable_misc();
                 miscExt->set_sealed(true);

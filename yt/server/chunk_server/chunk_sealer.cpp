@@ -281,7 +281,7 @@ private:
             auto batchReq = proxy.ExecuteBatch();
             GenerateMutationId(batchReq);
 
-            auto* req = batchReq->add_seal_subrequests();
+            auto* req = batchReq->add_seal_chunk_subrequests();
             ToProto(req->mutable_chunk_id(), chunkId);
             *req->mutable_misc() = miscExt;
 

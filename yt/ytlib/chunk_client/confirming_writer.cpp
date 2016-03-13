@@ -320,7 +320,7 @@ void TConfirmingWriter::DoClose()
     auto batchReq = proxy.ExecuteBatch();
     GenerateMutationId(batchReq);
 
-    auto* req = batchReq->add_confirm_subrequests();
+    auto* req = batchReq->add_confirm_chunk_subrequests();
     ToProto(req->mutable_chunk_id(), ChunkId_);
     *req->mutable_chunk_info() = UnderlyingWriter_->GetChunkInfo();
     *req->mutable_chunk_meta() = masterChunkMeta;
@@ -335,7 +335,7 @@ void TConfirmingWriter::DoClose()
         ChunkId_);
 
     const auto& batchRsp = batchRspOrError.Value();
-    const auto& rsp = batchRsp->confirm_subresponses(0);
+    const auto& rsp = batchRsp->confirm_chunk_subresponses(0);
     DataStatistics_ = rsp.statistics();
 
     Closed_ = true;

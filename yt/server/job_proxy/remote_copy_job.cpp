@@ -309,7 +309,7 @@ private:
             auto batchReq = proxy.ExecuteBatch();
             GenerateMutationId(batchReq);
 
-            auto* req = batchReq->add_confirm_subrequests();
+            auto* req = batchReq->add_confirm_chunk_subrequests();
             ToProto(req->mutable_chunk_id(), outputChunkId);
             *req->mutable_chunk_info() = chunkInfo;
             *req->mutable_chunk_meta() = masterChunkMeta;

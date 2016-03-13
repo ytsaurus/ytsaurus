@@ -240,9 +240,9 @@ private:
             "CreateSubrequestCount: %v, "
             "ConfirmSubrequestCount: %v, "
             "SealSubrequestCount: %v",
-            request->create_subrequests_size(),
-            request->confirm_subrequests_size(),
-            request->seal_subrequests_size());
+            request->create_chunk_subrequests_size(),
+            request->confirm_chunk_subrequests_size(),
+            request->seal_chunk_subrequests_size());
 
         auto chunkManager = Bootstrap_->GetChunkManager();
         chunkManager
