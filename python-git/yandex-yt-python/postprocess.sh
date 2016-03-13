@@ -9,6 +9,10 @@ YT="yt/wrapper/yt"
 UBUNTU_VERSION="$(lsb_release --short --codename )"
 VERSION=$(dpkg-parsechangelog | grep Version | awk '{print $2}')
 
+silent_grep() {
+    grep "$@" || true
+}
+
 make_link()
 {
     src="$1"
@@ -22,15 +26,23 @@ urlencode() {
     echo "$@" | python -c "import sys, urllib; sys.stdout.write(urllib.quote(sys.stdin.read()))"
 }
 
+FILES=$($YT list $DEST)
+
 # Upload python egg
-python setup.py bdist_egg
-EGG_FILEPATH=$(find dist/ -name "*.egg" | head -n 1)
-EGG_FILE="${EGG_FILEPATH##*/}"
-cat "$EGG_FILEPATH" | $YT upload "$DEST/$EGG_FILE"
-make_link "$DEST/$EGG_FILE" "$DEST/yandex-yt.egg"
+FOUND_EGG=$(echo "$FILES" | silent_grep ${VERSION/-/_} | silent_grep ".egg\$")
+if [ -z "$FOUND_EGG" ] || [ -n "$FORCE_DEPLOY" ]; then
+    python setup.py bdist_egg
+    EGG_FILEPATH=$(find dist/ -name "*.egg" | head -n 1)
+    EGG_FILE="${EGG_FILEPATH##*/}"
+    cat "$EGG_FILEPATH" | $YT upload "$DEST/$EGG_FILE"
+    make_link "$DEST/$EGG_FILE" "$DEST/yandex-yt.egg"
+fi
 
 # Upload self-contained binaries
 for name in yt mapreduce-yt yt-fuse; do
+    if [ -n "$(echo "$FILES" | silent_grep "${name}_${VERSION}_${UBUNTU_VERSION}")" ] && [ -z "$FORCE_DEPLOY" ]; then
+        continue
+    fi
     rm -rf build dist
     pyinstaller/pyinstaller.py --noconfirm --onefile yt/wrapper/$name
     pyinstaller/pyinstaller.py --noconfirm "${name}.spec"
@@ -39,8 +51,10 @@ for name in yt mapreduce-yt yt-fuse; do
 done
 
 
-# Create ticket in coductor
-COMMENT=$(urlencode $(dpkg-parsechangelog))
-curl --verbose --show-error \
-    -H "Cookie: conductor_auth=419fb75155c27d44f1d110ec833400fa" \
-    "http://c.yandex-team.ru/auth_update/ticket_add?package\[0\]=yandex-yt-python&version\[0\]=$VERSION&ticket\[branch\]=unstable&ticket\[comment\]=$COMMENT"
+if [ -n "$CREATE_CONDUCTOR_TICKET" ]; then
+    # Create ticket in coductor
+    COMMENT=$(urlencode $(dpkg-parsechangelog))
+    curl --verbose --show-error \
+        -H "Cookie: conductor_auth=419fb75155c27d44f1d110ec833400fa" \
+        "http://c.yandex-team.ru/auth_update/ticket_add?package\[0\]=yandex-yt-python&version\[0\]=$VERSION&ticket\[branch\]=unstable&ticket\[comment\]=$COMMENT"
+fi

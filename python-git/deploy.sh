@@ -6,6 +6,32 @@ clean() {
     sudo make -f debian/rules clean
 }
 
+found_version() {
+    local package="$1"
+    local repo="$2"
+    local target_version="$3"
+    for branch in "unstable" "testing" "stable"; do
+        for version in $(
+            curl -s "http://dist.yandex.ru/$repo/$branch/all/Packages.gz" \
+                | zcat \
+                | grep "Package: $package\$" -A 1 \
+                | awk '{if ($1 == "Version:") print $2}'); do
+            if [ "$version" = "$target_version" ]; then
+                echo 1
+                return
+            fi
+        done
+    done
+    echo 0
+}
+
+set +u
+if [ -z "$FORCE_DEPLOY" ]; then
+    FORCE_DEPLOY=""
+fi
+export FORCE_DEPLOY
+set -u
+
 PACKAGE=$1
 
 # Copy package files to the python root
@@ -18,12 +44,9 @@ fi
 # Initial cleanup
 clean
 
-# Build debian package
-DEB=1 python setup.py sdist --dist-dir=../
-# NB: Never strip binaries and so-libraries.
-DEB_STRIP_EXCLUDE=".*" DEB=1 dpkg-buildpackage -i -I -rfakeroot
+VERSION=$(dpkg-parsechangelog | grep Version | awk '{print $2}')
 
-# Upload debian package
+# Detect repos to upload.
 REPOS=""
 case $PACKAGE in
     yandex-yt-python|yandex-yt-python-tools|yandex-yt-local|yandex-yt-transfer-manager-client)
@@ -37,15 +60,36 @@ case $PACKAGE in
         ;;
 esac
 
-if [ -n "$REPOS" ]; then
+REPOS_TO_UPLOAD=""
+if [ -z "$FORCE_DEPLOY" ]; then
     for REPO in $REPOS; do
-        VERSION=$(dpkg-parsechangelog | grep Version | awk '{print $2}')
+        if [ "$(found_version "$PACKAGE" "$REPO" "$VERSION")" = "0" ]; then
+            REPOS_TO_UPLOAD="$REPOS_TO_UPLOAD $REPO"
+        fi
+    done
+else
+    REPOS_TO_UPLOAD="$REPOS"
+fi
+
+# Build and upload debian package if necessary
+if [ -n "$REPOS_TO_UPLOAD" ]; then
+    # Build debian package
+    DEB=1 python setup.py sdist --dist-dir=../
+    # NB: Never strip binaries and so-libraries.
+    DEB_STRIP_EXCLUDE=".*" DEB=1 dpkg-buildpackage -i -I -rfakeroot
+
+    # Upload debian package
+    for REPO in $REPOS_TO_UPLOAD; do
+        if [ "$REPO" = "common" ]; then
+            # NB: used in postptocess.sh by some packages.
+            export CREATE_CONDUCTOR_TICKET="true"
+        fi
         dupload "../${PACKAGE}_${VERSION}_amd64.changes" --force --to $REPO
     done
-
-    # Upload python wheel
-    python setup.py bdist_wheel upload -r yandex
 fi
+
+# Upload python wheel
+python setup.py bdist_wheel upload -r yandex
 
 # Some postprocess steps
 if [ -f "$PACKAGE/postprocess.sh" ]; then
