@@ -179,11 +179,6 @@ protected:
 
     virtual void DoDestroyObject(TChunk* chunk) override;
 
-    virtual TTransaction* DoGetStagingTransaction(TChunk* chunk) override
-    {
-        return chunk->GetStagingTransaction();
-    }
-
     virtual void DoUnstageObject(TChunk* chunk, bool recursive) override;
 
     virtual void DoResetObject(TChunk* chunk) override
@@ -309,11 +304,6 @@ private:
     virtual IObjectProxyPtr DoGetProxy(TChunkList* chunkList, TTransaction* transaction) override;
 
     virtual void DoDestroyObject(TChunkList* chunkList) override;
-
-    virtual TTransaction* DoGetStagingTransaction(TChunkList* chunkList) override
-    {
-        return chunkList->GetStagingTransaction();
-    }
 
     virtual void DoUnstageObject(TChunkList* chunkList, bool recursive) override;
 };
@@ -688,7 +678,7 @@ public:
         if (recursive) {
             auto transactionManager = Bootstrap_->GetTransactionManager();
             for (auto* child : chunkList->Children()) {
-                transactionManager->UnstageObject(child, recursive);
+                transactionManager->UnstageObject(child->GetStagingTransaction(), child, recursive);
             }
         }
     }
@@ -1415,7 +1405,7 @@ private:
 
         auto* chunkTree = GetChunkTreeOrThrow(chunkTreeId);
         auto transactionManager = Bootstrap_->GetTransactionManager();
-        transactionManager->UnstageObject(chunkTree, recursive);
+        transactionManager->UnstageObject(chunkTree->GetStagingTransaction(), chunkTree, recursive);
 
         LOG_DEBUG_UNLESS(IsRecovery(), "Chunk tree unstaged (ChunkTreeId: %v, Recursive: %v)",
             chunkTreeId,

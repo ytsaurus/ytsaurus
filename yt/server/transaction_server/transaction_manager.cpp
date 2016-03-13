@@ -706,14 +706,12 @@ public:
         objectManager->RefObject(object);
     }
 
-    void UnstageObject(TObjectBase* object, bool recursive)
+    void UnstageObject(TTransaction* transaction, TObjectBase* object, bool recursive)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         auto objectManager = Bootstrap_->GetObjectManager();
         const auto& handler = objectManager->GetHandler(object);
-        auto* transaction = handler->GetStagingTransaction(object);
-
         handler->UnstageObject(object, recursive);
 
         if (transaction) {
@@ -1157,10 +1155,11 @@ void TTransactionManager::StageObject(
 }
 
 void TTransactionManager::UnstageObject(
+    TTransaction* transaction,
     TObjectBase* object,
     bool recursive)
 {
-    Impl_->UnstageObject(object, recursive);
+    Impl_->UnstageObject(transaction, object, recursive);
 }
 
 void TTransactionManager::StageNode(

@@ -62,12 +62,6 @@ public:
         DoZombifyObject(static_cast<TObject*>(object));
     }
 
-    virtual NTransactionServer::TTransaction* GetStagingTransaction(
-        TObjectBase* object) override
-    {
-        return DoGetStagingTransaction(static_cast<TObject*>(object));
-    }
-
     virtual void UnstageObject(TObjectBase* object, bool recursive) override
     {
         DoUnstageObject(static_cast<TObject*>(object), recursive);
@@ -134,12 +128,6 @@ protected:
 
     virtual void DoZombifyObject(TObject* /*object*/)
     { }
-
-    virtual NTransactionServer::TTransaction* DoGetStagingTransaction(
-        TObject* /*object*/)
-    {
-        return nullptr;
-    }
 
     virtual void DoUnstageObject(TObject* /*object*/, bool /*recursive*/)
     { }
