@@ -940,19 +940,13 @@ TObjectBase* TObjectManager::CreateObject(
         attributes,
         extensions);
 
+    YCHECK(object->GetObjectRefCounter() > 0);
+
     if (CellTagFromId(object->GetId()) != Bootstrap_->GetCellTag()) {
         object->SetForeign();
     }
 
     FillAttributes(object, *attributes);
-
-    auto* stagingTransaction = handler->GetStagingTransaction(object);
-    if (stagingTransaction) {
-        auto transactionManager = Bootstrap_->GetTransactionManager();
-        transactionManager->StageObject(stagingTransaction, object);
-    } else {
-        YCHECK(object->GetObjectRefCounter() > 0);
-    }
 
     auto* acd = securityManager->FindAcd(object);
     if (acd) {
