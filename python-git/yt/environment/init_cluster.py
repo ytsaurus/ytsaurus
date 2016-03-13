@@ -75,12 +75,6 @@ def initialize_world(client=None):
             {"action": "allow", "subjects": ["admins"], "permissions": ["write", "remove", "create", "administer"]}
         ])
 
-    for schema in ["chunk", "erasure_chunk", "chunk_list"]:
-        client.set("//sys/schemas/{0}/@acl".format(schema),
-            [
-                {"action": "allow", "subjects": ["users"], "permissions": ["read", "write", "remove", "create"]},
-            ])
-
     client.set("//sys/schemas/lock/@acl",
         [
             {"action": "allow", "subjects": ["everyone"], "permissions": ["read"]},
