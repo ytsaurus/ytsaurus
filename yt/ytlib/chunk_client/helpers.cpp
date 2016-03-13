@@ -75,7 +75,7 @@ TChunkId CreateChunk(
     auto batchReq = proxy.ExecuteBatch();
     GenerateMutationId(batchReq);
 
-    auto* req = batchReq->add_create_subrequests();
+    auto* req = batchReq->add_create_chunk_subrequests();
     ToProto(req->mutable_transaction_id(), transactionId);
     req->set_type(static_cast<int>(chunkType));
     req->set_account(options->Account);
@@ -93,7 +93,7 @@ TChunkId CreateChunk(
         "Error creating chunk");
 
     const auto& batchRsp = batchRspOrError.Value();
-    const auto& rsp = batchRsp->create_subresponses(0);
+    const auto& rsp = batchRsp->create_chunk_subresponses(0);
     return FromProto<TChunkId>(rsp.chunk_id());
 }
 
@@ -251,9 +251,9 @@ TError GetCumulativeError(const TChunkServiceProxy::TErrorOrRspExecuteBatchPtr& 
             }
         }
     };
-    processSubresponses(batchRsp->create_subresponses());
-    processSubresponses(batchRsp->confirm_subresponses());
-    processSubresponses(batchRsp->seal_subresponses());
+    processSubresponses(batchRsp->create_chunk_subresponses());
+    processSubresponses(batchRsp->confirm_chunk_subresponses());
+    processSubresponses(batchRsp->seal_chunk_subresponses());
 
     return cumulativeError.InnerErrors().empty() ? TError() : cumulativeError;
 }
