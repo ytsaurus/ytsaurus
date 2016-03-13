@@ -17,9 +17,7 @@ struct TMasterYPathProxy
         return "Master";
     }
 
-    DEFINE_MUTATING_YPATH_PROXY_METHOD(NProto, CreateObjects);
     DEFINE_MUTATING_YPATH_PROXY_METHOD(NProto, CreateObject);
-    DEFINE_MUTATING_YPATH_PROXY_METHOD(NProto, UnstageObjects);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

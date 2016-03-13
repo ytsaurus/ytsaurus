@@ -10,24 +10,6 @@ message TObjectCreationExtensions
     extensions 100 to max;
 }
 
-////////////////////////////////////////////////////////////////////////////////
-
-message TReqCreateObjects
-{
-    optional NYT.NProto.TGuid transaction_id = 1;
-    required int32 type = 2;
-    optional string account = 3;
-    optional int32 object_count = 4;
-    optional TObjectCreationExtensions extensions = 5;
-}
-
-message TRspCreateObjects
-{
-    repeated NYT.NProto.TGuid object_ids = 1;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 message TReqCreateObject
 {
     optional NYT.NProto.TGuid transaction_id = 1;
@@ -43,15 +25,3 @@ message TRspCreateObject
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-
-message TReqUnstageObjects
-{
-    repeated NYT.NProto.TGuid object_ids = 1;
-    required bool recursive = 2;
-}
-
-message TRspUnstageObjects
-{ }
-
-////////////////////////////////////////////////////////////////////////////////
-

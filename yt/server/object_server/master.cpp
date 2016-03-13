@@ -44,52 +44,8 @@ private:
 
     virtual bool DoInvoke(NRpc::IServiceContextPtr context) override
     {
-        DISPATCH_YPATH_SERVICE_METHOD(CreateObjects);
         DISPATCH_YPATH_SERVICE_METHOD(CreateObject);
-        DISPATCH_YPATH_SERVICE_METHOD(UnstageObjects);
         return TBase::DoInvoke(context);
-    }
-
-    DECLARE_YPATH_SERVICE_METHOD(NObjectClient::NProto, CreateObjects)
-    {
-        DeclareMutating();
-
-        auto transactionId = request->has_transaction_id()
-            ? FromProto<TTransactionId>(request->transaction_id())
-            : NullTransactionId;
-        auto type = EObjectType(request->type());
-
-        context->SetRequestInfo("TransactionId: %v, Type: %v, Account: %v, ObjectCount: %v",
-            transactionId,
-            type,
-            request->has_account() ? MakeNullable(request->account()) : Null,
-            request->object_count());
-
-        auto transactionManager = Bootstrap_->GetTransactionManager();
-        auto* transaction = transactionId
-            ? transactionManager->GetTransactionOrThrow(transactionId)
-            : nullptr;
-
-        auto securityManager = Bootstrap_->GetSecurityManager();
-        auto* account = request->has_account()
-            ? securityManager->GetAccountByNameOrThrow(request->account())
-            : nullptr;
-
-        auto objectManager = Bootstrap_->GetObjectManager();
-
-        for (int index = 0; index < request->object_count(); ++index) {
-            auto* object = objectManager->CreateObject(
-                NullObjectId,
-                transaction,
-                account,
-                type,
-                nullptr,
-                TObjectCreationExtensions::default_instance());
-            const auto& objectId = object->GetId();
-            ToProto(response->add_object_ids(), objectId);
-        }
-
-        context->Reply();
     }
 
     DECLARE_YPATH_SERVICE_METHOD(NObjectClient::NProto, CreateObject)
@@ -133,31 +89,6 @@ private:
         ToProto(response->mutable_object_id(), objectId);
 
         context->SetResponseInfo("ObjectId: %v", objectId);
-        context->Reply();
-    }
-
-    DECLARE_YPATH_SERVICE_METHOD(NObjectClient::NProto, UnstageObjects)
-    {
-        UNUSED(response);
-
-        DeclareMutating();
-
-        auto objectManager = Bootstrap_->GetObjectManager();
-        auto transactionManager = Bootstrap_->GetTransactionManager();
-        bool recursive = request->recursive();
-
-        auto objectIds = FromProto<std::vector<TObjectId>>(request->object_ids());
-        context->SetRequestInfo("ObjectIds: %v, Recursive: %v",
-            objectIds,
-            recursive);
-
-        for (const auto& objectId : objectIds) {
-            auto object = objectManager->FindObject(objectId);
-            if (IsObjectAlive(object)) {
-                transactionManager->UnstageObject(object, recursive);
-            }
-        }
-
         context->Reply();
     }
 };
