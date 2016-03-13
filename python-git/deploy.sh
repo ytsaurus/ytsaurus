@@ -25,14 +25,22 @@ found_version() {
     echo 0
 }
 
-set +u
-if [ -z "$FORCE_DEPLOY" ]; then
-    FORCE_DEPLOY=""
-fi
-export FORCE_DEPLOY
-set -u
+init_vars() {
+    set +u
+    if [ -z "$FORCE_DEPLOY" ]; then
+        FORCE_DEPLOY=""
+    fi
+    export FORCE_DEPLOY
+    if [ -z "$SKIP_WHEEL" ]; then
+        SKIP_WHEEL=""
+    fi
+    export SKIP_WHEEL
+    set -u
+}
 
 PACKAGE=$1
+
+init_vars
 
 # Copy package files to the python root
 # NB: Symbolic links doesn't work correctly with `sdist upload`
