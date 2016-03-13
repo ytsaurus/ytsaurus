@@ -87,6 +87,7 @@ void TCreateCommand::Execute(ICommandContextPtr context)
         static_cast<TCreateObjectOptions&>(options) = Options;
         options.Recursive = Recursive;
         options.IgnoreExisting = IgnoreExisting;
+        options.TransactionId = TransactionId;
 
         auto asyncNodeId = context->GetClient()->CreateNode(
             Path->GetPath(),

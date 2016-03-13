@@ -2313,9 +2313,6 @@ private:
 
         auto req = TMasterYPathProxy::CreateObject();
         GenerateMutationId(req, options);
-        if (options.TransactionId) {
-            ToProto(req->mutable_transaction_id(), options.TransactionId);
-        }
         req->set_type(static_cast<int>(type));
         if (options.Attributes) {
             ToProto(req->mutable_object_attributes(), *options.Attributes);
@@ -2653,6 +2650,12 @@ public:
     }
 
 
+#define DELEGATE_METHOD(returnType, method, signature, args) \
+    virtual returnType method signature override \
+    { \
+        return Client_->method args; \
+    }
+
 #define DELEGATE_TRANSACTIONAL_METHOD(returnType, method, signature, args) \
     virtual returnType method signature override \
     { \
@@ -2748,7 +2751,7 @@ public:
         (path, options))
 
 
-    DELEGATE_TRANSACTIONAL_METHOD(TFuture<TObjectId>, CreateObject, (
+    DELEGATE_METHOD(TFuture<TObjectId>, CreateObject, (
         EObjectType type,
         const TCreateObjectOptions& options),
         (type, options))

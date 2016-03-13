@@ -307,16 +307,9 @@ public:
     virtual TNullable<TTypeCreationOptions> GetCreationOptions() const override
     {
         return TTypeCreationOptions(
-            EObjectTransactionMode::Required,
+            EObjectTransactionMode::Forbidden,
             EObjectAccountMode::Forbidden);
     }
-
-    virtual TObjectBase* CreateObject(
-        const TObjectId& hintId,
-        TTransaction* transaction,
-        TAccount* account,
-        IAttributeDictionary* attributes,
-        const TObjectCreationExtensions& extensions) override;
 
 private:
     TImpl* const Owner_;
@@ -1961,19 +1954,6 @@ IObjectProxyPtr TChunkManager::TChunkListTypeHandler::DoGetProxy(
     TTransaction* /*transaction*/)
 {
     return CreateChunkListProxy(Bootstrap_, chunkList);
-}
-
-TObjectBase* TChunkManager::TChunkListTypeHandler::CreateObject(
-    const TObjectId& /*hintId*/,
-    TTransaction* transaction,
-    TAccount* account,
-    IAttributeDictionary* /*attributes*/,
-    const TObjectCreationExtensions& /*extensions*/)
-{
-    auto* chunkList = Owner_->CreateChunkList();
-    chunkList->SetStagingTransaction(transaction);
-    chunkList->SetStagingAccount(account);
-    return chunkList;
 }
 
 void TChunkManager::TChunkListTypeHandler::DoDestroyObject(TChunkList* chunkList)

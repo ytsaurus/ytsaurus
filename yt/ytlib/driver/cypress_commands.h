@@ -100,6 +100,7 @@ private:
     NYTree::INodePtr Attributes;
     bool Recursive;
     bool IgnoreExisting;
+    NTransactionClient::TTransactionId TransactionId;
 
 public:
     TCreateCommand()
@@ -113,6 +114,8 @@ public:
             .Default(false);
         RegisterParameter("ignore_existing", IgnoreExisting)
             .Default(false);
+        RegisterParameter("transaction_id", TransactionId)
+            .Default(NTransactionClient::NullTransactionId);
     }
 
     void Execute(ICommandContextPtr context);

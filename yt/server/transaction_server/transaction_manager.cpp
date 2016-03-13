@@ -373,8 +373,6 @@ public:
 
     virtual TNonversionedObjectBase* CreateObject(
         const TObjectId& hintId,
-        TTransaction* parent,
-        TAccount* account,
         IAttributeDictionary* attributes,
         const TObjectCreationExtensions& extensions) override;
 
@@ -408,7 +406,8 @@ private:
         NObjectServer::NProto::TReqCreateForeignObject* request) override
     {
         if (transaction->GetParent()) {
-            ToProto(request->mutable_transaction_id(), transaction->GetParent()->GetId());
+            auto* reqExt = request->mutable_extensions()->MutableExtension(NTransactionClient::NProto::TTransactionCreationExt::transaction_creation_ext);
+            ToProto(reqExt->mutable_parent_id(), transaction->GetParent()->GetId());
         }
     }
 };
@@ -1080,8 +1079,6 @@ TTransactionManager::TTransactionTypeHandler::TTransactionTypeHandler(
 
 TNonversionedObjectBase* TTransactionManager::TTransactionTypeHandler::CreateObject(
     const TObjectId& hintId,
-    TTransaction* parent,
-    TAccount* /*account*/,
     IAttributeDictionary* attributes,
     const TObjectCreationExtensions& extensions)
 {
@@ -1093,6 +1090,12 @@ TNonversionedObjectBase* TTransactionManager::TTransactionTypeHandler::CreateObj
 
     const auto& requestExt = extensions.GetExtension(TTransactionCreationExt::transaction_creation_ext);
     auto timeout = FromProto<TDuration>(requestExt.timeout());
+
+    TTransaction* parent = nullptr;
+    if (requestExt.has_parent_id()) {
+        auto parentId = FromProto<TTransactionId>(requestExt.parent_id());
+        parent = Owner_->GetTransactionOrThrow(parentId);
+    }
 
     auto title = attributes->Find<Stroka>("title");
     attributes->Remove("title");

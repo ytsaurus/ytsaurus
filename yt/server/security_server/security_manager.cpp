@@ -107,8 +107,6 @@ public:
 
     virtual TObjectBase* CreateObject(
         const TObjectId& hintId,
-        TTransaction* transaction,
-        TAccount* account,
         IAttributeDictionary* attributes,
         const NObjectClient::NProto::TObjectCreationExtensions& extensions) override;
 
@@ -176,8 +174,6 @@ public:
 
     virtual TObjectBase* CreateObject(
         const TObjectId& hintId,
-        TTransaction* transaction,
-        TAccount* account,
         IAttributeDictionary* attributes,
         const NObjectClient::NProto::TObjectCreationExtensions& extensions) override;
 
@@ -225,8 +221,6 @@ public:
 
     virtual TObjectBase* CreateObject(
         const TObjectId& hintId,
-        TTransaction* transaction,
-        TAccount* account,
         IAttributeDictionary* attributes,
         const NObjectClient::NProto::TObjectCreationExtensions& extensions) override;
 
@@ -1743,8 +1737,6 @@ TSecurityManager::TAccountTypeHandler::TAccountTypeHandler(TImpl* owner)
 
 TObjectBase* TSecurityManager::TAccountTypeHandler::CreateObject(
     const TObjectId& hintId,
-    TTransaction* /*transaction*/,
-    TAccount* /*account*/,
     IAttributeDictionary* attributes,
     const NObjectClient::NProto::TObjectCreationExtensions& /*extensions*/)
 {
@@ -1776,8 +1768,6 @@ TSecurityManager::TUserTypeHandler::TUserTypeHandler(TImpl* owner)
 
 TObjectBase* TSecurityManager::TUserTypeHandler::CreateObject(
     const TObjectId& hintId,
-    TTransaction* /*transaction*/,
-    TAccount* /*account*/,
     IAttributeDictionary* attributes,
     const NObjectClient::NProto::TObjectCreationExtensions& /*extensions*/)
 {
@@ -1809,8 +1799,6 @@ TSecurityManager::TGroupTypeHandler::TGroupTypeHandler(TImpl* owner)
 
 TObjectBase* TSecurityManager::TGroupTypeHandler::CreateObject(
     const TObjectId& hintId,
-    TTransaction* /*transaction*/,
-    TAccount* /*account*/,
     IAttributeDictionary* attributes,
     const NObjectClient::NProto::TObjectCreationExtensions& /*extensions*/)
 {

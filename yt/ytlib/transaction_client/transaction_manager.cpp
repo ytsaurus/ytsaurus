@@ -575,11 +575,13 @@ private:
             ToProto(req->mutable_object_attributes(), *options.Attributes);
         }
         if (options.ParentId) {
-            ToProto(req->mutable_transaction_id(), options.ParentId);
         }
 
         auto* reqExt = req->mutable_extensions()->MutableExtension(NTransactionClient::NProto::TTransactionCreationExt::transaction_creation_ext);
         reqExt->set_timeout(ToProto(options.Timeout.Get(Owner_->Config_->DefaultTransactionTimeout)));
+        if (options.ParentId) {
+            ToProto(reqExt->mutable_parent_id(), options.ParentId);
+        }
 
         if (options.ParentId) {
             SetOrGenerateMutationId(req, options.MutationId, options.Retry);

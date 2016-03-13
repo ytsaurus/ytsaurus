@@ -121,8 +121,6 @@ public:
 
     virtual TObjectBase* CreateObject(
         const TObjectId& hintId,
-        TTransaction* transaction,
-        TAccount* account,
         IAttributeDictionary* attributes,
         const TObjectCreationExtensions& /*extensions*/) override;
 
@@ -173,8 +171,6 @@ public:
 
     virtual TObjectBase* CreateObject(
         const TObjectId& hintId,
-        TTransaction* transaction,
-        TAccount* account,
         IAttributeDictionary* attributes,
         const TObjectCreationExtensions& extensions) override;
 
@@ -2113,8 +2109,6 @@ TTabletManager::TTabletCellBundleTypeHandler::TTabletCellBundleTypeHandler(TImpl
 
 TObjectBase* TTabletManager::TTabletCellBundleTypeHandler::CreateObject(
     const TObjectId& hintId,
-    TTransaction* transaction,
-    TAccount* account,
     IAttributeDictionary* attributes,
     const TObjectCreationExtensions& /*extensions*/)
 {
@@ -2139,8 +2133,6 @@ TTabletManager::TTabletCellTypeHandler::TTabletCellTypeHandler(TImpl* owner)
 
 TObjectBase* TTabletManager::TTabletCellTypeHandler::CreateObject(
     const TObjectId& hintId,
-    TTransaction* transaction,
-    TAccount* account,
     IAttributeDictionary* attributes,
     const TObjectCreationExtensions& /*extensions*/)
 {
