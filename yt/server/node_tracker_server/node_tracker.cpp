@@ -75,21 +75,16 @@ class TNodeTracker::TClusterNodeTypeHandler
 public:
     explicit TClusterNodeTypeHandler(TImpl* owner);
 
-    virtual EObjectReplicationFlags GetReplicationFlags() const override
+    virtual ETypeFlags GetFlags() const override
     {
         return
-            EObjectReplicationFlags::ReplicateDestroy |
-            EObjectReplicationFlags::ReplicateAttributes;
+            ETypeFlags::ReplicateDestroy |
+            ETypeFlags::ReplicateAttributes;
     }
 
     virtual EObjectType GetType() const override
     {
         return EObjectType::ClusterNode;
-    }
-
-    virtual TNullable<TTypeCreationOptions> GetCreationOptions() const override
-    {
-        return Null;
     }
 
 private:
@@ -125,24 +120,18 @@ class TNodeTracker::TRackTypeHandler
 public:
     explicit TRackTypeHandler(TImpl* owner);
 
-    virtual EObjectReplicationFlags GetReplicationFlags() const override
+    virtual ETypeFlags GetFlags() const override
     {
         return
-            EObjectReplicationFlags::ReplicateCreate |
-            EObjectReplicationFlags::ReplicateDestroy |
-            EObjectReplicationFlags::ReplicateAttributes;
+            ETypeFlags::ReplicateCreate |
+            ETypeFlags::ReplicateDestroy |
+            ETypeFlags::ReplicateAttributes |
+            ETypeFlags::Creatable;
     }
 
     virtual EObjectType GetType() const override
     {
         return EObjectType::Rack;
-    }
-
-    virtual TNullable<TTypeCreationOptions> GetCreationOptions() const override
-    {
-        return TTypeCreationOptions(
-            EObjectTransactionMode::Forbidden,
-            EObjectAccountMode::Forbidden);
     }
 
     virtual TObjectBase* CreateObject(

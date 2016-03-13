@@ -352,23 +352,17 @@ public:
         TImpl* owner,
         EObjectType objectType);
 
-    virtual EObjectReplicationFlags GetReplicationFlags() const override
+    virtual ETypeFlags GetFlags() const override
     {
         return
-            EObjectReplicationFlags::ReplicateCreate |
-            EObjectReplicationFlags::ReplicateAttributes;
+            ETypeFlags::ReplicateCreate |
+            ETypeFlags::ReplicateAttributes |
+            ETypeFlags::Creatable;
     }
 
     virtual EObjectType GetType() const override
     {
         return ObjectType_;
-    }
-
-    virtual TNullable<TTypeCreationOptions> GetCreationOptions() const override
-    {
-        return TTypeCreationOptions(
-            EObjectTransactionMode::Optional,
-            EObjectAccountMode::Forbidden);
     }
 
     virtual TNonversionedObjectBase* CreateObject(

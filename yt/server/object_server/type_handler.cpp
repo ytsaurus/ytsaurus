@@ -5,15 +5,6 @@ namespace NObjectServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTypeCreationOptions::TTypeCreationOptions(
-    EObjectTransactionMode transactionMode,
-    EObjectAccountMode accountMode)
-    : TransactionMode(transactionMode)
-    , AccountMode(accountMode)
-{ }
-
-////////////////////////////////////////////////////////////////////////////////
-
 TObjectBase* IObjectTypeHandler::GetObject(const TObjectId& id)
 {
     auto* object = FindObject(id);

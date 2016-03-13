@@ -32,24 +32,13 @@ DEFINE_ENUM(EObjectAccountMode,
     (Optional)
 );
 
-DEFINE_BIT_ENUM(EObjectReplicationFlags,
+DEFINE_BIT_ENUM(ETypeFlags,
     ((None)                 (0x0000))
     ((ReplicateCreate)      (0x0001)) // replicate object creation
     ((ReplicateDestroy)     (0x0002)) // replicate object destruction
     ((ReplicateAttributes)  (0x0004)) // replicate object attribute changes
+    ((Creatable)            (0x0008)) // objects of this type can be created at runtime
 );
-
-struct TTypeCreationOptions
-{
-    TTypeCreationOptions() = default;
-
-    TTypeCreationOptions(
-        EObjectTransactionMode transactionMode,
-        EObjectAccountMode accountMode);
-
-    EObjectTransactionMode TransactionMode = EObjectTransactionMode::Forbidden;
-    EObjectAccountMode AccountMode = EObjectAccountMode::Forbidden;
-};
 
 // WinAPI is great.
 #undef GetObject
@@ -59,7 +48,7 @@ struct IObjectTypeHandler
     : public virtual TRefCounted
 {
     //! Returns a bunch of flags that control object replication.
-    virtual EObjectReplicationFlags GetReplicationFlags() const = 0;
+    virtual ETypeFlags GetFlags() const = 0;
 
     //! Returns the list of tag of secondary cells where the object was replicated to.
     //! For non-replicated objects this is just the empty list.
@@ -82,11 +71,6 @@ struct IObjectTypeHandler
     virtual IObjectProxyPtr GetProxy(
         TObjectBase* object,
         NTransactionServer::TTransaction* transaction) = 0;
-
-    //! Returns options used for creating new instances of this type
-    //! or |Null| if the type does not support creating new instances.
-    //! In the latter case #Create is never called.
-    virtual TNullable<TTypeCreationOptions> GetCreationOptions() const = 0;
 
     //! Creates a new object instance.
     /*!

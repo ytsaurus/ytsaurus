@@ -91,9 +91,9 @@ public:
         , Type_(type)
     { }
 
-    virtual EObjectReplicationFlags GetReplicationFlags() const override
+    virtual ETypeFlags GetFlags() const override
     {
-        return EObjectReplicationFlags::ReplicateAttributes;
+        return ETypeFlags::ReplicateAttributes;
     }
 
     virtual EObjectType GetType() const override
@@ -124,8 +124,8 @@ public:
             permissions |= handler->GetSupportedPermissions();
         }
 
-        auto options = handler->GetCreationOptions();
-        if (options) {
+        auto flags = handler->GetFlags();
+        if (Any(flags & ETypeFlags::Creatable)) {
             permissions |= EPermission::Create;
         }
 
