@@ -35,6 +35,10 @@ init_vars() {
         SKIP_WHEEL=""
     fi
     export SKIP_WHEEL
+    if [ -z "$CREATE_CONDUCTOR_TICKET" ]; then
+        CREATE_CONDUCTOR_TICKET=""
+    fi
+    export CREATE_CONDUCTOR_TICKET
     set -u
 }
 
