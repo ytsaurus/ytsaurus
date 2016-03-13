@@ -190,6 +190,14 @@ message TReqExecuteBatch
     }
 
     repeated TCreateChunkListsSubrequest create_chunk_lists_subrequests = 4;
+
+    message TUnstageChunkTreeSubrequest
+    {
+        required NYT.NProto.TGuid chunk_tree_id = 1;
+        required bool recursive = 2;
+    }
+
+    repeated TUnstageChunkTreeSubrequest unstage_chunk_tree_subrequests = 5;
 }
 
 message TRspExecuteBatch
@@ -224,6 +232,13 @@ message TRspExecuteBatch
     }
 
     repeated TCreateChunkListsSubresponse create_chunk_lists_subresponses = 4;
+
+    message TUnstageChunkTreeSubresponse
+    {
+        optional NYT.NProto.TError error = 1;
+    }
+
+    repeated TUnstageChunkTreeSubresponse unstage_chunk_tree_subresponses = 5;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

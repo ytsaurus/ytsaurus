@@ -126,20 +126,21 @@ void TChunkListPool::Release(const std::vector<TChunkListId>& ids)
         const auto& ids = pair.second;
 
         auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Leader, cellTag);
-        TObjectServiceProxy objectProxy(channel);
+        TChunkServiceProxy proxy(channel);
 
         int index = 0;
         while (index < ids.size()) {
-            auto req = TMasterYPathProxy::UnstageObjects();
-            req->set_recursive(true);
+            auto batchReq = proxy.ExecuteBatch();
             for (int i = 0; i < Config_->DesiredChunkListsPerRelease && index < ids.size(); ++i) {
-                ToProto(req->add_object_ids(), ids[index]);
+                auto req = batchReq->add_unstage_chunk_tree_subrequests();
+                ToProto(req->mutable_chunk_tree_id(), ids[index]);
+                req->set_recursive(true);
                 ++index;
             }
 
             // Fire-and-forget.
             // The subscriber is only needed to log the outcome.
-            objectProxy.Execute(req).Subscribe(
+            batchReq->Invoke().Subscribe(
                 BIND(&TChunkListPool::OnChunkListsReleased, MakeStrong(this), cellTag)
                     .Via(ControllerInvoker_));
         }
@@ -214,10 +215,11 @@ void TChunkListPool::OnChunkListsCreated(
 
 void TChunkListPool::OnChunkListsReleased(
     TCellTag cellTag,
-    const TMasterYPathProxy::TErrorOrRspUnstageObjectsPtr& rspOrError)
+    const TChunkServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError)
 {
-    if (!rspOrError.IsOK()) {
-        LOG_WARNING(rspOrError, "Error releasing chunk lists from pool (CellTag: %v)",
+    // NB: We only look at the topmost error and ignore subresponses.
+    if (!batchRspOrError.IsOK()) {
+        LOG_WARNING(batchRspOrError, "Error releasing chunk lists from pool (CellTag: %v)",
             cellTag);
     }
 }
