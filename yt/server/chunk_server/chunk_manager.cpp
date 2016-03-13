@@ -157,13 +157,6 @@ class TChunkManager::TChunkTypeHandlerBase
 public:
     explicit TChunkTypeHandlerBase(TImpl* owner);
 
-    virtual TNullable<TTypeCreationOptions> GetCreationOptions() const override
-    {
-        return TTypeCreationOptions(
-            EObjectTransactionMode::Forbidden,
-            EObjectAccountMode::Forbidden);
-    }
-
     virtual void ResetAllObjects() override
     {
         // NB: All chunk type handlers share the same map.
@@ -302,13 +295,6 @@ public:
     virtual EObjectType GetType() const override
     {
         return EObjectType::ChunkList;
-    }
-
-    virtual TNullable<TTypeCreationOptions> GetCreationOptions() const override
-    {
-        return TTypeCreationOptions(
-            EObjectTransactionMode::Forbidden,
-            EObjectAccountMode::Forbidden);
     }
 
 private:

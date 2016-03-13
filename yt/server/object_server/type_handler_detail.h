@@ -27,9 +27,9 @@ public:
         YCHECK(bootstrap);
     }
 
-    virtual EObjectReplicationFlags GetReplicationFlags() const override
+    virtual ETypeFlags GetFlags() const override
     {
-        return EObjectReplicationFlags::None;
+        return ETypeFlags::None;
     }
 
     virtual TCellTagList GetReplicationCellTags(const TObjectBase* object) override
@@ -47,11 +47,6 @@ public:
         NTransactionServer::TTransaction* transaction) override
     {
         return DoGetProxy(static_cast<TObject*>(object), transaction);
-    }
-
-    virtual TNullable<TTypeCreationOptions> GetCreationOptions() const override
-    {
-        return Null;
     }
 
     virtual TObjectBase* CreateObject(

@@ -349,11 +349,12 @@ class TCypressManager::TNodeTypeHandler
 public:
     TNodeTypeHandler(TImpl* owner, EObjectType type);
 
-    virtual EObjectReplicationFlags GetReplicationFlags() const override
+    virtual ETypeFlags GetFlags() const override
     {
         return
-            EObjectReplicationFlags::ReplicateAttributes |
-            EObjectReplicationFlags::ReplicateDestroy;
+            ETypeFlags::ReplicateAttributes |
+            ETypeFlags::ReplicateDestroy |
+            ETypeFlags::Creatable;
     }
 
     virtual EObjectType GetType() const override
@@ -367,14 +368,15 @@ public:
         return cypressManager->FindNode(TVersionedNodeId(id));
     }
 
-    virtual void DestroyObject(TObjectBase* object) throw();
-
-    virtual TNullable<TTypeCreationOptions> GetCreationOptions() const override
+    virtual TObjectBase* CreateObject(
+        const TObjectId& /*hintId*/,
+        IAttributeDictionary* /*attributes*/,
+        const NObjectClient::NProto::TObjectCreationExtensions& /*extensions*/) override
     {
-        return TTypeCreationOptions(
-            EObjectTransactionMode::Optional,
-            EObjectAccountMode::Required);
+        THROW_ERROR_EXCEPTION("Cypress nodes cannot be created via this call");
     }
+
+    virtual void DestroyObject(TObjectBase* object) throw();
 
     virtual void ResetAllObjects() override
     {

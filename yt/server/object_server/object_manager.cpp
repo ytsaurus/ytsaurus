@@ -578,8 +578,8 @@ int TObjectManager::UnrefObject(TObjectBase* object, int count)
         GarbageCollector_->RegisterZombie(object);
 
         if (Bootstrap_->IsPrimaryMaster()) {
-            auto replicationFlags = handler->GetReplicationFlags();
-            if (Any(replicationFlags & EObjectReplicationFlags::ReplicateDestroy)) {
+            auto flags = handler->GetFlags();
+            if (Any(flags & ETypeFlags::ReplicateDestroy)) {
                 NProto::TReqRemoveForeignObject request;
                 ToProto(request.mutable_object_id(), object->GetId());
 
@@ -916,10 +916,10 @@ TObjectBase* TObjectManager::CreateObject(
             type);
     }
 
-    auto replicationFlags = handler->GetReplicationFlags();
+    auto flags = handler->GetFlags();
     bool replicate =
         Bootstrap_->IsPrimaryMaster() &&
-        Any(replicationFlags & EObjectReplicationFlags::ReplicateCreate);
+        Any(flags & ETypeFlags::ReplicateCreate);
 
     auto securityManager = Bootstrap_->GetSecurityManager();
     auto* user = securityManager->GetAuthenticatedUser();

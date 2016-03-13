@@ -397,9 +397,9 @@ void TObjectProxyBase::ReplicateAttributeUpdate(IServiceContextPtr context)
 
     auto objectManager = Bootstrap_->GetObjectManager();
     auto handler = objectManager->GetHandler(Object_->GetType());
-    auto flags = handler->GetReplicationFlags();
+    auto flags = handler->GetFlags();
 
-    if (None(flags & EObjectReplicationFlags::ReplicateAttributes))
+    if (None(flags & ETypeFlags::ReplicateAttributes))
         return;
 
     auto replicationCellTags = handler->GetReplicationCellTags(Object_);
