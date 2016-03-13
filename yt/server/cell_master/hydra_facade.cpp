@@ -33,8 +33,6 @@
 
 #include <yt/ytlib/election/cell_manager.h>
 
-#include <yt/ytlib/object_client/helpers.h>
-#include <yt/ytlib/object_client/master_ypath_proxy.h>
 #include <yt/ytlib/object_client/object_service_proxy.h>
 
 #include <yt/core/concurrency/periodic_executor.h>

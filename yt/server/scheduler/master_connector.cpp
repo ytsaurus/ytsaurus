@@ -23,7 +23,6 @@
 #include <yt/ytlib/hive/cluster_directory.h>
 
 #include <yt/ytlib/object_client/helpers.h>
-#include <yt/ytlib/object_client/master_ypath_proxy.h>
 
 #include <yt/ytlib/scheduler/helpers.h>
 
