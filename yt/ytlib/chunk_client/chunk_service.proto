@@ -182,6 +182,14 @@ message TReqExecuteBatch
     }
 
     repeated TSealChunkSubrequest seal_chunk_subrequests = 3;
+
+    message TCreateChunkListsSubrequest
+    {
+        required NYT.NProto.TGuid transaction_id = 1;
+        required int32 count = 2;
+    }
+
+    repeated TCreateChunkListsSubrequest create_chunk_lists_subrequests = 4;
 }
 
 message TRspExecuteBatch
@@ -208,6 +216,14 @@ message TRspExecuteBatch
     }
 
     repeated TSealChunkSubresponse seal_chunk_subresponses = 3;
+
+    message TCreateChunkListsSubresponse
+    {
+        optional NYT.NProto.TError error = 1;
+        repeated NYT.NProto.TGuid chunk_list_ids = 2;
+    }
+
+    repeated TCreateChunkListsSubresponse create_chunk_lists_subresponses = 4;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

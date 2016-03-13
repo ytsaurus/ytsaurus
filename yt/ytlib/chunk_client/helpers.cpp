@@ -254,6 +254,7 @@ TError GetCumulativeError(const TChunkServiceProxy::TErrorOrRspExecuteBatchPtr& 
     processSubresponses(batchRsp->create_chunk_subresponses());
     processSubresponses(batchRsp->confirm_chunk_subresponses());
     processSubresponses(batchRsp->seal_chunk_subresponses());
+    processSubresponses(batchRsp->create_chunk_lists_subresponses());
 
     return cumulativeError.InnerErrors().empty() ? TError() : cumulativeError;
 }
