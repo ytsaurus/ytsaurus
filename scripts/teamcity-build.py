@@ -339,36 +339,6 @@ def run_python_libraries_tests(options):
 
 @build_step
 def build_python_packages(options):
-    def versions_cmp(version1, version2):
-        def normalize(v):
-            return map(int, v.replace("-", ".").split("."))
-        return cmp(normalize(version1), normalize(version2))
-
-    def extract_version(package):
-        versions = []
-
-        output = run_captured(["apt-cache", "policy", package])
-        versions_part = output.split("Version table:")[1]
-        for line in versions_part.split("\n"):
-            line = line.replace("***", "   ")
-            if line.startswith(" " * 5) and not line.startswith(" " * 6):
-                versions.append(line.split()[0])
-
-        versions.sort(reverse=True, cmp=versions_cmp)
-        if versions:
-            return versions[0]
-        else:
-            return "0"
-
-    retry_count = 5
-    for i in xrange(retry_count):
-        try:
-            run(["sudo", "apt-get", "update"])
-            break
-        except ChildHasNonZeroExitCode:
-            if i == retry_count - 1:
-                raise
-
     packages = ["yandex-yt-python", "yandex-yt-python-tools", "yandex-yt-python-yson",
                 "yandex-yt-transfer-manager", "yandex-yt-transfer-manager-client",
                 "yandex-yt-python-fennel"]
@@ -380,12 +350,6 @@ def build_python_packages(options):
         with cwd(options.checkout_directory, "python", package):
             package_version = run_captured(
                 "dpkg-parsechangelog | grep Version | awk '{print $2}'", shell=True).strip()
-            uploaded_version = extract_version(package)
-            teamcity_message(
-                "Package {0}; package version: {1}; uploaded version: {2}".format(
-                    package, package_version, uploaded_version))
-            if versions_cmp(package_version, uploaded_version) <= 0:
-                continue
             run(["dch", "-r", package_version, "'Resigned by teamcity'"])
         with cwd(options.checkout_directory, "python"):
             run(["./deploy.sh", package], cwd=os.path.join(options.checkout_directory, "python"))
