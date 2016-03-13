@@ -72,13 +72,14 @@ public:
         TTransaction* transaction,
         NObjectServer::TObjectBase* object);
 
-    //! Unregisters the object from its staging transaction,
+    //! Unregisters the object from its staging transaction (which must be equal to #transaction),
     //! calls IObjectTypeHandler::UnstageObject and
     //! unreferences the object. Throws on failure.
     /*!
      *  If #recursive is |true| then all child objects are also released.
      */
     void UnstageObject(
+        TTransaction* transaction,
         NObjectServer::TObjectBase* object,
         bool recursive);
 

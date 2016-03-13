@@ -91,11 +91,6 @@ struct IObjectTypeHandler
     //! Raised when GC finally destroys the object.
     virtual void DestroyObject(TObjectBase* object) throw() = 0;
 
-    //! Given #object, returns its staging transaction or |nullptr| is #object
-    //! is not staged.
-    virtual NTransactionServer::TTransaction* GetStagingTransaction(
-        TObjectBase* object) = 0;
-
     //! Resets staging information for #object.
     /*!
      *  If #recursive is |true| then all child objects are also released.
