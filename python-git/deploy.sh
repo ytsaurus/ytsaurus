@@ -72,7 +72,7 @@ else
 fi
 
 # Build and upload debian package if necessary
-if [ -n "$REPOS_TO_UPLOAD" ]; then
+if [ -n "$REPOS_TO_UPLOAD" ] || [ -n "$FORCE_BUILD" ]; then
     # Build debian package
     DEB=1 python setup.py sdist --dist-dir=../
     # NB: Never strip binaries and so-libraries.
@@ -89,7 +89,9 @@ if [ -n "$REPOS_TO_UPLOAD" ]; then
 fi
 
 # Upload python wheel
-python setup.py bdist_wheel upload -r yandex
+if [ -z "$SKIP_WHEEL" ]; then
+    python setup.py bdist_wheel upload -r yandex
+fi
 
 # Some postprocess steps
 if [ -f "$PACKAGE/postprocess.sh" ]; then
