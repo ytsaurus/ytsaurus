@@ -441,6 +441,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, ExecuteBatch)
     {
+        YCHECK(request->create_chunk_lists_subrequests_size() == 0);
         ExecuteBatchBatcher_->HandleRequest(context);
     }
 };

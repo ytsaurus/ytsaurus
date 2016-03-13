@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/ytlib/chunk_client/public.h>
+#include <yt/ytlib/chunk_client/chunk_service_proxy.h>
 
 #include <yt/ytlib/object_client/master_ypath_proxy.h>
 #include <yt/ytlib/object_client/object_service_proxy.h>
@@ -62,7 +62,7 @@ private:
 
     void OnChunkListsCreated(
         NObjectClient::TCellTag cellTag,
-        const NObjectClient::TMasterYPathProxy::TErrorOrRspCreateObjectsPtr& rspOrError);
+        const NChunkClient::TChunkServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError);
 
     void OnChunkListsReleased(
         NObjectClient::TCellTag cellTag,

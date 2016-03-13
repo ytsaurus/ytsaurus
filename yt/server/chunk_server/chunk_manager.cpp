@@ -664,14 +664,15 @@ public:
     void StageChunkTree(TChunkTree* chunkTree, TTransaction* transaction, TAccount* account)
     {
         YASSERT(transaction);
-        YASSERT(account);
         YASSERT(!chunkTree->IsStaged());
 
         chunkTree->SetStagingTransaction(transaction);
-        chunkTree->SetStagingAccount(account);
 
-        auto objectManager = Bootstrap_->GetObjectManager();
-        objectManager->RefObject(account);
+        if (account) {
+            chunkTree->SetStagingAccount(account);
+            auto objectManager = Bootstrap_->GetObjectManager();
+            objectManager->RefObject(account);
+        }
     }
 
     void UnstageChunk(TChunk* chunk)
@@ -1275,6 +1276,18 @@ private:
                 }
             }
         }
+
+        for (auto& subrequest : *request->mutable_create_chunk_lists_subrequests()) {
+            auto* subresponse = response ? response->add_create_chunk_lists_subresponses() : nullptr;
+            try {
+                ExecuteCreateChunkListsSubrequest(&subrequest, subresponse);
+            } catch (const std::exception& ex) {
+                LOG_DEBUG_UNLESS(IsRecovery(), ex, "Error creating chunk lists");
+                if (subresponse) {
+                    ToProto(subresponse->mutable_error(), TError(ex));
+                }
+            }
+        }
     }
 
     void ExecuteCreateChunkSubrequest(
@@ -1377,11 +1390,40 @@ private:
             chunk,
             miscExt);
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Chunk sealed (ChunkId: %v, RowCount: %v, UncompressedDataSize: %v, CompressedDataSize: %v)",
+        LOG_DEBUG_UNLESS(IsRecovery(), "Chunk sealed "
+            "(ChunkId: %v, RowCount: %v, UncompressedDataSize: %v, CompressedDataSize: %v)",
             chunk->GetId(),
             miscExt.row_count(),
             miscExt.uncompressed_data_size(),
             miscExt.compressed_data_size());
+    }
+
+    void ExecuteCreateChunkListsSubrequest(
+        TReqExecuteBatch::TCreateChunkListsSubrequest* subrequest,
+        TRspExecuteBatch::TCreateChunkListsSubresponse* subresponse)
+    {
+        auto transactionId = FromProto<TTransactionId>(subrequest->transaction_id());
+        int count = subrequest->count();
+
+        auto transactionManager = Bootstrap_->GetTransactionManager();
+        auto* transaction = transactionManager->GetTransactionOrThrow(transactionId);
+
+        auto objectManager = Bootstrap_->GetObjectManager();
+
+        std::vector<TChunkListId> chunkListIds;
+        chunkListIds.reserve(count);
+        for (int index = 0; index < count; ++index) {
+            auto* chunkList = CreateChunkList();
+            StageChunkTree(chunkList, transaction, nullptr);
+            transactionManager->StageObject(transaction, chunkList);
+            ToProto(subresponse->add_chunk_list_ids(), chunkList->GetId());
+            chunkListIds.push_back(chunkList->GetId());
+        }
+
+        LOG_DEBUG_UNLESS(IsRecovery(),
+            "Chunk lists created (ChunkListIds: %v, TransactionId: %v)",
+            chunkListIds,
+            transaction->GetId());
     }
 
 

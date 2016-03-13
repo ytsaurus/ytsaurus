@@ -237,12 +237,14 @@ private:
         SyncWithUpstream();
 
         context->SetRequestInfo(
-            "CreateSubrequestCount: %v, "
-            "ConfirmSubrequestCount: %v, "
-            "SealSubrequestCount: %v",
+            "CreateChunkCount: %v, "
+            "ConfirmChunkCount: %v, "
+            "SealChunkCount: %v",
+            "CreateChunkListsCount: %v",
             request->create_chunk_subrequests_size(),
             request->confirm_chunk_subrequests_size(),
-            request->seal_chunk_subrequests_size());
+            request->seal_chunk_subrequests_size(),
+            request->create_chunk_lists_subrequests_size());
 
         auto chunkManager = Bootstrap_->GetChunkManager();
         chunkManager
