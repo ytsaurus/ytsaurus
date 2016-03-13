@@ -8,8 +8,6 @@
 
 #include <yt/ytlib/node_tracker_client/public.h>
 
-#include <yt/ytlib/object_client/master_ypath_proxy.h>
-
 #include <yt/ytlib/transaction_client/public.h>
 
 #include <yt/core/actions/public.h>

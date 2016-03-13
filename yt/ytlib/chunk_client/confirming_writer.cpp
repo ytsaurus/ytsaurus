@@ -13,9 +13,6 @@
 #include <yt/ytlib/api/client.h>
 #include <yt/ytlib/api/connection.h>
 
-#include <yt/ytlib/object_client/helpers.h>
-#include <yt/ytlib/object_client/master_ypath_proxy.h>
-
 #include <yt/ytlib/table_client/chunk_meta_extensions.h>
 
 #include <yt/core/concurrency/scheduler.h>
