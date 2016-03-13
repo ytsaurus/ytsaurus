@@ -1241,53 +1241,54 @@ private:
 
     void HydraExecuteBatch(TCtxExecuteBatchPtr /*context*/, TReqExecuteBatch* request, TRspExecuteBatch* response)
     {
-        for (auto& subrequest : *request->mutable_create_chunk_subrequests()) {
-            auto* subresponse = response ? response->add_create_chunk_subresponses() : nullptr;
-            try {
-                ExecuteCreateChunkSubrequest(&subrequest, subresponse);
-            } catch (const std::exception& ex) {
-                LOG_DEBUG_UNLESS(IsRecovery(), ex, "Error creating chunk");
-                if (subresponse) {
-                    ToProto(subresponse->mutable_error(), TError(ex));
+        auto executeSubrequests = [&] (
+            auto* subrequests,
+            auto* subresponses,
+            auto handler,
+            const char* errorMessage)
+        {
+            for (auto& subrequest : *subrequests) {
+                auto* subresponse = subresponses ? subresponses->Add() : nullptr;
+                try {
+                    (this->*handler)(&subrequest, subresponse);
+                } catch (const std::exception& ex) {
+                    LOG_DEBUG_UNLESS(IsRecovery(), ex, errorMessage);
+                    if (subresponse) {
+                        ToProto(subresponse->mutable_error(), TError(ex));
+                    }
                 }
             }
-        }
+        };
 
-        for (auto& subrequest : *request->mutable_confirm_chunk_subrequests()) {
-            auto* subresponse = response ? response->add_confirm_chunk_subresponses() : nullptr;
-            try {
-                ExecuteConfirmChunkSubrequest(&subrequest, subresponse);
-            } catch (const std::exception& ex) {
-                LOG_DEBUG_UNLESS(IsRecovery(), ex, "Error confirming chunk");
-                if (subresponse) {
-                    ToProto(subresponse->mutable_error(), TError(ex));
-                }
-            }
-        }
+        executeSubrequests(
+            request->mutable_create_chunk_subrequests(),
+            response ? response->mutable_create_chunk_subresponses() : nullptr,
+            &TImpl::ExecuteCreateChunkSubrequest,
+            "Error creating chunk");
 
-        for (auto& subrequest : *request->mutable_seal_chunk_subrequests()) {
-            auto* subresponse = response ? response->add_seal_chunk_subresponses() : nullptr;
-            try {
-                ExecuteSealChunkSubrequest(&subrequest, subresponse);
-            } catch (const std::exception& ex) {
-                LOG_DEBUG_UNLESS(IsRecovery(), ex, "Error sealing chunk");
-                if (subresponse) {
-                    ToProto(subresponse->mutable_error(), TError(ex));
-                }
-            }
-        }
+        executeSubrequests(
+            request->mutable_confirm_chunk_subrequests(),
+            response ? response->mutable_confirm_chunk_subresponses() : nullptr,
+            &TImpl::ExecuteConfirmChunkSubrequest,
+            "Error confirming chunk");
 
-        for (auto& subrequest : *request->mutable_create_chunk_lists_subrequests()) {
-            auto* subresponse = response ? response->add_create_chunk_lists_subresponses() : nullptr;
-            try {
-                ExecuteCreateChunkListsSubrequest(&subrequest, subresponse);
-            } catch (const std::exception& ex) {
-                LOG_DEBUG_UNLESS(IsRecovery(), ex, "Error creating chunk lists");
-                if (subresponse) {
-                    ToProto(subresponse->mutable_error(), TError(ex));
-                }
-            }
-        }
+        executeSubrequests(
+            request->mutable_seal_chunk_subrequests(),
+            response ? response->mutable_seal_chunk_subresponses() : nullptr,
+            &TImpl::ExecuteSealChunkSubrequest,
+            "Error sealing chunk");
+
+        executeSubrequests(
+            request->mutable_create_chunk_lists_subrequests(),
+            response ? response->mutable_create_chunk_lists_subresponses() : nullptr,
+            &TImpl::ExecuteCreateChunkListsSubrequest,
+            "Error creating chunk lists");
+
+        executeSubrequests(
+            request->mutable_unstage_chunk_tree_subrequests(),
+            response ? response->mutable_unstage_chunk_tree_subresponses() : nullptr,
+            &TImpl::ExecuteUnstageChunkTreeSubrequest,
+            "Error unstaging chunk tree");
     }
 
     void ExecuteCreateChunkSubrequest(
@@ -1424,6 +1425,22 @@ private:
             "Chunk lists created (ChunkListIds: %v, TransactionId: %v)",
             chunkListIds,
             transaction->GetId());
+    }
+
+    void ExecuteUnstageChunkTreeSubrequest(
+        TReqExecuteBatch::TUnstageChunkTreeSubrequest* subrequest,
+        TRspExecuteBatch::TUnstageChunkTreeSubresponse* subresponse)
+    {
+        auto chunkTreeId = FromProto<TTransactionId>(subrequest->chunk_tree_id());
+        auto recursive = subrequest->recursive();
+
+        auto* chunkTree = GetChunkTreeOrThrow(chunkTreeId);
+        auto transactionManager = Bootstrap_->GetTransactionManager();
+        transactionManager->UnstageObject(chunkTree, recursive);
+
+        LOG_DEBUG_UNLESS(IsRecovery(), "Chunk tree unstaged (ChunkTreeId: %v, Recursive: %v)",
+            chunkTreeId,
+            recursive);
     }
 
 

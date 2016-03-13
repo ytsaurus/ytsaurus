@@ -4,9 +4,6 @@
 
 #include <yt/ytlib/chunk_client/chunk_service_proxy.h>
 
-#include <yt/ytlib/object_client/master_ypath_proxy.h>
-#include <yt/ytlib/object_client/object_service_proxy.h>
-
 #include <yt/ytlib/transaction_client/public.h>
 
 #include <yt/ytlib/api/public.h>
@@ -66,7 +63,7 @@ private:
 
     void OnChunkListsReleased(
         NObjectClient::TCellTag cellTag,
-        const NObjectClient::TMasterYPathProxy::TErrorOrRspUnstageObjectsPtr& rspOrError);
+        const NChunkClient::TChunkServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError);
 };
 
 DEFINE_REFCOUNTED_TYPE(TChunkListPool)

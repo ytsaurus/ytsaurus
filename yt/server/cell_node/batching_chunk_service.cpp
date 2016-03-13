@@ -56,11 +56,11 @@ public:
         , ConnectionConfig_(std::move(connectionConfig))
         , LeaderChannel_(CreatePeerChannel(
             ConnectionConfig_,
-            ChannelFactory_,
+            channelFactory,
             EPeerKind::Leader))
         , FollowerChannel_(CreatePeerChannel(
             ConnectionConfig_,
-            ChannelFactory_,
+            channelFactory,
             EPeerKind::Follower))
         , CostThrottler_(CreateLimitedThrottler(ServiceConfig_->CostThrottler))
         , LocateChunksBatcher_(New<TLocateChunksBatcher>(this))
@@ -75,7 +75,6 @@ public:
 private:
     const TBatchingChunkServiceConfigPtr ServiceConfig_;
     const TMasterConnectionConfigPtr ConnectionConfig_;
-    const IChannelFactoryPtr ChannelFactory_;
 
     const IChannelPtr LeaderChannel_;
     const IChannelPtr FollowerChannel_;
@@ -199,6 +198,17 @@ private:
             }
         }
 
+        template <class TBatchResponse, class TResponse>
+        static void BuildResponseNodeDirectory(const TBatchResponse* batchResponse, TResponse* response)
+        {
+            auto nodeDirectory = New<TNodeDirectory>();
+            nodeDirectory->MergeFrom(batchResponse->node_directory());
+            TNodeDirectoryBuilder builder(nodeDirectory, response->mutable_node_directory());
+            for (const auto& subresponse : response->subresponses()) {
+                builder.Add(FromProto<TChunkReplicaList>(subresponse.replicas()));
+            }
+        }
+
     private:
         void OnTimeout(const TBatchPtr& batch)
         {
@@ -301,13 +311,7 @@ private:
             const TLocateChunksState& state) override
         {
             UnbatchSubresponses(batchResponse->subresponses(), response->mutable_subresponses(), state.Indexes);
-
-            auto nodeDirectory = New<TNodeDirectory>();
-            nodeDirectory->MergeFrom(batchResponse->node_directory());
-            TNodeDirectoryBuilder builder(nodeDirectory, response->mutable_node_directory());
-            for (const auto& subresponse : response->subresponses()) {
-                builder.Add(FromProto<TChunkReplicaList>(subresponse.replicas()));
-            }
+            BuildResponseNodeDirectory(batchResponse, response);
         }
 
         virtual int GetCost(const TRequestPtr& request) const override
@@ -360,13 +364,7 @@ private:
             const TAllocateWriteTargetsState& state) override
         {
             UnbatchSubresponses(batchResponse->subresponses(), response->mutable_subresponses(), state.Indexes);
-
-            auto nodeDirectory = New<TNodeDirectory>();
-            nodeDirectory->MergeFrom(batchResponse->node_directory());
-            TNodeDirectoryBuilder builder(nodeDirectory, response->mutable_node_directory());
-            for (const auto& subresponse : response->subresponses()) {
-                builder.Add(FromProto<TChunkReplicaList>(subresponse.replicas()));
-            }
+            BuildResponseNodeDirectory(batchResponse, response);
         }
 
         virtual int GetCost(const TRequestPtr& request) const override
@@ -442,6 +440,7 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, ExecuteBatch)
     {
         YCHECK(request->create_chunk_lists_subrequests_size() == 0);
+        YCHECK(request->unstage_chunk_tree_subrequests_size() == 0);
         ExecuteBatchBatcher_->HandleRequest(context);
     }
 };

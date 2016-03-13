@@ -18,7 +18,6 @@
 
 #include <yt/ytlib/job_prober_client/job_prober_service_proxy.h>
 
-#include <yt/ytlib/object_client/master_ypath_proxy.h>
 #include <yt/ytlib/object_client/helpers.h>
 
 #include <yt/ytlib/scheduler/helpers.h>
@@ -29,6 +28,9 @@
 #include <yt/ytlib/table_client/table_consumer.h>
 
 #include <yt/ytlib/api/transaction.h>
+
+#include <yt/ytlib/chunk_client/chunk_service_proxy.h>
+#include <yt/ytlib/chunk_client/helpers.h>
 
 #include <yt/core/concurrency/periodic_executor.h>
 #include <yt/core/concurrency/thread_affinity.h>
@@ -2030,22 +2032,24 @@ private:
             return;
 
         auto channel = GetMasterClient()->GetMasterChannelOrThrow(NApi::EMasterChannelKind::Leader);
-        TObjectServiceProxy proxy(channel);
+        TChunkServiceProxy proxy(channel);
 
-        auto req = TMasterYPathProxy::UnstageObjects();
-        ToProto(req->add_object_ids(), chunkId);
+        auto batchReq = proxy.ExecuteBatch();
+        auto req = batchReq->add_unstage_chunk_tree_subrequests();
+        ToProto(req->mutable_chunk_tree_id(), chunkId);
         req->set_recursive(false);
 
         // Fire-and-forget.
         // The subscriber is only needed to log the outcome.
-        proxy.Execute(req).Subscribe(
+        batchReq->Invoke().Subscribe(
             BIND(&TImpl::OnStderrChunkReleased, MakeStrong(this)));
     }
 
-    void OnStderrChunkReleased(const TMasterYPathProxy::TErrorOrRspUnstageObjectsPtr& rspOrError)
+    void OnStderrChunkReleased(const TChunkServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError)
     {
-        if (!rspOrError.IsOK()) {
-            LOG_WARNING(rspOrError, "Error releasing stderr chunk");
+        // NB: We only look at the topmost error and ignore subresponses.
+        if (!batchRspOrError.IsOK()) {
+            LOG_WARNING(batchRspOrError, "Error releasing stderr chunk");
         }
     }
 
@@ -2088,15 +2092,12 @@ private:
             case EOperationType::Merge: {
                 auto mergeSpec = ParseOperationSpec<TMergeOperationSpec>(spec);
                 switch (mergeSpec->Mode) {
-                    case EMergeMode::Unordered: {
+                    case EMergeMode::Unordered:
                         return Config_->UnorderedMergeOperationOptions->SpecTemplate;
-                    }
-                    case EMergeMode::Ordered: {
+                    case EMergeMode::Ordered:
                         return Config_->OrderedMergeOperationOptions->SpecTemplate;
-                    }
-                    case EMergeMode::Sorted: {
+                    case EMergeMode::Sorted:
                         return Config_->SortedMergeOperationOptions->SpecTemplate;
-                    }
                     default:
                         YUNREACHABLE();
                 }
