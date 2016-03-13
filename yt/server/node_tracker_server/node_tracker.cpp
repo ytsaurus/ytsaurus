@@ -147,8 +147,6 @@ public:
 
     virtual TObjectBase* CreateObject(
         const TObjectId& hintId,
-        TTransaction* transaction,
-        TAccount* account,
         IAttributeDictionary* attributes,
         const NObjectClient::NProto::TObjectCreationExtensions& extensions) override;
 
@@ -1455,8 +1453,6 @@ TNodeTracker::TRackTypeHandler::TRackTypeHandler(TImpl* owner)
 
 TObjectBase* TNodeTracker::TRackTypeHandler::CreateObject(
     const TObjectId& hintId,
-    TTransaction* /*transaction*/,
-    TAccount* /*account*/,
     IAttributeDictionary* attributes,
     const NObjectClient::NProto::TObjectCreationExtensions& extensions)
 {

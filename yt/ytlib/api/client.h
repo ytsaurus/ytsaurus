@@ -280,7 +280,6 @@ struct TListNodeOptions
 
 struct TCreateObjectOptions
     : public TTimeoutOptions
-    , public TTransactionalOptions
     , public TMutatingOptions
     , public TPrerequisiteOptions
 {
@@ -289,6 +288,7 @@ struct TCreateObjectOptions
 
 struct TCreateNodeOptions
     : public TCreateObjectOptions
+    , public TTransactionalOptions
 {
     bool Recursive = false;
     bool IgnoreExisting = false;

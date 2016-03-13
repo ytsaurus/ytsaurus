@@ -12,11 +12,9 @@ message TObjectCreationExtensions
 
 message TReqCreateObject
 {
-    optional NYT.NProto.TGuid transaction_id = 1;
-    required int32 type = 2;
-    optional NYT.NYTree.NProto.TAttributes object_attributes = 3;
-    optional string account = 4;
-    optional TObjectCreationExtensions extensions = 5;
+    required int32 type = 1;
+    optional NYT.NYTree.NProto.TAttributes object_attributes = 2;
+    optional TObjectCreationExtensions extensions = 3;
 }
 
 message TRspCreateObject

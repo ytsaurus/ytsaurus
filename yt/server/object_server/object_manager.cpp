@@ -898,8 +898,6 @@ TFuture<void> TObjectManager::GCCollect()
 
 TObjectBase* TObjectManager::CreateObject(
     const TObjectId& hintId,
-    TTransaction* transaction,
-    TAccount* account,
     EObjectType type,
     IAttributeDictionary* attributes,
     const NObjectClient::NProto::TObjectCreationExtensions& extensions)
@@ -916,56 +914,6 @@ TObjectBase* TObjectManager::CreateObject(
     if (!handler) {
         THROW_ERROR_EXCEPTION("Unknown object type %v",
             type);
-    }
-
-    auto options = handler->GetCreationOptions();
-    if (!options) {
-        THROW_ERROR_EXCEPTION("Instances of type %Qlv cannot be created directly",
-            type);
-    }
-
-    switch (options->TransactionMode) {
-        case EObjectTransactionMode::Required:
-            if (!transaction) {
-                THROW_ERROR_EXCEPTION("Cannot create an instance of %Qlv outside of a transaction",
-                    type);
-            }
-            break;
-
-        case EObjectTransactionMode::Forbidden:
-            if (transaction) {
-                THROW_ERROR_EXCEPTION("Cannot create an instance of %Qlv inside of a transaction",
-                    type);
-            }
-            break;
-
-        case EObjectTransactionMode::Optional:
-            break;
-
-        default:
-            YUNREACHABLE();
-    }
-
-    switch (options->AccountMode) {
-        case EObjectAccountMode::Required:
-            if (!account) {
-                THROW_ERROR_EXCEPTION("Cannot create an instance of %Qlv without an account",
-                    type);
-            }
-            break;
-
-        case EObjectAccountMode::Forbidden:
-            if (account) {
-                THROW_ERROR_EXCEPTION("Cannot create an instance of %Qlv with an account",
-                    type);
-            }
-            break;
-
-        case EObjectAccountMode::Optional:
-            break;
-
-        default:
-            YUNREACHABLE();
     }
 
     auto replicationFlags = handler->GetReplicationFlags();
@@ -989,8 +937,6 @@ TObjectBase* TObjectManager::CreateObject(
 
     auto* object = handler->CreateObject(
         hintId,
-        transaction,
-        account,
         attributes,
         extensions);
 
@@ -1002,9 +948,8 @@ TObjectBase* TObjectManager::CreateObject(
 
     auto* stagingTransaction = handler->GetStagingTransaction(object);
     if (stagingTransaction) {
-        YCHECK(transaction == stagingTransaction);
         auto transactionManager = Bootstrap_->GetTransactionManager();
-        transactionManager->StageObject(transaction, object);
+        transactionManager->StageObject(stagingTransaction, object);
     } else {
         YCHECK(object->GetObjectRefCounter() > 0);
     }
@@ -1017,14 +962,9 @@ TObjectBase* TObjectManager::CreateObject(
     if (replicate) {
         NProto::TReqCreateForeignObject replicationRequest;
         ToProto(replicationRequest.mutable_object_id(), object->GetId());
-        if (transaction) {
-            ToProto(replicationRequest.mutable_transaction_id(), transaction->GetId());
-        }
         replicationRequest.set_type(static_cast<int>(type));
         ToProto(replicationRequest.mutable_object_attributes(), *replicatedAttributes);
-        if (account) {
-            ToProto(replicationRequest.mutable_account_id(), account->GetId());
-        }
+        *replicationRequest.mutable_extensions() = extensions;
 
         auto multicellManager = Bootstrap_->GetMulticellManager();
         auto replicationCellTags = handler->GetReplicationCellTags(object);
@@ -1277,38 +1217,18 @@ void TObjectManager::HydraDestroyObjects(NProto::TReqDestroyObjects* request)
 void TObjectManager::HydraCreateForeignObject(NProto::TReqCreateForeignObject* request) noexcept
 {
     auto objectId = FromProto<TObjectId>(request->object_id());
-    auto transactionId = request->has_transaction_id()
-        ? FromProto<TTransactionId>(request->transaction_id())
-        : NullTransactionId;
-    auto accountId = request->has_account_id()
-        ? FromProto<TAccountId>(request->account_id())
-        : NullObjectId;
     auto type = EObjectType(request->type());
-
-    auto transactionManager = Bootstrap_->GetTransactionManager();
-    auto* transaction =  transactionId
-        ? transactionManager->GetTransaction(transactionId)
-        : nullptr;
-
-    auto securityManager = Bootstrap_->GetSecurityManager();
-    auto* account = accountId
-        ? securityManager->GetAccount(accountId)
-        : nullptr;
 
     auto attributes = request->has_object_attributes()
         ? FromProto(request->object_attributes())
         : std::unique_ptr<IAttributeDictionary>();
 
-    LOG_DEBUG_UNLESS(IsRecovery(), "Creating foreign object (ObjectId: %v, TransactionId: %v, Type: %v, Account: %v)",
+    LOG_DEBUG_UNLESS(IsRecovery(), "Creating foreign object (ObjectId: %v, Type: %v)",
         objectId,
-        transactionId,
-        type,
-        account ? MakeNullable(account->GetName()) : Null);
+        type);
 
     CreateObject(
         objectId,
-        transaction,
-        account,
         type,
         attributes.get(),
         request->extensions());

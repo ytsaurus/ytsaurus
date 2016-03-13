@@ -90,19 +90,14 @@ struct IObjectTypeHandler
 
     //! Creates a new object instance.
     /*!
-     *  \param hintId Id for the new object, if |NullObjectId| then a new id is generated.
-     *  \param transaction Transaction that becomes the owner of the newly created object.
-     *  \param request Creation request (possibly containing additional parameters).
-     *  \param response Creation response (which may also hold some additional result).
-     *  \returns the newly created object.
+     *  If #hintId is |NullObjectId| then a new id is generated, otherwise
+     *  #hintId is used.
      *
      *  Once #Create is completed, all request attributes are copied to object attributes.
      *  The handler may alter the request appropriately to control this process.
      */
     virtual TObjectBase* CreateObject(
         const TObjectId& hintId,
-        NTransactionServer::TTransaction* transaction,
-        NSecurityServer::TAccount* account,
         NYTree::IAttributeDictionary* attributes,
         const NObjectClient::NProto::TObjectCreationExtensions& extensions) = 0;
 

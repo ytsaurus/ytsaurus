@@ -52,25 +52,10 @@ private:
     {
         DeclareMutating();
 
-        auto transactionId = request->has_transaction_id()
-            ? FromProto<TTransactionId>(request->transaction_id())
-            : NullTransactionId;
         auto type = EObjectType(request->type());
 
-        context->SetRequestInfo("TransactionId: %v, Type: %v, Account: %v",
-            transactionId,
-            type,
-            request->has_account() ? MakeNullable(request->account()) : Null);
-
-        auto transactionManager = Bootstrap_->GetTransactionManager();
-        auto* transaction =  transactionId
-            ? transactionManager->GetTransactionOrThrow(transactionId)
-            : nullptr;
-
-        auto securityManager = Bootstrap_->GetSecurityManager();
-        auto* account = request->has_account()
-            ? securityManager->GetAccountByNameOrThrow(request->account())
-            : nullptr;
+        context->SetRequestInfo("Type: %v",
+            type);
 
         auto attributes = request->has_object_attributes()
             ? FromProto(request->object_attributes())
@@ -79,8 +64,6 @@ private:
         auto objectManager = Bootstrap_->GetObjectManager();
         auto* object = objectManager->CreateObject(
             NullObjectId,
-            transaction,
-            account,
             type,
             attributes.get(),
             request->extensions());
