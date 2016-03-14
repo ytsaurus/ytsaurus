@@ -127,8 +127,8 @@ void DoSnapshotJobs(const std::vector<TSnapshotJob> Jobs_)
     for (const auto& job : Jobs_) {
         TFileOutput outputStream(*job.OutputFile);
         TBufferedOutput bufferedOutput(&outputStream, PipeWriteBufferSize);
-        job.Operation->GetController()->SaveSnapshot(&bufferedOutput);
         try {
+            job.Operation->GetController()->SaveSnapshot(&bufferedOutput);
             bufferedOutput.Finish();
             job.OutputFile->Close();
         } catch (const TFileError& ex) {
