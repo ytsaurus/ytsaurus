@@ -867,7 +867,7 @@ TCodegenExpression MakeCodegenInOpExpr(
         Value* executionContextPtrRef = builder.GetExecutionContextPtr();
 
         builder.CreateCall(
-            builder.Module->GetRoutine("AllocateRow"),
+            builder.Module->GetRoutine("AllocateIntermediateRow"),
             {
                 executionContextPtrRef,
                 builder.getInt32(keySize),
@@ -1100,7 +1100,7 @@ TCodegenSource MakeCodegenProjectOp(
                 Value* newRowPtr = builder.CreateAlloca(TypeBuilder<TRow, false>::get(builder.getContext()));
 
                 builder.CreateCall(
-                    builder.Module->GetRoutine("AllocateRow"),
+                    builder.Module->GetRoutine("AllocateIntermediateRow"),
                     {
                         builder.GetExecutionContextPtr(),
                         builder.getInt32(projectionCount),

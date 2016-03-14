@@ -146,8 +146,6 @@ public:
             Finalize();
         }
 
-        LOG_DEBUG("Getting function address");
-
         return Engine_->getFunctionAddress(name.c_str());
     }
 

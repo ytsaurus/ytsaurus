@@ -256,7 +256,9 @@ void TYsonWriter::OnDoubleScalar(double value)
         Stream->Write(NDetail::DoubleMarker);
         Stream->Write(&value, sizeof(double));
     } else {
-        auto str = ::ToString(value);
+        char buf[256];
+        auto str = TStringBuf(buf, FloatToString(value, buf, sizeof(buf)));
+
         Stream->Write(str);
         if (str.find('.') == Stroka::npos && str.find('e') == Stroka::npos) {
             Stream->Write(".");

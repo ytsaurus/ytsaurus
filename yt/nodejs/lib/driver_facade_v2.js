@@ -30,10 +30,10 @@ function clone(object) {
     return result;
 }
 
-function YtDriverFacadeV2(driver)
+function YtDriverFacadeV2(logger, driver)
 {
     if (!(this instanceof YtDriverFacadeV2)) {
-        return new YtDriverFacadeV2(driver);
+        return new YtDriverFacadeV2(logger, driver);
     }
 
     var mapping = {
@@ -94,7 +94,9 @@ function YtDriverFacadeV2(driver)
 
     delete descriptors.join_reduce;
 
+    this.logger = logger;
     this.driver = driver;
+
     this.mapping = mapping;
     this.descriptors = descriptors;
 }

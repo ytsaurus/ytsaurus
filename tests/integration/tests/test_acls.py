@@ -401,6 +401,14 @@ class TestAcls(YTEnvSetup):
         with pytest.raises(YtError):
             copy("//tmp/x", "//tmp/y", user="u", preserve_account=True)
 
+    def test_copy_non_writable_src(self):
+        # YT-4175
+        create_user("u")
+        set("//tmp/x", {})
+        set("//tmp/x/@acl/end", self._make_ace("deny", "u", "write"))
+        copy("//tmp/x", "//tmp/y", user="u")
+        assert get("//tmp/x", user="u") == {}
+
     def test_superusers(self):
         create("table", "//sys/protected")
         create_user("u")

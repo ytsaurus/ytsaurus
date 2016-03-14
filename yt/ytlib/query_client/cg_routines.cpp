@@ -328,7 +328,7 @@ const TRow* InsertGroupRow(
     return &*inserted.first;
 }
 
-void AllocateRow(TExpressionContext* context, int valueCount, TRow* row)
+void AllocateIntermediateRow(TExpressionContext* context, int valueCount, TRow* row)
 {
     CHECK_STACK();
 
@@ -615,7 +615,7 @@ void RegisterQueryRoutinesImpl(TRoutineRegistry* registry)
     REGISTER_ROUTINE(InsertJoinRow);
     REGISTER_ROUTINE(SaveJoinRow);
     REGISTER_ROUTINE(AllocatePermanentRow);
-    REGISTER_ROUTINE(AllocateRow);
+    REGISTER_ROUTINE(AllocateIntermediateRow);
     REGISTER_ROUTINE(AllocatePermanentBytes);
     REGISTER_ROUTINE(AllocateBytes);
     REGISTER_ROUTINE(GetRowsData);
