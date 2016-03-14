@@ -700,7 +700,7 @@ def copy_yt_to_kiwi(yt_client, kiwi_client, kiwi_transmittor, src, **kwargs):
         del kwargs["fastbone"]
 
     tmp_dir = tempfile.mkdtemp(dir=kwargs.get("tmp_dir"))
-    enable_row_count_check = get_value(kwargs.get("enable_row_count_check"), False)
+    enable_row_count_check = get_value(kwargs.pop("enable_row_count_check", None), False)
     try:
         with yt_client.Transaction():
             yt_client.lock(src, mode="snapshot")
