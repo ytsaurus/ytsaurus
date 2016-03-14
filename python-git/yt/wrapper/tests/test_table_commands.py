@@ -305,6 +305,7 @@ class TestTableCommands(object):
         assert read_table(lower_key="a", end_index=2, columns=["x"]) == [{"x": "a"}]
         assert read_table(start_index=0, upper_key="b") == [{"y": "w3"}, {"x": "a", "y": "w2"}]
         assert read_table(start_index=1, columns=["x"]) == [{"x": "a"}, {"x": "b"}]
+        assert read_table(ranges=[{"lower_limit": {"row_index": 1}}], columns=["x"]) == [{"x": "a"}, {"x": "b"}]
 
         assert list(yt.read_table(table + "{y}[:#2]")) == ["y=w3\n", "y=w2\n"]
         assert list(yt.read_table(table + "[#1:]")) == ["x=a\ty=w2\n", "x=b\ty=w1\n"]
@@ -317,9 +318,15 @@ class TestTableCommands(object):
                                   "}]>" + table)) == ["y=w3\n", "x=a\ty=w2\n"]
 
         with pytest.raises(yt.YtError):
+            assert read_table(ranges=[{"lower_limit": {"index": 1}}], end_index=1)
+        with pytest.raises(yt.YtError):
             yt.read_table(TablePath(table, lower_key="a", start_index=1))
         with pytest.raises(yt.YtError):
             yt.read_table(TablePath(table, upper_key="c", end_index=1))
+
+        table_path = TablePath(table, exact_index=1)
+        assert list(yt.read_table(table_path.to_yson_string())) == ["x=a\ty=w2\n"]
+
         yt.write_table(table, ["x=b\n", "x=a\n", "x=c\n"])
         with pytest.raises(yt.YtError):
             yt.read_table(TablePath(table, lower_key="a"))
@@ -334,8 +341,6 @@ class TestTableCommands(object):
         yt.config["prefix"] = "//abc"
         with pytest.raises(yt.YtError):
             TablePath("abc")
-        yt.config["prefix"] = TEST_DIR + "/"
-        yt.write_table("test_table", ["x=1\n"])
 
     def test_huge_table(self):
         table = TEST_DIR + "/table"

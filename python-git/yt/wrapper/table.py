@@ -108,34 +108,53 @@ class TablePath(object):
         if columns is not None:
             attributes["columns"] = columns
 
-        if start_index is not None and lower_key is not None:
-            raise YtError("You could not specify lower key bound and start index simultaneously")
-        if end_index is not None and upper_key is not None:
-            raise YtError("You could not specify upper key bound and end index simultaneously")
-
-        if exact_key is not None:
-            attributes["exact"] = {"key": flatten(exact_key)}
-        if lower_key is not None:
-            attributes["lower_limit"] = {"key": flatten(lower_key)}
-        if upper_key is not None:
-            if get_config(client)["yamr_mode"]["use_non_strict_upper_key"]:
-                upper_key = upper_key + "\0"
-            attributes["upper_limit"] = {"key": flatten(upper_key)}
-        if exact_index is not None:
-            attributes["exact"] = {"row_index": flatten(exact_index)}
-        if start_index is not None:
-            attributes["lower_limit"] = {"row_index": start_index}
-        if end_index is not None:
-            attributes["upper_limit"] = {"row_index": end_index}
 
         if ranges is not None:
+            def _check_option(value, option_name):
+                if value is not None:
+                    raise YtError("Option '{0}' cannot be specified with 'ranges' option".format(option_name))
+
+            for value, name in [(exact_key, "exact_key"), (exact_index, "exact_index"),
+                                (lower_key, "lower_key"), (start_index, "start_index"),
+                                (upper_key, "upper_key"), (end_index, "end_index")]:
+                _check_option(value, name)
+
             attributes["ranges"] = ranges
+
+        else:
+            if start_index is not None and lower_key is not None:
+                raise YtError("You could not specify lower key bound and start index simultaneously")
+            if end_index is not None and upper_key is not None:
+                raise YtError("You could not specify upper key bound and end index simultaneously")
+
+            range = {}
             if "exact" in attributes:
+                range["exact"] = attributes["exact"]
                 del attributes["exact"]
             if "lower_limit" in attributes:
+                range["lower_limit"] = attributes["lower_limit"]
                 del attributes["lower_limit"]
             if "upper_limit" in attributes:
+                range["upper_limit"] = attributes["upper_limit"]
                 del attributes["upper_limit"]
+
+            if exact_key is not None:
+                range["exact"] = {"key": flatten(exact_key)}
+            if lower_key is not None:
+                range["lower_limit"] = {"key": flatten(lower_key)}
+            if upper_key is not None:
+                if get_config(client)["yamr_mode"]["use_non_strict_upper_key"]:
+                    upper_key = upper_key + "\0"
+                range["upper_limit"] = {"key": flatten(upper_key)}
+            if exact_index is not None:
+                range["exact"] = {"row_index": exact_index}
+            if start_index is not None:
+                range["lower_limit"] = {"row_index": start_index}
+            if end_index is not None:
+                range["upper_limit"] = {"row_index": end_index}
+
+            if range:
+                attributes["ranges"] = [range]
 
     @property
     def attributes(self):
