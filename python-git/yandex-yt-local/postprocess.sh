@@ -29,6 +29,11 @@ download_and_extract() {
     dpkg -x ${package}_*.deb $package
 }
 
+if [ "$(find $(pwd)/.. -name 'yandex-yt-local_*.deb' | wc -l)" = "0" ]; then
+    # Package missing
+    exit 0
+fi
+
 TMP_DIR="$(mktemp -d /tmp/$(basename $0).XXXXXX)"
 find $(pwd)/.. -name 'yandex-yt-local_*.deb' -exec cp -r {} $TMP_DIR \;
 cd "$TMP_DIR"
