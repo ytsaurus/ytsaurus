@@ -46,7 +46,7 @@ static ui16 DigitPairs[100] = {
 // of value in backwards, meaning that the resulting representation will occupy
 // range [ptr - length, ptr). Return value is ptr - length, i. e. the pointer to the
 // beginning of the result.
-char* TSchemafulDsvWriterBase::WriteInt64Backwards(char* ptr, i64 value)
+char* TSchemafulDsvWriterBase::WriteInt64ToBufferBackwards(char* ptr, i64 value)
 {
     if (value == 0) {
         --ptr;
@@ -89,7 +89,7 @@ char* TSchemafulDsvWriterBase::WriteInt64Backwards(char* ptr, i64 value)
 }
 
 // Same as WriteInt64Backwards for ui64.
-char* TSchemafulDsvWriterBase::WriteUint64Backwards(char* ptr, ui64 value)
+char* TSchemafulDsvWriterBase::WriteUint64ToBufferBackwards(char* ptr, ui64 value)
 {
     if (value == 0) {
         --ptr;
@@ -130,15 +130,13 @@ void TSchemafulDsvWriterBase::WriteValue(const TUnversionedValue& value)
         case EValueType::Null:
             break;
 
-        case EValueType::Int64:
+        case EValueType::Int64: {
+            WriteInt64(value.Data.Int64);
+            break;
+        }
+
         case EValueType::Uint64: {
-            char buf[64];
-            char* end = buf + 64;
-            char* begin = value.Type == EValueType::Int64
-                ? WriteInt64Backwards(end, value.Data.Int64)
-                : WriteUint64Backwards(end, value.Data.Uint64);
-            size_t length = end - begin;
-            BlobOutput_->Write(begin, length);
+            WriteUint64(value.Data.Uint64);
             break;
         }
 
@@ -192,6 +190,22 @@ void TSchemafulDsvWriterBase::EscapeAndWrite(const TStringBuf& string)
     }
 }
 
+void TSchemafulDsvWriterBase::WriteInt64(i64 value) 
+{
+    char buf[64];
+    char* end = buf + 64;
+    char* start = WriteInt64ToBufferBackwards(end, value);
+    BlobOutput_->Write(start, end - start);
+}
+
+void TSchemafulDsvWriterBase::WriteUint64(ui64 value) 
+{
+    char buf[64];
+    char* end = buf + 64;
+    char* start = WriteUint64ToBufferBackwards(end, value);
+    BlobOutput_->Write(start, end - start);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TSchemalessWriterForSchemafulDsv::TSchemalessWriterForSchemafulDsv(
@@ -233,6 +247,14 @@ void TSchemalessWriterForSchemafulDsv::DoWrite(const std::vector<TUnversionedRow
         }
 
         bool firstValue = true;
+        if (Config_->EnableTableIndex) {
+            if (CurrentTableIndex_ == -1) {
+                THROW_ERROR_EXCEPTION("When enable_table_index = true, table index should be set before writing rows");
+            }
+            WriteInt64(CurrentTableIndex_);
+            firstValue = false;
+        }
+
         for (const auto* item : CurrentRowValues_) {
             if (!firstValue) {
                 WriteRaw(Config_->FieldSeparator);
@@ -254,7 +276,7 @@ void TSchemalessWriterForSchemafulDsv::DoWrite(const std::vector<TUnversionedRow
 
 void TSchemalessWriterForSchemafulDsv::WriteTableIndex(i32 tableIndex)
 {
-    THROW_ERROR_EXCEPTION("Table inidices are not supported in schemaful DSV");
+    CurrentTableIndex_ = tableIndex;
 }
 
 void TSchemalessWriterForSchemafulDsv::WriteRangeIndex(i32 rangeIndex)

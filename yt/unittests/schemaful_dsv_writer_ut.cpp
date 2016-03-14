@@ -213,6 +213,59 @@ TEST_F(TSchemalessWriterForSchemafulDsvTest, MissingValueMode)
     }
 }
 
+TEST_F(TSchemalessWriterForSchemafulDsvTest, TableIndex)
+{
+    Config_->Columns = {"column_a", "column_b", "column_c", "column_d"};
+    Config_->EnableTableIndex = true;
+    CreateStandardWriter();
+   
+    TUnversionedRowBuilder row1;
+    row1.AddValue(MakeUnversionedInt64Value(0LL, KeyAId_));
+    row1.AddValue(MakeUnversionedInt64Value(1LL, KeyBId_));
+    row1.AddValue(MakeUnversionedInt64Value(2LL, KeyCId_));
+    row1.AddValue(MakeUnversionedInt64Value(3LL, KeyDId_));
+
+    // It is invalid to write rows with enable_table_index = true 
+    // before setting table index.
+    EXPECT_EQ(false, Writer_->Write({row1.GetRow()}));
+    
+    CreateStandardWriter();
+
+    Writer_->WriteTableIndex(42);
+    
+    TUnversionedRowBuilder row2;
+    row2.AddValue(MakeUnversionedInt64Value(4LL, KeyAId_));
+    row2.AddValue(MakeUnversionedInt64Value(5LL, KeyBId_));
+    row2.AddValue(MakeUnversionedInt64Value(6LL, KeyCId_));
+    row2.AddValue(MakeUnversionedInt64Value(7LL, KeyDId_));
+
+    EXPECT_EQ(true, Writer_->Write({row1.GetRow(), row2.GetRow()}));
+
+    Writer_->WriteTableIndex(23);
+  
+    TUnversionedRowBuilder row3;
+    row3.AddValue(MakeUnversionedUint64Value(8LL, KeyAId_));
+    row3.AddValue(MakeUnversionedUint64Value(9LL, KeyBId_));
+    row3.AddValue(MakeUnversionedUint64Value(10LL, KeyCId_));
+    row3.AddValue(MakeUnversionedUint64Value(11ULL, KeyDId_));
+
+    EXPECT_EQ(true, Writer_->Write({row3.GetRow()}));
+
+    // This call doesn't affect anything.
+    Writer_->WriteTableIndex(18);
+
+    Writer_->Close()
+        .Get()
+        .ThrowOnError();
+    Stroka expectedOutput = 
+        "42\t0\t1\t2\t3\n"
+        "42\t4\t5\t6\t7\n"
+        "23\t8\t9\t10\t11\n";
+    EXPECT_EQ(expectedOutput, OutputStream_.Str());
+}
+
+
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace

@@ -45,14 +45,17 @@ protected:
     void WriteRaw(const TStringBuf& str);
     void WriteRaw(char ch);
 
+    void WriteInt64(i64 value);
+    void WriteUint64(ui64 value);
+
     void EscapeAndWrite(const TStringBuf& string);
     
     int FindMissingValueIndex() const; 
 private:
     TSchemafulDsvTable Table_;
  
-    static char* WriteInt64Backwards(char* ptr, i64 value);
-    static char* WriteUint64Backwards(char* ptr, ui64 value);    
+    static char* WriteInt64ToBufferBackwards(char* ptr, i64 value);
+    static char* WriteUint64ToBufferBackwards(char* ptr, ui64 value);    
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -76,6 +79,7 @@ public:
     virtual void WriteRowIndex(i64 rowIndex) override;
 private:
     std::vector<int> IdToIndexInRowMapping_;
+    i32 CurrentTableIndex_ = -1;
 };
 
 DEFINE_REFCOUNTED_TYPE(TSchemalessWriterForSchemafulDsv)
