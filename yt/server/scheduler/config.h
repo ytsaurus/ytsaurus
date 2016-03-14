@@ -421,6 +421,8 @@ public:
 
     TNullable<NYPath::TYPath> UdfRegistryPath;
 
+    bool EnableTmpfs;
+
     TSchedulerConfig()
     {
         RegisterParameter("connect_retry_backoff_time", ConnectRetryBackoffTime)
@@ -567,6 +569,9 @@ public:
 
         RegisterParameter("udf_registry_path", UdfRegistryPath)
             .Default(Null);
+
+        RegisterParameter("enable_tmpfs", EnableTmpfs)
+            .Default(true);
 
         RegisterInitializer([&] () {
             ChunkLocationThrottler->Limit = 10000;
