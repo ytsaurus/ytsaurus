@@ -96,7 +96,9 @@ TJobSummary::TJobSummary(const TJobId& id)
 
 void TJobSummary::ParseStatistics()
 {
-    Statistics = FromProto<NJobTrackerClient::TStatistics>(Result->statistics());
+    if (Result) {
+        Statistics = FromProto<NJobTrackerClient::TStatistics>(Result->statistics());
+    }
 }
 
 ////////////////////////////////////////////////////////////////////

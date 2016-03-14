@@ -1619,7 +1619,6 @@ void TOperationControllerBase::FinalizeJoblet(
     const TJobletPtr& joblet,
     TJobSummary* jobSummary)
 {
-    const auto& result = jobSummary->Result;
     auto& statistics = jobSummary->Statistics;
 
     joblet->FinishTime = jobSummary->FinishTime;
@@ -1627,11 +1626,15 @@ void TOperationControllerBase::FinalizeJoblet(
         auto duration = joblet->FinishTime - joblet->StartTime;
         statistics.AddSample("/time/total", duration.MilliSeconds());
     }
-    if (result->has_prepare_time()) {
-        statistics.AddSample("/time/prepare", result->prepare_time());
-    }
-    if (result->has_exec_time()) {
-        statistics.AddSample("/time/exec", result->exec_time());
+
+    const auto& result = jobSummary->Result;
+    if (result) {
+        if (result->has_prepare_time()) {
+            statistics.AddSample("/time/prepare", result->prepare_time());
+        }
+        if (result->has_exec_time()) {
+            statistics.AddSample("/time/exec", result->exec_time());
+        }
     }
 }
 
