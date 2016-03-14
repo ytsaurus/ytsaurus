@@ -382,7 +382,7 @@ void TBootstrap::DoInitialize()
         "/hydra",
         HydraFacade_->GetHydraManager()->GetMonitoringProducer());
 
-    auto orchidFactory = GetEphemeralNodeFactory();
+    auto orchidFactory = CreateEphemeralNodeFactory();
     auto orchidRoot = orchidFactory->CreateMap();
     SetNodeByYPath(
         orchidRoot,

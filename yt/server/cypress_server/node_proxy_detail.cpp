@@ -861,11 +861,11 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Copy)
         SetChildNode(factory, targetPath, clonedProxy, request->recursive());
     }
 
-    factory->Commit();
-
     if (removeSource) {
         sourceParent->RemoveChild(sourceProxy);
     }
+
+    factory->Commit();
 
     ToProto(response->mutable_object_id(), clonedTrunkImpl->GetId());
 

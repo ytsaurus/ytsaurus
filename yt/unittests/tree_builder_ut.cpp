@@ -34,7 +34,7 @@ TEST_F(TTreeBuilderTest, EmptyMap)
     EXPECT_CALL(Mock, OnBeginMap());
     EXPECT_CALL(Mock, OnEndMap());
 
-    auto builder = CreateBuilderFromFactory(GetEphemeralNodeFactory());
+    auto builder = CreateBuilderFromFactory(CreateEphemeralNodeFactory());
 
     builder->BeginTree();
     builder->OnBeginMap();
@@ -58,7 +58,7 @@ TEST_F(TTreeBuilderTest, NestedMaps)
         EXPECT_CALL(Mock, OnEndMap());
     EXPECT_CALL(Mock, OnEndMap());
 
-    auto builder = CreateBuilderFromFactory(GetEphemeralNodeFactory());
+    auto builder = CreateBuilderFromFactory(CreateEphemeralNodeFactory());
 
     builder->BeginTree();
     builder->OnBeginMap();
@@ -111,7 +111,7 @@ TEST_F(TTreeBuilderTest, MapWithAttributes)
         EXPECT_CALL(Mock, OnStringScalar("/home/sandello")).InSequence(s6);
     EXPECT_CALL(Mock, OnEndMap()).InSequence(s4, s5, s6);
 
-    auto builder = CreateBuilderFromFactory(GetEphemeralNodeFactory());
+    auto builder = CreateBuilderFromFactory(CreateEphemeralNodeFactory());
 
     builder->BeginTree();
 

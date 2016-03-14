@@ -249,7 +249,7 @@ TEST(TYsonSerializableTest, MissingRequiredParameter)
 
 TEST(TYsonSerializableTest, IncorrectNodeType)
 {
-    auto builder = CreateBuilderFromFactory(GetEphemeralNodeFactory());
+    auto builder = CreateBuilderFromFactory(CreateEphemeralNodeFactory());
     builder->BeginTree();
     BuildYsonFluently(builder.get())
         .BeginMap()
@@ -263,7 +263,7 @@ TEST(TYsonSerializableTest, IncorrectNodeType)
 
 TEST(TYsonSerializableTest, ArithmeticOverflow)
 {
-    auto builder = CreateBuilderFromFactory(GetEphemeralNodeFactory());
+    auto builder = CreateBuilderFromFactory(CreateEphemeralNodeFactory());
     builder->BeginTree();
     BuildYsonFluently(builder.get())
         .BeginMap()
@@ -287,7 +287,7 @@ TEST(TYsonSerializableTest, ArithmeticOverflow)
 
 TEST(TYsonSerializableTest, Validate)
 {
-    auto builder = CreateBuilderFromFactory(GetEphemeralNodeFactory());
+    auto builder = CreateBuilderFromFactory(CreateEphemeralNodeFactory());
     builder->BeginTree();
     BuildYsonFluently(builder.get())
         .BeginMap()
@@ -302,7 +302,7 @@ TEST(TYsonSerializableTest, Validate)
 
 TEST(TYsonSerializableTest, ValidateSubconfig)
 {
-    auto builder = CreateBuilderFromFactory(GetEphemeralNodeFactory());
+    auto builder = CreateBuilderFromFactory(CreateEphemeralNodeFactory());
     builder->BeginTree();
     BuildYsonFluently(builder.get())
         .BeginMap()
@@ -320,7 +320,7 @@ TEST(TYsonSerializableTest, ValidateSubconfig)
 
 TEST(TYsonSerializableTest, ValidateSubconfigList)
 {
-    auto builder = CreateBuilderFromFactory(GetEphemeralNodeFactory());
+    auto builder = CreateBuilderFromFactory(CreateEphemeralNodeFactory());
     builder->BeginTree();
     BuildYsonFluently(builder.get())
         .BeginMap()
@@ -340,7 +340,7 @@ TEST(TYsonSerializableTest, ValidateSubconfigList)
 
 TEST(TYsonSerializableTest, ValidateSubconfigMap)
 {
-    auto builder = CreateBuilderFromFactory(GetEphemeralNodeFactory());
+    auto builder = CreateBuilderFromFactory(CreateEphemeralNodeFactory());
     builder->BeginTree();
     BuildYsonFluently(builder.get())
         .BeginMap()

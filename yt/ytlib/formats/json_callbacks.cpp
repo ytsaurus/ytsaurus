@@ -16,7 +16,7 @@ TJsonCallbacks::TJsonCallbacks(const TUtf8Transcoder& utf8Transcoder, i64 memory
     : Utf8Transcoder_(utf8Transcoder)
     , ConsumedMemory_(0)
     , MemoryLimit_(memoryLimit)
-    , TreeBuilder_(NYTree::CreateBuilderFromFactory(NYTree::GetEphemeralNodeFactory()))
+    , TreeBuilder_(NYTree::CreateBuilderFromFactory(NYTree::CreateEphemeralNodeFactory()))
 {
     TreeBuilder_->BeginTree();
     NodesMemory_.push(0);

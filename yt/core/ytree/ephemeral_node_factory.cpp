@@ -60,7 +60,7 @@ class TEphemeralNodeBase
 public:
     virtual INodeFactoryPtr CreateFactory() const override
     {
-        return GetEphemeralNodeFactory();
+        return CreateEphemeralNodeFactory();
     }
 
     virtual INodeResolverPtr GetResolver() const override
@@ -458,9 +458,14 @@ class TEntityNode
 ////////////////////////////////////////////////////////////////////////////////
 
 class TEphemeralNodeFactory
-    : public INodeFactory
+    : public TNodeFactoryBase
 {
 public:
+    virtual ~TEphemeralNodeFactory() override
+    {
+        RollbackIfNeeded();
+    }
+
     virtual IStringNodePtr CreateString() override
     {
         return New<TStringNode>();
@@ -500,15 +505,11 @@ public:
     {
         return New<TEntityNode>();
     }
-
-    virtual void Commit() override
-    { }
-
 };
 
-INodeFactoryPtr GetEphemeralNodeFactory()
+INodeFactoryPtr CreateEphemeralNodeFactory()
 {
-    return RefCountedSingleton<TEphemeralNodeFactory>();
+    return New<TEphemeralNodeFactory>();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

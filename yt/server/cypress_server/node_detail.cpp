@@ -585,7 +585,7 @@ void TLinkNodeTypeHandler::DoClone(
 
 TDocumentNode::TDocumentNode(const TVersionedNodeId& id)
     : TCypressNodeBase(id)
-    , Value_(GetEphemeralNodeFactory()->CreateEntity())
+    , Value_(CreateEphemeralNodeFactory()->CreateEntity())
 { }
 
 ENodeType TDocumentNode::GetNodeType() const

@@ -227,10 +227,16 @@ protected:
         clonedNode->KeyColumns() = sourceNode->KeyColumns();
 
         if (sourceNode->IsDynamic()) {
-            clonedNode->Tablets() = std::move(sourceNode->Tablets());
-            for (auto* tablet : clonedNode->Tablets()) {
-                tablet->SetTable(clonedNode);
-            }
+            auto tablets = std::move(sourceNode->Tablets());
+            factory->RegisterCommitHandler([clonedNode, tablets] () mutable {
+                clonedNode->Tablets() = std::move(tablets);
+                for (auto* tablet : clonedNode->Tablets()) {
+                    tablet->SetTable(clonedNode);
+                }
+            });
+            factory->RegisterRollbackHandler([sourceNode, tablets] () mutable {
+                sourceNode->Tablets() = std::move(tablets);
+            });
         }
     }
 
