@@ -22,6 +22,13 @@ TSummary::TSummary()
     Reset();
 }
 
+TSummary::TSummary(i64 sum, i64 count, i64 min, i64 max)
+    : Sum_(sum)
+    , Count_(count)
+    , Min_(min)
+    , Max_(max)
+{ }
+
 void TSummary::AddSample(i64 sample)
 {
     Sum_ += sample;
@@ -80,6 +87,15 @@ void FromProto(TSummary* summary, const NProto::TStatistics::TSummary& protoSumm
     summary->Min_ = protoSummary.min();
     summary->Max_ = protoSummary.max();
     summary->Count_ = protoSummary.count();
+}
+
+bool TSummary::operator ==(const TSummary& other) const
+{
+    return 
+        Sum_ == other.Sum_ && 
+        Count_ == other.Count_ && 
+        Min_ == other.Min_ &&
+        Max_ == other.Max_;
 }
 
 ////////////////////////////////////////////////////////////////////
@@ -195,6 +211,142 @@ void FromProto(TStatistics* statistics, const NProto::TStatistics& protoStatisti
             protoSummary.path(), 
             summary)).second);
     }
+}
+
+////////////////////////////////////////////////////////////////////
+
+class TStatisticsBuildingConsumer
+    : public TYsonConsumerBase
+    , public IBuildingYsonConsumer<TStatistics>
+{
+public:
+    virtual void OnStringScalar(const TStringBuf& value) override
+    {
+        YUNREACHABLE();
+    }
+
+    virtual void OnInt64Scalar(i64 value) override
+    {
+        AtSummaryMap_ = true;
+        if (LastKey_ == "sum") {
+            CurrentSummary_.Sum_ = value;
+        } else if (LastKey_ == "count") {
+            CurrentSummary_.Count_ = value;
+        } else if (LastKey_ == "min") {
+            CurrentSummary_.Min_ = value;
+        } else if (LastKey_ == "max") {
+            CurrentSummary_.Max_ = value;
+        } else {
+            YUNREACHABLE();
+        }
+        ++FilledSummaryFields_;
+    }
+    
+    virtual void OnUint64Scalar(ui64 value) override
+    {
+        YUNREACHABLE();
+    }
+    
+    virtual void OnDoubleScalar(double value) override
+    {
+        YUNREACHABLE();
+    }
+    
+    virtual void OnBooleanScalar(bool value) override
+    {
+        YUNREACHABLE();
+    }
+    
+    virtual void OnEntity() override
+    {
+        YUNREACHABLE();
+    }
+    
+    virtual void OnBeginList() override
+    {
+        YUNREACHABLE();
+    }
+    
+    virtual void OnListItem() override
+    {
+        YUNREACHABLE();
+    }
+
+    virtual void OnEndList() override
+    {
+        YUNREACHABLE();
+    }
+
+    virtual void OnBeginMap() override
+    {
+        // If we are here, we are either:
+        // * at the root (then do nothing)
+        // * at some directory (then the last key was the directory name)
+        if (!LastKey_.empty()) {
+            DirectoryNameLengths_.push_back(LastKey_.size());
+            CurrentPath_.append('/');
+            CurrentPath_.append(LastKey_);
+            LastKey_.clear();
+        } else {
+            YCHECK(CurrentPath_.empty());
+        }
+    }  
+
+    virtual void OnKeyedItem(const TStringBuf& key) override
+    {
+        LastKey_ = key;
+    }
+
+    virtual void OnEndMap() override
+    { 
+        if (AtSummaryMap_) {
+            YCHECK(FilledSummaryFields_ == 4);
+            Statistics_.Data_[CurrentPath_] = CurrentSummary_;
+            FilledSummaryFields_ = 0;
+            AtSummaryMap_ = false;
+        }
+        
+        if (!CurrentPath_.empty()) {
+            // We need to go to the parent.
+            CurrentPath_.resize(CurrentPath_.size() - DirectoryNameLengths_.back() - 1);
+            DirectoryNameLengths_.pop_back();
+        }
+    }
+    
+    virtual void OnBeginAttributes() override
+    {
+        YUNREACHABLE();
+    }
+
+    virtual void OnEndAttributes() override
+    {
+        YUNREACHABLE();
+    }
+
+    virtual TStatistics Finish() override
+    {
+        return Statistics_;
+    }
+
+private:
+    TStatistics Statistics_;
+    
+    Stroka CurrentPath_;
+    std::vector<int> DirectoryNameLengths_;
+
+    TSummary CurrentSummary_;
+    i64 FilledSummaryFields_ = 0;
+
+    Stroka LastKey_;
+
+    bool AtSummaryMap_ = false;
+
+};
+
+void CreateBuildingYsonConsumer(std::unique_ptr<IBuildingYsonConsumer<TStatistics>>* buildingConsumer, EYsonType ysonType)
+{
+    YCHECK(ysonType == EYsonType::Node);
+    *buildingConsumer = std::make_unique<TStatisticsBuildingConsumer>();
 }
 
 ////////////////////////////////////////////////////////////////////
