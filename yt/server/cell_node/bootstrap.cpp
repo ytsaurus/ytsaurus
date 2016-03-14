@@ -368,7 +368,7 @@ void TBootstrap::DoRun()
         directMasterChannel,
         GetCellId()));
 
-    OrchidRoot = GetEphemeralNodeFactory()->CreateMap();
+    OrchidRoot = CreateEphemeralNodeFactory()->CreateMap();
     SetNodeByYPath(
         OrchidRoot,
         "/monitoring",

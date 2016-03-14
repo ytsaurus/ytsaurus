@@ -335,11 +335,13 @@ DEFINE_REFCOUNTED_TYPE(IEntityNode)
 /*!
  *  All freshly created nodes are roots, i.e. have no parent.
  *  
- *  The factory also acts as a context that holds all created nodes.
- *  One must call #Commit at the end if the operation was a success.
- *  If the operation failed, one must just release the reference to the factory.
- *  Any needed rollback will be carried out automagically.
+ *  The factory also acts as a "transaction context" that holds all created nodes.
  *
+ *  One must call #Commit at the end if the operation was a success.
+ *  This also invokes all handlers installed via #RegisterCommitHandler.
+ *
+ *  Releasing the instance without calling #Commit or calling #Rollback abandons all changes
+ *  and invokes all handlers installed via #RegisterRollbackHandler.
  */
 struct INodeFactory
     : public virtual TRefCounted
@@ -368,10 +370,18 @@ struct INodeFactory
     //! Creates an entity node.
     virtual IEntityNodePtr CreateEntity() = 0;
 
-    //! Called before releasing the factory to indicate that all created nodes
+    //! Must be called before releasing the factory to indicate that all created nodes
     //! must persist.
     virtual void Commit() = 0;
 
+    //! Invokes all rollback handlers.
+    virtual void Rollback() = 0;
+
+    //! Adds a new #handler to be called upon commit.
+    virtual void RegisterCommitHandler(const std::function<void()>& handler) = 0;
+
+    //! Adds a new #handler to be called upon rollback.
+    virtual void RegisterRollbackHandler(const std::function<void()>& handler) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(INodeFactory)
