@@ -1596,13 +1596,15 @@ void TOperationControllerBase::OnJobAborted(std::unique_ptr<TAbortedJobSummary> 
 
     auto joblet = GetJoblet(jobId);
 
-    FinalizeJoblet(joblet, jobSummary.get());
-    LogFinishedJobFluently(ELogEventType::JobAborted, joblet, *jobSummary)
-        .Item("reason").Value(abortReason);
+    if (abortReason != EAbortReason::SchedulingTimeout) {
+        FinalizeJoblet(joblet, jobSummary.get());
+        LogFinishedJobFluently(ELogEventType::JobAborted, joblet, *jobSummary)
+            .Item("reason").Value(abortReason);
+
+        UpdateJobStatistics(*jobSummary);
+    }
 
     joblet->Task->OnJobAborted(joblet, *jobSummary);
-
-    UpdateJobStatistics(*jobSummary);
 
     RemoveJoblet(jobId);
 
