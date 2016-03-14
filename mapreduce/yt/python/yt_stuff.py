@@ -1,7 +1,6 @@
 import os
 import logging
 import shutil
-import platform
 import socket
 import sys
 import tarfile
@@ -128,10 +127,6 @@ class YtStuff:
 
 @pytest.fixture(scope="module")
 def yt_stuff(request):
-    platform_descr = platform.linux_distribution()
-    if "precise" not in platform_descr:
-        pytest.skip("YT cannot work on %s" % str(platform_descr))
-
     yt = YtStuff()
     yt.start_local_yt()
     request.addfinalizer(yt.stop_local_yt)
