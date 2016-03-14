@@ -182,7 +182,7 @@ def _initialize_world(client):
     # Used to automatically determine local mode from python wrapper.
     client.set("//sys/@local_mode_fqdn", socket.getfqdn())
 
-def start(master_count=1, node_count=3, scheduler_count=1, start_proxy=True,
+def start(master_count=1, node_count=1, scheduler_count=1, start_proxy=True,
           master_config=None, node_config=None, scheduler_config=None, proxy_config=None,
           proxy_port=None, id=None, local_cypress_dir=None, use_proxy_from_yt_source=False,
           enable_debug_logging=False, tmpfs_path=None, port_range_start=None, fqdn=None, path=None,

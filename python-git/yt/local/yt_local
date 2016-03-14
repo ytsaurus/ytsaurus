@@ -91,7 +91,7 @@ def add_start_subparser(subparsers):
     parser = subparsers.add_parser("start", help="Start local YT environment with specified options",
                                    func=start_func)
     parser.add_argument("--master-count", type=int, default=1, help="number of masters")
-    parser.add_argument("--node-count", type=int, default=3, help="number of nodes")
+    parser.add_argument("--node-count", type=int, default=1, help="number of nodes")
     parser.add_argument("--scheduler-count", type=int, default=1, help="number of schedulers")
 
     for service in ["master", "node", "scheduler", "proxy"]:
