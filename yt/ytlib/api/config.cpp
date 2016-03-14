@@ -93,7 +93,7 @@ TConnectionConfig::TConnectionConfig()
         .Default("//tmp/udfs");
 
     RegisterParameter("table_mount_info_update_retry_count", TableMountInfoUpdateRetryCount)
-        .GreaterThan(0)
+        .GreaterThanOrEqual(0)
         .Default(5);
     RegisterParameter("table_mount_info_update_retry_time", TableMountInfoUpdateRetryPeriod)
         .GreaterThan(TDuration::MicroSeconds(0))
