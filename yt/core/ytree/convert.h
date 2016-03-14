@@ -3,6 +3,7 @@
 #include "public.h"
 #include "ephemeral_node_factory.h"
 
+#include <yt/core/yson/consumer.h>
 #include <yt/core/yson/string.h>
 
 namespace NYT {
