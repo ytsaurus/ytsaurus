@@ -9,7 +9,7 @@ import tempfile
 import pytest
 import yatest.common
 
-YT_ARCH_NAME = "mapreduce/yt/python/yt.tgz" # comes by FROM_SANDBOX
+YT_ARCHIVE_NAME = "mapreduce/yt/python/yt.tgz" # comes by FROM_SANDBOX
 YT_PREFIX = "//"
 
 class YtStuff:
@@ -27,21 +27,24 @@ class YtStuff:
         self.logger.debug(message)
 
     def _prepare_files(self):
-        build_dir = yatest.common.runtime.build_path()
-        self.yt_dir = tempfile.mkdtemp(prefix="yt_", dir=build_dir)
+        tmpfs_path = yatest.common.get_param("ram_drive_path")
+        if tmpfs_path and os.path.isdir(tmpfs_path):
+            self.yt_dir = tempfile.mkdtemp(prefix="yt_", dir=tmpfs_path)
+        else:
+            self.yt_dir = tempfile.mkdtemp(prefix="yt_")
 
         self._log("Extracting YT")
         self._log(self.yt_dir)
-        tgz = tarfile.open(os.path.join(build_dir, YT_ARCH_NAME))
+        tgz = tarfile.open(os.path.join(yatest.common.runtime.build_path(), YT_ARCHIVE_NAME))
         tgz.extractall(path=self.yt_dir)
 
         self.mapreduce_yt_path = os.path.join(self.yt_dir, "mapreduce-yt")
         self.yt_local_path = os.path.join(self.yt_dir, "yt_local")
         self.python_dir = os.path.join(self.yt_dir, "python")
         self.node_modules_dir = os.path.join(self.yt_dir, "node_modules")
-        self.working_dir = os.path.join(self.yt_dir, "wd")
+        self.yt_work_dir = os.path.join(self.yt_dir, "wd")
 
-        os.mkdir(self.working_dir)
+        os.mkdir(self.yt_work_dir)
 
     def _prepare_env(self):
         self.env = {}
@@ -62,7 +65,7 @@ class YtStuff:
         res = yatest.common.process.execute(
             cmd,
             env=self.env,
-            cwd=self.working_dir
+            cwd=self.yt_work_dir
         )
         self._log(res.std_out)
         self._log(res.std_err)
@@ -89,7 +92,7 @@ class YtStuff:
 
     def start_local_yt(self):
         try:
-            res = self._yt_local("start", "--path=" + self.working_dir)
+            res = self._yt_local("start", "--path=" + self.yt_work_dir)
         except Exception, e:
             self._log("Failed to start local YT:")
             self._log(str(e))
@@ -102,7 +105,7 @@ class YtStuff:
 
     def stop_local_yt(self):
         try:
-            self._yt_local("stop", os.path.join(self.working_dir, self.yt_id))
+            self._yt_local("stop", os.path.join(self.yt_work_dir, self.yt_id))
         except Exception, e:
             self._log("Errors while stopping local YT:")
             self._log(str(e))
@@ -115,7 +118,7 @@ class YtStuff:
         if not os.path.isdir(output_dir):
             os.mkdir(output_dir)
         self._log("YT logs saved in " + output_dir)
-        for root, dirs, files in os.walk(self.working_dir):
+        for root, dirs, files in os.walk(self.yt_work_dir):
             for file in files:
                 if file.endswith(".log"):
                     shutil.copy2(os.path.join(root, file), os.path.join(output_dir, file))
