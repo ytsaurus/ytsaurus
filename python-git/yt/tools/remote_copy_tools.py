@@ -235,7 +235,10 @@ for row in format_.load_rows(sys.stdin, raw=True):
     actual_row_count += 1
     format_.dump_row(row, sys.stdout, raw=True)
 
-row_count = extract_limit(table, "upper_limit") - extract_limit(table, "lower_limit")
+start = extract_limit(table, "lower_limit")
+end = extract_limit(table, "upper_limit")
+
+row_count = end - start
 
 if actual_row_count != row_count:
     assert False, "Range [{0}, {1}) read mismatch. " \
