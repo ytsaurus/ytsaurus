@@ -40,7 +40,7 @@ class TestLocalMode(object):
     def test_commands_sanity(self):
         environment = start()
         pids = _read_pids_file(environment)
-        assert len(pids) == 6
+        assert len(pids) == 4
         # Should not delete running instance
         with pytest.raises(yt.YtError):
             delete(environment.id)
