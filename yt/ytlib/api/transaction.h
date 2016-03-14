@@ -45,23 +45,11 @@ struct ITransaction
     virtual TFuture<void> Abort(const TTransactionAbortOptions& options = TTransactionAbortOptions()) = 0;
 
     // Tables
-    virtual void WriteRow(
-        const NYPath::TYPath& path,
-        NTableClient::TNameTablePtr nameTable,
-        NTableClient::TUnversionedRow row,
-        const TWriteRowsOptions& options = TWriteRowsOptions()) = 0;
-
     virtual void WriteRows(
         const NYPath::TYPath& path,
         NTableClient::TNameTablePtr nameTable,
         std::vector<NTableClient::TUnversionedRow> rows,
         const TWriteRowsOptions& options = TWriteRowsOptions()) = 0;
-    
-    virtual void DeleteRow(
-        const NYPath::TYPath& path,
-        NTableClient::TNameTablePtr nameTable,
-        NTableClient::TKey key,
-        const TDeleteRowsOptions& options = TDeleteRowsOptions()) = 0;
 
     virtual void DeleteRows(
         const NYPath::TYPath& path,
