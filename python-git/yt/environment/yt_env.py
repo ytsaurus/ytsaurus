@@ -169,10 +169,10 @@ class YTEnv(object):
         self._kill_previously_run_services()
         self._kill_child_processes = kill_child_processes
 
-        ytserver_version_long = _get_ytserver_version()
-        logger.info("Logging started (ytserver version: %s)", ytserver_version_long)
+        self._ytserver_version_long = _get_ytserver_version()
+        logger.info("Logging started (ytserver version: %s)", self._ytserver_version_long)
 
-        self._ytserver_version = ytserver_version_long.split("-", 1)[0].strip()
+        self._ytserver_version = self._ytserver_version_long.split("-", 1)[0].strip()
 
         self._run_all(self.NUM_MASTERS,
                       self.NUM_NONVOTING_MASTERS,
@@ -279,9 +279,9 @@ class YTEnv(object):
             if not prepare_only:
                 self.start_all_masters(master_name, secondary_master_cell_count,
                                        start_secondary_master_cells=start_secondary_master_cells)
+                self.start_proxy(proxy_name, use_proxy_from_package=use_proxy_from_package)
                 self.start_nodes(node_name)
                 self.start_schedulers(scheduler_name)
-                self.start_proxy(proxy_name, use_proxy_from_package=use_proxy_from_package)
                 self._started = True
 
             self._write_environment_info_to_file(has_proxy)
@@ -771,14 +771,25 @@ class YTEnv(object):
             "driver_config": driver_config
         }
 
-        import yt_driver_bindings
+        try:
+            import yt_driver_bindings
+        except ImportError:
+            raise YtError("YT driver bindings not found. Make sure you have installed "
+                          "yandex-yt-python-driver package (appropriate version: {0})"
+                          .format(self._ytserver_version_long))
+
         yt_driver_bindings.configure_logging(self.driver_logging_config)
 
         return Yt(config=config)
 
     def _remove_scheduler_lock(self, scheduler_name):
         driver_name = scheduler_name.replace("scheduler", "driver", 1)
-        client = self.create_native_client(driver_name)
+
+        if self.START_PROXY:
+            client = Yt(proxy=self.get_proxy_address())
+        else:
+            client = self.create_native_client(driver_name)
+
         try:
             tx_id = client.get("//sys/scheduler/lock/@locks/0/transaction_id")
             if tx_id:

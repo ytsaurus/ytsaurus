@@ -3,6 +3,7 @@ from configs_provider import ConfigsProviderFactory
 from yt.environment import YTEnv
 from yt.environment.init_cluster import initialize_world
 from yt.wrapper.common import generate_uuid
+from yt.wrapper.client import Yt
 from yt.common import YtError, require, update
 import yt.yson as yson
 import yt.json as json
@@ -242,10 +243,14 @@ def start(master_count=1, node_count=3, scheduler_count=1, start_proxy=True,
     environment.id = sandbox_id
 
     if not prepare_only:
-        native_client = environment.create_native_client("driver")
-        _initialize_world(native_client)
+        if start_proxy:
+            client = Yt(proxy=environment.get_proxy_address())
+        else:
+            client = environment.create_native_client("driver")
+
+        _initialize_world(client)
         if local_cypress_dir is not None:
-            _synchronize_cypress_with_local_dir(local_cypress_dir, native_client)
+            _synchronize_cypress_with_local_dir(local_cypress_dir, client)
 
     log_started_instance_info(environment, start_proxy, prepare_only)
 
