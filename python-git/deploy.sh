@@ -27,18 +27,27 @@ found_version() {
 
 init_vars() {
     set +u
+
     if [ -z "$FORCE_DEPLOY" ]; then
         FORCE_DEPLOY=""
     fi
     export FORCE_DEPLOY
+
+    if [ -z "$FORCE_BUILD" ]; then
+        FORCE_BUILD=""
+    fi
+    export FORCE_BUILD
+
     if [ -z "$SKIP_WHEEL" ]; then
         SKIP_WHEEL=""
     fi
     export SKIP_WHEEL
+
     if [ -z "$CREATE_CONDUCTOR_TICKET" ]; then
         CREATE_CONDUCTOR_TICKET=""
     fi
     export CREATE_CONDUCTOR_TICKET
+
     set -u
 }
 
@@ -84,7 +93,7 @@ else
 fi
 
 # Build and upload debian package if necessary
-if [ -n "$REPOS_TO_UPLOAD" ] || [ -n "$FORCE_DEPLOY" ]; then
+if [ -n "$REPOS_TO_UPLOAD" ] || [ -n "$FORCE_BUILD" ]; then
     # Build debian package
     DEB=1 python setup.py sdist --dist-dir=../
     # NB: Never strip binaries and so-libraries.
