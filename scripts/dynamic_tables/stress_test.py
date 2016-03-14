@@ -10,6 +10,7 @@ import argparse
 import random
 from time import sleep
 import sys
+import copy
 
 yt.config.VERSION = "v3"
 
@@ -20,6 +21,20 @@ class TInt64():
         return "int64"
     def comparable(self):
         return True
+    def aggregatable(self):
+        return ["sum", "min", "max"]
+    def aggregate(self, function, lhs, rhs):
+        if function == "sum":
+            r = lhs + rhs
+            if r < -2**63:
+                r += 2**64
+            elif r > 2**63 - 1:
+                r -= 2**64
+            return r
+        elif function == "max":
+            return max(lhs, rhs)
+        elif function == "min":
+            return min(lhs, rhs)
 
 class TUnt64():
     def random(self):
@@ -28,6 +43,15 @@ class TUnt64():
         return "uint64"
     def comparable(self):
         return True
+    def aggregatable(self):
+        return ["sum", "min", "max"]
+    def aggregate(self, function, lhs, rhs):
+        if function == "sum":
+            return (lhs + rhs) % 2**64
+        elif function == "max":
+            return max(lhs, rhs)
+        elif function == "min":
+            return min(lhs, rhs)
 
 class TBoolean():
     def random(self):
@@ -36,6 +60,8 @@ class TBoolean():
         return "boolean"
     def comparable(self):
         return True
+    def aggregatable(self):
+        return None
 
 class TDouble():
     def random(self):
@@ -44,6 +70,8 @@ class TDouble():
         return "double"
     def comparable(self):
         return True
+    def aggregatable(self):
+        return None
 
 class TString():
     def random(self):
@@ -56,6 +84,13 @@ class TString():
         return "string"
     def comparable(self):
         return True
+    def aggregatable(self):
+        return ["min", "max"]
+    def aggregate(self, function, lhs, rhs):
+        if function == "max":
+            return max(lhs, rhs)
+        elif function == "min":
+            return min(lhs, rhs)
 
 class TAny():
     def random(self):
@@ -64,25 +99,39 @@ class TAny():
         return "any"
     def comparable(self):
         return False
+    def aggregatable(self):
+        return None
 
 types = [TInt64(), TUnt64(), TBoolean(), TString(), TAny()]
 key_types = [t for t in types if t.comparable()]
 
 class Column():
-    def __init__(self, ttype, name, sort_order = None):
+    def __init__(self, ttype, name, sort_order=None, aggregate=None):
         self.type = ttype
         self.name = name
         self.sort_order = sort_order
+        self.aggregate = aggregate
     def yson(self):
         y = {"name": self.name, "type": self.type.str()}
         if self.sort_order:
             y["sort_order"] = self.sort_order
+        if self.aggregate:
+            y["aggregate"] = self.aggregate
         return y
     def generate_value(self):
         return self.type.random()
+    def do_aggregate(self, lhs, rhs):
+        if lhs == None:
+            return rhs
+        elif rhs == None:
+            return lhs
+        else:
+            return self.type.aggregate(self.aggregate, lhs, rhs)
 
 class Schema():
     def __init__(self):
+        self.appearance_probability = 0.9
+        self.aggregate_probability = 0.5
         key_column_count = random.randint(1,10)
         data_column_count = random.randint(1,10)
         key_columns = [random.choice(key_types) for i in xrange(key_column_count)]
@@ -90,7 +139,11 @@ class Schema():
         key_names = ["k%s" % str(i) for i in range(len(key_columns))]
         data_names = ["v%s" % str(i) for i in range(len(data_columns))]
         self.key_columns = [Column(t, n, "ascending") for (t,n) in zip(key_columns, key_names)]
-        self.data_columns = [Column(t, n) for (t,n) in zip(data_columns, data_names)]
+        def aggr(t):
+            def random_aggr(l):
+                return l[random.randint(0, len(l) - 1)]
+            return random_aggr(t.aggregatable()) if t.aggregatable() and random.random() < self.aggregate_probability else None
+        self.data_columns = [Column(t, n, None, aggr(t)) for (t,n) in zip(data_columns, data_names)]
         self.columns = self.key_columns + self.data_columns
     def get_key_column_names(self):
         return [c.name for c in self.key_columns]
@@ -98,6 +151,8 @@ class Schema():
         return [c.name for c in self.data_columns]
     def get_column_names(self):
         return [c.name for c in self.columns]
+    def get_data_columns(self):
+        return self.data_columns
     def yson(self):
         return [c.yson() for c in self.columns]
     def generate_pivot_key(self):
@@ -109,7 +164,10 @@ class Schema():
     def generate_row(self):
         return self.generate_row_from_schema(self.columns)
     def generate_row_from_schema(self, columns):
-        return {c.name: c.generate_value() for c in columns}
+        while True:
+            result = {c.name: c.generate_value() for c in columns if random.random() < self.appearance_probability}
+            if len(result) > 0:
+                return result
 
 class SchemafulMapper(object):
     def __init__(self, schema, table):
@@ -134,7 +192,7 @@ class SchemafulMapper(object):
         errors = [e +  "\n\n===================================================================\n\n" for e in errors]
         stderr = "".join(errors)
         print >> sys.stderr, stderr
-        print >> sys.stderr, data
+        #print >> sys.stderr, data
         raise Exception(" ".join(("Failed to execute command (%s attempts):" % attempt, command, str(params))))
 
     def prepare(self, value):
@@ -181,11 +239,16 @@ def unmount_table(path):
     yt.unmount_table(path)
     wait_until(path, "unmounted")
 
-def create_dynamic_table(schema, table, tablet_count):
-    print "Create dynamic table"
-    yt.create_table(table)
+def create_dynamic_table(table, schema, attributes, tablet_count):
+    print "Create dynamic table %s" % table
+    yt.create_table(table, attributes=attributes)
     yt.alter_table(table, schema=schema.yson())
     yt.reshard_table(table, create_pivot_keys(schema, tablet_count))
+    mount_table(table)
+
+def reshard_table(table, schema, tablet_count):
+    unmount_table(table)
+    yt.reshard_table(table, create_pivot_keys(schema, tablet_count + random.randint(-3,3)))
     mount_table(table)
 
 @yt.aggregator
@@ -193,6 +256,8 @@ class WriterMapper(SchemafulMapper):
     def __init__(self, schema, table, iteration):
         super(WriterMapper, self).__init__(schema, table)
         self.iteration = iteration
+        self.aggregate_probability = 0.9
+        self.update_probability = 0.5
     def __call__(self, records):
         rows = []
         for record in records:
@@ -207,12 +272,16 @@ class WriterMapper(SchemafulMapper):
         client = Yt(config=config)
         params = {
             "path": self.table,
-            "input_format": "yson"
+            "input_format": "yson",
+            "aggregate": random.random() < self.aggregate_probability,
+            "update": random.random() < self.update_probability,
         }
         self.make_request("insert_rows", params, self.prepare(rows), client)
 
         for row in rows:
             row["iteration"] = self.iteration
+            row["aggregate"] = params["aggregate"]
+            row["update"] = params["update"]
             yield row
 
 def write_random_data(schema, key_table, data_table, table, iteration, job_count):
@@ -224,22 +293,38 @@ def write_random_data(schema, key_table, data_table, table, iteration, job_count
         spec={"job_count": job_count, "max_failed_job_count": 10},
         format=yt.YsonFormat(process_table_index=False, boolean_as_string=False))
 
-def aggregate_data(schema, data_table):
+class AggregateReducer:
+    def __init__(self, schema):
+        self.schema = schema
+        self.aggregates = {}
+        for c in schema.get_data_columns():
+            if c.aggregate:
+                self.aggregates[c.name] = c
+    def __call__(self, key, records):
+        records = list(records)
+        records = sorted(records, key=lambda(x): x["iteration"])
+        record = copy.copy(key)
+        for c in self.schema.get_data_column_names():
+            record[c] = None
+        for r in records:
+            for c in self.schema.get_data_column_names():
+                if c not in r.keys() and r["update"] == False:
+                    r[c] = None
+                if c in r.keys():
+                    if r["aggregate"] and c in self.aggregates.keys():
+                        record[c] = self.aggregates[c].do_aggregate(record[c], r[c])
+                    else:
+                        record[c] = r[c]
+        yield record
+
+def aggregate_data(schema, data_table, aggregated_table):
     print "Aggregate data"
     key = schema.get_key_column_names()
     yt.run_sort(data_table, sort_by=key + ["iteration"])
-    def reducer(key, records):
-        records = list(records)
-        records = sorted(records, key=lambda(x): x["iteration"])
-        record = {}
-        for r in records:
-            record.update(r)
-        record.pop("iteration")
-        yield record
     yt.run_reduce(
-        reducer,
+        AggregateReducer(schema),
         data_table,
-        data_table,
+        aggregated_table,
         reduce_by=schema.get_key_column_names(),
         spec={"max_failed_job_count": 10},
         format=yt.YsonFormat(process_table_index=False, boolean_as_string=False))
@@ -275,9 +360,9 @@ class VerifierMapper(SchemafulMapper):
                         return False
                 return True
             if not equal(result, record):
-                print >> sys.stderr, yson.dumps(key)
-                print >> sys.stderr, yson.dumps(record)
-                print >> sys.stderr, yson.dumps(result)
+                #print >> sys.stderr, yson.dumps(key)
+                #print >> sys.stderr, yson.dumps(record)
+                #print >> sys.stderr, yson.dumps(result)
                 yield {"expected": record, "actual": result}
 
 def verify(schema, data_table, table, result_table, job_count):
@@ -291,8 +376,10 @@ def verify(schema, data_table, table, result_table, job_count):
     rows = yt.read_table(result_table, raw=False)
     if next(rows, None) == None:
         print "Everything OK"
+        return True
     else:
-        print "FAILED, see %s", result_table
+        print "FAILED, see %s" % result_table
+        return False
 
 def remove_existing(paths, force):
     for path in paths:
@@ -302,28 +389,44 @@ def remove_existing(paths, force):
             else:
                 raise Exception("Destination table exists. Use --force")
 
-def run_test(args):
-    schema = Schema()
-    force = args.force
-    table = args.table
+def single_execution(table, schema, attributes, tablet_count, key_count, iterations, job_count, force, keep):
     key_table = table + ".keys"
     data_table = table + ".data"
+    aggregated_table = table + ".aggregated"
     result_table = table + ".result"
-    remove_existing([table, key_table, data_table, result_table], force)
+    remove_existing([table, key_table, data_table, aggregated_table, result_table], force)
 
-    create_dynamic_table(schema, table, args.tablet_count)
-    create_keys(schema, key_table, args.key_count, args.job_count)
-    for i in xrange(args.iterations):
-        write_random_data(schema, key_table, data_table, table, i, args.job_count)
-    aggregate_data(schema, data_table)
-    verify(schema, data_table, table, result_table, args.job_count)
+    create_dynamic_table(table, schema, attributes, tablet_count)
+    create_keys(schema, key_table, key_count, job_count)
+    for i in xrange(iterations):
+        write_random_data(schema, key_table, data_table, table, i, job_count)
+        #reshard_table(table, schema, tablet_count)
+    aggregate_data(schema, data_table, aggregated_table)
+    good = verify(schema, aggregated_table, table, result_table, job_count)
     unmount_table(table)
     mount_table(table)
+    if good and not keep:
+        for path in [table, key_table, data_table, aggregated_table, result_table]:
+            yt.remove(path)
 
+def variate_modes(table, args):
+    schema = Schema()
+    print yson.dumps(schema.yson())
+
+    single_execution(table + ".none", schema, {}, args.tablet_count, args.key_count, args.iterations, args.job_count, args.force, args.keep)
+    single_execution(table + ".compressed", schema, {"in_memory_mode": "compressed"}, args.tablet_count, args.key_count, args.iterations, args.job_count, args.force, args.keep)
+    single_execution(table + ".uncompressed", schema, {"in_memory_mode": "uncompressed"}, args.tablet_count, args.key_count, args.iterations, args.job_count, args.force, args.keep)
+    single_execution(table + ".uncompressed.lookuptable", schema, {"in_memory_mode": "uncompressed", "enable_lookup_hash_table": True}, args.tablet_count, args.key_count, args.iterations, args.job_count, args.force, args.keep)
+
+def run_test(args):
+    #for i in range(100):
+        #variate_modes(args.table + "." + str(i), args)
+    variate_modes(args.table, args)
 
 def main():
     parser = argparse.ArgumentParser(description="Map-Reduce table manipulator.")
-    parser.add_argument("--force", action="store_true", help="Overwrite destination table if it exists")
+    parser.add_argument("--force", action="store_true", default=False, help="Overwrite destination table if it exists")
+    parser.add_argument("--keep", action="store_true", default=False, help="Keep tables anyway")
     parser.add_argument("--table", type=str, help="Table path", required=True)
     parser.add_argument("--proxy", type=yt.config.set_proxy, help="YT proxy")
     parser.add_argument("--key_count", type=int, default=1000, help="Nuber of keys in dynamic table")
