@@ -196,13 +196,13 @@ def create_modules_archive_default(tempfiles_manager, client):
 
     result = [{
         "filename": zip_filename,
-        "tmpfs": get_config(client)["pickling"]["enable_tmpfs_archive"],
+        "tmpfs": get_config(client)["pickling"]["enable_tmpfs_archive"] and not is_local_mode(client),
         "size": total_size}]
 
     if fresh_total_size > 0:
         result.append({
             "filename": fresh_zip_filename,
-            "tmpfs": get_config(client)["pickling"]["enable_tmpfs_archive"],
+            "tmpfs": get_config(client)["pickling"]["enable_tmpfs_archive"] and not is_local_mode(client),
             "size": fresh_total_size})
 
     return result
