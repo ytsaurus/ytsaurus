@@ -75,22 +75,6 @@ struct TCommandDescriptor
 
     //! Whether the execution of a command is lengthly and/or causes a heavy load.
     bool IsHeavy;
-
-    TCommandDescriptor()
-    { }
-
-    TCommandDescriptor(
-        const Stroka& commandName,
-        NFormats::EDataType inputType,
-        NFormats::EDataType outputType,
-        bool isVolatile,
-        bool isHeavy)
-        : CommandName(commandName)
-        , InputType(inputType)
-        , OutputType(outputType)
-        , IsVolatile(isVolatile)
-        , IsHeavy(isHeavy)
-    { }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -110,14 +94,14 @@ struct IDriver
 
     //! Returns a descriptor for the command with a given name or
     //! |Null| if no command with this name is registered.
-    virtual TNullable<TCommandDescriptor> FindCommandDescriptor(const Stroka& commandName) = 0;
+    virtual const TNullable<TCommandDescriptor> FindCommandDescriptor(const Stroka& commandName) const = 0;
 
     //! Returns a descriptor for then command with a given name.
     //! Fails if no command with this name is registered.
-    TCommandDescriptor GetCommandDescriptor(const Stroka& commandName);
+    const TCommandDescriptor GetCommandDescriptor(const Stroka& commandName) const;
 
     //! Returns the list of descriptors for all supported commands.
-    virtual std::vector<TCommandDescriptor> GetCommandDescriptors() = 0;
+    virtual const std::vector<TCommandDescriptor> GetCommandDescriptors() const = 0;
 
     //! Returns the underlying connection.
     virtual NApi::IConnectionPtr GetConnection() = 0;

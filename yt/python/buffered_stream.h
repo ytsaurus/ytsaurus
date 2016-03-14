@@ -13,47 +13,52 @@ namespace NPython {
 
 ///////////////////////////////////////////////////////////////////////////////
 
-DEFINE_ENUM(EBufferedStreamState,
-    (Normal)
-    (Full)
-    (WaitingData)
-    (Finished)
-);
-
 class TBufferedStream
     : public NConcurrency::IAsyncOutputStream
 {
 public:
-    explicit TBufferedStream(size_t bufferSize);
+    explicit TBufferedStream(size_t capacity);
 
-    TSharedRef Read(size_t size = 0);
+    // Called from python.
+    Py::String Read(size_t size = 0);
 
+    // Called from python.
     bool Empty() const;
 
+    // Called from YT.
     void Finish();
 
-    virtual TFuture<void> Write(const TSharedRef& buffer) override;
+    // Called from YT.
+    virtual TFuture<void> Write(const TSharedRef& data) override;
 
 private:
-    using EState = EBufferedStreamState;
-    
-    size_t Size_;
-    size_t AllowedSize_;
-
     TSharedMutableRef Data_;
     char* Begin_;
-    char* End_;
+    size_t Size_ = 0;
 
-    EState State_;
+    size_t Capacity_ = 0;
 
+    // Number of bytes that waited by read command.
+    size_t SizeToRead_ = 0;
+
+    // Marks that writes to the stream are finished.
+    bool Finished_ = false;
+
+    // Marks that inner buffer is full (size >= capacity / 2) and writes should wait.
+    bool Full_ = false;
+
+    // Marks that buffer contains enough bytes to be read by waiting read command.
+    std::atomic<bool> AllowRead_;
+
+    // Marks that stream ready to receive more bytes.
     TPromise<void> AllowWrite_;
-    TPromise<void> AllowRead_;
 
     TMutex Mutex_;
+    TMutex ReadMutex_;
 
     void Reallocate(size_t len);
     void Move(char* dest);
-    TSharedRef ExtractChunk(size_t size);
+    Py::String ExtractChunk(size_t size);
 };
 
 DEFINE_REFCOUNTED_TYPE(TBufferedStream)

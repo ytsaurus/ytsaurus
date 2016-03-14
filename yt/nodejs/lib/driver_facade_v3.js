@@ -20,50 +20,52 @@ if (typeof(Object.values) === "undefined") {
     };
 }
 
-function YtDriverFacadeV3(driver)
+function YtDriverFacadeV3(logger, driver)
 {
     if (!(this instanceof YtDriverFacadeV3)) {
-        return new YtDriverFacadeV3(driver);
+        return new YtDriverFacadeV3(logger, driver);
     }
 
-    var custom_commands = {}; 
-    function defineCustomCommand(name, callback) 
+    var custom_commands = {};
+
+    function defineCustomCommand(name, callback)
     { 
-        custom_commands[name] = { 
-            name: name, 
-            input_type: "null", 
-            output_type: "structured", 
-            is_volatile: false, 
-            is_heavy: false
+        custom_commands[name] = {
+            name: name,
+            input_type: "null",
+            output_type: "structured",
+            is_volatile: false,
+            is_heavy: false,
         };
-        Object.defineProperty( 
-            custom_commands[name], 
+
+        Object.defineProperty(
+            custom_commands[name],
             "compression",
             { enumerable: false, value: false });
 
-        Object.defineProperty( 
-            custom_commands[name], 
-            "input_type_as_integer", 
-            { enumerable: false, value: binding.EDataType_Null }); 
- 
-        Object.defineProperty( 
-            custom_commands[name], 
-            "output_type_as_integer", 
-            { enumerable: false, value: binding.EDataType_Structured }); 
- 
-        Object.defineProperty( 
-            custom_commands[name], 
-            "execute", 
-            { enumerable: false, value: callback }); 
-    }   
- 
+        Object.defineProperty(
+            custom_commands[name],
+            "input_type_as_integer",
+            { enumerable: false, value: binding.EDataType_Null });
+
+        Object.defineProperty(
+            custom_commands[name],
+            "output_type_as_integer",
+            { enumerable: false, value: binding.EDataType_Structured });
+
+        Object.defineProperty(
+            custom_commands[name],
+            "execute",
+            { enumerable: false, value: callback });
+    }
+
     var application_versions = new YtApplicationVersions(driver); 
- 
+
     defineCustomCommand("_discover_versions", function(output_stream) { 
         return application_versions.get_versions();
     });
 
-    var application_operations = new YtApplicationOperations(driver);
+    var application_operations = new YtApplicationOperations(logger, driver);
 
     defineCustomCommand("_list_operations", function(parameters) {
         return application_operations.list(parameters);
@@ -71,13 +73,15 @@ function YtDriverFacadeV3(driver)
 
     defineCustomCommand("_get_operation", function(parameters) {
         return application_operations.get(parameters);
-    }); 
+    });
 
     defineCustomCommand("_get_scheduling_information", function(parameters) {
         return application_operations.get_scheduling_information();
     });
 
     this.custom_commands = custom_commands;
+
+    this.logger = logger;
     this.driver = driver;
 }
 
