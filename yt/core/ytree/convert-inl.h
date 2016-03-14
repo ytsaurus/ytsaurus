@@ -2,6 +2,8 @@
 #error "Direct inclusion of this file is not allowed, include convert.h"
 #endif
 
+#include "attribute_helpers.h"
+#include "default_building_consumer.h"
 #include "serialize.h"
 #include "tree_builder.h"
 #include "helpers.h"
@@ -119,7 +121,11 @@ TTo ConvertTo(INodePtr node)
 template <class TTo, class TFrom>
 TTo ConvertTo(const TFrom& value)
 {
-    return ConvertTo<TTo>(ConvertToNode(value));
+    auto type = GetYsonType(value);
+    std::unique_ptr<NYson::IBuildingYsonConsumer<TTo>> buildingConsumer;
+    CreateBuildingYsonConsumer(&buildingConsumer, type);
+    Serialize(value, buildingConsumer.get());
+    return buildingConsumer->Finish();
 }
 
 const NYson::TToken& SkipAttributes(NYson::TTokenizer* tokenizer);
