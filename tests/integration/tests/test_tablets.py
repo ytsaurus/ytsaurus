@@ -587,14 +587,14 @@ class TestTablets(YTEnvSetup):
         assert get("//tmp/t2/@tablets/0/tablet_id") == tablet_id
 
     def test_move_multiple_rollback(self):
-        self._sync_create_cells(1, 1)
+        self.sync_create_cells(1, 1)
 
         set("//tmp/x", {})
         self._create_table("//tmp/x/a")
         self._create_table("//tmp/x/b")
-        self._sync_mount_table("//tmp/x/a")
-        self._sync_unmount_table("//tmp/x/a")
-        self._sync_mount_table("//tmp/x/b")
+        self.sync_mount_table("//tmp/x/a")
+        self.sync_unmount_table("//tmp/x/a")
+        self.sync_mount_table("//tmp/x/b")
 
         def get_tablet_ids(path):
             return list(x["tablet_id"] for x in get(path + "/@tablets"))
