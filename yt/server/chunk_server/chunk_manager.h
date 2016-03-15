@@ -81,7 +81,6 @@ public:
         const TNodeList* forbiddenNodes,
         const TNullable<Stroka>& preferredHostName);
 
-    TChunk* CreateChunk(NObjectServer::EObjectType type);
     TChunkList* CreateChunkList();
 
     void AttachToChunkList(
