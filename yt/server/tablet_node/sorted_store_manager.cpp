@@ -483,7 +483,6 @@ void TSortedStoreManager::ValidateOnWrite(
     const TTransactionId& transactionId,
     TUnversionedRow row)
 {
-    ValidateActiveStoreOverflow();
     try {
         ValidateServerDataRow(row, KeyColumnCount_, Tablet_->Schema());
         if (row.GetCount() == KeyColumnCount_) {
@@ -502,7 +501,6 @@ void TSortedStoreManager::ValidateOnDelete(
     const TTransactionId& transactionId,
     TKey key)
 {
-    ValidateActiveStoreOverflow();
     try {
         ValidateServerKey(key, KeyColumnCount_, Tablet_->Schema());
     } catch (TErrorException& ex) {
