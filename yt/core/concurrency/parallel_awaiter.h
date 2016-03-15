@@ -17,13 +17,16 @@ class TParallelAwaiter
 public:
     explicit TParallelAwaiter(IInvokerPtr invoker);
 
+    ~TParallelAwaiter();
+
     template <class T>
     void Await(TFuture<T> future, TCallback<void(const TErrorOr<T>&)> onResult);
+
     template <class T>
     void Await(TFuture<T> future);
 
     TFuture<void> Complete(TClosure onComplete = TClosure());
-    
+
     int GetRequestCount() const;
     int GetResponseCount() const;
 
@@ -55,12 +58,13 @@ private:
 
     template <class T>
     void HandleResult(TCallback<void(const TErrorOr<T>&)> onResult, const TErrorOr<T>& result);
+    void HandleResultImpl();
 
     void FireCompleted(TClosure onComplete);
-
+    void FireCompletedImpl(TClosure onComplete);
 };
 
-DEFINE_REFCOUNTED_TYPE(TParallelAwaiter)
+DECLARE_REFCOUNTED_TYPE(TParallelAwaiter)
 
 ////////////////////////////////////////////////////////////////////////////////
 
