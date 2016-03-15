@@ -292,6 +292,7 @@ CXXFLAGS(
   -Wno-switch
   -Wno-type-limits
   -Wno-c++14-extensions
+  -Wno-maybe-uninitialized
   -DYT_IN_ARCADIA
 )
 

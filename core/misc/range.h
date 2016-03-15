@@ -76,6 +76,10 @@ public:
         , Length_(N)
     { }
 
+    const_iterator begin() const
+    {
+        return Begin();
+    }
 
     const_iterator Begin() const
     {
@@ -85,6 +89,11 @@ public:
     const_iterator End() const
     {
         return Data_ + Length_;
+    }
+
+    const_iterator end() const
+    {
+        return End();
     }
 
     bool Empty() const
