@@ -27,32 +27,45 @@ class YtStuff:
         self.logger.debug(message)
 
     def _prepare_files(self):
+        build_path = yatest.common.runtime.build_path()
         self.tmpfs_path = yatest.common.get_param("ram_drive_path")
 
-        self.yt_dir = tempfile.mkdtemp(prefix="yt_")
+        # Folders
+        self.yt_path = tempfile.mkdtemp(prefix="yt_")
+        self.yt_bins_path = os.path.join(self.yt_path, "bin")
+        self.yt_python_path = os.path.join(self.yt_path, "python")
+        self.yt_node_path = os.path.join(self.yt_path, "node")
+        self.yt_node_bin_path = os.path.join(self.yt_node_path, "bin")
+        self.yt_node_modules_path = os.path.join(self.yt_path, "node_modules")
+        self.yt_thor_path = os.path.join(self.yt_path, "yt-thor")
+        # Binaries
+        self.mapreduce_yt_path = os.path.join(self.yt_bins_path, "mapreduce-yt")
+        self.yt_local_path = os.path.join(self.yt_bins_path, "yt_local")
 
-        self._log("Extracting YT")
-        self._log(self.yt_dir)
-        tgz = tarfile.open(os.path.join(yatest.common.runtime.build_path(), YT_ARCHIVE_NAME))
-        tgz.extractall(path=self.yt_dir)
+        self._log("Extracting YT to %s" % self.yt_path)
+        tgz = tarfile.open(os.path.join(build_path, YT_ARCHIVE_NAME))
+        tgz.extractall(path=self.yt_path)
 
-        self.mapreduce_yt_path = os.path.join(self.yt_dir, "mapreduce-yt")
-        self.yt_local_path = os.path.join(self.yt_dir, "yt_local")
-        self.python_dir = os.path.join(self.yt_dir, "python")
-        self.node_modules_dir = os.path.join(self.yt_dir, "node_modules")
-        self.yt_work_dir = os.path.join(self.yt_dir, "wd")
-
+        self.yt_work_dir = os.path.join(self.yt_path, "wd")
         os.mkdir(self.yt_work_dir)
 
     def _prepare_env(self):
         self.env = {}
-        self.env["PATH"] = self.yt_dir
-        self.env["NODE_PATH"] = self.yt_dir + ":" + self.node_modules_dir
-        self.env["PYTHONPATH"] = self.python_dir
-        self.env["NODE_MODULES"] = self.node_modules_dir
+        self.env["PATH"] = ":".join([
+                self.yt_bins_path,
+                self.yt_node_path,
+                self.yt_node_bin_path,
+            ])
+        self.env["NODE_MODULES"] = self.yt_node_modules_path
+        self.env["NODE_PATH"] = ":".join([
+                self.yt_node_path,
+                self.yt_node_modules_path,
+            ])
+        self.env["PYTHONPATH"] = self.yt_python_path
+        self.env["YT_LOCAL_THOR_PATH"] = self.yt_thor_path
 
     def _import_wrapper(self):
-        sys.path.append(self.python_dir)
+        sys.path.append(self.yt_python_path)
         import yt.wrapper
         self.yt_wrapper = yt.wrapper
         self.yt_wrapper.config.PREFIX = YT_PREFIX
