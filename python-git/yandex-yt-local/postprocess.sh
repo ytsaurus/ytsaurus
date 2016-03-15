@@ -81,7 +81,10 @@ for yt_version in $yandex_yt_versions; do
 
     cp -r nodejs/usr/* archive/node
 
-    tar cvfz $archive_name archive/
+    cd archive
+    tar cvfz $archive_name .
+    cd -
+
     cat $archive_name | $YT upload //home/files/${archive_name} --proxy locke
     $YT set //home/files/${archive_name}/@packages_versions "{\
           yandex-yt=\"$yt_version\"; \
