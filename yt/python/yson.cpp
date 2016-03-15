@@ -123,7 +123,7 @@ public:
     void Init(TInputStream* inputStream, std::unique_ptr<TInputStream> inputStreamOwner)
     {
         InputStreamOwner_ = std::move(inputStreamOwner);
-        Lexer_ = std::move(TListFragmentLexer(inputStream));
+        Lexer_ = TListFragmentLexer(inputStream);
     }
 
     Py::Object iter()
@@ -393,7 +393,7 @@ private:
             auto iterator = Py::Object(PyObject_GetIter(obj.ptr()), true);
             try {
                 PyObject *item;
-                while (item = PyIter_Next(*iterator)) {
+                while ((item = PyIter_Next(*iterator)) != nullptr) {
                     Serialize(Py::Object(item, true), &writer, ignoreInnerAttributes);
                 }
                 if (PyErr_Occurred()) {
