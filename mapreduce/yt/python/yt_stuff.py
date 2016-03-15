@@ -27,11 +27,9 @@ class YtStuff:
         self.logger.debug(message)
 
     def _prepare_files(self):
-        tmpfs_path = yatest.common.get_param("ram_drive_path")
-        if tmpfs_path and os.path.isdir(tmpfs_path):
-            self.yt_dir = tempfile.mkdtemp(prefix="yt_", dir=tmpfs_path)
-        else:
-            self.yt_dir = tempfile.mkdtemp(prefix="yt_")
+        self.tmpfs_path = yatest.common.get_param("ram_drive_path")
+
+        self.yt_dir = tempfile.mkdtemp(prefix="yt_")
 
         self._log("Extracting YT")
         self._log(self.yt_dir)
@@ -92,7 +90,10 @@ class YtStuff:
 
     def start_local_yt(self):
         try:
-            res = self._yt_local("start", "--path=" + self.yt_work_dir)
+            args = ["start", "--path=%s" % self.yt_work_dir]
+            if self.tmpfs_path:
+                args.extend("--tmpfs_path=%s" % self.tmpfs_path)
+            res = self._yt_local(*args)
         except Exception, e:
             self._log("Failed to start local YT:")
             self._log(str(e))
