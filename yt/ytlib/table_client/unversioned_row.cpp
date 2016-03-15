@@ -1180,6 +1180,10 @@ void Serialize(const TUnversionedValue& value, IYsonConsumer* consumer)
             THROW_ERROR_EXCEPTION("Key cannot contain \"any\" components");
             break;
 
+        case EValueType::Null:
+            consumer->OnEntity();
+            break;
+
         default:
             consumer->OnBeginAttributes();
             consumer->OnKeyedItem("type");
@@ -1208,42 +1212,54 @@ void Serialize(const TOwningKey& key, IYsonConsumer* consumer)
 void Deserialize(TOwningKey& key, INodePtr node)
 {
     if (node->GetType() != ENodeType::List) {
-        THROW_ERROR_EXCEPTION("Key can only be parsed from a list");
+        THROW_ERROR_EXCEPTION("Key cannot be parsed from %Qlv",
+            node->GetType());
     }
 
     TUnversionedOwningRowBuilder builder;
     int id = 0;
     for (const auto& item : node->AsList()->GetChildren()) {
-        switch (item->GetType()) {
-            case ENodeType::Int64:
-                builder.AddValue(MakeUnversionedInt64Value(item->GetValue<i64>(), id));
-                break;
+        try {
+            switch (item->GetType()) {
+                case ENodeType::Int64:
+                    builder.AddValue(MakeUnversionedInt64Value(item->GetValue<i64>(), id));
+                    break;
 
-            case ENodeType::Uint64:
-                builder.AddValue(MakeUnversionedUint64Value(item->GetValue<ui64>(), id));
-                break;
+                case ENodeType::Uint64:
+                    builder.AddValue(MakeUnversionedUint64Value(item->GetValue<ui64>(), id));
+                    break;
 
-            case ENodeType::Double:
-                builder.AddValue(MakeUnversionedDoubleValue(item->GetValue<double>(), id));
-                break;
+                case ENodeType::Double:
+                    builder.AddValue(MakeUnversionedDoubleValue(item->GetValue<double>(), id));
+                    break;
 
-            case ENodeType::Boolean:
-                builder.AddValue(MakeUnversionedBooleanValue(item->GetValue<bool>(), id));
-                break;
+                case ENodeType::Boolean:
+                    builder.AddValue(MakeUnversionedBooleanValue(item->GetValue<bool>(), id));
+                    break;
 
-            case ENodeType::String:
-                builder.AddValue(MakeUnversionedStringValue(item->GetValue<Stroka>(), id));
-                break;
+                case ENodeType::String:
+                    builder.AddValue(MakeUnversionedStringValue(item->GetValue<Stroka>(), id));
+                    break;
 
-            case ENodeType::Entity: {
-                auto valueType = item->Attributes().Get<EValueType>("type");
-                builder.AddValue(MakeUnversionedSentinelValue(valueType, id));
-                break;
+                case ENodeType::Entity: {
+                    auto valueType = item->Attributes().Get<EValueType>("type", EValueType::Null);
+                    if (valueType != EValueType::Null && !IsSentinelType(valueType)) {
+                        THROW_ERROR_EXCEPTION("Entities can only represent %Qlv and sentinel values but "
+                            "not values of type %Qlv",
+                            EValueType::Null,
+                            valueType);
+                    }
+                    builder.AddValue(MakeUnversionedSentinelValue(valueType, id));
+                    break;
+                }
+
+                default:
+                    THROW_ERROR_EXCEPTION("Key cannot contain %Qlv values",
+                        item->GetType());
             }
-
-            default:
-                THROW_ERROR_EXCEPTION("Key cannot contain %Qlv components",
-                    item->GetType());
+        } catch (const std::exception& ex) {
+            THROW_ERROR_EXCEPTION("Error deserializing key component #%v", id)
+                << ex;
         }
         ++id;
     }
