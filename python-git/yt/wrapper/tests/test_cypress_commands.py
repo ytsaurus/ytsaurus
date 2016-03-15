@@ -26,7 +26,7 @@ class TestCypressCommands(object):
         assert path.append
         assert path.attributes == {"append": "true", "sort_by": ["subkey"]}
 
-        path = yt.TablePath("#123", exact_key=10, ranges=[])
+        path = yt.TablePath("#123", ranges=[])
         assert str(path) == "#123"
         assert repr(path) == "#123"
         assert not path.append
