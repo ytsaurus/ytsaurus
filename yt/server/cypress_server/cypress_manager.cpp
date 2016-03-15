@@ -296,6 +296,7 @@ public:
 
 private:
     NCellMaster::TBootstrap* const Bootstrap_;
+    const TCypressManagerConfigPtr Config_;
     TTransaction* const Transaction_;
     TAccount* const Account_;
     const bool PreserveAccount_;
@@ -314,22 +315,10 @@ private:
         ReleaseCreatedNodes();
     }
 
-<<<<<<< HEAD
-private:
-    NCellMaster::TBootstrap* const Bootstrap_;
-    const TCypressManagerConfigPtr Config_;
-    TTransaction* const Transaction_;
-    TAccount* const Account_;
-    const bool PreserveAccount_;
-
-    std::vector<TCypressNodeBase*> CreatedNodes_;
-
-=======
     void OnRollback()
     {
         ReleaseCreatedNodes();
     }
->>>>>>> prestable/0.17.5
 
     void ValidateCreatedNodeType(EObjectType type)
     {
