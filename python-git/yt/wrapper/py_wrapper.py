@@ -60,7 +60,7 @@ def is_local_mode(client):
 
     fqdn = None
     try:
-        fqdn = get("//sys/@local_mode_fqdn")
+        fqdn = get("//sys/@local_mode_fqdn", client=client)
     except YtResponseError as err:
         if not err.is_resolve_error():
             raise
