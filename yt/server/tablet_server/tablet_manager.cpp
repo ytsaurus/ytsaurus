@@ -1415,7 +1415,7 @@ private:
         auto chunkManager = Bootstrap_->GetChunkManager();
         auto objectManager = Bootstrap_->GetObjectManager();
 
-        if (table->GetChunkList()->GetObjectRefCounter() > 1) {
+        if (oldRootChunkList->GetObjectRefCounter() > 1) {
             auto statistics = oldRootChunkList->Statistics();
             auto* newRootChunkList = chunkManager->CreateChunkList();
 
