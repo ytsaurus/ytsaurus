@@ -167,7 +167,7 @@ void TStatistics::Persist(NPhoenix::TPersistenceContext& context)
 
 void Serialize(const TStatistics& statistics, NYson::IYsonConsumer* consumer)
 {
-    auto root = GetEphemeralNodeFactory()->CreateMap();
+    auto root = CreateEphemeralNodeFactory()->CreateMap();
     for (const auto& pair : statistics.Data()) {
         ForceYPath(root, pair.first);
         auto value = ConvertToNode(pair.second);
@@ -238,7 +238,7 @@ TDataStatistics GetTotalOutputDataStatistics(const TStatistics& jobStatistics)
 
 TStatisticsConsumer::TStatisticsConsumer(
     TSampleHandler sampleHandler)
-    : TreeBuilder_(CreateBuilderFromFactory(GetEphemeralNodeFactory()))
+    : TreeBuilder_(CreateBuilderFromFactory(CreateEphemeralNodeFactory()))
     , SampleHandler_(sampleHandler)
 { }
 

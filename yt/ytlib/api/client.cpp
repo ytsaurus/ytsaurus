@@ -1027,24 +1027,24 @@ public:
                 DROP_BRACES args)); \
     }
 
-    IMPLEMENT_METHOD(IRowsetPtr, LookupRows, (
+    virtual TFuture<IRowsetPtr> LookupRows(
         const TYPath& path,
         TNameTablePtr nameTable,
         const std::vector<NTableClient::TKey>& keys,
-        const TLookupRowsOptions& options),
-        (path, nameTable, keys, options))
-
-    virtual TFuture<IRowsetPtr> LookupRow(
-        const TYPath& path,
-        TNameTablePtr nameTable,
-        NTableClient::TKey key,
         const TLookupRowsOptions& options) override
     {
-        return LookupRows(
-            path,
-            std::move(nameTable),
-            std::vector<NTableClient::TKey>(1, key),
-            options);
+        auto rowBuffer = New<TRowBuffer>();
+        auto capturedKeys = rowBuffer->Capture(keys);
+        return Execute(
+            "LookupRows",
+            options,
+            BIND(
+                &TClient::DoLookupRows,
+                MakeStrong(this),
+                path,
+                std::move(nameTable),
+                MakeSharedRange(std::move(capturedKeys), std::move(rowBuffer)),
+                options));
     }
 
     IMPLEMENT_METHOD(TSelectRowsResult, SelectRows, (
@@ -1586,7 +1586,7 @@ private:
     IRowsetPtr DoLookupRows(
         const TYPath& path,
         TNameTablePtr nameTable,
-        const std::vector<NTableClient::TKey>& keys,
+        const TSharedRange<TKey>& keys,
         const TLookupRowsOptions& options)
     {
         return CallAndRetryIfMetadataCacheIsInconsistent([&] () {
@@ -1597,7 +1597,7 @@ private:
     IRowsetPtr DoLookupRowsOnce(
         const TYPath& path,
         TNameTablePtr nameTable,
-        const std::vector<NTableClient::TKey>& keys,
+        const TSharedRange<TKey>& keys,
         const TLookupRowsOptions& options)
     {
         auto tableInfo = SyncGetTableInfo(path);
@@ -1612,7 +1612,7 @@ private:
 
         // NB: The server-side requires the keys to be sorted.
         std::vector<std::pair<NTableClient::TKey, int>> sortedKeys;
-        sortedKeys.reserve(keys.size());
+        sortedKeys.reserve(keys.Size());
 
         auto rowBuffer = New<TRowBuffer>();
         auto evaluatorCache = Connection_->GetColumnEvaluatorCache();
@@ -1666,7 +1666,7 @@ private:
             .ThrowOnError();
 
         std::vector<TUnversionedRow> resultRows;
-        resultRows.resize(keys.size());
+        resultRows.resize(keys.Size());
 
         std::vector<std::unique_ptr<TWireProtocolReader>> readers;
 
@@ -2592,20 +2592,6 @@ public:
             adjustedOptions);
     }
 
-
-    virtual void WriteRow(
-        const TYPath& path,
-        TNameTablePtr nameTable,
-        TUnversionedRow row,
-        const TWriteRowsOptions& options) override
-    {
-        WriteRows(
-            path,
-            std::move(nameTable),
-            std::vector<TUnversionedRow>(1, row),
-            options);
-    }
-
     virtual void WriteRows(
         const TYPath& path,
         TNameTablePtr nameTable,
@@ -2620,20 +2606,6 @@ public:
             options)));
         LOG_DEBUG("Row writes buffered (RowCount: %v)",
             rows.size());
-    }
-
-
-    virtual void DeleteRow(
-        const TYPath& path,
-        TNameTablePtr nameTable,
-        NTableClient::TKey key,
-        const TDeleteRowsOptions& options) override
-    {
-        DeleteRows(
-            path,
-            std::move(nameTable),
-            std::vector<NTableClient::TKey>(1, key),
-            options);
     }
 
     virtual void DeleteRows(
@@ -2675,12 +2647,6 @@ public:
         } \
     }
 
-    DELEGATE_TIMESTAMPED_METHOD(TFuture<IRowsetPtr>, LookupRow, (
-        const TYPath& path,
-        TNameTablePtr nameTable,
-        NTableClient::TKey key,
-        const TLookupRowsOptions& options),
-        (path, nameTable, key, options))
     DELEGATE_TIMESTAMPED_METHOD(TFuture<IRowsetPtr>, LookupRows, (
         const TYPath& path,
         TNameTablePtr nameTable,

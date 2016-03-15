@@ -1,0 +1,63 @@
+{
+  "$attributes": {
+    "suspended": false,
+    "weight": 1,
+    "authenticated_user": "ignat",
+    "brief_progress": {
+      "jobs": {
+        "total": 1,
+        "pending": 0,
+        "running": 0,
+        "completed": 1,
+        "failed": 0,
+        "aborted": {
+          "total": 0,
+          "scheduler": 0,
+          "failed_chunks": 0,
+          "resource_overdraft": 0,
+          "other": 0,
+          "preemption": 0
+        },
+        "lost": 0
+      }
+    },
+    "brief_spec": {
+      "title": "Supervised by transfer task 7982922c-84c2a22a-2ccc01a7-7fe321a2",
+      "input_table_paths": {
+        "$attributes": {
+          "count": 1
+        },
+        "$value": [
+          {
+            "$attributes": {
+              "append": "false"
+            },
+            "$value": "//tmp/yt_wrapper/table_storage/#8431-4c0202-3ec0191-81d5de9eb1TxrFlchH"
+          }
+        ]
+      },
+      "output_table_paths": {
+        "$attributes": {
+          "count": 1
+        },
+        "$value": [
+          {
+            "$attributes": {
+              "append": "false"
+            },
+            "$value": "//tmp/test/table/from/plato"
+          }
+        ]
+      },
+      "mapper": {
+        "command": "bash read_from_yt.sh"
+      },
+      "pool": "ignat"
+    },
+    "finish_time": "2016-02-25T23:52:30.321734Z",
+    "operation_type": "map",
+    "start_time": "2016-02-25T23:50:33.741985Z",
+    "state": "completed"
+  },
+  "$value": "19b5c14-c41a6620-7fa0d708-29a241d2"
+}
