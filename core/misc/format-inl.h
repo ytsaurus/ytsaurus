@@ -410,7 +410,7 @@ struct TArgFormatterImpl;
 template <size_t IndexBase>
 struct TArgFormatterImpl<IndexBase>
 {
-    void operator() (size_t index, TStringBuilder* builder, const TStringBuf& /*format*/) const
+    void operator() (size_t, TStringBuilder* builder, const TStringBuf& /*format*/) const
     {
         builder->AppendString(STRINGBUF("<missing argument>"));
     }
