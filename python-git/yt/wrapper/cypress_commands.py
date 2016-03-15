@@ -1,5 +1,5 @@
 import yson
-from config import get_config
+from config import get_config, get_option
 from common import parse_bool, flatten, get_value, bool_to_string
 from errors import YtResponseError
 from transaction_commands import _make_transactional_request, \
@@ -11,7 +11,6 @@ import yt.logger as logger
 
 import os
 import string
-import random
 from copy import deepcopy
 
 import __builtin__
@@ -269,7 +268,7 @@ def find_free_subpath(path, client=None):
     LENGTH = 10
     char_set = string.ascii_letters + string.digits
     while True:
-        name = "".join([path] + random.sample(char_set, LENGTH))
+        name = "".join([path] + get_option("_random_generator", client).sample(char_set, LENGTH))
         if not exists(name, client=client):
             return name
 

@@ -116,9 +116,11 @@ def total_seconds(td):
 def get_backoff(timeout, start_time):
     return max(0.0, (timeout / 1000.0) - total_seconds(datetime.now() - start_time))
 
-def generate_uuid():
+def generate_uuid(generator=None):
+    if generator is None:
+        generator = random
     def get_int():
-        return hex(random.randint(0, 2**32 - 1))[2:].rstrip("L")
+        return hex(generator.randint(0, 2**32 - 1))[2:].rstrip("L")
     return "-".join([get_int() for _ in xrange(4)])
 
 def get_version():

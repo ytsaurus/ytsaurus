@@ -103,7 +103,7 @@ def make_request(command_name, params,
 
     if command.is_volatile and allow_retries:
         if "mutation_id" not in params:
-            params["mutation_id"] = generate_uuid()
+            params["mutation_id"] = generate_uuid(get_option("_random_generator", client))
         if "retry" not in params:
             params["retry"] = bool_to_string(False)
 
@@ -114,7 +114,7 @@ def make_request(command_name, params,
                     # NB: initially specified mutation id is ignored.
                     # Wihtput new mutation id, scheduler always reply with this error.
                     params["retry"] = bool_to_string(False)
-                    params["mutation_id"] = generate_uuid()
+                    params["mutation_id"] = generate_uuid(get_option("_random_generator", client))
                 else:
                     params["retry"] = bool_to_string(True)
                 if command.input_type is None:
@@ -133,7 +133,7 @@ def make_request(command_name, params,
     # prepare params, format and headers
     headers = {"User-Agent": "Python wrapper " + get_version(),
                "Accept-Encoding": get_config(client)["proxy"]["accept_encoding"],
-               "X-YT-Correlation-Id": generate_uuid()}
+               "X-YT-Correlation-Id": generate_uuid(get_option("_random_generator", client))}
 
     header_format = get_header_format(client)
     if header_format not in ["json", "yson"]:
