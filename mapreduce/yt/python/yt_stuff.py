@@ -92,7 +92,7 @@ class YtStuff:
         try:
             args = ["start", "--path=%s" % self.yt_work_dir]
             if self.tmpfs_path:
-                args.extend("--tmpfs_path=%s" % self.tmpfs_path)
+                args.append("--tmpfs_path=%s" % self.tmpfs_path)
             res = self._yt_local(*args)
         except Exception, e:
             self._log("Failed to start local YT:")
