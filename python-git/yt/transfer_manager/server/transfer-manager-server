@@ -1201,9 +1201,8 @@ class Application(object):
                 "pool": task.pool
             }
 
-            copy_spec = update(get_value(task.copy_spec, {}), common_spec)
-
-            postprocess_spec = update(get_value(task.postprocess_spec, {}), common_spec)
+            copy_spec = update(deepcopy(common_spec), get_value(task.copy_spec, {}))
+            postprocess_spec = update(deepcopy(common_spec), get_value(task.postprocess_spec, {}))
 
             source_client = task.get_source_client(clusters_configuration.clusters)
             source_client.message_queue = message_queue
