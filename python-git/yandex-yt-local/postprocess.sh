@@ -24,31 +24,36 @@ download_and_extract() {
     dpkg -x ${package}_*.deb $package
 }
 
-yandex_yt_local_version=$(dpkg-parsechangelog | grep Version | awk '{print $2}')
-yandex_yt_python_version="0.6.89-0"
-yandex_yt_versions="0.17.5-prestable-without-yt~7966~df46c24 18.2.19561-prestable-without-yt~a62ea2a"
-yandex_yt_yson_bindings_version="0.2.26-0"
-nodejs_version="0.8.26"
+create_archive() {
+    local yt_local_version="$1" && shift
+    local yt_version="$1" && shift
+    local yt_python_version="$1" && shift
+    local yt_yson_bindings_version="$1" && shift
 
-current_dir=$(pwd)
+    local nodejs_version="0.8.26"  # Fixed for now
 
-for yt_version in $yandex_yt_versions; do
-    echo "Making archive with yandex-yt=$yt_version"
+    echo -ne "Making archive with the following packages:\n" \
+             "    yandex-yt=${yt_version}\n" \
+             "    yandex-yt-local=${yt_local_version}\n" \
+             "    yandex-yt-python=${yt_python_version}\n" \
+             "    yandex-yt-python-yson=${yt_yson_bindings_version}\n"
 
-    versions_str="${yandex_yt_local_version}${yandex_yt_python_version}${yt_version}${yandex_yt_yson_bindings_version}"
-    hash_str=$(echo -ne $VERSIONS | md5sum | head -c 8)
-    archive_name="yt_local_${hash_str}_${UBUNTU_CODENAME}_archive.tgz"
+    local current_dir="$(pwd)"
 
-    tmp_dir="$(mktemp -d /tmp/$(basename $0).XXXXXX)"
+    local versions_str="${yt_local_version}${yt_python_version}${yt_version}${yt_yson_bindings_version}"
+    local hash_str=$(echo -ne $versions_str | md5sum | head -c 8)
+    local archive_name="yt_local_${hash_str}_${UBUNTU_CODENAME}_archive.tgz"
+
+    local tmp_dir="$(mktemp -d /tmp/$(basename $0).XXXXXX)"
     find $(pwd)/.. -name 'yandex-yt-local_*.deb' -exec cp -r {} $tmp_dir \;
     cd "$tmp_dir"
 
     dpkg -x yandex-yt-local_*.deb "yandex-yt-local"
-    download_and_extract yandex-yt-python $yandex_yt_python_version
     download_and_extract yandex-yt $yt_version
     download_and_extract yandex-yt-http-proxy $yt_version
     download_and_extract yandex-yt-python-driver $yt_version
-    download_and_extract yandex-yt-python-yson $yandex_yt_yson_bindings_version
+    download_and_extract yandex-yt-python $yt_python_version
+    download_and_extract yandex-yt-python-yson $yt_yson_bindings_version
     download_and_extract yandex-yt-web-interface
     download_and_extract nodejs $nodejs_version
 
@@ -81,18 +86,32 @@ for yt_version in $yandex_yt_versions; do
 
     cp -r nodejs/usr/* archive/node
 
-    cd archive
-    tar cvfz $archive_name .
-    cd -
+    tar cvfz "$archive_name" -C "archive" .
 
-    cat $archive_name | $YT upload //home/files/${archive_name} --proxy locke
-    $YT set //home/files/${archive_name}/@packages_versions "{\
+    local archive_path="//home/files/${archive_name}"
+
+    cat "$archive_name" | $YT upload "$archive_path" --proxy locke
+    $YT set --proxy locke //home/files/${archive_name}/@packages_versions "{\
           yandex-yt=\"$yt_version\"; \
-          yandex-yt-local=\"$yandex_yt_local_version\";\
-          yandex-yt-python=\"$yandex_yt_python_version\";\
-          yandex-yt-python-yson=\"$yandex_yt_yson_bindings_version\"}" --proxy locke
+          yandex-yt-local=\"$yt_local_version\";\
+          yandex-yt-python=\"$yt_python_version\";\
+          yandex-yt-python-yson=\"$yt_yson_bindings_version\"}"
 
     cd "$current_dir"
 
     rm -rf "$tmp_dir"
+
+    echo "Done! Archive path: $archive_path"
+}
+
+YANDEX_YT_LOCAL_VERSION=$(dpkg-parsechangelog | grep Version | awk '{print $2}')
+YANDEX_YT_PYTHON_VERSION="0.6.89-0"
+YANDEX_YT_VERSIONS="0.17.5-prestable-without-yt~7966~df46c24 18.2.19561-prestable-without-yt~a62ea2a"
+YANDEX_YT_PYTHON_BINDINGS_VERSION="0.2.26-0"
+
+for YANDEX_YT_VERSION in $YANDEX_YT_VERSIONS; do
+    create_archive "$YANDEX_YT_LOCAL_VERSION" \
+                   "$YANDEX_YT_VERSION" \
+                   "$YANDEX_YT_PYTHON_VERSION" \
+                   "$YANDEX_YT_PYTHON_BINDINGS_VERSION"
 done
