@@ -873,6 +873,7 @@ TOperationControllerBase::TOperationControllerBase(
     , TotalEstimatedInputRowCount(0)
     , TotalEstimatedInputValueCount(0)
     , TotalEstimatedCompressedDataSize(0)
+    , ChunkLocatedCallCount(0)
     , UnavailableInputChunkCount(0)
     , JobCounter(0)
     , AsyncSchedulerTransactionId(NullTransactionId)
@@ -928,13 +929,6 @@ void TOperationControllerBase::Initialize()
             "Too many input tables: maximum allowed %v, actual %v",
             Config->MaxInputTableCount,
             InputTables.size());
-    }
-
-    if (OutputTables.size() > Config->MaxOutputTableCount) {
-        THROW_ERROR_EXCEPTION(
-            "Too many output tables: maximum allowed %v, actual %v",
-            Config->MaxOutputTableCount,
-            OutputTables.size());
     }
 
     DoInitialize();
@@ -1569,6 +1563,14 @@ void TOperationControllerBase::OnInputChunkUnavailable(const TChunkId& chunkId, 
     if (descriptor.State != EInputChunkState::Active)
         return;
 
+    ++ChunkLocatedCallCount;
+    if (ChunkLocatedCallCount >= Config->MaxChunksPerScratch) {
+        ChunkLocatedCallCount = 0;
+        LOG_DEBUG("Located another batch of chunks (Count: %v, UnavailableInputChunkCount: %v)",
+            Config->MaxChunksPerScratch,
+            UnavailableInputChunkCount);
+    }
+
     LOG_TRACE("Input chunk is unavailable (ChunkId: %v)", chunkId);
 
     ++UnavailableInputChunkCount;
@@ -1748,6 +1750,16 @@ void TOperationControllerBase::UpdateTask(TTaskPtr task)
         oldTotalJobCount,
         newTotalJobCount,
         FormatResources(CachedNeededResources));
+
+    i64 outputTablesTimesJobsCount = OutputTables.size() * newTotalJobCount;
+    if (outputTablesTimesJobsCount > Config->MaxOutputTablesTimesJobsCount) {
+        OnOperationFailed(TError(
+                "Maximum allowed number of output tables times job count violated: %v > %v",
+                outputTablesTimesJobsCount,
+                Config->MaxOutputTablesTimesJobsCount)
+            << TErrorAttribute("output_table_count", OutputTables.size())
+            << TErrorAttribute("job_count", newTotalJobCount));
+    }
 
     task->CheckCompleted();
 }
@@ -2482,6 +2494,7 @@ void TOperationControllerBase::FetchInputTables()
                 req->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
                 if (IsBoundaryKeysFetchEnabled()) {
                     req->add_extension_tags(TProtoExtensionTag<NTableClient::NProto::TBoundaryKeysExt>::Value);
+                    req->add_extension_tags(TProtoExtensionTag<NTableClient::NProto::TOldBoundaryKeysExt>::Value);
                 }
                 req->set_fetch_parity_replicas(IsParityReplicasFetchEnabled());
                 SetTransactionId(req, InputTransactionId);

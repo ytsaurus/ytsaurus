@@ -78,9 +78,9 @@ Bind(
             void(typename NMpl::TDecay<TAs>::TType...)
         > TTypedBindState;
 
-    NYT::NDetail::TCheckFirstArgument<TRunnable, TAs...> checkFirstArgument;
+    NYT::NDetail::TCheckFirstArgument<TRunnable, typename NMpl::TDecay<TAs>::TType...> checkFirstArgument;
     NYT::NDetail::TCheckReferencesInBoundArgs<typename TTypedBindState::TBoundArgsPack> checkReferencesInBoundArgs;
-    NYT::NDetail::TCheckParamsIsRawPtrToRefCountedType<TAs...> checkParamsIsRawPtrToRefCountedType;
+    NYT::NDetail::TCheckParamsIsRawPtrToRefCountedType<typename NMpl::TDecay<TAs>::TType...> checkParamsIsRawPtrToRefCountedType;
 
     UNUSED(checkFirstArgument);
     UNUSED(checkReferencesInBoundArgs);

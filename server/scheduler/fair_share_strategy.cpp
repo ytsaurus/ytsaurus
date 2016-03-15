@@ -7,8 +7,6 @@
 
 #include <yt/core/misc/common.h>
 
-#include <iostream>
-
 namespace NYT {
 namespace NScheduler {
 
@@ -638,6 +636,7 @@ public:
         return Children.empty() && DisabledChildren.empty();
     }
 
+    virtual int GetMaxOperationCount() const = 0;
     virtual int GetMaxRunningOperationCount() const = 0;
 
     DEFINE_BYVAL_RW_PROPERTY(TCompositeSchedulerElement*, Parent);
@@ -968,6 +967,13 @@ public:
         return Config_->MaxRunningOperations
             ? *(Config_->MaxRunningOperations)
             : StrategyConfig_->MaxRunningOperationsPerPool;
+    }
+
+    virtual int GetMaxOperationCount() const override
+    {
+        return Config_->MaxOperations
+            ? *(Config_->MaxOperations)
+            : StrategyConfig_->MaxOperationsPerPool;
     }
 
 private:
@@ -1435,6 +1441,11 @@ public:
         return StrategyConfig_->MaxRunningOperations;
     }
 
+    virtual int GetMaxOperationCount() const override
+    {
+        return StrategyConfig_->MaxOperationCount;
+    }
+
 private:
     TFairShareStrategyConfigPtr StrategyConfig_;
 };
@@ -1645,6 +1656,34 @@ public:
             FormatResources(resourceDiscount));
     }
 
+    virtual TError CanAddOperation(TOperationPtr operation) override
+    {
+        auto spec = ParseSpec(operation, operation->GetSpec());
+        auto poolName = spec->Pool ? *spec->Pool : operation->GetAuthenticatedUser();
+        auto pool = FindPool(poolName);
+        TCompositeSchedulerElement* poolElement;
+        if (!pool) {
+            auto defaultPool = FindPool(Config->DefaultParentPool);
+            if (!defaultPool) {
+                poolElement = RootElement.Get();
+            } else {
+                poolElement = defaultPool.Get();
+            }
+        } else {
+            poolElement = pool.Get();
+        }
+
+        auto poolWithViolatedLimit = FindPoolWithViolatedOperationCountLimit(poolElement);
+        if (poolWithViolatedLimit) {
+            return TError(
+                EErrorCode::TooManyOperations,
+                "Limit for the number of concurrent operations %v for pool %v has been reached",
+                poolWithViolatedLimit->GetMaxOperationCount(),
+                poolWithViolatedLimit->GetId());
+        }
+        return TError();
+    }
+
     virtual void BuildOperationAttributes(const TOperationId& operationId, IYsonConsumer* consumer) override
     {
         auto element = GetOperationElement(operationId);
@@ -1661,7 +1700,7 @@ public:
             .Item("pool").Value(pool->GetId())
             .Item("start_time").Value(element->DynamicAttributes().MinSubtreeStartTime)
             .Item("preemptable_job_count").Value(element->PreemptableJobs().size())
-            .Do(BIND(&TFairShareStrategy::BuildElementYson, pool, element));
+            .Do(BIND(&TFairShareStrategy::BuildElementYson, MakeStrong(pool), element));
     }
 
     virtual void BuildBriefOperationProgress(const TOperationId& operationId, IYsonConsumer* consumer) override
@@ -1749,6 +1788,7 @@ private:
 
     std::list<TOperationPtr> OperationQueue;
     yhash_map<Stroka, int> RunningOperationCount;
+    yhash_map<Stroka, int> OperationCount;
 
     TRootElementPtr RootElement;
     TNullable<TInstant> LastUpdateTime;
@@ -1842,6 +1882,9 @@ private:
         if (!pool->GetParent()) {
             SetPoolDefaultParent(pool);
         }
+
+        IncreaseOperationCount(pool.Get(), 1);
+
         pool->AddChild(operationElement, false);
         pool->IncreaseUsage(operationElement->ResourceUsage());
         operationElement->SetPool(pool.Get());
@@ -1851,6 +1894,25 @@ private:
         } else {
             OperationQueue.push_back(operation);
             operation->SetQueued(true);
+        }
+    }
+
+    TCompositeSchedulerElementPtr FindPoolWithViolatedOperationCountLimit(TCompositeSchedulerElement* element)
+    {
+        while (element) {
+            if (OperationCount[element->GetId()] >= element->GetMaxOperationCount()) {
+                return element;
+            }
+            element = element->GetParent();
+        }
+        return nullptr;
+    }
+
+    void IncreaseOperationCount(TCompositeSchedulerElement* element, int delta)
+    {
+        while (element) {
+            OperationCount[element->GetId()] += delta;
+            element = element->GetParent();
         }
     }
 
@@ -1884,6 +1946,7 @@ private:
         DynamicAttributesMap.Erase(operationElement);
         pool->RemoveChild(operationElement);
         pool->IncreaseUsage(-operationElement->ResourceUsage());
+        IncreaseOperationCount(pool, -1);
 
         LOG_INFO("Operation removed from pool (OperationId: %v, Pool: %v)",
             operation->GetId(),

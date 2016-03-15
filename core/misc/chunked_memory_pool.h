@@ -23,7 +23,7 @@ public:
 
     template <class TTag>
     explicit TChunkedMemoryPool(
-        TTag,
+        TTag tag = TTag(),
         i64 chunkSize = DefaultChunkSize,
         double maxSmallBlockSizeRatio = DefaultMaxSmallBlockSizeRatio)
         : TChunkedMemoryPool(

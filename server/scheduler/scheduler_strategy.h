@@ -45,6 +45,8 @@ struct ISchedulerStrategy
 
     virtual void ScheduleJobs(ISchedulingContext* schedulingContext) = 0;
 
+    virtual TError CanAddOperation(TOperationPtr operation) = 0;
+
     //! Builds a YSON structure containing a set of attributes to be assigned to operation's node
     //! in Cypress during creation.
     virtual void BuildOperationAttributes(

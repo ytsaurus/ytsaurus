@@ -21,6 +21,11 @@ public:
     virtual void ScheduleJobs(ISchedulingContext* /*context*/) override
     { }
 
+    virtual TError CanAddOperation(TOperationPtr operation) override
+    {
+        return TError();
+    }
+
     virtual void BuildOperationAttributes(const TOperationId& /*operationId*/, IYsonConsumer* /*consumer*/) override
     { }
 

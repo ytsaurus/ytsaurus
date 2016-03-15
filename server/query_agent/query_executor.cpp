@@ -223,8 +223,7 @@ private:
                     options.EnableCodeCache);
                 LOG_DEBUG("Finished evaluating top query (TopQueryId: %v)", topQuery->Id);
                 return result;
-            },
-            FunctionRegistry_);
+            });
     }
 
     TQueryStatistics DoExecute(
@@ -331,7 +330,7 @@ private:
                     query,
                     MOVE(groupedSplit),
                     timestamp,
-                    &workloadDescriptor,
+                    workloadDescriptor,
                     index = 0,
                     this_ = MakeStrong(this)
                 ] () mutable -> ISchemafulReaderPtr {
@@ -403,7 +402,7 @@ private:
                             MOVE(groupedKeys),
                             tablePartId,
                             timestamp,
-                            &workloadDescriptor,
+                            workloadDescriptor,
                             index = 0,
                             this_ = MakeStrong(this)
                         ] () mutable -> ISchemafulReaderPtr {
@@ -414,7 +413,7 @@ private:
 
                                 // TODO(lukyan): Validate timestamp and read permission
                                 return CreateSchemafulTabletReader(
-                                    std::move(tabletSnapshot),
+                                    tabletSnapshot,
                                     query->TableSchema,
                                     group.first,
                                     group.second,

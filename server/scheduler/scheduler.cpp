@@ -279,7 +279,9 @@ public:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         if (static_cast<int>(IdToOperation_.size()) >= Config_->MaxOperationCount) {
-            THROW_ERROR_EXCEPTION("Limit for the number of concurrent operations %v has been reached",
+            THROW_ERROR_EXCEPTION(
+                EErrorCode::TooManyOperations,
+                "Limit for the number of concurrent operations %v has been reached",
                 Config_->MaxOperationCount);
         }
 
@@ -298,6 +300,13 @@ public:
             spec = NYTree::UpdateNode(specTemplate, spec)->AsMap();
         }
 
+        TOperationSpecBasePtr operationSpec;
+        try {
+            operationSpec = ConvertTo<TOperationSpecBasePtr>(spec);
+        } catch (const std::exception& ex) {
+            THROW_ERROR_EXCEPTION("Error parsing operation spec") << ex;
+        }
+
         // Create operation object.
         auto operationId = TOperationId::Create();
         auto operation = New<TOperation>(
@@ -307,9 +316,15 @@ public:
             userTransaction,
             spec,
             user,
+            operationSpec->Owners,
             TInstant::Now());
         operation->SetCleanStart(true);
         operation->SetState(EOperationState::Initializing);
+
+        auto error = Strategy_->CanAddOperation(operation);
+        if (!error.IsOK()) {
+            THROW_ERROR error;
+        }
 
         LOG_INFO("Starting operation (OperationType: %v, OperationId: %v, TransactionId: %v, User: %v)",
             type,

@@ -19,8 +19,6 @@
 
 #include <yt/core/ytree/convert.h>
 
-#include <mutex>
-
 namespace NYT {
 namespace NQueryClient {
 
@@ -120,7 +118,7 @@ TDescriptor LookupDescriptor(
 {
     LOG_DEBUG("Looking for implementation of function %Qv in Cypress",
         functionName);
-    
+
     auto getDescriptorOptions = NApi::TGetNodeOptions();
     getDescriptorOptions.AttributeFilter = TAttributeFilter(
         EAttributeFilterMode::MatchingOnly,

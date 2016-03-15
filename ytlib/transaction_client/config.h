@@ -12,7 +12,7 @@ namespace NTransactionClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTransactionManagerConfig
-    : public NYTree::TYsonSerializable
+    : public NRpc::TRetryingChannelConfig
 {
 public:
     //! Internal between consecutive transaction pings.

@@ -116,7 +116,7 @@ public:
         Reset();
     }
 
-    TNullable& operator=(TNull)
+    TNullable& operator=(TNull value)
     {
         Reset();
         return *this;

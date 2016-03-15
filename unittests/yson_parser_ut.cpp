@@ -459,12 +459,22 @@ TEST_F(TYsonParserTest, MemoryLimit)
     Run("  {    }   ", EYsonType::Node, 1024);
 }
 
+TEST_F(TYsonParserTest, MemoryLimitFit)
+{
+    EXPECT_CALL(Mock, OnBeginMap());
+    EXPECT_CALL(Mock, OnKeyedItem("key"));
+    EXPECT_CALL(Mock, OnStringScalar(Stroka(1024, 'a')));
+    EXPECT_CALL(Mock, OnEndMap());
+
+    Run("{key=" + Stroka(1024, 'a') + "}", EYsonType::Node, 1024);
+}
+
 TEST_F(TYsonParserTest, MemoryLimitExceeded)
 {
     EXPECT_CALL(Mock, OnBeginMap());
     EXPECT_CALL(Mock, OnKeyedItem("key"));
 
-    EXPECT_THROW(Run("{key=" + Stroka(10000, 'a') + "}", EYsonType::Node, 1024), std::exception);
+    EXPECT_THROW(Run("{key=" + Stroka(1025, 'a') + "}", EYsonType::Node, 1024), std::exception);
 }
 
 TEST_F(TYsonParserTest, DepthLimitExceeded)

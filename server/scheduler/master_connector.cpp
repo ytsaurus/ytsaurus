@@ -127,13 +127,14 @@ public:
         }
 
         {
+            auto owners = operation->GetOwners();
+            owners.push_back(operation->GetAuthenticatedUser());
+
             auto acl = NYTree::BuildYsonNodeFluently()
                 .BeginList()
                     .Item().BeginMap()
                         .Item("action").Value(ESecurityAction::Allow)
-                        .Item("subjects").BeginList()
-                            .Item().Value(operation->GetAuthenticatedUser())
-                        .EndList()
+                        .Item("subjects").Value(owners)
                         .Item("permissions").BeginList()
                             .Item().Value(EPermission::Write)
                         .EndList()
@@ -744,7 +745,8 @@ private:
                         BIND([=] (const TError& error) {
                             if (!error.IsOK() && !operation->GetCleanStart()) {
                                 operation->SetCleanStart(true);
-                                LOG_INFO("Error renewing operation transaction, will use clean start (OperationId: %v, TransactionId: %v)",
+                                LOG_INFO(error,
+                                    "Error renewing operation transaction, will use clean start (OperationId: %v, TransactionId: %v)",
                                     operation->GetId(),
                                     transaction->GetId());
                             }
@@ -981,7 +983,7 @@ private:
                 options.PingAncestors = false;
                 return transactionManager->Attach(transactionId, options);
             } catch (const std::exception& ex) {
-                LOG_ERROR("Error attaching operation transaction (OperationId: %v, TransactionId: %v)",
+                LOG_ERROR(ex, "Error attaching operation transaction (OperationId: %v, TransactionId: %v)",
                     operationId,
                     transactionId);
                 return nullptr;
@@ -1008,13 +1010,24 @@ private:
             attributes.Get<TTransactionId>("output_transaction_id"),
             true);
 
+        auto spec = attributes.Get<INodePtr>("spec")->AsMap();
+        TOperationSpecBasePtr operationSpec;
+        try {
+            operationSpec = ConvertTo<TOperationSpecBasePtr>(spec);
+        } catch (const std::exception& ex) {
+            LOG_ERROR(ex, "Error parsing operation spec (OperationId: %v)",
+                operationId);
+            return nullptr;
+        }
+
         auto operation = New<TOperation>(
             operationId,
             attributes.Get<EOperationType>("operation_type"),
             attributes.Get<TMutationId>("mutation_id"),
             userTransaction,
-            attributes.Get<INodePtr>("spec")->AsMap(),
+            spec,
             attributes.Get<Stroka>("authenticated_user"),
+            operationSpec->Owners,
             attributes.Get<TInstant>("start_time"),
             attributes.Get<EOperationState>("state"),
             attributes.Get<bool>("suspended"));
