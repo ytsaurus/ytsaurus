@@ -221,7 +221,9 @@ TDynamicRowRef TStoreManager::WriteRowAtomic(
     TUnversionedRow row,
     bool prelock)
 {
-    ValidateOnWrite(transaction->GetId(), row);
+    if (prelock) {
+        ValidateOnWrite(transaction->GetId(), row);
+    }
 
     ui32 lockMask = ComputeLockMask(row);
 
@@ -246,7 +248,8 @@ void TStoreManager::WriteRowNonAtomic(
     TTimestamp commitTimestamp,
     TUnversionedRow row)
 {
-    ValidateOnWrite(transactionId, row);
+    // TODO(sandello): YT-4148
+    // ValidateOnWrite(transactionId, row);
 
     const auto& store = Tablet_->GetActiveStore();
     store->WriteRowNonAtomic(row, commitTimestamp);
@@ -257,9 +260,9 @@ TDynamicRowRef TStoreManager::DeleteRowAtomic(
     TKey key,
     bool prelock)
 {
-    ValidateOnDelete(transaction->GetId(), key);
-
     if (prelock) {
+        ValidateOnDelete(transaction->GetId(), key);
+
         CheckInactiveStoresLocks(
             transaction,
             key,
@@ -279,7 +282,8 @@ void TStoreManager::DeleteRowNonAtomic(
     TTimestamp commitTimestamp,
     TKey key)
 {
-    ValidateOnDelete(transactionId, key);
+    // TODO(sandello): YT-4148
+    // ValidateOnDelete(transactionId, key);
 
     const auto& store = Tablet_->GetActiveStore();
     store->DeleteRowNonAtomic(key, commitTimestamp);

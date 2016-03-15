@@ -247,8 +247,7 @@ bool TVersionedRangeChunkReader::Read(std::vector<TVersionedRow>* rows)
         ++CurrentRowIndex_;
         if (!BlockReader_->NextRow()) {
             BlockEnded_ = true;
-            PerformanceCounters_->StaticChunkRowReadCount += rows->size();
-            return true;
+            break;
         }
     }
 
@@ -737,12 +736,20 @@ public:
 
     virtual bool Read(std::vector<TVersionedRow>* rows) override
     {
+        // Drop all references except the last one, as the last surviving block
+        // reader may still be alive.
+        if (!RetainedUncompressedBlocks_.empty()) {
+            RetainedUncompressedBlocks_.erase(
+                RetainedUncompressedBlocks_.begin(),
+                RetainedUncompressedBlocks_.end() - 1);
+        }
+
         MemoryPool_.Clear();
-        UncompressedBlocks_.clear();
-        LastUncompressedBlockIndex_ = -1;
         rows->clear();
 
         if (Finished_) {
+            // Now we may safely drop all references to blocks.
+            RetainedUncompressedBlocks_.clear();
             return false;
         }
 
@@ -781,14 +788,19 @@ protected:
         return it == rend ? 0 : std::distance(it, rend);
     }
 
-    TSharedRef CaptureUncompressedBlock(int blockIndex)
+    const TSharedRef& GetUncompressedBlock(int blockIndex)
     {
-        // NB: requested block indexes are ascending, even in lookups.
+        YCHECK(blockIndex >= LastUncompressedBlockIndex_);
+
         if (LastUncompressedBlockIndex_ != blockIndex) {
-            LastUncompressedBlock_ = GetUncompressedBlock(blockIndex);
+            auto uncompressedBlock = GetUncompressedBlockFromCache(blockIndex);
+            // Retain a reference to prevent uncompressed block from being evicted.
+            // This may happen, for example, if the table is compressed.
+            RetainedUncompressedBlocks_.push_back(uncompressedBlock);
+            LastUncompressedBlockIndex_ = blockIndex;
         }
 
-        return LastUncompressedBlock_;
+        return RetainedUncompressedBlocks_.back();
     }
 
     template <class TBlockReader>
@@ -800,27 +812,20 @@ protected:
 private:
     bool Finished_ = false;
 
-    TSharedRef LastUncompressedBlock_;
-    int LastUncompressedBlockIndex_ = -1;
-
     //! Holds uncompressed blocks for the returned rows (for string references).
     //! In compressed mode, also serves as a per-request cache of uncompressed blocks.
-    std::vector<TSharedRef> UncompressedBlocks_;
+    SmallVector<TSharedRef, 2> RetainedUncompressedBlocks_;
+    int LastUncompressedBlockIndex_ = -1;
 
     //! Holds row values for the returned rows.
     TChunkedMemoryPool MemoryPool_;
 
-
-    TSharedRef GetUncompressedBlock(int blockIndex)
+    TSharedRef GetUncompressedBlockFromCache(int blockIndex)
     {
         TBlockId blockId(ChunkMeta_->GetChunkId(), blockIndex);
 
         auto uncompressedBlock = BlockCache_->Find(blockId, EBlockType::UncompressedData);
         if (uncompressedBlock) {
-            // In compressed in-memory mode we could still happen to find block in
-            // uncompressed cache, but to guarantee proper block lifetime, we have to 
-            // explicitly capture it.
-            UncompressedBlocks_.push_back(uncompressedBlock);
             return uncompressedBlock;
         }
 
@@ -828,9 +833,7 @@ private:
         if (compressedBlock) {
             auto codecId = NCompression::ECodec(ChunkMeta_->Misc().compression_codec());
             auto* codec = NCompression::GetCodec(codecId);
-            auto block = codec->Decompress(compressedBlock);
-            UncompressedBlocks_.push_back(block);
-            return block;
+            return codec->Decompress(compressedBlock);
         }
 
         LOG_FATAL("Cached block is missing (BlockId: %v)", blockId);
@@ -874,59 +877,69 @@ private:
 
     virtual bool DoRead(std::vector<TVersionedRow>* rows) override
     {
-        int lookupCount = 0;
+        int count = 0;
 
         while (KeyIndex_ < Keys_.Size() && rows->size() < rows->capacity()) {
-            ++lookupCount;
+            ++count;
             rows->push_back(Lookup(Keys_[KeyIndex_++]));
         }
 
-        PerformanceCounters_->StaticChunkRowLookupCount += lookupCount;
+        PerformanceCounters_->StaticChunkRowLookupCount += count;
 
         return KeyIndex_ < Keys_.Size();
     }
 
     TVersionedRow Lookup(TKey key)
     {
-        //FIXME(savrus): use bloom filter here.
-
         if (LookupHashTable_) {
-            auto indices = LookupHashTable_->Find(key);
-            for (auto index : indices) {
-                const auto& uncompressedBlock = CaptureUncompressedBlock(index.first);
-                const auto& blockMeta = ChunkMeta_->BlockMeta().blocks(index.first);
+            return LookupWithHashTable(key);
+        } else {
+            return LookupWithoutHashTable(key);
+        }
+    }
 
-                TBlockReader blockReader(
-                    uncompressedBlock,
-                    blockMeta,
-                    ChunkMeta_->ChunkSchema(),
-                    ChunkMeta_->GetChunkKeyColumnCount(),
-                    ChunkMeta_->GetKeyColumnCount(),
-                    SchemaIdMapping_,
-                    KeyComparer_,
-                    Timestamp_,
-                    false);
+    TVersionedRow LookupWithHashTable(TKey key)
+    {
+        auto indices = LookupHashTable_->Find(key);
+        for (auto index : indices) {
+            const auto& uncompressedBlock = GetUncompressedBlock(index.first);
+            const auto& blockMeta = ChunkMeta_->BlockMeta().blocks(index.first);
 
-                YCHECK(blockReader.SkipToRowIndex(index.second));
+            TBlockReader blockReader(
+                uncompressedBlock,
+                blockMeta,
+                ChunkMeta_->ChunkSchema(),
+                ChunkMeta_->GetChunkKeyColumnCount(),
+                ChunkMeta_->GetKeyColumnCount(),
+                SchemaIdMapping_,
+                KeyComparer_,
+                Timestamp_,
+                false);
 
-                if (KeyComparer_(blockReader.GetKey(), key) == 0) {
-                    return CaptureRow(&blockReader);
-                }
+            YCHECK(blockReader.SkipToRowIndex(index.second));
+
+            if (KeyComparer_(blockReader.GetKey(), key) == 0) {
+                return CaptureRow(&blockReader);
             }
-
-            return TVersionedRow();
         }
 
+        return TVersionedRow();
+    }
+
+    TVersionedRow LookupWithoutHashTable(TKey key)
+    {
+        // FIXME(savrus): Use bloom filter here.
         if (KeyComparer_(key, ChunkMeta_->MinKey().Get()) < 0 || KeyComparer_(key, ChunkMeta_->MaxKey().Get()) > 0) {
             return TVersionedRow();
         }
 
         int blockIndex = GetBlockIndex(key);
-        const auto& uncompressedBlock = CaptureUncompressedBlock(blockIndex);
+        const auto& uncompressedBlock = GetUncompressedBlock(blockIndex);
+        const auto& blockMeta = ChunkMeta_->BlockMeta().blocks(blockIndex);
 
         TBlockReader blockReader(
             uncompressedBlock,
-            ChunkMeta_->BlockMeta().blocks(blockIndex),
+            blockMeta,
             ChunkMeta_->ChunkSchema(),
             ChunkMeta_->GetChunkKeyColumnCount(),
             ChunkMeta_->GetKeyColumnCount(),
@@ -1039,16 +1052,19 @@ private:
 
     void CreateBlockReader()
     {
-        auto uncompressedBlock = CaptureUncompressedBlock(BlockIndex_);
+        const auto& uncompressedBlock = GetUncompressedBlock(BlockIndex_);
+        const auto& blockMeta = ChunkMeta_->BlockMeta().blocks(BlockIndex_);
+
         BlockReader_ = std::make_unique<TBlockReader>(
-            std::move(uncompressedBlock),
-            ChunkMeta_->BlockMeta().blocks(BlockIndex_),
+            uncompressedBlock,
+            blockMeta,
             ChunkMeta_->ChunkSchema(),
             ChunkMeta_->GetChunkKeyColumnCount(),
             ChunkMeta_->GetKeyColumnCount(),
             SchemaIdMapping_,
             KeyComparer_,
             Timestamp_);
+
         UpperBoundCheckNeeded_ = (UpperBound_.Get() <= ChunkMeta_->BlockLastKeys()[BlockIndex_]);
     }
 };

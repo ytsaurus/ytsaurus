@@ -875,13 +875,11 @@ void TDecoratedAutomaton::CommitMutations(TVersion version, bool mayYield)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    if (version <= CommittedVersion_)
-        return;
-
-    CommittedVersion_ = version;
-
-    LOG_DEBUG("Committed version promoted to %v",
-        version);
+    if (version > CommittedVersion_) {
+        CommittedVersion_ = version;
+        LOG_DEBUG("Committed version promoted to %v",
+            version);
+    }
 
     ApplyPendingMutations(mayYield);
 }

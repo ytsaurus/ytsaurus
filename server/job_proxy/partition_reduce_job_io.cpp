@@ -62,7 +62,7 @@ public:
             Host_->GetNodeDirectory(),
             keyColumns,
             nameTable,
-            BIND(&IJobHost::ReleaseNetwork, Host_),
+            BIND(&IJobHost::ReleaseNetwork, MakeStrong(Host_)),
             chunks,
             SchedulerJobSpec_.input_row_count(),
             SchedulerJobSpec_.is_approximate());

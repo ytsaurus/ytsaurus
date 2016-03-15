@@ -45,6 +45,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/concurrency/fls.cpp
   ${CMAKE_CURRENT_LIST_DIR}/concurrency/fork_aware_spinlock.cpp
   ${CMAKE_CURRENT_LIST_DIR}/concurrency/invoker_queue.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/concurrency/parallel_awaiter.cpp
   ${CMAKE_CURRENT_LIST_DIR}/concurrency/periodic_executor.cpp
   ${CMAKE_CURRENT_LIST_DIR}/concurrency/private.cpp
   ${CMAKE_CURRENT_LIST_DIR}/concurrency/scheduler.cpp
@@ -85,6 +86,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/misc/demangle.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/error.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/error.proto
+  ${CMAKE_CURRENT_LIST_DIR}/misc/format.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/fs.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/guid.cpp
   ${CMAKE_CURRENT_LIST_DIR}/misc/guid.proto
@@ -221,10 +223,10 @@ OWNER(sandello)
 CXXFLAGS(
   -std=c++1y
   -Wno-sign-compare
+  -Wno-unused-function
   -Wno-unused-parameter
   -Wno-unused-value
   -Wno-c++14-extensions
-  -Wno-unused-function
 )
 
 ADDINCL(

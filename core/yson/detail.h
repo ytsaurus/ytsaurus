@@ -366,16 +366,43 @@ class TLexerBase
 private:
     typedef TCodedStream<TCharStream<TBlockStream, TPositionInfo<EnableLinePositionInfo> > > TBaseStream;
     std::vector<char> Buffer_;
-    TNullable<i64> MemoryLimit_;
+    TNullable<size_t> MemoryLimit_;
 
-    void CheckMemoryLimit()
+    void Insert(const char* begin, const char* end)
     {
-        if (MemoryLimit_ && Buffer_.capacity() > *MemoryLimit_) {
-            THROW_ERROR_EXCEPTION(
-                "Memory limit exceeded while parsing YSON stream: allocated %v, limit %v",
-                Buffer_.capacity(),
-                *MemoryLimit_);
+        ReserverAndCheckMemoryLimit(end - begin);
+        Buffer_.insert(Buffer_.end(), begin, end);
+    }
+
+    void PushBack(char ch)
+    {
+        ReserverAndCheckMemoryLimit(1);
+        Buffer_.push_back(ch);
+    }
+
+    void ReserverAndCheckMemoryLimit(size_t size)
+    {
+        auto minReserveSize = Buffer_.size() + size;
+        if (minReserveSize <= Buffer_.capacity()) {
+            return;
         }
+
+        auto newDefaultCapacity = std::max(Buffer_.capacity(), size_t(1)) * 2;
+
+        if (MemoryLimit_) {
+            if (minReserveSize > *MemoryLimit_) {
+                THROW_ERROR_EXCEPTION(
+                    "Memory limit exceeded while parsing YSON stream: allocated %v, limit %v",
+                    minReserveSize,
+                    *MemoryLimit_);
+            }
+
+            newDefaultCapacity = std::min(newDefaultCapacity, *MemoryLimit_);
+        }
+
+        auto reserveSize = std::max(newDefaultCapacity, minReserveSize);
+
+        Buffer_.reserve(reserveSize);
     }
 
 public:
@@ -395,12 +422,12 @@ protected:
         while (true) {
             char ch = TBaseStream::template GetChar<AllowFinish>();
             if (isdigit(ch) || ch == '+' || ch == '-') { // Seems like it can't be '+' or '-'
-                Buffer_.push_back(ch);
+                PushBack(ch);
             } else if (ch == '.' || ch == 'e' || ch == 'E') {
-                Buffer_.push_back(ch);
+                PushBack(ch);
                 result = ENumericResult::Double;
             } else if (ch == 'u') {
-                Buffer_.push_back(ch);
+                PushBack(ch);
                 result = ENumericResult::Uint64;
             } else if (isalpha(ch)) {
                 THROW_ERROR_EXCEPTION("Unexpected %Qv in numeric literal",
@@ -409,7 +436,6 @@ protected:
             } else {
                 break;
             }
-            CheckMemoryLimit();
             TBaseStream::Advance(1);
         }
 
@@ -427,7 +453,7 @@ protected:
             char ch = *TBaseStream::Begin();
             TBaseStream::Advance(1);
             if (ch != '"') {
-                Buffer_.push_back(ch);
+                PushBack(ch);
             } else {
                 // We must count the number of '\' at the end of StringValue
                 // to check if it's not \"
@@ -439,16 +465,14 @@ protected:
                 if (slashCount % 2 == 0) {
                     break;
                 } else {
-                    Buffer_.push_back(ch);
+                    PushBack(ch);
                 }
             }
-            CheckMemoryLimit();
         }
 
         auto unquotedValue = UnescapeC(Buffer_.data(), Buffer_.size());
         Buffer_.clear();
-        Buffer_.insert(Buffer_.end(), unquotedValue.data(), unquotedValue.data() + unquotedValue.size());
-        CheckMemoryLimit();
+        Insert(unquotedValue.data(), unquotedValue.data() + unquotedValue.size());
         *value = TStringBuf(Buffer_.data(), Buffer_.size());
     }
 
@@ -461,11 +485,10 @@ protected:
             if (isalpha(ch) || isdigit(ch) ||
                 ch == '_' || ch == '-' || ch == '%' || ch == '.')
             {
-                Buffer_.push_back(ch);
+                PushBack(ch);
             } else {
                 break;
             }
-            CheckMemoryLimit();
             TBaseStream::Advance(1);
         }
         *value = TStringBuf(Buffer_.data(), Buffer_.size());
@@ -504,8 +527,7 @@ protected:
                 }
                 size_t readingBytes = needToRead < TBaseStream::Length() ? needToRead : TBaseStream::Length(); // TODO: min
 
-                Buffer_.insert(Buffer_.end(), TBaseStream::Begin(), TBaseStream::Begin() + readingBytes);
-                CheckMemoryLimit();
+                Insert(TBaseStream::Begin(), TBaseStream::Begin() + readingBytes);
                 needToRead -= readingBytes;
                 TBaseStream::Advance(readingBytes);
             }
@@ -526,11 +548,11 @@ protected:
                 TStringBuf(Buffer_.data(), Buffer_.size()));
         };
 
-        Buffer_.push_back(TBaseStream::template GetChar<AllowFinish>());
+        PushBack(TBaseStream::template GetChar<AllowFinish>());
         TBaseStream::Advance(1);
         if (Buffer_[0] == trueString[0]) {
             for (int i = 1; i < trueString.Size(); ++i) {
-                Buffer_.push_back(TBaseStream::template GetChar<AllowFinish>());
+                PushBack(TBaseStream::template GetChar<AllowFinish>());
                 TBaseStream::Advance(1);
                 if (Buffer_.back() != trueString[i]) {
                     throwIncorrectBoolean();
@@ -539,7 +561,7 @@ protected:
             return true;
         } else if (Buffer_[0] == falseString[0]) {
             for (int i = 1; i < falseString.Size(); ++i) {
-                Buffer_.push_back(TBaseStream::template GetChar<AllowFinish>());
+                PushBack(TBaseStream::template GetChar<AllowFinish>());
                 TBaseStream::Advance(1);
                 if (Buffer_.back() != falseString[i]) {
                     throwIncorrectBoolean();

@@ -109,6 +109,9 @@ public:
 
     bool CheckMultichunkFiles;
 
+    //! Users that can change operation parameters, e.g abort or suspend it.
+    std::vector<Stroka> Owners;
+
     TOperationSpecBase()
     {
         RegisterParameter("intermediate_data_account", IntermediateDataAccount)
@@ -161,6 +164,9 @@ public:
         SetKeepOptions(true);
 
         RegisterParameter("time_limit", TimeLimit)
+            .Default();
+
+        RegisterParameter("owners", Owners)
             .Default();
 
         RegisterValidator([&] () {
@@ -997,7 +1003,9 @@ class TPoolConfig
 public:
     ESchedulingMode Mode;
 
+    // TODO(ignat): Rename Operations to OperationCount.
     TNullable<int> MaxRunningOperations;
+    TNullable<int> MaxOperations;
 
     std::vector<EFifoSortParameter> FifoSortParameters;
 
@@ -1007,6 +1015,9 @@ public:
             .Default(ESchedulingMode::FairShare);
 
         RegisterParameter("max_running_operations", MaxRunningOperations)
+            .Default();
+
+        RegisterParameter("max_operations", MaxOperations)
             .Default();
 
         RegisterParameter("fifo_sort_parameters", FifoSortParameters)

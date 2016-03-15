@@ -679,8 +679,7 @@ private:
                     std::move(writer),
                     FunctionRegistry_,
                     options.EnableCodeCache);
-            },
-            FunctionRegistry_);
+            });
     }
 
     TQueryStatistics DoExecute(
@@ -923,24 +922,24 @@ public:
                 DROP_BRACES args)); \
     }
 
-    IMPLEMENT_METHOD(IRowsetPtr, LookupRows, (
+    virtual TFuture<IRowsetPtr> LookupRows(
         const TYPath& path,
         TNameTablePtr nameTable,
         const std::vector<NTableClient::TKey>& keys,
-        const TLookupRowsOptions& options),
-        (path, nameTable, keys, options))
-
-    virtual TFuture<IRowsetPtr> LookupRow(
-        const TYPath& path,
-        TNameTablePtr nameTable,
-        NTableClient::TKey key,
         const TLookupRowsOptions& options) override
     {
-        return LookupRows(
-            path,
-            std::move(nameTable),
-            std::vector<NTableClient::TKey>(1, key),
-            options);
+        auto rowBuffer = New<TRowBuffer>();
+        auto capturedKeys = rowBuffer->Capture(keys);
+        return Execute(
+            "LookupRows",
+            options,
+            BIND(
+                &TClient::DoLookupRows,
+                MakeStrong(this),
+                path,
+                std::move(nameTable),
+                MakeSharedRange(std::move(capturedKeys), std::move(rowBuffer)),
+                options));
     }
 
     IMPLEMENT_METHOD(TSelectRowsResult, SelectRows, (
@@ -1185,9 +1184,18 @@ private:
 
             auto config = Connection_->GetConfig();
             if (++retryCount <= config->TableMountInfoUpdateRetryCount) {
-                if (error.FindMatching(NTabletClient::EErrorCode::NoSuchTablet) ||
-                    error.FindMatching(NTabletClient::EErrorCode::TabletNotMounted))
-                {
+                auto noSuchTablet = error.FindMatching(NTabletClient::EErrorCode::NoSuchTablet);
+                auto notMounted = error.FindMatching(NTabletClient::EErrorCode::TabletNotMounted);
+
+                if (noSuchTablet) {
+                    error = noSuchTablet.Get();
+                }
+
+                if (notMounted) {
+                    error = notMounted.Get();
+                }
+
+                if (noSuchTablet || notMounted) {
                     LOG_DEBUG(error, "Got error, will clear table mount cache and retry");
                     auto tabletId = error.Attributes().Get<TTabletId>("tablet_id");
                     auto tableMountCache = Connection_->GetTableMountCache();
@@ -1329,13 +1337,11 @@ private:
             TClient* owner,
             TTabletInfoPtr tabletInfo,
             const TLookupRowsOptions& options,
-            const TNameTableToSchemaIdMapping& idMapping,
             const TTableSchema& schema,
             int keyColumnCount)
             : Config_(owner->Connection_->GetConfig())
             , TabletId_(tabletInfo->TabletId)
             , Options_(options)
-            , IdMapping_(idMapping)
             , Schema_(schema)
             , KeyColumnCount_(keyColumnCount)
         { }
@@ -1363,7 +1369,7 @@ private:
                 TWireProtocolWriter writer;
                 writer.WriteCommand(EWireProtocolCommand::LookupRows);
                 writer.WriteMessage(req);
-                writer.WriteSchemafulRowset(batch->Keys, IdMapping_.empty() ? nullptr : &IdMapping_);
+                writer.WriteSchemafulRowset(batch->Keys, nullptr);
 
                 auto chunkedData = writer.Flush();
 
@@ -1424,7 +1430,6 @@ private:
         const TConnectionConfigPtr Config_;
         const TTabletId TabletId_;
         const TLookupRowsOptions Options_;
-        const TNameTableToSchemaIdMapping IdMapping_;
         const TTableSchema& Schema_;
         const int KeyColumnCount_;
 
@@ -1484,7 +1489,7 @@ private:
     IRowsetPtr DoLookupRows(
         const TYPath& path,
         TNameTablePtr nameTable,
-        const std::vector<NTableClient::TKey>& keys,
+        const TSharedRange<TKey>& keys,
         const TLookupRowsOptions& options)
     {
         return CallAndRetryIfMetadataCacheIsInconsistent([&] () {
@@ -1495,7 +1500,7 @@ private:
     IRowsetPtr DoLookupRowsOnce(
         const TYPath& path,
         TNameTablePtr nameTable,
-        const std::vector<NTableClient::TKey>& keys,
+        const TSharedRange<TKey>& keys,
         const TLookupRowsOptions& options)
     {
         auto tableInfo = SyncGetTableInfo(path);
@@ -1511,7 +1516,7 @@ private:
         // Server-side is specifically optimized for handling long runs of keys
         // from the same partition. Let's sort the keys to facilitate this.
         std::vector<std::pair<NTableClient::TKey, int>> sortedKeys;
-        sortedKeys.reserve(keys.size());
+        sortedKeys.reserve(keys.Size());
 
         auto rowBuffer = New<TRowBuffer>();
 
@@ -1519,17 +1524,16 @@ private:
             auto evaluatorCache = Connection_->GetColumnEvaluatorCache();
             auto evaluator = evaluatorCache->Find(tableInfo->Schema, keyColumnCount);
 
-            for (int index = 0; index < keys.size(); ++index) {
+            for (int index = 0; index < keys.Size(); ++index) {
                 ValidateClientKey(keys[index], keyColumnCount, tableInfo->Schema, idMapping);
                 auto capturedKey = evaluator->EvaluateKeys(keys[index], rowBuffer, idMapping, tableInfo->Schema);
                 sortedKeys.push_back(std::make_pair(capturedKey, index));
             }
-
-            idMapping.clear();
         } else {
-            for (int index = 0; index < static_cast<int>(keys.size()); ++index) {
+            for (int index = 0; index < static_cast<int>(keys.Size()); ++index) {
                 ValidateClientKey(keys[index], keyColumnCount, tableInfo->Schema, idMapping);
-                sortedKeys.push_back(std::make_pair(keys[index], index));
+                auto capturedKey = CaptureRow(keys[index], rowBuffer, tableInfo->Schema, keyColumnCount, idMapping);
+                sortedKeys.push_back(std::make_pair(capturedKey, index));
             }
         }
         std::sort(sortedKeys.begin(), sortedKeys.end());
@@ -1548,7 +1552,6 @@ private:
                         this,
                         tabletInfo,
                         options,
-                        idMapping,
                         tableInfo->Schema,
                         tableInfo->KeyColumns.size())))
                     .first;
@@ -1569,7 +1572,7 @@ private:
             .ThrowOnError();
 
         std::vector<TUnversionedRow> resultRows;
-        resultRows.resize(keys.size());
+        resultRows.resize(keys.Size());
 
         std::vector<std::unique_ptr<TWireProtocolReader>> readers;
 
@@ -2399,20 +2402,6 @@ public:
             adjustedOptions);
     }
 
-
-    virtual void WriteRow(
-        const TYPath& path,
-        TNameTablePtr nameTable,
-        TUnversionedRow row,
-        const TWriteRowsOptions& options) override
-    {
-        WriteRows(
-            path,
-            std::move(nameTable),
-            std::vector<TUnversionedRow>(1, row),
-            options);
-    }
-
     virtual void WriteRows(
         const TYPath& path,
         TNameTablePtr nameTable,
@@ -2427,20 +2416,6 @@ public:
             options)));
         LOG_DEBUG("Row writes buffered (RowCount: %v)",
             rows.size());
-    }
-
-
-    virtual void DeleteRow(
-        const TYPath& path,
-        TNameTablePtr nameTable,
-        NTableClient::TKey key,
-        const TDeleteRowsOptions& options) override
-    {
-        DeleteRows(
-            path,
-            std::move(nameTable),
-            std::vector<NTableClient::TKey>(1, key),
-            options);
     }
 
     virtual void DeleteRows(
@@ -2482,12 +2457,6 @@ public:
         } \
     }
 
-    DELEGATE_TIMESTAMPED_METHOD(TFuture<IRowsetPtr>, LookupRow, (
-        const TYPath& path,
-        TNameTablePtr nameTable,
-        NTableClient::TKey key,
-        const TLookupRowsOptions& options),
-        (path, nameTable, key, options))
     DELEGATE_TIMESTAMPED_METHOD(TFuture<IRowsetPtr>, LookupRows, (
         const TYPath& path,
         TNameTablePtr nameTable,

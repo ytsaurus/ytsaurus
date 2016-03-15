@@ -10,7 +10,7 @@
 #include <yt/ytlib/table_client/schemaful_writer.h>
 
 #include <yt/core/misc/common.h>
-#include <yt/core/misc/sync_cache.h>
+#include <yt/core/misc/async_cache.h>
 
 #include <yt/core/profiling/scoped_timer.h>
 
@@ -26,13 +26,13 @@ using namespace NConcurrency;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TCachedCGQuery
-    : public TSyncCacheValueBase<
+    : public TAsyncCacheValueBase<
         llvm::FoldingSetNodeID,
         TCachedCGQuery>
 {
 public:
     TCachedCGQuery(const llvm::FoldingSetNodeID& id, TCGQueryCallback&& function)
-        : TSyncCacheValueBase(id)
+        : TAsyncCacheValueBase(id)
         , Function_(std::move(function))
     { }
 
@@ -48,11 +48,11 @@ private:
 typedef TIntrusivePtr<TCachedCGQuery> TCachedCGQueryPtr;
 
 class TEvaluator::TImpl
-    : public TSyncSlruCacheBase<llvm::FoldingSetNodeID, TCachedCGQuery>
+    : public TAsyncSlruCacheBase<llvm::FoldingSetNodeID, TCachedCGQuery>
 {
 public:
     explicit TImpl(TExecutorConfigPtr config)
-        : TSyncSlruCacheBase(config->CGCache)
+        : TAsyncSlruCacheBase(config->CGCache)
     { }
 
     TQueryStatistics Run(
@@ -207,8 +207,8 @@ private:
 
         auto Logger = BuildLogger(query);
 
-        auto cgQuery = Find(id);
-        if (enableCodeCache && cgQuery) {
+        auto cookie = BeginInsert(id);
+        if (enableCodeCache && !cookie.IsActive()) {
             LOG_TRACE("Codegen cache hit");
         } else {
             if (!enableCodeCache) {
@@ -220,15 +220,16 @@ private:
                 TRACE_CHILD("QueryClient", "Compile") {
                     NProfiling::TAggregatingTimingGuard timingGuard(&statistics.CodegenTime);
                     LOG_DEBUG("Started compiling fragment");
-                    cgQuery = New<TCachedCGQuery>(id, makeCodegenQuery());
+                    auto cgQuery = New<TCachedCGQuery>(id, makeCodegenQuery());
                     LOG_DEBUG("Finished compiling fragment");
-                    TryInsert(cgQuery, &cgQuery);
+                    cookie.EndInsert(std::move(cgQuery));
                 }
             } catch (const std::exception& ex) {
-                THROW_ERROR_EXCEPTION("Failed to compile a query fragment")
-                    << ex;
+                cookie.Cancel(TError(ex).Wrap("Failed to compile a query fragment"));
             }
         }
+
+        auto cgQuery = WaitFor(cookie.GetValue()).ValueOrThrow();
 
         return cgQuery->GetQueryCallback();
     }

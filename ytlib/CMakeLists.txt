@@ -284,16 +284,15 @@ LIBRARY()
 
 OWNER(sandello)
 
-
 CXXFLAGS(
   -std=c++1y
   -Wno-sign-compare
   -Wno-unused-parameter
   -Wno-unused-value
-  -Wno-c++14-extensions
   -Wno-switch
   -Wno-type-limits
-  -Wno-maybe-uninitialized
+  -Wno-c++14-extensions
+  -DYT_IN_ARCADIA
 )
 
 ADDINCL(

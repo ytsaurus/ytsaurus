@@ -1998,7 +1998,7 @@ private:
         return BIND(
             &TImpl::OnRowBlocked,
             MakeWeak(this),
-            store,
+            Unretained(store),
             tablet->GetTabletId(),
             Slot_->GetEpochAutomatonInvoker(EAutomatonThreadQueue::Read));
     }

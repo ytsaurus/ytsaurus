@@ -44,6 +44,7 @@ public:
                 yhash_set<TChunkId>(),
                 BIND(&TScrapeChunksSession::OnChunkLocated, MakeWeak(this)),
                 logger))
+        , Config_(config)
         , Logger(logger)
     { }
 
@@ -65,6 +66,14 @@ public:
 private:
     void OnChunkLocated(const TChunkId& chunkId, const TChunkReplicaList& replicas)
     {
+        ++ChunkLocatedCallCount_;
+        if (ChunkLocatedCallCount_ >= Config_->MaxChunksPerScratch) {
+            ChunkLocatedCallCount_ = 0;
+            LOG_DEBUG("Located another batch of chunks (Count: %v, UnavailableFetcherChunkCount: %v)",
+                Config_->MaxChunksPerScratch,
+                UnavailableFetcherChunkCount_);
+        }
+
         LOG_TRACE("Fetcher chunk is located (ChunkId: %v, Replicas: %v)", chunkId, replicas.size());
         if (replicas.empty())
             return;
@@ -104,11 +113,14 @@ private:
     };
 
     TChunkScraperPtr Scraper_;
+    TChunkScraperConfigPtr Config_;
     NLogging::TLogger Logger;
 
     yhash_map<NChunkClient::TChunkId,TFetcherChunkDescriptor> ChunkMap_;
     int UnavailableFetcherChunkCount_ = 0;
     TPromise<void> BatchLocatedPromise_ = NewPromise<void>();
+
+    int ChunkLocatedCallCount_ = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(TScrapeChunksSession)
