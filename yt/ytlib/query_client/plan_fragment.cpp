@@ -230,6 +230,10 @@ TExpressionPtr FromProto(const NProto::TExpression& serialized)
     auto type = EValueType(serialized.type());
 
     switch (kind) {
+        case EExpressionKind::None:
+            YUNREACHABLE();
+            break;
+
         case EExpressionKind::Literal: {
             auto typedResult = New<TLiteralExpression>(type);
             const auto& data = serialized.GetExtension(NProto::TLiteralExpression::literal_expression);
