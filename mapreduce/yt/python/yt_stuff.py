@@ -5,6 +5,7 @@ import socket
 import sys
 import tarfile
 import tempfile
+import time
 
 import pytest
 import yatest.common
@@ -46,8 +47,12 @@ class YtStuff:
         self.yt_local_path = os.path.join(self.yt_bins_path, "yt_local")
 
         self._log("Extracting YT to %s" % self.yt_path)
-        tgz = tarfile.open(os.path.join(build_path, YT_ARCHIVE_NAME))
+        start_extracting = time.time()
+        yt_archive_path = os.path.join(build_path, YT_ARCHIVE_NAME)
+        tgz = tarfile.open(yt_archive_path)
         tgz.extractall(path=self.yt_path)
+        finish_extracting = time.time()
+        self._log("Extracting time: %f" % (finish_extracting - start_extracting))
 
         self.yt_work_dir = os.path.join(self.yt_path, "wd")
         os.mkdir(self.yt_work_dir)
