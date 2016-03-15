@@ -14,10 +14,10 @@ using namespace NYTree;
 using namespace NYson;
 using namespace NTableClient;
 
-////////////////////////////////////////////////////////////////////////////////
+using NYT::FromProto;
+using NYT::ToProto;
 
-TReadLimit::TReadLimit()
-{ }
+////////////////////////////////////////////////////////////////////////////////
 
 TReadLimit::TReadLimit(const NProto::TReadLimit& protoLimit)
 {
@@ -195,7 +195,7 @@ void TReadLimit::MergeLowerLimit(const NProto::TReadLimit& readLimit)
         SetOffset(readLimit.offset());
     }
     if (readLimit.has_key()) {
-        auto key = NYT::FromProto<TOwningKey>(readLimit.key());
+        auto key = FromProto<TOwningKey>(readLimit.key());
         MergeLowerKey(key);
     }
 }
@@ -212,7 +212,7 @@ void TReadLimit::MergeUpperLimit(const NProto::TReadLimit& readLimit)
         SetOffset(readLimit.offset());
     }
     if (readLimit.has_key()) {
-        auto key = NYT::FromProto<TOwningKey>(readLimit.key());
+        auto key = FromProto<TOwningKey>(readLimit.key());
         MergeUpperKey(key);
     }
 }
@@ -332,30 +332,49 @@ void Serialize(const TReadLimit& readLimit, IYsonConsumer* consumer)
         .EndMap();
 }
 
+namespace {
+
+template <class T>
+TNullable<T> FindReadLimitComponent(const std::unique_ptr<IAttributeDictionary>& attributes, const Stroka& key)
+{
+    try {
+        return attributes->Find<T>(key);
+    } catch (const std::exception& ex) {
+        THROW_ERROR_EXCEPTION("Error parsing %Qv component of a read limit",
+            key)
+            << ex;
+    }
+}
+
+} // namespace
+
 void Deserialize(TReadLimit& readLimit, INodePtr node)
 {
     readLimit = TReadLimit();
     auto attributes = ConvertToAttributes(node);
-    if (attributes->Contains("key")) {
-        readLimit.SetKey(attributes->Get<TOwningKey>("key"));
+
+    auto maybeKey = FindReadLimitComponent<TOwningKey>(attributes, "key");
+    if (maybeKey) {
+        readLimit.SetKey(*maybeKey);
     }
-    if (attributes->Contains("row_index")) {
-        readLimit.SetRowIndex(attributes->Get<i64>("row_index"));
+
+    auto maybeRowIndex = FindReadLimitComponent<i64>(attributes, "row_index");
+    if (maybeRowIndex) {
+        readLimit.SetRowIndex(*maybeRowIndex);
     }
-    if (attributes->Contains("offset")) {
-        readLimit.SetOffset(attributes->Get<i64>("offset"));
+
+    auto maybeOffset = FindReadLimitComponent<i64>(attributes, "offset");
+    if (maybeOffset) {
+        readLimit.SetOffset(*maybeOffset);
     }
-    if (attributes->Contains("chunk_index")) {
-        readLimit.SetChunkIndex(attributes->Get<i64>("chunk_index"));
+
+    auto maybeChunkIndex = FindReadLimitComponent<i64>(attributes, "chunk_index");
+    if (maybeChunkIndex) {
+        readLimit.SetChunkIndex(*maybeChunkIndex);
     }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-
-TReadRange::TReadRange()
-    : LowerLimit_(TReadLimit())
-    , UpperLimit_(TReadLimit())
-{ }
 
 TReadRange::TReadRange(const TReadLimit& exact)
     : LowerLimit_(exact)
@@ -411,10 +430,10 @@ Stroka ToString(const TReadRange& range)
 void ToProto(NProto::TReadRange* protoReadRange, const TReadRange& readRange)
 {
     if (!readRange.LowerLimit().IsTrivial()) {
-        *protoReadRange->mutable_lower_limit() = NYT::ToProto<NProto::TReadLimit>(readRange.LowerLimit());
+        *protoReadRange->mutable_lower_limit() = ToProto<NProto::TReadLimit>(readRange.LowerLimit());
     }
     if (!readRange.UpperLimit().IsTrivial()) {
-        *protoReadRange->mutable_upper_limit() = NYT::ToProto<NProto::TReadLimit>(readRange.UpperLimit());
+        *protoReadRange->mutable_upper_limit() = ToProto<NProto::TReadLimit>(readRange.UpperLimit());
     }
 }
 
@@ -437,22 +456,44 @@ void Serialize(const TReadRange& readRange, NYson::IYsonConsumer* consumer)
 
 }
 
+namespace {
+
+template <class T>
+TNullable<T> FindReadRangeComponent(const std::unique_ptr<IAttributeDictionary>& attributes, const Stroka& key)
+{
+    try {
+        return attributes->Find<T>(key);
+    } catch (const std::exception& ex) {
+        THROW_ERROR_EXCEPTION("Error parsing %Qv component of a read range",
+            key)
+            << ex;
+    }
+}
+
+} // namespace
+
 void Deserialize(TReadRange& readRange, NYTree::INodePtr node)
 {
     readRange = TReadRange();
     auto attributes = ConvertToAttributes(node);
-    if (attributes->Contains("exact")) {
-        if (attributes->Contains("lower_limit") || attributes->Contains("upper_limit")) {
-            THROW_ERROR_EXCEPTION("\"lower_limit\" and \"upper_limit\" attributes cannot be specified if \"exact\" attribute is specified");
+    auto maybeExact = FindReadRangeComponent<TReadLimit>(attributes, "exact");
+    auto maybeLowerLimit = FindReadRangeComponent<TReadLimit>(attributes, "lower_limit");
+    auto maybeUpperLimit = FindReadRangeComponent<TReadLimit>(attributes, "upper_limit");
+
+    if (maybeExact) {
+        if (maybeLowerLimit || maybeUpperLimit) {
+            THROW_ERROR_EXCEPTION("\"lower_limit\" and \"upper_limit\" attributes cannot be specified "
+                "together with \"exact\" attribute");
         }
-        readRange.LowerLimit() = attributes->Get<TReadLimit>("exact");
-        readRange.UpperLimit() = readRange.LowerLimit().GetSuccessor();
+        readRange = TReadRange(*maybeExact);
     }
-    if (attributes->Contains("lower_limit")) {
-        readRange.LowerLimit() = attributes->Get<TReadLimit>("lower_limit");
+
+    if (maybeLowerLimit) {
+        readRange.LowerLimit() = *maybeLowerLimit;
     }
-    if (attributes->Contains("upper_limit")) {
-        readRange.UpperLimit() = attributes->Get<TReadLimit>("upper_limit");
+
+    if (maybeUpperLimit) {
+        readRange.UpperLimit() = *maybeUpperLimit;
     }
 }
 
