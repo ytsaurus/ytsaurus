@@ -151,14 +151,14 @@ if(_is_gcc)
     set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -fsanitize=address -pie")
   endif()
 
-  set(CMAKE_CXX_FLAGS_DEBUG "-g -O0"
+  set(CMAKE_CXX_FLAGS_DEBUG "-g -O0 -fno-omit-frame-pointer"
     CACHE STRING "" FORCE)
   set(CMAKE_CXX_FLAGS_RELEASE "-O2"
     CACHE STRING "" FORCE)
   set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-g -O2"
     CACHE STRING "" FORCE)
 
-  set(CMAKE_C_FLAGS_DEBUG "-g -O0"
+  set(CMAKE_C_FLAGS_DEBUG "-g -O0 -fno-omit-frame-pointer"
     CACHE STRING "" FORCE)
   set(CMAKE_C_FLAGS_RELEASE "-O2"
     CACHE STRING "" FORCE)
