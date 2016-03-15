@@ -291,7 +291,7 @@ class TestTableCommands(object):
         yt.run_erase(TablePath(table, start_index=0, end_index=5))
         assert yt.row_count(table) == 0
 
-    def test_read_with_table_path(self):
+    def test_read_with_table_path(self, yt_env):
         table = TEST_DIR + "/table"
         yt.write_table(table, ["y=w3\n", "x=b\ty=w1\n", "x=a\ty=w2\n"])
         yt.run_sort(table, sort_by=["x", "y"])
@@ -324,8 +324,9 @@ class TestTableCommands(object):
         with pytest.raises(yt.YtError):
             yt.read_table(TablePath(table, upper_key="c", end_index=1))
 
-        table_path = TablePath(table, exact_index=1)
-        assert list(yt.read_table(table_path.to_yson_string())) == ["x=a\ty=w2\n"]
+        if yt_env.version >= "0.18":
+            table_path = TablePath(table, exact_index=1)
+            assert list(yt.read_table(table_path.to_yson_string())) == ["x=a\ty=w2\n"]
 
         yt.write_table(table, ["x=b\n", "x=a\n", "x=c\n"])
         with pytest.raises(yt.YtError):
