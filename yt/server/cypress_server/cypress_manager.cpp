@@ -57,7 +57,8 @@ static const auto& Logger = CypressServerLogger;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TCypressManager::TNodeFactory
-    : public ICypressNodeFactory
+    : public TNodeFactoryBase
+    , public ICypressNodeFactory
 {
 public:
     TNodeFactory(
@@ -72,16 +73,16 @@ public:
         , Account_(account)
         , PreserveAccount_(preserveAccount)
     {
-        YCHECK(bootstrap);
-        YCHECK(account);
+        YCHECK(Bootstrap_);
+        YCHECK(Account_);
+
+        RegisterCommitHandler([&] () { OnCommit(); });
+        RegisterRollbackHandler([&] () { OnRollback(); });
     }
 
-    ~TNodeFactory()
+    virtual ~TNodeFactory() override
     {
-        auto objectManager = Bootstrap_->GetObjectManager();
-        for (auto* node : CreatedNodes_) {
-            objectManager->UnrefObject(node);
-        }
+        RollbackIfNeeded();
     }
 
     virtual IStringNodePtr CreateString() override
@@ -293,7 +294,16 @@ public:
         return clonedTrunkNode;
     }
 
-    virtual void Commit() override
+private:
+    NCellMaster::TBootstrap* const Bootstrap_;
+    TTransaction* const Transaction_;
+    TAccount* const Account_;
+    const bool PreserveAccount_;
+
+    std::vector<TCypressNodeBase*> CreatedNodes_;
+
+
+    void OnCommit()
     {
         if (Transaction_) {
             auto transactionManager = Bootstrap_->GetTransactionManager();
@@ -301,8 +311,10 @@ public:
                 transactionManager->StageNode(Transaction_, node);
             }
         }
+        ReleaseCreatedNodes();
     }
 
+<<<<<<< HEAD
 private:
     NCellMaster::TBootstrap* const Bootstrap_;
     const TCypressManagerConfigPtr Config_;
@@ -312,6 +324,12 @@ private:
 
     std::vector<TCypressNodeBase*> CreatedNodes_;
 
+=======
+    void OnRollback()
+    {
+        ReleaseCreatedNodes();
+    }
+>>>>>>> prestable/0.17.5
 
     void ValidateCreatedNodeType(EObjectType type)
     {
@@ -330,6 +348,17 @@ private:
         CreatedNodes_.push_back(trunkNode);
     }
 
+<<<<<<< HEAD
+=======
+    void ReleaseCreatedNodes()
+    {
+        auto objectManager = Bootstrap_->GetObjectManager();
+        for (auto* node : CreatedNodes_) {
+            objectManager->UnrefObject(node);
+        }
+        CreatedNodes_.clear();
+    }
+>>>>>>> prestable/0.17.5
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -228,7 +228,8 @@ void TYsonWriter::OnDoubleScalar(double value)
         Stream_->Write(NDetail::DoubleMarker);
         Stream_->Write(&value, sizeof(double));
     } else {
-        auto str = ::ToString(value);
+        char buf[256];
+        auto str = TStringBuf(buf, FloatToString(value, buf, sizeof(buf)));
         Stream_->Write(str);
         if (str.find('.') == Stroka::npos && str.find('e') == Stroka::npos) {
             Stream_->Write(".");

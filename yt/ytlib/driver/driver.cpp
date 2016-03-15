@@ -41,7 +41,7 @@ TDriverRequest::TDriverRequest()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCommandDescriptor IDriver::GetCommandDescriptor(const Stroka& commandName)
+const TCommandDescriptor IDriver::GetCommandDescriptor(const Stroka& commandName) const
 {
     auto descriptor = FindCommandDescriptor(commandName);
     YCHECK(descriptor);
@@ -67,7 +67,7 @@ public:
         // Register all commands.
 #define REGISTER(command, name, inDataType, outDataType, isVolatile, isHeavy) \
         RegisterCommand<command>( \
-            TCommandDescriptor(name, EDataType::inDataType, EDataType::outDataType, isVolatile, isHeavy));
+            TCommandDescriptor{name, EDataType::inDataType, EDataType::outDataType, isVolatile, isHeavy});
 
         REGISTER(TStartTransactionCommand,     "start_tx",                Null,       Structured, true,  false);
         REGISTER(TPingTransactionCommand,      "ping_tx",                 Null,       Null,       true,  false);
@@ -161,7 +161,7 @@ public:
             .Run();
     }
 
-    virtual TNullable<TCommandDescriptor> FindCommandDescriptor(const Stroka& commandName) override
+    virtual const TNullable<TCommandDescriptor> FindCommandDescriptor(const Stroka& commandName) const override
     {
         auto it = Commands.find(commandName);
         if (it == Commands.end()) {
@@ -170,7 +170,7 @@ public:
         return it->second.Descriptor;
     }
 
-    virtual std::vector<TCommandDescriptor> GetCommandDescriptors() override
+    virtual const std::vector<TCommandDescriptor> GetCommandDescriptors() const override
     {
         std::vector<TCommandDescriptor> result;
         result.reserve(Commands.size());

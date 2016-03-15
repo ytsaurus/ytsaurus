@@ -437,7 +437,8 @@ void TBootstrap::DoRun()
 
     CellDirectorySynchronizer->Start();
 
-    OrchidRoot = GetEphemeralNodeFactory(true)->CreateMap();
+    OrchidRoot = CreateEphemeralNodeFactory(true)->CreateMap();
+
     SetNodeByYPath(
         OrchidRoot,
         "/monitoring",

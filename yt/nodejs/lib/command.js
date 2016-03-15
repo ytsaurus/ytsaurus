@@ -314,7 +314,7 @@ YtCommand.prototype._getName = function() {
     }
 
     facade = _VERSION_TO_FACADE[version];
-    driver = facade(this.driver);
+    driver = facade(this.logger, this.driver);
 
     if (!name.length) {
         // Bail out to API description.
