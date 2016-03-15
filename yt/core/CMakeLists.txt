@@ -45,6 +45,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/concurrency/fls.cpp
   ${CMAKE_CURRENT_LIST_DIR}/concurrency/fork_aware_spinlock.cpp
   ${CMAKE_CURRENT_LIST_DIR}/concurrency/invoker_queue.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/concurrency/parallel_awaiter.cpp
   ${CMAKE_CURRENT_LIST_DIR}/concurrency/periodic_executor.cpp
   ${CMAKE_CURRENT_LIST_DIR}/concurrency/private.cpp
   ${CMAKE_CURRENT_LIST_DIR}/concurrency/scheduler.cpp
@@ -219,10 +220,10 @@ LIBRARY()
 
 OWNER(sandello)
 
-SET_APPEND(BASE_CXXFLAGS -std=c++1y)
-
 CXXFLAGS(
+  -std=c++1y
   -Wno-sign-compare
+  -Wno-unused-function
   -Wno-unused-parameter
   -Wno-unused-value
   -Wno-c++14-extensions
@@ -265,7 +266,7 @@ target_link_libraries(ytcore
   ytext-arcadia-library-http
   ytext-yajl
   protobuf
-  ${REQUIRED_LLVM_LIBRARIES} 
+  ${REQUIRED_LLVM_LIBRARIES}
 )
 
 if (CMAKE_COMPILER_IS_CLANG AND NOT APPLE)

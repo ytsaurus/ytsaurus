@@ -45,7 +45,7 @@ inline void FormatValue(TStringBuilder* builder, const TStringBuf& value, const 
         alignLeft = true;
         ++current;
     }
-    
+
     bool hasAlign = false;
     int alignSize = 0;
     while (*current >= '0' && *current <= '9') {
@@ -265,7 +265,7 @@ void FormatValueStd(TStringBuilder* builder, TValue value, const TStringBuf& for
     size_t resultSize = snprintf(result, SmallResultSize, formatBuf, value);
     if (resultSize >= SmallResultSize) {
         result = builder->Preallocate(resultSize + 1);
-        YCHECK(snprintf(result, resultSize + 1, formatBuf, value) == resultSize);
+        YCHECK(snprintf(result, resultSize + 1, formatBuf, value) == static_cast<int>(resultSize));
     }
     builder->Advance(resultSize);
 }
