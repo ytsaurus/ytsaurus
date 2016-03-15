@@ -1,4 +1,6 @@
 #include "function_registry.h"
+#include "builtin_functions.h"
+#include "user_defined_functions.h"
 #include "udf/is_null_arc.h"
 #include "udf/sum_arc.h"
 
@@ -11,7 +13,8 @@ IFunctionRegistryPtr CreateBuiltinFunctionRegistry()
 {
     auto registry = New<TFunctionRegistry>();
 
-#if 0
+    registry->RegisterFunction(CreateIfFunction());
+
     registry->RegisterFunction(New<TUserDefinedFunction>(
         "is_null",
         std::vector<TType>{0},
@@ -40,7 +43,6 @@ IFunctionRegistryPtr CreateBuiltinFunctionRegistry()
             sum_bc_len,
             nullptr),
         ECallingConvention::UnversionedValue));
-#endif
 
     return registry;
 }
