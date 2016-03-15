@@ -25,6 +25,10 @@ using namespace NCellMaster;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static const auto& Logger = ObjectServerLogger;
+
+////////////////////////////////////////////////////////////////////////////////
+
 TMasterObject::TMasterObject(const TObjectId& id)
     : TNonversionedObjectBase(id)
 { }
@@ -35,7 +39,7 @@ class TMasterProxy
     : public TNonversionedObjectProxyBase<TMasterObject>
 {
 public:
-    explicit TMasterProxy(TBootstrap* bootstrap, TMasterObject* object)
+    TMasterProxy(TBootstrap* bootstrap, TMasterObject* object)
         : TBase(bootstrap, object)
     { }
 
@@ -69,6 +73,11 @@ private:
             request->extensions());
 
         const auto& objectId = object->GetId();
+
+        LOG_DEBUG_UNLESS(IsRecovery(), "Object created (Id: %v, Type: %v)",
+            objectId,
+            type);
+
         ToProto(response->mutable_object_id(), objectId);
 
         context->SetResponseInfo("ObjectId: %v", objectId);

@@ -524,20 +524,15 @@ public:
         ScheduleChunkRefresh(chunk);
     }
 
-    TChunk* CreateChunk(EObjectType type)
-    {
-        Profiler.Increment(AddedChunkCounter_);
-        auto id = Bootstrap_->GetObjectManager()->GenerateId(type, NullObjectId);
-        auto chunkHolder = std::make_unique<TChunk>(id);
-        return ChunkMap_.Insert(id, std::move(chunkHolder));
-    }
-
     TChunkList* CreateChunkList()
     {
         auto objectManager = Bootstrap_->GetObjectManager();
         auto id = objectManager->GenerateId(EObjectType::ChunkList, NullObjectId);
         auto chunkListHolder = std::make_unique<TChunkList>(id);
-        return ChunkListMap_.Insert(id, std::move(chunkListHolder));
+        auto* chunk = ChunkListMap_.Insert(id, std::move(chunkListHolder));
+        LOG_DEBUG_UNLESS(IsRecovery(), "Chunk list created (Id: %v)",
+            id);
+        return chunk;
     }
 
 
@@ -1288,7 +1283,10 @@ private:
         }
 
         // NB: Once the chunk is created, no exceptions could be thrown.
-        auto* chunk = CreateChunk(chunkType);
+        Profiler.Increment(AddedChunkCounter_);
+        auto id = Bootstrap_->GetObjectManager()->GenerateId(chunkType, NullObjectId);
+        auto chunkHolder = std::make_unique<TChunk>(id);
+        auto* chunk = ChunkMap_.Insert(id, std::move(chunkHolder));
         chunk->SetLocalReplicationFactor(replicationFactor);
         chunk->SetReadQuorum(readQuorum);
         chunk->SetWriteQuorum(writeQuorum);
@@ -2022,11 +2020,6 @@ TMutationPtr TChunkManager::CreateImportChunksMutation(TCtxImportChunksPtr conte
 TMutationPtr TChunkManager::CreateExecuteBatchMutation(TCtxExecuteBatchPtr context)
 {
     return Impl_->CreateExecuteBatchMutation(std::move(context));
-}
-
-TChunk* TChunkManager::CreateChunk(EObjectType type)
-{
-    return Impl_->CreateChunk(type);
 }
 
 TChunkList* TChunkManager::CreateChunkList()

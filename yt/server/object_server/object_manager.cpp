@@ -535,10 +535,6 @@ TObjectId TObjectManager::GenerateId(EObjectType type, const TObjectId& hintId)
 
     ++CreatedObjectCount_;
 
-    LOG_DEBUG_UNLESS(IsRecovery(), "Object created (Type: %v, Id: %v)",
-        type,
-        id);
-
     return id;
 }
 
@@ -1217,15 +1213,15 @@ void TObjectManager::HydraCreateForeignObject(NProto::TReqCreateForeignObject* r
         ? FromProto(request->object_attributes())
         : std::unique_ptr<IAttributeDictionary>();
 
-    LOG_DEBUG_UNLESS(IsRecovery(), "Creating foreign object (ObjectId: %v, Type: %v)",
-        objectId,
-        type);
-
     CreateObject(
         objectId,
         type,
         attributes.get(),
         request->extensions());
+
+    LOG_DEBUG_UNLESS(IsRecovery(), "Foreign object created (Id: %v, Type: %v)",
+        objectId,
+        type);
 }
 
 void TObjectManager::HydraRemoveForeignObject(NProto::TReqRemoveForeignObject* request) noexcept
