@@ -272,13 +272,14 @@ test_passing_custom_spec() {
     yt2 remove //tmp/test_table --force --proxy quine
     yt2 set //tmp/test_table/@erasure_codec lrc_12_2_2 --proxy plato
 
-    id=$(run_task '{"source_table": "//tmp/test_table", "source_cluster": "plato", "destination_table": "//tmp/test_table", "destination_cluster": "quine", "copy_spec": {"type": "copy"}, "postprocess_spec": {"type": "postprocess"}, "copy_method": "proxy", "queue_name": "ignat"}')
+    id=$(run_task '{"source_table": "//tmp/test_table", "source_cluster": "plato", "destination_table": "//tmp/test_table", "destination_cluster": "quine", "copy_spec": {"type": "copy", "pool": "copy"}, "postprocess_spec": {"type": "postprocess"}, "copy_method": "proxy", "queue_name": "ignat"}')
     wait_task $id
 
     local task_descr=$(get_task $id)
     op1=$(strip_quotes $(echo $task_descr | jq '.progress.operations' | jq '.[0].id'))
     op2=$(strip_quotes $(echo $task_descr | jq '.progress.operations' | jq '.[1].id'))
     check "$(yt2 get //sys/operations/$op1/@spec/type --proxy quine)" '"copy"'
+    check "$(yt2 get //sys/operations/$op1/@spec/pool --proxy quine)" '"copy"'
     check "$(yt2 get //sys/operations/$op2/@spec/type --proxy quine)" '"postprocess"'
 }
 
