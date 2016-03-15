@@ -337,8 +337,6 @@ private:
         CreatedNodes_.push_back(trunkNode);
     }
 
-<<<<<<< HEAD
-=======
     void ReleaseCreatedNodes()
     {
         auto objectManager = Bootstrap_->GetObjectManager();
@@ -347,7 +345,6 @@ private:
         }
         CreatedNodes_.clear();
     }
->>>>>>> prestable/0.17.5
 };
 
 ////////////////////////////////////////////////////////////////////////////////
