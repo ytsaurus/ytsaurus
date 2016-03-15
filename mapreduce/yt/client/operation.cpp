@@ -151,15 +151,7 @@ private:
         Stroka uniquePath = TStringBuilder() <<
             YT_WRAPPER_FILE_CACHE << "cpp_" << CreateGuidAsString();
 
-        {
-            THttpHeader header("POST", "create");
-            header.AddPath(uniquePath);
-            header.AddParam("type", "file");
-            header.AddParam("recursive", true);
-            header.AddParam("ignore_existing", true);
-            header.AddMutationId();
-            RetryRequest(Auth_, header);
-        }
+        Create(Auth_, TTransactionId(), uniquePath, "file", true, true);
         {
             THttpHeader header("PUT", GetWriteFileCommand());
             header.SetToken(Auth_.Token);
@@ -508,6 +500,24 @@ Stroka MergeSpec(TNode& dst, const TOperationOptions& options)
     return NodeToYsonString(dst);
 }
 
+void CreateOutputTable(
+    const TAuth& auth,
+    const TTransactionId& transactionId,
+    const TRichYPath& path)
+{
+    Create(auth, transactionId, AddPathPrefix(path).Path_, "table");
+}
+
+void CreateOutputTables(
+    const TAuth& auth,
+    const TTransactionId& transactionId,
+    const yvector<TRichYPath>& paths)
+{
+    for (auto& path : paths) {
+        CreateOutputTable(auth, transactionId, path);
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TOperationId ExecuteMap(
@@ -523,6 +533,8 @@ TOperationId ExecuteMap(
     {
         format = GetTableFormats(auth, transactionId, spec.Inputs_);
     }
+
+    CreateOutputTables(auth, transactionId, spec.Outputs_);
 
     TJobPreparer map(
         auth,
@@ -575,6 +587,8 @@ TOperationId ExecuteReduce(
     {
         format = GetTableFormats(auth, transactionId, spec.Inputs_);
     }
+
+    CreateOutputTables(auth, transactionId, spec.Outputs_);
 
     TKeyColumns sortBy(spec.SortBy_);
     TKeyColumns reduceBy(spec.ReduceBy_);
@@ -639,6 +653,8 @@ TOperationId ExecuteJoinReduce(
         format = GetTableFormats(auth, transactionId, spec.Inputs_);
     }
 
+    CreateOutputTables(auth, transactionId, spec.Outputs_);
+
     TKeyColumns joinBy(spec.JoinBy_);
 
     if (spec.InputDesc_.Format == TMultiFormatDesc::F_YAMR) {
@@ -701,6 +717,8 @@ TOperationId ExecuteMapReduce(
     {
         format = GetTableFormats(auth, transactionId, spec.Inputs_);
     }
+
+    CreateOutputTables(auth, transactionId, spec.Outputs_);
 
     TKeyColumns sortBy(spec.SortBy_);
     TKeyColumns reduceBy(spec.ReduceBy_);
@@ -818,6 +836,8 @@ TOperationId ExecuteSort(
     const TSortOperationSpec& spec,
     const TOperationOptions& options)
 {
+    CreateOutputTable(auth, transactionId, spec.Output_);
+
     TNode specNode = BuildYsonNodeFluently()
     .BeginMap().Item("spec").BeginMap()
         .Item("input_table_paths").DoListFor(spec.Inputs_, BuildPathPrefix)
@@ -840,6 +860,8 @@ TOperationId ExecuteMerge(
     const TMergeOperationSpec& spec,
     const TOperationOptions& options)
 {
+    CreateOutputTable(auth, transactionId, spec.Output_);
+
     TNode specNode = BuildYsonNodeFluently()
     .BeginMap().Item("spec").BeginMap()
         .Item("input_table_paths").DoListFor(spec.Inputs_, BuildPathPrefix)

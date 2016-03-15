@@ -25,6 +25,17 @@ void CreateSandbox()
     );
 }
 
+void PrepareInput(IClientPtr client, const TYPath& path)
+{
+    client->Remove(path, TRemoveOptions().Force(true));
+    client->Create(path, NT_TABLE);
+}
+
+void PrepareOutput(IClientPtr client, const TYPath& path)
+{
+    client->Remove(path, TRemoveOptions().Force(true));
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 // identity mapper
@@ -50,12 +61,10 @@ void IdMapperNode()
     auto client = CreateClient(SERVER);
 
     Stroka input(PREFIX + "/input");
-    client->Remove(input, TRemoveOptions().Force(true));
-    client->Create(input, NT_TABLE);
+    PrepareInput(client, input);
 
     Stroka output(PREFIX + "/output");
-    client->Remove(output, TRemoveOptions().Force(true));
-    client->Create(output, NT_TABLE);
+    PrepareOutput(client, output);
 
     auto writer = client->CreateTableWriter<TNode>(input);
     for (int i = 0; i < 16; ++i) {
@@ -110,12 +119,10 @@ void IdMapperYaMR()
     auto client = CreateClient(SERVER);
 
     Stroka input(PREFIX + "/input");
-    client->Remove(input, TRemoveOptions().Force(true));
-    client->Create(input, NT_TABLE);
+    PrepareInput(client, input);
 
     Stroka output(PREFIX + "/output");
-    client->Remove(output, TRemoveOptions().Force(true));
-    client->Create(output, NT_TABLE);
+    PrepareOutput(client, output);
 
     auto writer = client->CreateTableWriter<TYaMRRow>(input);
     for (int i = 0; i < 16; ++i) {
@@ -170,12 +177,10 @@ void IdMapperProto()
     auto client = CreateClient(SERVER);
 
     Stroka input(PREFIX + "/input");
-    client->Remove(input, TRemoveOptions().Force(true));
-    client->Create(input, NT_TABLE);
+    PrepareInput(client, input);
 
     Stroka output(PREFIX + "/output");
-    client->Remove(output, TRemoveOptions().Force(true));
-    client->Create(output, NT_TABLE);
+    PrepareOutput(client, output);
 
     auto writer = client->CreateTableWriter<TSampleProto>(input);
     for (int i = 0; i < 16; ++i) {
@@ -241,8 +246,7 @@ void ManyTablesMapperNode()
     for (int i = 0; i < inputCount; ++i) {
         Stroka input = PREFIX + Sprintf("/input%d", i);
         inputs.push_back(input);
-        client->Remove(input, TRemoveOptions().Force(true));
-        client->Create(input, NT_TABLE);
+        PrepareInput(client, input);
 
         auto writer = client->CreateTableWriter<TNode>(input);
         for (int j = 0; j < 16; ++j) {
@@ -261,8 +265,7 @@ void ManyTablesMapperNode()
     for (int i = 0; i < outputCount; ++i) {
         Stroka output = PREFIX + Sprintf("/output%d", i);
         outputs.push_back(output);
-        client->Remove(output, TRemoveOptions().Force(true));
-        client->Create(output, NT_TABLE);
+        PrepareOutput(client, output);
 
         spec.AddOutput<TNode>(output);
     }
@@ -325,20 +328,16 @@ void JoinReducerProto()
     auto client = CreateClient(SERVER);
 
     Stroka inputLeft = PREFIX + "/input_left";
-    client->Remove(inputLeft, TRemoveOptions().Force(true));
-    client->Create(inputLeft, NT_TABLE);
+    PrepareInput(client, inputLeft);
 
     Stroka inputRight = PREFIX + "/input_right";
-    client->Remove(inputRight, TRemoveOptions().Force(true));
-    client->Create(inputRight, NT_TABLE);
+    PrepareInput(client, inputRight);
 
     Stroka outputSum(PREFIX + "/output_sum");
-    client->Remove(outputSum, TRemoveOptions().Force(true));
-    client->Create(outputSum, NT_TABLE);
+    PrepareOutput(client, outputSum);
 
     Stroka outputProduct(PREFIX + "/output_product");
-    client->Remove(outputProduct, TRemoveOptions().Force(true));
-    client->Create(outputProduct, NT_TABLE);
+    PrepareOutput(client, outputProduct);
 
     {
         auto path = TRichYPath(inputLeft).SortedBy("key");
@@ -452,12 +451,12 @@ int main(int argc, const char* argv[])
 {
     Initialize(argc, argv);
 
-//    CreateSandbox();
-//    IdMapperNode();
-//    IdMapperYaMR();
-//    IdMapperProto();
-//    ManyTablesMapperNode();
-//    JoinReducerProto();
+    CreateSandbox();
+    IdMapperNode();
+    IdMapperYaMR();
+    IdMapperProto();
+    ManyTablesMapperNode();
+    JoinReducerProto();
 
 //    Tablets();
 

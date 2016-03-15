@@ -55,6 +55,14 @@ bool Exists(
     const TTransactionId& transactionid,
     const TYPath& path);
 
+void Create(
+    const TAuth& auth,
+    const TTransactionId& transactionId,
+    const TYPath& path,
+    const Stroka& type,
+    bool ignoreExisting = true,
+    bool recursive = false);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 bool ParseBoolFromResponse(const Stroka& response);

@@ -140,6 +140,24 @@ bool Exists(
     return ParseBoolFromResponse(RetryRequest(auth, header));
 }
 
+void Create(
+    const TAuth& auth,
+    const TTransactionId& transactionId,
+    const TYPath& path,
+    const Stroka& type,
+    bool ignoreExisting,
+    bool recursive)
+{
+    THttpHeader header("POST", "create");
+    header.AddTransactionId(transactionId);
+    header.AddPath(path);
+    header.AddParam("type", type);
+    header.AddParam("ignore_existing", ignoreExisting);
+    header.AddParam("recursive", recursive);
+    header.AddMutationId();
+    RetryRequest(auth, header);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 Stroka GetProxyForHeavyRequest(const TAuth& auth)
