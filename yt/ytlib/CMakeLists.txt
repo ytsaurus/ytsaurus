@@ -295,6 +295,10 @@ CXXFLAGS(
   -DYT_IN_ARCADIA
 )
 
+IF(GCC)
+  CXXFLAGS(-Wno-maybe-uninitialized)
+ENDIF()
+
 ADDINCL(
   contrib/libs/llvm37/include
   contrib/libs/sparsehash/src
