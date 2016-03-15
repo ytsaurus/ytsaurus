@@ -1586,7 +1586,7 @@ private:
     IRowsetPtr DoLookupRows(
         const TYPath& path,
         TNameTablePtr nameTable,
-        const TSharedRange<TKey>& keys,
+        const TSharedRange<NTableClient::TMutableKey>& keys,
         const TLookupRowsOptions& options)
     {
         return CallAndRetryIfMetadataCacheIsInconsistent([&] () {
@@ -1597,7 +1597,7 @@ private:
     IRowsetPtr DoLookupRowsOnce(
         const TYPath& path,
         TNameTablePtr nameTable,
-        const TSharedRange<TKey>& keys,
+        const TSharedRange<NTableClient::TMutableKey>& keys,
         const TLookupRowsOptions& options)
     {
         auto tableInfo = SyncGetTableInfo(path);
@@ -1620,7 +1620,7 @@ private:
             ? evaluatorCache->Find(tableInfo->Schema, keyColumnCount)
             : nullptr;
 
-        for (int index = 0; index < keys.size(); ++index) {
+        for (int index = 0; index < keys.Size(); ++index) {
             ValidateClientKey(keys[index], keyColumnCount, tableInfo->Schema, idMapping);
             auto capturedKey = rowBuffer->CaptureAndPermuteRow(keys[index], tableInfo->Schema, idMapping);
 
