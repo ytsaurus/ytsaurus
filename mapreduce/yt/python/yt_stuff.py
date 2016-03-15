@@ -28,7 +28,10 @@ class YtStuff:
 
     def _prepare_files(self):
         build_path = yatest.common.runtime.build_path()
+
         self.tmpfs_path = yatest.common.get_param("ram_drive_path")
+        if self.tmpfs_path:
+            self.tmpfs_path = tempfile.mkdtemp(prefix="yt_", dir=self.tmpfs_path)
 
         # Folders
         self.yt_path = tempfile.mkdtemp(prefix="yt_")
