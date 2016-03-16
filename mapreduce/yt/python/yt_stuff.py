@@ -3,7 +3,6 @@ import logging
 import shutil
 import socket
 import sys
-import tarfile
 import tempfile
 import time
 
@@ -27,6 +26,19 @@ class YtStuff:
         #print >>sys.stderr, message
         self.logger.debug(message)
 
+    def _extract_tar(self, tgz, where):
+        self._log("Extracting YT to %s" % self.yt_path)
+        start_extracting = time.time()
+
+        #import tarfile
+        #tarfile.open(tgz).extractall(path=where)
+        import subprocess
+        subprocess.check_output(['tar', '-xf', tgz], cwd=where, stderr=subprocess.STDOUT)
+
+        finish_extracting = time.time()
+        self._log("Extracting time: %f" % (finish_extracting - start_extracting))
+
+
     def _prepare_files(self):
         build_path = yatest.common.runtime.build_path()
 
@@ -46,13 +58,9 @@ class YtStuff:
         self.mapreduce_yt_path = os.path.join(self.yt_bins_path, "mapreduce-yt")
         self.yt_local_path = os.path.join(self.yt_bins_path, "yt_local")
 
-        self._log("Extracting YT to %s" % self.yt_path)
-        start_extracting = time.time()
         yt_archive_path = os.path.join(build_path, YT_ARCHIVE_NAME)
-        tgz = tarfile.open(yt_archive_path)
-        tgz.extractall(path=self.yt_path)
-        finish_extracting = time.time()
-        self._log("Extracting time: %f" % (finish_extracting - start_extracting))
+        yt_archive_path = "/place/home/vartyukh/yt.tgz"
+        self._extract_tar(yt_archive_path, self.yt_path)
 
         self.yt_work_dir = os.path.join(self.yt_path, "wd")
         os.mkdir(self.yt_work_dir)
