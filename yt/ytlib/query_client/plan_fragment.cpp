@@ -319,6 +319,9 @@ TExpressionPtr FromProto(const NProto::TExpression& serialized)
 
             return typedResult;
         }
+
+        default:
+            YUNREACHABLE();
     }
 
     YUNREACHABLE();
