@@ -9,8 +9,9 @@ YT="$(pwd)/yt/wrapper/yt"
 UBUNTU_CODENAME=$(lsb_release -c -s)
 
 if [ "$(find $(pwd)/.. -name 'yandex-yt-local_*.deb' | wc -l)" = "0" ]; then
-    # Package missing
-    exit 0
+    # Package missing, let's build it.
+    DEB=1 python setup.py sdist --dist-dir=../
+    DEB_STRIP_EXCLUDE=".*" DEB=1 dpkg-buildpackage -i -I -rfakeroot
 fi
 
 download_and_extract() {
@@ -43,6 +44,13 @@ create_archive() {
     local versions_str="${yt_local_version}${yt_python_version}${yt_version}${yt_yson_bindings_version}"
     local hash_str=$(echo -ne $versions_str | md5sum | head -c 8)
     local archive_name="yt_local_${hash_str}_${UBUNTU_CODENAME}_archive.tgz"
+
+    local archive_path="//home/files/${archive_name}"
+
+    if [ "$($YT exists $archive_path --proxy locke)" = "true" ]; then
+        echo "Appropriate archive already exists"
+        return
+    fi
 
     local tmp_dir="$(mktemp -d /tmp/$(basename $0).XXXXXX)"
     find $(pwd)/.. -name 'yandex-yt-local_*.deb' -exec cp -r {} $tmp_dir \;
@@ -87,8 +95,6 @@ create_archive() {
     cp -r nodejs/usr/* archive/node
 
     tar cvfz "$archive_name" -C "archive" .
-
-    local archive_path="//home/files/${archive_name}"
 
     cat "$archive_name" | $YT upload "$archive_path" --proxy locke
     $YT set --proxy locke //home/files/${archive_name}/@packages_versions "{\
