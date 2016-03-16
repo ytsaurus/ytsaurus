@@ -1,4 +1,7 @@
+#include "config.h"
 #include "transaction_commands.h"
+
+#include <yt/ytlib/api/transaction.h>
 
 #include <yt/ytlib/transaction_client/transaction_manager.h>
 
@@ -29,14 +32,31 @@ void TStartTransactionCommand::Execute(ICommandContextPtr context)
         Options.Attributes = ConvertToAttributes(Attributes);
     }
 
-    auto transactionManager = context->GetClient()->GetTransactionManager();
-    auto transaction = WaitFor(transactionManager->Start(
-        ETransactionType::Master,
-        Options)).ValueOrThrow();
-    transaction->Detach();
+    if (Sticky) {
+        auto transaction = WaitFor(context->GetClient()->StartTransaction(Type, Options))
+            .ValueOrThrow();
+        auto timeout = Options.Timeout.Get(context->GetConfig()->TransactionManager->DefaultTransactionTimeout);
 
-    context->ProduceOutputValue(BuildYsonStringFluently()
-        .Value(transaction->GetId()));
+        context->PinTransaction(transaction, timeout);
+
+        context->ProduceOutputValue(BuildYsonStringFluently()
+            .Value(transaction->GetId()));
+        // TODO(sandello): Return more information about transaction here.
+    } else {
+        if (Type != ETransactionType::Master) {
+            THROW_ERROR_EXCEPTION("Only master transactions could be sticky")
+                << TErrorAttribute("requested_transaction_type", Type);
+        }
+
+        auto transactionManager = context->GetClient()->GetTransactionManager();
+        auto transaction = WaitFor(transactionManager->Start(
+            ETransactionType::Master,
+            Options)).ValueOrThrow();
+        transaction->Detach();
+
+        context->ProduceOutputValue(BuildYsonStringFluently()
+            .Value(transaction->GetId()));
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -44,8 +64,14 @@ void TStartTransactionCommand::Execute(ICommandContextPtr context)
 void TPingTransactionCommand::Execute(ICommandContextPtr context)
 {
     // Specially for evvers@ :)
-    if (!Options.TransactionId)
+    if (!Options.TransactionId) {
         return;
+    }
+
+    auto stickyTransaction = context->FindAndTouchTransaction(Options.TransactionId);
+    if (stickyTransaction) {
+        return;
+    }
 
     auto transaction = AttachTransaction(true, context->GetClient()->GetTransactionManager());
     WaitFor(transaction->Ping())
@@ -56,6 +82,14 @@ void TPingTransactionCommand::Execute(ICommandContextPtr context)
 
 void TCommitTransactionCommand::Execute(ICommandContextPtr context)
 {
+    auto stickyTransaction = context->FindAndTouchTransaction(Options.TransactionId);
+    if (stickyTransaction) {
+        WaitFor(stickyTransaction->Commit())
+            .ThrowOnError();
+        context->UnpinTransaction(Options.TransactionId);
+        return;
+    }
+
     auto transaction = AttachTransaction(true, context->GetClient()->GetTransactionManager());
 
     WaitFor(transaction->Commit(Options))
@@ -66,6 +100,14 @@ void TCommitTransactionCommand::Execute(ICommandContextPtr context)
 
 void TAbortTransactionCommand::Execute(ICommandContextPtr context)
 {
+    auto stickyTransaction = context->FindAndTouchTransaction(Options.TransactionId);
+    if (stickyTransaction) {
+        WaitFor(stickyTransaction->Abort())
+            .ThrowOnError();
+        context->UnpinTransaction(Options.TransactionId);
+        return;
+    }
+
     auto transaction = AttachTransaction(true, context->GetClient()->GetTransactionManager());
 
     WaitFor(transaction->Abort(Options))

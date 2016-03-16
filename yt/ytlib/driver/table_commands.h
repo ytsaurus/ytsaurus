@@ -144,11 +144,14 @@ class TSelectRowsCommand
     : public TTypedCommandBase<NApi::TSelectRowsOptions>
 {
 private:
+    NTransactionClient::TTransactionId TransactionId;
     Stroka Query;
 
 public:
     TSelectRowsCommand()
     {
+        RegisterParameter("transaction_id", TransactionId)
+            .Default();
         RegisterParameter("query", Query);
         RegisterParameter("timestamp", Options.Timestamp)
             .Optional();
@@ -178,6 +181,7 @@ class TInsertRowsCommand
     : public TTypedCommandBase<NApi::TTransactionStartOptions>
 {
 private:
+    NTransactionClient::TTransactionId TransactionId;
     NYTree::INodePtr TableWriter;
     NYPath::TRichYPath Path;
     bool Update;
@@ -185,6 +189,8 @@ private:
 public:
     TInsertRowsCommand()
     {
+        RegisterParameter("transaction_id", TransactionId)
+            .Default();
         RegisterParameter("table_writer", TableWriter)
             .Default();
         RegisterParameter("path", Path);
@@ -204,6 +210,7 @@ class TLookupRowsCommand
     : public TTypedCommandBase<NApi::TLookupRowsOptions>
 {
 private:
+    NTransactionClient::TTransactionId TransactionId;
     NYTree::INodePtr TableWriter;
     NYPath::TRichYPath Path;
     TNullable<std::vector<Stroka>> ColumnNames;
@@ -211,6 +218,8 @@ private:
 public:
     TLookupRowsCommand()
     {
+        RegisterParameter("transaction_id", TransactionId)
+            .Default();
         RegisterParameter("table_writer", TableWriter)
             .Default();
         RegisterParameter("path", Path);
@@ -228,12 +237,15 @@ class TDeleteRowsCommand
     : public TTypedCommandBase<NApi::TTransactionStartOptions>
 {
 private:
+    NTransactionClient::TTransactionId TransactionId;
     NYTree::INodePtr TableWriter;
     NYPath::TRichYPath Path;
 
 public:
     TDeleteRowsCommand()
     {
+        RegisterParameter("transaction_id", TransactionId)
+            .Default();
         RegisterParameter("table_writer", TableWriter)
             .Default();
         RegisterParameter("path", Path);
