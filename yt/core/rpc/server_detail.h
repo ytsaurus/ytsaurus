@@ -83,7 +83,6 @@ protected:
     std::vector<TSharedRef> RequestAttachments_;
 
     bool Replied_ = false;
-    bool ProcessingComplete_ = false;
     TError Error_;
 
     TSharedRef ResponseBody_;
