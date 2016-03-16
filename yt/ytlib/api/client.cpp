@@ -2380,16 +2380,19 @@ public:
 
     virtual TFuture<void> Commit(const TTransactionCommitOptions& options) override
     {
-        return BIND(&TTransaction::DoCommit, MakeStrong(this))
-            .AsyncVia(Client_->Invoker_)
-            .Run(options);
+        if (!Outcome_) {
+            Outcome_ = BIND(&TTransaction::DoCommit, MakeStrong(this))
+                .AsyncVia(Client_->Invoker_)
+                .Run(options);
+        }
+        return Outcome_;
     }
 
     virtual TFuture<void> Abort(const TTransactionAbortOptions& options) override
     {
-        return Transaction_->Abort(options);
+        Outcome_ = Transaction_->Abort(options);
+        return Outcome_;
     }
-
 
     virtual TFuture<ITransactionPtr> StartTransaction(
         ETransactionType type,
@@ -2405,33 +2408,55 @@ public:
     virtual void WriteRows(
         const TYPath& path,
         TNameTablePtr nameTable,
-        std::vector<TUnversionedRow> rows,
+        const std::vector<NTableClient::TUnversionedRow>& rows,
         const TWriteRowsOptions& options) override
     {
-        Requests_.push_back(std::unique_ptr<TRequestBase>(new TWriteRequest(
+        auto rowBuffer = New<TRowBuffer>();
+        auto rowRange = MakeSharedRange(rowBuffer->Capture(rows), std::move(rowBuffer));
+        WriteRows(path, std::move(nameTable), std::move(rowRange), options);
+    }
+
+    virtual void WriteRows(
+        const TYPath& path,
+        TNameTablePtr nameTable,
+        TSharedRange<TUnversionedRow> rows,
+        const TWriteRowsOptions& options) override
+    {
+        auto rowCount = rows.Size();
+        Requests_.push_back(std::make_unique<TWriteRequest>(
             this,
             path,
             std::move(nameTable),
             std::move(rows),
-            options)));
-        LOG_DEBUG("Row writes buffered (RowCount: %v)",
-            rows.size());
+            options));
+        LOG_DEBUG("Row writes buffered (RowCount: %v)", rowCount);
     }
 
     virtual void DeleteRows(
         const TYPath& path,
         TNameTablePtr nameTable,
-        std::vector<NTableClient::TKey> keys,
+        const std::vector<NTableClient::TKey>& keys,
         const TDeleteRowsOptions& options) override
     {
-        Requests_.push_back(std::unique_ptr<TRequestBase>(new TDeleteRequest(
+        auto keyBuffer = New<TRowBuffer>();
+        auto keyRange = MakeSharedRange(keyBuffer->Capture(keys), std::move(keyBuffer));
+        DeleteRows(path, std::move(nameTable), std::move(keyRange), options);
+    }
+
+    virtual void DeleteRows(
+        const TYPath& path,
+        TNameTablePtr nameTable,
+        TSharedRange<TUnversionedRow> keys,
+        const TDeleteRowsOptions& options) override
+    {
+        auto keyCount = keys.Size();
+        Requests_.push_back(std::make_unique<TDeleteRequest>(
             this,
             path,
             std::move(nameTable),
             std::move(keys),
-            options)));
-        LOG_DEBUG("Row deletes buffered (RowCount: %v)",
-            keys.size());
+            options));
+        LOG_DEBUG("Row deletes buffered (KeyCount: %v)", keyCount);
     }
 
 
@@ -2568,6 +2593,8 @@ private:
 
     TRowBufferPtr RowBuffer_ = New<TRowBuffer>();
 
+    TFuture<void> Outcome_;
+
     NLogging::TLogger Logger;
 
 
@@ -2620,7 +2647,7 @@ private:
         { }
 
         void WriteRequests(
-            const std::vector<TUnversionedRow>& rows,
+            const TSharedRange<TUnversionedRow>& rows,
             EWireProtocolCommand command,
             int columnCount,
             TRowValidator validateRow)
@@ -2662,14 +2689,14 @@ private:
             TTransaction* transaction,
             const TYPath& path,
             TNameTablePtr nameTable,
-            std::vector<TUnversionedRow> rows,
+            TSharedRange<TUnversionedRow> rows,
             const TWriteRowsOptions& options)
             : TModifyRequest(transaction, path, std::move(nameTable))
             , Rows_(std::move(rows))
         { }
 
     private:
-        const std::vector<TUnversionedRow> Rows_;
+        const TSharedRange<TUnversionedRow> Rows_;
 
         virtual void DoRun() override
         {
@@ -2689,14 +2716,14 @@ private:
             TTransaction* transaction,
             const TYPath& path,
             TNameTablePtr nameTable,
-            std::vector<NTableClient::TKey> keys,
+            TSharedRange<TKey> keys,
             const TDeleteRowsOptions& options)
             : TModifyRequest(transaction, path, std::move(nameTable))
             , Keys_(std::move(keys))
         { }
 
     private:
-        const std::vector<TUnversionedRow> Keys_;
+        const TSharedRange<TKey> Keys_;
 
         virtual void DoRun() override
         {
