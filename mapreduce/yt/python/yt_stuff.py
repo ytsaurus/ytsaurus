@@ -38,7 +38,6 @@ class YtStuff:
         finish_extracting = time.time()
         self._log("Extracting time: %f" % (finish_extracting - start_extracting))
 
-
     def _prepare_files(self):
         build_path = yatest.common.runtime.build_path()
         work_path = yatest.common.runtime.work_path()
@@ -149,9 +148,11 @@ class YtStuff:
             os.mkdir(output_dir)
         self._log("YT logs saved in " + output_dir)
         for root, dirs, files in os.walk(self.yt_work_dir):
-            for file in files:
-                if file.endswith(".log"):
-                    shutil.copy2(os.path.join(root, file), os.path.join(output_dir, file))
+            log_files = filter(lambda file: file.endswith(".log"), files)
+            for file in log_files:
+                for start in ["http_application", "http_proxy", "node", "master", "scheduler"]:
+                    if file.startswith(start):
+                        shutil.copy2(os.path.join(root, file), os.path.join(output_dir, file))
         os.system("chmod -R 0775 " + output_dir)
 
 
