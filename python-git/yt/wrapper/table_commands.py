@@ -218,18 +218,18 @@ def _prepare_format(format, raw, client):
     return format
 
 def _prepare_binary(binary, operation_type, input_format=None, output_format=None,
-                    reduce_by=None, client=None):
+                    group_by=None, client=None):
     if _is_python_function(binary):
         start_time = time.time()
-        if isinstance(input_format, YamrFormat) and reduce_by is not None and set(reduce_by) != set(["key"]):
-            raise YtError("Yamr format does not support reduce by %r", reduce_by)
+        if isinstance(input_format, YamrFormat) and group_by is not None and set(group_by) != set(["key"]):
+            raise YtError("Yamr format does not support reduce by %r", group_by)
         binary, files, local_files_to_remove, tmpfs_size = \
             py_wrapper.wrap(function=binary,
                             operation_type=operation_type,
                             tempfiles_manager=None,
                             input_format=input_format,
                             output_format=output_format,
-                            reduce_by=reduce_by,
+                            group_by=group_by,
                             uploader=lambda files: _reliably_upload_files(files, client=client),
                             client=client)
 
@@ -277,7 +277,7 @@ def _remove_tables(tables, client=None):
 
 def _add_user_command_spec(op_type, binary, format, input_format, output_format,
                            files, file_paths, local_files, yt_files,
-                           memory_limit, reduce_by, local_files_to_remove, spec, client=None):
+                           memory_limit, group_by, local_files_to_remove, spec, client=None):
     if binary is None:
         return spec
 
@@ -306,7 +306,7 @@ def _add_user_command_spec(op_type, binary, format, input_format, output_format,
 
     binary, additional_files, additional_local_files_to_remove, tmpfs_size = \
         _prepare_binary(binary, op_type, input_format, output_format,
-                        reduce_by, client=client)
+                        group_by, client=client)
 
     if local_files_to_remove is not None:
         local_files_to_remove += additional_local_files_to_remove
@@ -1405,7 +1405,6 @@ def _run_operation(binary, source_table, destination_table,
         reduce_by = _prepare_reduce_by(reduce_by, client)
         join_by = _prepare_join_by(join_by, required=False)
 
-
         if get_config(client)["yamr_mode"]["run_map_reduce_if_source_is_not_sorted"]:
             are_input_tables_not_properly_sorted = False
             for table in source_table:
@@ -1450,14 +1449,19 @@ def _run_operation(binary, source_table, destination_table,
                 finalize = lambda: remove(temp_table, client=client)
                 source_table = [TablePath(temp_table)]
 
-    if op_name == "join_reduce":
-        join_by = _prepare_join_by(join_by)
-        reduce_by = join_by
-
-
     if get_config(client)["yamr_mode"]["treat_unexisting_as_empty"] and _are_default_empty_table(source_table):
         _remove_tables(destination_table, client=client)
         return
+
+    # Key columns to group rows in job.
+    group_by = None
+    if op_name == "join_reduce":
+        join_by = _prepare_join_by(join_by)
+        group_by = join_by
+    if op_name == "reduce":
+        group_by = reduce_by
+        if join_by is not None:
+            group_by = join_by
 
     op_type = None
     if op_name == "map": op_type = "mapper"
@@ -1469,8 +1473,7 @@ def _run_operation(binary, source_table, destination_table,
             lambda _: _add_job_io_spec("job_io", job_io, table_writer, _),
             lambda _: _add_input_output_spec(source_table, destination_table, _),
             lambda _: update({"reduce_by": reduce_by}, _) if op_name == "reduce" else _,
-            lambda _: update({"join_by": join_by}, _) if op_name == "join_reduce" else _,
-            lambda _: update({"join_by": join_by}, _) if join_by is not None and op_name == "reduce" else _,
+            lambda _: update({"join_by": join_by}, _) if (op_name == "join_reduce" or (op_name == "reduce" and join_by is not None)) else _,
             lambda _: update({"ordered": bool_to_string(ordered)}, _) \
                 if op_name == "map" and ordered is not None else _,
             lambda _: update({"job_count": job_count}, _) if job_count is not None else _,
@@ -1478,7 +1481,7 @@ def _run_operation(binary, source_table, destination_table,
                 format, input_format, output_format,
                 files, file_paths,
                 local_files, yt_files,
-                memory_limit, reduce_by, local_files_to_remove, _, client=client),
+                memory_limit, group_by, local_files_to_remove, _, client=client),
             lambda _: get_value(_, {})
         )(spec)
 

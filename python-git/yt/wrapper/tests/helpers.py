@@ -15,8 +15,9 @@ def get_test_file_path(name):
 # Check equality of records in dsv format
 def check(recordsA, recordsB):
     def prepare(records):
-        return map(yt.loads_row, sorted(list(records)))
-    assert prepare(recordsA) == prepare(recordsB)
+        return sorted(map(yt.loads_row, list(records)))
+    lhs, rhs = prepare(recordsA), prepare(recordsB)
+    assert lhs == rhs
 
 def get_temp_dsv_records():
     columns = (string.digits, reversed(string.ascii_lowercase[:10]), string.ascii_uppercase)

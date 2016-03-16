@@ -245,7 +245,7 @@ def wrap(tempfiles_manager, client, **kwargs):
     else:
         return do_wrap(tempfiles_manager=tempfiles_manager, client=client, local_mode=local_mode, **kwargs)
 
-def do_wrap(function, operation_type, tempfiles_manager, input_format, output_format, reduce_by, local_mode, uploader, client):
+def do_wrap(function, operation_type, tempfiles_manager, input_format, output_format, group_by, local_mode, uploader, client):
     assert operation_type in ["mapper", "reducer", "reduce_combiner"]
     local_temp_directory = get_config(client)["local_temp_directory"]
     function_filename = tempfiles_manager.create_tempfile(dir=local_temp_directory,
@@ -255,7 +255,7 @@ def do_wrap(function, operation_type, tempfiles_manager, input_format, output_fo
 
     with open(function_filename, "w") as fout:
         attributes = function.attributes if hasattr(function, "attributes") else {}
-        pickler.dump((function, attributes, operation_type, input_format, output_format, reduce_by, get_python_version()), fout)
+        pickler.dump((function, attributes, operation_type, input_format, output_format, group_by, get_python_version()), fout)
 
     config_filename = tempfiles_manager.create_tempfile(dir=local_temp_directory,
                                                         prefix="config_dump")

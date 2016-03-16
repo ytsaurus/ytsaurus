@@ -278,12 +278,17 @@ class TestOperations(object):
             with pytest.raises(yt.YtError):
                 yt.run_join_reduce("cat", [unsorted_table, "<foreign=true>" + table2], table, join_by=["x"])
 
-        yt.write_table("<sorted_by=[x;y]>" + table1, ["x=1\ty=1\n"])
-        yt.write_table("<sorted_by=[x]>" + table2, ["x=1\n"])
-
         if yt_env.version >= "18.2.0":
-            yt.run_reduce("cat", [table1, "<foreign=true>" + table2], table, reduce_by=["x","y"],
-                join_by=["x"])
+            yt.write_table("<sorted_by=[x;y]>" + table1, ["x=1\ty=1\n"])
+            yt.write_table("<sorted_by=[x]>" + table2, ["x=1\n"])
+
+            def func(key, rows):
+                assert key.keys() == ["x"]
+                for row in rows:
+                    yield row
+
+            yt.run_reduce(func, [table1, "<foreign=true>" + table2], table,
+                          reduce_by=["x","y"], join_by=["x"])
             check(["x=1\ty=1\n", "x=1\n"], yt.read_table(table))
 
             # Reduce with join_by, but without foreign tables

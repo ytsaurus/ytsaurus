@@ -54,7 +54,7 @@ def main():
 
     unpickler = Unpickler(yt.wrapper.config.config["pickling"]["framework"])
 
-    __operation, __attributes, __operation_type, __input_format, __output_format, __keys, __python_version = \
+    __operation, __attributes, __operation_type, __input_format, __output_format, __group_by_keys, __python_version = \
         unpickler.load(open(__operation_dump))
 
     if yt.wrapper.config["pickling"]["enable_job_statistics"]:
@@ -94,13 +94,13 @@ def main():
                     __finish())
             else:
                 if __attributes.get("is_reduce_aggregator"):
-                    __result = __run(itertools.groupby(__rows, lambda row: extract_key(row, __keys)))
+                    __result = __run(itertools.groupby(__rows, lambda row: extract_key(row, __group_by_keys)))
                 else:
                     __result = itertools.chain(
                         __start(),
                         itertools.chain.from_iterable(
                             itertools.starmap(__run,
-                                itertools.groupby(__rows, lambda row: extract_key(row, __keys)))),
+                                itertools.groupby(__rows, lambda row: extract_key(row, __group_by_keys)))),
                         __finish())
 
         __output_format.dump_rows(__result, streams.get_original_stdout(), raw=raw)
