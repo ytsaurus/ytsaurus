@@ -94,6 +94,8 @@ def clean_tasks(url, token, count, total_count, failed_timeout, max_regular_task
         else:
             saved += 1
 
+    logger.info("%d tasks will be removed", len(to_remove))
+
     batch_start_index = 0
     while batch_start_index < len(to_remove):
         batch_end_index = batch_start_index + batch_size
