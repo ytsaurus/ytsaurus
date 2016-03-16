@@ -59,7 +59,6 @@ class YtStuff:
         self.yt_local_path = os.path.join(self.yt_bins_path, "yt_local")
 
         yt_archive_path = os.path.join(build_path, YT_ARCHIVE_NAME)
-        yt_archive_path = "/place/home/vartyukh/yt.tgz"
         self._extract_tar(yt_archive_path, self.yt_path)
 
         self.yt_work_dir = os.path.join(self.yt_path, "wd")
