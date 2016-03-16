@@ -1,6 +1,6 @@
 from yt.wrapper.keyboard_interrupts_catcher import KeyboardInterruptsCatcher
 from yt.wrapper.response_stream import ResponseStream, EmptyResponseStream
-from yt.wrapper.verified_dict import VerifiedDict
+from yt.wrapper.mappings import VerifiedDict, FrozenDict
 from yt.common import makedirp
 from yt.yson import to_yson_type
 import yt.yson as yson
@@ -362,6 +362,43 @@ def test_verified_dict():
 
     vdict["a"] = "E"
     assert vdict["a"] == "e"
+
+def test_frozen_dict():
+    fdict = FrozenDict(a=1, b=2)
+    assert len(fdict) == 2
+    for k in ["a", "b"]:
+        assert k in fdict
+    assert fdict["a"] == 1
+    assert fdict["b"] == 2
+    assert fdict.get("c", 100) == 100
+
+    s = 0
+    for k, v in fdict.iteritems():
+        s += v
+        assert k in ["a", "b"]
+    assert s == 3
+
+    assert sorted(fdict.values()) == [1, 2]
+    assert sorted(fdict.keys()) == ["a", "b"]
+    assert sorted(fdict.itervalues()) == [1, 2]
+    assert sorted(fdict.iterkeys()) == ["a", "b"]
+
+    assert fdict == {"a": 1, "b": 2}
+    assert fdict == FrozenDict({"a": 1, "b": 2})
+    assert fdict != {"c": 1}
+
+    assert hash(fdict) == hash(FrozenDict({"b": 2, "a": 1}))
+
+    repr(fdict), str(fdict)
+
+    with pytest.raises(TypeError):
+        fdict["abcde"] = 123
+
+    with pytest.raises(TypeError):
+        del fdict["a"]
+
+    with pytest.raises(TypeError):
+        fdict["a"] = 3
 
 class TestResponseStream(object):
     def test_chunk_iterator(self):
