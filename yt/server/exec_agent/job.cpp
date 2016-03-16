@@ -46,6 +46,7 @@
 
 #include <yt/core/misc/common.h>
 #include <yt/core/misc/proc.h>
+#include <yt/core/misc/finally.h>
 
 #include <yt/core/rpc/bus_channel.h>
 
@@ -137,10 +138,17 @@ public:
         }
 
         CancelableContext->Cancel();
+
         YCHECK(Slot);
-        BIND(&TJob::DoAbort, MakeStrong(this))
-            .Via(Slot->GetInvoker())
-            .Run();
+
+        auto abortAction = BIND(&TJob::DoAbort, MakeStrong(this))
+            .AsyncVia(Slot->GetInvoker());
+
+        if (RunStarted_) {
+            RunFinished_.ToFuture().Apply(abortAction);
+        } else {
+            WaitFor(abortAction.Run());
+        }
     }
 
     virtual const TJobId& GetId() const override
@@ -285,6 +293,8 @@ private:
     EJobPhase JobPhase = EJobPhase::Created;
 
     TCancelableContextPtr CancelableContext = New<TCancelableContext>();
+    bool RunStarted_ = false;
+    TPromise<void> RunFinished_;
 
     double Progress = 0.0;
     NJobTrackerClient::NProto::TStatistics Statistics;
@@ -309,6 +319,13 @@ private:
     void DoRun()
     {
         try {
+            RunStarted_ = true;
+            RunFinished_ = NewPromise<void>();
+            TFinallyGuard guard([this] () {
+                RunFinished_.Set();
+                RunStarted_ = false;
+            });
+
             YCHECK(JobPhase == EJobPhase::Created);
             JobPhase = EJobPhase::PreparingConfig;
             PrepareConfig();
