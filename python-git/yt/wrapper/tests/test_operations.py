@@ -677,6 +677,20 @@ class TestOperations(object):
         finally:
             yt.config["start_operation_retries"]["retry_timeout"] = old_value
 
+    @add_failed_operation_stderrs_to_error_message
+    def test_reduce_key_modification(self):
+        def reducer(key, recs):
+            rec = next(recs)
+            key["x"] = int(rec["y"]) + 10
+            yield key
+
+        table = TEST_DIR + "/table"
+        yt.write_table(table, ["x=1\ty=1\n", "x=1\ty=2\n", "x=2\ty=3\n"])
+        yt.run_sort(table, table, sort_by=["x"])
+
+        with pytest.raises(yt.YtOperationFailedError):
+            yt.run_reduce(reducer, table, TEST_DIR + "/other", reduce_by=["x"], format="dsv")
+
     def test_disable_yt_accesses_from_job(self, yt_env):
         first_script = """\
 import yt.wrapper as yt

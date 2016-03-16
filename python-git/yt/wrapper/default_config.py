@@ -1,5 +1,5 @@
 import common
-from verified_dict import VerifiedDict
+from mappings import VerifiedDict
 
 from yt.yson import YsonEntity
 

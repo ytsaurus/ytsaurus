@@ -6,6 +6,7 @@ parameters, and then by kwargs options.
 
 from config import get_config
 from common import get_value, require, filter_dict, merge_dicts, YtError
+from mappings import FrozenDict
 from yamr_record import Record, SimpleRecord, SubkeyedRecord
 import yson
 
@@ -851,7 +852,7 @@ def extract_key(rec, fields):
     if isinstance(rec, SimpleRecord) or isinstance(rec, SubkeyedRecord):
         return rec.key
     else:
-        return dict((key, rec[key]) for key in fields if key in rec)
+        return FrozenDict((key, rec[key]) for key in fields if key in rec)
 
 def set_yamr_mode(client=None):
     """Configure global config to be yamr compatible"""
