@@ -217,7 +217,7 @@ EExitCode GuardedMain(int argc, const char* argv[])
     }
 
     if (!workingDirectory.empty()) {
-        ChDir(workingDirectory);
+        NFs::SetCurrentWorkingDirectory(workingDirectory);
     }
 
     if (isJobProxy) {
@@ -331,7 +331,7 @@ EExitCode GuardedMain(int argc, const char* argv[])
             YCHECK(setuid(uid) == 0);
         }
 
-        std::vector<char*> env; 
+        std::vector<char*> env;
         for (auto envVar : parser.Environment.getValue()) {
             env.push_back(const_cast<char*>(envVar.c_str()));
         }
