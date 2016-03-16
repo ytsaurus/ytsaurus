@@ -77,7 +77,7 @@ case $PACKAGE in
         REPOS="yt-common"
         ;;
     yandex-yt-python-yson)
-        REPOS="yandex-$(lsb_release --short --codename)"
+        REPOS="yandex-$(lsb_release --short --codename) yt-$(lsb_release --short --codename)"
         ;;
 esac
 
