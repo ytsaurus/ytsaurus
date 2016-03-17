@@ -1,4 +1,4 @@
-import random
+from system_random import SystemRandom
 
 class ClientState(object):
     def __init__(self):
@@ -22,7 +22,7 @@ class ClientState(object):
         self._api_version = None
         self._commands = None
 
-        self._random_generator = random.SystemRandom()
+        self._random_generator = SystemRandom()
 
         # This implementation works incorrectky if client copied.
         #seed = random.SystemRandom().randint(0, 2**63)
