@@ -684,9 +684,10 @@ private:
             chunkSpecs,
             nameTable);
 
-        auto format = ConvertTo<NFormats::TFormat>(TYsonString(key.format()));
 
         try {
+            auto format = ConvertTo<NFormats::TFormat>(TYsonString(key.format()));
+
             TSessionCounterGuard sessionCounterGuard(location);
 
             WaitFor(reader->Open())
