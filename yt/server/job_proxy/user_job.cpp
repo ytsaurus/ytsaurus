@@ -189,8 +189,8 @@ public:
 
     virtual void Abort() override
     {
-        bool expected = false;
-        if (!Prepared_.compare_exchange_strong(expected, true)) {
+        bool expected = true;
+        if (Prepared_.compare_exchange_strong(expected, false)) {
             // Job has been prepared.
             CleanupUserProcesses();
         }
