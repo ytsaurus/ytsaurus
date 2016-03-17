@@ -218,6 +218,59 @@ class TestTableCommands(object):
         finally:
             yt.config["tabular_data_format"] = yt.format.DsvFormat()
 
+    def test_insert_lookup_delete_with_transaction(self, yt_env):
+        if yt.config["backend"] != "native":
+            pytest.skip()
+
+        yt.config["tabular_data_format"] = None
+        try:
+            # Name must differ with name of table in select test because of metadata caches
+            table = TEST_DIR + "/table2"
+            yt.remove(table, force=True)
+            yt.create_table(table)
+            if yt_env.version < "0.18":
+                yt.set(table + "/@schema", [{"name": name, "type": "string"} for name in ["x", "y"]])
+                yt.set(table + "/@key_columns", ["x"])
+            else:
+                yt.set(table + "/@schema", [
+                    {"name": "x", "type": "string", "sort_order": "ascending"},
+                    {"name": "y", "type": "string"}])
+
+            tablet_id = yt.create("tablet_cell", attributes={"size": 1})
+            while yt.get("//sys/tablet_cells/{0}/@health".format(tablet_id)) != 'good':
+                time.sleep(0.1)
+
+            yt.mount_table(table)
+            while yt.get("{0}/@tablets/0/state".format(table)) != 'mounted':
+                time.sleep(0.1)
+
+            vanilla_client = Yt(config=yt.config)
+
+            assert list(vanilla_client.select_rows("* from [{0}]".format(table), raw=False)) == []
+            assert list(vanilla_client.lookup_rows(table, [{"x": "a"}], raw=False)) == []
+
+            with yt.Transaction(type="tablet", sticky=True):
+                yt.insert_rows(table, [{"x": "a", "y": "a"}], raw=False)
+                assert list(vanilla_client.select_rows("* from [{0}]".format(table), raw=False)) == []
+                assert list(vanilla_client.lookup_rows(table, [{"x": "a"}], raw=False)) == []
+
+            assert list(vanilla_client.select_rows("* from [{0}]".format(table), raw=False)) == [{"x": "a", "y": "a"}]
+            assert list(vanilla_client.lookup_rows(table, [{"x": "a"}], raw=False)) == [{"x": "a", "y": "a"}]
+
+            class FakeError(RuntimeError):
+                pass
+
+            with pytest.raises(FakeError):
+                with yt.Transaction(type="tablet", sticky=True):
+                    yt.insert_rows(table, [{"x": "b", "y": "b"}], raw=False)
+                    raise FakeError()
+
+            assert list(vanilla_client.select_rows("* from [{0}]".format(table), raw=False)) == [{"x": "a", "y": "a"}]
+            assert list(vanilla_client.lookup_rows(table, [{"x": "a"}], raw=False)) == [{"x": "a", "y": "a"}]
+        finally:
+            yt.config["tabular_data_format"] = yt.format.DsvFormat()
+
+
     def test_start_row_index(self):
         table = TEST_DIR + "/table"
 
