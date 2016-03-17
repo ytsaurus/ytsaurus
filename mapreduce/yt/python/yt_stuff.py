@@ -10,8 +10,8 @@ import time
 import pytest
 import yatest.common
 
-YT_ARCHIVE_NAME = "mapreduce/yt/python/yt.tgz" # comes by FROM_SANDBOX
-YT_PREFIX = "//"
+_YT_ARCHIVE_NAME = "mapreduce/yt/python/yt.tgz" # comes by FROM_SANDBOX
+_YT_PREFIX = "//"
 
 class YtStuff:
     def __init__(self):
@@ -64,7 +64,7 @@ class YtStuff:
         self.mapreduce_yt_path = os.path.join(self.yt_bins_path, "mapreduce-yt")
         self.yt_local_path = os.path.join(self.yt_bins_path, "yt_local")
 
-        yt_archive_path = os.path.join(build_path, YT_ARCHIVE_NAME)
+        yt_archive_path = os.path.join(build_path, _YT_ARCHIVE_NAME)
         self._extract_tar(yt_archive_path, self.yt_path)
 
         self.yt_work_dir = os.path.join(self.yt_path, "wd")
@@ -89,7 +89,7 @@ class YtStuff:
         sys.path.append(self.yt_python_path)
         import yt.wrapper
         self.yt_wrapper = yt.wrapper
-        self.yt_wrapper.config.PREFIX = YT_PREFIX
+        self.yt_wrapper.config.PREFIX = _YT_PREFIX
 
     def _yt_local(self, *args):
         cmd = [sys.executable, self.yt_local_path] + list(args)
