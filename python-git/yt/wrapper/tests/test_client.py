@@ -5,9 +5,11 @@ import yt.wrapper as yt
 
 from helpers import TEST_DIR, get_temp_dsv_records
 
+import pytest
+
 import time
 import tempfile
-import pytest
+from copy import deepcopy
 
 @pytest.mark.usefixtures("yt_env")
 class TestClient(object):
@@ -26,6 +28,8 @@ class TestClient(object):
         other_client = Yt(config=yt.config.config)
         other_client.config["proxy"]["force_ipv4"] = True
         other_client.config["tabular_data_format"] = yt.JsonFormat()
+
+        deepcopy(client)
 
         old_proxy_url = yt.config["proxy"]["url"]
         try:
