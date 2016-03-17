@@ -514,6 +514,10 @@ protected:
     //! A typical implementation of #IsTeleportChunk that depends on whether chunks must be combined or not.
     bool IsTeleportChunkImpl(const TChunkSpec& chunkSpec, bool combineChunks) const
     {
+        if (chunkSpec.has_channel()) {
+            return false;
+        }
+
         return combineChunks
             ? IsLargeCompleteChunk(chunkSpec, Spec->JobIO->TableWriter->DesiredChunkSize)
             : IsCompleteChunk(chunkSpec);
@@ -759,8 +763,9 @@ private:
 
     virtual bool IsTeleportChunk(const TChunkSpec& chunkSpec) const override
     {
-        if (Spec->ForceTransform)
+        if (Spec->ForceTransform) {
             return false;
+        }
 
         return IsTeleportChunkImpl(chunkSpec, Spec->CombineChunks);
     }
@@ -1133,7 +1138,8 @@ protected:
     virtual bool IsTeleportCandidate(TRefCountedChunkSpecPtr chunkSpec) const
     {
         return !chunkSpec->lower_limit().has_row_index() && 
-            !chunkSpec->upper_limit().has_row_index();
+            !chunkSpec->upper_limit().has_row_index() &&
+            !chunkSpec->has_channel();
     }
 
     virtual bool IsBoundaryKeysFetchEnabled() const override
