@@ -134,7 +134,7 @@ class YtStuff:
             res = self._yt_local(*args)
         except Exception, e:
             self._log("Failed to start local YT:\n%s", str(e))
-            self._save_server_logs()
+            self._save_yt_data(save_all=True)
             raise
         self.yt_id = res.std_out.strip()
         self.proxy_port = int(res.std_err.strip().splitlines()[-1].strip().split(":")[-1])
@@ -147,22 +147,32 @@ class YtStuff:
             self._yt_local("stop", os.path.join(self.yt_work_dir, self.yt_id))
         except Exception, e:
             self._log("Errors while stopping local YT:\n%s", str(e))
+            self._save_yt_data(save_all=True)
             raise
-        finally:
-            self._save_server_logs()
+        self._save_yt_data(save_all=yatest.common.get_param("yt_save_all_data"))
 
     @_timing
-    def _save_server_logs(self):
+    def _save_yt_data(self, save_all=None):
         output_dir = yatest.common.output_path("yt")
-        if not os.path.isdir(output_dir):
-            os.mkdir(output_dir)
-        self._log("YT logs saved in %s", output_dir)
-        for root, dirs, files in os.walk(self.yt_work_dir):
-            log_files = filter(lambda file: file.endswith(".log"), files)
-            for file in log_files:
-                for start in ["http_application", "http_proxy", "node", "master", "scheduler"]:
-                    if file.startswith(start):
-                        shutil.copy2(os.path.join(root, file), os.path.join(output_dir, file))
+        self._log("YT data saved in %s", output_dir)
+
+        def _ignore(path, names):
+            IGNORE_DIRS_ALWAYS = ["ui"]
+            IGNORE_DIRS = ["chunk_store", "chunk_cache", "changelogs", "snapshots"]
+            ignored = set()
+            for name in names:
+                full_path = os.path.join(path, name)
+                if os.path.islink(full_path):
+                    ignored.add(name)
+                elif os.path.isdir(full_path):
+                    should_ignore = False
+                    should_ignore |= name in IGNORE_DIRS_ALWAYS
+                    should_ignore |= not save_all and name in IGNORE_DIRS
+                    if should_ignore:
+                        ignored.add(name)
+            return ignored
+
+        shutil.copytree(src=self.yt_work_dir, dst=output_dir, ignore=_ignore)
         os.system("chmod -R 0775 " + output_dir)
 
 
