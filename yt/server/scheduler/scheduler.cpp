@@ -723,8 +723,8 @@ public:
     DEFINE_SIGNAL(void(TOperationPtr), OperationUnregistered);
     DEFINE_SIGNAL(void(TOperationPtr, INodePtr update), OperationRuntimeParamsUpdated);
 
-    DEFINE_SIGNAL(void(TJobPtr job), JobFinished);
-    DEFINE_SIGNAL(void(TJobPtr, const TJobResources& resourcesDelta), JobUpdated);
+    DEFINE_SIGNAL(void(const TJobPtr& job), JobFinished);
+    DEFINE_SIGNAL(void(const TJobPtr&, const TJobResources& resourcesDelta), JobUpdated);
 
     DEFINE_SIGNAL(void(INodePtr pools), PoolsUpdated);
 
