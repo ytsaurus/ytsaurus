@@ -1061,7 +1061,7 @@ void TOperationControllerBase::Materialize()
 
         CheckTimeLimitExecutor->Start();
 
-        SetState(EControllerState::Running);
+        State = EControllerState::Running;
     } catch (const std::exception& ex) {
         LOG_ERROR(ex, "Materialization failed");
         auto wrappedError = TError("Materialization failed") << ex;
@@ -1106,7 +1106,7 @@ void TOperationControllerBase::Revive()
 
     CheckTimeLimitExecutor->Start();
 
-    SetState(EControllerState::Running);
+    State = EControllerState::Running;
 }
 
 void TOperationControllerBase::InitializeTransactions()
@@ -1867,7 +1867,7 @@ void TOperationControllerBase::Abort()
 
     LOG_INFO("Aborting operation");
 
-    SetState(EControllerState::Finished);
+    State = EControllerState::Finished;
 
     CancelableContext->Cancel();
 
@@ -2400,7 +2400,7 @@ void TOperationControllerBase::OnOperationCompleted()
 
     LOG_INFO("Operation completed");
 
-    SetState(EControllerState::Finished);
+    State = EControllerState::Finished;
 
     Host->OnOperationCompleted(Operation);
 }
@@ -2414,32 +2414,23 @@ void TOperationControllerBase::OnOperationFailed(const TError& error)
         return;
     }
 
-    SetState(EControllerState::Finished);
+    State = EControllerState::Finished;
 
     Host->OnOperationFailed(Operation, error);
 }
 
-void TOperationControllerBase::SetState(EControllerState state)
-{
-    TWriterGuard guard(StateLock);
-    State = state;
-}
-
 bool TOperationControllerBase::IsPrepared() const
 {
-    TReaderGuard guard(StateLock);
     return State != EControllerState::Preparing;
 }
 
 bool TOperationControllerBase::IsRunning() const
 {
-    TReaderGuard guard(StateLock);
     return State == EControllerState::Running;
 }
 
 bool TOperationControllerBase::IsFinished() const
 {
-    TReaderGuard guard(StateLock);
     return State == EControllerState::Finished;
 }
 
