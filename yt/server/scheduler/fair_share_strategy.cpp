@@ -479,13 +479,13 @@ public:
         attributes.BestLeafDescendant.Reset();
 
         while (auto bestChild = GetBestActiveChild(attributesIndex)) {
-            auto childBestLeafDescendant = bestChild->DynamicAttributes(attributesIndex).BestLeafDescendant;
+            const auto& bestChildAttributes = bestChild->DynamicAttributes(attributesIndex);
+            const auto& childBestLeafDescendant = bestChildAttributes.BestLeafDescendant;
             if (!childBestLeafDescendant->IsActive(GlobalAttributesIndex)) {
                 bestChild->UpdateDynamicAttributes(attributesIndex);
-                if (!bestChild->IsActive(attributesIndex)) {
+                if (!bestChildAttributes.Active) {
                     continue;
                 }
-                childBestLeafDescendant = bestChild->DynamicAttributes(attributesIndex).BestLeafDescendant;
                 YCHECK(childBestLeafDescendant->IsActive(GlobalAttributesIndex));
             }
 
@@ -493,13 +493,13 @@ public:
             // because parent can use different scheduling mode.
             attributes.MinSubtreeStartTime = std::min(
                 attributes.MinSubtreeStartTime,
-                bestChild->DynamicAttributes(attributesIndex).MinSubtreeStartTime);
+                bestChildAttributes.MinSubtreeStartTime);
 
             attributes.SatisfactionRatio = std::min(
                 attributes.SatisfactionRatio,
-                bestChild->DynamicAttributes(attributesIndex).SatisfactionRatio);
+                bestChildAttributes.SatisfactionRatio);
 
-            attributes.BestLeafDescendant = bestChild->DynamicAttributes(attributesIndex).BestLeafDescendant;
+            attributes.BestLeafDescendant = bestChildAttributes.BestLeafDescendant;
             attributes.Active = true;
             break;
         }
@@ -572,7 +572,7 @@ public:
         return false;
     }
 
-    void AddChild(ISchedulerElementPtr child, bool enabled = true)
+    void AddChild(const ISchedulerElementPtr& child, bool enabled = true)
     {
         if (enabled) {
             YCHECK(Children.insert(child).second);
@@ -581,7 +581,7 @@ public:
         }
     }
 
-    void EnableChild(ISchedulerElementPtr child)
+    void EnableChild(const ISchedulerElementPtr& child)
     {
         auto it = DisabledChildren.find(child);
         YCHECK(it != DisabledChildren.end());
@@ -589,7 +589,7 @@ public:
         DisabledChildren.erase(it);
     }
 
-    void RemoveChild(ISchedulerElementPtr child)
+    void RemoveChild(const ISchedulerElementPtr& child)
     {
         bool foundInChildren = (Children.find(child) != Children.end());
         bool foundInDisabledChildren = (DisabledChildren.find(child) != DisabledChildren.end());
@@ -599,11 +599,6 @@ public:
         } else {
             DisabledChildren.erase(child);
         }
-    }
-
-    std::vector<ISchedulerElementPtr> GetChildren() const
-    {
-        return std::vector<ISchedulerElementPtr>(Children.begin(), Children.end());
     }
 
     bool IsEmpty() const
@@ -679,7 +674,7 @@ protected:
 
     void UpdateFifo()
     {
-        auto bestChild = GetBestActiveChildFifo(GlobalAttributesIndex);
+        const auto& bestChild = GetBestActiveChildFifo(GlobalAttributesIndex);
         for (const auto& child : Children) {
             auto& childAttributes = child->Attributes();
             if (child == bestChild) {
@@ -777,11 +772,14 @@ protected:
                         }
                         break;
                     }
-                    case EFifoSortParameter::PendingJobCount:
-                        if (lhs->GetPendingJobCount() != rhs->GetPendingJobCount()) {
-                            return lhs->GetPendingJobCount() < rhs->GetPendingJobCount();
+                    case EFifoSortParameter::PendingJobCount: {
+                        int lhsPendingJobCount = lhs->GetPendingJobCount();
+                        int rhsPendingJobCount = rhs->GetPendingJobCount();
+                        if (lhsPendingJobCount != rhsPendingJobCount) {
+                            return lhsPendingJobCount < rhsPendingJobCount;
                         }
                         break;
+                    }
                     default:
                         YUNREACHABLE();
                 }
@@ -789,27 +787,27 @@ protected:
             return false;
         };
 
-        ISchedulerElementPtr bestChild;
+        ISchedulerElement* bestChild = nullptr;
         for (const auto& child : Children) {
             if (child->IsActive(attributesIndex)) {
                 if (bestChild && isBetter(bestChild, child))
                     continue;
 
-                bestChild = child;
+                bestChild = child.Get();
             }
         }
         return bestChild;
     }
     ISchedulerElementPtr GetBestActiveChildFairShare(int attributesIndex) const
     {
-        ISchedulerElementPtr bestChild;
+        ISchedulerElement* bestChild = nullptr;
         double bestChildSatisfactionRatio = std::numeric_limits<double>::max();
         for (const auto& child : Children) {
             if (child->IsActive(attributesIndex)) {
                 double childSatisfactionRatio = child->DynamicAttributes(attributesIndex).SatisfactionRatio;
                 if (!bestChild || childSatisfactionRatio < bestChildSatisfactionRatio)
                 {
-                    bestChild = child;
+                    bestChild = child.Get();
                     bestChildSatisfactionRatio = childSatisfactionRatio;
                 }
             }
@@ -1118,7 +1116,7 @@ public:
 
     virtual int GetPendingJobCount() const override
     {
-        auto controller = Operation_->GetController();
+        const auto& controller = Operation_->GetController();
         return controller->GetPendingJobCount();
     }
 
@@ -1150,7 +1148,7 @@ public:
     virtual const TJobResources& ResourceDemand() const override
     {
         if (Operation_->IsSchedulable()) {
-            auto controller = Operation_->GetController();
+            const auto& controller = Operation_->GetController();
             ResourceDemand_ = ResourceUsage_ + controller->GetNeededResources();
         } else {
             ResourceDemand_ = ZeroJobResources();
@@ -1180,8 +1178,7 @@ public:
             return ESchedulableStatus::Normal;
         }
 
-        auto controller = Operation_->GetController();
-        if (controller->GetPendingJobCount() == 0) {
+        if (GetPendingJobCount() == 0) {
             return ESchedulableStatus::Normal;
         }
 
@@ -1544,7 +1541,7 @@ public:
             Host->LogEventFluently(ELogEventType::FairShareInfo, now)
                 .Do(BIND(&TFairShareStrategy::BuildPoolsInformation, this))
                 .Item("operations").DoMapFor(OperationToElement, [=] (TFluentMap fluent, const TOperationMap::value_type& pair) {
-                    auto operationId = pair.first;
+                    const auto& operationId = pair.first;
                     BuildYsonMapFluently(fluent)
                         .Item(ToString(operationId))
                         .BeginMap()
@@ -1552,7 +1549,7 @@ public:
                         .EndMap();
                 });
             for (auto& pair : OperationToElement) {
-                auto operationId = pair.first;
+                const auto& operationId = pair.first;
                 LOG_DEBUG("FairShareInfo: %v (OperationId: %v)",
                     GetOperationLoggingProgress(operationId),
                     operationId);
@@ -1574,7 +1571,7 @@ public:
         yhash_set<TCompositeSchedulerElementPtr> discountedPools;
         std::vector<TJobPtr> preemptableJobs;
         for (const auto& job : schedulingContext->RunningJobs()) {
-            auto operationElement = FindOperationElement(job->GetOperationId());
+            const auto& operationElement = FindOperationElement(job->GetOperationId());
             if (!operationElement || !operationElement->IsJobExisting(job->GetId())) {
                 LOG_DEBUG("Dangling running job found (JobId: %v, OperationId: %v)",
                     job->GetId(),
@@ -1629,8 +1626,8 @@ public:
                 return lhs->GetStartTime() > rhs->GetStartTime();
             });
 
-        auto poolLimitsViolated = [&] (TJobPtr job) -> bool {
-            auto operationElement = FindOperationElement(job->GetOperationId());
+        auto poolLimitsViolated = [&] (const TJobPtr& job) -> bool {
+            const auto& operationElement = FindOperationElement(job->GetOperationId());
             if (!operationElement) {
                 return false;
             }
@@ -1658,7 +1655,7 @@ public:
         bool poolsLimitsViolated = true;
 
         for (const auto& job : preemptableJobs) {
-            auto operationElement = FindOperationElement(job->GetOperationId());
+            const auto& operationElement = FindOperationElement(job->GetOperationId());
             if (!operationElement || !operationElement->IsJobExisting(job->GetId())) {
                 LOG_INFO("Dangling preemptable job found (JobId: %v, OperationId: %v)",
                     job->GetId(),
@@ -1719,7 +1716,7 @@ public:
             poolElement = pool.Get();
         }
 
-        auto poolWithViolatedLimit = FindPoolWithViolatedOperationCountLimit(poolElement);
+        const auto& poolWithViolatedLimit = FindPoolWithViolatedOperationCountLimit(poolElement);
         if (poolWithViolatedLimit) {
             return TError(
                 EErrorCode::TooManyOperations,
@@ -1732,7 +1729,7 @@ public:
 
     virtual void BuildOperationAttributes(const TOperationId& operationId, IYsonConsumer* consumer) override
     {
-        auto element = GetOperationElement(operationId);
+        const auto& element = GetOperationElement(operationId);
         auto serializedParams = ConvertToAttributes(element->GetRuntimeParams());
         BuildYsonMapFluently(consumer)
             .Items(*serializedParams);
@@ -1745,7 +1742,7 @@ public:
             return;
         }
 
-        const auto& pool = element->GetPool();
+        auto* pool = element->GetPool();
         BuildYsonMapFluently(consumer)
             .Item("pool").Value(pool->GetId())
             .Item("start_time").Value(element->DynamicAttributes(GlobalAttributesIndex).MinSubtreeStartTime)
@@ -1760,7 +1757,7 @@ public:
             return;
         }
 
-        const auto& pool = element->GetPool();
+        auto* pool = element->GetPool();
         const auto& attributes = element->Attributes();
         BuildYsonMapFluently(consumer)
             .Item("pool").Value(pool->GetId())
@@ -1854,7 +1851,7 @@ private:
     std::vector<int> FreeAttributesIndices;
     int MaxUsedAttributesIndex = GlobalAttributesIndex;
 
-    bool IsJobPreemptable(TJobPtr job)
+    bool IsJobPreemptable(const TJobPtr& job)
     {
         const auto& element = GetOperationElement(job->GetOperationId());
 
@@ -1875,9 +1872,9 @@ private:
         return true;
     }
 
-    void PreemptJob(TJobPtr job, TFairShareContext& context)
+    void PreemptJob(const TJobPtr& job, TFairShareContext& context)
     {
-        auto operationElement = GetOperationElement(job->GetOperationId());
+        const auto& operationElement = GetOperationElement(job->GetOperationId());
 
         context.SchedulingContext->ResourceUsage() -= job->ResourceUsage();
         operationElement->IncreaseJobResourceUsage(job->GetId(), -job->ResourceUsage());
@@ -1887,7 +1884,7 @@ private:
     }
 
 
-    TStrategyOperationSpecPtr ParseSpec(TOperationPtr operation, INodePtr specNode)
+    TStrategyOperationSpecPtr ParseSpec(const TOperationPtr& operation, INodePtr specNode)
     {
         try {
             return ConvertTo<TStrategyOperationSpecPtr>(specNode);
@@ -1905,7 +1902,7 @@ private:
         return params;
     }
 
-    bool CanAddOperationToPool(TPoolPtr pool)
+    bool CanAddOperationToPool(const TPoolPtr& pool)
     {
         TCompositeSchedulerElement* element = pool.Get();
         while (element) {
@@ -1981,8 +1978,8 @@ private:
 
     void ActivateOperation(const TOperationId& operationId)
     {
-        auto operationElement = GetOperationElement(operationId);
-        auto pool = operationElement->GetPool();
+        const auto& operationElement = GetOperationElement(operationId);
+        auto* pool = operationElement->GetPool();
         pool->EnableChild(operationElement);
         IncreaseRunningOperationCount(pool, 1);
 
@@ -2027,8 +2024,9 @@ private:
             // Try to run operations from queue.
             auto it = OperationQueue.begin();
             while (it != OperationQueue.end() && RunningOperationCount[RootPoolName] < Config->MaxRunningOperations) {
-                auto operation = *it;
-                if (CanAddOperationToPool(GetOperationElement(operation->GetId())->GetPool())) {
+                const auto& operation = *it;
+                auto* operationPool = GetOperationElement(operation->GetId())->GetPool();
+                if (CanAddOperationToPool(operationPool)) {
                     ActivateOperation(operation->GetId());
                     auto toRemove = it++;
                     OperationQueue.erase(toRemove);
@@ -2047,7 +2045,7 @@ private:
         TOperationPtr operation,
         INodePtr update)
     {
-        auto element = FindOperationElement(operation->GetId());
+        const auto& element = FindOperationElement(operation->GetId());
         if (!element)
             return;
 
@@ -2064,25 +2062,25 @@ private:
     }
 
 
-    void OnJobFinished(TJobPtr job)
+    void OnJobFinished(const TJobPtr& job)
     {
-        auto element = GetOperationElement(job->GetOperationId());
+        const auto& element = GetOperationElement(job->GetOperationId());
         element->OnJobFinished(job->GetId());
     }
 
-    void OnJobUpdated(TJobPtr job, const TJobResources& resourcesDelta)
+    void OnJobUpdated(const TJobPtr& job, const TJobResources& resourcesDelta)
     {
-        auto element = GetOperationElement(job->GetOperationId());
+        const auto& element = GetOperationElement(job->GetOperationId());
         element->IncreaseJobResourceUsage(job->GetId(), resourcesDelta);
     }
 
-    void RegisterPool(TPoolPtr pool)
+    void RegisterPool(const TPoolPtr& pool)
     {
         YCHECK(Pools.insert(std::make_pair(pool->GetId(), pool)).second);
         LOG_INFO("Pool registered (Pool: %v)", pool->GetId());
     }
 
-    void RegisterPool(TPoolPtr pool, TCompositeSchedulerElementPtr parent)
+    void RegisterPool(const TPoolPtr& pool, const TCompositeSchedulerElementPtr& parent)
     {
         YCHECK(Pools.insert(std::make_pair(pool->GetId(), pool)).second);
         pool->SetParent(parent.Get());
@@ -2093,7 +2091,7 @@ private:
             parent->GetId());
     }
 
-    void UnregisterPool(TPoolPtr pool)
+    void UnregisterPool(const TPoolPtr& pool)
     {
         YCHECK(Pools.erase(pool->GetId()) == 1);
         pool->DynamicAttributes(GlobalAttributesIndex).Active = false;
@@ -2105,7 +2103,7 @@ private:
             parent->GetId());
     }
 
-    void SetPoolParent(TPoolPtr pool, TCompositeSchedulerElementPtr parent)
+    void SetPoolParent(const TPoolPtr& pool, const TCompositeSchedulerElementPtr& parent)
     {
         if (pool->GetParent() == parent)
             return;
@@ -2129,7 +2127,7 @@ private:
         }
     }
 
-    void SetPoolDefaultParent(TPoolPtr pool)
+    void SetPoolDefaultParent(const TPoolPtr& pool)
     {
         auto defaultParentPool = FindPool(Config->DefaultParentPool);
         if (!defaultParentPool) {
@@ -2258,7 +2256,7 @@ private:
 
     static void BuildElementYson(
         TCompositeSchedulerElementPtr composite,
-        ISchedulerElementPtr element,
+        const ISchedulerElementPtr& element,
         IYsonConsumer* consumer)
     {
         const auto& attributes = element->Attributes();
