@@ -2901,6 +2901,8 @@ void TOperationControllerBase::DoRequestFileObjects(
                     file.Executable = file.Path.Attributes().Get<bool>("executable", executable);
                 } else {
                     file.Format = file.Path.Attributes().GetYson("format");
+                    // Check that format is correct.
+                    ConvertTo<NFormats::TFormat>(file.Format);
                 }
 
                 if (onFileObject) {
