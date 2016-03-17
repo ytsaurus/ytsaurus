@@ -9,7 +9,7 @@ namespace NExecAgent {
 const NLogging::TLogger ExecAgentLogger("ExecAgent");
 const NProfiling::TProfiler ExecAgentProfiler("/exec_agent");
 
-const TEnumIndexedVector<Stroka, ESandboxKind> SandboxDirectoryNames{"sandbox", "udf"};
+const TEnumIndexedVector<Stroka, ESandboxKind> SandboxDirectoryNames{"sandbox", "udf", "home"};
 const Stroka TmpfsDirName("tmpfs");
 
 ////////////////////////////////////////////////////////////////////
