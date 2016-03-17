@@ -161,8 +161,7 @@ protected:
     ISuspendableInvokerPtr SuspendableInvoker;
     IInvokerPtr CancelableInvoker;
 
-    EControllerState State = EControllerState::Preparing;
-    NConcurrency::TReaderWriterSpinLock StateLock;
+    std::atomic<EControllerState> State = {EControllerState::Preparing};
 
     // These totals are approximate.
     int TotalEstimatedInputChunkCount = 0;
