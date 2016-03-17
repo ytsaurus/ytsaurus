@@ -23,9 +23,18 @@
     #include <stdio.h>
     #include <dirent.h>
     #include <errno.h>
+    #include <pwd.h>
+    #include <sys/ioctl.h>
     #include <sys/types.h>
     #include <sys/stat.h>
     #include <unistd.h>
+#endif
+#ifdef _linux_
+    #include <pty.h>
+    #include <utmp.h>
+#endif
+#ifdef _darwin_
+    #include <util.h>
 #endif
 
 namespace NYT {
@@ -250,6 +259,21 @@ void SafeDup2(int oldFD, int newFD)
     }
 }
 
+void SafeSetCloexec(int fd)
+{
+    int getResult = ::fcntl(fd, F_GETFD);
+    if (getResult == -1) {
+        THROW_ERROR_EXCEPTION("Error creating pipe: fcntl failed to get descriptor flags")
+            << TError::FromSystem();
+    }
+
+    int setResult = ::fcntl(fd, F_SETFD, getResult | FD_CLOEXEC);
+    if (setResult == -1) {
+        THROW_ERROR_EXCEPTION("Error creating pipe: fcntl failed to set descriptor flags")
+            << TError::FromSystem();
+    }
+}
+
 void SetPermissions(int fd, int permissions)
 {
 #ifdef _linux_
@@ -267,13 +291,13 @@ void SetPermissions(int fd, int permissions)
 
 void SafePipe(int fd[2])
 {
-#if defined(_linux_)
+#ifdef _linux_
     auto result = ::pipe2(fd, O_CLOEXEC);
     if (result == -1) {
         THROW_ERROR_EXCEPTION("Error creating pipe")
             << TError::FromSystem();
     }
-#elif defined(_darwin_)
+#else
     {
         int result = ::pipe(fd);
         if (result == -1) {
@@ -281,22 +305,78 @@ void SafePipe(int fd[2])
                 << TError::FromSystem();
         }
     }
-    for (int index = 0; index < 2; ++index) {
-        int getResult = ::fcntl(fd[index], F_GETFD);
-        if (getResult == -1) {
-            THROW_ERROR_EXCEPTION("Error creating pipe: fcntl failed to get descriptor flags")
-                << TError::FromSystem();
+    SafeSetCloexec(fd[0]);
+    SafeSetCloexec(fd[1]);
+#endif
+}
+
+int SafeDup(int fd)
+{
+    auto result = ::dup(fd);
+    if (result == -1) {
+        THROW_ERROR_EXCEPTION("Error duplicating fd")
+            << TError::FromSystem();
+    }
+    return result;
+}
+
+void SafeOpenPty(int* masterFD, int* slaveFD, int height, int width)
+{
+    {
+        struct termios tt = { };
+        tt.c_iflag = TTYDEF_IFLAG & ~ISTRIP;
+        tt.c_oflag = TTYDEF_OFLAG;
+        tt.c_lflag = TTYDEF_LFLAG;
+        tt.c_cflag = (TTYDEF_CFLAG & ~(CS7|PARENB|HUPCL)) | CS8;
+        tt.c_cc[VERASE] = '\x7F';
+        cfsetispeed(&tt, B38400);
+        cfsetospeed(&tt, B38400);
+
+        struct winsize ws = { };
+        struct winsize* wsPtr = nullptr;
+        if (height > 0 && width > 0) {
+            ws.ws_row = height;
+            ws.ws_col = width;
+            wsPtr = &ws;
         }
 
-        int setResult = ::fcntl(fd[index], F_SETFD, getResult | FD_CLOEXEC);
-        if (setResult == -1) {
-            THROW_ERROR_EXCEPTION("Error creating pipe: fcntl failed to set descriptor flags")
+        int result = ::openpty(masterFD, slaveFD, nullptr, &tt, wsPtr);
+        if (result == -1) {
+            THROW_ERROR_EXCEPTION("Error creating pty: pty creation failed")
                 << TError::FromSystem();
         }
     }
-#else
-    THROW_ERROR_EXCEPTION("Windows is not supported");
-#endif
+    SafeSetCloexec(*masterFD);
+}
+
+void SafeLoginTty(int slaveFD)
+{
+    int result = ::login_tty(slaveFD);
+    if (result == -1) {
+        THROW_ERROR_EXCEPTION("Error attaching pty to standard streams")
+            << TError::FromSystem();
+    }
+}
+
+void SafeSetTtyWindowSize(int fd, i32 height, i32 width)
+{
+    if (height > 0 && width > 0) {
+        struct winsize ws;
+        int result = ::ioctl(fd, TIOCGWINSZ, &ws);
+        if (result == -1) {
+            THROW_ERROR_EXCEPTION("Error reading tty window size")
+                << TError::FromSystem();
+        }
+        if (ws.ws_row != height || ws.ws_col != width) {
+            ws.ws_row = height;
+            ws.ws_col = width;
+            result = ::ioctl(fd, TIOCSWINSZ, &ws);
+            if (result == -1) {
+                THROW_ERROR_EXCEPTION("Error setting tty window size")
+                    << TError::FromSystem();
+            }
+        }
+    }
 }
 
 bool TryMakeNonblocking(int fd)
@@ -332,6 +412,23 @@ void SafeSetUid(int uid)
     }
 }
 
+Stroka SafeGetUsernameByUid(int uid)
+{
+    int bufferSize = ::sysconf(_SC_GETPW_R_SIZE_MAX);
+    if (bufferSize < 0) {
+        THROW_ERROR_EXCEPTION("Failed to get username, sysconf(_SC_GETPW_R_SIZE_MAX) failed")
+            << TError::FromSystem();
+    }
+    char buffer[bufferSize];
+    struct passwd pwd, *pwdptr = nullptr;
+    int result = getpwuid_r(uid, &pwd, buffer, bufferSize, &pwdptr);
+    if (result != 0 || pwdptr == nullptr) {
+        // Return #uid in case of absent uid in the system.
+        return "#" + ToString(uid);
+    }
+    return pwdptr->pw_name;
+}
+
 #else
 
 bool TryClose(int /* fd */, bool /* ignoreBadFD */)
@@ -350,6 +447,11 @@ bool TryDup2(int /* oldFD */, int /* newFD */)
 }
 
 void SafeDup2(int /* oldFD */, int /* newFD */)
+{
+    YUNIMPLEMENTED();
+}
+
+void SafeSetCloexec(int /* fd */)
 {
     YUNIMPLEMENTED();
 }
@@ -394,6 +496,26 @@ void SafePipe(int /* fd */ [2])
     YUNIMPLEMENTED();
 }
 
+int SafeDup(int /* fd */)
+{
+    YUNIMPLEMENTED();
+}
+
+void SafeOpenPty(int* /* masterFD */, int* /* slaveFD */, int /* height */, int /* width */)
+{
+    YUNIMPLEMENTED();
+}
+
+void SafeLoginTty(int /* slaveFD */)
+{
+    YUNIMPLEMENTED();
+}
+
+void SafeSetTtyWindowSize(int /* slaveFD */, i32 /* height */, i32 /* width */)
+{
+    YUNIMPLEMENTED();
+}
+
 bool TryMakeNonblocking(int /* fd */)
 {
     YUNIMPLEMENTED();
@@ -409,6 +531,10 @@ void SafeSetUid(int /* uid */)
     YUNIMPLEMENTED();
 }
 
+Stroka SafeGetUsernameByUid(int /* uid */)
+{
+    YUNIMPLEMENTED();
+}
 #endif
 
 void CloseAllDescriptors(const std::vector<int>& exceptFor)
@@ -440,7 +566,7 @@ void CloseAllDescriptors(const std::vector<int>& exceptFor)
 
 void CreateStderrFile(Stroka fileName)
 {
-#ifdef _linux_
+#ifdef _unix_
     YCHECK(freopen(~fileName, "a", stderr) != nullptr);
 #endif
 }

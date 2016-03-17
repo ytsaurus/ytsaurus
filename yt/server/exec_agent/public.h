@@ -24,6 +24,7 @@ DEFINE_ENUM(EErrorCode,
 DEFINE_ENUM(ESandboxKind,
     (User)
     (Udf)
+    (Home)
 );
 
 extern const TEnumIndexedVector<Stroka, ESandboxKind> SandboxDirectoryNames;
