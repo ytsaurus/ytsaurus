@@ -310,6 +310,7 @@ class Application(object):
         # Run lock thread
         self._terminating = False
         self._lock_acquired = False
+        self._tasks_loaded = False
         self._lock_path = os.path.join(self._path, "lock")
         self._lock_timeout = 10.0
         self._yt.create("map_node", self._lock_path, ignore_existing=True)
@@ -397,8 +398,11 @@ class Application(object):
 
     def _process_lock(self, func, depends_on_lock):
         def decorator(*args, **kwargs):
-            if depends_on_lock and not self._lock_acquired:
-                return "Cannot take lock", 500
+            if depends_on_lock:
+                if not self._lock_acquired:
+                    return "Lock is not acquired, instance in the slave mode", 500
+                if not self._tasks_loaded:
+                    return "Lock is acquired, loading tasks", 500
             return func(*args, **kwargs)
         return decorator
 
@@ -529,10 +533,12 @@ class Application(object):
 
             logger.info("Lock acquired under transaction %s", tx.transaction_id)
 
+            self._lock_acquired = True
+
             # Loading tasks from cypress
             self._load_tasks(os.path.join(self._path, "tasks"))
 
-            self._lock_acquired = True
+            self._tasks_loaded = True
 
             logger.info("Start processing requests")
 
@@ -632,7 +638,7 @@ class Application(object):
 
     def _reload_clusters_config(self, reload_timeout):
         while True:
-            if not self._lock_acquired:
+            if not self._tasks_loaded:
                 time.sleep(self._lock_timeout)
                 continue
 
@@ -1063,7 +1069,7 @@ class Application(object):
             if self._terminating:
                 return
 
-            if not self._lock_acquired:
+            if not self._tasks_loaded:
                 time.sleep(self._lock_timeout)
                 continue
 
@@ -1385,6 +1391,7 @@ class Application(object):
         return task_description
 
     def _abort_running_operations(self):
+        logger.info("Abort running operations of tasks")
         for task_id, task in self._tasks.iteritems():
             if not task.progress or "operations" not in task.progress:
                 continue
