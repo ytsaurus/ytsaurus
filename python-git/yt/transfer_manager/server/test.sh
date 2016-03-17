@@ -32,9 +32,11 @@ check() {
 request() {
     local method="$1" && shift
     local path="$1" && shift
+    local uuid="$(cat /proc/sys/kernel/random/uuid)"
     curl -X "$method" -sS -k -L "http://localhost:${TM_PORT}/${path}" \
          -H "Content-Type: application/json" \
          -H "Authorization: OAuth $YT_TOKEN" \
+         -H 'X-TM-Parameters: {"mutation_id": "'"$uuid"'"}' \
          "$@"
 }
 

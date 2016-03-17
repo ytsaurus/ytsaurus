@@ -26,14 +26,25 @@ except ImportError:
 
 
 class ExpiringDict(OrderedDict):
-    def __init__(self, max_len, max_age_seconds):
+    def __init__(self, max_len, max_age_seconds, logger=None):
         assert max_age_seconds >= 0
         assert max_len >= 1
 
         OrderedDict.__init__(self)
         self.max_len = max_len
         self.max_age = max_age_seconds
+        self.logger = logger
         self.lock = RLock()
+
+    def _del_by_age(self, key):
+        del self[key]
+        if self.logger is not None:
+            self.logger("Key '%s' removed from expiring dict by age", key)
+
+    def _del_by_len(self):
+        key, _ = self.popitem(last=False)
+        if self.logger is not None:
+            self.logger("Key '%s' removed from expiring dict by len", key)
 
     def __contains__(self, key):
         """ Return True if the dict has a key, else return False. """
@@ -43,7 +54,7 @@ class ExpiringDict(OrderedDict):
                 if time.time() - item[1] < self.max_age:
                     return True
                 else:
-                    del self[key]
+                    self._del_by_age(key)
         except KeyError:
             pass
         return False
@@ -62,14 +73,14 @@ class ExpiringDict(OrderedDict):
                 else:
                     return item[0]
             else:
-                del self[key]
+                self._del_by_age(key)
                 raise KeyError(key)
 
     def __setitem__(self, key, value):
         """ Set d[key] to value. """
         with self.lock:
             if len(self) == self.max_len:
-                self.popitem(last=False)
+                self._del_by_len()
             OrderedDict.__setitem__(self, key, (value, time.time()))
 
     def pop(self, key, default=None):
@@ -80,7 +91,7 @@ class ExpiringDict(OrderedDict):
         with self.lock:
             try:
                 item = OrderedDict.__getitem__(self, key)
-                del self[key]
+                self._del_by_age(key)
                 return item[0]
             except KeyError:
                 return default
