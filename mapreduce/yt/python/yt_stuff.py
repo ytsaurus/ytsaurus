@@ -1,5 +1,6 @@
-import os
+from functools import wraps
 import logging
+import os
 import shutil
 import socket
 import sys
@@ -22,21 +23,26 @@ class YtStuff:
     def _prepare_logger(self):
         self.logger = logging.getLogger()
 
-    def _log(self, message):
+    def _log(self, *args, **kwargs):
         #print >>sys.stderr, message
-        self.logger.debug(message)
+        self.logger.debug(*args, **kwargs)
 
+    def _timing(method):
+        @wraps(method)
+        def wrap(self, *args, **kwargs):
+            start_time = time.time()
+            ret = method(self, *args, **kwargs)
+            finish_time = time.time()
+            self._log("%s time: %f", method.__name__, finish_time - start_time)
+            return ret
+        return wrap
+
+    @_timing
     def _extract_tar(self, tgz, where):
-        self._log("Extracting YT to %s" % self.yt_path)
-        start_extracting = time.time()
-
         #import tarfile
         #tarfile.open(tgz).extractall(path=where)
         import subprocess
         subprocess.check_output(['tar', '-xf', tgz], cwd=where, stderr=subprocess.STDOUT)
-
-        finish_extracting = time.time()
-        self._log("Extracting time: %f" % (finish_extracting - start_extracting))
 
     def _prepare_files(self):
         build_path = yatest.common.runtime.build_path()
@@ -116,6 +122,7 @@ class YtStuff:
             env=self.env,
         )
 
+    @_timing
     def start_local_yt(self):
         try:
             args = ["start", "--path=%s" % self.yt_work_dir]
@@ -123,8 +130,7 @@ class YtStuff:
                 args.append("--tmpfs-path=%s" % self.tmpfs_path)
             res = self._yt_local(*args)
         except Exception, e:
-            self._log("Failed to start local YT:")
-            self._log(str(e))
+            self._log("Failed to start local YT:\n%s", str(e))
             self._save_server_logs()
             raise
         self.yt_id = res.std_out.strip()
@@ -132,21 +138,22 @@ class YtStuff:
         self.yt_wrapper.config["proxy"]["url"] = "%s:%d" % (socket.gethostname(), self.proxy_port)
         self.yt_wrapper.config["proxy"]["enable_proxy_discovery"] = False
 
+    @_timing
     def stop_local_yt(self):
         try:
             self._yt_local("stop", os.path.join(self.yt_work_dir, self.yt_id))
         except Exception, e:
-            self._log("Errors while stopping local YT:")
-            self._log(str(e))
+            self._log("Errors while stopping local YT:\n%s", str(e))
             raise
         finally:
             self._save_server_logs()
 
+    @_timing
     def _save_server_logs(self):
         output_dir = yatest.common.output_path("yt")
         if not os.path.isdir(output_dir):
             os.mkdir(output_dir)
-        self._log("YT logs saved in " + output_dir)
+        self._log("YT logs saved in %s", output_dir)
         for root, dirs, files in os.walk(self.yt_work_dir):
             log_files = filter(lambda file: file.endswith(".log"), files)
             for file in log_files:
