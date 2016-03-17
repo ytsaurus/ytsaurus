@@ -138,7 +138,7 @@ class YtStuff:
             raise
         self.yt_id = res.std_out.strip()
         self.proxy_port = int(res.std_err.strip().splitlines()[-1].strip().split(":")[-1])
-        self.yt_wrapper.config["proxy"]["url"] = "%s:%d" % (socket.gethostname(), self.proxy_port)
+        self.yt_wrapper.config["proxy"]["url"] = self.get_server()
         self.yt_wrapper.config["proxy"]["enable_proxy_discovery"] = False
 
     @_timing
