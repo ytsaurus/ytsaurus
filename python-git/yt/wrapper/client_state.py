@@ -22,7 +22,10 @@ class ClientState(object):
         self._api_version = None
         self._commands = None
 
-        seed = random.SystemRandom().randint(0, 2**63)
-        self._random_generator = random.Random()
-        self._random_generator.seed(seed)
+        self._random_generator = random.SystemRandom()
+
+        # This implementation works incorrectky if client copied.
+        #seed = random.SystemRandom().randint(0, 2**63)
+        #self._random_generator = random.random()
+        #self._random_generator.seed(seed)
 
