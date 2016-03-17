@@ -140,17 +140,17 @@ private:
 
         YCHECK(State_ == EReaderState::Active);
 
-        if (Position_ < Buffer_.Size()) {
+        while (!ReadResultPromise_.IsSet()) {
             DoRead();
-        } else {
-            FDWatcher_.stop();
+            YCHECK(Position_ != 0 || ReadResultPromise_.IsSet());
         }
     }
 
     void DoRead()
     {
-#ifndef _win_
+#ifdef _unix_
         YCHECK(Position_ < Buffer_.Size());
+        YCHECK(!ReadResultPromise_.IsSet());
 
         int size;
         do {
@@ -159,6 +159,10 @@ private:
 
         if (size == -1) {
             if (errno == EAGAIN) {
+                if (Position_ != 0) {
+                    FDWatcher_.stop();
+                    ReadResultPromise_.Set(Position_);
+                }
                 return;
             }
 
@@ -184,7 +188,8 @@ private:
             Close();
             ReadResultPromise_.Set(Position_);
         } else if (Position_ == Buffer_.Size()) {
-            ReadResultPromise_.Set(Buffer_.Size());
+            FDWatcher_.stop();
+            ReadResultPromise_.Set(Position_);
         }
 #else
     THROW_ERROR_EXCEPTION("Unsupported platform");
