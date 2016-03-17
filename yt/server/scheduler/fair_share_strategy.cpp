@@ -2161,7 +2161,7 @@ private:
     void SetPoolDefaultParent(TPoolPtr pool)
     {
         auto defaultParentPool = FindPool(Config->DefaultParentPool);
-        if (!defaultParentPool) {
+        if (!defaultParentPool || defaultParentPool == pool) {
             // NB: root element is not a pool, so we should supress warning in this special case.
             if (Config->DefaultParentPool != RootPoolName) {
                 LOG_WARNING("Default parent pool %Qv is not registered", Config->DefaultParentPool);
