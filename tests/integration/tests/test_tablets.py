@@ -924,9 +924,6 @@ class TestTablets(YTEnvSetup):
         delete_rows("//tmp/t", _keys(0, 10))
         assert lookup_rows("//tmp/t", _keys(0, 10)) == []
 
-        # check that limits are checked for delete
-        with pytest.raises(YtError): delete_rows("//tmp/t", _keys(0, 11))
-
         # check that everything survives after recovery
         self.sync_unmount_table("//tmp/t")
         self.sync_mount_table("//tmp/t")
