@@ -341,10 +341,7 @@ def run_python_libraries_tests(options):
 def build_python_packages(options):
     packages = ["yandex-yt-python", "yandex-yt-python-tools", "yandex-yt-python-yson",
                 "yandex-yt-transfer-manager", "yandex-yt-transfer-manager-client",
-                "yandex-yt-python-fennel"]
-
-    if options.codename == "precise":
-        packages.append("yandex-yt-local")
+                "yandex-yt-python-fennel", "yandex-yt-local"]
 
     for package in packages:
         with cwd(options.checkout_directory, "python", package):
