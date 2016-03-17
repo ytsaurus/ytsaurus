@@ -18,11 +18,13 @@ def _make_transactional_request(command_name, params, **kwargs):
 def _make_formatted_transactional_request(command_name, params, format, **kwargs):
     return make_formatted_request(command_name, _add_transaction_params(params, kwargs.get("client", None)), format, **kwargs)
 
-def start_transaction(parent_transaction=None, timeout=None, attributes=None, client=None):
+def start_transaction(parent_transaction=None, timeout=None, attributes=None, type="master", sticky=False, client=None):
     """Start transaction.
 
     :param parent_transaction: (string) parent transaction id
     :param timeout: transaction lifetime singe last ping in milliseconds
+    :param type: could be either "master" or "tablet"
+    :param sticky: EXPERIMENTAL, do not use it, unless you have been told to do so
     :param attributes: (dict)
     :return: (string) new transaction id
     .. seealso:: `start_tx on wiki <https://wiki.yandex-team.ru/yt/Design/ClientInterface/Core#starttx>`_
@@ -32,6 +34,8 @@ def start_transaction(parent_transaction=None, timeout=None, attributes=None, cl
     if timeout is not None:
         params["timeout"] = int(timeout)
     params["attributes"] = get_value(attributes, {})
+    params["type"] = type
+    params["sticky"] = bool_to_string(sticky)
     return make_formatted_request("start_tx", params, None, client=client)
 
 def abort_transaction(transaction, client=None):

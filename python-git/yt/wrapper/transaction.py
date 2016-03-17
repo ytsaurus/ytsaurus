@@ -69,7 +69,8 @@ class Transaction(object):
     """
 
     def __init__(self, timeout=None, attributes=None, ping=True, transaction_id=None,
-                 ping_ancestor_transactions=False, client=None):
+                 ping_ancestor_transactions=False, type="master", sticky=False,
+                 client=None):
         timeout = get_value(timeout, get_total_request_timeout(client))
         if transaction_id == null_transaction_id:
             ping = False
@@ -89,6 +90,8 @@ class Transaction(object):
         if self.transaction_id is None:
             self.transaction_id = start_transaction(timeout=timeout,
                                                     attributes=attributes,
+                                                    type=type,
+                                                    sticky=sticky,
                                                     client=self._client)
             self._started = True
         else:
