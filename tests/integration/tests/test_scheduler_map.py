@@ -166,9 +166,11 @@ class TestJobProber(YTEnvSetup):
 
         result = strace_job(op.jobs[0])
 
-        for pid, trace in result['traces'].iteritems():
+        for pid, trace in result["traces"].iteritems():
             if "No such process" not in trace['trace']:
-                assert trace['trace'].startswith("Process {0} attached".format(pid))
+                assert trace["trace"].startswith("Process {0} attached".format(pid))
+            assert "process_command_line" in trace
+            assert "process_name" in trace
 
         op.resume_jobs()
         op.track()
