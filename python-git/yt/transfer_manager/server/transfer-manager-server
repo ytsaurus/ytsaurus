@@ -343,7 +343,8 @@ class Application(object):
         # Initialize mutating requests cache.
         self._mutating_requests_cache = ExpiringDict(
             self._config["mutating_requests_cache_size"],
-            self._config["mutating_requests_cache_expiration_timeout"] / 1000.0)
+            self._config["mutating_requests_cache_expiration_timeout"] / 1000.0,
+            logger=logger.info)
 
         # Add rules
         self._add_rule("/", 'main', methods=["GET"], depends_on_lock=False)
@@ -380,7 +381,8 @@ class Application(object):
 
         methods.append("OPTIONS")
 
-        middlewares = [(self._process_exception, ()),
+        middlewares = [(self._log_request, ()),
+                       (self._process_exception, ()),
                        check_request_rate_limit(),
                        (self._profile_time, (endpoint, )),
                        (self._process_lock, (depends_on_lock, )),
@@ -395,6 +397,17 @@ class Application(object):
                 endpoint_method = middleware(endpoint_method, *middleware_args)
 
         self._daemon.add_url_rule(rule, endpoint, endpoint_method, methods=methods)
+
+    def _log_request(self, func):
+        def decorator(*args, **kwargs):
+            id = generate_uuid()
+            logger.info("Request recieved (id: %s, url: %s, data: %s, headers: %s)",
+                        id, repr(request.url), repr(request.data), repr(request.headers))
+            try:
+                return func(*args, **kwargs)
+            finally:
+                logger.info("Request processing finished (id :%s)", id)
+        return decorator
 
     def _process_lock(self, func, depends_on_lock):
         def decorator(*args, **kwargs):
