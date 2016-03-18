@@ -112,18 +112,21 @@ class YtStuff:
     def get_env(self):
         return self.env
 
-    # Dear user, use mapreduce-yt correctly!
-    # Don't forget to use sys.executable and to set environment!
-    # Example: run_mapreduce_yt function.
+    # Dear user! Please, look at run_mapreduce_yt() method!
+    # Do you really want to use get_mapreduce_yt() directly?
+    # If yes, please don't forget to use sys.executable and to set environment
+    # (right, like in run_mapreduce_yt() method).
     def get_mapreduce_yt(self):
         return self.mapreduce_yt_path
 
-    def run_mapreduce_yt(self, *args):
-        cmd = [sys.executable, self.mapreduce_yt_path] + list(args)
-        return yatest.common.execute(
-            cmd,
-            env=self.env,
-        )
+    def run_mapreduce_yt(self, cmd, env=None, *args, **kwargs):
+        if not env:
+            env = {}
+
+        env.update(self.env)
+        cmd = [sys.executable, self.mapreduce_yt_path] + cmd
+
+        return yatest.common.execute(cmd, env=env, *args, **kwargs)
 
     @_timing
     def start_local_yt(self):
