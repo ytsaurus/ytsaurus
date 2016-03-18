@@ -16,7 +16,7 @@ class TNullStrategy
     : public ISchedulerStrategy
 {
 public:
-    virtual void ScheduleJobs(ISchedulingContext* /*context*/) override
+    virtual void ScheduleJobs(const ISchedulingContextPtr& /*context*/) override
     { }
 
     virtual void ResetState() override

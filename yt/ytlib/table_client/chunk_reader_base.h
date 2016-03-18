@@ -7,7 +7,7 @@
 #include <yt/ytlib/chunk_client/reader_base.h>
 #include <yt/ytlib/chunk_client/public.h>
 #include <yt/ytlib/chunk_client/read_limit.h>
-#include <yt/ytlib/chunk_client/sequential_reader.h>
+#include <yt/ytlib/chunk_client/block_fetcher.h>
 
 namespace NYT {
 namespace NTableClient {
@@ -19,7 +19,7 @@ class TChunkReaderBase
 {
 public:
     TChunkReaderBase(
-        NChunkClient::TSequentialReaderConfigPtr config,
+        NChunkClient::TBlockFetcherConfigPtr config,
         NChunkClient::IChunkReaderPtr underlyingReader,
         NChunkClient::IBlockCachePtr blockCache);
 
@@ -32,12 +32,14 @@ public:
     virtual std::vector<NChunkClient::TChunkId> GetFailedChunkIds() const override;
 
 protected:
-    const NChunkClient::TSequentialReaderConfigPtr Config_;
+    const NChunkClient::TBlockFetcherConfigPtr Config_;
     const NChunkClient::IBlockCachePtr BlockCache_;
     const NChunkClient::IChunkReaderPtr UnderlyingReader_;
 
-    NChunkClient::TSequentialReaderPtr SequentialReader_;
+    NChunkClient::TSequentialBlockFetcherPtr SequentialBlockFetcher_;
+    NConcurrency::TAsyncSemaphorePtr AsyncSemaphore_;
     TFuture<void> ReadyEvent_ = VoidFuture;
+    TFuture<TSharedRef> CurrentBlock_; 
 
     bool BlockEnded_ = false;
     bool InitFirstBlockNeeded_ = false;
@@ -55,7 +57,7 @@ protected:
     bool OnBlockEnded();
 
     TFuture<void> DoOpen(
-        std::vector<NChunkClient::TSequentialReader::TBlockInfo> blockSequence,
+        std::vector<NChunkClient::TBlockFetcher::TBlockInfo> blockSequence,
         const NChunkClient::NProto::TMiscExt& miscExt);
 
     static int GetBlockIndexByKey(

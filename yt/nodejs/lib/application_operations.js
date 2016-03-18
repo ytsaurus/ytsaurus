@@ -1,7 +1,9 @@
 var url = require("url");
 var util = require("util");
+
 var Q = require("bluebird");
 var _ = require("underscore");
+var UI64 = require("cuint").UINT64;
 
 var binding = require("./ytnode");
 var utils = require("./utils");
@@ -15,15 +17,15 @@ var __DBG = require("./debug").that("V", "Operations");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-var OPERATIONS_ARCHIVE_PATH = "//sys/operations_archive/ordered_by_id",
-    OPERATIONS_INDEX_PATH = "//sys/operations_archive/ordered_by_start_time",
-    OPERATIONS_CYPRESS_PATH = "//sys/operations",
-    OPERATIONS_ORCHID_PATH = "//sys/scheduler/orchid/scheduler/operations",
-    SCHEDULING_INFO_PATH = "//sys/scheduler/orchid/scheduler";
-    RESULT_LIMIT = 10;
+var OPERATIONS_ARCHIVE_PATH = "//sys/operations_archive/ordered_by_id";
+var OPERATIONS_ARCHIVE_INDEX_PATH = "//sys/operations_archive/ordered_by_start_time";
+var OPERATIONS_CYPRESS_PATH = "//sys/operations";
+var OPERATIONS_RUNTIME_PATH = "//sys/scheduler/orchid/scheduler/operations";
+var SCHEDULING_INFO_PATH = "//sys/scheduler/orchid/scheduler";
+var HARD_RESULT_LIMIT = 100;
+var MAX_TIME_SPAN = 7 * 86400 * 1000;
 
 var INTERMEDIATE_STATES = [
-    "pending",
     "initializing",
     "preparing",
     "reviving",
@@ -62,378 +64,638 @@ var OPERATION_ATTRIBUTES = [
     "weight"
 ];
 
-MAX_TIME_SPAN = 30
-
-function mapState(state) {
-    return INTERMEDIATE_STATES.indexOf(state) !== -1 ? "running" : state;
+var ANNOTATED_JSON_FORMAT = {
+    $value: "json",
+    $attributes: {
+        annotate_with_types: "true",
+        stringify: "true"
+    }
 };
 
-function calculateFactors(item, factors) {
-    var calculated = _.map(factors, function (currentFactor) {
-        return (typeof currentFactor === "function") ? currentFactor(item) : item[currentFactor];
-    });
-
-    return calculated.join(" ").toLowerCase();
-}
-
-function escape(string) {
-    return "\"" + binding.EscapeC(string) + "\"";
-}
-
-function YtApplicationOperations(driver)
+function mapState(state)
 {
-    this.list = function(parameters) {
-        var text_filter = (parameters.filter || "").toString().toLowerCase(),
-            filtered_user = parameters.user,
-            start_time_begin = Date.parse(parameters.from_time),
-            start_time_end = Date.parse(parameters.to_time),
-            state_filter = parameters.state == "all" ? null : parameters.state,
-            type_filter = parameters.type == "all" ? null : parameters.type,
-            jobs_filter = parameters.has_failed_jobs;
+    return INTERMEDIATE_STATES.indexOf(state) !== -1 ? "running" : state;
+}
 
-        start_time_end = isNaN(start_time_begin) ? new Date() : start_time_end;
-        var month_ago = new Date();
-        month_ago.setDate(start_time_end.getDate() - MAX_TIME_SPAN);
-        var incomplete = false;
+function extractTextFactorForCypressItem(value, attributes)
+{
+    var factors = [];
+    factors.push(value);
+    factors.push(attributes.authenticated_user);
+    factors.push(attributes.state);
+    factors.push(attributes.operation_type);
+    factors.push(attributes.pool);
+    var brief_spec = attributes.brief_spec;
+    if (typeof(brief_spec) === "object") {
+        factors.push(brief_spec.title);
+        if (brief_spec.input_table_paths) {
+            factors.push(utils.getYsonValue(utils.getYsonValue(brief_spec.input_table_paths)[0]));
+        }
+        if (brief_spec.output_table_paths) {
+            factors.push(utils.getYsonValue(utils.getYsonValue(brief_spec.output_table_paths)[0]));
+        }
+    }
+    factors = factors.filter(function(factor) { return !!factor; });
+    return factors.join(" ").toLowerCase();
+}
 
-        if (isNaN(start_time_begin) || start_time_begin < month_ago) {
-            start_time_begin = month_ago;
-            incomplete = true;
+function escapeC(string)
+{
+    return binding.EscapeC(string);
+}
+
+function stripJsonAnnotations(annotated_json)
+{
+    if (_.isArray(annotated_json)) {
+        return _.map(annotated_json, stripJsonAnnotations);
+    } else if (_.isObject(annotated_json)) {
+        if (!_.has(annotated_json, "$value")) {
+            return _.mapObject(annotated_json, stripJsonAnnotations);
         }
 
-        var runtime_data = driver.executeSimple(
-            "get",
-            {
-                path: OPERATIONS_ORCHID_PATH
-            });
+        var value = annotated_json.$value;
+        var type = annotated_json.$type;
 
-        var cypress_data = driver.executeSimple(
-            "list",
-            {
-                path: OPERATIONS_CYPRESS_PATH, 
-                attributes: OPERATION_ATTRIBUTES
-            });
-
-        var strict_filter = [
-            "is_substr({}, filter_factors)".format(escape(text_filter)),
-            "start_time > {} and start_time < {}".format(
-                escape(start_time_begin.toISOString()),
-                escape(start_time_end.toISOString()))
-        ];
-
-        var filter_condition = strict_filter.slice();
-
-        if (filtered_user) {
-            filter_condition.push("authenticated_user = {}".format(escape(filtered_user)));
-        }
-
-        if (state_filter) {
-            filter_condition.push("state = {}".format(escape(state_filter)));
-        }
-
-        if (type_filter) {
-            filter_condition.push("operation_type = {}".format(escape(type_filter)));
-        }
-
-        var source = "from [{}] join [{}] using id, id_hash, start_time"
-            .format(OPERATIONS_INDEX_PATH, OPERATIONS_ARCHIVE_PATH);
-
-        var archive_counts = driver.executeSimple(
-            "select_rows",
-            {   
-                query: "user, state, type, sum(1) as count" +
-                    " {} where {}".format(source, strict_filter.join(" and ")) +
-                    " group by authenticated_user as user, state, operation_type as type"
-            });
-
-        var archive_data = driver.executeSimple(
-            "select_rows",
-            {
-                query: "* {} where {}".format(source, filter_condition.join(" and ")) +
-                    " order by finish_time desc" +
-                    " limit {}".format(RESULT_LIMIT + 1)
-            });
-
-        function getFilterFactors(item) {
-            return calculateFactors(item, [
-                "$value",
-                function (item) {
-                    return calculateFactors(item.$attributes, [
-                        "key",
-                        "authenticated_user",
-                        "state",
-                        "operation_type",
-                        "pool",
-                        function (attributes) {
-                            return attributes.brief_spec.title;
-                        },
-                        function (attributes) {
-                            return utils.getYsonValue(
-                                utils.getYsonValue(
-                                    attributes.brief_spec.input_table_paths
-                                )[0]
-                            );
-                        },
-                        function (attributes) {
-                            return utils.getYsonValue(
-                                utils.getYsonValue(
-                                    attributes.brief_spec.output_table_paths
-                                )[0]
-                            );
-                        }
-                    ]);
-                },
-            ]);
-        }
-
-        function makePreparer() {
-            function makeCounts(names) {
-                return _.reduce(names, function (counts, name) {
-                    counts[name] = 0;
-                    return counts;
-                }, { });
-            }
-
-            var state_counts = makeCounts(["all", "running", "completed", "failed", "aborted"]),
-                type_counts = makeCounts(["all", "join_reduce", "map", "map_reduce", "merge", "reduce", "remote_copy", "sort"]);
-
-            var users = { };
-
-            return {
-                filter: function(user, state, type, count) {
-                    // USER
-                    if (!users.hasOwnProperty(user)) {
-                        users[user] = 0;
-                    }
-                    users[user] += count; 
-
-                    if (filtered_user && user !== filtered_user) {
-                        return false;
-                    }
-
-                    // STATE
-                    state_counts.all += count;
-                    state_counts[state] += count;
-
-                    if (state_filter && state !== state_filter) {
-                        return false;
-                    }
-
-                    // TYPE
-                    type_counts.all += count;
-                    type_counts[type] += count;
-
-                    if (type_filter && type !== type_filter) {
-                        return false;
-                    }
-
-                    return true;
-                },
-                result: {
-                    state: state_counts,
-                    type: type_counts,
-                    users: users
-                }
+        if (type === "int64" || type === "uint64" || type === "double") {
+            value = +value;
+        } else if (type === "boolean") {
+            if (!_.isBoolean(annotated_json)) {
+                value = value === "true" ? true : false;
             }
         }
 
-        function mergeData(cypress_data, archive_data, archive_counts) {
-            var preparer = makePreparer();
+        if (!_.has(annotated_json, "$attributes") && !_.has(annotated_json, "$incomplete")) {
+            return value;
+        }
 
-            var failed_jobs_count = 0;
+        return {
+            $attributes: stripJsonAnnotations(annotated_json.$attributes),
+            $incomplete: annotated_json.$incomplete,
+            $value: stripJsonAnnotations(value)
+        };
+    } else {
+        return annotated_json;
+    }
+}
 
-            _.each(archive_counts, function (item) {
-                preparer.filter(item.user, item.state, item.type, item.count);
-            });
+function idUint64ToString(id_hi, id_lo)
+{
+    var hi, lo, mask, parts;
+    hi = id_hi instanceof UI64 ? id_hi : UI64(id_hi, 10);
+    lo = id_lo instanceof UI64 ? id_lo : UI64(id_lo, 10);
+    mask = UI64(1).shiftLeft(UI64(32)).subtract(UI64(1));
+    parts = [
+        lo.clone().and(mask).toString(16),
+        lo.clone().shiftRight(UI64(32)).toString(16),
+        hi.clone().and(mask).toString(16),
+        hi.clone().shiftRight(UI64(32)).toString(16)];
+    return parts.join("-");
+}
 
-            var merged_data = _.filter(cypress_data, function (item) {
-                var attributes = item.$attributes;
+function idStringToUint64(id)
+{
+    var hi, log, parts;
+    parts = id.split("-");
+    hi = UI64(parts[3], 16).shiftLeft(32).or(UI64(parts[2], 16));
+    lo = UI64(parts[1], 16).shiftLeft(32).or(UI64(parts[0], 16));
+    return [hi, lo];
+}
 
-                // TEXT FILTER
-                var text_factors = getFilterFactors(item);
+function validateString(value)
+{
+    if (typeof(value) === "string") {
+        return value;
+    }
+    throw new YtError("Unable to parse string")
+        .withAttribute("value", escapeC(value + ""));
+}
 
-                if (text_factors.indexOf(text_filter) === -1) {
+function validateId(value)
+{
+    value = validateString(value);
+    if (/^[0-9a-f]{1,8}-[0-9a-f]{1,8}-[0-9a-f]{1,8}-[0-9a-f]{1,8}$/i.test(value)) {
+        return value;
+    }
+    throw new YtError("Unable to parse operation id")
+        .withAttribute("value", escapeC(value + ""));
+}
+
+function validateBoolean(value)
+{
+    if (value === true || value === false) {
+        return value;
+    } else if (typeof(value) === "string") {
+        if (value === "true") {
+            return true;
+        } else if (value === "false") {
+            return false;
+        }
+    }
+    throw new YtError("Unable to parse boolean")
+        .withAttribute("value", escapeC(value + ""));
+}
+
+function validateInteger(value)
+{
+    if (typeof(value) === "number") {
+        return ~~value;
+    } else if (typeof(value) === "string") {
+        var parsed = parseInt(value);
+        if (!isNaN(parsed)) {
+            return parsed;
+        }
+    }
+    throw new YtError("Unable to parse integer")
+        .withAttribute("value", escapeC(value + ""));
+}
+
+function validateDateTime(value)
+{
+    var parsed = Date.parse(value);
+    if (!isNaN(parsed)) {
+        return parsed;
+    }
+    throw new YtError("Unable to parse datetime")
+        .withAttribute("value", escapeC(value + ""));
+}
+
+function optional(parameters, key, validator, default_value)
+{
+    if (_.has(parameters, key)) {
+        return validator(parameters[key]);
+    } else {
+        if (default_value) {
+            return validator(default_value);
+        } else {
+            return null;
+        }
+    }
+}
+
+function required(parameters, key, validator)
+{
+    var result = optional(parameters, key, validator);
+    if (result !== null) {
+        return result;
+    } else {
+        throw new YtError("Missing required parameter \"" + key + "\"");
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+function YtApplicationOperations(logger, driver)
+{
+    this.logger = logger;
+    this.driver = driver;
+}
+
+YtApplicationOperations._idUint64ToString = idUint64ToString;
+YtApplicationOperations._idStringToUint64 = idStringToUint64;
+
+YtApplicationOperations.prototype.list = Q.method(
+function YtApplicationOperations$list(parameters)
+{
+    var start_time_begin = optional(parameters, "from_time", validateDateTime);
+    var start_time_end = optional(parameters, "to_time", validateDateTime);
+    var user_filter = optional(parameters, "user", validateString);
+    var state_filter = optional(parameters, "state", validateString);
+    var type_filter = optional(parameters, "type", validateString);
+    var substr_filter = optional(parameters, "filter", validateString);
+
+    var with_failed_jobs = optional(parameters, "with_failed_jobs", validateBoolean, false);
+    var include_counters = optional(parameters, "include_counters", validateBoolean, true);
+    var result_limit = optional(parameters, "max_size", validateInteger, HARD_RESULT_LIMIT);
+
+    // Process |start_time_begin| & |start_time_end|.
+    if (start_time_begin === null) {
+        if (start_time_end === null) {
+            start_time_end = (new Date()).getTime();
+        }
+        start_time_begin = start_time_end - MAX_TIME_SPAN;
+    } else {
+        if (start_time_end === null) {
+            start_time_end = start_time_begin + MAX_TIME_SPAN;
+        }
+    }
+
+    var start_time_span = start_time_end - start_time_begin;
+    if (start_time_span > MAX_TIME_SPAN) {
+        throw new YtError("Time span exceedes allowed limit ({} > {})".format(
+            start_time_span, MAX_TIME_SPAN));
+    }
+
+    // TODO(sandello): Validate |state_filter|, |type_filter|.
+
+    // Process |substr_filter|.
+    if (substr_filter !== null) {
+        substr_filter = substr_filter.toLowerCase();
+    }
+
+    // Process |result_limit|.
+    if (result_limit > HARD_RESULT_LIMIT) {
+        throw new YtError("Maximum result size exceedes allowed limit ({} > {})".format(
+            result_limit, HARD_RESULT_LIMIT));
+    }
+
+    // Okay, now fetch & merge data.
+    var cypress_data = this.driver.executeSimple(
+        "list",
+        {
+            path: OPERATIONS_CYPRESS_PATH, 
+            attributes: OPERATION_ATTRIBUTES
+        });
+
+    var runtime_data = this.driver.executeSimple(
+        "get",
+        {
+            path: OPERATIONS_RUNTIME_PATH
+        });
+
+    var generic_filter_conditions = [
+        "start_time > {}000 AND start_time <= {}000".format(start_time_begin, start_time_end)
+    ];
+
+    if (substr_filter) {
+        generic_filter_conditions.push(
+            "is_substr(\"{}\", filter_factors)".format(escapeC(substr_filter)));
+    }
+
+    var narrow_filter_conditions = generic_filter_conditions.slice();
+
+    if (state_filter) {
+        narrow_filter_conditions.push("state = \"{}\"".format(escapeC(state_filter)));
+    }
+
+    if (type_filter) {
+        narrow_filter_conditions.push("operation_type = \"{}\"".format(escapeC(type_filter)));
+    }
+
+    if (user_filter) {
+        narrow_filter_conditions.push("authenticated_user = \"{}\"".format(escapeC(user_filter)));
+    }
+
+    var query_source = "[{}] JOIN [{}] USING id_hi, id_lo, start_time"
+        .format(OPERATIONS_ARCHIVE_INDEX_PATH, OPERATIONS_ARCHIVE_PATH);
+    var query_for_counts =
+        "user, state, type, sum(1) AS count FROM {}".format(query_source) +
+        " WHERE {}".format(generic_filter_conditions.join(" AND ")) +
+        " GROUP BY authenticated_user AS user, state AS state, operation_type AS type";
+    var query_for_items =
+        "* FROM {}".format(query_source) +
+        " WHERE {}".format(narrow_filter_conditions.join(" AND ")) +
+        " ORDER BY start_time DESC" +
+        " LIMIT {}".format(1 + result_limit);
+
+    var archive_counts = null;
+    if (include_counters) {
+        archive_counts = this.driver.executeSimple(
+            "select_rows",
+            {query: query_for_counts});
+    } else {
+        archive_counts = Q.resolve([]);
+    }
+
+    var archive_data = this.driver.executeSimple(
+        "select_rows",
+        {query: query_for_items, output_format: ANNOTATED_JSON_FORMAT});
+
+    function makeRegister() {
+        var user_counts = {};
+        var state_counts = {};
+        var type_counts = {};
+
+        return {
+            filterAndCount: function(user, state, type, count) {
+                // USER
+                if (!user_counts.hasOwnProperty(user)) {
+                    user_counts[user] = 0;
+                }
+                user_counts[user] += count; 
+
+                if (user_filter && user !== user_filter) {
                     return false;
                 }
 
-                // FILTER METHOD
-                if (!preparer.filter(attributes.authenticated_user, item.state, attributes.operation_type, 1)) {
+                // STATE
+                if (!state_counts.hasOwnProperty(state)) {
+                    state_counts[state] = 0;
+                }
+                state_counts[state] += count;
+
+                if (state_filter && state !== state_filter) {
                     return false;
                 }
 
-                // FAILED JOBS
-                var has_failed_jobs =
-                    attributes.brief_progress &&
-                    attributes.brief_progress.jobs &&
-                    attributes.brief_progress.jobs.failed > 0;
-
-                if (has_failed_jobs) {
-                    failed_jobs_count++;
+                // TYPE
+                if (!type_counts.hasOwnProperty(type)) {
+                    type_counts[type] = 0;
                 }
+                type_counts[type] += count;
 
-                if (jobs_filter && !has_failed_jobs) {
+                if (type_filter && type !== type_filter) {
                     return false;
                 }
 
                 return true;
-            });
-
-            if (!jobs_filter) {
-                var operation_lookup = { };
-                _.each(merged_data, function (item) {
-                    operation_lookup[utils.getYsonValue(item)] = true;
-                });
-                _.each(archive_data, function (item) {
-                    if (!operation_lookup[utils.getYsonValue(item)]) {
-                        merged_data.push(item);
-                    }
-                });
+            },
+            result: {
+                user_counts: user_counts,
+                state_counts: state_counts,
+                type_counts: type_counts,
             }
+        };
+    }
 
-            merged_data.sort(function (a, b) {
-                if (a.$attributes.start_time < b.$attributes.start_time) {
-                    return 1;
-                } else if (a.$attributes.start_time > b.$attributes.start_time) {
-                    return -1;
-                } else {
-                    return 0;
-                }
-            });
+    var logger = this.logger;
+
+    return Q.settle([cypress_data, runtime_data, archive_data, archive_counts])
+    .spread(function(cypress_data, runtime_data, archive_data, archive_counts) {
+        // Handle errors, if any.
+        var err = null;
+
+        if (cypress_data.isRejected()) {
+            err = YtError.ensureWrapped(cypress_data.error());
+            logger.error(
+                "Failed to fetch operations from Cypress",
+                // XXX(sandello): Embed.
+                {error: err.toJson()});
+            return Q.reject(new YtError(
+                "Failed to fetch operations from Cypress",
+                cypress_data.error()));
+        } else {
+            cypress_data = cypress_data.value();
+        }
+
+        if (runtime_data.isRejected()) {
+            err = YtError.ensureWrapped(runtime_data.error());
+            logger.debug(
+                "Failed to fetch operations from scheduler",
+                // XXX(sandello): Embed.
+                {error: err.toJson()});
+            runtime_data = {};
+        } else {
+            runtime_data = runtime_data.value();
+        }
+
+        if (archive_data.isRejected() || archive_counts.isRejected()) {
+            if (archive_data.isRejected()) {
+                err = YtError.ensureWrapped(archive_data.error());
+                logger.debug(
+                    "Failed to fetch operation items from archive",
+                    {
+                        query: query_for_items,
+                        // XXX(sandello): Embed.
+                        error: err.toJson(),
+                    });
+            }
+            if (archive_counts.isRejected()) {
+                err = YtError.ensureWrapped(archive_counts.error());
+                logger.debug(
+                    "Failed to fetch operation counts from archive",
+                    {
+                        query: query_for_counts,
+                        // XXX(sandello): Embed.
+                        error: err.toJson(),
+                    });
+            }
+            archive_data = [];
+            archive_counts = [];
+        } else {
+            archive_data = archive_data.value();
+            archive_counts = archive_counts.value();
+        }
+
+        // Now, compute counts & merge data.
+        var register = makeRegister();
+
+        _.each(archive_counts, function(item) {
+            register.filterAndCount(item.user, item.state, item.type, item.count);
+        });
+
+        var failed_jobs_count = 0;
+
+        archive_data = archive_data.map(function(operation) {
+            var id = idUint64ToString(operation.id_hi.$value, operation.id_lo.$value);
+
+            delete operation.id_hi;
+            delete operation.id_lo;
+            delete operation.id_hash;
+            delete operation.filter_factors;
+
+            operation.state = mapState(utils.getYsonValue(operation.state));
+
+            operation.start_time = new Date(parseInt(operation.start_time.$value) / 1000).toISOString();
+            operation.finish_time = new Date(parseInt(operation.finish_time.$value) / 1000).toISOString();
 
             return {
-                operations: incomplete ? {$attributes: {incomplete: true}, $value: merged_data} : merged_data,
-                users: preparer.result.users,
-                state_counts: preparer.result.state,
-                type_counts: preparer.result.type,
-                failed_jobs_count: failed_jobs_count
+                $value: id,
+                $attributes: stripJsonAnnotations(operation),
+            };
+        });
+
+        // Start building result with Cypress data.
+        var merged_data = _.filter(cypress_data, function(item) {
+            var value = utils.getYsonValue(item);
+            var attributes = utils.getYsonAttributes(item);
+
+            // Map runtime progress into brief_progress (see YT-1986) if operation is in progress.
+            if (mapState(attributes.state) === "running") {
+                var runtime_attributes = runtime_data[value];
+                if (runtime_attributes) {
+                    utils.merge(attributes.brief_progress, runtime_attributes.progress);
+                }
+            }
+
+            attributes.state = mapState(attributes.state);
+
+            // Now, extract main bits.
+            var user = attributes.authenticated_user;
+            var state = attributes.state;
+            var type = attributes.operation_type;
+
+            // Apply text filter.
+            var text_factor = extractTextFactorForCypressItem(value, attributes);
+            if (substr_filter && text_factor.indexOf(substr_filter) === -1) {
+                return false;
+            }
+
+            // Apply user, state & type filters; count this operation.
+            if (!register.filterAndCount(user, state, type, 1)) {
+                return false;
+            }
+
+            // Apply failed jobs filter.
+            var has_failed_jobs =
+                attributes.brief_progress &&
+                attributes.brief_progress.jobs &&
+                attributes.brief_progress.jobs.failed > 0;
+
+            if (has_failed_jobs) {
+                failed_jobs_count++;
+            }
+
+            if (with_failed_jobs && !has_failed_jobs) {
+                return false;
+            }
+
+            return true;
+        });
+
+        // Mix with archive data if we are querying all operations.
+        if (!with_failed_jobs) {
+            var lookup = {};
+            _.each(merged_data, function(item) {
+                lookup[utils.getYsonValue(item)] = true;
+            });
+            _.each(archive_data, function(item) {
+                var value = utils.getYsonValue(item);
+                var attributes = utils.getYsonAttributes(item);
+                if (!lookup[value]) {
+                    merged_data.push(item);
+                } else {
+                    // Reduce count here, because we have counted this one already
+                    // while processing Cypress data.
+                    register.filterAndCount(
+                        attributes.authenticated_user,
+                        attributes.state,
+                        attributes.operation_type,
+                        -1);
+                }
+            });
+        }
+
+        merged_data.sort(function(a, b) {
+            var aT = utils.getYsonAttribute(a, "start_time");
+            var bT = utils.getYsonAttribute(b, "start_time");
+            if (aT < bT) {
+                return 1;
+            } else if (aT > bT) {
+                return -1;
+            } else {
+                return 0;
+            }
+        });
+
+        // Check if there are any extra items.
+        if (merged_data.length > result_limit) {
+            merged_data = {
+                $incomplete: true,
+                $value: merged_data.slice(0, result_limit),
             };
         }
- 
-        return Q.settle([cypress_data, runtime_data, archive_data, archive_counts])
-        .spread(function (cypress_data, runtime_data, archive_data, archive_counts) {            
-            if (cypress_data.isRejected()) {
-                return Q.reject(new YtError(
-                    "Failed to get operations from Cypress",
-                    cypress_data.error()));
-            } else {
-                cypress_data = cypress_data.value();
-            }
 
-            runtime_data = runtime_data.isRejected() ? {} : runtime_data.value();
+        var result = {operations: merged_data};
 
-            if (archive_data.isRejected() || archive_counts.isRejected()) {
-                archive_data = [];
-                archive_counts = [];
-            } else {
-                archive_data = archive_data.value();
-                archive_counts = archive_counts.value();
-            }
+        if (include_counters) {
+            result.user_counts = register.result.user_counts;
+            result.state_counts = register.result.state_counts;
+            result.type_counts = register.result.type_counts;
+            result.failed_jobs_count = failed_jobs_count;
+        }
 
-            if (archive_data.length > RESULT_LIMIT) {
-                incomplete = true;
-                archive_data.pop();
-            }
+        return result;
+    })
+    .catch(function(err) {
+        logger.error("ERROR :(", {error: err});
+        return Q.reject(new YtError(
+            "Failed to list operations",
+            err));
+    });
+});
 
-            archive_data = archive_data.map(function (operation) {
-                return {
-                    $value: operation.id,
-                    $attributes: _.omit(operation, "id", "id_hash")
-                };
-            });
- 
-            cypress_data.forEach(function (item) {
-                var id = utils.getYsonValue(item),
-                    attributes = item.$attributes,
-                    runtime_attributes;
+YtApplicationOperations.prototype.get = Q.method(
+function YtApplicationOperations$get(parameters)
+{
+    var id = required(parameters, "id", validateId);
+    var id_parts = idStringToUint64(id);
+    var id_hi = id_parts[0];
+    var id_lo = id_parts[1];
 
-                if (mapState(attributes.state) === "running") {
-                    runtime_attributes = runtime_data[id];
-
-                    if (runtime_attributes) {
-                        // Map runtime progress into brief_progress (see YT-1986) if operation is in progress
-                        utils.merge(attributes.brief_progress, runtime_attributes.progress);
-                    }
-                }
-
-                item.state = mapState(attributes.state);
-            });
-
-            return mergeData(cypress_data, archive_data, archive_counts);
-        })
-        .catch(function(err) {
-            return Q.reject(new YtError(
-                "Failed to get list of operations",
-                err));
+    var cypress_data = this.driver.executeSimple(
+        "get",
+        {
+            path: "//sys/operations/" + utils.escapeYPath(id) + "/@"
         });
-    };
 
-    this.get = function (parameters) {
-        var id = parameters.id;
-        
-        var cypress_data = driver.executeSimple(
-            "get", {
-                path: "//sys/operations/" + id + "/@"
-            });
+    var runtime_data = this.driver.executeSimple(
+        "get",
+        {
+            path: "//sys/scheduler/orchid/scheduler/operations/" + utils.escapeYPath(id)
+        });
 
-        var archive_data = driver.executeSimple(
-            "select_rows",
-            {   
-                query: "* from [{}] where id = {}".format(OPERATIONS_ARCHIVE_PATH, escape(id))
-            });
+    var archive_data = this.driver.executeSimple(
+        "select_rows",
+        {
+            query: "* FROM [{}] WHERE (id_hi, id_lo) = ({}u, {}u)".format(
+                OPERATIONS_ARCHIVE_PATH,
+                id_hi.toString(10),
+                id_lo.toString(10)),
+            output_format: ANNOTATED_JSON_FORMAT,
+        });
 
-        return Q.settle([cypress_data, archive_data])
-        .spread(function (cypress_data, archive_data) {
-            if (cypress_data.isFulfilled()) {
-                return cypress_data.value();
-            } else if (cypress_data.error().checkFor(500)) {
-                if (archive_data.isFulfilled()) {
-                    if (archive_data.value().length) {
-                        return archive_data.value()[0];
-                    } else {
-                        throw new YtError("No such operation " + id);
-                    }
+    return Q.settle([cypress_data, runtime_data, archive_data])
+    .spread(function(cypress_data, runtime_data, archive_data) {
+        var result = null;
+        if (cypress_data.isFulfilled()) {
+            result = cypress_data.value();
+            if (runtime_data.isFulfilled()) {
+                result = _.extend(result, runtime_data.value());
+            }
+            return result;
+        } else if (cypress_data.error().checkFor(500)) {
+            if (archive_data.isFulfilled()) {
+                if (archive_data.value().length > 0) {
+                    result = archive_data.value()[0];
+                    result = _.omit(result, "id_hi", "id_lo", "id_hash");
+                    // TODO(sandello): Better JSON conversion here?
+                    return stripJsonAnnotations(result);
                 } else {
-                    throw archive_data.error();
+                    throw new YtError("No such operation " + id);
                 }
             } else {
-                throw cypress_data.error();
+                throw archive_data.error();
             }
+        } else {
+            throw cypress_data.error();
+        }
+    })
+    .catch(function(err) {
+        return Q.reject(new YtError(
+            "Failed to get operation details",
+            err));
+    });
+});
+
+YtApplicationOperations.prototype.getSchedulingInformation = Q.method(
+function YtApplicationOperations$getSchedulingInformation(parameters)
+{
+    return this.driver.executeSimple(
+        "get", {
+            path: SCHEDULING_INFO_PATH
         })
-        .catch(function(err) {
-            return Q.reject(new YtError(
-                "Failed to get operation attributes",
-                err));
+    .then(function(scheduler) {
+        var cell = scheduler.cell,
+            pools = scheduler.pools,
+            operations = scheduler.operations;
+
+        var refinedPools = {};
+        Object.keys(pools).forEach(function(id) {
+            refinedPools[id] = utils.pick(pools[id], POOL_FIELDS);
         });
-    };
 
-    this.get_scheduling_information = function () {
-        return driver.executeSimple(
-            "get", {
-                path: SCHEDULING_INFO_PATH
-            })
-        .then(function (scheduler) {
-            var cell = scheduler.cell,
-                pools = scheduler.pools,
-                operations = scheduler.operations;
-
-            var refinedPools = { };
-            Object.keys(pools).forEach(function (id) {
-                refinedPools[id] = utils.pick(pools[id], POOL_FIELDS);
-            });
-
-            return {
-                cell: cell,
-                pools: refinedPools, 
-                operations: operations
-            };
-        })
-        .catch(function(err) {
-            return Q.reject(new YtError(
-                "Failed to get scheduling information",
-                err));
-        });
-    };
-}
+        return {
+            cell: cell,
+            pools: refinedPools, 
+            operations: operations
+        };
+    })
+    .catch(function(err) {
+        return Q.reject(new YtError(
+            "Failed to get scheduling information",
+            err));
+    });
+});
 
 ////////////////////////////////////////////////////////////////////////////////
 

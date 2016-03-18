@@ -195,7 +195,7 @@ private:
     TChunkMeta ChunkMeta_;
 
     std::deque<TGroupPtr> Window_;
-    TAsyncSemaphore WindowSlots_;
+    TAsyncSemaphorePtr WindowSlots_;
 
     std::vector<TNodePtr> Nodes_;
 
@@ -478,7 +478,7 @@ TReplicationWriter::TReplicationWriter(
     , Throttler_(throttler)
     , BlockCache_(blockCache)
     , NetworkName_(client->GetConnection()->GetConfig()->NetworkName)
-    , WindowSlots_(config->SendWindowSize)
+    , WindowSlots_(New<TAsyncSemaphore>(config->SendWindowSize))
     , UploadReplicationFactor_(Config_->UploadReplicationFactor)
     , MinUploadReplicationFactor_(std::min(Config_->UploadReplicationFactor, Config_->MinUploadReplicationFactor))
 {
@@ -693,7 +693,7 @@ void TReplicationWriter::OnWindowShifted(int lastFlushedBlock, const TError& err
             group->GetEndBlockIndex(),
             group->GetSize());
 
-        WindowSlots_.Release(group->GetSize());
+        WindowSlots_->Release(group->GetSize());
         Window_.pop_front();
     }
 
@@ -910,11 +910,11 @@ bool TReplicationWriter::WriteBlocks(const std::vector<TSharedRef>& blocks)
         return false;
     }
 
-    WindowSlots_.Acquire(GetByteSize(blocks));
+    WindowSlots_->Acquire(GetByteSize(blocks));
     TDispatcher::Get()->GetWriterInvoker()->Invoke(
         BIND(&TReplicationWriter::AddBlocks, MakeWeak(this), blocks));
 
-    return WindowSlots_.IsReady();
+    return WindowSlots_->IsReady();
 }
 
 TFuture<void> TReplicationWriter::GetReadyEvent()
@@ -924,13 +924,13 @@ TFuture<void> TReplicationWriter::GetReadyEvent()
     YCHECK(!State_.HasRunningOperation());
     YCHECK(!State_.IsClosed());
 
-    if (!WindowSlots_.IsReady()) {
+    if (!WindowSlots_->IsReady()) {
         State_.StartOperation();
 
         // No need to capture #this by strong reference, because
         // WindowSlots are always released when Writer is alive,
         // and callback is called synchronously.
-        WindowSlots_.GetReadyEvent().Subscribe(BIND([=] (const TError& error) {
+        WindowSlots_->GetReadyEvent().Subscribe(BIND([=] (const TError& error) {
             if (error.IsOK()) {
                 State_.FinishOperation(TError());
             }

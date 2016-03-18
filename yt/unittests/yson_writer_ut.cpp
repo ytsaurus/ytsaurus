@@ -73,6 +73,12 @@ TEST_F(TYsonWriterTest, Boolean)
     TEST_SCALAR(value, Boolean)
 }
 
+TEST_F(TYsonWriterTest, Double)
+{
+    double value = 1.7976931348623157e+308;
+    TEST_SCALAR(value, Double)
+}
+
 TEST_F(TYsonWriterTest, EmptyMap)
 {
 

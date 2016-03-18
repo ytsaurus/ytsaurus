@@ -35,7 +35,7 @@ TEncodingWriter::TEncodingWriter(
     , CompressionInvoker_(CreateSerializedInvoker(CreateFixedPriorityInvoker(
         TDispatcher::Get()->GetCompressionPoolInvoker(),
         Config_->WorkloadDescriptor.GetPriority())))
-    , Semaphore_(Config_->EncodeWindowSize)
+    , Semaphore_(New<TAsyncSemaphore>(Config_->EncodeWindowSize))
     , Codec_(NCompression::GetCodec(options->CompressionCodec))
     , WritePendingBlockCallback_(BIND(
         &TEncodingWriter::WritePendingBlock,
@@ -47,7 +47,7 @@ void TEncodingWriter::WriteBlock(TSharedRef block)
     EnsureOpen();
 
     UncompressedSize_ += block.Size();
-    Semaphore_.Acquire(block.Size());
+    Semaphore_->Acquire(block.Size());
     BIND(
         &TEncodingWriter::DoCompressBlock,
         MakeWeak(this),
@@ -61,7 +61,7 @@ void TEncodingWriter::WriteBlock(std::vector<TSharedRef> vectorizedBlock)
     EnsureOpen();
 
     for (const auto& part : vectorizedBlock) {
-        Semaphore_.Acquire(part.Size());
+        Semaphore_->Acquire(part.Size());
         UncompressedSize_ += part.Size();
     }
     BIND(
@@ -184,9 +184,9 @@ void TEncodingWriter::ProcessCompressedBlock(const TSharedRef& block, i64 sizeTo
     CompressionRatio_ = double(CompressedSize_) / UncompressedSize_;
 
     if (sizeToRelease > 0) {
-        Semaphore_.Release(sizeToRelease);
+        Semaphore_->Release(sizeToRelease);
     } else {
-        Semaphore_.Acquire(-sizeToRelease);
+        Semaphore_->Acquire(-sizeToRelease);
     }
 
     PendingBlocks_.Enqueue(block);
@@ -211,7 +211,7 @@ void TEncodingWriter::WritePendingBlock(const TErrorOr<TSharedRef>& blockOrError
     ++WrittenBlockIndex_;
 
     auto finally = Finally([&](){
-        Semaphore_.Release(block.Size());
+        Semaphore_->Release(block.Size());
     });
 
     if (!isReady) {
@@ -228,14 +228,14 @@ void TEncodingWriter::WritePendingBlock(const TErrorOr<TSharedRef>& blockOrError
 
 bool TEncodingWriter::IsReady() const
 {
-    return Semaphore_.IsReady() && !CompletionError_.IsSet();
+    return Semaphore_->IsReady() && !CompletionError_.IsSet();
 }
 
 TFuture<void> TEncodingWriter::GetReadyEvent()
 {
     auto promise = NewPromise<void>();
     promise.TrySetFrom(CompletionError_.ToFuture());
-    promise.TrySetFrom(Semaphore_.GetReadyEvent());
+    promise.TrySetFrom(Semaphore_->GetReadyEvent());
 
     return promise.ToFuture();
 }

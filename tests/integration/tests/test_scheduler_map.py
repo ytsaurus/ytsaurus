@@ -166,9 +166,11 @@ class TestJobProber(YTEnvSetup):
 
         result = strace_job(op.jobs[0])
 
-        for pid, trace in result['traces'].iteritems():
+        for pid, trace in result["traces"].iteritems():
             if "No such process" not in trace['trace']:
-                assert trace['trace'].startswith("Process {0} attached".format(pid))
+                assert trace["trace"].startswith("Process {0} attached".format(pid))
+            assert "process_command_line" in trace
+            assert "process_name" in trace
 
         op.resume_jobs()
         op.track()
@@ -693,6 +695,12 @@ class TestSchedulerMapCommands(YTEnvSetup):
             command=command,
             file=[file1, "<file_name=my_file.txt>" + file2, "<format=yson>//tmp/table_file"])
 
+        with pytest.raises(YtError):
+            map(in_="//tmp/input",
+                out="//tmp/output",
+                command=command,
+                file=["<format=invalid_format>//tmp/table_file"])
+
         assert read_table("//tmp/output") == [{"value": 42}, {"a": "b"}, {"text": "info"}]
 
     @unix_only
@@ -1175,6 +1183,47 @@ print row + table_index
             op.track()
             assert sorted(read_table(output)) == original_data
 
+
+class TestSchedulerControllerThrottling(YTEnvSetup):
+    NUM_MASTERS = 3
+    NUM_NODES = 5
+    NUM_SCHEDULERS = 1
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "schedule_job_time_limit": 100,
+            "operations_update_period" : 10
+        }
+    }
+
+    def test_time_based_throttling(self):
+        create("table", "//tmp/input")
+
+        testing_options = {"scheduling_delay": 200}
+
+        data = [{"foo": i} for i in range(5)]
+        write_table("//tmp/input", data)
+
+        create("table", "//tmp/output")
+        op = map(
+            dont_track=True,
+            in_="//tmp/input",
+            out="//tmp/output",
+            command="cat",
+            spec={"testing": testing_options})
+
+        while True:
+            try:
+                jobs = get("//sys/operations/{0}/@progress/jobs".format(op.id), verbose=False)
+                assert jobs["running"] == 0
+                assert jobs["completed"] == 0
+                if jobs["aborted"] > 0:
+                    break
+            except:
+                pass
+            time.sleep(1)
+
+        op.abort()
 
 
 class TestSchedulerOperationNodeFlush(YTEnvSetup):

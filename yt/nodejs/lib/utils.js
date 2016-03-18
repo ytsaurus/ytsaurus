@@ -463,11 +463,18 @@ exports.getYsonValue = function(x)
     }
 };
 
-exports.getYsonAttribute = function(x, attribute)
+exports.getYsonAttributes = function(x)
 {
     if (typeof(x) === "object" && typeof(x.$attributes) !== "undefined") {
-        return x.$attributes[attribute];
+        return x.$attributes;
+    } else {
+        return {};
     }
+};
+
+exports.getYsonAttribute = function(x, attribute)
+{
+    return exports.getYsonAttributes(x)[attribute];
 };
 
 exports.escapeYPath = function(s)

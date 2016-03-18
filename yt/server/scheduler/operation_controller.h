@@ -245,7 +245,7 @@ struct IOperationController
      */
     //! Called during heartbeat processing to request actions the node must perform.
     virtual TJobStartRequestPtr ScheduleJob(
-        ISchedulingContext* context,
+        ISchedulingContextPtr context,
         const TJobResources& jobLimits) = 0;
 
     /*!

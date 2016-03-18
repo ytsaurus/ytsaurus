@@ -63,7 +63,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/replication_writer.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/schema.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/schema.proto
-  ${CMAKE_CURRENT_LIST_DIR}/chunk_client/sequential_reader.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_client/block_fetcher.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/throttler_manager.cpp
 
   ${CMAKE_CURRENT_LIST_DIR}/cypress_client/cypress_ypath.proto
@@ -287,14 +287,20 @@ LIBRARY()
 
 OWNER(sandello)
 
-SET_APPEND(BASE_CXXFLAGS -std=c++1y)
-
 CXXFLAGS(
+  -std=c++1y
   -Wno-sign-compare
   -Wno-unused-parameter
   -Wno-unused-value
+  -Wno-switch
+  -Wno-type-limits
   -Wno-c++14-extensions
+  -DYT_IN_ARCADIA
 )
+
+IF(GCC)
+  CXXFLAGS(-Wno-maybe-uninitialized)
+ENDIF()
 
 ADDINCL(
   contrib/libs/llvm37/include
@@ -306,6 +312,7 @@ SRCS(
   ${YT_SRCS}
   ${CMAKE_CURRENT_LIST_DIR}/formats/json_parser_arc.cpp
   ${CMAKE_CURRENT_LIST_DIR}/formats/json_writer_arc.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/query_client/builtin_function_if.cpp
   ${CMAKE_CURRENT_LIST_DIR}/query_client/builtin_function_registry_arc.cpp
 )
 
@@ -328,7 +335,8 @@ set(YT_SRCS
   ${YT_SRCS}
   ${CMAKE_CURRENT_LIST_DIR}/formats/json_parser.cpp
   ${CMAKE_CURRENT_LIST_DIR}/formats/json_writer.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/query_client/builtin_functions.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/query_client/builtin_function_if.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/query_client/builtin_function_is_prefix.cpp
   ${CMAKE_CURRENT_LIST_DIR}/query_client/builtin_function_registry.cpp
 )
 

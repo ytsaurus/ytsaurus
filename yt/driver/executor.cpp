@@ -235,7 +235,7 @@ void TRequestExecutor::DoExecute(const TDriverRequest& request)
 
 IMapNodePtr TRequestExecutor::GetParameters()
 {
-    auto builder = CreateBuilderFromFactory(GetEphemeralNodeFactory());
+    auto builder = CreateBuilderFromFactory(CreateEphemeralNodeFactory());
     builder->BeginTree();
 
     BuildYsonFluently(builder.get())

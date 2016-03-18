@@ -21,7 +21,7 @@ T GetValues(
     const NYPath::TYPath& path,
     std::function<i64(const TSummary&)> getValue)
 {
-    NYTree::INodePtr root = NYTree::GetEphemeralNodeFactory()->CreateMap();
+    NYTree::INodePtr root = NYTree::CreateEphemeralNodeFactory()->CreateMap();
     for (const auto& pair : statistics.Data()) {
         if (NYPath::HasPrefix(pair.first, path)) {
             const auto& summary = pair.second;

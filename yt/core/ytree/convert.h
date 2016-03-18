@@ -29,7 +29,7 @@ NYson::TYsonString ConvertToYsonString(const T& value, NYson::EYsonFormat format
 template <class T>
 INodePtr ConvertToNode(
     const T& value,
-    INodeFactoryPtr factory = GetEphemeralNodeFactory());
+    INodeFactoryPtr factory = CreateEphemeralNodeFactory());
 
 template <class T>
 std::unique_ptr<IAttributeDictionary> ConvertToAttributes(const T& value);
