@@ -3186,6 +3186,8 @@ void TOperationControllerBase::LockUserFiles(
                     case EObjectType::Table:
                         file.Format = attributes.FindYson("format").Get(TYsonString());
                         file.Format = file.Path.GetFormat().Get(file.Format);
+                        // Check that format is correct.
+                        ConvertTo<NFormats::TFormat>(file.Format);
                         break;
 
                     default:

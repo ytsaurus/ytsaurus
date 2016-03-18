@@ -697,9 +697,10 @@ private:
             Null,
             Bootstrap_->GetArtifactCacheInThrottler());
 
-        auto format = ConvertTo<NFormats::TFormat>(TYsonString(key.format()));
 
         try {
+            auto format = ConvertTo<NFormats::TFormat>(TYsonString(key.format()));
+
             TSessionCounterGuard sessionCounterGuard(location);
 
             auto producer = [&] (TOutputStream* output) {
