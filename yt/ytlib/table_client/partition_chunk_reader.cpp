@@ -27,7 +27,7 @@ using namespace NTableClient::NProto;
 ////////////////////////////////////////////////////////////////////////////////
 
 TPartitionChunkReader::TPartitionChunkReader(
-    TSequentialReaderConfigPtr config,
+    TBlockFetcherConfigPtr config,
     IChunkReaderPtr underlyingReader,
     TNameTablePtr nameTable,
     IBlockCachePtr blockCache,
@@ -73,11 +73,12 @@ TFuture<void> TPartitionChunkReader::InitializeBlockSequence()
     YCHECK(chunkKeyColumns == KeyColumns_);
 
     BlockMetaExt_ = GetProtoExtension<TBlockMetaExt>(ChunkMeta_.extensions());
-    std::vector<TSequentialReader::TBlockInfo> blocks;
+    std::vector<TBlockFetcher::TBlockInfo> blocks;
     for (auto& blockMeta : BlockMetaExt_.blocks()) {
-        TSequentialReader::TBlockInfo blockInfo;
+        TBlockFetcher::TBlockInfo blockInfo;
         blockInfo.Index = blockMeta.block_index();
         blockInfo.UncompressedDataSize = blockMeta.uncompressed_size();
+        blockInfo.Priority = blocks.size();
         blocks.push_back(blockInfo);
     }
 
@@ -93,8 +94,9 @@ TDataStatistics TPartitionChunkReader::GetDataStatistics() const
 
 void TPartitionChunkReader::InitFirstBlock()
 {
+    YCHECK(CurrentBlock_ && CurrentBlock_.IsSet());
     BlockReader_ = new THorizontalSchemalessBlockReader(
-            SequentialReader_->GetCurrentBlock(),
+            CurrentBlock_.Get().ValueOrThrow(),
             BlockMetaExt_.blocks(CurrentBlockIndex_),
             IdMapping_,
             KeyColumns_.size());
@@ -157,7 +159,7 @@ TPartitionMultiChunkReaderPtr CreatePartitionMultiChunkReader(
             YCHECK(!chunkSpec.has_lower_limit());
             YCHECK(!chunkSpec.has_upper_limit());
 
-            TSequentialReaderConfigPtr sequentialReaderConfig = config;
+            TBlockFetcherConfigPtr sequentialReaderConfig = config;
 
             return New<TPartitionChunkReader>(
                 sequentialReaderConfig,

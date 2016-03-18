@@ -71,8 +71,8 @@ public:
         : Config_(config)
         , Bootstrap_(bootstrap)
         , ThreadPool_(New<TThreadPool>(Config_->StoreCompactor->ThreadPoolSize, "StoreCompact"))
-        , CompactionSemaphore_(Config_->StoreCompactor->MaxConcurrentCompactions)
-        , PartitioningSemaphore_(Config_->StoreCompactor->MaxConcurrentPartitionings)
+        , CompactionSemaphore_(New<TAsyncSemaphore>(Config_->StoreCompactor->MaxConcurrentCompactions))
+        , PartitioningSemaphore_(New<TAsyncSemaphore>(Config_->StoreCompactor->MaxConcurrentPartitionings))
     { }
 
     void Start()
@@ -86,8 +86,8 @@ private:
     NCellNode::TBootstrap* const Bootstrap_;
 
     TThreadPoolPtr ThreadPool_;
-    TAsyncSemaphore CompactionSemaphore_;
-    TAsyncSemaphore PartitioningSemaphore_;
+    TAsyncSemaphorePtr CompactionSemaphore_;
+    TAsyncSemaphorePtr PartitioningSemaphore_;
 
     void ScanSlot(TTabletSlotPtr slot)
     {
@@ -130,7 +130,7 @@ private:
             return;
         }
 
-        auto guard = TAsyncSemaphoreGuard::TryAcquire(&PartitioningSemaphore_);
+        auto guard = TAsyncSemaphoreGuard::TryAcquire(PartitioningSemaphore_);
         if (!guard) {
             return;
         }
@@ -170,7 +170,7 @@ private:
             return;
         }
 
-        auto guard = TAsyncSemaphoreGuard::TryAcquire(&CompactionSemaphore_);
+        auto guard = TAsyncSemaphoreGuard::TryAcquire(CompactionSemaphore_);
         if (!guard) {
             return;
         }

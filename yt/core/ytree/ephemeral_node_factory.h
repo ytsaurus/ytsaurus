@@ -8,7 +8,7 @@ namespace NYTree {
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Returns a factory for creating an ephemeral (non-persistent, in memory) YTree.
-INodeFactoryPtr GetEphemeralNodeFactory(bool shouldHideAttributes = false);
+INodeFactoryPtr CreateEphemeralNodeFactory(bool shouldHideAttributes = false);
 
 ////////////////////////////////////////////////////////////////////////////////
 

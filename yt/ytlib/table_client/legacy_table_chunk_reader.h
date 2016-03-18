@@ -9,6 +9,8 @@
 
 #include <yt/core/yson/lexer.h>
 
+#include <yt/core/concurrency/async_semaphore.h>
+
 #include <yt/ytlib/chunk_client/chunk_spec.pb.h>
 
 namespace NYT {
@@ -78,8 +80,10 @@ private:
     TChunkReaderConfigPtr Config_;
     TChunkReaderOptionsPtr Options_;
 
+    NConcurrency::TAsyncSemaphorePtr AsyncSemaphore_;
+
     NChunkClient::IChunkReaderPtr UnderlyingReader_;
-    NChunkClient::TSequentialReaderPtr SequentialReader_;
+    NChunkClient::TSequentialBlockFetcherPtr SequentialBlockFetcher_;
     TColumnFilter ColumnFilter_;
     TNameTablePtr NameTable_;
     TKeyColumns KeyColumns_;
@@ -87,6 +91,7 @@ private:
     NChunkClient::TReadLimit UpperLimit_;
 
     TFuture<void> ReadyEvent_;
+    TFuture<TSharedRef> CurrentBlock_;
 
     TIntrusivePtr<TInitializer> Initializer_;
 

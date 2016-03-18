@@ -681,7 +681,8 @@ class TestSchedulerPools(YTEnvSetup):
 
     DELTA_SCHEDULER_CONFIG = {
         "scheduler": {
-            "watchers_update_period": 100
+            "watchers_update_period": 100,
+            "default_parent_pool": "default_pool"
         }
     }
 
@@ -714,6 +715,29 @@ class TestSchedulerPools(YTEnvSetup):
         create("map_node", "//sys/pools/test_pool_2/test_pool_1")
 
         op.track()
+
+    def test_default_parent_pool(self):
+        self._prepare();
+
+        create("map_node", "//sys/pools/default_pool")
+        time.sleep(0.2)
+
+        op = map(
+            dont_track=True,
+            waiting_jobs=True,
+            command="cat",
+            in_="//tmp/t_in",
+            out="//tmp/t_out")
+
+        pool = get("//sys/scheduler/orchid/scheduler/pools/root")
+        assert pool["parent"] == "default_pool"
+
+        remove("//sys/pools/default_pool")
+        time.sleep(0.2)
+
+        op.resume_jobs()
+        op.track()
+
 
 class TestSchedulerSnapshots(YTEnvSetup):
     NUM_MASTERS = 3

@@ -10,7 +10,7 @@
 #include <yt/ytlib/chunk_client/chunk_spec.h>
 #include <yt/ytlib/chunk_client/dispatcher.h>
 #include <yt/ytlib/chunk_client/replication_reader.h>
-#include <yt/ytlib/chunk_client/sequential_reader.h>
+#include <yt/ytlib/chunk_client/block_fetcher.h>
 #include <yt/ytlib/chunk_client/config.h>
 #include <yt/ytlib/chunk_client/data_statistics.pb.h>
 #include <yt/ytlib/chunk_client/multi_reader_base.h>
@@ -43,20 +43,19 @@ class TFileChunkReader
 {
 public:
     TFileChunkReader(
-        TSequentialReaderConfigPtr config,
-        TMultiChunkReaderOptionsPtr options,
+        TBlockFetcherConfigPtr config,
         IChunkReaderPtr chunkReader,
         IBlockCachePtr blockCache,
         NCompression::ECodec codecId,
         i64 startOffset,
         i64 endOffset)
         : Config_(std::move(config))
-        , Options_(std::move(options))
         , ChunkReader_(std::move(chunkReader))
         , BlockCache_(std::move(blockCache))
         , CodecId_(codecId)
         , StartOffset_(startOffset)
         , EndOffset_(endOffset)
+        , AsyncSemaphore_(New<TAsyncSemaphore>(Config_->WindowSize))
     {
         Logger.AddTag("ChunkId: %v", ChunkReader_->GetChunkId());
 
@@ -80,14 +79,15 @@ public:
             return true;
         }
 
-        block->Reset();
-        if (BlockFetched_ && !SequentialReader_->HasMoreBlocks()) {
+        if (BlockFetched_ && !SequentialBlockFetcher_->HasMoreBlocks()) {
             return false;
         }
-
+        
+        block->Reset();
         if (BlockFetched_) {
             BlockFetched_ = false;
-            ReadyEvent_ = SequentialReader_->FetchNextBlock();
+            CurrentBlock_ = SequentialBlockFetcher_->FetchNextBlock();
+            ReadyEvent_ = CurrentBlock_.As<void>();
             if (!ReadyEvent_.IsSet()) {
                 return true;
             }
@@ -105,17 +105,17 @@ public:
 
     virtual TDataStatistics GetDataStatistics() const override
     {
-        YCHECK(SequentialReader_);
+        YCHECK(SequentialBlockFetcher_);
         TDataStatistics dataStatistics;
-        dataStatistics.set_uncompressed_data_size(SequentialReader_->GetUncompressedDataSize());
-        dataStatistics.set_compressed_data_size(SequentialReader_->GetCompressedDataSize());
+        dataStatistics.set_uncompressed_data_size(SequentialBlockFetcher_->GetUncompressedDataSize());
+        dataStatistics.set_compressed_data_size(SequentialBlockFetcher_->GetCompressedDataSize());
         return dataStatistics;
     }
 
     virtual bool IsFetchingCompleted() const override
     {
-        YCHECK(SequentialReader_);
-        return SequentialReader_->GetFetchingCompletedEvent().IsSet();
+        YCHECK(SequentialBlockFetcher_);
+        return SequentialBlockFetcher_->IsFetchingCompleted();
     }
 
     virtual std::vector<TChunkId> GetFailedChunkIds() const override
@@ -128,8 +128,7 @@ public:
     }
 
 private:
-    const TSequentialReaderConfigPtr Config_;
-    const TMultiChunkReaderOptionsPtr Options_;
+    const TBlockFetcherConfigPtr Config_;
     const IChunkReaderPtr ChunkReader_;
     const IBlockCachePtr BlockCache_;
     const NCompression::ECodec CodecId_;
@@ -137,11 +136,15 @@ private:
     i64 StartOffset_;
     i64 EndOffset_;
 
-    TSequentialReaderPtr SequentialReader_;
+    TAsyncSemaphorePtr AsyncSemaphore_;
+
+    TSequentialBlockFetcherPtr SequentialBlockFetcher_;
     TFuture<void> ReadyEvent_;
     bool BlockFetched_ = true;
 
     NLogging::TLogger Logger = FileClientLogger;
+
+    TFuture<TSharedRef> CurrentBlock_;
 
     void DoOpen()
     {
@@ -166,7 +169,7 @@ private:
                 meta.version());
         }
 
-        std::vector<TSequentialReader::TBlockInfo> blockSequence;
+        std::vector<TBlockFetcher::TBlockInfo> blockSequence;
 
         // COMPAT(psushin): new file chunk meta!
         auto fileBlocksExt = FindProtoExtension<NFileClient::NProto::TBlocksExt>(meta.extensions());
@@ -181,7 +184,7 @@ private:
                 return true;
             } else if (selectedSize < EndOffset_) {
                 selectedSize += size;
-                blockSequence.push_back(TSequentialReader::TBlockInfo(index, size));
+                blockSequence.push_back(TBlockFetcher::TBlockInfo(index, size, index /* priority */));
                 return true;
             }
             return false;
@@ -218,9 +221,10 @@ private:
             blockIndex,
             selectedSize);
 
-        SequentialReader_ = New<TSequentialReader>(
+        SequentialBlockFetcher_ = New<TSequentialBlockFetcher>(
             Config_,
             std::move(blockSequence),
+            AsyncSemaphore_,
             ChunkReader_,
             BlockCache_,
             CodecId_);
@@ -230,7 +234,7 @@ private:
 
     TSharedRef GetBlock()
     {
-        auto block = SequentialReader_->GetCurrentBlock();
+        auto block = CurrentBlock_.Get().ValueOrThrow();
 
         auto* begin = block.Begin();
         auto* end = block.End();
@@ -254,8 +258,7 @@ private:
 };
 
 IFileReaderPtr CreateFileChunkReader(
-    TSequentialReaderConfigPtr config,
-    TMultiChunkReaderOptionsPtr options,
+    TBlockFetcherConfigPtr config,
     IChunkReaderPtr chunkReader,
     IBlockCachePtr blockCache,
     NCompression::ECodec codecId,
@@ -264,7 +267,6 @@ IFileReaderPtr CreateFileChunkReader(
 {
     return New<TFileChunkReader>(
         config,
-        options,
         chunkReader,
         blockCache,
         codecId, 
@@ -354,7 +356,6 @@ IFileReaderPtr CreateFileMultiChunkReader(
 
             return CreateFileChunkReader(
                 config,
-                options,
                 std::move(remoteReader),
                 blockCache,
                 NCompression::ECodec(miscExt.compression_codec()),

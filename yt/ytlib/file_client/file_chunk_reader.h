@@ -32,8 +32,7 @@ DEFINE_REFCOUNTED_TYPE(IFileReader)
 ////////////////////////////////////////////////////////////////////////////////
 
 IFileReaderPtr CreateFileChunkReader(
-    NChunkClient::TSequentialReaderConfigPtr config,
-    NChunkClient::TMultiChunkReaderOptionsPtr options,
+    NChunkClient::TBlockFetcherConfigPtr config,
     NChunkClient::IChunkReaderPtr chunkReader,
     NChunkClient::IBlockCachePtr blockCache,
     NCompression::ECodec codecId,

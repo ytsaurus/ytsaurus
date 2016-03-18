@@ -83,7 +83,7 @@ public:
         : Config_(config)
         , Bootstrap_(bootstrap)
         , ThreadPool_(New<TThreadPool>(Config_->StoreFlusher->ThreadPoolSize, "StoreFlush"))
-        , Semaphore_(Config_->StoreFlusher->MaxConcurrentFlushes)
+        , Semaphore_(New<TAsyncSemaphore>(Config_->StoreFlusher->MaxConcurrentFlushes))
     {
         auto slotManager = Bootstrap_->GetTabletSlotManager();
         slotManager->SubscribeBeginSlotScan(BIND(&TStoreFlusher::OnBeginSlotScan, MakeStrong(this)));
@@ -96,7 +96,7 @@ private:
     NCellNode::TBootstrap* const Bootstrap_;
 
     TThreadPoolPtr ThreadPool_;
-    TAsyncSemaphore Semaphore_;
+    TAsyncSemaphorePtr Semaphore_;
 
     struct TForcedRotationCandidate
     {
@@ -240,7 +240,7 @@ private:
             return;
         }
 
-        auto guard = TAsyncSemaphoreGuard::TryAcquire(&Semaphore_);
+        auto guard = TAsyncSemaphoreGuard::TryAcquire(Semaphore_);
         if (!guard) {
             return;
         }

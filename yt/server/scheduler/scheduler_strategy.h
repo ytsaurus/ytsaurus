@@ -45,7 +45,7 @@ struct ISchedulerStrategy
     virtual ~ISchedulerStrategy()
     { }
 
-    virtual void ScheduleJobs(ISchedulingContext* schedulingContext) = 0;
+    virtual void ScheduleJobs(const ISchedulingContextPtr& schedulingContext) = 0;
 
     //! Resets memoized state.
     virtual void ResetState() = 0;

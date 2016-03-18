@@ -58,8 +58,8 @@ struct ISchedulerStrategy;
 struct ISchedulerStrategyHost;
 
 struct IOperationHost;
-struct ISchedulingContext;
 
+DECLARE_REFCOUNTED_STRUCT(ISchedulingContext);
 DECLARE_REFCOUNTED_STRUCT(IOperationController);
 
 class TMasterConnector;

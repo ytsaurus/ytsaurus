@@ -454,12 +454,6 @@ struct IClientBase
 
 
     // Tables
-    virtual TFuture<IRowsetPtr> LookupRow(
-        const NYPath::TYPath& path,
-        NTableClient::TNameTablePtr nameTable,
-        NTableClient::TKey key,
-        const TLookupRowsOptions& options = TLookupRowsOptions()) = 0;
-
     virtual TFuture<IRowsetPtr> LookupRows(
         const NYPath::TYPath& path,
         NTableClient::TNameTablePtr nameTable,

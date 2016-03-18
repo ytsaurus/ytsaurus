@@ -1701,13 +1701,15 @@ void TOperationControllerBase::OnJobAborted(std::unique_ptr<TAbortedJobSummary> 
 
     auto joblet = GetJoblet(jobId);
 
-    FinalizeJoblet(joblet, jobSummary.get());
-    LogFinishedJobFluently(ELogEventType::JobAborted, joblet, *jobSummary)
-        .Item("reason").Value(abortReason);
+    if (abortReason != EAbortReason::SchedulingTimeout) {
+        FinalizeJoblet(joblet, jobSummary.get());
+        LogFinishedJobFluently(ELogEventType::JobAborted, joblet, *jobSummary)
+            .Item("reason").Value(abortReason);
+
+        UpdateJobStatistics(*jobSummary);
+    }
 
     joblet->Task->OnJobAborted(joblet, *jobSummary);
-
-    UpdateJobStatistics(*jobSummary);
 
     RemoveJoblet(jobId);
 
@@ -1724,7 +1726,6 @@ void TOperationControllerBase::FinalizeJoblet(
     const TJobletPtr& joblet,
     TJobSummary* jobSummary)
 {
-    const auto& result = jobSummary->Result;
     auto& statistics = jobSummary->Statistics;
 
     joblet->FinishTime = jobSummary->FinishTime;
@@ -1732,11 +1733,15 @@ void TOperationControllerBase::FinalizeJoblet(
         auto duration = joblet->FinishTime - joblet->StartTime;
         statistics.AddSample("/time/total", duration.MilliSeconds());
     }
-    if (result->has_prepare_time()) {
-        statistics.AddSample("/time/prepare", result->prepare_time());
-    }
-    if (result->has_exec_time()) {
-        statistics.AddSample("/time/exec", result->exec_time());
+
+    const auto& result = jobSummary->Result;
+    if (result) {
+        if (result->has_prepare_time()) {
+            statistics.AddSample("/time/prepare", result->prepare_time());
+        }
+        if (result->has_exec_time()) {
+            statistics.AddSample("/time/exec", result->exec_time());
+        }
     }
 }
 
@@ -1962,34 +1967,19 @@ void TOperationControllerBase::CheckTimeLimit()
 }
 
 TJobStartRequestPtr TOperationControllerBase::ScheduleJob(
-    ISchedulingContext* context,
+    ISchedulingContextPtr context,
     const TJobResources& jobLimits)
 {
     VERIFY_INVOKER_AFFINITY(CancelableInvoker);
 
-    auto request = DoScheduleJob(context, jobLimits);
-    if (request) {
+    // ScheduleJob must be a synchronous action, any context switches are prohibited.
+    TContextSwitchedGuard contextSwitchGuard(BIND([] { YUNREACHABLE(); }));
+
+    auto jobStartRequest = DoScheduleJob(context.Get(), jobLimits);
+    if (jobStartRequest) {
         JobCounter.Start(1);
     }
-    return request;
-
-    //auto jobStartRequestOrError = WaitFor(
-    //    BIND(&TOperationControllerBase::DoScheduleJob, MakeStrong(this))
-    //        .AsyncVia(CancelableInvoker)
-    //        .Run(context, jobLimits)
-    //        .WithTimeout(Config->ControllerScheduleJobTimeLimit));
-
-    //if (jobStartRequestOrError.GetCode() == NYT::EErrorCode::Timeout) {
-    //    OnOperationFailed(TError("Controller is scheduling for too long, aborted")
-    //        << TErrorAttribute("time_limit", Config->ControllerScheduleJobTimeLimit));
-    //    return nullptr;
-    //}
-
-    //auto jobStartRequest = jobStartRequestOrError.ValueOrThrow();
-    //if (jobStartRequest) {
-    //    OnJobStarted(jobStartRequest->Id);
-    //}
-    //return jobStartRequest;
+    return jobStartRequest;
 }
 
 void TOperationControllerBase::UpdateConfig(TSchedulerConfigPtr config)
@@ -3307,6 +3297,8 @@ void TOperationControllerBase::LockUserFiles(
                     case EObjectType::Table:
                         file.Format = attributes.FindYson("format").Get(TYsonString());
                         file.Format = file.Path.GetFormat().Get(file.Format);
+                        // Check that format is correct.
+                        ConvertTo<NFormats::TFormat>(file.Format);
                         break;
 
                     default:
@@ -3964,7 +3956,7 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
     jobSpec->set_enable_core_dump(config->EnableCoreDump);
     jobSpec->set_custom_statistics_count_limit(config->CustomStatisticsCountLimit);
 
-    if (config->TmpfsSize) {
+    if (config->TmpfsSize && Config->EnableTmpfs) {
         jobSpec->set_tmpfs_size(*config->TmpfsSize);
     }
 

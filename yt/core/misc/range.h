@@ -70,15 +70,26 @@ public:
         , Length_(N)
     { }
 
-
     const_iterator Begin() const
     {
         return Data_;
     }
 
+    // STL interop, for gcc.
+    const_iterator begin() const
+    {
+        return Begin();
+    }
+
     const_iterator End() const
     {
         return Data_ + Length_;
+    }
+
+    // STL interop, for gcc.
+    const_iterator end() const
+    {
+        return End();
     }
 
     bool Empty() const

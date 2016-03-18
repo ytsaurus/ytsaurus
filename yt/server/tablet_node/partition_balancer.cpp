@@ -54,7 +54,7 @@ public:
         NCellNode::TBootstrap* bootstrap)
         : Config_(config)
         , Bootstrap_(bootstrap)
-        , Semaphore_(Config_->MaxConcurrentSamplings)
+        , Semaphore_(New<TAsyncSemaphore>(Config_->MaxConcurrentSamplings))
     {
         auto slotManager = Bootstrap_->GetTabletSlotManager();
         slotManager->SubscribeScanSlot(BIND(&TPartitionBalancer::OnScanSlot, MakeStrong(this)));
@@ -63,7 +63,7 @@ public:
 private:
     TPartitionBalancerConfigPtr Config_;
     NCellNode::TBootstrap* Bootstrap_;
-    TAsyncSemaphore Semaphore_;
+    TAsyncSemaphorePtr Semaphore_;
 
 
     void OnScanSlot(TTabletSlotPtr slot)
@@ -254,7 +254,7 @@ private:
             return;
         }
 
-        auto guard = TAsyncSemaphoreGuard::TryAcquire(&Semaphore_);
+        auto guard = TAsyncSemaphoreGuard::TryAcquire(Semaphore_);
         if (!guard) {
             return;
         }

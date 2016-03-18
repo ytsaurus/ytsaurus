@@ -14,7 +14,7 @@
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/ytlib/chunk_client/chunk_reader.h>
 #include <yt/ytlib/chunk_client/dispatcher.h>
-#include <yt/ytlib/chunk_client/sequential_reader.h>
+#include <yt/ytlib/chunk_client/block_fetcher.h>
 #include <yt/ytlib/chunk_client/data_statistics.pb.h>
 
 #include <yt/core/compression/codec.h>
@@ -174,7 +174,7 @@ private:
     TReadLimit LowerLimit_;
     TReadLimit UpperLimit_;
 
-    std::vector<TSequentialReader::TBlockInfo> GetBlockSequence();
+    std::vector<TBlockFetcher::TBlockInfo> GetBlockSequence();
 
     virtual void InitFirstBlock() override;
     virtual void InitNextBlock() override;
@@ -261,7 +261,7 @@ bool TVersionedRangeChunkReader::Read(std::vector<TVersionedRow>* rows)
     return true;
 }
 
-std::vector<TSequentialReader::TBlockInfo> TVersionedRangeChunkReader::GetBlockSequence()
+std::vector<TBlockFetcher::TBlockInfo> TVersionedRangeChunkReader::GetBlockSequence()
 {
     const auto& blockMetaExt = ChunkMeta_->BlockMeta();
     const auto& blockIndexKeys = ChunkMeta_->BlockLastKeys();
@@ -273,7 +273,7 @@ std::vector<TSequentialReader::TBlockInfo> TVersionedRangeChunkReader::GetBlockS
         ApplyUpperRowLimit(blockMetaExt, UpperLimit_),
         ApplyUpperKeyLimit(blockIndexKeys, UpperLimit_));
 
-    std::vector<TSequentialReader::TBlockInfo> blocks;
+    std::vector<TBlockFetcher::TBlockInfo> blocks;
     if (CurrentBlockIndex_ >= blockMetaExt.blocks_size()) {
         return blocks;
     }
@@ -283,9 +283,10 @@ std::vector<TSequentialReader::TBlockInfo> TVersionedRangeChunkReader::GetBlockS
 
     for (int blockIndex = CurrentBlockIndex_; blockIndex < endBlockIndex; ++blockIndex) {
         auto& blockMeta = blockMetaExt.blocks(blockIndex);
-        TSequentialReader::TBlockInfo blockInfo;
+        TBlockFetcher::TBlockInfo blockInfo;
         blockInfo.Index = blockIndex;
         blockInfo.UncompressedDataSize = blockMeta.uncompressed_size();
+        blockInfo.Priority = blocks.size();
         blocks.push_back(blockInfo);
     }
 
@@ -299,8 +300,9 @@ void TVersionedRangeChunkReader::InitFirstBlock()
         UpperLimit_,
         ChunkMeta_->GetKeyColumnCount());
 
+    YCHECK(CurrentBlock_ && CurrentBlock_.IsSet());
     BlockReader_.reset(new TSimpleVersionedBlockReader(
-        SequentialReader_->GetCurrentBlock(),
+        CurrentBlock_.Get().ValueOrThrow(),
         ChunkMeta_->BlockMeta().blocks(CurrentBlockIndex_),
         ChunkMeta_->ChunkSchema(),
         ChunkMeta_->GetChunkKeyColumnCount(),
@@ -330,8 +332,9 @@ void TVersionedRangeChunkReader::InitNextBlock()
         UpperLimit_,
         ChunkMeta_->GetKeyColumnCount());
 
+    YCHECK(CurrentBlock_ && CurrentBlock_.IsSet());
     BlockReader_.reset(new TSimpleVersionedBlockReader(
-        SequentialReader_->GetCurrentBlock(),
+        CurrentBlock_.Get().ValueOrThrow(),
         ChunkMeta_->BlockMeta().blocks(CurrentBlockIndex_),
         ChunkMeta_->ChunkSchema(),
         ChunkMeta_->GetChunkKeyColumnCount(),
@@ -398,7 +401,7 @@ private:
 
     int CurrentBlockIndex_ = -1;
 
-    std::vector<TSequentialReader::TBlockInfo> GetBlockSequence();
+    std::vector<TBlockFetcher::TBlockInfo> GetBlockSequence();
 
     virtual void InitFirstBlock() override;
     virtual void InitNextBlock() override;
@@ -429,12 +432,12 @@ TVersionedLookupChunkReader::TVersionedLookupChunkReader(
     ReadyEvent_ = DoOpen(GetBlockSequence(), ChunkMeta_->Misc());
 }
 
-std::vector<TSequentialReader::TBlockInfo> TVersionedLookupChunkReader::GetBlockSequence()
+std::vector<TBlockFetcher::TBlockInfo> TVersionedLookupChunkReader::GetBlockSequence()
 {
     const auto& blockMetaExt = ChunkMeta_->BlockMeta();
     const auto& blockIndexKeys = ChunkMeta_->BlockLastKeys();
 
-    std::vector<TSequentialReader::TBlockInfo> blocks;
+    std::vector<TBlockFetcher::TBlockInfo> blocks;
     if (Keys_.Empty()) {
         return blocks;
     }
@@ -465,9 +468,10 @@ std::vector<TSequentialReader::TBlockInfo> TVersionedLookupChunkReader::GetBlock
 
     for (int blockIndex : BlockIndexes_) {
         auto& blockMeta = blockMetaExt.blocks(blockIndex);
-        TSequentialReader::TBlockInfo blockInfo;
+        TBlockFetcher::TBlockInfo blockInfo;
         blockInfo.Index = blockIndex;
         blockInfo.UncompressedDataSize = blockMeta.uncompressed_size();
+        blockInfo.Priority = blocks.size();
         blocks.push_back(blockInfo);
     }
 
@@ -483,8 +487,10 @@ void TVersionedLookupChunkReader::InitNextBlock()
 {
     ++CurrentBlockIndex_;
     int chunkBlockIndex = BlockIndexes_ [CurrentBlockIndex_];
+
+    YCHECK(CurrentBlock_ && CurrentBlock_.IsSet());
     BlockReader_.reset(new TSimpleVersionedBlockReader(
-        SequentialReader_->GetCurrentBlock(),
+        CurrentBlock_.Get().ValueOrThrow(),
         ChunkMeta_->BlockMeta().blocks(chunkBlockIndex),
         ChunkMeta_->ChunkSchema(),
         ChunkMeta_->GetChunkKeyColumnCount(),

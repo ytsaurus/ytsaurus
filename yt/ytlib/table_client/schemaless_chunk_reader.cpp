@@ -190,7 +190,6 @@ private:
     virtual void InitFirstBlock() override;
     virtual void InitNextBlock() override;
 
-    TSequentialReader::TBlockInfo CreateBlockInfo(int index);
     void CreateBlockSequence(int beginIndex, int endIndex);
     void DownloadChunkMeta(std::vector<int> extensionTags, TNullable<int> partitionTag = Null);
 
@@ -283,22 +282,18 @@ TFuture<void> TSchemalessChunkReader::InitializeBlockSequence()
 
     LOG_DEBUG("Reading %v blocks", BlockIndexes_.size());
 
-    std::vector<TSequentialReader::TBlockInfo> blocks;
-    for (int index : BlockIndexes_) {
-        blocks.push_back(CreateBlockInfo(index));
+    std::vector<TBlockFetcher::TBlockInfo> blocks;
+    for (int blockIndex : BlockIndexes_) {
+        YCHECK(blockIndex < BlockMetaExt_.blocks_size());
+        auto& blockMeta = BlockMetaExt_.blocks(blockIndex);
+        TBlockFetcher::TBlockInfo blockInfo;
+        blockInfo.Index = blockMeta.block_index();
+        blockInfo.UncompressedDataSize = blockMeta.uncompressed_size();
+        blockInfo.Priority = blocks.size();
+        blocks.push_back(blockInfo);
     }
 
     return DoOpen(std::move(blocks), GetProtoExtension<TMiscExt>(ChunkMeta_.extensions()));
-}
-
-TSequentialReader::TBlockInfo TSchemalessChunkReader::CreateBlockInfo(int blockIndex)
-{
-    YCHECK(blockIndex < BlockMetaExt_.blocks_size());
-    auto& blockMeta = BlockMetaExt_.blocks(blockIndex);
-    TSequentialReader::TBlockInfo blockInfo;
-    blockInfo.Index = blockMeta.block_index();
-    blockInfo.UncompressedDataSize = blockMeta.uncompressed_size();
-    return blockInfo;
 }
 
 void TSchemalessChunkReader::DownloadChunkMeta(std::vector<int> extensionTags, TNullable<int> partitionTag)
@@ -360,7 +355,7 @@ void TSchemalessChunkReader::InitializeBlockSequenceSorted()
     }
 
     int lastIndex = -1;
-    std::vector<TSequentialReader::TBlockInfo> blocks;
+    std::vector<TBlockFetcher::TBlockInfo> blocks;
     for (const auto& readRange : ReadRanges_) {
         int beginIndex = std::max(
             ApplyLowerRowLimit(BlockMetaExt_, readRange.LowerLimit()),
@@ -423,8 +418,9 @@ void TSchemalessChunkReader::InitFirstBlock()
 
     CheckBlockUpperLimits(blockMeta, ReadRanges_[CurrentRangeIndex_].UpperLimit());
 
+    YCHECK(CurrentBlock_ && CurrentBlock_.IsSet());
     BlockReader_.reset(new THorizontalSchemalessBlockReader(
-        SequentialReader_->GetCurrentBlock(),
+        CurrentBlock_.Get().ValueOrThrow(),
         blockMeta,
         IdMapping_,
         KeyColumns_.size(),

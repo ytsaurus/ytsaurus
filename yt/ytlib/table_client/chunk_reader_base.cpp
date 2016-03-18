@@ -14,41 +14,46 @@ using namespace NChunkClient;
 using namespace NChunkClient::NProto;
 using namespace NCompression;
 using namespace NTableClient::NProto;
+using NConcurrency::TAsyncSemaphore;
 
 using NYT::FromProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TChunkReaderBase::TChunkReaderBase(
-    TSequentialReaderConfigPtr config,
+    TBlockFetcherConfigPtr config,
     NChunkClient::IChunkReaderPtr underlyingReader,
     IBlockCachePtr blockCache)
     : Config_(std::move(config))
     , BlockCache_(std::move(blockCache))
     , UnderlyingReader_(std::move(underlyingReader))
+    , AsyncSemaphore_(New<TAsyncSemaphore>(Config_->WindowSize))
 {
     Logger = TableClientLogger;
     Logger.AddTag("ChunkId: %v", UnderlyingReader_->GetChunkId());
 }
 
 TFuture<void> TChunkReaderBase::DoOpen(
-    std::vector<TSequentialReader::TBlockInfo> blockSequence,
+    std::vector<TBlockFetcher::TBlockInfo> blockSequence,
     const TMiscExt& miscExt)
 {
     if (blockSequence.empty()) {
         return VoidFuture;
     }
 
-    SequentialReader_ = New<TSequentialReader>(
+    SequentialBlockFetcher_ = New<TSequentialBlockFetcher>(
         Config_,
         std::move(blockSequence),
+        AsyncSemaphore_,
         UnderlyingReader_,
         BlockCache_,
         ECodec(miscExt.compression_codec()));
 
     InitFirstBlockNeeded_ = true;
-    YCHECK(SequentialReader_->HasMoreBlocks());
-    return SequentialReader_->FetchNextBlock();
+    YCHECK(SequentialBlockFetcher_->HasMoreBlocks());
+    CurrentBlock_ = SequentialBlockFetcher_->FetchNextBlock();
+    ReadyEvent_ = CurrentBlock_.As<void>();
+    return ReadyEvent_;
 }
 
 TFuture<void> TChunkReaderBase::GetReadyEvent()
@@ -83,11 +88,12 @@ bool TChunkReaderBase::OnBlockEnded()
 {
     BlockEnded_ = false;
 
-    if (!SequentialReader_->HasMoreBlocks()) {
+    if (!SequentialBlockFetcher_->HasMoreBlocks()) {
         return false;
     }
 
-    ReadyEvent_ = SequentialReader_->FetchNextBlock();
+    CurrentBlock_ = SequentialBlockFetcher_->FetchNextBlock();
+    ReadyEvent_ = CurrentBlock_.As<void>();
     InitNextBlockNeeded_ = true;
     return true;
 }
@@ -278,23 +284,23 @@ int TChunkReaderBase::ApplyUpperKeyLimit(const TBlockMetaExt& blockMeta, const N
 
 TDataStatistics TChunkReaderBase::GetDataStatistics() const
 {
-    if (!SequentialReader_) {
+    if (!SequentialBlockFetcher_) {
         return TDataStatistics();
     }
 
     TDataStatistics dataStatistics;
     dataStatistics.set_chunk_count(1);
-    dataStatistics.set_uncompressed_data_size(SequentialReader_->GetUncompressedDataSize());
-    dataStatistics.set_compressed_data_size(SequentialReader_->GetCompressedDataSize());
+    dataStatistics.set_uncompressed_data_size(SequentialBlockFetcher_->GetUncompressedDataSize());
+    dataStatistics.set_compressed_data_size(SequentialBlockFetcher_->GetCompressedDataSize());
     return dataStatistics;
 }
 
 bool TChunkReaderBase::IsFetchingCompleted() const
 {
-    if (!SequentialReader_) {
+    if (!SequentialBlockFetcher_) {
         return true;
     }
-    return SequentialReader_->GetFetchingCompletedEvent().IsSet();
+    return SequentialBlockFetcher_->IsFetchingCompleted();
 }
 
 std::vector<TChunkId> TChunkReaderBase::GetFailedChunkIds() const

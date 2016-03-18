@@ -8,7 +8,7 @@
 
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/ytlib/chunk_client/dispatcher.h>
-#include <yt/ytlib/chunk_client/sequential_reader.h>
+#include <yt/ytlib/chunk_client/block_fetcher.h>
 
 #include <yt/core/misc/finally.h>
 
@@ -77,7 +77,7 @@ class TLegacyTableChunkReader::TInitializer
 
 public:
     TInitializer(
-        TSequentialReaderConfigPtr config,
+        TBlockFetcherConfigPtr config,
         TLegacyTableChunkReader* tableChunkReader,
         IChunkReaderPtr chunkReader,
         IBlockCachePtr blockCache,
@@ -176,9 +176,10 @@ public:
             auto blockSequence = GetBlockReadSequence(tableChunkReader);
             LOG_DEBUG("Reading %v blocks", blockSequence.size());
 
-            tableChunkReader->SequentialReader_ = New<TSequentialReader>(
+            tableChunkReader->SequentialBlockFetcher_ = New<TSequentialBlockFetcher>(
                 SequentialConfig_,
                 std::move(blockSequence),
+                tableChunkReader->AsyncSemaphore_,
                 UnderlyingReader_,
                 BlockCache_,
                 NCompression::ECodec(miscExt.compression_codec()));
@@ -248,7 +249,7 @@ private:
 
     void SelectOpeningBlocks(
         TLegacyTableChunkReaderPtr chunkReader,
-        std::vector<TSequentialReader::TBlockInfo>& result,
+        std::vector<TBlockFetcher::TBlockInfo>& result,
         std::vector<TBlockInfo>& blockHeap)
     {
         for (auto channelIdx : SelectedChannels_) {
@@ -271,9 +272,10 @@ private:
                         channelIdx,
                         lastRow));
 
-                    result.push_back(TSequentialReader::TBlockInfo(
+                    result.push_back(TBlockFetcher::TBlockInfo(
                         protoBlock.block_index(),
-                        protoBlock.uncompressed_size()));
+                        protoBlock.uncompressed_size(),
+                        result.size() /* priority */));
                     StartRows_.push_back(startRow);
                     break;
                 }
@@ -281,9 +283,9 @@ private:
         }
     }
 
-    std::vector<TSequentialReader::TBlockInfo> GetBlockReadSequence(TLegacyTableChunkReaderPtr chunkReader)
+    std::vector<TBlockFetcher::TBlockInfo> GetBlockReadSequence(TLegacyTableChunkReaderPtr chunkReader)
     {
-        std::vector<TSequentialReader::TBlockInfo> result;
+        std::vector<TBlockFetcher::TBlockInfo> result;
         std::vector<TBlockInfo> blockHeap;
 
         SelectOpeningBlocks(chunkReader, result, blockHeap);
@@ -319,9 +321,10 @@ private:
                     lastRow));
 
                 std::push_heap(blockHeap.begin(), blockHeap.end());
-                result.push_back(TSequentialReader::TBlockInfo(
+                result.push_back(TBlockFetcher::TBlockInfo(
                     protoBlock.block_index(),
-                    protoBlock.uncompressed_size()));
+                    protoBlock.uncompressed_size(),
+                    result.size() /* priority */));
                 break;
             }
         }
@@ -399,14 +402,13 @@ private:
     void InitFirstBlocks(TLegacyTableChunkReaderPtr tableChunkReader)
     {
         for (int selectedChannelIndex = 0; selectedChannelIndex < SelectedChannels_.size(); ++selectedChannelIndex) {
-            YCHECK(tableChunkReader->SequentialReader_->HasMoreBlocks());
-            WaitFor(tableChunkReader->SequentialReader_->FetchNextBlock())
-                .ThrowOnError();
+            YCHECK(tableChunkReader->SequentialBlockFetcher_->HasMoreBlocks());
+            auto block = WaitFor(tableChunkReader->SequentialBlockFetcher_->FetchNextBlock())
+                .ValueOrThrow();
 
             auto channelIndex = SelectedChannels_[selectedChannelIndex];
             tableChunkReader->ChannelReaders_.push_back(New<TLegacyChannelReader>(ChunkChannels_[channelIndex]));
             auto& channelReader = tableChunkReader->ChannelReaders_.back();
-            auto block = tableChunkReader->SequentialReader_->GetCurrentBlock();
             channelReader->SetBlock(block);
 
             for (
@@ -424,7 +426,7 @@ private:
         tableChunkReader->MakeAndValidateRow();
     }
 
-    TSequentialReaderConfigPtr SequentialConfig_;
+    TBlockFetcherConfigPtr SequentialConfig_;
     IChunkReaderPtr UnderlyingReader_;
     IBlockCachePtr BlockCache_;
     TWeakPtr<TLegacyTableChunkReader> TableChunkReader_;
@@ -460,8 +462,9 @@ TLegacyTableChunkReader::TLegacyTableChunkReader(
     : ChunkSpec_(chunkSpec)
     , Config_(config)
     , Options_(options)
+    , AsyncSemaphore_(New<TAsyncSemaphore>(Config_->WindowSize))
     , UnderlyingReader_(underlyingReader)
-    , SequentialReader_(nullptr)
+    , SequentialBlockFetcher_(nullptr)
     , ColumnFilter_(columnFilter)
     , NameTable_(nameTable)
     , KeyColumns_(keyColumns)
@@ -626,7 +629,8 @@ bool TLegacyTableChunkReader::FetchNextRow()
 
 bool TLegacyTableChunkReader::ContinueFetchNextRow()
 {
-    auto block = SequentialReader_->GetCurrentBlock();
+    YCHECK(CurrentBlock_ && CurrentBlock_.IsSet());
+    auto block = CurrentBlock_.Get().ValueOrThrow();
     auto& channel = ChannelReaders_[UnfetchedChannelIndex_];
     channel->SetBlock(block);
 
@@ -641,8 +645,9 @@ bool TLegacyTableChunkReader::DoFetchNextRow()
             continue;
         }
 
-        YCHECK(SequentialReader_->HasMoreBlocks());
-        ReadyEvent_ = SequentialReader_->FetchNextBlock();
+        YCHECK(SequentialBlockFetcher_->HasMoreBlocks()); 
+        CurrentBlock_ = SequentialBlockFetcher_->FetchNextBlock();
+        ReadyEvent_ = CurrentBlock_.As<void>();
         UnfetchedChannelIndex_ = channelIndex;
 
         return false;
@@ -737,10 +742,10 @@ TDataStatistics TLegacyTableChunkReader::GetDataStatistics() const
     TDataStatistics result;
     result.set_chunk_count(1);
 
-    if (SequentialReader_) {
+    if (SequentialBlockFetcher_) {
         result.set_row_count(RowCount_);
-        result.set_uncompressed_data_size(SequentialReader_->GetUncompressedDataSize());
-        result.set_compressed_data_size(SequentialReader_->GetCompressedDataSize());
+        result.set_uncompressed_data_size(SequentialBlockFetcher_->GetUncompressedDataSize());
+        result.set_compressed_data_size(SequentialBlockFetcher_->GetCompressedDataSize());
     }
 
     return result;
@@ -748,8 +753,8 @@ TDataStatistics TLegacyTableChunkReader::GetDataStatistics() const
 
 bool TLegacyTableChunkReader::IsFetchingCompleted() const
 {
-    if (SequentialReader_) {
-        return SequentialReader_->GetFetchingCompletedEvent().IsSet();
+    if (SequentialBlockFetcher_) {
+        return SequentialBlockFetcher_->IsFetchingCompleted();
     } else {
         // Error occured during initialization.
         return true;

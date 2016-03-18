@@ -21,7 +21,7 @@
 #include <yt/ytlib/chunk_client/client_block_cache.h>
 #include <yt/ytlib/chunk_client/file_writer.h>
 #include <yt/ytlib/chunk_client/replication_reader.h>
-#include <yt/ytlib/chunk_client/sequential_reader.h>
+#include <yt/ytlib/chunk_client/block_fetcher.h>
 
 #include <yt/ytlib/file_client/file_chunk_reader.h>
 
@@ -568,32 +568,33 @@ private:
             // Download all blocks.
             auto blocksExt = GetProtoExtension<TBlocksExt>(chunkMeta.extensions());
             int blockCount = blocksExt.blocks_size();
-            std::vector<TSequentialReader::TBlockInfo> blocks;
+            std::vector<TBlockFetcher::TBlockInfo> blocks;
+            TAsyncSemaphorePtr asyncSemaphore = New<TAsyncSemaphore>(Config_->ArtifactCacheReader->WindowSize);
             blocks.reserve(blockCount);
             for (int index = 0; index < blockCount; ++index) {
-                blocks.push_back(TSequentialReader::TBlockInfo(
+                blocks.push_back(TBlockFetcher::TBlockInfo(
                     index,
-                    blocksExt.blocks(index).size()));
+                    blocksExt.blocks(index).size(),
+                    index /* priority */));
             }
 
-            auto sequentialReader = New<TSequentialReader>(
+            auto blockFetcher = New<TBlockFetcher>(
                 Config_->ArtifactCacheReader,
                 std::move(blocks),
+                asyncSemaphore,
                 chunkReader,
                 GetNullBlockCache(),
                 NCompression::ECodec::None);
 
-            for (int blockIndex = 0; blockIndex < blockCount; ++blockIndex) {
+            for (int index = 0; index < blockCount; ++index) {
                 LOG_DEBUG("Downloading block (BlockIndex: %v)",
-                    blockIndex);
+                    index);
 
-                WaitFor(sequentialReader->FetchNextBlock())
-                    .ThrowOnError();
+                auto block = WaitFor(blockFetcher->FetchBlock(index))
+                    .ValueOrThrow();
 
                 LOG_DEBUG("Writing block (BlockIndex: %v)",
-                    blockIndex);
-
-                auto block = sequentialReader->GetCurrentBlock();
+                    index);
 
                 if (!checkedChunkWriter->WriteBlock(block)) {
                     WaitFor(chunkWriter->GetReadyEvent())
@@ -696,9 +697,10 @@ private:
             Null,
             Bootstrap_->GetArtifactCacheInThrottler());
 
-        auto format = ConvertTo<NFormats::TFormat>(TYsonString(key.format()));
 
         try {
+            auto format = ConvertTo<NFormats::TFormat>(TYsonString(key.format()));
+
             TSessionCounterGuard sessionCounterGuard(location);
 
             auto producer = [&] (TOutputStream* output) {

@@ -165,9 +165,7 @@ public:
         auto promise = response->GetPromise();
         auto requestControl = Send(std::move(response));
         if (requestControl) {
-            promise.OnCanceled(BIND([requestControl = std::move(requestControl)] () {
-                requestControl->Cancel();
-            }));
+            promise.OnCanceled(BIND(&IClientRequestControl::Cancel, std::move(requestControl)));
         }
         return promise.ToFuture();
     }
