@@ -695,6 +695,12 @@ class TestSchedulerMapCommands(YTEnvSetup):
             command=command,
             file=[file1, "<file_name=my_file.txt>" + file2, "<format=yson>//tmp/table_file"])
 
+        with pytest.raises(YtError):
+            map(in_="//tmp/input",
+                out="//tmp/output",
+                command=command,
+                file=["<format=invalid_format>//tmp/table_file"])
+
         assert read_table("//tmp/output") == [{"value": 42}, {"a": "b"}, {"text": "info"}]
 
     @unix_only

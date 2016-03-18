@@ -257,9 +257,6 @@ void TSlot::PrepareTmpfs(
     ESandboxKind sandboxKind,
     i64 size)
 {
-    if (Config_->DisableTmpfsCreation) {
-        return;
-    }
     if (!UserId_) {
         THROW_ERROR_EXCEPTION("Cannot mount tmpfs since job control is disabled");
     }

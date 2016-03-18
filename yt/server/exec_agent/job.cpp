@@ -43,6 +43,7 @@
 #include <yt/core/logging/log_manager.h>
 
 #include <yt/core/misc/proc.h>
+#include <yt/core/misc/finally.h>
 
 #include <yt/core/rpc/bus_channel.h>
 
@@ -117,8 +118,8 @@ public:
         Slot_ = slotManager->AcquireSlot();
 
         auto invoker = CancelableContext_->CreateInvoker(Slot_->GetInvoker());
-        BIND(&TJob::DoRun, MakeWeak(this))
-            .Via(invoker)
+        RunResult_ = BIND(&TJob::DoRun, MakeWeak(this))
+            .AsyncVia(invoker)
             .Run();
     }
 
@@ -142,10 +143,13 @@ public:
         }
 
         CancelableContext_->Cancel();
+
         YCHECK(Slot_);
-        BIND(&TJob::DoAbort, MakeStrong(this))
-            .Via(Slot_->GetInvoker())
-            .Run();
+
+        auto this_ = MakeStrong(this);
+        RunResult_.Subscribe(BIND([this, this_] (const TError& /*error*/) {
+            Slot_->GetInvoker()->Invoke(BIND(&TJob::DoAbort, MakeStrong(this)));
+        }));
     }
 
     virtual const TJobId& GetId() const override
@@ -299,6 +303,7 @@ private:
     EJobPhase JobPhase_ = EJobPhase::Created;
 
     const TCancelableContextPtr CancelableContext_ = New<TCancelableContext>();
+    TFuture<void> RunResult_;
 
     double Progress_ = 0.0;
     NJobTrackerClient::NProto::TStatistics Statistics_;
