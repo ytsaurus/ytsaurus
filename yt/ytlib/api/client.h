@@ -52,6 +52,8 @@ struct TUserWorkloadDescriptor
 {
     EUserWorkloadCategory Category = EUserWorkloadCategory::Realtime;
     int Band = 0;
+
+    operator TWorkloadDescriptor() const;
 };
 
 void Serialize(const TUserWorkloadDescriptor& workloadDescriptor, NYson::IYsonConsumer* consumer);
