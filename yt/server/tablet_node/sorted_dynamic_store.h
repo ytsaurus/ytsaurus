@@ -1,7 +1,7 @@
 #pragma once
 
 #include "private.h"
-#include "sorted_dynamic_store_bits.h"
+#include "dynamic_store_bits.h"
 #include "sorted_dynamic_comparer.h"
 #include "store_detail.h"
 #include "transaction.h"
@@ -58,13 +58,8 @@ public:
         TTabletManagerConfigPtr config,
         const TStoreId& id,
         TTablet* tablet);
-    ~TSortedDynamicStore();
+    virtual ~TSortedDynamicStore();
 
-
-    //! Sets the store state, as expected.
-    //! Additionally, when the store transitions from |ActiveDynamic| to |PassiveDynamic|,
-    //! its current revision is stored for future use in #CreateFlushReader.
-    virtual void SetStoreState(EStoreState state);
 
     //! Returns the reader to be used during flush.
     NTableClient::IVersionedReaderPtr CreateFlushReader();
@@ -76,10 +71,6 @@ public:
     //! Returns the cached instance of row key comparer
     //! (obtained by calling TTablet::GetRowKeyComparer).
     const TSortedDynamicRowKeyComparer& GetRowKeyComparer() const;
-
-    int GetLockCount() const;
-    int Lock();
-    int Unlock();
 
     using TRowBlockedHandler = TCallback<void(TSortedDynamicRow row, int lockIndex)>;
 
@@ -135,10 +126,7 @@ public:
         TKey key,
         TTimestamp commitTimestamp);
 
-    TSortedDynamicRow MigrateRow(
-        TTransaction* transaction,
-        TSortedDynamicRow row);
-
+    TSortedDynamicRow MigrateRow(TTransaction* transaction, TSortedDynamicRow row);
     void PrepareRow(TTransaction* transaction, TSortedDynamicRow row);
     void CommitRow(TTransaction* transaction, TSortedDynamicRow row);
     void AbortRow(TTransaction* transaction, TSortedDynamicRow row);
@@ -149,16 +137,9 @@ public:
     Y_FORCE_INLINE TTimestamp TimestampFromRevision(ui32 revision) const;
     TTimestamp GetLastCommitTimestamp(TSortedDynamicRow row, int lockIndex);
 
-    int GetValueCount() const;
-    int GetKeyCount() const;
-
-    i64 GetPoolSize() const;
-    i64 GetPoolCapacity() const;
-
     // IStore implementation.
     virtual EStoreType GetType() const override;
 
-    virtual i64 GetUncompressedDataSize() const override;
     virtual i64 GetRowCount() const override;
 
     // ISortedStore implementation.
@@ -192,7 +173,7 @@ public:
     virtual TCallback<void(TSaveContext&)> AsyncSave() override;
     virtual void AsyncLoad(TLoadContext& context) override;
 
-    virtual void BuildOrchidYson(NYson::IYsonConsumer* consumer) override;
+    virtual TSortedDynamicStorePtr AsSortedDynamic() override;
 
 private:
     class TReaderBase;
@@ -200,21 +181,11 @@ private:
     class TLookupReader;
     class TLookupHashTable;
 
-    const TTabletManagerConfigPtr Config_;
-
-    //! Some sanity checks may need the tablet's atomicity mode but the tablet may die.
-    //! So we capture a copy of this mode upon store's construction.
-    const NTransactionClient::EAtomicity Atomicity_;
-
     const TSortedDynamicRowKeyComparer RowKeyComparer_;
-    const NTableClient::TRowBufferPtr RowBuffer_;
     const std::unique_ptr<TSkipList<TSortedDynamicRow, TSortedDynamicRowKeyComparer>> Rows_;
 	std::unique_ptr<TLookupHashTable> LookupHashTable_;
 
     ui32 FlushRevision_ = InvalidRevision;
-
-    int StoreLockCount_ = 0;
-    int StoreValueCount_ = 0;
 
     TTimestamp MinTimestamp_ = NTransactionClient::MaxTimestamp;
     TTimestamp MaxTimestamp_ = NTransactionClient::MinTimestamp;
@@ -226,6 +197,8 @@ private:
     NConcurrency::TReaderWriterSpinLock RowBlockedLock_;
     TRowBlockedHandler RowBlockedHandler_;
 
+
+    virtual void OnSetPassive() override;
 
     TSortedDynamicRow AllocateRow();
 

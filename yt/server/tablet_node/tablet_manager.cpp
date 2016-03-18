@@ -4,6 +4,7 @@
 #include "sorted_chunk_store.h"
 #include "config.h"
 #include "sorted_dynamic_store.h"
+#include "ordered_dynamic_store.h"
 #include "in_memory_manager.h"
 #include "lookup.h"
 #include "partition.h"
@@ -11,6 +12,7 @@
 #include "slot_manager.h"
 #include "store_flusher.h"
 #include "sorted_store_manager.h"
+#include "ordered_store_manager.h"
 #include "tablet.h"
 #include "tablet_slot.h"
 #include "transaction.h"
@@ -364,11 +366,12 @@ private:
     TEntityMap<TTabletId, TTablet, TTabletMapTraits> TabletMap_;
     yhash_set<TTablet*> UnmountingTablets_;
 
-    yhash_set<TSortedDynamicStorePtr> OrphanedStores_;
+    yhash_set<IDynamicStorePtr> OrphanedStores_;
 
     const IYPathServicePtr OrchidService_;
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
+
 
     void SaveKeys(TSaveContext& context) const
     {
@@ -455,9 +458,10 @@ private:
             int rowCount = 0;
             for (const auto& record : transaction->WriteLog()) {
                 auto* tablet = FindTablet(record.TabletId);
-                // NB: Tablet could be missing if it was e.g. forcefully removed.
-                if (!tablet)
+                if (!tablet) {
+                    // NB: Tablet could be missing if it was e.g. forcefully removed.
                     continue;
+                }
 
                 TWireProtocolReader reader(record.Data);
                 const auto& storeManager = tablet->GetStoreManager();
@@ -510,6 +514,19 @@ private:
         }
     }
 
+    
+    template <class TPrelockedRows>
+    void HandleRowsOnStopLeading(TTransaction* transaction, TPrelockedRows& rows)
+    {
+        while (!rows.empty()) {
+            auto rowRef = rows.front();
+            rows.pop();
+            if (ValidateAndDiscardRowRef(rowRef)) {
+                rowRef.StoreManager->AbortRow(transaction, rowRef);
+            }
+        }
+    }
+    
     virtual void OnStopLeading() override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
@@ -519,13 +536,8 @@ private:
         auto transactionManager = Slot_->GetTransactionManager();
         for (const auto& pair : transactionManager->Transactions()) {
             auto* transaction = pair.second;
-            while (!transaction->PrelockedRows().empty()) {
-                auto rowRef = transaction->PrelockedRows().front();
-                transaction->PrelockedRows().pop();
-                if (ValidateAndDiscardRowRef(rowRef)) {
-                    rowRef.StoreManager->AbortRow(transaction, rowRef);
-                }
-            }
+            HandleRowsOnStopLeading(transaction, transaction->PrelockedSortedRows());
+            HandleRowsOnStopLeading(transaction, transaction->PrelockedOrderedRows());
         }
 
         StopEpoch();
@@ -816,32 +828,41 @@ private:
                 YUNREACHABLE();
         }
     }
+    
+    template <class TPrelockedRows>
+    void HandleRowsOnLeaderExecuteWriteAtomic(TTransaction* transaction, TPrelockedRows& rows, int rowCount)
+    {
+        for (int index = 0; index < rowCount; ++index) {
+            YASSERT(!rows.empty());
+            auto rowRef = rows.front();
+            rows.pop();
+            if (ValidateAndDiscardRowRef(rowRef)) {
+                rowRef.StoreManager->ConfirmRow(transaction, rowRef);
+            }
+        }
+    }
 
     void HydraLeaderExecuteWriteAtomic(
         const TTransactionId& transactionId,
-        int rowCount,
+        int sortedRowCount,
+        int orderedRowCount,
         const TTransactionWriteRecord& writeRecord,
         TMutationContext* /*context*/)
     {
         auto transactionManager = Slot_->GetTransactionManager();
         auto* transaction = transactionManager->GetTransaction(transactionId);
 
-        for (int index = 0; index < rowCount; ++index) {
-            YASSERT(!transaction->PrelockedRows().empty());
-            auto rowRef = transaction->PrelockedRows().front();
-            transaction->PrelockedRows().pop();
-
-            if (ValidateAndDiscardRowRef(rowRef)) {
-                rowRef.StoreManager->ConfirmRow(transaction, rowRef);
-            }
-        }
+        HandleRowsOnLeaderExecuteWriteAtomic(transaction, transaction->PrelockedSortedRows(), sortedRowCount);
+        HandleRowsOnLeaderExecuteWriteAtomic(transaction, transaction->PrelockedOrderedRows(), orderedRowCount);
 
         transaction->WriteLog().Enqueue(writeRecord);
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Rows confirmed (TabletId: %v, TransactionId: %v, RowCount: %v, WriteRecordSize: %v)",
+        LOG_DEBUG_UNLESS(IsRecovery(), "Rows confirmed (TabletId: %v, TransactionId: %v, "
+            "SortedRows: %v, OrderedRows: %v, WriteRecordSize: %v)",
             writeRecord.TabletId,
             transactionId,
-            rowCount,
+            sortedRowCount,
+            orderedRowCount,
             writeRecord.Data.Size());
     }
 
@@ -853,8 +874,8 @@ private:
         TMutationContext* /*context*/)
     {
         auto* tablet = FindTablet(tabletId);
-        // NB: Tablet could be missing if it was e.g. forcefully removed.
         if (!tablet) {
+            // NB: Tablet could be missing if it was e.g. forcefully removed.
             return;
         }
 
@@ -886,8 +907,8 @@ private:
 
         auto tabletId = FromProto<TTabletId>(request->tablet_id());
         auto* tablet = FindTablet(tabletId);
-        // NB: Tablet could be missing if it was e.g. forcefully removed.
         if (!tablet) {
+            // NB: Tablet could be missing if it was e.g. forcefully removed.
             return;
         }
 
@@ -1047,14 +1068,16 @@ private:
 
                 YCHECK(store->GetStoreState() == EStoreState::RemoveCommitting);
                 switch (store->GetType()) {
-                    case EStoreType::SortedDynamic: {
+                    case EStoreType::SortedDynamic:
+                    case EStoreType::OrderedDynamic:
                         store->SetStoreState(EStoreState::PassiveDynamic);
                         break;
-                    }
-                    case EStoreType::SortedChunk: {
+                    case EStoreType::SortedChunk:
+                    case EStoreType::OrderedChunk:
                         store->SetStoreState(EStoreState::Persistent);
                         break;
-                    }
+                    default:
+                        YUNREACHABLE();
                 }
 
                 if (IsLeader()) {
@@ -1257,74 +1280,108 @@ private:
     }
 
 
+    template <class TRef>
+    void HandleRowOnTransactionPrepare(TTransaction* transaction, const TRef& rowRef)
+    {
+        // NB: Don't call ValidateAndDiscardRowRef, row refs are just scanned.
+        if (ValidateRowRef(rowRef)) {
+            rowRef.StoreManager->PrepareRow(transaction, rowRef);
+        }
+    }
+
+    template <class TLockedRows, class TPrelockedRows>
+    void HandleRowsOnTransactionPrepare(TTransaction* transaction, TLockedRows& lockedRows, TPrelockedRows& prelockedRows)
+    {
+        for (const auto& rowRef : lockedRows) {
+            HandleRowOnTransactionPrepare(transaction, rowRef);
+        }
+
+        for (auto it = prelockedRows.begin();
+             it != prelockedRows.end();
+             prelockedRows.move_forward(it))
+        {
+            HandleRowOnTransactionPrepare(transaction, *it);
+        }
+    }
+    
     void OnTransactionPrepared(TTransaction* transaction)
     {
-        auto handleRow = [&] (const TSortedDynamicRowRef& rowRef) {
-            // NB: Don't call ValidateAndDiscardRowRef, row refs are just scanned.
-            if (ValidateRowRef(rowRef)) {
-                rowRef.StoreManager->PrepareRow(transaction, rowRef);
-            }
-        };
+        auto lockedSortedRowCount = transaction->LockedSortedRows().size();
+        auto prelockedSortedRowCount = transaction->PrelockedSortedRows().size();
+        auto lockedOrderedRowCount = transaction->LockedOrderedRows().size();
+        auto prelockedOrderedRowCount = transaction->PrelockedOrderedRows().size();
 
-        for (const auto& rowRef : transaction->LockedRows()) {
-            handleRow(rowRef);
-        }
+        HandleRowsOnTransactionPrepare(transaction, transaction->LockedSortedRows(), transaction->PrelockedSortedRows());
+        HandleRowsOnTransactionPrepare(transaction, transaction->LockedOrderedRows(), transaction->PrelockedOrderedRows());
 
-        for (auto it = transaction->PrelockedRows().begin();
-            it != transaction->PrelockedRows().end();
-            transaction->PrelockedRows().move_forward(it))
-        {
-            handleRow(*it);
-        }
-
-        LOG_DEBUG_UNLESS(IsRecovery(), "Locked rows prepared (TransactionId: %v, LockedRowCount: %v, PrelockedRowCount: %v)",
+        LOG_DEBUG_UNLESS(IsRecovery(), "Locked rows prepared (TransactionId: %v, "
+            "SortedLockedRows: %v, SortedPrelockedRows: %v, "
+            "OrderedLockedRows: %v, OrderedPrelockedRows: %v)",
             transaction->GetId(),
-            transaction->LockedRows().size(),
-            transaction->PrelockedRows().size());
+            lockedSortedRowCount,
+            prelockedSortedRowCount,
+            lockedOrderedRowCount,
+            prelockedOrderedRowCount);
+    }
+
+
+    template <class TLockedRows, class TPrelockedRows>
+    void HandleRowsOnTransactionCommit(TTransaction* transaction, TLockedRows& lockedRows, TPrelockedRows& prelockedRows)
+    {
+        YCHECK(prelockedRows.empty());
+        for (const auto& rowRef : lockedRows) {
+            if (ValidateAndDiscardRowRef(rowRef)) {
+                rowRef.StoreManager->CommitRow(transaction, rowRef);
+            }
+        }
+        lockedRows.clear();
     }
 
     void OnTransactionCommitted(TTransaction* transaction)
     {
-        auto handleRow = [&] (const TSortedDynamicRowRef& rowRef) {
-            if (ValidateAndDiscardRowRef(rowRef)) {
-                rowRef.StoreManager->CommitRow(transaction, rowRef);
-            }
-        };
+        auto lockedSortedRowCount = transaction->LockedSortedRows().size();
+        auto lockedOrderedRowCount = transaction->LockedOrderedRows().size();
 
-        for (const auto& rowRef : transaction->LockedRows()) {
-            handleRow(rowRef);
-        }
+        HandleRowsOnTransactionCommit(transaction, transaction->LockedSortedRows(), transaction->PrelockedSortedRows());
+        HandleRowsOnTransactionCommit(transaction, transaction->LockedOrderedRows(), transaction->PrelockedOrderedRows());
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Locked rows committed (TransactionId: %v, RowCount: %v)",
+        LOG_DEBUG_UNLESS(IsRecovery(), "Locked rows prepared (TransactionId: %v, "
+            "SortedRows: %v, OrderedRows: %v)",
             transaction->GetId(),
-            transaction->LockedRows().size());
-
-        YCHECK(transaction->PrelockedRows().empty());
-        transaction->LockedRows().clear();
+            lockedSortedRowCount,
+            lockedOrderedRowCount);
 
         UpdateLastCommittedTimestamp(transaction->GetCommitTimestamp());
 
         OnTransactionFinished(transaction);
     }
 
+
+    template <class TLockedRows, class TPrelockedRows>
+    void HandleRowsOnTransactionAbort(TTransaction* transaction, TLockedRows& lockedRows, TPrelockedRows& prelockedRows)
+    {
+        YCHECK(prelockedRows.empty());
+        for (const auto& rowRef : lockedRows) {
+            if (ValidateAndDiscardRowRef(rowRef)) {
+               rowRef.StoreManager->AbortRow(transaction, rowRef);
+            }
+        }
+        lockedRows.clear();
+    }
+    
     void OnTransactionAborted(TTransaction* transaction)
     {
-        auto handleRow = [&] (const TSortedDynamicRowRef& rowRef) {
-            if (ValidateAndDiscardRowRef(rowRef)) {
-                rowRef.StoreManager->AbortRow(transaction, rowRef);
-            }
-        };
+        auto lockedSortedRowCount = transaction->LockedSortedRows().size();
+        auto lockedOrderedRowCount = transaction->LockedOrderedRows().size();
 
-        for (const auto& rowRef : transaction->LockedRows()) {
-            handleRow(rowRef);
-        }
+        HandleRowsOnTransactionAbort(transaction, transaction->LockedSortedRows(), transaction->PrelockedSortedRows());
+        HandleRowsOnTransactionAbort(transaction, transaction->LockedOrderedRows(), transaction->PrelockedOrderedRows());
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Locked rows aborted (TransactionId: %v, RowCount: %v)",
+        LOG_DEBUG_UNLESS(IsRecovery(), "Locked rows aborted (TransactionId: %v, "
+            "SortedRows: %v, OrderedRows: %v)",
             transaction->GetId(),
-            transaction->LockedRows().size());
-
-        YCHECK(transaction->PrelockedRows().empty());
-        transaction->LockedRows().clear();
+            lockedSortedRowCount,
+            lockedOrderedRowCount);
 
         OnTransactionFinished(transaction);
     }
@@ -1352,30 +1409,34 @@ private:
         }
         
         auto dynamicStore = store->AsSortedDynamic();
-        int lockCount = dynamicStore->GetLockCount();
+        auto lockCount = dynamicStore->GetLockCount();
         if (lockCount > 0) {
             YCHECK(OrphanedStores_.insert(dynamicStore).second);
-            LOG_INFO_UNLESS(IsRecovery(), "Dynamic memory store is orphaned and will be kept (StoreId: %v, TabletId: %v, LockCount: %v)",
+            LOG_INFO_UNLESS(IsRecovery(), "Dynamic memory store is orphaned and will be kept "
+                "(StoreId: %v, TabletId: %v, LockCount: %v)",
                 store->GetId(),
                 tablet->GetId(),
                 lockCount);
         }
     }
 
-    bool ValidateRowRef(const TSortedDynamicRowRef& rowRef)
+
+    template <class TRowRef>
+    bool ValidateRowRef(const TRowRef& rowRef)
     {
         auto* store = rowRef.Store;
         return store->GetStoreState() != EStoreState::Orphaned;
     }
 
-    bool ValidateAndDiscardRowRef(const TSortedDynamicRowRef& rowRef)
+    template <class TRowRef>
+    bool ValidateAndDiscardRowRef(const TRowRef& rowRef)
     {
         auto* store = rowRef.Store;
         if (store->GetStoreState() != EStoreState::Orphaned) {
             return true;
         }
 
-        int lockCount = store->Unlock();
+        auto lockCount = store->Unlock();
         if (lockCount == 0) {
             LOG_INFO_UNLESS(IsRecovery(), "Store unlocked and will be dropped (StoreId: %v)",
                 store->GetId());
@@ -1424,7 +1485,8 @@ private:
         auto* transaction = transactionManager->GetTransactionOrThrow(transactionId);
         ValidateTransactionActive(transaction);
 
-        int prelockedCountBefore = transaction->PrelockedRows().size();
+        auto prelockedSortedBefore = transaction->PrelockedSortedRows().size();
+        auto prelockedOrderedBefore = transaction->PrelockedOrderedRows().size();
         auto readerBegin = reader->GetCurrent();
 
         TError error;
@@ -1448,13 +1510,18 @@ private:
             }
         }
 
-        int prelockedCountAfter = transaction->PrelockedRows().size();
-        int prelockedCountDelta = prelockedCountAfter - prelockedCountBefore;
-        if (prelockedCountDelta > 0) {
-            LOG_DEBUG("Rows prelocked (TransactionId: %v, TabletId: %v, RowCount: %v)",
+        auto prelockedSortedAfter = transaction->PrelockedSortedRows().size();
+        auto prelockedOrderedAfter = transaction->PrelockedOrderedRows().size();
+
+        auto prelockedSortedDelta = prelockedSortedAfter - prelockedSortedBefore;
+        auto prelockedOrderedDelta = prelockedOrderedAfter - prelockedOrderedBefore;
+
+        if (prelockedSortedDelta + prelockedOrderedDelta > 0) {
+            LOG_DEBUG("Rows prelocked (TransactionId: %v, TabletId: %v, SortedRows: %v, OrderedRows: %v)",
                 transactionId,
                 tabletId,
-                prelockedCountDelta);
+                prelockedSortedDelta,
+                prelockedOrderedDelta);
 
             auto readerEnd = reader->GetCurrent();
             auto recordData = reader->Slice(readerBegin, readerEnd);
@@ -1472,7 +1539,8 @@ private:
                     &TImpl::HydraLeaderExecuteWriteAtomic,
                     MakeStrong(this),
                     transactionId,
-                    prelockedCountDelta,
+                    prelockedSortedDelta,
+                    prelockedOrderedDelta,
                     writeRecord))
                 ->Commit()
                  .As<void>();
@@ -1956,6 +2024,7 @@ private:
         switch (type) {
             case EStoreType::SortedChunk:
                 return New<TSortedChunkStore>(
+                    Config_,
                     storeId,
                     tablet,
                     chunkMeta,

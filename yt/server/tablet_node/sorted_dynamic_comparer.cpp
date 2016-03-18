@@ -1,6 +1,6 @@
 #include "sorted_dynamic_comparer.h"
 #include "private.h"
-#include "sorted_dynamic_store_bits.h"
+#include "dynamic_store_bits.h"
 #include "row_comparer_generator.h"
 
 namespace NYT {

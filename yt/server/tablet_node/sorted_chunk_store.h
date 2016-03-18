@@ -36,6 +36,7 @@ class TSortedChunkStore
 {
 public:
     TSortedChunkStore(
+        TTabletManagerConfigPtr config,
         const TStoreId& id,
         TTablet* tablet,
         const NChunkClient::NProto::TChunkMeta* chunkMeta,
@@ -46,6 +47,9 @@ public:
 
     void SetBackingStore(ISortedStorePtr store);
     bool HasBackingStore() const;
+
+    // IStore implementation.
+    virtual TSortedChunkStorePtr AsSortedChunk() override;
 
     // IChunkStore implementation.
     virtual EInMemoryMode GetInMemoryMode() const override;

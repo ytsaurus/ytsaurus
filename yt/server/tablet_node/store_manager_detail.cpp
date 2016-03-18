@@ -30,11 +30,28 @@ TStoreManagerBase::TStoreManagerBase(
     Logger.AddTag("TabletId: %v, CellId: %v",
         Tablet_->GetId(),
         TabletContext_->GetCellId());
+
+    // This schedules preload of in-memory tablets.
+    UpdateInMemoryMode();
 }
 
 TTablet* TStoreManagerBase::GetTablet() const
 {
     return Tablet_;
+}
+
+bool TStoreManagerBase::HasActiveLocks() const
+{
+    const auto* activeStore = GetActiveStore();
+    if (activeStore->GetLockCount() > 0) {
+        return true;
+    }
+
+    if (!LockedStores_.empty()) {
+        return true;
+    }
+
+    return false;
 }
 
 bool TStoreManagerBase::HasUnflushedStores() const
@@ -121,14 +138,16 @@ void TStoreManagerBase::BackoffStoreRemoval(IStorePtr store)
     NConcurrency::TDelayedExecutor::Submit(
         BIND([=] () {
             switch (store->GetType()) {
-                case EStoreType::SortedDynamic: {
+                case EStoreType::SortedDynamic:
+                case EStoreType::OrderedDynamic: {
                     auto dynamicStore = store->AsDynamic();
                     if (dynamicStore->GetFlushState() == EStoreFlushState::Complete) {
                         dynamicStore->SetFlushState(EStoreFlushState::None);
                     }
                     break;
                 }
-                case EStoreType::SortedChunk: {
+                case EStoreType::SortedChunk:
+                case EStoreType::OrderedChunk: {
                     auto chunkStore = store->AsChunk();
                     if (chunkStore->GetCompactionState() == EStoreCompactionState::Complete) {
                         chunkStore->SetCompactionState(EStoreCompactionState::None);
@@ -303,6 +322,114 @@ void TStoreManagerBase::Remount(TTableMountConfigPtr mountConfig, TTabletWriterO
     Tablet_->SetWriterOptions(writerOptions);
 
     UpdateInMemoryMode();
+}
+
+void TStoreManagerBase::Rotate(bool createNewStore)
+{
+    RotationScheduled_ = false;
+    LastRotated_ = TInstant::Now();
+
+    auto* activeStore = GetActiveStore();
+    YCHECK(activeStore);
+    activeStore->SetStoreState(EStoreState::PassiveDynamic);
+
+    if (activeStore->GetLockCount() > 0) {
+        LOG_INFO_UNLESS(IsRecovery(), "Active store is locked and will be kept (StoreId: %v, LockCount: %v)",
+            activeStore->GetId(),
+            activeStore->GetLockCount());
+        YCHECK(LockedStores_.insert(IStorePtr(activeStore)).second);
+    } else {
+        LOG_INFO_UNLESS(IsRecovery(), "Active store is not locked and will be dropped (StoreId: %v)",
+            activeStore->GetId(),
+            activeStore->GetLockCount());
+    }
+
+    OnActiveStoreRotated();
+
+    if (createNewStore) {
+        CreateActiveStore();
+    } else {
+        ResetActiveStore();
+        Tablet_->SetActiveStore(nullptr);
+    }
+
+    LOG_INFO_UNLESS(IsRecovery(), "Tablet stores rotated");
+}
+
+bool TStoreManagerBase::IsStoreLocked(IStorePtr store) const
+{
+    return LockedStores_.find(store) != LockedStores_.end();
+}
+
+std::vector<IStorePtr> TStoreManagerBase::GetLockedStores() const
+{
+    return std::vector<IStorePtr>(LockedStores_.begin(), LockedStores_.end());
+}
+
+bool TStoreManagerBase::IsOverflowRotationNeeded() const
+{
+    if (!IsRotationPossible()) {
+        return false;
+    }
+
+    const auto* activeStore = GetActiveStore();
+    const auto& config = Tablet_->GetConfig();
+    return
+        activeStore->GetRowCount() >= config->MaxDynamicStoreKeyCount ||
+        activeStore->GetValueCount() >= config->MaxDynamicStoreValueCount ||
+        activeStore->GetPoolCapacity() >= config->MaxDynamicStorePoolSize;
+}
+
+bool TStoreManagerBase::IsPeriodicRotationNeeded() const
+{
+    if (!IsRotationPossible()) {
+        return false;
+    }
+
+    const auto* activeStore = GetActiveStore();
+    const auto& config = Tablet_->GetConfig();
+    return
+        TInstant::Now() > LastRotated_ + config->DynamicStoreAutoFlushPeriod &&
+        activeStore->GetRowCount() > 0;
+}
+
+bool TStoreManagerBase::IsRotationPossible() const
+{
+    if (IsRotationScheduled()) {
+        return false;
+    }
+
+    if (!GetActiveStore()) {
+        return false;
+    }
+
+    return true;
+}
+
+bool TStoreManagerBase::IsForcedRotationPossible() const
+{
+    if (!IsRotationPossible()) {
+        return false;
+    }
+
+    // Check for "almost" initial size.
+    const auto* activeStore = GetActiveStore();
+    if (activeStore->GetPoolCapacity() <= 2 * Config_->PoolChunkSize) {
+        return false;
+    }
+
+    return true;
+}
+
+void TStoreManagerBase::CheckForUnlockedStore(IDynamicStore* store)
+{
+    if (store == GetActiveStore() || store->GetLockCount() > 0) {
+        return;
+    }
+
+    LOG_INFO_UNLESS(IsRecovery(), "Store unlocked and will be dropped (StoreId: %v)",
+        store->GetId());
+    YCHECK(LockedStores_.erase(store) == 1);
 }
 
 void TStoreManagerBase::UpdateInMemoryMode()

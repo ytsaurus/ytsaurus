@@ -164,13 +164,14 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 TSortedChunkStore::TSortedChunkStore(
+    TTabletManagerConfigPtr config,
     const TStoreId& id,
     TTablet* tablet,
     const TChunkMeta* chunkMeta,
     TBootstrap* boostrap)
-    : TStoreBase(id, tablet)
-    , TChunkStoreBase(id, tablet)
-    , TSortedStoreBase(id, tablet)
+    : TStoreBase(config, id, tablet)
+    , TChunkStoreBase(config, id, tablet)
+    , TSortedStoreBase(config, id, tablet)
     , Bootstrap_(boostrap)
     , ChunkMeta_(New<TRefCountedChunkMeta>())
     , KeyComparer_(tablet->GetRowKeyComparer())
@@ -225,6 +226,11 @@ bool TSortedChunkStore::HasBackingStore() const
 
     TReaderGuard guard(SpinLock_);
     return BackingStore_.operator bool();
+}
+
+TSortedChunkStorePtr TSortedChunkStore::AsSortedChunk()
+{
+    return this;
 }
 
 EInMemoryMode TSortedChunkStore::GetInMemoryMode() const

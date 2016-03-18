@@ -271,7 +271,7 @@ private:
                         .Item("start_timestamp").Value(transaction->GetStartTimestamp())
                         .Item("prepare_timestamp").Value(transaction->GetPrepareTimestamp())
                         // Omit CommitTimestamp, it's typically null.
-                        .Item("locked_row_count").Value(transaction->LockedRows().size())
+                        .Item("locked_row_count").Value(transaction->LockedSortedRows().size())
                     .EndMap();
             });
     }
