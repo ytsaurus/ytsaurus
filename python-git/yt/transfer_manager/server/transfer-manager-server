@@ -1451,7 +1451,8 @@ class Application(object):
             raise RequestFailed("Too many pending tasks (>{0})".format(len(self._pending_tasks)), http_code=500)
 
         if self._pending_tasks_per_user[task.user] > self._config["pending_tasks_limit_per_user"]:
-            raise RequestFailed("Too many pending tasks per user (>{0})".format(self._pending_tasks_per_user[task.user]))
+            raise RequestFailed("Too many pending tasks per user (>{0})".format(self._pending_tasks_per_user[task.user]),
+                                http_code=500)
 
         if task.queue_name is not None:
             client = Yt(**self._config["yt_backend_options"])
