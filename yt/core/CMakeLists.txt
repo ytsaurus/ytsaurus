@@ -227,10 +227,10 @@ LIBRARY()
 
 OWNER(sandello)
 
-SET_APPEND(BASE_CXXFLAGS -std=c++1y)
-
 CXXFLAGS(
+  -std=c++1y
   -Wno-sign-compare
+  -Wno-unused-function
   -Wno-unused-parameter
   -Wno-unused-value
   -Wno-c++14-extensions
@@ -274,7 +274,7 @@ target_link_libraries(ytcore
   ytext-arcadia-library-http
   ytext-yajl
   protobuf
-  ${REQUIRED_LLVM_LIBRARIES} 
+  ${REQUIRED_LLVM_LIBRARIES}
 )
 
 if (CMAKE_COMPILER_IS_CLANG AND NOT APPLE)

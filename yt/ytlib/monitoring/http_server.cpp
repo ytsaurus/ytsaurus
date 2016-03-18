@@ -131,8 +131,10 @@ public:
     {
         Callback.reset(new TCallback(*this));
         auto options = THttpServerOptions(static_cast<ui16>(port));
+#ifndef YT_IN_ARCADIA
         options.BindRetryCount = bindRetryCount;
         options.BindRetryBackoff = bindRetryBackoff;
+#endif
         Server.reset(new THttpServer(Callback.get(), options));
     }
 

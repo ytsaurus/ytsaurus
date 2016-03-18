@@ -584,7 +584,7 @@ inline TFluentYsonBuilder::TAny< TFluentYsonHolder<TFluentYsonWriterState> > Bui
 }
 
 inline TFluentYsonBuilder::TAny< TFluentYsonHolder<TFluentYsonBuilderState> > BuildYsonNodeFluently(
-    INodeFactoryPtr factory = GetEphemeralNodeFactory())
+    INodeFactoryPtr factory = CreateEphemeralNodeFactory())
 {
     return BuildYsonFluentlyWithState(New<TFluentYsonBuilderState>(factory));
 }

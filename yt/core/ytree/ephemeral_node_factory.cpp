@@ -65,14 +65,13 @@ public:
 
     virtual INodeFactoryPtr CreateFactory() const override
     {
-        return GetEphemeralNodeFactory(ShouldHideAttributes_);
+        return CreateEphemeralNodeFactory(ShouldHideAttributes_);
     }
 
     virtual INodeResolverPtr GetResolver() const override
     {
         return New<TEphemeralYPathResolver>(const_cast<TEphemeralNodeBase*>(this));
     }
-
 
     virtual ICompositeNodePtr GetParent() const override
     {
@@ -484,12 +483,17 @@ public:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TEphemeralNodeFactory
-    : public INodeFactory
+    : public TNodeFactoryBase
 {
 public:
     explicit TEphemeralNodeFactory(bool shouldHideAttributes)
         : ShouldHideAttributes_(shouldHideAttributes)
     { }
+
+    virtual ~TEphemeralNodeFactory() override
+    {
+        RollbackIfNeeded();
+    }
 
     virtual IStringNodePtr CreateString() override
     {
@@ -531,39 +535,13 @@ public:
         return New<TEntityNode>(ShouldHideAttributes_);
     }
 
-    virtual void Commit() override
-    { }
-
 private:
     bool ShouldHideAttributes_;
 };
 
-
-class TNonHidingAttributesEphemeralNodeFactory
-    : public TEphemeralNodeFactory
+INodeFactoryPtr CreateEphemeralNodeFactory(bool shouldHideAttributes)
 {
-public:
-    TNonHidingAttributesEphemeralNodeFactory()
-        : TEphemeralNodeFactory(false)
-    { }
-};
-
-class THidingAttributesEphemeralNodeFactory
-    : public TEphemeralNodeFactory
-{
-public:
-    THidingAttributesEphemeralNodeFactory()
-        : TEphemeralNodeFactory(true)
-    { }
-};
-
-INodeFactoryPtr GetEphemeralNodeFactory(bool shouldHideAttributes)
-{
-    if (shouldHideAttributes) {
-        return RefCountedSingleton<THidingAttributesEphemeralNodeFactory>();
-    } else {
-        return RefCountedSingleton<TNonHidingAttributesEphemeralNodeFactory>();
-    }
+    return New<TEphemeralNodeFactory>(shouldHideAttributes);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
