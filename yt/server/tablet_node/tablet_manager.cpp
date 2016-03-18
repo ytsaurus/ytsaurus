@@ -1777,7 +1777,7 @@ private:
         auto storeLimit = tablet->GetConfig()->MaxStoresPerTablet;
         if (storeCount >= storeLimit) {
             THROW_ERROR_EXCEPTION("Too many stores in tablet, all writes disabled")
-                << TErrorAttribute("tablet_id", tablet->GetTableId())
+                << TErrorAttribute("tablet_id", tablet->GetId())
                 << TErrorAttribute("store_count", storeCount)
                 << TErrorAttribute("store_limit", storeLimit);
         }
@@ -1786,7 +1786,7 @@ private:
         auto overlappingStoreLimit = tablet->GetConfig()->MaxOverlappingStoreCount;
         if (overlappingStoreCount >= overlappingStoreLimit) {
             THROW_ERROR_EXCEPTION("Too many overlapping stores in tablet, all writes disabled")
-                << TErrorAttribute("tablet_id", tablet->GetTableId())
+                << TErrorAttribute("tablet_id", tablet->GetId())
                 << TErrorAttribute("overlapping_store_count", overlappingStoreCount)
                 << TErrorAttribute("overlapping_store_limit", overlappingStoreLimit);
         }
