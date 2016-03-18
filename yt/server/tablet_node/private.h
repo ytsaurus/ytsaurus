@@ -15,7 +15,16 @@ static const ui32 UncommittedRevision = 0;
 static const ui32 InvalidRevision = std::numeric_limits<ui32>::max();
 static const ui32 MaxRevision = std::numeric_limits<ui32>::max() - 1;
 
-static constexpr int TypicalStoreIdCount = 8;
+static const int TypicalStoreIdCount = 8;
+
+static const int InitialEditListCapacity = 2;
+static const int EditListCapacityMultiplier = 2;
+static const int MaxEditListCapacity = 256;
+
+static const int MaxOrderedDynamicSegments = 32;
+static const int InitialOrderedDynamicSegmentIndex = 10;
+
+static const i64 MemoryUsageGranularity = (i64) 1024 * 1024;
 
 ////////////////////////////////////////////////////////////////////////////////
 

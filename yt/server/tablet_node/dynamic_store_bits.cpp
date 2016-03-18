@@ -1,4 +1,4 @@
-#include "sorted_dynamic_store_bits.h"
+#include "dynamic_store_bits.h"
 #include "automaton.h"
 #include "tablet.h"
 

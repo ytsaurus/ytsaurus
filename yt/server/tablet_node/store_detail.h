@@ -1,7 +1,7 @@
 #pragma once
 
 #include "public.h"
-#include "sorted_dynamic_store_bits.h"
+#include "dynamic_store_bits.h"
 #include "store.h"
 
 #include <yt/ytlib/table_client/schema.h>
@@ -19,7 +19,10 @@ class TStoreBase
     : public virtual IStore
 {
 public:
-    TStoreBase(const TStoreId& id, TTablet* tablet);
+    TStoreBase(
+        TTabletManagerConfigPtr config,
+        const TStoreId& id,
+        TTablet* tablet);
     ~TStoreBase();
 
     // IStore implementation.
@@ -38,7 +41,23 @@ public:
 
     virtual void BuildOrchidYson(NYson::IYsonConsumer* consumer) override;
 
+    virtual bool IsDynamic() const override;
+    virtual IDynamicStorePtr AsDynamic() override;
+
+    virtual bool IsChunk() const override;
+    virtual IChunkStorePtr AsChunk() override;
+
+    virtual bool IsSorted() const override;
+    virtual ISortedStorePtr AsSorted() override;
+    virtual TSortedDynamicStorePtr AsSortedDynamic() override;
+    virtual TSortedChunkStorePtr AsSortedChunk() override;
+
+    virtual bool IsOrdered() const override;
+    virtual IOrderedStorePtr AsOrdered() override;
+    virtual TOrderedDynamicStorePtr AsOrderedDynamic() override;
+
 protected:
+    const TTabletManagerConfigPtr Config_;
     const TStoreId StoreId_;
     TTablet* const Tablet_;
 
@@ -75,14 +94,52 @@ class TDynamicStoreBase
     , public virtual IDynamicStore
 {
 public:
-    TDynamicStoreBase(const TStoreId& id, TTablet* tablet);
+    TDynamicStoreBase(
+        TTabletManagerConfigPtr config,
+        const TStoreId& id,
+        TTablet* tablet);
+
+    i64 Lock();
+    i64 Unlock();
+
+    // IStore implementation.
+
+    //! Sets the store state, as expected.
+    //! Additionally, when the store transitions from |ActiveDynamic| to |PassiveDynamic|,
+    //! invokes #OnSetPassive.
+    virtual void SetStoreState(EStoreState state);
+
+    virtual i64 GetUncompressedDataSize() const override;
 
     // IDynamicStore implementation.
     virtual EStoreFlushState GetFlushState() const override;
     virtual void SetFlushState(EStoreFlushState state) override;
 
+    virtual i64 GetValueCount() const override;
+    virtual i64 GetLockCount() const override;
+
+    virtual i64 GetPoolSize() const;
+    virtual i64 GetPoolCapacity() const;
+
+    virtual void BuildOrchidYson(NYson::IYsonConsumer* consumer) override;
+
+    virtual bool IsDynamic() const override;
+    virtual IDynamicStorePtr AsDynamic() override;
+
 protected:
+    //! Some sanity checks may need the tablet's atomicity mode but the tablet may die.
+    //! So we capture a copy of this mode upon store's construction.
+    const NTransactionClient::EAtomicity Atomicity_;
+
+    const NTableClient::TRowBufferPtr RowBuffer_;
+
     EStoreFlushState FlushState_ = EStoreFlushState::None;
+
+    i64 StoreLockCount_ = 0;
+    i64 StoreValueCount_ = 0;
+
+
+    virtual void OnSetPassive() = 0;
 
 };
 
@@ -93,7 +150,10 @@ class TChunkStoreBase
     , public virtual IChunkStore
 {
 public:
-    TChunkStoreBase(const TStoreId& id, TTablet* tablet);
+    TChunkStoreBase(
+        TTabletManagerConfigPtr config,
+        const TStoreId& id,
+        TTablet* tablet);
 
     // IChunkStore implementation.
     virtual EStorePreloadState GetPreloadState() const override;
@@ -104,6 +164,9 @@ public:
 
     virtual EStoreCompactionState GetCompactionState() const override;
     virtual void SetCompactionState(EStoreCompactionState state) override;
+
+    virtual bool IsChunk() const override;
+    virtual IChunkStorePtr AsChunk() override;
 
 protected:
     EStorePreloadState PreloadState_ = EStorePreloadState::Disabled;
@@ -119,13 +182,36 @@ class TSortedStoreBase
     , public virtual ISortedStore
 {
 public:
-    TSortedStoreBase(const TStoreId& id, TTablet* tablet);
+    TSortedStoreBase(
+        TTabletManagerConfigPtr config,
+        const TStoreId& id,
+        TTablet* tablet);
 
     virtual TPartition* GetPartition() const override;
     virtual void SetPartition(TPartition* partition) override;
 
+    virtual bool IsSorted() const override;
+    virtual ISortedStorePtr AsSorted() override;
+
 protected:
     TPartition* Partition_ = nullptr;
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TOrderedStoreBase
+    : public virtual TStoreBase
+    , public virtual IOrderedStore
+{
+public:
+    TOrderedStoreBase(
+        TTabletManagerConfigPtr config,
+        const TStoreId& id,
+        TTablet* tablet);
+
+    virtual bool IsOrdered() const override;
+    virtual IOrderedStorePtr AsOrdered() override;
 
 };
 

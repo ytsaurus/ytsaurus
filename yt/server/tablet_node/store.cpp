@@ -1,6 +1,7 @@
 #include "store.h"
 #include "sorted_chunk_store.h"
 #include "sorted_dynamic_store.h"
+#include "ordered_dynamic_store.h"
 
 namespace NYT {
 namespace NTabletNode {
@@ -63,13 +64,21 @@ TSortedChunkStorePtr IStore::AsSortedChunk()
 
 bool IStore::IsOrdered() const
 {
-    // TODO(babenko): ordered stores
-    return false;
+    auto type = GetType();
+    return type == EStoreType::OrderedDynamic ||
+           type == EStoreType::OrderedChunk;
 }
 
 IOrderedStorePtr IStore::AsOrdered()
 {
     auto* result = dynamic_cast<IOrderedStore*>(this);
+    YCHECK(result);
+    return result;
+}
+
+TOrderedDynamicStorePtr IStore::AsOrderedDynamic()
+{
+    auto* result = dynamic_cast<TOrderedDynamicStore*>(this);
     YCHECK(result);
     return result;
 }

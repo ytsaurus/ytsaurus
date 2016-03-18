@@ -1,6 +1,6 @@
 #pragma once
 
-#include "sorted_dynamic_store_bits.h"
+#include "dynamic_store_bits.h"
 
 #include <yt/ytlib/table_client/schema.h>
 #include <yt/ytlib/table_client/unversioned_row.h>

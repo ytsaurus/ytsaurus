@@ -225,8 +225,8 @@ void TTablet::Load(TLoadContext& context)
     Load(context, Atomicity_);
     Load(context, HashTableSize_);
 
-    // NB: Call Initialize here since stores that we're about to create
-    // may request some tablet properties (e.g. column lock count) during construction.
+    // NB: Stores that we're about to create may request some tablet properties (e.g. column lock count)
+    // during construction. PreInitialize() will take care of this.
     PreInitialize();
 
     int storeCount = TSizeSerializer::LoadSuspended(context);
