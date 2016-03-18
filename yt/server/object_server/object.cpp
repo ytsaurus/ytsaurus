@@ -98,5 +98,12 @@ void TObjectBase::Load(NCellMaster::TLoadContext& context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TObjectIdFormatter::operator()(TStringBuilder* builder, const TObjectBase* object) const
+{
+    FormatValue(builder, object->GetId(), TStringBuf());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NObjectServer
 } // namespace NYT
