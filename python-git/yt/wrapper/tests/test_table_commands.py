@@ -221,6 +221,8 @@ class TestTableCommands(object):
     def test_insert_lookup_delete_with_transaction(self, yt_env):
         if yt.config["backend"] != "native":
             pytest.skip()
+        if not yt.env.version.startswith("0.17.4"):
+            pytest.skip()
 
         yt.config["tabular_data_format"] = None
         try:
