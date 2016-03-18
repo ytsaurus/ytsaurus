@@ -148,7 +148,7 @@ public:
 
     virtual void OnMyKeyedItem(const TStringBuf& keyRef) override
     {
-        auto builder = CreateBuilderFromFactory(GetEphemeralNodeFactory());
+        auto builder = CreateBuilderFromFactory(CreateEphemeralNodeFactory());
 
         builder->BeginTree();
         Forward(

@@ -212,8 +212,8 @@ void RegisterBuiltinFunctions(TIntrusivePtr<TFunctionRegistry>& registry)
         New<TUnversionedValueCallingConvention>(-1, true)));
 
 
-    registry->RegisterFunction(New<TIfFunction>());
-    registry->RegisterFunction(New<TIsPrefixFunction>());
+    registry->RegisterFunction(CreateIfFunction());
+    registry->RegisterFunction(CreateIsPrefixFunction());
 
     auto constraints = std::unordered_map<TTypeArgument, TUnionType>();
     constraints[typeArg] = std::vector<EValueType>{

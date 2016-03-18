@@ -327,14 +327,12 @@ const TRow* InsertGroupRow(
     return &*inserted.first;
 }
 
-void AllocateRow(TExpressionContext* context, int valueCount, TMutableRow* row)
+void AllocateIntermediateRow(TExpressionContext* context, int valueCount, TMutableRow* row)
 {
     CHECK_STACK();
 
     *row = TMutableRow::Allocate(context->IntermediateBuffer->GetPool(), valueCount);
 }
-
-
 
 void AddRow(TTopCollector* topCollector, TRow row)
 {
@@ -614,7 +612,7 @@ void RegisterQueryRoutinesImpl(TRoutineRegistry* registry)
     REGISTER_ROUTINE(InsertJoinRow);
     REGISTER_ROUTINE(SaveJoinRow);
     REGISTER_ROUTINE(AllocatePermanentRow);
-    REGISTER_ROUTINE(AllocateRow);
+    REGISTER_ROUTINE(AllocateIntermediateRow);
     REGISTER_ROUTINE(AllocatePermanentBytes);
     REGISTER_ROUTINE(AllocateBytes);
     REGISTER_ROUTINE(GetRowsData);

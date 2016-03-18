@@ -501,6 +501,56 @@ void TNonexistingService::ExistsAny(TCtxExistsPtr context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TNodeFactoryBase::~TNodeFactoryBase()
+{
+    YCHECK(State_ == EState::Committed || State_ == EState::RolledBack);
+}
+
+void TNodeFactoryBase::Commit() noexcept
+{
+    YCHECK(State_ == EState::Active);
+    State_ = EState::Committing;
+    for (const auto& handler : CommitHandlers_) {
+        handler();
+    }
+    CommitHandlers_.clear();
+    RollbackHandlers_.clear();
+    State_ = EState::Committed;
+}
+
+void TNodeFactoryBase::Rollback() noexcept
+{
+    YCHECK(State_ == EState::Active);
+    State_ = EState::RollingBack;
+    for (const auto& handler : RollbackHandlers_) {
+        handler();
+    }
+    CommitHandlers_.clear();
+    RollbackHandlers_.clear();
+    State_ = EState::RolledBack;
+}
+
+void TNodeFactoryBase::RegisterCommitHandler(const std::function<void()>& handler)
+{
+    YCHECK(State_ == EState::Active);
+    CommitHandlers_.push_back(handler);
+}
+
+void TNodeFactoryBase::RegisterRollbackHandler(const std::function<void()>& handler)
+{
+    YCHECK(State_ == EState::Active);
+    RollbackHandlers_.push_back(handler);
+}
+
+void TNodeFactoryBase::RollbackIfNeeded()
+{
+    if (State_ == EState::Active) {
+        Rollback();
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYTree
 } // namespace NYT
 

@@ -467,6 +467,8 @@ public:
     // Maximum number of simultaneously processed heartbeats.
     int HardConcurrentHeartbeatLimit;
 
+    bool EnableTmpfs;
+
     TSchedulerConfig()
     {
         RegisterParameter("controller_thread_count", ControllerThreadCount)
@@ -648,6 +650,9 @@ public:
         RegisterParameter("hard_concurrent_heartbeat_limit", HardConcurrentHeartbeatLimit)
             .Default(100)
             .GreaterThanOrEqual(1);
+
+        RegisterParameter("enable_tmpfs", EnableTmpfs)
+            .Default(true);
 
         RegisterInitializer([&] () {
             ChunkLocationThrottler->Limit = 10000;

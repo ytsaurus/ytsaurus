@@ -24,7 +24,7 @@ namespace NCypressServer {
 
 //! Extends NYTree::INodeFactory by adding Cypress-specific functionality.
 struct ICypressNodeFactory
-    : public NYTree::INodeFactory
+    : public virtual NYTree::INodeFactory
 {
     typedef NRpc::TTypedServiceRequest<NCypressClient::NProto::TReqCreate> TReqCreate;
     typedef NRpc::TTypedServiceResponse<NCypressClient::NProto::TRspCreate> TRspCreate;
