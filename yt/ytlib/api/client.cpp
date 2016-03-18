@@ -113,6 +113,23 @@ DECLARE_REFCOUNTED_CLASS(TTransaction)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TUserWorkloadDescriptor::operator TWorkloadDescriptor() const
+{
+    TWorkloadDescriptor result;
+    switch (Category) {
+        case EUserWorkloadCategory::Realtime:
+            result.Category = EWorkloadCategory::UserRealtime;
+            break;
+        case EUserWorkloadCategory::Batch:
+            result.Category = EWorkloadCategory::UserBatch;
+            break;
+        default:
+            YUNREACHABLE();
+    }
+    result.Band = Band;
+    return result;
+}
+
 struct TSerializableUserWorkloadDescriptor
     : public TYsonSerializable
 {
@@ -1784,22 +1801,12 @@ private:
             options.Timestamp);
 
         TQueryOptions queryOptions;
-
         queryOptions.Timestamp = options.Timestamp;
         queryOptions.RangeExpansionLimit = options.RangeExpansionLimit;
         queryOptions.VerboseLogging = options.VerboseLogging;
         queryOptions.EnableCodeCache = options.EnableCodeCache;
         queryOptions.MaxSubqueries = options.MaxSubqueries;
-
-        switch (options.WorkloadDescriptor.Category) {
-            case EUserWorkloadCategory::Realtime:
-                queryOptions.WorkloadDescriptor.Category = EWorkloadCategory::UserRealtime;
-                break;
-            case EUserWorkloadCategory::Batch:
-                queryOptions.WorkloadDescriptor.Category = EWorkloadCategory::UserBatch;
-                break;
-        }
-        queryOptions.WorkloadDescriptor.Band = options.WorkloadDescriptor.Band;
+        queryOptions.WorkloadDescriptor = options.WorkloadDescriptor;
 
         ISchemafulWriterPtr writer;
         TFuture<IRowsetPtr> asyncRowset;
@@ -3327,4 +3334,3 @@ ITransactionPtr TClient::AttachTransaction(
 
 } // namespace NApi
 } // namespace NYT
-
