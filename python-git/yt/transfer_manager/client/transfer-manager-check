@@ -3,7 +3,7 @@
 from yt.wrapper.cli_helpers import run_main
 from yt.wrapper.client import Yt
 from yt.wrapper.http import get_token
-from yt.common import YtError, flatten, get_value, remove_file
+from yt.common import YtError, get_value, remove_file
 from yt.tools.yamr import Yamr
 from yt.transfer_manager.client import TransferManager
 import yt.wrapper as yt
@@ -18,10 +18,14 @@ import tempfile
 import argparse
 import subprocess
 import logging
+from collections import defaultdict
 
 logger = logging.getLogger("TMChecker")
 
 _tm_client = None
+
+class FakeClient(object):
+    pass
 
 def init_tm_client(url, token):
     global _tm_client
@@ -36,16 +40,6 @@ def configure_logger():
         logger.addHandler(logging.StreamHandler())
     logger.handlers[0].setFormatter(logging.Formatter("%(asctime)s %(levelname)s\t%(message)s"))
     logger.setLevel(logging.INFO)
-
-def do_check(**check_args):
-    try:
-        get_tm_client().add_task(sync=True, **check_args)
-    except Exception as err:
-        src_cluster, dst_cluster = \
-                check_args["source_cluster"], check_args["destination_cluster"]
-
-        raise YtError("Direction check (from: {0}, to: {1}) failed".format(src_cluster, dst_cluster),
-                      inner_errors=[err])
 
 def get_src_dst_table(src_client, dst_client):
     CHARSET = string.ascii_letters + string.digits
@@ -68,42 +62,37 @@ def get_src_dst_table(src_client, dst_client):
 
     return src_path, dst_path
 
-def check_directions(src_clusters, dst_clusters, clusters_clients, availability_graph):
-    logger.info("Starting checks. Source clusters: %s, destination clusters: %s",
-                ", ".join(src_clusters), ", ".join(dst_clusters))
+def check_direction(src_cluster, dst_cluster, clusters_clients, availability_graph):
+    logger.info("Starting direction check (from: %s, to: %s)", src_cluster, dst_cluster)
 
-    for src_cluster in src_clusters:
-        for dst_cluster in dst_clusters:
-            available_clusters = availability_graph[src_cluster]
-            if src_cluster == dst_cluster or dst_cluster not in available_clusters:
-                continue
+    def get_client(cluster):
+        client = clusters_clients.get(cluster)
+        if client is None:
+            raise YtError("Check failed: cluster {0} not found".format(cluster))
+        return client
 
-            logger.info("Starting direction check (from: %s, to: %s)", src_cluster, dst_cluster)
+    src_client, dst_client = get_client(src_cluster), get_client(dst_cluster)
+    if src_client._type not in ["yt", "yamr"] or dst_client._type not in ["yt", "yamr"]:
+        logger.warning("Direction from {0} to {1} skipped because it has non-YT and non-YAMR cluster",
+                       src_cluster, dst_cluster)
+        return
 
-            src_client, dst_client = \
-                    clusters_clients.get(src_cluster), clusters_clients.get(dst_cluster)
+    try:
+        src_path, dst_path = get_src_dst_table(src_client, dst_client)
+    except Exception as err:
+        raise YtError("Check failed during prepare step", inner_errors=[err])
 
-            if src_cluster is None or dst_client is None:
-                continue
+    params = None
+    if src_client._type == "yamr" or dst_client._type == "yamr":
+        # XXX(asaitgalin): Usually userdata user has big enough quota on YAMR clusters.
+        params = {"mr_user": "userdata"}
 
-            try:
-                src_path, dst_path = get_src_dst_table(src_client, dst_client)
-            except Exception as err:
-                raise YtError("Direction check (from: {0}, to: {1}) failed during prepare step"
-                              .format(src_cluster, dst_cluster), inner_errors=[err])
+    try:
+        get_tm_client().add_task(src_cluster, src_path, dst_cluster, dst_path, params=params, sync=True)
+    except Exception as err:
+        raise YtError("Check failed", inner_errors=[err])
 
-            check_args = {}
-            if src_client._type == "yamr" or dst_client._type == "yamr":
-                # XXX(asaitgalin): Usually userdata user has big enough quota on YAMR clusters.
-                check_args["params"] = {"mr_user": "userdata"}
-            check_args["source_table"] = src_path
-            check_args["destination_table"] = dst_path
-            check_args["source_cluster"] = src_cluster
-            check_args["destination_cluster"] = dst_cluster
-
-            do_check(**check_args)
-
-    logger.info("All checks successfully finished")
+    logger.info("Check successfully finished")
 
 def get_active_transfer_manager_server_address(backend_config):
     client = Yt(**backend_config["yt_backend_options"])
@@ -175,42 +164,49 @@ def create_clusters_clients(backend_config, token):
             options["binary"] = get_yamr_binary(options, active_tm_server_address)
             result[name] = Yamr(**options)
         else:
+            result[name] = FakeClient()
             logger.warning("Check is now available only for YT and YAMR clusters. "
                            "Skipping %s cluster %s", type_, name)
-            continue
 
         result[name]._type = type_
 
     return result
 
-def get_availability_graph(backend_config):
-    availability_graph = backend_config.get("availability_graph")
-    if availability_graph is None:
+def get_cluster_graphs(backend_config):
+    graph = backend_config.get("availability_graph")
+    if graph is None:
         raise YtError("Failed to get availability graph from backend config")
 
-    return availability_graph
+    for cluster in backend_config["clusters"]:
+        graph.setdefault(cluster, [])
 
-def prepare_cluster_list(lst, clusters_clients):
-    if lst is None:
-        return clusters_clients.keys()
+    transposed_graph = defaultdict(list)
+    for cluster in graph:
+        for neighbour in graph[cluster]:
+            transposed_graph[neighbour].append(cluster)
 
-    lst = flatten(lst)
-    for cluster in lst:
-        if cluster not in clusters_clients:
-            raise YtError("Failed to start check: undefined cluster {0}".format(cluster))
-    return lst
+    return graph, transposed_graph
 
 def parse_arguments():
     parser = argparse.ArgumentParser(
         description="Tool for checking Transfer Manager copy directions")
 
+    def parse_direction(arg):
+        if "~>" not in arg:
+            raise argparse.ArgumentTypeError('"~>" symbol is expected in direction')
+        src, dst = map(lambda s: s.strip(), arg.split("~>"))
+        if not src and not dst:
+            raise argparse.ArgumentTypeError(
+                'Direction is expected to have at least one cluster name and cannot be only "~>"')
+        return src, dst
+
+    parser.add_argument("direction", nargs="*", type=parse_direction,
+                        help='Direction to check. Specified with "cluster1~>cluster2" notation. '
+                             'Also "~>cluster" and "cluster~>" notations can be used to check '
+                             'all available directions to and from cluster. Can be specified '
+                             'multiple times.')
+
     parser.add_argument("--url", help="Transfer Manager url")
-    cluster_arg_help_suffix = "Can be specified multiple times. " \
-                              "If not specified all clusters from TM config are checked."
-    parser.add_argument("--src-cluster", action="append",
-                        help="Cluster name to check directions from. " + cluster_arg_help_suffix)
-    parser.add_argument("--dst-cluster", action="append",
-                        help="Cluster name to check directions to. " + cluster_arg_help_suffix)
     parser.add_argument("--token", help="YT token. Detected by general rules if not specified.")
 
     return parser.parse_args()
@@ -220,16 +216,31 @@ def main():
     args = parse_arguments()
 
     token = get_value(args.token, get_token())
-
     init_tm_client(args.url, token)
 
     backend_config = get_tm_client().get_backend_config()
     clusters_clients = create_clusters_clients(backend_config, token)
-    availability_graph = get_availability_graph(backend_config)
+    graph, transposed_graph = get_cluster_graphs(backend_config)
 
-    src_clusters = prepare_cluster_list(args.src_cluster, clusters_clients)
-    dst_clusters = prepare_cluster_list(args.dst_cluster, clusters_clients)
-    check_directions(src_clusters, dst_clusters, clusters_clients, availability_graph)
+    if not args.direction:
+        # Check all available directions.
+        for cluster in graph:
+            for neighbour in graph[cluster]:
+                check_direction(cluster, neighbour, clusters_clients)
+        return
+
+    for src_cluster, dst_cluster in args.direction:
+        if src_cluster and dst_cluster:
+            if dst_cluster not in graph[src_cluster]:
+                raise YtError("Check failed: cluster {0} is not available from {1}"
+                              .format(dst_cluster, src_cluster))
+            check_direction(src_cluster, dst_cluster, clusters_clients, graph)
+        elif src_cluster and not dst_cluster:
+            for neighbour in graph[src_cluster]:
+                check_direction(src_cluster, neighbour, clusters_clients, graph)
+        else:
+            for neighbour in transposed_graph[dst_cluster]:
+                check_direction(neighbour, dst_cluster, clusters_clients, graph)
 
 if __name__ == "__main__":
     run_main(main)
