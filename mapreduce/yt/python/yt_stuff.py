@@ -153,7 +153,8 @@ class YtStuff:
 
     @_timing
     def _save_yt_data(self, save_all=None):
-        output_dir = yatest.common.output_path("yt")
+        output_dir = yatest.common.output_path("yt_logs_%s" % self.yt_id)
+
         self._log("YT data saved in %s", output_dir)
 
         def _ignore(path, names):
