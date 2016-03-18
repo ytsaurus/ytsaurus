@@ -3,16 +3,14 @@ OWNER(
     vartyukh
 )
 
-PACKAGE()
+PYTEST()
+
+TEST_SRCS(test.py)
+
+TIMEOUT(100)
+
+DEPENDS(mapreduce/yt/python)
+
+TAG(ya:external)
 
 END()
-
-ADD_TEST(
-    PY_TEST
-        test.py
-    TAG
-        ya:external
-    DEPENDS
-        mapreduce/yt/python
-    TIMEOUT 100
-)
