@@ -812,7 +812,7 @@ class TestTablets(YTEnvSetup):
         self.sync_create_cells(1, 1)
         self._create_simple_table("//tmp/t")
 
-        set("//tmp/t/@max_dynamic_store_key_count", 10)
+        set("//tmp/t/@max_dynamic_store_row_count", 10)
         self.sync_mount_table("//tmp/t")
 
         tablet_id = get("//tmp/t/@tablets/0/tablet_id")
@@ -833,7 +833,7 @@ class TestTablets(YTEnvSetup):
         self._create_simple_table("//tmp/t")
 
         set("//tmp/t/@in_memory_mode", mode)
-        set("//tmp/t/@max_dynamic_store_key_count", 10)
+        set("//tmp/t/@max_dynamic_store_row_count", 10)
         self.sync_mount_table("//tmp/t")
 
         tablet_id = get("//tmp/t/@tablets/0/tablet_id")
@@ -890,7 +890,7 @@ class TestTablets(YTEnvSetup):
 
         set("//tmp/t/@in_memory_mode", "uncompressed")
         set("//tmp/t/@enable_lookup_hash_table", True)
-        set("//tmp/t/@max_dynamic_store_key_count", 10)
+        set("//tmp/t/@max_dynamic_store_row_count", 10)
         self.sync_mount_table("//tmp/t")
 
         def _rows(i, j):

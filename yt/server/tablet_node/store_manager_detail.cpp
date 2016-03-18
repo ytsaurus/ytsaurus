@@ -375,7 +375,7 @@ bool TStoreManagerBase::IsOverflowRotationNeeded() const
     const auto* activeStore = GetActiveStore();
     const auto& config = Tablet_->GetConfig();
     return
-        activeStore->GetRowCount() >= config->MaxDynamicStoreKeyCount ||
+        activeStore->GetRowCount() >= config->MaxDynamicStoreRowCount ||
         activeStore->GetValueCount() >= config->MaxDynamicStoreValueCount ||
         activeStore->GetPoolCapacity() >= config->MaxDynamicStorePoolSize;
 }
