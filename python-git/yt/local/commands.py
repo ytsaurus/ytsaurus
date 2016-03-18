@@ -2,7 +2,7 @@ from configs_provider import ConfigsProviderFactory
 
 from yt.environment import YTEnv
 from yt.environment.init_cluster import initialize_world
-from yt.wrapper.common import generate_uuid
+from yt.wrapper.common import generate_uuid, GB
 from yt.wrapper.client import Yt
 from yt.common import YtError, require, update
 import yt.yson as yson
@@ -186,7 +186,7 @@ def start(master_count=1, node_count=1, scheduler_count=1, start_proxy=True,
           master_config=None, node_config=None, scheduler_config=None, proxy_config=None,
           proxy_port=None, id=None, local_cypress_dir=None, use_proxy_from_yt_source=False,
           enable_debug_logging=False, tmpfs_path=None, port_range_start=None, fqdn=None, path=None,
-          prepare_only=False):
+          prepare_only=False, operations_memory_limit=16 * GB):
 
     require(master_count >= 1, lambda: YtError("Cannot start local YT instance without masters"))
 
@@ -238,7 +238,8 @@ def start(master_count=1, node_count=1, scheduler_count=1, start_proxy=True,
                       # XXX(asaitgalin): For parallel testing purposes.
                       port_locks_path=os.environ.get("YT_LOCAL_PORT_LOCKS_PATH"),
                       fqdn=fqdn,
-                      prepare_only=prepare_only)
+                      prepare_only=prepare_only,
+                      operations_memory_limit=operations_memory_limit)
 
     environment.id = sandbox_id
 

@@ -123,7 +123,7 @@ class YTEnv(object):
 
     def start(self, path_to_run, pids_filename, proxy_port=None, enable_debug_logging=True, preserve_working_dir=False,
               kill_child_processes=False, tmpfs_path=None, enable_ui=False, port_locks_path=None, port_range_start=None,
-              fqdn=None, prepare_only=False):
+              fqdn=None, prepare_only=False, operations_memory_limit=None):
         self._lock = RLock()
 
         logger.propagate = False
@@ -187,7 +187,8 @@ class YTEnv(object):
                       load_existing_environment=load_existing_environment,
                       enable_ui=enable_ui,
                       port_range_start=port_range_start,
-                      prepare_only=prepare_only)
+                      prepare_only=prepare_only,
+                      operations_memory_limit=operations_memory_limit)
 
     def get_proxy_address(self):
         if not self.START_PROXY:
@@ -227,8 +228,9 @@ class YTEnv(object):
                     break
 
     def _run_all(self, master_count, nonvoting_master_count, secondary_master_cell_count, node_count, scheduler_count, has_proxy, enable_ui=False,
-                 use_proxy_from_package=False, start_secondary_master_cells=True, instance_id="", cell_tag=0,
-                 proxy_port=None, enable_debug_logging=True, load_existing_environment=False, port_range_start=None, prepare_only=False):
+                 use_proxy_from_package=False, start_secondary_master_cells=True, instance_id="", cell_tag=0, proxy_port=None,
+                 enable_debug_logging=True, load_existing_environment=False, port_range_start=None, prepare_only=False,
+                 operations_memory_limit=None):
 
         master_name = "master" + instance_id
         scheduler_name = "scheduler" + instance_id
@@ -242,8 +244,10 @@ class YTEnv(object):
 
         ports = self._get_ports(port_range_start, master_count, secondary_master_cell_count,
                                 scheduler_count, node_count, has_proxy, proxy_port)
-        self._configs_provider = self.CONFIGS_PROVIDER_FACTORY \
-                .create_for_version(self._ytserver_version, ports, enable_debug_logging, self._hostname)
+
+        self._configs_provider = self.CONFIGS_PROVIDER_FACTORY.create_for_version(
+                self._ytserver_version, ports, enable_debug_logging, self._hostname)
+
         self._enable_debug_logging = enable_debug_logging
         self._load_existing_environment = load_existing_environment
         self._capture_stderr_to_file = bool(int(os.environ.get("YT_CAPTURE_STDERR_TO_FILE", "0")))
@@ -270,7 +274,7 @@ class YTEnv(object):
         self._started = False
         try:
             self._prepare_masters(master_count, master_name, nonvoting_master_count, secondary_master_cell_count, cell_tag)
-            self._prepare_nodes(node_count, node_name)
+            self._prepare_nodes(node_count, node_name, operations_memory_limit)
             self._prepare_schedulers(scheduler_count, scheduler_name)
             self._prepare_proxy(has_proxy, proxy_name, enable_ui=enable_ui)
             self._prepare_driver(driver_name, secondary_master_cell_count)
@@ -611,7 +615,7 @@ class YTEnv(object):
             for i in xrange(secondary_master_cell_count):
                 self.start_masters(self._get_master_name(master_name, i + 1), secondary=True)
 
-    def _get_node_configs(self, node_count, node_name, node_dirs):
+    def _get_node_configs(self, node_count, node_name, node_dirs, operations_memory_limit):
         if self._load_existing_environment:
             configs = []
             for i in xrange(node_count):
@@ -625,10 +629,10 @@ class YTEnv(object):
 
             return configs
         else:
-            return self._configs_provider.get_node_configs(node_count, node_dirs)
+            return self._configs_provider.get_node_configs(node_count, node_dirs, operations_memory_limit)
 
 
-    def _prepare_nodes(self, node_count, node_name):
+    def _prepare_nodes(self, node_count, node_name, operations_memory_limit):
         if node_count == 0:
             return
 
@@ -636,7 +640,7 @@ class YTEnv(object):
                 for i in xrange(node_count)]
         map(makedirp, dirs)
 
-        configs = self._get_node_configs(node_count, node_name, dirs)
+        configs = self._get_node_configs(node_count, node_name, dirs, operations_memory_limit)
 
         for i, config in enumerate(configs):
             current_path = os.path.join(self.path_to_run, node_name, str(i))

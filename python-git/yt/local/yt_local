@@ -3,12 +3,16 @@
 from yt.local import start, stop, delete, get_proxy, list_instances
 from yt.local.helpers import YTCheckingThread
 
+from yt.wrapper.common import MB
 from yt.wrapper.cli_helpers import run_main
 from yt.wrapper.keyboard_interrupts_catcher import KeyboardInterruptsCatcher
 
 import argparse
 import logging
 import time
+
+# TODO(asaitgalin): Move it to yt.wrapper.common
+GB = 1024 * MB
 
 DESCRIPTION = """Command-line utility to work with local YT instances."""
 
@@ -120,6 +124,9 @@ def add_start_subparser(subparsers):
     parser.add_argument("--fqdn", help="FQDN to use in all addresses. Detected automatically if not specified.")
     parser.add_argument("--prepare-only", action="store_true", default=False,
                         help="Only prepare environment, but don't start.")
+    parser.add_argument("--operations-memory-limit", type=int, default=16 * GB,
+                        help="memory limit for operations in bytes")
+
     # Compatibility options
     parser.add_argument("--masters-count", type=int, help=argparse.SUPPRESS)
     parser.add_argument("--nodes-count", type=int, help=argparse.SUPPRESS)

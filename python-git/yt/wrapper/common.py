@@ -15,6 +15,7 @@ from itertools import ifilter, chain
 EMPTY_GENERATOR = (i for i in [])
 
 MB = 1024 * 1024
+GB = 1024 * MB
 
 def compose(*args):
     def compose_two(f, g):

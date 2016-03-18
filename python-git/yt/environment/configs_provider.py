@@ -1,6 +1,7 @@
 import default_configs
 from helpers import versions_cmp
 
+from yt.wrapper.common import MB
 from yt.common import YtError, unlist, update
 from yt.yson import YsonString
 
@@ -67,7 +68,7 @@ class ConfigsProvider(object):
         pass
 
     @abc.abstractmethod
-    def get_node_configs(self, node_count, node_dirs):
+    def get_node_configs(self, node_count, node_dirs, operations_memory_limit=None):
         pass
 
     @abc.abstractmethod
@@ -100,6 +101,19 @@ def _generate_common_proxy_config(proxy_dir, proxy_port, enable_debug_logging, f
     _set_bind_retry_options(proxy_config)
 
     return proxy_config
+
+def _set_memory_limit_options(config, operations_memory_limit):
+    resource_limits = config.get("resource_limits", {})
+    if operations_memory_limit is None:
+        return
+
+    config["exec_agent"]["job_controller"]["resource_limits"]["memory"] = operations_memory_limit
+
+    if "memory" in resource_limits:
+        return
+
+    resource_limits["memory"] = int(1.1 * 1024 * MB) + operations_memory_limit
+    update(config, {"resource_limits": resource_limits})
 
 class ConfigsProvider_17(ConfigsProvider):
     def __init__(self, ports, enable_debug_logging=True, fqdn=None):
@@ -201,7 +215,7 @@ class ConfigsProvider_17(ConfigsProvider):
 
         return configs
 
-    def get_node_configs(self, node_count, node_dirs):
+    def get_node_configs(self, node_count, node_dirs, operations_memory_limit=None):
         addresses = ["{0}:{1}".format(self.fqdn, self.ports["node"][2 * i]) for i in xrange(node_count)]
 
         current_user = 10000
@@ -243,6 +257,7 @@ class ConfigsProvider_17(ConfigsProvider):
                                                                      node_dirs[i], "job_proxy-{0}".format(i),
                                                                      self.enable_debug_logging)
             _set_bind_retry_options(config)
+            _set_memory_limit_options(config, operations_memory_limit)
 
             configs.append(config)
 
@@ -272,7 +287,7 @@ class ConfigsProvider_17(ConfigsProvider):
                     ", ".join(["'{0}'".format(address) for address in self._master_addresses["primary"]])))
 
 class ConfigsProvider_17_3(ConfigsProvider_17):
-    def get_node_configs(self, node_count, node_dirs):
+    def get_node_configs(self, node_count, node_dirs, operations_memory_limit=None):
         configs = super(ConfigsProvider_17_3, self).get_node_configs(node_count, node_dirs)
 
         for i, config in enumerate(configs):
@@ -298,7 +313,7 @@ class ConfigsProvider_17_4(ConfigsProvider_17):
 
         return configs
 
-    def get_node_configs(self, node_count, node_dirs):
+    def get_node_configs(self, node_count, node_dirs, operations_memory_limit=None):
         configs = super(ConfigsProvider_17_4, self).get_node_configs(node_count, node_dirs)
 
         for i, config in enumerate(configs):
@@ -472,7 +487,7 @@ class ConfigsProvider_18(ConfigsProvider):
 
         return proxy_config
 
-    def get_node_configs(self, node_count, node_dirs):
+    def get_node_configs(self, node_count, node_dirs, operations_memory_limit=None):
         addresses = ["{0}:{1}".format(self.fqdn, self.ports["node"][2 * i]) for i in xrange(node_count)]
 
         current_user = 10000
@@ -522,6 +537,7 @@ class ConfigsProvider_18(ConfigsProvider):
                 "disable_leader_lease_grace_delay": True
             }
             _set_bind_retry_options(config)
+            _set_memory_limit_options(config, operations_memory_limit)
 
             configs.append(config)
 

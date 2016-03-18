@@ -122,17 +122,9 @@ NODE_CONFIG_PATCHES = [
             ]
         },
         "exec_agent": {
-            "scheduler_connector": None,
-            "job_controller": {
-                "resource_limits": {
-                    "memory": 1073741824  # 1 GB
-                }
-            }
+            "scheduler_connector": None
         },
-        "tablet_node": None,
-        "resource_limits": {
-            "memory": 3430940672  # 3.2 GB
-        }
+        "tablet_node": None
     },
     {
         "tablet_node": {
@@ -155,6 +147,18 @@ NODE_CONFIG_PATCHES = [
 DRIVER_CONFIG_PATCH = {
     "transaction_manager": None
 }
+
+def _tune_memory_limits(config):
+    memory = config["resource_limits"]["memory"]
+    # Add tablet resource limits
+    tablet_resource_limits = config.get("tablet_node", {}).get("resource_limits", {})
+    memory += tablet_resource_limits.get("tablet_dynamic_memory", 0)
+
+    block_cache = config.get("data_node", {}).get("block_cache", {})
+    memory += block_cache.get("compressed_data", {}).get("capacity", 0)
+    memory += block_cache.get("uncompressed_data", {}).get("capacity", 0)
+
+    config["resource_limits"]["memory"] = memory
 
 class LocalModeConfigsProvider_17_3(ConfigsProvider_17_3):
     def get_master_configs(self, master_count, nonvoting_master_count, master_dirs,
@@ -181,8 +185,9 @@ class LocalModeConfigsProvider_17_3(ConfigsProvider_17_3):
 
         return configs
 
-    def get_node_configs(self, node_count, node_dirs):
-        configs = super(LocalModeConfigsProvider_17_3, self).get_node_configs(node_count, node_dirs)
+    def get_node_configs(self, node_count, node_dirs, operations_memory_limit=None):
+        configs = super(LocalModeConfigsProvider_17_3, self)\
+                .get_node_configs(node_count, node_dirs, operations_memory_limit)
 
         for config in configs:
             for patch in NODE_CONFIG_PATCHES:
@@ -225,13 +230,16 @@ class LocalModeConfigsProvider_17_4(ConfigsProvider_17_4):
 
         return configs
 
-    def get_node_configs(self, node_count, node_dirs):
-        configs = super(LocalModeConfigsProvider_17_4, self).get_node_configs(node_count, node_dirs)
+    def get_node_configs(self, node_count, node_dirs, operations_memory_limit=None):
+        configs = super(LocalModeConfigsProvider_17_4, self)\
+                .get_node_configs(node_count, node_dirs, operations_memory_limit)
 
         for config in configs:
             for patch in NODE_CONFIG_PATCHES:
                 update(config, patch)
+
             _remove_none_fields(config)
+            _tune_memory_limits(config)
 
         return configs
 
@@ -286,8 +294,9 @@ class LocalModeConfigsProvider_18(ConfigsProvider_18):
 
         return configs
 
-    def get_node_configs(self, node_count, node_dirs):
-        configs = super(LocalModeConfigsProvider_18, self).get_node_configs(node_count, node_dirs)
+    def get_node_configs(self, node_count, node_dirs, operations_memory_limit=None):
+        configs = super(LocalModeConfigsProvider_18, self)\
+                .get_node_configs(node_count, node_dirs, operations_memory_limit)
 
         local_patch = {
             "cell_directory_synchronizer": None
@@ -297,7 +306,9 @@ class LocalModeConfigsProvider_18(ConfigsProvider_18):
             for patch in NODE_CONFIG_PATCHES:
                 update(config, patch)
             update(config, local_patch)
+
             _remove_none_fields(config)
+            _tune_memory_limits(config)
 
         return configs
 
