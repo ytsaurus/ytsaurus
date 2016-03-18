@@ -50,7 +50,7 @@ class TTableMountConfig
     : public NTableClient::TRetentionConfig
 {
 public:
-    int MaxDynamicStoreKeyCount;
+    int MaxDynamicStoreRowCount;
     int MaxDynamicStoreValueCount;
     i64 MaxDynamicStorePoolSize;
 
@@ -94,7 +94,7 @@ public:
 
     TTableMountConfig()
     {
-        RegisterParameter("max_dynamic_store_key_count", MaxDynamicStoreKeyCount)
+        RegisterParameter("max_dynamic_store_row_count", MaxDynamicStoreRowCount)
             .GreaterThan(0)
             .Default(1000000);
         RegisterParameter("max_dynamic_store_value_count", MaxDynamicStoreValueCount)
@@ -186,8 +186,8 @@ public:
             .Default(false);
 
         RegisterValidator([&] () {
-            if (MaxDynamicStoreKeyCount > MaxDynamicStoreValueCount) {
-                THROW_ERROR_EXCEPTION("\"max_dynamic_store_key_count\" must be less than or equal to \"max_dynamic_store_value_count\"");
+            if (MaxDynamicStoreRowCount > MaxDynamicStoreValueCount) {
+                THROW_ERROR_EXCEPTION("\"max_dynamic_store_row_count\" must be less than or equal to \"max_dynamic_store_value_count\"");
             }
             if (MinPartitionDataSize >= DesiredPartitionDataSize) {
                 THROW_ERROR_EXCEPTION("\"min_partition_data_size\" must be less than \"desired_partition_data_size\"");

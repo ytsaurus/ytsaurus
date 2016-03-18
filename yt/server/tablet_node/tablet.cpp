@@ -119,7 +119,7 @@ TTablet::TTablet(
     , NextPivotKey_(std::move(nextPivotKey))
     , State_(ETabletState::Mounted)
     , Atomicity_(atomicity)
-    , HashTableSize_(config->EnableLookupHashTable ? config->MaxDynamicStoreKeyCount : 0)
+    , HashTableSize_(config->EnableLookupHashTable ? config->MaxDynamicStoreRowCount : 0)
     , OverlappingStoreCount_(0)
     , Config_(config)
     , WriterOptions_(writerOptions)
