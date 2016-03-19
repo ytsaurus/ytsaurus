@@ -3279,9 +3279,15 @@ void TOperationControllerBase::LockUserFiles(
                 file.Attributes = ConvertToAttributes(TYsonString(rsp->value()));
                 const auto& attributes = *file.Attributes;
 
-                file.FileName = attributes.Get<Stroka>("key");
-                file.FileName = attributes.Find<Stroka>("file_name").Get(file.FileName);
-                file.FileName = file.Path.GetFileName().Get(file.FileName);
+                try {
+                    file.FileName = attributes.Get<Stroka>("key");
+                    file.FileName = attributes.Find<Stroka>("file_name").Get(file.FileName);
+                    file.FileName = file.Path.GetFileName().Get(file.FileName);
+                } catch (const std::exception& ex) {
+                    // NB: Some of the above Gets and Finds may throw due to, e.g., type mismatch.
+                    THROW_ERROR_EXCEPTION("Error parsing attributes of user file %v",
+                        path);
+                }
 
                 switch (file.Type) {
                     case EObjectType::File:
