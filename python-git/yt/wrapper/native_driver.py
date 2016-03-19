@@ -57,7 +57,7 @@ def make_request(command_name, params,
     driver = get_driver_instance(client)
 
     require(command_name in driver.get_command_descriptors(),
-            YtError("Command {0} is not supported".format(command_name)))
+            lambda: YtError("Command {0} is not supported".format(command_name)))
 
     description = driver.get_command_descriptor(command_name)
 

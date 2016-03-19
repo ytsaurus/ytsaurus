@@ -181,16 +181,16 @@ def smart_upload_file(filename, destination=None, yt_filename=None, placement_st
 
     def upload_with_check(path):
         require(not exists(path, client=client),
-                YtError("Cannot upload file to '{0}', node already exists".format(path)))
+                lambda: YtError("Cannot upload file to '{0}', node already exists".format(path)))
         write_file(path, open(filename), client=client)
 
     require(os.path.isfile(filename),
-            YtError("Upload: %s should be file" % filename))
+            lambda: YtError("Upload: %s should be file" % filename))
 
     if placement_strategy is None:
         placement_strategy = "hash"
     require(placement_strategy in ["replace", "ignore", "random", "hash"],
-            YtError("Incorrect file placement strategy " + placement_strategy))
+            lambda: YtError("Incorrect file placement strategy " + placement_strategy))
 
     if destination is None:
         # create file storage dir and hash subdir

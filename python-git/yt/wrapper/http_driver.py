@@ -89,7 +89,7 @@ def make_request(command_name, params,
 
     # Get command description
     require(command_name in commands,
-            YtError("Command {0} is not supported by {1}".format(command_name, api_path)))
+            lambda: YtError("Command {0} is not supported by {1}".format(command_name, api_path)))
     command = commands[command_name]
 
     # Determine make retries or not and set mutation if needed
@@ -153,7 +153,7 @@ def make_request(command_name, params,
     headers["X-YT-Header-Format"] = header_format_header
     if command.input_type is None:
         # Should we also check that command is volatile?
-        require(data is None, YtError("Body should be empty in commands without input type"))
+        require(data is None, lambda: YtError("Body should be empty in commands without input type"))
         if command.is_volatile:
             headers["Content-Type"] = "application/x-yt-yson-text" if header_format == "yson" else "application/json"
             data = dumps(params)

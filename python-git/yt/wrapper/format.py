@@ -41,7 +41,7 @@ class Format(object):
         :param name: (string) format name
         :param attributes: (dict) format parameters
         """
-        require(isinstance(name, str), YtFormatError("Incorrect format %r" % name))
+        require(isinstance(name, str), lambda: YtFormatError("Incorrect format %r" % name))
         self._name = yson.YsonString(name)
         self._name.attributes = get_value(attributes, {})
         self._raw = raw
@@ -712,7 +712,7 @@ class YamredDsvFormat(YamrFormat):
         attributes = get_value(attributes, {})
         all_attributes = Format._make_attributes(attributes, defaults, options)
         require(all_attributes.has_key("key_column_names"),
-                YtFormatError("YamredDsvFormat require 'key_column_names' attribute"))
+                lambda: YtFormatError("YamredDsvFormat require 'key_column_names' attribute"))
         super(YamredDsvFormat, self).__init__(attributes=all_attributes, raw=raw)
         self._name = yson.to_yson_type("yamred_dsv", self.attributes)
 

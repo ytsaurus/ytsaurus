@@ -3,15 +3,13 @@
 
 import parser
 
+from yt.common import require
+
 import sys
 from optparse import OptionParser
 
 # TODO: It is better to use class instead global variable
 options = None
-
-def require(condition, exception):
-    if not condition:
-        raise exception
 
 def print_bash(obj, level):
     if not level:
@@ -59,12 +57,12 @@ def go_by_path(obj, path):
     for elem in path_elements:
         if not elem: continue
         if isinstance(yson, list):
-            require(elem.isdigit(), Exception("Incorrect path: list cannot be accessed by key '%s'" % elem))
+            require(elem.isdigit(), lambda: Exception("Incorrect path: list cannot be accessed by key '%s'" % elem))
             index = int(elem)
-            require(0 <= index < len(yson), Exception("Incorrect path: list has no index %d" % index))
+            require(0 <= index < len(yson), lambda: Exception("Incorrect path: list has no index %d" % index))
             yson = yson[index]
         elif isinstance(yson, dict):
-            require(elem in yson, Exception("Incorrect path: map has no key '%s'" % elem))
+            require(elem in yson, lambda: Exception("Incorrect path: map has no key '%s'" % elem))
             yson = yson[elem]
         else:
             raise Exception("Incorrect path: scalar cannot by accessed by key or index")

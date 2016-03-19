@@ -113,7 +113,7 @@ def _synchronize_cypress_with_local_dir(local_cypress_dir, client):
 
     local_cypress_dir = os.path.abspath(local_cypress_dir)
     require(os.path.exists(local_cypress_dir),
-            yt.YtError("Local Cypress directory does not exist"))
+            lambda: YtError("Local Cypress directory does not exist"))
 
     root_attributes = _get_attributes_from_local_dir(local_cypress_dir)
     for key in root_attributes:
@@ -188,11 +188,11 @@ def start(master_count=1, node_count=1, scheduler_count=1, start_proxy=True,
           enable_debug_logging=False, tmpfs_path=None, port_range_start=None, fqdn=None, path=None,
           prepare_only=False):
 
-    require(master_count >= 1, yt.YtError("Cannot start local YT instance without masters"))
+    require(master_count >= 1, lambda: YtError("Cannot start local YT instance without masters"))
 
     path = get_root_path(path)
     sandbox_id = id if id is not None else generate_uuid()
-    require("/" not in sandbox_id, YtError('Instance id should not contain path separator "/"'))
+    require("/" not in sandbox_id, lambda: YtError('Instance id should not contain path separator "/"'))
 
     environment = YTEnvironment(master_config, scheduler_config, node_config, proxy_config)
 
@@ -276,9 +276,9 @@ def _is_exists(id, path=None):
 
 def stop(id, remove_working_dir=False, path=None):
     require(_is_exists(id, path),
-            yt.YtError("Local YT with id {0} not found".format(id)))
+            lambda: yt.YtError("Local YT with id {0} not found".format(id)))
     require(not _is_stopped(id, path),
-            yt.YtError("Local YT with id {0} is already stopped".format(id)))
+            lambda: yt.YtError("Local YT with id {0} is already stopped".format(id)))
 
     pids_file_path = os.path.join(get_root_path(path), id, "pids.txt")
     for pid in _read_pids_file(pids_file_path):
@@ -290,9 +290,9 @@ def stop(id, remove_working_dir=False, path=None):
 
 def delete(id, force=False, path=None):
     require(_is_exists(id, path) or force,
-            yt.YtError("Local YT with id {0} not found".format(id)))
+            lambda: yt.YtError("Local YT with id {0} not found".format(id)))
     require(_is_stopped(id, path),
-            yt.YtError("Local YT environment with id {0} is not stopped".format(id)))
+            lambda: yt.YtError("Local YT environment with id {0} is not stopped".format(id)))
 
     shutil.rmtree(os.path.join(get_root_path(path), id), ignore_errors=True)
 
@@ -301,7 +301,7 @@ def get_proxy(id, path=None):
 
     info_file_path = os.path.join(get_root_path(path), id, "info.yson")
     require(os.path.exists(info_file_path),
-            yt.YtError("Information file for local YT with id {0} not found".format(id)))
+            lambda: yt.YtError("Information file for local YT with id {0} not found".format(id)))
 
     with open(info_file_path) as f:
         info = yson.load(f)

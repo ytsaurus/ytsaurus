@@ -127,7 +127,7 @@ def get_operation_state(operation, client=None):
     config["proxy"]["request_retry_count"] = config["proxy"]["operation_state_discovery_retry_count"]
 
     operation_path = os.path.join(OPERATIONS_PATH, operation)
-    require(exists(operation_path, client=client), YtError("Operation %s doesn't exist" % operation))
+    require(exists(operation_path, client=client), lambda: YtError("Operation %s doesn't exist" % operation))
     state = OperationState(get_attribute(operation_path, "state", client=client))
 
     config["proxy"]["request_retry_count"] = old_retry_count
