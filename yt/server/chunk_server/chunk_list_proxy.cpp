@@ -10,8 +10,6 @@
 
 #include <yt/server/object_server/object_detail.h>
 
-#include <yt/ytlib/chunk_client/chunk_list_ypath.pb.h>
-
 #include <yt/core/ytree/fluent.h>
 
 namespace NYT {
@@ -127,41 +125,6 @@ private:
         }
 
         return TBase::GetBuiltinAttributeAsync(key);
-    }
-
-    virtual bool DoInvoke(NRpc::IServiceContextPtr context) override
-    {
-        DISPATCH_YPATH_SERVICE_METHOD(Attach);
-        return TBase::DoInvoke(context);
-    }
-
-    DECLARE_YPATH_SERVICE_METHOD(NChunkClient::NProto, Attach)
-    {
-        DeclareMutating();
-
-        auto childrenIds = FromProto<std::vector<TChunkTreeId>>(request->children_ids());
-        bool requestStatistics = request->request_statistics();
-
-        context->SetRequestInfo("Children: %v", childrenIds);
-
-        auto objectManager = Bootstrap_->GetObjectManager();
-        auto chunkManager = Bootstrap_->GetChunkManager();
-
-        std::vector<TChunkTree*> children;
-        children.reserve(childrenIds.size());
-        for (const auto& childId : childrenIds) {
-            auto* child = chunkManager->GetChunkTreeOrThrow(childId);
-            children.push_back(child);
-        }
-
-        auto* chunkList = GetThisTypedImpl();
-        chunkManager->AttachToChunkList(chunkList, children);
-
-        if (requestStatistics) {
-            *response->mutable_statistics() = chunkList->Statistics().ToDataStatistics();
-        }
-
-        context->Reply();
     }
 };
 
