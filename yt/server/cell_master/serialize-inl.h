@@ -74,9 +74,13 @@ struct TVersionedObjectRefSerializer
     {
         typedef typename std::remove_pointer<T>::type TObject;
         auto key = NYT::Load<NHydra::TEntitySerializationKey>(context);
-        object  = (key == NHydra::TEntitySerializationKey())
-            ? nullptr
-            : context.template GetEntity<TObject>(key);
+        if (key == NHydra::TEntitySerializationKey()) {
+            object = nullptr;
+            SERIALIZATION_DUMP_WRITE(context, "objref <null>");
+        } else {
+            object = context.template GetEntity<TObject>(key);
+            SERIALIZATION_DUMP_WRITE(context, "objref %v aka %v", object->GetVersionedId(), key.Index);
+        }
     }
 };
 
