@@ -1530,10 +1530,10 @@ void TOperationControllerBase::AttachOutputChunks()
             for (auto current = table.BoundaryKeys.begin(); current != table.BoundaryKeys.end(); ++current) {
                 auto next = current + 1;
                 if (next != table.BoundaryKeys.end() && next->MinKey < current->MaxKey) {
-                    THROW_ERROR_EXCEPTION("Output table %v is not sorted: job outputs have overlapping key ranges [MinKey %v, MaxKey: %v]",
-                        table.Path.GetPath(),
-                        next->MinKey,
-                        current->MaxKey);
+                    THROW_ERROR_EXCEPTION("Output table %v is not sorted: job outputs have overlapping key ranges",
+                        table.Path.GetPath())
+                        << TErrorAttribute("next_min_key", next->MinKey)
+                        << TErrorAttribute("prev_max_key", current->MaxKey);
                 }
 
                 auto pair = table.OutputChunkTreeIds.equal_range(current->ChunkTreeKey);
@@ -3292,8 +3292,8 @@ void TOperationControllerBase::LockUserFiles(
                     case EObjectType::Table:
                         file.Format = attributes.FindYson("format").Get(TYsonString());
                         file.Format = file.Path.GetFormat().Get(file.Format);
-                        // Check that format is correct.
-                        ConvertTo<NFormats::TFormat>(file.Format);
+                        // Validate that format is correct.
+                        ConvertTo<TFormat>(file.Format);
                         break;
 
                     default:
