@@ -2,7 +2,7 @@ import config
 from config import get_config
 from pickling import Pickler
 from cypress_commands import get
-from common import get_python_version, YtError
+from common import get_python_version, YtError, chunk_iter_stream
 from errors import YtResponseError
 
 from yt.packages.importlib import import_module
@@ -16,6 +16,7 @@ import pipes
 import shutil
 import socket
 import tempfile
+import hashlib
 import sys
 import time
 import pickle as standard_pickle
@@ -46,12 +47,7 @@ def is_running_interactively():
         return True
     else:
         # Old IPython (0.12 at least) has no sys.ps1 defined
-        try:
-            __IPYTHON__
-        except NameError:
-            return False
-        else:
-            return True
+        return "__IPYTHON__" in globals()
 
 def is_local_mode(client):
     local_mode = get_config(client)["pickling"]["local_mode"]
@@ -126,6 +122,48 @@ def find_file(path):
             raise YtError("Incorrect module path " + origin_path)
         path = dirname
 
+class Zip(object):
+    def __init__(self, prefix, tempfiles_manager, client):
+        self.prefix = prefix
+        self.filename = tempfiles_manager.create_tempfile(dir=get_config(client)["local_temp_directory"],
+                                                          prefix=prefix, suffix=".zip")
+        self.size = 0
+        self.hash = self.init_md5()
+
+    def __enter__(self):
+        self.zip = ZipFile(self.filename, "w")
+        self.zip.__enter__()
+        return self
+
+    def append(self, filepath, relpath):
+        self.zip.write(filepath, relpath)
+        self.size += get_disk_size(filepath)
+        self.hash = self.merge_md5(self.hash, self.calc_md5(filepath))
+
+    def __exit__(self, type, value, traceback):
+        self.zip.__exit__(type, value, traceback)
+        if type is None:
+            self.md5 = self.hex_md5(self.hash)
+
+    @staticmethod
+    def init_md5():
+        return [0 for _ in xrange(hashlib.md5().digest_size)]
+
+    @staticmethod
+    def calc_md5(filename):
+        with open(filename, mode='rb') as fin:
+            h = hashlib.md5()
+            for buf in chunk_iter_stream(fin, 1024):
+                h.update(buf)
+        return map(ord, h.digest())
+
+    @staticmethod
+    def merge_md5(lhs, rhs):
+        return [a ^ b for a, b in zip(lhs, rhs)]
+
+    @staticmethod
+    def hex_md5(md5_array):
+        return "".join(["{0:02x}".format(num) for num in md5_array])
 
 def create_modules_archive_default(tempfiles_manager, client):
     for module_name in OPERATION_REQUIRED_MODULES:
@@ -174,36 +212,27 @@ def create_modules_archive_default(tempfiles_manager, client):
                 destination_name = os.path.join(*module_name_parts)
                 files_to_compress[destination_name] = init_file
 
-    zip_filename = tempfiles_manager.create_tempfile(dir=get_config(client)["local_temp_directory"],
-                                                     prefix=".modules", suffix=".zip")
-
-    fresh_zip_filename = tempfiles_manager.create_tempfile(dir=get_config(client)["local_temp_directory"],
-                                                           prefix=".fresh.modules", suffix=".zip")
-
-    total_size = 0
-    fresh_total_size = 0
     now = time.time()
-    with ZipFile(zip_filename, "w") as zip:
-        with ZipFile(fresh_zip_filename, "w") as fresh_zip:
+    with Zip(prefix="modules", tempfiles_manager=tempfiles_manager, client=client) as zip:
+        with Zip(prefix="fresh_modules", tempfiles_manager=tempfiles_manager, client=client) as fresh_zip:
             for relpath, filepath in sorted(files_to_compress.items()):
                 age = now - os.path.getmtime(filepath)
                 if age > get_config(client)["pickling"]["fresh_files_threshold"]:
-                    zip.write(filepath, relpath)
-                    total_size += get_disk_size(filepath)
+                    zip.append(filepath, relpath)
                 else:
-                    fresh_zip.write(filepath, relpath)
-                    fresh_total_size += get_disk_size(filepath)
+                    fresh_zip.append(filepath, relpath)
+
+    archives = [zip]
+    if fresh_zip.size > 0:
+        archives.append(fresh_zip)
 
     result = [{
-        "filename": zip_filename,
-        "tmpfs": get_config(client)["pickling"]["enable_tmpfs_archive"] and not is_local_mode(client),
-        "size": total_size}]
-
-    if fresh_total_size > 0:
-        result.append({
-            "filename": fresh_zip_filename,
+            "filename": archive.filename,
             "tmpfs": get_config(client)["pickling"]["enable_tmpfs_archive"] and not is_local_mode(client),
-            "size": fresh_total_size})
+            "size": archive.size,
+            "hash": archive.md5
+        }
+        for archive in archives]
 
     return result
 
@@ -266,13 +295,13 @@ def do_wrap(function, operation_type, tempfiles_manager, input_format, output_fo
     # COMPAT: previous version of create_modules_archive returns string.
     if isinstance(modules_info, str):
         modules_info = [{"filename": modules_info, "tmpfs": False}]
-    modules_filenames = [info["filename"] for info in modules_info]
+    modules_filenames = [{"filename": info["filename"], "hash": info["hash"]}
+                         for info in modules_info]
     tmpfs_size = sum([info["size"] for info in modules_info if info["tmpfs"]])
     if tmpfs_size > 0:
         tmpfs_size = int(TMPFS_SIZE_ADDEND + TMPFS_SIZE_MULTIPLIER * tmpfs_size)
 
     for info in modules_info:
-
         if local_mode:
             info["filename"] = os.path.abspath(info["filename"])
         else:
