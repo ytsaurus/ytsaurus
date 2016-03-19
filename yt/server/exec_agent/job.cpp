@@ -647,8 +647,10 @@ private:
         if (resultError.FindMatching(NChunkClient::EErrorCode::AllTargetNodesFailed) ||
             resultError.FindMatching(NChunkClient::EErrorCode::MasterCommunicationFailed) ||
             resultError.FindMatching(NChunkClient::EErrorCode::MasterNotConnected) ||
-            resultError.FindMatching(EErrorCode::ConfigCreationFailed) ||
-            resultError.FindMatching(static_cast<int>(EExitStatus::ExitCodeBase) + static_cast<int>(EJobProxyExitCode::HeartbeatFailed)))
+            resultError.FindMatching(NExecAgent::EErrorCode::ConfigCreationFailed) ||
+            resultError.FindMatching(
+                static_cast<int>(EExitStatus::ExitCodeBase) +
+                static_cast<int>(NExecAgent::EJobProxyExitCode::HeartbeatFailed)))
         {
             return MakeNullable(EAbortReason::Other);
         }
