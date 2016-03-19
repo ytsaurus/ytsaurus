@@ -23,7 +23,6 @@ SET(YT_SRCS
 
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/block_id.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/chunk_info.proto
-  ${CMAKE_CURRENT_LIST_DIR}/chunk_client/chunk_list_ypath.proto
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/chunk_meta.proto
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/chunk_meta_extensions.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_client/chunk_owner_ypath.proto

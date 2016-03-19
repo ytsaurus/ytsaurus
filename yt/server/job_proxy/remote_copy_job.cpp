@@ -7,7 +7,6 @@
 #include <yt/ytlib/api/config.h>
 #include <yt/ytlib/api/connection.h>
 
-#include <yt/ytlib/chunk_client/chunk_list_ypath_proxy.h>
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/ytlib/chunk_client/chunk_reader.h>
 #include <yt/ytlib/chunk_client/chunk_writer.h>
