@@ -410,10 +410,17 @@ def add_remount_table_parser(add_parser):
     parser = add_parser("remount-table", yt.remount_table)
     tablet_args(parser)
 
+def reshard_table(**args):
+    if args.get("pivot_keys") == []:
+        del args["pivot_keys"]
+    yt.reshard_table(**args)
+
 def add_reshard_table_parser(add_parser):
     parser = add_parser("reshard-table", yt.reshard_table)
     tablet_args(parser)
-    parser.add_argument("pivot_keys", action=ParseStructuredArguments, nargs="+")
+    parser.add_argument("pivot_keys", action=ParseStructuredArguments, nargs="*")
+    parser.add_argument("--tablet-count", type=int)
+    parser.set_defaults(func=reshard_table)
 
 def add_alter_table_parser(add_parser):
     parser = add_parser("alter-table", yt.alter_table)

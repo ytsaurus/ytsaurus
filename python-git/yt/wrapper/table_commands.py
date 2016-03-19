@@ -83,10 +83,10 @@ from copy import deepcopy
 
 DEFAULT_EMPTY_TABLE = TablePath("//sys/empty_yamr_table", simplify=False)
 
-def _add_spec_option(spec, name, value):
+def _set_option(params, name, value):
     if value is not None:
-        spec[name] = value
-    return spec
+        params[name] = value
+    return params
 
 def _to_chunk_stream(stream, format, raw, split_rows, chunk_size):
     if isinstance(stream, str):
@@ -909,18 +909,18 @@ def remount_table(path, first_tablet_index=None, last_tablet_index=None, client=
 
     make_request("remount_table", params, client=client)
 
-def reshard_table(path, pivot_keys, first_tablet_index=None, last_tablet_index=None, client=None):
+def reshard_table(path, pivot_keys=None, tablet_count=None, first_tablet_index=None, last_tablet_index=None, client=None):
     """Change pivot keys separating tablets of a given table.  NB! This command is not currently supported! The feature is coming with 0.17+ version!
 
     description is coming with tablets
     TODO
     """
-    params = {"path": path,
-              "pivot_keys": pivot_keys}
-    if first_tablet_index is not None:
-        params["first_tablet_index"] = first_tablet_index
-    if last_tablet_index is not None:
-        params["last_tablet_index"] = last_tablet_index
+    params = {"path": path}
+
+    _set_option(params, "pivot_keys", pivot_keys)
+    _set_option(params, "tablet_count", tablet_count)
+    _set_option(params, "first_tablet_index", first_tablet_index)
+    _set_option(params, "last_tablet_index", last_tablet_index)
 
     make_request("reshard_table", params, client=client)
 
@@ -1551,10 +1551,10 @@ def run_remote_copy(source_table, destination_table,
                                                            client=client))
     spec = compose(
         lambda _: _configure_spec(_, client),
-        lambda _: _add_spec_option(_, "network_name", network_name),
-        lambda _: _add_spec_option(_, "cluster_name", cluster_name),
-        lambda _: _add_spec_option(_, "cluster_connection", cluster_connection),
-        lambda _: _add_spec_option(_, "copy_attributes", copy_attributes),
+        lambda _: _set_option(_, "network_name", network_name),
+        lambda _: _set_option(_, "cluster_name", cluster_name),
+        lambda _: _set_option(_, "cluster_connection", cluster_connection),
+        lambda _: _set_option(_, "copy_attributes", copy_attributes),
         lambda _: update({"input_table_paths": map(get_input_name, source_table),
                           "output_table_path": destination_table.to_yson_type()},
                           _),
