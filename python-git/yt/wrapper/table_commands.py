@@ -174,7 +174,11 @@ def _reliably_upload_files(files, client=None):
     file_paths = []
     with Transaction(transaction_id=null_transaction_id, client=client):
         for file in flatten(files):
-            file_paths.append(smart_upload_file(file, client=client))
+            if isinstance(file, str):
+                path = smart_upload_file(file, client=client)
+            else:
+                path = smart_upload_file(client=client, **file)
+            file_paths.append(path)
     return file_paths
 
 def _is_python_function(binary):

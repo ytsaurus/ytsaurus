@@ -13,7 +13,6 @@ from yt.yson import to_yson_type
 
 import os
 import hashlib
-from functools import partial
 
 def _is_freshly_opened_file(stream):
     try:
@@ -31,7 +30,7 @@ def _get_file_size(fstream):
 def md5sum(filename):
     with open(filename, mode='rb') as fin:
         h = hashlib.md5()
-        for buf in iter(partial(fin.read, 1024), b''):
+        for buf in chunk_iter_stream(fin, 1024):
             h.update(buf)
     return h.hexdigest()
 
@@ -155,7 +154,8 @@ def upload_file(stream, destination, file_writer=None, client=None):
     """
     write_file(destination=destination, stream=stream, file_writer=file_writer, client=client)
 
-def smart_upload_file(filename, destination=None, yt_filename=None, placement_strategy=None, ignore_set_attributes_error=True, client=None):
+def smart_upload_file(filename, destination=None, yt_filename=None, placement_strategy=None,
+                      ignore_set_attributes_error=True, hash=None, client=None):
     """
     Upload file to destination path with custom placement strategy.
 
@@ -216,9 +216,10 @@ def smart_upload_file(filename, destination=None, yt_filename=None, placement_st
     logger.debug("Uploading file '%s' with strategy '%s'", filename, placement_strategy)
 
     if placement_strategy == "hash":
-        md5 = md5sum(filename)
+        if hash is None:
+            hash = md5sum(filename)
         hash_path = os.path.join(get_config(client)["remote_temp_files_directory"], "hash")
-        destination = os.path.join(hash_path, md5)
+        destination = os.path.join(hash_path, hash)
 
         destination_is_file = False
         try:
@@ -259,7 +260,7 @@ def smart_upload_file(filename, destination=None, yt_filename=None, placement_st
             real_destination = find_free_subpath(prefix, client=client)
             upload_with_check(real_destination)
             link(real_destination, destination, ignore_existing=True, client=client)
-            set_attribute(real_destination, "hash", md5, client=client)
+            set_attribute(real_destination, "hash", hash, client=client)
         else:
             if not destination_is_file:
                 logger.debug("Link '%s' of file '%s' exists, skipping upload", destination, filename)
