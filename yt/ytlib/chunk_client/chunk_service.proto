@@ -198,6 +198,15 @@ message TReqExecuteBatch
     }
 
     repeated TUnstageChunkTreeSubrequest unstage_chunk_tree_subrequests = 5;
+
+    message TAttachChunkTreesSubrequest
+    {
+        required NYT.NProto.TGuid parent_id = 1;
+        repeated NYT.NProto.TGuid child_ids = 2;
+        optional bool request_statistics = 3 [default = false];
+    }
+
+    repeated TAttachChunkTreesSubrequest attach_chunk_trees_subrequests = 6;
 }
 
 message TRspExecuteBatch
@@ -239,6 +248,14 @@ message TRspExecuteBatch
     }
 
     repeated TUnstageChunkTreeSubresponse unstage_chunk_tree_subresponses = 5;
+
+    message TAttachChunkTreesSubresponse
+    {
+        optional NYT.NProto.TError error = 1;
+        optional TDataStatistics statistics = 2;
+    }
+
+    repeated TAttachChunkTreesSubresponse attach_chunk_trees_subresponses = 6;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -1253,6 +1253,12 @@ private:
             response ? response->mutable_unstage_chunk_tree_subresponses() : nullptr,
             &TImpl::ExecuteUnstageChunkTreeSubrequest,
             "Error unstaging chunk tree");
+
+        executeSubrequests(
+            request->mutable_attach_chunk_trees_subrequests(),
+            response ? response->mutable_attach_chunk_trees_subresponses() : nullptr,
+            &TImpl::ExecuteAttachChunkTreesSubrequest,
+            "Error attaching chunk trees");
     }
 
     void ExecuteCreateChunkSubrequest(
@@ -1408,6 +1414,32 @@ private:
         LOG_DEBUG_UNLESS(IsRecovery(), "Chunk tree unstaged (ChunkTreeId: %v, Recursive: %v)",
             chunkTreeId,
             recursive);
+    }
+
+    void ExecuteAttachChunkTreesSubrequest(
+        TReqExecuteBatch::TAttachChunkTreesSubrequest* subrequest,
+        TRspExecuteBatch::TAttachChunkTreesSubresponse* subresponse)
+    {
+        auto parentId = FromProto<TTransactionId>(subrequest->parent_id());
+        auto* parent = GetChunkListOrThrow(parentId);
+
+        std::vector<TChunkTree*> children;
+        children.reserve(subrequest->child_ids_size());
+        for (const auto& protoChildId : subrequest->child_ids()) {
+            auto childId = FromProto<TChunkTreeId>(protoChildId);
+            auto* child = GetChunkTreeOrThrow(childId);
+            children.push_back(child);
+        }
+
+        AttachToChunkList(parent, children);
+
+        if (subrequest->request_statistics()) {
+            *subresponse->mutable_statistics() = parent->Statistics().ToDataStatistics();
+        }
+
+        LOG_DEBUG_UNLESS(IsRecovery(), "Chunk trees attached (ParentId: %v, ChildIds: %v)",
+            parentId,
+            MakeFormattableRange(children, TObjectIdFormatter()));
     }
 
 
