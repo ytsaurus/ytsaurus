@@ -1,6 +1,6 @@
 import yson
 from config import get_config, get_option
-from common import parse_bool, flatten, get_value, bool_to_string
+from common import parse_bool, flatten, get_value, bool_to_string, YtError
 from errors import YtResponseError
 from transaction_commands import _make_transactional_request, \
                                  _make_formatted_transactional_request
@@ -106,6 +106,24 @@ def move(source_path, destination_path, recursive=None, preserve_account=None, f
     if force is not None:
         params["force"] = bool_to_string(force)
     _make_transactional_request("move", params, client=client)
+
+def concatenate(source_paths, destination_path, client=None):
+    """Concatenate cypress nodes. This command applicable only to files and tables.
+
+    :param source_path: (string or `yt.wrapper.table.TablePath`)
+    :param destination_path: (string or `yt.wrapper.table.TablePath`)
+    """
+    source_paths = map(lambda path: prepare_path(path, client=client), source_paths)
+    destination_path = prepare_path(destination_path, client=client)
+    if not source_paths:
+        raise YtError("Source paths must be non-empty")
+    type = get(source_paths[0] + "/@type", client=client)
+    if type not in ["file", "table"]:
+        raise YtError("Type of '{0}' is not table or file".format(source_paths[0]))
+    create(type, destination_path, ignore_existing=True)
+    params = {"source_paths": source_paths,
+              "destination_path": destination_path}
+    _make_transactional_request("concatenate", params, client=client)
 
 def link(target_path, link_path, recursive=False, ignore_existing=False, client=None):
     """Make link to Cypress node.

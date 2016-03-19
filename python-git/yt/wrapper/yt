@@ -391,6 +391,11 @@ def add_link_parser(add_parser):
     parser.add_argument("-r", "--recursive", action="store_true", help="remove nodes and their subnodes recursively")
     parser.add_argument("-i", "--ignore-existing", action="store_true")
 
+def add_concatenate_parser(add_parser):
+    parser = add_parser("concatenate", yt.concatenate)
+    parser.add_argument("--src", action="append", required=True, dest="source_paths", help="Source paths")
+    parser.add_argument("--dst", required=True, dest="destination_path", help="Destination paths")
+
 def tablet_args(parser):
     add_ypath_argument(parser)
     parser.add_argument("--first-tablet-index", type=int)
@@ -759,6 +764,7 @@ def main():
     add_move_parser(add_parser)
     add_link_parser(add_parser)
     add_remove_parser(add_parser)
+    add_concatenate_parser(add_parser)
 
     add_mount_table_parser(add_parser)
     add_unmount_table_parser(add_parser)
