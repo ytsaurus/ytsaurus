@@ -205,9 +205,9 @@ class TestTablets(YTEnvSetup):
         def get_chunk_tree(path):
             root_chunk_list_id = get(path + "/@chunk_list_id")
             root_chunk_list = get("#" + root_chunk_list_id + "/@")
-            tablet_chunk_lists = [get("#" + x + "/@") for x in root_chunk_list["children_ids"]]
+            tablet_chunk_lists = [get("#" + x + "/@") for x in root_chunk_list["child_ids"]]
             assert all([root_chunk_list_id in chunk_list["parent_ids"] for chunk_list in tablet_chunk_lists]) 
-            assert get("//tmp/t/@chunk_count") == sum([len(chunk_list["children_ids"]) for chunk_list in tablet_chunk_lists])
+            assert get("//tmp/t/@chunk_count") == sum([len(chunk_list["child_ids"]) for chunk_list in tablet_chunk_lists])
             return root_chunk_list, tablet_chunk_lists
 
         def verify_chunk_tree_refcount(path, root_ref_count, tablet_ref_counts):

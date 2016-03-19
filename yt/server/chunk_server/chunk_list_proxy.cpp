@@ -36,7 +36,7 @@ private:
     {
         TBase::ListSystemAttributes(descriptors);
 
-        descriptors->push_back("children_ids");
+        descriptors->push_back("child_ids");
         descriptors->push_back("parent_ids");
         descriptors->push_back("statistics");
         descriptors->push_back(TAttributeDescriptor("tree")
@@ -84,7 +84,7 @@ private:
 
         auto* chunkList = GetThisTypedImpl();
 
-        if (key == "children_ids") {
+        if (key == "child_ids") {
             BuildYsonFluently(consumer)
                 .DoListFor(chunkList->Children(), [=] (TFluentList fluent, const TChunkTree* child) {
                     fluent.Item().Value(child->GetId());

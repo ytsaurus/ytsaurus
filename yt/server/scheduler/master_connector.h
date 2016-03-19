@@ -65,7 +65,7 @@ public:
     TFuture<void> AttachToLivePreview(
         TOperationPtr operation,
         const NCypressClient::TNodeId& tableId,
-        const std::vector<NChunkClient::TChunkTreeId>& childrenIds);
+        const std::vector<NChunkClient::TChunkTreeId>& childIds);
 
     void AddGlobalWatcherRequester(TWatcherRequester requester);
     void AddGlobalWatcherHandler(TWatcherHandler handler);
