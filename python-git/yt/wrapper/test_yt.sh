@@ -89,6 +89,16 @@ test_cypress_commands()
     check "" "`./yt find //home/wrapper_test --attribute-filter "attr=1"`"
 }
 
+test_concatenate()
+{
+    echo "Hello" | ./yt write-file //home/wrapper_test/file_a
+    echo "World" | ./yt write-file //home/wrapper_test/file_b
+
+    ./yt concatenate --src //home/wrapper_test/file_a --src //home/wrapper_test/file_b --dst //home/wrapper_test/output_file
+
+    check "$(echo -e "Hello\nWorld")" "$(./yt read-file //home/wrapper_test/output_file)"
+}
+
 # read and write table
 test_table_commands()
 {
@@ -244,6 +254,7 @@ test_transactions()
 tear_down
 run_test test_table_commands
 run_test test_cypress_commands
+run_test test_concatenate
 run_test test_file_commands
 run_test test_copy_move_link
 run_test test_map_reduce

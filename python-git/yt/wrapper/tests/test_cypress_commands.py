@@ -422,3 +422,33 @@ class TestCypressCommands(object):
     def test_utf8(self):
         yt.create("table", TEST_DIR + "/table", attributes={"attr": u"капуста"})
 
+    def test_concatenate(self):
+        tableA = TEST_DIR + "/tableA"
+        tableB = TEST_DIR + "/tableB"
+        output_table = TEST_DIR + "/outputTable"
+
+        yt.write_table(tableA, ["x=1\ty=2\n"], format="dsv")
+        yt.write_table(tableB, ["x=10\ty=20\n"], format="dsv")
+        yt.concatenate([tableA, tableB], output_table)
+
+        assert ["x=1\ty=2\n", "x=10\ty=20\n"] == list(yt.read_table(output_table, format="dsv"))
+
+
+        fileA = TEST_DIR + "/fileA"
+        fileB = TEST_DIR + "/fileB"
+        output_file = TEST_DIR + "/outputFile"
+
+        yt.write_file(fileA, "Hello")
+        yt.write_file(fileB, "World")
+        yt.concatenate([fileA, fileB], output_file)
+
+        assert "HelloWorld" == yt.read_file(output_file).read()
+
+        with pytest.raises(yt.YtError):
+            yt.concatenate([], None)
+
+        with pytest.raises(yt.YtError):
+            yt.concatenate([fileA, tableB], output_table)
+
+        with pytest.raises(yt.YtError):
+            yt.concatenate([TEST_DIR, tableB], output_table)

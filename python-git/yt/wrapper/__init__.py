@@ -11,9 +11,10 @@ from yamr_record import Record
 from format import DsvFormat, YamrFormat, YsonFormat, JsonFormat, SchemafulDsvFormat,\
                    YamredDsvFormat, Format, create_format, dumps_row, loads_row, YtFormatError, set_yamr_mode
 from table import TablePath, to_table, to_name, TempTable
-from cypress_commands import set, get, list, exists, remove, search, mkdir, copy, move, link,\
-                          get_type, create, find_free_subpath,\
-                          has_attribute, get_attribute, set_attribute, list_attributes
+from cypress_commands import set, get, list, exists, remove, search,\
+                             mkdir, copy, move, link, concatenate,\
+                             get_type, create, find_free_subpath,\
+                             has_attribute, get_attribute, set_attribute, list_attributes
 from acl_commands import check_permission, add_member, remove_member
 from table_commands import create_table, create_temp_table, write_table, read_table, \
                            records_count, row_count, is_sorted, is_empty, \
