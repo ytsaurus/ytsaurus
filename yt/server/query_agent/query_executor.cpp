@@ -434,7 +434,7 @@ private:
 
         LOG_DEBUG("Sorting %v splits", splits.size());
 
-        std::sort(splits.begin(), splits.end(), [] (const TDataRange & lhs, const TDataRange & rhs) {
+        std::sort(splits.begin(), splits.end(), [] (const TDataRange& lhs, const TDataRange& rhs) {
             return lhs.Range.first < rhs.Range.first;
         });
 
