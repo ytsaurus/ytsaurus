@@ -119,6 +119,11 @@ inline TNonversionedObjectBase::TNonversionedObjectBase(const TObjectId& id)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+inline bool TObjectRefComparer::Compare(const TObjectBase* lhs, const TObjectBase* rhs)
+{
+    return lhs->GetId() < rhs->GetId();
+}
+
 inline TObjectId GetObjectId(const TObjectBase* object)
 {
     return object ? object->GetId() : NullObjectId;

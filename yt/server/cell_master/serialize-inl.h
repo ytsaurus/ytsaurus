@@ -47,15 +47,6 @@ struct TNonversionedObjectRefSerializer
     }
 };
 
-struct TNonversionedObjectRefComparer
-{
-    template <class T>
-    static bool Compare(T* lhs, T* rhs)
-    {
-        return lhs->GetId() < rhs->GetId();
-    }
-};
-
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TVersionedObjectRefSerializer
@@ -84,15 +75,6 @@ struct TVersionedObjectRefSerializer
     }
 };
 
-struct TVersionedObjectRefComparer
-{
-    template <class T>
-    static bool Compare(T* lhs, T* rhs)
-    {
-        return lhs->GetVersionedId() < rhs->GetVersionedId();
-    }
-};
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NCellMaster
@@ -118,16 +100,16 @@ struct TSerializerTraits<
 >
 {
     typedef NCellMaster::TNonversionedObjectRefSerializer TSerializer;
-    typedef NCellMaster::TNonversionedObjectRefComparer TComparer;
+    typedef NObjectServer::TObjectRefComparer TComparer;
 };
 
-template <class C>
-struct TSerializerTraits<NNodeTrackerServer::TNode*, C>
-{
-    typedef NCellMaster::TNonversionedObjectRefSerializer TSerializer;
-    typedef NCellMaster::TNonversionedObjectRefComparer TComparer;
-};
-
+//template <class C>
+//struct TSerializerTraits<NNodeTrackerServer::TNode*, C>
+//{
+//    typedef NCellMaster::TNonversionedObjectRefSerializer TSerializer;
+//    typedef NObjectServer::TObjectRefComparer TComparer;
+//};
+//
 template <class T, class C>
 struct TSerializerTraits<
     T,
@@ -138,7 +120,7 @@ struct TSerializerTraits<
 >
 {
     typedef NCellMaster::TVersionedObjectRefSerializer TSerializer;
-    typedef NCellMaster::TVersionedObjectRefComparer TComparer;
+    typedef NCypressServer::TCypressNodeRefComparer TComparer;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -562,7 +562,8 @@ public:
             multicellManager->PostToMasters(request, transaction->SecondaryCellTags());
         }
 
-        auto nestedTransactions = transaction->NestedTransactions();
+        SmallVector<TTransaction*, 16> nestedTransactions(transaction->NestedTransactions().begin(), transaction->NestedTransactions().end());
+        std::sort(nestedTransactions.begin(), nestedTransactions.end(), TObjectRefComparer::Compare);
         for (auto* nestedTransaction : nestedTransactions) {
             LOG_DEBUG_UNLESS(IsRecovery(), "Aborting nested transaction on parent commit (TransactionId: %v, ParentId: %v)",
                 nestedTransaction->GetId(),
@@ -1084,21 +1085,6 @@ private:
                 cellTag,
                 TransactionMap_.GetSize());
         }
-    }
-
-    static std::vector<TTransaction*> SortTransactions(const yhash_set<TTransaction*>& set)
-    {
-        std::vector<TTransaction*> vector;
-        for (auto* transaction : set) {
-            if (IsObjectAlive(transaction)) {
-                vector.push_back(transaction);
-            }
-        }
-        std::sort(
-            vector.begin(),
-            vector.end(),
-            [] (TTransaction* lhs, TTransaction* rhs) { return lhs->GetId() < rhs->GetId(); });
-        return vector;
     }
 };
 

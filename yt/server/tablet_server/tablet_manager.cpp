@@ -854,19 +854,9 @@ public:
             EnumerateChunksInChunkTree(chunkLists[index]->AsChunkList(), &chunks);
         }
 
-        std::sort(
-            chunks.begin(),
-            chunks.end(),
-            [] (TChunk* lhs, TChunk* rhs) {
-                return lhs->GetId() < rhs->GetId();
-            });
+        std::sort(chunks.begin(), chunks.end(), TObjectRefComparer::Compare);
         chunks.erase(
-            std::unique(
-                chunks.begin(),
-                chunks.end(),
-                [] (TChunk* lhs, TChunk* rhs) {
-                    return lhs->GetId() == rhs->GetId();
-                }),
+            std::unique(chunks.begin(), chunks.end()),
             chunks.end());
 
         for (auto* chunk : chunks) {
