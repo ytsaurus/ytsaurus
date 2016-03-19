@@ -190,7 +190,7 @@ class TransferManager(object):
         update(headers, TM_HEADERS)
 
         if method == "POST":
-            require(self.token is not None, YtError("YT token is not specified"))
+            require(self.token is not None, lambda: YtError("YT token is not specified"))
             headers["Authorization"] = "OAuth " + self.token
 
         params = {}

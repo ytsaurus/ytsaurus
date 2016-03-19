@@ -195,12 +195,12 @@ def _prepare_formats(format, input_format, output_format, binary, client):
     if input_format is None:
         input_format = format
     require(input_format is not None,
-            YtError("You should specify input format"))
+            lambda: YtError("You should specify input format"))
 
     if output_format is None:
         output_format = format
     require(output_format is not None,
-            YtError("You should specify output format"))
+            lambda: YtError("You should specify output format"))
 
     return input_format, output_format
 
@@ -214,7 +214,7 @@ def _prepare_format(format, raw, client):
         format = create_format(format)
 
     require(format is not None,
-            YtError("You should specify format"))
+            lambda: YtError("You should specify format"))
     return format
 
 def _prepare_binary(binary, operation_type, input_format=None, output_format=None,
@@ -255,8 +255,8 @@ def _prepare_destination_tables(tables, replication_factor, compression_codec, c
                                                                          "replication_factor",
                                                                          client=client))
             require(compression_codec_ok and replication_factor_ok,
-                    YtError("Cannot append to table %s and set replication factor "
-                            "or compression codec" % table))
+                    lambda: YtError("Cannot append to table %s and set replication factor "
+                                    "or compression codec" % table))
         else:
             create_table(table.name, ignore_existing=True, replication_factor=replication_factor,
                          compression_codec=compression_codec, client=client)
@@ -282,11 +282,11 @@ def _add_user_command_spec(op_type, binary, format, input_format, output_format,
         return spec
 
     if local_files is not None:
-        require(files is None, YtError("You cannot specify files and local_files simultaneously"))
+        require(files is None, lambda: YtError("You cannot specify files and local_files simultaneously"))
         files = local_files
 
     if yt_files is not None:
-        require(file_paths is None, YtError("You cannot specify yt_files and file_paths simultaneously"))
+        require(file_paths is None, lambda: YtError("You cannot specify yt_files and file_paths simultaneously"))
         file_paths = yt_files
 
     files = _reliably_upload_files(files, client=client)
@@ -436,7 +436,7 @@ def _get_format_from_tables(tables, ignore_unexisting_tables):
     formats = map(extract_format, tables_to_extract)
 
     require(len(set(repr(format) for format in formats)) == 1,
-            YtError("Tables have different attribute _format: " + repr(formats)))
+            lambda: YtError("Tables have different attribute _format: " + repr(formats)))
 
     return formats[0]
 
@@ -476,7 +476,7 @@ def create_temp_table(path=None, prefix=None, client=None):
         mkdir(path, recursive=True, client=client)
     else:
         path = to_name(path, client=client)
-    require(exists(path, client=client), YtError("You cannot create table in unexisting path"))
+    require(exists(path, client=client), lambda: YtError("You cannot create table in unexisting path"))
     if prefix is not None:
         path = os.path.join(path, prefix)
     else:
@@ -520,8 +520,8 @@ def write_table(table, input_stream, format=None, table_writer=None,
     def prepare_table(path):
         if exists(path, client=client):
             require(replication_factor is None and compression_codec is None,
-                    YtError("Cannot write to existing path %s "
-                            "with set replication factor or compression codec" % path))
+                    lambda: YtError("Cannot write to existing path %s "
+                                    "with set replication factor or compression codec" % path))
         else:
             create_table(path, ignore_existing=True, replication_factor=replication_factor,
                          compression_codec=compression_codec, client=client)
@@ -1143,14 +1143,14 @@ def run_sort(source_table, destination_table=None, sort_by=None,
     sort_by = _prepare_sort_by(sort_by, client)
     source_table = _prepare_source_tables(source_table, replace_unexisting_by_empty=False, client=client)
     for table in source_table:
-        require(exists(table.name, client=client), YtError("Table %s should exist" % table))
+        require(exists(table.name, client=client), lambda: YtError("Table %s should exist" % table))
 
     if destination_table is None:
         if get_config(client)["yamr_mode"]["treat_unexisting_as_empty"] and not source_table:
             return
         require(len(source_table) == 1 and not source_table[0].has_delimiters(),
-                YtError("You must specify destination sort table "
-                        "in case of multiple source tables"))
+                lambda: YtError("You must specify destination sort table "
+                                "in case of multiple source tables"))
         destination_table = source_table[0]
     destination_table = unlist(_prepare_destination_tables(destination_table, replication_factor,
                                                            compression_codec, client=client))

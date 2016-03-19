@@ -203,7 +203,7 @@ def get_proxy_url(proxy=None, check=True, client=None):
         proxy = proxy + get_config(client=client)["proxy"]["default_suffix"]
 
     if check:
-        require(proxy, YtError("You should specify proxy"))
+        require(proxy, lambda: YtError("You should specify proxy"))
 
     return proxy
 
@@ -233,7 +233,7 @@ def get_api_version(client=None):
                 api_version = "v3"
             else:
                 api_version = "v2"
-            require(api_version in api_versions, YtError("API {0} is not supported".format(api_version)))
+            require(api_version in api_versions, lambda: YtError("API {0} is not supported".format(api_version)))
     else:
         api_version = "v3"
 
@@ -270,7 +270,7 @@ def get_token(client=None):
         logger.debug("Token got from environment variable")
     if token is not None:
         require(all(c in string.hexdigits for c in token),
-                YtTokenError("You have an improper authentication token"))
+                lambda: YtTokenError("You have an improper authentication token"))
     if not token:
         token = None
     return token

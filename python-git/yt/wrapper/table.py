@@ -10,9 +10,9 @@ from contextlib import contextmanager
 
 def check_prefix(prefix):
     require(prefix.startswith("//"),
-            YtError("PREFIX should start with //"))
+            lambda: YtError("PREFIX should start with //"))
     require(prefix.endswith("/"),
-            YtError("PREFIX should end with /"))
+            lambda: YtError("PREFIX should end with /"))
 
 class TablePath(object):
     """
@@ -82,11 +82,11 @@ class TablePath(object):
         if str(self.name) != "/" and not self.name.startswith("//") and not self.name.startswith("#"):
             prefix = get_config(client)["prefix"]
             require(prefix,
-                    YtError("Path '%s' should be absolute or you should specify a prefix" % self.name))
+                    lambda: YtError("Path '%s' should be absolute or you should specify a prefix" % self.name))
             require(prefix.startswith("//"),
-                    YtError("PREFIX '%s' should start with //" % prefix))
+                    lambda: YtError("PREFIX '%s' should start with //" % prefix))
             require(prefix.endswith("/"),
-                    YtError("PREFIX '%s' should end with /" % prefix))
+                    lambda: YtError("PREFIX '%s' should end with /" % prefix))
             # TODO(ignat): refactor YsonString to fix this hack
             attributes = self.name.attributes
             self.name = YsonString(prefix + self.name if self.name else prefix[:-1])

@@ -18,7 +18,7 @@ class YtError(Exception):
         self.inner_errors = inner_errors if inner_errors is not None else []
         self.attributes = attributes if attributes else {}
         if "host" not in self.attributes:
-            self.attributes["host"] = socket.getfqdn()
+            self.attributes["host"] = self._get_fqdn()
         if "datetime" not in self.attributes:
             self.attributes["datetime"] = datetime_to_string(datetime.now())
 
@@ -37,6 +37,12 @@ class YtError(Exception):
 
     def __str__(self):
         return format_error(self)
+
+    @staticmethod
+    def _get_fqdn():
+        if not hasattr(YtError, "cached_fqdn"):
+            YtError._cached_fqdn = socket.getfqdn()
+        return YtError._cached_fqdn
 
 class YtResponseError(YtError):
     """Represents an error in YT response"""
@@ -168,8 +174,9 @@ def unlist(l):
     except TypeError: # cannot calculate len
         return l
 
-def require(condition, exception):
-    if not condition: raise exception
+def require(condition, exception_func):
+    if not condition:
+        raise exception_func()
 
 def update(object, patch):
     if isinstance(patch, Mapping) and isinstance(object, Mapping):
