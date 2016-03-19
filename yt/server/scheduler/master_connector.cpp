@@ -235,11 +235,11 @@ public:
     TFuture<void> AttachToLivePreview(
         TOperationPtr operation,
         const TNodeId& tableId,
-        const std::vector<TChunkTreeId>& childrenIds)
+        const std::vector<TChunkTreeId>& childIds)
     {
         return BIND(&TImpl::DoAttachToLivePreview, MakeStrong(this))
             .AsyncVia(CancelableControlInvoker)
-            .Run(operation, tableId, childrenIds);
+            .Run(operation, tableId, childIds);
     }
 
     TFuture<TSharedRef> DownloadSnapshot(const TOperationId& operationId)
@@ -1409,7 +1409,7 @@ private:
         {
             TNodeId TableId;
             TCellTag CellTag;
-            std::vector<TChunkId> ChildrenIds;
+            std::vector<TChunkId> ChildIds;
             TTransactionId UploadTransactionId;
             TChunkListId UploadChunkListId;
             NChunkClient::NProto::TDataStatistics Statistics;
@@ -1419,7 +1419,7 @@ private:
         for (const auto& request : livePreviewRequests) {
             auto& tableInfo = tableIdToInfo[request.TableId];
             tableInfo.TableId = request.TableId;
-            tableInfo.ChildrenIds.push_back(request.ChildId);
+            tableInfo.ChildIds.push_back(request.ChildId);
         }
 
         if (tableIdToInfo.empty()) {
@@ -1431,7 +1431,7 @@ private:
             LOG_DEBUG("Appending live preview chunk trees (OperationId: %v, TableId: %v, ChildCount: %v)",
                 operation->GetId(),
                 tableInfo.TableId,
-                tableInfo.ChildrenIds.size());
+                tableInfo.ChildIds.size());
         }
 
         // BeginUpload
@@ -1507,17 +1507,17 @@ private:
             std::vector<int> tableIndexToRspIndex;
             for (const auto* tableInfo : tableInfos) {
                 size_t beginIndex = 0;
-                const auto& childrenIds = tableInfo->ChildrenIds;
-                while (beginIndex < childrenIds.size()) {
-                    auto lastIndex = std::min(beginIndex + Config->MaxChildrenPerAttachRequest, childrenIds.size());
-                    bool isFinal = (lastIndex == childrenIds.size());
+                const auto& childIds = tableInfo->ChildIds;
+                while (beginIndex < childIds.size()) {
+                    auto lastIndex = std::min(beginIndex + Config->MaxChildrenPerAttachRequest, childIds.size());
+                    bool isFinal = (lastIndex == childIds.size());
                     if (isFinal) {
                         tableIndexToRspIndex.push_back(batchReq->attach_chunk_trees_subrequests_size());
                     }
                     auto* req = batchReq->add_attach_chunk_trees_subrequests();
                     ToProto(req->mutable_parent_id(), tableInfo->UploadChunkListId);
                     for (auto index = beginIndex; index < lastIndex; ++index) {
-                        ToProto(req->add_child_ids(), childrenIds[index]);
+                        ToProto(req->add_child_ids(), childIds[index]);
                     }
                     req->set_request_statistics(isFinal);
                     beginIndex = lastIndex;
@@ -1846,7 +1846,7 @@ private:
     void DoAttachToLivePreview(
         TOperationPtr operation,
         const TNodeId& tableId,
-        const std::vector<TChunkTreeId>& childrenIds)
+        const std::vector<TChunkTreeId>& childIds)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
         YCHECK(Connected);
@@ -1854,10 +1854,10 @@ private:
         LOG_DEBUG("Attaching live preview chunk trees (OperationId: %v, TableId: %v, ChildCount: %v)",
               operation->GetId(),
               tableId,
-              childrenIds.size());
+              childIds.size());
 
         auto* list = GetUpdateList(operation->GetId());
-        for (const auto& childId : childrenIds) {
+        for (const auto& childId : childIds) {
             list->LivePreviewRequests.push_back(TLivePreviewRequest{tableId, childId});
         }
     }
@@ -1933,9 +1933,9 @@ void TMasterConnector::AttachJobContext(
 TFuture<void> TMasterConnector::AttachToLivePreview(
     TOperationPtr operation,
     const TNodeId& tableId,
-    const std::vector<TChunkTreeId>& childrenIds)
+    const std::vector<TChunkTreeId>& childIds)
 {
-    return Impl->AttachToLivePreview(operation, tableId, childrenIds);
+    return Impl->AttachToLivePreview(operation, tableId, childIds);
 }
 
 void TMasterConnector::AddGlobalWatcherRequester(TWatcherRequester requester)

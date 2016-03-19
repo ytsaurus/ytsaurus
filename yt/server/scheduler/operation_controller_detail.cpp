@@ -1374,30 +1374,30 @@ void TOperationControllerBase::ReinstallLivePreview()
 
     if (IsOutputLivePreviewSupported()) {
         for (const auto& table : OutputTables) {
-            std::vector<TChunkTreeId> childrenIds;
-            childrenIds.reserve(table.OutputChunkTreeIds.size());
+            std::vector<TChunkTreeId> childIds;
+            childIds.reserve(table.OutputChunkTreeIds.size());
             for (const auto& pair : table.OutputChunkTreeIds) {
-                childrenIds.push_back(pair.second);
+                childIds.push_back(pair.second);
             }
             masterConnector->AttachToLivePreview(
                 Operation,
                 table.LivePreviewTableId,
-                childrenIds);
+                childIds);
         }
     }
 
     if (IsIntermediateLivePreviewSupported()) {
-        std::vector<TChunkTreeId> childrenIds;
-        childrenIds.reserve(ChunkOriginMap.size());
+        std::vector<TChunkTreeId> childIds;
+        childIds.reserve(ChunkOriginMap.size());
         for (const auto& pair : ChunkOriginMap) {
             if (!pair.second->Lost) {
-                childrenIds.push_back(pair.first);
+                childIds.push_back(pair.first);
             }
         }
         masterConnector->AttachToLivePreview(
             Operation,
             IntermediateTable.LivePreviewTableId,
-            childrenIds);
+            childIds);
     }
 }
 
