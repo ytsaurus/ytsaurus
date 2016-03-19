@@ -356,7 +356,7 @@ static TError ProcessInfoToError(const siginfo_t& processInfo)
                 "Process exited with code %v",
                 exitCode);
         }
-    } else if ((processInfo.si_code == CLD_KILLED) || (processInfo.si_code == CLD_DUMPED)) {
+    } else if (processInfo.si_code == CLD_KILLED || processInfo.si_code == CLD_DUMPED) {
         return TError(
             signalBase + processInfo.si_status,
             "Process terminated by signal %v",
