@@ -78,7 +78,7 @@ IOrderedStorePtr IStore::AsOrdered()
 
 void TStoreIdFormatter::operator()(TStringBuilder* builder, const IStorePtr& store) const
 {
-    builder->AppendFormat("%v", store->GetId());
+    FormatValue(builder, store->GetId(), TStringBuf());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

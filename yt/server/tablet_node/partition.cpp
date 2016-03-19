@@ -157,7 +157,7 @@ void TPartition::StopEpoch()
 
 void TPartitionIdFormatter::operator()(TStringBuilder* builder, const std::unique_ptr<TPartition>& partition) const
 {
-    builder->AppendFormat("%v", partition->GetId());
+    FormatValue(builder, partition->GetId(), TStringBuf());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

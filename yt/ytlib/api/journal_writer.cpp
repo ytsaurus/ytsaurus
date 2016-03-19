@@ -2,7 +2,6 @@
 #include "private.h"
 #include "config.h"
 
-#include <yt/ytlib/chunk_client/chunk_list_ypath_proxy.h>
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/ytlib/chunk_client/chunk_owner_ypath_proxy.h>
 #include <yt/ytlib/chunk_client/chunk_service_proxy.h>
@@ -645,13 +644,13 @@ private:
 
             LOG_INFO("Attaching chunk");
             {
-                TObjectServiceProxy proxy(UploadMasterChannel_);
+                TChunkServiceProxy proxy(UploadMasterChannel_);
                 auto batchReq = proxy.ExecuteBatch();
+                GenerateMutationId(batchReq);
 
-                auto req = TChunkListYPathProxy::Attach(FromObjectId(ChunkListId_));
-                ToProto(req->add_children_ids(), chunkId);
-                GenerateMutationId(req);
-                batchReq->AddRequest(req, "attach");
+                auto* req = batchReq->add_attach_chunk_trees_subrequests();
+                ToProto(req->mutable_parent_id(), ChunkListId_);
+                ToProto(req->add_child_ids(), chunkId);
 
                 auto batchRspOrError = WaitFor(batchReq->Invoke());
                 THROW_ERROR_EXCEPTION_IF_FAILED(

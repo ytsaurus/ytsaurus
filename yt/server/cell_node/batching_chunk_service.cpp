@@ -441,6 +441,7 @@ private:
     {
         YCHECK(request->create_chunk_lists_subrequests_size() == 0);
         YCHECK(request->unstage_chunk_tree_subrequests_size() == 0);
+        YCHECK(request->attach_chunk_trees_subrequests_size() == 0);
         ExecuteBatchBatcher_->HandleRequest(context);
     }
 };

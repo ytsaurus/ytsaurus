@@ -11,7 +11,8 @@
 #include <yt/server/cell_scheduler/bootstrap.h>
 #include <yt/server/cell_scheduler/config.h>
 
-#include <yt/ytlib/chunk_client/chunk_list_ypath_proxy.h>
+#include <yt/ytlib/chunk_client/chunk_service_proxy.h>
+#include <yt/ytlib/chunk_client/helpers.h>
 
 #include <yt/ytlib/cypress_client/cypress_ypath_proxy.h>
 #include <yt/ytlib/cypress_client/rpc_helpers.h>
@@ -100,7 +101,7 @@ public:
         auto strategy = Bootstrap->GetScheduler()->GetStrategy();
 
         auto path = GetOperationPath(operationId);
-        auto batchReq = StartBatchRequest();
+        auto batchReq = StartObjectBatchRequest();
         {
             auto req = TYPathProxy::Set(path);
             req->set_value(BuildYsonStringFluently()
@@ -163,7 +164,7 @@ public:
         LOG_INFO("Resetting reviving operation node (OperationId: %v)",
             operationId);
 
-        auto batchReq = StartBatchRequest();
+        auto batchReq = StartObjectBatchRequest();
 
         auto attributes = ConvertToAttributes(BuildYsonStringFluently()
             .BeginMap()
@@ -538,7 +539,7 @@ private:
         // - Update orchid address.
         void AssumeControl()
         {
-            auto batchReq = Owner->StartBatchRequest();
+            auto batchReq = Owner->StartObjectBatchRequest();
             auto schedulerAddress = Owner->Bootstrap->GetLocalAddress();
             {
                 auto req = TYPathProxy::Set("//sys/scheduler/@address");
@@ -566,7 +567,7 @@ private:
         // - Request operations and their states.
         void ListOperations()
         {
-            auto batchReq = Owner->StartBatchRequest();
+            auto batchReq = Owner->StartObjectBatchRequest();
             {
                 auto req = TYPathProxy::List("//sys/operations");
                 std::vector<Stroka> attributeKeys{
@@ -601,7 +602,7 @@ private:
         // - Recreate operation instance from fetched data.
         void RequestOperationAttributes()
         {
-            auto batchReq = Owner->StartBatchRequest();
+            auto batchReq = Owner->StartObjectBatchRequest();
             {
                 LOG_INFO("Fetching attributes for %v unfinished operations",
                     OperationIds.size());
@@ -655,7 +656,7 @@ private:
         // - Send watcher requests.
         void InvokeWatchers()
         {
-            auto batchReq = Owner->StartBatchRequest();
+            auto batchReq = Owner->StartObjectBatchRequest();
             for (auto requester : Owner->GlobalWatcherRequesters) {
                 requester.Run(batchReq);
             }
@@ -667,7 +668,7 @@ private:
     };
 
 
-    TObjectServiceProxy::TReqExecuteBatchPtr StartBatchRequest(TCellTag cellTag = PrimaryMasterCellTag)
+    TObjectServiceProxy::TReqExecuteBatchPtr StartObjectBatchRequest(TCellTag cellTag = PrimaryMasterCellTag)
     {
         TObjectServiceProxy proxy(Bootstrap
             ->GetMasterClient()
@@ -678,6 +679,14 @@ private:
         auto* prerequisiteTransaction = prerequisitesExt->add_transactions();
         ToProto(prerequisiteTransaction->mutable_transaction_id(), LockTransaction->GetId());
         return batchReq;
+    }
+
+    TChunkServiceProxy::TReqExecuteBatchPtr StartChunkBatchRequest(TCellTag cellTag = PrimaryMasterCellTag)
+    {
+        TChunkServiceProxy proxy(Bootstrap
+            ->GetMasterClient()
+            ->GetMasterChannelOrThrow(EMasterChannelKind::Leader, cellTag));
+        return proxy.ExecuteBatch();
     }
 
 
@@ -1091,7 +1100,7 @@ private:
 
     void UpdateOperationNodeAttributes(TOperationPtr operation)
     {
-        auto batchReq = StartBatchRequest();
+        auto batchReq = StartObjectBatchRequest();
         auto state = operation->GetState();
         auto operationPath = GetOperationPath(operation->GetId());
         auto controller = operation->GetController();
@@ -1168,7 +1177,7 @@ private:
     {
         auto snapshotPath = GetSnapshotPath(operationId);
 
-        auto batchReq = StartBatchRequest();
+        auto batchReq = StartObjectBatchRequest();
         auto req = TYPathProxy::Get(snapshotPath + "/@version");
         batchReq->AddRequest(req, "get_version");
 
@@ -1206,7 +1215,7 @@ private:
 
     void DoRemoveSnapshot(const TOperationId& operationId)
     {
-        auto batchReq = StartBatchRequest();
+        auto batchReq = StartObjectBatchRequest();
         auto req = TYPathProxy::Remove(GetSnapshotPath(operationId));
         req->set_force(true);
         batchReq->AddRequest(req, "remove_snapshot");
@@ -1220,7 +1229,7 @@ private:
         TOperationPtr operation,
         const std::vector<TJobRequest>& jobRequests)
     {
-        auto batchReq = StartBatchRequest();
+        auto batchReq = StartObjectBatchRequest();
 
         for (const auto& request : jobRequests) {
             auto job = request.Job;
@@ -1279,7 +1288,7 @@ private:
         std::vector<TJobFileInfo> infos;
 
         {
-            auto batchReq = StartBatchRequest();
+            auto batchReq = StartObjectBatchRequest();
 
             for (const auto& file : files) {
                 {
@@ -1336,7 +1345,7 @@ private:
         }
 
         {
-            auto batchReq = StartBatchRequest();
+            auto batchReq = StartObjectBatchRequest();
 
             for (const auto& info : infos) {
                 auto req = TFileYPathProxy::GetUploadParams(FromObjectId(info.NodeId));
@@ -1357,25 +1366,31 @@ private:
         }
 
         {
-            auto batchReq = StartBatchRequest();
+            auto batchReq = StartChunkBatchRequest();
+            GenerateMutationId(batchReq);
 
             for (int index = 0; index < files.size(); ++index) {
                 const auto& file = files[index];
                 const auto& info = infos[index];
+                auto* req = batchReq->add_attach_chunk_trees_subrequests();
+                ToProto(req->mutable_parent_id(), info.ChunkListId);
+                ToProto(req->add_child_ids(), file.ChunkId);
+            }
 
-                {
-                    auto req = TChunkListYPathProxy::Attach(FromObjectId(info.ChunkListId));
-                    ToProto(req->add_children_ids(), file.ChunkId);
-                    GenerateMutationId(req);
-                    batchReq->AddRequest(req, "attach");
-                }
-                {
-                    auto req = TFileYPathProxy::EndUpload(FromObjectId(info.NodeId));
-                    req->set_derive_statistics(true);
-                    SetTransactionId(req, info.UploadTransactionId);
-                    GenerateMutationId(req);
-                    batchReq->AddRequest(req, "end_upload");
-                }
+            auto batchRspOrError = WaitFor(batchReq->Invoke());
+            THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError));
+        }
+
+        {
+            auto batchReq = StartObjectBatchRequest();
+
+            for (int index = 0; index < files.size(); ++index) {
+                const auto& info = infos[index];
+                auto req = TFileYPathProxy::EndUpload(FromObjectId(info.NodeId));
+                req->set_derive_statistics(true);
+                SetTransactionId(req, info.UploadTransactionId);
+                GenerateMutationId(req);
+                batchReq->AddRequest(req);
             }
 
             auto batchRspOrError = WaitFor(batchReq->Invoke());
@@ -1421,7 +1436,7 @@ private:
 
         // BeginUpload
         {
-            auto batchReq = StartBatchRequest();
+            auto batchReq = StartObjectBatchRequest();
 
             for (const auto& pair : tableIdToInfo) {
                 const auto& tableId = pair.first;
@@ -1462,7 +1477,7 @@ private:
             auto cellTag = pair.first;
             auto& tableInfos = pair.second;
 
-            auto batchReq = StartBatchRequest(cellTag);
+            auto batchReq = StartObjectBatchRequest(cellTag);
             for (const auto* tableInfo : tableInfos) {
                 auto req = TTableYPathProxy::GetUploadParams(FromObjectId(tableInfo->TableId));
                 SetTransactionId(req, tableInfo->UploadTransactionId);
@@ -1486,20 +1501,25 @@ private:
             auto cellTag = pair.first;
             auto& tableInfos = pair.second;
 
-            auto batchReq = StartBatchRequest(cellTag);
+            auto batchReq = StartChunkBatchRequest(cellTag);
+            GenerateMutationId(batchReq);
+
+            std::vector<int> tableIndexToRspIndex;
             for (const auto* tableInfo : tableInfos) {
                 size_t beginIndex = 0;
                 const auto& childrenIds = tableInfo->ChildrenIds;
                 while (beginIndex < childrenIds.size()) {
                     auto lastIndex = std::min(beginIndex + Config->MaxChildrenPerAttachRequest, childrenIds.size());
                     bool isFinal = (lastIndex == childrenIds.size());
-                    auto req = TChunkListYPathProxy::Attach(FromObjectId(tableInfo->UploadChunkListId));
-                    req->set_request_statistics(isFinal);
-                    for (auto index = beginIndex; index < lastIndex; ++index) {
-                        ToProto(req->add_children_ids(), childrenIds[index]);
+                    if (isFinal) {
+                        tableIndexToRspIndex.push_back(batchReq->attach_chunk_trees_subrequests_size());
                     }
-                    GenerateMutationId(req);
-                    batchReq->AddRequest(req, isFinal ? "final_attach" : "intermediate_attach");
+                    auto* req = batchReq->add_attach_chunk_trees_subrequests();
+                    ToProto(req->mutable_parent_id(), tableInfo->UploadChunkListId);
+                    for (auto index = beginIndex; index < lastIndex; ++index) {
+                        ToProto(req->add_child_ids(), childrenIds[index]);
+                    }
+                    req->set_request_statistics(isFinal);
                     beginIndex = lastIndex;
                 }
             }
@@ -1508,17 +1528,17 @@ private:
             THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError));
             const auto& batchRsp = batchRspOrError.Value();
 
-            auto rsps = batchRsp->GetResponses<TChunkListYPathProxy::TRspAttach>("final_attach");
-            int rspIndex = 0;
-            for (auto* tableInfo : tableInfos) {
-                const auto& rsp = rsps[rspIndex++].Value();
-                tableInfo->Statistics = rsp->statistics();
+            const auto& rsps = batchRsp->attach_chunk_trees_subresponses();
+            for (int tableIndex = 0; tableIndex < tableInfos.size(); ++tableIndex) {
+                auto* tableInfo = tableInfos[tableIndex];
+                const auto& rsp = rsps.Get(tableIndexToRspIndex[tableIndex]);
+                tableInfo->Statistics = rsp.statistics();
             }
         }
 
         // EndUpload
         {
-            auto batchReq = StartBatchRequest();
+            auto batchReq = StartObjectBatchRequest();
 
             for (const auto& pair : tableIdToInfo) {
                 const auto& tableId = pair.first;
@@ -1679,7 +1699,7 @@ private:
 
         // Global watchers.
         {
-            auto batchReq = StartBatchRequest();
+            auto batchReq = StartObjectBatchRequest();
             for (auto requester : GlobalWatcherRequesters) {
                 requester.Run(batchReq);
             }
@@ -1707,7 +1727,7 @@ private:
             if (operation->GetState() != EOperationState::Running)
                 continue;
 
-            auto batchReq = StartBatchRequest();
+            auto batchReq = StartObjectBatchRequest();
             for (auto requester : list.WatcherRequesters) {
                 requester.Run(batchReq);
             }
@@ -1789,7 +1809,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        auto batchReq = StartBatchRequest();
+        auto batchReq = StartObjectBatchRequest();
         auto req = TYPathProxy::Get("//sys/clusters");
         batchReq->AddRequest(req, "get_cluster");
 

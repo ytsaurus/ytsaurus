@@ -11,11 +11,12 @@
 #include "table_reader.h"
 #include "transaction.h"
 
-#include <yt/ytlib/chunk_client/chunk_list_ypath_proxy.h>
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/ytlib/chunk_client/chunk_replica.h>
 #include <yt/ytlib/chunk_client/read_limit.h>
 #include <yt/ytlib/chunk_client/chunk_teleporter.h>
+#include <yt/ytlib/chunk_client/chunk_service_proxy.h>
+#include <yt/ytlib/chunk_client/helpers.h>
 
 #include <yt/ytlib/cypress_client/cypress_ypath_proxy.h>
 #include <yt/ytlib/cypress_client/rpc_helpers.h>
@@ -71,7 +72,6 @@
 #include <yt/core/ytree/ypath_proxy.h>
 
 // TODO(babenko): refactor this
-#include <yt/ytlib/object_client/object_service_proxy.h>
 #include <yt/ytlib/table_client/chunk_meta_extensions.h>
 #include <yt/ytlib/table_client/schemaful_reader.h>
 #include <yt/ytlib/table_client/table_ypath_proxy.h>
@@ -1394,19 +1394,21 @@ private:
     }
 
 
-    std::unique_ptr<TObjectServiceProxy> CreateReadProxy(
+    template <class TProxy>
+    std::unique_ptr<TProxy> CreateReadProxy(
         const TMasterReadOptions& options,
         TCellTag cellTag = PrimaryMasterCellTag)
     {
         auto channel = GetMasterChannelOrThrow(options.ReadFrom, cellTag);
-        return std::make_unique<TObjectServiceProxy>(channel);
+        return std::make_unique<TProxy>(channel);
     }
 
-    std::unique_ptr<TObjectServiceProxy> CreateWriteProxy(
+    template <class TProxy>
+    std::unique_ptr<TProxy> CreateWriteProxy(
         TCellTag cellTag = PrimaryMasterCellTag)
     {
         auto channel = GetMasterChannelOrThrow(EMasterChannelKind::Leader, cellTag);
-        return std::make_unique<TObjectServiceProxy>(channel);
+        return std::make_unique<TProxy>(channel);
     }
 
 
@@ -1775,7 +1777,7 @@ private:
             ToProto(req->mutable_cell_id(), options.CellId);
         }
 
-        auto proxy = CreateWriteProxy();
+        auto proxy = CreateWriteProxy<TObjectServiceProxy>();
         WaitFor(proxy->Execute(req))
             .ThrowOnError();
     }
@@ -1793,7 +1795,7 @@ private:
         }
         req->set_force(options.Force);
 
-        auto proxy = CreateWriteProxy();
+        auto proxy = CreateWriteProxy<TObjectServiceProxy>();
         WaitFor(proxy->Execute(req))
             .ThrowOnError();
     }
@@ -1810,7 +1812,7 @@ private:
             req->set_first_tablet_index(*options.LastTabletIndex);
         }
 
-        auto proxy = CreateWriteProxy();
+        auto proxy = CreateWriteProxy<TObjectServiceProxy>();
         WaitFor(proxy->Execute(req))
             .ThrowOnError();
     }
@@ -1829,7 +1831,7 @@ private:
         }
         ToProto(req->mutable_pivot_keys(), pivotKeys);
 
-        auto proxy = CreateWriteProxy();
+        auto proxy = CreateWriteProxy<TObjectServiceProxy>();
         WaitFor(proxy->Execute(req))
             .ThrowOnError();
     }
@@ -1843,7 +1845,7 @@ private:
             ToProto(req->mutable_schema(), *options.Schema);
         }
 
-        auto proxy = CreateWriteProxy();
+        auto proxy = CreateWriteProxy<TObjectServiceProxy>();
         WaitFor(proxy->Execute(req))
             .ThrowOnError();
     }
@@ -1867,7 +1869,7 @@ private:
             ToProto(req->mutable_options(), *options.Options);
         }
 
-        auto proxy = CreateReadProxy(options);
+        auto proxy = CreateReadProxy<TObjectServiceProxy>(options);
         auto rsp = WaitFor(proxy->Execute(req))
             .ValueOrThrow();
 
@@ -1879,7 +1881,7 @@ private:
         const TYsonString& value,
         TSetNodeOptions options)
     {
-        auto proxy = CreateWriteProxy();
+        auto proxy = CreateWriteProxy<TObjectServiceProxy>();
         auto batchReq = proxy->ExecuteBatch();
         SetPrerequisites(batchReq, options);
 
@@ -1899,7 +1901,7 @@ private:
         const TYPath& path,
         TRemoveNodeOptions options)
     {
-        auto proxy = CreateWriteProxy();
+        auto proxy = CreateWriteProxy<TObjectServiceProxy>();
         auto batchReq = proxy->ExecuteBatch();
         SetPrerequisites(batchReq, options);
 
@@ -1931,7 +1933,7 @@ private:
             req->set_limit(*options.MaxSize);
         }
 
-        auto proxy = CreateReadProxy(options);
+        auto proxy = CreateReadProxy<TObjectServiceProxy>(options);
         auto rsp = WaitFor(proxy->Execute(req))
             .ValueOrThrow();
         return TYsonString(rsp->value());
@@ -1942,7 +1944,7 @@ private:
         EObjectType type,
         TCreateNodeOptions options)
     {
-        auto proxy = CreateWriteProxy();
+        auto proxy = CreateWriteProxy<TObjectServiceProxy>();
         auto batchReq = proxy->ExecuteBatch();
         SetPrerequisites(batchReq, options);
 
@@ -1969,7 +1971,7 @@ private:
         NCypressClient::ELockMode mode,
         TLockNodeOptions options)
     {
-        auto proxy = CreateWriteProxy();
+        auto proxy = CreateWriteProxy<TObjectServiceProxy>();
         auto batchReq = proxy->ExecuteBatch();
         SetPrerequisites(batchReq, options);
 
@@ -1998,7 +2000,7 @@ private:
         const TYPath& dstPath,
         TCopyNodeOptions options)
     {
-        auto proxy = CreateWriteProxy();
+        auto proxy = CreateWriteProxy<TObjectServiceProxy>();
         auto batchReq = proxy->ExecuteBatch();
         SetPrerequisites(batchReq, options);
 
@@ -2023,7 +2025,7 @@ private:
         const TYPath& dstPath,
         TMoveNodeOptions options)
     {
-        auto proxy = CreateWriteProxy();
+        auto proxy = CreateWriteProxy<TObjectServiceProxy>();
         auto batchReq = proxy->ExecuteBatch();
         SetPrerequisites(batchReq, options);
 
@@ -2049,7 +2051,7 @@ private:
         const TYPath& dstPath,
         TLinkNodeOptions options)
     {
-        auto proxy = CreateWriteProxy();
+        auto proxy = CreateWriteProxy<TObjectServiceProxy>();
         auto batchReq = proxy->ExecuteBatch();
         SetPrerequisites(batchReq, options);
 
@@ -2083,7 +2085,7 @@ private:
             TObjectId dstId;
             TCellTag dstCellTag;
             {
-                auto proxy = CreateReadProxy(options);
+                auto proxy = CreateReadProxy<TObjectServiceProxy>(options);
                 auto batchReq = proxy->ExecuteBatch();
 
                 for (const auto& path : srcPaths) {
@@ -2161,7 +2163,7 @@ private:
                     auto srcCellTag = pair.first;
                     const auto& srcIndexes = pair.second;
 
-                    auto proxy = CreateReadProxy(options, srcCellTag);
+                    auto proxy = CreateReadProxy<TObjectServiceProxy>(options, srcCellTag);
                     auto batchReq = proxy->ExecuteBatch();
 
                     for (int localIndex = 0; localIndex < srcIndexes.size(); ++localIndex) {
@@ -2194,7 +2196,7 @@ private:
             // Begin upload.
             TTransactionId uploadTransactionId;
             {
-                auto proxy = CreateWriteProxy();
+                auto proxy = CreateWriteProxy<TObjectServiceProxy>();
 
                 auto req = TChunkOwnerYPathProxy::BeginUpload(dstIdPath);
                 req->set_update_mode(static_cast<int>(options.Append ? EUpdateMode::Append : EUpdateMode::Overwrite));
@@ -2240,7 +2242,7 @@ private:
             // Get upload params.
             TChunkListId chunkListId;
             {
-                auto proxy = CreateReadProxy(options, dstCellTag);
+                auto proxy = CreateReadProxy<TObjectServiceProxy>(options, dstCellTag);
 
                 auto req = TChunkOwnerYPathProxy::GetUploadParams(dstIdPath);
                 NCypressClient::SetTransactionId(req, uploadTransactionId);
@@ -2255,23 +2257,27 @@ private:
             // Attach chunks to chunk list.
             TDataStatistics dataStatistics;
             {
-                auto proxy = CreateWriteProxy(dstCellTag);
+                auto proxy = CreateWriteProxy<TChunkServiceProxy>(dstCellTag);
                 
-                auto req = TChunkListYPathProxy::Attach(FromObjectId(chunkListId));
-                ToProto(req->mutable_children_ids(), flatChunkIds);
-                req->set_request_statistics(true);
-                GenerateMutationId(req, options);
-            
-                auto rspOrError = WaitFor(proxy->Execute(req));
-                THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error attaching chunks to %v", dstPath);
-                const auto& rsp = rspOrError.Value();
+                auto batchReq = proxy->ExecuteBatch();
+                GenerateMutationId(batchReq, options);
 
-                dataStatistics = rsp->statistics();
+                auto req = batchReq->add_attach_chunk_trees_subrequests();
+                ToProto(req->mutable_parent_id(), chunkListId);
+                ToProto(req->mutable_child_ids(), flatChunkIds);
+                req->set_request_statistics(true);
+
+                auto batchRspOrError = WaitFor(batchReq->Invoke());
+                THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError), "Error attaching chunks to %v", dstPath);
+                const auto& batchRsp = batchRspOrError.Value();
+
+                const auto& rsp = batchRsp->attach_chunk_trees_subresponses(0);
+                dataStatistics = rsp.statistics();
             }
 
             // End upload.
             {
-                auto proxy = CreateWriteProxy();
+                auto proxy = CreateWriteProxy<TObjectServiceProxy>();
 
                 auto req = TChunkOwnerYPathProxy::EndUpload(dstIdPath);
                 *req->mutable_statistics() = dataStatistics;
@@ -2296,7 +2302,7 @@ private:
         auto req = TYPathProxy::Exists(path);
         SetTransactionId(req, options, true);
 
-        auto proxy = CreateReadProxy(options);
+        auto proxy = CreateReadProxy<TObjectServiceProxy>(options);
         auto rsp = WaitFor(proxy->Execute(req))
             .ValueOrThrow();
         return rsp->value();
@@ -2307,7 +2313,7 @@ private:
         EObjectType type,
         TCreateObjectOptions options)
     {
-        auto proxy = CreateWriteProxy();
+        auto proxy = CreateWriteProxy<TObjectServiceProxy>();
         auto batchReq = proxy->ExecuteBatch();
         SetPrerequisites(batchReq, options);
 
@@ -2336,7 +2342,7 @@ private:
         req->set_name(member);
         GenerateMutationId(req, options);
 
-        auto proxy = CreateWriteProxy();
+        auto proxy = CreateWriteProxy<TObjectServiceProxy>();
         WaitFor(proxy->Execute(req))
             .ThrowOnError();
     }
@@ -2350,7 +2356,7 @@ private:
         req->set_name(member);
         GenerateMutationId(req, options);
 
-        auto proxy = CreateWriteProxy();
+        auto proxy = CreateWriteProxy<TObjectServiceProxy>();
         WaitFor(proxy->Execute(req))
             .ThrowOnError();
     }
@@ -2366,7 +2372,7 @@ private:
         req->set_permission(static_cast<int>(permission));
         SetTransactionId(req, options, true);
 
-        auto proxy = CreateReadProxy(options);
+        auto proxy = CreateReadProxy<TObjectServiceProxy>(options);
         auto rsp = WaitFor(proxy->Execute(req))
             .ValueOrThrow();
 
