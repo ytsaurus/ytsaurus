@@ -107,9 +107,20 @@ private:
 
 };
 
+////////////////////////////////////////////////////////////////////////////////
+
+struct TCypressNodeRefComparer
+{
+    static bool Compare(const TCypressNodeBase* lhs, const TCypressNodeBase* rhs);
+};
+
 NObjectServer::TVersionedObjectId GetObjectId(const TCypressNodeBase* object);
 
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NCypressServer
 } // namespace NYT
+
+#define NODE_INL_H_
+#include "node-inl.h"
+#undef NODE_INL_H_

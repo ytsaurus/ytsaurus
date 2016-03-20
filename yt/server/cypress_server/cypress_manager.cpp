@@ -820,12 +820,7 @@ public:
         }
 
         // Ensure deterministic order of children.
-        std::sort(
-            childrenToLock.begin(),
-            childrenToLock.end(),
-            [] (const TCypressNodeBase* lhs, const TCypressNodeBase* rhs) {
-                return lhs->GetVersionedId() < rhs->GetVersionedId();
-            });
+        std::sort(childrenToLock.begin(), childrenToLock.end(), TCypressNodeRefComparer::Compare);
 
         TCypressNodeBase* lockedNode = nullptr;
         for (auto* child : childrenToLock) {
@@ -919,7 +914,7 @@ public:
         TCypressNodeBase* trunkNode,
         TTransaction* transaction)
     {
-        std::vector<TTransaction*> transactions;
+        SmallVector<TTransaction*, 16> transactions;
 
         auto addLock = [&] (const TLock* lock) {
             // Get the top-most transaction.
@@ -940,12 +935,7 @@ public:
             }
         }
 
-        std::sort(
-            transactions.begin(),
-            transactions.end(),
-            [] (const TTransaction* lhs, const TTransaction* rhs) {
-                return lhs->GetId() < rhs->GetId();
-            });
+        std::sort(transactions.begin(), transactions.end(), TObjectRefComparer::Compare);
         transactions.erase(
             std::unique(transactions.begin(), transactions.end()),
             transactions.end());
@@ -1681,11 +1671,13 @@ private:
         auto* parentTransaction = transaction->GetParent();
         auto objectManager = Bootstrap_->GetObjectManager();
 
-        TTransaction::TLockSet locks;
-        transaction->Locks().swap(locks);
+        SmallVector<TLock*, 16> locks(transaction->Locks().begin(), transaction->Locks().end());
+        transaction->Locks().clear();
+        std::sort(locks.begin(), locks.end(), TObjectRefComparer::Compare);
 
-        TTransaction::TLockedNodeSet lockedNodes;
-        transaction->LockedNodes().swap(lockedNodes);
+        SmallVector<TCypressNodeBase*, 16> lockedNodes(transaction->LockedNodes().begin(), transaction->LockedNodes().end());
+        transaction->LockedNodes().clear();
+        std::sort(lockedNodes.begin(), lockedNodes.end(), TCypressNodeRefComparer::Compare);
 
         for (auto* lock : locks) {
             auto* trunkNode = lock->GetTrunkNode();

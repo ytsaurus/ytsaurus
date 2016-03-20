@@ -142,6 +142,11 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TObjectRefComparer
+{
+    static bool Compare(const TObjectBase* lhs, const TObjectBase* rhs);
+};
+
 TObjectId GetObjectId(const TObjectBase* object);
 bool IsObjectAlive(const TObjectBase* object);
 

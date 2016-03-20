@@ -667,15 +667,18 @@ private:
             }
 
             TDelayedExecutor::Submit(
-                BIND([=, this_ = MakeStrong(this), session_ = MakeWeak(session)] () {
-                    auto session = session_.Lock();
-                    if (session) {
-                        EnqueueCommand(TSwitchChunkCommand{session});
-                    }
-                }),
+                BIND(&TImpl::OnSessionTimeout, MakeWeak(this), MakeWeak(session)),
                 Config_->MaxChunkSessionDuration);
 
             return true;
+        }
+
+        void OnSessionTimeout(const TWeakPtr<TChunkSession>& session_)
+        {
+            auto session = session_.Lock();
+            if (session) {
+                EnqueueCommand(TSwitchChunkCommand{session});
+            }
         }
 
         void OpenChunk()
