@@ -290,12 +290,12 @@ const TStringBuf& TEnumTraits<T, true>::GetTypeName()
 
 template <class T, class E, E Min, E Max>
 TEnumIndexedVector<T, E, Min, Max>::TEnumIndexedVector()
-    : Items_{}
+    : Items_(N)
 { }
 
 template <class T, class E, E Min, E Max>
 TEnumIndexedVector<T, E, Min, Max>::TEnumIndexedVector(std::initializer_list<T> elements)
-    : Items_{}
+    : Items_(N)
 {
     YASSERT(std::distance(elements.begin(), elements.end()) <= N);
     int index = 0;
