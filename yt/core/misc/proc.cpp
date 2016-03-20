@@ -155,27 +155,29 @@ void UmountAsRoot(const Stroka& path)
 
 TError StatusToError(int status)
 {
-    int signalBase = static_cast<int>(EExitStatus::SignalBase);
     if (WIFEXITED(status) && (WEXITSTATUS(status) == 0)) {
         return TError();
     } else if (WIFSIGNALED(status)) {
         int signalNumber = WTERMSIG(status);
         return TError(
-            signalBase + signalNumber,
+            EProcessErrorCode::Signal,
             "Process terminated by signal %v",
-            signalNumber);
+            signalNumber)
+            << TErrorAttribute("signal", signalNumber);
     } else if (WIFSTOPPED(status)) {
         int signalNumber = WSTOPSIG(status);
         return TError(
-            signalBase + signalNumber,
+            EProcessErrorCode::Signal,
             "Process stopped by signal %v",
-            signalNumber);
+            signalNumber)
+            << TErrorAttribute("signal", signalNumber);
     } else if (WIFEXITED(status)) {
         int exitCode = WEXITSTATUS(status);
         return TError(
-            signalBase + exitCode,
+            EProcessErrorCode::NonZeroExitCode,
             "Process exited with code %v",
-            exitCode);
+            exitCode)
+            << TErrorAttribute("exit_code", exitCode);
     } else {
         return TError("Unknown status %v", status);
     }

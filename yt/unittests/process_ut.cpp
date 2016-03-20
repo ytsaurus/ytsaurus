@@ -117,9 +117,8 @@ TEST(TProcessTest, ProcessReturnCode123)
     ASSERT_NO_THROW(finished = p->Spawn());
     ASSERT_TRUE(p->IsStarted());
     auto error = WaitFor(finished);
-    EXPECT_FALSE(error.IsOK());
-    EXPECT_EQ("Process exited with code 123", error.GetMessage());
-    EXPECT_EQ(TErrorCode(static_cast<int>(EExitStatus::SignalBase) + 123), error.GetCode());
+    EXPECT_EQ(EProcessErrorCode::NonZeroExitCode, error.GetCode());
+    EXPECT_EQ(123, error.Attributes().Get<int>("exit_code"));
     EXPECT_TRUE(p->IsFinished());
 }
 

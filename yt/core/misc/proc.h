@@ -47,12 +47,9 @@ void SetPermissions(int fd, int permissions);
 
 void CloseAllDescriptors(const std::vector<int>& exceptFor = std::vector<int>());
 
-DEFINE_ENUM(EExitStatus,
-    ((ExitCodeBase)         (10000))
-
-    ((SignalBase)           (11000))
-    ((SigTerm)              (11006))
-    ((SigKill)              (11009))
+DEFINE_ENUM(EProcessErrorCode,
+    ((NonZeroExitCode)      (10000))
+    ((Signal)               (10001))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

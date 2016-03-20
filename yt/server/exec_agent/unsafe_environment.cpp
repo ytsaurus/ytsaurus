@@ -7,6 +7,7 @@
 #include <yt/server/job_proxy/public.h>
 
 #include <yt/core/misc/process.h>
+#include <yt/core/misc/proc.h>
 
 #include <yt/core/tools/tools.h>
 
@@ -152,15 +153,37 @@ private:
     {
         LOG_INFO("Waiting for job proxy to finish");
 
-        auto error = WaitFor(ProcessFinished_);
-        LOG_INFO(error, "Job proxy finished");
+        auto spawnError = WaitFor(ProcessFinished_);
+        auto jobProxyError = BuildJobProxyError(spawnError);
+        if (jobProxyError.IsOK()) {
+            LOG_INFO("Job proxy completed");
+        } else {
+            LOG_ERROR(jobProxyError);
+        }
+        ProxyExited_.Set(jobProxyError);
+    }
 
-        if (!error.IsOK()) {
-            error = TError("Job proxy failed") << error;
+    static TError BuildJobProxyError(const TError& spawnError)
+    {
+        if (spawnError.IsOK()) {
+            return TError();
         }
 
-        ProxyExited_.Set(error);
+        auto jobProxyError = TError("Job proxy failed") <<
+            spawnError;
+
+        if (spawnError.GetCode() == EProcessErrorCode::NonZeroExitCode) {
+            // Try to translate the numeric exit code into some human readable reason.
+            auto reason = EJobProxyExitCode(spawnError.Attributes().Get<int>("exit_code"));
+            const auto& validReasons = TEnumTraits<EJobProxyExitCode>::GetDomainValues();
+            if (std::find(validReasons.begin(), validReasons.end(), reason) != validReasons.end()) {
+                jobProxyError.Attributes().Set("reason", reason);
+            }
+        }
+
+        return jobProxyError;
     }
+
 
     const Stroka ProxyPath_;
     const TJobId JobId_;

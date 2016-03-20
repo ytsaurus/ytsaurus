@@ -414,7 +414,7 @@ private:
             return;
         }
 
-        auto abortReason = GetAbortReason(jobResult, Signaled_);
+        auto abortReason = GetAbortReason(jobResult);
         if (abortReason) {
             error.Attributes().Set("abort_reason", abortReason);
             ToProto(JobResult_->mutable_error(), error);
@@ -625,37 +625,41 @@ private:
             fileName);
     }
 
-    static TNullable<EAbortReason> GetAbortReason(const TJobResult& jobResult, bool signaled)
+    TNullable<EAbortReason> GetAbortReason(const TJobResult& jobResult)
     {
         auto resultError = FromProto<TError>(jobResult.error());
 
         if (jobResult.HasExtension(TSchedulerJobResultExt::scheduler_job_result_ext)) {
             const auto& schedulerResultExt = jobResult.GetExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
             if (schedulerResultExt.failed_chunk_ids_size() > 0) {
-                return MakeNullable(EAbortReason::FailedChunks);
+                return EAbortReason::FailedChunks;
             }
         }
 
         if (resultError.FindMatching(NExecAgent::EErrorCode::ResourceOverdraft)) {
-            return MakeNullable(EAbortReason::ResourceOverdraft);
+            return EAbortReason::ResourceOverdraft;
         }
 
         if (resultError.FindMatching(NExecAgent::EErrorCode::AbortByScheduler)) {
-            return MakeNullable(EAbortReason::Scheduler);
+            return EAbortReason::Scheduler;
         }
 
         if (resultError.FindMatching(NChunkClient::EErrorCode::AllTargetNodesFailed) ||
             resultError.FindMatching(NChunkClient::EErrorCode::MasterCommunicationFailed) ||
             resultError.FindMatching(NChunkClient::EErrorCode::MasterNotConnected) ||
-            resultError.FindMatching(NExecAgent::EErrorCode::ConfigCreationFailed) ||
-            resultError.FindMatching(
-                static_cast<int>(EExitStatus::ExitCodeBase) +
-                static_cast<int>(NExecAgent::EJobProxyExitCode::HeartbeatFailed)))
+            resultError.FindMatching(NExecAgent::EErrorCode::ConfigCreationFailed))
         {
-            return MakeNullable(EAbortReason::Other);
+            return EAbortReason::Other;
         }
 
-        if (signaled) {
+        if (auto processError = resultError.FindMatching(EProcessErrorCode::NonZeroExitCode)) {
+            auto exitCode = processError->Attributes().Get<int>("exit_code");
+            if (exitCode == static_cast<int>(NExecAgent::EJobProxyExitCode::HeartbeatFailed)) {
+                return EAbortReason::Other;
+            }
+        }
+
+        if (Signaled_) {
             return EAbortReason::Other;
         }
 
