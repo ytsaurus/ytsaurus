@@ -26,7 +26,7 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLogging::TLogger Logger("Process");
+static const NLogging::TLogger Logger("Process");
 
 static const pid_t InvalidProcessId = -1;
 
@@ -67,7 +67,7 @@ bool TryWaitid(idtype_t idtype, id_t id, siginfo_t *infop, int options)
             // was in a waitable state, zero out the si_pid field
             // before the call and check for a nonzero value in this field after
             // the call returns.
-            if ((infop != nullptr) && (infop->si_pid == 0)) {
+            if (infop && infop->si_pid == 0) {
                 return false;
             }
             return true;
@@ -108,7 +108,7 @@ bool TrySetSignalMask(const sigset_t* sigmask, sigset_t* oldSigmask)
 {
     int error = pthread_sigmask(SIG_SETMASK, sigmask, oldSigmask);
     if (error != 0) {
-      return false;
+        return false;
     }
     return true;
 }
@@ -128,15 +128,12 @@ bool TryResetSignals()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_REFCOUNTED_TYPE(TProcess)
-
 TProcess::TProcess(const Stroka& path, bool copyEnv, TDuration pollPeriod)
-    : ProcessId_(InvalidProcessId)
     // Stroka is guaranteed to be zero-terminated.
     // https://wiki.yandex-team.ru/Development/Poisk/arcadia/util/StrokaAndTStringBuf#sobstvennosimvoly
-    , Path_(path)
+    : Path_(path)
     , PollPeriod_(pollPeriod)
-    , FinishedPromise_(NewPromise<void>())
+    , ProcessId_(InvalidProcessId)
 {
     AddArgument(NFS::GetFileName(path));
 
@@ -345,24 +342,34 @@ void TProcess::ValidateSpawnResult()
 #ifdef _unix_
 static TError ProcessInfoToError(const siginfo_t& processInfo)
 {
-    int signalBase = static_cast<int>(EExitStatus::SignalBase);
-    if (processInfo.si_code == CLD_EXITED) {
-        auto exitCode = processInfo.si_status;
-        if (exitCode == 0) {
-            return TError();
-        } else {
-            return TError(
-                signalBase + exitCode,
-                "Process exited with code %v",
-                exitCode);
+    switch (processInfo.si_code) {
+        case CLD_EXITED: {
+            auto exitCode = processInfo.si_status;
+            if (exitCode == 0) {
+                return TError();
+            } else {
+                return TError(
+                    EProcessErrorCode::NonZeroExitCode,
+                    "Process exited with code %v",
+                    exitCode)
+                    << TErrorAttribute("exit_code", exitCode);
+            }
         }
-    } else if (processInfo.si_code == CLD_KILLED || processInfo.si_code == CLD_DUMPED) {
-        return TError(
-            signalBase + processInfo.si_status,
-            "Process terminated by signal %v",
-            processInfo.si_status);
+
+        case CLD_KILLED:
+        case CLD_DUMPED: {
+            int signal = processInfo.si_status;
+            return TError(
+                EProcessErrorCode::Signal,
+                "Process terminated by signal %v",
+                signal)
+                << TErrorAttribute("signal", signal);
+        }
+
+        default:
+            return TError("Unknown signal code %v",
+                processInfo.si_code);
     }
-    YUNREACHABLE();
 }
 #endif
 
