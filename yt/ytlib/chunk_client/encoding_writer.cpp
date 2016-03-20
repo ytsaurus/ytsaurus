@@ -12,6 +12,7 @@
 #include <yt/core/concurrency/action_queue.h>
 
 #include <yt/core/misc/finally.h>
+#include <yt/core/misc/serialize.h>
 
 namespace NYT {
 namespace NChunkClient {

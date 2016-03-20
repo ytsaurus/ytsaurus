@@ -48,7 +48,7 @@
 
 #include <yt/core/misc/address.h>
 
-#include <yt/core/ytree/attribute_helpers.h>
+#include <yt/core/ytree/helpers.h>
 
 namespace NYT {
 namespace NTabletNode {

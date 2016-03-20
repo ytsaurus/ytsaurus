@@ -67,7 +67,7 @@
 #include <yt/core/rpc/scoped_channel.h>
 #include <yt/core/rpc/latency_taming_channel.h>
 
-#include <yt/core/ytree/attribute_helpers.h>
+#include <yt/core/ytree/helpers.h>
 #include <yt/core/ytree/fluent.h>
 #include <yt/core/ytree/ypath_proxy.h>
 

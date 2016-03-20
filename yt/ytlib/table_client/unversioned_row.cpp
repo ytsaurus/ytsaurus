@@ -12,7 +12,7 @@
 
 #include <yt/core/yson/consumer.h>
 
-#include <yt/core/ytree/attribute_helpers.h>
+#include <yt/core/ytree/helpers.h>
 #include <yt/core/ytree/node.h>
 #include <yt/core/ytree/convert.h>
 

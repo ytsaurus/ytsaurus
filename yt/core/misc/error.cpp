@@ -5,6 +5,7 @@
 #include <yt/core/concurrency/scheduler.h>
 
 #include <yt/core/misc/error.pb.h>
+#include <yt/core/misc/protobuf_helpers.h>
 
 #include <yt/core/tracing/trace_context.h>
 
@@ -19,6 +20,9 @@ namespace NYT {
 
 using namespace NYTree;
 using namespace NYson;
+
+using NYT::FromProto;
+using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -36,7 +40,7 @@ const char* GetStaticLocalHostName()
     }
     return LocalHostName;
 }
-}
+} // namespace
 
 void TErrorCode::Save(TStreamSaveContext& context) const
 {

@@ -1,5 +1,6 @@
 #include "latency_taming_channel.h"
 #include "channel.h"
+#include "client.h"
 #include "private.h"
 
 #include <yt/core/misc/small_vector.h>

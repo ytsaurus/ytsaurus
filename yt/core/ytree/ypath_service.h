@@ -96,7 +96,9 @@ struct IYPathService
 
     //! Creates a YPath service from a class method.
     template <class T, class R>
-    static IYPathServicePtr FromMethod(R (T::*method) () const, TWeakPtr<T> weak);
+    static IYPathServicePtr FromMethod(
+        R (T::*method) () const,
+        const TWeakPtr<T>& weak);
 
     //! Creates a wrapper that handles all requests via the given invoker.
     IYPathServicePtr Via(IInvokerPtr invoker);
@@ -119,8 +121,3 @@ DEFINE_REFCOUNTED_TYPE(IYPathService)
 
 } // namespace NYTree
 } // namespace NYT
-
-#define YPATH_SERVICE_INL_H_
-#include "ypath_service-inl.h"
-#undef YPATH_SERVICE_INL_H_
-

@@ -13,7 +13,7 @@
 
 #include <yt/core/misc/string.h>
 
-#include <yt/core/ytree/attribute_helpers.h>
+#include <yt/core/ytree/helpers.h>
 
 namespace NYT {
 namespace NYTree {

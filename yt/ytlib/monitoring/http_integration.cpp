@@ -7,7 +7,7 @@
 
 #include <yt/core/yson/parser.h>
 
-#include <yt/core/ytree/attribute_helpers.h>
+#include <yt/core/ytree/helpers.h>
 #include <yt/core/ytree/virtual.h>
 #include <yt/core/ytree/ypath_detail.h>
 #include <yt/core/ytree/ypath_proxy.h>

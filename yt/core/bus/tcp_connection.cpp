@@ -11,6 +11,8 @@
 #include <yt/core/ytree/convert.h>
 #include <yt/core/ytree/fluent.h>
 
+#include <yt/core/profiling/timing.h>
+
 #include <util/system/error.h>
 
 #include <errno.h>

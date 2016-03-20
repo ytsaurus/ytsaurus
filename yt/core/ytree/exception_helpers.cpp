@@ -7,7 +7,7 @@
 
 #include <yt/core/ypath/token.h>
 
-#include <yt/core/ytree/attribute_helpers.h>
+#include <yt/core/ytree/helpers.h>
 
 namespace NYT {
 namespace NYTree {

@@ -4,7 +4,7 @@
 
 #include <yt/core/concurrency/scheduler.h>
 
-#include <yt/core/ytree/attribute_helpers.h>
+#include <yt/core/ytree/helpers.h>
 #include <yt/core/ytree/fluent.h>
 
 namespace NYT {

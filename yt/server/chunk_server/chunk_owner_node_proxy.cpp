@@ -27,7 +27,7 @@
 
 #include <yt/core/erasure/codec.h>
 
-#include <yt/core/ytree/attribute_helpers.h>
+#include <yt/core/ytree/helpers.h>
 #include <yt/core/ytree/fluent.h>
 #include <yt/core/ytree/node.h>
 #include <yt/core/ytree/system_attribute_provider.h>

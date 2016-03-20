@@ -1,5 +1,6 @@
 #include "throttling_channel.h"
 #include "channel_detail.h"
+#include "client.h"
 #include "config.h"
 
 #include <yt/core/concurrency/throughput_throttler.h>

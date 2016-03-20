@@ -21,7 +21,7 @@
 
 #include <yt/core/ypath/token.h>
 
-#include <yt/core/ytree/attribute_helpers.h>
+#include <yt/core/ytree/helpers.h>
 #include <yt/core/ytree/convert.h>
 #include <yt/core/ytree/ypath_proxy.h>
 

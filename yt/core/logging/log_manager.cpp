@@ -23,6 +23,7 @@
 #include <yt/core/ytree/ypath_client.h>
 #include <yt/core/ytree/ypath_service.h>
 #include <yt/core/ytree/yson_serializable.h>
+#include <yt/core/ytree/convert.h>
 
 #include <util/system/defaults.h>
 #include <util/system/sigset.h>

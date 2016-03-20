@@ -1,5 +1,5 @@
 #include "ypath_client.h"
-#include "attribute_helpers.h"
+#include "helpers.h"
 #include "exception_helpers.h"
 #include "ypath_detail.h"
 #include "ypath_proxy.h"
