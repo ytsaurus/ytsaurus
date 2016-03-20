@@ -514,7 +514,7 @@ class TFluentYsonBuilderState
 public:
     typedef INodePtr TValue;
 
-    explicit TFluentYsonBuilderState(INodeFactoryPtr factory)
+    explicit TFluentYsonBuilderState(INodeFactory* factory)
         : Builder(CreateBuilderFromFactory(factory))
     { }
 
@@ -584,7 +584,7 @@ inline TFluentYsonBuilder::TAny< TFluentYsonHolder<TFluentYsonWriterState> > Bui
 }
 
 inline TFluentYsonBuilder::TAny< TFluentYsonHolder<TFluentYsonBuilderState> > BuildYsonNodeFluently(
-    INodeFactoryPtr factory = CreateEphemeralNodeFactory())
+    INodeFactory* factory = GetEphemeralNodeFactory())
 {
     return BuildYsonFluentlyWithState(New<TFluentYsonBuilderState>(factory));
 }

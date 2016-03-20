@@ -71,7 +71,7 @@ std::unique_ptr<IAttributeDictionary> IAttributeDictionary::FromMap(IMapNodePtr 
 
 IMapNodePtr IAttributeDictionary::ToMap() const
 {
-    auto map = CreateEphemeralNodeFactory()->CreateMap();
+    auto map = GetEphemeralNodeFactory()->CreateMap();
     auto keys = List();
     for (const auto& key : keys) {
         map->AddChild(ConvertToNode(GetYson(key)), key);

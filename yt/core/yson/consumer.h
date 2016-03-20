@@ -10,8 +10,7 @@ namespace NYson {
 //! A SAX-like interface for building a YSON stream.
 struct IYsonConsumer
 {
-    virtual ~IYsonConsumer()
-    { }
+    virtual ~IYsonConsumer() = default;
 
     //! The current item is a string scalar (IStringNode).
     /*!

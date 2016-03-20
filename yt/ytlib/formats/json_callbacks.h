@@ -22,7 +22,6 @@ DEFINE_ENUM(EJsonCallbacksNodeType,
 class TJsonCallbacks
 {
 public:
-    TJsonCallbacks();
     TJsonCallbacks(const TUtf8Transcoder& utf8Transcoder, i64 memoryLimit);
 
     void OnStringScalar(const TStringBuf& value);
@@ -47,13 +46,13 @@ private:
     void OnItemFinished();
 
     TUtf8Transcoder Utf8Transcoder_;
-    i64 ConsumedMemory_;
-    i64 MemoryLimit_;
+    i64 ConsumedMemory_ = 0;
+    const i64 MemoryLimit_;
 
     using ENodeType = EJsonCallbacksNodeType;
     std::stack<ENodeType> Stack_;
 
-    std::unique_ptr<NYTree::ITreeBuilder> TreeBuilder_;
+    const std::unique_ptr<NYTree::ITreeBuilder> TreeBuilder_;
     std::queue<NYTree::INodePtr> FinishedNodes_;
     std::queue<i64> NodesMemory_;
 };

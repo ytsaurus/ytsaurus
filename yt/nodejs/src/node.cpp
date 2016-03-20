@@ -204,7 +204,7 @@ INodePtr ConvertV8ValueToNode(Handle<Value> value)
     THREAD_AFFINITY_IS_V8();
     HandleScope scope;
 
-    auto builder = CreateBuilderFromFactory(CreateEphemeralNodeFactory());
+    auto builder = CreateBuilderFromFactory(GetEphemeralNodeFactory());
     builder->BeginTree();
     ConsumeV8Value(value, builder.get());
     return builder->EndTree();

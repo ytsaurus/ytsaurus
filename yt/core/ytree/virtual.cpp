@@ -321,10 +321,10 @@ public:
 
 public:
     explicit TVirtualEntityNode(IYPathServicePtr underlyingService)
-        : UnderlyingService_(underlyingService)
+        : UnderlyingService_(std::move(underlyingService))
     { }
 
-    virtual INodeFactoryPtr CreateFactory() const override
+    virtual std::unique_ptr<ITransactionalNodeFactory> CreateFactory() const override
     {
         YASSERT(Parent_);
         return Parent_->CreateFactory();

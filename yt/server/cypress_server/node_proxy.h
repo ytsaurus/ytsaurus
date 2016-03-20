@@ -24,7 +24,7 @@ namespace NCypressServer {
 
 //! Extends NYTree::INodeFactory by adding Cypress-specific functionality.
 struct ICypressNodeFactory
-    : public virtual NYTree::INodeFactory
+    : public virtual NYTree::ITransactionalNodeFactory
 {
     typedef NRpc::TTypedServiceRequest<NCypressClient::NProto::TReqCreate> TReqCreate;
     typedef NRpc::TTypedServiceResponse<NCypressClient::NProto::TRspCreate> TRspCreate;
@@ -50,8 +50,6 @@ struct ICypressNodeFactory
 
 };
 
-DEFINE_REFCOUNTED_TYPE(ICypressNodeFactory)
-
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Extends NYTree::INode by adding functionality that is common to all
@@ -67,7 +65,7 @@ struct ICypressNodeProxy
     virtual TCypressNodeBase* GetTrunkNode() const = 0;
 
     //! "Covariant" extension of NYTree::INode::CreateFactory.
-    virtual ICypressNodeFactoryPtr CreateCypressFactory(
+    virtual std::unique_ptr<ICypressNodeFactory> CreateCypressFactory(
         NSecurityServer::TAccount* account,
         bool preserveAccount) const = 0;
 

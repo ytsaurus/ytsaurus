@@ -61,7 +61,7 @@ protected:
         ValidatePermission(EPermissionCheckScope::Descendants, EPermission::Remove);
 
         auto factory = CreateFactory();
-        auto builder = CreateBuilderFromFactory(factory);
+        auto builder = CreateBuilderFromFactory(factory.get());
         SetNodeFromProducer(node, ConvertToProducer(value), builder.get());
         factory->Commit();
     }
@@ -96,7 +96,7 @@ protected:
         TCtxSetPtr context) override;
 
     virtual void SetChild(
-        INodeFactoryPtr factory,
+        INodeFactory* factory,
         const TYPath& path,
         INodePtr child,
         bool recursive) = 0;
@@ -123,7 +123,7 @@ protected:
         TCtxListPtr context) override;
 
     virtual void SetChild(
-        INodeFactoryPtr factory,
+        INodeFactory* factory,
         const TYPath& path,
         INodePtr child,
         bool recursive) override;
@@ -143,7 +143,7 @@ protected:
         NRpc::IServiceContextPtr context) override;
 
     virtual void SetChild(
-        INodeFactoryPtr factory,
+        INodeFactory* factory,
         const TYPath& path,
         INodePtr child,
         bool recursive) override;
@@ -223,11 +223,11 @@ DEFINE_ENUM(ENodeFactoryState,
     (RolledBack)
 );
 
-class TNodeFactoryBase
-    : public virtual INodeFactory
+class TTransactionalNodeFactoryBase
+    : public virtual ITransactionalNodeFactory
 {
 public:
-    virtual ~TNodeFactoryBase();
+    virtual ~TTransactionalNodeFactoryBase();
     virtual void Commit() noexcept override;
     virtual void Rollback() noexcept override;
     virtual void RegisterCommitHandler(const std::function<void()>& handler);

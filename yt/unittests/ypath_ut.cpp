@@ -31,7 +31,7 @@ public:
 
     virtual void SetUp()
     {
-        RootService = CreateEphemeralNodeFactory()->CreateMap();
+        RootService = GetEphemeralNodeFactory()->CreateMap();
     }
 
     static TYsonString TextifyYson(const TYsonString& data)

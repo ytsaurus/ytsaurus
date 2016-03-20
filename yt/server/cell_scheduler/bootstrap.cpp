@@ -158,8 +158,7 @@ void TBootstrap::DoRun()
         TRefCountedTracker::Get()->GetMonitoringProducer());
     monitoringManager->Start();
 
-    auto orchidFactory = NYTree::CreateEphemeralNodeFactory(true);
-    auto orchidRoot = orchidFactory->CreateMap();
+    auto orchidRoot = NYTree::GetEphemeralNodeFactory(true)->CreateMap();
     SetNodeByYPath(
         orchidRoot,
         "/monitoring",

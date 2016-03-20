@@ -67,7 +67,7 @@ protected:
     virtual void DoClone(
         TChunkOwner* sourceNode,
         TChunkOwner* clonedNode,
-        NCypressServer::ICypressNodeFactoryPtr factory,
+        NCypressServer::ICypressNodeFactory* factory,
         NCypressServer::ENodeCloneMode mode) override;
 
     virtual int GetDefaultReplicationFactor() const = 0;

@@ -99,8 +99,8 @@ public:
     explicit TStatisticsConsumer(TSampleHandler consumer);
 
 private:
-    std::unique_ptr<NYTree::ITreeBuilder> TreeBuilder_;
-    TSampleHandler SampleHandler_;
+    const std::unique_ptr<NYTree::ITreeBuilder> TreeBuilder_;
+    const TSampleHandler SampleHandler_;
 
     virtual void OnMyListItem() override;
 

@@ -262,7 +262,7 @@ protected:
     virtual void DoClone(
         TTableNode* sourceNode,
         TTableNode* clonedNode,
-        ICypressNodeFactoryPtr factory,
+        ICypressNodeFactory* factory,
         ENodeCloneMode mode) override
     {
         switch (mode) {

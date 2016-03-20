@@ -109,19 +109,19 @@ class TJsonParser::TImpl
 public:
     TImpl(IYsonConsumer* consumer, TJsonFormatConfigPtr config, EYsonType type)
         : Consumer_(consumer)
-        , Config_(config)
+        , Config_(config ? config : New<TJsonFormatConfig>())
         , Type_(type)
+        , Callbacks_(std::make_unique<TJsonCallbacks>(
+            TUtf8Transcoder(Config_->EncodeUtf8),
+            Config_->MemoryLimit))
     {
         YCHECK(Type_ != EYsonType::MapFragment);
-        if (!Config_) {
-            Config_ = New<TJsonFormatConfig>();
-        }
+
         if (Config_->Format == EJsonFormat::Pretty && Type_ == EYsonType::ListFragment) {
             THROW_ERROR_EXCEPTION("Pretty JSON format is not supported for list fragments");
         }
-        Callbacks_ = TJsonCallbacks(TUtf8Transcoder(Config_->EncodeUtf8), Config_->MemoryLimit);
 
-        YajlHandle_ = yajl_alloc(&YajlCallbacks, nullptr, static_cast<void*>(&Callbacks_));
+        YajlHandle_ = yajl_alloc(&YajlCallbacks, nullptr, Callbacks_.get());
         if (Type_ == EYsonType::ListFragment) {
             yajl_config(YajlHandle_, yajl_allow_multiple_values, 1);
             // To allow empty list fragment
@@ -138,14 +138,15 @@ public:
     void Parse(TInputStream* input);
 
 private:
-    IYsonConsumer* Consumer_;
-    TJsonFormatConfigPtr Config_;
-    EYsonType Type_;
+    IYsonConsumer* const Consumer_;
+    const TJsonFormatConfigPtr Config_;
+    const EYsonType Type_;
+
+    const std::unique_ptr<TJsonCallbacks> Callbacks_;
 
     std::vector<char> Buffer_;
 
     yajl_handle YajlHandle_;
-    TJsonCallbacks Callbacks_;
 
     void ConsumeNode(INodePtr node);
     void ConsumeNode(IListNodePtr node);
@@ -158,14 +159,14 @@ private:
 
 void TJsonParser::TImpl::ConsumeNodes()
 {
-    while (Callbacks_.HasFinishedNodes()) {
+    while (Callbacks_->HasFinishedNodes()) {
         if (Type_ == EYsonType::ListFragment) {
             Consumer_->OnListItem();
         }
-        ConsumeNode(Callbacks_.ExtractFinishedNode());
+        ConsumeNode(Callbacks_->ExtractFinishedNode());
     }
     if (Config_->Format == EJsonFormat::Pretty && Type_ == EYsonType::ListFragment) {
-        THROW_ERROR_EXCEPTION("Pretty JSON format isn't supported for list fragments");
+        THROW_ERROR_EXCEPTION("Pretty JSON format is not supported for list fragments");
     }
 }
 
@@ -176,7 +177,7 @@ void TJsonParser::TImpl::OnError(const char* data, int len)
         1,
         reinterpret_cast<const unsigned char*>(data),
         len);
-    auto error = TError("Error parsing JSON") << TError((char *)errorMessage);
+    auto error = TError("Error parsing JSON") << TError((char*) errorMessage);
     yajl_free_error(YajlHandle_, errorMessage);
     yajl_free(YajlHandle_);
     THROW_ERROR_EXCEPTION(error);
@@ -185,9 +186,9 @@ void TJsonParser::TImpl::OnError(const char* data, int len)
 void TJsonParser::TImpl::Read(const TStringBuf& data)
 {
     if (yajl_parse(
-            YajlHandle_,
-            reinterpret_cast<const unsigned char*>(data.Data()),
-            data.Size()) == yajl_status_error)
+        YajlHandle_,
+        reinterpret_cast<const unsigned char*>(data.Data()),
+        data.Size()) == yajl_status_error)
     {
         OnError(data.Data(), data.Size());
     }
@@ -205,8 +206,7 @@ void TJsonParser::TImpl::Finish()
 
 void TJsonParser::TImpl::Parse(TInputStream* input)
 {
-    while (int readLength = input->Read(Buffer_.data(), Config_->BufferSize))
-    {
+    while (int readLength = input->Read(Buffer_.data(), Config_->BufferSize)) {
         Read(TStringBuf(Buffer_.data(), readLength));
     }
     Finish();
@@ -248,13 +248,15 @@ void TJsonParser::TImpl::ConsumeNode(INodePtr node)
 void TJsonParser::TImpl::ConsumeMapFragment(IMapNodePtr map)
 {
     for (const auto& pair : map->GetChildren()) {
-        TStringBuf key = pair.first;
-        INodePtr value = pair.second;
+        auto key = TStringBuf(pair.first);
+        const auto& value = pair.second;
         if (IsSpecialJsonKey(key)) {
             if (key.size() < 2 || key[1] != '$') {
                 THROW_ERROR_EXCEPTION(
-                    "Key '%v' starts with single '$'; use '$%v'"
-                    "to encode this key in JSON format", key, key);
+                    "Key \"%v\" starts with single \"$\"; use \"$%v\" "
+                    "to encode this key in JSON format",
+                    key,
+                    key);
             }
             key = key.substr(1);
         }
@@ -270,7 +272,7 @@ void TJsonParser::TImpl::ConsumeNode(IMapNodePtr map)
         auto attributes = map->FindChild("$attributes");
         if (attributes) {
             if (attributes->GetType() != ENodeType::Map) {
-                THROW_ERROR_EXCEPTION("Value of $attributes must be map");
+                THROW_ERROR_EXCEPTION("Value of \"$attributes\" must be a map");
             }
             Consumer_->OnBeginAttributes();
             ConsumeMapFragment(attributes->AsMap());
@@ -281,7 +283,7 @@ void TJsonParser::TImpl::ConsumeNode(IMapNodePtr map)
 
         if (type) {
             if (type->GetType() != ENodeType::String) {
-                THROW_ERROR_EXCEPTION("Value of $type must be string");
+                THROW_ERROR_EXCEPTION("Value of \"$type\" must be a string");
             }
             auto typeString = type->AsString()->GetValue();
             ENodeType expectedType;
@@ -296,7 +298,7 @@ void TJsonParser::TImpl::ConsumeNode(IMapNodePtr map)
             } else if (typeString == "boolean") {
                 expectedType = ENodeType::Boolean;
             } else {
-                THROW_ERROR_EXCEPTION("Unexpected $type value %Qv", typeString);
+                THROW_ERROR_EXCEPTION("Unexpected \"$type\" value %Qv", typeString);
             }
 
             if (node->GetType() == expectedType) {
@@ -319,7 +321,7 @@ void TJsonParser::TImpl::ConsumeNode(IMapNodePtr map)
                         } else if (nodeAsString == "false") {
                             Consumer_->OnBooleanScalar(false);
                         } else {
-                            THROW_ERROR_EXCEPTION("Incorrect boolean string %Qv", nodeAsString);
+                            THROW_ERROR_EXCEPTION("Invalid boolean string %Qv", nodeAsString);
                         }
                         break;
                     }
@@ -359,7 +361,7 @@ void TJsonParser::TImpl::ConsumeNode(IMapNodePtr map)
         }
     } else {
         if (map->FindChild("$attributes")) {
-            THROW_ERROR_EXCEPTION("Found key `$attributes` without key `$value`");
+            THROW_ERROR_EXCEPTION("Found key \"$attributes\" without key \"$value\"");
         }
         Consumer_->OnBeginMap();
         ConsumeMapFragment(map);

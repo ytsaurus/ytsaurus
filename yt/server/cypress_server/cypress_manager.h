@@ -54,7 +54,7 @@ public:
     typedef NRpc::TTypedServiceResponse<NCypressClient::NProto::TRspCreate> TRspCreate;
 
     //! Creates a factory for creating nodes.
-    ICypressNodeFactoryPtr CreateNodeFactory(
+    std::unique_ptr<ICypressNodeFactory> CreateNodeFactory(
         NTransactionServer::TTransaction* transaction,
         NSecurityServer::TAccount* account,
         bool preserveAccount);
@@ -77,7 +77,7 @@ public:
     //! Clones a node and registers its clone.
     TCypressNodeBase* CloneNode(
         TCypressNodeBase* sourceNode,
-        ICypressNodeFactoryPtr factory,
+        ICypressNodeFactory* factory,
         ENodeCloneMode mode);
 
     //! Returns the root node.

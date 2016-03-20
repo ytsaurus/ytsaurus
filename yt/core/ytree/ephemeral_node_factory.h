@@ -1,14 +1,18 @@
 #pragma once
 
-#include "public.h"
+#include "node.h"
 
 namespace NYT {
 namespace NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Returns a factory for creating an ephemeral (non-persistent, in memory) YTree.
-INodeFactoryPtr CreateEphemeralNodeFactory(bool shouldHideAttributes = false);
+//! Builds a transactional factory for creating ephemeral
+//! (non-persistent, in memory) YTree nodes.
+std::unique_ptr<ITransactionalNodeFactory> CreateEphemeralNodeFactory(bool shouldHideAttributes = false);
+
+//! Returns a cached instance of non-transactional factory.
+INodeFactory* GetEphemeralNodeFactory(bool shouldHideAttributes = false);
 
 ////////////////////////////////////////////////////////////////////////////////
 

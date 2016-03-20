@@ -63,7 +63,7 @@ public:
         : ShouldHideAttributes_(shouldHideAttributes)
     { }
 
-    virtual INodeFactoryPtr CreateFactory() const override
+    virtual std::unique_ptr<ITransactionalNodeFactory> CreateFactory() const override
     {
         return CreateEphemeralNodeFactory(ShouldHideAttributes_);
     }
@@ -483,7 +483,7 @@ public:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TEphemeralNodeFactory
-    : public TNodeFactoryBase
+    : public TTransactionalNodeFactoryBase
 {
 public:
     explicit TEphemeralNodeFactory(bool shouldHideAttributes)
@@ -536,12 +536,20 @@ public:
     }
 
 private:
-    bool ShouldHideAttributes_;
+    const bool ShouldHideAttributes_;
+
 };
 
-INodeFactoryPtr CreateEphemeralNodeFactory(bool shouldHideAttributes)
+std::unique_ptr<ITransactionalNodeFactory> CreateEphemeralNodeFactory(bool shouldHideAttributes)
 {
-    return New<TEphemeralNodeFactory>(shouldHideAttributes);
+    return std::unique_ptr<ITransactionalNodeFactory>(new TEphemeralNodeFactory(shouldHideAttributes));
+}
+
+INodeFactory* GetEphemeralNodeFactory(bool shouldHideAttributes)
+{
+    static auto hidingFactory = CreateEphemeralNodeFactory(true);
+    static auto nonhidingFactory = CreateEphemeralNodeFactory(false);
+    return shouldHideAttributes ? hidingFactory.get() : nonhidingFactory.get();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
