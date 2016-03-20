@@ -507,7 +507,9 @@ std::vector<TChunkPtrWithIndex> TChunkPlacement::GetBalancingChunks(
     auto chunkManager = Bootstrap_->GetChunkManager();
 
     // Let's bound the number of iterations somehow.
-    for (int index = 0; index < replicaCount * 2; ++index) {
+    // Never consider more chunks than the node has to avoid going into a loop (cf. YT-4258).
+    int iterationCount = std::min(replicaCount * 2, static_cast<int>(node->StoredReplicas().size()));
+    for (int index = 0; index < iterationCount; ++index) {
         auto replica = node->PickRandomReplica();
         auto* chunk = replica.GetPtr();
         if (!IsObjectAlive(chunk)) {
