@@ -15,7 +15,7 @@
 
 #include <yt/core/misc/protobuf_helpers.h>
 
-#include <yt/core/ytree/attribute_helpers.h>
+#include <yt/core/ytree/helpers.h>
 
 namespace NYT {
 namespace NHydra {

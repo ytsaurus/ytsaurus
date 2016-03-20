@@ -26,6 +26,8 @@
 
 #include <yt/core/rpc/helpers.h>
 
+#include <yt/core/ytree/convert.h>
+
 namespace NYT {
 namespace NApi {
 

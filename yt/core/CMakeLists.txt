@@ -193,7 +193,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/yson/writer.cpp
 
   ${CMAKE_CURRENT_LIST_DIR}/ytree/attribute_consumer.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/ytree/attribute_helpers.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/ytree/helpers.cpp
   ${CMAKE_CURRENT_LIST_DIR}/ytree/attributes.cpp
   ${CMAKE_CURRENT_LIST_DIR}/ytree/attributes.proto
   ${CMAKE_CURRENT_LIST_DIR}/ytree/convert.cpp

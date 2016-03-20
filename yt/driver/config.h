@@ -6,7 +6,7 @@
 
 #include <yt/core/misc/address.h>
 
-#include <yt/core/ytree/attribute_helpers.h>
+#include <yt/core/ytree/helpers.h>
 #include <yt/core/ytree/fluent.h>
 #include <yt/core/ytree/yson_serializable.h>
 

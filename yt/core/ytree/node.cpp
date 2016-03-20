@@ -1,6 +1,7 @@
 #include "node.h"
 #include "convert.h"
 #include "node_detail.h"
+#include "tree_visitor.h"
 
 #include <yt/core/yson/writer.h>
 

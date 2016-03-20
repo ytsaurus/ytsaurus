@@ -78,6 +78,6 @@ struct TSerializerTraits<std::shared_ptr<NYTree::IAttributeDictionary>, C, void>
 
 } // namespace NYT
 
-#define ATTRIBUTE_HELPERS_INL_H_
-#include "attribute_helpers-inl.h"
-#undef ATTRIBUTE_HELPERS_INL_H_
+#define HELPERS_INL_H_
+#include "helpers-inl.h"
+#undef HELPERS_INL_H_

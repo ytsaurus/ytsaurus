@@ -4,7 +4,7 @@
 
 #include "serialize.h"
 #include "tree_builder.h"
-#include "attribute_helpers.h"
+#include "helpers.h"
 
 #include <yt/core/ypath/token.h>
 

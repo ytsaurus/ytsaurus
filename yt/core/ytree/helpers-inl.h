@@ -1,8 +1,9 @@
-#ifndef ATTRIBUTE_HELPERS_INL_H_
-#error "Direct inclusion of this file is not allowed, include attribute_helpers.h"
+#ifndef HELPERS_INL_H_
+#error "Direct inclusion of this file is not allowed, include helpers.h"
 #endif
 
 #include "attribute_consumer.h"
+#include "serialize.h"
 #include "convert.h"
 
 namespace NYT {
@@ -64,6 +65,23 @@ void TAttributeDictionaryRefSerializer::Load(TStreamLoadContext& context, T& obj
     } else {
         obj.reset();
     }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class T, class R>
+IYPathServicePtr IYPathService::FromMethod(
+    R (T::*method) () const,
+    const TWeakPtr<T>& weak)
+{
+    auto producer = NYson::TYsonProducer(BIND([=] (NYson::IYsonConsumer* consumer) {
+        auto strong = weak.Lock();
+        if (strong) {
+            Serialize((strong.Get()->*method)(), consumer);
+        }
+    }));
+
+    return FromProducer(producer);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

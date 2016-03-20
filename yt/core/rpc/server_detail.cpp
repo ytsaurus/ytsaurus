@@ -3,6 +3,8 @@
 #include "config.h"
 #include "message.h"
 
+#include <yt/core/misc/protobuf_helpers.h>
+
 namespace NYT {
 namespace NRpc {
 
@@ -10,6 +12,8 @@ using namespace NConcurrency;
 using namespace NBus;
 using namespace NYTree;
 using namespace NRpc::NProto;
+
+using NYT::FromProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 

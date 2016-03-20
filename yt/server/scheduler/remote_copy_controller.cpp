@@ -23,7 +23,7 @@
 #include <yt/ytlib/api/client.h>
 #include <yt/ytlib/api/transaction.h>
 
-#include <yt/core/ytree/attribute_helpers.h>
+#include <yt/core/ytree/helpers.h>
 
 namespace NYT {
 namespace NScheduler {

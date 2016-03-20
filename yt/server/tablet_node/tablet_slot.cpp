@@ -65,6 +65,7 @@
 
 #include <yt/core/ytree/fluent.h>
 #include <yt/core/ytree/virtual.h>
+#include <yt/core/ytree/helpers.h>
 
 namespace NYT {
 namespace NTabletNode {

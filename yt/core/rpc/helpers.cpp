@@ -1,8 +1,9 @@
 #include "helpers.h"
+#include "client.h"
 #include "channel_detail.h"
 #include "service.h"
 
-#include <yt/core/ytree/attribute_helpers.h>
+#include <yt/core/ytree/helpers.h>
 
 namespace NYT {
 namespace NRpc {
