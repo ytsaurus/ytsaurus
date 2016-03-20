@@ -47,15 +47,6 @@ struct TNonversionedObjectRefSerializer
     }
 };
 
-struct TNonversionedObjectRefComparer
-{
-    template <class T>
-    static bool Compare(T* lhs, T* rhs)
-    {
-        return lhs->GetId() < rhs->GetId();
-    }
-};
-
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TVersionedObjectRefSerializer
@@ -74,18 +65,13 @@ struct TVersionedObjectRefSerializer
     {
         typedef typename std::remove_pointer<T>::type TObject;
         auto key = NYT::Load<NHydra::TEntitySerializationKey>(context);
-        object  = (key == NHydra::TEntitySerializationKey())
-            ? nullptr
-            : context.template GetEntity<TObject>(key);
-    }
-};
-
-struct TVersionedObjectRefComparer
-{
-    template <class T>
-    static bool Compare(T* lhs, T* rhs)
-    {
-        return lhs->GetVersionedId() < rhs->GetVersionedId();
+        if (key == NHydra::TEntitySerializationKey()) {
+            object = nullptr;
+            SERIALIZATION_DUMP_WRITE(context, "objref <null>");
+        } else {
+            object = context.template GetEntity<TObject>(key);
+            SERIALIZATION_DUMP_WRITE(context, "objref %v aka %v", object->GetVersionedId(), key.Index);
+        }
     }
 };
 
@@ -114,16 +100,16 @@ struct TSerializerTraits<
 >
 {
     typedef NCellMaster::TNonversionedObjectRefSerializer TSerializer;
-    typedef NCellMaster::TNonversionedObjectRefComparer TComparer;
+    typedef NObjectServer::TObjectRefComparer TComparer;
 };
 
-template <class C>
-struct TSerializerTraits<NNodeTrackerServer::TNode*, C>
-{
-    typedef NCellMaster::TNonversionedObjectRefSerializer TSerializer;
-    typedef NCellMaster::TNonversionedObjectRefComparer TComparer;
-};
-
+//template <class C>
+//struct TSerializerTraits<NNodeTrackerServer::TNode*, C>
+//{
+//    typedef NCellMaster::TNonversionedObjectRefSerializer TSerializer;
+//    typedef NObjectServer::TObjectRefComparer TComparer;
+//};
+//
 template <class T, class C>
 struct TSerializerTraits<
     T,
@@ -134,7 +120,7 @@ struct TSerializerTraits<
 >
 {
     typedef NCellMaster::TVersionedObjectRefSerializer TSerializer;
-    typedef NCellMaster::TVersionedObjectRefComparer TComparer;
+    typedef NCypressServer::TCypressNodeRefComparer TComparer;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
