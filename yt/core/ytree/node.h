@@ -47,20 +47,15 @@ struct INode
     //! Returns the static type of the node.
     virtual ENodeType GetType() const = 0;
 
-    //! Returns a factory for creating new nodes.
+    //! Returns a new instance of transactional factory for creating new nodes.
     /*!
      *  Every YTree implementation provides its own set of
      *  node implementations. E.g., for an ephemeral implementation
      *  this factory creates ephemeral nodes while for
      *  a persistent implementation (see Cypress) this factory
      *  creates persistent nodes.
-     *
-     *  Note that each call may produce a new factory instance.
-     *  This is used in Cypress where the factory instance acts as a container holding
-     *  temporary references to newly created nodes.
-     *  \see INodeFactory::Commit
      */
-    virtual INodeFactoryPtr CreateFactory() const = 0;
+    virtual std::unique_ptr<ITransactionalNodeFactory> CreateFactory() const = 0;
 
     //! Returns the resolver associated with the tree.
     virtual INodeResolverPtr GetResolver() const = 0;
@@ -343,8 +338,9 @@ DEFINE_REFCOUNTED_TYPE(IEntityNode)
  *  and invokes all handlers installed via #RegisterRollbackHandler.
  */
 struct INodeFactory
-    : public virtual TRefCounted
 {
+    virtual ~INodeFactory() = default;
+
     //! Creates a string node.
     virtual IStringNodePtr CreateString() = 0;
 
@@ -368,6 +364,23 @@ struct INodeFactory
 
     //! Creates an entity node.
     virtual IEntityNodePtr CreateEntity() = 0;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! A node factory with extented transactional capabilities.
+/*!
+ *  The factory also acts as a "transaction context" that holds all created nodes.
+ *
+ *  One must call #Commit at the end if the operation was a success.
+ *  This also invokes all handlers installed via #RegisterCommitHandler.
+ *
+ *  Releasing the instance without calling #Commit or calling #Rollback abandons all changes
+ *  and invokes all handlers installed via #RegisterRollbackHandler.
+ */
+struct ITransactionalNodeFactory
+    : public INodeFactory
+{
 
     //! Must be called before releasing the factory to indicate that all created nodes
     //! must persist.
@@ -382,8 +395,6 @@ struct INodeFactory
     //! Adds a new #handler to be called upon rollback.
     virtual void RegisterRollbackHandler(const std::function<void()>& handler) = 0;
 };
-
-DEFINE_REFCOUNTED_TYPE(INodeFactory)
 
 ////////////////////////////////////////////////////////////////////////////////
 

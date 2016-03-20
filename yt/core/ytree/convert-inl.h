@@ -61,7 +61,7 @@ NYson::TYsonString ConvertToYsonString(const T& value, NYson::EYsonFormat format
 template <class T>
 INodePtr ConvertToNode(
     const T& value,
-    INodeFactoryPtr factory)
+    INodeFactory* factory)
 {
     auto type = GetYsonType(value);
 

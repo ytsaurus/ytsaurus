@@ -13,7 +13,6 @@ namespace NCypressServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 DECLARE_REFCOUNTED_STRUCT(INodeTypeHandler)
-DECLARE_REFCOUNTED_STRUCT(ICypressNodeFactory)
 DECLARE_REFCOUNTED_STRUCT(ICypressNodeProxy)
 DECLARE_REFCOUNTED_STRUCT(ICypressNodeVisitor)
 
@@ -21,6 +20,8 @@ DECLARE_REFCOUNTED_CLASS(TAccessTracker)
 DECLARE_REFCOUNTED_CLASS(TCypressManager)
 
 class TCypressNodeBase;
+
+struct ICypressNodeFactory;
 
 using TCypressNodeList = SmallVector<TCypressNodeBase*, 8>;
 

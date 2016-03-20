@@ -308,7 +308,7 @@ template <class TChunkOwner>
 void TChunkOwnerTypeHandler<TChunkOwner>::DoClone(
     TChunkOwner* sourceNode,
     TChunkOwner* clonedNode,
-    NCypressServer::ICypressNodeFactoryPtr factory,
+    NCypressServer::ICypressNodeFactory* factory,
     NCypressServer::ENodeCloneMode mode)
 {
     TBase::DoClone(sourceNode, clonedNode, factory, mode);

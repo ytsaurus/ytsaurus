@@ -126,7 +126,7 @@ void TNontemplateCypressNodeTypeHandlerBase::MergeCore(
 }
 
 TCypressNodeBase* TNontemplateCypressNodeTypeHandlerBase::CloneCorePrologue(
-    ICypressNodeFactoryPtr factory,
+    ICypressNodeFactory* factory,
     const TNodeId& hintId,
     TCellTag externalCellTag)
 {
@@ -141,7 +141,7 @@ TCypressNodeBase* TNontemplateCypressNodeTypeHandlerBase::CloneCorePrologue(
 void TNontemplateCypressNodeTypeHandlerBase::CloneCoreEpilogue(
     TCypressNodeBase* sourceNode,
     TCypressNodeBase* clonedNode,
-    ICypressNodeFactoryPtr factory)
+    ICypressNodeFactory* factory)
 {
     // Copy attributes directly to suppress validation.
     auto keyToAttribute = GetNodeAttributes(Bootstrap_, sourceNode->GetTrunkNode(), factory->GetTransaction());
@@ -320,7 +320,7 @@ ICypressNodeProxyPtr TMapNodeTypeHandler::DoGetProxy(
 void TMapNodeTypeHandler::DoClone(
     TMapNode* sourceNode,
     TMapNode* clonedNode,
-    ICypressNodeFactoryPtr factory,
+    ICypressNodeFactory* factory,
     ENodeCloneMode mode)
 {
     TBase::DoClone(sourceNode, clonedNode, factory, mode);
@@ -482,7 +482,7 @@ void TListNodeTypeHandler::DoMerge(
 void TListNodeTypeHandler::DoClone(
     TListNode* sourceNode,
     TListNode* clonedNode,
-    ICypressNodeFactoryPtr factory,
+    ICypressNodeFactory* factory,
     ENodeCloneMode mode)
 {
     TBase::DoClone(sourceNode, clonedNode, factory, mode);
@@ -606,7 +606,7 @@ void TLinkNodeTypeHandler::DoMerge(
 void TLinkNodeTypeHandler::DoClone(
     TLinkNode* sourceNode,
     TLinkNode* clonedNode,
-    ICypressNodeFactoryPtr factory,
+    ICypressNodeFactory* factory,
     ENodeCloneMode mode)
 {
     TBase::DoClone(sourceNode, clonedNode, factory, mode);
@@ -618,7 +618,7 @@ void TLinkNodeTypeHandler::DoClone(
 
 TDocumentNode::TDocumentNode(const TVersionedNodeId& id)
     : TCypressNodeBase(id)
-    , Value_(CreateEphemeralNodeFactory()->CreateEntity())
+    , Value_(GetEphemeralNodeFactory()->CreateEntity())
 { }
 
 ENodeType TDocumentNode::GetNodeType() const
@@ -693,7 +693,7 @@ void TDocumentNodeTypeHandler::DoMerge(
 void TDocumentNodeTypeHandler::DoClone(
     TDocumentNode* sourceNode,
     TDocumentNode* clonedNode,
-    ICypressNodeFactoryPtr factory,
+    ICypressNodeFactory* factory,
     ENodeCloneMode mode)
 {
     TBase::DoClone(sourceNode, clonedNode, factory, mode);

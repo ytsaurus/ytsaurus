@@ -23,7 +23,7 @@ class TTreeBuilder
     , public ITreeBuilder
 {
 public:
-    explicit TTreeBuilder(INodeFactoryPtr factory)
+    explicit TTreeBuilder(INodeFactory* factory)
         : Factory(factory)
     { }
 
@@ -133,7 +133,8 @@ public:
     }
 
 private:
-    INodeFactoryPtr Factory;
+    INodeFactory* const Factory;
+
     //! Contains nodes forming the current path in the tree.
     std::stack<INodePtr> NodeStack;
     TNullable<Stroka> Key;
@@ -168,7 +169,7 @@ private:
     }
 };
 
-std::unique_ptr<ITreeBuilder> CreateBuilderFromFactory(INodeFactoryPtr factory)
+std::unique_ptr<ITreeBuilder> CreateBuilderFromFactory(INodeFactory* factory)
 {
     return std::unique_ptr<ITreeBuilder>(new TTreeBuilder(factory));
 }

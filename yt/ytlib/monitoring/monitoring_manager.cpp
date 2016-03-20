@@ -25,7 +25,7 @@ static const auto& Logger = MonitoringLogger;
 static const auto& Profiler = MonitoringProfiler;
 
 static const auto UpdatePeriod = TDuration::Seconds(3);
-static const auto EmptyRoot = CreateEphemeralNodeFactory()->CreateMap();
+static const auto EmptyRoot = GetEphemeralNodeFactory()->CreateMap();
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -108,7 +108,7 @@ private:
     {
         LOG_DEBUG("Started updating monitoring state");
         PROFILE_TIMING ("/update_time") {
-            auto newRoot = CreateEphemeralNodeFactory()->CreateMap();
+            auto newRoot = GetEphemeralNodeFactory()->CreateMap();
 
             for (const auto& pair : PathToProducer_) {
                 auto value = ConvertToYsonString(pair.second);

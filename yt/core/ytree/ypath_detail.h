@@ -278,7 +278,7 @@ protected:
     INode* const Node_;
     ITreeBuilder* const TreeBuilder_;
 
-    const INodeFactoryPtr NodeFactory_;
+    const std::unique_ptr<ITransactionalNodeFactory> NodeFactory_;
 
     std::unique_ptr<TAttributesSetter> AttributesSetter_;
 

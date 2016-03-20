@@ -31,7 +31,7 @@ public:
 
 private:
     class TImpl;
-    std::unique_ptr<TImpl> Impl_;
+    const std::unique_ptr<TImpl> Impl_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

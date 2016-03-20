@@ -292,7 +292,7 @@ protected:
     virtual void DoClone(
         TJournalNode* sourceNode,
         TJournalNode* clonedNode,
-        ICypressNodeFactoryPtr factory,
+        ICypressNodeFactory* factory,
         ENodeCloneMode mode) override
     {
         if (mode == ENodeCloneMode::Copy) {

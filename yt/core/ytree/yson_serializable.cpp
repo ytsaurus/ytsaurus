@@ -54,7 +54,7 @@ void TYsonSerializableLite::Load(
     }
 
     if (KeepOptions_) {
-        Options = CreateEphemeralNodeFactory()->CreateMap();
+        Options = GetEphemeralNodeFactory()->CreateMap();
         for (const auto& pair : mapNode->GetChildren()) {
             const auto& key = pair.first;
             auto child = pair.second;

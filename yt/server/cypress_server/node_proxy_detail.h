@@ -32,8 +32,8 @@ public:
         NTransactionServer::TTransaction* transaction,
         TCypressNodeBase* trunkNode);
 
-    virtual NYTree::INodeFactoryPtr CreateFactory() const override;
-    virtual ICypressNodeFactoryPtr CreateCypressFactory(
+    virtual std::unique_ptr<NYTree::ITransactionalNodeFactory> CreateFactory() const override;
+    virtual std::unique_ptr<ICypressNodeFactory> CreateCypressFactory(
         NSecurityServer::TAccount* account,
         bool preserveAccount) const override;
 
@@ -176,7 +176,7 @@ protected:
     virtual bool CanHaveChildren() const;
     
     virtual void SetChildNode(
-        NYTree::INodeFactoryPtr factory,
+        NYTree::INodeFactory* factory,
         const NYPath::TYPath& path,
         NYTree::INodePtr child,
         bool recursive);
@@ -391,7 +391,7 @@ private:
     virtual bool DoInvoke(NRpc::IServiceContextPtr context) override;
     
     virtual void SetChildNode(
-        NYTree::INodeFactoryPtr factory,
+        NYTree::INodeFactory* factory,
         const NYPath::TYPath& path,
         NYTree::INodePtr child,
         bool recursive) override;
@@ -434,7 +434,7 @@ private:
     typedef TCypressNodeProxyBase<TNontemplateCompositeCypressNodeProxyBase, NYTree::IListNode, TListNode> TBase;
 
     virtual void SetChildNode(
-        NYTree::INodeFactoryPtr factory,
+        NYTree::INodeFactory* factory,
         const NYPath::TYPath& path,
         NYTree::INodePtr child,
         bool recursive) override;

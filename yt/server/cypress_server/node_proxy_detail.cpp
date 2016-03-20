@@ -207,13 +207,13 @@ TNontemplateCypressNodeProxyBase::TNontemplateCypressNodeProxyBase(
     YASSERT(trunkNode->IsTrunk());
 }
 
-INodeFactoryPtr TNontemplateCypressNodeProxyBase::CreateFactory() const
+std::unique_ptr<ITransactionalNodeFactory> TNontemplateCypressNodeProxyBase::CreateFactory() const
 {
     auto* account = GetThisImpl()->GetAccount();
     return CreateCypressFactory(account, false);
 }
 
-ICypressNodeFactoryPtr TNontemplateCypressNodeProxyBase::CreateCypressFactory(
+std::unique_ptr<ICypressNodeFactory> TNontemplateCypressNodeProxyBase::CreateCypressFactory(
     TAccount* account,
     bool preserveAccount) const
 {
@@ -766,7 +766,7 @@ bool TNontemplateCypressNodeProxyBase::CanHaveChildren() const
 }
 
 void TNontemplateCypressNodeProxyBase::SetChildNode(
-    INodeFactoryPtr /*factory*/,
+    INodeFactory* /*factory*/,
     const TYPath& /*path*/,
     INodePtr /*child*/,
     bool /*recursive*/)
@@ -892,7 +892,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Create)
         attributes.get());
 
     SetChildNode(
-        factory,
+        factory.get(),
         path,
         newProxy,
         request->recursive());
@@ -995,7 +995,11 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Copy)
     if (replace) {
         parent->ReplaceChild(this, clonedProxy);
     } else {
-        SetChildNode(factory, targetPath, clonedProxy, request->recursive());
+        SetChildNode(
+            factory.get(),
+            targetPath,
+            clonedProxy,
+            request->recursive());
     }
 
     if (removeSource) {
@@ -1249,7 +1253,7 @@ bool TMapNodeProxy::DoInvoke(NRpc::IServiceContextPtr context)
 }
 
 void TMapNodeProxy::SetChildNode(
-    INodeFactoryPtr factory,
+    INodeFactory* factory,
     const TYPath& path,
     INodePtr child,
     bool recursive)
@@ -1464,7 +1468,7 @@ int TListNodeProxy::GetChildIndex(IConstNodePtr child)
 }
 
 void TListNodeProxy::SetChildNode(
-    INodeFactoryPtr factory,
+    INodeFactory* factory,
     const TYPath& path,
     INodePtr child,
     bool recursive)

@@ -57,7 +57,7 @@ static const auto& Logger = CypressServerLogger;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TCypressManager::TNodeFactory
-    : public TNodeFactoryBase
+    : public TTransactionalNodeFactoryBase
     , public ICypressNodeFactory
 {
 public:
@@ -625,17 +625,17 @@ public:
     }
 
 
-    ICypressNodeFactoryPtr CreateNodeFactory(
+    std::unique_ptr<ICypressNodeFactory> CreateNodeFactory(
         TTransaction* transaction,
         TAccount* account,
         bool preserveAccount)
     {
-        return New<TNodeFactory>(
+        return std::unique_ptr<ICypressNodeFactory>(new TNodeFactory(
             Bootstrap_,
             Config_,
             transaction,
             account,
-            preserveAccount);
+            preserveAccount));
     }
 
     TCypressNodeBase* CreateNode(
@@ -684,7 +684,7 @@ public:
 
     TCypressNodeBase* CloneNode(
         TCypressNodeBase* sourceNode,
-        ICypressNodeFactoryPtr factory,
+        ICypressNodeFactory* factory,
         ENodeCloneMode mode)
     {
         YCHECK(sourceNode);
@@ -1945,7 +1945,7 @@ private:
 
     TCypressNodeBase* DoCloneNode(
         TCypressNodeBase* sourceNode,
-        ICypressNodeFactoryPtr factory,
+        ICypressNodeFactory* factory,
         const TNodeId& hintId,
         ENodeCloneMode mode)
     {
@@ -2083,7 +2083,7 @@ private:
 
         auto* clonedTrunkNode = DoCloneNode(
             sourceNode,
-            factory,
+            factory.get(),
             clonedNodeId,
             mode);
 
@@ -2176,7 +2176,7 @@ INodeTypeHandlerPtr TCypressManager::GetHandler(const TCypressNodeBase* node)
     return Impl_->GetHandler(node);
 }
 
-ICypressNodeFactoryPtr TCypressManager::CreateNodeFactory(
+std::unique_ptr<ICypressNodeFactory> TCypressManager::CreateNodeFactory(
     TTransaction* transaction,
     TAccount* account,
     bool preserveAccount)
@@ -2212,7 +2212,7 @@ TCypressNodeBase* TCypressManager::InstantiateNode(
 
 TCypressNodeBase* TCypressManager::CloneNode(
     TCypressNodeBase* sourceNode,
-    ICypressNodeFactoryPtr factory,
+    ICypressNodeFactory* factory,
     ENodeCloneMode mode)
 {
     return Impl_->CloneNode(sourceNode, factory, mode);

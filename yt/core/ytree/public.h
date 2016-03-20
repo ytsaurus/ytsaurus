@@ -31,7 +31,8 @@ DECLARE_REFCOUNTED_STRUCT(IListNode);
 DECLARE_REFCOUNTED_STRUCT(IMapNode);
 DECLARE_REFCOUNTED_STRUCT(IEntityNode);
 
-DECLARE_REFCOUNTED_STRUCT(INodeFactory);
+struct INodeFactory;
+struct ITransactionalNodeFactory;
 DECLARE_REFCOUNTED_STRUCT(INodeResolver);
 
 struct IAttributeDictionary;

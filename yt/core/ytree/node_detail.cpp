@@ -158,8 +158,8 @@ void TCompositeNodeMixin::SetRecursive(
     ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
 
     auto factory = CreateFactory();
-    auto child = ConvertToNode(TYsonString(request->value()), factory.Get());
-    SetChild(factory, "/" + path, child, false);
+    auto child = ConvertToNode(TYsonString(request->value()), factory.get());
+    SetChild(factory.get(), "/" + path, child, false);
     factory->Commit();
 
     context->Reply();
@@ -299,7 +299,7 @@ void TMapNodeMixin::ListSelf(TReqList* request, TRspList* response, TCtxListPtr 
 }
 
 void TMapNodeMixin::SetChild(
-    INodeFactoryPtr factory,
+    INodeFactory* factory,
     const TYPath& path,
     INodePtr child,
     bool recursive)
@@ -411,7 +411,7 @@ IYPathService::TResolveResult TListNodeMixin::ResolveRecursive(
 }
 
 void TListNodeMixin::SetChild(
-    INodeFactoryPtr /*factory*/,
+    INodeFactory* /*factory*/,
     const TYPath& path,
     INodePtr child,
     bool recursive)
@@ -515,12 +515,12 @@ void TNonexistingService::ExistsAny(TCtxExistsPtr context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TNodeFactoryBase::~TNodeFactoryBase()
+TTransactionalNodeFactoryBase::~TTransactionalNodeFactoryBase()
 {
     YCHECK(State_ == EState::Committed || State_ == EState::RolledBack);
 }
 
-void TNodeFactoryBase::Commit() noexcept
+void TTransactionalNodeFactoryBase::Commit() noexcept
 {
     YCHECK(State_ == EState::Active);
     State_ = EState::Committing;
@@ -532,7 +532,7 @@ void TNodeFactoryBase::Commit() noexcept
     State_ = EState::Committed;
 }
 
-void TNodeFactoryBase::Rollback() noexcept
+void TTransactionalNodeFactoryBase::Rollback() noexcept
 {
     YCHECK(State_ == EState::Active);
     State_ = EState::RollingBack;
@@ -544,19 +544,19 @@ void TNodeFactoryBase::Rollback() noexcept
     State_ = EState::RolledBack;
 }
 
-void TNodeFactoryBase::RegisterCommitHandler(const std::function<void()>& handler)
+void TTransactionalNodeFactoryBase::RegisterCommitHandler(const std::function<void()>& handler)
 {
     YCHECK(State_ == EState::Active);
     CommitHandlers_.push_back(handler);
 }
 
-void TNodeFactoryBase::RegisterRollbackHandler(const std::function<void()>& handler)
+void TTransactionalNodeFactoryBase::RegisterRollbackHandler(const std::function<void()>& handler)
 {
     YCHECK(State_ == EState::Active);
     RollbackHandlers_.push_back(handler);
 }
 
-void TNodeFactoryBase::RollbackIfNeeded()
+void TTransactionalNodeFactoryBase::RollbackIfNeeded()
 {
     if (State_ == EState::Active) {
         Rollback();
