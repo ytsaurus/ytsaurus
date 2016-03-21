@@ -132,6 +132,7 @@ class YtStuff:
     @_timing
     def start_local_yt(self):
         self.yt_id = str(uuid.uuid4())
+        self._log("Try to start local YT with id=%s", self.yt_id)
         try:
             args = [
                 "start",
