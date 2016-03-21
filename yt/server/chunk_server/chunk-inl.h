@@ -62,6 +62,11 @@ inline void TChunk::SetRepairQueueIterator(const TNullable<TChunkRepairQueueIter
     GetDynamicData()->RepairQueueIterator = value;
 }
 
+inline bool TChunk::IsJobScheduled() const
+{
+    return GetJob().operator bool();
+}
+
 inline TJobPtr TChunk::GetJob() const
 {
     return GetDynamicData()->Job;

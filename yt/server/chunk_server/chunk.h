@@ -131,6 +131,7 @@ public:
     const TNullable<TChunkRepairQueueIterator>& GetRepairQueueIterator() const;
     void SetRepairQueueIterator(const TNullable<TChunkRepairQueueIterator>& value);
 
+    bool IsJobScheduled() const;
     TJobPtr GetJob() const;
     void SetJob(TJobPtr job);
 
