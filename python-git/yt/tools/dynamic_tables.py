@@ -10,7 +10,6 @@ from time import sleep
 from yt.common import YtError, update, set_pdeathsig
 from yt.wrapper.common import run_with_retries
 from yt.wrapper.client import Yt
-from yt.wrapper.native_driver import make_request
 
 yt.config["pickling"]["module_filter"] = lambda module: not hasattr(module, "__file__") or "yt_driver_bindings" not in module.__file__
 
