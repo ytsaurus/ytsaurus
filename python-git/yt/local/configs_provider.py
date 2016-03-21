@@ -192,7 +192,9 @@ class LocalModeConfigsProvider_17_3(ConfigsProvider_17_3):
         for config in configs:
             for patch in NODE_CONFIG_PATCHES:
                 update(config, patch)
+
             _remove_none_fields(config)
+            _tune_memory_limits(config)
 
         return configs
 
