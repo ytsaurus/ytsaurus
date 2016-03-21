@@ -1216,11 +1216,9 @@ class Application(object):
                 "transfer_manager": {
                     "task_id": task.id,
                     "backend_tag": task.backend_tag
-                },
-                "pool": task.pool
+                }
             }
-
-            copy_spec = update(deepcopy(common_spec), get_value(task.copy_spec, {}))
+            copy_spec = update({"pool": task.pool}, update(deepcopy(common_spec), get_value(task.copy_spec, {})))
             postprocess_spec = update(deepcopy(common_spec), get_value(task.postprocess_spec, {}))
 
             source_client = task.get_source_client(clusters_configuration.clusters)
