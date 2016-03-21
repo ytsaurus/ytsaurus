@@ -20,7 +20,7 @@ namespace NChunkClient {
 class TReadLimit
 {
 public:
-    TReadLimit();
+    TReadLimit() = default;
 
     explicit TReadLimit(const NProto::TReadLimit& readLimit);
     explicit TReadLimit(NProto::TReadLimit&& readLimit);
@@ -98,7 +98,7 @@ void Deserialize(TReadLimit& readLimit, NYTree::INodePtr node);
 class TReadRange
 {
 public:
-    TReadRange();
+    TReadRange() = default;
     TReadRange(const TReadLimit& lowerLimit, const TReadLimit& upperLimit);
     explicit TReadRange(const TReadLimit& exact);
 

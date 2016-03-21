@@ -527,7 +527,7 @@ private:
     //! A typical implementation of #IsTeleportChunk that depends on whether chunks must be combined or not.
     virtual bool IsTeleportChunk(const TChunkSpec& chunkSpec) const override
     {
-        if (Spec->ForceTransform) {
+        if (Spec->ForceTransform || chunkSpec.has_channel()) {
             return false;
         }
 

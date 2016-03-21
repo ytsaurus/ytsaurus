@@ -368,6 +368,16 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         assert_items_equal(read_table("//tmp/t_out"), self.v1[:1] + self.v2[1:2])
         assert get("//tmp/t_out/@chunk_count") == 2
 
+    def test_column_selectors(self):
+        self._prepare_tables()
+
+        merge(mode="unordered",
+              in_=[self.t1 + "{key1}"],
+              out="//tmp/t_out")
+
+        assert_items_equal(read_table("//tmp/t_out"), [self.v1[1], {}, {}])
+        assert get("//tmp/t_out/@chunk_count") == 1
+
     @unix_only
     def test_query_filtering(self):
         create("table", "//tmp/t1")
