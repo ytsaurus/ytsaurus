@@ -6,6 +6,7 @@ import socket
 import sys
 import tempfile
 import time
+import uuid
 
 import pytest
 import yatest.common
@@ -130,8 +131,13 @@ class YtStuff:
 
     @_timing
     def start_local_yt(self):
+        self.yt_id = str(uuid.uuid4())
         try:
-            args = ["start", "--path=%s" % self.yt_work_dir]
+            args = [
+                "start",
+                "--id=%s" % self.yt_id,
+                "--path=%s" % self.yt_work_dir,
+            ]
             if self.tmpfs_path:
                 args.append("--tmpfs-path=%s" % self.tmpfs_path)
             res = self._yt_local(*args)
@@ -139,7 +145,6 @@ class YtStuff:
             self._log("Failed to start local YT:\n%s", str(e))
             self._save_yt_data(save_all=True)
             raise
-        self.yt_id = res.std_out.strip()
         self.yt_proxy_port = int(res.std_err.strip().splitlines()[-1].strip().split(":")[-1])
         self.yt_wrapper.config["proxy"]["url"] = self.get_server()
         self.yt_wrapper.config["proxy"]["enable_proxy_discovery"] = False
