@@ -1,6 +1,7 @@
 #!/usr/bin/python
 
 import prepare_operation_tablets
+import yt.tools.operations_archive as operations_archive
 
 from yt.wrapper.http import get_session
 import yt.packages.requests.adapters as requests_adapters
@@ -103,8 +104,10 @@ def get_filter_factors(op, attributes):
 
 def clean_operation(op_id, scheme_type, archive=False):
     if archive:
-        if not yt.exists(prepare_operation_tablets.BY_ID_ARCHIVE) or not yt.exists(prepare_operation_tablets.BY_START_TIME_ARCHIVE):
-            prepare_operation_tablets.prepare_tables(yt.config["proxy"]["url"], scheme_type=scheme_type)
+        if not yt.exists(operations_archive.BY_ID_ARCHIVE) or not yt.exists(operations_archive.BY_START_TIME_ARCHIVE):
+            if (scheme_type != "new"):
+                raise Exception("Old scheme type is not supported")
+            prepare_operation_tablets.prepare_tables(yt.config["proxy"]["url"])
 
         logger.info("Archiving operation %s", op_id)
         data = yt.get("//sys/operations/{}/@".format(op_id))
@@ -149,8 +152,8 @@ def clean_operation(op_id, scheme_type, archive=False):
                 "dummy": "null"
             }
 
-        run_with_retries(lambda: yt.insert_rows(prepare_operation_tablets.BY_ID_ARCHIVE, [by_id_row], raw=False))
-        run_with_retries(lambda: yt.insert_rows(prepare_operation_tablets.BY_START_TIME_ARCHIVE, [by_start_time_row], raw=False))
+        run_with_retries(lambda: yt.insert_rows(operations_archive.BY_ID_ARCHIVE, [by_id_row], raw=False))
+        run_with_retries(lambda: yt.insert_rows(operations_archive.BY_START_TIME_ARCHIVE, [by_start_time_row], raw=False))
     else:
         logger.info("Removing operation %s", op_id)
 
