@@ -107,7 +107,7 @@ class YtStuff:
         return self.yt_wrapper
 
     def get_server(self):
-        return "localhost:%d" % self.proxy_port
+        return "localhost:%d" % self.yt_proxy_port
 
     def get_env(self):
         return self.env
@@ -140,7 +140,7 @@ class YtStuff:
             self._save_yt_data(save_all=True)
             raise
         self.yt_id = res.std_out.strip()
-        self.proxy_port = int(res.std_err.strip().splitlines()[-1].strip().split(":")[-1])
+        self.yt_proxy_port = int(res.std_err.strip().splitlines()[-1].strip().split(":")[-1])
         self.yt_wrapper.config["proxy"]["url"] = self.get_server()
         self.yt_wrapper.config["proxy"]["enable_proxy_discovery"] = False
 
