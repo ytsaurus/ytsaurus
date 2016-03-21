@@ -159,7 +159,7 @@ void TSlot::DoCleanSandbox(int pathIndex)
 {
     for (auto sandboxKind : TEnumTraits<ESandboxKind>::GetDomainValues()) {
         const auto& sandboxPath = SandboxPaths_[pathIndex][sandboxKind];
-        auto sandboxFullPath = NFS::CombinePaths(GetCwd(), sandboxPath);
+        auto sandboxFullPath = NFS::CombinePaths(~NFs::CurrentWorkingDirectory(), sandboxPath);
 
         auto mountPoints = NFS::GetMountPoints();
         for (const auto& mountPoint : mountPoints) {
