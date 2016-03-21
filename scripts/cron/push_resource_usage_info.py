@@ -79,9 +79,10 @@ def main():
     parser = argparse.ArgumentParser(description="Pushes accounts resource usage of various "
                                                  "YT clusters to statface.")
 
-    parser.add_argument("--robot-login", default="robot_asaitgalin")
-    parser.add_argument("--robot-password", default="vai4looP0i")
-    parser.add_argument("--cluster", required=True, nargs="+", help="clusters list")
+    parser.add_argument("--robot-login", required=True)
+    parser.add_argument("--robot-password", required=True)
+    parser.add_argument("--clusters-config-url", default="http://yt.yandex.net/config.json",
+                        help="url to json with all available clusters")
     args = parser.parse_args()
 
     headers = {
@@ -89,10 +90,18 @@ def main():
         "StatRobotPassword": args.robot_password
     }
 
+    logging.info("Retrieving clusters configuration from %s", args.clusters_config_url)
+    clusters_configuration = requests.get(args.clusters_config_url).json()
+
+    clusters = [name for name, value in clusters_configuration.iteritems()
+                if value["type"] != "closing"]
+
+    logging.info("Fetching accounts info from %d clusters", len(clusters))
+
     exceptions = tuple(list(get_retriable_errors()) + [YtError])
 
-    for cluster in args.cluster:
-        logging.info("Fetch account info from %s", cluster)
+    for cluster in clusters:
+        logging.info("Fetching accounts info from %s", cluster)
         try:
             accounts_data = collect_accounts_data_for_cluster(cluster)
             push_cluster_data(accounts_data, headers)
