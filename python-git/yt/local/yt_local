@@ -2,17 +2,14 @@
 
 from yt.local import start, stop, delete, get_proxy, list_instances
 from yt.local.helpers import YTCheckingThread
+from yt.local.commands import GB
 
-from yt.wrapper.common import MB
 from yt.wrapper.cli_helpers import run_main
 from yt.wrapper.keyboard_interrupts_catcher import KeyboardInterruptsCatcher
 
 import argparse
 import logging
 import time
-
-# TODO(asaitgalin): Move it to yt.wrapper.common
-GB = 1024 * MB
 
 DESCRIPTION = """Command-line utility to work with local YT instances."""
 
