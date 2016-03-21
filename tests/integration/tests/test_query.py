@@ -545,7 +545,7 @@ class TestQuery(YTEnvSetup):
         actual = select_rows("abs_udf(-2 * a) as s from [{0}//tmp/sou]".format(TestQuery.yson_schema_attribute))
         assert_items_equal(actual, expected)
 
-    def test_YT_2375(self):
+    def test_yt_2375(self):
         self.sync_create_cells(3, 3)
         create(
             "table", "//tmp/t",
