@@ -306,7 +306,7 @@ private:
             auto multicellManager = Bootstrap_->GetMulticellManager();
             const auto& cellTags = multicellManager->GetRegisteredMasterCellTags();
             BuildYsonFluently(consumer)
-                .DoMapFor(0, static_cast<int>(cellTags.size()) - 1, [&] (TFluentMap fluent, int index) {
+                .DoMapFor(0, static_cast<int>(cellTags.size()), [&] (TFluentMap fluent, int index) {
                     auto cellTag = cellTags[index];
                     const auto& exportData = chunk->GetExportData(index);
                     if (exportData.RefCounter > 0) {

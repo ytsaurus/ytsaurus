@@ -553,3 +553,22 @@ class TestSchedulerMergeCommandsMulticell(TestSchedulerMergeCommands):
         sleep(0.2)
         assert get("#" + chunk_id + "/@replication_factor") == 1
         assert not get("#" + chunk_id + "/@vital")
+
+    @unix_only
+    def test_yt_4259(self):
+        create("table", "//tmp/t", attributes={"external": False})
+        create("table", "//tmp/t1", attributes={"external_cell_tag": 1})
+        create("table", "//tmp/t2", attributes={"external_cell_tag": 2})
+        
+        write_table("//tmp/t", [{"a": 1}])
+        chunk_id = get("//tmp/t/@chunk_ids/0")
+
+        merge(mode="ordered", in_=["//tmp/t"], out="//tmp/t1")
+        merge(mode="ordered", in_=["//tmp/t"], out="//tmp/t2")
+
+        assert_items_equal(
+            get("#" + chunk_id + "/@exports"),
+            {
+                "1": {"ref_counter": 1, "vital": True, "replication_factor": 3},
+                "2": {"ref_counter": 1, "vital": True, "replication_factor": 3}
+            })
