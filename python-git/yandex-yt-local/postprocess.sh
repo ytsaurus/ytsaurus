@@ -48,6 +48,7 @@ upload_to_sandbox() {
         "remote_file_name": "http://locke.yt.yandex.net/api/v2/download?path=${archive_path}&disposition=attachment",
         "created_resource_name": "yt.tar",
         "resource_attrs": "ttl=inf,\
+                           backup_task=true,\
                            yt_version=${yt_version},\
                            yt_local_version=${yt_local_version},\
                            yt_python_version=${yt_python_version},\
