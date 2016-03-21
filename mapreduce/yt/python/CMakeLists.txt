@@ -13,11 +13,11 @@ FILES(
 )
 
 IF (YT_PRECISE_17_5)
-    # 0.17.5-prestable-without-yt~7966~df46c24
-    FROM_SANDBOX(FILE 116361576 OUT yt.tgz)
+    # See https://sandbox.yandex-team.ru/task/53800665/view for details.
+    FROM_SANDBOX(FILE 117513621 OUT yt.tar)
 ELSE()
-    # 18.2.19561-prestable-without-yt~a62ea2a
-    FROM_SANDBOX(FILE 116362720 OUT yt.tgz)
+    # See https://sandbox.yandex-team.ru/task/53800796/view for details.
+    FROM_SANDBOX(FILE 117513795 OUT yt.tar)
 ENDIF()
 
 END()

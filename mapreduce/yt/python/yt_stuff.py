@@ -10,7 +10,7 @@ import time
 import pytest
 import yatest.common
 
-_YT_ARCHIVE_NAME = "mapreduce/yt/python/yt.tgz" # comes by FROM_SANDBOX
+_YT_ARCHIVE_NAME = "mapreduce/yt/python/yt.tar" # comes by FROM_SANDBOX
 _YT_PREFIX = "//"
 
 class YtStuff:
