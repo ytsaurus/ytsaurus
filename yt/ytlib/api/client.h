@@ -508,7 +508,7 @@ struct IClientBase
         const NYPath::TYPath& srcPath,
         const NYPath::TYPath& dstPath,
         const TLinkNodeOptions& options = TLinkNodeOptions()) = 0;
-    
+
     virtual TFuture<void> ConcatenateNodes(
         const std::vector<NYPath::TYPath>& srcPaths,
         const NYPath::TYPath& dstPath,
