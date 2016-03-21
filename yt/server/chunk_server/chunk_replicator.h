@@ -192,9 +192,9 @@ private:
     //! Stops when some owning nodes are discovered or parents become ambiguous.
     TChunkList* FollowParentLinks(TChunkList* chunkList);
 
-    void RegisterJob(TJobPtr job);
+    void RegisterJob(const TJobPtr& job);
 
-    void UnregisterJob(TJobPtr job, EJobUnregisterFlags flags = EJobUnregisterFlags::All);
+    void UnregisterJob(const TJobPtr& job, EJobUnregisterFlags flags = EJobUnregisterFlags::All);
 
     void AddToChunkRepairQueue(TChunk* chunk);
     void RemoveFromChunkRepairQueue(TChunk* chunk);

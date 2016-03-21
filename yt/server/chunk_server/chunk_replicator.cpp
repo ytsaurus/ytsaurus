@@ -829,11 +829,11 @@ void TChunkReplicator::ScheduleNewJobs(
     const auto& resourceLimits = node->ResourceLimits();
     auto& resourceUsage = node->ResourceUsage();
 
-    auto registerJob = [&] (TJobPtr job) {
+    auto registerJob = [&] (const TJobPtr& job) {
         if (job) {
             resourceUsage += job->ResourceUsage();
             jobsToStart->push_back(job);
-            RegisterJob(std::move(job));
+            RegisterJob(job);
             JobThrottler_->Acquire(1);
         }
     };
@@ -1507,7 +1507,7 @@ TChunkList* TChunkReplicator::FollowParentLinks(TChunkList* chunkList)
     return chunkList;
 }
 
-void TChunkReplicator::RegisterJob(TJobPtr job)
+void TChunkReplicator::RegisterJob(const TJobPtr& job)
 {
     YCHECK(JobMap_.insert(std::make_pair(job->GetJobId(), job)).second);
     YCHECK(job->GetNode()->Jobs().insert(job).second);
@@ -1525,7 +1525,7 @@ void TChunkReplicator::RegisterJob(TJobPtr job)
         job->GetNode()->GetDefaultAddress());
 }
 
-void TChunkReplicator::UnregisterJob(TJobPtr job, EJobUnregisterFlags flags)
+void TChunkReplicator::UnregisterJob(const TJobPtr& job, EJobUnregisterFlags flags)
 {
     YCHECK(JobMap_.erase(job->GetJobId()) == 1);
 
