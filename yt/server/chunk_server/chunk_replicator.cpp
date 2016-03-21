@@ -669,6 +669,10 @@ bool TChunkReplicator::CreateBalancingJob(
         return true;
     }
 
+    if (chunk->IsJobScheduled()) {
+        return true;
+    }
+
     auto* targetNode = ChunkPlacement_->AllocateBalancingTarget(chunk, maxFillFactor);
     if (!targetNode) {
         return false;
