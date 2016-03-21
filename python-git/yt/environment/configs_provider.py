@@ -288,7 +288,7 @@ class ConfigsProvider_17(ConfigsProvider):
 
 class ConfigsProvider_17_3(ConfigsProvider_17):
     def get_node_configs(self, node_count, node_dirs, operations_memory_limit=None):
-        configs = super(ConfigsProvider_17_3, self).get_node_configs(node_count, node_dirs)
+        configs = super(ConfigsProvider_17_3, self).get_node_configs(node_count, node_dirs, operations_memory_limit)
 
         for i, config in enumerate(configs):
             config["exec_agent"]["slot_manager"]["path"] = os.path.join(node_dirs[i], "slots")
@@ -314,7 +314,7 @@ class ConfigsProvider_17_4(ConfigsProvider_17):
         return configs
 
     def get_node_configs(self, node_count, node_dirs, operations_memory_limit=None):
-        configs = super(ConfigsProvider_17_4, self).get_node_configs(node_count, node_dirs)
+        configs = super(ConfigsProvider_17_4, self).get_node_configs(node_count, node_dirs, operations_memory_limit)
 
         for i, config in enumerate(configs):
             config["data_node"]["cache_locations"] = [{
