@@ -34,8 +34,10 @@ struct TConfig
     TDuration PingInterval;
     TDuration RetryInterval;
     TDuration RateLimitExceededRetryInterval;
+    TDuration StartOperationRetryInterval;
 
     int RetryCount;
+    int StartOperationRetryCount;
 
     static Stroka GetEnv(const char* var, const char* defaultValue = "");
     static bool GetBool(const char* var, bool defaultValue = false);

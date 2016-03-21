@@ -78,6 +78,19 @@ int TError::GetInnerCode() const
     return 0;
 }
 
+bool TError::ContainsText(const TStringBuf& text) const
+{
+    if (Message_.Contains(text)) {
+        return true;
+    }
+    for (const auto& error : InnerErrors_) {
+        if (error.ContainsText(text)) {
+            return true;
+        }
+    }
+    return false;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TErrorResponse::TErrorResponse(int httpCode, const Stroka& requestId)
@@ -93,12 +106,14 @@ const char* TErrorResponse::what() const throw ()
 void TErrorResponse::SetRawError(const Stroka& rawError)
 {
     RawError_ = rawError;
+    Setup();
 }
 
 void TErrorResponse::ParseFromJsonError(const Stroka& jsonError)
 {
     RawError_ = jsonError;
     Error_.ParseFrom(jsonError);
+    Setup();
 }
 
 int TErrorResponse::GetHttpCode() const
@@ -113,26 +128,37 @@ Stroka TErrorResponse::GetRequestId() const
 
 bool TErrorResponse::IsRetriable() const
 {
-    int code = Error_.GetInnerCode();
-    if (HttpCode_ / 100 == 4) {
-        if (HttpCode_ == 429 || code == 904) { // request rate limit exceeded
-            return true;
-        }
-        if (code / 100 == 7) { // chunk client errors
-            return true;
-        }
-        return false;
-    }
-    return true;
+    return Retriable_;
 }
 
 TDuration TErrorResponse::GetRetryInterval() const
 {
+    return RetryInterval_;
+}
+
+void TErrorResponse::Setup()
+{
+    Retriable_ = true;
+    RetryInterval_ = TConfig::Get()->RetryInterval;
+
     int code = Error_.GetInnerCode();
-    if (HttpCode_ == 429 || code == 904) { // request rate limit exceeded
-        return TConfig::Get()->RateLimitExceededRetryInterval;
+    if (HttpCode_ / 100 == 4) {
+        if (HttpCode_ == 429 || code == 904) {
+            // request rate limit exceeded
+            RetryInterval_ = TConfig::Get()->RateLimitExceededRetryInterval;
+            return;
+        }
+        if (code == 202 || Error_.ContainsText("Limit for the number of concurrent operations")) {
+            // limit for the number of concurrent operations exceeded
+            RetryInterval_ = TConfig::Get()->StartOperationRetryInterval;
+            return;
+        }
+        if (code / 100 == 7) {
+            // chunk client errors
+            return;
+        }
+        Retriable_ = false;
     }
-    return TConfig::Get()->RetryInterval;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

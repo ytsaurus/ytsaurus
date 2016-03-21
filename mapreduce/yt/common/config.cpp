@@ -123,6 +123,7 @@ void TConfig::LoadTimings()
     PingInterval = GetDuration("YT_PING_INTERVAL", 3);
     RetryInterval = GetDuration("YT_RETRY_INTERVAL", 3);
     RateLimitExceededRetryInterval = GetDuration("YT_RATE_LIMIT_EXCEEDED_RETRY_INTERVAL", 60);
+    StartOperationRetryInterval = GetDuration("YT_START_OPERATION_RETRY_INTERVAL", 60);
 }
 
 TConfig::TConfig()
@@ -146,6 +147,7 @@ TConfig::TConfig()
     LoadTimings();
 
     RetryCount = GetInt("YT_RETRY_COUNT", 10);
+    StartOperationRetryCount = GetInt("YT_START_OPERATION_RETRY_COUNT", 30);
 }
 
 TConfig* TConfig::Get()

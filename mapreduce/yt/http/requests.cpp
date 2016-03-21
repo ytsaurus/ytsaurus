@@ -182,9 +182,13 @@ Stroka RetryRequest(
     const TAuth& auth,
     THttpHeader& header,
     const Stroka& body,
-    bool isHeavy)
+    bool isHeavy,
+    bool isOperation)
 {
-    int retryCount = TConfig::Get()->RetryCount;
+    int retryCount = isOperation ?
+        TConfig::Get()->StartOperationRetryCount :
+        TConfig::Get()->RetryCount;
+
     header.SetToken(auth.Token);
 
     for (int attempt = 0; attempt < retryCount; ++attempt) {
@@ -199,7 +203,9 @@ Stroka RetryRequest(
             THttpRequest request(hostName);
             requestId = request.GetRequestId();
 
-            if (attempt > 0) {
+            if (isOperation) {
+                header.AddMutationId();
+            } else if (attempt > 0) {
                 header.AddParam("retry", "true");
             }
 
