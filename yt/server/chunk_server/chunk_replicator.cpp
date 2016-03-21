@@ -796,6 +796,10 @@ bool TChunkReplicator::CreateSealJob(
         return true;
     }
 
+    if (chunk->IsJobScheduled()) {
+        return true;
+    }
+
     // NB: Seal jobs can be started even if chunk refresh is scheduled.
 
     if (chunk->StoredReplicas().size() < chunk->GetReadQuorum()) {
@@ -893,8 +897,9 @@ void TChunkReplicator::ScheduleNewJobs(
             auto& queue = node->ChunkRemovalQueue();
             auto it = queue.begin();
             while (it != queue.end()) {
-                if (resourceUsage.removal_slots() >= resourceLimits.removal_slots())
+                if (resourceUsage.removal_slots() >= resourceLimits.removal_slots()) {
                     break;
+                }
 
                 auto jt = it++;
                 const auto& chunkId = *jt;
@@ -917,8 +922,9 @@ void TChunkReplicator::ScheduleNewJobs(
             int maxJobs = std::max(0, resourceLimits.replication_slots() - resourceUsage.replication_slots());
             auto chunksToBalance = ChunkPlacement_->GetBalancingChunks(node, maxJobs);
             for (auto chunkWithIndex : chunksToBalance) {
-                if (!hasSpareReplicationResources())
+                if (!hasSpareReplicationResources()) {
                     break;
+                }
 
                 TJobPtr job;
                 CreateBalancingJob(node, chunkWithIndex, targetFillFactor, &job);
@@ -947,8 +953,9 @@ void TChunkReplicator::ScheduleNewJobs(
 
 void TChunkReplicator::RefreshChunk(TChunk* chunk)
 {
-    if (!chunk->IsConfirmed())
+    if (!chunk->IsConfirmed()) {
         return;
+    }
 
     ResetChunkStatus(chunk);
 
@@ -1115,10 +1122,17 @@ void TChunkReplicator::ScheduleChunkRefresh(const TChunkId& chunkId)
 
 void TChunkReplicator::ScheduleChunkRefresh(TChunk* chunk)
 {
-    if (!IsObjectAlive(chunk) ||
-        chunk->GetRefreshScheduled() ||
-        chunk->IsForeign())
+    if (!IsObjectAlive(chunk)) {
         return;
+    }
+
+    if (chunk->GetRefreshScheduled()) {
+        return;
+    }
+
+    if (chunk->IsForeign()) {
+        return;
+    }
 
     TRefreshEntry entry;
     entry.Chunk = chunk;
@@ -1139,8 +1153,9 @@ void TChunkReplicator::ScheduleNodeRefresh(TNode* node)
 
 void TChunkReplicator::OnRefresh()
 {
-    if (RefreshList_.empty())
+    if (RefreshList_.empty()) {
         return;
+    }
 
     auto objectManager = Bootstrap_->GetObjectManager();
 
@@ -1150,12 +1165,14 @@ void TChunkReplicator::OnRefresh()
         auto chunkManager = Bootstrap_->GetChunkManager();
         auto now = GetCpuInstant();
         for (int i = 0; i < Config_->MaxChunksPerRefresh; ++i) {
-            if (RefreshList_.empty())
+            if (RefreshList_.empty()) {
                 break;
+            }
 
             const auto& entry = RefreshList_.front();
-            if (entry.When > now)
+            if (entry.When > now) {
                 break;
+            }
 
             auto* chunk = entry.Chunk;
             RefreshList_.pop_front();
@@ -1359,9 +1376,13 @@ void TChunkReplicator::SchedulePropertiesUpdate(TChunkList* chunkList)
 
 void TChunkReplicator::SchedulePropertiesUpdate(TChunk* chunk)
 {
-    if (!IsObjectAlive(chunk) ||
-        chunk->GetPropertiesUpdateScheduled())
+    if (!IsObjectAlive(chunk)) {
         return;
+    }
+
+    if (chunk->GetPropertiesUpdateScheduled()) {
+        return;
+    }
 
     PropertiesUpdateList_.push_back(chunk);
     chunk->SetPropertiesUpdateScheduled(true);
@@ -1372,9 +1393,11 @@ void TChunkReplicator::SchedulePropertiesUpdate(TChunk* chunk)
 
 void TChunkReplicator::OnPropertiesUpdate()
 {
-    if (PropertiesUpdateList_.empty() ||
-        !Bootstrap_->GetHydraFacade()->GetHydraManager()->IsActiveLeader())
-    {
+    if (PropertiesUpdateList_.empty()) {
+        return;
+    }
+
+    if (!Bootstrap_->GetHydraFacade()->GetHydraManager()->IsActiveLeader()) {
         return;
     }
 
