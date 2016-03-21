@@ -16,6 +16,8 @@
 #include <yt/ytlib/chunk_client/dispatcher.h>
 #include <yt/ytlib/chunk_client/sequential_reader.h>
 
+#include <yt/ytlib/node_tracker_client/node_directory.h>
+
 #include <yt/core/compression/codec.h>
 
 #include <yt/core/misc/common.h>
@@ -790,14 +792,14 @@ protected:
 
     const TSharedRef& GetUncompressedBlock(int blockIndex)
     {
-        YCHECK(blockIndex >= LastUncompressedBlockIndex_);
+        YCHECK(blockIndex >= LastRetainedBlockIndex_);
 
-        if (LastUncompressedBlockIndex_ != blockIndex) {
+        if (LastRetainedBlockIndex_ != blockIndex) {
             auto uncompressedBlock = GetUncompressedBlockFromCache(blockIndex);
             // Retain a reference to prevent uncompressed block from being evicted.
             // This may happen, for example, if the table is compressed.
             RetainedUncompressedBlocks_.push_back(uncompressedBlock);
-            LastUncompressedBlockIndex_ = blockIndex;
+            LastRetainedBlockIndex_ = blockIndex;
         }
 
         return RetainedUncompressedBlocks_.back();
@@ -815,7 +817,7 @@ private:
     //! Holds uncompressed blocks for the returned rows (for string references).
     //! In compressed mode, also serves as a per-request cache of uncompressed blocks.
     SmallVector<TSharedRef, 2> RetainedUncompressedBlocks_;
-    int LastUncompressedBlockIndex_ = -1;
+    int LastRetainedBlockIndex_ = -1;
 
     //! Holds row values for the returned rows.
     TChunkedMemoryPool MemoryPool_;
@@ -833,7 +835,12 @@ private:
         if (compressedBlock) {
             auto codecId = NCompression::ECodec(ChunkMeta_->Misc().compression_codec());
             auto* codec = NCompression::GetCodec(codecId);
-            return codec->Decompress(compressedBlock);
+
+            auto uncompressedBlock = codec->Decompress(compressedBlock);
+            if (codecId != NCompression::ECodec::None) {
+                BlockCache_->Put(blockId, EBlockType::UncompressedData, uncompressedBlock, Null);
+            }
+            return uncompressedBlock;
         }
 
         LOG_FATAL("Cached block is missing (BlockId: %v)", blockId);
