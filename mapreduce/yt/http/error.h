@@ -26,6 +26,8 @@ public:
 
     int GetInnerCode() const;
 
+    bool ContainsText(const TStringBuf& text) const;
+
 private:
     int Code_;
     Stroka Message_;
@@ -44,6 +46,7 @@ public:
 
     void SetRawError(const Stroka& rawError);
     void ParseFromJsonError(const Stroka& jsonError);
+
     int GetHttpCode() const;
     Stroka GetRequestId() const;
 
@@ -55,6 +58,11 @@ private:
     Stroka RequestId_;
     Stroka RawError_;
     TError Error_;
+
+    bool Retriable_;
+    TDuration RetryInterval_;
+
+    void Setup();
 };
 
 ////////////////////////////////////////////////////////////////////////////////

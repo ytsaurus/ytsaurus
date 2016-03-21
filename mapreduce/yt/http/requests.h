@@ -77,7 +77,8 @@ Stroka RetryRequest(
     const TAuth& auth,
     THttpHeader& header,
     const Stroka& body = "",
-    bool isHeavy = false);
+    bool isHeavy = false,
+    bool isOperation = false);
 
 void RetryHeavyWriteRequest(
     const TAuth& auth,
