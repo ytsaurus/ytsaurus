@@ -2,7 +2,7 @@ from configs_provider import ConfigsProviderFactory
 
 from yt.environment import YTEnv
 from yt.environment.init_cluster import initialize_world
-from yt.wrapper.common import generate_uuid, GB
+from yt.wrapper.common import generate_uuid, MB
 from yt.wrapper.client import Yt
 from yt.common import YtError, require, update
 import yt.yson as yson
@@ -17,6 +17,9 @@ import shutil
 import socket
 
 logger = logging.getLogger("Yt.local")
+
+# TODO(asaitgalin): Use it from yt.wrapper.common later.
+GB = 1024 * MB
 
 class YTEnvironment(YTEnv):
     def __init__(self, master_config, scheduler_config, node_config, proxy_config):
