@@ -76,7 +76,7 @@ import_from_mr.py
     --destination-dir '"$IMPORT_PATH"'
     --mapreduce-binary /Berkanavt/bin/mapreduce
     --mr-server redwood00.search.yandex.net
-    --compression-codec zlib9
+    --compression-codec zlib_9
     --erasure-codec lrc_12_2_2
     --yt-pool redwood_restricted
     --fastbone
