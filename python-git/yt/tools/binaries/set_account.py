@@ -18,10 +18,13 @@ def main():
     if args.proxy is not None:
         yt.config["proxy"]["url"] = args.proxy
 
-    for obj in yt.search(args.dir, attributes=["account"]):
+    for obj in yt.search(args.dir, attributes=["account", "type"]):
         if obj.attributes["account"] != args.account:
             try:
-                yt.set(obj + "/@account", args.account)
+                if obj.attributes["type"] == "link":
+                    yt.set(obj + "&/@account", args.account)
+                else:
+                    yt.set(obj + "/@account", args.account)
             except yt.YtResponseError as error:
                 if error.is_concurrent_transaction_lock_conflict():
                     logger.warning("Cannot set '%s' account to node '%s'", args.account, obj)
