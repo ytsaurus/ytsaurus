@@ -21,7 +21,7 @@ class TestClient(object):
         yt.remove("//sys/users/tester", force=True)
         yt.remove("//sys/groups/testers", force=True)
 
-    def test_client(self):
+    def test_client(self, yt_env):
         client = Yt(config=yt.config.config)
         client.config["tabular_data_format"] = yt.format.DsvFormat()
 
@@ -107,7 +107,7 @@ class TestClient(object):
             client.run_reduce("head -n 3", temp_table, TEST_DIR + "/reduce_output", reduce_by=["x"])
             assert client.row_count(TEST_DIR + "/reduce_output") == 3
 
-            if yt.config["api_version"] != "v2":
+            if yt_env.version >= "0.17.5":
                 client.write_table("<sorted_by=[x]>" + TEST_DIR + "/first", ["x=1\n", "x=2\n"])
                 client.write_table("<sorted_by=[x]>" + TEST_DIR + "/second", ["x=2\n", "x=3\n"])
                 client.run_join_reduce("cat", [TEST_DIR + "/first", "<foreign=true>" + TEST_DIR + "/second"],

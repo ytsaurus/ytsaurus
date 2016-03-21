@@ -227,7 +227,7 @@ class TestTableCommands(object):
         yt.config["tabular_data_format"] = None
         try:
             # Name must differ with name of table in select test because of metadata caches
-            table = TEST_DIR + "/table2"
+            table = TEST_DIR + "/table3"
             yt.remove(table, force=True)
             yt.create_table(table)
             if yt_env.version < "0.18":
