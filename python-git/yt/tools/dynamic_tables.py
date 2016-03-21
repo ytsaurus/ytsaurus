@@ -1,15 +1,16 @@
-import sys
-import time
-import itertools as it
 import yt.wrapper as yt
 import yt.yson as yson
+import sys
+import time
+import inspect
 import logging
+import itertools as it
 
-from random import randint, shuffle
-from time import sleep
 from yt.common import YtError, update, set_pdeathsig
 from yt.wrapper.common import run_with_retries
 from yt.wrapper.client import Yt
+from random import randint, shuffle
+from time import sleep
 
 yt.config["pickling"]["module_filter"] = lambda module: not hasattr(module, "__file__") or "yt_driver_bindings" not in module.__file__
 
@@ -34,13 +35,21 @@ INPUT_ROW_LIMIT = 100000000
 # Nice yson format
 YSON_FORMAT = yt.YsonFormat(boolean_as_string=False, process_table_index=False)
 
-def _log_exception(ex):
-    sys.stderr.write("Execution failed. Retrying...\n")
+def call(function, *args, **kwargs):
+    argspec = inspect.getargspec(function)
+    namedargs = argspec.args
+    has_keywords = argspec.keywords is not None
+    valid_kwargs = kwargs if has_keywords else {key: value for key, value in kwargs.iteritems() if key in namedargs}
+    return function(*args, **valid_kwargs)
+
+def log_exception(ex):
+    sys.stderr.write("Execution failed with error: \n")
     sys.stderr.write(str(ex) + "\n")
+    sys.stderr.write("Retrying...")
     sys.stderr.flush()
 
 # Build map operation spec from command line args.
-def _build_spec_from_options(
+def build_spec_from_options(
     job_count=JOB_COUNT,
     max_failed_job_count=MAX_FAILDED_JOB_COUNT,
     memory_limit=JOB_MEMORY_LIMIT,
@@ -128,13 +137,13 @@ def extract_partition_bounds(table, partition_bounds_table):
         format=YSON_FORMAT,
         raw=False)
 
-
-
-def run_map_over_dynamic(mapper, src_table, dst_table, options=None):
+def run_map_over_dynamic(mapper, src_table, dst_table, columns=None, predicate=None, input_row_limit=INPUT_ROW_LIMIT, output_row_limit=OUTPUT_ROW_LIMIT, **kwargs):
     schema = yt.get(src_table + "/@schema")
     key_columns = yt.get(src_table + "/@key_columns")
 
-    select_columns = ",".join([x["name"] for x in schema if "expression" not in x.keys()])
+    select_columns = [x["name"] for x in schema if "expression" not in x.keys()]
+    if columns is not None:
+        select_columns = [x for x in select_columns if x in columns]
 
     # Get something like ((key1, key2, key3), (bound1, bound2, bound3)) from a bound.
     get_bound_value = lambda bound : ",".join([yson.dumps(x, yson_format="text") for x in bound])
@@ -145,22 +154,22 @@ def run_map_over_dynamic(mapper, src_table, dst_table, options=None):
     def query(left, right):
         left = "({}) >= ({})".format(*expand_bound(left)) if left != None else None
         right = "({}) < ({})".format(*expand_bound(right)) if right != None else None
-        bounds = [x for x in [left, right] if x is not None]
+        bounds = [x for x in [left, right, predicate] if x is not None]
         where = (" where " + " and ".join(bounds)) if len(bounds) > 0 else ""
-        query = "{} from [{}] {}".format(select_columns, src_table, where)
+        query = "{} from [{}] {}".format(",".join(select_columns), src_table, where)
 
         client = Yt(config=DEFAULT_CLIENT_CONFIG)
         def do_select():
-            return client.select_rows(query, input_row_limit=INPUT_ROW_LIMIT, output_row_limit=OUTPUT_ROW_LIMIT, raw=False)
-        return run_with_retries(do_select, except_action=_log_exception)
+            return client.select_rows(query, input_row_limit=input_row_limit, output_row_limit=output_row_limit, raw=False)
+        return run_with_retries(do_select, except_action=log_exception)
 
     def dump_mapper(bound):
-        src_rows = query(bound["left"], bound["right"])
+        rows = query(bound["left"], bound["right"])
 
-        for res in mapper(src_rows):
+        for res in mapper(rows):
             yield res
 
-    map_spec = _build_spec_from_options(**({} if options is None else options));
+    map_spec = call(build_spec_from_options, **kwargs);
 
     mount_table(src_table)
 
@@ -183,27 +192,27 @@ def split_in_groups(rows, count=10000):
         result.append(row)
     yield result
 
-def run_map_dynamic(mapper, src_table, dst_table, options=None):
-    def insert_mapper(src_rows):
+def run_map_dynamic(mapper, src_table, dst_table, batch_size=50000, **kwargs):
+    def insert_mapper(rows):
         client = Yt(config=DEFAULT_CLIENT_CONFIG)
 
         def mapped_iterator():
-            for row in src_rows:
+            for row in rows:
                 for res in mapper(row):
                     yield res
 
-        for rowset in split_in_groups(mapped_iterator(), 50000):
+        for rowset in split_in_groups(mapped_iterator(), batch_size):
             def do_insert():
                 client.insert_rows(dst_table, rowset, raw=False)
-            run_with_retries(do_insert, except_action=_log_exception)
+            run_with_retries(do_insert, except_action=log_exception)
 
         if False:
             yield
 
     mount_table(dst_table)
 
-    with yt.TempTable() as result_table:
-        run_map_over_dynamic(insert_mapper, src_table, result_table, options)
+    with yt.TempTable() as out_table:
+        run_map_over_dynamic(insert_mapper, src_table, out_table, **kwargs)
 
 def convert_to_new_schema(schema, key_columns):
     result = []
