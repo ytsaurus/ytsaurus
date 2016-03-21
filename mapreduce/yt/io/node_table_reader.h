@@ -77,7 +77,7 @@ private:
     bool Finished_ = false;
     ui32 TableIndex_ = 0;
     TMaybe<ui64> RowIndex_;
-    bool HasRowIndex_ = false;
+    TMaybe<ui32> RangeIndex_;
 
     TRowElementPtr Row_;
     TRowQueue RowQueue_;

@@ -12,8 +12,8 @@ class TProxyInput
     : public TInputStream
 {
 public:
-    virtual bool OnStreamError(const yexception& e) = 0;
-    virtual void OnRowFetched() = 0;
+    virtual bool OnStreamError(const yexception& e, ui32 rangeIndex, ui64 rowIndex) = 0;
+    virtual bool HasRangeIndices() const = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

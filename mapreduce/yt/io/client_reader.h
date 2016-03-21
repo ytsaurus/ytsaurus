@@ -24,8 +24,8 @@ public:
         EDataStreamFormat format,
         const TTableReaderOptions& options);
 
-    virtual bool OnStreamError(const yexception& ex) override;
-    virtual void OnRowFetched() override;
+    virtual bool OnStreamError(const yexception& e, ui32 rangeIndex, ui64 rowIndex) override;
+    virtual bool HasRangeIndices() const override { return true; }
 
 protected:
     virtual size_t DoRead(void* buf, size_t len) override;
@@ -41,12 +41,11 @@ private:
 
     THolder<THttpRequest> Request_;
     TInputStream* Input_;
-    int RowIndex_;
 
     int RetriesLeft_;
 
 private:
-    void CreateRequest(bool initial);
+    void CreateRequest(bool initial, ui32 rangeIndex = 0ul, ui64 rowIndex = 0ull);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

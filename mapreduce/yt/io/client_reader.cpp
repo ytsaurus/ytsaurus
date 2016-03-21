@@ -24,31 +24,6 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace {
-
-// TODO: use row_index from stream instead
-i64 GetRowIndexFromHeaders(THttpInput* httpInput)
-{
-    const THttpHeaders& headers = httpInput->Headers();
-    Stroka responseParameters;
-    for (auto h = headers.Begin(); h != headers.End(); ++h) {
-        if (h->Name() == "X-YT-Response-Parameters")
-            responseParameters = h->Value();
-    }
-
-    auto params = NodeFromYsonString(responseParameters);
-    auto& map = params.AsMap();
-    auto it = map.find("start_row_index");
-    if (it == map.end()) {
-        return 0;
-    }
-    return it->second.AsInt64();
-}
-
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 TClientReader::TClientReader(
     const TRichYPath& path,
     const TAuth& auth,
@@ -66,30 +41,25 @@ TClientReader::TClientReader(
     CreateRequest(true);
 }
 
-bool TClientReader::OnStreamError(const yexception& ex)
+bool TClientReader::OnStreamError(const yexception& e, ui32 rangeIndex, ui64 rowIndex)
 {
     LOG_ERROR("RSP %s - %s",
-        ~Request_->GetRequestId(), ex.what());
+        ~Request_->GetRequestId(), e.what());
 
     if (--RetriesLeft_ == 0) {
         return false;
     }
-    CreateRequest(false);
-    return true;
-}
 
-void TClientReader::OnRowFetched()
-{
-    ++RowIndex_;
+    CreateRequest(false, rangeIndex, rowIndex);
+    return true;
 }
 
 size_t TClientReader::DoRead(void* buf, size_t len)
 {
-    size_t bytes = Input_->Read(buf, len);
-    return bytes;
+    return Input_->Read(buf, len);
 }
 
-void TClientReader::CreateRequest(bool initial)
+void TClientReader::CreateRequest(bool initial, ui32 rangeIndex, ui64 rowIndex)
 {
     const int retryCount = TConfig::Get()->RetryCount;
 
@@ -102,6 +72,7 @@ void TClientReader::CreateRequest(bool initial)
             header.SetToken(Auth_.Token);
             header.AddTransactionId(ReadTransaction_->GetId());
             header.AddParam("control_attributes[enable_row_index]", true);
+            header.AddParam("control_attributes[enable_range_index]", true);
             header.SetDataStreamFormat(Format_);
 
             if (Format_ == DSF_YAMR_LENVAL) {
@@ -111,21 +82,21 @@ void TClientReader::CreateRequest(bool initial)
                 }
             }
 
-            // for now assume we always use only the first range
-            if (initial) {
-                header.SetParameters(FormIORequestParameters(Path_, Options_));
-            } else {
-                TRichYPath path = Path_;
-                TReadRange range;
-                if (!path.Ranges_.empty()) {
-                    path.Ranges_.clear();
-                    range = Path_.Ranges_[0];
+            if (!initial) {
+                auto& ranges = Path_.Ranges_;
+                if (ranges.empty()) {
+                    ranges.push_back(TReadRange());
+                } else {
+                    if (rangeIndex >= ranges.size()) {
+                        LOG_FATAL("Range index %" PRIu32 " is out of range, input ranges count is %" PRISZT,
+                            rangeIndex, ranges.size());
+                    }
+                    ranges.erase(ranges.begin(), ranges.begin() + rangeIndex);
                 }
-                range.LowerLimit(TReadLimit().RowIndex(RowIndex_));
-                path.Ranges_.push_back(range);
-
-                header.SetParameters(FormIORequestParameters(path, Options_));
+                ranges.begin()->LowerLimit(TReadLimit().RowIndex(rowIndex));
             }
+
+            header.SetParameters(FormIORequestParameters(Path_, Options_));
 
             Request_.Reset(new THttpRequest(proxyName));
             requestId = Request_->GetRequestId();
@@ -138,8 +109,6 @@ void TClientReader::CreateRequest(bool initial)
             Input_ = httpInput;
 
             LOG_DEBUG("RSP %s - table stream", ~requestId);
-
-            RowIndex_ = GetRowIndexFromHeaders(httpInput);
 
         } catch (TErrorResponse& e) {
             LOG_ERROR("RSP %s - attempt %d failed",

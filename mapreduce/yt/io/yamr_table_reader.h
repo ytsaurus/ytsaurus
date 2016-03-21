@@ -41,6 +41,7 @@ private:
     bool Finished_ = false;
     ui32 TableIndex_ = 0;
     TMaybe<ui64> RowIndex_;
+    TMaybe<ui32> RangeIndex_;
     TYaMRRow Row_;
 
 private:

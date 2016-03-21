@@ -68,11 +68,11 @@ void IdMapperNode()
 
     auto writer = client->CreateTableWriter<TNode>(input);
     for (int i = 0; i < 16; ++i) {
-        TNode row;
-        row["a"] = i;
-        row["b"] = i * 3.14;
-        row["c"] = "foo";
-        writer->AddRow(row);
+        writer->AddRow(TNode()
+            ("a", i)
+            ("b", i * 3.14)
+            ("c", "foo")
+        );
     }
     writer->Finish();
 
@@ -443,6 +443,82 @@ void Tablets()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void ReadMultipleRangesNode()
+{
+    auto client = CreateClient(SERVER);
+
+    Stroka input(PREFIX + "/input");
+    PrepareInput(client, input);
+
+    auto writer = client->CreateTableWriter<TNode>(
+        TRichYPath(input).SortedBy("key"));
+    for (int i = 0; i < 100; ++i) {
+        writer->AddRow(TNode()
+            ("key", i)
+            ("value", "0123456789abcdef")
+        );
+    }
+    writer->Finish();
+
+    TRichYPath path(input);
+    path.AddRange(TReadRange()
+        .LowerLimit(TReadLimit().RowIndex(10))
+        .UpperLimit(TReadLimit().RowIndex(20)));
+    path.AddRange(TReadRange()
+        .LowerLimit(TReadLimit().Key(30))
+        .UpperLimit(TReadLimit().Key(40)));
+    path.AddRange(TReadRange()
+        .LowerLimit(TReadLimit().RowIndex(50))
+        .UpperLimit(TReadLimit().RowIndex(60)));
+    path.AddRange(TReadRange()
+        .LowerLimit(TReadLimit().Key(70))
+        .UpperLimit(TReadLimit().Key(80)));
+
+    auto reader = client->CreateTableReader<TNode>(path);
+    for (; reader->IsValid(); reader->Next()) {
+        const auto& row = reader->GetRow();
+        Cout << row["key"].AsInt64() << ", row index " << reader->GetRowIndex() << Endl;
+    }
+}
+
+void ReadMultipleRangesYaMR()
+{
+    auto client = CreateClient(SERVER);
+
+    Stroka input(PREFIX + "/input");
+    PrepareInput(client, input);
+
+    auto writer = client->CreateTableWriter<TYaMRRow>(
+        TRichYPath(input).SortedBy("key"));
+    for (int i = 0; i < 100; ++i) {
+        TYaMRRow row;
+        row.Key = Sprintf("%02d", i);
+        row.Value = "0123456789abcdef";
+        writer->AddRow(row);
+    }
+    writer->Finish();
+
+    TRichYPath path(input);
+    path.AddRange(TReadRange()
+        .LowerLimit(TReadLimit().RowIndex(10))
+        .UpperLimit(TReadLimit().RowIndex(20)));
+    path.AddRange(TReadRange()
+        .LowerLimit(TReadLimit().Key("30"))
+        .UpperLimit(TReadLimit().Key("40")));
+    path.AddRange(TReadRange()
+        .LowerLimit(TReadLimit().RowIndex(50))
+        .UpperLimit(TReadLimit().RowIndex(60)));
+    path.AddRange(TReadRange()
+        .LowerLimit(TReadLimit().Key("70"))
+        .UpperLimit(TReadLimit().Key("80")));
+
+    auto reader = client->CreateTableReader<TYaMRRow>(path);
+    for (; reader->IsValid(); reader->Next()) {
+        const auto& row = reader->GetRow();
+        Cout << row.Key << ", row index " << reader->GetRowIndex() << Endl;
+    }
+}
+
 } // namespace NExample
 
 using namespace NExample;
@@ -457,6 +533,9 @@ int main(int argc, const char* argv[])
     IdMapperProto();
     ManyTablesMapperNode();
     JoinReducerProto();
+
+    ReadMultipleRangesNode();
+    ReadMultipleRangesYaMR();
 
 //    Tablets();
 

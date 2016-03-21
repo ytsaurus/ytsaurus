@@ -15,6 +15,7 @@ class TRetryException
 
 const i32 CONTROL_ATTR_TABLE_INDEX = -1;
 const i32 CONTROL_ATTR_KEY_SWITCH = -2;
+const i32 CONTROL_ATTR_RANGE_INDEX = -3;
 const i32 CONTROL_ATTR_ROW_INDEX = -4;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -122,7 +123,7 @@ size_t TYaMRTableReader::Load(void *buf, size_t len)
     }
 
     if (hasError) {
-        if (Input_->OnStreamError(ex)) {
+        if (Input_->OnStreamError(ex, RangeIndex_.GetOrElse(0ul), RowIndex_.GetOrElse(0ull))) {
             throw TRetryException();
         } else {
             ythrow ex;
@@ -182,28 +183,50 @@ void TYaMRTableReader::Next()
                 return;
             }
 
+            TMaybe<ui64> rowIndex;
+            TMaybe<ui32> rangeIndex;
+
             while (value < 0) {
                 switch (value) {
-                    case CONTROL_ATTR_TABLE_INDEX:
-                        ReadInteger(&value);
-                        TableIndex_ = static_cast<ui32>(value);
-                        ReadInteger(&value);
-                        break;
-
                     case CONTROL_ATTR_KEY_SWITCH:
                         Valid_ = false;
                         return;
 
+                    case CONTROL_ATTR_TABLE_INDEX: {
+                        ui32 tmp = 0;
+                        ReadInteger(&tmp);
+                        TableIndex_ = tmp;
+                        ReadInteger(&value);
+                        break;
+                    }
                     case CONTROL_ATTR_ROW_INDEX: {
-                        ui64 rowIndex = 0;
-                        ReadInteger(&rowIndex);
-                        RowIndex_ = rowIndex;
+                        ui64 tmp = 0;
+                        ReadInteger(&tmp);
+                        rowIndex = tmp;
+                        ReadInteger(&value);
+                        break;
+                    }
+                    case CONTROL_ATTR_RANGE_INDEX: {
+                        ui32 tmp = 0;
+                        ReadInteger(&tmp);
+                        rangeIndex = tmp;
                         ReadInteger(&value);
                         break;
                     }
                     default:
                         ythrow yexception() <<
                             Sprintf("Invalid control integer %d in YaMR stream", value);
+                }
+            }
+
+            if (rowIndex) {
+                if (Input_->HasRangeIndices()) {
+                    if (rangeIndex) {
+                        RowIndex_ = rowIndex;
+                        RangeIndex_ = rangeIndex;
+                    }
+                } else {
+                    RowIndex_ = rowIndex;
                 }
             }
 
@@ -218,8 +241,6 @@ void TYaMRTableReader::Next()
         }
         break;
     }
-
-    Input_->OnRowFetched();
 }
 
 void TYaMRTableReader::NextKey()

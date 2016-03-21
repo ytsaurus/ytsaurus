@@ -272,34 +272,43 @@ void TNodeTableReader::Next()
 {
     CheckValidity();
 
+    if (RowIndex_) {
+        ++*RowIndex_;
+    }
+
+    TMaybe<ui64> rowIndex;
+    TMaybe<ui32> rangeIndex;
+
     while (true) {
         Row_ = RowQueue_.Dequeue();
         if (Row_->Type == TRowElement::ROW) {
             if (Row_->Node.IsEntity()) {
-                const TNode::TMap& attributes = Row_->Node.GetAttributes().AsMap();
-                auto tableIndexIt = attributes.find("table_index");
-                if (tableIndexIt != attributes.end()) {
-                    i64 index = tableIndexIt->second.AsInt64();
-                    TableIndex_ = static_cast<ui32>(index);
+                for (auto& entry : Row_->Node.GetAttributes().AsMap()) {
+                    if (entry.first == "key_switch") {
+                        Valid_ = false;
+                        break;
+                    } else if (entry.first == "table_index") {
+                        TableIndex_ = static_cast<ui32>(entry.second.AsInt64());
+                    } else if (entry.first == "row_index") {
+                        rowIndex = static_cast<ui64>(entry.second.AsInt64());
+                    } else if (entry.first == "range_index") {
+                        rangeIndex = static_cast<ui64>(entry.second.AsInt64());
+                    }
                 }
-                auto keySwitchIt = attributes.find("key_switch");
-                if (keySwitchIt != attributes.end()) {
-                    Valid_ = false;
+                if (!Valid_) {
                     break;
                 }
-                auto rowIndexIt = attributes.find("row_index");
-                if (rowIndexIt != attributes.end()) {
-                    i64 index = rowIndexIt->second.AsInt64();
-                    RowIndex_ = static_cast<ui64>(index);
-                    HasRowIndex_ = true;
-                }
-
             } else {
-                if (RowIndex_ && !HasRowIndex_) {
-                    ++*RowIndex_;
+                if (rowIndex) {
+                    if (Input_->HasRangeIndices()) {
+                        if (rangeIndex) {
+                            RowIndex_ = rowIndex;
+                            RangeIndex_ = rangeIndex;
+                        }
+                    } else {
+                        RowIndex_ = rowIndex;
+                    }
                 }
-                HasRowIndex_ = false;
-                Input_->OnRowFetched();
                 break;
             }
 
@@ -350,7 +359,9 @@ void TNodeTableReader::PrepareParsing()
 
 void TNodeTableReader::OnStreamError()
 {
-    if (Input_->OnStreamError(Exception_)) {
+    if (Input_->OnStreamError(Exception_,
+        RangeIndex_.GetOrElse(0ul), RowIndex_.GetOrElse(0ull)))
+    {
         PrepareParsing();
         RetryPrepared_.Signal();
     } else {
