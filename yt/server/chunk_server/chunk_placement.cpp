@@ -454,7 +454,7 @@ std::vector<TChunkPtrWithIndex> TChunkPlacement::GetBalancingChunks(
         if (chunk->GetRefreshScheduled()) {
             continue;
         }
-        if (chunk->GetJob()) {
+        if (chunk->IsJobScheduled()) {
             continue;
         }
         result.push_back(replica);

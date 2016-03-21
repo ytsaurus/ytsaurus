@@ -602,7 +602,7 @@ bool TChunkReplicator::CreateReplicationJob(
         return true;
     }
 
-    if (chunk->GetJob()) {
+    if (chunk->IsJobScheduled()) {
         return true;
     }
 
@@ -701,7 +701,7 @@ bool TChunkReplicator::CreateRemovalJob(
         if (chunk->GetRefreshScheduled()) {
             return true;
         }
-        if (chunk->GetJob()) {
+        if (chunk->IsJobScheduled()) {
             return true;
         }
     }
@@ -734,7 +734,7 @@ bool TChunkReplicator::CreateRepairJob(
         return true;
     }
 
-    if (chunk->GetJob()) {
+    if (chunk->IsJobScheduled()) {
         return true;
     }
 
@@ -985,7 +985,7 @@ void TChunkReplicator::RefreshChunk(TChunk* chunk)
         YCHECK(UnsafelyPlacedChunks_.insert(chunk).second);
     }
 
-    if (!chunk->GetJob()) {
+    if (!chunk->IsJobScheduled()) {
         RemoveChunkFromQueues(chunk, true);
 
         if (Any(statistics.Status & EChunkStatus::Overreplicated)) {
