@@ -107,7 +107,7 @@ class TestClient(object):
             client.run_reduce("head -n 3", temp_table, TEST_DIR + "/reduce_output", reduce_by=["x"])
             assert client.row_count(TEST_DIR + "/reduce_output") == 3
 
-            if yt_env.version >= "0.17.5":
+            if yt_env.version >= "0.17.5" and yt.config["api_version"] != "v2":
                 client.write_table("<sorted_by=[x]>" + TEST_DIR + "/first", ["x=1\n", "x=2\n"])
                 client.write_table("<sorted_by=[x]>" + TEST_DIR + "/second", ["x=2\n", "x=3\n"])
                 client.run_join_reduce("cat", [TEST_DIR + "/first", "<foreign=true>" + TEST_DIR + "/second"],
