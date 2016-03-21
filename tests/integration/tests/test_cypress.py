@@ -389,9 +389,9 @@ class TestCypress(YTEnvSetup):
     def test_copy_table_compression_codec(self):
         create("table", "//tmp/t1")
         assert get("//tmp/t1/@compression_codec") == "lz4"
-        set("//tmp/t1/@compression_codec", "zlib6")
+        set("//tmp/t1/@compression_codec", "zlib_6")
         copy("//tmp/t1", "//tmp/t2")
-        assert get("//tmp/t2/@compression_codec") == "zlib6"
+        assert get("//tmp/t2/@compression_codec") == "zlib_6"
 
     def test_copy_id1(self):
         set("//tmp/a", 123)
