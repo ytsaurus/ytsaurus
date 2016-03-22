@@ -510,8 +510,8 @@ public:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
         YCHECK(table->IsTrunk());
 
-        if (table->IsExternal()) {
-            THROW_ERROR_EXCEPTION("External tables cannot be dynamic");
+        if (!table->IsDynamic()) {
+            THROW_ERROR_EXCEPTION("Cannot mount a static table");
         }
 
         ParseTabletRange(table, &firstTabletIndex, &lastTabletIndex); // may throw
@@ -545,30 +545,6 @@ public:
 
         auto serializedMountConfig = ConvertToYsonString(mountConfig);
         auto serializedWriterOptions = ConvertToYsonString(writerOptions);
-
-        // When mounting a table with no tablets, create the tablet automatically.
-        if (table->Tablets().empty()) {
-            auto* tablet = CreateTablet(table);
-            tablet->SetIndex(0);
-            tablet->SetPivotKey(EmptyKey());
-            table->Tablets().push_back(tablet);
-            firstTabletIndex = 0;
-            lastTabletIndex = 0;
-
-            auto* oldRootChunkList = table->GetChunkList();
-            auto chunks = EnumerateChunksInChunkTree(oldRootChunkList);
-            auto* newRootChunkList = chunkManager->CreateChunkList();
-            table->SetChunkList(newRootChunkList);
-            newRootChunkList->AddOwningNode(table);
-            objectManager->RefObject(newRootChunkList);
-            oldRootChunkList->RemoveOwningNode(table);
-            auto* tabletChunkList = chunkManager->CreateChunkList();
-            chunkManager->AttachToChunkList(newRootChunkList, tabletChunkList);
-            for (auto* chunk : chunks) {
-                chunkManager->AttachToChunkList(tabletChunkList, chunk);
-            }
-            objectManager->UnrefObject(oldRootChunkList);
-        }
 
         std::vector<TTablet*> tabletsToMount;
         for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
@@ -652,6 +628,10 @@ public:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
         YCHECK(table->IsTrunk());
 
+        if (!table->IsDynamic()) {
+            THROW_ERROR_EXCEPTION("Cannot unmount a static table");
+        }
+
         ParseTabletRange(table, &firstTabletIndex, &lastTabletIndex); // may throw
 
         if (!force) {
@@ -675,6 +655,10 @@ public:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
         YCHECK(table->IsTrunk());
+
+        if (!table->IsDynamic()) {
+            THROW_ERROR_EXCEPTION("Cannot remount a static table");
+        }
 
         ParseTabletRange(table, &firstTabletIndex, &lastTabletIndex); // may throw
 
@@ -744,8 +728,8 @@ public:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
         YCHECK(table->IsTrunk());
 
-        if (table->IsExternal()) {
-            THROW_ERROR_EXCEPTION("External tables cannot be dynamic");
+        if (!table->IsDynamic()) {
+            THROW_ERROR_EXCEPTION("Cannot reshard a static table");
         }
 
         auto objectManager = Bootstrap_->GetObjectManager();
@@ -881,6 +865,31 @@ public:
 
         table->SnapshotStatistics() = table->GetChunkList()->Statistics().ToDataStatistics();
     }
+
+    void MakeDynamic(TTableNode* table)
+    {
+        if (table->IsDynamic()) {
+            return;
+        }
+
+        auto* rootChunkList = table->GetChunkList();
+        if (!rootChunkList->Children().empty()) {
+            THROW_ERROR_EXCEPTION("Table is not empty");
+        }
+
+        auto* tablet = CreateTablet(table);
+        tablet->SetIndex(0);
+        tablet->SetPivotKey(EmptyKey());
+        table->Tablets().push_back(tablet);
+
+        auto chunkManager = Bootstrap_->GetChunkManager();
+        auto* tabletChunkList = chunkManager->CreateChunkList();
+        chunkManager->AttachToChunkList(rootChunkList, tabletChunkList);
+
+        LOG_DEBUG_UNLESS(IsRecovery(), "Table is switched to dynamic mode (TableId: %v)",
+            table->GetId());
+    }
+
 
     TTabletCell* GetTabletCellOrThrow(const TTabletCellId& id)
     {
@@ -2245,6 +2254,11 @@ void TTabletManager::ReshardTable(
         firstTabletIndex,
         lastTabletIndex,
         pivotKeys);
+}
+
+void TTabletManager::MakeDynamic(TTableNode* table)
+{
+    Impl_->MakeDynamic(table);
 }
 
 TTabletCell* TTabletManager::GetTabletCellOrThrow(const TTabletCellId& id)

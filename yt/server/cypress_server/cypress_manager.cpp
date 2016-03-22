@@ -164,6 +164,12 @@ public:
             attributes = attributeHolder.get();
         }
 
+        // TODO(babenko): this is a temporary workaround until dynamic tables become fully supported in
+        // multicell mode
+        if (attributes->Get<bool>("dynamic", false)) {
+            attributes->Set("external", false);
+        }
+
         bool isExternal = false;
         auto multicellManager = Bootstrap_->GetMulticellManager();
         if (attributes->Contains("external")) {
