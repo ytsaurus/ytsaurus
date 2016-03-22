@@ -221,13 +221,23 @@ protected:
             attributes->Set("compression_codec", NCompression::ECodec::Lz4);
         }
 
+        bool dynamic = attributes->Get<bool>("dynamic", false);
+        attributes->Remove("dynamic");
+
         TBase::InitializeAttributes(attributes);
 
-        return TChunkOwnerTypeHandler::DoCreate(
+        auto nodeHolder = TChunkOwnerTypeHandler::DoCreate(
             id,
             cellTag,
             transaction,
             attributes);
+
+        if (dynamic) {
+            auto tabletManager = Bootstrap_->GetTabletManager();
+            tabletManager->MakeDynamic(nodeHolder.get());
+        }
+
+        return nodeHolder;
     }
 
     virtual void DoDestroy(TTableNode* table) override
