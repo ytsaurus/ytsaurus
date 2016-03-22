@@ -130,7 +130,7 @@ class TestTableCommands(object):
             pytest.skip()
 
         table = TEST_DIR + "/table"
-        yt.create_table(table)
+        yt.create_table(table, attributes={"dynamic": True})
         if yt_env.version < "0.18":
             yt.set(table + "/@schema", [{"name": name, "type": "string"} for name in ["x", "y"]])
             yt.set(table + "/@key_columns", ["x"])
@@ -190,7 +190,7 @@ class TestTableCommands(object):
             # Name must differ with name of table in select test because of metadata caches
             table = TEST_DIR + "/table2"
             yt.remove(table, force=True)
-            yt.create_table(table)
+            yt.create_table(table, attributes={"dynamic": True})
             if yt_env.version < "0.18":
                 yt.set(table + "/@schema", [{"name": name, "type": "string"} for name in ["x", "y"]])
                 yt.set(table + "/@key_columns", ["x"])
@@ -229,7 +229,7 @@ class TestTableCommands(object):
             # Name must differ with name of table in select test because of metadata caches
             table = TEST_DIR + "/table3"
             yt.remove(table, force=True)
-            yt.create_table(table)
+            yt.create_table(table, attributes={"dynamic": True})
             if yt_env.version < "0.18":
                 yt.set(table + "/@schema", [{"name": name, "type": "string"} for name in ["x", "y"]])
                 yt.set(table + "/@key_columns", ["x"])
