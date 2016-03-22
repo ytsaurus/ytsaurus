@@ -352,6 +352,24 @@ TEST(TYsonFragmentWriterTest, NewLinesInList)
     EXPECT_EQ(output, outputStream.Str());
 }
 
+TEST(TYsonFragmentWriterTest, BinaryList)
+{
+    TStringStream outputStream;
+
+    TYsonWriter writer(&outputStream, EYsonFormat::Binary, EYsonType::ListFragment);
+    writer.OnListItem();
+        writer.OnInt64Scalar(200);
+    writer.OnListItem();
+        writer.OnStringScalar("aaa");
+
+    Stroka output =
+        "\x2\x90\x3;"
+        "\x1\x6""aaa;";
+
+    EXPECT_EQ(output, outputStream.Str());
+}
+
+
 TEST(TYsonFragmentWriterTest, NewLinesInMap)
 {
     TStringStream outputStream;

@@ -139,7 +139,9 @@ void TYsonWriter::EndNode()
 {
     if (Depth_ > 0 || Type_ != EYsonType::Node) {
         Stream_->Write(TokenTypeToChar(ItemSeparatorToken));
-        if (Depth_ > 0 && Format_ == EYsonFormat::Pretty || Depth_ == 0) {
+        if ((Depth_ > 0 && Format_ == EYsonFormat::Pretty) ||
+            (Depth_ == 0 && Format_ != EYsonFormat::Binary))
+        {
             Stream_->Write('\n');
         }
     }
