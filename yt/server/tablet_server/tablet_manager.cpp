@@ -1779,6 +1779,11 @@ private:
             Null,
             Format("Prerequisite for cell %v", cell->GetId()));
 
+        auto objectManager = Bootstrap_->GetObjectManager();
+        for (auto cellTag : secondaryCellTags) {
+            objectManager->ReplicateObjectCreationToSecondaryMaster(transaction, cellTag);
+        }
+
         YCHECK(!cell->GetPrerequisiteTransaction());
         cell->SetPrerequisiteTransaction(transaction);
         YCHECK(TransactionToCellMap_.insert(std::make_pair(transaction, cell)).second);
