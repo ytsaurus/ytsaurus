@@ -670,8 +670,7 @@ class TestSchedulerPreemption(YTEnvSetup):
 
     DELTA_SCHEDULER_CONFIG = {
         "scheduler": {
-            "min_share_preemption_timeout": 100,
-            "locality_timeout": 0
+            "min_share_preemption_timeout": 100
         }
     }
 
@@ -684,7 +683,7 @@ class TestSchedulerPreemption(YTEnvSetup):
         create("table", "//tmp/t_out2")
 
         op_id = map(dont_track=True, command="sleep 1000; cat", in_=["//tmp/t_in"], out="//tmp/t_out1",
-                    spec={"pool": "fake_pool", "job_count": 3})
+                    spec={"pool": "fake_pool", "job_count": 3, "locality_timeout": 0})
         time.sleep(3)
 
         assert get("//sys/scheduler/orchid/scheduler/pools/fake_pool/fair_share_ratio") >= 0.999
