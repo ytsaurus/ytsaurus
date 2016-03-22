@@ -47,3 +47,9 @@ def test_copy_between_clusters(backend_url):
     assert client.get_task_info(task_id)["state"] != "aborted"
     _wait_task(task_id, client)
 
+def test_copy_no_retries(backend_url):
+    client = TransferManager(url=backend_url, enable_retries=False)
+
+    plato_client = Yt(proxy="plato")
+    table = plato_client.create_temp_table()
+    client.add_task("plato", table, "quine", "//tmp/test_table", sync=True)
