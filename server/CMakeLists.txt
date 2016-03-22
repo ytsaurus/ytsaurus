@@ -1,6 +1,6 @@
 IF (YMAKE)
 
-PROGRAM()
+PROGRAM(ytserver)
 
 PEERDIR(
     contrib/libs/sparsehash
