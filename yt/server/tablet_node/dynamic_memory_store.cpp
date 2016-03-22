@@ -107,6 +107,7 @@ public:
         : HashTable_(size)
         , KeyComparer_(std::move(keyComparer))
         , KeyColumnCount_(keyColumnCount)
+        , Size_(size)
     { }
 
     void Insert(const TUnversionedValue* keyBegin, TDynamicRow dynamicRow)
@@ -140,10 +141,16 @@ public:
         return HashTable_.GetByteSize();
     }
 
+    int GetSize() const
+    {
+        return Size_;
+    }
+
 private:
     TLinearProbeHashTable HashTable_;
     const TDynamicRowKeyComparer KeyComparer_;
     const int KeyColumnCount_;
+    const int Size_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -799,10 +806,7 @@ TDynamicRow TDynamicMemoryStore::WriteRowAtomic(
         // Copy values.
         addValues(dynamicRow);
 
-        // Insert row in hash table.
-        if (LookupHashTable_) {
-            LookupHashTable_->Insert(row, dynamicRow);
-        }
+        InsertIntoLookupHashTable(row.Begin(), dynamicRow);
 
         result = dynamicRow;
         return dynamicRow;
@@ -864,10 +868,7 @@ TDynamicRow TDynamicMemoryStore::WriteRowNonAtomic(
         // Copy values.
         addValues(dynamicRow);
 
-        // Insert row in hash table.
-        if (LookupHashTable_) {
-            LookupHashTable_->Insert(row, dynamicRow);
-        }
+        InsertIntoLookupHashTable(row.Begin(), dynamicRow);
 
         result = dynamicRow;
         return dynamicRow;
@@ -913,9 +914,7 @@ TDynamicRow TDynamicMemoryStore::DeleteRowAtomic(
         AcquireRowLocks(dynamicRow, transaction, prelock, TDynamicRow::PrimaryLockMask, true);
 
         // Insert row in hash table.
-        if (LookupHashTable_) {
-            LookupHashTable_->Insert(key, dynamicRow);
-        }
+        InsertIntoLookupHashTable(key.Begin(), dynamicRow);
 
         result = dynamicRow;
         return dynamicRow;
@@ -960,10 +959,7 @@ TDynamicRow TDynamicMemoryStore::DeleteRowNonAtomic(
         // Copy keys.
         SetKeys(dynamicRow, key.Begin());
 
-        // Insert row in hash table.
-        if (LookupHashTable_) {
-            LookupHashTable_->Insert(key, dynamicRow);
-        }
+        InsertIntoLookupHashTable(key.Begin(), dynamicRow);
 
         result = dynamicRow;
         return dynamicRow;
@@ -1047,11 +1043,7 @@ TDynamicRow TDynamicMemoryStore::MigrateRow(TTransaction* transaction, TDynamicR
 
         migrateLocksAndValues(migratedRow);
 
-        // Insert row in hash table.
-        if (LookupHashTable_) {
-            auto key = RowToKey(row);
-            LookupHashTable_->Insert(key.Begin(), migratedRow);
-        }
+        InsertIntoLookupHashTable(RowToKey(row).Begin(), migratedRow);
 
         return migratedRow;
     };
@@ -1530,9 +1522,7 @@ void TDynamicMemoryStore::LoadRow(
 
     Rows_->Insert(dynamicRow);
 
-    if (LookupHashTable_) {
-        LookupHashTable_->Insert(row.BeginKeys(), dynamicRow);
-    }
+    InsertIntoLookupHashTable(row.BeginKeys(), dynamicRow);
 }
 
 ui32 TDynamicMemoryStore::CaptureTimestamp(
@@ -1886,6 +1876,19 @@ void TDynamicMemoryStore::OnMemoryUsageUpdated()
 {
     auto hashTableSize = LookupHashTable_ ? LookupHashTable_->GetByteSize() : 0;
     SetMemoryUsage(GetUncompressedDataSize() + hashTableSize);
+}
+
+void TDynamicMemoryStore::InsertIntoLookupHashTable(
+    const TUnversionedValue* keyBegin,
+    TDynamicRow dynamicRow)
+{
+    if (LookupHashTable_) {
+        if (GetKeyCount() >= LookupHashTable_->GetSize()) {
+            LookupHashTable_.reset();
+        } else {
+            LookupHashTable_->Insert(keyBegin, dynamicRow);
+        }
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

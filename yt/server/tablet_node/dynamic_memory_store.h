@@ -284,6 +284,8 @@ private:
     void UpdateTimestampRange(TTimestamp commitTimestamp);
 
     void OnMemoryUsageUpdated();
+
+    void InsertIntoLookupHashTable(const TUnversionedValue* keyBegin, TDynamicRow dynamicRow);
 };
 
 DEFINE_REFCOUNTED_TYPE(TDynamicMemoryStore)
