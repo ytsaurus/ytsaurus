@@ -138,6 +138,9 @@ public:
     {
         TBase::SetDefaultAttributes(attributes, transaction);
 
+        // COMPAT(babenko): YT-4022
+        attributes->Remove("dynamic");
+
         if (!attributes->Contains("channels")) {
             attributes->SetYson("channels", TYsonString("[]"));
         }
