@@ -10,7 +10,6 @@ import argparse
 import random
 from time import sleep
 import sys
-import copy
 
 yt.config.VERSION = "v3"
 
@@ -303,7 +302,7 @@ class AggregateReducer:
     def __call__(self, key, records):
         records = list(records)
         records = sorted(records, key=lambda(x): x["iteration"])
-        record = copy.copy(key)
+        record = dict(key)
         for c in self.schema.get_data_column_names():
             record[c] = None
         for r in records:
