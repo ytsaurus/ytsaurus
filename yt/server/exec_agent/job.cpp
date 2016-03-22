@@ -118,7 +118,7 @@ public:
         Slot_ = slotManager->AcquireSlot();
 
         auto invoker = CancelableContext_->CreateInvoker(Slot_->GetInvoker());
-        RunResult_ = BIND(&TJob::DoRun, MakeWeak(this))
+        BIND(&TJob::Run, MakeWeak(this))
             .AsyncVia(invoker)
             .Run();
     }
@@ -147,7 +147,7 @@ public:
         YCHECK(Slot_);
 
         auto this_ = MakeStrong(this);
-        RunResult_.Subscribe(BIND([this, this_] (const TError& /*error*/) {
+        PrepareResult_.Subscribe(BIND([this, this_] (const TError& /*error*/) {
             Slot_->GetInvoker()->Invoke(BIND(&TJob::DoAbort, MakeStrong(this)));
         }));
     }
@@ -303,7 +303,7 @@ private:
     EJobPhase JobPhase_ = EJobPhase::Created;
 
     const TCancelableContextPtr CancelableContext_ = New<TCancelableContext>();
-    TFuture<void> RunResult_;
+    TFuture<void> PrepareResult_ = VoidFuture;
 
     double Progress_ = 0.0;
     NJobTrackerClient::NProto::TStatistics Statistics_;
@@ -326,38 +326,59 @@ private:
     NLogging::TLogger Logger = ExecAgentLogger;
 
 
+    void DoPrepare()
+    {
+        YCHECK(JobPhase_ == EJobPhase::Created);
+        JobPhase_ = EJobPhase::PreparingConfig;
+        PrepareConfig();
+
+        YCHECK(JobPhase_ == EJobPhase::PreparingConfig);
+        JobPhase_ = EJobPhase::PreparingProxy;
+        PrepareProxy();
+
+        YCHECK(JobPhase_ == EJobPhase::PreparingProxy);
+        JobPhase_ = EJobPhase::PreparingSandbox;
+        Slot_->InitSandbox();
+
+        YCHECK(JobPhase_ == EJobPhase::PreparingSandbox);
+        JobPhase_ = EJobPhase::PreparingTmpfs;
+        PrepareTmpfs();
+
+        YCHECK(JobPhase_ == EJobPhase::PreparingTmpfs);
+        JobPhase_ = EJobPhase::PreparingFiles;
+        PrepareUserFiles();
+
+        YCHECK(JobPhase_ == EJobPhase::PreparingFiles);
+    }
+
     void DoRun()
     {
+        JobPhase_ = EJobPhase::Running;
+
+        {
+            TGuard<TSpinLock> guard(SpinLock);
+            ExecTime_ = TInstant::Now();
+        }
+
+        RunJobProxy();
+    }
+
+    void Run()
+    {
         try {
-            YCHECK(JobPhase_ == EJobPhase::Created);
-            JobPhase_ = EJobPhase::PreparingConfig;
-            PrepareConfig();
-
-            YCHECK(JobPhase_ == EJobPhase::PreparingConfig);
-            JobPhase_ = EJobPhase::PreparingProxy;
-            PrepareProxy();
-
-            YCHECK(JobPhase_ == EJobPhase::PreparingProxy);
-            JobPhase_ = EJobPhase::PreparingSandbox;
-            Slot_->InitSandbox();
-
-            YCHECK(JobPhase_ == EJobPhase::PreparingSandbox);
-            JobPhase_ = EJobPhase::PreparingTmpfs;
-            PrepareTmpfs();
-
-            YCHECK(JobPhase_ == EJobPhase::PreparingTmpfs);
-            JobPhase_ = EJobPhase::PreparingFiles;
-            PrepareUserFiles();
-
-            YCHECK(JobPhase_ == EJobPhase::PreparingFiles);
-            JobPhase_ = EJobPhase::Running;
+            auto prepareResult = BIND(&TJob::DoPrepare, MakeWeak(this))
+                .AsyncVia(GetCurrentInvoker())
+                .Run();
 
             {
                 TGuard<TSpinLock> guard(SpinLock);
-                ExecTime_ = TInstant::Now();
+                PrepareResult_ = prepareResult;
             }
 
-            RunJobProxy();
+            WaitFor(prepareResult)
+                .ThrowOnError();
+
+            DoRun();
         } catch (const std::exception& ex) {
             {
                 TGuard<TSpinLock> guard(SpinLock);
