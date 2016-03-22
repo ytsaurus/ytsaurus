@@ -8,6 +8,7 @@
 
 #include <yt/ytlib/table_client/helpers.h>
 #include <yt/ytlib/table_client/name_table.h>
+#include <yt/ytlib/table_client/row_buffer.h>
 #include <yt/ytlib/table_client/schemaful_writer.h>
 #include <yt/ytlib/table_client/schemaless_chunk_reader.h>
 #include <yt/ytlib/table_client/schemaless_chunk_writer.h>
@@ -184,9 +185,15 @@ void TReshardTableCommand::Execute(ICommandContextPtr context)
 
 void TSelectRowsCommand::Execute(ICommandContextPtr context)
 {
-    auto asyncResult = context->GetClient()->SelectRows(
-        Query,
-        Options);
+    TIntrusivePtr<IClientBase> clientBase = context->GetClient();
+    {
+        auto stickyTransaction = context->FindAndTouchTransaction(TransactionId);
+        if (stickyTransaction) {
+            clientBase = std::move(stickyTransaction);
+        }
+    }
+
+    auto asyncResult = clientBase->SelectRows(Query, Options);
 
     IRowsetPtr rowset;
     TQueryStatistics statistics;
@@ -268,19 +275,28 @@ void TInsertRowsCommand::Execute(ICommandContextPtr context)
         tableInfo->KeyColumns);
     valueConsumer->SetTreatMissingAsNull(!Update);
     auto rows = ParseRows(context, config, valueConsumer);
+    auto rowBuffer = New<TRowBuffer>();
+    auto capturedRows = rowBuffer->Capture(rows);
+    auto rowRange = MakeSharedRange(std::move(capturedRows), std::move(rowBuffer));
 
     // Run writes.
-    auto asyncTransaction = context->GetClient()->StartTransaction(ETransactionType::Tablet, Options);
-    auto transaction = WaitFor(asyncTransaction)
-        .ValueOrThrow();
+    auto transaction = context->FindAndTouchTransaction(TransactionId);
+    bool shouldCommit = false;
+    if (!transaction) {
+        transaction = WaitFor(context->GetClient()->StartTransaction(ETransactionType::Tablet, Options))
+            .ValueOrThrow();
+        shouldCommit = true;
+    }
 
     transaction->WriteRows(
         Path.GetPath(),
         valueConsumer->GetNameTable(),
-        std::move(rows));
+        std::move(rowRange));
 
-    WaitFor(transaction->Commit())
-        .ThrowOnError();
+    if (shouldCommit) {
+        WaitFor(transaction->Commit())
+            .ThrowOnError();
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -322,11 +338,19 @@ void TLookupRowsCommand::Execute(ICommandContextPtr context)
     auto keys = ParseRows(context, config, valueConsumer);
 
     // Run lookup.
-    auto asyncRowset = context->GetClient()->LookupRows(
-        Path.GetPath(),
-        valueConsumer->GetNameTable(),
-        std::move(keys),
-        Options);
+    TIntrusivePtr<IClientBase> clientBase = context->GetClient();
+    {
+        auto stickyTransaction = context->FindAndTouchTransaction(TransactionId);
+        if (stickyTransaction) {
+            clientBase = std::move(stickyTransaction);
+        }
+    }
+
+    auto asyncRowset = clientBase->LookupRows(
+            Path.GetPath(),
+            valueConsumer->GetNameTable(),
+            std::move(keys),
+            Options);
     auto rowset = WaitFor(asyncRowset)
         .ValueOrThrow();
 
@@ -358,25 +382,33 @@ void TDeleteRowsCommand::Execute(ICommandContextPtr context)
         .ValueOrThrow();
     tableInfo->ValidateDynamic();
 
-
     // Parse input data.
     auto valueConsumer = New<TBuildingValueConsumer>(
         tableInfo->Schema.TrimNonkeyColumns(tableInfo->KeyColumns),
         tableInfo->KeyColumns);
     auto keys = ParseRows(context, config, valueConsumer);
+    auto rowBuffer = New<TRowBuffer>();
+    auto capturedKeys = rowBuffer->Capture(keys);
+    auto keyRange = MakeSharedRange(std::move(capturedKeys), std::move(rowBuffer));
 
     // Run deletes.
-    auto asyncTransaction = context->GetClient()->StartTransaction(ETransactionType::Tablet, Options);
-    auto transaction = WaitFor(asyncTransaction)
-        .ValueOrThrow();
+    auto transaction = context->FindAndTouchTransaction(TransactionId);
+    bool shouldCommit = false;
+    if (!transaction) {
+        transaction = WaitFor(context->GetClient()->StartTransaction(ETransactionType::Tablet, Options))
+            .ValueOrThrow();
+        shouldCommit = true;
+    }
 
     transaction->DeleteRows(
         Path.GetPath(),
         valueConsumer->GetNameTable(),
-        std::move(keys));
+        std::move(keyRange));
 
-    WaitFor(transaction->Commit())
-        .ThrowOnError();
+    if (shouldCommit) {
+        WaitFor(transaction->Commit())
+            .ThrowOnError();
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

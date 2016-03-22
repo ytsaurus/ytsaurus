@@ -45,18 +45,31 @@ struct ITransaction
     virtual TFuture<void> Abort(const TTransactionAbortOptions& options = TTransactionAbortOptions()) = 0;
 
     // Tables
+
+    // COMPAT(sandello): Remove me one day.
     virtual void WriteRows(
         const NYPath::TYPath& path,
         NTableClient::TNameTablePtr nameTable,
-        std::vector<NTableClient::TUnversionedRow> rows,
+        const std::vector<NTableClient::TUnversionedRow>& rows,
+        const TWriteRowsOptions& options = TWriteRowsOptions()) = 0;
+    virtual void WriteRows(
+        const NYPath::TYPath& path,
+        NTableClient::TNameTablePtr nameTable,
+        TSharedRange<NTableClient::TUnversionedRow> rows,
         const TWriteRowsOptions& options = TWriteRowsOptions()) = 0;
 
+
+    // COMPAT(sandello): Remove me one day.
     virtual void DeleteRows(
         const NYPath::TYPath& path,
         NTableClient::TNameTablePtr nameTable,
-        std::vector<NTableClient::TKey> keys,
+        const std::vector<NTableClient::TKey>& keys,
         const TDeleteRowsOptions& options = TDeleteRowsOptions()) = 0;
-
+    virtual void DeleteRows(
+        const NYPath::TYPath& path,
+        NTableClient::TNameTablePtr nameTable,
+        TSharedRange<NTableClient::TKey> keys,
+        const TDeleteRowsOptions& options = TDeleteRowsOptions()) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ITransaction)
