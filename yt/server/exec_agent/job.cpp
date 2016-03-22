@@ -314,8 +314,6 @@ private:
 
     void DoPrepare()
     {
-        VERIFY_INVOKER_AFFINITY(Slot->GetCancelableInvoker());
-
         YCHECK(JobPhase == EJobPhase::Created);
         JobPhase = EJobPhase::PreparingConfig;
         PrepareConfig();
@@ -341,8 +339,6 @@ private:
 
     void DoRun()
     {
-        VERIFY_INVOKER_AFFINITY(Slot->GetCancelableInvoker());
-
         JobPhase = EJobPhase::Running;
 
         {
@@ -355,8 +351,6 @@ private:
 
     void Run()
     {
-        VERIFY_INVOKER_AFFINITY(Slot->GetCancelableInvoker());
-
         try {
             auto prepareResult = BIND(&TJob::DoPrepare, MakeWeak(this))
                 .AsyncVia(GetCurrentInvoker())
