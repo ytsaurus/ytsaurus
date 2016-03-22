@@ -689,12 +689,21 @@ class TestOperations(object):
             key["x"] = int(rec["y"]) + 10
             yield key
 
+        def reducer_that_yileds_key(key, recs):
+            for rec in recs:
+                pass
+            yield key
+
         table = TEST_DIR + "/table"
         yt.write_table(table, ["x=1\ty=1\n", "x=1\ty=2\n", "x=2\ty=3\n"])
         yt.run_sort(table, table, sort_by=["x"])
 
         with pytest.raises(yt.YtOperationFailedError):
             yt.run_reduce(reducer, table, TEST_DIR + "/other", reduce_by=["x"], format="dsv")
+
+        yt.run_reduce(reducer_that_yileds_key, table, TEST_DIR + "/other", reduce_by=["x"], format="dsv")
+
+        assert list(yt.read_table(TEST_DIR + "/other")) == ["x=1\n", "x=2\n"]
 
     def test_disable_yt_accesses_from_job(self, yt_env):
         first_script = """\
