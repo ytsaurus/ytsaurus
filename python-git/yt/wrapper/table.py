@@ -88,9 +88,9 @@ class TablePath(object):
             require(prefix.endswith("/"),
                     lambda: YtError("PREFIX '%s' should end with /" % prefix))
             # TODO(ignat): refactor YsonString to fix this hack
-            attributes = self.name.attributes
+            copy_attributes = self.name.attributes
             self.name = YsonString(prefix + self.name if self.name else prefix[:-1])
-            self.name.attributes = attributes
+            self.name.attributes = copy_attributes
 
         if attributes is not None:
             self.name.attributes = update(self.name.attributes, attributes)
