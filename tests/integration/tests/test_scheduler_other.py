@@ -673,8 +673,6 @@ class TestSchedulerConfig(YTEnvSetup):
         assert get("{0}/event_log/flush_period".format(orchid_scheduler_config)) == 5000
         assert get("{0}/event_log/retry_backoff_time".format(orchid_scheduler_config)) == 7
 
-<<<<<<< HEAD
-
 class TestSchedulerPools(YTEnvSetup):
     NUM_MASTERS = 3
     NUM_NODES = 1
