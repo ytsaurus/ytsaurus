@@ -238,7 +238,7 @@ for row in format_.load_rows(sys.stdin, raw=True):
 start = extract_limit(table, "lower_limit")
 end = extract_limit(table, "upper_limit")
 
-row_count = end - start
+row_count = max(0, end - start)
 
 if actual_row_count != row_count:
     assert False, "Range [{0}, {1}) read mismatch. " \
