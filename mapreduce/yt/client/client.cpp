@@ -235,6 +235,27 @@ public:
         return ParseGuidFromResponse(RetryRequest(Auth_, header));
     }
 
+    virtual void Concatenate(
+        const yvector<TYPath>& sourcePaths,
+        const TYPath& destinationPath,
+        const TConcatenateOptions& options) override
+    {
+        THttpHeader header("POST", "concatenate");
+        header.AddTransactionId(TransactionId_);
+        header.AddMutationId();
+
+        header.AddParam("append", options.Append_);
+        header.SetParameters(BuildYsonStringFluently().BeginMap()
+            .Item("source_paths").DoListFor(sourcePaths,
+                [] (TFluentList fluent, const TYPath& path) {
+                    fluent.Item().Value(AddPathPrefix(path));
+                })
+            .Item("destination_path").Value(AddPathPrefix(destinationPath))
+        .EndMap());
+
+        RetryRequest(Auth_, header);
+    }
+
     // io
 
     virtual IFileReaderPtr CreateFileReader(

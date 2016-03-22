@@ -84,6 +84,13 @@ struct TLinkOptions
     FLUENT_FIELD_OPTION(TNode, Attributes);
 };
 
+struct TConcatenateOptions
+{
+    using TSelf = TConcatenateOptions;
+
+    FLUENT_FIELD_DEFAULT(bool, Append, false);
+};
+
 class ICypressClient
 {
 public:
@@ -125,6 +132,11 @@ public:
         const TYPath& targetPath,
         const TYPath& linkPath,
         const TLinkOptions& options = TLinkOptions()) = 0;
+
+    virtual void Concatenate(
+        const yvector<TYPath>& sourcePaths,
+        const TYPath& destinationPath,
+        const TConcatenateOptions& options = TConcatenateOptions()) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
