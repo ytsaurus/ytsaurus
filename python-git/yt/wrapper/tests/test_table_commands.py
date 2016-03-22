@@ -66,6 +66,14 @@ class TestTableCommands(object):
         assert path.attributes["my_attr"] == 10
         assert str(path) == "//path/to/table"
 
+        yt.config["prefix"] = "//path/"
+        try:
+            path = yt.TablePath("to/table", attributes={"my_attr": 10})
+            assert path.attributes["my_attr"] == 10
+            assert str(path) == "//path/to/table"
+        finally:
+            yt.config["prefix"] = None
+
     def test_read_write_with_retries(self):
         old_value = yt.config["write_retries"]["enable"]
         yt.config["write_retries"]["enable"] = True
