@@ -61,3 +61,8 @@ class FrozenDict(collections.Mapping):
         cls = self.__class__.__name__
         items = ", ".join(map(repr, self._store.iteritems()))
         return "{0}({1})".format(cls, items)
+
+    def pop(self, key, default=None):
+        if key in self._store:
+            raise NotImplementedError("Failed to remove key from frozen dictionary")
+        return default
