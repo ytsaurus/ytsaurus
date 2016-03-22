@@ -359,6 +359,55 @@ class TestSchedulerMaxChunkPerJob(YTEnvSetup):
             reduce(command="cat >/dev/null", in_=["//tmp/in1", "//tmp/in2"], out="//tmp/out", reduce_by=["foo"])
 
 
+class TestSchedulerMaxChildrenPerAttachRequest(YTEnvSetup):
+    NUM_MASTERS = 3
+    NUM_NODES = 3
+    NUM_SCHEDULERS = 1
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "max_children_per_attach_request": 1,
+        }
+    }
+
+    def test_max_children_per_attach_request(self):
+        data = [{"foo": i} for i in xrange(3)]
+        create("table", "//tmp/in")
+        create("table", "//tmp/out")
+        write_table("//tmp/in", data)
+
+        map(command="cat", in_="//tmp/in", out="//tmp/out", spec={"data_size_per_job": 1})
+
+        assert sorted(read_table("//tmp/out")) == sorted(data)
+        assert get("//tmp/out/@row_count") == 3
+
+    def test_max_children_per_attach_request_in_live_preview(self):
+        data = [{"foo": i} for i in xrange(3)]
+        create("table", "//tmp/in")
+        create("table", "//tmp/out")
+        write_table("//tmp/in", data)
+
+        op = map(
+            waiting_jobs=True,
+            dont_track=True,
+            command="cat",
+            in_="//tmp/in",
+            out="//tmp/out",
+            spec={"data_size_per_job": 1})
+
+        op.resume_job(op.jobs[0])
+        op.resume_job(op.jobs[1])
+        time.sleep(2)
+
+        operation_path = "//sys/operations/{0}".format(op.id)
+        transaction_id = get(operation_path + "/@async_scheduler_transaction_id")
+        assert len(read_table(operation_path + "/output_0", tx=transaction_id)) == 2
+        assert get(operation_path + "/output_0/@row_count", tx=transaction_id) == 2
+
+        op.resume_jobs()
+        op.track()
+
+
 class TestSchedulerOperationLimits(YTEnvSetup):
     NUM_MASTERS = 3
     NUM_NODES = 3
