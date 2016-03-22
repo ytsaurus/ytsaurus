@@ -2,7 +2,7 @@ import config
 from config import get_config
 from pickling import Pickler
 from cypress_commands import get
-from common import get_python_version, YtError, chunk_iter_stream
+from common import get_python_version, YtError, chunk_iter_stream, chunk_iter_string
 from errors import YtResponseError
 
 from yt.packages.importlib import import_module
@@ -28,6 +28,34 @@ TMPFS_SIZE_ADDEND = 1024 * 1024
 # Modules below are imported to force their addition to modules archive.
 OPERATION_REQUIRED_MODULES = ["yt.wrapper.py_runner_helpers"]
 
+# Md5 tools.
+def init_md5():
+    return []
+
+def calc_md5_from_file(filename):
+    with open(filename, mode='rb') as fin:
+        h = hashlib.md5()
+        for buf in chunk_iter_stream(fin, 1024):
+            h.update(buf)
+    return tuple(map(ord, h.digest()))
+
+def calc_md5_from_string(string):
+    h = hashlib.md5()
+    for buf in chunk_iter_string(string, 1024):
+        h.update(buf)
+    return tuple(map(ord, h.digest()))
+
+def merge_md5(lhs, rhs):
+    return lhs + [rhs]
+
+def hex_md5(md5_array):
+    def to_hex(md5):
+        return "".join(["{0:02x}".format(num) for num in md5])
+
+    md5_array.sort()
+    return to_hex(calc_md5_from_string("".join(map(to_hex, md5_array))))
+
+# Misc functions.
 def round_up_to(num, divider):
     if num % divider == 0:
         return num
@@ -128,7 +156,7 @@ class Zip(object):
         self.filename = tempfiles_manager.create_tempfile(dir=get_config(client)["local_temp_directory"],
                                                           prefix=prefix, suffix=".zip")
         self.size = 0
-        self.hash = self.init_md5()
+        self.hash = init_md5()
 
     def __enter__(self):
         self.zip = ZipFile(self.filename, "w")
@@ -138,32 +166,12 @@ class Zip(object):
     def append(self, filepath, relpath):
         self.zip.write(filepath, relpath)
         self.size += get_disk_size(filepath)
-        self.hash = self.merge_md5(self.hash, self.calc_md5(filepath))
+        self.hash = merge_md5(self.hash, calc_md5_from_file(filepath))
 
     def __exit__(self, type, value, traceback):
         self.zip.__exit__(type, value, traceback)
         if type is None:
-            self.md5 = self.hex_md5(self.hash)
-
-    @staticmethod
-    def init_md5():
-        return [0 for _ in xrange(hashlib.md5().digest_size)]
-
-    @staticmethod
-    def calc_md5(filename):
-        with open(filename, mode='rb') as fin:
-            h = hashlib.md5()
-            for buf in chunk_iter_stream(fin, 1024):
-                h.update(buf)
-        return map(ord, h.digest())
-
-    @staticmethod
-    def merge_md5(lhs, rhs):
-        return [a ^ b for a, b in zip(lhs, rhs)]
-
-    @staticmethod
-    def hex_md5(md5_array):
-        return "".join(["{0:02x}".format(num) for num in md5_array])
+            self.md5 = hex_md5(self.hash)
 
 def create_modules_archive_default(tempfiles_manager, client):
     for module_name in OPERATION_REQUIRED_MODULES:
