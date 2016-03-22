@@ -228,6 +228,7 @@ class TransferManager(object):
             retriable_errors = get_retriable_errors() + (YtTransferManagerUnavailableError,)
             return run_with_retries(make_request, self.retry_count, exceptions=retriable_errors,
                                     except_action=except_action, backoff_action=backoff_action)
+        return make_request()
 
     def _start_one_task(self, source_table, source_cluster, destination_table, destination_cluster,
                         params=None):
