@@ -670,7 +670,8 @@ class TestSchedulerPreemption(YTEnvSetup):
 
     DELTA_SCHEDULER_CONFIG = {
         "scheduler": {
-            "min_share_preemption_timeout": 100
+            "min_share_preemption_timeout": 100,
+            "locality_timeout": 0
         }
     }
 
