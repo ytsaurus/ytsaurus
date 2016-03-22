@@ -15,7 +15,8 @@ def main():
         "yt/tools/binaries/yt_transform.py",
         "yt/tools/binaries/yt_lock.py",
         "yt/tools/binaries/yt_doctor.py",
-        "yt/tools/binaries/yt_checksum.py"])
+        "yt/tools/binaries/yt_checksum.py",
+        "yt/tools/binaries/yt_dump_restore_erase.py"])
 
     data_files.append(("/etc/yandex_yt_python_tools", ["yt/tools/version"]))
 
