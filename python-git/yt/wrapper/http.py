@@ -11,7 +11,6 @@ import yt.json as json
 import os
 import sys
 import random
-import string
 import time
 import types
 from datetime import datetime
@@ -267,9 +266,9 @@ def get_token(client=None):
             token = open(token_path).read().strip()
             logger.debug("Token got from %s", token_path)
     else:
-        logger.debug("Token got from environment variable")
+        logger.debug("Token got from environment variable or config")
     if token is not None:
-        require(all(c in string.hexdigits for c in token),
+        require(len(token) >= 1 and all(33 <= ord(c) <= 126 for c in token),
                 lambda: YtTokenError("You have an improper authentication token"))
     if not token:
         token = None
