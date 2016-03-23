@@ -105,6 +105,7 @@ NODE_CONFIG_PATCHES = [
             "scheduler": None
         },
         "data_node": {
+            "max_bytes_per_read": 10 * 1024 * 1024 * 1024,
             "multiplexed_changelog": None,
             "block_cache": {
                 "compressed_data": {
