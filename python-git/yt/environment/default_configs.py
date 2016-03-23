@@ -211,6 +211,7 @@ def get_node_config(enable_debug_logging=True):
         };
 
         scheduler_connector = {
+            failed_heartbeat_backoff_time = 50;
             heartbeat_period = 200;
         };
 
