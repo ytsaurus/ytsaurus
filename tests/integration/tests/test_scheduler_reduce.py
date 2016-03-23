@@ -439,7 +439,7 @@ echo {v = 2} >&7
 {"key"="b";"value"="";};
 {"key"="b";"value"="";};
 """
-    
+
     def test_reduce_with_small_block_size(self):
         create("table", "//tmp/in", attributes={"compression_codec": "none"})
         create("table", "//tmp/out")
@@ -764,6 +764,35 @@ echo {v = 2} >&7
 {"key"="4";"subkey"="4/1";"value"="17";};
 {"key"="4";"subkey"="4/2";"value"="18";};
 """
+
+    @unix_only
+    def test_reduce_row_count_limit(self):
+        create("table", "//tmp/input")
+        for i in xrange(self.NUM_NODES):
+            write_table(
+                "<append=true>//tmp/input",
+                [{"key": str(i), "value": "foo"}],
+                sorted_by = ["key"])
+
+        create("table", "//tmp/output")
+        reduce(
+            in_="//tmp/input",
+            out="<row_count_limit=3>//tmp/output",
+            command="((YT_JOB_INDEX >= 3)) && sleep 5; cat",
+            reduce_by=["key"],
+            spec={
+                "reducer": {
+                    "format": "dsv"
+                },
+                "data_size_per_job": 1,
+                "max_failed_job_count": 1
+            })
+
+        assert read_table("//tmp/output") == [
+            {"key":"0", "value":"foo"},
+            {"key":"1", "value":"foo"},
+            {"key":"2", "value":"foo"},
+        ]
 
 ##################################################################
 
