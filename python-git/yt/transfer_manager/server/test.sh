@@ -58,6 +58,13 @@ run_task() {
     request "POST" "tasks/" -d "$1" -f
 }
 
+run_task_that_should_fail() {
+    local body="$1"
+    log "Running task that should fail ($body)"
+    http_code=$(request "POST" "tasks/" -d "$1" --write-out %{http_code} --output /dev/stderr)
+    check "$http_code" "404"
+}
+
 abort_task() {
     local id="$1"
     log "Aborting task $id"
@@ -170,6 +177,18 @@ test_various_transfers() {
     test_copy_from_plato_to_smith
     test_copy_from_plato_to_quine
     test_copy_from_sakura_to_plato
+}
+
+test_incorrect_copy_to_yamr() {
+    yt2 remove //tmp/test_table --force
+
+    # Incorrect column names.
+    echo -e "a=b" | yt2 write //tmp/test_table --format dsv --proxy plato
+    run_task_that_should_fail '{"source_table": "//tmp/test_table", "source_cluster": "plato", "destination_table": "tmp/test_table_from_plato", "destination_cluster": "sakura"}'
+
+    # Incorrect type of values.
+    echo -e '{"key": "a", "value": 10}' | yt2 write //tmp/test_table --format json --proxy plato
+    run_task_that_should_fail '{"source_table": "//tmp/test_table", "source_cluster": "plato", "destination_table": "tmp/test_table_from_plato", "destination_cluster": "sakura"}'
 }
 
 test_abort_restart_task() {
@@ -407,6 +426,7 @@ test_delete_tasks() {
 # Different transfers
 test_copy_empty_table
 test_various_transfers
+test_incorrect_copy_to_yamr
 test_lease
 test_abort_restart_task
 test_copy_table_range
