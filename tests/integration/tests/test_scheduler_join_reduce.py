@@ -270,10 +270,10 @@ class TestSchedulerJoinReduceCommands(YTEnvSetup):
     @unix_only
     def test_join_reduce_duplicate_key_columns(self):
         create("table", "//tmp/in1", schema=[
-            {"name": "a", "type": "any", "sort_order": "ascending"}, 
+            {"name": "a", "type": "any", "sort_order": "ascending"},
             {"name": "b", "type": "any", "sort_order": "ascending"}])
         create("table", "//tmp/in2", schema=[
-            {"name": "a", "type": "any", "sort_order": "ascending"}, 
+            {"name": "a", "type": "any", "sort_order": "ascending"},
             {"name": "b", "type": "any", "sort_order": "ascending"}])
         create("table", "//tmp/out")
 
@@ -598,3 +598,43 @@ echo {v = 2} >&7
             ]
 
         assert get("//tmp/out/@sorted")
+
+    @unix_only
+    def test_join_reduce_row_count_limit(self):
+        create("table", "//tmp/in1")
+        for i in xrange(self.NUM_NODES):
+            write_table(
+                "<append=true>//tmp/in1",
+                [{"key": str(i), "value": "foo"}],
+                sorted_by = ["key"])
+
+        create("table", "//tmp/in2")
+        for i in xrange(self.NUM_NODES):
+            write_table(
+                "<append=true>//tmp/in2",
+                [{"key": str(i), "value": "bar"}],
+                sorted_by = ["key"])
+
+        create("table", "//tmp/out")
+        create("table", "//tmp/output")
+        join_reduce(
+            in_=["<foreign=true>//tmp/in2", "//tmp/in1"],
+            out="<row_count_limit=5>//tmp/output",
+            command="((YT_JOB_INDEX >= 3)) && sleep 5; cat",
+            join_by=["key"],
+            spec={
+                "reducer": {
+                    "format": "dsv"
+                },
+                "data_size_per_job": 1,
+                "max_failed_job_count": 1
+            })
+
+        assert read_table("//tmp/output") == [
+            {"key":"0", "value":"bar"},
+            {"key":"0", "value":"foo"},
+            {"key":"1", "value":"bar"},
+            {"key":"1", "value":"foo"},
+            {"key":"2", "value":"bar"},
+            {"key":"2", "value":"foo"},
+        ]

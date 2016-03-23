@@ -929,6 +929,10 @@ private:
     //! Aggregates job statistics.
     NJobTrackerClient::TStatistics JobStatistics;
 
+    //! One output table can have row count limit on operation.
+    TNullable<int> RowCountLimitTableIndex;
+    i64 RowCountLimit = std::numeric_limits<i64>::max();
+
     //! Runs periodic time limit checks that fail operation on timeout.
     NConcurrency::TPeriodicExecutorPtr CheckTimeLimitExecutor;
 

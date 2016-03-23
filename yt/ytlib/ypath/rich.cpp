@@ -499,6 +499,11 @@ void TRichYPath::SetSortedBy(const TKeyColumns& value)
     }
 }
 
+TNullable<i64> TRichYPath::GetRowCountLimit() const
+{
+    return Attributes().Find<i64>("row_count_limit");
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 Stroka ToString(const TRichYPath& path)

@@ -1183,6 +1183,82 @@ print row + table_index
             op.track()
             assert sorted(read_table(output)) == original_data
 
+    @unix_only
+    def test_map_row_count_limit(self):
+        create("table", "//tmp/input")
+        for i in xrange(self.NUM_NODES):
+            write_table("<append=true>//tmp/input", {"key": str(i), "value": "foo"})
+
+        create("table", "//tmp/output")
+        map(in_="//tmp/input",
+            out="<row_count_limit=3>//tmp/output",
+            command="((YT_JOB_INDEX >= 3)) && sleep 5; cat",
+            spec={
+                "mapper": {
+                    "format": "dsv"
+                },
+                "data_size_per_job": 1,
+                "max_failed_job_count": 1
+            })
+
+        assert len(read_table("//tmp/output")) == 3
+
+    @unix_only
+    def test_map_row_count_limit_second_output(self):
+        create("table", "//tmp/input")
+        for i in xrange(self.NUM_NODES):
+            write_table("<append=true>//tmp/input", {"key": str(i), "value": "foo"})
+
+        create("table", "//tmp/out_1")
+        create("table", "//tmp/out_2")
+        map(in_="//tmp/input",
+            out=["//tmp/out_1", "<row_count_limit=3>//tmp/out_2"],
+            command="((YT_JOB_INDEX >= 3)) && sleep 5; cat >&4",
+            spec={
+                "mapper": {
+                    "format": "dsv"
+                },
+                "data_size_per_job": 1,
+                "max_failed_job_count": 1
+            })
+
+        assert len(read_table("//tmp/out_1")) == 0
+        assert len(read_table("//tmp/out_2")) == 3
+
+    @unix_only
+    def test_ordered_map_row_count_limit(self):
+        create("table", "//tmp/input")
+        for i in xrange(self.NUM_NODES):
+            write_table("<append=true>//tmp/input", {"key": str(i), "value": "foo"})
+
+        create("table", "//tmp/output")
+        map(in_="//tmp/input",
+            out="<row_count_limit=3>//tmp/output",
+            ordered=True,
+            command="((YT_JOB_INDEX >= 3)) && sleep 5; cat",
+            spec={
+                "mapper": {
+                    "format": "dsv"
+                },
+                "data_size_per_job": 1,
+                "max_failed_job_count": 1
+            })
+
+        assert read_table("//tmp/output") == [
+            {"key":"0", "value":"foo"},
+            {"key":"1", "value":"foo"},
+            {"key":"2", "value":"foo"},
+        ]
+
+    def test_multiple_row_count_limit(self):
+        create("table", "//tmp/input")
+
+        create("table", "//tmp/output")
+        with pytest.raises(YtError):
+            map(in_="//tmp/input",
+                out=["<row_count_limit=1>//tmp/out_1", "<row_count_limit=1>//tmp/out_2"],
+                command="cat")
+
 
 class TestSchedulerControllerThrottling(YTEnvSetup):
     NUM_MASTERS = 3
