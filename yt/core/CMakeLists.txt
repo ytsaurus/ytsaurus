@@ -264,6 +264,8 @@ llvm_map_components_to_libraries(
   mcjit ipo x86 mcdisassembler linker asmparser irreader instrumentation
 )
 
+list(REMOVE_ITEM REQUIRED_LLVM_LIBRARIES "-lz")
+
 target_link_libraries(ytcore
   yt-build
   ytext-arcadia-util
