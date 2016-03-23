@@ -193,6 +193,8 @@ TSequentialChunkWriterBase::TSequentialChunkWriterBase(
         chunkWriter,
         blockCache)
     , KeyColumns_(keyColumns)
+    , RandomGenerator_(RandomNumber<ui64>())
+    , SamplingThreshold_(static_cast<ui64>(std::numeric_limits<ui64>::max() * Config_->SampleRate))
 { }
 
 TFuture<void> TSequentialChunkWriterBase::Open()
@@ -231,7 +233,7 @@ void TSequentialChunkWriterBase::OnRow(TUnversionedRow row)
 
 void TSequentialChunkWriterBase::OnRow(const TUnversionedValue* begin, const TUnversionedValue* end)
 {
-    if (RandomNumber<double>() < Config_->SampleRate || RowCount_ == 0) {
+    if (RandomGenerator_.Generate<ui64>() < SamplingThreshold_ || RowCount_ == 0) {
         EmitSample(begin, end);
     }
 

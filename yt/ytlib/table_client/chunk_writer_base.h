@@ -7,6 +7,8 @@
 
 #include <yt/ytlib/chunk_client/chunk_writer_base.h>
 
+#include <yt/core/misc/random.h>
+
 #include <yt/core/logging/log.h>
 
 namespace NYT {
@@ -97,7 +99,7 @@ public:
     virtual bool IsSorted() const override;
 
 protected:
-    TKeyColumns KeyColumns_;
+    const TKeyColumns KeyColumns_;
 
     void OnRow(TUnversionedRow row);
     void OnRow(TVersionedRow row);
@@ -111,6 +113,8 @@ protected:
 private:
     std::unique_ptr<IBlockWriter> BlockWriter_;
 
+    TRandomGenerator RandomGenerator_;
+    const ui64 SamplingThreshold_;
     NProto::TSamplesExt SamplesExt_;
     i64 SamplesExtSize_ = 0;
 
