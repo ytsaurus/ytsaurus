@@ -68,6 +68,8 @@ public:
         int lastTabletIndex,
         const std::vector<NTableClient::TOwningKey>& pivotKeys);
 
+    void MakeDynamic(NTableServer::TTableNode* table);
+
 
     DECLARE_ENTITY_MAP_ACCESSORS(TabletCellBundle, TTabletCellBundle, TTabletCellBundleId);
     TTabletCellBundle* FindTabletCellBundleByName(const Stroka& name);

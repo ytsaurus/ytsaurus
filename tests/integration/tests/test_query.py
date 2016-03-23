@@ -34,7 +34,9 @@ class TestQuery(YTEnvSetup):
         sort(in_=path, out=path, sort_by=["a", "b"])
 
     def _create_table(self, path, schema, data):
-        create("table", path, schema=schema)
+        create("table", path,
+               attributes={"dynamic": True},
+               schema=schema)
         self.sync_mount_table(path)
         insert_rows(path, data)
 
@@ -81,7 +83,8 @@ class TestQuery(YTEnvSetup):
         self.sync_create_cells(3, 3)
 
         create("table", "//tmp/t",
-            schema = [
+            attributes={"dynamic": True},
+            schema=[
                 {"name": "a", "type": "int64", "sort_order": "ascending"},
                 {"name": "b", "type": "int64"}],
             )
@@ -109,7 +112,8 @@ class TestQuery(YTEnvSetup):
         self.sync_create_cells(3, 3)
 
         create("table", "//tmp/t",
-            schema = [
+            attributes={"dynamic": True},
+            schema=[
                 {"name": "a", "type": "int64", "sort_order": "ascending"},
                 {"name": "b", "type": "string"}],
             )
@@ -138,8 +142,9 @@ class TestQuery(YTEnvSetup):
     def test_order_by(self):
         self.sync_create_cells(3, 1)
 
-        create("table", "//tmp/t", 
-            schema = [
+        create("table", "//tmp/t",
+            attributes={"dynamic": True},
+            schema=[
                 {"name": "k", "type": "int64", "sort_order": "ascending"},
                 {"name": "u", "type": "int64"},
                 {"name": "v", "type": "int64"}],
@@ -304,7 +309,8 @@ class TestQuery(YTEnvSetup):
         self.sync_create_cells(3, 1)
 
         create("table", "//tmp/t",
-            schema = [{"name": "key", "type": "int64", "sort_order": "ascending"}, {"name": "value", "type": "int64"}],
+            attributes={"dynamic": True},
+            schema=[{"name": "key", "type": "int64", "sort_order": "ascending"}, {"name": "value", "type": "int64"}],
             )
 
         self.sync_mount_table("//tmp/t")
@@ -329,7 +335,8 @@ class TestQuery(YTEnvSetup):
         self.sync_create_cells(3, 1)
 
         create("table", "//tmp/t",
-                schema = [
+                attributes={"dynamic": True},
+                schema=[
                     {"name": "hash", "type": "int64", "expression": "key * 33", "sort_order": "ascending"},
                     {"name": "key", "type": "int64", "sort_order": "ascending"},
                     {"name": "value", "type": "int64"}],
@@ -355,7 +362,8 @@ class TestQuery(YTEnvSetup):
         self.sync_create_cells(3, 1)
 
         create("table", "//tmp/t",
-            schema = [
+            attributes={"dynamic": True},
+            schema=[
                 {"name": "hash", "type": "int64", "expression": "key2 / 2", "sort_order": "ascending"},
                 {"name": "key1", "type": "int64", "sort_order": "ascending"},
                 {"name": "key2", "type": "int64", "sort_order": "ascending"},
@@ -385,7 +393,8 @@ class TestQuery(YTEnvSetup):
         self.sync_create_cells(3, 1)
 
         create("table", "//tmp/t",
-             schema = [
+             attributes={"dynamic": True},
+             schema=[
                 {"name": "hash", "type": "int64", "expression": "key2 % 2", "sort_order": "ascending"},
                 {"name": "key1", "type": "int64", "sort_order": "ascending"},
                 {"name": "key2", "type": "int64", "sort_order": "ascending"},
@@ -497,11 +506,11 @@ class TestQuery(YTEnvSetup):
         self.sync_create_cells(3, 3)
 
         create("table", "//tmp/card",
-            attributes = {
-                "schema": [
-                    {"name": "a", "type": "int64", "sort_order": "ascending"},
-                    {"name": "b", "type": "int64"}],
-            })
+            attributes={"dynamic": True},
+            schema=[
+                {"name": "a", "type": "int64", "sort_order": "ascending"},
+                {"name": "b", "type": "int64"}],
+            )
 
         pivots = [[i*1000] for i in xrange(0,20)]
         pivots.insert(0, [])
@@ -545,11 +554,11 @@ class TestQuery(YTEnvSetup):
         actual = select_rows("abs_udf(-2 * a) as s from [{0}//tmp/sou]".format(TestQuery.yson_schema_attribute))
         assert_items_equal(actual, expected)
 
-    def test_YT_2375(self):
+    def test_yt_2375(self):
         self.sync_create_cells(3, 3)
-        create(
-            "table", "//tmp/t",
-            schema = [{"name": "key", "type": "int64", "sort_order": "ascending"}, {"name": "value", "type": "int64"}]
+        create("table", "//tmp/t",
+            attributes={"dynamic": True},
+            schema=[{"name": "key", "type": "int64", "sort_order": "ascending"}, {"name": "value", "type": "int64"}]
             )
         reshard_table("//tmp/t", [[]] + [[i] for i in xrange(1, 1000, 10)])
         self.sync_mount_table("//tmp/t")

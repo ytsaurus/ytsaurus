@@ -673,7 +673,6 @@ class TestSchedulerConfig(YTEnvSetup):
         assert get("{0}/event_log/flush_period".format(orchid_scheduler_config)) == 5000
         assert get("{0}/event_log/retry_backoff_time".format(orchid_scheduler_config)) == 7
 
-
 class TestSchedulerPools(YTEnvSetup):
     NUM_MASTERS = 3
     NUM_NODES = 1
@@ -806,3 +805,36 @@ class TestSchedulerSnapshots(YTEnvSetup):
             copy(snapshot_path, snapshot_backup_path)
             assert len(read_file(snapshot_backup_path, verbose=False)) > 0
             op.resume_jobs()
+
+class TestSchedulerPreemption(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 3
+    NUM_SCHEDULERS = 1
+
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "min_share_preemption_timeout": 100
+        }
+    }
+
+    def test_preemption(self):
+        create("table", "//tmp/t_in")
+        for i in xrange(3):
+            write_table("<append=true>//tmp/t_in", {"foo": "bar"})
+
+        create("table", "//tmp/t_out1")
+        create("table", "//tmp/t_out2")
+
+        op_id = map(dont_track=True, command="sleep 1000; cat", in_=["//tmp/t_in"], out="//tmp/t_out1",
+                    spec={"pool": "fake_pool", "job_count": 3, "locality_timeout": 0})
+        time.sleep(3)
+
+        assert get("//sys/scheduler/orchid/scheduler/pools/fake_pool/fair_share_ratio") >= 0.999
+        assert get("//sys/scheduler/orchid/scheduler/pools/fake_pool/usage_ratio") >= 0.999
+
+        create("map_node", "//sys/pools/test_pool", attributes={"min_share_ratio": 1.0})
+        op_id2 = map(dont_track=True, command="cat", in_=["//tmp/t_in"], out="//tmp/t_out2", spec={"pool": "test_pool"})
+        track_op(op_id2)
+
+        abort_op(op_id)

@@ -189,8 +189,8 @@ public:
 
     virtual void Abort() override
     {
-        bool expected = false;
-        if (!Prepared_.compare_exchange_strong(expected, true)) {
+        bool expected = true;
+        if (Prepared_.compare_exchange_strong(expected, false)) {
             // Job has been prepared.
             CleanupUserProcesses();
         }
@@ -1013,7 +1013,9 @@ private:
             memoryLimit);
 
         if (currentMemoryUsage > memoryLimit) {
-            JobErrorPromise_.TrySet(TError(EErrorCode::MemoryLimitExceeded, "Memory limit exceeded")
+            JobErrorPromise_.TrySet(TError(
+                NJobProxy::EErrorCode::MemoryLimitExceeded,
+                "Memory limit exceeded")
                 << TErrorAttribute("rss", rss)
                 << TErrorAttribute("tmpfs", tmpfsSize)
                 << TErrorAttribute("limit", memoryLimit));

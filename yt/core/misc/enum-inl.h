@@ -48,12 +48,8 @@ namespace NYT {
         \
         static const TStringBuf* FindLiteralByValue(TType value) \
         { \
-            switch (value) \
-            { \
-                PP_FOR_EACH(ENUM__LITERAL_BY_VALUE_ITEM, seq) \
-                default: \
-                    return nullptr; \
-            } \
+            PP_FOR_EACH(ENUM__LITERAL_BY_VALUE_ITEM, seq) \
+            return nullptr; \
         } \
         \
         static bool FindValueByLiteral(const TStringBuf& literal, TType* result) \
@@ -107,7 +103,7 @@ namespace NYT {
     ENUM__LITERAL_BY_VALUE_ITEM_ATOMIC(PP_ELEMENT(seq, 0))
 
 #define ENUM__LITERAL_BY_VALUE_ITEM_ATOMIC(item) \
-    case TType::item: { \
+    if (static_cast<TUnderlying>(value) == static_cast<TUnderlying>(TType::item)) { \
         static const TStringBuf literal = STRINGBUF(PP_STRINGIZE(item)); \
         return &literal; \
     }

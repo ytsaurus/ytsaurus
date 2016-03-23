@@ -47,18 +47,12 @@ public:
     Stroka GetCommandLine() const;
 
 private:
-    struct TSpawnAction
-    {
-        std::function<bool()> Callback;
-        Stroka ErrorMessage;
-    };
-
-    std::atomic<bool> Started_ = { false};
-    std::atomic<bool> Finished_ = { false};
+    const Stroka Path_;
+    const TDuration PollPeriod_;
 
     int ProcessId_;
-    Stroka Path_;
-    TDuration PollPeriod_;
+    std::atomic<bool> Started_ = {false};
+    std::atomic<bool> Finished_ = {false};
 
     int MaxSpawnActionFD_ = - 1;
 
@@ -66,10 +60,17 @@ private:
     std::vector<Stroka> StringHolders_;
     std::vector<const char*> Args_;
     std::vector<const char*> Env_;
+
+    struct TSpawnAction
+    {
+        std::function<bool()> Callback;
+        Stroka ErrorMessage;
+    };
+
     std::vector<TSpawnAction> SpawnActions_;
 
     NConcurrency::TPeriodicExecutorPtr AsyncWaitExecutor_;
-    TPromise<void> FinishedPromise_;
+    TPromise<void> FinishedPromise_ = NewPromise<void>();
 
     const char* Capture(const TStringBuf& arg);
 
@@ -79,6 +80,8 @@ private:
     void Child();
     void AsyncPeriodicTryWait();
 };
+
+DEFINE_REFCOUNTED_TYPE(TProcess)
 
 ////////////////////////////////////////////////////////////////////////////////
 
