@@ -268,7 +268,7 @@ def get_token(client=None):
     else:
         logger.debug("Token got from environment variable or config")
     if token is not None:
-        require(len(token) >= 1 and all(33 <= ord(c) <= 126 for c in token),
+        require(all(33 <= ord(c) <= 126 for c in token),
                 lambda: YtTokenError("You have an improper authentication token"))
     if not token:
         token = None
