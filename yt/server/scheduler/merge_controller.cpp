@@ -1828,7 +1828,7 @@ private:
 
             CheckInputTablesSorted(specForeignKeyColumns, &TInputTable::IsForeign);
 
-            if (KeyColumns.size() <= specForeignKeyColumns.size() ||
+            if (KeyColumns.size() < specForeignKeyColumns.size() ||
                 !CheckKeyColumnsCompatible(KeyColumns, specForeignKeyColumns))
             {
                     THROW_ERROR_EXCEPTION("Join key columns %v are not compatible with reduce columns %v",
