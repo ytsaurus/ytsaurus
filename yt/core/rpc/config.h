@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/core/compression/codec.h>
+#include <yt/core/compression/public.h>
 
 #include <yt/core/ytree/yson_serializable.h>
 
