@@ -8,7 +8,7 @@ using namespace NConcurrency;
 ////////////////////////////////////////////////////////////////////////////////
 
 TIODispatcher::TImpl::TImpl()
-    : TEVSchedulerThread("Pipes", false)
+    : TEVSchedulerThread("PipeDispatcher", false)
 { }
 
 const ev::loop_ref& TIODispatcher::TImpl::GetEventLoop() const
