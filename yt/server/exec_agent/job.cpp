@@ -118,7 +118,7 @@ public:
         Slot_ = slotManager->AcquireSlot();
 
         auto invoker = CancelableContext_->CreateInvoker(Slot_->GetInvoker());
-        RunResult_ = BIND(&TJob::DoRun, MakeWeak(this))
+        BIND(&TJob::Run, MakeWeak(this))
             .AsyncVia(invoker)
             .Run();
     }
@@ -147,7 +147,7 @@ public:
         YCHECK(Slot_);
 
         auto this_ = MakeStrong(this);
-        RunResult_.Subscribe(BIND([this, this_] (const TError& /*error*/) {
+        PrepareResult_.Subscribe(BIND([this, this_] (const TError& /*error*/) {
             Slot_->GetInvoker()->Invoke(BIND(&TJob::DoAbort, MakeStrong(this)));
         }));
     }
@@ -303,7 +303,7 @@ private:
     EJobPhase JobPhase_ = EJobPhase::Created;
 
     const TCancelableContextPtr CancelableContext_ = New<TCancelableContext>();
-    TFuture<void> RunResult_;
+    TFuture<void> PrepareResult_ = VoidFuture;
 
     double Progress_ = 0.0;
     NJobTrackerClient::NProto::TStatistics Statistics_;
@@ -326,38 +326,59 @@ private:
     NLogging::TLogger Logger = ExecAgentLogger;
 
 
+    void DoPrepare()
+    {
+        YCHECK(JobPhase_ == EJobPhase::Created);
+        JobPhase_ = EJobPhase::PreparingConfig;
+        PrepareConfig();
+
+        YCHECK(JobPhase_ == EJobPhase::PreparingConfig);
+        JobPhase_ = EJobPhase::PreparingProxy;
+        PrepareProxy();
+
+        YCHECK(JobPhase_ == EJobPhase::PreparingProxy);
+        JobPhase_ = EJobPhase::PreparingSandbox;
+        Slot_->InitSandbox();
+
+        YCHECK(JobPhase_ == EJobPhase::PreparingSandbox);
+        JobPhase_ = EJobPhase::PreparingTmpfs;
+        PrepareTmpfs();
+
+        YCHECK(JobPhase_ == EJobPhase::PreparingTmpfs);
+        JobPhase_ = EJobPhase::PreparingFiles;
+        PrepareUserFiles();
+
+        YCHECK(JobPhase_ == EJobPhase::PreparingFiles);
+    }
+
     void DoRun()
     {
+        JobPhase_ = EJobPhase::Running;
+
+        {
+            TGuard<TSpinLock> guard(SpinLock);
+            ExecTime_ = TInstant::Now();
+        }
+
+        RunJobProxy();
+    }
+
+    void Run()
+    {
         try {
-            YCHECK(JobPhase_ == EJobPhase::Created);
-            JobPhase_ = EJobPhase::PreparingConfig;
-            PrepareConfig();
-
-            YCHECK(JobPhase_ == EJobPhase::PreparingConfig);
-            JobPhase_ = EJobPhase::PreparingProxy;
-            PrepareProxy();
-
-            YCHECK(JobPhase_ == EJobPhase::PreparingProxy);
-            JobPhase_ = EJobPhase::PreparingSandbox;
-            Slot_->InitSandbox();
-
-            YCHECK(JobPhase_ == EJobPhase::PreparingSandbox);
-            JobPhase_ = EJobPhase::PreparingTmpfs;
-            PrepareTmpfs();
-
-            YCHECK(JobPhase_ == EJobPhase::PreparingTmpfs);
-            JobPhase_ = EJobPhase::PreparingFiles;
-            PrepareUserFiles();
-
-            YCHECK(JobPhase_ == EJobPhase::PreparingFiles);
-            JobPhase_ = EJobPhase::Running;
+            auto prepareResult = BIND(&TJob::DoPrepare, MakeWeak(this))
+                .AsyncVia(GetCurrentInvoker())
+                .Run();
 
             {
                 TGuard<TSpinLock> guard(SpinLock);
-                ExecTime_ = TInstant::Now();
+                PrepareResult_ = prepareResult;
             }
 
-            RunJobProxy();
+            WaitFor(prepareResult)
+                .ThrowOnError();
+
+            DoRun();
         } catch (const std::exception& ex) {
             {
                 TGuard<TSpinLock> guard(SpinLock);
@@ -414,7 +435,7 @@ private:
             return;
         }
 
-        auto abortReason = GetAbortReason(jobResult, Signaled_);
+        auto abortReason = GetAbortReason(jobResult);
         if (abortReason) {
             error.Attributes().Set("abort_reason", abortReason);
             ToProto(JobResult_->mutable_error(), error);
@@ -625,37 +646,41 @@ private:
             fileName);
     }
 
-    static TNullable<EAbortReason> GetAbortReason(const TJobResult& jobResult, bool signaled)
+    TNullable<EAbortReason> GetAbortReason(const TJobResult& jobResult)
     {
         auto resultError = FromProto<TError>(jobResult.error());
 
         if (jobResult.HasExtension(TSchedulerJobResultExt::scheduler_job_result_ext)) {
             const auto& schedulerResultExt = jobResult.GetExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
             if (schedulerResultExt.failed_chunk_ids_size() > 0) {
-                return MakeNullable(EAbortReason::FailedChunks);
+                return EAbortReason::FailedChunks;
             }
         }
 
         if (resultError.FindMatching(NExecAgent::EErrorCode::ResourceOverdraft)) {
-            return MakeNullable(EAbortReason::ResourceOverdraft);
+            return EAbortReason::ResourceOverdraft;
         }
 
         if (resultError.FindMatching(NExecAgent::EErrorCode::AbortByScheduler)) {
-            return MakeNullable(EAbortReason::Scheduler);
+            return EAbortReason::Scheduler;
         }
 
         if (resultError.FindMatching(NChunkClient::EErrorCode::AllTargetNodesFailed) ||
             resultError.FindMatching(NChunkClient::EErrorCode::MasterCommunicationFailed) ||
             resultError.FindMatching(NChunkClient::EErrorCode::MasterNotConnected) ||
-            resultError.FindMatching(NExecAgent::EErrorCode::ConfigCreationFailed) ||
-            resultError.FindMatching(
-                static_cast<int>(EExitStatus::ExitCodeBase) +
-                static_cast<int>(NExecAgent::EJobProxyExitCode::HeartbeatFailed)))
+            resultError.FindMatching(NExecAgent::EErrorCode::ConfigCreationFailed))
         {
-            return MakeNullable(EAbortReason::Other);
+            return EAbortReason::Other;
         }
 
-        if (signaled) {
+        if (auto processError = resultError.FindMatching(EProcessErrorCode::NonZeroExitCode)) {
+            auto exitCode = processError->Attributes().Get<int>("exit_code");
+            if (exitCode == static_cast<int>(NExecAgent::EJobProxyExitCode::HeartbeatFailed)) {
+                return EAbortReason::Other;
+            }
+        }
+
+        if (Signaled_) {
             return EAbortReason::Other;
         }
 

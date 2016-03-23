@@ -9,7 +9,11 @@ namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_ENUM(ESimple, (X)(Y)(Z));
+DEFINE_ENUM(ESimple,
+    (X)
+    (Y)
+    (Z)
+);
 
 DEFINE_ENUM(EColor,
     ((Red)  (10))
@@ -24,6 +28,15 @@ DEFINE_BIT_ENUM(EFlag,
     ((_2)(0x0002))
     ((_3)(0x0004))
     ((_4)(0x0008))
+);
+
+DEFINE_ENUM(EMultipleNames,
+     (A1)
+    ((A2)(0))
+     (B)
+     (C)
+    ((D1)(100))
+    ((D2)(100))
 );
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -232,6 +245,23 @@ TEST(TEnumTest, Decompose4)
     auto f = EFlag(EFlag::_2|EFlag::_4);
     std::vector<EFlag> ff{EFlag::_2, EFlag::_4};
     EXPECT_EQ(TEnumTraits<EFlag>::Decompose(f), ff);
+}
+
+TEST(TEnumTest, MultipleNames)
+{
+    EXPECT_EQ(EMultipleNames::A1, TEnumTraits<EMultipleNames>::FromString("A1"));
+    EXPECT_EQ(EMultipleNames::A1, TEnumTraits<EMultipleNames>::FromString("A2"));
+    EXPECT_EQ(EMultipleNames::B,  TEnumTraits<EMultipleNames>::FromString("B"));
+    EXPECT_EQ(EMultipleNames::C,  TEnumTraits<EMultipleNames>::FromString("C"));
+    EXPECT_EQ(EMultipleNames::D1, TEnumTraits<EMultipleNames>::FromString("D1"));
+    EXPECT_EQ(EMultipleNames::D1, TEnumTraits<EMultipleNames>::FromString("D2"));
+
+    EXPECT_EQ("A1", ToString(EMultipleNames::A1));
+    EXPECT_EQ("A1", ToString(EMultipleNames::A2));
+    EXPECT_EQ("B",  ToString(EMultipleNames::B));
+    EXPECT_EQ("C",  ToString(EMultipleNames::C));
+    EXPECT_EQ("D1", ToString(EMultipleNames::D1));
+    EXPECT_EQ("D1", ToString(EMultipleNames::D2));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

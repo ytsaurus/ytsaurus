@@ -437,23 +437,23 @@ TChannel TRichYPath::GetChannel() const
 
 std::vector<NChunkClient::TReadRange> TRichYPath::GetRanges() const
 {
-    // COMPAT(ignat): lower and upper limit attributes processed for compatibility.
-    auto lowerLimitAttribute = Attributes().Find<TReadLimit>("lower_limit");
-    auto upperLimitAttribute = Attributes().Find<TReadLimit>("upper_limit");
-    auto rangesAttribute = Attributes().Find<std::vector<TReadLimit>>("ranges");
-    if ((lowerLimitAttribute || upperLimitAttribute) && rangesAttribute) {
-        THROW_ERROR_EXCEPTION("YPath attributes contain both multiple (\"ranges\") and "
-            "single (\"lower_limit\" or \"upper_limit\") range specifications, which is forbidden");
-    }
+    // COMPAT(ignat): top-level "lower_limit" and "upper_limit" are processed for compatibility.
+    auto maybeLowerLimit = Attributes().Find<TReadLimit>("lower_limit");
+    auto maybeUpperLimit = Attributes().Find<TReadLimit>("upper_limit");
+    auto maybeRanges = Attributes().Find<std::vector<TReadRange>>("ranges");
 
-    if (lowerLimitAttribute || upperLimitAttribute) {
-        return std::vector<TReadRange>{
+    if (maybeLowerLimit || maybeUpperLimit) {
+        if (maybeRanges) {
+            THROW_ERROR_EXCEPTION("YPath cannot be annotated with both multiple (\"ranges\" attribute) "
+                "and single (\"lower_limit\" or \"upper_limit\" attributes) ranges");
+        }
+        return std::vector<TReadRange>({
             TReadRange(
-                Attributes().Get("lower_limit", TReadLimit()),
-                Attributes().Get("upper_limit", TReadLimit())
-            )};
+                maybeLowerLimit.Get(TReadLimit()),
+                maybeUpperLimit.Get(TReadLimit())
+            )});
     } else {
-        return Attributes().Get("ranges", std::vector<TReadRange>{TReadRange()});
+        return maybeRanges.Get(std::vector<TReadRange>({TReadRange()}));
     }
 }
 
@@ -550,7 +550,7 @@ void Serialize(const TRichYPath& richPath, IYsonConsumer* consumer)
 void Deserialize(TRichYPath& richPath, INodePtr node)
 {
     if (node->GetType() != ENodeType::String) {
-        THROW_ERROR_EXCEPTION("YPath can only be parsed from String");
+        THROW_ERROR_EXCEPTION("YPath can only be parsed from \"string\"");
     }
     richPath.SetPath(node->GetValue<Stroka>());
     richPath.Attributes().Clear();

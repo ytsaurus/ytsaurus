@@ -353,7 +353,7 @@ class TestLocks(YTEnvSetup):
         lock_id3 = lock("//tmp/t", tx = tx3, mode = "snapshot")
         assert get("//sys/locks/" + lock_id3 + "/@state") == "acquired"
 
-    def test_yt144(self):
+    def test_yt_144(self):
         create("table", "//tmp/t")
 
         tx1 = start_transaction()
