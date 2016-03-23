@@ -38,7 +38,7 @@ TChunkWriterBase::TChunkWriterBase(
         chunkWriter,
         blockCache,
         Logger))
-{ 
+{
     Logger.AddTag("TableChunkWriter: %p", this);
 }
 
@@ -109,7 +109,7 @@ void TChunkWriterBase::ValidateRowWeight(i64 weight)
         << TErrorAttribute("row_weight_limit", Config_->MaxRowWeight);
 }
 
-void TChunkWriterBase::ValidateDuplicateIds(const TUnversionedRow row, TNameTablePtr nameTable)
+void TChunkWriterBase::ValidateDuplicateIds(TUnversionedRow row, const TNameTablePtr& nameTable)
 {
     if (!Options_->ValidateDuplicateIds) {
         return;

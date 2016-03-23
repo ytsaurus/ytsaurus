@@ -299,7 +299,7 @@ TPartitionChunkWriter::TPartitionChunkWriter(
 
 bool TPartitionChunkWriter::Write(const std::vector<TUnversionedRow>& rows)
 {
-    for (auto& row : rows) {
+    for (auto row : rows) {
         this->ValidateDuplicateIds(row, NameTable_);
         WriteRow(row);
     }
