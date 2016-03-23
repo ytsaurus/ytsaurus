@@ -8,6 +8,7 @@
 #include <yt/ytlib/chunk_client/chunk_writer_base.h>
 
 #include <yt/core/misc/random.h>
+#include <yt/core/misc/small_vector.h>
 
 #include <yt/core/logging/log.h>
 
@@ -49,16 +50,20 @@ public:
 protected:
     NLogging::TLogger Logger;
 
-    TChunkWriterConfigPtr Config_;
-    TChunkWriterOptionsPtr Options_;
+    const TChunkWriterConfigPtr Config_;
+    const TChunkWriterOptionsPtr Options_;
     i64 RowCount_ = 0;
 
     i64 DataWeight_ = 0;
 
-    NChunkClient::TEncodingChunkWriterPtr EncodingChunkWriter_;
+    const NChunkClient::TEncodingChunkWriterPtr EncodingChunkWriter_;
 
     NProto::TBlockMetaExt BlockMetaExt_;
     i64 BlockMetaExtSize_ = 0;
+
+    SmallVector<i64, TypicalColumnCount> IdValidationMarks_;
+    i64 CurrentIdValidationMark_ = 1;
+
 
     void ValidateRowWeight(i64 weight);
     void ValidateDuplicateIds(TUnversionedRow row, const TNameTablePtr& nameTable);

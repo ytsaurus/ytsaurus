@@ -115,23 +115,22 @@ void TChunkWriterBase::ValidateDuplicateIds(TUnversionedRow row, const TNameTabl
         return;
     }
 
-    std::vector<int> ids;
-    ids.reserve(row.GetCount());
-
+    auto mark = CurrentIdValidationMark_++;
     for (const auto* value = row.Begin(); value != row.End(); ++value) {
-        ids.push_back(value->Id);
-    }
-
-    std::sort(ids.begin(), ids.end());
-    auto it = std::adjacent_find(ids.begin(), ids.end());
-
-    if (it != ids.end()) {
-        auto error = TError("Duplicate value id in unversioned row")
-            << TErrorAttribute("id", *it);
-        if (nameTable) {
-            error = error << TErrorAttribute("column_name", nameTable->GetName(*it));
+        auto id = value->Id;
+        if (id >= IdValidationMarks_.size()) {
+            IdValidationMarks_.resize(std::max(IdValidationMarks_.size() * 2, static_cast<size_t>(id) + 1));
         }
-        THROW_ERROR error;
+        auto& idMark = IdValidationMarks_[id];
+        if (idMark == mark) {
+            auto error = TError("Duplicate column in unversioned row")
+                 << TErrorAttribute("id", id);
+            if (nameTable) {
+                error = error << TErrorAttribute("column_name", nameTable->GetName(id));
+            }
+            THROW_ERROR error;
+        }
+        idMark = mark;
     }
 }
 
