@@ -6,7 +6,7 @@
 #include "server_detail.h"
 #include "service.h"
 
-#include <yt/core/compression/codec.h>
+#include <yt/core/compression/public.h>
 
 #include <yt/core/concurrency/action_queue.h>
 #include <yt/core/concurrency/rw_spinlock.h>
