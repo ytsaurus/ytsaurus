@@ -1,6 +1,7 @@
 #!/usr/bin/python
 
 import yt.wrapper as yt
+import yt.yson as yson
 from yt.wrapper.client import Yt
 from yt.wrapper.common import run_with_retries
 from yt.tools.dynamic_tables import call, mount_table, split_in_groups, log_exception, build_spec_from_options, run_map_over_dynamic, DEFAULT_CLIENT_CONFIG, YSON_FORMAT
@@ -140,6 +141,8 @@ def main():
     parser.add_argument("--input_row_limit", type=int, default=INPUT_ROW_LIMIT, help="Limit the input of 'yt select' call")
     parser.add_argument("--output_row_limit", type=int, default=OUTPUT_ROW_LIMIT, help="Limit the output of 'yt select' call")
     parser.add_argument("--predicate", type=str, help="Additional predicate for 'yt select'")
+    parser.add_argument("--workload_descriptor", type=yson.loads, help="Workload descriptor (in yson format) for 'yt select'")
+    parser.add_argument("--pool", type=str, help="Pool for scheduler operations")
     args = parser.parse_args()
     args_dict = vars(args)
 

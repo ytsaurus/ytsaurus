@@ -53,8 +53,10 @@ def build_spec_from_options(
     job_count=JOB_COUNT,
     max_failed_job_count=MAX_FAILDED_JOB_COUNT,
     memory_limit=JOB_MEMORY_LIMIT,
-    user_slots=USER_SLOTS):
+    user_slots=USER_SLOTS,
+    pool=None):
     spec = {
+        "pool": pool,
         "enable_job_proxy_memory_control": False,
         "job_count": job_count,
         "max_failed_job_count": max_failed_job_count,
@@ -92,7 +94,7 @@ def mount_table(table):
     wait_for_state(table, "mounted")
 
 # Write source table partition bounds into partition_bounds_table
-def extract_partition_bounds(table, partition_bounds_table):
+def extract_partition_bounds(table, partition_bounds_table, pool=None):
     # Get pivot keys. For a large number of tablets use map-reduce version.
     # Tablet pivots are merged with partition pivots
 
@@ -116,7 +118,7 @@ def extract_partition_bounds(table, partition_bounds_table):
                 _collect_pivot_keys_mapper,
                 tablets_table,
                 partitions_table,
-                spec={"job_count": 100, "max_failed_job_count": 10, "resource_limits": {"user_slots": 50}},
+                spec={"pool": pool, "job_count": 100, "max_failed_job_count": 10, "resource_limits": {"user_slots": 50}},
                 format=YSON_FORMAT)
             yt.run_merge(partitions_table, partitions_table)
             partition_keys = yt.read_table(partitions_table, format=YSON_FORMAT, raw=False)
@@ -137,7 +139,7 @@ def extract_partition_bounds(table, partition_bounds_table):
         format=YSON_FORMAT,
         raw=False)
 
-def run_map_over_dynamic(mapper, src_table, dst_table, columns=None, predicate=None, input_row_limit=INPUT_ROW_LIMIT, output_row_limit=OUTPUT_ROW_LIMIT, **kwargs):
+def run_map_over_dynamic(mapper, src_table, dst_table, columns=None, predicate=None, pool=None, workload_descriptor=None, input_row_limit=INPUT_ROW_LIMIT, output_row_limit=OUTPUT_ROW_LIMIT, **kwargs):
     schema = yt.get(src_table + "/@schema")
     key_columns = yt.get(src_table + "/@key_columns")
 
@@ -160,7 +162,7 @@ def run_map_over_dynamic(mapper, src_table, dst_table, columns=None, predicate=N
 
         client = Yt(config=DEFAULT_CLIENT_CONFIG)
         def do_select():
-            return client.select_rows(query, input_row_limit=input_row_limit, output_row_limit=output_row_limit, raw=False)
+            return client.select_rows(query, input_row_limit=input_row_limit, output_row_limit=output_row_limit, workload_descriptor=workload_descriptor, raw=False)
         return run_with_retries(do_select, except_action=log_exception)
 
     def dump_mapper(bound):
@@ -169,12 +171,12 @@ def run_map_over_dynamic(mapper, src_table, dst_table, columns=None, predicate=N
         for res in mapper(rows):
             yield res
 
-    map_spec = call(build_spec_from_options, **kwargs);
+    map_spec = call(build_spec_from_options, pool=pool, **kwargs);
 
     mount_table(src_table)
 
     with yt.TempTable() as partition_bounds_table:
-        extract_partition_bounds(src_table, partition_bounds_table)
+        extract_partition_bounds(src_table, partition_bounds_table, pool)
 
         yt.run_map(
             dump_mapper,
