@@ -4,6 +4,8 @@
 #include "folding_profiler.h"
 #include "query_preparer.h"
 #include "query_statistics.h"
+#include "functions.h"
+#include "functions_cg.h"
 
 #include <yt/core/misc/sync_cache.h>
 
@@ -18,10 +20,12 @@ using namespace NYTree;
 TColumnEvaluator::TColumnEvaluator(
     const TTableSchema& schema,
     int keyColumnCount,
-    IFunctionRegistryPtr functionRegistry)
+    const TConstTypeInferrerMapPtr& typeInferrers,
+    const TConstFunctionProfilerMapPtr& profilers)
     : TableSchema_(schema)
     , KeyColumnCount_(keyColumnCount)
-    , FunctionRegistry_(std::move(functionRegistry))
+    , TypeInferers_(typeInferrers)
+    , Profilers_(profilers)
     , Evaluators_(keyColumnCount)
     , Variables_(keyColumnCount)
     , ReferenceIds_(keyColumnCount)
@@ -32,9 +36,10 @@ TColumnEvaluator::TColumnEvaluator(
 TColumnEvaluatorPtr TColumnEvaluator::Create(
     const TTableSchema& schema,
     int keyColumnCount,
-    IFunctionRegistryPtr functionRegistry)
+    const TConstTypeInferrerMapPtr& typeInferrers,
+    const TConstFunctionProfilerMapPtr& profilers)
 {
-    auto evaluator = New<TColumnEvaluator>(schema, keyColumnCount, std::move(functionRegistry));
+    auto evaluator = New<TColumnEvaluator>(schema, keyColumnCount, typeInferrers, profilers);
     evaluator->Prepare();
     return evaluator;
 }
@@ -44,10 +49,11 @@ void TColumnEvaluator::Prepare()
     for (int index = 0; index < KeyColumnCount_; ++index) {
         if (TableSchema_.Columns()[index].Expression) {
             yhash_set<Stroka> references;
+
             Expressions_[index] = PrepareExpression(
                 TableSchema_.Columns()[index].Expression.Get(),
                 TableSchema_,
-                FunctionRegistry_,
+                TypeInferers_.Get(),
                 &references);
 
             Evaluators_[index] = Profile(
@@ -56,7 +62,7 @@ void TColumnEvaluator::Prepare()
                 nullptr,
                 &Variables_[index],
                 &AllLiteralArgs_[index],
-                FunctionRegistry_)();
+                Profilers_.Get())();
 
             for (const auto& reference : references) {
                 ReferenceIds_[index].push_back(TableSchema_.GetColumnIndexOrThrow(reference));
@@ -69,8 +75,8 @@ void TColumnEvaluator::Prepare()
         if (TableSchema_.Columns()[index].Aggregate) {
             const auto& aggregateName = TableSchema_.Columns()[index].Aggregate.Get();
             auto type = TableSchema_.Columns()[index].Type;
-            auto aggregate = FunctionRegistry_->GetAggregateFunction(aggregateName);
-            Aggregates_[index] = CodegenAggregate(aggregate->MakeCodegenAggregate(type, type, type, aggregateName));
+            auto aggregate = BuiltinAggregateCG->GetAggregate(aggregateName);
+            Aggregates_[index] = CodegenAggregate(aggregate->Profile(type, type, type, aggregateName));
         }
     }
 }
@@ -234,19 +240,25 @@ class TColumnEvaluatorCache::TImpl
 public:
     explicit TImpl(
         TColumnEvaluatorCacheConfigPtr config,
-        IFunctionRegistryPtr functionRegistry)
+        const TConstTypeInferrerMapPtr& typeInferrers,
+        const TConstFunctionProfilerMapPtr& profilers)
         : TSyncSlruCacheBase(config->CGCache)
-        , FunctionRegistry_(std::move(functionRegistry))
+        , TypeInferers_(typeInferrers)
+        , Profilers_(profilers)
     { }
 
     TColumnEvaluatorPtr Get(const TTableSchema& schema, int keyColumnCount)
     {
         llvm::FoldingSetNodeID id;
-        Profile(schema, keyColumnCount, &id, FunctionRegistry_);
+        Profile(schema, keyColumnCount, &id);
 
         auto cachedEvaluator = Find(id);
         if (!cachedEvaluator) {
-            auto evaluator = TColumnEvaluator::Create(schema, keyColumnCount, FunctionRegistry_);
+            auto evaluator = TColumnEvaluator::Create(
+                schema,
+                keyColumnCount,
+                TypeInferers_,
+                Profilers_);
             cachedEvaluator = New<TCachedColumnEvaluator>(id, evaluator);
 
             TryInsert(cachedEvaluator, &cachedEvaluator);
@@ -256,15 +268,17 @@ public:
     }
 
 private:
-    const IFunctionRegistryPtr FunctionRegistry_;
+    TConstTypeInferrerMapPtr TypeInferers_;
+    TConstFunctionProfilerMapPtr Profilers_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TColumnEvaluatorCache::TColumnEvaluatorCache(
     TColumnEvaluatorCacheConfigPtr config,
-    IFunctionRegistryPtr functionRegistry)
-    : Impl_(New<TImpl>(std::move(config), std::move(functionRegistry)))
+    const TConstTypeInferrerMapPtr& typeInferrers,
+    const TConstFunctionProfilerMapPtr& profilers)
+    : Impl_(New<TImpl>(std::move(config), typeInferrers, profilers))
 { }
 
 TColumnEvaluatorCache::~TColumnEvaluatorCache() = default;

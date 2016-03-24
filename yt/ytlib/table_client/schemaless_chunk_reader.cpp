@@ -13,6 +13,7 @@
 #include "cached_versioned_chunk_meta.h"
 #include "schemaful_reader.h"
 #include "row_merger.h"
+#include "row_buffer.h"
 
 #include <yt/ytlib/api/client.h>
 #include <yt/ytlib/api/connection.h>
@@ -217,7 +218,7 @@ TSchemalessChunkReader::TSchemalessChunkReader(
     std::vector<TReadRange> readRanges,
     TNullable<int> partitionTag)
     : TChunkReaderBase(
-        config, 
+        config,
         underlyingReader,
         blockCache)
     , ChunkSpec_(chunkSpec)
@@ -571,7 +572,7 @@ ISchemalessChunkReaderPtr CreateSchemalessChunkReader(
     TNameTablePtr nameTable,
     NChunkClient::IBlockCachePtr blockCache,
     const TKeyColumns& keyColumns,
-    const TColumnFilter& columnFilter,  
+    const TColumnFilter& columnFilter,
     std::vector<NChunkClient::TReadRange> readRanges,
     TNullable<int> partitionTag)
 {
@@ -786,7 +787,7 @@ bool TSchemalessMultiChunkReader<TBase>::Read(std::vector<TUnversionedRow>* rows
         RowIndex_ += rows->size();
         return true;
     }
-    
+
     if (TBase::OnEmptyRead(readerFinished)) {
         return true;
     } else {

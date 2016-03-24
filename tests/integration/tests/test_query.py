@@ -21,6 +21,17 @@ class TestQuery(YTEnvSetup):
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
 
+    DELTA_DRIVER_CONFIG = {
+        "client_cache": {
+            "capacity": 10
+        },
+        "function_registry_cache": {
+            "success_expiration_time": 5000,
+            "success_probation_time": 3000,
+            "failure_expiration_time": 5000
+        }
+    }
+
     yson_schema_attribute = "<schema=[{name=a; type=int64}; {name=b; type=int64}]>"
 
     def _get_schema(self, columns, optimized_for):
@@ -146,7 +157,7 @@ class TestQuery(YTEnvSetup):
     def test_order_by(self):
         self.sync_create_cells(3, 1)
 
-        create("table", "//tmp/t", 
+        create("table", "//tmp/t",
             attributes={"dynamic": True},
             schema = self._get_schema([
                 {"name": "k", "type": "int64", "sort_order": "ascending"},
@@ -304,7 +315,7 @@ class TestQuery(YTEnvSetup):
 
         sort(in_="//tmp/t", out="//tmp/t", sort_by=["a", "b", "c", "d"])
         schema = "<schema=[{name=a; type=int64}; {name=b; type=boolean}; {name=c; type=string}; {name=d; type=uint64}]>"
-        
+
         assert select_rows('a, b, c, d from [{0}//tmp/t] where c="hello"'.format(schema), output_format=format) == \
                 '{"a"=10;"b"=%false;"c"="hello";"d"=32u;};\n'
 
@@ -314,7 +325,7 @@ class TestQuery(YTEnvSetup):
         create("table", "//tmp/t",
             attributes={"dynamic": True},
             schema = self._get_schema([
-                {"name": "key", "type": "int64", "sort_order": "ascending"}, 
+                {"name": "key", "type": "int64", "sort_order": "ascending"},
                 {"name": "value", "type": "int64"}], "scan"))
 
         self.sync_mount_table("//tmp/t")
@@ -492,6 +503,61 @@ class TestQuery(YTEnvSetup):
         actual = select_rows("avg_udaf(a) as x from [{0}//tmp/ua] group by 1".format(TestQuery.yson_schema_attribute))
         assert_items_equal(actual, expected)
 
+    def test_udf_cache(self):
+        self._sample_data(path="//tmp/u")
+        query = "a, xxx_udf(a, 2) as s from [{0}//tmp/u]".format(TestQuery.yson_schema_attribute)
+
+        registry_path =  "//tmp/udfs"
+
+        xxx_path = os.path.join(registry_path, "xxx_udf")
+        create("map_node", registry_path)
+
+        udfs_impl_path = self._find_ut_file("test_udfs.bc")
+
+        create("file", xxx_path,
+            attributes = { "function_descriptor": {
+                "name": "exp_udf",
+                "argument_types": [{
+                    "tag": "concrete_type",
+                    "value": "int64"},
+                   {"tag": "concrete_type",
+                    "value": "int64"}],
+                "result_type": {
+                    "tag": "concrete_type",
+                    "value": "int64"},
+                "calling_convention": "simple"}})
+        write_local_file(xxx_path, udfs_impl_path)
+
+        expected_exp = [{"a": i, "s": i * i} for i in xrange(1, 10)]
+        actual = select_rows(query)
+        assert_items_equal(actual, expected_exp)
+
+        move(xxx_path, xxx_path + ".bak")
+        create("file", xxx_path,
+            attributes = { "function_descriptor": {
+                "name": "sum_udf",
+                "argument_types": [{
+                    "tag": "concrete_type",
+                    "value": "int64"}],
+                "repeated_argument_type": {
+                    "tag": "concrete_type",
+                    "value": "int64"},
+                "result_type": {
+                    "tag": "concrete_type",
+                    "value": "int64"},
+                "calling_convention": "unversioned_value"}})
+        write_local_file(xxx_path, udfs_impl_path)
+
+        # Still use cache
+        actual = select_rows(query)
+        assert_items_equal(actual, expected_exp)
+
+        time.sleep(5)
+
+        expected_sum = [{"a": i, "s": i + 2} for i in xrange(1, 10)]
+        actual = select_rows(query)
+        assert_items_equal(actual, expected_sum)
+
     def test_aggregate_string_capture(self):
         create("table", "//tmp/t")
 
@@ -538,7 +604,7 @@ class TestQuery(YTEnvSetup):
         registry_path =  "//tmp/udfs"
         create("map_node", registry_path)
 
-        abs_path = os.path.join(registry_path, "abs_udf")
+        abs_path = os.path.join(registry_path, "abs_udf_o")
         create("file", abs_path,
             attributes = { "function_descriptor": {
                 "name": "abs_udf",
@@ -555,7 +621,7 @@ class TestQuery(YTEnvSetup):
 
         self._sample_data(path="//tmp/sou")
         expected = [{"s": 2 * i} for i in xrange(1, 10)]
-        actual = select_rows("abs_udf(-2 * a) as s from [{0}//tmp/sou]".format(TestQuery.yson_schema_attribute))
+        actual = select_rows("abs_udf_o(-2 * a) as s from [{0}//tmp/sou]".format(TestQuery.yson_schema_attribute))
         assert_items_equal(actual, expected)
 
     def test_yt_2375(self):

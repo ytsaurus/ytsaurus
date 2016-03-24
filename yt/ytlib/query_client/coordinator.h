@@ -2,9 +2,10 @@
 
 #include "public.h"
 #include "callbacks.h"
-#include "function_registry.h"
 #include "plan_fragment.h"
 #include "query_statistics.h"
+
+#include <yt/core/logging/log.h>
 
 namespace NYT {
 namespace NQueryClient {
@@ -26,7 +27,7 @@ TRowRanges GetPrunedRanges(
     TSharedRange<TRowRange> ranges,
     const TRowBufferPtr& rowBuffer,
     const TColumnEvaluatorCachePtr& evaluatorCache,
-    const IFunctionRegistryPtr functionRegistry,
+    const TConstRangeExtractorMapPtr& rangeExtractors,
     ui64 rangeExpansionLimit,
     bool verboseLogging,
     const NLogging::TLogger& Logger = QueryClientLogger);
@@ -37,7 +38,7 @@ TRowRanges GetPrunedRanges(
     TSharedRange<TRowRange> ranges,
     const TRowBufferPtr& rowBuffer,
     const TColumnEvaluatorCachePtr& evaluatorCache,
-    const IFunctionRegistryPtr functionRegistry,
+    const TConstRangeExtractorMapPtr& rangeExtractors,
     ui64 rangeExpansionLimit,
     bool verboseLogging);
 

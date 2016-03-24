@@ -57,8 +57,6 @@ struct IPrepareCallbacks;
 
 struct TQueryStatistics;
 
-DECLARE_REFCOUNTED_STRUCT(IFunctionDescriptor)
-
 DECLARE_REFCOUNTED_STRUCT(IAggregateFunctionDescriptor)
 
 DECLARE_REFCOUNTED_STRUCT(ICallingConvention)
@@ -78,6 +76,34 @@ DECLARE_REFCOUNTED_CLASS(TColumnEvaluatorCache)
 DECLARE_REFCOUNTED_CLASS(TColumnEvaluatorCacheConfig)
 
 DECLARE_REFCOUNTED_STRUCT(IFunctionRegistry)
+
+DECLARE_REFCOUNTED_STRUCT(IFunctionCodegen)
+
+DECLARE_REFCOUNTED_STRUCT(IAggregateCodegen)
+
+DECLARE_REFCOUNTED_STRUCT(TExternalCGInfo)
+typedef TIntrusivePtr<const TExternalCGInfo> TConstExternalCGInfoPtr;
+
+DECLARE_REFCOUNTED_STRUCT(TTypeInferrerMap)
+typedef TIntrusivePtr<const TTypeInferrerMap> TConstTypeInferrerMapPtr;
+
+DECLARE_REFCOUNTED_STRUCT(TRangeExtractorMap)
+typedef TIntrusivePtr<const TRangeExtractorMap> TConstRangeExtractorMapPtr;
+
+DECLARE_REFCOUNTED_STRUCT(TFunctionProfilerMap)
+typedef TIntrusivePtr<const TFunctionProfilerMap> TConstFunctionProfilerMapPtr;
+
+DECLARE_REFCOUNTED_STRUCT(TAggregateProfilerMap)
+typedef TIntrusivePtr<const TAggregateProfilerMap> TConstAggregateProfilerMapPtr;
+
+extern const TConstTypeInferrerMapPtr BuiltinTypeInferrersMap;
+extern const TConstRangeExtractorMapPtr BuiltinRangeExtractorMap;
+extern const TConstFunctionProfilerMapPtr BuiltinFunctionCG;
+extern const TConstAggregateProfilerMapPtr BuiltinAggregateCG;
+
+DECLARE_REFCOUNTED_STRUCT(IFunctionRegistry)
+
+DECLARE_REFCOUNTED_CLASS(TFunctionImplCache)
 
 // TODO(babenko): kill this when refactoring TDataSplit
 typedef NChunkClient::NProto::TChunkSpec TDataSplit;

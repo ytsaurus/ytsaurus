@@ -3,8 +3,6 @@
 #include "public.h"
 #include "evaluation_helpers.h"
 
-#include <yt/ytlib/query_client/function_registry.h>
-
 #include <yt/ytlib/table_client/unversioned_row.h>
 
 namespace NYT {
@@ -19,7 +17,8 @@ public:
     static TColumnEvaluatorPtr Create(
         const TTableSchema& schema,
         int keyColumnCount,
-        IFunctionRegistryPtr functionRegistry);
+        const TConstTypeInferrerMapPtr& typeInferrers,
+        const TConstFunctionProfilerMapPtr& profilers);
 
     void EvaluateKey(
         TMutableRow fullRow,
@@ -62,7 +61,8 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(int, KeyColumnCount);
 
 private:
-    const IFunctionRegistryPtr FunctionRegistry_;
+    TConstTypeInferrerMapPtr TypeInferers_;
+    TConstFunctionProfilerMapPtr Profilers_;
 
     std::vector<TCGExpressionCallback> Evaluators_;
     std::vector<TCGVariables> Variables_;
@@ -74,7 +74,8 @@ private:
     TColumnEvaluator(
         const TTableSchema& schema,
         int keyColumnCount,
-        IFunctionRegistryPtr functionRegistry);
+        const TConstTypeInferrerMapPtr& typeInferrers,
+        const TConstFunctionProfilerMapPtr& profilers);
 
     void Prepare();
     void VerifyAggregate(int index);
@@ -92,7 +93,8 @@ class TColumnEvaluatorCache
 public:
     explicit TColumnEvaluatorCache(
         TColumnEvaluatorCacheConfigPtr config,
-        IFunctionRegistryPtr functionRegistry);
+        const TConstTypeInferrerMapPtr& typeInferrers = BuiltinTypeInferrersMap,
+        const TConstFunctionProfilerMapPtr& profilers = BuiltinFunctionCG.Get());
     ~TColumnEvaluatorCache();
 
     TColumnEvaluatorPtr Find(const TTableSchema& schema, int keyColumnCount);

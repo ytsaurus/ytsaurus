@@ -38,6 +38,7 @@
 #include <yt/ytlib/query_client/query_preparer.h>
 #include <yt/ytlib/query_client/query_service_proxy.h>
 #include <yt/ytlib/query_client/query_statistics.h>
+#include <yt/ytlib/query_client/functions_cache.h>
 
 #include <yt/ytlib/scheduler/job_prober_service_proxy.h>
 #include <yt/ytlib/scheduler/scheduler_service_proxy.h>
@@ -386,10 +387,12 @@ public:
     TQueryHelper(
         IConnectionPtr connection,
         IChannelPtr masterChannel,
-        IChannelFactoryPtr nodeChannelFactory)
+        IChannelFactoryPtr nodeChannelFactory,
+        const TFunctionImplCachePtr& functionImplCache)
         : Connection_(std::move(connection))
         , MasterChannel_(std::move(masterChannel))
         , NodeChannelFactory_(std::move(nodeChannelFactory))
+        , FunctionImplCache_(functionImplCache)
     { }
 
     // IPrepareCallbacks implementation.
@@ -405,6 +408,7 @@ public:
 
     virtual TFuture<TQueryStatistics> Execute(
         TConstQueryPtr query,
+        TConstExternalCGInfoPtr externalCGInfo,
         TDataRanges dataSource,
         ISchemafulWriterPtr writer,
         const TQueryOptions& options) override
@@ -417,7 +421,12 @@ public:
 
             return BIND(execute, MakeStrong(this))
                 .AsyncVia(Connection_->GetHeavyInvoker())
-                .Run(std::move(query), std::move(dataSource), options, std::move(writer));
+                .Run(
+                    std::move(query),
+                    std::move(externalCGInfo),
+                    std::move(dataSource),
+                    options,
+                    std::move(writer));
         }
     }
 
@@ -425,7 +434,7 @@ private:
     const IConnectionPtr Connection_;
     const IChannelPtr MasterChannel_;
     const IChannelFactoryPtr NodeChannelFactory_;
-
+    const TFunctionImplCachePtr FunctionImplCache_;
 
     TDataSplit DoGetInitialSplit(
         const TRichYPath& path,
@@ -701,7 +710,7 @@ private:
             ranges,
             rowBuffer,
             Connection_->GetColumnEvaluatorCache(),
-            Connection_->GetFunctionRegistry(),
+            BuiltinRangeExtractorMap,
             rangeExpansionLimit,
             verboseLogging);
 
@@ -717,6 +726,7 @@ private:
 
     TQueryStatistics DoCoordinateAndExecute(
         TConstQueryPtr query,
+        const TConstExternalCGInfoPtr& externalCGInfo,
         TQueryOptions options,
         ISchemafulWriterPtr writer,
         int subrangesCount,
@@ -730,6 +740,16 @@ private:
             const TKeyColumns& keyColumns) {
                 return expr;
             });
+
+        auto functionGenerators = New<TFunctionProfilerMap>();
+        auto aggregateGenerators = New<TAggregateProfilerMap>();
+        MergeFrom(functionGenerators.Get(), BuiltinFunctionCG.Get());
+        MergeFrom(aggregateGenerators.Get(), BuiltinAggregateCG.Get());
+        FetchImplementations(
+            functionGenerators,
+            aggregateGenerators,
+            externalCGInfo,
+            FunctionImplCache_);
 
         return CoordinateAndExecute(
             query,
@@ -745,23 +765,24 @@ private:
                     address,
                     options.MaxSubqueries);
 
-                return Delegate(std::move(subquery), options, std::move(dataSources), address);
+                return Delegate(std::move(subquery), externalCGInfo, options, std::move(dataSources), address);
             },
             [&] (TConstQueryPtr topQuery, ISchemafulReaderPtr reader, ISchemafulWriterPtr writer) {
                 LOG_DEBUG("Evaluating top query (TopQueryId: %v)", topQuery->Id);
                 auto evaluator = Connection_->GetQueryEvaluator();
-                auto functionRegistry = Connection_->GetFunctionRegistry();
                 return evaluator->Run(
                     std::move(topQuery),
                     std::move(reader),
                     std::move(writer),
-                    std::move(functionRegistry),
+                    functionGenerators,
+                    aggregateGenerators,
                     options.EnableCodeCache);
             });
     }
 
     TQueryStatistics DoExecute(
         TConstQueryPtr query,
+        TConstExternalCGInfoPtr externalCGInfo,
         TDataRanges dataSource,
         TQueryOptions options,
         ISchemafulWriterPtr writer)
@@ -795,13 +816,20 @@ private:
             allSplits.size(),
             groupsByAddress.size());
 
-        return DoCoordinateAndExecute(query, options, writer, groupedSplits.size(), [&] (int index) {
-            return groupedSplits[index];
-        });
+        return DoCoordinateAndExecute(
+            query,
+            externalCGInfo,
+            options,
+            writer,
+            groupedSplits.size(),
+            [&] (int index) {
+                return groupedSplits[index];
+            });
     }
 
     TQueryStatistics DoExecuteOrdered(
         TConstQueryPtr query,
+        TConstExternalCGInfoPtr externalCGInfo,
         TDataRanges dataSource,
         TQueryOptions options,
         ISchemafulWriterPtr writer)
@@ -827,19 +855,26 @@ private:
                 return lhs.first.Ranges.Begin()->first < rhs.first.Ranges.Begin()->first;
             });
 
-        return DoCoordinateAndExecute(query, options, writer, allSplits.size(), [&] (int index) {
-            const auto& split = allSplits[index];
+        return DoCoordinateAndExecute(
+            query,
+            externalCGInfo,
+            options,
+            writer,
+            allSplits.size(),
+            [&] (int index) {
+                const auto& split = allSplits[index];
 
-            LOG_DEBUG("Delegating to tablet %v at %v",
-                split.first.Id,
-                split.second);
+                LOG_DEBUG("Delegating to tablet %v at %v",
+                    split.first.Id,
+                    split.second);
 
-            return std::make_pair(std::vector<TDataRanges>(1, split.first), split.second);
-        });
+                return std::make_pair(std::vector<TDataRanges>(1, split.first), split.second);
+            });
     }
 
    std::pair<ISchemafulReaderPtr, TFuture<TQueryStatistics>> Delegate(
         TConstQueryPtr query,
+        const TConstExternalCGInfoPtr& externalCGInfo,
         TQueryOptions options,
         std::vector<TDataRanges> dataSources,
         const Stroka& address)
@@ -859,6 +894,8 @@ private:
             {
                 NProfiling::TAggregatingTimingGuard timingGuard(&serializationTime);
                 ToProto(req->mutable_query(), query);
+                ToProto(req->mutable_cg_info(), *externalCGInfo);
+                externalCGInfo->NodeDirectory->DumpTo(req->mutable_node_directory());
                 ToProto(req->mutable_options(), options);
                 ToProto(req->mutable_data_sources(), dataSources);
 
@@ -938,7 +975,16 @@ public:
         QueryHelper_ = New<TQueryHelper>(
             Connection_,
             GetMasterChannelOrThrow(EMasterChannelKind::LeaderOrFollower),
-            HeavyChannelFactory_);
+            HeavyChannelFactory_,
+            CreateFunctionImplCache(
+                Connection_->GetConfig()->FunctionImplCache,
+                MakeWeak(this)));
+
+        FunctionRegistry_ = CreateFunctionRegistryCache(
+            Connection_->GetConfig()->UdfRegistryPath,
+            Connection_->GetConfig()->FunctionRegistryCache,
+            MakeWeak(this),
+            Connection_->GetLightInvoker());
 
         Logger.AddTag("Client: %p", this);
     }
@@ -1238,6 +1284,7 @@ private:
     IChannelFactoryPtr HeavyChannelFactory_;
     TTransactionManagerPtr TransactionManager_;
     TQueryHelperPtr QueryHelper_;
+    IFunctionRegistryPtr FunctionRegistry_;
     std::unique_ptr<TSchedulerServiceProxy> SchedulerProxy_;
     std::unique_ptr<TJobProberServiceProxy> JobProberProxy_;
 
@@ -1710,12 +1757,30 @@ private:
         auto inputRowLimit = options.InputRowLimit.Get(Connection_->GetConfig()->DefaultInputRowLimit);
         auto outputRowLimit = options.OutputRowLimit.Get(Connection_->GetConfig()->DefaultOutputRowLimit);
 
+        auto externalCGInfo = New<TExternalCGInfo>();
+        auto fetchFunctions = [&] (const std::vector<Stroka>& names, const TTypeInferrerMapPtr& typeInferrers) {
+            MergeFrom(typeInferrers.Get(), BuiltinTypeInferrersMap.Get());
+
+            std::vector<Stroka> externalNames;
+            for (const auto& name : names) {
+                auto found = typeInferrers->find(name);
+                if (found == typeInferrers->end()) {
+                    externalNames.push_back(name);
+                }
+            }
+
+            auto descriptors = WaitFor(FunctionRegistry_->FetchFunctions(externalNames))
+                .ValueOrThrow();
+
+            AppendUdfDescriptors(typeInferrers, externalCGInfo, externalNames, descriptors);
+        };
+
         TQueryPtr query;
         TDataRanges dataSource;
         std::tie(query, dataSource) = PreparePlanFragment(
             QueryHelper_.Get(),
             queryString,
-            Connection_->GetFunctionRegistry(),
+            fetchFunctions,
             inputRowLimit,
             outputRowLimit,
             options.Timestamp);
@@ -1742,7 +1807,12 @@ private:
         TFuture<IRowsetPtr> asyncRowset;
         std::tie(writer, asyncRowset) = CreateSchemafulRowsetWriter(query->GetTableSchema());
 
-        auto statistics = WaitFor(QueryHelper_->Execute(query, dataSource, writer, queryOptions))
+        auto statistics = WaitFor(QueryHelper_->Execute(
+            query,
+            externalCGInfo,
+            dataSource,
+            writer,
+            queryOptions))
             .ValueOrThrow();
 
         auto rowset = WaitFor(asyncRowset)
@@ -2253,12 +2323,12 @@ private:
 
                 chunkListId = FromProto<TChunkListId>(rsp->chunk_list_id());
             }
-            
+
             // Attach chunks to chunk list.
             TDataStatistics dataStatistics;
             {
                 auto proxy = CreateWriteProxy<TChunkServiceProxy>(dstCellTag);
-                
+
                 auto batchReq = proxy->ExecuteBatch();
                 GenerateMutationId(batchReq, options);
 
@@ -2283,7 +2353,7 @@ private:
                 *req->mutable_statistics() = dataStatistics;
                 NCypressClient::SetTransactionId(req, uploadTransactionId);
                 GenerateMutationId(req, options);
-                
+
                 auto rspOrError = WaitFor(proxy->Execute(req));
                 THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error finishing upload to %v", dstPath);
             }

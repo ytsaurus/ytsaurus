@@ -8,6 +8,7 @@
 #include <yt/ytlib/query_client/config.h>
 #include <yt/ytlib/query_client/evaluator.h>
 #include <yt/ytlib/query_client/plan_fragment.h>
+#include <yt/ytlib/query_client/functions_cache.h>
 #include <yt/ytlib/query_client/public.h>
 #include <yt/ytlib/query_client/query_statistics.h>
 
@@ -65,6 +66,45 @@ void TJob::SignalJob(const Stroka& /*signalName*/)
     THROW_ERROR_EXCEPTION("Signaling is not supported for built-in jobs");
 }
 
+void RunQuery(
+    const TQuerySpec& querySpec,
+    const NTableClient::TSchemalessReaderFactory& readerFactory,
+    const NTableClient::TSchemalessWriterFactory& writerFactory)
+{
+    auto query = FromProto(querySpec.query());
+    auto resultSchema = query->GetTableSchema();
+    auto resultNameTable = TNameTable::FromSchema(resultSchema);
+    auto schemalessWriter = writerFactory(resultNameTable);
+
+    WaitFor(schemalessWriter->Open())
+        .ThrowOnError();
+
+    auto writer = CreateSchemafulWriterAdapter(schemalessWriter);
+
+    auto externalCGInfo = New<TExternalCGInfo>();
+    for (const auto cgInfo : querySpec.cg_info()) {
+        externalCGInfo->push_back(FromProto(cgInfo));
+    }
+
+    auto functionGenerators = New<TFunctionProfilerMap>();
+    auto aggregateGenerators = New<TAggregateProfilerMap>();
+    MergeFrom(functionGenerators.Get(), BuiltinFunctionCG.Get());
+    MergeFrom(aggregateGenerators.Get(), BuiltinAggregateCG.Get());
+    FetchJobImplementations(
+        functionGenerators,
+        aggregateGenerators,
+        externalCGInfo,
+        SandboxDirectoryNames[ESandboxKind::Udf]);
+
+    auto evaluator = New<TEvaluator>(New<TExecutorConfig>());
+    auto reader = CreateSchemafulReaderAdapter(readerFactory, query->TableSchema);
+
+    LOG_INFO("Reading, evaluating query and writing");
+    {
+        evaluator->Run(query, reader, writer, functionGenerators, aggregateGenerators, true);
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TSimpleJobBase::TSimpleJobBase(IJobHostPtr host)
@@ -80,29 +120,7 @@ TJobResult TSimpleJobBase::Run()
 
         const auto& jobSpec = Host_->GetJobSpec().GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
         if (jobSpec.has_input_query_spec()) {
-            auto querySpec = jobSpec.input_query_spec();
-            auto query = FromProto(querySpec.query());
-            auto resultSchema = query->GetTableSchema();
-            auto resultNameTable = TNameTable::FromSchema(resultSchema);
-            auto schemalessWriter = WriterFactory_(resultNameTable);
-
-            WaitFor(schemalessWriter->Open())
-                .ThrowOnError();
-
-            auto writer = CreateSchemafulWriterAdapter(schemalessWriter);
-
-            std::vector<TUdfDescriptorPtr> descriptors;
-            for (const auto& descriptor : querySpec.udf_descriptors()) {
-                descriptors.push_back(ConvertTo<TUdfDescriptorPtr>(TYsonString(descriptor)));
-            }
-            auto registry = CreateJobFunctionRegistry(descriptors, SandboxDirectoryNames[ESandboxKind::Udf]);
-            auto evaluator = New<TEvaluator>(New<TExecutorConfig>());
-            auto reader = CreateSchemafulReaderAdapter(ReaderFactory_, query->TableSchema);
-
-            LOG_INFO("Reading, evaluating query and writing");
-            {
-                evaluator->Run(query, reader, writer, registry, true);
-            }
+            RunQuery(jobSpec.input_query_spec(), ReaderFactory_, WriterFactory_);
         } else {
             CreateReader();
 
@@ -161,7 +179,7 @@ TStatistics TSimpleJobBase::GetStatistics() const
     if (Reader_) {
         result.AddSample("/data/input", Reader_->GetDataStatistics());
     }
-    
+
     if (Writer_) {
         result.AddSample(
             "/data/output/" + NYPath::ToYPathLiteral(0),

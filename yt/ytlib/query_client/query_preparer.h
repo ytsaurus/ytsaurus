@@ -1,40 +1,40 @@
 #pragma once
 
+#include "ast.h"
 #include "plan_fragment.h"
-#include "function_registry.h"
 
 namespace NYT {
 namespace NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+typedef std::function<void(
+    const std::vector<Stroka>& names,
+    const TTypeInferrerMapPtr& typeInferrers)> TFetchFunctions;
+
+void DefaultFetchFunctions(const std::vector<Stroka>& names, const TTypeInferrerMapPtr& typeInferrers);
+
+////////////////////////////////////////////////////////////////////////////////
+
+void ParseJobQuery(const Stroka& source);
+
 std::pair<TQueryPtr, TDataRanges> PreparePlanFragment(
     IPrepareCallbacks* callbacks,
     const Stroka& source,
-    IFunctionRegistryPtr functionRegistry,
+    const TFetchFunctions& fetchFunctions = DefaultFetchFunctions,
     i64 inputRowLimit = std::numeric_limits<i64>::max(),
     i64 outputRowLimit = std::numeric_limits<i64>::max(),
     TTimestamp timestamp = NullTimestamp);
 
-
-typedef std::pair<NAst::TQuery, NAst::TAliasMap> TParsedQueryInfo;
-
-TParsedQueryInfo PrepareJobQueryAst(const Stroka& source);
-
-std::vector<Stroka> GetExternalFunctions(
-    const TParsedQueryInfo& ast,
-    IFunctionRegistryPtr builtinRegistry);
-
 TQueryPtr PrepareJobQuery(
     const Stroka& source,
-    const TParsedQueryInfo& ast,
     const TTableSchema& tableSchema,
-    IFunctionRegistryPtr functionRegistry);
+    const TFetchFunctions& fetchFunctions);
 
 TConstExpressionPtr PrepareExpression(
     const Stroka& source,
     TTableSchema initialTableSchema,
-    IFunctionRegistryPtr functionRegistry = CreateBuiltinFunctionRegistry(),
+    const TConstTypeInferrerMapPtr& functions = BuiltinTypeInferrersMap,
     yhash_set<Stroka>* references = nullptr);
 
 ////////////////////////////////////////////////////////////////////////////////

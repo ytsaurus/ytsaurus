@@ -94,6 +94,10 @@ TConnectionConfig::TConnectionConfig()
         .Default(false);
     RegisterParameter("udf_registry_path", UdfRegistryPath)
         .Default("//tmp/udfs");
+    RegisterParameter("function_registry_cache", FunctionRegistryCache)
+        .DefaultNew();
+    RegisterParameter("function_impl_cache", FunctionImplCache)
+        .DefaultNew();
 
     RegisterParameter("table_mount_info_update_retry_count", TableMountInfoUpdateRetryCount)
         .GreaterThanOrEqual(0)
@@ -108,6 +112,10 @@ TConnectionConfig::TConnectionConfig()
     RegisterParameter("heavy_pool_size", HeavyPoolSize)
         .Describe("Number of threads handling heavy requests")
         .Default(4);
+
+    RegisterInitializer([&] () {
+        FunctionImplCache->Capacity = 100;
+    });
 
     RegisterValidator([&] () {
         const auto& cellId = PrimaryMaster->CellId;

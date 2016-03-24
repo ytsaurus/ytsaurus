@@ -1,7 +1,7 @@
 #pragma once
 
 #include "public.h"
-#include "plan_fragment.h"
+#include "plan_fragment_common.h"
 
 #include <yt/ytlib/ypath/public.h>
 
@@ -26,8 +26,9 @@ using TExecuteQuery = std::function<TFuture<TQueryStatistics>(
 struct IExecutor
     : public virtual TRefCounted
 {
-    virtual TFuture <TQueryStatistics> Execute(
+    virtual TFuture<TQueryStatistics> Execute(
         TConstQueryPtr query,
+        TConstExternalCGInfoPtr externalCGInfo,
         TDataRanges dataSource,
         ISchemafulWriterPtr writer,
         const TQueryOptions& options) = 0;
@@ -41,6 +42,7 @@ struct ISubExecutor
 {
     virtual TFuture<TQueryStatistics> Execute(
         TConstQueryPtr query,
+        TConstExternalCGInfoPtr externalCGInfo,
         std::vector<TDataRanges> dataSources,
         ISchemafulWriterPtr writer,
         const TQueryOptions& options) = 0;

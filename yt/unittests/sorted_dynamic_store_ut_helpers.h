@@ -24,7 +24,6 @@
 #include <yt/ytlib/tablet_client/config.h>
 #include <yt/ytlib/tablet_client/public.h>
 
-#include <yt/ytlib/query_client/function_registry.h>
 #include <yt/ytlib/query_client/column_evaluator.h>
 
 #include <yt/core/concurrency/scheduler.h>
@@ -267,7 +266,7 @@ protected:
         }
 
         TUnversionedOwningRowBuilder builder;
-        
+
         int keyCount = static_cast<int>(Tablet_->KeyColumns().size());
         int schemaColumnCount = static_cast<int>(Tablet_->Schema().Columns().size());
 
@@ -299,8 +298,7 @@ protected:
     TTimestamp CurrentTimestamp_ = 10000; // some reasonable starting point
     const TNameTablePtr NameTable_ = New<TNameTable>();
     const TColumnEvaluatorCachePtr ColumnEvaluatorCache_ = New<TColumnEvaluatorCache>(
-        New<TColumnEvaluatorCacheConfig>(),
-        CreateBuiltinFunctionRegistry());
+        New<TColumnEvaluatorCacheConfig>());
     std::unique_ptr<TTablet> Tablet_;
 
 };

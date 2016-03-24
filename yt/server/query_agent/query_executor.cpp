@@ -37,7 +37,7 @@
 #include <yt/ytlib/query_client/column_evaluator.h>
 #include <yt/ytlib/query_client/coordinator.h>
 #include <yt/ytlib/query_client/evaluator.h>
-#include <yt/ytlib/query_client/function_registry.h>
+#include <yt/ytlib/query_client/functions_cache.h>
 #include <yt/ytlib/query_client/helpers.h>
 #include <yt/ytlib/query_client/plan_fragment.h>
 #include <yt/ytlib/query_client/plan_helpers.h>
@@ -101,13 +101,6 @@ TColumnFilter GetColumnFilter(const TTableSchema& desiredSchema, const TTableSch
     return columnFilter;
 }
 
-void RowRangeFormatter(TStringBuilder* builder, const NQueryClient::TRowRange& range)
-{
-    builder->AppendFormat("[%v .. %v]",
-        range.first,
-        range.second);
-}
-
 void DataSourceFormatter(TStringBuilder* builder, const NQueryClient::TDataRange& source)
 {
     builder->AppendFormat("[%v .. %v]",
@@ -127,15 +120,18 @@ public:
         TQueryAgentConfigPtr config,
         TBootstrap* bootstrap)
         : Config_(config)
+        , FunctionImplCache_(CreateFunctionImplCache(
+            config->FunctionImplCache,
+            bootstrap->GetMasterClient()))
         , Bootstrap_(bootstrap)
         , Evaluator_(New<TEvaluator>(Config_))
-        , FunctionRegistry_(Bootstrap_->GetMasterClient()->GetConnection()->GetFunctionRegistry())
         , ColumnEvaluatorCache_(Bootstrap_->GetMasterClient()->GetConnection()->GetColumnEvaluatorCache())
     { }
 
     // IExecutor implementation.
     virtual TFuture<TQueryStatistics> Execute(
         TConstQueryPtr query,
+        TConstExternalCGInfoPtr externalCGInfo,
         std::vector<TDataRanges> dataSources,
         ISchemafulWriterPtr writer,
         const TQueryOptions& options) override
@@ -149,20 +145,27 @@ public:
 
         return BIND(execute, MakeStrong(this))
             .AsyncVia(Bootstrap_->GetQueryPoolInvoker())
-            .Run(std::move(query), std::move(dataSources), options, std::move(writer), maybeUser);
+            .Run(
+                std::move(query),
+                std::move(externalCGInfo),
+                std::move(dataSources),
+                options,
+                std::move(writer),
+                maybeUser);
     }
 
 private:
     const TQueryAgentConfigPtr Config_;
+    const TFunctionImplCachePtr FunctionImplCache_;
     TBootstrap* const Bootstrap_;
     const TEvaluatorPtr Evaluator_;
-    const IFunctionRegistryPtr FunctionRegistry_;
     const TColumnEvaluatorCachePtr ColumnEvaluatorCache_;
 
     typedef std::function<ISchemafulReaderPtr()> TSubreaderCreator;
 
     TQueryStatistics DoCoordinateAndExecute(
         TConstQueryPtr query,
+        TConstExternalCGInfoPtr externalCGInfo,
         const TQueryOptions& options,
         ISchemafulWriterPtr writer,
         const std::vector<TRefiner>& refiners,
@@ -178,8 +181,20 @@ private:
             clientOptions.User = maybeUser.Get();
         }
 
-        auto remoteExecutor = Bootstrap_->GetMasterClient()->GetConnection()
-            ->CreateClient(clientOptions)->GetQueryExecutor();
+        auto client = Bootstrap_->GetMasterClient()->GetConnection()
+            ->CreateClient(clientOptions);
+
+        auto remoteExecutor = client->GetQueryExecutor();
+
+        auto functionGenerators = New<TFunctionProfilerMap>();
+        auto aggregateGenerators = New<TAggregateProfilerMap>();
+        MergeFrom(functionGenerators.Get(), BuiltinFunctionCG.Get());
+        MergeFrom(aggregateGenerators.Get(), BuiltinAggregateCG.Get());
+        FetchImplementations(
+            functionGenerators,
+            aggregateGenerators,
+            externalCGInfo,
+            FunctionImplCache_);
 
         return CoordinateAndExecute(
             query,
@@ -192,7 +207,12 @@ private:
 
                 LOG_DEBUG("Evaluating subquery (SubqueryId: %v)", subquery->Id);
 
-                auto foreignExecuteCallback = [options, remoteExecutor, Logger] (
+                auto foreignExecuteCallback = [
+                    externalCGInfo,
+                    options,
+                    remoteExecutor,
+                    Logger
+                ] (
                     const TQueryPtr& subquery,
                     TGuid dataId,
                     TRowBufferPtr buffer,
@@ -212,6 +232,7 @@ private:
 
                     return remoteExecutor->Execute(
                         subquery,
+                        externalCGInfo,
                         std::move(dataSource),
                         writer,
                         subqueryOptions);
@@ -219,12 +240,12 @@ private:
 
                 auto asyncStatistics = BIND(&TEvaluator::RunWithExecutor, Evaluator_)
                     .AsyncVia(Bootstrap_->GetQueryPoolInvoker())
-                    .Run(
-                        subquery,
+                    .Run(subquery,
                         mergingReader,
                         pipe->GetWriter(),
                         foreignExecuteCallback,
-                        FunctionRegistry_,
+                        functionGenerators,
+                        aggregateGenerators,
                         options.EnableCodeCache);
 
                 asyncStatistics.Subscribe(BIND([=] (const TErrorOr<TQueryStatistics>& result) {
@@ -242,7 +263,8 @@ private:
                     topQuery,
                     std::move(reader),
                     std::move(writer),
-                    FunctionRegistry_,
+                    functionGenerators,
+                    aggregateGenerators,
                     options.EnableCodeCache);
                 LOG_DEBUG("Finished evaluating top query (TopQueryId: %v)", topQuery->Id);
                 return result;
@@ -251,6 +273,7 @@ private:
 
     TQueryStatistics DoExecute(
         TConstQueryPtr query,
+        TConstExternalCGInfoPtr externalCGInfo,
         std::vector<TDataRanges> dataSources,
         const TQueryOptions& options,
         ISchemafulWriterPtr writer,
@@ -411,6 +434,7 @@ private:
 
         return DoCoordinateAndExecute(
             query,
+            externalCGInfo,
             options,
             std::move(writer),
             refiners,
@@ -419,6 +443,7 @@ private:
 
     TQueryStatistics DoExecuteOrdered(
         TConstQueryPtr query,
+        TConstExternalCGInfoPtr externalCGInfo,
         std::vector<TDataRanges> dataSources,
         const TQueryOptions& options,
         ISchemafulWriterPtr writer,
@@ -463,6 +488,7 @@ private:
 
         return DoCoordinateAndExecute(
             query,
+            externalCGInfo,
             options,
             std::move(writer),
             refiners,

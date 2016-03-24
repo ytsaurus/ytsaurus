@@ -3,7 +3,6 @@
 #include "public.h"
 #include "callbacks.h"
 #include "column_evaluator.h"
-#include "function_registry.h"
 #include "plan_fragment.h"
 #include "query_statistics.h"
 
@@ -23,7 +22,7 @@ TRangeInferrer CreateRangeInferrer(
     const TTableSchema& schema,
     const TKeyColumns& keyColumns,
     const TColumnEvaluatorCachePtr& evaluatorCache,
-    const IFunctionRegistryPtr& functionRegistry,
+    const TConstRangeExtractorMapPtr& rangeExtractors,
     ui64 rangeExpansionLimit,
     bool verboseLogging);
 

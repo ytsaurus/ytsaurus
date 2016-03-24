@@ -18,6 +18,7 @@
 #include <yt/ytlib/query_client/plan_fragment.h>
 #include <yt/ytlib/query_client/query_service_proxy.h>
 #include <yt/ytlib/query_client/query_statistics.h>
+#include <yt/ytlib/query_client/functions_cache.h>
 
 #include <yt/ytlib/table_client/schemaful_writer.h>
 
@@ -75,12 +76,19 @@ private:
         LOG_DEBUG("Deserializing subfragment");
 
         auto query = FromProto(request->query());
+        auto externalCGInfo = New<TExternalCGInfo>();
+        for (const auto& cgInfo : request->cg_info()) {
+            externalCGInfo->push_back(FromProto(cgInfo));
+        }
+
+        externalCGInfo->NodeDirectory->MergeFrom(request->node_directory());
+
         auto options = FromProto(request->options());
 
         std::vector<TDataRanges> dataSources;
         dataSources.reserve(request->data_sources_size());
-        for (int i = 0; i < request->data_sources_size(); ++i) {
-            dataSources.push_back(FromProto(request->data_sources(i)));
+        for (const auto& dataSource : request->data_sources()) {
+            dataSources.push_back(FromProto(dataSource));
         }
 
         LOG_DEBUG("Deserialized subfragment");
@@ -96,11 +104,16 @@ private:
             Logger,
             [&] () {
                 TWireProtocolWriter protocolWriter;
-                auto rowsetWriter = protocolWriter.CreateSchemafulRowsetWriter(
-                    query->GetTableSchema());
+                auto rowsetWriter = protocolWriter.CreateSchemafulRowsetWriter(query->GetTableSchema());
 
                 auto executor = Bootstrap_->GetQueryExecutor();
-                auto result = WaitFor(executor->Execute(query, dataSources, rowsetWriter, options))
+
+                auto result = WaitFor(executor->Execute(
+                    query,
+                    externalCGInfo,
+                    dataSources,
+                    rowsetWriter,
+                    options))
                     .ValueOrThrow();
 
                 auto responseCodec = request->has_response_codec()

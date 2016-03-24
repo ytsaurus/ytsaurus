@@ -177,9 +177,12 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/query_client/evaluation_helpers.cpp
   ${CMAKE_CURRENT_LIST_DIR}/query_client/evaluator.cpp
   ${CMAKE_CURRENT_LIST_DIR}/query_client/folding_profiler.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/query_client/function_context.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/query_client/function_registry.cpp
   ${CMAKE_CURRENT_LIST_DIR}/query_client/functions.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/query_client/functions_cache.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/query_client/functions_cg.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/query_client/functions_builder.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/query_client/functions_builtin.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/query_client/function_context.cpp
   ${CMAKE_CURRENT_LIST_DIR}/query_client/helpers.cpp
   ${CMAKE_CURRENT_LIST_DIR}/query_client/key_trie.cpp
   ${CMAKE_CURRENT_LIST_DIR}/query_client/lexer.cpp
@@ -194,8 +197,6 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/query_client/query_statistics.cpp
   ${CMAKE_CURRENT_LIST_DIR}/query_client/query_statistics.proto
   ${CMAKE_CURRENT_LIST_DIR}/query_client/range_inferrer.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/query_client/udf_descriptor.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/query_client/user_defined_functions.cpp
 
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/helpers.cpp
   ${CMAKE_CURRENT_LIST_DIR}/scheduler/job.proto
@@ -330,7 +331,6 @@ SRCS(
   ${YT_SRCS}
   ${CMAKE_CURRENT_LIST_DIR}/formats/json_parser_arc.cpp
   ${CMAKE_CURRENT_LIST_DIR}/formats/json_writer_arc.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/query_client/builtin_function_if.cpp
   ${CMAKE_CURRENT_LIST_DIR}/query_client/builtin_function_registry_arc.cpp
 )
 
@@ -353,9 +353,6 @@ set(YT_SRCS
   ${YT_SRCS}
   ${CMAKE_CURRENT_LIST_DIR}/formats/json_parser.cpp
   ${CMAKE_CURRENT_LIST_DIR}/formats/json_writer.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/query_client/builtin_function_if.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/query_client/builtin_function_is_prefix.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/query_client/builtin_function_registry.cpp
 )
 
 resolve_srcs(YT_SRCS YT_SRCS_RESOLVED)

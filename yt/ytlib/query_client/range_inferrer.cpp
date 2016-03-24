@@ -727,7 +727,7 @@ TRangeInferrer CreateHeavyRangeInferrer(
     const TTableSchema& schema,
     const TKeyColumns& renamedKeyColumns,
     const TColumnEvaluatorCachePtr& evaluatorCache,
-    const IFunctionRegistryPtr functionRegistry,
+    const TConstRangeExtractorMapPtr& rangeExtractors,
     ui64 rangeExpansionLimit,
     bool verboseLogging)
 {
@@ -739,7 +739,7 @@ TRangeInferrer CreateHeavyRangeInferrer(
         predicate,
         renamedKeyColumns,
         buffer,
-        functionRegistry);
+        rangeExtractors);
 
     LOG_DEBUG_IF(
         verboseLogging,
@@ -810,7 +810,7 @@ TRangeInferrer CreateHeavyRangeInferrer(
 TRangeInferrer CreateLightRangeInferrer(
     TConstExpressionPtr predicate,
     const TKeyColumns& keyColumns,
-    const IFunctionRegistryPtr functionRegistry,
+    const TConstRangeExtractorMapPtr& rangeExtractors,
     bool verboseLogging)
 {
     auto keyTrieBuffer = New<TRowBuffer>();
@@ -818,7 +818,7 @@ TRangeInferrer CreateLightRangeInferrer(
         predicate,
         keyColumns,
         keyTrieBuffer,
-        functionRegistry);
+        rangeExtractors);
 
     LOG_DEBUG_IF(
         verboseLogging,
@@ -845,7 +845,7 @@ TRangeInferrer CreateRangeInferrer(
     const TTableSchema& schema,
     const TKeyColumns& keyColumns,
     const TColumnEvaluatorCachePtr& evaluatorCache,
-    const IFunctionRegistryPtr& functionRegistry,
+    const TConstRangeExtractorMapPtr& rangeExtractors,
     ui64 rangeExpansionLimit,
     bool verboseLogging)
 {
@@ -855,13 +855,13 @@ TRangeInferrer CreateRangeInferrer(
             schema,
             keyColumns,
             evaluatorCache,
-            functionRegistry,
+            rangeExtractors,
             rangeExpansionLimit,
             verboseLogging)
         : CreateLightRangeInferrer(
             predicate,
             keyColumns,
-            functionRegistry,
+            rangeExtractors,
             verboseLogging);
 }
 

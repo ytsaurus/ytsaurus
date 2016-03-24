@@ -1,7 +1,6 @@
 #pragma once
 
 #include "public.h"
-#include "function_registry.h"
 #include "key_trie.h"
 
 #include <yt/ytlib/table_client/row_buffer.h>
@@ -19,7 +18,7 @@ TKeyTriePtr ExtractMultipleConstraints(
     TConstExpressionPtr expr,
     const TKeyColumns& keyColumns,
     const TRowBufferPtr& rowBuffer,
-    const IFunctionRegistryPtr& functionRegistry);
+    const TConstRangeExtractorMapPtr& rangeExtractors = BuiltinRangeExtractorMap);
 
 ////////////////////////////////////////////////////////////////////////////////
 

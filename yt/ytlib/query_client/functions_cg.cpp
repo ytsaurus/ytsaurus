@@ -1,6 +1,5 @@
-#include "user_defined_functions.h"
+#include "functions_cg.h"
 #include "cg_fragment_compiler.h"
-#include "plan_helpers.h"
 
 #include <yt/ytlib/table_client/llvm_types.h>
 #include <yt/ytlib/table_client/row_base.h>
@@ -78,7 +77,7 @@ void PushFunctionContext(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ICallingConvention::CheckCallee(
+void CheckCallee(
     TCGContext& builder,
     const Stroka& functionName,
     llvm::Function* callee,
@@ -173,6 +172,8 @@ TCGValue PropagateNullArguments(
             Twine(name.c_str()));
     }
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 TCodegenExpression TSimpleCallingConvention::MakeCodegenFunctionCall(
     TCodegenValue codegenFunctionContext,
@@ -411,24 +412,6 @@ llvm::FunctionType* TUnversionedValueCallingConvention::GetCalleeType(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TUserDefinedFunction::TUserDefinedFunction(
-    const Stroka& functionName,
-    const Stroka& symbolName,
-    std::unordered_map<TTypeArgument, TUnionType> typeArgumentConstraints,
-    std::vector<TType> argumentTypes,
-    TType repeatedArgType,
-    TType resultType,
-    TSharedRef implementationFile,
-    ICallingConventionPtr callingConvention)
-    : TTypedFunction(
-        functionName,
-        typeArgumentConstraints,
-        argumentTypes,
-        repeatedArgType,
-        resultType)
-    , TExternallyDefinedFunction(functionName, symbolName, implementationFile, callingConvention)
-{ }
-
 ICallingConventionPtr GetCallingConvention(
     ECallingConvention callingConvention,
     int repeatedArgIndex,
@@ -450,59 +433,19 @@ ICallingConventionPtr GetCallingConvention(
     }
 }
 
-TUserDefinedFunction::TUserDefinedFunction(
-    const Stroka& functionName,
-    std::vector<TType> argumentTypes,
-    TType resultType,
-    TSharedRef implementationFile,
-    ECallingConvention callingConvention)
-    : TUserDefinedFunction(
-        functionName,
-        functionName,
-        std::unordered_map<TTypeArgument, TUnionType>(),
-        argumentTypes,
-        EValueType::Null,
-        resultType,
-        implementationFile,
-        GetCallingConvention(callingConvention, argumentTypes.size(), EValueType::Null))
-{ }
+ICallingConventionPtr GetCallingConvention(ECallingConvention callingConvention)
+{
+    switch (callingConvention) {
+        case ECallingConvention::Simple:
+            return New<TSimpleCallingConvention>();
+        case ECallingConvention::UnversionedValue:
+            return New<TUnversionedValueCallingConvention>(-1);
+        default:
+            YUNREACHABLE();
+    }
+}
 
-TUserDefinedFunction::TUserDefinedFunction(
-    const Stroka& functionName,
-    std::unordered_map<TTypeArgument, TUnionType> typeArgumentConstraints,
-    std::vector<TType> argumentTypes,
-    TType repeatedArgType,
-    TType resultType,
-    TSharedRef implementationFile)
-    : TUserDefinedFunction(
-        functionName,
-        functionName,
-        typeArgumentConstraints,
-        argumentTypes,
-        repeatedArgType,
-        resultType,
-        implementationFile,
-        GetCallingConvention(ECallingConvention::UnversionedValue, argumentTypes.size(), repeatedArgType))
-{ }
-
-TUserDefinedFunction::TUserDefinedFunction(
-    const Stroka& functionName,
-    const Stroka& symbolName,
-    std::unordered_map<TTypeArgument, TUnionType> typeArgumentConstraints,
-    std::vector<TType> argumentTypes,
-    TType repeatedArgType,
-    TType resultType,
-    TSharedRef implementationFile)
-    : TUserDefinedFunction(
-        functionName,
-        symbolName,
-        typeArgumentConstraints,
-        argumentTypes,
-        repeatedArgType,
-        resultType,
-        implementationFile,
-        GetCallingConvention(ECallingConvention::UnversionedValue, argumentTypes.size(), repeatedArgType))
-{ }
+////////////////////////////////////////////////////////////////////////////////
 
 bool ObjectContainsFunction(
     const std::unique_ptr<llvm::object::ObjectFile>& objectFile,
@@ -667,7 +610,7 @@ void LoadLlvmFunctions(
         builder.Module->AddLoadedFunction(functionName);
         for (auto function : functions) {
             auto callee = module->getFunction(StringRef(function.first));
-            ICallingConvention::CheckCallee(
+            CheckCallee(
                 builder,
                 function.first,
                 callee,
@@ -699,16 +642,23 @@ void LoadLlvmFunctions(
         functionName);
 }
 
-TCodegenExpression TExternallyDefinedFunction::MakeCodegenExpr(
+TCodegenExpression TExternalFunctionCodegen::Profile(
     TCodegenValue codegenFunctionContext,
     std::vector<TCodegenExpression> codegenArgs,
     std::vector<EValueType> argumentTypes,
     EValueType type,
-    const Stroka& name) const
+    const Stroka& name,
+    llvm::FoldingSetNodeID* id) const
 {
+    YCHECK(!ImplementationFile_.Empty());
+
+    if (id) {
+        id->AddString(llvm::StringRef(Fingerprint_.Begin(), Fingerprint_.Size()));
+    }
+
     auto codegenBody = [
         this_ = MakeStrong(this),
-        argumentTypes,
+        MOVE(argumentTypes),
         type
     ] (std::vector<Value*> argumentValues, TCGContext& builder) {
         auto functionType = this_->CallingConvention_->GetCalleeType(
@@ -740,52 +690,19 @@ TCodegenExpression TExternallyDefinedFunction::MakeCodegenExpr(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TUserDefinedAggregateFunction::TUserDefinedAggregateFunction(
-    const Stroka& aggregateName,
-    std::unordered_map<TTypeArgument, TUnionType> typeArgumentConstraints,
-    TType argumentType,
-    TType resultType,
-    TType stateType,
-    TSharedRef implementationFile,
-    ICallingConventionPtr callingConvention)
-    : AggregateName_(aggregateName)
-    , TypeArgumentConstraints_(typeArgumentConstraints)
-    , ArgumentType_(argumentType)
-    , ResultType_(resultType)
-    , StateType_(stateType)
-    , ImplementationFile_(implementationFile)
-    , CallingConvention_(callingConvention)
-{ }
-
-TUserDefinedAggregateFunction::TUserDefinedAggregateFunction(
-    const Stroka& aggregateName,
-    std::unordered_map<TTypeArgument, TUnionType> typeArgumentConstraints,
-    TType argumentType,
-    TType resultType,
-    TType stateType,
-    TSharedRef implementationFile,
-    ECallingConvention callingConvention)
-    : TUserDefinedAggregateFunction(
-        aggregateName,
-        typeArgumentConstraints,
-        argumentType,
-        resultType,
-        stateType,
-        implementationFile,
-        GetCallingConvention(callingConvention, 1, EValueType::Null))
-{ }
-
-Stroka TUserDefinedAggregateFunction::GetName() const
-{
-    return AggregateName_;
-}
-
-const TCodegenAggregate TUserDefinedAggregateFunction::MakeCodegenAggregate(
+TCodegenAggregate TExternalAggregateCodegen::Profile(
     EValueType argumentType,
     EValueType stateType,
     EValueType resultType,
-    const Stroka& name) const
+    const Stroka& name,
+    llvm::FoldingSetNodeID* id) const
 {
+    YCHECK(!ImplementationFile_.Empty());
+
+    if (id) {
+        id->AddString(llvm::StringRef(Fingerprint_.Begin(), Fingerprint_.Size()));
+    }
+
     auto initName = AggregateName_ + "_init";
     auto updateName = AggregateName_ + "_update";
     auto mergeName = AggregateName_ + "_merge";
@@ -964,33 +881,6 @@ const TCodegenAggregate TUserDefinedAggregateFunction::MakeCodegenAggregate(
     };
 
     return codegenAggregate;
-}
-
-EValueType TUserDefinedAggregateFunction::GetStateType(
-    EValueType type) const
-{
-    return TypingFunction(
-        TypeArgumentConstraints_,
-        std::vector<TType>{ArgumentType_},
-        EValueType::Null,
-        StateType_,
-        AggregateName_,
-        std::vector<EValueType>{type},
-        TStringBuf());
-}
-
-EValueType TUserDefinedAggregateFunction::InferResultType(
-    EValueType argumentType,
-    const TStringBuf& source) const
-{
-    return TypingFunction(
-        TypeArgumentConstraints_,
-        std::vector<TType>{ArgumentType_},
-        EValueType::Null,
-        ResultType_,
-        AggregateName_,
-        std::vector<EValueType>{argumentType},
-        source);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

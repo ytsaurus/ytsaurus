@@ -1,14 +1,18 @@
 package NYT.NQueryClient.NProto;
 
+import "yt/ytlib/node_tracker_client/node.proto";
 import "yt/ytlib/query_client/query_statistics.proto";
 import "yt/ytlib/query_client/plan_fragment.proto";
 import "yt/core/misc/guid.proto";
+import "yt/ytlib/query_client/functions_cache.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
 message TReqExecute
 {
     required TQuery query = 1;
+    repeated TExternalFunctionImpl cg_info = 5;
+    required NYT.NNodeTrackerClient.NProto.TNodeDirectory node_directory = 6;
     required TQueryOptions options = 2;
     repeated TDataRanges data_sources = 3;
     optional int32 response_codec = 4;

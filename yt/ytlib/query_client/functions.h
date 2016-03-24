@@ -1,118 +1,154 @@
 #pragma once
 
-#include "cg_fragment_compiler.h"
-#include "key_trie.h"
+#include "public.h"
 
-#include <yt/core/misc/variant.h>
+#include "key_trie.h"
+#include "functions_common.h"
 
 namespace NYT {
 namespace NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct IFunctionDescriptor
-    : public virtual TRefCounted
+DECLARE_REFCOUNTED_STRUCT(ITypeInferrer)
+
+struct ITypeInferrer
+    : public TRefCounted
 {
-    virtual Stroka GetName() const = 0;
+    template <class TDerived>
+    const TDerived* As() const
+    {
+        return dynamic_cast<const TDerived*>(this);
+    }
 
-    virtual EValueType InferResultType(
-        const std::vector<EValueType>& argumentTypes,
-        const TStringBuf& source) const = 0;
-
-    virtual TCodegenExpression MakeCodegenExpr(
-        TCodegenValue codegenFunctionContext,
-        std::vector<TCodegenExpression> codegenArgs,
-        std::vector<EValueType> argumentTypes,
-        EValueType type,
-        const Stroka& name) const = 0;
-
-    virtual TKeyTriePtr ExtractKeyRange(
-        const TConstFunctionExpressionPtr& expr,
-        const TKeyColumns& keyColumns,
-        const TRowBufferPtr& rowBuffer) const = 0;
+    template <class TDerived>
+    TDerived* As()
+    {
+        return dynamic_cast<TDerived*>(this);
+    }
 };
 
-DEFINE_REFCOUNTED_TYPE(IFunctionDescriptor)
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct IAggregateFunctionDescriptor
-    : public virtual TRefCounted
-{
-    virtual Stroka GetName() const = 0;
-
-    virtual const TCodegenAggregate MakeCodegenAggregate(
-        EValueType argumentType,
-        EValueType stateType,
-        EValueType resultType,
-        const Stroka& name) const = 0;
-
-    virtual EValueType GetStateType(
-        EValueType type) const = 0;
-
-    virtual EValueType InferResultType(
-        EValueType argumentType,
-        const TStringBuf& source) const = 0;
-};
-
-DEFINE_REFCOUNTED_TYPE(IAggregateFunctionDescriptor)
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TUniversalRangeFunction
-    : public virtual IFunctionDescriptor
-{
-    virtual TKeyTriePtr ExtractKeyRange(
-        const TConstFunctionExpressionPtr& expr,
-        const TKeyColumns& keyColumns,
-        const TRowBufferPtr& rowBuffer) const override;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-typedef int TTypeArgument;
-typedef std::vector<EValueType> TUnionType;
-typedef TVariant<EValueType, TTypeArgument, TUnionType> TType;
-
-EValueType TypingFunction(
-    const std::unordered_map<TTypeArgument, TUnionType> typeArgumentConstraints,
-    const std::vector<TType>& expectedArgTypes,
-    TType repeatedArgType,
-    TType resultType,
-    const Stroka& functionName,
-    const std::vector<EValueType>& argTypes,
-    const TStringBuf& source);
-
-class TTypedFunction
-    : public virtual IFunctionDescriptor
+struct TFunctionTypeInferrer
+    : public ITypeInferrer
 {
 public:
-    TTypedFunction(
-        const Stroka& functionName,
+    TFunctionTypeInferrer(
         std::unordered_map<TTypeArgument, TUnionType> typeArgumentConstraints,
         std::vector<TType> argumentTypes,
         TType repeatedArgumentType,
-        TType resultType);
+        TType resultType)
+        : TypeArgumentConstraints_(typeArgumentConstraints)
+        , ArgumentTypes_(argumentTypes)
+        , RepeatedArgumentType_(repeatedArgumentType)
+        , ResultType_(resultType)
+    { }
 
-    TTypedFunction(
-        const Stroka& functionName,
+    TFunctionTypeInferrer(
         std::unordered_map<TTypeArgument, TUnionType> typeArgumentConstraints,
         std::vector<TType> argumentTypes,
-        TType resultType);
+        TType resultType)
+        : TFunctionTypeInferrer(typeArgumentConstraints, argumentTypes, EValueType::Null, resultType)
+    { }
 
-    virtual Stroka GetName() const override;
+    TFunctionTypeInferrer(
+        std::vector<TType> argumentTypes,
+        TType resultType)
+        : TFunctionTypeInferrer(std::unordered_map<TTypeArgument, TUnionType>(), argumentTypes, resultType)
+    { }
 
-    virtual EValueType InferResultType(
+    EValueType InferResultType(
         const std::vector<EValueType>& argumentTypes,
-        const TStringBuf& source) const override;
+        const Stroka& name,
+        const TStringBuf& source) const;
 
 private:
-    Stroka FunctionName_;
     std::unordered_map<TTypeArgument, TUnionType> TypeArgumentConstraints_;
     std::vector<TType> ArgumentTypes_;
     TType RepeatedArgumentType_;
     TType ResultType_;
+
 };
+
+struct TAggregateTypeInferrer
+    : public ITypeInferrer
+{
+public:
+    TAggregateTypeInferrer(
+        std::unordered_map<TTypeArgument, TUnionType> typeArgumentConstraints,
+        TType argumentType,
+        TType resultType,
+        TType stateType)
+        : TypeArgumentConstraints_(typeArgumentConstraints)
+        , ArgumentType_(argumentType)
+        , ResultType_(resultType)
+        , StateType_(stateType)
+    { }
+
+    EValueType InferStateType(
+        EValueType type,
+        const Stroka& aggregateName,
+        const TStringBuf& source) const;
+
+    EValueType InferResultType(
+        EValueType argumentType,
+        const Stroka& aggregateName,
+        const TStringBuf& source) const;
+
+private:
+    std::unordered_map<TTypeArgument, TUnionType> TypeArgumentConstraints_;
+    TType ArgumentType_;
+    TType ResultType_;
+    TType StateType_;
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+typedef std::function<TKeyTriePtr(
+    const TConstFunctionExpressionPtr& expr,
+    const TKeyColumns& keyColumns,
+    const TRowBufferPtr& rowBuffer)> TRangeExtractor;
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TTypeInferrerMap
+    : public TRefCounted
+    , public std::unordered_map<Stroka, ITypeInferrerPtr>
+{
+    const ITypeInferrerPtr& GetFunction(const Stroka& functionName) const;
+
+};
+
+struct TRangeExtractorMap
+    : public TRefCounted
+    , public std::unordered_map<Stroka, TRangeExtractor>
+{ };
+
+struct TFunctionProfilerMap
+    : public TRefCounted
+    , public std::unordered_map<Stroka, IFunctionCodegenPtr>
+{
+    const IFunctionCodegenPtr& GetFunction(const Stroka& functionName) const;
+
+};
+
+struct TAggregateProfilerMap
+    : public TRefCounted
+    , public std::unordered_map<Stroka, IAggregateCodegenPtr>
+{
+    const IAggregateCodegenPtr& GetAggregate(const Stroka& functionName) const;
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class T>
+void MergeFrom(std::unordered_map<Stroka, T>* target, const std::unordered_map<Stroka, T>* source)
+{
+    for (const auto& item : *source) {
+        target->insert(item);
+    }
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
