@@ -117,19 +117,18 @@ public:
         , JobErrorPromise_(NewPromise<void>())
         , MemoryUsage_(UserJobSpec_.memory_reserve())
         , PipeIOQueue_(New<TActionQueue>("PipeIO"))
-        , JobPeriodicQueue_(New<TActionQueue>("JobPeriodic"))
-        , JobProberQueue_(New<TActionQueue>("JobProber"))
+        , AuxQueue_(New<TActionQueue>("JobAux"))
         , Process_(New<TProcess>(GetExecPath(), false))
         , CpuAccounting_(CGroupPrefix + ToString(jobId))
         , BlockIO_(CGroupPrefix + ToString(jobId))
         , Memory_(CGroupPrefix + ToString(jobId))
         , Freezer_(CGroupPrefix + ToString(jobId))
         , MemoryWatchdogExecutor_(New<TPeriodicExecutor>(
-            JobPeriodicQueue_->GetInvoker(),
+            AuxQueue_->GetInvoker(),
             BIND(&TUserJob::CheckMemoryUsage, MakeWeak(this)),
             Config_->MemoryWatchdogPeriod))
         , BlockIOWatchdogExecutor_ (New<TPeriodicExecutor>(
-            JobPeriodicQueue_->GetInvoker(),
+            AuxQueue_->GetInvoker(),
             BIND(&TUserJob::CheckBlockIOUsage, MakeWeak(this)),
             Config_->BlockIOWatchdogPeriod))
         , Logger(Host_->GetLogger())
@@ -242,7 +241,7 @@ private:
     i64 CumulativeMemoryUsageMbSec_ = 0;
 
     const TActionQueuePtr PipeIOQueue_;
-    const TActionQueuePtr JobPeriodicQueue_;
+    const TActionQueuePtr AuxQueue_;
 
     std::vector<std::unique_ptr<TOutputStream>> TableOutputs_;
     std::vector<TWritingValueConsumerPtr> WritingValueConsumers_;
@@ -258,8 +257,6 @@ private:
     std::vector<TCallback<void()>> InputActions_;
     std::vector<TCallback<void()>> OutputActions_;
     std::vector<TCallback<void()>> FinalizeActions_;
-
-    TActionQueuePtr JobProberQueue_;
 
     TProcessPtr Process_;
     TFuture<void> ProcessFinished_;
@@ -455,7 +452,7 @@ private:
 
         auto pids = GetPidsFromFreezer();
         auto result = WaitFor(BIND([=] () { return RunTool<TStraceTool>(pids); })
-            .AsyncVia(JobProberQueue_->GetInvoker())
+            .AsyncVia(AuxQueue_->GetInvoker())
             .Run());
         THROW_ERROR_EXCEPTION_IF_FAILED(result, "Error running job strace tool");
 
@@ -475,7 +472,7 @@ private:
             arg->Pids);
 
         auto result = WaitFor(BIND([=] () { return RunTool<TJobSignalerTool>(arg); })
-            .AsyncVia(JobProberQueue_->GetInvoker())
+            .AsyncVia(AuxQueue_->GetInvoker())
             .Run());
         THROW_ERROR_EXCEPTION_IF_FAILED(result, "Error running job signaler tool");
     }
