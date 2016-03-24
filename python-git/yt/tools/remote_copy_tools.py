@@ -1,5 +1,5 @@
 from yt.wrapper.common import generate_uuid, bool_to_string, MB
-from yt.tools.conversion_tools import convert_to_erasure
+from yt.tools.conversion_tools import transform
 from yt.common import get_value
 import yt.yson as yson
 import yt.logger as logger
@@ -258,25 +258,13 @@ def check_permission(client, permission, path):
      permission = client.check_permission(user_name, permission, path)
      return permission["action"] == "allow"
 
-def copy_codec_attributes(source_client, destination_client, source_table, destination_table):
-    for attribute in ["compression_codec", "erasure_codec"]:
-        value = source_client.get_attribute(source_table, attribute)
-        destination_client.set_attribute(destination_table, attribute, value)
-
 def copy_user_attributes(source_client, destination_client, source_table, destination_table):
     source_attributes = source_client.get(source_table + "/@")
 
     for attribute in source_attributes.get("user_attribute_keys", []):
         destination_client.set_attribute(destination_table, attribute, source_attributes[attribute])
 
-def run_erasure_merge(source_client, destination_client, source_table, destination_table, spec):
-    compression_codec = source_client.get_attribute(source_table, "compression_codec")
-    erasure_codec = source_client.get_attribute(source_table, "erasure_codec")
-
-    convert_to_erasure(destination_table, yt_client=destination_client, erasure_codec=erasure_codec,
-                       compression_codec=compression_codec, spec=spec)
-
-def apply_compression_codec(yt_client, dst, compression_codec):
+def set_compression_codec(yt_client, dst, compression_codec):
     if compression_codec is not None:
         if not yt_client.exists(dst):
             yt_client.create_table(dst, attributes={"compression_codec": compression_codec})
@@ -318,20 +306,20 @@ def copy_yt_to_yt(source_client, destination_client, src, dst, network_name,
             kwargs = {"cluster_connection": cluster_connection}
         else:
             kwargs = {"cluster_name": source_client._name}
-        apply_compression_codec(destination_client, dst, compression_codec)
         destination_client.run_remote_copy(
             src,
             dst,
+            copy_attributes=True,
             network_name=network_name,
             spec=copy_spec_template,
             **kwargs)
 
-        if erasure_codec is None:
-            copy_codec_attributes(source_client, destination_client, src, dst)
-        else:
-            convert_to_erasure(dst, erasure_codec=erasure_codec, yt_client=destination_client, spec=postprocess_spec_template)
+        transform(dst, compression_codec=compression_codec, erasure_codec=erasure_codec, yt_client=destination_client, spec=postprocess_spec_template, check_codecs=True)
 
-        copy_user_attributes(source_client, destination_client, src, dst)
+        for name, codec in [("compression_codec", compression_codec), ("erasure_codec", erasure_codec)]:
+            if codec is None:
+                destination_client.set(dst + "/@" + name, source_client.get(src + "/@" + name))
+
 
 def copy_yt_to_yt_through_proxy(source_client, destination_client, src, dst, fastbone,
                                 copy_spec_template=None, postprocess_spec_template=None, default_tmp_dir=None,
@@ -345,12 +333,17 @@ def copy_yt_to_yt_through_proxy(source_client, destination_client, src, dst, fas
     destination_client.create("map_node", os.path.dirname(dst), recursive=True, ignore_existing=True)
     try:
         with source_client.Transaction(), destination_client.Transaction():
-            apply_compression_codec(destination_client, dst, compression_codec)
-
             # NB: for reliable access to table under snapshot lock we should use id.
             src = yt.TablePath(src, client=source_client)
             src.name = yson.to_yson_type("#" + source_client.get(src.name + "/@id"), attributes=src.attributes)
             source_client.lock(src, mode="snapshot")
+
+            if compression_codec is None:
+                compression_codec = source_client.get(str(src) + "/@compression_codec")
+            if erasure_codec is None:
+                erasure_codec = source_client.get(str(src) + "/@erasure_codec")
+            set_compression_codec(destination_client, dst, compression_codec)
+
             files = _prepare_read_from_yt_command(
                 source_client,
                 src.to_yson_string(),
@@ -393,10 +386,7 @@ def copy_yt_to_yt_through_proxy(source_client, destination_client, src, dst, fas
                 logger.error(error)
                 raise IncorrectRowCount(error)
 
-            if erasure_codec is None:
-                run_erasure_merge(source_client, destination_client, src.name, dst, spec=postprocess_spec_template)
-            else:
-                convert_to_erasure(dst, erasure_codec=erasure_codec, yt_client=destination_client, spec=postprocess_spec_template)
+            transform(dst_table, erasure_codec=erasure_codec, yt_client=destination_client, spec=postprocess_spec_template, check_codecs=True)
             copy_user_attributes(source_client, destination_client, src.name, dst)
 
     finally:
@@ -462,7 +452,7 @@ done"""
     logger.info("Pull import: run map '%s' with spec '%s'", command, repr(spec))
     try:
         with yt_client.Transaction():
-            apply_compression_codec(yt_client, dst, compression_codec)
+            set_compression_codec(yt_client, dst, compression_codec)
 
             if is_sorted:
                 dst_path = yt.TablePath(dst, client=yt_client)
@@ -489,7 +479,7 @@ done"""
             if force_sort and not is_sorted:
                 yt_client.run_sort(dst, sort_by=["key", "subkey"], spec=postprocess_spec)
 
-            convert_to_erasure(dst, erasure_codec=erasure_codec, yt_client=yt_client, spec=postprocess_spec)
+            transform(dst, erasure_codec=erasure_codec, yt_client=yt_client, spec=postprocess_spec, check_codecs=True)
 
     finally:
         if not yamr_client.supports_read_snapshots:

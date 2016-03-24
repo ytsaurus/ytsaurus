@@ -926,11 +926,10 @@ class Application(object):
             if source_client._type == "yt" and destination_client._type == "yamr":
                 if source_client.row_count(task.source_table) > 0:
                     path = yt.TablePath(task.source_table, ranges=[{"upper_limit": {"row_index": 1}}], client=source_client)
-                    first_row = source_client.read_table(path, format=yt.JsonFormat(), raw=False).next()
-                    if set(first_row.keys() + ["subkey"]) != set(["key", "subkey", "value"]):
-                        raise yt.YtError("Keys in the source table must be a subset of ('key', 'subkey', 'value')")
-                    if not all(map(lambda value: isinstance(value, str), first_row.itervalues())):
-                        raise yt.YtError("Values in the source table must be strings")
+                    try:
+                        source_client.read_table(path, format=yt.YamrFormat(), raw=False).next()
+                    except yt.YtError as err:
+                        raise yt.YtError("Failed to read first row in YAMR format", inner_errors=[err])
 
             if source_client._type == "yt" and destination_client._type == "yt":
                 if task.copy_method not in ["proxy", "native"]:
