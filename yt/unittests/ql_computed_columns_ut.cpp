@@ -5,6 +5,7 @@
 #include <yt/ytlib/query_client/config.h>
 #include <yt/ytlib/query_client/coordinator.h>
 #include <yt/ytlib/query_client/query_preparer.h>
+#include <yt/ytlib/query_client/functions.h>
 
 // Tests:
 // TComputedColumnTest
@@ -28,7 +29,7 @@ protected:
             .WillRepeatedly(Invoke(this, &TComputedColumnTest::MakeSimpleSplit));
 
         auto config = New<TColumnEvaluatorCacheConfig>();
-        ColumnEvaluatorCache_ = New<TColumnEvaluatorCache>(config, CreateBuiltinFunctionRegistry());
+        ColumnEvaluatorCache_ = New<TColumnEvaluatorCache>(config);
     }
 
     std::vector<TKeyRange> Coordinate(const Stroka& source, int rangeExpansionLimit = 1000)
@@ -37,8 +38,8 @@ protected:
         TDataRanges dataSource;
         std::tie(query, dataSource) = PreparePlanFragment(
             &PrepareMock_,
-            source,
-            CreateBuiltinFunctionRegistry());
+            source);
+
         auto rowBuffer = New<TRowBuffer>();
         auto prunedSplits = GetPrunedRanges(
             query,
@@ -46,7 +47,7 @@ protected:
             dataSource.Ranges,
             rowBuffer,
             ColumnEvaluatorCache_,
-            CreateBuiltinFunctionRegistry(),
+            BuiltinRangeExtractorMap.Get(),
             rangeExpansionLimit,
             true);
 
@@ -59,8 +60,7 @@ protected:
         TDataRanges dataSource;
         std::tie(query, dataSource) = PreparePlanFragment(
             &PrepareMock_,
-            source,
-            CreateBuiltinFunctionRegistry());
+            source);
 
         auto buffer = New<TRowBuffer>();
         TRowRanges foreignSplits{{
@@ -79,7 +79,7 @@ protected:
             MakeSharedRange(foreignSplits),
             rowBuffer,
             ColumnEvaluatorCache_,
-            CreateBuiltinFunctionRegistry(),
+            BuiltinRangeExtractorMap.Get(),
             1000,
             true);
 

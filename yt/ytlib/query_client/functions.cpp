@@ -5,16 +5,6 @@ namespace NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TKeyTriePtr TUniversalRangeFunction::ExtractKeyRange(
-    const TConstFunctionExpressionPtr& expr,
-    const TKeyColumns& keyColumns,
-    const TRowBufferPtr& rowBuffer) const
-{
-    return TKeyTrie::Universal();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 Stroka TypeToString(TType tp, std::unordered_map<TTypeArgument, EValueType> genericAssignments)
 {
     if (auto genericId = tp.TryAs<TTypeArgument>()) {
@@ -155,38 +145,11 @@ EValueType TypingFunction(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTypedFunction::TTypedFunction(
-    const Stroka& functionName,
-    std::unordered_map<TTypeArgument, TUnionType> typeArgumentConstraints,
-    std::vector<TType> argumentTypes,
-    TType repeatedArgumentType,
-    TType resultType)
-    : FunctionName_(functionName)
-    , TypeArgumentConstraints_(typeArgumentConstraints)
-    , ArgumentTypes_(argumentTypes)
-    , RepeatedArgumentType_(repeatedArgumentType)
-    , ResultType_(resultType)
-{ }
+DEFINE_REFCOUNTED_TYPE(ITypeInferrer);
 
-TTypedFunction::TTypedFunction(
-    const Stroka& functionName,
-    std::unordered_map<TTypeArgument, TUnionType> typeArgumentConstraints,
-    std::vector<TType> argumentTypes,
-    TType resultType)
-    : FunctionName_(functionName)
-    , TypeArgumentConstraints_(typeArgumentConstraints)
-    , ArgumentTypes_(argumentTypes)
-    , RepeatedArgumentType_(EValueType::Null)
-    , ResultType_(resultType)
-{ }
-
-Stroka TTypedFunction::GetName() const
-{
-    return FunctionName_;
-}
-
-EValueType TTypedFunction::InferResultType(
+EValueType TFunctionTypeInferrer::InferResultType(
     const std::vector<EValueType>& argumentTypes,
+    const Stroka& name,
     const TStringBuf& source) const
 {
     return TypingFunction(
@@ -194,9 +157,78 @@ EValueType TTypedFunction::InferResultType(
         ArgumentTypes_,
         RepeatedArgumentType_,
         ResultType_,
-        GetName(),
+        name,
         argumentTypes,
         source);
+}
+
+EValueType TAggregateTypeInferrer::InferStateType(
+    EValueType type,
+    const Stroka& aggregateName,
+    const TStringBuf& source) const
+{
+    return TypingFunction(
+        TypeArgumentConstraints_,
+        std::vector<TType>{ArgumentType_},
+        EValueType::Null,
+        StateType_,
+        aggregateName,
+        std::vector<EValueType>{type},
+        source);
+}
+
+EValueType TAggregateTypeInferrer::InferResultType(
+    EValueType argumentType,
+    const Stroka& aggregateName,
+    const TStringBuf& source) const
+{
+    return TypingFunction(
+        TypeArgumentConstraints_,
+        std::vector<TType>{ArgumentType_},
+        EValueType::Null,
+        ResultType_,
+        aggregateName,
+        std::vector<EValueType>{argumentType},
+        source);
+    }
+
+////////////////////////////////////////////////////////////////////////////////
+
+DEFINE_REFCOUNTED_TYPE(TTypeInferrerMap)
+
+const ITypeInferrerPtr& TTypeInferrerMap::GetFunction(const Stroka& functionName) const
+{
+    auto found = this->find(functionName);
+    if (found == this->end()) {
+        THROW_ERROR_EXCEPTION("Undefined function %v", functionName);
+    }
+    return found->second;
+}
+
+DEFINE_REFCOUNTED_TYPE(TRangeExtractorMap)
+
+DEFINE_REFCOUNTED_TYPE(TFunctionProfilerMap)
+
+const IFunctionCodegenPtr& TFunctionProfilerMap::GetFunction(const Stroka& functionName) const
+{
+    auto found = this->find(functionName);
+    if (found == this->end()) {
+        THROW_ERROR_EXCEPTION("Code generator not found for regular function %v",
+            functionName);
+    }
+    return found->second;
+}
+
+DEFINE_REFCOUNTED_TYPE(TAggregateProfilerMap)
+
+const IAggregateCodegenPtr& TAggregateProfilerMap::GetAggregate(const Stroka& functionName) const
+{
+    auto found = this->find(functionName);
+    if (found == this->end()) {
+        THROW_ERROR_EXCEPTION("Code generator not found for aggregate function %v",
+            functionName);
+    }
+    return found->second;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -80,12 +80,10 @@ TKeyRange RefineKeyRange(
     TConstExpressionPtr predicate)
 {
     auto rowBuffer = New<TRowBuffer>();
-
     auto keyTrie = ExtractMultipleConstraints(
         predicate,
         keyColumns,
-        rowBuffer,
-        CreateBuiltinFunctionRegistry());
+        rowBuffer);
 
     auto result = GetRangesFromTrieWithinRange(
         TRowRange(keyRange.first, keyRange.second),
@@ -736,14 +734,11 @@ TEST_F(TRefineKeyRangeTest, MultipleDisjuncts)
         GetSampleTableSchema());
 
     auto rowBuffer = New<TRowBuffer>();
-
     auto keyColumns = GetSampleKeyColumns();
-
     auto keyTrie = ExtractMultipleConstraints(
         expr,
         keyColumns,
-        rowBuffer,
-        CreateBuiltinFunctionRegistry());
+        rowBuffer);
 
     auto result = GetRangesFromTrieWithinRange(
         std::make_pair(BuildKey("1;1;1"), BuildKey("100;100;100")),
@@ -766,14 +761,11 @@ TEST_F(TRefineKeyRangeTest, NotEqualToMultipleRanges)
         GetSampleTableSchema());
 
     auto rowBuffer = New<TRowBuffer>();
-
     auto keyColumns = GetSampleKeyColumns();
-
     auto keyTrie = ExtractMultipleConstraints(
         expr,
         keyColumns,
-        rowBuffer,
-        CreateBuiltinFunctionRegistry());
+        rowBuffer);
 
     auto result = GetRangesFromTrieWithinRange(
         std::make_pair(BuildKey("1;1;1"), BuildKey("100;100;100")),
@@ -796,14 +788,11 @@ TEST_F(TRefineKeyRangeTest, RangesProduct)
         GetSampleTableSchema());
 
     auto rowBuffer = New<TRowBuffer>();
-
     auto keyColumns = GetSampleKeyColumns();
-
     auto keyTrie = ExtractMultipleConstraints(
         expr,
         keyColumns,
-        rowBuffer,
-        CreateBuiltinFunctionRegistry());
+        rowBuffer);
 
     auto result = GetRangesFromTrieWithinRange(
         std::make_pair(BuildKey("1;1;1"), BuildKey("100;100;100")),
@@ -847,14 +836,11 @@ TEST_F(TRefineKeyRangeTest, RangesProductWithOverlappingKeyPositions)
         GetSampleTableSchema());
 
     auto rowBuffer = New<TRowBuffer>();
-
     auto keyColumns = GetSampleKeyColumns();
-
     auto keyTrie = ExtractMultipleConstraints(
         expr,
         keyColumns,
-        rowBuffer,
-        CreateBuiltinFunctionRegistry());
+        rowBuffer);
 
     auto result = GetRangesFromTrieWithinRange(
         std::make_pair(BuildKey("1;1;1"), BuildKey("100;100;100")),
@@ -943,14 +929,11 @@ TEST_F(TRefineKeyRangeTest, MultipleRangeDisjuncts)
         GetSampleTableSchema());
 
     auto rowBuffer = New<TRowBuffer>();
-
     auto keyColumns = GetSampleKeyColumns();
-
     auto keyTrie = ExtractMultipleConstraints(
         expr,
         keyColumns,
-        rowBuffer,
-        CreateBuiltinFunctionRegistry());
+        rowBuffer);
 
     auto result = GetRangesFromTrieWithinRange(
         std::make_pair(BuildKey("1;1;1"), BuildKey("100;100;100")),
@@ -973,14 +956,11 @@ TEST_F(TRefineKeyRangeTest, SecondDimensionRange)
         GetSampleTableSchema());
 
     auto rowBuffer = New<TRowBuffer>();
-
     auto keyColumns = GetSampleKeyColumns();
-
     auto keyTrie = ExtractMultipleConstraints(
         expr,
         keyColumns,
-        rowBuffer,
-        CreateBuiltinFunctionRegistry());
+        rowBuffer);
 
     auto result = GetRangesFromTrieWithinRange(
         std::make_pair(BuildKey("1;1;1"), BuildKey("100;100;100")),

@@ -18,12 +18,10 @@ namespace NQueryClient {
 typedef std::function<TCGQueryCallback()> TCGQueryCallbackGenerator;
 typedef std::function<TCGExpressionCallback()> TCGExpressionCallbackGenerator;
 
-TCGQueryCallbackGenerator Profile(
-    TConstQueryPtr query,
-    llvm::FoldingSetNodeID* id,
-    TCGVariables* variables,
-    std::vector<std::vector<bool>>* literalArgs,
-    const IFunctionRegistryPtr functionRegistry);
+void Profile(
+    const TTableSchema& tableSchema,
+    int keySize,
+    llvm::FoldingSetNodeID* id);
 
 TCGExpressionCallbackGenerator Profile(
     TConstExpressionPtr expr,
@@ -31,13 +29,15 @@ TCGExpressionCallbackGenerator Profile(
     llvm::FoldingSetNodeID* id,
     TCGVariables* variables,
     std::vector<std::vector<bool>>* literalArgs,
-    const IFunctionRegistryPtr functionRegistry);
+    const TConstFunctionProfilerMapPtr& functionProfilers = BuiltinFunctionCG.Get());
 
-void Profile(
-    const TTableSchema& tableSchema,
-    int keySize,
+TCGQueryCallbackGenerator Profile(
+    TConstQueryPtr query,
     llvm::FoldingSetNodeID* id,
-    const IFunctionRegistryPtr functionRegistry);
+    TCGVariables* variables,
+    std::vector<std::vector<bool>>* literalArgs,
+    const TConstFunctionProfilerMapPtr& functionProfilers = BuiltinFunctionCG.Get(),
+    const TConstAggregateProfilerMapPtr& aggregateProfilers = BuiltinAggregateCG.Get());
 
 ////////////////////////////////////////////////////////////////////////////////
 

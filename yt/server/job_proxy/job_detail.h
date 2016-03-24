@@ -18,6 +18,13 @@ namespace NJobProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void RunQuery(
+    const NScheduler::NProto::TQuerySpec& querySpec,
+    const NTableClient::TSchemalessReaderFactory& readerFactory,
+    const NTableClient::TSchemalessWriterFactory& writerFactory);
+
+////////////////////////////////////////////////////////////////////////////////
+
 //! Base class for all jobs inside job proxy.
 class TJob
     : public IJob
@@ -28,6 +35,8 @@ public:
     virtual std::vector<NChunkClient::TChunkId> DumpInputContext() override;
     virtual NYson::TYsonString StraceJob() override;
     virtual void SignalJob(const Stroka& signalName) override;
+
+
 
 protected:
     const IJobHostPtr Host_;

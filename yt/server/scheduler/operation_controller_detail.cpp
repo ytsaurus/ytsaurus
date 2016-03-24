@@ -20,7 +20,7 @@
 
 #include <yt/ytlib/query_client/plan_fragment.h>
 #include <yt/ytlib/query_client/query_preparer.h>
-#include <yt/ytlib/query_client/udf_descriptor.h>
+#include <yt/ytlib/query_client/functions_cache.h>
 
 #include <yt/ytlib/scheduler/helpers.h>
 
@@ -3370,68 +3370,39 @@ void TOperationControllerBase::InitQuerySpec(
     const Stroka& queryString,
     const TTableSchema& schema)
 {
-    auto* querySpec = schedulerJobSpecExt->mutable_input_query_spec();
-    auto ast = PrepareJobQueryAst(queryString);
-    auto registry = CreateBuiltinFunctionRegistry();
-    auto externalFunctions = GetExternalFunctions(ast, registry);
+    auto externalCGInfo = New<TExternalCGInfo>();
+    auto nodeDirectory = New<NNodeTrackerClient::TNodeDirectory>();
+    auto fetchFunctions = [&] (const std::vector<Stroka>& names, const TTypeInferrerMapPtr& typeInferrers) {
+        MergeFrom(typeInferrers.Get(), BuiltinTypeInferrersMap.Get());
 
-    std::vector<TUserFile> udfFiles;
-    std::vector<TUdfDescriptorPtr> udfDescriptors;
+        std::vector<Stroka> externalNames;
+        for (const auto& name : names) {
+            auto found = typeInferrers->find(name);
+            if (found == typeInferrers->end()) {
+                externalNames.push_back(name);
+            }
+        }
 
-    if (!externalFunctions.empty()) {
+        if (externalNames.empty()) {
+            return;
+        }
+
         if (!Config->UdfRegistryPath) {
             THROW_ERROR_EXCEPTION("External UDF registry is not configured");
         }
 
-        for (const auto& function : externalFunctions) {
-            LOG_INFO("Requesting UDF descriptor (Function: %v)", function);
-            TUserFile file;
-            file.Path = GetUdfDescriptorPath(*Config->UdfRegistryPath, function);
-            udfFiles.push_back(file);
-        }
+        auto descriptors = LookupAllUdfDescriptors(externalNames, Config->UdfRegistryPath.Get(), Host->GetMasterClient());
 
-        GetFilesBasicAttributes(&udfFiles);
+        AppendUdfDescriptors(typeInferrers, externalCGInfo, externalNames, descriptors);
+    };
 
-        LockUserFiles(
-            &udfFiles,
-            {
-                FunctionDescriptorAttribute,
-                AggregateDescriptorAttribute
-            });
+    auto query = PrepareJobQuery(queryString, schema, fetchFunctions);
 
-        FetchUserFiles(&udfFiles);
-
-        for (const auto& file : udfFiles) {
-            if (file.Type != EObjectType::File) {
-                THROW_ERROR_EXCEPTION("Object %v has invalid type: expected %Qlv, actual %Qlv",
-                    file.Path,
-                    EObjectType::File,
-                    file.Type);
-            }
-            auto descriptor = New<TUdfDescriptor>();
-            descriptor->Name = file.FileName;
-            descriptor->FunctionDescriptor = file.Attributes->Find<TCypressFunctionDescriptorPtr>(FunctionDescriptorAttribute);
-            descriptor->AggregateDescriptor = file.Attributes->Find<TCypressAggregateDescriptorPtr>(AggregateDescriptorAttribute);
-            udfDescriptors.push_back(std::move(descriptor));
-        }
-
-        registry = CreateJobFunctionRegistry(udfDescriptors, Null, std::move(registry));
-    }
-
-    auto query = PrepareJobQuery(queryString, std::move(ast), schema, registry);
+    auto* querySpec = schedulerJobSpecExt->mutable_input_query_spec();
     ToProto(querySpec->mutable_query(), query);
+    ToProto(querySpec->mutable_cg_info(), *externalCGInfo);
 
-    for (const auto& descriptor : udfDescriptors) {
-        auto* protoDescriptor = querySpec->add_udf_descriptors();
-        ToProto(protoDescriptor, ConvertToYsonString(descriptor).Data());
-    }
-
-    for (const auto& file : udfFiles) {
-        auto* protoDescriptor = querySpec->add_udf_files();
-        protoDescriptor->set_type(static_cast<int>(file.Type));
-        protoDescriptor->set_file_name(file.FileName);
-        ToProto(protoDescriptor->mutable_chunks(), file.ChunkSpecs);
-    }
+    externalCGInfo->NodeDirectory->DumpTo(querySpec->mutable_node_directory());
 }
 
 void TOperationControllerBase::CollectTotals()

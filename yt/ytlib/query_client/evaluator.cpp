@@ -59,7 +59,8 @@ public:
         ISchemafulReaderPtr reader,
         ISchemafulWriterPtr writer,
         const TExecuteQuery& executeCallback,
-        const IFunctionRegistryPtr functionRegistry,
+        const TConstFunctionProfilerMapPtr& functionProfilers,
+        const TConstAggregateProfilerMapPtr& aggregateProfilers,
         bool enableCodeCache)
     {
         TRACE_CHILD("QueryClient", "Evaluate") {
@@ -86,7 +87,8 @@ public:
                 auto cgQuery = Codegen(
                     query,
                     fragmentParams,
-                    functionRegistry,
+                    functionProfilers,
+                    aggregateProfilers,
                     allLiteralArgs,
                     statistics,
                     enableCodeCache);
@@ -195,20 +197,21 @@ private:
     TCGQueryCallback Codegen(
         TConstQueryPtr query,
         TCGVariables& variables,
-        const IFunctionRegistryPtr functionRegistry,
+        const TConstFunctionProfilerMapPtr& functionProfilers,
+        const TConstAggregateProfilerMapPtr& aggregateProfilers,
         std::vector<std::vector<bool>>& literalArgs,
         TQueryStatistics& statistics,
         bool enableCodeCache)
     {
         llvm::FoldingSetNodeID id;
 
-        auto makeCodegenQuery = Profile(query, &id, &variables, &literalArgs, functionRegistry);
+        auto makeCodegenQuery = Profile(query, &id, &variables, &literalArgs, functionProfilers, aggregateProfilers);
 
         auto Logger = BuildLogger(query);
 
         auto cookie = BeginInsert(id);
         if (enableCodeCache && !cookie.IsActive()) {
-            LOG_TRACE("Codegen cache hit");
+            LOG_DEBUG("Codegen cache hit");
         } else {
             if (!enableCodeCache) {
                 LOG_DEBUG("Codegen cache disabled");
@@ -268,7 +271,8 @@ TQueryStatistics TEvaluator::RunWithExecutor(
     ISchemafulReaderPtr reader,
     ISchemafulWriterPtr writer,
     TExecuteQuery executeCallback,
-    const IFunctionRegistryPtr functionRegistry,
+    TConstFunctionProfilerMapPtr functionProfilers,
+    TConstAggregateProfilerMapPtr aggregateProfilers,
     bool enableCodeCache)
 {
     return Impl_->Run(
@@ -276,7 +280,8 @@ TQueryStatistics TEvaluator::RunWithExecutor(
         std::move(reader),
         std::move(writer),
         std::move(executeCallback),
-        functionRegistry,
+        functionProfilers,
+        aggregateProfilers,
         enableCodeCache);
 }
 
@@ -284,7 +289,8 @@ TQueryStatistics TEvaluator::Run(
     TConstQueryPtr query,
     ISchemafulReaderPtr reader,
     ISchemafulWriterPtr writer,
-    const IFunctionRegistryPtr functionRegistry,
+    TConstFunctionProfilerMapPtr functionProfilers,
+    TConstAggregateProfilerMapPtr aggregateProfilers,
     bool enableCodeCache)
 {
     return RunWithExecutor(
@@ -292,7 +298,8 @@ TQueryStatistics TEvaluator::Run(
         std::move(reader),
         std::move(writer),
         nullptr,
-        functionRegistry,
+        std::move(functionProfilers),
+        std::move(aggregateProfilers),
         enableCodeCache);
 }
 

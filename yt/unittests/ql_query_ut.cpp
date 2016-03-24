@@ -15,7 +15,9 @@
 #include <yt/ytlib/query_client/plan_fragment.h>
 #include <yt/ytlib/query_client/plan_fragment.pb.h>
 #include <yt/ytlib/query_client/query_preparer.h>
-#include <yt/ytlib/query_client/user_defined_functions.h>
+#include <yt/ytlib/query_client/functions.h>
+#include <yt/ytlib/query_client/functions_cg.h>
+#include <yt/ytlib/query_client/functions_builder.h>
 
 #include <yt/ytlib/table_client/name_table.h>
 #include <yt/ytlib/table_client/schema.h>
@@ -52,7 +54,7 @@ protected:
     virtual void SetUp() override
     {
         auto config = New<TColumnEvaluatorCacheConfig>();
-        ColumnEvaluatorCache_ = New<TColumnEvaluatorCache>(config, CreateBuiltinFunctionRegistry());
+        ColumnEvaluatorCache_ = New<TColumnEvaluatorCache>(config);
     }
 
     template <class TMatcher>
@@ -61,7 +63,7 @@ protected:
         TMatcher matcher)
     {
         EXPECT_THROW_THAT(
-            [&] { PreparePlanFragment(&PrepareMock_, query, CreateBuiltinFunctionRegistry()); },
+            [&] { PreparePlanFragment(&PrepareMock_, query); },
             matcher);
     }
 
@@ -78,9 +80,8 @@ TEST_F(TQueryPrepareTest, Simple)
         .WillOnce(Return(WrapInFuture(MakeSimpleSplit(TRichYPath::Parse(tableWithSchema)))));
 
     PreparePlanFragment(
-        &PrepareMock_, 
-        "a, b FROM [" + tableWithSchema + "] WHERE k > 3", 
-        CreateBuiltinFunctionRegistry());
+        &PrepareMock_,
+        "a, b FROM [" + tableWithSchema + "] WHERE k > 3");
 }
 
 TEST_F(TQueryPrepareTest, BadSyntax)
@@ -157,7 +158,7 @@ TEST_F(TQueryPrepareTest, BigQuery)
     EXPECT_CALL(PrepareMock_, GetInitialSplit(TRichYPath("//t"), _))
         .WillOnce(Return(WrapInFuture(MakeSimpleSplit(TRichYPath("//t")))));
 
-    PreparePlanFragment(&PrepareMock_, query, CreateBuiltinFunctionRegistry());
+    PreparePlanFragment(&PrepareMock_, query);
 }
 
 TEST_F(TQueryPrepareTest, ResultSchemaCollision)
@@ -216,12 +217,12 @@ class TJobQueryPrepareTest
 
 TEST_F(TJobQueryPrepareTest, TruePredicate)
 {
-    PrepareJobQueryAst("* where true");
+    ParseJobQuery("* where true");
 }
 
 TEST_F(TJobQueryPrepareTest, FalsePredicate)
 {
-    PrepareJobQueryAst("* where false");
+    ParseJobQuery("* where false");
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -236,7 +237,9 @@ protected:
             .WillOnce(Return(WrapInFuture(MakeSimpleSplit(TRichYPath("//t")))));
 
         auto config = New<TColumnEvaluatorCacheConfig>();
-        ColumnEvaluatorCache_ = New<TColumnEvaluatorCache>(config, CreateBuiltinFunctionRegistry());
+        ColumnEvaluatorCache_ = New<TColumnEvaluatorCache>(config);
+
+        MergeFrom(RangeExtractorMap.Get(), BuiltinRangeExtractorMap.Get());
     }
 
     void Coordinate(const Stroka& source, const TDataSplits& dataSplits, size_t subqueriesCount)
@@ -245,8 +248,7 @@ protected:
         TDataRanges dataSource;
         std::tie(query, dataSource) = PreparePlanFragment(
             &PrepareMock_,
-            source,
-            CreateBuiltinFunctionRegistry());
+            source);
 
         auto buffer = New<TRowBuffer>();
         TRowRanges sources;
@@ -264,7 +266,7 @@ protected:
             MakeSharedRange(std::move(sources), buffer),
             rowBuffer,
             ColumnEvaluatorCache_,
-            CreateBuiltinFunctionRegistry(),
+            RangeExtractorMap.Get(),
             1000,
             true);
 
@@ -273,6 +275,8 @@ protected:
 
     StrictMock<TPrepareCallbacksMock> PrepareMock_;
     TColumnEvaluatorCachePtr ColumnEvaluatorCache_;
+
+    TRangeExtractorMapPtr RangeExtractorMap = New<TRangeExtractorMap>();
 };
 
 TEST_F(TQueryCoordinateTest, EmptySplit)
@@ -353,31 +357,6 @@ public:
     MOCK_METHOD0(GetReadyEvent, TFuture<void>());
 };
 
-class TFunctionRegistryMock
-    : public IFunctionRegistry
-{
-public:
-    MOCK_METHOD1(FindFunction, IFunctionDescriptorPtr(const Stroka&));
-    MOCK_METHOD1(FindAggregateFunction, IAggregateFunctionDescriptorPtr(const Stroka&));
-
-    void WithFunction(IFunctionDescriptorPtr function)
-    {
-        EXPECT_CALL(*this, FindFunction(function->GetName()))
-            .WillRepeatedly(Return(function));
-        EXPECT_CALL(*this, FindAggregateFunction(function->GetName()))
-            .WillRepeatedly(Return(nullptr));
-    }
-
-    void WithFunction(IAggregateFunctionDescriptorPtr function)
-    {
-        EXPECT_CALL(*this, FindFunction(function->GetName()))
-            .WillRepeatedly(Return(nullptr));
-        EXPECT_CALL(*this, FindAggregateFunction(function->GetName()))
-            .WillRepeatedly(Return(function));
-    }
-};
-
-
 TOwningRow BuildRow(
     const Stroka& yson,
     const TDataSplit& dataSplit,
@@ -392,7 +371,8 @@ TOwningRow BuildRow(
 
 TQueryStatistics DoExecuteQuery(
     const std::vector<Stroka>& source,
-    IFunctionRegistryPtr functionRegistry,
+    TFunctionProfilerMapPtr functionProfilers,
+    TAggregateProfilerMapPtr aggregateProfilers,
     EFailureLocation failureLocation,
     TConstQueryPtr query,
     ISchemafulWriterPtr writer,
@@ -432,7 +412,8 @@ TQueryStatistics DoExecuteQuery(
         readerMock,
         writer,
         executeCallback,
-        functionRegistry,
+        functionProfilers,
+        aggregateProfilers,
         true);
 }
 
@@ -490,60 +471,132 @@ protected:
     virtual void SetUp() override
     {
         auto config = New<TColumnEvaluatorCacheConfig>();
-        ColumnEvaluatorCache_ = New<TColumnEvaluatorCache>(config, CreateBuiltinFunctionRegistry());
+        ColumnEvaluatorCache_ = New<TColumnEvaluatorCache>(config);
 
         WriterMock_ = New<StrictMock<TWriterMock>>();
 
         ActionQueue_ = New<TActionQueue>("Test");
 
-        auto testUdfImplementations = TSharedRef(
+        auto bcImplementations = TSharedRef(
             test_udfs_bc,
             test_udfs_bc_len,
             nullptr);
 
-        AbsUdf_ = New<TUserDefinedFunction>(
+        auto soImplementations = TSharedRef(
+            test_udfs_o_o,
+            test_udfs_o_o_len,
+            nullptr);
+
+        MergeFrom(TypeInferers_.Get(), BuiltinTypeInferrersMap.Get());
+        MergeFrom(FunctionProfilers_.Get(), BuiltinFunctionCG.Get());
+        MergeFrom(AggregateProfilers_.Get(), BuiltinAggregateCG.Get());
+
+        TFunctionRegistryBuilder builder(
+            TypeInferers_.Get(),
+            FunctionProfilers_.Get(),
+            AggregateProfilers_.Get());
+
+        builder.RegisterFunction(
             "abs_udf",
             std::vector<TType>{EValueType::Int64},
             EValueType::Int64,
-            testUdfImplementations,
+            bcImplementations,
             ECallingConvention::Simple);
-        ExpUdf_ = New<TUserDefinedFunction>(
+        builder.RegisterFunction(
             "exp_udf",
             std::vector<TType>{EValueType::Int64, EValueType::Int64},
             EValueType::Int64,
-            testUdfImplementations,
+            bcImplementations,
             ECallingConvention::Simple);
-        StrtolUdf_ = New<TUserDefinedFunction>(
+        builder.RegisterFunction(
             "strtol_udf",
             std::vector<TType>{EValueType::String},
             EValueType::Uint64,
-            testUdfImplementations,
+            bcImplementations,
             ECallingConvention::Simple);
-        TolowerUdf_ = New<TUserDefinedFunction>(
+        builder.RegisterFunction(
             "tolower_udf",
             std::vector<TType>{EValueType::String},
             EValueType::String,
-            testUdfImplementations,
+            bcImplementations,
             ECallingConvention::Simple);
-        IsNullUdf_ = New<TUserDefinedFunction>(
+        builder.RegisterFunction(
             "is_null_udf",
             std::vector<TType>{EValueType::String},
             EValueType::Boolean,
-            testUdfImplementations,
+            bcImplementations,
             ECallingConvention::UnversionedValue);
-        SumUdf_ = New<TUserDefinedFunction>(
+        builder.RegisterFunction(
             "sum_udf",
             std::unordered_map<TTypeArgument, TUnionType>(),
             std::vector<TType>{EValueType::Int64},
             EValueType::Int64,
             EValueType::Int64,
-            testUdfImplementations);
-        SeventyFiveUdf_ = New<TUserDefinedFunction>(
+            bcImplementations);
+        builder.RegisterFunction(
             "seventyfive",
             std::vector<TType>{},
             EValueType::Uint64,
-            testUdfImplementations,
+            bcImplementations,
             ECallingConvention::Simple);
+
+        ///
+
+        builder.RegisterFunction(
+            "exp_udf_o",
+            "exp_udf",
+            std::vector<TType>{EValueType::Int64, EValueType::Int64},
+            EValueType::Int64,
+            soImplementations,
+            ECallingConvention::Simple);
+
+        builder.RegisterFunction(
+            "invalid_ir",
+            std::vector<TType>{EValueType::Int64},
+            EValueType::Int64,
+            TSharedRef(invalid_ir_bc, invalid_ir_bc_len, nullptr),
+            ECallingConvention::Simple);
+
+        builder.RegisterFunction(
+            "abs_udf_arity",
+            "abs_udf",
+            std::vector<TType>{EValueType::Int64, EValueType::Int64},
+            EValueType::Int64,
+            bcImplementations,
+            ECallingConvention::Simple);
+
+        builder.RegisterFunction(
+            "abs_udf_double",
+            "abs_udf",
+            std::vector<TType>{EValueType::Double},
+            EValueType::Int64,
+            bcImplementations,
+            ECallingConvention::Simple);
+
+        builder.RegisterAggregate(
+            "max_udaf",
+            std::unordered_map<TTypeArgument, TUnionType>(),
+            EValueType::Uint64,
+            EValueType::Uint64,
+            EValueType::Uint64,
+            soImplementations,
+            ECallingConvention::Simple);
+
+        builder.RegisterFunction(
+            "abs_udf_o",
+            "abs_udf",
+            std::vector<TType>{EValueType::Int64},
+            EValueType::Int64,
+            soImplementations,
+            ECallingConvention::Simple);
+
+        builder.RegisterFunction(
+            "throw_if_negative_udf",
+            std::vector<TType>{EValueType::Int64},
+            EValueType::Int64,
+            bcImplementations,
+            ECallingConvention::Simple);
+
     }
 
     virtual void TearDown() override
@@ -557,8 +610,7 @@ protected:
         const std::vector<Stroka>& owningSource,
         const TResultMatcher& resultMatcher,
         i64 inputRowLimit = std::numeric_limits<i64>::max(),
-        i64 outputRowLimit = std::numeric_limits<i64>::max(),
-        IFunctionRegistryPtr functionRegistry = CreateBuiltinFunctionRegistry())
+        i64 outputRowLimit = std::numeric_limits<i64>::max())
     {
         std::vector<std::vector<Stroka>> owningSources(1, owningSource);
         std::map<Stroka, TDataSplit> dataSplits;
@@ -573,8 +625,7 @@ protected:
                 resultMatcher,
                 inputRowLimit,
                 outputRowLimit,
-                EFailureLocation::Nowhere,
-                functionRegistry)
+                EFailureLocation::Nowhere)
             .Get()
             .ThrowOnError();
     }
@@ -585,8 +636,7 @@ protected:
         const std::vector<std::vector<Stroka>>& owningSources,
         const TResultMatcher& resultMatcher,
         i64 inputRowLimit = std::numeric_limits<i64>::max(),
-        i64 outputRowLimit = std::numeric_limits<i64>::max(),
-        IFunctionRegistryPtr functionRegistry = CreateBuiltinFunctionRegistry())
+        i64 outputRowLimit = std::numeric_limits<i64>::max())
     {
         BIND(&TQueryEvaluateTest::DoEvaluate, this)
             .AsyncVia(ActionQueue_->GetInvoker())
@@ -597,8 +647,7 @@ protected:
                 resultMatcher,
                 inputRowLimit,
                 outputRowLimit,
-                EFailureLocation::Nowhere,
-                functionRegistry)
+                EFailureLocation::Nowhere)
             .Get()
             .ThrowOnError();
     }
@@ -609,8 +658,7 @@ protected:
         const std::vector<Stroka>& owningSource,
         EFailureLocation failureLocation,
         i64 inputRowLimit = std::numeric_limits<i64>::max(),
-        i64 outputRowLimit = std::numeric_limits<i64>::max(),
-        IFunctionRegistryPtr functionRegistry = CreateBuiltinFunctionRegistry())
+        i64 outputRowLimit = std::numeric_limits<i64>::max())
     {
         std::vector<std::vector<Stroka>> owningSources(1, owningSource);
         std::map<Stroka, TDataSplit> dataSplits;
@@ -625,8 +673,7 @@ protected:
                 [] (std::vector<TRow>, const TTableSchema&) { },
                 inputRowLimit,
                 outputRowLimit,
-                failureLocation,
-                functionRegistry)
+                failureLocation)
             .Get()
             .ThrowOnError();
     }
@@ -638,19 +685,22 @@ protected:
         const TResultMatcher& resultMatcher,
         i64 inputRowLimit,
         i64 outputRowLimit,
-        EFailureLocation failureLocation,
-        IFunctionRegistryPtr functionRegistry)
+        EFailureLocation failureLocation)
     {
         for (const auto& dataSplit : dataSplits) {
             EXPECT_CALL(PrepareMock_, GetInitialSplit(TRichYPath(dataSplit.first), _))
                 .WillOnce(Return(WrapInFuture(dataSplit.second)));
         }
 
+        auto fetchFunctions = [&] (const std::vector<Stroka>& names, const TTypeInferrerMapPtr& typeInferrers) {
+            MergeFrom(typeInferrers.Get(), TypeInferers_.Get());
+        };
+
         auto prepareAndExecute = [&] () {
             TQueryPtr primaryQuery;
             TDataRanges primaryDataSource;
             std::tie(primaryQuery, primaryDataSource) = PreparePlanFragment(
-                &PrepareMock_, query, functionRegistry, inputRowLimit, outputRowLimit);
+                &PrepareMock_, query, fetchFunctions, inputRowLimit, outputRowLimit);
 
             size_t foreignSplitIndex = 1;
             auto executeCallback = [&] (
@@ -662,7 +712,8 @@ protected:
             {
                 return MakeFuture(DoExecuteQuery(
                     owningSources[foreignSplitIndex++],
-                    functionRegistry,
+                    FunctionProfilers_,
+                    AggregateProfilers_,
                     failureLocation,
                     subquery,
                     writer));
@@ -675,7 +726,8 @@ protected:
 
             DoExecuteQuery(
                 owningSources.front(),
-                functionRegistry,
+                FunctionProfilers_,
+                AggregateProfilers_,
                 failureLocation,
                 primaryQuery,
                 writer,
@@ -698,13 +750,10 @@ protected:
     TActionQueuePtr ActionQueue_;
     TColumnEvaluatorCachePtr ColumnEvaluatorCache_;
 
-    IFunctionDescriptorPtr AbsUdf_;
-    IFunctionDescriptorPtr ExpUdf_;
-    IFunctionDescriptorPtr StrtolUdf_;
-    IFunctionDescriptorPtr TolowerUdf_;
-    IFunctionDescriptorPtr IsNullUdf_;
-    IFunctionDescriptorPtr SumUdf_;
-    IFunctionDescriptorPtr SeventyFiveUdf_;
+    TTypeInferrerMapPtr TypeInferers_ = New<TTypeInferrerMap>();
+    TFunctionProfilerMapPtr FunctionProfilers_ = New<TFunctionProfilerMap>();
+    TAggregateProfilerMapPtr AggregateProfilers_ = New<TAggregateProfilerMap>();
+
 };
 
 std::vector<TOwningRow> BuildRows(std::initializer_list<const char*> rowsData, const TDataSplit& split)
@@ -822,7 +871,7 @@ TEST_F(TQueryEvaluateTest, SimpleBetweenAnd)
     });
 
     std::vector<Stroka> source = {
-        "a=4;b=5", 
+        "a=4;b=5",
         "a=10;b=11",
         "a=15;b=11"
     };
@@ -842,7 +891,7 @@ TEST_F(TQueryEvaluateTest, SimpleIn)
     });
 
     std::vector<Stroka> source = {
-        "a=4;b=5", 
+        "a=4;b=5",
         "a=-10;b=11",
         "a=15;b=11"
     };
@@ -944,7 +993,7 @@ TEST_F(TQueryEvaluateTest, SimpleStrings2)
         "s=baz; u=x",
         "s=olala; u=z"
     };
-    
+
     auto result = BuildRows({
         "s=foo; u=x",
         "s=baz; u=x"
@@ -1439,7 +1488,7 @@ TEST_F(TQueryEvaluateTest, TestIf)
         "x=b;t=251.",
         "x=a;t=201."
     }, resultSplit);
-    
+
     Evaluate("if(q = 4, \"a\", \"b\") as x, double(sum(b)) + 1.0 as t FROM [//t] group by if(a % 2 = 0, 4, 5) as"
                  " q", split, source, ResultMatcher(result));
 
@@ -1558,7 +1607,7 @@ TEST_F(TQueryEvaluateTest, TestTypeInference)
         "x=b;t=251.",
         "x=a;t=201."
     }, resultSplit);
-    
+
     Evaluate("if(int64(q) = 4, \"a\", \"b\") as x, double(sum(uint64(b) * 1u)) + 1.0 as t FROM [//t] group by if"
                  "(a % 2 = 0, double(4u), 5.0) as q", split, source, ResultMatcher(result));
 
@@ -2124,7 +2173,7 @@ TEST_F(TQueryEvaluateTest, TestOrderBy)
     });
 
     std::vector<Stroka> source;
-    
+
     for (int i = 0; i < 10000; ++i) {
         auto value = std::rand() % 100000 + 10000;
         source.push_back(Stroka() + "a=" + ToString(value) + ";b=" + ToString(value * 10));
@@ -2136,7 +2185,7 @@ TEST_F(TQueryEvaluateTest, TestOrderBy)
     }
 
     std::vector<TOwningRow> result;
-    
+
     for (const auto& row : source) {
         result.push_back(BuildRow(row, split, false));
     }
@@ -2179,10 +2228,7 @@ TEST_F(TQueryEvaluateTest, TestUdf)
         "x=10"
     }, resultSplit);
 
-    auto registry = New<StrictMock<TFunctionRegistryMock>>();
-    registry->WithFunction(AbsUdf_);
-
-    Evaluate("abs_udf(a) as x FROM [//t]", split, source, ResultMatcher(result), std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max(), registry);
+    Evaluate("abs_udf(a) as x FROM [//t]", split, source, ResultMatcher(result));
 
     SUCCEED();
 }
@@ -2211,10 +2257,7 @@ TEST_F(TQueryEvaluateTest, TestZeroArgumentUdf)
         "a=75u"
     }, resultSplit);
 
-    auto registry = New<StrictMock<TFunctionRegistryMock>>();
-    registry->WithFunction(SeventyFiveUdf_);
-
-    Evaluate("a FROM [//t] where a = seventyfive()", split, source, ResultMatcher(result), std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max(), registry);
+    Evaluate("a FROM [//t] where a = seventyfive()", split, source, ResultMatcher(result));
 
     SUCCEED();
 }
@@ -2230,22 +2273,7 @@ TEST_F(TQueryEvaluateTest, TestInvalidUdfImpl)
         "a=1;b=10",
     };
 
-    auto fileRef = TSharedRef(
-        invalid_ir_bc,
-        invalid_ir_bc_len,
-        nullptr);
-
-    auto invalidUdfDescriptor = New<TUserDefinedFunction>(
-        "invalid_ir",
-        std::vector<TType>{EValueType::Int64},
-        EValueType::Int64,
-        fileRef,
-        ECallingConvention::Simple);
-
-    auto registry = New<StrictMock<TFunctionRegistryMock>>();
-    registry->WithFunction(invalidUdfDescriptor);
-
-    EvaluateExpectingError("invalid_ir(a) as x FROM [//t]", split, source, EFailureLocation::Codegen, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max(), registry);
+    EvaluateExpectingError("invalid_ir(a) as x FROM [//t]", split, source, EFailureLocation::Codegen);
 }
 
 TEST_F(TQueryEvaluateTest, TestInvalidUdfArity)
@@ -2259,22 +2287,7 @@ TEST_F(TQueryEvaluateTest, TestInvalidUdfArity)
         "a=1;b=10",
     };
 
-    auto fileRef = TSharedRef(
-        test_udfs_bc,
-        test_udfs_bc_len,
-        nullptr);
-
-    auto twoArgumentUdf = New<TUserDefinedFunction>(
-        "abs_udf",
-        std::vector<TType>{EValueType::Int64, EValueType::Int64},
-        EValueType::Int64,
-        fileRef,
-        ECallingConvention::Simple);
-
-    auto registry = New<StrictMock<TFunctionRegistryMock>>();
-    registry->WithFunction(twoArgumentUdf);
-
-    EvaluateExpectingError("abs_udf(a, b) as x FROM [//t]", split, source, EFailureLocation::Codegen, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max(), registry);
+    EvaluateExpectingError("abs_udf_arity(a, b) as x FROM [//t]", split, source, EFailureLocation::Codegen);
 }
 
 TEST_F(TQueryEvaluateTest, TestInvalidUdfType)
@@ -2288,22 +2301,8 @@ TEST_F(TQueryEvaluateTest, TestInvalidUdfType)
         "a=1;b=10",
     };
 
-    auto fileRef = TSharedRef(
-        test_udfs_bc,
-        test_udfs_bc_len,
-        nullptr);
-
-    auto invalidArgumentUdf = New<TUserDefinedFunction>(
-        "abs_udf",
-        std::vector<TType>{EValueType::Double},
-        EValueType::Int64,
-        fileRef,
-        ECallingConvention::Simple);
-
-    auto registry = New<StrictMock<TFunctionRegistryMock>>();
-    registry->WithFunction(invalidArgumentUdf);
-
-    EvaluateExpectingError("abs_udf(a) as x FROM [//t]", split, source, EFailureLocation::Codegen, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max(), registry);
+    EvaluateExpectingError("abs_udf_double(a) as x FROM [//t]", split, source, EFailureLocation::Codegen,
+    std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max());
 }
 
 TEST_F(TQueryEvaluateTest, TestUdfNullPropagation)
@@ -2331,10 +2330,7 @@ TEST_F(TQueryEvaluateTest, TestUdfNullPropagation)
         "x=10"
     }, resultSplit);
 
-    auto registry = New<StrictMock<TFunctionRegistryMock>>();
-    registry->WithFunction(AbsUdf_);
-
-    Evaluate("abs_udf(b) as x FROM [//t]", split, source, ResultMatcher(result), std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max(), registry);
+    Evaluate("abs_udf(b) as x FROM [//t]", split, source, ResultMatcher(result));
 
     SUCCEED();
 }
@@ -2364,10 +2360,7 @@ TEST_F(TQueryEvaluateTest, TestUdfNullPropagation2)
         ""
     }, resultSplit);
 
-    auto registry = New<StrictMock<TFunctionRegistryMock>>();
-    registry->WithFunction(ExpUdf_);
-
-    Evaluate("exp_udf(a, b) as x FROM [//t]", split, source, ResultMatcher(result), std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max(), registry);
+    Evaluate("exp_udf(a, b) as x FROM [//t]", split, source, ResultMatcher(result));
 
     SUCCEED();
 }
@@ -2396,10 +2389,7 @@ TEST_F(TQueryEvaluateTest, TestUdfStringArgument)
         ""
     }, resultSplit);
 
-    auto registry = New<StrictMock<TFunctionRegistryMock>>();
-    registry->WithFunction(StrtolUdf_);
-
-    Evaluate("strtol_udf(a) as x FROM [//t]", split, source, ResultMatcher(result), std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max(), registry);
+    Evaluate("strtol_udf(a) as x FROM [//t]", split, source, ResultMatcher(result));
 
     SUCCEED();
 }
@@ -2428,10 +2418,7 @@ TEST_F(TQueryEvaluateTest, TestUdfStringResult)
         ""
     }, resultSplit);
 
-    auto registry = New<StrictMock<TFunctionRegistryMock>>();
-    registry->WithFunction(TolowerUdf_);
-
-    Evaluate("tolower_udf(a) as x FROM [//t]", split, source, ResultMatcher(result), std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max(), registry);
+    Evaluate("tolower_udf(a) as x FROM [//t]", split, source, ResultMatcher(result));
 
     SUCCEED();
 }
@@ -2458,10 +2445,7 @@ TEST_F(TQueryEvaluateTest, TestUnversionedValueUdf)
         "x=%true"
     }, resultSplit);
 
-    auto registry = New<StrictMock<TFunctionRegistryMock>>();
-    registry->WithFunction(IsNullUdf_);
-
-    Evaluate("is_null_udf(a) as x FROM [//t]", split, source, ResultMatcher(result), std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max(), registry);
+    Evaluate("is_null_udf(a) as x FROM [//t]", split, source, ResultMatcher(result));
 
     SUCCEED();
 }
@@ -2486,10 +2470,7 @@ TEST_F(TQueryEvaluateTest, TestVarargUdf)
         "x=2"
     }, resultSplit);
 
-    auto registry = New<StrictMock<TFunctionRegistryMock>>();
-    registry->WithFunction(SumUdf_);
-
-    Evaluate("a as x FROM [//t] where sum_udf(7, 3, a) in (11, 12)", split, source, ResultMatcher(result), std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max(), registry);
+    Evaluate("a as x FROM [//t] where sum_udf(7, 3, a) in (11, 12)", split, source, ResultMatcher(result));
 
     SUCCEED();
 }
@@ -2519,23 +2500,7 @@ TEST_F(TQueryEvaluateTest, TestObjectUdf)
         ""
     }, resultSplit);
 
-    auto testUdfObjectImpl = TSharedRef(
-        test_udfs_o_o,
-        test_udfs_o_o_len,
-        nullptr);
-
-    auto registry = New<StrictMock<TFunctionRegistryMock>>();
-    auto expUdf = New<TUserDefinedFunction>(
-        "exp_udf",
-        std::vector<TType>{
-            EValueType::Int64,
-            EValueType::Int64},
-        EValueType::Int64,
-        testUdfObjectImpl,
-        ECallingConvention::Simple);
-    registry->WithFunction(expUdf);
-
-    Evaluate("exp_udf(b, a) as x FROM [//t]", split, source, ResultMatcher(result), std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max(), registry);
+    Evaluate("exp_udf_o(b, a) as x FROM [//t]", split, source, ResultMatcher(result));
 
     SUCCEED();
 }
@@ -2562,7 +2527,7 @@ TEST_F(TQueryEvaluateTest, TestFarmHash)
         "x=1607147011416532415u"
     }, resultSplit);
 
-    Evaluate("farm_hash(a, b, c) as x FROM [//t]", split, source, ResultMatcher(result), std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max());
+    Evaluate("farm_hash(a, b, c) as x FROM [//t]", split, source, ResultMatcher(result));
 
     SUCCEED();
 }
@@ -2589,7 +2554,7 @@ TEST_F(TQueryEvaluateTest, TestRegexFullMatch)
         "x=%false",
     }, resultSplit);
 
-    Evaluate("regex_full_match(\"hel[a-z]\", a) as x FROM [//t]", split, source, ResultMatcher(result), std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max());
+    Evaluate("regex_full_match(\"hel[a-z]\", a) as x FROM [//t]", split, source, ResultMatcher(result));
 
     SUCCEED();
 }
@@ -2616,7 +2581,7 @@ TEST_F(TQueryEvaluateTest, TestRegexPartialMatch)
         "x=%false",
     }, resultSplit);
 
-    Evaluate("regex_partial_match(\"[0-9]+\", a) as x FROM [//t]", split, source, ResultMatcher(result), std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max());
+    Evaluate("regex_partial_match(\"[0-9]+\", a) as x FROM [//t]", split, source, ResultMatcher(result));
 
     SUCCEED();
 }
@@ -2641,7 +2606,7 @@ TEST_F(TQueryEvaluateTest, TestRegexReplaceFirst)
         "",
     }, resultSplit);
 
-    Evaluate("regex_replace_first(\"[0-9]+\", a, \"_\") as x FROM [//t]", split, source, ResultMatcher(result), std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max());
+    Evaluate("regex_replace_first(\"[0-9]+\", a, \"_\") as x FROM [//t]", split, source, ResultMatcher(result));
 
     SUCCEED();
 }
@@ -2666,7 +2631,7 @@ TEST_F(TQueryEvaluateTest, TestRegexReplaceAll)
         "",
     }, resultSplit);
 
-    Evaluate("regex_replace_all(\"[0-9]+\", a, \"_\") as x FROM [//t]", split, source, ResultMatcher(result), std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max());
+    Evaluate("regex_replace_all(\"[0-9]+\", a, \"_\") as x FROM [//t]", split, source, ResultMatcher(result));
 
     SUCCEED();
 }
@@ -2691,7 +2656,7 @@ TEST_F(TQueryEvaluateTest, TestRegexExtract)
         "",
     }, resultSplit);
 
-    Evaluate("regex_extract(\"([a-z]*)@(.*).com\", a, \"\\\\1 at \\\\2\") as x FROM [//t]", split, source, ResultMatcher(result), std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max());
+    Evaluate("regex_extract(\"([a-z]*)@(.*).com\", a, \"\\\\1 at \\\\2\") as x FROM [//t]", split, source, ResultMatcher(result));
 
     SUCCEED();
 }
@@ -2716,7 +2681,7 @@ TEST_F(TQueryEvaluateTest, TestRegexEscape)
         "",
     }, resultSplit);
 
-    Evaluate("regex_escape(a) as x FROM [//t]", split, source, ResultMatcher(result), std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max());
+    Evaluate("regex_escape(a) as x FROM [//t]", split, source, ResultMatcher(result));
 
     SUCCEED();
 }
@@ -2897,22 +2862,7 @@ TEST_F(TQueryEvaluateTest, TestObjectUdaf)
         "r=333u"
     }, resultSplit);
 
-    auto testUdfObjectImpl = TSharedRef(
-        test_udfs_o_o,
-        test_udfs_o_o_len,
-        nullptr);
-
-    auto registry = New<StrictMock<TFunctionRegistryMock>>();
-    registry->WithFunction(New<TUserDefinedAggregateFunction>(
-        "max_udaf",
-        std::unordered_map<TTypeArgument, TUnionType>(),
-        EValueType::Uint64,
-        EValueType::Uint64,
-        EValueType::Uint64,
-        testUdfObjectImpl,
-        ECallingConvention::Simple));
-
-    Evaluate("max_udaf(a) as r from [//t] group by 1", split, source, ResultMatcher(result), std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max(), registry);
+    Evaluate("max_udaf(a) as r from [//t] group by 1", split, source, ResultMatcher(result));
 }
 
 TEST_F(TQueryEvaluateTest, TestLinkingError1)
@@ -2925,12 +2875,8 @@ TEST_F(TQueryEvaluateTest, TestLinkingError1)
         "a=3",
     };
 
-    auto registry = New<StrictMock<TFunctionRegistryMock>>();
-    registry->WithFunction(AbsUdf_);
-    registry->WithFunction(ExpUdf_);
-
-    EvaluateExpectingError("exp_udf(abs_udf(a), 3) from [//t]", split, source, EFailureLocation::Codegen, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max(), registry);
-    EvaluateExpectingError("abs_udf(exp_udf(a, 3)) from [//t]", split, source, EFailureLocation::Codegen, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max(), registry);
+    EvaluateExpectingError("exp_udf(abs_udf(a), 3) from [//t]", split, source, EFailureLocation::Codegen);
+    EvaluateExpectingError("abs_udf(exp_udf(a, 3)) from [//t]", split, source, EFailureLocation::Codegen);
 }
 
 TEST_F(TQueryEvaluateTest, TestLinkingError2)
@@ -2943,23 +2889,8 @@ TEST_F(TQueryEvaluateTest, TestLinkingError2)
         "a=3"
     };
 
-    auto testUdfObjectImpl = TSharedRef(
-        test_udfs_o_o,
-        test_udfs_o_o_len,
-        nullptr);
-    auto absUdfSo = New<TUserDefinedFunction>(
-        "abs_udf",
-        std::vector<TType>{EValueType::Int64},
-        EValueType::Int64,
-        testUdfObjectImpl,
-        ECallingConvention::Simple);
-
-    auto registry = New<StrictMock<TFunctionRegistryMock>>();
-    registry->WithFunction(absUdfSo);
-    registry->WithFunction(SumUdf_);
-
-    EvaluateExpectingError("sum_udf(abs_udf(a), 3) as r from [//t]", split, source, EFailureLocation::Codegen, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max(), registry);
-    EvaluateExpectingError("abs_udf(sum_udf(a, 3)) as r from [//t]", split, source, EFailureLocation::Codegen, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max(), registry);
+    EvaluateExpectingError("sum_udf(abs_udf_o(a), 3) as r from [//t]", split, source, EFailureLocation::Codegen);
+    EvaluateExpectingError("abs_udf_o(sum_udf(a, 3)) as r from [//t]", split, source, EFailureLocation::Codegen);
 }
 
 TEST_F(TQueryEvaluateTest, TestLinkingError3)
@@ -2972,29 +2903,8 @@ TEST_F(TQueryEvaluateTest, TestLinkingError3)
         "a=3"
     };
 
-    auto testUdfObjectImpl = TSharedRef(
-        test_udfs_o_o,
-        test_udfs_o_o_len,
-        nullptr);
-    auto absUdfSo = New<TUserDefinedFunction>(
-        "abs_udf",
-        std::vector<TType>{EValueType::Int64},
-        EValueType::Int64,
-        testUdfObjectImpl,
-        ECallingConvention::Simple);
-    auto expUdfSo = New<TUserDefinedFunction>(
-        "exp_udf",
-        std::vector<TType>{EValueType::Int64, EValueType::Int64},
-        EValueType::Int64,
-        testUdfObjectImpl,
-        ECallingConvention::Simple);
-
-    auto registry = New<StrictMock<TFunctionRegistryMock>>();
-    registry->WithFunction(absUdfSo);
-    registry->WithFunction(expUdfSo);
-
-    EvaluateExpectingError("abs_udf(exp_udf(a, 3)) as r from [//t]", split, source, EFailureLocation::Codegen, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max(), registry);
-    EvaluateExpectingError("exp_udf(abs_udf(a), 3) as r from [//t]", split, source, EFailureLocation::Codegen, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max(), registry);
+    EvaluateExpectingError("abs_udf_o(exp_udf_o(a, 3)) as r from [//t]", split, source, EFailureLocation::Codegen);
+    EvaluateExpectingError("exp_udf_o(abs_udf_o(a), 3) as r from [//t]", split, source, EFailureLocation::Codegen);
 }
 
 TEST_F(TQueryEvaluateTest, TestCasts)
@@ -3040,18 +2950,6 @@ TEST_F(TQueryEvaluateTest, TestUdfException)
         "a=-3",
     };
 
-    auto registry = New<StrictMock<TFunctionRegistryMock>>();
-    auto throwImpl = TSharedRef(
-        test_udfs_bc,
-        test_udfs_bc_len,
-        nullptr);
-    auto throwUdf = New<TUserDefinedFunction>(
-        "throw_if_negative_udf",
-        std::vector<TType>{EValueType::Int64},
-        EValueType::Int64,
-        throwImpl,
-        ECallingConvention::Simple);
-    
     auto resultSplit = MakeSplit({
         {"r", EValueType::Int64},
     });
@@ -3059,9 +2957,7 @@ TEST_F(TQueryEvaluateTest, TestUdfException)
     auto result = BuildRows({
     }, resultSplit);
 
-    registry->WithFunction(throwUdf);
-
-    EvaluateExpectingError("throw_if_negative_udf(a) from [//t]", split, source, EFailureLocation::Execution, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max(), registry);
+    EvaluateExpectingError("throw_if_negative_udf(a) from [//t]", split, source, EFailureLocation::Execution);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

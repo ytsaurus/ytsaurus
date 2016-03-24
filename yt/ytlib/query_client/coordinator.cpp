@@ -1,6 +1,5 @@
 #include "coordinator.h"
 #include "private.h"
-#include "functions.h"
 #include "helpers.h"
 #include "plan_fragment.h"
 #include "plan_helpers.h"
@@ -166,7 +165,7 @@ TRowRanges GetPrunedRanges(
     TSharedRange<TRowRange> ranges,
     const TRowBufferPtr& rowBuffer,
     const TColumnEvaluatorCachePtr& evaluatorCache,
-    const IFunctionRegistryPtr functionRegistry,
+    const TConstRangeExtractorMapPtr& rangeExtractors,
     ui64 rangeExpansionLimit,
     bool verboseLogging,
     const NLogging::TLogger& Logger)
@@ -178,7 +177,7 @@ TRowRanges GetPrunedRanges(
         tableSchema,
         keyColumns,
         evaluatorCache,
-        functionRegistry,
+        rangeExtractors,
         rangeExpansionLimit,
         verboseLogging);
 
@@ -212,7 +211,7 @@ TRowRanges GetPrunedRanges(
     TSharedRange<TRowRange> ranges,
     const TRowBufferPtr& rowBuffer,
     const TColumnEvaluatorCachePtr& evaluatorCache,
-    const IFunctionRegistryPtr functionRegistry,
+    const TConstRangeExtractorMapPtr& rangeExtractors,
     ui64 rangeExpansionLimit,
     bool verboseLogging)
 {
@@ -225,7 +224,7 @@ TRowRanges GetPrunedRanges(
         std::move(ranges),
         rowBuffer,
         evaluatorCache,
-        functionRegistry,
+        rangeExtractors,
         rangeExpansionLimit,
         verboseLogging,
         Logger);

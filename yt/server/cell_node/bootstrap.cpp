@@ -73,7 +73,6 @@
 
 #include <yt/ytlib/orchid/orchid_service.h>
 
-#include <yt/ytlib/query_client/function_registry.h>
 #include <yt/ytlib/query_client/column_evaluator.h>
 
 #include <yt/core/bus/config.h>
@@ -303,7 +302,7 @@ void TBootstrap::DoRun()
     auto localInterconnectAddress = GetInterconnectAddress(localAddresses);
 
     JobProxyConfig = New<NJobProxy::TJobProxyConfig>();
-    
+
     JobProxyConfig->ClusterConnection = CloneYsonSerializable(Config->ClusterConnection);
 
     auto patchMasterConnectionConfig = [&] (TMasterConnectionConfigPtr config) {
@@ -403,8 +402,7 @@ void TBootstrap::DoRun()
     SchedulerConnector = New<TSchedulerConnector>(Config->ExecAgent->SchedulerConnector, this);
 
     ColumnEvaluatorCache = New<NQueryClient::TColumnEvaluatorCache>(
-        New<NQueryClient::TColumnEvaluatorCacheConfig>(),
-        NQueryClient::CreateBuiltinFunctionRegistry());
+        New<NQueryClient::TColumnEvaluatorCacheConfig>());
 
     TabletSlotManager = New<NTabletNode::TSlotManager>(Config->TabletNode, this);
     MasterConnector->SubscribePopulateAlerts(BIND(&NTabletNode::TSlotManager::PopulateAlerts, TabletSlotManager));

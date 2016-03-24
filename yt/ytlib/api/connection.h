@@ -8,6 +8,8 @@
 
 #include <yt/ytlib/query_client/public.h>
 
+#include <yt/ytlib/object_client/public.h>
+
 #include <yt/ytlib/security_client/public.h>
 
 #include <yt/ytlib/tablet_client/public.h>
@@ -50,7 +52,7 @@ DEFINE_ENUM(EMasterChannelKind,
 /*
  *  IConnection instance caches most of the stuff needed for fast interaction
  *  with the cluster (e.g. connection channels, mount info etc).
- *  
+ *
  *  Thread affinity: any
  */
 struct IConnection
@@ -74,7 +76,7 @@ struct IConnection
     virtual NTabletClient::TTableMountCachePtr GetTableMountCache() = 0;
     virtual NTransactionClient::ITimestampProviderPtr GetTimestampProvider() = 0;
     virtual NHive::TCellDirectoryPtr GetCellDirectory() = 0;
-    virtual NQueryClient::IFunctionRegistryPtr GetFunctionRegistry() = 0;
+
     virtual NQueryClient::TEvaluatorPtr GetQueryEvaluator() = 0;
     virtual NQueryClient::TColumnEvaluatorCachePtr GetColumnEvaluatorCache() = 0;
     virtual IInvokerPtr GetLightInvoker() = 0;

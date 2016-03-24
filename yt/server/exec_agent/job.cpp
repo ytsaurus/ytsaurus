@@ -526,16 +526,37 @@ private:
 
         if (schedulerJobSpecExt.has_user_job_spec()) {
             const auto& userJobSpec = schedulerJobSpecExt.user_job_spec();
+
+            std::vector<TArtifactInfo> infos;
             for (const auto& descriptor : userJobSpec.files()) {
-                PrepareFile(ESandboxKind::User, descriptor);
+                infos.push_back(TArtifactInfo{
+                    descriptor.file_name(),
+                    descriptor.executable(),
+                    TArtifactKey(descriptor)});
+
             }
+
+            PrepareFiles(ESandboxKind::User, infos);
         }
 
         if (schedulerJobSpecExt.has_input_query_spec()) {
             const auto& querySpec = schedulerJobSpecExt.input_query_spec();
-            for (const auto& descriptor : querySpec.udf_files()) {
-                PrepareFile(ESandboxKind::Udf, descriptor);
+
+            AuxNodeDirectory_->MergeFrom(querySpec.node_directory());
+
+            std::vector<TArtifactInfo> infos;
+            for (const auto& cgInfo : querySpec.cg_info()) {
+                TArtifactKey key;
+                key.set_type(static_cast<int>(NObjectClient::EObjectType::File));
+                key.mutable_chunks()->MergeFrom(cgInfo.chunk_specs());
+
+                infos.push_back(TArtifactInfo{
+                    cgInfo.name(),
+                    false,
+                    key});
             }
+
+            PrepareFiles(ESandboxKind::Udf, infos);
         }
     }
 
@@ -607,43 +628,62 @@ private:
         FinalizeJob();
     }
 
-    void PrepareFile(ESandboxKind sandboxKind, const TFileDescriptor& descriptor)
+    struct TArtifactInfo
     {
-        const auto& fileName = descriptor.file_name();
-        bool isExecutable = descriptor.executable();
-        LOG_INFO("Preparing user file (FileName: %v, Executable: %v)",
-            fileName,
-            isExecutable);
+        Stroka Name;
+        bool IsExecutable;
+        TArtifactKey Key;
+    };
 
-        TArtifactKey key(descriptor);
+    void PrepareFiles(ESandboxKind sandboxKind, const std::vector<TArtifactInfo>& infos)
+    {
         auto chunkCache = Bootstrap_->GetChunkCache();
-        auto chunkOrError = WaitFor(chunkCache->PrepareArtifact(
-            key,
-            AuxNodeDirectory_));
 
-        YCHECK(JobPhase_ == EJobPhase::PreparingFiles);
-        THROW_ERROR_EXCEPTION_IF_FAILED(chunkOrError,
-            "Failed to prepare user file %Qv",
-            fileName);
+        std::vector<TFuture<IChunkPtr>> asyncChunks;
+        for (const auto& info : infos) {
 
-        const auto& chunk = chunkOrError.Value();
-        CachedChunks_.push_back(chunk);
+            LOG_INFO("Preparing user file (FileName: %v, Executable: %v)",
+                info.Name,
+                info.IsExecutable);
 
-        try {
-            Slot_->MakeLink(
-                sandboxKind,
-                chunk->GetFileName(),
-                fileName,
-                isExecutable);
-        } catch (const std::exception& ex) {
-            THROW_ERROR_EXCEPTION(
-                "Failed to create a symlink for user file %Qv",
-                fileName)
-                << ex;
+            auto asyncChunk = chunkCache->PrepareArtifact(info.Key, AuxNodeDirectory_)
+                .Apply(BIND([fileName = info.Name] (const TErrorOr<IChunkPtr>& chunkOrError) {
+                    THROW_ERROR_EXCEPTION_IF_FAILED(chunkOrError,
+                        "Failed to prepare user file %Qv",
+                        fileName);
+
+                    return chunkOrError
+                        .Value();
+                }));
+
+            asyncChunks.push_back(asyncChunk);
         }
 
-        LOG_INFO("User file prepared successfully (FileName: %v)",
-            fileName);
+        auto chunks = WaitFor(Combine(asyncChunks))
+            .ValueOrThrow();
+
+        CachedChunks_.insert(CachedChunks_.end(), chunks.begin(), chunks.end());
+
+        for (size_t index = 0; index < chunks.size(); ++index) {
+            const auto& info = infos[index];
+            const auto& chunk = chunks[index];
+
+            try {
+                Slot_->MakeLink(
+                    sandboxKind,
+                    chunk->GetFileName(),
+                    info.Name,
+                    info.IsExecutable);
+            } catch (const std::exception& ex) {
+                THROW_ERROR_EXCEPTION(
+                    "Failed to create a symlink for user file %Qv",
+                    info.Name)
+                    << ex;
+            }
+
+            LOG_INFO("User file prepared successfully (FileName: %v)",
+                info.Name);
+        }
     }
 
     TNullable<EAbortReason> GetAbortReason(const TJobResult& jobResult)

@@ -2,6 +2,9 @@
 
 #include "public.h"
 
+#include <yt/ytlib/table_client/unversioned_row.h>
+#include <yt/ytlib/misc/workload.h>
+
 namespace NYT {
 namespace NQueryClient {
 
@@ -70,6 +73,39 @@ bool IsLogicalBinaryOp(EBinaryOp opcode);
 
 //! Classifies binary opcode according to classification above.
 bool IsRelationalBinaryOp(EBinaryOp opcode);
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TDataRange
+{
+    //! Either a chunk id or tablet id.
+    NObjectClient::TObjectId Id;
+    TRowRange Range;
+};
+
+struct TDataRanges
+{
+    //! Either a chunk id or tablet id.
+    NObjectClient::TObjectId Id;
+    TSharedRange<TRowRange> Ranges;
+};
+
+struct TDataKeys
+{
+    //! Either a chunk id or tablet id.
+    NObjectClient::TObjectId Id;
+    TSharedRange<TRow> Keys;
+};
+
+struct TQueryOptions
+{
+    NTransactionClient::TTimestamp Timestamp = NTransactionClient::SyncLastCommittedTimestamp;
+    bool VerboseLogging = false;
+    int MaxSubqueries = std::numeric_limits<int>::max();
+    ui64 RangeExpansionLimit = 0;
+    bool EnableCodeCache = true;
+    TWorkloadDescriptor WorkloadDescriptor;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 

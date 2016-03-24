@@ -168,7 +168,7 @@ void ToProto(NProto::TExpression* serialized, TConstExpressionPtr original)
                 proto->set_uint64_value(data.Uint64);
                 break;
             }
-                
+
             case EValueType::Double: {
                 proto->set_double_value(data.Double);
                 break;
@@ -417,7 +417,7 @@ void ToProto(NProto::TQuery* proto, TConstQueryPtr original)
     if (original->OrderClause) {
         ToProto(proto->mutable_order_clause(), original->OrderClause);
     }
-    
+
     if (original->ProjectClause) {
         ToProto(proto->mutable_project_clause(), original->ProjectClause);
     }
@@ -432,35 +432,12 @@ TNamedItem FromProto(const NProto::TNamedItem& serialized)
 
 TAggregateItem FromProto(const NProto::TAggregateItem& serialized)
 {
-    Stroka aggregateFunction;
-    EValueType stateType;
-    EValueType resultType;
-    if (serialized.has_aggregate_function_name()) {
-        aggregateFunction = serialized.aggregate_function_name();
-        stateType = EValueType(serialized.state_type());
-        resultType = EValueType(serialized.result_type());
-    } else {
-        switch (EAggregateFunction(serialized.aggregate_function())) {
-            case EAggregateFunction::Min:
-                aggregateFunction = "min";
-                break;
-            case EAggregateFunction::Max:
-                aggregateFunction = "max";
-                break;
-            case EAggregateFunction::Sum:
-                aggregateFunction = "sum";
-                break;
-        }
-        stateType = EValueType(serialized.expression().type());
-        resultType = EValueType(serialized.expression().type());
-    }
-
     return TAggregateItem(
         FromProto(serialized.expression()),
-        aggregateFunction,
+        serialized.aggregate_function_name(),
         serialized.name(),
-        stateType,
-        resultType);
+        EValueType(serialized.state_type()),
+        EValueType(serialized.result_type()));
 }
 
 TJoinClausePtr FromProto(const NProto::TJoinClause& serialized)
@@ -571,7 +548,7 @@ TQueryPtr FromProto(const NProto::TQuery& serialized)
     }
 
     if (serialized.has_group_clause()) {
-        query->GroupClause = FromProto(serialized.group_clause());       
+        query->GroupClause = FromProto(serialized.group_clause());
     }
 
     if (serialized.has_having_clause()) {
@@ -579,11 +556,11 @@ TQueryPtr FromProto(const NProto::TQuery& serialized)
     }
 
     if (serialized.has_order_clause()) {
-        query->OrderClause = FromProto(serialized.order_clause());       
+        query->OrderClause = FromProto(serialized.order_clause());
     }
 
     if (serialized.has_project_clause()) {
-        query->ProjectClause = FromProto(serialized.project_clause());       
+        query->ProjectClause = FromProto(serialized.project_clause());
     }
 
     return query;

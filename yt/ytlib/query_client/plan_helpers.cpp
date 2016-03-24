@@ -1,7 +1,6 @@
 #include "plan_helpers.h"
 #include "private.h"
 #include "column_evaluator.h"
-#include "function_registry.h"
 #include "functions.h"
 #include "helpers.h"
 #include "key_trie.h"
@@ -24,7 +23,7 @@ TKeyTriePtr ExtractMultipleConstraints(
     TConstExpressionPtr expr,
     const TKeyColumns& keyColumns,
     const TRowBufferPtr& rowBuffer,
-    const IFunctionRegistryPtr& functionRegistry)
+    const TConstRangeExtractorMapPtr& rangeExtractors)
 {
     if (!expr) {
         return TKeyTrie::Universal();
@@ -37,12 +36,12 @@ TKeyTriePtr ExtractMultipleConstraints(
 
         if (opcode == EBinaryOp::And) {
             return IntersectKeyTrie(
-                ExtractMultipleConstraints(lhsExpr, keyColumns, rowBuffer, functionRegistry),
-                ExtractMultipleConstraints(rhsExpr, keyColumns, rowBuffer, functionRegistry));
+                ExtractMultipleConstraints(lhsExpr, keyColumns, rowBuffer, rangeExtractors),
+                ExtractMultipleConstraints(rhsExpr, keyColumns, rowBuffer, rangeExtractors));
         } if (opcode == EBinaryOp::Or) {
             return UniteKeyTrie(
-                ExtractMultipleConstraints(lhsExpr, keyColumns, rowBuffer, functionRegistry),
-                ExtractMultipleConstraints(rhsExpr, keyColumns, rowBuffer, functionRegistry));
+                ExtractMultipleConstraints(lhsExpr, keyColumns, rowBuffer, rangeExtractors),
+                ExtractMultipleConstraints(rhsExpr, keyColumns, rowBuffer, rangeExtractors));
         } else {
             if (rhsExpr->As<TReferenceExpression>()) {
                 // Ensure that references are on the left.
@@ -109,10 +108,17 @@ TKeyTriePtr ExtractMultipleConstraints(
             return result;
         }
     } else if (auto functionExpr = expr->As<TFunctionExpression>()) {
-        Stroka functionName = functionExpr->FunctionName;
-        auto function = functionRegistry->GetFunction(functionName);
+        auto found = rangeExtractors->find(functionExpr->FunctionName);
+        if (found == rangeExtractors->end()) {
+            return TKeyTrie::Universal();
+        }
 
-        return function->ExtractKeyRange(functionExpr, keyColumns, rowBuffer);
+        auto rangeExtractor = found->second;
+
+        return rangeExtractor(
+            functionExpr,
+            keyColumns,
+            rowBuffer);
     } else if (auto inExpr = expr->As<TInOpExpression>()) {
         int argsSize = inExpr->Arguments.size();
 

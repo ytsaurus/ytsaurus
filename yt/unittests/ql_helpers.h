@@ -7,6 +7,7 @@
 
 #include <yt/ytlib/object_client/helpers.h>
 
+#include <yt/ytlib/query_client/callbacks.h>
 #include <yt/ytlib/query_client/helpers.h>
 #include <yt/ytlib/query_client/plan_fragment.h>
 #include <yt/ytlib/query_client/query_preparer.h>

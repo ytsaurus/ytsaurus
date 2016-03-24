@@ -21,6 +21,8 @@ public:
     int MaxQueryRetries;
     int MaxBottomReaderConcurrency;
 
+    TSlruCacheConfigPtr FunctionImplCache;
+
     TQueryAgentConfig()
     {
         RegisterParameter("thread_pool_size", ThreadPoolSize)
@@ -38,6 +40,13 @@ public:
         RegisterParameter("max_bottom_reader_concurrency", MaxBottomReaderConcurrency)
             .GreaterThanOrEqual(1)
             .Default(5);
+
+        RegisterParameter("function_impl_cache", FunctionImplCache)
+            .DefaultNew();
+
+        RegisterInitializer([&] () {
+            FunctionImplCache->Capacity = 100;
+        });
     }
 };
 

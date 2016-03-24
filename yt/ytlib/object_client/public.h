@@ -22,7 +22,7 @@ class TObjectCreationExtensions;
 DEFINE_ENUM(EErrorCode,
     ((PrerequisiteCheckFailed)     (1000))
 );
-    
+
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Provides a globally unique identifier for an object.
@@ -87,7 +87,7 @@ DEFINE_ENUM(EObjectType,
     ((TransactionMap)             (407))
     ((TopmostTransactionMap)      (418))
     ((LockMap)                    (422))
-        
+
     // Chunk Manager stuff
     ((Chunk)                      (100))
     ((ErasureChunk)               (102)) // erasure chunk as a whole
@@ -121,7 +121,7 @@ DEFINE_ENUM(EObjectType,
     ((ForeignChunkMap)            (122))
     ((ChunkList)                  (101))
     ((ChunkListMap)               (406))
-        
+
     // The following represent versioned objects (AKA Cypress nodes).
     // These must be created by calling TCypressYPathProxy::Create.
     // NB: When adding a new type, don't forget to update IsVersionedType.
@@ -145,7 +145,7 @@ DEFINE_ENUM(EObjectType,
     ((Orchid)                     (412))
     ((Link)                       (417))
     ((Document)                   (421))
-    
+
     // Security Manager stuff
     ((Account)                    (500))
     ((AccountMap)                 (414))
@@ -153,7 +153,7 @@ DEFINE_ENUM(EObjectType,
     ((UserMap)                    (415))
     ((Group)                      (502))
     ((GroupMap)                   (416))
-    
+
     // Global stuff
     // A mysterious creature representing the master as a whole.
     ((Master)                     (600))
@@ -248,6 +248,9 @@ bool operator != (const TVersionedObjectId& lhs, const TVersionedObjectId& rhs);
 
 //! Compares TVersionedNodeId s for "less than" (used to sort nodes in meta-map).
 bool operator <  (const TVersionedObjectId& lhs, const TVersionedObjectId& rhs);
+
+
+class TObjectServiceProxy;
 
 } // namespace NObjectClient
 } // namespace NYT

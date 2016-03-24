@@ -11,6 +11,9 @@
 
 #include <yt/ytlib/query_client/column_evaluator.h>
 #include <yt/ytlib/query_client/evaluator.h>
+#include <yt/ytlib/query_client/functions_cache.h>
+
+#include <yt/ytlib/object_client/object_service_proxy.h>
 
 #include <yt/ytlib/scheduler/scheduler_channel.h>
 
@@ -127,11 +130,6 @@ public:
         return CellDirectory_;
     }
 
-    virtual IFunctionRegistryPtr GetFunctionRegistry() override
-    {
-        return FunctionRegistry_;
-    }
-
     virtual TEvaluatorPtr GetQueryEvaluator() override
     {
         return QueryEvaluator_;
@@ -183,12 +181,10 @@ private:
     TTableMountCachePtr TableMountCache_;
     ITimestampProviderPtr TimestampProvider_;
     TCellDirectoryPtr CellDirectory_;
-    IFunctionRegistryPtr FunctionRegistry_;
     TEvaluatorPtr QueryEvaluator_;
     TColumnEvaluatorCachePtr ColumnEvaluatorCache_;
     TThreadPoolPtr LightPool_;
     TThreadPoolPtr HeavyPool_;
-
 
     IChannelPtr CreatePeerChannel(TMasterConnectionConfigPtr config, EPeerKind kind)
     {
@@ -297,13 +293,9 @@ private:
             GetMasterChannelOrThrow(EMasterChannelKind::Cache),
             CellDirectory_);
 
-        FunctionRegistry_ = CreateClientFunctionRegistry(
-            CreateClient(TClientOptions()));
-
         QueryEvaluator_ = New<TEvaluator>(Config_->QueryEvaluator);
-        ColumnEvaluatorCache_ = New<TColumnEvaluatorCache>(
-            Config_->ColumnEvaluatorCache,
-            FunctionRegistry_);
+
+        ColumnEvaluatorCache_ = New<TColumnEvaluatorCache>(Config_->ColumnEvaluatorCache);
     }
 
     friend IConnectionPtr CreateConnection(

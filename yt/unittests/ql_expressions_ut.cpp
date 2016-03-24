@@ -7,6 +7,8 @@
 #include <yt/ytlib/query_client/plan_helpers.h>
 #include <yt/ytlib/query_client/query_preparer.h>
 #include <yt/ytlib/query_client/query_statistics.h>
+#include <yt/ytlib/query_client/functions.h>
+#include <yt/ytlib/query_client/functions_cg.h>
 
 // Tests:
 // TCompareExpressionTest
@@ -231,9 +233,7 @@ class TRefinePredicateTest
 protected:
     virtual void SetUp() override
     {
-        ColumnEvaluatorCache_ = New<TColumnEvaluatorCache>(
-            New<TColumnEvaluatorCacheConfig>(),
-            CreateBuiltinFunctionRegistry());
+        ColumnEvaluatorCache_ = New<TColumnEvaluatorCache>(New<TColumnEvaluatorCacheConfig>());
     }
 
     TConstExpressionPtr Refine(
@@ -671,7 +671,8 @@ TEST_P(TArithmeticTest, Evaluate)
     schema.AlterColumn(1, column1);
 
     auto expr = PrepareExpression(Stroka("k") + op + "l", schema);
-    auto callback = Profile(expr, schema, nullptr, &variables, &allLiteralArgs, CreateBuiltinFunctionRegistry())();
+
+    auto callback = Profile(expr, schema, nullptr, &variables, &allLiteralArgs)();
     auto row = NTableClient::BuildRow(Stroka("k=") + lhs + ";l=" + rhs, keyColumns, schema, true);
 
     TQueryStatistics statistics;
@@ -771,7 +772,7 @@ TEST_P(TCompareWithNullTest, Simple)
 
     auto row = NTableClient::BuildRow(rowString, keyColumns, schema, true);
     auto expr = PrepareExpression(exprString, schema);
-    auto callback = Profile(expr, schema, nullptr, &variables, &allLiteralArgs, CreateBuiltinFunctionRegistry())();
+    auto callback = Profile(expr, schema, nullptr, &variables, &allLiteralArgs)();
 
     TQueryStatistics statistics;
     auto permanentBuffer = New<TRowBuffer>();
@@ -848,9 +849,9 @@ TEST_P(TEvaluateAggregationTest, Basic)
     auto value2 = std::get<3>(param);
     auto expected = std::get<4>(param);
 
-    auto registry = CreateBuiltinFunctionRegistry();
-    auto aggregate = registry->GetAggregateFunction(aggregateName);
-    auto callbacks = CodegenAggregate(aggregate->MakeCodegenAggregate(type, type, type, aggregateName));
+    auto registry = BuiltinAggregateCG;
+    auto aggregate = registry->GetAggregate(aggregateName);
+    auto callbacks = CodegenAggregate(aggregate->Profile(type, type, type, aggregateName));
 
     auto permanentBuffer = New<TRowBuffer>();
     auto outputBuffer = New<TRowBuffer>();
@@ -945,7 +946,7 @@ void EvaluateExpression(
     TCGVariables variables;
     std::vector<std::vector<bool>> allLiteralArgs;
 
-    auto callback = Profile(expr, schema, nullptr, &variables, &allLiteralArgs, CreateBuiltinFunctionRegistry())();
+    auto callback = Profile(expr, schema, nullptr, &variables, &allLiteralArgs)();
 
     auto row = NTableClient::BuildRow(rowString, schema.GetKeyColumns(), schema, true);
 

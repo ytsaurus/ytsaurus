@@ -24,6 +24,7 @@
 #include <yt/ytlib/query_client/plan_fragment.h>
 #include <yt/ytlib/query_client/public.h>
 #include <yt/ytlib/query_client/query_statistics.h>
+#include <yt/ytlib/query_client/functions_cache.h>
 
 #include <yt/ytlib/table_client/helpers.h>
 #include <yt/ytlib/table_client/name_table.h>
@@ -607,7 +608,7 @@ private:
     }
 
     void PrepareInputActionsQuery(
-        const TQuerySpec& spec,
+        const TQuerySpec& querySpec,
         int jobDescriptor,
         const TFormat& format,
         TAsyncWriterPtr asyncOutput)
@@ -620,34 +621,20 @@ private:
 
         InputActions_.push_back(BIND([=] () {
             try {
-                auto query = FromProto(spec.query());
+                RunQuery(querySpec, readerFactory, [&] (TNameTablePtr nameTable) {
+                    auto schemalessWriter = CreateSchemalessWriterForFormat(
+                        format,
+                        nameTable,
+                        asyncOutput,
+                        true,
+                        Config_->JobIO->ControlAttributes,
+                        0);
 
-                auto resultSchema = query->GetTableSchema();
-                auto resultNameTable = TNameTable::FromSchema(resultSchema);
-                auto schemalessWriter = CreateSchemalessWriterForFormat(
-                    format,
-                    resultNameTable,
-                    asyncOutput,
-                    true,
-                    Config_->JobIO->ControlAttributes,
-                    0);
+                    FormatWriters_.push_back(schemalessWriter);
 
-                FormatWriters_.push_back(schemalessWriter);
+                    return schemalessWriter;
+                });
 
-                WaitFor(schemalessWriter->Open())
-                    .ThrowOnError();
-
-                auto writer = CreateSchemafulWriterAdapter(schemalessWriter);
-
-                std::vector<TUdfDescriptorPtr> descriptors;
-                for (const auto& descriptor : spec.udf_descriptors()) {
-                    descriptors.push_back(ConvertTo<TUdfDescriptorPtr>(TYsonString(descriptor)));
-                }
-                auto registry = CreateJobFunctionRegistry(descriptors, SandboxDirectoryNames[ESandboxKind::Udf]);
-                auto evaluator = New<TEvaluator>(New<TExecutorConfig>());
-                auto reader = CreateSchemafulReaderAdapter(readerFactory, query->TableSchema);
-
-                evaluator->Run(query, reader, writer, registry, true);
                 WaitFor(asyncOutput->Close())
                     .ThrowOnError();
             } catch (const std::exception& ex) {

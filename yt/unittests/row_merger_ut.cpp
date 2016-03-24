@@ -21,7 +21,6 @@
 
 #include <yt/ytlib/query_client/config.h>
 #include <yt/ytlib/query_client/column_evaluator.h>
-#include <yt/ytlib/query_client/function_registry.h>
 
 namespace NYT {
 namespace NTableClient {
@@ -62,8 +61,7 @@ protected:
     const TRowBufferPtr Buffer_ = New<TRowBuffer>();
     int KeyCount_ = -1;
     TColumnEvaluatorCachePtr ColumnEvaluatorCache_ = New<TColumnEvaluatorCache>(
-        New<TColumnEvaluatorCacheConfig>(),
-        CreateBuiltinFunctionRegistry());
+        New<TColumnEvaluatorCacheConfig>());
 
     TVersionedRow BuildVersionedRow(
         const Stroka& keyYson,

@@ -1,16 +1,12 @@
 #pragma once
 
 #include "public.h"
-#include "ast.h"
 #include "plan_fragment_common.h"
 
 #include <yt/ytlib/node_tracker_client/node_directory.h>
 
-#include <yt/ytlib/misc/workload.h>
-
 #include <yt/ytlib/table_client/row_buffer.h>
 #include <yt/ytlib/table_client/schema.h>
-#include <yt/ytlib/table_client/unversioned_row.h>
 
 #include <yt/core/misc/guid.h>
 #include <yt/core/misc/property.h>
@@ -361,7 +357,7 @@ struct TQuery
     i64 OutputRowLimit;
     TGuid Id;
 
-    // TODO: Move out TableSchema and KeyColumns 
+    // TODO: Move out TableSchema and KeyColumns
     TTableSchema TableSchema;
     i64 KeyColumnsCount;
 
@@ -408,37 +404,6 @@ DEFINE_REFCOUNTED_TYPE(TQuery)
 
 void ToProto(NProto::TQuery* proto, TConstQueryPtr original);
 TQueryPtr FromProto(const NProto::TQuery& serialized);
-
-struct TQueryOptions
-{
-    NTransactionClient::TTimestamp Timestamp = NTransactionClient::SyncLastCommittedTimestamp;
-    bool VerboseLogging = false;
-    int MaxSubqueries = std::numeric_limits<int>::max();
-    ui64 RangeExpansionLimit = 0;
-    bool EnableCodeCache = true;
-    TWorkloadDescriptor WorkloadDescriptor;
-};
-
-struct TDataRange
-{
-    //! Either a chunk id or tablet id.
-    NObjectClient::TObjectId Id;
-    TRowRange Range;
-};
-
-struct TDataRanges
-{
-    //! Either a chunk id or tablet id.
-    NObjectClient::TObjectId Id;
-    TSharedRange<TRowRange> Ranges;
-};
-
-struct TDataKeys
-{
-    //! Either a chunk id or tablet id.
-    NObjectClient::TObjectId Id;
-    TSharedRange<TRow> Keys;
-};
 
 void ToProto(NProto::TQueryOptions* proto, const TQueryOptions& options);
 TQueryOptions FromProto(const NProto::TQueryOptions& serialized);

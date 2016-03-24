@@ -85,6 +85,8 @@ public:
 
     bool EnableUdf;
     NYPath::TYPath UdfRegistryPath;
+    TExpiringCacheConfigPtr FunctionRegistryCache;
+    TSlruCacheConfigPtr FunctionImplCache;
 
     int TableMountInfoUpdateRetryCount;
     TDuration TableMountInfoUpdateRetryPeriod;

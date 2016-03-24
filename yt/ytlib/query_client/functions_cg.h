@@ -1,10 +1,43 @@
 #pragma once
 
-#include "functions.h"
-#include "udf_descriptor.h"
+#include "public.h"
+
+#include "functions_common.h"
+#include "cg_fragment_compiler.h"
 
 namespace NYT {
 namespace NQueryClient {
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct IFunctionCodegen
+    : public TRefCounted
+{
+    virtual TCodegenExpression Profile(
+        TCodegenValue codegenFunctionContext,
+        std::vector<TCodegenExpression> codegenArgs,
+        std::vector<EValueType> argumentTypes,
+        EValueType type,
+        const Stroka& name,
+        llvm::FoldingSetNodeID* id = nullptr) const = 0;
+
+};
+
+DEFINE_REFCOUNTED_TYPE(IFunctionCodegen)
+
+struct IAggregateCodegen
+    : public TRefCounted
+{
+    virtual TCodegenAggregate Profile(
+        EValueType argumentType,
+        EValueType stateType,
+        EValueType resultType,
+        const Stroka& name,
+        llvm::FoldingSetNodeID* id = nullptr) const = 0;
+
+};
+
+DEFINE_REFCOUNTED_TYPE(IAggregateCodegen)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -23,11 +56,6 @@ struct ICallingConvention
         std::vector<EValueType> argumentTypes,
         EValueType resultType) const = 0;
 
-    static void CheckCallee(
-        TCGContext& builder,
-        const Stroka& functionName,
-        llvm::Function* callee,
-        llvm::FunctionType* functionType);
 };
 
 DEFINE_REFCOUNTED_TYPE(ICallingConvention);
@@ -77,128 +105,88 @@ ICallingConventionPtr GetCallingConvention(
     int repeatedArgIndex,
     TType repeatedArgType);
 
+ICallingConventionPtr GetCallingConvention(ECallingConvention callingConvention);
+
 ////////////////////////////////////////////////////////////////////////////////
 
-class TExternallyDefinedFunction
-    : public virtual IFunctionDescriptor
+struct TExternalFunctionCodegen
+    : public IFunctionCodegen
 {
 public:
-    TExternallyDefinedFunction(
+    TExternalFunctionCodegen(
         const Stroka& functionName,
         const Stroka& symbolName,
         TSharedRef implementationFile,
-        ICallingConventionPtr callingConvention)
+        ICallingConventionPtr callingConvention,
+        TSharedRef fingerprint)
         : FunctionName_(functionName)
         , SymbolName_(symbolName)
         , ImplementationFile_(implementationFile)
         , CallingConvention_(callingConvention)
+        , Fingerprint_(fingerprint)
     { }
 
-    virtual TCodegenExpression MakeCodegenExpr(
+    TExternalFunctionCodegen(
+        const Stroka& functionName,
+        const Stroka& symbolName,
+        TSharedRef implementationFile,
+        ECallingConvention callingConvention,
+        TType repeatedArgType,
+        int repeatedArgIndex,
+        TSharedRef fingerprint)
+        : TExternalFunctionCodegen(
+            functionName,
+            symbolName,
+            implementationFile,
+            GetCallingConvention(callingConvention, repeatedArgIndex, repeatedArgType),
+            fingerprint)
+    { }
+
+    virtual TCodegenExpression Profile(
         TCodegenValue codegenFunctionContext,
         std::vector<TCodegenExpression> codegenArgs,
         std::vector<EValueType> argumentTypes,
         EValueType type,
-        const Stroka& name) const override;
+        const Stroka& name,
+        llvm::FoldingSetNodeID* id) const override;
 
 private:
     Stroka FunctionName_;
     Stroka SymbolName_;
     TSharedRef ImplementationFile_;
     ICallingConventionPtr CallingConvention_;
+    TSharedRef Fingerprint_;
 
 };
 
-////////////////////////////////////////////////////////////////////////////////
-
-class TUserDefinedFunction
-    : public TTypedFunction
-    , public TUniversalRangeFunction
-    , public TExternallyDefinedFunction
+struct TExternalAggregateCodegen
+    : public IAggregateCodegen
 {
 public:
-    TUserDefinedFunction(
-        const Stroka& functionName,
-        std::vector<TType> argumentTypes,
-        TType resultType,
-        TSharedRef implementationFile,
-        ECallingConvention callingConvention);
-
-    TUserDefinedFunction(
-        const Stroka& functionName,
-        std::unordered_map<TTypeArgument, TUnionType> typeArgumentConstraints,
-        std::vector<TType> argumentTypes,
-        TType repeatedArgType,
-        TType resultType,
-        TSharedRef implementationFile);
-
-    TUserDefinedFunction(
-        const Stroka& functionName,
-        const Stroka& symbolName,
-        std::unordered_map<TTypeArgument, TUnionType> typeArgumentConstraints,
-        std::vector<TType> argumentTypes,
-        TType repeatedArgType,
-        TType resultType,
-        TSharedRef implementationFile);
-
-    TUserDefinedFunction(
-        const Stroka& functionName,
-        const Stroka& symbolName,
-        std::unordered_map<TTypeArgument, TUnionType> typeArgumentConstraints,
-        std::vector<TType> argumentTypes,
-        TType repeatedArgType,
-        TType resultType,
-        TSharedRef implementationFile,
-        ICallingConventionPtr callingConvention);
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TUserDefinedAggregateFunction
-    : public IAggregateFunctionDescriptor
-{
-public:
-    TUserDefinedAggregateFunction(
+    TExternalAggregateCodegen(
         const Stroka& aggregateName,
-        std::unordered_map<TTypeArgument, TUnionType> typeArgumentConstraints,
-        TType argumentType,
-        TType resultType,
-        TType stateType,
         TSharedRef implementationFile,
-        ECallingConvention callingConvention);
+        ECallingConvention callingConvention,
+        TSharedRef fingerprint)
+        : AggregateName_(aggregateName)
+        , ImplementationFile_(implementationFile)
+        , CallingConvention_(GetCallingConvention(callingConvention))
+        , Fingerprint_(fingerprint)
+    { }
 
-    virtual Stroka GetName() const override;
-
-    virtual const TCodegenAggregate MakeCodegenAggregate(
+    virtual TCodegenAggregate Profile(
         EValueType argumentType,
         EValueType stateType,
         EValueType resultType,
-        const Stroka& name) const override;
-
-    virtual EValueType GetStateType(
-        EValueType type) const override;
-
-    virtual EValueType InferResultType(
-        EValueType argumentType,
-        const TStringBuf& source) const override;
+        const Stroka& name,
+        llvm::FoldingSetNodeID* id) const override;
 
 private:
     Stroka AggregateName_;
-    std::unordered_map<TTypeArgument, TUnionType> TypeArgumentConstraints_;
-    TType ArgumentType_;
-    TType ResultType_;
-    TType StateType_;
     TSharedRef ImplementationFile_;
     ICallingConventionPtr CallingConvention_;
+    TSharedRef Fingerprint_;
 
-    TUserDefinedAggregateFunction(
-        const Stroka& aggregateName,
-        std::unordered_map<TTypeArgument, TUnionType> typeArgumentConstraints,
-        TType argumentType,
-        TType resultType,
-        TType stateType,
-        TSharedRef implementationFile,
-        ICallingConventionPtr callingConvention);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
