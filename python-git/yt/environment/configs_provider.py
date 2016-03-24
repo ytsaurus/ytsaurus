@@ -532,6 +532,7 @@ class ConfigsProvider_18(ConfigsProvider):
                                                                      node_dirs[i], "job_proxy-{0}".format(i),
                                                                      self.enable_debug_logging)
             config["tablet_node"]["hydra_manager"] = {
+                "restart_backoff_time": 100,
                 "leader_lease_check_period": 100,
                 "leader_lease_timeout": 500,
                 "disable_leader_lease_grace_delay": True
