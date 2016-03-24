@@ -51,17 +51,19 @@ TMutableUnversionedRow TRowBuffer::Capture(TUnversionedRow row, bool deep)
         return TMutableUnversionedRow();
     }
 
-    int count = row.GetCount();
-    auto* values = row.Begin();
+    return Capture(row.Begin(), row.GetCount(), deep);
+}
 
+TMutableUnversionedRow TRowBuffer::Capture(const TUnversionedValue* begin, int count, bool deep)
+{
     auto capturedRow = TMutableUnversionedRow::Allocate(&Pool_, count);
-    auto* capturedValues = capturedRow.Begin();
+    auto* capturedBegin = capturedRow.Begin();
 
-    ::memcpy(capturedValues, values, count * sizeof (TUnversionedValue));
+    ::memcpy(capturedBegin, begin, count * sizeof (TUnversionedValue));
 
     if (deep) {
         for (int index = 0; index < count; ++index) {
-            Capture(&capturedValues[index]);
+            Capture(&capturedBegin[index]);
         }
     }
 

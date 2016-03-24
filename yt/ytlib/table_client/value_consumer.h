@@ -4,6 +4,7 @@
 #include "unversioned_row.h"
 
 #include <yt/core/misc/blob_output.h>
+#include <yt/core/misc/small_vector.h>
 
 #include <yt/core/yson/writer.h>
 
@@ -84,11 +85,10 @@ private:
     const ISchemalessWriterPtr Writer_;
     const bool FlushImmediately_;
 
-    TUnversionedOwningRowBuilder Builder_;
-    std::vector<TUnversionedOwningRow> OwningRows_;
-    std::vector<TUnversionedRow> Rows_;
+    const TRowBufferPtr RowBuffer_;
 
-    i64 CurrentBufferSize_ = 0;
+    std::vector<TUnversionedRow> Rows_;
+    SmallVector<TUnversionedValue, TypicalColumnCount> Values_;
 
     virtual TNameTablePtr GetNameTable() const override;
 
