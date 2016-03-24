@@ -7,6 +7,8 @@
 
 #include <util/generic/type_name.h>
 
+#include <initializer_list>
+
 #include "node.h"
 
 namespace NYT {
@@ -80,6 +82,12 @@ struct TKeyBase
     {
         Parts_ = std::move(rhs.Parts_);
         return *this;
+    }
+
+    template<class U>
+    TKeyBase(std::initializer_list<U> il)
+    {
+        Parts_.assign(il.begin(), il.end());
     }
 
     template <class... TArgs>
