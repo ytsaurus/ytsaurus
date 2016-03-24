@@ -93,7 +93,7 @@ using NScheduler::NProto::TUserJobSpec;
 static const int JobStatisticsFD = 5;
 static const char* CGroupPrefix = "user_jobs/yt-job-";
 
-static const int BufferSize = 1024 * 1024;
+static const size_t BufferSize = (size_t) 1024 * 1024;
 
 static const size_t MaxCustomStatisticsPathLength = 512;
 
