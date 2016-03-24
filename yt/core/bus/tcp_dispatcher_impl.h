@@ -80,6 +80,7 @@ public:
     void Shutdown();
 
     TTcpDispatcherStatistics GetStatistics(ETcpInterfaceType interfaceType) const;
+    int GetServerConnectionCount(ETcpInterfaceType interfaceType) const;
 
     TTcpDispatcherThreadPtr GetServerThread();
     TTcpDispatcherThreadPtr GetClientThread();
