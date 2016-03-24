@@ -31,7 +31,7 @@ using NNodeTrackerClient::TNodeDirectoryPtr;
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = TableClientLogger;
-static const auto& Profiler = TableReaderProfiler;
+static const auto& Profiler = TableClientProfiler;
 
 static const int SortBucketSize = 10000;
 static const int SpinsBetweenYield = 1000;
