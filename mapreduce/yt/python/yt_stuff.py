@@ -141,6 +141,9 @@ class YtStuff:
             ]
             if self.tmpfs_path:
                 args.append("--tmpfs-path=%s" % self.tmpfs_path)
+            if yatest.common.get_param("yt_enable_debug_logging"):
+                args.append("--enable-debug-logging")
+
             res = self._yt_local(*args)
         except Exception, e:
             self._log("Failed to start local YT:\n%s", str(e))
