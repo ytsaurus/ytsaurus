@@ -45,6 +45,8 @@ public:
 
     i64 BufferRowCount;
 
+    int PipeIOPoolSize;
+
     TJobIOConfig()
     {
         RegisterParameter("table_reader", TableReader)
@@ -60,6 +62,10 @@ public:
 
         RegisterParameter("buffer_row_count", BufferRowCount)
             .Default((i64) 10000)
+            .GreaterThan(0);
+
+        RegisterParameter("pipe_io_pool_size", PipeIOPoolSize)
+            .Default(1)
             .GreaterThan(0);
 
         RegisterInitializer([&] () {

@@ -37,6 +37,7 @@
 #include <yt/ytlib/transaction_client/public.h>
 
 #include <yt/core/concurrency/action_queue.h>
+#include <yt/core/concurrency/thread_pool.h>
 #include <yt/core/concurrency/periodic_executor.h>
 
 #include <yt/core/misc/finally.h>
@@ -116,7 +117,7 @@ public:
         , Config_(Host_->GetConfig())
         , JobErrorPromise_(NewPromise<void>())
         , MemoryUsage_(UserJobSpec_.memory_reserve())
-        , PipeIOQueue_(New<TActionQueue>("PipeIO"))
+        , PipeIOPool_(New<TThreadPool>(Config_->JobIO->PipeIOPoolSize, "PipeIO"))
         , AuxQueue_(New<TActionQueue>("JobAux"))
         , Process_(New<TProcess>(GetExecPath(), false))
         , CpuAccounting_(CGroupPrefix + ToString(jobId))
@@ -240,7 +241,7 @@ private:
     i64 MemoryUsage_;
     i64 CumulativeMemoryUsageMbSec_ = 0;
 
-    const TActionQueuePtr PipeIOQueue_;
+    const TThreadPoolPtr PipeIOPool_;
     const TActionQueuePtr AuxQueue_;
 
     std::vector<std::unique_ptr<TOutputStream>> TableOutputs_;
@@ -385,7 +386,7 @@ private:
         ValidatePrepared();
 
         auto result = WaitFor(BIND(&TUserJob::DoGetInputContexts, MakeStrong(this))
-            .AsyncVia(PipeIOQueue_->GetInvoker())
+            .AsyncVia(PipeIOPool_->GetInvoker())
             .Run());
         THROW_ERROR_EXCEPTION_IF_FAILED(result, "Error collecting job input context");
         const auto& contexts = result.Value();
@@ -872,7 +873,7 @@ private:
 
             // This is a workaround for YT-2837.
             BIND(&TUserJob::CleanupUserProcesses, MakeWeak(this))
-                .Via(PipeIOQueue_->GetInvoker())
+                .Via(PipeIOPool_->GetInvoker())
                 .Run();
 
             for (auto& reader : TablePipeReaders_) {
@@ -888,7 +889,7 @@ private:
             std::vector<TFuture<void>> result;
             for (auto& action : actions) {
                 auto asyncError = action
-                    .AsyncVia(PipeIOQueue_->GetInvoker())
+                    .AsyncVia(PipeIOPool_->GetInvoker())
                     .Run();
                 asyncError.Subscribe(onIOError);
                 result.emplace_back(std::move(asyncError));
