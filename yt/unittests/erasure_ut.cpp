@@ -140,7 +140,6 @@ public:
         for (int i = 0; i < codec->GetDataPartCount(); ++i) {
             auto filename = "part" + ToString(i + 1);
             auto reader = NYT::New<TFileReader>(NullChunkId, filename);
-            reader->Open();
             readers.push_back(reader);
         }
         return CreateNonRepairingErasureReader(readers);
@@ -267,7 +266,6 @@ TEST_F(TErasureMixture, RepairTest1)
         }
         if (repairIndicesSet.find(i) != repairIndicesSet.end()) {
             auto reader = NYT::New<TFileReader>(NullChunkId, filename);
-            reader->Open();
             readers.push_back(reader);
         }
     }
@@ -328,7 +326,6 @@ TEST_F(TErasureMixture, RepairTest2)
         }
         if (repairIndicesSet.find(i) != repairIndicesSet.end()) {
             auto reader = NYT::New<TFileReader>(NullChunkId, filename);
-            reader->Open();
             readers.push_back(reader);
         }
     }
@@ -402,7 +399,6 @@ TEST_F(TErasureMixture, RepairTestWithSeveralWindows)
         }
         if (repairIndicesSet.find(i) != repairIndicesSet.end()) {
             auto reader = NYT::New<TFileReader>(NullChunkId, filename);
-            reader->Open();
             readers.push_back(reader);
         }
     }

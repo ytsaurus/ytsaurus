@@ -146,11 +146,15 @@ void TBlobChunkBase::DoReadMeta(
         Location_->GetId(),
         Id_);
 
-    NChunkClient::TFileReaderPtr reader;
+    TChunkMeta meta;
     PROFILE_TIMING("/meta_read_time") {
-        auto readerCache = Bootstrap_->GetBlobReaderCache();
         try {
-            reader = readerCache->GetReader(this);
+            auto readerCache = Bootstrap_->GetBlobReaderCache();
+            auto reader = readerCache->GetReader(this);
+            // NB: The reader is synchronous.
+            meta = reader->GetMeta()
+                .Get()
+                .ValueOrThrow();
         } catch (const std::exception& ex) {
             cookie.Cancel(ex);
             return;
@@ -161,10 +165,9 @@ void TBlobChunkBase::DoReadMeta(
         Location_->GetId(),
         Id_);
 
-    const auto& meta = reader->GetMeta();
     auto cachedMeta = New<TCachedChunkMeta>(
         Id_,
-        New<TRefCountedChunkMeta>(meta),
+        New<TRefCountedChunkMeta>(std::move(meta)),
         Bootstrap_->GetMemoryUsageTracker());
     cookie.EndInsert(cachedMeta);
 }
