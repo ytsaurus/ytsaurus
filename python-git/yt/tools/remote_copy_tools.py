@@ -314,7 +314,7 @@ def copy_yt_to_yt(source_client, destination_client, src, dst, network_name,
             spec=copy_spec_template,
             **kwargs)
 
-        transform(dst, compression_codec=compression_codec, erasure_codec=erasure_codec, yt_client=destination_client, spec=postprocess_spec_template, check_codecs=True)
+        transform(str(dst), compression_codec=compression_codec, erasure_codec=erasure_codec, yt_client=destination_client, spec=postprocess_spec_template, check_codecs=True)
 
         for name, codec in [("compression_codec", compression_codec), ("erasure_codec", erasure_codec)]:
             if codec is None:
@@ -386,7 +386,7 @@ def copy_yt_to_yt_through_proxy(source_client, destination_client, src, dst, fas
                 logger.error(error)
                 raise IncorrectRowCount(error)
 
-            transform(dst_table, erasure_codec=erasure_codec, yt_client=destination_client, spec=postprocess_spec_template, check_codecs=True)
+            transform(str(dst_table), erasure_codec=erasure_codec, yt_client=destination_client, spec=postprocess_spec_template, check_codecs=True)
             copy_user_attributes(source_client, destination_client, src.name, dst)
 
     finally:
@@ -479,7 +479,7 @@ done"""
             if force_sort and not is_sorted:
                 yt_client.run_sort(dst, sort_by=["key", "subkey"], spec=postprocess_spec)
 
-            transform(dst, erasure_codec=erasure_codec, yt_client=yt_client, spec=postprocess_spec, check_codecs=True)
+            transform(str(dst), erasure_codec=erasure_codec, yt_client=yt_client, spec=postprocess_spec, check_codecs=True)
 
     finally:
         if not yamr_client.supports_read_snapshots:
