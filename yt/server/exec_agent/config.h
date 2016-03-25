@@ -114,12 +114,17 @@ public:
     //! Random delay before first heartbeat.
     TDuration HeartbeatSplay;
 
+    //! Backoff for sending the next heartbeat after failure.
+    TDuration FailedHeartbeatBackoffTime;
+
     TSchedulerConnectorConfig()
     {
         RegisterParameter("heartbeat_period", HeartbeatPeriod)
             .Default(TDuration::Seconds(5));
         RegisterParameter("heartbeat_splay", HeartbeatSplay)
             .Default(TDuration::Seconds(1));
+        RegisterParameter("failed_heartbeat_backoff_time", FailedHeartbeatBackoffTime)
+            .Default(TDuration::Seconds(5));
     }
 };
 
