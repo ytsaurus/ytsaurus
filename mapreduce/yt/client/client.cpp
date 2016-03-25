@@ -632,6 +632,14 @@ IClientPtr CreateClient(
         auth.Token = options.Token_;
     }
 
+    Stroka localModeAttr("//sys/@local_mode_fqdn");
+    if (Exists(auth, TTransactionId(), localModeAttr)) {
+        auto fqdn = NodeFromYsonString(Get(auth, TTransactionId(), localModeAttr)).AsString();
+        if (fqdn == TProcessState::Get()->HostName) {
+            auth.IsLocalMode = true;
+        }
+    }
+
     return new TClient(auth, globalTxId);
 }
 
