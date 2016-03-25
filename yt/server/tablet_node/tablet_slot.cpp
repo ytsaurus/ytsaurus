@@ -564,7 +564,7 @@ public:
             rpcServer->RegisterService(HiveManager_->GetRpcService());
             rpcServer->RegisterService(TabletService_);
 
-            OrchidService_ = CreateOrchidService(Bootstrap_->GetControlInvoker());
+            OrchidService_ = CreateOrchidService();
 
             LOG_INFO("Slot configured (ConfigVersion: %v)",
                 CellDescriptor_.ConfigVersion);
@@ -652,7 +652,7 @@ private:
     IYPathServicePtr OrchidService_;
 
 
-    IYPathServicePtr CreateOrchidService(IInvokerPtr controlInvoker)
+    IYPathServicePtr CreateOrchidService()
     {
         return New<TCompositeMapService>()
             ->AddAttribute("opaque", BIND([] (IYsonConsumer* consumer) {
@@ -671,7 +671,7 @@ private:
             ->AddChild("transactions", TransactionManager_->GetOrchidService())
             ->AddChild("tablets", TabletManager_->GetOrchidService())
             ->AddChild("hive", HiveManager_->GetOrchidService())
-            ->Via(controlInvoker);
+            ->Via(Bootstrap_->GetControlInvoker());
     }
 
     void ResetEpochInvokers()
