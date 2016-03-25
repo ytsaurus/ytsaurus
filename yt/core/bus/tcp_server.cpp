@@ -249,7 +249,7 @@ protected:
                 }
             }
 
-            auto connectionCount = TTcpDispatcher::TImpl::Get()->GetServerConnectionCount(GetInterfaceType());
+            auto connectionCount = TTcpDispatcher::TImpl::Get()->GetServerConnectionCount(InterfaceType_);
             auto connectionLimit = Config_->MaxSimultaneousConnections;
             if (connectionCount >= connectionLimit) {
                 LOG_DEBUG("Connection dropped (Address: %v, ConnectionCount: %v, ConnectionLimit: %v)",
