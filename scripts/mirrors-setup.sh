@@ -60,7 +60,7 @@ configure_github_mirror()
     create_stub_repository $root || true
 
     (cd $root && git config --remove-section remote.github) || true
-    (cd $root && git config --local remote.github.url "git://github.com/${name//-//}")
+    (cd $root && git config --local remote.github.url "git://github.com/${name/-//}")
     (cd $root && git config --local remote.github.mirror true)
     (cd $root && git config --local remote.github.tagopt --no-tags)
     (cd $root && git config --local --unset-all remote.github.fetch) || true
@@ -110,3 +110,5 @@ configure_github_mirror Cyan4973-zstd
 configure_github_mirror kennethreitz-requests
 configure_github_mirror google-brotli
 configure_github_mirror kislyuk-argcomplete
+configure_github_mirror tornadoweb-tornado
+configure_github_mirror certifi-python-certifi
