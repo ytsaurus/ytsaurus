@@ -88,7 +88,8 @@ private:
 
     void DoReadMeta(
         TChunkReadGuard readGuard,
-        TCachedChunkMetaCookie cookie);
+        TCachedChunkMetaCookie cookie,
+        const TWorkloadDescriptor& workloadDescriptor);
     TFuture<void> OnBlocksExtLoaded(
         TReadBlockSetSessionPtr session,
         const TWorkloadDescriptor& workloadDescriptor);
