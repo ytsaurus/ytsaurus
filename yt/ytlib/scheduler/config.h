@@ -184,8 +184,6 @@ public:
         RegisterParameter("check_multichunk_files", CheckMultichunkFiles)
             .Default(true);
 
-        SetKeepOptions(true);
-
         RegisterParameter("time_limit", TimeLimit)
             .Default();
 
@@ -203,6 +201,9 @@ public:
             }
         });
 
+        // XXX(ignat): it seems that GetOptions is not used for this config.
+        // Should we delete this line?
+        SetKeepOptions(true);
     }
 };
 
