@@ -21,7 +21,7 @@
 
 #include <atomic>
 
-#ifndef _win_
+#ifdef _unix_
     #include <sys/uio.h>
 #endif
 
