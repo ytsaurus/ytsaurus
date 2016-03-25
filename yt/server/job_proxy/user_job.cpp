@@ -1017,27 +1017,7 @@ private:
                 << TErrorAttribute("rss", rss)
                 << TErrorAttribute("tmpfs", tmpfsSize)
                 << TErrorAttribute("limit", memoryLimit));
-
-            if (!Config_->EnableCGroups) {
-                // TODO(psushin): If someone wanted to use
-                // YT without cgroups in production than one need to
-                // implement kill by uid here.
-                return;
-            }
-
-            YCHECK(Freezer_.IsCreated());
-
-            try {
-                Stroka freezerFullPath;
-                {
-                    TGuard<TSpinLock> guard(FreezerLock_);
-                    freezerFullPath = Freezer_.GetFullPath();
-                }
-
-                RunKiller(freezerFullPath);
-            } catch (const std::exception& ex) {
-                LOG_FATAL(ex, "Failed to clean up user processes");
-            }
+            CleanupUserProcesses();
         } else if (currentMemoryUsage > MemoryUsage_) {
             UpdateMemoryUsage(currentMemoryUsage);
         }
