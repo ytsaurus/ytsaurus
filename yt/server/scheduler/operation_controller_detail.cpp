@@ -971,6 +971,15 @@ void TOperationControllerBase::Initialize(bool cleanStart)
                 table.LockMode = ELockMode::Shared;
             }
 
+            auto rowCountLimit = path.GetRowCountLimit();
+            if (rowCountLimit) {
+                if (RowCountLimitTableIndex) {
+                    THROW_ERROR_EXCEPTION("Only one output table with row_count_limit is supported");
+                }
+                RowCountLimitTableIndex = OutputTables.size();
+                RowCountLimit = rowCountLimit.Get();
+            }
+
             table.KeyColumns = path.GetSortedBy();
             if (!table.KeyColumns.empty()) {
                 if (!IsSortedOutputSupported()) {
@@ -1642,7 +1651,28 @@ void TOperationControllerBase::OnJobCompleted(std::unique_ptr<TCompletedJobSumma
 
     if (IsCompleted()) {
         OnOperationCompleted();
+        return;
     }
+
+    if (RowCountLimitTableIndex) {
+        switch (joblet->JobType) {
+            default:
+                break;
+            case EJobType::Map:
+            case EJobType::OrderedMap:
+            case EJobType::SortedReduce:
+            case EJobType::PartitionReduce:
+                auto getValue = [] (const TSummary& summary) {
+                    return summary.GetSum();
+                };
+                auto path = Format("/data/output/%d/row_count%s", *RowCountLimitTableIndex, jobSummary->StatisticsSuffix);
+                i64 count = GetValues<i64>(JobStatistics, path, getValue);
+                if (count >= RowCountLimit) {
+                    OnOperationCompleted();
+                }
+        }
+    }
+
 }
 
 void TOperationControllerBase::OnJobFailed(std::unique_ptr<TFailedJobSummary> jobSummary)
@@ -4196,6 +4226,9 @@ void TOperationControllerBase::Persist(TPersistenceContext& context)
     Persist(context, JobIndexGenerator);
 
     Persist(context, JobStatistics);
+
+    Persist(context, RowCountLimitTableIndex);
+    Persist(context, RowCountLimit);
 
     // NB: Scheduler snapshots need not be stable.
     Persist<

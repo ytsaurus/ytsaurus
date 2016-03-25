@@ -31,6 +31,8 @@ void SafeClose(int fd, bool ignoreBadFD = true);
 bool TryDup2(int oldFD, int newFD);
 void SafeDup2(int oldFD, int newFD);
 
+void SafeSetCloexec(int fd);
+
 bool TryExecve(const char* path, const char* const* argv, const char* const* env);
 
 void CreateStderrFile(Stroka fileName);
@@ -38,10 +40,19 @@ void CreateStderrFile(Stroka fileName);
 // Returns a pipe with CLOSE_EXEC flag.
 void SafePipe(int fd[2]);
 
+int SafeDup(int fd);
+
+// Returns a pty with CLOSE_EXEC flag on master channel.
+void SafeOpenPty(int* masterFD, int* slaveFD, int height, int width);
+void SafeLoginTty(int fd);
+void SafeSetTtyWindowSize(int slaveFD, i32 height, i32 width);
+
 bool TryMakeNonblocking(int fd);
 void SafeMakeNonblocking(int fd);
 
 void SafeSetUid(int uid);
+
+Stroka SafeGetUsernameByUid(int uid);
 
 void SetPermissions(int fd, int permissions);
 

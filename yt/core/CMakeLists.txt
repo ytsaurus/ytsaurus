@@ -128,6 +128,7 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/pipes/io_dispatcher_impl.cpp
   ${CMAKE_CURRENT_LIST_DIR}/pipes/pipe.cpp
   ${CMAKE_CURRENT_LIST_DIR}/pipes/private.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/pipes/pty.cpp
 
   ${CMAKE_CURRENT_LIST_DIR}/profiling/profile_manager.cpp
   ${CMAKE_CURRENT_LIST_DIR}/profiling/profiler.cpp
@@ -263,6 +264,8 @@ llvm_map_components_to_libraries(
   mcjit ipo x86 mcdisassembler linker asmparser irreader instrumentation
 )
 
+list(REMOVE_ITEM REQUIRED_LLVM_LIBRARIES "-lz")
+
 target_link_libraries(ytcore
   yt-build
   ytext-arcadia-util
@@ -280,6 +283,12 @@ target_link_libraries(ytcore
 if (CMAKE_COMPILER_IS_CLANG AND NOT APPLE)
   target_link_libraries ( ytcore
     -latomic -ldl
+  )
+endif()
+
+if (NOT APPLE)
+  target_link_libraries ( ytcore
+    -lutil
   )
 endif()
 

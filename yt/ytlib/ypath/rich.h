@@ -77,6 +77,9 @@ public:
     NTableClient::TKeyColumns GetSortedBy() const;
     void SetSortedBy(const NTableClient::TKeyColumns& value);
 
+    // "row_count_limit"
+    TNullable<i64> GetRowCountLimit() const;
+
 private:
     TYPath Path_;
     std::unique_ptr<NYTree::IAttributeDictionary> Attributes_;

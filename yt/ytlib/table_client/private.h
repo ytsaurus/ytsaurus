@@ -15,7 +15,7 @@ namespace NTableClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 extern const NLogging::TLogger TableClientLogger;
-extern const NProfiling::TProfiler TableReaderProfiler;
+extern const NProfiling::TProfiler TableClientProfiler;
 
 template <class TPredicate>
 int LowerBound(int lowerIndex, int upperIndex, const TPredicate& less)
