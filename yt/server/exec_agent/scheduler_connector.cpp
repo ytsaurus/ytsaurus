@@ -67,9 +67,9 @@ void TSchedulerConnector::SendHeartbeat()
 
     if (TInstant::Now() < LastFailedHeartbeatTime_ + Config_->FailedHeartbeatBackoffTime) {
         LOG_INFO("Skipping heartbeat");
+        HeartbeatExecutor_->ScheduleNext();
         return;
     }
-
 
     TJobTrackerServiceProxy proxy(Bootstrap_->GetMasterClient()->GetSchedulerChannel());
     auto req = proxy.Heartbeat();
