@@ -2112,18 +2112,17 @@ private:
 
     void BuildOperationYson(TOperationPtr operation, IYsonConsumer* consumer)
     {
-        auto state = operation->GetState();
-        bool hasProgress = (state == EOperationState::Running) || IsOperationFinished(state);
+        bool hasControllerProgress = operation->HasControllerProgress();
         BuildYsonMapFluently(consumer)
             .Item(ToString(operation->GetId())).BeginMap()
                 // Include the complete list of attributes.
                 .Do(BIND(&NScheduler::BuildInitializingOperationAttributes, operation))
                 .Item("progress").BeginMap()
-                    .DoIf(hasProgress, BIND(&IOperationController::BuildProgress, operation->GetController()))
+                    .DoIf(hasControllerProgress, BIND(&IOperationController::BuildProgress, operation->GetController()))
                     .Do(BIND(&ISchedulerStrategy::BuildOperationProgress, Strategy_.get(), operation->GetId()))
                 .EndMap()
                 .Item("brief_progress").BeginMap()
-                    .DoIf(hasProgress, BIND(&IOperationController::BuildBriefProgress, operation->GetController()))
+                    .DoIf(hasControllerProgress, BIND(&IOperationController::BuildBriefProgress, operation->GetController()))
                     .Do(BIND(&ISchedulerStrategy::BuildBriefOperationProgress, Strategy_.get(), operation->GetId()))
                 .EndMap()
                 .Item("running_jobs").BeginAttributes()
