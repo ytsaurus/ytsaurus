@@ -48,7 +48,7 @@ DEFINE_REFCOUNTED_TYPE(TUnsafeEnvironmentBuilder)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#ifndef _win_
+#ifdef _unix_
 
 class TUnsafeProxyController
     : public IProxyController
@@ -272,7 +272,7 @@ IProxyControllerPtr TUnsafeEnvironmentBuilder::CreateProxyController(
     const TOperationId& operationId,
     TSlotPtr slot)
 {
-#ifndef _win_
+#ifdef _unix_
     return New<TUnsafeProxyController>(
         ProxyPath_,
         jobId,

@@ -8,7 +8,7 @@
 
 #include <util/system/fs.h>
 
-#ifndef _win_
+#ifdef _unix_
 #include <unistd.h>
 #endif
 

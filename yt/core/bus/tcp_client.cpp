@@ -17,7 +17,7 @@
 
 #include <errno.h>
 
-#ifndef _win_
+#ifdef _unix_
     #include <netinet/tcp.h>
     #include <sys/socket.h>
 #endif

@@ -2,6 +2,8 @@
 
 #include <yt/build/config.h>
 
+#include <util/system/defaults.h>
+
 #ifndef _win_
 #define ENABLE_GLIBC_STACKTRACE
 
