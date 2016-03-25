@@ -249,21 +249,20 @@ protected:
                 }
             }
 
-            auto connectionCount = DispatcherThread_
-                ->GetStatistics(InterfaceType_)
-                ->ServerConnections;
-            if (connectionCount >= Config_->MaxSimultaneousConnections) {
+            auto connectionCount = TTcpDispatcher::TImpl::Get()->GetServerConnectionCount(GetInterfaceType());
+            auto connectionLimit = Config_->MaxSimultaneousConnections;
+            if (connectionCount >= connectionLimit) {
                 LOG_DEBUG("Connection dropped (Address: %v, ConnectionCount: %v, ConnectionLimit: %v)",
                     ToString(clientAddress, false),
                     connectionCount,
-                    Config_->MaxSimultaneousConnections);
+                    connectionLimit);
                 close(clientSocket);
                 continue;
             } else {
                 LOG_DEBUG("Connection accepted (Address: %v, ConnectionCount: %v, ConnectionLimit: %v)",
                     ToString(clientAddress, false),
                     connectionCount,
-                    Config_->MaxSimultaneousConnections);
+                    connectionLimit);
             }
 
             InitClientSocket(clientSocket);
