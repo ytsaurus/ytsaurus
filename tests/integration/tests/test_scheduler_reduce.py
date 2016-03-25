@@ -439,7 +439,7 @@ echo {v = 2} >&7
 {"key"="b";"value"="";};
 {"key"="b";"value"="";};
 """
-    
+
     def test_reduce_with_small_block_size(self):
         create("table", "//tmp/in", attributes={"compression_codec": "none"})
         create("table", "//tmp/out")
@@ -649,6 +649,43 @@ echo {v = 2} >&7
         assert len(read_table("//tmp/output")) == 18
 
     @unix_only
+    def test_reduce_with_foreign_reduce_by_equals_join_by(self):
+        self._prepare_join_tables()
+
+        reduce(
+            in_ = ["<foreign=true>//tmp/hosts", "<foreign=true>//tmp/fresh_hosts", '//tmp/urls[("3","3/0"):("5")]', '//tmp/fresh_urls[("3","3/0"):("5")]'],
+            out = ["//tmp/output"],
+            command = "cat",
+            reduce_by = "host",
+            join_by = "host",
+            spec = {
+                "reducer": {
+                    "format": yson.loads("<enable_table_index=true>dsv")
+                },
+                "job_count": 1,
+            })
+
+        assert len(read_table("//tmp/output")) == 12
+
+    @unix_only
+    def test_reduce_with_foreign_invalid_reduce_by(self):
+        self._prepare_join_tables()
+
+        with pytest.raises(YtError):
+            reduce(
+                in_ = ["<foreign=true>//tmp/urls", "//tmp/fresh_urls"],
+                out = ["//tmp/output"],
+                command = "cat",
+                reduce_by = ["host"],
+                join_by = ["host", "url"],
+                spec = {
+                    "reducer": {
+                        "format": yson.loads("<enable_table_index=true>dsv")
+                    },
+                    "job_count": 1,
+                })
+
+    @unix_only
     def test_reduce_with_foreign_join_key_switch_yson(self):
         create("table", "//tmp/hosts")
         write_table(
@@ -727,6 +764,35 @@ echo {v = 2} >&7
 {"key"="4";"subkey"="4/1";"value"="17";};
 {"key"="4";"subkey"="4/2";"value"="18";};
 """
+
+    @unix_only
+    def test_reduce_row_count_limit(self):
+        create("table", "//tmp/input")
+        for i in xrange(self.NUM_NODES):
+            write_table(
+                "<append=true>//tmp/input",
+                [{"key": str(i), "value": "foo"}],
+                sorted_by = ["key"])
+
+        create("table", "//tmp/output")
+        reduce(
+            in_="//tmp/input",
+            out="<row_count_limit=3>//tmp/output",
+            command="((YT_JOB_INDEX >= 3)) && sleep 5; cat",
+            reduce_by=["key"],
+            spec={
+                "reducer": {
+                    "format": "dsv"
+                },
+                "data_size_per_job": 1,
+                "max_failed_job_count": 1
+            })
+
+        assert read_table("//tmp/output") == [
+            {"key":"0", "value":"foo"},
+            {"key":"1", "value":"foo"},
+            {"key":"2", "value":"foo"},
+        ]
 
 ##################################################################
 

@@ -1396,7 +1396,7 @@ private:
                         if (jobStartRequestOrError.IsOK()) {
                             auto jobStartRequest = jobStartRequestOrError.Value();
                             if (jobStartRequest) {
-                                auto jobId = jobStartRequest->Id;
+                                const auto& jobId = jobStartRequest->Id;
                                 LOG_WARNING("Aborting late job (JobId: %v, OperationId: %v)",
                                     jobId,
                                     OperationId_);
