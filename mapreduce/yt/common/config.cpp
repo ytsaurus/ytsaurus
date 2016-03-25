@@ -90,14 +90,18 @@ void TConfig::ValidateToken(const Stroka& token)
 
 void TConfig::LoadToken()
 {
-    TFsPath path(GetHomeDir() + "/.yt/token");
-    if (path.IsFile()) {
-        Token = Strip(TFileInput(~path).ReadAll());
-    }
-
     Stroka envToken = GetEnv("YT_TOKEN");
-    if (!envToken.empty()) {
+    if (envToken) {
         Token = envToken;
+    } else {
+        Stroka tokenPath = GetEnv("YT_TOKEN_PATH");
+        if (!tokenPath) {
+            tokenPath = GetHomeDir() + "/.yt/token";
+        }
+        TFsPath path(tokenPath);
+        if (path.IsFile()) {
+            Token = Strip(TFileInput(~path).ReadAll());
+        }
     }
 
     ValidateToken(Token);
