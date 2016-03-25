@@ -76,7 +76,6 @@ public:
             PROFILE_TIMING ("/blob_chunk_reader_open_time") {
                 try {
                     auto reader = New<TCachedReader>(chunkId, fileName, Config_->ValidateBlockChecksums);
-                    reader->Open();
                     cookie.EndInsert(reader);
                 } catch (const std::exception& ex) {
                     auto error = TError(

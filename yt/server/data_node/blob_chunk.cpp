@@ -85,7 +85,8 @@ TFuture<TRefCountedChunkMetaPtr> TBlobChunkBase::ReadMeta(
                 &TBlobChunkBase::DoReadMeta,
                 MakeStrong(this),
                 Passed(std::move(readGuard)),
-                Passed(std::move(cookie)));
+                Passed(std::move(cookie)),
+                workloadDescriptor);
 
             auto priority = workloadDescriptor.GetPriority();
             Location_
@@ -137,18 +138,23 @@ void TBlobChunkBase::InitBlocksExt(const TChunkMeta& meta)
 
 void TBlobChunkBase::DoReadMeta(
     TChunkReadGuard /*readGuard*/,
-    TCachedChunkMetaCookie cookie)
+    TCachedChunkMetaCookie cookie,
+    const TWorkloadDescriptor& workloadDescriptor)
 {
     const auto& Profiler = Location_->GetProfiler();
     LOG_DEBUG("Started reading chunk meta (LocationId: %v, ChunkId: %v)",
         Location_->GetId(),
         Id_);
 
-    NChunkClient::TFileReaderPtr reader;
+    TChunkMeta meta;
     PROFILE_TIMING("/meta_read_time") {
-        auto readerCache = Bootstrap_->GetBlobReaderCache();
         try {
-            reader = readerCache->GetReader(this);
+            auto readerCache = Bootstrap_->GetBlobReaderCache();
+            auto reader = readerCache->GetReader(this);
+            // NB: The reader is synchronous.
+            meta = reader->GetMeta(workloadDescriptor)
+                .Get()
+                .ValueOrThrow();
         } catch (const std::exception& ex) {
             cookie.Cancel(ex);
             return;
@@ -159,10 +165,9 @@ void TBlobChunkBase::DoReadMeta(
         Location_->GetId(),
         Id_);
 
-    const auto& meta = reader->GetMeta();
     auto cachedMeta = New<TCachedChunkMeta>(
         Id_,
-        New<TRefCountedChunkMeta>(meta),
+        New<TRefCountedChunkMeta>(std::move(meta)),
         Bootstrap_->GetMemoryUsageTracker());
     cookie.EndInsert(cachedMeta);
 }
