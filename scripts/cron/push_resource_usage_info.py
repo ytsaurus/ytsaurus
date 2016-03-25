@@ -1,15 +1,17 @@
 #!/usr/bin/env python
 
-from yt.common import YtError
 from yt.wrapper.client import Yt
 from yt.wrapper.common import get_backoff
 from yt.wrapper.http import get_retriable_errors
+from yt.common import YtError
+import yt.packages.requests as requests
 
 import simplejson as json
 import logging
-import requests
 import argparse
 import time
+import os
+import sys
 from datetime import datetime
 
 from socket import error as SocketError
@@ -79,11 +81,15 @@ def main():
     parser = argparse.ArgumentParser(description="Pushes accounts resource usage of various "
                                                  "YT clusters to statface.")
 
-    parser.add_argument("--robot-login", required=True)
-    parser.add_argument("--robot-password", required=True)
+    parser.add_argument("--robot-login", default=os.environ.get("STATFACE_ROBOT_LOGIN"))
+    parser.add_argument("--robot-password", default=os.environ.get("STATFACE_ROBOT_PASSWORD"))
     parser.add_argument("--clusters-config-url", default="http://yt.yandex.net/config.json",
                         help="url to json with all available clusters")
     args = parser.parse_args()
+
+    if args.robot_login is None or args.robot_password is None:
+        print >>sys.stderr, "Statface credentials are not set correctly"
+        sys.exit(1)
 
     headers = {
         "StatRobotUser": args.robot_login,
@@ -107,6 +113,8 @@ def main():
             push_cluster_data(accounts_data, headers)
         except exceptions:
             logging.exception("Failed to fetch account info from %s", cluster)
+
+    logging.info("Done")
 
 
 if __name__ == '__main__':
