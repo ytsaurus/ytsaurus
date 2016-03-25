@@ -223,17 +223,25 @@ TChunkMeta TFileReader::DoGetMeta(
 
 const TBlocksExt& TFileReader::GetBlockExts()
 {
-    if (!CachedBlocksExt_) {
-        auto meta = DoGetMeta(Null, Null);
-        CachedBlocksExt_ = GetProtoExtension<TBlocksExt>(meta.extensions());
+    if (!HasCachedBlocksExt_) {
+        TGuard<TMutex> guard(Mutex_);
+        if (!CachedBlocksExt_) {
+            auto meta = DoGetMeta(Null, Null);
+            CachedBlocksExt_ = GetProtoExtension<TBlocksExt>(meta.extensions());
+            HasCachedBlocksExt_ = true;
+        }
     }
     return *CachedBlocksExt_;
 }
 
 TFile& TFileReader::GetDataFile()
 {
-    if (!CachedDataFile_) {
-        CachedDataFile_.reset(new TFile(FileName_, OpenExisting | RdOnly | CloseOnExec));
+    if (!HasCachedDataFile_) {
+        TGuard<TMutex> guard(Mutex_);
+        if (!CachedDataFile_) {
+            CachedDataFile_.reset(new TFile(FileName_, OpenExisting | RdOnly | CloseOnExec));
+            HasCachedDataFile_ = true;
+        }
     }
     return *CachedDataFile_;
 }

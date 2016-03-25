@@ -5,6 +5,9 @@
 #include <yt/ytlib/chunk_client/chunk_meta.pb.h>
 
 #include <util/system/file.h>
+#include <util/system/mutex.h>
+
+#include <atomic>
 
 namespace NYT {
 namespace NChunkClient {
@@ -43,7 +46,10 @@ private:
     const Stroka FileName_;
     const bool ValidateBlockChecksums_;
 
+    TMutex Mutex_;
+    std::atomic<bool> HasCachedDataFile_ = {false};
     std::unique_ptr<TFile> CachedDataFile_;
+    std::atomic<bool> HasCachedBlocksExt_ = {false};
     TNullable<NProto::TBlocksExt> CachedBlocksExt_;
 
     std::vector<TSharedRef> DoReadBlocks(int firstBlockIndex, int blockCount);
