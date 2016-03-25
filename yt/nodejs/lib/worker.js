@@ -221,7 +221,10 @@ process.on("message", function(message) {
     }
 });
 
-process.on("exit", binding.ShutdownSingletons);
+process.on("exit", function() {
+    // Call _exit to avoid subtle shutdown issues.
+    binding.WipeOutCurrentProcess(0);
+});
 
 process.on("uncaughtException", function(err) {
     console.error("*** Uncaught Exception");
@@ -229,8 +232,8 @@ process.on("uncaughtException", function(err) {
     if (err.trace) {
         console.error(err.trace);
     }
-    binding.ShutdownSingletons();
-    process.exit(1);
+    // Call _exit to avoid subtle shutdown issues.
+    binding.WipeOutCurrentProcess(1);
 });
 
 // Fire up the head.
