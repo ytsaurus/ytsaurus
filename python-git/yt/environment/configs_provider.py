@@ -238,14 +238,12 @@ class ConfigsProvider_17(ConfigsProvider):
             update(config["cluster_connection"],
                    self._get_cluster_connection_config(enable_master_cache=True))
 
-            config["data_node"]["multiplexed_changelog"] = {}
-            config["data_node"]["multiplexed_changelog"]["path"] = os.path.join(node_dirs[i], "multiplexed")
-
             config["data_node"]["store_locations"].append({
                 "path": os.path.join(node_dirs[i], "chunk_store"),
                 "low_watermark": 0,
                 "high_watermark": 0
             })
+
             config["exec_agent"]["slot_manager"]["start_uid"] = current_user
 
             current_user += config["exec_agent"]["job_controller"]["resource_limits"]["user_slots"] + 1
@@ -512,6 +510,12 @@ class ConfigsProvider_18(ConfigsProvider):
             }
             update(config["cluster_connection"],
                    self._get_cluster_connection_config(enable_master_cache=True))
+
+            config["data_node"]["read_thread_count"] = 2
+            config["data_node"]["write_thread_count"] = 2
+            
+            config["data_node"]["multiplexed_changelog"] = {}
+            config["data_node"]["multiplexed_changelog"]["path"] = os.path.join(node_dirs[i], "multiplexed")
 
             config["data_node"]["cache_locations"] = []
             config["data_node"]["cache_locations"].append({"path": os.path.join(node_dirs[i], "chunk_cache")})
