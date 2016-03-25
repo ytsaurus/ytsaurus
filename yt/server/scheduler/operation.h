@@ -118,6 +118,9 @@ public:
     //! Delegates to #NYT::NScheduler::IsOperationFinishing.
     bool IsFinishingState() const;
 
+    //! Returns |true| if operation controller progress can be built.
+    bool HasControllerProgress() const;
+
     TOperation(
         const TOperationId& operationId,
         EOperationType type,

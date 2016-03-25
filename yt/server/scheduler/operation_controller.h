@@ -190,6 +190,9 @@ struct IOperationController
         ISchedulingContext* context,
         const NNodeTrackerClient::NProto::TNodeResources& jobLimits) = 0;
 
+    //! Returns |true| when controller can build it's progress.
+    virtual bool HasProgress() const = 0;
+
     //! Called to construct a YSON representing the current progress.
     virtual void BuildProgress(NYson::IYsonConsumer* consumer) const = 0;
 
