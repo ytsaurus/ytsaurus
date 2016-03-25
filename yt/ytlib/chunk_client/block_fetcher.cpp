@@ -212,7 +212,7 @@ void TBlockFetcher::FetchNextGroup(TAsyncSemaphoreGuard asyncSemaphoreGuard)
     while (FirstUnfetchedWindowIndex_ < BlockInfos_.size()) {
         const auto& blockInfo = BlockInfos_[FirstUnfetchedWindowIndex_];
         int blockIndex = blockInfo.Index;
-        if (windowIndexes.empty() || uncompressedSize + blockInfo.UncompressedDataSize > availableSlots) {
+        if (windowIndexes.empty() || uncompressedSize + blockInfo.UncompressedDataSize < availableSlots) {
             if (Window_[FirstUnfetchedWindowIndex_].FetchStarted.test_and_set()) {
                 // This block has been already requested out of order.
                 ++FirstUnfetchedWindowIndex_;
