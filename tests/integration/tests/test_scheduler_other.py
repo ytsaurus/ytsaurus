@@ -652,6 +652,16 @@ class TestSchedulerConfig(YTEnvSetup):
             "event_log" : {
                 "retry_backoff_time" : 7,
                 "flush_period" : 5000
+            },
+            "operation_options": {
+                "spec_template": {
+                    "data_size_per_job": 1000
+                }
+            },
+            "map_operation_options": {
+                "spec_template": {
+                    "data_size_per_job": 2000
+                }
             }
         }
     }
@@ -672,6 +682,18 @@ class TestSchedulerConfig(YTEnvSetup):
 
         assert get("{0}/event_log/flush_period".format(orchid_scheduler_config)) == 5000
         assert get("{0}/event_log/retry_backoff_time".format(orchid_scheduler_config)) == 7
+
+    def test_specs(self):
+        create("table", "//tmp/t_in")
+        write_table("<append=true>//tmp/t_in", {"foo": "bar"})
+
+        create("table", "//tmp/t_out")
+
+        op = map(command="cat", in_=["//tmp/t_in"], out="//tmp/t_out")
+        assert get("//sys/operations/{0}/@spec/data_size_per_job".format(op.id)) == 2000
+
+        op = merge(in_=["//tmp/t_in"], out="//tmp/t_out")
+        assert get("//sys/operations/{0}/@spec/data_size_per_job".format(op.id)) == 1000
 
 class TestSchedulerPools(YTEnvSetup):
     NUM_MASTERS = 3

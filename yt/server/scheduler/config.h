@@ -426,6 +426,10 @@ public:
     //! Maximum number of foreign chunks to locate per request.
     int MaxChunksPerLocateRequest;
 
+    //! Patch for all operation options.
+    NYT::NYTree::INodePtr OperationOptions;
+
+    //! Specific operation options.
     TMapOperationOptionsPtr MapOperationOptions;
     TReduceOperationOptionsPtr ReduceOperationOptions;
     TJoinReduceOperationOptionsPtr JoinReduceOperationOptions;
@@ -594,6 +598,8 @@ public:
             .GreaterThan(0)
             .Default(10000);
 
+        RegisterParameter("operation_options", OperationOptions)
+            .Default();
         RegisterParameter("map_operation_options", MapOperationOptions)
             .DefaultNew();
         RegisterParameter("reduce_operation_options", ReduceOperationOptions)
@@ -670,6 +676,38 @@ public:
                     << TErrorAttribute("hard_limit", HardConcurrentHeartbeatLimit);
             }
         });
+    }
+
+    virtual void OnLoaded() override
+    {
+        UpdateOptions(&MapOperationOptions, OperationOptions);
+        UpdateOptions(&ReduceOperationOptions, OperationOptions);
+        UpdateOptions(&JoinReduceOperationOptions, OperationOptions);
+        UpdateOptions(&EraseOperationOptions, OperationOptions);
+        UpdateOptions(&OrderedMergeOperationOptions, OperationOptions);
+        UpdateOptions(&UnorderedMergeOperationOptions, OperationOptions);
+        UpdateOptions(&SortedMergeOperationOptions, OperationOptions);
+        UpdateOptions(&MapReduceOperationOptions, OperationOptions);
+        UpdateOptions(&SortOperationOptions, OperationOptions);
+        UpdateOptions(&RemoteCopyOperationOptions, OperationOptions);
+    }
+
+private:
+    template <class TOptions>
+    void UpdateOptions(TOptions* options, NYT::NYTree::INodePtr patch)
+    {
+        using NYTree::INodePtr;
+        using NYTree::ConvertTo;
+
+        if (!patch) {
+            return;
+        }
+
+        if (*options) {
+            *options = ConvertTo<TOptions>(UpdateNode(patch, ConvertTo<INodePtr>(*options)));
+        } else {
+            *options = ConvertTo<TOptions>(patch);
+        }
     }
 };
 
