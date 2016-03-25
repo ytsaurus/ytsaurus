@@ -64,13 +64,20 @@ public:
         , Spec_(spec)
     {
         UploadFilesFromSpec(spec);
-        UploadBinary();
         UploadJobState(job);
+
+        Stroka binaryPath;
+        if (!auth.IsLocalMode) {
+            UploadBinary();
+            binaryPath = "./cppbinary";
+        } else {
+            binaryPath = GetExecPath();
+        }
 
         ClassName_ = TJobFactory::Get()->GetJobName(job);
         Command_ = TStringBuilder() <<
             options.JobCommandPrefix_ <<
-            "./cppbinary " <<
+            binaryPath << " " <<
             commandLineName << " " <<
             "\"" << ClassName_ << "\" " <<
             outputTableCount << " " <<
