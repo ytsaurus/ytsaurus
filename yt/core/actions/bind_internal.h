@@ -92,19 +92,20 @@ namespace NDetail {
 // #TCallableAdapter<>
 ////////////////////////////////////////////////////////////////////////////////
 
-template <typename...>
+template <class...>
 struct TCallableSignature;
 
-template <typename R, typename C, typename... Args>
-struct TCallableSignature<R (C::*)(Args...) const> {
+template <class R, class C, class... Args>
+struct TCallableSignature<R (C::*)(Args...) const>
+{
     typedef R TSignature(Args...);
 };
 
-template <typename R, typename C, typename... Args>
-struct TCallableSignature<R (C::*)(Args...)> {
+template <class R, class C, class... Args>
+struct TCallableSignature<R (C::*)(Args...)>
+{
     typedef R TSignature(Args...);
 };
-
 
 template <class T, class TSignature>
 class TCallableAdapter;
@@ -160,9 +161,15 @@ private:
 
 template <class T>
 class TRunnableAdapter
-    : public TCallableAdapter<T, typename TCallableSignature<decltype(&T::operator())>::TSignature>
+    : public TCallableAdapter<
+        T,
+        typename TCallableSignature<decltype(&T::operator())>::TSignature
+    >
 {
-    typedef TCallableAdapter<T, typename TCallableSignature<decltype(&T::operator())>::TSignature> TBase;
+    typedef TCallableAdapter<
+        T,
+        typename TCallableSignature<decltype(&T::operator())>::TSignature
+    > TBase;
 
 public:
     explicit TRunnableAdapter(const T& functor)
@@ -357,14 +364,14 @@ MakeRunnable(TIgnoreResultWrapper<T>&& wrapper)
 }
 
 template <class T>
-const typename TFunctorTraits< TCallback<T>>::TRunnable&
+const typename TFunctorTraits<TCallback<T>>::TRunnable&
 MakeRunnable(const TCallback<T>& x)
 {
     return x;
 }
 
 template <class T>
-typename TFunctorTraits< TCallback<T>>::TRunnable&&
+typename TFunctorTraits<TCallback<T>>::TRunnable&&
 MakeRunnable(TCallback<T>&& x)
 {
     return std::move(x);
@@ -544,7 +551,7 @@ struct TBindState<TRunnable_, R(TArgs...), void(S...)>
     typedef TInvoker<TBindState, R, TBoundArgsPack, TRunArgsPack, typename NMpl::TGenerateSequence<TBoundArgsPack::Size>::TType> TInvokerType;
     typedef typename TInvokerType::TUnboundSignature TUnboundSignature;
 
-    template<class... P>
+    template <class... P>
     TBindState(
 #ifdef YT_ENABLE_BIND_LOCATION_TRACKING
         const NYT::TSourceLocation& location,
@@ -559,7 +566,7 @@ struct TBindState<TRunnable_, R(TArgs...), void(S...)>
         , Runnable(runnable)
     { }
 
-    template<class... P>
+    template <class... P>
     TBindState(
 #ifdef YT_ENABLE_BIND_LOCATION_TRACKING
         const NYT::TSourceLocation& location,
@@ -575,8 +582,7 @@ struct TBindState<TRunnable_, R(TArgs...), void(S...)>
         , State(std::forward<P>(p)...)
     { }
 
-    virtual ~TBindState()
-    { }
+    virtual ~TBindState() = default;
 
     TRunnable Runnable;
 
