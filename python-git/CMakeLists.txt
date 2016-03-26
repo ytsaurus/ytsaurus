@@ -34,23 +34,3 @@ file(
   COPY ${CMAKE_CURRENT_SOURCE_DIR}/contrib/python-pympler/pympler
   DESTINATION ${CMAKE_CURRENT_SOURCE_DIR}/yt/packages/
 )
-
-exec_program(
-  ${CMAKE_COMMAND} ARGS -E remove
-  ${CMAKE_CURRENT_SOURCE_DIR}/yt/packages/tornado
-)
-
-file(
-  COPY ${CMAKE_CURRENT_SOURCE_DIR}/contrib/python-tornado/tornado
-  DESTINATION ${CMAKE_CURRENT_SOURCE_DIR}/yt/packages/
-)
-
-exec_program(
-  ${CMAKE_COMMAND} ARGS -E remove
-  ${CMAKE_CURRENT_SOURCE_DIR}/yt/packages/certifi
-)
-
-file(
-  COPY ${CMAKE_CURRENT_SOURCE_DIR}/contrib/python-certifi/certifi
-  DESTINATION ${CMAKE_CURRENT_SOURCE_DIR}/yt/packages/
-)
