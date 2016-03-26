@@ -583,9 +583,9 @@ TFuture<T> TFutureBase<T>::WithTimeout(TDuration timeout)
 
     NConcurrency::TDelayedExecutor::Submit(
         BIND([=] () mutable {
-            this_.Cancel();
             promise.TrySet(TError(NYT::EErrorCode::Timeout, "Operation timed out")
                 << TErrorAttribute("timeout", timeout));
+            this_.Cancel();
         }),
         timeout);
 
