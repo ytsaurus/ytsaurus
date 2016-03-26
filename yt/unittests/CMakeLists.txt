@@ -4,6 +4,7 @@ set( SRCS
   ${CMAKE_CURRENT_LIST_DIR}/async_rw_lock_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/attributes_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/bind_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/boolean_column_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/bus_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/callback_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/cgroup_ut.cpp
@@ -11,9 +12,12 @@ set( SRCS
   ${CMAKE_CURRENT_LIST_DIR}/chunk_slice_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_tree_balancer_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_tree_traversing_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/column_format_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/compression_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/compressed_integer_vector_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/coroutines_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/dsv_parser_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/double_column_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/dsv_writer_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/sorted_dynamic_store_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/election_ut.cpp
@@ -29,6 +33,7 @@ set( SRCS
   ${CMAKE_CURRENT_LIST_DIR}/heap_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/hyperloglog_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/intrusive_ptr_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/integer_column_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/job_signaler_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/json_parser_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/json_writer_ut.cpp
@@ -75,9 +80,11 @@ set( SRCS
   ${CMAKE_CURRENT_LIST_DIR}/store_manager_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/stracer_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/string_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/string_column_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/subprocess_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/sync_file_changelog_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_consumer_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/timestamp_column_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/thread_affinity_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/tools_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/tree_builder_ut.cpp

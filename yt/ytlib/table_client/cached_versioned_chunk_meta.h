@@ -30,6 +30,7 @@ public:
     DEFINE_BYREF_RO_PROPERTY(std::vector<TOwningKey>, BlockLastKeys);
     DEFINE_BYREF_RO_PROPERTY(std::vector<int>, BlockRowCounts);
     DEFINE_BYREF_RO_PROPERTY(NProto::TBlockMetaExt, BlockMeta);
+    DEFINE_BYREF_RO_PROPERTY(NProto::TColumnMetaExt, ColumnMeta);
     DEFINE_BYREF_RO_PROPERTY(NChunkClient::NProto::TChunkMeta, ChunkMeta);
     DEFINE_BYREF_RO_PROPERTY(TTableSchema, ChunkSchema);
     DEFINE_BYREF_RO_PROPERTY(NChunkClient::NProto::TMiscExt, Misc);

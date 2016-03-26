@@ -2,7 +2,7 @@ import pytest
 
 from yt_env_setup import YTEnvSetup, wait
 from yt_commands import *
-from yt.yson import YsonEntity
+from yt.yson import YsonEntity, YsonList
 
 from yt.environment.helpers import assert_items_equal
 
@@ -24,40 +24,51 @@ class TestTablets(YTEnvSetup):
         }
     }
 
-    def _create_simple_table(self, path, atomicity="full"):
+    def _get_schema(self, columns, optimized_for):
+        schema = YsonList(columns)
+        schema.attributes["optimized_for"] = optimized_for
+        return schema
+
+    def _create_simple_table(self, path, atomicity="full", optimized_for="lookup"):
         create("table", path,
             attributes={
                 "dynamic": True,
                 "atomicity": atomicity
             },
-            schema=[{"name": "key", "type": "int64", "sort_order": "ascending"}, {"name": "value", "type": "string"}]
-        )
-                
-    def _create_table_with_computed_column(self, path):
+            schema = self._get_schema([
+                {"name": "key", "type": "int64", "sort_order": "ascending"}, 
+                {"name": "value", "type": "string"}],
+                optimized_for))
+
+    def _create_table_with_computed_column(self, path, optimized_for="lookup"):
+
         create("table", path,
             attributes={"dynamic": True},
-            schema=[
+            schema = self._get_schema([
                 {"name": "key1", "type": "int64", "sort_order": "ascending"},
                 {"name": "key2", "type": "int64", "sort_order": "ascending", "expression": "key1 * 100 + 3"},
-                {"name": "value", "type": "string"}]
+                {"name": "value", "type": "string"}],
+                optimized_for)
             )
 
-    def _create_table_with_hash(self, path):
+    def _create_table_with_hash(self, path, optimized_for="lookup"):
         create("table", path,
             attributes={"dynamic": True},
-            schema=[
+            schema = self._get_schema([
                 {"name": "hash", "type": "uint64", "expression": "farm_hash(key)", "sort_order": "ascending"},
                 {"name": "key", "type": "int64", "sort_order": "ascending"},
-                {"name": "value", "type": "string"}]
+                {"name": "value", "type": "string"}],
+                optimized_for)
             )
 
-    def _create_table_with_aggregate_column(self, path, aggregate = "sum"):
+    def _create_table_with_aggregate_column(self, path, aggregate = "sum", optimized_for="lookup"):
         create("table", path,
             attributes={"dynamic": True},
-            schema=[
+            schema = self._get_schema([
                 {"name": "key", "type": "int64", "sort_order": "ascending"},
                 {"name": "time", "type": "int64"},
-                {"name": "value", "type": "int64", "aggregate": aggregate}]
+                {"name": "value", "type": "int64", "aggregate": aggregate}],
+                optimized_for)
             )
 
     def _get_tablet_leader_address(self, tablet_id):
@@ -189,10 +200,10 @@ class TestTablets(YTEnvSetup):
         sleep(1)
         assert self._find_tablet_orchid(address, tablet_id) is None
          
-    def test_read_table(self):
+    def _test_read_table(self, optimized_for):
         self.sync_create_cells(1, 1)
 
-        self._create_simple_table("//tmp/t")
+        self._create_simple_table("//tmp/t", optimized_for=optimized_for)
         self.sync_mount_table("//tmp/t")
 
         rows1 = [{"key": i, "value": str(i)} for i in xrange(10)]
@@ -201,6 +212,12 @@ class TestTablets(YTEnvSetup):
 
         assert read_table("//tmp/t") == rows1
         assert get("//tmp/t/@chunk_count") == 1
+
+    def test_read_table_scan(self):
+        self._test_read_table("scan")
+
+    def test_read_table_lookup(self):
+        self._test_read_table("lookup")
 
     def test_read_snapshot_lock(self):
         self.sync_create_cells(1, 1)
@@ -277,7 +294,7 @@ class TestTablets(YTEnvSetup):
 
         with pytest.raises(YtError): write_table("//tmp/t", [{"key": 1, "value": 2}])
 
-    def test_computed_columns(self):
+    def _test_computed_columns(self, optimized_for):
         self.sync_create_cells(1, 1)
         with pytest.raises(YtError): 
             create("table", "//tmp/t1",
@@ -288,7 +305,7 @@ class TestTablets(YTEnvSetup):
                     {"name": "value", "type": "string"}]
                 )
 
-        self._create_table_with_computed_column("//tmp/t")
+        self._create_table_with_computed_column("//tmp/t", optimized_for)
         self.sync_mount_table("//tmp/t")
 
         insert_rows("//tmp/t", [{"key1": 1, "value": "2"}])
@@ -321,10 +338,16 @@ class TestTablets(YTEnvSetup):
         actual = select_rows("* from [//tmp/t]")
         assert_items_equal(actual, expected)
 
-    def test_computed_hash(self):
+    def test_computed_columns_lookup(self):
+        self._test_computed_columns("lookup")
+
+    def test_computed_columns_scan(self):
+        self._test_computed_columns("scan")
+
+    def _test_computed_hash(self, optimized_for):
         self.sync_create_cells(1, 1)
 
-        self._create_table_with_hash("//tmp/t")
+        self._create_table_with_hash("//tmp/t", optimized_for)
         self.sync_mount_table("//tmp/t")
 
         row1 = [{"key": 1, "value": "2"}]
@@ -343,16 +366,22 @@ class TestTablets(YTEnvSetup):
         actual = select_rows("key, value from [//tmp/t]")
         assert_items_equal(actual, row2)
 
-    def test_computed_column_update_consistency(self):
+    def test_computed_hash_scan(self):
+        self._test_computed_hash("scan")
+
+    def test_computed_hash_lookup(self):
+        self._test_computed_hash("lookup")
+
+    def _test_computed_column_update_consistency(self, optimized_for):
         self.sync_create_cells(1, 1)
 
         create("table", "//tmp/t",
             attributes={"dynamic": True},
-            schema=[
+            schema = self._get_schema([
                 {"name": "key1", "type": "int64", "expression": "key2", "sort_order": "ascending"},
                 {"name": "key2", "type": "int64", "sort_order": "ascending"},
                 {"name": "value1", "type": "string"},
-                {"name": "value2", "type": "string"}]
+                {"name": "value2", "type": "string"}], optimized_for)
             )
         self.sync_mount_table("//tmp/t")
 
@@ -371,9 +400,15 @@ class TestTablets(YTEnvSetup):
         actual = lookup_rows("//tmp/t", [{"key2" : 1}])
         assert_items_equal(actual, expected)
 
-    def test_aggregate_columns(self):
+    def test_computed_column_update_consistency_scan(self):
+        self._test_computed_column_update_consistency("scan")
+
+    def test_computed_column_update_consistency_lookup(self):
+        self._test_computed_column_update_consistency("lookup")
+
+    def _test_aggregate_columns(self, optimized_for):
         self.sync_create_cells(1, 1)
-        self._create_table_with_aggregate_column("//tmp/t")
+        self._create_table_with_aggregate_column("//tmp/t", optimized_for=optimized_for)
         self.sync_mount_table("//tmp/t")
 
         def verify_row(key, expected):
@@ -445,9 +480,15 @@ class TestTablets(YTEnvSetup):
 
         verify_after_flush({"key": 1, "time": 21, "value": 10})
 
+    def test_aggregate_columns_scan(self):
+        self._test_aggregate_columns("scan")
+
+    def test_aggregate_columns_lookup(self):
+        self._test_aggregate_columns("lookup")
+
     def test_aggregate_min_max(self):
         self.sync_create_cells(1, 1)
-        self._create_table_with_aggregate_column("//tmp/t", "min")
+        self._create_table_with_aggregate_column("//tmp/t", "min", "scan")
         self.sync_mount_table("//tmp/t")
 
         insert_rows("//tmp/t", [
@@ -492,7 +533,7 @@ class TestTablets(YTEnvSetup):
 
     def test_reshard_data(self):
         self.sync_create_cells(1, 1)
-        self._create_simple_table("//tmp/t1")
+        self._create_simple_table("//tmp/t1", optimized_for = "scan")
         self.sync_mount_table("//tmp/t1")
 
         def reshard(pivots):
@@ -619,12 +660,13 @@ class TestTablets(YTEnvSetup):
         assert_items_equal(get_tablet_ids("//tmp/x/a"), tablet_ids_a)
         assert_items_equal(get_tablet_ids("//tmp/x/b"), tablet_ids_b)
 
-    def test_any_value_type(self):
+    def _test_any_value_type(self, optimized_for):
         self.sync_create_cells(1, 1)
         create("table", "//tmp/t1",
-               attributes={"dynamic": True},
-               schema=[{"name": "key", "type": "int64", "sort_order": "ascending"}, {"name": "value", "type": "any"}]
-            )
+            attributes={"dynamic": True},
+            schema = self._get_schema([
+                {"name": "key", "type": "int64", "sort_order": "ascending"}, 
+                {"name": "value", "type": "any"}], optimized_for))
         self.sync_mount_table("//tmp/t1")
 
         rows = [
@@ -641,6 +683,12 @@ class TestTablets(YTEnvSetup):
         assert_items_equal(actual, rows)
         actual = lookup_rows("//tmp/t1", [{"key": row["key"]} for row in rows])
         assert_items_equal(actual, rows)
+
+    def test_any_value_scan(self):
+        self._test_any_value_type("scan")
+
+    def test_any_value_lookup(self):
+        self._test_any_value_type("lookup")
 
     def test_swap(self):
         self.test_move_unmounted()
@@ -718,9 +766,9 @@ class TestTablets(YTEnvSetup):
         self._prepare_denied("write")
         with pytest.raises(YtError): delete_rows("//tmp/t", [{"key": 1}], user="u")
 
-    def test_read_from_chunks(self):
+    def _test_read_from_chunks(self, optimized_for):
         self.sync_create_cells(1, 1)
-        self._create_simple_table("//tmp/t")
+        self._create_simple_table("//tmp/t", optimized_for = optimized_for)
 
         pivots = [[]] + [[x] for x in range(100, 1000, 100)]
         reshard_table("//tmp/t", pivots)
@@ -753,6 +801,12 @@ class TestTablets(YTEnvSetup):
             assert get(path + "/static_chunk_row_lookup_count") == 200
             #assert get(path + "/static_chunk_row_lookup_false_positive_count") < 4
             #assert get(path + "/static_chunk_row_lookup_true_negative_count") > 90
+
+    def test_read_from_chunks_scan(self):
+        self._test_read_from_chunks("scan")
+
+    def test_read_from_chunks_lookup(self):
+        self._test_read_from_chunks("lookup")
 
     def test_store_rotation(self):
         self.sync_create_cells(1, 1)
@@ -944,9 +998,9 @@ class TestTablets(YTEnvSetup):
             {"name": "key3", "type": "int64", "expression": "key1 * 100 + 3", "sort_order": "ascending"},
             {"name": "value", "type": "string"}])
 
-    def test_update_key_columns_success(self):
+    def _test_update_key_columns_success(self, optimized_for):
         self.sync_create_cells(1, 1)
-        self._create_simple_table("//tmp/t")
+        self._create_simple_table("//tmp/t", optimized_for = optimized_for)
         
         self.sync_mount_table("//tmp/t")
         rows1 = [{"key": i, "value": str(i)} for i in xrange(100)]
@@ -966,6 +1020,12 @@ class TestTablets(YTEnvSetup):
         assert lookup_rows("//tmp/t", [{"key" : 77, "key2": 1}]) == []
         assert lookup_rows("//tmp/t", [{"key" : 77, "key2": 0}]) == [{"key": 77, "key2": 0, "value": "77"}]
         assert select_rows("sum(1) as s from [//tmp/t] where is_null(key2) group by 0") == [{"s": 100}]
+
+    def test_update_key_columns_success_scan(self):
+        self._test_update_key_columns_success("scan")
+
+    def test_update_key_columns_success_lookup(self):
+        self._test_update_key_columns_success("lookup")
 
     def test_atomicity_mode_should_match(self):
         def do(a1, a2):
@@ -1014,9 +1074,9 @@ class TestTablets(YTEnvSetup):
     def test_nonatomic_snapshots(self):
         self._test_snapshots("none")
 
-    def test_stress_tablet_readers(self):
+    def _test_stress_tablet_readers(self, optimized_for):
         self.sync_create_cells(1, 1)
-        self._create_simple_table("//tmp/t")
+        self._create_simple_table("//tmp/t", optimized_for = optimized_for)
         self.sync_mount_table("//tmp/t")
 
         values = dict()
@@ -1070,6 +1130,12 @@ class TestTablets(YTEnvSetup):
                 values.pop(key)
 
             verify()
+
+    def test_stress_tablet_readers_scan(self):
+        self._test_stress_tablet_readers("scan")
+
+    def test_stress_tablet_readers_lookup(self):
+        self._test_stress_tablet_readers("lookup")
 
     def test_read_only_mode(self):
         self.sync_create_cells(1, 1)
@@ -1186,7 +1252,7 @@ class TestTablets(YTEnvSetup):
 
     def test_rff_requires_async_last_committed(self):
         self.sync_create_cells(3, 1)
-        self._create_simple_table("//tmp/t")
+        self._create_simple_table("//tmp/t", optimized_for = "scan")
         self.sync_mount_table("//tmp/t")
         
         keys = [{"key": 1}]
@@ -1205,7 +1271,7 @@ class TestTablets(YTEnvSetup):
 
     def test_rff_lookup(self):
         self.sync_create_cells(3, 1)
-        self._create_simple_table("//tmp/t")
+        self._create_simple_table("//tmp/t", optimized_for = "scan")
         self.sync_mount_table("//tmp/t")
 
         rows = [{"key": 1, "value": "2"}]
@@ -1241,7 +1307,7 @@ class TestTablets(YTEnvSetup):
 
     def test_erasure(self):
         self.sync_create_cells(3, 1)
-        self._create_simple_table("//tmp/t")
+        self._create_simple_table("//tmp/t", optimized_for = "scan")
         set("//tmp/t/@erasure_codec", "lrc_12_2_2")
         self.sync_mount_table("//tmp/t")
 

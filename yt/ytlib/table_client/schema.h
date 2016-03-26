@@ -19,6 +19,15 @@ DEFINE_ENUM(ESortOrder,
     (Ascending)
 )
 
+// NB: preserve the values since they
+// are persisted in the proto representation.
+DEFINE_ENUM(EOptimizedFor,
+    ((Lookup)  (0))
+    ((Scan)   (1))
+);
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TColumnSchema
 {
     TColumnSchema();
@@ -36,6 +45,7 @@ struct TColumnSchema
     TColumnSchema& SetLock(const TNullable<Stroka>& value);
     TColumnSchema& SetExpression(const TNullable<Stroka>& value);
     TColumnSchema& SetAggregate(const TNullable<Stroka>& value);
+    TColumnSchema& SetGroup(const TNullable<Stroka>& value);
 
     Stroka Name;
     EValueType Type;
@@ -43,6 +53,7 @@ struct TColumnSchema
     TNullable<Stroka> Lock;
     TNullable<Stroka> Expression;
     TNullable<Stroka> Aggregate;
+    TNullable<Stroka> Group;
 };
 
 void Serialize(const TColumnSchema& schema, NYson::IYsonConsumer* consumer);
@@ -58,8 +69,13 @@ class TTableSchema
 public:
     DEFINE_BYREF_RO_PROPERTY(std::vector<TColumnSchema>, Columns);
     DEFINE_BYVAL_RO_PROPERTY(bool, Strict);
+    DEFINE_BYVAL_RO_PROPERTY(EOptimizedFor, OptimizedFor);
 
-    explicit TTableSchema(const std::vector<TColumnSchema>& columns, bool strict = true);
+    explicit TTableSchema(
+        const std::vector<TColumnSchema>& columns,
+        bool strict = true,
+        EOptimizedFor optimizedFor = EOptimizedFor::Lookup);
+
     TTableSchema();
     
     const TColumnSchema* FindColumn(const TStringBuf& name) const;
