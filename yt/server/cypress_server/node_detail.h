@@ -33,7 +33,9 @@ class TNontemplateCypressNodeTypeHandlerBase
 public:
     explicit TNontemplateCypressNodeTypeHandlerBase(NCellMaster::TBootstrap* bootstrap);
 
-    virtual bool IsExternalizable();
+    virtual NYTree::EPermissionSet GetSupportedPermissions();
+
+    virtual bool IsExternalizable() override;
 
 protected:
     NCellMaster::TBootstrap* const Bootstrap_;

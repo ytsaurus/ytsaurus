@@ -1259,13 +1259,38 @@ class TestTablets(YTEnvSetup):
         self.sync_mount_table("//tmp/t")
         assert_items_equal(select_rows("* from [//tmp/t]"), rows)
 
-    def test_validate_dynamic(self):
+    def test_validate_dynamic_attr(self):
         create("table", "//tmp/t")
         assert not get("//tmp/t/@dynamic")
         with pytest.raises(YtError): mount_table("//tmp/t")
         with pytest.raises(YtError): unmount_table("//tmp/t")
         with pytest.raises(YtError): remount_table("//tmp/t")
         with pytest.raises(YtError): reshard_table("//tmp/t", [[]])
+
+    def test_mount_permission_support(self):
+        create("file", "//tmp/f")
+        create("table", "//tmp/t")
+        assert "mount" not in get("//tmp/f/@supported_permissions")
+        assert "mount" in get("//tmp/t/@supported_permissions")
+
+    def test_mount_permission_denied(self):
+        self.sync_create_cells(3, 1)
+        self._create_simple_table("//tmp/t")
+        create_user("u")
+        with pytest.raises(YtError): mount_table("//tmp/t", user="u")
+        with pytest.raises(YtError): unmount_table("//tmp/t", user="u")
+        with pytest.raises(YtError): remount_table("//tmp/t", user="u")
+        with pytest.raises(YtError): reshard_table("//tmp/t", [[]], user="u")
+
+    def test_mount_permission_allowed(self):
+        self.sync_create_cells(3, 1)
+        self._create_simple_table("//tmp/t")
+        create_user("u")
+        set("//tmp/t/@acl/end", {"subjects": ["u"], "permissions": ["mount"], "action": "allow"})
+        self.sync_mount_table("//tmp/t", user="u")
+        self.sync_unmount_table("//tmp/t", user="u")
+        remount_table("//tmp/t", user="u")
+        reshard_table("//tmp/t", [[]], user="u")
 
 ##################################################################
 
