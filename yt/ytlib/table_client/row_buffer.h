@@ -41,6 +41,7 @@ public:
     TUnversionedValue Capture(const TUnversionedValue& value);
 
     TMutableUnversionedRow Capture(TUnversionedRow row, bool deep = true);
+    TMutableUnversionedRow Capture(const TUnversionedValue* begin, int count, bool deep = true);
     std::vector<TMutableUnversionedRow> Capture(const std::vector<TUnversionedRow>& rows, bool deep = true);
 
     TMutableUnversionedRow CaptureAndPermuteRow(

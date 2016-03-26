@@ -49,6 +49,15 @@ bool TNontemplateCypressNodeTypeHandlerBase::IsExternalizable()
     return false;
 }
 
+EPermissionSet TNontemplateCypressNodeTypeHandlerBase::GetSupportedPermissions()
+{
+    return
+        EPermissionSet::Read |
+        EPermissionSet::Write |
+        EPermissionSet::Remove |
+        EPermissionSet::Administer;
+}
+
 bool TNontemplateCypressNodeTypeHandlerBase::IsLeader() const
 {
     return Bootstrap_->GetHydraFacade()->GetHydraManager()->IsLeader();

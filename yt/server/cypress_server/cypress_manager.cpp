@@ -368,7 +368,9 @@ class TCypressManager::TNodeTypeHandler
     : public TObjectTypeHandlerBase<TCypressNodeBase>
 {
 public:
-    TNodeTypeHandler(TImpl* owner, EObjectType type);
+    TNodeTypeHandler(
+        TImpl* owner,
+        INodeTypeHandlerPtr underlyingHandler);
 
     virtual ETypeFlags GetFlags() const override
     {
@@ -380,7 +382,12 @@ public:
 
     virtual EObjectType GetType() const override
     {
-        return Type_;
+        return UnderlyingHandler_->GetObjectType();
+    }
+
+    virtual EPermissionSet GetSupportedPermissions() const override
+    {
+        return UnderlyingHandler_->GetSupportedPermissions();
     }
 
     virtual TObjectBase* FindObject(const TObjectId& id) override
@@ -409,7 +416,7 @@ public:
 
 private:
     TImpl* const Owner_;
-    const EObjectType Type_;
+    const INodeTypeHandlerPtr UnderlyingHandler_;
 
 
     virtual TCellTagList DoGetReplicationCellTags(const TCypressNodeBase* node) override
@@ -600,7 +607,7 @@ public:
         TypeToHandler_[type] = handler;
 
         auto objectManager = Bootstrap_->GetObjectManager();
-        objectManager->RegisterHandler(New<TNodeTypeHandler>(this, type));
+        objectManager->RegisterHandler(New<TNodeTypeHandler>(this, handler));
     }
 
     INodeTypeHandlerPtr FindHandler(EObjectType type)
@@ -2123,10 +2130,12 @@ auto TCypressManager::TImpl::TNodeMapTraits::Create(const TVersionedNodeId& id) 
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCypressManager::TNodeTypeHandler::TNodeTypeHandler(TImpl* owner, EObjectType type)
+TCypressManager::TNodeTypeHandler::TNodeTypeHandler(
+    TImpl* owner,
+    INodeTypeHandlerPtr underlyingHandler)
     : TObjectTypeHandlerBase(owner->Bootstrap_)
     , Owner_(owner)
-    , Type_(type)
+    , UnderlyingHandler_(underlyingHandler)
 { }
 
 void TCypressManager::TNodeTypeHandler::DestroyObject(TObjectBase* object) throw()

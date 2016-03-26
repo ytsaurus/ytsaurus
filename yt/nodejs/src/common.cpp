@@ -131,6 +131,20 @@ Handle<Value> ShutdownSingletons(const Arguments& args)
     return Undefined();
 }
 
+Handle<Value> WipeOutCurrentProcess(const Arguments& args)
+{
+    THREAD_AFFINITY_IS_V8();
+    HandleScope scope;
+
+    YCHECK(args.Length() == 1);
+    EXPECT_THAT_IS(args[0], Uint32);
+
+    int exitCode = args[0]->Uint32Value();
+    _exit(exitCode);
+
+    return Undefined();
+}
+
 } // namespace
 
 Handle<Value> EscapeC(const Arguments& args)
@@ -168,6 +182,9 @@ void InitializeCommon(Handle<Object> target)
     target->Set(
         String::NewSymbol("ShutdownSingletons"),
         FunctionTemplate::New(ShutdownSingletons)->GetFunction());
+    target->Set(
+        String::NewSymbol("WipeOutCurrentProcess"),
+        FunctionTemplate::New(WipeOutCurrentProcess)->GetFunction());
     target->Set(
         String::NewSymbol("EscapeC"),
         FunctionTemplate::New(EscapeC)->GetFunction());

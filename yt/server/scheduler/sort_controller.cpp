@@ -1569,6 +1569,7 @@ protected:
 
             // Product may not fit into i64.
             double partitionDataSize = sqrt(dataSizeAfterPartition) * sqrt(uncompressedBlockSize);
+            partitionDataSize = std::max(partitionDataSize, static_cast<double>(Options->MinPartitionSize));
 
             int maxPartitionCount = GetMaxPartitionJobBufferSize() / uncompressedBlockSize;
             result = std::min(static_cast<int>(dataSizeAfterPartition / partitionDataSize), maxPartitionCount);

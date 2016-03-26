@@ -1,6 +1,7 @@
 #include "value_consumer.h"
 #include "name_table.h"
 #include "schemaless_writer.h"
+#include "row_buffer.h"
 
 #include <yt/core/concurrency/scheduler.h>
 
@@ -123,6 +124,7 @@ void TBuildingValueConsumer::OnEndRow()
 TWritingValueConsumer::TWritingValueConsumer(ISchemalessWriterPtr writer, bool flushImmediately)
     : Writer_(writer)
     , FlushImmediately_(flushImmediately)
+    , RowBuffer_(New<TRowBuffer>())
 {
     YCHECK(Writer_);
 }
@@ -135,8 +137,7 @@ void TWritingValueConsumer::Flush()
     }
 
     Rows_.clear();
-    OwningRows_.clear();
-    CurrentBufferSize_ = 0;
+    RowBuffer_->Clear();
 }
 
 TNameTablePtr TWritingValueConsumer::GetNameTable() const
@@ -150,22 +151,22 @@ bool TWritingValueConsumer::GetAllowUnknownColumns() const
 }
 
 void TWritingValueConsumer::OnBeginRow()
-{ }
+{
+    YASSERT(Values_.empty());
+}
 
 void TWritingValueConsumer::OnValue(const TUnversionedValue& value)
 {
-    Builder_.AddValue(value);
+    Values_.push_back(RowBuffer_->Capture(value));
 }
 
 void TWritingValueConsumer::OnEndRow()
 {
-    OwningRows_.emplace_back(Builder_.FinishRow());
-    const auto& row = OwningRows_.back();
+    auto row = RowBuffer_->Capture(Values_.data(), Values_.size(), false);
+    Values_.clear();
+    Rows_.push_back(row);
 
-    CurrentBufferSize_ += row.GetByteSize();
-    Rows_.emplace_back(row);
-
-    if (CurrentBufferSize_ > MaxBufferSize || FlushImmediately_) {
+    if (RowBuffer_->GetSize() > MaxBufferSize || FlushImmediately_) {
         Flush();
     }
 }

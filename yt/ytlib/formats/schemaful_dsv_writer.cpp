@@ -45,16 +45,16 @@ protected:
     // This array contains TUnversionedValue's reordered
     // according to the desired order.
     std::vector<const TUnversionedValue*> CurrentRowValues_;
-
+    
     TSchemafulDsvWriterBase(TSchemafulDsvFormatConfigPtr config, std::vector<int> idToIndexInRow)
         : Config_(config)
         , IdToIndexInRow_(idToIndexInRow)
         , Table_(config)
-    { 
+    {  
         CurrentRowValues_.resize(
             *std::max_element(IdToIndexInRow_.begin(), IdToIndexInRow_.end()) + 1);
         YCHECK(Config_->Columns);
-    }
+    }    
 
     void WriteValue(const TUnversionedValue& value)
     {
@@ -62,15 +62,13 @@ protected:
             case EValueType::Null:
                 break;
 
-            case EValueType::Int64:
+            case EValueType::Int64: {
+                WriteInt64(value.Data.Int64);
+                break;
+            }
+
             case EValueType::Uint64: {
-                char buf[64];
-                char* end = buf + 64;
-                char* begin = value.Type == EValueType::Int64
-                    ? WriteInt64Backwards(end, value.Data.Int64)
-                    : WriteUint64Backwards(end, value.Data.Uint64);
-                size_t length = end - begin;
-                BlobOutput_->Write(begin, length);
+                WriteUint64(value.Data.Uint64);
                 break;
             }
 
@@ -98,6 +96,22 @@ protected:
                 break;
             }
         }
+    }
+
+    void WriteInt64(i64 value) 
+    {
+        char buf[64];
+        char* end = buf + 64;
+        char* start = WriteInt64ToBufferBackwards(end, value);
+        BlobOutput_->Write(start, end - start);
+    }
+
+    void WriteUint64(ui64 value) 
+    {
+        char buf[64];
+        char* end = buf + 64;
+        char* start = WriteUint64ToBufferBackwards(end, value);
+        BlobOutput_->Write(start, end - start);
     }
     
     void WriteRaw(const TStringBuf& str)
@@ -142,7 +156,7 @@ private:
     // of value in backwards, meaning that the resulting representation will occupy
     // range [ptr - length, ptr). Return value is ptr - length, i. e. the pointer to the
     // beginning of the result.
-    static char* WriteInt64Backwards(char* ptr, i64 value)
+    static char* WriteInt64ToBufferBackwards(char* ptr, i64 value)
     {
         if (value == 0) {
             --ptr;
@@ -185,7 +199,7 @@ private:
     }
 
     // Same as WriteInt64Backwards for ui64.
-    static char* WriteUint64Backwards(char* ptr, ui64 value)
+    static char* WriteUint64ToBufferBackwards(char* ptr, ui64 value)
     {
         if (value == 0) {
             --ptr;
@@ -234,6 +248,9 @@ public:
             config,
             IdToIndexInRow)
     {
+        if (Config_->EnableTableIndex && controlAttributesConfig->EnableTableIndex) {
+            TableIndexColumnId_ = nameTable->GetIdOrRegisterName(TableIndexColumnName);
+        }
         BlobOutput_ = GetOutputStream();
     }
        
@@ -246,6 +263,12 @@ public:
                 if (item->Id < IdToIndexInRow_.size() && IdToIndexInRow_[item->Id] != -1) {
                     CurrentRowValues_[IdToIndexInRow_[item->Id]] = item;
                 }
+            }
+
+            if (Config_->EnableTableIndex && ControlAttributesConfig_->EnableTableIndex &&
+                !CurrentRowValues_[IdToIndexInRow_[TableIndexColumnId_]]) 
+            {
+                THROW_ERROR_EXCEPTION("Table index column is missing");
             }
             
             int missingValueIndex = FindMissingValueIndex();
@@ -276,6 +299,9 @@ public:
         }    
         TryFlushBuffer(true);
     }
+
+private:
+    int TableIndexColumnId_ = -1;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -399,17 +425,18 @@ ISchemalessFormatWriterPtr CreateSchemalessWriterForSchemafulDsv(
     if (controlAttributesConfig->EnableRowIndex) {
         THROW_ERROR_EXCEPTION("Row indices are not supported in schemaful DSV format");
     }
-
-    if (controlAttributesConfig->EnableTableIndex) {
-        THROW_ERROR_EXCEPTION("Table indices are not supported in schemaful DSV format");
-    }
-
+        
     if (!config->Columns) {
         THROW_ERROR_EXCEPTION("Config must contain columns for schemaful DSV schemaless writer");
     }
 
     std::vector<int> idToIndexInRow;
-    const auto& columns = config->Columns.Get();
+    auto columns = config->Columns.Get();
+
+    if (config->EnableTableIndex && controlAttributesConfig->EnableTableIndex) {
+        columns.insert(columns.begin(), TableIndexColumnName);
+    }
+
     for (int columnIndex = 0; columnIndex < static_cast<int>(columns.size()); ++columnIndex) {
         nameTable->GetIdOrRegisterName(columns[columnIndex]);
     }

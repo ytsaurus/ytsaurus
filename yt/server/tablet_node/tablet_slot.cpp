@@ -672,7 +672,8 @@ private:
                 MakeWeak(this)))
             ->AddChild("transactions", TransactionManager_->GetOrchidService())
             ->AddChild("tablets", TabletManager_->GetOrchidService())
-            ->AddChild("hive", HiveManager_->GetOrchidService());
+            ->AddChild("hive", HiveManager_->GetOrchidService())
+            ->Via(Bootstrap_->GetControlInvoker());
     }
 
     void ResetEpochInvokers()

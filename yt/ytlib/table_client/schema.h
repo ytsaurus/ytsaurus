@@ -59,7 +59,7 @@ public:
     DEFINE_BYREF_RO_PROPERTY(std::vector<TColumnSchema>, Columns);
     DEFINE_BYVAL_RO_PROPERTY(bool, Strict);
 
-    explicit TTableSchema(const std::vector<TColumnSchema>& columns, bool strict = false);
+    explicit TTableSchema(const std::vector<TColumnSchema>& columns, bool strict = true);
     TTableSchema();
     
     const TColumnSchema* FindColumn(const TStringBuf& name) const;

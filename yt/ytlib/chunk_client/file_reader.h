@@ -5,6 +5,9 @@
 #include <yt/ytlib/chunk_client/chunk_meta.pb.h>
 
 #include <util/system/file.h>
+#include <util/system/mutex.h>
+
+#include <atomic>
 
 namespace NYT {
 namespace NChunkClient {
@@ -26,20 +29,6 @@ public:
         const Stroka& fileName,
         bool validateBlocksChecksums = true);
 
-    //! Opens the files, reads chunk meta. Must be called before reading blocks.
-    void Open();
-
-    //! Returns the meta file size.
-    i64 GetMetaSize() const;
-
-    //! Returns the data file size.
-    i64 GetDataSize() const;
-
-    //! Returns the full chunk size.
-    i64 GetFullSize() const;
-
-    //! Synchronously returns the chunk's meta.
-    const NProto::TChunkMeta& GetMeta();
 
     // IReader implementation.
     virtual TFuture<std::vector<TSharedRef>> ReadBlocks(
@@ -53,8 +42,8 @@ public:
 
     virtual TFuture<NProto::TChunkMeta> GetMeta(
         const TWorkloadDescriptor& workloadDescriptor,
-        const TNullable<int>& partitionTag,
-        const TNullable<std::vector<int>>& extensionTags) override;
+        const TNullable<int>& partitionTag = Null,
+        const TNullable<std::vector<int>>& extensionTags = Null) override;
 
     virtual TChunkId GetChunkId() const override;
 
@@ -63,18 +52,19 @@ private:
     const Stroka FileName_;
     const bool ValidateBlockChecksums_;
 
-    bool Opened_ = false;
-    std::unique_ptr<TFile> DataFile_;
+    TMutex Mutex_;
+    std::atomic<bool> HasCachedDataFile_ = {false};
+    std::unique_ptr<TFile> CachedDataFile_;
+    std::atomic<bool> HasCachedBlocksExt_ = {false};
+    TNullable<NProto::TBlocksExt> CachedBlocksExt_;
 
-    i64 MetaSize_ = -1;
-    i64 DataSize_ = -1;
+    std::vector<TSharedRef> DoReadBlocks(int firstBlockIndex, int blockCount);
+    NProto::TChunkMeta DoGetMeta(
+        const TNullable<int>& partitionTag,
+        const TNullable<std::vector<int>>& extensionTags);
 
-    NChunkClient::NProto::TChunkMeta Meta_;
-    NChunkClient::NProto::TBlocksExt BlocksExt_;
-    int BlockCount_;
-
-    virtual std::vector<TSharedRef> DoReadBlocks(int firstBlockIndex, int blockCount);
-
+    const NProto::TBlocksExt& GetBlockExts();
+    TFile& GetDataFile();
 };
 
 DEFINE_REFCOUNTED_TYPE(TFileReader)

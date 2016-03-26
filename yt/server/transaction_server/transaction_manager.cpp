@@ -642,7 +642,8 @@ public:
             multicellManager->PostToMasters(request, transaction->SecondaryCellTags());
         }
 
-        auto nestedTransactions = transaction->NestedTransactions();
+        SmallVector<TTransaction*, 16> nestedTransactions(transaction->NestedTransactions().begin(), transaction->NestedTransactions().end());
+        std::sort(nestedTransactions.begin(), nestedTransactions.end(), TObjectRefComparer::Compare);
         for (auto* nestedTransaction : nestedTransactions) {
             AbortTransaction(nestedTransaction, force);
         }
