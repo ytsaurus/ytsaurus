@@ -984,8 +984,11 @@ private:
             auto objectManager = Bootstrap_->GetObjectManager();
             for (const auto& pair : TabletCellMap_) {
                 auto* cell = pair.second;
-                YCHECK(cell->GetObjectRefCounter() == 1);
-                objectManager->UnrefObject(cell);
+                if (cell->GetObjectRefCounter() == 1) {
+                    LOG_INFO("Removing tablet cell upon migration (CellId: %v)",
+                        cell->GetId());
+                    objectManager->UnrefObject(cell);
+                }
             }
         }
 
