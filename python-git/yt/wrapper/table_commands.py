@@ -1191,8 +1191,9 @@ class Finalizer(object):
         self.client = client
 
     def __call__(self, state):
-        for file in self.local_files_to_remove:
-            os.remove(file)
+        if get_config(self.client)["clear_local_temp_files"]:
+            for file in self.local_files_to_remove:
+                os.remove(file)
         if state == "completed":
             for table in map(lambda table: to_name(table, client=self.client), self.output_tables):
                 self.check_for_merge(table)
