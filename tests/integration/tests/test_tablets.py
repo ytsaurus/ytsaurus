@@ -1267,6 +1267,11 @@ class TestTablets(YTEnvSetup):
         with pytest.raises(YtError): remount_table("//tmp/t")
         with pytest.raises(YtError): reshard_table("//tmp/t", [[]])
 
+    def test_dynamic_table_schema_validation(self):
+        with pytest.raises(YtError): create("table", "//tmp/t",
+            attributes={"dynamic": True},
+            schema=[{"data": "string"}])
+
     def test_mount_permission_support(self):
         create("file", "//tmp/f")
         create("table", "//tmp/t")
