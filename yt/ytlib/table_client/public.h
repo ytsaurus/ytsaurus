@@ -54,6 +54,7 @@ const i64 MaxStringValueLength = (i64) 16 * 1024 * 1024;
 const i64 MaxRowWeightLimit = (i64) 128 * 1024 * 1024;
 const int MaxColumnNameLength = 256;
 const int MaxColumnLockLength = 256;
+const int MaxColumnGroupLength = 256;
 
 const int DefaultPartitionTag = -1;
 
@@ -77,6 +78,7 @@ DEFINE_ENUM(ETableChunkFormat,
     ((VersionedSimple)      (2))
     ((Schemaful)            (3))
     ((SchemalessHorizontal) (4))
+    ((VersionedColumnar)    (5))
 );
 
 DEFINE_ENUM(EControlAttribute,

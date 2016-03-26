@@ -21,7 +21,6 @@ class TAppendOnlyBitmap
 {
 public:
     explicit TAppendOnlyBitmap(int bitCapacity = 0)
-        : BitSize_(0)
     {
         YCHECK(bitCapacity >= 0);
         if (bitCapacity) {
@@ -37,6 +36,18 @@ public:
 
         Data_.back() |= GetChunkMask<TChunkType>(BitSize_, value);
         ++BitSize_;
+    }
+
+    bool operator[] (i64 index) const
+    {
+        YASSERT(index < BitSize_);
+        int dataIndex = index / (sizeof(TChunkType) * 8);
+        return static_cast<bool>(Data_[dataIndex] & GetChunkMask<TChunkType>(index, true));
+    }
+
+    i64 GetBitSize() const
+    {
+        return BitSize_;
     }
 
     template <class TTag>
@@ -57,7 +68,7 @@ public:
     }
 
 private:
-    int BitSize_;
+    i64 BitSize_ = 0;
     SmallVector<TChunkType, DefaultChunkCount> Data_;
 
 };
