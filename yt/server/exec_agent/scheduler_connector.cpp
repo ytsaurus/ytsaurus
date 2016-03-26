@@ -66,7 +66,7 @@ void TSchedulerConnector::SendHeartbeat()
     }
 
     if (TInstant::Now() < LastFailedHeartbeatTime_ + Config_->FailedHeartbeatBackoffTime) {
-        LOG_INFO("Skipping heartbeat");
+        LOG_INFO("Skipping heartbeat to scheduler");
         HeartbeatExecutor_->ScheduleNext();
         return;
     }
