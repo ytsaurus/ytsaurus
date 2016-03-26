@@ -229,7 +229,7 @@ TFuture<void> TBlobSession::DoSendBlocks(
 
 void TBlobSession::DoWriteBlock(const TSharedRef& block, int blockIndex)
 {
-    VERIFY_THREAD_AFFINITY(WriterThread);
+    // Thread affinity: WriterThread
 
     THROW_ERROR_EXCEPTION_IF_FAILED(Error_);
 
@@ -321,7 +321,7 @@ void TBlobSession::DoCancel()
 
 void TBlobSession::DoOpenWriter()
 {
-    VERIFY_THREAD_AFFINITY(WriterThread);
+    // Thread affinity: WriterThread
 
     LOG_TRACE("Started opening blob chunk writer");
 
@@ -358,7 +358,7 @@ TFuture<void> TBlobSession::AbortWriter()
 
 void TBlobSession::DoAbortWriter()
 {
-    VERIFY_THREAD_AFFINITY(WriterThread);
+    // Thread affinity: WriterThread
 
     THROW_ERROR_EXCEPTION_IF_FAILED(Error_);
 
@@ -405,7 +405,7 @@ TFuture<void> TBlobSession::CloseWriter(const TChunkMeta& chunkMeta)
 
 void TBlobSession::DoCloseWriter(const TChunkMeta& chunkMeta)
 {
-    VERIFY_THREAD_AFFINITY(WriterThread);
+    // Thread affinity: WriterThread
 
     THROW_ERROR_EXCEPTION_IF_FAILED(Error_);
 
@@ -556,7 +556,7 @@ void TBlobSession::ReleaseSpace()
 
 void TBlobSession::SetFailed(const TError& error)
 {
-    VERIFY_THREAD_AFFINITY(WriterThread);
+    // Thread affinity: WriterThread
 
     if (!Error_.IsOK())
         return;

@@ -19,7 +19,7 @@
 
 #include <errno.h>
 
-#ifndef _win_
+#ifdef _unix_
     #include <netinet/tcp.h>
     #include <sys/socket.h>
     #include <sys/un.h>
@@ -249,21 +249,20 @@ protected:
                 }
             }
 
-            auto connectionCount = DispatcherThread_
-                ->GetStatistics(InterfaceType_)
-                ->ServerConnections;
-            if (connectionCount >= Config_->MaxSimultaneousConnections) {
+            auto connectionCount = TTcpDispatcher::TImpl::Get()->GetServerConnectionCount(InterfaceType_);
+            auto connectionLimit = Config_->MaxSimultaneousConnections;
+            if (connectionCount >= connectionLimit) {
                 LOG_DEBUG("Connection dropped (Address: %v, ConnectionCount: %v, ConnectionLimit: %v)",
                     ToString(clientAddress, false),
                     connectionCount,
-                    Config_->MaxSimultaneousConnections);
+                    connectionLimit);
                 close(clientSocket);
                 continue;
             } else {
                 LOG_DEBUG("Connection accepted (Address: %v, ConnectionCount: %v, ConnectionLimit: %v)",
                     ToString(clientAddress, false),
                     connectionCount,
-                    Config_->MaxSimultaneousConnections);
+                    connectionLimit);
             }
 
             InitClientSocket(clientSocket);

@@ -314,7 +314,7 @@ TJobResult TJobProxy::DoRun()
 
     AuxNodeDirectory_ = New<NNodeTrackerClient::TNodeDirectory>();
     if (schedulerJobSpecExt.has_aux_node_directory()) {
-        InputNodeDirectory_->MergeFrom(schedulerJobSpecExt.aux_node_directory());
+        AuxNodeDirectory_->MergeFrom(schedulerJobSpecExt.aux_node_directory());
     }
 
     HeartbeatExecutor_ = New<TPeriodicExecutor>(

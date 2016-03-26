@@ -53,12 +53,14 @@ protected:
     }
 
     void CreateStandardWriter() {
+        auto controlAttributesConfig = New<TControlAttributesConfig>();
+        controlAttributesConfig->EnableTableIndex = Config_->EnableTableIndex;
         Writer_ = CreateSchemalessWriterForSchemafulDsv(
             Config_,
             NameTable_, 
             CreateAsyncAdapter(static_cast<TOutputStream*>(&OutputStream_)),
             false, // enableContextSaving  
-            New<TControlAttributesConfig>(),
+            controlAttributesConfig,
             0 /* keyColumnCount */);
     }
 };
@@ -231,6 +233,60 @@ TEST_F(TSchemalessWriterForSchemafulDsvTest, NameTableExpansion)
     Config_->MissingValueMode = {EMissingSchemafulDsvValueMode::PrintSentinel};
     CreateStandardWriter();
     TestNameTableExpansion(Writer_, NameTable_);
+}
+
+TEST_F(TSchemalessWriterForSchemafulDsvTest, TableIndex)
+{
+    Config_->Columns = {"column_a", "column_b", "column_c", "column_d"};
+    Config_->EnableTableIndex = true;
+    CreateStandardWriter();
+    
+    TUnversionedRowBuilder row0;
+    row0.AddValue(MakeUnversionedInt64Value(0LL, KeyAId_));
+    row0.AddValue(MakeUnversionedInt64Value(1LL, KeyBId_));
+    row0.AddValue(MakeUnversionedInt64Value(2LL, KeyCId_));
+    row0.AddValue(MakeUnversionedInt64Value(3LL, KeyDId_));
+    
+    // It's necessary to specify a column corresponding to the table index
+    // when enable_table_index = true.
+    EXPECT_EQ(false, Writer_->Write({row0.GetRow()}));
+
+    CreateStandardWriter();
+
+    TUnversionedRowBuilder row1;
+    row1.AddValue(MakeUnversionedInt64Value(42LL, TableIndexId_));
+    row1.AddValue(MakeUnversionedInt64Value(0LL, KeyAId_));
+    row1.AddValue(MakeUnversionedInt64Value(1LL, KeyBId_));
+    row1.AddValue(MakeUnversionedInt64Value(2LL, KeyCId_));
+    row1.AddValue(MakeUnversionedInt64Value(3LL, KeyDId_));
+
+    
+    TUnversionedRowBuilder row2;
+    row2.AddValue(MakeUnversionedInt64Value(42LL, TableIndexId_));
+    row2.AddValue(MakeUnversionedInt64Value(4LL, KeyAId_));
+    row2.AddValue(MakeUnversionedInt64Value(5LL, KeyBId_));
+    row2.AddValue(MakeUnversionedInt64Value(6LL, KeyCId_));
+    row2.AddValue(MakeUnversionedInt64Value(7LL, KeyDId_));
+
+    EXPECT_EQ(true, Writer_->Write({row1.GetRow(), row2.GetRow()}));
+ 
+    TUnversionedRowBuilder row3;
+    row3.AddValue(MakeUnversionedInt64Value(23LL, TableIndexId_));
+    row3.AddValue(MakeUnversionedUint64Value(8LL, KeyAId_));
+    row3.AddValue(MakeUnversionedUint64Value(9LL, KeyBId_));
+    row3.AddValue(MakeUnversionedUint64Value(10LL, KeyCId_));
+    row3.AddValue(MakeUnversionedUint64Value(11ULL, KeyDId_));
+
+    EXPECT_EQ(true, Writer_->Write({row3.GetRow()}));
+
+    Writer_->Close()
+        .Get()
+        .ThrowOnError();
+    Stroka expectedOutput = 
+        "42\t0\t1\t2\t3\n"
+        "42\t4\t5\t6\t7\n"
+        "23\t8\t9\t10\t11\n";
+    EXPECT_EQ(expectedOutput, OutputStream_.Str());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

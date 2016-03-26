@@ -37,6 +37,7 @@
 #include <yt/ytlib/transaction_client/public.h>
 
 #include <yt/core/concurrency/action_queue.h>
+#include <yt/core/concurrency/thread_pool.h>
 #include <yt/core/concurrency/periodic_executor.h>
 
 #include <yt/core/misc/finally.h>
@@ -93,7 +94,7 @@ using NScheduler::NProto::TUserJobSpec;
 static const int JobStatisticsFD = 5;
 static const char* CGroupPrefix = "user_jobs/yt-job-";
 
-static const int BufferSize = 1024 * 1024;
+static const size_t BufferSize = (size_t) 1024 * 1024;
 
 static const size_t MaxCustomStatisticsPathLength = 512;
 
@@ -116,20 +117,19 @@ public:
         , Config_(Host_->GetConfig())
         , JobErrorPromise_(NewPromise<void>())
         , MemoryUsage_(UserJobSpec_.memory_reserve())
-        , PipeIOQueue_(New<TActionQueue>("PipeIO"))
-        , JobPeriodicQueue_(New<TActionQueue>("JobPeriodic"))
-        , JobProberQueue_(New<TActionQueue>("JobProber"))
+        , PipeIOPool_(New<TThreadPool>(Config_->JobIO->PipeIOPoolSize, "PipeIO"))
+        , AuxQueue_(New<TActionQueue>("JobAux"))
         , Process_(New<TProcess>(GetExecPath(), false))
         , CpuAccounting_(CGroupPrefix + ToString(jobId))
         , BlockIO_(CGroupPrefix + ToString(jobId))
         , Memory_(CGroupPrefix + ToString(jobId))
         , Freezer_(CGroupPrefix + ToString(jobId))
         , MemoryWatchdogExecutor_(New<TPeriodicExecutor>(
-            JobPeriodicQueue_->GetInvoker(),
+            AuxQueue_->GetInvoker(),
             BIND(&TUserJob::CheckMemoryUsage, MakeWeak(this)),
             Config_->MemoryWatchdogPeriod))
         , BlockIOWatchdogExecutor_ (New<TPeriodicExecutor>(
-            JobPeriodicQueue_->GetInvoker(),
+            AuxQueue_->GetInvoker(),
             BIND(&TUserJob::CheckBlockIOUsage, MakeWeak(this)),
             Config_->BlockIOWatchdogPeriod))
         , Logger(Host_->GetLogger())
@@ -241,8 +241,8 @@ private:
     i64 MemoryUsage_;
     i64 CumulativeMemoryUsageMbSec_ = 0;
 
-    const TActionQueuePtr PipeIOQueue_;
-    const TActionQueuePtr JobPeriodicQueue_;
+    const TThreadPoolPtr PipeIOPool_;
+    const TActionQueuePtr AuxQueue_;
 
     std::vector<std::unique_ptr<TOutputStream>> TableOutputs_;
     std::vector<TWritingValueConsumerPtr> WritingValueConsumers_;
@@ -258,8 +258,6 @@ private:
     std::vector<TCallback<void()>> InputActions_;
     std::vector<TCallback<void()>> OutputActions_;
     std::vector<TCallback<void()>> FinalizeActions_;
-
-    TActionQueuePtr JobProberQueue_;
 
     TProcessPtr Process_;
     TFuture<void> ProcessFinished_;
@@ -388,7 +386,7 @@ private:
         ValidatePrepared();
 
         auto result = WaitFor(BIND(&TUserJob::DoGetInputContexts, MakeStrong(this))
-            .AsyncVia(PipeIOQueue_->GetInvoker())
+            .AsyncVia(PipeIOPool_->GetInvoker())
             .Run());
         THROW_ERROR_EXCEPTION_IF_FAILED(result, "Error collecting job input context");
         const auto& contexts = result.Value();
@@ -455,7 +453,7 @@ private:
 
         auto pids = GetPidsFromFreezer();
         auto result = WaitFor(BIND([=] () { return RunTool<TStraceTool>(pids); })
-            .AsyncVia(JobProberQueue_->GetInvoker())
+            .AsyncVia(AuxQueue_->GetInvoker())
             .Run());
         THROW_ERROR_EXCEPTION_IF_FAILED(result, "Error running job strace tool");
 
@@ -475,7 +473,7 @@ private:
             arg->Pids);
 
         auto result = WaitFor(BIND([=] () { return RunTool<TJobSignalerTool>(arg); })
-            .AsyncVia(JobProberQueue_->GetInvoker())
+            .AsyncVia(AuxQueue_->GetInvoker())
             .Run());
         THROW_ERROR_EXCEPTION_IF_FAILED(result, "Error running job signaler tool");
     }
@@ -875,7 +873,7 @@ private:
 
             // This is a workaround for YT-2837.
             BIND(&TUserJob::CleanupUserProcesses, MakeWeak(this))
-                .Via(PipeIOQueue_->GetInvoker())
+                .Via(PipeIOPool_->GetInvoker())
                 .Run();
 
             for (auto& reader : TablePipeReaders_) {
@@ -891,7 +889,7 @@ private:
             std::vector<TFuture<void>> result;
             for (auto& action : actions) {
                 auto asyncError = action
-                    .AsyncVia(PipeIOQueue_->GetInvoker())
+                    .AsyncVia(PipeIOPool_->GetInvoker())
                     .Run();
                 asyncError.Subscribe(onIOError);
                 result.emplace_back(std::move(asyncError));
@@ -1019,27 +1017,7 @@ private:
                 << TErrorAttribute("rss", rss)
                 << TErrorAttribute("tmpfs", tmpfsSize)
                 << TErrorAttribute("limit", memoryLimit));
-
-            if (!Config_->EnableCGroups) {
-                // TODO(psushin): If someone wanted to use
-                // YT without cgroups in production than one need to
-                // implement kill by uid here.
-                return;
-            }
-
-            YCHECK(Freezer_.IsCreated());
-
-            try {
-                Stroka freezerFullPath;
-                {
-                    TGuard<TSpinLock> guard(FreezerLock_);
-                    freezerFullPath = Freezer_.GetFullPath();
-                }
-
-                RunKiller(freezerFullPath);
-            } catch (const std::exception& ex) {
-                LOG_FATAL(ex, "Failed to clean up user processes");
-            }
+            CleanupUserProcesses();
         } else if (currentMemoryUsage > MemoryUsage_) {
             UpdateMemoryUsage(currentMemoryUsage);
         }

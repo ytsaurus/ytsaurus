@@ -38,7 +38,7 @@ TChunkWriterBase::TChunkWriterBase(
         chunkWriter,
         blockCache,
         Logger))
-{ 
+{
     Logger.AddTag("TableChunkWriter: %p", this);
 }
 
@@ -109,29 +109,28 @@ void TChunkWriterBase::ValidateRowWeight(i64 weight)
         << TErrorAttribute("row_weight_limit", Config_->MaxRowWeight);
 }
 
-void TChunkWriterBase::ValidateDuplicateIds(const TUnversionedRow row, TNameTablePtr nameTable)
+void TChunkWriterBase::ValidateDuplicateIds(TUnversionedRow row, const TNameTablePtr& nameTable)
 {
     if (!Options_->ValidateDuplicateIds) {
         return;
     }
 
-    std::vector<int> ids;
-    ids.reserve(row.GetCount());
-
+    auto mark = CurrentIdValidationMark_++;
     for (const auto* value = row.Begin(); value != row.End(); ++value) {
-        ids.push_back(value->Id);
-    }
-
-    std::sort(ids.begin(), ids.end());
-    auto it = std::adjacent_find(ids.begin(), ids.end());
-
-    if (it != ids.end()) {
-        auto error = TError("Duplicate value id in unversioned row")
-            << TErrorAttribute("id", *it);
-        if (nameTable) {
-            error = error << TErrorAttribute("column_name", nameTable->GetName(*it));
+        auto id = value->Id;
+        if (id >= IdValidationMarks_.size()) {
+            IdValidationMarks_.resize(std::max(IdValidationMarks_.size() * 2, static_cast<size_t>(id) + 1));
         }
-        THROW_ERROR error;
+        auto& idMark = IdValidationMarks_[id];
+        if (idMark == mark) {
+            auto error = TError("Duplicate column in unversioned row")
+                 << TErrorAttribute("id", id);
+            if (nameTable) {
+                error = error << TErrorAttribute("column_name", nameTable->GetName(id));
+            }
+            THROW_ERROR error;
+        }
+        idMark = mark;
     }
 }
 
@@ -193,6 +192,8 @@ TSequentialChunkWriterBase::TSequentialChunkWriterBase(
         chunkWriter,
         blockCache)
     , KeyColumns_(keyColumns)
+    , RandomGenerator_(RandomNumber<ui64>())
+    , SamplingThreshold_(static_cast<ui64>(std::numeric_limits<ui64>::max() * Config_->SampleRate))
 { }
 
 TFuture<void> TSequentialChunkWriterBase::Open()
@@ -231,7 +232,7 @@ void TSequentialChunkWriterBase::OnRow(TUnversionedRow row)
 
 void TSequentialChunkWriterBase::OnRow(const TUnversionedValue* begin, const TUnversionedValue* end)
 {
-    if (RandomNumber<double>() < Config_->SampleRate || RowCount_ == 0) {
+    if (RandomGenerator_.Generate<ui64>() < SamplingThreshold_ || RowCount_ == 0) {
         EmitSample(begin, end);
     }
 

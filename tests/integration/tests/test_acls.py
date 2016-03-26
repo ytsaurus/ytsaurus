@@ -543,6 +543,7 @@ class TestAcls(YTEnvSetup):
 
         RWRA = "read write remove administer".split()
         RWRAC = RWRA + ["create"]
+        RWRAM = RWRA + ["mount"]
 
         def check(path, permissions):
             assert sorted(get(path + "/@supported_permissions")) == sorted(permissions)
@@ -550,7 +551,7 @@ class TestAcls(YTEnvSetup):
         # cypress node
         check("//tmp", RWRA)
         # chunk owner node
-        check("//tmp/t", RWRA)
+        check("//tmp/t", RWRAM)
         check("//tmp/f", RWRA)
         # user, group, account
         check("//sys/users/u", RWRA)

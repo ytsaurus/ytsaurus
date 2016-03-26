@@ -93,7 +93,6 @@ protected:
     void ValidateActive();
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
-    DECLARE_THREAD_AFFINITY_SLOT(WriterThread);
 
 };
 

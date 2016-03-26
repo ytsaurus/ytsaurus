@@ -174,7 +174,7 @@ private:
 
     void DoWrite()
     {
-#ifndef _win_
+#ifdef _unix_
         YCHECK(Position_ < Buffer_.Size());
 
         int size;

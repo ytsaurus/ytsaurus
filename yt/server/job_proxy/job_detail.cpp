@@ -39,6 +39,8 @@ using NJobTrackerClient::TStatistics;
 static const auto& Profiler = JobProxyProfiler;
 static const auto& Logger = JobProxyLogger;
 
+static const int PipeBufferRowCount = 10240;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TJob::TJob(IJobHostPtr host)
@@ -103,6 +105,7 @@ TJobResult TSimpleJobBase::Run()
             }
         } else {
             CreateReader();
+
             CreateWriter();
             WaitFor(Writer_->Open())
                 .ThrowOnError();
@@ -110,9 +113,8 @@ TJobResult TSimpleJobBase::Run()
             PROFILE_TIMING_CHECKPOINT("init");
 
             LOG_INFO("Reading and writing");
-            {
-                PipeReaderToWriter(Reader_, Writer_, 10000, true);
-            }
+
+            PipeReaderToWriter(Reader_, Writer_, PipeBufferRowCount, true);
         }
 
         PROFILE_TIMING_CHECKPOINT("reading_writing");
