@@ -308,7 +308,7 @@ private:
 
         ValidateNotExternal();
         ValidateNoTransaction();
-        ValidatePermission(EPermissionCheckScope::This, EPermission::Administer);
+        ValidatePermission(EPermissionCheckScope::This, EPermission::Mount);
         ValidateDynamicTableConstraints(GetThisTypedImpl()->TableSchema());
 
         auto* table = LockThisTypedImpl();
@@ -337,7 +337,7 @@ private:
 
         ValidateNotExternal();
         ValidateNoTransaction();
-        ValidatePermission(EPermissionCheckScope::This, EPermission::Administer);
+        ValidatePermission(EPermissionCheckScope::This, EPermission::Mount);
         ValidateDynamicTableConstraints(GetThisTypedImpl()->TableSchema());
 
         auto* table = LockThisTypedImpl();
@@ -364,7 +364,7 @@ private:
 
         ValidateNotExternal();
         ValidateNoTransaction();
-        ValidatePermission(EPermissionCheckScope::This, EPermission::Administer);
+        ValidatePermission(EPermissionCheckScope::This, EPermission::Mount);
 
         auto* table = LockThisTypedImpl();
 
@@ -391,7 +391,7 @@ private:
 
         ValidateNotExternal();
         ValidateNoTransaction();
-        ValidatePermission(EPermissionCheckScope::This, EPermission::Administer);
+        ValidatePermission(EPermissionCheckScope::This, EPermission::Mount);
 
         auto* table = LockThisTypedImpl();
 

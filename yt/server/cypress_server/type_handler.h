@@ -30,6 +30,9 @@ struct INodeTypeHandler
     //! Returns the (static) node type.
     virtual NYTree::ENodeType GetNodeType() = 0;
 
+    //! Returns the set of all permissions supported by this node type.
+    virtual NYTree::EPermissionSet GetSupportedPermissions() = 0;
+
     //! Create an empty instance of a node.
     //! Called during snapshot deserialization and node cloning.
     virtual std::unique_ptr<TCypressNodeBase> Instantiate(
