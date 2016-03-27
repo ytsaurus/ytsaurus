@@ -1964,7 +1964,7 @@ private:
     INodePtr FindCellNode(const TCellId& cellId)
     {
         auto cellMapNodeProxy = GetCellMapNode();
-        auto cellNodeProxy = cellMapNodeProxy->FindChild(ToString(cellId));
+        return cellMapNodeProxy->FindChild(ToString(cellId));
     }
 
 
