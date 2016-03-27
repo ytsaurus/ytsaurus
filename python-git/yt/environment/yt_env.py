@@ -100,6 +100,7 @@ class YTEnv(object):
 
     CONFIGS_PROVIDER_FACTORY = ConfigsProviderFactory
 
+    DELTA_DRIVER_CONFIG = {}
     DELTA_MASTER_CONFIG = {}
     DELTA_NODE_CONFIG = {}
     DELTA_SCHEDULER_CONFIG = {}
@@ -823,6 +824,7 @@ class YTEnv(object):
     def _prepare_driver(self, driver_name, secondary_master_cell_count):
         configs = self._get_driver_configs(driver_name, secondary_master_cell_count)
         for cell_index, config in enumerate(configs):
+            update(config, self.DELTA_DRIVER_CONFIG)
             current_driver_name = self._get_driver_name(driver_name, cell_index)
 
             config_path = os.path.join(self.path_to_run, current_driver_name + ".yson")
