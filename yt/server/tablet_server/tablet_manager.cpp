@@ -930,8 +930,6 @@ private:
 
     TPeriodicExecutorPtr CleanupExecutor_;
 
-    bool RemoveCells_ = false;
-
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
 
@@ -966,7 +964,6 @@ private:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         // COMPAT(babenko): YT-4348
-        RemoveCells_ = context.GetVersion() < 210;
         if (context.GetVersion() >= 202) {
             TabletCellBundleMap_.LoadValues(context);
         }
@@ -978,19 +975,6 @@ private:
     virtual void OnAfterSnapshotLoaded() override
     {
         TMasterAutomatonPart::OnAfterSnapshotLoaded();
-
-        // COMPAT(babenko): YT-4348
-        if (RemoveCells_) {
-            auto objectManager = Bootstrap_->GetObjectManager();
-            for (const auto& pair : TabletCellMap_) {
-                auto* cell = pair.second;
-                if (cell->GetObjectRefCounter() == 1) {
-                    LOG_INFO("Removing tablet cell upon migration (CellId: %v)",
-                        cell->GetId());
-                    objectManager->UnrefObject(cell);
-                }
-            }
-        }
 
         NameToTabletCellBundleMap_.clear();
         for (const auto& pair : TabletCellBundleMap_) {
