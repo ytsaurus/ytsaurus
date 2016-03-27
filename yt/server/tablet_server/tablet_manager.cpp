@@ -415,12 +415,19 @@ public:
 
         AbortPrerequisiteTransaction(cell);
 
-        auto cellMapNodeProxy = GetCellMapNode();
-        auto cellNodeProxy = cellMapNodeProxy->FindChild(ToString(cell->GetId()));
+        auto cellNodeProxy = FindCellNode(cell->GetId());
         if (cellNodeProxy) {
-            auto cypressManager = Bootstrap_->GetCypressManager();
-            cypressManager->AbortSubtreeTransactions(cellNodeProxy);
-            cellMapNodeProxy->RemoveChild(cellNodeProxy);
+            // NB: This should succeed regardless of user permissions.
+            auto securityManager = Bootstrap_->GetSecurityManager();
+            auto* rootUser = securityManager->GetRootUser();
+            TAuthenticatedUserGuard userGuard(securityManager, rootUser);
+
+            try {
+                // NB: Subtree transactions were already aborted in AbortPrerequisiteTransaction.
+                cellNodeProxy->GetParent()->RemoveChild(cellNodeProxy);
+            } catch (const std::exception& ex) {
+                LOG_ERROR_UNLESS(IsRecovery(), ex, "Error unregisterting tablet cell from Cypress");
+            }
         }
     }
 
@@ -1796,6 +1803,12 @@ private:
 
     void AbortPrerequisiteTransaction(TTabletCell* cell)
     {
+        auto cypressManager = Bootstrap_->GetCypressManager();
+        auto cellNodeProxy = FindCellNode(cell->GetId());
+        if (cellNodeProxy) {
+            cypressManager->AbortSubtreeTransactions(cellNodeProxy);
+        }
+
         auto* transaction = cell->GetPrerequisiteTransaction();
         if (!transaction)
             return;
@@ -1809,10 +1822,6 @@ private:
 
         auto transactionManager = Bootstrap_->GetTransactionManager();
         transactionManager->AbortTransaction(transaction, true);
-
-        auto cypressManager = Bootstrap_->GetCypressManager();
-        auto cellNodeProxy = GetCellNode(cell->GetId());
-        cypressManager->AbortSubtreeTransactions(cellNodeProxy);
 
         LOG_INFO_UNLESS(IsRecovery(), "Tablet cell prerequisite aborted (CellId: %v, TransactionId: %v)",
             cell->GetId(),
@@ -1960,11 +1969,10 @@ private:
         return resolver->ResolvePath("//sys/tablet_cells")->AsMap();
     }
 
-    INodePtr GetCellNode(const TCellId& cellId)
+    INodePtr FindCellNode(const TCellId& cellId)
     {
-        auto cypressManager = Bootstrap_->GetCypressManager();
-        auto resolver = cypressManager->CreateResolver();
-        return resolver->ResolvePath(Format("//sys/tablet_cells/%v", cellId));
+        auto cellMapNodeProxy = GetCellMapNode();
+        auto cellNodeProxy = cellMapNodeProxy->FindChild(ToString(cellId));
     }
 
 
