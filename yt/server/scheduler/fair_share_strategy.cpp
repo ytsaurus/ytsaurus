@@ -927,16 +927,16 @@ public:
 
     virtual int GetMaxRunningOperationCount() const override
     {
-        return Config_->MaxRunningOperations
-            ? *(Config_->MaxRunningOperations)
-            : StrategyConfig_->MaxRunningOperationsPerPool;
+        return Config_->MaxRunningOperationCount
+            ? *(Config_->MaxRunningOperationCount)
+            : StrategyConfig_->MaxRunningOperationCountPerPool;
     }
 
     virtual int GetMaxOperationCount() const override
     {
-        return Config_->MaxOperations
-            ? *(Config_->MaxOperations)
-            : StrategyConfig_->MaxOperationsPerPool;
+        return Config_->MaxOperationCount
+            ? *(Config_->MaxOperationCount)
+            : StrategyConfig_->MaxOperationCountPerPool;
     }
 
 private:
@@ -1494,7 +1494,7 @@ public:
 
     virtual int GetMaxRunningOperationCount() const override
     {
-        return StrategyConfig_->MaxRunningOperations;
+        return StrategyConfig_->MaxRunningOperationCount;
     }
 
     virtual int GetMaxOperationCount() const override
@@ -1830,7 +1830,9 @@ public:
                     .Item(id).BeginMap()
                         .Item("mode").Value(config->Mode)
                         .Item("running_operation_count").Value(RunningOperationCount[pool->GetId()])
+                        .Item("operation_count").Value(OperationCount[pool->GetId()])
                         .Item("max_running_operation_count").Value(pool->GetMaxRunningOperationCount())
+                        .Item("max_operation_count").Value(pool->GetMaxOperationCount())
                         .DoIf(config->Mode == ESchedulingMode::Fifo, [&] (TFluentMap fluent) {
                             fluent
                                 .Item("fifo_sort_parameters").Value(config->FifoSortParameters);
@@ -2052,7 +2054,7 @@ private:
 
             // Try to run operations from queue.
             auto it = OperationQueue.begin();
-            while (it != OperationQueue.end() && RunningOperationCount[RootPoolName] < Config->MaxRunningOperations) {
+            while (it != OperationQueue.end() && RunningOperationCount[RootPoolName] < Config->MaxRunningOperationCount) {
                 const auto& operation = *it;
                 auto* operationPool = GetOperationElement(operation->GetId())->GetPool();
                 if (CanAddOperationToPool(operationPool)) {
@@ -2200,6 +2202,7 @@ private:
     void OnPoolsUpdated(INodePtr poolsNode)
     {
         if (LastPoolsNodeUpdate && NYTree::AreNodesEqual(LastPoolsNodeUpdate, poolsNode)) {
+            LOG_INFO("Pools are not changed, skipping update");
             return;
         }
         LastPoolsNodeUpdate = poolsNode;
