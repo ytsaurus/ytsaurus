@@ -197,12 +197,13 @@ bool TNode::AddReplica(TChunkPtrWithIndex replica, bool cached)
     }
 }
 
-void TNode::RemoveReplica(TChunkPtrWithIndex replica, bool cached)
+bool TNode::RemoveReplica(TChunkPtrWithIndex replica, bool cached)
 {
     auto* chunk = replica.GetPtr();
     if (cached) {
         YASSERT(!chunk->IsJournal());
         RemoveCachedReplica(replica);
+        return false;
     } else {
         if (chunk->IsJournal()) {
             RemoveStoredReplica(TChunkPtrWithIndex(chunk, ActiveChunkReplicaIndex));
@@ -211,7 +212,7 @@ void TNode::RemoveReplica(TChunkPtrWithIndex replica, bool cached)
         } else {
             RemoveStoredReplica(replica);
         }
-        UnapprovedReplicas_.erase(ToGeneric(replica));
+        return UnapprovedReplicas_.erase(ToGeneric(replica)) == 0;
     }
 }
 
