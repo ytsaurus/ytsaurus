@@ -12,8 +12,8 @@ class TSlruCacheConfig
     : public virtual NYTree::TYsonSerializable
 {
 public:
-    //! The maximum number of bytes that blocks are allowed to occupy.
-    //! Zero means that no blocks are cached.
+    //! The maximum number of weight units cached items are allowed to occupy.
+    //! Zero means that no items are cached.
     i64 Capacity;
 
     //! The fraction of total capacity given to the younger segment.
