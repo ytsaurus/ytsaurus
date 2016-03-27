@@ -2,6 +2,7 @@ import yt.wrapper as yt
 
 import os
 import string
+from contextlib import contextmanager
 
 TEST_DIR = "//home/wrapper_tests"
 
@@ -11,6 +12,17 @@ ENABLE_JOB_CONTROL = bool(int(os.environ.get("TESTS_JOB_CONTROL", False)))
 
 def get_test_file_path(name):
     return os.path.join(TESTS_LOCATION, "files", name)
+
+@contextmanager
+def set_config_option(name, value, final_action=None):
+    old_value = yt.config._get(name)
+    try:
+        yt.config._set(name, value)
+        yield
+    finally:
+        if final_action is not None:
+            final_action()
+        yt.config._set(name, old_value)
 
 # Check equality of records in dsv format
 def check(recordsA, recordsB):

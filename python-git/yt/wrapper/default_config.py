@@ -84,12 +84,22 @@ default_config = {
     "pickling": {
         # Extensions to consider while looking files to archive.
         "search_extensions": None,
-        # Function to filter modules.
+        # Function to filter modules for archive.
         "module_filter": None,
         # Force using py-file even if pyc found.
         # It useful if local version of python differs from version installed on cluster.
         "force_using_py_instead_of_pyc": False,
+        # Some package modules are created in .pth files or manually in hooks during import.
+        # For example, .pth file could be used to emulate namespace packages (see PEP-420).
+        # Such packages can lack of __init__.py and sometimes can not be imported on nodes
+        # (e.g. because .pth files can not be taken to nodes)
+        # In this case artificial __init__.py is added when modules achive is created.
+        "create_init_file_for_package_modules": True,
+        # The list of files to add into archive. File should be specified as tuple that
+        # consists of absolute file path and relative path in archive.
+        "additional_files_to_archive": None,
         # Function to replace standard py_wrapper.create_modules_archive.
+        # If this function specified all previous options does not applied.
         "create_modules_archive_function": None,
         # Pickling framework used to save user modules.
         "framework": "dill",
@@ -109,12 +119,6 @@ default_config = {
         "enable_tmpfs_archive": True,
         # Enable collecting different statistics of job.
         "enable_job_statistics": True,
-        # Some package modules are created in .pth files or manually in hooks during import.
-        # For example, .pth file could be used to emulate namespace packages (see PEP-420).
-        # Such packages can lack of __init__.py and sometimes can not be imported on nodes
-        # (e.g. because .pth files can not be taken to nodes)
-        # In this case artificial __init__.py is added when modules achive is created.
-        "create_init_file_for_package_modules": True,
         # Should we assume that client and server are run on the same node.
         # Possible values:
         # False - all pickled data will be uploaded to cluster and then used in jobs.
