@@ -142,7 +142,8 @@ public:
     void ReserveStoredReplicas(int sizeHint);
     void ReserveCachedReplicas(int sizeHint);
     bool AddReplica(TChunkPtrWithIndex replica, bool cached);
-    void RemoveReplica(TChunkPtrWithIndex replica, bool cached);
+    //! Retruns |true| if this was an approved non-cached replica.
+    bool RemoveReplica(TChunkPtrWithIndex replica, bool cached);
     bool HasReplica(TChunkPtrWithIndex, bool cached) const;
     TChunkPtrWithIndex PickRandomReplica();
     void ClearReplicas();

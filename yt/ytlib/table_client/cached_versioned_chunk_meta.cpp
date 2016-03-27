@@ -95,6 +95,11 @@ void TCachedVersionedChunkMeta::Init(
     Misc_ = GetProtoExtension<TMiscExt>(ChunkMeta_.extensions());
     BlockMeta_ = GetProtoExtension<TBlockMetaExt>(ChunkMeta_.extensions());
 
+    auto columnMeta = FindProtoExtension<TColumnMetaExt>(ChunkMeta_.extensions());
+    if (columnMeta) {
+        ColumnMeta_.Swap(&*columnMeta);
+    }
+
     BlockLastKeys_.reserve(BlockMeta_.blocks_size());
     BlockRowCounts_.reserve(BlockMeta_.blocks_size());
     for (const auto& block : BlockMeta_.blocks()) {
@@ -115,10 +120,13 @@ void TCachedVersionedChunkMeta::ValidateChunkMeta()
     }
 
     auto formatVersion = ETableChunkFormat(ChunkMeta_.version());
-    if (formatVersion != ETableChunkFormat::VersionedSimple) {
-        THROW_ERROR_EXCEPTION("Incorrect chunk format version: actual %Qlv, expected: %Qlv",
+    if (formatVersion != ETableChunkFormat::VersionedSimple &&
+        formatVersion != ETableChunkFormat::VersionedColumnar)
+    {
+        THROW_ERROR_EXCEPTION("Incorrect chunk format version: actual %Qlv, expected: %Qlv or %Qlv",
             formatVersion,
-            ETableChunkFormat::VersionedSimple);
+            ETableChunkFormat::VersionedSimple,
+            ETableChunkFormat::VersionedColumnar);
     }
 }
 
