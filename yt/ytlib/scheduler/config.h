@@ -1043,9 +1043,8 @@ class TPoolConfig
 public:
     ESchedulingMode Mode;
 
-    // TODO(ignat): Rename Operations to OperationCount.
-    TNullable<int> MaxRunningOperations;
-    TNullable<int> MaxOperations;
+    TNullable<int> MaxRunningOperationCount;
+    TNullable<int> MaxOperationCount;
 
     std::vector<EFifoSortParameter> FifoSortParameters;
 
@@ -1054,10 +1053,14 @@ public:
         RegisterParameter("mode", Mode)
             .Default(ESchedulingMode::FairShare);
 
-        RegisterParameter("max_running_operations", MaxRunningOperations)
+        RegisterParameter("max_running_operations", MaxRunningOperationCount)
+            .Default();
+        RegisterParameter("max_running_operation_count", MaxRunningOperationCount)
             .Default();
 
-        RegisterParameter("max_operations", MaxOperations)
+        RegisterParameter("max_operations", MaxOperationCount)
+            .Default();
+        RegisterParameter("max_operation_count", MaxOperationCount)
             .Default();
 
         RegisterParameter("fifo_sort_parameters", FifoSortParameters)
