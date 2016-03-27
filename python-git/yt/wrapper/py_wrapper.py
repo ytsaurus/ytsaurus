@@ -141,13 +141,14 @@ def module_relpath(module_name, module_file, client):
     #        return relpath
 
 def find_file(path):
-    origin_path = path
+    if path == "<frozen>":
+        return None
     while path != "/":
         if os.path.isfile(path):
             return path
         dirname = os.path.dirname(path)
         if dirname == path:
-            raise YtError("Incorrect module path " + origin_path)
+            return None
         path = dirname
 
 class Zip(object):
