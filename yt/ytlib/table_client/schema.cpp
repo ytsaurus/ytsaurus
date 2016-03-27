@@ -51,6 +51,12 @@ TColumnSchema& TColumnSchema::SetLock(const TNullable<Stroka>& value)
     return *this;
 }
 
+TColumnSchema& TColumnSchema::SetGroup(const TNullable<Stroka>& value)
+{
+    Group = value;
+    return *this;
+}
+
 TColumnSchema& TColumnSchema::SetExpression(const TNullable<Stroka>& value)
 {
     Expression = value;
@@ -129,11 +135,16 @@ void FromProto(TColumnSchema* schema, const NProto::TColumnSchema& protoSchema)
 
 TTableSchema::TTableSchema()
     : Strict_(false)
+    , OptimizedFor_(EOptimizedFor::Lookup)
 { }
 
-TTableSchema::TTableSchema(const std::vector<TColumnSchema>& columns, bool strict)
+TTableSchema::TTableSchema(
+    const std::vector<TColumnSchema>& columns,
+    bool strict,
+    EOptimizedFor optimizedFor)
     : Columns_(columns)
     , Strict_(strict)
+    , OptimizedFor_(optimizedFor)
 {
     for (const auto& column : Columns_) {
         if (column.SortOrder)
@@ -292,7 +303,7 @@ TKeyColumns TTableSchema::GetKeyColumns() const
     }
     return keyColumns;
 }
-   
+
 int TTableSchema::GetKeyColumnCount() const
 {
     return KeyColumnCount_;
@@ -479,20 +490,25 @@ void Serialize(const TTableSchema& schema, IYsonConsumer* consumer)
 void Deserialize(TTableSchema& schema, INodePtr node)
 {
     std::vector<TColumnSchema> columns = ConvertTo<std::vector<TColumnSchema>>(node);
-    schema = TTableSchema(columns, node->Attributes().Get<bool>("strict", true));
+    schema = TTableSchema(
+        columns,
+        node->Attributes().Get<bool>("strict", true),
+        node->Attributes().Get<EOptimizedFor>("optimized_for", EOptimizedFor::Lookup));
 }
 
 void ToProto(NProto::TTableSchemaExt* protoSchema, const TTableSchema& schema)
 {
     NYT::ToProto(protoSchema->mutable_columns(), schema.Columns());
     protoSchema->set_strict(schema.GetStrict());
+    protoSchema->set_optimized_for(static_cast<i32>(schema.GetOptimizedFor()));
 }
 
 void FromProto(TTableSchema* schema, const NProto::TTableSchemaExt& protoSchema)
 {
     *schema = TTableSchema(
         FromProto<std::vector<TColumnSchema>>(protoSchema.columns()),
-        protoSchema.strict());
+        protoSchema.strict(),
+        EOptimizedFor(protoSchema.optimized_for()));
 }
 
 void FromProto(
@@ -507,7 +523,10 @@ void FromProto(
         YCHECK(!columnSchema.SortOrder);
         columnSchema.SortOrder = ESortOrder::Ascending;
     }
-    *schema = TTableSchema(columns, !protoSchema.has_strict() || protoSchema.strict());
+    *schema = TTableSchema(
+        columns,
+        protoSchema.strict(),
+        EOptimizedFor(protoSchema.optimized_for()));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -596,15 +615,26 @@ void ValidateColumnSchema(const TColumnSchema& columnSchema)
             if (columnSchema.Lock->empty()) {
                 THROW_ERROR_EXCEPTION("Column lock should either be unset or be non-empty");
             }
-            if (columnSchema.SortOrder) {
-                THROW_ERROR_EXCEPTION("Column lock cannot be set on a key column");
-            }
             if (columnSchema.Lock->size() > MaxColumnLockLength) {
                 THROW_ERROR_EXCEPTION("Column lock name is longer than maximum allowed: %v > %v",
                     columnSchema.Lock->size(),
                     MaxColumnLockLength);
             }
-        } 
+            if (columnSchema.SortOrder) {
+                THROW_ERROR_EXCEPTION("Column lock cannot be set on a key column");
+            }
+        }
+
+        if (columnSchema.Group) {
+            if (columnSchema.Group->empty()) {
+                THROW_ERROR_EXCEPTION("Column group should either be unset or be non-empty");
+            }
+            if (columnSchema.Group->size() > MaxColumnGroupLength) {
+                THROW_ERROR_EXCEPTION("Column group name is longer than maximum allowed: %v > %v",
+                    columnSchema.Group->size(),
+                    MaxColumnGroupLength);
+            }
+        }
     
         ValidateSchemaValueType(columnSchema.Type);
 

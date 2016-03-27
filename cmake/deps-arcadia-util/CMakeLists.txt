@@ -46,6 +46,7 @@ set(STRING_SRCS
 set(GENERIC_BASE ${CMAKE_SOURCE_DIR}/util/generic)
 set(GENERIC_SRCS
   ${GENERIC_BASE}/buffer.cpp
+  ${GENERIC_BASE}/bitops.cpp
   ${GENERIC_BASE}/chartraits.cpp
   ${GENERIC_BASE}/guid.cpp
   ${GENERIC_BASE}/ptr.cpp
@@ -268,7 +269,7 @@ set( DRAFT_BASE ${CMAKE_SOURCE_DIR}/util/draft )
 set( DRAFT_SRCS
  #${DRAFT_BASE}/autozero.cpp
  #${DRAFT_BASE}/backtrace_exception.cpp
- #${DRAFT_BASE}/bitutils.cpp
+ ${DRAFT_BASE}/bitutils.cpp
  #${DRAFT_BASE}/datafile.cpp
  #${DRAFT_BASE}/date.cpp
  #${DRAFT_BASE}/datetime.cpp

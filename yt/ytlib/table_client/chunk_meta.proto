@@ -2,6 +2,8 @@ package NYT.NTableClient.NProto;
 
 import "yt/ytlib/chunk_client/chunk_meta.proto";
 
+import "yt/ytlib/table_chunk_format/column_meta.proto";
+
 ////////////////////////////////////////////////////////////////////////////////
 
 message TColumnSchema
@@ -17,7 +19,10 @@ message TColumnSchema
 message TTableSchemaExt
 {
     repeated TColumnSchema columns = 1;
-    optional bool strict = 2 [default = true];     
+    optional bool strict = 2 [default = true];
+
+    // Default is Lookup (EOptimizedFor).
+    optional int32 optimized_for = 3 [default = 0];
 }
 
 message TNameTableExt
@@ -80,6 +85,11 @@ message TPartitionsExt
 message TKeyColumnsExt
 {
     repeated string names = 1;
+}
+
+message TColumnMetaExt
+{
+    repeated NTableChunkFormat.NProto.TColumnMeta columns = 1;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -7,6 +7,7 @@ from yt_env_setup import YTEnvSetup
 from yt_commands import *
 
 from yt.environment.helpers import assert_items_equal
+from yt.yson import YsonList
 
 from random import randint
 from random import shuffle
@@ -21,6 +22,11 @@ class TestQuery(YTEnvSetup):
     NUM_SCHEDULERS = 1
 
     yson_schema_attribute = "<schema=[{name=a; type=int64}; {name=b; type=int64}]>"
+
+    def _get_schema(self, columns, optimized_for):
+        schema = YsonList(columns)
+        schema.attributes["optimized_for"] = optimized_for
+        return schema
 
     def _sample_data(self, path="//tmp/t", chunks=3, stripe=3):
         create("table", path)
@@ -84,10 +90,9 @@ class TestQuery(YTEnvSetup):
 
         create("table", "//tmp/t",
             attributes={"dynamic": True},
-            schema=[
+            schema = self._get_schema([
                 {"name": "a", "type": "int64", "sort_order": "ascending"},
-                {"name": "b", "type": "int64"}],
-            )
+                {"name": "b", "type": "int64"}], "scan"))
 
         pivots = [[i*5] for i in xrange(0,20)]
         pivots.insert(0, [])
@@ -113,10 +118,9 @@ class TestQuery(YTEnvSetup):
 
         create("table", "//tmp/t",
             attributes={"dynamic": True},
-            schema=[
+            schema = self._get_schema([
                 {"name": "a", "type": "int64", "sort_order": "ascending"},
-                {"name": "b", "type": "string"}],
-            )
+                {"name": "b", "type": "string"}], "scan"))
 
         pivots = [[i*5] for i in xrange(0,20)]
         pivots.insert(0, [])
@@ -142,13 +146,12 @@ class TestQuery(YTEnvSetup):
     def test_order_by(self):
         self.sync_create_cells(3, 1)
 
-        create("table", "//tmp/t",
+        create("table", "//tmp/t", 
             attributes={"dynamic": True},
-            schema=[
+            schema = self._get_schema([
                 {"name": "k", "type": "int64", "sort_order": "ascending"},
                 {"name": "u", "type": "int64"},
-                {"name": "v", "type": "int64"}],
-            )
+                {"name": "v", "type": "int64"}], "scan"))
 
         self.sync_mount_table("//tmp/t")
 
@@ -174,10 +177,10 @@ class TestQuery(YTEnvSetup):
 
         self._create_table(
             "//tmp/jl",
-            [
+            self._get_schema([
                 {"name": "a", "type": "int64", "sort_order": "ascending"},
                 {"name": "b", "type": "int64", "sort_order": "ascending"},
-                {"name": "c", "type": "int64"}],
+                {"name": "c", "type": "int64"}], "scan"),
             [
                 {"a": 1, "b": 2, "c": 80 },
                 {"a": 1, "b": 3, "c": 71 },
@@ -191,10 +194,10 @@ class TestQuery(YTEnvSetup):
 
         self._create_table(
             "//tmp/jr",
-            [
+            self._get_schema([
                 {"name": "c", "type": "int64", "sort_order": "ascending"},
                 {"name": "d", "type": "int64"},
-                {"name": "e", "type": "int64"}],
+                {"name": "e", "type": "int64"}], "scan"),
             [
                 {"d": 1, "e": 2, "c": 80 },
                 {"d": 1, "e": 3, "c": 71 },
@@ -310,8 +313,9 @@ class TestQuery(YTEnvSetup):
 
         create("table", "//tmp/t",
             attributes={"dynamic": True},
-            schema=[{"name": "key", "type": "int64", "sort_order": "ascending"}, {"name": "value", "type": "int64"}],
-            )
+            schema = self._get_schema([
+                {"name": "key", "type": "int64", "sort_order": "ascending"}, 
+                {"name": "value", "type": "int64"}], "scan"))
 
         self.sync_mount_table("//tmp/t")
 
@@ -363,12 +367,12 @@ class TestQuery(YTEnvSetup):
 
         create("table", "//tmp/t",
             attributes={"dynamic": True},
-            schema=[
+            schema = self._get_schema([
                 {"name": "hash", "type": "int64", "expression": "key2 / 2", "sort_order": "ascending"},
                 {"name": "key1", "type": "int64", "sort_order": "ascending"},
                 {"name": "key2", "type": "int64", "sort_order": "ascending"},
-                {"name": "value", "type": "int64"}],
-            )
+                {"name": "value", "type": "int64"}], "scan"))
+
         reshard_table("//tmp/t", [[]] + [[i] for i in xrange(1, 500, 10)])
         self.sync_mount_table("//tmp/t")
 
@@ -394,12 +398,12 @@ class TestQuery(YTEnvSetup):
 
         create("table", "//tmp/t",
              attributes={"dynamic": True},
-             schema=[
+             schema = self._get_schema([
                 {"name": "hash", "type": "int64", "expression": "key2 % 2", "sort_order": "ascending"},
                 {"name": "key1", "type": "int64", "sort_order": "ascending"},
                 {"name": "key2", "type": "int64", "sort_order": "ascending"},
-                {"name": "value", "type": "int64"}],
-            )
+                {"name": "value", "type": "int64"}], "scan"))
+
         reshard_table("//tmp/t", [[]] + [[i] for i in xrange(1, 500, 10)])
         self.sync_mount_table("//tmp/t")
 

@@ -209,6 +209,25 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/security_client/public.cpp
   ${CMAKE_CURRENT_LIST_DIR}/security_client/user_ypath.proto
 
+  ${CMAKE_CURRENT_LIST_DIR}/table_chunk_format/boolean_column_reader.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/table_chunk_format/boolean_column_writer.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/table_chunk_format/column_meta.proto
+  ${CMAKE_CURRENT_LIST_DIR}/table_chunk_format/column_reader.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/table_chunk_format/column_reader_detail.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/table_chunk_format/column_writer.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/table_chunk_format/column_writer_detail.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/table_chunk_format/compressed_integer_vector.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/table_chunk_format/data_block_writer.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/table_chunk_format/double_column_reader.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/table_chunk_format/double_column_writer.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/table_chunk_format/integer_column_reader.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/table_chunk_format/integer_column_writer.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/table_chunk_format/null_column_reader.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/table_chunk_format/string_column_writer.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/table_chunk_format/string_column_reader.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/table_chunk_format/timestamp_writer.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/table_chunk_format/timestamp_reader.cpp
+
   ${CMAKE_CURRENT_LIST_DIR}/table_client/cached_versioned_chunk_meta.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_client/chunk_meta.proto
   ${CMAKE_CURRENT_LIST_DIR}/table_client/chunk_meta_extensions.cpp
