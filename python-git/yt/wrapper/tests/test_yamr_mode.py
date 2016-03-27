@@ -3,11 +3,10 @@ from yt.wrapper.operation_commands import add_failed_operation_stderrs_to_error_
 from yt.wrapper.common import parse_bool
 import yt.wrapper as yt
 from yt.wrapper import Record, dumps_row, TablePath
-import yt.wrapper.config as config
 from yt.common import flatten
 import yt.yson as yson
 
-from helpers import TEST_DIR, get_test_file_path, get_environment_for_binary_test
+from helpers import TEST_DIR, get_test_file_path, get_environment_for_binary_test, set_config_option
 
 import os
 import string
@@ -226,14 +225,11 @@ class TestYamrMode(object):
         table = TEST_DIR + "/table"
         output_table = TEST_DIR + "/output_table"
 
-        yt.config["tabular_data_format"] = yt.format.YamrFormat(has_subkey=False)
-        try:
+        with set_config_option("tabular_data_format", yt.format.YamrFormat(has_subkey=False)):
             yt.write_table(table, ["a\tb\n"])
             yt.run_map_reduce(mapper=None, reducer=yamr_func,
                               source_table=table, destination_table=output_table, reduce_by="key")
             assert list(yt.read_table(output_table)) == ["10\t20\n"]
-        finally:
-            yt.config["tabular_data_format"] = yt.format.YamrFormat(has_subkey=True)
 
         with pytest.raises(yt.YtError):
             yt.run_map_reduce(mapper=None, reducer=yamr_func,
@@ -264,9 +260,7 @@ class TestYamrMode(object):
         assert not yt.exists(other_table)
 
     def test_reduce_unexisting_tables(self):
-        old_option = config["yamr_mode"]["run_map_reduce_if_source_is_not_sorted"]
-        config["yamr_mode"]["run_map_reduce_if_source_is_not_sorted"] = False
-        try:
+        with set_config_option("yamr_mode/run_map_reduce_if_source_is_not_sorted", False):
             table = TEST_DIR + "/table"
             yt.write_table(table, ["0\ta\tA\n"])
             yt.run_sort(table)
@@ -275,8 +269,6 @@ class TestYamrMode(object):
             yt.create("table", output_table)
 
             yt.run_reduce("cat", [table, TEST_DIR + "/unexisting_table"], output_table)
-        finally:
-            config["yamr_mode"]["run_map_reduce_if_source_is_not_sorted"] = old_option
 
     def test_reduce_with_output_sorted(self):
         table = TEST_DIR + "/table"

@@ -7,7 +7,7 @@ import yt.yson as yson
 import yt.wrapper as yt
 
 from helpers import TEST_DIR, TESTS_SANDBOX, TESTS_LOCATION, \
-                    get_environment_for_binary_test, check
+                    get_environment_for_binary_test, check, set_config_option
 
 import inspect
 import random

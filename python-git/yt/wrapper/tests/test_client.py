@@ -3,7 +3,7 @@ from yt.wrapper.table import TablePath
 import yt.wrapper.http as http
 import yt.wrapper as yt
 
-from helpers import TEST_DIR, get_temp_dsv_records
+from helpers import TEST_DIR, get_temp_dsv_records, set_config_option
 
 import pytest
 
@@ -31,9 +31,7 @@ class TestClient(object):
 
         deepcopy(client)
 
-        old_proxy_url = yt.config["proxy"]["url"]
-        try:
-            yt.config["proxy"]["url"] = None
+        with set_config_option("proxy/url", None):
             if yt.config["api_version"] == "v2":
                 assert client.get_user_name("") == None
             else:
@@ -164,9 +162,6 @@ class TestClient(object):
             with client.TempTable(TEST_DIR) as table:
                 assert client.exists(table)
             assert not client.exists(table)
-
-        finally:
-            yt.config["proxy"]["url"] = old_proxy_url
 
     def test_default_api_version(self):
         client = Yt(proxy=yt.config["proxy"]["url"])

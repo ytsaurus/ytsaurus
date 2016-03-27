@@ -2,7 +2,7 @@ import config
 from config import get_config
 from pickling import Pickler
 from cypress_commands import get
-from common import get_python_version, YtError, chunk_iter_stream, chunk_iter_string
+from common import get_python_version, YtError, chunk_iter_stream, chunk_iter_string, get_value
 from errors import YtResponseError
 
 from yt.packages.importlib import import_module
@@ -230,6 +230,8 @@ def create_modules_archive_default(tempfiles_manager, client):
                     zip.append(filepath, relpath)
                 else:
                     fresh_zip.append(filepath, relpath)
+            for filepath, relpath in get_value(get_config(client)["pickling"]["additional_files_to_archive"], []):
+                zip.append(filepath, relpath)
 
     archives = [zip]
     if fresh_zip.size > 0:

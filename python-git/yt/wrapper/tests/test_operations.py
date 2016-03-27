@@ -6,7 +6,7 @@ from yt.wrapper.table import TablePath
 import yt.wrapper as yt
 import yt.logger as logger
 
-from helpers import TEST_DIR, get_test_file_path, check
+from helpers import TEST_DIR, get_test_file_path, check, set_config_option
 
 import os
 import sys
@@ -643,6 +643,20 @@ class TestOperations(object):
 
         finally:
             yt.config["pickling"]["create_modules_archive_function"] = None
+
+    def test_pickling(self):
+        def foo(rec):
+            import test_module
+            assert test_module.TEST == 1
+            yield rec
+
+        with open("/tmp/test_module.py", "w") as fout:
+            fout.write("TEST = 1")
+
+        with set_config_option("pickling/additional_files_to_archive", [("/tmp/test_module.py", "test_module.py")]):
+            table = TEST_DIR + "/table"
+            yt.write_table(table, ["x=1\n"])
+            yt.run_map(foo, table, table)
 
     @add_failed_operation_stderrs_to_error_message
     def test_is_inside_job(self):

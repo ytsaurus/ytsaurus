@@ -3,7 +3,7 @@ from yt.wrapper.table import TablePath, TempTable
 from yt.wrapper.client import Yt
 import yt.wrapper as yt
 
-from helpers import TEST_DIR, check, get_temp_dsv_records
+from helpers import TEST_DIR, check, get_temp_dsv_records, set_config_option
 
 import os
 import pytest
@@ -55,40 +55,26 @@ class TestTableCommands(object):
         yt.write_table(table, [{"y": "1"}], raw=False)
         assert [{"y": "1"}] == list(yt.read_table(table, raw=False))
 
-        yt.config["tabular_data_format"] = None
-        try:
+        with set_config_option("tabular_data_format", None):
             yt.write_table(table, ["x=1\n"], format="dsv")
-        finally:
-            yt.config["tabular_data_format"] = yt.format.DsvFormat()
 
     def test_table_path(self):
         path = yt.TablePath("//path/to/table", attributes={"my_attr": 10})
         assert path.attributes["my_attr"] == 10
         assert str(path) == "//path/to/table"
 
-        yt.config["prefix"] = "//path/"
-        try:
+        with set_config_option("prefix", "//path/"):
             path = yt.TablePath("to/table", attributes={"my_attr": 10})
             assert path.attributes["my_attr"] == 10
             assert str(path) == "//path/to/table"
-        finally:
-            yt.config["prefix"] = None
 
     def test_read_write_with_retries(self):
-        old_value = yt.config["write_retries"]["enable"]
-        yt.config["write_retries"]["enable"] = True
-        try:
+        with set_config_option("write_retries/enable", True):
             self._test_read_write()
-        finally:
-            yt.config["write_retries"]["enable"] = old_value
 
     def test_read_write_without_retries(self):
-        old_value = yt.config["write_retries"]["enable"]
-        yt.config["write_retries"]["enable"] = False
-        try:
+        with set_config_option("write_retries/enable", False):
             self._test_read_write()
-        finally:
-            yt.config["write_retries"]["enable"] = old_value
 
     def test_empty_table(self):
         dir = TEST_DIR + "/dir"
@@ -198,8 +184,7 @@ class TestTableCommands(object):
         if yt.config["api_version"] == "v2":
             pytest.skip()
 
-        yt.config["tabular_data_format"] = None
-        try:
+        with set_config_option("tabular_data_format", None):
             # Name must differ with name of table in select test because of metadata caches
             table = TEST_DIR + "/table2"
             yt.remove(table, force=True)
@@ -228,8 +213,6 @@ class TestTableCommands(object):
 
             yt.delete_rows(table, [{"x": "a"}], raw=False)
             assert [{"x": "c", "y": "d"}] == list(yt.select_rows("* from [{0}]".format(table), raw=False))
-        finally:
-            yt.config["tabular_data_format"] = yt.format.DsvFormat()
 
     def test_insert_lookup_delete_with_transaction(self, yt_env):
         if yt.config["backend"] != "native":
@@ -237,8 +220,7 @@ class TestTableCommands(object):
         if not yt_env.version.startswith("0.17.4"):
             pytest.skip()
 
-        yt.config["tabular_data_format"] = None
-        try:
+        with set_config_option("tabular_data_format", None):
             # Name must differ with name of table in select test because of metadata caches
             table = TEST_DIR + "/table3"
             yt.remove(table, force=True)
@@ -282,8 +264,6 @@ class TestTableCommands(object):
 
             assert list(vanilla_client.select_rows("* from [{0}]".format(table), raw=False)) == [{"x": "a", "y": "a"}]
             assert list(vanilla_client.lookup_rows(table, [{"x": "a"}], raw=False)) == [{"x": "a", "y": "a"}]
-        finally:
-            yt.config["tabular_data_format"] = yt.format.DsvFormat()
 
 
     def test_start_row_index(self):
@@ -464,10 +444,8 @@ class TestTableCommands(object):
         yt.create_table(table)
 
         self._set_banned("true")
-
-        old_request_retry_count = yt.config["proxy"]["request_retry_count"]
-        yt.config["proxy"]["request_retry_count"] = 1
-        try:
+        with set_config_option("proxy/request_retry_count", 1,
+                               final_action=lambda: self._set_banned("false")):
             with pytest.raises(yt.YtProxyUnavailable):
                 yt.get(table)
 
@@ -475,10 +453,6 @@ class TestTableCommands(object):
                 yt.get(table)
             except yt.YtProxyUnavailable as err:
                 assert "banned" in str(err)
-
-        finally:
-            yt.config["proxy"]["request_retry_count"] = old_request_retry_count
-            self._set_banned("false")
 
     def test_error_occured_after_starting_to_write_chunked_requests(self):
         if yt.config["api_version"] != "v3":
@@ -494,9 +468,6 @@ class TestTableCommands(object):
             assert False, "Failed to catch response error"
 
     def test_reliable_remove_tempfiles_in_py_wrap(self):
-        old_tmp_dir = yt.config["local_temp_directory"]
-        yt.config["local_temp_directory"] = tempfile.mkdtemp(dir=old_tmp_dir)
-
         def foo(rec):
             yield rec
 
@@ -504,7 +475,9 @@ class TestTableCommands(object):
             assert files != []
             assert os.listdir(yt.config["local_temp_directory"]) != []
 
-        try:
+        new_temp_dir = tempfile.mkdtemp(dir=yt.config["local_temp_directory"])
+        with set_config_option("local_temp_directory", new_temp_dir,
+                               final_action=lambda: shutil.rmtree(new_temp_dir)):
             assert os.listdir(yt.config["local_temp_directory"]) == []
             with pytest.raises(Exception):
                 py_wrapper.wrap(function=foo, operation_type="mapper", uploader=None,
@@ -513,7 +486,4 @@ class TestTableCommands(object):
             py_wrapper.wrap(function=foo, operation_type="mapper", uploader=uploader,
                             tempfiles_manager=None, client=None, input_format=None, output_format=None, group_by=None)
             assert os.listdir(yt.config["local_temp_directory"]) == []
-        finally:
-            shutil.rmtree(yt.config["local_temp_directory"])
-            yt.config["local_temp_directory"] = old_tmp_dir
 
