@@ -83,9 +83,12 @@ from copy import deepcopy
 
 DEFAULT_EMPTY_TABLE = TablePath("//sys/empty_yamr_table", simplify=False)
 
-def _set_option(params, name, value):
+def _set_option(params, name, value, transform=None):
     if value is not None:
-        params[name] = value
+        if transform is not None:
+            params[name] = transform(value)
+        else:
+            params[name] = value
     return params
 
 def _to_chunk_stream(stream, format, raw, split_rows, chunk_size):
@@ -928,7 +931,9 @@ def reshard_table(path, pivot_keys=None, tablet_count=None, first_tablet_index=N
 
     make_request("reshard_table", params, client=client)
 
-def select_rows(query, timestamp=None, input_row_limit=None, output_row_limit=None, verbose_logging=None, enable_code_cache=None, workload_descriptor=None, format=None, raw=None, client=None):
+def select_rows(query, timestamp=None, input_row_limit=None, output_row_limit=None, range_expansion_limit=None,
+                fail_on_incomplete_result=None, verbose_logging=None, enable_code_cache=None, max_subqueries=None, workload_descriptor=None,
+                format=None, raw=None, client=None):
     """Execute a SQL-like query. NB! This command is not currently supported! The feature is coming with 0.17+ version!
 
     .. seealso:: `supported features <https://wiki.yandex-team.ru/yt/userdoc/queries>`_
@@ -945,18 +950,15 @@ def select_rows(query, timestamp=None, input_row_limit=None, output_row_limit=No
     params = {
         "query": query,
         "output_format": format.to_yson_type()}
-    if timestamp is not None:
-        params["timestamp"] = timestamp
-    if input_row_limit is not None:
-        params["input_row_limit"] = input_row_limit
-    if output_row_limit is not None:
-        params["output_row_limit"] = output_row_limit
-    if verbose_logging is not None:
-        params["verbose_logging"] = bool_to_string(verbose_logging)
-    if enable_code_cache is not None:
-        params["enable_code_cache"] = bool_to_string(enable_code_cache)
-    if workload_descriptor is not None:
-        params["workload_descriptor"] = workload_descriptor
+    _set_option(params, "timestamp", timestamp)
+    _set_option(params, "input_row_limit", input_row_limit)
+    _set_option(params, "output_row_limit", output_row_limit)
+    _set_option(params, "range_expansion_limit", range_expansion_limit)
+    _set_option(params, "fail_on_incomplete_result", fail_on_incomplete_result)
+    _set_option(params, "verbose_logging", verbose_logging, transform=bool_to_string)
+    _set_option(params, "enable_code_cache", enable_code_cache, transform=bool_to_string)
+    _set_option(params, "max_subqueries", max_subqueries)
+    _set_option(params, "workload_descriptor", workload_descriptor)
 
     response = _make_transactional_request(
         "select_rows",
@@ -970,7 +972,8 @@ def select_rows(query, timestamp=None, input_row_limit=None, output_row_limit=No
     else:
         return format.load_rows(response)
 
-def lookup_rows(table, input_stream, format=None, raw=None, client=None):
+def lookup_rows(table, input_stream, timestamp=None, column_names=None, keep_missing_rows=None,
+                format=None, raw=None, client=None):
     """Lookup rows in dynamic table. NB! This command is not currently supported! The feature is coming with 0.17+ version!
 
     .. seealso:: `supported features <https://wiki.yandex-team.ru/yt/userdoc/queries>`_
@@ -988,6 +991,9 @@ def lookup_rows(table, input_stream, format=None, raw=None, client=None):
     params["path"] = table.to_yson_type()
     params["input_format"] = format.to_yson_type()
     params["output_format"] = format.to_yson_type()
+    _set_option(params, "timestamp", timestamp)
+    _set_option(params, "column_names", column_names)
+    _set_option(params, "keep_missing_rows", keep_missing_rows, transform=bool_to_string)
 
     input_stream = _to_chunk_stream(input_stream, format, raw, split_rows=False, chunk_size=get_config(client)["write_retries"]["chunk_size"])
 
@@ -1004,7 +1010,8 @@ def lookup_rows(table, input_stream, format=None, raw=None, client=None):
     else:
         return format.load_rows(response)
 
-def insert_rows(table, input_stream, format=None, raw=None, client=None):
+def insert_rows(table, input_stream, update=None, aggregate=None, atomicity=None, durability=None,
+                format=None, raw=None, client=None):
     """Write rows from input_stream to table.
 
     :param table: (string or :py:class:`yt.wrapper.table.TablePath`) output table. Specify \
@@ -1026,6 +1033,10 @@ def insert_rows(table, input_stream, format=None, raw=None, client=None):
     params = {}
     params["path"] = table.to_yson_type()
     params["input_format"] = format.to_yson_type()
+    _set_option(params, "update", update, transform=bool_to_string)
+    _set_option(params, "aggregate", aggregate, transform=bool_to_string)
+    _set_option(params, "atomicity", atomicity)
+    _set_option(params, "durability", durability)
 
     input_stream = _to_chunk_stream(input_stream, format, raw, split_rows=False, chunk_size=get_config(client)["write_retries"]["chunk_size"])
 
@@ -1036,7 +1047,7 @@ def insert_rows(table, input_stream, format=None, raw=None, client=None):
         use_heavy_proxy=True,
         client=client)
 
-def delete_rows(table, input_stream, format=None, raw=None, client=None):
+def delete_rows(table, input_stream, atomicity=None, durability=None, format=None, raw=None, client=None):
     """Delete rows with keys from input_stream from table.
 
     :param table: (string or :py:class:`yt.wrapper.table.TablePath`) table to remove rows from.
@@ -1057,6 +1068,8 @@ def delete_rows(table, input_stream, format=None, raw=None, client=None):
     params = {}
     params["path"] = table.to_yson_type()
     params["input_format"] = format.to_yson_type()
+    _set_option(params, "atomicity", atomicity)
+    _set_option(params, "durability", durability)
 
     input_stream = _to_chunk_stream(input_stream, format, raw, split_rows=False, chunk_size=get_config(client)["write_retries"]["chunk_size"])
 
