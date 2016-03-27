@@ -160,13 +160,27 @@ void TSlot::DoCleanSandbox(int pathIndex)
         const auto& sandboxPath = SandboxPaths_[pathIndex][sandboxKind];
         auto sandboxFullPath = NFS::CombinePaths(GetCwd(), sandboxPath);
 
+        auto removeMountPount = [] (const Stroka& path) {
+            RunTool<TRemoveDirAsRootTool>(path + "/*");
+            RunTool<TUmountAsRootTool>(path);
+        };
+
+        // Look mount points inside sandbox and unmount it.
         auto mountPoints = NFS::GetMountPoints();
         for (const auto& mountPoint : mountPoints) {
             if (sandboxFullPath.is_prefix(mountPoint.Path)) {
                 // '/*' added since we need to remove only content.
-                RunTool<TRemoveDirAsRootTool>(mountPoint.Path + "/*");
-                RunTool<TUmountAsRootTool>(mountPoint.Path);
+                removeMountPount(mountPoint.Path);
             }
+        }
+
+        // NB: iterating over /proc/mounts is not reliable,
+        // see https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=593516.
+        // To avoid problems with undeleting tmpfs ordered by user in sandbox
+        // we always try to remove it separatly.
+        auto defaultTmpfsPath = GetTmpfsPath(sandboxKind);
+        if (NFS::Exists(defaultTmpfsPath)) {
+            removeMountPount(defaultTmpfsPath);
         }
 
         try {
