@@ -414,6 +414,7 @@ public:
         }
 
         AbortPrerequisiteTransaction(cell);
+        AbortCellSubtreeTransactions(cell);
 
         auto cellNodeProxy = FindCellNode(cell->GetId());
         if (cellNodeProxy) {
@@ -1326,6 +1327,7 @@ private:
 
         if (leadingPeerRevoked) {
             AbortPrerequisiteTransaction(cell);
+            AbortCellSubtreeTransactions(cell);
         }
         ReconfigureCell(cell);
     }
@@ -1772,6 +1774,7 @@ private:
     void RestartPrerequisiteTransaction(TTabletCell* cell)
     {
         AbortPrerequisiteTransaction(cell);
+        AbortCellSubtreeTransactions(cell);
         StartPrerequisiteTransaction(cell);
     }
 
@@ -1801,14 +1804,17 @@ private:
             transaction->GetId());
     }
 
-    void AbortPrerequisiteTransaction(TTabletCell* cell)
+    void AbortCellSubtreeTransactions(TTabletCell* cell)
     {
         auto cypressManager = Bootstrap_->GetCypressManager();
         auto cellNodeProxy = FindCellNode(cell->GetId());
         if (cellNodeProxy) {
             cypressManager->AbortSubtreeTransactions(cellNodeProxy);
         }
+    }
 
+    void AbortPrerequisiteTransaction(TTabletCell* cell)
+    {
         auto* transaction = cell->GetPrerequisiteTransaction();
         if (!transaction)
             return;
