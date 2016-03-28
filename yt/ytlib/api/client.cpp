@@ -65,7 +65,6 @@
 #include <yt/core/profiling/scoped_timer.h>
 
 #include <yt/core/rpc/helpers.h>
-#include <yt/core/rpc/scoped_channel.h>
 #include <yt/core/rpc/latency_taming_channel.h>
 
 #include <yt/core/ytree/helpers.h>
@@ -935,7 +934,6 @@ public:
     {
         auto wrapChannel = [&] (IChannelPtr channel) {
             channel = CreateAuthenticatedChannel(channel, options.User);
-            channel = CreateScopedChannel(channel);
             return channel;
         };
         auto wrapChannelFactory = [&] (IChannelFactoryPtr factory) {
