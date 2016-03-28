@@ -26,3 +26,17 @@ def test_mapreduce_yt(yt_stuff):
 def test_yt_wrapper(yt_stuff):
     yt_wrapper = yt_stuff.get_yt_wrapper()
     assert not yt_wrapper.exists("//hello/world/path")
+
+def test_scheme(yt_stuff):
+    wrapper = yt_stuff.yt_wrapper
+
+    wrapper.create_table(
+        "//test/schema_test",
+        recursive=True
+    )
+    wrapper.write_table(
+        "//test/schema_test",
+        """{"a"=1}""",
+        format=wrapper.YsonFormat()
+    )
+
