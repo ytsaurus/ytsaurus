@@ -33,7 +33,8 @@ from yt.packages.expiringdict import ExpiringDict
 import yt.packages.pympler.muppy as pympler_muppy
 import yt.packages.pympler.summary as pympler_summary
 
-from flask import Flask, request, jsonify, Response, make_response
+from flask import Flask, request, jsonify, Response, make_response, send_file
+import yappi
 
 import os
 import sys
@@ -266,6 +267,9 @@ class Application(object):
         self._start_time = time.time()
         self._daemon = Flask(__name__)
 
+        yappi.set_clock_type("wall")
+        yappi.start()
+
         self._config_path = config_path
         self._config = json.load(open(config_path))
         self._last_successfully_loaded_config = deepcopy(self._config)
@@ -365,6 +369,7 @@ class Application(object):
         self._add_rule("/match/", 'match', methods=["POST"])
         self._add_rule("/profiling/timings/", 'profiling_timings', methods=["GET"])
         self._add_rule("/profiling/memory_tracker/", 'profiling_memory_tracker', methods=["GET"])
+        self._add_rule("/profiling/stats/", 'profiling_stats', methods=["GET"])
 
     def terminate(self):
         self._terminating = True
@@ -1742,6 +1747,20 @@ class Application(object):
             return json.dumps(summary), 200
         else:
             return "Unknown value of info option", 200
+
+    def profiling_stats(self):
+        stats_type = request.args.get("type", "callgrind")
+
+        fd, file_name = tempfile.mkstemp(prefix="stats",
+                                         dir=self._config.get("default_tmp_dir"))
+        os.close(fd)
+        try:
+            yappi.get_func_stats().save(file_name, type=stats_type)
+            return send_file(file_name,
+                             as_attachment=True,
+                             attachment_filename=os.path.basename(file_name))
+        finally:
+            remove_file(file_name, force=True)
 
 def main():
     parser = argparse.ArgumentParser(description="Transfer manager.")
