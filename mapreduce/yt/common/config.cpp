@@ -11,6 +11,7 @@
 #include <util/stream/file.h>
 #include <util/generic/singleton.h>
 #include <util/string/cast.h>
+#include <util/string/type.h>
 #include <util/string/printf.h>
 #include <util/system/hostname.h>
 #include <util/system/user.h>
@@ -31,7 +32,7 @@ bool TConfig::GetBool(const char* var, bool defaultValue)
     if (val.Empty()) {
         return defaultValue;
     }
-    return val != "0" && val != "False" && val != "FALSE";
+    return IsTrue(val);
 }
 
 int TConfig::GetInt(const char* var, int defaultValue)
