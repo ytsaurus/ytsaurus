@@ -380,7 +380,9 @@ GENERATE_UNIQUE_ID(TJobRegistrator)(name);
 template <class TRow>
 void CheckFormats(const char *jobName, const char* direction, const TMultiFormatDesc& desc)
 {
-    if (TFormatDescTraits<TRow>::Format != desc.Format) {
+    if (desc.Format != TMultiFormatDesc::F_NONE &&
+        TFormatDescTraits<TRow>::Format != desc.Format)
+    {
         ythrow yexception() <<
             Sprintf("cannot match %s type and %s descriptor", jobName, direction);
     }
