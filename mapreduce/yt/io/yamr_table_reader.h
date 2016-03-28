@@ -43,6 +43,9 @@ private:
     TMaybe<ui64> RowIndex_;
     TMaybe<ui32> RangeIndex_;
     TYaMRRow Row_;
+    Stroka Key_;
+    Stroka SubKey_;
+    Stroka Value_;
 
 private:
     void CheckValidity() const;

@@ -77,9 +77,9 @@ using TTableWriterPtr = TIntrusivePtr<TTableWriter<T>>;
 
 struct TYaMRRow
 {
-    Stroka Key;
-    Stroka SubKey;
-    Stroka Value;
+    TStringBuf Key;
+    TStringBuf SubKey;
+    TStringBuf Value;
 };
 
 using ::google::protobuf::Message;

@@ -16,9 +16,17 @@ TYaMRTableWriter::~TYaMRTableWriter()
 void TYaMRTableWriter::AddRow(const TYaMRRow& row, size_t tableIndex)
 {
     TOutputStream* stream = Output_->GetStream(tableIndex);
-    WriteField(row.Key, stream);
-    WriteField(row.SubKey, stream);
-    WriteField(row.Value, stream);
+
+    auto writeField = [&stream] (const TStringBuf& field) {
+        i32 length = static_cast<i32>(field.length());
+        stream->Write(&length, sizeof(length));
+        stream->Write(field.data(), field.length());
+    };
+
+    writeField(row.Key);
+    writeField(row.SubKey);
+    writeField(row.Value);
+
     Output_->OnRowFinished(tableIndex);
 }
 
@@ -27,13 +35,6 @@ void TYaMRTableWriter::Finish()
     for (size_t i = 0; i < Output_->GetStreamCount(); ++i) {
         Output_->GetStream(i)->Finish();
     }
-}
-
-void TYaMRTableWriter::WriteField(const Stroka& field, TOutputStream* stream)
-{
-    i32 length = field.size();
-    stream->Write(&length, sizeof(length));
-    stream->Write(field.begin(), length);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
