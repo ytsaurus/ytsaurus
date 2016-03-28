@@ -38,16 +38,13 @@ public:
     //! Any operation with usage less than this cannot be preempted.
     double MinPreemptableRatio;
 
-    //! Limit on number of running operations.
-    // TODO(ignat): Rename Operations to OperationCount.
-    int MaxRunningOperations;
-    int MaxRunningOperationsPerPool;
-
-    //! Limit on number of operations started in pool.
-    int MaxOperationsPerPool;
-
-    //! Maximum number of operations that can be run concurrently.
+    //! Limit on number of operations in cluster.
+    int MaxRunningOperationCount;
     int MaxOperationCount;
+
+    //! Limit on number of operations in pool.
+    int MaxOperationCountPerPool;
+    int MaxRunningOperationCountPerPool;
 
     //! If enabled, pools will be able to starve and provoke preemption.
     bool EnablePoolStarvation;
@@ -85,15 +82,30 @@ public:
             .InRange(0.0, 1.0)
             .Default(0.05);
 
-        RegisterParameter("max_running_operations", MaxRunningOperations)
+        // Deprecated.
+        RegisterParameter("max_running_operations", MaxRunningOperationCount)
             .Default(200)
             .GreaterThan(0);
 
-        RegisterParameter("max_running_operations_per_pool", MaxRunningOperationsPerPool)
+        RegisterParameter("max_running_operation_count", MaxRunningOperationCount)
+            .Default(200)
+            .GreaterThan(0);
+
+        // Deprecated.
+        RegisterParameter("max_running_operations_per_pool", MaxRunningOperationCountPerPool)
             .Default(50)
             .GreaterThan(0);
 
-        RegisterParameter("max_operations_per_pool", MaxOperationsPerPool)
+        RegisterParameter("max_running_operation_count_per_pool", MaxRunningOperationCountPerPool)
+            .Default(50)
+            .GreaterThan(0);
+
+        // Deprecated.
+        RegisterParameter("max_operations_per_pool", MaxOperationCountPerPool)
+            .Default(50)
+            .GreaterThan(0);
+
+        RegisterParameter("max_operation_count_per_pool", MaxOperationCountPerPool)
             .Default(50)
             .GreaterThan(0);
 
