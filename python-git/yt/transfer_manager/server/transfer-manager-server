@@ -34,7 +34,11 @@ import yt.packages.pympler.muppy as pympler_muppy
 import yt.packages.pympler.summary as pympler_summary
 
 from flask import Flask, request, jsonify, Response, make_response, send_file
-import yappi
+
+try:
+    import yappi
+except ImportError:
+    yappi = None
 
 import os
 import sys
@@ -267,8 +271,9 @@ class Application(object):
         self._start_time = time.time()
         self._daemon = Flask(__name__)
 
-        yappi.set_clock_type("wall")
-        yappi.start()
+        if yappi is not None:
+            yappi.set_clock_type("wall")
+            yappi.start()
 
         self._config_path = config_path
         self._config = json.load(open(config_path))
@@ -1753,14 +1758,19 @@ class Application(object):
 
         fd, file_name = tempfile.mkstemp(prefix="stats",
                                          dir=self._config.get("default_tmp_dir"))
+
+        fd, filename = tempfile.mkstemp(prefix="stats", dir=self._config.get("default_tmp_dir"))
         os.close(fd)
         try:
-            yappi.get_func_stats().save(file_name, type=stats_type)
-            return send_file(file_name,
-                             as_attachment=True,
-                             attachment_filename=os.path.basename(file_name))
+            if yappi is not None:
+                yappi.get_func_stats().save(file_name, type=stats_type)
+                return send_file(file_name,
+                                 as_attachment=True,
+                                 attachment_filename=os.path.basename(file_name))
+
+            return "yappi module is currently unavailable", 500
         finally:
-            remove_file(file_name, force=True)
+            remove_file(filename, force=True)
 
 def main():
     parser = argparse.ArgumentParser(description="Transfer manager.")
