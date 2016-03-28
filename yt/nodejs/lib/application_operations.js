@@ -22,8 +22,8 @@ var OPERATIONS_ARCHIVE_INDEX_PATH = "//sys/operations_archive/ordered_by_start_t
 var OPERATIONS_CYPRESS_PATH = "//sys/operations";
 var OPERATIONS_RUNTIME_PATH = "//sys/scheduler/orchid/scheduler/operations";
 var SCHEDULING_INFO_PATH = "//sys/scheduler/orchid/scheduler";
-var HARD_RESULT_LIMIT = 100;
-var MAX_TIME_SPAN = 7 * 86400 * 1000;
+var MAX_SIZE_LIMIT = 100;
+var TIME_SPAN_LIMIT = 7 * 86400 * 1000;
 
 var INTERMEDIATE_STATES = [
     "initializing",
@@ -256,8 +256,9 @@ YtApplicationOperations._idStringToUint64 = idStringToUint64;
 YtApplicationOperations.prototype.list = Q.method(
 function YtApplicationOperations$list(parameters)
 {
-    var start_time_begin = optional(parameters, "from_time", validateDateTime);
-    var start_time_end = optional(parameters, "to_time", validateDateTime);
+    var from_time = optional(parameters, "from_time", validateDateTime);
+    var to_time = optional(parameters, "to_time", validateDateTime);
+
     var user_filter = optional(parameters, "user", validateString);
     var state_filter = optional(parameters, "state", validateString);
     var type_filter = optional(parameters, "type", validateString);
@@ -265,24 +266,24 @@ function YtApplicationOperations$list(parameters)
 
     var with_failed_jobs = optional(parameters, "with_failed_jobs", validateBoolean, false);
     var include_counters = optional(parameters, "include_counters", validateBoolean, true);
-    var result_limit = optional(parameters, "max_size", validateInteger, HARD_RESULT_LIMIT);
+    var max_size = optional(parameters, "max_size", validateInteger, MAX_SIZE_LIMIT);
 
-    // Process |start_time_begin| & |start_time_end|.
-    if (start_time_begin === null) {
-        if (start_time_end === null) {
-            start_time_end = (new Date()).getTime();
+    // Process |from_time| & |to_time|.
+    if (from_time === null) {
+        if (to_time === null) {
+            to_time = (new Date()).getTime();
         }
-        start_time_begin = start_time_end - MAX_TIME_SPAN;
+        from_time = to_time - TIME_SPAN_LIMIT;
     } else {
-        if (start_time_end === null) {
-            start_time_end = start_time_begin + MAX_TIME_SPAN;
+        if (to_time === null) {
+            to_time = from_time + TIME_SPAN_LIMIT;
         }
     }
 
-    var start_time_span = start_time_end - start_time_begin;
-    if (start_time_span > MAX_TIME_SPAN) {
+    var time_span = to_time - from_time;
+    if (time_span > TIME_SPAN_LIMIT) {
         throw new YtError("Time span exceedes allowed limit ({} > {})".format(
-            start_time_span, MAX_TIME_SPAN));
+            time_span, TIME_SPAN_LIMIT));
     }
 
     // TODO(sandello): Validate |state_filter|, |type_filter|.
@@ -292,10 +293,10 @@ function YtApplicationOperations$list(parameters)
         substr_filter = substr_filter.toLowerCase();
     }
 
-    // Process |result_limit|.
-    if (result_limit > HARD_RESULT_LIMIT) {
+    // Process |max_size|.
+    if (max_size > MAX_SIZE_LIMIT) {
         throw new YtError("Maximum result size exceedes allowed limit ({} > {})".format(
-            result_limit, HARD_RESULT_LIMIT));
+            max_size, MAX_SIZE_LIMIT));
     }
 
     // Okay, now fetch & merge data.
@@ -313,7 +314,7 @@ function YtApplicationOperations$list(parameters)
         });
 
     var generic_filter_conditions = [
-        "start_time > {}000 AND start_time <= {}000".format(start_time_begin, start_time_end)
+        "start_time > {}000 AND start_time <= {}000".format(from_time, to_time)
     ];
 
     if (substr_filter) {
@@ -345,7 +346,7 @@ function YtApplicationOperations$list(parameters)
         "* FROM {}".format(query_source) +
         " WHERE {}".format(narrow_filter_conditions.join(" AND ")) +
         " ORDER BY start_time DESC" +
-        " LIMIT {}".format(1 + result_limit);
+        " LIMIT {}".format(1 + max_size);
 
     var archive_counts = null;
     if (include_counters) {
@@ -578,10 +579,10 @@ function YtApplicationOperations$list(parameters)
         });
 
         // Check if there are any extra items.
-        if (merged_data.length > result_limit) {
+        if (merged_data.length > max_size) {
             merged_data = {
                 $incomplete: true,
-                $value: merged_data.slice(0, result_limit),
+                $value: merged_data.slice(0, max_size),
             };
         }
 
