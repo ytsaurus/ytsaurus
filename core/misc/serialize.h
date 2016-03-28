@@ -10,6 +10,7 @@
 #include "ref.h"
 #include "serialize_dump.h"
 
+#include <util/system/compiler.h>
 #include <util/stream/file.h>
 #include <util/stream/input.h>
 #include <util/stream/output.h>
@@ -529,6 +530,7 @@ struct TSharedRefArraySerializer
     template <class C>
     static void Load(C& context, TSharedRefArray& value)
     {
+        UNUSED(value);
         size_t size = TSizeSerializer::LoadSuspended(context);
         std::vector<TSharedRef> parts(size);
 

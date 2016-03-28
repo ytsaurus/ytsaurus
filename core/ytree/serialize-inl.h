@@ -12,6 +12,8 @@
 #include <yt/core/misc/error.h>
 #include <yt/core/misc/collection_helpers.h>
 
+#include <util/system/compiler.h>
+
 #include <numeric>
 
 namespace NYT {
@@ -261,6 +263,7 @@ void Deserialize(std::vector<T>& value, INodePtr node)
 template <class T>
 void Deserialize(yhash_set<T>& value, INodePtr node)
 {
+    UNUSED(value);
     auto listNode = node->AsList();
     auto size = listNode->GetChildCount();
     for (int i = 0; i < size; ++i) {
