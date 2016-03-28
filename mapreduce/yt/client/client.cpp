@@ -244,13 +244,14 @@ public:
         header.AddTransactionId(TransactionId_);
         header.AddMutationId();
 
-        header.AddParam("append", options.Append_);
+        TRichYPath path(destinationPath);
+        path.Append(options.Append_);
         header.SetParameters(BuildYsonStringFluently().BeginMap()
             .Item("source_paths").DoListFor(sourcePaths,
                 [] (TFluentList fluent, const TYPath& path) {
                     fluent.Item().Value(AddPathPrefix(path));
                 })
-            .Item("destination_path").Value(AddPathPrefix(destinationPath))
+            .Item("destination_path").Value(AddPathPrefix(path))
         .EndMap());
 
         RetryRequest(Auth_, header);
