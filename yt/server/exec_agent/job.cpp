@@ -272,6 +272,8 @@ public:
     virtual void SignalJob(const Stroka& signalName) override
     {
         ValidateJobRunning();
+
+        Signaled_ = true;
         auto jobProberProxy = CreateJobProber();
         auto req = jobProberProxy.SignalJob();
 
