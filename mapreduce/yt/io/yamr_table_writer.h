@@ -20,9 +20,6 @@ public:
 
 private:
     THolder<TProxyOutput> Output_;
-
-private:
-    void WriteField(const Stroka& field, TOutputStream* stream);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

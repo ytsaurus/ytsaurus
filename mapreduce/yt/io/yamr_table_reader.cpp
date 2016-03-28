@@ -230,11 +230,16 @@ void TYaMRTableReader::Next()
                 }
             }
 
-            ReadField(&Row_.Key, value);
+            ReadField(&Key_, value);
+            Row_.Key = Key_;
+
             ReadInteger(&value);
-            ReadField(&Row_.SubKey, value);
+            ReadField(&SubKey_, value);
+            Row_.SubKey = SubKey_;
+
             ReadInteger(&value);
-            ReadField(&Row_.Value, value);
+            ReadField(&Value_, value);
+            Row_.Value = Value_;
 
         } catch (TRetryException& e) {
             continue;

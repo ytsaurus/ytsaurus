@@ -126,9 +126,12 @@ void IdMapperYaMR()
 
     auto writer = client->CreateTableWriter<TYaMRRow>(input);
     for (int i = 0; i < 16; ++i) {
+        auto key = Sprintf("%d", i);
+        auto subKey = Sprintf("%lf", i * 3.14);
+
         TYaMRRow row;
-        row.Key = Sprintf("%d", i);
-        row.SubKey = Sprintf("%lf", i * 3.14);
+        row.Key = key;
+        row.SubKey = subKey;
         row.Value = "foo";
         writer->AddRow(row);
     }
@@ -491,8 +494,9 @@ void ReadMultipleRangesYaMR()
     auto writer = client->CreateTableWriter<TYaMRRow>(
         TRichYPath(input).SortedBy("key"));
     for (int i = 0; i < 100; ++i) {
+        auto key = Sprintf("%02d", i);
         TYaMRRow row;
-        row.Key = Sprintf("%02d", i);
+        row.Key = key;
         row.Value = "0123456789abcdef";
         writer->AddRow(row);
     }
