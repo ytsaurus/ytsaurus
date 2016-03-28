@@ -496,7 +496,7 @@ bool TNontemplateCypressNodeProxyBase::GetBuiltinAttribute(
             .Value(trunkNode->GetAccessTime());
         return true;
     }
- 
+
     if (key == "access_counter") {
         BuildYsonFluently(consumer)
             .Value(trunkNode->GetAccessCounter());
@@ -858,16 +858,20 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Create)
         recursive);
 
     if (path.Empty()) {
-        if (ignoreExisting && GetThisImpl()->GetType() == type) {
-            auto* node = GetThisImpl();
-            ToProto(response->mutable_node_id(), node->GetId());
-            response->set_cell_tag(node->GetExternalCellTag() == NotReplicatedCellTag
-                ? Bootstrap_->GetCellTag()
-                : node->GetExternalCellTag());
-            context->Reply();
-            return;
+        if (GetThisImpl()->GetType() != type) {
+            ThrowExistsAndTypeMismatch(this);
         }
-        ThrowAlreadyExists(this);
+        if (!ignoreExisting) {
+            ThrowAlreadyExists(this);
+        }
+
+        auto* node = GetThisImpl();
+        ToProto(response->mutable_node_id(), node->GetId());
+        response->set_cell_tag(node->GetExternalCellTag() == NotReplicatedCellTag
+            ? Bootstrap_->GetCellTag()
+            : node->GetExternalCellTag());
+        context->Reply();
+        return;
     }
 
     if (!CanHaveChildren()) {
@@ -1661,7 +1665,7 @@ TDocumentNodeProxy::TDocumentNodeProxy(
         trunkNode)
 { }
 
-ENodeType TDocumentNodeProxy::GetType() const 
+ENodeType TDocumentNodeProxy::GetType() const
 {
     return ENodeType::Entity;
 }
@@ -1692,7 +1696,7 @@ void DelegateInvocation(
 {
     typedef typename TServerRequest::TMessage  TRequestMessage;
     typedef typename TServerResponse::TMessage TResponseMessage;
-    
+
     typedef TTypedYPathRequest<TRequestMessage, TResponseMessage>  TClientRequest;
     typedef TTypedYPathResponse<TRequestMessage, TResponseMessage> TClientResponse;
 
