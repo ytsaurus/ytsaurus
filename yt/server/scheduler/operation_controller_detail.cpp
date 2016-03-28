@@ -3470,8 +3470,11 @@ int TOperationControllerBase::SuggestJobCount(
     int maxJobCount) const
 {
     i64 suggestionBySize = (totalDataSize + dataSizePerJob - 1) / dataSizePerJob;
-    i64 jobCount = configJobCount.Get(suggestionBySize);
-    return static_cast<int>(Clamp(jobCount, 1, maxJobCount));
+    // Job count must fit into int.
+    suggestionBySize = Clamp(suggestionBySize, 1, maxJobCount);
+
+    int jobCount = configJobCount.Get(suggestionBySize);
+    return Clamp(jobCount, 1, maxJobCount);
 }
 
 void TOperationControllerBase::InitUserJobSpecTemplate(
