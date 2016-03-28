@@ -835,14 +835,16 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        GetControlInvoker()->Invoke(BIND(&TImpl::DoCompleteOperation, MakeStrong(this), operation));
+        MasterConnector_->GetCancelableControlInvoker()->Invoke(
+            BIND(&TImpl::DoCompleteOperation, MakeStrong(this), operation));
     }
 
     virtual void OnOperationFailed(TOperationPtr operation, const TError& error) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        GetControlInvoker()->Invoke(BIND(&TImpl::DoFailOperation, MakeStrong(this), operation, error));
+        MasterConnector_->GetCancelableControlInvoker()->Invoke(
+            BIND(&TImpl::DoFailOperation, MakeStrong(this), operation, error));
     }
 
     virtual IValueConsumerPtr CreateLogConsumer() override
