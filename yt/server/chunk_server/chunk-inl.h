@@ -82,6 +82,7 @@ inline void TChunk::Reset()
     auto* data = GetDynamicData();
     data->Flags = {};
     data->RepairQueueIterator.Reset();
+    data->Job.Reset();
 }
 
 inline bool TChunk::ComputeVital() const
