@@ -380,7 +380,8 @@ void WaitForOperation(
     const TTransactionId& transactionId,
     const TOperationId& operationId)
 {
-    const TDuration checkOperationStateInterval = TDuration::Seconds(1);
+    const TDuration checkOperationStateInterval =
+        auth.IsLocalMode ? TDuration::MilliSeconds(100) : TDuration::Seconds(1);
 
     while (true) {
         auto status = CheckOperation(auth, transactionId, operationId);
