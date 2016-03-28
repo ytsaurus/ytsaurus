@@ -20,7 +20,10 @@ TM_HEADERS = {
     "Content-Type": "application/json"
 }
 
-class YtTransferManagerUnavailableError(YtError):
+class TransferManagerUnavailableError(YtError):
+    pass
+
+class RequestIsBeingProcessedError(YtError):
     pass
 
 def _raise_for_status(response):
@@ -32,7 +35,10 @@ def _raise_for_status(response):
         if response.content:
             message += ": " + response.content
 
-        raise YtTransferManagerUnavailableError(message)
+        raise TransferManagerUnavailableError(message)
+
+    if response.status_code == 503:
+        raise RequestIsBeingProcessedError(response.content)
 
     raise YtError(**response.json())
 
@@ -201,7 +207,7 @@ class TransferManager(object):
         def except_action(error):
             if is_mutating:
                 # XXX(asaitgalin): use new mutation id because it is 503.
-                if isinstance(error, YtTransferManagerUnavailableError):
+                if isinstance(error, TransferManagerUnavailableError):
                     params["mutation_id"] = generate_uuid()
                     params["retry"] = bool_to_string(False)
                 else:
@@ -225,9 +231,11 @@ class TransferManager(object):
             return response
 
         if self.enable_retries:
-            retriable_errors = get_retriable_errors() + (YtTransferManagerUnavailableError,)
+            retriable_errors = get_retriable_errors() + (TransferManagerUnavailableError,
+                                                         RequestIsBeingProcessedError)
             return run_with_retries(make_request, self.retry_count, exceptions=retriable_errors,
                                     except_action=except_action, backoff_action=backoff_action)
+
         return make_request()
 
     def _start_one_task(self, source_table, source_cluster, destination_table, destination_cluster,
