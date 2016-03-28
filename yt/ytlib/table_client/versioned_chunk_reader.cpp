@@ -1064,8 +1064,8 @@ public:
     }
 
 private:
-    TReadLimit LowerLimit_;
-    TReadLimit UpperLimit_;
+    const TReadLimit LowerLimit_;
+    const TReadLimit UpperLimit_;
 
     i64 LowerRowIndex_;
     i64 SafeUpperRowIndex_;

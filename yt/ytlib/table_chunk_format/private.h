@@ -24,16 +24,16 @@ DEFINE_ENUM(EVersionedStringSegmentType,
 );
 
 DEFINE_ENUM(EUnversionedIntegerSegmentType,
-    ((DictionaryRLE)   (0))
+    ((DictionaryRle)   (0))
     ((DictionaryDense) (1))
-    ((DirectRLE)       (2))
+    ((DirectRle)       (2))
     ((DirectDense)     (3))
 );
 
 DEFINE_ENUM(EUnversionedStringSegmentType,
-    ((DictionaryRLE)   (0))
+    ((DictionaryRle)   (0))
     ((DictionaryDense) (1))
-    ((DirectRLE)       (2))
+    ((DirectRle)       (2))
     ((DirectDense)     (3))
 );
 

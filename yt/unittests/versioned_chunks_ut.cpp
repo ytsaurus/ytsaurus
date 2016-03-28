@@ -55,7 +55,7 @@ protected:
 
     TChunkedMemoryPool MemoryPool;
 
-    TVersionedChunksTestBase(const TTableSchema& schema)
+    explicit TVersionedChunksTestBase(const TTableSchema& schema)
         : Schema(schema)
     { }
 

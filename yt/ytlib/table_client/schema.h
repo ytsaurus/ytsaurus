@@ -23,7 +23,7 @@ DEFINE_ENUM(ESortOrder,
 // are persisted in the proto representation.
 DEFINE_ENUM(EOptimizedFor,
     ((Lookup)  (0))
-    ((Scan)   (1))
+    ((Scan)    (1))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

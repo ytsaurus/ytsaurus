@@ -284,13 +284,13 @@ private:
     i32 GetSegmentSize(EUnversionedIntegerSegmentType type) const
     {
         switch (type) {
-            case EUnversionedIntegerSegmentType::DictionaryRLE:
+            case EUnversionedIntegerSegmentType::DictionaryRle:
                 return
                     CompressedUnsignedVectorSizeInBytes(MaxValue_ - MinValue_, DistinctValues_.size()) +
                     CompressedUnsignedVectorSizeInBytes(DistinctValues_.size() + 1, RunCount_) +
                     CompressedUnsignedVectorSizeInBytes(RowCount_, RunCount_);
 
-            case EUnversionedIntegerSegmentType::DirectRLE:
+            case EUnversionedIntegerSegmentType::DirectRle:
                 return
                     CompressedUnsignedVectorSizeInBytes(MaxValue_ - MinValue_, RunCount_) +
                     CompressedUnsignedVectorSizeInBytes(RowCount_, RunCount_) +
@@ -321,7 +321,7 @@ private:
         return sizes;
     }
 
-    void DumpDirectRLEValues(TSegmentInfo* segmentInfo)
+    void DumpDirectRleValues(TSegmentInfo* segmentInfo)
     {
         TAppendOnlyBitmap<ui64> rleNullBitmap(RunCount_);
         std::vector<ui64> rowIndexes;
@@ -360,7 +360,7 @@ private:
         segmentInfo->Data.push_back(CompressUnsignedVector(MakeRange(rowIndexes), rowIndexes.back()));
     }
 
-    void DumpDictionaryRLEValues(TSegmentInfo* segmentInfo)
+    void DumpDictionaryRleValues(TSegmentInfo* segmentInfo)
     {
         std::vector<ui64> dictionary;
         dictionary.reserve(DistinctValues_.size());
@@ -427,12 +427,12 @@ private:
         meta->set_min_value(MinValue_);
 
         switch (type) {
-            case EUnversionedIntegerSegmentType::DirectRLE:
-                DumpDirectRLEValues(&segmentInfo);
+            case EUnversionedIntegerSegmentType::DirectRle:
+                DumpDirectRleValues(&segmentInfo);
                 break;
 
-            case EUnversionedIntegerSegmentType::DictionaryRLE:
-                DumpDictionaryRLEValues(&segmentInfo);
+            case EUnversionedIntegerSegmentType::DictionaryRle:
+                DumpDictionaryRleValues(&segmentInfo);
                 break;
 
             case EUnversionedIntegerSegmentType::DirectDense:

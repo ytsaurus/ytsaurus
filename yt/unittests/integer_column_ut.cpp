@@ -220,7 +220,7 @@ class TSimpleVersionedInt64ColumnTest
 public:
     TSimpleVersionedInt64ColumnTest()
         : TVersionedIntegerColumnTest<i64>(-1234, false)
-    {}
+    { }
 
     virtual std::unique_ptr<IVersionedColumnReader> CreateColumnReader() override
     {
@@ -243,7 +243,7 @@ class TAggregateVersionedUint64ColumnTest
 public:
     TAggregateVersionedUint64ColumnTest()
         : TVersionedIntegerColumnTest<ui64>(1234, true)
-    {}
+    { }
 
     virtual std::unique_ptr<IVersionedColumnReader> CreateColumnReader() override
     {
@@ -266,7 +266,7 @@ class TSimpleVersionedUint64ColumnTest
 public:
     TSimpleVersionedUint64ColumnTest()
         : TVersionedIntegerColumnTest<ui64>(1234, false)
-    {}
+    { }
 
     virtual std::unique_ptr<IVersionedColumnReader> CreateColumnReader() override
     {
@@ -321,7 +321,7 @@ protected:
         return data;
     }
 
-    std::vector<TNullable<TValue>> CreateDictionaryRLE()
+    std::vector<TNullable<TValue>> CreateDictionaryRle()
     {
         std::vector<TNullable<TValue>> data;
         for (int i = 0; i < 100; ++i) {
@@ -333,7 +333,7 @@ protected:
         return data;
     }
 
-    std::vector<TNullable<TValue>> CreateDirectRLE()
+    std::vector<TNullable<TValue>> CreateDirectRle()
     {
         std::vector<TNullable<TValue>> data;
         for (int i = 0; i < 100; ++i) {
@@ -348,9 +348,9 @@ protected:
     void Write(IValueColumnWriter* columnWriter)
     {
         WriteSegment(columnWriter, CreateDirectDense());
-        WriteSegment(columnWriter, CreateDirectRLE());
+        WriteSegment(columnWriter, CreateDirectRle());
         WriteSegment(columnWriter, CreateDictionaryDense());
-        WriteSegment(columnWriter, CreateDictionaryRLE());
+        WriteSegment(columnWriter, CreateDictionaryRle());
     }
 
     void DoCheckSegmentTypes()
@@ -361,18 +361,18 @@ protected:
         };
 
         checkSegment(EUnversionedIntegerSegmentType::DirectDense, 0);
-        checkSegment(EUnversionedIntegerSegmentType::DirectRLE, 1);
+        checkSegment(EUnversionedIntegerSegmentType::DirectRle, 1);
         checkSegment(EUnversionedIntegerSegmentType::DictionaryDense, 2);
-        checkSegment(EUnversionedIntegerSegmentType::DictionaryRLE, 3);
+        checkSegment(EUnversionedIntegerSegmentType::DictionaryRle, 3);
     }
 
     void DoReadValues(int startRowIndex, int rowCount)
     {
         std::vector<TNullable<TValue>> expected;
         AppendVector(&expected, CreateDirectDense());
-        AppendVector(&expected, CreateDirectRLE());
+        AppendVector(&expected, CreateDirectRle());
         AppendVector(&expected, CreateDictionaryDense());
-        AppendVector(&expected, CreateDictionaryRLE());
+        AppendVector(&expected, CreateDictionaryRle());
 
         Validate(CreateRows(expected), startRowIndex, rowCount);
     }

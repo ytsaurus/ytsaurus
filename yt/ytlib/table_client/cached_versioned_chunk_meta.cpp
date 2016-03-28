@@ -123,7 +123,7 @@ void TCachedVersionedChunkMeta::ValidateChunkMeta()
     if (formatVersion != ETableChunkFormat::VersionedSimple &&
         formatVersion != ETableChunkFormat::VersionedColumnar)
     {
-        THROW_ERROR_EXCEPTION("Incorrect chunk format version: actual %Qlv, expected: %Qlv or %Qlv",
+        THROW_ERROR_EXCEPTION("Incorrect chunk format version: actual %Qlv, expected %Qlv or %Qlv",
             formatVersion,
             ETableChunkFormat::VersionedSimple,
             ETableChunkFormat::VersionedColumnar);
