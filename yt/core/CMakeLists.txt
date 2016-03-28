@@ -154,7 +154,6 @@ SET(YT_SRCS
   ${CMAKE_CURRENT_LIST_DIR}/rpc/retrying_channel.cpp
   ${CMAKE_CURRENT_LIST_DIR}/rpc/roaming_channel.cpp
   ${CMAKE_CURRENT_LIST_DIR}/rpc/rpc.proto
-  ${CMAKE_CURRENT_LIST_DIR}/rpc/scoped_channel.cpp
   ${CMAKE_CURRENT_LIST_DIR}/rpc/serialized_channel.cpp
   ${CMAKE_CURRENT_LIST_DIR}/rpc/server_detail.cpp
   ${CMAKE_CURRENT_LIST_DIR}/rpc/service.cpp
