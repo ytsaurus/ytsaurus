@@ -123,6 +123,7 @@ create_and_upload_archive() {
                                                    "$yt_python_version" \
                                                    "$yt_yson_bindings_version"
     local archive_local_path="$(cat yt_local_archive_path)"
+    rm -rf "yt_local_archive_path"
 
     # Remove debug symbols from libraries and binaries.
     strip_debug_info "$archive_local_path"
@@ -130,6 +131,7 @@ create_and_upload_archive() {
     # Pack directory to tar archive without compression.
     local archive_local_name="$(mktemp /tmp/${archive_name}.XXXXXX)"
     tar cvf "$archive_local_name" -C "$archive_local_path" .
+    rm -rf "$archive_local_path"
 
     cat "$archive_local_name" | $YT write-file "$archive_path"
     $YT set //home/files/${archive_name}/@packages_versions "{\
@@ -138,15 +140,13 @@ create_and_upload_archive() {
           yandex-yt-python=\"$yt_python_version\";\
           yandex-yt-python-yson=\"$yt_yson_bindings_version\"}"
 
+    rm -rf "$archive_local_name"
+
     upload_to_sandbox "$yt_version" \
                       "$yt_local_version" \
                       "$yt_python_version" \
                       "$yt_yson_bindings_version" \
                       "$archive_path"
-
-    rm -rf "$archive_local_path"
-    rm -rf "$archive_local_name"
-    rm -rf "yt_local_archive_path"
 
     echo "Done! Archive path: $archive_path"
 }
