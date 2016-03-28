@@ -796,7 +796,8 @@ class TestSchedulerPreemption(YTEnvSetup):
 
     DELTA_SCHEDULER_CONFIG = {
         "scheduler": {
-            "min_share_preemption_timeout": 100
+            "min_share_preemption_timeout": 100,
+            "fair_share_starvation_tolerance": 0.7
         }
     }
 
@@ -820,3 +821,38 @@ class TestSchedulerPreemption(YTEnvSetup):
         op2.track()
 
         op1.abort()
+
+    def test_recursive_preemption_settings(self):
+        create("map_node", "//sys/pools/p1", attributes={"fair_share_starvation_tolerance": 0.9})
+        create("map_node", "//sys/pools/p1/p2", attributes={"fair_share_starvation_tolerance": 0.6})
+        time.sleep(1)
+
+        assert get("//sys/scheduler/orchid/scheduler/pools/p1/fair_share_starvation_tolerance") == 0.7
+        assert get("//sys/scheduler/orchid/scheduler/pools/p2/fair_share_starvation_tolerance") == 0.6
+
+        create("table", "//tmp/t_in")
+        write_table("//tmp/t_in", {"foo": "bar"})
+        create("table", "//tmp/t_out1")
+        create("table", "//tmp/t_out2")
+
+        op1 = map(
+            dont_track=True,
+            command="sleep 1000; cat",
+            in_="//tmp/t_in",
+            out="//tmp/t_out1",
+            spec={"pool": "p2", "fair_share_starvation_tolerance": 0.5})
+
+        op2 = map(
+            dont_track=True,
+            command="sleep 1000; cat",
+            in_="//tmp/t_in",
+            out="//tmp/t_out2",
+            spec={"pool": "p2", "fair_share_starvation_tolerance": 0.8})
+
+        time.sleep(1)
+        assert get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/fair_share_starvation_tolerance".format(op1.id)) == 0.5
+        assert get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/fair_share_starvation_tolerance".format(op2.id)) == 0.6
+
+        op1.abort();
+        op2.abort();
+
