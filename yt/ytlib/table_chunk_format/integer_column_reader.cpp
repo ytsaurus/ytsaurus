@@ -319,12 +319,12 @@ public:
 ////////////////////////////////////////////////////////////////////////////////
 
 template<EValueType ValueType>
-class TDirectRLEUnversionedIntegerValueExtractor
+class TDirectRleUnversionedIntegerValueExtractor
     : public TDirectIntegerValueExtractorBase<ValueType>
-    , public TRLEValueExtractorBase
+    , public TRleValueExtractorBase
 {
 public:
-    TDirectRLEUnversionedIntegerValueExtractor(TRef data, const TSegmentMeta& meta)
+    TDirectRleUnversionedIntegerValueExtractor(TRef data, const TSegmentMeta& meta)
         : TDirectIntegerValueExtractorBase<ValueType>(meta)
     {
         const char* ptr = data.Begin();
@@ -340,12 +340,12 @@ public:
 ////////////////////////////////////////////////////////////////////////////////
 
 template<EValueType ValueType>
-class TDictionaryRLEUnversionedIntegerValueExtractor
+class TDictionaryRleUnversionedIntegerValueExtractor
     : public TDictionaryIntegerValueExtractorBase<ValueType>
-    , public TRLEValueExtractorBase
+    , public TRleValueExtractorBase
 {
 public:
-    TDictionaryRLEUnversionedIntegerValueExtractor(TRef data, const TSegmentMeta& meta)
+    TDictionaryRleUnversionedIntegerValueExtractor(TRef data, const TSegmentMeta& meta)
         : TDictionaryIntegerValueExtractorBase<ValueType>(meta)
     {
         const char* ptr = data.Begin();
@@ -390,13 +390,13 @@ private:
             ValueType,
             TDictionaryDenseUnversionedIntegerValueExtractor<ValueType>> TDictionaryDenseReader;
 
-        typedef TRLEUnversionedSegmentReader<
+        typedef TRleUnversionedSegmentReader<
             ValueType,
-            TDirectRLEUnversionedIntegerValueExtractor<ValueType>> TDirectRLEReader;
+            TDirectRleUnversionedIntegerValueExtractor<ValueType>> TDirectRleReader;
 
-        typedef TRLEUnversionedSegmentReader<
+        typedef TRleUnversionedSegmentReader<
             ValueType,
-            TDictionaryRLEUnversionedIntegerValueExtractor<ValueType>> TDictionaryRLEReader;
+            TDictionaryRleUnversionedIntegerValueExtractor<ValueType>> TDictionaryRleReader;
 
         const auto& meta = ColumnMeta_.segments(segmentIndex);
         auto segmentType = EUnversionedIntegerSegmentType(meta.type());
@@ -408,11 +408,11 @@ private:
             case EUnversionedIntegerSegmentType::DictionaryDense:
                 return DoCreateSegmentReader<TDictionaryDenseReader>(meta);
 
-            case EUnversionedIntegerSegmentType::DirectRLE:
-                return DoCreateSegmentReader<TDirectRLEReader>(meta);
+            case EUnversionedIntegerSegmentType::DirectRle:
+                return DoCreateSegmentReader<TDirectRleReader>(meta);
 
-            case EUnversionedIntegerSegmentType::DictionaryRLE:
-                return DoCreateSegmentReader<TDictionaryRLEReader>(meta);
+            case EUnversionedIntegerSegmentType::DictionaryRle:
+                return DoCreateSegmentReader<TDictionaryRleReader>(meta);
 
             default:
                 YUNREACHABLE();

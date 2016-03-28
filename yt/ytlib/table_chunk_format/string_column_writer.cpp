@@ -342,13 +342,13 @@ public:
 private:
     const int ColumnIndex_;
 
-    i64 DirectRLESize_;
-    std::vector<ui64> RLERowIndexes_;
+    i64 DirectRleSize_;
+    std::vector<ui64> RleRowIndexes_;
 
     void Reset()
     {
-        DirectRLESize_ = 0;
-        RLERowIndexes_.clear();
+        DirectRleSize_ = 0;
+        RleRowIndexes_.clear();
         TStringColumnWriterBase::Reset();
     }
 
@@ -363,16 +363,16 @@ private:
         return nullBitmap.Flush<TSegmentWriterTag>();
     }
 
-    void DumpDirectRLEData(TSegmentInfo* segmentInfo)
+    void DumpDirectRleData(TSegmentInfo* segmentInfo)
     {
-        auto stringData = TSharedMutableRef::Allocate<TSegmentWriterTag>(DirectRLESize_, false);
+        auto stringData = TSharedMutableRef::Allocate<TSegmentWriterTag>(DirectRleSize_, false);
         std::vector<ui32> offsets;
         offsets.reserve(Dictionary_.size());
 
-        TAppendOnlyBitmap<ui64> nullBitmap(RLERowIndexes_.size());
+        TAppendOnlyBitmap<ui64> nullBitmap(RleRowIndexes_.size());
 
         ui32 stringOffset = 0;
-        for (auto rowIndex : RLERowIndexes_) {
+        for (auto rowIndex : RleRowIndexes_) {
             nullBitmap.Append(Values_[rowIndex].Data() == nullptr);
             std::memcpy(
                 stringData.Begin() + stringOffset,
@@ -382,10 +382,10 @@ private:
             offsets.push_back(stringOffset);
         }
 
-        YCHECK(stringOffset == DirectRLESize_);
+        YCHECK(stringOffset == DirectRleSize_);
 
         // 1. Row indexes.
-        segmentInfo->Data.push_back(CompressUnsignedVector(MakeRange(RLERowIndexes_), RLERowIndexes_.back()));
+        segmentInfo->Data.push_back(CompressUnsignedVector(MakeRange(RleRowIndexes_), RleRowIndexes_.back()));
 
         // 2. Value offsets.
         ui32 expectedLength;
@@ -403,18 +403,18 @@ private:
         stringSegmentMeta->set_expected_length(expectedLength);
     }
 
-    void DumpDictionaryRLEData(TSegmentInfo* segmentInfo)
+    void DumpDictionaryRleData(TSegmentInfo* segmentInfo)
     {
         auto dictionaryData = TSharedMutableRef::Allocate<TSegmentWriterTag>(DictionarySize_, false);
         std::vector<ui32> offsets;
         offsets.reserve(Dictionary_.size());
 
         std::vector<ui32> ids;
-        ids.reserve(RLERowIndexes_.size());
+        ids.reserve(RleRowIndexes_.size());
 
         ui32 dictionaryOffset = 0;
         ui32 dictionarySize = 0;
-        for (auto rowIndex : RLERowIndexes_) {
+        for (auto rowIndex : RleRowIndexes_) {
             const auto& value = Values_[rowIndex];
             if (value.Data() == nullptr) {
                 ids.push_back(0);
@@ -437,7 +437,7 @@ private:
         }
 
         // 1. Row indexes.
-        segmentInfo->Data.push_back(CompressUnsignedVector(MakeRange(RLERowIndexes_), RLERowIndexes_.back()));
+        segmentInfo->Data.push_back(CompressUnsignedVector(MakeRange(RleRowIndexes_), RleRowIndexes_.back()));
 
         // 2. Value ids.
         segmentInfo->Data.push_back(CompressUnsignedVector(MakeRange(ids), Dictionary_.size()));
@@ -468,12 +468,12 @@ private:
         segmentInfo.SegmentMeta.set_row_count(Values_.size());
 
         switch (type) {
-            case EUnversionedStringSegmentType::DirectRLE:
-                DumpDirectRLEData(&segmentInfo);
+            case EUnversionedStringSegmentType::DirectRle:
+                DumpDirectRleData(&segmentInfo);
                 break;
 
-            case EUnversionedStringSegmentType::DictionaryRLE:
-                DumpDictionaryRLEData(&segmentInfo);
+            case EUnversionedStringSegmentType::DictionaryRle:
+                DumpDictionaryRleData(&segmentInfo);
                 break;
 
             case EUnversionedStringSegmentType::DirectDense:
@@ -503,19 +503,19 @@ private:
     i32 GetSegmentSize(EUnversionedStringSegmentType type) const
     {
         switch (type) {
-            case EUnversionedStringSegmentType::DictionaryRLE:
+            case EUnversionedStringSegmentType::DictionaryRle:
                 return
                     DictionarySize_ +
                     // This is estimate. We will keep diff from expected offset.
                     CompressedUnsignedVectorSizeInBytes(MaxValueLength_, Dictionary_.size()) +
-                    CompressedUnsignedVectorSizeInBytes(Dictionary_.size() + 1, RLERowIndexes_.size()) +
-                    CompressedUnsignedVectorSizeInBytes(Values_.size(), RLERowIndexes_.size());
+                    CompressedUnsignedVectorSizeInBytes(Dictionary_.size() + 1, RleRowIndexes_.size()) +
+                    CompressedUnsignedVectorSizeInBytes(Values_.size(), RleRowIndexes_.size());
 
-            case EUnversionedStringSegmentType::DirectRLE:
+            case EUnversionedStringSegmentType::DirectRle:
                 return
-                    DirectRLESize_ +
-                    CompressedUnsignedVectorSizeInBytes(MaxValueLength_, RLERowIndexes_.size()) +
-                    CompressedUnsignedVectorSizeInBytes(Values_.size(), RLERowIndexes_.size()) +
+                    DirectRleSize_ +
+                    CompressedUnsignedVectorSizeInBytes(MaxValueLength_, RleRowIndexes_.size()) +
+                    CompressedUnsignedVectorSizeInBytes(Values_.size(), RleRowIndexes_.size()) +
                     Values_.size() / 8; // Null bitmaps.
 
             case EUnversionedStringSegmentType::DictionaryDense:
@@ -547,8 +547,8 @@ private:
             TStringBuf value = UpdateStatistics(unversionedValue);
 
             if (Values_.empty() || !EqualValues(value, Values_.back())) {
-                DirectRLESize_ += value.length();
-                RLERowIndexes_.push_back(Values_.size());
+                DirectRleSize_ += value.length();
+                RleRowIndexes_.push_back(Values_.size());
             }
 
             Values_.push_back(value);

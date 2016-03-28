@@ -35,7 +35,7 @@ protected:
         return  {Abra, Bara, Null, Bara, Abra};
     }
 
-    std::vector<TNullable<Stroka>> CreateDirectRLE()
+    std::vector<TNullable<Stroka>> CreateDirectRle()
     {
         // 50 * [B] + Null + 50 * [A]
         std::vector<TNullable<Stroka>> values;
@@ -45,7 +45,7 @@ protected:
         return values;
     }
 
-    std::vector<TNullable<Stroka>> CreateDictionaryRLE()
+    std::vector<TNullable<Stroka>> CreateDictionaryRle()
     {
         // [ 50 * [A] + 50 * [B] + Null ] * 10
         std::vector<TNullable<Stroka>> values;
@@ -66,10 +66,10 @@ protected:
         WriteSegment(columnWriter, CreateDictionaryDense());
 
         // Rows 8 - 108.
-        WriteSegment(columnWriter, CreateDirectRLE());
+        WriteSegment(columnWriter, CreateDirectRle());
 
         // Rows 109 - 1118.
-        WriteSegment(columnWriter, CreateDictionaryRLE());
+        WriteSegment(columnWriter, CreateDictionaryRle());
     }
 
     virtual std::unique_ptr<IUnversionedColumnReader> CreateColumnReader() override
@@ -94,8 +94,8 @@ TEST_F(TUnversionedStringColumnTest, CheckSegmentTypes)
 
     checkSegment(EUnversionedStringSegmentType::DirectDense, 0);
     checkSegment(EUnversionedStringSegmentType::DictionaryDense, 1);
-    checkSegment(EUnversionedStringSegmentType::DirectRLE, 2);
-    checkSegment(EUnversionedStringSegmentType::DictionaryRLE, 3);
+    checkSegment(EUnversionedStringSegmentType::DirectRle, 2);
+    checkSegment(EUnversionedStringSegmentType::DictionaryRle, 3);
 }
 
 TEST_F(TUnversionedStringColumnTest, GetEqualRange)
@@ -113,8 +113,8 @@ TEST_F(TUnversionedStringColumnTest, ReadValues)
     std::vector<TNullable<Stroka>> expectedValues;
     AppendVector(&expectedValues, CreateDirectDense());
     AppendVector(&expectedValues, CreateDictionaryDense());
-    AppendVector(&expectedValues, CreateDirectRLE());
-    AppendVector(&expectedValues, CreateDictionaryRLE());
+    AppendVector(&expectedValues, CreateDirectRle());
+    AppendVector(&expectedValues, CreateDictionaryRle());
 
     Validate(CreateRows(expectedValues), 5, 205);
 }
