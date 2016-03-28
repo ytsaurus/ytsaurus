@@ -927,16 +927,12 @@ public:
 
     virtual int GetMaxRunningOperationCount() const override
     {
-        return Config_->MaxRunningOperationCount
-            ? *(Config_->MaxRunningOperationCount)
-            : StrategyConfig_->MaxRunningOperationCountPerPool;
+        return Config_->MaxRunningOperationCount.Get(StrategyConfig_->MaxRunningOperationCountPerPool);
     }
 
     virtual int GetMaxOperationCount() const override
     {
-        return Config_->MaxOperationCount
-            ? *(Config_->MaxOperationCount)
-            : StrategyConfig_->MaxOperationCountPerPool;
+        return Config_->MaxOperationCount.Get(StrategyConfig_->MaxOperationCountPerPool);
     }
 
 private:

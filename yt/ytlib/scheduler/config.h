@@ -1053,11 +1053,13 @@ public:
         RegisterParameter("mode", Mode)
             .Default(ESchedulingMode::FairShare);
 
+        // COMPAT(ignat): deprecated use max_running_operation_count instead.
         RegisterParameter("max_running_operations", MaxRunningOperationCount)
             .Default();
         RegisterParameter("max_running_operation_count", MaxRunningOperationCount)
             .Default();
 
+        // COMPAT(ignat): deprecated use max_operation_count instead.
         RegisterParameter("max_operations", MaxOperationCount)
             .Default();
         RegisterParameter("max_operation_count", MaxOperationCount)
