@@ -3483,7 +3483,7 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
     jobSpec->set_enable_core_dump(config->EnableCoreDump);
     jobSpec->set_custom_statistics_count_limit(config->CustomStatisticsCountLimit);
 
-    if (config->TmpfsSize) {
+    if (config->TmpfsSize && Config->EnableTmpfs) {
         jobSpec->set_tmpfs_size(*config->TmpfsSize);
     }
 
