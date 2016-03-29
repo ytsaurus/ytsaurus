@@ -218,7 +218,26 @@ void IdMapperProto()
 class TManyTablesMapperNode
     : public IMapper<TTableReader<TNode>, TTableWriter<TNode>>
 {
+    i64 StateValue_;
+
 public:
+    TManyTablesMapperNode()
+    { }
+
+    TManyTablesMapperNode(i64 stateValue)
+        : StateValue_(stateValue)
+    { }
+
+    virtual void Save(TOutputStream& stream) const override
+    {
+        stream << StateValue_;
+    }
+
+    virtual void Load(TInputStream& stream) override
+    {
+        stream >> StateValue_;
+    }
+
     virtual void Do(
         TTableReader<TNode>* input,
         TTableWriter<TNode>* output) override
@@ -229,6 +248,7 @@ public:
             outputRow["input_index_1"] = static_cast<int>(input->GetTableIndex());
             outputRow["input_index_2"] = inputRow["input_index"];
             outputRow["value"] = inputRow["value"];
+            outputRow["stateValue"] = StateValue_;
 
             output->AddRow(outputRow, inputRow["output_index"].AsInt64());
         }
@@ -273,7 +293,7 @@ void ManyTablesMapperNode()
         spec.AddOutput<TNode>(output);
     }
 
-    client->Map(spec, new TManyTablesMapperNode);
+    client->Map(spec, new TManyTablesMapperNode(12345));
 
     for (int o = 0; o < outputCount; ++o) {
         Cout << outputs[o] << Endl;
