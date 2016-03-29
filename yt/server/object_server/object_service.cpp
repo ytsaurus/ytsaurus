@@ -375,16 +375,15 @@ private:
 
     void OnMutationCommitted(TSubrequest* subrequest, const TErrorOr<TMutationResponse>& responseOrError)
     {
-        const auto& context = subrequest->Context;
-        if (context->IsReplied()) {
-            return;
+        if (!responseOrError.IsOK()) {
+            Reply(responseOrError);
         }
-        if (responseOrError.IsOK()) {
-            // Here the context is typically already replied.
-            // A notable exception is when the mutation response comes from Response Keeper.
+
+        // Here the context is typically already replied.
+        // A notable exception is when the mutation response comes from Response Keeper.
+        const auto& context = subrequest->Context;
+        if (!context->IsReplied()) {
             context->Reply(responseOrError.Value().Data);
-        } else {
-            context->Reply(TError(responseOrError));
         }
     }
 
