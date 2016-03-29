@@ -357,12 +357,12 @@ class TestTables(YTEnvSetup):
         tx1 = start_transaction()
         tx2 = start_transaction()
 
-        schema = loads('<strict=%false>[{name=a;type=string}]')
+        schema = loads('<strict=%false; optimized_for=lookup>[{name=a;type=string}]')
 
         set("//tmp/table/@schema", schema, tx = tx1)
 
         with pytest.raises(YtError): set("//tmp/table/@schema", schema, tx = tx2)
-        assert get("//tmp/table/@schema") == loads('<strict=%false>[]') 
+        assert get("//tmp/table/@schema") == loads('<strict=%false; optimized_for=lookup>[]') 
         assert get("//tmp/table/@schema", tx = tx1) == schema
 
         commit_transaction(tx1)
