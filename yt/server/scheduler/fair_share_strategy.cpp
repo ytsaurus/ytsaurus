@@ -905,17 +905,17 @@ public:
 
     virtual double GetFairShareStarvationTolerance() const override
     {
-        return Config_->FairShareStarvationTolerance.Get(1.0);
+        return Config_->FairShareStarvationTolerance.Get(StrategyConfig_->FairShareStarvationTolerance);
     }
 
     virtual TDuration GetMinSharePreemptionTimeout() const override
     {
-        return Config_->MinSharePreemptionTimeout.Get(TDuration::Zero());
+        return Config_->MinSharePreemptionTimeout.Get(StrategyConfig_->MinSharePreemptionTimeout);
     }
 
     virtual TDuration GetFairSharePreemptionTimeout() const override
     {
-        return Config_->FairSharePreemptionTimeout.Get(TDuration::Zero());
+        return Config_->FairSharePreemptionTimeout.Get(StrategyConfig_->FairSharePreemptionTimeout);
     }
 
     virtual void SetStarving(bool starving) override
@@ -1023,7 +1023,7 @@ public:
         , Pool_(nullptr)
         , ResourceUsage_(ZeroJobResources())
         , NonpreemptableResourceUsage_(ZeroJobResources())
-        , Config(config)
+        , Config_(config)
         , OperationId_(Operation_->GetId())
     {
         auto& attributes = DynamicAttributes(GlobalAttributesIndex);
@@ -1034,17 +1034,17 @@ public:
 
     virtual double GetFairShareStarvationTolerance() const override
     {
-        return Spec_->FairShareStarvationTolerance.Get(1.0);
+        return Spec_->FairShareStarvationTolerance.Get(Config_->FairShareStarvationTolerance);
     }
 
     virtual TDuration GetMinSharePreemptionTimeout() const override
     {
-        return Spec_->MinSharePreemptionTimeout.Get(TDuration::Zero());
+        return Spec_->MinSharePreemptionTimeout.Get(Config_->MinSharePreemptionTimeout);
     }
 
     virtual TDuration GetFairSharePreemptionTimeout() const override
     {
-        return Spec_->FairSharePreemptionTimeout.Get(TDuration::Zero());
+        return Spec_->FairSharePreemptionTimeout.Get(Config_->FairSharePreemptionTimeout);
     }
 
     virtual void UpdateBottomUp() override
@@ -1103,7 +1103,7 @@ public:
         };
 
         if (!Operation_->IsSchedulable() ||
-            ConcurrentScheduleJobCalls_ >= Config->MaxConcurrentControllerScheduleJobCalls)
+            ConcurrentScheduleJobCalls_ >= Config_->MaxConcurrentControllerScheduleJobCalls)
         {
             DynamicAttributes(context.AttributesIndex).Active = false;
             updateAncestorsAttributes();
@@ -1235,7 +1235,7 @@ public:
         auto fairSharePreemptionTimeout = Attributes_.FairSharePreemptionTimeout;
 
         int jobCount = Operation_->GetController()->GetPendingJobCount();
-        double jobCountRatio = jobCount / Config->JobCountPreemptionTimeoutCoefficient;
+        double jobCountRatio = jobCount / Config_->JobCountPreemptionTimeoutCoefficient;
 
         if (jobCountRatio < 1.0) {
             minSharePreemptionTimeout *= jobCountRatio;
@@ -1386,7 +1386,7 @@ private:
     mutable TJobResources ResourceLimits_;
     mutable TJobResources MaxPossibleResourceUsage_;
 
-    const TFairShareStrategyConfigPtr Config;
+    const TFairShareStrategyConfigPtr Config_;
     const TOperationId OperationId_;
 
     int ConcurrentScheduleJobCalls_ = 0;
@@ -1429,7 +1429,7 @@ private:
             .Run(context.SchedulingContext, jobLimits);
 
         auto jobStartRequestFutureWithTimeout = jobStartRequestFuture
-            .WithTimeout(Config->ControllerScheduleJobTimeLimit);
+            .WithTimeout(Config_->ControllerScheduleJobTimeLimit);
 
         auto jobStartRequestWithTimeoutOrError = WaitFor(jobStartRequestFutureWithTimeout);
 
@@ -1505,9 +1505,9 @@ public:
         Attributes_.FairShareRatio = 1.0;
         Attributes_.AdjustedMinShareRatio = 1.0;
         Mode = ESchedulingMode::FairShare;
-        Attributes_.FairShareStarvationTolerance = StrategyConfig_->FairShareStarvationTolerance;
-        Attributes_.MinSharePreemptionTimeout = StrategyConfig_->MinSharePreemptionTimeout;
-        Attributes_.FairSharePreemptionTimeout = StrategyConfig_->FairSharePreemptionTimeout;
+        Attributes_.FairShareStarvationTolerance = 1.0;
+        Attributes_.MinSharePreemptionTimeout = TDuration::Zero();
+        Attributes_.FairSharePreemptionTimeout = TDuration::Zero();
         Update();
     }
 

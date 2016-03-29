@@ -823,7 +823,7 @@ class TestSchedulerPreemption(YTEnvSetup):
         op1.abort()
 
     def test_recursive_preemption_settings(self):
-        create("map_node", "//sys/pools/p1", attributes={"fair_share_starvation_tolerance": 0.9})
+        create("map_node", "//sys/pools/p1")
         create("map_node", "//sys/pools/p1/p2", attributes={"fair_share_starvation_tolerance": 0.6})
         time.sleep(1)
 
