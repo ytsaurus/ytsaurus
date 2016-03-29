@@ -190,13 +190,6 @@ public:
         return EObjectType::Table;
     }
 
-    virtual EPermissionSet GetSupportedPermissions() const override
-    {
-        return
-            TBase::GetSupportedPermissions() |
-            EPermissionSet::Mount;
-    }
-
     virtual bool IsExternalizable() const override
     {
         return true;
