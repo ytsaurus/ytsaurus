@@ -10,6 +10,7 @@
 #include <contrib/libs/protobuf/message.h>
 
 #include <util/stream/file.h>
+#include <util/stream/buffer.h>
 
 #include <util/generic/bt_exception.h>
 
@@ -178,10 +179,15 @@ TDerived& TOperationIOSpec<TDerived>::AddOutput(const TRichYPath& path)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-inline void LoadJobState(IJob* job)
+inline void LoadJobState(IJob* job, bool hasState)
 {
-    TFileInput stream("jobstate");
-    job->Load(stream);
+    if (hasState) {
+        TFileInput stream("jobstate");
+        job->Load(stream);
+    } else {
+        TBufferStream stream(0);
+        job->Load(stream);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -197,9 +203,7 @@ int RunMapJob(size_t outputTableCount, bool hasState)
         auto writer = CreateJobWriter<TOutputRow>(outputTableCount);
 
         auto mapper = MakeIntrusive<TMapper>();
-        if (hasState) {
-            LoadJobState(mapper.Get());
-        }
+        LoadJobState(mapper.Get(), hasState);
 
         mapper->Start(writer.Get());
         mapper->Do(reader.Get(), writer.Get());
@@ -231,9 +235,7 @@ int RunReduceJob(size_t outputTableCount, bool hasState)
         auto writer = CreateJobWriter<TOutputRow>(outputTableCount);
 
         auto reducer = MakeIntrusive<TReducer>();
-        if (hasState) {
-            LoadJobState(reducer.Get());
-        }
+        LoadJobState(reducer.Get(), hasState);
 
         reducer->Start(writer.Get());
         while (reader->IsValid()) {
