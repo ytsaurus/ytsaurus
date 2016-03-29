@@ -45,7 +45,6 @@ public:
 protected:
     const int ColumnId_;
     const bool Aggregate_;
-    TDataBlockWriter* BlockWriter_;
 
     i64 EmptyPendingRowCount_ = 0;
 

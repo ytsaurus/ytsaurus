@@ -142,7 +142,7 @@ public:
 
     virtual void FinishCurrentSegment() override
     {
-        if (Values_.size() > 0) {
+        if (!TVersionedColumnWriterBase::ValuesPerRow_.empty()) {
             DumpSegment();
             Reset();
         }
