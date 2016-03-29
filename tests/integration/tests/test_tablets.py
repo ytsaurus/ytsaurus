@@ -1338,12 +1338,6 @@ class TestTablets(YTEnvSetup):
             attributes={"dynamic": True},
             schema=[{"data": "string"}])
 
-    def test_mount_permission_support(self):
-        create("file", "//tmp/f")
-        create("table", "//tmp/t")
-        assert "mount" not in get("//tmp/f/@supported_permissions")
-        assert "mount" in get("//tmp/t/@supported_permissions")
-
     def test_mount_permission_denied(self):
         self.sync_create_cells(3, 1)
         self._create_simple_table("//tmp/t")
