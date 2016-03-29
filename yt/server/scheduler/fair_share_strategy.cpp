@@ -147,6 +147,7 @@ struct TFairShareContext
 
     const ISchedulingContextPtr SchedulingContext;
     int AttributesIndex;
+    TDuration TotalScheduleJobDuration;
 };
 
 class TDynamicAttributesList
@@ -1118,6 +1119,7 @@ public:
         NProfiling::TScopedTimer timer;
         auto jobStartRequest = DoScheduleJob(context);
         auto scheduleJobDuration = timer.GetElapsed();
+        context.TotalScheduleJobDuration += scheduleJobDuration;
 
         // This can happen if operation controller was canceled after invocation
         // of IOperationController::ScheduleJob. In this case cancel won't be applied
@@ -1652,37 +1654,56 @@ public:
 
         // First-chance scheduling.
         LOG_DEBUG("Scheduling new jobs");
-        RootElement->PrescheduleJob(context, false);
-        while (schedulingContext->CanStartMoreJobs()) {
-            if (!RootElement->ScheduleJob(context)) {
-                break;
+        PROFILE_TIMING ("/non_preemptive_preschedule_job_time") {
+            RootElement->PrescheduleJob(context, false);
+        }
+
+        int nonPreemptiveScheduleJobCount = 0;
+        {
+            NProfiling::TScopedTimer timer;
+            while (schedulingContext->CanStartMoreJobs()) {
+                ++nonPreemptiveScheduleJobCount;
+                if (!RootElement->ScheduleJob(context)) {
+                    break;
+                }
             }
+            auto scheduleJobDurationWithoutControllers = timer.GetElapsed() - context.TotalScheduleJobDuration;
+
+            Profiler.Enqueue("/non_preemptive_strategy_schedule_job_time",
+                scheduleJobDurationWithoutControllers.MicroSeconds());
+
+            Profiler.Enqueue("/non_preemptive_controller_schedule_job_time",
+                context.TotalScheduleJobDuration.MicroSeconds());
+
+            Profiler.Enqueue("/non_preemptive_schedule_job_count", nonPreemptiveScheduleJobCount);
         }
 
         // Compute discount to node usage.
         LOG_DEBUG("Looking for preemptable jobs");
         yhash_set<TCompositeSchedulerElementPtr> discountedPools;
         std::vector<TJobPtr> preemptableJobs;
-        for (const auto& job : schedulingContext->RunningJobs()) {
-            const auto& operationElement = FindOperationElement(job->GetOperationId());
-            if (!operationElement || !operationElement->IsJobExisting(job->GetId())) {
-                LOG_DEBUG("Dangling running job found (JobId: %v, OperationId: %v)",
-                    job->GetId(),
-                    job->GetOperationId());
-                continue;
-            }
-
-            if (IsJobPreemptable(job) && !operationElement->HasStarvingParent()) {
-                TCompositeSchedulerElement* pool = operationElement->GetPool();
-                while (pool) {
-                    discountedPools.insert(pool);
-                    pool->DynamicAttributes(attributesIndex).ResourceUsageDiscount += job->ResourceUsage();
-                    pool = pool->GetParent();
+        PROFILE_TIMING ("/analyze_preemptable_jobs_time") {
+            for (const auto& job : schedulingContext->RunningJobs()) {
+                const auto& operationElement = FindOperationElement(job->GetOperationId());
+                if (!operationElement || !operationElement->IsJobExisting(job->GetId())) {
+                    LOG_DEBUG("Dangling running job found (JobId: %v, OperationId: %v)",
+                        job->GetId(),
+                        job->GetOperationId());
+                    continue;
                 }
-                schedulingContext->ResourceUsageDiscount() += job->ResourceUsage();
-                preemptableJobs.push_back(job);
-                LOG_DEBUG("Job is preemptable (JobId: %v)",
-                    job->GetId());
+
+                if (IsJobPreemptable(job) && !operationElement->HasStarvingParent()) {
+                    TCompositeSchedulerElement* pool = operationElement->GetPool();
+                    while (pool) {
+                        discountedPools.insert(pool);
+                        pool->DynamicAttributes(attributesIndex).ResourceUsageDiscount += job->ResourceUsage();
+                        pool = pool->GetParent();
+                    }
+                    schedulingContext->ResourceUsageDiscount() += job->ResourceUsage();
+                    preemptableJobs.push_back(job);
+                    LOG_DEBUG("Job is preemptable (JobId: %v)",
+                        job->GetId());
+                }
             }
         }
 
@@ -1692,14 +1713,32 @@ public:
         // Second-chance scheduling.
         // NB: Schedule at most one job.
         LOG_DEBUG("Scheduling new jobs with preemption");
-        RootElement->PrescheduleJob(context, true);
-        while (schedulingContext->CanStartMoreJobs()) {
-            if (!RootElement->ScheduleJob(context)) {
-                break;
+        PROFILE_TIMING ("/preemptive_preschedule_job_time") {
+            RootElement->PrescheduleJob(context, true);
+        }
+
+        int preemptiveScheduleJobCount = 0;
+        {
+            context.TotalScheduleJobDuration = TDuration::Zero();
+            NProfiling::TScopedTimer timer;
+            while (schedulingContext->CanStartMoreJobs()) {
+                ++preemptiveScheduleJobCount;
+                if (!RootElement->ScheduleJob(context)) {
+                    break;
+                }
+                if (schedulingContext->StartedJobs().size() != startedBeforePreemption) {
+                    break;
+                }
             }
-            if (schedulingContext->StartedJobs().size() != startedBeforePreemption) {
-                break;
-            }
+            auto scheduleJobDurationWithoutControllers = timer.GetElapsed() - context.TotalScheduleJobDuration;
+
+            Profiler.Enqueue("/preemptive_strategy_schedule_job_time",
+                scheduleJobDurationWithoutControllers.MicroSeconds());
+
+            Profiler.Enqueue("/preemptive_controller_schedule_job_time",
+                context.TotalScheduleJobDuration.MicroSeconds());
+
+            Profiler.Enqueue("/preemptive_schedule_job_count", preemptiveScheduleJobCount);
         }
 
         int startedAfterPreemption = schedulingContext->StartedJobs().size();
@@ -1777,12 +1816,15 @@ public:
         FreeAttributesIndex(attributesIndex);
 
         LOG_DEBUG("Heartbeat info (StartedJobs: %v, PreemptedJobs: %v, "
-            "JobsScheduledDuringPreemption: %v, PreemptableJobs: %v, PreemptableResources: %v)",
+            "JobsScheduledDuringPreemption: %v, PreemptableJobs: %v, PreemptableResources: %v, "
+            "NonPreemptiveScheduleJobCount: %v, PreemptiveScheduleJobCount: %v)",
             schedulingContext->StartedJobs().size(),
             schedulingContext->PreemptedJobs().size(),
             scheduledDuringPreemption,
             preemptableJobs.size(),
-            FormatResources(resourceDiscount));
+            FormatResources(resourceDiscount),
+            nonPreemptiveScheduleJobCount,
+            preemptiveScheduleJobCount);
     }
 
     virtual void ResetState() override
