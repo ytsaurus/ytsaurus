@@ -169,6 +169,34 @@ describe("YtApplicationOperations - list, get operations and scheduling info", f
         .then(done, done);
     });
 
+    it("should fail when cursor_time is out of range (before from_time)", function(done) {
+        this.application_operations.list({
+            from_time: "2015-01-01T01:00:00",
+            to_time: "2015-01-01T02:00:00",
+            cursor_time: "2015-01-01T00:00:00",
+        }).then(
+            function() { throw new Error("This should fail."); },
+            function(err) {
+                err.should.be.instanceof(YtError);
+                err.message.should.match(/time cursor is out of range/i);
+            })
+        .then(done, done);
+    });
+
+    it("should fail when cursor_time is out of range (after to_time)", function(done) {
+        this.application_operations.list({
+            from_time: "2015-01-01T01:00:00",
+            to_time: "2015-01-01T02:00:00",
+            cursor_time: "2015-01-01T03:00:00",
+        }).then(
+            function() { throw new Error("This should fail."); },
+            function(err) {
+                err.should.be.instanceof(YtError);
+                err.message.should.match(/time cursor is out of range/i);
+            })
+        .then(done, done);
+    });
+
     it("should list operations from cypress without filters", function(done) {
         var mock = sinon.mock(this.driver);
         mockForList(mock, Q.resolve(CYPRESS_OPERATIONS), Q.reject(), Q.reject(), Q.reject());
