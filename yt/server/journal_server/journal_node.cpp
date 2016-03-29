@@ -110,17 +110,17 @@ public:
         : TBase(bootstrap)
     { }
 
-    virtual EObjectType GetObjectType() override
+    virtual EObjectType GetObjectType() const override
     {
         return EObjectType::Journal;
     }
 
-    virtual bool IsExternalizable() override
+    virtual bool IsExternalizable() const override
     {
         return true;
     }
 
-    virtual ENodeType GetNodeType() override
+    virtual ENodeType GetNodeType() const override
     {
         return ENodeType::Entity;
     }

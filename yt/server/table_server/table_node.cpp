@@ -185,19 +185,19 @@ public:
         : TBase(bootstrap)
     { }
 
-    virtual EObjectType GetObjectType() override
+    virtual EObjectType GetObjectType() const override
     {
         return EObjectType::Table;
     }
 
-    virtual EPermissionSet GetSupportedPermissions() override
+    virtual EPermissionSet GetSupportedPermissions() const override
     {
         return
             TBase::GetSupportedPermissions() |
             EPermissionSet::Mount;
     }
 
-    virtual bool IsExternalizable() override
+    virtual bool IsExternalizable() const override
     {
         return true;
     }

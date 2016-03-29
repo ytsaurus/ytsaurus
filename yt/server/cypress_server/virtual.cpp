@@ -702,12 +702,12 @@ public:
         , Options_(options)
     { }
 
-    virtual EObjectType GetObjectType() override
+    virtual EObjectType GetObjectType() const override
     {
         return ObjectType_;
     }
 
-    virtual ENodeType GetNodeType() override
+    virtual ENodeType GetNodeType() const override
     {
         return ENodeType::Entity;
     }

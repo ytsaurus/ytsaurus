@@ -125,7 +125,7 @@ public:
         : TMapNodeTypeHandler(bootstrap)
     { }
 
-    virtual EObjectType GetObjectType() override
+    virtual EObjectType GetObjectType() const override
     {
         return EObjectType::SysNode;
     }
