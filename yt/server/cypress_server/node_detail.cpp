@@ -55,7 +55,8 @@ EPermissionSet TNontemplateCypressNodeTypeHandlerBase::GetSupportedPermissions()
         EPermissionSet::Read |
         EPermissionSet::Write |
         EPermissionSet::Remove |
-        EPermissionSet::Administer;
+        EPermissionSet::Administer |
+        EPermissionSet::Mount;
 }
 
 bool TNontemplateCypressNodeTypeHandlerBase::IsLeader() const
