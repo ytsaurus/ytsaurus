@@ -31,7 +31,7 @@ TChunkOwnerTypeHandler<TChunkOwner>::TChunkOwnerTypeHandler(NCellMaster::TBootst
 { }
 
 template <class TChunkOwner>
-NYTree::ENodeType TChunkOwnerTypeHandler<TChunkOwner>::GetNodeType()
+NYTree::ENodeType TChunkOwnerTypeHandler<TChunkOwner>::GetNodeType() const
 {
     return NYTree::ENodeType::Entity;
 }

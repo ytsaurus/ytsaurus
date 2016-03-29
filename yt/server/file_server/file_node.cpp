@@ -36,12 +36,12 @@ public:
         : TChunkOwnerTypeHandler(bootstrap)
     { }
 
-    virtual EObjectType GetObjectType() override
+    virtual EObjectType GetObjectType() const override
     {
         return EObjectType::File;
     }
 
-    virtual bool IsExternalizable() override
+    virtual bool IsExternalizable() const override
     {
         return true;
     }
