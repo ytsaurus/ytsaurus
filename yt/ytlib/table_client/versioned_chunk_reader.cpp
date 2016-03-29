@@ -1453,9 +1453,7 @@ private:
         row.SetValueCount(0);
 
         // Read key values.
-        for (auto& valueColumnReader : ValueColumnReaders_) {
-            Cerr << Format("LOOKUP row index %d\n", rowIndex);
-
+        for (const auto& valueColumnReader : ValueColumnReaders_) {
             valueColumnReader->ReadValues(
                 TMutableRange<TMutableVersionedRow>(&row, 1),
                 MakeRange(&timestampIndexRange, 1));
