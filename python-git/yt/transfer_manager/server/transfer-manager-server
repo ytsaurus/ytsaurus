@@ -1226,7 +1226,9 @@ class Application(object):
                 "title": title,
                 "transfer_manager": {
                     "task_id": task.id,
-                    "backend_tag": task.backend_tag
+                    "backend_tag": task.backend_tag,
+                    "source_cluster_name": task.source_cluster_name,
+                    "destination_cluster_name": task.destination_cluster_name
                 }
             }
             copy_spec = update({"pool": task.pool}, update(deepcopy(common_spec), get_value(task.copy_spec, {})))
