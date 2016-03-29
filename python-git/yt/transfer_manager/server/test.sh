@@ -180,7 +180,7 @@ test_various_transfers() {
 }
 
 test_incorrect_copy_to_yamr() {
-    yt2 remove //tmp/test_table --force
+    yt2 remove //tmp/test_table --force --proxy plato
 
     # Incorrect column names.
     echo -e "a=b" | yt2 write //tmp/test_table --format dsv --proxy plato
