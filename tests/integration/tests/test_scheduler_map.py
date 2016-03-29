@@ -267,7 +267,7 @@ class TestJobProber(YTEnvSetup):
 
 class TestSchedulerMapCommands(YTEnvSetup):
     NUM_MASTERS = 3
-    NUM_NODES = 5
+    NUM_NODES = 16
     NUM_SCHEDULERS = 1
 
     DELTA_SCHEDULER_CONFIG = {
@@ -753,33 +753,28 @@ class TestSchedulerMapCommands(YTEnvSetup):
 
         assert read_table("//tmp/output") == [{"value": 42}, {"a": "b"}, {"text": "info"}, {"text": "info"}]
 
-    @pytest.mark.xfail(run = True, reason = "No support for erasure chunks in user files")
     def test_erasure_user_files(self):
         create("table", "//tmp/input")
         write_table("//tmp/input", {"foo": "bar"})
 
         create("table", "//tmp/output")
 
-        file1 = "//tmp/regular_file"
-        create("file", file1)
-        set(file1 + "/@erasure_codec", "lrc_12_2_2")
-        write_file(file1, "{value=42};\n")
-        write_file(file1, "{a=b};\n")
+        create("file", "//tmp/regular_file", attributes={"erasure_coded": "lrc_12_2_2"})
+        write_file("<append=true>//tmp/regular_file", "{value=42};\n")
+        write_file("<append=true>//tmp/regular_file", "{a=b};\n")
 
-        table_file = "//tmp/table_file"
-        create("table", table_file)
-        set(table_file + "/@erasure_codec", "reed_solomon_6_3")
-        for i in xrange(2):
-            write_table(table_file, {"text": "info"})
+        create("table", "//tmp/table_file", attributes={"erasure_codec": "reed_solomon_6_3"})
+        write_table("<append=true>//tmp/table_file", {"text1": "info1"})
+        write_table("<append=true>//tmp/table_file", {"text2": "info2"})
 
         command= "cat > /dev/null; cat regular_file; cat table_file"
 
         map(in_="//tmp/input",
             out="//tmp/output",
             command=command,
-            file=[file1, "<format=yson>" + table_file])
+            file=["//tmp/regular_file", "<format=yson>//tmp/table_file"])
 
-        assert read_table("//tmp/output") == [{"value": 42}, {"a": "b"}, {"text": "info"}, {"text": "info"}]
+        assert read_table("//tmp/output") == [{"value": 42}, {"a": "b"}, {"text1": "info1"}, {"text2": "info2"}]
 
     @unix_only
     def run_many_output_tables(self, yamr_mode=False):
