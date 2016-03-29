@@ -244,7 +244,7 @@ public:
 
     virtual void FinishCurrentSegment() override
     {
-        if (Values_.size() > 0) {
+        if (!ValuesPerRow_.empty()) {
             DumpSegment();
             Reset();
         }

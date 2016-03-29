@@ -115,6 +115,15 @@ protected:
         return rows;
     }
 
+    std::vector<TVersionedRow> CreateEmpty()
+    {
+        std::vector<TVersionedRow> rows;
+        for (int i = 0; i < 100 * 100; ++i) {
+            rows.push_back(CreateRowWithValues({}));
+        }
+        return rows;
+    }
+
     std::vector<TVersionedRow> CreateDictionarySparse()
     {
         std::vector<TVersionedRow> rows;
@@ -137,6 +146,7 @@ protected:
         AppendVector(&expected, CreateDictionaryDense());
         AppendVector(&expected, CreateDirectSparse());
         AppendVector(&expected, CreateDictionarySparse());
+        AppendVector(&expected, CreateEmpty());
         return expected;
     }
 
@@ -146,11 +156,12 @@ protected:
         WriteSegment(columnWriter, CreateDictionaryDense());
         WriteSegment(columnWriter, CreateDirectSparse());
         WriteSegment(columnWriter, CreateDictionarySparse());
+        WriteSegment(columnWriter, CreateEmpty());
     }
 
     void DoCheckSegmentType()
     {
-        EXPECT_EQ(4, ColumnMeta_.segments_size());
+        EXPECT_EQ(5, ColumnMeta_.segments_size());
 
         auto checkSegment = [&] (EVersionedIntegerSegmentType segmentType, int segmentIndex) {
             EXPECT_EQ(segmentType, EVersionedIntegerSegmentType(ColumnMeta_.segments(segmentIndex).type())) << Format("%lv", segmentType);
@@ -160,6 +171,7 @@ protected:
         checkSegment(EVersionedIntegerSegmentType::DictionaryDense, 1);
         checkSegment(EVersionedIntegerSegmentType::DirectSparse, 2);
         checkSegment(EVersionedIntegerSegmentType::DictionarySparse, 3);
+        checkSegment(EVersionedIntegerSegmentType::DirectDense, 4);
     }
 
     void DoReadValues(TTimestamp timestamp, int padding = 500)
