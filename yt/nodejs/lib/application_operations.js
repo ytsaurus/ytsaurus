@@ -258,6 +258,7 @@ function YtApplicationOperations$list(parameters)
 {
     var from_time = optional(parameters, "from_time", validateDateTime);
     var to_time = optional(parameters, "to_time", validateDateTime);
+    var cursor_time = optional(parameters, "cursor_time", validateDateTime);
 
     var user_filter = optional(parameters, "user", validateString);
     var state_filter = optional(parameters, "state", validateString);
@@ -284,6 +285,14 @@ function YtApplicationOperations$list(parameters)
     if (time_span > TIME_SPAN_LIMIT) {
         throw new YtError("Time span exceedes allowed limit ({} > {})".format(
             time_span, TIME_SPAN_LIMIT));
+    }
+
+    if (cursor_time === null) {
+        cursor_time = to_time;
+    }
+
+    if (cursor_time > to_time || cursor_time < from_time) {
+        throw new YtError("Time cursor is out of range");
     }
 
     // TODO(sandello): Validate |state_filter|, |type_filter|.
