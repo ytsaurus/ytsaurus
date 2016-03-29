@@ -314,12 +314,13 @@ def copy_yt_to_yt(source_client, destination_client, src, dst, network_name,
             spec=copy_spec_template,
             **kwargs)
 
-        transform(str(dst), compression_codec=compression_codec, erasure_codec=erasure_codec, yt_client=destination_client, spec=postprocess_spec_template, check_codecs=True)
-
         for name, codec in [("compression_codec", compression_codec), ("erasure_codec", erasure_codec)]:
             if codec is None:
                 destination_client.set(dst + "/@" + name, source_client.get(src + "/@" + name))
 
+        if erasure_codec is not None or compression_codec is not None:
+            transform(str(dst), compression_codec=compression_codec, erasure_codec=erasure_codec,
+                      yt_client=destination_client, spec=postprocess_spec_template, check_codecs=True)
 
 def copy_yt_to_yt_through_proxy(source_client, destination_client, src, dst, fastbone,
                                 copy_spec_template=None, postprocess_spec_template=None, default_tmp_dir=None,

@@ -392,6 +392,20 @@ test_destination_codecs() {
     check '"zlib6"' "$(yt2 get //tmp/test_table/@compression_codec --proxy plato)"
 }
 
+test_source_codecs() {
+    echo "Test source codecs"
+
+    yt2 remove //tmp/test_table --proxy quine --force
+    yt2 create table //tmp/test_table --proxy quine --attributes '{compression_codec=zlib6}'
+    echo 'a=b' | yt2 write //tmp/test_table --proxy quine --format dsv
+
+    id=$(run_task '{"source_table": "//tmp/test_table", "source_cluster": "quine", "destination_table": "//tmp/test_table", "destination_cluster": "plato"}')
+    wait_task $id
+
+    check "a=b" "$(yt2 read //tmp/test_table --proxy plato --format dsv)"
+    check '"zlib6"' "$(yt2 get //tmp/test_table/@compression_codec --proxy plato)"
+}
+
 test_intermediate_format() {
     echo "Test intermediate format"
 
@@ -439,5 +453,6 @@ test_types_preserving_during_copy
 test_skip_if_destination_exists
 test_mutating_requests_retries
 test_destination_codecs
+test_source_codecs
 test_intermediate_format
 test_delete_tasks
