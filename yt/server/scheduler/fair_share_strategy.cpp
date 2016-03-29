@@ -312,7 +312,7 @@ public:
                : ESchedulableStatus::BelowFairShare;
     }
 
-    ESchedulableStatus GetStatus() const override
+    virtual ESchedulableStatus GetStatus() const override
     {
         return ESchedulableStatus::Normal;
     }
@@ -903,17 +903,17 @@ public:
         return TSchedulerElementBase::GetStatus(Attributes_.FairShareStarvationTolerance);
     }
 
-    virtual double GetFairShareStarvationTolerance() const
+    virtual double GetFairShareStarvationTolerance() const override
     {
         return Config_->FairShareStarvationTolerance.Get(1.0);
     }
 
-    virtual TDuration GetMinSharePreemptionTimeout() const
+    virtual TDuration GetMinSharePreemptionTimeout() const override
     {
         return Config_->MinSharePreemptionTimeout.Get(TDuration::Zero());
     }
 
-    virtual TDuration GetFairSharePreemptionTimeout() const
+    virtual TDuration GetFairSharePreemptionTimeout() const override
     {
         return Config_->FairSharePreemptionTimeout.Get(TDuration::Zero());
     }
@@ -1032,17 +1032,17 @@ public:
         attributes.BestLeafDescendant = this;
     }
 
-    virtual double GetFairShareStarvationTolerance() const
+    virtual double GetFairShareStarvationTolerance() const override
     {
         return Spec_->FairShareStarvationTolerance.Get(1.0);
     }
 
-    virtual TDuration GetMinSharePreemptionTimeout() const
+    virtual TDuration GetMinSharePreemptionTimeout() const override
     {
         return Spec_->MinSharePreemptionTimeout.Get(TDuration::Zero());
     }
 
-    virtual TDuration GetFairSharePreemptionTimeout() const
+    virtual TDuration GetFairSharePreemptionTimeout() const override
     {
         return Spec_->FairSharePreemptionTimeout.Get(TDuration::Zero());
     }
@@ -1202,7 +1202,7 @@ public:
         return MaxPossibleResourceUsage_;
     }
 
-    ESchedulableStatus GetStatus() const
+    virtual ESchedulableStatus GetStatus() const override
     {
         if (!Operation_->IsSchedulable()) {
             return ESchedulableStatus::Normal;
@@ -1536,17 +1536,17 @@ public:
         return 1.0;
     }
 
-    virtual double GetFairShareStarvationTolerance() const
+    virtual double GetFairShareStarvationTolerance() const override
     {
         return StrategyConfig_->FairShareStarvationTolerance;
     }
 
-    virtual TDuration GetMinSharePreemptionTimeout() const
+    virtual TDuration GetMinSharePreemptionTimeout() const override
     {
         return StrategyConfig_->MinSharePreemptionTimeout;
     }
 
-    virtual TDuration GetFairSharePreemptionTimeout() const
+    virtual TDuration GetFairSharePreemptionTimeout() const override
     {
         return StrategyConfig_->FairSharePreemptionTimeout;
     }
