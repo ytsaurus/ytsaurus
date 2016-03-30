@@ -546,10 +546,13 @@ private:
                 valueConsumer->Flush();
             }
 
+            std::vector<TFuture<void>> asyncResults;
             for (auto writer : JobIO_->GetWriters()) {
-                auto error = WaitFor(writer->Close());
-                THROW_ERROR_EXCEPTION_IF_FAILED(error, "Error closing table output");
+                asyncResults.push_back(writer->Close());
             }
+
+            auto error = WaitFor(Combine(asyncResults));
+            THROW_ERROR_EXCEPTION_IF_FAILED(error, "Error closing table output");
         }));
     }
 
