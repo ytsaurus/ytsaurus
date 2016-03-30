@@ -70,7 +70,7 @@ def extract_operation_methods(operation):
     return start, convert_callable_to_generator(operation), finish
 
 def check_job_environment_variables():
-    for name in ["YT_OPERATION_ID", "YT_JOB_ID", "YT_JOB_INDEX", "YT_START_ROW_INDEX"]:
+    for name in ["YT_OPERATION_ID", "YT_JOB_ID", "YT_JOB_INDEX"]:
         if name not in os.environ:
             sys.stderr.write("Warning! {0} is not set. If this job is not run "
                              "manually for testing purposes then this is a bug.\n".format(name))
