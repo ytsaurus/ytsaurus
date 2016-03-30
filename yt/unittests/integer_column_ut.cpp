@@ -340,6 +340,9 @@ protected:
             for (int j = 0; j < 100; ++j) {
                 data.push_back(Base_ + (j / 25) * 1024);
             }
+            for (int j = 0; j < 2; ++j) {
+                data.push_back(Null);
+            }
         }
         AppendExtremeValues(&data);
         return data;
@@ -352,8 +355,8 @@ protected:
             for (int j = 0; j < 100; ++j) {
                 data.push_back(Base_ + i);
             }
+            data.push_back(Null);
         }
-        AppendExtremeValues(&data);
         return data;
     }
 
@@ -393,6 +396,7 @@ protected:
     {
         values->push_back(std::numeric_limits<TValue>::max());
         values->push_back(std::numeric_limits<TValue>::min());
+        values->push_back(Null);
     }
 };
 
@@ -403,7 +407,7 @@ class TUnversionedInt64ColumnTest
 {
 protected:
     TUnversionedInt64ColumnTest()
-        : TUnversionedIntegerColumnTestBase<i64>(-1234)
+        : TUnversionedIntegerColumnTestBase<i64>(-12340000)
     { }
 
     virtual std::unique_ptr<IUnversionedColumnReader> CreateColumnReader() override
