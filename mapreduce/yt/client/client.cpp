@@ -627,6 +627,12 @@ IClientPtr CreateClient(
 
     TAuth auth;
     auth.ServerName = serverName;
+    if (serverName.find('.') == Stroka::npos &&
+        serverName.find(':') == Stroka::npos)
+    {
+        auth.ServerName += ".yt.yandex.net";
+    }
+
     auth.Token = TConfig::Get()->Token;
     if (!options.Token_.empty()) {
         TConfig::ValidateToken(options.Token_);

@@ -10,7 +10,7 @@ namespace NExample {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const Stroka SERVER("barney.yt.yandex.net");
+const Stroka SERVER("hahn");
 const Stroka PREFIX("//tmp/cpp/cpp_examples");
 
 void CreateSandbox()
