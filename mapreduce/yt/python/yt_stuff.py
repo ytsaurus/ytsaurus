@@ -147,7 +147,7 @@ class YtStuff:
             res = self._yt_local(*args)
         except Exception, e:
             self._log("Failed to start local YT:\n%s", str(e))
-            self._save_yt_data(save_all=True)
+            self._save_logs(save_yt_all=True)
             raise
         self.yt_proxy_port = int(res.std_err.strip().splitlines()[-1].strip().split(":")[-1])
         self.yt_wrapper.config["proxy"]["url"] = self.get_server()
@@ -159,15 +159,20 @@ class YtStuff:
             self._yt_local("stop", os.path.join(self.yt_work_dir, self.yt_id))
         except Exception, e:
             self._log("Errors while stopping local YT:\n%s", str(e))
-            self._save_yt_data(save_all=True)
+            self._save_logs(save_yt_all=True)
             raise
-        self._save_yt_data(save_all=yatest.common.get_param("yt_save_all_data"))
+        self._save_logs(save_yt_all=yatest.common.get_param("yt_save_all_data"))
 
     @_timing
-    def _save_yt_data(self, save_all=None):
-        output_dir = yatest.common.output_path("yt_logs_%s" % self.yt_id)
+    def _save_logs(self, save_yt_all=None):
+        output_path = yatest.common.output_path()
 
-        self._log("YT data saved in %s", output_dir)
+        self._log("Logs saved in %s", output_path)
+
+        common_interface_log = yatest.common.work_path("mr-client.log")
+        if os.path.exists(common_interface_log):
+            p = os.path.join(output_path, "mr-client.log")
+            shutil.copyfile(common_interface_log, p)
 
         def _ignore(path, names):
             IGNORE_DIRS_ALWAYS = ["ui"]
@@ -180,13 +185,14 @@ class YtStuff:
                 elif os.path.isdir(full_path):
                     should_ignore = False
                     should_ignore |= name in IGNORE_DIRS_ALWAYS
-                    should_ignore |= not save_all and name in IGNORE_DIRS
+                    should_ignore |= not save_yt_all and name in IGNORE_DIRS
                     if should_ignore:
                         ignored.add(name)
             return ignored
 
-        shutil.copytree(src=self.yt_work_dir, dst=output_dir, ignore=_ignore)
-        os.system("chmod -R 0775 " + output_dir)
+        yt_output_dir = os.path.join(output_path, "yt_logs_%s" % self.yt_id)
+        shutil.copytree(src=self.yt_work_dir, dst=yt_output_dir, ignore=_ignore)
+        os.system("chmod -R 0775 " + yt_output_dir)
 
 
 @pytest.fixture(scope="module")
