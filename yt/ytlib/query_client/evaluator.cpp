@@ -105,7 +105,6 @@ public:
                 // NB: function contexts need to be destroyed before cgQuery since it hosts destructors.
                 TExecutionContext executionContext;
                 executionContext.Reader = reader;
-                executionContext.Schema = &query->TableSchema;
 
                 executionContext.LiteralRows = &fragmentParams.LiteralRows;
                 executionContext.PermanentBuffer = permanentBuffer;

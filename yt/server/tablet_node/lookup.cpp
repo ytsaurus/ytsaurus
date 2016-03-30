@@ -75,6 +75,7 @@ public:
 
         Merger_ = New<TSchemafulRowMerger>(
             RowBuffer_,
+            SchemaColumnCount_,
             KeyColumnCount_,
             ColumnFilter_,
             TabletSnapshot_->ColumnEvaluator);

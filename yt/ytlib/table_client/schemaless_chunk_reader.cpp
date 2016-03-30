@@ -1050,9 +1050,10 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
 
     auto rowMerger = New<TSchemafulRowMerger>(
         New<TRowBuffer>(),
+        tableSchema.Columns().size(),
         tableSchema.GetKeyColumnCount(),
         columnFilter,
-        client->GetConnection()->GetColumnEvaluatorCache()->Find(tableSchema, tableSchema.GetKeyColumnCount()));
+        client->GetConnection()->GetColumnEvaluatorCache()->Find(tableSchema));
 
     auto reader = CreateSchemafulOverlappingRangeChunkReader(
         std::move(boundaries),

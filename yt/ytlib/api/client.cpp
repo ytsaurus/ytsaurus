@@ -1664,7 +1664,7 @@ private:
         auto rowBuffer = New<TRowBuffer>();
         auto evaluatorCache = Connection_->GetColumnEvaluatorCache();
         auto evaluator = tableInfo->NeedKeyEvaluation
-            ? evaluatorCache->Find(tableInfo->Schema, keyColumnCount)
+            ? evaluatorCache->Find(tableInfo->Schema)
             : nullptr;
 
         for (int index = 0; index < keys.Size(); ++index) {
@@ -2899,7 +2899,7 @@ private:
             const auto& rowBuffer = Transaction_->GetRowBuffer();
             auto evaluatorCache = Transaction_->GetConnection()->GetColumnEvaluatorCache();
             auto evaluator = TableInfo_->NeedKeyEvaluation
-                ? evaluatorCache->Find(TableInfo_->Schema, keyColumnCount)
+                ? evaluatorCache->Find(TableInfo_->Schema)
                 : nullptr;
 
             for (auto row : rows) {
@@ -2999,6 +2999,7 @@ private:
             , TabletId_(TabletInfo_->TabletId)
             , Config_(owner->Client_->Connection_->GetConfig())
             , Durability_(owner->Transaction_->GetDurability())
+            , ColumnCount_(TableInfo_->Schema.Columns().size())
             , KeyColumnCount_(TableInfo_->KeyColumns.size())
             , ColumnEvaluator_(std::move(columnEvauator))
             , RowBuffer_(New<TRowBuffer>())
@@ -3046,6 +3047,7 @@ private:
             mergedRows.reserve(SubmittedRows_.size());
             auto merger = New<TUnversionedRowMerger>(
                 RowBuffer_,
+                ColumnCount_,
                 KeyColumnCount_,
                 ColumnEvaluator_);
 
@@ -3110,6 +3112,7 @@ private:
         const TTabletId TabletId_;
         const TConnectionConfigPtr Config_;
         const EDurability Durability_;
+        const int ColumnCount_;
         const int KeyColumnCount_;
 
         TColumnEvaluatorPtr ColumnEvaluator_;
@@ -3238,7 +3241,7 @@ private:
         if (it == TabletToSession_.end()) {
             AsyncTransactionStartResults_.push_back(Transaction_->AddTabletParticipant(tabletInfo->CellId));
             auto evaluatorCache = GetConnection()->GetColumnEvaluatorCache();
-            auto evaluator = evaluatorCache->Find(tableInfo->Schema, tableInfo->KeyColumns.size());
+            auto evaluator = evaluatorCache->Find(tableInfo->Schema);
             it = TabletToSession_.insert(std::make_pair(
                 tabletInfo,
                 New<TTabletCommitSession>(

@@ -97,8 +97,6 @@ struct TExpressionContext
 #ifndef NDEBUG
     size_t StackSizeGuardHelper;
 #endif
-    const TTableSchema* Schema;
-
     const std::vector<TSharedRange<TRow>>* LiteralRows;
 
     TRowBufferPtr IntermediateBuffer;
@@ -177,7 +175,7 @@ private:
     std::vector<TRowBufferPtr> Buffers_;
     std::vector<int> EmptyBufferIds_;
     std::vector<std::pair<TMutableRow, int>> Rows_;
-    
+
     std::pair<TMutableRow, int> Capture(TRow row);
 
     void AccountGarbage(TRow row);

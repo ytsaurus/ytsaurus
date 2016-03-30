@@ -345,9 +345,7 @@ private:
 
         LOG_DEBUG("Got %v split groups", groupedSplits.size());
 
-        auto columnEvaluator = ColumnEvaluatorCache_->Find(
-            query->TableSchema,
-            query->KeyColumnsCount);
+        auto columnEvaluator = ColumnEvaluatorCache_->Find(query->TableSchema);
 
         std::vector<TRefiner> refiners;
         std::vector<TSubreaderCreator> subreaderCreators;
@@ -471,8 +469,7 @@ private:
         }
 
         auto columnEvaluator = ColumnEvaluatorCache_->Find(
-            query->TableSchema,
-            query->KeyColumnsCount);
+            query->TableSchema);
 
         std::vector<TRefiner> refiners;
         std::vector<TSubreaderCreator> subreaderCreators;

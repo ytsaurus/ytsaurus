@@ -184,6 +184,20 @@ protected:
         return schema;
     }
 
+    static TTableSchema GetKeyedSchema(const TTableSchema& schema, int keyCount = 0)
+    {
+        std::vector<TColumnSchema> keyedSchemaColumns;
+        for (int index = 0; index < schema.Columns().size(); ++index) {
+            auto column = schema.Columns()[index];
+            if (index < keyCount) {
+                column.SetSortOrder(ESortOrder::Ascending);
+            }
+            keyedSchemaColumns.push_back(std::move(column));
+        }
+
+        return TTableSchema(keyedSchemaColumns);
+    }
+
     static TTableSchema GetAggregateSumSchema()
     {
         TTableSchema schema({
@@ -207,8 +221,8 @@ public:
         TColumnFilter filter = TColumnFilter(),
         TTableSchema schema = GetTypicalSchema())
     {
-        auto evaluator = ColumnEvaluatorCache_->Find(schema, 1);
-        return New<TSchemafulRowMerger>(MergedRowBuffer_, 1, filter, evaluator);
+        auto evaluator = ColumnEvaluatorCache_->Find(GetKeyedSchema(schema, 1));
+        return New<TSchemafulRowMerger>(MergedRowBuffer_, schema.Columns().size(), 1, filter, evaluator);
     }
 
 protected:
@@ -430,8 +444,8 @@ public:
     TUnversionedRowMergerPtr GetTypicalMerger(
         TTableSchema schema = GetTypicalSchema())
     {
-        auto evaluator = ColumnEvaluatorCache_->Find(schema, 1);
-        return New<TUnversionedRowMerger>(MergedRowBuffer_, 1, evaluator);
+        auto evaluator = ColumnEvaluatorCache_->Find(GetKeyedSchema(schema, 1));
+        return New<TUnversionedRowMerger>(MergedRowBuffer_, schema.Columns().size(), 1, evaluator);
     }
 
 protected:
@@ -576,7 +590,7 @@ public:
         TTimestamp majorTimestamp,
         TTableSchema schema = GetTypicalSchema())
     {
-        auto evaluator = ColumnEvaluatorCache_->Find(schema, 1);
+        auto evaluator = ColumnEvaluatorCache_->Find(GetKeyedSchema(schema, 1));
         return New<TVersionedRowMerger>(
             MergedRowBuffer_,
             1,
