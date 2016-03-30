@@ -1728,7 +1728,7 @@ class Application(object):
         client = deepcopy(clusters_configuration.clusters[source_cluster])
         if client._type == "yt":
             token, _ = self._get_token_and_user(request.headers)
-            client.config["token"] = token
+            client.config["token"] = get_value(params.get("source_cluster_token"), token)
 
         matchings = match_copy_pattern(client, source_pattern, destination_pattern)
         return Response(json.dumps(matchings), mimetype="application/json")
