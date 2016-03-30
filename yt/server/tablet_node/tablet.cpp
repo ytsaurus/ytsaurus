@@ -730,7 +730,7 @@ void TTablet::PreInitialize()
 
     ColumnLockCount_ = groupToIndex.size() + 1;
 
-    ColumnEvaluator_ = Context_->GetColumnEvaluatorCache()->Find(Schema_, KeyColumns_.size());
+    ColumnEvaluator_ = Context_->GetColumnEvaluatorCache()->Find(Schema_);
 }
 
 void TTablet::PostInitialize()

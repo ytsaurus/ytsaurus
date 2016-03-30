@@ -247,7 +247,7 @@ protected:
             expr,
             tableSchema,
             keyColumns,
-            ColumnEvaluatorCache_->Find(tableSchema, keyColumns.size()));
+            ColumnEvaluatorCache_->Find(tableSchema));
     }
 
 private:
@@ -682,7 +682,6 @@ TEST_P(TArithmeticTest, Evaluate)
 
     // NB: function contexts need to be destroyed before callback since it hosts destructors.
     TExecutionContext executionContext;
-    executionContext.Schema = &schema;
     executionContext.LiteralRows = &variables.LiteralRows;
     executionContext.PermanentBuffer = permanentBuffer;
     executionContext.OutputBuffer = outputBuffer;
@@ -781,7 +780,6 @@ TEST_P(TCompareWithNullTest, Simple)
 
     // NB: function contexts need to be destroyed before callback since it hosts destructors.
     TExecutionContext executionContext;
-    executionContext.Schema = &schema;
     executionContext.PermanentBuffer = permanentBuffer;
     executionContext.OutputBuffer = outputBuffer;
     executionContext.IntermediateBuffer = intermediateBuffer;
@@ -953,7 +951,6 @@ void EvaluateExpression(
     TQueryStatistics statistics;
     // NB: function contexts need to be destroyed before callback since it hosts destructors.
     TExecutionContext executionContext;
-    executionContext.Schema = &schema;
     executionContext.LiteralRows = &variables.LiteralRows;
     executionContext.PermanentBuffer = buffer;
     executionContext.OutputBuffer = buffer;
