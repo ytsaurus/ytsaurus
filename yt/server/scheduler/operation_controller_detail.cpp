@@ -3302,8 +3302,10 @@ void TOperationControllerBase::RegisterOutput(
         RegisterOutput(joblet->ChunkListIds[tableIndex], key, tableIndex, table);
 
         if (!table.KeyColumns.empty() && IsSortedOutputSupported()) {
-            YCHECK(userJobResult);
-            const auto& boundaryKeys = userJobResult->output_boundary_keys(tableIndex);
+            YCHECK(jobSummary.Abandoned || userJobResult);
+            const auto& boundaryKeys = jobSummary.Abandoned
+                ? EmptyBoundaryKeys()
+                : userJobResult->output_boundary_keys(tableIndex);
             RegisterBoundaryKeys(boundaryKeys, key, &table);
         }
     }
