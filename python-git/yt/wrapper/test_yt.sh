@@ -251,6 +251,57 @@ test_transactions()
     ./yt commit-tx "$tx"
 }
 
+test_hybrid_arguments()
+{
+    ./yt create table //home/wrapper_test/hybrid_test
+
+    ./yt copy //home/wrapper_test/hybrid_test --destination-path //home/wrapper_test/hybrid_copy
+    check "$(./yt exists --path //home/wrapper_test/hybrid_copy)" "true"
+
+    ./yt copy --destination-path //home/wrapper_test/hybrid_copy2 --source-path //home/wrapper_test/hybrid_copy
+    check "$(./yt exists --path //home/wrapper_test/hybrid_copy2)" "true"
+
+    ./yt move //home/wrapper_test/hybrid_test --destination-path //home/wrapper_test/hybrid_moved
+    check "$(./yt exists //home/wrapper_test/hybrid_moved)" "true"
+
+    ./yt move --destination-path //home/wrapper_test/hybrid_test --source-path //home/wrapper_test/hybrid_moved
+    check "$(./yt exists //home/wrapper_test/hybrid_test)" "true"
+
+    ./yt link --link-path //home/wrapper_test/hybrid_link --target-path //home/wrapper_test/hybrid_test
+
+    ./yt remove --path //home/wrapper_test/hybrid_test
+    check_failed "./yt read //home/wrapper_test/hybrid_link --format dsv"
+
+    ./yt create map_node //home/wrapper_test/test_dir
+    ./yt create --type map_node --path //home/wrapper_test/test_dir2
+    check "$(./yt list --path //home/wrapper_test/test_dir)" ""
+    check "$(./yt find --path //home/wrapper_test/test_dir --type file)" ""
+
+    echo -ne "a\tb\n" | ./yt write --table //home/wrapper_test/yamr_table --format "yamr"
+    check "$(./yt read --table //home/wrapper_test/yamr_table --format yamr)" "a\tb\n"
+
+    echo -ne "abcdef" | ./yt write-file --destination //home/wrapper_test/test_file
+    check "$(./yt read-file --path //home/wrapper_test/test_file)" "abcdef"
+
+    TX=$(./yt start-tx --timeout 10000)
+    ./yt lock --path //home/wrapper_test/test_file --tx $TX
+    check_failed "./yt remove --path //home/wrapper_test/test_file"
+    ./yt ping-tx --transaction $TX
+    ./yt abort-tx --transaction $TX
+
+    ./yt check-permission root write //home/wrapper_test
+    ./yt check-permission --user root --permission write --path //home/wrapper_test
+
+    ./yt set --path //home/wrapper_test/value --value "def"
+    check "$(./yt get --path //home/wrapper_test/value)" "\"def\""
+
+    ./yt set //home/wrapper_test/value "abc"
+    check "$(./yt get --path //home/wrapper_test/value)" "\"abc\""
+
+    echo -ne "with_pipe" | ./yt set //home/wrapper_test/value
+    check "$(./yt get --path //home/wrapper_test/value)" "\"with_pipe\""
+}
+
 tear_down
 run_test test_table_commands
 run_test test_cypress_commands
@@ -262,3 +313,4 @@ run_test test_users
 run_test test_concurrent_upload_in_operation
 run_test test_sorted_by
 run_test test_transactions
+run_test test_hybrid_arguments
