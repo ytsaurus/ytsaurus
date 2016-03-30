@@ -12,11 +12,12 @@ FILES(
     yt_stuff.py
 )
 
+# See https://sandbox.yandex-team.ru/resource/RESOURCE_ID/view for details.
 IF (YT_PRECISE_17_5)
-    # See https://sandbox.yandex-team.ru/resource/119849416/view for details.
     FROM_SANDBOX(FILE 119849416 OUT yt.tar)
-ELSE()
-    # See https://sandbox.yandex-team.ru/resource/119849708/view for details.
+ELSEIF (YT_PRECISE_18_2)
+    FROM_SANDBOX(FILE 119849708 OUT yt.tar)
+ELSE () # Latest version
     FROM_SANDBOX(FILE 119849708 OUT yt.tar)
 ENDIF()
 
