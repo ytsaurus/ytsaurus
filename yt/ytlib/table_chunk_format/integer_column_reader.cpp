@@ -349,11 +349,12 @@ public:
         : TDictionaryIntegerValueExtractorBase<ValueType>(meta)
     {
         const char* ptr = data.Begin();
-
         ptr += TDictionaryIntegerValueExtractorBase<ValueType>::InitDictionaryReader(ptr);
 
         RowIndexReader_ = TCompressedUnsignedVectorReader<ui64>(reinterpret_cast<const ui64*>(ptr));
         ptr += RowIndexReader_.GetByteSize();
+
+        YCHECK(ptr == data.End());
     }
 };
 

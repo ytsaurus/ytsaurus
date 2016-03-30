@@ -59,7 +59,9 @@ protected:
     void DumpDirectValues(TSegmentInfo* segmentInfo, TAppendOnlyBitmap<ui64>& nullBitmap)
     {
         for (i64 index = 0; index < Values_.size(); ++index) {
-            Values_[index] -= MinValue_;
+            if (!nullBitmap[index]) {
+                Values_[index] -= MinValue_;
+            }
         }
 
         // 1. Direct values.
@@ -76,7 +78,7 @@ protected:
 
         for (i64 index = 0; index < Values_.size(); ++index) {
             if (nullBitmap[index]) {
-                Values_[index] = 0;
+                YASSERT(Values_[index] == 0);
             } else {
                 auto dictionaryIndex = DistinctValues_[Values_[index]];
                 YASSERT(dictionaryIndex <= dictionary.size() + 1);
@@ -339,7 +341,8 @@ private:
                 ++runEnd;
             }
 
-            Values_[runIndex] = Values_[runBegin] - MinValue_;
+            // For null values store data as 0.
+            Values_[runIndex] = NullBitmap_[runBegin] ? 0 : Values_[runBegin] - MinValue_;
             rowIndexes.push_back(runBegin);
             rleNullBitmap.Append(NullBitmap_[runBegin]);
 
