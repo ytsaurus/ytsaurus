@@ -108,12 +108,12 @@ def create_response(response, request_info, client):
 def _process_request_backoff(current_time, client):
     backoff = get_config(client)["proxy"]["request_backoff_time"]
     if backoff is not None:
-        last_request_time = getattr(get_session(), "last_request_time", 0)
+        last_request_time = getattr(get_session(client=client), "last_request_time", 0)
         now_seconds = total_seconds(current_time - datetime(1970, 1, 1))
         diff = now_seconds - last_request_time
         if diff * 1000.0 < float(backoff):
             time.sleep(float(backoff) / 1000.0 - diff)
-        get_session().last_request_time = now_seconds
+        get_session(client=client).last_request_time = now_seconds
 
 def raise_for_status(response, request_info):
     if response.status_code == 503:
@@ -147,7 +147,9 @@ def make_request_with_retries(method, url, make_retries=True, retry_unavailable_
         request_info = {"headers": headers, "url": url, "params": params}
         try:
             try:
-                response = create_response(get_session().request(method, url, timeout=timeout, **kwargs), request_info, client)
+                response = create_response(get_session(client=client).request(method, url, timeout=timeout, **kwargs),
+                                           request_info, client)
+
                 if get_option("_ENABLE_HTTP_CHAOS_MONKEY", client) and random.randint(1, 5) == 1:
                     raise YtIncorrectResponse("", response)
             except requests.ConnectionError as error:
