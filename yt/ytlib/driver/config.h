@@ -38,6 +38,8 @@ public:
 
     i64 WriteBufferSize;
 
+    TSlruCacheConfigPtr ClientCache;
+
     TDriverConfig()
     {
         RegisterParameter("file_reader", FileReader)
@@ -59,6 +61,10 @@ public:
             .Default((i64) 1 * 1024 * 1024);
         RegisterParameter("write_buffer_size", WriteBufferSize)
             .Default((i64) 1 * 1024 * 1024);
+
+        RegisterParameter("client_cache", ClientCache)
+            .DefaultNew();
+
     }
 };
 

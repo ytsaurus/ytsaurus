@@ -11,6 +11,8 @@
 
 #include <yt/core/yson/null_consumer.h>
 
+#include <yt/core/misc/sync_cache.h>
+
 namespace NYT {
 namespace NDriver {
 
@@ -50,15 +52,37 @@ const TCommandDescriptor IDriver::GetCommandDescriptor(const Stroka& commandName
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TCachedClient
+    : public TSyncCacheValueBase<Stroka, TCachedClient>
+{
+public:
+    TCachedClient(
+        const Stroka& user,
+        IClientPtr client)
+        : TSyncCacheValueBase(user)
+        , Client_(std::move(client))
+    { }
+
+    IClientPtr GetClient()
+    {
+        return Client_;
+    }
+
+private:
+    const IClientPtr Client_;
+};
+
 class TDriver;
 typedef TIntrusivePtr<TDriver> TDriverPtr;
 
 class TDriver
     : public IDriver
+    , public TSyncSlruCacheBase<Stroka, TCachedClient>
 {
 public:
     explicit TDriver(TDriverConfigPtr config)
-        : Config(config)
+        : TSyncSlruCacheBase(config->ClientCache)
+        , Config(config)
     {
         YCHECK(Config);
 
@@ -147,10 +171,22 @@ public:
         YCHECK(entry.Descriptor.InputType == EDataType::Null || request.InputStream);
         YCHECK(entry.Descriptor.OutputType == EDataType::Null || request.OutputStream);
 
+        const auto& user = request.AuthenticatedUser;
+
+        auto cachedClient = Find(user);
+        if (!cachedClient) {
+            TClientOptions options;
+            options.User = user;
+            cachedClient = New<TCachedClient>(user, Connection_->CreateClient(options));
+
+            TryInsert(cachedClient, &cachedClient);
+        }
+
         auto context = New<TCommandContext>(
             this,
             entry.Descriptor,
-            request);
+            request,
+            cachedClient->GetClient());
 
         auto invoker = entry.Descriptor.IsHeavy
             ? Connection_->GetHeavyInvoker()
@@ -254,8 +290,6 @@ private:
                 request.AuthenticatedUser);
         }
 
-        WaitFor(context->Terminate());
-
         THROW_ERROR_EXCEPTION_IF_FAILED(result);
     }
 
@@ -266,20 +300,13 @@ private:
         TCommandContext(
             TDriverPtr driver,
             const TCommandDescriptor& descriptor,
-            const TDriverRequest& request)
+            const TDriverRequest& request,
+            IClientPtr client)
             : Driver_(driver)
             , Descriptor_(descriptor)
             , Request_(request)
-        {
-            TClientOptions options;
-            options.User = Request_.AuthenticatedUser;
-            Client_ = Driver_->Connection_->CreateClient(options);
-        }
-
-        TFuture<void> Terminate()
-        {
-            return Client_->Terminate();
-        }
+            , Client_(std::move(client))
+        { }
 
         virtual TDriverConfigPtr GetConfig() override
         {
