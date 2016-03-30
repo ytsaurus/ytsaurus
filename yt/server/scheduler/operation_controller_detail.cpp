@@ -571,10 +571,9 @@ void TOperationControllerBase::TTask::OnJobCompleted(TJobletPtr joblet, const TC
             }
         }
     } else {
-        for (int index = 0; index < static_cast<int>(joblet->ChunkListIds.size()); ++index) {
-            Controller->ChunkListPool->Reinstall(joblet->ChunkListIds[index]);
-            joblet->ChunkListIds[index] = NullChunkListId;
-        }
+        auto& chunkListIds = joblet->ChunkListIds;
+        Controller->ChunkListPool->Release(chunkListIds);
+        std::fill(chunkListIds.begin(), chunkListIds.end(), NullChunkListId);
     }
     GetChunkPoolOutput()->Completed(joblet->OutputCookie);
 }
