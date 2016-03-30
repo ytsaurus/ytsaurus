@@ -1066,16 +1066,8 @@ public:
             .Default();
 
         RegisterParameter("fifo_sort_parameters", FifoSortParameters)
-            .Default({EFifoSortParameter::Weight, EFifoSortParameter::StartTime});
-    }
-
-    virtual void OnLoaded() override
-    {
-        TSchedulableConfig::OnLoaded();
-
-        if (FifoSortParameters.empty()) {
-            THROW_ERROR_EXCEPTION("Fifo sort parameters must be non-empty");
-        }
+            .Default({EFifoSortParameter::Weight, EFifoSortParameter::StartTime})
+            .NonEmpty();
     }
 };
 
