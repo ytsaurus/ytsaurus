@@ -728,6 +728,8 @@ class Application(object):
         # Number of pending tasks per user
         self._pending_tasks_per_user = defaultdict(lambda: 0)
 
+        running_tasks = []
+
         for id, options in self._yt.get(tasks_path).iteritems():
             try:
                 task = Task(**options)
@@ -749,14 +751,21 @@ class Application(object):
 
             self._tasks[id] = task
             if task.state == "running":
-                self._change_task_state(id, "pending")
+                running_tasks.append(id)
+                task.state = "pending"
+                # To optimize start time we do not change state in Cypress here.
+                # It lead us to the situation when state in cypress differ from state in memory,
+                # but for such tasks it is not bad.
+                #self._change_task_state(id, "pending")
             if task.state == "pending":
                 self._append_pending_task(task)
+
+        logger.info("Tasks loaded from cypress")
 
         self._pending_tasks.sort(key=lambda id: self._tasks[id].creation_time)
 
         # Abort tasks operations (TM can fail but operations will go on)
-        self._abort_running_operations()
+        self._abort_running_operations(running_tasks)
 
         logger.info("Tasks loaded")
 
@@ -773,15 +782,20 @@ class Application(object):
 
     def _dump_task(self, id):
         with self._mutex:
+            start_time = time.time()
             path = os.path.join(self._tasks_path, id)
             value = remove_unsigned(self._tasks[id].dict())
             os.path.join(self._tasks_path, id)
             client = Yt(**self._config["yt_backend_options"])
             with self._mutex.discharge():
                 with self._cypress_mutexes[path]:
+                    start_set_time = time.time()
                     client.set(path, value)
+                    end_set_time = time.time()
             if not self._cypress_mutexes[path].is_acquired():
                 del self._cypress_mutexes[path]
+            logger.info("State of task %s dumped to cypress (total time: %.2lf, cypress_set time: %.2lf)",
+                        id, time.time() - start_time, end_set_time - start_set_time)
 
     def _create_pool(self, yt_client, destination_cluster_name):
         pool_name = "transfer_" + destination_cluster_name
@@ -1112,6 +1126,7 @@ class Application(object):
 
                 for id, (process, message_queue) in self._task_processes.items():
                     logger.info("Task %s %s", id, self._tasks[id].state)
+
                     error = None
                     completed = False
                     complete_type = None
@@ -1135,6 +1150,8 @@ class Application(object):
                             complete_type = message["type"]
                         else:
                             assert False, "Incorrect message type: " + message["type"]
+
+                    logger.info("Task %s: messages from queue fetched", id)
 
                     if process.aborting and not process.aborted:
                         if (datetime.now() - process.aborting_start_time).total_seconds() > self._sleep_step:
@@ -1164,6 +1181,8 @@ class Application(object):
                         self._running_tasks_queues[self._tasks[id].get_queue_id()].remove(id)
                         remove_file(process.temporary_config, force=True)
                         del self._task_processes[id]
+
+                    logger.info("Task %s processed", id)
 
                 runned_tasks = 0
                 for id in self._pending_tasks:
@@ -1414,9 +1433,10 @@ class Application(object):
                     queue_index += 1
         return task_description
 
-    def _abort_running_operations(self):
+    def _abort_running_operations(self, running_tasks):
         logger.info("Abort running operations of tasks")
-        for task_id, task in self._tasks.iteritems():
+        for task_id in running_tasks:
+            task = self._tasks[task_id]
             if not task.progress or "operations" not in task.progress:
                 continue
             for operation in task.progress["operations"]:
@@ -1604,26 +1624,12 @@ class Application(object):
         return ""
 
     def get_task(self, id):
-        if id not in self._tasks:
-            raise RequestFailed("Unknown task " + id)
-
-        tasks = {}
         with self._mutex:
-            pending_tasks = deepcopy(self._pending_tasks)
-            tasks[id] = deepcopy(self._tasks[id])
+            if id not in self._tasks:
+                raise RequestFailed("Unknown task " + id)
+            task = self._tasks[id]
 
-        for task_id in pending_tasks:
-            tasks[task_id] = self._tasks[task_id]
-
-        task = tasks[id]
         task_description = task.dict(hide_token=True)
-        queue_index = 1
-        for task_id in pending_tasks:
-            if task_id == id:
-                task_description["queue_index"] = queue_index
-                break
-            if tasks[task_id].get_queue_id() == task.get_queue_id():
-                queue_index += 1
 
         self._renew_lease(id)
 
@@ -1659,11 +1665,12 @@ class Application(object):
         return ""
 
     def get_tasks(self):
-        start = time.time()
+        start_time = time.time()
 
         with self._mutex:
             with self._cache_tasks_mutex:
-                if self._cache_tasks_time > start:
+                if self._cache_tasks_time > start_time:
+                    logger.info("Get tasks responded from cache")
                     return Response(self._cache_tasks_response, mimetype="application/json")
 
             cache_time = time.time()
@@ -1672,6 +1679,8 @@ class Application(object):
             tasks = dict([(id, task.copy()) for id, task in self._tasks.iteritems()])
             # NB: Number of pending tasks is rather small, so we can use deepcopy here.
             pending_tasks = deepcopy(self._pending_tasks)
+
+        after_deepcopy_time = time.time()
 
         user = request.args.get("user")
         fields = request.args.getlist("fields[]")
@@ -1706,6 +1715,9 @@ class Application(object):
         with self._cache_tasks_mutex:
             if cache_time > self._cache_tasks_time:
                 self._cache_tasks_response = data
+
+        logger.info("Get tasks finished timings: total=%.2lf, mutex_wait=%.2lf, deepcopy=%.2lf, processing=%.2lf",
+                    time.time() - start_time, cache_time - start_time, after_deepcopy_time - cache_time, time.time() - after_deepcopy_time)
 
         return Response(data, mimetype="application/json")
 
