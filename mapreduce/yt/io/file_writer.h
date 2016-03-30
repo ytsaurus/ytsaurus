@@ -19,8 +19,8 @@ public:
         const TFileWriterOptions& options = TFileWriterOptions());
 
 protected:
-    virtual void DoWrite(const void* buf, size_t len) override;
-    virtual void DoFinish() override;
+    void DoWrite(const void* buf, size_t len) override;
+    void DoFinish() override;
 
 private:
     TBlockWriter BlockWriter_;

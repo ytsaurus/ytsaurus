@@ -15,11 +15,11 @@ class TJobReader
 public:
     explicit TJobReader(int fd);
 
-    virtual bool OnStreamError(const yexception& e, ui32 rangeIndex, ui64 rowIndex) override;
-    virtual bool HasRangeIndices() const override { return false; }
+    bool OnStreamError(const yexception& e, ui32 rangeIndex, ui64 rowIndex) override;
+    bool HasRangeIndices() const override { return false; }
 
 protected:
-    virtual size_t DoRead(void* buf, size_t len) override;
+    size_t DoRead(void* buf, size_t len) override;
 
 private:
     int Fd_;

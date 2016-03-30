@@ -24,11 +24,11 @@ public:
         EDataStreamFormat format,
         const TTableReaderOptions& options);
 
-    virtual bool OnStreamError(const yexception& e, ui32 rangeIndex, ui64 rowIndex) override;
-    virtual bool HasRangeIndices() const override { return true; }
+    bool OnStreamError(const yexception& e, ui32 rangeIndex, ui64 rowIndex) override;
+    bool HasRangeIndices() const override { return true; }
 
 protected:
-    virtual size_t DoRead(void* buf, size_t len) override;
+    size_t DoRead(void* buf, size_t len) override;
 
 private:
     TRichYPath Path_;

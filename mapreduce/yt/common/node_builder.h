@@ -17,20 +17,20 @@ class TNodeBuilder
 public:
     TNodeBuilder(TNode* node);
 
-    virtual void OnStringScalar(const TStringBuf&) override;
-    virtual void OnInt64Scalar(i64) override;
-    virtual void OnUint64Scalar(ui64) override;
-    virtual void OnDoubleScalar(double) override;
-    virtual void OnBooleanScalar(bool) override;
-    virtual void OnEntity() override;
-    virtual void OnBeginList() override;
-    virtual void OnListItem() override;
-    virtual void OnEndList() override;
-    virtual void OnBeginMap() override;
-    virtual void OnKeyedItem(const TStringBuf&) override;
-    virtual void OnEndMap() override;
-    virtual void OnBeginAttributes() override;
-    virtual void OnEndAttributes() override;
+    void OnStringScalar(const TStringBuf&) override;
+    void OnInt64Scalar(i64) override;
+    void OnUint64Scalar(ui64) override;
+    void OnDoubleScalar(double) override;
+    void OnBooleanScalar(bool) override;
+    void OnEntity() override;
+    void OnBeginList() override;
+    void OnListItem() override;
+    void OnEndList() override;
+    void OnBeginMap() override;
+    void OnKeyedItem(const TStringBuf&) override;
+    void OnEndMap() override;
+    void OnBeginAttributes() override;
+    void OnEndAttributes() override;
 
 private:
     ystack<TNode*> Stack_;
@@ -45,17 +45,17 @@ class TYson2JsonCallbacksAdapter
 public:
     TYson2JsonCallbacksAdapter(TYsonConsumerBase* impl);
 
-    virtual bool OnNull() override;
-    virtual bool OnBoolean(bool val) override;
-    virtual bool OnInteger(long long val) override;
-    virtual bool OnUInteger(unsigned long long val) override;
-    virtual bool OnString(const TStringBuf &val) override;
-    virtual bool OnDouble(double val) override;
-    virtual bool OnOpenArray() override;
-    virtual bool OnCloseArray() override;
-    virtual bool OnOpenMap() override;
-    virtual bool OnCloseMap() override;
-    virtual bool OnMapKey(const TStringBuf &val) override;
+    bool OnNull() override;
+    bool OnBoolean(bool val) override;
+    bool OnInteger(long long val) override;
+    bool OnUInteger(unsigned long long val) override;
+    bool OnString(const TStringBuf &val) override;
+    bool OnDouble(double val) override;
+    bool OnOpenArray() override;
+    bool OnCloseArray() override;
+    bool OnOpenMap() override;
+    bool OnCloseMap() override;
+    bool OnMapKey(const TStringBuf &val) override;
 
 private:
     void WrapIfListItem();

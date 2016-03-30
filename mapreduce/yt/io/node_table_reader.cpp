@@ -75,20 +75,20 @@ class TRowBuilder
 public:
     explicit TRowBuilder(TRowQueue* queue);
 
-    virtual void OnStringScalar(const TStringBuf& value) override;
-    virtual void OnInt64Scalar(i64 value) override;
-    virtual void OnUint64Scalar(ui64 value) override;
-    virtual void OnDoubleScalar(double value) override;
-    virtual void OnBooleanScalar(bool value) override;
-    virtual void OnBeginList() override;
-    virtual void OnEntity() override;
-    virtual void OnListItem() override;
-    virtual void OnEndList() override;
-    virtual void OnBeginMap() override;
-    virtual void OnKeyedItem(const TStringBuf& key) override;
-    virtual void OnEndMap() override;
-    virtual void OnBeginAttributes() override;
-    virtual void OnEndAttributes() override;
+    void OnStringScalar(const TStringBuf& value) override;
+    void OnInt64Scalar(i64 value) override;
+    void OnUint64Scalar(ui64 value) override;
+    void OnDoubleScalar(double value) override;
+    void OnBooleanScalar(bool value) override;
+    void OnBeginList() override;
+    void OnEntity() override;
+    void OnListItem() override;
+    void OnEndList() override;
+    void OnBeginMap() override;
+    void OnKeyedItem(const TStringBuf& key) override;
+    void OnEndMap() override;
+    void OnBeginAttributes() override;
+    void OnEndAttributes() override;
 
     void Stop();
     void OnStreamError();

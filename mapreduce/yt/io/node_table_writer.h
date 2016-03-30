@@ -14,10 +14,10 @@ class TNodeTableWriter
 {
 public:
     explicit TNodeTableWriter(THolder<TProxyOutput> output);
-    ~TNodeTableWriter();
+    ~TNodeTableWriter() override;
 
-    virtual void AddRow(const TNode& row, size_t tableIndex) override;
-    virtual void Finish() override;
+    void AddRow(const TNode& row, size_t tableIndex) override;
+    void Finish() override;
 
 private:
     THolder<TProxyOutput> Output_;

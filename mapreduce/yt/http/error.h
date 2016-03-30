@@ -42,7 +42,7 @@ class TErrorResponse
 public:
     TErrorResponse(int httpCode, const Stroka& requestId);
 
-    virtual const char* what() const throw ();
+    const char* what() const throw () override;
 
     void SetRawError(const Stroka& rawError);
     void ParseFromJsonError(const Stroka& jsonError);

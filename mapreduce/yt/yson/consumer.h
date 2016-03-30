@@ -41,7 +41,7 @@ struct IYsonConsumer
 struct TYsonConsumerBase
     : public virtual IYsonConsumer
 {
-    virtual void OnRaw(const TStringBuf& ysonNode, EYsonType type);
+    void OnRaw(const TStringBuf& ysonNode, EYsonType type) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

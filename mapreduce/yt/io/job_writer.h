@@ -18,9 +18,9 @@ class TJobWriter
 public:
     explicit TJobWriter(size_t outputTableCount);
 
-    virtual size_t GetStreamCount() const override;
-    virtual TOutputStream* GetStream(size_t tableIndex) override;
-    virtual void OnRowFinished(size_t tableIndex) override;
+    size_t GetStreamCount() const override;
+    TOutputStream* GetStream(size_t tableIndex) override;
+    void OnRowFinished(size_t tableIndex) override;
 
 private:
     struct TStream {

@@ -36,24 +36,24 @@ public:
 
     void Flush();
 
-    virtual void OnStringScalar(const TStringBuf& value) override;
-    virtual void OnInt64Scalar(i64 value) override;
-    virtual void OnUint64Scalar(ui64 value) override;
-    virtual void OnDoubleScalar(double value) override;
-    virtual void OnBooleanScalar(bool value) override;
+    void OnStringScalar(const TStringBuf& value) override;
+    void OnInt64Scalar(i64 value) override;
+    void OnUint64Scalar(ui64 value) override;
+    void OnDoubleScalar(double value) override;
+    void OnBooleanScalar(bool value) override;
 
-    virtual void OnEntity() override;
+    void OnEntity() override;
 
-    virtual void OnBeginList() override;
-    virtual void OnListItem() override;
-    virtual void OnEndList() override;
+    void OnBeginList() override;
+    void OnListItem() override;
+    void OnEndList() override;
 
-    virtual void OnBeginMap() override;
-    virtual void OnKeyedItem(const TStringBuf& key) override;
-    virtual void OnEndMap() override;
+    void OnBeginMap() override;
+    void OnKeyedItem(const TStringBuf& key) override;
+    void OnEndMap() override;
 
-    virtual void OnBeginAttributes() override;
-    virtual void OnEndAttributes() override;
+    void OnBeginAttributes() override;
+    void OnEndAttributes() override;
 
 private:
     THolder<NJson::TJsonWriter> UnderlyingJsonWriter;

@@ -27,7 +27,7 @@ public:
         , Error(error)
     { }
 
-    virtual const char* what() const throw()
+    const char* what() const throw() override
     {
         return ~Error;
     }

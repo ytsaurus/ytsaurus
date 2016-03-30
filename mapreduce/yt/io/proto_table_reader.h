@@ -14,15 +14,15 @@ class TProtoTableReader
 {
 public:
     explicit TProtoTableReader(THolder<TProxyInput> input);
-    ~TProtoTableReader();
+    ~TProtoTableReader() override;
 
-    virtual void ReadRow(Message* row) override;
-    virtual void SkipRow() override;
-    virtual bool IsValid() const override;
-    virtual void Next() override;
-    virtual ui32 GetTableIndex() const override;
-    virtual ui64 GetRowIndex() const override;
-    virtual void NextKey() override;
+    void ReadRow(Message* row) override;
+    void SkipRow() override;
+    bool IsValid() const override;
+    void Next() override;
+    ui32 GetTableIndex() const override;
+    ui64 GetRowIndex() const override;
+    void NextKey() override;
 
 private:
     THolder<TNodeTableReader> NodeReader_; // proto over yson
