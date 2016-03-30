@@ -237,10 +237,10 @@ public:
     }
 
 
-    TCallback Via(TIntrusivePtr<IInvoker> invoker);
+    TCallback Via(TIntrusivePtr<IInvoker> invoker) const;
 
     TCallback<typename TFutureTraits<R>::TWrapped(TArgs...)>
-    AsyncVia(TIntrusivePtr<IInvoker> invoker);
+    AsyncVia(TIntrusivePtr<IInvoker> invoker) const;
 
 private:
     typedef R(*TTypedInvokeFunction)(NYT::NDetail::TBindStateBase*, TArgs&& ...);
