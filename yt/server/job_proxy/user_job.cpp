@@ -685,16 +685,16 @@ private:
             return;
         }
 
-        FinalizeActions_.push_back(BIND([=] (int readFD) {
+        FinalizeActions_.push_back(BIND([=] () {
             char buffer;
             // Try to read some data from the pipe.
-            ssize_t res = ::read(readFD, &buffer, 1);
-            if (res > 0) {
+            ssize_t result = ::read(readFD, &buffer, 1);
+            if (result > 0) {
                 THROW_ERROR_EXCEPTION("Input stream was not fully consumed by user process")
                     << TErrorAttribute("fd", jobDescriptor);
             }
             YCHECK(TryClose(readFD, false));
-        }, readFD));
+        }));
     }
 
     void PreparePipes()
@@ -823,6 +823,7 @@ private:
             TGuard<TSpinLock> guard(StatisticsLock_);
             statistics = CustomStatistics_;
         }
+
         const auto& reader = JobIO_->GetReader();
         if (reader) {
             statistics.AddSample("/data/input", reader->GetDataStatistics());
@@ -876,18 +877,18 @@ private:
                 .Via(PipeIOPool_->GetInvoker())
                 .Run();
 
-            for (auto& reader : TablePipeReaders_) {
+            for (const auto& reader : TablePipeReaders_) {
                 reader->Abort();
             }
 
-            for (auto& writer : TablePipeWriters_) {
+            for (const auto& writer : TablePipeWriters_) {
                 writer->Abort();
             }
         });
 
-        auto runActions = [&] (std::vector<TCallback<void()>>& actions) {
+        auto runActions = [&] (const std::vector<TCallback<void()>>& actions) {
             std::vector<TFuture<void>> result;
-            for (auto& action : actions) {
+            for (const auto& action : actions) {
                 auto asyncError = action
                     .AsyncVia(PipeIOPool_->GetInvoker())
                     .Run();
@@ -902,34 +903,29 @@ private:
 
         // First, wait for all job output pipes.
         // If job successfully completes or dies prematurely, they close automatically.
-        // ToDo(psushin): extract into separate function (e.g. CombineAll?  )
-        for (const auto& future : outputFutures) {
-            WaitFor(future);
-        }
+        WaitFor(CombineAll(outputFutures));
 
         // Then, wait for job process to finish.
-        // Theoretically, process may have explicitely closed its output pipes,
+        // Theoretically, process could have explicitely closed its output pipes
         // but still be doing some computations.
         auto jobExitError = WaitFor(ProcessFinished_);
         LOG_INFO(jobExitError, "Job process finished");
         onIOError.Run(jobExitError);
 
         // Abort input pipes unconditionally.
-        // If job didn't read input to the end, pipe writer could be blocked,
+        // If the job didn't read input to the end, pipe writer could be blocked,
         // because we didn't close the reader end (see check_input_fully_consumed).
-        for (auto& writer : TablePipeWriters_) {
+        for (const auto& writer : TablePipeWriters_) {
             writer->Abort();
         }
 
-        // Now, make sure, that input pipes are also completed.
-        for (const auto& future : inputFutures) {
-            WaitFor(future);
-        }
+        // Now make sure that input pipes are also completed.
+        WaitFor(CombineAll(inputFutures));
     }
 
     void FinalizeJobIO()
     {
-        for (auto& action : FinalizeActions_) {
+        for (const auto& action : FinalizeActions_) {
             try {
                 action.Run();
             } catch (const std::exception& ex) {
@@ -1033,12 +1029,15 @@ private:
         auto servicedIOs = BlockIO_.GetIOServiced();
 
         for (const auto& item : servicedIOs) {
-            LOG_DEBUG("Serviced %v IO operations (OperationType: %v, DeviceId: %v)", item.Value, item.Type, item.DeviceId);
+            LOG_DEBUG("IO operations serviced (OperationCount: %v, OperationType: %v, DeviceId: %v)",
+                item.Value,
+                item.Type,
+                item.DeviceId);
 
             auto previousItemIt = std::find_if(
                 LastServicedIOs_.begin(),
                 LastServicedIOs_.end(),
-                [=] (const TBlockIO::TStatisticsItem& other) {
+                [&] (const TBlockIO::TStatisticsItem& other) {
                     return item.DeviceId == other.DeviceId  && item.Type == other.Type;
                 });
 
