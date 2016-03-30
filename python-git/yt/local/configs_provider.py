@@ -89,20 +89,19 @@ SCHEDULER_CONFIG_PATCH = {
         "watchers_update_period": 300,
         "connect_grace_delay": None,
         "lock_transaction_timeout": 30000,
+        "sort_operation_options": {
+            "spec_template": {
+                "partition_data_size": 512 * 1024 * 1024,
+            }
+        },
+
+        "map_reduce_operation_options": {
+            "spec_template": {
+                "partition_data_size": 512 * 1024 * 1024,
+            }
+        }
     },
     "snapshot_timeout": 300000,
-
-    "sort_operation_options": {
-        "spec_template": {
-            "partition_data_size": 512 * 1024 * 1024,
-        }
-    },
-
-    "map_reduce_operation_options": {
-        "spec_template": {
-            "partition_data_size": 512 * 1024 * 1024,
-        }
-    }
 }
 
 SPEC_TEMPLATE = {
@@ -127,7 +126,9 @@ for operation_options in ["map_operation_options",
                           "map_reduce_operation_options",
                           "sort_operation_options",
                           "remote_copy_operation_options"]:
-    SCHEDULER_CONFIG_PATCH[operation_options] = update({"spec_template": SPEC_TEMPLATE}, SCHEDULER_CONFIG_PATCH.get(operation_options, {}))
+    SCHEDULER_CONFIG_PATCH["scheduler"][operation_options] = update(
+        {"spec_template": SPEC_TEMPLATE},
+        SCHEDULER_CONFIG_PATCH["scheduler"].get(operation_options, {}))
 
 NODE_CONFIG_PATCHES = [
     {
