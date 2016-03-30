@@ -137,8 +137,8 @@ def get_python_version():
 
 def run_with_retries(action, retry_count=6, backoff=20.0, exceptions=(YtError,), except_action=None,
                      backoff_action=None):
-    start_time = datetime.now()
     for iter in xrange(retry_count):
+        start_time = datetime.now()
         try:
             return action()
         except exceptions as err:
@@ -151,7 +151,7 @@ def run_with_retries(action, retry_count=6, backoff=20.0, exceptions=(YtError,),
                 else:
                     except_action(err)
 
-            sleep_backoff = max(0.0, backoff * iter - total_seconds(datetime.now() - start_time))
+            sleep_backoff = max(0.0, backoff - total_seconds(datetime.now() - start_time))
 
             if backoff_action:
                 backoff_action(err, iter, sleep_backoff)
