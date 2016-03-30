@@ -506,14 +506,14 @@ class Application(object):
                 raise RequestFailed('Cannot process retry request without specified "mutation_id" header')
 
             if retry:
-                processed_request = self._mutating_requests_cache.get(mutation_id)
-                if processed_request is not None:
-                    return processed_request
-
                 with self._requests_in_progress_mutex:
                     if mutation_id in self._requests_in_progress:
                         raise RequestFailed("Request with mutation id {0} is being processed. "
                                             "Retry again later".format(mutation_id), http_code=503)
+
+                processed_request = self._mutating_requests_cache.get(mutation_id)
+                if processed_request is not None:
+                    return processed_request
 
                 raise RequestFailed("Cached response for request with mutation id {0} not found"
                                     .format(mutation_id))
