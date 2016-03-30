@@ -62,14 +62,14 @@ class TNodeTableReader
 {
 public:
     explicit TNodeTableReader(THolder<TProxyInput> input);
-    ~TNodeTableReader();
+    ~TNodeTableReader() override;
 
-    virtual const TNode& GetRow() const override;
-    virtual bool IsValid() const override;
-    virtual void Next() override;
-    virtual ui32 GetTableIndex() const override;
-    virtual ui64 GetRowIndex() const override;
-    virtual void NextKey() override;
+    const TNode& GetRow() const override;
+    bool IsValid() const override;
+    void Next() override;
+    ui32 GetTableIndex() const override;
+    ui64 GetRowIndex() const override;
+    void NextKey() override;
 
 private:
     THolder<TProxyInput> Input_;

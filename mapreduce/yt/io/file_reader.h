@@ -22,7 +22,7 @@ public:
         const TFileReaderOptions& options = TFileReaderOptions());
 
 protected:
-    virtual size_t DoRead(void* buf, size_t len) override;
+    size_t DoRead(void* buf, size_t len) override;
 
 private:
     TRichYPath Path_;

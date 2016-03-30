@@ -13,10 +13,10 @@ class TYaMRTableWriter
 {
 public:
     explicit TYaMRTableWriter(THolder<TProxyOutput> output);
-    ~TYaMRTableWriter();
+    ~TYaMRTableWriter() override;
 
-    virtual void AddRow(const TYaMRRow& row, size_t tableIndex) override;
-    virtual void Finish() override;
+    void AddRow(const TYaMRRow& row, size_t tableIndex) override;
+    void Finish() override;
 
 private:
     THolder<TProxyOutput> Output_;

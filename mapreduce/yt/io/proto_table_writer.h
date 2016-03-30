@@ -14,10 +14,10 @@ class TProtoTableWriter
 {
 public:
     explicit TProtoTableWriter(THolder<TProxyOutput> output);
-    ~TProtoTableWriter();
+    ~TProtoTableWriter() override;
 
-    virtual void AddRow(const Message& row, size_t tableIndex) override;
-    virtual void Finish() override;
+    void AddRow(const Message& row, size_t tableIndex) override;
+    void Finish() override;
 
 private:
     THolder<TNodeTableWriter> NodeWriter_; // proto over yson

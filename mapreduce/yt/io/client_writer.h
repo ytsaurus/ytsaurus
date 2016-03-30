@@ -22,9 +22,9 @@ public:
         EDataStreamFormat format,
         const TTableWriterOptions& options);
 
-    virtual size_t GetStreamCount() const override;
-    virtual TOutputStream* GetStream(size_t tableIndex) override;
-    virtual void OnRowFinished(size_t tableIndex) override;
+    size_t GetStreamCount() const override;
+    TOutputStream* GetStream(size_t tableIndex) override;
+    void OnRowFinished(size_t tableIndex) override;
 
 private:
     THolder<TBlockWriter> BlockWriter_;

@@ -79,7 +79,7 @@ public:
         , TransactionId_(transactionId)
     { }
 
-    virtual ITransactionPtr StartTransaction(
+    ITransactionPtr StartTransaction(
         const TStartTransactionOptions& options) override
     {
         return CreateTransactionObject(Auth_, TransactionId_, true, options);
@@ -87,7 +87,7 @@ public:
 
     // cypress
 
-    virtual TNodeId Create(
+    TNodeId Create(
         const TYPath& path,
         ENodeType type,
         const TCreateOptions& options) override
@@ -107,7 +107,7 @@ public:
         return ParseGuidFromResponse(RetryRequest(Auth_, header));
     }
 
-    virtual void Remove(
+    void Remove(
         const TYPath& path,
         const TRemoveOptions& options) override
     {
@@ -121,7 +121,7 @@ public:
         RetryRequest(Auth_, header);
     }
 
-    virtual bool Exists(
+    bool Exists(
         const TYPath& path) override
     {
         THttpHeader header("GET", "exists");
@@ -130,7 +130,7 @@ public:
         return ParseBoolFromResponse(RetryRequest(Auth_, header));
     }
 
-    virtual TNode Get(
+    TNode Get(
         const TYPath& path,
         const TGetOptions& options) override
     {
@@ -148,7 +148,7 @@ public:
         return NodeFromYsonString(RetryRequest(Auth_, header));
     }
 
-    virtual void Set(
+    void Set(
         const TYPath& path,
         const TNode& value) override
     {
@@ -159,7 +159,7 @@ public:
         RetryRequest(Auth_, header, NodeToYsonString(value));
     }
 
-    virtual TNode::TList List(
+    TNode::TList List(
         const TYPath& path,
         const TListOptions& options) override
     {
@@ -182,7 +182,7 @@ public:
         return NodeFromYsonString(RetryRequest(Auth_, header)).AsList();
     }
 
-    virtual TNodeId Copy(
+    TNodeId Copy(
         const TYPath& sourcePath,
         const TYPath& destinationPath,
         const TCopyOptions& options) override
@@ -199,7 +199,7 @@ public:
         return ParseGuidFromResponse(RetryRequest(Auth_, header));
     }
 
-    virtual TNodeId Move(
+    TNodeId Move(
         const TYPath& sourcePath,
         const TYPath& destinationPath,
         const TMoveOptions& options) override
@@ -216,7 +216,7 @@ public:
         return ParseGuidFromResponse(RetryRequest(Auth_, header));
     }
 
-    virtual TNodeId Link(
+    TNodeId Link(
         const TYPath& targetPath,
         const TYPath& linkPath,
         const TLinkOptions& options) override
@@ -235,7 +235,7 @@ public:
         return ParseGuidFromResponse(RetryRequest(Auth_, header));
     }
 
-    virtual void Concatenate(
+    void Concatenate(
         const yvector<TYPath>& sourcePaths,
         const TYPath& destinationPath,
         const TConcatenateOptions& options) override
@@ -259,14 +259,14 @@ public:
 
     // io
 
-    virtual IFileReaderPtr CreateFileReader(
+    IFileReaderPtr CreateFileReader(
         const TRichYPath& path,
         const TFileReaderOptions& options) override
     {
         return new TFileReader(AddPathPrefix(path), Auth_, TransactionId_, options);
     }
 
-    virtual IFileWriterPtr CreateFileWriter(
+    IFileWriterPtr CreateFileWriter(
         const TRichYPath& path,
         const TFileWriterOptions& options) override
     {
@@ -275,7 +275,7 @@ public:
 
     // operations
 
-    virtual TOperationId DoMap(
+    TOperationId DoMap(
         const TMapOperationSpec& spec,
         IJob* mapper,
         const TOperationOptions& options) override
@@ -288,7 +288,7 @@ public:
             options);
     }
 
-    virtual TOperationId DoReduce(
+    TOperationId DoReduce(
         const TReduceOperationSpec& spec,
         IJob* reducer,
         const TOperationOptions& options) override
@@ -301,7 +301,7 @@ public:
             options);
     }
 
-    virtual TOperationId DoJoinReduce(
+    TOperationId DoJoinReduce(
         const TJoinReduceOperationSpec& spec,
         IJob* reducer,
         const TOperationOptions& options) override
@@ -314,7 +314,7 @@ public:
             options);
     }
 
-    virtual TOperationId DoMapReduce(
+    TOperationId DoMapReduce(
         const TMapReduceOperationSpec& spec,
         IJob* mapper,
         IJob* reduceCombiner,
@@ -339,7 +339,7 @@ public:
             options);
     }
 
-    virtual TOperationId Sort(
+    TOperationId Sort(
         const TSortOperationSpec& spec,
         const TOperationOptions& options) override
     {
@@ -350,7 +350,7 @@ public:
             options);
     }
 
-    virtual TOperationId Merge(
+    TOperationId Merge(
         const TMergeOperationSpec& spec,
         const TOperationOptions& options) override
     {
@@ -361,7 +361,7 @@ public:
             options);
     }
 
-    virtual TOperationId Erase(
+    TOperationId Erase(
         const TEraseOperationSpec& spec,
         const TOperationOptions& options) override
     {
@@ -372,17 +372,17 @@ public:
             options);
     }
 
-    virtual EOperationStatus CheckOperation(const TOperationId& operationId) override
+    EOperationStatus CheckOperation(const TOperationId& operationId) override
     {
         return NYT::CheckOperation(Auth_, TransactionId_, operationId);
     }
 
-    virtual void AbortOperation(const TOperationId& operationId) override
+    void AbortOperation(const TOperationId& operationId) override
     {
         NYT::AbortOperation(Auth_, TransactionId_, operationId);
     }
 
-    virtual void WaitForOperation(const TOperationId& operationId) override
+    void WaitForOperation(const TOperationId& operationId) override
     {
         NYT::WaitForOperation(Auth_, TransactionId_, operationId);
     }
@@ -406,38 +406,38 @@ private:
             AddPathPrefix(path), Auth_, TransactionId_, format, options);
     }
 
-    virtual TIntrusivePtr<INodeReaderImpl> CreateNodeReader(
+    TIntrusivePtr<INodeReaderImpl> CreateNodeReader(
         const TRichYPath& path, const TTableReaderOptions& options) override
     {
         return new TNodeTableReader(CreateClientReader(path, DSF_YSON_BINARY, options));
     }
 
-    virtual TIntrusivePtr<IYaMRReaderImpl> CreateYaMRReader(
+    TIntrusivePtr<IYaMRReaderImpl> CreateYaMRReader(
         const TRichYPath& path, const TTableReaderOptions& options) override
     {
         return new TYaMRTableReader(CreateClientReader(path, DSF_YAMR_LENVAL, options));
     }
 
-    virtual TIntrusivePtr<IProtoReaderImpl> CreateProtoReader(
+    TIntrusivePtr<IProtoReaderImpl> CreateProtoReader(
         const TRichYPath& path, const TTableReaderOptions& options) override
     {
         return new TProtoTableReader(CreateClientReader(path, DSF_YSON_BINARY, options));
         // later: DSF_PROTO
     }
 
-    virtual TIntrusivePtr<INodeWriterImpl> CreateNodeWriter(
+    TIntrusivePtr<INodeWriterImpl> CreateNodeWriter(
         const TRichYPath& path, const TTableWriterOptions& options) override
     {
         return new TNodeTableWriter(CreateClientWriter(path, DSF_YSON_BINARY, options));
     }
 
-    virtual TIntrusivePtr<IYaMRWriterImpl> CreateYaMRWriter(
+    TIntrusivePtr<IYaMRWriterImpl> CreateYaMRWriter(
         const TRichYPath& path, const TTableWriterOptions& options) override
     {
         return new TYaMRTableWriter(CreateClientWriter(path, DSF_YAMR_LENVAL, options));
     }
 
-    virtual TIntrusivePtr<IProtoWriterImpl> CreateProtoWriter(
+    TIntrusivePtr<IProtoWriterImpl> CreateProtoWriter(
         const TRichYPath& path, const TTableWriterOptions& options) override
     {
         return new TProtoTableWriter(CreateClientWriter(path, DSF_YSON_BINARY, options));
@@ -470,12 +470,12 @@ public:
         }
     }
 
-    virtual const TTransactionId& GetId() const override
+    const TTransactionId& GetId() const override
     {
         return TransactionId_;
     }
 
-    virtual TLockId Lock(
+    TLockId Lock(
         const TYPath& path,
         ELockMode mode,
         const TLockOptions& options) override
@@ -490,7 +490,7 @@ public:
         return ParseGuidFromResponse(RetryRequest(Auth_, header));
     }
 
-    virtual void Commit() override
+    void Commit() override
     {
         if (PingableTx_) {
             PingableTx_->Commit();
@@ -499,7 +499,7 @@ public:
         }
     }
 
-    virtual void Abort() override
+    void Abort() override
     {
         if (PingableTx_) {
             PingableTx_->Abort();
@@ -534,27 +534,27 @@ public:
         : TClientBase(auth, globalId)
     { }
 
-    virtual ITransactionPtr AttachTransaction(
+    ITransactionPtr AttachTransaction(
         const TTransactionId& transactionId) override
     {
         return CreateTransactionObject(Auth_, transactionId, false);
     }
 
-    virtual void InsertRows(
+    void InsertRows(
         const TYPath& path,
         const TNode::TList& rows) override
     {
         ModifyRows("insert_rows", path, rows);
     }
 
-    virtual void DeleteRows(
+    void DeleteRows(
         const TYPath& path,
         const TNode::TList& keys) override
     {
         ModifyRows("delete_rows", path, keys);
     }
 
-    virtual TNode::TList LookupRows(
+    TNode::TList LookupRows(
         const TYPath& path,
         const TNode::TList& keys,
         const TLookupRowsOptions& options) override
@@ -576,7 +576,7 @@ public:
         return NodeFromYsonString(response, YT_LIST_FRAGMENT).AsList();
     }
 
-    virtual TNode::TList SelectRows(
+    TNode::TList SelectRows(
         const Stroka& query,
         const TSelectRowsOptions& options) override
     {

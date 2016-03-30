@@ -282,7 +282,7 @@ public:
         : Writer_(writer)
     { }
 
-    ~TTableWriterBase()
+    ~TTableWriterBase() override
     {
         try {
             Finish();
@@ -340,7 +340,7 @@ public:
         : Writer_(writer)
     { }
 
-    ~TTableWriter()
+    ~TTableWriter() override
     {
         try {
             Finish();
