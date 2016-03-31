@@ -5,6 +5,8 @@
 #include "ordered_dynamic_store.h"
 #include "config.h"
 
+#include <yt/server/tablet_node/tablet_manager.pb.h>
+
 #include <yt/ytlib/tablet_client/wire_protocol.h>
 #include <yt/ytlib/tablet_client/wire_protocol.pb.h>
 
@@ -16,6 +18,8 @@ using namespace NTableClient;
 using namespace NTabletClient;
 using namespace NTabletClient::NProto;
 using namespace NObjectClient;
+
+using NTabletNode::NProto::TAddStoreDescriptor;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -163,7 +167,11 @@ TStoreFlushCallback TOrderedStoreManager::MakeStoreFlushCallback(
     IDynamicStorePtr store,
     TTabletSnapshotPtr tabletSnapshot)
 {
-    YUNIMPLEMENTED();
+    auto reader = store->AsOrderedDynamic()->CreateFlushReader();
+
+    return BIND([=, this_ = MakeStrong(this)] (ITransactionPtr transaction) {
+        return std::vector<TAddStoreDescriptor>();
+    });
 }
 
 void TOrderedStoreManager::ValidateOnWrite(

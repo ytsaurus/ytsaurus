@@ -128,12 +128,27 @@ public:
 class TReshardTableCommand
     : public TTabletCommandBase<NApi::TReshardTableOptions>
 {
-    std::vector<NTableClient::TOwningKey> PivotKeys;
+private:
+    TNullable<std::vector<NTableClient::TOwningKey>> PivotKeys;
+    TNullable<int> TabletCount;
 
 public:
     TReshardTableCommand()
     {
-        RegisterParameter("pivot_keys", PivotKeys);
+        RegisterParameter("pivot_keys", PivotKeys)
+            .Default();
+        RegisterParameter("tablet_count", TabletCount)
+            .Default()
+            .GreaterThan(0);
+
+        RegisterValidator([&] () {
+            if (PivotKeys && TabletCount) {
+                THROW_ERROR_EXCEPTION("Cannot specify both \"pivot_keys\" and \"tablet_count\"");
+            }
+            if (!PivotKeys && !TabletCount) {
+                THROW_ERROR_EXCEPTION("Must specify either \"pivot_keys\" or \"tablet_count\"");
+            }
+        });
     }
 
     void Execute(ICommandContextPtr context);

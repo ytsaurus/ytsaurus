@@ -2,6 +2,7 @@
 #include "private.h"
 #include "automaton.h"
 #include "sorted_chunk_store.h"
+#include "ordered_chunk_store.h"
 #include "config.h"
 #include "sorted_dynamic_store.h"
 #include "ordered_dynamic_store.h"
@@ -1791,8 +1792,10 @@ private:
     {
         switch (store->GetType()) {
             case EStoreType::SortedDynamic:
+            case EStoreType::OrderedDynamic:
                 return EMemoryCategory::TabletDynamic;
             case EStoreType::SortedChunk:
+            case EStoreType::OrderedChunk:
                 return EMemoryCategory::TabletStatic;
             default:
                 YUNREACHABLE();
@@ -1995,13 +1998,23 @@ private:
 
     IStoreManagerPtr CreateStoreManager(TTablet* tablet)
     {
-        // XXX(babenko): handle ordered tablets
-        return New<TSortedStoreManager>(
-            Config_,
-            tablet,
-            &TabletContext_,
-            Slot_->GetHydraManager(),
-            Bootstrap_->GetInMemoryManager());
+        if (tablet->IsSorted()) {
+            return New<TSortedStoreManager>(
+                Config_,
+                tablet,
+                &TabletContext_,
+                Slot_->GetHydraManager(),
+                Bootstrap_->GetInMemoryManager(),
+                Bootstrap_->GetMasterClient());
+        } else {
+            return New<TOrderedStoreManager>(
+                Config_,
+                tablet,
+                &TabletContext_,
+                Slot_->GetHydraManager(),
+                Bootstrap_->GetInMemoryManager(),
+                Bootstrap_->GetMasterClient());
+        }
     }
 
     IStorePtr CreateStore(
@@ -2034,6 +2047,22 @@ private:
 
             case EStoreType::SortedDynamic:
                 return New<TSortedDynamicStore>(
+                    Config_,
+                    storeId,
+                    tablet);
+
+            case EStoreType::OrderedChunk: {
+                auto store = New<TOrderedChunkStore>(
+                    Config_,
+                    storeId,
+                    tablet,
+                    Bootstrap_);
+                store->Initialize(chunkMeta);
+                return store;
+            }
+
+            case EStoreType::OrderedDynamic:
+                return New<TOrderedDynamicStore>(
                     Config_,
                     storeId,
                     tablet);
@@ -2071,8 +2100,7 @@ TTabletManager::TTabletManager(
         bootstrap))
 { }
 
-TTabletManager::~TTabletManager()
-{ }
+TTabletManager::~TTabletManager() = default;
 
 void TTabletManager::Initialize()
 {

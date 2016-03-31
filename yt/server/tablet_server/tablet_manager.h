@@ -66,6 +66,7 @@ public:
         NTableServer::TTableNode* table,
         int firstTabletIndex,
         int lastTabletIndex,
+        int newTabletCount,
         const std::vector<NTableClient::TOwningKey>& pivotKeys);
 
     void MakeDynamic(NTableServer::TTableNode* table);

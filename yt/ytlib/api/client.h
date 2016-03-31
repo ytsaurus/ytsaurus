@@ -608,7 +608,12 @@ struct IClient
 
     virtual TFuture<void> ReshardTable(
         const NYPath::TYPath& path,
-        const std::vector<NTableClient::TKey>& pivotKeys,
+        const std::vector<NTableClient::TOwningKey>& pivotKeys,
+        const TReshardTableOptions& options = TReshardTableOptions()) = 0;
+
+    virtual TFuture<void> ReshardTable(
+        const NYPath::TYPath& path,
+        int tabletCount,
         const TReshardTableOptions& options = TReshardTableOptions()) = 0;
 
     virtual TFuture<void> AlterTable(

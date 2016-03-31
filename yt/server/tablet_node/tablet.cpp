@@ -582,6 +582,16 @@ IStorePtr TTablet::GetStore(const TStoreId& id)
     return store;
 }
 
+bool TTablet::IsSorted() const
+{
+    return !KeyColumns_.empty();
+}
+
+bool TTablet::IsOrdered() const
+{
+    return KeyColumns_.empty();
+}
+
 int TTablet::GetSchemaColumnCount() const
 {
     return static_cast<int>(Schema_.Columns().size());

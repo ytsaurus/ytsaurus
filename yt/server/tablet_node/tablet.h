@@ -199,6 +199,9 @@ public:
     TCallback<void(TSaveContext&)> AsyncSave();
     void AsyncLoad(TLoadContext& context);
 
+    bool IsSorted() const;
+    bool IsOrdered() const;
+
     int GetSchemaColumnCount() const;
     int GetKeyColumnCount() const;
     int GetColumnLockCount() const;

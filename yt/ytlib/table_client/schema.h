@@ -154,10 +154,6 @@ void ValidateColumnSchemaUpdate(const TColumnSchema& oldColumn, const TColumnSch
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ValidateDynamicTableConstraints(const TTableSchema& schema);
-
-////////////////////////////////////////////////////////////////////////////////
-
 void ValidateTableSchemaUpdate(
     const TTableSchema& oldSchema,
     const TTableSchema& newSchema,
