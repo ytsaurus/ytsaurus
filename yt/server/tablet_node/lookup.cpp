@@ -49,7 +49,7 @@ public:
         , Timestamp_(timestamp)
         , Reader_(reader)
         , Writer_(writer)
-        , KeyColumnCount_ (TabletSnapshot_->KeyColumns.size())
+        , KeyColumnCount_ (TabletSnapshot_->Schema.GetKeyColumnCount())
         , SchemaColumnCount_(TabletSnapshot_->Schema.Columns().size())
         , WorkloadDescriptor_(workloadDescriptor)
     { }

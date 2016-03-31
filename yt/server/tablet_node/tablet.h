@@ -41,7 +41,6 @@ struct TTabletSnapshot
     TOwningKey PivotKey;
     TOwningKey NextPivotKey;
     NTableClient::TTableSchema Schema;
-    NTableClient::TKeyColumns KeyColumns;
     NTransactionClient::EAtomicity Atomicity;
     int HashTableSize = 0;
     int OverlappingStoreCount = 0;
