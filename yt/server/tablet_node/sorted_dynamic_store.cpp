@@ -729,8 +729,7 @@ TSortedDynamicStore::TSortedDynamicStore(
             Tablet_->GetKeyColumnCount());
     }
 
-    LOG_DEBUG("Sorted dynamic store created (TabletId: %v, LookupHashTable: %v)",
-        TabletId_,
+    LOG_DEBUG("Sorted dynamic store created (LookupHashTable: %v)",
         static_cast<bool>(LookupHashTable_));
 }
 

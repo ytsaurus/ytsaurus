@@ -4,6 +4,8 @@
 
 #include <yt/server/hydra/public.h>
 
+#include <yt/ytlib/api/public.h>
+
 #include <yt/core/logging/log.h>
 
 namespace NYT {
@@ -20,7 +22,8 @@ public:
         TTablet* tablet,
         ITabletContext* tabletContext,
         NHydra::IHydraManagerPtr hydraManager,
-        TInMemoryManagerPtr inMemoryManager);
+        TInMemoryManagerPtr inMemoryManager,
+        NApi::IClientPtr client);
 
     virtual TTablet* GetTablet() const override;
 
@@ -39,7 +42,9 @@ public:
     virtual void BackoffStoreRemoval(IStorePtr store) override;
 
     virtual bool IsStoreFlushable(IStorePtr store) const override;
-    virtual void BeginStoreFlush(IDynamicStorePtr store) override;
+    virtual TStoreFlushCallback BeginStoreFlush(
+        IDynamicStorePtr store,
+        TTabletSnapshotPtr tabletSnapshot) override;
     virtual void EndStoreFlush(IDynamicStorePtr store) override;
     virtual void BackoffStoreFlush(IDynamicStorePtr store) override;
 
@@ -74,6 +79,7 @@ protected:
     ITabletContext* const TabletContext_;
     const NHydra::IHydraManagerPtr HydraManager_;
     const TInMemoryManagerPtr InMemoryManager_;
+    const NApi::IClientPtr Client_;
 
     bool RotationScheduled_ = false;
     TInstant LastRotated_;
@@ -85,6 +91,10 @@ protected:
     virtual IDynamicStore* GetActiveStore() const = 0;
     virtual void ResetActiveStore() = 0;
     virtual void OnActiveStoreRotated() = 0;
+
+    virtual TStoreFlushCallback MakeStoreFlushCallback(
+        IDynamicStorePtr store,
+        TTabletSnapshotPtr tabletSnapshot) = 0;
 
     void CheckForUnlockedStore(IDynamicStore* store);
 

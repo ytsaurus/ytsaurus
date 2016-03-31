@@ -16,8 +16,8 @@ using namespace NTabletClient::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TStoreManagerTestBase
-    : public TSortedDynamicStoreTestBase
+class TSortedStoreManagerTestBase
+    : public TStoreManagerTestBase<TSortedDynamicStoreTestBase>
 {
 protected:
     virtual IStoreManagerPtr CreateStoreManager(TTablet* tablet) override
@@ -26,24 +26,13 @@ protected:
         StoreManager_ = New<TSortedStoreManager>(
             New<TTabletManagerConfig>(),
             tablet,
-            this,
-            nullptr,
-            nullptr);
+            this);
         return StoreManager_;
     }
 
-    virtual void SetUp() override
+    virtual IStoreManagerPtr GetStoreManager() override
     {
-        TSortedDynamicStoreTestBase::SetUp();
-
-        StoreManager_->StartEpoch(nullptr);
-        StoreManager_->CreateActiveStore();
-    }
-
-    void Rotate()
-    {
-        StoreManager_->ScheduleRotation();
-        StoreManager_->Rotate(true);
+        return StoreManager_;
     }
 
     TSortedDynamicRowRef WriteRow(
@@ -164,7 +153,7 @@ protected:
 ///////////////////////////////////////////////////////////////////////////////
 
 class TSingleLockStoreManagerTest
-    : public TStoreManagerTestBase
+    : public TSortedStoreManagerTestBase
 { };
 
 TEST_F(TSingleLockStoreManagerTest, EmptyWriteFailure)
@@ -244,7 +233,7 @@ TEST_F(TSingleLockStoreManagerTest, ConfirmRowWithRotation)
     EXPECT_EQ(0, transaction->LockedSortedRows().size());
     EXPECT_EQ(store1, rowRef1.Store);
 
-    Rotate();
+    RotateStores();
     auto store2 = GetActiveStore();
 
     EXPECT_NE(store1, store2);
@@ -283,7 +272,7 @@ TEST_F(TSingleLockStoreManagerTest, PrepareRowWithRotation)
     WriteRow(transaction.get(), BuildRow("key=1;a=1"), false);
     EXPECT_EQ(1, transaction->LockedSortedRows().size());
 
-    Rotate();
+    RotateStores();
     auto store2 = GetActiveStore();
 
     EXPECT_NE(store1, store2);
@@ -327,7 +316,7 @@ TEST_F(TSingleLockStoreManagerTest, MigrateRow)
     PrepareTransaction(transaction.get());
     PrepareRow(transaction.get(), rowRef);
 
-    Rotate();
+    RotateStores();
     auto store2 = GetActiveStore();
 
     EXPECT_NE(store1, store2);
@@ -353,7 +342,7 @@ TEST_F(TSingleLockStoreManagerTest, WriteSameRowWithRotation)
 
     WriteRow(transaction.get(), BuildRow("key=1;a=1"), true);
 
-    Rotate();
+    RotateStores();
 
     EXPECT_ANY_THROW({
         WriteRow(transaction.get(), BuildRow("key=1;a=2"), true);
@@ -368,7 +357,7 @@ TEST_F(TSingleLockStoreManagerTest, DeleteSameRowWithRotation)
 
     DeleteRow(transaction.get(), key, true);
 
-    Rotate();
+    RotateStores();
 
     ASSERT_ANY_THROW({
         DeleteRow(transaction.get(), key, true);
@@ -381,7 +370,7 @@ TEST_F(TSingleLockStoreManagerTest, WriteAfterDeleteFailureWithRotation)
 
     DeleteRow(transaction.get(), BuildKey("1"), true);
 
-    Rotate();
+    RotateStores();
 
     ASSERT_ANY_THROW({
         WriteRow(transaction.get(), BuildRow("key=1;a=2"), true);
@@ -395,7 +384,7 @@ TEST_F(TSingleLockStoreManagerTest, WriteWriteConflictWithRotation1)
 
     WriteRow(transaction1.get(), BuildRow("key=1;a=1"), true);
 
-    Rotate();
+    RotateStores();
 
     ASSERT_ANY_THROW({
         WriteRow(transaction2.get(), BuildRow("key=1;a=1"), true);
@@ -418,7 +407,7 @@ TEST_F(TSingleLockStoreManagerTest, WriteWriteConflictWithRotation2)
     CommitTransaction(transaction1.get());
     CommitRow(transaction1.get(), rowRef1);
 
-    Rotate();
+    RotateStores();
 
     ASSERT_ANY_THROW({
         WriteRow(transaction2.get(), BuildRow("key=1;a=1"), true);
@@ -434,7 +423,7 @@ TEST_F(TSingleLockStoreManagerTest, WriteWriteConflictWithRotation3)
 
     WriteRow(transaction1.get(), BuildRow("key=1;a=1"), true);
 
-    Rotate();
+    RotateStores();
 
     StoreManager_->RemoveStore(store1);
 
@@ -452,7 +441,7 @@ TEST_F(TSingleLockStoreManagerTest, AbortRowWithRotation)
     WriteRow(transaction.get(), BuildRow("key=1;a=1"), false);
     EXPECT_EQ(1, transaction->LockedSortedRows().size());
 
-    Rotate();
+    RotateStores();
     auto store2 = GetActiveStore();
 
     EXPECT_NE(store1, store2);
@@ -476,7 +465,7 @@ TEST_F(TSingleLockStoreManagerTest, AbortRowWithRotation)
 TEST_F(TSingleLockStoreManagerTest, LookupRow1)
 {
     WriteRow(BuildRow("key=1;a=100", false));
-    Rotate();
+    RotateStores();
     WriteRow(BuildRow("key=1;b=3.14", false));
     EXPECT_TRUE(AreRowsEqual(LookupRow(BuildKey("1"), AsyncLastCommittedTimestamp), "key=1;a=100;b=3.14"));
 }
@@ -485,7 +474,7 @@ TEST_F(TSingleLockStoreManagerTest, LookupRow2)
 {
     WriteRow(BuildRow("key=1;a=100", false));
     DeleteRow(BuildKey("1"));
-    Rotate();
+    RotateStores();
     WriteRow(BuildRow("key=1;b=3.14", false));
     EXPECT_TRUE(AreRowsEqual(LookupRow(BuildKey("1"), AsyncLastCommittedTimestamp), "key=1;b=3.14"));
 }
@@ -493,7 +482,7 @@ TEST_F(TSingleLockStoreManagerTest, LookupRow2)
 TEST_F(TSingleLockStoreManagerTest, LookupRow3)
 {
     WriteRow(BuildRow("key=1;a=100", false));
-    Rotate();
+    RotateStores();
     DeleteRow(BuildKey("1"));
     WriteRow(BuildRow("key=1;b=3.14", false));
     EXPECT_TRUE(AreRowsEqual(LookupRow(BuildKey("1"), AsyncLastCommittedTimestamp), "key=1;b=3.14"));
@@ -502,11 +491,11 @@ TEST_F(TSingleLockStoreManagerTest, LookupRow3)
 TEST_F(TSingleLockStoreManagerTest, LookupRow4)
 {
     WriteRow(BuildRow("key=1;a=100", false));
-    Rotate();
+    RotateStores();
     WriteRow(BuildRow("key=1;b=3.14", false));
-    Rotate();
+    RotateStores();
     WriteRow(BuildRow("key=1;a=200;c=test", false));
-    Rotate();
+    RotateStores();
     EXPECT_TRUE(AreRowsEqual(LookupRow(BuildKey("1"), AsyncLastCommittedTimestamp), "key=1;a=200;b=3.14;c=test"));
 }
 
@@ -519,7 +508,7 @@ TEST_F(TSingleLockStoreManagerTest, UnlockStoreOnCommit)
     EXPECT_EQ(1, transaction->LockedSortedRows().size());
     auto rowRef = transaction->LockedSortedRows()[0];
 
-    Rotate();
+    RotateStores();
 
     EXPECT_TRUE(StoreManager_->IsStoreLocked(store));
 
@@ -540,7 +529,7 @@ TEST_F(TSingleLockStoreManagerTest, UnlockStoreOnAbort)
     EXPECT_EQ(1, transaction->LockedSortedRows().size());
     auto rowRef = transaction->LockedSortedRows()[0];
 
-    Rotate();
+    RotateStores();
 
     EXPECT_TRUE(StoreManager_->IsStoreLocked(store));
 
@@ -573,7 +562,7 @@ TEST_F(TSingleLockStoreManagerTest, WriteRotateWrite)
 
     EXPECT_EQ(1, store1->GetLockCount());
 
-    Rotate();
+    RotateStores();
     auto store2 = GetActiveStore();
     EXPECT_NE(store1, store2);
 
@@ -704,7 +693,7 @@ TEST_F(TSingleLockStoreManagerTestWithCompositeKeys, Write)
 ///////////////////////////////////////////////////////////////////////////////
 
 class TMultiLockStoreManagerTest
-    : public TStoreManagerTestBase
+    : public TSortedStoreManagerTestBase
 {
 protected:
     virtual TTableSchema GetSchema() const
@@ -807,7 +796,7 @@ TEST_F(TMultiLockStoreManagerTest, MigrateRow1)
     PrepareTransaction(transaction2.get());
     PrepareRow(transaction2.get(), rowRef2);
 
-    Rotate();
+    RotateStores();
     auto store2 = GetActiveStore();
 
     EXPECT_NE(store1, store2);
@@ -848,7 +837,7 @@ TEST_F(TMultiLockStoreManagerTest, MigrateRow2)
     PrepareTransaction(transaction1.get());
     PrepareRow(transaction1.get(), rowRef1);
 
-    Rotate();
+    RotateStores();
     auto store2 = GetActiveStore();
 
     EXPECT_NE(store1, store2);

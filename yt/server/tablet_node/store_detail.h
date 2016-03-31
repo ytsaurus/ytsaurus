@@ -4,9 +4,17 @@
 #include "dynamic_store_bits.h"
 #include "store.h"
 
+#include <yt/server/cell_node/public.h>
+
+#include <yt/server/data_node/public.h>
+
 #include <yt/ytlib/table_client/schema.h>
 
+#include <yt/ytlib/chunk_client/chunk_meta.pb.h>
+
 #include <yt/core/actions/signal.h>
+
+#include <yt/core/concurrency/rw_spinlock.h>
 
 #include <yt/core/logging/log.h>
 
@@ -55,6 +63,7 @@ public:
     virtual bool IsOrdered() const override;
     virtual IOrderedStorePtr AsOrdered() override;
     virtual TOrderedDynamicStorePtr AsOrderedDynamic() override;
+    virtual TOrderedChunkStorePtr AsOrderedChunk() override;
 
 protected:
     const TTabletManagerConfigPtr Config_;
@@ -153,9 +162,27 @@ public:
     TChunkStoreBase(
         TTabletManagerConfigPtr config,
         const TStoreId& id,
-        TTablet* tablet);
+        TTablet* tablet,
+        NCellNode::TBootstrap* bootstrap);
+
+    void Initialize(const NChunkClient::NProto::TChunkMeta* chunkMeta);
+
+    const NChunkClient::NProto::TChunkMeta& GetChunkMeta() const;
+
+    // IStore implementation.
+    virtual i64 GetUncompressedDataSize() const override;
+    virtual i64 GetRowCount() const override;
+
+    virtual TCallback<void(TSaveContext&)> AsyncSave() override;
+    virtual void AsyncLoad(TLoadContext& context) override;
+
+    virtual void BuildOrchidYson(NYson::IYsonConsumer* consumer) override;
 
     // IChunkStore implementation.
+    virtual void SetBackingStore(IDynamicStorePtr store) override;
+    virtual bool HasBackingStore() const override;
+    virtual IDynamicStorePtr GetBackingStore() override;
+
     virtual EStorePreloadState GetPreloadState() const override;
     virtual void SetPreloadState(EStorePreloadState state) override;
 
@@ -168,10 +195,40 @@ public:
     virtual bool IsChunk() const override;
     virtual IChunkStorePtr AsChunk() override;
 
+    virtual NChunkClient::IChunkReaderPtr GetChunkReader() override;
+
 protected:
+    NCellNode::TBootstrap* const Bootstrap_;
+
     EStorePreloadState PreloadState_ = EStorePreloadState::Disabled;
     TFuture<void> PreloadFuture_;
     EStoreCompactionState CompactionState_ = EStoreCompactionState::None;
+
+    NConcurrency::TReaderWriterSpinLock SpinLock_;
+
+    NChunkClient::IChunkReaderPtr ChunkReader_;
+
+    // Cached for fast retrieval from ChunkMeta_.
+    NChunkClient::NProto::TMiscExt MiscExt_;
+    NChunkClient::TRefCountedChunkMetaPtr ChunkMeta_;
+
+
+    NDataNode::IChunkPtr PrepareChunk();
+    NChunkClient::IChunkReaderPtr PrepareChunkReader(NDataNode::IChunkPtr chunk);
+
+    void OnLocalReaderFailed();
+    void OnChunkExpired();
+    void OnChunkReaderExpired();
+
+    virtual NChunkClient::IBlockCachePtr GetBlockCache() = 0;
+
+    virtual void PrecacheProperties();
+
+private:
+    IDynamicStorePtr BackingStore_;
+
+    bool ChunkInitialized_ = false;
+    NDataNode::IChunkPtr Chunk_;
 
 };
 

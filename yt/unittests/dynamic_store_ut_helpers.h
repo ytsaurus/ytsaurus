@@ -293,6 +293,7 @@ protected:
     }
 
 
+
     const TColumnEvaluatorCachePtr ColumnEvaluatorCache_ = New<TColumnEvaluatorCache>(
         New<TColumnEvaluatorCacheConfig>(),
         CreateBuiltinFunctionRegistry());
@@ -301,6 +302,32 @@ protected:
     std::unique_ptr<TTablet> Tablet_;
     TTimestamp CurrentTimestamp_ = 10000; // some reasonable starting point
 
+};
+
+///////////////////////////////////////////////////////////////////////////////
+
+template <class TBase>
+class TStoreManagerTestBase
+    : public TBase
+{
+protected:
+    virtual IStoreManagerPtr GetStoreManager() = 0;
+
+    virtual void SetUp() override
+    {
+        TBase::SetUp();
+
+        auto storeManager = GetStoreManager();
+        storeManager->StartEpoch(nullptr);
+        storeManager->CreateActiveStore();
+    }
+
+    void RotateStores()
+    {
+        auto storeManager = GetStoreManager();
+        storeManager->ScheduleRotation();
+        storeManager->Rotate(true);
+    }
 };
 
 ///////////////////////////////////////////////////////////////////////////////

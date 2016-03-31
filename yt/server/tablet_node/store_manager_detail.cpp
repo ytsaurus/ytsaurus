@@ -9,6 +9,8 @@
 namespace NYT {
 namespace NTabletNode {
 
+using namespace NApi;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TStoreManagerBase::TStoreManagerBase(
@@ -16,12 +18,14 @@ TStoreManagerBase::TStoreManagerBase(
     TTablet* tablet,
     ITabletContext* tabletContext,
     NHydra::IHydraManagerPtr hydraManager,
-    TInMemoryManagerPtr inMemoryManager)
+    TInMemoryManagerPtr inMemoryManager,
+    IClientPtr client)
     : Config_(config)
     , Tablet_(tablet)
     , TabletContext_(tabletContext)
-    , HydraManager_(hydraManager)
-    , InMemoryManager_(inMemoryManager)
+    , HydraManager_(std::move(hydraManager))
+    , InMemoryManager_(std::move(inMemoryManager))
+    , Client_(std::move(client))
     , Logger(TabletNodeLogger)
 {
     YCHECK(Config_);
@@ -173,10 +177,13 @@ bool TStoreManagerBase::IsStoreFlushable(IStorePtr store) const
     return true;
 }
 
-void TStoreManagerBase::BeginStoreFlush(IDynamicStorePtr store)
+TStoreFlushCallback TStoreManagerBase::BeginStoreFlush(
+    IDynamicStorePtr store,
+    TTabletSnapshotPtr tabletSnapshot)
 {
     YCHECK(store->GetFlushState() == EStoreFlushState::None);
     store->SetFlushState(EStoreFlushState::Running);
+    return MakeStoreFlushCallback(store, tabletSnapshot);
 }
 
 void TStoreManagerBase::EndStoreFlush(IDynamicStorePtr store)

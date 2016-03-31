@@ -775,9 +775,6 @@ void ValidateKeyColumnCount(int count)
     if (count < 0) {
         THROW_ERROR_EXCEPTION("Negative number of key columns");
     }
-    if (count == 0) {
-        THROW_ERROR_EXCEPTION("At least one key column expected");
-    }
     if (count > MaxKeyColumnCount) {
         THROW_ERROR_EXCEPTION("Too many columns in key: actual %v, limit %v",
             count,

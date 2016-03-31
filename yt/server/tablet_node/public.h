@@ -21,6 +21,15 @@ namespace NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace NProto {
+
+class TAddStoreDescriptor;
+class TRemoveStoreDescriptor;
+
+} // namespace NProto
+
+////////////////////////////////////////////////////////////////////////////////
+
 using NElection::TCellId;
 using NElection::NullCellId;
 
@@ -186,6 +195,7 @@ DECLARE_REFCOUNTED_CLASS(TSortedDynamicStore)
 DECLARE_REFCOUNTED_CLASS(TSortedChunkStore)
 
 DECLARE_REFCOUNTED_CLASS(TOrderedDynamicStore)
+DECLARE_REFCOUNTED_CLASS(TOrderedChunkStore)
 
 DECLARE_REFCOUNTED_STRUCT(IStoreManager)
 DECLARE_REFCOUNTED_CLASS(TSortedStoreManager)

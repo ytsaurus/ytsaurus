@@ -11,6 +11,7 @@
 namespace NYT {
 namespace NTabletNode {
 
+using namespace NApi;
 using namespace NTableClient;
 using namespace NTabletClient;
 using namespace NTabletClient::NProto;
@@ -23,13 +24,15 @@ TOrderedStoreManager::TOrderedStoreManager(
     TTablet* tablet,
     ITabletContext* tabletContext,
     NHydra::IHydraManagerPtr hydraManager,
-    TInMemoryManagerPtr inMemoryManager)
+    TInMemoryManagerPtr inMemoryManager,
+    IClientPtr client)
     : TStoreManagerBase(
-        config,
+        std::move(config),
         tablet,
         tabletContext,
-        hydraManager,
-        inMemoryManager)
+        std::move(hydraManager),
+        std::move(inMemoryManager),
+        std::move(client))
 {
     if (Tablet_->GetActiveStore()) {
         ActiveStore_ = Tablet_->GetActiveStore()->AsOrderedDynamic();
@@ -154,6 +157,13 @@ bool TOrderedStoreManager::IsStoreCompactable(IStorePtr /*store*/) const
 IDynamicStore* TOrderedStoreManager::GetActiveStore() const
 {
     return ActiveStore_.Get();
+}
+
+TStoreFlushCallback TOrderedStoreManager::MakeStoreFlushCallback(
+    IDynamicStorePtr store,
+    TTabletSnapshotPtr tabletSnapshot)
+{
+    YUNIMPLEMENTED();
 }
 
 void TOrderedStoreManager::ValidateOnWrite(

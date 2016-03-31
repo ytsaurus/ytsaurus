@@ -3,6 +3,7 @@ set( SRCS
   ${CMAKE_CURRENT_LIST_DIR}/object_detail.cpp
   ${CMAKE_CURRENT_LIST_DIR}/automaton.cpp
   ${CMAKE_CURRENT_LIST_DIR}/sorted_chunk_store.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/ordered_chunk_store.cpp
   ${CMAKE_CURRENT_LIST_DIR}/sorted_dynamic_store.cpp
   ${CMAKE_CURRENT_LIST_DIR}/dynamic_store_bits.cpp
   ${CMAKE_CURRENT_LIST_DIR}/sorted_dynamic_comparer.cpp
@@ -36,6 +37,7 @@ set( HDRS
   ${CMAKE_CURRENT_LIST_DIR}/object_detail.h
   ${CMAKE_CURRENT_LIST_DIR}/automaton.h
   ${CMAKE_CURRENT_LIST_DIR}/sorted_chunk_store.h
+  ${CMAKE_CURRENT_LIST_DIR}/ordered_chunk_store.h
   ${CMAKE_CURRENT_LIST_DIR}/config.h
   ${CMAKE_CURRENT_LIST_DIR}/sorted_dynamic_store.h
   ${CMAKE_CURRENT_LIST_DIR}/sorted_dynamic_store-inl.h

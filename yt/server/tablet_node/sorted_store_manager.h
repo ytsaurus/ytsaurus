@@ -22,8 +22,9 @@ public:
         TTabletManagerConfigPtr config,
         TTablet* tablet,
         ITabletContext* tabletContext,
-        NHydra::IHydraManagerPtr hydraManager,
-        TInMemoryManagerPtr inMemoryManager);
+        NHydra::IHydraManagerPtr hydraManager = nullptr,
+        TInMemoryManagerPtr inMemoryManager = nullptr,
+        NApi::IClientPtr client = nullptr);
 
     virtual void ExecuteAtomicWrite(
         TTablet* tablet,
@@ -73,6 +74,10 @@ private:
     virtual IDynamicStore* GetActiveStore() const override;
     virtual void ResetActiveStore() override;
     virtual void OnActiveStoreRotated() override;
+
+    virtual TStoreFlushCallback MakeStoreFlushCallback(
+        IDynamicStorePtr store,
+        TTabletSnapshotPtr tabletSnapshot) override;
 
     ui32 ComputeLockMask(TUnversionedRow row);
 
