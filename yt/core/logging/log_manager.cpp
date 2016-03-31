@@ -84,7 +84,10 @@ public:
         YCHECK(FD_ >= 0);
 
         char buffer[sizeof(struct inotify_event) + NAME_MAX + 1];
-        auto rv = ::read(FD_, buffer, sizeof(buffer));
+        ssize_t rv;
+        do {
+            rv = ::read(FD_, buffer, sizeof(buffer));
+        } while (rv == -1 && errno == EINTR);
 
         if (rv < 0) {
             if (errno != EAGAIN) {
@@ -341,8 +344,10 @@ public:
             formatter.AppendString(event.Message.c_str());
             formatter.AppendString("\n*** Aborting ***\n");
 
-            auto unused = ::write(2, formatter.GetData(), formatter.GetBytesWritten());
-            (void)unused;
+            ssize_t size;
+            do {
+                size = ::write(2, formatter.GetData(), formatter.GetBytesWritten());
+            } while (size == -1 && errno == EINTR);
 
             std::terminate();
         }
