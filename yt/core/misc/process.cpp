@@ -308,7 +308,10 @@ void TProcess::ValidateSpawnResult()
 {
 #ifdef _unix_
     int data[2];
-    int res = ::read(Pipe_.GetReadFD(), &data, sizeof(data));
+    ssize_t res;
+    do {
+        res = ::read(Pipe_.GetReadFD(), &data, sizeof(data));
+    } while (res == -1 && errno == EINTR);
     Pipe_.CloseReadFD();
 
     if (res == 0) {
@@ -493,7 +496,11 @@ void TProcess::Child()
             };
 
             // According to pipe(7) write of small buffer is atomic.
-            YCHECK(::write(Pipe_.GetWriteFD(), &data, sizeof(data)) == sizeof(data));
+            ssize_t size;
+            do {
+                size = ::write(Pipe_.GetWriteFD(), &data, sizeof(data));
+            } while (size == -1 && errno == EINTR);
+            YCHECK(size == sizeof(data));
             _exit(1);
         }
     }

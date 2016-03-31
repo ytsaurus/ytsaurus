@@ -691,7 +691,10 @@ private:
         FinalizeActions_.push_back(BIND([=] () {
             char buffer;
             // Try to read some data from the pipe.
-            ssize_t result = ::read(readFD, &buffer, 1);
+            ssize_t result;
+            do {
+                result = ::read(readFD, &buffer, 1);
+            } while (result == -1 && errno == EINTR);
             if (result > 0) {
                 THROW_ERROR_EXCEPTION("Input stream was not fully consumed by user process")
                     << TErrorAttribute("fd", jobDescriptor);
