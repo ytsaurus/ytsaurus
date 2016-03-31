@@ -324,8 +324,7 @@ TWireProtocolWriter::TWireProtocolWriter()
     : Impl_(New<TImpl>())
 { }
 
-TWireProtocolWriter::~TWireProtocolWriter()
-{ }
+TWireProtocolWriter::~TWireProtocolWriter() = default;
 
 std::vector<TSharedRef> TWireProtocolWriter::Flush()
 {
@@ -655,8 +654,7 @@ TWireProtocolReader::TWireProtocolReader(const TSharedRef& data)
     : Impl_(New<TImpl>(data))
 { }
 
-TWireProtocolReader::~TWireProtocolReader()
-{ }
+TWireProtocolReader::~TWireProtocolReader() = default;
 
 bool TWireProtocolReader::IsFinished() const
 {
