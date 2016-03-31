@@ -157,6 +157,10 @@ struct TRichYPath
     TRichYPath()
     { }
 
+    TRichYPath(const char* path)
+        : Path_(path)
+    { }
+
     TRichYPath(const TYPath& path)
         : Path_(path)
     { }

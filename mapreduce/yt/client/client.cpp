@@ -270,7 +270,11 @@ public:
         const TRichYPath& path,
         const TFileWriterOptions& options) override
     {
-        return new TFileWriter(AddPathPrefix(path), Auth_, TransactionId_, options);
+        auto realPath = AddPathPrefix(path);
+        if (!NYT::Exists(Auth_, TransactionId_, realPath.Path_)) {
+            NYT::Create(Auth_, TransactionId_, realPath.Path_, "file");
+        }
+        return new TFileWriter(realPath, Auth_, TransactionId_, options);
     }
 
     // operations
@@ -393,17 +397,24 @@ protected:
 
 private:
     THolder<TClientReader> CreateClientReader(
-        const TRichYPath& path, EDataStreamFormat format, const TTableReaderOptions& options)
+        const TRichYPath& path,
+        EDataStreamFormat format,
+        const TTableReaderOptions& options)
     {
         return MakeHolder<TClientReader>(
             AddPathPrefix(path), Auth_, TransactionId_, format, options);
     }
 
     THolder<TClientWriter> CreateClientWriter(
-        const TRichYPath& path, EDataStreamFormat format, const TTableWriterOptions& options)
+        const TRichYPath& path,
+        EDataStreamFormat format,
+        const TTableWriterOptions& options)
     {
-        return MakeHolder<TClientWriter>(
-            AddPathPrefix(path), Auth_, TransactionId_, format, options);
+        auto realPath = AddPathPrefix(path);
+        if (!NYT::Exists(Auth_, TransactionId_, realPath.Path_)) {
+            NYT::Create(Auth_, TransactionId_, realPath.Path_, "table");
+        }
+        return MakeHolder<TClientWriter>(realPath, Auth_, TransactionId_, format, options);
     }
 
     TIntrusivePtr<INodeReaderImpl> CreateNodeReader(
