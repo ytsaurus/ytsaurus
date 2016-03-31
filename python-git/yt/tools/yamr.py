@@ -41,7 +41,7 @@ def _check_call(command, silent=False, **kwargs):
     logger.info("Command '{}' successfully executed".format(command))
 
 class Yamr(object):
-    def __init__(self, binary, server, server_port, http_port, name=None, proxies=None, proxy_port=None, fetch_info_from_http=False, mr_user="tmp", opts="", timeout=None, max_failed_jobs=None, scheduler_info_update_period=5.0):
+    def __init__(self, binary, server, server_port, http_port, name=None, proxies=None, proxy_port=None, fetch_info_from_http=False, mr_user="tmp", opts="", timeout=None, max_failed_jobs=None, scheduler_info_update_period=15.0):
         self.binary = binary
         self.binary_name = os.path.basename(binary)
         self.name = name
@@ -267,11 +267,13 @@ class Yamr(object):
                 datetime.now() - self._last_update_time_of_scheduler_info > timedelta(seconds=self.scheduler_info_update_period):
             self._last_update_time_of_scheduler_info = datetime.now()
             try:
+                logger.info("Requesting scheduling information from %s", self.http_server)
                 scheduler_info = sh.curl("{0}/json?info=scheduler".format(self.http_server), "--max-time", 1, insecure=True, location=True).stdout
                 try:
                     self.scheduler_info = json.loads_as_bytes(scheduler_info)
                 except ValueError:
                     self.scheduler_info = {}
+                logger.info("Scheduling information from %s recieved", self.http_server)
             except Exception as err:
                 logger.warning("Error occured (%s: %s) while requesting scheduler info from %s", str(type(err)), str(err), self.http_server)
         return self.scheduler_info
