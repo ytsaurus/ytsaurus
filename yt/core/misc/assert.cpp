@@ -30,8 +30,10 @@ void AssertTrapImpl(
     formatter.AppendNumber(line);
     formatter.AppendString("\n");
 
-    auto unused = ::write(2, formatter.GetData(), formatter.GetBytesWritten());
-    (void)unused;
+    ssize_t size;
+    do {
+        size = ::write(2, formatter.GetData(), formatter.GetBytesWritten());
+    } while (size == -1 && errno == EINTR);
 
     NLogging::TLogManager::Get()->Shutdown();
 

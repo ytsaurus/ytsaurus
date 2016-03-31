@@ -141,8 +141,10 @@ void TStreamLogWriterBase::OnException(const std::exception& ex)
     formatter.AppendString(ex.what());
     formatter.AppendString("\n*** Aborting ***\n");
 
-    auto unused = ::write(2, formatter.GetData(), formatter.GetBytesWritten());
-    (void)unused;
+    ssize_t size;
+    do {
+        size = ::write(2, formatter.GetData(), formatter.GetBytesWritten());
+    } while (size == -1 && errno == EINTR);
 
     std::terminate();
 }
