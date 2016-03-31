@@ -841,9 +841,9 @@ private:
                 options.Timestamp);
 
             chunkReader = CreateLocalChunkReader(
-                Bootstrap_,
                 config,
                 chunk,
+                Bootstrap_->GetChunkBlockManager(),
                 blockCache);
         } else {
             LOG_DEBUG("Creating remote reader for chunk split (ChunkId: %v, Timestamp: %v)",
