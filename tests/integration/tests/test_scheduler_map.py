@@ -1205,8 +1205,8 @@ print row + table_index
     @unix_only
     def test_map_row_count_limit(self):
         create("table", "//tmp/input")
-        for i in xrange(self.NUM_NODES):
-            write_table("<append=true>//tmp/input", {"key": str(i), "value": "foo"})
+        for i in xrange(5):
+            write_table("<append=true>//tmp/input", {"key": "%05d"%i, "value": "foo"})
 
         create("table", "//tmp/output")
         map(in_="//tmp/input",
@@ -1225,8 +1225,8 @@ print row + table_index
     @unix_only
     def test_map_row_count_limit_second_output(self):
         create("table", "//tmp/input")
-        for i in xrange(self.NUM_NODES):
-            write_table("<append=true>//tmp/input", {"key": str(i), "value": "foo"})
+        for i in xrange(5):
+            write_table("<append=true>//tmp/input", {"key": "%05d"%i, "value": "foo"})
 
         create("table", "//tmp/out_1")
         create("table", "//tmp/out_2")
@@ -1247,8 +1247,8 @@ print row + table_index
     @unix_only
     def test_ordered_map_row_count_limit(self):
         create("table", "//tmp/input")
-        for i in xrange(self.NUM_NODES):
-            write_table("<append=true>//tmp/input", {"key": str(i), "value": "foo"})
+        for i in xrange(5):
+            write_table("<append=true>//tmp/input", {"key": "%05d"%i, "value": "foo"})
 
         create("table", "//tmp/output")
         map(in_="//tmp/input",
@@ -1264,9 +1264,9 @@ print row + table_index
             })
 
         assert read_table("//tmp/output") == [
-            {"key":"0", "value":"foo"},
-            {"key":"1", "value":"foo"},
-            {"key":"2", "value":"foo"},
+            {"key":"00000", "value":"foo"},
+            {"key":"00001", "value":"foo"},
+            {"key":"00002", "value":"foo"},
         ]
 
     def test_multiple_row_count_limit(self):
