@@ -1048,10 +1048,8 @@ public:
 
             PerformanceCounters_->StaticChunkRowReadCount += range.Size();
             RowIndex_ += range.Size();
-            if (Completed_) {
+            if (Completed_ || !TryFetchNextRow()) {
                 break;
-            } else if (!TryFetchNextRow()) {
-                return true;
             }
         }
 
@@ -1064,8 +1062,8 @@ public:
     }
 
 private:
-    TReadLimit LowerLimit_;
-    TReadLimit UpperLimit_;
+    const TReadLimit LowerLimit_;
+    const TReadLimit UpperLimit_;
 
     i64 LowerRowIndex_;
     i64 SafeUpperRowIndex_;
@@ -1200,11 +1198,14 @@ private:
     bool TryFetchNextRow()
     {
         std::vector<TFuture<void>> unfetched;
-        RequestedBlocks_.clear();
-        for (auto& column : Columns_) {
-            if (column.ColumnReader->GetCurrentRowIndex() < column.ColumnReader->GetBlockUpperRowIndex()) {
-                RequestedBlocks_.emplace_back();
-            } else {
+        YASSERT(RequestedBlocks_.empty());
+        for (int i = 0; i < Columns_.size(); ++i) {
+            auto& column = Columns_[i];
+            if (column.ColumnReader->GetCurrentRowIndex() == column.ColumnReader->GetBlockUpperRowIndex()) {
+                while (RequestedBlocks_.size() < i) {
+                    RequestedBlocks_.emplace_back();
+                }
+
                 auto nextBlockIndex = column.ColumnReader->GetNextBlockIndex();
                 YCHECK(nextBlockIndex);
                 column.PendingBlockIndex_ = *nextBlockIndex;
@@ -1219,7 +1220,7 @@ private:
             ReadyEvent_ = Combine(unfetched);
         }
 
-        return unfetched.empty();
+        return RequestedBlocks_.empty();
     }
 };
 
@@ -1380,12 +1381,15 @@ private:
 
         std::vector<TFuture<void>> unfetched;
         RequestedBlocks_.clear();
-        for (auto& column : Columns_) {
-            if (column.ColumnReader->GetCurrentBlockIndex() == column.BlockIndexSequence[NextKeyIndex_]) {
-                RequestedBlocks_.emplace_back();
-            } else {
+        for (int i = 0; i < Columns_.size(); ++i) {
+            auto& column = Columns_[i];
+            if (column.ColumnReader->GetCurrentBlockIndex() != column.BlockIndexSequence[NextKeyIndex_]) {
+                while (RequestedBlocks_.size() < i) {
+                    RequestedBlocks_.emplace_back();
+                }
+
                 column.PendingBlockIndex_ = column.BlockIndexSequence[NextKeyIndex_];
-                RequestedBlocks_.push_back(BlockFetcher_->FetchBlock(column.BlockIndexSequence[NextKeyIndex_]));
+                RequestedBlocks_.push_back(BlockFetcher_->FetchBlock(column.PendingBlockIndex_));
                 if (!RequestedBlocks_.back().IsSet()) {
                     unfetched.push_back(RequestedBlocks_.back().As<void>());
                 }
@@ -1396,7 +1400,7 @@ private:
             ReadyEvent_ = Combine(unfetched);
         }
 
-        return unfetched.empty();
+        return RequestedBlocks_.empty();
     }
 
     TMutableVersionedRow ReadRow(i64 rowIndex)
@@ -1453,9 +1457,7 @@ private:
         row.SetValueCount(0);
 
         // Read key values.
-        for (auto& valueColumnReader : ValueColumnReaders_) {
-            Cerr << Format("LOOKUP row index %d\n", rowIndex);
-
+        for (const auto& valueColumnReader : ValueColumnReaders_) {
             valueColumnReader->ReadValues(
                 TMutableRange<TMutableVersionedRow>(&row, 1),
                 MakeRange(&timestampIndexRange, 1));

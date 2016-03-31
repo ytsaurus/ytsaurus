@@ -62,7 +62,11 @@ CompressUnsignedVector(const TRange<T> values, ui64 maxValue, ui64* dst)
                 offset = offset + width;
                 offset &= 0x3F;
                 ++word;
-                *word |= (x >> (width - offset));
+                x >>= width - offset;
+                if (x > 0) {
+                    // This is important not to overstep allocated boundaries.
+                    *word |= x;
+                }
             }
         }
     } else {

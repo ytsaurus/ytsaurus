@@ -7,7 +7,7 @@ namespace NTableChunkFormat {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template<class T>
+template <class T>
 size_t Compress(const std::vector<T> &data, std::vector<ui64> *buffer)
 {
     T maxValue = 0;
@@ -23,7 +23,7 @@ size_t Compress(const std::vector<T> &data, std::vector<ui64> *buffer)
     return CompressUnsignedVector(MakeRange(data), maxValue, buffer->data());
 }
 
-template<class T>
+template <class T>
 void Validate(const std::vector<T>& data, const TCompressedUnsignedVectorReader<T>& reader)
 {
     EXPECT_EQ(data.size(), reader.GetSize());

@@ -9,7 +9,12 @@ namespace NTableChunkFormat {
 
 void PrepareDiffFromExpected(std::vector<ui32>* values, ui32* expected, ui32* maxDiff)
 {
-    YCHECK(!values->empty());
+    if (values->empty()) {
+        *expected = 0;
+        *maxDiff = 0;
+        return;
+    }
+
     *expected = values->back() / values->size();
 
     *maxDiff = 0;

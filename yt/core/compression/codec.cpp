@@ -198,10 +198,11 @@ public:
     virtual ECodec GetId() const override
     {
         switch (Level_) {
-            case 6:
-                return ECodec::Zlib6;
-            case 9:
-                return ECodec::Zlib9;
+
+#define CASE(level) case level: return PP_CONCAT(ECodec::Zlib_, level);
+            PP_FOR_EACH(CASE, (1)(2)(3)(4)(5)(6)(7)(8)(9))
+#undef CASE
+
             default:
                 YUNREACHABLE();
         }
@@ -358,12 +359,11 @@ public:
     virtual ECodec GetId() const override
     {
         switch (Level_) {
-            case 3:
-                return ECodec::Brotli3;
-            case 5:
-                return ECodec::Brotli5;
-            case 8:
-                return ECodec::Brotli8;
+
+#define CASE(level) case level: return PP_CONCAT(ECodec::Brotli_, level);
+            PP_FOR_EACH(CASE, (1)(2)(3)(4)(5)(6)(7)(8)(9)(10)(11))
+#undef CASE
+
             default:
                 YUNREACHABLE();
         }
@@ -389,16 +389,6 @@ ICodec* GetCodec(ECodec id)
             return &result;
         }
 
-        case ECodec::Zlib6: {
-            static TZlibCodec result(6);
-            return &result;
-        }
-
-        case ECodec::Zlib9: {
-            static TZlibCodec result(9);
-            return &result;
-        }
-
         case ECodec::Lz4: {
             static TLz4Codec result(false);
             return &result;
@@ -419,20 +409,22 @@ ICodec* GetCodec(ECodec id)
             return &result;
         }
 
-        case ECodec::Brotli3: {
-            static TBrotliCodec result(3);
-            return &result;
-        }
 
-        case ECodec::Brotli5: {
-            static TBrotliCodec result(5);
-            return &result;
-        }
+#define CASE(param)                                                 \
+    case ECodec::PP_CONCAT(CODEC, PP_CONCAT(_, param)): {           \
+        static PP_CONCAT(T, PP_CONCAT(CODEC, Codec)) result(param); \
+        return &result;                                             \
+    }
 
-        case ECodec::Brotli8: {
-            static TBrotliCodec result(8);
-            return &result;
-        }
+#define CODEC Zlib
+        PP_FOR_EACH(CASE, (1)(2)(3)(4)(5)(6)(7)(8)(9))
+#undef CODEC
+
+#define CODEC Brotli
+        PP_FOR_EACH(CASE, (1)(2)(3)(4)(5)(6)(7)(8)(9)(10)(11))
+#undef CODEC
+
+#undef CASE
 
         default:
             YUNREACHABLE();

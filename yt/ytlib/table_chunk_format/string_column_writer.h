@@ -18,5 +18,5 @@ std::unique_ptr<IValueColumnWriter> CreateUnversionedStringColumnWriter(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableChunkFormatc
+} // namespace NTableChunkFormat
 } // namespace NYT

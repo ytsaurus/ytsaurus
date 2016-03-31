@@ -570,10 +570,9 @@ void TOperationControllerBase::TTask::OnJobCompleted(TJobletPtr joblet, const TC
             }
         }
     } else {
-        for (int index = 0; index < static_cast<int>(joblet->ChunkListIds.size()); ++index) {
-            Controller->ChunkListPool->Reinstall(joblet->ChunkListIds[index]);
-            joblet->ChunkListIds[index] = NullChunkListId;
-        }
+        auto& chunkListIds = joblet->ChunkListIds;
+        Controller->ChunkListPool->Release(chunkListIds);
+        std::fill(chunkListIds.begin(), chunkListIds.end(), NullChunkListId);
     }
     GetChunkPoolOutput()->Completed(joblet->OutputCookie);
 }
@@ -3757,8 +3756,10 @@ void TOperationControllerBase::RegisterOutput(
         RegisterOutput(joblet->ChunkListIds[tableIndex], key, tableIndex, table);
 
         if (!table.KeyColumns.empty() && IsSortedOutputSupported()) {
-            YCHECK(userJobResult);
-            const auto& boundaryKeys = userJobResult->output_boundary_keys(tableIndex);
+            YCHECK(jobSummary.Abandoned || userJobResult);
+            const auto& boundaryKeys = jobSummary.Abandoned
+                ? EmptyBoundaryKeys()
+                : userJobResult->output_boundary_keys(tableIndex);
             RegisterBoundaryKeys(boundaryKeys, key, &table);
         }
     }
@@ -3939,8 +3940,11 @@ int TOperationControllerBase::SuggestJobCount(
     int maxJobCount) const
 {
     i64 suggestionBySize = (totalDataSize + dataSizePerJob - 1) / dataSizePerJob;
-    i64 jobCount = configJobCount.Get(suggestionBySize);
-    return static_cast<int>(Clamp(jobCount, 1, maxJobCount));
+    // Job count must fit into int.
+    suggestionBySize = Clamp(suggestionBySize, 1, maxJobCount);
+
+    int jobCount = configJobCount.Get(suggestionBySize);
+    return Clamp(jobCount, 1, maxJobCount);
 }
 
 void TOperationControllerBase::InitUserJobSpecTemplate(

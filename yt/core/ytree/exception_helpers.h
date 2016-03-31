@@ -20,6 +20,7 @@ void ThrowNoSuchCustomAttribute(const Stroka& key);
 void ThrowMethodNotSupported(const Stroka& method, const TNullable<Stroka>& resolveType = Null);
 void ThrowCannotHaveChildren(IConstNodePtr node);
 void ThrowAlreadyExists(IConstNodePtr node);
+void ThrowExistsAndTypeMismatch(IConstNodePtr node);
 void ThrowCannotRemoveRoot();
 void ThrowCannotReplaceRoot();
 void ThrowCannotRemoveAttribute(const Stroka& key);

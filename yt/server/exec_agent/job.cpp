@@ -64,6 +64,7 @@ using namespace NCellNode;
 using namespace NNodeTrackerClient;
 using namespace NNodeTrackerClient::NProto;
 using namespace NJobTrackerClient;
+using namespace NJobProberClient;
 using namespace NJobTrackerClient::NProto;
 using namespace NScheduler;
 using namespace NScheduler::NProto;
@@ -232,16 +233,6 @@ public:
         }
     }
 
-    NJobProberClient::TJobProberServiceProxy CreateJobProberProxy() const
-    {
-        auto jobProberClient = CreateTcpBusClient(Slot_->GetRpcClientConfig());
-        auto jobProberChannel = CreateBusChannel(jobProberClient);
-
-        NJobProberClient::TJobProberServiceProxy jobProberProxy(jobProberChannel);
-        jobProberProxy.SetDefaultTimeout(Bootstrap_->GetConfig()->ExecAgent->JobProberRpcTimeout);
-        return jobProberProxy;
-    }
-
     virtual void SetStatistics(const NJobTrackerClient::NProto::TStatistics& statistics) override
     {
         TGuard<TSpinLock> guard(SpinLock);
@@ -252,7 +243,8 @@ public:
 
     virtual std::vector<TChunkId> DumpInputContexts() const override
     {
-        auto jobProberProxy = CreateJobProberProxy();
+        ValidateJobRunning();
+        auto jobProberProxy = CreateJobProber();
         auto req = jobProberProxy.DumpInputContext();
 
         ToProto(req->mutable_job_id(), Id_);
@@ -265,7 +257,8 @@ public:
 
     virtual TYsonString Strace() const override
     {
-        auto jobProberProxy = CreateJobProberProxy();
+        ValidateJobRunning();
+        auto jobProberProxy = CreateJobProber();
         auto req = jobProberProxy.Strace();
 
         ToProto(req->mutable_job_id(), Id_);
@@ -278,9 +271,10 @@ public:
 
     virtual void SignalJob(const Stroka& signalName) override
     {
-        Signaled_ = true;
+        ValidateJobRunning();
 
-        auto jobProberProxy = CreateJobProberProxy();
+        Signaled_ = true;
+        auto jobProberProxy = CreateJobProber();
         auto req = jobProberProxy.SignalJob();
 
         ToProto(req->mutable_job_id(), Id_);
@@ -325,6 +319,25 @@ private:
 
     NLogging::TLogger Logger = ExecAgentLogger;
 
+    void ValidateJobRunning() const
+    {
+        if (JobState_ != EJobState::Running) {
+            THROW_ERROR_EXCEPTION("Job %v is not running", Id_) 
+                << TErrorAttribute("job_state", FormatEnum(JobState_));
+        }
+    }
+
+    TJobProberServiceProxy CreateJobProber() const
+    {
+        YCHECK(Slot_);
+
+        auto jobProberClient = CreateTcpBusClient(Slot_->GetRpcClientConfig());
+        auto jobProberChannel = CreateBusChannel(jobProberClient);
+
+        TJobProberServiceProxy jobProberProxy(jobProberChannel);
+        jobProberProxy.SetDefaultTimeout(Bootstrap_->GetConfig()->ExecAgent->JobProberRpcTimeout);
+        return jobProberProxy;
+    }
 
     void DoPrepare()
     {

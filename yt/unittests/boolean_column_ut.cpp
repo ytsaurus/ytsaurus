@@ -28,7 +28,7 @@ protected:
         return data;
     }
 
-    std::vector<TNullable<bool>> CreateDirectRLE()
+    std::vector<TNullable<bool>> CreateDirectRle()
     {
         std::vector<TNullable<bool>> data;
         for (int i = 0; i < 100; ++i) {
@@ -39,10 +39,10 @@ protected:
         return data;
     }
 
-        void Write(IValueColumnWriter* columnWriter)
+    void Write(IValueColumnWriter* columnWriter)
     {
         WriteSegment(columnWriter, CreateDirectDense());
-        WriteSegment(columnWriter, CreateDirectRLE());
+        WriteSegment(columnWriter, CreateDirectRle());
     }
 
     virtual std::unique_ptr<IUnversionedColumnReader> CreateColumnReader() override
@@ -62,7 +62,7 @@ TEST_F(TUnversionedBooleanColumnTest, ReadValues)
 {
     std::vector<TNullable<bool>> expected;
     AppendVector(&expected, CreateDirectDense());
-    AppendVector(&expected, CreateDirectRLE());
+    AppendVector(&expected, CreateDirectRle());
     
     Validate(CreateRows(expected), 1111, 15555);
 }

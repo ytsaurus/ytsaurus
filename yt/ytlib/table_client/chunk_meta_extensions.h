@@ -42,7 +42,7 @@ NChunkClient::NProto::TChunkMeta FilterChunkMetaByPartitionTag(
     const NChunkClient::NProto::TChunkMeta& chunkMeta,
     int partitionTag);
 
-NProto::TBoundaryKeysExt EmptyBoundaryKeys();
+const NProto::TBoundaryKeysExt& EmptyBoundaryKeys();
 
 } // namespace NTableClient
 

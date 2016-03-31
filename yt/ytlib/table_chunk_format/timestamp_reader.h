@@ -92,7 +92,7 @@ class TTimestampReaderBase
     : public TColumnReaderBase
 {
 public:
-    TTimestampReaderBase(const NProto::TColumnMeta& meta);
+    explicit TTimestampReaderBase(const NProto::TColumnMeta& meta);
 
     virtual i64 GetReadyUpperRowIndex() const override
     {
@@ -232,7 +232,7 @@ class TCompactionTimestampReader
     : public TTimestampReaderBase
 {
 public:
-    TCompactionTimestampReader(const NProto::TColumnMeta& meta)
+    explicit TCompactionTimestampReader(const NProto::TColumnMeta& meta)
         : TTimestampReaderBase(meta)
     { }
 

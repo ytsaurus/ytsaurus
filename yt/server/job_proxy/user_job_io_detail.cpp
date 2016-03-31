@@ -125,11 +125,9 @@ ISchemalessMultiChunkReaderPtr TUserJobIOBase::GetReader() const
 
 TBoundaryKeysExt TUserJobIOBase::GetBoundaryKeys(ISchemalessMultiChunkWriterPtr writer) const
 {
-    static TBoundaryKeysExt emptyBoundaryKeys = EmptyBoundaryKeys();
-
     const auto& chunks = writer->GetWrittenChunksMasterMeta();
     if (!writer->IsSorted() || chunks.empty()) {
-        return emptyBoundaryKeys;
+        return EmptyBoundaryKeys();
     }
 
     TBoundaryKeysExt boundaryKeys;
@@ -137,7 +135,6 @@ TBoundaryKeysExt TUserJobIOBase::GetBoundaryKeys(ISchemalessMultiChunkWriterPtr 
     boundaryKeys.set_min(frontBoundaryKeys.min());
     auto backBoundaryKeys = GetProtoExtension<TBoundaryKeysExt>(chunks.back().chunk_meta().extensions());
     boundaryKeys.set_max(backBoundaryKeys.max());
-
     return boundaryKeys;
 }
 

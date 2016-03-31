@@ -965,7 +965,7 @@ struct TAsyncViaHelper<R(TArgs...)>
 
 template <class R, class... TArgs>
 TCallback<typename TFutureTraits<R>::TWrapped(TArgs...)>
-TCallback<R(TArgs...)>::AsyncVia(IInvokerPtr invoker)
+TCallback<R(TArgs...)>::AsyncVia(IInvokerPtr invoker) const
 {
     return NYT::NDetail::TAsyncViaHelper<R(TArgs...)>::Do(*this, std::move(invoker));
 }

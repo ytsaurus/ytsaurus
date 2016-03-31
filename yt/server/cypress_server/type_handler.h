@@ -25,13 +25,13 @@ struct INodeTypeHandler
         NTransactionServer::TTransaction* transaction) = 0;
 
     //! Returns the (dynamic) node type.
-    virtual NObjectClient::EObjectType GetObjectType() = 0;
+    virtual NObjectClient::EObjectType GetObjectType() const = 0;
 
     //! Returns the (static) node type.
-    virtual NYTree::ENodeType GetNodeType() = 0;
+    virtual NYTree::ENodeType GetNodeType() const = 0;
 
     //! Returns the set of all permissions supported by this node type.
-    virtual NYTree::EPermissionSet GetSupportedPermissions() = 0;
+    virtual NYTree::EPermissionSet GetSupportedPermissions() const = 0;
 
     //! Create an empty instance of a node.
     //! Called during snapshot deserialization and node cloning.
@@ -89,7 +89,7 @@ struct INodeTypeHandler
         ENodeCloneMode mode) = 0;
 
     //! Returns |true| if nodes of this type can be stored at external cells.
-    virtual bool IsExternalizable() = 0;
+    virtual bool IsExternalizable() const = 0;
 
     //! Returns the total resource usage as seen by the user.
     //! These values are exposed via |resource_usage| attribute.

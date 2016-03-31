@@ -69,12 +69,23 @@ TChunkMeta FilterChunkMetaByPartitionTag(const TChunkMeta& chunkMeta, int partit
     return filteredChunkMeta;
 }
 
-TBoundaryKeysExt EmptyBoundaryKeys()
+namespace {
+
+TBoundaryKeysExt MakeEmptyBoundaryKeys()
 {
     TBoundaryKeysExt boundaryKeys;
     boundaryKeys.mutable_min();
     boundaryKeys.mutable_max();
     return boundaryKeys;
+}
+
+const auto CachedEmptyBoundaryKeys = MakeEmptyBoundaryKeys();
+
+} // namespace
+
+const TBoundaryKeysExt& EmptyBoundaryKeys()
+{
+    return CachedEmptyBoundaryKeys;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -195,12 +195,12 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDirectRLEStringUnversionedValueExtractor
-    : public TRLEValueExtractorBase
+class TDirectRleStringUnversionedValueExtractor
+    : public TRleValueExtractorBase
     , public TDirectStringValueExtractorBase<EValueType::String>
 {
 public:
-    TDirectRLEStringUnversionedValueExtractor(TRef data, const TSegmentMeta& meta)
+    TDirectRleStringUnversionedValueExtractor(TRef data, const TSegmentMeta& meta)
         : TDirectStringValueExtractorBase(meta)
     {
         const char* ptr = data.Begin();
@@ -213,12 +213,12 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDictionaryRLEStringUnversionedValueExtractor
-    : public TRLEValueExtractorBase
+class TDictionaryRleStringUnversionedValueExtractor
+    : public TRleValueExtractorBase
     , public TDictionaryStringValueExtractorBase<EValueType::String>
 {
 public:
-    TDictionaryRLEStringUnversionedValueExtractor(TRef data, const TSegmentMeta& meta)
+    TDictionaryRleStringUnversionedValueExtractor(TRef data, const TSegmentMeta& meta)
         : TDictionaryStringValueExtractorBase(meta)
     {
         const char* ptr = data.Begin();
@@ -361,13 +361,13 @@ private:
             EValueType::String,
             TDictionaryDenseStringUnversionedValueExtractor> TDictionaryDenseReader;
 
-        typedef TRLEUnversionedSegmentReader<
+        typedef TRleUnversionedSegmentReader<
             EValueType::String,
-            TDirectRLEStringUnversionedValueExtractor> TDirectRLEReader;
+            TDirectRleStringUnversionedValueExtractor> TDirectRleReader;
 
-        typedef TRLEUnversionedSegmentReader<
+        typedef TRleUnversionedSegmentReader<
             EValueType::String,
-            TDictionaryRLEStringUnversionedValueExtractor> TDictionaryRLEReader;
+            TDictionaryRleStringUnversionedValueExtractor> TDictionaryRleReader;
 
         const auto& meta = ColumnMeta_.segments(segmentIndex);
         auto segmentType = EUnversionedStringSegmentType(meta.type());
@@ -379,11 +379,11 @@ private:
             case EUnversionedStringSegmentType::DictionaryDense:
                 return DoCreateSegmentReader<TDictionaryDenseReader>(meta);
 
-            case EUnversionedStringSegmentType::DirectRLE:
-                return DoCreateSegmentReader<TDirectRLEReader>(meta);
+            case EUnversionedStringSegmentType::DirectRle:
+                return DoCreateSegmentReader<TDirectRleReader>(meta);
 
-            case EUnversionedStringSegmentType::DictionaryRLE:
-                return DoCreateSegmentReader<TDictionaryRLEReader>(meta);
+            case EUnversionedStringSegmentType::DictionaryRle:
+                return DoCreateSegmentReader<TDictionaryRleReader>(meta);
 
             default:
                 YUNREACHABLE();
