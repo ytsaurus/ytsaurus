@@ -51,8 +51,8 @@ protected:
 
         TUnversionedOwningRowBuilder builder;
 
-        int keyCount = static_cast<int>(Tablet_->KeyColumns().size());
-        int schemaColumnCount = static_cast<int>(Tablet_->Schema().Columns().size());
+        int keyCount = Tablet_->GetKeyColumnCount();
+        int schemaColumnCount = Tablet_->GetSchemaColumnCount();
 
         // Keys
         const auto* keys = row.BeginKeys();
@@ -75,7 +75,7 @@ protected:
 
     const TLockDescriptor& GetLock(TSortedDynamicRow row, int index = TSortedDynamicRow::PrimaryLockIndex)
     {
-        return row.BeginLocks(Tablet_->KeyColumns().size())[index];
+        return row.BeginLocks(Tablet_->GetKeyColumnCount())[index];
     }
 };
 

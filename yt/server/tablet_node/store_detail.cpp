@@ -60,7 +60,6 @@ TStoreBase::TStoreBase(
     , PerformanceCounters_(Tablet_->GetPerformanceCounters())
     , TabletId_(Tablet_->GetId())
     , Schema_(Tablet_->Schema())
-    , KeyColumns_(Tablet_->KeyColumns())
     , KeyColumnCount_(Tablet_->GetKeyColumnCount())
     , SchemaColumnCount_(Tablet_->GetSchemaColumnCount())
     , ColumnLockCount_(Tablet_->GetColumnLockCount())
@@ -128,12 +127,12 @@ void TStoreBase::SetMemoryUsage(i64 value)
 
 TOwningKey TStoreBase::RowToKey(TUnversionedRow row)
 {
-    return NTabletNode::RowToKey(Schema_, KeyColumns_, row);
+    return NTabletNode::RowToKey(Schema_, row);
 }
 
 TOwningKey TStoreBase::RowToKey(TSortedDynamicRow row)
 {
-    return NTabletNode::RowToKey(Schema_, KeyColumns_, row);
+    return NTabletNode::RowToKey(Schema_, row);
 }
 
 void TStoreBase::Save(TSaveContext& context) const

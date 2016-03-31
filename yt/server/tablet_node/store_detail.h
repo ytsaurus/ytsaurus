@@ -73,7 +73,6 @@ protected:
     const TTabletPerformanceCountersPtr PerformanceCounters_;
     const TTabletId TabletId_;
     const NTableClient::TTableSchema Schema_;
-    const NTableClient::TKeyColumns KeyColumns_;
     const int KeyColumnCount_;
     const int SchemaColumnCount_;
     const int ColumnLockCount_;

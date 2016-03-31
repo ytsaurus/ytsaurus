@@ -325,7 +325,7 @@ private:
         auto fetcher = New<TSamplesFetcher>(
             Config_->SamplesFetcher,
             maxSampleCount,
-            tablet->KeyColumns(),
+            tablet->Schema().GetKeyColumns(),
             std::numeric_limits<i64>::max(),
             nodeDirectory,
             GetCurrentInvoker(),

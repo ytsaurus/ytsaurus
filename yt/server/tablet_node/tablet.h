@@ -118,7 +118,6 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(NObjectClient::TObjectId, TableId);
 
     DEFINE_BYREF_RO_PROPERTY(NTableClient::TTableSchema, Schema);
-    DEFINE_BYREF_RO_PROPERTY(NTableClient::TKeyColumns, KeyColumns);
 
     DEFINE_BYREF_RO_PROPERTY(std::vector<int>, ColumnIndexToLockIndex);
     DEFINE_BYREF_RO_PROPERTY(std::vector<Stroka>, LockIndexToName);
@@ -153,7 +152,6 @@ public:
         const NObjectClient::TObjectId& tableId,
         ITabletContext* context,
         const NTableClient::TTableSchema& schema,
-        const NTableClient::TKeyColumns& keyColumns,
         TOwningKey pivotKey,
         TOwningKey nextPivotKey,
         NTransactionClient::EAtomicity atomicity);
