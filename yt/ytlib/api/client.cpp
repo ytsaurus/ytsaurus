@@ -1691,7 +1691,7 @@ private:
             : nullptr;
 
         for (int index = 0; index < keys.Size(); ++index) {
-            ValidateClientKey(keys[index], keyColumnCount, tableInfo->Schema, idMapping);
+            ValidateClientKey(keys[index], tableInfo->Schema, idMapping);
             auto capturedKey = rowBuffer->CaptureAndPermuteRow(keys[index], tableInfo->Schema, idMapping);
 
             if (evaluator) {
@@ -2911,7 +2911,7 @@ private:
         : public TRequestBase
     {
     protected:
-        using TRowValidator = void(TUnversionedRow, int, const TTableSchema&, const TNameTableToSchemaIdMapping&);
+        using TRowValidator = void(TUnversionedRow, const TTableSchema&, const TNameTableToSchemaIdMapping&);
 
         TModifyRequest(
             TTransaction* transaction,
@@ -2929,19 +2929,18 @@ private:
         {
             const auto& idMapping = Transaction_->GetColumnIdMapping(TableInfo_, NameTable_);
             const auto& schema = TableInfo_->Schema;
-            int keyColumnCount = schema.GetKeyColumnCount();
             const auto& rowBuffer = Transaction_->GetRowBuffer();
             auto evaluatorCache = Transaction_->GetConnection()->GetColumnEvaluatorCache();
             auto evaluator = TableInfo_->NeedKeyEvaluation
-                ? evaluatorCache->Find(TableInfo_->Schema, keyColumnCount)
+                ? evaluatorCache->Find(schema, schema.GetKeyColumnCount())
                 : nullptr;
 
             for (auto row : rows) {
-                validateRow(row, keyColumnCount, TableInfo_->Schema, idMapping);
+                validateRow(row, TableInfo_->Schema, idMapping);
 
                 auto capturedRow = rowBuffer->CaptureAndPermuteRow(row, TableInfo_->Schema, idMapping);
 
-                for (int index = keyColumnCount; index < capturedRow.GetCount(); ++index) {
+                for (int index = schema.GetKeyColumnCount(); index < capturedRow.GetCount(); ++index) {
                     auto& value = capturedRow[index];
                     const auto& columnSchema = schema.Columns()[value.Id];
                     value.Aggregate = columnSchema.Aggregate ? writeOptions.Aggregate : false;
