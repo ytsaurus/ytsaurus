@@ -263,6 +263,25 @@ class TestJobProber(YTEnvSetup):
         op.track()
         assert len(read_table("//tmp/t2")) == 4
 
+    def test_abandon_job_sorted_empty_output(self):
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+        write_table("<append=true>//tmp/t1", {"key": "foo", "value": "bar"})
+
+        op = map(
+            dont_track=True,
+            waiting_jobs=True,
+            label="abandon_job",
+            in_="//tmp/t1",
+            out="<sorted_by=[key]>//tmp/t2",
+            command="sleep 5; cat")
+
+        abandon_job(op.jobs[0])
+
+        op.resume_jobs()
+        op.track()
+        assert len(read_table("//tmp/t2")) == 0
+
 ##################################################################
 
 class TestSchedulerMapCommands(YTEnvSetup):
