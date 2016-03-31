@@ -1553,7 +1553,7 @@ private:
                     TReqLookupRows writtenReq;
                     reader.ReadMessage(&writtenReq);
 
-                    auto schemaData = TWireProtocolReader::GetSchemaData(TableInfo_->Schema, TableInfo_->Schema.GetKeyColumnCount());
+                    auto schemaData = TWireProtocolReader::GetSchemaData(TableInfo_->Schema);
                     auto rowset = reader.ReadSchemafulRowset(schemaData);
 
                     YCHECK(rowset.Size() == batch->Keys.size());
