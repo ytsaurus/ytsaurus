@@ -6,6 +6,7 @@
 
 #include <yt/core/misc/common.h>
 #include <yt/core/misc/fs.h>
+#include <yt/core/misc/proc.h>
 
 namespace NYT {
 namespace NLogging {
@@ -142,8 +143,7 @@ void TStreamLogWriterBase::OnException(const std::exception& ex)
     formatter.AppendString(ex.what());
     formatter.AppendString("\n*** Aborting ***\n");
 
-    auto unused = ::write(2, formatter.GetData(), formatter.GetBytesWritten());
-    (void)unused;
+    HandleEintr(::write, 2, formatter.GetData(), formatter.GetBytesWritten());
 
     std::terminate();
 }
