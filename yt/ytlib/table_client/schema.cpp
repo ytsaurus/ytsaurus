@@ -482,6 +482,7 @@ void Serialize(const TTableSchema& schema, IYsonConsumer* consumer)
     BuildYsonFluently(consumer)
         .BeginAttributes()
             .Item("strict").Value(schema.GetStrict())
+            .Item("optimized_for").Value(schema.GetOptimizedFor())
         .EndAttributes()
         .Value(schema.Columns());
 }

@@ -33,9 +33,9 @@ class TNontemplateCypressNodeTypeHandlerBase
 public:
     explicit TNontemplateCypressNodeTypeHandlerBase(NCellMaster::TBootstrap* bootstrap);
 
-    virtual NYTree::EPermissionSet GetSupportedPermissions();
+    virtual NYTree::EPermissionSet GetSupportedPermissions() const;
 
-    virtual bool IsExternalizable() override;
+    virtual bool IsExternalizable() const override;
 
 protected:
     NCellMaster::TBootstrap* const Bootstrap_;
@@ -381,12 +381,12 @@ public:
         : TBase(bootstrap)
     { }
 
-    virtual NObjectClient::EObjectType GetObjectType() override
+    virtual NObjectClient::EObjectType GetObjectType() const override
     {
         return NDetail::TCypressScalarTypeTraits<TValue>::ObjectType;
     }
 
-    virtual NYTree::ENodeType GetNodeType() override
+    virtual NYTree::ENodeType GetNodeType() const override
     {
         return NDetail::TCypressScalarTypeTraits<TValue>::NodeType;
     }
@@ -469,8 +469,8 @@ class TMapNodeTypeHandler
 public:
     explicit TMapNodeTypeHandler(NCellMaster::TBootstrap* bootstrap);
 
-    virtual NObjectClient::EObjectType GetObjectType() override;
-    virtual NYTree::ENodeType GetNodeType() override;
+    virtual NObjectClient::EObjectType GetObjectType() const override;
+    virtual NYTree::ENodeType GetNodeType() const override;
 
 private:
     typedef TCypressNodeTypeHandlerBase<TMapNode> TBase;
@@ -529,8 +529,8 @@ class TListNodeTypeHandler
 public:
     explicit TListNodeTypeHandler(NCellMaster::TBootstrap* bootstrap);
 
-    virtual NObjectClient::EObjectType GetObjectType() override;
-    virtual NYTree::ENodeType GetNodeType() override;
+    virtual NObjectClient::EObjectType GetObjectType() const override;
+    virtual NYTree::ENodeType GetNodeType() const override;
 
 private:
     typedef TCypressNodeTypeHandlerBase<TListNode> TBase;
@@ -583,8 +583,8 @@ class TLinkNodeTypeHandler
 public:
     explicit TLinkNodeTypeHandler(NCellMaster::TBootstrap* bootstrap);
 
-    virtual NObjectClient::EObjectType GetObjectType() override;
-    virtual NYTree::ENodeType GetNodeType() override;
+    virtual NObjectClient::EObjectType GetObjectType() const override;
+    virtual NYTree::ENodeType GetNodeType() const override;
 
 private:
     typedef TCypressNodeTypeHandlerBase<TLinkNode> TBase;
@@ -641,8 +641,8 @@ class TDocumentNodeTypeHandler
 public:
     explicit TDocumentNodeTypeHandler(NCellMaster::TBootstrap* bootstrap);
 
-    virtual NObjectClient::EObjectType GetObjectType() override;
-    virtual NYTree::ENodeType GetNodeType() override;
+    virtual NObjectClient::EObjectType GetObjectType() const override;
+    virtual NYTree::ENodeType GetNodeType() const override;
 
 private:
     typedef TCypressNodeTypeHandlerBase<TDocumentNode> TBase;

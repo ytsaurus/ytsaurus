@@ -178,5 +178,75 @@ size_t TSparseVersionedValueExtractorBase::InitSparseReader(const char* ptr)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TVersionedColumnReaderBase::TVersionedColumnReaderBase(const TColumnMeta& columnMeta, int columnId, bool aggregate)
+    : TColumnReaderBase(columnMeta)
+    , ColumnId_(columnId)
+    , Aggregate_(aggregate)
+{ }
+
+void TVersionedColumnReaderBase::GetValueCounts(TMutableRange<ui32> valueCounts)
+{
+    EnsureSegmentReader();
+    SegmentReader_->GetValueCounts(valueCounts);
+}
+
+void TVersionedColumnReaderBase::ReadValues(
+    TMutableRange<TMutableVersionedRow> rows,
+    TRange<std::pair<ui32, ui32>> timestampIndexRanges)
+{
+    i64 readRowCount = 0;
+    while (readRowCount < rows.Size()) {
+        YCHECK(CurrentSegmentIndex_ <= LastBlockSegmentIndex_);
+        EnsureSegmentReader();
+
+        i64 count = SegmentReader_->ReadValues(
+            rows.Slice(rows.Begin() + readRowCount, rows.End()),
+            timestampIndexRanges.Slice(readRowCount, timestampIndexRanges.Size()));
+
+        readRowCount += count;
+        CurrentRowIndex_ += count;
+
+        if (SegmentReader_->EndOfSegment()) {
+            SegmentReader_.reset();
+            ++CurrentSegmentIndex_;
+        }
+    }
+}
+
+void TVersionedColumnReaderBase::ReadAllValues(TMutableRange<TMutableVersionedRow> rows)
+{
+    i64 readRowCount = 0;
+    while (readRowCount < rows.Size()) {
+        YCHECK(CurrentSegmentIndex_ <= LastBlockSegmentIndex_);
+        EnsureSegmentReader();
+
+        i64 count = SegmentReader_->ReadAllValues(
+            rows.Slice(rows.Begin() + readRowCount, rows.End()));
+
+        readRowCount += count;
+        CurrentRowIndex_ += count;
+
+        if (SegmentReader_->EndOfSegment()) {
+            SegmentReader_.reset();
+            ++CurrentSegmentIndex_;
+        }
+    }
+}
+
+void TVersionedColumnReaderBase::ResetSegmentReader()
+{
+    SegmentReader_.reset();
+}
+
+void TVersionedColumnReaderBase::EnsureSegmentReader()
+{
+    if (!SegmentReader_) {
+        SegmentReader_ = CreateSegmentReader(CurrentSegmentIndex_);
+    }
+    SegmentReader_->SkipToRowIndex(CurrentRowIndex_);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NTableChunkFormat
 } // namespace NYT

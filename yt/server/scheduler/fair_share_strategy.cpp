@@ -63,6 +63,10 @@ struct TSchedulableAttributes
     double MaxPossibleUsageRatio = 1.0;
     double BestAllocationRatio = 1.0;
     i64 DominantLimit = 0;
+
+    double FairShareStarvationTolerance = 1.0;
+    TDuration MinSharePreemptionTimeout;
+    TDuration FairSharePreemptionTimeout;
 };
 
 struct TDynamicAttributes
@@ -114,6 +118,10 @@ struct ISchedulerElement
 
     virtual ESchedulableStatus GetStatus() const = 0;
 
+    virtual double GetFairShareStarvationTolerance() const = 0;
+    virtual TDuration GetMinSharePreemptionTimeout() const = 0;
+    virtual TDuration GetFairSharePreemptionTimeout() const = 0;
+
     virtual bool GetStarving() const = 0;
     virtual void SetStarving(bool starving) = 0;
     virtual void CheckForStarvation(TInstant now) = 0;
@@ -139,6 +147,7 @@ struct TFairShareContext
 
     const ISchedulingContextPtr SchedulingContext;
     int AttributesIndex;
+    TDuration TotalScheduleJobDuration;
 };
 
 class TDynamicAttributesList
@@ -304,7 +313,7 @@ public:
                : ESchedulableStatus::BelowFairShare;
     }
 
-    ESchedulableStatus GetStatus() const override
+    virtual ESchedulableStatus GetStatus() const override
     {
         return ESchedulableStatus::Normal;
     }
@@ -452,6 +461,20 @@ public:
 
         // Propagate updates to children.
         for (const auto& child : Children) {
+            auto& childAttributes = child->Attributes();
+
+            childAttributes.FairShareStarvationTolerance = std::min(
+                child->GetFairShareStarvationTolerance(),
+                Attributes_.FairShareStarvationTolerance);
+
+            childAttributes.MinSharePreemptionTimeout = std::max(
+                child->GetMinSharePreemptionTimeout(),
+                Attributes_.MinSharePreemptionTimeout);
+
+            childAttributes.FairSharePreemptionTimeout = std::max(
+                child->GetFairSharePreemptionTimeout(),
+                Attributes_.FairSharePreemptionTimeout);
+
             child->UpdateTopDown();
         }
     }
@@ -878,8 +901,22 @@ public:
 
     virtual ESchedulableStatus GetStatus() const override
     {
-        return TSchedulerElementBase::GetStatus(
-            Config_->FairShareStarvationTolerance.Get(StrategyConfig_->FairShareStarvationTolerance));
+        return TSchedulerElementBase::GetStatus(Attributes_.FairShareStarvationTolerance);
+    }
+
+    virtual double GetFairShareStarvationTolerance() const override
+    {
+        return Config_->FairShareStarvationTolerance.Get(StrategyConfig_->FairShareStarvationTolerance);
+    }
+
+    virtual TDuration GetMinSharePreemptionTimeout() const override
+    {
+        return Config_->MinSharePreemptionTimeout.Get(StrategyConfig_->MinSharePreemptionTimeout);
+    }
+
+    virtual TDuration GetFairSharePreemptionTimeout() const override
+    {
+        return Config_->FairSharePreemptionTimeout.Get(StrategyConfig_->FairSharePreemptionTimeout);
     }
 
     virtual void SetStarving(bool starving) override
@@ -899,8 +936,8 @@ public:
     virtual void CheckForStarvation(TInstant now) override
     {
         TSchedulerElementBase::CheckForStarvation(
-            Config_->MinSharePreemptionTimeout.Get(StrategyConfig_->MinSharePreemptionTimeout),
-            Config_->FairSharePreemptionTimeout.Get(StrategyConfig_->FairSharePreemptionTimeout),
+            Attributes_.MinSharePreemptionTimeout,
+            Attributes_.FairSharePreemptionTimeout,
             now);
     }
 
@@ -927,16 +964,12 @@ public:
 
     virtual int GetMaxRunningOperationCount() const override
     {
-        return Config_->MaxRunningOperationCount
-            ? *(Config_->MaxRunningOperationCount)
-            : StrategyConfig_->MaxRunningOperationCountPerPool;
+        return Config_->MaxRunningOperationCount.Get(StrategyConfig_->MaxRunningOperationCountPerPool);
     }
 
     virtual int GetMaxOperationCount() const override
     {
-        return Config_->MaxOperationCount
-            ? *(Config_->MaxOperationCount)
-            : StrategyConfig_->MaxOperationCountPerPool;
+        return Config_->MaxOperationCount.Get(StrategyConfig_->MaxOperationCountPerPool);
     }
 
 private:
@@ -991,13 +1024,28 @@ public:
         , Pool_(nullptr)
         , ResourceUsage_(ZeroJobResources())
         , NonpreemptableResourceUsage_(ZeroJobResources())
-        , Config(config)
+        , Config_(config)
         , OperationId_(Operation_->GetId())
     {
         auto& attributes = DynamicAttributes(GlobalAttributesIndex);
         attributes.Active = true;
         attributes.MinSubtreeStartTime = operation->GetStartTime();
         attributes.BestLeafDescendant = this;
+    }
+
+    virtual double GetFairShareStarvationTolerance() const override
+    {
+        return Spec_->FairShareStarvationTolerance.Get(Config_->FairShareStarvationTolerance);
+    }
+
+    virtual TDuration GetMinSharePreemptionTimeout() const override
+    {
+        return Spec_->MinSharePreemptionTimeout.Get(Config_->MinSharePreemptionTimeout);
+    }
+
+    virtual TDuration GetFairSharePreemptionTimeout() const override
+    {
+        return Spec_->FairSharePreemptionTimeout.Get(Config_->FairSharePreemptionTimeout);
     }
 
     virtual void UpdateBottomUp() override
@@ -1056,7 +1104,7 @@ public:
         };
 
         if (!Operation_->IsSchedulable() ||
-            ConcurrentScheduleJobCalls_ >= Config->MaxConcurrentControllerScheduleJobCalls)
+            ConcurrentScheduleJobCalls_ >= Config_->MaxConcurrentControllerScheduleJobCalls)
         {
             DynamicAttributes(context.AttributesIndex).Active = false;
             updateAncestorsAttributes();
@@ -1071,6 +1119,7 @@ public:
         NProfiling::TScopedTimer timer;
         auto jobStartRequest = DoScheduleJob(context);
         auto scheduleJobDuration = timer.GetElapsed();
+        context.TotalScheduleJobDuration += scheduleJobDuration;
 
         // This can happen if operation controller was canceled after invocation
         // of IOperationController::ScheduleJob. In this case cancel won't be applied
@@ -1155,7 +1204,7 @@ public:
         return MaxPossibleResourceUsage_;
     }
 
-    ESchedulableStatus GetStatus() const
+    virtual ESchedulableStatus GetStatus() const override
     {
         if (!Operation_->IsSchedulable()) {
             return ESchedulableStatus::Normal;
@@ -1165,8 +1214,7 @@ public:
             return ESchedulableStatus::Normal;
         }
 
-        return TSchedulerElementBase::GetStatus(
-            Spec_->FairShareStarvationTolerance.Get(Config->FairShareStarvationTolerance));
+        return TSchedulerElementBase::GetStatus(Attributes_.FairShareStarvationTolerance);
     }
 
     virtual void SetStarving(bool starving) override
@@ -1185,11 +1233,11 @@ public:
 
     virtual void CheckForStarvation(TInstant now) override
     {
-        auto minSharePreemptionTimeout = Spec_->MinSharePreemptionTimeout.Get(Config->MinSharePreemptionTimeout);
-        auto fairSharePreemptionTimeout = Spec_->FairSharePreemptionTimeout.Get(Config->FairSharePreemptionTimeout);
+        auto minSharePreemptionTimeout = Attributes_.MinSharePreemptionTimeout;
+        auto fairSharePreemptionTimeout = Attributes_.FairSharePreemptionTimeout;
 
         int jobCount = Operation_->GetController()->GetPendingJobCount();
-        double jobCountRatio = jobCount / Config->JobCountPreemptionTimeoutCoefficient;
+        double jobCountRatio = jobCount / Config_->JobCountPreemptionTimeoutCoefficient;
 
         if (jobCountRatio < 1.0) {
             minSharePreemptionTimeout *= jobCountRatio;
@@ -1340,7 +1388,7 @@ private:
     mutable TJobResources ResourceLimits_;
     mutable TJobResources MaxPossibleResourceUsage_;
 
-    const TFairShareStrategyConfigPtr Config;
+    const TFairShareStrategyConfigPtr Config_;
     const TOperationId OperationId_;
 
     int ConcurrentScheduleJobCalls_ = 0;
@@ -1383,7 +1431,7 @@ private:
             .Run(context.SchedulingContext, jobLimits);
 
         auto jobStartRequestFutureWithTimeout = jobStartRequestFuture
-            .WithTimeout(Config->ControllerScheduleJobTimeLimit);
+            .WithTimeout(Config_->ControllerScheduleJobTimeLimit);
 
         auto jobStartRequestWithTimeoutOrError = WaitFor(jobStartRequestFutureWithTimeout);
 
@@ -1459,6 +1507,9 @@ public:
         Attributes_.FairShareRatio = 1.0;
         Attributes_.AdjustedMinShareRatio = 1.0;
         Mode = ESchedulingMode::FairShare;
+        Attributes_.FairShareStarvationTolerance = 1.0;
+        Attributes_.MinSharePreemptionTimeout = TDuration::Zero();
+        Attributes_.FairSharePreemptionTimeout = TDuration::Zero();
         Update();
     }
 
@@ -1485,6 +1536,21 @@ public:
     virtual double GetMaxShareRatio() const override
     {
         return 1.0;
+    }
+
+    virtual double GetFairShareStarvationTolerance() const override
+    {
+        return StrategyConfig_->FairShareStarvationTolerance;
+    }
+
+    virtual TDuration GetMinSharePreemptionTimeout() const override
+    {
+        return StrategyConfig_->MinSharePreemptionTimeout;
+    }
+
+    virtual TDuration GetFairSharePreemptionTimeout() const override
+    {
+        return StrategyConfig_->FairSharePreemptionTimeout;
     }
 
     virtual TNullable<Stroka> GetSchedulingTag() const override
@@ -1588,37 +1654,56 @@ public:
 
         // First-chance scheduling.
         LOG_DEBUG("Scheduling new jobs");
-        RootElement->PrescheduleJob(context, false);
-        while (schedulingContext->CanStartMoreJobs()) {
-            if (!RootElement->ScheduleJob(context)) {
-                break;
+        PROFILE_TIMING ("/non_preemptive_preschedule_job_time") {
+            RootElement->PrescheduleJob(context, false);
+        }
+
+        int nonPreemptiveScheduleJobCount = 0;
+        {
+            NProfiling::TScopedTimer timer;
+            while (schedulingContext->CanStartMoreJobs()) {
+                ++nonPreemptiveScheduleJobCount;
+                if (!RootElement->ScheduleJob(context)) {
+                    break;
+                }
             }
+            auto scheduleJobDurationWithoutControllers = timer.GetElapsed() - context.TotalScheduleJobDuration;
+
+            Profiler.Enqueue("/non_preemptive_strategy_schedule_job_time",
+                scheduleJobDurationWithoutControllers.MicroSeconds());
+
+            Profiler.Enqueue("/non_preemptive_controller_schedule_job_time",
+                context.TotalScheduleJobDuration.MicroSeconds());
+
+            Profiler.Enqueue("/non_preemptive_schedule_job_count", nonPreemptiveScheduleJobCount);
         }
 
         // Compute discount to node usage.
         LOG_DEBUG("Looking for preemptable jobs");
         yhash_set<TCompositeSchedulerElementPtr> discountedPools;
         std::vector<TJobPtr> preemptableJobs;
-        for (const auto& job : schedulingContext->RunningJobs()) {
-            const auto& operationElement = FindOperationElement(job->GetOperationId());
-            if (!operationElement || !operationElement->IsJobExisting(job->GetId())) {
-                LOG_DEBUG("Dangling running job found (JobId: %v, OperationId: %v)",
-                    job->GetId(),
-                    job->GetOperationId());
-                continue;
-            }
-
-            if (IsJobPreemptable(job) && !operationElement->HasStarvingParent()) {
-                TCompositeSchedulerElement* pool = operationElement->GetPool();
-                while (pool) {
-                    discountedPools.insert(pool);
-                    pool->DynamicAttributes(attributesIndex).ResourceUsageDiscount += job->ResourceUsage();
-                    pool = pool->GetParent();
+        PROFILE_TIMING ("/analyze_preemptable_jobs_time") {
+            for (const auto& job : schedulingContext->RunningJobs()) {
+                const auto& operationElement = FindOperationElement(job->GetOperationId());
+                if (!operationElement || !operationElement->IsJobExisting(job->GetId())) {
+                    LOG_DEBUG("Dangling running job found (JobId: %v, OperationId: %v)",
+                        job->GetId(),
+                        job->GetOperationId());
+                    continue;
                 }
-                schedulingContext->ResourceUsageDiscount() += job->ResourceUsage();
-                preemptableJobs.push_back(job);
-                LOG_DEBUG("Job is preemptable (JobId: %v)",
-                    job->GetId());
+
+                if (IsJobPreemptable(job) && !operationElement->HasStarvingParent()) {
+                    TCompositeSchedulerElement* pool = operationElement->GetPool();
+                    while (pool) {
+                        discountedPools.insert(pool);
+                        pool->DynamicAttributes(attributesIndex).ResourceUsageDiscount += job->ResourceUsage();
+                        pool = pool->GetParent();
+                    }
+                    schedulingContext->ResourceUsageDiscount() += job->ResourceUsage();
+                    preemptableJobs.push_back(job);
+                    LOG_DEBUG("Job is preemptable (JobId: %v)",
+                        job->GetId());
+                }
             }
         }
 
@@ -1628,14 +1713,32 @@ public:
         // Second-chance scheduling.
         // NB: Schedule at most one job.
         LOG_DEBUG("Scheduling new jobs with preemption");
-        RootElement->PrescheduleJob(context, true);
-        while (schedulingContext->CanStartMoreJobs()) {
-            if (!RootElement->ScheduleJob(context)) {
-                break;
+        PROFILE_TIMING ("/preemptive_preschedule_job_time") {
+            RootElement->PrescheduleJob(context, true);
+        }
+
+        int preemptiveScheduleJobCount = 0;
+        {
+            context.TotalScheduleJobDuration = TDuration::Zero();
+            NProfiling::TScopedTimer timer;
+            while (schedulingContext->CanStartMoreJobs()) {
+                ++preemptiveScheduleJobCount;
+                if (!RootElement->ScheduleJob(context)) {
+                    break;
+                }
+                if (schedulingContext->StartedJobs().size() != startedBeforePreemption) {
+                    break;
+                }
             }
-            if (schedulingContext->StartedJobs().size() != startedBeforePreemption) {
-                break;
-            }
+            auto scheduleJobDurationWithoutControllers = timer.GetElapsed() - context.TotalScheduleJobDuration;
+
+            Profiler.Enqueue("/preemptive_strategy_schedule_job_time",
+                scheduleJobDurationWithoutControllers.MicroSeconds());
+
+            Profiler.Enqueue("/preemptive_controller_schedule_job_time",
+                context.TotalScheduleJobDuration.MicroSeconds());
+
+            Profiler.Enqueue("/preemptive_schedule_job_count", preemptiveScheduleJobCount);
         }
 
         int startedAfterPreemption = schedulingContext->StartedJobs().size();
@@ -1713,12 +1816,15 @@ public:
         FreeAttributesIndex(attributesIndex);
 
         LOG_DEBUG("Heartbeat info (StartedJobs: %v, PreemptedJobs: %v, "
-            "JobsScheduledDuringPreemption: %v, PreemptableJobs: %v, PreemptableResources: %v)",
+            "JobsScheduledDuringPreemption: %v, PreemptableJobs: %v, PreemptableResources: %v, "
+            "NonPreemptiveScheduleJobCount: %v, PreemptiveScheduleJobCount: %v)",
             schedulingContext->StartedJobs().size(),
             schedulingContext->PreemptedJobs().size(),
             scheduledDuringPreemption,
             preemptableJobs.size(),
-            FormatResources(resourceDiscount));
+            FormatResources(resourceDiscount),
+            nonPreemptiveScheduleJobCount,
+            preemptiveScheduleJobCount);
     }
 
     virtual void ResetState() override
@@ -2297,6 +2403,9 @@ private:
         BuildYsonMapFluently(consumer)
             .Item("scheduling_status").Value(element->GetStatus())
             .Item("starving").Value(element->GetStarving())
+            .Item("fair_share_starvation_tolerance").Value(attributes.FairShareStarvationTolerance)
+            .Item("min_share_preemption_timeout").Value(attributes.MinSharePreemptionTimeout)
+            .Item("fair_share_preemption_timeout").Value(attributes.FairSharePreemptionTimeout)
             .Item("resource_demand").Value(element->ResourceDemand())
             .Item("resource_usage").Value(element->ResourceUsage())
             .Item("resource_limits").Value(element->ResourceLimits())

@@ -16,16 +16,11 @@ const int MaxTimestampCount = 128 * 1024;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TTimestampSegmentTag
-{ };
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TTimestampWriter
     : public ITimestampWriter
 {
 public:
-    TTimestampWriter(TDataBlockWriter* blockWriter)
+    explicit TTimestampWriter(TDataBlockWriter* blockWriter)
         : BlockWriter_(blockWriter)
     {
         Reset();

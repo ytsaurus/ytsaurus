@@ -25,7 +25,7 @@ public:
 
     explicit TChunkOwnerTypeHandler(NCellMaster::TBootstrap* bootstrap);
 
-    virtual NYTree::ENodeType GetNodeType() override;
+    virtual NYTree::ENodeType GetNodeType() const override;
 
     virtual NSecurityServer::TClusterResources GetTotalResourceUsage(
         const NCypressServer::TCypressNodeBase* node) override;

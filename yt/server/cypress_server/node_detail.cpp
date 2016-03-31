@@ -44,18 +44,19 @@ TNontemplateCypressNodeTypeHandlerBase::TNontemplateCypressNodeTypeHandlerBase(
     : Bootstrap_(bootstrap)
 { }
 
-bool TNontemplateCypressNodeTypeHandlerBase::IsExternalizable()
+bool TNontemplateCypressNodeTypeHandlerBase::IsExternalizable() const
 {
     return false;
 }
 
-EPermissionSet TNontemplateCypressNodeTypeHandlerBase::GetSupportedPermissions()
+EPermissionSet TNontemplateCypressNodeTypeHandlerBase::GetSupportedPermissions() const
 {
     return
         EPermissionSet::Read |
         EPermissionSet::Write |
         EPermissionSet::Remove |
-        EPermissionSet::Administer;
+        EPermissionSet::Administer |
+        EPermissionSet::Mount;
 }
 
 bool TNontemplateCypressNodeTypeHandlerBase::IsLeader() const
@@ -224,12 +225,12 @@ TMapNodeTypeHandler::TMapNodeTypeHandler(TBootstrap* bootstrap)
     : TBase(bootstrap)
 { }
 
-EObjectType TMapNodeTypeHandler::GetObjectType()
+EObjectType TMapNodeTypeHandler::GetObjectType() const
 {
     return EObjectType::MapNode;
 }
 
-ENodeType TMapNodeTypeHandler::GetNodeType()
+ENodeType TMapNodeTypeHandler::GetNodeType() const
 {
     return ENodeType::Map;
 }
@@ -422,12 +423,12 @@ TListNodeTypeHandler::TListNodeTypeHandler(TBootstrap* bootstrap)
     : TBase(bootstrap)
 { }
 
-EObjectType TListNodeTypeHandler::GetObjectType()
+EObjectType TListNodeTypeHandler::GetObjectType() const
 {
     return EObjectType::ListNode;
 }
 
-ENodeType TListNodeTypeHandler::GetNodeType()
+ENodeType TListNodeTypeHandler::GetNodeType() const
 {
     return ENodeType::List;
 }
@@ -547,12 +548,12 @@ TLinkNodeTypeHandler::TLinkNodeTypeHandler(NCellMaster::TBootstrap* bootstrap)
     : TBase(bootstrap)
 { }
 
-EObjectType TLinkNodeTypeHandler::GetObjectType()
+EObjectType TLinkNodeTypeHandler::GetObjectType() const
 {
     return EObjectType::Link;
 }
 
-ENodeType TLinkNodeTypeHandler::GetNodeType()
+ENodeType TLinkNodeTypeHandler::GetNodeType() const
 {
     return ENodeType::Entity;
 }
@@ -659,12 +660,12 @@ TDocumentNodeTypeHandler::TDocumentNodeTypeHandler(NCellMaster::TBootstrap* boot
     : TBase(bootstrap)
 { }
 
-EObjectType TDocumentNodeTypeHandler::GetObjectType()
+EObjectType TDocumentNodeTypeHandler::GetObjectType() const
 {
     return EObjectType::Document;
 }
 
-ENodeType TDocumentNodeTypeHandler::GetNodeType()
+ENodeType TDocumentNodeTypeHandler::GetNodeType() const
 {
     return ENodeType::Entity;
 }

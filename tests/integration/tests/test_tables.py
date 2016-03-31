@@ -357,12 +357,12 @@ class TestTables(YTEnvSetup):
         tx1 = start_transaction()
         tx2 = start_transaction()
 
-        schema = loads('<strict=%false>[{name=a;type=string}]')
+        schema = loads('<strict=%false; optimized_for=lookup>[{name=a;type=string}]')
 
         set("//tmp/table/@schema", schema, tx = tx1)
 
         with pytest.raises(YtError): set("//tmp/table/@schema", schema, tx = tx2)
-        assert get("//tmp/table/@schema") == loads('<strict=%false>[]') 
+        assert get("//tmp/table/@schema") == loads('<strict=%false; optimized_for=lookup>[]') 
         assert get("//tmp/table/@schema", tx = tx1) == schema
 
         commit_transaction(tx1)
@@ -404,13 +404,13 @@ class TestTables(YTEnvSetup):
 
     def test_codec_in_writer(self):
         create("table", "//tmp/table")
-        set("//tmp/table/@compression_codec", "zlib9")
+        set("//tmp/table/@compression_codec", "zlib_9")
         write_table("//tmp/table", {"b": "hello"})
 
         assert read_table("//tmp/table") == [{"b":"hello"}]
 
         chunk_id = get("//tmp/table/@chunk_ids/0")
-        assert get("#%s/@compression_codec" % chunk_id) == "zlib9"
+        assert get("#%s/@compression_codec" % chunk_id) == "zlib_9"
 
     def test_copy(self):
         create("table", "//tmp/t")

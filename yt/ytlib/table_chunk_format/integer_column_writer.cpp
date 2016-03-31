@@ -59,7 +59,9 @@ protected:
     void DumpDirectValues(TSegmentInfo* segmentInfo, TAppendOnlyBitmap<ui64>& nullBitmap)
     {
         for (i64 index = 0; index < Values_.size(); ++index) {
-            Values_[index] -= MinValue_;
+            if (!nullBitmap[index]) {
+                Values_[index] -= MinValue_;
+            }
         }
 
         // 1. Direct values.
@@ -76,7 +78,7 @@ protected:
 
         for (i64 index = 0; index < Values_.size(); ++index) {
             if (nullBitmap[index]) {
-                Values_[index] = 0;
+                YASSERT(Values_[index] == 0);
             } else {
                 auto dictionaryIndex = DistinctValues_[Values_[index]];
                 YASSERT(dictionaryIndex <= dictionary.size() + 1);
@@ -142,7 +144,7 @@ public:
 
     virtual void FinishCurrentSegment() override
     {
-        if (Values_.size() > 0) {
+        if (!TVersionedColumnWriterBase::ValuesPerRow_.empty()) {
             DumpSegment();
             Reset();
         }
@@ -284,13 +286,13 @@ private:
     i32 GetSegmentSize(EUnversionedIntegerSegmentType type) const
     {
         switch (type) {
-            case EUnversionedIntegerSegmentType::DictionaryRLE:
+            case EUnversionedIntegerSegmentType::DictionaryRle:
                 return
                     CompressedUnsignedVectorSizeInBytes(MaxValue_ - MinValue_, DistinctValues_.size()) +
                     CompressedUnsignedVectorSizeInBytes(DistinctValues_.size() + 1, RunCount_) +
                     CompressedUnsignedVectorSizeInBytes(RowCount_, RunCount_);
 
-            case EUnversionedIntegerSegmentType::DirectRLE:
+            case EUnversionedIntegerSegmentType::DirectRle:
                 return
                     CompressedUnsignedVectorSizeInBytes(MaxValue_ - MinValue_, RunCount_) +
                     CompressedUnsignedVectorSizeInBytes(RowCount_, RunCount_) +
@@ -321,7 +323,7 @@ private:
         return sizes;
     }
 
-    void DumpDirectRLEValues(TSegmentInfo* segmentInfo)
+    void DumpDirectRleValues(TSegmentInfo* segmentInfo)
     {
         TAppendOnlyBitmap<ui64> rleNullBitmap(RunCount_);
         std::vector<ui64> rowIndexes;
@@ -339,7 +341,8 @@ private:
                 ++runEnd;
             }
 
-            Values_[runIndex] = Values_[runBegin] - MinValue_;
+            // For null values store data as 0.
+            Values_[runIndex] = NullBitmap_[runBegin] ? 0 : Values_[runBegin] - MinValue_;
             rowIndexes.push_back(runBegin);
             rleNullBitmap.Append(NullBitmap_[runBegin]);
 
@@ -360,7 +363,7 @@ private:
         segmentInfo->Data.push_back(CompressUnsignedVector(MakeRange(rowIndexes), rowIndexes.back()));
     }
 
-    void DumpDictionaryRLEValues(TSegmentInfo* segmentInfo)
+    void DumpDictionaryRleValues(TSegmentInfo* segmentInfo)
     {
         std::vector<ui64> dictionary;
         dictionary.reserve(DistinctValues_.size());
@@ -427,12 +430,12 @@ private:
         meta->set_min_value(MinValue_);
 
         switch (type) {
-            case EUnversionedIntegerSegmentType::DirectRLE:
-                DumpDirectRLEValues(&segmentInfo);
+            case EUnversionedIntegerSegmentType::DirectRle:
+                DumpDirectRleValues(&segmentInfo);
                 break;
 
-            case EUnversionedIntegerSegmentType::DictionaryRLE:
-                DumpDictionaryRLEValues(&segmentInfo);
+            case EUnversionedIntegerSegmentType::DictionaryRle:
+                DumpDictionaryRleValues(&segmentInfo);
                 break;
 
             case EUnversionedIntegerSegmentType::DirectDense:

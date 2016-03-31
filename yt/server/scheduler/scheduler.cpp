@@ -1363,7 +1363,6 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        YCHECK(IdToOperation_.empty());
         for (const auto& operation : operations) {
             ReviveOperation(operation);
         }

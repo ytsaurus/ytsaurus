@@ -1053,27 +1053,21 @@ public:
         RegisterParameter("mode", Mode)
             .Default(ESchedulingMode::FairShare);
 
+        // COMPAT(ignat): deprecated use max_running_operation_count instead.
         RegisterParameter("max_running_operations", MaxRunningOperationCount)
             .Default();
         RegisterParameter("max_running_operation_count", MaxRunningOperationCount)
             .Default();
 
+        // COMPAT(ignat): deprecated use max_operation_count instead.
         RegisterParameter("max_operations", MaxOperationCount)
             .Default();
         RegisterParameter("max_operation_count", MaxOperationCount)
             .Default();
 
         RegisterParameter("fifo_sort_parameters", FifoSortParameters)
-            .Default({EFifoSortParameter::Weight, EFifoSortParameter::StartTime});
-    }
-
-    virtual void OnLoaded() override
-    {
-        TSchedulableConfig::OnLoaded();
-
-        if (FifoSortParameters.empty()) {
-            THROW_ERROR_EXCEPTION("Fifo sort parameters must be non-empty");
-        }
+            .Default({EFifoSortParameter::Weight, EFifoSortParameter::StartTime})
+            .NonEmpty();
     }
 };
 

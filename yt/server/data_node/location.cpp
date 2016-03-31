@@ -53,11 +53,11 @@ TLocation::TLocation(
     , Type_(type)
     , Id_(id)
     , Config_(config)
-    , DataReadThreadPool_(New<TThreadPool>(bootstrap->GetConfig()->DataNode->ReadThreadCount, Format("Read:%v", Id_)))
+    , DataReadThreadPool_(New<TThreadPool>(bootstrap->GetConfig()->DataNode->ReadThreadCount, Format("DataRead:%v", Id_)))
     , DataReadInvoker_(CreatePrioritizedInvoker(DataReadThreadPool_->GetInvoker()))
-    , MetaReadQueue_(New<TActionQueue>(Format("Read:%v:Meta", Id_)))
+    , MetaReadQueue_(New<TActionQueue>(Format("MetaRead:%v", Id_)))
     , MetaReadInvoker_(CreatePrioritizedInvoker(MetaReadQueue_->GetInvoker()))
-    , WriteThreadPool_(New<TThreadPool>(Bootstrap_->GetConfig()->DataNode->WriteThreadCount, Format("Write:%v", Id_)))
+    , WriteThreadPool_(New<TThreadPool>(Bootstrap_->GetConfig()->DataNode->WriteThreadCount, Format("DataWrite:%v", Id_)))
     , WritePoolInvoker_(WriteThreadPool_->GetInvoker())
 {
     Logger = DataNodeLogger;

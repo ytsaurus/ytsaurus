@@ -924,9 +924,6 @@ class TestTablets(YTEnvSetup):
         delete_rows("//tmp/t", _keys(0, 10))
         assert lookup_rows("//tmp/t", _keys(0, 10)) == []
 
-        # check that limits are checked for delete
-        with pytest.raises(YtError): delete_rows("//tmp/t", _keys(0, 11))
-
         # check that everything survives after recovery
         self.sync_unmount_table("//tmp/t")
         self.sync_mount_table("//tmp/t")
@@ -1337,12 +1334,6 @@ class TestTablets(YTEnvSetup):
         with pytest.raises(YtError): create("table", "//tmp/t",
             attributes={"dynamic": True},
             schema=[{"data": "string"}])
-
-    def test_mount_permission_support(self):
-        create("file", "//tmp/f")
-        create("table", "//tmp/t")
-        assert "mount" not in get("//tmp/f/@supported_permissions")
-        assert "mount" in get("//tmp/t/@supported_permissions")
 
     def test_mount_permission_denied(self):
         self.sync_create_cells(3, 1)

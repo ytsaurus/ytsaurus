@@ -180,7 +180,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TRLEValueExtractorBase
+class TRleValueExtractorBase
 {
 public:
     i64 GetValueCount() const
@@ -199,12 +199,12 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <NTableClient::EValueType ValueType, class TRLEValueExtractor>
-class TRLEUnversionedSegmentReader
+template <NTableClient::EValueType ValueType, class TRleValueExtractor>
+class TRleUnversionedSegmentReader
     : public TUnversionedSegmentReaderBase
 {
 public:
-    TRLEUnversionedSegmentReader(
+    TRleUnversionedSegmentReader(
         TRef data,
         const NProto::TSegmentMeta& meta,
         int columnIndex,
@@ -295,7 +295,7 @@ public:
     }
 
 private:
-    TRLEValueExtractor ValueExtractor_;
+    TRleValueExtractor ValueExtractor_;
     i64 ValueIndex_ = 0;
 
     i64 GetUpperValueIndex(i64 rowIndex) const
@@ -1026,60 +1026,15 @@ class TVersionedColumnReaderBase
     , public TColumnReaderBase
 {
 public:
-    TVersionedColumnReaderBase(const NProto::TColumnMeta& columnMeta, int columnId, bool aggregate)
-        : TColumnReaderBase(columnMeta)
-        , ColumnId_(columnId)
-        , Aggregate_(aggregate)
-    { }
+    TVersionedColumnReaderBase(const NProto::TColumnMeta& columnMeta, int columnId, bool aggregate);
 
-    virtual void GetValueCounts(TMutableRange<ui32> valueCounts) override
-    {
-        EnsureSegmentReader();
-        SegmentReader_->GetValueCounts(valueCounts);
-    }
+    virtual void GetValueCounts(TMutableRange<ui32> valueCounts) override;
 
     virtual void ReadValues(
         TMutableRange<NTableClient::TMutableVersionedRow> rows,
-        TRange<std::pair<ui32, ui32>> timestampIndexRanges) override
-    {
-        i64 readRowCount = 0;
-        while (readRowCount < rows.Size()) {
-            YCHECK(CurrentSegmentIndex_ <= LastBlockSegmentIndex_);
-            EnsureSegmentReader();
+        TRange<std::pair<ui32, ui32>> timestampIndexRanges) override;
 
-            i64 count = SegmentReader_->ReadValues(
-                rows.Slice(rows.Begin() + readRowCount, rows.End()),
-                timestampIndexRanges.Slice(readRowCount, timestampIndexRanges.Size()));
-
-            readRowCount += count;
-            CurrentRowIndex_ += count;
-
-            if (SegmentReader_->EndOfSegment()) {
-                SegmentReader_.reset();
-                ++CurrentSegmentIndex_;
-            }
-        }
-    }
-
-    virtual void ReadAllValues(TMutableRange<NTableClient::TMutableVersionedRow> rows) override
-    {
-        i64 readRowCount = 0;
-        while (readRowCount < rows.Size()) {
-            YCHECK(CurrentSegmentIndex_ <= LastBlockSegmentIndex_);
-            EnsureSegmentReader();
-
-            i64 count = SegmentReader_->ReadAllValues(
-                rows.Slice(rows.Begin() + readRowCount, rows.End()));
-
-            readRowCount += count;
-            CurrentRowIndex_ += count;
-
-            if (SegmentReader_->EndOfSegment()) {
-                SegmentReader_.reset();
-                ++CurrentSegmentIndex_;
-            }
-        }
-    }
+    virtual void ReadAllValues(TMutableRange<NTableClient::TMutableVersionedRow> rows) override;
 
 protected:
     const int ColumnId_;
@@ -1090,18 +1045,9 @@ protected:
 
     virtual std::unique_ptr<IVersionedSegmentReader> CreateSegmentReader(int segmentIndex) = 0;
 
-    virtual void ResetSegmentReader() override
-    {
-        SegmentReader_.reset();
-    }
+    virtual void ResetSegmentReader() override;
 
-    void EnsureSegmentReader()
-    {
-        if (!SegmentReader_) {
-            SegmentReader_ = CreateSegmentReader(CurrentSegmentIndex_);
-        }
-        SegmentReader_->SkipToRowIndex(CurrentRowIndex_);
-    }
+    void EnsureSegmentReader();
 
     template<class TSegmentReader>
     std::unique_ptr<IVersionedSegmentReader> DoCreateSegmentReader(const NProto::TSegmentMeta& meta)

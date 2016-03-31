@@ -82,7 +82,7 @@ public:
             .InRange(0.0, 1.0)
             .Default(0.05);
 
-        // Deprecated.
+        // COMPAT(ignat): deprecated.
         RegisterParameter("max_running_operations", MaxRunningOperationCount)
             .Default(200)
             .GreaterThan(0);
@@ -91,7 +91,7 @@ public:
             .Default(200)
             .GreaterThan(0);
 
-        // Deprecated.
+        // COMPAT(ignat): deprecated.
         RegisterParameter("max_running_operations_per_pool", MaxRunningOperationCountPerPool)
             .Default(50)
             .GreaterThan(0);
@@ -100,7 +100,7 @@ public:
             .Default(50)
             .GreaterThan(0);
 
-        // Deprecated.
+        // COMPAT(ignat): deprecated.
         RegisterParameter("max_operations_per_pool", MaxOperationCountPerPool)
             .Default(50)
             .GreaterThan(0);
