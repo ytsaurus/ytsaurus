@@ -199,8 +199,6 @@ def create(object_type, path, **kwargs):
     kwargs["type"] = object_type
     kwargs["path"] = path
     execute_command("create", kwargs)
-    if "schema" in kwargs:
-        alter_table(path, schema=kwargs["schema"])
 
 def copy(source_path, destination_path, **kwargs):
     kwargs["source_path"] = source_path
