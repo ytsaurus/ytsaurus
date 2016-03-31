@@ -1,11 +1,14 @@
 #include "ordered_chunk_store.h"
 
+#include <yt/ytlib/chunk_client/client_block_cache.h>
+
 #include <yt/core/misc/protobuf_helpers.h>
 
 namespace NYT {
 namespace NTabletNode {
 
 using namespace NTableClient;
+using namespace NChunkClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -54,6 +57,11 @@ ISchemafulReaderPtr TOrderedChunkStore::CreateReader(
     const TWorkloadDescriptor& workloadDescriptor)
 {
     YUNIMPLEMENTED();
+}
+
+IBlockCachePtr TOrderedChunkStore::GetBlockCache()
+{
+    return GetNullBlockCache();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

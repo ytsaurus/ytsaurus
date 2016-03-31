@@ -164,7 +164,9 @@ private:
                         .Item().BeginMap()
                             .Item("index").Value(tablet->GetIndex())
                             .Item("performance_counters").Value(tablet->PerformanceCounters())
-                            .Item("pivot_key").Value(tablet->GetPivotKey())
+                            .DoIf(table->IsSorted(), [&] (TFluentMap fluent) {
+                                fluent.Item("pivot_key").Value(tablet->GetPivotKey());
+                            })
                             .Item("state").Value(tablet->GetState())
                             .Item("statistics").Value(tabletManager->GetTabletStatistics(tablet))
                             .Item("tablet_id").Value(tablet->GetId())
@@ -309,7 +311,6 @@ private:
         ValidateNotExternal();
         ValidateNoTransaction();
         ValidatePermission(EPermissionCheckScope::This, EPermission::Mount);
-        ValidateDynamicTableConstraints(GetThisTypedImpl()->TableSchema());
 
         auto* table = LockThisTypedImpl();
 
@@ -338,7 +339,6 @@ private:
         ValidateNotExternal();
         ValidateNoTransaction();
         ValidatePermission(EPermissionCheckScope::This, EPermission::Mount);
-        ValidateDynamicTableConstraints(GetThisTypedImpl()->TableSchema());
 
         auto* table = LockThisTypedImpl();
 
@@ -383,11 +383,12 @@ private:
 
         int firstTabletIndex = request->first_tablet_index();
         int lastTabletIndex = request->last_tablet_index();
+        int tabletCount = request->tablet_count();
         auto pivotKeys = FromProto<std::vector<TOwningKey>>(request->pivot_keys());
-        context->SetRequestInfo("FirstTabletIndex: %v, LastTabletIndex: %v, PivotKeyCount: %v",
+        context->SetRequestInfo("FirstTabletIndex: %v, LastTabletIndex: %v, TabletCount: %v",
             firstTabletIndex,
             lastTabletIndex,
-            pivotKeys.size());
+            tabletCount);
 
         ValidateNotExternal();
         ValidateNoTransaction();
@@ -400,6 +401,7 @@ private:
             table,
             firstTabletIndex,
             lastTabletIndex,
+            tabletCount,
             pivotKeys);
 
         context->Reply();

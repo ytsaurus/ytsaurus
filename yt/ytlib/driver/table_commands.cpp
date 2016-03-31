@@ -164,15 +164,18 @@ void TRemountTableCommand::Execute(ICommandContextPtr context)
 
 void TReshardTableCommand::Execute(ICommandContextPtr context)
 {
-    std::vector<TUnversionedRow> pivotKeys;
-    for (const auto& key : PivotKeys) {
-        pivotKeys.push_back(key);
+    TFuture<void> asyncResult;
+    if (PivotKeys) {
+        asyncResult = context->GetClient()->ReshardTable(
+            Path.GetPath(),
+            *PivotKeys,
+            Options);
+    } else {
+        asyncResult = context->GetClient()->ReshardTable(
+            Path.GetPath(),
+            *TabletCount,
+            Options);
     }
-
-    auto asyncResult = context->GetClient()->ReshardTable(
-        Path.GetPath(),
-        pivotKeys,
-        Options);
     WaitFor(asyncResult)
         .ThrowOnError();
 }

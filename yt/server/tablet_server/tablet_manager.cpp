@@ -91,6 +91,7 @@ using namespace NCellMaster;
 
 using NTabletNode::TTableMountConfigPtr;
 using NTabletNode::EInMemoryMode;
+using NTabletNode::EStoreType;
 using NNodeTrackerServer::NProto::TReqIncrementalHeartbeat;
 using NNodeTrackerClient::TNodeDescriptor;
 
@@ -597,10 +598,10 @@ public:
 
             auto* chunkList = chunkLists[tabletIndex]->AsChunkList();
             auto chunks = EnumerateChunksInChunkTree(chunkList);
+            auto storeType = table->IsSorted() ? EStoreType::SortedChunk : EStoreType::OrderedChunk;
             for (const auto* chunk : chunks) {
                 auto* descriptor = req.add_stores();
-                // XXX(babenko): generalize
-                descriptor->set_store_type(static_cast<int>(NTabletNode::EStoreType::SortedChunk));
+                descriptor->set_store_type(static_cast<int>(storeType));
                 ToProto(descriptor->mutable_store_id(), chunk->GetId());
                 descriptor->mutable_chunk_meta()->CopyFrom(chunk->ChunkMeta());
             }
@@ -723,6 +724,7 @@ public:
         TTableNode* table,
         int firstTabletIndex,
         int lastTabletIndex,
+        int newTabletCount,
         const std::vector<TOwningKey>& pivotKeys)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
@@ -741,45 +743,45 @@ public:
         YCHECK(tablets.size() == table->GetChunkList()->Children().size());
 
         int oldTabletCount = lastTabletIndex - firstTabletIndex + 1;
-        int newTabletCount = static_cast<int>(pivotKeys.size());
-
         if (tablets.size() - oldTabletCount + newTabletCount > MaxTabletCount) {
             THROW_ERROR_EXCEPTION("Tablet count cannot exceed the limit of %v",
                 MaxTabletCount);
         }
 
-        if (!pivotKeys.empty()) {
-            if (firstTabletIndex > lastTabletIndex) {
-                if (pivotKeys[0] != EmptyKey()) {
-                    THROW_ERROR_EXCEPTION("First pivot key must be empty");
-                }
-            } else {
-                if (pivotKeys[0] != tablets[firstTabletIndex]->GetPivotKey()) {
-                    THROW_ERROR_EXCEPTION(
-                        "First pivot key must match that of the first tablet "
-                        "in the resharded range");
-                }
+        if (table->IsSorted()) {
+            if (pivotKeys.empty()) {
+                THROW_ERROR_EXCEPTION("Table is sorted; must provide pivot keys");
             }
-        }
 
-        for (int index = 0; index < static_cast<int>(pivotKeys.size()) - 1; ++index) {
-            if (pivotKeys[index] >= pivotKeys[index + 1]) {
-                THROW_ERROR_EXCEPTION("Pivot keys must be strictly increasing");
-            }
-        }
-
-        // Validate pivot keys against table schema.
-        auto schema = GetTableSchema(table);
-        int keyColumnCount = table->TableSchema().GetKeyColumns().size();
-        for (const auto& pivotKey : pivotKeys) {
-            ValidatePivotKey(pivotKey, schema, keyColumnCount);
-        }
-
-        if (lastTabletIndex != tablets.size() - 1) {
-            if (pivotKeys.back() >= tablets[lastTabletIndex + 1]->GetPivotKey()) {
+            if (pivotKeys[0] != tablets[firstTabletIndex]->GetPivotKey()) {
                 THROW_ERROR_EXCEPTION(
-                    "Last pivot key must be strictly less than that of the tablet "
-                    "which follows the resharded range");
+                    "First pivot key must match that of the first tablet "
+                        "in the resharded range");
+            }
+
+            if (lastTabletIndex != tablets.size() - 1) {
+                if (pivotKeys.back() >= tablets[lastTabletIndex + 1]->GetPivotKey()) {
+                    THROW_ERROR_EXCEPTION(
+                        "Last pivot key must be strictly less than that of the tablet "
+                            "which follows the resharded range");
+                }
+            }
+
+            for (int index = 0; index < static_cast<int>(pivotKeys.size()) - 1; ++index) {
+                if (pivotKeys[index] >= pivotKeys[index + 1]) {
+                    THROW_ERROR_EXCEPTION("Pivot keys must be strictly increasing");
+                }
+            }
+
+            // Validate pivot keys against table schema.
+            auto schema = GetTableSchema(table);
+            int keyColumnCount = table->TableSchema().GetKeyColumnCount();
+            for (const auto& pivotKey : pivotKeys) {
+                ValidatePivotKey(pivotKey, schema, keyColumnCount);
+            }
+        } else {
+            if (!pivotKeys.empty()) {
+                THROW_ERROR_EXCEPTION("Table is sorted; must provide tablet count");
             }
         }
 
@@ -798,7 +800,9 @@ public:
         std::vector<TTablet*> newTablets;
         for (int index = 0; index < newTabletCount; ++index) {
             auto* tablet = CreateTablet(table);
-            tablet->SetPivotKey(pivotKeys[index]);
+            if (table->IsSorted()) {
+                tablet->SetPivotKey(pivotKeys[index]);
+            }
             newTablets.push_back(tablet);
         }
 
@@ -832,26 +836,37 @@ public:
             chunkLists.data() + lastTabletIndex + 1,
             chunkLists.data() + chunkLists.size());
 
-        // Move chunks from the resharded tablets to appropriate chunk lists.
         std::vector<TChunk*> chunks;
         for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
             EnumerateChunksInChunkTree(chunkLists[index]->AsChunkList(), &chunks);
         }
 
-        std::sort(chunks.begin(), chunks.end(), TObjectRefComparer::Compare);
-        chunks.erase(
-            std::unique(chunks.begin(), chunks.end()),
-            chunks.end());
+        if (table->IsSorted()) {
+            // Move chunks from the resharded tablets to appropriate chunk lists.
+            std::sort(chunks.begin(), chunks.end(), TObjectRefComparer::Compare);
+            chunks.erase(
+                std::unique(chunks.begin(), chunks.end()),
+                chunks.end());
 
-        for (auto* chunk : chunks) {
-            auto boundaryKeysExt = GetProtoExtension<TBoundaryKeysExt>(chunk->ChunkMeta().extensions());
-            auto minKey = WidenKey(FromProto<TOwningKey>(boundaryKeysExt.min()), keyColumnCount);
-            auto maxKey = WidenKey(FromProto<TOwningKey>(boundaryKeysExt.max()), keyColumnCount);
-            auto range = GetIntersectingTablets(newTablets, minKey, maxKey);
-            for (auto it = range.first; it != range.second; ++it) {
-                auto* tablet = *it;
+            int keyColumnCount = table->TableSchema().GetKeyColumnCount();
+            for (auto* chunk : chunks) {
+                auto boundaryKeysExt = GetProtoExtension<TBoundaryKeysExt>(chunk->ChunkMeta().extensions());
+                auto minKey = WidenKey(FromProto<TOwningKey>(boundaryKeysExt.min()), keyColumnCount);
+                auto maxKey = WidenKey(FromProto<TOwningKey>(boundaryKeysExt.max()), keyColumnCount);
+                auto range = GetIntersectingTablets(newTablets, minKey, maxKey);
+                for (auto it = range.first; it != range.second; ++it) {
+                    auto* tablet = *it;
+                    chunkManager->AttachToChunkList(
+                        newRootChunkList->Children()[tablet->GetIndex()]->AsChunkList(),
+                        chunk);
+                }
+            }
+        } else {
+            // Move chunks from the resharded tablets to the first tablet.
+            auto* destinationTablet = newTablets[0];
+            for (auto* chunk : chunks) {
                 chunkManager->AttachToChunkList(
-                    newRootChunkList->Children()[tablet->GetIndex()]->AsChunkList(),
+                    newRootChunkList->Children()[destinationTablet->GetIndex()]->AsChunkList(),
                     chunk);
             }
         }
@@ -879,7 +894,9 @@ public:
 
         auto* tablet = CreateTablet(table);
         tablet->SetIndex(0);
-        tablet->SetPivotKey(EmptyKey());
+        if (table->IsSorted()) {
+            tablet->SetPivotKey(EmptyKey());
+        }
         table->Tablets().push_back(tablet);
 
         auto chunkManager = Bootstrap_->GetChunkManager();
@@ -1938,9 +1955,6 @@ private:
             *first = 0;
             *last = static_cast<int>(tablets.size() - 1);
         } else {
-            if (tablets.empty()) {
-                THROW_ERROR_EXCEPTION("Table has no tablets");
-            }
             if (*first < 0 || *first >= tablets.size()) {
                 THROW_ERROR_EXCEPTION("First tablet index %v is out of range [%v, %v]",
                     *first,
@@ -2255,12 +2269,14 @@ void TTabletManager::ReshardTable(
     TTableNode* table,
     int firstTabletIndex,
     int lastTabletIndex,
+    int newTabletCount,
     const std::vector<TOwningKey>& pivotKeys)
 {
     Impl_->ReshardTable(
         table,
         firstTabletIndex,
         lastTabletIndex,
+        newTabletCount,
         pivotKeys);
 }
 

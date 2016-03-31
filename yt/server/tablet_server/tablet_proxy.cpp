@@ -41,6 +41,7 @@ private:
         TBase::ListSystemAttributes(descriptors);
 
         const auto* tablet = GetThisTypedImpl();
+        const auto* table = tablet->GetTable();
 
         descriptors->push_back("state");
         descriptors->push_back("statistics");
@@ -50,7 +51,8 @@ private:
             .SetPresent(tablet->GetState() == ETabletState::Mounted));
         descriptors->push_back("index");
         descriptors->push_back("table_id");
-        descriptors->push_back("pivot_key");
+        descriptors->push_back(TAttributeDescriptor("pivot_key")
+            .SetPresent(table->IsSorted()));
         descriptors->push_back("chunk_list_id");
         descriptors->push_back("in_memory_mode");
         descriptors->push_back(TAttributeDescriptor("cell_id")
@@ -101,7 +103,7 @@ private:
             return true;
         }
 
-        if (key == "pivot_key") {
+        if (key == "pivot_key" && table->IsSorted()) {
             BuildYsonFluently(consumer)
                 .Value(tablet->GetPivotKey());
             return true;

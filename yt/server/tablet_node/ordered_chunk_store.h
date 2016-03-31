@@ -37,6 +37,10 @@ public:
         i64 upperRowIndex,
         const NTableClient::TTableSchema& schema,
         const TWorkloadDescriptor& workloadDescriptor) override;
+
+private:
+    virtual NChunkClient::IBlockCachePtr GetBlockCache() override;
+
 };
 
 DEFINE_REFCOUNTED_TYPE(TOrderedChunkStore)

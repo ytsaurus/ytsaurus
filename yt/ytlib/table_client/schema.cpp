@@ -702,23 +702,6 @@ void ValidateColumnSchemaUpdate(const TColumnSchema& oldColumn, const TColumnSch
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ValidateDynamicTableConstraints(const TTableSchema& schema)
-{
-    if (!schema.GetStrict()) {
-        THROW_ERROR_EXCEPTION("Table schema must be strict");
-    }
-
-    if (schema.GetKeyColumnCount() == 0) {
-        THROW_ERROR_EXCEPTION("There must be at least one key column");
-    }
-
-    if (schema.GetKeyColumnCount() == schema.Columns().size()) {
-        THROW_ERROR_EXCEPTION("There must be at least one non-key column");
-    }
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 //! Validates that all columns from the old schema are present in the new schema.
 void ValidateColumnsNotRemoved(const TTableSchema& oldSchema, const TTableSchema& newSchema)
 {
@@ -782,6 +765,13 @@ void ValidateTableSchemaUpdate(
         return;
     }
 
+    if (oldSchema.GetKeyColumnCount() > 0 && newSchema.GetKeyColumnCount() == 0) {
+        THROW_ERROR_EXCEPTION("Cannot change schema from sorted to unsorted");
+    }
+    if (oldSchema.GetKeyColumnCount() == 0 && newSchema.GetKeyColumnCount() > 0) {
+        THROW_ERROR_EXCEPTION("Cannot change schema from unsorted to sorted");
+    }
+
     if (isTableDynamic && !newSchema.GetStrict()) {
         THROW_ERROR_EXCEPTION("\"strict\" cannot be \"false\" for a dynamic table");
     }
@@ -797,10 +787,10 @@ void ValidateTableSchemaUpdate(
         return;
     }
 
-    if (!oldSchema.GetStrict()) {
-        ValidateColumnsNotInserted(oldSchema, newSchema);
-    } else {
+    if (oldSchema.GetStrict()) {
         ValidateColumnsNotRemoved(oldSchema, newSchema);
+    } else {
+        ValidateColumnsNotInserted(oldSchema, newSchema);
     }
     ValidateColumnsMatch(oldSchema, newSchema);
 
@@ -809,7 +799,7 @@ void ValidateTableSchemaUpdate(
         for (const auto& newColumn : newSchema.Columns()) {
             if (!oldSchema.FindColumn(newColumn.Name)) {
                 if (newColumn.Expression) {
-                    THROW_ERROR_EXCEPTION("New computed column %Qv",
+                    THROW_ERROR_EXCEPTION("Cannot introduce a new computed column %Qv after creation",
                         newColumn.Name);
                 }
             }

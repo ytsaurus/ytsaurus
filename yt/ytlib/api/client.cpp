@@ -1076,17 +1076,20 @@ public:
         const TTransactionAttachOptions& options) override;
 
 #define DROP_BRACES(...) __VA_ARGS__
-#define IMPLEMENT_METHOD(returnType, method, signature, args) \
+#define IMPLEMENT_OVERLOADED_METHOD(returnType, method, doMethod, signature, args) \
     virtual TFuture<returnType> method signature override \
     { \
         return Execute( \
             #method, \
             options, \
             BIND( \
-                &TClient::Do ## method, \
+                &TClient::doMethod, \
                 MakeStrong(this), \
                 DROP_BRACES args)); \
     }
+
+#define IMPLEMENT_METHOD(returnType, method, signature, args) \
+    IMPLEMENT_OVERLOADED_METHOD(returnType, method, Do##method, signature, args)
 
     virtual TFuture<IRowsetPtr> LookupRows(
         const TYPath& path,
@@ -1124,11 +1127,16 @@ public:
         const TYPath& path,
         const TRemountTableOptions& options),
         (path, options))
-    IMPLEMENT_METHOD(void, ReshardTable, (
+    IMPLEMENT_OVERLOADED_METHOD(void, ReshardTable, DoReshardTableWithPivotKeys, (
         const TYPath& path,
-        const std::vector<NTableClient::TKey>& pivotKeys,
+        const std::vector<NTableClient::TOwningKey>& pivotKeys,
         const TReshardTableOptions& options),
         (path, pivotKeys, options))
+    IMPLEMENT_OVERLOADED_METHOD(void, ReshardTable, DoReshardTableWithTabletCount, (
+        const TYPath& path,
+        int tabletCount,
+        const TReshardTableOptions& options),
+        (path, tabletCount, options))
     IMPLEMENT_METHOD(void, AlterTable, (
         const TYPath& path,
         const TAlterTableOptions& options),
@@ -1892,9 +1900,8 @@ private:
             .ThrowOnError();
     }
 
-    void DoReshardTable(
+    TTableYPathProxy::TReqReshardPtr MakeReshardRequest(
         const TYPath& path,
-        const std::vector<NTableClient::TKey>& pivotKeys,
         const TReshardTableOptions& options)
     {
         auto req = TTableYPathProxy::Reshard(path);
@@ -1904,7 +1911,30 @@ private:
         if (options.LastTabletIndex) {
             req->set_last_tablet_index(*options.LastTabletIndex);
         }
+        return req;
+    }
+
+    void DoReshardTableWithPivotKeys(
+        const TYPath& path,
+        const std::vector<NTableClient::TOwningKey>& pivotKeys,
+        const TReshardTableOptions& options)
+    {
+        auto req = MakeReshardRequest(path, options);
         ToProto(req->mutable_pivot_keys(), pivotKeys);
+        req->set_tablet_count(pivotKeys.size());
+
+        auto proxy = CreateWriteProxy<TObjectServiceProxy>();
+        WaitFor(proxy->Execute(req))
+            .ThrowOnError();
+    }
+
+    void DoReshardTableWithTabletCount(
+        const TYPath& path,
+        int tabletCount,
+        const TReshardTableOptions& options)
+    {
+        auto req = MakeReshardRequest(path, options);
+        req->set_tablet_count(tabletCount);
 
         auto proxy = CreateWriteProxy<TObjectServiceProxy>();
         WaitFor(proxy->Execute(req))
