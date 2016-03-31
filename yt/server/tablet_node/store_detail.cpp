@@ -510,9 +510,9 @@ IChunkReaderPtr TChunkStoreBase::PrepareChunkReader(IChunkPtr chunk)
     IChunkReaderPtr chunkReader;
     if (chunk && !chunk->IsRemoveScheduled()) {
         chunkReader = CreateLocalChunkReader(
-            Bootstrap_,
             readerConfig,
             chunk,
+            Bootstrap_->GetChunkBlockManager(),
             GetBlockCache(),
             BIND(&TChunkStoreBase::OnLocalReaderFailed, MakeWeak(this)));
     } else {

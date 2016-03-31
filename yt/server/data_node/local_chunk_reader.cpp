@@ -29,14 +29,14 @@ class TLocalChunkReader
 {
 public:
     TLocalChunkReader(
-        TBootstrap* bootstrap,
         TReplicationReaderConfigPtr config,
         IChunkPtr chunk,
+        TChunkBlockManagerPtr chunkBlockManager,
         IBlockCachePtr blockCache,
         TClosure failureHandler)
-        : Bootstrap_(bootstrap)
-        , Config_(std::move(config))
+        : Config_(std::move(config))
         , Chunk_(std::move(chunk))
+        , ChunkBlockManager_(std::move(chunkBlockManager))
         , BlockCache_(std::move(blockCache))
         , FailureHandler_(std::move(failureHandler))
     { }
@@ -58,8 +58,7 @@ public:
         int firstBlockIndex,
         int blockCount) override
     {
-        auto chunkBlockManager = Bootstrap_->GetChunkBlockManager();
-        auto asyncResult = chunkBlockManager->ReadBlockRange(
+        auto asyncResult = ChunkBlockManager_->ReadBlockRange(
             Chunk_->GetId(),
             firstBlockIndex,
             blockCount,
@@ -97,9 +96,9 @@ public:
     }
 
 private:
-    TBootstrap* const Bootstrap_;
     const TReplicationReaderConfigPtr Config_;
     const IChunkPtr Chunk_;
+    const TChunkBlockManagerPtr ChunkBlockManager_;
     const IBlockCachePtr BlockCache_;
     const TClosure FailureHandler_;
 
@@ -136,8 +135,7 @@ private:
                 return;
             }
 
-            auto chunkBlockManager = Bootstrap_->GetChunkBlockManager();
-            auto asyncResult = chunkBlockManager->ReadBlockSet(
+            auto asyncResult = ChunkBlockManager_->ReadBlockSet(
                 Chunk_->GetId(),
                 blockIndexes,
                 session->WorkloadDescriptor,
@@ -187,16 +185,16 @@ private:
 };
 
 IChunkReaderPtr CreateLocalChunkReader(
-    TBootstrap* bootstrap,
     TReplicationReaderConfigPtr config,
     IChunkPtr chunk,
+    TChunkBlockManagerPtr chunkBlockManager,
     IBlockCachePtr blockCache,
     TClosure failureHandler)
 {
     return New<TLocalChunkReader>(
-        bootstrap,
         std::move(config),
         std::move(chunk),
+        std::move(chunkBlockManager),
         std::move(blockCache),
         std::move(failureHandler));
 }
