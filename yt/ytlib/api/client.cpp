@@ -165,7 +165,8 @@ TNameTableToSchemaIdMapping BuildColumnIdMapping(
     const TTableMountInfoPtr& tableInfo,
     const TNameTablePtr& nameTable)
 {
-    for (const auto& name : tableInfo->KeyColumns) {
+    auto keyColumns = tableInfo->Schema.GetKeyColumns();
+    for (const auto& name : keyColumns) {
         if (!nameTable->FindId(name) && !tableInfo->Schema.GetColumnOrThrow(name).Expression) {
             THROW_ERROR_EXCEPTION("No such key column %Qv",
                 name);
@@ -460,12 +461,12 @@ private:
         auto info = WaitFor(tableMountCache->GetTableInfo(path.GetPath()))
             .ValueOrThrow();
 
-        auto tableSchema = path.GetSchema();
+        auto tableSchema = path.GetSchema().Get(info->Schema);
 
         TDataSplit result;
         SetObjectId(&result, info->TableId);
-        SetTableSchema(&result, tableSchema.Get(info->Schema));
-        SetKeyColumns(&result, info->KeyColumns);
+        SetTableSchema(&result, tableSchema);
+        SetKeyColumns(&result, tableSchema.GetKeyColumns());
         SetTimestamp(&result, timestamp);
 
         return result;
@@ -1490,14 +1491,12 @@ private:
             TClientPtr client,
             const TCellId& cellId,
             const TLookupRowsOptions& options,
-            const TTableSchema& schema,
-            int keyColumnCount)
+            TTableMountInfoPtr tableInfo)
             : Client_(std::move(client))
             , Config_(Client_->Connection_->GetConfig())
             , CellId_(cellId)
             , Options_(options)
-            , Schema_(schema)
-            , KeyColumnCount_(keyColumnCount)
+            , TableInfo_(std::move(tableInfo))
         { }
 
         void AddKey(int index, TTabletInfoPtr tabletInfo, NTableClient::TKey key)
@@ -1554,7 +1553,7 @@ private:
                     TReqLookupRows writtenReq;
                     reader.ReadMessage(&writtenReq);
 
-                    auto schemaData = TWireProtocolReader::GetSchemaData(Schema_, KeyColumnCount_);
+                    auto schemaData = TWireProtocolReader::GetSchemaData(TableInfo_->Schema, TableInfo_->Schema.GetKeyColumnCount());
                     auto rowset = reader.ReadSchemafulRowset(schemaData);
 
                     YCHECK(rowset.Size() == batch->Keys.size());
@@ -1582,7 +1581,7 @@ private:
             std::vector<TUnversionedRow>* resultRows,
             std::vector<std::unique_ptr<TWireProtocolReader>>* readers)
         {
-            auto schemaData = TWireProtocolReader::GetSchemaData(Schema_, Options_.ColumnFilter);
+            auto schemaData = TWireProtocolReader::GetSchemaData(TableInfo_->Schema, Options_.ColumnFilter);
             for (const auto& batch : Batches_) {
                 auto data = NCompression::DecompressWithEnvelope(batch->Response->Attachments());
                 auto reader = std::make_unique<TWireProtocolReader>(data);
@@ -1599,8 +1598,7 @@ private:
         const TConnectionConfigPtr Config_;
         const TCellId CellId_;
         const TLookupRowsOptions Options_;
-        const TTableSchema& Schema_;
-        const int KeyColumnCount_;
+        const TTableMountInfoPtr TableInfo_;
 
         struct TBatch
         {
@@ -1675,7 +1673,7 @@ private:
         auto tableInfo = SyncGetTableInfo(path);
 
         int schemaColumnCount = static_cast<int>(tableInfo->Schema.Columns().size());
-        int keyColumnCount = static_cast<int>(tableInfo->KeyColumns.size());
+        int keyColumnCount = tableInfo->Schema.GetKeyColumnCount();
 
         ValidateColumnFilter(options.ColumnFilter, schemaColumnCount);
 
@@ -1720,8 +1718,7 @@ private:
                         this,
                         cellId,
                         options,
-                        tableInfo->Schema,
-                        tableInfo->KeyColumns.size())))
+                        tableInfo)))
                     .first;
             }
             const auto& session = it->second;
@@ -2931,8 +2928,8 @@ private:
             const TWriteRowsOptions& writeOptions = TWriteRowsOptions())
         {
             const auto& idMapping = Transaction_->GetColumnIdMapping(TableInfo_, NameTable_);
-            int keyColumnCount = TableInfo_->KeyColumns.size();
             const auto& schema = TableInfo_->Schema;
+            int keyColumnCount = schema.GetKeyColumnCount();
             const auto& rowBuffer = Transaction_->GetRowBuffer();
             auto evaluatorCache = Transaction_->GetConnection()->GetColumnEvaluatorCache();
             auto evaluator = TableInfo_->NeedKeyEvaluation
@@ -3014,7 +3011,7 @@ private:
             WriteRequests(
                 Keys_,
                 EWireProtocolCommand::DeleteRow,
-                TableInfo_->KeyColumns.size(),
+                TableInfo_->Schema.GetKeyColumnCount(),
                 ValidateClientKey);
         }
     };
@@ -3036,7 +3033,7 @@ private:
             , TabletId_(TabletInfo_->TabletId)
             , Config_(owner->Client_->Connection_->GetConfig())
             , Durability_(owner->Transaction_->GetDurability())
-            , KeyColumnCount_(TableInfo_->KeyColumns.size())
+            , KeyColumnCount_(TableInfo_->Schema.GetKeyColumnCount())
             , ColumnEvaluator_(std::move(columnEvauator))
             , RowBuffer_(New<TRowBuffer>())
             , Logger(owner->Logger)
@@ -3275,7 +3272,7 @@ private:
         if (it == TabletToSession_.end()) {
             AsyncTransactionStartResults_.push_back(Transaction_->AddTabletParticipant(tabletInfo->CellId));
             auto evaluatorCache = GetConnection()->GetColumnEvaluatorCache();
-            auto evaluator = evaluatorCache->Find(tableInfo->Schema, tableInfo->KeyColumns.size());
+            auto evaluator = evaluatorCache->Find(tableInfo->Schema, tableInfo->Schema.GetKeyColumnCount());
             it = TabletToSession_.insert(std::make_pair(
                 tabletInfo,
                 New<TTabletCommitSession>(

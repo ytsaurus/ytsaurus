@@ -123,12 +123,14 @@ TTabletInfoPtr TTableMountInfo::GetTablet(TUnversionedRow row) const
         THROW_ERROR_EXCEPTION("Table %v has no tablets",
             Path);
     }
+
+    int keyColumnCount = Schema.GetKeyColumnCount();
     auto it = std::upper_bound(
         Tablets.begin(),
         Tablets.end(),
         row,
         [&] (TUnversionedRow lhs, const TTabletInfoPtr& rhs) {
-            return CompareRows(lhs, rhs->PivotKey, KeyColumns.size()) < 0;
+            return CompareRows(lhs, rhs->PivotKey, keyColumnCount) < 0;
         });
     return it == Tablets.begin() ? nullptr : *(--it);
 }
@@ -213,7 +215,6 @@ private:
                 tableInfo->Path = path;
                 tableInfo->TableId = FromProto<TObjectId>(rsp->table_id());
                 tableInfo->Schema = FromProto<TTableSchema>(rsp->schema());
-                tableInfo->KeyColumns = FromProto<TKeyColumns>(rsp->key_columns());
                 tableInfo->Sorted = rsp->sorted();
                 tableInfo->Dynamic = rsp->dynamic();
                 tableInfo->NeedKeyEvaluation = tableInfo->Schema.HasComputedColumns();
