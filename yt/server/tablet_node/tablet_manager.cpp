@@ -1099,7 +1099,7 @@ private:
             auto storeId = FromProto<TChunkId>(descriptor.store_id());
             addedStoreIds.push_back(storeId);
 
-            auto store = CreateStore(tablet, storeType, storeId, &descriptor.chunk_meta());
+            auto store = CreateStore(tablet, storeType, storeId, &descriptor.chunk_meta())->AsChunk();
             storeManager->AddStore(store, false);
 
             // XXX(babenko): get rid of this
@@ -1109,8 +1109,8 @@ private:
             TStoreId backingStoreId;
             if (!IsRecovery() && descriptor.has_backing_store_id()) {
                 backingStoreId = FromProto<TStoreId>(descriptor.backing_store_id());
-                auto backingStore = tablet->GetStore(backingStoreId)->AsSorted();
-                SetBackingStore(tablet, chunkStore, backingStore);
+                auto backingStore = tablet->GetStore(backingStoreId)->AsDynamic();
+                SetBackingStore(tablet, store, backingStore);
             }
 
             LOG_DEBUG_UNLESS(IsRecovery(), "Store added (TabletId: %v, StoreId: %v, BackingStoreId: %v)",
@@ -1713,7 +1713,7 @@ private:
     }
 
 
-    void SetBackingStore(TTablet* tablet, TSortedChunkStorePtr store, ISortedStorePtr backingStore)
+    void SetBackingStore(TTablet* tablet, IChunkStorePtr store, IDynamicStorePtr backingStore)
     {
         store->SetBackingStore(backingStore);
         LOG_DEBUG("Backing store set (StoreId: %v, BackingStoreId: %v)",
@@ -2022,13 +2022,15 @@ private:
         const TChunkMeta* chunkMeta)
     {
         switch (type) {
-            case EStoreType::SortedChunk:
-                return New<TSortedChunkStore>(
+            case EStoreType::SortedChunk: {
+                auto store = New<TSortedChunkStore>(
                     Config_,
                     storeId,
                     tablet,
-                    chunkMeta,
                     Bootstrap_);
+                store->Initialize(chunkMeta);
+                return store;
+            }
 
             case EStoreType::SortedDynamic:
                 return New<TSortedDynamicStore>(

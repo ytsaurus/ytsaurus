@@ -4,17 +4,49 @@
 #include "tablet.h"
 #include "config.h"
 
+#include <yt/server/data_node/chunk_registry.h>
+#include <yt/server/data_node/chunk.h>
+#include <yt/server/data_node/master_connector.h>
+#include <yt/server/data_node/chunk_block_manager.h>
+#include <yt/server/data_node/chunk_registry.h>
+#include <yt/server/data_node/local_chunk_reader.h>
+
+#include <yt/server/cell_node/bootstrap.h>
+#include <yt/server/cell_node/config.h>
+
 #include <yt/ytlib/table_client/row_buffer.h>
 
+#include <yt/ytlib/chunk_client/chunk_reader.h>
+#include <yt/ytlib/chunk_client/replication_reader.h>
+#include <yt/ytlib/chunk_client/chunk_meta.pb.h>
+#include <yt/ytlib/chunk_client/helpers.h>
+
+#include <yt/ytlib/node_tracker_client/node_directory.h>
+
+#include <yt/ytlib/object_client/helpers.h>
+
 #include <yt/core/ytree/fluent.h>
+
+#include <yt/core/concurrency/delayed_executor.h>
 
 namespace NYT {
 namespace NTabletNode {
 
+using namespace NConcurrency;
 using namespace NYson;
 using namespace NYTree;
 using namespace NTableClient;
+using namespace NChunkClient;
+using namespace NChunkClient::NProto;
 using namespace NTransactionClient;
+using namespace NNodeTrackerClient;
+using namespace NObjectClient;
+using namespace NDataNode;
+
+////////////////////////////////////////////////////////////////////////////////
+
+static const auto ChunkExpirationTimeout = TDuration::Seconds(15);
+static const auto ChunkReaderExpirationTimeout = TDuration::Seconds(15);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -36,7 +68,9 @@ TStoreBase::TStoreBase(
     , ColumnIndexToLockIndex_(Tablet_->ColumnIndexToLockIndex())
 {
     Logger = TabletNodeLogger;
-    Logger.AddTag("StoreId: %v", StoreId_);
+    Logger.AddTag("StoreId: %v, TabletId: %v",
+        StoreId_,
+        TabletId_);
 }
 
 TStoreBase::~TStoreBase()
@@ -175,6 +209,11 @@ TOrderedDynamicStorePtr TStoreBase::AsOrderedDynamic()
     YUNREACHABLE();
 }
 
+TOrderedChunkStorePtr TStoreBase::AsOrderedChunk()
+{
+    YUNREACHABLE();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TDynamicStoreBase::TDynamicStoreBase(
@@ -282,9 +321,101 @@ IDynamicStorePtr TDynamicStoreBase::AsDynamic()
 TChunkStoreBase::TChunkStoreBase(
     TTabletManagerConfigPtr config,
     const TStoreId& id,
-    TTablet* tablet)
+    TTablet* tablet,
+    NCellNode::TBootstrap* bootstrap)
     : TStoreBase(std::move(config), id, tablet)
-{ }
+    , Bootstrap_(bootstrap)
+    , ChunkMeta_(New<TRefCountedChunkMeta>())
+{
+    YCHECK(
+        TypeFromId(StoreId_) == EObjectType::Chunk ||
+        TypeFromId(StoreId_) == EObjectType::ErasureChunk);
+
+    StoreState_ = EStoreState::Persistent;
+}
+
+void TChunkStoreBase::Initialize(const TChunkMeta* chunkMeta)
+{
+    SetInMemoryMode(Tablet_->GetConfig()->InMemoryMode);
+
+    if (chunkMeta) {
+        ChunkMeta_->CopyFrom(*chunkMeta);
+        PrecacheProperties();
+    }
+}
+
+const TChunkMeta& TChunkStoreBase::GetChunkMeta() const
+{
+    return *ChunkMeta_;
+}
+
+i64 TChunkStoreBase::GetUncompressedDataSize() const
+{
+    return MiscExt_.uncompressed_data_size();
+}
+
+i64 TChunkStoreBase::GetRowCount() const
+{
+    return MiscExt_.row_count();
+}
+
+TCallback<void(TSaveContext&)> TChunkStoreBase::AsyncSave()
+{
+    return BIND([chunkMeta = ChunkMeta_] (TSaveContext& context) {
+        using NYT::Save;
+
+        Save(context, *chunkMeta);
+    });
+}
+
+void TChunkStoreBase::AsyncLoad(TLoadContext& context)
+{
+    using NYT::Load;
+
+    Load(context, *ChunkMeta_);
+
+    PrecacheProperties();
+}
+
+void TChunkStoreBase::BuildOrchidYson(IYsonConsumer* consumer)
+{
+    TStoreBase::BuildOrchidYson(consumer);
+
+    auto backingStore = GetBackingStore();
+    BuildYsonMapFluently(consumer)
+        .Item("preload_state").Value(PreloadState_)
+        .Item("compaction_state").Value(CompactionState_)
+        .Item("compressed_data_size").Value(MiscExt_.compressed_data_size())
+        .Item("uncompressed_data_size").Value(MiscExt_.uncompressed_data_size())
+        .Item("row_count").Value(MiscExt_.row_count())
+        .DoIf(backingStore.operator bool(), [&] (TFluentMap fluent) {
+            fluent.Item("backing_store_id").Value(backingStore->GetId());
+        });
+}
+
+IDynamicStorePtr TChunkStoreBase::GetBackingStore()
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    TReaderGuard guard(SpinLock_);
+    return BackingStore_;
+}
+
+void TChunkStoreBase::SetBackingStore(IDynamicStorePtr store)
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    TWriterGuard guard(SpinLock_);
+    BackingStore_ = std::move(store);
+}
+
+bool TChunkStoreBase::HasBackingStore() const
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    TReaderGuard guard(SpinLock_);
+    return BackingStore_.operator bool();
+}
 
 EStorePreloadState TChunkStoreBase::GetPreloadState() const
 {
@@ -324,6 +455,123 @@ bool TChunkStoreBase::IsChunk() const
 IChunkStorePtr TChunkStoreBase::AsChunk()
 {
     return this;
+}
+
+IChunkReaderPtr TChunkStoreBase::GetChunkReader()
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    auto chunk = PrepareChunk();
+    auto chunkReader = PrepareChunkReader(std::move(chunk));
+
+    return chunkReader;
+}
+
+IChunkPtr TChunkStoreBase::PrepareChunk()
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    {
+        TReaderGuard guard(SpinLock_);
+        if (ChunkInitialized_) {
+            return Chunk_;
+        }
+    }
+
+    auto chunkRegistry = Bootstrap_->GetChunkRegistry();
+    auto chunk = chunkRegistry->FindChunk(StoreId_);
+
+    {
+        TWriterGuard guard(SpinLock_);
+        ChunkInitialized_ = true;
+        Chunk_ = chunk;
+    }
+
+    TDelayedExecutor::Submit(
+        BIND(&TChunkStoreBase::OnChunkExpired, MakeWeak(this)),
+        ChunkExpirationTimeout);
+
+    return chunk;
+}
+
+IChunkReaderPtr TChunkStoreBase::PrepareChunkReader(IChunkPtr chunk)
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    {
+        TReaderGuard guard(SpinLock_);
+        if (ChunkReader_) {
+            return ChunkReader_;
+        }
+    }
+
+    auto readerConfig = Bootstrap_->GetConfig()->TabletNode->TabletManager->ChunkReader;
+
+    IChunkReaderPtr chunkReader;
+    if (chunk && !chunk->IsRemoveScheduled()) {
+        chunkReader = CreateLocalChunkReader(
+            Bootstrap_,
+            readerConfig,
+            chunk,
+            GetBlockCache(),
+            BIND(&TChunkStoreBase::OnLocalReaderFailed, MakeWeak(this)));
+    } else {
+        TChunkSpec chunkSpec;
+        ToProto(chunkSpec.mutable_chunk_id(), StoreId_);
+        chunkSpec.set_erasure_codec(MiscExt_.erasure_codec());
+        *chunkSpec.mutable_chunk_meta() = *ChunkMeta_;
+
+        chunkReader = CreateRemoteReader(
+            chunkSpec,
+            readerConfig,
+            New<TRemoteReaderOptions>(),
+            Bootstrap_->GetMasterClient(),
+            New<TNodeDirectory>(),
+            Bootstrap_->GetMasterConnector()->GetLocalDescriptor(),
+            GetBlockCache(),
+            GetUnlimitedThrottler());
+    }
+
+    {
+        TWriterGuard guard(SpinLock_);
+        ChunkReader_ = chunkReader;
+    }
+
+    TDelayedExecutor::Submit(
+        BIND(&TChunkStoreBase::OnChunkReaderExpired, MakeWeak(this)),
+        ChunkReaderExpirationTimeout);
+
+    return chunkReader;
+}
+
+void TChunkStoreBase::OnLocalReaderFailed()
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    OnChunkExpired();
+    OnChunkReaderExpired();
+}
+
+void TChunkStoreBase::OnChunkExpired()
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    TWriterGuard guard(SpinLock_);
+    ChunkInitialized_ = false;
+    Chunk_.Reset();
+}
+
+void TChunkStoreBase::OnChunkReaderExpired()
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    TWriterGuard guard(SpinLock_);
+    ChunkReader_.Reset();
+}
+
+void TChunkStoreBase::PrecacheProperties()
+{
+    MiscExt_ = GetProtoExtension<TMiscExt>(ChunkMeta_->extensions());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

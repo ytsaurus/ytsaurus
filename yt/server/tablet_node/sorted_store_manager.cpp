@@ -5,22 +5,33 @@
 #include "tablet.h"
 #include "tablet_slot.h"
 #include "transaction_manager.h"
+#include "chunk_writer_pool.h"
+
+#include <yt/server/tablet_node/tablet_manager.pb.h>
 
 #include <yt/ytlib/chunk_client/block_cache.h>
 
 #include <yt/ytlib/table_client/name_table.h>
 #include <yt/ytlib/table_client/schemaful_reader.h>
+#include <yt/ytlib/table_client/unversioned_row.h>
+#include <yt/ytlib/table_client/versioned_chunk_writer.h>
 #include <yt/ytlib/table_client/versioned_reader.h>
+#include <yt/ytlib/table_client/versioned_row.h>
+#include <yt/ytlib/table_client/versioned_writer.h>
 
 #include <yt/ytlib/tablet_client/wire_protocol.h>
 #include <yt/ytlib/tablet_client/wire_protocol.pb.h>
 
 #include <yt/ytlib/transaction_client/helpers.h>
 
+#include <yt/ytlib/api/transaction.h>
+
 namespace NYT {
 namespace NTabletNode {
 
 using namespace NConcurrency;
+using namespace NYTree;
+using namespace NApi;
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
 using namespace NTableClient;
@@ -28,8 +39,13 @@ using namespace NTransactionClient;
 using namespace NTabletClient;
 using namespace NTabletClient::NProto;
 using namespace NObjectClient;
+using namespace NTabletNode::NProto;
 
 using NTableClient::TKey;
+
+////////////////////////////////////////////////////////////////////////////////
+
+static const size_t MaxRowsPerRead = 1024;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -38,13 +54,15 @@ TSortedStoreManager::TSortedStoreManager(
     TTablet* tablet,
     ITabletContext* tabletContext,
     NHydra::IHydraManagerPtr hydraManager,
-    TInMemoryManagerPtr inMemoryManager)
+    TInMemoryManagerPtr inMemoryManager,
+    IClientPtr client)
     : TStoreManagerBase(
-        config,
+        std::move(config),
         tablet,
         tabletContext,
-        hydraManager,
-        inMemoryManager)
+        std::move(hydraManager),
+        std::move(inMemoryManager),
+        std::move(client))
     , KeyColumnCount_(Tablet_->GetKeyColumnCount())
 {
     for (const auto& pair : Tablet_->Stores()) {
@@ -316,6 +334,61 @@ void TSortedStoreManager::ResetActiveStore()
 void TSortedStoreManager::OnActiveStoreRotated()
 {
     MaxTimestampToStore_.insert(std::make_pair(ActiveStore_->GetMaxTimestamp(), ActiveStore_));
+}
+
+TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
+    IDynamicStorePtr store,
+    TTabletSnapshotPtr tabletSnapshot)
+{
+    auto reader = store->AsSortedDynamic()->CreateFlushReader();
+    // NB: Memory store reader is always synchronous.
+    YCHECK(reader->Open().Get().IsOK());
+
+    return BIND([=, this_ = MakeStrong(this)] (ITransactionPtr transaction) {
+        auto writerOptions = CloneYsonSerializable(tabletSnapshot->WriterOptions);
+        writerOptions->ChunksEden = true;
+
+        TChunkWriterPool writerPool(
+            InMemoryManager_,
+            tabletSnapshot,
+            1,
+            Config_->ChunkWriter,
+            writerOptions,
+            Client_,
+            transaction->GetId());
+        auto writer = writerPool.AllocateWriter();
+
+        WaitFor(writer->Open())
+            .ThrowOnError();
+
+        std::vector<TVersionedRow> rows;
+        rows.reserve(MaxRowsPerRead);
+
+        while (true) {
+            // NB: Memory store reader is always synchronous.
+            reader->Read(&rows);
+            if (rows.empty())
+                break;
+            if (!writer->Write(rows)) {
+                WaitFor(writer->GetReadyEvent())
+                    .ThrowOnError();
+            }
+        }
+
+        WaitFor(writer->Close())
+            .ThrowOnError();
+
+        std::vector<TAddStoreDescriptor> result;
+        for (const auto& chunkSpec : writer->GetWrittenChunksMasterMeta()) {
+            TAddStoreDescriptor descriptor;
+            descriptor.set_store_type(static_cast<int>(EStoreType::SortedChunk));
+            descriptor.mutable_store_id()->CopyFrom(chunkSpec.chunk_id());
+            descriptor.mutable_chunk_meta()->CopyFrom(chunkSpec.chunk_meta());
+            ToProto(descriptor.mutable_backing_store_id(), store->GetId());
+            result.push_back(descriptor);
+        }
+        return result;
+    });
 }
 
 bool TSortedStoreManager::IsStoreCompactable(IStorePtr store) const

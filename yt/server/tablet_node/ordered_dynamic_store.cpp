@@ -150,8 +150,7 @@ TOrderedDynamicStore::TOrderedDynamicStore(
 {
     AllocateCurrentSegment(InitialOrderedDynamicSegmentIndex);
 
-    LOG_DEBUG("Ordered dynamic store created (TabletId: %v)",
-        TabletId_);
+    LOG_DEBUG("Ordered dynamic store created");
 }
 
 TOrderedDynamicStore::~TOrderedDynamicStore()
@@ -182,6 +181,8 @@ TOrderedDynamicRow TOrderedDynamicStore::WriteRow(TTransaction* /*transaction*/,
 
     auto result = DoWriteSchemalessRow(row);
 
+    Lock();
+
     OnMemoryUsageUpdated();
 
     ++PerformanceCounters_->DynamicRowWriteCount;
@@ -192,6 +193,8 @@ TOrderedDynamicRow TOrderedDynamicStore::WriteRow(TTransaction* /*transaction*/,
 TOrderedDynamicRow TOrderedDynamicStore::MigrateRow(TTransaction* /*transaction*/, TOrderedDynamicRow row)
 {
     auto result = DoWriteSchemafulRow(row);
+
+    Lock();
 
     OnMemoryUsageUpdated();
 
@@ -204,10 +207,13 @@ void TOrderedDynamicStore::PrepareRow(TTransaction* /*transaction*/, TOrderedDyn
 void TOrderedDynamicStore::CommitRow(TTransaction* /*transaction*/, TOrderedDynamicRow row)
 {
     DoCommitRow(row);
+    Unlock();
 }
 
 void TOrderedDynamicStore::AbortRow(TTransaction* /*transaction*/, TOrderedDynamicRow /*row*/)
-{ }
+{
+    Unlock();
+}
 
 TOrderedDynamicRow TOrderedDynamicStore::GetRow(i64 rowIndex)
 {

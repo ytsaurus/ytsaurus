@@ -65,6 +65,7 @@ struct IStore
     virtual bool IsOrdered() const = 0;
     virtual IOrderedStorePtr AsOrdered() = 0;
     virtual TOrderedDynamicStorePtr AsOrderedDynamic() = 0;
+    virtual TOrderedChunkStorePtr AsOrderedChunk() = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IStore)
@@ -91,6 +92,10 @@ DEFINE_REFCOUNTED_TYPE(IDynamicStore)
 struct IChunkStore
     : public virtual IStore
 {
+    virtual void SetBackingStore(IDynamicStorePtr store) = 0;
+    virtual bool HasBackingStore() const = 0;
+    virtual IDynamicStorePtr GetBackingStore() = 0;
+
     virtual EStorePreloadState GetPreloadState() const = 0;
     virtual void SetPreloadState(EStorePreloadState state) = 0;
 
