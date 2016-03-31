@@ -25,7 +25,6 @@ message TReqMountTablet
     required NYT.NProto.TGuid tablet_id = 1;
     required NYT.NProto.TGuid table_id = 9;
     required NYT.NTableClient.NProto.TTableSchemaExt schema = 2;
-    required NYT.NTableClient.NProto.TKeyColumnsExt key_columns = 3;
     repeated TAddStoreDescriptor stores = 4;
     required bytes pivot_key = 5;
     required bytes next_pivot_key = 6;

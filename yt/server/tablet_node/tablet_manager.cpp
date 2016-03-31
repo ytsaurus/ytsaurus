@@ -587,7 +587,6 @@ private:
         auto mountRevision = request->mount_revision();
         auto tableId = FromProto<TObjectId>(request->table_id());
         auto schema = FromProto<TTableSchema>(request->schema());
-        auto keyColumns = FromProto<TKeyColumns>(request->key_columns());
         auto pivotKey = FromProto<TOwningKey>(request->pivot_key());
         auto nextPivotKey = FromProto<TOwningKey>(request->next_pivot_key());
         auto mountConfig = DeserializeTableMountConfig((TYsonString(request->mount_config())), tabletId);
@@ -602,7 +601,6 @@ private:
             tableId,
             &TabletContext_,
             schema,
-            keyColumns,
             pivotKey,
             nextPivotKey,
             atomicity);
@@ -626,8 +624,8 @@ private:
             }
             if (!miscExt.eden()) {
                 auto boundaryKeysExt = GetProtoExtension<NTableClient::NProto::TBoundaryKeysExt>(extensions);
-                auto minKey = WidenKey(FromProto<TOwningKey>(boundaryKeysExt.min()), keyColumns.size());
-                auto maxKey = WidenKey(FromProto<TOwningKey>(boundaryKeysExt.max()), keyColumns.size());
+                auto minKey = WidenKey(FromProto<TOwningKey>(boundaryKeysExt.min()), schema.GetKeyColumnCount());
+                auto maxKey = WidenKey(FromProto<TOwningKey>(boundaryKeysExt.max()), schema.GetKeyColumnCount());
                 chunkBoundaries.push_back(std::make_tuple(minKey, -1, descriptorIndex));
                 chunkBoundaries.push_back(std::make_tuple(maxKey, 1, descriptorIndex));
             }
@@ -1987,7 +1985,7 @@ private:
         }
 
         LOG_DEBUG("Waiting on blocked row (Key: %v, LockIndex: %v, TabletId: %v, TransactionId: %v)",
-            RowToKey(tablet->Schema(), tablet->KeyColumns(), row),
+            RowToKey(tablet->Schema(), row),
             lockIndex,
             tabletId,
             transaction->GetId());

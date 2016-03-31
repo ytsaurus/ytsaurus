@@ -106,7 +106,6 @@ TTablet::TTablet(
     const TObjectId& tableId,
     ITabletContext* context,
     const TTableSchema& schema,
-    const TKeyColumns& keyColumns,
     TOwningKey pivotKey,
     TOwningKey nextPivotKey,
     EAtomicity atomicity)
@@ -114,7 +113,6 @@ TTablet::TTablet(
     , MountRevision_(mountRevision)
     , TableId_(tableId)
     , Schema_(schema)
-    , KeyColumns_(keyColumns)
     , PivotKey_(std::move(pivotKey))
     , NextPivotKey_(std::move(nextPivotKey))
     , State_(ETabletState::Mounted)
@@ -185,7 +183,6 @@ void TTablet::Save(TSaveContext& context) const
     Save(context, MountRevision_);
     Save(context, GetPersistentState());
     Save(context, Schema_);
-    Save(context, KeyColumns_);
     Save(context, Atomicity_);
     Save(context, HashTableSize_);
 
@@ -221,7 +218,10 @@ void TTablet::Load(TLoadContext& context)
     Load(context, MountRevision_);
     Load(context, State_);
     Load(context, Schema_);
-    Load(context, KeyColumns_);
+    // COMPAT(babenko)
+    if (context.GetVersion() < 14) {
+        Load<TKeyColumns>(context);
+    }
     Load(context, Atomicity_);
     Load(context, HashTableSize_);
 
@@ -584,12 +584,12 @@ IStorePtr TTablet::GetStore(const TStoreId& id)
 
 bool TTablet::IsSorted() const
 {
-    return !KeyColumns_.empty();
+    return Schema_.GetKeyColumnCount() > 0;
 }
 
 bool TTablet::IsOrdered() const
 {
-    return KeyColumns_.empty();
+    return Schema_.GetKeyColumnCount() == 0;
 }
 
 int TTablet::GetSchemaColumnCount() const
@@ -599,7 +599,7 @@ int TTablet::GetSchemaColumnCount() const
 
 int TTablet::GetKeyColumnCount() const
 {
-    return static_cast<int>(KeyColumns_.size());
+    return Schema_.GetKeyColumnCount();
 }
 
 int TTablet::GetColumnLockCount() const
@@ -711,13 +711,13 @@ void TTablet::PreInitialize()
     LockIndexToName_.push_back(PrimaryLockName);
 
     // Assign dummy lock indexes to key components.
-    for (int index = 0; index < KeyColumns_.size(); ++index) {
+    for (int index = 0; index < GetKeyColumnCount(); ++index) {
         ColumnIndexToLockIndex_[index] = -1;
     }
 
     // Assign lock indexes to data components.
     yhash_map<Stroka, int> groupToIndex;
-    for (int index = KeyColumns_.size(); index < Schema_.Columns().size(); ++index) {
+    for (int index = GetKeyColumnCount(); index < Schema_.Columns().size(); ++index) {
         const auto& columnSchema = Schema_.Columns()[index];
         int lockIndex = TSortedDynamicRow::PrimaryLockIndex;
         // No locking supported for non-atomic tablets, however we still need the primary
@@ -739,7 +739,7 @@ void TTablet::PreInitialize()
 
     ColumnLockCount_ = groupToIndex.size() + 1;
 
-    ColumnEvaluator_ = Context_->GetColumnEvaluatorCache()->Find(Schema_, KeyColumns_.size());
+    ColumnEvaluator_ = Context_->GetColumnEvaluatorCache()->Find(Schema_, GetKeyColumnCount());
 }
 
 void TTablet::PostInitialize()

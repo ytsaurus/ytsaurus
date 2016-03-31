@@ -589,7 +589,6 @@ public:
             req.set_mount_revision(tablet->GetMountRevision());
             ToProto(req.mutable_table_id(), table->GetId());
             ToProto(req.mutable_schema(), schema);
-            ToProto(req.mutable_key_columns()->mutable_names(), table->TableSchema().GetKeyColumns()); // max42: What do we do here?
             ToProto(req.mutable_pivot_key(), pivotKey);
             ToProto(req.mutable_next_pivot_key(), nextPivotKey);
             req.set_mount_config(serializedMountConfig.Data());

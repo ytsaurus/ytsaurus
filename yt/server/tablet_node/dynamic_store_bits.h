@@ -535,12 +535,10 @@ using TOrderedDynamicRowRef = TDynamicRowRef<
 
 TOwningKey RowToKey(
     const NTableClient::TTableSchema& schema,
-    const NTableClient::TKeyColumns& keyColumns,
     TSortedDynamicRow row);
 
 TOwningKey RowToKey(
     const NTableClient::TTableSchema& schema,
-    const NTableClient::TKeyColumns& keyColumns,
     TUnversionedRow row);
 
 ////////////////////////////////////////////////////////////////////////////////
