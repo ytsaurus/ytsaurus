@@ -4,8 +4,6 @@ from yt_env_setup import YTEnvSetup, wait
 from yt_commands import *
 from yt.yson import YsonEntity, YsonList
 
-from yt.environment.helpers import assert_items_equal
-
 from time import sleep
 
 from yt.environment.helpers import assert_items_equal
