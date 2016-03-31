@@ -796,11 +796,10 @@ void ValidateRowCount(int count)
 
 void ValidateClientDataRow(
     TUnversionedRow row,
-    int keyColumnCount,
     const TTableSchema& schema,
     const TNameTableToSchemaIdMapping& idMapping)
 {
-    ValidateClientRow(row, keyColumnCount, schema, idMapping, false);
+    ValidateClientRow(row, schema.GetKeyColumnCount(), schema, idMapping, false);
 }
 
 void ValidateServerDataRow(
@@ -820,11 +819,10 @@ void ValidateClientKey(TKey key)
 
 void ValidateClientKey(
     TKey key,
-    int keyColumnCount,
     const TTableSchema& schema,
     const TNameTableToSchemaIdMapping& idMapping)
 {
-    ValidateClientRow(key, keyColumnCount, schema, idMapping, true);
+    ValidateClientRow(key, schema.GetKeyColumnCount(), schema, idMapping, true);
 }
 
 void ValidateServerKey(
