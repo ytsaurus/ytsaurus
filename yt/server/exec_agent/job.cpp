@@ -461,7 +461,8 @@ private:
 
     void PrepareConfig()
     {
-        LOG_INFO("Started preparing job proxy config");
+        LOG_INFO("Preparing job proxy config");
+
         INodePtr ioConfigNode;
         try {
             const auto& schedulerJobSpecExt = JobSpec.GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
