@@ -277,9 +277,10 @@ void TInsertRowsCommand::Execute(ICommandContextPtr context)
     tableInfo->ValidateDynamic();
 
     // Parse input data.
+    auto keyColumns = tableInfo->Schema.GetKeyColumns();
     auto valueConsumer = New<TBuildingValueConsumer>(
         tableInfo->Schema,
-        tableInfo->KeyColumns);
+        keyColumns);
     valueConsumer->SetTreatMissingAsNull(!Update);
     auto rows = ParseRows(context, config, valueConsumer);
 
@@ -331,9 +332,10 @@ void TLookupRowsCommand::Execute(ICommandContextPtr context)
         GetOptions());
 
     // Parse input data.
+    auto keyColumns = tableInfo->Schema.GetKeyColumns();
     auto valueConsumer = New<TBuildingValueConsumer>(
-        tableInfo->Schema.TrimNonkeyColumns(tableInfo->KeyColumns),
-        tableInfo->KeyColumns);
+        tableInfo->Schema.TrimNonkeyColumns(keyColumns),
+        keyColumns);
     auto keys = ParseRows(context, config, valueConsumer);
 
     // Run lookup.
@@ -375,9 +377,10 @@ void TDeleteRowsCommand::Execute(ICommandContextPtr context)
 
 
     // Parse input data.
+    auto keyColumns = tableInfo->Schema.GetKeyColumns();
     auto valueConsumer = New<TBuildingValueConsumer>(
-        tableInfo->Schema.TrimNonkeyColumns(tableInfo->KeyColumns),
-        tableInfo->KeyColumns);
+        tableInfo->Schema.TrimNonkeyColumns(keyColumns),
+        keyColumns);
     auto keys = ParseRows(context, config, valueConsumer);
 
     // Run deletes.
