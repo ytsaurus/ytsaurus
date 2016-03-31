@@ -22,7 +22,7 @@ class TestSortedTablets(YTEnvSetup):
         }
     }
 
-    def _get_schema(self, columns, optimized_for):
+    def _make_schema(self, columns, optimized_for):
         schema = YsonList(columns)
         schema.attributes["optimized_for"] = optimized_for
         return schema
@@ -33,7 +33,7 @@ class TestSortedTablets(YTEnvSetup):
                 "dynamic": True,
                 "atomicity": atomicity
             },
-            schema = self._get_schema([
+            schema = self._make_schema([
                 {"name": "key", "type": "int64", "sort_order": "ascending"}, 
                 {"name": "value", "type": "string"}],
                 optimized_for))
@@ -42,7 +42,7 @@ class TestSortedTablets(YTEnvSetup):
 
         create("table", path,
             attributes={"dynamic": True},
-            schema = self._get_schema([
+            schema = self._make_schema([
                 {"name": "key1", "type": "int64", "sort_order": "ascending"},
                 {"name": "key2", "type": "int64", "sort_order": "ascending", "expression": "key1 * 100 + 3"},
                 {"name": "value", "type": "string"}],
@@ -52,7 +52,7 @@ class TestSortedTablets(YTEnvSetup):
     def _create_table_with_hash(self, path, optimized_for="lookup"):
         create("table", path,
             attributes={"dynamic": True},
-            schema = self._get_schema([
+            schema = self._make_schema([
                 {"name": "hash", "type": "uint64", "expression": "farm_hash(key)", "sort_order": "ascending"},
                 {"name": "key", "type": "int64", "sort_order": "ascending"},
                 {"name": "value", "type": "string"}],
@@ -62,7 +62,7 @@ class TestSortedTablets(YTEnvSetup):
     def _create_table_with_aggregate_column(self, path, aggregate = "sum", optimized_for="lookup"):
         create("table", path,
             attributes={"dynamic": True},
-            schema = self._get_schema([
+            schema = self._make_schema([
                 {"name": "key", "type": "int64", "sort_order": "ascending"},
                 {"name": "time", "type": "int64"},
                 {"name": "value", "type": "int64", "aggregate": aggregate}],
@@ -375,7 +375,7 @@ class TestSortedTablets(YTEnvSetup):
 
         create("table", "//tmp/t",
             attributes={"dynamic": True},
-            schema = self._get_schema([
+            schema = self._make_schema([
                 {"name": "key1", "type": "int64", "expression": "key2", "sort_order": "ascending"},
                 {"name": "key2", "type": "int64", "sort_order": "ascending"},
                 {"name": "value1", "type": "string"},
@@ -662,7 +662,7 @@ class TestSortedTablets(YTEnvSetup):
         self.sync_create_cells(1, 1)
         create("table", "//tmp/t1",
             attributes={"dynamic": True},
-            schema = self._get_schema([
+            schema = self._make_schema([
                 {"name": "key", "type": "int64", "sort_order": "ascending"}, 
                 {"name": "value", "type": "any"}], optimized_for))
         self.sync_mount_table("//tmp/t1")
