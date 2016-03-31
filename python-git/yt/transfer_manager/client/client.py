@@ -206,7 +206,7 @@ class TransferManager(object):
 
         def except_action(error):
             if is_mutating:
-                # XXX(asaitgalin): use new mutation id because it is 503.
+                # XXX(asaitgalin): use new mutation id because it is 500.
                 if isinstance(error, TransferManagerUnavailableError):
                     params["mutation_id"] = generate_uuid()
                     params["retry"] = bool_to_string(False)

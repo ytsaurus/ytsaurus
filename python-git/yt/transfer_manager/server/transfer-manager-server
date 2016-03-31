@@ -503,40 +503,37 @@ class Application(object):
             if retry and time.time() - self._start_time < self._mutating_requests_cache.max_age:
                 raise RequestFailed("Transfer Manager just started and cannot process retry requests")
 
-            if retry and not mutation_id:
-                raise RequestFailed('Cannot process retry request without specified "mutation_id" header')
+            if mutation_id is None:
+                if retry:
+                    raise RequestFailed('Cannot process retry request without specified "mutation_id" header')
+                return func(*args, **kwargs)
 
-            if retry:
-                with self._requests_in_progress_mutex:
-                    if mutation_id in self._requests_in_progress:
-                        raise RequestFailed("Request with mutation id {0} is being processed. "
-                                            "Retry again later".format(mutation_id), http_code=503)
+            with self._requests_in_progress_mutex:
+                if mutation_id in self._requests_in_progress:
+                    if not retry:
+                        raise RequestFailed('Duplicate request with mutation id {0} is not marked as "retry"'\
+                                            .format(mutation_id))
+                    raise RequestFailed("Request with mutation id {0} is being processed. "
+                                        "Retry again later".format(mutation_id), http_code=503)
 
                 processed_request = self._mutating_requests_cache.get(mutation_id)
                 if processed_request is not None:
+                    if not retry:
+                        raise RequestFailed('Duplicate request with mutation id {0} is not marked as "retry"'\
+                                            .format(mutation_id))
                     return processed_request
 
-                raise RequestFailed("Cached response for request with mutation id {0} not found"
-                                    .format(mutation_id))
-            else:
-                if mutation_id in self._mutating_requests_cache:
-                    raise RequestFailed('Duplicate request with mutation id {0} is not marked as "retry"'\
-                                        .format(mutation_id))
+            with self._requests_in_progress_mutex:
+                self._requests_in_progress.add(mutation_id)
 
-                if mutation_id is None:
-                    return func(*args, **kwargs)
+            response = func(*args, **kwargs)
 
-                with self._requests_in_progress_mutex:
-                    self._requests_in_progress.add(mutation_id)
+            self._mutating_requests_cache[mutation_id] = response
 
-                response = func(*args, **kwargs)
+            with self._requests_in_progress_mutex:
+                self._requests_in_progress.remove(mutation_id)
 
-                self._mutating_requests_cache[mutation_id] = response
-
-                with self._requests_in_progress_mutex:
-                    self._requests_in_progress.remove(mutation_id)
-
-                return response
+            return response
 
         return decorator
 
