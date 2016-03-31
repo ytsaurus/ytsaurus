@@ -347,6 +347,10 @@ THttpInput* THttpRequest::GetResponseStream()
             logAndSetError("authentication error");
             break;
 
+        case 429:
+            logAndSetError("request rate limit exceeded");
+            break;
+
         case 500:
             logAndSetError(Sprintf("internal error in proxy %s", ~HostName));
             break;
@@ -369,6 +373,9 @@ THttpInput* THttpRequest::GetResponseStream()
                 }
             }
             httpHeaders += ")";
+            if (!ytError) {
+                errorResponse.SetRawError("X-YT-Error is missing in headers");
+            }
             LOG_ERROR(
                 "RSP %s - HTTP %d - %s",
                 ~RequestId, httpCode, ~httpHeaders);
