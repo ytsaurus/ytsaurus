@@ -644,7 +644,7 @@ private:
         auto slot = tablet->GetSlot();
         auto tabletId = tablet->GetTabletId();
         auto mountRevision = tablet->GetMountRevision();
-        auto writerOptions = tablet->GetWriterOptions();
+        auto writerOptions = CloneYsonSerializable(tablet->GetWriterOptions());
         auto tabletPivotKey = tablet->GetPivotKey();
         auto nextTabletPivotKey = tablet->GetNextPivotKey();
         auto keyColumns = tablet->KeyColumns();
