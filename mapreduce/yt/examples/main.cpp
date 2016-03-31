@@ -28,7 +28,6 @@ void CreateSandbox()
 void PrepareInput(IClientPtr client, const TYPath& path)
 {
     client->Remove(path, TRemoveOptions().Force(true));
-    client->Create(path, NT_TABLE);
 }
 
 void PrepareOutput(IClientPtr client, const TYPath& path)
