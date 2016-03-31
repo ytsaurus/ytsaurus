@@ -255,7 +255,7 @@ class Task(object):
         return result
 
     def copy(self):
-        return Task(**dict((key, value) for key, value in self.__dict__.iteritems() if not key.startswith("_")))
+        return Task(**dict((key, value) for key, value in self.__dict__.items() if not key.startswith("_")))
 
 class ClustersConfiguration(object):
     def __init__(self, clusters, availability_graph, kiwi_transmitter, hadoop_transmitter):
@@ -280,6 +280,7 @@ class Application(object):
         self._last_successfully_loaded_config = deepcopy(self._config)
         self._mutex = CountedRLock()
         self._cypress_mutexes = defaultdict(CountedRLock)
+        self._user_mutexes = defaultdict(CountedRLock)
         self._yt = Yt(**self._config["yt_backend_options"])
 
         self._profiling_mutex = RLock()
@@ -771,7 +772,8 @@ class Application(object):
 
     def _append_pending_task(self, task):
         self._pending_tasks.append(task.id)
-        self._pending_tasks_per_user[task.user] += 1
+        with self._user_mutexes[task.user]:
+            self._pending_tasks_per_user[task.user] += 1
 
     def _change_task_state(self, id, new_state):
         with self._mutex:
@@ -1043,9 +1045,9 @@ class Application(object):
         return True
 
     def _renew_lease(self, task_id):
-        with self._mutex:
-            # NB: Fields of Task must be serializable.
-            self._tasks[task_id]._last_ping_time = time.time()
+        # NB: Fields of Task must be serializable.
+        # Such operation in object field is thread-safe.
+        self._tasks[task_id]._last_ping_time = time.time()
 
     def _force_abort(self, process):
         process.aborted = True
@@ -1624,10 +1626,9 @@ class Application(object):
         return ""
 
     def get_task(self, id):
-        with self._mutex:
-            if id not in self._tasks:
-                raise RequestFailed("Unknown task " + id)
-            task = self._tasks[id]
+        task = self._tasks.get(id)
+        if task is None:
+            raise RequestFailed("Unknown task " + id)
 
         task_description = task.dict(hide_token=True)
 
@@ -1667,20 +1668,11 @@ class Application(object):
     def get_tasks(self):
         start_time = time.time()
 
-        with self._mutex:
-            with self._cache_tasks_mutex:
-                if self._cache_tasks_time > start_time:
-                    logger.info("Get tasks responded from cache")
-                    return Response(self._cache_tasks_response, mimetype="application/json")
+        # Thread safe method to save copies of dict and list shared among threads .
+        tasks = dict(self._tasks.items())
+        pending_tasks = self._pending_tasks[:]
 
-            cache_time = time.time()
-
-            # NB: deepcopy is too slow, then we use two-level shallow copy.
-            tasks = dict([(id, task.copy()) for id, task in self._tasks.iteritems()])
-            # NB: Number of pending tasks is rather small, so we can use deepcopy here.
-            pending_tasks = deepcopy(self._pending_tasks)
-
-        after_deepcopy_time = time.time()
+        copy_finished_time = time.time()
 
         user = request.args.get("user")
         fields = request.args.getlist("fields[]")
@@ -1712,12 +1704,9 @@ class Application(object):
             tasks_descriptions.append(description)
 
         data = json.dumps(tasks_descriptions)
-        with self._cache_tasks_mutex:
-            if cache_time > self._cache_tasks_time:
-                self._cache_tasks_response = data
 
-        logger.info("Get tasks finished timings: total=%.2lf, mutex_wait=%.2lf, deepcopy=%.2lf, processing=%.2lf",
-                    time.time() - start_time, cache_time - start_time, after_deepcopy_time - cache_time, time.time() - after_deepcopy_time)
+        logger.info("Get tasks finished timings: total=%.2lf, copy=%.2lf, processing=%.2lf",
+                    time.time() - start_time, copy_finished_time - start_time, time.time() - copy_finished_time)
 
         return Response(data, mimetype="application/json")
 
