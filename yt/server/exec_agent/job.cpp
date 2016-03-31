@@ -322,7 +322,7 @@ private:
     void ValidateJobRunning() const
     {
         if (JobState_ != EJobState::Running) {
-            THROW_ERROR_EXCEPTION("Job %v is not running", Id_) 
+            THROW_ERROR_EXCEPTION("Job %v is not running", Id_)
                 << TErrorAttribute("job_state", FormatEnum(JobState_));
         }
     }
@@ -461,6 +461,7 @@ private:
 
     void PrepareConfig()
     {
+        LOG_INFO("Started preparing job proxy config");
         INodePtr ioConfigNode;
         try {
             const auto& schedulerJobSpecExt = JobSpec.GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
@@ -500,6 +501,8 @@ private:
             NLogging::TLogManager::Get()->Shutdown();
             _exit(1);
         }
+
+        LOG_INFO("Job proxy config prepared");
     }
 
     void PrepareProxy()
