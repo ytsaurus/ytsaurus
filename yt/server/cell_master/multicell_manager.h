@@ -83,6 +83,11 @@ public:
         const TCrossCellMessage& message,
         bool reliable = true);
 
+
+    //! For primary masters, always returns |true|.
+    //! For secondary masters, returns |true| if the local secondary cell is registered at the primary cell.
+    bool IsLocalMasterCellRegistered();
+
     //! Returns |true| if there is a registered master cell with a given cell tag.
     bool IsRegisteredMasterCell(NObjectClient::TCellTag cellTag);
 
