@@ -139,6 +139,7 @@ class YtStuff:
                 "start",
                 "--id=%s" % self.yt_id,
                 "--path=%s" % self.yt_work_dir,
+                "--fqdn=localhost",
             ]
             if self.tmpfs_path:
                 args.append("--tmpfs-path=%s" % self.tmpfs_path)
