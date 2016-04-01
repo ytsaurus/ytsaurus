@@ -43,7 +43,7 @@ def _raise_for_status(response):
     try:
         response_json = response.json()
     except ValueError as error:
-        raise YtError("Cannot parse JSON from body '{}'".format(response.content),
+        raise YtError("Cannot parse JSON from body '{0}'".format(response.content),
                       inner_errors=[YtError(error.message)])
 
     raise YtError(**response_json)
