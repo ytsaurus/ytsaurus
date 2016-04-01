@@ -117,12 +117,9 @@ const TDuration TTabletCache::ExpiringTimeout_ = TDuration::Seconds(1);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTabletInfoPtr TTableMountInfo::GetTablet(TUnversionedRow row) const
+TTabletInfoPtr TTableMountInfo::GetTabletForRow(TUnversionedRow row) const
 {
-    if (Tablets.empty()) {
-        THROW_ERROR_EXCEPTION("Table %v has no tablets",
-            Path);
-    }
+    ValidateDynamic();
 
     int keyColumnCount = Schema.GetKeyColumnCount();
     auto it = std::upper_bound(
@@ -133,6 +130,18 @@ TTabletInfoPtr TTableMountInfo::GetTablet(TUnversionedRow row) const
             return CompareRows(lhs, rhs->PivotKey, keyColumnCount) < 0;
         });
     return it == Tablets.begin() ? nullptr : *(--it);
+}
+
+TTabletInfoPtr TTableMountInfo::GetRandomMountedTabled() const
+{
+    ValidateDynamic();
+
+    if (MountedTablets.empty()) {
+        THROW_ERROR_EXCEPTION("Table %v has no mounted tablets", Path);
+    }
+
+    size_t index = RandomNumber(MountedTablets.size());
+    return MountedTablets[index];
 }
 
 void TTableMountInfo::ValidateDynamic() const
@@ -235,6 +244,9 @@ private:
 
                     tabletInfo = TabletCache_.Insert(std::move(tabletInfo));
                     tableInfo->Tablets.push_back(tabletInfo);
+                    if (tabletInfo->State == ETabletState::Mounted) {
+                        tableInfo->MountedTablets.push_back(tabletInfo);
+                    }
                 }
 
                 for (const auto& protoDescriptor : rsp->tablet_cells()) {
@@ -270,8 +282,7 @@ TTableMountCache::TTableMountCache(
         cellDirectory))
 { }
 
-TTableMountCache::~TTableMountCache()
-{ }
+TTableMountCache::~TTableMountCache() = default;
 
 TFuture<TTableMountInfoPtr> TTableMountCache::GetTableInfo(const TYPath& path)
 {

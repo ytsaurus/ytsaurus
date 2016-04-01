@@ -567,10 +567,6 @@ public:
         for (const auto& pair : assignment) {
             auto* tablet = pair.first;
             int tabletIndex = tablet->GetIndex();
-            auto pivotKey = tablet->GetPivotKey();
-            auto nextPivotKey = tablet->GetIndex() + 1 == allTablets.size()
-                ? MaxKey()
-                : allTablets[tabletIndex + 1]->GetPivotKey();
 
             auto* cell = pair.second;
             tablet->SetCell(cell);
@@ -589,8 +585,12 @@ public:
             req.set_mount_revision(tablet->GetMountRevision());
             ToProto(req.mutable_table_id(), table->GetId());
             ToProto(req.mutable_schema(), schema);
-            ToProto(req.mutable_pivot_key(), pivotKey);
-            ToProto(req.mutable_next_pivot_key(), nextPivotKey);
+            if (table->IsSorted()) {
+                ToProto(req.mutable_pivot_key(), tablet->GetPivotKey());
+                ToProto(req.mutable_next_pivot_key(), tablet->GetIndex() + 1 == allTablets.size()
+                    ? MaxKey()
+                    : allTablets[tabletIndex + 1]->GetPivotKey());
+            }
             req.set_mount_config(serializedMountConfig.Data());
             req.set_writer_options(serializedWriterOptions.Data());
             req.set_atomicity(static_cast<int>(table->GetAtomicity()));
