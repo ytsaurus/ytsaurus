@@ -6,7 +6,6 @@
 
 #include <yt/server/data_node/chunk_registry.h>
 #include <yt/server/data_node/chunk.h>
-#include <yt/server/data_node/master_connector.h>
 #include <yt/server/data_node/chunk_block_manager.h>
 #include <yt/server/data_node/chunk_registry.h>
 #include <yt/server/data_node/local_chunk_reader.h>
@@ -41,6 +40,7 @@ using namespace NChunkClient::NProto;
 using namespace NTransactionClient;
 using namespace NNodeTrackerClient;
 using namespace NObjectClient;
+using namespace NApi;
 using namespace NDataNode;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -321,9 +321,17 @@ TChunkStoreBase::TChunkStoreBase(
     TTabletManagerConfigPtr config,
     const TStoreId& id,
     TTablet* tablet,
-    NCellNode::TBootstrap* bootstrap)
+    IBlockCachePtr blockCache,
+    TChunkRegistryPtr chunkRegistry,
+    TChunkBlockManagerPtr chunkBlockManager,
+    IClientPtr client,
+    const TNullable<TNodeDescriptor>& localDescriptor)
     : TStoreBase(std::move(config), id, tablet)
-    , Bootstrap_(bootstrap)
+    , BlockCache_(std::move(blockCache))
+    , ChunkRegistry_(std::move(chunkRegistry))
+    , ChunkBlockManager_(std::move(chunkBlockManager))
+    , Client_(std::move(client))
+    , LocalDescriptor_(localDescriptor)
     , ChunkMeta_(New<TRefCountedChunkMeta>())
 {
     YCHECK(
@@ -477,8 +485,7 @@ IChunkPtr TChunkStoreBase::PrepareChunk()
         }
     }
 
-    auto chunkRegistry = Bootstrap_->GetChunkRegistry();
-    auto chunk = chunkRegistry->FindChunk(StoreId_);
+    auto chunk = ChunkRegistry_->FindChunk(StoreId_);
 
     {
         TWriterGuard guard(SpinLock_);
@@ -504,14 +511,14 @@ IChunkReaderPtr TChunkStoreBase::PrepareChunkReader(IChunkPtr chunk)
         }
     }
 
-    auto readerConfig = Bootstrap_->GetConfig()->TabletNode->TabletManager->ChunkReader;
+    auto readerConfig = Config_->ChunkReader;
 
     IChunkReaderPtr chunkReader;
     if (chunk && !chunk->IsRemoveScheduled()) {
         chunkReader = CreateLocalChunkReader(
             readerConfig,
             chunk,
-            Bootstrap_->GetChunkBlockManager(),
+            ChunkBlockManager_,
             GetBlockCache(),
             BIND(&TChunkStoreBase::OnLocalReaderFailed, MakeWeak(this)));
     } else {
@@ -524,9 +531,9 @@ IChunkReaderPtr TChunkStoreBase::PrepareChunkReader(IChunkPtr chunk)
             chunkSpec,
             readerConfig,
             New<TRemoteReaderOptions>(),
-            Bootstrap_->GetMasterClient(),
+            Client_,
             New<TNodeDirectory>(),
-            Bootstrap_->GetMasterConnector()->GetLocalDescriptor(),
+            LocalDescriptor_,
             GetBlockCache(),
             GetUnlimitedThrottler());
     }

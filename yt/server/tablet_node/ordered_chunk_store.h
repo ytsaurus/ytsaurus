@@ -17,7 +17,11 @@ public:
         TTabletManagerConfigPtr config,
         const TStoreId& id,
         TTablet* tablet,
-        NCellNode::TBootstrap* bootstrap);
+        NChunkClient::IBlockCachePtr blockCache,
+        NDataNode::TChunkRegistryPtr chunkRegistry = nullptr,
+        NDataNode::TChunkBlockManagerPtr chunkBlockManager = nullptr,
+        NApi::IClientPtr client = nullptr,
+        const TNullable<NNodeTrackerClient::TNodeDescriptor>& localDescriptor = Null);
     ~TOrderedChunkStore();
 
     // IStore implementation.

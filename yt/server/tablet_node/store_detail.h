@@ -12,7 +12,11 @@
 
 #include <yt/ytlib/chunk_client/chunk_meta.pb.h>
 
+#include <yt/ytlib/node_tracker_client/node_directory.h>
+
 #include <yt/core/actions/signal.h>
+
+#include <yt/core/misc/nullable.h>
 
 #include <yt/core/concurrency/rw_spinlock.h>
 
@@ -162,7 +166,11 @@ public:
         TTabletManagerConfigPtr config,
         const TStoreId& id,
         TTablet* tablet,
-        NCellNode::TBootstrap* bootstrap);
+        NChunkClient::IBlockCachePtr blockCache,
+        NDataNode::TChunkRegistryPtr chunkRegistry,
+        NDataNode::TChunkBlockManagerPtr chunkBlockManager,
+        NApi::IClientPtr client,
+        const TNullable<NNodeTrackerClient::TNodeDescriptor>& localDescriptor);
 
     void Initialize(const NChunkClient::NProto::TChunkMeta* chunkMeta);
 
@@ -197,7 +205,11 @@ public:
     virtual NChunkClient::IChunkReaderPtr GetChunkReader() override;
 
 protected:
-    NCellNode::TBootstrap* const Bootstrap_;
+    const NChunkClient::IBlockCachePtr BlockCache_;
+    const NDataNode::TChunkRegistryPtr ChunkRegistry_;
+    const NDataNode::TChunkBlockManagerPtr ChunkBlockManager_;
+    const NApi::IClientPtr Client_;
+    const TNullable<NNodeTrackerClient::TNodeDescriptor> LocalDescriptor_;
 
     EStorePreloadState PreloadState_ = EStorePreloadState::Disabled;
     TFuture<void> PreloadFuture_;
