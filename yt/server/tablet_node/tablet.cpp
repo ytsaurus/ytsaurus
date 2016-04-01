@@ -548,7 +548,7 @@ const yhash_map<TStoreId, IStorePtr>& TTablet::Stores() const
 void TTablet::AddStore(IStorePtr store)
 {
     YCHECK(Stores_.insert(std::make_pair(store->GetId(), store)).second);
-    if (store->IsSorted()) {
+    if (IsSorted()) {
         auto sortedStore = store->AsSorted();
         auto* partition = GetContainingPartition(sortedStore);
         YCHECK(partition->Stores().insert(sortedStore).second);
@@ -560,7 +560,7 @@ void TTablet::AddStore(IStorePtr store)
 void TTablet::RemoveStore(IStorePtr store)
 {
     YCHECK(Stores_.erase(store->GetId()) == 1);
-    if (store->IsSorted()) {
+    if (IsSorted()) {
         auto sortedStore = store->AsSorted();
         auto* partition = sortedStore->GetPartition();
         YCHECK(partition->Stores().erase(sortedStore) == 1);

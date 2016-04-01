@@ -587,8 +587,8 @@ private:
         auto mountRevision = request->mount_revision();
         auto tableId = FromProto<TObjectId>(request->table_id());
         auto schema = FromProto<TTableSchema>(request->schema());
-        auto pivotKey = FromProto<TOwningKey>(request->pivot_key());
-        auto nextPivotKey = FromProto<TOwningKey>(request->next_pivot_key());
+        auto pivotKey = request->has_pivot_key() ? FromProto<TOwningKey>(request->pivot_key()) : TOwningKey();
+        auto nextPivotKey = request->has_next_pivot_key() ? FromProto<TOwningKey>(request->next_pivot_key()) : TOwningKey();
         auto mountConfig = DeserializeTableMountConfig((TYsonString(request->mount_config())), tabletId);
         auto writerOptions = DeserializeTabletWriterOptions(TYsonString(request->writer_options()), tabletId);
         auto atomicity = EAtomicity(request->atomicity());
@@ -606,45 +606,47 @@ private:
             atomicity);
 
         auto* tablet = TabletMap_.Insert(tabletId, std::move(tabletHolder));
-
-        tablet->CreateInitialPartition();
         tablet->SetState(ETabletState::Mounted);
+
+        if (tablet->IsSorted()) {
+            tablet->CreateInitialPartition();
+            SchedulePartitionsSampling(tablet);
+
+            std::vector<std::tuple<TOwningKey, int, int>> chunkBoundaries;
+            int descriptorIndex = 0;
+            for (const auto& descriptor : request->stores()) {
+                const auto& extensions = descriptor.chunk_meta().extensions();
+                auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(extensions);
+                if (miscExt.has_max_timestamp()) {
+                    UpdateLastCommittedTimestamp(miscExt.max_timestamp());
+                }
+                if (!miscExt.eden()) {
+                    auto boundaryKeysExt = GetProtoExtension<NTableClient::NProto::TBoundaryKeysExt>(extensions);
+                    auto minKey = WidenKey(FromProto<TOwningKey>(boundaryKeysExt.min()), schema.GetKeyColumnCount());
+                    auto maxKey = WidenKey(FromProto<TOwningKey>(boundaryKeysExt.max()), schema.GetKeyColumnCount());
+                    chunkBoundaries.push_back(std::make_tuple(minKey, -1, descriptorIndex));
+                    chunkBoundaries.push_back(std::make_tuple(maxKey, 1, descriptorIndex));
+                }
+                ++descriptorIndex;
+            }
+
+            if (!chunkBoundaries.empty()) {
+                std::sort(chunkBoundaries.begin(), chunkBoundaries.end());
+                std::vector<TOwningKey> pivotKeys{pivotKey};
+                int depth = 0;
+                for (const auto& boundary : chunkBoundaries) {
+                    if (std::get<1>(boundary) == -1 && depth == 0 && std::get<0>(boundary) > pivotKey) {
+                        pivotKeys.push_back(std::get<0>(boundary));
+                    }
+                    depth -= std::get<1>(boundary);
+                }
+                YCHECK(tablet->Partitions().size() == 1);
+                SplitTabletPartition(tablet, 0, pivotKeys);
+            }
+        }
 
         const auto& storeManager = tablet->GetStoreManager();
         storeManager->CreateActiveStore();
-
-        std::vector<std::tuple<TOwningKey, int, int>> chunkBoundaries;
-
-        int descriptorIndex = 0;
-        for (const auto& descriptor : request->stores()) {
-            const auto& extensions = descriptor.chunk_meta().extensions();
-            auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(extensions);
-            if (miscExt.has_max_timestamp()) {
-                UpdateLastCommittedTimestamp(miscExt.max_timestamp());
-            }
-            if (!miscExt.eden()) {
-                auto boundaryKeysExt = GetProtoExtension<NTableClient::NProto::TBoundaryKeysExt>(extensions);
-                auto minKey = WidenKey(FromProto<TOwningKey>(boundaryKeysExt.min()), schema.GetKeyColumnCount());
-                auto maxKey = WidenKey(FromProto<TOwningKey>(boundaryKeysExt.max()), schema.GetKeyColumnCount());
-                chunkBoundaries.push_back(std::make_tuple(minKey, -1, descriptorIndex));
-                chunkBoundaries.push_back(std::make_tuple(maxKey, 1, descriptorIndex));
-            }
-            ++descriptorIndex;
-        }
-
-        if (!chunkBoundaries.empty()) {
-            std::sort(chunkBoundaries.begin(), chunkBoundaries.end());
-            std::vector<TOwningKey> pivotKeys{pivotKey};
-            int depth = 0;
-            for (const auto& boundary : chunkBoundaries) {
-                if (std::get<1>(boundary) == -1 && depth == 0 && std::get<0>(boundary) > pivotKey) {
-                    pivotKeys.push_back(std::get<0>(boundary));
-                }
-                depth -= std::get<1>(boundary);
-            }
-            YCHECK(tablet->Partitions().size() == 1);
-            SplitTabletPartition(tablet, 0, pivotKeys);
-        }
 
         for (const auto& descriptor : request->stores()) {
             auto type = EStoreType(descriptor.store_type());
@@ -659,8 +661,6 @@ private:
             storeManager->AddStore(store->AsChunk(), true);
         }
 
-        SchedulePartitionsSampling(tablet);
-
         {
             TRspMountTablet response;
             ToProto(response.mutable_tablet_id(), tabletId);
@@ -671,7 +671,7 @@ private:
             StartTabletEpoch(tablet);
         }
 
-        LOG_INFO_UNLESS(IsRecovery(), "Tablet mounted (TabletId: %v, MountRevision: %x, TableId: %v, Keys: %v .. %v,"
+        LOG_INFO_UNLESS(IsRecovery(), "Tablet mounted (TabletId: %v, MountRevision: %x, TableId: %v, Keys: %v .. %v, "
             "StoreCount: %v, PartitionCount: %v, Atomicity: %v)",
             tabletId,
             mountRevision,
@@ -761,7 +761,7 @@ private:
         const auto& storeManager = tablet->GetStoreManager();
         storeManager->Remount(mountConfig, writerOptions);
 
-        if (oldSamplesPerPartition != newSamplesPerPartition) {
+        if (tablet->IsSorted() && oldSamplesPerPartition != newSamplesPerPartition) {
             SchedulePartitionsSampling(tablet);
         }
 
@@ -1101,9 +1101,11 @@ private:
             auto store = CreateStore(tablet, storeType, storeId, &descriptor.chunk_meta())->AsChunk();
             storeManager->AddStore(store, false);
 
-            // XXX(babenko): get rid of this
-            auto chunkStore = store->AsSortedChunk();
-            SchedulePartitionSampling(chunkStore->GetPartition());
+            if (tablet->IsSorted()) {
+                // XXX(babenko): get rid of this
+                auto chunkStore = store->AsSortedChunk();
+                SchedulePartitionSampling(chunkStore->GetPartition());
+            }
 
             TStoreId backingStoreId;
             if (!IsRecovery() && descriptor.has_backing_store_id()) {
@@ -1156,6 +1158,8 @@ private:
             return;
         }
 
+        YCHECK(tablet->IsSorted());
+
         auto mountRevision = request->mount_revision();
         if (mountRevision != tablet->GetMountRevision()) {
             return;
@@ -1201,6 +1205,8 @@ private:
         if (!tablet) {
             return;
         }
+
+        YCHECK(tablet->IsSorted());
 
         auto mountRevision = request->mount_revision();
         if (mountRevision != tablet->GetMountRevision()) {
@@ -1251,6 +1257,8 @@ private:
         if (!tablet) {
             return;
         }
+
+        YCHECK(tablet->IsSorted());
 
         auto mountRevision = request->mount_revision();
         if (mountRevision != tablet->GetMountRevision()) {
@@ -1741,13 +1749,25 @@ private:
             .BeginMap()
                 .Item("table_id").Value(tablet->GetTableId())
                 .Item("state").Value(tablet->GetState())
-                .Item("pivot_key").Value(tablet->GetPivotKey())
-                .Item("next_pivot_key").Value(tablet->GetNextPivotKey())
-                .Item("eden").Do(BIND(&TImpl::BuildPartitionOrchidYson, Unretained(this), tablet->GetEden()))
-                .Item("partitions").DoListFor(tablet->Partitions(), [&] (TFluentList fluent, const std::unique_ptr<TPartition>& partition) {
+                .DoIf(tablet->IsSorted(), [&] (TFluentMap fluent) {
                     fluent
-                        .Item()
-                        .Do(BIND(&TImpl::BuildPartitionOrchidYson, Unretained(this), partition.get()));
+                        .Item("pivot_key").Value(tablet->GetPivotKey())
+                        .Item("next_pivot_key").Value(tablet->GetNextPivotKey())
+                        .Item("eden").Do(BIND(&TImpl::BuildPartitionOrchidYson, Unretained(this), tablet->GetEden()))
+                        .Item("partitions").DoListFor(tablet->Partitions(), [&] (TFluentList fluent, const std::unique_ptr<TPartition>& partition) {
+                            fluent
+                                .Item()
+                                .Do(BIND(&TImpl::BuildPartitionOrchidYson, Unretained(this), partition.get()));
+                        });
+                })
+                .DoIf(!tablet->IsSorted(), [&] (TFluentMap fluent) {
+                    fluent
+                        .Item("stores").DoMapFor(tablet->Stores(), [&] (TFluentMap fluent, const std::pair<const TStoreId, IStorePtr>& pair) {
+                            const auto& store = pair.second;
+                            fluent
+                                .Item(ToString(store->GetId()))
+                                .Do(BIND(&TImpl::BuildStoreOrchidYson, Unretained(this), store));
+                        });
                 })
             .EndMap();
     }
