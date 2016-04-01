@@ -1496,8 +1496,12 @@ protected:
 
     void OnAccountStatisticsGossip()
     {
-        LOG_INFO("Sending account statistics gossip message");
+        auto multicellManager = Bootstrap_->GetMulticellManager();
+        if (!multicellManager->IsLocalMasterCellRegistered()) {
+            return;
+        }
 
+        LOG_INFO("Sending account statistics gossip message");
 
         NProto::TReqSetAccountStatistics request;
         request.set_cell_tag(Bootstrap_->GetCellTag());
@@ -1515,7 +1519,6 @@ protected:
             }
         }
 
-        auto multicellManager = Bootstrap_->GetMulticellManager();
         if (Bootstrap_->IsPrimaryMaster()) {
             multicellManager->PostToSecondaryMasters(request, false);
         } else {
@@ -1570,8 +1573,12 @@ protected:
 
     void OnUserStatisticsGossip()
     {
-        LOG_INFO("Sending user statistics gossip message");
+        auto multicellManager = Bootstrap_->GetMulticellManager();
+        if (!multicellManager->IsLocalMasterCellRegistered()) {
+            return;
+        }
 
+        LOG_INFO("Sending user statistics gossip message");
 
         NProto::TReqSetUserStatistics request;
         request.set_cell_tag(Bootstrap_->GetCellTag());
@@ -1589,7 +1596,6 @@ protected:
             }
         }
 
-        auto multicellManager = Bootstrap_->GetMulticellManager();
         if (Bootstrap_->IsPrimaryMaster()) {
             multicellManager->PostToSecondaryMasters(request, false);
         } else {

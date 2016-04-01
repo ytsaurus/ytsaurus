@@ -1155,6 +1155,11 @@ private:
 
     void OnNodeStatesGossip()
     {
+        auto multicellManager = Bootstrap_->GetMulticellManager();
+        if (!multicellManager->IsLocalMasterCellRegistered()) {
+            return;
+        }
+
         LOG_INFO("Sending node states gossip message");
 
         TReqSetNodeStates request;
@@ -1169,7 +1174,6 @@ private:
             entry->set_state(static_cast<int>(node->GetLocalState()));
         }
 
-        auto multicellManager = Bootstrap_->GetMulticellManager();
         multicellManager->PostToMaster(request, PrimaryMasterCellTag, false);
     }
 
