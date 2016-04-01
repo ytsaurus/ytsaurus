@@ -40,7 +40,13 @@ def _raise_for_status(response):
     if response.status_code == 503:
         raise RequestIsBeingProcessedError(response.content)
 
-    raise YtError(**response.json())
+    try:
+        response_json = response.json()
+    except ValueError as error:
+        raise YtError("Cannot parse JSON from body '{}'".format(response.content),
+                      inner_errors=[YtError(error.message)])
+
+    raise YtError(**response_json)
 
 class Poller(object):
     def __init__(self, poll_period, running_tasks_limit, get_task_info_func):
