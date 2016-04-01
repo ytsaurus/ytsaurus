@@ -57,7 +57,9 @@ def main():
 
     # collect table and files
     objects = []
-    for obj in yt.search(args.directory, node_type=["table", "file"], attributes=["access_time", "modification_time", "locks", "hash", "resource_usage"]):
+    for obj in yt.search(args.directory,
+                         node_type=["table", "file", "lock"],
+                         attributes=["access_time", "modification_time", "locks", "hash", "resource_usage"]):
         if is_locked(obj):
             continue
         objects.append((get_age(obj), obj))
