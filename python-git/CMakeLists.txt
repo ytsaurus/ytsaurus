@@ -34,3 +34,13 @@ file(
   COPY ${CMAKE_CURRENT_SOURCE_DIR}/contrib/python-pympler/pympler
   DESTINATION ${CMAKE_CURRENT_SOURCE_DIR}/yt/packages/
 )
+
+exec_program(
+  ${CMAKE_COMMAND} ARGS -E remove
+  ${CMAKE_CURRENT_SOURCE_DIR}/yt/packages/cherrypy
+)
+
+file(
+  COPY ${CMAKE_CURRENT_SOURCE_DIR}/contrib/python-cherrypy/cherrypy
+  DESTINATION ${CMAKE_CURRENT_SOURCE_DIR}/yt/packages/
+)
