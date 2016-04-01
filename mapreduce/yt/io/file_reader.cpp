@@ -4,6 +4,7 @@
 
 #include <mapreduce/yt/common/log.h>
 #include <mapreduce/yt/common/helpers.h>
+#include <mapreduce/yt/common/config.h>
 #include <mapreduce/yt/http/http.h>
 #include <mapreduce/yt/http/requests.h>
 #include <mapreduce/yt/http/error.h>
@@ -30,6 +31,8 @@ TFileReader::TFileReader(
         header.AddTransactionId(TransactionId_);
         header.SetDataStreamFormat(DSF_BYTES);
         header.SetParameters(FormIORequestParameters(Path_, options));
+
+        header.SetResponseCompression(TConfig::Get()->AcceptEncoding);
 
         Request_.Reset(new THttpRequest(proxyName));
         requestId = Request_->GetRequestId();

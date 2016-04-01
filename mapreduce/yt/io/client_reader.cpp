@@ -75,6 +75,8 @@ void TClientReader::CreateRequest(bool initial, ui32 rangeIndex, ui64 rowIndex)
             header.AddParam("control_attributes[enable_range_index]", true);
             header.SetDataStreamFormat(Format_);
 
+            header.SetResponseCompression(TConfig::Get()->AcceptEncoding);
+
             if (Format_ == DSF_YAMR_LENVAL) {
                 auto format = GetTableFormat(Auth_, TransactionId_, Path_);
                 if (format) {
