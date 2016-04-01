@@ -94,6 +94,7 @@ public:
         REGISTER(TSuspendOperationExecutor,  "suspend_op"        );
         REGISTER(TResumeOperationExecutor,   "resume_op"         );
         REGISTER(TTrackOperationExecutor,    "track_op"          );
+        REGISTER(TCompleteOperationExecutor, "complete_op"       );
 
         REGISTER(TAddMemberExecutor,         "add_member"        );
         REGISTER(TRemoveMemberExecutor,      "remove_member"     );

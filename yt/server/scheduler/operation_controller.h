@@ -167,6 +167,13 @@ struct IOperationController
      */
     virtual void Abort() = 0;
 
+    //! Notifies the controller that the operation has been completed.
+    /*!
+     *  All running jobs are aborted automatically.
+     *  The operation, however, may carry out any additional cleanup it finds necessary.
+     */
+    virtual void Complete() = 0;
+
 
     //! Returns the context that gets invalidated by #Abort.
     virtual TCancelableContextPtr GetCancelableContext() const = 0;

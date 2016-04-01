@@ -1873,6 +1873,19 @@ void TOperationControllerBase::Abort()
     LOG_INFO("Operation aborted");
 }
 
+void TOperationControllerBase::Complete()
+{
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
+    LOG_INFO("Completing operation");
+
+    State = EControllerState::Finished;
+
+    Host->OnOperationCompleted(Operation);
+
+    LOG_INFO("Operation completed");
+}
+
 void TOperationControllerBase::CheckTimeLimit()
 {
     VERIFY_INVOKER_AFFINITY(CancelableInvoker);

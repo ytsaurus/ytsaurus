@@ -414,6 +414,10 @@ struct TResumeOperationOptions
     : public TTimeoutOptions
 { };
 
+struct TCompleteOperationOptions
+    : public TTimeoutOptions
+{ };
+
 struct TDumpJobContextOptions
     : public TTimeoutOptions
 { };
@@ -648,6 +652,10 @@ struct IClient
     virtual TFuture<void> ResumeOperation(
         const NScheduler::TOperationId& operationId,
         const TResumeOperationOptions& options = TResumeOperationOptions()) = 0;
+
+    virtual TFuture<void> CompleteOperation(
+        const NScheduler::TOperationId& operationId,
+        const TCompleteOperationOptions& options = TCompleteOperationOptions()) = 0;
 
     virtual TFuture<void> DumpJobContext(
         const NJobTrackerClient::TJobId& jobId,

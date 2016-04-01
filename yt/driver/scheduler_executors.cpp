@@ -533,5 +533,26 @@ Stroka TTrackOperationExecutor::GetCommandName() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TCompleteOperationExecutor::TCompleteOperationExecutor()
+    : OpArg("", "id of an operation to complete", true, "", "OP_ID")
+{
+    CmdLine.add(OpArg);
+}
+
+void TCompleteOperationExecutor::BuildParameters(IYsonConsumer* consumer)
+{
+    BuildYsonMapFluently(consumer)
+        .Item("operation_id").Value(OpArg.getValue());
+
+    TRequestExecutor::BuildParameters(consumer);
+}
+
+Stroka TCompleteOperationExecutor::GetCommandName() const
+{
+    return "complete_op";
+}
+
+//////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NDriver
 } // namespace NYT
