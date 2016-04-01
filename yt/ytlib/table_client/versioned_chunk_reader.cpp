@@ -667,7 +667,7 @@ protected:
             key);
 
         i64 rowIndex = 0;
-        for (const auto it = lower; it != upper + 1; ++it) {
+        for (auto it = lower; it != upper + 1; ++it) {
             int blockIndex = std::distance(ChunkMeta_->BlockLastKeys().begin(), it);
             const auto& blockMeta = ChunkMeta_->BlockMeta().blocks(blockIndex);
             rowIndex = std::max(rowIndex, blockMeta.chunk_row_count() - blockMeta.row_count());
