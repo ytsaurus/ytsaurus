@@ -256,7 +256,7 @@ class TestSchedulerJoinReduceCommands(YTEnvSetup):
 
     @unix_only
     def test_join_reduce_empty_in(self):
-        create("table", "//tmp/in1", attributess={"schema": [{"name": "key", "type": "any", "sort_order": "ascending"}]})
+        create("table", "//tmp/in1", attributes={"schema": [{"name": "key", "type": "any", "sort_order": "ascending"}]})
         create("table", "//tmp/in2", attributes={"schema": [{"name": "key", "type": "any", "sort_order": "ascending"}]})
         create("table", "//tmp/out")
 
