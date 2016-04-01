@@ -29,6 +29,7 @@ import yt.logger as logger
 import yt.wrapper as yt
 import yt.json as json
 from yt.packages.expiringdict import ExpiringDict
+from yt.packages.cherrypy import wsgiserver
 
 import yt.packages.pympler.muppy as pympler_muppy
 import yt.packages.pympler.summary as pympler_summary
@@ -1544,7 +1545,13 @@ class Application(object):
     # Public interface
     def run(self, *args, **kwargs):
         logger.info("Starting transfer manager (pid %s)", os.getpid())
-        self._daemon.run(*args, **kwargs)
+
+        dispatcher = wsgiserver.WSGIPathInfoDispatcher({'/': self._daemon})
+        server = wsgiserver.CherryPyWSGIServer((self._config.get("host", "::"), self._config["port"]), dispatcher)
+        try:
+           server.start()
+        except KeyboardInterrupt:
+           server.stop()
 
 
     # Url handlers
@@ -1794,7 +1801,7 @@ def main():
 
         app = Application(args.config)
         app.start_processes()
-        app.run(host=app._config.get("host", "::"), port=app._config["port"], use_reloader=False, threaded=True)
+        app.run()
         app.terminate()
 
 if __name__ == "__main__":
