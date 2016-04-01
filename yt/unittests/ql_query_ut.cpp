@@ -1081,6 +1081,112 @@ TEST_F(TQueryEvaluateTest, GroupByBool)
     SUCCEED();
 }
 
+TEST_F(TQueryEvaluateTest, GroupWithTotals)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Int64},
+        {"b", EValueType::Int64}
+    });
+
+    std::vector<Stroka> source = {
+        "a=1;b=10",
+        "a=2;b=20",
+        "a=3;b=30",
+        "a=4;b=40",
+        "a=5;b=50",
+        "a=6;b=60",
+        "a=7;b=70",
+        "a=8;b=80",
+        "a=9;b=90"
+    };
+
+    auto resultSplit = MakeSplit({
+        {"x", EValueType::Boolean},
+        {"t", EValueType::Int64}
+    });
+
+    auto resultWithTotals = BuildRows({
+        "x=%false;t=200",
+        "x=%true;t=240",
+        "t=440"
+    }, resultSplit);
+
+    Evaluate("x, sum(b) as t FROM [//t] where a > 1 group by a % 2 = 1 as x with totals", split,
+        source, ResultMatcher(resultWithTotals));
+
+    auto resultWithTotalsAfterHaving = BuildRows({
+        "x=%true;t=240",
+        "t=240"
+    }, resultSplit);
+
+    Evaluate("x, sum(b) as t FROM [//t] where a > 1 group by a % 2 = 1 as x having t > 200 with totals", split,
+        source, ResultMatcher(resultWithTotalsAfterHaving));
+
+    auto resultWithTotalsBeforeHaving = BuildRows({
+        "x=%true;t=240",
+        "t=440"
+    }, resultSplit);
+
+    Evaluate("x, sum(b) as t FROM [//t] where a > 1 group by a % 2 = 1 as x with totals having t > 200", split,
+        source, ResultMatcher(resultWithTotalsBeforeHaving));
+
+    SUCCEED();
+}
+
+TEST_F(TQueryEvaluateTest, GroupWithTotalsNulls)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Int64},
+        {"b", EValueType::Int64}
+    });
+
+    std::vector<Stroka> source = {
+        "a=1;b=10",
+        "b=20",
+    };
+
+    auto resultSplit = MakeSplit({
+        {"x", EValueType::Int64},
+        {"t", EValueType::Int64}
+    });
+
+    auto resultWithTotals = BuildRows({
+    }, resultSplit);
+
+    EXPECT_THROW_THAT(
+        [&] {
+            Evaluate("x, sum(b) as t FROM [//t] group by a % 2 as x with totals", split,
+                source, [] (std::vector<TRow> result, const TTableSchema& tableSchema) { });
+        },
+        HasSubstr("Null values in group key"));
+
+    SUCCEED();
+}
+
+TEST_F(TQueryEvaluateTest, GroupWithTotalsEmpty)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Int64},
+        {"b", EValueType::Int64}
+    });
+
+    std::vector<Stroka> source = {
+    };
+
+    auto resultSplit = MakeSplit({
+        {"x", EValueType::Int64},
+        {"t", EValueType::Int64}
+    });
+
+    auto resultWithTotals = BuildRows({
+    }, resultSplit);
+
+    Evaluate("x, sum(b) as t FROM [//t] group by a % 2 as x with totals", split,
+        source, ResultMatcher(resultWithTotals));
+
+    SUCCEED();
+}
+
 TEST_F(TQueryEvaluateTest, ComplexWithAliases)
 {
     auto split = MakeSplit({

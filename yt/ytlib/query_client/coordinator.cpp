@@ -80,6 +80,7 @@ std::pair<TConstQueryPtr, std::vector<TConstQueryPtr>> CoordinateQuery(
             subqueryGroupClause->AggregateItems = query->GroupClause->AggregateItems;
             subqueryGroupClause->IsMerge = query->GroupClause->IsMerge;
             subqueryGroupClause->IsFinal = false;
+            subqueryGroupClause->TotalsMode = ETotalsMode::None;
             subqueryPattern->GroupClause = subqueryGroupClause;
 
             auto topGroupClause = New<TGroupClause>();
@@ -109,15 +110,10 @@ std::pair<TConstQueryPtr, std::vector<TConstQueryPtr>> CoordinateQuery(
 
             topGroupClause->IsMerge = true;
             topGroupClause->IsFinal = query->GroupClause->IsFinal;
+            topGroupClause->TotalsMode = query->GroupClause->TotalsMode;
             topQuery->GroupClause = topGroupClause;
         } else {
-            auto groupClause = New<TGroupClause>();
-            groupClause->GroupedTableSchema = query->GroupClause->GroupedTableSchema;
-            groupClause->GroupItems = query->GroupClause->GroupItems;
-            groupClause->AggregateItems = query->GroupClause->AggregateItems;
-            groupClause->IsMerge = query->GroupClause->IsMerge;
-            groupClause->IsFinal = query->GroupClause->IsFinal;
-            subqueryPattern->GroupClause = groupClause;
+            subqueryPattern->GroupClause = query->GroupClause;
         }
 
         topQuery->ProjectClause = query->ProjectClause;

@@ -84,11 +84,11 @@ void WriteRow(TRow row, TExecutionContext* context)
         context->Statistics->IncompleteOutput = true;
         return;
     }
-    
+
     ++context->Statistics->RowsWritten;
 
     auto* batch = context->OutputRowsBatch;
-    
+
     const auto& rowBuffer = context->OutputBuffer;
 
     YASSERT(batch->size() < batch->capacity());
@@ -306,7 +306,8 @@ const TRow* InsertGroupRow(
     TLookupRows* lookupRows,
     std::vector<TRow>* groupedRows,
     TMutableRow row,
-    int keySize)
+    int keySize,
+    bool checkNulls)
 {
     CHECK_STACK();
 
@@ -321,6 +322,14 @@ const TRow* InsertGroupRow(
         groupedRows->push_back(row);
         for (int index = 0; index < keySize; ++index) {
             context->PermanentBuffer->Capture(&row[index]);
+        }
+
+        if (checkNulls) {
+            for (int index = 0; index < keySize; ++index) {
+                if (row[index].Type == EValueType::Null) {
+                    THROW_ERROR_EXCEPTION("Null values in group key");
+                }
+            }
         }
     }
 

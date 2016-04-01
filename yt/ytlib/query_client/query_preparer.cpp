@@ -75,7 +75,12 @@ std::vector<Stroka> ExtractFunctionNames(
     ExtractFunctionNames(parsedQueryInfo.first.WherePredicate, &functions);
     ExtractFunctionNames(parsedQueryInfo.first.HavingPredicate, &functions);
     ExtractFunctionNames(parsedQueryInfo.first.SelectExprs, &functions);
-    ExtractFunctionNames(parsedQueryInfo.first.GroupExprs, &functions);
+
+    if (auto groupExprs = parsedQueryInfo.first.GroupExprs.GetPtr()) {
+        for (const auto& expr : groupExprs->first) {
+            ExtractFunctionNames(expr, &functions);
+        }
+    }
 
     for (const auto& join : parsedQueryInfo.first.Joins) {
         ExtractFunctionNames(join.Left, &functions);
@@ -1299,6 +1304,7 @@ TConstExpressionPtr BuildWhereClause(
 
 TConstGroupClausePtr BuildGroupClause(
     const NAst::TExpressionList& expressionsAst,
+    ETotalsMode totalsMode,
     const Stroka& source,
     TSchemaProxyPtr& schemaProxy,
     const TTypeInferrerMapPtr& functions,
@@ -1307,6 +1313,7 @@ TConstGroupClausePtr BuildGroupClause(
     auto groupClause = New<TGroupClause>();
     groupClause->IsMerge = false;
     groupClause->IsFinal = true;
+    groupClause->TotalsMode = totalsMode;
 
     for (const auto& expressionAst : expressionsAst) {
         auto typedExpr = schemaProxy->BuildTypedExpression(
@@ -1389,18 +1396,19 @@ void PrepareQuery(
     const TTypeInferrerMapPtr& functions,
     const NAst::TAliasMap& aliasMap)
 {
-    if (ast.WherePredicate) {
+    if (const auto* wherePredicate = ast.WherePredicate.GetPtr()) {
         query->WhereClause = BuildWhereClause(
-            ast.WherePredicate.Get(),
+            *wherePredicate,
             source,
             schemaProxy,
             functions,
             aliasMap);
     }
 
-    if (ast.GroupExprs) {
+    if (const auto* groupExprs = ast.GroupExprs.GetPtr()) {
         query->GroupClause = BuildGroupClause(
-            ast.GroupExprs.Get(),
+            groupExprs->first,
+            groupExprs->second,
             source,
             schemaProxy,
             functions,

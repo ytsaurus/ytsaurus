@@ -878,7 +878,7 @@ TCodegenExpression MakeCodegenInOpExpr(
         for (int index = 0; index < keySize; ++index) {
             auto id = index;
             auto value = codegenArgs[index](builder, row);
-            keyTypes.push_back(value.GetStaticType());        
+            keyTypes.push_back(value.GetStaticType());
             value.StoreToRow(builder, newRowRef, index, id);
         }
 
@@ -1053,7 +1053,7 @@ TCodegenSource MakeCodegenFilterOp(
     TCodegenSource codegenSource)
 {
     return [
-        MOVE(codegenPredicate), 
+        MOVE(codegenPredicate),
         codegenSource = std::move(codegenSource)
     ] (TCGContext& builder, const TCodegenConsumer& codegenConsumer) {
         codegenSource(
@@ -1088,7 +1088,7 @@ TCodegenSource MakeCodegenProjectOp(
 {
     return [
         MOVE(codegenArgs),
-        codegenSource = std::move(codegenSource)        
+        codegenSource = std::move(codegenSource)
     ] (TCGContext& builder, const TCodegenConsumer& codegenConsumer) {
         int projectionCount = codegenArgs.size();
 
@@ -1109,7 +1109,7 @@ TCodegenSource MakeCodegenProjectOp(
 
                 for (int index = 0; index < projectionCount; ++index) {
                     auto id = index;
-                
+
                     codegenArgs[index](builder, row)
                         .StoreToRow(builder, newRow, index, id);
                 }
@@ -1120,34 +1120,40 @@ TCodegenSource MakeCodegenProjectOp(
 }
 
 std::function<void(TCGContext&, Value*, Value*)> MakeCodegenEvaluateGroups(
-    std::vector<TCodegenExpression> codegenGroupExprs)
+    std::vector<TCodegenExpression> codegenGroupExprs,
+    std::vector<EValueType> nullTypes)
 {
     return [
-        MOVE(codegenGroupExprs)
+        MOVE(codegenGroupExprs),
+        MOVE(nullTypes)
     ] (TCGContext& builder, Value* srcRow, Value* dstRow) {
         for (int index = 0; index < codegenGroupExprs.size(); index++) {
-            auto id = index;
             auto value = codegenGroupExprs[index](builder, srcRow);
-            value.StoreToRow(builder, dstRow, index, id);
+            value.StoreToRow(builder, dstRow, index, index);
+        }
+
+        size_t offset = codegenGroupExprs.size();
+        for (int index = 0; index < nullTypes.size(); ++index) {
+            TCGValue::CreateNull(builder, nullTypes[index])
+                .StoreToRow(builder, dstRow, offset + index, offset + index);
         }
     };
 }
 
 std::function<void(TCGContext&, Value*, Value*)> MakeCodegenEvaluateAggregateArgs(
-    std::vector<TCodegenExpression> codegenGroupExprs,
+    size_t keySize,
     std::vector<TCodegenExpression> codegenAggregateExprs,
     std::vector<TCodegenAggregate> codegenAggregates,
     bool isMerge,
     TTableSchema inputSchema)
 {
     return [
-        MOVE(codegenGroupExprs),
+        keySize,
         MOVE(codegenAggregateExprs),
         MOVE(codegenAggregates),
         isMerge,
         inputSchema
     ] (TCGContext& builder, Value* srcRow, Value* dstRow) {
-        auto keySize = codegenGroupExprs.size();
         auto aggregatesCount = codegenAggregates.size();
 
         if (!isMerge) {
@@ -1275,7 +1281,9 @@ TCodegenSource MakeCodegenGroupOp(
     std::function<void(TCGContext&, Value*)> codegenFinalize,
     TCodegenSource codegenSource,
     std::vector<EValueType> keyTypes,
-    int groupRowSize)
+    int groupRowSize,
+    bool appendToSource,
+    bool checkNulls)
 {
     // codegenInitialize calls the aggregates' initialisation functions
     // codegenEvaluateGroups evaluates the group expressions
@@ -1290,7 +1298,9 @@ TCodegenSource MakeCodegenGroupOp(
         MOVE(codegenFinalize),
         MOVE(codegenSource),
         MOVE(keyTypes),
-        groupRowSize
+        groupRowSize,
+        appendToSource,
+        checkNulls
     ] (TCGContext& builder, const TCodegenConsumer& codegenConsumer) {
         auto collect = MakeClosure<void(void*, void*)>(builder, "CollectGroups", [&] (
             TCGContext& builder,
@@ -1310,6 +1320,10 @@ TCodegenSource MakeCodegenGroupOp(
             codegenSource(
                 builder,
                 [&] (TCGContext& builder, Value* row) {
+                    if (appendToSource) {
+                        codegenConsumer(builder, row);
+                    }
+
                     Value* executionContextPtrRef = builder.GetExecutionContextPtr();
                     Value* groupedRowsRef = builder.ViaClosure(groupedRows);
                     Value* lookupRef = builder.ViaClosure(lookup);
@@ -1325,7 +1339,8 @@ TCodegenSource MakeCodegenGroupOp(
                             lookupRef,
                             groupedRowsRef,
                             newRowRef,
-                            builder.getInt32(keyTypes.size())
+                            builder.getInt32(keyTypes.size()),
+                            builder.getInt8(checkNulls)
                         });
 
                     CodegenIf<TCGContext>(

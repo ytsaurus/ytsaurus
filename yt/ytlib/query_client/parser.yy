@@ -68,6 +68,7 @@
 %token KwJoin "keyword `JOIN`"
 %token KwUsing "keyword `USING`"
 %token KwGroupBy "keyword `GROUP BY`"
+%token KwWithTotals "keyword `WITH TOTALS`"
 %token KwOrderBy "keyword `ORDER BY`"
 %token KwAsc "keyword `ASC`"
 %token KwDesc "keyword `DESC`"
@@ -118,6 +119,8 @@
 %token OpGreater 62 "`>`"
 %token OpGreaterOrEqual "`>=`"
 
+%type <ETotalsMode> group-by-clause-tail
+
 %type <TTableDescriptor> table-descriptor
 
 %type <bool> is-desc
@@ -165,7 +168,7 @@ head
 ;
 
 parse-query
-    : select-clause from-clause where-clause group-by-clause having-clause order-by-clause limit-clause
+    : select-clause from-clause where-clause group-by-clause order-by-clause limit-clause
 ;
 
 parse-job-query
@@ -245,11 +248,34 @@ where-clause
 ;
 
 group-by-clause
-    : KwGroupBy comma-expr[exprs]
+    : KwGroupBy comma-expr[exprs] group-by-clause-tail[totalsMode]
         {
-            head->first.As<TQuery>().GroupExprs = $exprs;
+            head->first.As<TQuery>().GroupExprs = std::make_pair($exprs, $totalsMode);
         }
     |
+;
+
+group-by-clause-tail
+    : KwWithTotals
+        {
+            $$ = ETotalsMode::BeforeHaving;
+        }
+    | having-clause
+        {
+            $$ = ETotalsMode::None;
+        }
+    | having-clause KwWithTotals
+        {
+            $$ = ETotalsMode::AfterHaving;
+        }
+    | KwWithTotals having-clause
+        {
+            $$ = ETotalsMode::BeforeHaving;
+        }
+    |
+        {
+            $$ = ETotalsMode::None;
+        }
 ;
 
 having-clause
@@ -257,7 +283,6 @@ having-clause
         {
             head->first.As<TQuery>().HavingPredicate = $predicate;
         }
-    |
 ;
 
 order-by-clause

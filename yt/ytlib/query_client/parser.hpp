@@ -283,11 +283,14 @@ namespace NYT { namespace NQueryClient { namespace NAst {
       // multiplicative-op
       char dummy1[sizeof(EBinaryOp)];
 
+      // group-by-clause-tail
+      char dummy2[sizeof(ETotalsMode)];
+
       // unary-op
-      char dummy2[sizeof(EUnaryOp)];
+      char dummy3[sizeof(EUnaryOp)];
 
       // "string literal"
-      char dummy3[sizeof(Stroka)];
+      char dummy4[sizeof(Stroka)];
 
       // expression
       // or-op-expr
@@ -303,46 +306,46 @@ namespace NYT { namespace NQueryClient { namespace NAst {
       // comma-expr
       // unary-expr
       // atomic-expr
-      char dummy4[sizeof(TExpressionList)];
+      char dummy5[sizeof(TExpressionList)];
 
       // identifier-list
-      char dummy5[sizeof(TIdentifierList)];
+      char dummy6[sizeof(TIdentifierList)];
 
       // const-list
       // const-tuple
-      char dummy6[sizeof(TLiteralValueList)];
+      char dummy7[sizeof(TLiteralValueList)];
 
       // const-tuple-list
-      char dummy7[sizeof(TLiteralValueTupleList)];
+      char dummy8[sizeof(TLiteralValueTupleList)];
 
       // literal-value
       // const-value
-      char dummy8[sizeof(TNullable<TLiteralValue>)];
+      char dummy9[sizeof(TNullable<TLiteralValue>)];
 
       // order-expr-list
-      char dummy9[sizeof(TOrderExpressionList)];
+      char dummy10[sizeof(TOrderExpressionList)];
 
       // qualified-identifier
-      char dummy10[sizeof(TReferenceExpressionPtr)];
+      char dummy11[sizeof(TReferenceExpressionPtr)];
 
       // "identifier"
-      char dummy11[sizeof(TStringBuf)];
+      char dummy12[sizeof(TStringBuf)];
 
       // table-descriptor
-      char dummy12[sizeof(TTableDescriptor)];
+      char dummy13[sizeof(TTableDescriptor)];
 
       // is-left
       // is-desc
-      char dummy13[sizeof(bool)];
+      char dummy14[sizeof(bool)];
 
       // "double literal"
-      char dummy14[sizeof(double)];
+      char dummy15[sizeof(double)];
 
       // "int64 literal"
-      char dummy15[sizeof(i64)];
+      char dummy16[sizeof(i64)];
 
       // "uint64 literal"
-      char dummy16[sizeof(ui64)];
+      char dummy17[sizeof(ui64)];
 };
 
     /// Symbol semantic values.
@@ -377,30 +380,31 @@ namespace NYT { namespace NQueryClient { namespace NAst {
         KwJoin = 1006,
         KwUsing = 1007,
         KwGroupBy = 1008,
-        KwOrderBy = 1009,
-        KwAsc = 1010,
-        KwDesc = 1011,
-        KwLeft = 1012,
-        KwAs = 1013,
-        KwOn = 1014,
-        KwAnd = 1015,
-        KwOr = 1016,
-        KwNot = 1017,
-        KwBetween = 1018,
-        KwIn = 1019,
-        KwFalse = 1020,
-        KwTrue = 1021,
-        Identifier = 1022,
-        Int64Literal = 1023,
-        Uint64Literal = 1024,
-        DoubleLiteral = 1025,
-        StringLiteral = 1026,
+        KwWithTotals = 1009,
+        KwOrderBy = 1010,
+        KwAsc = 1011,
+        KwDesc = 1012,
+        KwLeft = 1013,
+        KwAs = 1014,
+        KwOn = 1015,
+        KwAnd = 1016,
+        KwOr = 1017,
+        KwNot = 1018,
+        KwBetween = 1019,
+        KwIn = 1020,
+        KwFalse = 1021,
+        KwTrue = 1022,
+        Identifier = 1023,
+        Int64Literal = 1024,
+        Uint64Literal = 1025,
+        DoubleLiteral = 1026,
+        StringLiteral = 1027,
         OpTilde = 126,
         OpVerticalBar = 124,
         OpAmpersand = 38,
         OpModulo = 37,
-        OpLeftShift = 1027,
-        OpRightShift = 1028,
+        OpLeftShift = 1028,
+        OpRightShift = 1029,
         LeftParenthesis = 40,
         RightParenthesis = 41,
         Asterisk = 42,
@@ -410,11 +414,11 @@ namespace NYT { namespace NQueryClient { namespace NAst {
         Dot = 46,
         OpDivide = 47,
         OpLess = 60,
-        OpLessOrEqual = 1029,
+        OpLessOrEqual = 1030,
         OpEqual = 61,
-        OpNotEqual = 1030,
+        OpNotEqual = 1031,
         OpGreater = 62,
-        OpGreaterOrEqual = 1031
+        OpGreaterOrEqual = 1032
       };
     };
 
@@ -450,6 +454,8 @@ namespace NYT { namespace NQueryClient { namespace NAst {
   basic_symbol (typename Base::kind_type t, const location_type& l);
 
   basic_symbol (typename Base::kind_type t, const EBinaryOp v, const location_type& l);
+
+  basic_symbol (typename Base::kind_type t, const ETotalsMode v, const location_type& l);
 
   basic_symbol (typename Base::kind_type t, const EUnaryOp v, const location_type& l);
 
@@ -586,6 +592,10 @@ namespace NYT { namespace NQueryClient { namespace NAst {
     static inline
     symbol_type
     make_KwGroupBy (const location_type& l);
+
+    static inline
+    symbol_type
+    make_KwWithTotals (const location_type& l);
 
     static inline
     symbol_type
@@ -824,7 +834,7 @@ namespace NYT { namespace NQueryClient { namespace NAst {
   // number is the opposite.  If YYTABLE_NINF, syntax error.
   static const short int yytable_[];
 
-  static const unsigned char yycheck_[];
+  static const short int yycheck_[];
 
   // YYSTOS[STATE-NUM] -- The (internal number of the) accessing
   // symbol of state STATE-NUM.
@@ -939,13 +949,13 @@ namespace NYT { namespace NQueryClient { namespace NAst {
     enum
     {
       yyeof_ = 0,
-      yylast_ = 197,     ///< Last index in yytable_.
-      yynnts_ = 42,  ///< Number of nonterminal symbols.
+      yylast_ = 203,     ///< Last index in yytable_.
+      yynnts_ = 43,  ///< Number of nonterminal symbols.
       yyempty_ = -2,
       yyfinal_ = 41, ///< Termination state number.
       yyterror_ = 1,
       yyerrcode_ = 256,
-      yyntokens_ = 52  ///< Number of tokens.
+      yyntokens_ = 53  ///< Number of tokens.
     };
 
 

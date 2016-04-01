@@ -94,10 +94,11 @@ TCodegenSource MakeCodegenJoinOp(
     std::vector<TCodegenExpression> evaluatedColumns);
 
 std::function<void(TCGContext&, Value*, Value*)> MakeCodegenEvaluateGroups(
-    std::vector<TCodegenExpression> codegenGroupExprs);
+    std::vector<TCodegenExpression> codegenGroupExprs,
+    std::vector<EValueType> nullTypes = std::vector<EValueType>());
 
 std::function<void(TCGContext&, Value*, Value*)> MakeCodegenEvaluateAggregateArgs(
-    std::vector<TCodegenExpression> codegenGroupExprs,
+    size_t keySize,
     std::vector<TCodegenExpression> codegenAggregateExprs,
     std::vector<TCodegenAggregate> codegenAggregates,
     bool isMerge,
@@ -125,7 +126,9 @@ TCodegenSource MakeCodegenGroupOp(
     std::function<void(TCGContext&, Value*)> codegenFinalize,
     TCodegenSource codegenSource,
     std::vector<EValueType> keyTypes,
-    int groupRowSize);
+    int groupRowSize,
+    bool appendToSource = false,
+    bool checkNulls = false);
 
 TCodegenSource MakeCodegenOrderOp(
     std::vector<TCodegenExpression> codegenExprs,

@@ -23,8 +23,12 @@ using NYT::NQueryClient::TJoinLookup;
 using NYT::NQueryClient::TJoinLookupRows;
 using NYT::NQueryClient::TTopCollector;
 
-// Opaque types
+template <bool Cross>
+class TypeBuilder<bool, Cross>
+    : public TypeBuilder<char, Cross>
+{ };
 
+// Opaque types
 template <bool Cross>
 class TypeBuilder<TExpressionContext*, Cross>
     : public TypeBuilder<void*, Cross>

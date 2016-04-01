@@ -304,8 +304,11 @@ TCodegenSource TQueryProfiler::Profile(TConstQueryPtr query)
         std::vector<TCodegenExpression> codegenAggregateExprs;
         std::vector<TCodegenAggregate> codegenAggregates;
 
+        std::vector<EValueType> keyTypes;
+
         for (const auto& groupItem : groupClause->GroupItems) {
             codegenGroupExprs.push_back(Profile(groupItem, schema));
+            keyTypes.push_back(groupItem.Expression->Type);
         }
 
         for (const auto& aggregateItem : groupClause->AggregateItems) {
@@ -324,45 +327,79 @@ TCodegenSource TQueryProfiler::Profile(TConstQueryPtr query)
                 Id_));
         }
 
-        int keySize = codegenGroupExprs.size();
+        size_t keySize = keyTypes.size();
 
-        auto keyTypes = std::vector<EValueType>();
-        for (int id = 0; id < keySize; id++) {
-            keyTypes.push_back(groupClause->GroupedTableSchema.Columns()[id].Type);
-        }
+        auto initialize = MakeCodegenAggregateInitialize(
+            codegenAggregates,
+            keySize);
+
+        auto aggregate = MakeCodegenEvaluateAggregateArgs(
+            keySize,
+            codegenAggregateExprs,
+            codegenAggregates,
+            groupClause->IsMerge,
+            schema);
+
+        auto update = MakeCodegenAggregateUpdate(
+            codegenAggregates,
+            keySize,
+            groupClause->IsMerge);
+
+        auto finalize = MakeCodegenAggregateFinalize(
+            codegenAggregates,
+            keySize,
+            groupClause->IsFinal);
 
         codegenSource = MakeCodegenGroupOp(
-            MakeCodegenAggregateInitialize(
-                codegenAggregates,
-                keySize),
-            MakeCodegenEvaluateGroups(
-                codegenGroupExprs),
-            MakeCodegenEvaluateAggregateArgs(
-                codegenGroupExprs,
-                codegenAggregateExprs,
-                codegenAggregates,
-                groupClause->IsMerge,
-                schema),
-            MakeCodegenAggregateUpdate(
-                codegenAggregates,
-                keySize,
-                groupClause->IsMerge),
-            MakeCodegenAggregateFinalize(
-                codegenAggregates,
-                keySize,
-                groupClause->IsFinal),
+            initialize,
+            MakeCodegenEvaluateGroups(codegenGroupExprs),
+            aggregate,
+            update,
+            finalize,
             std::move(codegenSource),
             keyTypes,
-            keySize + codegenAggregates.size());
+            keySize + codegenAggregates.size(),
+            false,
+            groupClause->TotalsMode != ETotalsMode::None);
 
         schema = groupClause->GetTableSchema();
-    }
 
-    if (query->HavingClause) {
-        Fold(static_cast<int>(EFoldingObjectType::HavingOp));
-        codegenSource = MakeCodegenFilterOp(
-            TExpressionProfiler::Profile(query->HavingClause, schema),
-            std::move(codegenSource));
+        if (groupClause->TotalsMode == ETotalsMode::BeforeHaving) {
+            codegenSource = MakeCodegenGroupOp(
+                initialize,
+                MakeCodegenEvaluateGroups( // Codegen nulls here
+                    std::vector<TCodegenExpression>(),
+                    keyTypes),
+                aggregate,
+                update,
+                finalize,
+                std::move(codegenSource),
+                keyTypes,
+                keySize + codegenAggregates.size(),
+                true);
+        }
+
+        if (query->HavingClause) {
+            Fold(static_cast<int>(EFoldingObjectType::HavingOp));
+            codegenSource = MakeCodegenFilterOp(
+                TExpressionProfiler::Profile(query->HavingClause, schema),
+                std::move(codegenSource));
+        }
+
+        if (groupClause->TotalsMode == ETotalsMode::AfterHaving) {
+            codegenSource = MakeCodegenGroupOp(
+                initialize,
+                MakeCodegenEvaluateGroups( // Codegen nulls here
+                    std::vector<TCodegenExpression>(),
+                    keyTypes),
+                aggregate,
+                update,
+                finalize,
+                std::move(codegenSource),
+                keyTypes,
+                keySize + codegenAggregates.size(),
+                true);
+        }
     }
 
     if (auto orderClause = query->OrderClause.Get()) {

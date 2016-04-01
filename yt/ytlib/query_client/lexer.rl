@@ -29,6 +29,7 @@ typedef TParser::token_type TToken;
     kw_join = 'join'i;
     kw_using = 'using'i;
     kw_group_by = 'group'i wss 'by'i;
+    kw_with_totals = 'with'i wss 'totals'i;
     kw_order_by = 'order'i wss 'by'i;
     kw_asc = 'asc'i;
     kw_desc = 'desc'i;
@@ -45,8 +46,8 @@ typedef TParser::token_type TToken;
 
     keyword =
         kw_from | kw_where | kw_having |kw_limit | kw_join | kw_using |
-        kw_group_by | kw_order_by | kw_asc | kw_desc | kw_left | kw_as | kw_on | kw_and | kw_or | kw_not | kw_between |
-        kw_in | kw_false | kw_true;
+        kw_group_by | kw_with_totals | kw_order_by | kw_asc | kw_desc | kw_left | kw_as | kw_on | kw_and |
+        kw_or | kw_not | kw_between | kw_in | kw_false | kw_true;
 
     identifier = [a-zA-Z_][a-zA-Z_0-9]* - keyword;
 
@@ -87,6 +88,7 @@ typedef TParser::token_type TToken;
         kw_join => { type = TToken::KwJoin; fbreak; };
         kw_using => { type = TToken::KwUsing; fbreak; };
         kw_group_by => { type = TToken::KwGroupBy; fbreak; };
+        kw_with_totals => { type = TToken::KwWithTotals; fbreak; };
         kw_order_by => { type = TToken::KwOrderBy; fbreak; };
         kw_asc => { type = TToken::KwAsc; fbreak; };
         kw_desc => { type = TToken::KwDesc; fbreak; };
