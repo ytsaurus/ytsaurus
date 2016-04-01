@@ -82,10 +82,31 @@ struct TSerializableColumnSchema
             .Default();
         RegisterParameter("expression", Expression)
             .Default();
+<<<<<<< HEAD
         RegisterParameter("aggregate", Aggregate)
             .Default();
         RegisterParameter("sort_order", SortOrder)
             .Default();
+=======
+        RegisterParameter("sort_order", SortOrder)
+            .Default();
+
+        RegisterValidator([&] () {
+            // Name
+            if (Name.empty()) {
+                THROW_ERROR_EXCEPTION("Column name cannot be empty");
+            }
+
+            // Type
+            try {
+                ValidateSchemaValueType(Type);
+            } catch (const std::exception& ex) {
+                THROW_ERROR_EXCEPTION("Error validating column %Qv in table schema",
+                    Name)
+                    << ex;
+            }
+        });
+>>>>>>> origin/prestable/0.17.5
     }
 };
 
@@ -113,9 +134,12 @@ void ToProto(NProto::TColumnSchema* protoSchema, const TColumnSchema& schema)
     if (schema.Expression) {
         protoSchema->set_expression(*schema.Expression);
     }
+<<<<<<< HEAD
     if (schema.Aggregate) {
         protoSchema->set_aggregate(*schema.Aggregate);
     }
+=======
+>>>>>>> origin/prestable/0.17.5
     if (schema.SortOrder) {
         protoSchema->set_sort_order(static_cast<int>(*schema.SortOrder));
     }
@@ -127,7 +151,10 @@ void FromProto(TColumnSchema* schema, const NProto::TColumnSchema& protoSchema)
     schema->Type = EValueType(protoSchema.type());
     schema->Lock = protoSchema.has_lock() ? MakeNullable(protoSchema.lock()) : Null;
     schema->Expression = protoSchema.has_expression() ? MakeNullable(protoSchema.expression()) : Null;
+<<<<<<< HEAD
     schema->Aggregate = protoSchema.has_aggregate() ? MakeNullable(protoSchema.aggregate()) : Null;
+=======
+>>>>>>> origin/prestable/0.17.5
     schema->SortOrder = protoSchema.has_sort_order() ? MakeNullable(ESortOrder(protoSchema.sort_order())) : Null;
 }
 
@@ -228,6 +255,7 @@ void TTableSchema::AppendColumn(const TColumnSchema& column)
     this->Swap(temp);
 }
 
+<<<<<<< HEAD
 void TTableSchema::InsertColumn(int position, const TColumnSchema& column)
 {
     ValidateColumnSchema(column);
@@ -278,6 +306,19 @@ void TTableSchema::AlterColumn(int position, const TColumnSchema& column)
     this->Swap(temp);
 }
     
+=======
+TKeyColumns TTableSchema::GetKeyColumns() const
+{
+    TKeyColumns keyColumns;
+    for (const auto& column : Columns()) {
+        if (column.SortOrder) {
+            keyColumns.push_back(column.Name);
+        }
+    }
+    return keyColumns;
+}
+
+>>>>>>> origin/prestable/0.17.5
 bool TTableSchema::HasComputedColumns() const
 {
     for (const auto& column : Columns()) {

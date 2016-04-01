@@ -789,6 +789,7 @@ class TestTables(YTEnvSetup):
         tabular_data = read_table("//tmp/t1", output_format=yson.loads("<columns=[column2;column3]>schemaful_dsv"))
         assert tabular_data == "value12\tvalue13\nvalue22\tvalue23\n"
 
+<<<<<<< HEAD
 ##################################################################
 
 class TestTablesMulticell(TestTables):
@@ -831,3 +832,15 @@ class TestTablesMulticell(TestTables):
         concatenate(["//tmp/t2", "//tmp/t1"], "<append=true>//tmp/union")
         assert read_table("//tmp/union") == [{"key": "y"}, {"key": "x"}]
         assert get("//tmp/union/@sorted", "false")
+=======
+    def test_setting_key_columns_via_schema(self):
+        create("table", "//tmp/t1")
+        set("//tmp/t1/@schema", [{"name": "a", "type": "int64", "sort_order": "ascending"}, {"name": "b", "type": "string"}])
+        assert get("//tmp/t1/@key_columns") == ["a"]
+
+        create("table", "//tmp/t2")
+        set("//tmp/t2/@key_columns", ["a", "b"])
+        set("//tmp/t2/@schema", [{"name": "a", "type": "int64"}, {"name": "b", "type": "string"}])
+        assert get("//tmp/t2/@key_columns") == ["a", "b"]
+
+>>>>>>> origin/prestable/0.17.5

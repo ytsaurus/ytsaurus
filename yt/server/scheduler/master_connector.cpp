@@ -1256,8 +1256,11 @@ private:
 
     void UpdateOperationNodeAttributes(TOperationPtr operation)
     {
+<<<<<<< HEAD
         auto batchReq = StartBatchRequest();
         auto state = operation->GetState();
+=======
+>>>>>>> origin/prestable/0.17.5
         auto operationPath = GetOperationPath(operation->GetId());
         auto controller = operation->GetController();
 
@@ -1270,7 +1273,8 @@ private:
             batchReq->AddRequest(req, "update_op_node");
         }
 
-        if ((state == EOperationState::Running || IsOperationFinished(state)) && controller) {
+        if (operation->HasControllerProgress())
+        {
             // Set progress.
             {
                 auto req = TYPathProxy::Set(operationPath + "/@progress");

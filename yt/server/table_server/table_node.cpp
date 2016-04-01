@@ -187,7 +187,26 @@ public:
 
     virtual EObjectType GetObjectType() const override
     {
+<<<<<<< HEAD
         return EObjectType::Table;
+=======
+        TBase::SetDefaultAttributes(attributes, transaction);
+
+        // COMPAT(babenko): YT-4022
+        attributes->Remove("dynamic");
+
+        if (!attributes->Contains("channels")) {
+            attributes->SetYson("channels", TYsonString("[]"));
+        }
+
+        if (!attributes->Contains("schema")) {
+            attributes->SetYson("schema", TYsonString("[]"));
+        }
+
+        if (!attributes->Contains("compression_codec")) {
+            attributes->Set("compression_codec", NCompression::ECodec::Lz4);
+        }
+>>>>>>> origin/prestable/0.17.5
     }
 
     virtual bool IsExternalizable() const override
