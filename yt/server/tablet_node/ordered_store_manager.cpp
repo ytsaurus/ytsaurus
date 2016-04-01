@@ -10,9 +10,22 @@
 #include <yt/ytlib/tablet_client/wire_protocol.h>
 #include <yt/ytlib/tablet_client/wire_protocol.pb.h>
 
+#include <yt/ytlib/table_client/schemaless_chunk_writer.h>
+#include <yt/ytlib/table_client/schemaful_reader.h>
+#include <yt/ytlib/table_client/name_table.h>
+
+#include <yt/ytlib/chunk_client/chunk_spec.pb.h>
+
+#include <yt/ytlib/api/client.h>
+#include <yt/ytlib/api/connection.h>
+#include <yt/ytlib/api/transaction.h>
+
+#include <yt/core/concurrency/scheduler.h>
+
 namespace NYT {
 namespace NTabletNode {
 
+using namespace NConcurrency;
 using namespace NApi;
 using namespace NTableClient;
 using namespace NTabletClient;
@@ -20,6 +33,10 @@ using namespace NTabletClient::NProto;
 using namespace NObjectClient;
 
 using NTabletNode::NProto::TAddStoreDescriptor;
+
+////////////////////////////////////////////////////////////////////////////////
+
+static const size_t MaxRowsPerFlushRead = 1024;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -170,7 +187,46 @@ TStoreFlushCallback TOrderedStoreManager::MakeStoreFlushCallback(
     auto reader = store->AsOrderedDynamic()->CreateFlushReader();
 
     return BIND([=, this_ = MakeStrong(this)] (ITransactionPtr transaction) {
-        return std::vector<TAddStoreDescriptor>();
+        auto writer = CreateSchemalessMultiChunkWriter(
+            Config_->ChunkWriter,
+            tabletSnapshot->WriterOptions,
+            TNameTable::FromSchema(tabletSnapshot->Schema),
+            TKeyColumns(),
+            TOwningKey(),
+            Client_,
+            Client_->GetConnection()->GetPrimaryMasterCellTag(),
+            transaction->GetId());
+
+        WaitFor(writer->Open())
+            .ThrowOnError();
+
+        std::vector<TUnversionedRow> rows;
+        rows.reserve(MaxRowsPerFlushRead);
+
+        while (true) {
+            // NB: Memory store reader is always synchronous.
+            reader->Read(&rows);
+            if (rows.empty()) {
+                break;
+            }
+            if (!writer->Write(rows)) {
+                WaitFor(writer->GetReadyEvent())
+                    .ThrowOnError();
+            }
+        }
+
+        WaitFor(writer->Close())
+            .ThrowOnError();
+
+        std::vector<TAddStoreDescriptor> result;
+        for (const auto& chunkSpec : writer->GetWrittenChunksMasterMeta()) {
+            TAddStoreDescriptor descriptor;
+            descriptor.set_store_type(static_cast<int>(EStoreType::OrderedChunk));
+            descriptor.mutable_store_id()->CopyFrom(chunkSpec.chunk_id());
+            descriptor.mutable_chunk_meta()->CopyFrom(chunkSpec.chunk_meta());
+            result.push_back(descriptor);
+        }
+        return result;
     });
 }
 

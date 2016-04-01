@@ -45,7 +45,7 @@ using NTableClient::TKey;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const size_t MaxRowsPerRead = 1024;
+static const size_t MaxRowsPerFlushRead = 1024;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -362,13 +362,14 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
             .ThrowOnError();
 
         std::vector<TVersionedRow> rows;
-        rows.reserve(MaxRowsPerRead);
+        rows.reserve(MaxRowsPerFlushRead);
 
         while (true) {
             // NB: Memory store reader is always synchronous.
             reader->Read(&rows);
-            if (rows.empty())
+            if (rows.empty()) {
                 break;
+            }
             if (!writer->Write(rows)) {
                 WaitFor(writer->GetReadyEvent())
                     .ThrowOnError();
