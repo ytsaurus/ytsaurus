@@ -129,14 +129,17 @@ class TestTableCommands(object):
             pytest.skip()
 
         table = TEST_DIR + "/table"
-        yt.create_table(table, attributes={"dynamic": True})
         if yt_env.version < "0.18":
+            yt.create_table(table, attributes={"dynamic": True})
             yt.set(table + "/@schema", [{"name": name, "type": "string"} for name in ["x", "y"]])
             yt.set(table + "/@key_columns", ["x"])
         else:
-            yt.set(table + "/@schema", [
-                {"name": "x", "type": "string", "sort_order": "ascending"},
-                {"name": "y", "type": "string"}])
+            yt.create_table(table, attributes={
+                "dynamic": True,
+                "schema": [
+                    {"name": "x", "type": "string", "sort_order": "ascending"},
+                    {"name": "y", "type": "string"}
+                ]})
 
         tablet_id = yt.create("tablet_cell", attributes={"size": 1})
         while yt.get("//sys/tablet_cells/{0}/@health".format(tablet_id)) != 'good':
@@ -187,15 +190,17 @@ class TestTableCommands(object):
         with set_config_option("tabular_data_format", None):
             # Name must differ with name of table in select test because of metadata caches
             table = TEST_DIR + "/table2"
-            yt.remove(table, force=True)
-            yt.create_table(table, attributes={"dynamic": True})
             if yt_env.version < "0.18":
+                yt.create_table(table, attributes={"dynamic": True})
                 yt.set(table + "/@schema", [{"name": name, "type": "string"} for name in ["x", "y"]])
                 yt.set(table + "/@key_columns", ["x"])
             else:
-                yt.set(table + "/@schema", [
-                    {"name": "x", "type": "string", "sort_order": "ascending"},
-                    {"name": "y", "type": "string"}])
+                yt.create_table(table, attributes={
+                    "dynamic": True,
+                    "schema": [
+                        {"name": "x", "type": "string", "sort_order": "ascending"},
+                        {"name": "y", "type": "string"}
+                    ]})
 
             tablet_id = yt.create("tablet_cell", attributes={"size": 1})
             while yt.get("//sys/tablet_cells/{0}/@health".format(tablet_id)) != 'good':
