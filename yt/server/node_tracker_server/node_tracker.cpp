@@ -806,11 +806,19 @@ private:
 
     void HydraSetNodeStates(const TReqSetNodeStates& request)
     {
+        YCHECK(Bootstrap_->IsPrimaryMaster());
+
         auto cellTag = request.cell_tag();
+
+        auto multicellManager = Bootstrap_->GetMulticellManager();
+        if (!multicellManager->IsRegisteredMasterCell(cellTag)) {
+            LOG_ERROR_UNLESS(IsRecovery(), "Received node states gossip message from unknown cell (CellTag: %v)",
+                cellTag);
+            return;
+        }
+
         LOG_INFO_UNLESS(IsRecovery(), "Received node states gossip message (CellTag: %v)",
             cellTag);
-
-        YCHECK(Bootstrap_->IsPrimaryMaster());
 
         for (const auto& entry : request.entries()) {
             auto* node = FindNode(entry.node_id());
