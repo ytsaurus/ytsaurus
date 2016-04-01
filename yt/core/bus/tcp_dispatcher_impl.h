@@ -86,15 +86,14 @@ public:
     TTcpDispatcherThreadPtr GetClientThread();
 
 private:
-    friend TTcpDispatcher;
+    friend class TTcpDispatcher;
 
     TImpl();
     void OnProfiling();
 
 
-    TTcpDispatcherThreadPtr ServerThread_;
-
-    std::vector<TTcpDispatcherThreadPtr> ClientThreads_;
+    // Server thread + all client threads.
+    std::vector<TTcpDispatcherThreadPtr> Threads_;
     std::atomic<size_t> CurrentClientThreadIndex_ = {0};
 
     NConcurrency::TPeriodicExecutorPtr ProfilingExecutor_;

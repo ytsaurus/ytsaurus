@@ -683,6 +683,7 @@ class TestSchedulerConfig(YTEnvSetup):
         assert get("{0}/event_log/flush_period".format(orchid_scheduler_config)) == 5000
         assert get("{0}/event_log/retry_backoff_time".format(orchid_scheduler_config)) == 7
 
+<<<<<<< HEAD
     def test_specs(self):
         create("table", "//tmp/t_in")
         write_table("<append=true>//tmp/t_in", {"foo": "bar"})
@@ -788,6 +789,8 @@ class TestSchedulerSnapshots(YTEnvSetup):
 
         op.track()
 
+=======
+>>>>>>> origin/prestable/0.17.5
 class TestSchedulerPreemption(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 3
@@ -796,8 +799,12 @@ class TestSchedulerPreemption(YTEnvSetup):
 
     DELTA_SCHEDULER_CONFIG = {
         "scheduler": {
+<<<<<<< HEAD
             "min_share_preemption_timeout": 100,
             "fair_share_starvation_tolerance": 0.7
+=======
+            "min_share_preemption_timeout": 100
+>>>>>>> origin/prestable/0.17.5
         }
     }
 
@@ -809,7 +816,11 @@ class TestSchedulerPreemption(YTEnvSetup):
         create("table", "//tmp/t_out1")
         create("table", "//tmp/t_out2")
 
+<<<<<<< HEAD
         op1 = map(dont_track=True, command="sleep 1000; cat", in_=["//tmp/t_in"], out="//tmp/t_out1",
+=======
+        op_id = map(dont_track=True, command="sleep 1000; cat", in_=["//tmp/t_in"], out="//tmp/t_out1",
+>>>>>>> origin/prestable/0.17.5
                     spec={"pool": "fake_pool", "job_count": 3, "locality_timeout": 0})
         time.sleep(3)
 
@@ -817,6 +828,7 @@ class TestSchedulerPreemption(YTEnvSetup):
         assert get("//sys/scheduler/orchid/scheduler/pools/fake_pool/usage_ratio") >= 0.999
 
         create("map_node", "//sys/pools/test_pool", attributes={"min_share_ratio": 1.0})
+<<<<<<< HEAD
         op2 = map(dont_track=True, command="cat", in_=["//tmp/t_in"], out="//tmp/t_out2", spec={"pool": "test_pool"})
         op2.track()
 
@@ -855,4 +867,10 @@ class TestSchedulerPreemption(YTEnvSetup):
 
         op1.abort();
         op2.abort();
+=======
+        op_id2 = map(dont_track=True, command="cat", in_=["//tmp/t_in"], out="//tmp/t_out2", spec={"pool": "test_pool"})
+        track_op(op_id2)
+
+        abort_op(op_id)
+>>>>>>> origin/prestable/0.17.5
 

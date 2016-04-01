@@ -94,7 +94,7 @@ Bind(
 #else
         New<TTypedBindState>(
 #endif
-            NYT::NDetail::MakeRunnable(functor),
+            NYT::NDetail::MakeRunnable(std::move(functor)),
             std::forward<TAs>(args)...)
     );
 }

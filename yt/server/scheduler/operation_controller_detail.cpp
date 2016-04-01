@@ -3764,6 +3764,11 @@ void TOperationControllerBase::RemoveJoblet(const TJobId& jobId)
     YCHECK(JobletMap.erase(jobId) == 1);
 }
 
+bool TOperationControllerBase::HasProgress() const
+{
+    return Prepared;
+}
+
 void TOperationControllerBase::BuildProgress(IYsonConsumer* consumer) const
 {
     VERIFY_INVOKER_AFFINITY(Invoker);

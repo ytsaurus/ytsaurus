@@ -75,6 +75,7 @@ bool TOperation::IsFinishingState() const
     return IsOperationFinishing(State_);
 }
 
+<<<<<<< HEAD
 bool TOperation::IsSchedulable() const
 {
     return State_ == EOperationState::Running && !Suspended_;
@@ -83,6 +84,13 @@ bool TOperation::IsSchedulable() const
 void TOperation::UpdateControllerTimeStatistics(const NYPath::TYPath& name, TDuration value)
 {
     ControllerTimeStatistics_.AddSample(name, value.MicroSeconds());
+=======
+bool TOperation::HasControllerProgress() const
+{
+    return (State_ == EOperationState::Running || IsFinishedState()) &&
+        Controller_ &&
+        Controller_->HasProgress();
+>>>>>>> origin/prestable/0.17.5
 }
 
 ////////////////////////////////////////////////////////////////////

@@ -19,6 +19,7 @@ DEFINE_ENUM(ESortOrder,
     (Ascending)
 )
 
+<<<<<<< HEAD
 // NB: preserve the values since they
 // are persisted in the proto representation.
 DEFINE_ENUM(EOptimizedFor,
@@ -28,6 +29,8 @@ DEFINE_ENUM(EOptimizedFor,
 
 ////////////////////////////////////////////////////////////////////////////////
 
+=======
+>>>>>>> origin/prestable/0.17.5
 struct TColumnSchema
 {
     TColumnSchema();
@@ -40,6 +43,7 @@ struct TColumnSchema
 
     TColumnSchema& operator=(const TColumnSchema&) = default;
     TColumnSchema& operator=(TColumnSchema&&) = default;
+<<<<<<< HEAD
 
     TColumnSchema& SetSortOrder(const TNullable<ESortOrder>& value);
     TColumnSchema& SetLock(const TNullable<Stroka>& value);
@@ -47,6 +51,9 @@ struct TColumnSchema
     TColumnSchema& SetAggregate(const TNullable<Stroka>& value);
     TColumnSchema& SetGroup(const TNullable<Stroka>& value);
 
+=======
+    
+>>>>>>> origin/prestable/0.17.5
     Stroka Name;
     EValueType Type;
     TNullable<ESortOrder> SortOrder;
@@ -86,6 +93,7 @@ public:
 
     TTableSchema Filter(const TColumnFilter& columnFilter) const;
     TTableSchema TrimNonkeyColumns(const TKeyColumns& keyColumns) const;
+<<<<<<< HEAD
     TTableSchema GetPrefix(int length) const;
 
     // TODO(max42): Get rid of functions below, make schema immutable.
@@ -97,6 +105,10 @@ public:
     void InsertColumn(int position, const TColumnSchema& column);
     void EraseColumn(int position);
     void AlterColumn(int position, const TColumnSchema& column);
+=======
+    
+    TKeyColumns GetKeyColumns() const;
+>>>>>>> origin/prestable/0.17.5
 
     bool HasComputedColumns() const;
     bool IsSorted() const;
