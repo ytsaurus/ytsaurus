@@ -6,6 +6,8 @@
 
 #include <yt/core/misc/fs.h>
 
+#include <errno.h>
+
 namespace NYT {
 namespace NLogging {
 
