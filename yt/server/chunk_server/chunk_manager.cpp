@@ -62,7 +62,7 @@
 
 #include <yt/core/misc/string.h>
 
-#include <yt/core/profiling/profiler.h>
+#include <yt/core/profiling/profile_manager.h>
 
 namespace NYT {
 namespace NChunkServer {
@@ -89,7 +89,7 @@ using namespace NJournalServer;
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = ChunkServerLogger;
-static const auto ProfilingPeriod = TDuration::MilliSeconds(100);
+static const auto ProfilingPeriod = TDuration::MilliSeconds(1000);
 // NB: Changing this value will invalidate all changelogs!
 static const auto ReplicaApproveTimeout = TDuration::Seconds(60);
 
@@ -377,11 +377,6 @@ public:
         : TMasterAutomatonPart(bootstrap)
         , Config_(config)
         , ChunkTreeBalancer_(New<TChunkTreeBalancerCallbacks>(Bootstrap_))
-        , Profiler(ChunkServerProfiler)
-        , AddedChunkCounter_("/added_chunks")
-        , RemovedChunkCounter_("/removed_chunks")
-        , AddedChunkReplicaCounter_("/added_chunk_replicas")
-        , RemovedChunkReplicaCounter_("/removed_chunk_replicas")
     {
         RegisterMethod(BIND(&TImpl::HydraUpdateChunkProperties, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraExportChunks, Unretained(this), nullptr, nullptr));
@@ -402,6 +397,9 @@ public:
             ESyncSerializationPriority::Values,
             "ChunkManager.Values",
             BIND(&TImpl::SaveValues, Unretained(this)));
+
+        auto* profileManager = NProfiling::TProfileManager::Get();
+        Profiler.TagIds().push_back(profileManager->RegisterTag("cell_tag", Bootstrap_->GetCellTag()));
     }
 
     void Initialize()
@@ -483,7 +481,7 @@ public:
 
     TChunk* CreateChunk(EObjectType type)
     {
-        Profiler.Increment(AddedChunkCounter_);
+        ++ChunksCreated_;
         auto id = Bootstrap_->GetObjectManager()->GenerateId(type, NullObjectId);
         auto chunkHolder = std::make_unique<TChunk>(id);
         return ChunkMap_.Insert(id, std::move(chunkHolder));
@@ -491,6 +489,7 @@ public:
 
     TChunkList* CreateChunkList()
     {
+        ++ChunkListsCreated_;
         auto objectManager = Bootstrap_->GetObjectManager();
         auto id = objectManager->GenerateId(EObjectType::ChunkList, NullObjectId);
         auto chunkListHolder = std::make_unique<TChunkList>(id);
@@ -956,13 +955,15 @@ private:
 
     bool NeedToRecomputeStatistics_ = false;
 
-    NConcurrency::TPeriodicExecutorPtr ProfilingExecutor_;
+    TPeriodicExecutorPtr ProfilingExecutor_;
 
-    NProfiling::TProfiler Profiler;
-    NProfiling::TSimpleCounter AddedChunkCounter_;
-    NProfiling::TSimpleCounter RemovedChunkCounter_;
-    NProfiling::TSimpleCounter AddedChunkReplicaCounter_;
-    NProfiling::TSimpleCounter RemovedChunkReplicaCounter_;
+    NProfiling::TProfiler Profiler = ChunkServerProfiler;
+    i64 ChunksCreated_ = 0;
+    i64 ChunksDestroyed_ = 0;
+    i64 ChunkReplicasAdded_ = 0;
+    i64 ChunkReplicasRemoved_ = 0;
+    i64 ChunkListsCreated_ = 0;
+    i64 ChunkListsDestroyed_ = 0;
 
     TChunkPlacementPtr ChunkPlacement_;
     TChunkReplicatorPtr ChunkReplicator_;
@@ -1013,7 +1014,7 @@ private:
             }
         }
 
-        Profiler.Increment(RemovedChunkCounter_);
+        ++ChunksDestroyed_;
     }
 
     void DestroyChunkList(TChunkList* chunkList)
@@ -1027,6 +1028,8 @@ private:
             ResetChunkTreeParent(chunkList, child);
             objectManager->UnrefObject(child);
         }
+
+        ++ChunkListsDestroyed_;
     }
 
 
@@ -1343,6 +1346,13 @@ private:
         ChunkListMap_.Clear();
         ForeignChunks_.clear();
         TotalReplicaCount_ = 0;
+
+        ChunksCreated_ = 0;
+        ChunksDestroyed_ = 0;
+        ChunkReplicasAdded_ = 0;
+        ChunkReplicasRemoved_ = 0;
+        ChunkListsCreated_ = 0;
+        ChunkListsDestroyed_ = 0;
     }
 
     void ScheduleRecomputeStatistics()
@@ -1533,7 +1543,7 @@ private:
         }
 
         if (reason == EAddReplicaReason::IncrementalHeartbeat || reason == EAddReplicaReason::Confirmation) {
-            Profiler.Increment(AddedChunkReplicaCounter_);
+            ++ChunkReplicasAdded_;
         }
     }
 
@@ -1584,7 +1594,7 @@ private:
             ScheduleChunkRefresh(chunk);
         }
 
-        Profiler.Increment(RemovedChunkReplicaCounter_);
+        ++ChunkReplicasRemoved_;
     }
 
 
@@ -1731,10 +1741,24 @@ private:
 
     void OnProfiling()
     {
-        if (ChunkReplicator_) {
-            Profiler.Enqueue("/refresh_list_size", ChunkReplicator_->GetRefreshListSize());
-            Profiler.Enqueue("/properties_update_list_size", ChunkReplicator_->GetPropertiesUpdateListSize());
+        if (!IsLeader()) {
+            return;
         }
+
+        Profiler.Enqueue("/refresh_list_size", ChunkReplicator_->GetRefreshListSize());
+        Profiler.Enqueue("/properties_update_list_size", ChunkReplicator_->GetPropertiesUpdateListSize());
+
+        Profiler.Enqueue("/chunk_count", ChunkMap_.GetSize());
+        Profiler.Enqueue("/chunks_created", ChunksCreated_);
+        Profiler.Enqueue("/chunks_destroyed", ChunksDestroyed_);
+
+        Profiler.Enqueue("/chunk_replica_count", TotalReplicaCount_);
+        Profiler.Enqueue("/chunk_replicas_added", ChunkReplicasAdded_);
+        Profiler.Enqueue("/chunk_replicas_removed", ChunkReplicasRemoved_);
+
+        Profiler.Enqueue("/chunk_list_count", ChunkListMap_.GetSize());
+        Profiler.Enqueue("/chunk_lists_created", ChunkListsCreated_);
+        Profiler.Enqueue("/chunk_lists_destroyed", ChunkListsDestroyed_);
     }
 
 };
