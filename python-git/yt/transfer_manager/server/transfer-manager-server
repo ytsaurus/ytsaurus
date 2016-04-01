@@ -516,12 +516,12 @@ class Application(object):
                     raise RequestFailed("Request with mutation id {0} is being processed. "
                                         "Retry again later".format(mutation_id), http_code=503)
 
-                processed_request = self._mutating_requests_cache.get(mutation_id)
-                if processed_request is not None:
-                    if not retry:
-                        raise RequestFailed('Duplicate request with mutation id {0} is not marked as "retry"'\
-                                            .format(mutation_id))
-                    return processed_request
+            processed_request = self._mutating_requests_cache.get(mutation_id)
+            if processed_request is not None:
+                if not retry:
+                    raise RequestFailed('Duplicate request with mutation id {0} is not marked as "retry"'\
+                                        .format(mutation_id))
+                return processed_request
 
             with self._requests_in_progress_mutex:
                 self._requests_in_progress.add(mutation_id)
