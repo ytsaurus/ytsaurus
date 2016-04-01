@@ -47,6 +47,7 @@ using namespace NChunkClient;
 using namespace NChunkClient::NProto;
 using namespace NNodeTrackerClient;
 using namespace NTransactionClient;
+using namespace NApi;
 using namespace NDataNode;
 using namespace NCellNode;
 using namespace NQueryAgent;
@@ -150,9 +151,21 @@ TSortedChunkStore::TSortedChunkStore(
     TTabletManagerConfigPtr config,
     const TStoreId& id,
     TTablet* tablet,
-    TBootstrap* bootstrap)
+    IBlockCachePtr blockCache,
+    TChunkRegistryPtr chunkRegistry,
+    TChunkBlockManagerPtr chunkBlockManager,
+    IClientPtr client,
+    const TNullable<TNodeDescriptor>& localDescriptor)
     : TStoreBase(config, id, tablet)
-    , TChunkStoreBase(config, id, tablet, bootstrap)
+    , TChunkStoreBase(
+        config,
+        id,
+        tablet,
+        blockCache,
+        chunkRegistry,
+        chunkBlockManager,
+        client,
+        localDescriptor)
     , TSortedStoreBase(config, id, tablet)
     , KeyComparer_(tablet->GetRowKeyComparer())
     , RequireChunkPreload_(tablet->GetConfig()->RequireChunkPreload)
@@ -206,7 +219,7 @@ void TSortedChunkStore::SetInMemoryMode(EInMemoryMode mode)
             this,
             StoreId_,
             blockType,
-            Bootstrap_->GetBlockCache());
+            BlockCache_);
 
         switch (PreloadState_) {
             case EStorePreloadState::Disabled:
@@ -311,7 +324,7 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
     TReadLimit upperLimit;
     upperLimit.SetKey(std::move(upperKey));
 
-    auto config = CloneYsonSerializable(Bootstrap_->GetConfig()->TabletNode->TabletManager->ChunkReader);
+    auto config = CloneYsonSerializable(Config_->ChunkReader);
     config->WorkloadDescriptor = workloadDescriptor;
 
     return CreateVersionedChunkReader(
@@ -382,7 +395,7 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
     auto blockCache = GetBlockCache();
     auto chunkReader = GetChunkReader();
     auto cachedVersionedChunkMeta = PrepareCachedVersionedChunkMeta(chunkReader);
-    auto config = CloneYsonSerializable(Bootstrap_->GetConfig()->TabletNode->TabletManager->ChunkReader);
+    auto config = CloneYsonSerializable(Config_->ChunkReader);
     config->WorkloadDescriptor = workloadDescriptor;
 
     return CreateVersionedChunkReader(
@@ -476,9 +489,7 @@ IBlockCachePtr TSortedChunkStore::GetBlockCache()
     VERIFY_THREAD_AFFINITY_ANY();
 
     TReaderGuard guard(SpinLock_);
-    return PreloadedBlockCache_
-        ? PreloadedBlockCache_
-        : Bootstrap_->GetBlockCache();
+    return PreloadedBlockCache_ ? PreloadedBlockCache_ : BlockCache_;
 }
 
 void TSortedChunkStore::PrecacheProperties()

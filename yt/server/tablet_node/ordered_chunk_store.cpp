@@ -9,6 +9,9 @@ namespace NTabletNode {
 
 using namespace NTableClient;
 using namespace NChunkClient;
+using namespace NNodeTrackerClient;
+using namespace NApi;
+using namespace NDataNode;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -16,9 +19,21 @@ TOrderedChunkStore::TOrderedChunkStore(
     TTabletManagerConfigPtr config,
     const TStoreId& id,
     TTablet* tablet,
-    NCellNode::TBootstrap* bootstrap)
+    IBlockCachePtr blockCache,
+    TChunkRegistryPtr chunkRegistry,
+    TChunkBlockManagerPtr chunkBlockManager,
+    IClientPtr client,
+    const TNullable<TNodeDescriptor>& localDescriptor)
     : TStoreBase(config, id, tablet)
-    , TChunkStoreBase(config, id, tablet, bootstrap)
+    , TChunkStoreBase(
+        config,
+        id,
+        tablet,
+        blockCache,
+        chunkRegistry,
+        chunkBlockManager,
+        client,
+        localDescriptor)
     , TOrderedStoreBase(config, id, tablet)
 {
     LOG_DEBUG("Ordered chunk store created");

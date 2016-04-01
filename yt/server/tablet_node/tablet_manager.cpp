@@ -22,6 +22,7 @@
 #include <yt/server/cell_node/bootstrap.h>
 
 #include <yt/server/data_node/chunk_block_manager.h>
+#include <yt/server/data_node/master_connector.h>
 
 #include <yt/server/hive/hive_manager.h>
 #include <yt/server/hive/transaction_supervisor.pb.h>
@@ -2058,7 +2059,11 @@ private:
                     Config_,
                     storeId,
                     tablet,
-                    Bootstrap_);
+                    Bootstrap_->GetBlockCache(),
+                    Bootstrap_->GetChunkRegistry(),
+                    Bootstrap_->GetChunkBlockManager(),
+                    Bootstrap_->GetMasterClient(),
+                    Bootstrap_->GetMasterConnector()->GetLocalDescriptor());
                 store->Initialize(chunkMeta);
                 return store;
             }
@@ -2074,7 +2079,11 @@ private:
                     Config_,
                     storeId,
                     tablet,
-                    Bootstrap_);
+                    Bootstrap_->GetBlockCache(),
+                    Bootstrap_->GetChunkRegistry(),
+                    Bootstrap_->GetChunkBlockManager(),
+                    Bootstrap_->GetMasterClient(),
+                    Bootstrap_->GetMasterConnector()->GetLocalDescriptor());
                 store->Initialize(chunkMeta);
                 return store;
             }
