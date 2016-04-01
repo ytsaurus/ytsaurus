@@ -1529,10 +1529,17 @@ protected:
     void HydraSetAccountStatistics(const NProto::TReqSetAccountStatistics& request)
     {
         auto cellTag = request.cell_tag();
+        YCHECK(Bootstrap_->IsPrimaryMaster() || cellTag == Bootstrap_->GetPrimaryCellTag());
+
+        auto multicellManager = Bootstrap_->GetMulticellManager();
+        if (!multicellManager->IsRegisteredMasterCell(cellTag)) {
+            LOG_ERROR_UNLESS(IsRecovery(), "Received account statistics gossip message from unknown cell (CellTag: %v)",
+                cellTag);
+            return;
+        }
+
         LOG_INFO_UNLESS(IsRecovery(), "Received account statistics gossip message (CellTag: %v)",
             cellTag);
-
-        YCHECK(Bootstrap_->IsPrimaryMaster() || cellTag == Bootstrap_->GetPrimaryCellTag());
 
         for (const auto& entry : request.entries()) {
             auto accountId = FromProto<TAccountId>(entry.account_id());
@@ -1647,10 +1654,17 @@ protected:
     void HydraSetUserStatistics(const NProto::TReqSetUserStatistics& request)
     {
         auto cellTag = request.cell_tag();
+        YCHECK(Bootstrap_->IsPrimaryMaster() || cellTag == Bootstrap_->GetPrimaryCellTag());
+
+        auto multicellManager = Bootstrap_->GetMulticellManager();
+        if (multicellManager->IsRegisteredMasterCell(cellTag)) {
+            LOG_ERROR_UNLESS(IsRecovery(), "Received user statistics gossip message from unknown cell (CellTag: %v)",
+                cellTag);
+            return;
+        }
+
         LOG_INFO_UNLESS(IsRecovery(), "Received user statistics gossip message (CellTag: %v)",
             cellTag);
-
-        YCHECK(Bootstrap_->IsPrimaryMaster() || cellTag == Bootstrap_->GetPrimaryCellTag());
 
         for (const auto& entry : request.entries()) {
             auto userId = FromProto<TAccountId>(entry.user_id());
