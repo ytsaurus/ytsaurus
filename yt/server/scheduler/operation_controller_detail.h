@@ -100,6 +100,7 @@ public:
     virtual void OnJobAborted(std::unique_ptr<TAbortedJobSummary> jobSummary) override;
 
     virtual void Abort() override;
+    virtual void Complete() override;
 
     virtual TJobStartRequestPtr ScheduleJob(
         ISchedulingContextPtr context,

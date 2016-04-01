@@ -1013,6 +1013,40 @@ cat > /dev/null; echo {hello=world}
         op.abort()
         assert get(path) == "aborted"
 
+    def test_complete_op(self):
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+        for i in xrange(5):
+            write_table("<append=true>//tmp/t1", {"key": str(i), "value": "foo"})
+
+        op = map(
+            waiting_jobs=True,
+            dont_track=True,
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            command="echo job_index=$YT_JOB_INDEX",
+            spec={
+                "mapper": {
+                    "format": "dsv"
+                },
+                "data_size_per_job": 1,
+                "max_failed_job_count": 1
+            })
+
+        for job_id in op.jobs[:3]:
+            op.resume_job(job_id)
+
+        path = "//sys/operations/{0}/@state".format(op.id)
+        completed_path = "//sys/scheduler/orchid/scheduler/operations/{0}/progress/jobs/completed".format(op.id)
+        assert get(path) != "completed"
+        while get(completed_path) < 3:
+            time.sleep(0.2)
+
+        op.complete()
+        assert get(path) == "completed"
+        op.track()
+        assert len(read_table("//tmp/t2")) == 3
+
 
     @unix_only
     def test_table_index(self):

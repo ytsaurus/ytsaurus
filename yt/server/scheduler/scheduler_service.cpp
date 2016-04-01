@@ -46,6 +46,7 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(AbortOperation));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(SuspendOperation));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ResumeOperation));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(CompleteOperation));
     }
 
 private:
@@ -156,6 +157,29 @@ private:
 
         auto operation = scheduler->GetOperationOrThrow(operationId);
         auto asyncResult = scheduler->ResumeOperation(operation);
+
+        context->ReplyFrom(asyncResult);
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NProto, CompleteOperation)
+    {
+        auto operationId = FromProto<TOperationId>(request->operation_id());
+        const auto& user = context->GetUser();
+
+        context->SetRequestInfo("OperationId: %v", operationId);
+
+        auto scheduler = Bootstrap_->GetScheduler();
+        scheduler->ValidateConnected();
+
+        if (ResponseKeeper_->TryReplyFrom(context))
+            return;
+
+        ValidatePermission(user, operationId, EPermission::Write);
+
+        auto operation = scheduler->GetOperationOrThrow(operationId);
+        auto asyncResult = scheduler->CompleteOperation(
+            operation,
+            TError("Operation completed by user request"));
 
         context->ReplyFrom(asyncResult);
     }

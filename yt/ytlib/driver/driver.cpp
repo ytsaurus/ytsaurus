@@ -113,6 +113,7 @@ public:
         REGISTER(TAbortOperationCommand,       "abort_op",                Null,       Null,       true,  false);
         REGISTER(TSuspendOperationCommand,     "suspend_op",              Null,       Null,       true,  false);
         REGISTER(TResumeOperationCommand,      "resume_op",               Null,       Null,       true,  false);
+        REGISTER(TCompleteOperationCommand,    "complete_op",             Null,       Null,       true,  false);
 
         REGISTER(TParseYPathCommand,           "parse_ypath",             Null,       Structured, false, false);
 

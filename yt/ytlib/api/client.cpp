@@ -1203,6 +1203,10 @@ public:
         const TOperationId& operationId,
         const TResumeOperationOptions& options),
         (operationId, options))
+    IMPLEMENT_METHOD(void, CompleteOperation, (
+        const TOperationId& operationId,
+        const TCompleteOperationOptions& options),
+        (operationId, options))
 
     IMPLEMENT_METHOD(void, DumpJobContext, (
         const TJobId& jobId,
@@ -2427,6 +2431,17 @@ private:
         const TResumeOperationOptions& /*options*/)
     {
         auto req = SchedulerProxy_->ResumeOperation();
+        ToProto(req->mutable_operation_id(), operationId);
+
+        WaitFor(req->Invoke())
+            .ThrowOnError();
+    }
+
+    void DoCompleteOperation(
+        const TOperationId& operationId,
+        const TCompleteOperationOptions& /*options*/)
+    {
+        auto req = SchedulerProxy_->CompleteOperation();
         ToProto(req->mutable_operation_id(), operationId);
 
         WaitFor(req->Invoke())

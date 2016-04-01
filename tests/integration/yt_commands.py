@@ -443,6 +443,10 @@ class Operation(object):
         kwargs["operation_id"] = self.id
         execute_command("abort_op", kwargs)
 
+    def complete(self, **kwargs):
+        kwargs["operation_id"] = self.id
+        execute_command("complete_op", kwargs)
+
 def create_tmpdir(prefix):
     basedir = os.path.join(path_to_run_tests, "tmp")
     try:

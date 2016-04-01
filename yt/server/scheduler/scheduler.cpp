@@ -369,15 +369,8 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        if (operation->IsFinishingState()) {
-            LOG_INFO(error, "Operation is already finishing (OperationId: %v, State: %v)",
-                operation->GetId(),
-                operation->GetState());
-            return operation->GetFinished();
-        }
-
-        if (operation->IsFinishedState()) {
-            LOG_INFO(error, "Operation is already finished (OperationId: %v, State: %v)",
+        if (operation->IsFinishingState() || operation->IsFinishedState()) {
+            LOG_INFO(error, "Operation is already shuting down (OperationId: %v, State: %v)",
                 operation->GetId(),
                 operation->GetState());
             return operation->GetFinished();
@@ -433,6 +426,29 @@ public:
             operation->GetId());
 
         return MasterConnector_->FlushOperationNode(operation);
+    }
+
+    TFuture<void> CompleteOperation(TOperationPtr operation, const TError& error)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        if (operation->IsFinishingState() || operation->IsFinishedState()) {
+            LOG_INFO(error, "Operation is already shuting down (OperationId: %v, State: %v)",
+                operation->GetId(),
+                operation->GetState());
+            return operation->GetFinished();
+        }
+
+        LOG_INFO(error, "Completing operation (OperationId: %v, State: %v)",
+            operation->GetId(),
+            operation->GetState());
+
+        auto controller = operation->GetController();
+        if (controller) {
+            controller->Complete();
+        }
+
+        return operation->GetFinished();
     }
 
     TFuture<TYsonString> Strace(const TJobId& jobId)
@@ -2698,6 +2714,13 @@ TFuture<void> TScheduler::SuspendOperation(TOperationPtr operation)
 TFuture<void> TScheduler::ResumeOperation(TOperationPtr operation)
 {
     return Impl_->ResumeOperation(operation);
+}
+
+TFuture<void> TScheduler::CompleteOperation(
+    TOperationPtr operation,
+    const TError& error)
+{
+    return Impl_->CompleteOperation(operation, error);
 }
 
 TFuture<void> TScheduler::DumpInputContext(const TJobId& jobId, const NYPath::TYPath& path)
