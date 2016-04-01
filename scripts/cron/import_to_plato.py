@@ -9,9 +9,9 @@ def main():
         "ydf_attribute": "UserSessions.ReadRecord"}
 
     importer = Importer("plato")
-    importer.process_log("day", "user_sessions/{}", None, period=180, **user_session_args)
-    importer.process_log("day", "user_sessions/{}/frauds", "user_sessions_frauds/{}", period=180, **user_session_args)
-    importer.process_log("day", "user_sessions/{}/spy_log", "user_sessions_spy_log/{}", period=180, **user_session_args)
+    importer.process_log("day", "user_sessions/{}", None, period=150, **user_session_args)
+    importer.process_log("day", "user_sessions/{}/frauds", "user_sessions_frauds/{}", period=150, **user_session_args)
+    importer.process_log("day", "user_sessions/{}/spy_log", "user_sessions_spy_log/{}", period=150, **user_session_args)
     importer.process_log("day", "user_intents/{}", None, period=None)
     importer.process_log("day", "reqregscdata/{}/www", None, period=180, link=False)
     importer.process_log("day", "reqregscdata/{}/xml", None, period=180, link=False)
