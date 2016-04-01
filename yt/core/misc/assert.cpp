@@ -9,6 +9,8 @@
     #include <unistd.h>
 #endif
 
+#include <errno.h>
+
 namespace NYT {
 namespace NDetail {
 
