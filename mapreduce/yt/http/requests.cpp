@@ -272,6 +272,8 @@ void RetryHeavyWriteRequest(
 
             header.AddTransactionId(attemptTx.GetId());
 
+            header.SetRequestCompression(TConfig::Get()->ContentEncoding);
+
             request.Connect();
             try {
                 auto input = streamMaker();
