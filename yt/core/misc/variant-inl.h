@@ -185,7 +185,7 @@ TVariant<Ts...>::TVariant(T&& value)
 }
 
 template <class... Ts>
-template<class T, class... TArgs, class>
+template <class T, class... TArgs, class>
 TVariant<Ts...>::TVariant(TVariantTypeTag<T>, TArgs&&... args)
 {
     EmplaceValue<T>(std::forward<TArgs>(args)...);
