@@ -83,7 +83,7 @@ public:
     }
 
 
-    bool CheckInitialized()
+    bool IsInitialized()
     {
         auto cypressManager = Bootstrap_->GetCypressManager();
         auto* root = dynamic_cast<TMapNode*>(cypressManager->GetRootNode());
@@ -91,7 +91,14 @@ public:
         return !root->KeyToChild().empty();
     }
 
-    bool CheckProvisionLock()
+    void ValidateInitialized()
+    {
+        if (!IsInitialized()) {
+            THROW_ERROR_EXCEPTION(NRpc::EErrorCode::Unavailable, "Cluster is not initialized");
+        }
+    }
+
+    bool HasProvisionLock()
     {
         auto cypressManager = Bootstrap_->GetCypressManager();
         auto resolver = cypressManager->CreateResolver();
@@ -116,7 +123,7 @@ private:
 
     void InitializeIfNeeded()
     {
-        if (CheckInitialized()) {
+        if (IsInitialized()) {
             LOG_INFO("World is already initialized");
         } else {
             Initialize();
@@ -567,17 +574,21 @@ TWorldInitializer::TWorldInitializer(
     : Impl_(New<TImpl>(config, bootstrap))
 { }
 
-TWorldInitializer::~TWorldInitializer()
-{ }
+TWorldInitializer::~TWorldInitializer() = default;
 
-bool TWorldInitializer::CheckInitialized()
+bool TWorldInitializer::IsInitialized()
 {
-    return Impl_->CheckInitialized();
+    return Impl_->IsInitialized();
 }
 
-bool TWorldInitializer::CheckProvisionLock()
+void TWorldInitializer::ValidateInitialized()
 {
-    return Impl_->CheckProvisionLock();
+    Impl_->ValidateInitialized();
+}
+
+bool TWorldInitializer::HasProvisionLock()
+{
+    return Impl_->HasProvisionLock();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

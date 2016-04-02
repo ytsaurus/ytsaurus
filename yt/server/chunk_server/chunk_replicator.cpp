@@ -1205,7 +1205,7 @@ bool TChunkReplicator::IsEnabled()
 void TChunkReplicator::OnCheckEnabled()
 {
     auto worldInitializer = Bootstrap_->GetWorldInitializer();
-    if (!worldInitializer->CheckInitialized()) {
+    if (!worldInitializer->IsInitialized()) {
         Enabled_ = false;
         return;
     }

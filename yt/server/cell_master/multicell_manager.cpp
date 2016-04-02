@@ -540,7 +540,7 @@ private:
         YCHECK(Bootstrap_->IsSecondaryMaster());
 
         auto worldInitializer = Bootstrap_->GetWorldInitializer();
-        if (!worldInitializer->CheckInitialized()) {
+        if (!worldInitializer->IsInitialized()) {
             return;
         }
 

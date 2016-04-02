@@ -66,10 +66,11 @@ public:
 private:
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, LocateChunks)
     {
-        ValidatePeer(EPeerKind::LeaderOrFollower);
-
         context->SetRequestInfo("SubrequestCount: %v",
             request->subrequests_size());
+
+        ValidateClusterInitialized();
+        ValidatePeer(EPeerKind::LeaderOrFollower);
 
         auto chunkManager = Bootstrap_->GetChunkManager();
         TNodeDirectoryBuilder nodeDirectoryBuilder(response->mutable_node_directory());
@@ -98,10 +99,11 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, AllocateWriteTargets)
     {
-        ValidatePeer(EPeerKind::Leader);
-
         context->SetRequestInfo("SubrequestCount: %v",
             request->subrequests_size());
+
+        ValidateClusterInitialized();
+        ValidatePeer(EPeerKind::Leader);
 
         auto chunkManager = Bootstrap_->GetChunkManager();
         auto nodeTracker = Bootstrap_->GetNodeTracker();
@@ -164,9 +166,6 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, ExportChunks)
     {
-        ValidatePeer(EPeerKind::Leader);
-        SyncWithUpstream();
-
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
 
         context->SetRequestInfo("TransactionId: %v, ChunkCount: %v",
@@ -177,6 +176,10 @@ private:
             THROW_ERROR_EXCEPTION("Request is not retriable");
         }
 
+        ValidateClusterInitialized();
+        ValidatePeer(EPeerKind::Leader);
+        SyncWithUpstream();
+
         auto chunkManager = Bootstrap_->GetChunkManager();
         chunkManager
             ->CreateExportChunksMutation(context)
@@ -185,14 +188,15 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, ImportChunks)
     {
-        ValidatePeer(EPeerKind::Leader);
-        SyncWithUpstream();
-
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
 
         context->SetRequestInfo("TransactionId: %v, ChunkCount: %v",
             transactionId,
             request->chunks_size());
+
+        ValidateClusterInitialized();
+        ValidatePeer(EPeerKind::Leader);
+        SyncWithUpstream();
 
         if (context->IsRetry()) {
             THROW_ERROR_EXCEPTION("Request is not retriable");
@@ -206,13 +210,14 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, GetChunkOwningNodes)
     {
-        ValidatePeer(EPeerKind::LeaderOrFollower);
-        SyncWithUpstream();
-
         auto chunkId = FromProto<TChunkId>(request->chunk_id());
 
         context->SetRequestInfo("ChunkId: %v",
             chunkId);
+
+        ValidateClusterInitialized();
+        ValidatePeer(EPeerKind::LeaderOrFollower);
+        SyncWithUpstream();
 
         auto chunkManager = Bootstrap_->GetChunkManager();
         auto* chunk = chunkManager->GetChunkOrThrow(chunkId);
@@ -233,9 +238,6 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, ExecuteBatch)
     {
-        ValidatePeer(EPeerKind::Leader);
-        SyncWithUpstream();
-
         context->SetRequestInfo(
             "CreateChunkCount: %v, "
             "ConfirmChunkCount: %v, "
@@ -245,6 +247,10 @@ private:
             request->confirm_chunk_subrequests_size(),
             request->seal_chunk_subrequests_size(),
             request->create_chunk_lists_subrequests_size());
+
+        ValidateClusterInitialized();
+        ValidatePeer(EPeerKind::Leader);
+        SyncWithUpstream();
 
         auto chunkManager = Bootstrap_->GetChunkManager();
         chunkManager

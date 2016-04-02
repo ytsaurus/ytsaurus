@@ -279,6 +279,7 @@ private:
             }
         }
 
+        Owner_->ValidateClusterInitialized();
         HydraManager_->ValidatePeer(EPeerKind::LeaderOrFollower);
 
         auto* user = SecurityManager_->GetUserByNameOrThrow(UserName_);
@@ -465,9 +466,10 @@ DEFINE_RPC_SERVICE_METHOD(TObjectService, GCCollect)
     UNUSED(request);
     UNUSED(response);
 
-    ValidatePeer(EPeerKind::Leader);
-
     context->SetRequestInfo();
+
+    ValidateClusterInitialized();
+    ValidatePeer(EPeerKind::Leader);
 
     auto objectManager = Bootstrap_->GetObjectManager();
     context->ReplyFrom(objectManager->GCCollect());
