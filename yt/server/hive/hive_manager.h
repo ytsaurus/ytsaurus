@@ -69,7 +69,7 @@ public:
 
     NYTree::IYPathServicePtr GetOrchidService();
 
-    DECLARE_ENTITY_MAP_ACCESSORS(Mailbox, TMailbox, TCellId);
+    DECLARE_ENTITY_MAP_ACCESSORS(Mailbox, TMailbox);
 
 private:
     class TImpl;

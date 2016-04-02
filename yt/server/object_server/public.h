@@ -1,5 +1,7 @@
 #pragma once
 
+#include <yt/server/hydra/public.h>
+
 #include <yt/ytlib/object_client/public.h>
 
 #include <yt/core/misc/small_vector.h>
@@ -50,7 +52,8 @@ class TAttributeSet;
 class TObjectBase;
 class TNonversionedObjectBase;
 
-class TSchemaObject;
+DECLARE_ENTITY_TYPE(TSchemaObject, TObjectId, ::THash<TObjectId>);
+
 class TMasterObject;
 
 DECLARE_REFCOUNTED_STRUCT(IObjectProxy)

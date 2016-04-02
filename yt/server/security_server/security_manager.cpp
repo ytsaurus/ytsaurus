@@ -291,9 +291,9 @@ public:
     }
 
 
-    DECLARE_ENTITY_MAP_ACCESSORS(Account, TAccount, TAccountId);
-    DECLARE_ENTITY_MAP_ACCESSORS(User, TUser, TUserId);
-    DECLARE_ENTITY_MAP_ACCESSORS(Group, TGroup, TGroupId);
+    DECLARE_ENTITY_MAP_ACCESSORS(Account, TAccount);
+    DECLARE_ENTITY_MAP_ACCESSORS(User, TUser);
+    DECLARE_ENTITY_MAP_ACCESSORS(Group, TGroup);
 
 
     TAccount* CreateAccount(const Stroka& name, const TObjectId& hintId)
@@ -959,7 +959,7 @@ private:
 
     bool InitMulticell_ = false;
 
-    NHydra::TEntityMap<TAccountId, TAccount> AccountMap_;
+    NHydra::TEntityMap<TAccount> AccountMap_;
     yhash_map<Stroka, TAccount*> AccountNameMap_;
 
     TAccountId SysAccountId_;
@@ -971,7 +971,7 @@ private:
     TAccountId IntermediateAccountId_;
     TAccount* IntermediateAccount_ = nullptr;
 
-    NHydra::TEntityMap<TUserId, TUser> UserMap_;
+    NHydra::TEntityMap<TUser> UserMap_;
     yhash_map<Stroka, TUser*> UserNameMap_;
 
     TUserId RootUserId_;
@@ -986,7 +986,7 @@ private:
     TUserId SchedulerUserId_;
     TUser* SchedulerUser_ = nullptr;
 
-    NHydra::TEntityMap<TGroupId, TGroup> GroupMap_;
+    NHydra::TEntityMap<TGroup> GroupMap_;
     yhash_map<Stroka, TGroup*> GroupNameMap_;
 
     TGroupId EveryoneGroupId_;
@@ -1709,9 +1709,9 @@ protected:
 
 };
 
-DEFINE_ENTITY_MAP_ACCESSORS(TSecurityManager::TImpl, Account, TAccount, TAccountId, AccountMap_)
-DEFINE_ENTITY_MAP_ACCESSORS(TSecurityManager::TImpl, User, TUser, TUserId, UserMap_)
-DEFINE_ENTITY_MAP_ACCESSORS(TSecurityManager::TImpl, Group, TGroup, TGroupId, GroupMap_)
+DEFINE_ENTITY_MAP_ACCESSORS(TSecurityManager::TImpl, Account, TAccount, AccountMap_)
+DEFINE_ENTITY_MAP_ACCESSORS(TSecurityManager::TImpl, User, TUser, UserMap_)
+DEFINE_ENTITY_MAP_ACCESSORS(TSecurityManager::TImpl, Group, TGroup, GroupMap_)
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -2040,9 +2040,9 @@ double TSecurityManager::GetRequestRate(TUser* user)
     return Impl_->GetRequestRate(user);
 }
 
-DELEGATE_ENTITY_MAP_ACCESSORS(TSecurityManager, Account, TAccount, TAccountId, *Impl_)
-DELEGATE_ENTITY_MAP_ACCESSORS(TSecurityManager, User, TUser, TUserId, *Impl_)
-DELEGATE_ENTITY_MAP_ACCESSORS(TSecurityManager, Group, TGroup, TGroupId, *Impl_)
+DELEGATE_ENTITY_MAP_ACCESSORS(TSecurityManager, Account, TAccount, *Impl_)
+DELEGATE_ENTITY_MAP_ACCESSORS(TSecurityManager, User, TUser, *Impl_)
+DELEGATE_ENTITY_MAP_ACCESSORS(TSecurityManager, Group, TGroup, *Impl_)
 
 ///////////////////////////////////////////////////////////////////////////////
 

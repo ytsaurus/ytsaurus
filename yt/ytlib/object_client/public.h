@@ -246,11 +246,15 @@ bool operator == (const TVersionedObjectId& lhs, const TVersionedObjectId& rhs);
 //! Compares TVersionedNodeId s for inequality.
 bool operator != (const TVersionedObjectId& lhs, const TVersionedObjectId& rhs);
 
-//! Compares TVersionedNodeId s for "less than" (used to sort nodes in meta-map).
+//! Compares TVersionedNodeId s for "less than".
 bool operator <  (const TVersionedObjectId& lhs, const TVersionedObjectId& rhs);
 
-
 class TObjectServiceProxy;
+
+struct TDirectObjectIdHash;
+struct TDirectVersionedObjectIdHash;
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NObjectClient
 } // namespace NYT
@@ -258,17 +262,3 @@ class TObjectServiceProxy;
 ////////////////////////////////////////////////////////////////////////////////
 
 DECLARE_PODTYPE(NYT::NObjectClient::TVersionedObjectId);
-
-//! A hasher for TVersionedNodeId.
-template <>
-struct hash<NYT::NObjectClient::TVersionedObjectId>
-{
-    size_t operator() (const NYT::NObjectClient::TVersionedObjectId& id) const
-    {
-        return THash<NYT::TGuid>()(id.TransactionId) * 497 +
-               THash<NYT::TGuid>()(id.ObjectId);
-    }
-};
-
-////////////////////////////////////////////////////////////////////////////////
-

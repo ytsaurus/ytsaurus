@@ -94,6 +94,21 @@ TObjectId ReplaceCellTagInId(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Relies on first 32 bits of object id to be pseudo-random,
+//! cf. TObjectManager::GenerateId.
+struct TDirectObjectIdHash
+{
+    size_t operator()(const TObjectId& id) const;
+};
+
+//! Cf. TDirectObjectIdHash
+struct TDirectVersionedObjectIdHash
+{
+    size_t operator()(const TVersionedObjectId& id) const;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NObjectClient
 } // namespace NYT
 

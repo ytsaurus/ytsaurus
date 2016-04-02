@@ -202,5 +202,19 @@ inline TObjectId ReplaceCellTagInId(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+Y_FORCE_INLINE size_t TDirectObjectIdHash::operator()(const TObjectId& id) const
+{
+    return id.Parts32[0];
+}
+
+Y_FORCE_INLINE size_t TDirectVersionedObjectIdHash::operator()(const TVersionedObjectId& id) const
+{
+    return
+        TDirectObjectIdHash()(id.TransactionId) * 497 +
+        TDirectObjectIdHash()(id.ObjectId);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NObjectClient
 } // namespace NYT

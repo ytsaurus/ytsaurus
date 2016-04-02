@@ -147,8 +147,8 @@ private:
     const ITransactionManagerPtr TransactionManager_;
     const ITimestampProviderPtr TimestampProvider_;
 
-    TEntityMap<TTransactionId, TCommit> TransientCommitMap_;
-    TEntityMap<TTransactionId, TCommit> PersistentCommitMap_;
+    TEntityMap<TCommit> TransientCommitMap_;
+    TEntityMap<TCommit> PersistentCommitMap_;
 
 
     // RPC handlers.

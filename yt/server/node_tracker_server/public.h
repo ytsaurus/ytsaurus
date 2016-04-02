@@ -1,5 +1,7 @@
 #pragma once
 
+#include <yt/server/hydra/public.h>
+
 #include <yt/ytlib/chunk_client/public.h>
 
 #include <yt/ytlib/node_tracker_client/public.h>
@@ -22,6 +24,8 @@ typedef NNodeTrackerClient::NProto::TReqFullHeartbeat TReqFullHeartbeat;
 
 } // namespace NProto
 
+///////////////////////////////////////////////////////////////////////////////
+
 using NNodeTrackerClient::TNodeId;
 using NNodeTrackerClient::InvalidNodeId;
 
@@ -31,14 +35,17 @@ using NNodeTrackerClient::NullRackId;
 using NNodeTrackerClient::TAddressMap;
 using NNodeTrackerClient::TNodeDescriptor;
 
+///////////////////////////////////////////////////////////////////////////////
+
 DECLARE_REFCOUNTED_CLASS(TNodeTracker)
 
 DECLARE_REFCOUNTED_CLASS(TNodeTrackerConfig)
 
-class TNode;
+DECLARE_ENTITY_TYPE(TNode, NObjectClient::TObjectId, ::THash<NObjectClient::TObjectId>)
+DECLARE_ENTITY_TYPE(TRack, TRackId, NObjectClient::TDirectObjectIdHash)
+
 typedef SmallVector<TNode*, NChunkClient::TypicalReplicaCount> TNodeList;
 
-class TRack;
 typedef ui64 TRackSet;
 const int MaxRackCount = 63;
 const int NullRackIndex = 0;

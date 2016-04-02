@@ -18,6 +18,8 @@
 #include <yt/ytlib/chunk_client/chunk_reader.h>
 #include <yt/ytlib/chunk_client/dispatcher.h>
 
+#include <yt/ytlib/object_client/helpers.h>
+
 #include <yt/core/compression/codec.h>
 
 #include <yt/core/concurrency/async_semaphore.h>

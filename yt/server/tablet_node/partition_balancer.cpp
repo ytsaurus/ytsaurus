@@ -28,6 +28,8 @@
 
 #include <yt/ytlib/tablet_client/config.h>
 
+#include <yt/ytlib/object_client/helpers.h>
+
 #include <yt/core/concurrency/async_semaphore.h>
 #include <yt/core/concurrency/scheduler.h>
 
