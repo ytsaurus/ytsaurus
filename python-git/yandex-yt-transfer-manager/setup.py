@@ -1,6 +1,10 @@
 from helpers import get_version, prepare_files
 
-from setuptools import setup
+from setuptools import setup, find_packages
+
+def recursive(path):
+    prefix = path.strip("/").replace("/", ".")
+    return map(lambda package: prefix + "." + package, find_packages(path)) + [prefix]
 
 def main():
     requires = ["yandex-yt", "yandex-yt-tools", "yandex-yt-yson-bindings", "flask", "python-prctl"]
@@ -9,7 +13,7 @@ def main():
     setup(
         name = "yandex-yt-transfer-manager",
         version = get_version(),
-        packages = ["yt.transfer_manager.server"],
+        packages = ["yt.transfer_manager.server"] + recursive("yt/packages/cherrypy"),
 
         scripts = scripts,
         data_files = data_files,

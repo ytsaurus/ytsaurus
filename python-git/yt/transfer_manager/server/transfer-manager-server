@@ -990,11 +990,12 @@ class Application(object):
         custom_logger.info("Precheck completed")
 
     def _can_run(self, task):
-        if task.get_queue_id() in self._runned_during_heartbeat:
-            return False
+        # Disable special limits for scheduling.
+        #if task.get_queue_id() in self._runned_during_heartbeat:
+        #    return False
+        #if datetime.now() - self._last_scheduled_time[task.get_queue_id()] < timedelta(seconds=self._config["scheduling_backoff"]):
+        #    return False
         if len(self._running_tasks_queues[task.get_queue_id()]) >= self._config["running_tasks_limit_per_direction"]:
-            return False
-        if datetime.now() - self._last_scheduled_time[task.get_queue_id()] < timedelta(seconds=self._config["scheduling_backoff"]):
             return False
 
         client, _ = self._get_active_and_passive_clients(task, self._get_clusters_configuration())
@@ -1547,7 +1548,8 @@ class Application(object):
         logger.info("Starting transfer manager (pid %s)", os.getpid())
 
         dispatcher = wsgiserver.WSGIPathInfoDispatcher({'/': self._daemon})
-        server = wsgiserver.CherryPyWSGIServer((self._config.get("host", "::"), self._config["port"]), dispatcher)
+        server = wsgiserver.CherryPyWSGIServer((self._config.get("host", "::"), self._config["port"]), dispatcher,
+                                               numthreads=self._config["thread_count"])
         try:
            server.start()
         except KeyboardInterrupt:
