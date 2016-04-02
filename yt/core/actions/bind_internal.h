@@ -535,7 +535,7 @@ struct TBindState<TRunnable_, R(TArgs...), void(S...)>
     typedef TInvoker<TBindState, R, TBoundArgsPack, TRunArgsPack, typename NMpl::TGenerateSequence<TBoundArgsPack::Size>::TType> TInvokerType;
     typedef typename TInvokerType::TUnboundSignature TUnboundSignature;
 
-    template<class... P>
+    template <class... P>
     TBindState(
 #ifdef YT_ENABLE_BIND_LOCATION_TRACKING
         const NYT::TSourceLocation& location,

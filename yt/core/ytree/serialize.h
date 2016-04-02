@@ -125,7 +125,7 @@ void Serialize(const yhash_map<Stroka, T>& value, NYson::IYsonConsumer* consumer
 template <class T>
 void Serialize(const yhash_map<int, T>& value, NYson::IYsonConsumer* consumer);
 
-template<class T>
+template <class T>
 void Serialize(const TErrorOr<T>& error, NYson::IYsonConsumer* consumer);
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -198,7 +198,7 @@ void Deserialize(yhash_map<Stroka, T>& value, INodePtr node);
 template <class T>
 void Deserialize(std::map<Stroka, T>& value, INodePtr node);
 
-template<class T>
+template <class T>
 void Deserialize(TErrorOr<T>& error, NYTree::INodePtr node);
 
 ////////////////////////////////////////////////////////////////////////////////

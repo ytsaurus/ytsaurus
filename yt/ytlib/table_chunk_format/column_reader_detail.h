@@ -1049,7 +1049,7 @@ protected:
 
     void EnsureSegmentReader();
 
-    template<class TSegmentReader>
+    template <class TSegmentReader>
     std::unique_ptr<IVersionedSegmentReader> DoCreateSegmentReader(const NProto::TSegmentMeta& meta)
     {
         const char* segmentBegin = Block_.Begin() + meta.offset();
