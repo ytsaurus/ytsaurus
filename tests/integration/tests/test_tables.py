@@ -792,6 +792,10 @@ class TestTables(YTEnvSetup):
         tabular_data = read_table("//tmp/t1", output_format=yson.loads("<columns=[column2;column3]>schemaful_dsv"))
         assert tabular_data == "value12\tvalue13\nvalue22\tvalue23\n"
 
+    def test_dynamic_table_schema_required(self):
+        with pytest.raises(YtError): create("table", "//tmp/t",
+            attributes={"dynamic": True})
+
 ##################################################################
 
 class TestTablesMulticell(TestTables):
