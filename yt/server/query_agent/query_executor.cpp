@@ -101,13 +101,6 @@ TColumnFilter GetColumnFilter(const TTableSchema& desiredSchema, const TTableSch
     return columnFilter;
 }
 
-void RowRangeFormatter(TStringBuilder* builder, const NQueryClient::TRowRange& range)
-{
-    builder->AppendFormat("[%v .. %v]",
-        range.first,
-        range.second);
-}
-
 void DataSourceFormatter(TStringBuilder* builder, const NQueryClient::TDataRange& source)
 {
     builder->AppendFormat("[%v .. %v]",
@@ -115,7 +108,7 @@ void DataSourceFormatter(TStringBuilder* builder, const NQueryClient::TDataRange
         source.Range.second);
 }
 
-} // namespace NYT
+} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
