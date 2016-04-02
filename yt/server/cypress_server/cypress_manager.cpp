@@ -1093,8 +1093,8 @@ public:
     }
 
 
-    DECLARE_ENTITY_MAP_ACCESSORS(Node, TCypressNodeBase, TVersionedNodeId);
-    DECLARE_ENTITY_MAP_ACCESSORS(Lock, TLock, TLockId);
+    DECLARE_ENTITY_MAP_ACCESSORS(Node, TCypressNodeBase);
+    DECLARE_ENTITY_MAP_ACCESSORS(Lock, TLock);
 
 private:
     friend class TNodeTypeHandler;
@@ -1116,8 +1116,8 @@ private:
 
     const TAccessTrackerPtr AccessTracker_;
 
-    NHydra::TEntityMap<TVersionedNodeId, TCypressNodeBase, TNodeMapTraits> NodeMap_;
-    NHydra::TEntityMap<TLockId, TLock> LockMap_;
+    NHydra::TEntityMap<TCypressNodeBase, TNodeMapTraits> NodeMap_;
+    NHydra::TEntityMap<TLock> LockMap_;
 
     TEnumIndexedVector<INodeTypeHandlerPtr, NObjectClient::EObjectType> TypeToHandler_;
 
@@ -2110,8 +2110,8 @@ private:
 
 };
 
-DEFINE_ENTITY_MAP_ACCESSORS(TCypressManager::TImpl, Node, TCypressNodeBase, TVersionedNodeId, NodeMap_);
-DEFINE_ENTITY_MAP_ACCESSORS(TCypressManager::TImpl, Lock, TLock, TLockId, LockMap_);
+DEFINE_ENTITY_MAP_ACCESSORS(TCypressManager::TImpl, Node, TCypressNodeBase, NodeMap_);
+DEFINE_ENTITY_MAP_ACCESSORS(TCypressManager::TImpl, Lock, TLock, LockMap_);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -2119,7 +2119,7 @@ TCypressManager::TImpl::TNodeMapTraits::TNodeMapTraits(TImpl* owner)
     : Owner_(owner)
 { }
 
-auto TCypressManager::TImpl::TNodeMapTraits::Create(const TVersionedNodeId& id) const -> std::unique_ptr<TCypressNodeBase>
+std::unique_ptr<TCypressNodeBase> TCypressManager::TImpl::TNodeMapTraits::Create(const TVersionedNodeId& id) const
 {
     auto type = TypeFromId(id.ObjectId);
     auto handler = Owner_->GetHandler(type);
@@ -2345,8 +2345,8 @@ TCypressNodeList TCypressManager::GetNodeReverseOriginators(
     return Impl_->GetNodeReverseOriginators(transaction, trunkNode);
 }
 
-DELEGATE_ENTITY_MAP_ACCESSORS(TCypressManager, Node, TCypressNodeBase, TVersionedNodeId, *Impl_);
-DELEGATE_ENTITY_MAP_ACCESSORS(TCypressManager, Lock, TLock, TLockId, *Impl_);
+DELEGATE_ENTITY_MAP_ACCESSORS(TCypressManager, Node, TCypressNodeBase, *Impl_);
+DELEGATE_ENTITY_MAP_ACCESSORS(TCypressManager, Lock, TLock, *Impl_);
 
 ////////////////////////////////////////////////////////////////////////////////
 

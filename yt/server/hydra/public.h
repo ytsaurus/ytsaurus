@@ -55,6 +55,17 @@ DECLARE_REFCOUNTED_CLASS(TDistributedHydraManagerConfig)
 //! A special value representing an invalid snapshot (or changelog) id.
 const int InvalidSegmentId = -1;
 
+#define DECLARE_ENTITY_TYPE(entityType, idType, hashType) \
+    class entityType; \
+    inline idType& EntityKeyTrait(entityType*) { YUNREACHABLE(); } \
+    inline hashType& EntityHashTrait(entityType*) { YUNREACHABLE(); } \
+
+template <class T>
+using TEntityKey = typename std::decay<decltype(EntityKeyTrait(static_cast<T*>(nullptr)))>::type;
+
+template <class T>
+using TEntityHash = typename std::decay<decltype(EntityHashTrait(static_cast<T*>(nullptr)))>::type;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NHydra

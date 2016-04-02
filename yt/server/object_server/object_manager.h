@@ -249,7 +249,7 @@ private:
     int LockedObjectCount_ = 0;
 
     //! Stores schemas (for serialization mostly).
-    NHydra::TEntityMap<TObjectId, TSchemaObject> SchemaMap_;
+    NHydra::TEntityMap<TSchemaObject> SchemaMap_;
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 

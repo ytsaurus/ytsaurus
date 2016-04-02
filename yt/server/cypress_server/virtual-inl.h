@@ -19,17 +19,14 @@ namespace NCypressServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <
-    class TId,
-    class TValue
->
+template <class TValue>
 class TVirtualObjectMap
     : public NYTree::TVirtualMapBase
 {
 public:
     TVirtualObjectMap(
         NCellMaster::TBootstrap* bootstrap,
-        const NHydra::TReadOnlyEntityMap<NObjectServer::TObjectId, TValue>* map,
+        const NHydra::TReadOnlyEntityMap<TValue>* map,
         NYTree::INodePtr owningNode)
         : TVirtualMapBase(owningNode)
         , Bootstrap_(bootstrap)
@@ -38,7 +35,7 @@ public:
 
 protected:
     NCellMaster::TBootstrap* const Bootstrap_;
-    const NHydra::TReadOnlyEntityMap<NObjectServer::TObjectId, TValue>* const Map_;
+    const NHydra::TReadOnlyEntityMap<TValue>* const Map_;
 
     virtual std::vector<Stroka> GetKeys(i64 sizeLimit) const override
     {
@@ -52,7 +49,7 @@ protected:
 
     virtual NYTree::IYPathServicePtr FindItemService(const TStringBuf& key) const override
     {
-        auto id = TId::FromString(key);
+        auto id = NHydra::TEntityKey<TValue>::FromString(key);
         auto* object = Map_->Find(id);
         if (!NObjectServer::IsObjectAlive(object)) {
             return nullptr;
@@ -63,13 +60,13 @@ protected:
     }
 };
    
-template <class TId, class TValue>
+template <class TValue>
 NYTree::IYPathServicePtr CreateVirtualObjectMap(
     NCellMaster::TBootstrap* bootstrap,
-    const NHydra::TReadOnlyEntityMap<TId, TValue>& map,
+    const NHydra::TReadOnlyEntityMap<TValue>& map,
     NYTree::INodePtr owningNode)
 {
-    return New<TVirtualObjectMap<TId, TValue>>(
+    return New<TVirtualObjectMap<TValue>>(
         bootstrap,
         &map,
         owningNode);

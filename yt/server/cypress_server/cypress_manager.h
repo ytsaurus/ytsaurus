@@ -149,8 +149,8 @@ public:
         TCypressNodeBase* trunkNode);
 
 
-    DECLARE_ENTITY_MAP_ACCESSORS(Node, TCypressNodeBase, TVersionedNodeId);
-    DECLARE_ENTITY_MAP_ACCESSORS(Lock, TLock, TLockId);
+    DECLARE_ENTITY_MAP_ACCESSORS(Node, TCypressNodeBase);
+    DECLARE_ENTITY_MAP_ACCESSORS(Lock, TLock);
 
 private:
     class TNodeFactory;

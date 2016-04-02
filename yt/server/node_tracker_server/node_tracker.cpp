@@ -255,8 +255,8 @@ public:
     }
 
 
-    DECLARE_ENTITY_MAP_ACCESSORS(Node, TNode, TObjectId);
-    DECLARE_ENTITY_MAP_ACCESSORS(Rack, TRack, TRackId);
+    DECLARE_ENTITY_MAP_ACCESSORS(Node, TNode);
+    DECLARE_ENTITY_MAP_ACCESSORS(Rack, TRack);
 
     DEFINE_SIGNAL(void(TNode* node), NodeRegistered);
     DEFINE_SIGNAL(void(TNode* node), NodeUnregistered);
@@ -521,8 +521,8 @@ private:
     NProfiling::TProfiler Profiler = NodeTrackerServerProfiler;
 
     TIdGenerator NodeIdGenerator_;
-    NHydra::TEntityMap<TObjectId, TNode> NodeMap_;
-    NHydra::TEntityMap<TRackId, TRack> RackMap_;
+    NHydra::TEntityMap<TNode> NodeMap_;
+    NHydra::TEntityMap<TRack> RackMap_;
 
     int AggregatedOnlineNodeCount_ = 0;
     int LocalRegisteredNodeCount_ = 0;
@@ -1276,8 +1276,8 @@ private:
 
 };
 
-DEFINE_ENTITY_MAP_ACCESSORS(TNodeTracker::TImpl, Node, TNode, TObjectId, NodeMap_)
-DEFINE_ENTITY_MAP_ACCESSORS(TNodeTracker::TImpl, Rack, TRack, TRackId, RackMap_)
+DEFINE_ENTITY_MAP_ACCESSORS(TNodeTracker::TImpl, Node, TNode, NodeMap_)
+DEFINE_ENTITY_MAP_ACCESSORS(TNodeTracker::TImpl, Rack, TRack, RackMap_)
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -1399,8 +1399,8 @@ int TNodeTracker::GetOnlineNodeCount()
     return Impl_->GetOnlineNodeCount();
 }
 
-DELEGATE_ENTITY_MAP_ACCESSORS(TNodeTracker, Node, TNode, TObjectId, *Impl_)
-DELEGATE_ENTITY_MAP_ACCESSORS(TNodeTracker, Rack, TRack, TRackId, *Impl_)
+DELEGATE_ENTITY_MAP_ACCESSORS(TNodeTracker, Node, TNode, *Impl_)
+DELEGATE_ENTITY_MAP_ACCESSORS(TNodeTracker, Rack, TRack, *Impl_)
 
 DELEGATE_SIGNAL(TNodeTracker, void(TNode*), NodeRegistered, *Impl_);
 DELEGATE_SIGNAL(TNodeTracker, void(TNode*), NodeUnregistered, *Impl_);

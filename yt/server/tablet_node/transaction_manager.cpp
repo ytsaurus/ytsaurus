@@ -235,13 +235,13 @@ public:
     }
 
 
-    DECLARE_ENTITY_MAP_ACCESSORS(Transaction, TTransaction, TTransactionId);
+    DECLARE_ENTITY_MAP_ACCESSORS(Transaction, TTransaction);
 
 private:
     const TTransactionManagerConfigPtr Config_;
     const TTransactionLeaseTrackerPtr LeaseTracker_;
 
-    TEntityMap<TTransactionId, TTransaction> TransactionMap_;
+    TEntityMap<TTransaction> TransactionMap_;
 
     const IYPathServicePtr OrchidService_;
 
@@ -507,7 +507,7 @@ private:
 
 };
 
-DEFINE_ENTITY_MAP_ACCESSORS(TTransactionManager::TImpl, Transaction, TTransaction, TTransactionId, TransactionMap_)
+DEFINE_ENTITY_MAP_ACCESSORS(TTransactionManager::TImpl, Transaction, TTransaction, TransactionMap_)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -575,7 +575,7 @@ DELEGATE_SIGNAL(TTransactionManager, void(TTransaction*), TransactionStarted, *I
 DELEGATE_SIGNAL(TTransactionManager, void(TTransaction*), TransactionPrepared, *Impl_);
 DELEGATE_SIGNAL(TTransactionManager, void(TTransaction*), TransactionCommitted, *Impl_);
 DELEGATE_SIGNAL(TTransactionManager, void(TTransaction*), TransactionAborted, *Impl_);
-DELEGATE_ENTITY_MAP_ACCESSORS(TTransactionManager, Transaction, TTransaction, TTransactionId, *Impl_);
+DELEGATE_ENTITY_MAP_ACCESSORS(TTransactionManager, Transaction, TTransaction, *Impl_);
 
 ////////////////////////////////////////////////////////////////////////////////
 

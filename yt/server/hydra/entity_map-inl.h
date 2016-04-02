@@ -9,8 +9,8 @@ namespace NHydra {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class TKey, class TValue>
-std::unique_ptr<TValue> TDefaultEntityMapTraits<TKey, TValue>::Create(const TKey& key) const
+template <class TValue>
+std::unique_ptr<TValue> TDefaultEntityMapTraits<TValue>::Create(const TEntityKey<TValue>& key) const
 {
     return std::unique_ptr<TValue>(new TValue(key));
 }
@@ -35,61 +35,61 @@ inline T* TEntityBase::GetTypedDynamicData() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class TKey, class TValue, class THash>
-std::pair<const TKey, TValue*> TReadOnlyEntityMap<TKey, TValue, THash>::TIterator::operator*() const
+template <class TValue>
+auto TReadOnlyEntityMap<TValue>::TIterator::operator*() const -> std::pair<const TKey, TValue*>
 {
     return *Iterator_;
 }
 
-template <class TKey, class TValue, class THash>
-auto TReadOnlyEntityMap<TKey, TValue, THash>::TIterator::operator++() -> TIterator&
+template <class TValue>
+auto TReadOnlyEntityMap<TValue>::TIterator::operator++() -> TIterator&
 {
     ++Iterator_;
     return *this;
 }
 
-template <class TKey, class TValue, class THash>
-auto TReadOnlyEntityMap<TKey, TValue, THash>::TIterator::operator--() -> TIterator&
+template <class TValue>
+auto TReadOnlyEntityMap<TValue>::TIterator::operator--() -> TIterator&
 {
     --Iterator_;
     return *this;
 }
 
-template <class TKey, class TValue, class THash>
-auto TReadOnlyEntityMap<TKey, TValue, THash>::TIterator::operator++(int) -> TIterator&
+template <class TValue>
+auto TReadOnlyEntityMap<TValue>::TIterator::operator++(int) -> TIterator&
 {
     Iterator_++;
     return *this;
 }
 
-template <class TKey, class TValue, class THash>
-auto TReadOnlyEntityMap<TKey, TValue, THash>::TIterator::operator--(int) -> TIterator&
+template <class TValue>
+auto TReadOnlyEntityMap<TValue>::TIterator::operator--(int) -> TIterator&
 {
     Iterator_--;
     return *this;
 }
 
-template <class TKey, class TValue, class THash>
-bool TReadOnlyEntityMap<TKey, TValue, THash>::TIterator::operator==(const TIterator& other) const
+template <class TValue>
+bool TReadOnlyEntityMap<TValue>::TIterator::operator==(const TIterator& other) const
 {
     return Iterator_ == other.Iterator_;
 }
 
-template <class TKey, class TValue, class THash>
-bool TReadOnlyEntityMap<TKey, TValue, THash>::TIterator::operator!=(const TIterator& other) const
+template <class TValue>
+bool TReadOnlyEntityMap<TValue>::TIterator::operator!=(const TIterator& other) const
 {
     return Iterator_ != other.Iterator_;
 }
 
-template <class TKey, class TValue, class THash>
-TReadOnlyEntityMap<TKey, TValue, THash>::TIterator::TIterator(typename TMap::const_iterator iterator)
+template <class TValue>
+TReadOnlyEntityMap<TValue>::TIterator::TIterator(typename TMap::const_iterator iterator)
     : Iterator_(std::move(iterator))
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class TKey, class TValue, class THash>
-TValue* TReadOnlyEntityMap<TKey, TValue, THash>::Find(const TKey& key) const
+template <class TValue>
+TValue* TReadOnlyEntityMap<TValue>::Find(const TKey& key) const
 {
     VERIFY_THREAD_AFFINITY(UserThread);
 
@@ -97,8 +97,8 @@ TValue* TReadOnlyEntityMap<TKey, TValue, THash>::Find(const TKey& key) const
     return it == Map_.end() ? nullptr : it->second;
 }
 
-template <class TKey, class TValue, class THash>
-TValue* TReadOnlyEntityMap<TKey, TValue, THash>::Get(const TKey& key) const
+template <class TValue>
+TValue* TReadOnlyEntityMap<TValue>::Get(const TKey& key) const
 {
     VERIFY_THREAD_AFFINITY(UserThread);
 
@@ -107,56 +107,56 @@ TValue* TReadOnlyEntityMap<TKey, TValue, THash>::Get(const TKey& key) const
     return value;
 }
 
-template <class TKey, class TValue, class THash>
-bool TReadOnlyEntityMap<TKey, TValue, THash>::Contains(const TKey& key) const
+template <class TValue>
+bool TReadOnlyEntityMap<TValue>::Contains(const TKey& key) const
 {
     VERIFY_THREAD_AFFINITY(UserThread);
 
     return Find(key);
 }
 
-template <class TKey, class TValue, class THash>
-typename TReadOnlyEntityMap<TKey, TValue, THash>::TIterator
-TReadOnlyEntityMap<TKey, TValue, THash>::Begin() const
+template <class TValue>
+typename TReadOnlyEntityMap<TValue>::TIterator
+TReadOnlyEntityMap<TValue>::Begin() const
 {
     VERIFY_THREAD_AFFINITY(UserThread);
 
     return TIterator(Map_.begin());
 }
 
-template <class TKey, class TValue, class THash>
-typename TReadOnlyEntityMap<TKey, TValue, THash>::TIterator
-TReadOnlyEntityMap<TKey, TValue, THash>::End() const
+template <class TValue>
+typename TReadOnlyEntityMap<TValue>::TIterator
+TReadOnlyEntityMap<TValue>::End() const
 {
     VERIFY_THREAD_AFFINITY(UserThread);
 
     return TIterator(Map_.end());
 }
 
-template <class TKey, class TValue, class THash>
-int TReadOnlyEntityMap<TKey, TValue, THash>::GetSize() const
+template <class TValue>
+int TReadOnlyEntityMap<TValue>::GetSize() const
 {
     VERIFY_THREAD_AFFINITY(UserThread);
 
     return static_cast<int>(Map_.size());
 }
 
-template <class TKey, class TValue, class THash>
-typename TReadOnlyEntityMap<TKey, TValue, THash>::TIterator
-TReadOnlyEntityMap<TKey, TValue, THash>::begin() const
+template <class TValue>
+typename TReadOnlyEntityMap<TValue>::TIterator
+TReadOnlyEntityMap<TValue>::begin() const
 {
     return Begin();
 }
 
-template <class TKey, class TValue, class THash>
-typename TReadOnlyEntityMap<TKey, TValue, THash>::TIterator
-TReadOnlyEntityMap<TKey, TValue, THash>::end() const
+template <class TValue>
+typename TReadOnlyEntityMap<TValue>::TIterator
+TReadOnlyEntityMap<TValue>::end() const
 {
     return End();
 }
 
-template <class TKey, class TValue, class THash>
-size_t TReadOnlyEntityMap<TKey, TValue, THash>::size() const
+template <class TValue>
+size_t TReadOnlyEntityMap<TValue>::size() const
 {
     return GetSize();
 }
@@ -166,20 +166,20 @@ size_t TReadOnlyEntityMap<TKey, TValue, THash>::size() const
 struct TSerializationKeysTag
 { };
 
-template <class TKey, class TValue, class TTraits, class THash>
-TEntityMap<TKey, TValue, TTraits, THash>::TEntityMap(const TTraits& traits)
+template <class TValue, class TTraits>
+TEntityMap<TValue, TTraits>::TEntityMap(const TTraits& traits)
     : Traits_(traits)
     , DynamicDataPool_(TSerializationKeysTag())
 { }
 
-template <class TKey, class TValue, class TTraits, class THash>
-TEntityMap<TKey, TValue, TTraits, THash>::~TEntityMap()
+template <class TValue, class TTraits>
+TEntityMap<TValue, TTraits>::~TEntityMap()
 {
     DoClear();
 }
 
-template <class TKey, class TValue, class TTraits, class THash>
-TValue* TEntityMap<TKey, TValue, TTraits, THash>::Insert(const TKey& key, std::unique_ptr<TValue> valueHolder)
+template <class TValue, class TTraits>
+TValue* TEntityMap<TValue, TTraits>::Insert(const TKey& key, std::unique_ptr<TValue> valueHolder)
 {
     VERIFY_THREAD_AFFINITY(this->UserThread);
 
@@ -192,16 +192,16 @@ TValue* TEntityMap<TKey, TValue, TTraits, THash>::Insert(const TKey& key, std::u
     return value;
 }
 
-template <class TKey, class TValue, class TTraits, class THash>
-void TEntityMap<TKey, TValue, TTraits, THash>::Remove(const TKey& key)
+template <class TValue, class TTraits>
+void TEntityMap<TValue, TTraits>::Remove(const TKey& key)
 {
     VERIFY_THREAD_AFFINITY(this->UserThread);
 
     YCHECK(TryRemove(key));
 }
 
-template <class TKey, class TValue, class TTraits, class THash>
-bool TEntityMap<TKey, TValue, TTraits, THash>::TryRemove(const TKey& key)
+template <class TValue, class TTraits>
+bool TEntityMap<TValue, TTraits>::TryRemove(const TKey& key)
 {
     VERIFY_THREAD_AFFINITY(this->UserThread);
 
@@ -217,8 +217,8 @@ bool TEntityMap<TKey, TValue, TTraits, THash>::TryRemove(const TKey& key)
     return true;
 }
 
-template <class TKey, class TValue, class TTraits, class THash>
-std::unique_ptr<TValue> TEntityMap<TKey, TValue, TTraits, THash>::Release(const TKey& key)
+template <class TValue, class TTraits>
+std::unique_ptr<TValue> TEntityMap<TValue, TTraits>::Release(const TKey& key)
 {
     VERIFY_THREAD_AFFINITY(this->UserThread);
 
@@ -231,16 +231,16 @@ std::unique_ptr<TValue> TEntityMap<TKey, TValue, TTraits, THash>::Release(const 
     return std::unique_ptr<TValue>(value);
 }
 
-template <class TKey, class TValue, class TTraits, class THash>
-void TEntityMap<TKey, TValue, TTraits, THash>::Clear()
+template <class TValue, class TTraits>
+void TEntityMap<TValue, TTraits>::Clear()
 {
     VERIFY_THREAD_AFFINITY(this->UserThread);
 
     DoClear();
 }
 
-template <class TKey, class TValue, class TTraits, class THash>
-void TEntityMap<TKey, TValue, TTraits, THash>::DoClear()
+template <class TValue, class TTraits>
+void TEntityMap<TValue, TTraits>::DoClear()
 {
     for (const auto& pair : this->Map_) {
         auto* entity = pair.second;
@@ -252,9 +252,9 @@ void TEntityMap<TKey, TValue, TTraits, THash>::DoClear()
     FirstSpareDynamicData_ = nullptr;
 }
 
-template <class TKey, class TValue, class TTraits, class THash>
+template <class TValue, class TTraits>
 template <class TContext>
-void TEntityMap<TKey, TValue, TTraits, THash>::SaveKeys(TContext& context) const
+void TEntityMap<TValue, TTraits>::SaveKeys(TContext& context) const
 {
     TSizeSerializer::Save(context, this->Map_.size());
 
@@ -277,9 +277,9 @@ void TEntityMap<TKey, TValue, TTraits, THash>::SaveKeys(TContext& context) const
     }
 }
 
-template <class TKey, class TValue, class TTraits, class THash>
+template <class TValue, class TTraits>
 template <class TContext>
-void TEntityMap<TKey, TValue, TTraits, THash>::SaveValues(TContext& context) const
+void TEntityMap<TValue, TTraits>::SaveValues(TContext& context) const
 {
     for (const auto& it : SaveIterators_) {
         Save(context, *it->second);
@@ -287,9 +287,9 @@ void TEntityMap<TKey, TValue, TTraits, THash>::SaveValues(TContext& context) con
     SaveIterators_.clear();
 }
 
-template <class TKey, class TValue, class TTraits, class THash>
+template <class TValue, class TTraits>
 template <class TContext>
-void TEntityMap<TKey, TValue, TTraits, THash>::LoadKeys(TContext& context)
+void TEntityMap<TValue, TTraits>::LoadKeys(TContext& context)
 {
     VERIFY_THREAD_AFFINITY(this->UserThread);
 
@@ -323,9 +323,9 @@ void TEntityMap<TKey, TValue, TTraits, THash>::LoadKeys(TContext& context)
     }
 }
 
-template <class TKey, class TValue, class TTraits, class THash>
+template <class TValue, class TTraits>
 template <class TContext>
-void TEntityMap<TKey, TValue, TTraits, THash>::LoadValues(TContext& context)
+void TEntityMap<TValue, TTraits>::LoadValues(TContext& context)
 {
     VERIFY_THREAD_AFFINITY(this->UserThread);
 
@@ -346,8 +346,8 @@ void TEntityMap<TKey, TValue, TTraits, THash>::LoadValues(TContext& context)
     LoadValues_.clear();
 }
 
-template <class TKey, class TValue, class TTraits, class THash>
-auto TEntityMap<TKey, TValue, TTraits, THash>::AllocateDynamicData() -> TDynamicData*
+template <class TValue, class TTraits>
+auto TEntityMap<TValue, TTraits>::AllocateDynamicData() -> TDynamicData*
 {
     TDynamicData* data;
     if (FirstSpareDynamicData_) {
@@ -361,8 +361,8 @@ auto TEntityMap<TKey, TValue, TTraits, THash>::AllocateDynamicData() -> TDynamic
     return data;
 }
 
-template <class TKey, class TValue, class TTraits, class THash>
-void TEntityMap<TKey, TValue, TTraits, THash>::FreeDynamicData(TDynamicData* data)
+template <class TValue, class TTraits>
+void TEntityMap<TValue, TTraits>::FreeDynamicData(TDynamicData* data)
 {
     data->TDynamicData::~TDynamicData();
     auto* spareData = reinterpret_cast<TSpareEntityDynamicData*>(data);

@@ -878,8 +878,8 @@ public:
     }
 
 
-    DECLARE_ENTITY_MAP_ACCESSORS(Chunk, TChunk, TChunkId);
-    DECLARE_ENTITY_MAP_ACCESSORS(ChunkList, TChunkList, TChunkListId);
+    DECLARE_ENTITY_MAP_ACCESSORS(Chunk, TChunk);
+    DECLARE_ENTITY_MAP_ACCESSORS(ChunkList, TChunkList);
 
 private:
     friend class TChunkTypeHandlerBase;
@@ -907,8 +907,8 @@ private:
     TChunkReplicatorPtr ChunkReplicator_;
     TChunkSealerPtr ChunkSealer_;
 
-    NHydra::TEntityMap<TChunkId, TChunk> ChunkMap_;
-    NHydra::TEntityMap<TChunkListId, TChunkList> ChunkListMap_;
+    NHydra::TEntityMap<TChunk> ChunkMap_;
+    NHydra::TEntityMap<TChunkList> ChunkListMap_;
 
 
     void DestroyChunk(TChunk* chunk)
@@ -1914,8 +1914,8 @@ private:
 
 };
 
-DEFINE_ENTITY_MAP_ACCESSORS(TChunkManager::TImpl, Chunk, TChunk, TChunkId, ChunkMap_)
-DEFINE_ENTITY_MAP_ACCESSORS(TChunkManager::TImpl, ChunkList, TChunkList, TChunkListId, ChunkListMap_)
+DEFINE_ENTITY_MAP_ACCESSORS(TChunkManager::TImpl, Chunk, TChunk, ChunkMap_)
+DEFINE_ENTITY_MAP_ACCESSORS(TChunkManager::TImpl, ChunkList, TChunkList, ChunkListMap_)
 
 DELEGATE_BYREF_RO_PROPERTY(TChunkManager::TImpl, yhash_set<TChunk*>, LostChunks, *ChunkReplicator_);
 DELEGATE_BYREF_RO_PROPERTY(TChunkManager::TImpl, yhash_set<TChunk*>, LostVitalChunks, *ChunkReplicator_);
@@ -2194,8 +2194,8 @@ TFuture<TMiscExt> TChunkManager::GetChunkQuorumInfo(TChunk* chunk)
     return Impl_->GetChunkQuorumInfo(chunk);
 }
 
-DELEGATE_ENTITY_MAP_ACCESSORS(TChunkManager, Chunk, TChunk, TChunkId, *Impl_)
-DELEGATE_ENTITY_MAP_ACCESSORS(TChunkManager, ChunkList, TChunkList, TChunkListId, *Impl_)
+DELEGATE_ENTITY_MAP_ACCESSORS(TChunkManager, Chunk, TChunk, *Impl_)
+DELEGATE_ENTITY_MAP_ACCESSORS(TChunkManager, ChunkList, TChunkList, *Impl_)
 
 DELEGATE_BYREF_RO_PROPERTY(TChunkManager, yhash_set<TChunk*>, LostChunks, *Impl_);
 DELEGATE_BYREF_RO_PROPERTY(TChunkManager, yhash_set<TChunk*>, LostVitalChunks, *Impl_);

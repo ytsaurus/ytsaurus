@@ -52,7 +52,7 @@ public:
 
     NYTree::IYPathServicePtr GetOrchidService();
 
-    DECLARE_ENTITY_MAP_ACCESSORS(Transaction, TTransaction, TTransactionId);
+    DECLARE_ENTITY_MAP_ACCESSORS(Transaction, TTransaction);
 
 private:
     class TImpl;

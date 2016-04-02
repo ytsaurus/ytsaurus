@@ -71,9 +71,9 @@ public:
 
     void Initialize();
 
-    DECLARE_ENTITY_MAP_ACCESSORS(Account, TAccount, TAccountId);
-    DECLARE_ENTITY_MAP_ACCESSORS(User, TUser, TUserId);
-    DECLARE_ENTITY_MAP_ACCESSORS(Group, TGroup, TGroupId);
+    DECLARE_ENTITY_MAP_ACCESSORS(Account, TAccount);
+    DECLARE_ENTITY_MAP_ACCESSORS(User, TUser);
+    DECLARE_ENTITY_MAP_ACCESSORS(Group, TGroup);
 
     //! Returns account with a given name (|nullptr| if none).
     TAccount* FindAccountByName(const Stroka& name);

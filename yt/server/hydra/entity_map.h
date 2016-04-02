@@ -14,10 +14,10 @@ namespace NHydra {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class TKey, class TValue>
+template <class TValue>
 struct TDefaultEntityMapTraits
 {
-    std::unique_ptr<TValue> Create(const TKey& key) const;
+    std::unique_ptr<TValue> Create(const TEntityKey<TValue>& key) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -66,15 +66,13 @@ struct TSpareEntityDynamicData
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <
-    class TKey,
-    class TValue,
-    class THash = ::THash<TKey>
->
+template <class TValue>
 class TReadOnlyEntityMap
 {
 protected:
-    typedef yhash_map<TKey, TValue*, THash> TMap;
+    using TKey = TEntityKey<TValue>;
+    using THash = TEntityHash<TValue>;
+    using TMap = yhash_map<TKey, TValue*, THash>;
 
 public:
     class TIterator
@@ -127,15 +125,14 @@ protected:
 ////////////////////////////////////////////////////////////////////////////////
 
 template <
-    class TKey,
     class TValue,
-    class TTraits = TDefaultEntityMapTraits<TKey, TValue>,
-    class THash = ::THash<TKey>
+    class TTraits = TDefaultEntityMapTraits<TValue>
 >
 class TEntityMap
-    : public TReadOnlyEntityMap<TKey, TValue, THash>
+    : public TReadOnlyEntityMap<TValue>
 {
 public:
+    using TKey = TEntityKey<TValue>;
     using TDynamicData = typename std::decay<decltype(*static_cast<TValue*>(nullptr)->GetDynamicData())>::type;
 
     explicit TEntityMap(const TTraits& traits = TTraits());
@@ -163,7 +160,7 @@ public:
     void LoadValues(TContext& context);
 
 private:
-    typedef typename TReadOnlyEntityMap<TKey, TValue, THash>::TMap TMap;
+    typedef typename TReadOnlyEntityMap<TValue>::TMap TMap;
 
     TTraits Traits_;
 
@@ -184,47 +181,47 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NHydra
-} // namespace NYT
+#define DECLARE_ENTITY_MAP_ACCESSORS(entityName, entityType) \
+    entityType* Find ## entityName(const ::NYT::NHydra::TEntityKey<entityType>& id); \
+    entityType* Get ## entityName(const ::NYT::NHydra::TEntityKey<entityType>& id); \
+    const ::NYT::NHydra::TReadOnlyEntityMap<entityType>& entityName ## s() const;
 
-#define DECLARE_ENTITY_MAP_ACCESSORS(entityName, entityType, idType) \
-    entityType* Find ## entityName(const idType& id); \
-    entityType* Get ## entityName(const idType& id); \
-    const ::NYT::NHydra::TReadOnlyEntityMap<idType, entityType>& entityName ## s() const;
-
-#define DEFINE_ENTITY_MAP_ACCESSORS(declaringType, entityName, entityType, idType, map) \
-    entityType* declaringType::Find ## entityName(const idType& id) \
+#define DEFINE_ENTITY_MAP_ACCESSORS(declaringType, entityName, entityType, map) \
+    entityType* declaringType::Find ## entityName(const ::NYT::NHydra::TEntityKey<entityType>& id) \
     { \
         return (map).Find(id); \
     } \
     \
-    entityType* declaringType::Get ## entityName(const idType& id) \
+    entityType* declaringType::Get ## entityName(const ::NYT::NHydra::TEntityKey<entityType>& id) \
     { \
         return (map).Get(id); \
     } \
     \
-    const ::NYT::NHydra::TReadOnlyEntityMap<idType, entityType>& declaringType::entityName ## s() const \
+    const ::NYT::NHydra::TReadOnlyEntityMap<entityType>& declaringType::entityName ## s() const \
     { \
         return (map); \
     }
 
-#define DELEGATE_ENTITY_MAP_ACCESSORS(declaringType, entityName, entityType, idType, delegateTo) \
-    entityType* declaringType::Find ## entityName(const idType& id) \
+#define DELEGATE_ENTITY_MAP_ACCESSORS(declaringType, entityName, entityType, delegateTo) \
+    entityType* declaringType::Find ## entityName(const ::NYT::NHydra::TEntityKey<entityType>& id) \
     { \
         return (delegateTo).Find ## entityName(id); \
     } \
     \
-    entityType* declaringType::Get ## entityName(const idType& id) \
+    entityType* declaringType::Get ## entityName(const ::NYT::NHydra::TEntityKey<entityType>& id) \
     { \
         return (delegateTo).Get ## entityName(id); \
     } \
     \
-    const ::NYT::NHydra::TReadOnlyEntityMap<idType, entityType>& declaringType::entityName ## s() const \
+    const ::NYT::NHydra::TReadOnlyEntityMap<entityType>& declaringType::entityName ## s() const \
     { \
         return (delegateTo).entityName ## s(); \
     }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NHydra
+} // namespace NYT
 
 #define ENTITY_MAP_INL_H_
 #include "entity_map-inl.h"
