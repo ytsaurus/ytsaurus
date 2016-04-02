@@ -42,12 +42,9 @@ void Serialize(const TAccessControlEntry& ace, NYson::IYsonConsumer* consumer);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const int TypicalAceCount = 16;
-typedef SmallVector<TAccessControlEntry, TypicalAceCount> TAccessControlEntryList;
-
 struct TAccessControlList
 {
-    TAccessControlEntryList Entries;
+    std::vector<TAccessControlEntry> Entries;
 };
 
 void Load(NCellMaster::TLoadContext& context, TAccessControlList& acl);
