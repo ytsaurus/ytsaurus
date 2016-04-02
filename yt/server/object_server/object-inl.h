@@ -165,6 +165,11 @@ std::vector<TValue*> GetValuesSortedByKey(const NHydra::TReadOnlyEntityMap<TKey,
     return values;
 }
 
+Y_FORCE_INLINE size_t TDirectObjectIdHasher::operator()(const TObjectId& id) const
+{
+    return id.Parts32[0];
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NObjectServer

@@ -175,6 +175,13 @@ struct TObjectIdFormatter
     void operator()(TStringBuilder* builder, const TObjectBase* object) const;
 };
 
+//! Relies on first 32 bits of object id to be pseudo-random,
+//! cf. TObjectManager::GenerateId.
+struct TDirectObjectIdHasher
+{
+    size_t operator()(const TObjectId& id) const;
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NObjectServer
