@@ -150,11 +150,11 @@ inline bool IsWellKnownId(const TObjectId& id)
 inline TObjectId MakeRegularId(
     EObjectType type,
     TCellTag cellTag,
-    ui64 random,
-    NHydra::TVersion version)
+    NHydra::TVersion version,
+    ui32 hash)
 {
     return TObjectId(
-        random,
+        hash,
         (cellTag << 16) + static_cast<int>(type),
         version.RecordId,
         version.SegmentId);
