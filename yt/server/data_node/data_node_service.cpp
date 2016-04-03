@@ -27,9 +27,9 @@
 
 #include <yt/ytlib/table_client/chunk_meta_extensions.h>
 #include <yt/ytlib/table_client/name_table.h>
-#include <yt/ytlib/table_client/private.h>
 #include <yt/ytlib/table_client/schema.h>
 #include <yt/ytlib/table_client/unversioned_row.h>
+#include <yt/ytlib/table_client/helpers.h>
 
 #include <yt/core/bus/tcp_dispatcher.h>
 

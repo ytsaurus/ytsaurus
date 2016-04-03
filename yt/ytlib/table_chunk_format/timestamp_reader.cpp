@@ -1,7 +1,5 @@
 #include "timestamp_reader.h"
 
-#include <yt/ytlib/table_client/private.h>
-
 #include <yt/core/misc/zigzag.h>
 
 namespace NYT {
