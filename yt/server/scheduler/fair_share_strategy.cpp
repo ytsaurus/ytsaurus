@@ -7,6 +7,8 @@
 
 #include <yt/core/concurrency/async_rw_lock.h>
 #include <yt/core/misc/finally.h>
+
+#include <yt/core/profiling/profile_manager.h>
 #include <yt/core/profiling/scoped_timer.h>
 
 #include <forward_list>
@@ -48,6 +50,23 @@ class TRootElement;
 typedef TIntrusivePtr<TRootElement> TRootElementPtr;
 
 struct TFairShareContext;
+
+////////////////////////////////////////////////////////////////////
+
+NProfiling::TTagIdList GetFailReasonProfilingTags(EScheduleJobFailReason reason)
+{
+    static std::unordered_map<Stroka, NProfiling::TTagId> tagId;
+
+    auto reasonAsString = ToString(reason);
+    auto it = tagId.find(reasonAsString);
+    if (it == tagId.end()) {
+        it = tagId.emplace(
+            reasonAsString,
+            NProfiling::TProfileManager::Get()->RegisterTag("reason", reasonAsString)
+        ).first;
+    }
+    return {it->second};
+};
 
 ////////////////////////////////////////////////////////////////////
 
@@ -148,6 +167,8 @@ struct TFairShareContext
     const ISchedulingContextPtr SchedulingContext;
     int AttributesIndex;
     TDuration TotalScheduleJobDuration;
+    TDuration ExecScheduleJobDuration;
+    TEnumIndexedVector<int, EScheduleJobFailReason> FailedScheduleJob;
 };
 
 class TDynamicAttributesList
@@ -1087,7 +1108,7 @@ public:
             return;
         }
 
-        if (!Operation_->IsSchedulable()) {
+        if (IsBlocked(TInstant::Now())) {
             attributes.Active = false;
             return;
         }
@@ -1107,23 +1128,25 @@ public:
             }
         };
 
-        if (!Operation_->IsSchedulable() ||
-            ConcurrentScheduleJobCalls_ >= Config_->MaxConcurrentControllerScheduleJobCalls)
+        auto now = TInstant::Now();
+        if (IsBlocked(now))
         {
             DynamicAttributes(context.AttributesIndex).Active = false;
             updateAncestorsAttributes();
             return false;
         }
 
+        BackingOff_ = false;
         ++ConcurrentScheduleJobCalls_;
         auto scheduleJobGuard = Finally([&] {
             --ConcurrentScheduleJobCalls_;
         });
 
         NProfiling::TScopedTimer timer;
-        auto jobStartRequest = DoScheduleJob(context);
+        auto scheduleJobResult = DoScheduleJob(context);
         auto scheduleJobDuration = timer.GetElapsed();
         context.TotalScheduleJobDuration += scheduleJobDuration;
+        context.ExecScheduleJobDuration += scheduleJobResult->Duration;
 
         // This can happen if operation controller was canceled after invocation
         // of IOperationController::ScheduleJob. In this case cancel won't be applied
@@ -1132,15 +1155,31 @@ public:
             return false;
         }
 
-        if (!jobStartRequest) {
+        for (auto reason : TEnumTraits<EScheduleJobFailReason>::GetDomainValues()) {
+            context.FailedScheduleJob[reason] += scheduleJobResult->Failed[reason];
+        }
+
+        if (!scheduleJobResult->JobStartRequest) {
             DynamicAttributes(context.AttributesIndex).Active = false;
             updateAncestorsAttributes();
             Operation_->UpdateControllerTimeStatistics("/schedule_job/fail", scheduleJobDuration);
+
+            if (scheduleJobResult->Failed[EScheduleJobFailReason::NotEnoughResources] == 0 &&
+                scheduleJobResult->Failed[EScheduleJobFailReason::NoLocalJobs] == 0)
+            {
+                LOG_DEBUG("Failed to schedule job, backing off (OperationId: %v, Reasons: %v)",
+                    OperationId_,
+                    scheduleJobResult->Failed);
+                BackingOff_ = true;
+                LastScheduleJobFailTime_ = now;
+            }
+
             return false;
         }
 
-        context.SchedulingContext->ResourceUsage() += jobStartRequest->ResourceLimits;
-        OnJobStarted(jobStartRequest->Id, jobStartRequest->ResourceLimits);
+        const auto& jobStartRequest = scheduleJobResult->JobStartRequest.Get();
+        context.SchedulingContext->ResourceUsage() += jobStartRequest.ResourceLimits;
+        OnJobStarted(jobStartRequest.Id, jobStartRequest.ResourceLimits);
         context.SchedulingContext->StartJob(Operation_, jobStartRequest);
 
         UpdateDynamicAttributes(context.AttributesIndex);
@@ -1401,6 +1440,16 @@ private:
     const TOperationId OperationId_;
 
     int ConcurrentScheduleJobCalls_ = 0;
+    TInstant LastScheduleJobFailTime_;
+    bool BackingOff_ = false;
+
+    bool IsBlocked(TInstant now) const
+    {
+        return !Operation_->IsSchedulable() ||
+            GetPendingJobCount() == 0 ||
+            ConcurrentScheduleJobCalls_ >= Config_->MaxConcurrentControllerScheduleJobCalls ||
+            (BackingOff_ && LastScheduleJobFailTime_ + Config_->ControllerScheduleJobFailBackoffTime > now);
+    }
 
     TJobResources GetHierarchicalResourceLimits(const TFairShareContext& context) const
     {
@@ -1430,30 +1479,30 @@ private:
         return limits;
     }
 
-    TJobStartRequestPtr DoScheduleJob(TFairShareContext& context)
+    TScheduleJobResultPtr DoScheduleJob(TFairShareContext& context)
     {
         auto jobLimits = GetHierarchicalResourceLimits(context);
         auto controller = Operation_->GetController();
 
-        auto jobStartRequestFuture = BIND(&IOperationController::ScheduleJob, controller)
+        auto scheduleJobResultFuture = BIND(&IOperationController::ScheduleJob, controller)
             .AsyncVia(controller->GetCancelableInvoker())
             .Run(context.SchedulingContext, jobLimits);
 
-        auto jobStartRequestFutureWithTimeout = jobStartRequestFuture
+        auto scheduleJobResultFutureWithTimeout = scheduleJobResultFuture
             .WithTimeout(Config_->ControllerScheduleJobTimeLimit);
 
-        auto jobStartRequestWithTimeoutOrError = WaitFor(jobStartRequestFutureWithTimeout);
+        auto scheduleJobResultWithTimeoutOrError = std::move(WaitFor(scheduleJobResultFutureWithTimeout));
 
-        if (!jobStartRequestWithTimeoutOrError.IsOK()) {
-            if (jobStartRequestWithTimeoutOrError.GetCode() == NYT::EErrorCode::Timeout) {
+        if (!scheduleJobResultWithTimeoutOrError.IsOK()) {
+            if (scheduleJobResultWithTimeoutOrError.GetCode() == NYT::EErrorCode::Timeout) {
                 LOG_WARNING("Controller is scheduling for too long, aborting ScheduleJob");
                 // If ScheduleJob was not canceled we need to abort created job.
-                jobStartRequestFuture.Subscribe(
-                    BIND([=] (const TErrorOr<TJobStartRequestPtr>& jobStartRequestOrError) {
-                        if (jobStartRequestOrError.IsOK()) {
-                            auto jobStartRequest = jobStartRequestOrError.Value();
-                            if (jobStartRequest) {
-                                const auto& jobId = jobStartRequest->Id;
+                scheduleJobResultFuture.Subscribe(
+                    BIND([=] (const TErrorOr<TScheduleJobResultPtr>& scheduleJobResultOrError) {
+                        if (scheduleJobResultOrError.IsOK()) {
+                            const auto& scheduleJobResult = scheduleJobResultOrError.Value();
+                            if (scheduleJobResult->JobStartRequest) {
+                                const auto& jobId = scheduleJobResult->JobStartRequest->Id;
                                 LOG_WARNING("Aborting late job (JobId: %v, OperationId: %v)",
                                     jobId,
                                     OperationId_);
@@ -1470,10 +1519,12 @@ private:
                 // need to update parent attributes.
                 YCHECK(!IsActive(GlobalAttributesIndex));
             }
-            return nullptr;
+            auto scheduleJobResult = New<TScheduleJobResult>();
+            ++scheduleJobResult->Failed[EScheduleJobFailReason::Timeout];
+            return scheduleJobResult;
         }
 
-        return jobStartRequestWithTimeoutOrError.Value();
+        return scheduleJobResultWithTimeoutOrError.Value();
     }
 
     // Fair share strategy stuff.
@@ -1592,6 +1643,8 @@ public:
         ISchedulerStrategyHost* host)
         : Config(config)
         , Host(host)
+        , NonPreemptiveProfilingCounters("/non_preemptive")
+        , PreemptiveProfilingCounters("/preemptive")
     {
         Host->SubscribeOperationRegistered(BIND(&TFairShareStrategy::OnOperationRegistered, this));
         Host->SubscribeOperationUnregistered(BIND(&TFairShareStrategy::OnOperationUnregistered, this));
@@ -1663,9 +1716,35 @@ public:
 
         // First-chance scheduling.
         LOG_DEBUG("Scheduling new jobs");
-        PROFILE_TIMING ("/non_preemptive_preschedule_job_time") {
+        PROFILE_AGGREGATED_TIMING(NonPreemptiveProfilingCounters.PrescheduleJobTimeCounter) {
             RootElement->PrescheduleJob(context, false);
         }
+
+        auto profileTimings = [&] (
+            TProfilingCounters& counters,
+            int scheduleJobCount,
+            TDuration scheduleJobDurationWithoutControllers)
+        {
+            Profiler.Update(
+                counters.StrategyScheduleJobTimeCounter,
+                scheduleJobDurationWithoutControllers.MicroSeconds());
+
+            Profiler.Update(
+                counters.TotalControllerScheduleJobTimeCounter,
+                context.TotalScheduleJobDuration.MicroSeconds());
+
+            Profiler.Update(
+                counters.ExecControllerScheduleJobTimeCounter,
+                context.ExecScheduleJobDuration.MicroSeconds());
+
+            Profiler.Update(counters.ScheduleJobCallCounter, scheduleJobCount);
+
+            for (auto reason : TEnumTraits<EScheduleJobFailReason>::GetDomainValues()) {
+                Profiler.Update(
+                    counters.ControllerScheduleJobFailCounter[reason],
+                    context.FailedScheduleJob[reason]);
+            }
+        };
 
         int nonPreemptiveScheduleJobCount = 0;
         {
@@ -1676,15 +1755,10 @@ public:
                     break;
                 }
             }
-            auto scheduleJobDurationWithoutControllers = timer.GetElapsed() - context.TotalScheduleJobDuration;
-
-            Profiler.Enqueue("/non_preemptive_strategy_schedule_job_time",
-                scheduleJobDurationWithoutControllers.MicroSeconds());
-
-            Profiler.Enqueue("/non_preemptive_controller_schedule_job_time",
-                context.TotalScheduleJobDuration.MicroSeconds());
-
-            Profiler.Enqueue("/non_preemptive_schedule_job_count", nonPreemptiveScheduleJobCount);
+            profileTimings(
+                NonPreemptiveProfilingCounters,
+                nonPreemptiveScheduleJobCount,
+                timer.GetElapsed() - context.TotalScheduleJobDuration);
         }
 
         // Compute discount to node usage.
@@ -1722,13 +1796,15 @@ public:
         // Second-chance scheduling.
         // NB: Schedule at most one job.
         LOG_DEBUG("Scheduling new jobs with preemption");
-        PROFILE_TIMING ("/preemptive_preschedule_job_time") {
+        PROFILE_AGGREGATED_TIMING(PreemptiveProfilingCounters.PrescheduleJobTimeCounter) {
             RootElement->PrescheduleJob(context, true);
         }
 
         int preemptiveScheduleJobCount = 0;
         {
             context.TotalScheduleJobDuration = TDuration::Zero();
+            context.ExecScheduleJobDuration = TDuration::Zero();
+            std::fill(context.FailedScheduleJob.begin(), context.FailedScheduleJob.end(), 0);
             NProfiling::TScopedTimer timer;
             while (schedulingContext->CanStartMoreJobs()) {
                 ++preemptiveScheduleJobCount;
@@ -1739,15 +1815,10 @@ public:
                     break;
                 }
             }
-            auto scheduleJobDurationWithoutControllers = timer.GetElapsed() - context.TotalScheduleJobDuration;
-
-            Profiler.Enqueue("/preemptive_strategy_schedule_job_time",
-                scheduleJobDurationWithoutControllers.MicroSeconds());
-
-            Profiler.Enqueue("/preemptive_controller_schedule_job_time",
-                context.TotalScheduleJobDuration.MicroSeconds());
-
-            Profiler.Enqueue("/preemptive_schedule_job_count", preemptiveScheduleJobCount);
+            profileTimings(
+                PreemptiveProfilingCounters,
+                preemptiveScheduleJobCount,
+                timer.GetElapsed() - context.TotalScheduleJobDuration);
         }
 
         int startedAfterPreemption = schedulingContext->StartedJobs().size();
@@ -1996,6 +2067,35 @@ private:
 
     std::vector<int> FreeAttributesIndices;
     int MaxUsedAttributesIndex = GlobalAttributesIndex;
+
+    struct TProfilingCounters
+    {
+        TProfilingCounters(const Stroka& prefix)
+            : PrescheduleJobTimeCounter(prefix + "/preschedule_job_time")
+            , TotalControllerScheduleJobTimeCounter(prefix + "/controller_schedule_job_time/total")
+            , ExecControllerScheduleJobTimeCounter(prefix + "/controller_schedule_job_time/exec")
+            , StrategyScheduleJobTimeCounter(prefix + "/strategy_schedule_job_time")
+            , ScheduleJobCallCounter(prefix + "/schedule_job_count")
+        {
+            for (auto reason : TEnumTraits<EScheduleJobFailReason>::GetDomainValues())
+            {
+                ControllerScheduleJobFailCounter[reason] = NProfiling::TSimpleCounter(
+                    prefix + "/controller_schedule_job_fail",
+                    GetFailReasonProfilingTags(reason));
+            }
+        }
+
+        NProfiling::TAggregateCounter PrescheduleJobTimeCounter;
+        NProfiling::TAggregateCounter TotalControllerScheduleJobTimeCounter;
+        NProfiling::TAggregateCounter ExecControllerScheduleJobTimeCounter;
+        NProfiling::TAggregateCounter StrategyScheduleJobTimeCounter;
+        NProfiling::TAggregateCounter ScheduleJobCallCounter;
+
+        TEnumIndexedVector<NProfiling::TSimpleCounter, EScheduleJobFailReason> ControllerScheduleJobFailCounter;
+    };
+
+    TProfilingCounters NonPreemptiveProfilingCounters;
+    TProfilingCounters PreemptiveProfilingCounters;
 
     bool IsJobPreemptable(const TJobPtr& job)
     {
