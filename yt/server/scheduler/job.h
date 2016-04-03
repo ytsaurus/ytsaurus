@@ -124,7 +124,6 @@ struct TAbortedJobSummary
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TJobStartRequest
-    : public TIntrinsicRefCounted
 {
     TJobStartRequest(
         TJobId id,
@@ -140,7 +139,32 @@ struct TJobStartRequest
     const TJobSpecBuilder SpecBuilder;
 };
 
-DEFINE_REFCOUNTED_TYPE(TJobStartRequest)
+////////////////////////////////////////////////////////////////////////////////
+
+DEFINE_ENUM(EScheduleJobFailReason,
+    (Unknown)
+    (OperationNotRunning)
+    (NoPendingJobs)
+    (NotEnoughChunkLists)
+    (NotEnoughResources)
+    (Timeout)
+    (EmptyInput)
+    (NoLocalJobs)
+    (TaskDelayed)
+    (NoCandidateTasks)
+);
+
+struct TScheduleJobResult
+    : public TIntrinsicRefCounted
+{
+    void RecordFail(EScheduleJobFailReason reason);
+
+    TNullable<TJobStartRequest> JobStartRequest;
+    TEnumIndexedVector<int, EScheduleJobFailReason> Failed;
+    TDuration Duration;
+};
+
+DEFINE_REFCOUNTED_TYPE(TScheduleJobResult)
 
 ////////////////////////////////////////////////////////////////////////////////
 
