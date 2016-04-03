@@ -172,10 +172,6 @@ private:
             transactionId,
             request->chunks_size());
 
-        if (context->IsRetry()) {
-            THROW_ERROR_EXCEPTION("Request is not retriable");
-        }
-
         ValidateClusterInitialized();
         ValidatePeer(EPeerKind::Leader);
         SyncWithUpstream();
@@ -197,10 +193,6 @@ private:
         ValidateClusterInitialized();
         ValidatePeer(EPeerKind::Leader);
         SyncWithUpstream();
-
-        if (context->IsRetry()) {
-            THROW_ERROR_EXCEPTION("Request is not retriable");
-        }
 
         auto chunkManager = Bootstrap_->GetChunkManager();
         chunkManager
