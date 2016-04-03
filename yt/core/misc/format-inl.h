@@ -290,6 +290,27 @@ struct TValueFormatter<::google::protobuf::RepeatedPtrField<T>>
     }
 };
 
+// TEnumIndexedVector
+template <class T, class E>
+struct TValueFormatter<TEnumIndexedVector<T, E>>
+{
+    static void Do(TStringBuilder* builder, const TEnumIndexedVector<T, E>& collection, const TStringBuf& format)
+    {
+        builder->AppendChar('{');
+        bool firstItem = true;
+        for (const auto& index : TEnumTraits<E>::GetDomainValues()) {
+            if (!firstItem) {
+                builder->AppendString(DefaultJoinToStringDelimiter);
+            }
+            FormatValue(builder, FormatEnum(index), format);
+            builder->AppendString(": ");
+            FormatValue(builder, collection[index], format);
+            firstItem = false;
+        }
+        builder->AppendChar('}');
+    }
+};
+
 // Pointers
 template <class T>
 void FormatValue(TStringBuilder* builder, T* value, const TStringBuf& format)
