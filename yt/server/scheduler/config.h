@@ -62,6 +62,9 @@ public:
     //! Maximum allowed time for single job scheduling.
     TDuration ControllerScheduleJobTimeLimit;
 
+    //! Backoff time after controller schedule job failure.
+    TDuration ControllerScheduleJobFailBackoffTime;
+
     TFairShareStrategyConfig()
     {
         RegisterParameter("min_share_preemption_timeout", MinSharePreemptionTimeout)
@@ -129,6 +132,9 @@ public:
 
         RegisterParameter("schedule_job_time_limit", ControllerScheduleJobTimeLimit)
             .Default(TDuration::Seconds(60));
+
+        RegisterParameter("schedule_job_fail_backoff_time", ControllerScheduleJobFailBackoffTime)
+            .Default(TDuration::MilliSeconds(100));
     }
 };
 

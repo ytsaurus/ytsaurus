@@ -102,7 +102,7 @@ public:
     virtual void Abort() override;
     virtual void Complete() override;
 
-    virtual TJobStartRequestPtr ScheduleJob(
+    virtual TScheduleJobResultPtr ScheduleJob(
         ISchedulingContextPtr context,
         const TJobResources& jobLimits) override;
 
@@ -436,9 +436,10 @@ protected:
 
         void CheckCompleted();
 
-        TJobStartRequestPtr ScheduleJob(
+        void ScheduleJob(
             ISchedulingContext* context,
-            const TJobResources& jobLimits);
+            const TJobResources& jobLimits,
+            TScheduleJobResult* scheduleJobResult);
 
         virtual void OnJobCompleted(TJobletPtr joblet, const TCompletedJobSummary& jobSummary);
         virtual void OnJobFailed(TJobletPtr joblet, const TFailedJobSummary& jobSummary);
@@ -620,9 +621,20 @@ protected:
 
     void CheckTimeLimit();
 
-    TJobStartRequestPtr DoScheduleJob(ISchedulingContext* context, const TJobResources& jobLimits);
-    TJobStartRequestPtr DoScheduleLocalJob(ISchedulingContext* context, const TJobResources& jobLimits);
-    TJobStartRequestPtr DoScheduleNonLocalJob(ISchedulingContext* context, const TJobResources& jobLimits);
+    void DoScheduleJob(
+        ISchedulingContext* context,
+        const TJobResources& jobLimits,
+        TScheduleJobResult* scheduleJobResult);
+
+    void DoScheduleLocalJob(
+        ISchedulingContext* context,
+        const TJobResources& jobLimits,
+        TScheduleJobResult* scheduleJobResult);
+
+    void DoScheduleNonLocalJob(
+        ISchedulingContext* context,
+        const TJobResources& jobLimits,
+        TScheduleJobResult* scheduleJobResult);
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
     DECLARE_THREAD_AFFINITY_SLOT(BackgroundThread);
