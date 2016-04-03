@@ -71,6 +71,10 @@ class YtResponseError(YtError):
         """Chunk unavailable."""
         return self.contains_code(716)
 
+    def is_request_timed_out(self):
+        """Request timed out"""
+        return self.contains_code(3)
+
     def is_concurrent_operations_limit_reached(self):
         """Too many concurrent operations"""
         return self.contains_code(202) or self.contains_text("Limit for the number of concurrent operations")

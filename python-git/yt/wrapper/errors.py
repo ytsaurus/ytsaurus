@@ -40,6 +40,8 @@ class YtResponseError(yt.common.YtResponseError):
             self.__class__ = YtRequestRateLimitExceeded
         if self.is_concurrent_operations_limit_reached():
             self.__class__ = YtConcurrentOperationsLimitExceeded
+        if self.is_request_timed_out():
+            self.__class__ = YtRequestTimedOut
 
 class YtHttpResponseError(YtResponseError):
     def __init__(self, error, url, headers, params):
@@ -63,6 +65,11 @@ class YtRequestRateLimitExceeded(YtHttpResponseError):
 
 class YtConcurrentOperationsLimitExceeded(YtHttpResponseError):
     """ Concurrent operations limit exceeded. """
+    """ It is used in retries. """
+    pass
+
+class YtRequestTimedOut(YtHttpResponseError):
+    """ Request timed out. """
     """ It is used in retries. """
     pass
 
