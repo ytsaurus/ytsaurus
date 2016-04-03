@@ -244,8 +244,8 @@ private:
 
     TGarbageCollectorPtr GarbageCollector_;
 
-    int CreatedObjectCount_ = 0;
-    int DestroyedObjectCount_ = 0;
+    int CreatedObjects_ = 0;
+    int DestroyedObjects_ = 0;
     int LockedObjectCount_ = 0;
 
     //! Stores schemas (for serialization mostly).
