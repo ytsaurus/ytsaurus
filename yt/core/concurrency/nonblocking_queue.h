@@ -17,7 +17,7 @@ class TNonblockingQueue
 {
 public:
     // This template is required to enable perfect forwarding.
-    template<class TArg>
+    template <class TArg>
     void Enqueue(TArg&& value);
 
     TFuture<T> Dequeue();

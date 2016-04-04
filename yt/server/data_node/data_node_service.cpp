@@ -663,6 +663,7 @@ private:
                     break;
 
                 case ETableChunkFormat::VersionedSimple:
+                case ETableChunkFormat::VersionedColumnar:
                     ProcessVersionedChunkSamples(sampleRequest, sampleResponse, keyColumns, meta);
                     break;
 

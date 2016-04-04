@@ -108,7 +108,7 @@ void DataSourceFormatter(TStringBuilder* builder, const NQueryClient::TDataRange
         source.Range.second);
 }
 
-} // namespace NYT
+} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 

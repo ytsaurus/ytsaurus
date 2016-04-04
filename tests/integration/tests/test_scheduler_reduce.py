@@ -768,17 +768,19 @@ echo {v = 2} >&7
     @unix_only
     def test_reduce_row_count_limit(self):
         create("table", "//tmp/input")
-        for i in xrange(self.NUM_NODES):
+        for i in xrange(5):
             write_table(
                 "<append=true>//tmp/input",
-                [{"key": str(i), "value": "foo"}],
+                [{"key": "%05d"%i, "value": "foo"}],
                 sorted_by = ["key"])
 
         create("table", "//tmp/output")
-        reduce(
+        op = reduce(
+            waiting_jobs=True,
+            dont_track=True,
             in_="//tmp/input",
             out="<row_count_limit=3>//tmp/output",
-            command="((YT_JOB_INDEX >= 3)) && sleep 5; cat",
+            command="cat",
             reduce_by=["key"],
             spec={
                 "reducer": {
@@ -788,11 +790,11 @@ echo {v = 2} >&7
                 "max_failed_job_count": 1
             })
 
-        assert read_table("//tmp/output") == [
-            {"key":"0", "value":"foo"},
-            {"key":"1", "value":"foo"},
-            {"key":"2", "value":"foo"},
-        ]
+        for i in xrange(3):
+            op.resume_job(op.jobs[0])
+
+        op.track()
+        assert len(read_table("//tmp/output")) == 3
 
 ##################################################################
 

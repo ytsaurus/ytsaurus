@@ -159,7 +159,7 @@ private:
         descriptors->push_back("online");
         descriptors->push_back("available_space");
         descriptors->push_back("used_space");
-        descriptors->push_back("chunk_count");
+        descriptors->push_back("chunk_replica_count");
         descriptors->push_back("online_node_count");
         descriptors->push_back("full_node_count");
         descriptors->push_back("chunk_replicator_enabled");
@@ -201,9 +201,9 @@ private:
             return true;
         }
 
-        if (key == "chunk_count") {
+        if (key == "chunk_replica_count") {
             BuildYsonFluently(consumer)
-                .Value(statistics.ChunkCount);
+                .Value(statistics.ChunkReplicaCount);
             return true;
         }
 

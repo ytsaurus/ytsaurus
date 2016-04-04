@@ -47,7 +47,7 @@ TCGQueryCallbackGenerator Profile(
 ////////////////////////////////////////////////////////////////////////////////
 
 // A hasher for llvm::FoldingSetNodeID
-template<>
+template <>
 struct hash<llvm::FoldingSetNodeID>
 {
     inline size_t operator()(const llvm::FoldingSetNodeID& id) const

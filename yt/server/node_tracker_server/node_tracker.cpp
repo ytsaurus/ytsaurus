@@ -33,6 +33,7 @@
 
 #include <yt/core/concurrency/scheduler.h>
 #include <yt/core/concurrency/async_semaphore.h>
+#include <yt/core/concurrency/periodic_executor.h>
 
 #include <yt/core/misc/address.h>
 #include <yt/core/misc/id_generator.h>
@@ -41,6 +42,8 @@
 
 #include <yt/core/ytree/convert.h>
 #include <yt/core/ytree/ypath_client.h>
+
+#include <yt/core/profiling/profile_manager.h>
 
 #include <deque>
 
@@ -66,6 +69,7 @@ using namespace NCellMaster;
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = NodeTrackerServerLogger;
+static const auto ProfilingPeriod = TDuration::MilliSeconds(1000);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -195,6 +199,9 @@ public:
             ESyncSerializationPriority::Values,
             "NodeTracker.Values",
             BIND(&TImpl::SaveValues, Unretained(this)));
+
+        auto* profileManager = NProfiling::TProfileManager::Get();
+        Profiler.TagIds().push_back(profileManager->RegisterTag("cell_tag", Bootstrap_->GetCellTag()));
     }
 
     void Initialize()
@@ -214,6 +221,12 @@ public:
             multicellManager->SubscribeReplicateKeysToSecondaryMaster(
                 BIND(&TImpl::OnReplicateKeysToSecondaryMaster, MakeWeak(this)));
         }
+
+        ProfilingExecutor_ = New<TPeriodicExecutor>(
+            Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(),
+            BIND(&TImpl::OnProfiling, MakeWeak(this)),
+            ProfilingPeriod);
+        ProfilingExecutor_->Start();
     }
 
     void ProcessRegisterNode(TCtxRegisterNodePtr context)
@@ -500,7 +513,7 @@ public:
                 result.AvailableSpace += statistics.total_available_space();
             }
             result.UsedSpace += statistics.total_used_space();
-            result.ChunkCount += statistics.total_stored_chunk_count();
+            result.ChunkReplicaCount += statistics.total_stored_chunk_count();
             result.FullNodeCount += statistics.full() ? 1 : 0;
             result.OnlineNodeCount += 1;
         }
@@ -517,6 +530,8 @@ private:
     friend class TRackTypeHandler;
 
     const TNodeTrackerConfigPtr Config_;
+
+    TPeriodicExecutorPtr ProfilingExecutor_;
 
     NProfiling::TProfiler Profiler = NodeTrackerServerProfiler;
 
@@ -775,11 +790,19 @@ private:
 
     void HydraSetNodeStates(TReqSetNodeStates* request)
     {
+        YCHECK(Bootstrap_->IsPrimaryMaster());
+
         auto cellTag = request->cell_tag();
+
+        auto multicellManager = Bootstrap_->GetMulticellManager();
+        if (!multicellManager->IsRegisteredMasterCell(cellTag)) {
+            LOG_ERROR_UNLESS(IsRecovery(), "Received node states gossip message from unknown cell (CellTag: %v)",
+                cellTag);
+            return;
+        }
+
         LOG_INFO_UNLESS(IsRecovery(), "Received node states gossip message (CellTag: %v)",
             cellTag);
-
-        YCHECK(Bootstrap_->IsPrimaryMaster());
 
         for (const auto& entry : request->entries()) {
             auto* node = FindNode(entry.node_id());
@@ -1124,6 +1147,11 @@ private:
 
     void OnNodeStatesGossip()
     {
+        auto multicellManager = Bootstrap_->GetMulticellManager();
+        if (!multicellManager->IsLocalMasterCellRegistered()) {
+            return;
+        }
+
         LOG_INFO("Sending node states gossip message");
 
         TReqSetNodeStates request;
@@ -1138,7 +1166,6 @@ private:
             entry->set_state(static_cast<int>(node->GetLocalState()));
         }
 
-        auto multicellManager = Bootstrap_->GetMulticellManager();
         multicellManager->PostToMaster(request, PrimaryMasterCellTag, false);
     }
 
@@ -1274,6 +1301,20 @@ private:
         }
     }
 
+
+    void OnProfiling()
+    {
+        if (!IsLeader()) {
+            return;
+        }
+
+        auto statistics = GetTotalNodeStatistics();
+        Profiler.Enqueue("/available_space", statistics.AvailableSpace);
+        Profiler.Enqueue("/used_space", statistics.UsedSpace);
+        Profiler.Enqueue("/chunk_replica_count", statistics.ChunkReplicaCount);
+        Profiler.Enqueue("/online_node_count", statistics.OnlineNodeCount);
+        Profiler.Enqueue("/full_node_count", statistics.FullNodeCount);
+    }
 };
 
 DEFINE_ENTITY_MAP_ACCESSORS(TNodeTracker::TImpl, Node, TNode, NodeMap_)

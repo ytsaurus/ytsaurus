@@ -114,6 +114,19 @@ public:
     }
 
 
+    bool IsLocalMasterCellRegistered()
+    {
+        if (Bootstrap_->IsPrimaryMaster()) {
+            return true;
+        }
+
+        if (RegisterState_ == EPrimaryRegisterState::Registered) {
+            return true;
+        }
+
+        return false;
+    }
+
     bool IsRegisteredSecondaryMaster(TCellTag cellTag)
     {
         return FindMasterEntry(cellTag) != nullptr;
@@ -557,7 +570,7 @@ private:
     {
         YCHECK(Bootstrap_->IsSecondaryMaster());
 
-        if (RegisterState_ != EPrimaryRegisterState::Registered) {
+        if (!IsLocalMasterCellRegistered()) {
             return;
         }
 
@@ -668,6 +681,11 @@ void TMulticellManager::PostToSecondaryMasters(
     bool reliable)
 {
     Impl_->PostToSecondaryMasters(message, reliable);
+}
+
+bool TMulticellManager::IsLocalMasterCellRegistered()
+{
+    return Impl_->IsLocalMasterCellRegistered();
 }
 
 bool TMulticellManager::IsRegisteredMasterCell(TCellTag cellTag)

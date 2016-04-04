@@ -1475,8 +1475,12 @@ protected:
 
     void OnAccountStatisticsGossip()
     {
-        LOG_INFO("Sending account statistics gossip message");
+        auto multicellManager = Bootstrap_->GetMulticellManager();
+        if (!multicellManager->IsLocalMasterCellRegistered()) {
+            return;
+        }
 
+        LOG_INFO("Sending account statistics gossip message");
 
         NProto::TReqSetAccountStatistics request;
         request.set_cell_tag(Bootstrap_->GetCellTag());
@@ -1494,7 +1498,6 @@ protected:
             }
         }
 
-        auto multicellManager = Bootstrap_->GetMulticellManager();
         if (Bootstrap_->IsPrimaryMaster()) {
             multicellManager->PostToSecondaryMasters(request, false);
         } else {
@@ -1505,10 +1508,17 @@ protected:
     void HydraSetAccountStatistics(NProto::TReqSetAccountStatistics* request)
     {
         auto cellTag = request->cell_tag();
+        YCHECK(Bootstrap_->IsPrimaryMaster() || cellTag == Bootstrap_->GetPrimaryCellTag());
+
+        auto multicellManager = Bootstrap_->GetMulticellManager();
+        if (!multicellManager->IsRegisteredMasterCell(cellTag)) {
+            LOG_ERROR_UNLESS(IsRecovery(), "Received account statistics gossip message from unknown cell (CellTag: %v)",
+                cellTag);
+            return;
+        }
+
         LOG_INFO_UNLESS(IsRecovery(), "Received account statistics gossip message (CellTag: %v)",
             cellTag);
-
-        YCHECK(Bootstrap_->IsPrimaryMaster() || cellTag == Bootstrap_->GetPrimaryCellTag());
 
         for (const auto& entry : request->entries()) {
             auto accountId = FromProto<TAccountId>(entry.account_id());
@@ -1549,8 +1559,12 @@ protected:
 
     void OnUserStatisticsGossip()
     {
-        LOG_INFO("Sending user statistics gossip message");
+        auto multicellManager = Bootstrap_->GetMulticellManager();
+        if (!multicellManager->IsLocalMasterCellRegistered()) {
+            return;
+        }
 
+        LOG_INFO("Sending user statistics gossip message");
 
         NProto::TReqSetUserStatistics request;
         request.set_cell_tag(Bootstrap_->GetCellTag());
@@ -1568,7 +1582,6 @@ protected:
             }
         }
 
-        auto multicellManager = Bootstrap_->GetMulticellManager();
         if (Bootstrap_->IsPrimaryMaster()) {
             multicellManager->PostToSecondaryMasters(request, false);
         } else {
@@ -1620,10 +1633,17 @@ protected:
     void HydraSetUserStatistics(NProto::TReqSetUserStatistics* request)
     {
         auto cellTag = request->cell_tag();
+        YCHECK(Bootstrap_->IsPrimaryMaster() || cellTag == Bootstrap_->GetPrimaryCellTag());
+
+        auto multicellManager = Bootstrap_->GetMulticellManager();
+        if (multicellManager->IsRegisteredMasterCell(cellTag)) {
+            LOG_ERROR_UNLESS(IsRecovery(), "Received user statistics gossip message from unknown cell (CellTag: %v)",
+                cellTag);
+            return;
+        }
+
         LOG_INFO_UNLESS(IsRecovery(), "Received user statistics gossip message (CellTag: %v)",
             cellTag);
-
-        YCHECK(Bootstrap_->IsPrimaryMaster() || cellTag == Bootstrap_->GetPrimaryCellTag());
 
         for (const auto& entry : request->entries()) {
             auto userId = FromProto<TAccountId>(entry.user_id());

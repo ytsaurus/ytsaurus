@@ -306,7 +306,7 @@ bool TSchemalessTableReader::Read(std::vector<TUnversionedRow> *rows)
 
 TFuture<void> TSchemalessTableReader::GetReadyEvent()
 {
-    if (!ReadyEvent_.IsSet()) {
+    if (!ReadyEvent_.IsSet() || !ReadyEvent_.Get().IsOK()) {
         return ReadyEvent_;
     }
 

@@ -652,18 +652,27 @@ protected:
 
     i64 GetLowerRowIndex(const TKey& key) const
     {
-        auto it = std::lower_bound(
+        auto lower = std::lower_bound(
             ChunkMeta_->BlockLastKeys().begin(),
             ChunkMeta_->BlockLastKeys().end(),
             key);
 
-        if (it == ChunkMeta_->BlockLastKeys().end()) {
+        if (lower == ChunkMeta_->BlockLastKeys().end()) {
             return ChunkMeta_->Misc().row_count();
-        } 
+        }
 
-        int blockIndex = std::distance(ChunkMeta_->BlockLastKeys().begin(), it);
-        const auto& blockMeta = ChunkMeta_->BlockMeta().blocks(blockIndex);
-        return blockMeta.chunk_row_count() - blockMeta.row_count();
+        auto upper = std::upper_bound(
+            lower,
+            ChunkMeta_->BlockLastKeys().end(),
+            key);
+
+        i64 rowIndex = 0;
+        for (auto it = lower; it != upper; ++it) {
+            int blockIndex = std::distance(ChunkMeta_->BlockLastKeys().begin(), it);
+            const auto& blockMeta = ChunkMeta_->BlockMeta().blocks(blockIndex);
+            rowIndex = std::max(rowIndex, blockMeta.chunk_row_count() - blockMeta.row_count());
+        }
+        return rowIndex;
     }
 
     i64 GetSegmentIndex(const TColumn& column, i64 rowIndex) const
