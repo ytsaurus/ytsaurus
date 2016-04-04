@@ -2405,20 +2405,15 @@ private:
 
     void BuildOperationYson(TOperationPtr operation, IYsonConsumer* consumer)
     {
-<<<<<<< HEAD
         auto controller = operation->GetController();
         auto state = operation->GetState();
-        bool hasProgress = (state == EOperationState::Running) || IsOperationFinished(state);
-=======
         bool hasControllerProgress = operation->HasControllerProgress();
->>>>>>> origin/prestable/0.17.5
         BuildYsonMapFluently(consumer)
             .Item(ToString(operation->GetId())).BeginMap()
                 // Include the complete list of attributes.
                 .Do(BIND(&NScheduler::BuildInitializingOperationAttributes, operation))
                 .Item("progress").BeginMap()
-<<<<<<< HEAD
-                    .DoIf(hasProgress, BIND([=] (IYsonConsumer* consumer) {
+                    .DoIf(hasControllerProgress, BIND([=] (IYsonConsumer* consumer) {
                         WaitFor(
                             BIND(&IOperationController::BuildProgress, controller)
                                 .AsyncVia(controller->GetInvoker())
@@ -2427,19 +2422,12 @@ private:
                     .Do(BIND(&ISchedulerStrategy::BuildOperationProgress, Strategy_.get(), operation->GetId()))
                 .EndMap()
                 .Item("brief_progress").BeginMap()
-                    .DoIf(hasProgress, BIND([=] (IYsonConsumer* consumer) {
+                    .DoIf(hasControllerProgress, BIND([=] (IYsonConsumer* consumer) {
                         WaitFor(
                             BIND(&IOperationController::BuildBriefProgress, controller)
                                 .AsyncVia(controller->GetInvoker())
                                 .Run(consumer));
                     }))
-=======
-                    .DoIf(hasControllerProgress, BIND(&IOperationController::BuildProgress, operation->GetController()))
-                    .Do(BIND(&ISchedulerStrategy::BuildOperationProgress, Strategy_.get(), operation->GetId()))
-                .EndMap()
-                .Item("brief_progress").BeginMap()
-                    .DoIf(hasControllerProgress, BIND(&IOperationController::BuildBriefProgress, operation->GetController()))
->>>>>>> origin/prestable/0.17.5
                     .Do(BIND(&ISchedulerStrategy::BuildBriefOperationProgress, Strategy_.get(), operation->GetId()))
                 .EndMap()
                 .Item("running_jobs").BeginAttributes()

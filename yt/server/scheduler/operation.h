@@ -128,15 +128,13 @@ public:
     //! Delegates to #NYT::NScheduler::IsOperationFinishing.
     bool IsFinishingState() const;
 
-<<<<<<< HEAD
     //! Checks whether current operation state allows starting new jobs.
     bool IsSchedulable() const;
 
     void UpdateControllerTimeStatistics(const NYPath::TYPath& name, TDuration value);
-=======
+
     //! Returns |true| if operation controller progress can be built.
     bool HasControllerProgress() const;
->>>>>>> origin/prestable/0.17.5
 
     TOperation(
         const TOperationId& operationId,

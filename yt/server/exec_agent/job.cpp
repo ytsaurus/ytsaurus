@@ -118,12 +118,8 @@ public:
         auto slotManager = Bootstrap_->GetExecSlotManager();
         Slot_ = slotManager->AcquireSlot();
 
-<<<<<<< HEAD
         auto invoker = CancelableContext_->CreateInvoker(Slot_->GetInvoker());
-=======
-        auto invoker = CancelableContext->CreateInvoker(Slot->GetInvoker());
 
->>>>>>> origin/prestable/0.17.5
         BIND(&TJob::Run, MakeWeak(this))
             .AsyncVia(invoker)
             .Run();
@@ -154,11 +150,7 @@ public:
 
         auto this_ = MakeStrong(this);
         PrepareResult_.Subscribe(BIND([this, this_] (const TError& /*error*/) {
-<<<<<<< HEAD
             Slot_->GetInvoker()->Invoke(BIND(&TJob::DoAbort, MakeStrong(this)));
-=======
-            Slot->GetInvoker()->Invoke(BIND(&TJob::DoAbort, MakeStrong(this)));
->>>>>>> origin/prestable/0.17.5
         }));
     }
 
