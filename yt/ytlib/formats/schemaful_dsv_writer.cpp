@@ -225,22 +225,6 @@ private:
     }
 };
 
-void TSchemafulDsvWriterBase::WriteInt64(i64 value) 
-{
-    char buf[64];
-    char* end = buf + 64;
-    char* start = WriteInt64ToBufferBackwards(end, value);
-    BlobOutput_->Write(start, end - start);
-}
-
-void TSchemafulDsvWriterBase::WriteUint64(ui64 value) 
-{
-    char buf[64];
-    char* end = buf + 64;
-    char* start = WriteUint64ToBufferBackwards(end, value);
-    BlobOutput_->Write(start, end - start);
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSchemalessWriterForSchemafulDsv
