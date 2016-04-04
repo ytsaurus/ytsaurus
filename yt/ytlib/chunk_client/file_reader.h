@@ -41,10 +41,7 @@ public:
         int blockCount) override;
 
     virtual TFuture<NProto::TChunkMeta> GetMeta(
-<<<<<<< HEAD
         const TWorkloadDescriptor& workloadDescriptor,
-=======
->>>>>>> origin/prestable/0.17.5
         const TNullable<int>& partitionTag = Null,
         const TNullable<std::vector<int>>& extensionTags = Null) override;
 

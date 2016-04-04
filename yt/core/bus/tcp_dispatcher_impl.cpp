@@ -195,17 +195,6 @@ int TTcpDispatcher::TImpl::GetServerConnectionCount(ETcpInterfaceType interfaceT
     return result;
 }
 
-int TTcpDispatcher::TImpl::GetServerConnectionCount(ETcpInterfaceType interfaceType) const
-{
-    // A variation of GetStatistics optimized for this single parameter.
-    // This is, again, racy but should be OK as an approximation.
-    auto result = ServerThread_->GetStatistics(interfaceType)->ServerConnections;
-    for (const auto& clientThread : ClientThreads_) {
-        result += clientThread->GetStatistics(interfaceType)->ServerConnections;
-    }
-    return result;
-}
-
 TTcpDispatcherThreadPtr TTcpDispatcher::TImpl::GetServerThread()
 {
     const auto& thread = Threads_[0];
@@ -217,7 +206,7 @@ TTcpDispatcherThreadPtr TTcpDispatcher::TImpl::GetServerThread()
 
 TTcpDispatcherThreadPtr TTcpDispatcher::TImpl::GetClientThread()
 {
-    auto index = CurrentClientThreadIndex_++ % ThreadCount;
+    auto index = CurrentClientThreadIndex_++ % ClientThreadCount;
     const auto& thread = Threads_[index + 1];
     if (Y_UNLIKELY(!thread->IsStarted())) {
         thread->Start();

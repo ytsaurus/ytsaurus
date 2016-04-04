@@ -9,6 +9,7 @@
 
 #include <yt/ytlib/api/admin.h>
 #include <yt/ytlib/api/connection.h>
+#include <yt/ytlib/api/transaction.h>
 
 #include <yt/ytlib/driver/config.h>
 #include <yt/ytlib/driver/driver.h>

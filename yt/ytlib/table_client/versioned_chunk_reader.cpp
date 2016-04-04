@@ -17,15 +17,11 @@
 #include <yt/ytlib/chunk_client/block_fetcher.h>
 #include <yt/ytlib/chunk_client/data_statistics.pb.h>
 
-<<<<<<< HEAD
 #include <yt/ytlib/table_chunk_format/column_reader.h>
 #include <yt/ytlib/table_chunk_format/timestamp_reader.h>
 #include <yt/ytlib/table_chunk_format/null_column_reader.h>
-=======
-#include <yt/ytlib/node_tracker_client/node_directory.h>
 
-#include <yt/core/compression/codec.h>
->>>>>>> origin/prestable/0.17.5
+#include <yt/ytlib/node_tracker_client/node_directory.h>
 
 #include <yt/core/compression/codec.h>
 

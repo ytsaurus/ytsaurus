@@ -227,7 +227,6 @@ TEST_F(TSchemalessWriterForSchemafulDsvTest, MissingValueMode)
     }
 }
 
-<<<<<<< HEAD
 TEST_F(TSchemalessWriterForSchemafulDsvTest, NameTableExpansion)
 {
     Config_->Columns = {"Column1"};
@@ -236,14 +235,11 @@ TEST_F(TSchemalessWriterForSchemafulDsvTest, NameTableExpansion)
     TestNameTableExpansion(Writer_, NameTable_);
 }
 
-=======
->>>>>>> origin/prestable/0.17.5
 TEST_F(TSchemalessWriterForSchemafulDsvTest, TableIndex)
 {
     Config_->Columns = {"column_a", "column_b", "column_c", "column_d"};
     Config_->EnableTableIndex = true;
     CreateStandardWriter();
-<<<<<<< HEAD
     
     TUnversionedRowBuilder row0;
     row0.AddValue(MakeUnversionedInt64Value(0LL, KeyAId_));
@@ -259,46 +255,23 @@ TEST_F(TSchemalessWriterForSchemafulDsvTest, TableIndex)
 
     TUnversionedRowBuilder row1;
     row1.AddValue(MakeUnversionedInt64Value(42LL, TableIndexId_));
-=======
-   
-    TUnversionedRowBuilder row1;
->>>>>>> origin/prestable/0.17.5
     row1.AddValue(MakeUnversionedInt64Value(0LL, KeyAId_));
     row1.AddValue(MakeUnversionedInt64Value(1LL, KeyBId_));
     row1.AddValue(MakeUnversionedInt64Value(2LL, KeyCId_));
     row1.AddValue(MakeUnversionedInt64Value(3LL, KeyDId_));
 
-<<<<<<< HEAD
     
     TUnversionedRowBuilder row2;
     row2.AddValue(MakeUnversionedInt64Value(42LL, TableIndexId_));
-=======
-    // It is invalid to write rows with enable_table_index = true 
-    // before setting table index.
-    EXPECT_EQ(false, Writer_->Write({row1.GetRow()}));
-    
-    CreateStandardWriter();
-
-    Writer_->WriteTableIndex(42);
-    
-    TUnversionedRowBuilder row2;
->>>>>>> origin/prestable/0.17.5
     row2.AddValue(MakeUnversionedInt64Value(4LL, KeyAId_));
     row2.AddValue(MakeUnversionedInt64Value(5LL, KeyBId_));
     row2.AddValue(MakeUnversionedInt64Value(6LL, KeyCId_));
     row2.AddValue(MakeUnversionedInt64Value(7LL, KeyDId_));
 
     EXPECT_EQ(true, Writer_->Write({row1.GetRow(), row2.GetRow()}));
-<<<<<<< HEAD
  
     TUnversionedRowBuilder row3;
     row3.AddValue(MakeUnversionedInt64Value(23LL, TableIndexId_));
-=======
-
-    Writer_->WriteTableIndex(23);
-  
-    TUnversionedRowBuilder row3;
->>>>>>> origin/prestable/0.17.5
     row3.AddValue(MakeUnversionedUint64Value(8LL, KeyAId_));
     row3.AddValue(MakeUnversionedUint64Value(9LL, KeyBId_));
     row3.AddValue(MakeUnversionedUint64Value(10LL, KeyCId_));
@@ -306,12 +279,6 @@ TEST_F(TSchemalessWriterForSchemafulDsvTest, TableIndex)
 
     EXPECT_EQ(true, Writer_->Write({row3.GetRow()}));
 
-<<<<<<< HEAD
-=======
-    // This call doesn't affect anything.
-    Writer_->WriteTableIndex(18);
-
->>>>>>> origin/prestable/0.17.5
     Writer_->Close()
         .Get()
         .ThrowOnError();
@@ -322,11 +289,6 @@ TEST_F(TSchemalessWriterForSchemafulDsvTest, TableIndex)
     EXPECT_EQ(expectedOutput, OutputStream_.Str());
 }
 
-<<<<<<< HEAD
-=======
-
-
->>>>>>> origin/prestable/0.17.5
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace

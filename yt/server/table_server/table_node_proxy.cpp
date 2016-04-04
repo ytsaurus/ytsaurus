@@ -221,7 +221,6 @@ private:
 
     void SetSchema(const TTableSchema& newSchema) 
     {
-<<<<<<< HEAD
         auto* table = LockThisTypedImpl();
 
         if (table->HasMountedTablets()) {
@@ -240,12 +239,6 @@ private:
         if (key == "schema") {
             auto newSchema = ConvertTo<TTableSchema>(value);
             SetSchema(newSchema);
-=======
-        if (key == "key_columns") {
-            auto keyColumns = ConvertTo<TKeyColumns>(value);
-            SetKeyColumns(keyColumns);
-
->>>>>>> origin/prestable/0.17.5
             return true;
         }
 
@@ -280,38 +273,6 @@ private:
             return;
         }
 
-<<<<<<< HEAD
-=======
-        if (key == "schema") {
-            if (!newValue) {
-                ThrowCannotRemoveAttribute(key);
-            }
-
-            auto newSchema = ConvertTo<TTableSchema>(*newValue);
-
-            if (table->IsDynamic()) {
-                auto tabletManager = Bootstrap_->GetTabletManager();
-                auto schema = tabletManager->GetTableSchema(table);
-                ValidateTableSchemaUpdate(schema, newSchema);
-            }
-
-            if (table->HasMountedTablets()) {
-                THROW_ERROR_EXCEPTION("Table has mounted tablets");
-            }
-            
-            // COMPAT(max42): this is a compatibility code only for 17.*.
-            // If schema contains key columns, we also set key columns.
-            auto newKeyColumns = newSchema.GetKeyColumns();
-           
-            if (!newKeyColumns.empty()) {
-                ValidateTableSchemaAndKeyColumns(newSchema, newKeyColumns);
-                SetKeyColumns(newKeyColumns);
-            }
-
-            return;
-        }
-
->>>>>>> origin/prestable/0.17.5
         TBase::ValidateCustomAttributeUpdate(key, oldValue, newValue);
     }
 
