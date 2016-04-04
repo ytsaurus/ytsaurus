@@ -132,7 +132,7 @@ class Schema():
         self.appearance_probability = 0.9
         self.aggregate_probability = 0.5
         key_column_count = random.randint(1,10)
-        data_column_count = random.randint(1,10)
+        data_column_count = random.randint(1,20)
         key_columns = [random.choice(key_types) for i in xrange(key_column_count)]
         data_columns = [random.choice(types) for i in xrange(data_column_count)]
         key_names = ["k%s" % str(i) for i in range(len(key_columns))]
@@ -240,7 +240,10 @@ def unmount_table(path):
 
 def create_dynamic_table(table, schema, attributes, tablet_count):
     print "Create dynamic table %s" % table
+    attributes["dynamic"] = True
     yt.create_table(table, attributes=attributes)
+    owner = yt.get(table + "/@owner")
+    yt.set(table + "/@acl", [{"permissions": ["mount"], "action": "allow", "subjects": [owner]}])
     yt.alter_table(table, schema=schema.yson())
     yt.reshard_table(table, create_pivot_keys(schema, tablet_count))
     mount_table(table)
