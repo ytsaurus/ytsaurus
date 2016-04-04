@@ -25,7 +25,7 @@ struct TTypeTraits;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template<class T>
+template <class T>
 struct TVariantTypeTag {};
 
 //! |boost::variant|-like discriminated union with C++ 11 features.
@@ -65,7 +65,7 @@ public:
     TVariant(T&& value);
 
     //! Constructs an instance in-place.
-    template<
+    template <
         class T,
         class... TArgs,
         class = typename std::enable_if<

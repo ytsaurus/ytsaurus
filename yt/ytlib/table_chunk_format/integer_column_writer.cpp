@@ -102,7 +102,7 @@ protected:
 ////////////////////////////////////////////////////////////////////////////////
 
 // TValue - i64 or ui64.
-template<class TValue>
+template <class TValue>
 class TVersionedIntegerColumnWriter
     : public TVersionedColumnWriterBase
     , private TIntegerColumnWriterBase
@@ -229,7 +229,7 @@ std::unique_ptr<IValueColumnWriter> CreateVersionedUint64ColumnWriter(
 ////////////////////////////////////////////////////////////////////////////////
 
 // TValue - i64 or ui64.
-template<class TValue>
+template <class TValue>
 class TUnversionedIntegerColumnWriter
     : public TColumnWriterBase
     , private TIntegerColumnWriterBase

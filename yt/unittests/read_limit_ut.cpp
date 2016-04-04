@@ -13,7 +13,7 @@ using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template<typename T>
+template <typename T>
 Stroka DumpToYson(T obj)
 {
     return ConvertToYsonString(obj, NYson::EYsonFormat::Text).Data();

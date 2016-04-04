@@ -8,8 +8,8 @@ namespace NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template<class T> 
-template<class TArg>
+template <class T>
+template <class TArg>
 void TNonblockingQueue<T>::Enqueue(TArg&& value)
 {
     TGuard<TSpinLock> guard(SpinLock_);
@@ -23,7 +23,7 @@ void TNonblockingQueue<T>::Enqueue(TArg&& value)
     }
 }
 
-template<class T>
+template <class T>
 TFuture<T> TNonblockingQueue<T>::Dequeue()
 {
     TGuard<TSpinLock> guard(SpinLock_);

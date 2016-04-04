@@ -28,7 +28,6 @@ public:
     DEFINE_BYREF_RO_PROPERTY(TOwningKey, MinKey);
     DEFINE_BYREF_RO_PROPERTY(TOwningKey, MaxKey);
     DEFINE_BYREF_RO_PROPERTY(std::vector<TOwningKey>, BlockLastKeys);
-    DEFINE_BYREF_RO_PROPERTY(std::vector<int>, BlockRowCounts);
     DEFINE_BYREF_RO_PROPERTY(NProto::TBlockMetaExt, BlockMeta);
     DEFINE_BYREF_RO_PROPERTY(NProto::TColumnMetaExt, ColumnMeta);
     DEFINE_BYREF_RO_PROPERTY(NChunkClient::NProto::TChunkMeta, ChunkMeta);

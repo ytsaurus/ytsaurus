@@ -263,6 +263,25 @@ class TestJobProber(YTEnvSetup):
         op.track()
         assert len(read_table("//tmp/t2")) == 4
 
+    def test_abandon_job_sorted_empty_output(self):
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+        write_table("<append=true>//tmp/t1", {"key": "foo", "value": "bar"})
+
+        op = map(
+            dont_track=True,
+            waiting_jobs=True,
+            label="abandon_job",
+            in_="//tmp/t1",
+            out="<sorted_by=[key]>//tmp/t2",
+            command="sleep 5; cat")
+
+        abandon_job(op.jobs[0])
+
+        op.resume_jobs()
+        op.track()
+        assert len(read_table("//tmp/t2")) == 0
+
 ##################################################################
 
 class TestSchedulerMapCommands(YTEnvSetup):
@@ -1185,9 +1204,12 @@ print row + table_index
             write_table("<append=true>//tmp/input", {"key": "%05d"%i, "value": "foo"})
 
         create("table", "//tmp/output")
-        map(in_="//tmp/input",
+        op = map(
+            waiting_jobs=True,
+            dont_track=True,
+            in_="//tmp/input",
             out="<row_count_limit=3>//tmp/output",
-            command="((YT_JOB_INDEX >= 3)) && sleep 5; cat",
+            command="cat",
             spec={
                 "mapper": {
                     "format": "dsv"
@@ -1196,6 +1218,10 @@ print row + table_index
                 "max_failed_job_count": 1
             })
 
+        for i in xrange(3):
+            op.resume_job(op.jobs[0])
+
+        op.track()
         assert len(read_table("//tmp/output")) == 3
 
     @unix_only
@@ -1206,9 +1232,12 @@ print row + table_index
 
         create("table", "//tmp/out_1")
         create("table", "//tmp/out_2")
-        map(in_="//tmp/input",
+        op = map(
+            waiting_jobs=True,
+            dont_track=True,
+            in_="//tmp/input",
             out=["//tmp/out_1", "<row_count_limit=3>//tmp/out_2"],
-            command="((YT_JOB_INDEX >= 3)) && sleep 5; cat >&4",
+            command="cat >&4",
             spec={
                 "mapper": {
                     "format": "dsv"
@@ -1217,6 +1246,10 @@ print row + table_index
                 "max_failed_job_count": 1
             })
 
+        for i in xrange(3):
+            op.resume_job(op.jobs[0])
+
+        op.track()
         assert len(read_table("//tmp/out_1")) == 0
         assert len(read_table("//tmp/out_2")) == 3
 
@@ -1227,10 +1260,13 @@ print row + table_index
             write_table("<append=true>//tmp/input", {"key": "%05d"%i, "value": "foo"})
 
         create("table", "//tmp/output")
-        map(in_="//tmp/input",
+        op = map(
+            waiting_jobs=True,
+            dont_track=True,
+            in_="//tmp/input",
             out="<row_count_limit=3>//tmp/output",
             ordered=True,
-            command="((YT_JOB_INDEX >= 3)) && sleep 5; cat",
+            command="cat",
             spec={
                 "mapper": {
                     "format": "dsv"

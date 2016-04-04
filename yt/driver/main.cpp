@@ -121,7 +121,6 @@ public:
             ExitCode = EExitCode::Error;
         }
 
-        Shutdown();
 
         return ExitCode;
     }
@@ -228,7 +227,12 @@ private:
 
 int main(int argc, const char* argv[])
 {
-    NYT::TDriverProgram program;
-    return static_cast<int>(program.Main(argc, argv));
+    int exitCode = 0;
+    {
+        NYT::TDriverProgram program;
+        exitCode = static_cast<int>(program.Main(argc, argv));
+    }
+    NYT::Shutdown();
+    return exitCode;
 }
 

@@ -101,12 +101,10 @@ void TCachedVersionedChunkMeta::Init(
     }
 
     BlockLastKeys_.reserve(BlockMeta_.blocks_size());
-    BlockRowCounts_.reserve(BlockMeta_.blocks_size());
     for (const auto& block : BlockMeta_.blocks()) {
         YCHECK(block.has_last_key());
         auto key = FromProto<TOwningKey>(block.last_key());
         BlockLastKeys_.push_back(WidenKey(key, GetKeyColumnCount()));
-        BlockRowCounts_.push_back(block.chunk_row_count());
     }
 }
 

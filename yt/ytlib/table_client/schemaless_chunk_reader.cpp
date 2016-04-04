@@ -690,7 +690,7 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template<class TBase>
+template <class TBase>
 class TSchemalessMultiChunkReader
     : public ISchemalessMultiChunkReader
     , public TBase
@@ -737,7 +737,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template<class TBase>
+template <class TBase>
 TSchemalessMultiChunkReader<TBase>::TSchemalessMultiChunkReader(
     TTableReaderConfigPtr config,
     TTableReaderOptionsPtr options,
