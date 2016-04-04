@@ -136,7 +136,14 @@ public:
                 }
 
                 LOG_DEBUG("Evaluating query");
-                CallCGQueryPtr(cgQuery, fragmentParams.ConstantsRowBuilder.GetRow(), &executionContext, functionContexts.data());
+                CallCGQueryPtr(
+                    cgQuery,
+                    fragmentParams.ConstantsRowBuilder.GetRow(),
+                    &executionContext,
+                    functionContexts.data());
+
+                statistics.RowsRead = executionContext.RowsRead;
+                statistics.RowsWritten = executionContext.RowsWritten;
 
                 LOG_DEBUG("Flushing writer");
                 if (!outputBatchRows.empty()) {
@@ -171,6 +178,8 @@ public:
             } catch (const std::exception& ex) {
                 THROW_ERROR_EXCEPTION("Query evaluation failed") << ex;
             }
+
+
 
             statistics.SyncTime = wallTime - statistics.AsyncTime;
             statistics.ExecuteTime = statistics.SyncTime - statistics.ReadTime - statistics.WriteTime;

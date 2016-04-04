@@ -137,17 +137,6 @@ std::vector<TMutableRow> TTopCollector::GetRows(int rowSize) const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool UpdateAndCheckRowLimit(i64* limit, char* flag)
-{
-    if (*limit > 0) {
-        --(*limit);
-        return true;
-    } else {
-        *flag = true;
-        return false;
-    }
-}
-
 TJoinEvaluator GetJoinEvaluator(
     const TJoinClause& joinClause,
     TConstExpressionPtr predicate,
@@ -229,7 +218,7 @@ TJoinEvaluator GetJoinEvaluator(
         TComparerFunction* groupComparer,
         TJoinLookup& joinLookup,
         std::vector<TRow> keys,
-        std::vector<std::pair<TRow, int>> chainedRows,
+        std::vector<std::pair<TRow, i64>> chainedRows,
         TRowBufferPtr permanentBuffer,
         std::vector<TRow>* joinedRows)
     {
@@ -277,10 +266,9 @@ TJoinEvaluator GetJoinEvaluator(
         TRowBuilder rowBuilder;
         // allRows have format (join key... , other columns...)
 
-        i64 joinRowLimit = context->JoinRowLimit;
-
         auto addRow = [&] (TRow joinedRow) -> bool {
-            if (!UpdateAndCheckRowLimit(&joinRowLimit, &context->StopFlag)) {
+            if (joinedRows->size() >= context->JoinRowLimit) {
+                context->StopFlag = true;
                 context->Statistics->IncompleteOutput = true;
                 return true;
             }
@@ -379,7 +367,6 @@ TJoinEvaluator GetJoinEvaluator(
 
         LOG_DEBUG("Remote subquery statistics %v", statistics);
         *context->Statistics += statistics;
-
     };
 }
 

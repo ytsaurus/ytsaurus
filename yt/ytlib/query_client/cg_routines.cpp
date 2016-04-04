@@ -76,16 +76,18 @@ void WriteRow(TRow row, TExecutionContext* context)
 {
     CHECK_STACK();
 
-    if (!UpdateAndCheckRowLimit(&context->Limit, &context->StopFlag)) {
+    if (context->RowsWritten >= context->Limit) {
+        context->StopFlag = true;
         return;
     }
 
-    if (!UpdateAndCheckRowLimit(&context->OutputRowLimit, &context->StopFlag)) {
+    if (context->RowsWritten >= context->OutputRowLimit) {
+        context->StopFlag = true;
         context->Statistics->IncompleteOutput = true;
         return;
     }
 
-    ++context->Statistics->RowsWritten;
+    ++context->RowsWritten;
 
     auto* batch = context->OutputRowsBatch;
 
@@ -142,13 +144,13 @@ void ScanOpHelper(
             }),
             rows.end());
 
-        if (context->InputRowLimit < rows.size()) {
-            rows.resize(context->InputRowLimit);
+        if (context->RowsRead + rows.size() >= context->InputRowLimit) {
+            YCHECK(context->RowsRead <= context->InputRowLimit);
+            rows.resize(context->InputRowLimit - context->RowsRead);
             context->Statistics->IncompleteInput = true;
             hasMoreData = false;
         }
-        context->InputRowLimit -= rows.size();
-        context->Statistics->RowsRead += rows.size();
+        context->RowsRead += rows.size();
 
         consumeRows(consumeRowsClosure, rows.data(), rows.size(), &context->StopFlag);
         rows.clear();
@@ -169,15 +171,21 @@ void InsertJoinRow(
     TExecutionContext* context,
     TJoinLookup* lookup,
     std::vector<TRow>* keys,
-    std::vector<std::pair<TRow, int>>* chainedRows,
+    std::vector<std::pair<TRow, i64>>* chainedRows,
     TMutableRow* keyPtr,
     TRow row,
     int keySize)
 {
     CHECK_STACK();
 
-    int chainIndex = chainedRows->size();
+    i64 chainIndex = chainedRows->size();
     chainedRows->emplace_back(context->PermanentBuffer->Capture(row), -1);
+
+    if (chainIndex >= context->JoinRowLimit) {
+        context->StopFlag = true;
+        context->Statistics->IncompleteOutput = true;
+        return;
+    }
 
     TMutableRow key = *keyPtr;
     auto inserted = lookup->insert(std::make_pair(key, std::make_pair(chainIndex, false)));
@@ -215,7 +223,7 @@ void JoinOpHelper(
         void** closure,
         TJoinLookup* joinLookup,
         std::vector<TRow>* keys,
-        std::vector<std::pair<TRow, int>>* chainedRows),
+        std::vector<std::pair<TRow, i64>>* chainedRows),
     void** consumeRowsClosure,
     void (*consumeRows)(void** closure, std::vector<TRow>* rows, char* stopFlag))
 {
@@ -225,7 +233,7 @@ void JoinOpHelper(
         lookupEqComparer);
 
     std::vector<TRow> keys;
-    std::vector<std::pair<TRow, int>> chainedRows;
+    std::vector<std::pair<TRow, i64>> chainedRows;
 
     joinLookup.set_empty_key(TRow());
 
@@ -314,7 +322,8 @@ const TRow* InsertGroupRow(
     auto inserted = lookupRows->insert(row);
 
     if (inserted.second) {
-        if (!UpdateAndCheckRowLimit(&context->GroupRowLimit, &context->StopFlag)) {
+        if (groupedRows->size() >= context->GroupRowLimit) {
+            context->StopFlag = true;
             context->Statistics->IncompleteOutput = true;
             return nullptr;
         }
