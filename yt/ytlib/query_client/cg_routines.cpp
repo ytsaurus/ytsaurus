@@ -336,6 +336,18 @@ const TRow* InsertGroupRow(
     return &*inserted.first;
 }
 
+void CaptureGroupRowValues(
+    TExecutionContext* context,
+    int keySize,
+    TMutableRow row)
+{
+    CHECK_STACK();
+
+    for (int index = keySize, end = row.GetCount(); index < end; ++index) {
+        context->PermanentBuffer->Capture(&row[index]);
+    }
+}
+
 void AllocateIntermediateRow(TExpressionContext* context, int valueCount, TMutableRow* row)
 {
     CHECK_STACK();
@@ -608,6 +620,7 @@ void RegisterQueryRoutinesImpl(TRoutineRegistry* registry)
     REGISTER_ROUTINE(StringHash);
     REGISTER_ROUTINE(FindRow);
     REGISTER_ROUTINE(InsertGroupRow);
+    REGISTER_ROUTINE(CaptureGroupRowValues);
     REGISTER_ROUTINE(InsertJoinRow);
     REGISTER_ROUTINE(SaveJoinRow);
     REGISTER_ROUTINE(AllocatePermanentRow);
