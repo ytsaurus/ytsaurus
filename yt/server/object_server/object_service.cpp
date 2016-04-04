@@ -378,6 +378,7 @@ private:
     {
         if (!responseOrError.IsOK()) {
             Reply(responseOrError);
+            return;
         }
 
         // Here the context is typically already replied.
