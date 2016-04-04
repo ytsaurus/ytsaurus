@@ -13,6 +13,8 @@
 
 #include <yt/core/yson/null_consumer.h>
 
+#include <yt/core/misc/lease_manager.h>
+
 namespace NYT {
 namespace NDriver {
 
