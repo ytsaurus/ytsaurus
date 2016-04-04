@@ -774,25 +774,6 @@ TFuture<void> TSupportsAttributes::DoRemoveAttribute(const TYPath& path)
         NYPath::TTokenizer tokenizer(path);
         switch (tokenizer.Advance()) {
             case NYPath::ETokenType::Asterisk: {
-                if (builtinAttributeProvider) {
-                    std::vector<ISystemAttributeProvider::TAttributeDescriptor> builtinDescriptors;
-                    builtinAttributeProvider->ListBuiltinAttributes(&builtinDescriptors);
-
-                    for (const auto& descriptor : builtinDescriptors) {
-                        if (!descriptor.Removable)
-                            continue;
-
-                        permissionValidator.Validate(descriptor.WritePermission);
-
-                        Stroka key(descriptor.Key);
-
-                        auto asyncResult = GuardedRemoveBuiltinAttribute(key);
-                        if (asyncResult) {
-                            asyncResults.emplace_back(std::move(asyncResult));
-                        }
-                    }
-                }
-
                 if (customAttributes) {
                     auto customKeys = customAttributes->List();
                     std::sort(customKeys.begin(), customKeys.end());
