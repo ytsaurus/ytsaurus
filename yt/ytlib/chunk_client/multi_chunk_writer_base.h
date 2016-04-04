@@ -59,6 +59,8 @@ protected:
     bool VerifyActive();
     bool TrySwitchSession();
 
+    std::atomic<bool> SwitchingSession_ = { true };
+
     virtual IChunkWriterBasePtr CreateTemplateWriter(IChunkWriterPtr underlyingWriter) = 0;
 
 private:
@@ -94,7 +96,6 @@ private:
     TSession CurrentSession_;
 
     bool Closing_ = false;
-    std::atomic<bool> SwitchingSession_ = { true };
 
     TFuture<void> ReadyEvent_ = VoidFuture;
 
