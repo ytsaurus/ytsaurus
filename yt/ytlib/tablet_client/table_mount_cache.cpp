@@ -72,17 +72,22 @@ public:
         auto it = Map_.find(tabletInfo->TabletId);
         if (it != Map_.end()) {
             if (auto existingTabletInfo = it->second.Lock()) {
+                auto owners = std::move(tabletInfo->Owners);
+
+                for (const auto& owner : existingTabletInfo->Owners) {
+                    if (!owner.IsExpired()) {
+                        owners.push_back(owner);
+                    }
+                }
+
                 if (tabletInfo->MountRevision < existingTabletInfo->MountRevision) {
                     tabletInfo.Swap(existingTabletInfo);
                 }
-                it->second = MakeWeak(tabletInfo);
-                tabletInfo->Owners.insert(
-                    tabletInfo->Owners.end(),
-                    existingTabletInfo->Owners.begin(),
-                    existingTabletInfo->Owners.end());
-            } else {
-                it->second = MakeWeak(tabletInfo);
+
+                tabletInfo->Owners = std::move(owners);
             }
+
+            it->second = MakeWeak(tabletInfo);
         } else {
             YCHECK(Map_.insert({tabletInfo->TabletId, tabletInfo}).second);
         }
