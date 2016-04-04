@@ -1947,6 +1947,11 @@ private:
                     controller,
                     Passed(std::make_unique<TAbortedJobSummary>(job))));
             }
+
+            // Check if job was aborted due to signal.
+            if (GetAbortReason(job->Result()) == EAbortReason::UserRequest) {
+                ProcessFinishedJobResult(job);
+            }
         }
 
         UnregisterJob(job);
@@ -1974,7 +1979,7 @@ private:
 
     void ProcessFinishedJobResult(TJobPtr job)
     {
-        auto jobFailed = job->GetState() == EJobState::Failed;
+        auto jobFailedOrAborted = job->GetState() == EJobState::Failed || job->GetState() == EJobState::Aborted;
         const auto& schedulerResultExt = job->Result()->GetExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
 
         auto stderrChunkId = schedulerResultExt.has_stderr_chunk_id()
@@ -1988,7 +1993,7 @@ private:
         auto operation = FindOperation(job->GetOperationId());
         YCHECK(operation);
 
-        if (jobFailed) {
+        if (jobFailedOrAborted) {
             if (stderrChunkId) {
                 operation->SetStderrCount(operation->GetStderrCount() + 1);
             }
