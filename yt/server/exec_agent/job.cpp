@@ -698,7 +698,7 @@ private:
         }
 
         if (Signaled_) {
-            return EAbortReason::Other;
+            return EAbortReason::UserRequest;
         }
 
         return Null;

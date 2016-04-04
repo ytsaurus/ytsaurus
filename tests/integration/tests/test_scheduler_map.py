@@ -151,6 +151,7 @@ class TestJobProber(YTEnvSetup):
         }
     }
 
+    @unix_only
     def test_strace_job(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -175,6 +176,7 @@ class TestJobProber(YTEnvSetup):
         op.resume_jobs()
         op.track()
 
+    @unix_only
     def test_signal_job_with_no_job_restart(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -208,6 +210,7 @@ class TestJobProber(YTEnvSetup):
         assert get("//sys/operations/{0}/@progress/jobs/failed".format(op.id)) == 0
         assert read_table("//tmp/t2") == [{"foo": "bar"}, {"got": "SIGUSR1"}, {"got": "SIGUSR2"}]
 
+    @unix_only
     def test_signal_job_with_job_restart(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -219,7 +222,7 @@ class TestJobProber(YTEnvSetup):
             label="signal_job_with_job_restart",
             in_="//tmp/t1",
             out="//tmp/t2",
-            command='trap "echo got=SIGUSR1; exit 1" USR1\ncat\n',
+            command='trap "echo got=SIGUSR1; echo stderr >&2; exit 1" USR1\ncat\n',
             spec={
                 "mapper": {
                     "format": "dsv"
@@ -236,10 +239,14 @@ class TestJobProber(YTEnvSetup):
         op.track()
 
         assert get("//sys/operations/{0}/@progress/jobs/aborted/total".format(op.id)) == 1
-        assert get("//sys/operations/{0}/@progress/jobs/aborted/other".format(op.id)) == 1
+        assert get("//sys/operations/{0}/@progress/jobs/aborted/user_request".format(op.id)) == 1
+        assert get("//sys/operations/{0}/@progress/jobs/aborted/other".format(op.id)) == 0
         assert get("//sys/operations/{0}/@progress/jobs/failed".format(op.id)) == 0
         assert read_table("//tmp/t2") == [{"foo": "bar"}]
+        # Can get two stderr here, either "User defined signal 1\nstderr\n" or "stderr\n"
+        check_all_stderrs(op, "stderr\n", 1, substring=True)
 
+    @unix_only
     def test_abandon_job(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -263,6 +270,7 @@ class TestJobProber(YTEnvSetup):
         op.track()
         assert len(read_table("//tmp/t2")) == 4
 
+    @unix_only
     def test_abandon_job_sorted_empty_output(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
