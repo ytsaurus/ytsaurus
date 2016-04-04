@@ -1,7 +1,7 @@
 from yt.wrapper.keyboard_interrupts_catcher import KeyboardInterruptsCatcher
 from yt.wrapper.response_stream import ResponseStream, EmptyResponseStream
 from yt.wrapper.mappings import VerifiedDict, FrozenDict
-from yt.wrapper.cypress_commands import join_cypress_paths
+from yt.wrapper.cypress_commands import join_paths
 from yt.common import makedirp
 from yt.yson import to_yson_type
 import yt.yson as yson
@@ -85,9 +85,9 @@ class TestMutations(object):
             final_action(result)
 
     def test_master_mutation_id(self):
-        test_dir = join_cypress_paths(TEST_DIR, "test")
-        test_dir2 = join_cypress_paths(TEST_DIR, "test2")
-        test_dir3 = join_cypress_paths(TEST_DIR, "test3")
+        test_dir = join_paths(TEST_DIR, "test")
+        test_dir2 = join_paths(TEST_DIR, "test2")
+        test_dir3 = join_paths(TEST_DIR, "test3")
 
         self.check_command(
             lambda: yt.set(test_dir, {"a": "b"}),
