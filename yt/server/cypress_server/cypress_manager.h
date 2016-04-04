@@ -121,6 +121,8 @@ public:
 
     void SetAccessed(TCypressNodeBase* trunkNode);
 
+    void SetExpirationTime(TCypressNodeBase* trunkNode, TNullable<TInstant> time);
+
     typedef SmallVector<TCypressNodeBase*, 1> TSubtreeNodes;
     TSubtreeNodes ListSubtreeNodes(
         TCypressNodeBase* trunkNode,

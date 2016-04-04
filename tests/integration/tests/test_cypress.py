@@ -1,10 +1,11 @@
 import pytest
 import time
+import datetime
 
 from yt_env_setup import YTEnvSetup
 from yt_commands import *
 from yt.yson import to_yson_type, YsonEntity
-
+from datetime import timedelta
 
 ##################################################################
 
@@ -24,7 +25,10 @@ class TestCypress(YTEnvSetup):
             "max_attribute_size" : 300,
 
             # See test_map_node_key_length_limit
-            "max_map_node_key_length": 300
+            "max_map_node_key_length": 300,
+
+            # To make expiration tests run faster
+            "expiration_check_period": 10
         }
     }
 
@@ -934,6 +938,96 @@ class TestCypress(YTEnvSetup):
             create("table", "//tmp/t", attributes={"external_cell_bias": -1.0})
         with pytest.raises(YtError):
             create("table", "//tmp/t", attributes={"external_cell_bias": 2.0})
+
+
+    def test_expiration_time_validation(self):
+        create("table", "//tmp/t")
+        with pytest.raises(YtError): set("//tmp/t/@expiration_time", "hello")
+
+    def test_expiration_time_change_requires_remove_permission_failure(self):
+        create_user("u")
+        create("table", "//tmp/t")
+        set("//tmp/t/@acl", [
+            {"action": "allow", "subjects": ["u"], "permissions": ["write"]},
+            {"action": "deny", "subjects": ["u"], "permissions": ["remove"]}])
+        with pytest.raises(YtError):
+            set("//tmp/t/@expiration_time", str(datetime.now()), user="u")
+
+    def test_expiration_time_change_requires_recursive_remove_permission_failure(self):
+        create_user("u")
+        create("map_node", "//tmp/m")
+        create("table", "//tmp/m/t")
+        set("//tmp/m/t/@acl", [
+            {"action": "allow", "subjects": ["u"], "permissions": ["write"]},
+            {"action": "deny", "subjects": ["u"], "permissions": ["remove"]}])
+        with pytest.raises(YtError):
+            set("//tmp/m/@expiration_time", str(datetime.now()), user="u")
+
+    def test_expiration_time_reset_requires_write_permission_success(self):
+        create_user("u")
+        create("table", "//tmp/t", attributes={"expiration_time": "2030-04-03T21:25:29.000000Z"})
+        set("//tmp/t/@acl", [
+            {"action": "allow", "subjects": ["u"], "permissions": ["write"]},
+            {"action": "deny", "subjects": ["u"], "permissions": ["remove"]}])
+        remove("//tmp/t/@expiration_time", user="u")
+
+    def test_expiration_time_reset_requires_write_permission_failure(self):
+        create_user("u")
+        create("table", "//tmp/t", attributes={"expiration_time": "2030-04-03T21:25:29.000000Z"})
+        set("//tmp/t/@acl", [
+            {"action": "deny", "subjects": ["u"], "permissions": ["write"]}])
+        with pytest.raises(YtError):
+            remove("//tmp/t/@expiration_time", user="u")
+
+    def test_expiration_time_change(self):
+        create("table", "//tmp/t", attributes={"expiration_time": "2030-04-03T21:25:29.000000Z"})
+        assert get("//tmp/t/@expiration_time") == "2030-04-03T21:25:29.000000Z"
+        remove("//tmp/t/@expiration_time")
+        assert not exists("//tmp/t/@expiration_time")
+
+    def test_expiration_time_removal1(self):
+        create("table", "//tmp/t", attributes={"expiration_time": str(datetime.now())})
+        time.sleep(0.1)
+        assert not exists("//tmp/t")
+
+    def test_expiration_time_removal2(self):
+        create("table", "//tmp/t", attributes={"expiration_time": str(datetime.now() + timedelta(seconds=0.1))})
+        time.sleep(0.2)
+        assert not exists("//tmp/t")
+
+    def test_expiration_time_wait_for_locks_released(self):
+        create("table", "//tmp/t")
+        tx = start_transaction()
+        lock("//tmp/t", tx=tx)
+        set("//tmp/t/@expiration_time", str(datetime.now()))
+        time.sleep(0.1)
+        assert exists("//tmp/t")
+        abort_transaction(tx)
+        time.sleep(0.1)
+        assert not exists("//tmp/t")
+        
+    def test_expiration_time_wait_for_locks_released_recursive(self):
+        create("map_node", "//tmp/m")
+        create("table", "//tmp/m/t")
+        tx = start_transaction()
+        lock("//tmp/m/t", tx=tx)
+        set("//tmp/m/@expiration_time", str(datetime.now()))
+        time.sleep(0.1)
+        assert exists("//tmp/m")
+        abort_transaction(tx)
+        time.sleep(0.1)
+        assert not exists("//tmp/m")
+
+    def test_expiration_time_dont_wait_for_snapshot_locks(self):
+        create("table", "//tmp/t")
+        tx = start_transaction()
+        lock("//tmp/t", tx=tx, mode="snapshot")
+        set("//tmp/t/@expiration_time", str(datetime.now()))
+        time.sleep(0.1)
+        assert not exists("//tmp/t")
+
+    def test_no_expiration_time_for_root(self):
+        with pytest.raises(YtError): set("//@expiration_time", str(datetime.now()))
 
 ##################################################################
 
