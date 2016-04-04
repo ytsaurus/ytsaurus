@@ -2554,18 +2554,12 @@ public:
 
     virtual TFuture<void> Commit(const TTransactionCommitOptions& options) override
     {
-<<<<<<< HEAD
-        return BIND(&TTransaction::DoCommit, MakeStrong(this))
-            .AsyncVia(Client_->GetConnection()->GetLightInvoker())
-            .Run(options);
-=======
         if (!Outcome_) {
-            Outcome_ = BIND(&TTransaction::DoCommit, MakeStrong(this))
-                .AsyncVia(Client_->Invoker_)
+            return BIND(&TTransaction::DoCommit, MakeStrong(this))
+                .AsyncVia(Client_->GetConnection()->GetLightInvoker())
                 .Run(options);
         }
         return Outcome_;
->>>>>>> origin/prestable/0.17.5
     }
 
     virtual TFuture<void> Abort(const TTransactionAbortOptions& options) override
@@ -2574,7 +2568,6 @@ public:
         return Outcome_;
     }
 
-<<<<<<< HEAD
     virtual void Detach() override
     {
         Transaction_->Detach();
@@ -2592,8 +2585,6 @@ public:
     }
 
 
-=======
->>>>>>> origin/prestable/0.17.5
     virtual TFuture<ITransactionPtr> StartTransaction(
         ETransactionType type,
         const TTransactionStartOptions& options) override
@@ -2603,17 +2594,6 @@ public:
         return Client_->StartTransaction(
             type,
             adjustedOptions);
-    }
-
-    virtual void WriteRows(
-        const TYPath& path,
-        TNameTablePtr nameTable,
-        const std::vector<NTableClient::TUnversionedRow>& rows,
-        const TWriteRowsOptions& options) override
-    {
-        auto rowBuffer = New<TRowBuffer>();
-        auto rowRange = MakeSharedRange(rowBuffer->Capture(rows), std::move(rowBuffer));
-        WriteRows(path, std::move(nameTable), std::move(rowRange), options);
     }
 
     virtual void WriteRows(
@@ -2630,17 +2610,6 @@ public:
             std::move(rows),
             options));
         LOG_DEBUG("Row writes buffered (RowCount: %v)", rowCount);
-    }
-
-    virtual void DeleteRows(
-        const TYPath& path,
-        TNameTablePtr nameTable,
-        const std::vector<NTableClient::TKey>& keys,
-        const TDeleteRowsOptions& options) override
-    {
-        auto keyBuffer = New<TRowBuffer>();
-        auto keyRange = MakeSharedRange(keyBuffer->Capture(keys), std::move(keyBuffer));
-        DeleteRows(path, std::move(nameTable), std::move(keyRange), options);
     }
 
     virtual void DeleteRows(
