@@ -3,7 +3,7 @@ OWNER(
     vartyukh
 )
 
-UNION()
+PACKAGE()
 
 BUILD_ONLY_IF(LINUX)
 
@@ -20,6 +20,10 @@ ELSEIF (YT_PRECISE_18_2)
 ELSE () # Latest version
     FROM_SANDBOX(FILE 120128746 OUT yt.tar)
 ENDIF()
+
+PEERDIR(
+    devtools/swag
+)
 
 END()
 
