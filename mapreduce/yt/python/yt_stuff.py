@@ -11,6 +11,8 @@ import uuid
 import pytest
 import yatest.common
 
+import devtools.swag.ports
+
 _YT_ARCHIVE_NAME = "mapreduce/yt/python/yt.tar" # comes by FROM_SANDBOX
 _YT_PREFIX = "//"
 
@@ -133,12 +135,15 @@ class YtStuff:
     @_timing
     def start_local_yt(self):
         self.yt_id = str(uuid.uuid4())
+        self.yt_proxy_port = devtools.swag.ports.find_free_port()
+
         self._log("Try to start local YT with id=%s", self.yt_id)
         try:
             args = [
                 "start",
                 "--id=%s" % self.yt_id,
                 "--path=%s" % self.yt_work_dir,
+                "--proxy-port=%d" % self.yt_proxy_port,
                 "--fqdn=localhost",
             ]
             if self.tmpfs_path:
