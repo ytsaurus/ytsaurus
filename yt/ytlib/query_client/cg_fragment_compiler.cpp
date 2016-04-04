@@ -1364,6 +1364,14 @@ TCodegenSource MakeCodegenGroupOp(
                                     codegenInitialize(builder, groupRow);
 
                                     builder.CreateCall(
+                                        builder.Module->GetRoutine("CaptureGroupRowValues"),
+                                        {
+                                            builder.GetExecutionContextPtr(),
+                                            builder.getInt32(keyTypes.size()),
+                                            groupRow
+                                        });
+
+                                    builder.CreateCall(
                                         builder.Module->GetRoutine("AllocatePermanentRow"),
                                         {
                                             builder.GetExecutionContextPtr(),
