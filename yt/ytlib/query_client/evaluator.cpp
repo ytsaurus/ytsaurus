@@ -207,29 +207,35 @@ private:
 
         auto Logger = BuildLogger(query);
 
-        auto cookie = BeginInsert(id);
-        if (enableCodeCache && !cookie.IsActive()) {
-            LOG_TRACE("Codegen cache hit");
-        } else {
-            if (!enableCodeCache) {
-                LOG_DEBUG("Codegen cache disabled");
-            } else {
+        auto compileWithLogging = [&] () {
+            TRACE_CHILD("QueryClient", "Compile") {
+                NProfiling::TAggregatingTimingGuard timingGuard(&statistics.CodegenTime);
+                LOG_DEBUG("Started compiling fragment");
+                auto cgQuery = New<TCachedCGQuery>(id, makeCodegenQuery());
+                LOG_DEBUG("Finished compiling fragment");
+                return cgQuery;
+            } 
+        };
+        
+        TCachedCGQueryPtr cgQuery;
+        if (enableCodeCache) {
+            auto cookie = BeginInsert(id);
+            if (cookie.IsActive()) {
                 LOG_DEBUG("Codegen cache miss");
-            }
-            try {
-                TRACE_CHILD("QueryClient", "Compile") {
-                    NProfiling::TAggregatingTimingGuard timingGuard(&statistics.CodegenTime);
-                    LOG_DEBUG("Started compiling fragment");
-                    auto cgQuery = New<TCachedCGQuery>(id, makeCodegenQuery());
-                    LOG_DEBUG("Finished compiling fragment");
-                    cookie.EndInsert(std::move(cgQuery));
-                }
-            } catch (const std::exception& ex) {
-                cookie.Cancel(TError(ex).Wrap("Failed to compile a query fragment"));
-            }
-        }
 
-        auto cgQuery = WaitFor(cookie.GetValue()).ValueOrThrow();
+                try {
+                    cookie.EndInsert(compileWithLogging());
+                } catch (const std::exception& ex) {
+                    cookie.Cancel(TError(ex).Wrap("Failed to compile a query fragment"));
+                }
+            }
+
+            cgQuery = WaitFor(cookie.GetValue()).ValueOrThrow();
+        } else {
+            LOG_DEBUG("Codegen cache disabled");
+
+            cgQuery = compileWithLogging();
+        }
 
         return cgQuery->GetQueryCallback();
     }
