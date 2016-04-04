@@ -15,6 +15,34 @@ from copy import deepcopy
 
 import __builtin__
 
+def join_paths(*paths):
+    def ends_with_slash(part):
+        if part.endswith("/"):
+            if part.endswith("\\/"):
+                raise YtError("Path with \\\\/ found, failed to join it")
+            return True
+        return False
+
+    result = []
+    for path in paths:
+        if path.startswith("//") or path == "/":
+            result = []
+
+        slash_count = 0
+        if path.startswith("/"):
+            slash_count += 1
+        if result and ends_with_slash(result[-1]):
+            slash_count += 1
+
+        if slash_count == 2:
+            result.append(path[1:])
+        else: # slash_count <= 1
+            if slash_count == 0:
+                result.append("/")
+            result.append(path)
+
+    return "".join(result)
+
 def get(path, attributes=None, format=None, ignore_opaque=False, client=None):
     """Get Cypress node content (attribute tree).
 

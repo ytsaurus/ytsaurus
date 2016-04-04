@@ -1,13 +1,14 @@
 from yt.wrapper.keyboard_interrupts_catcher import KeyboardInterruptsCatcher
 from yt.wrapper.response_stream import ResponseStream, EmptyResponseStream
 from yt.wrapper.mappings import VerifiedDict, FrozenDict
+from yt.wrapper.cypress_commands import join_cypress_paths
 from yt.common import makedirp
 from yt.yson import to_yson_type
 import yt.yson as yson
 import yt.wrapper as yt
 
 from helpers import TEST_DIR, TESTS_SANDBOX, TESTS_LOCATION, \
-                    get_environment_for_binary_test, check, set_config_option
+                    get_environment_for_binary_test, check
 
 import inspect
 import random
@@ -84,9 +85,9 @@ class TestMutations(object):
             final_action(result)
 
     def test_master_mutation_id(self):
-        test_dir = os.path.join(TEST_DIR, "test")
-        test_dir2 = os.path.join(TEST_DIR, "test2")
-        test_dir3 = os.path.join(TEST_DIR, "test3")
+        test_dir = join_cypress_paths(TEST_DIR, "test")
+        test_dir2 = join_cypress_paths(TEST_DIR, "test2")
+        test_dir3 = join_cypress_paths(TEST_DIR, "test3")
 
         self.check_command(
             lambda: yt.set(test_dir, {"a": "b"}),
