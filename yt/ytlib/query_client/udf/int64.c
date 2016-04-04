@@ -1,7 +1,7 @@
 #include <yt_udf.h>
 
 void int64(
-    TExpressionContext* context,
+    TExecutionContext* context,
     TUnversionedValue* result,
     TUnversionedValue* value)
 {

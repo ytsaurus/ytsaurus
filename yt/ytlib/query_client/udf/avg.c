@@ -1,7 +1,7 @@
 #include <yt_udf.h>
 
 void avg_init(
-    TExpressionContext* context,
+    TExecutionContext* context,
     TUnversionedValue* result)
 {
     int stateSize = 2 * sizeof(int64_t);
@@ -16,7 +16,7 @@ void avg_init(
 }
 
 void avg_update(
-    TExpressionContext* context,
+    TExecutionContext* context,
     TUnversionedValue* result,
     TUnversionedValue* state,
     TUnversionedValue* newValue)
@@ -33,7 +33,7 @@ void avg_update(
 }
 
 void avg_merge(
-    TExpressionContext* context,
+    TExecutionContext* context,
     TUnversionedValue* result,
     TUnversionedValue* dstState,
     TUnversionedValue* state)
@@ -50,7 +50,7 @@ void avg_merge(
 }
 
 void avg_finalize(
-    TExpressionContext* context,
+    TExecutionContext* context,
     TUnversionedValue* result,
     TUnversionedValue* state)
 {

@@ -1,7 +1,7 @@
 #include <yt_udf.h>
 
 int8_t is_substr(
-    TExpressionContext* context,
+    TExecutionContext* context,
     char* s2,
     int s2_len,
     char* s1,

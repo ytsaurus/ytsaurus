@@ -10,10 +10,10 @@ extern "C" google::re2::RE2* RegexCreate(TUnversionedValue*);
 extern "C" void RegexDestroy(google::re2::RE2*);
 extern "C" bool RegexFullMatch(google::re2::RE2*, TUnversionedValue*);
 extern "C" bool RegexPartialMatch(google::re2::RE2*, TUnversionedValue*);
-extern "C" void RegexReplaceFirst(TExpressionContext*, google::re2::RE2*, TUnversionedValue*, TUnversionedValue*, TUnversionedValue*);
-extern "C" void RegexReplaceAll(TExpressionContext*, google::re2::RE2*, TUnversionedValue*, TUnversionedValue*, TUnversionedValue*);
-extern "C" void RegexExtract(TExpressionContext*, google::re2::RE2*, TUnversionedValue*, TUnversionedValue*, TUnversionedValue*);
-extern "C" void RegexEscape(TExpressionContext*, TUnversionedValue*, TUnversionedValue*);
+extern "C" void RegexReplaceFirst(TExecutionContext*, google::re2::RE2*, TUnversionedValue*, TUnversionedValue*, TUnversionedValue*);
+extern "C" void RegexReplaceAll(TExecutionContext*, google::re2::RE2*, TUnversionedValue*, TUnversionedValue*, TUnversionedValue*);
+extern "C" void RegexExtract(TExecutionContext*, google::re2::RE2*, TUnversionedValue*, TUnversionedValue*, TUnversionedValue*);
+extern "C" void RegexEscape(TExecutionContext*, TUnversionedValue*, TUnversionedValue*);
 
 struct TData
 {
@@ -51,7 +51,7 @@ void regex_work(
 }
 
 extern "C" void regex_full_match(
-    TExpressionContext* executionContext,
+    TExecutionContext* executionContext,
     NYT::NQueryClient::TFunctionContext* functonContext,
     TUnversionedValue* result,
     TUnversionedValue* regexp,
@@ -72,7 +72,7 @@ extern "C" void regex_full_match(
 }
 
 extern "C" void regex_partial_match(
-    TExpressionContext* executionContext,
+    TExecutionContext* executionContext,
     NYT::NQueryClient::TFunctionContext* functonContext,
     TUnversionedValue* result,
     TUnversionedValue* regexp,
@@ -93,7 +93,7 @@ extern "C" void regex_partial_match(
 }
 
 extern "C" void regex_replace_first(
-    TExpressionContext* executionContext,
+    TExecutionContext* executionContext,
     NYT::NQueryClient::TFunctionContext* functonContext,
     TUnversionedValue* result,
     TUnversionedValue* regexp,
@@ -113,7 +113,7 @@ extern "C" void regex_replace_first(
 }
 
 extern "C" void regex_replace_all(
-    TExpressionContext* executionContext,
+    TExecutionContext* executionContext,
     NYT::NQueryClient::TFunctionContext* functonContext,
     TUnversionedValue* result,
     TUnversionedValue* regexp,
@@ -133,7 +133,7 @@ extern "C" void regex_replace_all(
 }
 
 extern "C" void regex_extract(
-    TExpressionContext* executionContext,
+    TExecutionContext* executionContext,
     NYT::NQueryClient::TFunctionContext* functonContext,
     TUnversionedValue* result,
     TUnversionedValue* regexp,
@@ -153,7 +153,7 @@ extern "C" void regex_extract(
 }
 
 extern "C" void regex_escape(
-    TExpressionContext* executionContext,
+    TExecutionContext* executionContext,
     NYT::NQueryClient::TFunctionContext* functonContext,
     TUnversionedValue* result,
     TUnversionedValue* input)

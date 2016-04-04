@@ -1,11 +1,11 @@
 #include <yt_udf.h>
 
-uint64_t seventyfive(TExpressionContext* context)
+uint64_t seventyfive(TExecutionContext* context)
 {
     return 75;
 }
 
-uint64_t strtol_udf(TExpressionContext* context, const char* string, int length)
+uint64_t strtol_udf(TExecutionContext* context, const char* string, int length)
 {
     uint64_t result = 0;
     for (int i = 0; i < length; i++) {
@@ -16,7 +16,7 @@ uint64_t strtol_udf(TExpressionContext* context, const char* string, int length)
     return result;
 }
 
-int64_t exp_udf(TExpressionContext* context, int64_t n, int64_t m)
+int64_t exp_udf(TExecutionContext* context, int64_t n, int64_t m)
 {
     int64_t result = 1;
     for (int64_t i = 0; i < m; i++) {
@@ -26,7 +26,7 @@ int64_t exp_udf(TExpressionContext* context, int64_t n, int64_t m)
 }
 
 void tolower_udf(
-    TExpressionContext* context,
+    TExecutionContext* context,
     char** result,
     int* result_length,
     char* string,
@@ -46,20 +46,20 @@ void tolower_udf(
     *result_length = length;
 }
 
-void is_null_udf(TExpressionContext* context, TUnversionedValue* result, TUnversionedValue* value)
+void is_null_udf(TExecutionContext* context, TUnversionedValue* result, TUnversionedValue* value)
 {
     int8_t isnull = value->Type == Null;
     result->Type = Boolean;
     result->Data.Boolean = isnull;
 }
 
-int64_t abs_udf(TExpressionContext* context, int64_t n)
+int64_t abs_udf(TExecutionContext* context, int64_t n)
 {
     return llabs(n);
 }
 
 void sum_udf(
-    TExpressionContext* context,
+    TExecutionContext* context,
     TUnversionedValue* result_value,
     TUnversionedValue* n1,
     TUnversionedValue* ns,
@@ -74,7 +74,7 @@ void sum_udf(
 }
 
 int64_t throw_if_negative_udf(
-    TExpressionContext* context,
+    TExecutionContext* context,
     int64_t argument)
 {
     if (argument < 0) {
@@ -85,7 +85,7 @@ int64_t throw_if_negative_udf(
 }
 
 void avg_udaf_init(
-    TExpressionContext* context,
+    TExecutionContext* context,
     TUnversionedValue* result)
 {
     int stateSize = 2 * sizeof(int64_t);
@@ -100,7 +100,7 @@ void avg_udaf_init(
 }
 
 void avg_udaf_update(
-    TExpressionContext* context,
+    TExecutionContext* context,
     TUnversionedValue* result,
     TUnversionedValue* state,
     TUnversionedValue* newValue)
@@ -117,7 +117,7 @@ void avg_udaf_update(
 }
 
 void avg_udaf_merge(
-    TExpressionContext* context,
+    TExecutionContext* context,
     TUnversionedValue* result,
     TUnversionedValue* dstState,
     TUnversionedValue* state)
@@ -134,7 +134,7 @@ void avg_udaf_merge(
 }
 
 void avg_udaf_finalize(
-    TExpressionContext* context,
+    TExecutionContext* context,
     TUnversionedValue* result,
     TUnversionedValue* state)
 {

@@ -98,8 +98,8 @@ struct TExpressionContext
     size_t StackSizeGuardHelper;
 #endif
     const std::vector<TSharedRange<TRow>>* LiteralRows;
+
     TRowBufferPtr IntermediateBuffer;
-    std::deque<TFunctionContext> FunctionContexts;
 };
 
 struct TExecutionContext
@@ -133,6 +133,8 @@ struct TExecutionContext
 
     std::vector<TJoinEvaluator> JoinEvaluators;
     TExecuteQuery ExecuteCallback;
+
+    std::deque<TFunctionContext> FunctionContexts;
 };
 
 class TTopCollector
@@ -192,10 +194,10 @@ struct TCGVariables
 
 typedef void (TCGQuerySignature)(TRow, TExecutionContext*, TFunctionContext**);
 typedef void (TCGExpressionSignature)(TValue*, TRow, TRow, TExpressionContext*, TFunctionContext**);
-typedef void (TCGAggregateInitSignature)(TExpressionContext*, TValue*);
-typedef void (TCGAggregateUpdateSignature)(TExpressionContext*, TValue*, const TValue*, const TValue*);
-typedef void (TCGAggregateMergeSignature)(TExpressionContext*, TValue*, const TValue*, const TValue*);
-typedef void (TCGAggregateFinalizeSignature)(TExpressionContext*, TValue*, const TValue*);
+typedef void (TCGAggregateInitSignature)(TExecutionContext*, TValue*);
+typedef void (TCGAggregateUpdateSignature)(TExecutionContext*, TValue*, const TValue*, const TValue*);
+typedef void (TCGAggregateMergeSignature)(TExecutionContext*, TValue*, const TValue*, const TValue*);
+typedef void (TCGAggregateFinalizeSignature)(TExecutionContext*, TValue*, const TValue*);
 
 using TCGQueryCallback = NCodegen::TCGFunction<TCGQuerySignature>;
 using TCGExpressionCallback = NCodegen::TCGFunction<TCGExpressionSignature>;
