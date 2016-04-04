@@ -16,6 +16,8 @@ from copy import deepcopy
 import __builtin__
 
 def join_paths(*paths):
+    """ Join parts of cypress paths.
+    """
     def ends_with_slash(part):
         if part.endswith("/"):
             if part.endswith("\\/"):
