@@ -66,7 +66,7 @@ static void validate_format_string_length(int length)
 }
 
 static void format_timestamp_helper(
-    TExpressionContext* context,
+    TExecutionContext* context,
     char** result,
     int* result_len,
     int64_t timestamp,
@@ -87,7 +87,7 @@ static void format_timestamp_helper(
 }
 
 void format_timestamp(
-    TExpressionContext* context,
+    TExecutionContext* context,
     char** result,
     int* result_len,
     int64_t timestamp,
@@ -104,7 +104,7 @@ void format_timestamp(
 }
 
 int64_t timestamp_floor_hour(
-    TExpressionContext* context,
+    TExecutionContext* context,
     int64_t timestamp)
 {
     validate_timestamp(timestamp);
@@ -120,7 +120,7 @@ int64_t timestamp_floor_hour(
 }
 
 int64_t timestamp_floor_day(
-    TExpressionContext* context,
+    TExecutionContext* context,
     int64_t timestamp)
 {
     validate_timestamp(timestamp);
@@ -137,7 +137,7 @@ int64_t timestamp_floor_day(
 }
 
 int64_t timestamp_floor_week(
-    TExpressionContext* context,
+    TExecutionContext* context,
     int64_t timestamp)
 {
     validate_timestamp(timestamp);
@@ -157,7 +157,7 @@ int64_t timestamp_floor_week(
 }
 
 int64_t timestamp_floor_month(
-    TExpressionContext* context,
+    TExecutionContext* context,
     int64_t timestamp)
 {
     validate_timestamp(timestamp);
@@ -175,7 +175,7 @@ int64_t timestamp_floor_month(
 }
 
 int64_t timestamp_floor_year(
-    TExpressionContext* context,
+    TExecutionContext* context,
     int64_t timestamp)
 {
     validate_timestamp(timestamp);

@@ -1364,14 +1364,6 @@ TCodegenSource MakeCodegenGroupOp(
                                     codegenInitialize(builder, groupRow);
 
                                     builder.CreateCall(
-                                        builder.Module->GetRoutine("CaptureGroupRowValues"),
-                                        {
-                                            builder.GetExecutionContextPtr(),
-                                            builder.getInt32(keyTypes.size()),
-                                            groupRow
-                                        });
-
-                                    builder.CreateCall(
                                         builder.Module->GetRoutine("AllocatePermanentRow"),
                                         {
                                             builder.GetExecutionContextPtr(),
@@ -1605,7 +1597,7 @@ TCGExpressionCallback CodegenExpression(TCodegenExpression codegenExpression)
     Value* resultPtr = args; resultPtr->setName("resultPtr");
     Value* inputRow = ++args; inputRow->setName("inputRow");
     Value* constants = ++args; constants->setName("constants");
-    Value* executionContextPtr = ++args; executionContextPtr->setName("executionContextPtr");
+    Value* executionContextPtr = ++args; executionContextPtr->setName("passedFragmentParamsPtr");
     Value* functionContextsPtr = ++args; functionContextsPtr->setName("functionContextsPtr");
     YCHECK(++args == function->arg_end());
 

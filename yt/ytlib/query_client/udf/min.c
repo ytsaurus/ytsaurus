@@ -17,14 +17,14 @@ static int string_less_than(
 }
 
 void min_init(
-    TExpressionContext* context,
+    TExecutionContext* context,
     TUnversionedValue* result)
 {
     result->Type = Null;
 }
 
 static void min_iteration(
-    TExpressionContext* context,
+    TExecutionContext* context,
     TUnversionedValue* result,
     TUnversionedValue* state,
     TUnversionedValue* newValue)
@@ -42,7 +42,7 @@ static void min_iteration(
         result->Type = newValue->Type;
         result->Length = newValue->Length;
         if (newValue->Type == String) {
-            char* permanentData = AllocateBytes(context, newValue->Length);
+            char* permanentData = AllocatePermanentBytes(context, newValue->Length);
             memcpy(permanentData, newValue->Data.String, newValue->Length);
             result->Data.String = permanentData;
         } else {
@@ -56,7 +56,7 @@ static void min_iteration(
 }
 
 void min_update(
-    TExpressionContext* context,
+    TExecutionContext* context,
     TUnversionedValue* result,
     TUnversionedValue* state,
     TUnversionedValue* newValue)
@@ -65,7 +65,7 @@ void min_update(
 }
 
 void min_merge(
-    TExpressionContext* context,
+    TExecutionContext* context,
     TUnversionedValue* result,
     TUnversionedValue* dstState,
     TUnversionedValue* state)
@@ -74,7 +74,7 @@ void min_merge(
 }
 
 void min_finalize(
-    TExpressionContext* context,
+    TExecutionContext* context,
     TUnversionedValue* result,
     TUnversionedValue* state)
 {

@@ -1,7 +1,7 @@
 #include <yt_udf.h>
 
 void sum_udf2(
-    TExpressionContext* context,
+    TExecutionContext* context,
     TUnversionedValue* result_value,
     TUnversionedValue* n1,
     TUnversionedValue* ns,

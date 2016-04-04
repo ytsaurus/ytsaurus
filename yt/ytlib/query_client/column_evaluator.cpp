@@ -81,8 +81,10 @@ void TColumnEvaluator::EvaluateKey(TMutableRow fullRow, const TRowBufferPtr& buf
     const auto& evaluator = column.Evaluator;
     YCHECK(evaluator);
 
-    TExpressionContext executionContext;
+    TExecutionContext executionContext;
     executionContext.LiteralRows = &column.Variables.LiteralRows;
+    executionContext.PermanentBuffer = buffer;
+    executionContext.OutputBuffer = buffer;
     executionContext.IntermediateBuffer = buffer;
 #ifndef NDEBUG
     int dummy;
@@ -141,7 +143,9 @@ void TColumnEvaluator::InitAggregate(
     TUnversionedValue* state,
     const TRowBufferPtr& buffer) const
 {
-    TExpressionContext executionContext;
+    TExecutionContext executionContext;
+    executionContext.PermanentBuffer = buffer;
+    executionContext.OutputBuffer = buffer;
     executionContext.IntermediateBuffer = buffer;
 
     auto found = Aggregates_.find(index);
@@ -157,7 +161,9 @@ void TColumnEvaluator::UpdateAggregate(
     const TUnversionedValue& update,
     const TRowBufferPtr& buffer) const
 {
-    TExpressionContext executionContext;
+    TExecutionContext executionContext;
+    executionContext.PermanentBuffer = buffer;
+    executionContext.OutputBuffer = buffer;
     executionContext.IntermediateBuffer = buffer;
 
     auto found = Aggregates_.find(index);
@@ -173,7 +179,9 @@ void TColumnEvaluator::MergeAggregate(
     const TUnversionedValue& mergeeState,
     const TRowBufferPtr& buffer) const
 {
-    TExpressionContext executionContext;
+    TExecutionContext executionContext;
+    executionContext.PermanentBuffer = buffer;
+    executionContext.OutputBuffer = buffer;
     executionContext.IntermediateBuffer = buffer;
 
     auto found = Aggregates_.find(index);
@@ -188,7 +196,9 @@ void TColumnEvaluator::FinalizeAggregate(
     const TUnversionedValue& state,
     const TRowBufferPtr& buffer) const
 {
-    TExpressionContext executionContext;
+    TExecutionContext executionContext;
+    executionContext.PermanentBuffer = buffer;
+    executionContext.OutputBuffer = buffer;
     executionContext.IntermediateBuffer = buffer;
 
     auto found = Aggregates_.find(index);

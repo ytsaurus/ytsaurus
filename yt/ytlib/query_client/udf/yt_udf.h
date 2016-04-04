@@ -35,8 +35,10 @@ typedef struct TUnversionedValue
     TUnversionedValueData Data;
 } TUnversionedValue;
 
-typedef struct TExpressionContext TExpressionContext;
+typedef struct TExecutionContext TExecutionContext;
 
-char* AllocateBytes(TExpressionContext* context, size_t size);
+char* AllocatePermanentBytes(TExecutionContext* context, size_t size);
+
+char* AllocateBytes(TExecutionContext* context, size_t size);
 
 void ThrowException(const char* error);

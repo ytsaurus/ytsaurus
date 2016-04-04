@@ -22,7 +22,7 @@ using NCodegen::DemangleSymbol;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const char* ExpressionContextStructName = "struct.TExpressionContext";
+static const char* ExecutionContextStructName = "struct.TExecutionContext";
 static const char* FunctionContextStructName = "struct.NYT::NQueryClient::TFunctionContext";
 static const char* UnversionedValueStructName = "struct.TUnversionedValue";
 
@@ -56,7 +56,7 @@ void PushExecutionContext(
     std::vector<Value*>& argumentValues)
 {
     auto fullContext = builder.GetExecutionContextPtr();
-    auto contextType = GetOpaqueType(builder, ExpressionContextStructName);
+    auto contextType = GetOpaqueType(builder, ExecutionContextStructName);
     auto contextStruct = builder.CreateBitCast(
         fullContext,
         PointerType::getUnqual(contextType));
@@ -256,7 +256,7 @@ llvm::FunctionType* TSimpleCallingConvention::GetCalleeType(
     llvm::Type* calleeResultType;
     auto calleeArgumentTypes = std::vector<llvm::Type*>();
     calleeArgumentTypes.push_back(PointerType::getUnqual(
-        GetOpaqueType(builder, ExpressionContextStructName)));
+        GetOpaqueType(builder, ExecutionContextStructName)));
 
     if (IsStringLikeType(resultType)) {
         calleeResultType = builder.getVoidTy();
@@ -383,7 +383,7 @@ llvm::FunctionType* TUnversionedValueCallingConvention::GetCalleeType(
     auto calleeArgumentTypes = std::vector<llvm::Type*>();
 
     calleeArgumentTypes.push_back(PointerType::getUnqual(
-        GetOpaqueType(builder, ExpressionContextStructName)));
+        GetOpaqueType(builder, ExecutionContextStructName)));
 
     if (UseFunctionContext_) {
         calleeArgumentTypes.push_back(PointerType::getUnqual(

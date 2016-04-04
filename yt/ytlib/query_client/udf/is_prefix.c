@@ -1,7 +1,7 @@
 #include <yt_udf.h>
 
 char is_prefix(
-    TExpressionContext* context,
+    TExecutionContext* context,
     char* pattern_begin,
     int pattern_length,
     char* data_begin,

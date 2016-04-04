@@ -345,18 +345,6 @@ const TRow* InsertGroupRow(
     return &*inserted.first;
 }
 
-void CaptureGroupRowValues(
-    TExecutionContext* context,
-    int keySize,
-    TMutableRow row)
-{
-    CHECK_STACK();
-
-    for (int index = keySize, end = row.GetCount(); index < end; ++index) {
-        context->PermanentBuffer->Capture(&row[index]);
-    }
-}
-
 void AllocateIntermediateRow(TExpressionContext* context, int valueCount, TMutableRow* row)
 {
     CHECK_STACK();
@@ -389,12 +377,22 @@ void OrderOpHelper(
     consumeRows(consumeRowsClosure, &rows, &context->StopFlag);
 }
 
-char* AllocateBytes(TExpressionContext* context, size_t byteCount)
+char* AllocateBytes(TExecutionContext* context, size_t byteCount)
 {
     CHECK_STACK();
 
     return context
         ->IntermediateBuffer
+        ->GetPool()
+        ->AllocateUnaligned(byteCount);
+}
+
+char* AllocatePermanentBytes(TExecutionContext* context, size_t byteCount)
+{
+    CHECK_STACK();
+
+    return context
+        ->PermanentBuffer
         ->GetPool()
         ->AllocateUnaligned(byteCount);
 }
@@ -531,9 +529,9 @@ ui8 RegexPartialMatch(google::re2::RE2* re2, TUnversionedValue* string)
         *re2);
 }
 
-void CopyString(TExpressionContext* context, TUnversionedValue* result, const std::string& str)
+void CopyString(TExecutionContext* context, TUnversionedValue* result, const std::string& str)
 {
-    char* data = AllocateBytes(context, str.size());
+    char* data = AllocatePermanentBytes(context, str.size());
     memcpy(data, str.c_str(), str.size());
     result->Type = EValueType::String;
     result->Length = str.size();
@@ -541,7 +539,7 @@ void CopyString(TExpressionContext* context, TUnversionedValue* result, const st
 }
 
 void RegexReplaceFirst(
-    TExpressionContext* context,
+    TExecutionContext* context,
     google::re2::RE2* re2,
     TUnversionedValue* string,
     TUnversionedValue* rewrite,
@@ -561,7 +559,7 @@ void RegexReplaceFirst(
 
 
 void RegexReplaceAll(
-    TExpressionContext* context,
+    TExecutionContext* context,
     google::re2::RE2* re2,
     TUnversionedValue* string,
     TUnversionedValue* rewrite,
@@ -580,7 +578,7 @@ void RegexReplaceAll(
 }
 
 void RegexExtract(
-    TExpressionContext* context,
+    TExecutionContext* context,
     google::re2::RE2* re2,
     TUnversionedValue* string,
     TUnversionedValue* rewrite,
@@ -600,7 +598,7 @@ void RegexExtract(
 }
 
 void RegexEscape(
-    TExpressionContext* context,
+    TExecutionContext* context,
     TUnversionedValue* string,
     TUnversionedValue* result)
 {
@@ -629,11 +627,11 @@ void RegisterQueryRoutinesImpl(TRoutineRegistry* registry)
     REGISTER_ROUTINE(StringHash);
     REGISTER_ROUTINE(FindRow);
     REGISTER_ROUTINE(InsertGroupRow);
-    REGISTER_ROUTINE(CaptureGroupRowValues);
     REGISTER_ROUTINE(InsertJoinRow);
     REGISTER_ROUTINE(SaveJoinRow);
     REGISTER_ROUTINE(AllocatePermanentRow);
     REGISTER_ROUTINE(AllocateIntermediateRow);
+    REGISTER_ROUTINE(AllocatePermanentBytes);
     REGISTER_ROUTINE(AllocateBytes);
     REGISTER_ROUTINE(GetRowsData);
     REGISTER_ROUTINE(GetRowsSize);
