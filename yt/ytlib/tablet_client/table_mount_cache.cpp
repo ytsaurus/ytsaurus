@@ -10,9 +10,6 @@
 
 #include <yt/ytlib/object_client/object_service_proxy.h>
 
-#include <yt/ytlib/query_client/folding_profiler.h>
-#include <yt/ytlib/query_client/cg_types.h>
-#include <yt/ytlib/query_client/cg_fragment_compiler.h>
 #include <yt/ytlib/query_client/query_statistics.h>
 
 #include <yt/ytlib/table_client/table_ypath_proxy.h>
