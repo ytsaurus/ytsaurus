@@ -16,9 +16,11 @@ import devtools.swag.ports
 _YT_ARCHIVE_NAME = "mapreduce/yt/python/yt.tar" # comes by FROM_SANDBOX
 _YT_PREFIX = "//"
 
+
 class YtConfig:
     def __init__(self, **kwargs):
         self.fqdn = kwargs.get("fqdn", "localhost")
+        self.yt_id = kwargs.get("yt_id")
 
         self.proxy_port = kwargs.get("proxy_port")
         self.node_config = kwargs.get("node_config")
@@ -26,9 +28,10 @@ class YtConfig:
         self.scheduler_config = kwargs.get("scheduler_config")
         self.yt_path = kwargs.get("yt_path")
 
+
 class YtStuff:
-    def __init__(self, config = YtConfig()):
-        self.config = config
+    def __init__(self, config=None):
+        self.config = config or YtConfig()
 
         self._prepare_logger()
         self._prepare_files()
@@ -146,7 +149,7 @@ class YtStuff:
 
     @_timing
     def start_local_yt(self):
-        self.yt_id = str(uuid.uuid4())
+        self.yt_id = self.config.yt_id or str(uuid.uuid4())
         self.yt_proxy_port = devtools.swag.ports.find_free_port() if self.config.proxy_port is None else self.config.proxy_port
 
         self._log("Try to start local YT with id=%s", self.yt_id)
@@ -223,7 +226,11 @@ class YtStuff:
 
 @pytest.fixture(scope="module")
 def yt_stuff(request):
-    yt = YtStuff()
+    try:
+        yt_config = request.getfuncargvalue("yt_config")
+    except Exception, e:
+        yt_config = None
+    yt = YtStuff(yt_config)
     yt.start_local_yt()
     request.addfinalizer(yt.stop_local_yt)
     return yt

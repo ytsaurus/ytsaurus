@@ -5,7 +5,10 @@ OWNER(
 
 PYTEST()
 
-TEST_SRCS(test.py)
+TEST_SRCS(
+    test.py
+    test_with_config.py
+)
 
 TIMEOUT(100)
 
