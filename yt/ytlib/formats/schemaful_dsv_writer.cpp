@@ -30,16 +30,9 @@ static ui16 DigitPairs[100] = {
     12345,  12601,  12857,  13113,  13369,  13625,  13881,  14137,  14393,  14649,
 };
 
-<<<<<<< HEAD
+
 // This class contains methods common for TSchemafulWriterForSchemafulDsv and TSchemalessWriterForSchemafulDsv.
 class TSchemafulDsvWriterBase
-=======
-// This function fills a specific range in the memory with a decimal representation
-// of value in backwards, meaning that the resulting representation will occupy
-// range [ptr - length, ptr). Return value is ptr - length, i. e. the pointer to the
-// beginning of the result.
-char* TSchemafulDsvWriterBase::WriteInt64ToBufferBackwards(char* ptr, i64 value)
->>>>>>> origin/prestable/0.17.5
 {
 protected:
     TBlobOutput* BlobOutput_;
@@ -99,21 +92,11 @@ protected:
                 break;
             }
 
-<<<<<<< HEAD
             default: {
                 WriteRaw('?');
                 break;
             }
         }
-=======
-// Same as WriteInt64Backwards for ui64.
-char* TSchemafulDsvWriterBase::WriteUint64ToBufferBackwards(char* ptr, ui64 value)
-{
-    if (value == 0) {
-        --ptr;
-        *ptr = '0';
-        return ptr;
->>>>>>> origin/prestable/0.17.5
     }
 
     void WriteInt64(i64 value) 
@@ -156,7 +139,6 @@ char* TSchemafulDsvWriterBase::WriteUint64ToBufferBackwards(char* ptr, ui64 valu
         }
     }
 
-<<<<<<< HEAD
     int FindMissingValueIndex() const 
     {
         for (int valueIndex = 0; valueIndex < static_cast<int>(CurrentRowValues_.size()); ++valueIndex) {
@@ -164,22 +146,6 @@ char* TSchemafulDsvWriterBase::WriteUint64ToBufferBackwards(char* ptr, ui64 valu
             if (!value || value->Type == EValueType::Null) {
                 return valueIndex;
             }
-=======
-void TSchemafulDsvWriterBase::WriteValue(const TUnversionedValue& value)
-{
-    switch (value.Type) {
-        case EValueType::Null:
-            break;
-
-        case EValueType::Int64: {
-            WriteInt64(value.Data.Int64);
-            break;
-        }
-
-        case EValueType::Uint64: {
-            WriteUint64(value.Data.Uint64);
-            break;
->>>>>>> origin/prestable/0.17.5
         }
         return -1;
     }
@@ -316,27 +282,10 @@ public:
                 }
             }
 
-<<<<<<< HEAD
             if (Config_->EnableTableIndex && ControlAttributesConfig_->EnableTableIndex &&
                 !CurrentRowValues_[IdToIndexInRow_[TableIndexColumnId_]]) 
             {
                 THROW_ERROR_EXCEPTION("Table index column is missing");
-=======
-        bool firstValue = true;
-        if (Config_->EnableTableIndex) {
-            if (CurrentTableIndex_ == -1) {
-                THROW_ERROR_EXCEPTION("When enable_table_index = true, table index should be set before writing rows");
-            }
-            WriteInt64(CurrentTableIndex_);
-            firstValue = false;
-        }
-
-        for (const auto* item : CurrentRowValues_) {
-            if (!firstValue) {
-                WriteRaw(Config_->FieldSeparator);
-            } else {
-                firstValue = false;
->>>>>>> origin/prestable/0.17.5
             }
             
             int missingValueIndex = FindMissingValueIndex();
@@ -348,7 +297,6 @@ public:
                 }
             }
 
-<<<<<<< HEAD
             bool firstValue = true;
             for (const auto* item : CurrentRowValues_) {
                 if (!firstValue) {
@@ -368,12 +316,6 @@ public:
         }    
         TryFlushBuffer(true);
     }
-=======
-void TSchemalessWriterForSchemafulDsv::WriteTableIndex(i32 tableIndex)
-{
-    CurrentTableIndex_ = tableIndex;
-}
->>>>>>> origin/prestable/0.17.5
 
 private:
     int TableIndexColumnId_ = -1;

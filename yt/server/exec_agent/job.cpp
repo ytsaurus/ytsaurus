@@ -253,10 +253,7 @@ public:
     virtual std::vector<TChunkId> DumpInputContexts() const override
     {
         ValidateJobRunning();
-<<<<<<< HEAD
-=======
 
->>>>>>> origin/prestable/0.17.5
         auto jobProberProxy = CreateJobProber();
         auto req = jobProberProxy.DumpInputContext();
 
@@ -271,10 +268,7 @@ public:
     virtual TYsonString Strace() const override
     {
         ValidateJobRunning();
-<<<<<<< HEAD
-=======
 
->>>>>>> origin/prestable/0.17.5
         auto jobProberProxy = CreateJobProber();
         auto req = jobProberProxy.Strace();
 
@@ -290,10 +284,8 @@ public:
     {
         ValidateJobRunning();
 
-<<<<<<< HEAD
         Signaled_ = true;
-=======
->>>>>>> origin/prestable/0.17.5
+
         auto jobProberProxy = CreateJobProber();
         auto req = jobProberProxy.SignalJob();
 
@@ -316,11 +308,8 @@ private:
     EJobState JobState_ = EJobState::Waiting;
     EJobPhase JobPhase_ = EJobPhase::Created;
 
-<<<<<<< HEAD
     const TCancelableContextPtr CancelableContext_ = New<TCancelableContext>();
-=======
-    TCancelableContextPtr CancelableContext = New<TCancelableContext>();
->>>>>>> origin/prestable/0.17.5
+
     TFuture<void> PrepareResult_ = VoidFuture;
 
     double Progress_ = 0.0;
@@ -345,7 +334,6 @@ private:
 
     void ValidateJobRunning() const
     {
-<<<<<<< HEAD
         if (JobState_ != EJobState::Running) {
             THROW_ERROR_EXCEPTION("Job %v is not running", Id_)
                 << TErrorAttribute("job_state", FormatEnum(JobState_));
@@ -387,67 +375,15 @@ private:
         PrepareUserFiles();
 
         YCHECK(JobPhase_ == EJobPhase::PreparingFiles);
-=======
-        if (JobState != EJobState::Running) {
-            THROW_ERROR_EXCEPTION("Job %v is not running", JobId) 
-                << TErrorAttribute("job_state", FormatEnum(JobState));
-        }
-    }
-
-    TJobProberServiceProxy CreateJobProber() const
-    {
-        YCHECK(Slot);
-
-        auto jobProberClient = CreateTcpBusClient(Slot->GetRpcClientConfig());
-        auto jobProberChannel = CreateBusChannel(jobProberClient);
-
-        TJobProberServiceProxy jobProberProxy(jobProberChannel);
-        jobProberProxy.SetDefaultTimeout(Bootstrap->GetConfig()->ExecAgent->JobProberRpcTimeout);
-        return jobProberProxy;
-    }
-
-
-    void DoPrepare()
-    {
-        YCHECK(JobPhase == EJobPhase::Created);
-        JobPhase = EJobPhase::PreparingConfig;
-        PrepareConfig();
-
-        YCHECK(JobPhase == EJobPhase::PreparingConfig);
-        JobPhase = EJobPhase::PreparingProxy;
-        PrepareProxy();
-
-        YCHECK(JobPhase == EJobPhase::PreparingProxy);
-        JobPhase = EJobPhase::PreparingSandbox;
-        Slot->InitSandbox();
-
-        YCHECK(JobPhase == EJobPhase::PreparingSandbox);
-        JobPhase = EJobPhase::PreparingTmpfs;
-        PrepareTmpfs();
-
-        YCHECK(JobPhase == EJobPhase::PreparingTmpfs);
-        JobPhase = EJobPhase::PreparingFiles;
-        PrepareUserFiles();
-
-        YCHECK(JobPhase == EJobPhase::PreparingFiles);
->>>>>>> origin/prestable/0.17.5
     }
 
     void DoRun()
     {
-<<<<<<< HEAD
         JobPhase_ = EJobPhase::Running;
 
         {
             TGuard<TSpinLock> guard(SpinLock);
             ExecTime_ = TInstant::Now();
-=======
-        JobPhase = EJobPhase::Running;
-
-        {
-            TGuard<TSpinLock> guard(SpinLock);
-            ExecTime = TInstant::Now();
->>>>>>> origin/prestable/0.17.5
         }
 
         RunJobProxy();

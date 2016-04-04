@@ -12,10 +12,7 @@ message TColumnSchema
     required int32 type = 2;
     optional string lock = 3;
     optional string expression = 4;
-<<<<<<< HEAD
     optional string aggregate = 5;
-=======
->>>>>>> origin/prestable/0.17.5
     optional int32 sort_order = 6;
 }
 

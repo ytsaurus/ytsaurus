@@ -9,6 +9,8 @@
 #include "table_commands.h"
 #include "transaction_commands.h"
 
+#include <yt/ytlib/api/transaction.h>
+
 #include <yt/core/yson/null_consumer.h>
 
 namespace NYT {
