@@ -87,7 +87,7 @@ using TJoinEvaluator = std::function<void(
     TComparerFunction* comparer,
     TJoinLookup& joinLookup,
     std::vector<TRow> keys,
-    std::vector<std::pair<TRow, int>> chainedRows,
+    std::vector<std::pair<TRow, i64>> chainedRows,
     TRowBufferPtr permanentBuffer,
     // TODO(babenko): TSharedRange?
     std::vector<TRow>* joinedRows)>;
@@ -121,6 +121,9 @@ struct TExecutionContext
     i64 OutputRowLimit;
     i64 GroupRowLimit;
     i64 JoinRowLimit;
+
+    i64 RowsRead = 0;
+    i64 RowsWritten = 0;
 
     // Limit from LIMIT clause.
     i64 Limit;
@@ -210,8 +213,6 @@ struct TCGAggregateCallbacks
 };
 
 ////////////////////////////////////////////////////////////////////////////////
-
-bool UpdateAndCheckRowLimit(i64* limit, char* flag);
 
 TJoinEvaluator GetJoinEvaluator(
     const TJoinClause& joinClause,

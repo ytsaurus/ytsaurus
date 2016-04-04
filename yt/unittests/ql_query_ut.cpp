@@ -1895,6 +1895,7 @@ TEST_F(TQueryEvaluateTest, TestJoinSimple5)
     splits["//left"] = leftSplit;
     sources.push_back({
         "a=1",
+        "a=1",
         "a=1"
     });
 
@@ -1904,6 +1905,7 @@ TEST_F(TQueryEvaluateTest, TestJoinSimple5)
 
     splits["//right"] = rightSplit;
     sources.push_back({
+        "a=1",
         "a=1",
         "a=1"
     });
@@ -1916,10 +1918,114 @@ TEST_F(TQueryEvaluateTest, TestJoinSimple5)
         "x=1",
         "x=1",
         "x=1",
+        "x=1",
+        "x=1",
+        "x=1",
+        "x=1",
+        "x=1",
         "x=1"
     }, resultSplit);
 
     Evaluate("a as x FROM [//left] join [//right] using a", splits, sources, ResultMatcher(result));
+
+    SUCCEED();
+}
+
+TEST_F(TQueryEvaluateTest, TestJoinLimit)
+{
+    std::map<Stroka, TDataSplit> splits;
+    std::vector<std::vector<Stroka>> sources;
+
+    auto leftSplit = MakeSplit({
+        {"a", EValueType::Int64}
+    });
+
+    splits["//left"] = leftSplit;
+    sources.push_back({
+        "a=1",
+        "a=2",
+        "a=3",
+        "a=4",
+        "a=5"
+    });
+
+    auto rightSplit = MakeSplit({
+        {"a", EValueType::Int64}
+    });
+
+    splits["//right"] = rightSplit;
+    sources.push_back({
+        "a=2",
+        "a=3",
+        "a=4",
+        "a=5",
+        "a=6"
+    });
+
+    auto resultSplit = MakeSplit({
+        {"x", EValueType::Int64}
+    });
+
+    auto result = BuildRows({
+        "x=2",
+        "x=3",
+        "x=4",
+    }, resultSplit);
+
+    Evaluate(
+        "a as x FROM [//left] join [//right] using a",
+        splits,
+        sources,
+        ResultMatcher(result),
+        std::numeric_limits<i64>::max(), 4);
+
+    SUCCEED();
+}
+
+TEST_F(TQueryEvaluateTest, TestJoinLimit2)
+{
+    std::map<Stroka, TDataSplit> splits;
+    std::vector<std::vector<Stroka>> sources;
+
+    auto leftSplit = MakeSplit({
+        {"a", EValueType::Int64}
+    });
+
+    splits["//left"] = leftSplit;
+    sources.push_back({
+        "a=1",
+        "a=1"
+    });
+
+    auto rightSplit = MakeSplit({
+        {"a", EValueType::Int64}
+    });
+
+    splits["//right"] = rightSplit;
+    sources.push_back({
+        "a=1",
+        "a=1",
+        "a=1",
+    });
+
+    auto resultSplit = MakeSplit({
+        {"x", EValueType::Int64}
+    });
+
+    auto result = BuildRows({
+        "x=1",
+        "x=1",
+        "x=1",
+        "x=1",
+        "x=1"
+    }, resultSplit);
+
+    Evaluate(
+        "a as x FROM [//left] join [//right] using a",
+        splits,
+        sources,
+        ResultMatcher(result),
+        std::numeric_limits<i64>::max(), 5);
 
     SUCCEED();
 }
