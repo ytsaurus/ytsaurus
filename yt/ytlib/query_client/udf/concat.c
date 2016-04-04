@@ -3,7 +3,7 @@
 #include <string.h>
 
 void concat(
-    TExecutionContext* context,
+    TExpressionContext* context,
     char** result,
     int* result_len,
     char* s1,

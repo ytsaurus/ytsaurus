@@ -17,14 +17,14 @@ static int string_less_than(
 }
 
 void max_init(
-    TExecutionContext* context,
+    TExpressionContext* context,
     TUnversionedValue* result)
 {
     result->Type = Null;
 }
 
 static void max_iteration(
-    TExecutionContext* context,
+    TExpressionContext* context,
     TUnversionedValue* result,
     TUnversionedValue* state,
     TUnversionedValue* newValue)
@@ -42,7 +42,7 @@ static void max_iteration(
         result->Type = newValue->Type;
         result->Length = newValue->Length;
         if (newValue->Type == String) {
-            char* permanentData = AllocatePermanentBytes(context, newValue->Length);
+            char* permanentData = AllocateBytes(context, newValue->Length);
             memcpy(permanentData, newValue->Data.String, newValue->Length);
             result->Data.String = permanentData;
         } else {
@@ -56,7 +56,7 @@ static void max_iteration(
 }
 
 void max_update(
-    TExecutionContext* context,
+    TExpressionContext* context,
     TUnversionedValue* result,
     TUnversionedValue* state,
     TUnversionedValue* newValue)
@@ -65,7 +65,7 @@ void max_update(
 }
 
 void max_merge(
-    TExecutionContext* context,
+    TExpressionContext* context,
     TUnversionedValue* result,
     TUnversionedValue* dstState,
     TUnversionedValue* state)
@@ -74,7 +74,7 @@ void max_merge(
 }
 
 void max_finalize(
-    TExecutionContext* context,
+    TExpressionContext* context,
     TUnversionedValue* result,
     TUnversionedValue* state)
 {

@@ -1,7 +1,7 @@
 #include <yt_udf.h>
 
 void double_cast(
-    TExecutionContext* context,
+    TExpressionContext* context,
     TUnversionedValue* result,
     TUnversionedValue* value)
 {

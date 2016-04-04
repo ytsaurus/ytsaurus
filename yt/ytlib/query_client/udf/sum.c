@@ -1,14 +1,14 @@
 #include <yt_udf.h>
 
 void sum_init(
-    TExecutionContext* context,
+    TExpressionContext* context,
     TUnversionedValue* result)
 {
     result->Type = Null;
 }
 
 static void sum_iteration(
-    TExecutionContext* context,
+    TExpressionContext* context,
     TUnversionedValue* result,
     TUnversionedValue* state,
     TUnversionedValue* newValue)
@@ -32,7 +32,7 @@ static void sum_iteration(
 }
 
 void sum_update(
-    TExecutionContext* context,
+    TExpressionContext* context,
     TUnversionedValue* result,
     TUnversionedValue* state,
     TUnversionedValue* newValue)
@@ -41,7 +41,7 @@ void sum_update(
 }
 
 void sum_merge(
-    TExecutionContext* context,
+    TExpressionContext* context,
     TUnversionedValue* result,
     TUnversionedValue* dstState,
     TUnversionedValue* state)
@@ -50,7 +50,7 @@ void sum_merge(
 }
 
 void sum_finalize(
-    TExecutionContext* context,
+    TExpressionContext* context,
     TUnversionedValue* result,
     TUnversionedValue* state)
 {
