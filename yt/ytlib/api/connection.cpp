@@ -108,11 +108,6 @@ public:
         return CellDirectory_;
     }
 
-    virtual IFunctionRegistryPtr GetFunctionRegistry() override
-    {
-        return FunctionRegistry_;
-    }
-
     virtual TEvaluatorPtr GetQueryEvaluator() override
     {
         return QueryEvaluator_;
@@ -231,13 +226,10 @@ private:
             GetMasterChannel(EMasterChannelKind::Cache),
             CellDirectory_);
 
-        FunctionRegistry_ = CreateClientFunctionRegistry(
-            CreateClient(TClientOptions()));
-
         QueryEvaluator_ = New<TEvaluator>(Config_->QueryEvaluator);
         ColumnEvaluatorCache_ = New<TColumnEvaluatorCache>(
             Config_->ColumnEvaluatorCache,
-            FunctionRegistry_);
+            CreateBuiltinFunctionRegistry());
     }
 
     friend IConnectionPtr CreateConnection(

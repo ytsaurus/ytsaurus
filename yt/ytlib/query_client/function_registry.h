@@ -52,7 +52,7 @@ private:
 
 IFunctionRegistryPtr CreateBuiltinFunctionRegistry();
 
-IFunctionRegistryPtr CreateClientFunctionRegistry(NApi::IClientPtr client);
+IFunctionRegistryPtr CreateClientFunctionRegistry(TWeakPtr<NApi::IClient> client);
 
 IFunctionRegistryPtr CreateJobFunctionRegistry(
     const std::vector<TUdfDescriptorPtr>& descriptors,
