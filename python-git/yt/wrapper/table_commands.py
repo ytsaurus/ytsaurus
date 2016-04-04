@@ -59,7 +59,7 @@ from keyboard_interrupts_catcher import KeyboardInterruptsCatcher
 from table import TablePath, to_table, to_name, prepare_path
 from cypress_commands import exists, remove, remove_with_empty_dirs, get_attribute, copy, \
                              move, mkdir, find_free_subpath, create, get, get_type, \
-                             _make_formatted_transactional_request, has_attribute
+                             _make_formatted_transactional_request, has_attribute, join_paths
 from file_commands import smart_upload_file
 from operation_commands import Operation, WaitStrategy
 from transaction_commands import _make_transactional_request, abort_transaction
@@ -485,7 +485,7 @@ def create_temp_table(path=None, prefix=None, client=None):
         path = to_name(path, client=client)
     require(exists(path, client=client), lambda: YtError("You cannot create table in unexisting path"))
     if prefix is not None:
-        path = os.path.join(path, prefix)
+        path = join_paths(path, prefix)
     else:
         if not path.endswith("/"):
             path = path + "/"
