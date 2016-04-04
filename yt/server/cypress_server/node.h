@@ -62,6 +62,9 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(TInstant, ModificationTime);
     DEFINE_BYVAL_RW_PROPERTY(TInstant, AccessTime);
 
+    DEFINE_BYVAL_RW_PROPERTY(TNullable<TInstant>, ExpirationTime);
+    DEFINE_BYVAL_RW_PROPERTY(TNullable<TCypressNodeExpirationMap::iterator>, ExpirationIterator);
+
     DEFINE_BYVAL_RW_PROPERTY(i64, AccessCounter);
 
     DEFINE_BYVAL_RW_PROPERTY(i64, Revision);

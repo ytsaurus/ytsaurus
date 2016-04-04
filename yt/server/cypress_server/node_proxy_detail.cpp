@@ -352,7 +352,38 @@ bool TNontemplateCypressNodeProxyBase::SetBuiltinAttribute(const Stroka& key, co
         return true;
     }
 
+    if (key == "expiration_time") {
+        ValidateNoTransaction();
+        ValidatePermission(EPermissionCheckScope::This|EPermissionCheckScope::Descendants, EPermission::Remove);
+
+        auto* node = GetThisImpl();
+        auto cypressManager = Bootstrap_->GetCypressManager();
+        if (node == cypressManager->GetRootNode()) {
+            THROW_ERROR_EXCEPTION("Cannot set \"expiration_time\" for the root");
+        }
+
+        auto time = ConvertTo<TInstant>(value);
+        cypressManager->SetExpirationTime(node, time);
+
+        return true;
+    }
+
     return TObjectProxyBase::SetBuiltinAttribute(key, value);
+}
+
+bool TNontemplateCypressNodeProxyBase::RemoveBuiltinAttribute(const Stroka& key)
+{
+    if (key == "expiration_time") {
+        ValidateNoTransaction();
+
+        auto* node = GetThisImpl();
+        auto cypressManager = Bootstrap_->GetCypressManager();
+        cypressManager->SetExpirationTime(node, Null);
+
+        return true;
+    }
+
+    return TObjectProxyBase::RemoveBuiltinAttribute(key);
 }
 
 TVersionedObjectId TNontemplateCypressNodeProxyBase::GetVersionedId() const
@@ -372,6 +403,7 @@ void TNontemplateCypressNodeProxyBase::ListSystemAttributes(std::vector<TAttribu
     TObjectProxyBase::ListSystemAttributes(descriptors);
 
     const auto* node = GetThisImpl();
+    const auto* trunkNode = node->GetTrunkNode();
     bool hasKey = NodeHasKey(Bootstrap_, node);
     bool isExternal = node->IsExternal();
 
@@ -387,6 +419,9 @@ void TNontemplateCypressNodeProxyBase::ListSystemAttributes(std::vector<TAttribu
         .SetOpaque(true));
     descriptors->push_back(TAttributeDescriptor("key")
         .SetPresent(hasKey));
+    descriptors->push_back(TAttributeDescriptor("expiration_time")
+        .SetPresent(trunkNode->GetExpirationTime().HasValue())
+        .SetRemovable(true));
     descriptors->push_back("creation_time");
     descriptors->push_back("modification_time");
     descriptors->push_back("access_time");
@@ -476,6 +511,12 @@ bool TNontemplateCypressNodeProxyBase::GetBuiltinAttribute(
     if (hasKey && key == "key") {
         BuildYsonFluently(consumer)
             .Value(GetParent()->AsMap()->GetChildKey(this));
+        return true;
+    }
+
+    if (key == "expiration_time" && trunkNode->GetExpirationTime()) {
+        BuildYsonFluently(consumer)
+            .Value(*trunkNode->GetExpirationTime());
         return true;
     }
 

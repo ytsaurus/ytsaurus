@@ -28,7 +28,6 @@ DECLARE_REFCOUNTED_STRUCT(INodeTypeHandler)
 DECLARE_REFCOUNTED_STRUCT(ICypressNodeProxy)
 DECLARE_REFCOUNTED_STRUCT(ICypressNodeVisitor)
 
-DECLARE_REFCOUNTED_CLASS(TAccessTracker)
 DECLARE_REFCOUNTED_CLASS(TCypressManager)
 
 struct ICypressNodeFactory;
@@ -37,6 +36,7 @@ DECLARE_ENTITY_TYPE(TCypressNodeBase, TVersionedNodeId, NObjectClient::TDirectVe
 DECLARE_ENTITY_TYPE(TLock, TLockId, NObjectClient::TDirectObjectIdHash)
 
 using TCypressNodeList = SmallVector<TCypressNodeBase*, 8>;
+using TCypressNodeExpirationMap = std::multimap<TInstant, TCypressNodeBase*>;
 
 struct TLockRequest;
 

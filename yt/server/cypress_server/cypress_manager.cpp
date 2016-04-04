@@ -1,6 +1,7 @@
 #include "cypress_manager.h"
 #include "private.h"
 #include "access_tracker.h"
+#include "expiration_tracker.h"
 #include "config.h"
 #include "lock_proxy.h"
 #include "node_detail.h"
@@ -448,8 +449,8 @@ private:
     void DoResetObject(TCypressNodeBase* node)
     {
         node->ResetWeakRefCounter();
+        node->SetExpirationIterator(Null);
     }
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -543,6 +544,7 @@ public:
         : TMasterAutomatonPart(bootstrap)
         , Config_(config)
         , AccessTracker_(New<TAccessTracker>(config, bootstrap))
+        , ExpirationTracker_(New<TExpirationTracker>(config, bootstrap))
         , NodeMap_(TNodeMapTraits(this))
     {
         auto hydraFacade = Bootstrap_->GetHydraFacade();
@@ -579,6 +581,7 @@ public:
         RegisterMethod(BIND(&TImpl::HydraUpdateAccessStatistics, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraCreateForeignNode, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraCloneForeignNode, Unretained(this)));
+        RegisterMethod(BIND(&TImpl::HydraRemoveExpiredNodes, Unretained(this)));
     }
 
     void Initialize()
@@ -799,34 +802,27 @@ public:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
         YCHECK(trunkNode->IsTrunk());
         YCHECK(request.Mode != ELockMode::None);
-
-        TSubtreeNodes childrenToLock;
         if (recursive) {
             YCHECK(!request.ChildKey);
             YCHECK(!request.AttributeKey);
+        }
+
+        TSubtreeNodes childrenToLock;
+        if (recursive) {
             ListSubtreeNodes(trunkNode, transaction, true, &childrenToLock);
         } else {
             childrenToLock.push_back(trunkNode);
         }
 
-        // Validate all potentials lock to see if we need to take at least one of them.
-        // This throws an exception in case the validation fails.
-        bool isMandatory = false;
-        for (auto* child : childrenToLock) {
-            auto* trunkChild = child->GetTrunkNode();
-
-            bool isChildMandatory;
-            auto error = CheckLock(
-                trunkChild,
-                transaction,
-                request,
-                true,
-                &isChildMandatory);
-
-            error.ThrowOnError();
-
-            isMandatory |= isChildMandatory;
-        }
+        bool isMandatory;
+        CheckLock(
+            trunkNode,
+            transaction,
+            request,
+            true,
+            recursive,
+            &isMandatory)
+            .ThrowOnError();
 
         if (!isMandatory) {
             return GetVersionedNode(trunkNode, transaction);
@@ -870,6 +866,7 @@ public:
             transaction,
             request,
             true,
+            false,
             &isMandatory);
 
         // Is it OK?
@@ -909,6 +906,17 @@ public:
 
         if (HydraManager_->IsLeader() || HydraManager_->IsFollower() && !HasMutationContext()) {
             AccessTracker_->SetAccessed(trunkNode);
+        }
+    }
+
+    void SetExpirationTime(TCypressNodeBase* trunkNode, TNullable<TInstant> time)
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        trunkNode->SetExpirationTime(time);
+
+        if (Bootstrap_->IsPrimaryMaster() && HydraManager_->IsLeader()) {
+            ExpirationTracker_->OnNodeExpirationTimeUpdated(trunkNode);
         }
     }
 
@@ -1115,6 +1123,7 @@ private:
     const TCypressManagerConfigPtr Config_;
 
     const TAccessTrackerPtr AccessTracker_;
+    const TExpirationTrackerPtr ExpirationTracker_;
 
     NHydra::TEntityMap<TCypressNodeBase, TNodeMapTraits> NodeMap_;
     NHydra::TEntityMap<TLock> LockMap_;
@@ -1260,6 +1269,17 @@ private:
         AccessTracker_->Start();
     }
 
+    virtual void OnLeaderRecoveryComplete() override
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        TMasterAutomatonPart::OnLeaderRecoveryComplete();
+
+        if (Bootstrap_->IsPrimaryMaster()) {
+            ExpirationTracker_->Start();
+        }
+    }
+
     virtual void OnStopLeading() override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
@@ -1267,6 +1287,10 @@ private:
         TMasterAutomatonPart::OnStopLeading();
 
         AccessTracker_->Stop();
+
+        if (Bootstrap_->IsPrimaryMaster()) {
+            ExpirationTracker_->Stop();
+        }
     }
 
     virtual void OnStopFollowing() override
@@ -1348,6 +1372,10 @@ private:
             YCHECK(transaction->LockedNodes().erase(trunkNode) == 1);
         }
 
+        if (HydraManager_->IsLeader()) {
+            ExpirationTracker_->OnNodeDestroyed(trunkNode);
+        }
+
         auto handler = GetHandler(trunkNode);
         handler->Destroy(trunkNode);
     }
@@ -1371,6 +1399,43 @@ private:
 
 
     TError CheckLock(
+        TCypressNodeBase* trunkNode,
+        TTransaction* transaction,
+        const TLockRequest& request,
+        bool checkPending,
+        bool recursive,
+        bool* isMandatory)
+    {
+        TSubtreeNodes childrenToLock;
+        if (recursive) {
+            ListSubtreeNodes(trunkNode, transaction, true, &childrenToLock);
+        } else {
+            childrenToLock.push_back(trunkNode);
+        }
+
+        // Validate all potentials lock to see if we need to take at least one of them.
+        // This throws an exception in case the validation fails.
+        *isMandatory = false;
+        for (auto* child : childrenToLock) {
+            auto* trunkChild = child->GetTrunkNode();
+
+            bool isChildMandatory;
+            auto error = DoCheckLock(
+                trunkChild,
+                transaction,
+                request,
+                checkPending,
+                &isChildMandatory);
+            *isMandatory |= isChildMandatory;
+            if (!error.IsOK()) {
+                return error;
+            }
+        }
+
+        return TError();
+    }
+
+    TError DoCheckLock(
         TCypressNodeBase* trunkNode,
         TTransaction* transaction,
         const TLockRequest& request,
@@ -1738,10 +1803,12 @@ private:
         // Ignore orphaned nodes.
         // Eventually the node will get destroyed and the lock will become
         // orphaned.
-        if (IsOrphaned(trunkNode))
+        if (IsOrphaned(trunkNode)) {
             return;
+        }
 
-        // Make acquisitions while possible.
+        // Make as many acquisitions as possible.
+        bool acquired = false;
         auto it = trunkNode->PendingLocks().begin();
         while (it != trunkNode->PendingLocks().end()) {
             // Be prepared to possible iterator invalidation.
@@ -1754,13 +1821,20 @@ private:
                 lock->GetTransaction(),
                 lock->Request(),
                 false,
+                false,
                 &isMandatory);
 
             // Is it OK?
-            if (!error.IsOK())
-                return;
+            if (!error.IsOK()) {
+                break;
+            }
 
             DoAcquireLock(lock);
+            acquired = true;
+        }
+
+        if (!acquired && Bootstrap_->IsPrimaryMaster() && IsLeader()) {
+            ExpirationTracker_->OnNodeUnlocked(trunkNode);
         }
     }
 
@@ -1985,6 +2059,8 @@ private:
 
     void HydraUpdateAccessStatistics(NProto::TReqUpdateAccessStatistics* request) throw()
     {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
         for (const auto& update : request->updates()) {
             auto nodeId = FromProto<TNodeId>(update.node_id());
             auto* node = FindNode(TVersionedNodeId(nodeId));
@@ -2005,6 +2081,7 @@ private:
 
     void HydraCreateForeignNode(NProto::TReqCreateForeignNode* request) throw()
     {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
         YCHECK(Bootstrap_->IsSecondaryMaster());
 
         auto nodeId = FromProto<TObjectId>(request->node_id());
@@ -2060,6 +2137,7 @@ private:
 
     void HydraCloneForeignNode(NProto::TReqCloneForeignNode* request) throw()
     {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
         YCHECK(Bootstrap_->IsSecondaryMaster());
 
         auto sourceNodeId = FromProto<TNodeId>(request->source_node_id());
@@ -2108,6 +2186,48 @@ private:
         factory->Commit();
     }
 
+    void HydraRemoveExpiredNodes(NProto::TReqRemoveExpiredNodes* request) throw()
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        for (const auto& protoId : request->node_ids()) {
+            auto nodeId = FromProto<TNodeId>(protoId);
+
+            auto* trunkNode = NodeMap_.Find(TVersionedNodeId(nodeId, NullTransactionId));
+            if (!trunkNode) {
+                continue;
+            }
+
+            if (IsOrphaned(trunkNode)) {
+                continue;
+            }
+
+            bool isMandatory;
+            auto error = CheckLock(
+                trunkNode,
+                nullptr,
+                ELockMode::Exclusive,
+                true,
+                true,
+                &isMandatory);
+
+            if (error.IsOK()) {
+                LOG_DEBUG_UNLESS(IsRecovery(), "Removing expired node (NodeId: %v)",
+                    nodeId);
+
+                auto nodeProxy = GetNodeProxy(trunkNode, nullptr);
+                auto parentProxy = nodeProxy->GetParent();
+                parentProxy->RemoveChild(nodeProxy);
+            } else {
+                LOG_DEBUG_UNLESS(IsRecovery(), error, "Cannot remove an expired node; backing off and retrying (NodeId: %v)",
+                    nodeId);
+
+                if (Bootstrap_->IsPrimaryMaster() && HydraManager_->IsLeader()) {
+                    ExpirationTracker_->OnNodeUnlocked(trunkNode);
+                }
+            }
+        }
+    }
 };
 
 DEFINE_ENTITY_MAP_ACCESSORS(TCypressManager::TImpl, Node, TCypressNodeBase, NodeMap_);
@@ -2297,6 +2417,11 @@ void TCypressManager::SetModified(
 void TCypressManager::SetAccessed(TCypressNodeBase* trunkNode)
 {
     Impl_->SetAccessed(trunkNode);
+}
+
+void TCypressManager::SetExpirationTime(TCypressNodeBase* trunkNode, TNullable<TInstant> time)
+{
+    Impl_->SetExpirationTime(trunkNode, time);
 }
 
 TCypressManager::TSubtreeNodes TCypressManager::ListSubtreeNodes(

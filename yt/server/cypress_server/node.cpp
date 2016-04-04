@@ -99,6 +99,7 @@ void TCypressNodeBase::Save(TSaveContext& context) const
     Save(context, PendingLocks_);
     TNonversionedObjectRefSerializer::Save(context, Parent_);
     Save(context, LockMode_);
+    Save(context, ExpirationTime_);
     Save(context, CreationTime_);
     Save(context, ModificationTime_);
     Save(context, Revision_);
@@ -124,6 +125,10 @@ void TCypressNodeBase::Load(TLoadContext& context)
     Load(context, PendingLocks_);
     TNonversionedObjectRefSerializer::Load(context, Parent_);
     Load(context, LockMode_);
+    // COMPAT(babenko)
+    if (context.GetVersion() >= 211) {
+        Load(context, ExpirationTime_);
+    }
     Load(context, CreationTime_);
     Load(context, ModificationTime_);
     Load(context, Revision_);
