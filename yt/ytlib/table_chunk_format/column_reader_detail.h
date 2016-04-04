@@ -552,13 +552,14 @@ protected:
             return std::make_pair(lowerRowIndex, upperRowIndex);
         }
 
-        int segmentLimit = FindSegmentByRow(upperRowIndex - 1) + 1;
+        int segmentLimit = FindSegmentByRow(upperRowIndex - 1);
+        segmentLimit = std::min(segmentLimit, LastBlockSegmentIndex_);
 
         // Get lower limit for range.
         int lowerSegmentIndex = FindSegmentByRow(lowerRowIndex);
         auto lowerSegmentReader = CreateSegmentReader(lowerSegmentIndex);
 
-        while (lowerSegmentIndex < segmentLimit - 1 &&
+        while (lowerSegmentIndex < segmentLimit &&
             CompareValues<ValueType>(lowerSegmentReader->GetLastValue(), value) < 0)
         {
             lowerSegmentReader = CreateSegmentReader(++lowerSegmentIndex);
@@ -574,7 +575,7 @@ protected:
         int upperSegmentIndex = lowerSegmentIndex;
         auto upperSegmentReader = CreateSegmentReader(upperSegmentIndex);
 
-        while (upperSegmentIndex < segmentLimit - 1 &&
+        while (upperSegmentIndex < segmentLimit &&
             CompareValues<ValueType>(upperSegmentReader->GetLastValue(), value) <= 0)
         {
             upperSegmentReader = CreateSegmentReader(++upperSegmentIndex);
