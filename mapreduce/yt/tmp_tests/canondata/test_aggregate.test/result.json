@@ -1,0 +1,10 @@
+[
+    {
+        "checksum": "eddeeab44ae3811e8326f13d8788992b",
+        "uri": "sbr://87092263"
+    },
+    {
+        "checksum": "d41d8cd98f00b204e9800998ecf8427e",
+        "uri": "file://fake"
+    }
+]
