@@ -3,7 +3,7 @@
 #include <time.h>
 
 int64_t sleep(
-    TExecutionContext* context,
+    TExpressionContext* context,
     int64_t value)
 {
     if (value < 1) {

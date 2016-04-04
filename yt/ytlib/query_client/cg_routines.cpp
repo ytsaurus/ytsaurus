@@ -368,22 +368,12 @@ void OrderOpHelper(
     consumeRows(consumeRowsClosure, &rows, &context->StopFlag);
 }
 
-char* AllocateBytes(TExecutionContext* context, size_t byteCount)
+char* AllocateBytes(TExpressionContext* context, size_t byteCount)
 {
     CHECK_STACK();
 
     return context
         ->IntermediateBuffer
-        ->GetPool()
-        ->AllocateUnaligned(byteCount);
-}
-
-char* AllocatePermanentBytes(TExecutionContext* context, size_t byteCount)
-{
-    CHECK_STACK();
-
-    return context
-        ->PermanentBuffer
         ->GetPool()
         ->AllocateUnaligned(byteCount);
 }
@@ -520,9 +510,9 @@ ui8 RegexPartialMatch(google::re2::RE2* re2, TUnversionedValue* string)
         *re2);
 }
 
-void CopyString(TExecutionContext* context, TUnversionedValue* result, const std::string& str)
+void CopyString(TExpressionContext* context, TUnversionedValue* result, const std::string& str)
 {
-    char* data = AllocatePermanentBytes(context, str.size());
+    char* data = AllocateBytes(context, str.size());
     memcpy(data, str.c_str(), str.size());
     result->Type = EValueType::String;
     result->Length = str.size();
@@ -530,7 +520,7 @@ void CopyString(TExecutionContext* context, TUnversionedValue* result, const std
 }
 
 void RegexReplaceFirst(
-    TExecutionContext* context,
+    TExpressionContext* context,
     google::re2::RE2* re2,
     TUnversionedValue* string,
     TUnversionedValue* rewrite,
@@ -550,7 +540,7 @@ void RegexReplaceFirst(
 
 
 void RegexReplaceAll(
-    TExecutionContext* context,
+    TExpressionContext* context,
     google::re2::RE2* re2,
     TUnversionedValue* string,
     TUnversionedValue* rewrite,
@@ -569,7 +559,7 @@ void RegexReplaceAll(
 }
 
 void RegexExtract(
-    TExecutionContext* context,
+    TExpressionContext* context,
     google::re2::RE2* re2,
     TUnversionedValue* string,
     TUnversionedValue* rewrite,
@@ -589,7 +579,7 @@ void RegexExtract(
 }
 
 void RegexEscape(
-    TExecutionContext* context,
+    TExpressionContext* context,
     TUnversionedValue* string,
     TUnversionedValue* result)
 {
@@ -622,7 +612,6 @@ void RegisterQueryRoutinesImpl(TRoutineRegistry* registry)
     REGISTER_ROUTINE(SaveJoinRow);
     REGISTER_ROUTINE(AllocatePermanentRow);
     REGISTER_ROUTINE(AllocateIntermediateRow);
-    REGISTER_ROUTINE(AllocatePermanentBytes);
     REGISTER_ROUTINE(AllocateBytes);
     REGISTER_ROUTINE(GetRowsData);
     REGISTER_ROUTINE(GetRowsSize);

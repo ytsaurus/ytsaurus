@@ -1,7 +1,7 @@
 #include <yt_udf.h>
 
 void is_null(
-    TExecutionContext* context,
+    TExpressionContext* context,
     TUnversionedValue* result,
     TUnversionedValue* value)
 {

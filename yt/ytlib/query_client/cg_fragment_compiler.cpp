@@ -1597,7 +1597,7 @@ TCGExpressionCallback CodegenExpression(TCodegenExpression codegenExpression)
     Value* resultPtr = args; resultPtr->setName("resultPtr");
     Value* inputRow = ++args; inputRow->setName("inputRow");
     Value* constants = ++args; constants->setName("constants");
-    Value* executionContextPtr = ++args; executionContextPtr->setName("passedFragmentParamsPtr");
+    Value* executionContextPtr = ++args; executionContextPtr->setName("executionContextPtr");
     Value* functionContextsPtr = ++args; functionContextsPtr->setName("functionContextsPtr");
     YCHECK(++args == function->arg_end());
 
