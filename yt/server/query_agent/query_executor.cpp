@@ -106,7 +106,7 @@ public:
         : Config_(config)
         , Bootstrap_(bootstrap)
         , Evaluator_(New<TEvaluator>(Config_))
-        , FunctionRegistry_(Bootstrap_->GetMasterClient()->GetConnection()->GetFunctionRegistry())
+        , FunctionRegistry_(Bootstrap_->GetMasterClient()->GetFunctionRegistry())
         , ColumnEvaluatorCache_(Bootstrap_->GetMasterClient()->GetConnection()->GetColumnEvaluatorCache())
     { }
 

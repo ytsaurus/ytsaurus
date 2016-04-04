@@ -818,7 +818,6 @@ public:
         : Connection_(std::move(connection))
         , Options_(options)
         , Invoker_(Connection_->GetDispatcher()->GetLightInvoker())
-        , FunctionRegistry_(Connection_->GetFunctionRegistry())
     {
         for (auto kind : TEnumTraits<EMasterChannelKind>::GetDomainValues()) {
             MasterChannels_[kind] = Connection_->GetMasterChannel(kind);
@@ -850,6 +849,8 @@ public:
             GetMasterChannel(EMasterChannelKind::Leader),
             Connection_->GetTimestampProvider(),
             Connection_->GetCellDirectory());
+
+        FunctionRegistry_ = CreateClientFunctionRegistry(MakeWeak(this));
 
         QueryHelper_ = New<TQueryHelper>(
             Connection_,
@@ -889,6 +890,11 @@ public:
     virtual NQueryClient::IExecutorPtr GetQueryExecutor() override
     {
         return QueryHelper_;
+    }
+
+    virtual NQueryClient::IFunctionRegistryPtr GetFunctionRegistry() override
+    {
+        return FunctionRegistry_;
     }
 
     virtual TFuture<void> Terminate() override
@@ -1132,7 +1138,7 @@ private:
 
     const IInvokerPtr Invoker_;
 
-    const IFunctionRegistryPtr FunctionRegistry_;
+    IFunctionRegistryPtr FunctionRegistry_;
 
     TEnumIndexedVector<IChannelPtr, EMasterChannelKind> MasterChannels_;
     IChannelPtr SchedulerChannel_;

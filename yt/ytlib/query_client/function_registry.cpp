@@ -311,15 +311,15 @@ IAggregateFunctionDescriptorPtr TCypressFunctionRegistry::LookupAggregate(const 
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IFunctionRegistryPtr CreateClientFunctionRegistry(NApi::IClientPtr client)
+IFunctionRegistryPtr CreateClientFunctionRegistry(TWeakPtr<NApi::IClient> client_)
 {
-    auto config = client->GetConnection()->GetConfig();
+    auto client = client_.Lock();
     auto builtinRegistry = CreateBuiltinFunctionRegistry();
 
-    if (config->EnableUdf) {
+    if (client && client->GetConnection()->GetConfig()->EnableUdf) {
         return New<TCypressFunctionRegistry>(
             client,
-            config->UdfRegistryPath,
+            client->GetConnection()->GetConfig()->UdfRegistryPath,
             std::move(builtinRegistry));
     } else {
         return builtinRegistry;
