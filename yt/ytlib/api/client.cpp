@@ -2923,13 +2923,8 @@ private:
             TTransaction* transaction,
             const TYPath& path,
             TNameTablePtr nameTable,
-<<<<<<< HEAD
-            std::vector<NTableClient::TKey> keys,
-            const TDeleteRowsOptions& /*options*/)
-=======
             TSharedRange<TKey> keys,
-            const TDeleteRowsOptions& options)
->>>>>>> origin/prestable/0.17.5
+            const TDeleteRowsOptions& /*options*/)
             : TModifyRequest(transaction, path, std::move(nameTable))
             , Keys_(std::move(keys))
         { }
