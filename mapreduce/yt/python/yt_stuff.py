@@ -16,8 +16,20 @@ import devtools.swag.ports
 _YT_ARCHIVE_NAME = "mapreduce/yt/python/yt.tar" # comes by FROM_SANDBOX
 _YT_PREFIX = "//"
 
+class YtConfig:
+    def __init__(self, **kwargs):
+        self.fqdn = kwargs.get("fqdn", "localhost")
+
+        self.proxy_port = kwargs.get("proxy_port")
+        self.node_config = kwargs.get("node_config")
+        self.proxy_config = kwargs.get("proxy_config")
+        self.scheduler_config = kwargs.get("scheduler_config")
+        self.yt_path = kwargs.get("yt_path")
+
 class YtStuff:
-    def __init__(self):
+    def __init__(self, config = YtConfig()):
+        self.config = config
+
         self._prepare_logger()
         self._prepare_files()
         self._prepare_env()
@@ -56,7 +68,7 @@ class YtStuff:
             self.tmpfs_path = tempfile.mkdtemp(prefix="yt_", dir=self.tmpfs_path)
 
         # Folders
-        self.yt_path = tempfile.mkdtemp(dir=work_path, prefix="yt_")
+        self.yt_path = tempfile.mkdtemp(dir=work_path, prefix="yt_") if self.config.yt_path is None else self.config.yt_path
         self.yt_bins_path = os.path.join(self.yt_path, "bin")
         self.yt_python_path = os.path.join(self.yt_path, "python")
         self.yt_node_path = os.path.join(self.yt_path, "node")
@@ -90,7 +102,7 @@ class YtStuff:
         self.env["YT_ENABLE_VERBOSE_LOGGING"] = "1"
 
     def _import_wrapper(self):
-        sys.path.append(self.yt_python_path)
+        sys.path.insert(0, self.yt_python_path)
         import yt.wrapper
         self.yt_wrapper = yt.wrapper
         self.yt_wrapper.config.PREFIX = _YT_PREFIX
@@ -135,7 +147,7 @@ class YtStuff:
     @_timing
     def start_local_yt(self):
         self.yt_id = str(uuid.uuid4())
-        self.yt_proxy_port = devtools.swag.ports.find_free_port()
+        self.yt_proxy_port = devtools.swag.ports.find_free_port() if self.config.proxy_port is None else self.config.proxy_port
 
         self._log("Try to start local YT with id=%s", self.yt_id)
         try:
@@ -144,21 +156,28 @@ class YtStuff:
                 "--id=%s" % self.yt_id,
                 "--path=%s" % self.yt_work_dir,
                 "--proxy-port=%d" % self.yt_proxy_port,
-                "--fqdn=localhost",
+                "--fqdn", self.config.fqdn
             ]
             if self.tmpfs_path:
                 args.append("--tmpfs-path=%s" % self.tmpfs_path)
             if yatest.common.get_param("yt_enable_debug_logging"):
                 args.append("--enable-debug-logging")
 
+            if self.config.node_config:
+                args += ["--node-config", self.config.node_config]
+            if self.config.scheduler_config:
+                args += ["--scheduler-config", self.config.scheduler_config]
+            if self.config.proxy_config:
+                args += ["--proxy-config", self.config.proxy_config]
+
             res = self._yt_local(*args)
         except Exception, e:
             self._log("Failed to start local YT:\n%s", str(e))
             self._save_logs(save_yt_all=True)
             raise
-        self.yt_proxy_port = int(res.std_err.strip().splitlines()[-1].strip().split(":")[-1])
         self.yt_wrapper.config["proxy"]["url"] = self.get_server()
         self.yt_wrapper.config["proxy"]["enable_proxy_discovery"] = False
+        self.env["YT_PROXY"] = self.get_server()
 
     @_timing
     def stop_local_yt(self):
