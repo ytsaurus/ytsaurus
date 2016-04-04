@@ -9,35 +9,7 @@
 #include "table_commands.h"
 #include "transaction_commands.h"
 
-<<<<<<< HEAD
 #include <yt/core/yson/null_consumer.h>
-=======
-#include <yt/ytlib/api/connection.h>
-#include <yt/ytlib/api/dispatcher.h>
-#include <yt/ytlib/api/transaction.h>
-
-#include <yt/ytlib/chunk_client/block_cache.h>
-
-#include <yt/ytlib/hive/cell_directory.h>
-
-#include <yt/ytlib/tablet_client/table_mount_cache.h>
-
-#include <yt/ytlib/transaction_client/timestamp_provider.h>
-
-#include <yt/core/concurrency/parallel_awaiter.h>
-#include <yt/core/concurrency/scheduler.h>
-
-#include <yt/core/misc/common.h>
-#include <yt/core/misc/lease_manager.h>
-
-#include <yt/core/rpc/scoped_channel.h>
-
-#include <yt/core/yson/parser.h>
-
-#include <yt/core/ytree/ephemeral_node_factory.h>
-#include <yt/core/ytree/forwarding_yson_consumer.h>
-#include <yt/core/ytree/null_yson_consumer.h>
->>>>>>> origin/prestable/0.17.5
 
 namespace NYT {
 namespace NDriver {

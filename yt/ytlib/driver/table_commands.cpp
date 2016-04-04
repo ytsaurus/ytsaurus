@@ -302,12 +302,8 @@ void TInsertRowsCommand::Execute(ICommandContextPtr context)
     transaction->WriteRows(
         Path.GetPath(),
         valueConsumer->GetNameTable(),
-<<<<<<< HEAD
-        std::move(rows),
+        std::move(rowRange),
         writeOptions);
-=======
-        std::move(rowRange));
->>>>>>> origin/prestable/0.17.5
 
     if (shouldCommit) {
         WaitFor(transaction->Commit())
