@@ -37,7 +37,7 @@ class TCGContext
 
 public:
     const TCGModulePtr Module;
-    
+
     TCGContext(
         const TCGModulePtr module,
         Value* constantsRow,
