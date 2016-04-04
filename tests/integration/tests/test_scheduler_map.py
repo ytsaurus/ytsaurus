@@ -1275,11 +1275,11 @@ print row + table_index
                 "max_failed_job_count": 1
             })
 
-        assert read_table("//tmp/output") == [
-            {"key":"00000", "value":"foo"},
-            {"key":"00001", "value":"foo"},
-            {"key":"00002", "value":"foo"},
-        ]
+        for i in xrange(3):
+            op.resume_job(op.jobs[0])
+
+        op.track()
+        assert len(read_table("//tmp/output")) == 3
 
     def test_multiple_row_count_limit(self):
         create("table", "//tmp/input")
