@@ -83,13 +83,11 @@ public:
                 NProfiling::TAggregatingTimingGuard timingGuard(&wallTime);
 
                 TCGVariables fragmentParams;
-                std::vector<std::vector<bool>> allLiteralArgs;
                 auto cgQuery = Codegen(
                     query,
                     fragmentParams,
                     functionProfilers,
                     aggregateProfilers,
-                    allLiteralArgs,
                     statistics,
                     enableCodeCache);
 
@@ -120,7 +118,7 @@ public:
                 executionContext.Limit = query->Limit;
 
                 std::vector<TFunctionContext*> functionContexts;
-                for (auto& literalArgs : allLiteralArgs) {
+                for (auto& literalArgs : fragmentParams.AllLiteralArgs) {
                     executionContext.FunctionContexts.emplace_back(std::move(literalArgs));
                 }
                 for (auto& functionContext : executionContext.FunctionContexts) {
@@ -215,13 +213,12 @@ private:
         TCGVariables& variables,
         const TConstFunctionProfilerMapPtr& functionProfilers,
         const TConstAggregateProfilerMapPtr& aggregateProfilers,
-        std::vector<std::vector<bool>>& literalArgs,
         TQueryStatistics& statistics,
         bool enableCodeCache)
     {
         llvm::FoldingSetNodeID id;
 
-        auto makeCodegenQuery = Profile(query, &id, &variables, &literalArgs, functionProfilers, aggregateProfilers);
+        auto makeCodegenQuery = Profile(query, &id, &variables, functionProfilers, aggregateProfilers);
 
         auto Logger = BuildLogger(query);
 

@@ -48,7 +48,6 @@ TColumnEvaluatorPtr TColumnEvaluator::Create(
                 schema,
                 nullptr,
                 &column.Variables,
-                &column.LiteralArgs,
                 profilers)();
 
             for (const auto& reference : references) {
@@ -92,7 +91,7 @@ void TColumnEvaluator::EvaluateKey(TMutableRow fullRow, const TRowBufferPtr& buf
 #endif
 
     std::vector<TFunctionContext*> functionContexts;
-    for (auto& literalArgs : column.LiteralArgs) {
+    for (auto& literalArgs : column.Variables.AllLiteralArgs) {
         executionContext.FunctionContexts.emplace_back(std::move(literalArgs));
     }
     for (auto& functionContext : executionContext.FunctionContexts) {

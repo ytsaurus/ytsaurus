@@ -67,7 +67,6 @@ private:
         TCGVariables Variables;
         std::vector<int> ReferenceIds;
         TConstExpressionPtr Expression;
-        std::vector<std::vector<bool>> LiteralArgs;
     };
 
     std::vector<TColumn> Columns_;

@@ -104,32 +104,22 @@ class TExpressionProfiler
 public:
     TExpressionProfiler(
         llvm::FoldingSetNodeID* id,
+        TCGVariables* variables,
         const TConstFunctionProfilerMapPtr& functionProfilers)
         : TSchemaProfiler(id)
+        , Variables_(variables)
         , FunctionProfilers_(functionProfilers)
-    { }
+    {
+        YCHECK(variables);
+    }
 
     TCodegenExpression Profile(TConstExpressionPtr expr, const TTableSchema& tableSchema);
 
-    void Set(TCGVariables* variables);
-    void Set(std::vector<std::vector<bool>>* literalArgs);
-
 protected:
-    TCGVariables* Variables_ = nullptr;
-    std::vector<std::vector<bool>>* LiteralArgs_ = nullptr;
+    TCGVariables* Variables_;
 
     TConstFunctionProfilerMapPtr FunctionProfilers_;
 };
-
-void TExpressionProfiler::Set(TCGVariables* variables)
-{
-    Variables_ = variables;
-}
-
-void TExpressionProfiler::Set(std::vector<std::vector<bool>>* literalArgs)
-{
-    LiteralArgs_ = literalArgs;
-}
 
 TCodegenExpression TExpressionProfiler::Profile(TConstExpressionPtr expr, const TTableSchema& schema)
 {
@@ -138,9 +128,7 @@ TCodegenExpression TExpressionProfiler::Profile(TConstExpressionPtr expr, const 
         Fold(static_cast<int>(EFoldingObjectType::LiteralExpr));
         Fold(static_cast<ui16>(TValue(literalExpr->Value).Type));
 
-        int index = Variables_
-            ? Variables_->ConstantsRowBuilder.AddValue(TValue(literalExpr->Value))
-            : -1;
+        int index = Variables_->ConstantsRowBuilder.AddValue(TValue(literalExpr->Value));
 
         return MakeCodegenLiteralExpr(index, literalExpr->Type);
     } else if (auto referenceExpr = expr->As<TReferenceExpression>()) {
@@ -164,11 +152,8 @@ TCodegenExpression TExpressionProfiler::Profile(TConstExpressionPtr expr, const 
             literalArgs.push_back(argument->As<TLiteralExpression>() != nullptr);
         }
 
-        int index = -1;
-        if (LiteralArgs_) {
-            index =  LiteralArgs_->size();
-            LiteralArgs_->push_back(std::move(literalArgs));
-        }
+        int index =  Variables_->AllLiteralArgs.size();
+        Variables_->AllLiteralArgs.push_back(std::move(literalArgs));
 
         const auto& function = FunctionProfilers_->GetFunction(functionExpr->FunctionName);
 
@@ -206,11 +191,8 @@ TCodegenExpression TExpressionProfiler::Profile(TConstExpressionPtr expr, const 
             codegenArgs.push_back(Profile(argument, schema));
         }
 
-        int index = -1;
-        if (Variables_) {
-            index = Variables_->LiteralRows.size();
-            Variables_->LiteralRows.push_back(inOp->Values);
-        }
+        int index = Variables_->LiteralRows.size();
+        Variables_->LiteralRows.push_back(inOp->Values);
 
         return MakeCodegenInOpExpr(codegenArgs, index);
     }
@@ -226,9 +208,10 @@ class TQueryProfiler
 public:
     TQueryProfiler(
         llvm::FoldingSetNodeID* id,
+        TCGVariables* variables,
         const TConstFunctionProfilerMapPtr& functionProfilers,
         const TConstAggregateProfilerMapPtr& aggregateProfilers)
-        : TExpressionProfiler(id, functionProfilers)
+        : TExpressionProfiler(id, variables, functionProfilers)
         , AggregateProfilers_(aggregateProfilers)
     { }
 
@@ -461,12 +444,9 @@ TCGExpressionCallbackGenerator Profile(
     const TTableSchema& schema,
     llvm::FoldingSetNodeID* id,
     TCGVariables* variables,
-    std::vector<std::vector<bool>>* literalArgs,
     const TConstFunctionProfilerMapPtr& functionProfilers)
 {
-    TExpressionProfiler profiler(id, functionProfilers);
-    profiler.Set(variables);
-    profiler.Set(literalArgs);
+    TExpressionProfiler profiler(id, variables, functionProfilers);
 
     return [
             codegenExpr = profiler.Profile(expr, schema)
@@ -479,13 +459,10 @@ TCGQueryCallbackGenerator Profile(
     TConstQueryPtr query,
     llvm::FoldingSetNodeID* id,
     TCGVariables* variables,
-    std::vector<std::vector<bool>>* literalArgs,
     const TConstFunctionProfilerMapPtr& functionProfilers,
     const TConstAggregateProfilerMapPtr& aggregateProfilers)
 {
-    TQueryProfiler profiler(id, functionProfilers, aggregateProfilers);
-    profiler.Set(variables);
-    profiler.Set(literalArgs);
+    TQueryProfiler profiler(id, variables, functionProfilers, aggregateProfilers);
 
     return [
             codegenSource = profiler.Profile(query)
