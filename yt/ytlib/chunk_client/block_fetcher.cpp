@@ -150,7 +150,8 @@ TFuture<TSharedRef> TBlockFetcher::FetchBlock(int blockIndex)
     }
     auto returnValue = windowSlot.Block.ToFuture();
 
-    if (--windowSlot.RemainingFetches == 0 && windowSlot.Block.IsSet()) {
+    auto block = windowSlot.Block;
+    if (--windowSlot.RemainingFetches == 0 && block.IsSet()) {
         TDispatcher::Get()->GetReaderInvoker()->Invoke(
             BIND(&TBlockFetcher::ReleaseBlock,
                 MakeWeak(this),
