@@ -10,9 +10,9 @@ from yt.zip import ZipFile
 import yt.logger as logger
 
 import imp
+import string
 import inspect
 import os
-import pipes
 import shutil
 import socket
 import tempfile
@@ -269,12 +269,18 @@ def create_modules_archive(tempfiles_manager, client):
 
     return create_modules_archive_default(tempfiles_manager, client)
 
+def simplify(function_name):
+    def fix(sym):
+        if sym not in string.ascii_letters and sym not in string.digits:
+            return "_"
+        return sym
+    return "".join(map(fix, function_name[:30]))
 
 def get_function_name(function):
     if hasattr(function, "__name__"):
-        return function.__name__
+        return simplify(function.__name__)
     elif hasattr(function, "__class__") and hasattr(function.__class__, "__name__"):
-        return function.__class__.__name__
+        return simplify(function.__class__.__name__)
     else:
         return "operation"
 
@@ -354,7 +360,7 @@ def do_wrap(function, operation_type, tempfiles_manager, input_format, output_fo
 
     files = map(os.path.abspath, [
         os.path.join(LOCATION, "_py_runner.py"),
-        pipes.quote(function_filename),
+        function_filename,
         config_filename,
         modules_info_filename,
         main_filename])
