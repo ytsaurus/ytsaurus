@@ -452,22 +452,20 @@ private:
     DECLARE_YPATH_SERVICE_METHOD(NTableClient::NProto, Alter)
     { 
         DeclareMutating();
-        
-        if (request->has_schema()) {
-            auto newSchema = FromProto<TTableSchema>(request->schema());
-            SetSchema(newSchema);
 
-            context->SetRequestInfo(
-                "NewSchema: %v",
-                ConvertToYsonString(newSchema).Data());
-        } else {
-            // Nothing to do.
-            context->SetRequestInfo("NewSchema: <Null>");
+        auto newSchema = request->has_schema()
+            ? MakeNullable(FromProto<TTableSchema>(request->schema()))
+            : Null;
+
+        context->SetRequestInfo("NewSchema: %v",
+            newSchema);
+
+        if (newSchema) {
+            SetSchema(*newSchema);
         }
 
         context->Reply();
     }
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
