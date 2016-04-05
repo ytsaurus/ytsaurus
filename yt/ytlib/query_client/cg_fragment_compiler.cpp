@@ -40,7 +40,6 @@ void CodegenForEachRow(
     TCGContext& builder,
     Value* rows,
     Value* size,
-    Value* stopFlag,
     const TCodegenConsumer& codegenConsumer)
 {
     auto* loopBB = builder.CreateBBHere("loop");
@@ -57,11 +56,7 @@ void CodegenForEachRow(
 
     // if (index != size) ...
     Value* index = builder.CreateLoad(indexPtr, "index");
-    Value* condition = builder.CreateAnd(
-        builder.CreateICmpNE(index, size),
-        builder.CreateICmpEQ(
-            builder.CreateLoad(stopFlag, "stopFlag"),
-            builder.getInt8(0)));
+    Value* condition = builder.CreateICmpNE(index, size);
     builder.CreateCondBr(condition, loopBB, endloopBB);
 
     builder.SetInsertPoint(loopBB);
@@ -536,7 +531,7 @@ TCodegenExpression MakeCodegenUnaryOpExpr(
                                 builder.getTrue(),
                                 TDataTypeBuilder::TBoolean::get(builder.getContext())),
                             operandData);
-			break;
+                        break;
 
                     default:
                         YUNREACHABLE();
@@ -908,13 +903,12 @@ void CodegenScanOp(
     TCGContext& builder,
     const TCodegenConsumer& codegenConsumer)
 {
-    auto consume = MakeClosure<void(TRow*, int, char*)>(builder, "ScanOpInner", [&] (
+    auto consume = MakeClosure<void(TRow*, int)>(builder, "ScanOpInner", [&] (
         TCGContext& builder,
         Value* rows,
-        Value* size,
-        Value* stopFlag
+        Value* size
     ) {
-        CodegenForEachRow(builder, rows, size, stopFlag, codegenConsumer);
+        CodegenForEachRow(builder, rows, size, codegenConsumer);
         builder.CreateRetVoid();
     });
 
@@ -1013,16 +1007,14 @@ TCodegenSource MakeCodegenJoinOp(
         });
 
 
-        auto consumeJoinedRows = MakeClosure<void(void*, char*)>(builder, "ConsumeJoinedRows", [&] (
+        auto consumeJoinedRows = MakeClosure<void(void*)>(builder, "ConsumeJoinedRows", [&] (
             TCGContext& builder,
-            Value* joinedRows,
-            Value* stopFlag
+            Value* joinedRows
         ) {
             CodegenForEachRow(
                 builder,
                 builder.CreateCall(builder.Module->GetRoutine("GetRowsData"), joinedRows),
                 builder.CreateCall(builder.Module->GetRoutine("GetRowsSize"), joinedRows),
-                stopFlag,
                 codegenConsumer);
 
             builder.CreateRetVoid();
@@ -1343,50 +1335,44 @@ TCodegenSource MakeCodegenGroupOp(
                             builder.getInt8(checkNulls)
                         });
 
+                    auto groupRow = builder.CreateLoad(groupRowPtr);
+
+                    auto inserted = builder.CreateICmpEQ(
+                        builder.CreateExtractValue(
+                            groupRow,
+                            TypeBuilder<TRow, false>::Fields::Header),
+                        builder.CreateExtractValue(
+                            newRowRef,
+                            TypeBuilder<TRow, false>::Fields::Header));
+
                     CodegenIf<TCGContext>(
                         builder,
-                        builder.CreateIsNotNull(groupRowPtr),
+                        inserted,
                         [&] (TCGContext& builder) {
-                            auto groupRow = builder.CreateLoad(groupRowPtr);
+                            codegenInitialize(builder, groupRow);
 
-                            auto inserted = builder.CreateICmpEQ(
-                                builder.CreateExtractValue(
-                                    groupRow,
-                                    TypeBuilder<TRow, false>::Fields::Header),
-                                builder.CreateExtractValue(
-                                    newRowRef,
-                                    TypeBuilder<TRow, false>::Fields::Header));
-
-                            CodegenIf<TCGContext>(
-                                builder,
-                                inserted,
-                                [&] (TCGContext& builder) {
-                                    codegenInitialize(builder, groupRow);
-
-                                    builder.CreateCall(
-                                        builder.Module->GetRoutine("AllocatePermanentRow"),
-                                        {
-                                            builder.GetExecutionContextPtr(),
-                                            builder.getInt32(groupRowSize),
-                                            newRowPtrRef
-                                        });
+                            builder.CreateCall(
+                                builder.Module->GetRoutine("AllocatePermanentRow"),
+                                {
+                                    builder.GetExecutionContextPtr(),
+                                    builder.getInt32(groupRowSize),
+                                    newRowPtrRef
                                 });
-
-                            // Here *newRowPtrRef != groupRow.
-                            auto newRow = builder.CreateLoad(newRowPtrRef);
-
-                            codegenEvaluateAggregateArgs(builder, row, newRow);
-                            codegenUpdate(builder, newRow, groupRow);
                         });
+
+                    // Here *newRowPtrRef != groupRow.
+                    auto newRow = builder.CreateLoad(newRowPtrRef);
+
+                    codegenEvaluateAggregateArgs(builder, row, newRow);
+                    codegenUpdate(builder, newRow, groupRow);
                 });
 
             builder.CreateRetVoid();
         });
 
-        auto consume = MakeClosure<void(void*, char*)>(builder, "Consume", [&] (
+        auto consume = MakeClosure<void(void*)>(builder, "Consume", [&] (
             TCGContext& builder,
-            Value* finalGroupedRows,
-            Value* stopFlag
+            Value* finalGroupedRows
         ) {
             auto codegenFinalizingConsumer = [
                 MOVE(codegenConsumer),
@@ -1400,7 +1386,6 @@ TCodegenSource MakeCodegenGroupOp(
                 builder,
                 builder.CreateCall(builder.Module->GetRoutine("GetRowsData"), {finalGroupedRows}),
                 builder.CreateCall(builder.Module->GetRoutine("GetRowsSize"), {finalGroupedRows}),
-                stopFlag,
                 codegenFinalizingConsumer);
 
             builder.CreateRetVoid();
@@ -1487,16 +1472,14 @@ TCodegenSource MakeCodegenOrderOp(
             builder.CreateRetVoid();
         });
 
-        auto consumeOrderedRows = MakeClosure<void(void*, char*)>(builder, "ConsumeOrderedRows", [&] (
+        auto consumeOrderedRows = MakeClosure<void(void*)>(builder, "ConsumeOrderedRows", [&] (
             TCGContext& builder,
-            Value* orderedRows,
-            Value* stopFlag
+            Value* orderedRows
         ) {
             CodegenForEachRow(
                 builder,
                 builder.CreateCall(builder.Module->GetRoutine("GetRowsData"), {orderedRows}),
                 builder.CreateCall(builder.Module->GetRoutine("GetRowsSize"), {orderedRows}),
-                stopFlag,
                 codegenConsumer);
 
             builder.CreateRetVoid();

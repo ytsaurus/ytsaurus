@@ -77,14 +77,11 @@ void WriteRow(TRow row, TExecutionContext* context)
     CHECK_STACK();
 
     if (context->RowsWritten >= context->Limit) {
-        context->StopFlag = true;
-        return;
+        throw TInterruptedCompleteException();
     }
 
     if (context->RowsWritten >= context->OutputRowLimit) {
-        context->StopFlag = true;
-        context->Statistics->IncompleteOutput = true;
-        return;
+        throw TInterruptedIncompleteException();
     }
 
     ++context->RowsWritten;
@@ -117,14 +114,12 @@ void WriteRow(TRow row, TExecutionContext* context)
 void ScanOpHelper(
     TExecutionContext* context,
     void** consumeRowsClosure,
-    void (*consumeRows)(void** closure, TRow* rows, int size, char* stopFlag))
+    void (*consumeRows)(void** closure, TRow* rows, int size))
 {
     auto& reader = context->Reader;
 
     std::vector<TRow> rows;
     rows.reserve(MaxRowsPerRead);
-
-    context->StopFlag = false;
 
     while (true) {
         context->IntermediateBuffer->Clear();
@@ -152,10 +147,10 @@ void ScanOpHelper(
         }
         context->RowsRead += rows.size();
 
-        consumeRows(consumeRowsClosure, rows.data(), rows.size(), &context->StopFlag);
+        consumeRows(consumeRowsClosure, rows.data(), rows.size());
         rows.clear();
 
-        if (!hasMoreData || context->StopFlag) {
+        if (!hasMoreData) {
             break;
         }
 
@@ -182,9 +177,7 @@ void InsertJoinRow(
     chainedRows->emplace_back(context->PermanentBuffer->Capture(row), -1);
 
     if (chainIndex >= context->JoinRowLimit) {
-        context->StopFlag = true;
-        context->Statistics->IncompleteOutput = true;
-        return;
+        throw TInterruptedIncompleteException();
     }
 
     TMutableRow key = *keyPtr;
@@ -225,7 +218,7 @@ void JoinOpHelper(
         std::vector<TRow>* keys,
         std::vector<std::pair<TRow, i64>>* chainedRows),
     void** consumeRowsClosure,
-    void (*consumeRows)(void** closure, std::vector<TRow>* rows, char* stopFlag))
+    void (*consumeRows)(void** closure, std::vector<TRow>* rows))
 {
     TJoinLookup joinLookup(
         InitialGroupOpHashtableCapacity,
@@ -237,8 +230,13 @@ void JoinOpHelper(
 
     joinLookup.set_empty_key(TRow());
 
-    // Collect join ids.
-    collectRows(collectRowsClosure, &joinLookup, &keys, &chainedRows);
+    try {
+        // Collect join ids.
+        collectRows(collectRowsClosure, &joinLookup, &keys, &chainedRows);
+    } catch (const TInterruptedIncompleteException&) {
+        // Set incomplete and continue
+        context->Statistics->IncompleteOutput = true;
+    }
 
     LOG_DEBUG("Sorting %v join keys",
         keys.size());
@@ -250,22 +248,26 @@ void JoinOpHelper(
         chainedRows.size());
 
     std::vector<TRow> joinedRows;
-    context->JoinEvaluators[index](
-        context,
-        lookupHasher,
-        lookupEqComparer,
-        joinLookup,
-        std::move(keys),
-        std::move(chainedRows),
-        context->PermanentBuffer,
-        &joinedRows);
+    try {
+        context->JoinEvaluators[index](
+            context,
+            lookupHasher,
+            lookupEqComparer,
+            joinLookup,
+            std::move(keys),
+            std::move(chainedRows),
+            context->PermanentBuffer,
+            &joinedRows);
+    } catch (const TInterruptedIncompleteException&) {
+        // Set incomplete and continue
+        context->Statistics->IncompleteOutput = true;
+    }
 
     LOG_DEBUG("Joined into %v rows",
         joinedRows.size());
 
     // Consume joined rows.
-    context->StopFlag = false;
-    consumeRows(consumeRowsClosure, &joinedRows, &context->StopFlag);
+    consumeRows(consumeRowsClosure, &joinedRows);
 }
 
 void GroupOpHelper(
@@ -275,7 +277,7 @@ void GroupOpHelper(
     void** collectRowsClosure,
     void (*collectRows)(void** closure, std::vector<TRow>* groupedRows, TLookupRows* lookupRows),
     void** consumeRowsClosure,
-    void (*consumeRows)(void** closure, std::vector<TRow>* groupedRows, char* stopFlag))
+    void (*consumeRows)(void** closure, std::vector<TRow>* groupedRows))
 {
     std::vector<TRow> groupedRows;
     TLookupRows lookupRows(
@@ -285,13 +287,17 @@ void GroupOpHelper(
 
     lookupRows.set_empty_key(TRow());
 
-    collectRows(collectRowsClosure, &groupedRows, &lookupRows);
+    try {
+        collectRows(collectRowsClosure, &groupedRows, &lookupRows);
+    } catch (const TInterruptedIncompleteException&) {
+        // Set incomplete and continue
+        context->Statistics->IncompleteOutput = true;
+    }
 
     LOG_DEBUG("Collected %v group rows",
         groupedRows.size());
 
-    context->StopFlag = false;
-    consumeRows(consumeRowsClosure, &groupedRows, &context->StopFlag);
+    consumeRows(consumeRowsClosure, &groupedRows);
 }
 
 const TRow* FindRow(TExpressionContext* context, TLookupRows* rows, TRow row)
@@ -323,9 +329,7 @@ const TRow* InsertGroupRow(
 
     if (inserted.second) {
         if (groupedRows->size() >= context->GroupRowLimit) {
-            context->StopFlag = true;
-            context->Statistics->IncompleteOutput = true;
-            return nullptr;
+            throw TInterruptedIncompleteException();
         }
 
         groupedRows->push_back(row);
@@ -363,7 +367,7 @@ void OrderOpHelper(
     void** collectRowsClosure,
     void (*collectRows)(void** closure, TTopCollector* topCollector),
     void** consumeRowsClosure,
-    void (*consumeRows)(void** closure, std::vector<TMutableRow>* rows, char* stopFlag),
+    void (*consumeRows)(void** closure, std::vector<TMutableRow>* rows),
     int rowSize)
 {
     auto limit = context->Limit;
@@ -373,8 +377,7 @@ void OrderOpHelper(
     auto rows = topCollector.GetRows(rowSize);
 
     // Consume joined rows.
-    context->StopFlag = false;
-    consumeRows(consumeRowsClosure, &rows, &context->StopFlag);
+    consumeRows(consumeRowsClosure, &rows);
 }
 
 char* AllocateBytes(TExecutionContext* context, size_t byteCount)
