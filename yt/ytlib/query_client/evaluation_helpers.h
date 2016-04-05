@@ -24,6 +24,14 @@ namespace NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TInterruptedCompleteException
+{ };
+
+class TInterruptedIncompleteException
+{ };
+
+////////////////////////////////////////////////////////////////////////////////
+
 static const size_t InitialGroupOpHashtableCapacity = 1024;
 
 using THasherFunction = ui64(TRow);
@@ -127,9 +135,6 @@ struct TExecutionContext
 
     // Limit from LIMIT clause.
     i64 Limit;
-
-    // "char" type is to due LLVM interop.
-    char StopFlag = false;
 
     std::vector<TJoinEvaluator> JoinEvaluators;
     TExecuteQuery ExecuteCallback;

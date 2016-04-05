@@ -266,15 +266,12 @@ TJoinEvaluator GetJoinEvaluator(
         TRowBuilder rowBuilder;
         // allRows have format (join key... , other columns...)
 
-        auto addRow = [&] (TRow joinedRow) -> bool {
+        auto addRow = [&] (TRow joinedRow) {
             if (joinedRows->size() >= context->JoinRowLimit) {
-                context->StopFlag = true;
-                context->Statistics->IncompleteOutput = true;
-                return true;
+                throw TInterruptedIncompleteException();
             }
 
             joinedRows->push_back(context->PermanentBuffer->Capture(joinedRow));
-            return false;
         };
 
         LOG_DEBUG("Joining started");
@@ -312,9 +309,7 @@ TJoinEvaluator GetJoinEvaluator(
                             : foreignRow[columnIndex.second]);
                     }
 
-                    if (addRow(rowBuilder.GetRow())) {
-                        return;
-                    }
+                    addRow(rowBuilder.GetRow());
                 }
             }
 
@@ -353,9 +348,7 @@ TJoinEvaluator GetJoinEvaluator(
                             : MakeUnversionedSentinelValue(EValueType::Null));
                     }
 
-                    if (addRow(rowBuilder.GetRow())) {
-                        return;
-                    }
+                    addRow(rowBuilder.GetRow());
                 }
             }
         }

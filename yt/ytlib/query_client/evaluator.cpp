@@ -136,11 +136,19 @@ public:
                 }
 
                 LOG_DEBUG("Evaluating query");
-                CallCGQueryPtr(
-                    cgQuery,
-                    fragmentParams.ConstantsRowBuilder.GetRow(),
-                    &executionContext,
-                    functionContexts.data());
+
+                try {
+                    CallCGQueryPtr(
+                        cgQuery,
+                        fragmentParams.ConstantsRowBuilder.GetRow(),
+                        &executionContext,
+                        functionContexts.data());
+                } catch (const TInterruptedIncompleteException&) {
+                    // Set incomplete and continue
+                    executionContext.Statistics->IncompleteOutput = true;
+                } catch (const TInterruptedCompleteException&) {
+                    // Continue
+                }
 
                 statistics.RowsRead = executionContext.RowsRead;
                 statistics.RowsWritten = executionContext.RowsWritten;
