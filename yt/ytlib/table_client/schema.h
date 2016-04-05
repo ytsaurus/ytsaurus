@@ -124,6 +124,8 @@ private:
     void Validate();
 };
 
+Stroka ToString(const TTableSchema& schema);
+
 void Serialize(const TTableSchema& schema, NYson::IYsonConsumer* consumer);
 void Deserialize(TTableSchema& schema, NYTree::INodePtr node);
 
