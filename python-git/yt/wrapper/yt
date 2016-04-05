@@ -511,7 +511,7 @@ def add_delete_rows_parser(add_parser):
         parser.set_defaults(func=yt.delete_rows, input_stream=sys.stdin, raw=True)
 
 def operation_args(parser):
-    parser.add_argument("binary", metavar="command")
+    add_hybrid_argument(parser, "binary", metavar="command")
     parser.add_argument("--src", action="append", required=True, dest="source_table")
     parser.add_argument("--dst", action="append", required=True, dest="destination_table")
     parser.add_argument("--file", action="append", dest="file_paths")
