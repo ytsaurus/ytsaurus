@@ -1098,7 +1098,8 @@ private:
 
     int AllocateRackIndex()
     {
-        for (int index = 0; index < MaxRackCount; ++index) {
+        // NB: Rack index mask is 64 bit.
+        for (int index = 0; index < 64; ++index) {
             if (index == NullRackIndex)
                 continue;
             auto mask = 1ULL << index;
