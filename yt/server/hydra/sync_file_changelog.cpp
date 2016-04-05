@@ -235,9 +235,9 @@ public:
 
         std::lock_guard<std::mutex> guard(Mutex_);
 
-        YCHECK(!Open_);
-
         Error_.ThrowOnError();
+
+        YCHECK(!Open_);
 
         try {
             DataFile_.reset(new TFileWrapper(FileName_, RdWr | Seq | CloseOnExec));
@@ -374,11 +374,11 @@ public:
 
         std::lock_guard<std::mutex> guard(Mutex_);
 
+        Error_.ThrowOnError();
+
         YCHECK(Open_);
         YCHECK(!TruncatedRecordCount_);
         YCHECK(firstRecordId == RecordCount_);
-
-        Error_.ThrowOnError();
 
         LOG_DEBUG("Started appending to changelog (RecordIds: %v-%v)",
             firstRecordId,
@@ -427,9 +427,9 @@ public:
 
         std::lock_guard<std::mutex> guard(Mutex_);
 
-        YCHECK(Open_);
-
         Error_.ThrowOnError();
+
+        YCHECK(Open_);
 
         LOG_DEBUG("Started flushing changelog");
 
@@ -461,8 +461,6 @@ public:
         YCHECK(firstRecordId >= 0);
         YCHECK(maxRecords >= 0);
         YCHECK(Open_);
-
-        Error_.ThrowOnError();
 
         LOG_DEBUG("Started reading changelog (FirstRecordId: %v, MaxRecords: %v, MaxBytes: %v)",
             firstRecordId,
@@ -524,11 +522,11 @@ public:
 
         std::lock_guard<std::mutex> guard(Mutex_);
 
+        Error_.ThrowOnError();
+
         YCHECK(Open_);
         YCHECK(recordCount >= 0);
         YCHECK(!TruncatedRecordCount_ || recordCount <= *TruncatedRecordCount_);
-
-        Error_.ThrowOnError();
 
         LOG_DEBUG("Started truncating changelog (RecordCount: %v)",
             recordCount);
