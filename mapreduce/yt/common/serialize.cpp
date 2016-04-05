@@ -4,7 +4,7 @@
 
 #include "helpers.h"
 #include "fluent.h"
-#include <mapreduce/yt/yson/consumer.h>
+#include <library/yson/consumer.h>
 
 namespace NYT {
 

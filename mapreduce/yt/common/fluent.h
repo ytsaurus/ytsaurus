@@ -1,8 +1,8 @@
 #pragma once
 
-#include <mapreduce/yt/yson/consumer.h>
-#include <mapreduce/yt/yson/writer.h>
-#include <mapreduce/yt/yson/json_writer.h>
+#include <library/yson/consumer.h>
+#include <library/yson/writer.h>
+#include <library/yson/json_writer.h>
 #include <mapreduce/yt/interface/common.h>
 #include "node_builder.h"
 #include "serialize.h"

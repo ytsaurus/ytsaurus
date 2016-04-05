@@ -19,9 +19,9 @@ SRCS(
 )
 
 PEERDIR(
-    mapreduce/yt/interface
-    mapreduce/yt/yson
+    library/yson
     mapreduce/yt/http
+    mapreduce/yt/interface
 )
 
 END()

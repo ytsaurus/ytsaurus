@@ -1,7 +1,7 @@
 #pragma once
 
 #include <mapreduce/yt/interface/node.h>
-#include <mapreduce/yt/yson/consumer.h>
+#include <library/yson/consumer.h>
 
 namespace NYT {
 

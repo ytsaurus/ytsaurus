@@ -2,7 +2,7 @@
 
 #include "proxy_input.h"
 
-#include <mapreduce/yt/yson/parser.h>
+#include <library/yson/parser.h>
 #include <mapreduce/yt/common/node_builder.h>
 #include <mapreduce/yt/common/log.h>
 
