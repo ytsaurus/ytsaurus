@@ -55,6 +55,9 @@ def hex_md5(md5_array):
     md5_array.sort()
     return to_hex(calc_md5_from_string("".join(map(to_hex, md5_array))))
 
+def calc_md5_string_from_file(filename):
+    return hex_md5([calc_md5_from_file(filename)])
+
 # Misc functions.
 def round_up_to(num, divider):
     if num % divider == 0:
@@ -305,7 +308,7 @@ def do_wrap(function, operation_type, tempfiles_manager, input_format, output_fo
     modules_info = create_modules_archive(tempfiles_manager, client)
     # COMPAT: previous version of create_modules_archive returns string.
     if isinstance(modules_info, str):
-        modules_info = [{"filename": modules_info, "tmpfs": False}]
+        modules_info = [{"filename": modules_info, "hash": calc_md5_string_from_file(modules_info), "tmpfs": False}]
     modules_filenames = [{"filename": info["filename"], "hash": info["hash"]}
                          for info in modules_info]
     tmpfs_size = sum([info["size"] for info in modules_info if info["tmpfs"]])
