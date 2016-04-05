@@ -9,6 +9,7 @@
 #include <typeinfo>
 
 namespace NYT {
+namespace NTools {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -47,7 +48,7 @@ TResult RunTool(
 
     NYson::TYsonString serializedArgument;
     try {
-        serializedArgument = NYTree::ConvertToYsonString(arg);
+        serializedArgument = NYTree::ConvertToYsonString(arg, NYson::EYsonFormat::Text);
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Failed to serialize argument for %v tool", name)
             << ex;
@@ -73,4 +74,5 @@ TResult RunTool(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace NTools
 } // namespace NYT

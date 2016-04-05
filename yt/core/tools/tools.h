@@ -7,6 +7,7 @@
 #include <yt/core/ytree/public.h>
 
 namespace NYT {
+namespace NTools {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -29,6 +30,7 @@ NYson::TYsonString ExecuteTool(const Stroka& toolName, const NYson::TYsonString&
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace NTools
 } // namespace NYT
 
 #define TOOLS_INL_H_
