@@ -275,8 +275,12 @@ class TestRacks(YTEnvSetup):
 
         assert read_journal("//tmp/j") == self.JOURNAL_DATA
 
+    def test_rack_count_limit(self):
+        for i in xrange(63):
+            create_rack("r" + str(i))
+        with pytest.raises(YtError): create_rack("too_many")
+
 ##################################################################
 
 class TestRacksMulticell(TestRacks):
     NUM_SECONDARY_MASTER_CELLS = 2
-
