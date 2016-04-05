@@ -205,13 +205,13 @@ bool TryExecve(const char* path, const char* const* argv, const char* const* env
 bool TryDup2(int oldFD, int newFD)
 {
     while (true) {
-        auto res = ::dup2(oldFD, newFD);
+        auto res = HandleEintr(::dup2, oldFD, newFD);
 
         if (res != -1) {
             return true;
         }
 
-        if (errno == EINTR || errno == EBUSY) {
+        if (errno == EBUSY) {
             continue;
         }
 
