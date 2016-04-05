@@ -9,37 +9,33 @@
 #include <typeinfo>
 
 namespace NYT {
+namespace NTools {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 typedef std::function<NYson::TYsonString(const NYson::TYsonString&)> TGenericTool;
 
-struct TToolDescription
+struct TToolRegistryEntry
 {
     Stroka Name;
     TGenericTool Tool;
 };
 
-typedef std::map<Stroka, TToolDescription> TToolRegistry;
+typedef std::map<Stroka, TToolRegistryEntry> TToolRegistry;
 
 TToolRegistry* GetToolRegistry();
 
-class TToolRegistryEntry
-{
-public:
-    TToolRegistryEntry(Stroka&& typeName, Stroka&& toolName, TGenericTool tool);
+////////////////////////////////////////////////////////////////////////////////
 
-};
+#define REGISTER_TOOL(toolType) \
+    static const ::NYT::NTools::NDetail::TToolRegistrator<toolType> toolType##_Registrator \
+        (PP_STRINGIZE(toolType))
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#define REGISTER_TOOL(toolName) \
-    extern const char toolName##Name[] = PP_STRINGIZE(toolName); \
-    static const TToolRegistryEntry& toolName##Entry = ::NYT::NDetail::RegisterTool<toolName, toolName##Name>()
-
-////////////////////////////////////////////////////////////////////////////////
-
+} // namespace NTools
 } // namespace NYT
 
 #define REGISTRY_INL_H_
 #include "registry-inl.h"
+#undef REGISTRY_INL_H_

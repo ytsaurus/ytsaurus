@@ -65,6 +65,7 @@
 namespace NYT {
 namespace NJobProxy {
 
+using namespace NTools;
 using namespace NYTree;
 using namespace NYson;
 using namespace NTableClient;

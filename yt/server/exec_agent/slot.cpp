@@ -19,6 +19,7 @@ namespace NExecAgent {
 
 using namespace NConcurrency;
 using namespace NBus;
+using namespace NTools;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -161,6 +162,7 @@ void TSlot::DoCleanSandbox(int pathIndex)
         auto sandboxFullPath = NFS::CombinePaths(GetCwd(), sandboxPath);
 
         auto removeMountPount = [] (const Stroka& path) {
+            RunTool<TRemoveDirAsRootTool>(path + "/*");
             RunTool<TRemoveDirAsRootTool>(path + "/*");
             RunTool<TUmountAsRootTool>(path);
         };
