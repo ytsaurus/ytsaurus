@@ -1,6 +1,5 @@
 #pragma once
 
-#include <functional>
 #include <memory>
 #include <utility>
 #include <vector>
@@ -26,8 +25,9 @@ struct TFunctionContext
     bool IsArgLiteral(int argIndex);
 
 private:
-    class TImpl;
-    std::unique_ptr<TImpl> Impl_;
+    std::vector<std::unique_ptr<void, void(*)(void*)>> Objects_;
+    std::vector<bool> LiteralArgs_;
+    void* PrivateData_ = nullptr;
 
     void RememberObjectOrDestroy(void* object, void(*deleter)(void*));
 };
