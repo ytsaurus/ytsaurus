@@ -552,7 +552,7 @@ public:
                 keyColumnIndex);
         }
 
-        for (const auto& idMapping : ChunkMeta_->SchemaIdMapping()) {
+        for (const auto& idMapping : SchemaIdMapping_) {
             auto columnReader = CreateVersionedColumnReader(
                 ChunkMeta_->ChunkSchema().Columns()[idMapping.ChunkSchemaIndex],
                 ChunkMeta_->ColumnMeta().columns(idMapping.ChunkSchemaIndex),
@@ -703,10 +703,12 @@ public:
     TScanColumnarRowBuilder(
         TCachedVersionedChunkMetaPtr chunkMeta,
         std::vector<std::unique_ptr<IVersionedColumnReader>>& valueColumnReaders,
+        const std::vector<TColumnIdMapping>& schemaIdMapping,
         TTimestamp timestamp)
         : ChunkMeta_(chunkMeta)
         , ValueColumnReaders_(valueColumnReaders)
         , Pool_(TVersionedChunkReaderPoolTag())
+        , SchemaIdMapping_(schemaIdMapping)
     {
         int timestampReaderIndex = ChunkMeta_->ColumnMeta().columns().size() - 1;
         TimestampReader_ = std::make_unique<TScanTransactionTimestampReader>(
@@ -725,8 +727,8 @@ public:
 
         std::vector<ui32> valueCountPerRow(rowLimit, 0);
         std::vector<ui32> columnValueCount(rowLimit, 0);
-        for (int valueColumnIndex = 0; valueColumnIndex < ChunkMeta_->SchemaIdMapping().size(); ++valueColumnIndex) {
-            const auto& idMapping = ChunkMeta_->SchemaIdMapping()[valueColumnIndex];
+        for (int valueColumnIndex = 0; valueColumnIndex < SchemaIdMapping_.size(); ++valueColumnIndex) {
+            const auto& idMapping = SchemaIdMapping_[valueColumnIndex];
             const auto& columnSchema = ChunkMeta_->ChunkSchema().Columns()[idMapping.ChunkSchemaIndex];
             if (columnSchema.Aggregate) {
                 // Possibly multiple values per column for aggregate columns.
@@ -834,6 +836,8 @@ private:
     std::vector<std::unique_ptr<IVersionedColumnReader>>& ValueColumnReaders_;
 
     TChunkedMemoryPool Pool_;
+
+    const std::vector<TColumnIdMapping>& SchemaIdMapping_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -844,6 +848,7 @@ public:
     TCompactionColumnarRowBuilder(
         TCachedVersionedChunkMetaPtr chunkMeta,
         std::vector<std::unique_ptr<IVersionedColumnReader>>& valueColumnReaders,
+        const std::vector<TColumnIdMapping>& /* schemaIdMapping */,
         TTimestamp /* timestamp */)
         : ChunkMeta_(chunkMeta)
         , ValueColumnReaders_(valueColumnReaders)
@@ -976,7 +981,7 @@ public:
             timestamp)
         , LowerLimit_(std::move(lowerLimit))
         , UpperLimit_(std::move(upperLimit))
-        , RowBuilder_(chunkMeta, ValueColumnReaders_, timestamp)
+        , RowBuilder_(chunkMeta, ValueColumnReaders_, SchemaIdMapping_, timestamp)
     {
         int timestampReaderIndex = ChunkMeta_->ColumnMeta().columns().size() - 1;
         Columns_.emplace_back(RowBuilder_.GetTimestampReader(), timestampReaderIndex);
