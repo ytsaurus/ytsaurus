@@ -300,14 +300,6 @@ void GroupOpHelper(
     consumeRows(consumeRowsClosure, &groupedRows);
 }
 
-const TRow* FindRow(TExpressionContext* context, TLookupRows* rows, TRow row)
-{
-    CHECK_STACK();
-
-    auto it = rows->find(row);
-    return it != rows->end()? &*it : nullptr;
-}
-
 void AllocatePermanentRow(TExecutionContext* context, int valueCount, TMutableRow* row)
 {
     CHECK_STACK();
@@ -628,7 +620,6 @@ void RegisterQueryRoutinesImpl(TRoutineRegistry* registry)
     REGISTER_ROUTINE(JoinOpHelper);
     REGISTER_ROUTINE(GroupOpHelper);
     REGISTER_ROUTINE(StringHash);
-    REGISTER_ROUTINE(FindRow);
     REGISTER_ROUTINE(InsertGroupRow);
     REGISTER_ROUTINE(InsertJoinRow);
     REGISTER_ROUTINE(SaveJoinRow);
