@@ -660,7 +660,6 @@ TEST_P(TArithmeticTest, Evaluate)
 
     TUnversionedValue result;
     TCGVariables variables;
-    std::vector<std::vector<bool>> allLiteralArgs;
     auto keyColumns = GetSampleKeyColumns();
     auto schema = GetSampleTableSchema();
     TColumnSchema column0 = schema.Columns()[0];
@@ -672,7 +671,7 @@ TEST_P(TArithmeticTest, Evaluate)
 
     auto expr = PrepareExpression(Stroka("k") + op + "l", schema);
 
-    auto callback = Profile(expr, schema, nullptr, &variables, &allLiteralArgs)();
+    auto callback = Profile(expr, schema, nullptr, &variables)();
     auto row = NTableClient::BuildRow(Stroka("k=") + lhs + ";l=" + rhs, keyColumns, schema, true);
 
     TQueryStatistics statistics;
@@ -693,7 +692,7 @@ TEST_P(TArithmeticTest, Evaluate)
 #endif
 
     std::vector<TFunctionContext*> functionContexts;
-    for (auto& literalArgs : allLiteralArgs) {
+    for (auto& literalArgs : variables.AllLiteralArgs) {
         executionContext.FunctionContexts.emplace_back(std::move(literalArgs));
     }
     for (auto& functionContext : executionContext.FunctionContexts) {
@@ -765,13 +764,12 @@ TEST_P(TCompareWithNullTest, Simple)
 
     TUnversionedValue result;
     TCGVariables variables;
-    std::vector<std::vector<bool>> allLiteralArgs;
     auto schema = GetSampleTableSchema();
     auto keyColumns = GetSampleKeyColumns();
 
     auto row = NTableClient::BuildRow(rowString, keyColumns, schema, true);
     auto expr = PrepareExpression(exprString, schema);
-    auto callback = Profile(expr, schema, nullptr, &variables, &allLiteralArgs)();
+    auto callback = Profile(expr, schema, nullptr, &variables)();
 
     TQueryStatistics statistics;
     auto permanentBuffer = New<TRowBuffer>();
@@ -792,7 +790,7 @@ TEST_P(TCompareWithNullTest, Simple)
     executionContext.LiteralRows = &variables.LiteralRows;
 
     std::vector<TFunctionContext*> functionContexts;
-    for (auto& literalArgs : allLiteralArgs) {
+    for (auto& literalArgs : variables.AllLiteralArgs) {
         executionContext.FunctionContexts.emplace_back(std::move(literalArgs));
     }
     for (auto& functionContext : executionContext.FunctionContexts) {
@@ -942,9 +940,8 @@ void EvaluateExpression(
     TRowBufferPtr buffer)
 {
     TCGVariables variables;
-    std::vector<std::vector<bool>> allLiteralArgs;
 
-    auto callback = Profile(expr, schema, nullptr, &variables, &allLiteralArgs)();
+    auto callback = Profile(expr, schema, nullptr, &variables)();
 
     auto row = NTableClient::BuildRow(rowString, schema.GetKeyColumns(), schema, true);
 
@@ -962,7 +959,7 @@ void EvaluateExpression(
 #endif
 
     std::vector<TFunctionContext*> functionContexts;
-    for (auto& literalArgs : allLiteralArgs) {
+    for (auto& literalArgs : variables.AllLiteralArgs) {
         executionContext.FunctionContexts.emplace_back(std::move(literalArgs));
     }
     for (auto& functionContext : executionContext.FunctionContexts) {

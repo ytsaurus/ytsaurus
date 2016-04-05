@@ -195,6 +195,7 @@ struct TCGVariables
     TRowBuilder ConstantsRowBuilder;
     std::vector<TSharedRange<TRow>> LiteralRows;
     std::vector<TJoinEvaluator> JoinEvaluators;
+    std::vector<std::vector<bool>> AllLiteralArgs;
 };
 
 typedef void (TCGQuerySignature)(TRow, TExecutionContext*, TFunctionContext**);
