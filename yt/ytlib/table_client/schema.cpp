@@ -477,6 +477,11 @@ void TTableSchema::Validate()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+Stroka ToString(const TTableSchema& schema)
+{
+    return ConvertToYsonString(schema, EYsonFormat::Text).Data();
+}
+
 void Serialize(const TTableSchema& schema, IYsonConsumer* consumer)
 {
     BuildYsonFluently(consumer)
