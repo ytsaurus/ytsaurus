@@ -1181,6 +1181,8 @@ class Application(object):
                         self._dump_task(id)
                         self._running_tasks_queues[self._tasks[id].get_queue_id()].remove(id)
                         remove_file(process.temporary_config, force=True)
+                        _, queue = self._task_processes[id]
+                        queue.delete()
                         del self._task_processes[id]
 
                     logger.info("Task %s processed", id)

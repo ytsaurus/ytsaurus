@@ -14,7 +14,7 @@ SRC_TEST_TABLE_NAME = "//tmp/tm_load_tester_table"
 DST_TEST_TABLES_PATH = "//tmp/tm_load_tester"
 
 SRC_YT_CLUSTER = "plato"
-DST_YT_CLUSTER = "aristotle"
+DST_YT_CLUSTER = "quine"
 
 def waiting_thread(client, token, queue, semaphore):
     dst_client = Yt(proxy=DST_YT_CLUSTER, token=token)
