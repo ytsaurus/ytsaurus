@@ -9,10 +9,11 @@ SRCS(
 )
 
 PEERDIR(
-    mapreduce/yt/interface
-    mapreduce/yt/common
-    mapreduce/yt/io
     library/digest/md5
+    library/yson
+    mapreduce/yt/common
+    mapreduce/yt/interface
+    mapreduce/yt/io
 )
 
 END()

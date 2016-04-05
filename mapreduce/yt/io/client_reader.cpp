@@ -10,7 +10,7 @@
 #include <mapreduce/yt/http/requests.h>
 #include <mapreduce/yt/http/error.h>
 #include <mapreduce/yt/http/transaction.h>
-#include <mapreduce/yt/yson/json_writer.h>
+#include <library/yson/json_writer.h>
 
 #include <library/json/json_writer.h>
 #include <library/json/json_reader.h>

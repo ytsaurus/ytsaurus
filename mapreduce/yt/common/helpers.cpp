@@ -4,9 +4,9 @@
 #include "node_builder.h"
 #include "node_visitor.h"
 
-#include <mapreduce/yt/yson/parser.h>
-#include <mapreduce/yt/yson/writer.h>
-#include <mapreduce/yt/yson/json_writer.h>
+#include <library/yson/parser.h>
+#include <library/yson/writer.h>
+#include <library/yson/json_writer.h>
 
 #include <library/json/json_reader.h>
 #include <library/json/json_value.h>

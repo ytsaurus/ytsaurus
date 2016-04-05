@@ -2,7 +2,7 @@
 
 #include <mapreduce/yt/interface/node.h>
 #include <mapreduce/yt/interface/common.h>
-#include <mapreduce/yt/yson/public.h>
+#include <library/yson/public.h>
 
 class TInputStream;
 class TOutputStream;

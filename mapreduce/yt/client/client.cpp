@@ -23,7 +23,7 @@
 #include <mapreduce/yt/io/file_reader.h>
 #include <mapreduce/yt/io/file_writer.h>
 
-#include <mapreduce/yt/yson/json_writer.h>
+#include <library/yson/json_writer.h>
 
 namespace NYT {
 

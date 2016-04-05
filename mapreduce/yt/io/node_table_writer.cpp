@@ -2,7 +2,7 @@
 
 #include "proxy_output.h"
 
-#include <mapreduce/yt/yson/writer.h>
+#include <library/yson/writer.h>
 #include <mapreduce/yt/common/node_visitor.h>
 #include <mapreduce/yt/common/log.h>
 

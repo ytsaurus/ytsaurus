@@ -8,8 +8,8 @@
 #include <mapreduce/yt/common/fluent.h>
 #include <mapreduce/yt/common/helpers.h>
 
-#include <mapreduce/yt/yson/writer.h>
-#include <mapreduce/yt/yson/json_writer.h>
+#include <library/yson/writer.h>
+#include <library/yson/json_writer.h>
 
 #include <mapreduce/yt/http/requests.h>
 

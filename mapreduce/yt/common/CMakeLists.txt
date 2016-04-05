@@ -12,10 +12,10 @@ SRCS(
 )
 
 PEERDIR(
-    util
-    mapreduce/yt/yson
     library/json
     library/svnversion
+    library/yson
+    util
 )
 
 END()
