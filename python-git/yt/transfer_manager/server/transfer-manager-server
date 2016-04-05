@@ -42,6 +42,7 @@ except ImportError:
     yappi = None
 
 import os
+import gc
 import sys
 import time
 import prctl
@@ -1752,15 +1753,21 @@ class Application(object):
         return Response(json.dumps(execution_time_dict), mimetype="application/json")
 
     def profiling_memory_tracker(self):
-        limit = int(request.args.get("limit", "50"))
-        info = request.args.get("format", "top_table")
-        objects = pympler_muppy.get_objects()
-        summary = pympler_summary.summarize(objects)
-        if info == "top_table":
-            summary_repr = "\n".join(list(pympler_summary.format_(summary, limit=limit))) + "\n"
-            return summary_repr, 200
-        elif info == "full_json":
-            return json.dumps(summary), 200
+        info = request.args.get("format", "object_types_top_table")
+        if info in ("object_types_top_table", "object_types_summary"):
+            objects = pympler_muppy.get_objects()
+            summary = pympler_summary.summarize(objects)
+            limit = int(request.args.get("limit", "50"))
+            if info == "object_types_top_table":
+                summary_repr = "\n".join(list(pympler_summary.format_(summary, limit=limit))) + "\n"
+                return summary_repr, 200
+            else:
+                return json.dumps(summary), 200
+        elif info == "gc_info":
+            return json.dumps({"garbage_size": len(gc.garbage), "counts": gc.get_count()}), 200
+        elif info == "application_field_sizes":
+            return json.dumps(dict([(key, len(value)) for key, value in self.__dict__.iteritems()
+                                    if isinstance(value, list) or isinstance(value, dict)])), 200
         else:
             return "Unknown value of info option", 200
 
