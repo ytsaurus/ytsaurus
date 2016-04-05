@@ -14,21 +14,9 @@ public:
         : LiteralArgs_(std::move(literalArgs))
     { }
 
-    ~TImpl()
-    {
-        for (const auto& object : Objects_) {
-            object.second(object.first);
-        }
-    }
-
     void RememberObjectOrDestroy(void* object, void(*deleter)(void*))
     {
-        try {
-            Objects_.push_back(std::make_pair(object, deleter));
-        } catch(...) {
-            deleter(object);
-            throw;
-        }
+        Objects_.push_back(std::unique_ptr<void, void(*)(void*)>(object, deleter));
     }
 
     void* GetPrivateData()
@@ -48,7 +36,7 @@ public:
     }
 
 private:
-    std::vector<std::pair<void*, std::function<void(void*)>>> Objects_;
+    std::vector<std::unique_ptr<void, void(*)(void*)>> Objects_;
     std::vector<bool> LiteralArgs_;
     void* PrivateData_ = nullptr;
 };
