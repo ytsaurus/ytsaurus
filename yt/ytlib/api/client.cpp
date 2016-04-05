@@ -610,6 +610,12 @@ private:
         yhash_map<NTabletClient::TTabletCellId, TCellDescriptor> tabletCellReplicas;
 
         auto getAddress = [&] (const TTabletInfoPtr& tabletInfo) mutable {
+            if (tabletInfo->State != ETabletState::Mounted) {
+                // TODO(babenko): learn to work with unmounted tablets
+                THROW_ERROR_EXCEPTION("Tablet %v is not mounted",
+                    tabletInfo->TabletId);
+            }
+
             auto insertResult = tabletCellReplicas.insert(std::make_pair(tabletInfo->CellId, TCellDescriptor()));
             auto& descriptor = insertResult.first->second;
 
