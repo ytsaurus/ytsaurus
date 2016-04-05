@@ -45,6 +45,8 @@ protected:
     const TControlAttributesConfigPtr ControlAttributesConfig_;
     const int KeyColumnCount_;
 
+    const std::unique_ptr<NTableClient::TNameTableReader> NameTableReader_;
+
     NTableClient::TOwningKey LastKey_;
     NTableClient::TKey CurrentKey_;
 
