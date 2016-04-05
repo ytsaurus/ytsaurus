@@ -79,7 +79,6 @@ message TRspGetMountInfo
 {
     required NYT.NProto.TGuid table_id = 1;
     required TTableSchemaExt schema = 2;
-    required TKeyColumnsExt key_columns = 3;
     repeated TTabletInfo tablets = 4;
     repeated NYT.NHive.NProto.TCellDescriptor tablet_cells = 5;
     required bool sorted = 6;

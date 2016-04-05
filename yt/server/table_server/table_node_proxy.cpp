@@ -419,8 +419,6 @@ private:
         auto* table = GetThisTypedImpl();
 
         ToProto(response->mutable_table_id(), table->GetId());
-        // TODO(max42): key columns and schema should not be handled separately.
-        ToProto(response->mutable_key_columns()->mutable_names(), table->TableSchema().GetKeyColumns());
         response->set_sorted(table->TableSchema().IsSorted());
         response->set_dynamic(table->IsDynamic());
 
