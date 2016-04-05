@@ -399,6 +399,9 @@ def copy_yamr_to_yt_pull(yamr_client, yt_client, src, dst, fastbone, copy_spec_t
     if not proxies:
         proxies = [yamr_client.server]
 
+    if job_timeout is None:
+        job_timeout = 1800
+
     transaction_id = None
     if yamr_client.supports_read_snapshots:
         transaction_id = yamr_client.make_read_snapshot(src)
