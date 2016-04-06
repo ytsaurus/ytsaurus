@@ -130,9 +130,6 @@ struct TExecutionContext
     i64 GroupRowLimit;
     i64 JoinRowLimit;
 
-    i64 RowsRead = 0;
-    i64 RowsWritten = 0;
-
     // Limit from LIMIT clause.
     i64 Limit;
 

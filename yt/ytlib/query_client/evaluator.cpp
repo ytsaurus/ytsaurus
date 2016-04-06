@@ -148,9 +148,6 @@ public:
                     // Continue
                 }
 
-                statistics.RowsRead = executionContext.RowsRead;
-                statistics.RowsWritten = executionContext.RowsWritten;
-
                 LOG_DEBUG("Flushing writer");
                 if (!outputBatchRows.empty()) {
                     bool shouldNotWait;
@@ -184,8 +181,6 @@ public:
             } catch (const std::exception& ex) {
                 THROW_ERROR_EXCEPTION("Query evaluation failed") << ex;
             }
-
-
 
             statistics.SyncTime = wallTime - statistics.AsyncTime;
             statistics.ExecuteTime = statistics.SyncTime - statistics.ReadTime - statistics.WriteTime;

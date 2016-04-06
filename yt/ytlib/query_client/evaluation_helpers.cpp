@@ -255,11 +255,12 @@ TJoinEvaluator GetJoinEvaluator(
         LOG_DEBUG("Executing subquery");
 
         auto pipe = New<NTableClient::TSchemafulPipe>();
-        auto subqueryResult = context->ExecuteCallback(
+        context->ExecuteCallback(
             subquery,
-            foreignDataId,
-            std::move(rowBuffer),
-            std::move(ranges),
+            TDataRanges{
+                foreignDataId,
+                MakeSharedRange(std::move(ranges), std::move(rowBuffer))
+            },
             pipe->GetWriter());
 
         // Join rowsets.
@@ -355,11 +356,7 @@ TJoinEvaluator GetJoinEvaluator(
 
         LOG_DEBUG("Joining finished");
 
-        auto statistics = WaitFor(subqueryResult)
-            .ValueOrThrow();
 
-        LOG_DEBUG("Remote subquery statistics %v", statistics);
-        *context->Statistics += statistics;
     };
 }
 

@@ -705,10 +705,8 @@ protected:
             size_t foreignSplitIndex = 1;
             auto executeCallback = [&] (
                 const TQueryPtr& subquery,
-                TGuid foreignDataId,
-                TRowBufferPtr buffer,
-                TRowRanges ranges,
-                ISchemafulWriterPtr writer) mutable -> TFuture<TQueryStatistics>
+                TDataRanges dataRanges,
+                ISchemafulWriterPtr writer) mutable
             {
                 return MakeFuture(DoExecuteQuery(
                     owningSources[foreignSplitIndex++],
