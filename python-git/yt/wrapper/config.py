@@ -189,7 +189,7 @@ class Config(types.ModuleType, client_state.ClientState):
                     config_path = home_config_path
 
             try:
-                open(config_path)
+                open(config_path, "r")
             except IOError:
                 config_path = None
         if config_path and os.path.isfile(config_path):
@@ -202,7 +202,7 @@ class Config(types.ModuleType, client_state.ClientState):
             else:
                 raise self.common_module.YtError("Incorrect config_format '%s'" % format)
             try:
-                self.update_config(load_func(open(config_path)))
+                self.update_config(load_func(open(config_path, "r")))
             except Exception:
                 print >>sys.stderr, "Failed to parse YT config from " + config_path
                 raise
