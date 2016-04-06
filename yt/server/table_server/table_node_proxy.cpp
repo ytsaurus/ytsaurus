@@ -194,30 +194,6 @@ private:
 
         return TBase::GetBuiltinAttribute(key, consumer);
     }
-    
-    void SetKeyColumns(const TKeyColumns& keyColumns) 
-    {
-        ValidateNoTransaction();
-
-        auto* table = LockThisTypedImpl();
-        auto* chunkList = table->GetChunkList();
-        if (table->IsDynamic()) {
-            if (table->HasMountedTablets()) {
-                THROW_ERROR_EXCEPTION("Cannot change key columns of a dynamic table with mounted tablets");
-            }
-        } else {
-            if (!chunkList->Children().empty()) {
-                THROW_ERROR_EXCEPTION("Cannot change key columns of a non-empty static table");
-            }
-        }
-
-        ValidateKeyColumnsUpdate(table->KeyColumns(), keyColumns);
-
-        table->KeyColumns() = keyColumns;
-        if (!table->IsDynamic() && !keyColumns.empty()) {
-            table->SetSorted(true);
-        }
-    }
 
     void SetSchema(const TTableSchema& newSchema) 
     {
