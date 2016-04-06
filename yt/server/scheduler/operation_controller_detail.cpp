@@ -3766,7 +3766,7 @@ void TOperationControllerBase::RemoveJoblet(const TJobId& jobId)
 
 bool TOperationControllerBase::HasProgress() const
 {
-    return Prepared;
+    return IsPrepared();
 }
 
 void TOperationControllerBase::BuildProgress(IYsonConsumer* consumer) const
