@@ -214,6 +214,19 @@ def resume_operation(operation, client=None):
     """
     make_request("resume_op", {"operation_id": operation}, client=client)
 
+def complete_operation(operation, client=None):
+    """Complete operation.
+
+    Abort all running and pending jobs.
+    Preserve results of finished jobs.
+    Do nothing if operation is in final state.
+
+    :param operation: (string) operation id.
+    """
+    if get_operation_state(operation, client=client).is_finished():
+        return
+    make_request("complete_op", {"operation_id": operation}, client=client)
+
 def get_operation_state_monitor(operation, time_watcher, action=lambda: None, client=None):
     """
     Yield state and sleep. Wait for final state of operation.
@@ -338,6 +351,9 @@ class Operation(object):
 
     def abort(self):
         abort_operation(self.id, client=self.client)
+
+    def complete(self):
+        complete_operation(self.id, client=self.client)
 
     def get_state_monitor(self, time_watcher, action=lambda: None):
         return get_operation_state_monitor(self.id, time_watcher, action, client=self.client)

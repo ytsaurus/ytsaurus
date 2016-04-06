@@ -502,6 +502,13 @@ class TestOperations(object):
         op.abort()
         assert op.get_state() == "aborted"
 
+    def test_complete_operation(self):
+        table = TEST_DIR + "/table"
+        yt.write_table(table, ["x=1\n"])
+        op = yt.run_map("sleep 15; cat", table, table, sync=False)
+        op.complete()
+        assert op.get_state() == "completed"
+
     def test_suspend_resume(self):
         table = TEST_DIR + "/table"
         yt.write_table(table, ["key=1\n"])

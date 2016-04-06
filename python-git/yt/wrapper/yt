@@ -29,7 +29,7 @@ ACL commands:
     add-member, remove-member, check-permission
 Operation commands:
     map-reduce, map, sort, reduce, join-reduce, merge, erase,
-    remote-copy, abort-op, suspend-op, resume-op, track-op
+    remote-copy, abort-op, suspend-op, resume-op, track-op, complete-op
 Transaction commands:
     lock, start-tx, abort-tx, commit-tx, ping-tx'''
 
@@ -658,6 +658,10 @@ def add_track_op_parser(add_parser):
     operation_id_args(parser)
     parser.set_defaults(func=track_op)
 
+def add_complete_op_parser(add_parser):
+    parser = add_parser("complete-op", yt.complete_operation)
+    operation_id_args(parser)
+
 def start_tx(**args):
     print yt.start_transaction(**args)
 
@@ -827,6 +831,7 @@ def main():
     add_suspend_op_parser(add_parser)
     add_resume_op_parser(add_parser)
     add_track_op_parser(add_parser)
+    add_complete_op_parser(add_parser)
 
     add_start_tx_parser(add_parser)
     add_abort_tx_parser(add_parser)
