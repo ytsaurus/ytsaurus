@@ -76,15 +76,15 @@ void WriteRow(TRow row, TExecutionContext* context)
 {
     CHECK_STACK();
 
-    if (context->RowsWritten >= context->Limit) {
+    if (context->Statistics->RowsWritten >= context->Limit) {
         throw TInterruptedCompleteException();
     }
 
-    if (context->RowsWritten >= context->OutputRowLimit) {
+    if (context->Statistics->RowsWritten >= context->OutputRowLimit) {
         throw TInterruptedIncompleteException();
     }
 
-    ++context->RowsWritten;
+    ++context->Statistics->RowsWritten;
 
     auto* batch = context->OutputRowsBatch;
 
@@ -139,13 +139,13 @@ void ScanOpHelper(
             }),
             rows.end());
 
-        if (context->RowsRead + rows.size() >= context->InputRowLimit) {
-            YCHECK(context->RowsRead <= context->InputRowLimit);
-            rows.resize(context->InputRowLimit - context->RowsRead);
+        if (context->Statistics->RowsRead + rows.size() >= context->InputRowLimit) {
+            YCHECK(context->Statistics->RowsRead <= context->InputRowLimit);
+            rows.resize(context->InputRowLimit - context->Statistics->RowsRead);
             context->Statistics->IncompleteInput = true;
             hasMoreData = false;
         }
-        context->RowsRead += rows.size();
+        context->Statistics->RowsRead += rows.size();
 
         consumeRows(consumeRowsClosure, rows.data(), rows.size());
         rows.clear();

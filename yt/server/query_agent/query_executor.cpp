@@ -207,17 +207,18 @@ private:
 
                 LOG_DEBUG("Evaluating subquery (SubqueryId: %v)", subquery->Id);
 
+                auto asyncSubqueryResults = std::make_shared<std::vector<TFuture<TQueryStatistics>>>();
+
                 auto foreignExecuteCallback = [
+                    asyncSubqueryResults,
                     externalCGInfo,
                     options,
                     remoteExecutor,
                     Logger
                 ] (
                     const TQueryPtr& subquery,
-                    TGuid dataId,
-                    TRowBufferPtr buffer,
-                    TRowRanges ranges,
-                    ISchemafulWriterPtr writer) -> TFuture<TQueryStatistics>
+                    TDataRanges dataRanges,
+                    ISchemafulWriterPtr writer)
                 {
                     LOG_DEBUG("Evaluating remote subquery (SubqueryId: %v)", subquery->Id);
 
@@ -225,17 +226,12 @@ private:
                     subqueryOptions.Timestamp = options.Timestamp;
                     subqueryOptions.VerboseLogging = options.VerboseLogging;
 
-                    TDataRanges dataSource{
-                        dataId,
-                        MakeSharedRange(std::move(ranges), std::move(buffer))
-                    };
-
-                    return remoteExecutor->Execute(
+                    asyncSubqueryResults->push_back(remoteExecutor->Execute(
                         subquery,
                         externalCGInfo,
-                        std::move(dataSource),
+                        std::move(dataRanges),
                         writer,
-                        subqueryOptions);
+                        subqueryOptions));
                 };
 
                 auto asyncStatistics = BIND(&TEvaluator::RunWithExecutor, Evaluator_)
@@ -248,10 +244,23 @@ private:
                         aggregateGenerators,
                         options.EnableCodeCache);
 
-                asyncStatistics.Subscribe(BIND([=] (const TErrorOr<TQueryStatistics>& result) {
+                asyncStatistics.Apply(BIND([=] (const TErrorOr<TQueryStatistics>& result) -> TErrorOr<TQueryStatistics>{
                     if (!result.IsOK()) {
                         pipe->Fail(result);
                         LOG_DEBUG(result, "Failed evaluating subquery (SubqueryId: %v)", subquery->Id);
+                        return result;
+                    } else {
+                        TQueryStatistics statistics = result.Value();
+
+                        for (const auto& asyncSubqueryResult : *asyncSubqueryResults) {
+                            auto subqueryStatistics = WaitFor(asyncSubqueryResult)
+                                .ValueOrThrow();
+
+                            LOG_DEBUG("Remote subquery statistics %v", subqueryStatistics);
+                            statistics += subqueryStatistics;
+                        }
+
+                        return statistics;
                     }
                 }));
 
