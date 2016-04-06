@@ -123,7 +123,11 @@ size_t TYaMRTableReader::Load(void *buf, size_t len)
     }
 
     if (hasError) {
-        if (Input_->OnStreamError(ex, RangeIndex_.GetOrElse(0ul), RowIndex_.GetOrElse(0ull))) {
+        if (Input_->OnStreamError(ex, !RowIndex_.Defined(),
+            RangeIndex_.GetOrElse(0ul), RowIndex_.GetOrElse(0ull)))
+        {
+            RowIndex_.Clear();
+            RangeIndex_.Clear();
             throw TRetryException();
         } else {
             ythrow ex;
