@@ -1657,7 +1657,7 @@ protected:
         YCHECK(Bootstrap_->IsPrimaryMaster() || cellTag == Bootstrap_->GetPrimaryCellTag());
 
         auto multicellManager = Bootstrap_->GetMulticellManager();
-        if (multicellManager->IsRegisteredMasterCell(cellTag)) {
+        if (!multicellManager->IsRegisteredMasterCell(cellTag)) {
             LOG_ERROR_UNLESS(IsRecovery(), "Received user statistics gossip message from unknown cell (CellTag: %v)",
                 cellTag);
             return;
