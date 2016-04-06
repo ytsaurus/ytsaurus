@@ -142,14 +142,11 @@ TCodegenSource MakeCodegenProjectOp(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCGQueryCallback CodegenEvaluate(
-    TCodegenSource codegenSource);
+TCGQueryCallback CodegenEvaluate(TCodegenSource codegenSource, size_t opaqueValuesCount);
 
-TCGExpressionCallback CodegenExpression(
-    TCodegenExpression codegenExpression);
+TCGExpressionCallback CodegenExpression(TCodegenExpression codegenExpression, size_t opaqueValuesCount);
 
-TCGAggregateCallbacks CodegenAggregate(
-    TCodegenAggregate codegenAggregate);
+TCGAggregateCallbacks CodegenAggregate(TCodegenAggregate codegenAggregate);
 
 ////////////////////////////////////////////////////////////////////////////////
 

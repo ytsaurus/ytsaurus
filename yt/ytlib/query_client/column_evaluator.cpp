@@ -81,7 +81,6 @@ void TColumnEvaluator::EvaluateKey(TMutableRow fullRow, const TRowBufferPtr& buf
     YCHECK(evaluator);
 
     TExecutionContext executionContext;
-    executionContext.LiteralRows = &column.Variables.LiteralRows;
     executionContext.PermanentBuffer = buffer;
     executionContext.OutputBuffer = buffer;
     executionContext.IntermediateBuffer = buffer;
@@ -90,20 +89,11 @@ void TColumnEvaluator::EvaluateKey(TMutableRow fullRow, const TRowBufferPtr& buf
     executionContext.StackSizeGuardHelper = reinterpret_cast<size_t>(&dummy);
 #endif
 
-    std::vector<TFunctionContext*> functionContexts;
-    for (auto& literalArgs : column.Variables.AllLiteralArgs) {
-        executionContext.FunctionContexts.emplace_back(std::move(literalArgs));
-    }
-    for (auto& functionContext : executionContext.FunctionContexts) {
-        functionContexts.push_back(&functionContext);
-    }
-
     evaluator(
+        column.Variables.GetOpaqueData(),
         &fullRow[index],
         fullRow,
-        const_cast<TRowBuilder&>(column.Variables.ConstantsRowBuilder).GetRow(),
-        &executionContext,
-        &functionContexts[0]);
+        &executionContext);
 
     fullRow[index].Id = index;
 }
