@@ -2,6 +2,8 @@
 #error "Direct inclusion of this file is not allowed, include proc.h"
 #endif
 
+#include <errno.h>
+
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
